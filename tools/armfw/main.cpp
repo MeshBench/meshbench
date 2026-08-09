@@ -34,10 +34,47 @@ static void uart_putc(char c) {
 
 static void uart_puts(const char* s) { while (*s) uart_putc(*s++); }
 
+// nRF52840 SPIM2 at 0x40023000 — the controller Renode models and the RAK4631
+// wires the SX1262 to. Raw register poking rather than a driver: this firmware
+// exists to prove the chain firmware -> SPI -> SX1262 model -> bridge -> RF
+// engine, and a driver would only add a layer to be wrong in.
+#define SPI_BASE 0x40023000u
+#define SPI_REG(o) (*(volatile uint32_t*)(SPI_BASE + (o)))
+
+static uint8_t spi_xfer(uint8_t out) {
+  // Renode's NRF52840_SPI exposes the legacy SPI TXD/RXD path.
+  SPI_REG(0x518) = out;                 // TXD
+  for (volatile int i = 0; i < 200; i++) {}
+  return (uint8_t)SPI_REG(0x51C);       // RXD
+}
+
+static void spi_init() {
+  SPI_REG(0x500) = 1;                   // ENABLE
+  SPI_REG(0x524) = 0x02000000;          // FREQUENCY
+}
+
+// One SX1262 command: opcode then arguments, response captured.
+static uint8_t sx_cmd(uint8_t opcode, const uint8_t* args, int n) {
+  uint8_t status = spi_xfer(opcode);
+  for (int i = 0; i < n; i++) spi_xfer(args[i]);
+  return status;
+}
+
 class SimRadio : public Radio {
 public:
   volatile int txCount = 0;
-  bool startSendRaw(const uint8_t*, int) override { txCount++; return true; }
+  bool startSendRaw(const uint8_t* bytes, int len) override {
+    txCount++;
+    // WriteBuffer at offset 0, then SetTx. The SX1262 model forwards the buffer
+    // to the RF engine over its bridge, so this frame joins the same channel a
+    // native node's would.
+    spi_xfer(0x0E);                       // WriteBuffer
+    spi_xfer(0x00);                       // offset
+    for (int i = 0; i < len; i++) spi_xfer(bytes[i]);
+    const uint8_t txArgs[3] = {0, 0, 0};  // timeout: no timeout
+    sx_cmd(0x83, txArgs, 3);              // SetTx
+    return true;
+  }
   bool isSendComplete() override { return true; }
   void onSendFinished() override {}
   int recvRaw(uint8_t*, int) override { return 0; }
@@ -109,7 +146,21 @@ static SimRTC rtc; static SimPM mgr; static SimTables tables;
 
 int main() {
   uart_init();
+  spi_init();
   uart_puts("MSIM bare-metal nRF52840, no SoftDevice\r\n");
+
+  // Talk to the radio before the mesh does, so a wiring fault is reported here
+  // rather than as an inexplicable mesh failure later.
+  // One NOP byte, not a null pointer: sx_cmd dereferences args[0], and passing
+  // null with n=1 is undefined behaviour. GCC is entitled to delete everything
+  // after it — and did, silently reducing main() to 72 bytes with the whole
+  // mesh stack garbage-collected out of the image.
+  const uint8_t nop = 0x00;
+  uint8_t st = sx_cmd(0xC0, &nop, 1);
+  uart_puts("SX1262 GetStatus: ");
+  const char* hex = "0123456789ABCDEF";
+  uart_putc(hex[(st >> 4) & 0xF]); uart_putc(hex[st & 0xF]);
+  uart_puts("\r\n");
 
   static SimNode node(radio, clk, rng, rtc, mgr, tables);
   node.begin();

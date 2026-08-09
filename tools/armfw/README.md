@@ -39,11 +39,47 @@ is imposed by the Adafruit nRF52 Arduino core's linker layout, not by anything
 MeshCore calls. Building it ourselves drops SVC sites from 119 to 5 (residual
 data patterns, not instructions) and the image boots directly.
 
+## A bug worth recording: UB deleted the firmware
+
+Adding the SPI driver silently reduced the image from 30 KB to **346 bytes**,
+with all 84 mesh symbols garbage-collected out. `main` was still present — at
+72 bytes.
+
+The cause was one line:
+
+```c
+uint8_t st = sx_cmd(0xC0, 0, 1);   // args = nullptr, n = 1
+```
+
+`sx_cmd` dereferences `args[0]`, so this is a null dereference. GCC is entitled
+to assume undefined behaviour never happens, and deleted everything after the
+call. No warning, no error — a clean build producing an image with no firmware
+in it.
+
+Fixed by passing a real NOP byte. Worth knowing because the symptom (a tiny
+binary) points nowhere near the cause, and `-Os` with UB will do this again to
+anyone who repeats the pattern.
+
 ## Where it currently stops
 
-41 UART writes — exactly the first line — then no further output. So it reaches
-`main()`, initialises the UART, prints, and stalls before `Mesh::begin()`
-returns.
+With the SX1262 attached the firmware now prints:
+
+```
+MSIM bare-metal nRF52840, no SoftDevice
+SX1262 GetStatus: 00
+```
+
+Two distinct problems, both located:
+
+1. **The SPI transaction never reaches the peripheral.** `GetStatus` returned
+   `00` and Renode logged *zero* SX1262 lines, so the raw legacy TXD/RXD offsets
+   (`0x518`/`0x51C`) are not what Renode's `NRF52840_SPI` routes. Its model is
+   the EasyDMA (SPIM) variant, so the firmware needs to use TXD.PTR/RXD.PTR and
+   TASKS_START rather than poking a data register.
+2. **`Mesh::begin()` still does not return.** Likely slow rather than stuck:
+   `LocalIdentity` does a Curve25519 scalar multiplication, which is expensive in
+   software and far worse under emulation. Put a print either side of the keygen
+   to tell those apart before assuming a fault.
 
 The likely cause is not a hang: **Ed25519 key generation on an emulated
 Cortex-M4 is very slow**. `LocalIdentity` does a Curve25519 scalar
