@@ -49,11 +49,40 @@ class Print {
     }
   }
 
+  // Arduino's two-argument form, print(value, base). MeshCore's config
+  // serializer writes every integer with it.
+  template <class T, class = decltype(T{} + 0)>
+  size_t print(T v, int base) {
+    if (base == 16) return printf("%llx", (unsigned long long)v);
+    if (base == 8) return printf("%llo", (unsigned long long)v);
+    if (base == 2) return printBinary((unsigned long long)v);
+    return print(v);
+  }
+
   template <class T>
   size_t println(T v) {
     return print(v) + print("\r\n");
   }
+  template <class T, class = decltype(T{} + 0)>
+  size_t println(T v, int base) {
+    return print(v, base) + print("\r\n");
+  }
   size_t println() { return print("\r\n"); }
+
+ private:
+  size_t printBinary(unsigned long long v) {
+    char buf[65];
+    int i = 64;
+    buf[i] = 0;
+    if (v == 0) buf[--i] = '0';
+    while (v && i > 0) {
+      buf[--i] = (v & 1) ? '1' : '0';
+      v >>= 1;
+    }
+    return print(&buf[i]);
+  }
+
+ public:
 
   size_t printf(const char* fmt, ...) {
     char buf[512];
