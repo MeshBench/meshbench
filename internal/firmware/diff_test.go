@@ -74,12 +74,12 @@ func pair(t *testing.T) (*firmware.Node, *firmware.Node) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { a.Close() })
+	t.Cleanup(func() { _ = a.Close() })
 	b, err := firmware.Start(ctx, "b", &firmware.Native{Seed: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { b.Close() })
+	t.Cleanup(func() { _ = b.Close() })
 	waitAttached(t, a)
 	waitAttached(t, b)
 	return a, b
