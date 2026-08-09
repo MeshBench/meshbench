@@ -1,0 +1,9 @@
+// UICR — absent from Renode's own nRF52840 platform.
+//
+// The MBR reads UICR.NRFFW[0] to find the bootloader. Renode returns 0 for an
+// unmapped region, and 0 is a perfectly valid flash address, so the MBR tries
+// to hand over to a bootloader that is not there and never reaches the
+// SoftDevice. Erased flash reads 0xFFFFFFFF, which is what "no bootloader"
+// actually means — see uicr_erase.resc, which writes that pattern.
+uicr: Memory.MappedMemory @ sysbus 0x10001000
+    size: 0x1000

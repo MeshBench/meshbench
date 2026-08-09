@@ -153,16 +153,40 @@ though the error behaviour is not.
 
 ## 3. Firmware fidelity
 
-### 3.1 The emulated firmware is our build, not the shipped image
+### 3.1 The shipped image boots, but does not yet reach its radio
 
-Real MeshCore boots and transmits on an emulated nRF52840 — but it is compiled
-by us, without the SoftDevice, without the Adafruit Arduino core, and without
-FreeRTOS. The published `.uf2` cannot currently be run: it is linked above a
-SoftDevice with 119 SVC call sites into Nordic code Renode does not model.
+**This entry previously said the published `.uf2` could not be run at all,
+because the SoftDevice needed Nordic behaviour Renode does not model. That was
+wrong, and measuring it disproved it.**
 
-**Consequence.** Anything that depends on the real scheduler or the real BLE
-stack's interrupt latency is not reproduced. If a bug only appears when the
-SoftDevice steals time from the radio ISR, MeshcoreSim will not show it.
+The real `RAK_4631_repeater-v1.17.0` image boots through the MBR and the s140
+SoftDevice and reaches its own application main loop under Renode. Three things
+were in the way, none of them the SoftDevice:
+
+1. **UICR is absent from Renode's nRF52840 platform.** The MBR reads
+   `UICR.NRFFW[0]` to find a bootloader; Renode returns 0 for an unmapped
+   region, and 0 is a valid flash address, so the MBR spends eternity handing
+   over to a bootloader that is not there.
+2. **Renode's flash is zero-filled; real erased flash is `0xFF`.** The MBR
+   checks for exactly that pattern to decide whether an MBR parameter page
+   exists. Loading the SoftDevice and the application as separate images leaves
+   zeros between them, and the boot chain quietly takes the wrong branch. The
+   fix is to build one pre-filled image — `tools/renode/merge-nrf52.py`.
+3. **MWU is unimplemented.** The SoftDevice uses the Memory Watch Unit for its
+   critical sections and hits it constantly. Renode answers from the SVD, which
+   is enough not to fault but is not the peripheral behaving.
+
+What still does not happen is SPI traffic to the SX1262, so the shipped image
+has not been observed driving its radio. That is now a peripheral-coverage
+question — the right SPI instance for the board, and MWU — rather than a
+proprietary-blob question.
+
+**Consequence, as it actually stands.** Our own SoftDevice-free build is what
+runs end to end today, so anything depending on the real scheduler, or on the
+BLE stack stealing time from the radio ISR, is still not reproduced. But the
+path to running stock images is open and short, which matters: downloading
+prebuilt firmware is meant to be the *default* experience (ADR-0020), not a
+stretch goal.
 
 ### 3.2 The SX1262 model is functional, not cycle-accurate
 
