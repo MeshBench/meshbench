@@ -5,8 +5,11 @@
 // at namespace scope and there is nowhere later to put them.
 #pragma once
 
+#include <stdarg.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 // Seeded rather than entropic: a run has to be reproducible from its seed, and
 // the identity a node generates comes through here.
@@ -60,6 +63,22 @@ class HostSerial : public Stream {
   size_t write(const uint8_t* buf, size_t len) override {
     if (out_) out_((const char*)buf, len);
     return len;
+  }
+
+  // MeshCore's own Stream mock lacks these; the repeater's console uses them
+  // for every reply it sends.
+  size_t print(const char* s) { return s ? write((const uint8_t*)s, strlen(s)) : 0; }
+  size_t println(const char* s) { return print(s) + print("\r\n"); }
+  size_t println() { return print("\r\n"); }
+  size_t printf(const char* fmt, ...) {
+    char buf[512];
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vsnprintf(buf, sizeof buf, fmt, ap);
+    va_end(ap);
+    if (n <= 0) return 0;
+    if (n > (int)sizeof buf - 1) n = (int)sizeof buf - 1;
+    return write((const uint8_t*)buf, (size_t)n);
   }
 
   void begin(unsigned long) {}
