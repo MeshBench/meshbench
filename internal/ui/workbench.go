@@ -262,8 +262,21 @@ func (a *App) drawNodes(origin imgui.Vec2) {
 		if i == from || i == to {
 			dl.AddCircleFilled(p, 9, colour(1, 1, 1, 0.35))
 		}
-		dl.AddCircleFilled(p, 5, col)
-		dl.AddTextVec2V(imgui.NewVec2(p.X+8, p.Y-7), colour(0.92, 0.93, 0.96, 0.95), n.Name)
+		// A ring, so a marker reads against both a dark hillshade and a light
+		// street map without changing colour.
+		dl.AddCircleFilled(p, 6, colour(0.05, 0.06, 0.08, 0.85))
+		dl.AddCircleFilled(p, 4, col)
+
+		// The label gets its own backing for the same reason. White text was
+		// invisible over a light basemap, which is exactly where the place
+		// names it has to compete with already are.
+		label := imgui.NewVec2(p.X+9, p.Y-7)
+		size := imgui.CalcTextSize(n.Name)
+		dl.AddRectFilledV(
+			imgui.NewVec2(label.X-3, label.Y-1),
+			imgui.NewVec2(label.X+size.X+3, label.Y+size.Y+1),
+			colour(0.05, 0.06, 0.08, 0.7), 3, 0)
+		dl.AddTextVec2V(label, colour(0.95, 0.96, 1, 1), n.Name)
 	}
 
 	// The selected link, drawn on the map so the profile below has something to
@@ -308,10 +321,21 @@ func (a *App) drawScale(origin imgui.Vec2, h float32) {
 	if step >= 1000 {
 		label = fmt.Sprintf("%.0f km", step/1000)
 	}
-	dl.AddTextVec2V(imgui.NewVec2(x, y-20), colour(0.95, 0.96, 1, 0.9), label)
 
-	// Attribution, on the map, for as long as the data is on it.
-	dl.AddTextVec2V(imgui.NewVec2(x, y+8), colour(0.85, 0.87, 0.92, 0.75), a.attribution())
+	// The scale and the attribution sit on their own strip, so both stay
+	// readable whatever basemap is underneath. Attribution that cannot be read
+	// is not attribution.
+	attribution := a.attribution()
+	stripW := px + 24
+	if s := imgui.CalcTextSize(attribution); s.X+24 > stripW {
+		stripW = s.X + 24
+	}
+	dl.AddRectFilledV(
+		imgui.NewVec2(x-8, y-24),
+		imgui.NewVec2(x+stripW, y+26),
+		colour(0.05, 0.06, 0.08, 0.6), 4, 0)
+	dl.AddTextVec2V(imgui.NewVec2(x, y-20), colour(0.95, 0.96, 1, 0.95), label)
+	dl.AddTextVec2V(imgui.NewVec2(x, y+8), colour(0.9, 0.92, 0.96, 0.9), attribution)
 }
 
 // fetchVisibleTerrain downloads the tiles for what is on screen.
