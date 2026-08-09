@@ -81,7 +81,20 @@ emitters; ambient noise is not modelled at all.
 
 **Direction of error: optimistic.**
 
-### 1.6 Antenna patterns are analytic, not measured
+### 1.6 The SDR observer sees one channel, not a band
+
+An observer captures the modelled channel and nothing else, so its
+`SampleRateHz` is the simulated bandwidth. A real SDR at 2 Msps sees several
+hundred kHz of neighbours; ours sees empty space, because the engine never
+generated anything there. Adjacent channels are **absent, not quiet** — the
+waterfall will never show a neighbouring network, an ISM-band doorbell or a
+harmonic, because none exists to show.
+
+The receive filter in `Listen` is also a brick wall in the frequency domain. No
+real receiver has one, so adjacent-signal rejection is better than any hardware
+achieves.
+
+### 1.7 Antenna patterns are analytic, not measured
 
 Isotropic, dipole, collinear and Yagi from closed-form expressions. No measured
 patterns (`.msi`, NEC), no mast shadowing, no mutual coupling, no radome or
