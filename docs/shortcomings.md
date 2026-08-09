@@ -303,15 +303,29 @@ Specified and ticketed, with nothing running behind them:
 
 | | |
 |---|---|
-| The application itself | MSIM-10 — everything so far is libraries, tests and render tools. There is no desktop shell yet. |
-| Coverage rasters, planning tools | MSIM-34, MSIM-35 |
-| Terrain and boundary auto-download | MSIM-38, MSIM-37 |
-| Prebuilt firmware catalogue | MSIM-13, ADR-0020 |
-| Observer import and real-traffic replay | MSIM-27 |
-| Provider interface, CoreScope/Beacon/MQTT | MSIM-30, 31, 32 |
-| MCP server | MSIM-36 — the Claude skill exists; the server does not |
-| Battery and solar | MSIM-19 |
-| External interference, antenna filters | MSIM-20, MSIM-21 |
+| Antenna filters against interference | MSIM-21 — the emitter model exists (MSIM-20); per-emitter emission masks and receive filters do not |
+| Instrumented firmware builds | MSIM-26 |
+| Calibrating excess loss from residuals | MSIM-29 — needs MSIM-28 to have data first |
+| Shadow mode: live model-versus-reality | MSIM-33 |
+| Our own MeshCore builds in a separate MIT repo | MSIM-39 — the repo has not been created |
+
+Built since this list was first written: the desktop application (MSIM-10), the
+terrain cut-through view (MSIM-11), coverage rasters and planning (MSIM-34/35),
+terrain and boundary download (MSIM-38/37), the firmware catalogue (MSIM-13),
+the provider interface with CoreScope, Beacon and MQTT (MSIM-30/31/32), battery
+and solar (MSIM-19), external interference (MSIM-20), the MCP server (MSIM-36),
+the validation harness (MSIM-28), replay (MSIM-27), board profiles (MSIM-18),
+the multi-node console (MSIM-25), the emulated/native cross-check (MSIM-40) and
+a command line covering all of it (MSIM-23).
+
+### What the application does not do yet
+
+There is a window, and it answers the question the whole project is about — pick
+two nodes, get both margins and a terrain cut-through explaining the verdict.
+What it does not have is a **map**. Nodes are a list, not points on terrain, and
+the coverage rasters that `meshcoresim coverage` writes as a PNG are not drawn in
+the application. That is the largest remaining gap in the product rather than in
+the physics.
 
 ---
 
