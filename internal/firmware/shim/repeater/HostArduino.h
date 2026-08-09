@@ -28,6 +28,27 @@ template <class T, class U>
 constexpr auto max(T a, U b) -> decltype(a > b ? a : b) {
   return a > b ? a : b;
 }
+template <class T, class L, class H>
+constexpr auto constrain(T v, L lo, H hi) -> decltype(v < lo ? lo : (v > hi ? hi : v)) {
+  return v < lo ? lo : (v > hi ? hi : v);
+}
+
+// Arduino's integer-to-string helpers, which MeshCore uses for its CLI replies.
+inline char* ltoa(long value, char* out, int base) {
+  if (base == 10) {
+    sprintf(out, "%ld", value);
+  } else if (base == 16) {
+    sprintf(out, "%lx", value);
+  } else {
+    sprintf(out, "%ld", value);
+  }
+  return out;
+}
+inline char* itoa(int value, char* out, int base) { return ltoa(value, out, base); }
+inline char* utoa(unsigned long value, char* out, int base) {
+  sprintf(out, base == 16 ? "%lx" : "%lu", value);
+  return out;
+}
 
 inline long random(long howbig) { return howbig <= 0 ? 0 : random() % howbig; }
 inline long random(long howsmall, long howbig) {

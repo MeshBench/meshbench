@@ -20,12 +20,18 @@
 
 #include <string>
 
+#include <Stream.h>
+
 #define FILE_O_READ "rb"
 #define FILE_O_WRITE "wb"
 
 namespace Adafruit_LittleFS_Namespace {
 
-class File {
+// Derived from Stream, as Arduino's File is. CommonCLI hands one to anything
+// taking a Stream&, and Identity::readFrom/writeTo are declared on Stream — so
+// this is not a convenience, it is the type relationship MeshCore is written
+// against.
+class File : public Stream {
  public:
   File() = default;
   File(FILE* f, const std::string& path) : f_(f), path_(path) {}
@@ -33,21 +39,28 @@ class File {
   explicit operator bool() const { return f_ != nullptr; }
   bool operator!() const { return f_ == nullptr; }
 
-  // Single-byte read, which is how MeshCore streams a file to the console.
-  int read() {
+  int read() override {
     if (!f_) return -1;
     int c = fgetc(f_);
     return c == EOF ? -1 : c;
   }
-  int read(uint8_t* buf, size_t len) {
-    if (!f_) return 0;
-    return (int)fread(buf, 1, len, f_);
+  int peek() override { return -1; }
+  void flush() override {
+    if (f_) fflush(f_);
   }
-  size_t write(const uint8_t* buf, size_t len) {
+  int available() override { return f_ ? (int)(size() - (uint32_t)ftell(f_)) : 0; }
+
+  size_t readBytes(uint8_t* buf, size_t len) {
+    if (!f_) return 0;
+    return fread(buf, 1, len, f_);
+  }
+  int read(uint8_t* buf, size_t len) { return (int)readBytes(buf, len); }
+
+  size_t write(const uint8_t* buf, size_t len) override {
     if (!f_) return 0;
     return fwrite(buf, 1, len, f_);
   }
-  size_t write(uint8_t b) { return write(&b, 1); }
+  size_t write(uint8_t b) override { return write(&b, 1); }
 
   // The repeater writes its preferences and its ACL as text, so print and
   // printf are not conveniences here — they are how those files are produced.
@@ -72,7 +85,6 @@ class File {
     fseek(f_, here, SEEK_SET);
     return (uint32_t)end;
   }
-  int available() { return f_ ? (int)(size() - (uint32_t)ftell(f_)) : 0; }
   void close() {
     if (f_) {
       fclose(f_);
