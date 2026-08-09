@@ -12,10 +12,21 @@ import (
 	"github.com/A13xB0/meshcoresim/internal/scenario"
 )
 
-func (a *App) drawNodeList() {
+func (a *App) drawInspector() {
 	imgui.SeparatorText("Nodes")
-	imgui.TextWrapped("click a node, then ctrl-click a second")
+	imgui.TextWrapped("click on the map to select; ctrl-click a second for a link")
 
+	// The list is a companion to the map, not the primary way in, so it
+	// scrolls and does not try to show four hundred nodes at once.
+	if imgui.BeginChildStrV("##nodelist", imgui.NewVec2(0, 160), 0, 0) {
+		a.drawNodeRows()
+	}
+	imgui.EndChild()
+
+	a.drawSelected()
+}
+
+func (a *App) drawNodeRows() {
 	for i := range a.Nodes {
 		n := &a.Nodes[i]
 		label := fmt.Sprintf("%s##%d", n.Name, i)
@@ -36,7 +47,9 @@ func (a *App) drawNodeList() {
 		imgui.SameLine()
 		imgui.TextDisabled(kindLabel(n.Kind))
 	}
+}
 
+func (a *App) drawSelected() {
 	imgui.Spacing()
 	imgui.SeparatorText("Selected")
 	if a.selected < 0 {

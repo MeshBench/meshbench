@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"image"
 	"math"
 
 	"github.com/AllenDang/cimgui-go/imgui"
@@ -52,7 +51,7 @@ func (a *App) drawMap(w, h float32) {
 	}
 
 	origin := imgui.CursorScreenPos()
-	imgui.InvisibleButton("##map", imgui.NewVec2(w, h), 0)
+	imgui.InvisibleButtonV("##map", imgui.NewVec2(w, h), 0)
 	hovered := imgui.IsItemHovered()
 
 	a.handleMapInput(origin, hovered)
@@ -91,7 +90,7 @@ func (a *App) handleMapInput(origin imgui.Vec2, hovered bool) {
 		}
 	}
 
-	if !hovered || !imgui.IsMouseReleasedBool(imgui.MouseButtonLeft) {
+	if !hovered || !imgui.IsMouseReleased(imgui.MouseButtonLeft) {
 		return
 	}
 	// A click that ended a drag is not a click. Without this every pan places a
@@ -198,11 +197,9 @@ func (a *App) regenerateTerrain(w, h int) {
 	if img == nil || a.backend == nil {
 		return
 	}
-	tex := a.backend.CreateTextureRgba(toRGBA(img), img.Bounds().Dx(), img.Bounds().Dy())
+	tex := a.backend.CreateTextureRgba(img, img.Bounds().Dx(), img.Bounds().Dy())
 	a.terrainTex = &tex
 }
-
-func toRGBA(img *image.RGBA) *image.RGBA { return img }
 
 func (a *App) drawNodes(origin imgui.Vec2) {
 	dl := imgui.WindowDrawList()
@@ -231,7 +228,7 @@ func (a *App) drawNodes(origin imgui.Vec2) {
 			dl.AddCircleFilled(p, 9, colour(1, 1, 1, 0.35))
 		}
 		dl.AddCircleFilled(p, 5, col)
-		dl.AddText(imgui.NewVec2(p.X+8, p.Y-7), colour(0.92, 0.93, 0.96, 0.95), n.Name)
+		dl.AddTextVec2V(imgui.NewVec2(p.X+8, p.Y-7), colour(0.92, 0.93, 0.96, 0.95), n.Name)
 	}
 
 	// The selected link, drawn on the map so the profile below has something to
@@ -276,5 +273,5 @@ func (a *App) drawScale(origin imgui.Vec2, h float32) {
 	if step >= 1000 {
 		label = fmt.Sprintf("%.0f km", step/1000)
 	}
-	dl.AddText(imgui.NewVec2(x, y-20), colour(0.95, 0.96, 1, 0.9), label)
+	dl.AddTextVec2V(imgui.NewVec2(x, y-20), colour(0.95, 0.96, 1, 0.9), label)
 }
