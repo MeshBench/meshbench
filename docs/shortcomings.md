@@ -229,7 +229,27 @@ the same wall — `radio_init()` drives an SX1262 that QEMU does not model, and 
 ESP32-side peripheral exists yet. Board profiles (MSIM-18) are specified, not
 implemented.
 
-### 3.5 BLE is ours, not the firmware's
+### 3.5 Forwarding policy is ours, not the repeater application's
+
+The native node links MeshCore's *library* — `Mesh`, `Dispatcher`, `Packet`,
+`Identity` — which is where routing, retransmit timing, duty-cycle accounting
+and CSMA live. It does not link the repeater *application*.
+
+That matters for exactly one method. `MyMesh::allowPacketForward` in
+`examples/simple_repeater` enforces region transport codes, a configurable
+loop-detect table and several hop caps, and it needs Arduino preferences, an
+RTC and a filesystem to do it. Our node implements that method's essential
+half: flood packets forward until the hop cap.
+
+**Consequence.** Relay *timing* is MeshCore's, and so is every decision about
+when the channel is clear. Relay *eligibility* is ours, and a network whose
+behaviour depends on region scoping or on the stricter loop-detect settings
+will behave differently here. Without any override the base class refuses to
+forward at all and a flood stops dead at the origin's neighbours — which looks
+exactly like a network with no repeaters configured, so this is not something
+that can simply be left out.
+
+### 3.6 BLE is ours, not the firmware's
 
 The Bluetooth companion is a host-side BlueZ GATT server presenting the Nordic
 UART Service. It is genuinely connectable from a real phone — but it is *our*

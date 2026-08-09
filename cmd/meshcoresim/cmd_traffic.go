@@ -157,7 +157,10 @@ func reportTraffic(e *engine.Engine, nodes []scenario.Node, origin string, verbo
 	// that makes a reader distrust the rest of the report.
 	heard := map[string]bool{}
 	for _, ev := range events {
-		if ev.Kind == "rx" {
+		// The origin hears its own message relayed back, which is real and
+		// worth seeing in the timeline — but counting it as reach would say
+		// five of four nodes heard it.
+		if ev.Kind == "rx" && ev.To != origin {
 			heard[ev.To] = true
 		}
 	}
