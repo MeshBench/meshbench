@@ -54,17 +54,29 @@ func baseFor(sf int) []complex128 {
 // from the shifted index rather than the sample index, which is what makes the
 // symbol wrap continuously instead of stepping at the fold.
 func (m Modulator) ModulateSymbol(s int) []complex128 {
+	out := make([]complex128, SamplesPerSymbol(m.SF))
+	m.ModulateSymbolInto(out, s)
+	return out
+}
+
+// ModulateSymbolInto writes a symbol into a buffer the caller owns.
+//
+// The Monte Carlo sensitivity sweep modulates millions of symbols, and at SF12
+// each one is a 64 kB allocation. Handing the same buffer back is not a
+// micro-optimisation there — it is most of the garbage the sweep produces.
+func (m Modulator) ModulateSymbolInto(dst []complex128, s int) {
 	// x_s[i] = chirpSample(i, s, n) uses k = (s+i) mod n, and the base chirp is
 	// chirpSample(j, 0, n) with k = j. So a modulated symbol is exactly the base
 	// chirp rotated by s — no trigonometry at all, just two copies. Identical
 	// bit for bit, which TestModulationIsACyclicShift asserts.
 	base := baseFor(m.SF)
 	n := len(base)
-	out := make([]complex128, n)
+	if len(dst) < n {
+		panic("dsp: ModulateSymbolInto needs a buffer of 2^SF samples")
+	}
 	s = ((s % n) + n) % n
-	copy(out, base[s:])
-	copy(out[n-s:], base[:s])
-	return out
+	copy(dst[:n], base[s:])
+	copy(dst[n-s:n], base[:s])
 }
 
 // Modulate concatenates symbols into one waveform.
@@ -99,12 +111,18 @@ type Demodulator struct {
 // magnitude over the next strongest bin). The ratio is what the UI shows when
 // explaining a marginal decode, and what makes a collision legible.
 func (d Demodulator) DemodulateSymbol(rx []complex128) (symbol int, confidence float64) {
+	return d.DemodulateSymbolInto(make([]complex128, SamplesPerSymbol(d.SF)), rx)
+}
+
+// DemodulateSymbolInto is DemodulateSymbol with a scratch buffer the caller
+// owns, for the same reason ModulateSymbolInto exists.
+func (d Demodulator) DemodulateSymbolInto(scratch, rx []complex128) (symbol int, confidence float64) {
 	n := SamplesPerSymbol(d.SF)
-	if len(rx) < n {
+	if len(rx) < n || len(scratch) < n {
 		return 0, 0
 	}
 	base := baseFor(d.SF)
-	buf := make([]complex128, n)
+	buf := scratch[:n]
 	for i := 0; i < n; i++ {
 		// multiply by the conjugate of the base chirp
 		buf[i] = rx[i] * complex(real(base[i]), -imag(base[i]))

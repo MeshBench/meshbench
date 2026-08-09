@@ -60,14 +60,19 @@ func PacketErrorRate(sf int, snrDB float64, symbolsPerPacket, packets int, seed 
 	sigPower := SignalPower(m.ModulateSymbol(0))
 	noisePower := NoisePowerForSNR(sigPower, snrDB)
 
+	// Two buffers for the whole sweep instead of two allocations per symbol. At
+	// SF12 that is 128 kB of garbage per symbol, millions of times over.
+	rx := make([]complex128, n)
+	scratch := make([]complex128, n)
+
 	bad := 0
 	for p := 0; p < packets; p++ {
 		for sym := 0; sym < symbolsPerPacket; sym++ {
 			ctr := uint64(p*symbolsPerPacket + sym)
 			want := int(rng.uint64At(ctr) % uint64(n))
-			rx := m.ModulateSymbol(want)
+			m.ModulateSymbolInto(rx, want)
 			rng.AddAWGN(rx, noisePower, ctr*uint64(n)+1<<40)
-			if got, _ := d.DemodulateSymbol(rx); got != want {
+			if got, _ := d.DemodulateSymbolInto(scratch, rx); got != want {
 				bad++
 				break // packet already lost; no need to finish it
 			}
@@ -86,8 +91,16 @@ func FindRequiredSNR(sf int, targetPER float64, packets, symbolsPerPacket int, s
 	if symbolsPerPacket <= 0 {
 		symbolsPerPacket = 40
 	}
-	lo, hi := -40.0, 10.0 // PER is ~1 at lo and ~0 at hi for every supported SF
-	for i := 0; i < 12; i++ {
+	// PER is ~1 at lo and ~0 at hi for every supported SF.
+	//
+	// Bisection stops at a tenth of a decibel rather than running a fixed
+	// twelve rounds. Twelve rounds over a 50 dB bracket resolves to 0.012 dB,
+	// which is far finer than the measurement is meaningful to — the Monte
+	// Carlo noise on a 400-packet estimate is larger than that — and each
+	// round is a full sweep.
+	lo, hi := -40.0, 10.0
+	const tolerance = 0.1
+	for hi-lo > tolerance {
 		mid := (lo + hi) / 2
 		if PacketErrorRate(sf, mid, symbolsPerPacket, packets, seed) > targetPER {
 			lo = mid // still too noisy

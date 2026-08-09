@@ -275,12 +275,37 @@ func (a *App) drawCutThrough(c pathview.CutThrough) {
 			colour(0.30, 0.34, 0.28, 1))
 	}
 
-	// Sight line.
+	// The two nodes, drawn as masts standing on their own ground, with the sight
+	// line running between their antenna tops.
+	//
+	// Without these the line appears to start in mid-air at the edge of the
+	// plot, and there is nothing to show that it begins at an antenna rather
+	// than at the terrain. The whole picture is about where the antennas are
+	// relative to what is between them, so not drawing them leaves out one of
+	// the three things.
 	first, last := c.Samples[0], c.Samples[len(c.Samples)-1]
+	drawMast := func(s pathview.Sample, alt float64) {
+		x := toX(s.DistM)
+		// Nudge the end masts inward so they are not clipped by the plot edge.
+		if x <= float32(x0)+3 {
+			x = float32(x0) + 3
+		}
+		if x >= float32(x0+w)-3 {
+			x = float32(x0+w) - 3
+		}
+		dl.AddLineArgs(
+			imgui.NewVec2(x, toY(s.GroundM)),
+			imgui.NewVec2(x, toY(alt)),
+			colour(0.85, 0.87, 0.92, 0.9), 2)
+		dl.AddCircleFilled(imgui.NewVec2(x, toY(alt)), 4, colour(0.95, 0.96, 1, 1))
+	}
+
 	dl.AddLineArgs(
-		imgui.NewVec2(toX(first.DistM), toY(first.LOSm)),
-		imgui.NewVec2(toX(last.DistM), toY(last.LOSm)),
+		imgui.NewVec2(toX(first.DistM), toY(c.TxAltM)),
+		imgui.NewVec2(toX(last.DistM), toY(c.RxAltM)),
 		colour(0.95, 0.95, 0.95, 0.9), 1.5)
+	drawMast(first, c.TxAltM)
+	drawMast(last, c.RxAltM)
 
 	// The deciding point, marked. A picture with no marked point leaves the
 	// reader to guess which hill mattered, and the answer is frequently not the
@@ -294,6 +319,9 @@ func (a *App) drawCutThrough(c pathview.CutThrough) {
 		}
 		dl.AddLineArgs(imgui.NewVec2(x, float32(y0)), imgui.NewVec2(x, float32(y0+h)), col, 1)
 		dl.AddCircleFilled(imgui.NewVec2(x, toY(wS.BulgedM)), 4, col)
+		// The obstruction is marked on the terrain it is part of, and the ends
+		// are marked at their antennas. Three different things, three different
+		// marks, so the picture cannot be misread as one of them.
 	}
 
 	imgui.Dummy(imgui.NewVec2(float32(w), float32(h)))
