@@ -255,7 +255,10 @@ func (a *App) drawCutThrough(c pathview.CutThrough) {
 		s := c.Samples[i]
 		dl.PathLineTo(imgui.NewVec2(toX(s.DistM), toY(s.LOSm-s.FresnelM)))
 	}
-	dl.PathFillConvexV(colour(0.25, 0.45, 0.75, 0.20))
+	// Concave rather than convex: the band is a lens that follows the sight
+	// line, and a convex fill on a shape that is not convex renders as a
+	// plausible but wrong wedge.
+	dl.PathFillConcave(colour(0.25, 0.45, 0.75, 0.20))
 
 	// Terrain with earth curvature, filled to the bottom. Opaque, so quads are
 	// fine here — the seams that show through a translucent fill do not.

@@ -117,7 +117,7 @@ func Diff(ctx context.Context, native, emulated *Node, o DiffOptions) (DiffResul
 			if !equal(n[i], e[i]) {
 				res.Divergences = append(res.Divergences, Divergence{
 					AtMs: at, Kind: "frame contents",
-					Native: hex(n[i]), Emul: hex(e[i]),
+					Native: preview(n[i]), Emul: preview(e[i]),
 				})
 			}
 		}
@@ -194,7 +194,8 @@ func equal(a, b []byte) bool {
 	return true
 }
 
-func hex(b []byte) string {
+// preview renders the first few bytes of a frame for a divergence report.
+func preview(b []byte) string {
 	const digits = "0123456789abcdef"
 	var s strings.Builder
 	for i, v := range b {
