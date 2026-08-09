@@ -59,16 +59,29 @@ a handheld in a town is the case it models worst.
 **Direction of error: strongly optimistic wherever anything is in the way that
 is not a hill.**
 
-### 1.4 Diffraction is knife-edge, depth-limited, and single-mechanism
+### 1.4 Diffraction is knife-edge, and single-mechanism
 
-ITU-R P.526 knife edge with Deygout multi-edge decomposition, limited to three
-edges. There is no rounded-obstacle correction and **no ground reflection**.
+Bullington construction with the ITU-R P.526 correction — the method P.1812 and
+P.452 use for this problem. There is no rounded-obstacle correction and **no
+ground reflection**.
+
+This replaced a Deygout decomposition, which was wrong here in a way worth
+recording. Deygout recurses into the sub-paths either side of the principal
+edge, which is sound on a profile with distinct peaks and unsound on a smooth
+one: a spherical earth flattens into a parabola, and recursing on a parabola
+charges the same curvature once per level. Measured on flat ground at 869 MHz,
+loss stepped from 0 dB at 68 km to 34.7 dB at 69 km — a hard edge across a
+coverage raster that no terrain put there. There is now a test asserting
+continuity in distance, because a discontinuity here is invisible in any single
+path calculation and only shows up as an artefact on a map.
 
 **Consequence.** A real hill is not a knife edge; knife-edge loss is the
-optimistic bound for a rounded one. Separately, a two-ray ground-reflection
-model matters over water, estuaries and flat farmland, and its absence can be
-wrong in *either* direction — constructive interference can make a real path
-better than we predict.
+optimistic bound for a rounded one. Bullington reduces a whole profile to one
+equivalent edge and the correction term restores what that under-reads, but it
+is a correction, not a multi-edge calculation. Separately, a two-ray
+ground-reflection model matters over water, estuaries and flat farmland, and its
+absence can be wrong in *either* direction — constructive interference can make
+a real path better than we predict.
 
 ### 1.5 Noise is thermal AWGN and nothing else
 
