@@ -15,6 +15,32 @@ type Boundary struct {
 	Source  string // "natural-earth", "ons", "osm", "drawn"
 	Vintage string // which edition — administrative boundaries change
 	Rings   []Ring // outer rings; multipolygons have several
+
+	// Holes are interior rings: lochs, enclaves, and the hole in the middle of
+	// a district that contains a city. A point inside a hole is outside the
+	// boundary, and treating holes as extra outers includes precisely the area
+	// that was meant to be excluded.
+	Holes []Ring
+}
+
+// covers reports whether p is inside this boundary, holes taken out.
+func (b Boundary) covers(p LatLon) bool {
+	inside := false
+	for _, ring := range b.Rings {
+		if ring.contains(p) {
+			inside = true
+			break
+		}
+	}
+	if !inside {
+		return false
+	}
+	for _, hole := range b.Holes {
+		if hole.contains(p) {
+			return false
+		}
+	}
+	return true
 }
 
 // Region is the union of several boundaries plus an RF margin.
@@ -38,10 +64,8 @@ const DefaultMarginKm = 30
 // Contains reports whether p is inside any boundary — the study area proper.
 func (r Region) Contains(p LatLon) bool {
 	for _, b := range r.Boundaries {
-		for _, ring := range b.Rings {
-			if ring.contains(p) {
-				return true
-			}
+		if b.covers(p) {
+			return true
 		}
 	}
 	return false
