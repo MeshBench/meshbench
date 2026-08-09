@@ -1,6 +1,9 @@
 package dsp
 
-import "math"
+import (
+	"math"
+	"sync"
+)
 
 // Modulator turns LoRa symbols into complex baseband, at one sample per Hz of
 // bandwidth — so a symbol is exactly N = 2^SF samples.
@@ -10,13 +13,39 @@ type Modulator struct {
 
 // BaseUpchirp returns the unmodulated reference chirp: the sweep every symbol is
 // a cyclic shift of, and the conjugate of what the demodulator dechirps with.
+//
+// A copy, because callers own what they are given. Internally the shared cached
+// one is used instead — see baseFor.
 func (m Modulator) BaseUpchirp() []complex128 {
-	n := SamplesPerSymbol(m.SF)
+	base := baseFor(m.SF)
+	out := make([]complex128, len(base))
+	copy(out, base)
+	return out
+}
+
+// baseCache holds one reference chirp per spreading factor.
+//
+// The chirp depends on nothing but SF, and building it costs 2^SF sine and
+// cosine pairs — 4096 of them at SF12. Rebuilding it per symbol, which is what
+// the demodulator used to do, dominated the entire Monte Carlo sensitivity
+// sweep: more time went into regenerating a constant than into the FFTs it
+// feeds.
+//
+// The cached slice is read-only. Everything internal treats it as such, and
+// BaseUpchirp hands out copies so an external caller cannot corrupt it.
+var baseCache sync.Map // int -> []complex128
+
+func baseFor(sf int) []complex128 {
+	if v, ok := baseCache.Load(sf); ok {
+		return v.([]complex128)
+	}
+	n := SamplesPerSymbol(sf)
 	out := make([]complex128, n)
 	for i := 0; i < n; i++ {
 		out[i] = chirpSample(i, 0, n)
 	}
-	return out
+	actual, _ := baseCache.LoadOrStore(sf, out)
+	return actual.([]complex128)
 }
 
 // ModulateSymbol returns the waveform for one symbol value s in [0, 2^SF).
@@ -25,11 +54,16 @@ func (m Modulator) BaseUpchirp() []complex128 {
 // from the shifted index rather than the sample index, which is what makes the
 // symbol wrap continuously instead of stepping at the fold.
 func (m Modulator) ModulateSymbol(s int) []complex128 {
-	n := SamplesPerSymbol(m.SF)
+	// x_s[i] = chirpSample(i, s, n) uses k = (s+i) mod n, and the base chirp is
+	// chirpSample(j, 0, n) with k = j. So a modulated symbol is exactly the base
+	// chirp rotated by s — no trigonometry at all, just two copies. Identical
+	// bit for bit, which TestModulationIsACyclicShift asserts.
+	base := baseFor(m.SF)
+	n := len(base)
 	out := make([]complex128, n)
-	for i := 0; i < n; i++ {
-		out[i] = chirpSample(i, s, n)
-	}
+	s = ((s % n) + n) % n
+	copy(out, base[s:])
+	copy(out[n-s:], base[:s])
 	return out
 }
 
@@ -69,7 +103,7 @@ func (d Demodulator) DemodulateSymbol(rx []complex128) (symbol int, confidence f
 	if len(rx) < n {
 		return 0, 0
 	}
-	base := Modulator(d).BaseUpchirp()
+	base := baseFor(d.SF)
 	buf := make([]complex128, n)
 	for i := 0; i < n; i++ {
 		// multiply by the conjugate of the base chirp

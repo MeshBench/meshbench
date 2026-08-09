@@ -3,6 +3,7 @@ package dsp
 import (
 	"fmt"
 	"math"
+	"sync"
 	"testing"
 )
 
@@ -13,20 +14,37 @@ func TestSensitivityAgainstSemtech(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Monte Carlo sweep; run without -short")
 	}
+
+	sfs := []int{7, 8, 9, 10, 11, 12}
+	measured := make([]float64, len(sfs))
+
+	// One goroutine per spreading factor. They are wholly independent — separate
+	// seeds, separate waveforms, no shared state beyond the read-only chirp
+	// cache — and running them serially left eleven cores idle while SF12, by
+	// far the most expensive, ran alone at the end.
+	var wg sync.WaitGroup
+	for i, sf := range sfs {
+		wg.Add(1)
+		go func(i, sf int) {
+			defer wg.Done()
+			packets := 400
+			if sf >= 11 {
+				packets = 150 // 2^12 samples per symbol; keep the sweep tractable
+			}
+			// 1% PER over a 40-symbol frame — the quantity Semtech publishes.
+			measured[i] = FindRequiredSNR(sf, 0.01, packets, 40, 4417)
+		}(i, sf)
+	}
+	wg.Wait()
+
 	fmt.Printf("\n  SF   measured   Semtech   delta   step\n")
 	fmt.Printf("  ---------------------------------------\n")
 	var prev float64
 	var deltas []float64
-	for _, sf := range []int{7, 8, 9, 10, 11, 12} {
-		packets := 400
-		if sf >= 11 {
-			packets = 150 // 2^12 samples per symbol; keep the sweep tractable
-		}
-		// 1% PER over a 40-symbol frame — the quantity Semtech publishes.
-		got := FindRequiredSNR(sf, 0.01, packets, 40, 4417)
-		want := RequiredSNRdB[sf]
+	for i, sf := range sfs {
+		got, want := measured[i], RequiredSNRdB[sf]
 		step := 0.0
-		if sf > 7 {
+		if i > 0 {
 			step = got - prev
 		}
 		fmt.Printf("  SF%-2d  %7.2f   %7.2f  %+6.2f  %+5.2f\n", sf, got, want, got-want, step)
