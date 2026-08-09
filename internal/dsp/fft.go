@@ -1,6 +1,9 @@
 package dsp
 
-import "math"
+import (
+	"math"
+	"math/cmplx"
+)
 
 // FFT is the CPU reference transform. Radix-2 Cooley-Tukey, in place, on a
 // power-of-two input — which every LoRa symbol is, since N = 2^SF.
@@ -41,5 +44,24 @@ func FFT(x []complex128) {
 				w *= wl
 			}
 		}
+	}
+}
+
+// IFFT is the inverse transform, in place.
+//
+// Conjugate, forward, conjugate, scale — the standard identity rather than a
+// second hand-written butterfly loop. One transform to get wrong is enough.
+func IFFT(x []complex128) {
+	n := len(x)
+	if n <= 1 {
+		return
+	}
+	for i := range x {
+		x[i] = cmplx.Conj(x[i])
+	}
+	FFT(x)
+	s := complex(1/float64(n), 0)
+	for i := range x {
+		x[i] = cmplx.Conj(x[i]) * s
 	}
 }

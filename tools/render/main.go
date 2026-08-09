@@ -33,6 +33,7 @@ func main() {
 		{"real-01-path-profile", realPathProfile},
 		{"real-02-waterfall", realWaterfall},
 		{"real-03-antenna", realAntenna},
+		{"real-04-sdr-observer", realSDRObserver},
 	} {
 		p := filepath.Join(out, f.name+".png")
 		fh, err := os.Create(p)
@@ -47,6 +48,12 @@ func main() {
 		}
 		fmt.Println("wrote", p)
 	}
+
+	wav := filepath.Join(out, "real-04-sdr-observer.wav")
+	if err := writeSDRAudio(wav); err != nil {
+		panic(err)
+	}
+	fmt.Println("wrote", wav)
 }
 
 // realPathProfile runs the actual Deygout engine over a synthetic ridge and
