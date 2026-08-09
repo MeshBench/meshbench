@@ -100,7 +100,12 @@ func demoScenario() []scenario.Node {
 			Name: "Perth", Kind: scenario.Companion,
 			Position: scenario.LatLon{Lat: 56.3950, Lon: -3.4308}, HeightAGLm: 2,
 			Antenna: handheld(xiao),
-			Radio:   radio, TxPowerDBm: xiao.MaxTxDBm, NoiseFigureDB: xiao.NoiseFigureDB,
+			// A companion runs well below its chip's maximum: 14 dBm is a
+			// common EU setting, and battery is why. Giving it the repeater's
+			// 22 dBm makes both directions come out identical, which is
+			// arithmetically right and hides the single thing this tool exists
+			// to show.
+			Radio: radio, TxPowerDBm: 14, NoiseFigureDB: xiao.NoiseFigureDB,
 		},
 		{
 			Name: "Dunkeld", Kind: scenario.SimpleRepeater,
@@ -144,11 +149,16 @@ func (a *App) frame() {
 	a.drawHeader()
 	imgui.Separator()
 
+	// The table takes the rest of the window. Left to size itself it wraps to
+	// its content and leaves most of the window empty, which reads as a broken
+	// layout rather than a deliberate one.
+	fill := imgui.ContentRegionAvail()
+
 	// Two columns: the scenario on the left, the answer on the right. The
 	// answer panel is the wide one because a link verdict is a paragraph, not a
 	// number, and truncating it is how a caveat gets lost.
 	if imgui.BeginTableV("##layout", 2, imgui.TableFlagsResizable|imgui.TableFlagsBordersInnerV,
-		imgui.NewVec2(0, 0), 0) {
+		imgui.NewVec2(0, fill.Y), 0) {
 		imgui.TableSetupColumnV("scenario", imgui.TableColumnFlagsWidthFixed, 260, 0)
 		imgui.TableSetupColumnV("analysis", imgui.TableColumnFlagsWidthStretch, 0, 0)
 
@@ -167,7 +177,7 @@ func (a *App) frame() {
 func (a *App) drawHeader() {
 	imgui.Text("MeshcoreSim")
 	imgui.SameLine()
-	imgui.TextDisabled("— real firmware, real RF")
+	imgui.TextDisabled("- real firmware, real RF")
 
 	// The honesty line is in the chrome, not in a help menu. CLAUDE.md requires
 	// the simulator to say that it is kinder than the air, and something a user

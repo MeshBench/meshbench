@@ -14,7 +14,7 @@ import (
 
 func (a *App) drawNodeList() {
 	imgui.SeparatorText("Nodes")
-	imgui.TextDisabled("click a node, then ctrl-click a second to analyse the link")
+	imgui.TextWrapped("click a node, then ctrl-click a second")
 
 	for i := range a.Nodes {
 		n := &a.Nodes[i]
@@ -63,7 +63,7 @@ func (a *App) drawNodeList() {
 		imgui.TextDisabled(fmt.Sprintf("ground %.0f m, antenna top %.0f m AMSL",
 			ground, ground+n.HeightAGLm))
 	} else {
-		imgui.TextDisabled("no terrain here — download tiles for this area")
+		imgui.TextDisabled("no terrain here - download tiles for this area")
 	}
 }
 
@@ -193,7 +193,7 @@ func (a *App) drawBudget(from, to scenario.Node) {
 	}
 	if l.OneWayOnly {
 		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.65, 0.2, 1))
-		imgui.TextWrapped("ONE WAY ONLY — one end will hear the other and not be heard back. " +
+		imgui.TextWrapped("ONE WAY ONLY - one end will hear the other and not be heard back. " +
 			"This is usually the most useful thing to know about a path.")
 		imgui.PopStyleColor()
 	}
@@ -242,17 +242,23 @@ func (a *App) drawCutThrough(c pathview.CutThrough) {
 	}
 
 	// Fresnel zone first, so terrain and the sight line draw over it.
-	for i := 1; i < len(c.Samples); i++ {
-		p, q := c.Samples[i-1], c.Samples[i]
-		dl.AddQuadFilled(
-			imgui.NewVec2(toX(p.DistM), toY(p.LOSm-p.FresnelM)),
-			imgui.NewVec2(toX(q.DistM), toY(q.LOSm-q.FresnelM)),
-			imgui.NewVec2(toX(q.DistM), toY(q.LOSm+q.FresnelM)),
-			imgui.NewVec2(toX(p.DistM), toY(p.LOSm+p.FresnelM)),
-			colour(0.25, 0.45, 0.75, 0.18))
+	//
+	// One closed path rather than a quad per sample: adjacent translucent quads
+	// leave a seam at every shared edge, and 300 of them read as vertical
+	// stripes rather than a band.
+	dl.PathClear()
+	for i := range c.Samples {
+		s := c.Samples[i]
+		dl.PathLineTo(imgui.NewVec2(toX(s.DistM), toY(s.LOSm+s.FresnelM)))
 	}
+	for i := len(c.Samples) - 1; i >= 0; i-- {
+		s := c.Samples[i]
+		dl.PathLineTo(imgui.NewVec2(toX(s.DistM), toY(s.LOSm-s.FresnelM)))
+	}
+	dl.PathFillConvexV(colour(0.25, 0.45, 0.75, 0.20))
 
-	// Terrain with earth curvature, filled to the bottom.
+	// Terrain with earth curvature, filled to the bottom. Opaque, so quads are
+	// fine here — the seams that show through a translucent fill do not.
 	for i := 1; i < len(c.Samples); i++ {
 		p, q := c.Samples[i-1], c.Samples[i]
 		dl.AddQuadFilled(
@@ -287,7 +293,7 @@ func (a *App) drawCutThrough(c pathview.CutThrough) {
 	imgui.Dummy(imgui.NewVec2(float32(w), float32(h)))
 	imgui.TextDisabled(fmt.Sprintf(
 		"terrain includes earth curvature; blue band is the first Fresnel zone   |   "+
-			"%.1f km, %.0f–%.0f m", c.DistanceKm, lo, hi))
+			"%.1f km, %.0f-%.0f m", c.DistanceKm, lo, hi))
 }
 
 func colour(r, g, b, alpha float32) uint32 {

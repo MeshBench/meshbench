@@ -156,7 +156,7 @@ func (c CutThrough) Verdict() string {
 		return fmt.Sprintf(
 			"BLOCKED. Terrain at %.1f km sits %.0f m above the line of sight once earth "+
 				"curvature is included. Raising an antenna by about that much, or moving to "+
-				"clear it, is what changes this — more power will not.",
+				"clear it, is what changes this - more power will not.",
 			atKm, -w.ClearanceM)
 
 	case c.WorstF1Pct < 60:
@@ -164,12 +164,12 @@ func (c CutThrough) Verdict() string {
 			"GRAZING. Line of sight is clear by %.0f m at %.1f km, but that is only %.0f%% of "+
 				"the first Fresnel radius (%.0f m). Below 60%% a path stops behaving like free "+
 				"space and starts losing to diffraction, so this link will be worse than a "+
-				"budget alone suggests — and a few more metres of height would buy a lot.",
+				"budget alone suggests - and a few more metres of height would buy a lot.",
 			w.ClearanceM, atKm, c.WorstF1Pct, w.FresnelM)
 
 	default:
 		return fmt.Sprintf(
-			"CLEAR. The tightest point is %.1f km along, with %.0f m of clearance — %.0f%% of "+
+			"CLEAR. The tightest point is %.1f km along, with %.0f m of clearance - %.0f%% of "+
 				"the first Fresnel radius. Terrain is not what limits this path; if it does not "+
 				"work, the answer is in the link budget rather than the profile.",
 			atKm, w.ClearanceM, c.WorstF1Pct)
@@ -187,7 +187,14 @@ func (c CutThrough) Extent() (lo, hi float64) {
 		return 0, 1
 	}
 	pad := math.Max(20, (hi-lo)*0.1)
-	return lo - pad, hi + pad
+	lo -= pad
+	// Padding below the lowest ground is fine; padding below sea level is not.
+	// A profile that never goes near the coast should not draw an axis that
+	// implies it does.
+	if lo < 0 && hi > 0 {
+		lo = 0
+	}
+	return lo, hi + pad
 }
 
 func haversineKm(lat1, lon1, lat2, lon2 float64) float64 {
