@@ -36,3 +36,5 @@ If those three do not land, nothing else matters.
 - **Reachability is asymmetric.** Both directions, always.
 - **Position uncertainty propagates.** Too-uncertain nodes get no verdict.
 - **The simulator is kinder than the air**, and must say so.
+- [`shortcomings.md`](shortcomings.md) — what the model does not do, what it
+  gets measurably wrong, and in which direction. Read before trusting a result.

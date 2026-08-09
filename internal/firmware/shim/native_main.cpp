@@ -28,12 +28,41 @@ namespace {
 constexpr uint8_t kFrame = 0x01;
 constexpr uint8_t kTick = 0x02;
 constexpr uint8_t kAck = 0x03;
+constexpr uint8_t kTxDone = 0x04;
 
-// The RF engine measures airtime; the firmware only needs a consistent estimate
-// for its own CSMA timing. These are LoRa SF7/BW125 with the default coding
-// rate — the same numbers internal/dsp computes, and they must stay that way or
-// the firmware and the channel disagree about how long a packet took.
-constexpr int kBitsPerSecond = 5468;
+// LoRa parameters. Defaults are MeshCore's UK/EU settings; the simulator will
+// override them per node once board profiles land (MSIM-18).
+int gSF = 10;
+float gBandwidthKHz = 250.0f;
+int gCodingRate = 1;  // 1..4 for 4/5..4/8
+
+// RadioLib's getTimeOnAir(), truncated to milliseconds — which is exactly what
+// MeshCore's RadioLibWrapper::getEstAirtimeFor() returns on real hardware.
+//
+// This has to be the firmware's own formula, not a good approximation of it.
+// The CSMA backoff, the duty-cycle budget and the send timeout are all built on
+// this number, so if the channel occupies the air for a different length of
+// time than the firmware believes it did, the two desynchronise silently and
+// every collision result after that is fiction. internal/dsp/airtime.go is the
+// same calculation, tested against the published formula.
+uint32_t loraAirtimeMs(int len) {
+  float symbolMs = (float)((uint32_t)1 << gSF) / gBandwidthKHz;
+  float sfCoeff1 = 4.25f, sfCoeff2 = 8.0f;
+  if (gSF == 5 || gSF == 6) {
+    sfCoeff1 = 6.25f;
+    sfCoeff2 = 0.0f;
+  }
+  // The chip turns on low data rate optimisation itself once a symbol reaches
+  // 16 ms — SF11 and SF12 at 125 kHz.
+  int sfDivisor = (symbolMs >= 16.0f) ? 4 * (gSF - 2) : 4 * gSF;
+  int bits = 8 * len + 16 /* CRC */ - 4 * gSF + (int)sfCoeff2 + 20 /* explicit header */;
+  if (bits < 0) bits = 0;
+  int coded = (bits + sfDivisor - 1) / sfDivisor;
+  // MeshCore's own preamble rule, from RadioLibWrappers.h.
+  int preamble = gSF <= 8 ? 32 : 16;
+  float symbols = (float)preamble + sfCoeff1 + 8.0f + (float)(coded * (gCodingRate + 4));
+  return (uint32_t)(symbolMs * symbols);
+}
 
 int connectTo(const std::string& addr) {
   auto colon = addr.rfind(':');
@@ -87,11 +116,18 @@ bool writeMsg(int fd, uint8_t kind, const uint8_t* p, size_t n) {
   return true;
 }
 
-// The one seam that differs between builds. Transmission is immediate on the
-// wire and *not* immediately complete: `isSendComplete()` stays false for the
-// packet's own airtime, so the firmware's duty-cycle accounting and CSMA see
-// the same timing they would on hardware. Reporting completion straight away
-// is the single easiest way to make a simulator optimistic.
+// The one seam that differs between builds.
+//
+// Transmission goes out on the wire immediately and is *not* immediately
+// complete: `isSendComplete()` stays false until the engine says the waveform
+// has ended. The node does not time its own transmission — it cannot. How long
+// the signal occupied the channel is a property of the samples the engine
+// generated, and computing it here from the airtime estimate would replace the
+// simulation with the formula.
+//
+// getEstAirtimeFor() below is a genuine estimate, which is all the firmware
+// gets on real hardware too: it sizes CSMA backoff and spends the duty-cycle
+// budget with it, before the packet is sent.
 class BridgeRadio : public mesh::Radio {
  public:
   BridgeRadio(int fd, msim::SimClock& clk) : fd_(fd), clk_(clk) {}
@@ -100,12 +136,15 @@ class BridgeRadio : public mesh::Radio {
 
   bool startSendRaw(const uint8_t* bytes, int len) override {
     if (!writeMsg(fd_, kFrame, bytes, (size_t)len)) return false;
-    sendDone_ = clk_.now + getEstAirtimeFor(len);
     sending_ = true;
+    onAir_ = true;
     return true;
   }
-  bool isSendComplete() override { return !sending_ || clk_.now >= sendDone_; }
+  bool isSendComplete() override { return !onAir_; }
   void onSendFinished() override { sending_ = false; }
+
+  // Called when the engine reports the waveform has left the antenna.
+  void transmitFinished() { onAir_ = false; }
 
   int recvRaw(uint8_t* dest, int max) override {
     if (inbox.empty()) return 0;
@@ -116,9 +155,7 @@ class BridgeRadio : public mesh::Radio {
     return n;
   }
 
-  uint32_t getEstAirtimeFor(int len) override {
-    return (uint32_t)((long)len * 8 * 1000 / kBitsPerSecond) + 1;
-  }
+  uint32_t getEstAirtimeFor(int len) override { return loraAirtimeMs(len); }
   // Ranking for the delayed-flood decision. Kept identical to the emulated
   // build so a route chosen natively is the route chosen under emulation.
   float packetScore(float snr, int len) override { return snr * 100 - len; }
@@ -131,7 +168,7 @@ class BridgeRadio : public mesh::Radio {
   int fd_;
   msim::SimClock& clk_;
   bool sending_ = false;
-  unsigned long sendDone_ = 0;
+  bool onAir_ = false;
 };
 
 // Mesh's constructor is protected, so a node is a subclass — `using` would
@@ -151,12 +188,24 @@ class NativeNode : public mesh::Mesh {
 int main(int argc, char** argv) {
   std::string bridge;
   uint64_t seed = 4417;
+  int printAirtimeFor = -1;
   for (int i = 1; i < argc - 1; i++) {
     if (!strcmp(argv[i], "--bridge")) bridge = argv[++i];
     else if (!strcmp(argv[i], "--seed")) seed = strtoull(argv[++i], nullptr, 10);
+    else if (!strcmp(argv[i], "--sf")) gSF = atoi(argv[++i]);
+    else if (!strcmp(argv[i], "--bw-khz")) gBandwidthKHz = (float)atof(argv[++i]);
+    else if (!strcmp(argv[i], "--cr")) gCodingRate = atoi(argv[++i]);
+    else if (!strcmp(argv[i], "--print-airtime")) printAirtimeFor = atoi(argv[++i]);
+  }
+  // A self-report, so the Go side can check that this transcription of the
+  // airtime formula still agrees with internal/dsp. Two copies of a formula
+  // that nothing compares are two formulas.
+  if (printAirtimeFor >= 0) {
+    printf("%u\n", loraAirtimeMs(printAirtimeFor));
+    return 0;
   }
   if (bridge.empty()) {
-    fprintf(stderr, "usage: %s --bridge host:port [--seed N]\n", argv[0]);
+    fprintf(stderr, "usage: %s --bridge host:port [--seed N] [--sf N] [--bw-khz F] [--cr N]\n", argv[0]);
     return 2;
   }
   int fd = connectTo(bridge);
@@ -173,7 +222,8 @@ int main(int argc, char** argv) {
   BridgeRadio radio(fd, clk);
   NativeNode node(radio, clk, rng, rtc, mgr, tables);
   node.begin();
-  fprintf(stderr, "native: MeshCore up, seed=%llu\n", (unsigned long long)seed);
+  fprintf(stderr, "native: MeshCore up, seed=%llu SF%d BW%.0fkHz CR4/%d\n",
+          (unsigned long long)seed, gSF, gBandwidthKHz, gCodingRate + 4);
 
   uint8_t hdr[3];
   for (;;) {
@@ -187,6 +237,10 @@ int main(int argc, char** argv) {
         // Queued, not delivered: the firmware collects it from recvRaw() on its
         // next loop, exactly as it would drain a real radio's FIFO.
         radio.inbox.push_back(std::move(payload));
+        break;
+
+      case kTxDone:
+        radio.transmitFinished();
         break;
 
       case kTick: {

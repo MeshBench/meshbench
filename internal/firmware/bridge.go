@@ -21,9 +21,10 @@ import (
 
 // Message kinds on the wire.
 const (
-	kindFrame = 0x01 // a radio frame, either direction
-	kindTick  = 0x02 // host → node: advance the node's clock to this sim time
-	kindAck   = 0x03 // node → host: everything up to that tick has been processed
+	kindFrame  = 0x01 // a radio frame, either direction
+	kindTick   = 0x02 // host → node: advance the node's clock to this sim time
+	kindAck    = 0x03 // node → host: everything up to that tick has been processed
+	kindTxDone = 0x04 // host → node: the waveform you started has finished on the air
 )
 
 // ErrClosed is returned once a bridge has been shut down.
