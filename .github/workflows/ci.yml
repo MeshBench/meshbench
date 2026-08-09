@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          cache: true
+
+      # Learned on hamreach: a botched merge once staged conflict markers into
+      # a source file and 42 of 52 tests went red for that one reason.
+      - name: no conflict markers
+        run: |
+          if grep -rnE '^(<{7}|={7}|>{7})( |$)' \
+               --include='*.go' --include='*.wgsl' --include='*.lua' \
+               --include='*.yml' --include='*.md' . | grep -v '/vendor/'; then
+            echo "conflict markers committed"; exit 1
+          fi
+
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "not gofmt'd:"; echo "$unformatted"; exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.1.6
+
+      # CI has no GPU (and neither does the dev VM), so this exercises the CPU
+      # reference path only — which is exactly why ADR-0004 requires one.
+      - name: test
+        run: go test -race -count=1 ./...
+
+      # The 500-line hard limit from CLAUDE.md. Applied to shaders and the
+      # dissector too, not just Go: hamreach enforced Go only and its largest
+      # file reached 746 lines before anyone noticed.
+      - name: file length
+        run: |
+          fail=0
+          while IFS= read -r f; do
+            n=$(wc -l < "$f")
+            if [ "$n" -gt 500 ] && ! grep -q "lint:file-length-exempt" "$f"; then
+              echo "$f is $n lines (limit 500, no exemption)"; fail=1
+            fi
+          done < <(find . \( -name '*.go' -o -name '*.wgsl' -o -name '*.lua' \) -not -path './vendor/*')
+          exit $fail

@@ -1,0 +1,20 @@
+/meshcoresim
+/dist/
+*.exe
+
+# Build caches for MeshCore firmware refs (ADR-0009) — reproducible, large
+/firmware-cache/
+
+# DEM tiles; large and reproducible from the tile server
+/dem-cache/
+
+# Captures and IQ recordings — can be enormous (1 MB/s per receiver)
+/captures/
+*.pcapng
+*.sigmf-data
+*.cf32
+
+/.idea/
+/.vscode/
+*.swp
+.claude/
