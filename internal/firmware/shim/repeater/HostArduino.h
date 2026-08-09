@@ -12,13 +12,19 @@
 // the identity a node generates comes through here.
 inline void randomSeed(unsigned long seed) { srandom(seed); }
 
-// Arduino defines these as macros. MeshCore uses them unqualified.
-#ifndef min
-#define min(a, b) ((a) < (b) ? (a) : (b))
-#endif
-#ifndef max
-#define max(a, b) ((a) > (b) ? (a) : (b))
-#endif
+// Arduino defines these as macros and MeshCore calls them unqualified.
+// Templates rather than macros: force-including a `min(a,b)` macro ahead of the
+// standard library breaks <limits>, whose numeric_limits<T>::min() then looks
+// like a macro call with one argument. That produced 368 errors inside libstdc++
+// and none in any MeshCore file, which is a confusing place to start debugging.
+template <class T, class U>
+constexpr auto min(T a, U b) -> decltype(a < b ? a : b) {
+  return a < b ? a : b;
+}
+template <class T, class U>
+constexpr auto max(T a, U b) -> decltype(a > b ? a : b) {
+  return a > b ? a : b;
+}
 
 inline long random(long howbig) { return howbig <= 0 ? 0 : random() % howbig; }
 inline long random(long howsmall, long howbig) {
