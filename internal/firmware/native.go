@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
+	"time"
 )
 
 // EnvNativeBinary overrides where the native node binary is found.
@@ -116,9 +117,22 @@ func (n *Native) Stop() error {
 	if cmd == nil || cmd.Process == nil {
 		return nil
 	}
-	_ = cmd.Process.Kill()
-	// The wait is not optional: without it the child stays a zombie, and a
-	// scenario that starts and stops nodes repeatedly leaks one per node.
-	_ = cmd.Wait()
+	// The bridge has already been closed, so the node should be on its way out
+	// under its own steam; give it long enough to write its closing line before
+	// taking that away from it. The wait itself is not optional either — without
+	// it the child stays a zombie, and a scenario that cycles nodes leaks one
+	// per node.
+	done := make(chan struct{})
+	go func() { _ = cmd.Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(gracePeriod):
+		_ = cmd.Process.Kill()
+		<-done
+	}
 	return nil
 }
+
+// Long enough for a node to notice a closed socket and flush, short enough that
+// a hung node does not stall a scenario tearing down a hundred of them.
+const gracePeriod = 2 * time.Second

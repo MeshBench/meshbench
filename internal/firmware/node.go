@@ -49,13 +49,16 @@ func Start(ctx context.Context, name string, b Backend) (*Node, error) {
 	return &Node{Bridge: br, Backend: b}, nil
 }
 
-// Close stops the firmware and releases the bridge. The firmware goes first:
-// closing the bridge under a running node turns an orderly shutdown into a
-// stream of connection errors from a process that is about to be killed anyway.
+// Close shuts a node down, bridge first.
+//
+// Dropping the socket is how a node is told to stop: its read loop ends, it
+// reports its final counters and exits. Killing the process first instead skips
+// all of that — and those counters are usually the only evidence available
+// about what a misbehaving node actually did.
 func (n *Node) Close() error {
-	err := n.Backend.Stop()
-	if cerr := n.Bridge.Close(); err == nil {
-		err = cerr
+	err := n.Bridge.Close()
+	if serr := n.Backend.Stop(); err == nil {
+		err = serr
 	}
 	return err
 }

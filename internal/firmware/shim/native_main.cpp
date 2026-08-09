@@ -134,9 +134,13 @@ class BridgeRadio : public mesh::Radio {
   unsigned long sendDone_ = 0;
 };
 
+// Mesh's constructor is protected, so a node is a subclass — `using` would
+// inherit it as protected and leave it unusable from main().
 class NativeNode : public mesh::Mesh {
  public:
-  using mesh::Mesh::Mesh;
+  NativeNode(mesh::Radio& r, mesh::MillisecondClock& c, mesh::RNG& g, mesh::RTCClock& t,
+             mesh::PacketManager& m, mesh::MeshTables& tb)
+      : mesh::Mesh(r, c, g, t, m, tb) {}
   int rxLogged = 0, txLogged = 0;
   void logRx(mesh::Packet*, int, float) override { rxLogged++; }
   void logTx(mesh::Packet*, int) override { txLogged++; }
