@@ -1,0 +1,20 @@
+:name: MeshCore RAK4631 with FICR
+:
+: Adds the FICR region that Renode's stock nrf52840.repl omits. Generate the
+: register writes with tools/renode/ficr.py and paste them after LoadBinary, or
+: source this file which expects /tmp/ficr_writes.txt to exist:
+:
+:   tools/renode/uf2tobin.py firmware.uf2 /tmp/rak.bin
+:   tools/renode/ficr.py > /tmp/ficr_writes.txt
+
+mach create "rak4631"
+machine LoadPlatformDescription @platforms/cpus/nrf52840.repl
+machine LoadPlatformDescription @tools/renode/ficr.repl
+
+sysbus LoadBinary @/tmp/rak.bin 0x26000
+include @/tmp/ficr_writes.txt
+
+cpu VectorTableOffset 0x26000
+cpu SP 0x20040000
+cpu PC 0x0007154d
+logLevel 2

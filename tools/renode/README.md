@@ -19,13 +19,30 @@ renode tools/renode/rak4631.resc
 | Reaches | FICR reads, peripheral configuration at `0x4001C564`–`0x4002D564` |
 | Fails at | `0xA5A5A5A4` — the stack-fill pattern |
 
+## FICR: added, and it was not the cause
+
+`ficr.repl` + `ficr.py` add the FICR region Renode's stock `nrf52840.repl`
+omits — worth having regardless, since reads there previously returned zeros.
+
+**But it did not fix the boot, and the experiment was clean:** instruction count
+is *identical* at 0x38FEF (233,455) with and without FICR, and the abort is at
+the same address. Identical counts mean the firmware follows exactly the same
+path, so FICR values never influenced the trajectory. Hypothesis disproved
+rather than assumed away.
+
+The remaining suspects, from the pre-fault log, are writes to
+`0x4001C564`, `0x40021564`, `0x40022564`, `0x4002D564` — the same `0x564`
+offset across four unmodelled peripheral regions, which looks like the firmware
+walking a peripheral table. `PC=0xA5A5A5A4` means it is *executing* the
+stack-fill pattern, i.e. it returned through a corrupted frame or an unpopulated
+function pointer.
+
+Next step is an execution trace to find the last good PC, not another guess.
+
 ## What is missing, in order
 
-1. **FICR** (Factory Information Configuration Registers, `0x10000000`). The
-   firmware reads device info from `0x10000130`/`0x10000134`, gets zeros because
-   Renode's `nrf52840.repl` does not model FICR, and later dereferences something
-   derived from it — landing on `0xA5A5A5A5`, the uninitialised-memory fill.
-   Small and well-defined: a handful of registers with plausible values.
+1. **The four `0x…564` peripherals** above — identify them from the nRF52840
+   memory map and model enough to satisfy the writes.
 2. **SX1262 over SPI.** Renode ships no SX126x peripheral. This is the large
    piece, and it is large because `CustomSX1262.h` drops to `readRegister` /
    `writeRegister` / `getIrqFlags`, so the model must satisfy *RadioLib's own

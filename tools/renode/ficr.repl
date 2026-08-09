@@ -1,0 +1,11 @@
+// FICR — Factory Information Configuration Registers, nRF52840.
+//
+// Renode's stock nrf52840.repl does not model FICR, so the firmware reads zeros
+// from 0x10000000 and later dereferences something derived from them, landing on
+// 0xA5A5A5A5 (the uninitialised-memory fill). That was the boot failure.
+//
+// Modelled as read-only memory rather than a peripheral: FICR is factory-written
+// and never changes at runtime, so a backing region with the right values is
+// behaviourally exact and far simpler than a register model.
+ficr: Memory.MappedMemory @ sysbus 0x10000000
+    size: 0x1000
