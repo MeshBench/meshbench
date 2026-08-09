@@ -281,7 +281,7 @@ func (e *Engine) deliver(t transmission, concurrent []transmission) error {
 		// transmission. Not a rule that overlapping packets both fail — the
 		// stronger one wins if it is far enough ahead, which is capture effect
 		// and is what makes a flood behave the way it does.
-		var interferenceDBm float64 = math.Inf(-1)
+		interferenceDBm := math.Inf(-1)
 		for _, other := range concurrent {
 			if other.packetID == t.packetID || other.from == i {
 				continue

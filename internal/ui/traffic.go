@@ -155,10 +155,10 @@ func (a *App) drawTimeline() {
 }
 
 func eventColour(ev engine.Event) imgui.Vec4 {
-	switch {
-	case ev.Kind == "tx":
-		imgui.NewVec4(0.7, 0.75, 0.85, 1)
-	case ev.Outcome == capture.Accepted:
+	if ev.Kind == "tx" {
+		return imgui.NewVec4(0.7, 0.75, 0.85, 1)
+	}
+	if ev.Outcome == capture.Accepted {
 		return imgui.NewVec4(0.45, 0.85, 0.5, 1)
 	}
 	if ev.Kind == "miss" {
