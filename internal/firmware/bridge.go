@@ -25,6 +25,12 @@ const (
 	kindTick   = 0x02 // host → node: advance the node's clock to this sim time
 	kindAck    = 0x03 // node → host: everything up to that tick has been processed
 	kindTxDone = 0x04 // host → node: the waveform you started has finished on the air
+	// kindOriginate asks the firmware to send a message of its own. Handing a
+	// node a fabricated frame instead makes it a receiver of something it
+	// cannot parse: MeshCore drops what is not a valid packet, correctly, and
+	// nothing relays. Only the firmware can build a packet the rest of the
+	// firmware will accept.
+	kindOriginate = 0x05
 )
 
 // ErrClosed is returned once a bridge has been shut down.

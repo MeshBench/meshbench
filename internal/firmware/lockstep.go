@@ -59,3 +59,17 @@ func (b *Bridge) TransmitFinished() error {
 	}
 	return nil
 }
+
+// Originate asks the firmware to send a message of its own.
+//
+// The distinction from Deliver matters. Deliver hands a node a frame that
+// arrived on the air; Originate makes the node the author. A test that wants a
+// flood has to use this, because a fabricated frame is not a MeshCore packet
+// and every other node will drop it — correctly, and silently, which looks
+// exactly like a network that does not relay.
+func (b *Bridge) Originate(payload []byte) error {
+	if err := b.send(kindOriginate, payload); err != nil {
+		return fmt.Errorf("firmware: ask %s to originate: %w", b.node, err)
+	}
+	return nil
+}

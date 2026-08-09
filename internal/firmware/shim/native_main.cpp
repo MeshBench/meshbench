@@ -29,6 +29,7 @@ constexpr uint8_t kFrame = 0x01;
 constexpr uint8_t kTick = 0x02;
 constexpr uint8_t kAck = 0x03;
 constexpr uint8_t kTxDone = 0x04;
+constexpr uint8_t kOriginate = 0x05;
 
 // LoRa parameters. Defaults are MeshCore's UK/EU settings; the simulator will
 // override them per node once board profiles land (MSIM-18).
@@ -242,6 +243,27 @@ int main(int argc, char** argv) {
       case kTxDone:
         radio.transmitFinished();
         break;
+
+      case kOriginate: {
+        // Built by the firmware, so it is a packet the rest of the firmware
+        // will accept. A frame fabricated on the host is not, and every node
+        // that receives one drops it — correctly, and silently.
+        mesh::Packet* p = mgr.allocNew();
+        if (!p) {
+          fprintf(stderr, "native: packet pool empty, cannot originate\n");
+          break;
+        }
+        int n = (int)payload.size();
+        if (n > MAX_PACKET_PAYLOAD) n = MAX_PACKET_PAYLOAD;
+        // A group text message: the flood-routed type a mesh actually carries,
+        // so relay decisions here are the ones MeshCore makes for real traffic
+        // rather than for something invented.
+        p->header = (PAYLOAD_TYPE_GRP_TXT << PH_TYPE_SHIFT) | ROUTE_TYPE_FLOOD;
+        p->payload_len = (uint8_t)n;
+        for (int i = 0; i < n; i++) p->payload[i] = payload[(size_t)i];
+        node.sendFlood(p);
+        break;
+      }
 
       case kTick: {
         if (n != 4) break;

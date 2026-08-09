@@ -413,21 +413,37 @@ func (e *Engine) collectTransmissions(now uint32) error {
 	return nil
 }
 
-// Inject puts a frame on the air from a node, as though its firmware had sent
-// it.
+// Inject introduces a message into the network from a node.
 //
-// The way to drive a scenario that has no firmware attached, and the way a test
-// exercises the channel without a MeshCore build. A node with firmware
-// transmits because its own code decided to; this is for everything else.
-func (e *Engine) Inject(nodeIndex int, frame []byte) {
+// Where the node runs firmware, the firmware is asked to originate it and
+// builds a real MeshCore packet — which is the only way the rest of the network
+// will relay it. A frame fabricated here is not a valid packet, every receiving
+// node drops it, and the result is a flood that reaches its neighbours and stops
+// dead. That failure is silent and looks exactly like a network with no relays
+// configured, which is why it is worth this branch.
+//
+// Where there is no firmware, the frame goes on the air as-is. That still
+// exercises the channel, the collisions and the ledger, and it is how a
+// scenario runs at all without a MeshCore build to hand.
+func (e *Engine) Inject(nodeIndex int, payload []byte) {
 	e.mu.Lock()
 	ok := nodeIndex >= 0 && nodeIndex < len(e.nodes)
+	var fw *firmware.Node
+	if ok {
+		fw = e.nodes[nodeIndex].Firmware
+	}
 	now := e.nowMs
 	e.mu.Unlock()
 	if !ok {
 		return
 	}
-	e.startTransmission(nodeIndex, frame, now)
+	if fw != nil {
+		if err := fw.Bridge.Originate(payload); err != nil {
+			e.record(Event{AtMs: now, Kind: "miss", Detail: err.Error()})
+		}
+		return
+	}
+	e.startTransmission(nodeIndex, payload, now)
 }
 
 func (e *Engine) startTransmission(from int, frame []byte, now uint32) {
