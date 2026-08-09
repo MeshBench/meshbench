@@ -26,7 +26,23 @@ Checked at `meshcore-dev/MeshCore` HEAD, not assumed:
    Repeater, Room Server — at 158 companion targets over 87 board variants
    (36 nRF52, 43 ESP32).
 
-## What we do not know yet
+## Verified by MSIM-1 (2026-08-09)
+
+**The mesh stack builds and runs on the host, unmodified.** `Utils`, `Packet`,
+`Identity`, `Mesh` and `Dispatcher` compile clean; a `Mesh` subclass ran 250
+loop iterations and transmitted through `SimRadio`:
+
+```
+identity generated, pub_key[0..3]: 33 0a c2 1f
+[SimRadio] startSendRaw len=10 bytes: 11 00 a0 a1 a2 a3 a4 a5
+after sendFlood -> txCount=1 logTx=1
+```
+
+Every gap was in *our* shims, not in MeshCore: `Stream` needed `println`,
+`readBytes` and buffered `write`, and rweather's Ed25519 needed a global RNG.
+See `internal/firmware/shim/`.
+
+## Previously unknown, now answered
 
 **Whether the mesh stack itself builds off-target.** `Dispatcher`, `Mesh` and
 `MyMesh` have never been compiled for the host. MSIM-1 is timeboxed at 8 h to
@@ -60,6 +76,7 @@ abstraction hides, ADR-0002 needs revisiting rather than patching.
 | `setCADEnabled` / CAD result | Answer from actual channel energy, not a guess. This is where firmware CSMA becomes observable. |
 | `packetScore` | Defer to the firmware's own formula; we supply true SNR. |
 | `resetAGC` | Model or no-op; record that it happened. |
+| `isInRecvMode` | **Seventh pure virtual, found in MSIM-1.** True while listening; in the real engine this comes from channel state, and it is part of what makes CAD truthful. |
 
 ### SimClock
 
