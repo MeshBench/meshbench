@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -76,6 +77,12 @@ type Native struct {
 	// runs of the same scenario are comparable.
 	Seed uint64
 
+	// SF, BandwidthKHz and CodingRate are the node's LoRa settings. Zero values
+	// leave the binary's own defaults in place.
+	SF           int
+	BandwidthKHz float64
+	CodingRate   int
+
 	// Log receives the node's stderr. Nil discards it. The firmware's own
 	// diagnostics are the only window into a native node, so a scenario that
 	// misbehaves is much easier to explain with this attached.
@@ -97,7 +104,17 @@ func (n *Native) Start(ctx context.Context, bridgeAddr string) error {
 	if n.cmd != nil {
 		return errors.New("firmware: native node already started")
 	}
-	cmd := exec.CommandContext(ctx, path, "--bridge", bridgeAddr, "--seed", fmt.Sprint(n.Seed))
+	args := []string{"--bridge", bridgeAddr, "--seed", fmt.Sprint(n.Seed)}
+	if n.SF != 0 {
+		args = append(args, "--sf", fmt.Sprint(n.SF))
+	}
+	if n.BandwidthKHz != 0 {
+		args = append(args, "--bw-khz", strconv.FormatFloat(n.BandwidthKHz, 'f', -1, 64))
+	}
+	if n.CodingRate != 0 {
+		args = append(args, "--cr", fmt.Sprint(n.CodingRate))
+	}
+	cmd := exec.CommandContext(ctx, path, args...)
 	cmd.Stderr = n.Log
 	if cmd.Stderr == nil {
 		cmd.Stderr = io.Discard

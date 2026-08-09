@@ -37,22 +37,33 @@ inc=(-I "$MESHCORE/src" -I "$shim" -I "$CRYPTO" -I "$MESHCORE/lib/ed25519")
 # so it is pinned here rather than left to whoever runs the script.
 cxxflags=(-std=c++17 -O2 -Wall -Wno-unused-parameter)
 
+# Third-party sources are cached by mtime; ours are always rebuilt.
+#
+# Not a micro-optimisation — an mtime check on our own files is actively wrong.
+# These get rsync'd to test machines with -a, which preserves the source's
+# timestamp, so an edited file routinely arrives *older* than the object built
+# from its predecessor. The result is a binary that silently does not contain
+# the change you are testing, which costs far more than the twenty seconds
+# recompiling two files saves.
 compile() { # compile <compiler> <flags...> -- <sources...>
   local cc=$1; shift
-  local flags=() src=()
+  local flags=()
   while [ "$1" != "--" ]; do flags+=("$1"); shift; done
-  shift; src=("$@")
-  for f in "${src[@]}"; do
+  shift
+  for f in "$@"; do
     o="$out/obj/$(basename "${f%.*}").o"
-    [ "$f" -nt "$o" ] || [ ! -f "$o" ] && "$cc" "${flags[@]}" -c "$f" -o "$o"
+    if [ ! -f "$o" ] || [ "$f" -nt "$o" ]; then "$cc" "${flags[@]}" -c "$f" -o "$o"; fi
   done
 }
 
 compile g++ "${cxxflags[@]}" "${inc[@]}" -- \
   "$MESHCORE"/src/{Utils,Packet,Identity,Mesh,Dispatcher}.cpp \
-  "$CRYPTO"/{SHA256,AES128,AESCommon,BlockCipher,Crypto,Ed25519,BigNumberUtil,Curve25519,SHA512,Hash}.cpp \
-  "$shim/HostRNG.cpp" "$shim/native_main.cpp"
+  "$CRYPTO"/{SHA256,AES128,AESCommon,BlockCipher,Crypto,Ed25519,BigNumberUtil,Curve25519,SHA512,Hash}.cpp
 compile gcc -std=c11 -O2 -I "$MESHCORE/lib/ed25519" -- "$MESHCORE"/lib/ed25519/*.c
+
+for f in "$shim/HostRNG.cpp" "$shim/native_main.cpp"; do
+  g++ "${cxxflags[@]}" "${inc[@]}" -c "$f" -o "$out/obj/$(basename "${f%.*}").o"
+done
 
 g++ -o "$bin" "$out"/obj/*.o
 echo "$bin"

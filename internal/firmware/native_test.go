@@ -4,9 +4,14 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"math"
+	"os/exec"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/A13xB0/meshcoresim/internal/dsp"
 	"github.com/A13xB0/meshcoresim/internal/firmware"
 )
 
@@ -147,5 +152,46 @@ func TestNativeStopIsSafeWithoutStart(t *testing.T) {
 func TestEmulatedNeedsFirmware(t *testing.T) {
 	if err := (&firmware.Emulated{}).Start(context.Background(), "127.0.0.1:1"); err == nil {
 		t.Fatal("an emulated node with no image should not start")
+	}
+}
+
+// The airtime formula exists twice — once in Go for the channel, once in C++
+// inside the node — because the firmware needs it at runtime and the engine
+// needs it to occupy the air for the right length of time. Two copies that
+// nothing compares are two formulas, and CLAUDE.md's rule is that they must
+// agree: the firmware's CSMA timing is built on its own number, so a drift
+// desynchronises the mesh from the channel silently.
+func TestNativeAirtimeAgreesWithTheChannel(t *testing.T) {
+	bin, err := firmware.FindNative("")
+	if err != nil {
+		if errors.Is(err, firmware.ErrNativeMissing) {
+			t.Skipf("no native node binary: %v", err)
+		}
+		t.Fatal(err)
+	}
+	for _, sf := range []int{7, 8, 9, 10, 11, 12} {
+		for _, bwKHz := range []float64{125, 250} {
+			for _, n := range []int{1, 16, 64, 200} {
+				want := dsp.AirtimeMillis(sf, bwKHz*1000, 1, n, true, true)
+				out, err := exec.Command(bin,
+					"--print-airtime", strconv.Itoa(n),
+					"--sf", strconv.Itoa(sf),
+					"--bw-khz", strconv.FormatFloat(bwKHz, 'f', -1, 64),
+					"--cr", "1").Output()
+				if err != nil {
+					t.Fatalf("SF%d BW%.0f n=%d: %v", sf, bwKHz, n, err)
+				}
+				got, err := strconv.Atoi(strings.TrimSpace(string(out)))
+				if err != nil {
+					t.Fatalf("unparseable airtime %q: %v", out, err)
+				}
+				// One millisecond, because the firmware truncates in float and
+				// the channel truncates in float64.
+				if math.Abs(float64(got)-want) > 1 {
+					t.Errorf("SF%d BW%.0fkHz %d bytes: node says %d ms, channel says %.0f ms",
+						sf, bwKHz, n, got, want)
+				}
+			}
+		}
 	}
 }
