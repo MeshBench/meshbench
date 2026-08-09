@@ -322,9 +322,14 @@ component is tested against a published reference — Semtech's sensitivity
 figures, ITU-R P.526, RadioLib's airtime — and the GPU against its CPU twin. No
 part of it has been compared with a packet that actually crossed real air.
 
-MSIM-28 is that comparison and it is the single highest-value unfinished item in
-the project. Until it runs, every number here is "correct according to the
-textbook", which is not the same as "true on the hill above Aberfeldy".
+The *harness* for that comparison now exists (`internal/validate`, MSIM-28): it
+takes observed receptions and reports bias, spread and percentiles, counts every
+exclusion, and refuses to treat a silent receiver as a negative observation. What
+it has never had is data. Running it against a real CoreScope or Beacon export is
+the single highest-value unfinished item in the project.
+
+Until it does, every number here is "correct according to the textbook", which is
+not the same as "true on the hill above Aberfeldy".
 
 ---
 
