@@ -30,11 +30,16 @@ type tileCache struct {
 	want  map[string]tileReq
 	ready chan tileResult
 
-	// inflight bounds concurrent fetches. Two is what OpenStreetMap's usage
-	// policy asks for, and a workbench that opens twelve is how an address gets
-	// blocked.
 	inflight int
 }
+
+// maxInflight bounds concurrent tile fetches.
+//
+// Six is a compromise. OpenStreetMap's usage policy asks for two, which makes
+// a pan crawl; CARTO and Esri are CDNs that expect browser-like concurrency,
+// and a browser opens six. The layer that needs two is the one whose terms say
+// so, and honouring that per layer is work for when the terms are settled.
+const maxInflight = 6
 
 type tileReq struct {
 	layer   basemap.Layer
@@ -111,8 +116,15 @@ type textureMaker interface {
 	CreateTextureRgba(img *image.RGBA, w, h int) imgui.TextureRef
 }
 
+// peek returns a texture only if it is already uploaded, without queuing work.
+func (c *tileCache) peek(l basemap.Layer, z, x, y int) *imgui.TextureRef {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.tex[tileKey(l, z, x, y)]
+}
+
 // get returns a tile's texture if it is ready, and starts fetching it if not.
-func (c *tileCache) get(store *basemap.Store, l basemap.Layer, z, x, y int, allowFetch bool) *imgui.TextureRef {
+func (c *tileCache) get(store *basemap.Store, l basemap.Layer, z, x, y int) *imgui.TextureRef {
 	key := tileKey(l, z, x, y)
 
 	c.mu.Lock()
@@ -121,8 +133,7 @@ func (c *tileCache) get(store *basemap.Store, l basemap.Layer, z, x, y int, allo
 		return tex
 	}
 	_, queued := c.want[key]
-	busy := c.inflight >= 2
-	if queued || (busy && allowFetch) {
+	if queued || c.inflight >= maxInflight {
 		c.mu.Unlock()
 		return nil
 	}
@@ -131,16 +142,14 @@ func (c *tileCache) get(store *basemap.Store, l basemap.Layer, z, x, y int, allo
 	c.mu.Unlock()
 
 	go func() {
-		// Cache first, always. Only reach for the network if the operator has
-		// allowed it.
+		// Cache first, always.
 		if img, ok := store.Cached(l, z, x, y); ok {
 			c.ready <- tileResult{key, img}
 			return
 		}
-		if !allowFetch {
-			c.ready <- tileResult{key, nil}
-			return
-		}
+		// Then the network, unless the operator asked for offline. A map that
+		// needs a checkbox ticked before it will load is not a map, and every
+		// other one on the machine just fetches what is on screen.
 		if err := store.Fetch(context.Background(), l, z, x, y); err != nil {
 			c.ready <- tileResult{key, nil}
 			return
@@ -162,9 +171,13 @@ func (c *tileCache) forget() {
 //
 // Each tile is placed at its true geographic corners, so the projection is the
 // only thing deciding where imagery lands and it is the same projection the
-// nodes are drawn with. Scaling a whole-view image, as before, put the two
-// subtly out of step at every zoom that was not a power of two.
-func (a *App) drawTiles(origin imgui.Vec2, w, h float32, l basemap.Layer, allowFetch bool) int {
+// nodes are drawn with.
+//
+// A tile that is not ready yet falls back to its parent, scaled. That is what
+// stops the map appearing a square at a time: the coarser tile is already in
+// memory from the zoom level above, so there is always something to draw and
+// detail sharpens rather than materialising out of nothing.
+func (a *App) drawTiles(origin imgui.Vec2, w, h float32, l basemap.Layer) int {
 	if a.bmStore == nil {
 		return 0
 	}
@@ -172,26 +185,52 @@ func (a *App) drawTiles(origin imgui.Vec2, w, h float32, l basemap.Layer, allowF
 	south, north, west, east := a.view.Bounds()
 
 	dl := imgui.WindowDrawList()
+	// Clip to the map. Without this the draw list paints tiles over the panels
+	// below and beside it, which is what "the map bleeds through" was.
+	dl.PushClipRectV(origin, imgui.NewVec2(origin.X+w, origin.Y+h), true)
+	defer dl.PopClipRect()
+
 	drawn := 0
 	for _, xy := range basemap.TilesFor(south, north, west, east, zoom) {
-		tex := a.tiles.get(a.bmStore, l, zoom, xy[0], xy[1], allowFetch)
+		nwLat, nwLon := tileNW(xy[0], xy[1], zoom)
+		seLat, seLon := tileNW(xy[0]+1, xy[1]+1, zoom)
+		x0, y0 := a.view.LatLonToScreen(nwLat, nwLon)
+		x1, y1 := a.view.LatLonToScreen(seLat, seLon)
+		pMin := imgui.NewVec2(origin.X+float32(x0), origin.Y+float32(y0))
+		pMax := imgui.NewVec2(origin.X+float32(x1), origin.Y+float32(y1))
+
+		if tex := a.tiles.get(a.bmStore, l, zoom, xy[0], xy[1]); tex != nil {
+			dl.AddImage(*tex, pMin, pMax)
+			drawn++
+			continue
+		}
+		if tex, u0, v0, u1, v1, ok := a.parentTile(l, zoom, xy[0], xy[1]); ok {
+			dl.AddImageV(*tex, pMin, pMax,
+				imgui.NewVec2(u0, v0), imgui.NewVec2(u1, v1), 0xFFFFFFFF)
+			drawn++
+		}
+	}
+	return drawn
+}
+
+// parentTile finds the nearest coarser tile covering this one, and the part of
+// it to sample.
+//
+// Up to four levels, which is a sixteenth of the detail and still better than a
+// hole. Beyond that the blur is worse than an honest gap.
+func (a *App) parentTile(l basemap.Layer, z, x, y int) (*imgui.TextureRef, float32, float32, float32, float32, bool) {
+	for up := 1; up <= 4 && z-up >= 0; up++ {
+		px, py := x>>up, y>>up
+		tex := a.tiles.peek(l, z-up, px, py)
 		if tex == nil {
 			continue
 		}
-		// A tile's own corners, projected. Web Mercator y is not linear in
-		// latitude, so a tile is not a fixed number of pixels tall and using
-		// one is how imagery drifts away from the nodes drawn on it.
-		nwLat, nwLon := tileNW(xy[0], xy[1], zoom)
-		seLat, seLon := tileNW(xy[0]+1, xy[1]+1, zoom)
-
-		x0, y0 := a.view.LatLonToScreen(nwLat, nwLon)
-		x1, y1 := a.view.LatLonToScreen(seLat, seLon)
-		dl.AddImage(*tex,
-			imgui.NewVec2(origin.X+float32(x0), origin.Y+float32(y0)),
-			imgui.NewVec2(origin.X+float32(x1), origin.Y+float32(y1)))
-		drawn++
+		span := 1 << up
+		u0 := float32(x-(px<<up)) / float32(span)
+		v0 := float32(y-(py<<up)) / float32(span)
+		return tex, u0, v0, u0 + 1/float32(span), v0 + 1/float32(span), true
 	}
-	return drawn
+	return nil, 0, 0, 0, 0, false
 }
 
 // tileNW is the north-west corner of a slippy-map tile.

@@ -186,14 +186,9 @@ func (a *App) drawTerrain(origin imgui.Vec2, w, h float32) {
 
 	if a.composite.HasBase {
 		a.tiles.upload(a.backend)
-		drawn := a.drawTiles(origin, w, h, a.composite.Base, a.fetchTiles)
+		a.drawTiles(origin, w, h, a.composite.Base)
 		if a.composite.HasLabels {
-			a.drawTiles(origin, w, h, a.composite.Labels, a.fetchTiles)
-		}
-		if drawn == 0 && !a.fetchTiles {
-			dl.AddTextVec2V(imgui.NewVec2(origin.X+16, origin.Y+16),
-				colour(0.95, 0.72, 0.25, 0.9),
-				"no tiles cached here - press \"get map\" to download this view")
+			a.drawTiles(origin, w, h, a.composite.Labels)
 		}
 		return
 	}

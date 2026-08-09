@@ -304,15 +304,7 @@ func (a *App) drawToolbar() {
 	if imgui.Button("get terrain") {
 		a.fetchVisibleTerrain()
 	}
-	imgui.SameLine()
-	// Map tiles download while panning once this is on, which is what makes a
-	// map feel like a map. Off by default because it contacts a third party
-	// whose terms are unsettled, and because it is somebody's metered
-	// connection.
-	fetch := a.fetchTiles
-	if imgui.Checkbox("get map", &fetch) {
-		a.fetchTiles = fetch
-	}
+
 	if s := a.fetchState(); s != "" {
 		imgui.SameLine()
 		imgui.TextDisabled(s)
