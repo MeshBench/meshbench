@@ -12,6 +12,7 @@
 // hand transmitted frames out to the simulator.
 //
 using System;
+using System.Net.Sockets;
 using Antmicro.Renode.Core;
 using Antmicro.Renode.Logging;
 using Antmicro.Renode.Peripherals.SPI;
@@ -22,10 +23,40 @@ namespace Antmicro.Renode.Peripherals.Radio
     {
         // Renode resolves peripherals by constructor signature; one taking the
         // machine is what a registration point like "@ spi2 0" looks for.
-        public SX1262(IMachine machine)
+        public SX1262(IMachine machine, string bridgeHost = "127.0.0.1", int bridgePort = 0)
         {
             this.machine = machine;
+            this.bridgeHost = bridgeHost;
+            this.bridgePort = bridgePort;
             Reset();
+        }
+
+        // Connect this radio to the RF engine. Frames the firmware transmits go
+        // out over this socket; frames the channel delivers come back in.
+        //
+        // A socket rather than a Renode wireless medium on purpose: the physics
+        // lives in internal/rf, and an emulated node must share exactly the same
+        // channel as native ones or the two backends are not comparable — which
+        // is the entire point of having both (ADR-0010).
+        public void ConnectBridge()
+        {
+            if(bridgePort == 0)
+            {
+                return;
+            }
+            try
+            {
+                bridge = new TcpClient(bridgeHost, bridgePort);
+                stream = bridge.GetStream();
+                this.Log(LogLevel.Info, "SX1262: bridged to RF engine at {0}:{1}", bridgeHost, bridgePort);
+            }
+            catch(Exception e)
+            {
+                // Loud, not silent: an unbridged radio transmits into nothing,
+                // and a simulation that quietly drops every packet looks like a
+                // propagation result rather than a wiring fault.
+                this.Log(LogLevel.Error, "SX1262: no RF engine at {0}:{1} — {2}", bridgeHost, bridgePort, e.Message);
+            }
         }
 
         public void Reset()
@@ -94,18 +125,27 @@ namespace Antmicro.Renode.Peripherals.Radio
             case OpSetFs:      chipMode = ChipMode.FrequencySynthesis; break;
             case OpSetTx:
                 chipMode = ChipMode.Tx;
-                // Transmission completes immediately in simulation; the RF
-                // engine owns real airtime, not this peripheral.
+                SendToRfEngine();
+                // TX_DONE is raised once the frame is handed over. Real airtime
+                // is the RF engine's business, not this peripheral's — modelling
+                // it here would put the same physics in two places.
                 irqStatus |= IrqTxDone;
                 commandStatus = CommandStatus.CommandTimeout;
                 break;
             case OpSetRx:
                 chipMode = ChipMode.Rx;
+                PollRfEngine();
                 break;
             case OpSetCad:
                 chipMode = ChipMode.Rx;
-                // Channel clear unless the simulator says otherwise. Reporting
-                // "busy" by default would make the firmware never transmit.
+                // CAD is answered by the channel when bridged: this is what makes
+                // the firmware's own carrier-sense observable rather than
+                // asserted. Unbridged, report clear — reporting busy by default
+                // would stop the firmware ever transmitting.
+                if(channelBusy)
+                {
+                    irqStatus |= IrqCadDetected;
+                }
                 irqStatus |= IrqCadDone;
                 break;
             }
@@ -231,11 +271,79 @@ namespace Antmicro.Renode.Peripherals.Radio
             }
         }
 
+        // Frame out: [0x01][len:2][payload]. Frame in: the same, delivered by the
+        // channel after path loss, summation and noise.
+        private void SendToRfEngine()
+        {
+            if(stream == null || payloadLength == 0)
+            {
+                return;
+            }
+            try
+            {
+                var header = new byte[] { 0x01, (byte)(payloadLength >> 8), (byte)(payloadLength & 0xFF) };
+                stream.Write(header, 0, header.Length);
+                stream.Write(dataBuffer, 0, payloadLength);
+                stream.Flush();
+            }
+            catch(Exception e)
+            {
+                this.Log(LogLevel.Warning, "SX1262: transmit to RF engine failed: {0}", e.Message);
+            }
+        }
+
+        private void PollRfEngine()
+        {
+            if(stream == null || !stream.DataAvailable)
+            {
+                return;
+            }
+            try
+            {
+                var header = new byte[3];
+                if(stream.Read(header, 0, 3) != 3)
+                {
+                    return;
+                }
+                var length = (header[1] << 8) | header[2];
+                if(length <= 0 || length > dataBuffer.Length)
+                {
+                    return;
+                }
+                var read = 0;
+                while(read < length)
+                {
+                    var n = stream.Read(dataBuffer, read, length - read);
+                    if(n <= 0)
+                    {
+                        return;
+                    }
+                    read += n;
+                }
+                payloadLength = (byte)length;
+                // Only CRC-passing frames reach the firmware, exactly as on real
+                // hardware. Everything else is recorded by the ledger and
+                // withheld — the gap between what the radio heard and what the
+                // stack acted on (ADR-0014).
+                irqStatus |= IrqRxDone;
+                commandStatus = CommandStatus.DataAvailable;
+            }
+            catch(Exception e)
+            {
+                this.Log(LogLevel.Warning, "SX1262: receive from RF engine failed: {0}", e.Message);
+            }
+        }
+
         private enum State { Command, Arguments }
         private enum ChipMode { StandbyRC = 2, StandbyXosc = 3, FrequencySynthesis = 4, Rx = 5, Tx = 6 }
         private enum CommandStatus { Reserved = 0, DataAvailable = 2, CommandTimeout = 3, ProcessingError = 4, ExecutionFailure = 5, TxDone = 6 }
 
         private readonly IMachine machine;
+        private readonly string bridgeHost;
+        private readonly int bridgePort;
+        private TcpClient bridge;
+        private NetworkStream stream;
+        private bool channelBusy;
         private State state;
         private ChipMode chipMode;
         private CommandStatus commandStatus;
@@ -254,6 +362,7 @@ namespace Antmicro.Renode.Peripherals.Radio
         private const ushort IrqTxDone = 1 << 0;
         private const ushort IrqRxDone = 1 << 1;
         private const ushort IrqCadDone = 1 << 7;
+        private const ushort IrqCadDetected = 1 << 8;
 
         private const byte OpSetSleep = 0x84, OpSetStandby = 0x80, OpSetFs = 0xC1;
         private const byte OpSetTx = 0x83, OpSetRx = 0x82, OpSetCad = 0xC5;
