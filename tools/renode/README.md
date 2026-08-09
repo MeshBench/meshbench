@@ -19,30 +19,54 @@ renode tools/renode/rak4631.resc
 | Reaches | FICR reads, peripheral configuration at `0x4001C564`–`0x4002D564` |
 | Fails at | `0xA5A5A5A4` — the stack-fill pattern |
 
-## FICR: added, and it was not the cause
+## Current state — the SoftDevice was the real blocker
 
-`ficr.repl` + `ficr.py` add the FICR region Renode's stock `nrf52840.repl`
-omits — worth having regardless, since reads there previously returned zeros.
+Two hypotheses tested and disproved, one confirmed, all by measuring rather than
+reasoning:
 
-**But it did not fix the boot, and the experiment was clean:** instruction count
-is *identical* at 0x38FEF (233,455) with and without FICR, and the abort is at
-the same address. Identical counts mean the firmware follows exactly the same
-path, so FICR values never influenced the trajectory. Hypothesis disproved
-rather than assumed away.
+| Change | Instructions | Outcome |
+|---|---|---|
+| baseline | 233,455 | abort at `0xA5A5A5A4` |
+| + FICR | **233,455** | identical — FICR was never the cause |
+| + PWM0–3 | **233,455** | identical — peripherals were never the cause |
+| + SoftDevice s140 6.1.1 | 1.4 billion | **no abort** |
 
-The remaining suspects, from the pre-fault log, are writes to
-`0x4001C564`, `0x40021564`, `0x40022564`, `0x4002D564` — the same `0x564`
-offset across four unmodelled peripheral regions, which looks like the firmware
-walking a peripheral table. `PC=0xA5A5A5A4` means it is *executing* the
-stack-fill pattern, i.e. it returned through a corrupted frame or an unpopulated
-function pointer.
+Identical instruction counts are strong evidence: the firmware followed exactly
+the same path, so those peripherals never influenced it. My first two diagnoses
+were wrong and the counts are what proved it.
 
-Next step is an execution trace to find the last good PC, not another guess.
+### The version pairing is determined by the app's base address
+
+The application makes **119 SVC calls** into the SoftDevice. Without a matching
+one it executes the stack-fill pattern, which is what `0xA5A5A5A4` was.
+
+| SoftDevice | ends at | pairs with an app at |
+|---|---|---|
+| s140 6.1.1 | `0x025DE8` | **`0x026000`** |
+| s140 7.2.0 | `0x026634` | `0x027000` |
+| s140 7.3.0 | `0x026498` | `0x027000` |
+
+The RAK4631 repeater `.uf2` is based at `0x026000`, so it needs **v6.1.1**.
+Loading v7 would overlap the application. `softdevice.py` prints the pairing.
+
+### Where it stops now
+
+`PC = 0xa80`, inside the SoftDevice's early init, with the instruction count
+climbing steadily. **That is a busy-wait, not a running mesh** — the large count
+is a spin loop, not progress.
+
+The SoftDevice is almost certainly polling for a hardware event Renode does not
+raise: `CLOCK.EVENTS_HFCLKSTARTED` is the usual suspect, since the SoftDevice
+starts the high-frequency crystal before doing anything else.
+
+**Next step:** disassemble around `0x0a80` to identify exactly which register is
+being polled, then model that event. Not another guess — the last two cost a
+cycle each.
 
 ## What is missing, in order
 
-1. **The four `0x…564` peripherals** above — identify them from the nRF52840
-   memory map and model enough to satisfy the writes.
+1. **The event the SoftDevice is waiting on** at `0x0a80` — likely
+   `CLOCK.EVENTS_HFCLKSTARTED`. Small once identified.
 2. **SX1262 over SPI.** Renode ships no SX126x peripheral. This is the large
    piece, and it is large because `CustomSX1262.h` drops to `readRegister` /
    `writeRegister` / `getIrqFlags`, so the model must satisfy *RadioLib's own
