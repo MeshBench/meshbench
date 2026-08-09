@@ -12,6 +12,7 @@
 #pragma once
 
 #include <Mesh.h>
+#include <InternalFileSystem.h>
 
 #include "HostBoard.h"
 #include "HostRadio.h"

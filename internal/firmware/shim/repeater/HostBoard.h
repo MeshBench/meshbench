@@ -28,8 +28,6 @@ class HostBoard : public mesh::MainBoard {
   void powerOff() {}
   void sleep(int) {}
   void onBootComplete() {}
-  void setAdcMultiplier(float) {}
-  void setLoRaFemLnaEnabled(bool) {}
 
   // No thermal sensor. -128 is outside anything a working MCU reports, so a
   // reader sees an absent value rather than a cold day.
