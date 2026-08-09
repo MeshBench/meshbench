@@ -122,10 +122,35 @@ func TestMissingTerrainIsReported(t *testing.T) {
 	}
 }
 
-func TestOutOfRangeSelectionIsIgnored(t *testing.T) {
+// An out-of-range index must leave the selection exactly as it was. Asserting
+// it becomes -1 would be wrong now that the app opens on a worked example: the
+// requirement is that nothing changes, not that everything is cleared.
+func TestOutOfRangeSelectionChangesNothing(t *testing.T) {
 	a := ui.New(flat{200})
+	beforeFrom, beforeTo := a.Link()
+
 	a.SelectNode(99, false)
-	if from, _ := a.Link(); from != -1 {
-		t.Errorf("selecting node 99 of %d set from=%d", len(a.Nodes), from)
+	a.SelectNode(-1, true)
+
+	afterFrom, afterTo := a.Link()
+	if afterFrom != beforeFrom || afterTo != beforeTo {
+		t.Errorf("an out-of-range selection changed (%d,%d) to (%d,%d)",
+			beforeFrom, beforeTo, afterFrom, afterTo)
+	}
+}
+
+// The app opens on a link rather than an empty panel, so the first thing a user
+// sees is an answer they can interrogate.
+func TestOpensOnAWorkedExample(t *testing.T) {
+	a := ui.New(flat{200})
+	from, to := a.Link()
+	if from < 0 || to < 0 {
+		t.Fatalf("opened with no link selected: (%d,%d)", from, to)
+	}
+	if !a.Nodes[from].Kind.Transmits() || !a.Nodes[to].Kind.Transmits() {
+		t.Error("the opening link includes a node that transmits nothing")
+	}
+	if a.CutThrough() == nil {
+		t.Errorf("no analysis on the opening screen: %s", a.Error())
 	}
 }
