@@ -12,6 +12,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -41,6 +42,20 @@ class File {
     return fwrite(buf, 1, len, f_);
   }
   size_t write(uint8_t b) { return write(&b, 1); }
+
+  // The repeater writes its preferences and its ACL as text, so print and
+  // printf are not conveniences here — they are how those files are produced.
+  size_t print(const char* s) { return s ? write((const uint8_t*)s, strlen(s)) : 0; }
+  size_t print(int v) { return printf("%d", v); }
+  size_t println(const char* s) { return print(s) + print("\n"); }
+  size_t printf(const char* fmt, ...) {
+    if (!f_) return 0;
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vfprintf(f_, fmt, ap);
+    va_end(ap);
+    return n < 0 ? 0 : (size_t)n;
+  }
 
   bool seek(uint32_t pos) { return f_ && fseek(f_, (long)pos, SEEK_SET) == 0; }
   uint32_t size() {
