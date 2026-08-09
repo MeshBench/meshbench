@@ -41,23 +41,50 @@ static void uart_puts(const char* s) { while (*s) uart_putc(*s++); }
 #define SPI_BASE 0x40023000u
 #define SPI_REG(o) (*(volatile uint32_t*)(SPI_BASE + (o)))
 
-static uint8_t spi_xfer(uint8_t out) {
-  // Renode's NRF52840_SPI exposes the legacy SPI TXD/RXD path.
-  SPI_REG(0x518) = out;                 // TXD
-  for (volatile int i = 0; i < 200; i++) {}
-  return (uint8_t)SPI_REG(0x51C);       // RXD
-}
+// nRF52 legacy SPI. Renode's NRF52840_SPI models this, not SPIM: an EasyDMA
+// attempt produced 22 unhandled accesses (TASKS_START, EVENTS_END, RXD.PTR,
+// TXD.PTR all unimplemented) and the transaction never left the controller.
+//
+// Note the offsets: RXD is 0x518 and TXD is 0x51C. Having them the wrong way
+// round is why the first attempt read back 0x00 — it was writing to the receive
+// register and reading from the transmit one.
+static uint8_t spi_rx[64];
+
+#define SPI_EVENTS_READY 0x108
+#define SPI_ENABLE       0x500
+#define SPI_PSEL_SCK     0x508
+#define SPI_PSEL_MOSI    0x50C
+#define SPI_PSEL_MISO    0x510
+#define SPI_RXD          0x518
+#define SPI_TXD          0x51C
+#define SPI_FREQUENCY    0x524
 
 static void spi_init() {
-  SPI_REG(0x500) = 1;                   // ENABLE
-  SPI_REG(0x524) = 0x02000000;          // FREQUENCY
+  SPI_REG(SPI_PSEL_SCK)  = 19;
+  SPI_REG(SPI_PSEL_MOSI) = 20;
+  SPI_REG(SPI_PSEL_MISO) = 21;
+  SPI_REG(SPI_FREQUENCY) = 0x80000000;  // 8 Mbps
+  SPI_REG(SPI_ENABLE)    = 1;           // legacy SPI
 }
 
-// One SX1262 command: opcode then arguments, response captured.
+static uint8_t spi_xfer(uint8_t out) {
+  SPI_REG(SPI_EVENTS_READY) = 0;
+  SPI_REG(SPI_TXD) = out;
+  for (int i = 0; i < 10000 && !SPI_REG(SPI_EVENTS_READY); i++) {}
+  SPI_REG(SPI_EVENTS_READY) = 0;
+  return (uint8_t)SPI_REG(SPI_RXD);
+}
+
+static void spi_transfer(const uint8_t* out, int n) {
+  for (int i = 0; i < n; i++) spi_rx[i] = spi_xfer(out[i]);
+}
+
 static uint8_t sx_cmd(uint8_t opcode, const uint8_t* args, int n) {
-  uint8_t status = spi_xfer(opcode);
-  for (int i = 0; i < n; i++) spi_xfer(args[i]);
-  return status;
+  uint8_t buf[32];
+  buf[0] = opcode;
+  for (int i = 0; i < n && i < 31; i++) buf[i + 1] = args[i];
+  spi_transfer(buf, n + 1);
+  return spi_rx[0];
 }
 
 class SimRadio : public Radio {
@@ -68,9 +95,12 @@ public:
     // WriteBuffer at offset 0, then SetTx. The SX1262 model forwards the buffer
     // to the RF engine over its bridge, so this frame joins the same channel a
     // native node's would.
-    spi_xfer(0x0E);                       // WriteBuffer
-    spi_xfer(0x00);                       // offset
-    for (int i = 0; i < len; i++) spi_xfer(bytes[i]);
+    uint8_t wb[64];
+    wb[0] = 0x0E;                         // WriteBuffer
+    wb[1] = 0x00;                         // offset
+    int n = len < 62 ? len : 62;
+    for (int i = 0; i < n; i++) wb[i + 2] = bytes[i];
+    spi_transfer(wb, n + 2);
     const uint8_t txArgs[3] = {0, 0, 0};  // timeout: no timeout
     sx_cmd(0x83, txArgs, 3);              // SetTx
     return true;
