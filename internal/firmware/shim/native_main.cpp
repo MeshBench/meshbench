@@ -157,9 +157,30 @@ class BridgeRadio : public mesh::Radio {
   }
 
   uint32_t getEstAirtimeFor(int len) override { return loraAirtimeMs(len); }
-  // Ranking for the delayed-flood decision. Kept identical to the emulated
-  // build so a route chosen natively is the route chosen under emulation.
-  float packetScore(float snr, int len) override { return snr * 100 - len; }
+  // Ranking for the delayed-flood decision.
+  //
+  // MeshCore's own, from RadioLibWrapper::packetScoreInt, and it has to be:
+  // Dispatcher::calcRxDelay computes (10^(0.85 - score) - 1) * airtime, which
+  // assumes a score in [0,1]. The MSIM-1 probe carried a placeholder returning
+  // snr*100 - len, and a score of 675 makes that expression negative, so every
+  // node relayed the instant it decoded. Three repeaters transmitting at the
+  // same millisecond is not a mesh — staggering by how well each heard the
+  // packet is the whole of MeshCore's flood design, and a stub quietly removed
+  // it while the simulation still looked plausible.
+  float packetScore(float snr, int len) override {
+    if (gSF < 7 || gSF > 12) return 0.0f;
+    // Semtech's per-SF demodulator floor, the same table MeshCore uses.
+    static const float threshold[] = {-7.5f, -10.0f, -12.5f, -15.0f, -17.5f, -20.0f};
+    const float floorDB = threshold[gSF - 7];
+    if (snr < floorDB) return 0.0f;  // no chance of success
+
+    const float bySNR = (snr - floorDB) / 10.0f;
+    const float collisionPenalty = 1.0f - (float)len / 256.0f;
+    float v = bySNR * collisionPenalty;
+    if (v < 0.0f) v = 0.0f;
+    if (v > 1.0f) v = 1.0f;
+    return v;
+  }
   int getNoiseFloor() const override { return -117; }
   // Listening whenever it is not mid-transmission. The RF engine owns the real
   // answer; this is what the firmware can observe of it.
