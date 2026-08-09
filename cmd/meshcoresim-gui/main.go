@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/A13xB0/meshcoresim/internal/basemap"
 	"github.com/A13xB0/meshcoresim/internal/terrain"
 	"github.com/A13xB0/meshcoresim/internal/ui"
 )
@@ -30,7 +31,20 @@ func main() {
 	}
 	store.Offline = *offline
 
-	if err := ui.New(store).Run("MeshcoreSim", *w, *h); err != nil {
+	app := ui.New(store)
+
+	// Basemap imagery is optional and off by default. Every layer contacts a
+	// third party whose terms are not settled (ADR-0021), so the operator picks
+	// one deliberately or works from the hillshade, which needs nobody.
+	bm, err := basemap.NewStore(filepath.Join(*cacheDir, "..", "basemap"))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "basemap unavailable:", err)
+	} else {
+		bm.Offline = *offline
+		app.Basemap = bm
+	}
+
+	if err := app.Run("MeshcoreSim", *w, *h); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
