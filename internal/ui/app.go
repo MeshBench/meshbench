@@ -47,17 +47,33 @@ type App struct {
 	cut     *pathview.CutThrough
 	cutErr  string
 
+	// view is the map. It is the main object on screen and everything else is
+	// arranged around it.
+	view MapView
+	tool Tool
+	// placeBoard is the hardware a newly placed node gets. Named rather than
+	// defaulted silently, for the same reason the importer refuses without one.
+	placeBoard string
+
+	terrainTex   *imgui.TextureRef
+	terrainDirty bool
+	terrainW     int
+	terrainH     int
+	dragged      bool
+	status       string
+
 	backend backend.Backend[glfwbackend.GLFWWindowFlags]
 }
 
 // New prepares an application over a terrain source.
 func New(t Terrain) *App {
 	a := &App{
-		Terrain:  t,
-		selected: -1,
-		linkTo:   -1,
-		freqMHz:  869.525,
-		Nodes:    demoScenario(),
+		Terrain:    t,
+		selected:   -1,
+		linkTo:     -1,
+		freqMHz:    869.525,
+		Nodes:      demoScenario(),
+		placeBoard: "RAK4631",
 	}
 	// Open on a worked example rather than an empty panel. The first thing a
 	// user sees should be an answer they can interrogate, not an instruction to
@@ -160,6 +176,10 @@ func (a *App) Run(title string, w, h int) error {
 }
 
 // frame draws one frame.
+//
+// The map is the main view and the panels are around it. That is not a style
+// choice: a list of four nodes is fine and a list of four hundred is unusable,
+// and the questions a workbench exists to answer are spatial.
 func (a *App) frame() {
 	vp := imgui.MainViewport()
 	imgui.SetNextWindowPos(vp.Pos())
@@ -172,30 +192,63 @@ func (a *App) frame() {
 
 	a.drawHeader()
 	imgui.Separator()
+	a.drawToolbar()
 
-	// The table takes the rest of the window. Left to size itself it wraps to
-	// its content and leaves most of the window empty, which reads as a broken
-	// layout rather than a deliberate one.
 	fill := imgui.ContentRegionAvail()
+	const inspectorW = 300
+	const bottomH = 250
 
-	// Two columns: the scenario on the left, the answer on the right. The
-	// answer panel is the wide one because a link verdict is a paragraph, not a
-	// number, and truncating it is how a caveat gets lost.
 	if imgui.BeginTableV("##layout", 2, imgui.TableFlagsResizable|imgui.TableFlagsBordersInnerV,
 		imgui.NewVec2(0, fill.Y), 0) {
-		imgui.TableSetupColumnV("scenario", imgui.TableColumnFlagsWidthFixed, 260, 0)
-		imgui.TableSetupColumnV("analysis", imgui.TableColumnFlagsWidthStretch, 0, 0)
+		imgui.TableSetupColumnV("map", imgui.TableColumnFlagsWidthStretch, 0, 0)
+		imgui.TableSetupColumnV("inspector", imgui.TableColumnFlagsWidthFixed, inspectorW, 0)
 
 		imgui.TableNextRow()
 		imgui.TableSetColumnIndex(0)
-		a.drawNodeList()
+		mapW := imgui.ContentRegionAvail().X
+		a.drawMap(mapW, fill.Y-bottomH)
+		imgui.Spacing()
+		a.drawAnalysis()
 
 		imgui.TableSetColumnIndex(1)
-		a.drawAnalysis()
+		a.drawInspector()
 		imgui.EndTable()
 	}
 
 	imgui.End()
+}
+
+// drawToolbar is the palette: what a click on the map will do.
+func (a *App) drawToolbar() {
+	tools := []Tool{ToolSelect, ToolPlaceRepeater, ToolPlaceCompanion, ToolPlaceObserver, ToolPlaceCustom}
+	for i, t := range tools {
+		if i > 0 {
+			imgui.SameLine()
+		}
+		active := a.tool == t
+		if active {
+			imgui.PushStyleColorVec4(imgui.ColButton, imgui.NewVec4(0.22, 0.42, 0.62, 1))
+		}
+		if imgui.Button(t.label()) {
+			a.tool = t
+		}
+		if active {
+			imgui.PopStyleColor()
+		}
+	}
+
+	imgui.SameLineV(0, 24)
+	if imgui.Button("fit") {
+		a.view.FitTo(a.Nodes, a.view.Width, a.view.Height)
+		a.terrainDirty = true
+	}
+	imgui.SameLine()
+	imgui.TextDisabled(fmt.Sprintf("%d nodes  |  %.0f m/px", len(a.Nodes), a.view.MetresPerPixel))
+	if a.status != "" {
+		imgui.SameLineV(0, 24)
+		imgui.TextDisabled(a.status)
+	}
+	imgui.Separator()
 }
 
 func (a *App) drawHeader() {
