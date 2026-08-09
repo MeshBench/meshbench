@@ -74,6 +74,10 @@ type App struct {
 	// defaulted silently, for the same reason the importer refuses without one.
 	placeBoard string
 
+	tiles      *tileCache
+	bmStore    *basemap.Store
+	fetchTiles bool
+
 	terrainTex   *imgui.TextureRef
 	terrainDirty bool
 	rendering    bool
@@ -117,6 +121,7 @@ func New(t Terrain) *App {
 		placeBoard: "RAK4631",
 		pending:    make(chan *image.RGBA, 1),
 		loadSource: "corescope",
+		tiles:      newTileCache(),
 	}
 	// Hillshade only by default. Every imagery layer here has terms that have
 	// not been checked against how this application uses them, and a default
@@ -237,7 +242,6 @@ func (a *App) frame() {
 		imgui.WindowFlagsNoNavFocus
 	imgui.BeginV("##root", nil, flags)
 
-	a.uploadPendingTerrain()
 	a.drawHeader()
 	imgui.Separator()
 	a.drawToolbar()
@@ -300,6 +304,15 @@ func (a *App) drawToolbar() {
 	if imgui.Button("get terrain") {
 		a.fetchVisibleTerrain()
 	}
+	imgui.SameLine()
+	// Map tiles download while panning once this is on, which is what makes a
+	// map feel like a map. Off by default because it contacts a third party
+	// whose terms are unsettled, and because it is somebody's metered
+	// connection.
+	fetch := a.fetchTiles
+	if imgui.Checkbox("get map", &fetch) {
+		a.fetchTiles = fetch
+	}
 	if s := a.fetchState(); s != "" {
 		imgui.SameLine()
 		imgui.TextDisabled(s)
@@ -350,6 +363,7 @@ func (a *App) drawLayerPicker() {
 			}
 			if imgui.SelectableBool(l.Name) {
 				a.composite.Base, a.composite.HasBase = l, true
+				a.tiles.forget()
 				a.terrainDirty = true
 			}
 		}
@@ -415,3 +429,10 @@ func (a *App) drawBottomTabs() {
 	}
 	imgui.EndTabBar()
 }
+
+// SetBasemapStore gives the map its tile source.
+//
+// Separate from Basemap because the two are used at different times: Basemap
+// samples pixels for the hillshade composite, and the store hands whole tiles
+// to the renderer.
+func (a *App) SetBasemapStore(s *basemap.Store) { a.bmStore = s }

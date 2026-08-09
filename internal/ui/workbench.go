@@ -175,31 +175,45 @@ func (a *App) uniqueName(prefix string) string {
 	}
 }
 
-// drawTerrain paints the hillshade, regenerating it only when the view moved.
+// drawTerrain paints whatever is under the nodes.
 //
-// Regenerating every frame would mean sampling the DEM a million times at 60 Hz.
-// The cache is keyed on the view rather than timed, so a still map costs nothing
-// and a moving one costs exactly one render per change.
+// Imagery is drawn as tiles, straight to the GPU. The hillshade is still a
+// single generated image because it is computed from the DEM rather than
+// downloaded, and it is only produced when it is the thing being shown.
 func (a *App) drawTerrain(origin imgui.Vec2, w, h float32) {
 	dl := imgui.WindowDrawList()
-	if a.terrainDirty || a.terrainTex == nil ||
-		a.terrainW != int(w) || a.terrainH != int(h) {
-		a.regenerateTerrain(int(w), int(h))
-	}
-	if a.terrainTex == nil {
-		dl.AddRectFilled(origin, imgui.NewVec2(origin.X+w, origin.Y+h),
-			colour(0.10, 0.11, 0.13, 1))
+	dl.AddRectFilled(origin, imgui.NewVec2(origin.X+w, origin.Y+h), colour(0.09, 0.10, 0.13, 1))
+
+	if a.composite.HasBase {
+		a.tiles.upload(a.backend)
+		drawn := a.drawTiles(origin, w, h, a.composite.Base, a.fetchTiles)
+		if a.composite.HasLabels {
+			a.drawTiles(origin, w, h, a.composite.Labels, a.fetchTiles)
+		}
+		if drawn == 0 && !a.fetchTiles {
+			dl.AddTextVec2V(imgui.NewVec2(origin.X+16, origin.Y+16),
+				colour(0.95, 0.72, 0.25, 0.9),
+				"no tiles cached here - press \"get map\" to download this view")
+		}
 		return
 	}
-	dl.AddImage(*a.terrainTex, origin, imgui.NewVec2(origin.X+w, origin.Y+h))
+
+	// Hillshade.
+	if a.terrainDirty || a.terrainTex == nil || a.terrainW != int(w) || a.terrainH != int(h) {
+		a.regenerateTerrain(int(w), int(h))
+	}
+	a.uploadPendingTerrain()
+	if a.terrainTex != nil {
+		dl.AddImage(*a.terrainTex, origin, imgui.NewVec2(origin.X+w, origin.Y+h))
+	}
 }
 
 // regenerateTerrain renders the hillshade off the render thread.
 //
-// Even reading from cache, a 500x300 shade is 150,000 samples and several
-// milliseconds — enough to be visible as a stutter on every pan. The texture is
-// uploaded on the next frame that finds one ready, because creating a GPU
-// texture from another goroutine is not safe.
+// Even from cache a 500x300 shade is 150,000 samples and several milliseconds,
+// which is a visible stutter on every pan. The texture is uploaded by whichever
+// frame finds one ready, because creating a GPU texture from another goroutine
+// is not safe.
 func (a *App) regenerateTerrain(w, h int) {
 	a.terrainDirty = false
 	a.terrainW, a.terrainH = w, h
@@ -209,15 +223,11 @@ func (a *App) regenerateTerrain(w, h int) {
 	a.rendering = true
 	view := a.view
 	go func() {
-		// One sample per three pixels. The DEM is 30 m and a workbench view is
-		// rarely finer than that, so sampling per pixel buys nothing but time.
-		img := compositeImage(a.Terrain, a.Basemap, a.composite, view, 3)
-		a.pending <- img
+		a.pending <- terrainImage(a.Terrain, view, 3)
 	}()
 }
 
-// uploadPendingTerrain takes a finished render, if there is one. Called from
-// the frame loop because texture creation must happen on the render thread.
+// uploadPendingTerrain takes a finished hillshade, if there is one.
 func (a *App) uploadPendingTerrain() {
 	select {
 	case img := <-a.pending:

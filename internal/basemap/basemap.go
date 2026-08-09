@@ -79,6 +79,26 @@ type Layer struct {
 func Layers() []Layer {
 	return []Layer{
 		{
+			// CARTO's basemaps are built to be a background for data, which is
+			// exactly this use, and they are quiet enough that a coverage
+			// raster over them stays readable. OSM's standard style is not —
+			// it is a map in its own right and fights anything drawn on it.
+			ID: "carto-light", Name: "Light", Kind: Base, MaxZoom: 20,
+			URL:         "https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
+			Attribution: "(c) OpenStreetMap contributors, (c) CARTO",
+			Terms: "CARTO basemaps. Free for use with attribution; a token is " +
+				"required above their fair-use volume, which a workbench prefetching " +
+				"whole counties could reach.",
+			RequiresReview: true,
+		},
+		{
+			ID: "carto-dark", Name: "Dark", Kind: Base, MaxZoom: 20,
+			URL:            "https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+			Attribution:    "(c) OpenStreetMap contributors, (c) CARTO",
+			Terms:          "As CARTO light above.",
+			RequiresReview: true,
+		},
+		{
 			ID: "osm", Name: "Roads", Kind: Base, MaxZoom: 19,
 			URL:         "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
 			Attribution: "(c) OpenStreetMap contributors",

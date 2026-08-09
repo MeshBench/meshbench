@@ -42,6 +42,7 @@ func main() {
 	} else {
 		bm.Offline = *offline
 		app.Basemap = bm
+		app.SetBasemapStore(bm)
 	}
 
 	if err := app.Run("MeshcoreSim", *w, *h); err != nil {
