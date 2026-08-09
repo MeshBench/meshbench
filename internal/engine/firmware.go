@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/A13xB0/meshcoresim/internal/firmware"
 )
@@ -42,9 +43,34 @@ func (e *Engine) AttachNative(ctx context.Context, seed uint64) error {
 		if err != nil {
 			return fmt.Errorf("engine: start firmware for %s: %w", n.Spec.Name, err)
 		}
+		// Start returns once the process exists, not once it has connected. The
+		// engine ticks immediately afterwards, and a tick to a bridge with
+		// nothing on the other end fails — so the wait is not a convenience,
+		// it is the difference between working and not.
+		if err := waitAttached(ctx, fw, attachTimeout); err != nil {
+			return fmt.Errorf("engine: %s: %w", n.Spec.Name, err)
+		}
+
 		e.mu.Lock()
 		e.nodes[i].Firmware = fw
 		e.mu.Unlock()
+	}
+	return nil
+}
+
+// attachTimeout is how long a firmware process gets to connect back.
+const attachTimeout = 10 * time.Second
+
+func waitAttached(ctx context.Context, n *firmware.Node, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for !n.Bridge.Attached() {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("firmware started but never connected within %v", timeout)
+		}
+		time.Sleep(2 * time.Millisecond)
 	}
 	return nil
 }
