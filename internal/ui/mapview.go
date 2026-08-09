@@ -92,17 +92,28 @@ func (m *MapView) FitTo(nodes []scenario.Node, w, h int) {
 func (m *MapView) ZoomAt(x, y, factor float64) {
 	anchorLat, anchorLon := m.ScreenToLatLon(x, y)
 	m.MetresPerPixel = clampF(m.MetresPerPixel/factor, 0.5, 5000)
-	newLat, newLon := m.ScreenToLatLon(x, y)
+
+	// Latitude first, then longitude, and the order is not stylistic. Metres
+	// per degree of longitude depends on the centre latitude, so correcting
+	// latitude invalidates any longitude correction computed alongside it. Done
+	// together, the anchor drifts east or west a little on every zoom — small
+	// enough to read as imprecision and cumulative enough to lose the point you
+	// were looking at.
+	newLat, _ := m.ScreenToLatLon(x, y)
 	m.CentreLat += anchorLat - newLat
+
+	_, newLon := m.ScreenToLatLon(x, y)
 	m.CentreLon += anchorLon - newLon
 }
 
 // PanPixels moves the view by a screen delta.
 func (m *MapView) PanPixels(dx, dy float64) {
 	const mPerDegLat = 111_320.0
+	// Latitude first, for the same reason as ZoomAt: the longitude scale
+	// depends on where the centre latitude ends up, not where it started.
+	m.CentreLat += dy * m.MetresPerPixel / mPerDegLat
 	mPerDegLon := mPerDegLat * math.Cos(m.CentreLat*math.Pi/180)
 	m.CentreLon -= dx * m.MetresPerPixel / mPerDegLon
-	m.CentreLat += dy * m.MetresPerPixel / mPerDegLat
 }
 
 // NodeAt finds the node whose marker is under a screen point, or -1.
