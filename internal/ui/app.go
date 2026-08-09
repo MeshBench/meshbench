@@ -52,13 +52,37 @@ type App struct {
 
 // New prepares an application over a terrain source.
 func New(t Terrain) *App {
-	return &App{
+	a := &App{
 		Terrain:  t,
 		selected: -1,
 		linkTo:   -1,
 		freqMHz:  869.525,
 		Nodes:    demoScenario(),
 	}
+	// Open on a worked example rather than an empty panel. The first thing a
+	// user sees should be an answer they can interrogate, not an instruction to
+	// go and produce one — and the demo path is chosen because it fails for a
+	// reason the picture makes obvious.
+	a.selectFirstLink()
+	return a
+}
+
+// selectFirstLink picks the first two nodes that can actually form a link.
+func (a *App) selectFirstLink() {
+	var ends []int
+	for i, n := range a.Nodes {
+		if n.Kind.Transmits() {
+			ends = append(ends, i)
+			if len(ends) == 2 {
+				break
+			}
+		}
+	}
+	if len(ends) < 2 {
+		return
+	}
+	a.SelectNode(ends[0], false)
+	a.SelectNode(ends[1], true)
 }
 
 // demoScenario is what opens on a first run.
