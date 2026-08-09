@@ -302,7 +302,13 @@ func (c *Catalogue) Import(path, board, role string) (Image, error) {
 func (c *Catalogue) listCached() ([]Image, error) {
 	var out []Image
 	err := filepath.WalkDir(c.CacheDir, func(p string, d os.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
+		// An unreadable entry is skipped rather than fatal: an offline listing
+		// of what is already downloaded should report what it can find, not
+		// refuse to answer because one file has odd permissions.
+		if err != nil {
+			return nil //nolint:nilerr // skipping this entry is the intent
+		}
+		if d.IsDir() {
 			return nil
 		}
 		ext := strings.ToLower(filepath.Ext(p))
