@@ -247,8 +247,15 @@ func loadNodes(ctx context.Context, path, source, baseURL, token, board string,
 	return demoNetwork(radio, board)
 }
 
-// demoNetwork is a real chain of Perthshire sites, so a first run has something
-// to flood through.
+// demoNetwork is a chain of real Perthshire high ground, so a first run has
+// something a flood can actually cross.
+//
+// The coordinates are local maxima found in the DEM itself rather than village
+// names off a map. That distinction turned out to matter: a first attempt used
+// Dunkeld, Birnam and Perth, and every path failed — correctly, because those
+// are settlements in valleys and a repeater in a valley reaches nothing. Real
+// repeaters go on hills, and a demo that does not is teaching the wrong lesson
+// about why links fail.
 func demoNetwork(radio scenario.RadioConfig, boardName string) ([]scenario.Node, error) {
 	b, err := scenario.BoardByName(boardName)
 	if err != nil {
@@ -267,10 +274,10 @@ func demoNetwork(radio scenario.RadioConfig, boardName string) ([]scenario.Node,
 		}
 	}
 	return []scenario.Node{
-		place("Ben Vrackie", 56.7472, -3.7411, 15),
-		place("Dunkeld", 56.5646, -3.5876, 12),
-		place("Birnam Hill", 56.5490, -3.5920, 20),
-		place("Kinnoull", 56.3960, -3.3970, 18),
-		place("Perth", 56.3950, -3.4308, 6),
+		place("Ben Vrackie", 56.7520, -3.7200, 10),
+		place("Craig Hill", 56.7760, -3.5880, 10),
+		place("Deuchary", 56.6800, -3.9000, 10),
+		place("Birnam Ridge", 56.5520, -3.8160, 10),
+		place("Sidlaw", 56.4480, -3.8880, 10),
 	}, nil
 }
