@@ -64,3 +64,56 @@ func TestSensitivityAgainstSemtech(t *testing.T) {
 		}
 	}
 }
+
+// Splitting the Monte Carlo across cores is only safe because every packet's
+// noise and symbol values come from counters derived from the packet index. If
+// that ever stops being true the results become order-dependent, which would
+// look like ordinary Monte Carlo noise rather than a bug.
+func TestPacketErrorRateIsDeterministic(t *testing.T) {
+	const sf, snr, syms, packets = 9, -13.0, 20, 120
+	first := PacketErrorRate(sf, snr, syms, packets, 4417)
+	for i := 0; i < 4; i++ {
+		if got := PacketErrorRate(sf, snr, syms, packets, 4417); got != first {
+			t.Fatalf("run %d gave %.6f, first run gave %.6f — the split is order-dependent",
+				i+2, got, first)
+		}
+	}
+}
+
+// Two seeds must give genuinely independent noise, not the same stream at a
+// different offset. Tested on the noise directly rather than through a packet
+// error rate: PER is a multiple of 1/packets, so two different realisations
+// frequently land on the same value and the test would pass while the seeds
+// were being ignored entirely.
+func TestSeedsGiveIndependentNoise(t *testing.T) {
+	const n = 64
+	a := make([]complex128, n)
+	b := make([]complex128, n)
+	Philox{Seed: 4417}.AddAWGN(a, 1.0, 0)
+	Philox{Seed: 99}.AddAWGN(b, 1.0, 0)
+
+	same := 0
+	for i := range a {
+		if a[i] == b[i] {
+			same++
+		}
+	}
+	if same > 0 {
+		t.Errorf("%d of %d samples identical across two seeds", same, n)
+	}
+
+	// And the shift that the old additive seeding produced: seed s at counter c
+	// must not equal seed s' at counter c+(s-s').
+	shifted := make([]complex128, n)
+	Philox{Seed: 99}.AddAWGN(shifted, 1.0, 4417-99)
+	same = 0
+	for i := range a {
+		if a[i] == shifted[i] {
+			same++
+		}
+	}
+	if same > n/8 {
+		t.Errorf("%d of %d samples match a seed-shifted stream; the seed is an offset, "+
+			"not a mix, so two seeds are not independent", same, n)
+	}
+}

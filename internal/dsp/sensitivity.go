@@ -1,5 +1,10 @@
 package dsp
 
+import (
+	"runtime"
+	"sync"
+)
+
 // RequiredSNRdB holds Semtech's published demodulator SNR floor for the SX1262,
 // per spreading factor. These are the figures MSIM-2's acceptance test measures
 // against: if the simulated modem does not land close to them, the chain is
@@ -54,29 +59,64 @@ func SymbolErrorRate(sf int, snrDB float64, trials int, seed uint64) float64 {
 // error rate and comparing it to a published packet figure makes a modem look
 // better than it is, in exactly the direction this project is prone to.
 func PacketErrorRate(sf int, snrDB float64, symbolsPerPacket, packets int, seed uint64) float64 {
-	m, d := Modulator{SF: sf}, Demodulator{SF: sf}
+	if packets <= 0 {
+		return 0
+	}
+	m := Modulator{SF: sf}
 	n := SamplesPerSymbol(sf)
-	rng := Philox{Seed: seed}
 	sigPower := SignalPower(m.ModulateSymbol(0))
 	noisePower := NoisePowerForSNR(sigPower, snrDB)
 
-	// Two buffers for the whole sweep instead of two allocations per symbol. At
-	// SF12 that is 128 kB of garbage per symbol, millions of times over.
-	rx := make([]complex128, n)
-	scratch := make([]complex128, n)
+	// Split across cores.
+	//
+	// Every packet's noise and symbol values come from Philox counters derived
+	// from the packet index, so a packet's outcome does not depend on which
+	// goroutine ran it or in what order. The result is bit-identical to the
+	// serial version — which TestPacketErrorRateIsDeterministic asserts — and
+	// this is the only reason splitting it is safe at all.
+	//
+	// It matters because the six spreading factors in the sensitivity sweep
+	// finish at wildly different times: SF7 is cheap, SF12 is not, and without
+	// this the whole sweep ends with eleven idle cores waiting for SF12.
+	workers := runtime.GOMAXPROCS(0)
+	if workers > packets {
+		workers = packets
+	}
+	if workers < 1 {
+		workers = 1
+	}
+
+	counts := make([]int, workers)
+	var wg sync.WaitGroup
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func(w int) {
+			defer wg.Done()
+			rng := Philox{Seed: seed}
+			rx := make([]complex128, n)
+			scratch := make([]complex128, n)
+			d := Demodulator{SF: sf}
+			mod := Modulator{SF: sf}
+
+			for p := w; p < packets; p += workers {
+				for sym := 0; sym < symbolsPerPacket; sym++ {
+					ctr := uint64(p*symbolsPerPacket + sym)
+					want := int(rng.uint64At(ctr) % uint64(n))
+					mod.ModulateSymbolInto(rx, want)
+					rng.AddAWGN(rx, noisePower, ctr*uint64(n)+1<<40)
+					if got, _ := d.DemodulateSymbolInto(scratch, rx); got != want {
+						counts[w]++
+						break // packet already lost; no need to finish it
+					}
+				}
+			}
+		}(w)
+	}
+	wg.Wait()
 
 	bad := 0
-	for p := 0; p < packets; p++ {
-		for sym := 0; sym < symbolsPerPacket; sym++ {
-			ctr := uint64(p*symbolsPerPacket + sym)
-			want := int(rng.uint64At(ctr) % uint64(n))
-			m.ModulateSymbolInto(rx, want)
-			rng.AddAWGN(rx, noisePower, ctr*uint64(n)+1<<40)
-			if got, _ := d.DemodulateSymbolInto(scratch, rx); got != want {
-				bad++
-				break // packet already lost; no need to finish it
-			}
-		}
+	for _, c := range counts {
+		bad += c
 	}
 	return float64(bad) / float64(packets)
 }

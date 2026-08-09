@@ -17,7 +17,15 @@ func (p Philox) uint64At(counter uint64) uint64 {
 	// A small, well-mixed counter hash (splitmix64). Cheap, reproducible, and
 	// trivially portable to WGSL, which matters more here than cryptographic
 	// quality: this is simulation noise, not key material.
-	z := counter + p.Seed + 0x9E3779B97F4A7C15
+	//
+	// The seed is mixed in, not added to the counter. Adding it makes two seeds
+	// the same stream at different offsets — seed s at counter c gives exactly
+	// what seed s' gives at counter c+(s-s') — so two "independent" runs share
+	// most of their noise wherever their counter ranges overlap. That is
+	// invisible in any single run and quietly destroys the point of running a
+	// second seed, which is to get an independent realisation.
+	z := counter + 0x9E3779B97F4A7C15
+	z ^= p.Seed * 0xD6E8FEB86659FD93
 	z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9
 	z = (z ^ (z >> 27)) * 0x94D049BB133111EB
 	return z ^ (z >> 31)
