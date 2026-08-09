@@ -28,7 +28,7 @@ func nativeNode(t *testing.T, seed uint64) (*firmware.Node, *bytes.Buffer) {
 		t.Fatalf("start native node: %v", err)
 	}
 	t.Cleanup(func() {
-		n.Close()
+		_ = n.Close()
 		if t.Failed() && log.Len() > 0 {
 			t.Logf("node stderr:\n%s", log)
 		}
@@ -107,7 +107,7 @@ func TestNativeNodeDeliversAndTransmits(t *testing.T) {
 			t.Fatalf("advance: %v", err)
 		}
 	}
-	n.Close()
+	_ = n.Close()
 
 	// The node reports its own counters on the way out, which is the only
 	// evidence available that the frame got past the socket and into Mesh.

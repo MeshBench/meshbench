@@ -79,16 +79,16 @@ func (e *Emulated) Start(ctx context.Context, bridgeAddr string) error {
 	script := filepath.Join(dir, "node.resc")
 	f, err := os.Create(script)
 	if err != nil {
-		os.RemoveAll(dir)
+		_ = os.RemoveAll(dir)
 		return fmt.Errorf("firmware: script: %w", err)
 	}
 	err = renodeScript.Execute(f, struct {
 		Node, Firmware, Peripheral, BridgeAddr string
 		Platforms                              []string
 	}{filepath.Base(dir), e.Firmware, e.Peripheral, bridgeAddr, e.Platforms})
-	f.Close()
+	_ = f.Close()
 	if err != nil {
-		os.RemoveAll(dir)
+		_ = os.RemoveAll(dir)
 		return fmt.Errorf("firmware: script: %w", err)
 	}
 
@@ -100,7 +100,7 @@ func (e *Emulated) Start(ctx context.Context, bridgeAddr string) error {
 		cmd.Stdout, cmd.Stderr = io.Discard, io.Discard
 	}
 	if err := cmd.Start(); err != nil {
-		os.RemoveAll(dir)
+		_ = os.RemoveAll(dir)
 		return fmt.Errorf("firmware: launch renode: %w", err)
 	}
 	e.cmd, e.scratch = cmd, dir
@@ -113,7 +113,7 @@ func (e *Emulated) Stop() error {
 	e.cmd, e.scratch = nil, ""
 	e.mu.Unlock()
 	if dir != "" {
-		defer os.RemoveAll(dir)
+		defer func() { _ = os.RemoveAll(dir) }()
 	}
 	if cmd == nil || cmd.Process == nil {
 		return nil

@@ -155,9 +155,11 @@ func (d *Device) Dechirp(rx []complex64, sf int) ([]complex64, error) {
 	pass.SetBindGroup(0, bg, nil)
 	groups := (uint32(len(rx)) + 63) / 64
 	pass.DispatchWorkgroups(groups, 1, 1)
-	pass.End()
+	_ = pass.End()
 	pass.Release()
-	enc.CopyBufferToBuffer(out, 0, staging, 0, byteLen)
+	if err := enc.CopyBufferToBuffer(out, 0, staging, 0, byteLen); err != nil {
+		return nil, fmt.Errorf("gpu: copy result to staging: %w", err)
+	}
 	cmd, err := enc.Finish(nil)
 	if err != nil {
 		return nil, err
@@ -167,13 +169,18 @@ func (d *Device) Dechirp(rx []complex64, sf int) ([]complex64, error) {
 	enc.Release()
 
 	done := false
-	staging.MapAsync(wgpu.MapModeRead, 0, byteLen, func(wgpu.BufferMapAsyncStatus) { done = true })
+	// A failed map does not crash — it leaves the staging buffer unreadable and
+	// the result would be whatever was already in memory, which looks like a
+	// plausible waterfall. Exactly the failure CLAUDE.md warns about.
+	if err := staging.MapAsync(wgpu.MapModeRead, 0, byteLen, func(wgpu.BufferMapAsyncStatus) { done = true }); err != nil {
+		return nil, fmt.Errorf("gpu: map staging buffer: %w", err)
+	}
 	for !done {
 		d.device.Poll(true, nil)
 	}
 	raw := staging.GetMappedRange(0, uint(byteLen))
 	res := make([]complex64, len(rx))
 	copy(unsafe.Slice((*byte)(unsafe.Pointer(&res[0])), byteLen), raw)
-	staging.Unmap()
+	_ = staging.Unmap() // the data is already copied out
 	return res, nil
 }

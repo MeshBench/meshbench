@@ -87,7 +87,7 @@ func (b *Bridge) accept() {
 		// rather than silently interleaving.
 		if b.conn != nil {
 			b.mu.Unlock()
-			c.Close()
+			_ = c.Close()
 			continue
 		}
 		b.conn = c
@@ -103,7 +103,7 @@ func (b *Bridge) read(c net.Conn) {
 			b.conn = nil
 		}
 		b.mu.Unlock()
-		c.Close()
+		_ = c.Close()
 	}()
 	var hdr [3]byte
 	for {
@@ -184,7 +184,7 @@ func (b *Bridge) Close() error {
 	c := b.conn
 	b.mu.Unlock()
 	if c != nil {
-		c.Close()
+		_ = c.Close()
 	}
 	return b.ln.Close()
 }

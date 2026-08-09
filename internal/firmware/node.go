@@ -43,7 +43,7 @@ func Start(ctx context.Context, name string, b Backend) (*Node, error) {
 		return nil, err
 	}
 	if err := b.Start(ctx, br.Addr()); err != nil {
-		br.Close()
+		_ = br.Close()
 		return nil, fmt.Errorf("firmware: start %s (%s): %w", name, b.Kind(), err)
 	}
 	return &Node{Bridge: br, Backend: b}, nil

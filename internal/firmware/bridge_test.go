@@ -34,10 +34,10 @@ func TestEmulatedTransmitReachesTheEngine(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer b.Close()
+	defer func() { _ = b.Close() }()
 
 	c := fakeRadio(t, b.Addr())
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 	sendFrame(t, c, []byte{0x11, 0x00, 0xA0, 0xA1})
 
 	select {
@@ -52,9 +52,9 @@ func TestEmulatedTransmitReachesTheEngine(t *testing.T) {
 
 func TestDeliveryReachesTheEmulator(t *testing.T) {
 	b, _ := Listen("127.0.0.1:0", "GB7XYZ")
-	defer b.Close()
+	defer func() { _ = b.Close() }()
 	c := fakeRadio(t, b.Addr())
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	// Wait for accept.
 	for i := 0; i < 50 && !b.Attached(); i++ {
@@ -65,7 +65,7 @@ func TestDeliveryReachesTheEmulator(t *testing.T) {
 	}
 
 	var hdr [3]byte
-	c.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_ = c.SetReadDeadline(time.Now().Add(2 * time.Second))
 	if _, err := io.ReadFull(c, hdr[:]); err != nil {
 		t.Fatal(err)
 	}
@@ -86,9 +86,9 @@ func TestDeliveryReachesTheEmulator(t *testing.T) {
 // not be compared, which is the whole reason ADR-0010 keeps both.
 func TestEmulatedFrameGoesThroughTheRealChannel(t *testing.T) {
 	b, _ := Listen("127.0.0.1:0", "GB7XYZ")
-	defer b.Close()
+	defer func() { _ = b.Close() }()
 	c := fakeRadio(t, b.Addr())
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	payload := []byte{0x11, 0x22, 0x33, 0x44}
 	sendFrame(t, c, payload)
@@ -128,9 +128,9 @@ func TestEmulatedFrameGoesThroughTheRealChannel(t *testing.T) {
 // silently interleave.
 func TestSecondEmulatorIsRefused(t *testing.T) {
 	b, _ := Listen("127.0.0.1:0", "GB7XYZ")
-	defer b.Close()
+	defer func() { _ = b.Close() }()
 	c1 := fakeRadio(t, b.Addr())
-	defer c1.Close()
+	defer func() { _ = c1.Close() }()
 	for i := 0; i < 50 && !b.Attached(); i++ {
 		time.Sleep(10 * time.Millisecond)
 	}
@@ -138,10 +138,10 @@ func TestSecondEmulatorIsRefused(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer c2.Close()
+	defer func() { _ = c2.Close() }()
 	// The refused connection is closed by the server; a write then fails.
 	time.Sleep(100 * time.Millisecond)
-	c2.SetWriteDeadline(time.Now().Add(500 * time.Millisecond))
+	_ = c2.SetWriteDeadline(time.Now().Add(500 * time.Millisecond))
 	_, _ = c2.Write([]byte{kindFrame, 0, 1, 0xFF})
 	select {
 	case f := <-b.Transmitted:

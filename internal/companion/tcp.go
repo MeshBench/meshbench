@@ -74,7 +74,7 @@ func (s *Server) accept() {
 }
 
 func (s *Server) serve(c net.Conn) {
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 	s.attached(1)
 	defer s.attached(-1)
 

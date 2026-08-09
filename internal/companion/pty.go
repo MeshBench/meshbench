@@ -29,19 +29,19 @@ func OpenPTY(node Node) (*PTY, error) {
 		return nil, fmt.Errorf("companion: open ptmx: %w", err)
 	}
 	if err := unix.IoctlSetPointerInt(int(m.Fd()), unix.TIOCSPTLCK, 0); err != nil {
-		m.Close()
+		_ = m.Close()
 		return nil, fmt.Errorf("companion: unlock pty: %w", err)
 	}
 	n, err := unix.IoctlGetInt(int(m.Fd()), unix.TIOCGPTN)
 	if err != nil {
-		m.Close()
+		_ = m.Close()
 		return nil, fmt.Errorf("companion: pty number: %w", err)
 	}
 	// Raw mode. A pty defaults to canonical line discipline, which buffers by
 	// line and mangles control bytes — fatal for binary framing, and it fails as
 	// a silent timeout rather than an error.
 	if err := setRaw(int(m.Fd())); err != nil {
-		m.Close()
+		_ = m.Close()
 		return nil, fmt.Errorf("companion: raw mode: %w", err)
 	}
 

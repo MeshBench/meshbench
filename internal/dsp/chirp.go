@@ -69,7 +69,7 @@ func (d Demodulator) DemodulateSymbol(rx []complex128) (symbol int, confidence f
 	if len(rx) < n {
 		return 0, 0
 	}
-	base := Modulator{SF: d.SF}.BaseUpchirp()
+	base := Modulator(d).BaseUpchirp()
 	buf := make([]complex128, n)
 	for i := 0; i < n; i++ {
 		// multiply by the conjugate of the base chirp
