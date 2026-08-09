@@ -1,0 +1,22 @@
+:name: MeshCore RAK4631 (nRF52840)
+:description: Boots a published MeshCore repeater build under Renode.
+:
+: Usage:
+:   tools/renode/uf2tobin.py firmware.uf2 /tmp/rak.bin
+:   renode tools/renode/rak4631.resc
+:
+: The application starts at 0x26000 — below that is the Adafruit nRF52
+: bootloader, which we do not load. SP and PC come from the application's own
+: vector table; setting only VectorTableOffset leaves SP uninitialised and the
+: firmware faults within ~45 instructions pushing an exception frame to a bogus
+: stack.
+
+mach create "rak4631"
+machine LoadPlatformDescription @platforms/cpus/nrf52840.repl
+
+sysbus LoadBinary @/tmp/rak.bin 0x26000
+cpu VectorTableOffset 0x26000
+cpu SP 0x20040000
+cpu PC 0x0007154d
+
+logLevel 2
