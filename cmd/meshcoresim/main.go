@@ -41,6 +41,7 @@ func commands() []command {
 		{"firmware", "list, download or import MeshCore firmware", runFirmware},
 		{"energy", "will a solar node survive the winter", runEnergy},
 		{"airtime", "LoRa time on air, as the firmware computes it", runAirtime},
+		{"traffic", "flood a message through a network and report what happened", runTraffic},
 	}
 }
 
