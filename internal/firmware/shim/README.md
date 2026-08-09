@@ -19,7 +19,9 @@ lives here; nothing upstream was patched.
 |---|---|
 | `Stream.h` | Upstream's `test/mocks/Stream.h` lacks `println()`, `readBytes()` and buffered `write()`, all of which `Identity.cpp` uses. Also carries `captured()` / `feed()` so the console and control plane can attach. |
 | `HostRNG.cpp` | rweather's `Ed25519`/`Curve25519` reference a global `RNG`; theirs needs `micros()`. Ours is seeded, so key generation is reproducible. |
-| `probe_main.cpp` | The MSIM-1 harness: `SimRadio`, `SimClock`, `SimRTC`, `SimRNG`, `SimTables`, `SimPacketMgr`, and a `Mesh` subclass overriding the log hooks. |
+| `SimNode.h` | The shims themselves — `SimClock`, `SimRTC`, `SimRNG`, `SimTables`, `SimPacketMgr`. Shared by both builds below, because a proof that exercises a different stack from the one that ships proves nothing. `Radio` is deliberately not here: it is the one seam that differs. |
+| `probe_main.cpp` | The MSIM-1 harness: a printing `SimRadio` and a `Mesh` subclass overriding the log hooks. |
+| `native_main.cpp` | The native node (MSIM-41). `BridgeRadio` puts frames on a socket to the RF engine, and the clock is driven by the simulator in lockstep. Built by `tools/native/build.sh`. |
 
 ## Building
 
