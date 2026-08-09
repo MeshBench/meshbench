@@ -106,6 +106,16 @@ optional CoreScope, Beacon and MQTT feeds. Terrain caches permanently and has an
 offline mode that fails loudly; the feeds are all optional. Nothing in the
 simulation depends on anything we run.
 
+## Where development happens
+
+**elite** (`alex@10.100.72.98`), at `~/Documents/projects/meshcoresim`. Twelve
+cores, a real GPU, and the Renode and QEMU toolchains for the firmware work.
+The full suite with `-race` runs there in about three minutes; on the VM it is
+several times that and the GPU path cannot run at all.
+
+Clone with `gh repo clone A13xB0/meshcoresim`. `golangci-lint` is pinned to the
+version CI uses (v2.1.6) at `~/go/bin`.
+
 ## Running
 
 Needs a GPU and a display: **this does not run on VM 114** (virtual VGA, no
