@@ -17,6 +17,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <type_traits>
+
 class Print {
  public:
   virtual ~Print() = default;
@@ -31,12 +33,21 @@ class Print {
 
   size_t print(const char* s) { return s ? write((const uint8_t*)s, strlen(s)) : 0; }
   size_t print(char c) { return write((uint8_t)c); }
-  size_t print(int v) { return printf("%d", v); }
-  size_t print(unsigned int v) { return printf("%u", v); }
-  size_t print(long v) { return printf("%ld", v); }
-  size_t print(unsigned long v) { return printf("%lu", v); }
-  size_t print(float v) { return printf("%.2f", (double)v); }
-  size_t print(double v) { return printf("%.2f", v); }
+
+  // One template rather than an overload per width. int32_t is int on some
+  // platforms and long on others, so a fixed set of overloads is ambiguous on
+  // one of them and missing on the other — and which one depends on the
+  // architecture the pipeline happens to be building for.
+  template <class T, class = decltype(T{} + 0)>
+  size_t print(T v) {
+    if constexpr (std::is_floating_point_v<T>) {
+      return printf("%.2f", (double)v);
+    } else if constexpr (std::is_signed_v<T>) {
+      return printf("%lld", (long long)v);
+    } else {
+      return printf("%llu", (unsigned long long)v);
+    }
+  }
 
   template <class T>
   size_t println(T v) {
