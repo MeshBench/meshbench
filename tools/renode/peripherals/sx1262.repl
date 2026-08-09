@@ -1,0 +1,4 @@
+// The SX1262 hangs off the nRF52840's SPI2, which is what the RAK4631 wires it
+// to. Registration takes no address: an SPI peripheral is selected by chip
+// select, not mapped into the address space.
+sx1262: Radio.SX1262 @ spi2

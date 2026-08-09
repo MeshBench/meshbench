@@ -1,0 +1,52 @@
+:name: SX1262 protocol check
+:
+: Drives the model directly with a real RadioLib-style command sequence and
+: prints the responses. The peripheral is the piece where being subtly wrong
+: produces a model that *looks* like it works and silently corrupts every
+: timing result downstream — so it gets checked in isolation before any
+: firmware trusts it.
+
+include @tools/renode/peripherals/SX1262.cs
+mach create "sxtest"
+machine LoadPlatformDescription @platforms/cpus/nrf52840.repl
+machine LoadPlatformDescription @tools/renode/peripherals/sx1262.repl
+
+echo "GetStatus (0xC0) — expect a status byte with chip mode STBY_RC (2)"
+sx1262 Transmit 0xC0
+sx1262 Transmit 0x00
+sx1262 FinishTransmission
+
+echo "SetStandby (0x80, arg 0) then GetStatus"
+sx1262 Transmit 0x80
+sx1262 Transmit 0x00
+sx1262 FinishTransmission
+sx1262 Transmit 0xC0
+sx1262 Transmit 0x00
+sx1262 FinishTransmission
+
+echo "SetPacketType LoRa (0x8A, 0x01)"
+sx1262 Transmit 0x8A
+sx1262 Transmit 0x01
+sx1262 FinishTransmission
+
+echo "GetDeviceErrors (0x17) — expect 0x0000, i.e. no errors"
+sx1262 Transmit 0x17
+sx1262 Transmit 0x00
+sx1262 Transmit 0x00
+sx1262 Transmit 0x00
+sx1262 FinishTransmission
+
+echo "WriteBuffer 0x0E at offset 0 with AA BB CC, then ReadBuffer 0x1E"
+sx1262 Transmit 0x0E
+sx1262 Transmit 0x00
+sx1262 Transmit 0xAA
+sx1262 Transmit 0xBB
+sx1262 Transmit 0xCC
+sx1262 FinishTransmission
+sx1262 Transmit 0x1E
+sx1262 Transmit 0x00
+sx1262 Transmit 0x00
+sx1262 Transmit 0x00
+sx1262 Transmit 0x00
+sx1262 Transmit 0x00
+sx1262 FinishTransmission
