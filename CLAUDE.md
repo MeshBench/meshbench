@@ -89,6 +89,23 @@ Mechanical, because taste does not survive scale — and this codebase will be b
 - **Determinism is a feature.** Same seed, same scenario, same result. Use
   counter-based RNG, never a stateful stream shared across goroutines.
 
+## It is an application, and it runs standalone
+
+A native desktop application — Go and imgui (ADR-0005). **Not a web
+application**, not a browser tab, not a local server with a front end pointed at
+it. If a design starts describing endpoints, sessions or a front end, it has
+drifted.
+
+One binary on the operator's machine. **No service to deploy, no remote worker,
+no compute backend.** "On the GPU" always means the GPU in the machine
+that is running it, and every GPU path has a CPU one that produces the same
+answer more slowly — a machine without a usable GPU loses time, not features.
+
+The only thing that crosses the network is *data*: terrain tiles, and the
+optional CoreScope, Beacon and MQTT feeds. Terrain caches permanently and has an
+offline mode that fails loudly; the feeds are all optional. Nothing in the
+simulation depends on anything we run.
+
 ## Running
 
 Needs a GPU and a display: **this does not run on VM 114** (virtual VGA, no
