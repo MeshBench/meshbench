@@ -82,7 +82,10 @@ Mechanical, because taste does not survive scale — and this codebase will be b
   CSMA timing is built on it; if our channel disagrees, the two desynchronise
   silently.
 - **The simulator is kinder than the air.** No multipath, no body loss, no
-  oscillator error. Say so in the UI — never let a user assume otherwise.
+  oscillator error. Say so in the UI — never let a user assume otherwise, and
+  keep `docs/shortcomings.md` honest as the model changes. The measured biases
+  are nearly all in one direction, which is what makes a result usable: treat it
+  as a best case.
 - **Determinism is a feature.** Same seed, same scenario, same result. Use
   counter-based RNG, never a stateful stream shared across goroutines.
 
