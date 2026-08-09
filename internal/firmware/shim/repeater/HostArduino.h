@@ -65,10 +65,26 @@ class HostSerial : public Stream {
     return len;
   }
 
-  // MeshCore's own Stream mock lacks these; the repeater's console uses them
-  // for every reply it sends.
+  // The full Arduino print family, not the subset today's MeshCore happens to
+  // call.
+  //
+  // This shim has to keep compiling against MeshCore versions nobody has
+  // written yet — the firmware pipeline syncs upstream and rebuilds without a
+  // human — so implementing the platform contract is the job, and implementing
+  // exactly what one release uses is how it breaks on the next one.
   size_t print(const char* s) { return s ? write((const uint8_t*)s, strlen(s)) : 0; }
-  size_t println(const char* s) { return print(s) + print("\r\n"); }
+  size_t print(char c) { return write((uint8_t)c); }
+  size_t print(int v) { return printf("%d", v); }
+  size_t print(unsigned int v) { return printf("%u", v); }
+  size_t print(long v) { return printf("%ld", v); }
+  size_t print(unsigned long v) { return printf("%lu", v); }
+  size_t print(double v) { return printf("%.2f", v); }
+  size_t print(float v) { return printf("%.2f", (double)v); }
+
+  template <class T>
+  size_t println(T v) {
+    return print(v) + print("\r\n");
+  }
   size_t println() { return print("\r\n"); }
   size_t printf(const char* fmt, ...) {
     char buf[512];
