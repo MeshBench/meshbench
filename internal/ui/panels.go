@@ -159,11 +159,15 @@ func (a *App) drawBudget(from, to scenario.Node) {
 	fixed := coverage.Endpoint{
 		Name: from.Name, Lat: from.Position.Lat, Lon: from.Position.Lon,
 		HeightAGLm: from.HeightAGLm, TxPowerDBm: from.TxPowerDBm, SensitivityDBm: -137,
-		GainTowardsDBi: func(float64, float64) float64 { return 2.15 },
+		// The node's real antenna, evaluated in the real direction. A constant
+		// here would silently make a Yagi omnidirectional, and the panel would
+		// keep producing confident numbers.
+		GainTowardsDBi: from.Antenna.GainTowardsDBi,
 	}
 	opts := coverage.Options{
 		RemoteHeightAGLm: to.HeightAGLm, RemoteTxPowerDBm: to.TxPowerDBm,
-		RemoteGainDBi: -2, RemoteSensitivityDBm: -137, ProfileStepM: 30,
+		RemoteGainDBi:        to.Antenna.Pattern.PeakDBi() - to.Antenna.FeedlineDB,
+		RemoteSensitivityDBm: -137, ProfileStepM: 30,
 	}
 	if err := coverage.Compute(fixed, a.Terrain, r, opts); err != nil {
 		imgui.TextWrapped(err.Error())

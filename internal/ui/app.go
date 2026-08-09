@@ -17,6 +17,7 @@ import (
 	"github.com/AllenDang/cimgui-go/backend/glfwbackend"
 	"github.com/AllenDang/cimgui-go/imgui"
 
+	"github.com/A13xB0/meshcoresim/internal/antenna"
 	"github.com/A13xB0/meshcoresim/internal/pathview"
 	"github.com/A13xB0/meshcoresim/internal/scenario"
 )
@@ -71,26 +72,47 @@ func demoScenario() []scenario.Node {
 	xiao, _ := scenario.BoardByName("Xiao_nRF52840")
 	radio := scenario.RadioConfig{CentreHz: 869.525e6, BandwidthHz: 250e3, SpreadFactor: 10, CodingRate: 1}
 
+	// Antennas come from the board profile, not from a convenient constant. The
+	// gap between a repeater's collinear and a handheld's chip antenna is most
+	// of the asymmetry in every link these nodes form, so a demo that gives
+	// both the same antenna hides the thing worth seeing.
+	mast := func(b scenario.Board) antenna.Mounted {
+		return antenna.Mounted{
+			Pattern:      antenna.Collinear{GainDBiPeak: b.AntennaDBi + 4},
+			Polarisation: "vertical", FeedlineDB: b.FeedlineDB,
+		}
+	}
+	handheld := func(b scenario.Board) antenna.Mounted {
+		return antenna.Mounted{
+			Pattern:      antenna.Dipole{},
+			Polarisation: "vertical", FeedlineDB: b.FeedlineDB - b.AntennaDBi,
+		}
+	}
+
 	return []scenario.Node{
 		{
 			Name: "Ben Vrackie", Kind: scenario.SimpleRepeater,
 			Position: scenario.LatLon{Lat: 56.7472, Lon: -3.7411}, HeightAGLm: 15,
-			Radio: radio, TxPowerDBm: rak.MaxTxDBm, NoiseFigureDB: rak.NoiseFigureDB,
+			Antenna: mast(rak),
+			Radio:   radio, TxPowerDBm: rak.MaxTxDBm, NoiseFigureDB: rak.NoiseFigureDB,
 		},
 		{
 			Name: "Perth", Kind: scenario.Companion,
 			Position: scenario.LatLon{Lat: 56.3950, Lon: -3.4308}, HeightAGLm: 2,
-			Radio: radio, TxPowerDBm: xiao.MaxTxDBm, NoiseFigureDB: xiao.NoiseFigureDB,
+			Antenna: handheld(xiao),
+			Radio:   radio, TxPowerDBm: xiao.MaxTxDBm, NoiseFigureDB: xiao.NoiseFigureDB,
 		},
 		{
 			Name: "Dunkeld", Kind: scenario.SimpleRepeater,
 			Position: scenario.LatLon{Lat: 56.5646, Lon: -3.5876}, HeightAGLm: 12,
-			Radio: radio, TxPowerDBm: rak.MaxTxDBm, NoiseFigureDB: rak.NoiseFigureDB,
+			Antenna: mast(rak),
+			Radio:   radio, TxPowerDBm: rak.MaxTxDBm, NoiseFigureDB: rak.NoiseFigureDB,
 		},
 		{
 			Name: "observer-1", Kind: scenario.SDRObserver,
 			Position: scenario.LatLon{Lat: 56.6000, Lon: -3.6500}, HeightAGLm: 5,
-			Radio: radio, NoiseFigureDB: 6,
+			Antenna: mast(rak),
+			Radio:   radio, NoiseFigureDB: 6,
 		},
 	}
 }
