@@ -13,6 +13,9 @@ import (
 )
 
 func (a *App) drawInspector() {
+	if imgui.CollapsingHeaderBoolPtr("Load", nil, 0) {
+		a.drawLoadPanel()
+	}
 	imgui.SeparatorText("Nodes")
 	imgui.TextWrapped("click on the map to select; ctrl-click a second for a link")
 

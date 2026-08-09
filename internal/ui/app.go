@@ -96,6 +96,13 @@ type App struct {
 	consoleInput string
 	consoleLog   []string
 
+	loadSource   string
+	loadURL      string
+	loadToken    string
+	loadReplace  bool
+	loadStatus   string
+	loadWarnings []string
+
 	backend backend.Backend[glfwbackend.GLFWWindowFlags]
 }
 
@@ -109,6 +116,7 @@ func New(t Terrain) *App {
 		Nodes:      demoScenario(),
 		placeBoard: "RAK4631",
 		pending:    make(chan *image.RGBA, 1),
+		loadSource: "corescope",
 	}
 	// Hillshade only by default. Every imagery layer here has terms that have
 	// not been checked against how this application uses them, and a default
