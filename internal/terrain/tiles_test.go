@@ -220,3 +220,40 @@ func TestURLTemplateIsSubstituted(t *testing.T) {
 		t.Errorf("zoom not honoured: %s", srv.urls[0])
 	}
 }
+
+// The non-blocking read must see tiles that are on disk, not only those already
+// in memory. Checking memory alone fails in a way that looks exactly like a
+// missing download: a freshly started process draws gaps over data it has.
+func TestCachedReadSeesDiskNotJustMemory(t *testing.T) {
+	dir := t.TempDir()
+	srv := &tileServer{body: terrariumTile(func(int, int) float64 { return 321 })}
+
+	warm, err := terrain.NewTileStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	warm.HTTP, warm.URL = srv, "http://tiles.test/{z}/{x}/{y}.png"
+	if _, ok := warm.ElevationM(56.7, -3.9); !ok {
+		t.Fatal("could not populate the cache")
+	}
+
+	// A second store over the same directory: nothing in memory, everything on
+	// disk. This is what a restarted application looks like.
+	cold, err := terrain.NewTileStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cold.HTTP, cold.URL = srv, "http://tiles.test/{z}/{x}/{y}.png"
+
+	h, ok := cold.ElevationCachedM(56.7, -3.9)
+	if !ok {
+		t.Fatal("a tile on disk was reported as not cached")
+	}
+	if h < 320 || h > 322 {
+		t.Errorf("read %.1f m, want about 321", h)
+	}
+	// And it must still refuse where there is genuinely nothing.
+	if _, ok := cold.ElevationCachedM(51.5, -0.1); ok {
+		t.Error("a tile that was never downloaded was reported as cached")
+	}
+}

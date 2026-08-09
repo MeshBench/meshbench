@@ -3,6 +3,7 @@ package terrain
 import (
 	"context"
 	"math"
+	"os"
 )
 
 // ElevationM samples the DEM, bilinearly.
@@ -102,7 +103,15 @@ func (s *TileStore) ElevationCachedM(lat, lon float64) (float64, bool) {
 	return top*(1-fy) + bottom*fy, true
 }
 
-// cachedPixel reads a pixel only if its tile is already in memory.
+// cachedPixel reads a pixel without touching the network.
+//
+// Memory first, then disk. Checking memory alone was wrong in a way that looked
+// like a missing download: a freshly started process has an empty in-memory map,
+// so the map drew gaps over tiles that were sitting on disk, and pressing
+// "get terrain" appeared to do nothing because they were already there.
+//
+// Disk is allowed because the renderer runs off the frame thread. The network
+// is not, at any distance.
 func (s *TileStore) cachedPixel(gx, gy, zoom int) (float64, bool) {
 	maxPixel := int(math.Exp2(float64(zoom))) * tileSize
 	if gy < 0 || gy >= maxPixel {
@@ -110,12 +119,29 @@ func (s *TileStore) cachedPixel(gx, gy, zoom int) (float64, bool) {
 	}
 	gx = ((gx % maxPixel) + maxPixel) % maxPixel
 	tx, ty := gx/tileSize, gy/tileSize
+	k := s.key(tx, ty)
 
 	s.mu.RLock()
-	t, ok := s.loaded[s.key(tx, ty)]
+	t, ok := s.loaded[k]
 	s.mu.RUnlock()
+
 	if !ok {
-		return 0, false
+		b, err := os.ReadFile(s.path(tx, ty))
+		if err != nil {
+			return 0, false
+		}
+		decoded, err := decodeTerrarium(b)
+		if err != nil {
+			return 0, false
+		}
+		s.mu.Lock()
+		if existing, raced := s.loaded[k]; raced {
+			decoded = existing
+		} else {
+			s.loaded[k] = decoded
+		}
+		s.mu.Unlock()
+		t = decoded
 	}
 	return float64(t.heights[(gy%tileSize)*tileSize+(gx%tileSize)]), true
 }
