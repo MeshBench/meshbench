@@ -436,3 +436,17 @@ func (a *App) drawBottomTabs() {
 // samples pixels for the hillshade composite, and the store hands whole tiles
 // to the renderer.
 func (a *App) SetBasemapStore(s *basemap.Store) { a.bmStore = s }
+
+// SetLayer picks the basemap to open with.
+func (a *App) SetLayer(id string) error {
+	l, ok := basemap.ByID(id)
+	if !ok {
+		return fmt.Errorf("ui: no basemap layer %q", id)
+	}
+	a.composite.Base, a.composite.HasBase = l, true
+	a.tiles.forget()
+	return nil
+}
+
+// SetFetchTiles allows the map to download while panning.
+func (a *App) SetFetchTiles(v bool) { a.fetchTiles = v }

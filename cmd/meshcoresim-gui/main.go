@@ -20,6 +20,8 @@ func main() {
 	cacheDir := flag.String("terrain-cache", filepath.Join(defaultCache, "meshcoresim", "terrain"),
 		"where downloaded elevation tiles live")
 	offline := flag.Bool("offline", false, "never download terrain; use only what is cached")
+	layer := flag.String("layer", "", "basemap layer to open with; omit for hillshade")
+	getMap := flag.Bool("get-map", false, "download map tiles while panning")
 	w := flag.Int("width", 1280, "window width")
 	h := flag.Int("height", 800, "window height")
 	flag.Parse()
@@ -43,6 +45,12 @@ func main() {
 		bm.Offline = *offline
 		app.Basemap = bm
 		app.SetBasemapStore(bm)
+		if *layer != "" {
+			if err := app.SetLayer(*layer); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+			}
+		}
+		app.SetFetchTiles(*getMap)
 	}
 
 	if err := app.Run("MeshcoreSim", *w, *h); err != nil {
