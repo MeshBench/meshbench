@@ -59,109 +59,133 @@ func interference() *m.Canvas {
 	return c
 }
 
-// coverage shows the raster map: per-repeater layers, or a combined view.
+// coverage shows a full-bounds best-server raster — the whole map coloured by
+// link margin, as HopReach's coverage.Raster does — with node markers on top and
+// one selected.
 func coverage() *m.Canvas {
-	c := m.New(1320, 800)
-	c.Fill(0, 0, 1320, 44, m.BgSurface)
-	c.Line(0, 44, 1320, 44, m.Border, 1, 0)
+	c := m.New(1400, 840)
+	c.Fill(0, 0, 1400, 44, m.BgSurface)
+	c.Line(0, 44, 1400, 44, m.Border, 1, 0)
 	c.Text(20, 27, "COVERAGE", m.TextHi, m.SansBold, 12)
-	c.Text(130, 27, "GPU raster · 20 m/px · SF10 · both directions", m.TextMid, m.Sans, 11)
-	pill(c, 460, 13, "COMBINED", m.Accent)
+	c.Text(130, 27, "best-server raster · whole region · 20 m/px · SF10 · worst case", m.TextMid, m.Sans, 11)
+	pill(c, 620, 13, "GPU · 6.4 s", m.Good)
 
-	mx, my := card(c, 16, 60, 1000, 720, "MAP", "raster overlay")
-	c.RoundRect(mx-8, my-12, 984, 664, 8, m.Sky, nil)
+	mx, my := card(c, 16, 60, 1060, 760, "MAP", "raster covers the full bounds, not a radius")
+	W, H := 1044, 700
+	ox, oy := mx-8, my-12
+	c.RoundRect(ox, oy, W, H, 8, m.Sky, nil)
 
-	// combined coverage field from three sources
-	type src struct {
-		x, y, r int
-		col     m.NRGBA
+	// Sites contributing to the best-server field.
+	type site struct{ x, y, erp int }
+	sites := []site{
+		{ox + 260, oy + 200, 230}, {ox + 640, oy + 300, 270},
+		{ox + 420, oy + 520, 190}, {ox + 880, oy + 560, 200},
 	}
-	srcs := []src{
-		{mx + 250, my + 200, 210, m.Good},
-		{mx + 620, my + 300, 250, m.Accent},
-		{mx + 400, my + 480, 180, m.Violet},
-	}
-	for px := 0; px < 984; px += 2 {
-		for py := 0; py < 664; py += 2 {
-			gx, gy := mx-8+px, my-12+py
-			best, bcol := 0.0, m.NRGBA{}
-			for _, s := range srcs {
+
+	// Full-bounds raster: every cell gets the best margin from any site, with
+	// terrain shadowing, so the field is continuous and irregular rather than a
+	// set of circles.
+	for px := 0; px < W-4; px += 2 {
+		for py := 0; py < H-4; py += 2 {
+			gx, gy := ox+2+px, oy+2+py
+			best := -99.0
+			// Terrain: ridges carve shadows, so the field is irregular rather than
+			// a set of circles. Shared across sites — it is the same ground.
+			ridge := m.Sin(float64(gx)/110)*m.Cos(float64(gy)/86) + 0.55*m.Sin(float64(gx+gy)/150) + 0.3*m.Cos(float64(gx-gy)/95)
+			shadow := 0.0
+			if ridge < 0.10 {
+				shadow = (0.10 - ridge) * 15
+			}
+			for _, s := range sites {
 				dx, dy := float64(gx-s.x), float64(gy-s.y)
-				d := m.Sqrt(dx*dx + dy*dy)
-				// terrain-shadowed falloff, not a circle
-				shade := 1 + 0.45*m.Sin(float64(gx)/60)*m.Cos(float64(gy)/70)
-				v := 1 - d/(float64(s.r)*shade)
-				if v > best {
-					best, bcol = v, s.col
+				d := m.Sqrt(dx*dx+dy*dy) + 30
+				margin := float64(s.erp)/10 - 22*m.Log10(d/40) - shadow
+				if margin > best {
+					best = margin
 				}
 			}
-			if best > 0 {
-				a := uint8(30 + 150*best)
-				if best > 0.62 {
-					a = uint8(150 + 80*(best-0.62)/0.38)
-				}
-				c.Fill(gx, gy, 2, 2, m.Alpha(bcol, a))
+			var col m.NRGBA
+			switch {
+			case best >= 12:
+				col = m.Alpha(m.Good, 0xcc)
+			case best >= 6:
+				col = m.Alpha(m.NRGBA{0x86, 0xc8, 0x3a, 0xff}, 0xbb)
+			case best >= 2:
+				col = m.Alpha(m.Warn, 0xb0)
+			case best >= 0:
+				col = m.Alpha(m.NRGBA{0xe8, 0x6a, 0x2a, 0xff}, 0xa0)
+			default:
+				continue // no service — basemap shows through
 			}
+			c.Fill(gx, gy, 2, 2, col)
 		}
 	}
-	for _, s := range srcs {
-		c.Dot(s.x, s.y, 8, m.Alpha(s.col, 0x60))
-		c.Dot(s.x, s.y, 4, m.TextHi)
-	}
-	c.Text(srcs[0].x+14, srcs[0].y+4, "GB7XYZ", m.TextHi, m.SansBold, 10)
-	c.Text(srcs[1].x+14, srcs[1].y+4, "GB7ABC", m.TextHi, m.SansBold, 10)
-	c.Text(srcs[2].x+14, srcs[2].y+4, "node-04", m.TextHi, m.SansBold, 10)
 
-	// scale legend
-	c.RoundRect(mx+700, my+560, 260, 76, 8, m.Alpha(m.BgDeep, 0xdd), m.Border)
-	c.Text(mx+714, my+584, "received signal", m.TextLo, m.SansBold, 9.5)
-	for i := 0; i < 20; i++ {
-		c.Fill(mx+714+i*11, my+596, 11, 12, m.Alpha(m.Accent, uint8(30+i*11)))
+	// nodes: repeaters and companions, distinguished by shape as well as colour
+	type nodeM struct {
+		x, y     int
+		name     string
+		repeater bool
+		selected bool
 	}
-	c.Text(mx+714, my+624, "−137", m.TextLo, m.Mono, 9)
-	c.TextRight(mx+934, my+624, "−90 dBm", m.TextLo, m.Mono, 9)
+	nodes := []nodeM{
+		{sites[0].x, sites[0].y, "GB7XYZ", true, false},
+		{sites[1].x, sites[1].y, "GB7ABC", true, true},
+		{sites[2].x, sites[2].y, "GB7DEF", true, false},
+		{sites[3].x, sites[3].y, "GB7GHI", true, false},
+		{ox + 380, oy + 350, "node-04", false, false},
+		{ox + 760, oy + 190, "node-07", false, false},
+		{ox + 540, oy + 640, "node-12", false, false},
+	}
+	for _, n := range nodes {
+		if n.repeater {
+			if n.selected {
+				c.Dot(n.x, n.y, 16, m.Alpha(m.TextHi, 0x30))
+			}
+			c.Dot(n.x, n.y, 9, m.BgDeep)
+			c.Dot(n.x, n.y, 7, m.TextHi)
+			c.Dot(n.x, n.y, 3, m.BgDeep)
+		} else {
+			c.RoundRect(n.x-5, n.y-5, 10, 10, 2, m.BgDeep, m.TextHi)
+		}
+		c.Text(n.x+13, n.y+4, n.name, m.TextHi, m.SansBold, 9.5)
+	}
 
-	// ── layer panel ──────────────────────────────────────────────────────
-	lx, ly := card(c, 1032, 60, 272, 720, "LAYERS", "")
-	c.Text(lx, ly-14, "COVERAGE RASTERS", m.TextLo, m.SansBold, 9.5)
-	layers := []struct {
-		name  string
-		on    bool
+	// selection popover for the clicked repeater
+	sx, sy := sites[1].x+26, sites[1].y-96
+	c.RoundRect(sx, sy, 250, 176, 8, m.Alpha(m.BgDeep, 0xf2), m.BorderLit)
+	c.Text(sx+14, sy+26, "GB7ABC", m.TextHi, m.SansBold, 12)
+	pill(c, sx+150, sy+12, "REPEATER", m.Accent)
+	c.Text(sx+14, sy+50, "RAK 4631 · 6 dBi · 12 m AGL", m.TextMid, m.Sans, 9.5)
+	c.Text(sx+14, sy+70, "869.525 · SF10 · +22 dBm", m.TextMid, m.Mono, 9.5)
+	c.Line(sx+14, sy+82, sx+236, sy+82, m.Border, 1, 0)
+	c.Text(sx+14, sy+102, "serves 38% of region", m.TextHi, m.Sans, 10)
+	c.Text(sx+14, sy+122, "sole server for 11%", m.Warn, m.Sans, 10)
+	c.Text(sx+14, sy+148, "Show only this node's raster", m.Accent, m.Sans, 9.5)
+	c.Text(sx+14, sy+166, "Coverage · Path profile · Console", m.Accent, m.Sans, 9.5)
+
+	// legend
+	c.RoundRect(ox+16, oy+H-92, 330, 76, 8, m.Alpha(m.BgDeep, 0xdd), m.Border)
+	c.Text(ox+30, oy+H-68, "link margin (worst case)", m.TextLo, m.SansBold, 9.5)
+	steps := []struct {
 		col   m.NRGBA
-		state string
+		label string
 	}{
-		{"Combined (best server)", true, m.Accent, "cached"},
-		{"GB7XYZ", true, m.Good, "cached"},
-		{"GB7ABC", true, m.Accent, "cached"},
-		{"node-04", true, m.Violet, "computing 62%"},
-		{"node-07", false, m.TextLo, "—"},
-		{"node-09", false, m.TextLo, "—"},
+		{m.Good, "12+"}, {m.NRGBA{0x86, 0xc8, 0x3a, 0xff}, "6"}, {m.Warn, "2"},
+		{m.NRGBA{0xe8, 0x6a, 0x2a, 0xff}, "0"},
 	}
-	for i, l := range layers {
-		yy := ly + 12 + i*34
-		box := m.BgInset
-		if l.on {
-			box = m.Alpha(l.col, 0x40)
-		}
-		c.RoundRect(lx, yy-11, 16, 16, 4, box, m.BorderLit)
-		if l.on {
-			c.Line(lx+4, yy-3, lx+7, yy+1, l.col, 2, 0)
-			c.Line(lx+7, yy+1, lx+12, yy-7, l.col, 2, 0)
-		}
-		col := m.TextHi
-		if !l.on {
-			col = m.TextLo
-		}
-		c.Text(lx+26, yy+3, l.name, col, m.Sans, 10.5)
-		c.Text(lx+26, yy+18, l.state, m.TextLo, m.Mono, 8.5)
+	for i, s := range steps {
+		c.Fill(ox+30+i*72, oy+H-56, 68, 12, m.Alpha(s.col, 0xcc))
+		c.Text(ox+30+i*72, oy+H-36, s.label, m.TextLo, m.Mono, 9)
 	}
+	c.Text(ox+300, oy+H-36, "dB", m.TextLo, m.Mono, 9)
 
-	oy := ly + 12 + len(layers)*34 + 16
-	c.Line(lx, oy, lx+240, oy, m.Border, 1, 0)
-	c.Text(lx, oy+22, "DIRECTION", m.TextLo, m.SansBold, 9.5)
-	for i, d := range []string{"outbound (you → them)", "inbound (them → you)", "both — worst case"} {
-		yy := oy + 42 + i*24
-		sel := i == 2
+	// ── layers ───────────────────────────────────────────────────────────
+	lx, ly := card(c, 1092, 60, 292, 760, "LAYERS", "")
+	c.Text(lx, ly-14, "RASTER MODE", m.TextLo, m.SansBold, 9.5)
+	for i, mode := range []string{"Best server (whole region)", "Selected node only", "Gap — served by nobody", "Redundancy — 2+ servers"} {
+		yy := ly + 10 + i*26
+		sel := i == 0
 		c.Dot(lx+7, yy-4, 6, m.Alpha(m.Accent, 0x40))
 		if sel {
 			c.Dot(lx+7, yy-4, 3, m.Accent)
@@ -170,24 +194,62 @@ func coverage() *m.Canvas {
 		if sel {
 			col = m.TextHi
 		}
-		c.Text(lx+26, yy, d, col, m.Sans, 10)
+		c.Text(lx+26, yy, mode, col, m.Sans, 10)
 	}
 
-	ry := oy + 130
-	c.Line(lx, ry, lx+240, ry, m.Border, 1, 0)
+	ny := ly + 130
+	c.Line(lx, ny-16, lx+260, ny-16, m.Border, 1, 0)
+	c.Text(lx, ny, "NODES", m.TextLo, m.SansBold, 9.5)
+	c.Text(lx+200, ny, "4 rptr", m.TextLo, m.Mono, 9)
+	list := []struct {
+		name string
+		kind string
+		pct  string
+		sel  bool
+	}{
+		{"GB7XYZ", "repeater", "31%", false},
+		{"GB7ABC", "repeater", "38%", true},
+		{"GB7DEF", "repeater", "22%", false},
+		{"GB7GHI", "repeater", "26%", false},
+		{"node-04", "companion", "—", false},
+		{"node-07", "companion", "—", false},
+		{"node-12", "companion", "—", false},
+	}
+	for i, n := range list {
+		yy := ny + 22 + i*30
+		if n.sel {
+			c.RoundRect(lx-8, yy-14, 276, 28, 5, m.Alpha(m.Accent, 0x22), m.Alpha(m.Accent, 0x70))
+		}
+		if n.kind == "repeater" {
+			c.Dot(lx+6, yy-3, 5, m.TextHi)
+		} else {
+			c.RoundRect(lx+2, yy-8, 9, 9, 2, m.BgInset, m.TextMid)
+		}
+		col := m.TextHi
+		if n.kind == "companion" {
+			col = m.TextMid
+		}
+		c.Text(lx+22, yy, n.name, col, m.Sans, 10.5)
+		c.TextRight(lx+240, yy, n.pct, m.TextLo, m.Mono, 9.5)
+	}
+	c.Text(lx, ny+22+len(list)*30+10, "click any node on the map or here", m.TextLo, m.Sans, 9.5)
+
+	ry := ny + 22 + len(list)*30 + 34
+	c.Line(lx, ry, lx+260, ry, m.Border, 1, 0)
 	c.Text(lx, ry+22, "RESOLUTION", m.TextLo, m.SansBold, 9.5)
 	c.Text(lx, ry+44, "20 m/px", m.TextHi, m.Mono, 11)
-	c.TextRight(lx+240, ry+44, "1.4 M cells", m.TextLo, m.Mono, 10)
-	c.RoundRect(lx, ry+56, 240, 6, 3, m.BgInset, nil)
-	c.RoundRect(lx, ry+56, 150, 6, 3, m.Accent, nil)
-	c.Text(lx, ry+84, "GPU · 2.1 s per repeater", m.Good, m.Sans, 10)
-	c.Text(lx, ry+104, "CPU reference · 46 s", m.TextLo, m.Sans, 9.5)
+	c.TextRight(lx+260, ry+44, "3.1 M cells", m.TextLo, m.Mono, 10)
+	c.RoundRect(lx, ry+56, 260, 6, 3, m.BgInset, nil)
+	c.RoundRect(lx, ry+56, 160, 6, 3, m.Accent, nil)
+	c.Text(lx, ry+84, "local GPU · 6.4 s", m.Good, m.Sans, 10)
+	c.Text(lx, ry+104, "remote worker · 2.2 s", m.Good, m.Sans, 10)
+	c.Text(lx, ry+124, "CPU reference · 214 s", m.TextLo, m.Sans, 9.5)
 
-	wy2 := ry + 134
-	c.RoundRect(lx, wy2, 240, 92, 8, m.Alpha(m.Warn, 0x12), m.Alpha(m.Warn, 0x60))
-	c.Text(lx+12, wy2+24, "Raster is a prediction", m.Warn, m.SansBold, 10)
-	c.Text(lx+12, wy2+46, "Terrain z11 ≈ 30 m/px, so", m.TextMid, m.Sans, 9.5)
-	c.Text(lx+12, wy2+64, "buildings and hedges are", m.TextMid, m.Sans, 9.5)
-	c.Text(lx+12, wy2+82, "invisible to it.", m.TextMid, m.Sans, 9.5)
+	wy := ry + 148
+	c.RoundRect(lx, wy, 260, 96, 8, m.Alpha(m.Warn, 0x12), m.Alpha(m.Warn, 0x60))
+	c.Text(lx+12, wy+24, "Raster is a prediction", m.Warn, m.SansBold, 10)
+	c.Text(lx+12, wy+46, "Terrain z11 ≈ 30 m/px, so", m.TextMid, m.Sans, 9.5)
+	c.Text(lx+12, wy+64, "buildings, hedges and vans", m.TextMid, m.Sans, 9.5)
+	c.Text(lx+12, wy+82, "are invisible to it.", m.TextMid, m.Sans, 9.5)
 	return c
 }

@@ -24,6 +24,7 @@ func sin32(a float64) float32  { return float32(math.Sin(a)) }
 func Sin(x float64) float64    { return math.Sin(x) }
 func Cos(x float64) float64    { return math.Cos(x) }
 func Exp(x float64) float64    { return math.Exp(x) }
+func Log10(x float64) float64  { return math.Log10(x) }
 func Sqrt(x float64) float64   { return math.Sqrt(x) }
 func Pow(x, y float64) float64 { return math.Pow(x, y) }
 func Floor(x float64) float64  { return math.Floor(x) }

@@ -15,6 +15,6 @@ rendered at 2x. Requires `fonts-dejavu-core`.
 | `05-energy.png` | Battery and solar over 12 months. The output that matters is *which purchase actually fixes it* — usually the panel, not the battery. |
 | `06-consoles.png` | Multi-console with synchronised timestamps, and mass commands over the virtual UART (never over the air). |
 | `07-interference.png` | External emitters, their effect on the noise floor, and whether a filter would help. |
-| `08-coverage-rasters.png` | The map with per-repeater coverage rasters, a combined best-server layer, direction selector and resolution control. |
+| `08-coverage-rasters.png` | **Full-bounds best-server raster** over the whole region (as HopReach's `coverage.Raster`), coloured by link margin, with clickable repeaters and companions and a per-node selection popover. |
 
 These correspond to the Feature Catalogue pages in Plane project MSIM.
