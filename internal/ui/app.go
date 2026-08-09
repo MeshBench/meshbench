@@ -262,6 +262,18 @@ func (a *App) drawToolbar() {
 		a.terrainDirty = true
 	}
 	imgui.SameLine()
+	// Downloading is an explicit act. The map draws gaps where it has no data
+	// rather than fetching as you pan: a workbench that downloads whenever the
+	// view moves is unusable on a tethered connection and dishonest about what
+	// it is doing.
+	if imgui.Button("get terrain") {
+		a.fetchVisibleTerrain()
+	}
+	if s := a.fetchState(); s != "" {
+		imgui.SameLine()
+		imgui.TextDisabled(s)
+	}
+	imgui.SameLine()
 	imgui.TextDisabled(fmt.Sprintf("%d nodes  |  %.0f m/px", len(a.Nodes), a.view.MetresPerPixel))
 	if a.status != "" {
 		imgui.SameLineV(0, 24)

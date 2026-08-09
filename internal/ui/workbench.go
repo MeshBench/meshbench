@@ -340,3 +340,13 @@ func (a *App) fetchVisibleTerrain() {
 		a.fetchMu.Unlock()
 	}()
 }
+
+// fetchState is what the toolbar shows while a download runs.
+func (a *App) fetchState() string {
+	a.fetchMu.Lock()
+	defer a.fetchMu.Unlock()
+	if !a.fetching {
+		return ""
+	}
+	return a.fetchStatus
+}
