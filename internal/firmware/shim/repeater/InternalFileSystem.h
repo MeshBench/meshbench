@@ -33,6 +33,12 @@ class File {
   explicit operator bool() const { return f_ != nullptr; }
   bool operator!() const { return f_ == nullptr; }
 
+  // Single-byte read, which is how MeshCore streams a file to the console.
+  int read() {
+    if (!f_) return -1;
+    int c = fgetc(f_);
+    return c == EOF ? -1 : c;
+  }
   int read(uint8_t* buf, size_t len) {
     if (!f_) return 0;
     return (int)fread(buf, 1, len, f_);
