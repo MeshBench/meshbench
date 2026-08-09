@@ -242,7 +242,7 @@ func (a *App) drawCutThrough(c pathview.CutThrough) {
 
 	// Sight line.
 	first, last := c.Samples[0], c.Samples[len(c.Samples)-1]
-	dl.AddLineV(
+	dl.AddLineArgs(
 		imgui.NewVec2(toX(first.DistM), toY(first.LOSm)),
 		imgui.NewVec2(toX(last.DistM), toY(last.LOSm)),
 		colour(0.95, 0.95, 0.95, 0.9), 1.5)
@@ -257,7 +257,7 @@ func (a *App) drawCutThrough(c pathview.CutThrough) {
 		if c.Blocked {
 			col = colour(0.9, 0.35, 0.35, 1)
 		}
-		dl.AddLineV(imgui.NewVec2(x, float32(y0)), imgui.NewVec2(x, float32(y0+h)), col, 1)
+		dl.AddLineArgs(imgui.NewVec2(x, float32(y0)), imgui.NewVec2(x, float32(y0+h)), col, 1)
 		dl.AddCircleFilled(imgui.NewVec2(x, toY(wS.BulgedM)), 4, col)
 	}
 
