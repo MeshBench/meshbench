@@ -188,17 +188,41 @@ func (a *App) drawTerrain(origin imgui.Vec2, w, h float32) {
 	dl.AddImage(*a.terrainTex, origin, imgui.NewVec2(origin.X+w, origin.Y+h))
 }
 
+// regenerateTerrain renders the hillshade off the render thread.
+//
+// Even reading from cache, a 500x300 shade is 150,000 samples and several
+// milliseconds — enough to be visible as a stutter on every pan. The texture is
+// uploaded on the next frame that finds one ready, because creating a GPU
+// texture from another goroutine is not safe.
 func (a *App) regenerateTerrain(w, h int) {
-	// One sample per three pixels. The DEM is 30 m and a workbench view is
-	// rarely finer than that, so sampling per pixel buys nothing but time.
-	img := terrainImage(a.Terrain, a.view, 3)
 	a.terrainDirty = false
 	a.terrainW, a.terrainH = w, h
-	if img == nil || a.backend == nil {
+	if a.rendering {
 		return
 	}
-	tex := a.backend.CreateTextureRgba(img, img.Bounds().Dx(), img.Bounds().Dy())
-	a.terrainTex = &tex
+	a.rendering = true
+	view := a.view
+	go func() {
+		// One sample per three pixels. The DEM is 30 m and a workbench view is
+		// rarely finer than that, so sampling per pixel buys nothing but time.
+		img := terrainImage(a.Terrain, view, 3)
+		a.pending <- img
+	}()
+}
+
+// uploadPendingTerrain takes a finished render, if there is one. Called from
+// the frame loop because texture creation must happen on the render thread.
+func (a *App) uploadPendingTerrain() {
+	select {
+	case img := <-a.pending:
+		a.rendering = false
+		if img == nil || a.backend == nil {
+			return
+		}
+		tex := a.backend.CreateTextureRgba(img, img.Bounds().Dx(), img.Bounds().Dy())
+		a.terrainTex = &tex
+	default:
+	}
 }
 
 func (a *App) drawNodes(origin imgui.Vec2) {

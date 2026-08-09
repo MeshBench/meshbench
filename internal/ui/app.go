@@ -12,6 +12,7 @@ package ui
 
 import (
 	"fmt"
+	"image"
 
 	"github.com/AllenDang/cimgui-go/backend"
 	"github.com/AllenDang/cimgui-go/backend/glfwbackend"
@@ -27,6 +28,15 @@ import (
 // be tested without a window.
 type Terrain interface {
 	ElevationM(lat, lon float64) (float64, bool)
+}
+
+// CachedTerrain is a terrain source that can answer without blocking.
+//
+// Drawing uses it where it exists. Everything that computes a *result* — a link
+// budget, a profile — uses ElevationM and is allowed to wait, because an answer
+// built from gaps would be wrong rather than merely incomplete.
+type CachedTerrain interface {
+	ElevationCachedM(lat, lon float64) (float64, bool)
 }
 
 // App is the running application.
@@ -57,6 +67,8 @@ type App struct {
 
 	terrainTex   *imgui.TextureRef
 	terrainDirty bool
+	rendering    bool
+	pending      chan *image.RGBA
 	terrainW     int
 	terrainH     int
 	dragged      bool
@@ -74,6 +86,7 @@ func New(t Terrain) *App {
 		freqMHz:    869.525,
 		Nodes:      demoScenario(),
 		placeBoard: "RAK4631",
+		pending:    make(chan *image.RGBA, 1),
 	}
 	// Open on a worked example rather than an empty panel. The first thing a
 	// user sees should be an answer they can interrogate, not an instruction to
@@ -190,6 +203,7 @@ func (a *App) frame() {
 		imgui.WindowFlagsNoNavFocus
 	imgui.BeginV("##root", nil, flags)
 
+	a.uploadPendingTerrain()
 	a.drawHeader()
 	imgui.Separator()
 	a.drawToolbar()

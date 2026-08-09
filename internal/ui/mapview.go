@@ -139,7 +139,16 @@ func (m MapView) NodeAt(nodes []scenario.Node, x, y, radiusPx float64) int {
 // matters for radio is *shape* — where the ridges and the valleys are. A shaded
 // image makes an obstruction visible as a landform rather than as a colour that
 // has to be decoded against a legend.
+//
+// It samples through CachedTerrain where the source offers one, so a redraw
+// never waits on a download. Where a tile is not yet in memory it draws a gap,
+// which is honest and instant; the alternative is a window that stops painting
+// and looks like a crash.
 func terrainImage(t Terrain, v MapView, step int) *image.RGBA {
+	sample := t.ElevationM
+	if c, ok := t.(CachedTerrain); ok {
+		sample = c.ElevationCachedM
+	}
 	if step < 1 {
 		step = 1
 	}
@@ -159,7 +168,7 @@ func terrainImage(t Terrain, v MapView, step int) *image.RGBA {
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
 			lat, lon := v.ScreenToLatLon(float64(x*step), float64(y*step))
-			hgt, ok := t.ElevationM(lat, lon)
+			hgt, ok := sample(lat, lon)
 			heights[y*w+x], known[y*w+x] = hgt, ok
 		}
 	}
