@@ -19,9 +19,11 @@ import (
 	"sync"
 )
 
-// frameKind values on the wire.
+// Message kinds on the wire.
 const (
-	kindFrame = 0x01
+	kindFrame = 0x01 // a radio frame, either direction
+	kindTick  = 0x02 // host → node: advance the node's clock to this sim time
+	kindAck   = 0x03 // node → host: everything up to that tick has been processed
 )
 
 // ErrClosed is returned once a bridge has been shut down.
@@ -43,6 +45,11 @@ type Bridge struct {
 	// Transmitted carries frames the emulated firmware sent. The RF engine
 	// reads these and puts them on the channel.
 	Transmitted chan []byte
+
+	// acked carries tick acknowledgements. Buffered by one: a node that is
+	// behaving sends exactly one ack per tick, and a node that sends more is
+	// broken in a way Advance should surface rather than absorb.
+	acked chan uint32
 }
 
 // Listen starts a bridge for one emulated node. Addr is typically
@@ -52,7 +59,12 @@ func Listen(addr, node string) (*Bridge, error) {
 	if err != nil {
 		return nil, fmt.Errorf("firmware: bridge listen: %w", err)
 	}
-	b := &Bridge{ln: ln, node: node, Transmitted: make(chan []byte, 32)}
+	b := &Bridge{
+		ln:          ln,
+		node:        node,
+		Transmitted: make(chan []byte, 32),
+		acked:       make(chan uint32, 1),
+	}
 	go b.accept()
 	return b, nil
 }
@@ -98,22 +110,35 @@ func (b *Bridge) read(c net.Conn) {
 		if _, err := io.ReadFull(c, hdr[:]); err != nil {
 			return
 		}
-		if hdr[0] != kindFrame {
-			return // desynchronised; a wrong kind means the stream is not ours
-		}
 		n := binary.BigEndian.Uint16(hdr[1:])
-		if n == 0 {
-			continue
-		}
 		buf := make([]byte, n)
-		if _, err := io.ReadFull(c, buf); err != nil {
-			return
+		if n > 0 {
+			if _, err := io.ReadFull(c, buf); err != nil {
+				return
+			}
 		}
-		select {
-		case b.Transmitted <- buf:
+		switch hdr[0] {
+		case kindFrame:
+			if n == 0 {
+				continue
+			}
+			select {
+			case b.Transmitted <- buf:
+			default:
+				// The RF engine is not keeping up. Dropping here would look exactly
+				// like a propagation result, so it must never be silent.
+			}
+		case kindAck:
+			if n != 4 {
+				return // malformed; the stream is not ours
+			}
+			select {
+			case b.acked <- binary.BigEndian.Uint32(buf):
+			default:
+				return // an unsolicited ack means the node lost lockstep
+			}
 		default:
-			// The RF engine is not keeping up. Dropping here would look exactly
-			// like a propagation result, so it must never be silent.
+			return // desynchronised; an unknown kind means the stream is not ours
 		}
 	}
 }
@@ -122,6 +147,13 @@ func (b *Bridge) read(c net.Conn) {
 // this node received. Only CRC-passing frames should be delivered; everything
 // else belongs in the ledger and is withheld, exactly as on real hardware.
 func (b *Bridge) Deliver(frame []byte) error {
+	if err := b.send(kindFrame, frame); err != nil {
+		return fmt.Errorf("firmware: deliver: %w", err)
+	}
+	return nil
+}
+
+func (b *Bridge) send(kind byte, payload []byte) error {
 	b.mu.Lock()
 	c, closed := b.conn, b.closed
 	b.mu.Unlock()
@@ -129,16 +161,14 @@ func (b *Bridge) Deliver(frame []byte) error {
 		return ErrClosed
 	}
 	if c == nil {
-		return errors.New("firmware: no emulator attached")
+		return errors.New("no node attached")
 	}
-	if len(frame) > 0xFFFF {
-		return fmt.Errorf("firmware: frame of %d bytes exceeds the wire format", len(frame))
+	if len(payload) > 0xFFFF {
+		return fmt.Errorf("payload of %d bytes exceeds the wire format", len(payload))
 	}
-	hdr := []byte{kindFrame, byte(len(frame) >> 8), byte(len(frame))}
-	if _, err := c.Write(append(hdr, frame...)); err != nil {
-		return fmt.Errorf("firmware: deliver: %w", err)
-	}
-	return nil
+	hdr := []byte{kind, byte(len(payload) >> 8), byte(len(payload))}
+	_, err := c.Write(append(hdr, payload...))
+	return err
 }
 
 // Attached reports whether an emulator is connected.
