@@ -27,7 +27,7 @@ func (a *App) drawNodeList() {
 		}
 		selected := i == a.selected || i == a.linkTo
 		if imgui.SelectableBoolPtr(label, &selected) {
-			a.selectNode(i)
+			a.SelectNode(i, imgui.CurrentIO().KeyCtrl())
 		}
 		if n.Kind == scenario.SDRObserver {
 			imgui.PopStyleColor()
@@ -67,14 +67,33 @@ func (a *App) drawNodeList() {
 	}
 }
 
-func (a *App) selectNode(i int) {
-	if imgui.CurrentIO().KeyCtrl() && a.selected >= 0 && a.selected != i {
+// SelectNode picks a node, or adds a second one to make a link.
+//
+// The modifier is a parameter rather than read from imgui here, so the
+// selection rules can be tested without a window — which matters, because they
+// are the only stateful thing in the UI and the drawing around them cannot be
+// tested at all.
+func (a *App) SelectNode(i int, addToLink bool) {
+	if i < 0 || i >= len(a.Nodes) {
+		return
+	}
+	if addToLink && a.selected >= 0 && a.selected != i {
 		a.linkTo = i
 	} else {
 		a.selected, a.linkTo = i, -1
 	}
 	a.recompute()
 }
+
+// Link reports the current selection: the two node indices, or -1 where there
+// is no selection.
+func (a *App) Link() (from, to int) { return a.selected, a.linkTo }
+
+// CutThrough is the current path analysis, or nil when no link is selected.
+func (a *App) CutThrough() *pathview.CutThrough { return a.cut }
+
+// Error is the reason the last analysis failed, empty if it did not.
+func (a *App) Error() string { return a.cutErr }
 
 // recompute rebuilds everything derived from the selection.
 //
