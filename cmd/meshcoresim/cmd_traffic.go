@@ -35,6 +35,8 @@ func runTraffic(ctx context.Context, args []string) error {
 	origin := fs.String("from", "", "node to send from; the first repeater by default")
 	forMs := fs.Uint("for", 20000, "how long to simulate, ms")
 	verbose := fs.Bool("v", false, "print every event rather than a summary")
+	real := fs.Bool("firmware", false,
+		"run a real MeshCore build on every node, rather than injecting traffic")
 	if err := parse(fs, args, "flood a message through a network and report what happened"); err != nil {
 		return err
 	}
@@ -68,8 +70,16 @@ func runTraffic(ctx context.Context, args []string) error {
 		return fmt.Errorf("no node named %q to send from", *origin)
 	}
 
-	fmt.Printf("%d nodes, SF%d at %.0f kHz, %.3f MHz. Sending from %s.\n\n",
-		len(nodes), *sf, *bw, *freq, nodes[originIdx].Name)
+	mode := "injected traffic; no firmware is running"
+	if *real {
+		if err := e.AttachNative(ctx, 4417); err != nil {
+			return fmt.Errorf("%w\n\nBuild one with tools/native/build.sh, or drop -firmware "+
+				"to inject traffic instead", err)
+		}
+		mode = fmt.Sprintf("%d nodes running a real MeshCore build", e.FirmwareCount())
+	}
+	fmt.Printf("%d nodes, SF%d at %.0f kHz, %.3f MHz. Sending from %s.\n%s.\n\n",
+		len(nodes), *sf, *bw, *freq, nodes[originIdx].Name, mode)
 
 	start := time.Now()
 	e.Inject(originIdx, []byte("meshcoresim flood test"))
