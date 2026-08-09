@@ -220,9 +220,12 @@ func marginText(label string, dB float64) {
 // look clear. A user who can see the sight line passing a hilltop with nothing
 // around it has been told the wrong thing.
 func (a *App) drawCutThrough(c pathview.CutThrough) {
-	const h = 220.0
 	avail := imgui.ContentRegionAvail()
 	w := math.Max(320, float64(avail.X))
+	// Take the height that is going spare, leaving room for the verdict below.
+	// The profile is the main thing on this screen and a fixed 220 px left most
+	// of the window empty.
+	h := math.Max(220, float64(avail.Y)-110)
 
 	pos := imgui.CursorScreenPos()
 	dl := imgui.WindowDrawList()
