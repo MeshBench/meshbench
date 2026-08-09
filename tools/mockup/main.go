@@ -32,6 +32,7 @@ func main() {
 		{"05-energy", energy},
 		{"06-consoles", consoles},
 		{"07-interference", interference},
+		{"08-coverage-rasters", coverage},
 	}
 	for _, f := range figures {
 		path := filepath.Join(out, f.name+".png")
