@@ -26,9 +26,12 @@ static void uart_init() {
 static void uart_putc(char c) {
   REG(EVENTS_TXDRDY) = 0;
   REG(UART_TXD) = (uint32_t)(uint8_t)c;
-  // Bounded wait: a spin with no ceiling would hang the whole image if the
-  // peripheral is unmodelled, which is exactly the failure we are hunting.
-  for (int i = 0; i < 100000 && !REG(EVENTS_TXDRDY); i++) {}
+  // Short bounded wait. Renode does not model EVENTS_TXDRDY on this UART, so
+  // the flag never sets and a long ceiling burns the entire run: 63 characters
+  // at 100,000 spins each was consuming 45 s of emulated time and looking
+  // exactly like a hang in Mesh::begin(). The write itself is what Renode logs,
+  // so the handshake is not needed to observe output.
+  for (int i = 0; i < 50 && !REG(EVENTS_TXDRDY); i++) {}
   REG(EVENTS_TXDRDY) = 0;
 }
 
@@ -196,13 +199,19 @@ int main() {
   node.begin();
   uart_puts("Mesh::begin() ok\r\n");
 
-  for (int i = 0; i < 200; i++) { clk.now += 10; node.loop(); }
+  for (int i = 0; i < 200; i++) {
+    clk.now += 10;
+    node.loop();
+    if (i % 50 == 0) uart_putc('.');   // progress, so slow is distinguishable from stuck
+  }
+  uart_puts("\r\nloop x200 ok\r\n");
 
   Packet* p = mgr.allocNew();
   if (p) {
     p->header = 0x12; p->payload_len = 8;
     for (int i = 0; i < 8; i++) p->payload[i] = (uint8_t)(0xA0 + i);
     node.sendFlood(p);
+    uart_puts("sendFlood issued\r\n");
     for (int i = 0; i < 400; i++) { clk.now += 10; node.loop(); }
   }
   uart_puts(radio.txCount > 0 ? "TX OK — mesh stack ran on ARM\r\n" : "no TX\r\n");

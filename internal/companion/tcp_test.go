@@ -42,7 +42,7 @@ func writeFrame(t *testing.T, c net.Conn, b []byte) {
 func readFrame(t *testing.T, c net.Conn) []byte {
 	t.Helper()
 	var hdr [2]byte
-	c.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_ = c.SetReadDeadline(time.Now().Add(2 * time.Second))
 	if _, err := io.ReadFull(c, hdr[:]); err != nil {
 		t.Fatal(err)
 	}
@@ -59,10 +59,10 @@ func TestFramesRoundTripBothDirections(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	c := dial(t, s)
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	writeFrame(t, c, []byte{0x11, 0x00, 0xA0})
 	select {
@@ -86,9 +86,9 @@ func TestFramesRoundTripBothDirections(t *testing.T) {
 func TestFrameBoundariesArePreserved(t *testing.T) {
 	n := newFake()
 	s, _ := Listen("127.0.0.1:0", n, nil)
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 	c := dial(t, s)
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	writeFrame(t, c, []byte{1, 2, 3})
 	writeFrame(t, c, []byte{4, 5})
@@ -107,7 +107,7 @@ func TestAttachTransitionsAreReportedOnce(t *testing.T) {
 	n := newFake()
 	events := make(chan bool, 8)
 	s, _ := Listen("127.0.0.1:0", n, func(attached bool) { events <- attached })
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	c1 := dial(t, s)
 	if got := <-events; got != true {
@@ -122,14 +122,14 @@ func TestAttachTransitionsAreReportedOnce(t *testing.T) {
 	case <-time.After(300 * time.Millisecond):
 	}
 
-	c1.Close()
+	_ = c1.Close()
 	select {
 	case e := <-events:
 		t.Errorf("closing one of two clients reported %v; still attached", e)
 	case <-time.After(300 * time.Millisecond):
 	}
 
-	c2.Close()
+	_ = c2.Close()
 	if got := <-events; got != false {
 		t.Error("last detach did not report false")
 	}
@@ -143,7 +143,7 @@ func TestBindsLoopbackWhenAsked(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 	host, _, _ := net.SplitHostPort(s.Addr())
 	if host != "127.0.0.1" {
 		t.Errorf("bound to %s, want loopback", host)

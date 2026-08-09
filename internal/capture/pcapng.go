@@ -44,18 +44,21 @@ var outcomeCodes = map[Outcome]uint8{
 func OutcomeCode(o Outcome) uint8 { return outcomeCodes[o] }
 
 func (h PseudoHeader) encode() []byte {
+	// Writes to a bytes.Buffer cannot fail, so the errors are dropped rather
+	// than checked five times over — the alternative buries the layout, which
+	// is the only thing worth reading here.
 	var b bytes.Buffer
-	binary.Write(&b, binary.LittleEndian, h.Version)
-	binary.Write(&b, binary.LittleEndian, h.Outcome)
-	binary.Write(&b, binary.LittleEndian, h.FromNode)
-	binary.Write(&b, binary.LittleEndian, h.ToNode)
-	binary.Write(&b, binary.LittleEndian, h.RSSIdBm)
-	binary.Write(&b, binary.LittleEndian, h.SNRdB)
-	binary.Write(&b, binary.LittleEndian, h.FreqHz)
-	binary.Write(&b, binary.LittleEndian, h.SF)
-	binary.Write(&b, binary.LittleEndian, h.BWkHz)
-	binary.Write(&b, binary.LittleEndian, h.CR)
-	binary.Write(&b, binary.LittleEndian, h.CRCOK)
+	_ = binary.Write(&b, binary.LittleEndian, h.Version)
+	_ = binary.Write(&b, binary.LittleEndian, h.Outcome)
+	_ = binary.Write(&b, binary.LittleEndian, h.FromNode)
+	_ = binary.Write(&b, binary.LittleEndian, h.ToNode)
+	_ = binary.Write(&b, binary.LittleEndian, h.RSSIdBm)
+	_ = binary.Write(&b, binary.LittleEndian, h.SNRdB)
+	_ = binary.Write(&b, binary.LittleEndian, h.FreqHz)
+	_ = binary.Write(&b, binary.LittleEndian, h.SF)
+	_ = binary.Write(&b, binary.LittleEndian, h.BWkHz)
+	_ = binary.Write(&b, binary.LittleEndian, h.CR)
+	_ = binary.Write(&b, binary.LittleEndian, h.CRCOK)
 	return b.Bytes()
 }
 
@@ -75,25 +78,25 @@ func NewPcapngWriter(w io.Writer) (*PcapngWriter, error) {
 
 func (p *PcapngWriter) writeSectionHeader() error {
 	body := new(bytes.Buffer)
-	binary.Write(body, binary.LittleEndian, uint32(0x1A2B3C4D)) // byte-order magic
-	binary.Write(body, binary.LittleEndian, uint16(1))          // major
-	binary.Write(body, binary.LittleEndian, uint16(0))          // minor
-	binary.Write(body, binary.LittleEndian, int64(-1))          // section length unknown
+	_ = binary.Write(body, binary.LittleEndian, uint32(0x1A2B3C4D)) // byte-order magic
+	_ = binary.Write(body, binary.LittleEndian, uint16(1))          // major
+	_ = binary.Write(body, binary.LittleEndian, uint16(0))          // minor
+	_ = binary.Write(body, binary.LittleEndian, int64(-1))          // section length unknown
 	return p.block(0x0A0D0D0A, body.Bytes())
 }
 
 func (p *PcapngWriter) writeInterfaceDescription() error {
 	body := new(bytes.Buffer)
-	binary.Write(body, binary.LittleEndian, uint16(linkTypeUser0))
-	binary.Write(body, binary.LittleEndian, uint16(0))     // reserved
-	binary.Write(body, binary.LittleEndian, uint32(65535)) // snaplen
+	_ = binary.Write(body, binary.LittleEndian, uint16(linkTypeUser0))
+	_ = binary.Write(body, binary.LittleEndian, uint16(0))     // reserved
+	_ = binary.Write(body, binary.LittleEndian, uint32(65535)) // snaplen
 	// if_tsresol = 9 → nanosecond timestamps, which the simulator has and a
 	// microsecond default would silently truncate.
-	binary.Write(body, binary.LittleEndian, uint16(9))
-	binary.Write(body, binary.LittleEndian, uint16(1))
+	_ = binary.Write(body, binary.LittleEndian, uint16(9))
+	_ = binary.Write(body, binary.LittleEndian, uint16(1))
 	body.WriteByte(9)
 	body.Write([]byte{0, 0, 0})
-	binary.Write(body, binary.LittleEndian, uint32(0)) // opt_endofopt
+	_ = binary.Write(body, binary.LittleEndian, uint32(0)) // opt_endofopt
 	return p.block(0x00000001, body.Bytes())
 }
 
@@ -103,11 +106,11 @@ func (p *PcapngWriter) WritePacket(ts uint64, h PseudoHeader, frame []byte) erro
 	payload := append(h.encode(), frame...)
 
 	body := new(bytes.Buffer)
-	binary.Write(body, binary.LittleEndian, uint32(0)) // interface id
-	binary.Write(body, binary.LittleEndian, uint32(ts>>32))
-	binary.Write(body, binary.LittleEndian, uint32(ts&0xFFFFFFFF))
-	binary.Write(body, binary.LittleEndian, uint32(len(payload)))
-	binary.Write(body, binary.LittleEndian, uint32(len(payload)))
+	_ = binary.Write(body, binary.LittleEndian, uint32(0)) // interface id
+	_ = binary.Write(body, binary.LittleEndian, uint32(ts>>32))
+	_ = binary.Write(body, binary.LittleEndian, uint32(ts&0xFFFFFFFF))
+	_ = binary.Write(body, binary.LittleEndian, uint32(len(payload)))
+	_ = binary.Write(body, binary.LittleEndian, uint32(len(payload)))
 	body.Write(payload)
 	for body.Len()%4 != 0 {
 		body.WriteByte(0)
@@ -119,10 +122,10 @@ func (p *PcapngWriter) WritePacket(ts uint64, h PseudoHeader, frame []byte) erro
 func (p *PcapngWriter) block(blockType uint32, body []byte) error {
 	total := uint32(len(body) + 12)
 	var b bytes.Buffer
-	binary.Write(&b, binary.LittleEndian, blockType)
-	binary.Write(&b, binary.LittleEndian, total)
+	_ = binary.Write(&b, binary.LittleEndian, blockType)
+	_ = binary.Write(&b, binary.LittleEndian, total)
 	b.Write(body)
-	binary.Write(&b, binary.LittleEndian, total)
+	_ = binary.Write(&b, binary.LittleEndian, total)
 	if _, err := p.w.Write(b.Bytes()); err != nil {
 		return fmt.Errorf("pcapng: %w", err)
 	}

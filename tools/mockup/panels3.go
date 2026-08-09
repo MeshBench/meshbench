@@ -109,11 +109,11 @@ func coverage() *m.Canvas {
 			case best >= 12:
 				col = m.Alpha(m.Good, 0xcc)
 			case best >= 6:
-				col = m.Alpha(m.NRGBA{0x86, 0xc8, 0x3a, 0xff}, 0xbb)
+				col = m.Alpha(m.NRGBA{R: 0x86, G: 0xc8, B: 0x3a, A: 0xff}, 0xbb)
 			case best >= 2:
 				col = m.Alpha(m.Warn, 0xb0)
 			case best >= 0:
-				col = m.Alpha(m.NRGBA{0xe8, 0x6a, 0x2a, 0xff}, 0xa0)
+				col = m.Alpha(m.NRGBA{R: 0xe8, G: 0x6a, B: 0x2a, A: 0xff}, 0xa0)
 			default:
 				continue // no service — basemap shows through
 			}
@@ -171,8 +171,8 @@ func coverage() *m.Canvas {
 		col   m.NRGBA
 		label string
 	}{
-		{m.Good, "12+"}, {m.NRGBA{0x86, 0xc8, 0x3a, 0xff}, "6"}, {m.Warn, "2"},
-		{m.NRGBA{0xe8, 0x6a, 0x2a, 0xff}, "0"},
+		{m.Good, "12+"}, {m.NRGBA{R: 0x86, G: 0xc8, B: 0x3a, A: 0xff}, "6"}, {m.Warn, "2"},
+		{m.NRGBA{R: 0xe8, G: 0x6a, B: 0x2a, A: 0xff}, "0"},
 	}
 	for i, s := range steps {
 		c.Fill(ox+30+i*72, oy+H-56, 68, 12, m.Alpha(s.col, 0xcc))

@@ -18,14 +18,14 @@ func TestPTYRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Skipf("no PTY available: %v", err)
 	}
-	defer p.Close()
+	defer func() { _ = p.Close() }()
 	t.Logf("node exposed at %s", p.Path)
 
 	slave, err := os.OpenFile(p.Path, os.O_RDWR, 0)
 	if err != nil {
 		t.Fatalf("open slave: %v", err)
 	}
-	defer slave.Close()
+	defer func() { _ = slave.Close() }()
 
 	// client -> node
 	var hdr [2]byte
@@ -45,7 +45,7 @@ func TestPTYRoundTrip(t *testing.T) {
 
 	// node -> client
 	n.out <- Frame{0x22, 0xBB, 0xCC}
-	slave.SetReadDeadline(time.Now().Add(3 * time.Second))
+	_ = slave.SetReadDeadline(time.Now().Add(3 * time.Second))
 	if _, err := io.ReadFull(slave, hdr[:]); err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestPTYPathIsUsable(t *testing.T) {
 	if err != nil {
 		t.Skipf("no PTY available: %v", err)
 	}
-	defer p.Close()
+	defer func() { _ = p.Close() }()
 	if _, err := os.Stat(p.Path); err != nil {
 		t.Errorf("advertised path %s does not exist: %v", p.Path, err)
 	}

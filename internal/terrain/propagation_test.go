@@ -128,7 +128,10 @@ func TestMultiEdgeExceedsSingleEdge(t *testing.T) {
 	for i := 1; i < len(profile)-1; i++ {
 		d1 := profile[i].DistM
 		d2 := d - d1
-		los := (50 + 10) + ((50+10)-(50+10))*(d1/d)
+		// Both ends are at the same height, so the line of sight is flat: the
+		// interpolation term is written out only to keep it obvious that it is.
+		const endHeight = 50 + 10
+		los := float64(endHeight)
 		h := profile[i].HeightM + EarthBulgeM(d1, d2) - los
 		if v := FresnelParameter(h, d1, d2, 869); v > worst {
 			worst = v

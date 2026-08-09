@@ -148,7 +148,7 @@ func workbench() *m.Canvas {
 			if v > 255 {
 				v = 255
 			}
-			c.Img.Set((wx-4)*m.Scale+px, (wy-8)*m.Scale+py, m.NRGBA{uint8(v / 5), uint8(v / 2), uint8(v), 0xff})
+			c.Img.Set((wx-4)*m.Scale+px, (wy-8)*m.Scale+py, m.NRGBA{R: uint8(v / 5), G: uint8(v / 2), B: uint8(v), A: 0xff})
 		}
 	}
 	c.Text(wx+330, wy+110, "overlap 41 ms — collision", m.Warn, m.SansBold, 10)

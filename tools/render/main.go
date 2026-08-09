@@ -19,9 +19,13 @@ import (
 	"github.com/A13xB0/meshcoresim/internal/terrain"
 )
 
+func sq(x float64) float64 { return x * x }
+
 func main() {
 	out := "docs/output"
-	os.MkdirAll(out, 0o755)
+	if err := os.MkdirAll(out, 0o755); err != nil {
+		panic(err)
+	}
 	for _, f := range []struct {
 		name string
 		draw func() *m.Canvas
@@ -38,7 +42,9 @@ func main() {
 		if err := png.Encode(fh, f.draw().Img); err != nil {
 			panic(err)
 		}
-		fh.Close()
+		if err := fh.Close(); err != nil {
+			panic(err)
+		}
 		fmt.Println("wrote", p)
 	}
 }
@@ -57,8 +63,8 @@ func realPathProfile() *m.Canvas {
 		d := float64(i) * 50 // 50 m steps -> 12 km
 		t := float64(i) / n
 		h := 120.0 +
-			430*math.Exp(-math.Pow((t-0.34)/0.07, 2)) +
-			260*math.Exp(-math.Pow((t-0.66)/0.06, 2)) +
+			430*math.Exp(-sq((t-0.34)/0.07)) +
+			260*math.Exp(-sq((t-0.66)/0.06)) +
 			25*math.Sin(t*20)
 		prof[i] = terrain.Point{DistM: d, HeightM: h}
 	}

@@ -1,13 +1,19 @@
 // MSIM-1 proof: the real MeshCore mesh stack, compiled for the host and driven
 // through our own hardware shims. Nothing in MeshCore is modified — every seam
 // used here is one upstream already declares.
-#include <Mesh.h>
-#include <Dispatcher.h>
-#include <Utils.h>
+//
+// The shims themselves live in SimNode.h, shared with the native node: a proof
+// that exercises a different stack from the one that ships proves nothing.
 #include <cstdio>
-#include <vector>
+
+#include "SimNode.h"
 
 using namespace mesh;
+using msim::SimClock;
+using msim::SimPacketMgr;
+using msim::SimRNG;
+using msim::SimRTC;
+using msim::SimTables;
 
 // ── the seam the whole design rests on ───────────────────────────────────
 class SimRadio : public Radio {
@@ -29,84 +35,6 @@ public:
   // True whenever the radio is listening — in the real simulator this comes
   // from the RF engine's channel state, which is what makes CAD truthful.
   bool isInRecvMode() const override { return true; }
-};
-
-class SimClock : public MillisecondClock {
-public:
-  unsigned long now = 0;
-  unsigned long getMillis() override { return now; }
-};
-class SimRTC : public RTCClock {
-public:
-  uint32_t t = 1754700000;
-  uint32_t getCurrentTime() override { return t; }
-  void setCurrentTime(uint32_t v) override { t = v; }
-};
-class SimRNG : public RNG {
-public:
-  uint64_t state = 4417;   // seeded — determinism is a requirement
-  void random(uint8_t* dest, size_t sz) override {
-    for (size_t i = 0; i < sz; i++) {
-      state = state * 6364136223846793005ULL + 1442695040888963407ULL;
-      dest[i] = (uint8_t)(state >> 33);
-    }
-  }
-};
-class SimTables : public MeshTables {
-public:
-  std::vector<uint32_t> seen;
-  bool wasSeen(const Packet* p) override {
-    uint32_t h = hash(p);
-    for (auto v : seen) if (v == h) return true;
-    return false;
-  }
-  void markSeen(const Packet* p) override { seen.push_back(hash(p)); }
-  void clear(const Packet* p) override {
-    uint32_t h = hash(p);
-    for (size_t i = 0; i < seen.size(); i++)
-      if (seen[i] == h) { seen.erase(seen.begin() + i); return; }
-  }
-private:
-  static uint32_t hash(const Packet* p) {
-    uint32_t h = 2166136261u;
-    for (int i = 0; i < p->payload_len; i++) { h ^= p->payload[i]; h *= 16777619u; }
-    return h ^ (uint32_t)p->header;
-  }
-};
-class SimPacketMgr : public PacketManager {
-public:
-  SimPacketMgr() { for (int i = 0; i < 32; i++) pool.push_back(new Packet()); }
-  Packet* allocNew() override {
-    if (pool.empty()) return nullptr;
-    Packet* p = pool.back(); pool.pop_back(); return p;
-  }
-  void free(Packet* p) override { if (p) pool.push_back(p); }
-  void queueOutbound(Packet* p, uint8_t, uint32_t when) override { out.push_back({p, when}); }
-  Packet* getNextOutbound(uint32_t now) override {
-    for (size_t i = 0; i < out.size(); i++)
-      if (out[i].when <= now) { Packet* p = out[i].p; out.erase(out.begin() + i); return p; }
-    return nullptr;
-  }
-  int getOutboundCount(uint32_t now) const override {
-    int n = 0; for (auto& e : out) if (e.when <= now) n++; return n;
-  }
-  int getOutboundTotal() const override { return (int)out.size(); }
-  int getFreeCount() const override { return (int)pool.size(); }
-  Packet* getOutboundByIdx(int i) override { return (i >= 0 && i < (int)out.size()) ? out[i].p : nullptr; }
-  Packet* removeOutboundByIdx(int i) override {
-    if (i < 0 || i >= (int)out.size()) return nullptr;
-    Packet* p = out[i].p; out.erase(out.begin() + i); return p;
-  }
-  void queueInbound(Packet* p, uint32_t when) override { in.push_back({p, when}); }
-  Packet* getNextInbound(uint32_t now) override {
-    for (size_t i = 0; i < in.size(); i++)
-      if (in[i].when <= now) { Packet* p = in[i].p; in.erase(in.begin() + i); return p; }
-    return nullptr;
-  }
-private:
-  struct E { Packet* p; uint32_t when; };
-  std::vector<Packet*> pool;
-  std::vector<E> out, in;
 };
 
 // Observation layer 2: upstream's own empty virtuals, overridden. Not a fork.
