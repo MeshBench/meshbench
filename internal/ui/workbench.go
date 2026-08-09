@@ -153,6 +153,10 @@ func (a *App) placeNode(t Tool, lat, lon float64) {
 	a.Nodes = append(a.Nodes, n)
 	a.status = fmt.Sprintf("placed %s at %.5f, %.5f", n.Name, lat, lon)
 	a.SelectNode(len(a.Nodes)-1, false)
+	// A new node changes every path loss in the network, so the run starts
+	// again rather than continuing with the geometry of a mesh that no longer
+	// exists.
+	a.buildEngine()
 }
 
 func (a *App) uniqueName(prefix string) string {

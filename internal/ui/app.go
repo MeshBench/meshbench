@@ -22,6 +22,7 @@ import (
 
 	"github.com/A13xB0/meshcoresim/internal/antenna"
 	"github.com/A13xB0/meshcoresim/internal/basemap"
+	"github.com/A13xB0/meshcoresim/internal/engine"
 	"github.com/A13xB0/meshcoresim/internal/pathview"
 	"github.com/A13xB0/meshcoresim/internal/scenario"
 )
@@ -85,6 +86,15 @@ type App struct {
 	fetchMu     sync.Mutex
 	fetching    bool
 	fetchStatus string
+
+	// eng is the running simulation. Everything on the traffic tabs is a view
+	// onto it, and nothing keeps its own copy of what happened.
+	eng     *engine.Engine
+	playing bool
+	scrubMs uint32
+
+	consoleInput string
+	consoleLog   []string
 
 	backend backend.Backend[glfwbackend.GLFWWindowFlags]
 }
@@ -238,7 +248,7 @@ func (a *App) frame() {
 		mapW := imgui.ContentRegionAvail().X
 		a.drawMap(mapW, fill.Y-bottomH)
 		imgui.Spacing()
-		a.drawAnalysis()
+		a.drawBottomTabs()
 
 		imgui.TableSetColumnIndex(1)
 		a.drawInspector()
@@ -366,4 +376,34 @@ func (a *App) attribution() string {
 		parts = append(parts, a.composite.Labels.Attribution)
 	}
 	return strings.Join(parts, "   |   ")
+}
+
+// drawBottomTabs is everything that is about the run rather than the map.
+//
+// Tabs rather than a stack, because a link profile and a flood timeline are
+// answers to different questions and nobody needs both at once — and stacking
+// them means neither gets the height to be readable.
+func (a *App) drawBottomTabs() {
+	if !imgui.BeginTabBar("##bottom") {
+		return
+	}
+	if imgui.BeginTabItem("Link") {
+		a.drawAnalysis()
+		imgui.EndTabItem()
+	}
+	if imgui.BeginTabItem("Traffic") {
+		a.drawRunControls()
+		imgui.Separator()
+		a.drawTimeline()
+		imgui.EndTabItem()
+	}
+	if imgui.BeginTabItem("Scoreboard") {
+		a.drawScoreboard()
+		imgui.EndTabItem()
+	}
+	if imgui.BeginTabItem("Console") {
+		a.drawConsole()
+		imgui.EndTabItem()
+	}
+	imgui.EndTabBar()
 }
