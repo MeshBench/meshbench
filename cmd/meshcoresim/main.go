@@ -1,24 +1,142 @@
-// Command meshcoresim is the MeshCore network simulator workbench.
+// Command meshcoresim is the MeshCore network simulator.
 //
-// It needs a GPU and a display, so it does not run on the development VM —
-// see CLAUDE.md. CI exercises the CPU reference path via the packages, not
-// this binary.
+// The desktop application is MSIM-10 and is not built yet. Everything the
+// engine can do is reachable from here in the meantime, and will stay reachable
+// afterwards: a headless path is not a stopgap for the UI, it is what scripted
+// runs, regression suites and the MCP server are built on.
+//
+// Nothing here needs a GPU, a display, or anything running anywhere else.
 package main
 
 import (
+	"context"
+	"flag"
 	"fmt"
 	"os"
+	"os/signal"
+	"path/filepath"
+	"sort"
+	"strings"
+	"syscall"
 
-	"github.com/A13xB0/meshcoresim/internal/dsp"
+	"github.com/A13xB0/meshcoresim/internal/terrain"
 )
 
-func main() {
-	// Placeholder until the UI lands (MSIM-10). Printing the channel's noise
-	// floor is a deliberate first output: it is the number every sensitivity
-	// claim is measured against, and it is cheap to sanity-check by hand.
-	for _, bw := range []float64{125_000, 250_000, 500_000} {
-		fmt.Printf("BW %7.0f Hz  noise floor %7.2f dBm (NF %.0f dB)\n",
-			bw, dsp.NoiseFloorDBm(bw, dsp.DefaultNoiseFigureDB), dsp.DefaultNoiseFigureDB)
+const version = "0.1.0"
+
+type command struct {
+	name    string
+	summary string
+	run     func(ctx context.Context, args []string) error
+}
+
+func commands() []command {
+	return []command{
+		{"link", "link budget between two points, both directions", runLink},
+		{"profile", "terrain profile and the worst obstruction on a path", runProfile},
+		{"coverage", "coverage raster from one station, written as a PNG", runCoverage},
+		{"spectrum", "what an SDR observer captures: waterfall PNG and audio", runSpectrum},
+		{"terrain", "download elevation tiles for an area", runTerrain},
+		{"boards", "the hardware profiles this build knows about", runBoards},
+		{"firmware", "list, download or import MeshCore firmware", runFirmware},
+		{"energy", "will a solar node survive the winter", runEnergy},
+		{"airtime", "LoRa time on air, as the firmware computes it", runAirtime},
 	}
-	os.Exit(0)
+}
+
+func main() {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	if len(os.Args) < 2 {
+		usage()
+		os.Exit(2)
+	}
+	name := os.Args[1]
+	if name == "-h" || name == "--help" || name == "help" {
+		usage()
+		return
+	}
+	if name == "-version" || name == "--version" {
+		fmt.Println("meshcoresim", version)
+		return
+	}
+
+	for _, c := range commands() {
+		if c.name == name {
+			if err := c.run(ctx, os.Args[2:]); err != nil {
+				fmt.Fprintln(os.Stderr, "meshcoresim:", err)
+				os.Exit(1)
+			}
+			return
+		}
+	}
+	fmt.Fprintf(os.Stderr, "meshcoresim: no command %q\n\n", name)
+	usage()
+	os.Exit(2)
+}
+
+func usage() {
+	fmt.Fprintf(os.Stderr, "meshcoresim %s — MeshCore network simulator\n\n", version)
+	fmt.Fprintln(os.Stderr, "Usage: meshcoresim <command> [flags]")
+	fmt.Fprintln(os.Stderr)
+	cs := commands()
+	sort.Slice(cs, func(i, j int) bool { return cs[i].name < cs[j].name })
+	for _, c := range cs {
+		fmt.Fprintf(os.Stderr, "  %-9s %s\n", c.name, c.summary)
+	}
+	fmt.Fprintln(os.Stderr, "\nEvery command takes -h for its own flags.")
+	fmt.Fprintln(os.Stderr, "\nResults are a BEST CASE. The model has no multipath, bare-earth terrain and")
+	fmt.Fprintln(os.Stderr, "an idealised demodulator; see docs/shortcomings.md. If it says a link will not")
+	fmt.Fprintln(os.Stderr, "work, believe it. If it says a link works marginally, go and measure.")
+}
+
+// terrainFlags adds the elevation options every geographic command needs, and
+// returns the store once they are parsed.
+//
+// Shared because the cache directory and the offline switch must mean the same
+// thing everywhere: a run that silently downloads when the operator asked it not
+// to is the kind of surprise that ends up on a metered connection.
+func terrainFlags(fs *flag.FlagSet) func() (*terrain.TileStore, error) {
+	defaultCache, _ := os.UserCacheDir()
+	dir := fs.String("terrain-cache", filepath.Join(defaultCache, "meshcoresim", "terrain"),
+		"where downloaded elevation tiles live")
+	offline := fs.Bool("offline", false, "never download; answer from the cache and fail loudly otherwise")
+	zoom := fs.Int("zoom", terrain.DefaultZoom, "tile zoom; 12 is about 30 m per pixel and matches the data")
+
+	return func() (*terrain.TileStore, error) {
+		s, err := terrain.NewTileStore(*dir)
+		if err != nil {
+			return nil, err
+		}
+		s.Offline = *offline
+		s.Zoom = *zoom
+		return s, nil
+	}
+}
+
+// parse is the shared flag handling: a command's own usage, then its flags.
+func parse(fs *flag.FlagSet, args []string, describe string) error {
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, "meshcoresim %s — %s\n\n", fs.Name(), describe)
+		fs.PrintDefaults()
+	}
+	return fs.Parse(args)
+}
+
+// requireAll fails with one message naming everything that is missing, rather
+// than one at a time. Being told about three missing flags in three runs is
+// three times the work for no more information.
+func requireAll(missing map[string]bool) error {
+	var names []string
+	for name, absent := range missing {
+		if absent {
+			names = append(names, "-"+name)
+		}
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	sort.Strings(names)
+	return fmt.Errorf("missing required flag(s): %s", strings.Join(names, ", "))
 }
