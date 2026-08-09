@@ -41,7 +41,7 @@ func fetchJSON(ctx context.Context, d Doer, url string, headers map[string]strin
 	if err != nil {
 		return fmt.Errorf("provider: fetch %s: %w", url, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 64<<20))
 	if err != nil {
