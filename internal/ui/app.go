@@ -1,0 +1,157 @@
+// Package ui is the desktop application.
+//
+// A native window, not a browser and not a server with a front end pointed at
+// it. The whole simulator runs in this process; there is nothing to deploy and
+// nothing listening.
+//
+// The shell owns layout and input and nothing else. Every number it draws comes
+// from the engine packages, and it deliberately holds no model of its own — a UI
+// that keeps its own copy of a link budget is a second implementation of the
+// physics, and the two will disagree eventually.
+package ui
+
+import (
+	"fmt"
+
+	"github.com/AllenDang/cimgui-go/backend"
+	"github.com/AllenDang/cimgui-go/backend/glfwbackend"
+	"github.com/AllenDang/cimgui-go/imgui"
+
+	"github.com/A13xB0/meshcoresim/internal/pathview"
+	"github.com/A13xB0/meshcoresim/internal/scenario"
+)
+
+// Terrain is the elevation source. An interface so the application can be run
+// against a cache, a live tile store, or nothing at all — and so the panels can
+// be tested without a window.
+type Terrain interface {
+	ElevationM(lat, lon float64) (float64, bool)
+}
+
+// App is the running application.
+type App struct {
+	Terrain Terrain
+
+	// Nodes is the scenario. The UI edits this and nothing else; everything
+	// derived is recomputed rather than stored, so there is no second copy to
+	// drift.
+	Nodes []scenario.Node
+
+	// selected indexes Nodes; -1 for none. Two selections make a link, which is
+	// the only way to ask for a path view.
+	selected int
+	linkTo   int
+
+	freqMHz float64
+	cut     *pathview.CutThrough
+	cutErr  string
+
+	backend backend.Backend[glfwbackend.GLFWWindowFlags]
+}
+
+// New prepares an application over a terrain source.
+func New(t Terrain) *App {
+	return &App{
+		Terrain:  t,
+		selected: -1,
+		linkTo:   -1,
+		freqMHz:  869.525,
+		Nodes:    demoScenario(),
+	}
+}
+
+// demoScenario is what opens on a first run.
+//
+// Real places, real board profiles and a link that genuinely fails, because an
+// empty window teaches nothing and a demo that always works teaches the wrong
+// thing. The Ben Vrackie to Perth path is blocked by the hill the repeater is
+// standing on, which is the most instructive first thing to see.
+func demoScenario() []scenario.Node {
+	rak, _ := scenario.BoardByName("RAK4631")
+	xiao, _ := scenario.BoardByName("Xiao_nRF52840")
+	radio := scenario.RadioConfig{CentreHz: 869.525e6, BandwidthHz: 250e3, SpreadFactor: 10, CodingRate: 1}
+
+	return []scenario.Node{
+		{
+			Name: "Ben Vrackie", Kind: scenario.SimpleRepeater,
+			Position: scenario.LatLon{Lat: 56.7472, Lon: -3.7411}, HeightAGLm: 15,
+			Radio: radio, TxPowerDBm: rak.MaxTxDBm, NoiseFigureDB: rak.NoiseFigureDB,
+		},
+		{
+			Name: "Perth", Kind: scenario.Companion,
+			Position: scenario.LatLon{Lat: 56.3950, Lon: -3.4308}, HeightAGLm: 2,
+			Radio: radio, TxPowerDBm: xiao.MaxTxDBm, NoiseFigureDB: xiao.NoiseFigureDB,
+		},
+		{
+			Name: "Dunkeld", Kind: scenario.SimpleRepeater,
+			Position: scenario.LatLon{Lat: 56.5646, Lon: -3.5876}, HeightAGLm: 12,
+			Radio: radio, TxPowerDBm: rak.MaxTxDBm, NoiseFigureDB: rak.NoiseFigureDB,
+		},
+		{
+			Name: "observer-1", Kind: scenario.SDRObserver,
+			Position: scenario.LatLon{Lat: 56.6000, Lon: -3.6500}, HeightAGLm: 5,
+			Radio: radio, NoiseFigureDB: 6,
+		},
+	}
+}
+
+// Run opens the window and does not return until it is closed.
+func (a *App) Run(title string, w, h int) error {
+	b, err := backend.CreateBackend(glfwbackend.NewGLFWBackend())
+	if err != nil {
+		return fmt.Errorf("ui: no window backend: %w", err)
+	}
+	a.backend = b
+	b.SetBgColor(imgui.NewVec4(0.06, 0.07, 0.09, 1))
+	b.CreateWindow(title, w, h)
+	b.Run(a.frame)
+	return nil
+}
+
+// frame draws one frame.
+func (a *App) frame() {
+	vp := imgui.MainViewport()
+	imgui.SetNextWindowPos(vp.Pos())
+	imgui.SetNextWindowSize(vp.Size())
+
+	flags := imgui.WindowFlagsNoTitleBar | imgui.WindowFlagsNoResize |
+		imgui.WindowFlagsNoMove | imgui.WindowFlagsNoBringToFrontOnFocus |
+		imgui.WindowFlagsNoNavFocus
+	imgui.BeginV("##root", nil, flags)
+
+	a.drawHeader()
+	imgui.Separator()
+
+	// Two columns: the scenario on the left, the answer on the right. The
+	// answer panel is the wide one because a link verdict is a paragraph, not a
+	// number, and truncating it is how a caveat gets lost.
+	if imgui.BeginTableV("##layout", 2, imgui.TableFlagsResizable|imgui.TableFlagsBordersInnerV,
+		imgui.NewVec2(0, 0), 0) {
+		imgui.TableSetupColumnV("scenario", imgui.TableColumnFlagsWidthFixed, 260, 0)
+		imgui.TableSetupColumnV("analysis", imgui.TableColumnFlagsWidthStretch, 0, 0)
+
+		imgui.TableNextRow()
+		imgui.TableSetColumnIndex(0)
+		a.drawNodeList()
+
+		imgui.TableSetColumnIndex(1)
+		a.drawAnalysis()
+		imgui.EndTable()
+	}
+
+	imgui.End()
+}
+
+func (a *App) drawHeader() {
+	imgui.Text("MeshcoreSim")
+	imgui.SameLine()
+	imgui.TextDisabled("— real firmware, real RF")
+
+	// The honesty line is in the chrome, not in a help menu. CLAUDE.md requires
+	// the simulator to say that it is kinder than the air, and something a user
+	// has to go looking for does not count as saying it.
+	imgui.SameLineV(0, 24)
+	imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.72, 0.25, 1))
+	imgui.Text("Results are a best case: no multipath, bare-earth terrain, idealised demodulator.")
+	imgui.PopStyleColor()
+}
