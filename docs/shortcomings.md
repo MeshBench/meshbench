@@ -191,10 +191,20 @@ with it.
 
 ## 4. Things that are right but narrowly
 
-### 4.1 Airtime is right; the rest of the timing chain is approximate
+### 4.1 Airtime is an estimate the firmware makes, not a simulator shortcut
 
-Airtime now uses RadioLib's `getTimeOnAir()` on both sides, tested against each
-other, because the firmware's CSMA is built on it (MSIM-42). But CAD timing,
+Worth being explicit, because it looks like a shortcut in a simulator that
+models actual waveforms. How long a transmission occupies the channel is decided
+by the samples the engine generates — nothing consults a formula for that, and
+the node is *told* when its waveform ended rather than timing itself.
+
+`getEstAirtimeFor()` is separate: a pure virtual MeshCore calls **before**
+transmitting, to size its CSMA backoff and spend its duty-cycle budget. Real
+hardware answers it with RadioLib's `getTimeOnAir()`, so we answer it with the
+same calculation, checked against the Go one (MSIM-42). An estimate the firmware
+makes about itself, faithfully reproduced.
+
+The rest of the timing chain is weaker. CAD timing,
 the AGC reset interval and the noise-floor calibration interval are still the
 firmware's own numbers running against a channel that does not model what those
 mechanisms are for.

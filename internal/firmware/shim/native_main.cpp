@@ -28,6 +28,7 @@ namespace {
 constexpr uint8_t kFrame = 0x01;
 constexpr uint8_t kTick = 0x02;
 constexpr uint8_t kAck = 0x03;
+constexpr uint8_t kTxDone = 0x04;
 
 // LoRa parameters. Defaults are MeshCore's UK/EU settings; the simulator will
 // override them per node once board profiles land (MSIM-18).
@@ -115,11 +116,18 @@ bool writeMsg(int fd, uint8_t kind, const uint8_t* p, size_t n) {
   return true;
 }
 
-// The one seam that differs between builds. Transmission is immediate on the
-// wire and *not* immediately complete: `isSendComplete()` stays false for the
-// packet's own airtime, so the firmware's duty-cycle accounting and CSMA see
-// the same timing they would on hardware. Reporting completion straight away
-// is the single easiest way to make a simulator optimistic.
+// The one seam that differs between builds.
+//
+// Transmission goes out on the wire immediately and is *not* immediately
+// complete: `isSendComplete()` stays false until the engine says the waveform
+// has ended. The node does not time its own transmission — it cannot. How long
+// the signal occupied the channel is a property of the samples the engine
+// generated, and computing it here from the airtime estimate would replace the
+// simulation with the formula.
+//
+// getEstAirtimeFor() below is a genuine estimate, which is all the firmware
+// gets on real hardware too: it sizes CSMA backoff and spends the duty-cycle
+// budget with it, before the packet is sent.
 class BridgeRadio : public mesh::Radio {
  public:
   BridgeRadio(int fd, msim::SimClock& clk) : fd_(fd), clk_(clk) {}
@@ -128,12 +136,15 @@ class BridgeRadio : public mesh::Radio {
 
   bool startSendRaw(const uint8_t* bytes, int len) override {
     if (!writeMsg(fd_, kFrame, bytes, (size_t)len)) return false;
-    sendDone_ = clk_.now + getEstAirtimeFor(len);
     sending_ = true;
+    onAir_ = true;
     return true;
   }
-  bool isSendComplete() override { return !sending_ || clk_.now >= sendDone_; }
+  bool isSendComplete() override { return !onAir_; }
   void onSendFinished() override { sending_ = false; }
+
+  // Called when the engine reports the waveform has left the antenna.
+  void transmitFinished() { onAir_ = false; }
 
   int recvRaw(uint8_t* dest, int max) override {
     if (inbox.empty()) return 0;
@@ -157,7 +168,7 @@ class BridgeRadio : public mesh::Radio {
   int fd_;
   msim::SimClock& clk_;
   bool sending_ = false;
-  unsigned long sendDone_ = 0;
+  bool onAir_ = false;
 };
 
 // Mesh's constructor is protected, so a node is a subclass — `using` would
@@ -226,6 +237,10 @@ int main(int argc, char** argv) {
         // Queued, not delivered: the firmware collects it from recvRaw() on its
         // next loop, exactly as it would drain a real radio's FIFO.
         radio.inbox.push_back(std::move(payload));
+        break;
+
+      case kTxDone:
+        radio.transmitFinished();
         break;
 
       case kTick: {

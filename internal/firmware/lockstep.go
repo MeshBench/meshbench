@@ -41,3 +41,21 @@ func (b *Bridge) Advance(ctx context.Context, atMs uint32) error {
 		}
 	}
 }
+
+// TransmitFinished tells the node the waveform it started has ended on the air.
+//
+// The node must not work this out for itself. It can only *estimate* airtime —
+// that is what the firmware's own getEstAirtimeFor() is for, and estimating is
+// all the firmware does on real hardware too. How long the transmission
+// actually occupied the channel is a property of the samples the engine
+// generated, and the engine is the only thing that knows it.
+//
+// Letting the node time its own transmission would quietly replace the
+// simulation with the formula, which is the same class of mistake as deciding
+// collisions with a rule instead of letting them emerge from the sum.
+func (b *Bridge) TransmitFinished() error {
+	if err := b.send(kindTxDone, nil); err != nil {
+		return fmt.Errorf("firmware: signal end of transmission to %s: %w", b.node, err)
+	}
+	return nil
+}

@@ -195,3 +195,32 @@ func TestNativeAirtimeAgreesWithTheChannel(t *testing.T) {
 		}
 	}
 }
+
+// The node must not decide for itself when its transmission ended. It waits to
+// be told, because how long the signal occupied the channel is a property of
+// the samples the engine generated — not of any formula the node could apply.
+func TestNodeWaitsForTheEngineToEndTransmission(t *testing.T) {
+	n, log := nativeNode(t, 4417)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Long enough that any airtime estimate the node might have used would have
+	// expired several times over. If the node were timing itself, it would have
+	// declared the send complete and moved on.
+	for at := uint32(10); at <= 5000; at += 10 {
+		if err := n.Bridge.Advance(ctx, at); err != nil {
+			t.Fatalf("advance: %v", err)
+		}
+	}
+	if err := n.Bridge.TransmitFinished(); err != nil {
+		t.Fatalf("signal end of transmission: %v", err)
+	}
+	if err := n.Bridge.Advance(ctx, 5010); err != nil {
+		t.Fatalf("advance after tx done: %v", err)
+	}
+	n.Close()
+	if !bytes.Contains(log.Bytes(), []byte("bridge closed")) {
+		t.Fatalf("node did not shut down cleanly; stderr:\n%s", log)
+	}
+}
