@@ -207,7 +207,7 @@ func (a *App) regenerateTerrain(w, h int) {
 	go func() {
 		// One sample per three pixels. The DEM is 30 m and a workbench view is
 		// rarely finer than that, so sampling per pixel buys nothing but time.
-		img := terrainImage(a.Terrain, view, 3)
+		img := compositeImage(a.Terrain, a.Basemap, a.composite, view, 3)
 		a.pending <- img
 	}()
 }
@@ -300,6 +300,9 @@ func (a *App) drawScale(origin imgui.Vec2, h float32) {
 		label = fmt.Sprintf("%.0f km", step/1000)
 	}
 	dl.AddTextVec2V(imgui.NewVec2(x, y-20), colour(0.95, 0.96, 1, 0.9), label)
+
+	// Attribution, on the map, for as long as the data is on it.
+	dl.AddTextVec2V(imgui.NewVec2(x, y+8), colour(0.85, 0.87, 0.92, 0.75), a.attribution())
 }
 
 // fetchVisibleTerrain downloads the tiles for what is on screen.

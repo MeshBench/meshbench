@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"math"
 
+	"github.com/A13xB0/meshcoresim/internal/basemap"
 	"github.com/A13xB0/meshcoresim/internal/scenario"
 )
 
@@ -144,6 +145,28 @@ func (m MapView) NodeAt(nodes []scenario.Node, x, y, radiusPx float64) int {
 // never waits on a download. Where a tile is not yet in memory it draws a gap,
 // which is honest and instant; the alternative is a window that stops painting
 // and looks like a crash.
+// Basemap is a source of imagery under the simulation. Optional: the hillshade
+// alone is a complete map, and a build with no network has to stay usable.
+type Basemap interface {
+	PixelAt(l basemap.Layer, lat, lon float64, zoom int) (r, g, b, a uint8, ok bool)
+}
+
+// Composite is what to draw under the nodes.
+type Composite struct {
+	// Base is the imagery layer, if any. Empty ID means hillshade only.
+	Base    basemap.Layer
+	HasBase bool
+
+	// Labels is an overlay drawn on top of everything.
+	Labels    basemap.Layer
+	HasLabels bool
+
+	// ShadeMix blends the DEM hillshade over the imagery, in [0,1]. Shading
+	// over satellite is not decoration: imagery flattens terrain badly in flat
+	// light, and a ridge that decides a link can be invisible in it.
+	ShadeMix float64
+}
+
 func terrainImage(t Terrain, v MapView, step int) *image.RGBA {
 	sample := t.ElevationM
 	if c, ok := t.(CachedTerrain); ok {
@@ -226,3 +249,62 @@ func at(h []float64, known []bool, w, ht, x, y int) (float64, bool) {
 }
 
 func clampF(v, lo, hi float64) float64 { return math.Max(lo, math.Min(hi, v)) }
+
+// compositeImage draws the basemap, the hillshade, and the labels, in that
+// order, into one image.
+//
+// One image and one texture rather than a texture per tile. The map already
+// samples the DEM per output pixel, so sampling imagery the same way keeps a
+// single resampling story and a single upload — and it means every layer is
+// composited in the same place, where the blend can be reasoned about.
+func compositeImage(t Terrain, bm Basemap, c Composite, v MapView, step int) *image.RGBA {
+	shade := terrainImage(t, v, step)
+	if bm == nil || (!c.HasBase && !c.HasLabels) {
+		return shade
+	}
+	if shade == nil {
+		return nil
+	}
+	w, h := shade.Bounds().Dx(), shade.Bounds().Dy()
+
+	baseZoom := basemap.ZoomFor(v.MetresPerPixel, v.CentreLat, c.Base)
+	labelZoom := basemap.ZoomFor(v.MetresPerPixel, v.CentreLat, c.Labels)
+	mix := clampF(c.ShadeMix, 0, 1)
+
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			lat, lon := v.ScreenToLatLon(float64(x*step), float64(y*step))
+			i := shade.PixOffset(x, y)
+
+			if c.HasBase {
+				r, g, b, _, ok := bm.PixelAt(c.Base, lat, lon, baseZoom)
+				if ok {
+					// Multiply the hillshade's luminance into the imagery, so
+					// relief stays legible without repainting the colours.
+					lum := (float64(shade.Pix[i]) + float64(shade.Pix[i+1]) + float64(shade.Pix[i+2])) / (3 * 255)
+					k := 1 - mix + mix*(0.5+lum)
+					shade.Pix[i] = clamp8(float64(r) * k)
+					shade.Pix[i+1] = clamp8(float64(g) * k)
+					shade.Pix[i+2] = clamp8(float64(b) * k)
+					shade.Pix[i+3] = 255
+				}
+				// Where imagery is missing the hillshade shows through, which
+				// is the honest thing: the map is not claiming to know what is
+				// there, only what shape it is.
+			}
+
+			if c.HasLabels {
+				r, g, b, a, ok := bm.PixelAt(c.Labels, lat, lon, labelZoom)
+				if ok && a > 0 {
+					af := float64(a) / 255
+					shade.Pix[i] = clamp8(float64(shade.Pix[i])*(1-af) + float64(r)*af)
+					shade.Pix[i+1] = clamp8(float64(shade.Pix[i+1])*(1-af) + float64(g)*af)
+					shade.Pix[i+2] = clamp8(float64(shade.Pix[i+2])*(1-af) + float64(b)*af)
+				}
+			}
+		}
+	}
+	return shade
+}
+
+func clamp8(v float64) uint8 { return uint8(clampF(v, 0, 255)) }

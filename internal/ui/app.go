@@ -13,6 +13,7 @@ package ui
 import (
 	"fmt"
 	"image"
+	"strings"
 	"sync"
 
 	"github.com/AllenDang/cimgui-go/backend"
@@ -20,6 +21,7 @@ import (
 	"github.com/AllenDang/cimgui-go/imgui"
 
 	"github.com/A13xB0/meshcoresim/internal/antenna"
+	"github.com/A13xB0/meshcoresim/internal/basemap"
 	"github.com/A13xB0/meshcoresim/internal/pathview"
 	"github.com/A13xB0/meshcoresim/internal/scenario"
 )
@@ -62,6 +64,11 @@ type App struct {
 	// arranged around it.
 	view MapView
 	tool Tool
+
+	// Basemap is optional. The hillshade alone is a complete map, and a build
+	// with no network has to stay usable.
+	Basemap   Basemap
+	composite Composite
 	// placeBoard is the hardware a newly placed node gets. Named rather than
 	// defaulted silently, for the same reason the importer refuses without one.
 	placeBoard string
@@ -93,6 +100,10 @@ func New(t Terrain) *App {
 		placeBoard: "RAK4631",
 		pending:    make(chan *image.RGBA, 1),
 	}
+	// Hillshade only by default. Every imagery layer here has terms that have
+	// not been checked against how this application uses them, and a default
+	// that quietly contacts a third party is not a default anyone chose.
+	a.composite.ShadeMix = 0.55
 	// Open on a worked example rather than an empty panel. The first thing a
 	// user sees should be an answer they can interrogate, not an instruction to
 	// go and produce one — and the demo path is chosen because it fails for a
@@ -262,6 +273,8 @@ func (a *App) drawToolbar() {
 		a.terrainDirty = true
 	}
 	imgui.SameLine()
+	a.drawLayerPicker()
+	imgui.SameLine()
 	// Downloading is an explicit act. The map draws gaps where it has no data
 	// rather than fetching as you pan: a workbench that downloads whenever the
 	// view moves is unusable on a tethered connection and dishonest about what
@@ -294,4 +307,63 @@ func (a *App) drawHeader() {
 	imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.72, 0.25, 1))
 	imgui.Text("Results are a best case: no multipath, bare-earth terrain, idealised demodulator.")
 	imgui.PopStyleColor()
+}
+
+// drawLayerPicker chooses what is drawn under the nodes.
+//
+// Hillshade is first and is the default. Every imagery layer contacts a third
+// party whose terms have not been checked against how this application uses
+// them, so choosing one is a decision the operator makes, and the map says
+// whose data it is drawing for as long as it draws it.
+func (a *App) drawLayerPicker() {
+	current := "hillshade"
+	if a.composite.HasBase {
+		current = a.composite.Base.Name
+	}
+	imgui.SetNextItemWidth(140)
+	if imgui.BeginCombo("##layer", current) {
+		if imgui.SelectableBool("hillshade") {
+			a.composite.HasBase = false
+			a.terrainDirty = true
+		}
+		for _, l := range basemap.Layers() {
+			if l.Kind != basemap.Base {
+				continue
+			}
+			if imgui.SelectableBool(l.Name) {
+				a.composite.Base, a.composite.HasBase = l, true
+				a.terrainDirty = true
+			}
+		}
+		imgui.EndCombo()
+	}
+
+	imgui.SameLine()
+	labels := a.composite.HasLabels
+	if imgui.Checkbox("labels", &labels) {
+		a.composite.HasLabels = labels
+		if labels {
+			for _, l := range basemap.Layers() {
+				if l.Kind == basemap.Overlay {
+					a.composite.Labels = l
+					break
+				}
+			}
+		}
+		a.terrainDirty = true
+	}
+}
+
+// attribution is what must appear while a layer is shown. Not a courtesy: every
+// source used here requires it, and a map that drops it is a licence breach
+// rather than an untidy screen.
+func (a *App) attribution() string {
+	parts := []string{"Elevation: AWS terrarium / national sources"}
+	if a.composite.HasBase {
+		parts = append(parts, a.composite.Base.Attribution)
+	}
+	if a.composite.HasLabels {
+		parts = append(parts, a.composite.Labels.Attribution)
+	}
+	return strings.Join(parts, "   |   ")
 }
