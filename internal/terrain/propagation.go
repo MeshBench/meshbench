@@ -79,62 +79,105 @@ type Point struct {
 	HeightM float64
 }
 
-// MultiEdgeLossDB is Deygout multi-edge diffraction over a profile.
+// MultiEdgeLossDB is the terrain diffraction loss over a profile, by the
+// Bullington construction with the ITU-R P.526 correction.
 //
 // NOT single knife-edge. In hamreach a Glen Coe link read 36.8 dB under a
-// single-edge model — verdict "works", a handheld through a 1,084 m massif — and
-// 120.1 dB once corrected. A single-edge model is not conservative, it is wrong.
+// single-edge model — verdict "works", a handheld through a 1,084 m massif —
+// and 120.1 dB once corrected. A single-edge model is not conservative; it is
+// wrong.
+//
+// It was Deygout, and Deygout is the wrong tool here. Deygout decomposes a path
+// into a principal edge and recurses either side of it, which is sound when the
+// profile has distinct peaks and unsound when it is smooth: a spherical earth
+// flattens into a parabola, and recursing on a parabola charges the same
+// curvature once per level. Measured on flat ground at 869 MHz, loss stepped
+// from 0 dB at 68 km to 34.7 dB at 69 km — a hard edge across a coverage raster
+// that no terrain put there.
+//
+// Bullington reduces the whole profile to one equivalent edge from the steepest
+// sight line at each end, so it is continuous by construction and cannot
+// double-count. The correction term restores the loss that a single equivalent
+// edge under-reads on genuinely multi-edge paths. This is what ITU-R P.1812 and
+// P.452 use for exactly this problem.
 //
 // txH and rxH are antenna heights above ground at each end.
 func MultiEdgeLossDB(profile []Point, txH, rxH, freqMHz float64) float64 {
-	if len(profile) < 3 {
+	if len(profile) < 3 || freqMHz <= 0 {
 		return 0
 	}
-	txAlt := profile[0].HeightM + txH
-	rxAlt := profile[len(profile)-1].HeightM + rxH
-	total := profile[len(profile)-1].DistM - profile[0].DistM
-	if total <= 0 {
-		return 0
-	}
-	return deygout(profile, 0, len(profile)-1, txAlt, rxAlt, freqMHz, 0)
-}
-
-// deygout finds the principal edge in [lo, hi], takes its loss, then recurses
-// into the two sub-paths either side of it. Depth-limited: real profiles rarely
-// have more than a handful of significant edges, and unbounded recursion on a
-// noisy profile is a way to spend a lot of time on nothing.
-func deygout(p []Point, lo, hi int, loAlt, hiAlt, freqMHz float64, depth int) float64 {
-	if depth > 3 || hi-lo < 2 {
-		return 0
-	}
-	d := p[hi].DistM - p[lo].DistM
+	last := len(profile) - 1
+	d := profile[last].DistM - profile[0].DistM
 	if d <= 0 {
 		return 0
 	}
+	lambda := 299.792458 / freqMHz
+	txAlt := profile[0].HeightM + txH
+	rxAlt := profile[last].HeightM + rxH
 
-	bestIdx, bestV := -1, -math.MaxFloat64
-	for i := lo + 1; i < hi; i++ {
-		d1 := p[i].DistM - p[lo].DistM
-		d2 := p[hi].DistM - p[i].DistM
+	// Flatten the earth once, against the full path. The bulge belongs to the
+	// path as a whole; applying it per sub-path is what made the old model
+	// discontinuous.
+	flat := make([]Point, len(profile))
+	for i, p := range profile {
+		d1 := p.DistM - profile[0].DistM
+		d2 := profile[last].DistM - p.DistM
+		flat[i] = Point{DistM: d1, HeightM: p.HeightM + EarthBulgeM(d1, d2)}
+	}
+
+	slopeLOS := (rxAlt - txAlt) / d
+
+	// Steepest sight line from each end to any point on the profile.
+	maxFromTx, maxFromRx := -math.MaxFloat64, -math.MaxFloat64
+	for i := 1; i < last; i++ {
+		d1 := flat[i].DistM
+		d2 := d - d1
 		if d1 <= 0 || d2 <= 0 {
 			continue
 		}
-		// Line-of-sight altitude at this point, plus the earth's bulge.
-		los := loAlt + (hiAlt-loAlt)*(d1/d)
-		h := p[i].HeightM + EarthBulgeM(d1, d2) - los
-		v := FresnelParameter(h, d1, d2, freqMHz)
-		if v > bestV {
-			bestV, bestIdx = v, i
+		if s := (flat[i].HeightM - txAlt) / d1; s > maxFromTx {
+			maxFromTx = s
+		}
+		if s := (flat[i].HeightM - rxAlt) / d2; s > maxFromRx {
+			maxFromRx = s
 		}
 	}
-	if bestIdx < 0 || bestV <= -0.78 {
+	if maxFromTx == -math.MaxFloat64 {
 		return 0
 	}
 
-	loss := KnifeEdgeDB(bestV)
-	// Sub-paths are terminated at the principal edge's own height.
-	edgeAlt := p[bestIdx].HeightM
-	loss += deygout(p, lo, bestIdx, loAlt, edgeAlt, freqMHz, depth+1)
-	loss += deygout(p, bestIdx, hi, edgeAlt, hiAlt, freqMHz, depth+1)
-	return loss
+	var v float64
+	if maxFromTx < slopeLOS {
+		// Nothing crosses the line of sight. The obstruction, if any, is
+		// Fresnel-zone intrusion, so take the worst intrusion along the path.
+		v = -math.MaxFloat64
+		for i := 1; i < last; i++ {
+			d1, d2 := flat[i].DistM, d-flat[i].DistM
+			if d1 <= 0 || d2 <= 0 {
+				continue
+			}
+			h := flat[i].HeightM - (txAlt + slopeLOS*d1)
+			if vi := h * math.Sqrt(2*d/(lambda*d1*d2)); vi > v {
+				v = vi
+			}
+		}
+	} else {
+		// The two sight lines cross above the terrain: that intersection is the
+		// single equivalent edge the whole profile is reduced to.
+		db := (rxAlt - txAlt + maxFromRx*d) / (maxFromTx + maxFromRx)
+		if db <= 0 || db >= d {
+			return 0
+		}
+		h := txAlt + maxFromTx*db - (txAlt + slopeLOS*db)
+		v = h * math.Sqrt(2*d/(lambda*db*(d-db)))
+	}
+
+	uncorrected := KnifeEdgeDB(v)
+	if uncorrected <= 0 {
+		return 0
+	}
+	// ITU-R P.526 correction. One equivalent edge under-reads a path with
+	// several real ones; the term grows with path length and switches off
+	// smoothly as the diffraction itself vanishes, so continuity survives.
+	return uncorrected + (1-math.Exp(-uncorrected/6))*(10+0.02*d/1000)
 }

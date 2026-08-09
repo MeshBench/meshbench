@@ -143,3 +143,49 @@ func TestMultiEdgeExceedsSingleEdge(t *testing.T) {
 	}
 	t.Logf("two ridges: single-edge %.1f dB, multi-edge %.1f dB", single, multi)
 }
+
+// Diffraction loss must be continuous in distance. It is not a nicety: a raster
+// is a grid of independent path computations, so a step in this function draws
+// a hard edge across the map that no terrain put there.
+//
+// The step this catches was 34.7 dB over one kilometre on flat ground, from two
+// compounding faults — the earth bulge being re-applied inside every level of
+// the Deygout recursion, and the recursion being gated behind the principal
+// edge crossing v = -0.78, so every suppressed secondary edge appeared at once.
+func TestDiffractionIsContinuousInDistance(t *testing.T) {
+	profile := func(km float64) []Point {
+		const n = 512
+		p := make([]Point, n+1)
+		for i := range p {
+			p[i] = Point{DistM: float64(i) / n * km * 1000, HeightM: 100}
+		}
+		return p
+	}
+
+	prev := MultiEdgeLossDB(profile(20), 20, 1.5, 869.525)
+	for km := 21.0; km <= 120; km++ {
+		got := MultiEdgeLossDB(profile(km), 20, 1.5, 869.525)
+		if step := got - prev; step > 3 || step < -0.5 {
+			t.Fatalf("loss jumped %.2f dB between %.0f and %.0f km (%.2f -> %.2f)",
+				step, km-1, km, prev, got)
+		}
+		prev = got
+	}
+}
+
+// And it must rise. A smooth path that gets longer cannot get better.
+func TestDiffractionRisesWithDistance(t *testing.T) {
+	profile := func(km float64) []Point {
+		const n = 256
+		p := make([]Point, n+1)
+		for i := range p {
+			p[i] = Point{DistM: float64(i) / n * km * 1000, HeightM: 100}
+		}
+		return p
+	}
+	near := MultiEdgeLossDB(profile(30), 20, 1.5, 869.525)
+	far := MultiEdgeLossDB(profile(100), 20, 1.5, 869.525)
+	if far <= near {
+		t.Errorf("100 km cost %.1f dB against %.1f dB at 30 km", far, near)
+	}
+}
