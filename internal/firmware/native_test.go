@@ -219,7 +219,7 @@ func TestNodeWaitsForTheEngineToEndTransmission(t *testing.T) {
 	if err := n.Bridge.Advance(ctx, 5010); err != nil {
 		t.Fatalf("advance after tx done: %v", err)
 	}
-	n.Close()
+	_ = n.Close()
 	if !bytes.Contains(log.Bytes(), []byte("bridge closed")) {
 		t.Fatalf("node did not shut down cleanly; stderr:\n%s", log)
 	}
