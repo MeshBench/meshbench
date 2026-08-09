@@ -13,7 +13,7 @@ import (
 )
 
 func (a *App) drawInspector() {
-	if imgui.CollapsingHeaderBoolPtr("Load", nil, 0) {
+	if imgui.CollapsingHeaderBoolPtr("Load", nil) {
 		a.drawLoadPanel()
 	}
 	imgui.SeparatorText("Nodes")
