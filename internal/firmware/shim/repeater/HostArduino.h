@@ -61,7 +61,7 @@ inline long random(long howsmall, long howbig) {
 // This is the whole point of linking the repeater application rather than
 // reimplementing it: the CLI a user reaches when they click a repeater is
 // MeshCore's own, with its own commands and its own replies.
-#include <Stream.h>
+#include "Arduino.h"
 
 class HostSerial : public Stream {
  public:
