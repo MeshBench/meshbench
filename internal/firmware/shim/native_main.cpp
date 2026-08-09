@@ -182,6 +182,30 @@ class NativeNode : public mesh::Mesh {
   int rxLogged = 0, txLogged = 0;
   void logRx(mesh::Packet*, int, float) override { rxLogged++; }
   void logTx(mesh::Packet*, int) override { txLogged++; }
+
+  // Forwarding policy.
+  //
+  // This is the one place the node is not running MeshCore's own code, and it
+  // is worth being precise about why. We link MeshCore's *library* — Mesh,
+  // Dispatcher, Packet, Identity — which is where routing, retransmit timing,
+  // duty-cycle accounting and CSMA live. We do not link the repeater
+  // *application*, whose MyMesh::allowPacketForward also enforces region
+  // transport codes and configurable loop-detect tables that need Arduino
+  // preferences, an RTC and a filesystem.
+  //
+  // The rule below is that method's essential half: flood packets forward
+  // until the hop cap. Without any override the base class refuses everything
+  // and a flood stops dead at the origin's neighbours — which looks exactly
+  // like a network with no repeaters configured. Recorded in
+  // docs/shortcomings.md rather than left to be discovered.
+  bool allowPacketForward(const mesh::Packet* packet) override {
+    if (!packet->isRouteFlood()) return false;
+    return packet->getPathHashCount() < floodMax;
+  }
+
+  // floodMax matches the repeater default. Beyond it a flood is spending
+  // airtime to reach nodes that already have the message.
+  static const int floodMax = 64;
 };
 
 }  // namespace
