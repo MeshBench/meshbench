@@ -78,12 +78,12 @@ func runTraffic(ctx context.Context, args []string) error {
 	}
 	elapsed := time.Since(start)
 
-	reportTraffic(e, nodes, *verbose)
+	reportTraffic(e, nodes, nodes[originIdx].Name, *verbose)
 	fmt.Printf("\n%.1f s of simulated time in %v.\n", float64(*forMs)/1000, elapsed.Round(time.Millisecond))
 	return nil
 }
 
-func reportTraffic(e *engine.Engine, nodes []scenario.Node, verbose bool) {
+func reportTraffic(e *engine.Engine, nodes []scenario.Node, origin string, verbose bool) {
 	events := e.Events()
 
 	// Reasons, counted. The distinction between them is the reason the engine
@@ -141,20 +141,24 @@ func reportTraffic(e *engine.Engine, nodes []scenario.Node, verbose bool) {
 	}
 
 	// Reach, which is the answer people came for.
+	//
+	// The sender is excluded from both counts. It has the message by
+	// definition, and listing it as unreached is the kind of small wrongness
+	// that makes a reader distrust the rest of the report.
 	heard := map[string]bool{}
 	for _, ev := range events {
 		if ev.Kind == "rx" {
 			heard[ev.To] = true
 		}
 	}
-	fmt.Printf("\n%d of %d nodes heard the message.\n", len(heard), len(nodes))
-	if len(heard)+1 < len(nodes) {
-		var missing []string
-		for _, n := range nodes {
-			if !heard[n.Name] {
-				missing = append(missing, n.Name)
-			}
+	var missing []string
+	for _, n := range nodes {
+		if n.Name != origin && !heard[n.Name] {
+			missing = append(missing, n.Name)
 		}
+	}
+	fmt.Printf("\n%d of %d other nodes heard the message.\n", len(heard), len(nodes)-1)
+	if len(missing) > 0 {
 		fmt.Printf("Never reached: %s\n", strings.Join(missing, ", "))
 	}
 }
