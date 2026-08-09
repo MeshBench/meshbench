@@ -235,10 +235,10 @@ func marginText(label string, dB float64) {
 func (a *App) drawCutThrough(c pathview.CutThrough) {
 	avail := imgui.ContentRegionAvail()
 	w := math.Max(320, float64(avail.X))
-	// Take the height that is going spare, leaving room for the verdict below.
-	// The profile is the main thing on this screen and a fixed 220 px left most
-	// of the window empty.
-	h := math.Max(220, float64(avail.Y)-110)
+	// Take what is going spare, and no more. A minimum that exceeds the space
+	// available draws the profile off the bottom of the window, where the axis
+	// labels and the verdict are simply not there.
+	h := math.Max(90, float64(avail.Y)-56)
 
 	pos := imgui.CursorScreenPos()
 	dl := imgui.WindowDrawList()

@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"math"
 
@@ -8,6 +9,7 @@ import (
 
 	"github.com/A13xB0/meshcoresim/internal/antenna"
 	"github.com/A13xB0/meshcoresim/internal/scenario"
+	"github.com/A13xB0/meshcoresim/internal/terrain"
 )
 
 // Tool is what a click on the map does.
@@ -298,4 +300,43 @@ func (a *App) drawScale(origin imgui.Vec2, h float32) {
 		label = fmt.Sprintf("%.0f km", step/1000)
 	}
 	dl.AddTextVec2V(imgui.NewVec2(x, y-20), colour(0.95, 0.96, 1, 0.9), label)
+}
+
+// fetchVisibleTerrain downloads the tiles for what is on screen.
+//
+// In the background, with progress, and never as a side effect of panning.
+func (a *App) fetchVisibleTerrain() {
+	fetcher, ok := a.Terrain.(interface {
+		Estimate(south, north, west, east float64) terrain.Estimate
+		Prefetch(ctx context.Context, south, north, west, east float64) error
+	})
+	if !ok {
+		a.status = "this terrain source cannot download"
+		return
+	}
+	if a.fetching {
+		return
+	}
+	south, north, west, east := a.view.Bounds()
+	est := fetcher.Estimate(south, north, west, east)
+	if est.ToFetch == 0 {
+		a.status = "already have this area"
+		return
+	}
+
+	a.fetching = true
+	a.fetchStatus = fmt.Sprintf("0/%d tiles", est.ToFetch)
+	go func() {
+		err := fetcher.Prefetch(context.Background(), south, north, west, east)
+		a.fetchMu.Lock()
+		a.fetching = false
+		if err != nil {
+			a.fetchStatus = err.Error()
+		} else {
+			a.fetchStatus = ""
+			a.status = fmt.Sprintf("downloaded %d tiles", est.ToFetch)
+		}
+		a.terrainDirty = true
+		a.fetchMu.Unlock()
+	}()
 }

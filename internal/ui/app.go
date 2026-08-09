@@ -13,6 +13,7 @@ package ui
 import (
 	"fmt"
 	"image"
+	"sync"
 
 	"github.com/AllenDang/cimgui-go/backend"
 	"github.com/AllenDang/cimgui-go/backend/glfwbackend"
@@ -73,6 +74,10 @@ type App struct {
 	terrainH     int
 	dragged      bool
 	status       string
+
+	fetchMu     sync.Mutex
+	fetching    bool
+	fetchStatus string
 
 	backend backend.Backend[glfwbackend.GLFWWindowFlags]
 }
