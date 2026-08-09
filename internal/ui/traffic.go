@@ -54,6 +54,21 @@ func (a *App) drawRunControls() {
 	}
 
 	imgui.SameLine()
+	// Real firmware is a choice, because it needs a MeshCore build on the
+	// machine and starting one process per node is not free. Without it the
+	// channel, the collisions and the ledger are all still real; what is
+	// missing is that the relay decisions are MeshCore's own.
+	if a.eng.FirmwareCount() > 0 {
+		imgui.TextDisabled(fmt.Sprintf("%d nodes on real firmware", a.eng.FirmwareCount()))
+	} else if imgui.Button("run real firmware") {
+		if err := a.eng.AttachNative(context.Background(), 4417); err != nil {
+			a.status = err.Error()
+		} else {
+			a.status = fmt.Sprintf("%d nodes running MeshCore", a.eng.FirmwareCount())
+		}
+	}
+
+	imgui.SameLine()
 	// Sending from the selected node is how a scenario is exercised without
 	// firmware attached. With firmware, the node decides for itself and this is
 	// how a message is introduced from outside.
@@ -266,8 +281,17 @@ func (a *App) drawConsole() {
 			"A console is a real UART on a running MeshCore build; without one there is nothing " +
 			"on the other end, and a simulated prompt would be a lie about what is running.")
 		imgui.Spacing()
-		imgui.TextDisabled("Attach a native or emulated backend to this node to get its CLI.")
+		imgui.TextDisabled("Press \"run real firmware\" on the Traffic tab.")
 		return
+	}
+
+	// What the running build reports about itself. This is the node's own
+	// state, read back over the bridge — not MeshCore's full repeater CLI,
+	// which lives in the repeater application we do not link
+	// (docs/shortcomings.md 3.5).
+	if en, ok := a.eng.NodeByName(n.Name); ok {
+		imgui.TextDisabled(fmt.Sprintf("sent %d   heard %d   airtime %.0f ms",
+			en.Sent, en.Heard, en.AirtimeMs))
 	}
 
 	imgui.InputTextWithHint("##cmd", "type a MeshCore command", &a.consoleInput, 0, nil)
