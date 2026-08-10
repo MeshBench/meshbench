@@ -321,6 +321,7 @@ func (c *CoreScope) recordFrom(r csPacketRow) (PacketRecord, bool) {
 	rec := PacketRecord{
 		Raw: raw, Receiver: r.ObserverName, Origin: r.Origin,
 		PathHashes: append([]string(nil), r.ParsedPath...),
+		RelayPath:  append([]string(nil), r.ResolvedPath...),
 	}
 	if ts, ok := parseTime(r.Time); ok {
 		rec.At = ts
