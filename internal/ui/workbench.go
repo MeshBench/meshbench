@@ -426,6 +426,14 @@ func (a *App) drawTerrain(origin imgui.Vec2, w, h float32) {
 	// misplaced.
 	tl, br := a.terrainScreenRect(origin)
 	dl.AddImage(*a.terrainTex, tl, br)
+	// Ground the shade does not cover yet - after a zoom out, before the new
+	// one lands - is left as background rather than stretched to fit, which
+	// would be terrain drawn where it was never computed.
+	if a.rendering && (tl.X > origin.X+2 || tl.Y > origin.Y+2 ||
+		br.X < origin.X+w-2 || br.Y < origin.Y+h-2) {
+		at := imgui.NewVec2(origin.X+10, origin.Y+h-24)
+		dl.AddTextVec2(at, colour(0.55, 0.58, 0.65, 1), "shading the new view...")
+	}
 }
 
 // terrainScreenRect is where the current hillshade's ground sits on screen.
@@ -452,11 +460,17 @@ func (a *App) terrainScreenRect(origin imgui.Vec2) (imgui.Vec2, imgui.Vec2) {
 // frame finds one ready, because creating a GPU texture from another goroutine
 // is not safe.
 func (a *App) regenerateTerrain(w, h int) {
-	a.terrainDirty = false
 	a.terrainW, a.terrainH = w, h
 	if a.rendering {
+		// Still busy with the last one. The flag stays set so the next frame
+		// tries again: clearing it here dropped every view change that
+		// happened during a render, and the map then kept a shade for a view
+		// nobody was looking at any more. That was invisible while the
+		// texture was stretched over the whole map, and obvious the moment it
+		// was drawn where its ground actually is.
 		return
 	}
+	a.terrainDirty = false
 	a.rendering = true
 	view := a.view
 	a.pendingView = view
