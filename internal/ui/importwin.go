@@ -323,10 +323,8 @@ func (a *App) startImportFetch() {
 		return
 	}
 	opts := scenario.ImportOptions{
-		DefaultBoard: a.placeBoard,
-		Radio: scenario.RadioConfig{
-			CentreHz: a.freqMHz * 1e6, BandwidthHz: 250e3, SpreadFactor: 10, CodingRate: 1,
-		},
+		DefaultBoard:     a.placeBoard,
+		Radio:            a.defaultRadio(),
 		MaxUncertaintyKm: 1,
 		Region:           region,
 	}

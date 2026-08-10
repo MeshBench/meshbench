@@ -83,12 +83,17 @@ type App struct {
 
 	terrainTex   *imgui.TextureRef
 	terrainDirty bool
-	rendering    bool
-	pending      chan *image.RGBA
-	terrainW     int
-	terrainH     int
-	dragged      bool
-	status       string
+	// terrainView is the view the current hillshade was rendered for, and
+	// pendingView the one being rendered now: a shade drawn at the wrong
+	// view is a map whose hills lag behind its nodes.
+	terrainView MapView
+	pendingView MapView
+	rendering   bool
+	pending     chan *image.RGBA
+	terrainW    int
+	terrainH    int
+	dragged     bool
+	status      string
 
 	fetchMu     sync.Mutex
 	fetching    bool
@@ -234,7 +239,7 @@ func New(t Terrain) *App {
 		Terrain:    t,
 		selected:   -1,
 		linkTo:     -1,
-		freqMHz:    869.525,
+		freqMHz:    scenario.DefaultFreqMHz(),
 		Nodes:      demoScenario(),
 		placeBoard: "RAK4631",
 		pending:    make(chan *image.RGBA, 1),
@@ -280,7 +285,7 @@ func (a *App) selectFirstLink() {
 func demoScenario() []scenario.Node {
 	rak, _ := scenario.BoardByName("RAK4631")
 	xiao, _ := scenario.BoardByName("Xiao_nRF52840")
-	radio := scenario.RadioConfig{CentreHz: 869.525e6, BandwidthHz: 250e3, SpreadFactor: 10, CodingRate: 1}
+	radio := scenario.DefaultRadio()
 
 	// Antennas come from the board profile, not from a convenient constant. The
 	// gap between a repeater's collinear and a handheld's chip antenna is most
@@ -824,4 +829,14 @@ func (a *App) pumpUIScale() {
 	a.cfg.uiScale = a.uiScale
 	a.saveConfig()
 	a.status = fmt.Sprintf("UI scale %.0f%%  (ctrl +/- to adjust, ctrl 0 for automatic)", a.uiScale*100)
+}
+
+// defaultRadio is the preset a new or imported node starts on, with the
+// toolbar's frequency honoured if the operator has changed it.
+func (a *App) defaultRadio() scenario.RadioConfig {
+	r := scenario.DefaultRadio()
+	if a.freqMHz > 0 {
+		r.CentreHz = a.freqMHz * 1e6
+	}
+	return r
 }
