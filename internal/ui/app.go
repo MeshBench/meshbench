@@ -165,6 +165,10 @@ type App struct {
 	redock map[string]bool
 	undock map[string]bool
 	popped map[string]bool
+
+	// journal is every command this session has been driven with - the only
+	// memory a driven workbench has of what was done to it.
+	journal []map[string]any
 	// confirmRestart arms the run-strip restart; viewName and confirmView
 	// belong to the Views menu.
 	confirmRestart bool

@@ -25,6 +25,14 @@ func uiTool(name, desc, method string, schema map[string]any) Tool {
 
 func sessionUITools() []Tool {
 	return []Tool{
+		uiTool("session_journal",
+			"Every command this workbench has been driven with, newest last, including "+
+				"the moment it was launched. Call this first when picking up a session "+
+				"you did not start, or after anything that might have restarted the "+
+				"process: a scenario does not survive a restart, and the journal is the "+
+				"only thing that says so.",
+			"session.journal", sObj(nil)),
+
 		uiTool("session_ui_state",
 			"Everything about the workbench window: which view is active, every panel "+
 				"and whether it is docked or its own OS window, the transport state, "+
