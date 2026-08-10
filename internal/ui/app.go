@@ -391,6 +391,14 @@ func (a *App) Run(title string, w, h int) error {
 			_ = a.ctrl.Close()
 		}
 	}()
+	// Closing the main window is quitting: every popped-out panel dies with
+	// the process, and the firmware children are reaped rather than orphaned.
+	defer func() {
+		a.closeCompanions()
+		if a.eng != nil {
+			_ = a.eng.Close()
+		}
+	}()
 	// Best-effort: a context that cannot vsync (software GL, some remote X
 	// servers) still runs, just paced by SetTargetFPS alone. Refusing to launch
 	// over a missing luxury would be the wrong trade.
