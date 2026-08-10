@@ -78,6 +78,7 @@ func (a *App) drawMap(w, h float32) {
 	a.drawNodes(origin, w, h)
 	a.drawTrafficKey(origin, w, h)
 	a.drawLayerControls(origin, w)
+	a.drawToolRail(origin, h)
 
 	// Overlays are positioned children, and each one leaves the layout cursor
 	// wherever it finished. Whatever is drawn after the map — the tabs — would

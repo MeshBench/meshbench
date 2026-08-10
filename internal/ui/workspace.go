@@ -19,8 +19,8 @@ type workspace int
 const (
 	wsPlan workspace = iota
 	wsRun
-	wsDebugRF
-	wsFirmware
+	wsDebug
+	wsVerify
 	workspaceCount
 )
 
@@ -28,12 +28,27 @@ func (w workspace) String() string {
 	switch w {
 	case wsRun:
 		return "Run"
-	case wsDebugRF:
-		return "Debug RF"
-	case wsFirmware:
-		return "Firmware"
+	case wsDebug:
+		return "Debug"
+	case wsVerify:
+		return "Verify"
 	default:
 		return "Plan"
+	}
+}
+
+// what each view is for, in the operator's terms - shown on hover, because
+// a four-tab strip should not need a manual.
+func (w workspace) purpose() string {
+	switch w {
+	case wsRun:
+		return "exercise it and watch: play, schedule traffic, consoles, live feed"
+	case wsDebug:
+		return "ask why one thing happened: packets, waterfall, consoles, budgets"
+	case wsVerify:
+		return "check it is still true: baselines, A/B bisect, residuals against reality"
+	default:
+		return "build and site: import, place, drag, boundary, coverage"
 	}
 }
 
@@ -81,6 +96,12 @@ func (a *App) panelRegistry() []*panelSpec {
 		{name: "Energy", draw: a.drawEnergyBody, open: false},
 		{name: "Live feed", draw: a.drawLiveFeedBody, open: false},
 		{name: "Import", draw: a.drawImportBody, open: false},
+		// Places you work, so they are panels: dockable, poppable, part of a
+		// view, saved in a layout. They were floating windows, which meant no
+		// view could contain them and no layout could remember them.
+		{name: "Boundary", draw: a.drawBoundaryBody, open: false},
+		{name: "Planning", draw: a.drawPlanningBody, open: false},
+		{name: "Fleet", draw: a.drawFleetBody, open: false},
 	}
 	return a.panelList
 }
@@ -143,10 +164,15 @@ func (a *App) switchWorkspace(w workspace) {
 // placed there deliberately, on some other monitor, and stays.
 func (a *App) openPanelsFor(w workspace) {
 	names := map[workspace][]string{
-		wsPlan:     {"Inspector", "Nodes", "Link", "Import"},
-		wsRun:      {"Events", "Packet timeline", "Schedule", "Scoreboard", "Compare"},
-		wsDebugRF:  {"Waterfall", "Budget", "Link", "Packet timeline"},
-		wsFirmware: {"Console", "Events", "Inspector", "Nodes"},
+		// Building and siting: hands on the map, one node at a time, with
+		// the terrain profile wide enough to read.
+		wsPlan: {"Inspector", "Nodes", "Import", "Link", "Boundary", "Planning"},
+		// Exercising and watching: you touch little and observe a lot.
+		wsRun: {"Schedule", "Scoreboard", "Live feed", "Events", "Packet timeline", "Console"},
+		// Why did that happen: a chain of evidence, every link in reach.
+		wsDebug: {"Inspector", "Budget", "Link", "Waterfall", "Console", "Events"},
+		// Is it still true: the falsifiability workflow, given a front door.
+		wsVerify: {"Compare", "Validate", "Scoreboard", "Events"},
 	}
 	want := map[string]bool{}
 	for _, n := range names[w] {
@@ -187,21 +213,20 @@ func (a *App) buildWorkspace(dockID imgui.ID) {
 
 	switch a.ws {
 	case wsRun:
-		dock(right, "Schedule", "Scoreboard", "Compare", "Inspector")
-		dock(bottom, "Packet timeline", "Events")
-	case wsDebugRF:
-		// The waterfall large is the point of this workspace, so it takes the
-		// bottom band and the map cedes the space.
-		dock(right, "Budget", "Link", "Inspector")
-		dock(bottom, "Waterfall", "Packet timeline", "Events")
-	case wsFirmware:
-		dock(right, "Inspector", "Nodes")
-		dock(bottom, "Console", "Events")
-		// The console is what this workspace is for; a sliver of it under a
-		// dominant map was the preset not keeping its promise.
-		imgui.InternalDockBuilderSetNodeSize(bottom, imgui.NewVec2(vp.Size().X, vp.Size().Y*0.45))
+		dock(right, "Schedule", "Scoreboard", "Live feed")
+		dock(bottom, "Events", "Packet timeline", "Console")
+	case wsDebug:
+		// The map cedes room: debugging is reading, and the cut-through, the
+		// waterfall and the consoles all want width. A 43 km terrain profile
+		// in a 350 px column is a smear, which is what the old preset drew.
+		dock(right, "Inspector", "Budget")
+		dock(bottom, "Link", "Waterfall", "Console", "Events")
+		imgui.InternalDockBuilderSetNodeSize(bottom, imgui.NewVec2(vp.Size().X, vp.Size().Y*0.5))
+	case wsVerify:
+		dock(right, "Compare", "Validate")
+		dock(bottom, "Scoreboard", "Events")
 	default: // Plan
-		dock(right, "Inspector", "Nodes", "Import")
+		dock(right, "Inspector", "Nodes", "Import", "Boundary", "Planning")
 		dock(bottom, "Link", "Packet timeline")
 	}
 	// Every panel gets a home, whether the preset named it or not. An unplaced
@@ -213,23 +238,6 @@ func (a *App) buildWorkspace(dockID imgui.ID) {
 		}
 	}
 	imgui.InternalDockBuilderFinish(dockID)
-}
-
-// drawWorkspaceSwitcher is the menu-bar control.
-func (a *App) drawWorkspaceSwitcher() {
-	for w := workspace(0); w < workspaceCount; w++ {
-		sel := w == a.ws
-		if sel {
-			imgui.PushStyleColorVec4(imgui.ColButton, imgui.NewVec4(0.26, 0.42, 0.66, 1))
-		}
-		if imgui.SmallButton(w.String()) {
-			a.switchWorkspace(w)
-		}
-		if sel {
-			imgui.PopStyleColor()
-		}
-		imgui.SameLine()
-	}
 }
 
 // dockspaceID is the main window's dock node — the thing a panel docks back
@@ -389,4 +397,14 @@ func (a *App) panelEnabled(name string) bool {
 		return a.cfg.energyEnabled
 	}
 	return true
+}
+
+// showPanel opens a panel and brings it to the front - the one way anything
+// asks for a panel, now that Fleet, Boundary and Planning are panels rather
+// than windows with their own flags.
+func (a *App) showPanel(name string) {
+	if p := a.panelByName(name); p != nil {
+		p.open = true
+		imgui.SetWindowFocusStr(name)
+	}
 }

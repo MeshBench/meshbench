@@ -32,24 +32,6 @@ type boundarySearch struct {
 	err     error
 }
 
-// drawBoundaryWindow picks the areas a study is about.
-//
-// Type a name, pick the right "Scotland" from the candidates, and it lands in
-// the table with its polygon already downloaded. Two entries make a union —
-// "Scotland and Ireland" is two searches, not a GeoJSON editing session.
-func (a *App) drawBoundaryWindow() {
-	if !a.winBoundary {
-		return
-	}
-	imgui.SetNextWindowSizeV(imgui.NewVec2(520, 420), imgui.CondFirstUseEver)
-	open := a.winBoundary
-	if imgui.BeginV("Boundary", &open, 0) {
-		a.drawBoundaryBody()
-	}
-	imgui.End()
-	a.winBoundary = open
-}
-
 func (a *App) drawBoundaryBody() {
 	b := &a.bnd
 

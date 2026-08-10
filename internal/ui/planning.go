@@ -63,25 +63,6 @@ func (a *App) planSensitivity() float64 {
 	})
 }
 
-// drawPlanningWindow is the connect-two and cover-an-area tools.
-//
-// The searches have been written and tested since before the workbench could
-// reach them; this is the part that was missing. Both answer in *new sites*,
-// because existing infrastructure is free and a plan that ignores that is a
-// plan nobody would build.
-func (a *App) drawPlanningWindow() {
-	if !a.winPlanning {
-		return
-	}
-	imgui.SetNextWindowSizeV(imgui.NewVec2(520, 460), imgui.CondFirstUseEver)
-	open := a.winPlanning
-	if imgui.BeginV("Planning", &open, 0) {
-		a.drawPlanningBody()
-	}
-	imgui.End()
-	a.winPlanning = open
-}
-
 func (a *App) drawPlanningBody() {
 	p := &a.plan
 	if p.mastM == 0 {

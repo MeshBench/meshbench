@@ -34,6 +34,10 @@ func (a *App) startControl() {
 // socket as much as to MCP: a dozen coarse commands, each answering something
 // somebody actually wants to do.
 func (a *App) handleControl(method string, params json.RawMessage) (any, error) {
+	// The UI command surface first: chrome, navigation, windows, tools.
+	if res, handled, err := a.handleUICommand(method, params); handled {
+		return res, err
+	}
 	switch method {
 	case "session.describe":
 		return a.ctlDescribe(), nil
@@ -439,4 +443,241 @@ func (a *App) ctlPanelOpen(name string, open *bool) (any, error) {
 		p.open = true
 	}
 	return map[string]any{"name": name, "open": p.open}, nil
+}
+
+// The command surface: everything the chrome can do, doable from outside.
+//
+// The workbench is meant to be drivable end to end — "open the waterfall on
+// my second monitor, switch to Debug, play for ten seconds and tell me what
+// missed" is a sentence, and every verb in it has to exist here or the
+// automation stops at the first button that has no name.
+func (a *App) handleUICommand(method string, params json.RawMessage) (any, bool, error) {
+	arg := func(key string) string {
+		var m map[string]any
+		if json.Unmarshal(params, &m) != nil {
+			return ""
+		}
+		if v, ok := m[key].(string); ok {
+			return v
+		}
+		return ""
+	}
+	num := func(key string) (float64, bool) {
+		var m map[string]any
+		if json.Unmarshal(params, &m) != nil {
+			return 0, false
+		}
+		v, ok := m[key].(float64)
+		return v, ok
+	}
+
+	switch method {
+	case "ui.state":
+		return a.ctlUIState(), true, nil
+
+	// Transport - the run strip, as verbs.
+	case "sim.play":
+		a.playing = true
+		return map[string]any{"playing": true}, true, nil
+	case "sim.pause":
+		a.playing = false
+		return map[string]any{"playing": false}, true, nil
+	case "sim.step":
+		n := 20
+		if v, ok := num("ticks"); ok && v > 0 {
+			n = int(v)
+		}
+		a.stepEngine(n)
+		return map[string]any{"now_ms": a.engNowMs()}, true, nil
+	case "sim.speed":
+		if v, ok := num("factor"); ok && v > 0 {
+			a.speed = float32(v)
+		}
+		return map[string]any{"speed": a.speed}, true, nil
+
+	// Navigation - where the map is looking, and what is selected.
+	case "map.centre":
+		lat, okLat := num("lat")
+		lon, okLon := num("lon")
+		if !okLat || !okLon {
+			return nil, true, fmt.Errorf("map.centre needs lat and lon")
+		}
+		a.view.CentreLat, a.view.CentreLon = lat, lon
+		if mpp, ok := num("metres_per_pixel"); ok && mpp > 0 {
+			a.view.MetresPerPixel = mpp
+		}
+		a.terrainDirty = true
+		return a.ctlView(), true, nil
+	case "map.fit":
+		a.view.FitTo(a.Nodes, a.view.Width, a.view.Height)
+		a.terrainDirty = true
+		return a.ctlView(), true, nil
+	case "map.zoom":
+		if f, ok := num("factor"); ok && f > 0 {
+			a.view.MetresPerPixel /= f
+			a.terrainDirty = true
+		}
+		return a.ctlView(), true, nil
+	case "map.filter":
+		a.nodeFilter = arg("text")
+		return map[string]any{"filter": a.nodeFilter, "matches": len(a.matchingNodes())}, true, nil
+	case "nodes.select":
+		i := a.nodeIndex(arg("name"))
+		if i < 0 {
+			return nil, true, fmt.Errorf("no node %q", arg("name"))
+		}
+		var m map[string]any
+		_ = json.Unmarshal(params, &m)
+		add, _ := m["add_to_link"].(bool)
+		a.SelectNode(i, add)
+		from, to := a.Link()
+		return map[string]any{"selected": from, "link_to": to}, true, nil
+
+	// Tools and windows.
+	case "tool.set":
+		for _, t := range []Tool{ToolSelect, ToolMove, ToolPlaceRepeater,
+			ToolPlaceCompanion, ToolPlaceObserver, ToolPlaceCustom} {
+			if strings.EqualFold(t.label(), arg("tool")) {
+				a.tool = t
+				return map[string]any{"tool": t.label()}, true, nil
+			}
+		}
+		return nil, true, fmt.Errorf("no tool %q", arg("tool"))
+	case "window.open":
+		return a.ctlWindow(arg("name"), true)
+	case "window.close":
+		return a.ctlWindow(arg("name"), false)
+	case "node.window":
+		name := arg("name")
+		if a.nodeIndex(name) < 0 {
+			return nil, true, fmt.Errorf("no node %q", name)
+		}
+		a.openNodeWindow(name)
+		return map[string]any{"opened": name}, true, nil
+
+	// Anything a menu can do to the fleet.
+	case "fleet.send":
+		targets := a.repeaterNames()
+		if only := arg("node"); only != "" {
+			targets = []string{only}
+		}
+		if len(targets) == 0 {
+			return nil, true, fmt.Errorf("no firmware-running nodes")
+		}
+		a.fleetSend(targets, arg("command"))
+		return map[string]any{"sent_to": len(targets), "command": arg("command")}, true, nil
+	case "coverage.start":
+		switch arg("mode") {
+		case "best", "best-server", "":
+			a.startNetworkCoverage(covBest)
+		case "gaps":
+			a.startNetworkCoverage(covGap)
+		case "redundancy":
+			a.startNetworkCoverage(covRedundancy)
+		case "node":
+			if i, _ := a.Link(); i >= 0 {
+				a.startCoverage(i)
+			} else {
+				return nil, true, fmt.Errorf("select a node first")
+			}
+		}
+		return map[string]any{"started": true}, true, nil
+	case "coverage.clear":
+		a.clearCoverage()
+		return map[string]any{"cleared": true}, true, nil
+	case "import.set_source":
+		if s := arg("source"); s != "" {
+			a.imp.source = s
+		}
+		if u := arg("url"); u != "" {
+			a.imp.url = u
+		}
+		if t := arg("token"); t != "" {
+			a.imp.token = t
+		}
+		return map[string]any{"source": a.imp.source, "url": a.imp.url}, true, nil
+	case "import.fetch":
+		a.startImportFetch()
+		return map[string]any{"fetching": true}, true, nil
+	case "import.commit":
+		if a.imp.preview == nil {
+			return nil, true, fmt.Errorf("no preview to commit - fetch first")
+		}
+		if s := arg("strategy"); s != "" {
+			a.imp.strategy = scenario.MergeStrategy(s)
+		}
+		n := len(a.imp.preview.nodes)
+		a.commitImport()
+		return map[string]any{"committed": n, "nodes": len(a.Nodes)}, true, nil
+	case "status":
+		return map[string]any{"status": a.status}, true, nil
+	}
+	return nil, false, nil
+}
+
+// ctlUIState is one call that says everything about the shell: the view, the
+// panels and where each of them is, the transport, the map, the selection.
+// An agent driving the workbench should not need six round trips to find out
+// what it is looking at.
+func (a *App) ctlUIState() map[string]any {
+	from, to := a.Link()
+	sel := ""
+	if from >= 0 && from < len(a.Nodes) {
+		sel = a.Nodes[from].Name
+	}
+	linkTo := ""
+	if to >= 0 && to < len(a.Nodes) {
+		linkTo = a.Nodes[to].Name
+	}
+	views := []string{}
+	for w := workspace(0); w < workspaceCount; w++ {
+		views = append(views, w.String())
+	}
+	return map[string]any{
+		"view":     a.ws.String(),
+		"views":    views,
+		"panels":   a.ctlPanels()["panels"],
+		"playing":  a.playing,
+		"speed":    a.speed,
+		"now_ms":   a.engNowMs(),
+		"tool":     a.tool.label(),
+		"selected": sel,
+		"link_to":  linkTo,
+		"filter":   a.nodeFilter,
+		"map":      a.ctlView(),
+		"ui_scale": a.uiScale,
+		"status":   a.status,
+		"jobs":     len(a.activeJobs()),
+		"firmware_running": func() int {
+			if a.eng == nil {
+				return 0
+			}
+			return a.eng.FirmwareCount()
+		}(),
+	}
+}
+
+func (a *App) ctlView() map[string]any {
+	return map[string]any{
+		"lat": a.view.CentreLat, "lon": a.view.CentreLon,
+		"metres_per_pixel": a.view.MetresPerPixel,
+	}
+}
+
+// ctlWindow drives the single-instance windows, which are flags rather than
+// registry panels.
+func (a *App) ctlWindow(name string, open bool) (any, bool, error) {
+	switch strings.ToLower(name) {
+	case "preferences":
+		a.winPrefs = open
+	case "provisioning":
+		a.winProvision = open
+	case "firmware library", "firmware":
+		a.winFirmware = open
+	case "nodes & settings", "nodes table":
+		a.winNodesTable = open
+	default:
+		return nil, true, fmt.Errorf("no window %q", name)
+	}
+	return map[string]any{"window": name, "open": open}, true, nil
 }

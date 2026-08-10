@@ -82,26 +82,6 @@ var fleetQuick = []struct {
 	}},
 }
 
-// drawFleetWindow sends one command to many nodes and shows every reply.
-//
-// This is how a mesh is administered rather than a node: set a region, cap
-// flooding, or push a preset across forty repeaters, with each node's own
-// firmware parsing the command and each reply attributed. A node that rejects
-// the command says so here in its own words, which is the entire reason to run
-// real firmware.
-func (a *App) drawFleetWindow() {
-	if !a.winFleet {
-		return
-	}
-	imgui.SetNextWindowSizeV(imgui.NewVec2(640, 420), imgui.CondFirstUseEver)
-	open := a.winFleet
-	if imgui.BeginV("Fleet commands", &open, 0) {
-		a.drawFleetBody()
-	}
-	imgui.End()
-	a.winFleet = open
-}
-
 func (a *App) drawFleetBody() {
 	if a.eng == nil || a.eng.FirmwareCount() == 0 {
 		imgui.TextWrapped("Fleet commands talk to each node's real CLI, so they need real " +

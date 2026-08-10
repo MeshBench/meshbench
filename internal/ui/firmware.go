@@ -299,6 +299,12 @@ func (a *App) drawFirmwareWindow() {
 	a.winFirmware = open
 }
 
+// drawFirmwareLibraryBody is a catalogue, so it is a table.
+//
+// A Browser in the design language: rows you sort and pick from, not prose
+// sections. One row per published build, with the fleet composition read
+// straight off the "in use by" column - which is the answer to "did that
+// swap take", and the question no per-node picker can answer.
 func (a *App) drawFirmwareLibraryBody() {
 	a.fw.load()
 	loading, err := a.fw.status()
@@ -306,52 +312,10 @@ func (a *App) drawFirmwareLibraryBody() {
 		imgui.TextDisabled("reading the published catalogue...")
 	}
 	if err != "" {
-		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.72, 0.25, 1))
-		imgui.TextWrapped(err)
-		imgui.PopStyleColor()
+		textColoured(colWarn, err)
 	}
 
-	roles, _ := a.fw.forThisMachine()
-	imgui.SeparatorText("Published builds")
-	if len(roles) == 0 && !loading {
-		imgui.TextDisabled("nothing published for this machine - check the network, or " +
-			"import a local build with: msim firmware import")
-	}
-	for _, role := range roles {
-		if !imgui.CollapsingHeaderBoolPtr(role, nil) {
-			continue
-		}
-		for _, v := range a.fw.versionsFor(role) {
-			cached := a.fw.isCached(role, v)
-			imgui.Text("  " + v)
-			imgui.SameLine()
-			if cached {
-				imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.45, 0.85, 0.5, 1))
-				imgui.Text("downloaded")
-				imgui.PopStyleColor()
-			} else {
-				imgui.TextDisabled("not downloaded - fetched on first use")
-			}
-			imgui.SameLine()
-			if imgui.SmallButton("use everywhere##" + role + v) {
-				n := 0
-				for i := range a.Nodes {
-					if a.Nodes[i].Kind.RunsFirmware() &&
-						(a.Nodes[i].Firmware.Role == role || a.Nodes[i].Kind.Application() == role) {
-						a.Nodes[i].Firmware.Role, a.Nodes[i].Firmware.Version = role, v
-						n++
-					}
-				}
-				a.rebuildForFirmware()
-				a.status = fmt.Sprintf("%d nodes set to %s %s", n, role, v)
-			}
-		}
-	}
-
-	// What the fleet is actually on, counted — the answer to "did that swap
-	// take", which no per-node picker can give.
-	imgui.SeparatorText("What this scenario runs")
-	counts := map[string]int{}
+	inUse := map[string]int{}
 	for i := range a.Nodes {
 		n := &a.Nodes[i]
 		if !n.Kind.RunsFirmware() {
@@ -365,30 +329,77 @@ func (a *App) drawFirmwareLibraryBody() {
 		if version == "" {
 			version = "main"
 		}
-		counts[role+" "+version]++
+		inUse[role+" "+version]++
 	}
-	if len(counts) == 0 {
-		imgui.TextDisabled("no firmware-running nodes in this scenario")
+
+	roles, _ := a.fw.forThisMachine()
+	if len(roles) == 0 && !loading {
+		imgui.TextDisabled("nothing published for this machine - check the network, or " +
+			"import a local build with: msim firmware import")
 	}
-	keys := make([]string, 0, len(counts))
-	for k := range counts {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	for _, k := range keys {
-		imgui.Text(fmt.Sprintf("%3d x  %s", counts[k], k))
+
+	if imgui.BeginTableV("##fwlib", 5,
+		imgui.TableFlagsBorders|imgui.TableFlagsRowBg|imgui.TableFlagsScrollY|
+			imgui.TableFlagsSizingStretchProp, imgui.NewVec2(0, 320), 0) {
+		imgui.TableSetupColumnV("role", imgui.TableColumnFlagsWidthStretch, 0, 0)
+		imgui.TableSetupColumnV("version", imgui.TableColumnFlagsWidthStretch, 0, 0)
+		imgui.TableSetupColumnV("downloaded", imgui.TableColumnFlagsWidthFixed, 100, 0)
+		imgui.TableSetupColumnV("in use by", imgui.TableColumnFlagsWidthFixed, 90, 0)
+		imgui.TableSetupColumnV("", imgui.TableColumnFlagsWidthFixed, 120, 0)
+		imgui.TableHeadersRow()
+
+		for _, role := range roles {
+			for _, v := range a.fw.versionsFor(role) {
+				imgui.TableNextRow()
+				imgui.TableSetColumnIndex(0)
+				imgui.Text(role)
+				imgui.TableSetColumnIndex(1)
+				imgui.Text(v)
+				imgui.TableSetColumnIndex(2)
+				if a.fw.isCached(role, v) {
+					textColoured(colOK, "yes")
+				} else {
+					imgui.TextDisabled("on first use")
+				}
+				imgui.TableSetColumnIndex(3)
+				if n := inUse[role+" "+v]; n > 0 {
+					imgui.Text(fmt.Sprintf("%d nodes", n))
+				} else {
+					imgui.TextDisabled("-")
+				}
+				imgui.TableSetColumnIndex(4)
+				if imgui.SmallButton("use everywhere##" + role + v) {
+					n := 0
+					for i := range a.Nodes {
+						if a.Nodes[i].Kind.RunsFirmware() &&
+							(a.Nodes[i].Firmware.Role == role || a.Nodes[i].Kind.Application() == role) {
+							a.Nodes[i].Firmware.Role, a.Nodes[i].Firmware.Version = role, v
+							n++
+						}
+					}
+					a.rebuildForFirmware()
+					a.status = fmt.Sprintf("%d nodes set to %s %s", n, role, v)
+				}
+			}
+		}
+		imgui.EndTable()
 	}
 
 	imgui.SeparatorText("Storage")
-	imgui.TextDisabled("builds   " + firmware.DefaultCacheDir())
+	imgui.TextDisabled("builds     " + firmware.DefaultCacheDir())
 	imgui.TextDisabled("node flash " + firmware.NodeWorkDir("<node>"))
-	if imgui.Button("wipe every node's memory") {
-		a.buildEngine()
-		if err := firmware.WipeNodeStorage(); err != nil {
-			a.status = err.Error()
-		} else {
-			a.status = "node memories wiped - every node boots factory-fresh next time"
+	if a.confirmWipe {
+		if dangerButton("wipe every node's memory - sure?", imgui.NewVec2(0, 0)) {
+			a.confirmWipe = false
+			a.buildEngine()
+			if err := firmware.WipeNodeStorage(); err != nil {
+				a.status = err.Error()
+			} else {
+				a.status = "node memories wiped - every node boots factory-fresh next time"
+			}
 		}
+	} else if imgui.Button("wipe every node's memory") {
+		a.confirmWipe = true
 	}
 	if imgui.IsItemHovered() {
 		imgui.SetTooltip("Deletes every node's persisted identity, prefs and regions.\n" +

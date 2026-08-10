@@ -106,6 +106,9 @@ func (a *App) drawPacketBody() {
 }
 
 func (a *App) drawDissection(d capture.Dissection, frame []byte) {
+	// Hex is machine output; proportional digits do not line up.
+	pushMono()
+	defer popMono()
 	imgui.SeparatorText("Header")
 	kv := func(k, v string) {
 		imgui.TextDisabled(k)
