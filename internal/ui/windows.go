@@ -527,7 +527,8 @@ func (a *App) drawNeighbours(name string) {
 		return
 	}
 	if !imgui.BeginTableV("##neighbours", 3,
-		imgui.TableFlagsBorders|imgui.TableFlagsRowBg|imgui.TableFlagsScrollY,
+		imgui.TableFlagsBorders|imgui.TableFlagsRowBg|imgui.TableFlagsScrollY|
+			imgui.TableFlagsResizable|imgui.TableFlagsReorderable,
 		imgui.NewVec2(0, 150), 0) {
 		return
 	}
@@ -565,7 +566,8 @@ func (a *App) drawNodeActivity(name string) {
 	}
 	events := a.eng.Events()
 	if !imgui.BeginTableV("##nodeevents", 4,
-		imgui.TableFlagsBorders|imgui.TableFlagsRowBg|imgui.TableFlagsScrollY,
+		imgui.TableFlagsBorders|imgui.TableFlagsRowBg|imgui.TableFlagsScrollY|
+			imgui.TableFlagsResizable|imgui.TableFlagsReorderable,
 		imgui.NewVec2(0, 0), 0) {
 		return
 	}

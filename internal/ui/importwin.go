@@ -552,7 +552,8 @@ func (a *App) drawSavedNetworkList() {
 		return
 	}
 	if !imgui.BeginTableV("##savednets", 4,
-		imgui.TableFlagsBorders|imgui.TableFlagsRowBg|imgui.TableFlagsScrollY,
+		imgui.TableFlagsBorders|imgui.TableFlagsRowBg|imgui.TableFlagsScrollY|
+			imgui.TableFlagsResizable|imgui.TableFlagsReorderable,
 		imgui.NewVec2(0, 260), 0) {
 		return
 	}

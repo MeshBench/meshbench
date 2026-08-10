@@ -171,7 +171,8 @@ func (a *App) drawDissection(d capture.Dissection, frame []byte) {
 // real capture cannot produce, because no observer is everywhere.
 func (a *App) drawPacketFates(rows []engine.Event) {
 	if !imgui.BeginTableV("##fates", 4,
-		imgui.TableFlagsBorders|imgui.TableFlagsRowBg|imgui.TableFlagsScrollY,
+		imgui.TableFlagsBorders|imgui.TableFlagsRowBg|imgui.TableFlagsScrollY|
+			imgui.TableFlagsResizable|imgui.TableFlagsReorderable,
 		imgui.NewVec2(0, 0), 0) {
 		return
 	}
@@ -255,7 +256,8 @@ func (a *App) drawReceptionLedger() {
 	textDim(fmt.Sprintf("offered to %d nodes . decoded at %d", reached, decoded))
 
 	if !imgui.BeginTableV("##ledger", 7,
-		imgui.TableFlagsBorders|imgui.TableFlagsRowBg|imgui.TableFlagsScrollY,
+		imgui.TableFlagsBorders|imgui.TableFlagsRowBg|imgui.TableFlagsScrollY|
+			imgui.TableFlagsResizable|imgui.TableFlagsReorderable,
 		imgui.NewVec2(0, 0), 0) {
 		return
 	}
@@ -411,7 +413,8 @@ func (a *App) drawMessageJourney() {
 		"at every hop, because each relay appends itself to the path")
 
 	if !imgui.BeginTableV("##journey", 5,
-		imgui.TableFlagsBorders|imgui.TableFlagsRowBg|imgui.TableFlagsScrollY,
+		imgui.TableFlagsBorders|imgui.TableFlagsRowBg|imgui.TableFlagsScrollY|
+			imgui.TableFlagsResizable|imgui.TableFlagsReorderable,
 		imgui.NewVec2(0, 0), 0) {
 		return
 	}
