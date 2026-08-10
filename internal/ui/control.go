@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/AllenDang/cimgui-go/imgui"
 
@@ -21,6 +22,12 @@ func (a *App) startControl() {
 	if !a.cfg.controlEnabled {
 		return
 	}
+	a.journal = append(a.journal, map[string]any{
+		"at":     time.Now().UTC().Format(time.RFC3339),
+		"method": "session.start",
+		"note":   "workbench launched - any scenario from before this line is gone",
+		"nodes":  len(a.Nodes),
+	})
 	srv, err := control.Listen(a.handleControl)
 	if err != nil {
 		a.status = "control socket unavailable: " + err.Error()
@@ -66,6 +73,46 @@ func (a *App) setControlEnabled(on bool) {
 // socket as much as to MCP: a dozen coarse commands, each answering something
 // somebody actually wants to do.
 func (a *App) handleControl(method string, params json.RawMessage) (any, error) {
+	if method == "session.journal" {
+		return a.journal, nil
+	}
+	res, err := a.handleControlInner(method, params)
+	a.recordCommand(method, params, err)
+	return res, err
+}
+
+// recordCommand keeps the session's history, because a driven workbench has
+// no other memory of what was done to it.
+//
+// An agent that reconnects - or one that restarted the process and does not
+// know it - otherwise has to infer the state from what it can see, and the
+// expensive mistake is exactly the one that is invisible: an inference run
+// against a scenario somebody emptied. The journal answers "what has already
+// happened here" in one call, and the launch entry makes a restart obvious.
+func (a *App) recordCommand(method string, params json.RawMessage, err error) {
+	if method == "ui.state" || method == "panels.list" || method == "status" ||
+		method == "infer.result" {
+		return // polls, not acts
+	}
+	e := map[string]any{
+		"at":     time.Now().UTC().Format(time.RFC3339),
+		"method": method,
+		"nodes":  len(a.Nodes),
+	}
+	if len(params) > 0 && string(params) != "{}" {
+		e["params"] = json.RawMessage(params)
+	}
+	if err != nil {
+		e["error"] = err.Error()
+	}
+	a.journal = append(a.journal, e)
+	// Bounded: a long session is a long session, not a leak.
+	if len(a.journal) > 500 {
+		a.journal = a.journal[len(a.journal)-500:]
+	}
+}
+
+func (a *App) handleControlInner(method string, params json.RawMessage) (any, error) {
 	// The UI command surface first: chrome, navigation, windows, tools.
 	if res, handled, err := a.handleUICommand(method, params); handled {
 		return res, err
