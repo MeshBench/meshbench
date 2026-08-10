@@ -277,6 +277,7 @@ func (a *App) drawNodeWindows() {
 		// Undock-then-place, queued from the button below. Placing alone did
 		// nothing while the window was docked, which is why this never worked.
 		a.applyDockIntent(name)
+		a.applyWindowMode(name)
 		if imgui.BeginV(name+"##nodewin", &open, 0) {
 			a.drawNodeWindowBody(i)
 		}
@@ -302,15 +303,16 @@ func (a *App) drawNodeWindowBody(i int) {
 	}
 
 	imgui.SameLine()
-	if imgui.IsWindowDocked() {
-		if imgui.SmallButton("pop out") {
-			a.popOut(n.Name)
+	if a.popped[n.Name] {
+		if imgui.SmallButton("bring back") {
+			a.dockBack(n.Name)
 		}
-		if imgui.IsItemHovered() {
-			imgui.SetTooltip("Make this a real OS window you can put on another monitor.")
-		}
-	} else if imgui.SmallButton("dock") {
-		a.dockBack(n.Name)
+	} else if imgui.SmallButton("pop out") {
+		a.popOut(n.Name)
+	}
+	if imgui.IsItemHovered() {
+		imgui.SetTooltip("Pop out: a separate OS window, kept above this one, for\n" +
+			"another monitor. Otherwise it floats inside the workbench.")
 	}
 
 	if !imgui.BeginTabBar("##nodetabs") {
