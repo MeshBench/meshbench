@@ -88,7 +88,7 @@ func (a *App) drawInferBody() {
 
 	if s.running {
 		imgui.ProgressBarV(-1*float32(imgui.Time()), imgui.NewVec2(-1, 0),
-			fmt.Sprintf("walking... %d packets", s.fetched.Load()))
+			fmt.Sprintf("reading %d h of traffic... %d packets", s.lookbackH, s.fetched.Load()))
 	} else if imgui.Button("read the traffic") {
 		a.startInference()
 	}
@@ -107,6 +107,17 @@ func (a *App) drawInferBody() {
 
 	imgui.SeparatorText(fmt.Sprintf("Found - %d packets, %d nodes, %d candidate regions",
 		s.packets, len(s.result), len(s.regions)))
+	scoped := 0
+	for _, v := range s.result {
+		if v.ScopedRelay || len(v.Regions) > 0 {
+			scoped++
+		}
+	}
+	if scoped == 0 && len(s.result) > 0 {
+		textDimWrap("nothing in this traffic was transport-scoped: every packet read was " +
+			"unscoped flood. That is a finding about the network, not a failure to " +
+			"read it - these nodes are not using MeshCore regions.")
+	}
 	if len(s.regions) > 0 {
 		textDim("candidates: " + strings.Join(s.regions, ", "))
 	}

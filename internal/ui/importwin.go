@@ -184,6 +184,12 @@ func (a *App) drawImportBody() {
 	// that named the nodes can prove what they are configured to do.
 	if s.source == "corescope" && s.url != "" {
 		imgui.Spacing()
+		// Forced open while a walk is running: a command that starts work has
+		// to reveal the work, and this section was collapsed by default - so
+		// inference driven from outside looked like nothing happening at all.
+		if a.infer.running || a.infer.result != nil {
+			imgui.SetNextItemOpen(true)
+		}
 		if imgui.CollapsingHeaderBoolPtr("Read the traffic too", nil) {
 			a.drawInferBody()
 		}
@@ -425,7 +431,7 @@ func (a *App) drawImportPreviewBox(origin imgui.Vec2, w, h float32) {
 	tl := imgui.NewVec2(origin.X+float32(x0), origin.Y+float32(y0))
 	br := imgui.NewVec2(origin.X+float32(x1), origin.Y+float32(y1))
 	col := imgui.ColorU32Vec4(imgui.NewVec4(0.95, 0.75, 0.25, 0.9))
-	dl.AddRectV(tl, br, col, 0, 0, 2)
+	dl.AddRectV(tl, br, col, 0, 2, 0)
 	dl.AddTextVec2(imgui.NewVec2(tl.X+4, tl.Y+2), col,
 		fmt.Sprintf("import preview: %d nodes", len(p.nodes)))
 }

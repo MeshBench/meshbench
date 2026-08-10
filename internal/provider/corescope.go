@@ -236,16 +236,26 @@ func (c *CoreScope) Regions(ctx context.Context) ([]string, error) {
 	if c.BaseURL == "" {
 		return nil, fmt.Errorf("provider: corescope needs a BaseURL")
 	}
+	// /api/scope-stats, not /api/regions: the latter does not exist and
+	// answers with the single-page app's HTML, so the candidate list came
+	// back empty and every scoped packet read as "scoped, unidentified".
+	// HopReach has always used this endpoint (internal/corescope/scope.go).
+	//
+	// The names are MeshCore's publicly-known hashtag regions - #sco, #fif -
+	// and the key is sha256(name)[:16] over the name exactly as published,
+	// hash included (TransportKeyStore::getAutoKeyFor).
 	var payload struct {
-		Regions []struct {
-			Name string `json:"name"`
-		} `json:"regions"`
+		ByRegion []struct {
+			Name  string `json:"name"`
+			Count int    `json:"count"`
+		} `json:"byRegion"`
 	}
-	if err := fetchJSON(ctx, c.HTTP, c.BaseURL+"/api/regions", c.headers(), &payload); err != nil {
+	url := c.BaseURL + "/api/scope-stats?window=7d"
+	if err := fetchJSON(ctx, c.HTTP, url, c.headers(), &payload); err != nil {
 		return nil, err
 	}
-	out := make([]string, 0, len(payload.Regions))
-	for _, r := range payload.Regions {
+	out := make([]string, 0, len(payload.ByRegion))
+	for _, r := range payload.ByRegion {
 		if r.Name != "" {
 			out = append(out, r.Name)
 		}

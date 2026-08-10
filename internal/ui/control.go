@@ -600,6 +600,7 @@ func (a *App) handleUICommand(method string, params json.RawMessage) (any, bool,
 		a.fleetSend(targets, arg("command"))
 		return map[string]any{"sent_to": len(targets), "command": arg("command")}, true, nil
 	case "coverage.start":
+		a.showPanel("Planning")
 		switch arg("mode") {
 		case "best", "best-server", "":
 			a.startNetworkCoverage(covBest)
@@ -630,6 +631,11 @@ func (a *App) handleUICommand(method string, params json.RawMessage) (any, bool,
 		}
 		return map[string]any{"source": a.imp.source, "url": a.imp.url}, true, nil
 	case "import.fetch":
+		// Reveal what reports the work. A command that starts a fetch while
+		// its panel is closed leaves the operator watching a window that
+		// appears to be doing nothing - which is exactly what it looked like.
+		a.switchWorkspace(wsPlan)
+		a.showPanel("Import")
 		a.startImportFetch()
 		return map[string]any{"fetching": true}, true, nil
 	case "import.commit":
@@ -642,6 +648,88 @@ func (a *App) handleUICommand(method string, params json.RawMessage) (any, bool,
 		n := len(a.imp.preview.nodes)
 		a.commitImport()
 		return map[string]any{"committed": n, "nodes": len(a.Nodes)}, true, nil
+	case "boundary.set":
+		a.switchWorkspace(wsPlan)
+		a.showPanel("Boundary")
+		a.bnd.query = arg("place")
+		a.startBoundarySearch(a.bnd.query)
+		return map[string]any{"searching": a.bnd.query}, true, nil
+	case "boundary.accept":
+		// Take the first result the search returned - the caller named the
+		// place, and a socket cannot look at a list of candidates.
+		if len(a.bnd.results) == 0 {
+			return map[string]any{"chosen": len(a.bnd.chosen), "waiting": true}, true, nil
+		}
+		a.bnd.chosen = append(a.bnd.chosen, a.bnd.results[0])
+		name := a.bnd.results[0].DisplayName
+		a.bnd.results = nil
+		return map[string]any{"added": name, "chosen": len(a.bnd.chosen)}, true, nil
+	case "boundary.prune":
+		before := len(a.Nodes)
+		a.pruneOutside()
+		return map[string]any{"before": before, "after": len(a.Nodes)}, true, nil
+	case "infer.run":
+		if v, ok := num("hours"); ok && v > 0 {
+			a.infer.lookbackH = int32(v)
+		}
+		if s := arg("regions"); s != "" {
+			a.infer.extraRegions = s
+		}
+		a.switchWorkspace(wsPlan)
+		a.showPanel("Import")
+		a.startInference()
+		return map[string]any{"reading": a.infer.lookbackH}, true, nil
+	case "infer.result":
+		if a.infer.running {
+			return map[string]any{"running": true, "packets": a.infer.fetched.Load()}, true, nil
+		}
+		out := map[string]any{"running": false, "packets": a.infer.packets,
+			"regions": a.infer.regions, "err": a.infer.err}
+		nodes := map[string]any{}
+		for n, v := range a.infer.result {
+			nodes[n] = map[string]any{
+				"regions": v.Regions, "default_scope": v.DefaultScope,
+				"max_hops": v.MaxHops, "summary": v.Summary()}
+		}
+		out["nodes"] = nodes
+		return out, true, nil
+	case "infer.apply":
+		return map[string]any{"applied": a.applyInference()}, true, nil
+	case "firmware.set":
+		role, version := arg("role"), arg("version")
+		if version == "" {
+			return nil, true, fmt.Errorf("firmware.set needs a version")
+		}
+		n := 0
+		for i := range a.Nodes {
+			if !a.Nodes[i].Kind.RunsFirmware() {
+				continue
+			}
+			if only := arg("node"); only != "" && !strings.EqualFold(only, a.Nodes[i].Name) {
+				continue
+			}
+			if role != "" {
+				a.Nodes[i].Firmware.Role = role
+			}
+			a.Nodes[i].Firmware.Version = version
+			n++
+		}
+		a.rebuildForFirmware()
+		return map[string]any{"nodes": n, "version": version}, true, nil
+	case "sim.inject":
+		i := a.nodeIndex(arg("node"))
+		if i < 0 {
+			return nil, true, fmt.Errorf("no node %q", arg("node"))
+		}
+		if a.eng == nil {
+			a.buildEngine()
+		}
+		payload := arg("text")
+		if payload == "" {
+			payload = fmt.Sprintf("msim-%d", a.eng.NowMs())
+		}
+		a.eng.Inject(i, []byte(payload))
+		return map[string]any{"from": a.Nodes[i].Name, "payload": payload}, true, nil
 	case "status":
 		return map[string]any{"status": a.status}, true, nil
 	}
