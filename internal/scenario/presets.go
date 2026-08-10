@@ -78,3 +78,28 @@ func (p RadioPreset) Matches(r RadioConfig) bool {
 		r.SpreadFactor == p.SF &&
 		r.CodingRate == p.CR-4
 }
+
+// DefaultRadio is the modem configuration a new or imported node gets.
+//
+// The named preset rather than numbers copied into four call sites: every one
+// of them said 869.525 MHz at 250 kHz - the *wide* preset - while the
+// constant above declared the narrow one, so nothing in the workbench
+// actually started on the default it documented.
+func DefaultRadio() RadioConfig {
+	for _, p := range RadioPresets {
+		if p.Label == DefaultPreset {
+			return p.Config()
+		}
+	}
+	return RadioConfig{CentreHz: 869.618e6, BandwidthHz: 62_500, SpreadFactor: 8, CodingRate: 4}
+}
+
+// DefaultFreqMHz is that preset's frequency, for the chrome that shows one.
+func DefaultFreqMHz() float64 {
+	for _, p := range RadioPresets {
+		if p.Label == DefaultPreset {
+			return p.FreqMHz
+		}
+	}
+	return 869.618
+}

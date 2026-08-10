@@ -331,7 +331,7 @@ func (a *App) placeNode(t Tool, lat, lon float64) {
 	n := scenario.Node{
 		Board:         board.Name,
 		Position:      scenario.LatLon{Lat: lat, Lon: lon},
-		Radio:         scenario.RadioConfig{CentreHz: a.freqMHz * 1e6, BandwidthHz: 250e3, SpreadFactor: 10, CodingRate: 1},
+		Radio:         a.defaultRadio(),
 		NoiseFigureDB: board.NoiseFigureDB,
 		Antenna: antenna.Mounted{
 			Pattern:      antenna.Collinear{GainDBiPeak: board.AntennaDBi + 4},
@@ -412,9 +412,37 @@ func (a *App) drawTerrain(origin imgui.Vec2, w, h float32) {
 		a.regenerateTerrain(int(w), int(h))
 	}
 	a.uploadPendingTerrain()
-	if a.terrainTex != nil {
-		dl.AddImage(*a.terrainTex, origin, imgui.NewVec2(origin.X+w, origin.Y+h))
+	if a.terrainTex == nil {
+		return
 	}
+	// Drawn where its ground is, not where the map rectangle is.
+	//
+	// The shade is generated off the frame thread and takes a moment; it was
+	// then painted over the whole map whatever the view had done in the
+	// meantime, so during a pan the hills sat still while the nodes moved,
+	// and afterwards they were simply in the wrong place until a new one
+	// arrived. Projecting its own corners through the current view makes it
+	// slide and scale with everything else - stale in detail, never
+	// misplaced.
+	tl, br := a.terrainScreenRect(origin)
+	dl.AddImage(*a.terrainTex, tl, br)
+}
+
+// terrainScreenRect is where the current hillshade's ground sits on screen.
+func (a *App) terrainScreenRect(origin imgui.Vec2) (imgui.Vec2, imgui.Vec2) {
+	v := a.terrainView
+	if v.MetresPerPixel <= 0 || v.Width == 0 || v.Height == 0 {
+		// Never recorded: it was rendered for this view, so it fills it.
+		return origin, imgui.NewVec2(origin.X+float32(a.terrainW), origin.Y+float32(a.terrainH))
+	}
+	// The corners it was rendered for, in ground terms, projected through
+	// the view being drawn now.
+	northLat, westLon := v.ScreenToLatLon(0, 0)
+	southLat, eastLon := v.ScreenToLatLon(float64(v.Width), float64(v.Height))
+	x0, y0 := a.view.LatLonToScreen(northLat, westLon)
+	x1, y1 := a.view.LatLonToScreen(southLat, eastLon)
+	return imgui.NewVec2(origin.X+float32(x0), origin.Y+float32(y0)),
+		imgui.NewVec2(origin.X+float32(x1), origin.Y+float32(y1))
 }
 
 // regenerateTerrain renders the hillshade off the render thread.
@@ -431,6 +459,7 @@ func (a *App) regenerateTerrain(w, h int) {
 	}
 	a.rendering = true
 	view := a.view
+	a.pendingView = view
 	go func() {
 		a.pending <- terrainImage(a.Terrain, view, 3)
 	}()
@@ -446,6 +475,9 @@ func (a *App) uploadPendingTerrain() {
 		}
 		tex := a.backend.CreateTextureRgba(img, img.Bounds().Dx(), img.Bounds().Dy())
 		a.terrainTex = &tex
+		// The view this shade was rendered for, so it can be drawn where its
+		// ground actually is rather than wherever the map happens to be now.
+		a.terrainView = a.pendingView
 	default:
 	}
 }
