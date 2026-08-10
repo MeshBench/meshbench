@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -117,11 +118,23 @@ func (a *App) drawImportBody() {
 		imgui.SameLine()
 		imgui.TextDisabled(capString(provider.CapabilitiesOf(p)))
 	}
+	if imgui.RadioButtonBool("saved network", s.source == "saved") {
+		s.source, s.health, s.preview = "saved", nil, nil
+	}
+	imgui.SameLine()
+	imgui.TextDisabled("one you saved here before - milliseconds, no assumptions re-made")
 	if imgui.RadioButtonBool("file", s.source == "file") {
 		s.source, s.health, s.preview = "file", nil, nil
 	}
 	imgui.SameLine()
-	imgui.TextDisabled("a saved network or a provider export")
+	imgui.TextDisabled("a path to an export or a saved network")
+
+	// The list, back where it was and where it belongs. Moving it to the File
+	// menu made a network someone saved yesterday effectively unfindable.
+	if s.source == "saved" {
+		a.drawSavedNetworkList()
+		return
+	}
 
 	imgui.SetNextItemWidth(-1)
 	hint := "https://corescope.example/"
@@ -510,4 +523,70 @@ func (a *App) drawImportOffers() {
 	if imgui.SmallButton("dismiss##offers") {
 		s.offer = false
 	}
+}
+
+// drawSavedNetworkList is the saved networks, described and one click to use.
+//
+// Load replaces, add merges: what happens is decided where the click happens,
+// not by a checkbox somewhere else on the panel.
+func (a *App) drawSavedNetworkList() {
+	imgui.SeparatorText("Saved networks")
+	if len(a.Nodes) > 0 {
+		imgui.SetNextItemWidth(180)
+		imgui.InputTextWithHint("##savename", defaultSaveName(len(a.Nodes)), &a.saveName, 0, nil)
+		imgui.SameLine()
+		if imgui.Button("save what is here") {
+			a.saveNetwork()
+		}
+	}
+	rows := a.savedNetworks()
+	if len(rows) == 0 {
+		imgui.TextDisabled("nothing saved yet - import a network, then save it and reopening " +
+			"takes milliseconds instead of a fetch")
+		return
+	}
+	if !imgui.BeginTableV("##savednets", 4,
+		imgui.TableFlagsBorders|imgui.TableFlagsRowBg|imgui.TableFlagsScrollY,
+		imgui.NewVec2(0, 260), 0) {
+		return
+	}
+	imgui.TableSetupColumnV("network", imgui.TableColumnFlagsWidthStretch, 0, 0)
+	imgui.TableSetupColumnV("nodes", imgui.TableColumnFlagsWidthFixed, 60, 0)
+	imgui.TableSetupColumnV("saved", imgui.TableColumnFlagsWidthFixed, 110, 0)
+	imgui.TableSetupColumnV("", imgui.TableColumnFlagsWidthFixed, 130, 0)
+	imgui.TableHeadersRow()
+	for i, n := range rows {
+		imgui.TableNextRow()
+		imgui.TableSetColumnIndex(0)
+		imgui.Text(n.name)
+		imgui.TableSetColumnIndex(1)
+		imgui.Text(fmt.Sprint(n.nodes))
+		imgui.TableSetColumnIndex(2)
+		imgui.TextDisabled(age(n.saved))
+		imgui.TableSetColumnIndex(3)
+		if imgui.SmallButton(fmt.Sprintf("load##sv%d", i)) {
+			a.loadSavedNet(n.name, true)
+			a.imp.status = a.status
+		}
+		imgui.SameLine()
+		if imgui.SmallButton(fmt.Sprintf("add##sv%d", i)) {
+			a.loadSavedNet(n.name, false)
+			a.imp.status = a.status
+		}
+		imgui.SameLine()
+		lbl := "x"
+		if a.confirmDelete == n.name {
+			lbl = "sure?"
+		}
+		if imgui.SmallButton(fmt.Sprintf("%s##svd%d", lbl, i)) {
+			if a.confirmDelete == n.name {
+				_ = os.Remove(filepath.Join(scenarioDir(), n.name+".json"))
+				a.confirmDelete = ""
+				a.savedDirty = true
+			} else {
+				a.confirmDelete = n.name
+			}
+		}
+	}
+	imgui.EndTable()
 }

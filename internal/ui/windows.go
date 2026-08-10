@@ -24,6 +24,7 @@ func (a *App) drawMenuBar() {
 		return
 	}
 	a.drawFileMenu()
+	a.drawViewsMenu()
 	if imgui.BeginMenu("Simulation") {
 		label := "run"
 		if a.playing {
@@ -131,6 +132,8 @@ func (a *App) drawMenuBar() {
 		}
 		imgui.EndMenu()
 	}
+	a.drawRepeatersMenu()
+	a.drawPlanningMenu()
 	if imgui.BeginMenu("Coverage") {
 		if imgui.MenuItemBool("from the selected node") {
 			if i, _ := a.Link(); i >= 0 {
@@ -264,23 +267,9 @@ func (a *App) drawNodeWindows() {
 		}
 		open := true
 		imgui.SetNextWindowSizeV(imgui.NewVec2(430, 360), imgui.CondFirstUseEver)
-		// A window asked to detach is placed away from the main one before it
-		// is drawn. imgui merges a floating window back into the main viewport
-		// whenever the two overlap, so "outside" has to be somewhere the main
-		// window is not — dragging alone cannot achieve that when it is
-		// maximised, which is why this button exists.
-		if a.detach[name] {
-			delete(a.detach, name)
-			vp := imgui.MainViewport()
-			pos := vp.Pos()
-			size := vp.Size()
-			// Fully outside the main window — its right edge plus a margin.
-			// The first attempt placed it 40 px *inside* that edge, which
-			// merged straight back and made the button look like it did
-			// nothing at all.
-			imgui.SetNextWindowPosV(
-				imgui.NewVec2(pos.X+size.X+40, pos.Y+80), imgui.CondAlways, imgui.NewVec2(0, 0))
-		}
+		// Undock-then-place, queued from the button below. Placing alone did
+		// nothing while the window was docked, which is why this never worked.
+		a.applyDockIntent(name)
 		if imgui.BeginV(name+"##nodewin", &open, 0) {
 			a.drawNodeWindowBody(i)
 		}
@@ -306,16 +295,15 @@ func (a *App) drawNodeWindowBody(i int) {
 	}
 
 	imgui.SameLine()
-	if imgui.SmallButton("detach") {
-		if a.detach == nil {
-			a.detach = map[string]bool{}
+	if imgui.IsWindowDocked() {
+		if imgui.SmallButton("pop out") {
+			a.popOut(n.Name)
 		}
-		a.detach[n.Name] = true
-	}
-	if imgui.IsItemHovered() {
-		imgui.SetTooltip("Move this window outside the main one, so it becomes a real OS\n" +
-			"window you can put on another monitor. Dragging works too, but not\n" +
-			"while the main window is maximised — there is nowhere outside it.")
+		if imgui.IsItemHovered() {
+			imgui.SetTooltip("Make this a real OS window you can put on another monitor.")
+		}
+	} else if imgui.SmallButton("dock") {
+		a.dockBack(n.Name)
 	}
 
 	if !imgui.BeginTabBar("##nodetabs") {
@@ -388,11 +376,20 @@ func (a *App) applyPreset(n *scenario.Node, p scenario.RadioPreset) {
 	n.Radio = p.Config()
 	if a.eng != nil {
 		if en, ok := a.eng.NodeByName(n.Name); ok && en.Firmware != nil {
+			// One command, not four. MeshCore has `set radio <freq> <bw> <sf>
+			// <cr>` and `set freq`; there is no `set bw`, `set sf` or `set cr`
+			// — those answered "unknown config: bw 62.5" and the workbench
+			// carried on as though the radio had changed, so the model and the
+			// firmware silently disagreed about the modem from then on.
+			//
+			// `set radio` persists but needs a reboot, so `tempradio` applies
+			// the same parameters to the running node immediately. Both, in
+			// that order: the run behaves correctly now and the node comes back
+			// configured.
 			for _, cmd := range []string{
-				fmt.Sprintf("set freq %.3f", p.FreqMHz),
-				fmt.Sprintf("set bw %g", p.BwKHz),
-				fmt.Sprintf("set sf %d", p.SF),
-				fmt.Sprintf("set cr %d", p.CR),
+				fmt.Sprintf("set radio %.3f %g %d %d", p.FreqMHz, p.BwKHz, p.SF, p.CR),
+				fmt.Sprintf("tempradio %.3f %g %d %d %d", p.FreqMHz, p.BwKHz, p.SF, p.CR,
+					tempRadioMinutes),
 			} {
 				if err := en.Firmware.Bridge.Type([]byte(cmd + "\r\n")); err != nil {
 					a.status = err.Error()
@@ -400,13 +397,19 @@ func (a *App) applyPreset(n *scenario.Node, p scenario.RadioPreset) {
 				}
 			}
 			a.stepEngine(50)
-			a.status = fmt.Sprintf("%s set to %s via its own CLI", n.Name, p.Label)
+			a.status = fmt.Sprintf("%s set to %s via its own CLI (applied now, persisted "+
+				"for its next boot)", n.Name, p.Label)
 			return
 		}
 	}
 	a.recompute()
 	a.status = fmt.Sprintf("%s radio set to %s", n.Name, p.Label)
 }
+
+// tempRadioMinutes is how long `tempradio` holds, in the firmware's own
+// clock. Ten hours of simulated time: long enough that no ordinary run
+// outlives it, and bounded because that is what the command is for.
+const tempRadioMinutes = 600
 
 // drawNodeStats is HopReach's per-repeater panel: what this node's airtime
 // actually bought, and who it can really reach.
@@ -705,4 +708,148 @@ func (a *App) drawSavedNetworksMenu() {
 		}
 		imgui.EndMenu()
 	}
+}
+
+// drawRepeatersMenu is everything that is done *to* the repeaters, in one
+// place — the fleet's commands, its provisioning, and its firmware.
+//
+// These were scattered across three windows reachable from two menus, which
+// is why nobody could find them: the operator's question is "do something to
+// my repeaters", not "open the fleet window".
+func (a *App) drawRepeatersMenu() {
+	if !imgui.BeginMenu("Repeaters") {
+		return
+	}
+	running := a.eng != nil && a.eng.FirmwareCount() > 0
+	if running {
+		imgui.TextDisabled(fmt.Sprintf("%d on real firmware", a.eng.FirmwareCount()))
+	} else {
+		imgui.TextDisabled("no firmware running - start it from the strip above")
+	}
+	imgui.Separator()
+	imgui.MenuItemBoolPtr("Fleet commands...", "", &a.winFleet)
+	imgui.MenuItemBoolPtr("Firmware library...", "", &a.winFirmware)
+	imgui.MenuItemBoolPtr("Provisioning (what they are told on boot)...", "", &a.winProvision)
+	imgui.MenuItemBoolPtr("Nodes & settings...", "", &a.winNodesTable)
+	imgui.Separator()
+
+	// The commands people reach for, sent to every running repeater without a
+	// detour through the fleet window. Each is a real CLI line and says so.
+	if !running {
+		imgui.TextDisabled("commands need firmware running")
+		imgui.EndMenu()
+		return
+	}
+	for _, q := range []struct{ label, cmd string }{
+		{"advert now (all repeaters)", "advert"},
+		{"read flood settings", "get flood.max"},
+		{"read default scope", "region default"},
+		{"list regions", "region"},
+		{"save regions", "region save"},
+	} {
+		if imgui.MenuItemBool(q.label) {
+			a.fleetSend(a.repeaterNames(), q.cmd)
+			a.winFleet = true // the replies land there, so open it
+		}
+		if imgui.IsItemHovered() {
+			imgui.SetTooltip(q.cmd)
+		}
+	}
+	imgui.Separator()
+	if imgui.MenuItemBool("set every repeater's region from the study area") {
+		n := a.applyRegionsToFleet()
+		a.status = fmt.Sprintf("region commands sent to %d repeaters", n)
+		a.winFleet = true
+	}
+	if imgui.IsItemHovered() {
+		imgui.SetTooltip("region put <area> / region allowf <area> / region save\n" +
+			"Uses each node's observed regions where inference found them,\n" +
+			"and the study area's name otherwise.")
+	}
+	imgui.EndMenu()
+}
+
+// repeaterNames is every firmware-running repeater, for the fleet commands
+// the Repeaters menu issues directly.
+func (a *App) repeaterNames() []string {
+	var out []string
+	if a.eng == nil {
+		return nil
+	}
+	for i := range a.Nodes {
+		n := &a.Nodes[i]
+		if !n.Kind.RunsFirmware() {
+			continue
+		}
+		if en, ok := a.eng.NodeByName(n.Name); ok && en.Firmware != nil {
+			out = append(out, n.Name)
+		}
+	}
+	return out
+}
+
+// applyRegionsToFleet sends each running node its own region commands — the
+// same lines Provisioning would issue at boot, to nodes already up.
+func (a *App) applyRegionsToFleet() int {
+	a.ensureConfig()
+	sent := 0
+	for i := range a.Nodes {
+		cmds := a.regionCommands(i)
+		if len(cmds) == 0 {
+			continue
+		}
+		ok := true
+		for _, cmd := range cmds {
+			if err := a.typeAt(a.Nodes[i].Name, cmd); err != nil {
+				ok = false
+				break
+			}
+		}
+		if ok {
+			sent++
+		}
+	}
+	if sent > 0 {
+		a.stepEngine(50)
+	}
+	return sent
+}
+
+// drawPlanningMenu is where a network is designed rather than watched.
+func (a *App) drawPlanningMenu() {
+	if !imgui.BeginMenu("Planning") {
+		return
+	}
+	imgui.MenuItemBoolPtr("Planning (bridge / cover an area)...", "", &a.winPlanning)
+	imgui.MenuItemBoolPtr("Boundary (study area)...", "", &a.winBoundary)
+	imgui.Separator()
+	if imgui.MenuItemBool("coverage from the selected node") {
+		if i, _ := a.Link(); i >= 0 {
+			a.startCoverage(i)
+		} else {
+			a.status = "select a node first"
+		}
+	}
+	if imgui.MenuItemBool("best server") {
+		a.startNetworkCoverage(covBest)
+	}
+	if imgui.MenuItemBool("gaps - covered by nobody") {
+		a.startNetworkCoverage(covGap)
+	}
+	if imgui.MenuItemBool("redundancy - what survives a failure") {
+		a.startNetworkCoverage(covRedundancy)
+	}
+	imgui.Separator()
+	if imgui.MenuItemBool("estimate terrain for this area") {
+		if est, ok := a.terrainEstimate(); ok {
+			a.status = fmt.Sprintf("%d tiles, %d cached, roughly %d MB to fetch",
+				est.Tiles, est.Cached, est.BytesRough/1_000_000)
+		} else {
+			a.status = "this terrain source cannot estimate"
+		}
+	}
+	if imgui.MenuItemBool("download terrain for this area") {
+		a.fetchVisibleTerrain()
+	}
+	imgui.EndMenu()
 }
