@@ -199,6 +199,16 @@ func (a *App) handleMapInput(origin imgui.Vec2, hovered, active bool) {
 	}
 
 	if a.tool == ToolSelect {
+		// Double-click opens the node's own window: the gesture every desktop
+		// application uses for "show me this thing properly", and the one
+		// people were already trying before finding the right-click menu.
+		if imgui.IsMouseDoubleClicked(imgui.MouseButtonLeft) {
+			if i := a.view.NodeAt(a.Nodes, mx, my, 12); i >= 0 {
+				a.SelectNode(i, false)
+				a.openNodeWindow(a.Nodes[i].Name)
+				return
+			}
+		}
 		if i := a.view.NodeAt(a.Nodes, mx, my, 12); i >= 0 {
 			if io.KeyShift() {
 				a.toggleMulti(i)

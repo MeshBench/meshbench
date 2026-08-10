@@ -445,6 +445,7 @@ func (a *App) ctlPanels() map[string]any {
 		// segfault.
 		row["docked"] = p.docked
 		row["own_os_window"] = p.ownWindow
+		row["popped_out"] = a.popped[p.name]
 		panels = append(panels, row)
 	}
 	// Platform viewports beyond the main one are real OS windows. Counting

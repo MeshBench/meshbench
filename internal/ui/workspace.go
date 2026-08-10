@@ -271,9 +271,52 @@ func (a *App) dockBack(name string) {
 // exactly where it was. Undocking is a separate act (dock ID 0) and has to
 // happen first; only then does a position outside the main viewport mean
 // anything, and only then does imgui give the window its own platform window.
+// pinToMainWindow keeps a window inside the main OS window.
+//
+// Without it, dragging any floating panel past the main window's edge turns
+// it into an OS window of its own - which conflates two different acts.
+// Floating (a window loose inside the workbench) and popping out (a window
+// on another monitor) are separate decisions, and only the second is
+// something an operator asks for explicitly.
+func pinToMainWindow() {
+	imgui.SetNextWindowViewport(imgui.MainViewport().ID())
+}
+
+// topMostClass makes a popped-out window stay above the main one. A panel
+// deliberately put on a second monitor should not disappear behind the
+// window it was popped out of.
+func topMostClass() *imgui.WindowClass {
+	c := imgui.NewWindowClass()
+	c.SetViewportFlagsOverrideSet(imgui.ViewportFlagsTopMost)
+	return c
+}
+
+// applyWindowMode places a window according to whether it is popped out.
+// Called before Begin for every panel and every node window.
+func (a *App) applyWindowMode(name string) {
+	if a.popped[name] {
+		imgui.SetNextWindowClass(topMostClass())
+		return
+	}
+	pinToMainWindow()
+}
+
 func (a *App) applyDockIntent(name string) {
+	if a.undock[name] {
+		delete(a.undock, name)
+		imgui.SetNextWindowDockIDV(0, imgui.CondAlways)
+		vp := imgui.MainViewport()
+		imgui.SetNextWindowPosV(
+			imgui.NewVec2(vp.Pos().X+vp.Size().X*0.3, vp.Pos().Y+vp.Size().Y*0.25),
+			imgui.CondAlways, imgui.NewVec2(0, 0))
+		imgui.SetNextWindowSizeV(a.windowSize(72, 22), imgui.CondAlways)
+	}
 	if a.detach[name] {
 		delete(a.detach, name)
+		if a.popped == nil {
+			a.popped = map[string]bool{}
+		}
+		a.popped[name] = true
 		imgui.SetNextWindowDockIDV(0, imgui.CondAlways)
 		vp := imgui.MainViewport()
 		imgui.SetNextWindowPosV(
@@ -309,6 +352,9 @@ func (a *App) applyRedocks() {
 		}
 	}
 	for name := range a.redock {
+		// No longer an OS window of its own, so it goes back to being pinned
+		// inside the main one.
+		delete(a.popped, name)
 		target := dockspaceID()
 		if p := a.panelByName(name); p != nil && alive[p.lastDock] {
 			target = p.lastDock
@@ -326,6 +372,7 @@ func (a *App) drawPanels() {
 			continue
 		}
 		a.applyDockIntent(p.name)
+		a.applyWindowMode(p.name)
 		open := p.open
 		if imgui.BeginV(p.name, &open, imgui.WindowFlagsMenuBar) {
 			p.docked = imgui.IsWindowDocked()
@@ -364,12 +411,25 @@ func (a *App) panelChrome(name string) {
 	if imgui.BeginMenu(name) {
 		if a.noViewports {
 			imgui.TextDisabled("single-window: native Wayland forbids pop-out")
-		} else if docked {
+		} else if a.popped[name] {
+			if imgui.MenuItemBool("bring back into the main window") {
+				a.dockBack(name)
+			}
+		} else {
 			if imgui.MenuItemBool("pop out to its own window") {
 				a.popOut(name)
 			}
-		} else if imgui.MenuItemBool("dock back into the main window") {
-			a.dockBack(name)
+			if imgui.IsItemHovered() {
+				imgui.SetTooltip("A separate OS window, kept above this one, for another\n" +
+					"monitor. Dragging a panel loose only floats it in here.")
+			}
+			if docked {
+				if imgui.MenuItemBool("float inside this window") {
+					a.floatInside(name)
+				}
+			} else if imgui.MenuItemBool("dock back") {
+				a.dockBack(name)
+			}
 		}
 		imgui.Separator()
 		if imgui.MenuItemBool("close") {
@@ -412,4 +472,13 @@ func (a *App) showPanel(name string) {
 		p.open = true
 		imgui.SetWindowFocusStr(name)
 	}
+}
+
+// floatInside undocks a panel without popping it out: loose in the main
+// window, which is what dragging a tab out now does.
+func (a *App) floatInside(name string) {
+	if a.undock == nil {
+		a.undock = map[string]bool{}
+	}
+	a.undock[name] = true
 }

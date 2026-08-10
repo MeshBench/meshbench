@@ -159,8 +159,12 @@ type App struct {
 	// detach marks node windows to be pushed outside the main window on the
 	// next frame, for a second monitor.
 	detach map[string]bool
-	// redock is the other direction: a window asked to come home.
+	// redock is the other direction: a window asked to come home; undock
+	// floats it loose *inside* the main window; popped records which windows
+	// are OS windows of their own, so the rest can be pinned in.
 	redock map[string]bool
+	undock map[string]bool
+	popped map[string]bool
 	// confirmRestart arms the run-strip restart; viewName and confirmView
 	// belong to the Views menu.
 	confirmRestart bool
