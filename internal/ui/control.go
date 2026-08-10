@@ -17,12 +17,44 @@ import (
 // Best effort: a workbench that cannot listen is still a workbench, and
 // refusing to start over a socket already in use would be the wrong trade.
 func (a *App) startControl() {
+	a.ensureConfig()
+	if !a.cfg.controlEnabled {
+		return
+	}
 	srv, err := control.Listen(a.handleControl)
 	if err != nil {
 		a.status = "control socket unavailable: " + err.Error()
 		return
 	}
 	a.ctrl = srv
+}
+
+// stopControl closes the socket, so turning the switch off means the door is
+// shut now rather than at the next launch.
+func (a *App) stopControl() {
+	if a.ctrl == nil {
+		return
+	}
+	_ = a.ctrl.Close()
+	a.ctrl = nil
+}
+
+// setControlEnabled is the Preferences switch. Opening and closing the socket
+// live, because a setting that needs a restart to take effect is one nobody
+// trusts they have actually turned off.
+func (a *App) setControlEnabled(on bool) {
+	a.cfg.controlEnabled = on
+	a.saveConfig()
+	if on {
+		a.startControl()
+		if a.ctrl != nil {
+			a.status = "agent control enabled at " + a.ctrl.Path()
+		}
+		return
+	}
+	a.stopControl()
+	a.status = "agent control disabled - the socket is closed and MCP tools will " +
+		"report that no workbench is running"
 }
 
 // handleControl performs one command. Always on the frame thread, and always

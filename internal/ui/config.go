@@ -46,6 +46,12 @@ type configState struct {
 
 	// autoWarm computes the link matrix in the background on every rebuild.
 	autoWarm bool
+	// controlEnabled opens the local control socket, which is what the MCP
+	// server and any other agent drives the workbench through. On by default,
+	// because that is how it has always behaved - but it is a door into this
+	// window, so it is a door with a visible switch.
+	controlEnabled bool
+
 	// uiScale is the multiplier ctrl+/- last chose; zero means never chosen.
 	uiScale float64
 	// energyEnabled shows the solar/battery modelling. Off by default: it is a
@@ -81,6 +87,7 @@ func (a *App) ensureConfig() {
 	a.cfg.autoWarm = true
 	a.cfg.bootSpread = true
 	a.cfg.energyEnabled = false
+	a.cfg.controlEnabled = true
 
 	// A saved file wins over these defaults, and a missing one leaves them.
 	a.loadConfig()
@@ -105,6 +112,7 @@ type configFile struct {
 	Extra          string  `json:"extra_on_start"`
 	AutoWarm       bool    `json:"auto_warm"`
 	EnergyEnabled  bool    `json:"energy_enabled"`
+	ControlEnabled *bool   `json:"control_enabled,omitempty"`
 	UIScale        float64 `json:"ui_scale,omitempty"`
 	BootSpread     bool    `json:"boot_spread"`
 	Seed           uint64  `json:"seed"`
@@ -131,6 +139,11 @@ func (a *App) loadConfig() {
 	a.cfg.extraOnStart = f.Extra
 	a.cfg.autoWarm = f.AutoWarm
 	a.cfg.energyEnabled = f.EnergyEnabled
+	// A pointer, so a config file written before this setting existed keeps
+	// the default rather than reading as "off".
+	if f.ControlEnabled != nil {
+		a.cfg.controlEnabled = *f.ControlEnabled
+	}
 	a.cfg.uiScale = f.UIScale
 	a.cfg.bootSpread = f.BootSpread
 	if f.Seed != 0 {
@@ -151,9 +164,10 @@ func (a *App) saveConfig() {
 		SetName: a.cfg.setNameOnStart, SetPosition: a.cfg.setPositionOnStart,
 		SetFloodAdvert: a.cfg.setFloodMaxAdvert, FloodMaxAdvert: a.cfg.floodMaxAdvert,
 		Extra: a.cfg.extraOnStart, AutoWarm: a.cfg.autoWarm,
-		EnergyEnabled: a.cfg.energyEnabled,
-		UIScale:       a.cfg.uiScale,
-		BootSpread:    a.cfg.bootSpread, Seed: a.seed, Layer: a.layerID,
+		EnergyEnabled:  a.cfg.energyEnabled,
+		ControlEnabled: &a.cfg.controlEnabled,
+		UIScale:        a.cfg.uiScale,
+		BootSpread:     a.cfg.bootSpread, Seed: a.seed, Layer: a.layerID,
 	}
 	b, err := json.MarshalIndent(f, "", "  ")
 	if err != nil {
@@ -332,6 +346,25 @@ func (a *App) drawPrefsBody() {
 
 	if changed {
 		a.saveConfig()
+	}
+
+	imgui.SeparatorText("Agent control")
+	on := c.controlEnabled
+	if imgui.Checkbox("let agents drive this workbench (MCP)", &on) {
+		a.setControlEnabled(on)
+	}
+	if imgui.IsItemHovered() {
+		imgui.SetTooltip("Opens a local socket that the meshcoresim-mcp server - and any\n" +
+			"other local client - uses to read and change this window: the view,\n" +
+			"panels, the scenario, the run. Nothing leaves the machine, and the\n" +
+			"socket exists only while this window does.")
+	}
+	if a.ctrl != nil {
+		textDimWrap("listening at " + a.ctrl.Path())
+	} else if c.controlEnabled {
+		textDimWrap("enabled, but the socket could not be opened - see the status bar")
+	} else {
+		textDimWrap("off: MCP tools will report that no workbench is running")
 	}
 
 	imgui.SeparatorText("Where things are kept")
