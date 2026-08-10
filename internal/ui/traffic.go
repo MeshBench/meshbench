@@ -85,20 +85,42 @@ func (a *App) drawRunControls() {
 		a.buildEngine()
 	}
 
-	label := "run"
+	// Play/pause as one button that says what pressing it does, then step and
+	// restart. "reset" was ambiguous — people read it as "reset the settings"
+	// — and it throws the run away, so it says so and asks once.
+	label := "play"
 	if a.playing {
 		label = "pause"
 	}
-	if imgui.Button(label) {
+	if imgui.ButtonV(label, imgui.NewVec2(58, 0)) {
 		a.playing = !a.playing
 	}
-	imgui.SameLine()
-	if imgui.Button("step") {
-		a.stepEngine(20)
+	if imgui.IsItemHovered() {
+		imgui.SetTooltip("space")
 	}
 	imgui.SameLine()
-	if imgui.Button("reset") {
-		a.buildEngine()
+	if imgui.ButtonV("step", imgui.NewVec2(48, 0)) {
+		a.stepEngine(20)
+	}
+	if imgui.IsItemHovered() {
+		imgui.SetTooltip("200 ms of simulated time, once  (.)")
+	}
+	imgui.SameLine()
+	restart := "restart"
+	if a.confirmRestart {
+		restart = "sure? discards the run"
+	}
+	if imgui.Button(restart) {
+		if a.confirmRestart {
+			a.confirmRestart = false
+			a.buildEngine()
+		} else {
+			a.confirmRestart = true
+		}
+	}
+	if imgui.IsItemHovered() {
+		imgui.SetTooltip("Rebuilds the simulation from t = 0. Every event so far is discarded;\n" +
+			"the scenario, the seed and the settings are untouched.")
 	}
 
 	imgui.SameLine()
@@ -114,18 +136,6 @@ func (a *App) drawRunControls() {
 		} else {
 			a.status = fmt.Sprintf("%d nodes running MeshCore", a.eng.FirmwareCount())
 		}
-	}
-
-	imgui.SameLine()
-	// Sending from the selected node is how a scenario is exercised without
-	// firmware attached. With firmware, the node decides for itself and this is
-	// how a message is introduced from outside.
-	if from, _ := a.Link(); from >= 0 {
-		if imgui.Button("send from " + a.Nodes[from].Name) {
-			a.eng.Inject(from, []byte(fmt.Sprintf("msg-%d", a.eng.NowMs())))
-		}
-	} else {
-		imgui.TextDisabled("select a node to send from")
 	}
 
 	imgui.SameLine()

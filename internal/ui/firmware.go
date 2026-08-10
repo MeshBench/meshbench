@@ -278,3 +278,120 @@ func (a *App) rebuildForFirmware() {
 	a.buildEngine()
 	a.status = "firmware changed — press \"run real firmware\" to start the new build"
 }
+
+// drawFirmwareWindow is the library: what is published, what is on this
+// machine already, and what every node is set to run.
+//
+// The per-node picker answers "what does this one run"; nobody could answer
+// "what do I have, and what is my fleet on" without opening forty of them.
+func (a *App) drawFirmwareWindow() {
+	if !a.winFirmware {
+		return
+	}
+	imgui.SetNextWindowSizeV(imgui.NewVec2(620, 460), imgui.CondFirstUseEver)
+	a.applyDockIntent("Firmware library")
+	open := a.winFirmware
+	if imgui.BeginV("Firmware library", &open, 0) {
+		a.panelChrome("Firmware library")
+		a.drawFirmwareLibraryBody()
+	}
+	imgui.End()
+	a.winFirmware = open
+}
+
+func (a *App) drawFirmwareLibraryBody() {
+	a.fw.load()
+	loading, err := a.fw.status()
+	if loading {
+		imgui.TextDisabled("reading the published catalogue...")
+	}
+	if err != "" {
+		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.72, 0.25, 1))
+		imgui.TextWrapped(err)
+		imgui.PopStyleColor()
+	}
+
+	roles, _ := a.fw.forThisMachine()
+	imgui.SeparatorText("Published builds")
+	if len(roles) == 0 && !loading {
+		imgui.TextDisabled("nothing published for this machine - check the network, or " +
+			"import a local build with: msim firmware import")
+	}
+	for _, role := range roles {
+		if !imgui.CollapsingHeaderBoolPtr(role, nil) {
+			continue
+		}
+		for _, v := range a.fw.versionsFor(role) {
+			cached := a.fw.isCached(role, v)
+			imgui.Text("  " + v)
+			imgui.SameLine()
+			if cached {
+				imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.45, 0.85, 0.5, 1))
+				imgui.Text("downloaded")
+				imgui.PopStyleColor()
+			} else {
+				imgui.TextDisabled("not downloaded - fetched on first use")
+			}
+			imgui.SameLine()
+			if imgui.SmallButton("use everywhere##" + role + v) {
+				n := 0
+				for i := range a.Nodes {
+					if a.Nodes[i].Kind.RunsFirmware() &&
+						(a.Nodes[i].Firmware.Role == role || a.Nodes[i].Kind.Application() == role) {
+						a.Nodes[i].Firmware.Role, a.Nodes[i].Firmware.Version = role, v
+						n++
+					}
+				}
+				a.rebuildForFirmware()
+				a.status = fmt.Sprintf("%d nodes set to %s %s", n, role, v)
+			}
+		}
+	}
+
+	// What the fleet is actually on, counted — the answer to "did that swap
+	// take", which no per-node picker can give.
+	imgui.SeparatorText("What this scenario runs")
+	counts := map[string]int{}
+	for i := range a.Nodes {
+		n := &a.Nodes[i]
+		if !n.Kind.RunsFirmware() {
+			continue
+		}
+		role := n.Firmware.Role
+		if role == "" {
+			role = n.Kind.Application()
+		}
+		version := n.Firmware.Version
+		if version == "" {
+			version = "main"
+		}
+		counts[role+" "+version]++
+	}
+	if len(counts) == 0 {
+		imgui.TextDisabled("no firmware-running nodes in this scenario")
+	}
+	keys := make([]string, 0, len(counts))
+	for k := range counts {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		imgui.Text(fmt.Sprintf("%3d x  %s", counts[k], k))
+	}
+
+	imgui.SeparatorText("Storage")
+	imgui.TextDisabled("builds   " + firmware.DefaultCacheDir())
+	imgui.TextDisabled("node flash " + firmware.NodeWorkDir("<node>"))
+	if imgui.Button("wipe every node's memory") {
+		a.buildEngine()
+		if err := firmware.WipeNodeStorage(); err != nil {
+			a.status = err.Error()
+		} else {
+			a.status = "node memories wiped - every node boots factory-fresh next time"
+		}
+	}
+	if imgui.IsItemHovered() {
+		imgui.SetTooltip("Deletes every node's persisted identity, prefs and regions.\n" +
+			"The cure for settings poisoned by an earlier bad run.")
+	}
+}

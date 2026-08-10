@@ -355,46 +355,7 @@ func (a *App) startupCommands(i int) []string {
 			fmt.Sprintf("set lat %.6f", n.Position.Lat),
 			fmt.Sprintf("set lon %.6f", n.Position.Lon))
 	}
-	// A node that was observed in real regions is configured with those,
-	// whatever the study area is called: this came from the node's own traffic
-	// and is a fact about it, where the study area is a name someone chose.
-	if a.cfg.setRegionOnStart && n.Kind.Transmits() && len(n.Regions) > 0 {
-		for _, r := range n.Regions {
-			token := regionToken(r)
-			out = append(out, "region put "+token, "region allowf "+token)
-		}
-		out = append(out, "region save")
-		if n.DefaultScope != "" {
-			out = append(out, "region default "+regionToken(n.DefaultScope))
-		}
-	} else if a.cfg.setRegionOnStart && n.Kind.Transmits() {
-		if area := a.studyAreaName(); area != "" {
-			token := regionToken(area)
-			// The documented sequence, in this order:
-			//
-			//   region put <name>     defines it, with the wildcard as parent
-			//   region allowf <name>  permits flood packets for it — a region
-			//                         that exists but does not allow flooding
-			//                         relays nothing, which looks like a broken
-			//                         mesh rather than a configuration choice
-			//   region save           persists it; without this the map is gone
-			//                         at the next boot
-			//
-			// `region def` is the cursor-based form for building a whole tree in
-			// one line. One flat region does not need it, and the explicit
-			// commands say what they do.
-			out = append(out,
-				"region put "+token,
-				"region allowf "+token,
-				"region save")
-			if a.cfg.setDefaultScope {
-				// v1.15.0 and later: scopes this node's *own* flood traffic —
-				// adverts, direct messages, logins — to the region. It performs
-				// its own save, so no second one is needed.
-				out = append(out, "region default "+token)
-			}
-		}
-	}
+	out = append(out, a.regionCommands(i)...)
 	if a.cfg.setFloodMaxAdvert && n.Kind.Transmits() {
 		out = append(out, fmt.Sprintf("set flood.max.advert %d", a.cfg.floodMaxAdvert))
 	}
@@ -471,4 +432,60 @@ func regionToken(name string) string {
 		out = out[:29]
 	}
 	return strings.ToLower(out)
+}
+
+// regionCommands is the region half of a node's provisioning, on its own so
+// that "tell them at boot" and "tell them now" issue exactly the same lines.
+//
+// Nothing is inferred here: a node configured from its own observed traffic
+// gets those regions, and one with none falls back to the study area's name
+// only because the operator asked for that in Provisioning.
+func (a *App) regionCommands(i int) []string {
+	a.ensureConfig()
+	if !a.cfg.setRegionOnStart {
+		return nil
+	}
+	n := a.Nodes[i]
+	var out []string
+	// A node that was observed in real regions is configured with those,
+	// whatever the study area is called: this came from the node's own traffic
+	// and is a fact about it, where the study area is a name someone chose.
+	if n.Kind.Transmits() && len(n.Regions) > 0 {
+		for _, r := range n.Regions {
+			token := regionToken(r)
+			out = append(out, "region put "+token, "region allowf "+token)
+		}
+		out = append(out, "region save")
+		if n.DefaultScope != "" {
+			out = append(out, "region default "+regionToken(n.DefaultScope))
+		}
+	} else if n.Kind.Transmits() {
+		if area := a.studyAreaName(); area != "" {
+			token := regionToken(area)
+			// The documented sequence, in this order:
+			//
+			//   region put <name>     defines it, with the wildcard as parent
+			//   region allowf <name>  permits flood packets for it — a region
+			//                         that exists but does not allow flooding
+			//                         relays nothing, which looks like a broken
+			//                         mesh rather than a configuration choice
+			//   region save           persists it; without this the map is gone
+			//                         at the next boot
+			//
+			// `region def` is the cursor-based form for building a whole tree in
+			// one line. One flat region does not need it, and the explicit
+			// commands say what they do.
+			out = append(out,
+				"region put "+token,
+				"region allowf "+token,
+				"region save")
+			if a.cfg.setDefaultScope {
+				// v1.15.0 and later: scopes this node's *own* flood traffic —
+				// adverts, direct messages, logins — to the region. It performs
+				// its own save, so no second one is needed.
+				out = append(out, "region default "+token)
+			}
+		}
+	}
+	return out
 }

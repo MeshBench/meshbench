@@ -14,7 +14,7 @@ import (
 func commandInvalidatesRun(cmd string) bool {
 	// Region changes belong here too: scoping alters which packets a node will
 	// relay at all, so results either side of one are not comparable.
-	for _, p := range []string{"set freq", "set bw", "set sf", "set cr", "set radio", "set tx",
+	for _, p := range []string{"set freq", "set radio", "tempradio", "set tx",
 		"region put", "region allowf", "region denyf", "region default", "region remove"} {
 		if strings.HasPrefix(strings.TrimSpace(cmd), p) {
 			return true

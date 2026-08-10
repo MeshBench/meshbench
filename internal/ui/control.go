@@ -3,6 +3,9 @@ package ui
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
+
+	"github.com/AllenDang/cimgui-go/imgui"
 
 	"github.com/A13xB0/meshcoresim/internal/antenna"
 	"github.com/A13xB0/meshcoresim/internal/control"
@@ -180,6 +183,88 @@ func (a *App) handleControl(method string, params json.RawMessage) (any, error) 
 		}
 		return map[string]any{"applied_to": applied, "preset": preset.Label}, nil
 
+	// Windows and layout. The workbench is meant to be drivable end to end —
+	// "open the waterfall on my second monitor and save that as a view" is a
+	// sentence, and every part of it is a verb here.
+	case "panels.list":
+		return a.ctlPanels(), nil
+	case "panel.open":
+		var p struct {
+			Name string `json:"name"`
+			Open *bool  `json:"open"`
+		}
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, err
+		}
+		return a.ctlPanelOpen(p.Name, p.Open)
+	case "panel.pop_out":
+		var p struct {
+			Name string `json:"name"`
+		}
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, err
+		}
+		a.popOut(p.Name)
+		if pl := a.panelByName(p.Name); pl != nil {
+			pl.open = true
+		}
+		return map[string]any{"popped": p.Name}, nil
+	case "panel.dock":
+		var p struct {
+			Name string `json:"name"`
+		}
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, err
+		}
+		a.dockBack(p.Name)
+		return map[string]any{"docked": p.Name}, nil
+	case "workspace.set":
+		var p struct {
+			Name string `json:"name"`
+		}
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, err
+		}
+		for w := workspace(0); w < workspaceCount; w++ {
+			if strings.EqualFold(w.String(), p.Name) {
+				a.switchWorkspace(w)
+				return map[string]any{"workspace": w.String()}, nil
+			}
+		}
+		return nil, fmt.Errorf("no workspace %q", p.Name)
+	case "view.save":
+		var p struct {
+			Name string `json:"name"`
+		}
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, err
+		}
+		a.saveView(p.Name)
+		return map[string]any{"saved": p.Name}, nil
+	case "view.load":
+		var p struct {
+			Name string `json:"name"`
+		}
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, err
+		}
+		a.loadView(p.Name)
+		return map[string]any{"loaded": p.Name}, nil
+	case "view.list":
+		out := []map[string]any{}
+		for _, v := range listViews() {
+			out = append(out, map[string]any{"name": v.name, "saved": v.saved})
+		}
+		return out, nil
+	case "view.delete":
+		var p struct {
+			Name string `json:"name"`
+		}
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, err
+		}
+		a.deleteView(p.Name)
+		return map[string]any{"deleted": p.Name}, nil
 	case "assert.check":
 		if a.eng == nil {
 			return nil, fmt.Errorf("no simulation")
@@ -293,4 +378,52 @@ func (a *App) ctlPlace(kind, name string, lat, lon, height, tx float64, role str
 	a.Nodes = append(a.Nodes, n)
 	a.buildEngine()
 	return a.ctlNodeAt(len(a.Nodes) - 1), nil
+}
+
+// ctlPanels is every panel, whether it is open, and — the question that
+// matters for multi-monitor — whether it is currently its own OS window.
+func (a *App) ctlPanels() map[string]any {
+	panels := []map[string]any{}
+	for _, p := range a.panelRegistry() {
+		row := map[string]any{
+			"name":    p.name,
+			"open":    p.open,
+			"enabled": a.panelEnabled(p.name),
+		}
+		// Docked, floating inside the main window, or a real OS window of its
+		// own — the distinction the pop-out bug hid, made inspectable so a
+		// script (or an agent) can assert it instead of eyeballing pixels.
+		// Recorded at draw time; asking imgui for a window off-frame was a
+		// segfault.
+		row["docked"] = p.docked
+		row["own_os_window"] = p.ownWindow
+		panels = append(panels, row)
+	}
+	// Platform viewports beyond the main one are real OS windows. Counting
+	// them is the only honest check that a pop-out worked: a window drawn at
+	// an offset inside the main one looks identical in a screenshot.
+	extra := 0
+	if ctx := imgui.CurrentContext(); ctx != nil {
+		if n := len(ctx.Viewports().Slice()); n > 1 {
+			extra = n - 1
+		}
+	}
+	return map[string]any{
+		"panels":                 panels,
+		"workspace":              a.ws.String(),
+		"os_windows_beyond_main": extra,
+	}
+}
+
+func (a *App) ctlPanelOpen(name string, open *bool) (any, error) {
+	p := a.panelByName(name)
+	if p == nil {
+		return nil, fmt.Errorf("no panel %q", name)
+	}
+	if open != nil {
+		p.open = *open
+	} else {
+		p.open = true
+	}
+	return map[string]any{"name": name, "open": p.open}, nil
 }

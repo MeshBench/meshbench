@@ -44,6 +44,12 @@ type panelSpec struct {
 	// open is per panel and survives workspace switches: closing the waterfall
 	// is a statement about the waterfall, not about the Debug workspace.
 	open bool
+	// docked and ownWindow are recorded each frame while the panel draws —
+	// the only place imgui can be asked safely — so the control socket can
+	// report them without touching window internals off-frame, which is a
+	// segfault wearing an API.
+	docked    bool
+	ownWindow bool
 }
 
 // panelRegistry is every panel the workbench has, built once.
@@ -211,25 +217,78 @@ func (a *App) drawWorkspaceSwitcher() {
 	}
 }
 
+// dockspaceID is the main window's dock node — the thing a panel docks back
+// into when it is put away.
+func dockspaceID() imgui.ID { return imgui.IDStr("msim-dock") }
+
+// popOut queues a panel to become its own OS window on the next frame.
+func (a *App) popOut(name string) {
+	if a.detach == nil {
+		a.detach = map[string]bool{}
+	}
+	a.detach[name] = true
+}
+
+// dockBack queues a panel to return to the main window.
+func (a *App) dockBack(name string) {
+	if a.redock == nil {
+		a.redock = map[string]bool{}
+	}
+	a.redock[name] = true
+}
+
+// applyDockIntent carries out a queued pop-out or dock-back before Begin.
+//
+// The bug this fixes, twice reported and twice wrongly declared fixed: a
+// *docked* window ignores SetNextWindowPos completely — its dock node owns
+// its geometry — so the old detach button moved nothing and the panel sat
+// exactly where it was. Undocking is a separate act (dock ID 0) and has to
+// happen first; only then does a position outside the main viewport mean
+// anything, and only then does imgui give the window its own platform window.
+func (a *App) applyDockIntent(name string) {
+	if a.detach[name] {
+		delete(a.detach, name)
+		imgui.SetNextWindowDockIDV(0, imgui.CondAlways)
+		vp := imgui.MainViewport()
+		imgui.SetNextWindowPosV(
+			imgui.NewVec2(vp.Pos().X+vp.Size().X/3, vp.Pos().Y+vp.Size().Y/4),
+			imgui.CondAlways, imgui.NewVec2(0, 0))
+		imgui.SetNextWindowSizeV(imgui.NewVec2(620, 460), imgui.CondAlways)
+	}
+}
+
+// applyRedocks puts every window that asked to come home back in the main
+// window. It runs where the layout builder is allowed to run — before the
+// dockspace is submitted and before any panel — because DockBuilderFinish
+// asserts if it is called while windows are being submitted, which is how the
+// first attempt at "dock" took the process down.
+//
+// The root of a split dockspace is a parent node, and a dock request against
+// a parent is only resolved to a leaf by Finish; queuing without finishing is
+// why the button appeared to do nothing at all.
+func (a *App) applyRedocks() {
+	if len(a.redock) == 0 {
+		return
+	}
+	for name := range a.redock {
+		imgui.InternalDockBuilderDockWindow(name, dockspaceID())
+		delete(a.redock, name)
+	}
+	imgui.InternalDockBuilderFinish(dockspaceID())
+}
+
 // drawPanels submits every open panel as a dockable window.
 func (a *App) drawPanels() {
 	for _, p := range a.panelRegistry() {
 		if !p.open || !a.panelEnabled(p.name) {
 			continue
 		}
-		// A detach queued from the chrome button: place the window fully
-		// outside the main viewport, where — with viewports on — it becomes an
-		// OS window of its own.
-		if a.detach[p.name] {
-			delete(a.detach, p.name)
-			vp := imgui.MainViewport()
-			imgui.SetNextWindowPosV(
-				imgui.NewVec2(vp.Pos().X+vp.Size().X+40, vp.Pos().Y+80),
-				imgui.CondAlways, imgui.NewVec2(0, 0))
-			imgui.SetNextWindowSizeV(imgui.NewVec2(520, 420), imgui.CondAlways)
-		}
+		a.applyDockIntent(p.name)
 		open := p.open
 		if imgui.BeginV(p.name, &open, 0) {
+			p.docked = imgui.IsWindowDocked()
+			p.ownWindow = !p.docked &&
+				imgui.WindowViewport().ID() != imgui.MainViewport().ID()
 			a.panelChrome(p.name)
 			p.draw()
 		}
@@ -244,17 +303,25 @@ func (a *App) drawPanels() {
 // answer instead of one per window.
 func (a *App) panelChrome(name string) {
 	avail := imgui.ContentRegionAvail()
-	imgui.SameLineV(avail.X-24, 0)
-	if imgui.SmallButton("^##detach-" + name) {
-		if a.detach == nil {
-			a.detach = map[string]bool{}
+	imgui.SameLineV(avail.X-42, 0)
+	// One button, both directions, labelled for where it will send the panel.
+	// A pop-out that cannot be undone is why people stopped using it.
+	if imgui.IsWindowDocked() {
+		if imgui.SmallButton("pop out##" + name) {
+			a.popOut(name)
 		}
-		a.detach[name] = true
-	}
-	if imgui.IsItemHovered() {
-		imgui.SetTooltip("Detach: push this panel outside the main window, where it becomes\n" +
-			"an OS window you can move to another monitor. Dragging its tab out\n" +
-			"works too. (Wayland cannot position windows; run without -wayland.)")
+		if imgui.IsItemHovered() {
+			imgui.SetTooltip("Make this panel its own OS window, which you can move to\n" +
+				"another monitor. Dragging its tab out does the same.\n" +
+				"(Wayland cannot position windows; the workbench uses X11 by default.)")
+		}
+	} else {
+		if imgui.SmallButton("dock##" + name) {
+			a.dockBack(name)
+		}
+		if imgui.IsItemHovered() {
+			imgui.SetTooltip("Put this panel back in the main window.")
+		}
 	}
 	imgui.NewLine()
 }

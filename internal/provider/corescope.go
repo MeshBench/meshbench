@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -201,16 +202,10 @@ func (c *CoreScope) Packets(ctx context.Context, max int, progress func(int)) ([
 	}
 	var out []PacketRecord
 	for offset := 0; len(out) < max; {
-		var rows []struct {
-			RawHex       string   `json:"raw_hex"`
-			ObserverID   string   `json:"observer_id"`
-			ObserverName string   `json:"observer_name"`
-			ResolvedPath []string `json:"resolved_path"`
-			Origin       string   `json:"origin"`
-		}
 		url := fmt.Sprintf("%s/api/packets?limit=%d&offset=%d&sort=timestamp&order=desc",
 			c.BaseURL, csPacketPageLimit, offset)
-		if err := fetchJSON(ctx, c.HTTP, url, c.headers(), &rows); err != nil {
+		rows, err := c.fetchPacketPage(ctx, url)
+		if err != nil {
 			return out, err
 		}
 		if len(rows) == 0 {
@@ -224,7 +219,10 @@ func (c *CoreScope) Packets(ctx context.Context, max int, progress func(int)) ([
 			if err != nil {
 				continue
 			}
-			rec := PacketRecord{Raw: raw, Receiver: r.ObserverName, Origin: r.Origin}
+			rec := PacketRecord{
+				Raw: raw, Receiver: r.ObserverName, Origin: r.Origin,
+				PathHashes: append([]string(nil), r.ParsedPath...),
+			}
 			// The last name on the resolved path is whoever transmitted the
 			// copy that was heard — which is the node whose behaviour this
 			// packet is evidence about.
@@ -270,4 +268,44 @@ func (c *CoreScope) Regions(ctx context.Context) ([]string, error) {
 		}
 	}
 	return out, nil
+}
+
+// csPacketRow is one row of /api/packets, as CoreScope actually sends it.
+type csPacketRow struct {
+	RawHex       string   `json:"raw_hex"`
+	ObserverID   string   `json:"observer_id"`
+	ObserverName string   `json:"observer_name"`
+	ResolvedPath []string `json:"resolved_path"`
+	// ParsedPath is the packet's own path bytes as hex — its hop count, and
+	// the only field that says whether a copy was heard straight from its
+	// origin. CoreScope names it with a leading underscore.
+	ParsedPath []string `json:"_parsedPath"`
+	Origin     string   `json:"origin"`
+}
+
+// fetchPacketPage decodes one page, accepting either shape CoreScope answers
+// with.
+//
+// It sends {"packets": [...]}; older deployments (and the docs) show a bare
+// array. Decoding only one of them is what produced "cannot unmarshal object
+// into Go value of type []struct" against a live instance — an error that
+// says nothing to the operator about which side is wrong, so both are
+// accepted and neither is guessed at.
+func (c *CoreScope) fetchPacketPage(ctx context.Context, url string) ([]csPacketRow, error) {
+	var raw json.RawMessage
+	if err := fetchJSON(ctx, c.HTTP, url, c.headers(), &raw); err != nil {
+		return nil, err
+	}
+	var rows []csPacketRow
+	if err := json.Unmarshal(raw, &rows); err == nil {
+		return rows, nil
+	}
+	var wrapped struct {
+		Packets []csPacketRow `json:"packets"`
+	}
+	if err := json.Unmarshal(raw, &wrapped); err != nil {
+		return nil, fmt.Errorf("provider: corescope /api/packets returned neither an array "+
+			"nor {packets: [...]}: %w", err)
+	}
+	return wrapped.Packets, nil
 }

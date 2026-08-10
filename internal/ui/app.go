@@ -143,6 +143,7 @@ type App struct {
 	pkt          packetState
 	cfg          configState
 	winProvision bool
+	winFirmware  bool
 	winPrefs     bool
 	infer        inferState
 	ab           abState
@@ -157,6 +158,13 @@ type App struct {
 	// detach marks node windows to be pushed outside the main window on the
 	// next frame, for a second monitor.
 	detach map[string]bool
+	// redock is the other direction: a window asked to come home.
+	redock map[string]bool
+	// confirmRestart arms the run-strip restart; viewName and confirmView
+	// belong to the Views menu.
+	confirmRestart bool
+	viewName       string
+	confirmView    string
 
 	// Workspaces: which is active, whether its preset needs building, and the
 	// panel registry the menu and layouts are generated from.
@@ -383,7 +391,8 @@ func (a *App) frame() {
 	a.drawRunControls()
 	imgui.Separator()
 
-	dockID := imgui.IDStr("msim-dock")
+	dockID := dockspaceID()
+	a.applyRedocks()
 	if a.wsRebuild {
 		a.wsRebuild = false
 		a.buildWorkspace(dockID)
@@ -410,6 +419,7 @@ func (a *App) frame() {
 	a.drawNodesTableWindow()
 	a.drawFleetWindow()
 	a.drawBoundaryWindow()
+	a.drawFirmwareWindow()
 	a.drawProvisionWindow()
 	a.drawPrefsWindow()
 	a.drawPlanningWindow()

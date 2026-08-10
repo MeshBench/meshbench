@@ -206,6 +206,12 @@ type PacketRecord struct {
 	Sender   string
 	Receiver string
 	Origin   string
+
+	// PathHashes is the packet's own path as the source parsed it: its length
+	// is the hop count, so an empty one means this copy came straight from the
+	// origin. The live feed replays only the first hop, and this is how it
+	// knows which copies those are.
+	PathHashes []string
 }
 
 func containsString(list []string, want string) bool {
