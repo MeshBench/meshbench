@@ -222,6 +222,9 @@ func (a *App) drawMenuBar() {
 		if imgui.IsKeyPressedBool(imgui.KeyPeriod) {
 			a.stepEngine(20)
 		}
+		if imgui.CurrentIO().KeyCtrl() && imgui.IsKeyPressedBool(imgui.KeyQ) {
+			a.backend.SetShouldClose(true)
+		}
 		// Ctrl +/- zooms the whole UI, like a browser; ctrl 0 goes back to
 		// automatic. Multiplicative steps, so each press feels the same size
 		// at every scale.
@@ -691,6 +694,10 @@ func (a *App) drawFileMenu() {
 			p.open = true
 			imgui.SetWindowFocusStr("Import")
 		}
+	}
+	imgui.Separator()
+	if imgui.MenuItemBoolV("Quit", "ctrl+q", false, true) {
+		a.backend.SetShouldClose(true)
 	}
 	imgui.EndMenu()
 }

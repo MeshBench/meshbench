@@ -85,32 +85,33 @@ func (a *App) drawRunControls() {
 		a.buildEngine()
 	}
 
-	// Play/pause as one button that says what pressing it does, then step and
-	// restart. "reset" was ambiguous — people read it as "reset the settings"
-	// — and it throws the run away, so it says so and asks once.
-	label := "play"
+	// Transport symbols, named on hover — the strip is glanced at constantly
+	// and read once. ASCII glyphs, because the default font has no media
+	// symbols and a "?" where play should be is worse than a word.
+	label := ">"
+	tip := "play  (space)"
 	if a.playing {
-		label = "pause"
+		label, tip = "||", "pause  (space)"
 	}
-	if imgui.ButtonV(label, imgui.NewVec2(58, 0)) {
+	if imgui.ButtonV(label, imgui.NewVec2(34, 0)) {
 		a.playing = !a.playing
 	}
 	if imgui.IsItemHovered() {
-		imgui.SetTooltip("space")
+		imgui.SetTooltip(tip)
 	}
 	imgui.SameLine()
-	if imgui.ButtonV("step", imgui.NewVec2(48, 0)) {
+	if imgui.ButtonV(">|", imgui.NewVec2(34, 0)) {
 		a.stepEngine(20)
 	}
 	if imgui.IsItemHovered() {
-		imgui.SetTooltip("200 ms of simulated time, once  (.)")
+		imgui.SetTooltip("step: 200 ms of simulated time, once  (.)")
 	}
 	imgui.SameLine()
-	restart := "restart"
+	restart := "|<"
 	if a.confirmRestart {
-		restart = "sure? discards the run"
+		restart = "sure?"
 	}
-	if imgui.Button(restart) {
+	if imgui.ButtonV(restart, imgui.NewVec2(0, 0)) {
 		if a.confirmRestart {
 			a.confirmRestart = false
 			a.buildEngine()
@@ -119,8 +120,8 @@ func (a *App) drawRunControls() {
 		}
 	}
 	if imgui.IsItemHovered() {
-		imgui.SetTooltip("Rebuilds the simulation from t = 0. Every event so far is discarded;\n" +
-			"the scenario, the seed and the settings are untouched.")
+		imgui.SetTooltip("restart: back to t = 0. Every event so far is discarded;\n" +
+			"the scenario, the seed and the settings are untouched. Asks once.")
 	}
 
 	imgui.SameLine()
@@ -129,12 +130,21 @@ func (a *App) drawRunControls() {
 	// channel, the collisions and the ledger are all still real; what is
 	// missing is that the relay decisions are MeshCore's own.
 	if a.eng.FirmwareCount() > 0 {
-		imgui.TextDisabled(fmt.Sprintf("%d nodes on real firmware", a.eng.FirmwareCount()))
-	} else if imgui.Button("run real firmware") {
-		if err := a.eng.AttachNative(context.Background(), 4417); err != nil {
-			a.status = err.Error()
-		} else {
-			a.status = fmt.Sprintf("%d nodes running MeshCore", a.eng.FirmwareCount())
+		imgui.TextDisabled(fmt.Sprintf("%d on fw", a.eng.FirmwareCount()))
+		if imgui.IsItemHovered() {
+			imgui.SetTooltip(fmt.Sprintf("%d nodes running real MeshCore firmware", a.eng.FirmwareCount()))
+		}
+	} else {
+		if imgui.Button("fw >") {
+			if err := a.eng.AttachNative(context.Background(), 4417); err != nil {
+				a.status = err.Error()
+			} else {
+				a.status = fmt.Sprintf("%d nodes running MeshCore", a.eng.FirmwareCount())
+			}
+		}
+		if imgui.IsItemHovered() {
+			imgui.SetTooltip("run real firmware: one MeshCore process per node - the relay\n" +
+				"decisions become MeshCore's own")
 		}
 	}
 
