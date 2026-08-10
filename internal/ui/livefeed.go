@@ -81,7 +81,7 @@ func (a *App) drawLiveFeedBody() {
 	}
 
 	imgui.SetNextItemWidth(90)
-	imgui.InputInt("min path bytes", &s.minPathLen)
+	imgui.InputIntV("min path bytes", &s.minPathLen, 0, 0, 0)
 	if s.minPathLen < 0 {
 		s.minPathLen = 0
 	}

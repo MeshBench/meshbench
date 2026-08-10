@@ -73,7 +73,7 @@ func (a *App) drawPlanningBody() {
 	}
 	numF32("new mast height m", &p.mastM, 3, 100, "%.0f")
 	imgui.SetNextItemWidth(110)
-	imgui.InputInt("most new sites", &p.maxNew)
+	imgui.InputIntV("most new sites", &p.maxNew, 0, 0, 0)
 	if p.maxNew < 1 {
 		p.maxNew = 1
 	}

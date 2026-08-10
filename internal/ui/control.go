@@ -716,6 +716,7 @@ func (a *App) handleUICommand(method string, params json.RawMessage) (any, bool,
 		a.pruneOutside()
 		return map[string]any{"before": before, "after": len(a.Nodes)}, true, nil
 	case "infer.run":
+		a.infer.ensureDefaults()
 		if v, ok := num("hours"); ok && v > 0 {
 			a.infer.lookbackH = int32(v)
 		}

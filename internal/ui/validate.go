@@ -64,7 +64,7 @@ func (a *App) drawValidateBody() {
 	textDim("reading from " + a.imp.url)
 
 	imgui.SetNextItemWidth(110)
-	imgui.InputInt("hours to look back", &s.lookbackH)
+	imgui.InputIntV("hours to look back", &s.lookbackH, 0, 0, 0)
 	if s.lookbackH < 1 {
 		s.lookbackH = 1
 	}

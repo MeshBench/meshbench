@@ -93,9 +93,14 @@ type Node struct {
 	// energy model says so instead of inventing a pack.
 	Board string
 
-	// PublicKey is the real node's identity where the scenario came from an
-	// import. It is what a merge joins on: names are set by humans and collide,
-	// keys do not. Empty for nodes placed by hand.
+	// PublicKey is the *real* node's key, kept from the import as an external
+	// reference. It is what a merge joins on, and what matches observed
+	// traffic back to this node.
+	//
+	// It is emphatically not this node's identity in the simulation: the
+	// firmware generates its own keypair at first boot, because nobody has
+	// the real private key. Anything comparing a running node's key to this
+	// one will never match.
 	PublicKey string
 
 	// Regions are the MeshCore transport regions this node holds, and

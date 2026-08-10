@@ -130,13 +130,13 @@ func (a *App) drawScheduleBody() {
 		imgui.SameLine()
 		within := int32(s.draftAssert.WithinMs / 1000)
 		imgui.SetNextItemWidth(80)
-		if imgui.InputInt("s##a", &within) {
+		if imgui.InputIntV("s##a", &within, 0, 0, 0) {
 			s.draftAssert.WithinMs = uint32(within) * 1000
 		}
 	case engine.AssertDelivered:
 		v := int32(s.draftAssert.AtLeast)
 		imgui.SetNextItemWidth(80)
-		if imgui.InputInt("at least##a", &v) {
+		if imgui.InputIntV("at least##a", &v, 0, 0, 0) {
 			s.draftAssert.AtLeast = int(v)
 		}
 	case engine.AssertDutyBelow:
@@ -158,7 +158,7 @@ func (a *App) drawScheduleBody() {
 		imgui.SameLine()
 		v := int32(s.draftAssert.AtMost)
 		imgui.SetNextItemWidth(80)
-		if imgui.InputInt("at most##a", &v) {
+		if imgui.InputIntV("at most##a", &v, 0, 0, 0) {
 			s.draftAssert.AtMost = int(v)
 		}
 	}

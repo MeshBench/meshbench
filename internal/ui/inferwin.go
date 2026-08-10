@@ -33,6 +33,7 @@ type inferState struct {
 	fetched   atomic.Int64
 	done      chan inferResult
 
+	init     bool
 	result   map[string]*provider.Inferred
 	regions  []string
 	packets  int
@@ -56,10 +57,7 @@ type inferResult struct {
 // stale, so behaviour is the better source.
 func (a *App) drawInferBody() {
 	s := &a.infer
-	if s.lookbackH == 0 {
-		s.lookbackH = 24
-		s.applyRegions, s.applyScope, s.applyHops = true, true, false
-	}
+	s.ensureDefaults()
 
 	textWrap("Reads what each node's own traffic proves about its configuration. " +
 		"Separate from the study area, which only decides which nodes are in " +
@@ -67,7 +65,7 @@ func (a *App) drawInferBody() {
 	textDim("reading from " + a.imp.url)
 
 	imgui.SetNextItemWidth(110)
-	imgui.InputInt("hours of traffic to read", &s.lookbackH)
+	imgui.InputIntV("hours of traffic to read", &s.lookbackH, 0, 0, 0)
 	if s.lookbackH < 1 {
 		s.lookbackH = 1
 	}
@@ -169,7 +167,7 @@ func (a *App) drawInferBody() {
 		imgui.TableSetColumnIndex(0)
 		imgui.Text(name)
 		imgui.TableSetColumnIndex(1)
-		if a.nodeIndex(name) >= 0 {
+		if a.nodeForObserved(name) >= 0 {
 			imgui.Text("yes")
 		} else {
 			// Named in the traffic but absent from the scenario. Worth showing:
@@ -257,8 +255,13 @@ func (a *App) pollInference() {
 func (a *App) applyInference() int {
 	s := &a.infer
 	applied := 0
+	// CoreScope names a packet's origin by public key, and only sometimes by
+	// a resolved name, so the results arrive keyed by whichever it had. The
+	// scenario is keyed by name. Matching on the name alone found four nodes
+	// out of twenty and silently applied nothing to the rest - the same
+	// "keys are identities, names are labels" lesson the merge learned.
 	for name, v := range s.result {
-		i := a.nodeIndex(name)
+		i := a.nodeForObserved(name)
 		if i < 0 {
 			continue
 		}
@@ -281,4 +284,42 @@ func (a *App) applyInference() int {
 		}
 	}
 	return applied
+}
+
+// ensureDefaults sets what the panel would have set on its first draw.
+//
+// Called from the control verb as well, because a run driven from outside
+// never draws the panel first - which left every "apply" tick-box false, so
+// the inference ran, found twenty nodes' regions, and applied none of them
+// without a word.
+func (s *inferState) ensureDefaults() {
+	if s.init {
+		return
+	}
+	s.init = true
+	if s.lookbackH == 0 {
+		s.lookbackH = 24
+	}
+	s.applyRegions, s.applyScope, s.applyHops = true, true, false
+}
+
+// nodeForObserved resolves what CoreScope called a node to a node here.
+//
+// CoreScope identifies a node by its real public key; a simulated node
+// generates its own identity at boot, because we do not have anyone's
+// private key and never will. So the key that arrives with observed traffic
+// can only ever be an *external reference* - the one the import stored
+// against the node - or a name. Matching on the simulated node's own
+// identity would match nothing, for ever.
+func (a *App) nodeForObserved(ref string) int {
+	if i := a.nodeIndex(ref); i >= 0 {
+		return i
+	}
+	want := strings.ToLower(ref)
+	for i := range a.Nodes {
+		if strings.ToLower(a.Nodes[i].PublicKey) == want {
+			return i
+		}
+	}
+	return -1
 }

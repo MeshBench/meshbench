@@ -81,7 +81,7 @@ func (a *App) drawCompanionTab(name string) {
 
 	port := a.comp.port[name]
 	imgui.SetNextItemWidth(110)
-	if imgui.InputInt("port", &port) {
+	if imgui.InputIntV("port", &port, 0, 0, 0) {
 		// Clamped rather than validated on submit: an out-of-range port is a
 		// typo, and refusing it after the click is a worse way to say so.
 		if port < 1024 {
