@@ -86,12 +86,12 @@ func (a *App) drawRunControls() {
 	}
 
 	// Transport symbols, named on hover — the strip is glanced at constantly
-	// and read once. ASCII glyphs, because the default font has no media
-	// symbols and a "?" where play should be is worse than a word.
-	label := ">"
+	// and read once. Real glyphs, from the merged DejaVu font: the default
+	// font alone rendered them as "?".
+	label := "\u25b6"
 	tip := "play  (space)"
 	if a.playing {
-		label, tip = "||", "pause  (space)"
+		label, tip = "\u25ae\u25ae", "pause  (space)"
 	}
 	if imgui.ButtonV(label, imgui.NewVec2(34, 0)) {
 		a.playing = !a.playing
@@ -100,14 +100,14 @@ func (a *App) drawRunControls() {
 		imgui.SetTooltip(tip)
 	}
 	imgui.SameLine()
-	if imgui.ButtonV(">|", imgui.NewVec2(34, 0)) {
+	if imgui.ButtonV("\u25b6\u25ae", imgui.NewVec2(34, 0)) {
 		a.stepEngine(20)
 	}
 	if imgui.IsItemHovered() {
 		imgui.SetTooltip("step: 200 ms of simulated time, once  (.)")
 	}
 	imgui.SameLine()
-	restart := "|<"
+	restart := "\u21ba"
 	if a.confirmRestart {
 		restart = "sure?"
 	}
@@ -135,7 +135,7 @@ func (a *App) drawRunControls() {
 			imgui.SetTooltip(fmt.Sprintf("%d nodes running real MeshCore firmware", a.eng.FirmwareCount()))
 		}
 	} else {
-		if imgui.Button("fw >") {
+		if imgui.Button("fw \u25b6") {
 			if err := a.eng.AttachNative(context.Background(), 4417); err != nil {
 				a.status = err.Error()
 			} else {

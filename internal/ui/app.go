@@ -352,6 +352,7 @@ func (a *App) Run(title string, w, h int) error {
 			scale = float64(sx)
 		}
 	}
+	mergeSymbolFont()
 	a.uiScale = 1
 	a.applyUIScale(scale)
 	// First launch of a workspace builds its preset; every later launch loads
