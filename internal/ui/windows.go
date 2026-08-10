@@ -9,7 +9,6 @@ import (
 	"github.com/AllenDang/cimgui-go/imgui"
 
 	"github.com/A13xB0/meshcoresim/internal/engine"
-	"github.com/A13xB0/meshcoresim/internal/firmware"
 	"github.com/A13xB0/meshcoresim/internal/scenario"
 )
 
@@ -40,8 +39,9 @@ func (a *App) drawMenuBar() {
 			a.buildEngine()
 		}
 		imgui.Separator()
-		if a.eng != nil && a.eng.CapturePath() != "" {
-			if imgui.MenuItemBool("stop capture") {
+		capturing := a.eng != nil && a.eng.CapturePath() != ""
+		if capturing {
+			if imgui.MenuItemBool("stop capture - " + a.eng.CapturePath()) {
 				path, frames, err := a.eng.StopCapture()
 				if err != nil {
 					a.status = err.Error()
@@ -65,7 +65,7 @@ func (a *App) drawMenuBar() {
 			imgui.SetTooltip("Every node's view of every frame, in one file.\n" +
 				"A real capture has one vantage point; this has all of them.")
 		}
-		if imgui.MenuItemBool("capture live to Wireshark...") {
+		if !capturing && imgui.MenuItemBool("capture live to Wireshark...") {
 			if a.eng == nil {
 				a.buildEngine()
 			}
@@ -108,20 +108,6 @@ func (a *App) drawMenuBar() {
 				"is a regression test.")
 		}
 		imgui.Separator()
-		if imgui.MenuItemBool("reset node memories") {
-			// Rebuild first so no process is holding its files open, then wipe.
-			a.buildEngine()
-			if err := firmware.WipeNodeStorage(); err != nil {
-				a.status = err.Error()
-			} else {
-				a.status = "node memories wiped - every node boots factory-fresh on the next " +
-					"\"run real firmware\" (identities regenerate from the seed)"
-			}
-		}
-		if imgui.IsItemHovered() {
-			imgui.SetTooltip("Deletes every node's persisted identity, prefs and regions.\n" +
-				"The cure for settings poisoned by an earlier bad run.")
-		}
 		imgui.Separator()
 		if a.eng != nil && a.eng.FirmwareCount() == 0 {
 			if imgui.MenuItemBool("run real firmware") {
@@ -134,51 +120,22 @@ func (a *App) drawMenuBar() {
 	}
 	a.drawRepeatersMenu()
 	a.drawPlanningMenu()
-	if imgui.BeginMenu("Coverage") {
-		if imgui.MenuItemBool("from the selected node") {
-			if i, _ := a.Link(); i >= 0 {
-				a.startCoverage(i)
-			} else {
-				a.status = "select a node first"
-			}
-		}
-		imgui.Separator()
-		if imgui.MenuItemBool("best server") {
-			a.startNetworkCoverage(covBest)
-		}
-		if imgui.MenuItemBool("gaps - covered by nobody") {
-			a.startNetworkCoverage(covGap)
-		}
-		if imgui.MenuItemBool("redundancy - what survives a failure") {
-			a.startNetworkCoverage(covRedundancy)
-		}
-		imgui.Separator()
-		imgui.TextDisabled("for a person with a handheld at 1.5 m")
-		imgui.EndMenu()
-	}
-	// Workspaces, right in the bar rather than in a menu: switching is the
-	// most common navigation there is, and Ctrl-1..4 are the fast path.
-	a.drawWorkspaceSwitcher()
-	if !imgui.CurrentIO().WantTextInput() && imgui.CurrentIO().KeyCtrl() {
-		for w := workspace(0); w < workspaceCount; w++ {
-			if imgui.IsKeyPressedBool(imgui.Key1 + imgui.Key(w)) {
-				a.switchWorkspace(w)
-			}
-		}
-	}
-	if imgui.BeginMenu("Windows") {
+	if imgui.BeginMenu("Window") {
+		imgui.TextDisabled("panels")
 		for _, p := range a.panelRegistry() {
 			if a.panelEnabled(p.name) {
 				imgui.MenuItemBoolPtr(p.name, "", &p.open)
 			}
 		}
 		imgui.Separator()
-		imgui.MenuItemBoolPtr("Preferences", "", &a.winPrefs)
-		imgui.MenuItemBoolPtr("Provisioning", "", &a.winProvision)
-		imgui.MenuItemBoolPtr("Nodes & settings", "", &a.winNodesTable)
-		imgui.MenuItemBoolPtr("Fleet commands", "", &a.winFleet)
-		imgui.MenuItemBoolPtr("Boundary", "", &a.winBoundary)
-		imgui.MenuItemBoolPtr("Planning", "", &a.winPlanning)
+		if imgui.MenuItemBool("dock everything back") {
+			for _, p := range a.panelRegistry() {
+				a.dockBack(p.name)
+			}
+			for name := range a.nodeWindows {
+				a.dockBack(name)
+			}
+		}
 		imgui.Separator()
 		imgui.TextDisabled("node windows")
 		// Every node can have its own window; the menu lists them so one can be
@@ -221,6 +178,13 @@ func (a *App) drawMenuBar() {
 		}
 		if imgui.IsKeyPressedBool(imgui.KeyPeriod) {
 			a.stepEngine(20)
+		}
+		if imgui.CurrentIO().KeyCtrl() {
+			for w := workspace(0); w < workspaceCount; w++ {
+				if imgui.IsKeyPressedBool(imgui.Key1 + imgui.Key(w)) {
+					a.switchWorkspace(w)
+				}
+			}
 		}
 		if imgui.CurrentIO().KeyCtrl() && imgui.IsKeyPressedBool(imgui.KeyQ) {
 			a.backend.SetShouldClose(true)
@@ -695,6 +659,13 @@ func (a *App) drawFileMenu() {
 			imgui.SetWindowFocusStr("Import")
 		}
 	}
+	if imgui.MenuItemBool("Nodes & settings...") {
+		a.winNodesTable = true
+	}
+	imgui.Separator()
+	if imgui.MenuItemBool("Preferences...") {
+		a.winPrefs = true
+	}
 	imgui.Separator()
 	if imgui.MenuItemBoolV("Quit", "ctrl+q", false, true) {
 		a.backend.SetShouldClose(true)
@@ -758,10 +729,15 @@ func (a *App) drawRepeatersMenu() {
 		imgui.TextDisabled("no firmware running - start it from the strip above")
 	}
 	imgui.Separator()
-	imgui.MenuItemBoolPtr("Fleet commands...", "", &a.winFleet)
-	imgui.MenuItemBoolPtr("Firmware library...", "", &a.winFirmware)
-	imgui.MenuItemBoolPtr("Provisioning (what they are told on boot)...", "", &a.winProvision)
-	imgui.MenuItemBoolPtr("Nodes & settings...", "", &a.winNodesTable)
+	if imgui.MenuItemBool("Fleet commands...") {
+		a.showPanel("Fleet")
+	}
+	if imgui.MenuItemBool("Firmware library...") {
+		a.winFirmware = true
+	}
+	if imgui.MenuItemBool("Provisioning (what they are told on boot)...") {
+		a.winProvision = true
+	}
 	imgui.Separator()
 
 	// The commands people reach for, sent to every running repeater without a
@@ -780,7 +756,7 @@ func (a *App) drawRepeatersMenu() {
 	} {
 		if imgui.MenuItemBool(q.label) {
 			a.fleetSend(a.repeaterNames(), q.cmd)
-			a.winFleet = true // the replies land there, so open it
+			a.showPanel("Fleet") // the replies land there
 		}
 		if imgui.IsItemHovered() {
 			imgui.SetTooltip(q.cmd)
@@ -790,7 +766,7 @@ func (a *App) drawRepeatersMenu() {
 	if imgui.MenuItemBool("set every repeater's region from the study area") {
 		n := a.applyRegionsToFleet()
 		a.status = fmt.Sprintf("region commands sent to %d repeaters", n)
-		a.winFleet = true
+		a.showPanel("Fleet")
 	}
 	if imgui.IsItemHovered() {
 		imgui.SetTooltip("region put <area> / region allowf <area> / region save\n" +
@@ -851,8 +827,12 @@ func (a *App) drawPlanningMenu() {
 	if !imgui.BeginMenu("Planning") {
 		return
 	}
-	imgui.MenuItemBoolPtr("Planning (bridge / cover an area)...", "", &a.winPlanning)
-	imgui.MenuItemBoolPtr("Boundary (study area)...", "", &a.winBoundary)
+	if imgui.MenuItemBool("Planning (bridge / cover an area)...") {
+		a.showPanel("Planning")
+	}
+	if imgui.MenuItemBool("Boundary (study area)...") {
+		a.showPanel("Boundary")
+	}
 	imgui.Separator()
 	if imgui.MenuItemBool("coverage from the selected node") {
 		if i, _ := a.Link(); i >= 0 {

@@ -106,6 +106,9 @@ func (c *consoleBuf) echo(line string) {
 // can build a mesh but not administer one. Everything below the input box came
 // out of the firmware; nothing here composes a reply.
 func (a *App) drawConsole() {
+	// A serial console is machine output: fixed width, or the columns lie.
+	pushMono()
+	defer popMono()
 	from, _ := a.Link()
 	if from < 0 {
 		imgui.TextDisabled("select a node")

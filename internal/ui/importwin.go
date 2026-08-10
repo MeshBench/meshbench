@@ -150,7 +150,7 @@ func (a *App) drawImportBody() {
 
 	imgui.SeparatorText("Boundary")
 	if imgui.Button("choose areas...") {
-		a.winBoundary = true
+		a.showPanel("Boundary")
 	}
 	imgui.SameLine()
 	if n := len(a.bnd.chosen); n > 0 {
@@ -169,7 +169,7 @@ func (a *App) drawImportBody() {
 		fetched := atomic.LoadInt64(&s.job.count)
 		imgui.ProgressBarV(-1*float32(imgui.Time()), imgui.NewVec2(-1, 0),
 			fmt.Sprintf("fetching... %d records", fetched))
-	} else if imgui.Button("fetch preview") {
+	} else if primaryButton("fetch preview", imgui.NewVec2(0, 0)) {
 		a.startImportFetch()
 	}
 	if s.status != "" {
@@ -278,7 +278,7 @@ func (a *App) drawImportPreview() {
 		imgui.TextDisabled("the scenario is empty - everything previewed arrives")
 	}
 
-	if imgui.Button("commit") {
+	if primaryButton("commit", imgui.NewVec2(0, 0)) {
 		a.commitImport()
 	}
 	imgui.SameLine()

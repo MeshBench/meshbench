@@ -7,30 +7,66 @@ import (
 	"github.com/AllenDang/cimgui-go/imgui"
 )
 
-// DejaVu Sans, embedded and merged over the default font for the glyphs it
-// lacks — real media symbols for the run strip instead of ASCII stand-ins,
-// and proper dashes wherever they appear. Embedded, because a font found on
-// the developer's machine and missing on the operator's is a "?" that ships.
-// Licence: Bitstream Vera / public domain (fonts/LICENSE).
+// Three faces, all embedded: a font found on the developer's machine and
+// missing on the operator's is a "?" that ships.
 //
+// Inter is the UI face - the modern neutral for tool interfaces, legible at
+// small sizes and dense in tables. DejaVu Sans is merged over it purely for
+// glyphs Inter lacks, so symbols land at the same optical size as the text
+// around them. DejaVu Sans Mono is a separate font for consoles, hex dumps
+// and the event ledger, where columns have to line up.
+//
+// Licences: fonts/LICENSE-Inter.txt (OFL), fonts/LICENSE (Bitstream Vera).
+
+//go:embed fonts/Inter-Regular.ttf
+var interRegular []byte
+
 //go:embed fonts/DejaVuSans.ttf
 var dejaVuSans []byte
 
-// mergeSymbolFont adds DejaVu as a fallback for glyphs the default font has
-// no answer to. Merge mode keeps the default font's look for ASCII; DejaVu
-// only fills the gaps, rasterised on demand by this imgui's dynamic atlas.
-func mergeSymbolFont() {
+//go:embed fonts/DejaVuSansMono.ttf
+var dejaVuMono []byte
+
+// monoFont is the fixed-width face, for anything that is really a machine's
+// output rather than prose.
+var monoFont *imgui.Font
+
+// loadFonts builds the atlas. Sizes are the base; ctrl +/- scales from here
+// and this imgui re-rasterises rather than stretching.
+func loadFonts() {
 	fonts := imgui.CurrentIO().Fonts()
-	fonts.AddFontDefault()
+
+	ui := addTTF(fonts, interRegular, 15, false)
+	_ = ui
+	// Merged into Inter: fills only the glyphs Inter has no answer for.
+	addTTF(fonts, dejaVuSans, 0, true)
+
+	monoFont = addTTF(fonts, dejaVuMono, 14, false)
+}
+
+func addTTF(fonts *imgui.FontAtlas, data []byte, size float32, merge bool) *imgui.Font {
 	cfg := imgui.NewFontConfig()
 	defer cfg.Destroy()
-	cfg.SetMergeMode(true)
-	// imgui frees merged font data itself unless told otherwise; the bytes
-	// belong to Go's embed, so it must not.
+	if merge {
+		cfg.SetMergeMode(true)
+	}
+	// imgui frees font data itself unless told otherwise; these bytes belong
+	// to Go's embed and must outlive the atlas untouched.
 	cfg.SetFontDataOwnedByAtlas(false)
-	// Size zero: implicit, matching AddFontDefault. An explicit size on a
-	// merged font when the base used an implicit one is an imgui assertion.
-	fonts.AddFontFromMemoryTTFV(
-		uintptr(unsafe.Pointer(&dejaVuSans[0])), int32(len(dejaVuSans)),
-		0, cfg, nil)
+	return fonts.AddFontFromMemoryTTFV(
+		uintptr(unsafe.Pointer(&data[0])), int32(len(data)), size, cfg, nil)
+}
+
+// pushMono / popMono wrap machine output. A helper pair rather than raw
+// PushFont calls so an unbalanced pop cannot leave the whole UI monospaced.
+func pushMono() {
+	if monoFont != nil {
+		imgui.PushFont(monoFont, 0)
+	}
+}
+
+func popMono() {
+	if monoFont != nil {
+		imgui.PopFont()
+	}
 }

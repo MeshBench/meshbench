@@ -82,16 +82,10 @@ func (a *App) activeJobs() []jobRow {
 	return jobs
 }
 
-// drawJobsPopover is the toolbar's one door to everything in flight.
-func (a *App) drawJobsPopover() {
+// drawJobsPopupBody is the popup itself, opened from the status bar - one
+// place for everything in flight, always at the same end of the same bar.
+func (a *App) drawJobsPopupBody() {
 	jobs := a.activeJobs()
-	if len(jobs) == 0 {
-		return
-	}
-	imgui.SameLine()
-	if imgui.SmallButton(fmt.Sprintf("jobs: %d", len(jobs))) {
-		imgui.OpenPopupStr("##jobs")
-	}
 	if !imgui.BeginPopup("##jobs") {
 		return
 	}

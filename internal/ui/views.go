@@ -119,10 +119,34 @@ func (a *App) deleteView(name string) {
 // drawViewsMenu is the Views menu: save this arrangement, go back to one,
 // throw one away.
 func (a *App) drawViewsMenu() {
-	if !imgui.BeginMenu("Views") {
+	if !imgui.BeginMenu("View") {
 		return
 	}
-	imgui.TextDisabled("a view is every panel's place, including popped-out ones")
+	// The four activities first: the menu and the tab strip are the same
+	// thing, and a shortcut has to be discoverable somewhere.
+	for w := workspace(0); w < workspaceCount; w++ {
+		if imgui.MenuItemBoolV(w.String(), fmt.Sprintf("ctrl+%d", w+1), w == a.ws, true) {
+			a.switchWorkspace(w)
+		}
+		if imgui.IsItemHovered() {
+			imgui.SetTooltip(w.purpose())
+		}
+	}
+	imgui.Separator()
+	imgui.TextDisabled("UI scale")
+	if imgui.MenuItemBoolV("larger", "ctrl+=", false, true) {
+		a.requestUIScale(a.uiScale * 1.1)
+	}
+	if imgui.MenuItemBoolV("smaller", "ctrl+-", false, true) {
+		a.requestUIScale(a.uiScale / 1.1)
+	}
+	if imgui.MenuItemBoolV("automatic", "ctrl+0", false, true) {
+		a.cfg.uiScale = 0
+		a.saveConfig()
+		a.requestUIScale(1)
+	}
+	imgui.Separator()
+	imgui.TextDisabled("saved layouts - every panel's place, popped-out ones included")
 	imgui.SetNextItemWidth(200)
 	imgui.InputTextWithHint("##viewname", "name this arrangement", &a.viewName, 0, nil)
 	imgui.SameLine()
@@ -159,17 +183,7 @@ func (a *App) drawViewsMenu() {
 	}
 
 	imgui.Separator()
-	if imgui.MenuItemBool("dock everything back") {
-		// The way out of a layout that has scattered across monitors nobody
-		// is looking at any more.
-		for _, p := range a.panelRegistry() {
-			a.dockBack(p.name)
-		}
-		for name := range a.nodeWindows {
-			a.dockBack(name)
-		}
-	}
-	if imgui.MenuItemBool("rebuild this workspace's preset") {
+	if imgui.MenuItemBool("reset this view to its preset") {
 		a.wsRebuild = true
 	}
 	imgui.EndMenu()

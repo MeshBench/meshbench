@@ -128,8 +128,6 @@ type App struct {
 	// open at once — watching three repeaters independently is the use case.
 	nodeWindows   map[string]bool
 	winNodesTable bool
-	winFleet      bool
-	winBoundary   bool
 	speed         float32
 	stepDebt      float32
 
@@ -146,6 +144,7 @@ type App struct {
 	cfg          configState
 	winProvision bool
 	winFirmware  bool
+	confirmWipe  bool
 	winPrefs     bool
 	infer        inferState
 	ab           abState
@@ -185,7 +184,6 @@ type App struct {
 	// right-click menu rather than by selection.
 	neighboursOf string
 	wf           waterfallState
-	winPlanning  bool
 	// hashNames maps a MeshCore path hash to a node name where the run has
 	// shown us which is which.
 	hashNames map[byte]string
@@ -352,7 +350,8 @@ func (a *App) Run(title string, w, h int) error {
 			scale = float64(sx)
 		}
 	}
-	mergeSymbolFont()
+	loadFonts()
+	applyTheme()
 	a.uiScale = 1
 	a.applyUIScale(scale)
 	// First launch of a workspace builds its preset; every later launch loads
@@ -422,8 +421,9 @@ func (a *App) frame() {
 	a.pumpUIScale()
 
 	vp := imgui.MainViewport()
+	statusH := imgui.FrameHeight() + 10
 	imgui.SetNextWindowPos(vp.Pos())
-	imgui.SetNextWindowSize(vp.Size())
+	imgui.SetNextWindowSize(imgui.NewVec2(vp.Size().X, vp.Size().Y-statusH))
 	// Pin the shell to the real OS window. With no-auto-merge, imgui was
 	// giving this fullscreen host its *own* platform window stacked exactly
 	// over the GLFW one - so the visible "main window" was an imposter: its
@@ -444,11 +444,7 @@ func (a *App) frame() {
 
 	a.drawMenuBar()
 	imgui.Separator()
-	a.drawToolbar()
-	// The run strip is chrome, not a panel: what the simulation is doing right
-	// now is relevant in every workspace, and a control that must be found
-	// before the simulation can be paused is a control found too late.
-	a.drawRunControls()
+	a.drawControlRow()
 	imgui.Separator()
 
 	dockID := dockspaceID()
@@ -472,103 +468,169 @@ func (a *App) frame() {
 	imgui.End()
 
 	a.drawPanels()
+	a.drawStatusBar()
 	a.pumpLiveFeed()
 
 	// Windows that are not dockable panels: they are modal-ish, per-node, or
 	// their own top-level things.
 	a.drawNodesTableWindow()
-	a.drawFleetWindow()
-	a.drawBoundaryWindow()
 	a.drawFirmwareWindow()
 	a.drawProvisionWindow()
 	a.drawPrefsWindow()
-	a.drawPlanningWindow()
 	a.drawPacketWindow()
 	a.drawNodeWindows()
 }
 
-// drawToolbar is the palette: what a click on the map will do.
-func (a *App) drawToolbar() {
-	tools := []Tool{ToolSelect, ToolMove, ToolPlaceRepeater, ToolPlaceCompanion,
-		ToolPlaceObserver, ToolPlaceCustom}
-	for i, t := range tools {
-		if i > 0 {
-			imgui.SameLine()
-		}
-		active := a.tool == t
-		if active {
-			imgui.PushStyleColorVec4(imgui.ColButton, imgui.NewVec4(0.22, 0.42, 0.62, 1))
-		}
-		if imgui.Button(t.label()) {
-			a.tool = t
-		}
-		if active {
-			imgui.PopStyleColor()
-		}
-	}
+// drawControlRow is the one instrument row: which view you are in, what the
+// simulation is doing, and the facts that must never be hidden.
+//
+// It replaces two rows - a palette row and a run strip - because the palette
+// belongs beside the map it acts on (drawToolRail) and the facts belong with
+// the transport. Chrome that reflows is not chrome, so nothing here appears
+// or disappears except by the operator's choice.
+func (a *App) drawControlRow() {
+	a.drawViewTabs()
+	imgui.SameLineV(0, 18)
+	a.drawRunControls()
 
-	imgui.SameLineV(0, 24)
-	if imgui.Button("fit") {
-		a.view.FitTo(a.Nodes, a.view.Width, a.view.Height)
-		a.terrainDirty = true
-	}
-	imgui.SameLine()
-	a.drawLayerPicker()
-	imgui.SameLine()
-	// Downloading is an explicit act. The map draws gaps where it has no data
-	// rather than fetching as you pan: a workbench that downloads whenever the
-	// view moves is unusable on a tethered connection and dishonest about what
-	// it is doing.
-	if imgui.Button("get terrain") {
-		a.fetchVisibleTerrain()
-	}
-
-	if s := a.fetchState(); s != "" {
+	// Facts, right-aligned: what is loaded, at what scale, under which seed.
+	facts := fmt.Sprintf("%d nodes   %.0f m/px", len(a.Nodes), a.view.MetresPerPixel)
+	w := imgui.CalcTextSize(facts).X + 190
+	if avail := imgui.ContentRegionAvail().X; avail > w+40 {
+		imgui.SameLineV(imgui.CursorPosX()+avail-w, 0)
+		imgui.TextDisabled(facts)
 		imgui.SameLine()
-		imgui.TextDisabled(s)
-	}
-	imgui.SameLine()
-	imgui.TextDisabled(fmt.Sprintf("%d nodes  |  %.0f m/px", len(a.Nodes), a.view.MetresPerPixel))
-	a.drawJobsPopover()
-	// The seed, always visible and always editable.
-	//
-	// "A run that cannot be reproduced is not evidence" — so this is not in a
-	// settings dialogue, and it is not hidden behind a disclosure triangle. It
-	// sits in the chrome where it cannot be missed.
-	imgui.SameLineV(0, 20)
-	imgui.TextDisabled("seed")
-	imgui.SameLine()
-	imgui.SetNextItemWidth(70)
-	seed := int32(a.runSeed())
-	// No step buttons: a seed is typed or pasted, never nudged, and the
-	// steppers cost more toolbar than the field.
-	if imgui.InputIntV("##seed", &seed, 0, 0, 0) {
-		a.seed = uint64(seed)
-		a.buildEngine()
-		a.saveConfig()
-	}
-	if a.companionAttached() {
+		// The seed, always visible and always editable. "A run that cannot be
+		// reproduced is not evidence" - so it is never in a dialogue.
+		imgui.TextDisabled("seed")
 		imgui.SameLine()
-		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.72, 0.25, 1))
-		imgui.Text("1x LOCKED: companion attached")
-		imgui.PopStyleColor()
+		imgui.SetNextItemWidth(76)
+		seed := int32(a.runSeed())
+		if imgui.InputIntV("##seed", &seed, 0, 0, 0) {
+			a.seed = uint64(seed)
+			a.buildEngine()
+			a.saveConfig()
+		}
 		if imgui.IsItemHovered() {
-			imgui.SetTooltip("A real client is attached to a node's companion port.\n" +
-				"Simulated time must track wall time or the client's own timeouts\n" +
-				"fire against a clock that is not moving at their speed.")
+			imgui.SetTooltip("Same seed, same scenario, same result.")
 		}
 	}
+}
 
-	if a.status != "" {
-		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.72, 0.25, 1))
-		imgui.TextWrapped(a.status)
-		imgui.PopStyleColor()
+// drawViewTabs is the standout control: which of the four activities you are
+// doing. A tab strip, not menu items - the old switcher sat between File and
+// Windows, which is a category error and why nobody could find it.
+func (a *App) drawViewTabs() {
+	for w := workspace(0); w < workspaceCount; w++ {
+		if w > 0 {
+			imgui.SameLineV(0, 2)
+		}
+		active := w == a.ws
+		if active {
+			imgui.PushStyleColorVec4(imgui.ColButton, colAccent)
+			imgui.PushStyleColorVec4(imgui.ColButtonHovered, colAccent)
+			imgui.PushStyleColorVec4(imgui.ColText, rgb(0x0B, 0x0E, 0x12))
+		}
+		if imgui.ButtonV(w.String(), imgui.NewVec2(74, 0)) {
+			a.switchWorkspace(w)
+		}
+		if active {
+			imgui.PopStyleColorV(3)
+		}
+		if imgui.IsItemHovered() {
+			imgui.SetTooltip(fmt.Sprintf("%s  (ctrl+%d)\n%s", w.String(), w+1, w.purpose()))
+		}
+	}
+}
+
+// toolRailWidth is what the rail occupies on the map's left edge, so anything
+// else drawn on the map can keep clear of it.
+func toolRailWidth() float32 { return symbolButtonSize().X + 14 }
+
+// drawToolRail is the placement palette, on the map's left edge where the
+// stage tools live in every other spatial tool. Vertical, icon-width, and
+// beside the thing it acts on rather than in a distant row.
+func (a *App) drawToolRail(origin imgui.Vec2, h float32) {
+	tools := []struct {
+		t     Tool
+		glyph string
+	}{
+		{ToolSelect, "\u2196"}, // arrow
+		{ToolMove, "\u2725"},   // four-way
+		{ToolPlaceRepeater, "R"},
+		{ToolPlaceCompanion, "C"},
+		{ToolPlaceObserver, "O"},
+		{ToolPlaceCustom, "E"},
+	}
+	size := symbolButtonSize()
+	imgui.SetCursorScreenPos(imgui.NewVec2(origin.X+6, origin.Y+8))
+	if imgui.BeginChildStrV("##toolrail", imgui.NewVec2(toolRailWidth(), float32(len(tools))*(size.Y+6)+10),
+		imgui.ChildFlagsFrameStyle, imgui.WindowFlagsNoScrollbar) {
+		for _, tl := range tools {
+			active := a.tool == tl.t
+			if active {
+				imgui.PushStyleColorVec4(imgui.ColButton, colAccent)
+				imgui.PushStyleColorVec4(imgui.ColText, rgb(0x0B, 0x0E, 0x12))
+			}
+			if imgui.ButtonV(tl.glyph+"##tool"+tl.t.label(), size) {
+				a.tool = tl.t
+			}
+			if active {
+				imgui.PopStyleColorV(2)
+			}
+			if imgui.IsItemHovered() {
+				imgui.SetTooltip(tl.t.label())
+			}
+		}
+	}
+	imgui.EndChild()
+}
+
+// drawStatusBar is the fixed bottom instrument: what just happened, and what
+// is happening in the background.
+//
+// Fixed height and always present, because status that appears and vanishes
+// pushed every panel down the moment the application had something to say -
+// an instrument that moves the thing you were reading.
+func (a *App) drawStatusBar() {
+	vp := imgui.MainViewport()
+	h := imgui.FrameHeight() + 10
+	imgui.SetNextWindowPos(imgui.NewVec2(vp.Pos().X, vp.Pos().Y+vp.Size().Y-h))
+	imgui.SetNextWindowSize(imgui.NewVec2(vp.Size().X, h))
+	imgui.SetNextWindowViewport(vp.ID())
+	imgui.PushStyleVarVec2(imgui.StyleVarWindowPadding, imgui.NewVec2(10, 4))
+	flags := imgui.WindowFlagsNoTitleBar | imgui.WindowFlagsNoResize |
+		imgui.WindowFlagsNoMove | imgui.WindowFlagsNoScrollbar |
+		imgui.WindowFlagsNoSavedSettings | imgui.WindowFlagsNoDocking |
+		imgui.WindowFlagsNoBringToFrontOnFocus
+	imgui.BeginV("##statusbar", nil, flags)
+	imgui.PopStyleVar()
+
+	switch {
+	case a.status != "":
+		textColoured(colWarn, a.status)
 		imgui.SameLine()
 		if imgui.SmallButton("dismiss") {
 			a.status = ""
 		}
+	case a.companionAttached():
+		textColoured(colWarn, "1x locked: a companion client is attached, so simulated "+
+			"time must track wall time")
+	default:
+		imgui.TextDisabled(a.ws.String() + " - " + a.ws.purpose())
 	}
-	imgui.Separator()
+
+	// Background work, always at the same end of the same bar.
+	if jobs := a.activeJobs(); len(jobs) > 0 {
+		label := fmt.Sprintf("jobs: %d", len(jobs))
+		w := imgui.CalcTextSize(label).X + 30
+		imgui.SameLineV(imgui.ContentRegionAvail().X-w+imgui.CursorPosX(), 0)
+		if imgui.SmallButton(label) {
+			imgui.OpenPopupStr("##jobs")
+		}
+		a.drawJobsPopupBody()
+	}
+	imgui.End()
 }
 
 // drawLayerPicker chooses what is drawn under the nodes.

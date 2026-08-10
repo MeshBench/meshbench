@@ -43,13 +43,42 @@ func (a *App) drawLayerControls(origin imgui.Vec2, w float32) {
 		}
 		imgui.EndChild()
 	} else {
-		imgui.SetCursorScreenPos(imgui.NewVec2(origin.X+w-260, origin.Y+8))
-		if imgui.BeginChildStrV("##layers", imgui.NewVec2(250, 26), 0, imgui.WindowFlagsNoScrollbar) {
+		// Everything that decides what the map *shows*, on the map: the layer
+		// toggles, the basemap picker, labels, fit and the terrain fetch. The
+		// old toolbar row had them a screen away from the thing they change.
+		imgui.SetCursorScreenPos(imgui.NewVec2(origin.X+w-560, origin.Y+8))
+		if imgui.BeginChildStrV("##layers", imgui.NewVec2(550, imgui.FrameHeight()+10),
+			imgui.ChildFlagsFrameStyle, imgui.WindowFlagsNoScrollbar) {
 			imgui.Checkbox("links", &a.layers.links)
 			imgui.SameLine()
 			imgui.Checkbox("patterns", &a.layers.patterns)
 			imgui.SameLine()
 			imgui.Checkbox("region", &a.layers.region)
+			imgui.SameLineV(0, 14)
+			a.drawLayerPicker()
+			imgui.SameLine()
+			if imgui.SmallButton("fit") {
+				a.view.FitTo(a.Nodes, a.view.Width, a.view.Height)
+				a.terrainDirty = true
+			}
+			imgui.SameLine()
+			// Downloading is an explicit act: a workbench that fetches whenever
+			// the view moves is unusable on a tethered connection.
+			if imgui.SmallButton("terrain") {
+				a.fetchVisibleTerrain()
+			}
+			if imgui.IsItemHovered() {
+				tip := "download elevation tiles for this view"
+				if est, ok := a.terrainEstimate(); ok {
+					tip += fmt.Sprintf("\n%d tiles, %d cached, roughly %d MB",
+						est.Tiles, est.Cached, est.BytesRough/1_000_000)
+				}
+				imgui.SetTooltip(tip)
+			}
+			if s := a.fetchState(); s != "" {
+				imgui.SameLine()
+				imgui.TextDisabled(s)
+			}
 		}
 		imgui.EndChild()
 	}
@@ -57,8 +86,10 @@ func (a *App) drawLayerControls(origin imgui.Vec2, w float32) {
 	// The node filter lives on the map, like every map tool: matches are
 	// highlighted in place, because a list of names answers "is it here" while
 	// the map answers "where".
-	imgui.SetCursorScreenPos(imgui.NewVec2(origin.X+8, origin.Y+8))
-	if imgui.BeginChildStrV("##mapfilter", imgui.NewVec2(200, 26), 0, imgui.WindowFlagsNoScrollbar) {
+	// Clear of the tool rail, which owns the left edge.
+	imgui.SetCursorScreenPos(imgui.NewVec2(origin.X+toolRailWidth()+14, origin.Y+8))
+	if imgui.BeginChildStrV("##mapfilter", imgui.NewVec2(210, imgui.FrameHeight()+10),
+		imgui.ChildFlagsFrameStyle, imgui.WindowFlagsNoScrollbar) {
 		imgui.SetNextItemWidth(-1)
 		imgui.InputTextWithHint("##mapfilterbox", "filter nodes", &a.nodeFilter, 0, nil)
 	}

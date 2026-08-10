@@ -93,14 +93,14 @@ func (a *App) drawRunControls() {
 	if a.playing {
 		label, tip = "\u25ae\u25ae", "pause  (space)"
 	}
-	if imgui.ButtonV(label, imgui.NewVec2(34, 0)) {
+	if primaryButton(label, symbolButtonSize()) {
 		a.playing = !a.playing
 	}
 	if imgui.IsItemHovered() {
 		imgui.SetTooltip(tip)
 	}
 	imgui.SameLine()
-	if imgui.ButtonV("\u25b6\u25ae", imgui.NewVec2(34, 0)) {
+	if imgui.ButtonV("\u25b6\u25ae", symbolButtonSize()) {
 		a.stepEngine(20)
 	}
 	if imgui.IsItemHovered() {
@@ -111,7 +111,13 @@ func (a *App) drawRunControls() {
 	if a.confirmRestart {
 		restart = "sure?"
 	}
-	if imgui.ButtonV(restart, imgui.NewVec2(0, 0)) {
+	restartClicked := false
+	if a.confirmRestart {
+		restartClicked = dangerButton(restart, imgui.NewVec2(0, 0))
+	} else {
+		restartClicked = imgui.ButtonV(restart, symbolButtonSize())
+	}
+	if restartClicked {
 		if a.confirmRestart {
 			a.confirmRestart = false
 			a.buildEngine()
@@ -332,6 +338,11 @@ func (a *App) drawTimeline() {
 
 	// The clipper renders the visible rows and skips the rest by height, so a
 	// hundred-thousand-row ledger scrolls like a hundred-row one.
+	// The ledger is a machine's record: fixed width so times and levels form
+	// columns instead of pretending to.
+	pushMono()
+	defer popMono()
+
 	clip := imgui.NewListClipper()
 	clip.Begin(int32(len(a.evFiltered)))
 	for clip.Step() {

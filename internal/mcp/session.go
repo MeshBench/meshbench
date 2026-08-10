@@ -20,7 +20,7 @@ import (
 // a client mid-conversation is worse than a tool that says "no workbench is
 // running".
 func RegisterSessionTools(s *Server) error {
-	for _, t := range []Tool{
+	tools := []Tool{
 		sessionDescribeTool(),
 		sessionNodesTool(),
 		sessionPlaceTool(),
@@ -31,7 +31,13 @@ func RegisterSessionTools(s *Server) error {
 		sessionConsoleTool(),
 		sessionEventsTool(),
 		sessionPresetTool(),
-	} {
+	}
+	// The chrome verbs: view, panels, layouts, transport, navigation,
+	// windows, tools, fleet, coverage, import. An agent that can change the
+	// scenario but not the window can change what the operator is looking at
+	// without ever seeing it.
+	tools = append(tools, sessionUITools()...)
+	for _, t := range tools {
 		if err := s.Register(t); err != nil {
 			return err
 		}
