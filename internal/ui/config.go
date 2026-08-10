@@ -299,6 +299,45 @@ func (a *App) drawProvisionBody() {
 			"set flood.max.advert 4\nset advert.interval 30")
 	}
 
+	// What this actually sends, before it sends it.
+	//
+	// The commands were only ever visible after the fact, in a console, on a
+	// node somebody thought to open - so an import that came up unnamed
+	// looked like a broken import rather than a setting that was off.
+	imgui.SeparatorText("What each node will be told")
+	if len(a.Nodes) == 0 {
+		textDimWrap("no nodes yet - import or place some")
+	} else {
+		i := a.selected
+		if i < 0 || i >= len(a.Nodes) {
+			i = 0
+		}
+		cmds := a.startupCommands(i)
+		textDim(a.Nodes[i].Name + ", at boot:")
+		if len(cmds) == 0 {
+			textColoured(colWarn, "nothing - every option above is off, so this node "+
+				"comes up with the firmware's own defaults, including its default name")
+		} else {
+			pushMono()
+			for _, c := range cmds {
+				imgui.Text("  " + c)
+			}
+			popMono()
+		}
+		// The fleet-wide count, because one node's commands do not say
+		// whether the other four hundred are covered.
+		configured, bare := 0, 0
+		for k := range a.Nodes {
+			if len(a.startupCommands(k)) > 0 {
+				configured++
+			} else if a.Nodes[k].Kind.RunsFirmware() {
+				bare++
+			}
+		}
+		textDim(fmt.Sprintf("%d nodes get commands, %d would start unconfigured",
+			configured, bare))
+	}
+
 	if a.eng != nil && a.eng.FirmwareCount() > 0 {
 		imgui.Spacing()
 		if imgui.Button("apply to the nodes already running") {
@@ -382,11 +421,11 @@ func (a *App) startupCommands(i int) []string {
 		// Truncated to what the firmware's own preference field holds. Sending
 		// more is not an error the CLI reports — it simply stores the first
 		// part, and a node then answers to a name nobody chose.
-		name := n.Name
-		if len(name) > maxNodeNameLen {
-			name = name[:maxNodeNameLen]
-		}
-		out = append(out, "set name "+name)
+		// Truncated on a rune boundary, not a byte one. ScotMesh names carry
+		// emoji - "West Lomond ⛰️🌤" - and cutting one in half sends the
+		// firmware a partial UTF-8 sequence, which it stores as whatever the
+		// bytes happen to mean.
+		out = append(out, "set name "+truncateRunes(n.Name, maxNodeNameLen))
 	}
 	if a.cfg.setPositionOnStart && n.Kind.Transmits() {
 		out = append(out,
@@ -526,4 +565,19 @@ func (a *App) regionCommands(i int) []string {
 		}
 	}
 	return out
+}
+
+// truncateRunes cuts a string to at most n bytes without splitting a rune.
+func truncateRunes(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	cut := 0
+	for i := range s {
+		if i > n {
+			break
+		}
+		cut = i
+	}
+	return s[:cut]
 }
