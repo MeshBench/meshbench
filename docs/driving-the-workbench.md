@@ -63,10 +63,17 @@ Call it before assuming anything about a session you did not start.
 
 ## Screenshots
 
-KDE Wayland: `spectacle -b -n -f -o file.png` with `WAYLAND_DISPLAY`,
-`XDG_RUNTIME_DIR` and `QT_QPA_PLATFORM=wayland` in the environment.
-ImageMagick's `import -window root` grabs nothing under a Wayland
-compositor — it writes an error and an empty file.
+Capture the workbench **by window name**, which gets the window itself rather
+than whatever the compositor thinks is focused:
+
+    DISPLAY=:1 XAUTHORITY=/run/user/1000/xauth_DqaJas \
+      import -window "MeshBench - main window" shot.png
+
+It works because the workbench is an XWayland client, so it has a real X
+window even though the desktop is Wayland. `import -window root` does not:
+under a Wayland compositor the X root is empty. `spectacle -b -n -f` grabs
+the whole desktop, which is usually the wrong thing - it caught Discord on
+the other monitor rather than the workbench.
 
 ## Making the work visible
 
