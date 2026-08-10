@@ -473,3 +473,14 @@ func SetChannel(idx uint8, name string, secret [16]byte) []byte {
 	copy(b[2+channelNameLen:], secret[:])
 	return b
 }
+
+// SetDeviceTime sets the node's clock, in epoch seconds.
+//
+// A companion needs this as much as a repeater does, and cannot be given it the
+// same way: provisioning speaks the repeater CLI, so `time <epoch>` never
+// reaches a companion build. It timestamps the messages it sends, and those
+// timestamps are what the rest of the mesh judges freshness by.
+func SetDeviceTime(epoch uint32) []byte {
+	b := []byte{byte(CmdSetDeviceTime)}
+	return binary.LittleEndian.AppendUint32(b, epoch)
+}

@@ -577,6 +577,9 @@ func (a *App) configureCompanion(node string) {
 		return
 	}
 	n := a.Nodes[i]
+	// The clock first: a message sent before it is set carries a timestamp
+	// from an epoch nobody else is in.
+	_ = a.compSend(s, proto.SetDeviceTime(uint32(a.scenarioEpoch())))
 	r := n.Radio
 	_ = a.compSend(s, proto.SetRadioParams(
 		uint32(r.CentreHz/1000), uint32(r.BandwidthHz),
