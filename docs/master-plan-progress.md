@@ -49,8 +49,8 @@ verified on elite (build, lint, tests) before it is ticked.
 - [x] ADR-0015: calibration from residuals (excess-path-loss term, ≥30 samples); shadow mode
 - [x] ADR-0011: energy in the workbench (draw from real airtime, survive-December,
       DEM sun-path horizon; behind a Preferences toggle, off by default)
-- [ ] ADR-0012: real emitter objects + per-receiver floor in the budget
+- [x] ADR-0012: real emitter objects + per-receiver floor in the budget
 - [x] ADR-0007: NDJSON event log; Wireshark live pipe (named pipe, same pcapng stream)
 - [x] A/B splitter + bisect over assertions/divergence (Compare panel; BisectNodes)
 - [x] ADR-0008 regression: re-pin speed on companion attach (Attached() through the pipe stack)
-- [ ] GPU coverage kernel when >40 stations (ADR-0025)
+- [x] GPU coverage kernel when >40 stations (ADR-0025; equivalence 0.02 dB vs CPU twin)
