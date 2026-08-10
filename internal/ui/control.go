@@ -3,6 +3,7 @@ package ui
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -248,10 +249,47 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 			Limit int `json:"limit"`
 		}
 		_ = json.Unmarshal(params, &p)
-		if p.Limit <= 0 || p.Limit > 500 {
+		// Clamped, not reset: asking for more than the cap used to return 100,
+		// so a caller asking for everything got less than one asking for
+		// nothing. Use events.dump for the whole ledger.
+		if p.Limit <= 0 {
 			p.Limit = 100
 		}
+		if p.Limit > 500 {
+			p.Limit = 500
+		}
 		return a.ctlEvents(p.Limit), nil
+
+	case "events.dump":
+		// The whole ledger, to a file. A run worth analysing is tens of
+		// thousands of events, and a socket reply is the wrong shape for that.
+		if a.eng == nil {
+			return nil, fmt.Errorf("no simulation")
+		}
+		var pd struct {
+			Path string `json:"path"`
+		}
+		_ = json.Unmarshal(params, &pd)
+		path := pd.Path
+		if path == "" {
+			return nil, fmt.Errorf("events.dump needs a path")
+		}
+		evs := a.events()
+		out := make([]map[string]any, 0, len(evs))
+		for _, ev := range evs {
+			out = append(out, map[string]any{
+				"at_ms": ev.AtMs, "kind": ev.Kind, "from": ev.From, "to": ev.To,
+				"snr_db": ev.SNRdB, "detail": ev.Detail, "packet": ev.PacketID,
+			})
+		}
+		b, err := json.Marshal(out)
+		if err != nil {
+			return nil, err
+		}
+		if err := os.WriteFile(path, b, 0o644); err != nil {
+			return nil, err
+		}
+		return map[string]any{"events": len(out), "path": path}, nil
 
 	case "scoreboard":
 		if a.eng == nil {
