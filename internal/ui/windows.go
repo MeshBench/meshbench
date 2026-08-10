@@ -215,6 +215,23 @@ func (a *App) drawMenuBar() {
 		if imgui.IsKeyPressedBool(imgui.KeyPeriod) {
 			a.stepEngine(20)
 		}
+		// Ctrl +/- zooms the whole UI, like a browser; ctrl 0 goes back to
+		// automatic. Multiplicative steps, so each press feels the same size
+		// at every scale.
+		if imgui.CurrentIO().KeyCtrl() {
+			if imgui.IsKeyPressedBool(imgui.KeyEqual) || imgui.IsKeyPressedBool(imgui.KeyKeypadAdd) {
+				a.requestUIScale(a.uiScale * 1.1)
+			}
+			if imgui.IsKeyPressedBool(imgui.KeyMinus) || imgui.IsKeyPressedBool(imgui.KeyKeypadSubtract) {
+				a.requestUIScale(a.uiScale / 1.1)
+			}
+			if imgui.IsKeyPressedBool(imgui.Key0) {
+				a.cfg.uiScale = 0
+				a.saveConfig()
+				a.requestUIScale(1)
+				a.status = "UI scale automatic again - takes full effect on the next launch"
+			}
+		}
 	}
 }
 

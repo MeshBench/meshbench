@@ -46,6 +46,8 @@ type configState struct {
 
 	// autoWarm computes the link matrix in the background on every rebuild.
 	autoWarm bool
+	// uiScale is the multiplier ctrl+/- last chose; zero means never chosen.
+	uiScale float64
 	// energyEnabled shows the solar/battery modelling. Off by default: it is a
 	// planning specialism, and a panel most studies never open is clutter.
 	energyEnabled bool
@@ -96,16 +98,17 @@ func configPath() string {
 // configFile mirrors configState, because the fields it persists are
 // unexported and encoding/json cannot reach them.
 type configFile struct {
-	SetName        bool   `json:"set_name_on_start"`
-	SetPosition    bool   `json:"set_position_on_start"`
-	SetFloodAdvert bool   `json:"set_flood_max_advert"`
-	FloodMaxAdvert int32  `json:"flood_max_advert"`
-	Extra          string `json:"extra_on_start"`
-	AutoWarm       bool   `json:"auto_warm"`
-	EnergyEnabled  bool   `json:"energy_enabled"`
-	BootSpread     bool   `json:"boot_spread"`
-	Seed           uint64 `json:"seed"`
-	Layer          string `json:"basemap_layer"`
+	SetName        bool    `json:"set_name_on_start"`
+	SetPosition    bool    `json:"set_position_on_start"`
+	SetFloodAdvert bool    `json:"set_flood_max_advert"`
+	FloodMaxAdvert int32   `json:"flood_max_advert"`
+	Extra          string  `json:"extra_on_start"`
+	AutoWarm       bool    `json:"auto_warm"`
+	EnergyEnabled  bool    `json:"energy_enabled"`
+	UIScale        float64 `json:"ui_scale,omitempty"`
+	BootSpread     bool    `json:"boot_spread"`
+	Seed           uint64  `json:"seed"`
+	Layer          string  `json:"basemap_layer"`
 }
 
 func (a *App) loadConfig() {
@@ -128,6 +131,7 @@ func (a *App) loadConfig() {
 	a.cfg.extraOnStart = f.Extra
 	a.cfg.autoWarm = f.AutoWarm
 	a.cfg.energyEnabled = f.EnergyEnabled
+	a.cfg.uiScale = f.UIScale
 	a.cfg.bootSpread = f.BootSpread
 	if f.Seed != 0 {
 		a.seed = f.Seed
@@ -148,6 +152,7 @@ func (a *App) saveConfig() {
 		SetFloodAdvert: a.cfg.setFloodMaxAdvert, FloodMaxAdvert: a.cfg.floodMaxAdvert,
 		Extra: a.cfg.extraOnStart, AutoWarm: a.cfg.autoWarm,
 		EnergyEnabled: a.cfg.energyEnabled,
+		UIScale:       a.cfg.uiScale,
 		BootSpread:    a.cfg.bootSpread, Seed: a.seed, Layer: a.layerID,
 	}
 	b, err := json.MarshalIndent(f, "", "  ")

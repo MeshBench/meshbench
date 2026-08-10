@@ -232,6 +232,18 @@ func (a *App) handleControl(method string, params json.RawMessage) (any, error) 
 			}
 		}
 		return nil, fmt.Errorf("no workspace %q", p.Name)
+	case "ui.scale":
+		var p struct {
+			Factor float64 `json:"factor"`
+		}
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, err
+		}
+		if p.Factor <= 0 {
+			return map[string]any{"scale": a.uiScale}, nil
+		}
+		a.requestUIScale(p.Factor)
+		return map[string]any{"requested": p.Factor}, nil
 	case "view.save":
 		var p struct {
 			Name string `json:"name"`
@@ -411,6 +423,7 @@ func (a *App) ctlPanels() map[string]any {
 	return map[string]any{
 		"panels":                 panels,
 		"workspace":              a.ws.String(),
+		"ui_scale":               a.uiScale,
 		"os_windows_beyond_main": extra,
 	}
 }
