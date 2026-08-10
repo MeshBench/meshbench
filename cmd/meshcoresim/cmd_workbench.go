@@ -46,11 +46,26 @@ func runWorkbench(ctx context.Context, args []string) error {
 	// Not nostalgia: Dear ImGui's multi-viewport support — dragging a node's
 	// console out to a second monitor as its own OS window — cannot work under
 	// Wayland, because the protocol forbids a client from positioning windows
-	// globally. GLFW falls back to X11 when WAYLAND_DISPLAY is absent, and
-	// XWayland makes that seamless. Anyone who prefers native Wayland can have
-	// it, minus detachable windows.
+	// globally. Anyone who prefers native Wayland can have it with -wayland,
+	// minus detachable windows.
+	//
+	// Unsetting WAYLAND_DISPLAY is not enough, and that was the bug that made
+	// every normal launch quietly come up single-window with dead pop-out
+	// buttons: wl_display_connect falls back to $XDG_RUNTIME_DIR/wayland-0
+	// when the variable is absent, so GLFW still found the compositor.
+	//
+	// GLFW's platform tiebreak (platform.c) is explicit: XDG_SESSION_TYPE=x11
+	// plus a DISPLAY hard-selects X11 before any Wayland probe runs. Both
+	// variables are set because the tiebreak needs the pair — and
+	// WAYLAND_DISPLAY still goes away so nothing else in the stack picks it
+	// up. A bogus WAYLAND_DISPLAY instead of this crashes: with
+	// XDG_SESSION_TYPE=wayland it hard-selects Wayland and the failed connect
+	// is fatal rather than a fallback.
 	if !*wayland {
 		_ = os.Unsetenv("WAYLAND_DISPLAY")
+		if os.Getenv("DISPLAY") != "" {
+			_ = os.Setenv("XDG_SESSION_TYPE", "x11")
+		}
 	}
 
 	t, err := store()
