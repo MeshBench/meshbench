@@ -110,8 +110,12 @@ func (a *App) drawMenuBar() {
 		imgui.Separator()
 		imgui.Separator()
 		if a.eng != nil && a.eng.FirmwareCount() == 0 {
-			if imgui.MenuItemBool("run real firmware") {
+			if imgui.MenuItemBool("start MeshCore on every node now") {
 				a.attachFirmware()
+			}
+			if imgui.IsItemHovered() {
+				imgui.SetTooltip("Play does this for you when \"real firmware\" is ticked in\n" +
+					"the strip; this is for starting it without running the clock.")
 			}
 		} else if a.eng != nil {
 			textDim(fmt.Sprintf("%d nodes on real firmware", a.eng.FirmwareCount()))

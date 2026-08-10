@@ -150,6 +150,15 @@ func (a *App) drawInferBody() {
 	}
 	imgui.SameLine()
 	textDim(fmt.Sprintf("%d applied", s.appliedN))
+	if s.appliedN > 0 {
+		if a.eng != nil && a.eng.FirmwareCount() > 0 {
+			textDimWrap("sent to the running nodes now, and issued again whenever firmware " +
+				"starts from here on")
+		} else {
+			textDimWrap("stored on the nodes: the region commands are issued when firmware " +
+				"starts, which play does for you")
+		}
+	}
 
 	if !imgui.BeginTableV("##inferred", 5,
 		imgui.TableFlagsBorders|imgui.TableFlagsRowBg|imgui.TableFlagsScrollY|

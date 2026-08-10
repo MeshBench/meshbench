@@ -95,6 +95,17 @@ func (a *App) drawRunControls() {
 	}
 	if primaryButton(label, symbolButtonSize()) {
 		a.playing = !a.playing
+		// Play means run. Real firmware was a second button that had to be
+		// pressed first, in the right order, or the run was a different
+		// simulation than intended - two decisions where the operator has
+		// one. Whether the relays are MeshCore's own is a property of the
+		// run, set once beside the transport, and play honours it.
+		if a.playing {
+			a.ensureConfig()
+			if a.cfg.realFirmware && a.eng != nil && a.eng.FirmwareCount() == 0 {
+				a.attachFirmware()
+			}
+		}
 	}
 	if imgui.IsItemHovered() {
 		imgui.SetTooltip(tip)
@@ -135,24 +146,25 @@ func (a *App) drawRunControls() {
 	// machine and starting one process per node is not free. Without it the
 	// channel, the collisions and the ledger are all still real; what is
 	// missing is that the relay decisions are MeshCore's own.
-	if a.eng.FirmwareCount() > 0 {
-		textDim(fmt.Sprintf("%d on fw", a.eng.FirmwareCount()))
+	// What kind of run this is, stated once rather than started separately.
+	a.ensureConfig()
+	if n := a.eng.FirmwareCount(); n > 0 {
+		textColoured(colOK, fmt.Sprintf("%d on MeshCore", n))
 		if imgui.IsItemHovered() {
-			imgui.SetTooltip(fmt.Sprintf("%d nodes running real MeshCore firmware", a.eng.FirmwareCount()))
+			imgui.SetTooltip(fmt.Sprintf("%d nodes are running real MeshCore firmware, so the\n"+
+				"relay decisions are theirs. Restart to change this.", n))
 		}
 	} else {
-		if imgui.Button("fw \u25b6") {
-			// Through attachFirmware, not straight to AttachNative: that path
-			// skipped the on-start provisioning entirely, so nodes started
-			// from the strip came up unnamed, unpositioned and unscoped while
-			// the same action from the menu configured them. It also used a
-			// hardcoded seed, which is a different run from the one the
-			// toolbar says is loaded.
-			a.attachFirmware()
+		real := a.cfg.realFirmware
+		if imgui.Checkbox("real firmware", &real) {
+			a.cfg.realFirmware = real
+			a.saveConfig()
 		}
 		if imgui.IsItemHovered() {
-			imgui.SetTooltip("run real firmware: one MeshCore process per node - the relay\n" +
-				"decisions become MeshCore's own")
+			imgui.SetTooltip("On: play starts one MeshCore process per node, and every relay\n" +
+				"decision is the firmware's own.\n\n" +
+				"Off: the channel, the collisions and the ledger are still real, but\n" +
+				"nothing decides to relay - useful for link work, and much cheaper.")
 		}
 	}
 

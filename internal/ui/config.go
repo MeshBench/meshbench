@@ -52,6 +52,11 @@ type configState struct {
 	// window, so it is a door with a visible switch.
 	controlEnabled bool
 
+	// realFirmware makes play start MeshCore on every node. On by default:
+	// running the real firmware is the point of this workbench, and it was a
+	// second button people forgot to press.
+	realFirmware bool
+
 	// uiScale is the multiplier ctrl+/- last chose; zero means never chosen.
 	uiScale float64
 	// energyEnabled shows the solar/battery modelling. Off by default: it is a
@@ -88,6 +93,7 @@ func (a *App) ensureConfig() {
 	a.cfg.bootSpread = true
 	a.cfg.energyEnabled = false
 	a.cfg.controlEnabled = true
+	a.cfg.realFirmware = true
 
 	// A saved file wins over these defaults, and a missing one leaves them.
 	a.loadConfig()
@@ -113,6 +119,7 @@ type configFile struct {
 	AutoWarm       bool    `json:"auto_warm"`
 	EnergyEnabled  bool    `json:"energy_enabled"`
 	ControlEnabled *bool   `json:"control_enabled,omitempty"`
+	RealFirmware   *bool   `json:"real_firmware,omitempty"`
 	UIScale        float64 `json:"ui_scale,omitempty"`
 	BootSpread     bool    `json:"boot_spread"`
 	Seed           uint64  `json:"seed"`
@@ -144,6 +151,9 @@ func (a *App) loadConfig() {
 	if f.ControlEnabled != nil {
 		a.cfg.controlEnabled = *f.ControlEnabled
 	}
+	if f.RealFirmware != nil {
+		a.cfg.realFirmware = *f.RealFirmware
+	}
 	a.cfg.uiScale = f.UIScale
 	a.cfg.bootSpread = f.BootSpread
 	if f.Seed != 0 {
@@ -166,6 +176,7 @@ func (a *App) saveConfig() {
 		Extra: a.cfg.extraOnStart, AutoWarm: a.cfg.autoWarm,
 		EnergyEnabled:  a.cfg.energyEnabled,
 		ControlEnabled: &a.cfg.controlEnabled,
+		RealFirmware:   &a.cfg.realFirmware,
 		UIScale:        a.cfg.uiScale,
 		BootSpread:     a.cfg.bootSpread, Seed: a.seed, Layer: a.layerID,
 	}
