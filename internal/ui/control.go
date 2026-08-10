@@ -923,6 +923,7 @@ func (a *App) handleUICommand(method string, params json.RawMessage) (any, bool,
 		for _, m := range s.messages {
 			msgs = append(msgs, map[string]any{
 				"channel": m.ChannelIdx, "text": m.Text, "snr_db": m.SNRdB,
+				"from": m.SenderName, "hops": m.PathLen, "mine": m.Mine,
 				"at": m.At})
 		}
 		contacts := []map[string]any{}
