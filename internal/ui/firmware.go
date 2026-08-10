@@ -251,9 +251,9 @@ func (a *App) drawFirmwarePicker(n *scenario.Node) {
 	default:
 		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.55, 0.58, 0.65, 1))
 		if a.fw.isCached(role, version) {
-			imgui.TextWrapped(fmt.Sprintf("%s @ %s — downloaded, starts instantly", role, version))
+			imgui.TextWrapped(fmt.Sprintf("%s @ %s - downloaded, starts instantly", role, version))
 		} else {
-			imgui.TextWrapped(fmt.Sprintf("%s @ %s — downloaded on first run", role, version))
+			imgui.TextWrapped(fmt.Sprintf("%s @ %s - downloaded on first run", role, version))
 		}
 		imgui.PopStyleColor()
 	}
@@ -276,7 +276,7 @@ func containsStr(list []string, want string) bool {
 // the dropdown is not the version that replied.
 func (a *App) rebuildForFirmware() {
 	a.buildEngine()
-	a.status = "firmware changed — press \"run real firmware\" to start the new build"
+	a.status = "firmware changed - press \"run real firmware\" to start the new build"
 }
 
 // drawFirmwareWindow is the library: what is published, what is on this

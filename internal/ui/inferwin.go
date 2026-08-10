@@ -63,7 +63,7 @@ func (a *App) drawInferBody() {
 
 	imgui.TextWrapped("Reads what each node's own traffic proves about its configuration. " +
 		"Separate from the study area, which only decides which nodes are in " +
-		"the scenario — an already-loaded network is fine, this reads packets, not nodes.")
+		"the scenario - an already-loaded network is fine, this reads packets, not nodes.")
 	imgui.TextDisabled("reading from " + a.imp.url)
 
 	imgui.SetNextItemWidth(120)
@@ -78,7 +78,7 @@ func (a *App) drawInferBody() {
 		&s.extraRegions, 0, nil)
 	if imgui.IsItemHovered() {
 		imgui.SetTooltip("Added to the ones CoreScope lists. A region's key is not in the\n" +
-			"packet, so a name is the only way to check a code against it — one\n" +
+			"packet, so a name is the only way to check a code against it - one\n" +
 			"nobody names shows as scoped but unidentified.")
 	}
 
@@ -101,7 +101,7 @@ func (a *App) drawInferBody() {
 		return
 	}
 
-	imgui.SeparatorText(fmt.Sprintf("Found — %d packets, %d nodes, %d candidate regions",
+	imgui.SeparatorText(fmt.Sprintf("Found - %d packets, %d nodes, %d candidate regions",
 		s.packets, len(s.result), len(s.regions)))
 	if len(s.regions) > 0 {
 		imgui.TextDisabled("candidates: " + strings.Join(s.regions, ", "))
@@ -116,7 +116,7 @@ func (a *App) drawInferBody() {
 	imgui.SameLine()
 	imgui.Checkbox("default scope", &s.applyScope)
 	if imgui.IsItemHovered() {
-		imgui.SetTooltip("From what a node originates — its own adverts — because that is\n" +
+		imgui.SetTooltip("From what a node originates - its own adverts - because that is\n" +
 			"what a default scope governs.")
 	}
 	imgui.SameLine()

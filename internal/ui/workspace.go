@@ -130,21 +130,30 @@ func (a *App) switchWorkspace(w workspace) {
 	a.openPanelsFor(w)
 }
 
-// openPanelsFor opens the panels a workspace is about.
+// openPanelsFor makes a workspace show its own panels and only its own.
 //
-// Opens, never closes: a panel the operator had open stays open, because a
-// workspace switch is a change of emphasis, not a decision about every window.
+// The first version only ever opened, on the theory that closing a panel was
+// a statement about the panel. In practice every switch accumulated: by the
+// fourth workspace the bottom dock was ten tabs deep, every preset looked
+// identical, and "messy" was the correct word. A workspace now means what it
+// shows - with one exception: a panel popped out to its own OS window was
+// placed there deliberately, on some other monitor, and stays.
 func (a *App) openPanelsFor(w workspace) {
 	names := map[workspace][]string{
 		wsPlan:     {"Inspector", "Nodes", "Link", "Import"},
 		wsRun:      {"Events", "Packet timeline", "Schedule", "Scoreboard", "Compare"},
 		wsDebugRF:  {"Waterfall", "Budget", "Link", "Packet timeline"},
-		wsFirmware: {"Console", "Events"},
+		wsFirmware: {"Console", "Events", "Inspector", "Nodes"},
 	}
+	want := map[string]bool{}
 	for _, n := range names[w] {
-		if p := a.panelByName(n); p != nil {
-			p.open = true
+		want[n] = true
+	}
+	for _, p := range a.panelRegistry() {
+		if p.ownWindow {
+			continue
 		}
+		p.open = want[p.name]
 	}
 }
 
@@ -185,6 +194,9 @@ func (a *App) buildWorkspace(dockID imgui.ID) {
 	case wsFirmware:
 		dock(right, "Inspector", "Nodes")
 		dock(bottom, "Console", "Events")
+		// The console is what this workspace is for; a sliver of it under a
+		// dominant map was the preset not keeping its promise.
+		imgui.InternalDockBuilderSetNodeSize(bottom, imgui.NewVec2(vp.Size().X, vp.Size().Y*0.45))
 	default: // Plan
 		dock(right, "Inspector", "Nodes", "Import")
 		dock(bottom, "Link", "Packet timeline")

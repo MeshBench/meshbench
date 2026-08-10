@@ -154,9 +154,9 @@ func (a *App) drawImportBody() {
 	}
 	imgui.SameLine()
 	if n := len(a.bnd.chosen); n > 0 {
-		imgui.TextDisabled(fmt.Sprintf("%d area(s) active - the preview is filtered by them", n))
+		imgui.TextDisabled(fmt.Sprintf("%d area(s) filter the preview", n))
 	} else {
-		imgui.TextDisabled("none set - everything the source has arrives")
+		imgui.TextDisabled("none set - the whole source arrives")
 	}
 	imgui.SetNextItemWidth(-1)
 	imgui.InputTextWithHint("##impboundary", "...or a GeoJSON file path", &a.boundaryPath, 0, nil)

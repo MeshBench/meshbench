@@ -426,7 +426,6 @@ func (a *App) frame() {
 	imgui.BeginV("##root", nil, flags)
 
 	a.drawMenuBar()
-	a.drawHeader()
 	imgui.Separator()
 	a.drawToolbar()
 	// The run strip is chrome, not a panel: what the simulation is doing right
@@ -553,20 +552,6 @@ func (a *App) drawToolbar() {
 		}
 	}
 	imgui.Separator()
-}
-
-func (a *App) drawHeader() {
-	imgui.Text("MeshcoreSim")
-	imgui.SameLine()
-	imgui.TextDisabled("- real firmware, real RF")
-
-	// The honesty line is in the chrome, not in a help menu. CLAUDE.md requires
-	// the simulator to say that it is kinder than the air, and something a user
-	// has to go looking for does not count as saying it.
-	imgui.SameLineV(0, 24)
-	imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.72, 0.25, 1))
-	imgui.Text("Results are a best case: no multipath, bare-earth terrain, idealised demodulator.")
-	imgui.PopStyleColor()
 }
 
 // drawLayerPicker chooses what is drawn under the nodes.

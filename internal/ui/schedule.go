@@ -259,11 +259,11 @@ func (a *App) runSchedule() {
 func (a *App) drawCompareBody() {
 	s := &a.sched
 	if a.eng == nil {
-		imgui.TextDisabled("no simulation yet - press run in the strip above")
+		imgui.TextDisabled("no simulation yet - press play in the strip above")
 		return
 	}
 	imgui.SeparatorText("Compare with a baseline")
-	imgui.TextWrapped("Snapshot this run, change something — firmware, settings, geometry — " +
+	imgui.TextWrapped("Snapshot this run, change something - firmware, settings, geometry - " +
 		"then run again with the same seed and see where the two first disagree.")
 	if imgui.Button("snapshot as baseline") && a.eng != nil {
 		s.baseline = a.eng.Events()
@@ -292,7 +292,7 @@ func (a *App) drawCompareBody() {
 
 	imgui.SeparatorText("Stress test")
 	imgui.TextWrapped("Ramps the offered load until delivery stops keeping up, and reports the " +
-		"knee — how much traffic this particular network can actually carry.")
+		"knee - how much traffic this particular network can actually carry.")
 	if s.stressOn {
 		imgui.Text(fmt.Sprintf("running: one message every %.1f s", float64(s.stressEveryMs)/1000))
 		if imgui.Button("stop") {

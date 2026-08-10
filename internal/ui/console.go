@@ -129,7 +129,7 @@ func (a *App) drawConsoleFor(name string) {
 			"nothing on the other end, and a simulated prompt would be a claim about a program " +
 			"that is not running.")
 		imgui.Spacing()
-		imgui.TextDisabled("Press \"run real firmware\" on the Traffic tab.")
+		imgui.TextDisabled("Press \"run real firmware\" in the strip above.")
 		return
 	}
 
@@ -137,7 +137,7 @@ func (a *App) drawConsoleFor(name string) {
 	// nobody listens to is a console that looks alive and answers nothing.
 	if node.Firmware.Bridge.Claimed() {
 		imgui.TextWrapped("A companion client holds this node's serial port, so the console " +
-			"is not reading it. Two protocols on one UART is neither — disconnect the " +
+			"is not reading it. Two protocols on one UART is neither - disconnect the " +
 			"client on the Connect tab to take it back.")
 		return
 	}
@@ -151,7 +151,7 @@ func (a *App) drawConsoleFor(name string) {
 	buf.nowMs = a.eng.NowMs()
 	buf.mu.Unlock()
 
-	imgui.Text(name + " — serial console")
+	imgui.Text(name + " - serial console")
 	imgui.SameLine()
 	imgui.TextDisabled(fmt.Sprintf("%s, t = %.2f s", node.Firmware.Backend.Kind(),
 		float64(a.eng.NowMs())/1000))

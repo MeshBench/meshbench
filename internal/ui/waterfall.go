@@ -81,7 +81,7 @@ func (a *App) drawWaterfall() {
 		frame := int((mouse.Y - origin.Y) / h * float32(len(a.wf.spec.Frames)))
 		a.selectBurst(frame)
 	}
-	imgui.TextDisabled(fmt.Sprintf("%.0f kHz across, %.1f ms deep, floor %.0f dB — click a burst",
+	imgui.TextDisabled(fmt.Sprintf("%.0f kHz across, %.1f ms deep, floor %.0f dB - click a burst",
 		float64(len(a.wf.spec.Frames[0]))*a.wf.spec.BinHz/1000,
 		float64(len(a.wf.spec.Frames))*a.wf.spec.FrameSeconds*1000,
 		a.wf.spec.NoiseFloorDB))
@@ -229,7 +229,7 @@ func (a *App) drawSymbolView() {
 	case a.wf.ratioDB >= engine.CaptureThresholdDB():
 		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.45, 0.85, 0.5, 1))
 		imgui.TextWrapped(fmt.Sprintf("The stronger signal captured, by %.1f dB. "+
-			"The weaker frame is lost — not corrupted, never demodulated.", a.wf.ratioDB))
+			"The weaker frame is lost - not corrupted, never demodulated.", a.wf.ratioDB))
 		imgui.PopStyleColor()
 	default:
 		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.72, 0.25, 1))
