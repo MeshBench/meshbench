@@ -42,7 +42,7 @@ const waterfallFFT = 256
 func (a *App) drawWaterfall() {
 	from, _ := a.Link()
 	if from < 0 {
-		imgui.TextDisabled("select a node to listen from")
+		textDim("select a node to listen from")
 		return
 	}
 	name := a.Nodes[from].Name
@@ -53,16 +53,16 @@ func (a *App) drawWaterfall() {
 		a.captureWaterfall(from)
 	}
 	imgui.SameLine()
-	imgui.TextDisabled("a window of baseband at this receiver, from the same channel the nodes use")
+	textDim("a window of baseband at this receiver, from the same channel the nodes use")
 
 	if a.wf.err != "" {
 		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.72, 0.25, 1))
-		imgui.TextWrapped(a.wf.err)
+		textWrap(a.wf.err)
 		imgui.PopStyleColor()
 		return
 	}
 	if a.wf.tex == nil {
-		imgui.TextDisabled("nothing captured yet - place an SDR observer and run; it records what it hears")
+		textDim("nothing captured yet - place an SDR observer and run; it records what it hears")
 		return
 	}
 
@@ -81,14 +81,14 @@ func (a *App) drawWaterfall() {
 		frame := int((mouse.Y - origin.Y) / h * float32(len(a.wf.spec.Frames)))
 		a.selectBurst(frame)
 	}
-	imgui.TextDisabled(fmt.Sprintf("%.0f kHz across, %.1f ms deep, floor %.0f dB - click a burst",
+	textDim(fmt.Sprintf("%.0f kHz across, %.1f ms deep, floor %.0f dB - click a burst",
 		float64(len(a.wf.spec.Frames[0]))*a.wf.spec.BinHz/1000,
 		float64(len(a.wf.spec.Frames))*a.wf.spec.FrameSeconds*1000,
 		a.wf.spec.NoiseFloorDB))
 
 	imgui.SeparatorText("Symbol view")
 	if a.wf.symbols == nil {
-		imgui.TextDisabled("click a burst above to dechirp it")
+		textDim("click a burst above to dechirp it")
 		return
 	}
 	a.drawSymbolView()
@@ -228,12 +228,12 @@ func (a *App) drawSymbolView() {
 	switch {
 	case a.wf.ratioDB >= engine.CaptureThresholdDB():
 		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.45, 0.85, 0.5, 1))
-		imgui.TextWrapped(fmt.Sprintf("The stronger signal captured, by %.1f dB. "+
+		textWrap(fmt.Sprintf("The stronger signal captured, by %.1f dB. "+
 			"The weaker frame is lost - not corrupted, never demodulated.", a.wf.ratioDB))
 		imgui.PopStyleColor()
 	default:
 		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.72, 0.25, 1))
-		imgui.TextWrapped(fmt.Sprintf("No capture: %.1f dB between them, under the %.0f dB "+
+		textWrap(fmt.Sprintf("No capture: %.1f dB between them, under the %.0f dB "+
 			"a receiver needs to lock the stronger one. Both are likely lost.",
 			a.wf.ratioDB, engine.CaptureThresholdDB()))
 		imgui.PopStyleColor()

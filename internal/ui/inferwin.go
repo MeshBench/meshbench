@@ -28,10 +28,10 @@ type inferState struct {
 	// list. A region nobody names cannot be identified.
 	extraRegions string
 
-	maxPackets int32
-	running    bool
-	fetched    atomic.Int64
-	done       chan inferResult
+	lookbackH int32
+	running   bool
+	fetched   atomic.Int64
+	done      chan inferResult
 
 	result   map[string]*provider.Inferred
 	regions  []string
@@ -56,21 +56,25 @@ type inferResult struct {
 // stale, so behaviour is the better source.
 func (a *App) drawInferBody() {
 	s := &a.infer
-	if s.maxPackets == 0 {
-		s.maxPackets = 5000
+	if s.lookbackH == 0 {
+		s.lookbackH = 24
 		s.applyRegions, s.applyScope, s.applyHops = true, true, false
 	}
 
-	imgui.TextWrapped("Reads what each node's own traffic proves about its configuration. " +
+	textWrap("Reads what each node's own traffic proves about its configuration. " +
 		"Separate from the study area, which only decides which nodes are in " +
 		"the scenario - an already-loaded network is fine, this reads packets, not nodes.")
-	imgui.TextDisabled("reading from " + a.imp.url)
+	textDim("reading from " + a.imp.url)
 
-	imgui.SetNextItemWidth(120)
-	imgui.InputInt("packets to walk", &s.maxPackets)
+	imgui.SetNextItemWidth(110)
+	imgui.InputInt("hours of traffic to read", &s.lookbackH)
+	if s.lookbackH < 1 {
+		s.lookbackH = 1
+	}
 	if imgui.IsItemHovered() {
-		imgui.SetTooltip("Newest first. More packets means more nodes seen and more\n" +
-			"regions confirmed; a quiet network needs a longer walk.")
+		imgui.SetTooltip("Newest first, back this far. Hours rather than a packet count:\n" +
+			"a quiet night and a busy afternoon hold wildly different numbers of\n" +
+			"packets, and coverage is what decides whether a region is confirmed.")
 	}
 
 	imgui.SetNextItemWidth(-1)
@@ -94,7 +98,7 @@ func (a *App) drawInferBody() {
 
 	if s.err != "" {
 		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.9, 0.4, 0.4, 1))
-		imgui.TextWrapped(s.err)
+		textWrap(s.err)
 		imgui.PopStyleColor()
 	}
 	if s.result == nil {
@@ -104,7 +108,7 @@ func (a *App) drawInferBody() {
 	imgui.SeparatorText(fmt.Sprintf("Found - %d packets, %d nodes, %d candidate regions",
 		s.packets, len(s.result), len(s.regions)))
 	if len(s.regions) > 0 {
-		imgui.TextDisabled("candidates: " + strings.Join(s.regions, ", "))
+		textDim("candidates: " + strings.Join(s.regions, ", "))
 	}
 
 	imgui.Checkbox("regions each node holds", &s.applyRegions)
@@ -131,7 +135,7 @@ func (a *App) drawInferBody() {
 		s.appliedN = a.applyInference()
 	}
 	imgui.SameLine()
-	imgui.TextDisabled(fmt.Sprintf("%d applied", s.appliedN))
+	textDim(fmt.Sprintf("%d applied", s.appliedN))
 
 	if !imgui.BeginTableV("##inferred", 5,
 		imgui.TableFlagsBorders|imgui.TableFlagsRowBg|imgui.TableFlagsScrollY,
@@ -160,24 +164,24 @@ func (a *App) drawInferBody() {
 			// Named in the traffic but absent from the scenario. Worth showing:
 			// it is usually a node the import filtered out, and silently
 			// dropping it from this table would hide that.
-			imgui.TextDisabled("no")
+			textDim("no")
 		}
 		imgui.TableSetColumnIndex(2)
 		if len(v.Regions) > 0 {
 			imgui.Text(strings.Join(v.Regions, ", "))
 		} else if v.ScopedRelay {
-			imgui.TextDisabled("scoped, unidentified")
+			textDim("scoped, unidentified")
 		} else {
-			imgui.TextDisabled("-")
+			textDim("-")
 		}
 		imgui.TableSetColumnIndex(3)
 		if v.DefaultScope != "" {
 			imgui.Text(v.DefaultScope)
 		} else {
-			imgui.TextDisabled("-")
+			textDim("-")
 		}
 		imgui.TableSetColumnIndex(4)
-		imgui.TextDisabled(v.Summary())
+		textDim(v.Summary())
 	}
 	imgui.EndTable()
 }
@@ -189,7 +193,7 @@ func (a *App) startInference() {
 	s.done = make(chan inferResult, 1)
 
 	url, token := strings.TrimRight(a.imp.url, "/"), a.imp.token
-	max := int(s.maxPackets)
+	since := time.Now().Add(-time.Duration(s.lookbackH) * time.Hour)
 	extra := s.extraRegions
 	ch := s.done
 	go func() {
@@ -210,7 +214,7 @@ func (a *App) startInference() {
 			}
 		}
 
-		packets, err := cs.Packets(ctx, max, func(n int) { s.fetched.Store(int64(n)) })
+		packets, err := cs.PacketsSince(ctx, since, func(n int) { s.fetched.Store(int64(n)) })
 		if err != nil && len(packets) == 0 {
 			ch <- inferResult{err: err}
 			return

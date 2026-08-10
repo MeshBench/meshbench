@@ -77,7 +77,7 @@ func (a *App) drawLayerControls(origin imgui.Vec2, w float32) {
 			}
 			if s := a.fetchState(); s != "" {
 				imgui.SameLine()
-				imgui.TextDisabled(s)
+				textDim(s)
 			}
 		}
 		imgui.EndChild()
@@ -87,7 +87,11 @@ func (a *App) drawLayerControls(origin imgui.Vec2, w float32) {
 	// highlighted in place, because a list of names answers "is it here" while
 	// the map answers "where".
 	// Clear of the tool rail, which owns the left edge.
-	imgui.SetCursorScreenPos(imgui.NewVec2(origin.X+toolRailWidth()+14, origin.Y+8))
+	left := a.railRight + 10
+	if left < origin.X+8 {
+		left = origin.X + 8
+	}
+	imgui.SetCursorScreenPos(imgui.NewVec2(left, origin.Y+8))
 	if imgui.BeginChildStrV("##mapfilter", imgui.NewVec2(210, imgui.FrameHeight()+10),
 		imgui.ChildFlagsFrameStyle, imgui.WindowFlagsNoScrollbar) {
 		imgui.SetNextItemWidth(-1)

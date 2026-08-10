@@ -162,3 +162,99 @@ func textColoured(c imgui.Vec4, s string) {
 	imgui.TextWrapped(s)
 	imgui.PopStyleColor()
 }
+
+// text and textWrap print a *string*, not a format.
+//
+// imgui's Text family is printf-shaped, so any string containing a percent
+// sign is reinterpreted: "lowest charge 95% on 26 December" came out as
+// "lowest charge 9536040001700n 26 December". Every duty cycle, coverage
+// figure and charge level in this application contains a percent sign, so
+// these two helpers exist and the raw calls do not get used.
+func textWrap(s string) {
+	imgui.PushTextWrapPosV(0)
+	imgui.TextUnformattedV(s)
+	imgui.PopTextWrapPos()
+}
+
+// textDim does not wrap. Wrapping is measured against the *window's* width,
+// and in a menu popup that is the width of the longest item so far - which
+// turned the Help menu into one letter per line. Panels that want wrapped
+// secondary prose ask for it explicitly.
+func textDim(s string) {
+	imgui.PushStyleColorVec4(imgui.ColText, colTextDim)
+	imgui.TextUnformattedV(s)
+	imgui.PopStyleColor()
+}
+
+// textDimWrap is the wrapped variant, for panel bodies where the width is
+// the panel's own and wrapping is what is wanted.
+func textDimWrap(s string) {
+	imgui.PushStyleColorVec4(imgui.ColText, colTextDim)
+	textWrap(s)
+	imgui.PopStyleColor()
+}
+
+// numF64 is a typed number, not a slider.
+//
+// A slider is for a value you explore; a mast height, a transmit power and a
+// battery capacity are values you *know*, and dragging a bar to land on 22
+// dBm is a worse way to enter 22 than typing it. Drag still works for a
+// quick sweep - imgui's input fields drag when you pull sideways - and the
+// value is clamped to what the model accepts.
+func numF64(label string, v *float64, lo, hi float64, format string) bool {
+	f := float32(*v)
+	imgui.SetNextItemWidth(110)
+	changed := imgui.InputFloatV("##"+label, &f, 0, 0, format, imgui.InputTextFlagsCharsDecimal)
+	if changed {
+		d := float64(f)
+		if d < lo {
+			d = lo
+		}
+		if d > hi {
+			d = hi
+		}
+		*v = d
+	}
+	imgui.SameLine()
+	textDim(label)
+	return changed
+}
+
+// numF32 is the same for the float32 fields the UI state holds directly.
+func numF32(label string, v *float32, lo, hi float32, format string) bool {
+	imgui.SetNextItemWidth(110)
+	changed := imgui.InputFloatV("##"+label, v, 0, 0, format, imgui.InputTextFlagsCharsDecimal)
+	if changed {
+		if *v < lo {
+			*v = lo
+		}
+		if *v > hi {
+			*v = hi
+		}
+	}
+	imgui.SameLine()
+	textDim(label)
+	return changed
+}
+
+// windowSize sizes a window in characters, not pixels.
+//
+// Every default size in this application was a pixel constant chosen against
+// a 13 px bitmap font. Change the font, the scale or the DPI and each one is
+// wrong in its own direction - which is why fixing them one at a time never
+// converged: a window holding seventy characters of prose is seventy
+// characters wide whatever the font is, and only the *measurement* changes.
+//
+// cols is how many characters of body text must fit; rows is how many lines.
+// Both include the frame's own padding, so callers say what the content
+// needs and nothing else.
+func (a *App) windowSize(cols, rows float32) imgui.Vec2 {
+	ch := imgui.CalcTextSize("0")
+	if ch.X <= 0 {
+		ch = imgui.NewVec2(8, 16)
+	}
+	style := imgui.CurrentStyle()
+	padX := style.WindowPadding().X*2 + style.ScrollbarSize() + 8
+	padY := style.WindowPadding().Y*2 + imgui.FrameHeight()*2
+	return imgui.NewVec2(cols*ch.X+padX, rows*(ch.Y+style.ItemSpacing().Y)+padY)
+}

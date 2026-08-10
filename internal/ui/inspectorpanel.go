@@ -23,23 +23,23 @@ func (a *App) drawNodeInspector(i int) {
 
 	imgui.Text(n.Name)
 	imgui.SameLine()
-	imgui.TextDisabled(kindLabel(n.Kind))
+	textDim(kindLabel(n.Kind))
 	if n.PublicKey != "" {
-		imgui.TextDisabled("key " + shortPubKey(n.PublicKey))
+		textDim("key " + shortPubKey(n.PublicKey))
 	}
 	imgui.Text(fmt.Sprintf("%.5f, %.5f", n.Position.Lat, n.Position.Lon))
 	if n.UncertaintyKm > 0.2 {
 		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.72, 0.25, 1))
-		imgui.TextWrapped(fmt.Sprintf("position known to +/-%.1f km - results involving "+
+		textWrap(fmt.Sprintf("position known to +/-%.1f km - results involving "+
 			"this node carry that", n.UncertaintyKm))
 		imgui.PopStyleColor()
 	}
 
-	changed := sliderF64("height m", &n.HeightAGLm, 1, 60, "%.1f")
+	changed := numF64("height m", &n.HeightAGLm, 0, 300, "%.1f")
 	if n.Kind.Transmits() {
-		changed = sliderF64("tx dBm", &n.TxPowerDBm, 2, 30, "%.0f") || changed
+		changed = numF64("tx dBm", &n.TxPowerDBm, 2, 30, "%.0f") || changed
 	} else {
-		imgui.TextDisabled("an SDR observer transmits nothing")
+		textDim("an SDR observer transmits nothing")
 	}
 	if changed {
 		// Recompute rather than cache. The height slider is the whole point of
@@ -48,13 +48,15 @@ func (a *App) drawNodeInspector(i int) {
 		a.recompute()
 	}
 	if ground, ok := a.Terrain.ElevationM(n.Position.Lat, n.Position.Lon); ok {
-		imgui.TextDisabled(fmt.Sprintf("ground %.0f m, antenna top %.0f m AMSL",
+		textDim(fmt.Sprintf("ground %.0f m, antenna top %.0f m AMSL",
 			ground, ground+n.HeightAGLm))
 	} else {
-		imgui.TextDisabled("no terrain here - download tiles for this area")
+		textDim("no terrain here - download tiles for this area")
 	}
 
 	if n.Kind.Transmits() {
+		imgui.SeparatorText("Hardware")
+		a.drawBoardCombo(n)
 		imgui.SeparatorText("Radio")
 		a.drawPresetCombo(n)
 	}
@@ -74,7 +76,7 @@ func (a *App) drawNodeInspector(i int) {
 			imgui.Text("default scope: " + n.DefaultScope)
 		}
 		if n.FloodMaxSeen > 0 {
-			imgui.TextDisabled(fmt.Sprintf("seen relaying %d hops - a floor on its flood.max",
+			textDim(fmt.Sprintf("seen relaying %d hops - a floor on its flood.max",
 				n.FloodMaxSeen))
 		}
 	}
@@ -109,9 +111,9 @@ func (a *App) drawSelected() {
 	}
 	imgui.SeparatorText("Selected")
 	if a.selected < 0 {
-		imgui.TextDisabled("click a node on the map to inspect it")
-		imgui.TextDisabled("ctrl-click a second node for a link")
-		imgui.TextDisabled("shift-click nodes to edit several at once")
+		textDim("click a node on the map to inspect it")
+		textDim("ctrl-click a second node for a link")
+		textDim("shift-click nodes to edit several at once")
 		return
 	}
 	a.drawNodeInspector(a.selected)
@@ -135,21 +137,21 @@ func (a *App) drawBulkEditor() {
 	for k, c := range kinds {
 		parts = append(parts, fmt.Sprintf("%d %s", c, k))
 	}
-	imgui.TextDisabled(strings.Join(parts, ", "))
-	imgui.TextDisabled("edits apply to every selected node")
+	textDim(strings.Join(parts, ", "))
+	textDim("edits apply to every selected node")
 
 	// The sliders start from the first selected node's values; dragging writes
 	// to all of them. A blank control would give the drag nowhere to start.
 	first := &a.Nodes[a.msel[0]]
 	h := first.HeightAGLm
-	if sliderF64("height m", &h, 1, 60, "%.1f") {
+	if numF64("height m", &h, 0, 300, "%.1f") {
 		for _, i := range a.msel {
 			a.Nodes[i].HeightAGLm = h
 		}
 		a.recompute()
 	}
 	tx := first.TxPowerDBm
-	if sliderF64("tx dBm", &tx, 2, 30, "%.0f") {
+	if numF64("tx dBm", &tx, 2, 30, "%.0f") {
 		for _, i := range a.msel {
 			if a.Nodes[i].Kind.Transmits() {
 				a.Nodes[i].TxPowerDBm = tx
@@ -204,26 +206,59 @@ func (a *App) toggleMulti(i int) {
 // where in the band, and how much of the time.
 func (a *App) drawEmitterControls(n *scenario.Node) {
 	imgui.SeparatorText("Emitter")
-	imgui.TextWrapped("An external interference source. Its power reaches every receiver " +
+	textWrap("An external interference source. Its power reaches every receiver " +
 		"through the same terrain as the mesh - a mast behind a hill interferes " +
 		"less - and raises their noise floor by whatever lands in their passband.")
-	changed := sliderF64("ERP dBm", &n.TxPowerDBm, 10, 60, "%.0f")
+	changed := numF64("ERP dBm", &n.TxPowerDBm, 0, 80, "%.0f")
 	freqMHz := float32(n.Radio.CentreHz / 1e6)
-	imgui.SetNextItemWidth(140)
-	if imgui.SliderFloat("centre MHz", &freqMHz, 400, 900) {
+	if numF32("centre MHz", &freqMHz, 1, 6000, "%.3f") {
 		n.Radio.CentreHz = float64(freqMHz) * 1e6
 		changed = true
 	}
 	bwKHz := float32(n.Radio.BandwidthHz / 1e3)
-	imgui.SetNextItemWidth(140)
-	if imgui.SliderFloat("bandwidth kHz", &bwKHz, 5, 500) {
+	if numF32("bandwidth kHz", &bwKHz, 1, 20000, "%.1f") {
 		n.Radio.BandwidthHz = float64(bwKHz) * 1e3
 		changed = true
 	}
-	changed = sliderF64("duty %", &n.EmitterDutyPct, 1, 100, "%.0f") || changed
+	changed = numF64("duty %", &n.EmitterDutyPct, 0, 100, "%.0f") || changed
 	if changed && a.eng != nil {
 		a.eng.InvalidateLinks()
 	}
-	imgui.TextDisabled("out-of-band power contributes nothing here; front-end\n" +
+	textDim("out-of-band power contributes nothing here; front-end\n" +
 		"blocking is not modelled, which flatters strong neighbours")
+}
+
+// drawBoardCombo names the hardware, which is what the energy model needs and
+// what nothing recorded until now.
+//
+// An imported node inherits the import's default board; a placed one takes
+// the placement board. Both are guesses until somebody says otherwise, so the
+// picker is here and the energy panel refuses to invent a battery for a node
+// whose board is unknown.
+func (a *App) drawBoardCombo(n *scenario.Node) {
+	current := n.Board
+	if current == "" {
+		current = "unknown"
+	}
+	imgui.SetNextItemWidth(-70)
+	if imgui.BeginCombo("board", current) {
+		for _, b := range scenario.Boards() {
+			if imgui.SelectableBool(b.Name) {
+				n.Board = b.Name
+				n.NoiseFigureDB = b.NoiseFigureDB
+				if n.TxPowerDBm > b.MaxTxDBm {
+					n.TxPowerDBm = b.MaxTxDBm
+				}
+				a.recompute()
+			}
+		}
+		imgui.EndCombo()
+	}
+	if b, err := scenario.BoardByName(n.Board); err == nil {
+		note := fmt.Sprintf("%s / %s, max %.0f dBm", b.MCU, b.Radio, b.MaxTxDBm)
+		if b.Panel.PeakW > 0 {
+			note += fmt.Sprintf(", %.0f W panel, %.0f mAh", b.Panel.PeakW, b.Battery.CapacityMAh)
+		}
+		textDim(note)
+	}
 }

@@ -116,18 +116,18 @@ func (a *App) drawImportBody() {
 			s.source, s.health, s.preview = p.Name(), nil, nil
 		}
 		imgui.SameLine()
-		imgui.TextDisabled(capString(provider.CapabilitiesOf(p)))
+		textDim(capString(provider.CapabilitiesOf(p)))
 	}
 	if imgui.RadioButtonBool("saved network", s.source == "saved") {
 		s.source, s.health, s.preview = "saved", nil, nil
 	}
 	imgui.SameLine()
-	imgui.TextDisabled("one you saved here before - milliseconds, no assumptions re-made")
+	textDim("one you saved here before - milliseconds, no assumptions re-made")
 	if imgui.RadioButtonBool("file", s.source == "file") {
 		s.source, s.health, s.preview = "file", nil, nil
 	}
 	imgui.SameLine()
-	imgui.TextDisabled("a path to an export or a saved network")
+	textDim("a path to an export or a saved network")
 
 	// The list, back where it was and where it belongs. Moving it to the File
 	// menu made a network someone saved yesterday effectively unfindable.
@@ -154,9 +154,9 @@ func (a *App) drawImportBody() {
 	}
 	imgui.SameLine()
 	if n := len(a.bnd.chosen); n > 0 {
-		imgui.TextDisabled(fmt.Sprintf("%d area(s) filter the preview", n))
+		textDim(fmt.Sprintf("%d area(s) filter the preview", n))
 	} else {
-		imgui.TextDisabled("none set - the whole source arrives")
+		textDim("none set - the whole source arrives")
 	}
 	imgui.SetNextItemWidth(-1)
 	imgui.InputTextWithHint("##impboundary", "...or a GeoJSON file path", &a.boundaryPath, 0, nil)
@@ -173,7 +173,7 @@ func (a *App) drawImportBody() {
 		a.startImportFetch()
 	}
 	if s.status != "" {
-		imgui.TextWrapped(s.status)
+		textWrap(s.status)
 	}
 
 	a.drawImportOffers()
@@ -226,16 +226,16 @@ func (a *App) drawSourceHealth() {
 	imgui.SameLine()
 	switch {
 	case s.health == nil:
-		imgui.TextDisabled("health unknown")
+		textDim("health unknown")
 	case s.health.running:
-		imgui.TextDisabled("checking...")
+		textDim("checking...")
 	case s.health.ok:
 		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.4, 0.85, 0.45, 1))
 		imgui.Text("ok: " + s.health.msg)
 		imgui.PopStyleColor()
 	default:
 		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.9, 0.4, 0.4, 1))
-		imgui.TextWrapped("unhealthy: " + s.health.msg)
+		textWrap("unhealthy: " + s.health.msg)
 		imgui.PopStyleColor()
 	}
 }
@@ -248,8 +248,8 @@ func (a *App) drawImportPreview() {
 	}
 	p := s.preview
 	imgui.SeparatorText(fmt.Sprintf("Preview - %d nodes", len(p.nodes)))
-	imgui.TextDisabled(p.describe)
-	imgui.TextDisabled("bounding box drawn on the map; nothing is in the scenario yet")
+	textDim(p.describe)
+	textDim("bounding box drawn on the map; nothing is in the scenario yet")
 
 	if imgui.BeginChildStrV("##impnames", imgui.NewVec2(0, 120), imgui.ChildFlagsFrameStyle, 0) {
 		for _, n := range p.nodes {
@@ -275,7 +275,7 @@ func (a *App) drawImportPreview() {
 		plan := scenario.PlanMerge(a.Nodes, p.nodes, s.strategy)
 		imgui.Text(plan.String())
 	} else {
-		imgui.TextDisabled("the scenario is empty - everything previewed arrives")
+		textDim("the scenario is empty - everything previewed arrives")
 	}
 
 	if primaryButton("commit", imgui.NewVec2(0, 0)) {
@@ -296,7 +296,7 @@ func (a *App) drawImportWarnings() {
 	if imgui.BeginChildStrV("##impwarn", imgui.NewVec2(0, 110), 0, 0) {
 		for _, w := range a.imp.warnings {
 			imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.72, 0.25, 1))
-			imgui.TextWrapped(w)
+			textWrap(w)
 			imgui.PopStyleColor()
 		}
 	}
@@ -541,7 +541,7 @@ func (a *App) drawSavedNetworkList() {
 	}
 	rows := a.savedNetworks()
 	if len(rows) == 0 {
-		imgui.TextDisabled("nothing saved yet - import a network, then save it and reopening " +
+		textDimWrap("nothing saved yet - import a network, then save it and reopening " +
 			"takes milliseconds instead of a fetch")
 		return
 	}
@@ -551,9 +551,13 @@ func (a *App) drawSavedNetworkList() {
 		return
 	}
 	imgui.TableSetupColumnV("network", imgui.TableColumnFlagsWidthStretch, 0, 0)
-	imgui.TableSetupColumnV("nodes", imgui.TableColumnFlagsWidthFixed, 60, 0)
-	imgui.TableSetupColumnV("saved", imgui.TableColumnFlagsWidthFixed, 110, 0)
-	imgui.TableSetupColumnV("", imgui.TableColumnFlagsWidthFixed, 130, 0)
+	pad := imgui.CurrentStyle().FramePadding().X*2 + 8
+	imgui.TableSetupColumnV("nodes", imgui.TableColumnFlagsWidthFixed,
+		imgui.CalcTextSize("00000").X+pad, 0)
+	imgui.TableSetupColumnV("saved", imgui.TableColumnFlagsWidthFixed,
+		imgui.CalcTextSize("00 Jan 00:00").X+pad, 0)
+	imgui.TableSetupColumnV("", imgui.TableColumnFlagsWidthFixed,
+		imgui.CalcTextSize("load  add  sure?").X+pad*3, 0)
 	imgui.TableHeadersRow()
 	for i, n := range rows {
 		imgui.TableNextRow()
@@ -562,7 +566,7 @@ func (a *App) drawSavedNetworkList() {
 		imgui.TableSetColumnIndex(1)
 		imgui.Text(fmt.Sprint(n.nodes))
 		imgui.TableSetColumnIndex(2)
-		imgui.TextDisabled(age(n.saved))
+		textDim(age(n.saved))
 		imgui.TableSetColumnIndex(3)
 		if imgui.SmallButton(fmt.Sprintf("load##sv%d", i)) {
 			a.loadSavedNet(n.name, true)

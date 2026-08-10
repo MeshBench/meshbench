@@ -82,7 +82,7 @@ func (a *App) drawScheduleBody() {
 
 	imgui.SeparatorText("Schedule")
 	if len(s.sends) == 0 {
-		imgui.TextDisabled("nothing scheduled; runs will be quiet unless the firmware sends on its own")
+		textDim("nothing scheduled; runs will be quiet unless the firmware sends on its own")
 	}
 	for i := 0; i < len(s.sends); i++ {
 		e := s.sends[i]
@@ -100,7 +100,7 @@ func (a *App) drawScheduleBody() {
 	}
 
 	imgui.SeparatorText("Assertions")
-	imgui.TextWrapped("What must be true for this run to count as a pass. Without one, a " +
+	textWrap("What must be true for this run to count as a pass. Without one, a " +
 		"comparison between two firmware versions is a human reading two logs.")
 
 	imgui.SetNextItemWidth(150)
@@ -182,14 +182,14 @@ func (a *App) drawScheduleBody() {
 			imgui.SameLine()
 			imgui.Text(r.Assertion.String())
 			imgui.SameLine()
-			imgui.TextDisabled("- " + r.Detail)
+			textDim("- " + r.Detail)
 			imgui.SameLine()
 			if imgui.SmallButton(fmt.Sprintf("remove##as%d", i)) {
 				s.asserts = append(s.asserts[:i], s.asserts[i+1:]...)
 				break
 			}
 		}
-		imgui.TextDisabled(fmt.Sprintf("%d of %d passing at %.1f s",
+		textDim(fmt.Sprintf("%d of %d passing at %.1f s",
 			passed, len(results), float64(a.engNowMs())/1000))
 	}
 }
@@ -259,11 +259,11 @@ func (a *App) runSchedule() {
 func (a *App) drawCompareBody() {
 	s := &a.sched
 	if a.eng == nil {
-		imgui.TextDisabled("no simulation yet - press play in the strip above")
+		textDim("no simulation yet - press play in the strip above")
 		return
 	}
 	imgui.SeparatorText("Compare with a baseline")
-	imgui.TextWrapped("Snapshot this run, change something - firmware, settings, geometry - " +
+	textWrap("Snapshot this run, change something - firmware, settings, geometry - " +
 		"then run again with the same seed and see where the two first disagree.")
 	if imgui.Button("snapshot as baseline") && a.eng != nil {
 		s.baseline = a.eng.Events()
@@ -271,27 +271,27 @@ func (a *App) drawCompareBody() {
 	}
 	if len(s.baseline) > 0 {
 		imgui.SameLine()
-		imgui.TextDisabled(fmt.Sprintf("baseline: %d events to %.1f s",
+		textDim(fmt.Sprintf("baseline: %d events to %.1f s",
 			len(s.baseline), float64(s.baselineAt)/1000))
 		if a.eng != nil {
 			d := engine.Diverge(s.baseline, a.eng.Events())
 			if !d.Found {
 				imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.45, 0.85, 0.5, 1))
-				imgui.TextWrapped("identical so far")
+				textWrap("identical so far")
 				imgui.PopStyleColor()
 			} else {
 				imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.72, 0.25, 1))
-				imgui.TextWrapped(fmt.Sprintf("first divergence at %.2f s, %s",
+				textWrap(fmt.Sprintf("first divergence at %.2f s, %s",
 					float64(d.AtMs)/1000, d.Node))
 				imgui.PopStyleColor()
-				imgui.TextDisabled("baseline: " + d.A)
-				imgui.TextDisabled("now:      " + d.B)
+				textDim("baseline: " + d.A)
+				textDim("now:      " + d.B)
 			}
 		}
 	}
 
 	imgui.SeparatorText("Stress test")
-	imgui.TextWrapped("Ramps the offered load until delivery stops keeping up, and reports the " +
+	textWrap("Ramps the offered load until delivery stops keeping up, and reports the " +
 		"knee - how much traffic this particular network can actually carry.")
 	if s.stressOn {
 		imgui.Text(fmt.Sprintf("running: one message every %.1f s", float64(s.stressEveryMs)/1000))

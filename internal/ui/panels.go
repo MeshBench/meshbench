@@ -19,7 +19,7 @@ func (a *App) drawNodeRows() {
 	// from and the filter costs one pass rather than one per visible row.
 	match := a.matchingNodes()
 	if len(match) == 0 {
-		imgui.TextDisabled("nothing matches - clear the filter box on the map")
+		textDim("nothing matches - clear the filter box on the map")
 		return
 	}
 
@@ -35,7 +35,7 @@ func (a *App) drawNodeRows() {
 		a.drawNodeRow(i)
 	}
 	if len(match) > len(shown) {
-		imgui.TextDisabled(fmt.Sprintf("%d more - use the filter, or click on the map",
+		textDim(fmt.Sprintf("%d more - use the filter, or click on the map",
 			len(match)-len(shown)))
 	}
 }
@@ -90,7 +90,7 @@ func (a *App) drawNodeRow(i int) {
 		}
 
 		imgui.SameLine()
-		imgui.TextDisabled(kindLabel(n.Kind))
+		textDim(kindLabel(n.Kind))
 	}
 }
 
@@ -150,7 +150,7 @@ func (a *App) recompute() {
 func (a *App) drawAnalysis() {
 	if a.selected < 0 || a.linkTo < 0 {
 		imgui.SeparatorText("Link")
-		imgui.TextDisabled("select a node, then ctrl-click a second one")
+		textDim("select a node, then ctrl-click a second one")
 		return
 	}
 	from, to := a.Nodes[a.selected], a.Nodes[a.linkTo]
@@ -159,14 +159,14 @@ func (a *App) drawAnalysis() {
 	// than computing a number for a node that transmits nothing.
 	if !from.Kind.Transmits() || !to.Kind.Transmits() {
 		imgui.SeparatorText("Link")
-		imgui.TextWrapped("An SDR observer transmits nothing, so there is no link budget to " +
+		textWrap("An SDR observer transmits nothing, so there is no link budget to " +
 			"compute. Observers are for looking at the spectrum, not for being one end of a path.")
 		return
 	}
 
 	imgui.SeparatorText(fmt.Sprintf("%s  <->  %s", from.Name, to.Name))
 	if a.cutErr != "" {
-		imgui.TextWrapped(a.cutErr)
+		textWrap(a.cutErr)
 		return
 	}
 	if a.cut == nil {
@@ -177,7 +177,7 @@ func (a *App) drawAnalysis() {
 	imgui.Spacing()
 	a.drawCutThrough(*a.cut)
 	imgui.Spacing()
-	imgui.TextWrapped(a.cut.Verdict())
+	textWrap(a.cut.Verdict())
 }
 
 func (a *App) drawBudget(from, to scenario.Node) {
@@ -200,12 +200,12 @@ func (a *App) drawBudget(from, to scenario.Node) {
 		RemoteSensitivityDBm: -137, ProfileStepM: 30,
 	}
 	if err := coverage.Compute(fixed, a.Terrain, r, opts); err != nil {
-		imgui.TextWrapped(err.Error())
+		textWrap(err.Error())
 		return
 	}
 	cell := r.At(0, 0)
 	if cell.NoData {
-		imgui.TextWrapped("No terrain covers this path.")
+		textWrap("No terrain covers this path.")
 		return
 	}
 	l := planning.Summarise(from.Name, to.Name, a.cut.DistanceKm, cell)
@@ -228,7 +228,7 @@ func (a *App) drawBudget(from, to scenario.Node) {
 		for _, end := range []scenario.Node{from, to} {
 			if thermal, with, ok := a.eng.FloorAt(end.Name); ok && with > thermal+0.05 {
 				imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.72, 0.25, 1))
-				imgui.TextWrapped(fmt.Sprintf("%s noise floor %.1f dBm - emitters raise it %.1f dB "+
+				textWrap(fmt.Sprintf("%s noise floor %.1f dBm - emitters raise it %.1f dB "+
 					"above thermal", end.Name, with, with-thermal))
 				imgui.PopStyleColor()
 			}
@@ -236,14 +236,14 @@ func (a *App) drawBudget(from, to scenario.Node) {
 	}
 	if l.OneWayOnly {
 		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.65, 0.2, 1))
-		imgui.TextWrapped("ONE WAY ONLY - one end will hear the other and not be heard back. " +
+		textWrap("ONE WAY ONLY - one end will hear the other and not be heard back. " +
 			"This is usually the most useful thing to know about a path.")
 		imgui.PopStyleColor()
 	}
 }
 
 func marginText(label string, dB float64) {
-	imgui.TextDisabled(label)
+	textDim(label)
 	col := imgui.NewVec4(0.4, 0.85, 0.45, 1)
 	if dB < 0 {
 		col = imgui.NewVec4(0.9, 0.4, 0.4, 1)
@@ -401,7 +401,7 @@ func (a *App) drawCutThrough(c pathview.CutThrough) {
 	// this read "x0" — an exaggeration figure that is never less than 1 in
 	// practice, because a true-scale profile over 40 km is a flat line.
 	exag := (h / span) / (w / (c.DistanceKm * 1000))
-	imgui.TextDisabled(fmt.Sprintf(
+	textDim(fmt.Sprintf(
 		"terrain includes earth curvature; blue band is the first Fresnel zone   |   "+
 			"%.1f km, %.0f-%.0f m   |   vertical exaggeration x%.1f",
 		c.DistanceKm, lo, hi, exag))
@@ -415,7 +415,7 @@ func (a *App) drawCutThrough(c pathview.CutThrough) {
 			}
 			fmt.Fprintf(&b, "  %.1f km -%.1f dB", e.DistM/1000, e.LossDB)
 		}
-		imgui.TextDisabled(b.String())
+		textDim(b.String())
 	}
 }
 
@@ -436,19 +436,4 @@ func kindLabel(k scenario.Kind) string {
 	default:
 		return "repeater"
 	}
-}
-
-// sliderF64 bridges the model's float64 to imgui's float32.
-//
-// Written out rather than done with a helper returning *float32: that returns a
-// pointer to a copy, so the slider moves, the value changes, and the model never
-// hears about it. The bug is invisible — the UI looks right and simply does
-// nothing.
-func sliderF64(label string, v *float64, min, max float32, format string) bool {
-	f := float32(*v)
-	if imgui.SliderFloatV(label, &f, min, max, format, 0) {
-		*v = float64(f)
-		return true
-	}
-	return false
 }

@@ -51,17 +51,17 @@ func (a *App) drawValidateBody() {
 		s.lookbackH = 24
 	}
 
-	imgui.TextWrapped("Replays real receptions against the RF model and reports the " +
+	textWrap("Replays real receptions against the RF model and reports the " +
 		"residuals - the only view in which the model can be caught being wrong. " +
 		"Reads receptions from the Import window's CoreScope source.")
 
 	if a.imp.source != "corescope" || a.imp.url == "" {
 		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.72, 0.25, 1))
-		imgui.TextWrapped("Set the Import window's source to corescope and give it a URL first.")
+		textWrap("Set the Import window's source to corescope and give it a URL first.")
 		imgui.PopStyleColor()
 		return
 	}
-	imgui.TextDisabled("reading from " + a.imp.url)
+	textDim("reading from " + a.imp.url)
 
 	imgui.SetNextItemWidth(110)
 	imgui.InputInt("hours to look back", &s.lookbackH)
@@ -90,11 +90,11 @@ func (a *App) drawValidateBody() {
 
 	if s.err != "" {
 		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.9, 0.4, 0.4, 1))
-		imgui.TextWrapped(s.err)
+		textWrap(s.err)
 		imgui.PopStyleColor()
 	}
 	if s.report == nil {
-		imgui.TextDisabled("nothing compared yet - fetch, and the residual table appears here")
+		textDimWrap("nothing compared yet - fetch, and the residual table appears here")
 		return
 	}
 	a.drawValidationReport()
@@ -106,12 +106,12 @@ func (a *App) drawValidationReport() {
 	rep := s.report
 
 	imgui.SeparatorText("Agreement")
-	imgui.TextWrapped(rep.Summary())
+	textWrap(rep.Summary())
 	if s.excluded != "" {
-		imgui.TextDisabled("excluded: " + s.excluded)
+		textDim("excluded: " + s.excluded)
 	}
 	if a.eng != nil && a.eng.Config.ExcessPathLossDB != 0 {
-		imgui.TextDisabled(fmt.Sprintf("channel currently calibrated: +%.1f dB excess path loss",
+		textDim(fmt.Sprintf("channel currently calibrated: +%.1f dB excess path loss",
 			a.eng.Config.ExcessPathLossDB))
 	}
 
@@ -136,7 +136,7 @@ func (a *App) drawValidationReport() {
 			}
 		}
 	} else {
-		imgui.TextDisabled(err.Error())
+		textDim(err.Error())
 	}
 
 	if !imgui.BeginTableV("##residuals", 5,
@@ -158,9 +158,9 @@ func (a *App) drawValidationReport() {
 		if row.HasSNR {
 			imgui.Text(fmt.Sprintf("%+.1f", row.ObservedSNR))
 		} else if row.Observed {
-			imgui.TextDisabled("heard")
+			textDim("heard")
 		} else {
-			imgui.TextDisabled("silent")
+			textDim("silent")
 		}
 		imgui.TableSetColumnIndex(3)
 		imgui.Text(fmt.Sprintf("%+.1f", row.PredictedSNR))
@@ -174,7 +174,7 @@ func (a *App) drawValidationReport() {
 			col = imgui.NewVec4(0.45, 0.85, 0.5, 1)
 		}
 		imgui.PushStyleColorVec4(imgui.ColText, col)
-		imgui.TextWrapped(row.Verdict)
+		textWrap(row.Verdict)
 		imgui.PopStyleColor()
 	}
 	imgui.EndTable()

@@ -426,7 +426,7 @@ func (a *App) drawCoverage(origin imgui.Vec2, w, h float32) {
 	if imgui.BeginChildStrV("##covbadge", imgui.NewVec2(430, 62), 0, imgui.WindowFlagsNoScrollbar) {
 		imgui.Text("coverage: " + a.cov.node + " (" + a.cov.mode.String() + ")")
 		if a.cov.summary != "" {
-			imgui.TextDisabled(a.cov.summary)
+			textDim(a.cov.summary)
 		}
 		imgui.SetNextItemWidth(170)
 		imgui.SliderFloat("##covop", &a.cov.opacity, 0.1, 1)

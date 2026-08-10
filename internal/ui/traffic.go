@@ -136,7 +136,7 @@ func (a *App) drawRunControls() {
 	// channel, the collisions and the ledger are all still real; what is
 	// missing is that the relay decisions are MeshCore's own.
 	if a.eng.FirmwareCount() > 0 {
-		imgui.TextDisabled(fmt.Sprintf("%d on fw", a.eng.FirmwareCount()))
+		textDim(fmt.Sprintf("%d on fw", a.eng.FirmwareCount()))
 		if imgui.IsItemHovered() {
 			imgui.SetTooltip(fmt.Sprintf("%d nodes running real MeshCore firmware", a.eng.FirmwareCount()))
 		}
@@ -173,7 +173,7 @@ func (a *App) drawRunControls() {
 			"large scenario at 12x is a large CPU bill.")
 	}
 	imgui.SameLine()
-	imgui.TextDisabled(fmt.Sprintf("t = %.2f s", float64(a.eng.NowMs())/1000))
+	textDim(fmt.Sprintf("t = %.2f s", float64(a.eng.NowMs())/1000))
 
 	if a.playing {
 		// Steps owed = wall time elapsed x speed. Fractions carry over, and the
@@ -282,7 +282,7 @@ func (a *App) drawTimeline() {
 	}
 	events := a.events()
 	if len(events) == 0 {
-		imgui.TextDisabled("no traffic yet - press play, or send from a node console")
+		textDim("no traffic yet - press play, or send from a node console")
 		return
 	}
 
@@ -294,7 +294,7 @@ func (a *App) drawTimeline() {
 		a.playing = false
 	}
 	imgui.SameLine()
-	imgui.TextDisabled(fmt.Sprintf("%.2f s", float64(a.scrubMs)/1000))
+	textDim(fmt.Sprintf("%.2f s", float64(a.scrubMs)/1000))
 
 	// The filters. Ticks, not a mode: any combination, and the counts say what
 	// each tick is hiding.
@@ -340,8 +340,12 @@ func (a *App) drawTimeline() {
 	// hundred-thousand-row ledger scrolls like a hundred-row one.
 	// The ledger is a machine's record: fixed width so times and levels form
 	// columns instead of pretending to.
+	//
+	// Pushed and popped around the rows, never deferred: a deferred pop runs
+	// after EndTable, so imgui sees a table closed with a font still on the
+	// stack and asserts "Missing PopFont()". Font scope has to nest inside
+	// the widget scope, not outlive it.
 	pushMono()
-	defer popMono()
 
 	clip := imgui.NewListClipper()
 	clip.Begin(int32(len(a.evFiltered)))
@@ -394,6 +398,7 @@ func (a *App) drawTimeline() {
 		}
 	}
 	clip.End()
+	popMono()
 	imgui.EndTable()
 }
 
@@ -425,11 +430,11 @@ func (a *App) drawScoreboard() {
 	}
 	board := a.eng.Scoreboard()
 	if len(board) == 0 {
-		imgui.TextDisabled("no nodes - place some with the toolbar, or File > Import a network")
+		textDim("no nodes - place some with the toolbar, or File > Import a network")
 		return
 	}
 
-	imgui.TextWrapped("Unique deliveries against redundant relays is the number that matters: " +
+	textWrap("Unique deliveries against redundant relays is the number that matters: " +
 		"a repeater can be busy, legal, and reaching nobody who had not already heard the message.")
 	imgui.Spacing()
 
@@ -464,7 +469,7 @@ func (a *App) drawScoreboard() {
 		imgui.PopStyleColor()
 		imgui.TableSetColumnIndex(5)
 		if s.UniqueDelivery+s.RedundantRelay == 0 {
-			imgui.TextDisabled("-")
+			textDim("-")
 		} else {
 			ratio := float64(s.UniqueDelivery) / float64(s.UniqueDelivery+s.RedundantRelay)
 			col := imgui.NewVec4(0.45, 0.85, 0.5, 1)

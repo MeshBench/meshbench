@@ -179,7 +179,7 @@ func (a *App) drawProvisionWindow() {
 		return
 	}
 	a.ensureConfig()
-	imgui.SetNextWindowSizeV(imgui.NewVec2(560, 420), imgui.CondFirstUseEver)
+	imgui.SetNextWindowSizeV(a.windowSize(78, 26), imgui.CondFirstUseEver)
 	open := a.winProvision
 	if imgui.BeginV("Provisioning", &open, 0) {
 		a.drawProvisionBody()
@@ -193,7 +193,7 @@ func (a *App) drawPrefsWindow() {
 		return
 	}
 	a.ensureConfig()
-	imgui.SetNextWindowSizeV(imgui.NewVec2(480, 260), imgui.CondFirstUseEver)
+	imgui.SetNextWindowSizeV(a.windowSize(72, 20), imgui.CondFirstUseEver)
 	open := a.winPrefs
 	if imgui.BeginV("Preferences", &open, 0) {
 		a.drawPrefsBody()
@@ -206,7 +206,7 @@ func (a *App) drawProvisionBody() {
 	c := &a.cfg
 
 	imgui.SeparatorText("When firmware starts")
-	imgui.TextWrapped("Commands issued at every node's own CLI as it comes up. These are real " +
+	textWrap("Commands issued at every node's own CLI as it comes up. These are real " +
 		"commands to real firmware - the same ones you would type on a hilltop.")
 
 	changed := false
@@ -236,7 +236,7 @@ func (a *App) drawProvisionBody() {
 	if c.setRegionOnStart {
 		imgui.SameLine()
 		if name := a.studyAreaName(); name != "" {
-			imgui.TextDisabled("-> region put " + regionToken(name))
+			textDim("-> region put " + regionToken(name))
 		} else {
 			imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.72, 0.25, 1))
 			imgui.Text("no study area chosen")
@@ -275,7 +275,7 @@ func (a *App) drawProvisionBody() {
 			"be routed to. The firmware's ceiling is 64.")
 	}
 
-	imgui.TextDisabled("then, at every node:")
+	textDim("then, at every node:")
 	imgui.SetNextItemWidth(-1)
 	if imgui.InputTextMultiline("##extra", &c.extraOnStart, imgui.NewVec2(0, 90), 0, nil) {
 		changed = true
@@ -292,7 +292,7 @@ func (a *App) drawProvisionBody() {
 			a.status = fmt.Sprintf("configured %d running nodes", n)
 		}
 		imgui.SameLine()
-		imgui.TextDisabled("these run automatically on the next start")
+		textDim("these run automatically on the next start")
 	}
 
 	if changed {
@@ -335,9 +335,9 @@ func (a *App) drawPrefsBody() {
 	}
 
 	imgui.SeparatorText("Where things are kept")
-	imgui.TextDisabled("scenarios   " + scenarioDir())
-	imgui.TextDisabled("boundaries  " + boundaryCacheDir())
-	imgui.TextDisabled("node flash  " + firmware.NodeWorkDir("<node>"))
+	textDim("scenarios   " + scenarioDir())
+	textDim("boundaries  " + boundaryCacheDir())
+	textDim("node flash  " + firmware.NodeWorkDir("<node>"))
 }
 
 // startupCommands is what a node is told as it comes up.

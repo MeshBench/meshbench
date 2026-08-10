@@ -84,7 +84,7 @@ var fleetQuick = []struct {
 
 func (a *App) drawFleetBody() {
 	if a.eng == nil || a.eng.FirmwareCount() == 0 {
-		imgui.TextWrapped("Fleet commands talk to each node's real CLI, so they need real " +
+		textWrap("Fleet commands talk to each node's real CLI, so they need real " +
 			"firmware running. Start it from the Simulation menu.")
 		return
 	}
@@ -103,7 +103,7 @@ func (a *App) drawFleetBody() {
 	}
 	imgui.SameLine()
 	targets := a.fleetTargets()
-	imgui.TextDisabled(fmt.Sprintf("%d nodes", len(targets)))
+	textDim(fmt.Sprintf("%d nodes", len(targets)))
 
 	imgui.SetNextItemWidth(-70)
 	entered := imgui.InputTextWithHint("##fleetcmd", "a MeshCore CLI line, sent to every target",
@@ -116,7 +116,7 @@ func (a *App) drawFleetBody() {
 	needsArg := strings.HasSuffix(a.fleet.command, " ")
 	if needsArg {
 		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.72, 0.25, 1))
-		imgui.TextWrapped("This command needs a region name after it. Nothing is guessed: " +
+		textWrap("This command needs a region name after it. Nothing is guessed: " +
 			"which region a fleet belongs to is a decision about your network.")
 		imgui.PopStyleColor()
 	}
@@ -131,10 +131,10 @@ func (a *App) drawFleetBody() {
 	if invalidates {
 		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.72, 0.25, 1))
 		if a.fleet.confirmed {
-			imgui.TextWrapped(fmt.Sprintf("This changes the radio on %d nodes and invalidates "+
+			textWrap(fmt.Sprintf("This changes the radio on %d nodes and invalidates "+
 				"this run. Press send again to confirm.", len(targets)))
 		} else {
-			imgui.TextWrapped(fmt.Sprintf("Changes the radio on %d nodes - invalidates this run.",
+			textWrap(fmt.Sprintf("Changes the radio on %d nodes - invalidates this run.",
 				len(targets)))
 		}
 		imgui.PopStyleColor()
@@ -174,7 +174,7 @@ func (a *App) drawFleetBody() {
 
 	imgui.Separator()
 	if len(a.fleet.results) == 0 {
-		imgui.TextDisabled("replies appear here, one row per node, in the firmware's own words")
+		textDim("replies appear here, one row per node, in the firmware's own words")
 		return
 	}
 	if !imgui.BeginTableV("##fleetresults", 2,
@@ -193,12 +193,12 @@ func (a *App) drawFleetBody() {
 		switch {
 		case r.err != "":
 			imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.9, 0.4, 0.4, 1))
-			imgui.TextWrapped(r.err)
+			textWrap(r.err)
 			imgui.PopStyleColor()
 		case r.reply == "":
-			imgui.TextDisabled("(no reply)")
+			textDim("(no reply)")
 		default:
-			imgui.TextWrapped(r.reply)
+			textWrap(r.reply)
 		}
 	}
 	imgui.EndTable()

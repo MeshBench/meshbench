@@ -8,6 +8,7 @@ import (
 	"github.com/AllenDang/cimgui-go/imgui"
 
 	"github.com/A13xB0/meshcoresim/internal/energy"
+	"github.com/A13xB0/meshcoresim/internal/scenario"
 )
 
 // energyState is the Energy panel: the winter question, for the selection.
@@ -16,10 +17,11 @@ type energyState struct {
 	tiltDeg    float32
 	batteryMAh float32
 
-	forNode string
-	result  *energy.YearResult
-	err     string
-	dutyTx  float64 // the duty the result was computed with, for the caption
+	forNode  string
+	forBoard string
+	result   *energy.YearResult
+	err      string
+	dutyTx   float64 // the duty the result was computed with, for the caption
 }
 
 // drawEnergyBody answers "does this node survive December".
@@ -34,32 +36,51 @@ func (a *App) drawEnergyBody() {
 	}
 
 	if a.selected < 0 || a.selected >= len(a.Nodes) {
-		imgui.TextDisabled("select a node on the map - the question is about a site")
+		textDim("select a node on the map - the question is about a site")
 		return
 	}
 	n := &a.Nodes[a.selected]
 	if !n.Kind.Transmits() {
-		imgui.TextDisabled("an SDR observer draws almost nothing; pick a repeater")
+		textDim("an SDR observer draws almost nothing; pick a repeater")
 		return
 	}
 
 	imgui.Text(n.Name)
 	imgui.SameLine()
-	imgui.TextDisabled(fmt.Sprintf("%.4f N  -  %.0f dBm", n.Position.Lat, n.TxPowerDBm))
+	textDim(fmt.Sprintf("%.4f N  -  %.0f dBm", n.Position.Lat, n.TxPowerDBm))
 
-	imgui.SetNextItemWidth(120)
-	imgui.SliderFloat("panel W", &s.panelW, 0, 40)
-	imgui.SetNextItemWidth(120)
-	imgui.SliderFloat("tilt deg", &s.tiltDeg, 0, 90)
-	imgui.SetNextItemWidth(120)
-	imgui.SliderFloat("battery mAh", &s.batteryMAh, 1000, 30000)
+	// Seeded from the board, because the board is what a battery and a panel
+	// belong to. Until now the numbers were the panel's own defaults, which is
+	// how a node with no recorded hardware got someone's guess at a pack.
+	if b, err := scenario.BoardByName(n.Board); err == nil && s.forBoard != n.Board {
+		s.forBoard = n.Board
+		if b.Panel.PeakW > 0 {
+			s.panelW = float32(b.Panel.PeakW)
+			s.tiltDeg = float32(b.Panel.TiltDeg)
+		}
+		if b.Battery.CapacityMAh > 0 {
+			s.batteryMAh = float32(b.Battery.CapacityMAh)
+		}
+	}
+	if n.Board == "" {
+		textColoured(colWarn, "this node's hardware is not set, so the battery and panel "+
+			"below are assumptions rather than its own. Set the board in the Inspector.")
+	} else if b, err := scenario.BoardByName(n.Board); err == nil && b.Panel.PeakW == 0 {
+		textDim(n.Board + " ships with no solar; the figures below are what you would add")
+	} else {
+		textDim("from the " + n.Board + " profile - edit to try something else")
+	}
+
+	numF32("panel W", &s.panelW, 0, 200, "%.1f")
+	numF32("tilt deg", &s.tiltDeg, 0, 90, "%.0f")
+	numF32("battery mAh", &s.batteryMAh, 100, 100000, "%.0f")
 
 	tx, rx, period := a.observedDuty(n.Name)
 	if period > 0 {
-		imgui.TextDisabled(fmt.Sprintf("draw from this run: %.0f ms of transmit in %.0f s",
+		textDim(fmt.Sprintf("draw from this run: %.0f ms of transmit in %.0f s",
 			tx, period/1000))
 	} else {
-		imgui.TextDisabled("no run yet - assuming a quiet mesh; run real firmware and the\n" +
+		textDimWrap("no run yet - assuming a quiet mesh; run real firmware and the\n" +
 			"draw becomes what the firmware actually did")
 	}
 
@@ -74,7 +95,7 @@ func (a *App) drawEnergyBody() {
 
 	if s.err != "" {
 		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.9, 0.4, 0.4, 1))
-		imgui.TextWrapped(s.err)
+		textWrap(s.err)
 		imgui.PopStyleColor()
 	}
 	if s.result == nil || s.forNode != n.Name {
@@ -87,26 +108,26 @@ func (a *App) drawEnergyBody() {
 	switch {
 	case res.DeadDays > 0:
 		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.9, 0.4, 0.4, 1))
-		imgui.TextWrapped(fmt.Sprintf("FAILS - dead on %d days of the year, first trouble around %s",
+		textWrap(fmt.Sprintf("FAILS - dead on %d days of the year, first trouble around %s",
 			res.DeadDays, worst.Format("2 January")))
 		imgui.PopStyleColor()
 	case res.WorstSoC < 0.3:
 		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.72, 0.25, 1))
-		imgui.TextWrapped(fmt.Sprintf("MARGINAL - %.0f%% at the worst (%s), and nothing here "+
+		textWrap(fmt.Sprintf("MARGINAL - %.0f%% at the worst (%s), and nothing here "+
 			"allows for snow on the panel or a worse winter than average",
 			res.WorstSoC*100, worst.Format("2 January")))
 		imgui.PopStyleColor()
 	default:
 		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.45, 0.85, 0.5, 1))
-		imgui.TextWrapped(fmt.Sprintf("survives the year - lowest charge %.0f%% on %s",
+		textWrap(fmt.Sprintf("survives the year - lowest charge %.0f%% on %s",
 			res.WorstSoC*100, worst.Format("2 January")))
 		imgui.PopStyleColor()
 	}
-	imgui.TextDisabled(fmt.Sprintf("autonomy: %.1f days from full with no sun at all",
+	textDim(fmt.Sprintf("autonomy: %.1f days from full with no sun at all",
 		res.AutonomyDays))
 
 	a.drawSoCSparkline(res)
-	imgui.TextDisabled("daily minimum charge across the year; the dip is the answer")
+	textDim("daily minimum charge across the year; the dip is the answer")
 }
 
 // drawSoCSparkline is the year at a glance: 365 daily minima as one strip.

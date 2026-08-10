@@ -19,7 +19,7 @@ func (a *App) drawNodesTableWindow() {
 	if !a.winNodesTable {
 		return
 	}
-	imgui.SetNextWindowSizeV(imgui.NewVec2(880, 480), imgui.CondFirstUseEver)
+	imgui.SetNextWindowSizeV(a.windowSize(120, 26), imgui.CondFirstUseEver)
 	open := a.winNodesTable
 	if imgui.BeginV("Nodes & settings", &open, 0) {
 		a.drawNodesTableBody()
@@ -98,7 +98,7 @@ func (a *App) drawNodesTableBody() {
 	}
 	imgui.EndTable()
 	if len(match) > len(shown) {
-		imgui.TextDisabled(fmt.Sprintf("%d more - narrow the filter", len(match)-len(shown)))
+		textDim(fmt.Sprintf("%d more - narrow the filter", len(match)-len(shown)))
 	}
 }
 
@@ -119,14 +119,14 @@ func (a *App) drawNodesTableRow(i int, haveRun bool, scores map[string]int) {
 	}
 
 	imgui.TableSetColumnIndex(1)
-	imgui.TextDisabled(kindLabel(n.Kind))
+	textDim(kindLabel(n.Kind))
 
 	imgui.TableSetColumnIndex(2)
 	if n.Kind.Transmits() {
 		imgui.SetNextItemWidth(-1)
 		a.drawPresetComboInline(n, i)
 	} else {
-		imgui.TextDisabled("-")
+		textDim("-")
 	}
 
 	imgui.TableSetColumnIndex(3)

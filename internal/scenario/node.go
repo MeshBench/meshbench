@@ -86,6 +86,13 @@ type Node struct {
 	Name string
 	Kind Kind
 
+	// Board is the hardware this node is, by profile name. It decides the
+	// transmit ceiling, the receive chain's noise figure, and - the reason it
+	// had to become a stored field rather than a placement-time default - the
+	// battery and panel the energy model needs. Empty means unknown, and the
+	// energy model says so instead of inventing a pack.
+	Board string
+
 	// PublicKey is the real node's identity where the scenario came from an
 	// import. It is what a merge joins on: names are set by humans and collide,
 	// keys do not. Empty for nodes placed by hand.

@@ -29,7 +29,7 @@ func (a *App) drawPacketWindow() {
 	if !a.pkt.selected {
 		return
 	}
-	imgui.SetNextWindowSizeV(imgui.NewVec2(640, 520), imgui.CondFirstUseEver)
+	imgui.SetNextWindowSizeV(a.windowSize(92, 30), imgui.CondFirstUseEver)
 	open := a.pkt.selected
 	if imgui.BeginV(fmt.Sprintf("Packet #%d", a.pkt.id), &open, 0) {
 		a.drawPacketBody()
@@ -63,18 +63,18 @@ func (a *App) drawPacketBody() {
 		}
 	}
 	if frame == nil {
-		imgui.TextDisabled("this packet is no longer in the ledger")
+		textDim("this packet is no longer in the ledger")
 		return
 	}
 
 	imgui.Text(fmt.Sprintf("from %s at %.2f s", origin, float64(atMs)/1000))
 	imgui.SameLine()
-	imgui.TextDisabled(fmt.Sprintf("|  heard by %d, missed by %d", rx, missed))
+	textDim(fmt.Sprintf("|  heard by %d, missed by %d", rx, missed))
 
 	d := capture.Dissect(frame)
 	if d.Truncated {
 		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.72, 0.25, 1))
-		imgui.TextWrapped("malformed: " + d.Problem)
+		textWrap("malformed: " + d.Problem)
 		imgui.PopStyleColor()
 	}
 
@@ -106,12 +106,9 @@ func (a *App) drawPacketBody() {
 }
 
 func (a *App) drawDissection(d capture.Dissection, frame []byte) {
-	// Hex is machine output; proportional digits do not line up.
-	pushMono()
-	defer popMono()
 	imgui.SeparatorText("Header")
 	kv := func(k, v string) {
-		imgui.TextDisabled(k)
+		textDim(k)
 		imgui.SameLineV(150, -1)
 		imgui.Text(v)
 	}
@@ -124,7 +121,7 @@ func (a *App) drawDissection(d capture.Dissection, frame []byte) {
 
 	imgui.SeparatorText(fmt.Sprintf("Path - %d hop(s)", d.HopCount()))
 	if len(d.PathHashes) == 0 {
-		imgui.TextDisabled("none; this packet has not been relayed")
+		textDim("none; this packet has not been relayed")
 	} else {
 		// Hashes resolved to names where the scenario knows them: a path of
 		// "AB CD 4F" is data, "Ben Vrackie -> Dunkeld -> ..." is an answer.
@@ -136,12 +133,12 @@ func (a *App) drawDissection(d capture.Dissection, frame []byte) {
 				parts = append(parts, fmt.Sprintf("%02X", h))
 			}
 		}
-		imgui.TextWrapped(strings.Join(parts, "  ->  "))
+		textWrap(strings.Join(parts, "  ->  "))
 	}
 
 	imgui.SeparatorText("Payload")
 	if len(d.PayloadFields) == 0 {
-		imgui.TextDisabled(fmt.Sprintf("%d bytes, encrypted or of a type with nothing in clear",
+		textDim(fmt.Sprintf("%d bytes, encrypted or of a type with nothing in clear",
 			len(d.Payload)))
 	}
 	for _, f := range d.PayloadFields {
@@ -237,12 +234,12 @@ func (a *App) nodeByHash(h byte) (string, bool) {
 // they are the reason this table exists rather than a log.
 func (a *App) drawReceptionLedger() {
 	if a.eng == nil {
-		imgui.TextDisabled("no simulation - press play in the strip above")
+		textDim("no simulation - press play in the strip above")
 		return
 	}
 	rows := a.eng.Ledger.ForPacket(a.pkt.id)
 	if len(rows) == 0 {
-		imgui.TextDisabled("no receptions recorded for this packet")
+		textDim("no receptions recorded for this packet")
 		return
 	}
 
@@ -255,7 +252,7 @@ func (a *App) drawReceptionLedger() {
 			decoded++
 		}
 	}
-	imgui.TextDisabled(fmt.Sprintf("offered to %d nodes . decoded at %d", reached, decoded))
+	textDim(fmt.Sprintf("offered to %d nodes . decoded at %d", reached, decoded))
 
 	if !imgui.BeginTableV("##ledger", 7,
 		imgui.TableFlagsBorders|imgui.TableFlagsRowBg|imgui.TableFlagsScrollY,
@@ -299,13 +296,13 @@ func (a *App) drawReceptionLedger() {
 		if r.Offered {
 			imgui.Text(fmt.Sprintf("%.1f", r.RSSIdBm))
 		} else {
-			imgui.TextDisabled("-")
+			textDim("-")
 		}
 		imgui.TableSetColumnIndex(3)
 		if r.Offered {
 			imgui.Text(fmt.Sprintf("%+.1f", r.SNRdB))
 		} else {
-			imgui.TextDisabled("-")
+			textDim("-")
 		}
 		imgui.TableSetColumnIndex(4)
 		mark(r.Demod, r.Offered)
@@ -362,7 +359,7 @@ func (a *App) drawMessageJourney() {
 		}
 	}
 	if msgID == 0 {
-		imgui.TextDisabled("this message cannot be followed; its frame did not parse")
+		textDim("this message cannot be followed; its frame did not parse")
 		return
 	}
 
@@ -398,7 +395,7 @@ func (a *App) drawMessageJourney() {
 		}
 	}
 	if len(hops) == 0 {
-		imgui.TextDisabled("no transmissions of this message")
+		textDim("no transmissions of this message")
 		return
 	}
 
@@ -410,7 +407,7 @@ func (a *App) drawMessageJourney() {
 	}
 	imgui.Text(fmt.Sprintf("%d transmissions, reaching %d distinct nodes over %.1f s",
 		len(hops), len(reached), float64(hops[len(hops)-1].at-hops[0].at)/1000))
-	imgui.TextDisabled("one message, followed by its payload - the bytes on the air differ " +
+	textDim("one message, followed by its payload - the bytes on the air differ " +
 		"at every hop, because each relay appends itself to the path")
 
 	if !imgui.BeginTableV("##journey", 5,
@@ -437,7 +434,7 @@ func (a *App) drawMessageJourney() {
 		if len(h.heard) == 0 {
 			// A relay nobody heard is the interesting kind: airtime spent for
 			// nothing, which is what the scoreboard's redundancy figure counts.
-			imgui.TextDisabled(fmt.Sprintf("nobody (%d could not decode)", h.missed))
+			textDim(fmt.Sprintf("nobody (%d could not decode)", h.missed))
 		} else {
 			imgui.Text(strings.Join(h.heard, ", "))
 		}

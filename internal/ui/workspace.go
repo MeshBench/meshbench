@@ -199,8 +199,11 @@ func (a *App) buildWorkspace(dockID imgui.ID) {
 
 	var right, bottom, centre imgui.ID
 	centre = root
-	imgui.InternalDockBuilderSplitNode(centre, imgui.DirRight, 0.24, &right, &centre)
-	imgui.InternalDockBuilderSplitNode(centre, imgui.DirDown, 0.32, &bottom, &centre)
+	// A right column at 0.24 was a column of wrapped prose: panels there hold
+	// forms and tables, and the map loses less by giving them room than they
+	// lose by not having it.
+	imgui.InternalDockBuilderSplitNode(centre, imgui.DirRight, 0.30, &right, &centre)
+	imgui.InternalDockBuilderSplitNode(centre, imgui.DirDown, 0.34, &bottom, &centre)
 
 	placed := map[string]bool{"Map": true}
 	dock := func(node imgui.ID, names ...string) {
@@ -276,7 +279,7 @@ func (a *App) applyDockIntent(name string) {
 		imgui.SetNextWindowPosV(
 			imgui.NewVec2(vp.Pos().X+vp.Size().X/3, vp.Pos().Y+vp.Size().Y/4),
 			imgui.CondAlways, imgui.NewVec2(0, 0))
-		imgui.SetNextWindowSizeV(imgui.NewVec2(620, 460), imgui.CondAlways)
+		imgui.SetNextWindowSizeV(a.windowSize(84, 28), imgui.CondAlways)
 	}
 }
 
@@ -324,7 +327,7 @@ func (a *App) drawPanels() {
 		}
 		a.applyDockIntent(p.name)
 		open := p.open
-		if imgui.BeginV(p.name, &open, 0) {
+		if imgui.BeginV(p.name, &open, imgui.WindowFlagsMenuBar) {
 			p.docked = imgui.IsWindowDocked()
 			if p.docked {
 				p.lastDock = imgui.WindowDockID()
@@ -343,38 +346,40 @@ func (a *App) drawPanels() {
 //
 // One place, every panel, so "how do I get this onto my other monitor" has one
 // answer instead of one per window.
+// panelChrome is the panel's own menu bar.
+//
+// It was a button floated at the top-right of the body, which fought whatever
+// the panel drew first: at narrow widths it sat on top of the content, and it
+// clipped to "pop ou". A menu bar is part of the window frame, so it cannot
+// overlap anything, it is in the same place in every panel, and it has room
+// for the other per-panel verbs.
 func (a *App) panelChrome(name string) {
-	avail := imgui.ContentRegionAvail()
-	imgui.SameLineV(avail.X-42, 0)
-	// One button, both directions, labelled for where it will send the panel.
-	// A pop-out that cannot be undone is why people stopped using it.
-	if a.noViewports {
-		imgui.TextDisabled("(single-window)")
-		if imgui.IsItemHovered() {
-			imgui.SetTooltip("Native Wayland cannot position windows, so imgui disables\n" +
-				"pop-out there (upstream #8587). Run without -wayland - the default\n" +
-				"X11 mode - and use -scale if the UI draws too small.")
-		}
-		imgui.NewLine()
+	// Read *before* the menu bar opens: inside BeginMenuBar the current
+	// window is the bar, not the panel, so IsWindowDocked answers about the
+	// wrong thing - which is why a docked panel offered to dock itself.
+	docked := imgui.IsWindowDocked()
+	if !imgui.BeginMenuBar() {
 		return
 	}
-	if imgui.IsWindowDocked() {
-		if imgui.SmallButton("pop out##" + name) {
-			a.popOut(name)
-		}
-		if imgui.IsItemHovered() {
-			imgui.SetTooltip("Make this panel its own OS window, which you can move to\n" +
-				"another monitor. Dragging its tab out does the same.")
-		}
-	} else {
-		if imgui.SmallButton("dock##" + name) {
+	if imgui.BeginMenu(name) {
+		if a.noViewports {
+			imgui.TextDisabled("single-window: native Wayland forbids pop-out")
+		} else if docked {
+			if imgui.MenuItemBool("pop out to its own window") {
+				a.popOut(name)
+			}
+		} else if imgui.MenuItemBool("dock back into the main window") {
 			a.dockBack(name)
 		}
-		if imgui.IsItemHovered() {
-			imgui.SetTooltip("Put this panel back in the main window.")
+		imgui.Separator()
+		if imgui.MenuItemBool("close") {
+			if p := a.panelByName(name); p != nil {
+				p.open = false
+			}
 		}
+		imgui.EndMenu()
 	}
-	imgui.NewLine()
+	imgui.EndMenuBar()
 }
 
 // drawNodesPanel is the node list with its filter — the old sidebar list,

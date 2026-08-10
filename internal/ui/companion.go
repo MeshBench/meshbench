@@ -48,7 +48,7 @@ func (a *App) drawCompanionTab(name string) {
 			imgui.Text("virtual serial device")
 			imgui.SameLine()
 			imgui.Text(p.Addr)
-			imgui.TextDisabled("point client software at this device; it cannot tell this from USB")
+			textDim("point client software at this device; it cannot tell this from USB")
 		default:
 			imgui.Text("listening on " + p.Addr)
 			// The address a client is actually pointed at. "0.0.0.0:5680" is
@@ -56,10 +56,10 @@ func (a *App) drawCompanionTab(name string) {
 			if strings.HasPrefix(p.Addr, "[::]") || strings.HasPrefix(p.Addr, "0.0.0.0") {
 				_, bound, _ := net.SplitHostPort(p.Addr)
 				for _, h := range lanAddresses() {
-					imgui.TextDisabled("   " + net.JoinHostPort(h, bound))
+					textDim("   " + net.JoinHostPort(h, bound))
 				}
 			}
-			imgui.TextDisabled("point a MeshCore client at this address")
+			textDim("point a MeshCore client at this address")
 		}
 		imgui.Spacing()
 		if imgui.Button("disconnect") {
@@ -74,7 +74,7 @@ func (a *App) drawCompanionTab(name string) {
 	}
 	n, ok := a.eng.NodeByName(name)
 	if !ok || n.Firmware == nil {
-		imgui.TextWrapped("This node runs no firmware, so there is no companion interface to " +
+		textWrap("This node runs no firmware, so there is no companion interface to " +
 			"expose. Start firmware from the Simulation menu first.")
 		return
 	}
@@ -133,7 +133,7 @@ func (a *App) drawCompanionTab(name string) {
 		a.comp.ports[name] = p
 		a.status = name + " is at " + p.Addr
 	}
-	imgui.TextDisabled("Both carry the firmware's own serial protocol, byte for byte.")
+	textDim("Both carry the firmware's own serial protocol, byte for byte.")
 }
 
 // closeCompanions stops every listener, for when the engine is rebuilt.

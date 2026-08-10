@@ -31,14 +31,14 @@ const abSimMs = 60_000
 func (a *App) drawABSection() {
 	s := &a.ab
 	imgui.SeparatorText("A/B firmware split")
-	imgui.TextWrapped("Give half the fleet version A and half version B, run, and see " +
+	textWrap("Give half the fleet version A and half version B, run, and see " +
 		"whether behaviour differs. Then bisect: rerun with smaller and smaller " +
 		"sets on B until one node carries the difference.")
 
 	a.fw.load()
 	_, versions := a.fw.forThisMachine()
 	if len(versions) < 2 {
-		imgui.TextDisabled("needs at least two published firmware versions to compare")
+		textDim("needs at least two published firmware versions to compare")
 		return
 	}
 	if s.verA == "" {
@@ -106,10 +106,10 @@ func (a *App) drawABSection() {
 		}
 	}
 	if s.running {
-		imgui.TextDisabled("bisecting... watch the jobs popover; cancel there or here")
+		textDim("bisecting... watch the jobs popover; cancel there or here")
 	}
 	if s.result != "" {
-		imgui.TextWrapped(s.result)
+		textWrap(s.result)
 	}
 }
 
