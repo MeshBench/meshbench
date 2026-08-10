@@ -173,8 +173,14 @@ type App struct {
 
 	// comps are open mini-companion sessions, one per node, each holding
 	// that node's serial port; compUI is what their tab has typed into it.
-	comps  map[string]*compSession
-	compUI map[string]*compUIState
+	comps map[string]*compSession
+
+	// Firmware start runs off the frame thread; these are how it reports back.
+	fwStarting atomic.Bool
+	fwDone     atomic.Int32
+	fwTotal    atomic.Int32
+	fwErr      atomic.Pointer[error]
+	compUI     map[string]*compUIState
 	// extraRegions are region names the operator named that no observed
 	// traffic has shown yet.
 	extraRegions []string
