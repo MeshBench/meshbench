@@ -231,5 +231,12 @@ func sessionCompanionTools() []Tool {
 			"Send a flood advert from a companion, which is how other nodes learn it "+
 				"exists and how it acquires contacts.",
 			"companion.advert", sObj(map[string]any{"node": sStr("node name")}, "node")),
+
+		uiTool("session_companion_configure",
+			"Apply the scenario's name, radio, transmit power and default scope to a "+
+				"connected companion. Provisioning does not reach companions - it speaks "+
+				"the repeater CLI, which a companion build does not have - so a companion "+
+				"is unnamed, unscoped and on no particular frequency until this is called.",
+			"companion.configure", sObj(map[string]any{"node": sStr("node name")}, "node")),
 	}
 }

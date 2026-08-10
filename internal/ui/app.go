@@ -175,6 +175,9 @@ type App struct {
 	// that node's serial port; compUI is what their tab has typed into it.
 	comps  map[string]*compSession
 	compUI map[string]*compUIState
+	// extraRegions are region names the operator named that no observed
+	// traffic has shown yet.
+	extraRegions []string
 
 	// journal is every command this session has been driven with - the only
 	// memory a driven workbench has of what was done to it.
@@ -367,12 +370,14 @@ func (a *App) Run(title string, w, h int) error {
 	// the platform's own answer joins in afterwards for the style.
 	a.ensureConfig() // the saved ctrl+/- scale is part of scale resolution
 	scale := a.configuredUIScale()
-	b.CreateWindow(title, int(float64(w)*scale), int(float64(h)*scale))
 	// Maximised: this is a workbench with a map, four panel groups and a
-	// status bar, and none of that is better in a third of a screen. The flag
-	// is set after the window exists, because GLFW applies it to the window
-	// rather than to the hint.
+	// status bar, and none of that is better in a third of a screen.
+	//
+	// Before CreateWindow, not after: SetWindowFlags is glfwWindowHint, which
+	// applies to the *next* window created. Called afterwards it is a no-op,
+	// which is why the window kept opening at its default size.
 	b.SetWindowFlags(glfwbackend.GLFWWindowFlagsMaximized, 1)
+	b.CreateWindow(title, int(float64(w)*scale), int(float64(h)*scale))
 	if scale == 1 {
 		if sx, _ := b.ContentScale(); sx > 1.01 {
 			scale = float64(sx)

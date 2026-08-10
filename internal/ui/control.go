@@ -856,6 +856,17 @@ func (a *App) handleUICommand(method string, params json.RawMessage) (any, bool,
 		cs.draft = arg("text")
 		a.compSendMessage(arg("node"), s, cs)
 		return map[string]any{"sent": arg("text"), "channel": cs.channel}, true, nil
+	case "companion.configure":
+		// The companion equivalent of provisioning, so an agent can configure a
+		// companion the way it configures a repeater. Without it, driving a run
+		// from outside leaves companions unnamed and unscoped.
+		node := arg("node")
+		if a.comps[node] == nil {
+			return nil, true, fmt.Errorf("not connected to %q - companion.connect first", node)
+		}
+		a.configureCompanion(node)
+		return map[string]any{"node": node, "configured": true}, true, nil
+
 	case "companion.advert":
 		s := a.comps[arg("node")]
 		if s == nil {
