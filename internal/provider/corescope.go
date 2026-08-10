@@ -40,6 +40,7 @@ func (c *CoreScope) headers() map[string]string {
 // different things and the JSON does not distinguish them any other way: a node
 // with no position decodes to nil, not to the Atlantic off Ghana.
 type csNode struct {
+	DefaultScope  *string  `json:"default_scope"`
 	Name          string   `json:"name"`
 	PublicKey     string   `json:"public_key"`
 	Lat           *float64 `json:"lat"`
@@ -93,10 +94,11 @@ func (c *CoreScope) Nodes(ctx context.Context) ([]NodeRecord, error) {
 	out := make([]NodeRecord, 0, len(nodes))
 	for _, n := range nodes {
 		r := NodeRecord{
-			Name:      n.Name,
-			PublicKey: n.PublicKey,
-			Kind:      strings.ToLower(n.Role),
-			Source:    c.Name(),
+			Name:         n.Name,
+			PublicKey:    n.PublicKey,
+			DefaultScope: strDeref(n.DefaultScope),
+			Kind:         strings.ToLower(n.Role),
+			Source:       c.Name(),
 		}
 		if ts, ok := parseTime(n.LastHeard); ok {
 			r.LastSeen = ts
@@ -375,4 +377,11 @@ func (c *CoreScope) PacketsSince(ctx context.Context, since time.Time,
 		}
 	}
 	return out, nil
+}
+
+func strDeref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }

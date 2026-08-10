@@ -128,6 +128,7 @@ func Import(records []provider.NodeRecord, o ImportOptions) (ImportResult, error
 		n := Node{
 			Name:          name,
 			Board:         board.Name,
+			DefaultScope:  r.DefaultScope,
 			PublicKey:     strings.ToLower(r.PublicKey),
 			Kind:          kindFor(r.Kind),
 			Position:      pos,
