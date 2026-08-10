@@ -764,7 +764,12 @@ func (a *App) handleUICommand(method string, params json.RawMessage) (any, bool,
 		out["nodes"] = nodes
 		return out, true, nil
 	case "infer.apply":
-		return map[string]any{"applied": a.applyInference()}, true, nil
+		// Through the panel's own counter, so a driven apply and a clicked one
+		// leave the window saying the same thing. Driving it directly applied
+		// the regions but left the panel reading "0 applied", which is
+		// indistinguishable from having done nothing.
+		a.infer.appliedN = a.applyInference()
+		return map[string]any{"applied": a.infer.appliedN}, true, nil
 	case "firmware.set":
 		role, version := arg("role"), arg("version")
 		if version == "" {
@@ -873,6 +878,43 @@ func (a *App) handleUICommand(method string, params json.RawMessage) (any, bool,
 		cs.draft = arg("text")
 		a.compSendMessage(arg("node"), s, cs)
 		return map[string]any{"sent": arg("text"), "channel": cs.channel}, true, nil
+	case "project.save":
+		// A driven pipeline otherwise has no way to survive the restart that
+		// any rebuild forces, and an import plus a week of inference is the
+		// better part of an hour to rebuild.
+		name := arg("name")
+		if name == "" {
+			return nil, true, fmt.Errorf("project.save needs a name")
+		}
+		if err := a.saveProject(name); err != nil {
+			return nil, true, err
+		}
+		return map[string]any{"saved": name, "nodes": len(a.Nodes)}, true, nil
+
+	case "project.open":
+		if err := a.openProject(arg("name")); err != nil {
+			return nil, true, err
+		}
+		return map[string]any{"opened": arg("name"), "nodes": len(a.Nodes)}, true, nil
+
+	case "project.list":
+		var out []string
+		for _, p := range listProjects() {
+			out = append(out, p.name)
+		}
+		return map[string]any{"projects": out}, true, nil
+
+	case "companion.add_channel":
+		s := a.comps[arg("node")]
+		if s == nil {
+			return nil, true, fmt.Errorf("not connected to %q - companion.connect first", arg("node"))
+		}
+		idx, err := a.compAddChannel(s, arg("name"))
+		if err != nil {
+			return nil, true, err
+		}
+		return map[string]any{"node": arg("node"), "channel": arg("name"), "index": idx}, true, nil
+
 	case "companion.configure":
 		// The companion equivalent of provisioning, so an agent can configure a
 		// companion the way it configures a repeater. Without it, driving a run

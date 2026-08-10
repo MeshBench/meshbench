@@ -562,3 +562,41 @@ func (a *App) configureCompanion(node string) {
 	_ = a.compSend(s, proto.GetDefaultScope())
 	a.stepEngine(10)
 }
+
+// compAddChannel puts a named channel in the next free slot.
+//
+// A companion out of the box has only "Public". A hashtag channel is a public
+// name whose secret is derived from the name, exactly as a transport region's
+// key is - so anyone who knows the name can join it, which is the whole point
+// of a hashtag channel.
+func (a *App) compAddChannel(s *compSession, name string) (int, error) {
+	s.mu.Lock()
+	used := map[int]bool{}
+	for _, c := range s.channels {
+		used[int(c.Index)] = true
+		if strings.EqualFold(c.Name, name) {
+			i := int(c.Index)
+			s.mu.Unlock()
+			return i, nil // already there; do not burn a second slot on it
+		}
+	}
+	s.mu.Unlock()
+	idx := -1
+	for i := 1; i < 8; i++ { // slot 0 is Public, which is not ours to overwrite
+		if !used[i] {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return 0, fmt.Errorf("no free channel slot on this node")
+	}
+	if err := a.compSend(s, proto.SetChannel(uint8(idx), name, provider.RegionKey(name))); err != nil {
+		return 0, err
+	}
+	a.stepEngine(10)
+	// Read it back, so the list reflects the node rather than our intent.
+	_ = a.compSend(s, proto.GetChannel(uint8(idx)))
+	a.stepEngine(10)
+	return idx, nil
+}
