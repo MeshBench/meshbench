@@ -442,3 +442,19 @@ func DecodeDefaultScope(b []byte) (name string, key [16]byte, ok bool) {
 	copy(key[:], b[1+scopeNameLen:])
 	return string(n), key, true
 }
+
+// channelNameLen is the firmware's fixed name field, ahead of the secret.
+const channelNameLen = 32
+
+// SetChannel puts a channel in a slot: name, then a 128-bit secret.
+//
+// The firmware supports only 128-bit secrets here - it rejects the 256-bit
+// form with ERR_CODE_UNSUPPORTED_CMD - so the secret is always 16 bytes.
+func SetChannel(idx uint8, name string, secret [16]byte) []byte {
+	b := make([]byte, 2+channelNameLen+16)
+	b[0] = byte(CmdSetChannel)
+	b[1] = idx
+	copy(b[2:2+channelNameLen-1], name)
+	copy(b[2+channelNameLen:], secret[:])
+	return b
+}
