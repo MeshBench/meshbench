@@ -114,17 +114,20 @@ func TestDistantNodesAreOutOfRange(t *testing.T) {
 	if err := e.Run(context.Background(), 3000); err != nil {
 		t.Fatal(err)
 	}
-	var found bool
+	// The contract inverted deliberately: out-of-range produces *no* event.
+	// On a country-sized network "nothing measurable arrived" was most of the
+	// ledger — hundreds of rows per transmission announcing that physics still
+	// applies. The absence is the assertion now: no delivery, and no noise.
 	for _, ev := range e.Events() {
-		if ev.Kind == "miss" && ev.To == "b" {
-			found = true
-			if ev.Outcome != capture.OutOfRange && ev.Outcome != capture.NotDemodulated {
-				t.Errorf("a 600 km path was reported as %s", ev.Outcome)
-			}
+		if ev.To == "b" && ev.Kind == "rx" {
+			t.Errorf("a 600 km path delivered: %+v", ev)
+		}
+		if ev.Kind == "miss" && ev.Outcome == capture.OutOfRange {
+			t.Errorf("out-of-range recorded an event: %s", ev.Detail)
 		}
 	}
-	if !found {
-		t.Error("a 600 km path produced no miss at all")
+	if b, ok := e.NodeByName("b"); !ok || b.Heard != 0 {
+		t.Error("a 600 km path was heard")
 	}
 }
 
@@ -205,5 +208,41 @@ func TestDutyCycleComesFromMeasuredAirtime(t *testing.T) {
 	}
 	if board[0].Sent != 5 {
 		t.Errorf("sent %d, want 5", board[0].Sent)
+	}
+}
+
+// Two nodes on different radio presets are on different channels, and a
+// channel that ignores that lets a UK Narrow repeater decode an Australian
+// one. The engine took its PHY from one shared config until this existed.
+func TestNodesOnDifferentPresetsCannotHearEachOther(t *testing.T) {
+	e := engine.New(flat{100}, engine.Config{
+		StepMs: 10, FreqMHz: 869.618, BandwidthHz: 62500, SF: 8, CodingRate: 4, NoiseFigDB: 6,
+	})
+	near := func(name string, freqMHz float64, sf int) scenario.Node {
+		n := node(name, 56.70, -3.90+float64(len(name))*0.001, 22)
+		n.Radio = scenario.RadioConfig{
+			CentreHz: freqMHz * 1e6, BandwidthHz: 62500, SpreadFactor: sf, CodingRate: 4,
+		}
+		return n
+	}
+	e.Add(near("uk", 869.618, 8), nil)  // EU/UK Narrow
+	e.Add(near("uk2", 869.618, 8), nil) // same preset, metres away
+	e.Add(near("aus", 916.575, 7), nil) // Australia Narrow, same place
+
+	e.Inject(0, []byte("hello"))
+	if err := e.Run(context.Background(), 3000); err != nil {
+		t.Fatal(err)
+	}
+	heard := map[string]bool{}
+	for _, ev := range e.Events() {
+		if ev.Kind == "rx" {
+			heard[ev.To] = true
+		}
+	}
+	if !heard["uk2"] {
+		t.Error("a node on the same preset a few metres away heard nothing")
+	}
+	if heard["aus"] {
+		t.Error("a node on a different frequency and spreading factor decoded the packet")
 	}
 }

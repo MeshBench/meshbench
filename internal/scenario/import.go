@@ -127,6 +127,7 @@ func Import(records []provider.NodeRecord, o ImportOptions) (ImportResult, error
 
 		n := Node{
 			Name:          name,
+			PublicKey:     strings.ToLower(r.PublicKey),
 			Kind:          kindFor(r.Kind),
 			Position:      pos,
 			UncertaintyKm: r.UncertaintyKm,

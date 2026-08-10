@@ -31,6 +31,16 @@ const (
 	// nothing relays. Only the firmware can build a packet the rest of the
 	// firmware will accept.
 	kindOriginate = 0x05
+
+	// The node's serial port, both directions.
+	//
+	// A real UART, not a rendering of one. MeshCore's applications carry their
+	// own command interface on Serial — that is how a repeater is configured on
+	// hardware — so a workbench that reaches it can administer a mesh rather than
+	// only build one. Anything else would be a prompt that agrees with whatever
+	// the simulator already believed.
+	kindConsoleIn  = 0x06 // host → node: bytes typed at the node's UART
+	kindConsoleOut = 0x07 // node → host: bytes the node printed
 )
 
 // ErrClosed is returned once a bridge has been shut down.
@@ -42,6 +52,10 @@ var ErrClosed = errors.New("firmware: bridge closed")
 // Length-prefixed for the same reason the companion transports are — a stream
 // gives no message boundaries, and a radio frame is a message.
 type Bridge struct {
+	console io.Writer
+	// claimed marks the port as owned by a companion link.
+	claimed bool
+
 	ln   net.Listener
 	node string
 
@@ -135,6 +149,17 @@ func (b *Bridge) read(c net.Conn) {
 				// The RF engine is not keeping up. Dropping here would look exactly
 				// like a propagation result, so it must never be silent.
 			}
+		case kindConsoleOut:
+			b.mu.Lock()
+			w := b.console
+			b.mu.Unlock()
+			if w != nil && n > 0 {
+				// Best effort. A console that cannot be written to must not stall
+				// the node it belongs to: the simulation's correctness does not
+				// depend on anyone reading the output.
+				_, _ = w.Write(buf)
+			}
+
 		case kindAck:
 			if n != 4 {
 				return // malformed; the stream is not ours
@@ -148,6 +173,58 @@ func (b *Bridge) read(c net.Conn) {
 			return // desynchronised; an unknown kind means the stream is not ours
 		}
 	}
+}
+
+// Console directs the node's serial output at w, and reports whether anything
+// was listening before.
+//
+// Set rather than subscribed: a node has one serial port, and two readers of one
+// UART would each see half the output — which is worse than not having it.
+func (b *Bridge) Console(w io.Writer) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	// A claimed port belongs to whoever claimed it. Without this the workbench
+	// console re-attached itself on the very next frame and quietly took the
+	// UART back from an attached companion client — which looks exactly like a
+	// client that connected and then received nothing.
+	if b.claimed {
+		return
+	}
+	b.console = w
+}
+
+// Claim gives one owner exclusive use of the serial port, as a USB cable does.
+//
+// Returns a release function. While a claim is held, Console is ignored: two
+// protocols interleaved on one UART is neither of them.
+func (b *Bridge) Claim(w io.Writer) func() {
+	b.mu.Lock()
+	b.console, b.claimed = w, true
+	b.mu.Unlock()
+	return func() {
+		b.mu.Lock()
+		b.console, b.claimed = nil, false
+		b.mu.Unlock()
+	}
+}
+
+// Claimed reports whether something owns the port — so the UI can say why the
+// console is quiet rather than appearing broken.
+func (b *Bridge) Claimed() bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.claimed
+}
+
+// Type sends bytes to the node's serial input, as if someone had typed them.
+//
+// The caller supplies the line ending, because which one a command needs is the
+// firmware's business and differs between applications.
+func (b *Bridge) Type(input []byte) error {
+	if err := b.send(kindConsoleIn, input); err != nil {
+		return fmt.Errorf("firmware: console input: %w", err)
+	}
+	return nil
 }
 
 // Deliver hands a frame to the emulated firmware — a frame the channel decided

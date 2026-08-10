@@ -158,7 +158,7 @@ func Bridge(from, to Site, t Terrain, check LinkChecker, o BridgeOptions) ([]Rou
 		if banned.Existing || sameSite(banned, from) || sameSite(banned, to) {
 			continue
 		}
-		alt, err := bridgeExcluding(from, to, nodes, check, o, banned)
+		alt, err := bridgeExcluding(nodes, check, banned)
 		if err != nil {
 			continue
 		}
@@ -170,7 +170,11 @@ func Bridge(from, to Site, t Terrain, check LinkChecker, o BridgeOptions) ([]Rou
 	return routes, nil
 }
 
-func bridgeExcluding(from, to Site, nodes []Site, check LinkChecker, o BridgeOptions, banned Site) (Route, error) {
+// bridgeExcluding reruns the search with one site removed.
+//
+// Over the sites already found rather than through Bridge, which would
+// regenerate candidates and recurse.
+func bridgeExcluding(nodes []Site, check LinkChecker, banned Site) (Route, error) {
 	filtered := make([]Site, 0, len(nodes))
 	for _, n := range nodes {
 		if sameSite(n, banned) {
@@ -178,10 +182,6 @@ func bridgeExcluding(from, to Site, nodes []Site, check LinkChecker, o BridgeOpt
 		}
 		filtered = append(filtered, n)
 	}
-	sub := o
-	sub.Alternatives = 1
-	// Rebuilding through Bridge would regenerate candidates and recurse; this
-	// runs the same search over the sites already found.
 	return searchRoute(filtered, check, len(filtered)-1)
 }
 

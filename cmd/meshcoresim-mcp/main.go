@@ -40,6 +40,14 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+	// The live-session tools, which drive a running workbench rather than this
+	// process's own engine. Registered whether or not one is up: the socket
+	// comes and goes with the window, and a tool list that changed underneath a
+	// client mid-conversation is worse than a tool that says nothing is running.
+	if err := mcp.RegisterSessionTools(s); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

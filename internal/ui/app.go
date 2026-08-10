@@ -11,10 +11,13 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"image"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/AllenDang/cimgui-go/backend"
 	"github.com/AllenDang/cimgui-go/backend/glfwbackend"
@@ -22,6 +25,7 @@ import (
 
 	"github.com/A13xB0/meshcoresim/internal/antenna"
 	"github.com/A13xB0/meshcoresim/internal/basemap"
+	"github.com/A13xB0/meshcoresim/internal/control"
 	"github.com/A13xB0/meshcoresim/internal/engine"
 	"github.com/A13xB0/meshcoresim/internal/pathview"
 	"github.com/A13xB0/meshcoresim/internal/scenario"
@@ -66,9 +70,6 @@ type App struct {
 	view MapView
 	tool Tool
 
-	// Basemap is optional. The hillshade alone is a complete map, and a build
-	// with no network has to stay usable.
-	Basemap   Basemap
 	composite Composite
 	// placeBoard is the hardware a newly placed node gets. Named rather than
 	// defaulted silently, for the same reason the importer refuses without one.
@@ -97,15 +98,97 @@ type App struct {
 	playing bool
 	scrubMs uint32
 
-	consoleInput string
-	consoleLog   []string
+	nodeFilter string
+	// msel is the multi-selection (shift-click); indices into Nodes. Cleared
+	// by any plain click and by anything that renumbers the node list.
+	msel          []int
+	boundaryPath  string
+	saveName      string
+	projName      string
+	savedCache    []savedNet
+	savedScanAt   time.Time
+	savedDirty    bool
+	confirmDelete string
 
-	loadSource   string
-	loadURL      string
-	loadToken    string
-	loadReplace  bool
-	loadStatus   string
-	loadWarnings []string
+	// Timeline state: the snapshot, the filter ticks, and the filtered index
+	// they produce.
+	evSnapshot   []engine.Event
+	evShow       [5]bool
+	evFilterInit bool
+	evKey        evFilterKey
+	evFiltered   []int
+
+	// Right-click context: which node (or ground position) the menu is about.
+	ctxNode        int
+	ctxLat, ctxLon float64
+
+	// Floating windows. Per-node windows are keyed by name so any number can be
+	// open at once — watching three repeaters independently is the use case.
+	nodeWindows   map[string]bool
+	winNodesTable bool
+	winFleet      bool
+	winBoundary   bool
+	speed         float32
+	stepDebt      float32
+
+	// Link-matrix warming: cancel for the run in flight, and progress the
+	// toolbar can read from any thread.
+	warmCancel   context.CancelFunc
+	warmDone     atomic.Int64
+	warmTotal    atomic.Int64
+	bnd          boundaryState
+	fleet        fleetState
+	cov          coverageState
+	comp         companionState
+	pkt          packetState
+	cfg          configState
+	winProvision bool
+	winPrefs     bool
+	infer        inferState
+	ab           abState
+	val          validateState
+	live         liveState
+	energy       energyState
+	// excessLossDB is the ADR-0015 calibration, applied to every engine build
+	// until removed. Displayed wherever it is in force.
+	excessLossDB float64
+	// layerID is the chosen basemap, remembered across launches.
+	layerID string
+	// detach marks node windows to be pushed outside the main window on the
+	// next frame, for a second monitor.
+	detach map[string]bool
+
+	// Workspaces: which is active, whether its preset needs building, and the
+	// panel registry the menu and layouts are generated from.
+	ws        workspace
+	wsForce   bool
+	wsRebuild bool
+	panelList []*panelSpec
+	plan      planState
+	sched     scheduleState
+	tg        timeGraphState
+	dragNode  int
+	seed      uint64
+	ctrl      *control.Server
+	layers    mapLayers
+	// neighboursOf is the node whose links are drawn, set from the map's
+	// right-click menu rather than by selection.
+	neighboursOf string
+	wf           waterfallState
+	winPlanning  bool
+	// hashNames maps a MeshCore path hash to a node name where the run has
+	// shown us which is which.
+	hashNames map[byte]string
+	// One scrollback per node, kept across tab switches: a repeater prints while
+	// you are looking at something else, and losing that is losing the record of
+	// what it did.
+	consoles map[string]*consoleBuf
+
+	// imp is the Import window — Scenario in, previewed first.
+	imp importState
+
+	// What firmware is published, for the per-node picker.
+	fw *fwCatalogue
 
 	backend backend.Backend[glfwbackend.GLFWWindowFlags]
 }
@@ -120,8 +203,8 @@ func New(t Terrain) *App {
 		Nodes:      demoScenario(),
 		placeBoard: "RAK4631",
 		pending:    make(chan *image.RGBA, 1),
-		loadSource: "corescope",
 		tiles:      newTileCache(),
+		fw:         &fwCatalogue{},
 	}
 	// Hillshade only by default. Every imagery layer here has terms that have
 	// not been checked against how this application uses them, and a default
@@ -221,8 +304,46 @@ func (a *App) Run(title string, w, h int) error {
 		return fmt.Errorf("ui: no window backend: %w", err)
 	}
 	a.backend = b
+
+	// Vsync, and a frame cap under it.
+	//
+	// Without this the loop renders as fast as the machine allows and burns two
+	// cores doing it — measured at 184% on four nodes and 186% on four hundred,
+	// which is what proved the cost was the render loop rather than the
+	// scenario. Nothing here animates faster than a person can pan a map.
+	b.SetTargetFPS(60)
+
 	b.SetBgColor(imgui.NewVec4(0.06, 0.07, 0.09, 1))
 	b.CreateWindow(title, w, h)
+	// First launch of a workspace builds its preset; every later launch loads
+	// what the operator made of it.
+	a.wsForce = true
+	a.switchWorkspace(wsPlan)
+
+	// Windows become their own OS window as soon as they leave the main one,
+	// rather than only when dropped somewhere outside it.
+	//
+	// imgui's default is to merge a floating window back into the main viewport
+	// whenever it overlaps — which makes dragging one to a second monitor
+	// impossible the moment the main window is maximised, because there is no
+	// "outside" left to drop it in. That is the whole of why this did not work.
+	io := imgui.CurrentIO()
+	io.SetConfigViewportsNoAutoMerge(true)
+	// A detached window keeps its own decoration, so it can be moved and closed
+	// with the window manager like any other.
+	io.SetConfigViewportsNoDecoration(false)
+
+	// The control socket exists only while the window does.
+	a.startControl()
+	defer func() {
+		if a.ctrl != nil {
+			_ = a.ctrl.Close()
+		}
+	}()
+	// Best-effort: a context that cannot vsync (software GL, some remote X
+	// servers) still runs, just paced by SetTargetFPS alone. Refusing to launch
+	// over a missing luxury would be the wrong trade.
+	_ = b.SetSwapInterval(glfwbackend.GLFWSwapIntervalVsync)
 	b.Run(a.frame)
 	return nil
 }
@@ -233,46 +354,73 @@ func (a *App) Run(title string, w, h int) error {
 // choice: a list of four nodes is fine and a list of four hundred is unusable,
 // and the questions a workbench exists to answer are spatial.
 func (a *App) frame() {
+	// Anything an external client asked for runs here, on the only thread
+	// allowed to touch the UI.
+	if a.ctrl != nil {
+		a.ctrl.Pump()
+	}
+
 	vp := imgui.MainViewport()
 	imgui.SetNextWindowPos(vp.Pos())
 	imgui.SetNextWindowSize(vp.Size())
 
+	// The host window carries the chrome — menu, honesty line, toolbar, run
+	// strip — and a dockspace. Everything else is a dockable panel inside it.
+	// NoDocking on the host itself, or panels dock into the chrome.
 	flags := imgui.WindowFlagsNoTitleBar | imgui.WindowFlagsNoResize |
 		imgui.WindowFlagsNoMove | imgui.WindowFlagsNoBringToFrontOnFocus |
-		imgui.WindowFlagsNoNavFocus
+		imgui.WindowFlagsNoNavFocus | imgui.WindowFlagsMenuBar |
+		imgui.WindowFlagsNoDocking
 	imgui.BeginV("##root", nil, flags)
 
+	a.drawMenuBar()
 	a.drawHeader()
 	imgui.Separator()
 	a.drawToolbar()
+	// The run strip is chrome, not a panel: what the simulation is doing right
+	// now is relevant in every workspace, and a control that must be found
+	// before the simulation can be paused is a control found too late.
+	a.drawRunControls()
+	imgui.Separator()
 
-	fill := imgui.ContentRegionAvail()
-	const inspectorW = 300
-	const bottomH = 250
-
-	if imgui.BeginTableV("##layout", 2, imgui.TableFlagsResizable|imgui.TableFlagsBordersInnerV,
-		imgui.NewVec2(0, fill.Y), 0) {
-		imgui.TableSetupColumnV("map", imgui.TableColumnFlagsWidthStretch, 0, 0)
-		imgui.TableSetupColumnV("inspector", imgui.TableColumnFlagsWidthFixed, inspectorW, 0)
-
-		imgui.TableNextRow()
-		imgui.TableSetColumnIndex(0)
-		mapW := imgui.ContentRegionAvail().X
-		a.drawMap(mapW, fill.Y-bottomH)
-		imgui.Spacing()
-		a.drawBottomTabs()
-
-		imgui.TableSetColumnIndex(1)
-		a.drawInspector()
-		imgui.EndTable()
+	dockID := imgui.IDStr("msim-dock")
+	if a.wsRebuild {
+		a.wsRebuild = false
+		a.buildWorkspace(dockID)
 	}
-
+	// The plain call: the V variant takes a *WindowClass whose nil handle the
+	// binding dereferences, which is a crash dressed as an option.
+	imgui.DockSpace(dockID)
 	imgui.End()
+
+	// The map is a dockable window like everything else — the central node of
+	// every preset, but an operator who wants it floating on another monitor
+	// entirely is not wrong.
+	if imgui.BeginV("Map", nil, 0) {
+		avail := imgui.ContentRegionAvail()
+		a.drawMap(avail.X, avail.Y)
+	}
+	imgui.End()
+
+	a.drawPanels()
+	a.pumpLiveFeed()
+
+	// Windows that are not dockable panels: they are modal-ish, per-node, or
+	// their own top-level things.
+	a.drawNodesTableWindow()
+	a.drawFleetWindow()
+	a.drawBoundaryWindow()
+	a.drawProvisionWindow()
+	a.drawPrefsWindow()
+	a.drawPlanningWindow()
+	a.drawPacketWindow()
+	a.drawNodeWindows()
 }
 
 // drawToolbar is the palette: what a click on the map will do.
 func (a *App) drawToolbar() {
-	tools := []Tool{ToolSelect, ToolPlaceRepeater, ToolPlaceCompanion, ToolPlaceObserver, ToolPlaceCustom}
+	tools := []Tool{ToolSelect, ToolMove, ToolPlaceRepeater, ToolPlaceCompanion,
+		ToolPlaceObserver, ToolPlaceCustom}
 	for i, t := range tools {
 		if i > 0 {
 			imgui.SameLine()
@@ -311,9 +459,44 @@ func (a *App) drawToolbar() {
 	}
 	imgui.SameLine()
 	imgui.TextDisabled(fmt.Sprintf("%d nodes  |  %.0f m/px", len(a.Nodes), a.view.MetresPerPixel))
+	a.drawJobsPopover()
+	// The seed, always visible and always editable.
+	//
+	// "A run that cannot be reproduced is not evidence" — so this is not in a
+	// settings dialogue, and it is not hidden behind a disclosure triangle. It
+	// sits in the chrome where it cannot be missed.
+	imgui.SameLineV(0, 20)
+	imgui.TextDisabled("seed")
+	imgui.SameLine()
+	imgui.SetNextItemWidth(70)
+	seed := int32(a.runSeed())
+	// No step buttons: a seed is typed or pasted, never nudged, and the
+	// steppers cost more toolbar than the field.
+	if imgui.InputIntV("##seed", &seed, 0, 0, 0) {
+		a.seed = uint64(seed)
+		a.buildEngine()
+		a.saveConfig()
+	}
+	if a.companionAttached() {
+		imgui.SameLine()
+		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.72, 0.25, 1))
+		imgui.Text("1x LOCKED: companion attached")
+		imgui.PopStyleColor()
+		if imgui.IsItemHovered() {
+			imgui.SetTooltip("A real client is attached to a node's companion port.\n" +
+				"Simulated time must track wall time or the client's own timeouts\n" +
+				"fire against a clock that is not moving at their speed.")
+		}
+	}
+
 	if a.status != "" {
-		imgui.SameLineV(0, 24)
-		imgui.TextDisabled(a.status)
+		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.72, 0.25, 1))
+		imgui.TextWrapped(a.status)
+		imgui.PopStyleColor()
+		imgui.SameLine()
+		if imgui.SmallButton("dismiss") {
+			a.status = ""
+		}
 	}
 	imgui.Separator()
 }
@@ -355,8 +538,10 @@ func (a *App) drawLayerPicker() {
 			}
 			if imgui.SelectableBool(l.Name) {
 				a.composite.Base, a.composite.HasBase = l, true
+				a.layerID = l.ID
 				a.tiles.forget()
 				a.terrainDirty = true
+				a.saveConfig()
 			}
 		}
 		imgui.EndCombo()
@@ -397,36 +582,22 @@ func (a *App) attribution() string {
 // Tabs rather than a stack, because a link profile and a flood timeline are
 // answers to different questions and nobody needs both at once — and stacking
 // them means neither gets the height to be readable.
-func (a *App) drawBottomTabs() {
-	if !imgui.BeginTabBar("##bottom") {
-		return
-	}
-	if imgui.BeginTabItem("Link") {
-		a.drawAnalysis()
-		imgui.EndTabItem()
-	}
-	if imgui.BeginTabItem("Traffic") {
-		a.drawRunControls()
-		imgui.Separator()
-		a.drawTimeline()
-		imgui.EndTabItem()
-	}
-	if imgui.BeginTabItem("Scoreboard") {
-		a.drawScoreboard()
-		imgui.EndTabItem()
-	}
-	if imgui.BeginTabItem("Console") {
-		a.drawConsole()
-		imgui.EndTabItem()
-	}
-	imgui.EndTabBar()
+// SetNodes replaces the scenario.
+//
+// The view is refitted and the engine rebuilt, because a new set of nodes is a
+// new geometry: every path loss that involves a node changes when it moves, and
+// an engine carrying its old link cache forward would answer with a network that
+// no longer exists.
+func (a *App) SetNodes(nodes []scenario.Node) {
+	a.Nodes = nodes
+	a.selected, a.linkTo = -1, -1
+	a.view.MetresPerPixel = 0 // refit on the next frame, when the size is known
+	a.terrainDirty = true
+	a.buildEngine()
+	a.selectFirstLink()
 }
 
 // SetBasemapStore gives the map its tile source.
-//
-// Separate from Basemap because the two are used at different times: Basemap
-// samples pixels for the hillshade composite, and the store hands whole tiles
-// to the renderer.
 func (a *App) SetBasemapStore(s *basemap.Store) { a.bmStore = s }
 
 // SetLayer picks the basemap to open with.
@@ -436,6 +607,7 @@ func (a *App) SetLayer(id string) error {
 		return fmt.Errorf("ui: no basemap layer %q", id)
 	}
 	a.composite.Base, a.composite.HasBase = l, true
+	a.layerID = id
 	a.tiles.forget()
 	return nil
 }

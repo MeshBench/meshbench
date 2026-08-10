@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/AllenDang/cimgui-go/imgui"
 
@@ -20,6 +21,10 @@ const (
 	// is what people do most and a workbench that starts in a placement mode
 	// scatters nodes across the map before anyone has read anything.
 	ToolSelect Tool = iota
+	// ToolMove drags nodes. Its own mode on purpose: moving a repeater changes
+	// every result on screen, and doing it by accident while panning is a
+	// change nobody noticed making.
+	ToolMove
 	ToolPlaceRepeater
 	ToolPlaceCompanion
 	ToolPlaceObserver
@@ -28,6 +33,8 @@ const (
 
 func (t Tool) label() string {
 	switch t {
+	case ToolMove:
+		return "move"
 	case ToolPlaceRepeater:
 		return "repeater"
 	case ToolPlaceCompanion:
@@ -55,14 +62,32 @@ func (a *App) drawMap(w, h float32) {
 	origin := imgui.CursorScreenPos()
 	imgui.InvisibleButtonV("##map", imgui.NewVec2(w, h), 0)
 	hovered := imgui.IsItemHovered()
+	// Active means the drag *started* on the map itself. The old check asked
+	// only "is a drag happening", which panned the world underneath every
+	// window being moved and every slider being pulled.
+	active := imgui.IsItemActive()
 
-	a.handleMapInput(origin, hovered)
+	a.handleMapInput(origin, hovered, active)
 	a.drawTerrain(origin, w, h)
-	a.drawNodes(origin)
+	a.drawCoverage(origin, w, h)
+	a.drawBoundaryOutline(origin, w, h)
+	a.drawImportPreviewBox(origin, w, h)
+	a.drawLinkLines(origin, w, h)
+	a.drawAntennaPatterns(origin, w, h)
+	a.drawTrafficLines(origin, w, h)
+	a.drawNodes(origin, w, h)
+	a.drawTrafficKey(origin, w, h)
+	a.drawLayerControls(origin, w)
+
+	// Overlays are positioned children, and each one leaves the layout cursor
+	// wherever it finished. Whatever is drawn after the map — the tabs — would
+	// otherwise appear at the last overlay's position, which collapsed the map
+	// entirely when a control strip was added at the top.
+	imgui.SetCursorScreenPos(imgui.NewVec2(origin.X, origin.Y+h))
 	a.drawScale(origin, h)
 }
 
-func (a *App) handleMapInput(origin imgui.Vec2, hovered bool) {
+func (a *App) handleMapInput(origin imgui.Vec2, hovered, active bool) {
 	io := imgui.CurrentIO()
 	mouse := imgui.MousePos()
 	mx := float64(mouse.X - origin.X)
@@ -75,10 +100,44 @@ func (a *App) handleMapInput(origin imgui.Vec2, hovered bool) {
 		}
 	}
 
-	// Dragging always pans, whatever the tool. A map you cannot move while
-	// holding a placement tool is a map you have to keep switching modes to use.
-	if imgui.IsMouseDraggingV(imgui.MouseButtonLeft, 3) ||
-		imgui.IsMouseDraggingV(imgui.MouseButtonMiddle, 3) {
+	// Dragging a node moves it, and everything recomputes.
+	//
+	// The primary "what if": workflow A is drag a candidate onto the hill and
+	// watch every link recolour. It must feel immediate, which is why the link
+	// matrix warms in the background rather than being filled on demand.
+	if a.tool == ToolMove && active && a.dragNode < 0 &&
+		imgui.IsMouseDraggingV(imgui.MouseButtonLeft, 3) {
+		if i := a.view.NodeAt(a.Nodes, startX(mx), startY(my), 14); i >= 0 {
+			a.dragNode = i
+		} else {
+			a.dragNode = -2 // this drag is a pan, decided once at its start
+		}
+	}
+	if a.dragNode >= 0 {
+		if imgui.IsMouseDraggingV(imgui.MouseButtonLeft, 1) {
+			lat, lon := a.view.ScreenToLatLon(mx, my)
+			a.Nodes[a.dragNode].Position = scenario.LatLon{Lat: lat, Lon: lon}
+			// The cache is keyed on node index, and this node's every path has
+			// just changed. Dropping the whole matrix is cheaper than being
+			// clever about which entries moved.
+			a.onGeometryChanged()
+		} else {
+			a.dragNode = -1
+			a.startWarm()
+		}
+		return
+	}
+
+	if active && imgui.IsMouseReleased(imgui.MouseButtonLeft) {
+		a.dragNode = -1
+	}
+
+	// Panning: only a drag that began on the map and not on a node. A map you
+	// cannot move while holding a placement tool is a map you keep switching
+	// modes to use; a map that moves while you drag a node window over it is
+	// worse.
+	if active && (imgui.IsMouseDraggingV(imgui.MouseButtonLeft, 3) ||
+		imgui.IsMouseDraggingV(imgui.MouseButtonMiddle, 3)) {
 		d := imgui.MouseDragDeltaV(imgui.MouseButtonLeft, 3)
 		if d.X == 0 && d.Y == 0 {
 			d = imgui.MouseDragDeltaV(imgui.MouseButtonMiddle, 3)
@@ -89,6 +148,23 @@ func (a *App) handleMapInput(origin imgui.Vec2, hovered bool) {
 			a.dragged = true
 			imgui.ResetMouseDragDeltaV(imgui.MouseButtonLeft)
 			imgui.ResetMouseDragDeltaV(imgui.MouseButtonMiddle)
+		}
+	}
+
+	if hovered && imgui.IsMouseReleased(imgui.MouseButtonRight) {
+		// Context menus are the point of being a desktop application: the web
+		// version of this is a mode you have to enter first.
+		a.ctxNode = a.view.NodeAt(a.Nodes, mx, my, 12)
+		a.ctxLat, a.ctxLon = a.view.ScreenToLatLon(mx, my)
+		imgui.OpenPopupStr("##mapctx")
+	}
+	a.drawMapContext()
+
+	// Delete removes the selection. The keyboard's job, not a button's: by the
+	// time anyone wants a node gone they already have it selected.
+	if hovered && imgui.IsKeyPressedBool(imgui.KeyDelete) {
+		if from, _ := a.Link(); from >= 0 {
+			a.DeleteNode(from)
 		}
 	}
 
@@ -104,12 +180,115 @@ func (a *App) handleMapInput(origin imgui.Vec2, hovered bool) {
 
 	if a.tool == ToolSelect {
 		if i := a.view.NodeAt(a.Nodes, mx, my, 12); i >= 0 {
-			a.SelectNode(i, io.KeyCtrl())
+			if io.KeyShift() {
+				a.toggleMulti(i)
+			} else {
+				a.SelectNode(i, io.KeyCtrl())
+			}
 		}
 		return
 	}
 	lat, lon := a.view.ScreenToLatLon(mx, my)
 	a.placeNode(a.tool, lat, lon)
+	// One click places one node. A tool that stays armed scatters accidental
+	// repeaters across the map on every click meant as a selection; holding
+	// shift keeps it armed on purpose, for laying out a chain.
+	if !io.KeyShift() {
+		a.tool = ToolSelect
+	}
+}
+
+// drawMapContext is the right-click menu, over a node or over ground.
+func (a *App) drawMapContext() {
+	if !imgui.BeginPopup("##mapctx") {
+		return
+	}
+	if a.ctxNode >= 0 && a.ctxNode < len(a.Nodes) {
+		n := a.Nodes[a.ctxNode]
+		imgui.TextDisabled(n.Name)
+		imgui.Separator()
+		if imgui.MenuItemBool("open window") {
+			a.openNodeWindow(n.Name)
+			a.SelectNode(a.ctxNode, false)
+		}
+		if imgui.MenuItemBool("link from here") {
+			a.SelectNode(a.ctxNode, false)
+		}
+		if from, _ := a.Link(); from >= 0 && from != a.ctxNode {
+			if imgui.MenuItemBool("link to here") {
+				a.SelectNode(a.ctxNode, true)
+			}
+		}
+		if imgui.MenuItemBool("move this node") {
+			a.tool = ToolMove
+			a.SelectNode(a.ctxNode, false)
+		}
+		if imgui.MenuItemBool("show neighbours") {
+			a.neighboursOf = n.Name
+		}
+		if a.neighboursOf != "" {
+			if imgui.MenuItemBool("hide neighbours") {
+				a.neighboursOf = ""
+			}
+		}
+		if imgui.MenuItemBool("coverage from here") {
+			a.startCoverage(a.ctxNode)
+		}
+		if imgui.MenuItemBool("provision this node") {
+			a.provisionNode(a.ctxNode)
+		}
+		if imgui.IsItemHovered() {
+			imgui.SetTooltip("Sends the Provisioning window's on-start commands to this\n" +
+				"node's own CLI now. Needs its firmware running; opens the\n" +
+				"Provisioning window otherwise.")
+		}
+		imgui.Separator()
+		if imgui.MenuItemBool("delete " + n.Name) {
+			a.DeleteNode(a.ctxNode)
+		}
+	} else {
+		imgui.TextDisabled(fmt.Sprintf("%.5f, %.5f", a.ctxLat, a.ctxLon))
+		imgui.Separator()
+		for _, t := range []Tool{ToolPlaceRepeater, ToolPlaceCompanion, ToolPlaceObserver, ToolPlaceCustom} {
+			if imgui.MenuItemBool("place " + t.label() + " here") {
+				a.placeNode(t, a.ctxLat, a.ctxLon)
+			}
+		}
+		imgui.Separator()
+		if a.cov.tex != nil {
+			if imgui.MenuItemBool("clear coverage overlay") {
+				a.clearCoverage()
+			}
+			imgui.SetNextItemWidth(120)
+			imgui.SliderFloat("opacity", &a.cov.opacity, 0.1, 1)
+		}
+		if imgui.MenuItemBool("fit view to nodes") {
+			a.view.FitTo(a.Nodes, a.view.Width, a.view.Height)
+			a.terrainDirty = true
+		}
+	}
+	imgui.EndPopup()
+}
+
+// DeleteNode removes a node from the scenario.
+func (a *App) DeleteNode(i int) {
+	if i < 0 || i >= len(a.Nodes) {
+		return
+	}
+	name := a.Nodes[i].Name
+	a.Nodes = append(a.Nodes[:i], a.Nodes[i+1:]...)
+	// Indices above the hole all moved down one, and the selection may have
+	// been the deleted node itself. Recomputing them is less error-prone than
+	// adjusting: there are four cases and this is not the place to enumerate
+	// them wrongly.
+	a.selected, a.linkTo, a.msel = -1, -1, nil
+	delete(a.consoles, name)
+	delete(a.nodeWindows, name)
+	a.status = "deleted " + name
+	// Geometry changed, so the run starts over; a firmware process for the
+	// deleted node would otherwise keep transmitting from a mast that is gone.
+	a.buildEngine()
+	a.selectFirstLink()
 }
 
 // placeNode adds a node where the user clicked.
@@ -137,10 +316,14 @@ func (a *App) placeNode(t Tool, lat, lon float64) {
 		// Validate refuses it — better to be unable to create one at all.
 		n.Kind, n.HeightAGLm = scenario.SDRObserver, 5
 	case ToolPlaceCustom:
-		// Not necessarily MeshCore. A mast carrying something else is still an
-		// RF participant, and the point of a workbench is to model the site
-		// rather than only the network.
-		n.Kind, n.HeightAGLm, n.TxPowerDBm = scenario.SimpleRepeater, 20, 27
+		// A real interference source, per ADR-0012 - not a repeater wearing a
+		// costume. It contributes noise at every receiver through the same
+		// terrain engine; it relays nothing and runs no firmware. On-channel
+		// and narrowband by default, because "a PMR carrier on my frequency"
+		// is the case people actually hit.
+		n.Kind, n.HeightAGLm, n.TxPowerDBm = scenario.Emitter, 20, 44
+		n.EmitterDutyPct = 100
+		n.Radio.BandwidthHz = 25e3
 	default:
 		n.Kind, n.HeightAGLm, n.TxPowerDBm = scenario.SimpleRepeater, 10, board.MaxTxDBm
 	}
@@ -236,18 +419,85 @@ func (a *App) uploadPendingTerrain() {
 	}
 }
 
-func (a *App) drawNodes(origin imgui.Vec2) {
+// labelRect is a placed label, kept so the next one can avoid it.
+type labelRect struct{ x0, y0, x1, y1 float32 }
+
+func (r labelRect) overlaps(o labelRect) bool {
+	return r.x0 < o.x1 && o.x0 < r.x1 && r.y0 < o.y1 && o.y0 < r.y1
+}
+
+func (a *App) drawNodes(origin imgui.Vec2, w, h float32) {
 	dl := imgui.WindowDrawList()
 	from, to := a.Link()
 
+	// Clipped to the map, exactly as the tiles are. The draw list has no idea
+	// where the map ends, and without this a node just south of the visible
+	// extent painted its marker and label over the tabs below — which read as
+	// the UI falling apart rather than as a node being off screen.
+	dl.PushClipRectV(origin, imgui.NewVec2(origin.X+w, origin.Y+h), true)
+	defer dl.PopClipRect()
+
+	// Labels are placed greedily and dropped where they would collide.
+	//
+	// Four hundred nodes on a county's worth of map put every name on top of
+	// every other name, and the result is a solid block of text with a map
+	// somewhere underneath it. Cartography solved this a long time ago: draw a
+	// label only where it fits, and let zooming in reveal the rest.
+	//
+	// The selection is placed first and never dropped, because the one label
+	// somebody is definitely looking at is the node they just clicked.
+	placed := make([]labelRect, 0, 64)
+	labelled := 0
+	dropped := 0
+	filtering := strings.TrimSpace(a.nodeFilter) != ""
+
+	drawLabel := func(p imgui.Vec2, name string, force bool) {
+		at := imgui.NewVec2(p.X+9, p.Y-7)
+		size := imgui.CalcTextSize(name)
+		box := labelRect{at.X - 3, at.Y - 1, at.X + size.X + 3, at.Y + size.Y + 1}
+		if !force {
+			for _, q := range placed {
+				if box.overlaps(q) {
+					dropped++
+					return
+				}
+			}
+		}
+		placed = append(placed, box)
+		labelled++
+		// The label gets its own backing. White text was invisible over a light
+		// basemap, which is exactly where the place names it has to compete with
+		// already are.
+		dl.AddRectFilledV(imgui.NewVec2(box.x0, box.y0), imgui.NewVec2(box.x1, box.y1),
+			colour(0.05, 0.06, 0.08, 0.7), 3, 0)
+		dl.AddTextVec2V(at, colour(0.95, 0.96, 1, 1), name)
+	}
+
+	// The selection first, so it wins every collision it is in.
+	for _, i := range []int{from, to} {
+		if i < 0 || i >= len(a.Nodes) {
+			continue
+		}
+		n := a.Nodes[i]
+		x, y := a.view.LatLonToScreen(n.Position.Lat, n.Position.Lon)
+		drawLabel(imgui.NewVec2(origin.X+float32(x), origin.Y+float32(y)), n.Name, true)
+	}
+
 	for i, n := range a.Nodes {
 		x, y := a.view.LatLonToScreen(n.Position.Lat, n.Position.Lon)
+		// A margin, not the exact edge: a marker centred just off screen still
+		// pokes its rim in, and a label can extend well right of its node.
+		if x < -160 || y < -40 || x > float64(w)+40 || y > float64(h)+40 {
+			continue
+		}
 		p := imgui.NewVec2(origin.X+float32(x), origin.Y+float32(y))
 
 		col := colour(0.45, 0.85, 0.5, 1) // repeater
 		switch n.Kind {
 		case scenario.SDRObserver:
 			col = colour(0.45, 0.72, 0.95, 1)
+		case scenario.Emitter:
+			col = colour(0.95, 0.35, 0.35, 1)
 		case scenario.Companion:
 			col = colour(0.95, 0.80, 0.35, 1)
 		}
@@ -262,21 +512,40 @@ func (a *App) drawNodes(origin imgui.Vec2) {
 		if i == from || i == to {
 			dl.AddCircleFilled(p, 9, colour(1, 1, 1, 0.35))
 		}
+		for _, m := range a.msel {
+			if m == i {
+				dl.AddCircleV(p, 10, colour(0.95, 0.75, 0.25, 0.95), 0, 2)
+				break
+			}
+		}
+		if filtering {
+			if a.nodeMatchesFilter(&a.Nodes[i]) {
+				dl.AddCircleV(p, 12, colour(0.55, 0.95, 0.65, 0.9), 0, 2)
+			} else {
+				// Non-matches recede rather than vanish: the filter is a
+				// highlighter, not a deletion preview.
+				dl.AddCircleFilled(p, 6, colour(0.05, 0.06, 0.08, 0.55))
+			}
+		}
 		// A ring, so a marker reads against both a dark hillshade and a light
 		// street map without changing colour.
 		dl.AddCircleFilled(p, 6, colour(0.05, 0.06, 0.08, 0.85))
 		dl.AddCircleFilled(p, 4, col)
 
-		// The label gets its own backing for the same reason. White text was
-		// invisible over a light basemap, which is exactly where the place
-		// names it has to compete with already are.
-		label := imgui.NewVec2(p.X+9, p.Y-7)
-		size := imgui.CalcTextSize(n.Name)
-		dl.AddRectFilledV(
-			imgui.NewVec2(label.X-3, label.Y-1),
-			imgui.NewVec2(label.X+size.X+3, label.Y+size.Y+1),
-			colour(0.05, 0.06, 0.08, 0.7), 3, 0)
-		dl.AddTextVec2V(label, colour(0.95, 0.96, 1, 1), n.Name)
+		if i != from && i != to {
+			drawLabel(p, n.Name, false)
+		}
+	}
+
+	// Said out loud. A map that quietly shows two hundred of four hundred names
+	// is a map that has been lying about how many nodes are in the area.
+	if dropped > 0 {
+		note := fmt.Sprintf("%d of %d labels hidden - zoom in", dropped, labelled+dropped)
+		at := imgui.NewVec2(origin.X+10, origin.Y+10)
+		size := imgui.CalcTextSize(note)
+		dl.AddRectFilledV(imgui.NewVec2(at.X-4, at.Y-2),
+			imgui.NewVec2(at.X+size.X+4, at.Y+size.Y+2), colour(0.05, 0.06, 0.08, 0.7), 3, 0)
+		dl.AddTextVec2V(at, colour(0.75, 0.78, 0.85, 1), note)
 	}
 
 	// The selected link, drawn on the map so the profile below has something to
@@ -341,6 +610,25 @@ func (a *App) drawScale(origin imgui.Vec2, h float32) {
 // fetchVisibleTerrain downloads the tiles for what is on screen.
 //
 // In the background, with progress, and never as a side effect of panning.
+// autoFetchTiles is the count below which terrain downloads without asking.
+// Above it the cost is stated first: a few tiles is a moment, a country is not.
+const autoFetchTiles = 60
+
+// terrainEstimate is what the current boundary (or view) would cost to fetch.
+func (a *App) terrainEstimate() (terrain.Estimate, bool) {
+	fetcher, ok := a.Terrain.(interface {
+		Estimate(south, north, west, east float64) terrain.Estimate
+	})
+	if !ok {
+		return terrain.Estimate{}, false
+	}
+	south, north, west, east := a.view.Bounds()
+	if region, _ := a.regionOrNil(); region != nil {
+		south, north, west, east = region.Bounds()
+	}
+	return fetcher.Estimate(south, north, west, east), true
+}
+
 func (a *App) fetchVisibleTerrain() {
 	fetcher, ok := a.Terrain.(interface {
 		Estimate(south, north, west, east float64) terrain.Estimate
@@ -353,12 +641,21 @@ func (a *App) fetchVisibleTerrain() {
 	if a.fetching {
 		return
 	}
+	// The boundary wins over the viewport. Someone who has said "this study
+	// is Scotland" wants Scotland's terrain, not whatever the window happens to
+	// show — and downloading by scrolling around is the workflow this replaces.
 	south, north, west, east := a.view.Bounds()
+	area := "the visible area"
+	if region, _ := a.regionOrNil(); region != nil {
+		south, north, west, east = region.Bounds()
+		area = "the boundary area"
+	}
 	est := fetcher.Estimate(south, north, west, east)
 	if est.ToFetch == 0 {
-		a.status = "already have this area"
+		a.status = "already have " + area
 		return
 	}
+	a.status = fmt.Sprintf("downloading %d tiles for %s", est.ToFetch, area)
 
 	a.fetching = true
 	a.fetchStatus = fmt.Sprintf("0/%d tiles", est.ToFetch)
@@ -385,4 +682,31 @@ func (a *App) fetchState() string {
 		return ""
 	}
 	return a.fetchStatus
+}
+
+// startX and startY are where a drag began, in map coordinates.
+//
+// imgui reports the delta from the press, so the press position is the current
+// mouse minus that delta — which is the point that decides whether this drag
+// grabbed a node or the map, and it has to be answered once at the start rather
+// than re-asked as the pointer moves off the node.
+func startX(mx float64) float64 {
+	return mx - float64(imgui.MouseDragDeltaV(imgui.MouseButtonLeft, 1).X)
+}
+
+func startY(my float64) float64 {
+	return my - float64(imgui.MouseDragDeltaV(imgui.MouseButtonLeft, 1).Y)
+}
+
+// onGeometryChanged is what must happen when a node moves.
+//
+// Everything that depends on where things are: the link cache, the current
+// path analysis, and the coverage overlay, which is now a picture of a network
+// that no longer exists.
+func (a *App) onGeometryChanged() {
+	if a.eng != nil {
+		a.eng.InvalidateLinks()
+	}
+	a.recompute()
+	a.terrainDirty = true
 }

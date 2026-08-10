@@ -18,8 +18,10 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"runtime"
 	"sort"
 	"sync"
+	"sync/atomic"
 
 	"github.com/A13xB0/meshcoresim/internal/capture"
 	"github.com/A13xB0/meshcoresim/internal/coverage"
@@ -36,6 +38,10 @@ type Node struct {
 	// Firmware is nil for a node that does not run any — an SDR observer, or a
 	// custom emitter that is only there to be interfered with.
 	Firmware *firmware.Node
+
+	// BootOffsetMs is how far ahead of the run clock this node's own clock runs,
+	// standing in for having been powered on earlier than the others.
+	BootOffsetMs uint32
 
 	// Sent and Heard are counters for the scoreboard.
 	Sent           int
@@ -56,9 +62,21 @@ type Event struct {
 	From     string
 	To       string
 	PacketID uint64
-	Outcome  capture.Outcome
-	SNRdB    float64
-	Detail   string
+	// MessageID is the same for every hop of one message, where PacketID is one
+	// transmission. Following a message across a mesh needs the first; blaming
+	// a particular relay needs the second.
+	MessageID uint64
+	Outcome   capture.Outcome
+	SNRdB     float64
+	Detail    string
+
+	// Frame is the bytes on the air. Carried on the event so the inspector can
+	// dissect what actually flew rather than a reconstruction of it — the two
+	// diverge exactly when it matters, which is when something is wrong.
+	//
+	// Shared, not copied: the engine never mutates a frame after transmission,
+	// and a hundred thousand events each owning a copy is real memory.
+	Frame []byte
 }
 
 // Config is what a run needs that a scenario does not carry.
@@ -77,6 +95,12 @@ type Config struct {
 
 	// Seed makes a run reproducible, which CLAUDE.md requires.
 	Seed uint64
+
+	// ExcessPathLossDB is the calibration term from ADR-0015: extra loss on
+	// every path, fitted to real observations rather than chosen. Zero means
+	// uncalibrated. Always displayed when set — a silent fudge factor is the
+	// thing the validation chain exists to prevent.
+	ExcessPathLossDB float64
 }
 
 // Engine owns the run.
@@ -91,15 +115,30 @@ type Engine struct {
 	nowMs  uint32
 	packet uint64
 
+	// eventLog, when set, receives every event as NDJSON as it is recorded.
+	eventLog *eventLog
+
 	// inFlight is what is on the air at this instant: a transmission occupies
 	// the channel for its own airtime, and anything else transmitting during
 	// that window is a collision rather than a separate event.
 	inFlight []transmission
 
+	// emitterNoise caches each receiver's extra floor from the emitter fleet,
+	// invalidated with the link cache — emitters move exactly as often as
+	// nodes do.
+	emitterNoise map[int]float64
+
 	// linkCache holds path loss between node pairs. Terrain does not move
 	// during a run, and recomputing a profile per packet per pair is the
 	// difference between a run that takes seconds and one that takes hours.
 	linkCache map[[2]int]float64
+
+	// capture, when a run is being recorded to pcapng.
+	capture *Capture
+
+	// StaggerBoot spreads node start times. On by default: started together,
+	// nodes share a timer phase and their adverts collide for ever.
+	StaggerBoot bool
 
 	// seen is which payloads each receiver has already had. It is what turns a
 	// delivery count into the number that matters: whether a relay reached
@@ -145,8 +184,10 @@ func New(t coverage.Terrain, c Config) *Engine {
 	}
 	return &Engine{
 		Terrain: t, Config: c,
-		linkCache: map[[2]int]float64{},
-		seen:      map[string]map[uint64]bool{},
+		linkCache:    map[[2]int]float64{},
+		emitterNoise: map[int]float64{},
+		StaggerBoot:  true,
+		seen:         map[string]map[uint64]bool{},
 	}
 }
 
@@ -158,6 +199,7 @@ func (e *Engine) Add(spec scenario.Node, fw *firmware.Node) *Node {
 	e.nodes = append(e.nodes, n)
 	// Terrain has not changed, but the set of pairs has.
 	e.linkCache = map[[2]int]float64{}
+	e.emitterNoise = map[int]float64{}
 	return n
 }
 
@@ -171,6 +213,13 @@ func (e *Engine) Nodes() []*Node {
 }
 
 // Events is everything that has happened, in order.
+// EventCount is the ledger length, for callers deciding whether to resnapshot.
+func (e *Engine) EventCount() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return len(e.events)
+}
+
 func (e *Engine) Events() []Event {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -234,9 +283,25 @@ func (e *Engine) completeTransmissions(now uint32) error {
 	}
 	e.inFlight = still
 	concurrent := append(append([]transmission{}, still...), done...)
+	senders := make([]*Node, len(done))
+	for i, t := range done {
+		senders[i] = e.nodes[t.from]
+	}
 	e.mu.Unlock()
 
-	for _, t := range done {
+	// The sender learns its waveform has ended before anyone hears it. This
+	// call is the entire meaning of isSendComplete() on a native node — the
+	// node cannot time its own transmission — and forgetting it wedged every
+	// radio after its first packet: the dispatcher waited forever for a
+	// completion nobody was going to send, so each node transmitted exactly
+	// once in its life and then went permanently silent. A 300-node flood
+	// looked like a single hop, because that is what it was.
+	for i, t := range done {
+		if fw := senders[i].Firmware; fw != nil {
+			if err := fw.Bridge.TransmitFinished(); err != nil {
+				return fmt.Errorf("engine: tx done for %s: %w", senders[i].Spec.Name, err)
+			}
+		}
 		if err := e.deliver(t, concurrent); err != nil {
 			return err
 		}
@@ -253,18 +318,39 @@ func (e *Engine) deliver(t transmission, concurrent []transmission) error {
 	e.mu.Unlock()
 
 	src := nodes[t.from]
-	noiseDBm := dsp.NoiseFloorDBm(e.Config.BandwidthHz, e.Config.NoiseFigDB)
-	// The SNR a LoRa receiver can decode at, from the same measurement the
-	// sensitivity test makes against Semtech's figures.
-	required := requiredSNRdB(e.Config.SF)
+	// The transmitter's own radio settings, not the scenario's. Two nodes on
+	// different presets are on different channels, and a channel that ignores
+	// that lets a UK Narrow repeater decode an Australian one.
+	txPHY := e.phyOf(src.Spec)
 
 	for i, dst := range nodes {
 		if i == t.from {
 			continue
 		}
 		if !dst.Spec.Kind.RunsFirmware() && dst.Spec.Kind != scenario.SDRObserver {
+			// Emitters and their kin radiate; they do not listen.
 			continue
 		}
+
+		// A receiver tuned elsewhere hears nothing of this. Not an event: it is
+		// the same non-event as a signal below the floor, and it is why an
+		// operator splitting a mesh across two presets sees two meshes.
+		//
+		// An SDR observer is exempt — it is wideband by definition, and being
+		// able to watch a channel your own nodes are not on is the point of
+		// having one.
+		rxPHY := e.phyOf(dst.Spec)
+		if dst.Spec.Kind != scenario.SDRObserver && !txPHY.sameChannel(rxPHY) {
+			continue
+		}
+		noiseDBm := dsp.NoiseFloorDBm(txPHY.bandwidthHz, e.Config.NoiseFigDB)
+		// The emitter fleet's contribution, through the same terrain. This is
+		// the per-receiver floor: a node beside a paging mast lives on a
+		// different noise floor from one on a quiet hill.
+		if extra := e.emitterNoiseAt(i); !math.IsInf(extra, -1) {
+			noiseDBm = addDBm(noiseDBm, extra)
+		}
+		required := requiredSNRdB(txPHY.sf)
 
 		loss, ok := e.pathLoss(t.from, i)
 		if !ok {
@@ -287,6 +373,12 @@ func (e *Engine) deliver(t transmission, concurrent []transmission) error {
 				continue
 			}
 			if other.endMs <= t.startMs || other.startMs >= t.endMs {
+				continue
+			}
+			// Energy on another channel is not interference. Adding it would
+			// make a mesh on a second preset degrade the first one, which is
+			// the opposite of why an operator splits them.
+			if !e.phyOf(nodes[other.from].Spec).sameChannel(txPHY) {
 				continue
 			}
 			ol, ok := e.pathLoss(other.from, i)
@@ -319,17 +411,34 @@ func (e *Engine) deliver(t transmission, concurrent []transmission) error {
 			RSSIdBm: rxDBm, SNRdB: effective,
 			Offered: rxDBm > noiseDBm-10,
 		}
+		// Recorded before the verdict is turned into words: the capture wants
+		// the outcome code, and every receiver's view including the ones that
+		// heard nothing worth reporting in the ledger.
+		defer func() {
+			e.mu.Lock()
+			c := e.capture
+			e.mu.Unlock()
+			if c != nil && rec.Offered {
+				c.write(t.endMs, src.Spec.Name, dst.Spec.Name, txPHY,
+					rec.RSSIdBm, rec.SNRdB, rec.Outcome, rec.CRCOK, t.frame)
+			}
+		}()
 		switch {
 		case deaf:
 			rec.Outcome = capture.NotDemodulated
 			e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.Spec.Name, To: dst.Spec.Name,
-				PacketID: t.packetID, Outcome: rec.Outcome, SNRdB: effective,
+				PacketID: t.packetID, MessageID: t.payload, Outcome: rec.Outcome,
+				SNRdB: effective, Frame: t.frame,
 				Detail: "its own transmitter was keyed; LoRa is half duplex"})
 		case !rec.Offered:
 			rec.Outcome = capture.OutOfRange
-			e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.Spec.Name, To: dst.Spec.Name,
-				PacketID: t.packetID, Outcome: rec.Outcome, SNRdB: effective,
-				Detail: fmt.Sprintf("%.0f dB of path loss; nothing measurable arrived", loss)})
+			// Not recorded. "Nothing measurable arrived" is not an event, it is
+			// the absence of one — and on a country-sized network it was most of
+			// the ledger: every transmission produced hundreds of rows saying
+			// that physics still applies. The question it answered ("why does X
+			// not hear Y") is the Link tab's job, which answers with the actual
+			// budget instead of a flood of negatives. Deafness and interference
+			// stay recorded: those are causes, not absences.
 		case effective < required:
 			rec.Outcome = capture.NotDemodulated
 			why := fmt.Sprintf("SNR %.1f dB against %.1f dB needed at SF%d", effective, required, e.Config.SF)
@@ -337,7 +446,8 @@ func (e *Engine) deliver(t transmission, concurrent []transmission) error {
 				why = fmt.Sprintf("would have decoded at %.1f dB, lost to a stronger interferer", snr)
 			}
 			e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.Spec.Name, To: dst.Spec.Name,
-				PacketID: t.packetID, Outcome: rec.Outcome, SNRdB: effective, Detail: why})
+				PacketID: t.packetID, MessageID: t.payload, Outcome: rec.Outcome,
+				SNRdB: effective, Frame: t.frame, Detail: why})
 		default:
 			rec.Demod, rec.CRCOK, rec.FirmwareSaw = true, true, true
 			rec.Outcome = capture.Accepted
@@ -364,7 +474,8 @@ func (e *Engine) deliver(t transmission, concurrent []transmission) error {
 				detail = "already had this message; the relay cost airtime and reached nobody new"
 			}
 			e.record(Event{AtMs: t.endMs, Kind: "rx", From: src.Spec.Name, To: dst.Spec.Name,
-				PacketID: t.packetID, Outcome: rec.Outcome, SNRdB: effective, Detail: detail})
+				Frame: t.frame, PacketID: t.packetID, MessageID: t.payload,
+				Outcome: rec.Outcome, SNRdB: effective, Detail: detail})
 
 			// Only a node running firmware is handed the frame. An observer
 			// hears it and does nothing, which is what an observer is.
@@ -375,6 +486,18 @@ func (e *Engine) deliver(t transmission, concurrent []transmission) error {
 			}
 		}
 		e.Ledger.Record(rec)
+
+		// The capture takes every receiver's view, including the ones the
+		// ledger does not narrate. That is the point of capturing from a
+		// simulator: a real capture has one vantage point, and "A heard it, B
+		// did not" is the most informative event in a mesh.
+		e.mu.Lock()
+		c := e.capture
+		e.mu.Unlock()
+		if c != nil && rec.Offered {
+			c.write(t.endMs, src.Spec.Name, dst.Spec.Name, txPHY,
+				rec.RSSIdBm, rec.SNRdB, rec.Outcome, rec.CRCOK, t.frame)
+		}
 	}
 	return nil
 }
@@ -382,11 +505,25 @@ func (e *Engine) deliver(t transmission, concurrent []transmission) error {
 // runFirmware advances every node's firmware to the current instant.
 func (e *Engine) runFirmware(ctx context.Context, now uint32) error {
 	nodes := e.Nodes()
+	// Every tick on the wire first, then the waits. The nodes advance in
+	// parallel on their own cores, and this thread pays for the slowest one
+	// instead of the sum — the difference between a 300-node scenario stepping
+	// and a 300-node scenario saturating the machine.
 	for _, n := range nodes {
 		if n.Firmware == nil {
 			continue
 		}
-		if err := n.Firmware.Bridge.Advance(ctx, now); err != nil {
+		// Each node's own clock: the run's time plus how long it had already
+		// been powered on when the run began.
+		if err := n.Firmware.Bridge.BeginAdvance(now + n.BootOffsetMs); err != nil {
+			return fmt.Errorf("engine: %s: %w", n.Spec.Name, err)
+		}
+	}
+	for _, n := range nodes {
+		if n.Firmware == nil {
+			continue
+		}
+		if err := n.Firmware.Bridge.WaitAdvance(ctx, now+n.BootOffsetMs); err != nil {
 			return fmt.Errorf("engine: %s: %w", n.Spec.Name, err)
 		}
 	}
@@ -446,9 +583,34 @@ func (e *Engine) Inject(nodeIndex int, payload []byte) {
 	e.startTransmission(nodeIndex, payload, now)
 }
 
+// InjectFrame puts raw bytes on the air from a node, exactly as recorded.
+//
+// The live-replay path: a packet the real network's origin transmitted is
+// re-transmitted here by the same-named simulated node, bytes unaltered, so
+// the region scope, path and type the other nodes' firmware will judge are the
+// real ones. Deliberately not Originate(): the firmware would wrap the payload
+// in a new packet of its own, and the point is to replay the packet that flew.
+func (e *Engine) InjectFrame(nodeIndex int, frame []byte) {
+	e.mu.Lock()
+	ok := nodeIndex >= 0 && nodeIndex < len(e.nodes)
+	now := e.nowMs
+	e.mu.Unlock()
+	if !ok || len(frame) == 0 {
+		return
+	}
+	e.startTransmission(nodeIndex, frame, now)
+}
+
 func (e *Engine) startTransmission(from int, frame []byte, now uint32) {
-	airtime := dsp.AirtimeMillis(e.Config.SF, e.Config.BandwidthHz, e.Config.CodingRate,
-		len(frame), true, true)
+	e.mu.Lock()
+	spec := e.nodes[from].Spec
+	e.mu.Unlock()
+	// Airtime is a property of the transmitter's own modem settings: the same
+	// bytes at SF12/62.5 occupy the air some forty times longer than at
+	// SF7/250, and a shared figure makes every duty cycle and every collision
+	// window wrong for every node not on the default.
+	phy := e.phyOf(spec)
+	airtime := dsp.AirtimeMillis(phy.sf, phy.bandwidthHz, phy.codingRate, len(frame), true, true)
 
 	e.mu.Lock()
 	e.packet++
@@ -463,7 +625,7 @@ func (e *Engine) startTransmission(from int, frame []byte, now uint32) {
 	name := e.nodes[from].Spec.Name
 	e.mu.Unlock()
 
-	e.record(Event{AtMs: now, Kind: "tx", From: name, PacketID: id,
+	e.record(Event{AtMs: now, Kind: "tx", From: name, PacketID: id, MessageID: t.payload, Frame: frame,
 		Detail: fmt.Sprintf("%d bytes, %.0f ms on air", len(frame), airtime)})
 }
 
@@ -489,11 +651,31 @@ func (e *Engine) pathLoss(a, b int) (float64, bool) {
 	if distKm <= 0 {
 		return 0, false
 	}
+
+	// The free-space cull. Terrain can only ever add loss, so if the pair
+	// cannot matter even over flat vacuum — not as a signal, not as
+	// interference — there is nothing a terrain profile could change, and the
+	// profile is the expensive part. On a country-sized import most pairs are
+	// like this, and profiling them anyway is what turned the first flood on a
+	// 300-node scenario into a frozen minute: the lazy cache fill walked
+	// forty-five thousand pairs of DEM samples on the frame thread.
+	fspl := terrain.FSPLdB(distKm, e.phyOf(from).freqMHz)
+	bestTx := math.Max(from.TxPowerDBm, to.TxPowerDBm)
+	bestRx := bestTx + gain(from) + gain(to) - fspl
+	noise := dsp.NoiseFloorDBm(e.phyOf(from).bandwidthHz, e.Config.NoiseFigDB)
+	if bestRx < noise-30 {
+		e.mu.Lock()
+		e.linkCache[k] = fspl // an underestimate, and irrelevant below the floor
+		e.mu.Unlock()
+		return fspl, true
+	}
+
 	profile, ok := e.profile(from, to, distKm)
 	loss := math.Inf(1)
 	if ok {
-		loss = terrain.FSPLdB(distKm, e.Config.FreqMHz) +
-			terrain.MultiEdgeLossDB(profile, from.HeightAGLm, to.HeightAGLm, e.Config.FreqMHz)
+		loss = fspl +
+			terrain.MultiEdgeLossDB(profile, from.HeightAGLm, to.HeightAGLm, e.phyOf(from).freqMHz) +
+			e.Config.ExcessPathLossDB
 	}
 
 	e.mu.Lock()
@@ -527,10 +709,78 @@ func (e *Engine) profile(from, to scenario.Node, distKm float64) ([]terrain.Poin
 	return out, true
 }
 
+// WarmLinks computes the whole path-loss matrix, in parallel.
+//
+// The cache fills lazily otherwise, which means the first flood pays for every
+// pair at once, on whatever thread sent the message. Warming does the same
+// work where it belongs: up front, across every core, with a progress figure
+// someone can watch. Safe alongside a running engine — pathLoss is locked, and
+// a pair warmed twice costs one map hit.
+func (e *Engine) WarmLinks(ctx context.Context, progress func(done, total int)) {
+	e.mu.Lock()
+	n := len(e.nodes)
+	e.mu.Unlock()
+
+	type pair struct{ a, b int }
+	pairs := make(chan pair, 256)
+	go func() {
+		defer close(pairs)
+		for a := 0; a < n; a++ {
+			for b := a + 1; b < n; b++ {
+				select {
+				case pairs <- pair{a, b}:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+
+	total := n * (n - 1) / 2
+	var done atomic.Int64
+	workers := runtime.NumCPU()
+	var wg sync.WaitGroup
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for p := range pairs {
+				e.pathLoss(p.a, p.b)
+				if d := done.Add(1); progress != nil && d%512 == 0 {
+					progress(int(d), total)
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	if progress != nil {
+		progress(int(done.Load()), total)
+	}
+}
+
+// InvalidateLinks drops the path-loss cache.
+//
+// A node that moved changes every path it is part of, and a cache keyed on node
+// index cannot know which. Dropping all of it is cheaper than being clever, and
+// the matrix rewarms in the background.
+func (e *Engine) InvalidateLinks() {
+	e.mu.Lock()
+	e.linkCache = map[[2]int]float64{}
+	e.emitterNoise = map[int]float64{}
+	e.mu.Unlock()
+}
+
+// PathLossForTest exposes the cached link for measurements and tests.
+func (e *Engine) PathLossForTest(a, b int) (float64, bool) { return e.pathLoss(a, b) }
+
 func (e *Engine) record(ev Event) {
 	e.mu.Lock()
 	e.events = append(e.events, ev)
+	l := e.eventLog
 	e.mu.Unlock()
+	if l != nil {
+		l.write(ev)
+	}
 }
 
 // Scoreboard is the per-node summary, ordered worst-value first.
@@ -601,6 +851,49 @@ func addDBm(a, b float64) float64 {
 	return 10 * math.Log10(math.Pow(10, a/10)+math.Pow(10, b/10))
 }
 
+// phy is one node's modem settings, resolved.
+type phy struct {
+	freqMHz     float64
+	bandwidthHz float64
+	sf          int
+	codingRate  int
+}
+
+// sameChannel reports whether two radios can hear each other at all.
+//
+// Frequency and bandwidth must match; spreading factor too, because LoRa's
+// orthogonality across SFs is the property the whole modulation is sold on — a
+// receiver at SF10 does not demodulate SF7, it sees noise. Coding rate is in
+// the explicit header, so it does not have to match.
+func (a phy) sameChannel(b phy) bool {
+	return math.Abs(a.freqMHz-b.freqMHz) < 0.001 &&
+		a.bandwidthHz == b.bandwidthHz && a.sf == b.sf
+}
+
+// phyOf resolves a node's radio, falling back to the scenario's defaults for
+// nodes imported without one.
+func (e *Engine) phyOf(n scenario.Node) phy {
+	p := phy{
+		freqMHz:     n.Radio.CentreHz / 1e6,
+		bandwidthHz: n.Radio.BandwidthHz,
+		sf:          n.Radio.SpreadFactor,
+		codingRate:  n.Radio.CodingRate,
+	}
+	if p.freqMHz <= 0 {
+		p.freqMHz = e.Config.FreqMHz
+	}
+	if p.bandwidthHz <= 0 {
+		p.bandwidthHz = e.Config.BandwidthHz
+	}
+	if p.sf <= 0 {
+		p.sf = e.Config.SF
+	}
+	if p.codingRate <= 0 {
+		p.codingRate = e.Config.CodingRate
+	}
+	return p
+}
+
 // requiredSNRdB is Semtech's published demodulator floor, which the modem has
 // been measured against to within 1.6 dB (docs/shortcomings.md).
 func requiredSNRdB(sf int) float64 {
@@ -610,16 +903,42 @@ func requiredSNRdB(sf int) float64 {
 	return -20
 }
 
-// payloadID identifies a message by its content, so the same one relayed by
-// several nodes is recognised as one message rather than several.
+// payloadID identifies a message by its content, across every hop it takes.
+//
+// The header and the payload; deliberately *not* the path. A flood packet grows
+// a hop hash at every relay, so hashing the whole frame gave the same message a
+// new identity at each hop — every relay looked like a brand new message, no
+// message could be followed across the mesh, and the unique-versus-redundant
+// count was measuring nothing.
+//
+// The route bits are masked out of the header for the same reason: a node may
+// re-route a packet it forwards, and a message that changed identity when it
+// switched from flood to direct would break at exactly the interesting moment.
 func payloadID(frame []byte) uint64 {
+	d := capture.Dissect(frame)
 	h := uint64(14695981039346656037)
-	for _, b := range frame {
+	mix := func(b byte) {
 		h ^= uint64(b)
 		h *= 1099511628211
 	}
+	if d.Truncated {
+		// Unparseable: fall back to the whole frame. It cannot be followed, but
+		// two identical malformed frames should still be one thing.
+		for _, b := range frame {
+			mix(b)
+		}
+		return h
+	}
+	// Payload type only, not the route bits or the version.
+	mix(d.PayloadType)
+	for _, b := range d.Payload {
+		mix(b)
+	}
 	return h
 }
+
+// PayloadIDForTest exposes the message identity for tests.
+func PayloadIDForTest(frame []byte) uint64 { return payloadID(frame) }
 
 func haversineKm(lat1, lon1, lat2, lon2 float64) float64 {
 	const r = 6371.0

@@ -19,11 +19,31 @@ import (
 // merely as fast: with the clock supplied rather than observed, a node that has
 // nothing to do consumes a tick in microseconds.
 func (b *Bridge) Advance(ctx context.Context, atMs uint32) error {
+	if err := b.BeginAdvance(atMs); err != nil {
+		return err
+	}
+	return b.WaitAdvance(ctx, atMs)
+}
+
+// BeginAdvance sends the tick without waiting for the ack.
+//
+// Split from the wait so an engine with three hundred nodes can put every tick
+// on the wire before it blocks on anyone: the nodes then all advance at once
+// across every core the machine has, and a step costs the slowest node rather
+// than the sum of all of them. Sequential ticking is where a large scenario's
+// CPU actually went — three hundred serialised round trips per step, at twelve
+// steps a frame.
+func (b *Bridge) BeginAdvance(atMs uint32) error {
 	var payload [4]byte
 	binary.BigEndian.PutUint32(payload[:], atMs)
 	if err := b.send(kindTick, payload[:]); err != nil {
 		return fmt.Errorf("firmware: tick %s to %d ms: %w", b.node, atMs, err)
 	}
+	return nil
+}
+
+// WaitAdvance blocks until the node has caught up to the tick.
+func (b *Bridge) WaitAdvance(ctx context.Context, atMs uint32) error {
 	for {
 		select {
 		case got := <-b.acked:

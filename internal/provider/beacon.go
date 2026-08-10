@@ -17,6 +17,11 @@ type Beacon struct {
 	BaseURL string
 	Token   string
 	HTTP    Doer
+
+	// Progress, if set, is called with the record count once the fetch lands.
+	// Beacon answers in one response, so this fires once — the field exists so
+	// both providers offer the same contract to a UI.
+	Progress func(fetched int)
 }
 
 func (b *Beacon) Name() string { return "beacon" }
@@ -62,6 +67,9 @@ func (b *Beacon) Nodes(ctx context.Context) ([]NodeRecord, error) {
 			r.UncertaintyKm = defaultInferredUncertaintyKm
 		}
 		out = append(out, r)
+	}
+	if b.Progress != nil {
+		b.Progress(len(out))
 	}
 	return out, nil
 }

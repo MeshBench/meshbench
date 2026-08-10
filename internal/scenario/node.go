@@ -33,18 +33,51 @@ const (
 	// own judgements cannot be checked against itself. An observer is the
 	// instrument you point at the simulation.
 	SDRObserver Kind = "sdr-observer"
+
+	// Emitter is an external interference source, per ADR-0012: a mast
+	// carrying something that is not MeshCore — broadcast, paging, PMR — and
+	// still shaping every nearby receiver's noise floor. It is propagated
+	// through the same terrain engine as everything else, so a mast behind a
+	// hill interferes less, which is the whole point of doing it properly.
+	Emitter Kind = "emitter"
 )
 
-// Transmits reports whether a node ever puts energy on the channel.
+// Application is the MeshCore application a node of this kind runs, named as
+// upstream names its example directory.
 //
-// Worth a method rather than a comparison at each call site: an observer that
-// is accidentally treated as a transmitter contributes a phantom signal to
-// every other node's reception, and the result still looks like a plausible
-// mesh.
-func (k Kind) Transmits() bool { return k != SDRObserver }
+// A default, not a definition. What a node actually is depends on which firmware
+// is loaded onto it, and Node.Firmware overrides this — so a node type MeshCore
+// ships next year needs no new Kind, only its application name.
+func (k Kind) Application() string {
+	switch k {
+	case Companion:
+		return "companion_radio"
+	case SDRObserver, Emitter:
+		return "" // no firmware to run
+	default:
+		// Both repeater kinds run the same application; they differ in how it is
+		// configured, which is the firmware's business and not ours.
+		return "simple_repeater"
+	}
+}
+
+// Transmits reports whether the node is a mesh transmitter — a possible end
+// of a link, a coverage source, a provisioning target. An Emitter radiates
+// but does none of those; its power enters the model as noise, not as frames.
+func (k Kind) Transmits() bool { return k != SDRObserver && k != Emitter }
 
 // RunsFirmware reports whether a node needs a firmware backend.
-func (k Kind) RunsFirmware() bool { return k != SDRObserver }
+func (k Kind) RunsFirmware() bool { return k != SDRObserver && k != Emitter }
+
+// FirmwareRef names a firmware build.
+//
+// Version is an upstream ref — a tag, or "main" or "dev" — which makes "does
+// this behave differently on the development branch" a question the workbench
+// can answer by changing a string.
+type FirmwareRef struct {
+	Role    string
+	Version string
+}
 
 // Node is one placed thing in a scenario.
 type Node struct {
@@ -52,6 +85,35 @@ type Node struct {
 	// within a scenario.
 	Name string
 	Kind Kind
+
+	// PublicKey is the real node's identity where the scenario came from an
+	// import. It is what a merge joins on: names are set by humans and collide,
+	// keys do not. Empty for nodes placed by hand.
+	PublicKey string
+
+	// Regions are the MeshCore transport regions this node holds, and
+	// DefaultScope the one it scopes its own traffic to. Observed from real
+	// traffic rather than declared: a repeater's self-reported default scope is
+	// empty for most of them, while what it relays is not optional.
+	//
+	// Carried on the node so a scenario built from a live deployment starts its
+	// firmware configured the way the real one is.
+	Regions      []string
+	DefaultScope string
+
+	// EmitterDutyPct is how much of the time an Emitter is keyed, 0-100.
+	// Duty matters as much as power: a paging transmitter at 10% is a
+	// different neighbour from a broadcast carrier at 100%.
+	EmitterDutyPct float64
+
+	// FloodMaxSeen is the largest hop count this node was observed relaying — a
+	// lower bound on its flood.max, never the value itself.
+	FloodMaxSeen int
+
+	// Firmware is the application and MeshCore version to run, overriding what
+	// Kind would pick. Empty fields fall back to Kind.Application() and to the
+	// newest published build.
+	Firmware FirmwareRef
 
 	// Position, and the uncertainty it was imported with. A CoreScope record
 	// at +/-5 km does not get a confident answer, so the uncertainty travels
@@ -100,7 +162,7 @@ func (n Node) Validate() error {
 		return fmt.Errorf("scenario: a node needs a name")
 	}
 	switch n.Kind {
-	case SimpleRepeater, AdvancedRepeater, Companion, SDRObserver:
+	case SimpleRepeater, AdvancedRepeater, Companion, SDRObserver, Emitter:
 	default:
 		return fmt.Errorf("scenario: %s: unknown kind %q", n.Name, n.Kind)
 	}
@@ -114,6 +176,15 @@ func (n Node) Validate() error {
 		return fmt.Errorf("scenario: %s: needs a centre frequency and a bandwidth", n.Name)
 	}
 
+	if n.Kind == Emitter {
+		if n.TxPowerDBm <= 0 {
+			return fmt.Errorf("scenario: %s: an emitter with no power emits nothing", n.Name)
+		}
+		if n.EmitterDutyPct < 0 || n.EmitterDutyPct > 100 {
+			return fmt.Errorf("scenario: %s: duty cycle %.0f%% is not 0-100", n.Name, n.EmitterDutyPct)
+		}
+		return nil
+	}
 	if !n.Kind.Transmits() {
 		if n.TxPowerDBm != 0 {
 			return fmt.Errorf("scenario: %s: an SDR observer transmits nothing, but is set to %.1f dBm",

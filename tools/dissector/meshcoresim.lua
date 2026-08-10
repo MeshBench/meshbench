@@ -81,3 +81,58 @@ end
 -- DLT_USER0
 local wtap_encap = DissectorTable.get("wtap_encap")
 wtap_encap:add(45, msim)
+
+-- MeshCore's own header, dissected from the frame that follows the
+-- pseudo-header.
+--
+-- The same split as internal/capture/dissect.go, deliberately: two dissectors
+-- of one format drift, and the drift is discovered during an argument about a
+-- capture. Change them together.
+local mc = Proto("meshcore", "MeshCore packet")
+
+local route_names = {
+  [0] = "transport flood", [1] = "flood", [2] = "direct", [3] = "transport direct",
+}
+local payload_names = {
+  [0]="request", [1]="response", [2]="text message", [3]="ack", [4]="advert",
+  [5]="group text", [6]="group datagram", [7]="anonymous request",
+  [8]="returned path", [9]="trace", [10]="multipart", [11]="control",
+  [15]="raw custom",
+}
+
+local f_route   = ProtoField.uint8("meshcore.route", "Route type", base.DEC, route_names, 0x03)
+local f_payload = ProtoField.uint8("meshcore.payload_type", "Payload type", base.DEC, payload_names, 0x3C)
+local f_version = ProtoField.uint8("meshcore.version", "Version", base.DEC, nil, 0xC0)
+local f_hops    = ProtoField.uint8("meshcore.hops", "Hop count", base.DEC)
+local f_path    = ProtoField.bytes("meshcore.path", "Path hashes")
+local f_body    = ProtoField.bytes("meshcore.payload", "Payload")
+
+mc.fields = { f_route, f_payload, f_version, f_hops, f_path, f_body }
+
+-- Filterable by all of the above, so Wireshark's own filter bar is the deep
+-- analysis surface: `meshcore.payload_type == 4 && meshcoresim.snr < 0` is
+-- "adverts that only just arrived", which no UI of ours needs to implement.
+function mc.dissector(buf, pinfo, tree)
+  if buf:len() < 1 then return 0 end
+  local t = tree:add(mc, buf())
+  local hdr = buf(0, 1)
+  t:add(f_route, hdr)
+  t:add(f_payload, hdr)
+  t:add(f_version, hdr)
+
+  local route = bit.band(hdr:uint(), 0x03)
+  local i = 1
+  if route == 0 or route == 3 then i = i + 4 end  -- transport codes
+  if buf:len() < i + 1 then return buf:len() end
+
+  local path_len = buf(i, 1):uint()
+  i = i + 1
+  if buf:len() < i + path_len then return buf:len() end
+  t:add(f_hops, buf(i - 1, 1), path_len)
+  if path_len > 0 then t:add(f_path, buf(i, path_len)) end
+  i = i + path_len
+
+  if buf:len() > i then t:add(f_body, buf(i)) end
+  pinfo.cols.info:append(" " .. (payload_names[bit.rshift(bit.band(hdr:uint(), 0x3C), 2)] or "?"))
+  return buf:len()
+end

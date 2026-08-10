@@ -225,3 +225,27 @@ func TestFlatPanelFailsWhereTiltedOneSurvives(t *testing.T) {
 			"with %.0f%% to spare; the harvest model is too generous", rf.WorstSoC*100)
 	}
 }
+
+// A hill to the south-east costs a UK site its winter mornings, and the
+// budget must show it: same site, horizon added, strictly worse worst-case.
+func TestTerrainHorizonCostsHarvest(t *testing.T) {
+	site := perthshire()
+	clear, err := energy.SimulateYear(site)
+	if err != nil {
+		t.Fatal(err)
+	}
+	site.Horizon = func(az float64) float64 {
+		if az > 90 && az < 200 {
+			return 25 // a serious hill across the southern sky
+		}
+		return 0
+	}
+	blocked, err := energy.SimulateYear(site)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if blocked.WorstSoC >= clear.WorstSoC {
+		t.Fatalf("hill did not cost anything: clear %.2f, blocked %.2f",
+			clear.WorstSoC, blocked.WorstSoC)
+	}
+}

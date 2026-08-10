@@ -1,11 +1,12 @@
 // Command meshcoresim is the MeshCore network simulator.
 //
-// The desktop application is MSIM-10 and is not built yet. Everything the
-// engine can do is reachable from here in the meantime, and will stay reachable
-// afterwards: a headless path is not a stopgap for the UI, it is what scripted
-// runs, regression suites and the MCP server are built on.
+// `workbench` opens the desktop application; every other command is headless.
+// That split is deliberate and permanent: the headless path is what scripted
+// runs, regression suites and the MCP server are built on, not a stopgap for
+// the UI.
 //
-// Nothing here needs a GPU, a display, or anything running anywhere else.
+// Nothing but `workbench` needs a GPU, a display, or anything running anywhere
+// else.
 package main
 
 import (
@@ -43,6 +44,7 @@ func commands() []command {
 		{"airtime", "LoRa time on air, as the firmware computes it", runAirtime},
 		{"traffic", "flood a message through a network and report what happened", runTraffic},
 		{"basemap", "download map tiles for an area", runBasemap},
+		{"workbench", "open the desktop workbench: build a scenario on a map and run it", runWorkbench},
 	}
 }
 
@@ -85,7 +87,7 @@ func usage() {
 	cs := commands()
 	sort.Slice(cs, func(i, j int) bool { return cs[i].name < cs[j].name })
 	for _, c := range cs {
-		fmt.Fprintf(os.Stderr, "  %-9s %s\n", c.name, c.summary)
+		fmt.Fprintf(os.Stderr, "  %-10s %s\n", c.name, c.summary)
 	}
 	fmt.Fprintln(os.Stderr, "\nEvery command takes -h for its own flags.")
 	fmt.Fprintln(os.Stderr, "\nResults are a BEST CASE. The model has no multipath, bare-earth terrain and")

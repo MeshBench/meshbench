@@ -158,6 +158,13 @@ func evaluate(fixed Endpoint, fixedGround, lat, lon float64, t Terrain, freqMHz 
 	loss := terrain.FSPLdB(distKm, freqMHz) +
 		terrain.MultiEdgeLossDB(profile, fixed.HeightAGLm, o.RemoteHeightAGLm, freqMHz)
 
+	return cellFromLoss(fixed, fixedGround, remoteGround, lat, lon, distKm, loss, o)
+}
+
+// cellFromLoss turns one path loss into a cell: gains, powers and margins,
+// both directions. Shared by the tile-walking path and the grid/GPU path, so
+// the two cannot disagree about anything except where the loss came from.
+func cellFromLoss(fixed Endpoint, fixedGround, remoteGround, lat, lon, distKm, loss float64, o Options) Cell {
 	txAlt := fixedGround + fixed.HeightAGLm
 	rxAlt := remoteGround + o.RemoteHeightAGLm
 	bearing := bearingDeg(fixed.Lat, fixed.Lon, lat, lon)
@@ -178,6 +185,43 @@ func evaluate(fixed Endpoint, fixedGround, lat, lon float64, t Terrain, freqMHz 
 		InboundMarginDB:  inboundRx - fixed.SensitivityDBm,
 		PathLossDB:       loss,
 	}
+}
+
+// ComputeFromLosses fills a raster from a precomputed loss field — the GPU
+// path. The losses come from CoverageGridLoss (or its CPU twin); this applies
+// the same gains and margins the tile path applies.
+func ComputeFromLosses(fixed Endpoint, g HeightGrid, losses []float32, r *Raster, o Options) error {
+	if len(losses) != r.Width*r.Height {
+		return fmt.Errorf("coverage: %d losses for a %dx%d raster", len(losses), r.Width, r.Height)
+	}
+	fixedGround, ok := g.At(fixed.Lat, fixed.Lon)
+	if !ok {
+		return fmt.Errorf("coverage: no terrain at %s (%.5f, %.5f)", fixed.Name, fixed.Lat, fixed.Lon)
+	}
+	r.Cells = make([]Cell, r.Width*r.Height)
+	for y := 0; y < r.Height; y++ {
+		for x := 0; x < r.Width; x++ {
+			i := y*r.Width + x
+			loss := float64(losses[i])
+			if loss > 1e30 {
+				r.Cells[i] = Cell{NoData: true}
+				continue
+			}
+			lat, lon := r.LatLonAt(x, y)
+			distKm := haversineKm(fixed.Lat, fixed.Lon, lat, lon)
+			if distKm <= 0 {
+				r.Cells[i] = Cell{}
+				continue
+			}
+			remoteGround, ok := g.At(lat, lon)
+			if !ok {
+				r.Cells[i] = Cell{NoData: true}
+				continue
+			}
+			r.Cells[i] = cellFromLoss(fixed, fixedGround, remoteGround, lat, lon, distKm, loss, o)
+		}
+	}
+	return nil
 }
 
 // sampleProfile walks the great circle between two points.

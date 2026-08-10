@@ -66,7 +66,7 @@ func TestBothNodesGetTheSameFrames(t *testing.T) {
 // pair returns two native nodes, or skips when the binary is not built.
 func pair(t *testing.T) (*firmware.Node, *firmware.Node) {
 	t.Helper()
-	if _, err := firmware.FindNative(""); err != nil {
+	if _, err := firmware.FindNative("", "simple_repeater"); err != nil {
 		t.Skipf("no native node binary: %v", err)
 	}
 	ctx := context.Background()

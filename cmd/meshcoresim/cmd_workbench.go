@@ -1,0 +1,99 @@
+package main
+
+import (
+	"context"
+	"flag"
+	"fmt"
+	"os"
+	"path/filepath"
+
+	"github.com/A13xB0/meshcoresim/internal/basemap"
+	"github.com/A13xB0/meshcoresim/internal/ui"
+)
+
+// runWorkbench opens the desktop application.
+//
+// The workbench is where a scenario is built and interrogated: the map is the
+// main view, the panels are around it, and everything the other commands do
+// headlessly is reachable by clicking. It needs a display and a GPU, which is
+// why every capability also has a command — a scripted run, a regression suite
+// and the MCP server are all built on the headless path, and that is not a
+// stopgap for this.
+func runWorkbench(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("workbench", flag.ExitOnError)
+	store := terrainFlags(fs)
+	nodesPath := fs.String("nodes", "", "scenario JSON, or a CoreScope/Beacon export, to open with")
+	source := fs.String("source", "", "load nodes from a provider: corescope or beacon")
+	baseURL := fs.String("url", "", "provider base URL")
+	token := fs.String("token", "", "provider token, if it needs one")
+	board := fs.String("board", "RAK4631", "board profile for imported nodes")
+	freq := fs.Float64("freq", 869.525, "frequency, MHz")
+	sf := fs.Int("sf", 10, "spreading factor")
+	bw := fs.Float64("bandwidth", 250, "bandwidth, kHz")
+	layer := fs.String("layer", "carto-dark", "basemap: carto-dark, carto-light, osm, esri-imagery, esri-topo")
+	tileCache := fs.String("tile-cache", defaultTileCache(), "where map tiles are kept")
+	offlineTiles := fs.Bool("offline-tiles", false, "use only tiles already downloaded")
+	width := fs.Int("width", 1600, "window width")
+	height := fs.Int("height", 1000, "window height")
+	wayland := fs.Bool("wayland", false, "stay on native Wayland (windows cannot leave the main window)")
+	if err := parse(fs, args, "open the workbench: build a scenario on a map and run it"); err != nil {
+		return err
+	}
+
+	// X11 by default, even inside a Wayland session (XWayland picks it up).
+	//
+	// Not nostalgia: Dear ImGui's multi-viewport support — dragging a node's
+	// console out to a second monitor as its own OS window — cannot work under
+	// Wayland, because the protocol forbids a client from positioning windows
+	// globally. GLFW falls back to X11 when WAYLAND_DISPLAY is absent, and
+	// XWayland makes that seamless. Anyone who prefers native Wayland can have
+	// it, minus detachable windows.
+	if !*wayland {
+		_ = os.Unsetenv("WAYLAND_DISPLAY")
+	}
+
+	t, err := store()
+	if err != nil {
+		return err
+	}
+
+	app := ui.New(t)
+
+	// Tiles before nodes, so the map has somewhere to draw before the view is
+	// fitted to whatever gets loaded.
+	bm, err := basemap.NewStore(*tileCache)
+	if err != nil {
+		return fmt.Errorf("map tiles: %w", err)
+	}
+	app.SetBasemapStore(bm)
+	app.SetFetchTiles(!*offlineTiles)
+	if err := app.SetLayer(*layer); err != nil {
+		return err
+	}
+
+	// A network on the command line rather than only through the load panel,
+	// because the common case is opening the same deployment repeatedly and
+	// retyping a URL every time is not a workflow.
+	if *nodesPath != "" || *source != "" {
+		nodes, err := loadNodes(ctx, *nodesPath, *source, *baseURL, *token, *board, *freq, *sf, *bw)
+		if err != nil {
+			return err
+		}
+		app.SetNodes(nodes)
+	}
+
+	return app.Run("MeshcoreSim", *width, *height)
+}
+
+// defaultTileCache keeps tiles with the user's other caches.
+//
+// The same place the basemap command uses. Two caches would mean the workbench
+// re-downloading what a prefetch already fetched, which is the one thing a
+// prefetch exists to avoid.
+func defaultTileCache() string {
+	dir, err := os.UserCacheDir()
+	if err != nil {
+		return "tiles"
+	}
+	return filepath.Join(dir, "meshcoresim", "tiles")
+}

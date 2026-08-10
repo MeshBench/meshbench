@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -18,6 +19,11 @@ type CoreScope struct {
 	// Token, if the deployment needs one.
 	Token string
 	HTTP  Doer
+
+	// Progress, if set, is called with the running record count as pages
+	// arrive. A big deployment takes long enough to fetch that a caller with a
+	// user attached needs something to show them.
+	Progress func(fetched int)
 }
 
 func (c *CoreScope) Name() string { return "corescope" }
@@ -44,19 +50,47 @@ type csNode struct {
 	PositionIsFix *bool    `json:"position_is_fix"`
 }
 
+// csPageLimit is the page size asked of GET /api/nodes. CoreScope's own default
+// is fifty; asking for more per round trip is just fewer round trips.
+const csPageLimit = 200
+
+// csMaxNodes bounds the paging loop.
+const csMaxNodes = 100_000
+
 func (c *CoreScope) Nodes(ctx context.Context) ([]NodeRecord, error) {
 	if c.BaseURL == "" {
 		return nil, fmt.Errorf("provider: corescope needs a BaseURL")
 	}
-	var payload struct {
-		Nodes []csNode `json:"nodes"`
-	}
-	if err := fetchJSON(ctx, c.HTTP, c.BaseURL+"/api/nodes", c.headers(), &payload); err != nil {
-		return nil, err
+	// Paged, because CoreScope pages. One bare GET /api/nodes returns the
+	// server's default page — fifty rows — and a deployment of three hundred
+	// repeaters silently became a deployment of fifty, which is the worst kind
+	// of wrong: a plausible network that is missing most of itself.
+	var nodes []csNode
+	for offset := 0; ; {
+		var payload struct {
+			Nodes []csNode `json:"nodes"`
+		}
+		url := fmt.Sprintf("%s/api/nodes?limit=%d&offset=%d", c.BaseURL, csPageLimit, offset)
+		if err := fetchJSON(ctx, c.HTTP, url, c.headers(), &payload); err != nil {
+			return nil, err
+		}
+		nodes = append(nodes, payload.Nodes...)
+		if c.Progress != nil {
+			c.Progress(len(nodes))
+		}
+		if len(payload.Nodes) < csPageLimit {
+			break
+		}
+		offset += len(payload.Nodes)
+		// A server that keeps returning full pages for ever is broken or
+		// hostile; either way the import should stop rather than spin.
+		if offset > csMaxNodes {
+			return nil, fmt.Errorf("provider: corescope returned more than %d nodes; refusing to keep paging", csMaxNodes)
+		}
 	}
 
-	out := make([]NodeRecord, 0, len(payload.Nodes))
-	for _, n := range payload.Nodes {
+	out := make([]NodeRecord, 0, len(nodes))
+	for _, n := range nodes {
 		r := NodeRecord{
 			Name:      n.Name,
 			PublicKey: n.PublicKey,
@@ -145,6 +179,95 @@ func (c *CoreScope) Receptions(ctx context.Context, since time.Time) ([]Receptio
 			rec.HasRSSI, rec.RSSIdBm = true, *r.RSSI
 		}
 		out = append(out, rec)
+	}
+	return out, nil
+}
+
+// csPacketPageLimit is the page size for GET /api/packets. CoreScope returns
+// newest first, which is what lets a walk stop once it is far enough back.
+const csPacketPageLimit = 500
+
+// Packets walks CoreScope's observed traffic, newest first, up to a limit.
+//
+// The raw frame is the whole point: the scope, the path and the payload type
+// all live in those bytes, and a row without raw_hex can tell us nothing about
+// a region. Rows that lack it are skipped rather than counted.
+func (c *CoreScope) Packets(ctx context.Context, max int, progress func(int)) ([]PacketRecord, error) {
+	if c.BaseURL == "" {
+		return nil, fmt.Errorf("provider: corescope needs a BaseURL")
+	}
+	if max <= 0 {
+		max = 5000
+	}
+	var out []PacketRecord
+	for offset := 0; len(out) < max; {
+		var rows []struct {
+			RawHex       string   `json:"raw_hex"`
+			ObserverID   string   `json:"observer_id"`
+			ObserverName string   `json:"observer_name"`
+			ResolvedPath []string `json:"resolved_path"`
+			Origin       string   `json:"origin"`
+		}
+		url := fmt.Sprintf("%s/api/packets?limit=%d&offset=%d&sort=timestamp&order=desc",
+			c.BaseURL, csPacketPageLimit, offset)
+		if err := fetchJSON(ctx, c.HTTP, url, c.headers(), &rows); err != nil {
+			return out, err
+		}
+		if len(rows) == 0 {
+			break
+		}
+		for _, r := range rows {
+			if r.RawHex == "" {
+				continue
+			}
+			raw, err := hex.DecodeString(r.RawHex)
+			if err != nil {
+				continue
+			}
+			rec := PacketRecord{Raw: raw, Receiver: r.ObserverName, Origin: r.Origin}
+			// The last name on the resolved path is whoever transmitted the
+			// copy that was heard — which is the node whose behaviour this
+			// packet is evidence about.
+			if n := len(r.ResolvedPath); n > 0 {
+				rec.Sender = r.ResolvedPath[n-1]
+			} else if r.Origin != "" {
+				rec.Sender = r.Origin
+			}
+			out = append(out, rec)
+		}
+		if progress != nil {
+			progress(len(out))
+		}
+		if len(rows) < csPacketPageLimit {
+			break
+		}
+		offset += len(rows)
+	}
+	return out, nil
+}
+
+// Regions lists the region names CoreScope knows are configured.
+//
+// Candidates for identifying a scope. Without them a transport code cannot be
+// turned into a name — the key is not in the packet, so a candidate is the only
+// way to check one.
+func (c *CoreScope) Regions(ctx context.Context) ([]string, error) {
+	if c.BaseURL == "" {
+		return nil, fmt.Errorf("provider: corescope needs a BaseURL")
+	}
+	var payload struct {
+		Regions []struct {
+			Name string `json:"name"`
+		} `json:"regions"`
+	}
+	if err := fetchJSON(ctx, c.HTTP, c.BaseURL+"/api/regions", c.headers(), &payload); err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(payload.Regions))
+	for _, r := range payload.Regions {
+		if r.Name != "" {
+			out = append(out, r.Name)
+		}
 	}
 	return out, nil
 }

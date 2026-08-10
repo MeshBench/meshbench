@@ -21,7 +21,7 @@ import (
 // skipped past.
 func nativeNode(t *testing.T, seed uint64) (*firmware.Node, *bytes.Buffer) {
 	t.Helper()
-	if _, err := firmware.FindNative(""); err != nil {
+	if _, err := firmware.FindNative("", "simple_repeater"); err != nil {
 		if errors.Is(err, firmware.ErrNativeMissing) {
 			t.Skipf("no native node binary: %v (build with tools/native/build.sh)", err)
 		}
@@ -129,11 +129,11 @@ func TestFindNativeReportsWhereItLooked(t *testing.T) {
 	// PATH emptied so the lookup cannot succeed by accident on a machine that
 	// happens to have a node installed.
 	t.Setenv("PATH", t.TempDir())
-	_, err := firmware.FindNative("")
+	_, err := firmware.FindNative("", "simple_repeater")
 	if !errors.Is(err, firmware.ErrNativeMissing) {
 		t.Fatalf("want ErrNativeMissing, got %v", err)
 	}
-	for _, want := range []string{firmware.NativeBinaryName(), firmware.EnvNativeBinary} {
+	for _, want := range []string{firmware.NativeBinaryName("simple_repeater"), firmware.EnvNativeBinary} {
 		if !bytes.Contains([]byte(err.Error()), []byte(want)) {
 			t.Errorf("error should mention %q: %v", want, err)
 		}
@@ -162,7 +162,7 @@ func TestEmulatedNeedsFirmware(t *testing.T) {
 // agree: the firmware's CSMA timing is built on its own number, so a drift
 // desynchronises the mesh from the channel silently.
 func TestNativeAirtimeAgreesWithTheChannel(t *testing.T) {
-	bin, err := firmware.FindNative("")
+	bin, err := firmware.FindNative("", "simple_repeater")
 	if err != nil {
 		if errors.Is(err, firmware.ErrNativeMissing) {
 			t.Skipf("no native node binary: %v", err)
