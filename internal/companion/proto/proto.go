@@ -54,8 +54,17 @@ const (
 	RespChannelMsgRecv Response = 8
 	RespCurrTime       Response = 9
 	RespNoMoreMessages Response = 10
-	RespChannelInfo    Response = 11
-	RespDeviceInfo     Response = 12
+	RespExportContact  Response = 11
+	RespBattAndStorage Response = 12
+	RespDeviceInfo     Response = 13
+	RespPrivateKey     Response = 14
+	RespDisabled       Response = 15
+	// v3 message variants: the firmware sends these instead of 7 and 8 once
+	// the client declares a high enough protocol version, and a client that
+	// only knows the old pair sees messages arrive and decodes none of them.
+	RespContactMsgRecvV3 Response = 16
+	RespChannelMsgRecvV3 Response = 17
+	RespChannelInfo      Response = 18
 )
 
 // Push is an unsolicited frame: the firmware telling the client something
@@ -271,8 +280,9 @@ func Decode(frame []byte) (Frame, error) {
 			return f, err
 		}
 		f.Contact = c
-	case RespChannelMsgRecv, RespContactMsgRecv:
-		m, err := decodeMessage(f.Code == RespChannelMsgRecv, body)
+	case RespChannelMsgRecv, RespContactMsgRecv, RespChannelMsgRecvV3, RespContactMsgRecvV3:
+		channel := f.Code == RespChannelMsgRecv || f.Code == RespChannelMsgRecvV3
+		m, err := decodeMessage(channel, body)
 		if err != nil {
 			return f, err
 		}
@@ -282,9 +292,15 @@ func Decode(frame []byte) (Frame, error) {
 }
 
 func decodeSelfInfo(b []byte) (*SelfInfo, error) {
-	// adv type, tx power, max tx power, then the 32-byte public key, then
-	// position and radio. Shorter frames come from older firmware, so each
-	// field is taken only if it is there.
+	// The firmware's own write order (MyMesh.cpp, RESP_CODE_SELF_INFO):
+	// advert type, tx power, max tx power, 32-byte public key, lat, lon,
+	// then four preference bytes - multi_acks, advert_loc_policy, the packed
+	// telemetry modes, manual_add_contacts - and only then the radio and the
+	// name.
+	//
+	// Those four bytes were the whole bug: skipping them read the radio from
+	// the wrong offset, so a live node came back as SF 208 at 0 MHz with a
+	// name that started mid-key.
 	if len(b) < 35 {
 		return nil, fmt.Errorf("proto: self info is %d bytes, need 35", len(b))
 	}
@@ -295,9 +311,15 @@ func decodeSelfInfo(b []byte) (*SelfInfo, error) {
 		si.AdvLon = float64(int32(binary.LittleEndian.Uint32(b[i+4:]))) / 1e6
 		i += 8
 	}
+	// multi_acks, advert_loc_policy, telemetry modes, manual_add_contacts.
+	if len(b) >= i+4 {
+		i += 4
+	}
 	if len(b) >= i+10 {
-		si.FreqKHz = binary.LittleEndian.Uint32(b[i:])
-		si.BWKHz = binary.LittleEndian.Uint32(b[i+4:])
+		// Both are stored in Hz here: the firmware multiplies its kHz
+		// preference by 1000 on the way out.
+		si.FreqKHz = binary.LittleEndian.Uint32(b[i:]) / 1000
+		si.BWKHz = binary.LittleEndian.Uint32(b[i+4:]) / 1000
 		si.SF, si.CR = b[i+8], b[i+9]
 		i += 10
 	}

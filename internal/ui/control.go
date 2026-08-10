@@ -9,6 +9,7 @@ import (
 	"github.com/AllenDang/cimgui-go/imgui"
 
 	"github.com/A13xB0/meshcoresim/internal/antenna"
+	"github.com/A13xB0/meshcoresim/internal/companion/proto"
 	"github.com/A13xB0/meshcoresim/internal/control"
 	"github.com/A13xB0/meshcoresim/internal/scenario"
 )
@@ -782,6 +783,89 @@ func (a *App) handleUICommand(method string, params json.RawMessage) (any, bool,
 		}
 		a.eng.Inject(i, []byte(payload))
 		return map[string]any{"from": a.Nodes[i].Name, "payload": payload}, true, nil
+	case "companion.connect":
+		if err := a.compConnect(arg("node")); err != nil {
+			return nil, true, err
+		}
+		a.openNodeWindow(arg("node"))
+		s := a.comps[arg("node")]
+		s.mu.Lock()
+		self := s.self
+		s.mu.Unlock()
+		out := map[string]any{"connected": arg("node")}
+		if self != nil {
+			out["name"] = self.Name
+			out["freq_khz"] = self.FreqKHz
+			out["sf"], out["cr"] = self.SF, self.CR
+		}
+		return out, true, nil
+	case "companion.disconnect":
+		a.compDisconnect(arg("node"))
+		return map[string]any{"disconnected": arg("node")}, true, nil
+	case "companion.state":
+		s := a.comps[arg("node")]
+		if s == nil {
+			return nil, true, fmt.Errorf("not connected to %q", arg("node"))
+		}
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		chans := []map[string]any{}
+		for _, c := range s.channels {
+			chans = append(chans, map[string]any{"index": c.Index, "name": c.Name})
+		}
+		msgs := []map[string]any{}
+		for _, m := range s.messages {
+			msgs = append(msgs, map[string]any{
+				"channel": m.ChannelIdx, "text": m.Text, "snr_db": m.SNRdB,
+				"at": m.At})
+		}
+		contacts := []map[string]any{}
+		for _, c := range s.contacts {
+			contacts = append(contacts, map[string]any{"name": c.Name, "hops": c.OutPathLen})
+		}
+		return map[string]any{"channels": chans, "messages": msgs,
+			"contacts": contacts, "error": s.err}, true, nil
+	case "companion.send":
+		s := a.comps[arg("node")]
+		if s == nil {
+			return nil, true, fmt.Errorf("not connected to %q - companion.connect first", arg("node"))
+		}
+		cs := a.compUI[arg("node")]
+		if cs == nil {
+			cs = &compUIState{}
+			if a.compUI == nil {
+				a.compUI = map[string]*compUIState{}
+			}
+			a.compUI[arg("node")] = cs
+		}
+		// By name, because a caller says "#sco" and the firmware wants a slot.
+		if want := arg("channel"); want != "" {
+			found := false
+			s.mu.Lock()
+			for _, c := range s.channels {
+				if strings.EqualFold(c.Name, want) {
+					cs.channel, found = c.Index, true
+				}
+			}
+			s.mu.Unlock()
+			if !found {
+				return nil, true, fmt.Errorf("no channel %q on this node", want)
+			}
+		}
+		cs.scope = arg("scope")
+		cs.draft = arg("text")
+		a.compSendMessage(arg("node"), s, cs)
+		return map[string]any{"sent": arg("text"), "channel": cs.channel}, true, nil
+	case "companion.advert":
+		s := a.comps[arg("node")]
+		if s == nil {
+			return nil, true, fmt.Errorf("not connected to %q", arg("node"))
+		}
+		if err := a.compSend(s, proto.SendSelfAdvert(true)); err != nil {
+			return nil, true, err
+		}
+		a.stepEngine(20)
+		return map[string]any{"advertised": arg("node")}, true, nil
 	case "status":
 		return map[string]any{"status": a.status}, true, nil
 	}

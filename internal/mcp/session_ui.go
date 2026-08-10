@@ -194,3 +194,42 @@ func sessionUITools() []Tool {
 			"ui.scale", sObj(map[string]any{"factor": sNum("scale multiplier")})),
 	}
 }
+
+// The mini companion: what a phone would do, without a phone.
+func sessionCompanionTools() []Tool {
+	return []Tool{
+		uiTool("session_companion_connect",
+			"Open a companion node's serial port and handshake with its firmware, the "+
+				"way a phone app would. Claims the port exclusively, so anything else "+
+				"attached is displaced. Returns the node's own name and radio settings.",
+			"companion.connect", sObj(map[string]any{
+				"node": sStr("the companion node's name"),
+			}, "node")),
+
+		uiTool("session_companion_disconnect",
+			"Release a companion's serial port.",
+			"companion.disconnect", sObj(map[string]any{"node": sStr("node name")}, "node")),
+
+		uiTool("session_companion_state",
+			"What the connected companion knows: its channels with their slot indices, "+
+				"the messages it has received, and its contacts with hop counts.",
+			"companion.state", sObj(map[string]any{"node": sStr("node name")}, "node")),
+
+		uiTool("session_companion_send",
+			"Send a text message from a companion to a channel, by channel name (for "+
+				"example #sco). scope optionally sets the node's transport region first "+
+				"- a region name, or <null> for unscoped - which is how a message is "+
+				"put on a particular scope.",
+			"companion.send", sObj(map[string]any{
+				"node":    sStr("the sending companion"),
+				"text":    sStr("the message"),
+				"channel": sStr("channel name, e.g. #sco"),
+				"scope":   sStr("region name, or <null> for unscoped"),
+			}, "node", "text")),
+
+		uiTool("session_companion_advert",
+			"Send a flood advert from a companion, which is how other nodes learn it "+
+				"exists and how it acquires contacts.",
+			"companion.advert", sObj(map[string]any{"node": sStr("node name")}, "node")),
+	}
+}
