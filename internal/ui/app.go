@@ -200,6 +200,13 @@ type App struct {
 	// What firmware is published, for the per-node picker.
 	fw *fwCatalogue
 
+	// uiScale is the multiplier currently applied to the style and fonts;
+	// pendingScale is a requested change, applied at the top of the next
+	// frame — rescaling the style while half a frame's windows are already
+	// laid out at the old sizes tears the layout for that frame.
+	uiScale      float64
+	pendingScale float64
+
 	// noViewports means the platform cannot make panels their own OS windows
 	// (native Wayland). The buttons explain rather than fail.
 	noViewports bool
@@ -337,6 +344,7 @@ func (a *App) Run(title string, w, h int) error {
 	// Two stages, because the platform cannot be asked before a window exists
 	// (asking was a segfault): the flag and environment size the window, and
 	// the platform's own answer joins in afterwards for the style.
+	a.ensureConfig() // the saved ctrl+/- scale is part of scale resolution
 	scale := a.configuredUIScale()
 	b.CreateWindow(title, int(float64(w)*scale), int(float64(h)*scale))
 	if scale == 1 {
@@ -344,13 +352,8 @@ func (a *App) Run(title string, w, h int) error {
 			scale = float64(sx)
 		}
 	}
-	if scale != 1 {
-		// Both halves, or it looks worse than unscaled: ScaleAllSizes grows
-		// the paddings, spacing and widget heights; FontScaleMain grows the
-		// text those sizes were measured around.
-		imgui.CurrentStyle().ScaleAllSizes(float32(scale))
-		imgui.CurrentStyle().SetFontScaleMain(float32(scale))
-	}
+	a.uiScale = 1
+	a.applyUIScale(scale)
 	// First launch of a workspace builds its preset; every later launch loads
 	// what the operator made of it.
 	a.wsForce = true
@@ -407,6 +410,7 @@ func (a *App) frame() {
 	if a.ctrl != nil {
 		a.ctrl.Pump()
 	}
+	a.pumpUIScale()
 
 	vp := imgui.MainViewport()
 	imgui.SetNextWindowPos(vp.Pos())
@@ -675,10 +679,56 @@ func (a *App) configuredUIScale() float64 {
 	if a.UIScale > 0 {
 		return a.UIScale
 	}
+	// What ctrl+/- last chose outlives the session: an operator who zoomed
+	// the UI once has answered the question, and asking again every launch
+	// is what "settings that do not stick" feels like.
+	if a.cfg.uiScale > 0 {
+		return a.cfg.uiScale
+	}
 	for _, env := range []string{"MESHCORESIM_SCALE", "GDK_SCALE", "QT_SCALE_FACTOR"} {
 		if v, err := strconv.ParseFloat(os.Getenv(env), 64); err == nil && v > 0.5 && v <= 4 {
 			return v
 		}
 	}
 	return 1
+}
+
+// applyUIScale rescales the whole UI to an absolute factor, live.
+//
+// ScaleAllSizes multiplies whatever the sizes currently are, so the ratio to
+// the factor already applied is what gets passed — the fonts take the
+// absolute value directly. This imgui re-rasterises fonts at the new size, so
+// scaled text is sharp rather than a stretched bitmap.
+func (a *App) applyUIScale(scale float64) {
+	if scale < 0.5 {
+		scale = 0.5
+	}
+	if scale > 3 {
+		scale = 3
+	}
+	if scale == a.uiScale {
+		return
+	}
+	imgui.CurrentStyle().ScaleAllSizes(float32(scale / a.uiScale))
+	imgui.CurrentStyle().SetFontScaleMain(float32(scale))
+	a.uiScale = scale
+}
+
+// requestUIScale queues a rescale for the top of the next frame — changing
+// the style while half a frame is already laid out tears that frame.
+func (a *App) requestUIScale(scale float64) {
+	a.pendingScale = scale
+}
+
+// pumpUIScale runs at the top of the frame, before anything is drawn.
+func (a *App) pumpUIScale() {
+	if a.pendingScale == 0 {
+		return
+	}
+	target := a.pendingScale
+	a.pendingScale = 0
+	a.applyUIScale(target)
+	a.cfg.uiScale = a.uiScale
+	a.saveConfig()
+	a.status = fmt.Sprintf("UI scale %.0f%%  (ctrl +/- to adjust, ctrl 0 for automatic)", a.uiScale*100)
 }
