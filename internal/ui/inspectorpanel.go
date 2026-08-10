@@ -25,7 +25,13 @@ func (a *App) drawNodeInspector(i int) {
 	imgui.SameLine()
 	textDim(kindLabel(n.Kind))
 	if n.PublicKey != "" {
-		textDim("key " + shortPubKey(n.PublicKey))
+		textDim("corescope key " + shortPubKey(n.PublicKey))
+		if imgui.IsItemHovered() {
+			imgui.SetTooltip("The key the real node uses, kept from the import so observed\n" +
+				"traffic can be matched back to this node. The simulated node's\n" +
+				"own identity is generated at boot and is deliberately different:\n" +
+				"nobody has the real private key.")
+		}
 	}
 	imgui.Text(fmt.Sprintf("%.5f, %.5f", n.Position.Lat, n.Position.Lon))
 	if n.UncertaintyKm > 0.2 {
