@@ -190,12 +190,22 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 		if a.eng == nil {
 			a.buildEngine()
 		}
-		// Stepped rather than run in one call: the frame thread is blocked for
-		// the duration, and a client asking for an hour of simulated time
-		// should not freeze the window for a minute without saying so.
-		steps := int(p.ForMs / a.eng.Config.StepMs)
-		a.stepEngine(steps)
-		return map[string]any{"now_ms": a.eng.NowMs(), "events": a.eng.EventCount()}, nil
+		// Asynchronous, across frames. This used to step the engine inside the
+		// handler, which runs on the frame thread: nothing drew for the whole
+		// run, so a flood could not be watched and long runs looked like a
+		// hang. Poll sim.state, or just watch it.
+		a.switchWorkspace(wsRun)
+		a.runUntilMs = a.eng.NowMs() + p.ForMs
+		a.playing = true
+		return map[string]any{"running": true, "until_ms": a.runUntilMs,
+			"now_ms": a.eng.NowMs()}, nil
+
+	case "sim.state":
+		if a.eng == nil {
+			return map[string]any{"playing": false, "now_ms": 0}, nil
+		}
+		return map[string]any{"playing": a.playing, "now_ms": a.eng.NowMs(),
+			"until_ms": a.runUntilMs, "events": a.eng.EventCount()}, nil
 
 	case "sim.reset":
 		a.buildEngine()

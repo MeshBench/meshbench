@@ -143,12 +143,19 @@ func SendSelfAdvert(flood bool) []byte {
 	return []byte{byte(CmdSendSelfAdvert), kind}
 }
 
-// SetRadioParams sets the modem. Frequency and bandwidth are in kHz as
-// integers, which is how the firmware stores them.
-func SetRadioParams(freqKHz, bwKHz uint32, sf, cr uint8) []byte {
+// SetRadioParams sets the modem.
+//
+// The units are not the same on both fields, and getting that wrong costs the
+// whole command: the firmware validates frequency against 150000..2500000 and
+// bandwidth against 7000..500000, then divides each by 1000 to store MHz and
+// kHz. So frequency is kHz and bandwidth is Hz. Sending bandwidth in kHz - 250
+// where it wants 250000 - fails the range check and the firmware answers
+// ERR_CODE_ILLEGAL_ARG for the whole frame, leaving frequency unset too. That
+// is why a configured companion still reported 0 MHz.
+func SetRadioParams(freqKHz, bwHz uint32, sf, cr uint8) []byte {
 	b := []byte{byte(CmdSetRadioParams)}
 	b = binary.LittleEndian.AppendUint32(b, freqKHz)
-	b = binary.LittleEndian.AppendUint32(b, bwKHz)
+	b = binary.LittleEndian.AppendUint32(b, bwHz)
 	return append(b, sf, cr)
 }
 
@@ -209,6 +216,14 @@ type Message struct {
 	At         time.Time
 	SNRdB      float64
 	PathLen    int
+
+	// Mine marks a message this client sent, rather than one the node
+	// received. It is still the firmware's doing - the frame went to the node
+	// and the node transmitted it - but nothing comes back to echo it, so
+	// without this the operator sends into a conversation that stays empty.
+	Mine bool
+	// Confirmed is set when the firmware acknowledges the send.
+	Confirmed bool
 }
 
 // Frame is a decoded reply or push.

@@ -206,7 +206,21 @@ func (a *App) drawRunControls() {
 		}
 		if n := int(a.stepDebt); n > 0 {
 			a.stepDebt -= float32(n)
-			a.stepEngine(n)
+			if a.runUntilMs > 0 {
+				// Do not overshoot a requested run: a driven run that asks for
+				// 30 s should stop at 30 s, not at the next frame boundary.
+				if left := int((a.runUntilMs - a.eng.NowMs()) / a.eng.Config.StepMs); left < n {
+					n = left
+				}
+			}
+			if n > 0 {
+				a.stepEngine(n)
+			}
+		}
+		if a.runUntilMs > 0 && a.eng.NowMs() >= a.runUntilMs {
+			a.runUntilMs = 0
+			a.playing = false
+			a.stepDebt = 0
 		}
 	}
 }

@@ -103,7 +103,13 @@ type App struct {
 	// onto it, and nothing keeps its own copy of what happened.
 	eng     *engine.Engine
 	playing bool
-	scrubMs uint32
+	// runUntilMs is a driven run's finish line, in simulated ms. Stepping
+	// happens in the frame loop rather than inside the socket handler: a run
+	// that blocks the frame thread renders nothing, so the flood it was asked
+	// to demonstrate cannot be watched - which is the whole point of running it
+	// here rather than headless.
+	runUntilMs uint32
+	scrubMs    uint32
 
 	nodeFilter string
 	// msel is the multi-selection (shift-click); indices into Nodes. Cleared

@@ -81,6 +81,16 @@ func (s *compSession) take(f proto.Frame) {
 		s.frames = s.frames[len(s.frames)-200:]
 	}
 	switch {
+	case f.Code == proto.RespSent:
+		// The node has taken the message. Mark our own most recent unconfirmed
+		// one, so "sent" in the conversation means the firmware said so rather
+		// than that we wrote it down.
+		for i := len(s.messages) - 1; i >= 0; i-- {
+			if s.messages[i].Mine && !s.messages[i].Confirmed {
+				s.messages[i].Confirmed = true
+				break
+			}
+		}
 	case f.SelfInfo != nil:
 		s.self = f.SelfInfo
 	case f.Channel != nil:
@@ -355,7 +365,20 @@ func (a *App) drawCompanionMessages(node string, s *compSession,
 			imgui.Text(m.At.Local().Format("15:04:05"))
 			popMono()
 			imgui.SameLine()
+			if m.SenderName != "" {
+				textDim(m.SenderName)
+				imgui.SameLine()
+			}
 			textWrap(m.Text)
+			if m.Mine {
+				// Ours, and whether the node has taken it. Without the
+				// distinction a send that failed looks like one that worked.
+				if m.Confirmed {
+					textDim("   sent")
+				} else {
+					textDim("   sending...")
+				}
+			}
 		}
 		if shown == 0 {
 			textDimWrap("nothing on this channel yet. Everything here came out of the " +
@@ -385,10 +408,20 @@ func (a *App) compSendMessage(node string, s *compSession, cs *compUIState) {
 			return
 		}
 	}
-	if err := a.compSend(s, proto.SendChannelText(cs.channel, time.Now(), cs.draft)); err != nil {
+	text := cs.draft
+	if err := a.compSend(s, proto.SendChannelText(cs.channel, time.Now(), text)); err != nil {
 		a.status = err.Error()
 		return
 	}
+	// Show it. Nothing comes back to echo our own transmission, so a send used
+	// to leave the conversation exactly as empty as before it - which reads as
+	// the send having failed, and is indistinguishable from it.
+	s.mu.Lock()
+	s.messages = append(s.messages, proto.Message{
+		Channel: true, ChannelIdx: cs.channel, SenderName: "me",
+		Text: text, At: time.Now(), Mine: true,
+	})
+	s.mu.Unlock()
 	cs.draft = ""
 	a.stepEngine(40)
 }
@@ -418,7 +451,7 @@ func (a *App) drawCompanionRadio(n *scenario.Node, s *compSession, self *proto.S
 	imgui.SetNextItemWidth(110)
 	imgui.InputIntV("tx dBm", &cs.txDBm, 0, 0, 0)
 	if imgui.Button("apply to the node") {
-		_ = a.compSend(s, proto.SetRadioParams(uint32(cs.freqMHz*1000), uint32(cs.bwKHz),
+		_ = a.compSend(s, proto.SetRadioParams(uint32(cs.freqMHz*1000), uint32(cs.bwKHz*1000),
 			uint8(cs.sf), uint8(cs.cr)))
 		_ = a.compSend(s, proto.SetTxPower(uint8(cs.txDBm)))
 		a.stepEngine(20)
@@ -546,7 +579,7 @@ func (a *App) configureCompanion(node string) {
 	n := a.Nodes[i]
 	r := n.Radio
 	_ = a.compSend(s, proto.SetRadioParams(
-		uint32(r.CentreHz/1000), uint32(r.BandwidthHz/1000),
+		uint32(r.CentreHz/1000), uint32(r.BandwidthHz),
 		uint8(r.SpreadFactor), uint8(r.CodingRate+4)))
 	_ = a.compSend(s, proto.SetTxPower(uint8(n.TxPowerDBm)))
 	if n.Name != "" {
