@@ -44,6 +44,13 @@ type NodeRecord struct {
 	Kind       string
 	LastSeen   time.Time
 
+	// DefaultScope is the transport region the node scopes its own traffic
+	// to, where the source publishes it. CoreScope does, on every node - it
+	// is the SCOPE column in its own node list - and reading it beats
+	// inferring it from adverts, which under-reports whenever a node has
+	// been quiet in the window being read.
+	DefaultScope string
+
 	// Source names the provider, so a record can be argued with later.
 	Source string
 }
