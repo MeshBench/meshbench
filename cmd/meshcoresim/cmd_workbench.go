@@ -35,7 +35,8 @@ func runWorkbench(ctx context.Context, args []string) error {
 	offlineTiles := fs.Bool("offline-tiles", false, "use only tiles already downloaded")
 	width := fs.Int("width", 1600, "window width")
 	height := fs.Int("height", 1000, "window height")
-	wayland := fs.Bool("wayland", false, "stay on native Wayland (windows cannot leave the main window)")
+	wayland := fs.Bool("wayland", false, "stay on native Wayland (pop-out windows are impossible there; imgui disables them)")
+	scale := fs.Float64("scale", 0, "UI scale, e.g. 1.5; 0 detects (XWayland lies about it, so set this if the UI is tiny)")
 	if err := parse(fs, args, "open the workbench: build a scenario on a map and run it"); err != nil {
 		return err
 	}
@@ -58,6 +59,7 @@ func runWorkbench(ctx context.Context, args []string) error {
 	}
 
 	app := ui.New(t)
+	app.UIScale = *scale
 
 	// Tiles before nodes, so the map has somewhere to draw before the view is
 	// fitted to whatever gets loaded.
