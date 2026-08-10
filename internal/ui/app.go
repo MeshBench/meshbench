@@ -14,6 +14,8 @@ import (
 	"context"
 	"fmt"
 	"image"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -198,6 +200,16 @@ type App struct {
 	// What firmware is published, for the per-node picker.
 	fw *fwCatalogue
 
+	// noViewports means the platform cannot make panels their own OS windows
+	// (native Wayland). The buttons explain rather than fail.
+	noViewports bool
+
+	// UIScale multiplies every size in the UI. Zero means detect: the X11
+	// content scale when it says anything, environment hints when it does not
+	// — which is the usual case under XWayland, where the X side reports 1.0
+	// while the monitor is scaled, and the whole UI renders miniature.
+	UIScale float64
+
 	backend backend.Backend[glfwbackend.GLFWWindowFlags]
 }
 
@@ -322,7 +334,23 @@ func (a *App) Run(title string, w, h int) error {
 	b.SetTargetFPS(60)
 
 	b.SetBgColor(imgui.NewVec4(0.06, 0.07, 0.09, 1))
-	b.CreateWindow(title, w, h)
+	// Two stages, because the platform cannot be asked before a window exists
+	// (asking was a segfault): the flag and environment size the window, and
+	// the platform's own answer joins in afterwards for the style.
+	scale := a.configuredUIScale()
+	b.CreateWindow(title, int(float64(w)*scale), int(float64(h)*scale))
+	if scale == 1 {
+		if sx, _ := b.ContentScale(); sx > 1.01 {
+			scale = float64(sx)
+		}
+	}
+	if scale != 1 {
+		// Both halves, or it looks worse than unscaled: ScaleAllSizes grows
+		// the paddings, spacing and widget heights; FontScaleMain grows the
+		// text those sizes were measured around.
+		imgui.CurrentStyle().ScaleAllSizes(float32(scale))
+		imgui.CurrentStyle().SetFontScaleMain(float32(scale))
+	}
 	// First launch of a workspace builds its preset; every later launch loads
 	// what the operator made of it.
 	a.wsForce = true
@@ -337,6 +365,11 @@ func (a *App) Run(title string, w, h int) error {
 	// "outside" left to drop it in. That is the whole of why this did not work.
 	io := imgui.CurrentIO()
 	io.SetConfigViewportsNoAutoMerge(true)
+	// Under native Wayland the imgui backend refuses multi-viewport outright
+	// (upstream #8587: the protocol forbids positioning windows globally).
+	// Recorded so the pop-out buttons can say so instead of silently doing
+	// nothing — the exact lie this feature kept telling.
+	a.noViewports = io.BackendFlags()&imgui.BackendFlagsPlatformHasViewports == 0
 	// A detached window keeps its own decoration, so it can be moved and closed
 	// with the window manager like any other.
 	io.SetConfigViewportsNoDecoration(false)
@@ -624,3 +657,21 @@ func (a *App) SetLayer(id string) error {
 
 // SetFetchTiles allows the map to download while panning.
 func (a *App) SetFetchTiles(v bool) { a.fetchTiles = v }
+
+// configuredUIScale is the operator's answer: the flag, or the environment.
+//
+// The environment hints matter because the common failure is the platform
+// lying: under XWayland on a scaled desktop the X11 side reports a content
+// scale of 1.0, KWin does not upscale the window, and the workbench renders
+// at half size — "really small and scaled weirdly", verbatim.
+func (a *App) configuredUIScale() float64 {
+	if a.UIScale > 0 {
+		return a.UIScale
+	}
+	for _, env := range []string{"MESHCORESIM_SCALE", "GDK_SCALE", "QT_SCALE_FACTOR"} {
+		if v, err := strconv.ParseFloat(os.Getenv(env), 64); err == nil && v > 0.5 && v <= 4 {
+			return v
+		}
+	}
+	return 1
+}

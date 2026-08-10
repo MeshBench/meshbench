@@ -306,14 +306,23 @@ func (a *App) panelChrome(name string) {
 	imgui.SameLineV(avail.X-42, 0)
 	// One button, both directions, labelled for where it will send the panel.
 	// A pop-out that cannot be undone is why people stopped using it.
+	if a.noViewports {
+		imgui.TextDisabled("(single-window)")
+		if imgui.IsItemHovered() {
+			imgui.SetTooltip("Native Wayland cannot position windows, so imgui disables\n" +
+				"pop-out there (upstream #8587). Run without -wayland - the default\n" +
+				"X11 mode - and use -scale if the UI draws too small.")
+		}
+		imgui.NewLine()
+		return
+	}
 	if imgui.IsWindowDocked() {
 		if imgui.SmallButton("pop out##" + name) {
 			a.popOut(name)
 		}
 		if imgui.IsItemHovered() {
 			imgui.SetTooltip("Make this panel its own OS window, which you can move to\n" +
-				"another monitor. Dragging its tab out does the same.\n" +
-				"(Wayland cannot position windows; the workbench uses X11 by default.)")
+				"another monitor. Dragging its tab out does the same.")
 		}
 	} else {
 		if imgui.SmallButton("dock##" + name) {
