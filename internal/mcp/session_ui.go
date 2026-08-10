@@ -232,6 +232,18 @@ func sessionCompanionTools() []Tool {
 				"exists and how it acquires contacts.",
 			"companion.advert", sObj(map[string]any{"node": sStr("node name")}, "node")),
 
+		uiTool("session_quit",
+			"Close the workbench. The scenario lives in the process, so save a "+
+				"project first if it matters - everything unsaved goes with it.",
+			"app.quit", sObj(map[string]any{})),
+
+		uiTool("session_firmware_wipe",
+			"Delete every node's persistent firmware state: identity, preferences, "+
+				"channels, contacts. Needed between the arms of a comparison, because "+
+				"the firmware reads that state back at boot and the second run would "+
+				"otherwise inherit the first one's.",
+			"firmware.wipe", sObj(map[string]any{})),
+
 		uiTool("session_companion_configure",
 			"Apply the scenario's name, radio, transmit power and default scope to a "+
 				"connected companion. Provisioning does not reach companions - it speaks "+

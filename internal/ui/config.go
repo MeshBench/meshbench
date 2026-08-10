@@ -618,13 +618,17 @@ func truncateRunes(s string, n int) string {
 
 // scenarioEpoch is the wall-clock time every node is set to at boot.
 //
-// Fixed, from the run seed's own reference point rather than from time.Now():
-// the clock a node holds affects the timestamps it puts on messages, and
-// CLAUDE.md requires the same seed and scenario to give the same result. Taking
-// the host's clock would make every run differ in a way that looks like noise
-// in the results.
+// Fixed rather than time.Now(): the clock a node holds reaches the timestamps
+// it puts on messages, and CLAUDE.md requires the same seed and scenario to
+// give the same result. The host clock would make every run differ in a way
+// indistinguishable from noise.
+//
+// It must be *later* than the firmware's own build date. Both the companion
+// command and the CLI refuse a time earlier than the node already believes -
+// CMD_SET_DEVICE_TIME answers ERR_CODE_ILLEGAL_ARG - and a fresh node starts
+// from when it was built. An epoch chosen before that is rejected by every node
+// in the mesh, which is what "firmware error 6" was.
 func (a *App) scenarioEpoch() int64 {
-	// 2026-01-01T00:00:00Z. Any fixed, plausible, post-firmware-release instant
-	// does; what matters is that every node agrees and every run repeats.
-	return 1767225600
+	// 2026-09-01T00:00:00Z, comfortably after the 1.17 release.
+	return 1788220800
 }

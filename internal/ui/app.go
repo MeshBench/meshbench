@@ -183,6 +183,8 @@ type App struct {
 	// compFocus marks node windows whose Companion tab should come to the
 	// front on the next frame.
 	compFocus map[string]bool
+	// quit is set by the control socket to close the workbench.
+	quit bool
 
 	// Firmware start runs off the frame thread; these are how it reports back.
 	fwStarting atomic.Bool
@@ -476,6 +478,11 @@ func (a *App) frame() {
 	// allowed to touch the UI.
 	if a.ctrl != nil {
 		a.ctrl.Pump()
+	}
+	if a.quit {
+		// Asked to shut down from outside. Done here rather than in the
+		// handler so the reply reaches the caller before the window goes.
+		a.backend.SetShouldClose(true)
 	}
 	a.pumpUIScale()
 

@@ -220,6 +220,13 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 		starting, done, total, _ := a.firmwareProgress()
 		return map[string]any{"starting": starting, "done": done, "total": total}, nil
 
+	case "app.quit":
+		// Shut the workbench down from outside. A driven session otherwise
+		// needs somebody at the machine to restart it after every rebuild,
+		// which is most of what makes long automated runs impractical.
+		a.quit = true
+		return map[string]any{"quitting": true}, nil
+
 	case "firmware.wipe":
 		// Every node's persistent files: identity, prefs, channels, contacts.
 		//
