@@ -244,6 +244,7 @@ func (a *App) pollInference() {
 			return
 		}
 		a.infer.result, a.infer.regions, a.infer.packets = r.nodes, r.regions, r.packets
+		a.seedScopesFromImport()
 		if len(r.nodes) == 0 {
 			a.infer.err = "no packets carried a raw frame, so nothing could be read from them"
 		}
@@ -322,4 +323,29 @@ func (a *App) nodeForObserved(ref string) int {
 		}
 	}
 	return -1
+}
+
+// seedScopesFromImport fills in what CoreScope already published.
+//
+// A node's default scope is a field on its record - the SCOPE column in
+// CoreScope's own list - and the import keeps it. Inferring it from adverts
+// as well is fine, but a node that has been quiet, or whose adverts nobody
+// observed inside the window, came back with nothing while the source knew
+// all along. Observation refines what the source said; it does not replace
+// it.
+func (a *App) seedScopesFromImport() {
+	for ref, v := range a.infer.result {
+		i := a.nodeForObserved(ref)
+		if i < 0 || v == nil {
+			continue
+		}
+		n := &a.Nodes[i]
+		if v.DefaultScope == "" && n.DefaultScope != "" {
+			v.DefaultScope = n.DefaultScope
+		}
+		// A node scopes its own traffic to a region it must therefore hold.
+		if v.DefaultScope != "" && !containsStr(v.Regions, v.DefaultScope) {
+			v.Regions = append(v.Regions, v.DefaultScope)
+		}
+	}
 }

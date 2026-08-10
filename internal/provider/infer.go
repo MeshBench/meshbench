@@ -139,17 +139,68 @@ func InferFromPackets(packets []PacketRecord, m RegionMatcher) map[string]*Infer
 		if origin == "" && d.HopCount() == 0 {
 			origin = p.Receiver
 		}
-		if o := get(origin); o != nil && scoped && d.HopCount() == 0 {
+		// A scoped packet proves its *origin's* scope however many times it
+		// has been relayed: the transport code is an HMAC over the payload
+		// with the path excluded, so it is the code the origin computed and
+		// it does not change hop to hop.
+		//
+		// Requiring a hop-0 copy threw nearly all of this away - an advert is
+		// usually observed after some repeater has already carried it - which
+		// is why almost no node came back with a default scope while the
+		// network was entirely scoped.
+		if o := get(origin); o != nil && scoped {
 			o.ScopedOrigin = true
-			// A node's default scope is what it scopes its *own* traffic to, so
-			// it is read from what it originates rather than what it forwards.
+			// A node's default scope is what it scopes its *own* traffic to,
+			// so it is read from what it originates rather than what it
+			// forwards. Adverts are the clearest case: a node advertises
+			// itself, under its own scope.
 			if m != nil {
 				for _, name := range m.Match(p.Raw, d.TransportCodes) {
 					if !containsString(o.Regions, name) {
 						o.Regions = append(o.Regions, name)
 					}
-					o.DefaultScope = name
+					if d.PayloadName == "advert" || o.DefaultScope == "" {
+						o.DefaultScope = name
+					}
 				}
+			}
+		}
+
+		// Every node on the path relayed this packet, and every one of them
+		// is therefore evidence about itself.
+		//
+		// Crediting only the last hop - whoever transmitted the copy that was
+		// heard - was why a repeater carrying three regions was credited with
+		// one: it appears in hundreds of paths and is the *final* hop in very
+		// few of them. This is what HopReach has always done
+		// (internal/corescope/scope.go, tallyPacket).
+		relays := p.RelayPath
+		if len(relays) == 0 && p.Sender != "" {
+			relays = []string{p.Sender}
+		}
+		for _, hop := range relays {
+			if hop == "" || hop == p.Sender {
+				continue
+			}
+			h := get(hop)
+			if h == nil {
+				continue
+			}
+			h.Packets++
+			if scoped {
+				h.ScopedRelay = true
+				if m != nil {
+					for _, name := range m.Match(p.Raw, d.TransportCodes) {
+						if !containsString(h.Regions, name) {
+							h.Regions = append(h.Regions, name)
+						}
+					}
+				}
+			} else {
+				h.UnscopedRelay = true
+			}
+			if d.HopCount() > h.MaxHops {
+				h.MaxHops = d.HopCount()
 			}
 		}
 
@@ -212,6 +263,12 @@ type PacketRecord struct {
 	// hours needs this; a walk bounded by a packet count did not, which is
 	// why it was missing.
 	At time.Time
+
+	// RelayPath is every node that carried this packet, in order, as the
+	// source resolved them. Every one of them relayed it - which is the
+	// evidence, and taking only the last of them was why a node that relays
+	// three regions was credited with one.
+	RelayPath []string
 
 	// PathHashes is the packet's own path as the source parsed it: its length
 	// is the hop count, so an empty one means this copy came straight from the
