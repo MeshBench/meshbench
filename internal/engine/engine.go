@@ -424,12 +424,6 @@ func (e *Engine) deliver(t transmission, concurrent []transmission) error {
 			}
 		}()
 		switch {
-		case deaf:
-			rec.Outcome = capture.NotDemodulated
-			e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.Spec.Name, To: dst.Spec.Name,
-				PacketID: t.packetID, MessageID: t.payload, Outcome: rec.Outcome,
-				SNRdB: effective, Frame: t.frame,
-				Detail: "its own transmitter was keyed; LoRa is half duplex"})
 		case !rec.Offered:
 			rec.Outcome = capture.OutOfRange
 			// Not recorded. "Nothing measurable arrived" is not an event, it is
@@ -439,6 +433,15 @@ func (e *Engine) deliver(t transmission, concurrent []transmission) error {
 			// not hear Y") is the Link tab's job, which answers with the actual
 			// budget instead of a flood of negatives. Deafness and interference
 			// stay recorded: those are causes, not absences.
+		case deaf:
+			// Something measurable did arrive, and this node could not hear it
+			// because it was transmitting. That is a different problem from a
+			// weak signal and has a different fix, which is why it is separate.
+			rec.Outcome = capture.NotDemodulated
+			e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.Spec.Name, To: dst.Spec.Name,
+				PacketID: t.packetID, MessageID: t.payload, Outcome: rec.Outcome,
+				SNRdB: effective, Frame: t.frame,
+				Detail: "its own transmitter was keyed; LoRa is half duplex"})
 		case effective < required:
 			rec.Outcome = capture.NotDemodulated
 			why := fmt.Sprintf("SNR %.1f dB against %.1f dB needed at SF%d", effective, required, e.Config.SF)
