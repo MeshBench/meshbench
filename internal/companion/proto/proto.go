@@ -403,23 +403,27 @@ func decodeContact(b []byte) (*Contact, error) {
 
 // decodeMessage reads a received message.
 //
-// The v3 layout, from where the firmware builds it:
+// Two layouts, and the difference is not just extra fields at the end. From a
+// live frame, 08 01 01 00 dc5e7a6a "fif-sender: HELLO-MARKER":
 //
-//	[snr][reserved][reserved][channel_idx][path_len][txt_type][timestamp:4][text]
+//	pre-v3: [channel_idx][path_len][txt_type][timestamp:4][text]
+//	v3:     [snr][reserved][reserved][channel_idx][path_len][txt_type][timestamp:4][text]
 //
-// Older frames have neither the two reserved bytes nor path_len and txt_type.
-// Reading a v3 frame with the older layout starts the text six bytes early, so
-// every received message arrived with a few bytes of header glued to the front
-// of the sender's name.
+// The pre-v3 frame carries no SNR at all. Reading its first byte as one made
+// the channel index the signal level, put the text one byte late, and glued the
+// top byte of the timestamp - 0x6A, 'j' - to the front of every sender's name.
+//
+// Which arrives depends on the protocol version this client advertised in
+// CMD_APP_START, so a client cannot pick one and assume it.
 func decodeMessage(channel, v3 bool, b []byte) (*Message, error) {
 	if len(b) < 2 {
 		return nil, fmt.Errorf("proto: message is %d bytes", len(b))
 	}
-	m := &Message{Channel: channel}
-	m.SNRdB = float64(int8(b[0])) / 4
-	i := 1
+	m := &Message{Channel: channel, PathLen: -1}
+	i := 0
 	if v3 {
-		i += 2 // reserved1, reserved2
+		m.SNRdB = float64(int8(b[0])) / 4
+		i = 3 // snr, then two reserved bytes
 	}
 	if channel {
 		if len(b) <= i {
@@ -434,29 +438,24 @@ func decodeMessage(channel, v3 bool, b []byte) (*Message, error) {
 		m.SenderKey = append([]byte(nil), b[i:i+6]...)
 		i += 6
 	}
-	if v3 {
-		if len(b) > i {
-			// 0xFF means it did not arrive by flood, so there is no path to
-			// report rather than a path of 255 hops.
-			if b[i] != 0xFF {
-				m.PathLen = int(b[i])
-			} else {
-				m.PathLen = -1
-			}
-			i++
+	if len(b) > i {
+		// 0xFF is "did not arrive by flood", not a 255-hop path.
+		if b[i] != 0xFF {
+			m.PathLen = int(b[i])
 		}
-		if len(b) > i {
-			i++ // txt_type
-		}
+		i++
+	}
+	if len(b) > i {
+		i++ // txt_type
 	}
 	if len(b) >= i+4 {
 		m.At = time.Unix(int64(binary.LittleEndian.Uint32(b[i:])), 0).UTC()
 		i += 4
 	}
 	if len(b) > i {
-		// "sender: text" for channel messages, bare text for direct ones.
 		text := trimNUL(b[i:])
 		if channel {
+			// Channel messages are "sender: text"; direct ones are bare.
 			if k := strings.Index(text, ": "); k > 0 {
 				m.SenderName, text = text[:k], text[k+2:]
 			}

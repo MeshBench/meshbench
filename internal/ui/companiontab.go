@@ -30,7 +30,9 @@ type compSession struct {
 	frames []proto.Frame
 	// lastCmd is the command byte most recently sent, so an error frame can
 	// name what was refused rather than only how.
-	lastCmd  byte
+	lastCmd byte
+	// rawMsgs holds the first few received message frames, verbatim.
+	rawMsgs  [][]byte
 	messages []proto.Message
 	channels []proto.ChannelInfo
 	contacts []proto.Contact
@@ -120,6 +122,13 @@ func (s *compSession) take(f proto.Frame) {
 		}
 		s.contacts = append(s.contacts, *f.Contact)
 	case f.Message != nil:
+		// Keep the bytes of a few received messages. Frame layouts are the
+		// thing this client keeps getting wrong, and a hex dump of what
+		// actually arrived settles in one look what reading the firmware
+		// source did not.
+		if len(s.rawMsgs) < 8 {
+			s.rawMsgs = append(s.rawMsgs, append([]byte(nil), f.Raw...))
+		}
 		s.messages = append(s.messages, *f.Message)
 		s.syncing = false
 	case f.Err != "":

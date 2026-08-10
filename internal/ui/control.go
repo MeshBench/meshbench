@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"github.com/A13xB0/meshcoresim/internal/firmware"
@@ -997,6 +998,19 @@ func (a *App) handleUICommand(method string, params json.RawMessage) (any, bool,
 			return nil, true, err
 		}
 		return map[string]any{"node": arg("node"), "channel": arg("name"), "index": idx}, true, nil
+
+	case "companion.raw":
+		s := a.comps[arg("node")]
+		if s == nil {
+			return nil, true, fmt.Errorf("not connected to %q", arg("node"))
+		}
+		s.mu.Lock()
+		var out []string
+		for _, r := range s.rawMsgs {
+			out = append(out, hex.EncodeToString(r))
+		}
+		s.mu.Unlock()
+		return map[string]any{"frames": out}, true, nil
 
 	case "companion.configure":
 		// The companion equivalent of provisioning, so an agent can configure a

@@ -101,7 +101,9 @@ func TestUnknownResponseIsKept(t *testing.T) {
 }
 
 func TestDecodeChannelMessage(t *testing.T) {
-	b := []byte{byte(8), 24, 7} // channel msg (pre-v3), SNR 6 dB, channel 7
+	// Verbatim shape of a real frame: code, channel, path len, text type,
+	// timestamp, text. No SNR byte - the pre-v3 frame has none.
+	b := []byte{8, 7, 2, 0}
 	b = binary.LittleEndian.AppendUint32(b, uint32(time.Now().Unix()))
 	b = append(b, "GM5JFC: testing"...)
 	f, err := proto.Decode(b)
@@ -114,8 +116,8 @@ func TestDecodeChannelMessage(t *testing.T) {
 	if f.Message.ChannelIdx != 7 || f.Message.SenderName != "GM5JFC" || f.Message.Text != "testing" {
 		t.Fatalf("message = %+v", f.Message)
 	}
-	if f.Message.SNRdB != 6 {
-		t.Fatalf("snr = %v, want 6 (quarter-dB units)", f.Message.SNRdB)
+	if f.Message.PathLen != 2 {
+		t.Fatalf("path = %d, want 2", f.Message.PathLen)
 	}
 }
 
@@ -124,7 +126,7 @@ func TestDecodeChannelMessage(t *testing.T) {
 // the text six bytes early, which is how received messages arrived with
 // fragments of their own header stuck to the sender's name.
 func TestDecodeChannelMessageV3(t *testing.T) {
-	b := []byte{17, 24, 0, 0, 7, 3, 0} // v3, SNR 6 dB, reserved x2, channel 7, 3 hops, plain
+	b := []byte{17, 24, 0, 0, 7, 3, 0} // v3: SNR 6 dB, reserved x2, channel 7, 3 hops, plain
 	b = binary.LittleEndian.AppendUint32(b, uint32(time.Now().Unix()))
 	b = append(b, "GM5JFC: testing"...)
 	f, err := proto.Decode(b)
