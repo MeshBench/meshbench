@@ -44,8 +44,10 @@ func (a *App) drawABSection() {
 	if s.verA == "" {
 		s.verA, s.verB = versions[0], versions[1]
 	}
+	// Stacked, not side by side: two 140 px combos plus labels overflowed
+	// every dock narrower than a laptop, and the B combo drew half off-panel.
 	pick := func(label string, v *string) {
-		imgui.SetNextItemWidth(140)
+		imgui.SetNextItemWidth(-60)
 		if imgui.BeginCombo(label, *v) {
 			for _, ver := range versions {
 				if imgui.SelectableBool(ver + "##" + label) {
@@ -56,7 +58,6 @@ func (a *App) drawABSection() {
 		}
 	}
 	pick("A", &s.verA)
-	imgui.SameLine()
 	pick("B", &s.verB)
 
 	if imgui.Button("assign alternately") {

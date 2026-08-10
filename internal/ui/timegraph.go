@@ -33,12 +33,12 @@ const laneHeight = 18
 // the second one started while the first was still going out.
 func (a *App) drawTimeGraph() {
 	if a.eng == nil {
-		imgui.TextDisabled("no simulation yet - press run in the strip above")
+		imgui.TextDisabled("no simulation yet - press play in the strip above")
 		return
 	}
 	events := a.events()
 	if len(events) == 0 {
-		imgui.TextDisabled("no traffic yet - press run, or schedule some")
+		imgui.TextDisabled("no traffic yet - press play, or schedule some")
 		return
 	}
 	g := &a.tg

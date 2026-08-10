@@ -46,7 +46,7 @@ func (a *App) drawMenuBar() {
 				if err != nil {
 					a.status = err.Error()
 				} else {
-					a.status = fmt.Sprintf("%d frames written to %s — open it in Wireshark with "+
+					a.status = fmt.Sprintf("%d frames written to %s - open it in Wireshark with "+
 						"tools/dissector/meshcoresim.lua", frames, path)
 				}
 			}
@@ -204,6 +204,13 @@ func (a *App) drawMenuBar() {
 		imgui.TextDisabled("See docs/shortcomings.md.")
 		imgui.EndMenu()
 	}
+	// The honesty line lives in the chrome (CLAUDE.md requires it said, not
+	// findable) - at the end of the menu bar rather than on a row of its own,
+	// which bought the map a full row back.
+	imgui.SameLineV(0, 24)
+	imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.72, 0.25, 1))
+	imgui.TextDisabled("results are a best case: no multipath, bare earth, ideal demodulator")
+	imgui.PopStyleColor()
 	imgui.EndMenuBar()
 
 	// The two shortcuts the menu advertises. Only when no text field owns the
@@ -437,7 +444,7 @@ const tempRadioMinutes = 600
 // and the one a duty-cycle figure hides completely.
 func (a *App) drawNodeStats(name string) {
 	if a.eng == nil {
-		imgui.TextDisabled("no simulation yet - press run in the strip above")
+		imgui.TextDisabled("no simulation yet - press play in the strip above")
 		return
 	}
 	var s engine.Score
@@ -568,7 +575,7 @@ func (a *App) drawNeighbours(name string) {
 // drawNodeActivity is this node's slice of the event ledger, newest first.
 func (a *App) drawNodeActivity(name string) {
 	if a.eng == nil {
-		imgui.TextDisabled("no simulation yet - press run in the strip above")
+		imgui.TextDisabled("no simulation yet - press play in the strip above")
 		return
 	}
 	events := a.eng.Events()

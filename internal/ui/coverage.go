@@ -223,7 +223,7 @@ func (a *App) startNetworkCoverage(mode coverageMode) {
 		res <- covResult{
 			img:   combinedImage(c, mode),
 			south: south, north: north, west: west, east: east,
-			summary: fmt.Sprintf("%d stations · %.0f%% covered · %d cells served by nobody · "+
+			summary: fmt.Sprintf("%d stations . %.0f%% covered . %d cells served by nobody . "+
 				"%.0f%% of covered cells have a second server",
 				len(rasters), 100*float64(known-gaps)/float64(max(known, 1)), gaps,
 				100*c.Redundancy()),

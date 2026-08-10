@@ -154,7 +154,7 @@ func (a *App) drawFleetBody() {
 			imgui.TextWrapped(fmt.Sprintf("This changes the radio on %d nodes and invalidates "+
 				"this run. Press send again to confirm.", len(targets)))
 		} else {
-			imgui.TextWrapped(fmt.Sprintf("Changes the radio on %d nodes — invalidates this run.",
+			imgui.TextWrapped(fmt.Sprintf("Changes the radio on %d nodes - invalidates this run.",
 				len(targets)))
 		}
 		imgui.PopStyleColor()

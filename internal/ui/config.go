@@ -207,7 +207,7 @@ func (a *App) drawProvisionBody() {
 
 	imgui.SeparatorText("When firmware starts")
 	imgui.TextWrapped("Commands issued at every node's own CLI as it comes up. These are real " +
-		"commands to real firmware — the same ones you would type on a hilltop.")
+		"commands to real firmware - the same ones you would type on a hilltop.")
 
 	changed := false
 	changed = imgui.Checkbox("set name to the node's name on the map", &c.setNameOnStart) || changed
@@ -230,7 +230,7 @@ func (a *App) drawProvisionBody() {
 			"MeshCore's own region concept: the routing scope in its region_map,\n" +
 			"which decides how packets are scoped and which a node will relay.\n" +
 			"Distinct from the geographic boundary, which only decides which\n" +
-			"nodes are in the study — that one never reaches the firmware.\n\n" +
+			"nodes are in the study - that one never reaches the firmware.\n\n" +
 			"Off by default: this changes relaying, and so changes results.")
 	}
 	if c.setRegionOnStart {
@@ -246,8 +246,8 @@ func (a *App) drawProvisionBody() {
 		changed = imgui.Checkbox("and make it this node's default scope", &c.setDefaultScope) || changed
 		if imgui.IsItemHovered() {
 			imgui.SetTooltip("region default <name>   (MeshCore v1.15.0 and later)\n\n" +
-				"Scopes the traffic this node originates — adverts, direct messages,\n" +
-				"logins — to that region, rather than sending it unscoped.\n" +
+				"Scopes the traffic this node originates - adverts, direct messages,\n" +
+				"logins - to that region, rather than sending it unscoped.\n" +
 				"Saves itself; a channel's own scope still overrides it.")
 		}
 		imgui.Unindent()
@@ -309,7 +309,7 @@ func (a *App) drawPrefsBody() {
 	if imgui.IsItemHovered() {
 		imgui.SetTooltip("Real repeaters are powered on weeks apart. Started together they\n" +
 			"share a timer phase and their adverts collide on the same millisecond\n" +
-			"for ever — an artefact of the simulation, not of the network.\n\n" +
+			"for ever - an artefact of the simulation, not of the network.\n\n" +
 			"Deterministic: the same seed gives the same stagger.")
 	}
 	changed = imgui.Checkbox("compute the link matrix in the background", &c.autoWarm) || changed

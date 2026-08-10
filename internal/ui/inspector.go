@@ -119,7 +119,7 @@ func (a *App) drawDissection(d capture.Dissection, frame []byte) {
 		kv("transport codes", fmt.Sprintf("%04X %04X", d.TransportCodes[0], d.TransportCodes[1]))
 	}
 
-	imgui.SeparatorText(fmt.Sprintf("Path — %d hop(s)", d.HopCount()))
+	imgui.SeparatorText(fmt.Sprintf("Path - %d hop(s)", d.HopCount()))
 	if len(d.PathHashes) == 0 {
 		imgui.TextDisabled("none; this packet has not been relayed")
 	} else {
@@ -145,7 +145,7 @@ func (a *App) drawDissection(d capture.Dissection, frame []byte) {
 		kv(f.Name, f.Value)
 	}
 
-	imgui.SeparatorText(fmt.Sprintf("Raw — %d bytes", len(frame)))
+	imgui.SeparatorText(fmt.Sprintf("Raw - %d bytes", len(frame)))
 	if imgui.BeginChildStrV("##hex", imgui.NewVec2(0, 150), 0, 0) {
 		for off := 0; off < len(frame); off += 16 {
 			end := off + 16
@@ -234,7 +234,7 @@ func (a *App) nodeByHash(h byte) (string, bool) {
 // they are the reason this table exists rather than a log.
 func (a *App) drawReceptionLedger() {
 	if a.eng == nil {
-		imgui.TextDisabled("no simulation - press run in the strip above")
+		imgui.TextDisabled("no simulation - press play in the strip above")
 		return
 	}
 	rows := a.eng.Ledger.ForPacket(a.pkt.id)
@@ -252,7 +252,7 @@ func (a *App) drawReceptionLedger() {
 			decoded++
 		}
 	}
-	imgui.TextDisabled(fmt.Sprintf("offered to %d nodes · decoded at %d", reached, decoded))
+	imgui.TextDisabled(fmt.Sprintf("offered to %d nodes . decoded at %d", reached, decoded))
 
 	if !imgui.BeginTableV("##ledger", 7,
 		imgui.TableFlagsBorders|imgui.TableFlagsRowBg|imgui.TableFlagsScrollY,
@@ -407,7 +407,7 @@ func (a *App) drawMessageJourney() {
 	}
 	imgui.Text(fmt.Sprintf("%d transmissions, reaching %d distinct nodes over %.1f s",
 		len(hops), len(reached), float64(hops[len(hops)-1].at-hops[0].at)/1000))
-	imgui.TextDisabled("one message, followed by its payload — the bytes on the air differ " +
+	imgui.TextDisabled("one message, followed by its payload - the bytes on the air differ " +
 		"at every hop, because each relay appends itself to the path")
 
 	if !imgui.BeginTableV("##journey", 5,

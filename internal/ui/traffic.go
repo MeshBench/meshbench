@@ -266,7 +266,7 @@ func (a *App) drawTimeline() {
 	}
 	events := a.events()
 	if len(events) == 0 {
-		imgui.TextDisabled("no traffic yet - press run, or send from a selected node")
+		imgui.TextDisabled("no traffic yet - press play, or send from a node console")
 		return
 	}
 

@@ -171,7 +171,7 @@ func (a *App) drawPlanningBody() {
 		a.runCover()
 	}
 	for i, pl := range p.places {
-		imgui.Text(fmt.Sprintf("%d. %.5f, %.5f  —  +%d cells, %.0f%% covered",
+		imgui.Text(fmt.Sprintf("%d. %.5f, %.5f  -  +%d cells, %.0f%% covered",
 			i+1, pl.Site.Lat, pl.Site.Lon, pl.NewCellsCovered, pl.CoverageAfterPct))
 	}
 	if len(p.places) > 0 {
