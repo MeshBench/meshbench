@@ -326,6 +326,12 @@ func (a *App) drawNodeWindowBody(i int) {
 		a.drawConsoleFor(n.Name)
 		imgui.EndTabItem()
 	}
+	if _, ok := compTabName(string(n.Kind)); ok {
+		if imgui.BeginTabItem("Companion") {
+			a.drawMiniCompanionTab(i)
+			imgui.EndTabItem()
+		}
+	}
 	if imgui.BeginTabItem("Settings") {
 		a.drawNodeSettings(i)
 		imgui.EndTabItem()

@@ -37,6 +37,7 @@ func RegisterSessionTools(s *Server) error {
 	// scenario but not the window can change what the operator is looking at
 	// without ever seeing it.
 	tools = append(tools, sessionUITools()...)
+	tools = append(tools, sessionCompanionTools()...)
 	for _, t := range tools {
 		if err := s.Register(t); err != nil {
 			return err

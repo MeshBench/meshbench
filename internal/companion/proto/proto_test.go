@@ -56,8 +56,9 @@ func TestDecodeSelfInfo(t *testing.T) {
 	b = binary.LittleEndian.AppendUint32(b, uint32(int32(56747200)))
 	lon := int32(-3741100)
 	b = binary.LittleEndian.AppendUint32(b, uint32(lon))
-	b = binary.LittleEndian.AppendUint32(b, 869618)
-	b = binary.LittleEndian.AppendUint32(b, 62)
+	b = append(b, 0, 0, 0, 0) // multi_acks, loc policy, telemetry, manual add
+	b = binary.LittleEndian.AppendUint32(b, 869618*1000)
+	b = binary.LittleEndian.AppendUint32(b, 62*1000)
 	b = append(b, 8, 8)
 	b = append(b, "Dunkeld Companion"...)
 

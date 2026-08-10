@@ -171,6 +171,11 @@ type App struct {
 	undock map[string]bool
 	popped map[string]bool
 
+	// comps are open mini-companion sessions, one per node, each holding
+	// that node's serial port; compUI is what their tab has typed into it.
+	comps  map[string]*compSession
+	compUI map[string]*compUIState
+
 	// journal is every command this session has been driven with - the only
 	// memory a driven workbench has of what was done to it.
 	journal []map[string]any
@@ -312,7 +317,10 @@ func demoScenario() []scenario.Node {
 			Radio:   radio, TxPowerDBm: rak.MaxTxDBm, NoiseFigureDB: rak.NoiseFigureDB,
 		},
 		{
-			Name: "Perth", Kind: scenario.Companion,
+			// Not a place name: the demo's companion used to be called "Perth",
+			// which collides with a real Perth repeater on any Scottish import
+			// and makes "Perth is not a companion" a reasonable objection.
+			Name: "handheld", Kind: scenario.Companion,
 			Position: scenario.LatLon{Lat: 56.3950, Lon: -3.4308}, HeightAGLm: 2,
 			Antenna: handheld(xiao),
 			// A companion runs well below its chip's maximum: 14 dBm is a
@@ -360,6 +368,11 @@ func (a *App) Run(title string, w, h int) error {
 	a.ensureConfig() // the saved ctrl+/- scale is part of scale resolution
 	scale := a.configuredUIScale()
 	b.CreateWindow(title, int(float64(w)*scale), int(float64(h)*scale))
+	// Maximised: this is a workbench with a map, four panel groups and a
+	// status bar, and none of that is better in a third of a screen. The flag
+	// is set after the window exists, because GLFW applies it to the window
+	// rather than to the hint.
+	b.SetWindowFlags(glfwbackend.GLFWWindowFlagsMaximized, 1)
 	if scale == 1 {
 		if sx, _ := b.ContentScale(); sx > 1.01 {
 			scale = float64(sx)
@@ -496,6 +509,7 @@ func (a *App) frame() {
 	a.drawPanels()
 	a.drawStatusBar()
 	a.pumpLiveFeed()
+	a.pumpCompanions()
 
 	// Windows that are not dockable panels: they are modal-ish, per-node, or
 	// their own top-level things.
