@@ -1,6 +1,7 @@
 package proto_test
 
 import (
+	"bytes"
 	"encoding/binary"
 	"testing"
 	"time"
@@ -153,5 +154,38 @@ func TestV3DirectMessageHasNoPath(t *testing.T) {
 	}
 	if f.Message.PathLen != -1 {
 		t.Fatalf("path = %d, want -1 for a non-flood message", f.Message.PathLen)
+	}
+}
+
+// The contact record carries a 64-byte out_path between the path length and
+// the name. Reading the name straight after the length lands in the middle of
+// the path, and every contact comes back nameless.
+func TestDecodeContactName(t *testing.T) {
+	b := []byte{3}
+	b = append(b, bytes.Repeat([]byte{0xAB}, 32)...) // pub key
+	b = append(b, 1, 0, 3)                           // type, flags, out_path_len
+	b = append(b, bytes.Repeat([]byte{0x07}, 64)...) // out_path
+	name := make([]byte, 32)
+	copy(name, "Ben Vrackie")
+	b = append(b, name...)
+	b = binary.LittleEndian.AppendUint32(b, 1767225600)
+	b = binary.LittleEndian.AppendUint32(b, uint32(int32(56747200)))
+	lon := int32(-3741100)
+	b = binary.LittleEndian.AppendUint32(b, uint32(lon))
+	b = binary.LittleEndian.AppendUint32(b, 0)
+
+	f, err := proto.Decode(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := f.Contact
+	if c == nil {
+		t.Fatal("no contact decoded")
+	}
+	if c.Name != "Ben Vrackie" {
+		t.Fatalf("name = %q", c.Name)
+	}
+	if c.OutPathLen != 3 || int(c.Lat*1000) != 56747 {
+		t.Fatalf("contact = %+v", c)
 	}
 }

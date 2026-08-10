@@ -3,6 +3,7 @@ package ui
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/A13xB0/meshcoresim/internal/firmware"
 	"os"
 	"strings"
 	"time"
@@ -218,6 +219,19 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 		a.startFirmware()
 		starting, done, total, _ := a.firmwareProgress()
 		return map[string]any{"starting": starting, "done": done, "total": total}, nil
+
+	case "firmware.wipe":
+		// Every node's persistent files: identity, prefs, channels, contacts.
+		//
+		// Needed between the arms of any comparison. The firmware writes prefs
+		// and channels to its working directory and reads them back at boot, so
+		// a second run inherits the first one's state - a version-B run that
+		// started with version-A's contact database and channel table is not a
+		// comparison, and nothing in the numbers says so.
+		if err := firmware.WipeNodeStorage(); err != nil {
+			return nil, fmt.Errorf("wiping node storage: %w", err)
+		}
+		return map[string]any{"wiped": true}, nil
 
 	case "firmware.state":
 		starting, done, total, errText := a.firmwareProgress()

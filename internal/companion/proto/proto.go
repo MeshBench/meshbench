@@ -246,9 +246,11 @@ type Frame struct {
 type Contact struct {
 	PublicKey  []byte
 	Type       uint8
+	Flags      uint8
 	Name       string
 	LastSeen   time.Time
 	OutPathLen int8
+	Lat, Lon   float64
 }
 
 // Decode turns one reply frame into something usable.
@@ -351,19 +353,41 @@ func decodeSelfInfo(b []byte) (*SelfInfo, error) {
 	return si, nil
 }
 
+// decodeContact reads one contact record.
+//
+// The layout, from writeContactRespFrame:
+//
+//	[pub_key:32][type][flags][out_path_len][out_path:64][name:32]
+//	[last_advert:4][gps_lat:4][gps_lon:4][lastmod:4]
+//
+// The 64-byte out_path is the part worth stating: reading the name straight
+// after out_path_len puts it 64 bytes early, in the middle of the path, so
+// every contact came back with an empty name.
 func decodeContact(b []byte) (*Contact, error) {
-	if len(b) < 36 {
-		return nil, fmt.Errorf("proto: contact is %d bytes, need 36", len(b))
+	const (
+		keyLen  = 32
+		pathLen = 64
+		nameLen = 32
+		nameAt  = keyLen + 3 + pathLen
+	)
+	if len(b) < nameAt+nameLen {
+		return nil, fmt.Errorf("proto: contact is %d bytes, need %d", len(b), nameAt+nameLen)
 	}
-	c := &Contact{PublicKey: append([]byte(nil), b[0:32]...), Type: b[32]}
-	c.OutPathLen = int8(b[34])
-	i := 35
-	// name is NUL-padded to 32 bytes in the firmware's contact record.
-	end := min(i+32, len(b))
-	c.Name = trimNUL(b[i:end])
-	i = end
+	c := &Contact{
+		PublicKey:  append([]byte(nil), b[0:keyLen]...),
+		Type:       b[keyLen],
+		Flags:      b[keyLen+1],
+		OutPathLen: int8(b[keyLen+2]),
+	}
+	c.Name = trimNUL(b[nameAt : nameAt+nameLen])
+	i := nameAt + nameLen
 	if len(b) >= i+4 {
 		c.LastSeen = time.Unix(int64(binary.LittleEndian.Uint32(b[i:])), 0).UTC()
+		i += 4
+	}
+	if len(b) >= i+8 {
+		c.Lat = float64(int32(binary.LittleEndian.Uint32(b[i:]))) / 1e6
+		c.Lon = float64(int32(binary.LittleEndian.Uint32(b[i+4:]))) / 1e6
 	}
 	return c, nil
 }
