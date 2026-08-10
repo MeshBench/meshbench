@@ -557,6 +557,10 @@ func (a *App) handleUICommand(method string, params json.RawMessage) (any, bool,
 
 	// Transport - the run strip, as verbs.
 	case "sim.play":
+		a.ensureConfig()
+		if a.cfg.realFirmware && a.eng != nil && a.eng.FirmwareCount() == 0 {
+			a.attachFirmware()
+		}
 		a.playing = true
 		return map[string]any{"playing": true}, true, nil
 	case "sim.pause":

@@ -517,11 +517,12 @@ func (a *App) drawImportOffers() {
 	}
 	imgui.SameLine()
 	if a.eng != nil && a.eng.FirmwareCount() == 0 {
-		if imgui.Button("run real firmware") {
+		if imgui.Button("start MeshCore now") {
 			a.attachFirmware()
 		}
 		if imgui.IsItemHovered() {
-			imgui.SetTooltip(fmt.Sprintf("Starts real MeshCore: one process per node, %d here.",
+			imgui.SetTooltip(fmt.Sprintf("One MeshCore process per node, %d here. Play starts\n"+
+				"them anyway - this is for starting without running the clock.",
 				len(a.Nodes)))
 		}
 	}

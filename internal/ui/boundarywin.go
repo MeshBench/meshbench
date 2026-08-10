@@ -70,16 +70,24 @@ func (a *App) drawBoundaryBody() {
 	// Candidates. Shown with their full display name because "Perth" is a
 	// Scottish city, an Australian one, and a bus stop, and the short label
 	// alone lets someone filter their network to the wrong hemisphere.
+	// The whole row adds it. A 40 px "add" button beside the name took the
+	// width the name needed, so every candidate read as "adc Alba / Scotlanc"
+	// - and the point of showing the full display name is that "Perth" is a
+	// Scottish city, an Australian one and a bus stop.
 	for i, f := range b.results {
-		if imgui.ButtonV(fmt.Sprintf("add##%d", i), imgui.NewVec2(40, 0)) {
+		if imgui.SelectableBool(fmt.Sprintf("%s##r%d", f.DisplayName, i)) {
 			b.chosen = append(b.chosen, f)
 			b.results = nil
 			break
 		}
-		imgui.SameLine()
-		imgui.Text(f.DisplayName)
+		if imgui.IsItemHovered() {
+			imgui.SetTooltip(f.DisplayName + "\n" + f.Kind + " - click to use as the study area")
+		}
 		imgui.SameLine()
 		textDim("(" + f.Kind + ")")
+	}
+	if len(b.results) > 0 {
+		textDim("click one to use it as the study area")
 	}
 
 	// Inferred from where the nodes actually are, rather than typed.
