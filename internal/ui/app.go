@@ -370,6 +370,13 @@ func (a *App) Run(title string, w, h int) error {
 	// Recorded so the pop-out buttons can say so instead of silently doing
 	// nothing — the exact lie this feature kept telling.
 	a.noViewports = io.BackendFlags()&imgui.BackendFlagsPlatformHasViewports == 0
+	if a.noViewports {
+		// Said out loud at startup. This state used to be reached silently by
+		// every normal launch on a Wayland desktop, and the only symptom was
+		// pop-out buttons that did nothing.
+		a.status = "running on native Wayland: panels cannot leave this window " +
+			"(the protocol forbids it). Launch without -wayland for pop-out."
+	}
 	// A detached window keeps its own decoration, so it can be moved and closed
 	// with the window manager like any other.
 	io.SetConfigViewportsNoDecoration(false)
