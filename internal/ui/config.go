@@ -34,6 +34,9 @@ type configState struct {
 	// routing scope in its region_map — and not the geographic boundary the
 	// Boundary window draws, which only decides which nodes are in the study.
 	setRegionOnStart bool
+
+	// setClockOnStart gives every node the same wall-clock time as it comes up.
+	setClockOnStart bool
 	// setDefaultScope makes that region this node's default scope, so the
 	// traffic it originates is scoped rather than unscoped.
 	setDefaultScope bool
@@ -78,6 +81,9 @@ func (a *App) ensureConfig() {
 	a.cfg.setNameOnStart = true
 	a.cfg.setPositionOnStart = true
 	a.cfg.setFloodMaxAdvert = true
+	// On: a mesh whose nodes disagree about the time is not one anybody runs,
+	// and MeshCore timestamps messages and judges freshness by them.
+	a.cfg.setClockOnStart = true
 	// Off by default. A transport region changes how packets are scoped and
 	// which ones a node will relay at all; turning that on for somebody without
 	// being asked would change results they did not ask to change.
@@ -244,6 +250,14 @@ func (a *App) drawProvisionBody() {
 	}
 
 	changed = imgui.Checkbox("set the node's position", &c.setPositionOnStart) || changed
+	changed = imgui.Checkbox("set the clock, the same on every node", &c.setClockOnStart) || changed
+	if imgui.IsItemHovered() {
+		imgui.SetTooltip("time <epoch>\n\nNodes boot with the clock at zero. MeshCore " +
+			"timestamps messages and uses those timestamps to judge what is fresh " +
+			"and what it has already seen, so a mesh that disagrees about the time " +
+			"is not one anybody runs.\n\nSet from the scenario, not the host clock, " +
+			"so a run stays reproducible.")
+	}
 	if imgui.IsItemHovered() {
 		imgui.SetTooltip("set lat <lat> / set lon <lon>\n\n" +
 			"What the node's adverts carry, and where a client will show it.")
@@ -438,6 +452,15 @@ func (a *App) startupCommands(i int) []string {
 		// bytes happen to mean.
 		out = append(out, "set name "+truncateRunes(n.Name, maxNodeNameLen))
 	}
+	if a.cfg.setClockOnStart {
+		// Every node boots with its clock at zero, and MeshCore timestamps
+		// messages and uses them to decide what is fresh and what it has
+		// already seen. A mesh where every node disagrees about the time is not
+		// a mesh anybody runs: real ones are set from a phone, a GPS or an
+		// advert. Set from the scenario's own start time, so a run stays
+		// reproducible - wall clock here would make every run differ.
+		out = append(out, fmt.Sprintf("time %d", a.scenarioEpoch()))
+	}
 	if a.cfg.setPositionOnStart && n.Kind.Transmits() {
 		out = append(out,
 			fmt.Sprintf("set lat %.6f", n.Position.Lat),
@@ -591,4 +614,17 @@ func truncateRunes(s string, n int) string {
 		cut = i
 	}
 	return s[:cut]
+}
+
+// scenarioEpoch is the wall-clock time every node is set to at boot.
+//
+// Fixed, from the run seed's own reference point rather than from time.Now():
+// the clock a node holds affects the timestamps it puts on messages, and
+// CLAUDE.md requires the same seed and scenario to give the same result. Taking
+// the host's clock would make every run differ in a way that looks like noise
+// in the results.
+func (a *App) scenarioEpoch() int64 {
+	// 2026-01-01T00:00:00Z. Any fixed, plausible, post-firmware-release instant
+	// does; what matters is that every node agrees and every run repeats.
+	return 1767225600
 }
