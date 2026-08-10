@@ -46,6 +46,36 @@ Call it before assuming anything about a session you did not start.
 4. `infer.run` → poll `infer.result` → `infer.apply`.
 5. `firmware.set` per version, then `sim.play`/`sim.step`.
 
+## Firmware comes from meshcore-native, not from your own build
+
+`A13xB0/meshcore-native` publishes a native build per MeshCore tag -
+`repeater-v1.16.0`, `companion-v1.17.0`, and so on - all from one pipeline.
+Those are the ones to use, and `firmware.Resolve` fetches them into
+`~/.cache/meshcoresim/firmware/native/<tag>/`.
+
+Building one by hand to fill a gap is how a study gets quietly invalidated. A
+locally built 1.16.0 compiled against a stale copy of the shim answered console
+output with `0x06` where the host expects `0x07`; it connected, failed to
+behave, and exited. Worse than a build that fails to compile: two arms of a
+comparison speaking different wire protocols measure the shim, not the
+firmware. If a tag is missing, add it to meshcore-native rather than filling the
+cache locally.
+
+Downloads arrive without the execute bit. `chmod +x` them.
+
+## Starting firmware is asynchronous
+
+`firmware.start` returns immediately with `{starting, done, total}`; poll
+`firmware.state` until `starting` is false. It also reports `configured`, the
+number of nodes that took their provisioning.
+
+It was synchronous once, and on 155 nodes that froze the window and this socket
+together for as long as it was left - the handler runs on the frame thread. It
+read as a crash and was reported as one. If a driven step ever leaves the
+workbench silent and pegged at 0% CPU, that is the shape of the fault: an
+unbounded wait on the frame thread, not slowness. Take a goroutine dump
+(`kill -QUIT`) before killing it, because the dump names the line.
+
 ## CoreScope's real endpoints
 
 - Region names: **`/api/scope-stats?window=7d`**, `byRegion[].name`.

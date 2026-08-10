@@ -111,12 +111,30 @@ Channels are addressed **by index**, so the channel list is read with
 channel is a shared key in a slot. This is the firmware's model and the tab
 does not invent a different one.
 
-**Scope** is not part of the send frame: it is the node's transport region
-configuration, so the scope selector sets the node's default scope (via its
-CLI, the documented `region default <name>` sequence) before the send, and
-says that is what it did. "Unscoped" is `region default <null>`. This is the
-one place the tab reaches for the CLI rather than the companion protocol,
-and it is worth stating in the UI rather than hiding.
+**Scope** is not part of the send frame: it is the node's own configuration,
+held in prefs as `default_scope_name` + `default_scope_key`. It is set with
+`CMD_SET_DEFAULT_FLOOD_SCOPE` (63), which takes a 31-byte padded name followed
+by the 16-byte key; the bare command clears it to unscoped, and
+`CMD_GET_DEFAULT_FLOOD_SCOPE` (64) reads it back as `RESP_CODE_DEFAULT_FLOOD_SCOPE`
+(28). Both name **and** key are sent, because the firmware stores both and
+matches on the key - a name alone scopes nothing.
+
+This was wrong in the first version, which set the scope with the repeater CLI
+`region default <name>`. **A companion build has no CLI** - only a serial rescue
+mode - so the command went nowhere and every message went out unscoped while the
+UI reported the scope applied. On a mesh that is entirely transport-scoped, as
+ScotMesh is, that silently measures a different network from the one asked for.
+
+## Companions are configured, like repeaters
+
+The same mistake in a bigger place: provisioning is repeater CLI, so an imported
+companion kept the firmware's default hex name, no radio and no scope, while the
+fleet window reported it provisioned. `configureCompanion` applies the scenario's
+name, radio, transmit power and default scope over the companion protocol, and
+reads back what the node holds rather than assuming the commands landed. It runs
+on connect and is the right-click *Provision* verb for a companion, and it needs
+the port - so the tab must be connected first, rather than a second path fighting
+it for the UART.
 
 ## What it must not do
 
