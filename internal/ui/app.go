@@ -423,6 +423,14 @@ func (a *App) frame() {
 	vp := imgui.MainViewport()
 	imgui.SetNextWindowPos(vp.Pos())
 	imgui.SetNextWindowSize(vp.Size())
+	// Pin the shell to the real OS window. With no-auto-merge, imgui was
+	// giving this fullscreen host its *own* platform window stacked exactly
+	// over the GLFW one - so the visible "main window" was an imposter: its
+	// close button reached imgui rather than the app, and maximising it made
+	// imgui and KWin fight over the geometry every frame, which is the
+	// flicker. Pinned, the window the operator sees *is* the one whose close
+	// quits.
+	imgui.SetNextWindowViewport(vp.ID())
 
 	// The host window carries the chrome — menu, honesty line, toolbar, run
 	// strip — and a dockspace. Everything else is a dockable panel inside it.
