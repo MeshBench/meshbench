@@ -22,9 +22,14 @@ type Dissection struct {
 	// TransportCodes are present on the transport route types.
 	TransportCodes []uint16
 
-	// PathHashes are the one-byte node hashes a flood packet accumulates —
-	// the hop count, and with names resolved, the route it actually took.
+	// PathHashes are the node hashes a flood packet accumulates - the route
+	// it actually took, and its length. Each hash is PathHashSize bytes:
+	// MeshCore made that variable and encodes it in the same byte as the hop
+	// count, so a path is not a byte count.
 	PathHashes []byte
+
+	// PathHashSize is how many bytes each hop's hash occupies, 1 to 4.
+	PathHashSize int
 
 	// Payload is what follows the path, and PayloadFields is whatever structure
 	// the payload type lets us claim without decrypting.
@@ -125,10 +130,23 @@ func Dissect(frame []byte) Dissection {
 		d.Truncated, d.Problem = true, "no path length byte"
 		return d
 	}
-	pathLen := int(frame[i])
+	// One byte, two fields. MeshCore packs the hash *size* into the top two
+	// bits and the hop *count* into the low six (Packet.h:
+	// getPathHashSize = (path_len >> 6) + 1, getPathHashCount = path_len & 63).
+	//
+	// Reading it as a plain byte count is why a live ScotMesh frame with
+	// three-byte hashes and no hops read as "path claims 128 bytes": the
+	// frame was declared truncated and dropped, and with it every region its
+	// relays proved they carry. Regions matched only on the subset of the
+	// network still using one-byte hashes.
+	d.PathHashSize = int(frame[i]>>6) + 1
+	hops := int(frame[i] & 63)
+	pathLen := hops * d.PathHashSize
 	i++
 	if len(frame) < i+pathLen {
-		d.Truncated, d.Problem = true, fmt.Sprintf("path claims %d bytes, %d present", pathLen, len(frame)-i)
+		d.Truncated, d.Problem = true, fmt.Sprintf(
+			"path claims %d hops of %d bytes, %d present",
+			hops, d.PathHashSize, len(frame)-i)
 		return d
 	}
 	d.PathHashes = frame[i : i+pathLen]
@@ -196,7 +214,26 @@ func dissectPayload(t uint8, p []byte, base int) []Field {
 
 // HopCount is how many nodes have relayed this frame — the number an operator
 // reads first.
-func (d Dissection) HopCount() int { return len(d.PathHashes) }
+// HopCount is how many nodes carried this packet - hops, not bytes. With
+// multi-byte hashes those stopped being the same number.
+func (d Dissection) HopCount() int {
+	if d.PathHashSize <= 1 {
+		return len(d.PathHashes)
+	}
+	return len(d.PathHashes) / d.PathHashSize
+}
+
+// Hop is one hop's hash, whatever width the packet uses.
+func (d Dissection) Hop(i int) []byte {
+	sz := d.PathHashSize
+	if sz <= 0 {
+		sz = 1
+	}
+	if i < 0 || (i+1)*sz > len(d.PathHashes) {
+		return nil
+	}
+	return d.PathHashes[i*sz : (i+1)*sz]
+}
 
 // Summary is one line for a table row.
 func (d Dissection) Summary() string {

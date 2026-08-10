@@ -1,6 +1,7 @@
 package capture_test
 
 import (
+	"encoding/hex"
 	"strings"
 	"testing"
 
@@ -98,5 +99,49 @@ func TestRewritePathKeepsEverythingElse(t *testing.T) {
 	}
 	if out[0] != frame[0] {
 		t.Fatal("header changed")
+	}
+}
+
+// The live frame that exposed the variable-hash format: a #fif-scoped
+// channel message from ScotMesh whose path byte is 0x80 — three-byte hashes,
+// no hops yet. Read as a plain byte count that is 128 bytes of path in a
+// 73-byte frame, so the dissector called it truncated and dropped it, and
+// every region its relays proved went with it.
+func TestVariablePathHashSize(t *testing.T) {
+	raw, err := hex.DecodeString("14c47500008003bf92968994795bd4303e4df3bed4e61ce83504" +
+		"eece967eb3907a133494611d225f353299022705755204f1811d04896a21945c79ff43c37bddafbb1371b616e51d49")
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := capture.Dissect(raw)
+	if d.Truncated {
+		t.Fatalf("live frame reported truncated: %s", d.Problem)
+	}
+	if d.PathHashSize != 3 {
+		t.Fatalf("hash size = %d, want 3 (0x80 >> 6 + 1)", d.PathHashSize)
+	}
+	if d.HopCount() != 0 {
+		t.Fatalf("hop count = %d, want 0 (0x80 & 63)", d.HopCount())
+	}
+	if !d.HasTransport {
+		t.Fatal("route type 0 is transport flood, so it carries transport codes")
+	}
+	// Payload is everything after the path, and it is what the region HMAC is
+	// taken over — getting the offset wrong is silent, and produces a code
+	// that matches no region at all.
+	if len(d.Payload) == 0 {
+		t.Fatal("no payload: the offset past the path is wrong")
+	}
+}
+
+// A one-byte-hash packet with three hops still reads as three hops.
+func TestSingleBytePathHashesStillWork(t *testing.T) {
+	frame := []byte{0x11, 0x03, 0xAA, 0xBB, 0xCC, 0xDE, 0xAD}
+	d := capture.Dissect(frame)
+	if d.PathHashSize != 1 || d.HopCount() != 3 {
+		t.Fatalf("size=%d hops=%d, want 1 and 3", d.PathHashSize, d.HopCount())
+	}
+	if string(d.Payload) != string([]byte{0xDE, 0xAD}) {
+		t.Fatalf("payload = %x", d.Payload)
 	}
 }
