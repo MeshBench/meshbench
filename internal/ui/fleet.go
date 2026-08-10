@@ -178,7 +178,8 @@ func (a *App) drawFleetBody() {
 		return
 	}
 	if !imgui.BeginTableV("##fleetresults", 2,
-		imgui.TableFlagsBorders|imgui.TableFlagsRowBg|imgui.TableFlagsScrollY,
+		imgui.TableFlagsBorders|imgui.TableFlagsRowBg|imgui.TableFlagsScrollY|
+			imgui.TableFlagsResizable|imgui.TableFlagsReorderable,
 		imgui.NewVec2(0, 0), 0) {
 		return
 	}

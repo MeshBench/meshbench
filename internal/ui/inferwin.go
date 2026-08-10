@@ -143,11 +143,17 @@ func (a *App) drawInferBody() {
 	if imgui.Button("apply to the matching nodes") {
 		s.appliedN = a.applyInference()
 	}
+	if imgui.IsItemHovered() {
+		imgui.SetTooltip("Writes what was read onto the scenario's nodes. Those regions\n" +
+			"reach a node's firmware when it starts, which needs Provisioning's\n" +
+			"region option - turned on for you when this finds anything.")
+	}
 	imgui.SameLine()
 	textDim(fmt.Sprintf("%d applied", s.appliedN))
 
 	if !imgui.BeginTableV("##inferred", 5,
-		imgui.TableFlagsBorders|imgui.TableFlagsRowBg|imgui.TableFlagsScrollY,
+		imgui.TableFlagsBorders|imgui.TableFlagsRowBg|imgui.TableFlagsScrollY|
+			imgui.TableFlagsResizable|imgui.TableFlagsReorderable|imgui.TableFlagsHideable,
 		imgui.NewVec2(0, 0), 0) {
 		return
 	}
@@ -202,6 +208,13 @@ func (a *App) startInference() {
 	s.done = make(chan inferResult, 1)
 
 	url, token := strings.TrimRight(a.imp.url, "/"), a.imp.token
+	// The scenario's CoreScope keys, for resolving path hops ourselves.
+	pubkeys := make([]string, 0, len(a.Nodes))
+	for i := range a.Nodes {
+		if k := strings.ToLower(a.Nodes[i].PublicKey); k != "" {
+			pubkeys = append(pubkeys, k)
+		}
+	}
 	since := time.Now().Add(-time.Duration(s.lookbackH) * time.Hour)
 	extra := s.extraRegions
 	ch := s.done
@@ -228,6 +241,7 @@ func (a *App) startInference() {
 			ch <- inferResult{err: err}
 			return
 		}
+		resolvePaths(packets, pubkeys)
 		ch <- inferResult{
 			nodes:   provider.InferFromPackets(packets, provider.NewNamedRegions(names)),
 			regions: names, packets: len(packets),
@@ -253,6 +267,14 @@ func (a *App) pollInference() {
 }
 
 // applyInference writes what was found onto the scenario's nodes.
+// applyInference writes what was found onto the scenario's nodes.
+//
+// Onto the *scenario*: nothing is sent to a repeater here. The regions reach
+// a node when its firmware starts, through Provisioning's region commands -
+// which are off by default, so applying used to update 118 nodes and issue
+// not one CLI line, with nothing on any console to say so. Finding real
+// regions is a good enough reason to turn that on, and to say that is what
+// happened.
 func (a *App) applyInference() int {
 	s := &a.infer
 	applied := 0
@@ -282,6 +304,27 @@ func (a *App) applyInference() int {
 		}
 		if changed {
 			applied++
+		}
+	}
+	if applied > 0 {
+		a.ensureConfig()
+		if !a.cfg.setRegionOnStart {
+			a.cfg.setRegionOnStart = true
+			a.saveConfig()
+		}
+		running := 0
+		if a.eng != nil {
+			running = a.eng.FirmwareCount()
+		}
+		if running > 0 {
+			// Firmware is already up, so the nodes would otherwise keep the
+			// configuration they booted with until someone restarted them.
+			sent := a.applyRegionsToFleet()
+			a.status = fmt.Sprintf("%d nodes updated; region commands sent to %d running "+
+				"nodes now, and issued at boot from here on", applied, sent)
+		} else {
+			a.status = fmt.Sprintf("%d nodes updated; their region commands will be issued "+
+				"when firmware starts (Provisioning's region option is now on)", applied)
 		}
 	}
 	return applied
@@ -346,6 +389,56 @@ func (a *App) seedScopesFromImport() {
 		// A node scopes its own traffic to a region it must therefore hold.
 		if v.DefaultScope != "" && !containsStr(v.Regions, v.DefaultScope) {
 			v.Regions = append(v.Regions, v.DefaultScope)
+		}
+	}
+}
+
+// resolvePaths fills each packet's relay path from its own path hashes.
+//
+// CoreScope resolves some hops to names and leaves the rest as hashes, so
+// trusting its resolved path silently drops every hop it could not name -
+// and with them every region those nodes proved they carry. The hashes are
+// prefixes of the real public keys, so they can be resolved here against the
+// keys the import kept. This is HopReach's prefixIndex, and the ambiguity
+// rule matters: a prefix that matches two nodes identifies neither, and
+// guessing would credit a region to the wrong repeater.
+func resolvePaths(packets []provider.PacketRecord, pubkeys []string) {
+	if len(pubkeys) == 0 {
+		return
+	}
+	cache := map[string]string{}
+	resolve := func(prefix string) (string, bool) {
+		prefix = strings.ToLower(prefix)
+		if prefix == "" {
+			return "", false
+		}
+		if v, ok := cache[prefix]; ok {
+			return v, v != ""
+		}
+		match := ""
+		for _, pk := range pubkeys {
+			if strings.HasPrefix(pk, prefix) {
+				if match != "" {
+					cache[prefix] = ""
+					return "", false // ambiguous: identifies nobody
+				}
+				match = pk
+			}
+		}
+		cache[prefix] = match
+		return match, match != ""
+	}
+	for i := range packets {
+		p := &packets[i]
+		seen := map[string]bool{}
+		for _, n := range p.RelayPath {
+			seen[strings.ToLower(n)] = true
+		}
+		for _, h := range p.PathHashes {
+			if key, ok := resolve(h); ok && !seen[key] {
+				p.RelayPath = append(p.RelayPath, key)
+				seen[key] = true
+			}
 		}
 	}
 }

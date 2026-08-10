@@ -325,7 +325,8 @@ func (a *App) drawTimeline() {
 	}
 
 	if !imgui.BeginTableV("##events", 5,
-		imgui.TableFlagsBorders|imgui.TableFlagsRowBg|imgui.TableFlagsScrollY,
+		imgui.TableFlagsBorders|imgui.TableFlagsRowBg|imgui.TableFlagsScrollY|
+			imgui.TableFlagsResizable|imgui.TableFlagsReorderable,
 		imgui.NewVec2(0, 0), 0) {
 		return
 	}
@@ -439,7 +440,7 @@ func (a *App) drawScoreboard() {
 	imgui.Spacing()
 
 	if !imgui.BeginTableV("##score", 6,
-		imgui.TableFlagsBorders|imgui.TableFlagsRowBg, imgui.NewVec2(0, 0), 0) {
+		imgui.TableFlagsBorders|imgui.TableFlagsRowBg|imgui.TableFlagsResizable, imgui.NewVec2(0, 0), 0) {
 		return
 	}
 	for _, h := range []string{"node", "sent", "heard", "airtime", "duty", "unique / redundant"} {

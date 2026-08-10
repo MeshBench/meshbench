@@ -204,7 +204,7 @@ func (c *CoreScope) Packets(ctx context.Context, max int, progress func(int)) ([
 	}
 	var out []PacketRecord
 	for offset := 0; len(out) < max; {
-		url := fmt.Sprintf("%s/api/packets?limit=%d&offset=%d&sort=timestamp&order=desc",
+		url := fmt.Sprintf("%s/api/packets?limit=%d&offset=%d",
 			c.BaseURL, csPacketPageLimit, offset)
 		rows, err := c.fetchPacketPage(ctx, url)
 		if err != nil {
@@ -346,10 +346,20 @@ func (c *CoreScope) recordFrom(r csPacketRow) (PacketRecord, bool) {
 // runaway is a stuck import, not a thorough one.
 func (c *CoreScope) PacketsSince(ctx context.Context, since time.Time,
 	progress func(int)) ([]PacketRecord, error) {
-	const maxPages = 200
+	// Enough pages to reach back a week on a busy mesh: ScotMesh runs about
+	// 22,000 packets a day, so seven days is ~150,000 and 200 pages stopped
+	// less than half way - silently, which is the worst way to be short.
+	// The time cutoff is what normally ends the walk; this is only the guard
+	// against a source whose timestamps never age.
+	const maxPages = 1200
 	var out []PacketRecord
 	for page := 0; page < maxPages; page++ {
-		url := fmt.Sprintf("%s/api/packets?limit=%d&offset=%d&sort=timestamp&order=desc",
+		// No sort or order parameters, which is what HopReach sends. Paging by
+		// offset over a *re-sorted* view of a feed that is still receiving
+		// packets shifts rows between requests, and a small region - #fif is
+		// 63 packets in a week - disappears into the gaps. The endpoint's own
+		// order is newest-first and stable enough to page.
+		url := fmt.Sprintf("%s/api/packets?limit=%d&offset=%d",
 			c.BaseURL, csPacketPageLimit, page*csPacketPageLimit)
 		rows, err := c.fetchPacketPage(ctx, url)
 		if err != nil {
@@ -358,22 +368,28 @@ func (c *CoreScope) PacketsSince(ctx context.Context, since time.Time,
 		if len(rows) == 0 {
 			return out, nil
 		}
-		reachedCutoff := false
+		// Stop on a page that is *entirely* older than the window, not on the
+		// first old packet in it. The endpoint is newest-first but not
+		// strictly so, and one stray out-of-order row ended the walk at
+		// 38,000 packets where a week is nearer 154,000 - taking the small
+		// regions with it, since #fif is 63 packets in that week.
+		older, kept := 0, 0
 		for _, r := range rows {
 			rec, ok := c.recordFrom(r)
 			if !ok {
 				continue
 			}
 			if !rec.At.IsZero() && rec.At.Before(since) {
-				reachedCutoff = true
+				older++
 				continue
 			}
+			kept++
 			out = append(out, rec)
 		}
 		if progress != nil {
 			progress(len(out))
 		}
-		if reachedCutoff || len(rows) < csPacketPageLimit {
+		if (older > 0 && kept == 0) || len(rows) < csPacketPageLimit {
 			return out, nil
 		}
 	}
