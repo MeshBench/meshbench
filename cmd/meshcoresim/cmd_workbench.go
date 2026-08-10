@@ -99,7 +99,7 @@ func runWorkbench(ctx context.Context, args []string) error {
 		app.SetNodes(nodes)
 	}
 
-	return app.Run("MeshcoreSim", *width, *height)
+	return app.Run("MeshBench - main window", *width, *height)
 }
 
 // defaultTileCache keeps tiles with the user's other caches.

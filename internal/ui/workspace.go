@@ -50,6 +50,9 @@ type panelSpec struct {
 	// segfault wearing an API.
 	docked    bool
 	ownWindow bool
+	// lastDock is the dock node the panel last sat in, so "dock" returns it
+	// there rather than dumping it over the map in the central node.
+	lastDock imgui.ID
 }
 
 // panelRegistry is every panel the workbench has, built once.
@@ -282,8 +285,24 @@ func (a *App) applyRedocks() {
 	if len(a.redock) == 0 {
 		return
 	}
+	// A panel goes back to the node it popped out of, when that node still
+	// exists. A node that emptied when its last tab left is gone, and docking
+	// into a dead node is a silent no-op - a remembered node counts as alive
+	// only while some other docked panel still reports living in it. (Asking
+	// imgui directly is out: the node lookup wraps a null pointer in a
+	// non-nil value, and dereferencing it took the process down once.)
+	alive := map[imgui.ID]bool{}
+	for _, p := range a.panelRegistry() {
+		if p.open && p.docked && p.lastDock != 0 && !a.redock[p.name] {
+			alive[p.lastDock] = true
+		}
+	}
 	for name := range a.redock {
-		imgui.InternalDockBuilderDockWindow(name, dockspaceID())
+		target := dockspaceID()
+		if p := a.panelByName(name); p != nil && alive[p.lastDock] {
+			target = p.lastDock
+		}
+		imgui.InternalDockBuilderDockWindow(name, target)
 		delete(a.redock, name)
 	}
 	imgui.InternalDockBuilderFinish(dockspaceID())
@@ -299,6 +318,9 @@ func (a *App) drawPanels() {
 		open := p.open
 		if imgui.BeginV(p.name, &open, 0) {
 			p.docked = imgui.IsWindowDocked()
+			if p.docked {
+				p.lastDock = imgui.WindowDockID()
+			}
 			p.ownWindow = !p.docked &&
 				imgui.WindowViewport().ID() != imgui.MainViewport().ID()
 			a.panelChrome(p.name)
