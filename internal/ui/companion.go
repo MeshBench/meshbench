@@ -142,6 +142,15 @@ func (a *App) closeCompanions() {
 		_ = p.Close()
 		delete(a.comp.ports, name)
 	}
+	// The mini companion's sessions too. They hold a bridge belonging to the
+	// engine being replaced, and a session left pointing at a dead one does not
+	// fail: it accepts sends that go nowhere and receives nothing, while still
+	// showing itself as connected. That is how a second run of a comparison
+	// produced a message stuck on "sending..." and a conversation that stopped
+	// filling.
+	for name := range a.comps {
+		delete(a.comps, name)
+	}
 }
 
 // lanAddresses lists this machine's usable addresses, so a phone can be told

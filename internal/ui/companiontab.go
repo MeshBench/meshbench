@@ -449,7 +449,10 @@ func (a *App) compSendMessage(node string, s *compSession, cs *compUIState) {
 	})
 	s.mu.Unlock()
 	cs.draft = ""
-	a.stepEngine(40)
+	// No stepping here. Advancing the engine from a UI action means 154 nodes
+	// in lockstep on the frame thread, which is a visible stall every time a
+	// message is sent. The send is on its way; the frame loop will carry it,
+	// and the firmware's OK will arrive when it arrives.
 }
 
 // drawCompanionRadio configures the modem through the companion protocol.
