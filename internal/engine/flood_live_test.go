@@ -20,6 +20,10 @@ import (
 // Both produced exactly the same symptom from the outside, which is why this
 // asserts on the mechanism — repeated transmission and cross-node relay — and
 // not just on delivery counts.
+//
+// Node names are prefixed per test file. Node storage is keyed by name, so a
+// test that saved "region denyf *" at a node called bravo silently configured
+// every later test's bravo — which is exactly what happened.
 func TestLiveFloodCrossesHopsAndNodesTransmitTwice(t *testing.T) {
 	if os.Getenv("MESHCORESIM_LIVE") == "" {
 		t.Skip("set MESHCORESIM_LIVE=1")
@@ -40,9 +44,15 @@ func TestLiveFloodCrossesHopsAndNodesTransmitTwice(t *testing.T) {
 		name     string
 		lat, lon float64
 	}{
-		{"alpha", 56.70, -3.90},
-		{"bravo", 56.70, -3.55}, // ~21 km from each neighbour
-		{"charlie", 56.70, -3.20},
+		// ~37 km hops: comfortably decodable (SNR about -4 dB at SF10), while
+		// the 73 km end-to-end path is far below the demodulator floor. The
+		// original spacing put alpha->charlie at 142.9 dB — marginally
+		// decodable — so charlie heard alpha directly, relayed first, and
+		// MeshCore's own redundancy suppression cancelled bravo's relay: the
+		// test failed because its geometry premise was false, not the flood.
+		{"fld-alpha", 56.70, -3.90},
+		{"fld-bravo", 56.70, -3.30},
+		{"fld-charlie", 56.70, -2.70},
 	} {
 		_ = i
 		e.Add(scenario.Node{
@@ -58,7 +68,7 @@ func TestLiveFloodCrossesHopsAndNodesTransmitTwice(t *testing.T) {
 	}
 
 	// The workbench's own path: type at the source's real CLI.
-	node, ok := e.NodeByName("alpha")
+	node, ok := e.NodeByName("fld-alpha")
 	if !ok || node.Firmware == nil {
 		t.Fatal("alpha has no firmware")
 	}
@@ -89,13 +99,13 @@ func TestLiveFloodCrossesHopsAndNodesTransmitTwice(t *testing.T) {
 	}
 	t.Logf("tx=%v rxAt=%v", tx, rxAt)
 
-	if tx["alpha"] < 2 {
-		t.Errorf("alpha transmitted %d times; a radio that cannot send twice is wedged", tx["alpha"])
+	if tx["fld-alpha"] < 2 {
+		t.Errorf("alpha transmitted %d times; a radio that cannot send twice is wedged", tx["fld-alpha"])
 	}
-	if tx["bravo"] == 0 {
+	if tx["fld-bravo"] == 0 {
 		t.Error("bravo relayed nothing; the flood died at the first hop")
 	}
-	if rxAt["charlie"] == 0 {
+	if rxAt["fld-charlie"] == 0 {
 		t.Error("charlie heard nothing; it is out of alpha's direct reach, so a relay was the only way")
 	}
 }

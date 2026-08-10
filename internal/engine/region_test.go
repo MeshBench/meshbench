@@ -39,7 +39,7 @@ func TestFirmwareRejectsByRegionAndTheChannelDoesNot(t *testing.T) {
 	for _, spec := range []struct {
 		name string
 		lon  float64
-	}{{"alpha", -3.90}, {"bravo", -3.55}, {"charlie", -3.20}} {
+	}{{"rgn-alpha", -3.90}, {"rgn-bravo", -3.55}, {"rgn-charlie", -3.20}} {
 		e.Add(scenario.Node{
 			Name: spec.name, Kind: scenario.SimpleRepeater,
 			Position: scenario.LatLon{Lat: 56.70, Lon: spec.lon}, HeightAGLm: 10,
@@ -53,7 +53,7 @@ func TestFirmwareRejectsByRegionAndTheChannelDoesNot(t *testing.T) {
 	}
 
 	// bravo refuses to flood — its own decision, made by its own region map.
-	bravo, _ := e.NodeByName("bravo")
+	bravo, _ := e.NodeByName("rgn-bravo")
 	for _, cmd := range []string{"region denyf *", "region save"} {
 		if err := bravo.Firmware.Bridge.Type([]byte(cmd + "\r\n")); err != nil {
 			t.Fatal(err)
@@ -63,7 +63,7 @@ func TestFirmwareRejectsByRegionAndTheChannelDoesNot(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	alpha, _ := e.NodeByName("alpha")
+	alpha, _ := e.NodeByName("rgn-alpha")
 	if err := alpha.Firmware.Bridge.Type([]byte("advert\r\n")); err != nil {
 		t.Fatal(err)
 	}
@@ -74,9 +74,9 @@ func TestFirmwareRejectsByRegionAndTheChannelDoesNot(t *testing.T) {
 	deliveredToBravo, bravoRelayed := 0, 0
 	for _, ev := range e.Events() {
 		switch {
-		case ev.Kind == "rx" && ev.To == "bravo":
+		case ev.Kind == "rx" && ev.To == "rgn-bravo":
 			deliveredToBravo++
-		case ev.Kind == "tx" && ev.From == "bravo":
+		case ev.Kind == "tx" && ev.From == "rgn-bravo":
 			bravoRelayed++
 		}
 	}

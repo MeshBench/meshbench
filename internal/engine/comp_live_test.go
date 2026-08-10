@@ -36,7 +36,7 @@ func TestLiveCompanionSerialBytes(t *testing.T) {
 	defer func() { _ = e.Close() }()
 
 	e.Add(scenario.Node{
-		Name: "phone", Kind: scenario.Companion,
+		Name: "comp-phone", Kind: scenario.Companion,
 		Position: scenario.LatLon{Lat: 56.7, Lon: -3.9}, HeightAGLm: 2,
 		Antenna:    antenna.Mounted{Pattern: antenna.Dipole{}, Polarisation: "vertical"},
 		TxPowerDBm: 14, NoiseFigureDB: 6,
@@ -46,7 +46,7 @@ func TestLiveCompanionSerialBytes(t *testing.T) {
 	if err := e.AttachNative(ctx, 4417); err != nil {
 		t.Fatal(err)
 	}
-	n, _ := e.NodeByName("phone")
+	n, _ := e.NodeByName("comp-phone")
 	var out serialBuf
 	n.Firmware.Bridge.Console(&out)
 	if err := e.Run(ctx, 3000); err != nil {
@@ -67,7 +67,7 @@ func TestLiveCompanionSerialBytes(t *testing.T) {
 	// The end-to-end check: a client on the TCP port, speaking MeshCore's own
 	// framing, must get the firmware's own framed reply back — with nothing
 	// added, removed, or stolen by the workbench console.
-	link, err := e.ServeCompanionTCP("phone", "127.0.0.1:0")
+	link, err := e.ServeCompanionTCP("comp-phone", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,9 +81,16 @@ func TestLiveCompanionSerialBytes(t *testing.T) {
 
 	// The console tries to take the port back on every frame. It must not be
 	// able to: that is precisely what made a connected client see nothing.
+	// The claim happens on the listener's accept goroutine, so it is polled
+	// rather than checked the instant Dial returns — on a loaded machine the
+	// instant check loses the race and fails a test about a different thing.
 	n.Firmware.Bridge.Console(&out)
-	if !n.Firmware.Bridge.Claimed() {
-		t.Fatal("the companion link did not claim the serial port")
+	claimDeadline := time.Now().Add(5 * time.Second)
+	for !n.Firmware.Bridge.Claimed() {
+		if time.Now().After(claimDeadline) {
+			t.Fatal("the companion link did not claim the serial port")
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 
 	if _, err := conn.Write([]byte{'<', 0x01, 0x00, 0x01}); err != nil {
