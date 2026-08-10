@@ -208,6 +208,8 @@ type App struct {
 	// noViewports means the platform cannot make panels their own OS windows
 	// (native Wayland). The buttons explain rather than fail.
 	noViewports bool
+	// railRight is where the tool rail actually ended, measured each frame.
+	railRight float32
 
 	// UIScale multiplies every size in the UI. Zero means detect: the X11
 	// content scale when it says anything, environment hints when it does not
@@ -348,6 +350,17 @@ func (a *App) Run(title string, w, h int) error {
 	if scale == 1 {
 		if sx, _ := b.ContentScale(); sx > 1.01 {
 			scale = float64(sx)
+		}
+	}
+	if scale == 1 {
+		// Nothing has said otherwise, so judge by the display. A 4K monitor
+		// reporting no content scale (XWayland does exactly this) rendered
+		// everything at a size meant for 1080p, which is what "cramped even on
+		// a 4K" is: not a layout problem, a scale problem.
+		if dw := imgui.MainViewport().Size().X; dw >= 3000 {
+			scale = 1.5
+		} else if dw >= 2200 {
+			scale = 1.25
 		}
 	}
 	loadFonts()
@@ -498,11 +511,11 @@ func (a *App) drawControlRow() {
 	w := imgui.CalcTextSize(facts).X + 190
 	if avail := imgui.ContentRegionAvail().X; avail > w+40 {
 		imgui.SameLineV(imgui.CursorPosX()+avail-w, 0)
-		imgui.TextDisabled(facts)
+		textDim(facts)
 		imgui.SameLine()
 		// The seed, always visible and always editable. "A run that cannot be
 		// reproduced is not evidence" - so it is never in a dialogue.
-		imgui.TextDisabled("seed")
+		textDim("seed")
 		imgui.SameLine()
 		imgui.SetNextItemWidth(76)
 		seed := int32(a.runSeed())
@@ -543,30 +556,34 @@ func (a *App) drawViewTabs() {
 	}
 }
 
-// toolRailWidth is what the rail occupies on the map's left edge, so anything
-// else drawn on the map can keep clear of it.
-func toolRailWidth() float32 { return symbolButtonSize().X + 14 }
-
 // drawToolRail is the placement palette, on the map's left edge where the
 // stage tools live in every other spatial tool. Vertical, icon-width, and
 // beside the thing it acts on rather than in a distant row.
 func (a *App) drawToolRail(origin imgui.Vec2, h float32) {
+	// Two groups: what a click does to what is already there, then what a
+	// click adds. Single letters were unreadable as a set - "R C O E" is a
+	// password, not a palette - so the placement tools carry the map's own
+	// node glyphs and a separator marks where adding begins.
 	tools := []struct {
-		t     Tool
-		glyph string
+		t         Tool
+		glyph     string
+		sepBefore bool
 	}{
-		{ToolSelect, "\u2196"}, // arrow
-		{ToolMove, "\u2725"},   // four-way
-		{ToolPlaceRepeater, "R"},
-		{ToolPlaceCompanion, "C"},
-		{ToolPlaceObserver, "O"},
-		{ToolPlaceCustom, "E"},
+		{t: ToolSelect, glyph: "\u2196"},
+		{t: ToolMove, glyph: "\u2725"},
+		{t: ToolPlaceRepeater, glyph: "\u25cf", sepBefore: true},
+		{t: ToolPlaceCompanion, glyph: "\u25cb"},
+		{t: ToolPlaceObserver, glyph: "\u25c9"},
+		{t: ToolPlaceCustom, glyph: "\u2739"},
 	}
 	size := symbolButtonSize()
 	imgui.SetCursorScreenPos(imgui.NewVec2(origin.X+6, origin.Y+8))
-	if imgui.BeginChildStrV("##toolrail", imgui.NewVec2(toolRailWidth(), float32(len(tools))*(size.Y+6)+10),
+	if imgui.BeginChildStrV("##toolrail", imgui.NewVec2(size.X+16, float32(len(tools))*(size.Y+6)+18),
 		imgui.ChildFlagsFrameStyle, imgui.WindowFlagsNoScrollbar) {
 		for _, tl := range tools {
+			if tl.sepBefore {
+				imgui.Separator()
+			}
 			active := a.tool == tl.t
 			if active {
 				imgui.PushStyleColorVec4(imgui.ColButton, colAccent)
@@ -579,11 +596,15 @@ func (a *App) drawToolRail(origin imgui.Vec2, h float32) {
 				imgui.PopStyleColorV(2)
 			}
 			if imgui.IsItemHovered() {
-				imgui.SetTooltip(tl.t.label())
+				imgui.SetTooltip(tl.t.tip())
 			}
 		}
 	}
 	imgui.EndChild()
+	// Measured, not computed: everything else on the map keeps clear of where
+	// the rail actually ended up. Predicting it from font metrics is how the
+	// filter box ended up underneath it.
+	a.railRight = imgui.ItemRectMax().X
 }
 
 // drawStatusBar is the fixed bottom instrument: what just happened, and what
@@ -617,7 +638,7 @@ func (a *App) drawStatusBar() {
 		textColoured(colWarn, "1x locked: a companion client is attached, so simulated "+
 			"time must track wall time")
 	default:
-		imgui.TextDisabled(a.ws.String() + " - " + a.ws.purpose())
+		textDim(a.ws.String() + " - " + a.ws.purpose())
 	}
 
 	// Background work, always at the same end of the same bar.

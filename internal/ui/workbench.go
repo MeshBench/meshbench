@@ -31,6 +31,25 @@ const (
 	ToolPlaceCustom
 )
 
+// tip is the sentence behind the glyph: a palette of symbols needs one, and
+// the label alone ("custom emitter") does not say what clicking will do.
+func (t Tool) tip() string {
+	switch t {
+	case ToolMove:
+		return "move: drag a node, and every link recomputes"
+	case ToolPlaceRepeater:
+		return "place a repeater"
+	case ToolPlaceCompanion:
+		return "place a companion - a user's device"
+	case ToolPlaceObserver:
+		return "place an SDR observer - listens, transmits nothing"
+	case ToolPlaceCustom:
+		return "place an interference source - raises nearby noise floors"
+	default:
+		return "select: click a node, ctrl-click a second for a link"
+	}
+}
+
 func (t Tool) label() string {
 	switch t {
 	case ToolMove:
@@ -77,8 +96,8 @@ func (a *App) drawMap(w, h float32) {
 	a.drawTrafficLines(origin, w, h)
 	a.drawNodes(origin, w, h)
 	a.drawTrafficKey(origin, w, h)
-	a.drawLayerControls(origin, w)
 	a.drawToolRail(origin, h)
+	a.drawLayerControls(origin, w)
 
 	// Overlays are positioned children, and each one leaves the layout cursor
 	// wherever it finished. Whatever is drawn after the map — the tabs — would
@@ -206,7 +225,7 @@ func (a *App) drawMapContext() {
 	}
 	if a.ctxNode >= 0 && a.ctxNode < len(a.Nodes) {
 		n := a.Nodes[a.ctxNode]
-		imgui.TextDisabled(n.Name)
+		textDim(n.Name)
 		imgui.Separator()
 		if imgui.MenuItemBool("open window") {
 			a.openNodeWindow(n.Name)
@@ -248,7 +267,7 @@ func (a *App) drawMapContext() {
 			a.DeleteNode(a.ctxNode)
 		}
 	} else {
-		imgui.TextDisabled(fmt.Sprintf("%.5f, %.5f", a.ctxLat, a.ctxLon))
+		textDim(fmt.Sprintf("%.5f, %.5f", a.ctxLat, a.ctxLon))
 		imgui.Separator()
 		for _, t := range []Tool{ToolPlaceRepeater, ToolPlaceCompanion, ToolPlaceObserver, ToolPlaceCustom} {
 			if imgui.MenuItemBool("place " + t.label() + " here") {
@@ -300,6 +319,7 @@ func (a *App) placeNode(t Tool, lat, lon float64) {
 		return
 	}
 	n := scenario.Node{
+		Board:         board.Name,
 		Position:      scenario.LatLon{Lat: lat, Lon: lon},
 		Radio:         scenario.RadioConfig{CentreHz: a.freqMHz * 1e6, BandwidthHz: 250e3, SpreadFactor: 10, CodingRate: 1},
 		NoiseFigureDB: board.NoiseFigureDB,

@@ -71,10 +71,12 @@ func (a *App) drawPlanningBody() {
 	if p.maxNew == 0 {
 		p.maxNew = 4
 	}
-	imgui.SetNextItemWidth(140)
-	imgui.SliderFloat("new mast height m", &p.mastM, 3, 40)
-	imgui.SetNextItemWidth(140)
-	imgui.SliderInt("most new sites", &p.maxNew, 1, 10)
+	numF32("new mast height m", &p.mastM, 3, 100, "%.0f")
+	imgui.SetNextItemWidth(110)
+	imgui.InputInt("most new sites", &p.maxNew)
+	if p.maxNew < 1 {
+		p.maxNew = 1
+	}
 
 	imgui.SeparatorText("Coverage")
 	if imgui.Button("from selected") {
@@ -104,18 +106,18 @@ func (a *App) drawPlanningBody() {
 			a.clearCoverage()
 		}
 		if a.cov.summary != "" {
-			imgui.TextDisabled(a.cov.summary)
+			textDim(a.cov.summary)
 		}
 	} else if a.cov.running {
-		imgui.TextDisabled("computing...")
+		textDim("computing...")
 	} else {
-		imgui.TextDisabled("for a person with a handheld at 1.5 m")
+		textDim("for a person with a handheld at 1.5 m")
 	}
 
 	imgui.SeparatorText("Connect two repeaters")
 	from, to := a.Link()
 	if from < 0 || to < 0 {
-		imgui.TextDisabled("select two nodes on the map (click, then ctrl-click)")
+		textDim("select two nodes on the map (click, then ctrl-click)")
 	} else {
 		imgui.Text(fmt.Sprintf("%s  ->  %s", a.Nodes[from].Name, a.Nodes[to].Name))
 		if imgui.Button("find the fewest new sites") {
@@ -123,7 +125,7 @@ func (a *App) drawPlanningBody() {
 		}
 	}
 	if p.status != "" {
-		imgui.TextWrapped(p.status)
+		textWrap(p.status)
 	}
 
 	for i, r := range p.routes {
@@ -138,7 +140,7 @@ func (a *App) drawPlanningBody() {
 				if !s.Existing && s.Name != "" {
 					tag = "NEW"
 				}
-				imgui.TextDisabled(fmt.Sprintf("    %-10s %.5f, %.5f", tag, s.Lat, s.Lon))
+				textDim(fmt.Sprintf("    %-10s %.5f, %.5f", tag, s.Lat, s.Lon))
 			}
 			if imgui.Button(fmt.Sprintf("place these sites##p%d", i)) {
 				a.placeRoute(r)
@@ -147,7 +149,7 @@ func (a *App) drawPlanningBody() {
 	}
 
 	imgui.SeparatorText("Cover an area")
-	imgui.TextDisabled("uses the boundary from the Boundary window")
+	textDim("uses the boundary from the Boundary window")
 	if imgui.Button("place sites for maximum coverage") {
 		a.runCover()
 	}
@@ -156,7 +158,7 @@ func (a *App) drawPlanningBody() {
 			i+1, pl.Site.Lat, pl.Site.Lon, pl.NewCellsCovered, pl.CoverageAfterPct))
 	}
 	if len(p.places) > 0 {
-		imgui.TextDisabled(fmt.Sprintf("before: %.0f%% covered", p.baseline))
+		textDim(fmt.Sprintf("before: %.0f%% covered", p.baseline))
 		if imgui.Button("place all of these") {
 			for _, pl := range p.places {
 				a.placeSite(pl.Site)

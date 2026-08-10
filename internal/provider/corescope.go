@@ -212,26 +212,9 @@ func (c *CoreScope) Packets(ctx context.Context, max int, progress func(int)) ([
 			break
 		}
 		for _, r := range rows {
-			if r.RawHex == "" {
-				continue
+			if rec, ok := c.recordFrom(r); ok {
+				out = append(out, rec)
 			}
-			raw, err := hex.DecodeString(r.RawHex)
-			if err != nil {
-				continue
-			}
-			rec := PacketRecord{
-				Raw: raw, Receiver: r.ObserverName, Origin: r.Origin,
-				PathHashes: append([]string(nil), r.ParsedPath...),
-			}
-			// The last name on the resolved path is whoever transmitted the
-			// copy that was heard — which is the node whose behaviour this
-			// packet is evidence about.
-			if n := len(r.ResolvedPath); n > 0 {
-				rec.Sender = r.ResolvedPath[n-1]
-			} else if r.Origin != "" {
-				rec.Sender = r.Origin
-			}
-			out = append(out, rec)
 		}
 		if progress != nil {
 			progress(len(out))
@@ -281,6 +264,8 @@ type csPacketRow struct {
 	// origin. CoreScope names it with a leading underscore.
 	ParsedPath []string `json:"_parsedPath"`
 	Origin     string   `json:"origin"`
+	Time       any      `json:"timestamp"`
+	Time2      any      `json:"time"`
 }
 
 // fetchPacketPage decodes one page, accepting either shape CoreScope answers
@@ -308,4 +293,76 @@ func (c *CoreScope) fetchPacketPage(ctx context.Context, url string) ([]csPacket
 			"nor {packets: [...]}: %w", err)
 	}
 	return wrapped.Packets, nil
+}
+
+// recordFrom converts one row, or reports that it carried no frame - the
+// only thing that makes a row useless, since everything inferable lives in
+// those bytes.
+func (c *CoreScope) recordFrom(r csPacketRow) (PacketRecord, bool) {
+	if r.RawHex == "" {
+		return PacketRecord{}, false
+	}
+	raw, err := hex.DecodeString(r.RawHex)
+	if err != nil {
+		return PacketRecord{}, false
+	}
+	rec := PacketRecord{
+		Raw: raw, Receiver: r.ObserverName, Origin: r.Origin,
+		PathHashes: append([]string(nil), r.ParsedPath...),
+	}
+	if ts, ok := parseTime(r.Time); ok {
+		rec.At = ts
+	} else if ts, ok := parseTime(r.Time2); ok {
+		rec.At = ts
+	}
+	// The last name on the resolved path is whoever transmitted the copy that
+	// was heard - the node whose behaviour this packet is evidence about.
+	if n := len(r.ResolvedPath); n > 0 {
+		rec.Sender = r.ResolvedPath[n-1]
+	} else if r.Origin != "" {
+		rec.Sender = r.Origin
+	}
+	return rec, true
+}
+
+// PacketsSince walks newest-first until the packets are older than since.
+//
+// Hours are what an operator has: "the last day of traffic" is a sentence,
+// "five thousand packets" is a number nobody can convert into coverage of a
+// quiet night. maxPages bounds a source whose timestamps never age - a
+// runaway is a stuck import, not a thorough one.
+func (c *CoreScope) PacketsSince(ctx context.Context, since time.Time,
+	progress func(int)) ([]PacketRecord, error) {
+	const maxPages = 200
+	var out []PacketRecord
+	for page := 0; page < maxPages; page++ {
+		url := fmt.Sprintf("%s/api/packets?limit=%d&offset=%d&sort=timestamp&order=desc",
+			c.BaseURL, csPacketPageLimit, page*csPacketPageLimit)
+		rows, err := c.fetchPacketPage(ctx, url)
+		if err != nil {
+			return out, err
+		}
+		if len(rows) == 0 {
+			return out, nil
+		}
+		reachedCutoff := false
+		for _, r := range rows {
+			rec, ok := c.recordFrom(r)
+			if !ok {
+				continue
+			}
+			if !rec.At.IsZero() && rec.At.Before(since) {
+				reachedCutoff = true
+				continue
+			}
+			out = append(out, rec)
+		}
+		if progress != nil {
+			progress(len(out))
+		}
+		if reachedCutoff || len(rows) < csPacketPageLimit {
+			return out, nil
+		}
+	}
+	return out, nil
 }

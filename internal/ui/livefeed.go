@@ -62,20 +62,20 @@ func (a *App) drawLiveFeedBody() {
 		s.minPathLen = 2
 	}
 
-	imgui.TextWrapped("Replays the real network's traffic into the simulation as it happens. " +
+	textWrap("Replays the real network's traffic into the simulation as it happens. " +
 		"Packets are taken at their first hop - from the origin, or the first " +
 		"repeater to relay them - matched to the same-named node here, and " +
 		"re-transmitted. The simulated mesh relays them from there.")
 
 	if a.imp.source != "corescope" || a.imp.url == "" {
 		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.72, 0.25, 1))
-		imgui.TextWrapped("Set the Import window's source to corescope and give it a URL first.")
+		textWrap("Set the Import window's source to corescope and give it a URL first.")
 		imgui.PopStyleColor()
 		return
 	}
 	if a.eng == nil || a.eng.FirmwareCount() == 0 {
 		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.72, 0.25, 1))
-		imgui.TextWrapped("The relays need real firmware to decide anything: press " +
+		textWrap("The relays need real firmware to decide anything: press " +
 			"\"run real firmware\" in the strip above first.")
 		imgui.PopStyleColor()
 	}
@@ -102,7 +102,7 @@ func (a *App) drawLiveFeedBody() {
 		imgui.SetNextItemWidth(-1)
 		imgui.InputTextWithHint("##topic", "topic filter (default meshcore/+/rx)", &s.mqttTopic, 0, nil)
 	}
-	imgui.TextDisabled("beacon publishes nodes, not packets - it cannot feed this")
+	textDimWrap("beacon publishes nodes, not packets - it cannot feed this")
 
 	s.mu.Lock()
 	running := s.running
@@ -115,31 +115,31 @@ func (a *App) drawLiveFeedBody() {
 		a.startLiveFeed()
 	}
 	imgui.SameLine()
-	imgui.TextDisabled("polls every 10 s; runs at 1x, like the traffic")
+	textDim("polls every 10 s; runs at 1x, like the traffic")
 
 	s.mu.Lock()
 	err, fetched, injected, unknown, direct := s.err, s.fetched, s.injected, s.unknown, s.direct
 	s.mu.Unlock()
 	if err != "" {
 		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.9, 0.4, 0.4, 1))
-		imgui.TextWrapped(err)
+		textWrap(err)
 		imgui.PopStyleColor()
 	}
 	switch {
 	case fetched > 0 || injected > 0:
 		imgui.Text(fmt.Sprintf("%d first-hop packets seen, %d injected", fetched, injected))
 		if unknown > 0 {
-			imgui.TextDisabled(fmt.Sprintf("%d skipped - no node here carries their sender's "+
+			textDim(fmt.Sprintf("%d skipped - no node here carries their sender's "+
 				"name (import it, or they cannot be replayed)", unknown))
 		}
 		if direct > 0 {
-			imgui.TextDisabled(fmt.Sprintf("%d direct-routed packets skipped - their path is "+
+			textDim(fmt.Sprintf("%d direct-routed packets skipped - their path is "+
 				"a route through the real network's hashes, meaningless here", direct))
 		}
 	case running:
-		imgui.TextDisabled("watching... new origin transmissions appear here and on the map")
+		textDim("watching... new origin transmissions appear here and on the map")
 	default:
-		imgui.TextDisabled("not running - start, and real packets drive the simulated mesh")
+		textDim("not running - start, and real packets drive the simulated mesh")
 	}
 }
 

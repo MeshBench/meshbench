@@ -33,12 +33,12 @@ const laneHeight = 18
 // the second one started while the first was still going out.
 func (a *App) drawTimeGraph() {
 	if a.eng == nil {
-		imgui.TextDisabled("no simulation yet - press play in the strip above")
+		textDim("no simulation yet - press play in the strip above")
 		return
 	}
 	events := a.events()
 	if len(events) == 0 {
-		imgui.TextDisabled("no traffic yet - press play, or schedule some")
+		textDim("no traffic yet - press play, or schedule some")
 		return
 	}
 	g := &a.tg
@@ -62,7 +62,7 @@ func (a *App) drawTimeGraph() {
 		imgui.SetNextItemWidth(-90)
 		imgui.SliderFloat("##centre", &g.centreMs, 0, now)
 	} else {
-		imgui.TextDisabled(fmt.Sprintf("t = %.2f s", now/1000))
+		textDim(fmt.Sprintf("t = %.2f s", now/1000))
 	}
 
 	// Lanes are the nodes that have done anything, in first-appearance order,

@@ -3,6 +3,7 @@ package provider
 import (
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/A13xB0/meshcoresim/internal/capture"
 )
@@ -206,6 +207,11 @@ type PacketRecord struct {
 	Sender   string
 	Receiver string
 	Origin   string
+
+	// At is when the source recorded it, where it says. A walk bounded by
+	// hours needs this; a walk bounded by a packet count did not, which is
+	// why it was missing.
+	At time.Time
 
 	// PathHashes is the packet's own path as the source parsed it: its length
 	// is the hop count, so an empty one means this copy came straight from the

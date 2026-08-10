@@ -106,12 +106,9 @@ func (c *consoleBuf) echo(line string) {
 // can build a mesh but not administer one. Everything below the input box came
 // out of the firmware; nothing here composes a reply.
 func (a *App) drawConsole() {
-	// A serial console is machine output: fixed width, or the columns lie.
-	pushMono()
-	defer popMono()
 	from, _ := a.Link()
 	if from < 0 {
-		imgui.TextDisabled("select a node")
+		textDim("select a node")
 		return
 	}
 	a.drawConsoleFor(a.Nodes[from].Name)
@@ -122,31 +119,31 @@ func (a *App) drawConsole() {
 // scrollback is the node's history rather than the panel's.
 func (a *App) drawConsoleFor(name string) {
 	if a.eng == nil {
-		imgui.TextDisabled("no simulation running - press \"run real firmware\" in the strip above")
+		textDim("no simulation running - press \"run real firmware\" in the strip above")
 		return
 	}
 	node, ok := a.eng.NodeByName(name)
 	if !ok || node.Firmware == nil {
-		imgui.TextWrapped("This node has no firmware attached, so there is no console to reach. " +
+		textWrap("This node has no firmware attached, so there is no console to reach. " +
 			"A console is the serial port of a running MeshCore build; without one there is " +
 			"nothing on the other end, and a simulated prompt would be a claim about a program " +
 			"that is not running.")
 		imgui.Spacing()
-		imgui.TextDisabled("Press \"run real firmware\" in the strip above.")
+		textDim("Press \"run real firmware\" in the strip above.")
 		return
 	}
 
 	// consoleBufFor re-attaches when the engine was rebuilt: a new bridge that
 	// nobody listens to is a console that looks alive and answers nothing.
 	if node.Firmware.Bridge.Claimed() {
-		imgui.TextWrapped("A companion client holds this node's serial port, so the console " +
+		textWrap("A companion client holds this node's serial port, so the console " +
 			"is not reading it. Two protocols on one UART is neither - disconnect the " +
 			"client on the Connect tab to take it back.")
 		return
 	}
 	buf := a.consoleBufFor(name)
 	if buf == nil {
-		imgui.TextDisabled("no console - this node has no firmware attached yet")
+		textDim("no console - this node has no firmware attached yet")
 		return
 	}
 
@@ -156,7 +153,7 @@ func (a *App) drawConsoleFor(name string) {
 
 	imgui.Text(name + " - serial console")
 	imgui.SameLine()
-	imgui.TextDisabled(fmt.Sprintf("%s, t = %.2f s", node.Firmware.Backend.Kind(),
+	textDim(fmt.Sprintf("%s, t = %.2f s", node.Firmware.Backend.Kind(),
 		float64(a.eng.NowMs())/1000))
 
 	// The log first, so the input box stays at the bottom where a terminal puts
@@ -166,7 +163,7 @@ func (a *App) drawConsoleFor(name string) {
 		imgui.WindowFlagsHorizontalScrollbar) {
 		lines := buf.snapshot()
 		if len(lines) == 0 {
-			imgui.TextDisabled("(nothing printed yet)")
+			textDim("(nothing printed yet)")
 		}
 		for _, line := range lines {
 			imgui.TextUnformatted(line)
@@ -202,7 +199,7 @@ func (a *App) drawConsoleFor(name string) {
 	}
 	if offered > 0 {
 		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.6, 0.64, 0.72, 1))
-		imgui.TextWrapped(fmt.Sprintf("RF layer: %d frames arrived, %d decoded, %d reached the "+
+		textWrap(fmt.Sprintf("RF layer: %d frames arrived, %d decoded, %d reached the "+
 			"firmware. The difference is what the radio heard and the stack never saw.",
 			offered, decoded, sawIt))
 		imgui.PopStyleColor()

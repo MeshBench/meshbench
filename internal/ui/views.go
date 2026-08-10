@@ -133,7 +133,7 @@ func (a *App) drawViewsMenu() {
 		}
 	}
 	imgui.Separator()
-	imgui.TextDisabled("UI scale")
+	textDim("UI scale")
 	if imgui.MenuItemBoolV("larger", "ctrl+=", false, true) {
 		a.requestUIScale(a.uiScale * 1.1)
 	}
@@ -146,7 +146,7 @@ func (a *App) drawViewsMenu() {
 		a.requestUIScale(1)
 	}
 	imgui.Separator()
-	imgui.TextDisabled("saved layouts - every panel's place, popped-out ones included")
+	textDim("saved layouts - every panel's place, popped-out ones included")
 	imgui.SetNextItemWidth(200)
 	imgui.InputTextWithHint("##viewname", "name this arrangement", &a.viewName, 0, nil)
 	imgui.SameLine()
@@ -158,7 +158,7 @@ func (a *App) drawViewsMenu() {
 
 	views := listViews()
 	if len(views) == 0 {
-		imgui.TextDisabled("nothing saved yet")
+		textDim("nothing saved yet")
 	}
 	for i, v := range views {
 		if imgui.MenuItemBool(fmt.Sprintf("%s  -  %s##v%d", v.name, age(v.saved), i)) {

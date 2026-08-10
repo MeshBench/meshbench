@@ -185,7 +185,7 @@ func (c *fwCatalogue) isCached(role, version string) bool {
 // and a role MeshCore ships next year appears in it without this file changing.
 func (a *App) drawFirmwarePicker(n *scenario.Node) {
 	if !n.Kind.RunsFirmware() {
-		imgui.TextDisabled("an SDR observer runs no firmware")
+		textDim("an SDR observer runs no firmware")
 		return
 	}
 	a.fw.load()
@@ -205,7 +205,7 @@ func (a *App) drawFirmwarePicker(n *scenario.Node) {
 	imgui.SetNextItemWidth(-70)
 	if imgui.BeginCombo("role", role) {
 		if len(roles) == 0 {
-			imgui.TextDisabled("nothing published for this machine")
+			textDim("nothing published for this machine")
 		}
 		for _, r := range roles {
 			if imgui.SelectableBool(r) {
@@ -226,7 +226,7 @@ func (a *App) drawFirmwarePicker(n *scenario.Node) {
 	if imgui.BeginCombo("version", version) {
 		versions := a.fw.versionsFor(role)
 		if len(versions) == 0 {
-			imgui.TextDisabled("no builds of " + role)
+			textDim("no builds of " + role)
 		}
 		for _, v := range versions {
 			label := v
@@ -243,17 +243,17 @@ func (a *App) drawFirmwarePicker(n *scenario.Node) {
 
 	switch {
 	case loading:
-		imgui.TextDisabled("reading the firmware catalogue...")
+		textDim("reading the firmware catalogue...")
 	case err != "":
 		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.72, 0.25, 1))
-		imgui.TextWrapped("catalogue unavailable: " + err)
+		textWrap("catalogue unavailable: " + err)
 		imgui.PopStyleColor()
 	default:
 		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.55, 0.58, 0.65, 1))
 		if a.fw.isCached(role, version) {
-			imgui.TextWrapped(fmt.Sprintf("%s @ %s - downloaded, starts instantly", role, version))
+			textWrap(fmt.Sprintf("%s @ %s - downloaded, starts instantly", role, version))
 		} else {
-			imgui.TextWrapped(fmt.Sprintf("%s @ %s - downloaded on first run", role, version))
+			textWrap(fmt.Sprintf("%s @ %s - downloaded on first run", role, version))
 		}
 		imgui.PopStyleColor()
 	}
@@ -288,7 +288,7 @@ func (a *App) drawFirmwareWindow() {
 	if !a.winFirmware {
 		return
 	}
-	imgui.SetNextWindowSizeV(imgui.NewVec2(620, 460), imgui.CondFirstUseEver)
+	imgui.SetNextWindowSizeV(a.windowSize(96, 28), imgui.CondFirstUseEver)
 	a.applyDockIntent("Firmware library")
 	open := a.winFirmware
 	if imgui.BeginV("Firmware library", &open, 0) {
@@ -309,7 +309,7 @@ func (a *App) drawFirmwareLibraryBody() {
 	a.fw.load()
 	loading, err := a.fw.status()
 	if loading {
-		imgui.TextDisabled("reading the published catalogue...")
+		textDim("reading the published catalogue...")
 	}
 	if err != "" {
 		textColoured(colWarn, err)
@@ -334,7 +334,7 @@ func (a *App) drawFirmwareLibraryBody() {
 
 	roles, _ := a.fw.forThisMachine()
 	if len(roles) == 0 && !loading {
-		imgui.TextDisabled("nothing published for this machine - check the network, or " +
+		textDim("nothing published for this machine - check the network, or " +
 			"import a local build with: msim firmware import")
 	}
 
@@ -343,9 +343,16 @@ func (a *App) drawFirmwareLibraryBody() {
 			imgui.TableFlagsSizingStretchProp, imgui.NewVec2(0, 320), 0) {
 		imgui.TableSetupColumnV("role", imgui.TableColumnFlagsWidthStretch, 0, 0)
 		imgui.TableSetupColumnV("version", imgui.TableColumnFlagsWidthStretch, 0, 0)
-		imgui.TableSetupColumnV("downloaded", imgui.TableColumnFlagsWidthFixed, 100, 0)
-		imgui.TableSetupColumnV("in use by", imgui.TableColumnFlagsWidthFixed, 90, 0)
-		imgui.TableSetupColumnV("", imgui.TableColumnFlagsWidthFixed, 120, 0)
+		// Fixed columns measured from their own widest content, not guessed in
+		// pixels: "use everywhere" is 120 px in one font and clipped to "use
+		// everywhe" in another.
+		pad := imgui.CurrentStyle().FramePadding().X*2 + 8
+		imgui.TableSetupColumnV("downloaded", imgui.TableColumnFlagsWidthFixed,
+			imgui.CalcTextSize("on first use").X+pad, 0)
+		imgui.TableSetupColumnV("in use by", imgui.TableColumnFlagsWidthFixed,
+			imgui.CalcTextSize("000 nodes").X+pad, 0)
+		imgui.TableSetupColumnV("", imgui.TableColumnFlagsWidthFixed,
+			imgui.CalcTextSize("use everywhere").X+pad*2, 0)
 		imgui.TableHeadersRow()
 
 		for _, role := range roles {
@@ -359,13 +366,13 @@ func (a *App) drawFirmwareLibraryBody() {
 				if a.fw.isCached(role, v) {
 					textColoured(colOK, "yes")
 				} else {
-					imgui.TextDisabled("on first use")
+					textDim("on first use")
 				}
 				imgui.TableSetColumnIndex(3)
 				if n := inUse[role+" "+v]; n > 0 {
 					imgui.Text(fmt.Sprintf("%d nodes", n))
 				} else {
-					imgui.TextDisabled("-")
+					textDim("-")
 				}
 				imgui.TableSetColumnIndex(4)
 				if imgui.SmallButton("use everywhere##" + role + v) {
@@ -386,8 +393,8 @@ func (a *App) drawFirmwareLibraryBody() {
 	}
 
 	imgui.SeparatorText("Storage")
-	imgui.TextDisabled("builds     " + firmware.DefaultCacheDir())
-	imgui.TextDisabled("node flash " + firmware.NodeWorkDir("<node>"))
+	textDim("builds     " + firmware.DefaultCacheDir())
+	textDim("node flash " + firmware.NodeWorkDir("<node>"))
 	if a.confirmWipe {
 		if dangerButton("wipe every node's memory - sure?", imgui.NewVec2(0, 0)) {
 			a.confirmWipe = false

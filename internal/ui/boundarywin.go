@@ -60,10 +60,10 @@ func (a *App) drawBoundaryBody() {
 
 	switch {
 	case b.searching:
-		imgui.TextDisabled("searching...")
+		textDim("searching...")
 	case b.err != "":
 		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.72, 0.25, 1))
-		imgui.TextWrapped(b.err)
+		textWrap(b.err)
 		imgui.PopStyleColor()
 	}
 
@@ -79,7 +79,7 @@ func (a *App) drawBoundaryBody() {
 		imgui.SameLine()
 		imgui.Text(f.DisplayName)
 		imgui.SameLine()
-		imgui.TextDisabled("(" + f.Kind + ")")
+		textDim("(" + f.Kind + ")")
 	}
 
 	// Inferred from where the nodes actually are, rather than typed.
@@ -102,7 +102,7 @@ func (a *App) drawBoundaryBody() {
 
 	imgui.SeparatorText("Chosen areas")
 	if len(b.chosen) == 0 {
-		imgui.TextDisabled("none yet - the region is the union of what is added here")
+		textDim("none yet - the region is the union of what is added here")
 	}
 	if imgui.BeginTableV("##chosen", 3, imgui.TableFlagsBorders|imgui.TableFlagsRowBg,
 		imgui.NewVec2(0, 0), 0) {
@@ -116,7 +116,7 @@ func (a *App) drawBoundaryBody() {
 			for _, bd := range f.Boundaries {
 				parts += len(bd.Rings)
 			}
-			imgui.TextDisabled(fmt.Sprintf("%d polygon(s)", parts))
+			textDim(fmt.Sprintf("%d polygon(s)", parts))
 			imgui.TableSetColumnIndex(2)
 			if imgui.SmallButton(fmt.Sprintf("remove##%d", i)) {
 				b.chosen = append(b.chosen[:i], b.chosen[i+1:]...)
@@ -134,7 +134,7 @@ func (a *App) drawBoundaryBody() {
 		b.marginKm = scenario.DefaultMarginKm
 	}
 	imgui.SetNextItemWidth(180)
-	imgui.SliderFloat("RF margin km", &b.marginKm, 0, 50)
+	numF32("RF margin km", &b.marginKm, 0, 200, "%.1f")
 	if imgui.IsItemHovered() {
 		imgui.SetTooltip("Nodes outside the area but within this margin are kept:\n" +
 			"a repeater just over the border still relays into the area.\n" +
@@ -145,7 +145,7 @@ func (a *App) drawBoundaryBody() {
 		a.pruneOutside()
 	}
 	imgui.SameLine()
-	imgui.TextDisabled("also filters every future load")
+	textDim("also filters every future load")
 
 	// The terrain for the area, estimated before it is fetched.
 	//
@@ -156,14 +156,14 @@ func (a *App) drawBoundaryBody() {
 	if est, ok := a.terrainEstimate(); ok {
 		switch {
 		case est.ToFetch == 0:
-			imgui.TextDisabled("terrain for this area is already downloaded")
+			textDim("terrain for this area is already downloaded")
 		case est.ToFetch <= autoFetchTiles:
 			if imgui.Button(fmt.Sprintf("download terrain (%d tiles)", est.ToFetch)) {
 				a.fetchVisibleTerrain()
 			}
 		default:
 			imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.72, 0.25, 1))
-			imgui.TextWrapped(fmt.Sprintf("%d tiles, about %d MB", est.ToFetch, est.BytesRough/(1<<20)))
+			textWrap(fmt.Sprintf("%d tiles, about %d MB", est.ToFetch, est.BytesRough/(1<<20)))
 			imgui.PopStyleColor()
 			if imgui.Button("download it anyway") {
 				a.fetchVisibleTerrain()

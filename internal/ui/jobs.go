@@ -92,7 +92,7 @@ func (a *App) drawJobsPopupBody() {
 	for i, j := range jobs {
 		imgui.Text(j.label)
 		imgui.SameLine()
-		imgui.TextDisabled(j.progress)
+		textDim(j.progress)
 		if j.cancel != nil {
 			imgui.SameLine()
 			if imgui.SmallButton(fmt.Sprintf("cancel##job%d", i)) {

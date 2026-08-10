@@ -36,23 +36,23 @@ type budgetTerm struct {
 func (a *App) drawLinkBudget() {
 	from, to := a.Link()
 	if from < 0 || to < 0 {
-		imgui.TextDisabled("select two nodes: click one, then ctrl-click another")
+		textDim("select two nodes: click one, then ctrl-click another")
 		return
 	}
 	n1, n2 := a.Nodes[from], a.Nodes[to]
 	if !n1.Kind.Transmits() && !n2.Kind.Transmits() {
-		imgui.TextDisabled("neither of these transmits")
+		textDim("neither of these transmits")
 		return
 	}
 
 	fwd, err := a.budgetTerms(n1, n2)
 	if err != nil {
-		imgui.TextWrapped(err.Error())
+		textWrap(err.Error())
 		return
 	}
 	rev, err := a.budgetTerms(n2, n1)
 	if err != nil {
-		imgui.TextWrapped(err.Error())
+		textWrap(err.Error())
 		return
 	}
 
@@ -64,10 +64,10 @@ func (a *App) drawLinkBudget() {
 	if (fm >= 0) != (rm >= 0) {
 		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.72, 0.25, 1))
 		if fm >= 0 {
-			imgui.TextWrapped(fmt.Sprintf("Asymmetric: %s can hear %s, but not the other way.",
+			textWrap(fmt.Sprintf("Asymmetric: %s can hear %s, but not the other way.",
 				n2.Name, n1.Name))
 		} else {
-			imgui.TextWrapped(fmt.Sprintf("Asymmetric: %s can hear %s, but not the other way.",
+			textWrap(fmt.Sprintf("Asymmetric: %s can hear %s, but not the other way.",
 				n1.Name, n2.Name))
 		}
 		imgui.PopStyleColor()
@@ -94,7 +94,7 @@ func marginOf(terms []budgetTerm, rx scenario.Node) float64 {
 func (a *App) drawBudgetColumn(title string, terms []budgetTerm, rx scenario.Node) {
 	imgui.SeparatorText(title)
 	if len(terms) == 0 {
-		imgui.TextDisabled("no path - select a node, then ctrl-click a second one")
+		textDim("no path - select a node, then ctrl-click a second one")
 		return
 	}
 	received := terms[len(terms)-1].Running
@@ -103,7 +103,7 @@ func (a *App) drawBudgetColumn(title string, terms []budgetTerm, rx scenario.Nod
 	margin := received - noise - required
 
 	for _, t := range terms {
-		imgui.TextDisabled(t.Label)
+		textDim(t.Label)
 		imgui.SameLineV(150, -1)
 		col := imgui.NewVec4(0.9, 0.55, 0.5, 1) // a loss
 		if t.Gain {
@@ -113,18 +113,18 @@ func (a *App) drawBudgetColumn(title string, terms []budgetTerm, rx scenario.Nod
 		imgui.Text(fmt.Sprintf("%+8.1f", t.DB))
 		imgui.PopStyleColor()
 		imgui.SameLineV(230, -1)
-		imgui.TextDisabled(fmt.Sprintf("= %.1f dBm", t.Running))
+		textDim(fmt.Sprintf("= %.1f dBm", t.Running))
 	}
 
 	imgui.Separator()
-	imgui.TextDisabled("noise floor")
+	textDim("noise floor")
 	imgui.SameLineV(150, -1)
 	imgui.Text(fmt.Sprintf("%8.1f dBm", noise))
-	imgui.TextDisabled(fmt.Sprintf("SNR needed at SF%d", rx.Radio.SpreadFactor))
+	textDim(fmt.Sprintf("SNR needed at SF%d", rx.Radio.SpreadFactor))
 	imgui.SameLineV(150, -1)
 	imgui.Text(fmt.Sprintf("%8.1f dB", required))
 
-	imgui.TextDisabled("margin")
+	textDim("margin")
 	imgui.SameLineV(150, -1)
 	col := imgui.NewVec4(0.45, 0.85, 0.5, 1)
 	switch {
@@ -139,7 +139,7 @@ func (a *App) drawBudgetColumn(title string, terms []budgetTerm, rx scenario.Nod
 	imgui.Text(fmt.Sprintf("%+8.1f dB", margin))
 	imgui.PopStyleColor()
 	if margin >= 0 && margin < 6 {
-		imgui.TextWrapped("Marginal. The model has no multipath and bare-earth terrain, " +
+		textWrap("Marginal. The model has no multipath and bare-earth terrain, " +
 			"so go and measure this one.")
 	}
 }

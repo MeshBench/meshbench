@@ -95,7 +95,7 @@ func (a *App) drawTrafficKey(origin imgui.Vec2, w, h float32) {
 	kw, kh := float32(190), float32(118)
 	imgui.SetCursorScreenPos(imgui.NewVec2(origin.X+w-kw-10, origin.Y+h-kh-10))
 	if imgui.BeginChildStrV("##traffickey", imgui.NewVec2(kw, kh), 0, imgui.WindowFlagsNoScrollbar) {
-		imgui.TextDisabled("traffic")
+		textDim("traffic")
 		dl := imgui.WindowDrawList()
 		rows := []struct {
 			class evClass

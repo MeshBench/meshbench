@@ -114,14 +114,14 @@ func (a *App) drawMenuBar() {
 				a.attachFirmware()
 			}
 		} else if a.eng != nil {
-			imgui.TextDisabled(fmt.Sprintf("%d nodes on real firmware", a.eng.FirmwareCount()))
+			textDim(fmt.Sprintf("%d nodes on real firmware", a.eng.FirmwareCount()))
 		}
 		imgui.EndMenu()
 	}
 	a.drawRepeatersMenu()
 	a.drawPlanningMenu()
 	if imgui.BeginMenu("Window") {
-		imgui.TextDisabled("panels")
+		textDim("panels")
 		for _, p := range a.panelRegistry() {
 			if a.panelEnabled(p.name) {
 				imgui.MenuItemBoolPtr(p.name, "", &p.open)
@@ -137,13 +137,13 @@ func (a *App) drawMenuBar() {
 			}
 		}
 		imgui.Separator()
-		imgui.TextDisabled("node windows")
+		textDim("node windows")
 		// Every node can have its own window; the menu lists them so one can be
 		// reopened without hunting for the node on a busy map.
 		shown := 0
 		for i := range a.Nodes {
 			if shown >= 20 {
-				imgui.TextDisabled("... use right-click on the map for the rest")
+				textDim("... use right-click on the map for the rest")
 				break
 			}
 			name := a.Nodes[i].Name
@@ -156,9 +156,25 @@ func (a *App) drawMenuBar() {
 		imgui.EndMenu()
 	}
 	if imgui.BeginMenu("Help") {
-		imgui.TextDisabled("Results are a best case: no multipath,")
-		imgui.TextDisabled("bare-earth terrain, idealised demodulator.")
-		imgui.TextDisabled("See docs/shortcomings.md.")
+		imgui.TextDisabled("Shortcuts")
+		for _, r := range [][2]string{
+			{"ctrl+1..4", "Plan / Run / Debug / Verify"},
+			{"space", "play or pause"},
+			{".", "step"},
+			{"ctrl +/-", "UI scale, ctrl+0 for automatic"},
+			{"ctrl+q", "quit"},
+			{"click, ctrl+click", "select a node, then the far end of a link"},
+			{"shift+click", "add to a multi-selection"},
+			{"right-click", "verbs for a node, the map, or an event row"},
+		} {
+			imgui.Text(r[0])
+			imgui.SameLineV(170, -1)
+			textDim(r[1])
+		}
+		imgui.Separator()
+		imgui.TextDisabled("Results are a best case")
+		textDim("no multipath, bare-earth terrain, idealised demodulator")
+		textDim("see docs/shortcomings.md for what that costs")
 		imgui.EndMenu()
 	}
 	// The honesty line lives in the chrome (CLAUDE.md requires it said, not
@@ -166,7 +182,7 @@ func (a *App) drawMenuBar() {
 	// which bought the map a full row back.
 	imgui.SameLineV(0, 24)
 	imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.72, 0.25, 1))
-	imgui.TextDisabled("results are a best case: no multipath, bare earth, ideal demodulator")
+	textDim("results are a best case: no multipath, bare earth, ideal demodulator")
 	imgui.PopStyleColor()
 	imgui.EndMenuBar()
 
@@ -257,7 +273,7 @@ func (a *App) drawNodeWindows() {
 			continue
 		}
 		open := true
-		imgui.SetNextWindowSizeV(imgui.NewVec2(430, 360), imgui.CondFirstUseEver)
+		imgui.SetNextWindowSizeV(a.windowSize(80, 26), imgui.CondFirstUseEver)
 		// Undock-then-place, queued from the button below. Placing alone did
 		// nothing while the window was docked, which is why this never worked.
 		a.applyDockIntent(name)
@@ -276,11 +292,11 @@ func (a *App) drawNodeWindowBody(i int) {
 
 	// The header answers "what is this and what has it done" before any tab is
 	// chosen.
-	imgui.TextDisabled(kindLabel(n.Kind))
+	textDim(kindLabel(n.Kind))
 	if a.eng != nil {
 		if en, ok := a.eng.NodeByName(n.Name); ok {
 			imgui.SameLine()
-			imgui.TextDisabled(fmt.Sprintf("|  sent %d  heard %d  airtime %.0f ms",
+			textDim(fmt.Sprintf("|  sent %d  heard %d  airtime %.0f ms",
 				en.Sent, en.Heard, en.AirtimeMs))
 		}
 	}
@@ -353,7 +369,7 @@ func (a *App) drawPresetCombo(n *scenario.Node) {
 		}
 		imgui.EndCombo()
 	}
-	imgui.TextDisabled(fmt.Sprintf("%.3f MHz  %g kHz  SF%d  CR4/%d",
+	textDim(fmt.Sprintf("%.3f MHz  %g kHz  SF%d  CR4/%d",
 		n.Radio.CentreHz/1e6, n.Radio.BandwidthHz/1000, n.Radio.SpreadFactor, n.Radio.CodingRate+4))
 }
 
@@ -411,7 +427,7 @@ const tempRadioMinutes = 600
 // and the one a duty-cycle figure hides completely.
 func (a *App) drawNodeStats(name string) {
 	if a.eng == nil {
-		imgui.TextDisabled("no simulation yet - press play in the strip above")
+		textDim("no simulation yet - press play in the strip above")
 		return
 	}
 	var s engine.Score
@@ -423,12 +439,12 @@ func (a *App) drawNodeStats(name string) {
 		}
 	}
 	if !found {
-		imgui.TextDisabled("this node is not in the run")
+		textDim("this node is not in the run")
 		return
 	}
 
 	stat := func(label, value string, col imgui.Vec4) {
-		imgui.TextDisabled(label)
+		textDim(label)
 		imgui.SameLineV(140, -1)
 		imgui.PushStyleColorVec4(imgui.ColText, col)
 		imgui.Text(value)
@@ -464,7 +480,7 @@ func (a *App) drawNodeStats(name string) {
 	}
 
 	imgui.SeparatorText("Neighbours")
-	imgui.TextDisabled("who this node has actually exchanged packets with, and how well")
+	textDim("who this node has actually exchanged packets with, and how well")
 	a.drawNeighbours(name)
 }
 
@@ -505,7 +521,7 @@ func (a *App) drawNeighbours(name string) {
 		}
 	}
 	if len(links) == 0 {
-		imgui.TextDisabled("none yet")
+		textDim("none yet")
 		return
 	}
 	if !imgui.BeginTableV("##neighbours", 3,
@@ -527,13 +543,13 @@ func (a *App) drawNeighbours(name string) {
 		} else {
 			// One-way is the case worth seeing, so it is spelt out rather than
 			// left as an empty cell.
-			imgui.TextDisabled("never")
+			textDim("never")
 		}
 		imgui.TableSetColumnIndex(2)
 		if l.outCount > 0 {
 			imgui.Text(fmt.Sprintf("%+.1f dB", l.outSNR))
 		} else {
-			imgui.TextDisabled("never")
+			textDim("never")
 		}
 	}
 	imgui.EndTable()
@@ -542,7 +558,7 @@ func (a *App) drawNeighbours(name string) {
 // drawNodeActivity is this node's slice of the event ledger, newest first.
 func (a *App) drawNodeActivity(name string) {
 	if a.eng == nil {
-		imgui.TextDisabled("no simulation yet - press play in the strip above")
+		textDim("no simulation yet - press play in the strip above")
 		return
 	}
 	events := a.eng.Events()
@@ -584,7 +600,7 @@ func (a *App) drawNodeActivity(name string) {
 	}
 	imgui.EndTable()
 	if shown == 0 {
-		imgui.TextDisabled("nothing yet involving this node - run, or send from it")
+		textDim("nothing yet involving this node - run, or send from it")
 	}
 }
 
@@ -607,7 +623,7 @@ func (a *App) drawFileMenu() {
 	if imgui.BeginMenu("Open project") {
 		rows := listProjects()
 		if len(rows) == 0 {
-			imgui.TextDisabled("nothing saved yet")
+			textDim("nothing saved yet")
 		}
 		for _, p := range rows {
 			if imgui.MenuItemBool(fmt.Sprintf("%s  -  %d nodes, %s", p.name, p.nodes, age(p.saved))) {
@@ -621,7 +637,7 @@ func (a *App) drawFileMenu() {
 		imgui.EndMenu()
 	}
 	if imgui.BeginMenu("Save project as...") {
-		imgui.TextDisabled("the network, its areas, the schedule and the seed - the whole study")
+		textDim("the network, its areas, the schedule and the seed - the whole study")
 		imgui.SetNextItemWidth(220)
 		imgui.InputTextWithHint("##projname", "name", &a.projName, 0, nil)
 		imgui.SameLine()
@@ -642,7 +658,7 @@ func (a *App) drawFileMenu() {
 		imgui.EndMenu()
 	}
 	if imgui.BeginMenu("Save network as...") {
-		imgui.TextDisabled("the nodes alone; a project keeps the study around them")
+		textDim("the nodes alone; a project keeps the study around them")
 		imgui.SetNextItemWidth(220)
 		imgui.InputTextWithHint("##savename", defaultSaveName(len(a.Nodes)), &a.saveName, 0, nil)
 		imgui.SameLine()
@@ -678,7 +694,7 @@ func (a *App) drawFileMenu() {
 func (a *App) drawSavedNetworksMenu() {
 	rows := a.savedNetworks()
 	if len(rows) == 0 {
-		imgui.TextDisabled("nothing saved yet - save once and reopening takes milliseconds")
+		textDim("nothing saved yet - save once and reopening takes milliseconds")
 		return
 	}
 	for i, n := range rows {
@@ -724,9 +740,9 @@ func (a *App) drawRepeatersMenu() {
 	}
 	running := a.eng != nil && a.eng.FirmwareCount() > 0
 	if running {
-		imgui.TextDisabled(fmt.Sprintf("%d on real firmware", a.eng.FirmwareCount()))
+		textDim(fmt.Sprintf("%d on real firmware", a.eng.FirmwareCount()))
 	} else {
-		imgui.TextDisabled("no firmware running - start it from the strip above")
+		textDim("no firmware running - start it from the strip above")
 	}
 	imgui.Separator()
 	if imgui.MenuItemBool("Fleet commands...") {
@@ -743,7 +759,7 @@ func (a *App) drawRepeatersMenu() {
 	// The commands people reach for, sent to every running repeater without a
 	// detour through the fleet window. Each is a real CLI line and says so.
 	if !running {
-		imgui.TextDisabled("commands need firmware running")
+		textDim("commands need firmware running")
 		imgui.EndMenu()
 		return
 	}
