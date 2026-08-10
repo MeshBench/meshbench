@@ -142,11 +142,13 @@ func (a *App) drawRunControls() {
 		}
 	} else {
 		if imgui.Button("fw \u25b6") {
-			if err := a.eng.AttachNative(context.Background(), 4417); err != nil {
-				a.status = err.Error()
-			} else {
-				a.status = fmt.Sprintf("%d nodes running MeshCore", a.eng.FirmwareCount())
-			}
+			// Through attachFirmware, not straight to AttachNative: that path
+			// skipped the on-start provisioning entirely, so nodes started
+			// from the strip came up unnamed, unpositioned and unscoped while
+			// the same action from the menu configured them. It also used a
+			// hardcoded seed, which is a different run from the one the
+			// toolbar says is loaded.
+			a.attachFirmware()
 		}
 		if imgui.IsItemHovered() {
 			imgui.SetTooltip("run real firmware: one MeshCore process per node - the relay\n" +
