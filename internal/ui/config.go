@@ -553,10 +553,19 @@ func regionToken(name string) string {
 // only because the operator asked for that in Provisioning.
 func (a *App) regionCommands(i int) []string {
 	a.ensureConfig()
-	if !a.cfg.setRegionOnStart {
+	n := a.Nodes[i]
+	// A node that carries observed regions is always configured with them.
+	//
+	// The switch governs whether to *invent* a region from the study area for
+	// nodes that have none - that is the choice an operator should make. It
+	// used to gate both, so reloading a project into a fresh session left every
+	// repeater with no regions at all while the scenario still said it had
+	// them. Scoped traffic then reached nobody: the senders transmitted, no
+	// repeater relayed, and the run looked like a mesh with terrible RF rather
+	// than one that had not been configured.
+	if len(n.Regions) == 0 && !a.cfg.setRegionOnStart {
 		return nil
 	}
-	n := a.Nodes[i]
 	var out []string
 	// A node that was observed in real regions is configured with those,
 	// whatever the study area is called: this came from the node's own traffic

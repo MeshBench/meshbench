@@ -86,7 +86,10 @@ func (s *compSession) take(f proto.Frame) {
 	switch {
 	case f.Code == proto.RespErr:
 		s.err = f.Err + " (" + proto.CommandName(s.lastCmd) + ")"
-	case f.Code == proto.RespSent:
+	case f.Code == proto.RespOK, f.Code == proto.RespSent:
+		// A channel send confirms with OK; only a direct message answers SENT.
+		// Waiting for SENT alone left every channel message reading
+		// "sending..." for ever, which is what a failed send looks like.
 		// The node has taken the message. Mark our own most recent unconfirmed
 		// one, so "sent" in the conversation means the firmware said so rather
 		// than that we wrote it down.

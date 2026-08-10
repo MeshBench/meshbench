@@ -208,6 +208,20 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 		return map[string]any{"playing": a.playing, "now_ms": a.eng.NowMs(),
 			"until_ms": a.runUntilMs, "events": a.eng.EventCount()}, nil
 
+	case "sim.seed":
+		// Repeats of the same seed are identical by design, so a study that
+		// wants to know whether a difference is real rather than one draw has
+		// to vary this.
+		var p struct {
+			Seed uint64 `json:"seed"`
+		}
+		_ = json.Unmarshal(params, &p)
+		if p.Seed != 0 {
+			a.seed = p.Seed
+			a.buildEngine()
+		}
+		return map[string]any{"seed": a.runSeed()}, nil
+
 	case "sim.reset":
 		a.buildEngine()
 		return map[string]any{"seed": a.runSeed()}, nil
