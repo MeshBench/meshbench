@@ -24,6 +24,7 @@ type Device struct {
 	device   *wgpu.Device
 	queue    *wgpu.Queue
 	dechirp  *wgpu.ComputePipeline
+	coverage *wgpu.ComputePipeline
 	Name     string
 	Backend  string
 }
@@ -66,10 +67,16 @@ func Open() (*Device, error) {
 	if err != nil {
 		return nil, fmt.Errorf("gpu: dechirp pipeline: %w", err)
 	}
+	if err := d.compileCoverage(); err != nil {
+		return nil, err
+	}
 	return d, nil
 }
 
 func (d *Device) Close() {
+	if d.coverage != nil {
+		d.coverage.Release()
+	}
 	if d.dechirp != nil {
 		d.dechirp.Release()
 	}

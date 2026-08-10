@@ -21,6 +21,12 @@ type Site struct {
 	// sibling problem); until then a scenario supplies its own.
 	CloudByMonth [12]float64
 	TempCByMonth [12]float64
+
+	// Horizon, if set, is the terrain's elevation angle at an azimuth, in
+	// degrees. A panel behind a hill loses hours of morning sun, and that is
+	// exactly the site error this exists to catch. When the sun is above 0
+	// but below the horizon, only diffuse skylight reaches the panel.
+	Horizon func(azimuthDeg float64) float64
 }
 
 // Day is one day of the simulated year.
@@ -88,6 +94,13 @@ func SimulateYear(s Site) (YearResult, error) {
 		for hour := 0.0; hour < 24; hour++ {
 			sun := SunAt(s.LatDeg, s.LonDeg, day, hour+0.5)
 			harvestW := s.Panel.HarvestW(sun, cloud)
+			if s.Horizon != nil && sun.ElevationDeg > 0 &&
+				sun.ElevationDeg < s.Horizon(sun.AzimuthDeg) {
+				// Behind the hill: the direct beam is gone, the sky is not.
+				// Full-overcast harvest is the closest honest stand-in for
+				// diffuse-only light.
+				harvestW = s.Panel.HarvestW(sun, 1)
+			}
 			drawW := avgMA / 1000 * packV
 
 			d.HarvestWh += harvestW

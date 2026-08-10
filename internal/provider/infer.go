@@ -1,0 +1,218 @@
+package provider
+
+import (
+	"fmt"
+	"sort"
+
+	"github.com/A13xB0/meshcoresim/internal/capture"
+)
+
+// Inferred is what observed traffic says about a node's configuration.
+//
+// Evidence, not guesswork: every field here is something a node demonstrated by
+// its own behaviour on the air. What cannot be demonstrated is left unset
+// rather than estimated.
+type Inferred struct {
+	Node string
+
+	// ScopedOrigin is true when this node has originated scoped traffic, which
+	// means it has a default scope set.
+	ScopedOrigin bool
+	// DefaultScope is that scope's name, where a candidate matched. Read from
+	// what the node originates — adverts and its own messages — because that is
+	// what a default scope governs.
+	DefaultScope string
+	// ScopedRelay is true when this node has relayed somebody else's scoped
+	// traffic, which means it holds a matching region and allows flooding for
+	// it — a node without one drops the packet rather than forwarding it.
+	ScopedRelay bool
+	// UnscopedRelay is true when it has relayed unscoped flood traffic.
+	UnscopedRelay bool
+
+	// MaxHops is the largest hop count seen on a packet this node relayed. A
+	// lower bound on its flood.max: it cannot be below what it has done.
+	MaxHops int
+
+	// Regions are the named regions this node's traffic matched, where the
+	// names were known in advance. Empty means either that it uses none or
+	// that none of the candidates fitted — the two are distinguished by
+	// ScopedRelay, which says scoped traffic was carried regardless.
+	Regions []string
+
+	// PayloadTypes are the kinds of packet it has been seen to carry.
+	PayloadTypes []string
+
+	// Packets is how much evidence there is. A conclusion from three packets
+	// and one from three thousand are different claims, and a reader deserves
+	// to know which they are looking at.
+	Packets int
+}
+
+// Summary states what was inferred, and what could not be.
+func (i Inferred) Summary() string {
+	if i.Packets == 0 {
+		return "never seen"
+	}
+	var s string
+	switch {
+	case i.ScopedRelay:
+		s = "relays scoped traffic, so it holds a region and allows flooding for it"
+	case i.UnscopedRelay:
+		s = "relays unscoped traffic only"
+	default:
+		s = "not seen relaying"
+	}
+	if i.ScopedOrigin {
+		if i.DefaultScope != "" {
+			s += "; default scope " + i.DefaultScope
+		} else {
+			s += "; originates scoped traffic, so it has a default scope"
+		}
+	}
+	if len(i.Regions) > 0 {
+		s += "; regions " + fmt.Sprint(i.Regions)
+	}
+	return fmt.Sprintf("%s (%d packets)", s, i.Packets)
+}
+
+// RegionMatcher decides whether a packet was scoped to a named region.
+//
+// The names come from somewhere that knows them — CoreScope publishes the
+// regions currently configured, and an operator can add ones they know about.
+// Without candidates, a transport code identifies nothing: it is
+// calcTransportCode(packet), hashed with the packet, so the same region gives a
+// different code on every message and codes cannot be matched to each other.
+// With a candidate name and its key, a code can be recomputed and *checked* —
+// which turns "this node relays something scoped" into "this node relays
+// mesh-east".
+type RegionMatcher interface {
+	// Match returns the names among the candidates whose transport code equals
+	// the one on this packet.
+	Match(frame []byte, codes []uint16) []string
+}
+
+// InferFromPackets works out what it can about each node from observed traffic.
+//
+// Two levels of answer, and the difference is worth keeping straight.
+//
+// Without a matcher, only *behaviour* is inferable: that a node scopes what it
+// originates, and that it holds some region admitting what it relays. A
+// transport code is calcTransportCode(packet), hashed with the packet, so the
+// same region gives a different code on every message and codes cannot be
+// matched to one another.
+//
+// With a matcher — candidate names from CoreScope, or ones an operator knows —
+// each code can be recomputed and checked, and the region can be *named*.
+//
+// A node may hold several regions, so names accumulate: one packet proves one
+// region, never the whole set. A node with no named match is not a node with no
+// regions; it is a node none of the candidates explained.
+func InferFromPackets(packets []PacketRecord, m RegionMatcher) map[string]*Inferred {
+	out := map[string]*Inferred{}
+	get := func(name string) *Inferred {
+		if name == "" {
+			return nil
+		}
+		v, ok := out[name]
+		if !ok {
+			v = &Inferred{Node: name}
+			out[name] = v
+		}
+		return v
+	}
+
+	types := map[string]map[string]bool{}
+	for _, p := range packets {
+		if len(p.Raw) == 0 {
+			continue
+		}
+		d := capture.Dissect(p.Raw)
+		if d.Truncated {
+			continue
+		}
+		scoped := d.HasTransport
+
+		// The origin: a packet with no path has not been relayed yet, so
+		// whoever was heard sending it is where it came from.
+		origin := p.Origin
+		if origin == "" && d.HopCount() == 0 {
+			origin = p.Receiver
+		}
+		if o := get(origin); o != nil && scoped && d.HopCount() == 0 {
+			o.ScopedOrigin = true
+			// A node's default scope is what it scopes its *own* traffic to, so
+			// it is read from what it originates rather than what it forwards.
+			if m != nil {
+				for _, name := range m.Match(p.Raw, d.TransportCodes) {
+					if !containsString(o.Regions, name) {
+						o.Regions = append(o.Regions, name)
+					}
+					o.DefaultScope = name
+				}
+			}
+		}
+
+		// The relayer: whoever transmitted this copy, if it already carried a
+		// path when it was heard.
+		if r := get(p.Sender); r != nil {
+			r.Packets++
+			if d.HopCount() > 0 {
+				if scoped {
+					r.ScopedRelay = true
+					// Named, where the name was known in advance. A node may
+					// hold several regions, so these accumulate rather than
+					// replace: one packet proves one region, not the set.
+					if m != nil {
+						for _, name := range m.Match(p.Raw, d.TransportCodes) {
+							if !containsString(r.Regions, name) {
+								r.Regions = append(r.Regions, name)
+							}
+						}
+					}
+				} else {
+					r.UnscopedRelay = true
+				}
+			}
+			if d.HopCount() > r.MaxHops {
+				r.MaxHops = d.HopCount()
+			}
+			if types[p.Sender] == nil {
+				types[p.Sender] = map[string]bool{}
+			}
+			types[p.Sender][d.PayloadName] = true
+		}
+	}
+
+	for name, set := range types {
+		v := out[name]
+		if v == nil {
+			continue
+		}
+		for t := range set {
+			v.PayloadTypes = append(v.PayloadTypes, t)
+		}
+		sort.Strings(v.PayloadTypes)
+	}
+	return out
+}
+
+// PacketRecord is one observed packet, as a provider reports it.
+type PacketRecord struct {
+	// Raw is the frame as it was on the air. Without it nothing here can be
+	// inferred: the scope, the path and the type all live in those bytes.
+	Raw []byte
+	// Sender is who transmitted this copy, Receiver who heard it, and Origin
+	// who first sent the message where the source knows.
+	Sender   string
+	Receiver string
+	Origin   string
+}
+
+func containsString(list []string, want string) bool {
+	for _, v := range list {
+		if v == want {
+			return true
+		}
+	}
+	return false
+}

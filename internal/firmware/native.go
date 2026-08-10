@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -17,14 +18,25 @@ import (
 // EnvNativeBinary overrides where the native node binary is found.
 const EnvNativeBinary = "MESHCORESIM_NATIVE"
 
-// NativeBinaryName is what the per-architecture release is called.
+// DefaultRole is the application a node runs when nothing says otherwise.
+const DefaultRole = "simple_repeater"
+
+// NativeBinaryName is what the published build of one role is called.
 //
-// The architecture is in the filename rather than in a directory because these
-// are downloaded, not built here: MeshCore is MIT and our host build of it is
-// distributed from a separate repository under that same licence (ADR-0020), so
-// what lands on a user's machine is one file per platform out of a release.
-func NativeBinaryName() string {
-	name := fmt.Sprintf("meshcore-node-%s-%s", runtime.GOOS, runtime.GOARCH)
+// Role, then platform. Both are in the filename rather than in a directory
+// because these are downloaded, not built here: MeshCore is MIT and our host
+// builds of it are published from a separate repository under that same licence
+// (ADR-0020), one file per role per platform out of a release.
+//
+// The role is a MeshCore example directory name, passed through rather than
+// mapped: a node is a node, and what makes one a repeater instead of a companion
+// is only which application was linked. Anything upstream ships is a legal value
+// here, including one that did not exist when this was written.
+func NativeBinaryName(role string) string {
+	if role == "" {
+		role = DefaultRole
+	}
+	name := fmt.Sprintf("meshcore-%s-%s-%s", role, runtime.GOOS, runtime.GOARCH)
 	if runtime.GOOS == "windows" {
 		name += ".exe"
 	}
@@ -40,7 +52,7 @@ var ErrNativeMissing = errors.New("firmware: native node binary not found")
 // simulator's own directory is checked before PATH because the binary is
 // downloaded into it, and a stale copy on someone's PATH from a different
 // MeshCore version is a very quiet way to get wrong answers.
-func FindNative(explicit string) (string, error) {
+func FindNative(explicit, role string) (string, error) {
 	if explicit != "" {
 		if _, err := os.Stat(explicit); err != nil {
 			return "", fmt.Errorf("%w at %s: %w", ErrNativeMissing, explicit, err)
@@ -53,7 +65,7 @@ func FindNative(explicit string) (string, error) {
 		}
 		return p, nil
 	}
-	name := NativeBinaryName()
+	name := NativeBinaryName(role)
 	if self, err := os.Executable(); err == nil {
 		p := filepath.Join(filepath.Dir(self), name)
 		if _, err := os.Stat(p); err == nil {
@@ -63,14 +75,59 @@ func FindNative(explicit string) (string, error) {
 	if p, err := exec.LookPath(name); err == nil {
 		return p, nil
 	}
-	return "", fmt.Errorf("%w: looked for %s beside the simulator and on PATH; set %s to override",
-		ErrNativeMissing, name, EnvNativeBinary)
+	return "", fmt.Errorf("%w: looked for %s beside the simulator and on PATH. "+
+		"Download one with `msim firmware get %s`, or set %s to a build of your own",
+		ErrNativeMissing, name, role, EnvNativeBinary)
+}
+
+// NodeWorkDir is where a named node's persistent files live. Stable across
+// runs on purpose: a repeater keeping its identity between sessions is how
+// hardware behaves, and the seed regenerates the same identity anyway.
+func NodeWorkDir(name string) string {
+	safe := strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_':
+			return r
+		default:
+			return '_'
+		}
+	}, name)
+	base, err := os.UserCacheDir()
+	if err != nil {
+		return filepath.Join("nodefs", safe)
+	}
+	return filepath.Join(base, "meshcoresim", "nodefs", safe)
+}
+
+// WipeNodeStorage deletes every node's persistent files — identities, prefs,
+// regions, ACLs. The next attach boots every node factory-fresh.
+//
+// This is the fix for a poisoned flash: preference and region files written
+// during a bad run (most memorably, three hundred processes sharing one
+// working directory) gate real behaviour — a repeater whose regions file says
+// deny-flood silently repeats nothing, which looks exactly like an RF problem.
+// Identities regenerate deterministically from the run seed, so a wipe costs
+// nothing but the next boot.
+func WipeNodeStorage() error {
+	base, err := os.UserCacheDir()
+	if err != nil {
+		return err
+	}
+	return os.RemoveAll(filepath.Join(base, "meshcoresim", "nodefs"))
 }
 
 // Native runs MeshCore compiled for this host, as a child process.
 type Native struct {
 	// Path is the binary. Empty means resolve it with FindNative.
 	Path string
+
+	// Role is the MeshCore application this node runs — a directory name under
+	// MeshCore's examples/. Empty means DefaultRole.
+	//
+	// This is the only thing that decides what kind of node this is. There is no
+	// enum of node types here on purpose: when upstream ships something new, it
+	// is a string that already works rather than a case to add.
+	Role string
 
 	// Seed makes key generation and any firmware-side randomness reproducible.
 	// Without it a native node picks a different identity every run and no two
@@ -82,6 +139,14 @@ type Native struct {
 	SF           int
 	BandwidthKHz float64
 	CodingRate   int
+
+	// WorkDir is the node's filesystem: the directory its identity, prefs and
+	// ACL land in. Every node needs its own. The repeater application persists
+	// its identity to "flash" on first boot, and three hundred processes
+	// sharing a working directory all loaded the first one's key — a mesh of
+	// clones, in which every node drops every packet as its own echo and
+	// nothing is ever relayed.
+	WorkDir string
 
 	// Log receives the node's stderr. Nil discards it. The firmware's own
 	// diagnostics are the only window into a native node, so a scenario that
@@ -95,7 +160,7 @@ type Native struct {
 func (n *Native) Kind() string { return "native" }
 
 func (n *Native) Start(ctx context.Context, bridgeAddr string) error {
-	path, err := FindNative(n.Path)
+	path, err := FindNative(n.Path, n.Role)
 	if err != nil {
 		return err
 	}
@@ -115,6 +180,17 @@ func (n *Native) Start(ctx context.Context, bridgeAddr string) error {
 		args = append(args, "--cr", fmt.Sprint(n.CodingRate))
 	}
 	cmd := exec.CommandContext(ctx, path, args...)
+	if n.WorkDir != "" {
+		if err := os.MkdirAll(n.WorkDir, 0o755); err != nil {
+			return fmt.Errorf("firmware: node filesystem: %w", err)
+		}
+		cmd.Dir = n.WorkDir
+	}
+	// The kernel kills the child if this process dies — any way it dies. The
+	// graceful path still closes the bridge and waits; this is for the paths
+	// that never reach it, which left three hundred orphans running after a
+	// killed workbench.
+	cmd.SysProcAttr = childProcAttr()
 	cmd.Stderr = n.Log
 	if cmd.Stderr == nil {
 		cmd.Stderr = io.Discard

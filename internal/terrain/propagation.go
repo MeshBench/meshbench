@@ -181,3 +181,89 @@ func MultiEdgeLossDB(profile []Point, txH, rxH, freqMHz float64) float64 {
 	// smoothly as the diffraction itself vanishes, so continuity survives.
 	return uncorrected + (1-math.Exp(-uncorrected/6))*(10+0.02*d/1000)
 }
+
+// Edge is one obstruction, with the loss it contributes on its own.
+type Edge struct {
+	DistM float64
+	TopM  float64
+	// ClearanceM is how far below the line of sight the edge sits; negative
+	// means it stands above it.
+	ClearanceM float64
+	LossDB     float64
+}
+
+// Edges decomposes a path into the obstructions that shape it.
+//
+// The point is a sentence somebody can act on: not "153 dB of loss" but "that
+// ridge at 4.2 km costs you 31 dB". MultiEdgeLossDB reduces a profile to one
+// equivalent edge because that is what the propagation model needs; this is the
+// same construction, kept in pieces because the *explanation* needs the pieces.
+//
+// The losses are per-edge Bullington contributions and do not sum to
+// MultiEdgeLossDB — that carries the P.526 correction for multiple edges, which
+// belongs to the path rather than to any one of them. Presented as a
+// decomposition, never as an addition.
+func Edges(profile []Point, txH, rxH, freqMHz float64) []Edge {
+	if len(profile) < 3 || freqMHz <= 0 {
+		return nil
+	}
+	last := len(profile) - 1
+	d := profile[last].DistM - profile[0].DistM
+	if d <= 0 {
+		return nil
+	}
+	lambda := 299.792458 / freqMHz
+	txAlt := profile[0].HeightM + txH
+	rxAlt := profile[last].HeightM + rxH
+	slope := (rxAlt - txAlt) / d
+
+	flat := make([]Point, len(profile))
+	for i, p := range profile {
+		d1 := p.DistM - profile[0].DistM
+		flat[i] = Point{DistM: d1, HeightM: p.HeightM + EarthBulgeM(d1, d-d1)}
+	}
+
+	// Local maxima of intrusion into the Fresnel zone. A hill is one edge, not
+	// the forty samples that describe it, so a peak must beat its neighbours
+	// over a window rather than merely be positive.
+	const window = 6
+	var out []Edge
+	for i := 1; i < last; i++ {
+		d1, d2 := flat[i].DistM, d-flat[i].DistM
+		if d1 <= 0 || d2 <= 0 {
+			continue
+		}
+		h := flat[i].HeightM - (txAlt + slope*d1)
+		v := h * math.Sqrt(2*d/(lambda*d1*d2))
+		if v <= -0.78 {
+			continue // below the knife-edge model's floor: no loss to report
+		}
+		peak := true
+		for j := i - window; j <= i+window; j++ {
+			if j < 1 || j > last-1 || j == i {
+				continue
+			}
+			dj1, dj2 := flat[j].DistM, d-flat[j].DistM
+			if dj1 <= 0 || dj2 <= 0 {
+				continue
+			}
+			hj := flat[j].HeightM - (txAlt + slope*dj1)
+			if hj*math.Sqrt(2*d/(lambda*dj1*dj2)) > v {
+				peak = false
+				break
+			}
+		}
+		if !peak {
+			continue
+		}
+		loss := KnifeEdgeDB(v)
+		if loss <= 0.1 {
+			continue
+		}
+		out = append(out, Edge{
+			DistM: profile[0].DistM + d1, TopM: profile[i].HeightM,
+			ClearanceM: -h, LossDB: loss,
+		})
+	}
+	return out
+}

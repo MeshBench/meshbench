@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/AllenDang/cimgui-go/imgui"
 
@@ -10,27 +11,61 @@ import (
 	"github.com/A13xB0/meshcoresim/internal/pathview"
 	"github.com/A13xB0/meshcoresim/internal/planning"
 	"github.com/A13xB0/meshcoresim/internal/scenario"
+	"github.com/A13xB0/meshcoresim/internal/terrain"
 )
 
-func (a *App) drawInspector() {
-	if imgui.CollapsingHeaderBoolPtr("Load", nil) {
-		a.drawLoadPanel()
+func (a *App) drawNodeRows() {
+	// Matching indices first, so the clipper below has a fixed count to work
+	// from and the filter costs one pass rather than one per visible row.
+	match := a.matchingNodes()
+	if len(match) == 0 {
+		imgui.TextDisabled("nothing matches - clear the filter box on the map")
+		return
 	}
-	imgui.SeparatorText("Nodes")
-	imgui.TextWrapped("click on the map to select; ctrl-click a second for a link")
 
-	// The list is a companion to the map, not the primary way in, so it
-	// scrolls and does not try to show four hundred nodes at once.
-	if imgui.BeginChildStrV("##nodelist", imgui.NewVec2(0, 160), 0, 0) {
-		a.drawNodeRows()
+	// Capped, and the cap is stated. Building four hundred Selectables a frame
+	// for the dozen anyone can see is waste, and quietly showing the first
+	// hundred would be worse than saying so — a list that looks complete and is
+	// not is how someone concludes a node is missing from the scenario.
+	shown := match
+	if len(shown) > maxNodeRows {
+		shown = shown[:maxNodeRows]
 	}
-	imgui.EndChild()
-
-	a.drawSelected()
+	for _, i := range shown {
+		a.drawNodeRow(i)
+	}
+	if len(match) > len(shown) {
+		imgui.TextDisabled(fmt.Sprintf("%d more - use the filter, or click on the map",
+			len(match)-len(shown)))
+	}
 }
 
-func (a *App) drawNodeRows() {
+// maxNodeRows is how much of the list is drawn at once. The map is the way into
+// a large scenario; this panel is for when you already know the name.
+const maxNodeRows = 150
+
+// matchingNodes applies the filter, matching on name or kind.
+func (a *App) matchingNodes() []int {
+	out := make([]int, 0, len(a.Nodes))
 	for i := range a.Nodes {
+		if a.nodeMatchesFilter(&a.Nodes[i]) {
+			out = append(out, i)
+		}
+	}
+	return out
+}
+
+// nodeMatchesFilter is the one filter rule, shared by the list and the map
+// highlight so they cannot disagree about what "matches" means.
+func (a *App) nodeMatchesFilter(n *scenario.Node) bool {
+	want := strings.ToLower(strings.TrimSpace(a.nodeFilter))
+	return want == "" ||
+		strings.Contains(strings.ToLower(n.Name), want) ||
+		strings.Contains(strings.ToLower(kindLabel(n.Kind)), want)
+}
+
+func (a *App) drawNodeRow(i int) {
+	{
 		n := &a.Nodes[i]
 		label := fmt.Sprintf("%s##%d", n.Name, i)
 
@@ -40,8 +75,15 @@ func (a *App) drawNodeRows() {
 			imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.55, 0.75, 0.95, 1))
 		}
 		selected := i == a.selected || i == a.linkTo
+		for _, m := range a.msel {
+			selected = selected || m == i
+		}
 		if imgui.SelectableBoolPtr(label, &selected) {
-			a.SelectNode(i, imgui.CurrentIO().KeyCtrl())
+			if imgui.CurrentIO().KeyShift() {
+				a.toggleMulti(i)
+			} else {
+				a.SelectNode(i, imgui.CurrentIO().KeyCtrl())
+			}
 		}
 		if n.Kind == scenario.SDRObserver {
 			imgui.PopStyleColor()
@@ -49,37 +91,6 @@ func (a *App) drawNodeRows() {
 
 		imgui.SameLine()
 		imgui.TextDisabled(kindLabel(n.Kind))
-	}
-}
-
-func (a *App) drawSelected() {
-	imgui.Spacing()
-	imgui.SeparatorText("Selected")
-	if a.selected < 0 {
-		imgui.TextDisabled("nothing selected")
-		return
-	}
-	n := &a.Nodes[a.selected]
-	imgui.Text(n.Name)
-	imgui.Text(fmt.Sprintf("%.5f, %.5f", n.Position.Lat, n.Position.Lon))
-
-	changed := sliderF64("height m", &n.HeightAGLm, 1, 60, "%.1f")
-	if n.Kind.Transmits() {
-		changed = sliderF64("tx dBm", &n.TxPowerDBm, 2, 30, "%.0f") || changed
-	} else {
-		imgui.TextDisabled("an SDR observer transmits nothing")
-	}
-	if changed {
-		// Recompute rather than cache. The height slider is the whole point of
-		// the panel — "what would five more metres buy" — and an answer that
-		// lags the slider by a frame is an answer to the previous question.
-		a.recompute()
-	}
-	if ground, ok := a.Terrain.ElevationM(n.Position.Lat, n.Position.Lon); ok {
-		imgui.TextDisabled(fmt.Sprintf("ground %.0f m, antenna top %.0f m AMSL",
-			ground, ground+n.HeightAGLm))
-	} else {
-		imgui.TextDisabled("no terrain here - download tiles for this area")
 	}
 }
 
@@ -97,6 +108,9 @@ func (a *App) SelectNode(i int, addToLink bool) {
 		a.linkTo = i
 	} else {
 		a.selected, a.linkTo = i, -1
+		// A plain click is a statement about one node; a lingering
+		// multi-selection would make the bulk editor hide it.
+		a.msel = nil
 	}
 	a.recompute()
 }
@@ -206,6 +220,19 @@ func (a *App) drawBudget(from, to scenario.Node) {
 		imgui.TableSetColumnIndex(2)
 		marginText(fmt.Sprintf("%s -> %s", to.Name, from.Name), cell.InboundMarginDB)
 		imgui.EndTable()
+	}
+	// The per-receiver floor, when an emitter fleet is raising it. Two ends,
+	// two floors: a node beside a mast and a node on a quiet hill are not
+	// hearing the same band.
+	if a.eng != nil {
+		for _, end := range []scenario.Node{from, to} {
+			if thermal, with, ok := a.eng.FloorAt(end.Name); ok && with > thermal+0.05 {
+				imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.72, 0.25, 1))
+				imgui.TextWrapped(fmt.Sprintf("%s noise floor %.1f dBm - emitters raise it %.1f dB "+
+					"above thermal", end.Name, with, with-thermal))
+				imgui.PopStyleColor()
+			}
+		}
 	}
 	if l.OneWayOnly {
 		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.65, 0.2, 1))
@@ -340,10 +367,56 @@ func (a *App) drawCutThrough(c pathview.CutThrough) {
 		// marks, so the picture cannot be misread as one of them.
 	}
 
+	// Every diffracting edge labelled with its own loss.
+	//
+	// The difference between "153 dB" and "that ridge at 4.2 km costs you
+	// 31 dB — move 400 m north and it clears". A total is a verdict; a
+	// decomposition is something an engineer can act on.
+	profile := make([]terrain.Point, len(c.Samples))
+	for i, sm := range c.Samples {
+		profile[i] = terrain.Point{DistM: sm.DistM, HeightM: sm.GroundM}
+	}
+	edges := terrain.Edges(profile, c.TxAltM-c.Samples[0].GroundM,
+		c.RxAltM-c.Samples[len(c.Samples)-1].GroundM, c.FreqMHz)
+	for _, e := range edges {
+		if e.LossDB < 1 {
+			continue
+		}
+		x := toX(e.DistM)
+		dl.AddLineArgs(imgui.NewVec2(x, toY(e.TopM)), imgui.NewVec2(x, float32(y0+12)),
+			colour(0.95, 0.72, 0.25, 0.55), 1)
+		dl.AddTextVec2V(imgui.NewVec2(x+3, float32(y0+2)), colour(0.95, 0.78, 0.45, 1),
+			fmt.Sprintf("-%.1f dB", e.LossDB))
+	}
+
 	imgui.Dummy(imgui.NewVec2(float32(w), float32(h)))
+
+	// Vertical exaggeration, always stated, never silently applied.
+	//
+	// A profile drawn to true scale over 40 km is a flat line; every terrain
+	// view exaggerates, and one that does not say by how much invites a reader
+	// to judge a slope that is not the real slope.
+	// Vertical pixels per metre against horizontal pixels per metre. The other
+	// way round gives a number below one for every real profile, which is how
+	// this read "x0" — an exaggeration figure that is never less than 1 in
+	// practice, because a true-scale profile over 40 km is a flat line.
+	exag := (h / span) / (w / (c.DistanceKm * 1000))
 	imgui.TextDisabled(fmt.Sprintf(
 		"terrain includes earth curvature; blue band is the first Fresnel zone   |   "+
-			"%.1f km, %.0f-%.0f m", c.DistanceKm, lo, hi))
+			"%.1f km, %.0f-%.0f m   |   vertical exaggeration x%.1f",
+		c.DistanceKm, lo, hi, exag))
+
+	if len(edges) > 0 {
+		var b strings.Builder
+		b.WriteString("edges:")
+		for _, e := range edges {
+			if e.LossDB < 1 {
+				continue
+			}
+			fmt.Fprintf(&b, "  %.1f km -%.1f dB", e.DistM/1000, e.LossDB)
+		}
+		imgui.TextDisabled(b.String())
+	}
 }
 
 func colour(r, g, b, alpha float32) uint32 {
@@ -354,6 +427,8 @@ func kindLabel(k scenario.Kind) string {
 	switch k {
 	case scenario.SDRObserver:
 		return "observer"
+	case scenario.Emitter:
+		return "emitter"
 	case scenario.Companion:
 		return "companion"
 	case scenario.AdvancedRepeater:

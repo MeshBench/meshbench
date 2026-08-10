@@ -3,6 +3,7 @@ package scenario
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 )
 
@@ -169,4 +170,22 @@ func boundaryFromRings(name string, rings [][][2]float64) (Boundary, bool) {
 		}
 	}
 	return b, true
+}
+
+// RegionFromGeoJSONFile is the file-path convenience over ParseGeoJSON.
+//
+// The margin is the standard RF margin: nodes outside the boundary but within
+// it are kept as participants, because a repeater just over the border still
+// relays into the area, and a study that pretends otherwise behaves better
+// than reality.
+func RegionFromGeoJSONFile(path string) (*Region, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("scenario: boundary: %w", err)
+	}
+	bounds, err := ParseGeoJSON(data, "")
+	if err != nil {
+		return nil, err
+	}
+	return &Region{Boundaries: bounds, MarginKm: DefaultMarginKm}, nil
 }
