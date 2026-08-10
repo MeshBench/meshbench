@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"github.com/A13xB0/meshcoresim/internal/scenario"
 	"sync/atomic"
 
 	"github.com/AllenDang/cimgui-go/imgui"
@@ -116,6 +117,18 @@ func (a *App) provisionNode(i int) {
 	if a.eng == nil || a.eng.FirmwareCount() == 0 {
 		a.winProvision = true
 		a.status = "no firmware running - set up what nodes are told on boot instead"
+		return
+	}
+	if a.Nodes[i].Kind == scenario.Companion {
+		// A companion takes none of these: the CLI belongs to repeater builds.
+		// Sending them anyway is what left imported companions unnamed and
+		// unscoped while reporting success.
+		if a.comps[name] == nil {
+			a.status = name + ": connect the Companion tab first - configuring one needs its port"
+			return
+		}
+		a.configureCompanion(name)
+		a.status = name + ": configured over the companion protocol"
 		return
 	}
 	cmds := a.startupCommands(i)

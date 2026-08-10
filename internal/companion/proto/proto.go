@@ -13,6 +13,7 @@
 package proto
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"time"
@@ -388,4 +389,56 @@ func firstOr(b []byte, d byte) byte {
 		return d
 	}
 	return b[0]
+}
+
+// Scope commands.
+//
+// A companion carries its own transport scope in prefs (default_scope_name,
+// default_scope_key) and there is no CLI on a companion build to set it - the
+// repeater's `region default` is not a command this firmware has. These are how
+// a companion is scoped, and without them a companion sends unscoped no matter
+// what the scenario says it belongs to.
+const (
+	CmdSetFloodScopeKey     Command = 54
+	CmdSetDefaultFloodScope Command = 63
+	CmdGetDefaultFloodScope Command = 64
+
+	RespDefaultFloodScope Response = 28
+)
+
+// scopeNameLen is the firmware's fixed name field. The key sits immediately
+// after it at a fixed offset, so the name is padded rather than terminated.
+const scopeNameLen = 31
+
+// SetDefaultScope sets the scope a companion sends under.
+//
+// Name and key both, because the firmware stores both and uses the key: it does
+// not derive one from the other, so a name without its key scopes nothing.
+func SetDefaultScope(name string, key [16]byte) []byte {
+	b := make([]byte, 1+scopeNameLen+16)
+	b[0] = byte(CmdSetDefaultFloodScope)
+	copy(b[1:1+scopeNameLen-1], name) // -1 keeps the terminator the firmware reads
+	copy(b[1+scopeNameLen:], key[:])
+	return b
+}
+
+// ClearDefaultScope makes a companion send unscoped. A bare command, which the
+// firmware reads as "null scope" rather than as a malformed one.
+func ClearDefaultScope() []byte { return []byte{byte(CmdSetDefaultFloodScope)} }
+
+// GetDefaultScope asks what scope the node actually holds.
+func GetDefaultScope() []byte { return []byte{byte(CmdGetDefaultFloodScope)} }
+
+// DecodeDefaultScope reads the reply. An empty name means unscoped, which the
+// firmware signals by sending the response code alone.
+func DecodeDefaultScope(b []byte) (name string, key [16]byte, ok bool) {
+	if len(b) < 1+scopeNameLen+16 {
+		return "", key, len(b) >= 1
+	}
+	n := b[1 : 1+scopeNameLen]
+	if i := bytes.IndexByte(n, 0); i >= 0 {
+		n = n[:i]
+	}
+	copy(key[:], b[1+scopeNameLen:])
+	return string(n), key, true
 }

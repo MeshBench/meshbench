@@ -10,6 +10,7 @@ import (
 	"github.com/AllenDang/cimgui-go/imgui"
 
 	"github.com/A13xB0/meshcoresim/internal/companion/proto"
+	"github.com/A13xB0/meshcoresim/internal/provider"
 	"github.com/A13xB0/meshcoresim/internal/scenario"
 )
 
@@ -151,6 +152,13 @@ func (a *App) compConnect(node string) error {
 		return err
 	}
 	a.stepEngine(20)
+	// The companion's own radio preferences start empty - nothing has ever
+	// told it, because provisioning speaks the repeater CLI and a companion
+	// build does not take those commands. That is why it reported 0 MHz: not
+	// a decoding fault, an unconfigured node. The scenario knows what this
+	// node is meant to be on, so it is sent through the interface that can
+	// actually set it.
+	a.configureCompanion(node)
 	_ = a.compSend(s, proto.GetContacts(time.Time{}))
 	for i := uint8(0); i < 8; i++ {
 		_ = a.compSend(s, proto.GetChannel(i))
@@ -310,18 +318,29 @@ func (a *App) drawCompanionMessages(node string, s *compSession,
 			cs.scope = ""
 		}
 		if imgui.SelectableBool("unscoped") {
-			cs.scope = "<null>"
+			cs.scope = scopeNull
 		}
 		for _, r := range a.knownRegions() {
 			if imgui.SelectableBool(r) {
 				cs.scope = r
 			}
 		}
+		imgui.Separator()
+		// A region nobody has been observed using is still a region you can
+		// send to - the list is what has been seen, not what exists.
+		imgui.SetNextItemWidth(140)
+		if imgui.InputTextWithHint("##newscope", "add one, e.g. #fif", &cs.newScope,
+			imgui.InputTextFlagsEnterReturnsTrue, nil) && cs.newScope != "" {
+			cs.scope = cs.newScope
+			a.addKnownRegion(cs.newScope)
+			cs.newScope = ""
+			imgui.CloseCurrentPopup()
+		}
 		imgui.EndCombo()
 	}
 	if imgui.IsItemHovered() {
 		imgui.SetTooltip("Scope is the node's own transport region, not part of the message,\n" +
-			"so choosing one issues 'region default' at its CLI before sending.")
+			"so choosing one sets the node's default scope before sending.")
 	}
 
 	if imgui.BeginChildStrV("##conv", imgui.NewVec2(0, -imgui.FrameHeight()*2.4),
@@ -354,18 +373,17 @@ func (a *App) drawCompanionMessages(node string, s *compSession,
 	}
 }
 
+// scopeNull is the sentinel for "send unscoped", distinct from "" which means
+// leave the node's scope alone.
+const scopeNull = "<null>"
+
 // compSendMessage applies the scope, then sends.
 func (a *App) compSendMessage(node string, s *compSession, cs *compUIState) {
 	if cs.scope != "" {
-		// The one place this reaches for the CLI rather than the companion
-		// protocol, because the scope is the node's configuration and not a
-		// property of the message.
-		if err := a.typeAt(node, "region default "+cs.scope); err != nil {
-			a.status = err.Error()
+		if err := a.compSetScope(s, node, cs.scope); err != nil {
+			a.status = node + ": " + err.Error()
 			return
 		}
-		a.stepEngine(20)
-		a.status = node + ": default scope set to " + cs.scope + " before sending"
 	}
 	if err := a.compSend(s, proto.SendChannelText(cs.channel, time.Now(), cs.draft)); err != nil {
 		a.status = err.Error()
@@ -412,14 +430,15 @@ func (a *App) drawCompanionRadio(n *scenario.Node, s *compSession, self *proto.S
 
 // compUIState is what the tab holds per node.
 type compUIState struct {
-	channel uint8
-	scope   string
-	draft   string
-	freqMHz float32
-	bwKHz   float32
-	sf      int32
-	cr      int32
-	txDBm   int32
+	channel  uint8
+	scope    string
+	draft    string
+	newScope string
+	freqMHz  float32
+	bwKHz    float32
+	sf       int32
+	cr       int32
+	txDBm    int32
 }
 
 // knownRegions is every region name the scenario has seen, for the scope
@@ -427,6 +446,12 @@ type compUIState struct {
 func (a *App) knownRegions() []string {
 	seen := map[string]bool{}
 	var out []string
+	for _, r := range a.extraRegions {
+		if !seen[r] {
+			seen[r] = true
+			out = append(out, r)
+		}
+	}
 	for i := range a.Nodes {
 		for _, r := range a.Nodes[i].Regions {
 			if !seen[r] {
@@ -466,4 +491,74 @@ func compTabName(kind string) (string, bool) {
 		return "Companion", true
 	}
 	return "", false
+}
+
+// addKnownRegion remembers a region the operator named, so it is offered
+// again without having to be typed twice.
+func (a *App) addKnownRegion(name string) {
+	for _, r := range a.extraRegions {
+		if r == name {
+			return
+		}
+	}
+	a.extraRegions = append(a.extraRegions, name)
+}
+
+// compSetScope sets the scope a companion sends under.
+//
+// Over the companion protocol, not the repeater CLI. The first version of this
+// issued `region default <name>` and reported success: a companion build has no
+// CLI, so the command went nowhere and every message went out unscoped while the
+// UI said otherwise. On a transport-scoped mesh that is not a cosmetic fault -
+// unscoped traffic is carried by different repeaters, so the run measures a
+// different network from the one asked for.
+func (a *App) compSetScope(s *compSession, node, scope string) error {
+	if scope == scopeNull {
+		if err := a.compSend(s, proto.ClearDefaultScope()); err != nil {
+			return err
+		}
+		a.status = node + ": sending unscoped"
+		return nil
+	}
+	if err := a.compSend(s, proto.SetDefaultScope(scope, provider.RegionKey(scope))); err != nil {
+		return err
+	}
+	a.status = node + ": default scope set to " + scope
+	return nil
+}
+
+// configureCompanion applies the scenario's configuration to a companion.
+//
+// The companion equivalent of provisioning, and it exists because provisioning
+// is repeater CLI: a companion build has no CLI, so an imported companion kept
+// the firmware's default name, no radio and no scope while the fleet window
+// reported it configured. Everything here is the same settings a repeater gets,
+// sent over the interface a companion actually has.
+//
+// Callable only while connected - the port is claimed, so there is no separate
+// provisioning path fighting the tab for it.
+func (a *App) configureCompanion(node string) {
+	s := a.comps[node]
+	i := a.nodeIndex(node)
+	if s == nil || i < 0 {
+		return
+	}
+	n := a.Nodes[i]
+	r := n.Radio
+	_ = a.compSend(s, proto.SetRadioParams(
+		uint32(r.CentreHz/1000), uint32(r.BandwidthHz/1000),
+		uint8(r.SpreadFactor), uint8(r.CodingRate+4)))
+	_ = a.compSend(s, proto.SetTxPower(uint8(n.TxPowerDBm)))
+	if n.Name != "" {
+		_ = a.compSend(s, proto.SetAdvertName(truncateRunes(n.Name, maxNodeNameLen)))
+	}
+	if n.DefaultScope != "" {
+		_ = a.compSetScope(s, node, n.DefaultScope)
+	}
+	a.stepEngine(20)
+	// Read back rather than assume: what the node reports is what the run uses,
+	// and a command the firmware rejected is otherwise invisible.
+	_ = a.compSend(s, proto.AppStart("meshbench"))
+	_ = a.compSend(s, proto.GetDefaultScope())
+	a.stepEngine(10)
 }
