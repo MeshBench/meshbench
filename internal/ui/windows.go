@@ -230,11 +230,16 @@ func (a *App) drawMenuBar() {
 }
 
 // attachFirmware starts real MeshCore on every firmware-running node.
+//
+// Synchronous, and deliberately still so: it is the frame thread, and the
+// scenarios where that matters are the large ones, which is what startFirmware
+// is for. Callers that may be looking at hundreds of nodes should use that.
 func (a *App) attachFirmware() {
 	if a.eng == nil {
 		a.buildEngine()
 	}
-	if err := a.eng.AttachNative(context.Background(), a.runSeed()); err != nil {
+	if err := a.eng.AttachNativeProgress(context.Background(), a.runSeed(),
+		func(done, total int) { a.fwDone.Store(int32(done)); a.fwTotal.Store(int32(total)) }); err != nil {
 		// Reported, not fatal: AttachNative brings up everything it can, and
 		// the nodes that did start are still worth configuring.
 		a.status = err.Error()
@@ -893,4 +898,39 @@ func (a *App) drawPlanningMenu() {
 		a.fetchVisibleTerrain()
 	}
 	imgui.EndMenu()
+}
+
+// startFirmware starts firmware off the frame thread, reporting progress.
+//
+// Everything else that takes real time here - the import, the inference - was
+// already made asynchronous because a frozen window is indistinguishable from a
+// crashed one. Firmware start was not, and at 155 nodes it froze the workbench
+// for so long it was reported as a crash, which is fair: nothing moved, and the
+// control socket stopped answering because it is pumped from the same thread.
+func (a *App) startFirmware() {
+	if a.fwStarting.Load() {
+		return
+	}
+	if a.eng == nil {
+		a.buildEngine()
+	}
+	a.fwStarting.Store(true)
+	a.fwDone.Store(0)
+	a.fwTotal.Store(0)
+	seed := a.runSeed()
+	eng := a.eng
+	go func() {
+		err := eng.AttachNativeProgress(context.Background(), seed,
+			func(done, total int) { a.fwDone.Store(int32(done)); a.fwTotal.Store(int32(total)) })
+		a.fwErr.Store(&err)
+		a.fwStarting.Store(false)
+	}()
+}
+
+// firmwareProgress is what the window and the control socket both report.
+func (a *App) firmwareProgress() (starting bool, done, total int, err string) {
+	if e := a.fwErr.Load(); e != nil && *e != nil {
+		err = (*e).Error()
+	}
+	return a.fwStarting.Load(), int(a.fwDone.Load()), int(a.fwTotal.Load()), err
 }

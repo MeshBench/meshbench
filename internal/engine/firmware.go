@@ -3,6 +3,8 @@ package engine
 import (
 	"context"
 	"fmt"
+	"runtime"
+	"sync"
 	"time"
 
 	"github.com/A13xB0/meshcoresim/internal/firmware"
@@ -18,19 +20,88 @@ import (
 // Nodes that do not run firmware — SDR observers, and custom emitters that are
 // only present to interfere — are skipped rather than given one.
 func (e *Engine) AttachNative(ctx context.Context, seed uint64) error {
+	return e.AttachNativeProgress(ctx, seed, nil)
+}
+
+// AttachNativeProgress is AttachNative with a progress callback and bounded
+// concurrency.
+//
+// Both exist for the same reason: a Scotland-sized scenario is 155 nodes, and
+// starting them one at a time is minutes of work with nothing said about it.
+// Driven from the control socket, which runs on the frame thread, that is a
+// window frozen for the duration - indistinguishable from a crash, and reported
+// as one.
+//
+// progress is called from the calling goroutine's perspective at each
+// completion, with the count done and the total to do. It may be nil.
+func (e *Engine) AttachNativeProgress(ctx context.Context, seed uint64, progress func(done, total int)) error {
 	e.mu.Lock()
 	nodes := make([]*Node, len(e.nodes))
 	copy(nodes, e.nodes)
 	e.mu.Unlock()
 
+	// Resolving is per distinct build and hits the network on a cache miss, so
+	// it happens once, up front, rather than racing inside the workers.
 	resolved := map[string]string{}
-	attached, failed := 0, 0
-	var firstErr error
-
-	for i, n := range nodes {
+	var resolveErr error
+	todo := 0
+	for _, n := range nodes {
 		if !n.Spec.Kind.RunsFirmware() || n.Firmware != nil {
 			continue
 		}
+		todo++
+		role := n.Spec.Firmware.Role
+		if role == "" {
+			role = n.Spec.Kind.Application()
+		}
+		key := role + "@" + n.Spec.Firmware.Version
+		if _, ok := resolved[key]; ok {
+			continue
+		}
+		path, err := firmware.Resolve(ctx, "", role, n.Spec.Firmware.Version, firmware.DefaultCacheDir())
+		if err != nil {
+			if resolveErr == nil {
+				resolveErr = fmt.Errorf("%s: %w", n.Spec.Name, err)
+			}
+			continue
+		}
+		resolved[key] = path
+	}
+
+	// Bounded concurrency: the work is process startup and a socket handshake,
+	// so it is latency, not CPU, and running it one at a time wastes all of it.
+	// Bounded rather than unbounded because each one is a real process.
+	workers := runtime.NumCPU()
+	if workers > 12 {
+		workers = 12
+	}
+	if workers < 1 {
+		workers = 1
+	}
+
+	var mu sync.Mutex
+	attached, failed, done := 0, 0, 0
+	var firstErr = resolveErr
+
+	type job struct {
+		i int
+		n *Node
+	}
+	jobs := make(chan job)
+	var wg sync.WaitGroup
+
+	fail := func(err error) {
+		mu.Lock()
+		failed++
+		if firstErr == nil {
+			firstErr = err
+		}
+		mu.Unlock()
+	}
+
+	// work attaches one node. The caller has already filtered to nodes that
+	// need firmware, so there is nothing to skip here.
+	work := func(i int, n *Node) {
 		// A seed per node, derived from the run's seed and the node's index.
 		// Sharing one seed would give every node the same identity, and a mesh
 		// where every repeater has the same public key does not behave like a
@@ -50,18 +121,10 @@ func (e *Engine) AttachNative(ctx context.Context, seed uint64) error {
 		key := role + "@" + n.Spec.Firmware.Version
 		path, ok := resolved[key]
 		if !ok {
-			var err error
-			path, err = firmware.Resolve(ctx, "", role, n.Spec.Firmware.Version, firmware.DefaultCacheDir())
-			if err != nil {
-				// One node's missing build must not abandon the other two
-				// hundred: attach what can attach, and account for the rest.
-				failed++
-				if firstErr == nil {
-					firstErr = fmt.Errorf("%s: %w", n.Spec.Name, err)
-				}
-				continue
-			}
-			resolved[key] = path
+			// Its build did not resolve above. One node's missing build must
+			// not abandon the other two hundred.
+			fail(fmt.Errorf("%s: no build for %s", n.Spec.Name, key))
+			return
 		}
 		fw, err := firmware.Start(ctx, n.Spec.Name, &firmware.Native{
 			Path:    path,
@@ -72,11 +135,8 @@ func (e *Engine) AttachNative(ctx context.Context, seed uint64) error {
 			CodingRate: e.Config.CodingRate,
 		})
 		if err != nil {
-			failed++
-			if firstErr == nil {
-				firstErr = fmt.Errorf("start %s: %w", n.Spec.Name, err)
-			}
-			continue
+			fail(fmt.Errorf("start %s: %w", n.Spec.Name, err))
+			return
 		}
 		// Start returns once the process exists, not once it has connected. The
 		// engine ticks immediately afterwards, and a tick to a bridge with
@@ -84,11 +144,8 @@ func (e *Engine) AttachNative(ctx context.Context, seed uint64) error {
 		// it is the difference between working and not.
 		if err := waitAttached(ctx, fw, attachTimeout); err != nil {
 			_ = fw.Close()
-			failed++
-			if firstErr == nil {
-				firstErr = fmt.Errorf("%s: %w", n.Spec.Name, err)
-			}
-			continue
+			fail(fmt.Errorf("%s: %w", n.Spec.Name, err))
+			return
 		}
 
 		// A boot offset per node, so they do not all start their timers at the
@@ -107,21 +164,52 @@ func (e *Engine) AttachNative(ctx context.Context, seed uint64) error {
 		if e.StaggerBoot {
 			off = bootOffsetMs(seed, i)
 		}
-		if err := fw.Bridge.Advance(ctx, off); err != nil {
+		// Bounded, like the attach before it. This wait is why a Scotland-sized
+		// run froze the application outright: the node's process had gone, so
+		// the ack it waits for could never arrive, and the background context
+		// gave it no deadline to give up at.
+		advCtx, cancel := context.WithTimeout(ctx, attachTimeout)
+		err = fw.Bridge.Advance(advCtx, off)
+		cancel()
+		if err != nil {
 			_ = fw.Close()
-			failed++
-			if firstErr == nil {
-				firstErr = fmt.Errorf("%s: boot offset: %w", n.Spec.Name, err)
-			}
-			continue
+			fail(fmt.Errorf("%s: boot offset: %w", n.Spec.Name, err))
+			return
 		}
 
 		e.mu.Lock()
 		e.nodes[i].Firmware = fw
 		e.nodes[i].BootOffsetMs = off
 		e.mu.Unlock()
+		mu.Lock()
 		attached++
+		mu.Unlock()
 	}
+
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := range jobs {
+				work(j.i, j.n)
+				mu.Lock()
+				done++
+				d := done
+				mu.Unlock()
+				if progress != nil {
+					progress(d, todo)
+				}
+			}
+		}()
+	}
+	for i, n := range nodes {
+		if !n.Spec.Kind.RunsFirmware() || n.Firmware != nil {
+			continue
+		}
+		jobs <- job{i, n}
+	}
+	close(jobs)
+	wg.Wait()
 	if failed > 0 {
 		// A partial mesh is a different network, not a slightly worse one, so
 		// the caller hears exactly how partial. The nodes that did start stay

@@ -56,6 +56,12 @@ func (b *Bridge) WaitAdvance(ctx context.Context, atMs uint32) error {
 			if got > atMs {
 				return fmt.Errorf("firmware: %s acked %d ms, ahead of the requested %d", b.node, got, atMs)
 			}
+		case <-b.done:
+			// The node is gone. Without this the wait can only end at its
+			// deadline, and a caller that passed context.Background() waits for
+			// ever - which is exactly how a dead firmware process froze the
+			// whole application, frame thread and control socket together.
+			return fmt.Errorf("firmware: %s stopped before reaching %d ms: %w", b.node, atMs, ErrClosed)
 		case <-ctx.Done():
 			return fmt.Errorf("firmware: %s did not reach %d ms: %w", b.node, atMs, ctx.Err())
 		}

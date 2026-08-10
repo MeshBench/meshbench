@@ -71,6 +71,12 @@ type Bridge struct {
 	// behaving sends exactly one ack per tick, and a node that sends more is
 	// broken in a way Advance should surface rather than absorb.
 	acked chan uint32
+
+	// done is closed when the bridge is. Anything waiting on the node must
+	// select on it: a node whose process has gone will never ack, and a wait
+	// with no way to hear about that hangs for as long as its deadline allows -
+	// or for ever, if it was given none.
+	done chan struct{}
 }
 
 // Listen starts a bridge for one emulated node. Addr is typically
@@ -85,6 +91,7 @@ func Listen(addr, node string) (*Bridge, error) {
 		node:        node,
 		Transmitted: make(chan []byte, 32),
 		acked:       make(chan uint32, 1),
+		done:        make(chan struct{}),
 	}
 	go b.accept()
 	return b, nil
@@ -264,9 +271,13 @@ func (b *Bridge) Attached() bool {
 
 func (b *Bridge) Close() error {
 	b.mu.Lock()
+	wasOpen := !b.closed
 	b.closed = true
 	c := b.conn
 	b.mu.Unlock()
+	if wasOpen {
+		close(b.done)
+	}
 	if c != nil {
 		_ = c.Close()
 	}

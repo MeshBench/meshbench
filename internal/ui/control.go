@@ -201,11 +201,28 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 		return map[string]any{"seed": a.runSeed()}, nil
 
 	case "firmware.start":
-		a.attachFirmware()
-		if a.eng == nil {
-			return nil, fmt.Errorf("no engine")
+		// Asynchronous: this handler runs on the frame thread, so starting a
+		// few hundred real firmware processes here froze the window and the
+		// socket that was driving it. Poll firmware.state.
+		a.startFirmware()
+		starting, done, total, _ := a.firmwareProgress()
+		return map[string]any{"starting": starting, "done": done, "total": total}, nil
+
+	case "firmware.state":
+		starting, done, total, errText := a.firmwareProgress()
+		out := map[string]any{"starting": starting, "done": done, "total": total}
+		if errText != "" {
+			out["err"] = errText
 		}
-		return map[string]any{"running": a.eng.FirmwareCount()}, nil
+		if a.eng != nil {
+			out["running"] = a.eng.FirmwareCount()
+		}
+		if !starting && total > 0 {
+			// Configuration is the frame thread's job: it touches scenario
+			// state the draw code reads.
+			out["configured"] = a.applyStartupConfig()
+		}
+		return out, nil
 
 	case "console.type":
 		var p struct {
