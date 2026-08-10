@@ -25,9 +25,12 @@ type compSession struct {
 	node    string
 	release func()
 
-	mu       sync.Mutex
-	rx       []byte // partial frame from the firmware
-	frames   []proto.Frame
+	mu     sync.Mutex
+	rx     []byte // partial frame from the firmware
+	frames []proto.Frame
+	// lastCmd is the command byte most recently sent, so an error frame can
+	// name what was refused rather than only how.
+	lastCmd  byte
 	messages []proto.Message
 	channels []proto.ChannelInfo
 	contacts []proto.Contact
@@ -81,6 +84,8 @@ func (s *compSession) take(f proto.Frame) {
 		s.frames = s.frames[len(s.frames)-200:]
 	}
 	switch {
+	case f.Code == proto.RespErr:
+		s.err = f.Err + " (" + proto.CommandName(s.lastCmd) + ")"
 	case f.Code == proto.RespSent:
 		// The node has taken the message. Mark our own most recent unconfirmed
 		// one, so "sent" in the conversation means the firmware said so rather
@@ -130,6 +135,11 @@ func (a *App) compSend(s *compSession, payload []byte) error {
 	n, ok := a.eng.NodeByName(s.node)
 	if !ok || n.Firmware == nil {
 		return fmt.Errorf("%s runs no firmware", s.node)
+	}
+	if len(payload) > 0 {
+		s.mu.Lock()
+		s.lastCmd = payload[0]
+		s.mu.Unlock()
 	}
 	frame := make([]byte, 0, 3+len(payload))
 	frame = append(frame, '<')
@@ -588,7 +598,21 @@ func (a *App) configureCompanion(node string) {
 	_ = a.compSend(s, proto.SetRadioParams(
 		uint32(r.CentreHz/1000), uint32(r.BandwidthHz),
 		uint8(r.SpreadFactor), uint8(r.CodingRate+4)))
-	_ = a.compSend(s, proto.SetTxPower(uint8(n.TxPowerDBm)))
+	// Clamped to what this node says it can do. The firmware refuses a power
+	// above its ceiling outright rather than clamping it, and the refusal
+	// arrives as a bare error code well after the command that caused it - so
+	// asking a 20 dBm build for the scenario's 22 dBm produced an unexplained
+	// "firmware error 6" on every companion.
+	want := n.TxPowerDBm
+	s.mu.Lock()
+	self := s.self
+	s.mu.Unlock()
+	if self != nil && self.MaxTxPowerDBm > 0 && want > float64(self.MaxTxPowerDBm) {
+		a.status = fmt.Sprintf("%s: scenario asks for %.0f dBm, this build tops out at %d",
+			node, want, self.MaxTxPowerDBm)
+		want = float64(self.MaxTxPowerDBm)
+	}
+	_ = a.compSend(s, proto.SetTxPower(uint8(want)))
 	if n.Name != "" {
 		_ = a.compSend(s, proto.SetAdvertName(truncateRunes(n.Name, maxNodeNameLen)))
 	}

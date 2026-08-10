@@ -189,15 +189,16 @@ func DeviceQuery() []byte { return []byte{byte(CmdDeviceQuery), 3} }
 // SelfInfo is the reply to AppStart: who this node is and how its radio is
 // configured.
 type SelfInfo struct {
-	PublicKey  []byte
-	Name       string
-	AdvLat     float64
-	AdvLon     float64
-	FreqKHz    uint32
-	BWKHz      uint32
-	SF         uint8
-	CR         uint8
-	TxPowerDBm uint8
+	PublicKey     []byte
+	Name          string
+	AdvLat        float64
+	AdvLon        float64
+	FreqKHz       uint32
+	BWKHz         uint32
+	SF            uint8
+	CR            uint8
+	MaxTxPowerDBm uint8
+	TxPowerDBm    uint8
 }
 
 // ChannelInfo is one channel slot.
@@ -273,7 +274,7 @@ func Decode(frame []byte) (Frame, error) {
 
 	switch f.Code {
 	case RespErr:
-		f.Err = fmt.Sprintf("firmware error %d", firstOr(body, 0))
+		f.Err = ErrText(firstOr(body, 0))
 	case RespSelfInfo:
 		si, err := decodeSelfInfo(body)
 		if err != nil {
@@ -324,7 +325,15 @@ func decodeSelfInfo(b []byte) (*SelfInfo, error) {
 	if len(b) < 35 {
 		return nil, fmt.Errorf("proto: self info is %d bytes, need 35", len(b))
 	}
-	si := &SelfInfo{TxPowerDBm: b[1], PublicKey: append([]byte(nil), b[3:35]...)}
+	// b[0] is the advert type, b[1] the current power, b[2] the node's ceiling.
+	// The ceiling matters: the firmware refuses a power above it outright
+	// rather than clamping, so a client that does not read it asks for
+	// something impossible and gets ERR_CODE_ILLEGAL_ARG.
+	si := &SelfInfo{
+		TxPowerDBm:    b[1],
+		MaxTxPowerDBm: b[2],
+		PublicKey:     append([]byte(nil), b[3:35]...),
+	}
 	i := 35
 	if len(b) >= i+8 {
 		si.AdvLat = float64(int32(binary.LittleEndian.Uint32(b[i:]))) / 1e6
@@ -550,4 +559,63 @@ func SetChannel(idx uint8, name string, secret [16]byte) []byte {
 func SetDeviceTime(epoch uint32) []byte {
 	b := []byte{byte(CmdSetDeviceTime)}
 	return binary.LittleEndian.AppendUint32(b, epoch)
+}
+
+// ErrText names an error code.
+//
+// "firmware error 6" is true and useless: it says something was rejected
+// without saying what kind of wrong it was, and the codes are a short fixed
+// list the client already has to know.
+func ErrText(code byte) string {
+	switch code {
+	case 1:
+		return "firmware rejected the command as unsupported"
+	case 2:
+		return "firmware could not find what the command referred to"
+	case 3:
+		return "firmware table is full"
+	case 4:
+		return "firmware is in the wrong state for that"
+	case 5:
+		return "firmware storage error"
+	case 6:
+		return "firmware rejected an argument as out of range"
+	default:
+		return fmt.Sprintf("firmware error %d", code)
+	}
+}
+
+// CommandName names a command byte, for error messages.
+func CommandName(c byte) string {
+	switch Command(c) {
+	case CmdAppStart:
+		return "app start"
+	case CmdSendTxtMsg:
+		return "send message"
+	case CmdSendChannelTxtMsg:
+		return "send channel message"
+	case CmdGetContacts:
+		return "get contacts"
+	case CmdGetDeviceTime:
+		return "get time"
+	case CmdSetDeviceTime:
+		return "set time"
+	case CmdSendSelfAdvert:
+		return "send advert"
+	case CmdSetAdvertName:
+		return "set name"
+	case CmdSetRadioParams:
+		return "set radio"
+	case CmdSetRadioTxPower:
+		return "set tx power"
+	case CmdGetChannel:
+		return "get channel"
+	case CmdSetChannel:
+		return "set channel"
+	case CmdSetDefaultFloodScope:
+		return "set default scope"
+	case CmdGetDefaultFloodScope:
+		return "get default scope"
+	}
+	return fmt.Sprintf("command %d", c)
 }
