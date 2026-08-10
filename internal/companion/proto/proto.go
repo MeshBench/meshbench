@@ -16,6 +16,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -298,7 +299,8 @@ func Decode(frame []byte) (Frame, error) {
 		f.Contact = c
 	case RespChannelMsgRecv, RespContactMsgRecv, RespChannelMsgRecvV3, RespContactMsgRecvV3:
 		channel := f.Code == RespChannelMsgRecv || f.Code == RespChannelMsgRecvV3
-		m, err := decodeMessage(channel, body)
+		v3 := f.Code == RespChannelMsgRecvV3 || f.Code == RespContactMsgRecvV3
+		m, err := decodeMessage(channel, v3, body)
 		if err != nil {
 			return f, err
 		}
@@ -332,9 +334,13 @@ func decodeSelfInfo(b []byte) (*SelfInfo, error) {
 		i += 4
 	}
 	if len(b) >= i+10 {
-		// Both are stored in Hz here: the firmware multiplies its kHz
-		// preference by 1000 on the way out.
-		si.FreqKHz = binary.LittleEndian.Uint32(b[i:]) / 1000
+		// The two fields are not in the same unit, because the preferences
+		// they come from are not: the firmware sends freq = _prefs.freq * 1000
+		// where that preference is MHz, and bw = _prefs.bw * 1000 where that
+		// one is kHz. So frequency arrives in kHz and bandwidth in Hz, exactly
+		// mirroring what CMD_SET_RADIO_PARAMS expects. Dividing both by 1000
+		// reported an 869 MHz node as running on 0.869 MHz.
+		si.FreqKHz = binary.LittleEndian.Uint32(b[i:])
 		si.BWKHz = binary.LittleEndian.Uint32(b[i+4:]) / 1000
 		si.SF, si.CR = b[i+8], b[i+9]
 		i += 10
@@ -362,14 +368,30 @@ func decodeContact(b []byte) (*Contact, error) {
 	return c, nil
 }
 
-func decodeMessage(channel bool, b []byte) (*Message, error) {
-	if len(b) < 8 {
+// decodeMessage reads a received message.
+//
+// The v3 layout, from where the firmware builds it:
+//
+//	[snr][reserved][reserved][channel_idx][path_len][txt_type][timestamp:4][text]
+//
+// Older frames have neither the two reserved bytes nor path_len and txt_type.
+// Reading a v3 frame with the older layout starts the text six bytes early, so
+// every received message arrived with a few bytes of header glued to the front
+// of the sender's name.
+func decodeMessage(channel, v3 bool, b []byte) (*Message, error) {
+	if len(b) < 2 {
 		return nil, fmt.Errorf("proto: message is %d bytes", len(b))
 	}
 	m := &Message{Channel: channel}
 	m.SNRdB = float64(int8(b[0])) / 4
 	i := 1
+	if v3 {
+		i += 2 // reserved1, reserved2
+	}
 	if channel {
+		if len(b) <= i {
+			return nil, fmt.Errorf("proto: channel message with no channel")
+		}
 		m.ChannelIdx = b[i]
 		i++
 	} else {
@@ -379,13 +401,34 @@ func decodeMessage(channel bool, b []byte) (*Message, error) {
 		m.SenderKey = append([]byte(nil), b[i:i+6]...)
 		i += 6
 	}
+	if v3 {
+		if len(b) > i {
+			// 0xFF means it did not arrive by flood, so there is no path to
+			// report rather than a path of 255 hops.
+			if b[i] != 0xFF {
+				m.PathLen = int(b[i])
+			} else {
+				m.PathLen = -1
+			}
+			i++
+		}
+		if len(b) > i {
+			i++ // txt_type
+		}
+	}
 	if len(b) >= i+4 {
 		m.At = time.Unix(int64(binary.LittleEndian.Uint32(b[i:])), 0).UTC()
 		i += 4
 	}
 	if len(b) > i {
 		// "sender: text" for channel messages, bare text for direct ones.
-		m.Text = trimNUL(b[i:])
+		text := trimNUL(b[i:])
+		if channel {
+			if k := strings.Index(text, ": "); k > 0 {
+				m.SenderName, text = text[:k], text[k+2:]
+			}
+		}
+		m.Text = text
 	}
 	return m, nil
 }

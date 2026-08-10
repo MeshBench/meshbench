@@ -332,7 +332,15 @@ func (a *App) drawNodeWindowBody(i int) {
 		imgui.EndTabItem()
 	}
 	if _, ok := compTabName(string(n.Kind)); ok {
-		if imgui.BeginTabItem("Companion") {
+		// Select it when a connection has just been made, so connecting from
+		// outside lands on the tab that shows the result rather than leaving
+		// the window on Console with nothing apparently changed.
+		flags := imgui.TabItemFlagsNone
+		if a.compFocus[n.Name] {
+			flags = imgui.TabItemFlagsSetSelected
+			delete(a.compFocus, n.Name)
+		}
+		if imgui.BeginTabItemV("Companion", nil, flags) {
 			a.drawMiniCompanionTab(i)
 			imgui.EndTabItem()
 		}

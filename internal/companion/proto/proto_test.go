@@ -57,7 +57,9 @@ func TestDecodeSelfInfo(t *testing.T) {
 	lon := int32(-3741100)
 	b = binary.LittleEndian.AppendUint32(b, uint32(lon))
 	b = append(b, 0, 0, 0, 0) // multi_acks, loc policy, telemetry, manual add
-	b = binary.LittleEndian.AppendUint32(b, 869618*1000)
+	// As the firmware sends them: freq = _prefs.freq(MHz) * 1000, so kHz;
+	// bw = _prefs.bw(kHz) * 1000, so Hz. Two fields, two units.
+	b = binary.LittleEndian.AppendUint32(b, 869618)
 	b = binary.LittleEndian.AppendUint32(b, 62*1000)
 	b = append(b, 8, 8)
 	b = append(b, "Dunkeld Companion"...)
@@ -73,7 +75,7 @@ func TestDecodeSelfInfo(t *testing.T) {
 	if si.Name != "Dunkeld Companion" {
 		t.Fatalf("name = %q", si.Name)
 	}
-	if si.TxPowerDBm != 22 || si.SF != 8 || si.CR != 8 || si.FreqKHz != 869618 {
+	if si.TxPowerDBm != 22 || si.SF != 8 || si.CR != 8 || si.FreqKHz != 869618 || si.BWKHz != 62 {
 		t.Fatalf("radio = %+v", si)
 	}
 	if int(si.AdvLat*1000) != 56747 {
@@ -98,7 +100,7 @@ func TestUnknownResponseIsKept(t *testing.T) {
 }
 
 func TestDecodeChannelMessage(t *testing.T) {
-	b := []byte{byte(8), 24, 7} // channel msg, SNR 6 dB, channel 7
+	b := []byte{byte(8), 24, 7} // channel msg (pre-v3), SNR 6 dB, channel 7
 	b = binary.LittleEndian.AppendUint32(b, uint32(time.Now().Unix()))
 	b = append(b, "GM5JFC: testing"...)
 	f, err := proto.Decode(b)
@@ -108,10 +110,48 @@ func TestDecodeChannelMessage(t *testing.T) {
 	if f.Message == nil || !f.Message.Channel {
 		t.Fatal("not decoded as a channel message")
 	}
-	if f.Message.ChannelIdx != 7 || f.Message.Text != "GM5JFC: testing" {
+	if f.Message.ChannelIdx != 7 || f.Message.SenderName != "GM5JFC" || f.Message.Text != "testing" {
 		t.Fatalf("message = %+v", f.Message)
 	}
 	if f.Message.SNRdB != 6 {
 		t.Fatalf("snr = %v, want 6 (quarter-dB units)", f.Message.SNRdB)
+	}
+}
+
+// The v3 channel frame carries two reserved bytes, a path length and a text
+// type that the older one does not. Decoding it with the older layout starts
+// the text six bytes early, which is how received messages arrived with
+// fragments of their own header stuck to the sender's name.
+func TestDecodeChannelMessageV3(t *testing.T) {
+	b := []byte{17, 24, 0, 0, 7, 3, 0} // v3, SNR 6 dB, reserved x2, channel 7, 3 hops, plain
+	b = binary.LittleEndian.AppendUint32(b, uint32(time.Now().Unix()))
+	b = append(b, "GM5JFC: testing"...)
+	f, err := proto.Decode(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := f.Message
+	if m == nil || !m.Channel {
+		t.Fatal("not decoded as a channel message")
+	}
+	if m.ChannelIdx != 7 || m.SenderName != "GM5JFC" || m.Text != "testing" {
+		t.Fatalf("message = %+v", m)
+	}
+	if m.PathLen != 3 || m.SNRdB != 6 {
+		t.Fatalf("path/snr = %+v", m)
+	}
+}
+
+// 0xFF is the firmware's "this did not arrive by flood", not a 255-hop path.
+func TestV3DirectMessageHasNoPath(t *testing.T) {
+	b := []byte{17, 0, 0, 0, 1, 0xFF, 0}
+	b = binary.LittleEndian.AppendUint32(b, uint32(time.Now().Unix()))
+	b = append(b, "x: y"...)
+	f, err := proto.Decode(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.Message.PathLen != -1 {
+		t.Fatalf("path = %d, want -1 for a non-flood message", f.Message.PathLen)
 	}
 }

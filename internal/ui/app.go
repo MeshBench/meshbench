@@ -180,6 +180,9 @@ type App struct {
 	// comps are open mini-companion sessions, one per node, each holding
 	// that node's serial port; compUI is what their tab has typed into it.
 	comps map[string]*compSession
+	// compFocus marks node windows whose Companion tab should come to the
+	// front on the next frame.
+	compFocus map[string]bool
 
 	// Firmware start runs off the frame thread; these are how it reports back.
 	fwStarting atomic.Bool

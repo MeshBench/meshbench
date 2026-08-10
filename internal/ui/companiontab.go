@@ -153,6 +153,10 @@ func (a *App) compConnect(node string) error {
 	if !ok || n.Firmware == nil {
 		return fmt.Errorf("%s runs no firmware - press play with real firmware on", node)
 	}
+	if a.compFocus == nil {
+		a.compFocus = map[string]bool{}
+	}
+	a.compFocus[node] = true
 	s := &compSession{node: node}
 	s.release = n.Firmware.Bridge.Claim(s)
 	a.comps[node] = s
