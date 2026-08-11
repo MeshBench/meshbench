@@ -186,6 +186,12 @@ type App struct {
 	// quit is set by the control socket to close the workbench.
 	quit bool
 
+	// A status line can carry one action, so a message that tells you to run
+	// something can just run it.
+	statusAction string
+	statusDo     func()
+	fifoPath     string
+
 	// exp is the experiment being defined or run.
 	exp *experiment
 	// compQuiet suppresses window-opening while the runner claims senders.
@@ -699,9 +705,17 @@ func (a *App) drawStatusBar() {
 	switch {
 	case a.status != "":
 		textColoured(colWarn, a.status)
+		// A message that tells you to run something should be able to run it.
+		if a.statusAction != "" && a.statusDo != nil {
+			imgui.SameLine()
+			if imgui.SmallButton(a.statusAction) {
+				a.statusDo()
+			}
+		}
 		imgui.SameLine()
 		if imgui.SmallButton("dismiss") {
 			a.status = ""
+			a.statusAction, a.statusDo = "", nil
 		}
 	case a.companionAttached():
 		textColoured(colWarn, "1x locked: a companion client is attached, so simulated "+

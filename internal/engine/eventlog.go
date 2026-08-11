@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"sync/atomic"
 
 	"golang.org/x/sys/unix"
 )
@@ -126,7 +127,18 @@ func (e *Engine) StartCaptureFIFO(path string) error {
 	if err != nil {
 		return fmt.Errorf("engine: fifo: %w", err)
 	}
-	w, err := newCaptureOn(f)
+	// Written from a goroutine, and dropped rather than queued for ever when
+	// nothing is reading.
+	//
+	// A pipe holds 64 KB. Once it is full a write blocks until a reader drains
+	// it - and this writer runs on the frame thread, so a Wireshark that
+	// exited (or never started, because dumpcap was not permitted) froze the
+	// whole application with no indication why. Capture is a diagnostic: losing
+	// frames when nobody is looking at them is the correct trade.
+	w, err := newCaptureOn(newFIFOWriter(f))
+	if w != nil {
+		w.name = path
+	}
 	if err != nil {
 		_ = f.Close()
 		return err
@@ -139,4 +151,46 @@ func (e *Engine) StartCaptureFIFO(path string) error {
 		_ = old.close()
 	}
 	return nil
+}
+
+// fifoWriter is a non-blocking writer onto a pipe.
+//
+// It exists because the alternative froze the workbench: a full pipe blocks
+// its writer indefinitely, and the writer here is the thread that draws.
+type fifoWriter struct {
+	f       *os.File
+	ch      chan []byte
+	dropped atomic.Int64
+	once    sync.Once
+}
+
+func newFIFOWriter(f *os.File) *fifoWriter {
+	w := &fifoWriter{f: f, ch: make(chan []byte, 2048)}
+	go func() {
+		for b := range w.ch {
+			if _, err := w.f.Write(b); err != nil {
+				return
+			}
+		}
+	}()
+	return w
+}
+
+func (w *fifoWriter) Write(p []byte) (int, error) {
+	b := append([]byte(nil), p...)
+	select {
+	case w.ch <- b:
+	default:
+		// Nobody is draining. Say so through the counter rather than waiting.
+		w.dropped.Add(1)
+	}
+	return len(p), nil
+}
+
+// Dropped is how many frames were thrown away because nothing was reading.
+func (w *fifoWriter) Dropped() int64 { return w.dropped.Load() }
+
+func (w *fifoWriter) Close() error {
+	w.once.Do(func() { close(w.ch) })
+	return w.f.Close()
 }

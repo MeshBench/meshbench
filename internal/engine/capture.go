@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"sync"
 
@@ -16,8 +17,12 @@ import (
 // packet node A heard while node B did not is the most informative event in a
 // mesh, and no single receiver can record it.
 type Capture struct {
-	mu     sync.Mutex
-	f      *os.File
+	mu sync.Mutex
+	// sink is whatever the frames go to: a file, or a pipe writer that drops
+	// rather than blocking when nothing is reading it.
+	sink io.WriteCloser
+	// name is what to call this capture in the UI; a pipe has no Name().
+	name   string
 	w      *capture.PcapngWriter
 	ids    map[string]uint16
 	frames int
@@ -26,12 +31,12 @@ type Capture struct {
 // newCaptureOn wraps an already-open file in the pcapng writer — shared by
 // the file capture and the FIFO capture, which differ only in how the file
 // came to exist.
-func newCaptureOn(f *os.File) (*Capture, error) {
-	w, err := capture.NewPcapngWriter(f)
+func newCaptureOn(sink io.WriteCloser) (*Capture, error) {
+	w, err := capture.NewPcapngWriter(sink)
 	if err != nil {
 		return nil, fmt.Errorf("engine: capture: %w", err)
 	}
-	return &Capture{f: f, w: w, ids: map[string]uint16{}}, nil
+	return &Capture{sink: sink, w: w, ids: map[string]uint16{}}, nil
 }
 
 // StartCapture begins writing to path, replacing anything already there.
@@ -41,6 +46,9 @@ func (e *Engine) StartCapture(path string) error {
 		return fmt.Errorf("engine: capture: %w", err)
 	}
 	c, err := newCaptureOn(f)
+	if c != nil {
+		c.name = path
+	}
 	if err != nil {
 		_ = f.Close()
 		return err
@@ -65,7 +73,7 @@ func (e *Engine) StopCapture() (path string, frames int, err error) {
 		return "", 0, nil
 	}
 	c.mu.Lock()
-	path, frames = c.f.Name(), c.frames
+	path, frames = c.name, c.frames
 	c.mu.Unlock()
 	return path, frames, c.close()
 }
@@ -77,17 +85,17 @@ func (e *Engine) CapturePath() string {
 	if e.capture == nil {
 		return ""
 	}
-	return e.capture.f.Name()
+	return e.capture.name
 }
 
 func (c *Capture) close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.f == nil {
+	if c.sink == nil {
 		return nil
 	}
-	f := c.f
-	c.f = nil
+	f := c.sink
+	c.sink = nil
 	return f.Close()
 }
 
@@ -106,7 +114,7 @@ func (c *Capture) write(atMs uint32, from, to string, p phy, rssi, snr float64,
 	outcome capture.Outcome, crcOK bool, frame []byte) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.f == nil {
+	if c.sink == nil {
 		return
 	}
 	crc := uint8(0)
@@ -127,8 +135,8 @@ func (c *Capture) write(atMs uint32, from, to string, p phy, rssi, snr float64,
 	if err := c.w.WritePacket(uint64(atMs)*1000, h, frame); err != nil {
 		// A capture that cannot be written is closed rather than retried every
 		// packet: a full disk should cost one message, not a million.
-		_ = c.f.Close()
-		c.f = nil
+		_ = c.sink.Close()
+		c.sink = nil
 		return
 	}
 	c.frames++

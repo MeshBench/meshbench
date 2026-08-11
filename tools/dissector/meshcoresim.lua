@@ -103,11 +103,20 @@ local payload_names = {
 local f_route   = ProtoField.uint8("meshcore.route", "Route type", base.DEC, route_names, 0x03)
 local f_payload = ProtoField.uint8("meshcore.payload_type", "Payload type", base.DEC, payload_names, 0x3C)
 local f_version = ProtoField.uint8("meshcore.version", "Version", base.DEC, nil, 0xC0)
-local f_hops    = ProtoField.uint8("meshcore.hops", "Hop count", base.DEC)
-local f_path    = ProtoField.bytes("meshcore.path", "Path hashes")
+local f_hops    = ProtoField.uint8("meshcore.hops", "Hop count", base.DEC, nil, 0x3F)
+local f_hashsz  = ProtoField.uint8("meshcore.path_hash_size", "Path hash size (bytes)", base.DEC, nil, 0xC0)
+local f_path    = ProtoField.bytes("meshcore.path", "Path")
+local f_hop     = ProtoField.bytes("meshcore.hop", "Hop")
+local f_scope   = ProtoField.uint16("meshcore.transport_scope", "Transport scope code", base.HEX)
+local f_ret     = ProtoField.uint16("meshcore.transport_return", "Transport return code", base.HEX)
 local f_body    = ProtoField.bytes("meshcore.payload", "Payload")
+local f_txttype = ProtoField.uint8("meshcore.txt_type", "Text type", base.DEC,
+  { [0]="plain", [1]="CLI data", [2]="signed plain" })
+local f_chan    = ProtoField.uint8("meshcore.channel_hash", "Channel hash", base.HEX)
+local f_stamp   = ProtoField.uint32("meshcore.timestamp", "Sender timestamp", base.DEC)
 
-mc.fields = { f_route, f_payload, f_version, f_hops, f_path, f_body }
+mc.fields = { f_route, f_payload, f_version, f_hops, f_hashsz, f_path, f_hop,
+              f_scope, f_ret, f_body, f_txttype, f_chan, f_stamp }
 
 -- Filterable by all of the above, so Wireshark's own filter bar is the deep
 -- analysis surface: `meshcore.payload_type == 4 && meshcoresim.snr < 0` is
@@ -122,17 +131,70 @@ function mc.dissector(buf, pinfo, tree)
 
   local route = bit.band(hdr:uint(), 0x03)
   local i = 1
-  if route == 0 or route == 3 then i = i + 4 end  -- transport codes
+
+  -- Transport codes, on scoped packets only: the scope the sender used and the
+  -- one it wants replies under. Two bytes each, little endian. Worth naming
+  -- rather than skipping - on a mesh like ScotMesh the scope *is* the routing,
+  -- and "which packets carried this code" is the first question asked of a
+  -- capture.
+  if route == 0 or route == 3 then
+    if buf:len() < i + 4 then return buf:len() end
+    t:add_le(f_scope, buf(i, 2))
+    t:add_le(f_ret, buf(i + 2, 2))
+    i = i + 4
+  end
   if buf:len() < i + 1 then return buf:len() end
 
-  local path_len = buf(i, 1):uint()
+  -- The path length byte is not a byte count.
+  --
+  -- Its top two bits are the hash size minus one, and only the low six are the
+  -- hop count: path bytes = hops x (size + 1). Reading it as a plain length
+  -- mis-parses every packet whose hashes are wider than one byte, which on a
+  -- mesh using 2- or 3-byte hashes is all of them - the payload then starts at
+  -- the wrong offset and everything after it is nonsense. This is the same bug
+  -- that lost a whole region during the ScotMesh study, and Packet.h is the
+  -- authority: (path_len >> 6) + 1 and (path_len & 63).
+  local plb = buf(i, 1)
+  local hash_size = bit.rshift(plb:uint(), 6) + 1
+  local hops = bit.band(plb:uint(), 0x3F)
+  local path_bytes = hops * hash_size
+  t:add(f_hops, plb)
+  t:add(f_hashsz, plb):append_text(" (" .. hash_size .. ")")
   i = i + 1
-  if buf:len() < i + path_len then return buf:len() end
-  t:add(f_hops, buf(i - 1, 1), path_len)
-  if path_len > 0 then t:add(f_path, buf(i, path_len)) end
-  i = i + path_len
+  if buf:len() < i + path_bytes then return buf:len() end
 
-  if buf:len() > i then t:add(f_body, buf(i)) end
-  pinfo.cols.info:append(" " .. (payload_names[bit.rshift(bit.band(hdr:uint(), 0x3C), 2)] or "?"))
+  if path_bytes > 0 then
+    local pt = t:add(f_path, buf(i, path_bytes))
+    pt:append_text(string.format("  %d hop(s) x %d byte(s)", hops, hash_size))
+    -- Each hop on its own, so a path can be read as a route rather than as a
+    -- run of bytes.
+    for h = 0, hops - 1 do
+      pt:add(f_hop, buf(i + h * hash_size, hash_size)):prepend_text("#" .. (h + 1) .. " ")
+    end
+  end
+  i = i + path_bytes
+
+  local ptype = bit.rshift(bit.band(hdr:uint(), 0x3C), 2)
+  if buf:len() > i then
+    local body = t:add(f_body, buf(i))
+    -- Group text is the one worth breaking out: it is what a companion sends
+    -- to a hashtag channel, and the channel hash is how a receiver decides
+    -- whether the message is even for it.
+    if ptype == 5 and buf:len() >= i + 6 then
+      body:add(f_chan, buf(i, 1))
+      body:add_le(f_stamp, buf(i + 2, 4))
+      if buf:len() > i + 6 then
+        body:add(f_txttype, buf(i + 1, 1))
+      end
+    end
+  end
+
+  pinfo.cols.info:append(" " .. (payload_names[ptype] or "?"))
+  if hops > 0 then
+    pinfo.cols.info:append(string.format("  %dh/%db", hops, hash_size))
+  end
+  if route == 0 or route == 3 then
+    pinfo.cols.info:append(" scoped")
+  end
   return buf:len()
 end

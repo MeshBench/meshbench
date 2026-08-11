@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/AllenDang/cimgui-go/imgui"
@@ -73,8 +74,10 @@ func (a *App) drawMenuBar() {
 			if err := a.eng.StartCaptureFIFO(fifo); err != nil {
 				a.status = err.Error()
 			} else {
-				a.status = "streaming to " + fifo + " - run: wireshark -k -i " + fifo +
-					" -X lua_script:tools/dissector/meshcoresim.lua"
+				a.fifoPath = fifo
+				a.status = "streaming to " + fifo
+				a.statusAction = "open Wireshark"
+				a.statusDo = func() { a.launchWireshark(fifo) }
 			}
 		}
 		if imgui.IsItemHovered() {
@@ -941,4 +944,44 @@ func (a *App) firmwareProgress() (starting bool, done, total int, err string) {
 		err = (*e).Error()
 	}
 	return a.fwStarting.Load(), int(a.fwDone.Load()), int(a.fwTotal.Load()), err
+}
+
+// launchWireshark starts it on the live pipe, with the dissector.
+//
+// The status bar used to print a command to copy. It had a relative path to
+// the Lua script, which only works if you happen to be in the source tree, and
+// it left the operator to discover for themselves that Wireshark cannot read a
+// pipe without permission to run dumpcap.
+func (a *App) launchWireshark(fifo string) {
+	lua := dissectorPath()
+	cmd := exec.Command("wireshark", "-k", "-i", fifo, "-X", "lua_script:"+lua)
+	if err := cmd.Start(); err != nil {
+		a.status = "could not start Wireshark: " + err.Error()
+		return
+	}
+	go func() { _ = cmd.Wait() }()
+	a.status = "Wireshark started on " + fifo
+	a.statusAction, a.statusDo = "", nil
+}
+
+// dissectorPath finds the Lua dissector, absolutely.
+//
+// Beside the binary first, then the source tree, because a relative path in a
+// command somebody pastes elsewhere silently loads no dissector at all and the
+// frames arrive looking like nothing.
+func dissectorPath() string {
+	const name = "meshcoresim.lua"
+	if exe, err := os.Executable(); err == nil {
+		p := filepath.Join(filepath.Dir(exe), "dissector", name)
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	if wd, err := os.Getwd(); err == nil {
+		p := filepath.Join(wd, "tools", "dissector", name)
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return filepath.Join("tools", "dissector", name)
 }
