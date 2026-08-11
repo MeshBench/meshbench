@@ -98,6 +98,13 @@ waveforms and lets the demodulator decide what survives.
 QEMU with an SX1262 attached to its SPI bus. Nothing is compiled. The boundary
 moves down by four layers.
 
+This works today for **ESP32 only**, and for one board. That matters, because
+ESP32 is not the whole ecosystem: of MeshCore's 87 board variants, 40 are ESP32
+family, **36 are nRF52840** — RAK4631, Heltec T114, LilyGo T-Echo, XIAO nRF52,
+T1000-E, ThinkNode, Wio Tracker — and the rest are RP2040, STM32 and ESP32-C6.
+Half the hardware people own is ARM. See *Architectures* below for where each
+one stands.
+
 ```
   the same stack, running the image off the flasher     EMULATED
 
@@ -135,6 +142,42 @@ silicon would. The model starts at the far side of the SPI wire rather than at
 the driver. Below that line, both backends share the same virtual chip and the
 same channel — which is what makes a native run and an emulated one comparable
 at all.
+
+### Architectures
+
+Emulation is per architecture *and* per board, and the honest position differs
+by tier. A board joins the verified list when someone has watched its published
+image come up, not when its MCU is supported.
+
+| architecture | boards | what runs | state |
+|---|---|---|---|
+| ESP32 family (Xtensa) | 40 | the published `.bin`, byte for byte, under QEMU | working, one board verified |
+| nRF52840 (Cortex-M4) | 36 | our own SoftDevice-free ARM build, under Renode | mesh stack runs; radio being wired |
+| RP2040 (Cortex-M0+) | 4 | — | not started |
+| STM32 (Cortex-M4) | 4 | — | not started |
+| ESP32-C6 (RISC-V) | 3 | — | not started |
+
+**The nRF52 published binaries cannot be run, and that is a finding rather than
+a gap in the work.** They are linked above a Nordic SoftDevice and make 119 SVC
+calls into it; without one they execute the stack-fill pattern and die at
+`0xA5A5A5A4`. Adding FICR, then PWM0–3, left the instruction count at *exactly*
+233,455 both times — identical counts proving those peripherals were never on
+the path, and disproving two of our own diagnoses. Supplying the real s140 6.1.1
+gets past it, and then parks in an idle loop inside a proprietary binary Renode
+does not claim to emulate faithfully. That is open-ended with no guaranteed end.
+
+So the ARM path runs a **SoftDevice-free build of the same MeshCore source**
+instead. It is not the flashed bytes and is not described as if it were — but it
+is real `Mesh`, `Dispatcher`, `Packet`, Ed25519 and AES compiled for Cortex-M4,
+which catches compiler, word-size and codegen differences the host build cannot.
+`simple_repeater` contains no BLE code at all; the SoftDevice comes from the
+Adafruit core's linker layout, not from anything the repeater calls.
+
+All three paths share one chip model. `VirtualSX1262` runs in process for a
+native node, and `radioserver` puts the same object behind a socket for QEMU and
+Renode. That is deliberate: two models of one chip must agree for ever, and the
+first time they drift, every comparison between an ARM node and an ESP32 node
+measures our code rather than MeshCore's.
 
 ### Use native unless you need what emulation buys
 
