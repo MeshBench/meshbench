@@ -77,7 +77,18 @@ func (k Kind) RunsFirmware() bool { return k != SDRObserver && k != Emitter }
 type FirmwareRef struct {
 	Role    string
 	Version string
+
+	// Board names the hardware this node emulates, and empty means the host
+	// build. It is what decides which of the two backends runs the node, so it
+	// belongs on the node rather than being inferred later: a scenario that
+	// mixes emulated and native nodes is the point of having both, and a reader
+	// must never have to guess which a node is.
+	Board string
 }
+
+// Emulated reports whether this node runs published hardware firmware rather
+// than a build for this machine.
+func (f FirmwareRef) Emulated() bool { return f.Board != "" }
 
 // Node is one placed thing in a scenario.
 type Node struct {
