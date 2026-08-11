@@ -211,6 +211,102 @@ Three traps, all paid for:
   "no difference" for a whole session before anyone noticed the metric could not
   see it.
 
+## Emulation: running the bytes people flash
+
+Two backends run MeshCore. **Native** compiles it for the host and is what
+everything so far is built on. **Emulated** runs the published board image
+unmodified, under QEMU, and exists as the cross-check on the native one
+(ADR-0010).
+
+The emulated path works as far as the radio initialising. It is not yet a node
+on a mesh: nothing joins the chip to the RF engine, so it transmits into nowhere
+and never receives.
+
+### Where the pieces live
+
+| | |
+|---|---|
+| QEMU with our SX1262, GPIO and fixes | `A13xB0/qemu` branch `meshbench-sx1262` |
+| The chip model, and the socket server | `meshcore-native`, `VirtualSX1262` + `bridge/radioserver.cpp` |
+| Per-board wiring | `internal/scenario/boards.go`, `QEMUWiring` |
+
+Build QEMU with **`--enable-gcrypt`** or the `esp32` machine dies with
+`unknown type 'misc.esp32.rsa'`: the RSA device is gated on gcrypt while the
+machine references it unconditionally.
+
+    ./configure --target-list=xtensa-softmmu --disable-werror --enable-slirp --enable-gcrypt
+
+### Only plain ESP32, and only some boards
+
+`hw/xtensa/esp32.c` instantiates SPI0 to SPI3, so a radio has a bus to sit on.
+**ESP32-S3 models only `spi1`**, the flash controller, so an S3 board needs a
+GP-SPI controller written before anything can be attached. Published nRF52
+images are linked above a proprietary Nordic SoftDevice and are out of scope.
+
+Board wiring is **per board and verified per board**, never inferred from the
+MCU. `Heltec_v2` carries an **SX1276**, not an SX1262, despite sitting beside
+the V3 in every shop — its firmware speaks SX127x register access, and the
+giveaway is the firmware sending `0x42`, which is RegVersion on an SX127x.
+`EmulatableBoards()` returns what can run and why the rest cannot.
+
+### Three things that are not obvious and cost hours
+
+**RadioLib drives NSS as an ordinary GPIO**, not the SPI controller's chip
+select. Without NSS the controller clocks bytes one at a time and the chip gets
+an unframed byte stream it cannot answer, so the driver reports no chip. The
+GPIO model had an empty write handler and had to be implemented.
+
+**Arduino's default-constructed `SPIClass` is HSPI**, controller 2 — not VSPI.
+`std_init(NULL)` picks the global `SPI` (VSPI); `static SPIClass spi;` does not.
+
+**A merged image's flash-size header is at 0x1000**, not 0, because the image
+starts with padding. Read it from the wrong offset and you pad to the wrong
+size and get `Detected size(4096k) smaller than the size in the binary image
+header(8192k)`. QEMU accepts only 2/4/8/16 MB images.
+
+### Two bugs in Espressif's QEMU
+
+Both in the SPI model, both affecting any non-flash peripheral:
+
+- **RX bounds check** indexed by the transferred byte's value instead of the
+  loop position, so replies were dropped whenever the byte just sent was
+  numerically larger than the read length. Already fixed by their open PR #144,
+  which is cherry-picked onto our branch with authorship intact.
+- **Stale command-phase bitlen**: the USR path enabled a command phase when
+  `SPI_USER.COMMAND` *or* a leftover `COMMAND_BITLEN` was set, injecting a
+  spurious `0x00` in front of every transfer. Ours, not reported yet.
+
+### The chip model is clocked two ways and must agree
+
+`VirtualSX1262` takes a whole buffer for the native path and single bytes for
+the emulated one. `variants/host/streaming_test.cpp` holds the two to identical
+answers; if they ever diverge, an emulated node is a different radio from a
+native one and any comparison measures our code rather than MeshCore's.
+
+That test immediately found `GetPacketStatus` guarding its fields one byte too
+strictly, so `signalRssiPkt` read zero on every native run.
+
+## Working on the desktop app
+
+**Never launch it with `go run`.** That recompiles cimgui-go's cgo every time,
+which is three minutes per restart. Build once and run the binary:
+
+    go build -o /tmp/msim ./cmd/meshcoresim && /tmp/msim workbench
+
+That takes a restart to about eight seconds, which matters when the thing being
+checked is a layout.
+
+**Screenshots need a Wayland grabber.** The session is KDE Wayland and the app
+renders there, not on Xwayland, so `ffmpeg -f x11grab -i :1` captures a solid
+black screen that looks like a crashed application. Use
+`spectacle -b -n -f -o /tmp/shot.png`.
+
+**Look at the window before claiming it works.** One pass over the firmware
+library found it taking a viewport of its own and being sized to the display,
+two tables with fixed pixel heights that would not scale, and a window created
+without `WindowFlagsMenuBar` — which silently costs it `panelChrome`, and with
+it the pop-out and dock verbs.
+
 ## Before you report any number
 
 **The model is optimistic, and you must say so.** It omits multipath, fading,
