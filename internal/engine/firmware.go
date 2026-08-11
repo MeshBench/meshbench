@@ -237,9 +237,19 @@ const attachTimeout = 10 * time.Second
 // two minutes of firmware, radio driver and virtual chip. The floor keeps a
 // zero offset from having no patience at all.
 func bootAdvanceTimeout(offsetMs uint32) time.Duration {
-	d := time.Duration(offsetMs) * time.Millisecond * 2
-	if d < attachTimeout {
-		return attachTimeout
+	// Twenty times the simulated span, with a generous floor.
+	//
+	// The factor is not caution, it is measurement: a dozen nodes advance
+	// concurrently, each running MeshCore's loop, its driver, RadioLib and a
+	// virtual chip for every simulated millisecond, and together they run
+	// several times slower than real time. A factor of two failed all 154 nodes
+	// on a five-second offset.
+	//
+	// Generous on purpose. This deadline exists to turn a hang into an error,
+	// not to police performance - if it ever fires, something is stuck.
+	d := time.Duration(offsetMs) * time.Millisecond * 20
+	if d < 60*time.Second {
+		return 60 * time.Second
 	}
 	return d
 }
@@ -309,8 +319,8 @@ func bootOffsetMs(seed uint64, i int) uint32 {
 // pile of SPI, and 154 nodes drawing from a two-minute window took half an hour
 // to attach.
 //
-// Fifteen seconds keeps what the stagger is for. The point was never the width
-// of the window but that nodes do not all start their advert timers on the same
-// millisecond, which a fifteen-second spread breaks just as thoroughly - and
-// MeshCore jitters its adverts on top of this anyway.
-const bootSpreadMs = 15_000
+// Eight seconds keeps what the stagger is for. The point was never the width of
+// the window but that nodes do not all start their advert timers on the same
+// millisecond, which eight seconds breaks just as thoroughly - and MeshCore
+// jitters its adverts on top of this anyway.
+const bootSpreadMs = 8_000
