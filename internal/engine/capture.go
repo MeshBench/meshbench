@@ -54,11 +54,24 @@ func newCaptureOn(sink io.WriteCloser) (*Capture, error) {
 // The payload is the same pseudo-header and frame the pcapng link layer
 // carries, so one dissector reads both.
 func (e *Engine) StartCaptureUDP(addr string) error {
-	conn, err := net.Dial("udp", addr)
+	dst, err := net.ResolveUDPAddr("udp", addr)
 	if err != nil {
 		return fmt.Errorf("engine: udp capture: %w", err)
 	}
-	c := &Capture{sink: conn, name: addr, ids: map[string]uint16{}, udp: true}
+	// Unconnected, and errors ignored on write.
+	//
+	// Nothing binds this port: Wireshark sniffs the interface, it does not
+	// listen. A *connected* UDP socket is told about the resulting ICMP port
+	// unreachable and fails its next write, so the first datagram of every run
+	// went out and the second killed the capture - one packet per run, which
+	// reads as a simulator that has stopped forwarding. An unconnected socket
+	// has no such conversation.
+	conn, err := net.ListenPacket("udp", "127.0.0.1:0")
+	if err != nil {
+		return fmt.Errorf("engine: udp capture: %w", err)
+	}
+	c := &Capture{sink: &udpSink{conn: conn, dst: dst}, name: addr,
+		ids: map[string]uint16{}, udp: true}
 	e.mu.Lock()
 	old := e.capture
 	e.capture = c
@@ -174,10 +187,9 @@ func (c *Capture) write(atMs uint32, from, to string, p phy, rssi, snr float64,
 		buf = append(buf, to...)
 		buf = append(buf, h.Encode()...)
 		buf = append(buf, frame...)
-		if _, err := c.sink.Write(buf); err != nil {
-			_ = c.sink.Close()
-			c.sink = nil
-		}
+		// Errors are not a reason to stop: there is no receiver to fail, only a
+		// sniffer that may or may not be watching.
+		_, _ = c.sink.Write(buf)
 		c.frames++
 		return
 	}
@@ -193,3 +205,12 @@ func (c *Capture) write(atMs uint32, from, to string, p phy, rssi, snr float64,
 	}
 	c.frames++
 }
+
+// udpSink writes datagrams at a fixed address without connecting to it.
+type udpSink struct {
+	conn net.PacketConn
+	dst  net.Addr
+}
+
+func (u *udpSink) Write(p []byte) (int, error) { return u.conn.WriteTo(p, u.dst) }
+func (u *udpSink) Close() error                { return u.conn.Close() }
