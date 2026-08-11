@@ -45,6 +45,12 @@ type EmulatedNode struct {
 	FlashMB  int
 	NodeName string
 
+	// Bridge is the engine's listener for this node, host:port. Empty leaves
+	// the node deaf and mute: it will boot and initialise its radio and then
+	// wait for ever on a transmission that cannot complete, which looks like a
+	// hang rather than like a missing argument.
+	Bridge string
+
 	// Dir is where the socket and logs live for this node.
 	Dir string
 
@@ -92,7 +98,11 @@ func (e *EmulatedNode) Start(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	e.radio = exec.CommandContext(ctx, radioBin, e.sock)
+	radioArgs := []string{e.sock}
+	if e.Bridge != "" {
+		radioArgs = append(radioArgs, "--bridge", e.Bridge)
+	}
+	e.radio = exec.CommandContext(ctx, radioBin, radioArgs...)
 	e.radio.Stdout, e.radio.Stderr = radioLog, radioLog
 	if err := e.radio.Start(); err != nil {
 		return fmt.Errorf("firmware: starting the radio model: %w", err)
