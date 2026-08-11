@@ -56,9 +56,50 @@ type Board struct {
 	// not fail at run time.
 	Emulated bool
 
+	// QEMU is how to wire this board up under emulation, where we can.
+	//
+	// Nil means we have not established it. It is deliberately per board rather
+	// than per MCU: the radio sits on a different SPI controller and different
+	// pins from one board to the next, and getting it wrong looks exactly like
+	// a chip that is not there.
+	QEMU *QEMUWiring
+
 	// Notes carries anything an engineer would want to know before trusting a
 	// figure here.
 	Notes string
+}
+
+// QEMUWiring is everything an emulated node needs beyond its firmware image.
+//
+// The values come from the board's own MeshCore variant configuration, because
+// that is what the firmware was compiled against. Guessing them from the MCU
+// does not work: "Heltec V2" and "Heltec V3" differ by an SX1276 against an
+// SX1262, and a board whose radio is on the wrong SPI controller produces a
+// driver that reports no chip, which reads as a broken emulator rather than a
+// wrong pin number.
+type QEMUWiring struct {
+	// Machine is the QEMU machine type, e.g. "esp32".
+	Machine string
+
+	// SPI is which controller the radio hangs off. Arduino's default-constructed
+	// SPIClass is HSPI, which is controller 2, and that is what most of these
+	// boards get by passing it to std_init.
+	SPI int
+
+	// NSS and Busy are GPIOs, not the SPI controller's own lines: RadioLib
+	// toggles the chip select by hand. NSS is what frames a command, since the
+	// controller clocks bytes out one transfer at a time.
+	NSS  int
+	Busy int
+
+	// LED is the pin the firmware blinks, where the board has one worth
+	// showing. Zero means none recorded.
+	LED int
+
+	// Verified records that firmware for this board has actually been booted
+	// with this wiring and driven the radio, rather than the numbers having
+	// been read off a config file and assumed.
+	Verified bool
 }
 
 // Load returns this board's electrical model.
@@ -106,7 +147,36 @@ var boards = []Board{
 		Emulated: false,
 		Notes: "Very common and not a good repeater: the stock spring antenna is well " +
 			"below a dipole, and sleep current is dominated by the board rather than " +
-			"the MCU. Emulation blocked on an ESP32-side SX1262 model.",
+			"the MCU. Not emulated: QEMU's ESP32-S3 machine models only the flash SPI " +
+			"controller, so there is no bus for the radio to sit on. The plain-ESP32 " +
+			"machine models SPI0 to SPI3 and does work.",
+	},
+	{
+		// The first board driven end to end under emulation, which is why it is
+		// here rather than for being popular.
+		Name: "Generic_E22_sx1262", MCU: "ESP32", Radio: "SX1262", Vendor: "Ebyte",
+		MaxTxDBm: 22, FeedlineDB: 1.0, AntennaDBi: 2.15,
+		SensitivityDBm: -137, NoiseFigureDB: 6, SleepUA: 250,
+		Battery:  energy.Battery{Chemistry: energy.LiIon, CapacityMAh: 2000, Cells: 1, CutoffV: 3.2},
+		Emulated: true,
+		QEMU: &QEMUWiring{
+			Machine: "esp32", SPI: 2, NSS: 18, Busy: 32, LED: 2, Verified: true,
+		},
+		Notes: "An E22 module on a devkit rather than a product, so the antenna figure " +
+			"assumes the external whip the module is designed for. The published " +
+			"repeater image boots and runs RadioLib's full SX126x init sequence under " +
+			"emulation: version read, LoRa mode, modulation and IRQ setup.",
+	},
+	{
+		Name: "Heltec_v2", MCU: "ESP32", Radio: "SX1276", Vendor: "Heltec",
+		MaxTxDBm: 20, FeedlineDB: 1.2, AntennaDBi: -1,
+		SensitivityDBm: -136, NoiseFigureDB: 7, SleepUA: 250,
+		Battery:  energy.Battery{Chemistry: energy.LiIon, CapacityMAh: 2000, Cells: 1, CutoffV: 3.2},
+		Emulated: false,
+		Notes: "Carries an SX1276, not an SX1262, despite sitting next to the V3 in " +
+			"every shop. Its firmware speaks SX127x register access rather than " +
+			"SX126x commands, so the radio model does not answer it. Recorded here " +
+			"because the name invites exactly that mistake.",
 	},
 	{
 		Name: "Heltec_mesh_solar", MCU: "ESP32-S3", Radio: "SX1262", Vendor: "Heltec",
@@ -183,15 +253,32 @@ func BoardByName(name string) (Board, error) {
 		name, strings.Join(names, ", "))
 }
 
-// EmulatableBoards are the ones whose firmware can be run under emulation
-// today. Worth asking before building a scenario around one that cannot.
-func EmulatableBoards() []string {
-	var out []string
-	for _, b := range boards {
-		if b.Emulated {
-			out = append(out, b.Name)
+// EmulatableBoards is what the firmware picker should offer for an emulated
+// node, and why the rest are missing.
+//
+// This replaced a version that returned names only. The reasons are the point:
+// a board is missing for a specific reason and the operator should be told it.
+//
+// Returned together on purpose. A picker that silently lists three boards out of
+// ninety reads as a broken feature; one that says "SX1268 radio, not modelled"
+// reads as a fact, and the operator stops looking for the option.
+func EmulatableBoards() (ok []Board, blocked map[string]string) {
+	blocked = map[string]string{}
+	for _, b := range Boards() {
+		switch {
+		case b.QEMU != nil && b.QEMU.Verified:
+			ok = append(ok, b)
+		case b.QEMU != nil:
+			blocked[b.Name] = "wiring recorded but never booted"
+		case b.Radio != "SX1262":
+			blocked[b.Name] = b.Radio + " radio, not modelled"
+		case b.MCU == "ESP32-S3" || b.MCU == "ESP32-C3" || b.MCU == "ESP32-C6":
+			blocked[b.Name] = b.MCU + " has no general-purpose SPI in QEMU"
+		case strings.HasPrefix(b.MCU, "nRF52"):
+			blocked[b.Name] = "published nRF52 images need a Nordic SoftDevice"
+		default:
+			blocked[b.Name] = "no emulation wiring established"
 		}
 	}
-	sort.Strings(out)
-	return out
+	return ok, blocked
 }

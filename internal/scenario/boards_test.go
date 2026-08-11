@@ -67,19 +67,47 @@ func TestRadiatedPowerIsNotDatasheetPower(t *testing.T) {
 // A scenario built around a board that cannot be emulated should say so at
 // build time rather than fail at run time.
 func TestEmulationSupportIsStated(t *testing.T) {
-	emulatable := scenario.EmulatableBoards()
-	if len(emulatable) == 0 {
+	ok, blocked := scenario.EmulatableBoards()
+	if len(ok) == 0 {
 		t.Fatal("no board can be emulated, which contradicts MSIM-13")
 	}
-	for _, name := range emulatable {
-		b, err := scenario.BoardByName(name)
-		if err != nil {
-			t.Fatal(err)
+	for _, b := range ok {
+		// Offered means booted, not merely configured. Wiring read off a
+		// config file and never run is exactly the kind of thing that looks
+		// like support and is not.
+		if b.QEMU == nil || !b.QEMU.Verified {
+			t.Errorf("%s is offered for emulation without verified wiring", b.Name)
 		}
-		// Only the nRF52840 path runs today; the ESP32 one is blocked on a
-		// radio model. A board claiming otherwise is a documentation bug.
-		if b.MCU != "nRF52840" {
-			t.Errorf("%s claims emulation on %s, but only nRF52840 runs today", name, b.MCU)
+	}
+	// Every board that is not offered owes the operator a reason, because a
+	// board missing without one reads as a bug in the picker.
+	for _, b := range scenario.Boards() {
+		offered := false
+		for _, o := range ok {
+			offered = offered || o.Name == b.Name
+		}
+		if !offered && blocked[b.Name] == "" {
+			t.Errorf("%s is neither offered nor explained", b.Name)
+		}
+	}
+}
+
+// The wiring is per board and it is load-bearing: the radio sits on a different
+// SPI controller and different pins from one board to the next, and a wrong pin
+// produces a driver reporting no chip, which reads as a broken emulator.
+func TestEmulationWiringIsComplete(t *testing.T) {
+	ok, _ := scenario.EmulatableBoards()
+	for _, b := range ok {
+		w := b.QEMU
+		if w.Machine == "" {
+			t.Errorf("%s has no QEMU machine type", b.Name)
+		}
+		if w.NSS == 0 || w.Busy == 0 {
+			t.Errorf("%s is missing NSS or BUSY; without NSS a command cannot be framed",
+				b.Name)
+		}
+		if w.SPI < 0 || w.SPI > 3 {
+			t.Errorf("%s wants SPI%d, and the ESP32 has four controllers", b.Name, w.SPI)
 		}
 	}
 }
