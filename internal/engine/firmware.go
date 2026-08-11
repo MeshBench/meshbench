@@ -3,11 +3,15 @@ package engine
 import (
 	"context"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 	"runtime"
 	"sync"
 	"time"
 
 	"github.com/A13xB0/meshcoresim/internal/firmware"
+	"github.com/A13xB0/meshcoresim/internal/scenario"
 )
 
 // AttachNative starts a real MeshCore build for every node that runs firmware.
@@ -50,6 +54,13 @@ func (e *Engine) AttachNativeProgress(ctx context.Context, seed uint64, progress
 			continue
 		}
 		todo++
+		// An emulated node's firmware is a published board image, already in
+		// the cache. Resolving a native build for it would fail on a version
+		// that was never built for this machine, and take the whole attach down
+		// with it.
+		if n.Spec.Firmware.Emulated() {
+			continue
+		}
 		role := n.Spec.Firmware.Role
 		if role == "" {
 			role = n.Spec.Kind.Application()
@@ -118,22 +129,49 @@ func (e *Engine) AttachNativeProgress(ctx context.Context, seed uint64, progress
 		// share one binary; resolving each separately made six hundred GitHub
 		// API calls, and the unauthenticated rate limit turned node 61 onward
 		// into "403 Forbidden" — which read as missing firmware.
-		key := role + "@" + n.Spec.Firmware.Version
-		path, ok := resolved[key]
-		if !ok {
-			// Its build did not resolve above. One node's missing build must
-			// not abandon the other two hundred.
-			fail(fmt.Errorf("%s: no build for %s", n.Spec.Name, key))
-			return
+		// Which backend runs this node is the node's own business: a board
+		// means published hardware firmware under an emulator, and no board
+		// means a build for this machine. Not a switch on node type, and not a
+		// global mode - a scenario mixing the two is the point of having both.
+		var backend firmware.Backend
+		if n.Spec.Firmware.Emulated() {
+			em, err := emulatedBackend(n.Spec)
+			if err != nil {
+				fail(fmt.Errorf("%s: %w", n.Spec.Name, err))
+				return
+			}
+			backend = em
+		} else {
+			key := role + "@" + n.Spec.Firmware.Version
+			path, ok := resolved[key]
+			if !ok {
+				// Its build did not resolve above. One node's missing build
+				// must not abandon the other two hundred.
+				fail(fmt.Errorf("%s: no build for %s", n.Spec.Name, key))
+				return
+			}
+			// The firmware's own diagnostics are the only window into a native
+			// node, and discarding them meant a node that stopped ticking left
+			// nothing behind to say why. An emulated node keeps console.log
+			// beside it for the same reason; this is the native equivalent.
+			dir := firmware.NodeWorkDir(n.Spec.Name)
+			var stderr io.Writer
+			if err := os.MkdirAll(dir, 0o755); err == nil {
+				if f, err := os.Create(filepath.Join(dir, "stderr.log")); err == nil {
+					stderr = f
+				}
+			}
+			backend = &firmware.Native{
+				Path:    path,
+				Role:    role,
+				WorkDir: dir,
+				Log:     stderr,
+				Seed:    seed + uint64(i)*0x9E3779B97F4A7C15,
+				SF:      e.Config.SF, BandwidthKHz: e.Config.BandwidthHz / 1000,
+				CodingRate: e.Config.CodingRate,
+			}
 		}
-		fw, err := firmware.Start(ctx, n.Spec.Name, &firmware.Native{
-			Path:    path,
-			Role:    role,
-			WorkDir: firmware.NodeWorkDir(n.Spec.Name),
-			Seed:    seed + uint64(i)*0x9E3779B97F4A7C15,
-			SF:      e.Config.SF, BandwidthKHz: e.Config.BandwidthHz / 1000,
-			CodingRate: e.Config.CodingRate,
-		})
+		fw, err := firmware.Start(ctx, n.Spec.Name, backend)
 		if err != nil {
 			fail(fmt.Errorf("start %s: %w", n.Spec.Name, err))
 			return
@@ -324,3 +362,61 @@ func bootOffsetMs(seed uint64, i int) uint32 {
 // millisecond, which eight seconds breaks just as thoroughly - and MeshCore
 // jitters its adverts on top of this anyway.
 const bootSpreadMs = 8_000
+
+// emulatedBackend builds the emulator side for a node that names a board.
+//
+// Everything it needs is already recorded: the board catalogue says where the
+// radio sits on that hardware, and the firmware cache says where the image is.
+// Failing here rather than later matters, because a wrong pin does not announce
+// itself - it produces a driver reporting no chip, which reads as a broken
+// emulator.
+func emulatedBackend(spec scenario.Node) (*firmware.EmulatedNode, error) {
+	board, err := scenario.BoardByName(spec.Firmware.Board)
+	if err != nil {
+		return nil, err
+	}
+	if board.QEMU == nil || !scenario.EmulationSupported(board.Name) {
+		return nil, fmt.Errorf("%s has no verified emulation wiring", board.Name)
+	}
+
+	cache := firmware.DefaultCacheDir()
+	img := firmware.BoardImage{
+		Board:   board.Name,
+		Role:    spec.Firmware.Role,
+		Version: spec.Firmware.Version,
+		Format:  "bin",
+	}
+	// A companion publishes a BLE build and a USB one. Only the USB build is
+	// reachable here: its client arrives over the serial port, which an
+	// emulator has, and Bluetooth is not something we model.
+	if img.Role == "companion_radio" {
+		img.Transport = "usb"
+	}
+	src := firmware.BoardImagePath(cache, img)
+	if _, err := os.Stat(src); err != nil {
+		return nil, fmt.Errorf("no %s image for %s %s in the cache - download it "+
+			"from the firmware library first", board.Name, spec.Firmware.Role,
+			spec.Firmware.Version)
+	}
+
+	// Padded once per node, beside its own working directory: QEMU takes only
+	// 2, 4, 8 or 16 MB images and the size has to match the image header.
+	dir := firmware.NodeWorkDir(spec.Name)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, err
+	}
+	padded := filepath.Join(dir, "flash.bin")
+	if _, err := firmware.PadImage(src, padded); err != nil {
+		return nil, err
+	}
+
+	return &firmware.EmulatedNode{
+		Image:    padded,
+		Machine:  board.QEMU.Machine,
+		SPI:      board.QEMU.SPI,
+		NSS:      board.QEMU.NSS,
+		Busy:     board.QEMU.Busy,
+		NodeName: spec.Name,
+		Dir:      dir,
+	}, nil
+}

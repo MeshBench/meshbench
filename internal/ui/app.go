@@ -155,6 +155,21 @@ type App struct {
 	cfg          configState
 	winProvision bool
 	winFirmware  bool
+	// confirmDeleteFW arms the delete button for one installed build, because
+	// removing one the scenario is using fails at play rather than here.
+	confirmDeleteFW string
+	// fwDownloads marks catalogue downloads in flight, and fwDownloadErr the
+	// last one that failed. Guarded because a fetch finishes off the frame
+	// thread. Distinct from fwErr below, which belongs to firmware start-up.
+	fwDlMu        sync.Mutex
+	fwDownloads   map[string]bool
+	fwDownloadErr string
+	// The firmware library's own filter state: every published version of every
+	// supported board is thousands of rows, so this is not a convenience.
+	fwSearch     string
+	fwOnDiskOnly bool
+	fwBoardsOnly bool
+	fwNativeOnly bool
 	confirmWipe  bool
 	winPrefs     bool
 	infer        inferState

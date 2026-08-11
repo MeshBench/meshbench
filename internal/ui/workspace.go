@@ -413,6 +413,7 @@ func (a *App) drawPanels() {
 		a.applyWindowMode(p.name)
 		open := p.open
 		if imgui.BeginV(p.name, &open, imgui.WindowFlagsMenuBar) {
+			fillOwnViewport()
 			p.docked = imgui.IsWindowDocked()
 			if p.docked {
 				p.lastDock = imgui.WindowDockID()
@@ -519,4 +520,29 @@ func (a *App) floatInside(name string) {
 		a.undock = map[string]bool{}
 	}
 	a.undock[name] = true
+}
+
+// fillOwnViewport makes a popped-out window occupy the OS window it was given.
+//
+// Called just after Begin, while this window's viewport is the current one.
+//
+// A window that leaves the main one gets a viewport of its own, and the
+// compositor decides how big that is - on KDE, usually the whole screen. imgui
+// keeps drawing the window at whatever size it had before, so the result is a
+// maximised OS window with a small panel in the corner of it, which sorts
+// itself out the moment anything triggers a resize. That "unmaximise and
+// remaximise and it comes good" is the tell: the size was right all along and
+// only the first frame was missed.
+//
+// Doing it every frame rather than once also covers the user dragging the OS
+// window's edge, which is the same problem arriving later.
+func fillOwnViewport() {
+	vp := imgui.WindowViewport()
+	if vp.ID() == imgui.MainViewport().ID() {
+		return // inside the main window; the dock or the user owns the size
+	}
+	if imgui.WindowPos() != vp.Pos() || imgui.WindowSize() != vp.Size() {
+		imgui.SetWindowPosVec2(vp.Pos())
+		imgui.SetWindowSizeVec2(vp.Size())
+	}
 }

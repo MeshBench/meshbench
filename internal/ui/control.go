@@ -553,6 +553,79 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 		}
 		return map[string]any{"path": path}, nil
 
+	case "firmware.installed":
+		// What is actually on this machine, which is the only thing that
+		// decides what a node can run. A build that failed to download and one
+		// in daily use look identical from outside the cache directory.
+		cache := firmware.DefaultCacheDir()
+		var out []map[string]any
+		for _, in := range firmware.ListInstalled(cache) {
+			out = append(out, map[string]any{
+				"version": in.Version, "role": in.Role, "board": in.Board,
+				"native": in.Native, "bytes": in.Bytes, "path": in.Path,
+			})
+		}
+		a.winFirmware = true
+		return map[string]any{"cache": cache, "installed": out}, nil
+
+	case "firmware.download":
+		// Fetch a published build now rather than on first use, which is what
+		// someone about to work offline actually wants.
+		var p struct {
+			Role    string `json:"role"`
+			Version string `json:"version"`
+		}
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, err
+		}
+		if p.Role == "" || p.Version == "" {
+			return nil, fmt.Errorf("firmware.download needs a role and a version")
+		}
+		a.winFirmware = true
+		a.downloadBuild(p.Role, p.Version)
+		return map[string]any{"downloading": p.Role + " " + p.Version}, nil
+
+	case "firmware.delete":
+		var p struct {
+			Version string `json:"version"`
+			Role    string `json:"role"`
+			Board   string `json:"board"`
+		}
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, err
+		}
+		cache := firmware.DefaultCacheDir()
+		for _, in := range firmware.ListInstalled(cache) {
+			if in.Version != p.Version || in.Role != p.Role || in.Board != p.Board {
+				continue
+			}
+			if err := firmware.Remove(cache, in); err != nil {
+				return nil, err
+			}
+			return map[string]any{"deleted": in.Label()}, nil
+		}
+		return nil, fmt.Errorf("no installed build matching version %q role %q board %q",
+			p.Version, p.Role, p.Board)
+
+	case "firmware.import":
+		// For anything that was never released, which is most of what is worth
+		// testing: a branch build, a patched image, somebody else's binary.
+		var p struct {
+			Path    string `json:"path"`
+			Version string `json:"version"`
+			Role    string `json:"role"`
+			Board   string `json:"board"`
+		}
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, err
+		}
+		in, err := firmware.Import(firmware.DefaultCacheDir(), p.Path, p.Version, p.Role, p.Board)
+		if err != nil {
+			return nil, err
+		}
+		a.winFirmware = true
+		return map[string]any{"imported": in.Label(), "path": in.Path, "bytes": in.Bytes}, nil
+
 	case "firmware.wipe":
 		// Every node's persistent files: identity, prefs, channels, contacts.
 		//

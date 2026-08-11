@@ -94,7 +94,7 @@ func (a *App) drawFleetBody() {
 	}
 	imgui.SetNextItemWidth(140)
 	if imgui.BeginCombo("target", a.fleet.target) {
-		for _, t := range []string{"all", "repeaters", "companions", "selection", "filter"} {
+		for _, t := range []string{"all", "repeaters", "room servers", "companions", "selection", "filter"} {
 			if imgui.SelectableBool(t) {
 				a.fleet.target = t
 			}
@@ -217,6 +217,10 @@ func (a *App) fleetTargets() []string {
 		switch a.fleet.target {
 		case "repeaters":
 			if n.Kind != scenario.SimpleRepeater && n.Kind != scenario.AdvancedRepeater {
+				continue
+			}
+		case "room servers":
+			if n.Kind != scenario.RoomServer {
 				continue
 			}
 		case "companions":

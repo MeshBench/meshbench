@@ -24,6 +24,13 @@ const (
 	// Companion is a user's device — the thing a phone connects to.
 	Companion Kind = "companion"
 
+	// RoomServer holds posts for clients to collect, and does not forward. It
+	// is a repeater in every way that touches this simulator — same console,
+	// same admin password, same place in a scenario — except the one that
+	// matters on the air: traffic it hears does not go back out. A mesh that
+	// treats it as a repeater will overstate its own reach.
+	RoomServer Kind = "room-server"
+
 	// SDRObserver runs no firmware and transmits nothing. It captures the
 	// summed field at its antenna and hands back IQ: a waterfall, a recording,
 	// and nothing that has been decided.
@@ -52,6 +59,8 @@ func (k Kind) Application() string {
 	switch k {
 	case Companion:
 		return "companion_radio"
+	case RoomServer:
+		return "simple_room_server"
 	case SDRObserver, Emitter:
 		return "" // no firmware to run
 	default:
@@ -77,7 +86,18 @@ func (k Kind) RunsFirmware() bool { return k != SDRObserver && k != Emitter }
 type FirmwareRef struct {
 	Role    string
 	Version string
+
+	// Board names the hardware this node emulates, and empty means the host
+	// build. It is what decides which of the two backends runs the node, so it
+	// belongs on the node rather than being inferred later: a scenario that
+	// mixes emulated and native nodes is the point of having both, and a reader
+	// must never have to guess which a node is.
+	Board string
 }
+
+// Emulated reports whether this node runs published hardware firmware rather
+// than a build for this machine.
+func (f FirmwareRef) Emulated() bool { return f.Board != "" }
 
 // Node is one placed thing in a scenario.
 type Node struct {
@@ -174,7 +194,7 @@ func (n Node) Validate() error {
 		return fmt.Errorf("scenario: a node needs a name")
 	}
 	switch n.Kind {
-	case SimpleRepeater, AdvancedRepeater, Companion, SDRObserver, Emitter:
+	case SimpleRepeater, AdvancedRepeater, Companion, RoomServer, SDRObserver, Emitter:
 	default:
 		return fmt.Errorf("scenario: %s: unknown kind %q", n.Name, n.Kind)
 	}

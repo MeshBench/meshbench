@@ -24,6 +24,14 @@ Prefer the verb over the file. Verbs drive the same code paths a person clicks,
 so the panel opens and the operator can see what you did; editing config or
 scenario JSON behind the app's back does not.
 
+**elite's login shell is fish.** Heredocs, `&&`/`||` chains and most quoting
+tricks fail there with parse errors that look like the command being wrong.
+Write the script to a file locally, `scp` it, and run it with `bash`. Do the same
+for anything with quotes in it — the round trip is faster than the third attempt
+at escaping. Elite is also the git checkout that matters; the VM copy shares the
+working tree but its git state is stale, so commit there and check with
+`md5sum` before assuming a file arrived.
+
 **Launching it over SSH.** The desktop session owns `DISPLAY`, the Wayland
 socket and the X cookie; an SSH login inherits none of them. Copy the *whole*
 environment from the running process (`tr '\0' '\n' < /proc/<pid>/environ`)
@@ -179,11 +187,42 @@ its first run with "firmware on 0 of N nodes". The MCP server exposes the same
 builds if you would rather ask than list the directory.
 
 **Role is the MeshCore application, not the node kind.** Repeaters run
-`simple_repeater`; companions run **`companion_radio`**. "companion" is not a
-role, and `firmware.set` used to take it without complaint — the run then failed
-minutes later with "<node> runs no firmware", which reads as a firmware problem
-and is a typo. The binary names in the cache are the authority
-(`meshcore-<role>-linux-amd64`).
+`simple_repeater`; companions run **`companion_radio`**; room servers run
+**`simple_room_server`**. "companion" is not a role, and `firmware.set` used to
+take it without complaint — the run then failed minutes later with "<node> runs
+no firmware", which reads as a firmware problem and is a typo. The binary names
+in the cache are the authority (`meshcore-<role>-linux-amd64`).
+
+**A native version is a per-role release tag, not a bare version.** Upstream
+tags one role at a time, and so do our native builds: `repeater-v1.17.0`,
+`companion-v1.17.0`, `room-server-v1.17.0`. Asking for `v1.17.0` resolves
+nothing and reports "no native builds published for MeshCore v1.17.0", which
+points at the release rather than at the string. A scenario mixing roles has to
+pin each one separately.
+
+**A companion has no command line.** It speaks the companion protocol over its
+serial link, so typing `advert` at one does nothing at all — no error, no
+packet. That reads as a mesh dropping the first hop. Use a repeater when a test
+needs to originate from a console, or the companion transport when it needs to
+be a companion.
+
+**A room server is a repeater that does not forward.** Same console, same admin
+password, same place in a scenario; the difference is only on the air. Model one
+as a repeater and the result overstates the mesh's reach. `RoomServer` is its
+own node kind and has its own fleet-console target.
+
+**`MESHCORESIM_NATIVE` may name a directory of per-role builds**, which is what
+a mixed-role scenario needs. Naming a single binary overrides every node
+regardless of role, so a mesh of repeaters and room servers quietly becomes a
+mesh of one application.
+
+**A node that stops answering ticks leaves a log.** Native stderr is at
+`~/.cache/meshcoresim/nodefs/<node>/stderr.log`, and an emulated node's boot
+output at `console.log` in its work directory. Read it before theorising: a
+stale published build stalling after three seconds and a firmware bug look
+identical from the ledger, and the log tells them apart in one line. A current
+build prints `radio_init: entering std_init` — its absence means the binary
+predates the host radio shim and needs rebuilding upstream.
 
 **Check the radio preset after an import.** Imported nodes take the app default,
 `EU/UK (Narrow)` — 869.618 MHz, 62.5 kHz, SF8, CR4/8 — which is what ScotMesh
@@ -210,6 +249,123 @@ Three traps, all paid for:
   same as one that suppressed none — every loop-detection comparison came back
   "no difference" for a whole session before anyone noticed the metric could not
   see it.
+
+## Emulation: running the bytes people flash
+
+Two backends run MeshCore. **Native** compiles it for the host and is what
+everything so far is built on. **Emulated** runs the published board image
+unmodified, under QEMU, and exists as the cross-check on the native one
+(ADR-0010).
+
+An emulated node is now a node on the mesh. A published `Generic_E22_sx1262`
+v1.17.0 image boots, adverts, and a native repeater decodes it off the same
+channel (`TestEmulatedAndNativeShareAChannel`). A node runs emulated when its
+`Firmware.Board` is set; empty means the host build.
+
+Two constraints that follow from an emulator being in the loop. It runs on
+**wall time**, so the engine cannot race the clock ahead — pace `Run` roughly
+1:1 or it will look as though no frames arrived. And two runs of one seed will
+not produce identical ledgers, so the determinism the rest of the simulator
+guarantees does not hold for a scenario containing one.
+
+**Only the repeater role can be emulated today, and it is board coverage rather
+than role code.** The one verified board publishes the repeater alone. Every
+plain-ESP32 SX1262 board that publishes all three roles is a T-Beam, and all of
+them stall *before* `radio_init`: the I2C bus never comes up, the AXP PMU init
+spins, and the radio is never touched — zero SPI transactions, which reads as a
+broken emulator rather than a missing PMU model. T-Beam SX1262 also publishes a
+BLE-only companion. Every board publishing all three with a USB companion is an
+ESP32-S3, so the unlock is an `esp32s3` machine, not more board entries.
+
+**BLE companions are excluded deliberately.** There is no Bluetooth here, so one
+boots and then waits forever for a phone, which looks like a hang rather than an
+unsupported build. Published companion assets carry their transport in the name
+(`..._companion_radio_usb-v1.17.0-...`), and the USB one is the only usable one.
+
+### Where the pieces live
+
+| | |
+|---|---|
+| QEMU with our SX1262, GPIO and fixes | `A13xB0/qemu` branch `meshbench-sx1262` |
+| The chip model, and the socket server | `meshcore-native`, `VirtualSX1262` + `bridge/radioserver.cpp` |
+| Per-board wiring | `internal/scenario/boards.go`, `QEMUWiring` |
+
+Build QEMU with **`--enable-gcrypt`** or the `esp32` machine dies with
+`unknown type 'misc.esp32.rsa'`: the RSA device is gated on gcrypt while the
+machine references it unconditionally.
+
+    ./configure --target-list=xtensa-softmmu --disable-werror --enable-slirp --enable-gcrypt
+
+### Only plain ESP32, and only some boards
+
+`hw/xtensa/esp32.c` instantiates SPI0 to SPI3, so a radio has a bus to sit on.
+**ESP32-S3 models only `spi1`**, the flash controller, so an S3 board needs a
+GP-SPI controller written before anything can be attached. Published nRF52
+images are linked above a proprietary Nordic SoftDevice and are out of scope.
+
+Board wiring is **per board and verified per board**, never inferred from the
+MCU. `Heltec_v2` carries an **SX1276**, not an SX1262, despite sitting beside
+the V3 in every shop — its firmware speaks SX127x register access, and the
+giveaway is the firmware sending `0x42`, which is RegVersion on an SX127x.
+`EmulatableBoards()` returns what can run and why the rest cannot.
+
+### Three things that are not obvious and cost hours
+
+**RadioLib drives NSS as an ordinary GPIO**, not the SPI controller's chip
+select. Without NSS the controller clocks bytes one at a time and the chip gets
+an unframed byte stream it cannot answer, so the driver reports no chip. The
+GPIO model had an empty write handler and had to be implemented.
+
+**Arduino's default-constructed `SPIClass` is HSPI**, controller 2 — not VSPI.
+`std_init(NULL)` picks the global `SPI` (VSPI); `static SPIClass spi;` does not.
+
+**A merged image's flash-size header is at 0x1000**, not 0, because the image
+starts with padding. Read it from the wrong offset and you pad to the wrong
+size and get `Detected size(4096k) smaller than the size in the binary image
+header(8192k)`. QEMU accepts only 2/4/8/16 MB images.
+
+### Two bugs in Espressif's QEMU
+
+Both in the SPI model, both affecting any non-flash peripheral:
+
+- **RX bounds check** indexed by the transferred byte's value instead of the
+  loop position, so replies were dropped whenever the byte just sent was
+  numerically larger than the read length. Already fixed by their open PR #144,
+  which is cherry-picked onto our branch with authorship intact.
+- **Stale command-phase bitlen**: the USR path enabled a command phase when
+  `SPI_USER.COMMAND` *or* a leftover `COMMAND_BITLEN` was set, injecting a
+  spurious `0x00` in front of every transfer. Ours, not reported yet.
+
+### The chip model is clocked two ways and must agree
+
+`VirtualSX1262` takes a whole buffer for the native path and single bytes for
+the emulated one. `variants/host/streaming_test.cpp` holds the two to identical
+answers; if they ever diverge, an emulated node is a different radio from a
+native one and any comparison measures our code rather than MeshCore's.
+
+That test immediately found `GetPacketStatus` guarding its fields one byte too
+strictly, so `signalRssiPkt` read zero on every native run.
+
+## Working on the desktop app
+
+**Never launch it with `go run`.** That recompiles cimgui-go's cgo every time,
+which is three minutes per restart. Build once and run the binary:
+
+    go build -o /tmp/msim ./cmd/meshcoresim && /tmp/msim workbench
+
+That takes a restart to about eight seconds, which matters when the thing being
+checked is a layout.
+
+**Screenshots need a Wayland grabber.** The session is KDE Wayland and the app
+renders there, not on Xwayland, so `ffmpeg -f x11grab -i :1` captures a solid
+black screen that looks like a crashed application. Use
+`spectacle -b -n -f -o /tmp/shot.png`.
+
+**Look at the window before claiming it works.** One pass over the firmware
+library found it taking a viewport of its own and being sized to the display,
+two tables with fixed pixel heights that would not scale, and a window created
+without `WindowFlagsMenuBar` — which silently costs it `panelChrome`, and with
+it the pop-out and dock verbs.
 
 ## Before you report any number
 

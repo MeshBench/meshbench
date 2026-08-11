@@ -656,6 +656,15 @@ func (a *App) drawFileMenu() {
 	if !imgui.BeginMenu("File") {
 		return
 	}
+	if imgui.MenuItemBool("Firmware library...") {
+		a.winFirmware = true
+	}
+	if imgui.IsItemHovered() {
+		imgui.SetTooltip("Every MeshCore application, not just repeaters: companions,\n" +
+			"room servers and whatever upstream ships next. Browse, download,\n" +
+			"import and delete builds.")
+	}
+	imgui.Separator()
 	if imgui.BeginMenu("Open project") {
 		rows := listProjects()
 		if len(rows) == 0 {
@@ -783,9 +792,6 @@ func (a *App) drawRepeatersMenu() {
 	imgui.Separator()
 	if imgui.MenuItemBool("Fleet commands...") {
 		a.showPanel("Fleet")
-	}
-	if imgui.MenuItemBool("Firmware library...") {
-		a.winFirmware = true
 	}
 	if imgui.MenuItemBool("Provisioning (what they are told on boot)...") {
 		a.winProvision = true

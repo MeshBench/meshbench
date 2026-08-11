@@ -28,6 +28,12 @@ type fwCatalogue struct {
 	cached map[string]bool
 	err    string
 	state  int // 0 untouched, 1 loading, 2 done
+
+	// boards are the published images for real hardware, from the same
+	// releases the flasher serves. Only the ones an emulator could boot: an
+	// image for a board with no wiring cannot be pointed at a radio, and
+	// offering it fails when someone presses run rather than here.
+	boards []firmware.BoardImage
 }
 
 // fwFetchTimeout bounds the catalogue request. Long enough for a slow link,
@@ -87,7 +93,28 @@ func (c *fwCatalogue) load() {
 			}
 		}
 		c.images = images
+		c.mu.Unlock()
+
+		// Every published board image, across every release. One paginated
+		// walk: GitHub returns each release with its assets inline, so asking
+		// for the releases list is asking for the whole catalogue.
+		bc := &firmware.BoardCatalogue{CacheDir: firmware.DefaultCacheDir()}
+		var boards []firmware.BoardImage
+		if all, err := bc.ListAll(ctx); err == nil {
+			boards = firmware.Runnable(all, scenario.EmulationSupported)
+		}
+		c.mu.Lock()
+		c.boards = boards
 	}()
+}
+
+// boardImages returns the published hardware images that could run here.
+func (c *fwCatalogue) boardImages() []firmware.BoardImage {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := make([]firmware.BoardImage, len(c.boards))
+	copy(out, c.boards)
+	return out
 }
 
 // forThisMachine returns the roles and versions that will actually run here.
@@ -167,6 +194,17 @@ func (c *fwCatalogue) status() (loading bool, err string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.state == 1, c.err
+}
+
+// markCached records a build that has just been fetched, so the row it came
+// from stops offering to fetch it again.
+func (c *fwCatalogue) markCached(role, version string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.cached == nil {
+		c.cached = map[string]bool{}
+	}
+	c.cached[role+"@"+version] = true
 }
 
 // isCached reports whether a build is already on disk, ready to start with no
@@ -288,10 +326,21 @@ func (a *App) drawFirmwareWindow() {
 	if !a.winFirmware {
 		return
 	}
-	imgui.SetNextWindowSizeV(a.windowSize(96, 28), imgui.CondFirstUseEver)
+	imgui.SetNextWindowSizeV(a.windowSize(118, 34), imgui.CondFirstUseEver)
 	a.applyDockIntent("Firmware library")
+	// Pinned to the main window unless it was deliberately popped out.
+	//
+	// Without this it takes a viewport of its own, and the compositor sizes
+	// that to the display: an OS window filling the screen with a small panel
+	// in one corner of it, which reads as a broken layout rather than a window
+	// that escaped.
+	a.applyWindowMode("Firmware library")
 	open := a.winFirmware
-	if imgui.BeginV("Firmware library", &open, 0) {
+	// MenuBar, or panelChrome has nowhere to draw and the window loses its
+	// pop-out and dock verbs entirely - which is what made it a one-way trip
+	// once it came back into the main window.
+	if imgui.BeginV("Firmware library", &open, imgui.WindowFlagsMenuBar) {
+		fillOwnViewport()
 		a.panelChrome("Firmware library")
 		a.drawFirmwareLibraryBody()
 	}
@@ -315,82 +364,11 @@ func (a *App) drawFirmwareLibraryBody() {
 		textColoured(colWarn, err)
 	}
 
-	inUse := map[string]int{}
-	for i := range a.Nodes {
-		n := &a.Nodes[i]
-		if !n.Kind.RunsFirmware() {
-			continue
-		}
-		role := n.Firmware.Role
-		if role == "" {
-			role = n.Kind.Application()
-		}
-		version := n.Firmware.Version
-		if version == "" {
-			version = "main"
-		}
-		inUse[role+" "+version]++
-	}
-
-	roles, _ := a.fw.forThisMachine()
-	if len(roles) == 0 && !loading {
-		textDim("nothing published for this machine - check the network, or " +
-			"import a local build with: msim firmware import")
-	}
-
-	if imgui.BeginTableV("##fwlib", 5,
-		imgui.TableFlagsBorders|imgui.TableFlagsRowBg|imgui.TableFlagsScrollY|
-			imgui.TableFlagsSizingStretchProp, imgui.NewVec2(0, 320), 0) {
-		imgui.TableSetupColumnV("role", imgui.TableColumnFlagsWidthStretch, 0, 0)
-		imgui.TableSetupColumnV("version", imgui.TableColumnFlagsWidthStretch, 0, 0)
-		// Fixed columns measured from their own widest content, not guessed in
-		// pixels: "use everywhere" is 120 px in one font and clipped to "use
-		// everywhe" in another.
-		pad := imgui.CurrentStyle().FramePadding().X*2 + 8
-		imgui.TableSetupColumnV("downloaded", imgui.TableColumnFlagsWidthFixed,
-			imgui.CalcTextSize("on first use").X+pad, 0)
-		imgui.TableSetupColumnV("in use by", imgui.TableColumnFlagsWidthFixed,
-			imgui.CalcTextSize("000 nodes").X+pad, 0)
-		imgui.TableSetupColumnV("", imgui.TableColumnFlagsWidthFixed,
-			imgui.CalcTextSize("use everywhere").X+pad*2, 0)
-		imgui.TableHeadersRow()
-
-		for _, role := range roles {
-			for _, v := range a.fw.versionsFor(role) {
-				imgui.TableNextRow()
-				imgui.TableSetColumnIndex(0)
-				imgui.Text(role)
-				imgui.TableSetColumnIndex(1)
-				imgui.Text(v)
-				imgui.TableSetColumnIndex(2)
-				if a.fw.isCached(role, v) {
-					textColoured(colOK, "yes")
-				} else {
-					textDim("on first use")
-				}
-				imgui.TableSetColumnIndex(3)
-				if n := inUse[role+" "+v]; n > 0 {
-					imgui.Text(fmt.Sprintf("%d nodes", n))
-				} else {
-					textDim("-")
-				}
-				imgui.TableSetColumnIndex(4)
-				if imgui.SmallButton("use everywhere##" + role + v) {
-					n := 0
-					for i := range a.Nodes {
-						if a.Nodes[i].Kind.RunsFirmware() &&
-							(a.Nodes[i].Firmware.Role == role || a.Nodes[i].Kind.Application() == role) {
-							a.Nodes[i].Firmware.Role, a.Nodes[i].Firmware.Version = role, v
-							n++
-						}
-					}
-					a.rebuildForFirmware()
-					a.status = fmt.Sprintf("%d nodes set to %s %s", n, role, v)
-				}
-			}
-		}
-		imgui.EndTable()
-	}
+	// One table, not two. The published list and the installed list shared
+	// four of their six columns and differed only in whether the last offered a
+	// download or a delete, which made the window twice as tall as it needed to
+	// be for one list of builds.
+	a.drawFirmwareTable()
 
 	imgui.SeparatorText("Storage")
 	textDim("builds     " + firmware.DefaultCacheDir())
