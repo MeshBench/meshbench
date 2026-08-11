@@ -1,4 +1,4 @@
-# MeshcoreSim
+# MeshBench
 
 An RF-accurate MeshCore network simulator.
 
