@@ -46,10 +46,135 @@ twelve runs — which read as "the change does nothing" when it actually meant
   understanding of an SX1262, so real errata and a real preamble detector's
   behaviour under interference remain invisible.
 - **We compile as an nRF52.** Where MeshCore takes a platform-specific path, we
-  take that one. A bug that only appears on ESP32 will not appear here.
+  take that one. A bug that only appears on ESP32 will not appear here — which
+  is what the emulated backend below exists to close, at the cost of about a
+  core per node.
 - **The simulator is kinder than the air.** No multipath, no body loss, no
   oscillator error. Every result is a best case — which is what makes it usable:
   if it does not work here, it will not work outdoors.
+
+## Two ways to run a node: native and emulated
+
+Every node runs one of two backends. They run the *same* MeshCore, against the
+*same* channel — what changes is how much of the hardware beneath it is real.
+
+**Native** compiles MeshCore for this machine. Each node is an ordinary
+operating-system process with its own storage, identity and clock. Everything
+from the application down to RadioLib is the firmware's own code; below that is
+our model.
+
+```
+  the stack a packet passes through, top to bottom       NATIVE
+
+  +----------------------------------------------------+
+  | MeshCore application                               |   real
+  |  examples/simple_repeater, unmodified              |
+  +----------------------------------------------------+
+  | MeshCore radio wrapper                             |   real
+  |  CustomSX1262 / CustomSX1262Wrapper                |
+  +----------------------------------------------------+
+  | RadioLib 7.6.0                                     |   real
+  |  the actual SX126x driver, unmodified              |
+  +====================================================+   the firmware believes
+  : RadioLibHal                                        :   simulated
+  :  SimHal: pins, SPI, timing                         :
+  :....................................................:
+  : SX1262 silicon                                     :   simulated
+  :  VirtualSX1262: opcodes, registers, IRQs           :
+  :....................................................:
+  : The air                                            :   simulated
+  :  MeshBench engine: path loss, terrain, noise       :
+  '....................................................'
+```
+
+**Figure 1: where the real firmware ends and the model begins.** Above the line
+is MeshCore's and RadioLib's own code, unmodified, making its own decisions.
+Below it is a model: a virtual SX1262 answering SPI opcodes and raising
+interrupts, a HAL supplying pins and simulated time, and a channel that sums
+waveforms and lets the demodulator decide what survives.
+
+**Emulated** runs the image people actually flash — the merged `.bin` from
+[meshcore.io/flasher](https://meshcore.io/flasher), byte for byte — inside a
+QEMU with an SX1262 attached to its SPI bus. Nothing is compiled. The boundary
+moves down by four layers.
+
+```
+  the same stack, running the image off the flasher     EMULATED
+
+  +----------------------------------------------------+
+  | MeshCore application                               |   real
+  |  the published .bin, byte for byte                 |
+  +----------------------------------------------------+
+  | MeshCore radio wrapper                             |   real
+  |  CustomSX1262 / CustomSX1262Wrapper                |
+  +----------------------------------------------------+
+  | RadioLib 7.6.0                                     |   real
+  |  the actual SX126x driver, unmodified              |
+  +----------------------------------------------------+
+  | Arduino core, ESP-IDF, FreeRTOS, bootloader        |   real
+  |  none of which the native build ever runs          |
+  +----------------------------------------------------+
+  | ESP32 machine code on an Xtensa LX6                |   real
+  |  every instruction the chip would execute          |
+  +----------------------------------------------------+
+  | SPI2 peripheral, GPIO matrix, chip select          |   real
+  |  QEMU: the wires, clocked a byte at a time         |
+  +====================================================+   the boundary moved down
+  : SX1262 silicon                                     :   simulated
+  :  the same VirtualSX1262, over a socket             :
+  :....................................................:
+  : The air                                            :   simulated
+  :  the same MeshBench engine                         :
+  '....................................................'
+```
+
+**Figure 2: the same stack, with the hardware put back.** The bootloader,
+ESP-IDF, FreeRTOS, the Arduino core and every Xtensa instruction are now real,
+and the SPI peripheral clocks the chip select and the bytes exactly as the
+silicon would. The model starts at the far side of the SPI wire rather than at
+the driver. Below that line, both backends share the same virtual chip and the
+same channel — which is what makes a native run and an emulated one comparable
+at all.
+
+### Use native unless you need what emulation buys
+
+Emulation closes a real gap. The native build compiles as an nRF52, so a bug
+that only appears on ESP32 cannot appear there; an emulated node runs the
+published ESP32 image, including all the platform code the native build never
+executes. It is also the only way to test a firmware you have no source for.
+
+It costs about a core per node, and the ceiling arrives without an error.
+Measured on a twelve-core machine:
+
+| emulated nodes | CPU each | total load | boot time | simulated time |
+|---|---|---|---|---|
+| 1 | ~100% of a core | 3.9 | ~10 s | keeps up |
+| 4 | ~100% of a core | 5.1 | ~15 s | keeps up |
+| 8 | 92–105% of a core | 15.0 | over 60 s | keeps up, but at the edge |
+
+Memory is not the constraint — around 150 MB each, so 11 GB would hold about
+seventy. Cores run out roughly seven times sooner. On twelve cores, **eight is
+comfortable and ten is the practical ceiling**; a native scenario runs hundreds
+of nodes on the same machine.
+
+The failure mode deserves stating plainly, because nothing reports it: past the
+ceiling there is no error. Boots stretch, and simulated time quietly falls
+behind the wall clock — which reads as a mesh that has gone quiet rather than a
+machine that has run out. The CPU and GPU figures in the menu bar are there to
+make that visible before it bites.
+
+Two further constraints follow from an emulator being in the loop. An emulated
+node **runs on wall time**, so the engine cannot race the clock ahead as it does
+for a native-only scenario. And two runs of one seed will not produce identical
+ledgers, so the determinism the rest of the simulator guarantees does not hold
+for a scenario containing one.
+
+So: **native for anything about the mesh** — coverage, routing, loop detection,
+sweeps, anything needing many nodes or repeatable numbers. **Emulated for
+questions about the firmware as shipped** — does this published build work, does
+this board's platform code behave, does a version we cannot compile still relay.
+A scenario can mix the two, and the useful shape is usually one emulated node in
+a native mesh.
 
 ## What it is for
 
