@@ -433,6 +433,8 @@ func kindLabel(k scenario.Kind) string {
 		return "companion"
 	case scenario.AdvancedRepeater:
 		return "advanced"
+	case scenario.RoomServer:
+		return "room server"
 	default:
 		return "repeater"
 	}

@@ -45,12 +45,6 @@ type EmulatedNode struct {
 	FlashMB  int
 	NodeName string
 
-	// Bridge is the engine's listener for this node, host:port. Empty leaves
-	// the node deaf and mute: it will boot and initialise its radio and then
-	// wait for ever on a transmission that cannot complete, which looks like a
-	// hang rather than like a missing argument.
-	Bridge string
-
 	// Dir is where the socket and logs live for this node.
 	Dir string
 
@@ -66,7 +60,10 @@ func (e *EmulatedNode) Kind() string { return "emulated" }
 //
 // Order matters: the device connects to the socket as it is realized, so a
 // QEMU started first fails immediately with "cannot reach the radio model".
-func (e *EmulatedNode) Start(ctx context.Context) error {
+// The engine hands over its listener for this node; empty leaves the node deaf
+// and mute, booting and then waiting for ever on a transmission that cannot
+// complete, which looks like a hang rather than a missing argument.
+func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
@@ -99,8 +96,8 @@ func (e *EmulatedNode) Start(ctx context.Context) error {
 		return err
 	}
 	radioArgs := []string{e.sock}
-	if e.Bridge != "" {
-		radioArgs = append(radioArgs, "--bridge", e.Bridge)
+	if bridge != "" {
+		radioArgs = append(radioArgs, "--bridge", bridge)
 	}
 	e.radio = exec.CommandContext(ctx, radioBin, radioArgs...)
 	e.radio.Stdout, e.radio.Stderr = radioLog, radioLog

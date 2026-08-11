@@ -87,7 +87,7 @@ func TestMissingToolsExplainThemselves(t *testing.T) {
 	if err := os.WriteFile(n.Image, make([]byte, 16), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	err := n.Start(t.Context())
+	err := n.Start(t.Context(), "")
 	if err == nil {
 		t.Fatal("started with no emulator present")
 	}
@@ -99,7 +99,7 @@ func TestMissingToolsExplainThemselves(t *testing.T) {
 
 func TestEmulatedNodeNeedsAnImage(t *testing.T) {
 	n := &firmware.EmulatedNode{NodeName: "n1"}
-	if err := n.Start(t.Context()); err == nil {
+	if err := n.Start(t.Context(), ""); err == nil {
 		t.Error("started with no flash image")
 	}
 }

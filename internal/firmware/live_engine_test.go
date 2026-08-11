@@ -51,9 +51,9 @@ func TestLiveEmulatedNodeJoinsTheEngine(t *testing.T) {
 
 	n := &firmware.EmulatedNode{
 		Image: padded, NodeName: "eng", Dir: filepath.Join(dir, "node"),
-		Machine: "esp32", SPI: 2, NSS: 18, Busy: 32, Bridge: ln.Addr().String(),
+		Machine: "esp32", SPI: 2, NSS: 18, Busy: 32,
 	}
-	if err := n.Start(ctx); err != nil {
+	if err := n.Start(ctx, ln.Addr().String()); err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = n.Stop() }()

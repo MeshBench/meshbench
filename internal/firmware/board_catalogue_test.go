@@ -10,32 +10,45 @@ import (
 // so a parser that is nearly right offers builds that cannot be run.
 func TestParsesPublishedAssetNames(t *testing.T) {
 	cases := []struct {
-		name    string
-		board   string
-		role    string
-		version string
-		merged  bool
-		format  string
+		name      string
+		board     string
+		role      string
+		transport string
+		version   string
+		merged    bool
+		format    string
 	}{
 		{"Heltec_v3_repeater-v1.17.0-727fc05-merged.bin",
-			"Heltec_v3", "simple_repeater", "v1.17.0", true, "bin"},
+			"Heltec_v3", "simple_repeater", "", "v1.17.0", true, "bin"},
 		{"Heltec_v3_repeater-v1.17.0-727fc05.bin",
-			"Heltec_v3", "simple_repeater", "v1.17.0", false, "bin"},
+			"Heltec_v3", "simple_repeater", "", "v1.17.0", false, "bin"},
 		{"RAK_4631_repeater-v1.17.0-727fc05.uf2",
-			"RAK_4631", "simple_repeater", "v1.17.0", false, "uf2"},
+			"RAK_4631", "simple_repeater", "", "v1.17.0", false, "uf2"},
 		// Boards with hyphens and digits, which is why the split anchors on the
 		// role rather than counting separators.
 		{"Ebyte_EoRa-S3_Repeater-v1.17.0-727fc05-merged.bin",
-			"Ebyte_EoRa-S3", "simple_repeater", "v1.17.0", true, "bin"},
+			"Ebyte_EoRa-S3", "simple_repeater", "", "v1.17.0", true, "bin"},
 		{"Generic_E22_sx1262_repeater-v1.17.0-727fc05-merged.bin",
-			"Generic_E22_sx1262", "simple_repeater", "v1.17.0", true, "bin"},
+			"Generic_E22_sx1262", "simple_repeater", "", "v1.17.0", true, "bin"},
 		{"GAT562_Mesh_EVB_Pro_repeater-v1.17.0-727fc05.uf2",
-			"GAT562_Mesh_EVB_Pro", "simple_repeater", "v1.17.0", false, "uf2"},
+			"GAT562_Mesh_EVB_Pro", "simple_repeater", "", "v1.17.0", false, "uf2"},
 		// The tags say repeater and companion; the applications are called
 		// simple_repeater and companion_radio, and those are the names the
 		// runner and the board wiring use.
-		{"Heltec_v3_companion-v1.17.0-727fc05-merged.bin",
-			"Heltec_v3", "companion_radio", "v1.17.0", true, "bin"},
+		//
+		// A companion carries its transport in the same field, and every
+		// published companion does. This test previously used an invented
+		// "..._companion-v1.17.0..." that upstream has never released, so the
+		// parser matched the name nobody publishes and dropped all 74 real
+		// ones - the firmware library listed no companion builds at all.
+		{"Heltec_v3_companion_radio_usb-v1.17.0-727fc05-merged.bin",
+			"Heltec_v3", "companion_radio", "usb", "v1.17.0", true, "bin"},
+		{"Heltec_v3_companion_radio_ble-v1.17.0-727fc05-merged.bin",
+			"Heltec_v3", "companion_radio", "ble", "v1.17.0", true, "bin"},
+		{"heltec_rc32_without_display_companion_radio_usb-v1.17.0-727fc05-merged.bin",
+			"heltec_rc32_without_display", "companion_radio", "usb", "v1.17.0", true, "bin"},
+		{"Heltec_v3_room_server-v1.17.0-727fc05-merged.bin",
+			"Heltec_v3", "simple_room_server", "", "v1.17.0", true, "bin"},
 	}
 
 	for _, c := range cases {
@@ -49,6 +62,9 @@ func TestParsesPublishedAssetNames(t *testing.T) {
 		}
 		if got.Role != c.role {
 			t.Errorf("%s: role %q, want %q", c.name, got.Role, c.role)
+		}
+		if got.Transport != c.transport {
+			t.Errorf("%s: transport %q, want %q", c.name, got.Transport, c.transport)
 		}
 		if got.Version != c.version {
 			t.Errorf("%s: version %q, want %q", c.name, got.Version, c.version)
@@ -107,5 +123,39 @@ func TestBareImageIsNeverRunnable(t *testing.T) {
 	}, nil)
 	if len(got) != 0 {
 		t.Error("an application-only image was offered as runnable")
+	}
+}
+
+// The two companion builds of one board and version must not share a file.
+//
+// They did: the cache path was role plus version, and the transport is what
+// separates them. Whichever was downloaded second overwrote the first, so a
+// node asking for the USB build could silently run the BLE one and wait for a
+// phone that has no way to arrive.
+func TestCompanionTransportsDoNotShareACachePath(t *testing.T) {
+	usb, _ := firmware.ParseAssetName("Heltec_v3_companion_radio_usb-v1.17.0-727fc05-merged.bin")
+	ble, _ := firmware.ParseAssetName("Heltec_v3_companion_radio_ble-v1.17.0-727fc05-merged.bin")
+	if a, b := firmware.BoardImagePath("/c", usb), firmware.BoardImagePath("/c", ble); a == b {
+		t.Errorf("both companion builds cache to %s", a)
+	}
+}
+
+// A BLE companion boots and then waits for a phone. There is no Bluetooth here,
+// so offering it produces a node that looks hung rather than one that failed.
+func TestRunnableDropsBluetoothCompanions(t *testing.T) {
+	all := []firmware.BoardImage{}
+	for _, n := range []string{
+		"Heltec_v3_companion_radio_usb-v1.17.0-727fc05-merged.bin",
+		"Heltec_v3_companion_radio_ble-v1.17.0-727fc05-merged.bin",
+	} {
+		img, ok := firmware.ParseAssetName(n)
+		if !ok {
+			t.Fatalf("%s did not parse", n)
+		}
+		all = append(all, img)
+	}
+	got := firmware.Runnable(all, nil)
+	if len(got) != 1 || got[0].Transport != "usb" {
+		t.Errorf("Runnable kept %+v; only the usb companion can run here", got)
 	}
 }

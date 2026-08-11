@@ -36,6 +36,12 @@ type BoardImage struct {
 	// the nRF52 boards, and those are not interchangeable.
 	Format string
 
+	// Transport is how a companion build expects its client: ble or usb. Empty
+	// for the roles that have no client. It is part of the asset name rather
+	// than a build option, so the same board and version publishes both, and
+	// only the usb one is any use here - an emulated node has no Bluetooth.
+	Transport string
+
 	Name  string
 	URL   string
 	Bytes int64
@@ -46,8 +52,13 @@ type BoardImage struct {
 // Roles are lowercase words with underscores; boards are everything before
 // them and may contain hyphens, dots and underscores of their own, so the split
 // is anchored on the role rather than done by counting separators.
+//
+// A companion carries its transport in the same field - companion_radio_usb,
+// companion_radio_ble - and the longer alternatives come first, because an
+// alternation matches the first branch that fits rather than the best one.
 var assetPattern = regexp.MustCompile(
-	`^(?i)(.+?)_(repeater|companion|room[-_]server)-v([0-9][^-]*)-([0-9a-f]+)(-merged)?\.(bin|uf2|hex|zip)$`)
+	`^(?i)(.+?)_(companion_radio_ble|companion_radio_usb|companion_radio|companion|` +
+		`repeater|room[-_]server)-v([0-9][^-]*)-([0-9a-f]+)(-merged)?\.(bin|uf2|hex|zip)$`)
 
 // ParseAssetName reads a published asset name, or reports that it is not one.
 func ParseAssetName(name string) (BoardImage, bool) {
@@ -56,6 +67,10 @@ func ParseAssetName(name string) (BoardImage, bool) {
 		return BoardImage{}, false
 	}
 	role := strings.ToLower(strings.ReplaceAll(m[2], "-", "_"))
+	var transport string
+	if t := strings.TrimPrefix(role, "companion_radio_"); t != role {
+		transport, role = t, "companion_radio"
+	}
 	// The tag says "repeater"; the application is called simple_repeater, and
 	// that is the name the runner and the wiring both use.
 	switch role {
@@ -67,13 +82,14 @@ func ParseAssetName(name string) (BoardImage, bool) {
 		role = "simple_room_server"
 	}
 	return BoardImage{
-		Board:   m[1],
-		Role:    role,
-		Version: "v" + m[3],
-		Commit:  m[4],
-		Merged:  m[5] != "",
-		Format:  strings.ToLower(m[6]),
-		Name:    name,
+		Board:     m[1],
+		Role:      role,
+		Transport: transport,
+		Version:   "v" + m[3],
+		Commit:    m[4],
+		Merged:    m[5] != "",
+		Format:    strings.ToLower(m[6]),
+		Name:      name,
 	}, true
 }
 
@@ -220,15 +236,29 @@ func Runnable(images []BoardImage, wired func(board string) bool) []BoardImage {
 		if wired != nil && !wired(img.Board) {
 			continue
 		}
+		// A BLE companion expects a phone over Bluetooth, and there is no
+		// Bluetooth here. It boots and then waits for a client that cannot
+		// arrive, which is indistinguishable from a node that has hung.
+		if img.Transport == "ble" {
+			continue
+		}
 		out = append(out, img)
 	}
 	return out
 }
 
 // BoardImagePath is where a downloaded image lives, and where the runner looks.
+//
+// The transport is part of the name because a board publishes both companion
+// variants at one version: without it the two share a path, and which firmware
+// a node runs comes down to which was downloaded last.
 func BoardImagePath(cacheDir string, img BoardImage) string {
+	name := img.Role
+	if img.Transport != "" {
+		name += "_" + img.Transport
+	}
 	return filepath.Join(cacheDir, boardDir, img.Board,
-		img.Role+"-"+img.Version+"."+img.Format)
+		name+"-"+img.Version+"."+img.Format)
 }
 
 // Ensure downloads an image if it is not already cached, and returns its path.

@@ -60,8 +60,21 @@ func FindNative(explicit, role string) (string, error) {
 		return explicit, nil
 	}
 	if p := os.Getenv(EnvNativeBinary); p != "" {
-		if _, err := os.Stat(p); err != nil {
+		st, err := os.Stat(p)
+		if err != nil {
 			return "", fmt.Errorf("%w at %s (from %s): %w", ErrNativeMissing, p, EnvNativeBinary, err)
+		}
+		// A directory holds one build per role, which is what a scenario mixing
+		// roles needs. Pointing at a single binary overrides every node
+		// regardless of role, so a mesh of repeaters and room servers quietly
+		// became a mesh of whichever one was named.
+		if st.IsDir() {
+			q := filepath.Join(p, NativeBinaryName(role))
+			if _, err := os.Stat(q); err != nil {
+				return "", fmt.Errorf("%w: %s is a directory but holds no %s (from %s)",
+					ErrNativeMissing, p, NativeBinaryName(role), EnvNativeBinary)
+			}
+			return q, nil
 		}
 		return p, nil
 	}
