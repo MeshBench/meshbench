@@ -341,6 +341,31 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 		}
 		return map[string]any{"seeds": e.Seeds, "runs": e.runsTotal()}, nil
 
+	case "experiment.base":
+		// The experiment's constants, held across every arm.
+		var p struct {
+			LoopDetect   string `json:"loop_detect"`
+			CAD          string `json:"cad"`
+			PathHashMode *int32 `json:"path_hash_mode"`
+		}
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, err
+		}
+		e := a.ensureExperiment()
+		if p.LoopDetect != "" {
+			e.Base.LoopDetect = p.LoopDetect
+		}
+		if p.CAD != "" {
+			e.Base.CAD = p.CAD
+		}
+		if p.PathHashMode != nil {
+			e.Base.PathHashMode = *p.PathHashMode
+		}
+		a.switchWorkspace(wsBench)
+		a.showPanel("Configuration")
+		return map[string]any{"loop_detect": e.Base.LoopDetect, "cad": e.Base.CAD,
+			"path_hash_mode": e.Base.PathHashMode}, nil
+
 	case "experiment.senders":
 		// Who originates the burst, and who only listens. Spread rather than
 		// the first few in the list: a cluster of neighbours contends with

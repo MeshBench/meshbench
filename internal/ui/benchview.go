@@ -769,7 +769,63 @@ func (a *App) drawBenchConfig() {
 	}
 
 	imgui.Separator()
-	textDim("what every arm shares")
+	textDim("what every arm holds constant")
+	// Editable, because "make sure every repeater is on minimal loop detect"
+	// is a statement about the experiment's conditions rather than about any
+	// one arm, and repeating it in every arm is how it gets forgotten in one.
+	imgui.SetNextItemWidth(150)
+	loop := e.Base.LoopDetect
+	if loop == "" {
+		loop = "leave as the scenario has it"
+	}
+	if imgui.BeginCombo("loop.detect", loop) {
+		if imgui.SelectableBool("leave as the scenario has it") {
+			e.Base.LoopDetect = ""
+		}
+		for _, v := range []string{"off", "minimal", "moderate", "strict"} {
+			if imgui.SelectableBool(v) {
+				e.Base.LoopDetect = v
+			}
+		}
+		imgui.EndCombo()
+	}
+	imgui.SetNextItemWidth(150)
+	hash := "leave as the scenario has it"
+	if e.Base.PathHashMode >= 0 {
+		hash = fmt.Sprintf("%d byte(s) per hop", e.Base.PathHashMode+1)
+	}
+	if imgui.BeginCombo("path.hash.mode", hash) {
+		if imgui.SelectableBool("leave as the scenario has it") {
+			e.Base.PathHashMode = -1
+		}
+		for m := int32(0); m <= 2; m++ {
+			if imgui.SelectableBool(fmt.Sprintf("%d byte(s) per hop", m+1)) {
+				e.Base.PathHashMode = m
+			}
+		}
+		imgui.EndCombo()
+	}
+	imgui.SetNextItemWidth(150)
+	cad := e.Base.CAD
+	if cad == "" {
+		cad = "leave as the scenario has it"
+	}
+	if imgui.BeginCombo("cad", cad) {
+		if imgui.SelectableBool("leave as the scenario has it") {
+			e.Base.CAD = ""
+		}
+		for _, v := range []string{"off", "on"} {
+			if imgui.SelectableBool(v) {
+				e.Base.CAD = v
+			}
+		}
+		imgui.EndCombo()
+	}
+	textDimWrap("Applied to every arm before its own settings, so an arm overrides only what " +
+		"it names. Hardware CAD is off by default in both 1.16 and 1.17.")
+
+	imgui.Separator()
+	textDim("the radio, from the scenario")
 	if len(a.Nodes) > 0 {
 		r := a.Nodes[0].Radio
 		imgui.Text(fmt.Sprintf("%.3f MHz  SF%d  %.0f kHz  CR4/%d",

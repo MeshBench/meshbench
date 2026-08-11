@@ -39,11 +39,25 @@ type expArm struct {
 	CAD              string // "on", "off", or empty to leave alone
 }
 
-// settings returns the arm as provisioning, which is what an arm *is*.
+// apply writes the arm as provisioning, which is what an arm *is*.
 func (a expArm) apply(cfg *configState) {
 	cfg.pathHashMode = a.PathHashMode
 	cfg.loopDetect = a.LoopDetect
 	cfg.cadMode = a.CAD
+}
+
+// applyOver writes only what this arm actually sets, leaving the rest as the
+// experiment's constants left it.
+func (a expArm) applyOver(cfg *configState) {
+	if a.PathHashMode >= 0 {
+		cfg.pathHashMode = a.PathHashMode
+	}
+	if a.LoopDetect != "" {
+		cfg.loopDetect = a.LoopDetect
+	}
+	if a.CAD != "" {
+		cfg.cadMode = a.CAD
+	}
 }
 
 // expResult is one arm run at one seed.
@@ -105,6 +119,13 @@ const (
 )
 
 type experiment struct {
+	// Base is what every arm holds constant - the experiment's fixed
+	// conditions, as opposed to its independent variables. "All repeaters on
+	// minimal loop detect, now vary the hash size" is two different statements
+	// and needs two different places to say them; without this the only way to
+	// hold something steady was to repeat it in every arm and hope.
+	Base expArm
+
 	Arms  []expArm
 	Seeds []uint64
 
@@ -217,7 +238,11 @@ func (a *App) stepExperiment() {
 		}
 		e.logf("%s %d  wiped node storage", arm.Label, seed)
 		a.ensureConfig()
-		arm.apply(&a.cfg)
+		// Constants first, then the arm's own settings over the top. An arm
+		// states only what it varies, so anything it leaves unset stays at
+		// whatever the experiment holds fixed.
+		e.Base.apply(&a.cfg)
+		arm.applyOver(&a.cfg)
 		a.seed = seed
 		for i := range a.Nodes {
 			if !a.Nodes[i].Kind.RunsFirmware() {
