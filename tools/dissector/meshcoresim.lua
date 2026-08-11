@@ -35,6 +35,10 @@ f.bw       = ProtoField.uint16("msim.bw",       "Bandwidth (kHz)", base.DEC)
 f.cr       = ProtoField.uint8 ("msim.cr",       "Coding rate",    base.DEC)
 f.crc_ok   = ProtoField.uint8 ("msim.crc_ok",   "CRC OK",         base.DEC)
 f.payload  = ProtoField.bytes ("msim.payload",  "MeshCore frame")
+-- Names, so a filter reads like the network rather than like a database:
+--   msim.to_name == "West Lomond"
+f.from_name = ProtoField.string("msim.from_name", "From")
+f.to_name   = ProtoField.string("msim.to_name",   "Received by")
 
 -- MeshCore's own header byte. Kept minimal deliberately: this duplicates
 -- knowledge that also lives in the firmware we link, so it will drift. The
@@ -45,37 +49,54 @@ f.mc_header = ProtoField.uint8("msim.mc.header", "MeshCore header", base.HEX)
 local HDR_LEN = 18
 
 function msim.dissector(buf, pkt, tree)
-  if buf:len() < HDR_LEN then return 0 end
+  if buf:len() < 1 then return 0 end
   pkt.cols.protocol = "MeshcoreSim"
+  local t = tree:add(msim, buf())
 
-  local t = tree:add(msim, buf(), "MeshcoreSim")
-  local ver = buf(0,1):le_uint()
-  t:add_le(f.version, buf(0,1))
-  if ver ~= 1 then
-    t:add_expert_info(PI_PROTOCOL, PI_WARN, "unknown pseudo-header version")
-    return HDR_LEN
+  -- The live UDP form carries the node names in front of the pseudo-header,
+  -- marked by 0xFF - a value the version byte can never take.
+  local off = 0
+  local from_name, to_name
+  if buf(0,1):uint() == 0xFF then
+    local n = buf(1,1):uint()
+    from_name = buf(2, n):string()
+    t:add(f.from_name, buf(2, n))
+    local m = buf(2 + n, 1):uint()
+    to_name = buf(3 + n, m):string()
+    t:add(f.to_name, buf(3 + n, m))
+    off = 3 + n + m
   end
 
-  t:add_le(f.outcome, buf(1,1))
-  t:add_le(f.from,    buf(2,2))
-  t:add_le(f.to,      buf(4,2))
-  t:add_le(f.rssi,    buf(6,2))
-  t:add_le(f.snr,     buf(8,2))
-  t:add_le(f.freq,    buf(10,4))
-  t:add_le(f.sf,      buf(14,1))
-  t:add_le(f.bw,      buf(15,2))
-  t:add_le(f.cr,      buf(17,1))
+  if buf:len() < off + HDR_LEN then return buf:len() end
+  local b = buf(off):tvb()
 
-  local outcome = outcomes[buf(1,1):le_uint()] or "unknown"
-  pkt.cols.info = string.format("node %d -> node %d  %s  %.1f dBm",
-    buf(2,2):le_uint(), buf(4,2):le_uint(), outcome, buf(6,2):le_int() / 10)
+  if b(0,1):uint() ~= 1 then
+    t:add_expert_info(PI_PROTOCOL, PI_WARN, "unknown pseudo-header version")
+    return buf:len()
+  end
+  t:add_le(f.version, b(0,1))
+  t:add_le(f.outcome, b(1,1))
+  t:add_le(f.from,    b(2,2))
+  t:add_le(f.to,      b(4,2))
+  t:add_le(f.rssi,    b(6,2))
+  t:add_le(f.snr,     b(8,2))
+  t:add_le(f.freq,    b(10,4))
+  t:add_le(f.sf,      b(14,1))
+  t:add_le(f.bw,      b(15,2))
+  t:add_le(f.cr,      b(17,1))
 
-  if buf:len() > HDR_LEN then
-    local frame = buf(HDR_LEN)
+  local outcome = outcomes[b(1,1):le_uint()] or "unknown"
+  pkt.cols.info = string.format("%s -> %s  %s  %.1f dBm",
+    from_name or ("node " .. b(2,2):le_uint()),
+    to_name or ("node " .. b(4,2):le_uint()),
+    outcome, b(6,2):le_int() / 10)
+
+  if b:len() > HDR_LEN then
+    local frame = b(HDR_LEN)
     t:add(f.payload, frame)
     t:add(f.mc_header, frame(0,1))
-    -- Hand the frame to the MeshCore dissector so the packet detail shows the
-    -- route, the path and the payload rather than a run of bytes.
+    -- Hand the frame to the MeshCore dissector so the detail shows the route,
+    -- the path and the payload rather than a run of bytes.
     Dissector.get("meshcore"):call(frame:tvb(), pkt, tree)
   end
   return buf:len()

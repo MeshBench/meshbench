@@ -191,6 +191,8 @@ type App struct {
 	statusAction string
 	statusDo     func()
 	fifoPath     string
+	// captureUDP keeps the live capture alive across engine rebuilds.
+	captureUDP bool
 
 	// exp is the experiment being defined or run.
 	exp *experiment

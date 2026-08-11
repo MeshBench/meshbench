@@ -360,6 +360,7 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 		if err := a.eng.StartCaptureUDP(captureUDPAddr); err != nil {
 			return nil, err
 		}
+		a.captureUDP = true
 		a.launchWireshark(captureUDPAddr)
 		return map[string]any{"udp": captureUDPAddr, "status": a.status}, nil
 

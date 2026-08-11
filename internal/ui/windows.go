@@ -74,6 +74,7 @@ func (a *App) drawMenuBar() {
 			if err := a.eng.StartCaptureUDP(captureUDPAddr); err != nil {
 				a.status = err.Error()
 			} else {
+				a.captureUDP = true
 				a.status = "streaming to " + captureUDPAddr
 				a.statusAction = "open Wireshark"
 				a.statusDo = func() { a.launchWireshark(captureUDPAddr) }
@@ -961,7 +962,7 @@ func (a *App) launchWireshark(_ string) {
 		"-k", "-i", "lo",
 		"-f", "udp port "+captureUDPPort,
 		"-X", "lua_script:"+lua,
-		"-o", `gui.column.format:"Time","%t","From","%Cus:msim.from","To","%Cus:msim.to",`+
+		"-o", `gui.column.format:"Time","%t","From","%Cus:msim.from_name","Received by","%Cus:msim.to_name",`+
 			`"Outcome","%Cus:msim.outcome","SNR","%Cus:msim.snr","Hops","%Cus:meshcore.hops",`+
 			`"Hash","%Cus:meshcore.path_hash_size","Info","%i"`)
 	// Wireshark finds dumpcap on PATH; put a runnable one first if the system

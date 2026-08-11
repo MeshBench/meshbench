@@ -162,7 +162,18 @@ func (c *Capture) write(atMs uint32, from, to string, p phy, rssi, snr float64,
 	if c.udp {
 		// One datagram per view. Dropped silently if nothing is listening,
 		// which is what a diagnostic should do.
-		buf := append(h.Encode(), frame...)
+		//
+		// Node names ride along, because a capture is read by a person asking
+		// "what did West Lomond hear" and a numeric id makes them go and look
+		// it up. Prefixed with 0xFF, which a pseudo-header version byte can
+		// never be, so one dissector reads both this and the pcapng form.
+		buf := make([]byte, 0, 8+len(from)+len(to)+len(frame)+24)
+		buf = append(buf, 0xFF, byte(len(from)))
+		buf = append(buf, from...)
+		buf = append(buf, byte(len(to)))
+		buf = append(buf, to...)
+		buf = append(buf, h.Encode()...)
+		buf = append(buf, frame...)
 		if _, err := c.sink.Write(buf); err != nil {
 			_ = c.sink.Close()
 			c.sink = nil

@@ -31,6 +31,13 @@ func (a *App) buildEngine() {
 	if a.eng != nil {
 		_ = a.eng.Close()
 	}
+	// A capture outlives the engine it was started on.
+	//
+	// Every run of a sweep rebuilds the engine, and the capture lived on the
+	// engine - so starting Wireshark and then starting an experiment produced
+	// a live capture of nothing at all, which looks exactly like a simulator
+	// that is not forwarding packets.
+	reCapture := a.captureUDP
 	a.eng = engine.New(a.Terrain, engine.Config{
 		FreqMHz: a.freqMHz, SF: 10, BandwidthHz: 250e3, CodingRate: 1,
 		NoiseFigDB: 6, StepMs: 10, Seed: a.runSeed(),
@@ -45,6 +52,11 @@ func (a *App) buildEngine() {
 	a.scrubMs = 0
 	if a.cfg.autoWarm {
 		a.startWarm()
+	}
+	if reCapture {
+		if err := a.eng.StartCaptureUDP(captureUDPAddr); err != nil {
+			a.status = "capture: " + err.Error()
+		}
 	}
 }
 
