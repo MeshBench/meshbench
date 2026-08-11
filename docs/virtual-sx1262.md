@@ -257,6 +257,51 @@ behaves differently per radio — which is a real question, but a later one.
   interference, say — the arms could remain identical for a new reason. Step 5's
   test is written to say that plainly rather than leave it ambiguous.
 
+## "Is it the actual firmware then?"
+
+Worth stating exactly, because the answer is nearly yes and the remainder
+matters.
+
+**MeshCore's own source is already compiled unmodified, today.** The build points
+at a checkout and compiles `src/**` and `examples/<role>/*.cpp` as they are.
+Nothing is patched. The only build-time influence is three defines and one role
+flag, and the one flag that changes behaviour - `MAX_GROUP_CHANNELS=40` - exists
+because the companion reports its capacity in a protocol frame and a host has no
+flash limit to derive it from.
+
+What is substituted is the **platform beneath** the firmware, in
+`variants/host/`: the Arduino core, the board, the flash filesystem, the RTC,
+the sensors, the RNG - and, today, the radio.
+
+Option B moves exactly one of those from ours to theirs. After it:
+
+| | today | after |
+|---|---|---|
+| MeshCore application and mesh logic | real | real |
+| MeshCore radio driver | ours | **real** |
+| RadioLib | absent | **real** |
+| SX1262 chip | absent | ours, virtual |
+| Arduino core, board, filesystem, RTC, sensors, RNG | ours | ours |
+| The air: modulation, noise, capture effect | the engine | the engine |
+
+The bottom row must stay ours - that is the simulator, and the reason any of
+this is worth doing. The row above it is where the hardware ends.
+
+### Two caveats
+
+**We build as an nRF52.** `-DNRF52_PLATFORM` is set, so where MeshCore takes a
+platform-specific path we take that one. It is therefore the nRF52 flavour of
+the firmware, not a platform-neutral one, and a bug that only appears on ESP32
+will not appear here. Worth revisiting once the radio stack is real, because the
+platform define currently also reaches the radio.
+
+**A virtual chip is a model of a chip.** After this, everything above the SPI
+pins is genuinely the software that runs on hardware. What answers those pins is
+still our best understanding of an SX1262, and a behaviour we have not modelled -
+a real preamble detector under interference, a real chip's errata - is a
+behaviour the firmware cannot show us. The stack becomes real; the silicon does
+not.
+
 ## Effort and what it buys
 
 Several times option A: the HAL is an afternoon, the configuration opcodes a day,
