@@ -1,3 +1,4 @@
+i @tools/renode/peripherals/NRF52840_TWIM.cs
 i @tools/renode/peripherals/NRF52840_SAADC.cs
 i @tools/renode/peripherals/RadioServerSX1262.cs
 i @tools/renode/peripherals/NRF52840_Clock.cs
@@ -11,6 +12,9 @@ sysbus Unregister sysbus.clock
 machine LoadPlatformDescription @tools/renode/clock.repl
 machine LoadPlatformDescription @tools/renode/saadc.repl
 sysbus Unregister sysbus.spi2
+sysbus Unregister sysbus.twi0
+sysbus Unregister sysbus.twi1
+machine LoadPlatformDescription @tools/renode/twim.repl
 machine LoadPlatformDescription @tools/renode/radio.repl
 
 : Erased flash, then every real region in flash order. Erased matters: the MBR
