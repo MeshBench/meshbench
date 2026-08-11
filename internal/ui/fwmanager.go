@@ -10,6 +10,7 @@ import (
 	"github.com/AllenDang/cimgui-go/imgui"
 
 	"github.com/A13xB0/meshcoresim/internal/firmware"
+	"github.com/A13xB0/meshcoresim/internal/scenario"
 )
 
 // fwRow is one build, whether it is on this machine or merely published.
@@ -205,6 +206,59 @@ func fwMatches(r fwRow, query string, onDiskOnly, boardsOnly, nativeOnly bool) b
 }
 
 // drawFirmwareTable is every build, in one sortable, searchable list.
+// selectedNode is the node the operator has picked, or nil.
+//
+// A board image is applied to one node rather than to a role, so the library
+// needs to know which one — and needs to say "select a node first" rather than
+// silently doing nothing when none is picked.
+// boardImageFor finds a published image for a board, role and version.
+//
+// It answers from the catalogue the library has already loaded, so it says what
+// is wrong rather than what is missing: an unknown board, a board nothing has
+// been verified on, or a role that board does not publish are three different
+// problems and each sends someone somewhere different. The E22 publishes a
+// repeater and no companion, and "not found" would have read as a bad version.
+func (a *App) boardImageFor(board, role, version string) (firmware.BoardImage, error) {
+	if !scenario.EmulationSupported(board) {
+		ok, blocked := scenario.EmulatableBoards()
+		if why, isBlocked := blocked[board]; isBlocked {
+			return firmware.BoardImage{}, fmt.Errorf("%s cannot be emulated: %s", board, why)
+		}
+		names := make([]string, 0, len(ok))
+		for _, b := range ok {
+			names = append(names, b.Name)
+		}
+		return firmware.BoardImage{}, fmt.Errorf(
+			"no verified emulation wiring for %q - these have it: %s",
+			board, strings.Join(names, ", "))
+	}
+	var roles []string
+	for _, img := range a.fw.boardImages() {
+		if !strings.EqualFold(img.Board, board) || !img.Merged || img.Format != "bin" {
+			continue
+		}
+		if img.Version == version && img.Role == role {
+			return img, nil
+		}
+		if img.Version == version {
+			roles = append(roles, img.Role)
+		}
+	}
+	if len(roles) > 0 {
+		return firmware.BoardImage{}, fmt.Errorf(
+			"%s publishes no %s at %s - it publishes: %s",
+			board, role, version, strings.Join(roles, ", "))
+	}
+	return firmware.BoardImage{}, fmt.Errorf("no %s image for %s at %s", board, role, version)
+}
+
+func (a *App) selectedNode() *scenario.Node {
+	if a.selected < 0 || a.selected >= len(a.Nodes) {
+		return nil
+	}
+	return &a.Nodes[a.selected]
+}
+
 func (a *App) drawFirmwareTable() {
 	all := a.fwRows()
 
@@ -306,7 +360,7 @@ func (a *App) drawFirmwareTable() {
 	// as rows gain or lose the second one, so each gets its own and they line
 	// up down the table whether or not the row has both.
 	imgui.TableSetupColumnV("", imgui.TableColumnFlagsWidthFixed|imgui.TableColumnFlagsNoSort,
-		imgui.CalcTextSize("use for role").X+pad*2, 0)
+		imgui.CalcTextSize("use for selected").X+pad*2, 0)
 	imgui.TableSetupColumnV("", imgui.TableColumnFlagsWidthFixed|imgui.TableColumnFlagsNoSort,
 		imgui.CalcTextSize("delete").X+pad*2, 0)
 	imgui.TableSetupScrollFreeze(0, 1)
@@ -370,25 +424,51 @@ func (a *App) drawFirmwareTable() {
 		}
 
 		imgui.TableSetColumnIndex(5)
-		if r.Board == "" {
+		// A board image sets a role the same way a host build does. The only
+		// difference is what it costs: every node it lands on becomes its own
+		// emulator running in real time, which the tooltip says out loud with
+		// the actual count rather than leaving it to be discovered at play.
+		if r.Board == "" || r.OnDisk {
 			if imgui.SmallButton("use for role" + id) {
 				n := 0
 				for i := range a.Nodes {
 					if a.Nodes[i].Kind.RunsFirmware() &&
 						(a.Nodes[i].Firmware.Role == r.Role || a.Nodes[i].Kind.Application() == r.Role) {
 						a.Nodes[i].Firmware.Role, a.Nodes[i].Firmware.Version = r.Role, r.Version
+						// The board selects the backend, so it is set on the way
+						// to emulated hardware and cleared on the way back.
+						// Without the clear, a node emulated once stays emulated
+						// for ever, on a host build that never matches it.
+						a.Nodes[i].Firmware.Board = r.Board
 						n++
 					}
 				}
 				a.rebuildForFirmware()
-				a.status = fmt.Sprintf("%d %s nodes set to %s", n, r.Role, r.Version)
+				if r.Board == "" {
+					a.status = fmt.Sprintf("%d %s nodes set to %s", n, r.Role, r.Version)
+				} else {
+					a.status = fmt.Sprintf("%d %s nodes set to emulated %s %s",
+						n, r.Role, r.Board, r.Version)
+				}
 			}
 			if imgui.IsItemHovered() {
-				// Scoped to the role, and said out loud. A node's application
-				// is what makes it a companion in the first place, so nothing
-				// here turns one kind of node into another.
-				imgui.SetTooltip("Set every " + r.Role + " node to " + r.Version +
-					".\nOther roles are left alone.")
+				// Scoped to the role, and said out loud. A node's application is
+				// what makes it a companion in the first place, so nothing here
+				// turns one kind of node into another.
+				want := 0
+				for i := range a.Nodes {
+					if a.Nodes[i].Kind.RunsFirmware() &&
+						(a.Nodes[i].Firmware.Role == r.Role || a.Nodes[i].Kind.Application() == r.Role) {
+						want++
+					}
+				}
+				tip := fmt.Sprintf("Set every %s node to %s.\nOther roles are left alone.",
+					r.Role, r.Version)
+				if r.Board != "" {
+					tip += fmt.Sprintf("\n\n%d node(s) would run emulated %s - one emulator"+
+						"\neach, in real time. A large fleet will not fit.", want, r.Board)
+				}
+				imgui.SetTooltip(tip)
 			}
 		}
 

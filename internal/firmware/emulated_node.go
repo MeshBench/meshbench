@@ -159,11 +159,26 @@ func (e *EmulatedNode) stopLocked() error {
 	return nil
 }
 
-// lookupTool finds a binary by environment variable, then on PATH.
+// ToolsDir is where the emulator and the radio model are kept.
 //
-// The message names both, because "qemu-system-xtensa not found" sends people
-// to their package manager for a build that will not do: ours carries an SX1262
-// and a GPIO implementation upstream has not got.
+// The same shape as the native build cache, and for the same reason: a desktop
+// application is not launched from a shell, so it does not inherit one's PATH.
+// Requiring an environment variable meant emulation worked from a terminal and
+// failed from the desktop, with an error that read as a missing package.
+func ToolsDir() string {
+	dir, err := os.UserCacheDir()
+	if err != nil {
+		return "tools"
+	}
+	return filepath.Join(dir, "meshcoresim", "tools")
+}
+
+// lookupTool finds a binary: the environment variable, then beside the
+// simulator, then the tools directory, then PATH.
+//
+// The message names all of them, because "qemu-system-xtensa not found" sends
+// people to their package manager for a build that will not do: ours carries an
+// SX1262 and a GPIO implementation upstream has not got.
 func lookupTool(env, name string) (string, error) {
 	if p := os.Getenv(env); p != "" {
 		if _, err := os.Stat(p); err == nil {
@@ -171,13 +186,26 @@ func lookupTool(env, name string) (string, error) {
 		}
 		return "", fmt.Errorf("firmware: %s points at %s, which is not there", env, p)
 	}
-	p, err := exec.LookPath(name)
-	if err != nil {
-		return "", fmt.Errorf("firmware: %s not found - set %s, or build it from "+
-			"the meshbench-sx1262 branch (a distribution build will not do, ours "+
-			"carries the SX1262 device)", name, env)
+	if self, err := os.Executable(); err == nil {
+		if p := filepath.Join(filepath.Dir(self), name); fileExists(p) {
+			return p, nil
+		}
 	}
-	return p, nil
+	if p := filepath.Join(ToolsDir(), name); fileExists(p) {
+		return p, nil
+	}
+	if p, err := exec.LookPath(name); err == nil {
+		return p, nil
+	}
+	return "", fmt.Errorf("firmware: %s not found - looked beside the simulator, "+
+		"in %s, and on PATH. Put it in that directory or set %s. A distribution "+
+		"build will not do: ours carries the SX1262 device",
+		name, ToolsDir(), env)
+}
+
+func fileExists(p string) bool {
+	st, err := os.Stat(p)
+	return err == nil && !st.IsDir()
 }
 
 // PadImage copies a flash image padded to a size QEMU will accept.
