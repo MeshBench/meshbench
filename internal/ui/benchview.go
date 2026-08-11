@@ -127,7 +127,7 @@ func (a *App) drawSweep() {
 			continue
 		}
 		imgui.SameLine()
-		imgui.Text(e.Senders[i])
+		imgui.TextUnformatted(e.Senders[i])
 		imgui.PopID()
 	}
 
@@ -279,7 +279,8 @@ func (a *App) drawSweep() {
 	textDim("vary a parameter across arms")
 	imgui.SetNextItemWidth(200)
 	if imgui.BeginCombo("##param", a.benchUI.param) {
-		for _, p := range []string{"path.hash.mode", "loop.detect", "cad", "firmware", "spread"} {
+		for _, p := range []string{"companion path hash", "repeater path hash",
+			"loop.detect", "cad", "firmware", "spread"} {
 			if imgui.SelectableBool(p) {
 				a.benchUI.param = p
 				a.benchUI.values = defaultValuesFor(p)
@@ -317,7 +318,7 @@ func (a *App) drawSweep() {
 
 	imgui.Separator()
 	// Say what it costs before it is started, not after.
-	imgui.Text(fmt.Sprintf("%d arms x %d seeds = %d runs, about %s",
+	imgui.TextUnformatted(fmt.Sprintf("%d arms x %d seeds = %d runs, about %s",
 		len(e.Arms), len(e.Seeds), e.runsTotal(), e.estimate().Round(time.Minute)))
 
 	if e.running {
@@ -360,7 +361,10 @@ func (a expArm) summary() string {
 		parts = append(parts, strings.TrimPrefix(a.RepeaterVersion, "repeater-"))
 	}
 	if a.PathHashMode >= 0 {
-		parts = append(parts, fmt.Sprintf("%d-byte hash", a.PathHashMode+1))
+		parts = append(parts, fmt.Sprintf("companion sends %d-byte", a.PathHashMode+1))
+	}
+	if a.RepPathHash >= 0 {
+		parts = append(parts, fmt.Sprintf("repeaters %d-byte", a.RepPathHash+1))
 	}
 	if a.LoopDetect != "" {
 		parts = append(parts, "loop "+a.LoopDetect)
@@ -378,7 +382,7 @@ func (a expArm) summary() string {
 
 func defaultValuesFor(p string) string {
 	switch p {
-	case "path.hash.mode":
+	case "companion path hash", "repeater path hash":
 		return "0, 1, 2"
 	case "loop.detect":
 		return "off, minimal, moderate, strict"
@@ -409,20 +413,27 @@ func (a *App) addArmsVarying(param, values string) {
 	// The untouched baseline is a placeholder, not a choice: crossing onto it
 	// doubles every arm and compounds its label into nonsense. Replace it.
 	if len(base) == 0 || (len(base) == 1 && base[0].isPristine()) {
-		base = []expArm{{PathHashMode: -1, SpreadMs: -1}}
+		base = []expArm{{PathHashMode: -1, RepPathHash: -1, SpreadMs: -1}}
 	}
 	var out []expArm
 	for _, b := range base {
 		for _, v := range vals {
 			arm := b
 			switch param {
-			case "path.hash.mode":
+			case "companion path hash":
 				n, err := strconv.Atoi(v)
 				if err != nil || n < 0 || n > 2 {
 					continue
 				}
 				arm.PathHashMode = int32(n)
 				arm.Label = joinLabel(b.Label, fmt.Sprintf("%d-byte", n+1))
+			case "repeater path hash":
+				n, err := strconv.Atoi(v)
+				if err != nil || n < 0 || n > 2 {
+					continue
+				}
+				arm.RepPathHash = int32(n)
+				arm.Label = joinLabel(b.Label, fmt.Sprintf("rpt %d-byte", n+1))
 			case "loop.detect":
 				arm.LoopDetect = v
 				arm.Label = joinLabel(b.Label, "loop "+v)
@@ -488,7 +499,7 @@ func (a *App) drawRuns() {
 			for _, seed := range e.Seeds {
 				imgui.TableNextRow()
 				imgui.TableNextColumn()
-				imgui.Text(arm.Label)
+				imgui.TextUnformatted(arm.Label)
 				imgui.TableNextColumn()
 				imgui.Text(fmt.Sprint(seed))
 				imgui.TableNextColumn()
@@ -515,7 +526,7 @@ func (a *App) drawRuns() {
 					case r.Flag != "":
 						textBad(r.Flag)
 					default:
-						imgui.Text(fmt.Sprintf("%d msgs  R %d/%d  C %d/%d",
+						imgui.TextUnformatted(fmt.Sprintf("%d msgs  R %d/%d  C %d/%d",
 							r.Messages, r.RepHit, r.RepChances, r.CompHit, r.CompChances))
 						if len(r.RepPerMsg) > 0 {
 							// Each message on its own, so one that got nowhere
@@ -563,13 +574,13 @@ func phaseName(p expPhase) string {
 func (a *App) drawExperimentLog() {
 	e := a.ensureExperiment()
 	if e.status != "" {
-		imgui.Text(e.status)
+		imgui.TextUnformatted(e.status)
 		imgui.Separator()
 	}
 	if imgui.BeginChildStr("##explog") {
 		pushMono()
 		for _, l := range e.log {
-			imgui.Text(l)
+			imgui.TextUnformatted(l)
 		}
 		popMono()
 		if e.running && imgui.ScrollY() >= imgui.ScrollMaxY()-4 {
@@ -604,16 +615,17 @@ func (a *App) drawMatrix() {
 	}
 	base := sums[e.baselineArm]
 
-	if imgui.BeginTableV("##matrix", 8, imgui.TableFlagsRowBg|imgui.TableFlagsBordersInnerH,
+	if imgui.BeginTableV("##matrix", 9, imgui.TableFlagsRowBg|imgui.TableFlagsBordersInnerH,
 		imgui.NewVec2(0, 0), 0) {
-		for _, c := range []string{"arm", "runs", "tx", "to repeaters", "to companions", "msgs", "collisions", "to quiet"} {
+		for _, c := range []string{"arm", "runs", "tx", "to repeaters", "to companions",
+			"msgs", "collisions", "airtime", "to quiet"} {
 			imgui.TableSetupColumnV(c, imgui.TableColumnFlagsWidthStretch, 0, 0)
 		}
 		imgui.TableHeadersRow()
 		for i, s := range sums {
 			imgui.TableNextRow()
 			imgui.TableNextColumn()
-			imgui.Text(s.Arm)
+			imgui.TextUnformatted(s.Arm)
 			imgui.TableNextColumn()
 			if s.Flagged > 0 {
 				textBad(fmt.Sprintf("%d (%d flagged)", s.Runs, s.Flagged))
@@ -623,7 +635,7 @@ func (a *App) drawMatrix() {
 			cell := func(v, ref float64, unit string) {
 				imgui.TableNextColumn()
 				if i == e.baselineArm || ref == 0 {
-					imgui.Text(fmt.Sprintf("%.0f%s", v, unit))
+					imgui.TextUnformatted(fmt.Sprintf("%.0f%s", v, unit))
 					return
 				}
 				d := (v - ref) / ref * 100
@@ -641,12 +653,13 @@ func (a *App) drawMatrix() {
 			// Delivery, split: reaching the repeaters is whether the mesh
 			// carried it, reaching the companions is whether anybody read it.
 			imgui.TableNextColumn()
-			imgui.Text(fmt.Sprintf("%.1f%%", s.RepPct))
+			imgui.TextUnformatted(fmt.Sprintf("%.1f%%", s.RepPct))
 			imgui.TableNextColumn()
-			imgui.Text(fmt.Sprintf("%.1f%%", s.CompPct))
+			imgui.TextUnformatted(fmt.Sprintf("%.1f%%", s.CompPct))
 			imgui.TableNextColumn()
-			imgui.Text(fmt.Sprintf("%.0f", s.Messages))
+			imgui.TextUnformatted(fmt.Sprintf("%.0f", s.Messages))
 			cell(s.Coll, base.Coll, "")
+			cell(s.Airtime/1000, base.Airtime/1000, " s")
 			cell(s.SpanMs/1000, base.SpanMs/1000, " s")
 		}
 		imgui.EndTable()
@@ -815,8 +828,8 @@ func (a *App) drawBenchConfig() {
 			}
 		}
 	}
-	imgui.Text(fmt.Sprintf("%d repeaters, %d companions", nRep, nComp))
-	imgui.Text(fmt.Sprintf("%d nodes carry transport regions", withRegions))
+	imgui.TextUnformatted(fmt.Sprintf("%d repeaters, %d companions", nRep, nComp))
+	imgui.TextUnformatted(fmt.Sprintf("%d nodes carry transport regions", withRegions))
 	if len(regions) > 0 {
 		var parts []string
 		for _, r := range a.knownRegions() {
@@ -854,20 +867,23 @@ func (a *App) drawBenchConfig() {
 	}
 	imgui.SetNextItemWidth(150)
 	hash := "leave as the scenario has it"
-	if e.Base.PathHashMode >= 0 {
-		hash = fmt.Sprintf("%d byte(s) per hop", e.Base.PathHashMode+1)
+	if e.Base.RepPathHash >= 0 {
+		hash = fmt.Sprintf("%d byte(s) per hop", e.Base.RepPathHash+1)
 	}
-	if imgui.BeginCombo("path.hash.mode", hash) {
+	if imgui.BeginCombo("repeater path hash", hash) {
 		if imgui.SelectableBool("leave as the scenario has it") {
-			e.Base.PathHashMode = -1
+			e.Base.RepPathHash = -1
 		}
 		for m := int32(0); m <= 2; m++ {
 			if imgui.SelectableBool(fmt.Sprintf("%d byte(s) per hop", m+1)) {
-				e.Base.PathHashMode = m
+				e.Base.RepPathHash = m
 			}
 		}
 		imgui.EndCombo()
 	}
+	textDimWrap("A repeater's own setting only affects the adverts it originates. What a " +
+		"message carries is stamped by the companion that sent it, and every hop honours " +
+		"that - so vary the companion's and hold this one still.")
 	imgui.SetNextItemWidth(150)
 	cad := e.Base.CAD
 	if cad == "" {
@@ -891,24 +907,25 @@ func (a *App) drawBenchConfig() {
 	textDim("the radio, from the scenario")
 	if len(a.Nodes) > 0 {
 		r := a.Nodes[0].Radio
-		imgui.Text(fmt.Sprintf("%.3f MHz  SF%d  %.0f kHz  CR4/%d",
+		imgui.TextUnformatted(fmt.Sprintf("%.3f MHz  SF%d  %.0f kHz  CR4/%d",
 			r.CentreHz/1e6, r.SpreadFactor, r.BandwidthHz/1000, r.CodingRate+4))
 	}
-	imgui.Text(fmt.Sprintf("clock set on boot: %v", a.cfg.setClockOnStart))
-	imgui.Text(fmt.Sprintf("names and positions set: %v", a.cfg.setNameOnStart))
+	imgui.TextUnformatted(fmt.Sprintf("clock set on boot: %v", a.cfg.setClockOnStart))
+	imgui.TextUnformatted(fmt.Sprintf("names and positions set: %v", a.cfg.setNameOnStart))
 
 	imgui.Separator()
 	textDim("what each arm changes")
 	if imgui.BeginTableV("##armcfg", 5, imgui.TableFlagsRowBg|imgui.TableFlagsBordersInnerH,
 		imgui.NewVec2(0, 0), 0) {
-		for _, c := range []string{"arm", "repeater fw", "companion fw", "path hash", "loop / cad"} {
+		for _, c := range []string{"arm", "repeater fw", "companion fw",
+			"companion sends", "loop / cad"} {
 			imgui.TableSetupColumnV(c, imgui.TableColumnFlagsWidthStretch, 0, 0)
 		}
 		imgui.TableHeadersRow()
 		for _, arm := range e.Arms {
 			imgui.TableNextRow()
 			imgui.TableNextColumn()
-			imgui.Text(arm.Label)
+			imgui.TextUnformatted(arm.Label)
 			imgui.TableNextColumn()
 			textOrDash(arm.RepeaterVersion)
 			imgui.TableNextColumn()
@@ -917,7 +934,7 @@ func (a *App) drawBenchConfig() {
 			if arm.PathHashMode < 0 {
 				textDim("unchanged")
 			} else {
-				imgui.Text(fmt.Sprintf("%d byte(s)/hop", arm.PathHashMode+1))
+				imgui.TextUnformatted(fmt.Sprintf("%d byte(s)/hop", arm.PathHashMode+1))
 			}
 			imgui.TableNextColumn()
 			both := strings.TrimSpace(arm.LoopDetect + " " + arm.CAD)

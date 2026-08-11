@@ -34,9 +34,14 @@ type expArm struct {
 	// Empty or negative means "leave whatever the scenario says".
 	RepeaterVersion  string
 	CompanionVersion string
-	PathHashMode     int32
-	LoopDetect       string
-	CAD              string // "on", "off", or empty to leave alone
+	// PathHashMode is the *companion* setting - the one that decides what a
+	// message carries, because the originator stamps it and every hop honours
+	// it. RepPathHash is the repeaters' own, which only affects the adverts
+	// they originate and is normally held constant.
+	PathHashMode int32
+	RepPathHash  int32
+	LoopDetect   string
+	CAD          string // "on", "off", or empty to leave alone
 	// SpreadMs overrides the experiment's own when >= 0: how long the senders
 	// take to all have fired.
 	SpreadMs int32
@@ -44,7 +49,8 @@ type expArm struct {
 
 // apply writes the arm as provisioning, which is what an arm *is*.
 func (a expArm) apply(cfg *configState) {
-	cfg.pathHashMode = a.PathHashMode
+	cfg.compPathHashMode = a.PathHashMode
+	cfg.pathHashMode = a.RepPathHash
 	cfg.loopDetect = a.LoopDetect
 	cfg.cadMode = a.CAD
 }
@@ -53,7 +59,10 @@ func (a expArm) apply(cfg *configState) {
 // experiment's constants left it.
 func (a expArm) applyOver(cfg *configState) {
 	if a.PathHashMode >= 0 {
-		cfg.pathHashMode = a.PathHashMode
+		cfg.compPathHashMode = a.PathHashMode
+	}
+	if a.RepPathHash >= 0 {
+		cfg.pathHashMode = a.RepPathHash
 	}
 	if a.LoopDetect != "" {
 		cfg.loopDetect = a.LoopDetect
@@ -937,7 +946,7 @@ func sameEvent(x, y engine.Event) bool {
 // builder starts with, which exists to be replaced rather than crossed onto.
 func (a expArm) isPristine() bool {
 	return a.RepeaterVersion == "" && a.CompanionVersion == "" &&
-		a.LoopDetect == "" && a.CAD == "" && a.PathHashMode < 0
+		a.LoopDetect == "" && a.CAD == "" && a.PathHashMode < 0 && a.RepPathHash < 0
 }
 
 // padTo makes a message a given length, so payload size is an experimental

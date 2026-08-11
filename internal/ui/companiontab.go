@@ -630,8 +630,9 @@ func (a *App) configureCompanion(node string) {
 		want = float64(self.MaxTxPowerDBm)
 	}
 	_ = a.compSend(s, proto.SetTxPower(uint8(want)))
-	if a.cfg.pathHashMode >= 0 {
-		_ = a.compSend(s, proto.SetPathHashMode(uint8(a.cfg.pathHashMode)))
+	// The companion's own mode: what the messages it originates will carry.
+	if a.cfg.compPathHashMode >= 0 {
+		_ = a.compSend(s, proto.SetPathHashMode(uint8(a.cfg.compPathHashMode)))
 	}
 	if n.Name != "" {
 		_ = a.compSend(s, proto.SetAdvertName(truncateRunes(n.Name, maxNodeNameLen)))

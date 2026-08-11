@@ -359,7 +359,8 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 			e.Base.CAD = p.CAD
 		}
 		if p.PathHashMode != nil {
-			e.Base.PathHashMode = *p.PathHashMode
+			// The base holds the repeaters still; the arms vary the companion.
+			e.Base.RepPathHash = *p.PathHashMode
 		}
 		a.switchWorkspace(wsBench)
 		a.showPanel("Configuration")

@@ -38,12 +38,20 @@ type configState struct {
 	// setClockOnStart gives every node the same wall-clock time as it comes up.
 	setClockOnStart bool
 
-	// pathHashMode is how many bytes of hash each hop adds to a packet's path:
-	// mode 0, 1, 2 give 1, 2 and 3 bytes. Bigger means fewer hash collisions
-	// between different nodes - and so fewer packets wrongly dropped as
-	// already-seen - at the cost of airtime on every hop. -1 leaves the
-	// firmware's own setting alone.
+	// pathHashMode is the repeater setting: how many bytes of hash each hop
+	// adds to a path for packets *that node originates*. Mode 0, 1, 2 give 1,
+	// 2 and 3 bytes. -1 leaves the firmware's own setting alone.
 	pathHashMode int32
+
+	// compPathHashMode is the companion setting, and it is the one that decides
+	// what a message carries.
+	//
+	// The originator stamps the path hash size and every hop honours it, so a
+	// message sent by a companion in 1-byte mode stays 1-byte across the whole
+	// mesh no matter what the repeaters are set to. Varying the repeaters'
+	// setting and expecting the traffic to change is the mistake this split
+	// exists to prevent: it only affects the adverts they send themselves.
+	compPathHashMode int32
 
 	// cadMode turns hardware channel-activity detection on or off. New in
 	// MeshCore 1.17; earlier builds reject the command, which is itself worth
@@ -102,6 +110,7 @@ func (a *App) ensureConfig() {
 	// and MeshCore timestamps messages and judges freshness by them.
 	a.cfg.setClockOnStart = true
 	a.cfg.pathHashMode = -1
+	a.cfg.compPathHashMode = -1
 	// Off by default. A transport region changes how packets are scoped and
 	// which ones a node will relay at all; turning that on for somebody without
 	// being asked would change results they did not ask to change.

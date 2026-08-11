@@ -1,6 +1,10 @@
 package ui
 
-import "github.com/AllenDang/cimgui-go/imgui"
+import (
+	"fmt"
+
+	"github.com/AllenDang/cimgui-go/imgui"
+)
 
 // The palette, named once. Every colour in the UI comes from here.
 //
@@ -284,4 +288,14 @@ func textGoodWrap(s string) {
 	imgui.PushStyleColorVec4(imgui.ColText, colOK)
 	textWrap(s)
 	imgui.PopStyleColor()
+}
+
+// textf formats and prints, without imgui re-reading the result as a format
+// string.
+//
+// imgui.Text is printf-shaped, so a percentage - "79.4%" - is taken as a
+// conversion and everything after it comes out as garbage. Every formatted
+// string in this codebase goes through here.
+func textf(format string, args ...any) {
+	imgui.TextUnformattedV(fmt.Sprintf(format, args...))
 }
