@@ -732,3 +732,10 @@ func sameEvent(x, y engine.Event) bool {
 	return x.AtMs == y.AtMs && x.Kind == y.Kind && x.From == y.From && x.To == y.To &&
 		x.Detail == y.Detail && x.PacketID == y.PacketID && string(x.Frame) == string(y.Frame)
 }
+
+// isPristine reports an arm that varies nothing - the placeholder the sweep
+// builder starts with, which exists to be replaced rather than crossed onto.
+func (a expArm) isPristine() bool {
+	return a.RepeaterVersion == "" && a.CompanionVersion == "" &&
+		a.LoopDetect == "" && a.CAD == "" && a.PathHashMode < 0
+}

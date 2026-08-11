@@ -301,6 +301,46 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 		return map[string]any{"arms": len(e.Arms), "seeds": len(e.Seeds),
 			"runs": e.runsTotal(), "senders": len(e.Senders)}, nil
 
+	case "experiment.vary":
+		// The same gesture the operator makes: choose a parameter, type the
+		// values, press add. Driven this way the form fills in on screen rather
+		// than the state changing behind it, which matters when somebody is
+		// watching the run happen.
+		var p struct {
+			Parameter string `json:"parameter"`
+			Values    string `json:"values"`
+		}
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, err
+		}
+		a.switchWorkspace(wsBench)
+		a.showPanel("Sweep")
+		a.benchUI.param = p.Parameter
+		a.benchUI.values = p.Values
+		a.addArmsVarying(p.Parameter, p.Values)
+		e := a.ensureExperiment()
+		var labels []string
+		for _, arm := range e.Arms {
+			labels = append(labels, arm.Label)
+		}
+		return map[string]any{"arms": labels, "runs": e.runsTotal()}, nil
+
+	case "experiment.seeds":
+		var p struct {
+			Seeds string `json:"seeds"`
+		}
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, err
+		}
+		a.switchWorkspace(wsBench)
+		a.showPanel("Sweep")
+		a.benchUI.seeds = p.Seeds
+		e := a.ensureExperiment()
+		if s := parseSeeds(p.Seeds); len(s) > 0 {
+			e.Seeds = s
+		}
+		return map[string]any{"seeds": e.Seeds, "runs": e.runsTotal()}, nil
+
 	case "experiment.start":
 		if err := a.startExperiment(); err != nil {
 			return nil, err

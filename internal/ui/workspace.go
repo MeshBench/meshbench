@@ -225,7 +225,9 @@ func (a *App) buildWorkspace(dockID imgui.ID) {
 			placed[n] = true
 		}
 	}
-	imgui.InternalDockBuilderDockWindow("Map", centre)
+	if a.ws != wsBench {
+		imgui.InternalDockBuilderDockWindow("Map", centre)
+	}
 
 	switch a.ws {
 	case wsRun:
@@ -241,6 +243,20 @@ func (a *App) buildWorkspace(dockID imgui.ID) {
 	case wsVerify:
 		dock(right, "Compare", "Validate")
 		dock(bottom, "Scoreboard", "Events")
+	case wsBench:
+		// The one view with no map. An experiment is read, not sited: the
+		// question is how these configurations differ, and a map of Scotland
+		// answers none of it while taking the best two thirds of the window.
+		// The sweep sits left where it is defined, what it is doing sits right,
+		// and what came out fills the middle.
+		imgui.InternalDockBuilderDockWindow("Matrix", centre)
+		dock(right, "Runs", "Experiment log")
+		dock(bottom, "Timelines")
+		var left imgui.ID
+		imgui.InternalDockBuilderSplitNode(centre, imgui.DirLeft, 0.34, &left, &centre)
+		dock(left, "Sweep")
+		imgui.InternalDockBuilderDockWindow("Matrix", centre)
+		placed["Matrix"] = true
 	default: // Plan
 		dock(right, "Inspector", "Nodes", "Import", "Boundary", "Planning")
 		dock(bottom, "Link", "Packet timeline")

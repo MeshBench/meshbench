@@ -26,12 +26,10 @@ func (a *App) benchDefaults() *experiment {
 		}
 	}
 	return &experiment{
-		Arms: []expArm{
-			{Label: "1.16 · 1-byte", RepeaterVersion: "repeater-v1.16.0",
-				CompanionVersion: "companion-v1.16.0", PathHashMode: 0, LoopDetect: "minimal"},
-			{Label: "1.17 · 1-byte", RepeaterVersion: "repeater-v1.17.0",
-				CompanionVersion: "companion-v1.17.0", PathHashMode: 0, LoopDetect: "minimal"},
-		},
+		// One neutral arm: whatever the scenario already says. Varying a
+		// parameter replaces it, so the first gesture produces clean labels
+		// rather than crossing onto a guess nobody asked for.
+		Arms:     []expArm{{Label: "baseline", PathHashMode: -1}},
 		Seeds:    []uint64{4417, 9001},
 		Senders:  senders,
 		Channel:  "#sco",
@@ -68,15 +66,19 @@ func (a *App) drawSweep() {
 	textDim("arms")
 	for i := range e.Arms {
 		imgui.PushIDInt(int32(i))
-		imgui.SetNextItemWidth(180)
-		imgui.InputTextWithHint("##label", "name", &e.Arms[i].Label, 0, nil)
-		imgui.SameLine()
-		textDim(e.Arms[i].summary())
-		imgui.SameLine()
-		if dangerButton("remove", imgui.NewVec2(0, 0)) && len(e.Arms) > 1 {
+		// Removing one arm of a dozen is routine, not dangerous. A red button
+		// per row turned a list into an alarm.
+		if imgui.SmallButton("x") && len(e.Arms) > 1 {
 			e.Arms = append(e.Arms[:i], e.Arms[i+1:]...)
 			imgui.PopID()
 			break
+		}
+		imgui.SameLine()
+		imgui.SetNextItemWidth(190)
+		imgui.InputTextWithHint("##label", "name", &e.Arms[i].Label, 0, nil)
+		if sum := e.Arms[i].summary(); sum != "" {
+			imgui.SameLine()
+			textDim(sum)
 		}
 		imgui.PopID()
 	}
@@ -208,7 +210,9 @@ func (a *App) addArmsVarying(param, values string) {
 		return
 	}
 	base := e.Arms
-	if len(base) == 0 {
+	// The untouched baseline is a placeholder, not a choice: crossing onto it
+	// doubles every arm and compounds its label into nonsense. Replace it.
+	if len(base) == 0 || (len(base) == 1 && base[0].isPristine()) {
 		base = []expArm{{PathHashMode: -1}}
 	}
 	var out []expArm

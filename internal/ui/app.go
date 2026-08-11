@@ -535,11 +535,18 @@ func (a *App) frame() {
 	// The map is a dockable window like everything else — the central node of
 	// every preset, but an operator who wants it floating on another monitor
 	// entirely is not wrong.
-	if imgui.BeginV("Map", nil, 0) {
-		avail := imgui.ContentRegionAvail()
-		a.drawMap(avail.X, avail.Y)
+	//
+	// Not submitted at all in Bench, rather than merely left undocked: a window
+	// with no home in the current layout is floated by imgui, and under
+	// multi-viewport that means its own OS window, unmaximisable and duplicated.
+	// An experiment has nothing to say about geography anyway.
+	if a.ws != wsBench {
+		if imgui.BeginV("Map", nil, 0) {
+			avail := imgui.ContentRegionAvail()
+			a.drawMap(avail.X, avail.Y)
+		}
+		imgui.End()
 	}
-	imgui.End()
 
 	a.drawPanels()
 	a.drawStatusBar()
