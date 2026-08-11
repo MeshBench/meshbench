@@ -118,3 +118,47 @@ than a second should do the same.
 - 48 h of traffic: 11,135 packets, 38 nodes seen relaying.
 - 7 days: 10,018 scoped transmissions, **zero unscoped** — this mesh is
   entirely transport-scoped, so region membership is the whole story.
+
+## Setting up the ScotMesh CAD study
+
+The exact sequence, because getting it wrong is silent every time.
+
+    project.open scotmesh-cad-study     # or build it: boundary -> import -> infer -> apply
+    firmware.wipe                        # BEFORE the arm, always
+    sim.seed  {"seed": 4417}
+    sim.reset
+    firmware.set {"version":"repeater-v1.16.0","role":"simple_repeater"}
+    firmware.set {"node":"<each companion>","version":"companion-v1.16.0","role":"companion_radio"}
+    firmware.start                       # poll firmware.state until starting=false
+    sim.run to a fixed instant           # poll sim.state until playing=false
+    companion.connect / configure / add_channel "#sco"   per sender
+    sim.run to the SAME absolute instant in every arm, then send
+    events.dump -> compare
+
+Rules learned the hard way:
+
+- **Wipe between arms.** The firmware persists prefs, channels and contacts to
+  its working directory and reads them back at boot. Without a wipe, arm two
+  starts with arm one's state and the comparison is meaningless while looking
+  fine.
+- **Send at a fixed absolute simulated time.** Companion setup costs a different
+  number of engine steps each run, so "settle then send" puts the burst at a
+  different instant in each arm - a confound worth nothing.
+- **Vary the seed if you want statistics.** Repeats of one seed are identical by
+  design. Three seeds is enough to see whether a difference is real.
+- **One message tests nothing.** CAD only acts under contention. Six companions
+  sending on the same simulated instant gives roughly 3:1 loss to collision and
+  self-deafness, which is the regime worth measuring.
+- **Check the flood actually happened.** If every node transmitted exactly once,
+  nothing relayed and you are measuring adverts. `tx` around 100 on a 154-node
+  scenario means no flood; around 480 means a real one.
+
+### What this study cannot measure yet
+
+`HostRadio` does not implement `isReceiving()`, so MeshCore's
+`Dispatcher::checkSend()` always takes the channel-is-clear branch and no
+listen-before-talk or CAD behaviour runs at all. 1.16 and 1.17 produce
+bit-identical event timing as a result - the ledgers differ in three advert
+packet sizes and nothing else. Until that method is implemented from the
+engine's channel state, any CAD comparison here will report "no difference"
+regardless of the firmware.
