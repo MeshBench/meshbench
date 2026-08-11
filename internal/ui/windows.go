@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"golang.org/x/sys/unix"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -69,6 +70,17 @@ func (a *App) drawMenuBar() {
 		if !capturing && imgui.MenuItemBool("capture live to Wireshark...") {
 			if a.eng == nil {
 				a.buildEngine()
+			}
+			// Wireshark reads a pipe through dumpcap, and dumpcap is usually
+			// root:wireshark with no execute bit for anyone else. Checked here
+			// because the failure otherwise happens inside Wireshark, as
+			// "Permission denied" against a helper the operator never asked
+			// for, with our own status line still claiming to be streaming.
+			if why := dumpcapProblem(); why != "" {
+				a.status = why
+				a.statusAction, a.statusDo = "", nil
+				imgui.EndMenu()
+				return
 			}
 			fifo := filepath.Join(os.TempDir(), "meshcoresim.fifo")
 			if err := a.eng.StartCaptureFIFO(fifo); err != nil {
@@ -984,4 +996,27 @@ func dissectorPath() string {
 		}
 	}
 	return filepath.Join("tools", "dissector", name)
+}
+
+// dumpcapProblem explains why live capture will not work, or "" if it will.
+func dumpcapProblem() string {
+	path, err := exec.LookPath("dumpcap")
+	if err != nil {
+		for _, p := range []string{"/usr/bin/dumpcap", "/usr/local/bin/dumpcap"} {
+			if _, statErr := os.Stat(p); statErr == nil {
+				path = p
+				break
+			}
+		}
+	}
+	if path == "" {
+		return "live capture needs Wireshark's dumpcap, which is not installed - " +
+			"use 'capture to pcapng...' and open the file instead"
+	}
+	if unix.Access(path, unix.X_OK) != nil {
+		return "live capture needs permission to run " + path + ", which is normally " +
+			"root:wireshark - run 'sudo usermod -aG wireshark $USER' and log in again, " +
+			"or use 'capture to pcapng...' and open the file instead"
+	}
+	return ""
 }
