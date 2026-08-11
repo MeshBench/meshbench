@@ -25,6 +25,9 @@
 using Antmicro.Renode.Core;
 using Antmicro.Renode.Core.Structure.Registers;
 using Antmicro.Renode.Peripherals.Bus;
+using Antmicro.Renode.Time;
+using Antmicro.Renode.Peripherals.Timers;
+using Antmicro.Renode.Time;
 
 namespace Antmicro.Renode.Peripherals.Miscellaneous
 {
@@ -32,6 +35,25 @@ namespace Antmicro.Renode.Peripherals.Miscellaneous
     {
         public NRF52840_Clock(IMachine machine) : base(machine)
         {
+            // The calibration timer really does time out, periodically, and
+            // that matters more than it looks. POWER_CLOCK is often the only
+            // interrupt a SoftDevice leaves enabled while it idles, so CTTO is
+            // what brings the CPU back out of WFE. Stubbing the timer to
+            // complete instantly and never fire again leaves an idle machine
+            // with nothing at all to wake it.
+            //
+            // CTIV counts quarter-seconds, so the timer runs at 4 Hz and the
+            // limit is the interval itself.
+            calTimer = new LimitTimer(machine.ClockSource, 4, this, "ctto",
+                                      limit: 1, eventEnabled: true,
+                                      direction: Direction.Ascending,
+                                      enabled: false, workMode: WorkMode.Periodic);
+            calTimer.LimitReached += () =>
+            {
+                calTimerTimeout.Value = true;
+                UpdateInterrupt();
+            };
+
             DefineRegisters();
             Reset();
         }
@@ -80,12 +102,15 @@ namespace Antmicro.Renode.Peripherals.Miscellaneous
                 .WithValueField(0, 32, FieldMode.Write, writeCallback: (_, __) =>
                 {
                     calTimerStarted.Value = true;
+                    calTimer.Limit = calTimerInterval == 0 ? 1 : calTimerInterval;
+                    calTimer.Enabled = true;
                     UpdateInterrupt();
                 }, name: "TASKS_CTSTART");
 
             Registers.CalTimerStop.Define(this)
                 .WithValueField(0, 32, FieldMode.Write, writeCallback: (_, __) =>
                 {
+                    calTimer.Enabled = false;
                     calTimerStopped.Value = true;
                     UpdateInterrupt();
                 }, name: "TASKS_CTSTOP");
@@ -178,6 +203,7 @@ namespace Antmicro.Renode.Peripherals.Miscellaneous
         private IFlagRegisterField hfclkStarted, lfclkStarted, calibrationDone;
         private IFlagRegisterField calTimerTimeout, calTimerStarted, calTimerStopped;
         private bool hfclkRunning, lfclkRunning;
+        private readonly LimitTimer calTimer;
         private uint interruptEnabled, lfclkSource, calTimerInterval;
 
         private enum Registers : long

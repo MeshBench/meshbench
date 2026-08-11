@@ -1,0 +1,4 @@
+// Stands in for SEVONPEND, which Renode's CPU does not implement. Registered
+// on an unused address purely so the platform can carry it; it does its work
+// from a timer, not from bus accesses.
+sevonpend: Miscellaneous.SevOnPend @ sysbus 0x50000000

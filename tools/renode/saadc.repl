@@ -1,0 +1,6 @@
+// SAADC, absent from Renode's own nRF52840 platform.
+//
+// MeshCore's nRF52 builds read the battery through it during start-up, and
+// without it the firmware spins on EVENTS_STARTED for ever.
+saadc: Analog.NRF52840_SAADC @ sysbus 0x40007000
+    IRQ -> nvic@7

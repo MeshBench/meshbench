@@ -1,3 +1,4 @@
+i @tools/renode/peripherals/NRF52840_SAADC.cs
 i @tools/renode/peripherals/RadioServerSX1262.cs
 i @tools/renode/peripherals/NRF52840_Clock.cs
 i @tools/renode/peripherals/NRF52840_Temp.cs
@@ -8,6 +9,7 @@ machine LoadPlatformDescription @tools/renode/uicr.repl
 machine LoadPlatformDescription @tools/renode/temp.repl
 sysbus Unregister sysbus.clock
 machine LoadPlatformDescription @tools/renode/clock.repl
+machine LoadPlatformDescription @tools/renode/saadc.repl
 machine LoadPlatformDescription @tools/renode/radio.repl
 
 : Erased flash, then every real region in flash order. Erased matters: the MBR
@@ -50,6 +52,5 @@ sysbus WriteDoubleWord 0xFFC 0xFFFFFFFF
 sysbus WriteDoubleWord 0xFF8 0xFFFFFFFF
 sysbus WriteDoubleWord 0xFFC 0xFFFFFFFF
 uart0 CreateFileBackend @/tmp/rak_uart.log true
-cpu WfeAndSevAsNop true
 spi2.lora Connect
 start
