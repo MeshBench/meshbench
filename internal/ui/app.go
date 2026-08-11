@@ -63,6 +63,10 @@ type App struct {
 	selected int
 	linkTo   int
 
+	// load is the machine's own CPU and GPU, sampled once a second for the
+	// chrome. Emulation is what makes it worth showing.
+	load machineLoad
+
 	freqMHz float64
 	cut     *pathview.CutThrough
 	cutErr  string
