@@ -636,7 +636,15 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 		for _, ev := range evs {
 			out = append(out, map[string]any{
 				"at_ms": ev.AtMs, "kind": ev.Kind, "from": ev.From, "to": ev.To,
+				// Both ids. PacketID is one transmission; MessageID is the
+				// same for every hop of one message, and it is the only thing
+				// that lets a caller follow a flood from its origin through
+				// each relay. Exporting only PacketID made every hop look like
+				// a separate message: 124 transmissions came back as 124
+				// unrelated packets, and the propagation could not be
+				// reconstructed at all from outside the application.
 				"snr_db": ev.SNRdB, "detail": ev.Detail, "packet": ev.PacketID,
+				"message": ev.MessageID,
 			})
 		}
 		b, err := json.Marshal(out)
@@ -839,6 +847,7 @@ func (a *App) ctlEvents(limit int) []map[string]any {
 		out = append(out, map[string]any{
 			"at_ms": ev.AtMs, "kind": ev.Kind, "from": ev.From, "to": ev.To,
 			"snr_db": ev.SNRdB, "detail": ev.Detail, "packet": ev.PacketID,
+			"message": ev.MessageID,
 		})
 	}
 	return out
