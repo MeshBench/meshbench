@@ -3,13 +3,53 @@
 An RF-accurate MeshCore network simulator.
 
 It runs **real MeshCore firmware** — the actual C++ from `meshcore-dev/MeshCore`,
-compiled for the host and driven through its own `Radio` interface — against a
-**sample-accurate LoRa baseband channel** with real noise.
+compiled for the host, driven through **its own radio driver over real
+RadioLib** — against a **sample-accurate LoRa baseband channel** with real
+noise.
 
 The channel does not decide whether a packet arrives. It sums waveforms, applies
 path loss over real terrain, adds thermal noise, and lets each receiver's
 demodulator find out. Capture effect, partial collisions and sensitivity are
 *emergent*, not rules someone wrote down.
+
+## Where the real ends and the simulation begins
+
+The claim "it runs real firmware" is worth being exact about, because the
+interesting bugs live on the boundary.
+
+| Layer | What runs |
+|---|---|
+| MeshCore application — repeater, companion, room server | **real**, unmodified |
+| MeshCore mesh logic — `Mesh`, `Dispatcher`, forwarding policy, CLI, preferences | **real**, unmodified |
+| MeshCore radio driver — `CustomSX1262`, `RadioLibWrapper` | **real**, unmodified |
+| RadioLib 7.6.0 | **real**, vendored, unmodified |
+| The SX1262 chip | **ours** — a virtual chip answering SPI |
+| Arduino core, board, flash filesystem, RTC, sensors, RNG | **ours** — the platform |
+| The air — modulation, path loss, noise, capture effect | **ours** — this is the simulator |
+
+**Nothing in MeshCore is patched.** The build points at a MeshCore checkout and
+compiles it as it stands. What is substituted is the platform beneath it, which
+is hardware rather than firmware — and, at the bottom, the air, which is the
+entire point of the exercise.
+
+The line moved recently and it mattered. The radio driver used to be ours too: a
+hand-written stand-in for the whole stack. That made every listen-before-talk
+decision the simulator's rather than the firmware's, and two MeshCore versions
+differing *only* in their radio driver produced bit-identical results across
+twelve runs — which read as "the change does nothing" when it actually meant
+"the changed code never ran". See `docs/virtual-sx1262.md`.
+
+### What the boundary still costs
+
+- **A virtual chip is a model of a chip.** Everything above the SPI pins is the
+  software that runs on hardware. What answers those pins is our best
+  understanding of an SX1262, so real errata and a real preamble detector's
+  behaviour under interference remain invisible.
+- **We compile as an nRF52.** Where MeshCore takes a platform-specific path, we
+  take that one. A bug that only appears on ESP32 will not appear here.
+- **The simulator is kinder than the air.** No multipath, no body loss, no
+  oscillator error. Every result is a best case — which is what makes it usable:
+  if it does not work here, it will not work outdoors.
 
 ## What it is for
 
