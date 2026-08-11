@@ -42,6 +42,12 @@ const (
 	kindConsoleIn  = 0x06 // host → node: bytes typed at the node's UART
 	kindConsoleOut = 0x07 // node → host: bytes the node printed
 
+	// kindRadioStats is node → host: what the radio has been asked and what it
+	// answered. Counting the firmware's own view of the channel is the only way
+	// to tell "the mesh is busy" from "our virtual chip says so too readily",
+	// and the second would look exactly like a finding about the firmware.
+	kindRadioStats = 0x09
+
 	// kindChannelBusy is host → node: is another station on the air here?
 	//
 	// The input to MeshCore's listen-before-talk. The node's radio cannot know
@@ -78,6 +84,9 @@ type Bridge struct {
 	// behaving sends exactly one ack per tick, and a node that sends more is
 	// broken in a way Advance should surface rather than absorb.
 	acked chan uint32
+
+	// stats is the radio's own account of what it was asked.
+	stats RadioStats
 
 	// done is closed when the bridge is. Anything waiting on the node must
 	// select on it: a node whose process has gone will never ack, and a wait
@@ -172,6 +181,18 @@ func (b *Bridge) read(c net.Conn) {
 				// the node it belongs to: the simulation's correctness does not
 				// depend on anyone reading the output.
 				_, _ = w.Write(buf)
+			}
+
+		case kindRadioStats:
+			if n >= 16 {
+				b.mu.Lock()
+				b.stats = RadioStats{
+					IRQReads:   binary.BigEndian.Uint32(buf[0:]),
+					BusyReads:  binary.BigEndian.Uint32(buf[4:]),
+					BusyMs:     binary.BigEndian.Uint32(buf[8:]),
+					SpuriousUp: binary.BigEndian.Uint32(buf[12:]),
+				}
+				b.mu.Unlock()
 			}
 
 		case kindAck:
@@ -289,4 +310,25 @@ func (b *Bridge) Close() error {
 		_ = c.Close()
 	}
 	return b.ln.Close()
+}
+
+// RadioStats is what the node's radio reports about the channel decisions the
+// firmware made through it.
+type RadioStats struct {
+	// IRQReads is how many times the driver read the interrupt register, and
+	// BusyReads how many of those found a detection flag set - the firmware's
+	// own view of how often the air looked occupied.
+	IRQReads, BusyReads uint32
+	// BusyMs is how long those flags were up.
+	BusyMs uint32
+	// SpuriousUp counts deliberately injected false detections, on the faulty
+	// chip variants. Zero on a chip that behaves.
+	SpuriousUp uint32
+}
+
+// Stats reports the radio's account of this node.
+func (b *Bridge) Stats() RadioStats {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.stats
 }

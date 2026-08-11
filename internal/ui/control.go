@@ -446,6 +446,8 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 				"to_companions": r.CompHit, "companion_chances": r.CompChances,
 				"repeats_per_msg": r.RepPerMsg, "comps_per_msg": r.CompPerMsg,
 				"collisions": r.Collisions, "deaf": r.Deaf,
+				"irq_reads": r.IRQReads, "busy_reads": r.BusyReads,
+				"busy_ms": r.BusyMs, "spurious": r.Spurious,
 				"airtime_ms": r.AirtimeMs, "span_ms": r.SpanMs,
 				"flag": r.Flag, "err": r.Err,
 			})
@@ -456,6 +458,7 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 				"arm": s.Arm, "runs": s.Runs, "flagged": s.Flagged,
 				"tx": s.TX, "rx": s.RX, "reach_pct": s.Reach,
 				"messages": s.Messages, "repeater_pct": s.RepPct, "companion_pct": s.CompPct,
+				"busy_pct": s.BusyPct, "busy_ms": s.BusyMs,
 				"collisions": s.Coll, "deaf": s.Deaf, "airtime_ms": s.Airtime,
 				"rx_spread": s.RXSpread,
 			})

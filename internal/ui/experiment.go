@@ -601,6 +601,16 @@ func (a *App) measure(arm string, seed uint64, from int, burstMs uint32) expResu
 	for _, n := range a.eng.Scoreboard() {
 		r.AirtimeMs += n.AirtimeMs
 	}
+	for _, n := range a.eng.Nodes() {
+		if n.Firmware == nil {
+			continue
+		}
+		st := n.Firmware.Bridge.Stats()
+		r.IRQReads += uint64(st.IRQReads)
+		r.BusyReads += uint64(st.BusyReads)
+		r.BusyMs += uint64(st.BusyMs)
+		r.Spurious += uint64(st.SpuriousUp)
+	}
 	r.ledger = append([]engine.Event(nil), tail...)
 
 	// A run where nothing relayed reports entirely plausible totals. The tell
@@ -626,6 +636,8 @@ type expSummary struct {
 	Messages float64
 	RepPct   float64
 	CompPct  float64
+	BusyPct  float64 // share of the firmware's channel checks that found it busy
+	BusyMs   float64
 	Airtime  float64
 	SpanMs   float64
 	RXSpread float64 // half the range across seeds, as a fraction of the mean
@@ -661,6 +673,10 @@ func (e *experiment) summarise() []expSummary {
 			if r.CompChances > 0 {
 				s.CompPct += float64(r.CompHit) / float64(r.CompChances) * 100
 			}
+			if r.IRQReads > 0 {
+				s.BusyPct += float64(r.BusyReads) / float64(r.IRQReads) * 100
+			}
+			s.BusyMs += float64(r.BusyMs)
 			s.Airtime += r.AirtimeMs
 			s.SpanMs += float64(r.SpanMs)
 			lo = math.Min(lo, float64(r.RX))
@@ -676,6 +692,8 @@ func (e *experiment) summarise() []expSummary {
 			s.Messages /= n
 			s.RepPct /= n
 			s.CompPct /= n
+			s.BusyPct /= n
+			s.BusyMs /= n
 			s.Airtime /= n
 			s.SpanMs /= n
 		}
