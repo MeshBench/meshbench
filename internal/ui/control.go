@@ -315,10 +315,18 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 		}
 		a.switchWorkspace(wsBench)
 		a.showPanel("Sweep")
+		e := a.ensureExperiment()
+		// A finished sweep's arms are the last question, not this one. Kept,
+		// they also carry whatever fields existed when they were built - which
+		// is how arms ended up silently holding repeaters at 1 byte while the
+		// panel said 3.
+		if len(e.results) > 0 {
+			e.Arms = []expArm{{Label: "baseline", PathHashMode: -1, RepPathHash: -1, SpreadMs: -1}}
+			e.results = nil
+		}
 		a.benchUI.param = p.Parameter
 		a.benchUI.values = p.Values
 		a.addArmsVarying(p.Parameter, p.Values)
-		e := a.ensureExperiment()
 		var labels []string
 		for _, arm := range e.Arms {
 			labels = append(labels, arm.Label)
