@@ -37,6 +37,9 @@ type expArm struct {
 	PathHashMode     int32
 	LoopDetect       string
 	CAD              string // "on", "off", or empty to leave alone
+	// SpreadMs overrides the experiment's own when >= 0: how long the senders
+	// take to all have fired.
+	SpreadMs int32
 }
 
 // apply writes the arm as provisioning, which is what an arm *is*.
@@ -111,6 +114,13 @@ type expResult struct {
 	ledger    []engine.Event
 }
 
+// pendingSend is one sender waiting for its moment.
+type pendingSend struct {
+	node string
+	atMs uint32
+	done bool
+}
+
 type expPhase int
 
 const (
@@ -121,6 +131,7 @@ const (
 	expSettle
 	expConnect
 	expSend
+	expFire
 	expRun
 	expCollect
 	expDone
@@ -138,6 +149,12 @@ type experiment struct {
 	Seeds []uint64
 
 	Senders []string
+	// SpreadMs is how long the senders take to all have transmitted. 0 fires
+	// them on the same simulated instant, which is maximum contention; a wider
+	// spread is the same traffic arriving politely, and the difference between
+	// the two is often larger than any firmware setting.
+	SpreadMs uint32
+
 	// Bytes is how long each message is. A 12-byte "hello" and a 180-byte one
 	// are different experiments: airtime scales with payload, and airtime is
 	// what collides. 0 means the runner's own short label.
@@ -156,6 +173,8 @@ type experiment struct {
 	seed     int
 	baseline int
 	burstMs  uint32
+	spreadMs uint32
+	pending  []pendingSend
 	started  time.Time
 	runStart time.Time
 	results  []expResult
@@ -328,35 +347,57 @@ func (a *App) stepExperiment() {
 	case expSend:
 		e.baseline = a.eng.EventCount()
 		e.burstMs = a.eng.NowMs()
-		sent := 0
-		for _, name := range e.Senders {
-			s := a.comps[name]
-			if s == nil {
+		// When to fire each sender. All on the same instant unless a spread is
+		// asked for, in which case they are laid evenly across it.
+		spread := e.SpreadMs
+		if arm.SpreadMs >= 0 {
+			spread = uint32(arm.SpreadMs)
+		}
+		e.pending = nil
+		for i, name := range e.Senders {
+			at := e.burstMs
+			if spread > 0 && len(e.Senders) > 1 {
+				at += uint32(i) * spread / uint32(len(e.Senders)-1)
+			}
+			e.pending = append(e.pending, pendingSend{node: name, atMs: at})
+		}
+		e.spreadMs = spread
+		if spread > 0 {
+			e.logf("%s %d  firing %d senders across %.1f s from %.1f s",
+				arm.Label, seed, len(e.Senders), float64(spread)/1000, float64(e.burstMs)/1000)
+			a.runUntilMs = e.burstMs + spread
+			a.playing = true
+		}
+		e.phase = expFire
+		return
+
+	case expFire:
+		fired := 0
+		now := a.eng.NowMs()
+		for i := range e.pending {
+			if e.pending[i].done || now < e.pending[i].atMs {
 				continue
 			}
-			if e.Scope != "" {
-				_ = a.compSetScope(s, name, e.Scope)
-			}
-			idx := uint8(0)
-			s.mu.Lock()
-			for _, c := range s.channels {
-				if strings.EqualFold(c.Name, e.Channel) {
-					idx = c.Index
-				}
-			}
-			s.mu.Unlock()
-			text := fmt.Sprintf("%s seed %d", arm.Label, seed)
-			if e.Bytes > 0 {
-				text = padTo(text, e.Bytes)
-			}
-			if a.compSend(s, proto.SendChannelText(idx, time.Now(), text)) == nil {
-				sent++
+			e.pending[i].done = true
+			fired++
+			a.fireOne(e, e.pending[i].node, arm.Label, seed)
+		}
+		allDone := true
+		for _, p := range e.pending {
+			if !p.done {
+				allDone = false
+				break
 			}
 		}
-		e.logf("%s %d  %d sent on %s at %.1f s", arm.Label, seed, sent, e.Channel, float64(e.burstMs)/1000)
-		a.runUntilMs = e.burstMs + e.RunForMs
+		if !allDone {
+			return
+		}
+		e.logf("%s %d  %d sent on %s at %.1f s", arm.Label, seed, len(e.pending),
+			e.Channel, float64(e.burstMs)/1000)
+		a.runUntilMs = e.burstMs + e.spreadMs + e.RunForMs
 		a.playing = true
 		e.phase = expRun
+		return
 
 	case expRun:
 		if a.playing {
@@ -906,4 +947,28 @@ func padTo(s string, n int) string {
 		return s[:n]
 	}
 	return s + strings.Repeat(".", n-len(s))
+}
+
+// fireOne sends this run's message from one companion.
+func (a *App) fireOne(e *experiment, node, arm string, seed uint64) {
+	s := a.comps[node]
+	if s == nil {
+		return
+	}
+	if e.Scope != "" {
+		_ = a.compSetScope(s, node, e.Scope)
+	}
+	idx := uint8(0)
+	s.mu.Lock()
+	for _, c := range s.channels {
+		if strings.EqualFold(c.Name, e.Channel) {
+			idx = c.Index
+		}
+	}
+	s.mu.Unlock()
+	text := fmt.Sprintf("%s seed %d", arm, seed)
+	if e.Bytes > 0 {
+		text = padTo(text, e.Bytes)
+	}
+	_ = a.compSend(s, proto.SendChannelText(idx, time.Now(), text))
 }

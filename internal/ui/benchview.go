@@ -131,6 +131,25 @@ func (a *App) drawSweep() {
 		imgui.PopID()
 	}
 
+	textDim("fired")
+	imgui.SameLine()
+	spread := int32(e.SpreadMs / 1000)
+	imgui.SetNextItemWidth(80)
+	if imgui.InputIntV("##spread", &spread, 0, 0, 0) && spread >= 0 {
+		e.SpreadMs = uint32(spread) * 1000
+	}
+	imgui.SameLine()
+	if e.SpreadMs == 0 {
+		textDim("s apart (0 = all on the same instant)")
+	} else {
+		textDim("s apart")
+	}
+	if imgui.IsItemHovered() {
+		imgui.SetTooltip("All at once is maximum contention - every sender talking over every\n" +
+			"other. Spreading them is the same traffic arriving politely, and the\n" +
+			"difference between the two is often larger than any firmware setting.")
+	}
+
 	textDim("message size")
 	imgui.SameLine()
 	size := int32(e.Bytes)
@@ -260,7 +279,7 @@ func (a *App) drawSweep() {
 	textDim("vary a parameter across arms")
 	imgui.SetNextItemWidth(200)
 	if imgui.BeginCombo("##param", a.benchUI.param) {
-		for _, p := range []string{"path.hash.mode", "loop.detect", "cad", "firmware"} {
+		for _, p := range []string{"path.hash.mode", "loop.detect", "cad", "firmware", "spread"} {
 			if imgui.SelectableBool(p) {
 				a.benchUI.param = p
 				a.benchUI.values = defaultValuesFor(p)
@@ -349,6 +368,11 @@ func (a expArm) summary() string {
 	if a.CAD != "" {
 		parts = append(parts, "cad "+a.CAD)
 	}
+	if a.SpreadMs == 0 {
+		parts = append(parts, "all at once")
+	} else if a.SpreadMs > 0 {
+		parts = append(parts, fmt.Sprintf("over %.0fs", float64(a.SpreadMs)/1000))
+	}
 	return strings.Join(parts, " · ")
 }
 
@@ -362,6 +386,8 @@ func defaultValuesFor(p string) string {
 		return "off, on"
 	case "firmware":
 		return "1.16.0, 1.17.0"
+	case "spread":
+		return "0, 5, 20"
 	}
 	return ""
 }
@@ -383,7 +409,7 @@ func (a *App) addArmsVarying(param, values string) {
 	// The untouched baseline is a placeholder, not a choice: crossing onto it
 	// doubles every arm and compounds its label into nonsense. Replace it.
 	if len(base) == 0 || (len(base) == 1 && base[0].isPristine()) {
-		base = []expArm{{PathHashMode: -1}}
+		base = []expArm{{PathHashMode: -1, SpreadMs: -1}}
 	}
 	var out []expArm
 	for _, b := range base {
@@ -407,6 +433,17 @@ func (a *App) addArmsVarying(param, values string) {
 				arm.RepeaterVersion = "repeater-v" + v
 				arm.CompanionVersion = "companion-v" + v
 				arm.Label = joinLabel(b.Label, v)
+			case "spread":
+				n, err := strconv.Atoi(v)
+				if err != nil || n < 0 {
+					continue
+				}
+				arm.SpreadMs = int32(n) * 1000
+				if n == 0 {
+					arm.Label = joinLabel(b.Label, "all at once")
+				} else {
+					arm.Label = joinLabel(b.Label, fmt.Sprintf("over %ds", n))
+				}
 			}
 			out = append(out, arm)
 		}
