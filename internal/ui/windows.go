@@ -958,9 +958,12 @@ func (a *App) launchWireshark(_ string) {
 	// simulator knows rather than the addresses of a datagram nobody cares
 	// about. The IP and UDP layers are still in the tree - they genuinely are
 	// on the wire - but nothing in the packet list is about them.
+	// Both scripts: the vendored MeshCore protocol dissector, then ours, which
+	// must load second so its DLT_USER0 registration is the one that stands.
 	cmd := exec.Command("wireshark",
 		"-k", "-i", "lo",
 		"-f", "udp port "+captureUDPPort,
+		"-X", "lua_script:"+filepath.Join(filepath.Dir(lua), "meshcore_dissector.lua"),
 		"-X", "lua_script:"+lua,
 		"-o", `gui.column.format:"Time","%t","From","%Cus:msim.from_name","Received by","%Cus:msim.to_name",`+
 			`"Outcome","%Cus:msim.outcome","SNR","%Cus:msim.snr","Hops","%Cus:meshcore.hops",`+
