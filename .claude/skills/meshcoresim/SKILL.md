@@ -1,0 +1,316 @@
+---
+name: meshcoresim
+description: Drive MeshcoreSim to answer RF and mesh-network questions — link viability, coverage, why a packet failed, site selection, solar survival, firmware A/B. Use when asked about MeshCore network behaviour, repeater placement, coverage, or radio settings. Encodes the honesty rules the simulator's own results depend on.
+---
+
+# MeshcoreSim
+
+An RF-accurate MeshCore simulator: real firmware, sample-accurate LoRa baseband,
+real terrain. Plane project **MSIM**; decisions are ADR-0001…ADR-0018.
+
+Load `plane-conventions` if you are also updating tickets.
+
+## Driving it
+
+It is a **native desktop app**, not a CLI or a service. It runs on **elite**
+(`alex@10.100.72.98`, `~/Documents/projects/meshcoresim`) — not on the VM, which
+has no display. You drive the *running* app over its control socket at
+`$XDG_RUNTIME_DIR/meshcoresim.sock`, newline-delimited JSON,
+`{"id":1,"method":"<verb>","params":{}}`. `session.describe` lists every verb;
+read that before inventing a way to do something, because there is almost always
+a verb for it.
+
+Prefer the verb over the file. Verbs drive the same code paths a person clicks,
+so the panel opens and the operator can see what you did; editing config or
+scenario JSON behind the app's back does not.
+
+**Launching it over SSH.** The desktop session owns `DISPLAY`, the Wayland
+socket and the X cookie; an SSH login inherits none of them. Copy the *whole*
+environment from the running process (`tr '\0' '\n' < /proc/<pid>/environ`)
+rather than a guessed subset — dropping `XAUTHORITY` gives "Authorization
+required, but no authorization protocol specified", which reads like a display
+problem and is not. KDE keeps the cookie at `/run/user/1000/xauth_*`, not
+`~/.Xauthority`. Launch with `setsid nohup … & disown`, and never `pkill -f` a
+pattern your own shell command line contains.
+
+**Do not restart the app to pick up a build while Alex is watching it.** Ask.
+
+**Capture is started per session, not per run.** `capture.wireshark` opens the
+UDP stream on 127.0.0.1:5555 and launches Wireshark; it survives the engine
+rebuild each sweep run does, but a restarted workbench has no capture at all.
+"Wireshark shows nothing" after a restart means nobody started it.
+
+## Building a scenario from CoreScope — the whole order
+
+Do these in order. Every step below was skipped at least once, and each failure
+looks like bad RF rather than a missing step.
+
+1. **Boundaries.** `boundary.set` (place) → `boundary.accept`, once per region.
+   The chosen set unions, so Scotland + Ireland is two accepts.
+2. **Import.** `import.set_source` → `import.fetch` → `import.commit` with
+   `strategy: "replace-all"` (plain `"replace"` is not a strategy name and
+   leaves the demo nodes in, on a different preset).
+3. **Firmware, per role.** `firmware.set` with `role: "simple_repeater"` for
+   everything, then again per companion with `role: "companion_radio"`. Or set
+   `repeater_version` / `companion_version` on `experiment.base`.
+4. **Regions — `infer.run` then `infer.apply`.** This is the step that gets
+   forgotten, and it is the one that decides whether anything relays at all.
+5. `firmware.start`, then check `firmware.state` says `running == total`.
+6. Only then define and start the sweep.
+
+### The repeater console
+
+`console.type {"node": …, "command": …}` runs a line on a node's CLI and returns
+what it said — the fastest way to find out what a node actually believes, rather
+than what you think you configured. `get name`, `get repeat`, `get flood.max`,
+`get path.hash.mode`, `get loop.detect` all read back; `region put <r>`,
+`region allowf <r>`, `region default <r>`, `region save` configure regions.
+
+**The command reference is at <https://docs.meshcore.io/cli_commands/>** — check
+it before concluding a setting did not apply. There is no `region list` and no
+`help`; both answer `Err - ??`, which looks like a broken node and is just a
+command that does not exist.
+
+Console replies come back empty while a sweep is driving the engine — the reply
+is collected after a 50 ms step, and the experiment owns the clock. Call
+`experiment.stop` first.
+
+### Regions decide whether the mesh relays anything
+
+MeshCore repeaters only forward flood traffic for regions they have been told
+about. A freshly imported node has none, so a scoped message is transmitted by
+its sender and dropped by all 300 repeaters: **8 transmissions, 0 relays, and a
+ledger of 137 events.** That reads exactly like a network with no propagation.
+
+Regions are not in the node API — they are **inferred from days of CoreScope
+packet traffic**: `infer.run {"hours": 168}`, poll `infer.result`, then
+`infer.apply`. Applying is a separate call and returns how many nodes it
+touched; "0 applied" means you inferred and walked away. On ScotMesh a week of
+traffic is ~38,000 packets over ~420 nodes and yields `#sco`, `#ioi`,
+`#ioi-admin`, `#fif`, `#wls`, `#noc`, `#per`, `#gla`.
+
+### The `#` asymmetry — write the scope with it, the region without
+
+This one cost a whole session. A region is spelled **two different ways** and
+both are correct:
+
+| where | form | example |
+|---|---|---|
+| repeater CLI | **bare** | `region put sco`, `region allowf sco` |
+| scope on the wire | **`#`-prefixed** | scope `#sco` |
+
+The key in the packet is `sha256("#sco")[:16]`. Ask a companion to send with
+scope `"sco"` and it keys its packets `sha256("sco")` — which matches no
+repeater in existence. Every repeater receives the packet, derives a different
+key, and declines to forward.
+
+**There is no error anywhere.** The senders transmit, the ledger fills with
+"first time this node heard the message", and nothing relays: 8 transmissions,
+0 relays, 137 events. It reads exactly like a mesh with no propagation, and the
+temptation is to go hunting through RF, firmware roles and regions — all of
+which will look correct, because they are.
+
+`experiment.define {"scope": "#sco"}`. The workbench now canonicalises it, but
+say it with the `#` anyway.
+
+Then **send on a scope the nodes actually hold**. `experiment.define`'s `scope`
+is applied to the senders only; the repeaters relay it or not according to what
+inference gave them. Check the holder counts in `infer.result` before choosing —
+`#sco` and `#ioi` are the two big ones, and a scope only a handful hold will
+look like a dead mesh for the same reason as above.
+
+## Read the firmware before explaining a result
+
+MeshCore is public and the tags match our firmware refs exactly
+(`repeater-v1.17.0`, `companion-v1.17.0`). Clone
+`github.com/meshcore-dev/meshcore`, check out the tag under test, and read the
+code before writing down a mechanism — a plausible story about what the firmware
+"probably does" is worth nothing next to twenty lines of it.
+
+Worth knowing, from `examples/simple_repeater/MyMesh.cpp` at v1.17.0:
+
+- `allowPacketForward()` **only ever returns false**. Loop detection cannot
+  cause more forwarding; if totals go *up* when you enable it, the cause is
+  second-order (timing, congestion, which nodes hear what) and needs measuring,
+  not explaining.
+- The loop thresholds are **indexed by path-hash size**:
+  `minimal {_,4,2,1}`, `moderate {_,2,1,1}`, `strict {_,1,1,1}`. At a **3-byte
+  hash all three settings are 1 and therefore identical by construction** — arms
+  that vary `loop.detect` at 3-byte are measuring nothing, and if they differ,
+  the simulator has a reproducibility problem rather than a finding.
+- `isLooped()` counts how many times *this node's own hash* already appears in
+  the packet's path — not whether a hash repeats generally.
+- `getPathHashSize() = (path_len >> 6) + 1`, `getPathByteLen() = count × size`,
+  which is where the per-hop airtime cost of a wider hash comes from.
+
+**Design a control into the matrix.** Two arms the firmware guarantees are
+identical are free reproducibility checks, and one of ours failed — which is how
+we learned the seed does not capture all the run-to-run variation.
+
+## Regions come from GeoJSON, and there are saved ones
+
+`~/.config/meshcoresim/boundaries/*.geojson` — Scotland and Ireland are already
+there. `boundary.set` searches for a place, `boundary.accept` adds it to the
+chosen set, `boundary.prune` deletes every node outside it. **The chosen set
+unions**, so a two-region scenario is two accepts and one prune. Never
+hand-roll a lat/lon rectangle: it silently keeps null-island nodes and cuts real
+coastline wrong.
+
+The import source is **not persisted between launches** and has to be set each
+time: `import.set_source` → `import.fetch` → `import.commit`. ScotMesh's
+CoreScope is `https://scotmesh-corescope.mm7roq.compute.oarc.uk`, and it covers
+Scotland, northern England *and* Ireland — around 640 nodes, of which some tens
+sit at lat/lon 0 and some have no position at all. Say how many you dropped.
+
+## Experiments: the Bench workspace
+
+A matrix, not an A/B. `experiment.vary` **crosses** the arms it already has, so
+calling it three times gives the full product; `experiment.base` holds the
+constants. Then `experiment.seeds`, `experiment.senders`, `experiment.start`,
+poll `experiment.state`, and `experiment.export` writes an HTML report.
+
+**Pin the firmware even when you are not varying it.** `experiment.base` takes
+`repeater_version` / `companion_version`, and builds are cached at
+`~/.cache/meshcoresim/firmware/native/` — currently `repeater-` and
+`companion-v1.16.0`, `v1.17.0`, and `-faultyirq` variants of both. Freshly
+imported nodes carry no firmware ref at all, which resolves to MeshCore `main`,
+for which nothing is published; a sweep that varies something else then dies on
+its first run with "firmware on 0 of N nodes". The MCP server exposes the same
+builds if you would rather ask than list the directory.
+
+**Role is the MeshCore application, not the node kind.** Repeaters run
+`simple_repeater`; companions run **`companion_radio`**. "companion" is not a
+role, and `firmware.set` used to take it without complaint — the run then failed
+minutes later with "<node> runs no firmware", which reads as a firmware problem
+and is a typo. The binary names in the cache are the authority
+(`meshcore-<role>-linux-amd64`).
+
+**Check the radio preset after an import.** Imported nodes take the app default,
+`EU/UK (Narrow)` — 869.618 MHz, 62.5 kHz, SF8, CR4/8 — which is what ScotMesh
+runs, and what the earlier CAD and hash studies used too. Quote it as provenance
+rather than assuming; a scenario built by hand may sit on the deprecated
+869.525 / 250 kHz / SF10, and results either side of that are not comparable.
+
+**Diff against a scenario that worked.** When a run produces nothing and the
+configuration all looks right, load the last project that *did* work and compare
+the two JSON files under `~/.config/meshcoresim/projects/` — radio, regions,
+firmware refs, scopes. It is far faster than reasoning forwards, and the answer
+is usually one field.
+
+Three traps, all paid for:
+
+- **Arm fields that are pointers are pointers for a reason.** Mode 0 is a real
+  value *and* the zero value, so an arm built a field short silently forced
+  1-byte hashes while the panel said 3.
+- **Constants then arm, for *every* field.** Anything the arm-resolution
+  consults directly rather than through the base is a field the operator can set
+  and watch be ignored. Firmware was exactly that.
+- **Measure the thing the change is supposed to affect.** Reach was a set of
+  nodes per message, so an arm that suppressed nine duplicate copies scored the
+  same as one that suppressed none — every loop-detection comparison came back
+  "no difference" for a whole session before anyone noticed the metric could not
+  see it.
+
+## Before you report any number
+
+**The model is optimistic, and you must say so.** It omits multipath, fading,
+body loss, oscillator error, and non-LoRa interference beyond what is loaded.
+Every omission makes real links *worse*. The bias is one-directional.
+
+So: never present a simulated margin as a measurement. "Predicted +2.5 dB, which
+is marginal — real conditions will be worse" is honest. "It works" is not.
+
+## The four rules that make results meaningful
+
+1. **Both directions, always.** Reachability is asymmetric. A result that does
+   not say *which direction works* is wrong even when the arithmetic is right.
+   "It can hear you but you cannot hear it" is usually the most useful sentence
+   available.
+2. **Uncertain position, no verdict.** A node imported at ±5 km gets distance and
+   bearing, never a reach verdict. Say the position is too uncertain instead of
+   producing a confident number from an unconfident input.
+3. **One run is not evidence.** The channel is stochastic. Vary the seed and
+   report the spread, or say explicitly that you ran once.
+4. **Quote provenance.** Firmware ref, seed, terrain zoom, region. A figure
+   without provenance is an anecdote.
+
+## Workflows
+
+### "Will this link work?"
+
+```
+evaluate_link A B
+```
+Read the *whole* budget, not the verdict. Report: margin in both directions, the
+dominant loss term, and — if it fails — which diffracting edge cost the most.
+"That ridge at 4.2 km costs 31 dB" is actionable; "no path" is not.
+
+### "Why did that packet not arrive?"
+
+```
+reception_ledger <packet-id>
+```
+Distinguish the five outcomes; they have different fixes:
+
+| Outcome | What it means |
+|---|---|
+| out of range | nothing arrived — terrain or distance |
+| too weak to demodulate | raise power, lower SF, better antenna |
+| demodulated, CRC failed | marginal — interference or collision |
+| received, dropped (dedup) | working as designed, not a fault |
+| received, relayed | fine |
+
+Never say "collision" without checking the waterfall — a weak signal and a
+collision look identical in delivery statistics and have opposite fixes.
+
+### "Where should the next repeater go?"
+
+```
+find_sites --region <geojson> --objective coverage,redundancy,energy
+```
+Report the per-term scores, not the aggregate. A site that gains coverage but
+flattens in December is not a site, and a site that adds interference to two
+existing repeaters may be a net loss. Both are visible in the terms.
+
+Check `energy_forecast` on the winner before recommending it.
+
+### "Will this solar node survive winter?"
+
+```
+energy_forecast <node> --months 12
+```
+The answer is not a percentage. It is *when it flattens and what fixes it* —
+usually a bigger panel, not a bigger battery. Say which, because people reliably
+buy the wrong one.
+
+### "Did that firmware change break relaying?"
+
+```
+run --firmware-ab <refA> <refB> --seed <n> --traffic scripted
+compare
+```
+Lock the seed and script the traffic, or the comparison means nothing. Report the
+first diverging event, not just the totals.
+
+### "Is my site deaf?"
+
+Load emitters, then `evaluate_link`. If the noise floor is raised, check whether
+the interferer is **in band or out of band** before suggesting a filter — a
+filter cannot help in-band interference, and saying so plainly saves real money.
+
+## Do not
+
+- Do not report a coverage raster as ground truth. At terrain zoom 11 a pixel is
+  ~30 m; buildings, hedges and vans are invisible to it.
+- Do not average away an asymmetry.
+- Do not run one seed and call it a result.
+- Do not recommend a site without checking energy and interference.
+- Do not silently drop nodes excluded for position uncertainty — say how many.
+
+## When the simulator disagrees with reality
+
+`validate` compares predictions against observer data. If agreement is poor,
+that is a **finding about the model**, not a data problem to explain away. Report
+the residual and its sign; per ADR-0003 we expect to read optimistic, so a
+negative bias is more interesting than a positive one and worth investigating
+rather than smoothing.

@@ -17,4 +17,9 @@
 /.idea/
 /.vscode/
 *.swp
-.claude/
+# Local Claude Code state, but not the skills: those describe how to drive this
+# project and are worth sharing. Anything personal or machine-specific stays
+# out.
+.claude/*
+!.claude/skills/
+.claude/settings.local.json
