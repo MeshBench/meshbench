@@ -51,10 +51,18 @@ f.freq      = ProtoField.uint32("msim.freq",      "Frequency (Hz)", base.DEC)
 f.sf        = ProtoField.uint8 ("msim.sf",        "Spreading factor", base.DEC)
 f.bw        = ProtoField.uint16("msim.bw",        "Bandwidth (kHz)", base.DEC)
 f.cr        = ProtoField.uint8 ("msim.cr",        "Coding rate",    base.DEC)
+f.crc_ok    = ProtoField.uint8 ("msim.crc_ok",    "CRC OK",         base.DEC)
 f.payload   = ProtoField.bytes ("msim.payload",   "MeshCore frame")
 
--- Fixed part of the pseudo-header, from internal/capture/pcapng.go.
-local HDR_LEN = 18
+-- Fixed part of the pseudo-header, from internal/capture/pcapng.go:
+--   version 1, outcome 1, from 2, to 2, rssi 2, snr 2, freq 4, sf 1, bw 2,
+--   cr 1, crc_ok 1  =  19
+--
+-- It was 18 here, which left the CRC-OK byte unread and started the MeshCore
+-- frame on it. That byte is 1 for every accepted packet, so every packet in
+-- every capture decoded as header 0x01 - "flood, REQ, 1-byte path hash" -
+-- which looked like a broken dissector and was arithmetic.
+local HDR_LEN = 19
 
 function msim.dissector(buf, pkt, tree)
   if buf:len() < 1 then return 0 end
@@ -93,6 +101,7 @@ function msim.dissector(buf, pkt, tree)
   t:add_le(f.sf,      b(14, 1))
   t:add_le(f.bw,      b(15, 2))
   t:add_le(f.cr,      b(17, 1))
+  t:add_le(f.crc_ok,  b(18, 1))
 
   local outcome = outcomes[b(1, 1):le_uint()] or "unknown"
   pkt.cols.info = string.format("%s -> %s  %s  %.1f dBm",
