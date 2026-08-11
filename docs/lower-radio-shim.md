@@ -86,8 +86,19 @@ unanswered.
 
 ## Recommendation
 
-**A, in four steps, with a decisive test at the end of each.** B stays on the
-shelf with its trigger written down.
+**Superseded: B was chosen.** The detailed plan is in
+[virtual-sx1262.md](virtual-sx1262.md).
+
+The deciding fact came out while sizing it: RadioLib 7.6.0 - the version MeshCore
+pins - already has a `RadioLibHal` abstraction with sixteen pure-virtual methods.
+There is no Arduino to fake and no surgery on RadioLib; it is written to be
+ported. That moves B from "a project, not a task" to roughly a week, and it is
+the only option that makes the tool's central claim true of the code that decides
+when to transmit.
+
+What follows is kept as the reasoning that led there.
+
+**A, in four steps, with a decisive test at the end of each.**
 
 ### Step 1 — a virtual SX1262 that compiles
 
