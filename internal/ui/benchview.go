@@ -621,11 +621,11 @@ func (a *App) drawMatrix() {
 	// Sized to their contents, draggable, and left alone afterwards: imgui
 	// keeps a resized width in its settings, so a column widened once does not
 	// snap back every time a run finishes and adds a row.
-	if imgui.BeginTableV("##matrix", 9, imgui.TableFlagsRowBg|imgui.TableFlagsBordersInnerH|
+	if imgui.BeginTableV("##matrix", 11, imgui.TableFlagsRowBg|imgui.TableFlagsBordersInnerH|
 		imgui.TableFlagsResizable|imgui.TableFlagsSizingFixedFit|imgui.TableFlagsNoHostExtendX,
 		imgui.NewVec2(0, 0), 0) {
 		cols := []string{"arm", "runs", "tx", "to repeaters", "to companions",
-			"msgs", "collisions", "airtime", "to quiet"}
+			"msgs", "dupes", "worst dupe", "collisions", "airtime", "to quiet"}
 		for i, c := range cols {
 			flags := imgui.TableColumnFlagsWidthFixed
 			if i == len(cols)-1 {
@@ -654,11 +654,16 @@ func (a *App) drawMatrix() {
 				}
 				d := (v - ref) / ref * 100
 				txt := fmt.Sprintf("%+.1f%%", d)
+				// Every metric this renders - transmissions, duplicates,
+				// collisions, airtime, time to quiet - is one where less is
+				// better. Green for "went up" read as approval and it was
+				// pointing the wrong way on all five: an arm that cost 8% more
+				// airtime showed the increase in the colour used for progress.
 				switch {
 				case d > 0.5:
-					textGood(txt)
-				case d < -0.5:
 					textBad(txt)
+				case d < -0.5:
+					textGood(txt)
 				default:
 					textDim(txt)
 				}
@@ -672,6 +677,9 @@ func (a *App) drawMatrix() {
 			imgui.TextUnformatted(fmt.Sprintf("%.1f%%", s.CompPct))
 			imgui.TableNextColumn()
 			imgui.TextUnformatted(fmt.Sprintf("%.0f", s.Messages))
+			cell(s.Dupe, base.Dupe, "")
+			imgui.TableNextColumn()
+			imgui.TextUnformatted(fmt.Sprintf("%.1f", s.WorstDupe))
 			cell(s.Coll, base.Coll, "")
 			cell(s.Airtime/1000, base.Airtime/1000, " s")
 			cell(s.SpanMs/1000, base.SpanMs/1000, " s")

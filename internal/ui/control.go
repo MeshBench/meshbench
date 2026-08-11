@@ -481,8 +481,12 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 		// says where.
 		e := a.ensureExperiment()
 		var p struct {
-			ArmA, ArmB string `json:"arm_a"`
-			Seed       uint64 `json:"seed"`
+			// Separately tagged. Declared on one line they shared the tag
+			// "arm_a", so arm_b never decoded and every compare silently ran
+			// against the empty string.
+			ArmA string `json:"arm_a"`
+			ArmB string `json:"arm_b"`
+			Seed uint64 `json:"seed"`
 		}
 		_ = json.Unmarshal(params, &p)
 		if p.Seed == 0 && len(e.Seeds) > 0 {
