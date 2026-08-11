@@ -1,0 +1,8 @@
+// The SX1262, on the SPI controller the RAK4631 wires it to.
+//
+// Not a model - a wire to radioserver, which owns the same VirtualSX1262 a
+// native node reaches in process and an emulated ESP32 reaches over a socket.
+// One chip, three ways in; see peripherals/RadioServerSX1262.cs.
+lora: Radio.RadioServerSX1262 @ spi2
+    host: "127.0.0.1"
+    port: 7777
