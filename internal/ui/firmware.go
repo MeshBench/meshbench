@@ -169,6 +169,17 @@ func (c *fwCatalogue) status() (loading bool, err string) {
 	return c.state == 1, c.err
 }
 
+// markCached records a build that has just been fetched, so the row it came
+// from stops offering to fetch it again.
+func (c *fwCatalogue) markCached(role, version string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.cached == nil {
+		c.cached = map[string]bool{}
+	}
+	c.cached[role+"@"+version] = true
+}
+
 // isCached reports whether a build is already on disk, ready to start with no
 // download and no network.
 func (c *fwCatalogue) isCached(role, version string) bool {
@@ -288,10 +299,20 @@ func (a *App) drawFirmwareWindow() {
 	if !a.winFirmware {
 		return
 	}
-	imgui.SetNextWindowSizeV(a.windowSize(96, 28), imgui.CondFirstUseEver)
+	imgui.SetNextWindowSizeV(a.windowSize(96, 34), imgui.CondFirstUseEver)
 	a.applyDockIntent("Firmware library")
+	// Pinned to the main window unless it was deliberately popped out.
+	//
+	// Without this it takes a viewport of its own, and the compositor sizes
+	// that to the display: an OS window filling the screen with a small panel
+	// in one corner of it, which reads as a broken layout rather than a window
+	// that escaped.
+	a.applyWindowMode("Firmware library")
 	open := a.winFirmware
-	if imgui.BeginV("Firmware library", &open, 0) {
+	// MenuBar, or panelChrome has nowhere to draw and the window loses its
+	// pop-out and dock verbs entirely - which is what made it a one-way trip
+	// once it came back into the main window.
+	if imgui.BeginV("Firmware library", &open, imgui.WindowFlagsMenuBar) {
 		a.panelChrome("Firmware library")
 		a.drawFirmwareLibraryBody()
 	}
@@ -338,11 +359,12 @@ func (a *App) drawFirmwareLibraryBody() {
 			"import a local build with: msim firmware import")
 	}
 
-	if imgui.BeginTableV("##fwlib", 5,
+	if imgui.BeginTableV("##fwlib", 6,
 		imgui.TableFlagsBorders|imgui.TableFlagsRowBg|imgui.TableFlagsScrollY|
-			imgui.TableFlagsSizingStretchProp, imgui.NewVec2(0, 320), 0) {
+			imgui.TableFlagsSizingStretchProp, imgui.NewVec2(0, a.fwTableHeight(0.45)), 0) {
 		imgui.TableSetupColumnV("role", imgui.TableColumnFlagsWidthStretch, 0, 0)
 		imgui.TableSetupColumnV("version", imgui.TableColumnFlagsWidthStretch, 0, 0)
+		imgui.TableSetupColumnV("board", imgui.TableColumnFlagsWidthStretch, 0, 0)
 		// Fixed columns measured from their own widest content, not guessed in
 		// pixels: "use everywhere" is 120 px in one font and clipped to "use
 		// everywhe" in another.
@@ -352,7 +374,7 @@ func (a *App) drawFirmwareLibraryBody() {
 		imgui.TableSetupColumnV("in use by", imgui.TableColumnFlagsWidthFixed,
 			imgui.CalcTextSize("000 nodes").X+pad, 0)
 		imgui.TableSetupColumnV("", imgui.TableColumnFlagsWidthFixed,
-			imgui.CalcTextSize("use everywhere").X+pad*2, 0)
+			imgui.CalcTextSize("use for all companion_radio").X+pad*2, 0)
 		imgui.TableHeadersRow()
 
 		for _, role := range roles {
@@ -363,19 +385,39 @@ func (a *App) drawFirmwareLibraryBody() {
 				imgui.TableSetColumnIndex(1)
 				imgui.Text(v)
 				imgui.TableSetColumnIndex(2)
-				if a.fw.isCached(role, v) {
-					textColoured(colOK, "yes")
-				} else {
-					textDim("on first use")
-				}
+				// Everything in this catalogue is a host build today. Said
+				// rather than left blank, because a blank cell reads as
+				// unknown, and it is the column that will carry a board name
+				// once published images are listed here too.
+				textDim("native")
 				imgui.TableSetColumnIndex(3)
+				switch {
+				case a.fw.isCached(role, v):
+					textColoured(colOK, "yes")
+				case a.fwDownloading(role, v):
+					textDim("downloading...")
+				default:
+					// Explicit, as well as on first use. Someone about to work
+					// without a network, or who wants a run to start on the
+					// instant, is not served by a catalogue that can only be
+					// browsed.
+					if imgui.SmallButton("download##" + role + v) {
+						a.downloadBuild(role, v)
+					}
+				}
+				imgui.TableSetColumnIndex(4)
 				if n := inUse[role+" "+v]; n > 0 {
 					imgui.Text(fmt.Sprintf("%d nodes", n))
 				} else {
 					textDim("-")
 				}
-				imgui.TableSetColumnIndex(4)
-				if imgui.SmallButton("use everywhere##" + role + v) {
+				imgui.TableSetColumnIndex(5)
+				// Scoped to the role, and labelled as such. "use everywhere"
+				// read as though it would turn companions into repeaters,
+				// which is not what it did and not something anyone wants: a
+				// node's application is what makes it a companion in the first
+				// place.
+				if imgui.SmallButton("use for all " + role + "##" + role + v) {
 					n := 0
 					for i := range a.Nodes {
 						if a.Nodes[i].Kind.RunsFirmware() &&
@@ -385,12 +427,14 @@ func (a *App) drawFirmwareLibraryBody() {
 						}
 					}
 					a.rebuildForFirmware()
-					a.status = fmt.Sprintf("%d nodes set to %s %s", n, role, v)
+					a.status = fmt.Sprintf("%d %s nodes set to %s", n, role, v)
 				}
 			}
 		}
 		imgui.EndTable()
 	}
+
+	a.drawInstalledBuilds()
 
 	imgui.SeparatorText("Storage")
 	textDim("builds     " + firmware.DefaultCacheDir())

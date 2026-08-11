@@ -155,13 +155,22 @@ type App struct {
 	cfg          configState
 	winProvision bool
 	winFirmware  bool
-	confirmWipe  bool
-	winPrefs     bool
-	infer        inferState
-	ab           abState
-	val          validateState
-	live         liveState
-	energy       energyState
+	// confirmDeleteFW arms the delete button for one installed build, because
+	// removing one the scenario is using fails at play rather than here.
+	confirmDeleteFW string
+	// fwDownloads marks catalogue downloads in flight, and fwDownloadErr the
+	// last one that failed. Guarded because a fetch finishes off the frame
+	// thread. Distinct from fwErr below, which belongs to firmware start-up.
+	fwDlMu        sync.Mutex
+	fwDownloads   map[string]bool
+	fwDownloadErr string
+	confirmWipe   bool
+	winPrefs      bool
+	infer         inferState
+	ab            abState
+	val           validateState
+	live          liveState
+	energy        energyState
 	// excessLossDB is the ADR-0015 calibration, applied to every engine build
 	// until removed. Displayed wherever it is in force.
 	excessLossDB float64

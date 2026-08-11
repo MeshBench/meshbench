@@ -281,6 +281,47 @@ func sessionCompanionTools() []Tool {
 				"project first if it matters - everything unsaved goes with it.",
 			"app.quit", sObj(map[string]any{})),
 
+		uiTool("session_firmware_installed",
+			"List the firmware builds actually present on this machine: role, version, "+
+				"board (native builds say so), size and path. This is what decides what "+
+				"a node can run, and it is a different question from what has been "+
+				"published - a build that failed to download halfway looks the same as "+
+				"one in daily use from outside the cache.",
+			"firmware.installed", sObj(map[string]any{})),
+
+		uiTool("session_firmware_download",
+			"Fetch a published build into the cache now, rather than waiting for a node "+
+				"to need it. Wanted before working without a network, or when a run "+
+				"should start on the instant. Returns immediately; poll "+
+				"session_firmware_installed to see it arrive.",
+			"firmware.download", sObj(map[string]any{
+				"role":    sStr("role, e.g. simple_repeater or companion_radio"),
+				"version": sStr("version as listed, e.g. repeater-v1.17.0"),
+			})),
+
+		uiTool("session_firmware_delete",
+			"Delete one installed build. Identify it the way it is listed: role and "+
+				"version, plus board for a board image. Deleting a build the scenario "+
+				"is using leaves those nodes unable to start, and the failure arrives "+
+				"when the run begins rather than here.",
+			"firmware.delete", sObj(map[string]any{
+				"version": sStr("version as listed, e.g. repeater-v1.17.0"),
+				"role":    sStr("role as listed, e.g. simple_repeater"),
+				"board":   sStr("board for a board image; omit for a native build"),
+			})),
+
+		uiTool("session_firmware_import",
+			"Copy a local build into the cache so nodes can select it. Wanted for "+
+				"anything never released, which is most of what is worth testing: a "+
+				"branch build, a patched image, somebody else's binary. Omit board for "+
+				"a native build for this machine.",
+			"firmware.import", sObj(map[string]any{
+				"path":    sStr("file to import"),
+				"version": sStr("what to call it, e.g. v1.17.0-mybranch"),
+				"role":    sStr("role, e.g. simple_repeater or companion_radio"),
+				"board":   sStr("board this image is for; omit for a native build"),
+			})),
+
 		uiTool("session_firmware_wipe",
 			"Delete every node's persistent firmware state: identity, preferences, "+
 				"channels, contacts. Needed between the arms of a comparison, because "+
