@@ -175,10 +175,12 @@ func (a *App) compConnect(node string) error {
 	if !ok || n.Firmware == nil {
 		return fmt.Errorf("%s runs no firmware - press play with real firmware on", node)
 	}
-	if a.compFocus == nil {
-		a.compFocus = map[string]bool{}
+	if !a.compQuiet {
+		if a.compFocus == nil {
+			a.compFocus = map[string]bool{}
+		}
+		a.compFocus[node] = true
 	}
-	a.compFocus[node] = true
 	s := &compSession{node: node}
 	s.release = n.Firmware.Bridge.Claim(s)
 	a.comps[node] = s
@@ -681,4 +683,16 @@ func (a *App) compAddChannel(s *compSession, name string) (int, error) {
 	_ = a.compSend(s, proto.GetChannel(uint8(idx)))
 	a.stepEngine(10)
 	return idx, nil
+}
+
+// compConnectQuiet claims a companion without bringing its window forward.
+//
+// Right for a person sending one message, wrong for a sweep claiming six
+// senders a run, thirty runs deep: the screen fills with windows nobody asked
+// for and the thing worth watching disappears behind them. Any of those nodes
+// can still be opened by hand.
+func (a *App) compConnectQuiet(node string) error {
+	a.compQuiet = true
+	defer func() { a.compQuiet = false }()
+	return a.compConnect(node)
 }

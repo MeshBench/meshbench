@@ -242,6 +242,141 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 		a.quit = true
 		return map[string]any{"quitting": true}, nil
 
+	case "experiment.define":
+		// The whole matrix in one call: arms, seeds, senders, timing. An agent
+		// defines a sweep the same way a person does, and both then watch the
+		// same run.
+		var p struct {
+			Arms []struct {
+				Label            string `json:"label"`
+				RepeaterVersion  string `json:"repeater_version"`
+				CompanionVersion string `json:"companion_version"`
+				PathHashMode     *int32 `json:"path_hash_mode"`
+				LoopDetect       string `json:"loop_detect"`
+				CAD              string `json:"cad"`
+			} `json:"arms"`
+			Seeds    []uint64 `json:"seeds"`
+			Senders  []string `json:"senders"`
+			Channel  string   `json:"channel"`
+			Scope    string   `json:"scope"`
+			SendAtMs uint32   `json:"send_at_ms"`
+			RunForMs uint32   `json:"run_for_ms"`
+		}
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, err
+		}
+		e := a.ensureExperiment()
+		if len(p.Arms) > 0 {
+			e.Arms = nil
+			for _, arm := range p.Arms {
+				mode := int32(-1)
+				if arm.PathHashMode != nil {
+					mode = *arm.PathHashMode
+				}
+				e.Arms = append(e.Arms, expArm{
+					Label: arm.Label, RepeaterVersion: arm.RepeaterVersion,
+					CompanionVersion: arm.CompanionVersion, PathHashMode: mode,
+					LoopDetect: arm.LoopDetect, CAD: arm.CAD,
+				})
+			}
+		}
+		if len(p.Seeds) > 0 {
+			e.Seeds = p.Seeds
+		}
+		if len(p.Senders) > 0 {
+			e.Senders = p.Senders
+		}
+		if p.Channel != "" {
+			e.Channel = p.Channel
+		}
+		if p.Scope != "" {
+			e.Scope = p.Scope
+		}
+		if p.SendAtMs > 0 {
+			e.SendAtMs = p.SendAtMs
+		}
+		if p.RunForMs > 0 {
+			e.RunForMs = p.RunForMs
+		}
+		return map[string]any{"arms": len(e.Arms), "seeds": len(e.Seeds),
+			"runs": e.runsTotal(), "senders": len(e.Senders)}, nil
+
+	case "experiment.start":
+		if err := a.startExperiment(); err != nil {
+			return nil, err
+		}
+		return map[string]any{"running": true, "runs": a.exp.runsTotal()}, nil
+
+	case "experiment.state":
+		e := a.ensureExperiment()
+		out := map[string]any{
+			"running": e.running, "phase": phaseName(e.phase),
+			"done": e.runsDone(), "total": e.runsTotal(), "status": e.status,
+		}
+		if n := len(e.log); n > 0 {
+			out["log"] = e.log[max(0, n-12):]
+		}
+		return out, nil
+
+	case "experiment.results":
+		e := a.ensureExperiment()
+		var rows []map[string]any
+		for _, r := range e.results {
+			rows = append(rows, map[string]any{
+				"arm": r.Arm, "seed": r.Seed, "tx": r.TX, "rx": r.RX,
+				"reached": r.Reached, "collisions": r.Collisions, "deaf": r.Deaf,
+				"airtime_ms": r.AirtimeMs, "span_ms": r.SpanMs,
+				"flag": r.Flag, "err": r.Err,
+			})
+		}
+		var arms []map[string]any
+		for _, s := range e.summarise() {
+			arms = append(arms, map[string]any{
+				"arm": s.Arm, "runs": s.Runs, "flagged": s.Flagged,
+				"tx": s.TX, "rx": s.RX, "reached": s.Reached,
+				"collisions": s.Coll, "deaf": s.Deaf, "airtime_ms": s.Airtime,
+				"rx_spread": s.RXSpread,
+			})
+		}
+		out := map[string]any{"runs": rows, "arms": arms}
+		if w := e.notAResultYet(); w != "" {
+			out["warning"] = w
+		}
+		if !e.running && len(e.results) > 0 {
+			v := a.verdictFor(e)
+			out["verdict"] = map[string]any{
+				"difference": v.Difference, "headline": v.Headline,
+				"investigation": v.Investigation, "detail": v.Detail,
+			}
+		}
+		return out, nil
+
+	case "experiment.compare":
+		// First divergence between two runs: totals say something changed, this
+		// says where.
+		e := a.ensureExperiment()
+		var p struct {
+			ArmA, ArmB string `json:"arm_a"`
+			Seed       uint64 `json:"seed"`
+		}
+		_ = json.Unmarshal(params, &p)
+		if p.Seed == 0 && len(e.Seeds) > 0 {
+			p.Seed = e.Seeds[0]
+		}
+		x := findResult(e.results, p.ArmA, p.Seed)
+		y := findResult(e.results, p.ArmB, p.Seed)
+		if x == nil || y == nil {
+			return nil, fmt.Errorf("no run for %q and %q at seed %d", p.ArmA, p.ArmB, p.Seed)
+		}
+		return map[string]any{"comparison": firstDivergence(x.ledger, y.ledger)}, nil
+
+	case "experiment.export":
+		path, err := a.exportExperiment(a.ensureExperiment())
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"path": path}, nil
+
 	case "firmware.wipe":
 		// Every node's persistent files: identity, prefs, channels, contacts.
 		//

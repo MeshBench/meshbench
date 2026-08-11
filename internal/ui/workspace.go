@@ -21,6 +21,7 @@ const (
 	wsRun
 	wsDebug
 	wsVerify
+	wsBench
 	workspaceCount
 )
 
@@ -32,6 +33,8 @@ func (w workspace) String() string {
 		return "Debug"
 	case wsVerify:
 		return "Verify"
+	case wsBench:
+		return "Bench"
 	default:
 		return "Plan"
 	}
@@ -47,6 +50,8 @@ func (w workspace) purpose() string {
 		return "ask why one thing happened: packets, waterfall, consoles, budgets"
 	case wsVerify:
 		return "check it is still true: baselines, A/B bisect, residuals against reality"
+	case wsBench:
+		return "compare configurations: sweep a parameter, repeat it, read what differed"
 	default:
 		return "build and site: import, place, drag, boundary, coverage"
 	}
@@ -92,6 +97,11 @@ func (a *App) panelRegistry() []*panelSpec {
 		{name: "Console", draw: a.drawConsole, open: false},
 		{name: "Schedule", draw: a.drawScheduleBody, open: false},
 		{name: "Compare", draw: a.drawCompareBody, open: false},
+		{name: "Sweep", draw: a.drawSweep, open: false},
+		{name: "Runs", draw: a.drawRuns, open: false},
+		{name: "Experiment log", draw: a.drawExperimentLog, open: false},
+		{name: "Matrix", draw: a.drawMatrix, open: false},
+		{name: "Timelines", draw: a.drawTimelines, open: false},
 		{name: "Validate", draw: a.drawValidateBody, open: false},
 		{name: "Energy", draw: a.drawEnergyBody, open: false},
 		{name: "Live feed", draw: a.drawLiveFeedBody, open: false},
@@ -173,6 +183,9 @@ func (a *App) openPanelsFor(w workspace) {
 		wsDebug: {"Inspector", "Budget", "Link", "Waterfall", "Console", "Events"},
 		// Is it still true: the falsifiability workflow, given a front door.
 		wsVerify: {"Compare", "Validate", "Scoreboard", "Events"},
+		// Comparing configurations: the sweep, what it is doing, and what came
+		// out. No map - an experiment is read, not sited.
+		wsBench: {"Sweep", "Runs", "Experiment log", "Matrix", "Timelines"},
 	}
 	want := map[string]bool{}
 	for _, n := range names[w] {

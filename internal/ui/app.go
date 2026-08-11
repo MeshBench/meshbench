@@ -186,6 +186,13 @@ type App struct {
 	// quit is set by the control socket to close the workbench.
 	quit bool
 
+	// exp is the experiment being defined or run.
+	exp *experiment
+	// compQuiet suppresses window-opening while the runner claims senders.
+	compQuiet bool
+	// benchUI is the sweep builder's own edit state.
+	benchUI struct{ param, values, seeds string }
+
 	// Firmware start runs off the frame thread; these are how it reports back.
 	fwStarting atomic.Bool
 	fwDone     atomic.Int32
@@ -485,6 +492,7 @@ func (a *App) frame() {
 		a.backend.SetShouldClose(true)
 	}
 	a.pumpUIScale()
+	a.stepExperiment()
 
 	vp := imgui.MainViewport()
 	statusH := imgui.FrameHeight() + 10

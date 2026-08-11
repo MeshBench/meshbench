@@ -232,6 +232,50 @@ func sessionCompanionTools() []Tool {
 				"exists and how it acquires contacts.",
 			"companion.advert", sObj(map[string]any{"node": sStr("node name")}, "node")),
 
+		uiTool("session_experiment_define",
+			"Define a sweep: arms (named parameter sets), seeds, senders and timing. "+
+				"An arm sets only what it varies - firmware version per role, path hash "+
+				"mode (0,1,2 for 1,2,3 bytes per hop), loop detect, CAD - and leaves the "+
+				"rest of the scenario alone.",
+			"experiment.define", sObj(map[string]any{
+				"arms":       map[string]any{"type": "array", "description": "objects: label, repeater_version, companion_version, path_hash_mode, loop_detect, cad"},
+				"seeds":      map[string]any{"type": "array", "description": "run each arm once per seed; repeats of one seed are identical by design"},
+				"senders":    map[string]any{"type": "array", "description": "companion node names that originate the burst"},
+				"channel":    sStr("channel to send on, e.g. #sco"),
+				"scope":      sStr("transport scope to send under"),
+				"send_at_ms": map[string]any{"type": "integer", "description": "simulated instant every arm fires at"},
+				"run_for_ms": map[string]any{"type": "integer", "description": "measurement window after the burst"},
+			})),
+
+		uiTool("session_experiment_start",
+			"Run the sweep. Wipes persisted firmware state between every run, fires every "+
+				"arm at the same simulated instant, and flags any run where nothing relayed.",
+			"experiment.start", sObj(map[string]any{})),
+
+		uiTool("session_experiment_state",
+			"How far the sweep has got: phase, runs done of total, and the last few log lines.",
+			"experiment.state", sObj(map[string]any{})),
+
+		uiTool("session_experiment_results",
+			"Per-run rows, per-arm averages, a warning when the seeds disagree by more than "+
+				"the arms do, and - once finished - a verdict saying whether it really made a "+
+				"difference, with an investigation of why not when it did not.",
+			"experiment.results", sObj(map[string]any{})),
+
+		uiTool("session_experiment_compare",
+			"First divergence between two arms at one seed. Totals say something changed; "+
+				"this says where, and reports when timing is identical.",
+			"experiment.compare", sObj(map[string]any{
+				"arm_a": sStr("first arm label"),
+				"arm_b": sStr("second arm label"),
+				"seed":  map[string]any{"type": "integer", "description": "which seed; the first if omitted"},
+			}, "arm_a", "arm_b")),
+
+		uiTool("session_experiment_export",
+			"Write the sweep as a self-contained HTML report: verdict, matrix, one flood "+
+				"shape per arm, every run, and the first divergence.",
+			"experiment.export", sObj(map[string]any{})),
+
 		uiTool("session_quit",
 			"Close the workbench. The scenario lives in the process, so save a "+
 				"project first if it matters - everything unsaved goes with it.",

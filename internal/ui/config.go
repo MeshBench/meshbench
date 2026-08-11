@@ -45,6 +45,11 @@ type configState struct {
 	// firmware's own setting alone.
 	pathHashMode int32
 
+	// cadMode turns hardware channel-activity detection on or off. New in
+	// MeshCore 1.17; earlier builds reject the command, which is itself worth
+	// seeing in a comparison. Empty leaves it alone.
+	cadMode string
+
 	// loopDetect is the repeater's duplicate suppression: off, minimal,
 	// moderate or strict. Empty leaves it alone. It interacts directly with
 	// path hash size, which is why they are set together.
@@ -470,6 +475,9 @@ func (a *App) startupCommands(i int) []string {
 	}
 	if a.cfg.loopDetect != "" && n.Kind.Transmits() {
 		out = append(out, "set loop.detect "+a.cfg.loopDetect)
+	}
+	if a.cfg.cadMode != "" && n.Kind.Transmits() {
+		out = append(out, "set cad "+a.cfg.cadMode)
 	}
 	if a.cfg.setClockOnStart {
 		// Every node boots with its clock at zero, and MeshCore timestamps

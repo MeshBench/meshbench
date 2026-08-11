@@ -258,3 +258,30 @@ func (a *App) windowSize(cols, rows float32) imgui.Vec2 {
 	padY := style.WindowPadding().Y*2 + imgui.FrameHeight()*2
 	return imgui.NewVec2(cols*ch.X+padX, rows*(ch.Y+style.ItemSpacing().Y)+padY)
 }
+
+// textBad and textGood carry a verdict, not a mood: a number that moved the
+// wrong way and one that moved the right way read differently at a glance, and
+// an experiment matrix is scanned rather than read.
+func textBad(s string) {
+	imgui.PushStyleColorVec4(imgui.ColText, colWarn)
+	imgui.TextUnformattedV(s)
+	imgui.PopStyleColor()
+}
+
+func textGood(s string) {
+	imgui.PushStyleColorVec4(imgui.ColText, colOK)
+	imgui.TextUnformattedV(s)
+	imgui.PopStyleColor()
+}
+
+func textBadWrap(s string) {
+	imgui.PushStyleColorVec4(imgui.ColText, colWarn)
+	textWrap(s)
+	imgui.PopStyleColor()
+}
+
+func textGoodWrap(s string) {
+	imgui.PushStyleColorVec4(imgui.ColText, colOK)
+	textWrap(s)
+	imgui.PopStyleColor()
+}
