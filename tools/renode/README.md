@@ -24,14 +24,45 @@ starts, the low-frequency clock runs from the crystal, and FreeRTOS ticks at
     713da: orrs  r1, r0
     713dc: beq.n 0x713d0
 
-That is where it is now. It is not a crash and not a stall in the SoftDevice —
-the instruction count is identical across a twenty and a forty second run
-(233,634 both times), so the CPU is halted in WFE rather than spinning, and
-forcing RTC1's NVIC enable makes it service a tick (83 instructions) and go
-straight back to idle. Something in the application's startup is blocked on an
-event nobody raises.
+That is where it is now, and the reason is identified: **Renode does not
+implement SEVONPEND**.
 
-Reproduce with `tools/renode/rak4631-app.resc`.
+The firmware sets it. `SCR` at `0xE000ED10` reads `0x00000010`, bit 4. With
+SEVONPEND set, an interrupt becoming pending wakes `WFE` *even when that
+interrupt is disabled in the NVIC* — which is exactly what this loop relies on.
+It sleeps, wakes on any pending interrupt, reads ISPR to see which, and handles
+it without ever taking the interrupt. That is a normal low-power idiom and it is
+why the interrupt is deliberately left disabled.
+
+The machine state at the stall says the rest:
+
+| | |
+|---|---|
+| `SCR` | `0x00000010` — SEVONPEND set |
+| `ISPR0` | `0x00020000` — RTC1 pending |
+| `ISER0` | `0x00000001` — RTC1 *not* enabled |
+| instructions | identical across a 20 s and a 40 s run |
+
+So the CPU is halted with the wake condition already true. Two things confirm
+the diagnosis rather than merely fit it. Forcing RTC1's NVIC enable makes it
+service one tick (83 instructions) and go straight back to sleep — because the
+handler clears the pending bit, so the ISPR poll then finds nothing, which is
+the wrong behaviour for this idiom. And `cpu WfeAndSevAsNop true` turns the same
+loop into a busy poll and the instruction count jumps from 233 thousand to 127
+million: the CPU runs, so it was the sleep and not the firmware.
+
+`WfeAndSevAsNop` is not a fix, though, because it costs the thing that made
+halting useful. When the CPU halts, Renode fast-forwards virtual time to the
+next timer event and RTC1 reaches 15,495 ticks in twelve seconds of wall clock.
+Busy-polling advances virtual time from instructions executed instead, so the
+same twelve seconds gets 128 ticks, and the firmware's one-second tick costs
+minutes. It progresses, unusably slowly.
+
+**The fix is SEVONPEND in the CPU**: wake from `WFE` when an interrupt becomes
+pending, regardless of its enable bit, and leave the pending bit set. That is a
+change to Renode's CPU core rather than a peripheral, which is a different kind
+of work from the four register blocks above — but it is bounded, specified by
+ARM, and nothing to do with the SoftDevice being proprietary.
 
 ### What the earlier conclusion got wrong
 

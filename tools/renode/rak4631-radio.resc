@@ -50,5 +50,6 @@ sysbus WriteDoubleWord 0xFFC 0xFFFFFFFF
 sysbus WriteDoubleWord 0xFF8 0xFFFFFFFF
 sysbus WriteDoubleWord 0xFFC 0xFFFFFFFF
 uart0 CreateFileBackend @/tmp/rak_uart.log true
+cpu WfeAndSevAsNop true
 spi2.lora Connect
 start
