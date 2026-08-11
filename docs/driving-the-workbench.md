@@ -1,7 +1,14 @@
 # Driving the workbench from outside
 
-Findings from the first real agent-driven session, written down because each
-one cost a wasted run.
+Findings from agent-driven sessions, written down because each one cost a
+wasted run.
+
+The same knowledge is packaged as a skill at
+`.claude/skills/meshcoresim/SKILL.md`, which is what an agent working in this
+repository loads. This page is the prose version for people; the skill is the
+operational checklist. Keep them in step, and put anything newly learned in the
+skill first, because that is the copy which gets read before the mistake rather
+than after it.
 
 ## The socket
 
@@ -153,12 +160,30 @@ Rules learned the hard way:
   nothing relayed and you are measuring adverts. `tx` around 100 on a 154-node
   scenario means no flood; around 480 means a real one.
 
-### What this study cannot measure yet
+### What this study could not measure, and what fixed it
 
-`HostRadio` does not implement `isReceiving()`, so MeshCore's
-`Dispatcher::checkSend()` always takes the channel-is-clear branch and no
-listen-before-talk or CAD behaviour runs at all. 1.16 and 1.17 produce
-bit-identical event timing as a result - the ledgers differ in three advert
-packet sizes and nothing else. Until that method is implemented from the
-engine's channel state, any CAD comparison here will report "no difference"
+This section used to say that `HostRadio` never implemented `isReceiving()`, so
+`Dispatcher::checkSend()` always took the channel-is-clear branch, no
+listen-before-talk ran, and any CAD comparison reported "no difference"
 regardless of the firmware.
+
+That is no longer the case. `HostRadio` has been replaced by MeshCore's own
+driver over real RadioLib on a virtual SX1262, so `isReceiving()` is answered
+from the engine's channel state and the listen-before-talk paths execute. See
+`docs/virtual-sx1262.md`.
+
+The comparison still reported no difference, for a better reason: on a radio
+that behaves, 1.16's two-line check and 1.17's state machine agree. Separating
+them needed a radio that misbehaves, which is what the `-faultyirq` builds are
+for.
+
+Two later findings that change how this study should be read:
+
+- **Six senders on one instant makes the scenario chaotic.** Configurations that
+  ought to be equivalent land up to 20% apart, deterministically. It is the
+  regime worth measuring for contention, but it is not an instrument that can
+  resolve a small effect. Quote between-arm differences against that floor, or
+  use a single sender.
+- **Repeats of one seed are identical**, and in the simultaneous arms so are
+  different seeds. Three seeds is three runs, not three samples. To get a real
+  interval, vary something that perturbs the mesh rather than the noise.
