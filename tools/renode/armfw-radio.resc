@@ -1,0 +1,10 @@
+i @tools/renode/peripherals/RadioServerSX1262.cs
+
+mach create "armfw"
+machine LoadPlatformDescription @platforms/cpus/nrf52840.repl
+machine LoadPlatformDescription @tools/renode/ficr.repl
+machine LoadPlatformDescription @tools/renode/radio-legacy.repl
+
+sysbus LoadELF @/home/alex/msim/armfw/build/fw.elf
+uart0 CreateFileBackend @/tmp/armfw_uart.log true
+spi2.lora Connect

@@ -10,6 +10,7 @@ machine LoadPlatformDescription @tools/renode/temp.repl
 sysbus Unregister sysbus.clock
 machine LoadPlatformDescription @tools/renode/clock.repl
 machine LoadPlatformDescription @tools/renode/saadc.repl
+sysbus Unregister sysbus.spi2
 machine LoadPlatformDescription @tools/renode/radio.repl
 
 : Erased flash, then every real region in flash order. Erased matters: the MBR

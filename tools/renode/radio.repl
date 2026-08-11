@@ -1,8 +1,17 @@
-// The SX1262, on the SPI controller the RAK4631 wires it to.
+// SPI2 with EasyDMA, and the SX1262 on it.
 //
-// Not a model - a wire to radioserver, which owns the same VirtualSX1262 a
-// native node reaches in process and an emulated ESP32 reaches over a socket.
-// One chip, three ways in; see peripherals/RadioServerSX1262.cs.
+// Renode's nRF52840 platform declares spi2 with easyDMA defaulting to false, so
+// it models only the legacy register interface. The nRF52840 part the firmware
+// drives is SPIM - pointers and counts, not TXD/RXD - so every transfer went
+// nowhere and the chip saw not one byte. A peripheral can only be registered
+// once at an address, so the script unregisters theirs first.
+spi2: SPI.NRF52840_SPI @ sysbus 0x40023000
+    easyDMA: true
+    -> nvic@0x23
+
+// Not a model of a chip - a wire to radioserver, which owns the same
+// VirtualSX1262 a native node reaches in process and an emulated ESP32 reaches
+// over a socket. One chip, three ways in.
 lora: Radio.RadioServerSX1262 @ spi2
     host: "127.0.0.1"
     port: 7777
