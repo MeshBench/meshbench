@@ -422,8 +422,10 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 				"arm": r.Arm, "seed": r.Seed, "tx": r.TX, "rx": r.RX,
 				"messages": r.Messages, "reach_pct": r.MeanReachPct,
 				"reach_each": r.ReachPerMsg, "senders_of": r.SenderOf,
-				"observer_got": r.ObserverGot,
-				"collisions":   r.Collisions, "deaf": r.Deaf,
+				"to_repeaters": r.RepHit, "repeater_chances": r.RepChances,
+				"to_companions": r.CompHit, "companion_chances": r.CompChances,
+				"repeats_per_msg": r.RepPerMsg, "comps_per_msg": r.CompPerMsg,
+				"collisions": r.Collisions, "deaf": r.Deaf,
 				"airtime_ms": r.AirtimeMs, "span_ms": r.SpanMs,
 				"flag": r.Flag, "err": r.Err,
 			})
@@ -433,7 +435,7 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 			arms = append(arms, map[string]any{
 				"arm": s.Arm, "runs": s.Runs, "flagged": s.Flagged,
 				"tx": s.TX, "rx": s.RX, "reach_pct": s.Reach,
-				"messages": s.Messages, "observer_got": s.Observer,
+				"messages": s.Messages, "repeater_pct": s.RepPct, "companion_pct": s.CompPct,
 				"collisions": s.Coll, "deaf": s.Deaf, "airtime_ms": s.Airtime,
 				"rx_spread": s.RXSpread,
 			})

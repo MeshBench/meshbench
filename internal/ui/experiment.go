@@ -87,9 +87,17 @@ type expResult struct {
 	ReachPerMsg []float64
 	// SenderOf names which sender each of those messages came from.
 	SenderOf []string
-	// ObserverGot is how many of those messages arrived at a node that only
-	// listens - the closest thing to "did it work" that a person would check.
-	ObserverGot int
+	// Split by what a node is, because the two say different things. Reaching
+	// the repeaters is whether the mesh carried it; reaching the companions is
+	// whether anybody read it.
+	//
+	// Six messages across 136 repeaters is 816 chances to arrive, and what
+	// matters is how many of them did.
+	RepHit, RepChances   int
+	CompHit, CompChances int
+	// Per message, in sender order.
+	RepPerMsg  []int
+	CompPerMsg []int
 
 	// Flag is set when the run should not be believed - most usefully when
 	// nothing relayed, which produces perfectly plausible totals.
@@ -130,6 +138,10 @@ type experiment struct {
 	Seeds []uint64
 
 	Senders []string
+	// Bytes is how long each message is. A 12-byte "hello" and a 180-byte one
+	// are different experiments: airtime scales with payload, and airtime is
+	// what collides. 0 means the runner's own short label.
+	Bytes int
 	// Observer is a companion that only listens. Its Messages tab is the
 	// human-sized answer to "did it get through", where the matrix gives the
 	// mesh-sized one.
@@ -333,8 +345,11 @@ func (a *App) stepExperiment() {
 				}
 			}
 			s.mu.Unlock()
-			if a.compSend(s, proto.SendChannelText(idx, time.Now(),
-				fmt.Sprintf("%s seed %d", arm.Label, seed))) == nil {
+			text := fmt.Sprintf("%s seed %d", arm.Label, seed)
+			if e.Bytes > 0 {
+				text = padTo(text, e.Bytes)
+			}
+			if a.compSend(s, proto.SendChannelText(idx, time.Now(), text)) == nil {
 				sent++
 			}
 		}
@@ -351,6 +366,7 @@ func (a *App) stepExperiment() {
 		e.phase = expCollect
 
 	case expCollect:
+		e.logf("%s %d  ledger %d -> %d events", arm.Label, seed, e.baseline, a.eng.EventCount())
 		r := a.measure(arm.Label, seed, e.baseline, e.burstMs)
 		e.results = append(e.results, r)
 		if r.Flag != "" {
@@ -393,6 +409,14 @@ func (e *experiment) fail(msg string) {
 }
 
 // measure reduces the events the burst caused to the numbers worth comparing.
+// measure reduces the events the burst caused to the numbers worth comparing.
+//
+// Delivery is counted per message and per recipient, which is the only framing
+// that survives more than one sender: six messages across a hundred and sixty
+// repeaters is nine hundred and sixty chances to arrive, and what matters is
+// how many of them did. Counting "nodes that heard anything" instead treats a
+// node that received one of six exactly like one that received all six, and
+// flatters every result.
 func (a *App) measure(arm string, seed uint64, from int, burstMs uint32) expResult {
 	r := expResult{Arm: arm, Seed: seed}
 	if a.eng == nil {
@@ -403,44 +427,102 @@ func (a *App) measure(arm string, seed uint64, from int, burstMs uint32) expResu
 		from = len(events)
 	}
 	tail := events[from:]
-	// Delivery per message, not per node: a node that heard one of six is not
-	// the same as one that heard all six.
+
 	perMsg := map[uint64]map[string]bool{}
 	// Which sender each message came from, so the per-message numbers can be
 	// attributed rather than left anonymous.
 	msgOrigin := map[uint64]string{}
+	secs := int(a.exp.RunForMs/1000) + 1
+	r.perSecond = make([]int, secs)
 	var last uint32
-	r.Messages = len(perMsg)
-	if r.Messages > 0 {
-		denom := float64(len(a.Nodes) - 1)
-		total := 0.0
-		// Ordered by sender, so the same message occupies the same slot in
-		// every arm and two runs can be read side by side.
-		ids := make([]uint64, 0, len(perMsg))
-		for id := range perMsg {
+
+	for _, ev := range tail {
+		switch ev.Kind {
+		case "tx":
+			r.TX++
+			if _, seen := msgOrigin[ev.MessageID]; !seen {
+				msgOrigin[ev.MessageID] = ev.From
+			}
+		case "rx":
+			r.RX++
+			if perMsg[ev.MessageID] == nil {
+				perMsg[ev.MessageID] = map[string]bool{}
+			}
+			perMsg[ev.MessageID][ev.To] = true
+			if ev.AtMs > last {
+				last = ev.AtMs
+			}
+			if ev.AtMs >= burstMs {
+				if b := int((ev.AtMs - burstMs) / 1000); b >= 0 && b < secs {
+					r.perSecond[b]++
+				}
+			}
+		case "miss":
+			switch {
+			case strings.Contains(ev.Detail, "half duplex"):
+				r.Deaf++
+			case strings.Contains(ev.Detail, "stronger interferer"):
+				r.Collisions++
+			}
+		}
+	}
+
+	// Only the messages our senders originated. Adverts and other traffic are
+	// carried in tx/rx totals but are not what was asked about.
+	senders := map[string]bool{}
+	for _, n := range a.exp.Senders {
+		senders[n] = true
+	}
+	ids := make([]uint64, 0, len(perMsg))
+	for id := range perMsg {
+		if senders[msgOrigin[id]] {
 			ids = append(ids, id)
 		}
-		sort.Slice(ids, func(i, j int) bool { return msgOrigin[ids[i]] < msgOrigin[ids[j]] })
-		for _, id := range ids {
-			pct := 0.0
-			if denom > 0 {
-				pct = float64(len(perMsg[id])) / denom * 100
-			}
-			r.ReachPerMsg = append(r.ReachPerMsg, pct)
-			r.SenderOf = append(r.SenderOf, msgOrigin[id])
-			total += pct
-		}
-		r.MeanReachPct = total / float64(r.Messages)
 	}
+	sort.Slice(ids, func(i, j int) bool { return msgOrigin[ids[i]] < msgOrigin[ids[j]] })
+	r.Messages = len(ids)
+
+	// Who is what, so delivery can be split by it.
+	isComp := map[string]bool{}
+	nRep, nComp := 0, 0
+	for i := range a.Nodes {
+		if a.Nodes[i].Kind == scenario.Companion {
+			isComp[a.Nodes[i].Name] = true
+			nComp++
+		} else {
+			nRep++
+		}
+	}
+	for _, id := range ids {
+		rep, comp := 0, 0
+		for node := range perMsg[id] {
+			if isComp[node] {
+				comp++
+			} else {
+				rep++
+			}
+		}
+		r.RepPerMsg = append(r.RepPerMsg, rep)
+		r.CompPerMsg = append(r.CompPerMsg, comp)
+		r.RepHit += rep
+		r.CompHit += comp
+		r.RepChances += nRep
+		// Every companion but the one that sent it.
+		r.CompChances += nComp - 1
+		pct := 0.0
+		if nRep+nComp-1 > 0 {
+			pct = float64(rep+comp) / float64(nRep+nComp-1) * 100
+		}
+		r.ReachPerMsg = append(r.ReachPerMsg, pct)
+		r.SenderOf = append(r.SenderOf, msgOrigin[id])
+	}
+	if r.RepChances+r.CompChances > 0 {
+		r.MeanReachPct = float64(r.RepHit+r.CompHit) /
+			float64(r.RepChances+r.CompChances) * 100
+	}
+
 	if last > burstMs {
 		r.SpanMs = last - burstMs
-	}
-	if a.exp.Observer != "" {
-		for _, nodes := range perMsg {
-			if nodes[a.exp.Observer] {
-				r.ObserverGot++
-			}
-		}
 	}
 	for _, n := range a.eng.Scoreboard() {
 		r.AirtimeMs += n.AirtimeMs
@@ -451,7 +533,8 @@ func (a *App) measure(arm string, seed uint64, from int, burstMs uint32) expResu
 	// is that transmissions barely exceed the number of senders: everybody
 	// spoke once and nobody passed it on.
 	if r.TX <= len(a.exp.Senders)*2 {
-		r.Flag = fmt.Sprintf("nothing relayed - %d transmissions from %d senders", r.TX, len(a.exp.Senders))
+		r.Flag = fmt.Sprintf("nothing relayed - %d transmissions from %d senders",
+			r.TX, len(a.exp.Senders))
 	}
 	return r
 }
@@ -467,7 +550,8 @@ type expSummary struct {
 	Deaf     float64
 	Reach    float64
 	Messages float64
-	Observer float64
+	RepPct   float64
+	CompPct  float64
 	Airtime  float64
 	SpanMs   float64
 	RXSpread float64 // half the range across seeds, as a fraction of the mean
@@ -497,7 +581,12 @@ func (e *experiment) summarise() []expSummary {
 			s.Deaf += float64(r.Deaf)
 			s.Reach += r.MeanReachPct
 			s.Messages += float64(r.Messages)
-			s.Observer += float64(r.ObserverGot)
+			if r.RepChances > 0 {
+				s.RepPct += float64(r.RepHit) / float64(r.RepChances) * 100
+			}
+			if r.CompChances > 0 {
+				s.CompPct += float64(r.CompHit) / float64(r.CompChances) * 100
+			}
 			s.Airtime += r.AirtimeMs
 			s.SpanMs += float64(r.SpanMs)
 			lo = math.Min(lo, float64(r.RX))
@@ -511,7 +600,8 @@ func (e *experiment) summarise() []expSummary {
 			s.Deaf /= n
 			s.Reach /= n
 			s.Messages /= n
-			s.Observer /= n
+			s.RepPct /= n
+			s.CompPct /= n
 			s.Airtime /= n
 			s.SpanMs /= n
 		}
@@ -638,7 +728,8 @@ func (a *App) verdictFor(e *experiment) verdict {
 			{"transmissions", s.TX, base.TX},
 			{"collisions", s.Coll, base.Coll},
 			{"airtime", s.Airtime, base.Airtime},
-			{"delivery", s.Reach, base.Reach},
+			{"delivery to repeaters", s.RepPct, base.RepPct},
+			{"delivery to companions", s.CompPct, base.CompPct},
 		} {
 			if m.ref == 0 {
 				continue
@@ -806,4 +897,13 @@ func sameEvent(x, y engine.Event) bool {
 func (a expArm) isPristine() bool {
 	return a.RepeaterVersion == "" && a.CompanionVersion == "" &&
 		a.LoopDetect == "" && a.CAD == "" && a.PathHashMode < 0
+}
+
+// padTo makes a message a given length, so payload size is an experimental
+// variable rather than an accident of how the arm happens to be named.
+func padTo(s string, n int) string {
+	if len(s) >= n {
+		return s[:n]
+	}
+	return s + strings.Repeat(".", n-len(s))
 }

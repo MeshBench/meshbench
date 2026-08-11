@@ -90,7 +90,7 @@ color:var(--dim);font:12px ui-monospace,Menlo,monospace}
 
 	// The matrix, as deltas from the baseline.
 	b.WriteString(`<h2>Matrix</h2><div class="scroll"><table><tr>
-<th>arm</th><th>runs</th><th>tx</th><th>rx</th><th>delivery</th>
+<th>arm</th><th>runs</th><th>tx</th><th>rx</th><th>to repeaters</th><th>to companions</th>
 <th>collisions</th><th>deaf</th><th>airtime</th><th>to quiet</th></tr>`)
 	if len(sums) > 0 {
 		base := sums[0]
@@ -101,7 +101,7 @@ color:var(--dim);font:12px ui-monospace,Menlo,monospace}
 			fmt.Fprintf(&b, "<tr><td>%s</td><td>%d%s</td>", html.EscapeString(s.Arm), s.Runs,
 				flaggedNote(s.Flagged))
 			for _, m := range []struct{ v, ref float64 }{
-				{s.TX, base.TX}, {s.RX, base.RX}, {s.Reach, base.Reach},
+				{s.TX, base.TX}, {s.RX, base.RX}, {s.RepPct, base.RepPct}, {s.CompPct, base.CompPct},
 				{s.Coll, base.Coll}, {s.Deaf, base.Deaf},
 				{s.Airtime / 1000, base.Airtime / 1000}, {s.SpanMs / 1000, base.SpanMs / 1000},
 			} {
@@ -134,7 +134,7 @@ color:var(--dim);font:12px ui-monospace,Menlo,monospace}
 
 	// Every run, so nothing is hidden behind an average.
 	b.WriteString(`<h2>Runs</h2><div class="scroll"><table><tr>
-<th>arm</th><th>seed</th><th>tx</th><th>rx</th><th>messages</th><th>reach, each message</th>
+<th>arm</th><th>seed</th><th>tx</th><th>rx</th><th>messages</th><th>repeaters + companions, each message</th>
 <th>collisions</th><th>to quiet</th><th>note</th></tr>`)
 	for _, r := range e.results {
 		note := ""
@@ -146,13 +146,13 @@ color:var(--dim);font:12px ui-monospace,Menlo,monospace}
 		// Every message's own reach, not just the mean: six senders is six
 		// numbers, and one that got nowhere matters more than the average does.
 		var each []string
-		for i, p := range r.ReachPerMsg {
+		for i := range r.RepPerMsg {
 			who := ""
 			if i < len(r.SenderOf) {
 				who = r.SenderOf[i]
 			}
-			each = append(each, fmt.Sprintf(`<span title="%s">%.0f%%</span>`,
-				html.EscapeString(who), p))
+			each = append(each, fmt.Sprintf(`<span title="from %s">%d + %d</span>`,
+				html.EscapeString(who), r.RepPerMsg[i], r.CompPerMsg[i]))
 		}
 		fmt.Fprintf(&b, `<tr><td>%s</td><td>%d</td><td>%d</td><td>%d</td><td>%d</td>
 <td>%s</td><td>%d</td><td>%.1f s</td><td class="flag">%s</td></tr>`,

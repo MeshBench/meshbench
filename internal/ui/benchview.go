@@ -76,52 +76,78 @@ func (a *App) drawSweep() {
 	imgui.SameLine()
 	textDim(fmt.Sprintf("%d nodes", len(a.Nodes)))
 
+	// Senders as a list with a remove on each row, not a dropdown that only
+	// ever adds. Choosing who transmits is the experiment's design, and a
+	// control you cannot undo in is the wrong shape for it.
 	textDim("senders")
 	imgui.SameLine()
-	summary := "none chosen"
-	if n := len(e.Senders); n == 1 {
-		summary = e.Senders[0]
-	} else if n > 1 {
-		summary = fmt.Sprintf("%d: %s +%d", n, e.Senders[0], n-1)
+	if imgui.SmallButton("spread 6") {
+		e.Senders = a.spreadSenders(6)
 	}
-	imgui.SetNextItemWidth(190)
-	if imgui.BeginCombo("##senders", summary) {
-		if imgui.SelectableBool("spread across the network") {
-			e.Senders = a.spreadSenders(6)
-		}
-		if imgui.IsItemHovered() {
-			imgui.SetTooltip("Six companions as far apart as the network allows.\n\n" +
-				"A cluster of neighbours contends with itself rather than with the mesh,\n" +
-				"which is not the contention worth measuring.")
-		}
-		if imgui.SelectableBool("every companion") {
-			e.Senders = nil
-			for i := range a.Nodes {
-				if a.Nodes[i].Kind == scenario.Companion {
-					e.Senders = append(e.Senders, a.Nodes[i].Name)
-				}
+	if imgui.IsItemHovered() {
+		imgui.SetTooltip("Six companions as far apart as the network allows.\n\n" +
+			"A cluster of neighbours contends with itself rather than with the mesh,\n" +
+			"which is not the contention worth measuring.")
+	}
+	imgui.SameLine()
+	if imgui.SmallButton("all") {
+		e.Senders = nil
+		for i := range a.Nodes {
+			if a.Nodes[i].Kind == scenario.Companion {
+				e.Senders = append(e.Senders, a.Nodes[i].Name)
 			}
 		}
-		imgui.Separator()
+	}
+	imgui.SameLine()
+	if imgui.SmallButton("none") {
+		e.Senders = nil
+	}
+	imgui.SameLine()
+	imgui.SetNextItemWidth(150)
+	if imgui.BeginCombo("##addsender", "add one") {
 		for i := range a.Nodes {
-			if a.Nodes[i].Kind != scenario.Companion {
+			if a.Nodes[i].Kind != scenario.Companion || containsStr(e.Senders, a.Nodes[i].Name) {
 				continue
 			}
-			name := a.Nodes[i].Name
-			on := containsStr(e.Senders, name)
-			if imgui.SelectableBoolV(name, on, imgui.SelectableFlagsNoAutoClosePopups, imgui.NewVec2(0, 0)) {
-				if on {
-					e.Senders = removeStr(e.Senders, name)
-				} else {
-					e.Senders = append(e.Senders, name)
-				}
+			if imgui.SelectableBool(a.Nodes[i].Name) {
+				e.Senders = append(e.Senders, a.Nodes[i].Name)
 			}
 		}
 		imgui.EndCombo()
 	}
 	if len(e.Senders) == 0 {
+		textBadWrap("An experiment needs a companion to originate traffic.")
+	}
+	for i := 0; i < len(e.Senders); i++ {
+		imgui.PushIDInt(int32(1000 + i))
+		if imgui.SmallButton("x") {
+			e.Senders = append(e.Senders[:i], e.Senders[i+1:]...)
+			imgui.PopID()
+			i--
+			continue
+		}
 		imgui.SameLine()
-		textBad("an experiment needs a companion to originate traffic")
+		imgui.Text(e.Senders[i])
+		imgui.PopID()
+	}
+
+	textDim("message size")
+	imgui.SameLine()
+	size := int32(e.Bytes)
+	imgui.SetNextItemWidth(80)
+	if imgui.InputIntV("##bytes", &size, 0, 0, 0) && size >= 0 {
+		e.Bytes = int(size)
+	}
+	imgui.SameLine()
+	if e.Bytes == 0 {
+		textDim("bytes (0 = a short label)")
+	} else {
+		textDim("bytes")
+	}
+	if imgui.IsItemHovered() {
+		imgui.SetTooltip("Airtime scales with payload, and airtime is what collides.\n\n" +
+			"A 12-byte message and a 180-byte one are different experiments; vary this\n" +
+			"to ask whether a setting helps more when the channel is busier.")
 	}
 
 	textDim("observer")
@@ -452,12 +478,15 @@ func (a *App) drawRuns() {
 					case r.Flag != "":
 						textBad(r.Flag)
 					default:
-						imgui.Text(fmt.Sprintf("%d msgs, reach %.0f%%", r.Messages, r.MeanReachPct))
-						if len(r.ReachPerMsg) > 0 {
+						imgui.Text(fmt.Sprintf("%d msgs  R %d/%d  C %d/%d",
+							r.Messages, r.RepHit, r.RepChances, r.CompHit, r.CompChances))
+						if len(r.RepPerMsg) > 0 {
+							// Each message on its own, so one that got nowhere
+							// is visible rather than averaged away.
 							imgui.SameLine()
 							var parts []string
-							for _, p := range r.ReachPerMsg {
-								parts = append(parts, fmt.Sprintf("%.0f", p))
+							for i := range r.RepPerMsg {
+								parts = append(parts, fmt.Sprintf("%d+%d", r.RepPerMsg[i], r.CompPerMsg[i]))
 							}
 							textDim("[" + strings.Join(parts, " ") + "]")
 						}
@@ -540,7 +569,7 @@ func (a *App) drawMatrix() {
 
 	if imgui.BeginTableV("##matrix", 8, imgui.TableFlagsRowBg|imgui.TableFlagsBordersInnerH,
 		imgui.NewVec2(0, 0), 0) {
-		for _, c := range []string{"arm", "runs", "tx", "rx", "delivery", "observer", "collisions", "to quiet"} {
+		for _, c := range []string{"arm", "runs", "tx", "to repeaters", "to companions", "msgs", "collisions", "to quiet"} {
 			imgui.TableSetupColumnV(c, imgui.TableColumnFlagsWidthStretch, 0, 0)
 		}
 		imgui.TableHeadersRow()
@@ -572,17 +601,14 @@ func (a *App) drawMatrix() {
 				}
 			}
 			cell(s.TX, base.TX, "")
-			cell(s.RX, base.RX, "")
-			// Delivery is the headline: the average share of the mesh one
-			// message reached, not the count of nodes that heard anything.
+			// Delivery, split: reaching the repeaters is whether the mesh
+			// carried it, reaching the companions is whether anybody read it.
 			imgui.TableNextColumn()
-			imgui.Text(fmt.Sprintf("%.1f%%", s.Reach))
+			imgui.Text(fmt.Sprintf("%.1f%%", s.RepPct))
 			imgui.TableNextColumn()
-			if a.exp.Observer == "" {
-				textDim("-")
-			} else if s.Messages > 0 {
-				imgui.Text(fmt.Sprintf("%.0f of %.0f", s.Observer, s.Messages))
-			}
+			imgui.Text(fmt.Sprintf("%.1f%%", s.CompPct))
+			imgui.TableNextColumn()
+			imgui.Text(fmt.Sprintf("%.0f", s.Messages))
 			cell(s.Coll, base.Coll, "")
 			cell(s.SpanMs/1000, base.SpanMs/1000, " s")
 		}
