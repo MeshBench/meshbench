@@ -12,9 +12,9 @@ Load `plane-conventions` if you are also updating tickets.
 
 ## Driving it
 
-It is a **native desktop app**, not a CLI or a service. It runs on **elite**
-(`alex@10.100.72.98`, `~/Documents/projects/meshcoresim`) — not on the VM, which
-has no display. You drive the *running* app over its control socket at
+It is a **native desktop app**, not a CLI or a service, so it needs a machine
+with a display and it has to already be running. You drive the *running* app
+over its control socket at
 `$XDG_RUNTIME_DIR/meshcoresim.sock`, newline-delimited JSON,
 `{"id":1,"method":"<verb>","params":{}}`. `session.describe` lists every verb;
 read that before inventing a way to do something, because there is almost always
@@ -24,24 +24,14 @@ Prefer the verb over the file. Verbs drive the same code paths a person clicks,
 so the panel opens and the operator can see what you did; editing config or
 scenario JSON behind the app's back does not.
 
-**elite's login shell is fish.** Heredocs, `&&`/`||` chains and most quoting
-tricks fail there with parse errors that look like the command being wrong.
-Write the script to a file locally, `scp` it, and run it with `bash`. Do the same
-for anything with quotes in it — the round trip is faster than the third attempt
-at escaping. Elite is also the git checkout that matters; the VM copy shares the
-working tree but its git state is stale, so commit there and check with
-`md5sum` before assuming a file arrived.
+**Launching it over a remote session** takes the whole environment of the
+running desktop process, not a guessed subset of it: a display, its compositor
+socket and its authority cookie are all needed, and dropping the cookie gives
+"Authorization required, but no authorization protocol specified", which reads
+like a display problem and is not. Machine-specific paths for that live outside
+this repository.
 
-**Launching it over SSH.** The desktop session owns `DISPLAY`, the Wayland
-socket and the X cookie; an SSH login inherits none of them. Copy the *whole*
-environment from the running process (`tr '\0' '\n' < /proc/<pid>/environ`)
-rather than a guessed subset — dropping `XAUTHORITY` gives "Authorization
-required, but no authorization protocol specified", which reads like a display
-problem and is not. KDE keeps the cookie at `/run/user/1000/xauth_*`, not
-`~/.Xauthority`. Launch with `setsid nohup … & disown`, and never `pkill -f` a
-pattern your own shell command line contains.
-
-**Do not restart the app to pick up a build while Alex is watching it.** Ask.
+**Do not restart the app to pick up a build while someone is watching it.** Ask.
 
 **Capture is started per session, not per run.** `capture.wireshark` opens the
 UDP stream on 127.0.0.1:5555 and launches Wireshark; it survives the engine
@@ -349,17 +339,14 @@ strictly, so `signalRssiPkt` read zero on every native run.
 ## Working on the desktop app
 
 **Never launch it with `go run`.** That recompiles cimgui-go's cgo every time,
-which is three minutes per restart. Build once and run the binary:
+which is three minutes per restart against about eight seconds for a prebuilt
+binary — and that gap decides whether a layout gets checked or guessed at:
 
-    go build -o /tmp/msim ./cmd/meshcoresim && /tmp/msim workbench
+    go build -o msim ./cmd/meshcoresim && ./msim workbench
 
-That takes a restart to about eight seconds, which matters when the thing being
-checked is a layout.
-
-**Screenshots need a Wayland grabber.** The session is KDE Wayland and the app
-renders there, not on Xwayland, so `ffmpeg -f x11grab -i :1` captures a solid
-black screen that looks like a crashed application. Use
-`spectacle -b -n -f -o /tmp/shot.png`.
+**Screenshots need a grabber the compositor supports.** Under Wayland the app
+does not render on Xwayland, so an X11 grab captures a solid black screen that
+looks exactly like a crashed application. Use the compositor's own tool.
 
 **Look at the window before claiming it works.** One pass over the firmware
 library found it taking a viewport of its own and being sized to the display,
