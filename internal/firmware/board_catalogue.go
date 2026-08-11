@@ -137,6 +137,74 @@ func (c *BoardCatalogue) List(ctx context.Context, tag string) ([]BoardImage, er
 	return out, nil
 }
 
+// ListAll returns every published board image, across every release.
+//
+// One paginated walk rather than a call per tag: GitHub returns each release
+// with its assets inline, so asking for the releases list is asking for the
+// whole catalogue. Asking per tag meant guessing which tags were worth asking
+// about, and the guess was wrong - someone wanting a version from a year ago
+// wants it precisely because it is not the newest.
+func (c *BoardCatalogue) ListAll(ctx context.Context) ([]BoardImage, error) {
+	var out []BoardImage
+	for page := 1; page <= maxReleasePages; page++ {
+		var releases []struct {
+			TagName string `json:"tag_name"`
+			Assets  []struct {
+				Name string `json:"name"`
+				URL  string `json:"browser_download_url"`
+				Size int64  `json:"size"`
+			} `json:"assets"`
+		}
+		url := fmt.Sprintf("https://api.github.com/repos/%s/releases?per_page=100&page=%d",
+			c.repo(), page)
+		body, err := c.get(ctx, url, "application/vnd.github+json")
+		if err != nil {
+			if len(out) > 0 {
+				// Rate limited partway through is still a usable catalogue,
+				// and a shorter list beats an empty one.
+				break
+			}
+			return nil, fmt.Errorf("firmware: listing releases: %w", err)
+		}
+		err = json.NewDecoder(io.LimitReader(body, 64<<20)).Decode(&releases)
+		_ = body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("firmware: unparseable releases: %w", err)
+		}
+		if len(releases) == 0 {
+			break
+		}
+		for _, rel := range releases {
+			for _, a := range rel.Assets {
+				img, ok := ParseAssetName(a.Name)
+				if !ok {
+					continue
+				}
+				img.URL, img.Bytes = a.URL, a.Size
+				out = append(out, img)
+			}
+		}
+		if len(releases) < 100 {
+			break
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Board != out[j].Board {
+			return out[i].Board < out[j].Board
+		}
+		if out[i].Role != out[j].Role {
+			return out[i].Role < out[j].Role
+		}
+		return out[i].Version > out[j].Version // newest first
+	})
+	return out, nil
+}
+
+// maxReleasePages bounds the walk. A hundred releases a page and a repository
+// that has never had a thousand: this is a runaway guard, not a limit anyone
+// should reach.
+const maxReleasePages = 10
+
 // Runnable narrows a listing to what an emulator could actually boot.
 //
 // Two conditions, and both are about honesty rather than tidiness. A bare .bin

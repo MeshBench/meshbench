@@ -253,6 +253,39 @@ func BoardByName(name string) (Board, error) {
 		name, strings.Join(names, ", "))
 }
 
+// EmulationVerified lists the boards whose firmware has actually been booted
+// under emulation and driven its radio.
+//
+// The one place to edit as hardware becomes supported. Support is a claim about
+// a specific board, not about its MCU: the radio sits on a different SPI
+// controller and different pins from one board to the next, and a wrong pin
+// produces a driver reporting no chip, which reads as a broken emulator rather
+// than a wrong number. So a board joins this list when someone has watched its
+// published image come up, and not before.
+//
+// The wiring itself lives on the Board, in QEMUWiring. This is the shorter
+// question of whether anyone has confirmed it.
+var EmulationVerified = []string{
+	"Generic_E22_sx1262",
+}
+
+// EmulationSupported reports whether a board can be run under emulation today.
+//
+// Exported because the firmware catalogue filters published images with it: an
+// image for a board with no verified wiring cannot be pointed at a radio, and
+// offering it would fail when someone presses run rather than here.
+func EmulationSupported(board string) bool { return isEmulationVerified(board) }
+
+// isEmulationVerified reports whether a board is on that list.
+func isEmulationVerified(name string) bool {
+	for _, n := range EmulationVerified {
+		if strings.EqualFold(n, name) {
+			return true
+		}
+	}
+	return false
+}
+
 // EmulatableBoards is what the firmware picker should offer for an emulated
 // node, and why the rest are missing.
 //
@@ -266,7 +299,7 @@ func EmulatableBoards() (ok []Board, blocked map[string]string) {
 	blocked = map[string]string{}
 	for _, b := range Boards() {
 		switch {
-		case b.QEMU != nil && b.QEMU.Verified:
+		case b.QEMU != nil && isEmulationVerified(b.Name):
 			ok = append(ok, b)
 		case b.QEMU != nil:
 			blocked[b.Name] = "wiring recorded but never booted"

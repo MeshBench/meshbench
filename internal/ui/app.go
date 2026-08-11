@@ -164,13 +164,19 @@ type App struct {
 	fwDlMu        sync.Mutex
 	fwDownloads   map[string]bool
 	fwDownloadErr string
-	confirmWipe   bool
-	winPrefs      bool
-	infer         inferState
-	ab            abState
-	val           validateState
-	live          liveState
-	energy        energyState
+	// The firmware library's own filter state: every published version of every
+	// supported board is thousands of rows, so this is not a convenience.
+	fwSearch     string
+	fwOnDiskOnly bool
+	fwBoardsOnly bool
+	fwNativeOnly bool
+	confirmWipe  bool
+	winPrefs     bool
+	infer        inferState
+	ab           abState
+	val          validateState
+	live         liveState
+	energy       energyState
 	// excessLossDB is the ADR-0015 calibration, applied to every engine build
 	// until removed. Displayed wherever it is in force.
 	excessLossDB float64
