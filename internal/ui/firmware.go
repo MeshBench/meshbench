@@ -313,6 +313,7 @@ func (a *App) drawFirmwareWindow() {
 	// pop-out and dock verbs entirely - which is what made it a one-way trip
 	// once it came back into the main window.
 	if imgui.BeginV("Firmware library", &open, imgui.WindowFlagsMenuBar) {
+		fillOwnViewport()
 		a.panelChrome("Firmware library")
 		a.drawFirmwareLibraryBody()
 	}
