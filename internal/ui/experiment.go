@@ -564,6 +564,12 @@ func (a *App) measure(arm string, seed uint64, from int, burstMs uint32) expResu
 	for _, id := range ids {
 		rep, comp := 0, 0
 		for node := range perMsg[id] {
+			// Not the node that sent it. A companion can hear its own message
+			// relayed back by a neighbour, which is real and is not delivery -
+			// counted, it put the figure above 100%.
+			if node == msgOrigin[id] {
+				continue
+			}
 			if isComp[node] {
 				comp++
 			} else {
