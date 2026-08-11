@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -434,6 +435,40 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 			return nil, err
 		}
 		return map[string]any{"running": true, "runs": a.exp.runsTotal()}, nil
+
+	case "capture.file":
+		// Capture to a pcapng file, with no Wireshark.
+		//
+		// The only capture verb was capture.wireshark, which starts the UDP
+		// stream *and* opens a window. Diagnosing why a packet was not relayed
+		// needs the bytes, not a GUI - and on a driven session there is often
+		// nobody at the screen to look at one.
+		var p struct {
+			Path string `json:"path"`
+		}
+		_ = json.Unmarshal(params, &p)
+		if p.Path == "" {
+			p.Path = filepath.Join(os.TempDir(), "meshcoresim-capture.pcapng")
+		}
+		if a.eng == nil {
+			a.buildEngine()
+		}
+		if err := a.eng.StartCapture(p.Path); err != nil {
+			return nil, err
+		}
+		a.capturePath = p.Path
+		return map[string]any{"path": p.Path}, nil
+
+	case "experiment.stop":
+		// The panel has had a stop button all along; the socket had no way to
+		// press it. A driven sweep that turns out to be measuring nothing then
+		// runs to the end of its matrix - forty-eight runs of a misconfigured
+		// mesh - while the only remedy is to quit the application.
+		e := a.ensureExperiment()
+		was := e.running
+		e.running = false
+		return map[string]any{"stopped": was, "done": len(e.results),
+			"total": e.runsTotal()}, nil
 
 	case "experiment.state":
 		e := a.ensureExperiment()

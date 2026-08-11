@@ -584,11 +584,33 @@ func (a *App) compSetScope(s *compSession, node, scope string) error {
 		a.status = node + ": sending unscoped"
 		return nil
 	}
+	scope = canonicalScope(scope)
 	if err := a.compSend(s, proto.SetDefaultScope(scope, provider.RegionKey(scope))); err != nil {
 		return err
 	}
 	a.status = node + ": default scope set to " + scope
 	return nil
+}
+
+// canonicalScope is the "#name" form the scope key is derived from.
+//
+// The two halves of a scoped mesh spell a region differently, and nothing
+// enforced it. The repeater CLI takes the bare name - `region put sco` - while
+// the key on the wire is a hash of the canonical "#sco". Ask for scope "sco"
+// and the companion sends packets keyed sha256("sco"), which matches no
+// repeater: every one of them receives the packet, computes a different key and
+// declines to relay.
+//
+// The failure has no symptom at either end. The senders transmit, the repeaters
+// receive, nothing forwards, and it reads exactly like a mesh with no
+// propagation - an entire 48-run sweep produced eight transmissions and zero
+// relays before this was found. Normalised here so the caller can write it
+// either way.
+func canonicalScope(scope string) string {
+	if scope == "" || strings.HasPrefix(scope, "#") {
+		return scope
+	}
+	return "#" + scope
 }
 
 // configureCompanion applies the scenario's configuration to a companion.

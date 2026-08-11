@@ -38,6 +38,7 @@ func (a *App) buildEngine() {
 	// a live capture of nothing at all, which looks exactly like a simulator
 	// that is not forwarding packets.
 	reCapture := a.captureUDP
+	reCaptureFile := a.capturePath
 	a.eng = engine.New(a.Terrain, engine.Config{
 		FreqMHz: a.freqMHz, SF: 10, BandwidthHz: 250e3, CodingRate: 1,
 		NoiseFigDB: 6, StepMs: 10, Seed: a.runSeed(),
@@ -55,6 +56,15 @@ func (a *App) buildEngine() {
 	}
 	if reCapture {
 		if err := a.eng.StartCaptureUDP(captureUDPAddr); err != nil {
+			a.status = "capture: " + err.Error()
+		}
+	}
+	// The file capture outlives the engine for the same reason the UDP one
+	// does. Without this a capture started to diagnose a sweep recorded the
+	// pcapng section header and nothing else - 60 bytes, which reads as "no
+	// packets were sent" rather than "the recorder was thrown away".
+	if reCaptureFile != "" {
+		if err := a.eng.StartCapture(reCaptureFile); err != nil {
 			a.status = "capture: " + err.Error()
 		}
 	}
