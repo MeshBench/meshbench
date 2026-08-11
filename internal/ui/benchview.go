@@ -28,7 +28,7 @@ func (a *App) benchDefaults() *experiment {
 		// One neutral arm: whatever the scenario already says. Varying a
 		// parameter replaces it, so the first gesture produces clean labels
 		// rather than crossing onto a guess nobody asked for.
-		Arms:     []expArm{{Label: "baseline", PathHashMode: -1}},
+		Arms:     []expArm{{Label: "baseline"}},
 		Seeds:    []uint64{4417, 9001},
 		Channel:  "#sco",
 		Scope:    "#sco",
@@ -360,11 +360,11 @@ func (a expArm) summary() string {
 	if a.RepeaterVersion != "" {
 		parts = append(parts, strings.TrimPrefix(a.RepeaterVersion, "repeater-"))
 	}
-	if a.PathHashMode >= 0 {
-		parts = append(parts, fmt.Sprintf("companion sends %d-byte", a.PathHashMode+1))
+	if a.PathHashMode != nil {
+		parts = append(parts, fmt.Sprintf("companion sends %d-byte", *a.PathHashMode+1))
 	}
-	if a.RepPathHash >= 0 {
-		parts = append(parts, fmt.Sprintf("repeaters %d-byte", a.RepPathHash+1))
+	if a.RepPathHash != nil {
+		parts = append(parts, fmt.Sprintf("repeaters %d-byte", *a.RepPathHash+1))
 	}
 	if a.LoopDetect != "" {
 		parts = append(parts, "loop "+a.LoopDetect)
@@ -372,10 +372,12 @@ func (a expArm) summary() string {
 	if a.CAD != "" {
 		parts = append(parts, "cad "+a.CAD)
 	}
-	if a.SpreadMs == 0 {
-		parts = append(parts, "all at once")
-	} else if a.SpreadMs > 0 {
-		parts = append(parts, fmt.Sprintf("over %.0fs", float64(a.SpreadMs)/1000))
+	if a.SpreadMs != nil {
+		if *a.SpreadMs == 0 {
+			parts = append(parts, "all at once")
+		} else {
+			parts = append(parts, fmt.Sprintf("over %.0fs", float64(*a.SpreadMs)/1000))
+		}
 	}
 	return strings.Join(parts, " · ")
 }
@@ -413,7 +415,7 @@ func (a *App) addArmsVarying(param, values string) {
 	// The untouched baseline is a placeholder, not a choice: crossing onto it
 	// doubles every arm and compounds its label into nonsense. Replace it.
 	if len(base) == 0 || (len(base) == 1 && base[0].isPristine()) {
-		base = []expArm{{PathHashMode: -1, RepPathHash: -1, SpreadMs: -1}}
+		base = []expArm{{}}
 	}
 	var out []expArm
 	for _, b := range base {
@@ -425,14 +427,14 @@ func (a *App) addArmsVarying(param, values string) {
 				if err != nil || n < 0 || n > 2 {
 					continue
 				}
-				arm.PathHashMode = int32(n)
+				arm.PathHashMode = i32(int32(n))
 				arm.Label = joinLabel(b.Label, fmt.Sprintf("%d-byte", n+1))
 			case "repeater path hash":
 				n, err := strconv.Atoi(v)
 				if err != nil || n < 0 || n > 2 {
 					continue
 				}
-				arm.RepPathHash = int32(n)
+				arm.RepPathHash = i32(int32(n))
 				arm.Label = joinLabel(b.Label, fmt.Sprintf("rpt %d-byte", n+1))
 			case "loop.detect":
 				arm.LoopDetect = v
@@ -449,7 +451,7 @@ func (a *App) addArmsVarying(param, values string) {
 				if err != nil || n < 0 {
 					continue
 				}
-				arm.SpreadMs = int32(n) * 1000
+				arm.SpreadMs = i32(int32(n) * 1000)
 				if n == 0 {
 					arm.Label = joinLabel(b.Label, "all at once")
 				} else {
@@ -879,16 +881,16 @@ func (a *App) drawBenchConfig() {
 	}
 	imgui.SetNextItemWidth(150)
 	hash := "leave as the scenario has it"
-	if e.Base.RepPathHash >= 0 {
-		hash = fmt.Sprintf("%d byte(s) per hop", e.Base.RepPathHash+1)
+	if e.Base.RepPathHash != nil {
+		hash = fmt.Sprintf("%d byte(s) per hop", *e.Base.RepPathHash+1)
 	}
 	if imgui.BeginCombo("repeater path hash", hash) {
 		if imgui.SelectableBool("leave as the scenario has it") {
-			e.Base.RepPathHash = -1
+			e.Base.RepPathHash = nil
 		}
 		for m := int32(0); m <= 2; m++ {
 			if imgui.SelectableBool(fmt.Sprintf("%d byte(s) per hop", m+1)) {
-				e.Base.RepPathHash = m
+				e.Base.RepPathHash = i32(m)
 			}
 		}
 		imgui.EndCombo()
@@ -948,10 +950,10 @@ func (a *App) drawBenchConfig() {
 			imgui.TableNextColumn()
 			textOrDash(arm.CompanionVersion)
 			imgui.TableNextColumn()
-			if arm.PathHashMode < 0 {
+			if arm.PathHashMode == nil {
 				textDim("unchanged")
 			} else {
-				imgui.TextUnformatted(fmt.Sprintf("%d byte(s)/hop", arm.PathHashMode+1))
+				imgui.TextUnformatted(fmt.Sprintf("%d byte(s)/hop", *arm.PathHashMode+1))
 			}
 			imgui.TableNextColumn()
 			both := strings.TrimSpace(arm.LoopDetect + " " + arm.CAD)

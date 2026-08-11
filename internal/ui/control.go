@@ -269,13 +269,9 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 		if len(p.Arms) > 0 {
 			e.Arms = nil
 			for _, arm := range p.Arms {
-				mode := int32(-1)
-				if arm.PathHashMode != nil {
-					mode = *arm.PathHashMode
-				}
 				e.Arms = append(e.Arms, expArm{
 					Label: arm.Label, RepeaterVersion: arm.RepeaterVersion,
-					CompanionVersion: arm.CompanionVersion, PathHashMode: mode,
+					CompanionVersion: arm.CompanionVersion, PathHashMode: arm.PathHashMode,
 					LoopDetect: arm.LoopDetect, CAD: arm.CAD,
 				})
 			}
@@ -321,7 +317,7 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 		// is how arms ended up silently holding repeaters at 1 byte while the
 		// panel said 3.
 		if len(e.results) > 0 {
-			e.Arms = []expArm{{Label: "baseline", PathHashMode: -1, RepPathHash: -1, SpreadMs: -1}}
+			e.Arms = []expArm{{Label: "baseline"}}
 			e.results = nil
 		}
 		a.benchUI.param = p.Parameter
@@ -383,12 +379,12 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 		}
 		if p.PathHashMode != nil {
 			// The base holds the repeaters still; the arms vary the companion.
-			e.Base.RepPathHash = *p.PathHashMode
+			e.Base.RepPathHash = p.PathHashMode
 		}
 		a.switchWorkspace(wsBench)
 		a.showPanel("Configuration")
 		return map[string]any{"loop_detect": e.Base.LoopDetect, "cad": e.Base.CAD,
-			"path_hash_mode": e.Base.PathHashMode}, nil
+			"path_hash_mode": orUnset(e.Base.RepPathHash)}, nil
 
 	case "experiment.senders":
 		// Who originates the burst, and who only listens. Spread rather than

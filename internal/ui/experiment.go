@@ -38,31 +38,49 @@ type expArm struct {
 	// message carries, because the originator stamps it and every hop honours
 	// it. RepPathHash is the repeaters' own, which only affects the adverts
 	// they originate and is normally held constant.
-	PathHashMode int32
-	RepPathHash  int32
+	//
+	// Pointers, not a -1 sentinel. Mode 0 is a real value - one byte per hop -
+	// and it is also the zero value, so "unset" and "one byte" were the same
+	// thing to every code path that built an arm without naming the field. An
+	// arm constructed a field short silently forced the repeaters to 1 byte and
+	// overrode the constant the operator had set, which is exactly the kind of
+	// quiet wrongness this whole view exists to catch.
+	PathHashMode *int32
+	RepPathHash  *int32
 	LoopDetect   string
 	CAD          string // "on", "off", or empty to leave alone
-	// SpreadMs overrides the experiment's own when >= 0: how long the senders
-	// take to all have fired.
-	SpreadMs int32
+	// SpreadMs overrides the experiment's own when set.
+	SpreadMs *int32
 }
 
 // apply writes the arm as provisioning, which is what an arm *is*.
 func (a expArm) apply(cfg *configState) {
-	cfg.compPathHashMode = a.PathHashMode
-	cfg.pathHashMode = a.RepPathHash
+	cfg.compPathHashMode = orUnset(a.PathHashMode)
+	cfg.pathHashMode = orUnset(a.RepPathHash)
 	cfg.loopDetect = a.LoopDetect
 	cfg.cadMode = a.CAD
 }
 
+// orUnset is -1 for a field nobody set, which is what the provisioning config
+// reads as "leave the firmware's own value alone".
+func orUnset(v *int32) int32 {
+	if v == nil {
+		return -1
+	}
+	return *v
+}
+
+// i32 is a pointer to a value, for the arms.
+func i32(v int32) *int32 { return &v }
+
 // applyOver writes only what this arm actually sets, leaving the rest as the
 // experiment's constants left it.
 func (a expArm) applyOver(cfg *configState) {
-	if a.PathHashMode >= 0 {
-		cfg.compPathHashMode = a.PathHashMode
+	if a.PathHashMode != nil {
+		cfg.compPathHashMode = *a.PathHashMode
 	}
-	if a.RepPathHash >= 0 {
-		cfg.pathHashMode = a.RepPathHash
+	if a.RepPathHash != nil {
+		cfg.pathHashMode = *a.RepPathHash
 	}
 	if a.LoopDetect != "" {
 		cfg.loopDetect = a.LoopDetect
@@ -359,8 +377,8 @@ func (a *App) stepExperiment() {
 		// When to fire each sender. All on the same instant unless a spread is
 		// asked for, in which case they are laid evenly across it.
 		spread := e.SpreadMs
-		if arm.SpreadMs >= 0 {
-			spread = uint32(arm.SpreadMs)
+		if arm.SpreadMs != nil {
+			spread = uint32(*arm.SpreadMs)
 		}
 		e.pending = nil
 		for i, name := range e.Senders {
@@ -946,7 +964,8 @@ func sameEvent(x, y engine.Event) bool {
 // builder starts with, which exists to be replaced rather than crossed onto.
 func (a expArm) isPristine() bool {
 	return a.RepeaterVersion == "" && a.CompanionVersion == "" &&
-		a.LoopDetect == "" && a.CAD == "" && a.PathHashMode < 0 && a.RepPathHash < 0
+		a.LoopDetect == "" && a.CAD == "" && a.PathHashMode == nil &&
+		a.RepPathHash == nil && a.SpreadMs == nil
 }
 
 // padTo makes a message a given length, so payload size is an experimental
