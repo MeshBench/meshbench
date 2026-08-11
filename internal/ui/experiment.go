@@ -53,6 +53,15 @@ type expArm struct {
 	SpreadMs *int32
 }
 
+// versionFor is the firmware build this arm wants for a node of that kind, or
+// "" if it does not care.
+func (a expArm) versionFor(k scenario.Kind) string {
+	if k == scenario.Companion {
+		return a.CompanionVersion
+	}
+	return a.RepeaterVersion
+}
+
 // apply writes the arm as provisioning, which is what an arm *is*.
 func (a expArm) apply(cfg *configState) {
 	cfg.compPathHashMode = orUnset(a.PathHashMode)
@@ -333,12 +342,17 @@ func (a *App) stepExperiment() {
 			if !a.Nodes[i].Kind.RunsFirmware() {
 				continue
 			}
-			if a.Nodes[i].Kind == scenario.Companion {
-				if arm.CompanionVersion != "" {
-					a.Nodes[i].Firmware.Version = arm.CompanionVersion
-				}
-			} else if arm.RepeaterVersion != "" {
-				a.Nodes[i].Firmware.Version = arm.RepeaterVersion
+			// The constant, then the arm over the top - the same order as every
+			// other field. Firmware was the one setting that ignored the base,
+			// so a sweep that did not vary firmware left whatever version the
+			// nodes were imported with. Imported nodes carry none, which
+			// resolves to MeshCore main, for which nothing is published: 308
+			// nodes failed to attach and the sweep stopped on its first run.
+			if v := e.Base.versionFor(a.Nodes[i].Kind); v != "" {
+				a.Nodes[i].Firmware.Version = v
+			}
+			if v := arm.versionFor(a.Nodes[i].Kind); v != "" {
+				a.Nodes[i].Firmware.Version = v
 			}
 		}
 		a.buildEngine()

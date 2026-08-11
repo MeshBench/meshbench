@@ -363,9 +363,14 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 	case "experiment.base":
 		// The experiment's constants, held across every arm.
 		var p struct {
-			LoopDetect   string `json:"loop_detect"`
-			CAD          string `json:"cad"`
-			PathHashMode *int32 `json:"path_hash_mode"`
+			LoopDetect string `json:"loop_detect"`
+			CAD        string `json:"cad"`
+			// Which MeshCore every arm runs, when the sweep is not varying it.
+			// Without this a sweep about anything else silently used whatever
+			// the nodes were imported with, which for a fresh import is nothing.
+			RepeaterVersion  string `json:"repeater_version"`
+			CompanionVersion string `json:"companion_version"`
+			PathHashMode     *int32 `json:"path_hash_mode"`
 		}
 		if err := json.Unmarshal(params, &p); err != nil {
 			return nil, err
@@ -373,6 +378,12 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 		e := a.ensureExperiment()
 		if p.LoopDetect != "" {
 			e.Base.LoopDetect = p.LoopDetect
+		}
+		if p.RepeaterVersion != "" {
+			e.Base.RepeaterVersion = p.RepeaterVersion
+		}
+		if p.CompanionVersion != "" {
+			e.Base.CompanionVersion = p.CompanionVersion
 		}
 		if p.CAD != "" {
 			e.Base.CAD = p.CAD
@@ -384,6 +395,7 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 		a.switchWorkspace(wsBench)
 		a.showPanel("Configuration")
 		return map[string]any{"loop_detect": e.Base.LoopDetect, "cad": e.Base.CAD,
+			"repeater_version": e.Base.RepeaterVersion, "companion_version": e.Base.CompanionVersion,
 			"path_hash_mode": orUnset(e.Base.RepPathHash)}, nil
 
 	case "experiment.senders":
