@@ -101,6 +101,7 @@ func (a *App) panelRegistry() []*panelSpec {
 		{name: "Runs", draw: a.drawRuns, open: false},
 		{name: "Experiment log", draw: a.drawExperimentLog, open: false},
 		{name: "Matrix", draw: a.drawMatrix, open: false},
+		{name: "Configuration", draw: a.drawBenchConfig, open: false},
 		{name: "Timelines", draw: a.drawTimelines, open: false},
 		{name: "Validate", draw: a.drawValidateBody, open: false},
 		{name: "Energy", draw: a.drawEnergyBody, open: false},
@@ -185,7 +186,7 @@ func (a *App) openPanelsFor(w workspace) {
 		wsVerify: {"Compare", "Validate", "Scoreboard", "Events"},
 		// Comparing configurations: the sweep, what it is doing, and what came
 		// out. No map - an experiment is read, not sited.
-		wsBench: {"Sweep", "Runs", "Experiment log", "Matrix", "Timelines"},
+		wsBench: {"Sweep", "Runs", "Experiment log", "Matrix", "Timelines", "Configuration"},
 	}
 	want := map[string]bool{}
 	for _, n := range names[w] {
@@ -251,6 +252,7 @@ func (a *App) buildWorkspace(dockID imgui.ID) {
 		// and what came out fills the middle.
 		imgui.InternalDockBuilderDockWindow("Matrix", centre)
 		dock(right, "Runs", "Experiment log")
+		dock(bottom, "Configuration")
 		dock(bottom, "Timelines")
 		var left imgui.ID
 		imgui.InternalDockBuilderSplitNode(centre, imgui.DirLeft, 0.34, &left, &centre)

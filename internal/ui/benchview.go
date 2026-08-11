@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"github.com/A13xB0/meshcoresim/internal/scenario"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -19,19 +20,16 @@ import (
 // benchDefaults seeds the sweep builder with the experiment that prompted all
 // this, so the view opens on something real rather than an empty form.
 func (a *App) benchDefaults() *experiment {
-	var senders []string
-	for i := range a.Nodes {
-		if a.Nodes[i].Kind == scenario.Companion && len(senders) < 6 {
-			senders = append(senders, a.Nodes[i].Name)
-		}
-	}
 	return &experiment{
+		// Senders are left empty on purpose: choosing which companions
+		// originate the traffic is the operator's decision, and quietly picking
+		// six is how an experiment ends up measuring something nobody asked for.
+		// The picker offers "spread across the network" for the common case.
 		// One neutral arm: whatever the scenario already says. Varying a
 		// parameter replaces it, so the first gesture produces clean labels
 		// rather than crossing onto a guess nobody asked for.
 		Arms:     []expArm{{Label: "baseline", PathHashMode: -1}},
 		Seeds:    []uint64{4417, 9001},
-		Senders:  senders,
 		Channel:  "#sco",
 		Scope:    "#sco",
 		SendAtMs: 45000,
@@ -51,15 +49,161 @@ func (a *App) ensureExperiment() *experiment {
 func (a *App) drawSweep() {
 	e := a.ensureExperiment()
 
+	// What is being tested, and on what. These were read-only for a while and
+	// simply appeared filled in, which is the same silent-configuration fault
+	// this whole view exists to guard against: an operator could not tell where
+	// the senders came from, let alone choose different ones.
 	textDim("scenario")
 	imgui.SameLine()
-	imgui.Text(fmt.Sprintf("%d nodes", len(a.Nodes)))
+	imgui.SetNextItemWidth(190)
+	label := a.benchUI.project
+	if label == "" {
+		label = fmt.Sprintf("this scenario, %d nodes", len(a.Nodes))
+	}
+	if imgui.BeginCombo("##project", label) {
+		for _, pr := range listProjects() {
+			if imgui.SelectableBool(pr.name) {
+				if err := a.openProject(pr.name); err != nil {
+					a.status = err.Error()
+				} else {
+					a.benchUI.project = pr.name
+					e.Senders = nil // they belonged to the network being replaced
+				}
+			}
+		}
+		imgui.EndCombo()
+	}
+	imgui.SameLine()
+	textDim(fmt.Sprintf("%d nodes", len(a.Nodes)))
+
 	textDim("senders")
 	imgui.SameLine()
+	summary := "none chosen"
+	if n := len(e.Senders); n == 1 {
+		summary = e.Senders[0]
+	} else if n > 1 {
+		summary = fmt.Sprintf("%d: %s +%d", n, e.Senders[0], n-1)
+	}
+	imgui.SetNextItemWidth(190)
+	if imgui.BeginCombo("##senders", summary) {
+		if imgui.SelectableBool("spread across the network") {
+			e.Senders = a.spreadSenders(6)
+		}
+		if imgui.IsItemHovered() {
+			imgui.SetTooltip("Six companions as far apart as the network allows.\n\n" +
+				"A cluster of neighbours contends with itself rather than with the mesh,\n" +
+				"which is not the contention worth measuring.")
+		}
+		if imgui.SelectableBool("every companion") {
+			e.Senders = nil
+			for i := range a.Nodes {
+				if a.Nodes[i].Kind == scenario.Companion {
+					e.Senders = append(e.Senders, a.Nodes[i].Name)
+				}
+			}
+		}
+		imgui.Separator()
+		for i := range a.Nodes {
+			if a.Nodes[i].Kind != scenario.Companion {
+				continue
+			}
+			name := a.Nodes[i].Name
+			on := containsStr(e.Senders, name)
+			if imgui.SelectableBoolV(name, on, imgui.SelectableFlagsNoAutoClosePopups, imgui.NewVec2(0, 0)) {
+				if on {
+					e.Senders = removeStr(e.Senders, name)
+				} else {
+					e.Senders = append(e.Senders, name)
+				}
+			}
+		}
+		imgui.EndCombo()
+	}
 	if len(e.Senders) == 0 {
-		imgui.Text("none - an experiment needs at least one companion to originate traffic")
-	} else {
-		imgui.Text(fmt.Sprintf("%d, %s at %.0f s", len(e.Senders), e.Channel, float64(e.SendAtMs)/1000))
+		imgui.SameLine()
+		textBad("an experiment needs a companion to originate traffic")
+	}
+
+	textDim("observer")
+	imgui.SameLine()
+	imgui.SetNextItemWidth(190)
+	obs := e.Observer
+	if obs == "" {
+		obs = "none"
+	}
+	if imgui.BeginCombo("##observer", obs) {
+		if imgui.SelectableBool("none") {
+			e.Observer = ""
+		}
+		for i := range a.Nodes {
+			if a.Nodes[i].Kind != scenario.Companion || containsStr(e.Senders, a.Nodes[i].Name) {
+				continue
+			}
+			if imgui.SelectableBool(a.Nodes[i].Name) {
+				e.Observer = a.Nodes[i].Name
+			}
+		}
+		imgui.EndCombo()
+	}
+	if imgui.IsItemHovered() {
+		imgui.SetTooltip("A companion that only listens.\n\n" +
+			"The matrix answers how much of the mesh a message reached; this answers\n" +
+			"the question a person actually asks - did it arrive?")
+	}
+
+	textDim("on channel")
+	imgui.SameLine()
+	imgui.SetNextItemWidth(110)
+	if imgui.BeginCombo("##chan", e.Channel) {
+		for _, r := range a.knownRegions() {
+			if imgui.SelectableBool(r) {
+				e.Channel = r
+			}
+		}
+		imgui.EndCombo()
+	}
+	imgui.SameLine()
+	textDim("scoped")
+	imgui.SameLine()
+	imgui.SetNextItemWidth(110)
+	scopeLabel := e.Scope
+	if scopeLabel == "" {
+		scopeLabel = "unscoped"
+	}
+	if imgui.BeginCombo("##scope", scopeLabel) {
+		if imgui.SelectableBool("unscoped") {
+			e.Scope = ""
+		}
+		for _, r := range a.knownRegions() {
+			if imgui.SelectableBool(r) {
+				e.Scope = r
+			}
+		}
+		imgui.EndCombo()
+	}
+
+	textDim("fire at")
+	imgui.SameLine()
+	sendS := int32(e.SendAtMs / 1000)
+	imgui.SetNextItemWidth(70)
+	if imgui.InputIntV("##sendat", &sendS, 0, 0, 0) && sendS > 0 {
+		e.SendAtMs = uint32(sendS) * 1000
+	}
+	imgui.SameLine()
+	textDim("s, measure for")
+	imgui.SameLine()
+	runS := int32(e.RunForMs / 1000)
+	imgui.SetNextItemWidth(70)
+	if imgui.InputIntV("##runfor", &runS, 0, 0, 0) && runS > 0 {
+		e.RunForMs = uint32(runS) * 1000
+	}
+	imgui.SameLine()
+	textDim("s")
+	if imgui.IsItemHovered() {
+		imgui.SetTooltip("Every arm fires at the same simulated instant.\n\n" +
+			"Setting up the senders costs a different number of engine steps each run,\n" +
+			"so \"settle then send\" lands the burst at a different moment in each arm -\n" +
+			"a different advert phase, and a different result.")
 	}
 
 	imgui.Separator()
@@ -308,7 +452,15 @@ func (a *App) drawRuns() {
 					case r.Flag != "":
 						textBad(r.Flag)
 					default:
-						imgui.Text(fmt.Sprintf("tx %d  rx %d  reached %d", r.TX, r.RX, r.Reached))
+						imgui.Text(fmt.Sprintf("%d msgs, reach %.0f%%", r.Messages, r.MeanReachPct))
+						if len(r.ReachPerMsg) > 0 {
+							imgui.SameLine()
+							var parts []string
+							for _, p := range r.ReachPerMsg {
+								parts = append(parts, fmt.Sprintf("%.0f", p))
+							}
+							textDim("[" + strings.Join(parts, " ") + "]")
+						}
 					}
 				}
 				i++
@@ -388,7 +540,7 @@ func (a *App) drawMatrix() {
 
 	if imgui.BeginTableV("##matrix", 8, imgui.TableFlagsRowBg|imgui.TableFlagsBordersInnerH,
 		imgui.NewVec2(0, 0), 0) {
-		for _, c := range []string{"arm", "runs", "tx", "rx", "reached", "collisions", "airtime", "to quiet"} {
+		for _, c := range []string{"arm", "runs", "tx", "rx", "delivery", "observer", "collisions", "to quiet"} {
 			imgui.TableSetupColumnV(c, imgui.TableColumnFlagsWidthStretch, 0, 0)
 		}
 		imgui.TableHeadersRow()
@@ -421,9 +573,17 @@ func (a *App) drawMatrix() {
 			}
 			cell(s.TX, base.TX, "")
 			cell(s.RX, base.RX, "")
-			cell(s.Reached, base.Reached, "")
+			// Delivery is the headline: the average share of the mesh one
+			// message reached, not the count of nodes that heard anything.
+			imgui.TableNextColumn()
+			imgui.Text(fmt.Sprintf("%.1f%%", s.Reach))
+			imgui.TableNextColumn()
+			if a.exp.Observer == "" {
+				textDim("-")
+			} else if s.Messages > 0 {
+				imgui.Text(fmt.Sprintf("%.0f of %.0f", s.Observer, s.Messages))
+			}
 			cell(s.Coll, base.Coll, "")
-			cell(s.Airtime/1000, base.Airtime/1000, " s")
 			cell(s.SpanMs/1000, base.SpanMs/1000, " s")
 		}
 		imgui.EndTable()
@@ -500,4 +660,160 @@ func (a *App) drawTimelines() {
 	}
 	textDim(fmt.Sprintf("0 to %d s after the burst, peak %d receptions/s, summed over seeds",
 		len(e.results[0].perSecond), peak))
+}
+
+// spreadSenders picks companions as far apart as the network allows.
+//
+// The obvious choice - the first few in the list - gave four neighbours in
+// Angus, which contend with each other rather than with the mesh. Contention
+// between distant senders is the thing worth measuring.
+func (a *App) spreadSenders(n int) []string {
+	var comps []int
+	for i := range a.Nodes {
+		if a.Nodes[i].Kind == scenario.Companion {
+			comps = append(comps, i)
+		}
+	}
+	if len(comps) == 0 {
+		return nil
+	}
+	chosen := []int{comps[0]}
+	for len(chosen) < n && len(chosen) < len(comps) {
+		best, bestD := -1, -1.0
+		for _, c := range comps {
+			if containsInt(chosen, c) {
+				continue
+			}
+			d := math.Inf(1)
+			for _, s := range chosen {
+				dx := a.Nodes[c].Position.Lat - a.Nodes[s].Position.Lat
+				dy := (a.Nodes[c].Position.Lon - a.Nodes[s].Position.Lon) * 0.55
+				d = math.Min(d, math.Hypot(dx, dy))
+			}
+			if d > bestD {
+				best, bestD = c, d
+			}
+		}
+		if best < 0 {
+			break
+		}
+		chosen = append(chosen, best)
+	}
+	var out []string
+	for _, i := range chosen {
+		out = append(out, a.Nodes[i].Name)
+	}
+	return out
+}
+
+func containsInt(s []int, v int) bool {
+	for _, x := range s {
+		if x == v {
+			return true
+		}
+	}
+	return false
+}
+
+func removeStr(s []string, v string) []string {
+	var out []string
+	for _, x := range s {
+		if x != v {
+			out = append(out, x)
+		}
+	}
+	return out
+}
+
+// drawBenchConfig shows what each arm will actually apply, and what the network
+// it is applied to looks like.
+//
+// Without it the sweep is a set of labels: an operator cannot tell what the
+// repeaters are set to, which is precisely how a run gets misread as an RF
+// result when it was a configuration that never landed.
+func (a *App) drawBenchConfig() {
+	e := a.ensureExperiment()
+	a.ensureConfig()
+
+	textDim("the network")
+	nRep, nComp, withRegions := 0, 0, 0
+	regions := map[string]int{}
+	for i := range a.Nodes {
+		switch a.Nodes[i].Kind {
+		case scenario.Companion:
+			nComp++
+		default:
+			nRep++
+		}
+		if len(a.Nodes[i].Regions) > 0 {
+			withRegions++
+			for _, r := range a.Nodes[i].Regions {
+				regions[r]++
+			}
+		}
+	}
+	imgui.Text(fmt.Sprintf("%d repeaters, %d companions", nRep, nComp))
+	imgui.Text(fmt.Sprintf("%d nodes carry transport regions", withRegions))
+	if len(regions) > 0 {
+		var parts []string
+		for _, r := range a.knownRegions() {
+			if n := regions[r]; n > 0 {
+				parts = append(parts, fmt.Sprintf("%s %d", r, n))
+			}
+		}
+		textDimWrap(strings.Join(parts, "   "))
+	}
+	if withRegions == 0 {
+		textBadWrap("No node carries a region. On a transport-scoped mesh nothing will relay " +
+			"scoped traffic - run the inference in Plan, or send unscoped.")
+	}
+
+	imgui.Separator()
+	textDim("what every arm shares")
+	if len(a.Nodes) > 0 {
+		r := a.Nodes[0].Radio
+		imgui.Text(fmt.Sprintf("%.3f MHz  SF%d  %.0f kHz  CR4/%d",
+			r.CentreHz/1e6, r.SpreadFactor, r.BandwidthHz/1000, r.CodingRate+4))
+	}
+	imgui.Text(fmt.Sprintf("clock set on boot: %v", a.cfg.setClockOnStart))
+	imgui.Text(fmt.Sprintf("names and positions set: %v", a.cfg.setNameOnStart))
+
+	imgui.Separator()
+	textDim("what each arm changes")
+	if imgui.BeginTableV("##armcfg", 5, imgui.TableFlagsRowBg|imgui.TableFlagsBordersInnerH,
+		imgui.NewVec2(0, 0), 0) {
+		for _, c := range []string{"arm", "repeater fw", "companion fw", "path hash", "loop / cad"} {
+			imgui.TableSetupColumnV(c, imgui.TableColumnFlagsWidthStretch, 0, 0)
+		}
+		imgui.TableHeadersRow()
+		for _, arm := range e.Arms {
+			imgui.TableNextRow()
+			imgui.TableNextColumn()
+			imgui.Text(arm.Label)
+			imgui.TableNextColumn()
+			textOrDash(arm.RepeaterVersion)
+			imgui.TableNextColumn()
+			textOrDash(arm.CompanionVersion)
+			imgui.TableNextColumn()
+			if arm.PathHashMode < 0 {
+				textDim("unchanged")
+			} else {
+				imgui.Text(fmt.Sprintf("%d byte(s)/hop", arm.PathHashMode+1))
+			}
+			imgui.TableNextColumn()
+			both := strings.TrimSpace(arm.LoopDetect + " " + arm.CAD)
+			textOrDash(both)
+		}
+		imgui.EndTable()
+	}
+	textDimWrap("Anything shown as - is left exactly as the scenario has it, so the difference " +
+		"between two rows is the experiment's independent variable.")
+}
+
+func textOrDash(s string) {
+	if s == "" {
+		textDim("-")
+		return
+	}
+	imgui.Text(s)
 }

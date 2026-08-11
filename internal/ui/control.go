@@ -341,6 +341,37 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 		}
 		return map[string]any{"seeds": e.Seeds, "runs": e.runsTotal()}, nil
 
+	case "experiment.senders":
+		// Who originates the burst, and who only listens. Spread rather than
+		// the first few in the list: a cluster of neighbours contends with
+		// itself instead of with the mesh.
+		var p struct {
+			Mode     string   `json:"mode"`
+			Count    int      `json:"count"`
+			Nodes    []string `json:"nodes"`
+			Observer string   `json:"observer"`
+		}
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, err
+		}
+		a.switchWorkspace(wsBench)
+		a.showPanel("Sweep")
+		e := a.ensureExperiment()
+		switch {
+		case len(p.Nodes) > 0:
+			e.Senders = p.Nodes
+		case p.Mode == "spread":
+			n := p.Count
+			if n <= 0 {
+				n = 6
+			}
+			e.Senders = a.spreadSenders(n)
+		}
+		if p.Observer != "" {
+			e.Observer = p.Observer
+		}
+		return map[string]any{"senders": e.Senders, "observer": e.Observer}, nil
+
 	case "experiment.start":
 		if err := a.startExperiment(); err != nil {
 			return nil, err
@@ -364,7 +395,10 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 		for _, r := range e.results {
 			rows = append(rows, map[string]any{
 				"arm": r.Arm, "seed": r.Seed, "tx": r.TX, "rx": r.RX,
-				"reached": r.Reached, "collisions": r.Collisions, "deaf": r.Deaf,
+				"messages": r.Messages, "reach_pct": r.MeanReachPct,
+				"reach_each": r.ReachPerMsg, "senders_of": r.SenderOf,
+				"observer_got": r.ObserverGot,
+				"collisions":   r.Collisions, "deaf": r.Deaf,
 				"airtime_ms": r.AirtimeMs, "span_ms": r.SpanMs,
 				"flag": r.Flag, "err": r.Err,
 			})
@@ -373,7 +407,8 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 		for _, s := range e.summarise() {
 			arms = append(arms, map[string]any{
 				"arm": s.Arm, "runs": s.Runs, "flagged": s.Flagged,
-				"tx": s.TX, "rx": s.RX, "reached": s.Reached,
+				"tx": s.TX, "rx": s.RX, "reach_pct": s.Reach,
+				"messages": s.Messages, "observer_got": s.Observer,
 				"collisions": s.Coll, "deaf": s.Deaf, "airtime_ms": s.Airtime,
 				"rx_spread": s.RXSpread,
 			})

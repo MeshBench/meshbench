@@ -191,7 +191,7 @@ type App struct {
 	// compQuiet suppresses window-opening while the runner claims senders.
 	compQuiet bool
 	// benchUI is the sweep builder's own edit state.
-	benchUI struct{ param, values, seeds string }
+	benchUI struct{ param, values, seeds, project string }
 
 	// Firmware start runs off the frame thread; these are how it reports back.
 	fwStarting atomic.Bool

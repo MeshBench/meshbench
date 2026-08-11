@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"time"
 
@@ -53,9 +54,28 @@ type expResult struct {
 	TX, RX     int
 	Collisions int
 	Deaf       int
-	Reached    int
 	AirtimeMs  float64
 	SpanMs     uint32
+
+	// Messages is how many distinct messages the burst actually put on the air,
+	// and MeanReachPct how much of the mesh each one got to on average.
+	//
+	// "Nodes that heard anything" was the wrong measure and flattered every
+	// result: with six senders it counts a node that received one message out
+	// of six exactly the same as one that received all six. What an operator
+	// wants to know is whether a message gets through, so the unit is the
+	// message.
+	Messages     int
+	MeanReachPct float64
+	// ReachPerMsg is every message's own reach, one entry per sender, so a
+	// message that got nowhere is visible rather than averaged away by five
+	// that did well. Six senders, six numbers.
+	ReachPerMsg []float64
+	// SenderOf names which sender each of those messages came from.
+	SenderOf []string
+	// ObserverGot is how many of those messages arrived at a node that only
+	// listens - the closest thing to "did it work" that a person would check.
+	ObserverGot int
 
 	// Flag is set when the run should not be believed - most usefully when
 	// nothing relayed, which produces perfectly plausible totals.
@@ -88,7 +108,11 @@ type experiment struct {
 	Arms  []expArm
 	Seeds []uint64
 
-	Senders  []string
+	Senders []string
+	// Observer is a companion that only listens. Its Messages tab is the
+	// human-sized answer to "did it get through", where the matrix gives the
+	// mesh-sized one.
+	Observer string
 	Channel  string
 	Scope    string
 	SendAtMs uint32
@@ -227,9 +251,7 @@ func (a *App) stepExperiment() {
 		e.logf("%s %d  %d firmware in %.1f s", arm.Label, seed,
 			a.eng.FirmwareCount(), time.Since(e.runStart).Seconds())
 		a.applyStartupConfig()
-		a.runUntilMs = e.SendAtMs
-		a.playing = true
-		e.phase = expSettle
+		e.phase = expConnect
 
 	case expSettle:
 		if a.playing {
@@ -237,7 +259,7 @@ func (a *App) stepExperiment() {
 			return
 		}
 		e.logf("%s %d  settled to %.1f s", arm.Label, seed, float64(a.eng.NowMs())/1000)
-		e.phase = expConnect
+		e.phase = expSend
 
 	case expConnect:
 		// Every sender claimed and configured before any of them transmits, so
@@ -256,7 +278,15 @@ func (a *App) stepExperiment() {
 				return
 			}
 		}
-		e.phase = expSend
+		// Settle *after* connecting, not before. Claiming and configuring a
+		// sender steps the engine, so settling first and connecting second put
+		// the burst at 52.2 s when it was asked for at 45 s - and at a
+		// different instant in any arm whose setup took a different number of
+		// steps. Firing at the same simulated moment in every arm is the whole
+		// point of the runner owning this.
+		a.runUntilMs = e.SendAtMs
+		a.playing = true
+		e.phase = expSettle
 
 	case expSend:
 		e.baseline = a.eng.EventCount()
@@ -301,8 +331,8 @@ func (a *App) stepExperiment() {
 		if r.Flag != "" {
 			e.logf("%s %d  FLAGGED: %s", arm.Label, seed, r.Flag)
 		} else {
-			e.logf("%s %d  tx %d  rx %d  reached %d  in %.0f s", arm.Label, seed,
-				r.TX, r.RX, r.Reached, time.Since(e.runStart).Seconds())
+			e.logf("%s %d  tx %d  rx %d  %d msgs, reach %.0f%%  in %.0f s", arm.Label, seed,
+				r.TX, r.RX, r.Messages, r.MeanReachPct, time.Since(e.runStart).Seconds())
 		}
 		// Release the senders so the next arm starts from nothing held.
 		for _, name := range e.Senders {
@@ -348,37 +378,44 @@ func (a *App) measure(arm string, seed uint64, from int, burstMs uint32) expResu
 		from = len(events)
 	}
 	tail := events[from:]
-	reached := map[string]bool{}
+	// Delivery per message, not per node: a node that heard one of six is not
+	// the same as one that heard all six.
+	perMsg := map[uint64]map[string]bool{}
+	// Which sender each message came from, so the per-message numbers can be
+	// attributed rather than left anonymous.
+	msgOrigin := map[uint64]string{}
 	var last uint32
-	secs := int(a.exp.RunForMs/1000) + 1
-	r.perSecond = make([]int, secs)
-	for _, ev := range tail {
-		switch ev.Kind {
-		case "tx":
-			r.TX++
-		case "rx":
-			r.RX++
-			reached[ev.To] = true
-			if ev.AtMs > last {
-				last = ev.AtMs
-			}
-			if ev.AtMs >= burstMs {
-				if b := int((ev.AtMs - burstMs) / 1000); b < secs {
-					r.perSecond[b]++
-				}
-			}
-		case "miss":
-			switch {
-			case strings.Contains(ev.Detail, "half duplex"):
-				r.Deaf++
-			case strings.Contains(ev.Detail, "stronger interferer"):
-				r.Collisions++
-			}
+	r.Messages = len(perMsg)
+	if r.Messages > 0 {
+		denom := float64(len(a.Nodes) - 1)
+		total := 0.0
+		// Ordered by sender, so the same message occupies the same slot in
+		// every arm and two runs can be read side by side.
+		ids := make([]uint64, 0, len(perMsg))
+		for id := range perMsg {
+			ids = append(ids, id)
 		}
+		sort.Slice(ids, func(i, j int) bool { return msgOrigin[ids[i]] < msgOrigin[ids[j]] })
+		for _, id := range ids {
+			pct := 0.0
+			if denom > 0 {
+				pct = float64(len(perMsg[id])) / denom * 100
+			}
+			r.ReachPerMsg = append(r.ReachPerMsg, pct)
+			r.SenderOf = append(r.SenderOf, msgOrigin[id])
+			total += pct
+		}
+		r.MeanReachPct = total / float64(r.Messages)
 	}
-	r.Reached = len(reached)
 	if last > burstMs {
 		r.SpanMs = last - burstMs
+	}
+	if a.exp.Observer != "" {
+		for _, nodes := range perMsg {
+			if nodes[a.exp.Observer] {
+				r.ObserverGot++
+			}
+		}
 	}
 	for _, n := range a.eng.Scoreboard() {
 		r.AirtimeMs += n.AirtimeMs
@@ -403,7 +440,9 @@ type expSummary struct {
 	TX, RX   float64
 	Coll     float64
 	Deaf     float64
-	Reached  float64
+	Reach    float64
+	Messages float64
+	Observer float64
 	Airtime  float64
 	SpanMs   float64
 	RXSpread float64 // half the range across seeds, as a fraction of the mean
@@ -431,7 +470,9 @@ func (e *experiment) summarise() []expSummary {
 			s.RX += float64(r.RX)
 			s.Coll += float64(r.Collisions)
 			s.Deaf += float64(r.Deaf)
-			s.Reached += float64(r.Reached)
+			s.Reach += r.MeanReachPct
+			s.Messages += float64(r.Messages)
+			s.Observer += float64(r.ObserverGot)
 			s.Airtime += r.AirtimeMs
 			s.SpanMs += float64(r.SpanMs)
 			lo = math.Min(lo, float64(r.RX))
@@ -443,7 +484,9 @@ func (e *experiment) summarise() []expSummary {
 			s.RX /= n
 			s.Coll /= n
 			s.Deaf /= n
-			s.Reached /= n
+			s.Reach /= n
+			s.Messages /= n
+			s.Observer /= n
 			s.Airtime /= n
 			s.SpanMs /= n
 		}
@@ -570,7 +613,7 @@ func (a *App) verdictFor(e *experiment) verdict {
 			{"transmissions", s.TX, base.TX},
 			{"collisions", s.Coll, base.Coll},
 			{"airtime", s.Airtime, base.Airtime},
-			{"nodes reached", s.Reached, base.Reached},
+			{"delivery", s.Reach, base.Reach},
 		} {
 			if m.ref == 0 {
 				continue
