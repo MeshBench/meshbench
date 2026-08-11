@@ -124,3 +124,40 @@ Setting only `VectorTableOffset` leaves SP uninitialised, and the firmware
 faults within **45 instructions** pushing an exception frame to a bogus stack.
 SP and PC must be read from the vector table of whatever boots first — the MBR's
 at 0, not the application's. `uf2tobin.py` prints both.
+
+## Where it stops now, and why a stub would be worse than a stall
+
+After TEMP, the calibration timer, SAADC and TWIM, the published RAK4631 build
+runs 661 million instructions and stops here:
+
+    71cd0: ldr.w r2, [r3, #0x118]   ; r3 = 0x4002F000
+    71cd4: cmp   r2, #0
+    71cd6: beq.n 0x71cd0
+
+Nothing is mapped at 0x4002F000 in Renode's nRF52840 platform, so the read
+returns zero for ever. That address is CryptoCell, the hardware crypto engine
+MeshCore's Ed25519 and AES use on this part.
+
+**Do not stub it the way the others were stubbed.** TEMP, SAADC and TWIM can
+answer plausibly because nothing downstream depends on the value being right - a
+temperature, a battery reading, an absent sensor. Crypto is the opposite: a
+model that raises "done" without doing the work hands the firmware a wrong
+answer, and the firmware has no way to know. A node would come up with a corrupt
+identity and sign packets nobody can verify, which looks like a mesh problem and
+is not one. Either model CryptoCell properly or do not model it at all.
+
+Two routes from here, and the second is the one we can ship:
+
+1. Model CryptoCell. Large, and only worth it to run the published binaries -
+   which still need a SoftDevice we cannot redistribute.
+2. Build an nRF52 variant in meshcore-native, the way variants/host works:
+   software crypto, real RadioLib over nRF52 SPI, no SoftDevice. Not the flashed
+   bytes, but a real ARM build of the same source that can be handed to anyone,
+   and the radio path to radioserver is already proven from ARM.
+
+### The pattern worth remembering
+
+Renode's nRF52840 models the legacy half of several peripherals and firmware
+drives the EasyDMA half. spi2 declares easyDMA false, so SPIM transfers went
+nowhere; NRF52840_I2C implements the legacy TWI registers, so TWIM polled
+EVENTS_TXSTARTED for ever. Expect the next stall to be the same shape.
