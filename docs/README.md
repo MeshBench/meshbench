@@ -1,4 +1,4 @@
-# MeshcoreSim documentation
+# MeshBench documentation
 
 Decisions live in Plane project **MSIM** as ADR-0001…ADR-0016. These documents
 carry the implementation detail those decisions imply.

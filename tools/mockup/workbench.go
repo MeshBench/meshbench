@@ -9,7 +9,7 @@ func workbench() *m.Canvas {
 	c.Fill(0, 0, 1440, 44, m.BgSurface)
 	c.Line(0, 44, 1440, 44, m.Border, 1, 0)
 	c.Dot(26, 22, 6, m.Accent)
-	c.Text(42, 26, "MeshcoreSim", m.TextHi, m.SansBold, 13)
+	c.Text(42, 26, "MeshBench", m.TextHi, m.SansBold, 13)
 	x := 150
 	for _, item := range []string{"File", "Scenario", "Firmware", "View", "Run"} {
 		c.Text(x, 26, item, m.TextMid, m.Sans, 11)

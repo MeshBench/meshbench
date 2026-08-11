@@ -1,6 +1,6 @@
 # Architecture
 
-How MeshcoreSim fits together, and why each seam is where it is. Read this
+How MeshBench fits together, and why each seam is where it is. Read this
 before writing code; the ADRs in Plane project **MSIM** carry the reasoning,
 this carries the shape.
 

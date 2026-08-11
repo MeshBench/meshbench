@@ -1,6 +1,6 @@
 # Shortcomings
 
-What MeshcoreSim does **not** model, does not model well, or has not yet been
+What MeshBench does **not** model, does not model well, or has not yet been
 checked against reality. Everything here is known and deliberate; none of it is
 a bug report.
 
@@ -23,7 +23,7 @@ out as anything moves.
 
 **Consequence.** The simulator cannot produce the failure that dominates real
 marginal links: a path with a perfectly good median signal that drops out for
-hundreds of milliseconds at a time. A link MeshcoreSim calls reliable may be
+hundreds of milliseconds at a time. A link MeshBench calls reliable may be
 unusable in practice, and there is no warning sign in the output — the SNR just
 looks fine.
 
@@ -395,5 +395,5 @@ For balance, because the list above is long and the tool is not weak:
   CSMA are MeshCore's own code, not a reimplementation of it.
 
 The systematic biases are almost all in one direction, which makes them usable:
-**treat a MeshcoreSim result as a best case.** If it says a link will not work,
+**treat a MeshBench result as a best case.** If it says a link will not work,
 believe it. If it says a link will work marginally, go and measure.

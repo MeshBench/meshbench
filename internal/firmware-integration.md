@@ -1,6 +1,6 @@
 # Firmware integration
 
-How real MeshCore code runs inside MeshcoreSim. This is the highest-risk part of
+How real MeshCore code runs inside MeshBench. This is the highest-risk part of
 the project — MSIM-1 exists to prove it before anything else is built on it.
 
 ## What we know, verified against upstream

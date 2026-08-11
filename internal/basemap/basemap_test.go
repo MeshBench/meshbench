@@ -112,7 +112,7 @@ func TestUserAgentIsSentAndRequired(t *testing.T) {
 	if err := s.Fetch(context.Background(), l, 10, 500, 320); err != nil {
 		t.Fatal(err)
 	}
-	if len(srv.agents) == 0 || !strings.Contains(srv.agents[0], "MeshcoreSim") {
+	if len(srv.agents) == 0 || !strings.Contains(srv.agents[0], "MeshBench") {
 		t.Errorf("User-Agent was %q", srv.agents)
 	}
 

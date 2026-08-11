@@ -205,7 +205,7 @@ func NewStore(cacheDir string) (*Store, error) {
 	}
 	return &Store{
 		CacheDir:  cacheDir,
-		UserAgent: "MeshcoreSim/0.1 (+https://github.com/A13xB0/meshcoresim)",
+		UserAgent: "MeshBench/0.1 (+https://github.com/A13xB0/meshcoresim)",
 		loaded:    map[string]*image.RGBA{},
 		missing:   map[string]bool{},
 	}, nil

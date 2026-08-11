@@ -50,7 +50,7 @@ type Board struct {
 	// linear regulator and a power LED draws hundreds.
 	SleepUA float64
 
-	// Emulated reports whether MeshcoreSim can run this board's firmware under
+	// Emulated reports whether MeshBench can run this board's firmware under
 	// emulation today. Stated rather than implied, because a scenario built
 	// around a board that cannot be emulated should say so at build time and
 	// not fail at run time.
