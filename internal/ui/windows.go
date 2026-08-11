@@ -144,21 +144,27 @@ func (a *App) drawMenuBar() {
 			}
 		}
 		imgui.Separator()
-		textDim("node windows")
 		// Every node can have its own window; the menu lists them so one can be
 		// reopened without hunting for the node on a busy map.
-		shown := 0
-		for i := range a.Nodes {
-			if shown >= 20 {
-				textDim("... use right-click on the map for the rest")
-				break
+		//
+		// A submenu with a scrolling child, not twenty items inline. Inline, the
+		// dropdown was taller than the window it hangs from - and a popup that
+		// does not fit inside the main viewport gets a viewport of its own,
+		// which the compositor drew full screen with the rest of the app black
+		// behind it. Height is what caused that, so height is what is bounded:
+		// the list scrolls instead of growing, and every node is reachable
+		// rather than the first twenty.
+		if imgui.BeginMenu("node windows") {
+			imgui.BeginChildStrV("##nodewins", a.windowSize(26, 18), 0, 0)
+			for i := range a.Nodes {
+				name := a.Nodes[i].Name
+				open := a.nodeWindows[name]
+				if imgui.MenuItemBoolPtr(name, "", &open) {
+					a.setNodeWindow(name, open)
+				}
 			}
-			name := a.Nodes[i].Name
-			open := a.nodeWindows[name]
-			if imgui.MenuItemBoolPtr(name, "", &open) {
-				a.setNodeWindow(name, open)
-			}
-			shown++
+			imgui.EndChild()
+			imgui.EndMenu()
 		}
 		imgui.EndMenu()
 	}

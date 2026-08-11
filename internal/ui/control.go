@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/A13xB0/meshcoresim/internal/firmware"
 	"os"
 	"strings"
 	"time"
@@ -14,6 +13,7 @@ import (
 	"github.com/A13xB0/meshcoresim/internal/antenna"
 	"github.com/A13xB0/meshcoresim/internal/companion/proto"
 	"github.com/A13xB0/meshcoresim/internal/control"
+	"github.com/A13xB0/meshcoresim/internal/firmware"
 	"github.com/A13xB0/meshcoresim/internal/scenario"
 )
 
@@ -1135,6 +1135,18 @@ func (a *App) handleUICommand(method string, params json.RawMessage) (any, bool,
 		if version == "" {
 			return nil, true, fmt.Errorf("firmware.set needs a version")
 		}
+		// Checked here, where it was typed. A role with no build wrote through
+		// silently and surfaced minutes later, mid-sweep, as "<node> runs no
+		// firmware" - which reads as a firmware problem and is a typo. Only
+		// enforced when the version is one we have downloaded, so naming a
+		// build that has yet to be fetched still works.
+		cache := firmware.DefaultCacheDir()
+		if roles := firmware.CachedRoles(cache, version); len(roles) > 0 &&
+			!firmware.HasCachedBuild(cache, role, version) {
+			return nil, true, fmt.Errorf(
+				"no %q build in %s - it has: %s",
+				roleOrDefault(role), version, strings.Join(roles, ", "))
+		}
 		n := 0
 		for i := range a.Nodes {
 			if !a.Nodes[i].Kind.RunsFirmware() {
@@ -1381,4 +1393,13 @@ func (a *App) ctlWindow(name string, open bool) (any, bool, error) {
 		return nil, true, fmt.Errorf("no window %q", name)
 	}
 	return map[string]any{"window": name, "open": open}, true, nil
+}
+
+// roleOrDefault names the role an empty string means, so an error about a
+// missing build says which one it looked for.
+func roleOrDefault(role string) string {
+	if role == "" {
+		return firmware.DefaultRole
+	}
+	return role
 }
