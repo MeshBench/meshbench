@@ -300,6 +300,17 @@ func bootOffsetMs(seed uint64, i int) uint32 {
 	return uint32(x % bootSpreadMs)
 }
 
-// bootSpreadMs is the window boot offsets are drawn from: the repeater's own
-// default advert interval, two minutes.
-const bootSpreadMs = 120_000
+// bootSpreadMs is the window boot offsets are drawn from.
+//
+// Two minutes - the repeater's own advert interval - was the right window when
+// the radio was a stub: a node's boot offset costs nothing to simulate if
+// nothing happens during it. With MeshCore's real driver over RadioLib over a
+// virtual chip, every one of those milliseconds runs the firmware's loop and a
+// pile of SPI, and 154 nodes drawing from a two-minute window took half an hour
+// to attach.
+//
+// Fifteen seconds keeps what the stagger is for. The point was never the width
+// of the window but that nodes do not all start their advert timers on the same
+// millisecond, which a fifteen-second spread breaks just as thoroughly - and
+// MeshCore jitters its adverts on top of this anyway.
+const bootSpreadMs = 15_000
