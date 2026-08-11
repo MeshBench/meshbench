@@ -442,8 +442,11 @@ func (a *App) Run(title string, w, h int) error {
 	// whenever it overlaps — which makes dragging one to a second monitor
 	// impossible the moment the main window is maximised, because there is no
 	// "outside" left to drop it in. That is the whole of why this did not work.
+	//
+	// Applied per window in topMostClass, not here. As an io flag it also caught
+	// menu popups, combos and tooltips, so the Window menu became a decorated OS
+	// window of its own and the compositor drew it full screen and flashing.
 	io := imgui.CurrentIO()
-	io.SetConfigViewportsNoAutoMerge(true)
 	// Under native Wayland the imgui backend refuses multi-viewport outright
 	// (upstream #8587: the protocol forbids positioning windows globally).
 	// Recorded so the pop-out buttons can say so instead of silently doing
