@@ -157,14 +157,30 @@ image come up, not when its MCU is supported.
 | STM32 (Cortex-M4) | 4 | — | not started |
 | ESP32-C6 (RISC-V) | 3 | — | not started |
 
-**The nRF52 published binaries cannot be run, and that is a finding rather than
-a gap in the work.** They are linked above a Nordic SoftDevice and make 119 SVC
-calls into it; without one they execute the stack-fill pattern and die at
-`0xA5A5A5A4`. Adding FICR, then PWM0–3, left the instruction count at *exactly*
-233,455 both times — identical counts proving those peripherals were never on
-the path, and disproving two of our own diagnoses. Supplying the real s140 6.1.1
-gets past it, and then parks in an idle loop inside a proprietary binary Renode
-does not claim to emulate faithfully. That is open-ended with no guaranteed end.
+**The nRF52 published binaries do not run yet, and we have stopped trying.**
+That is a judgement about cost, not a proof of impossibility — worth being exact
+about, because the two are easy to confuse.
+
+They are linked above a Nordic SoftDevice and make 119 SVC calls into it.
+Without one they execute the stack-fill pattern and die at `0xA5A5A5A4`. Adding
+FICR, then PWM0–3, left the instruction count at *exactly* 233,455 both times;
+identical counts prove those peripherals were never on the path, and disproved
+two of our own diagnoses.
+
+With the real s140 6.1.1 supplied there is **no abort** — 1.4 billion
+instructions, and then an idle loop at `PC = 0xa80`: `WFE`, branch to self, and
+an indirect dispatch. That is a CPU waiting on an interrupt that never arrives,
+which is a missing emulated event rather than a wall. Raising
+`EVENTS_HFCLKSTARTED` and `EVENTS_LFCLKSTARTED` changed nothing and Renode does
+model `NRF_CLOCK`, so that guess was wrong; the untested suspects are the
+peripherals the SoftDevice owns — RTC0, the SWI/EGU software interrupts its
+scheduler runs on, and POWER events — of which Renode models a subset.
+
+Someone could pick that up. We did not, for two reasons. Past this point it is
+reverse-engineering a proprietary binary that Renode does not claim to emulate
+faithfully, with no way to bound the effort. And the SoftDevice is licensed by
+Nordic and cannot be redistributed, so even a working result would need every
+user to supply their own copy.
 
 So the ARM path runs a **SoftDevice-free build of the same MeshCore source**
 instead. It is not the flashed bytes and is not described as if it were — but it
