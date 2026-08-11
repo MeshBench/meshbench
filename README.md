@@ -1,52 +1,40 @@
-# MeshcoreSim
+# MeshcoreSim documentation
 
-An RF-accurate MeshCore network simulator.
+Decisions live in Plane project **MSIM** as ADR-0001…ADR-0016. These documents
+carry the implementation detail those decisions imply.
 
-It runs **real MeshCore firmware** — the actual C++ from `meshcore-dev/MeshCore`,
-compiled for the host and driven through its own `Radio` interface — against a
-**sample-accurate LoRa baseband channel** with real noise.
+| Document | Read it when |
+|---|---|
+| [`architecture.md`](architecture.md) | Before writing any code. Module boundaries, data flow, time, determinism, concurrency. |
+| [`rf-chain.md`](rf-chain.md) | Implementing `internal/dsp` or `internal/rf`. Every formula and constant, with the acceptance test. |
+| [`firmware-integration.md`](firmware-integration.md) | Implementing `internal/firmware`. The shim contract, verified facts about upstream, and what is still unknown. |
+| [`ux/`](ux/README.md) | Building UI. Seven rendered designs; regenerate with `go run ./tools/mockup`. |
 
-The channel does not decide whether a packet arrives. It sums waveforms, applies
-path loss over real terrain, adds thermal noise, and lets each receiver's
-demodulator find out. Capture effect, partial collisions and sensitivity are
-*emergent*, not rules someone wrote down.
+## Start here
 
-## What it is for
+The spine is **MSIM-1 → MSIM-2 → MSIM-4**:
 
-Answering **why**, not just whether:
+1. **MSIM-1** — prove MeshCore's mesh stack builds for the host. Everything
+   assumes it. Timeboxed; a clear "no" is a finding, not a failure.
+2. **MSIM-2** — the CPU LoRa modem, accepted only when simulated sensitivity
+   lands within ~2 dB of Semtech's published SX1262 figures. This is the
+   honesty test for the whole project.
+3. **MSIM-4** — the channel: coherent summation, delay, AWGN. Capture effect
+   must *emerge*.
 
-- Why did that packet miss? — terrain cut-through with the Fresnel zone and each
-  diffracting edge's individual loss.
-- What did the air actually look like? — waterfall, IQ, and a dechirped symbol
-  view showing which of two colliding frames captured.
-- Did that commit break relaying? — run half the repeaters on one firmware build
-  and half on another, same traffic, and diff.
-- Does my app work on a 40-node mesh? — attach a real companion client over TCP.
+If those three do not land, nothing else matters.
 
-## Status
+## The rules that are easy to violate
 
-Early. Design settled, implementation starting. Decisions live in Plane project
-**MSIM** as `ADR-0001` … `ADR-0009`, with a UX spec and the baseband technical
-design alongside them.
-
-## Building and running
-
-Needs a GPU and a display. **It does not run on the dev VM** (virtual VGA, no
-display) — develop there, run on a Mac. CI exercises the CPU reference path,
-which per ADR-0004 is a maintained oracle rather than a fallback.
-
-```bash
-go test ./...        # CPU reference path
-go run ./cmd/meshcoresim
-```
-
-## Honesty about the model
-
-The simulator is **kinder than the air**. It does not model multipath or fading,
-Doppler, oscillator ppm error, body loss, or non-LoRa interference beyond a flat
-floor. Every one of those makes real links worse than simulated ones, so the bias
-is one-directional — and it is stated in the UI, not buried here.
-
-Sensitivity is validated against Semtech's published SX1262 figures: simulated
-1% PER must land within ~2 dB across SF7–SF12. If that test fails, the chain is
-wrong however convincing the waterfall looks.
+- **The channel decides nothing.** No code path may say "if two transmissions
+  overlap, both fail".
+- **Every GPU kernel has a CPU twin**, and a test asserts they agree. A wrong
+  FFT does not crash — it produces a plausible waterfall and slightly wrong
+  sensitivity that nobody notices for months.
+- **Airtime must match the firmware's `getEstAirtimeFor()`**, or the simulation
+  desynchronises from the firmware's own CSMA silently.
+- **Reachability is asymmetric.** Both directions, always.
+- **Position uncertainty propagates.** Too-uncertain nodes get no verdict.
+- **The simulator is kinder than the air**, and must say so.
+- [`shortcomings.md`](shortcomings.md) — what the model does not do, what it
+  gets measurably wrong, and in which direction. Read before trusting a result.
