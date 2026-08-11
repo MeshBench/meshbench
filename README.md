@@ -143,6 +143,36 @@ the driver. Below that line, both backends share the same virtual chip and the
 same channel — which is what makes a native run and an emulated one comparable
 at all.
 
+### Setting one up today
+
+Until this is packaged, an emulated node needs two binaries that are not on any
+distribution: a QEMU carrying our SX1262 device, and the radio model itself.
+Put them where the application looks and nothing else is needed — no environment
+variables, no flags.
+
+```bash
+mkdir -p ~/.cache/meshcoresim/tools
+ln -sf /path/to/qemu-system-xtensa ~/.cache/meshcoresim/tools/
+cp /path/to/radioserver ~/.cache/meshcoresim/tools/
+```
+
+A symlink is right for QEMU: it finds its own data files by resolving its real
+path, so a bare copy of the binary will not run. `radioserver` builds from
+`meshcore-native` against `VirtualSX1262.cpp` with no other dependencies.
+
+Then open the firmware library, download a board image, and set a node's role to
+it. The library only offers boards with verified wiring, so anything it lists
+will start.
+
+MeshBench searches, in order: `MESHCORESIM_QEMU` and `MESHCORESIM_RADIO_SERVER`,
+then beside its own binary, then that tools directory, then `PATH`. `PATH` is
+last because a desktop application is not launched from a shell and inherits
+nothing useful from one — which is why emulation used to work from a terminal
+and fail from the desktop.
+
+`docs/packaging-emulation.md` has the rest: what a release has to ship, what it
+cannot ship and why, and what to tell people about the cost.
+
 ### Architectures
 
 Emulation is per architecture *and* per board, and the honest position differs
