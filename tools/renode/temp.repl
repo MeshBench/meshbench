@@ -1,0 +1,8 @@
+// TEMP, absent from Renode's own nRF52840 platform.
+//
+// The SoftDevice starts a temperature measurement during initialisation and
+// waits on EVENTS_DATARDY. Without this it waits for ever, having executed
+// 28,000 instructions - which reads as a proprietary binary refusing to run
+// rather than as a missing four-register peripheral.
+temp: Sensors.NRF52840_Temp @ sysbus 0x4000C000
+    IRQ -> nvic@12

@@ -1,0 +1,56 @@
+:name: RAK4631, as the hardware actually is
+:description: MBR, UICR, bootloader, SoftDevice and application, on erased flash.
+:
+: This is the machine that got the published binaries past the MBR. Every piece
+: here was written at some point and none of them had ever been assembled into
+: one machine, which is why each experiment hit a different missing thing and
+: each looked like a separate dead end.
+:
+: Prepare the pieces first:
+:
+:   tools/renode/uf2tobin.py RAK_4631_repeater-v1.17.0-*.uf2 /tmp/rak.bin
+:   tools/renode/softdevice.py s140_nrf52_6.1.1_softdevice.hex /tmp/s140.bin
+:   curl -sLo /tmp/rak_boot.uf2 \
+:     https://flasher.meshcore.io/firmware/wiscore_rak4631_board_bootloader-0.9.2-OTAFIX2.1.uf2
+:   tools/renode/uf2split.py /tmp/rak_boot.uf2 /tmp/boot
+:   tools/renode/ficr.py > /tmp/ficr_writes.txt
+:   python3 -c "open('/tmp/erased_flash.bin','wb').write(b'\xff'*(1024*1024))"
+:   python3 -c "open('/tmp/erased_uicr.bin','wb').write(b'\xff'*4096)"
+:
+: The OTAFIX bootloader package is where UICR comes from, and UICR is what tells
+: the MBR where the bootloader is. Without it the MBR reads zeros and hands over
+: to address 0.
+
+i @tools/renode/peripherals/NRF52840_Temp.cs
+
+mach create "rak4631"
+machine LoadPlatformDescription @platforms/cpus/nrf52840.repl
+machine LoadPlatformDescription @tools/renode/ficr.repl
+machine LoadPlatformDescription @tools/renode/uicr.repl
+machine LoadPlatformDescription @tools/renode/temp.repl
+
+: Erased flash under everything. This is not tidiness - the MBR tests words
+: against 0xFFFFFFFF to decide whether things exist, and Renode's memory starts
+: at zero, so on a bare machine every such test answers "present" and it
+: dereferences a null pointer. That single difference is what made the published
+: binaries look unrunnable.
+sysbus LoadBinary @/tmp/erased_flash.bin 0x0
+sysbus LoadBinary @/tmp/erased_uicr.bin 0x10001000
+
+: Then the real regions, in flash order.
+sysbus LoadBinary @/tmp/s140.bin 0x0
+sysbus LoadBinary @/tmp/boot_00000000.bin 0x0
+sysbus LoadBinary @/tmp/boot_000f4000.bin 0xF4000
+sysbus LoadBinary @/tmp/boot_000fd800.bin 0xFD800
+sysbus LoadBinary @/tmp/boot_10001000.bin 0x10001000
+sysbus LoadBinary @/tmp/rak.bin 0x26000
+
+: The MBR boots first, so SP and PC come from ITS vector table at 0. Setting
+: only VectorTableOffset leaves SP uninitialised and the firmware faults within
+: 45 instructions pushing an exception frame to a bogus stack.
+cpu VectorTableOffset 0x0
+cpu SP `sysbus ReadDoubleWord 0x0`
+cpu PC `sysbus ReadDoubleWord 0x4`
+
+include @/tmp/ficr_writes.txt
+logLevel 3
