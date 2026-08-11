@@ -313,12 +313,19 @@ func pinToMainWindow() {
 	imgui.SetNextWindowViewport(imgui.MainViewport().ID())
 }
 
-// topMostClass makes a popped-out window stay above the main one. A panel
-// deliberately put on a second monitor should not disappear behind the
-// window it was popped out of.
+// topMostClass makes a popped-out window stay above the main one, and keeps it
+// out of the main viewport once it is there.
+//
+// NoAutoMerge belongs here, on the windows that asked to leave, rather than on
+// the io config where it used to be. Set globally it applies to every floating
+// window imgui has - including menu popups, combos and tooltips - so opening the
+// Window menu spawned a decorated OS window for the dropdown, which the compositor
+// then showed full screen and flashing. A panel deliberately put on a second
+// monitor still should not merge back or disappear behind the window it was
+// popped out of; a menu never wanted either.
 func topMostClass() *imgui.WindowClass {
 	c := imgui.NewWindowClass()
-	c.SetViewportFlagsOverrideSet(imgui.ViewportFlagsTopMost)
+	c.SetViewportFlagsOverrideSet(imgui.ViewportFlagsTopMost | imgui.ViewportFlagsNoAutoMerge)
 	return c
 }
 

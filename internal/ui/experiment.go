@@ -53,6 +53,15 @@ type expArm struct {
 	SpreadMs *int32
 }
 
+// versionFor is the firmware build this arm wants for a node of that kind, or
+// "" if it does not care.
+func (a expArm) versionFor(k scenario.Kind) string {
+	if k == scenario.Companion {
+		return a.CompanionVersion
+	}
+	return a.RepeaterVersion
+}
+
 // apply writes the arm as provisioning, which is what an arm *is*.
 func (a expArm) apply(cfg *configState) {
 	cfg.compPathHashMode = orUnset(a.PathHashMode)
@@ -128,6 +137,25 @@ type expResult struct {
 	// Per message, in sender order.
 	RepPerMsg  []int
 	CompPerMsg []int
+
+	// Redundant deliveries: the same message arriving at a node that already
+	// had it.
+	//
+	// This is the whole point of loop detection, and until now the bench could
+	// not see it. Reach was measured as a set of nodes per message, so a node
+	// that heard one copy and a node that heard nine were the same number, and
+	// every arm that differed only in how much duplication it suppressed looked
+	// identical. Turning loop detection off should cost duplicates and nothing
+	// else; if reach moves too, the drops were not redundant after all.
+	//
+	// DupeRx counts every arrival past the first. WorstDupe is the most copies
+	// any one node took of any one message - the tail matters, because the mean
+	// hides a corner of the mesh reflecting a packet between two neighbours.
+	DupeRx    int
+	WorstDupe int
+	// DupePerNode is where the duplication landed, so "where does loop
+	// detection help" is answerable on the map rather than in aggregate.
+	DupePerNode map[string]int
 
 	// What the radios reported about the channel, summed over nodes.
 	//
@@ -314,12 +342,17 @@ func (a *App) stepExperiment() {
 			if !a.Nodes[i].Kind.RunsFirmware() {
 				continue
 			}
-			if a.Nodes[i].Kind == scenario.Companion {
-				if arm.CompanionVersion != "" {
-					a.Nodes[i].Firmware.Version = arm.CompanionVersion
-				}
-			} else if arm.RepeaterVersion != "" {
-				a.Nodes[i].Firmware.Version = arm.RepeaterVersion
+			// The constant, then the arm over the top - the same order as every
+			// other field. Firmware was the one setting that ignored the base,
+			// so a sweep that did not vary firmware left whatever version the
+			// nodes were imported with. Imported nodes carry none, which
+			// resolves to MeshCore main, for which nothing is published: 308
+			// nodes failed to attach and the sweep stopped on its first run.
+			if v := e.Base.versionFor(a.Nodes[i].Kind); v != "" {
+				a.Nodes[i].Firmware.Version = v
+			}
+			if v := arm.versionFor(a.Nodes[i].Kind); v != "" {
+				a.Nodes[i].Firmware.Version = v
 			}
 		}
 		a.buildEngine()
@@ -504,11 +537,18 @@ func (a *App) measure(arm string, seed uint64, from int, burstMs uint32) expResu
 	}
 	tail := events[from:]
 
-	perMsg := map[uint64]map[string]bool{}
+	// Counts, not a set: the number of times a node took the same message is
+	// the measurement, and a set throws it away.
+	perMsg := map[uint64]map[string]int{}
 	// Which sender each message came from, so the per-message numbers can be
 	// attributed rather than left anonymous.
 	msgOrigin := map[uint64]string{}
-	secs := int(a.exp.RunForMs/1000) + 1
+	// Sized to the whole window, not just the run. A spread arm keeps sending
+	// for spreadMs after the burst starts and the engine runs that much longer
+	// for it, so a histogram cut to RunForMs alone would drop the tail of every
+	// staggered arm - which is exactly the half of the timeline that shows
+	// whether spreading the senders helped.
+	secs := int((a.exp.RunForMs+a.exp.spreadMs)/1000) + 1
 	r.perSecond = make([]int, secs)
 	var last uint32
 
@@ -522,9 +562,9 @@ func (a *App) measure(arm string, seed uint64, from int, burstMs uint32) expResu
 		case "rx":
 			r.RX++
 			if perMsg[ev.MessageID] == nil {
-				perMsg[ev.MessageID] = map[string]bool{}
+				perMsg[ev.MessageID] = map[string]int{}
 			}
-			perMsg[ev.MessageID][ev.To] = true
+			perMsg[ev.MessageID][ev.To]++
 			if ev.AtMs > last {
 				last = ev.AtMs
 			}
@@ -569,9 +609,10 @@ func (a *App) measure(arm string, seed uint64, from int, burstMs uint32) expResu
 			nRep++
 		}
 	}
+	r.DupePerNode = map[string]int{}
 	for _, id := range ids {
 		rep, comp := 0, 0
-		for node := range perMsg[id] {
+		for node, copies := range perMsg[id] {
 			// Not the node that sent it. A companion can hear its own message
 			// relayed back by a neighbour, which is real and is not delivery -
 			// counted, it put the figure above 100%.
@@ -582,6 +623,14 @@ func (a *App) measure(arm string, seed uint64, from int, burstMs uint32) expResu
 				comp++
 			} else {
 				rep++
+			}
+			// Everything past the first copy is work the mesh did for nothing.
+			if extra := copies - 1; extra > 0 {
+				r.DupeRx += extra
+				r.DupePerNode[node] += extra
+				if extra > r.WorstDupe {
+					r.WorstDupe = extra
+				}
 			}
 		}
 		r.RepPerMsg = append(r.RepPerMsg, rep)
@@ -649,6 +698,13 @@ type expSummary struct {
 	Airtime  float64
 	SpanMs   float64
 	RXSpread float64 // half the range across seeds, as a fraction of the mean
+	// Duplication, which is what loop detection is for. Dupe is redundant
+	// arrivals per run; DupePerMsg divides by the messages actually sent so
+	// arms that delivered different numbers stay comparable; WorstDupe is the
+	// worst any single node suffered.
+	Dupe       float64
+	DupePerMsg float64
+	WorstDupe  float64
 }
 
 func (e *experiment) summarise() []expSummary {
@@ -687,6 +743,11 @@ func (e *experiment) summarise() []expSummary {
 			s.BusyMs += float64(r.BusyMs)
 			s.Airtime += r.AirtimeMs
 			s.SpanMs += float64(r.SpanMs)
+			s.Dupe += float64(r.DupeRx)
+			if r.Messages > 0 {
+				s.DupePerMsg += float64(r.DupeRx) / float64(r.Messages)
+			}
+			s.WorstDupe += float64(r.WorstDupe)
 			lo = math.Min(lo, float64(r.RX))
 			hi = math.Max(hi, float64(r.RX))
 		}
@@ -704,6 +765,9 @@ func (e *experiment) summarise() []expSummary {
 			s.BusyMs /= n
 			s.Airtime /= n
 			s.SpanMs /= n
+			s.Dupe /= n
+			s.DupePerMsg /= n
+			s.WorstDupe /= n
 		}
 		if s.RX > 0 && !math.IsInf(lo, 1) {
 			s.RXSpread = (hi - lo) / 2 / s.RX
@@ -830,6 +894,7 @@ func (a *App) verdictFor(e *experiment) verdict {
 			{"airtime", s.Airtime, base.Airtime},
 			{"delivery to repeaters", s.RepPct, base.RepPct},
 			{"delivery to companions", s.CompPct, base.CompPct},
+			{"duplicate deliveries", s.Dupe, base.Dupe},
 		} {
 			if m.ref == 0 {
 				continue

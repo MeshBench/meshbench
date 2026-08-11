@@ -91,7 +91,7 @@ color:var(--dim);font:12px ui-monospace,Menlo,monospace}
 	// The matrix, as deltas from the baseline.
 	b.WriteString(`<h2>Matrix</h2><div class="scroll"><table><tr>
 <th>arm</th><th>runs</th><th>tx</th><th>rx</th><th>to repeaters</th><th>to companions</th>
-<th>collisions</th><th>deaf</th><th>airtime</th><th>to quiet</th></tr>`)
+<th>dupes</th><th>worst dupe</th><th>collisions</th><th>deaf</th><th>airtime</th><th>to quiet</th></tr>`)
 	if len(sums) > 0 {
 		base := sums[0]
 		if e.baselineArm < len(sums) {
@@ -102,6 +102,7 @@ color:var(--dim);font:12px ui-monospace,Menlo,monospace}
 				flaggedNote(s.Flagged))
 			for _, m := range []struct{ v, ref float64 }{
 				{s.TX, base.TX}, {s.RX, base.RX}, {s.RepPct, base.RepPct}, {s.CompPct, base.CompPct},
+				{s.Dupe, base.Dupe}, {s.WorstDupe, base.WorstDupe},
 				{s.Coll, base.Coll}, {s.Deaf, base.Deaf},
 				{s.Airtime / 1000, base.Airtime / 1000}, {s.SpanMs / 1000, base.SpanMs / 1000},
 			} {
@@ -131,6 +132,8 @@ color:var(--dim);font:12px ui-monospace,Menlo,monospace}
 			html.EscapeString(arm), sparkSVG(byArm[arm], peak))
 	}
 	b.WriteString("</div>")
+
+	b.WriteString(dupeGeography(a, e))
 
 	// Every run, so nothing is hidden behind an average.
 	b.WriteString(`<h2>Runs</h2><div class="scroll"><table><tr>

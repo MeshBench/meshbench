@@ -4,8 +4,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/A13xB0/meshcoresim/internal/firmware"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -14,6 +14,7 @@ import (
 	"github.com/A13xB0/meshcoresim/internal/antenna"
 	"github.com/A13xB0/meshcoresim/internal/companion/proto"
 	"github.com/A13xB0/meshcoresim/internal/control"
+	"github.com/A13xB0/meshcoresim/internal/firmware"
 	"github.com/A13xB0/meshcoresim/internal/scenario"
 )
 
@@ -363,9 +364,14 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 	case "experiment.base":
 		// The experiment's constants, held across every arm.
 		var p struct {
-			LoopDetect   string `json:"loop_detect"`
-			CAD          string `json:"cad"`
-			PathHashMode *int32 `json:"path_hash_mode"`
+			LoopDetect string `json:"loop_detect"`
+			CAD        string `json:"cad"`
+			// Which MeshCore every arm runs, when the sweep is not varying it.
+			// Without this a sweep about anything else silently used whatever
+			// the nodes were imported with, which for a fresh import is nothing.
+			RepeaterVersion  string `json:"repeater_version"`
+			CompanionVersion string `json:"companion_version"`
+			PathHashMode     *int32 `json:"path_hash_mode"`
 		}
 		if err := json.Unmarshal(params, &p); err != nil {
 			return nil, err
@@ -373,6 +379,12 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 		e := a.ensureExperiment()
 		if p.LoopDetect != "" {
 			e.Base.LoopDetect = p.LoopDetect
+		}
+		if p.RepeaterVersion != "" {
+			e.Base.RepeaterVersion = p.RepeaterVersion
+		}
+		if p.CompanionVersion != "" {
+			e.Base.CompanionVersion = p.CompanionVersion
 		}
 		if p.CAD != "" {
 			e.Base.CAD = p.CAD
@@ -384,6 +396,7 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 		a.switchWorkspace(wsBench)
 		a.showPanel("Configuration")
 		return map[string]any{"loop_detect": e.Base.LoopDetect, "cad": e.Base.CAD,
+			"repeater_version": e.Base.RepeaterVersion, "companion_version": e.Base.CompanionVersion,
 			"path_hash_mode": orUnset(e.Base.RepPathHash)}, nil
 
 	case "experiment.senders":
@@ -422,6 +435,40 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 			return nil, err
 		}
 		return map[string]any{"running": true, "runs": a.exp.runsTotal()}, nil
+
+	case "capture.file":
+		// Capture to a pcapng file, with no Wireshark.
+		//
+		// The only capture verb was capture.wireshark, which starts the UDP
+		// stream *and* opens a window. Diagnosing why a packet was not relayed
+		// needs the bytes, not a GUI - and on a driven session there is often
+		// nobody at the screen to look at one.
+		var p struct {
+			Path string `json:"path"`
+		}
+		_ = json.Unmarshal(params, &p)
+		if p.Path == "" {
+			p.Path = filepath.Join(os.TempDir(), "meshcoresim-capture.pcapng")
+		}
+		if a.eng == nil {
+			a.buildEngine()
+		}
+		if err := a.eng.StartCapture(p.Path); err != nil {
+			return nil, err
+		}
+		a.capturePath = p.Path
+		return map[string]any{"path": p.Path}, nil
+
+	case "experiment.stop":
+		// The panel has had a stop button all along; the socket had no way to
+		// press it. A driven sweep that turns out to be measuring nothing then
+		// runs to the end of its matrix - forty-eight runs of a misconfigured
+		// mesh - while the only remedy is to quit the application.
+		e := a.ensureExperiment()
+		was := e.running
+		e.running = false
+		return map[string]any{"stopped": was, "done": len(e.results),
+			"total": e.runsTotal()}, nil
 
 	case "experiment.state":
 		e := a.ensureExperiment()
@@ -481,8 +528,12 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 		// says where.
 		e := a.ensureExperiment()
 		var p struct {
-			ArmA, ArmB string `json:"arm_a"`
-			Seed       uint64 `json:"seed"`
+			// Separately tagged. Declared on one line they shared the tag
+			// "arm_a", so arm_b never decoded and every compare silently ran
+			// against the empty string.
+			ArmA string `json:"arm_a"`
+			ArmB string `json:"arm_b"`
+			Seed uint64 `json:"seed"`
 		}
 		_ = json.Unmarshal(params, &p)
 		if p.Seed == 0 && len(e.Seeds) > 0 {
@@ -585,7 +636,15 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 		for _, ev := range evs {
 			out = append(out, map[string]any{
 				"at_ms": ev.AtMs, "kind": ev.Kind, "from": ev.From, "to": ev.To,
+				// Both ids. PacketID is one transmission; MessageID is the
+				// same for every hop of one message, and it is the only thing
+				// that lets a caller follow a flood from its origin through
+				// each relay. Exporting only PacketID made every hop look like
+				// a separate message: 124 transmissions came back as 124
+				// unrelated packets, and the propagation could not be
+				// reconstructed at all from outside the application.
 				"snr_db": ev.SNRdB, "detail": ev.Detail, "packet": ev.PacketID,
+				"message": ev.MessageID,
 			})
 		}
 		b, err := json.Marshal(out)
@@ -788,6 +847,7 @@ func (a *App) ctlEvents(limit int) []map[string]any {
 		out = append(out, map[string]any{
 			"at_ms": ev.AtMs, "kind": ev.Kind, "from": ev.From, "to": ev.To,
 			"snr_db": ev.SNRdB, "detail": ev.Detail, "packet": ev.PacketID,
+			"message": ev.MessageID,
 		})
 	}
 	return out
@@ -1119,6 +1179,18 @@ func (a *App) handleUICommand(method string, params json.RawMessage) (any, bool,
 		if version == "" {
 			return nil, true, fmt.Errorf("firmware.set needs a version")
 		}
+		// Checked here, where it was typed. A role with no build wrote through
+		// silently and surfaced minutes later, mid-sweep, as "<node> runs no
+		// firmware" - which reads as a firmware problem and is a typo. Only
+		// enforced when the version is one we have downloaded, so naming a
+		// build that has yet to be fetched still works.
+		cache := firmware.DefaultCacheDir()
+		if roles := firmware.CachedRoles(cache, version); len(roles) > 0 &&
+			!firmware.HasCachedBuild(cache, role, version) {
+			return nil, true, fmt.Errorf(
+				"no %q build in %s - it has: %s",
+				roleOrDefault(role), version, strings.Join(roles, ", "))
+		}
 		n := 0
 		for i := range a.Nodes {
 			if !a.Nodes[i].Kind.RunsFirmware() {
@@ -1365,4 +1437,13 @@ func (a *App) ctlWindow(name string, open bool) (any, bool, error) {
 		return nil, true, fmt.Errorf("no window %q", name)
 	}
 	return map[string]any{"window": name, "open": open}, true, nil
+}
+
+// roleOrDefault names the role an empty string means, so an error about a
+// missing build says which one it looked for.
+func roleOrDefault(role string) string {
+	if role == "" {
+		return firmware.DefaultRole
+	}
+	return role
 }
