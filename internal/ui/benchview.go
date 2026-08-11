@@ -486,10 +486,11 @@ func parseSeeds(s string) []uint64 {
 func (a *App) drawRuns() {
 	e := a.ensureExperiment()
 	if imgui.BeginTableV("##runs", 4, imgui.TableFlagsRowBg|imgui.TableFlagsBordersInnerH|
-		imgui.TableFlagsScrollY, imgui.NewVec2(0, 0), 0) {
-		imgui.TableSetupColumnV("arm", imgui.TableColumnFlagsWidthStretch, 0, 0)
-		imgui.TableSetupColumnV("seed", imgui.TableColumnFlagsWidthFixed, 90, 0)
-		imgui.TableSetupColumnV("state", imgui.TableColumnFlagsWidthFixed, 110, 0)
+		imgui.TableFlagsScrollY|imgui.TableFlagsResizable|imgui.TableFlagsSizingFixedFit,
+		imgui.NewVec2(0, 0), 0) {
+		imgui.TableSetupColumnV("arm", imgui.TableColumnFlagsWidthFixed, 0, 0)
+		imgui.TableSetupColumnV("seed", imgui.TableColumnFlagsWidthFixed, 0, 0)
+		imgui.TableSetupColumnV("state", imgui.TableColumnFlagsWidthFixed, 0, 0)
 		imgui.TableSetupColumnV("result", imgui.TableColumnFlagsWidthStretch, 0, 0)
 		imgui.TableHeadersRow()
 
@@ -615,11 +616,22 @@ func (a *App) drawMatrix() {
 	}
 	base := sums[e.baselineArm]
 
-	if imgui.BeginTableV("##matrix", 9, imgui.TableFlagsRowBg|imgui.TableFlagsBordersInnerH,
+	// Sized to their contents, draggable, and left alone afterwards: imgui
+	// keeps a resized width in its settings, so a column widened once does not
+	// snap back every time a run finishes and adds a row.
+	if imgui.BeginTableV("##matrix", 9, imgui.TableFlagsRowBg|imgui.TableFlagsBordersInnerH|
+		imgui.TableFlagsResizable|imgui.TableFlagsSizingFixedFit|imgui.TableFlagsNoHostExtendX,
 		imgui.NewVec2(0, 0), 0) {
-		for _, c := range []string{"arm", "runs", "tx", "to repeaters", "to companions",
-			"msgs", "collisions", "airtime", "to quiet"} {
-			imgui.TableSetupColumnV(c, imgui.TableColumnFlagsWidthStretch, 0, 0)
+		cols := []string{"arm", "runs", "tx", "to repeaters", "to companions",
+			"msgs", "collisions", "airtime", "to quiet"}
+		for i, c := range cols {
+			flags := imgui.TableColumnFlagsWidthFixed
+			if i == len(cols)-1 {
+				// The last one takes the slack, so there is never a ragged gap
+				// at the right edge.
+				flags = imgui.TableColumnFlagsWidthStretch
+			}
+			imgui.TableSetupColumnV(c, flags, 0, 0)
 		}
 		imgui.TableHeadersRow()
 		for i, s := range sums {
@@ -915,11 +927,16 @@ func (a *App) drawBenchConfig() {
 
 	imgui.Separator()
 	textDim("what each arm changes")
-	if imgui.BeginTableV("##armcfg", 5, imgui.TableFlagsRowBg|imgui.TableFlagsBordersInnerH,
+	if imgui.BeginTableV("##armcfg", 5, imgui.TableFlagsRowBg|imgui.TableFlagsBordersInnerH|
+		imgui.TableFlagsResizable|imgui.TableFlagsSizingFixedFit,
 		imgui.NewVec2(0, 0), 0) {
-		for _, c := range []string{"arm", "repeater fw", "companion fw",
-			"companion sends", "loop / cad"} {
-			imgui.TableSetupColumnV(c, imgui.TableColumnFlagsWidthStretch, 0, 0)
+		cfgCols := []string{"arm", "repeater fw", "companion fw", "companion sends", "loop / cad"}
+		for i, c := range cfgCols {
+			flags := imgui.TableColumnFlagsWidthFixed
+			if i == len(cfgCols)-1 {
+				flags = imgui.TableColumnFlagsWidthStretch
+			}
+			imgui.TableSetupColumnV(c, flags, 0, 0)
 		}
 		imgui.TableHeadersRow()
 		for _, arm := range e.Arms {

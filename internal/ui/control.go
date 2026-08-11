@@ -341,6 +341,20 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 		}
 		return map[string]any{"seeds": e.Seeds, "runs": e.runsTotal()}, nil
 
+	case "capture.wireshark":
+		// Start the live capture and open Wireshark on it. The header is
+		// rewritten once Wireshark has attached, because a pcapng stream
+		// carries its section header once and a reader that joins later sees
+		// none of it - which looks exactly like no traffic at all.
+		if a.eng == nil {
+			a.buildEngine()
+		}
+		if err := a.eng.StartCaptureUDP(captureUDPAddr); err != nil {
+			return nil, err
+		}
+		a.launchWireshark(captureUDPAddr)
+		return map[string]any{"udp": captureUDPAddr, "status": a.status}, nil
+
 	case "experiment.base":
 		// The experiment's constants, held across every arm.
 		var p struct {

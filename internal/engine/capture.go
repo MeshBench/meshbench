@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"sync"
 
@@ -26,6 +27,8 @@ type Capture struct {
 	w      *capture.PcapngWriter
 	ids    map[string]uint16
 	frames int
+	// udp sends each view as its own datagram instead of into a pcapng stream.
+	udp bool
 }
 
 // newCaptureOn wraps an already-open file in the pcapng writer — shared by
@@ -37,6 +40,33 @@ func newCaptureOn(sink io.WriteCloser) (*Capture, error) {
 		return nil, fmt.Errorf("engine: capture: %w", err)
 	}
 	return &Capture{sink: sink, w: w, ids: map[string]uint16{}}, nil
+}
+
+// StartCaptureUDP sends every receiver's view to a UDP port on loopback.
+//
+// Simpler than the named pipe in every way that was causing trouble. A pcapng
+// stream carries its section header once, at the very beginning, so a reader
+// that attaches later - or a second one - sees a stream it cannot parse and
+// displays nothing at all, however much traffic is flowing. Datagrams have no
+// such history: Wireshark can be started, stopped and restarted mid-run and
+// simply picks up from the next packet.
+//
+// The payload is the same pseudo-header and frame the pcapng link layer
+// carries, so one dissector reads both.
+func (e *Engine) StartCaptureUDP(addr string) error {
+	conn, err := net.Dial("udp", addr)
+	if err != nil {
+		return fmt.Errorf("engine: udp capture: %w", err)
+	}
+	c := &Capture{sink: conn, name: addr, ids: map[string]uint16{}, udp: true}
+	e.mu.Lock()
+	old := e.capture
+	e.capture = c
+	e.mu.Unlock()
+	if old != nil {
+		_ = old.close()
+	}
+	return nil
 }
 
 // StartCapture begins writing to path, replacing anything already there.
@@ -128,6 +158,17 @@ func (c *Capture) write(atMs uint32, from, to string, p phy, rssi, snr float64,
 		RSSIdBm: int16(rssi * 10), SNRdB: int16(snr * 10),
 		FreqHz: uint32(p.freqMHz * 1e6), SF: uint8(p.sf),
 		BWkHz: uint16(p.bandwidthHz / 1000), CR: uint8(p.codingRate), CRCOK: crc,
+	}
+	if c.udp {
+		// One datagram per view. Dropped silently if nothing is listening,
+		// which is what a diagnostic should do.
+		buf := append(h.Encode(), frame...)
+		if _, err := c.sink.Write(buf); err != nil {
+			_ = c.sink.Close()
+			c.sink = nil
+		}
+		c.frames++
+		return
 	}
 	// Microseconds since the run began, not wall time: a capture of a
 	// simulation is about simulated time, and stamping it with the clock on the

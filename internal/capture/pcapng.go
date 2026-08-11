@@ -43,6 +43,10 @@ var outcomeCodes = map[Outcome]uint8{
 // OutcomeCode maps an outcome to its wire value.
 func OutcomeCode(o Outcome) uint8 { return outcomeCodes[o] }
 
+// Encode is the wire form, shared by the pcapng link layer and the UDP export
+// so both carry exactly the same metadata and one dissector reads both.
+func (h PseudoHeader) Encode() []byte { return h.encode() }
+
 func (h PseudoHeader) encode() []byte {
 	// Writes to a bytes.Buffer cannot fail, so the errors are dropped rather
 	// than checked five times over — the alternative buries the layout, which

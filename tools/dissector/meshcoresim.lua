@@ -74,13 +74,25 @@ function msim.dissector(buf, pkt, tree)
     local frame = buf(HDR_LEN)
     t:add(f.payload, frame)
     t:add(f.mc_header, frame(0,1))
+    -- Hand the frame to the MeshCore dissector so the packet detail shows the
+    -- route, the path and the payload rather than a run of bytes.
+    Dissector.get("meshcore"):call(frame:tvb(), pkt, tree)
   end
   return buf:len()
 end
 
--- DLT_USER0
+-- DLT_USER0, for a pcapng file or pipe.
 local wtap_encap = DissectorTable.get("wtap_encap")
 wtap_encap:add(45, msim)
+
+-- And on loopback UDP, which is how the live view works.
+--
+-- A pcapng stream carries its section header once, so a reader that attaches
+-- after the run started - or a second one - sees a stream it cannot parse and
+-- shows nothing at all. Datagrams have no such history: start, stop and restart
+-- Wireshark whenever, and it picks up from the next packet.
+MSIM_UDP_PORT = 5555
+DissectorTable.get("udp.port"):add(MSIM_UDP_PORT, msim)
 
 -- MeshCore's own header, dissected from the frame that follows the
 -- pseudo-header.

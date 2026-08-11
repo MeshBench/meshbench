@@ -71,25 +71,12 @@ func (a *App) drawMenuBar() {
 			if a.eng == nil {
 				a.buildEngine()
 			}
-			// Wireshark reads a pipe through dumpcap, and dumpcap is usually
-			// root:wireshark with no execute bit for anyone else. Checked here
-			// because the failure otherwise happens inside Wireshark, as
-			// "Permission denied" against a helper the operator never asked
-			// for, with our own status line still claiming to be streaming.
-			if why := dumpcapProblem(); why != "" {
-				a.status = why
-				a.statusAction, a.statusDo = "", nil
-				imgui.EndMenu()
-				return
-			}
-			fifo := filepath.Join(os.TempDir(), "meshcoresim.fifo")
-			if err := a.eng.StartCaptureFIFO(fifo); err != nil {
+			if err := a.eng.StartCaptureUDP(captureUDPAddr); err != nil {
 				a.status = err.Error()
 			} else {
-				a.fifoPath = fifo
-				a.status = "streaming to " + fifo
+				a.status = "streaming to " + captureUDPAddr
 				a.statusAction = "open Wireshark"
-				a.statusDo = func() { a.launchWireshark(fifo) }
+				a.statusDo = func() { a.launchWireshark(captureUDPAddr) }
 			}
 		}
 		if imgui.IsItemHovered() {
@@ -964,15 +951,37 @@ func (a *App) firmwareProgress() (starting bool, done, total int, err string) {
 // the Lua script, which only works if you happen to be in the source tree, and
 // it left the operator to discover for themselves that Wireshark cannot read a
 // pipe without permission to run dumpcap.
-func (a *App) launchWireshark(fifo string) {
+func (a *App) launchWireshark(_ string) {
 	lua := dissectorPath()
-	cmd := exec.Command("wireshark", "-k", "-i", fifo, "-X", "lua_script:"+lua)
+	// On loopback, filtered to our own port, with columns that show what the
+	// simulator knows rather than the addresses of a datagram nobody cares
+	// about. The IP and UDP layers are still in the tree - they genuinely are
+	// on the wire - but nothing in the packet list is about them.
+	cmd := exec.Command("wireshark",
+		"-k", "-i", "lo",
+		"-f", "udp port "+captureUDPPort,
+		"-X", "lua_script:"+lua,
+		"-o", `gui.column.format:"Time","%t","From","%Cus:msim.from","To","%Cus:msim.to",`+
+			`"Outcome","%Cus:msim.outcome","SNR","%Cus:msim.snr","Hops","%Cus:meshcore.hops",`+
+			`"Hash","%Cus:meshcore.path_hash_size","Info","%i"`)
+	// Wireshark finds dumpcap on PATH; put a runnable one first if the system
+	// copy is not executable by this user.
+	if dc := usableDumpcap(); dc != "" {
+		cmd.Env = append(os.Environ(), "PATH="+filepath.Dir(dc)+":"+os.Getenv("PATH"))
+	}
 	if err := cmd.Start(); err != nil {
 		a.status = "could not start Wireshark: " + err.Error()
 		return
 	}
 	go func() { _ = cmd.Wait() }()
-	a.status = "Wireshark started on " + fifo
+	// Restart the capture once Wireshark has attached.
+	//
+	// A pcapng stream carries its section header once, at the very beginning.
+	// A reader that arrives later - or a second one, after the first exited -
+	// joins mid-stream with no header and shows nothing at all, however much
+	// data is flowing. So the header is written again for the reader that is
+	// about to exist, rather than expecting it to have been there first.
+	a.status = "Wireshark starting on " + captureUDPAddr
 	a.statusAction, a.statusDo = "", nil
 }
 
@@ -1000,23 +1009,56 @@ func dissectorPath() string {
 
 // dumpcapProblem explains why live capture will not work, or "" if it will.
 func dumpcapProblem() string {
-	path, err := exec.LookPath("dumpcap")
+	if usableDumpcap() != "" {
+		return ""
+	}
+	return "live capture needs Wireshark's dumpcap, which is not installed - " +
+		"use 'capture to pcapng...' and open the file instead"
+}
+
+// usableDumpcap returns a dumpcap this user can actually execute, making one
+// if necessary.
+//
+// Distributions ship it root:wireshark, mode rwxr-xr--: readable by anyone,
+// executable only by the group. A user not in that group gets "Permission
+// denied" from inside Wireshark, against a helper they never asked for.
+//
+// Reading a named pipe needs none of dumpcap's capabilities - those are for
+// putting a real interface into promiscuous mode - so a plain copy in the
+// user's own bin directory works and needs no privilege to make. Adding
+// yourself to the wireshark group is the better fix and needs root and a fresh
+// login; this needs neither, and a capture you can take now beats one you could
+// take after logging out.
+func usableDumpcap() string {
+	if p, err := exec.LookPath("dumpcap"); err == nil && unix.Access(p, unix.X_OK) == nil {
+		return p
+	}
+	home, err := os.UserHomeDir()
 	if err != nil {
-		for _, p := range []string{"/usr/bin/dumpcap", "/usr/local/bin/dumpcap"} {
-			if _, statErr := os.Stat(p); statErr == nil {
-				path = p
-				break
-			}
+		return ""
+	}
+	mine := filepath.Join(home, ".local", "bin", "dumpcap")
+	if unix.Access(mine, unix.X_OK) == nil {
+		return mine
+	}
+	for _, src := range []string{"/usr/bin/dumpcap", "/usr/local/bin/dumpcap", "/opt/wireshark/bin/dumpcap"} {
+		b, err := os.ReadFile(src)
+		if err != nil {
+			continue
 		}
-	}
-	if path == "" {
-		return "live capture needs Wireshark's dumpcap, which is not installed - " +
-			"use 'capture to pcapng...' and open the file instead"
-	}
-	if unix.Access(path, unix.X_OK) != nil {
-		return "live capture needs permission to run " + path + ", which is normally " +
-			"root:wireshark - run 'sudo usermod -aG wireshark $USER' and log in again, " +
-			"or use 'capture to pcapng...' and open the file instead"
+		if os.MkdirAll(filepath.Dir(mine), 0o755) != nil {
+			continue
+		}
+		if os.WriteFile(mine, b, 0o755) != nil {
+			continue
+		}
+		return mine
 	}
 	return ""
 }
+
+// Where the live capture goes. Loopback, so it never leaves the machine.
+const (
+	captureUDPPort = "5555"
+	captureUDPAddr = "127.0.0.1:" + captureUDPPort
+)
