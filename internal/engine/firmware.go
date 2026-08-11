@@ -168,7 +168,14 @@ func (e *Engine) AttachNativeProgress(ctx context.Context, seed uint64, progress
 		// run froze the application outright: the node's process had gone, so
 		// the ack it waits for could never arrive, and the background context
 		// gave it no deadline to give up at.
-		advCtx, cancel := context.WithTimeout(ctx, attachTimeout)
+		//
+		// Scaled by how much simulated time is being asked for, not fixed. The
+		// boot offset can be a couple of minutes, and since the radio became
+		// real - MeshCore's driver over RadioLib over a virtual chip - each
+		// simulated millisecond costs far more CPU than the old stub did. A
+		// timeout sized for that stub failed every node in a 154-node scenario
+		// on a stagger it had happily handled the week before.
+		advCtx, cancel := context.WithTimeout(ctx, bootAdvanceTimeout(off))
 		err = fw.Bridge.Advance(advCtx, off)
 		cancel()
 		if err != nil {
@@ -223,6 +230,19 @@ func (e *Engine) AttachNativeProgress(ctx context.Context, seed uint64, progress
 
 // attachTimeout is how long a firmware process gets to connect back.
 const attachTimeout = 10 * time.Second
+
+// bootAdvanceTimeout is how long a node gets to simulate its boot offset.
+//
+// Proportional, because the work is: a node told to advance two minutes runs
+// two minutes of firmware, radio driver and virtual chip. The floor keeps a
+// zero offset from having no patience at all.
+func bootAdvanceTimeout(offsetMs uint32) time.Duration {
+	d := time.Duration(offsetMs) * time.Millisecond * 2
+	if d < attachTimeout {
+		return attachTimeout
+	}
+	return d
+}
 
 func waitAttached(ctx context.Context, n *firmware.Node, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)

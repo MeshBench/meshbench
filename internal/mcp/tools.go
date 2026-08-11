@@ -371,7 +371,7 @@ func limitationsTool() Tool {
 		InputSchema: schema(map[string]any{}),
 		Call: func(context.Context, json.RawMessage) (string, error) {
 			return strings.Join([]string{
-				"MeshBench is systematically OPTIMISTIC. Treat every result as a best case.",
+				"MeshcoreSim is systematically OPTIMISTIC. Treat every result as a best case.",
 				"",
 				"Absent from the model:",
 				"  - No multipath. The failure that dominates real marginal links — good median",

@@ -21,7 +21,7 @@ class HostBoard : public mesh::MainBoard {
   // is modelled, and it is not fed from here.
   uint16_t getBattMilliVolts() override { return 4200; }
 
-  const char* getManufacturerName() const override { return "MeshBench host"; }
+  const char* getManufacturerName() const override { return "MeshcoreSim host"; }
 
   void reboot() override {}
 

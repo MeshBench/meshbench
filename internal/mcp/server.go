@@ -2,7 +2,7 @@
 // Protocol.
 //
 // Over stdio, as a process the client spawns. That is not an implementation
-// detail: MeshBench runs standalone and this must not become a service. There
+// detail: MeshcoreSim runs standalone and this must not become a service. There
 // is no port, no session, nothing to deploy and nothing listening when the
 // client is not running.
 //
