@@ -129,6 +129,14 @@ type expResult struct {
 	RepPerMsg  []int
 	CompPerMsg []int
 
+	// What the radios reported about the channel, summed over nodes.
+	//
+	// BusyReads against IRQReads is the share of the firmware's own channel
+	// checks that found the air occupied, which is the number separating "the
+	// mesh was busy" from "our virtual chip cries busy". The second would look
+	// exactly like a finding about the firmware.
+	IRQReads, BusyReads, BusyMs, Spurious uint64
+
 	// Flag is set when the run should not be believed - most usefully when
 	// nothing relayed, which produces perfectly plausible totals.
 	Flag string
