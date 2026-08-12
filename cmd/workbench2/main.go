@@ -39,6 +39,7 @@ func main() {
 	profFlag := flag.String("cpuprofile", "", "write a CPU profile here")
 	playFlag := flag.Bool("play", false, "start the simulation immediately")
 	injectFlag := flag.String("inject", "", "originate a packet at this node once running")
+	saveRunFlag := flag.String("save-run", "", "save a run record under this name, then keep running")
 	shadeFlag := flag.Bool("terrain", false, "shade the relief at startup")
 	coverFlag := flag.String("coverage", "",
 		"compute and show coverage from this node at startup")
@@ -124,6 +125,13 @@ func main() {
 		go func() {
 			time.Sleep(4 * time.Second)
 			_, _ = st.Do(ctx, "energy.for_selection", nil)
+		}()
+	}
+	if *saveRunFlag != "" {
+		go func() {
+			// After the run has had time to produce counters worth recording.
+			time.Sleep(18 * time.Second)
+			_, _ = st.Do(ctx, "run.save", *saveRunFlag)
 		}()
 	}
 	if *captureFlag != "" {
@@ -238,6 +246,11 @@ func main() {
 		Draw: func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
 			return wf.Layout(t, gtx, s)
 		}})
+	cmpP := &comparePanel{}
+	cmpP.OnSave = func() {
+		go func() { _, _ = st.Do(ctx, "run.save", "run") }()
+	}
+	sh.Add(&shell.Panel{Name: "Compare", Windowable: true, Draw: cmpP.Draw})
 	cfg := &configPanel{}
 	logp := &logPanel{}
 	sh.Add(&shell.Panel{Name: "Configuration", Windowable: true, Draw: cfg.Draw})
@@ -274,7 +287,6 @@ func main() {
 	sh.Add(&shell.Panel{Name: "Firmware", Windowable: true, Draw: fw.Draw})
 	sh.Add(&shell.Panel{Name: "Runs", Windowable: true, Draw: runs.Draw})
 	for _, p := range []struct{ name, what string }{
-		{"Compare", "two runs, metric by metric - P6"},
 		{"Validate", "residuals against reality - P6"},
 		{"Sweep", "arms, seeds, senders - P6"},
 	} {

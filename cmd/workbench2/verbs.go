@@ -406,6 +406,20 @@ func registerVerbs(st *state.Store, s *sim) {
 		w.Endpoints = s.endpoints()
 		return nil, nil
 	})
+	st.Handle("run.save", func(w *state.World, p any) (any, error) {
+		name, _ := p.(string)
+		if name == "" {
+			name = "run"
+		}
+		// Saved from the snapshot rather than from the world, so what is
+		// recorded is exactly what was on screen when somebody pressed save.
+		path, err := saveRun(name, st.Snapshot(), buildOf(s))
+		if err != nil {
+			return nil, err
+		}
+		w.Say("saved " + path)
+		return map[string]any{"path": path}, nil
+	})
 	st.Handle("session.describe", func(w *state.World, _ any) (any, error) {
 		return map[string]any{
 			"nodes": len(w.Nodes), "seed": w.Seed, "now_ms": w.NowMs,
