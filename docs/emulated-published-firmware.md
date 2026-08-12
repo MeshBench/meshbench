@@ -22,7 +22,7 @@ there, and the watchdog resets the board. That is the whole blocker. Everything
 else on this page is small by comparison.
 
 **And we already have the missing piece.** `VirtualSX1262` in
-[meshcore-native](https://github.com/A13xB0/meshcore-native) satisfies RadioLib
+[meshcore-native](https://github.com/MeshBench/meshcore-native) satisfies RadioLib
 7.6.0's unmodified driver: opcodes, status bytes, register reads, buffer
 addressing, IRQ semantics, TX and RX-done timing. It has carried 154 nodes
 through hundreds of runs. It just needs to be reachable from inside QEMU instead

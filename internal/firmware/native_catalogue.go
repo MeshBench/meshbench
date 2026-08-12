@@ -20,7 +20,7 @@ import (
 // A separate repository from the emulated images, and from this one: those
 // binaries link MeshCore, so they are published under MeshCore's own MIT licence
 // rather than from a project that has not chosen one (ADR-0020).
-const NativeReleasesURL = "https://api.github.com/repos/A13xB0/meshcore-native/releases"
+const NativeReleasesURL = "https://api.github.com/repos/MeshBench/meshcore-native/releases"
 
 // NativeImage is one host build: an application, a MeshCore version, and a
 // machine to run it on.

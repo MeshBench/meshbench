@@ -5,20 +5,26 @@ changed. Written for the move into its own organisation: the awkward part of
 that move is not the repositories, it is the references *between* them, and
 those are listed here.
 
-## Ours
+## Where things live
+
+Everything except MeshBench itself is in the **MeshBench** organisation.
 
 | repository | what it is | licence |
 |---|---|---|
 | `A13xB0/meshcoresim` | MeshBench itself | none chosen yet — ADR-0001 |
-| `A13xB0/meshcore-native` | host builds of MeshCore, `VirtualSX1262`, the bridge and `radioserver` | see its NOTICE |
-| `A13xB0/meshbench-reports` | the published reports site | — |
+| `MeshBench/meshcore-native` | host builds of MeshCore, `VirtualSX1262`, the bridge and `radioserver` | see its NOTICE |
+| `MeshBench/meshbench-reports` | the published reports site | — |
+| `MeshBench/qemu` | QEMU with our SX1262 | GPLv2, upstream's |
+| `MeshBench/tlib` | the CPU library, with the SEVONPEND fix | upstream's |
+| `MeshBench/renode-infrastructure` | the C# half of that fix | upstream's |
+| `MeshBench/renode` | ties them together and builds the package | upstream's |
 
 ## Forks, and what we changed in each
 
 Every one is a fork we carry a patch on, not a vendored copy. Upstream is listed
 so the patch can be rebased, and so anyone can see how small each change is.
 
-### `A13xB0/qemu` — branch `meshbench-sx1262`
+### `MeshBench/qemu` — branch `meshbench-sx1262`
 
 Forked from Espressif's QEMU fork (`esp-develop`, QEMU 9.2.2). Adds an SX1262
 SPI device, a working GPIO implementation, and machine properties for the radio
@@ -31,7 +37,7 @@ chip present.
 
 Build with `--enable-gcrypt` or the `esp32` machine will not instantiate.
 
-### `A13xB0/tlib` — branch `sevonpend-any-pending`
+### `MeshBench/tlib` — branch `sevonpend-any-pending`
 
 Forked from `antmicro/tlib`. One clause: SEVONPEND generates an event for *any*
 exception entering the pending state, not only for ones the CPU would accept.
@@ -43,12 +49,12 @@ firmware that sets SEVONPEND, sleeps on `WFE` and then reads ISPR — handling t
 source in thread mode with the interrupt deliberately disabled — never woke.
 MeshCore's published nRF52 builds do exactly that.
 
-### `A13xB0/renode-infrastructure` — branch `sevonpend-any-pending`
+### `MeshBench/renode-infrastructure` — branch `sevonpend-any-pending`
 
 The C# half of the same fix: `AnyInterruptPending`, exported as `PendingIRQ()`
 for the tlib callback. Its own `tlib` submodule points at our fork.
 
-### `A13xB0/renode` — branch `meshbench`
+### `MeshBench/renode` — branch `meshbench`
 
 Points `src/Infrastructure` at our fork, and carries a GitHub Actions workflow
 that builds the **portable** package — the one that bundles the .NET runtime, so
@@ -70,24 +76,32 @@ and the OTAFIX bootloader packages are downloaded from their releases and from
 The Nordic SoftDevice is not ours and cannot be redistributed. Anyone running
 published nRF52 firmware supplies their own copy.
 
-## Moving to an organisation
+## The move, and what is left of it
 
-The repositories are the easy part. These are the references that will break,
-roughly in the order they will bite:
+The four forks are moved. Done at the same time, because the references between
+them are the awkward part rather than the repositories:
 
-1. **Submodule URLs.** `A13xB0/renode` → `src/Infrastructure`, and
-   `A13xB0/renode-infrastructure` → `src/Emulator/Cores/tlib`. A submodule
-   pointing at a moved repository keeps working through GitHub's redirect until
-   it does not, and the failure is a build that silently checks out upstream.
-   The workflow's assertion is what catches that, so keep it.
-2. **Release download URLs**, wherever packaging fetches the Renode and QEMU
-   builds from.
-3. **`internal/firmware`** — the native build catalogue resolves releases from
-   `A13xB0/meshcore-native`. That name is in code, not configuration.
-4. **Documentation links**, including `docs/packaging-emulation.md`, the Renode
-   notes under `tools/renode/`, and this file.
-5. **The reports site**, which publishes under a GitHub Pages domain derived
-   from the account name.
+- **Submodule URLs**, both of them: `MeshBench/renode` → `src/Infrastructure`,
+  and `MeshBench/renode-infrastructure` → `src/Emulator/Cores/tlib`. A submodule
+  pointing at a moved repository keeps working through GitHub's redirect until
+  it does not, and the failure is a build that silently resolves to upstream -
+  an emulator that looks correct and hangs exactly where the fix was written to
+  cure. The workflow asserts both halves of the SEVONPEND fix are in the tree it
+  built, which is what catches that; keep it.
+- **The release notes** the workflow writes, which link to the two branches.
+- **Documentation**, here and in `docs/packaging-emulation.md`, `README.md` and
+  the notes under `tools/renode/`.
 
-Worth doing in one pass with the redirects still live, rather than discovering
-them one build failure at a time.
+`meshcore-native` and `meshbench-reports` followed. Two things there did not
+follow a redirect:
+
+1. **`NativeReleasesURL`** in `internal/firmware` names the releases repository
+   in code rather than configuration, so the move was a code change.
+2. **Published report URLs.** The reports site serves from a Pages domain
+   derived from the account, so every link that was
+   `a13xb0.github.io/meshbench-reports/...` is now
+   `meshbench.github.io/meshbench-reports/...`. Anything already shared - the
+   listen-before-talk report was given out as a keynote link - points at the old
+   one.
+
+Still to move: **`A13xB0/meshcoresim`** itself.

@@ -55,7 +55,7 @@ Call it before assuming anything about a session you did not start.
 
 ## Firmware comes from meshcore-native, not from your own build
 
-`A13xB0/meshcore-native` publishes a native build per MeshCore tag -
+`MeshBench/meshcore-native` publishes a native build per MeshCore tag -
 `repeater-v1.16.0`, `companion-v1.17.0`, and so on - all from one pipeline.
 Those are the ones to use, and `firmware.Resolve` fetches them into
 `~/.cache/meshcoresim/firmware/native/<tag>/`.

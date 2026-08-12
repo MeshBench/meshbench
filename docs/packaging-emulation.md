@@ -34,9 +34,9 @@ Four things have to be present. Only two can be shipped.
 
 | piece | source | ship it? | size |
 |---|---|---|---|
-| QEMU with our SX1262 | `A13xB0/qemu`, branch `meshbench-sx1262` | yes | ~69 MB |
-| `radioserver` | `A13xB0/meshcore-native`, `bridge/radioserver.cpp` | yes | ~40 KB |
-| Renode with our SEVONPEND fix | `A13xB0/renode`, branch `meshbench` | yes | ~60 MB packed |
+| QEMU with our SX1262 | `MeshBench/qemu`, branch `meshbench-sx1262` | yes | ~69 MB |
+| `radioserver` | `MeshBench/meshcore-native`, `bridge/radioserver.cpp` | yes | ~40 KB |
+| Renode with our SEVONPEND fix | `MeshBench/renode`, branch `meshbench` | yes | ~60 MB packed |
 | Nordic SoftDevice | Nordic, per-user | **no — licence** | 155 KB |
 
 Board images and native builds are *not* in this list. They are downloaded on
