@@ -217,6 +217,10 @@ func main() {
 		Draw: func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
 			return comp.Budget{}.Layout(t, gtx, s)
 		}})
+	sh.Add(&shell.Panel{Name: "Matrix", Windowable: true,
+		Draw: func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+			return comp.Matrix{}.Layout(t, gtx, s)
+		}})
 	wf := &comp.Waterfall{}
 	sh.Add(&shell.Panel{Name: "Waterfall", Windowable: true,
 		Draw: func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
@@ -232,7 +236,6 @@ func main() {
 		{"Compare", "two runs, metric by metric - P6"},
 		{"Validate", "residuals against reality - P6"},
 		{"Sweep", "arms, seeds, senders - P6"},
-		{"Matrix", "arms against seeds - P5"},
 		{"Companion bench", "an endpoint to point your client at - P6"},
 		{"Console", "per-node tabs - P6"},
 	} {

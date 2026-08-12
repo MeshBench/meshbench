@@ -74,6 +74,8 @@ type Snapshot struct {
 	WaterfallNote string
 	// Budgets are the two directions of the link last asked about.
 	Budgets []Budget
+	// Matrix is the sweep last loaded, or nil.
+	Matrix *Matrix
 }
 
 // Point is a position, and the only geometry the snapshot carries.
@@ -180,6 +182,19 @@ type Budget struct {
 	MarginDB float64
 }
 
+// Matrix is one metric over arms and seeds.
+//
+// Values is row-major, arms down and seeds across, and NaN marks a cell that
+// was not run. Not zero: a run that did not happen and a run that measured
+// nothing are different claims, and a heatmap that draws them the same colour
+// tells the reader the wrong one.
+type Matrix struct {
+	Metric string
+	Arms   []string
+	Seeds  []uint64
+	Values []float64
+}
+
 // Node is one node, as the interface needs it.
 type Node struct {
 	Name     string
@@ -251,6 +266,8 @@ type World struct {
 	WaterfallNote string
 	// Budgets are the two directions of the link last asked about.
 	Budgets []Budget
+	// Matrix is the sweep last loaded, or nil.
+	Matrix *Matrix
 
 	// Tick is called every step while playing, and is where engine pacing
 	// lives now that it is out of the frame loop. Nil means no engine.
@@ -431,6 +448,7 @@ func (s *Store) publish() {
 		Waterfall:     s.world.Waterfall,
 		WaterfallNote: s.world.WaterfallNote,
 		Budgets:       s.world.Budgets,
+		Matrix:        s.world.Matrix,
 	})
 }
 
