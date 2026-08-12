@@ -35,6 +35,9 @@ type MapView struct {
 	cam         camera
 	labels      labeller
 	sizes       labelSizer
+	// Layers is what is drawn. Exported so a window, a menu or a script can
+	// set it without reaching through the map.
+	Layers Layers
 
 	// OnSelect is called when the pointer changes the selection. Additive is
 	// a shift-click or a shift-drag, which adds rather than replaces.
@@ -65,6 +68,7 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 		m.fit(s, sz)
 		m.initialised = true
 	}
+	m.Layers.defaults()
 
 	// The basemap first, under everything. Only cached tiles are drawn: a
 	// redraw that waits on the network is a window that stops painting.
@@ -79,8 +83,9 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 
 	// The basemap first, under everything. Only cached tiles are drawn: a
 	// redraw that waits on the network is a window that stops painting.
-	if m.Tiles != nil {
-		m.Tiles.Draw(gtx, sz, m.CentreLat, m.CentreLon, m.Zoom)
+	drawn, want := 0, 0
+	if m.Tiles != nil && m.Layers.Basemap {
+		drawn, want = m.Tiles.Draw(gtx, sz, m.CentreLat, m.CentreLon, m.Zoom)
 	}
 
 	// Links, batched. One path, one fill, however many links.
@@ -110,7 +115,7 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 	// frame with nothing in it panics the next path that tries to start one -
 	// which is a crash on an empty map, the easiest state to reach.
 	spec := lp.End()
-	if links > 0 {
+	if links > 0 && m.Layers.Links {
 		paint.FillShape(gtx.Ops, theme.Alpha(t.P.Accent, 0.22),
 			clip.Outline{Path: spec}.Op())
 	}
@@ -125,6 +130,9 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 		byKind[kindOf(p.n.Kind)] = append(byKind[kindOf(p.n.Kind)], p)
 	}
 	for k, list := range byKind {
+		if !m.Layers.Nodes {
+			break
+		}
 		var np clip.Path
 		np.Begin(gtx.Ops)
 		for _, p := range list {
@@ -139,8 +147,11 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 
 	// Labels, placed so they do not overlap. See maplabels.go for why greedy
 	// and why stable.
-	spots := m.labels.place(pts, sz, m.cam.hover,
-		func(i int) image.Point { return m.sizes.measure(gtx, t, pts[i].n.Name) })
+	spots := map[int]image.Point{}
+	if m.Layers.Labels {
+		spots = m.labels.place(pts, sz, m.cam.hover,
+			func(i int) image.Point { return m.sizes.measure(gtx, t, pts[i].n.Name) })
+	}
 	for i, at := range spots {
 		col := t.P.Dim
 		if pts[i].n.Selected || i == m.cam.hover {
@@ -160,11 +171,9 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 		off.Pop()
 	}
 
-	// Scale bar and attribution, bottom left, as the old map had.
-	off := op.Offset(image.Pt(gtx.Dp(t.Sp.M), sz.Y-gtx.Dp(t.Sp.XL))).Push(gtx.Ops)
-	Mono(t, t.Sz.Caption, t.P.Faint,
-		"20 km    Elevation: AWS terrarium    (c) OpenStreetMap")(gtx)
-	off.Pop()
+	m.measureReadout(t, gtx, sz)
+	m.scaleBar(t, gtx, sz, basemapNote(drawn, want, m.Tiles != nil && m.Layers.Basemap))
+	m.layerPanel(t, gtx, sz)
 
 	return layout.Dimensions{Size: sz}
 }

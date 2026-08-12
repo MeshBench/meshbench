@@ -30,6 +30,7 @@ const (
 	dragPan
 	dragNode
 	dragBox
+	dragMeasure
 )
 
 type camera struct {
@@ -76,6 +77,8 @@ func (m *MapView) handle(gtx layout.Context, sz image.Point, pts []projected) {
 			m.cam.from, m.cam.last, m.cam.moved = e.Position, e.Position, false
 			m.cam.nodeIndex = nearestWithin(pts, e.Position, 10)
 			switch {
+			case m.Layers.Measure:
+				m.cam.drag = dragMeasure
 			case e.Modifiers.Contain(key.ModShift):
 				m.cam.drag, m.cam.boxTo = dragBox, e.Position
 			case m.cam.nodeIndex >= 0:
@@ -94,6 +97,8 @@ func (m *MapView) handle(gtx layout.Context, sz image.Point, pts []projected) {
 				m.pan(d, sz)
 			case dragBox:
 				m.cam.boxTo = e.Position
+			case dragMeasure:
+				// Nothing to do: the readout is drawn from from and last.
 			case dragNode:
 				if m.OnMove != nil && m.cam.nodeIndex >= 0 {
 					lat, lon := m.unproject(e.Position, sz)
@@ -110,6 +115,8 @@ func (m *MapView) handle(gtx layout.Context, sz image.Point, pts []projected) {
 // release is where a gesture becomes a decision.
 func (m *MapView) release(e pointer.Event, pts []projected, sz image.Point) {
 	switch {
+	case m.cam.drag == dragMeasure:
+		// A measurement is not a selection.
 	case m.cam.drag == dragBox:
 		// A box that was never dragged is a shift-click, which is an additive
 		// click rather than an empty selection.
