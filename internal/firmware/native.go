@@ -105,11 +105,34 @@ func NodeWorkDir(name string) string {
 			return '_'
 		}
 	}, name)
+	return filepath.Join(NodeFSRoot(), safe)
+}
+
+// EnvNodeFS moves every node's persistent storage somewhere else.
+//
+// A node keeps its identity and its preferences between runs, on purpose:
+// that is how hardware behaves. It is also a quiet trap when comparing two
+// firmware builds, because **saved preferences beat a compiled default**. A
+// node that has run before loads its old value and never reaches the changed
+// one, so both arms of an A/B return identical numbers and the change looks
+// like it did nothing - silently, and in both arms, which is the worst way for
+// a comparison to fail.
+//
+// Pointing this at a directory per arm gives each one nodes that have never
+// run. It is equally useful to a person who wants an experiment not to inherit
+// last week's state.
+const EnvNodeFS = "MESHCORESIM_NODEFS"
+
+// NodeFSRoot is where per-node storage lives.
+func NodeFSRoot() string {
+	if p := os.Getenv(EnvNodeFS); p != "" {
+		return p
+	}
 	base, err := os.UserCacheDir()
 	if err != nil {
-		return filepath.Join("nodefs", safe)
+		return "nodefs"
 	}
-	return filepath.Join(base, "meshcoresim", "nodefs", safe)
+	return filepath.Join(base, "meshcoresim", "nodefs")
 }
 
 // WipeNodeStorage deletes every node's persistent files — identities, prefs,
@@ -122,11 +145,11 @@ func NodeWorkDir(name string) string {
 // Identities regenerate deterministically from the run seed, so a wipe costs
 // nothing but the next boot.
 func WipeNodeStorage() error {
-	base, err := os.UserCacheDir()
-	if err != nil {
-		return err
-	}
-	return os.RemoveAll(filepath.Join(base, "meshcoresim", "nodefs"))
+	// Through NodeFSRoot, so a run with MESHCORESIM_NODEFS set wipes the
+	// storage it is actually using. Wiping a different directory from the one
+	// in use is worse than not wiping at all: it reports success and changes
+	// nothing.
+	return os.RemoveAll(NodeFSRoot())
 }
 
 // Native runs MeshCore compiled for this host, as a child process.
