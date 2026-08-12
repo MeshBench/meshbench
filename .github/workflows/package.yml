@@ -1,0 +1,114 @@
+name: package
+
+# A bundle somebody can download and run, with the emulators inside it.
+#
+# Linux only for now, deliberately. macOS and Windows are visible below and
+# skipped, with the reason in the file: an absent row gets forgotten, a skipped
+# one with a reason gets picked up.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      release:
+        description: 'Publish a release from this build'
+        type: boolean
+        default: false
+
+jobs:
+  linux:
+    runs-on: ubuntu-22.04   # oldest we support: glibc is most of what
+                            # "every flavour of Linux" actually means
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.24', cache: true }
+
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          # cgo through cimgui-go, so this is a native build and not a
+          # cross-compile. GL and X11 headers are needed to link even though the
+          # binary can run headless.
+          sudo apt-get install -y --no-install-recommends \
+            gcc pkg-config libgl1-mesa-dev xorg-dev
+
+      - name: Build and check
+        run: |
+          set -e
+          test -z "$(gofmt -l ./cmd ./internal)"
+          go vet ./...
+          go test ./...
+          go build -trimpath -o dist/meshbench/meshbench ./cmd/meshcoresim
+
+      - name: Fetch the emulators
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          cd dist/meshbench
+          # Both are our forks and neither can be a distribution build: ours
+          # carry the SX1262 device and the SEVONPEND fix respectively, and a
+          # stock build of either runs, reports no chip or hangs, and looks like
+          # our fault.
+          gh release download --repo MeshBench/qemu --pattern '*linux-x86_64.tar.gz' \
+            --dir . --clobber || echo "::warning::no QEMU release yet, bundle ships without it"
+          gh release download --repo MeshBench/renode --pattern '*linux-portable.tar.gz' \
+            --dir . --clobber || echo "::warning::no Renode release yet, bundle ships without it"
+          for f in *.tar.gz; do [ -e "$f" ] && tar xzf "$f" && rm "$f"; done
+          ls -la
+
+      - name: Assemble
+        run: |
+          set -e
+          cd dist/meshbench
+          # Beside the binary is where MeshBench looks second, after the
+          # environment variable and before its cache. A desktop application is
+          # not launched from a shell, so PATH is nearly useless to it.
+          [ -d qemu-meshbench ] && ln -sf qemu-meshbench/bin/qemu-system-xtensa .
+          cat > README.txt <<'TXT'
+          MeshBench
+
+          Run ./meshbench workbench
+
+          The emulators beside this file are found automatically. They are not
+          distribution builds and cannot be: the QEMU carries an SX1262 device
+          upstream does not have, and the Renode carries a SEVONPEND fix without
+          which published nRF52 firmware sleeps for ever.
+
+          qemu-system-xtensa is a symlink on purpose. QEMU resolves its own path
+          to find its data files, so a bare copy of the binary will not run.
+
+          Native MeshCore builds and board images are downloaded on first use and
+          cached under ~/.cache/meshcoresim. Nothing else is needed.
+          TXT
+          cd ..
+          tar czf meshbench-linux-x86_64.tar.gz meshbench
+          ls -la *.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: meshbench-linux
+          path: dist/*.tar.gz
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/') || inputs.release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF_NAME:-$(date -u +%Y%m%d)-$(git rev-parse --short HEAD)}"
+          gh release create "$TAG" dist/*.tar.gz --generate-notes || \
+            gh release upload "$TAG" dist/*.tar.gz --clobber
+
+  macos:
+    if: false   # no runner yet: the QEMU fork has never been built on Darwin,
+                # and Apple Silicon needs its own build rather than an x86_64 one
+    runs-on: macos-14
+    steps: [{ run: 'echo see docs/packaging-emulation.md' }]
+
+  windows:
+    if: false   # no runner yet: radioserver's QEMU path uses Unix sockets. The
+                # TCP path it already has for Renode is what this needs first.
+    runs-on: windows-latest
+    steps: [{ run: 'echo see docs/packaging-emulation.md' }]
