@@ -43,6 +43,8 @@ func main() {
 	profFlag := flag.String("cpuprofile", "", "write a CPU profile here")
 	playFlag := flag.Bool("play", false, "start the simulation immediately")
 	injectFlag := flag.String("inject", "", "originate a packet at this node once running")
+	openFwFlag := flag.String("open-firmware", "", "open this node's firmware list at startup")
+	openMenuFlag := flag.String("node-menu", "", "open this node's context menu at startup")
 	filterFlag := flag.String("filter", "", "preset the node view's search box, so a filtered table can be captured")
 	popFlag := flag.String("pop-out", "", "open this panel in its own window at startup")
 	importFlag := flag.String("import", "", "describe an import from this CoreScope URL at startup")
@@ -337,6 +339,17 @@ func main() {
 	}
 	if *filterFlag != "" {
 		nv.SetFilter(*filterFlag)
+	}
+	if *openFwFlag != "" {
+		nv.OpenFirmware(*openFwFlag)
+	}
+	if *openMenuFlag != "" {
+		go func() {
+			// After the first snapshot, so the menu knows whether the
+			// node is running and can offer stop rather than start.
+			time.Sleep(30 * time.Second)
+			nv.OpenMenu(*openMenuFlag, st.Snapshot())
+		}()
 	}
 	sh.Add(&shell.Panel{Name: "Nodes running", Windowable: true, Draw: nv.Draw})
 	fleet := &fleetPanel{}

@@ -204,8 +204,15 @@ func (p *nodeViewPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 		layout.Rigid(p.firmwareList(t)),
 		layout.Rigid(p.contextMenu(t)),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			// A reserved height, so the flex takes it from the table above
-			// rather than the graphs running off the bottom of the window.
+			// The graphs give up their space while a menu is open.
+			//
+			// Both reserve height, and a flex that cannot fit its rigid
+			// children draws them over each other - which put the menu's
+			// entries on top of the graph titles. One or the other, and the
+			// menu wins because it was just asked for.
+			if p.menuFor != "" || p.pickFor != "" {
+				return layout.Dimensions{}
+			}
 			gtx.Constraints.Min.Y = gtx.Dp(96)
 			gtx.Constraints.Max.Y = gtx.Dp(96)
 			return nodeGraphs(t, gtx, s)
@@ -486,4 +493,17 @@ func (p *nodeViewPanel) contextMenu(t *theme.Theme) layout.Widget {
 		}
 		return layout.Dimensions{}
 	}
+}
+
+// OpenFirmware and OpenMenu show a node's controls without a click.
+//
+// Scriptable for the same reason the search box and the pop-out are: a control
+// that only opens under a hand cannot be captured, and a thing nobody can
+// screenshot is a thing nobody checks. This is now the third time that has
+// bitten, so it goes in with the control rather than after it.
+func (p *nodeViewPanel) OpenFirmware(node string) { p.pickFor = node }
+
+func (p *nodeViewPanel) OpenMenu(node string, s *state.Snapshot) {
+	p.menuFor = node
+	p.menuItems = nodeMenuFor(node, s)
 }
