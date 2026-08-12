@@ -17,6 +17,7 @@ import (
 	"gioui.org/font"
 	"gioui.org/font/gofont"
 	"gioui.org/font/opentype"
+	"gioui.org/io/key"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/text"
@@ -429,6 +430,27 @@ func main() {
 	sh.SetMenu("Help", []shell.MenuItem{
 		{Label: "What this run assumes", Action: "panel.Configuration"},
 	})
+	// The bindings. Menu labels and the sheet are generated from this, so
+	// there is one place a shortcut is decided.
+	if clashes := sh.SetShortcuts([]shell.Shortcut{
+		{Name: key.NameSpace, Action: "sim.toggle", What: "play or pause"},
+		{Name: "S", Mods: key.ModCtrl, Action: "run.save", What: "save this run"},
+		{Name: "I", Mods: key.ModCtrl, Action: "sim.inject", What: "originate a packet at the selection"},
+		{Name: "K", Mods: key.ModCtrl, Action: "coverage.compute", What: "coverage from the selection"},
+		{Name: "W", Mods: key.ModCtrl, Action: "waterfall.capture", What: "capture the waterfall"},
+		{Name: "L", Mods: key.ModCtrl, Action: "plan.routes", What: "routes between two selected nodes"},
+		{Name: "M", Mods: key.ModCtrl, Action: "panel.Map", What: "map in its own window"},
+		{Name: "P", Mods: key.ModCtrl, Action: "panel.Settings", What: "settings"},
+		{Name: "/", Mods: key.ModCtrl, Action: "panel.Shortcuts", What: "this list"},
+	}); len(clashes) > 0 {
+		// Loudly, at startup, rather than silently at the first press.
+		for _, c := range clashes {
+			fmt.Fprintln(os.Stderr, "shortcut conflict:", c)
+		}
+		os.Exit(2)
+	}
+	sh.Add(&shell.Panel{Name: "Shortcuts", Windowable: true,
+		Draw: (&shortcutsPanel{sh: sh}).Draw})
 	sh.OnMenu = func(action string) {
 		// A menu entry either opens a panel in its own window or is a verb.
 		// Two kinds and no third, so nothing here needs a special case.

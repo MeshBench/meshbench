@@ -44,7 +44,8 @@ type Shell struct {
 	// OnMenu is called with a menu entry's action.
 	OnMenu func(action string)
 	// openMenu is which menu is showing its entries, by index, or -1.
-	openMenu int
+	openMenu  int
+	shortcuts []Shortcut
 	// PoppedOut reports whether a panel is currently living in its own window.
 	//
 	// A panel that has moved out must not also be drawn here. Two frame loops
@@ -132,6 +133,7 @@ func (sh *Shell) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) l
 	}
 	// The dropdown is drawn after the frame it sits over, so it is recorded
 	// here and replayed at the end rather than clipped inside the menu bar.
+	sh.keys(gtx)
 	defer func() { sh.menuDrop(t, gtx) }()
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return sh.menuBar(t, gtx) }),
@@ -365,7 +367,7 @@ func (sh *Shell) menuDrop(t *theme.Theme, gtx layout.Context) {
 							layout.Rigid(comp.Text(t, t.Sz.Body, t.P.Ink, m.items[i].Label)),
 							layout.Flexed(1, comp.Spacer),
 							layout.Rigid(comp.Mono(t, t.Sz.Caption, t.P.Faint,
-								m.items[i].Shortcut)),
+								sh.shortcutFor(m.items[i].Action))),
 						)
 					})
 			})

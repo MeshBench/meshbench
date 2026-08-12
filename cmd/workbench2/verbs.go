@@ -563,6 +563,17 @@ func registerVerbs(st *state.Store, s *sim) {
 			len(obs), w.Residuals.Matched))
 		return map[string]any{"receptions": len(obs)}, nil
 	})
+	st.Handle("sim.toggle", func(w *state.World, _ any) (any, error) {
+		// One key for both, because play and pause are one thought and
+		// binding them separately means learning which one you are in.
+		w.Playing = !w.Playing
+		if w.Playing {
+			w.Say("playing")
+		} else {
+			w.Say("paused")
+		}
+		return map[string]any{"playing": w.Playing}, nil
+	})
 	st.Handle("session.describe", func(w *state.World, _ any) (any, error) {
 		return map[string]any{
 			"nodes": len(w.Nodes), "seed": w.Seed, "now_ms": w.NowMs,
