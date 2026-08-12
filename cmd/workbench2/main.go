@@ -39,6 +39,7 @@ func main() {
 	profFlag := flag.String("cpuprofile", "", "write a CPU profile here")
 	playFlag := flag.Bool("play", false, "start the simulation immediately")
 	injectFlag := flag.String("inject", "", "originate a packet at this node once running")
+	sweepFlag := flag.Bool("sweep", false, "run the default sweep at startup")
 	saveRunFlag := flag.String("save-run", "", "save a run record under this name, then keep running")
 	shadeFlag := flag.Bool("terrain", false, "shade the relief at startup")
 	coverFlag := flag.String("coverage", "",
@@ -132,6 +133,13 @@ func main() {
 			// After the run has had time to produce counters worth recording.
 			time.Sleep(18 * time.Second)
 			_, _ = st.Do(ctx, "run.save", *saveRunFlag)
+		}()
+	}
+	if *sweepFlag {
+		go func() {
+			// Once the network is loaded; the sweep builds its own engines.
+			time.Sleep(6 * time.Second)
+			_, _ = st.Do(ctx, "sweep.run", nil)
 		}()
 	}
 	if *captureFlag != "" {

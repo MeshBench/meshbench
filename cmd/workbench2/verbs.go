@@ -420,6 +420,47 @@ func registerVerbs(st *state.Store, s *sim) {
 		w.Say("saved " + path)
 		return map[string]any{"path": path}, nil
 	})
+	st.Handle("sweep.run", func(w *state.World, _ any) (any, error) {
+		if s.eng == nil || len(s.nodes) == 0 {
+			return nil, fmt.Errorf("no network to sweep")
+		}
+		node := firstCompanion(s.nodes)
+		for i := range w.Nodes {
+			if w.Nodes[i].Selected {
+				node = w.Nodes[i].Name
+				break
+			}
+		}
+		plan := defaultSweep(node)
+		total := len(plan.Arms) * len(plan.Seeds)
+		w.Say(fmt.Sprintf("sweeping %d arms over %d seeds from %s",
+			len(plan.Arms), len(plan.Seeds), node))
+		// On a worker, with progress: this is twenty-four short simulations
+		// and the interface has to stay usable while they run.
+		go func() {
+			ctx := context.Background()
+			_, _ = st.Do(ctx, "job.progress", state.Job{
+				ID: "sweep", What: "sweeping offered load", Total: total})
+			m := s.runSweep(ctx, plan, func(done, of int) {
+				_, _ = st.Do(ctx, "job.progress", state.Job{
+					ID: "sweep", What: "sweeping offered load",
+					Done: done, Total: of})
+			})
+			_, _ = st.Do(ctx, "sweep.set", m)
+			_, _ = st.Do(ctx, "job.progress", state.Job{
+				ID: "sweep", What: "sweeping offered load",
+				Done: total, Total: total, Finished: true})
+		}()
+		return map[string]any{"arms": len(plan.Arms), "seeds": len(plan.Seeds)}, nil
+	})
+	st.Handle("sweep.set", func(w *state.World, p any) (any, error) {
+		m, _ := p.(*state.Matrix)
+		w.Matrix = m
+		if m != nil {
+			w.Say(fmt.Sprintf("swept %d arms over %d seeds", len(m.Arms), len(m.Seeds)))
+		}
+		return nil, nil
+	})
 	st.Handle("session.describe", func(w *state.World, _ any) (any, error) {
 		return map[string]any{
 			"nodes": len(w.Nodes), "seed": w.Seed, "now_ms": w.NowMs,
