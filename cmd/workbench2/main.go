@@ -29,6 +29,7 @@ import (
 	"github.com/A13xB0/meshcoresim/internal/gui/shell"
 	"github.com/A13xB0/meshcoresim/internal/gui/state"
 	"github.com/A13xB0/meshcoresim/internal/gui/theme"
+	"github.com/A13xB0/meshcoresim/internal/session"
 )
 
 func main() {
@@ -59,8 +60,8 @@ func main() {
 	flag.Parse()
 
 	st := state.New(10)
-	sm := &sim{}
-	registerVerbs(st, sm)
+	sm := &session.Sim{}
+	session.Register(st, sm)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go st.Run(ctx)
@@ -96,6 +97,14 @@ func main() {
 			}()
 		}
 	}()
+
+	// The control socket, before any window: a script that drives the
+	// workbench should not have to wait for a frame.
+	if srv, err := session.ServeControl(ctx, st); err != nil {
+		fmt.Fprintln(os.Stderr, "control socket:", err)
+	} else {
+		defer func() { _ = srv.Close() }()
+	}
 
 	sh := shell.New()
 	wins := newWindows()

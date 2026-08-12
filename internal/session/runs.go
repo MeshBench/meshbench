@@ -5,7 +5,7 @@
 // point. Three arms of a study once returned identical numbers, and whether
 // the firmware had actually differed could not be answered from the results -
 // only from the provenance beside them.
-package main
+package session
 
 import (
 	"encoding/json"
@@ -17,9 +17,9 @@ import (
 	"github.com/A13xB0/meshcoresim/internal/gui/state"
 )
 
-// runRecord is what lands on disk. Field names are the file format, so they
+// RunRecord is what lands on disk. Field names are the file format, so they
 // are spelled for somebody reading the JSON rather than for Go.
-type runRecord struct {
+type RunRecord struct {
 	Name    string             `json:"name"`
 	At      string             `json:"at"`
 	Seed    uint64             `json:"seed"`
@@ -37,8 +37,8 @@ func runsDir() (string, error) {
 	return dir, os.MkdirAll(dir, 0o755)
 }
 
-// saveRun writes the current counters as a run.
-func saveRun(name string, s *state.Snapshot, build string) (string, error) {
+// SaveRun writes the current counters as a run.
+func SaveRun(name string, s *state.Snapshot, build string) (string, error) {
 	dir, err := runsDir()
 	if err != nil {
 		return "", err
@@ -50,7 +50,7 @@ func saveRun(name string, s *state.Snapshot, build string) (string, error) {
 		delivered += v.UniqueDelivery
 		redundant += v.RedundantRelay
 	}
-	rec := runRecord{
+	rec := RunRecord{
 		Name: name, At: time.Now().UTC().Format(time.RFC3339),
 		Seed: s.Seed, Build: build, Outcome: "saved",
 		Metrics: map[string]float64{
@@ -73,8 +73,8 @@ func saveRun(name string, s *state.Snapshot, build string) (string, error) {
 	return path, os.WriteFile(path, b, 0o644)
 }
 
-// loadRuns reads every saved run, newest first.
-func loadRuns() []runRecord {
+// LoadRuns reads every saved run, newest first.
+func LoadRuns() []RunRecord {
 	dir, err := runsDir()
 	if err != nil {
 		return nil
@@ -83,7 +83,7 @@ func loadRuns() []runRecord {
 	if err != nil {
 		return nil
 	}
-	var out []runRecord
+	var out []RunRecord
 	for _, e := range entries {
 		if e.IsDir() || filepath.Ext(e.Name()) != ".json" {
 			continue
@@ -92,7 +92,7 @@ func loadRuns() []runRecord {
 		if err != nil {
 			continue
 		}
-		var r runRecord
+		var r RunRecord
 		if json.Unmarshal(b, &r) != nil {
 			continue
 		}
@@ -102,9 +102,9 @@ func loadRuns() []runRecord {
 	return out
 }
 
-// metricNames is every metric present in either run, in a stable order, so a
+// MetricNames is every metric present in either run, in a stable order, so a
 // comparison does not silently drop a metric one side happens not to have.
-func metricNames(a, b runRecord) []string {
+func MetricNames(a, b RunRecord) []string {
 	seen := map[string]bool{}
 	for k := range a.Metrics {
 		seen[k] = true
@@ -120,12 +120,12 @@ func metricNames(a, b runRecord) []string {
 	return out
 }
 
-// buildOf is what was running when the numbers were produced.
+// BuildOf is what was running when the numbers were produced.
 //
 // The firmware versions in play, not the simulator's own version: the
 // simulator is the same binary for every arm of a study, and the thing that
-// differed is what was loaded into the nodes.
-func buildOf(s *sim) string {
+// differed is what was Loaded into the nodes.
+func BuildOf(s *Sim) string {
 	seen := map[string]bool{}
 	var out []string
 	for _, n := range s.nodes {

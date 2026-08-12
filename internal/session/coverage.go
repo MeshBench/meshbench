@@ -3,7 +3,7 @@
 // The computation is the same internal/coverage the planning tools use, with
 // the same remote assumption - a person holding a handheld at 1.5 m - so a
 // coverage picture here and a coverage answer there cannot disagree.
-package main
+package session
 
 import (
 	"context"
@@ -28,7 +28,7 @@ const covGrid = 160
 // the renderer, and a renderer that has to know what a decibel is in order to
 // draw a picture is a renderer that will eventually disagree with the panel
 // that prints the number.
-func (s *sim) coverageFor(ctx context.Context, n scenario.Node, spanKm float64) (
+func (s *Sim) coverageFor(ctx context.Context, n scenario.Node, spanKm float64) (
 	*state.Coverage, error) {
 
 	// A square of spanKm each way, in degrees.

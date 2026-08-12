@@ -5,7 +5,7 @@
 // meant the boundaries, the study margin, the antennas and the radio settings
 // were all absent from a file that contained every one of them - and absent
 // silently, which is the part that matters.
-package main
+package session
 
 import (
 	"github.com/A13xB0/meshcoresim/internal/fixture"
@@ -13,8 +13,8 @@ import (
 	"github.com/A13xB0/meshcoresim/internal/scenario"
 )
 
-// loaded is everything one fixture supplies the interface.
-type loaded struct {
+// Loaded is everything one fixture supplies the interface.
+type Loaded struct {
 	nodes      []state.Node
 	scene      []scenario.Node
 	areas      []state.Area
@@ -23,12 +23,12 @@ type loaded struct {
 	assertions []state.Assertion
 }
 
-func loadFixture(path string) (loaded, error) {
+func LoadFixture(path string) (Loaded, error) {
 	f, err := fixture.Load(path)
 	if err != nil {
-		return loaded{}, err
+		return Loaded{}, err
 	}
-	out := loaded{
+	out := Loaded{
 		scene:  f.Nodes,
 		margin: f.MarginKm,
 		nodes:  make([]state.Node, 0, len(f.Nodes)),

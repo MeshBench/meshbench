@@ -4,7 +4,7 @@
 // cells would carry a warmed link cache and an event log from the previous
 // cell into the next, and the first thing anybody would ask of a sweep is
 // whether the cells were independent.
-package main
+package session
 
 import (
 	"context"
@@ -15,8 +15,8 @@ import (
 	"github.com/A13xB0/meshcoresim/internal/scenario"
 )
 
-// sweepArm is one configuration under test.
-type sweepArm struct {
+// SweepArm is one configuration under test.
+type SweepArm struct {
 	Name string
 	// EveryMs is how often the originator sends. The parameter being swept
 	// here is offered load, which is the one the map already showed buys
@@ -24,9 +24,9 @@ type sweepArm struct {
 	EveryMs uint32
 }
 
-// sweepPlan is what to run.
-type sweepPlan struct {
-	Arms    []sweepArm
+// SweepPlan is what to run.
+type SweepPlan struct {
+	Arms    []SweepArm
 	Seeds   []uint64
 	UntilMs uint32
 	Metric  string
@@ -34,11 +34,11 @@ type sweepPlan struct {
 	Terrain bool
 }
 
-// defaultSweep is small on purpose: a sweep somebody starts by accident should
+// DefaultSweep is small on purpose: a sweep somebody starts by accident should
 // finish while they are still looking at it.
-func defaultSweep(node string) sweepPlan {
-	return sweepPlan{
-		Arms: []sweepArm{
+func DefaultSweep(node string) SweepPlan {
+	return SweepPlan{
+		Arms: []SweepArm{
 			{Name: "every 2s", EveryMs: 2000},
 			{Name: "every 1s", EveryMs: 1000},
 			{Name: "every 500ms", EveryMs: 500},
@@ -52,7 +52,7 @@ func defaultSweep(node string) sweepPlan {
 }
 
 // runSweep executes the plan, reporting progress, and returns the matrix.
-func (s *sim) runSweep(ctx context.Context, p sweepPlan,
+func (s *Sim) runSweep(ctx context.Context, p SweepPlan,
 	progress func(done, total int)) *state.Matrix {
 
 	m := &state.Matrix{
@@ -90,7 +90,7 @@ func (s *sim) runSweep(ctx context.Context, p sweepPlan,
 }
 
 // runCell is one arm at one seed, on its own engine.
-func (s *sim) runCell(ctx context.Context, p sweepPlan, arm sweepArm, seed uint64) float64 {
+func (s *Sim) runCell(ctx context.Context, p SweepPlan, arm SweepArm, seed uint64) float64 {
 	eng := engine.New(s.terrain(), engine.Config{
 		FreqMHz: 869.618, SF: 10, BandwidthHz: 250e3, CodingRate: 1,
 		NoiseFigDB: 6, StepMs: 10, Seed: seed,
@@ -138,8 +138,8 @@ func metricOf(eng *engine.Engine, metric string) float64 {
 	return float64(sent)
 }
 
-// firstCompanion is the sweep's originator when nothing is selected.
-func firstCompanion(nodes []scenario.Node) string {
+// FirstCompanion is the sweep's originator when nothing is selected.
+func FirstCompanion(nodes []scenario.Node) string {
 	for _, n := range nodes {
 		if string(n.Kind) == "companion" {
 			return n.Name

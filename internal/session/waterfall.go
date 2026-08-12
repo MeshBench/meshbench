@@ -5,7 +5,7 @@
 // waterfall rendered from a separate model would be a picture that can
 // disagree with the decode beside it, and the moment it did, neither would be
 // trustworthy.
-package main
+package session
 
 import (
 	"context"
@@ -26,7 +26,7 @@ const (
 
 // capture observes the channel at one node and returns the spectrogram as an
 // image, ready for the renderer.
-func (s *sim) capture(_ context.Context, at int) (*state.Coverage, string) {
+func (s *Sim) capture(_ context.Context, at int) (*state.Coverage, string) {
 	if s.eng == nil || at < 0 || at >= len(s.nodes) {
 		return nil, "no simulation running"
 	}

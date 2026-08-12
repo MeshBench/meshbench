@@ -2,7 +2,7 @@
 //
 // The parity test in 12.9 is generated from what is registered here rather
 // than from a list in a document, which was already wrong by three verbs.
-package main
+package session
 
 import (
 	"context"
@@ -12,13 +12,13 @@ import (
 	"github.com/A13xB0/meshcoresim/internal/gui/state"
 )
 
-// registerVerbs wires the control verbs onto the store. Only the few the new
+// Register wires the control verbs onto the store. Only the few the new
 // UI needs so far; the rest arrive as their panels do, and the parity test in
 // 12.9 is generated from what is registered here.
-func registerVerbs(st *state.Store, s *sim) {
+func Register(st *state.Store, s *Sim) {
 	st.Handle("project.open", func(w *state.World, p any) (any, error) {
 		path, _ := p.(string)
-		f, err := loadFixture(path)
+		f, err := LoadFixture(path)
 		if err != nil {
 			return nil, err
 		}
@@ -350,7 +350,7 @@ func registerVerbs(st *state.Store, s *sim) {
 				duty = v.DutyCyclePct
 			}
 		}
-		e, err := energyFor(s.nodes[at], duty)
+		e, err := EnergyFor(s.nodes[at], duty)
 		if err != nil {
 			return nil, err
 		}
@@ -414,7 +414,7 @@ func registerVerbs(st *state.Store, s *sim) {
 		}
 		// Saved from the snapshot rather than from the world, so what is
 		// recorded is exactly what was on screen when somebody pressed save.
-		path, err := saveRun(name, st.Snapshot(), buildOf(s))
+		path, err := SaveRun(name, st.Snapshot(), BuildOf(s))
 		if err != nil {
 			return nil, err
 		}
@@ -425,14 +425,14 @@ func registerVerbs(st *state.Store, s *sim) {
 		if s.eng == nil || len(s.nodes) == 0 {
 			return nil, fmt.Errorf("no network to sweep")
 		}
-		node := firstCompanion(s.nodes)
+		node := FirstCompanion(s.nodes)
 		for i := range w.Nodes {
 			if w.Nodes[i].Selected {
 				node = w.Nodes[i].Name
 				break
 			}
 		}
-		plan := defaultSweep(node)
+		plan := DefaultSweep(node)
 		total := len(plan.Arms) * len(plan.Seeds)
 		w.Say(fmt.Sprintf("sweeping %d arms over %d seeds from %s",
 			len(plan.Arms), len(plan.Seeds), node))
@@ -502,7 +502,7 @@ func registerVerbs(st *state.Store, s *sim) {
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 			defer cancel()
-			im, err := importFrom(ctx, url)
+			im, err := ImportFrom(ctx, url)
 			if err != nil {
 				_, _ = st.Do(context.Background(), "import.failed", err.Error())
 				return
@@ -535,7 +535,7 @@ func registerVerbs(st *state.Store, s *sim) {
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 			defer cancel()
-			obs, err := pullObserved(ctx, url, time.Hour)
+			obs, err := PullObserved(ctx, url, time.Hour)
 			if err != nil {
 				// Its own message, not the import one: a deployment can
 				// publish nodes and not receptions, and telling somebody the
@@ -591,6 +591,29 @@ func registerVerbs(st *state.Store, s *sim) {
 		st.SetStepMs(st.StepMs() / 2)
 		w.Say(fmt.Sprintf("%d ms per tick", st.StepMs()))
 		return map[string]any{"step_ms": st.StepMs()}, nil
+	})
+	st.Handle("firmware.start", func(w *state.World, _ any) (any, error) {
+		if s.eng == nil {
+			return nil, fmt.Errorf("no network Loaded")
+		}
+		w.Say("starting firmware on every node")
+		s.startFirmware(st, w.Seed)
+		return map[string]any{"starting": true}, nil
+	})
+	st.Handle("firmware.started", func(w *state.World, _ any) (any, error) {
+		w.Say(fmt.Sprintf("%d nodes running firmware", s.firmwareCount()))
+		return map[string]any{"running": s.firmwareCount()}, nil
+	})
+	st.Handle("firmware.failed", func(w *state.World, p any) (any, error) {
+		msg, _ := p.(string)
+		w.Say("firmware: " + msg)
+		return nil, nil
+	})
+	st.Handle("firmware.state", func(w *state.World, _ any) (any, error) {
+		return map[string]any{
+			"running": s.firmwareCount(), "nodes": len(w.Nodes),
+			"starting": s.starting.Load(),
+		}, nil
 	})
 	st.Handle("session.describe", func(w *state.World, _ any) (any, error) {
 		return map[string]any{

@@ -10,6 +10,7 @@ import (
 	"github.com/A13xB0/meshcoresim/internal/gui/comp"
 	"github.com/A13xB0/meshcoresim/internal/gui/state"
 	"github.com/A13xB0/meshcoresim/internal/gui/theme"
+	"github.com/A13xB0/meshcoresim/internal/session"
 )
 
 // comparePanel compares the two most recent saved runs.
@@ -71,7 +72,7 @@ func (p *comparePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 }
 
 func (p *comparePanel) reload() {
-	runs := loadRuns()
+	runs := session.LoadRuns()
 	p.rows = nil
 	switch {
 	case len(runs) == 0:
@@ -90,7 +91,7 @@ func (p *comparePanel) reload() {
 		p.head += fmt.Sprintf("   - different seeds (%d and %d), so a difference here is not evidence",
 			newer.Seed, older.Seed)
 	}
-	for _, name := range metricNames(newer, older) {
+	for _, name := range session.MetricNames(newer, older) {
 		a, aok := older.Metrics[name]
 		b, bok := newer.Metrics[name]
 		cells := []string{name, fmtMetric(a, aok), fmtMetric(b, bok), "", ""}

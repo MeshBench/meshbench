@@ -5,7 +5,7 @@
 // topographic basemap tile would look like terrain while being somebody else's
 // data; this is the DEM the path losses are cut against, so what is on the
 // screen and what is in the answer are the same ground.
-package main
+package session
 
 import (
 	"image"
@@ -22,7 +22,7 @@ import (
 const shadeGrid = 256
 
 // hillshade renders the visible area as a shaded relief.
-func (s *sim) hillshade(south, north, west, east float64) (*state.Coverage, error) {
+func (s *Sim) hillshade(south, north, west, east float64) (*state.Coverage, error) {
 	g, _ := coverage.RasteriseHeights(s.terrain(), south, north, west, east,
 		shadeGrid, shadeGrid)
 

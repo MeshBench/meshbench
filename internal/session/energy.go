@@ -7,7 +7,7 @@
 // The duty cycle comes from the run rather than from a form. A site sized
 // against a guessed duty is a site sized against a guess, and the simulator is
 // sitting right there having measured the real one.
-package main
+package session
 
 import (
 	"github.com/A13xB0/meshcoresim/internal/energy"
@@ -36,9 +36,9 @@ var (
 	ukTempC = [12]float64{4, 4, 6, 8, 11, 14, 16, 16, 13, 10, 6, 4}
 )
 
-// energyFor simulates a year at one node, using the duty cycle the run
+// EnergyFor simulates a year at one node, using the duty cycle the run
 // measured for it.
-func energyFor(n scenario.Node, dutyPct float64) (*state.Energy, error) {
+func EnergyFor(n scenario.Node, dutyPct float64) (*state.Energy, error) {
 	tx := dutyPct / 100
 	if tx < 0 {
 		tx = 0

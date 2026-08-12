@@ -5,7 +5,7 @@
 // renderer only ever sees a snapshot. That is the whole point of P0, and it is
 // why the link margins below are computed once when the network changes rather
 // than on every frame that draws them.
-package main
+package session
 
 import (
 	"context"
@@ -22,13 +22,14 @@ import (
 	"github.com/A13xB0/meshcoresim/internal/terrain"
 )
 
-// sim holds the engine and the scenario it was built from.
-type sim struct {
-	eng     *engine.Engine
-	nodes   []scenario.Node
-	terr    coverage.Terrain
-	warming atomic.Bool
-	served  map[string]*engine.CompanionLink
+// Sim holds the engine and the scenario it was built from.
+type Sim struct {
+	eng      *engine.Engine
+	nodes    []scenario.Node
+	terr     coverage.Terrain
+	warming  atomic.Bool
+	starting atomic.Bool
+	served   map[string]*engine.CompanionLink
 }
 
 // terrainStore is the elevation the engine sees.
@@ -37,7 +38,7 @@ type sim struct {
 // computed while a tile downloads is a path loss nobody asked for at a moment
 // nobody chose. Missing tiles answer "no data", which the engine already
 // handles - it is bare earth for that profile and says so.
-func (s *sim) terrain() coverage.Terrain {
+func (s *Sim) terrain() coverage.Terrain {
 	if s.terr != nil {
 		return s.terr
 	}
@@ -64,7 +65,7 @@ type bareEarth struct{}
 func (bareEarth) ElevationM(float64, float64) (float64, bool) { return 0, false }
 
 // build makes an engine for a set of nodes.
-func (s *sim) build(nodes []scenario.Node, freqMHz float64) {
+func (s *Sim) build(nodes []scenario.Node, freqMHz float64) {
 	if s.eng != nil {
 		_ = s.eng.Close()
 	}
@@ -84,7 +85,7 @@ func (s *sim) build(nodes []scenario.Node, freqMHz float64) {
 // n squared, and on the 311 node fixture that is 48,000 path losses - which is
 // why it is a verb that runs once on the store's goroutine and lands in the
 // snapshot, rather than something the map does while drawing.
-func (s *sim) links() []state.Link {
+func (s *Sim) links() []state.Link {
 	if s.eng == nil {
 		return nil
 	}
@@ -116,7 +117,7 @@ func (s *sim) links() []state.Link {
 //
 // One at a time: a second warm while the first is running would compute the
 // same thing twice and race to publish it.
-func (s *sim) warm(st *state.Store, nodes int) {
+func (s *Sim) warm(st *state.Store, nodes int) {
 	if s.eng == nil || s.warming.Swap(true) {
 		return
 	}
@@ -151,7 +152,7 @@ func (s *sim) warm(st *state.Store, nodes int) {
 // it as traffic would put a line on the map for a packet that never arrived.
 // A tx nobody received still gets a trail, with To of -1, because a repeater
 // shouting into an empty valley is exactly the thing somebody is looking for.
-func (s *sim) trailsSince(fromMs uint32, index map[string]int) []state.Trail {
+func (s *Sim) trailsSince(fromMs uint32, index map[string]int) []state.Trail {
 	if s.eng == nil {
 		return nil
 	}
@@ -180,7 +181,7 @@ func (s *sim) trailsSince(fromMs uint32, index map[string]int) []state.Trail {
 }
 
 // eventTail is the most recent n events, oldest first, and the total.
-func (s *sim) eventTail(n int) ([]state.Event, int) {
+func (s *Sim) eventTail(n int) ([]state.Event, int) {
 	if s.eng == nil {
 		return nil, 0
 	}
@@ -201,7 +202,7 @@ func (s *sim) eventTail(n int) ([]state.Event, int) {
 }
 
 // scores is the engine's own scoreboard, projected.
-func (s *sim) scores() []state.Score {
+func (s *Sim) scores() []state.Score {
 	if s.eng == nil {
 		return nil
 	}
@@ -222,7 +223,7 @@ func (s *sim) scores() []state.Score {
 // The strongest rather than a chosen one, because the question a budget panel
 // answers when nothing has been picked is "how is this node doing at all",
 // and its best link is the honest answer to that.
-func (s *sim) budgetsFor(at int, links []state.Link) []state.Budget {
+func (s *Sim) budgetsFor(at int, links []state.Link) []state.Budget {
 	if s.eng == nil || at < 0 || at >= len(s.nodes) {
 		return nil
 	}
@@ -264,4 +265,45 @@ func termsOf(in []linkbudget.Term) []state.BudgetTerm {
 		out = append(out, state.BudgetTerm{Name: t.Name, DB: t.DB})
 	}
 	return out
+}
+
+// startFirmware brings real MeshCore up on every node that runs it.
+//
+// This is the thing the Gio workbench was missing entirely: it built an engine
+// and never attached firmware, so nothing relayed and a packet had to be
+// injected to make anything happen at all. A simulator that does not run the
+// firmware is a channel model with a map on it.
+func (s *Sim) startFirmware(st *state.Store, seed uint64) {
+	if s.eng == nil || s.starting.Swap(true) {
+		return
+	}
+	go func() {
+		defer s.starting.Store(false)
+		ctx := context.Background()
+		_, _ = st.Do(ctx, "job.progress", state.Job{
+			ID: "firmware", What: "starting firmware on every node"})
+		err := s.eng.AttachNativeProgress(ctx, seed, func(done, total int) {
+			// Every tenth node: a verb per node would make the queue the slow
+			// part of starting 154 processes.
+			if done%10 != 0 && done != total {
+				return
+			}
+			_, _ = st.Do(ctx, "job.progress", state.Job{
+				ID: "firmware", What: "starting firmware on every node",
+				Done: done, Total: total})
+		})
+		if err != nil {
+			_, _ = st.Do(ctx, "firmware.failed", err.Error())
+			return
+		}
+		_, _ = st.Do(ctx, "firmware.started", nil)
+	}()
+}
+
+// firmwareCount is how many nodes are running firmware right now.
+func (s *Sim) firmwareCount() int {
+	if s.eng == nil {
+		return 0
+	}
+	return s.eng.FirmwareCount()
 }
