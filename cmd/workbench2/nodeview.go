@@ -9,6 +9,9 @@ package main
 
 import (
 	"fmt"
+	"image"
+
+	"gioui.org/f32"
 	"os"
 	"path/filepath"
 	"slices"
@@ -30,15 +33,20 @@ type nodeViewPanel struct {
 	running, native, emulated, stopped, busy comp.Check
 	stop, start, refresh                     comp.Button
 
-	// The firmware picker: every installed build, as a row of buttons rather
-	// than a dropdown, because there are usually a handful and a dropdown
-	// hides which one is already selected behind a click.
+	// The firmware picker: every installed build, offered from the firmware
+	// cell. A row of buttons was the first attempt and the wrong shape - nine
+	// builds overflowed the panel, and the number of builds is however many
+	// somebody has installed.
 	builds     []string
 	buildBtns  []comp.Button
 	buildsRead bool
 	buildList  widget.List
 	// pickFor is the node whose firmware list is open, or "".
-	pickFor   string
+	pickFor string
+	// menuFor is the node whose context menu is open, and where it opened.
+	menuFor   string
+	menuAt    image.Point
+	menuItems []comp.MenuItem
 	closePick comp.Button
 	// OnFirmware asks the store to put a build on a node.
 	OnFirmware func(node, version string)
@@ -105,6 +113,11 @@ func (p *nodeViewPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 		}
 	}
 
+	p.tb.OnRightClick = func(key string, at f32.Point) {
+		p.menuFor = key
+		p.menuAt = image.Pt(int(at.X), int(at.Y))
+		p.menuItems = nodeMenuFor(key, s)
+	}
 	p.tb.OnCell = func(key string, col int) {
 		if col == 3 {
 			p.pickFor = key
@@ -189,6 +202,7 @@ func (p *nodeViewPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 			)
 		}),
 		layout.Rigid(p.firmwareList(t)),
+		layout.Rigid(p.contextMenu(t)),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			// A reserved height, so the flex takes it from the table above
 			// rather than the graphs running off the bottom of the window.
@@ -421,4 +435,55 @@ func selectedNode(s *state.Snapshot) string {
 		}
 	}
 	return ""
+}
+
+// nodeMenuFor is what can be done to one node.
+//
+// Built per node rather than once, because an entry that cannot apply is worse
+// than absent: "start" on a running node either does nothing or restarts it,
+// and neither is what the word says.
+func nodeMenuFor(name string, s *state.Snapshot) []comp.MenuItem {
+	running := false
+	for _, n := range s.Stats {
+		if n.Name == name {
+			running = n.Running
+		}
+	}
+	items := []comp.MenuItem{{Label: "Select on the map", Action: "nodes.select_many"}}
+	if running {
+		items = append(items, comp.MenuItem{Label: "Stop this node", Action: "node.stop"})
+	} else {
+		items = append(items, comp.MenuItem{Label: "Start this node", Action: "node.start"})
+	}
+	return append(items,
+		comp.MenuItem{Label: "Change its firmware", Action: "ui.firmware"},
+		comp.MenuItem{Label: "Coverage from here", Action: "coverage.compute"},
+		comp.MenuItem{Label: "Originate a packet here", Action: "sim.inject"},
+		comp.MenuItem{Label: "Capture the waterfall here", Action: "waterfall.capture"},
+	)
+}
+
+// contextMenu draws the open row menu.
+func (p *nodeViewPanel) contextMenu(t *theme.Theme) layout.Widget {
+	return func(gtx layout.Context) layout.Dimensions {
+		if p.menuFor == "" {
+			return layout.Dimensions{}
+		}
+		chosen := comp.MenuRow(t, gtx, p.menuItems, p.menuFor)
+		if chosen == "" {
+			return layout.Dimensions{}
+		}
+		who := p.menuFor
+		p.menuFor = ""
+		if chosen == "ui.firmware" {
+			// The one entry the interface handles itself: it opens a control
+			// rather than asking the store to do something.
+			p.pickFor = who
+			return layout.Dimensions{}
+		}
+		if p.OnAction != nil {
+			p.OnAction(chosen, who)
+		}
+		return layout.Dimensions{}
+	}
 }

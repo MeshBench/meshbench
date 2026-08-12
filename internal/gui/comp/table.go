@@ -5,6 +5,9 @@ import (
 	"sort"
 	"strings"
 
+	"gioui.org/f32"
+	"gioui.org/io/event"
+	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
@@ -65,7 +68,12 @@ type Table struct {
 	// OnCell is called when a Menu column's cell is clicked, with the row's
 	// key and the column index.
 	OnCell func(key string, col int)
-	cells  map[string]*widget.Clickable
+	// OnRightClick is called when a row is right-clicked, with where. A
+	// context menu is the one place an interface can offer everything about a
+	// thing without spending a button on each, which matters when the thing is
+	// a row and there are three hundred of them.
+	OnRightClick func(key string, at f32.Point)
+	cells        map[string]*widget.Clickable
 	// Selected is the Key of the selected row, so selection survives a re-sort
 	// and a filter change.
 	Selected string
@@ -199,6 +207,9 @@ func (tb *Table) header(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 
 func (tb *Table) row(t *theme.Theme, gtx layout.Context, idx int) layout.Dimensions {
 	r := tb.shown[idx]
+	if tb.OnRightClick != nil {
+		tb.watchRightClick(gtx, r.Key)
+	}
 	selected := r.Key == tb.Selected
 	return tb.rows[idx].Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		h := gtx.Dp(t.RowHeight())
@@ -355,4 +366,25 @@ func (tb *Table) cell(key string, col int) *widget.Clickable {
 		tb.cells[k] = c
 	}
 	return c
+}
+
+// watchRightClick reports a secondary press on this row.
+//
+// Separate from the row's Clickable because Gio's clickable is about the
+// primary button, and a right-click that also selected the row would make
+// "open the menu" and "change the selection" the same gesture.
+func (tb *Table) watchRightClick(gtx layout.Context, key string) {
+	tag := tb.cell(key, 31) // a tag per row, distinct from any cell's
+	defer clip.Rect{Max: gtx.Constraints.Max}.Push(gtx.Ops).Pop()
+	event.Op(gtx.Ops, tag)
+	for {
+		ev, ok := gtx.Event(pointer.Filter{Target: tag, Kinds: pointer.Press})
+		if !ok {
+			return
+		}
+		e, ok := ev.(pointer.Event)
+		if ok && e.Buttons.Contain(pointer.ButtonSecondary) {
+			tb.OnRightClick(key, e.Position)
+		}
+	}
 }
