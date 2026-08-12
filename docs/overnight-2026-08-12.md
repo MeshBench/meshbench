@@ -116,9 +116,17 @@ The study ran on the **saved 308-node import from the earlier study**, not on a
 freshly built fixture, because the fixtures are Wave 2. It is the right network -
 Scotland and Ireland, real topology - but its provenance is the old import.
 
-The **report is not written yet**. The numbers, the mechanism and the figures it
-needs are all here; it wants an hour and the report style, and I would rather
-write it awake than at four in the morning.
+The **report is written**: `relay-suppression/index.html` in the reports
+repository, on a branch called `relay-suppression` rather than on main, because
+publishing was your call the last time and this is a Pages site where main is
+live. It reuses the house style of the listen-before-talk report, carries two
+figures, and states the three faults that produced false results before the real
+one. The index has a card for it.
+
+I could not render it to check: the only browser on the machine is a snap, and
+its headless screenshot lands inside the snap's private tmp where I could not
+retrieve it. The style block is byte identical to the published report, so it
+will look like its sibling, but nobody has actually looked at it yet.
 
 ## What needs you
 
