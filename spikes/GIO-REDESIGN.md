@@ -16,12 +16,16 @@ control verbs, and about a dozen custom-drawn surfaces.
 
 1. **No feature is lost.** Section 4 is the inventory. A box is ticked only when
    the feature works in the new UI, not when its code has been written.
-2. **The control socket is the contract.** All 87 verbs keep working and keep
-   meaning the same thing. They are how the MCP server, the test runner and
-   every script drive the application.
+2. **The control socket is the contract.** Every verb keeps working, and the
+   parity test is generated from the dispatch switch rather than from this
+   document, because a hand-counted list already proved itself wrong once. The
+   handful of verbs whose semantics are entangled with the old layout model are
+   named in 12.10 with what changes, rather than silently redefined.
 3. **Layout is declared, not placed.** No pixel arithmetic in view code.
 4. **Docking is not the organising idea.** A view is a fixed arrangement chosen
-   for that kind of work. A small number of panels can become real OS windows.
+   for that kind of work. Any panel can still become a real OS window, because
+   `panel.pop_out` is generic over all of them and scripts rely on it; what is
+   retired is free-form dock rearrangement inside the main window.
 5. **Drawing surfaces stay GPU work.** The map, waterfall and timelines are
    already the right shape; they are hosted, not rewritten.
 6. **Nothing renders on the frame thread that does not have to.** The control
@@ -47,8 +51,15 @@ screenshots fight the renderer, and a sweep blocks the console.
       membership, whether it can become a window, and its builder.
 - [ ] **2.5** Window manager: main window plus N auxiliary windows, each with
       its own event loop, sharing the same state.
-- [ ] **2.6** Headless mode falls out of 2.1 to 2.3 for free. Prove it by
-      running the existing `meshbench test` against the new state layer.
+- [ ] **2.6** **Engine pacing moves out of the frame loop.** Stepping lives in
+      the render loop today so runs are watchable; the state goroutine owns a
+      tick loop decoupled from render, and a long verb or sweep cannot
+      head-of-line-block `ui.state` (four verbs are special-cased as polls
+      today; the new model needs no special cases).
+- [ ] **2.6a** P0's exit gate: the parity script passes over the socket against
+      the **existing ImGui UI re-pointed at the new state layer**. Not
+      `meshbench test`, which never touches the UI or the socket and would pass
+      vacuously.
 - [ ] **2.7** Keep `internal/ui` compiling throughout by building the new UI in
       `internal/gui` and switching the binary over at the end.
 
@@ -84,8 +95,9 @@ named and justified.
 
 ### 3.3 Spacing and density
 - [ ] **3.3.1** A 4 px spacing scale; no arbitrary insets.
-- [ ] **3.3.2** Three densities: comfortable, default, compact. A 300 node table
-      is unusable at comfortable and a settings form is unreadable at compact.
+- [ ] **3.3.2** One density at cutover, with the spacing scale built so
+      comfortable and compact are a token change later. Three densities triple
+      the golden matrix for no parity value.
 - [ ] **3.3.3** Consistent panel chrome: title, optional actions, body, optional
       footer.
 
@@ -107,7 +119,8 @@ part ImGui never gave us.
 - [ ] **4.2 Toggle and checkbox** — with a label that is itself the hit target.
 - [ ] **4.3 Text field** — placeholder, validation state, unit suffix, numeric
       stepping, clamping with the limit stated rather than silent.
-- [ ] **4.4 Select** — searchable when over ten options.
+- [ ] **4.4 Select** — searchable when over ten options *(search is new -
+      deferrable)*.
 - [ ] **4.5 Slider** — with a typed value beside it, always.
 - [ ] **4.6 Table** — the big one. Virtualised, sortable by any column with a
       total order so rows never reshuffle on equal keys, resizable columns,
@@ -199,7 +212,9 @@ Six views today. Each gets a designed layout rather than an accumulated one.
 
 ## 6. Every panel, with its features
 
-Twenty-four panels. Each box is the panel working, not the panel existing.
+Twenty-five panels, plus the chrome. Each box is the panel working, not the
+panel existing. Items marked **(review)** were found missing by the plan review,
+which is the tick list doing its job before the code was written.
 
 ### 6.1 Inspector
 - [ ] Node identity, kind, position, height, board, radio, firmware role and version
@@ -210,6 +225,7 @@ Twenty-four panels. Each box is the panel working, not the panel existing.
 - [ ] Live counters: sent, heard, relayed, duty
 - [ ] Follows selection from map, table, events and packets
 - [ ] Can become its own window
+- [ ] **(review)** Multi-select: "Selected - N nodes" with apply-a-preset-to-all
 
 ### 6.2 Nodes
 - [ ] Virtualised list of every node, kind swatch, filter by name or kind
@@ -234,7 +250,8 @@ Twenty-four panels. Each box is the panel working, not the panel existing.
 - [ ] Spectrogram from captured IQ, GPU rendered
 - [ ] Frequency and time axes with real units
 - [ ] Click a feature to select the packet that caused it
-- [ ] Colour scale selectable, with the dynamic range stated
+- [ ] Colour scale selectable, with the dynamic range stated *(new - deferrable)*
+- [ ] **(review)** Symbol view, and "capture now"
 
 ### 6.6 Packet timeline
 - [ ] Per-node lanes, transmissions and receptions, at real airtime widths
@@ -247,6 +264,9 @@ Twenty-four panels. Each box is the panel working, not the panel existing.
 - [ ] Filter by kind, node, cause, time range
 - [ ] Follow-tail, and jump to the packet or node an event names
 - [ ] Export to NDJSON, matching `events.dump`
+- [ ] **(review)** Time scrub: the slider rewinds the event view and the traffic
+      map draws at scrub time, not at now
+- [ ] **(review)** Row actions: "follow this message", "open both consoles"
 
 ### 6.8 Scoreboard
 - [ ] Per-node counters, sortable, with the metric definitions on hover
@@ -258,13 +278,14 @@ Twenty-four panels. Each box is the panel working, not the panel existing.
 - [ ] Type a line and see the reply, matching `console.type`
 - [ ] The documented caveat surfaced: replies do not arrive while a sweep owns
       the clock, said in the panel rather than in a document
-- [ ] Command history and completion for the MeshCore CLI
+- [ ] Command history; completion *(new - deferrable)*
 
 ### 6.10 Schedule
 - [ ] Scheduled sends: node, time, repeat, command
 - [ ] Assertions: kind, node, thresholds, with a live pass or fail
 - [ ] Stress ramp controls
 - [ ] Saved with the project, matching the fixture format
+- [ ] **(review)** Snapshot as baseline, and Compare against a baseline
 
 ### 6.11 Compare
 - [ ] Two runs or two arms side by side, metric by metric
@@ -304,6 +325,9 @@ Twenty-four panels. Each box is the panel working, not the panel existing.
 - [ ] The ADR-0015 chain: fetch reality, replay it, compare
 - [ ] Residuals chart with the sign convention stated
 - [ ] What was excluded and why
+- [ ] **(review)** Calibration write-back: apply +X dB excess loss from N
+      observations, remove calibration, and shadow mode - these write into the
+      RF model and losing them would have been silent
 
 ### 6.19 Energy
 - [ ] Battery and panel from the board profile
@@ -321,12 +345,18 @@ Twenty-four panels. Each box is the panel working, not the panel existing.
 - [ ] Counts of dropped nodes and why: null island, no position, uncertainty
 - [ ] Inference: run, results per region with holder counts, apply, and the
       applied count reported
+- [ ] **(review)** The "Get going" onboarding block: infer boundary, get
+      terrain, start MeshCore now
+- [ ] **(review)** In-panel saved networks save/load/add, and the "what had to
+      be assumed" disclosure
 
 ### 6.22 Boundary
 - [ ] Search a place, accept, prune, with the chosen set unioning
 - [ ] Outline drawn on the map before pruning
 - [ ] Saved boundaries listed and loadable offline
 - [ ] Margin control
+- [ ] **(review)** Terrain download for the area with tile count and "download
+      it anyway", and "infer from the loaded network"
 
 ### 6.23 Planning
 - [ ] Bridge two areas, cover a gap, redundancy against a failure
@@ -345,6 +375,15 @@ Twenty-four panels. Each box is the panel working, not the panel existing.
 - [ ] Protocol decoded both directions: contacts, channels, messages, acks
 - [ ] Fault injection: drop the client, inject a stray frame
 - [ ] Raw frame view for when the decode is the thing in question
+- [ ] **(review)** LAN exposure toggle with its loopback-versus-network warning,
+      virtual serial device, "take it over", and "sync contacts"
+
+### 6.26 Chrome (review)
+- [ ] Machine load meter in the menu bar: CPU and GPU, because emulated nodes
+      saturate cores silently
+- [ ] Unified background-jobs indicator with cancel, and its `jobs` count in
+      `ui.state`
+- [ ] The honesty line in the menu bar: results are a best case
 
 ---
 
@@ -353,8 +392,9 @@ Twenty-four panels. Each box is the panel working, not the panel existing.
 Six window types exist today. Each is reviewed for whether it should be a
 window, a panel, or a slide-over.
 
-- [ ] **7.1 Node window** — per node: inspector, console, counters, packets.
-      Stays a window; it is the thing people put on a second monitor.
+- [ ] **7.1 Node window** — per node, all six tabs: Console, Companion,
+      Settings (per-node radio preset), Stats with Neighbours, Activity,
+      Connect. Stays a window; it is the thing people put on a second monitor.
 - [ ] **7.2 Packet window** — one packet, decoded, with its path and its
       failures. Stays a window, opened from anywhere a packet is named.
 - [ ] **7.3 Firmware library** — becomes a **panel** in a new Firmware view or a
@@ -420,14 +460,21 @@ The single most important surface, and the one with the most overlays.
 - [ ] **10.5** Coverage raster from a node, with a legend in dB
 - [ ] **10.6** Boundary outlines and the study-area margin
 - [ ] **10.7** Terrain shading and elevation source attribution
-- [ ] **10.8** Labels with collision avoidance, so names stop overlapping as
-      they do today
+- [ ] **10.8** Labels with collision avoidance *(new - deferrable)*
+- [ ] **10.8a (review)** Antenna pattern overlay, rotated to the node's bearing
+- [ ] **10.8b (review)** Region layer, on by default alongside links
+- [ ] **10.8c (review)** Show and hide neighbours per node
+- [ ] **10.8d (review)** Right-click context menu: place kind here, link from
+      and to here, move, delete, provision this node, coverage from here, open
+      window
 - [ ] **10.9** Pan, zoom to cursor, fit to nodes, centre on a node
 - [ ] **10.10** Click to select, drag to move, shift-drag to box-select
 - [ ] **10.11** Measure tool with distance and bearing
 - [ ] **10.12** Layer panel controlling every overlay
 - [ ] **10.13** Scale bar, attribution, and the honesty line
-- [ ] **10.14** Frame budget: 300 nodes and 2,000 links at 60 fps, measured
+- [ ] **10.14** Frame budget: 300 nodes and 2,000 links at 60 fps, measured -
+      **this is the unproven surface, not the waterfall**, and it is in the
+      pre-P0 spike
 
 ## 11. Interaction and accessibility
 
@@ -435,7 +482,8 @@ The single most important surface, and the one with the most overlays.
 - [ ] **11.2** A shortcut registry with no conflicts, and a sheet that lists it
 - [ ] **11.3** Focus visible at all times, and focus order sensible
 - [ ] **11.4** Selection is one concept across map, tables, events and packets
-- [ ] **11.5** Undo for destructive scenario edits: delete, move, prune
+- [ ] **11.5** Undo for destructive scenario edits *(new - deferrable
+      post-cutover; nothing like it exists today)*
 - [ ] **11.6** Confirmation only where an action is irreversible and expensive
 - [ ] **11.7** Copy: any value, any table, any log, as text or CSV
 - [ ] **11.8** Colour is never the only channel: shape or text carries it too
@@ -445,29 +493,42 @@ The single most important surface, and the one with the most overlays.
 
 ## 12. Control socket parity
 
-All 87 verbs keep working. Grouped, each group verified against the new UI by a
-driven script rather than by hand.
+**89 verbs** at last extraction: 88 in the dispatch switch plus
+`session.journal`, which is handled before it. The review found the previous
+hand-count of 87 was wrong, which is the argument for 12.9 in one sentence.
 
-- [ ] **12.1 Session and simulation** (11) — describe, play, pause, step, run,
-      reset, speed, seed, state, inject, quit
-- [ ] **12.2 Nodes** (8) — list, place, delete, move, select, regions,
+- [ ] **12.1 Session and simulation** — describe, journal, status, play, pause,
+      step, run, reset, speed, seed, state, inject, quit. `sim.run` also
+      switches the workspace to Run when starting from a standstill, and the
+      parity test asserts that side effect, not only the response.
+- [ ] **12.2 Nodes** — list, place, delete, move, select, regions,
       allow_flood, window
-- [ ] **12.3 Building a network** (15) — boundary set, accept, prune; import
+- [ ] **12.3 Building a network** — boundary set, accept, prune; import
       source, fetch, commit; infer run, result, apply; radio preset; map centre,
       zoom, fit, filter; tool set
-- [ ] **12.4 Firmware** (11) — installed, download, import, set, start, state,
-      wipe, delete, console type, fleet send, loop detect
-- [ ] **12.5 Experiments** (12) — base, define, vary, seeds, senders, start,
+- [ ] **12.4 Firmware** — installed, download, import, set, start, state,
+      wipe, delete, console type, fleet send. (`loop.detect` is a parameter of
+      the experiment verbs, not a verb; the old count included it.)
+- [ ] **12.5 Experiments** — base, define, vary, seeds, senders, start,
       stop, state, results, compare, export, assert check
-- [ ] **12.6 Companion** (8) — connect, disconnect, send, raw, advert,
+- [ ] **12.6 Companion** — connect, disconnect, send, raw, advert,
       add_channel, configure, state
-- [ ] **12.7 Capture and evidence** (6) — file, wireshark, events recent, dump,
-      coverage start, clear
-- [ ] **12.8 Projects and layout** (16) — project list, open, save; view list,
+- [ ] **12.7 Capture and evidence** — file, wireshark, events recent, dump,
+      scoreboard, coverage start, clear
+- [ ] **12.8 Projects and layout** — project list, open, save; view list,
       save, load, delete; workspace set; panel open, dock, pop_out; panels list;
       window open, close; ui state, scale
-- [ ] **12.9** A parity test that drives all 87 and asserts each returns what it
-      returned before, run in CI
+- [ ] **12.9** A parity test **generated from the dispatch switch**, driving
+      every verb and asserting responses and side effects, run in CI
+- [ ] **12.10 Verbs whose semantics change, named** — `panel.pop_out` and
+      `panel.dock` are generic over all 25 panels today; under the new model
+      every panel keeps the ability to become a window, so the verbs keep their
+      domain (this supersedes "a small number of panels" in principle 4).
+      "Float inside" is a third state the old model had; it is retired, and
+      `ui.state`/`panels.list` gain a documented mapping for their `docked`,
+      `own_os_window` and `popped_out` fields. `view.save`/`view.load` cannot
+      load old ImGui dock state: existing saved views are discarded at cutover,
+      stated in the release notes.
 
 ## 13. Testing
 
@@ -476,8 +537,9 @@ mode makes it possible, and that is a large part of the value.
 
 - [ ] **13.1** Unit tests for the state layer: no rendering involved
 - [ ] **13.2** Widget tests for the component library, headless
-- [ ] **13.3** Golden-image tests for each view at two densities and two themes,
-      with a tolerance, run in CI under a virtual display
+- [ ] **13.3** Golden-image tests for the **component gallery** at both themes,
+      with a tolerance, in CI under software Vulkan (lavapipe) - not whole
+      views, which the plan itself predicts would become disabled noise
 - [ ] **13.4** The parity script from 12.9, run against a real scenario
 - [ ] **13.5** Frame budget test: the 311-node fixture at 60 fps, failing CI if
       it regresses
@@ -496,8 +558,9 @@ The docs site is 21 pages and every screenshot is of the current UI.
 
 ## 15. Packaging
 
-- [ ] **15.1** Gio needs Vulkan development headers to build; add to the CI
-      image and to the build instructions
+- [ ] **15.1** Gio needs Vulkan development headers to build, and CI golden
+      tests need software Vulkan (lavapipe); both into the CI image and the
+      build instructions
 - [ ] **15.2** Confirm the built binary does not need them at runtime
 - [ ] **15.3** Size check: the Gio spike was 13 MB against the current 32 MB
 - [ ] **15.4** macOS and Windows: Gio supports both; revisit the blockers, since
@@ -516,10 +579,10 @@ until the last one.
 | **P0** | Architecture: state layer, verbs off the frame thread | `meshbench test` running against the new state layer |
 | **P1** | Design system and component library | A gallery binary showing every component in both themes |
 | **P2** | Shell: window, views, splitters, menus, status, shortcuts | The six views, empty, switchable |
-| **P3** | Map and its overlays | Plan view complete |
-| **P4** | Tables and lists: Nodes, Events, Scoreboard, Runs, firmware | Run view complete |
-| **P5** | Charts: waterfall, packet timeline, timelines, matrix, budget, energy | Debug and Bench views complete |
-| **P6** | Remaining panels: Import, Boundary, Planning, Fleet, Validate, Compare, Schedule, Live feed, Companion bench | Verify and App views complete |
+| **P3** | Map and its overlays | The map complete: every overlay, tool and interaction of section 10 |
+| **P4** | Tables and lists: Nodes, Events, Scoreboard, Runs, firmware | Every table virtualised and sortable; Run view assembles |
+| **P5** | Charts: waterfall, packet timeline, timelines, matrix, budget, energy | Every chart on shared axes; Debug and Bench assemble |
+| **P6** | Remaining panels: Import, Boundary, Planning, Fleet, Validate, Compare, Schedule, Live feed, Companion bench | All six views complete, each against its section 5 list |
 | **P7** | Windows, dialogs, settings, menus in full | Feature parity, section 4 fully ticked |
 | **P8** | Tests, docs, packaging, cutover | Old UI deleted |
 
@@ -527,9 +590,22 @@ until the last one.
 
 ## 17. Risks
 
-- **The waterfall at 60 fps is unproven.** It is the one surface that could send
-  this back to the drawing board, and it should be spiked before P0 rather than
-  discovered at P5.
+- **The map at 300 nodes and 2,000 stroked links is the unproven surface.** The
+  waterfall is a per-frame texture upload and likely fine; the map goes through
+  Gio's vector renderer, and the spike proved 58 nodes, not 300. Both are in the
+  pre-P0 spike.
+- **The screenshot pipeline is a P2 gate, not an afterthought.** Every phase is
+  verified by scripted window captures over SSH on KDE Wayland. The current app
+  is an XWayland client; Gio prefers native Wayland, where window-targeting
+  capture behaves differently. Validate capture at P2, or pin the X11 backend,
+  before any phase depends on screenshots for its evidence.
+- **Screen readers are out of scope, and that is a property of the toolkit.**
+  Gio has no accessibility tree. Keyboard navigation and visible focus (11.1 to
+  11.3) are achievable by hand; a screen reader is not, and silence here would
+  read as an accidental promise.
+- **Tabular figures cannot be toggled** - Gio's text stack exposes no OpenType
+  features - so 3.2.3 is satisfied by face choice: the mono face for aligned
+  numerals, chosen in P1, not discovered mid-P4.
 - **Golden-image tests are fragile** across drivers and font versions. Tolerance
   and a single CI image, or they become noise that gets disabled.
 - **19,810 lines is a lot of behaviour**, and the inventory above is from
@@ -554,20 +630,24 @@ until the last one.
 Estimated in my own working time on Opus, at the pace this session has actually
 run: writing, building, running, screenshotting and fixing on the real machine.
 
+Reviewed estimates. The first draft said 58 to 84 hours; the review priced
+P0, P1 and P7 against what they actually contain and came out roughly 1.5x
+higher, with reasons that survived checking. These are the corrected figures.
+
 | phase | estimate | why |
 |---|---|---|
-| P0 architecture | 4 - 6 h | The state layer is the risky part; it touches everything |
-| P1 design system and components | 8 - 12 h | Twenty components, two themes, three densities |
+| P0 architecture | 8 - 14 h | Splitting a 941-line App struct, re-pointing 1,644 lines of handlers, engine pacing out of the frame loop, and the real exit gate of 2.6a |
+| P1 design system and components | 16 - 24 h | Twenty components in a toolkit that ships almost none; the table alone is 6-10 h; menus, tooltips and modals need an overlay system Gio does not provide |
 | P2 shell | 3 - 4 h | Views, splitters, menus, shortcuts |
-| P3 map and overlays | 8 - 12 h | Fourteen features, tiles, hit-testing, labels |
-| P4 tables and lists | 6 - 8 h | The virtualised table is most of it |
-| P5 charts | 8 - 12 h | Waterfall is a GPU surface; the rest share axes |
+| P3 map and overlays | 8 - 12 h | Eighteen features after the review's additions |
+| P4 tables and lists | 6 - 8 h | The component from P1 does most of it |
+| P5 charts | 8 - 12 h | Waterfall is a texture upload; the rest share axes |
 | P6 remaining panels | 10 - 14 h | Fifteen panels, mostly forms over existing state |
-| P7 windows, dialogs, settings, menus | 5 - 7 h | Breadth rather than depth |
-| P8 tests, docs, packaging, cutover | 6 - 9 h | Golden images and 21 pages of screenshots |
-| **total** | **58 - 84 h** | |
+| P7 windows, dialogs, settings, menus | 10 - 16 h | The 686-line Preferences, the firmware library, the editable nodes table, the six-tab node window, the packet window - depth, not breadth |
+| P8 tests, docs, packaging, cutover | 8 - 14 h | Golden infrastructure needs software Vulkan in CI; 21 pages of screenshots |
+| **total** | **77 - 118 h** | |
 
-**In sessions:** roughly 15 to 22 working sessions of the length this one has
+**In sessions:** roughly 20 to 30 working sessions of the length this one has
 been. Calendar time depends entirely on how often we sit down.
 
 **Confidence:** medium on P1, P2, P4, P6, P7, which are breadth over known
@@ -575,11 +655,22 @@ ground. Lower on P3 and P5, where the frame budget is unproven. P0 could go
 either way: it is the smallest phase and the one most able to embarrass the
 estimate, because it is where the existing coupling gets discovered properly.
 
-**The cheapest thing that would sharpen this estimate** is the waterfall spike
-in section 17: half a day, and it either confirms P5 or changes the whole plan.
+**The cheapest thing that would sharpen this estimate** is the two-surface
+spike in section 20: half a day, and it retires both frame-budget unknowns.
 
 ## 20. Suggested first move
 
-Not P0. **Spike the waterfall at 60 fps with a real GPU texture**, because it is
-the only remaining question whose answer could change the recommendation. If it
-holds, start P0 the same week.
+Not P0. **One half-day spike with two surfaces in it: the waterfall as a
+per-frame texture, and the map stressed at 300 nodes and 2,000 stroked links.**
+Together they retire both frame-budget unknowns, and the map is the one the
+review judged more likely to bite. If both hold, start P0 the same week.
+
+## 21. Review
+
+Reviewed by Fable against the source before any code was written. Verdict:
+approve with changes, all incorporated above - the corrected verb inventory
+(12), the fifteen missing behaviours (marked "review" in 6 and 10), the real
+P0 exit gate (2.6a), achievable phase gates (16), the 1.5x re-budget (19), and
+the Gio-specific risks (17). The review's summary sentence earned its place
+here: the plan's biggest stated fear - quietly losing the fourteenth thing
+nobody remembered - is exactly what the review found, fifteen times over.
