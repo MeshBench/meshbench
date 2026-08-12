@@ -1,0 +1,95 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>MeshBench - Plan (Electron spike)</title>
+<style>
+  :root {
+    --bg:#0f1215; --panel:#171b20; --map:#0b0e11; --ink:#e6e9ee; --dim:#9aa4b2;
+    --rule:#2a3038; --accent:#6ea8fe; --warn:#f0b429; --good:#5cbfa8;
+  }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--ink);
+    font:13px/1.45 -apple-system, "Segoe UI", Roboto, sans-serif; overflow:hidden;
+    -webkit-user-select:none; }
+  .app { display:grid; height:100vh;
+    grid-template-rows:auto auto auto 1fr auto; }
+  .bar { display:flex; align-items:center; gap:16px; padding:6px 12px;
+    background:var(--panel); border-bottom:1px solid var(--rule); }
+  .bar .right { margin-left:auto; display:flex; gap:16px; align-items:center; }
+  .menu span { color:var(--dim); cursor:default; }
+  .menu span:hover { color:var(--ink); }
+  .warn { color:var(--warn); font-size:12px; }
+  .tabs { display:flex; gap:4px; }
+  .tab { padding:6px 15px; border-radius:6px; color:var(--dim); cursor:pointer; }
+  .tab:hover { background:#1e242b; color:var(--ink); }
+  .tab.on { background:var(--accent); color:#0f1215; font-weight:600; }
+  .tools a { color:var(--dim); text-decoration:none; margin-right:14px; }
+  .tools a.play { color:var(--accent); }
+  .body { display:grid; grid-template-columns:1fr 340px; min-height:0; }
+  #map { background:var(--map); width:100%; height:100%; display:block; }
+  .side { border-left:1px solid var(--rule); background:var(--panel);
+    display:grid; grid-template-rows:1.6fr 1fr; min-height:0; }
+  .panel { padding:10px 12px; min-height:0; display:flex; flex-direction:column; }
+  .panel + .panel { border-top:1px solid var(--rule); }
+  h2 { font:600 11px/1 ui-monospace,monospace; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--dim); margin:0 0 8px; }
+  input { width:100%; background:#0f1318; border:1px solid var(--rule); color:var(--ink);
+    border-radius:5px; padding:6px 8px; font-size:12.5px; margin-bottom:8px; }
+  input:focus { outline:1px solid var(--accent); }
+  .rows { overflow-y:auto; flex:1; min-height:0; }
+  .row { display:flex; align-items:center; gap:8px; padding:5px 6px; border-radius:5px;
+    cursor:pointer; }
+  .row:hover { background:#1e242b; }
+  .row.on { background:#232c2a; }
+  .sw { width:9px; height:9px; border-radius:2px; flex:none; }
+  .row .k { margin-left:auto; color:var(--dim); font-size:11px; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  td { padding:3px 0; vertical-align:top; }
+  td.k { color:var(--dim); width:110px; }
+  .status { display:flex; padding:5px 12px; background:var(--panel);
+    border-top:1px solid var(--rule); color:var(--dim); font-size:11.5px; }
+  .status .right { margin-left:auto; }
+  button.link { background:none; border:0; color:var(--accent); cursor:pointer;
+    font-size:11.5px; padding:0; }
+</style>
+<div class="app">
+  <div class="bar menu">
+    <span>File</span><span>View</span><span>Simulation</span><span>Repeaters</span>
+    <span>Planning</span><span>Window</span><span>Help</span>
+    <div class="right"><span class="warn">results are a best case: no multipath, bare earth, ideal demodulator</span></div>
+  </div>
+  <div class="bar">
+    <div class="tabs">
+      <div class="tab on">Plan</div><div class="tab">Run</div><div class="tab">Debug</div>
+      <div class="tab">Verify</div><div class="tab">Bench</div><div class="tab">App</div>
+    </div>
+    <div class="right"><span id="counts"></span></div>
+  </div>
+  <div class="bar tools">
+    <a href="#" class="play">play</a><a href="#">step</a><a href="#">reset</a>
+    <span style="color:var(--ink)">real firmware</span>
+    <span style="color:var(--dim)">1x</span>
+    <span style="color:var(--dim)">t = 0.00 s</span>
+    <div class="right"><span style="color:var(--dim)">EU/UK (Narrow) 869.618 MHz SF8</span></div>
+  </div>
+  <div class="body">
+    <canvas id="map"></canvas>
+    <div class="side">
+      <div class="panel">
+        <h2>Nodes</h2>
+        <input id="filter" placeholder="filter by name or kind">
+        <div class="rows" id="rows"></div>
+      </div>
+      <div class="panel">
+        <h2>Inspector
+          <button class="link" id="pop" style="float:right">open in its own window</button>
+        </h2>
+        <div id="insp"></div>
+      </div>
+    </div>
+  </div>
+  <div class="status">
+    <span id="fixname"></span>
+    <span class="right">Electron + Chromium   one runtime, bundled</span>
+  </div>
+</div>
+<script src="renderer.js"></script>

@@ -1,0 +1,3 @@
+# Electron pulls a 177 MB Chromium binary. npm install brings it back.
+node_modules/
+package-lock.json
