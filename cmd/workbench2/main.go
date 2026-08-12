@@ -315,6 +315,17 @@ func main() {
 	logp := &logPanel{}
 	sh.Add(&shell.Panel{Name: "Configuration", Windowable: true, Draw: cfg.Draw})
 	sh.Add(&shell.Panel{Name: "Experiment log", Windowable: true, Draw: logp.Draw})
+	nv := &nodeViewPanel{}
+	nv.OnAction = func(action, node string) {
+		go func() {
+			if action == "nodes.stats" {
+				_, _ = st.Do(ctx, action, nil)
+				return
+			}
+			_, _ = st.Do(ctx, action, node)
+		}()
+	}
+	sh.Add(&shell.Panel{Name: "Nodes running", Windowable: true, Draw: nv.Draw})
 	fleet := &fleetPanel{}
 	bounds := &boundaryPanel{}
 	tls := &timelinesPanel{}

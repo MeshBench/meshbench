@@ -195,6 +195,18 @@ type Native struct {
 
 func (n *Native) Kind() string { return "native" }
 
+// PID is the operating system process, or zero if it is not running.
+//
+// Exposed so an interface can say what a node costs. With 154 of these on one
+// machine, "which node is using the memory" is a question somebody asks well
+// before they ask anything about radio.
+func (n *Native) PID() int {
+	if n.cmd == nil || n.cmd.Process == nil {
+		return 0
+	}
+	return n.cmd.Process.Pid
+}
+
 func (n *Native) Start(ctx context.Context, bridgeAddr string) error {
 	path, err := FindNative(n.Path, n.Role)
 	if err != nil {

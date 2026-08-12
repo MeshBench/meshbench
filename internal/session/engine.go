@@ -29,6 +29,7 @@ type Sim struct {
 	terr     coverage.Terrain
 	warming  atomic.Bool
 	starting atomic.Bool
+	cpu      *cpuSampler
 	served   map[string]*engine.CompanionLink
 }
 

@@ -63,6 +63,7 @@ func Register(st *state.Store, s *Sim) {
 			w.Trails = s.trailsSince(from, index)
 			w.Events, w.EventTotal = s.eventTail(eventTail)
 			w.Scores = s.scores()
+			w.Stats = s.nodeStats()
 		}
 
 		w.Say(fmt.Sprintf("opened %s: %d nodes, %d links, %d areas",
@@ -614,6 +615,44 @@ func Register(st *state.Store, s *Sim) {
 			"running": s.firmwareCount(), "nodes": len(w.Nodes),
 			"starting": s.starting.Load(),
 		}, nil
+	})
+	st.Handle("nodes.stats", func(w *state.World, _ any) (any, error) {
+		// Also on demand, because a paused simulation still costs memory and
+		// somebody looking at the node view has usually just paused it.
+		w.Stats = s.nodeStats()
+		return map[string]any{"nodes": len(w.Stats)}, nil
+	})
+	st.Handle("node.stop", func(w *state.World, p any) (any, error) {
+		name, _ := p.(string)
+		if err := s.stopNode(name); err != nil {
+			return nil, err
+		}
+		w.Stats = s.nodeStats()
+		w.Say("stopped " + name)
+		return map[string]any{"stopped": name}, nil
+	})
+	st.Handle("node.start", func(w *state.World, p any) (any, error) {
+		name, _ := p.(string)
+		if err := s.startNode(context.Background(), name, w.Seed); err != nil {
+			return nil, err
+		}
+		w.Stats = s.nodeStats()
+		w.Say("started " + name)
+		return map[string]any{"started": name}, nil
+	})
+	st.Handle("node.set_firmware", func(w *state.World, p any) (any, error) {
+		m, _ := p.(map[string]any)
+		name, _ := m["node"].(string)
+		version, _ := m["version"].(string)
+		if err := s.setFirmware(name, version); err != nil {
+			return nil, err
+		}
+		// Not applied until the node restarts, and said so rather than left to
+		// be discovered: firmware is chosen at launch, and a version that
+		// changes nothing until something else happens is the kind of control
+		// somebody presses twice and then distrusts.
+		w.Say(name + " will run " + version + " when it next starts")
+		return map[string]any{"node": name, "version": version}, nil
 	})
 	st.Handle("session.describe", func(w *state.World, _ any) (any, error) {
 		return map[string]any{

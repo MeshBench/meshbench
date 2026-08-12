@@ -95,6 +95,8 @@ type Snapshot struct {
 	// measured against it.
 	Observed  []Observed
 	Residuals *Residuals
+	// Stats is per-node cost and traffic, for the node view.
+	Stats []NodeStat
 }
 
 // Point is a position, and the only geometry the snapshot carries.
@@ -296,6 +298,38 @@ type Residuals struct {
 	IQRdB     float64
 }
 
+// NodeStat is what one node is costing and doing right now.
+//
+// Separate from Node because Node is what a network *is* and this is what it is
+// *doing*: one changes when somebody edits the scenario, the other changes
+// every tick, and merging them would republish the whole network every time a
+// counter moved.
+type NodeStat struct {
+	Name string
+	// Backend is "native", "emulated" or "" for a node running nothing.
+	Backend string
+	// Firmware is the build it is running.
+	Firmware string
+	Running  bool
+	// PID, and what the process is costing. RSSBytes is resident memory;
+	// CPUPct is a share of one core since the last sample.
+	PID      int
+	RSSBytes int64
+	CPUPct   float64
+
+	// Sent and Heard are packets; LastSentMs and LastHeardMs are when, in
+	// simulated time. Zero means never, which is why they are separate from
+	// the counts rather than inferred from them.
+	Sent, Heard               int
+	LastSentMs, LastHeardMs   uint32
+	LastSentTo, LastHeardFrom string
+
+	// The chip's own counters, which are the only way to tell a busy mesh from
+	// a radio that cries busy too readily.
+	IRQReads, BusyReads uint32
+	BusyMs, Spurious    uint32
+}
+
 // Node is one node, as the interface needs it.
 type Node struct {
 	Name     string
@@ -384,6 +418,8 @@ type World struct {
 	// measured against it.
 	Observed  []Observed
 	Residuals *Residuals
+	// Stats is per-node cost and traffic, for the node view.
+	Stats []NodeStat
 
 	// Tick is called every step while playing, and is where engine pacing
 	// lives now that it is out of the frame loop. Nil means no engine.
@@ -577,6 +613,7 @@ func (s *Store) publish() {
 		Import:        s.world.Import,
 		Observed:      s.world.Observed,
 		Residuals:     s.world.Residuals,
+		Stats:         s.world.Stats,
 	})
 }
 
