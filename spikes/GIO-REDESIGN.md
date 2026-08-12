@@ -95,9 +95,9 @@ named and justified.
 
 ### 3.3 Spacing and density
 - [ ] **3.3.1** A 4 px spacing scale; no arbitrary insets.
-- [ ] **3.3.2** One density at cutover, with the spacing scale built so
-      comfortable and compact are a token change later. Three densities triple
-      the golden matrix for no parity value.
+- [ ] **3.3.2** Three densities: comfortable, default, compact. Goldens run at
+      the default; the other two are checked by the gallery smoke rather than
+      pixel comparison, which keeps the matrix sane without cutting scope.
 - [ ] **3.3.3** Consistent panel chrome: title, optional actions, body, optional
       footer.
 
@@ -119,8 +119,7 @@ part ImGui never gave us.
 - [ ] **4.2 Toggle and checkbox** — with a label that is itself the hit target.
 - [ ] **4.3 Text field** — placeholder, validation state, unit suffix, numeric
       stepping, clamping with the limit stated rather than silent.
-- [ ] **4.4 Select** — searchable when over ten options *(search is new -
-      deferrable)*.
+- [ ] **4.4 Select** — searchable when over ten options.
 - [ ] **4.5 Slider** — with a typed value beside it, always.
 - [ ] **4.6 Table** — the big one. Virtualised, sortable by any column with a
       total order so rows never reshuffle on equal keys, resizable columns,
@@ -250,7 +249,7 @@ which is the tick list doing its job before the code was written.
 - [ ] Spectrogram from captured IQ, GPU rendered
 - [ ] Frequency and time axes with real units
 - [ ] Click a feature to select the packet that caused it
-- [ ] Colour scale selectable, with the dynamic range stated *(new - deferrable)*
+- [ ] Colour scale selectable, with the dynamic range stated
 - [ ] **(review)** Symbol view, and "capture now"
 
 ### 6.6 Packet timeline
@@ -278,7 +277,7 @@ which is the tick list doing its job before the code was written.
 - [ ] Type a line and see the reply, matching `console.type`
 - [ ] The documented caveat surfaced: replies do not arrive while a sweep owns
       the clock, said in the panel rather than in a document
-- [ ] Command history; completion *(new - deferrable)*
+- [ ] Command history, and completion for the MeshCore CLI (new, in scope)
 
 ### 6.10 Schedule
 - [ ] Scheduled sends: node, time, repeat, command
@@ -460,7 +459,7 @@ The single most important surface, and the one with the most overlays.
 - [ ] **10.5** Coverage raster from a node, with a legend in dB
 - [ ] **10.6** Boundary outlines and the study-area margin
 - [ ] **10.7** Terrain shading and elevation source attribution
-- [ ] **10.8** Labels with collision avoidance *(new - deferrable)*
+- [ ] **10.8** Labels with collision avoidance, so names stop overlapping
 - [ ] **10.8a (review)** Antenna pattern overlay, rotated to the node's bearing
 - [ ] **10.8b (review)** Region layer, on by default alongside links
 - [ ] **10.8c (review)** Show and hide neighbours per node
@@ -482,8 +481,8 @@ The single most important surface, and the one with the most overlays.
 - [ ] **11.2** A shortcut registry with no conflicts, and a sheet that lists it
 - [ ] **11.3** Focus visible at all times, and focus order sensible
 - [ ] **11.4** Selection is one concept across map, tables, events and packets
-- [ ] **11.5** Undo for destructive scenario edits *(new - deferrable
-      post-cutover; nothing like it exists today)*
+- [ ] **11.5** Undo for destructive scenario edits: delete, move, prune. New -
+      nothing like it exists today - and in scope.
 - [ ] **11.6** Confirmation only where an action is irreversible and expensive
 - [ ] **11.7** Copy: any value, any table, any log, as text or CSV
 - [ ] **11.8** Colour is never the only channel: shape or text carries it too
@@ -616,7 +615,16 @@ until the last one.
 - **Two UIs in the tree for months.** Mitigated by building in `internal/gui`
   and cutting over once, but the temptation to fix a bug twice is real.
 
-## 18. Explicitly not in scope
+## 18. Scope posture
+
+Budget is explicitly not a constraint on this plan. The additions the review
+flagged as cuttable - undo, CLI completion, label collision avoidance, the
+selectable waterfall scale, searchable selects, three densities - stay in
+scope. The only review cut kept is scoping golden-image tests to the component
+gallery, because that one was about test fragility rather than money: view
+level goldens rot into disabled noise whoever pays for them.
+
+## Explicitly not in scope
 
 - Docking as a general framework. Views are fixed arrangements plus real windows.
 - Mobile or web targets, though Gio would allow both.
@@ -645,9 +653,10 @@ higher, with reasons that survived checking. These are the corrected figures.
 | P6 remaining panels | 10 - 14 h | Fifteen panels, mostly forms over existing state |
 | P7 windows, dialogs, settings, menus | 10 - 16 h | The 686-line Preferences, the firmware library, the editable nodes table, the six-tab node window, the packet window - depth, not breadth |
 | P8 tests, docs, packaging, cutover | 8 - 14 h | Golden infrastructure needs software Vulkan in CI; 21 pages of screenshots |
-| **total** | **77 - 118 h** | |
+| kept additions (undo, completion, label avoidance, densities and the rest) | 8 - 14 h | In scope by decision: budget is not a constraint |
+| **total** | **85 - 132 h** | |
 
-**In sessions:** roughly 20 to 30 working sessions of the length this one has
+**In sessions:** roughly 22 to 33 working sessions of the length this one has
 been. Calendar time depends entirely on how often we sit down.
 
 **Confidence:** medium on P1, P2, P4, P6, P7, which are breadth over known
