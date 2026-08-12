@@ -75,3 +75,27 @@ func dot(p *clip.Path, c f32.Point, r float32) {
 func length(p f32.Point) float32 {
 	return float32(math.Sqrt(float64(p.X*p.X + p.Y*p.Y)))
 }
+
+// dotReversed is dot wound the other way round, for punching a hole in a
+// filled shape under the non-zero winding rule.
+func dotReversed(p *clip.Path, c f32.Point, r float32) {
+	const (
+		co = 0.9238795
+		si = 0.3826834
+	)
+	pts := [8]f32.Point{
+		{X: c.X + r*co, Y: c.Y - r*si},
+		{X: c.X + r*si, Y: c.Y - r*co},
+		{X: c.X - r*si, Y: c.Y - r*co},
+		{X: c.X - r*co, Y: c.Y - r*si},
+		{X: c.X - r*co, Y: c.Y + r*si},
+		{X: c.X - r*si, Y: c.Y + r*co},
+		{X: c.X + r*si, Y: c.Y + r*co},
+		{X: c.X + r*co, Y: c.Y + r*si},
+	}
+	p.MoveTo(pts[0])
+	for _, q := range pts[1:] {
+		p.LineTo(q)
+	}
+	p.Close()
+}

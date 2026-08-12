@@ -56,6 +56,23 @@ func main() {
 	if cache, err := os.UserCacheDir(); err == nil {
 		mv.Tiles = comp.NewTiles(filepath.Join(cache, "meshcoresim", "tiles"), "carto-dark")
 	}
+	// The map decides, the store changes. A pointer gesture is not allowed to
+	// write to the world directly, so both of these go through the same verbs
+	// a script would use.
+	mv.OnSelect = func(names []string, additive bool) {
+		verb := "nodes.select_many"
+		if additive {
+			verb = "nodes.add_to_selection"
+		}
+		go func() { _, _ = st.Do(ctx, verb, names) }()
+	}
+	mv.OnMove = func(name string, lat, lon float64) {
+		go func() {
+			_, _ = st.Do(ctx, "nodes.move",
+				map[string]any{"name": name, "lat": lat, "lon": lon})
+		}()
+	}
+
 	nodes := &nodesPanel{}
 	sh.Add(&shell.Panel{Name: "Map", Windowable: true,
 		Draw: func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {

@@ -27,12 +27,22 @@ type MapView struct {
 	Tiles *Tiles
 	// Zoom and Centre are the camera. Kept here rather than in state because
 	// where somebody is looking is a property of the view, not of the world.
-	Zoom          float64
-	CentreLat     float64
-	CentreLon     float64
-	initialised   bool
-	links         linkCache
-	LabelEveryNth int
+	Zoom        float64
+	CentreLat   float64
+	CentreLon   float64
+	initialised bool
+	links       linkCache
+	cam         camera
+	labels      labeller
+	sizes       labelSizer
+
+	// OnSelect is called when the pointer changes the selection. Additive is
+	// a shift-click or a shift-drag, which adds rather than replaces.
+	OnSelect func(names []string, additive bool)
+	// OnMove is called while a node is being dragged, every frame it moves,
+	// so the rest of the interface follows the drag rather than jumping at
+	// the end of it.
+	OnMove func(name string, lat, lon float64)
 }
 
 type projected struct {
@@ -55,8 +65,16 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 		m.fit(s, sz)
 		m.initialised = true
 	}
-	if m.LabelEveryNth == 0 {
-		m.LabelEveryNth = 4
+
+	// The basemap first, under everything. Only cached tiles are drawn: a
+	// redraw that waits on the network is a window that stops painting.
+	pts := m.project(s, sz)
+	m.handle(gtx, sz, pts)
+	// The camera may have moved, so where things are on screen is recomputed
+	// rather than reused: a frame that draws the old positions is a frame of
+	// visible lag on every pan.
+	if m.cam.drag == dragPan || m.cam.drag == dragNode {
+		pts = m.project(s, sz)
 	}
 
 	// The basemap first, under everything. Only cached tiles are drawn: a
@@ -64,8 +82,6 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 	if m.Tiles != nil {
 		m.Tiles.Draw(gtx, sz, m.CentreLat, m.CentreLon, m.Zoom)
 	}
-
-	pts := m.project(s, sz)
 
 	// Links, batched. One path, one fill, however many links.
 	//
@@ -79,12 +95,24 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 		if offscreen(a, sz) && offscreen(b, sz) {
 			continue
 		}
+		// A link shorter than the node markers at each end is drawn entirely
+		// underneath them. On a national view a third of the links in the
+		// dense clusters are this, and each one still costs a quad to encode
+		// and tessellate.
+		dx, dy := a.x-b.x, a.y-b.y
+		if dx*dx+dy*dy < 64 {
+			continue
+		}
 		segment(&lp, f32.Pt(a.x, a.y), f32.Pt(b.x, b.y), 1)
 		links++
 	}
+	// End unconditionally. Begin opens a macro, and a macro left open by a
+	// frame with nothing in it panics the next path that tries to start one -
+	// which is a crash on an empty map, the easiest state to reach.
+	spec := lp.End()
 	if links > 0 {
 		paint.FillShape(gtx.Ops, theme.Alpha(t.P.Accent, 0.22),
-			clip.Outline{Path: lp.End()}.Op())
+			clip.Outline{Path: spec}.Op())
 	}
 
 	// Nodes, grouped by kind so each kind is one filled path rather than one
@@ -105,24 +133,31 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 		paint.FillShape(gtx.Ops, t.NodeColour(k), clip.Outline{Path: np.End()}.Op())
 	}
 
-	// Labels, thinned: at national scale every name is unreadable anyway, and
-	// each one is a text shaping call.
-	shown := 0
-	for i, p := range pts {
-		if offscreen(p, sz) {
-			continue
-		}
-		if kindOf(p.n.Kind) == theme.SimpleRepeater && i%m.LabelEveryNth != 0 && !p.n.Selected {
-			continue
-		}
+	// Selection and hover, drawn over the nodes as rings so that colour is
+	// never the only thing carrying the state (11.8).
+	m.rings(t, gtx, pts, sz)
+
+	// Labels, placed so they do not overlap. See maplabels.go for why greedy
+	// and why stable.
+	spots := m.labels.place(pts, sz, m.cam.hover,
+		func(i int) image.Point { return m.sizes.measure(gtx, t, pts[i].n.Name) })
+	for i, at := range spots {
 		col := t.P.Dim
-		if p.n.Selected {
+		if pts[i].n.Selected || i == m.cam.hover {
 			col = t.P.Ink
 		}
-		off := op.Offset(image.Pt(int(p.x)+8, int(p.y)-7)).Push(gtx.Ops)
-		Text(t, t.Sz.Caption, col, p.n.Name)(gtx)
+		off := op.Offset(at).Push(gtx.Ops)
+		Text(t, t.Sz.Caption, col, pts[i].n.Name)(unbounded(gtx))
 		off.Pop()
-		shown++
+	}
+
+	// The selection box, while one is being dragged.
+	if m.cam.drag == dragBox && m.cam.moved {
+		r := boxOf(m.cam.from, m.cam.boxTo)
+		paint.FillShape(gtx.Ops, theme.Alpha(t.P.Accent, 0.12), clip.Rect(r).Op())
+		off := op.Offset(r.Min).Push(gtx.Ops)
+		Border(gtx, r.Size(), 0, 1, theme.Alpha(t.P.Accent, 0.8))
+		off.Pop()
 	}
 
 	// Scale bar and attribution, bottom left, as the old map had.
@@ -190,4 +225,46 @@ func kindOf(k string) theme.NodeKind {
 	return theme.SimpleRepeater
 }
 
-var _ = color.NRGBA{}
+// rings draws the selection and hover states over the node dots.
+//
+// A ring rather than a different fill colour, because the fill already carries
+// the node's kind and one channel cannot carry two things. It is also the only
+// state visible to somebody who cannot separate the kind colours.
+//
+// Two passes rather than two paths built at once: clip.Path.Begin starts a
+// macro, and two open macros cannot interleave.
+func (m *MapView) rings(t *theme.Theme, gtx layout.Context, pts []projected, sz image.Point) {
+	m.ringPass(gtx, pts, sz, theme.Alpha(t.P.Ink, 0.5), 9, 1,
+		func(i int, p projected) bool { return i == m.cam.hover })
+	m.ringPass(gtx, pts, sz, t.P.Selected, 7, 1.5,
+		func(i int, p projected) bool { return p.n.Selected })
+}
+
+// ringPass draws one ring around every node the predicate accepts, as a single
+// filled path.
+func (m *MapView) ringPass(gtx layout.Context, pts []projected, sz image.Point,
+	col color.NRGBA, r, w float32, want func(int, projected) bool) {
+
+	var path clip.Path
+	path.Begin(gtx.Ops)
+	n := 0
+	for i, p := range pts {
+		if offscreen(p, sz) || !want(i, p) {
+			continue
+		}
+		ring(&path, f32.Pt(p.x, p.y), r, w)
+		n++
+	}
+	spec := path.End()
+	if n == 0 {
+		return
+	}
+	paint.FillShape(gtx.Ops, col, clip.Outline{Path: spec}.Op())
+}
+
+// ring is an annulus: an octagon outside an octagon wound the other way, so
+// the non-zero fill leaves the middle empty and the node shows through.
+func ring(p *clip.Path, c f32.Point, r, w float32) {
+	dot(p, c, r)
+	dotReversed(p, c, r-w)
+}
