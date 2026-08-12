@@ -43,6 +43,7 @@ func main() {
 	profFlag := flag.String("cpuprofile", "", "write a CPU profile here")
 	playFlag := flag.Bool("play", false, "start the simulation immediately")
 	injectFlag := flag.String("inject", "", "originate a packet at this node once running")
+	filterFlag := flag.String("filter", "", "preset the node view's search box, so a filtered table can be captured")
 	popFlag := flag.String("pop-out", "", "open this panel in its own window at startup")
 	importFlag := flag.String("import", "", "describe an import from this CoreScope URL at startup")
 	planFlag := flag.String("plan", "", "plan between the selected node and this one at startup")
@@ -333,6 +334,9 @@ func main() {
 			_, _ = st.Do(ctx, "node.set_firmware",
 				map[string]any{"node": node, "version": version})
 		}()
+	}
+	if *filterFlag != "" {
+		nv.SetFilter(*filterFlag)
 	}
 	sh.Add(&shell.Panel{Name: "Nodes running", Windowable: true, Draw: nv.Draw})
 	fleet := &fleetPanel{}
