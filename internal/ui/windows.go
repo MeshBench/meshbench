@@ -197,6 +197,11 @@ func (a *App) drawMenuBar() {
 	imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.95, 0.72, 0.25, 1))
 	textDim("results are a best case: no multipath, bare earth, ideal demodulator")
 	imgui.PopStyleColor()
+	// What the machine is giving us, beside what the model is worth. An
+	// emulated node costs about a core, so the ceiling is one an operator has to
+	// see coming rather than discover as boots that never finish.
+	imgui.SameLineV(0, 24)
+	a.drawMachineLoad()
 	imgui.EndMenuBar()
 
 	// The two shortcuts the menu advertises. Only when no text field owns the

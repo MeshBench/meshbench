@@ -33,7 +33,12 @@ def load_hex(path):
 def main(src, dst):
     mem = load_hex(src)
     lo, hi = min(mem), max(mem)
-    img = bytearray(hi - lo + 1)
+    # Gaps are erased flash, which reads 0xFF. Filling them with zero is what
+    # made this look like an unrunnable binary for a fortnight: the MBR decides
+    # whether a bootloader or a parameter page exists by testing words against
+    # 0xFFFFFFFF, so a zeroed gap at 0x0FF8 answers "present, at address 0" and
+    # it dereferences a null pointer as a structure and spins there for ever.
+    img = bytearray(b'\xff' * (hi - lo + 1))
     for a, b in mem.items():
         img[a - lo] = b
     open(dst, 'wb').write(img)

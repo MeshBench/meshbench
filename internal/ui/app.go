@@ -63,6 +63,14 @@ type App struct {
 	selected int
 	linkTo   int
 
+	// load is the machine's own CPU and GPU, sampled once a second for the
+	// chrome. Emulation is what makes it worth showing.
+	load machineLoad
+
+	// fwDoneMsg carries a finished download from its own goroutine to the
+	// status line, which belongs to the frame thread.
+	fwDoneMsg string
+
 	freqMHz float64
 	cut     *pathview.CutThrough
 	cutErr  string

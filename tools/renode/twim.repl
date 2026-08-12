@@ -1,0 +1,10 @@
+// TWIM on both I2C instances, replacing Renode's legacy TWI model.
+//
+// Theirs models the legacy registers; the firmware drives the EasyDMA part and
+// polls EVENTS_TXSTARTED, which never arrives. An address can carry only one
+// peripheral, so the script unregisters theirs first.
+twi0: I2C.NRF52840_TWIM @ sysbus 0x40003000
+    IRQ -> nvic@3
+
+twi1: I2C.NRF52840_TWIM @ sysbus 0x40004000
+    IRQ -> nvic@4

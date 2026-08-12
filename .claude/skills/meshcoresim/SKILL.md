@@ -276,7 +276,7 @@ unsupported build. Published companion assets carry their transport in the name
 
 | | |
 |---|---|
-| QEMU with our SX1262, GPIO and fixes | `A13xB0/qemu` branch `meshbench-sx1262` |
+| QEMU with our SX1262, GPIO and fixes | `MeshBench/qemu` branch `meshbench-sx1262` |
 | The chip model, and the socket server | `meshcore-native`, `VirtualSX1262` + `bridge/radioserver.cpp` |
 | Per-board wiring | `internal/scenario/boards.go`, `QEMUWiring` |
 

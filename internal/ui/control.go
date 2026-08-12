@@ -197,7 +197,14 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 		// handler, which runs on the frame thread: nothing drew for the whole
 		// run, so a flood could not be watched and long runs looked like a
 		// hang. Poll sim.state, or just watch it.
-		a.switchWorkspace(wsRun)
+		// Only on a run that starts from a standstill. Switching on every call
+		// meant a caller pacing a long run in slices - which is what an
+		// emulated node forces, because it cannot be hurried - dragged the
+		// operator back to Run every couple of seconds, so Bench could not be
+		// opened at all while anything was running.
+		if !a.playing {
+			a.switchWorkspace(wsRun)
+		}
 		a.runUntilMs = a.eng.NowMs() + p.ForMs
 		a.playing = true
 		return map[string]any{"running": true, "until_ms": a.runUntilMs,
@@ -574,6 +581,7 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 		var p struct {
 			Role    string `json:"role"`
 			Version string `json:"version"`
+			Board   string `json:"board"`
 		}
 		if err := json.Unmarshal(params, &p); err != nil {
 			return nil, err
@@ -582,6 +590,19 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 			return nil, fmt.Errorf("firmware.download needs a role and a version")
 		}
 		a.winFirmware = true
+		// A board names published hardware firmware, which is a different
+		// catalogue from the host builds - same role and version, a different
+		// artefact. Without this the only way to fetch one was to click it.
+		if p.Board != "" {
+			img, err := a.boardImageFor(p.Board, p.Role, p.Version)
+			if err != nil {
+				return nil, err
+			}
+			a.downloadImage(img)
+			return map[string]any{
+				"downloading": img.Name, "board": p.Board, "emulated": true,
+			}, nil
+		}
 		a.downloadBuild(p.Role, p.Version)
 		return map[string]any{"downloading": p.Role + " " + p.Version}, nil
 
@@ -1248,9 +1269,27 @@ func (a *App) handleUICommand(method string, params json.RawMessage) (any, bool,
 		a.infer.appliedN = a.applyInference()
 		return map[string]any{"applied": a.infer.appliedN}, true, nil
 	case "firmware.set":
-		role, version := arg("role"), arg("version")
+		role, version, board := arg("role"), arg("version"), arg("board")
 		if version == "" {
 			return nil, true, fmt.Errorf("firmware.set needs a version")
+		}
+		// A board is checked once, here, rather than per node: an unknown board
+		// or a role that board does not publish is worth saying before touching
+		// a scenario, not after. It applies to a role like any other build -
+		// with the caveat, said in the result, that each node becomes its own
+		// emulator running in real time.
+		if board != "" {
+			if role == "" {
+				role = firmware.DefaultRole
+			}
+			img, err := a.boardImageFor(board, role, version)
+			if err != nil {
+				return nil, true, err
+			}
+			if _, err := os.Stat(firmware.BoardImagePath(firmware.DefaultCacheDir(), img)); err != nil {
+				return nil, true, fmt.Errorf(
+					"%s is not downloaded yet - firmware.download it first", img.Name)
+			}
 		}
 		// Checked here, where it was typed. A role with no build wrote through
 		// silently and surfaced minutes later, mid-sweep, as "<node> runs no
@@ -1276,10 +1315,21 @@ func (a *App) handleUICommand(method string, params json.RawMessage) (any, bool,
 				a.Nodes[i].Firmware.Role = role
 			}
 			a.Nodes[i].Firmware.Version = version
+			// The board selects the backend, so it is set on the way to
+			// emulated hardware and cleared on the way back. Without the clear,
+			// a node emulated once stays emulated for ever, on a host build
+			// that never matches its hardware.
+			a.Nodes[i].Firmware.Board = board
 			n++
 		}
 		a.rebuildForFirmware()
-		return map[string]any{"nodes": n, "version": version}, true, nil
+		out := map[string]any{"nodes": n, "version": version}
+		if board != "" {
+			out["board"], out["emulated"] = board, true
+			out["note"] = fmt.Sprintf(
+				"%d node(s) now run an emulator each, in real time", n)
+		}
+		return out, true, nil
 	case "sim.inject":
 		i := a.nodeIndex(arg("node"))
 		if i < 0 {

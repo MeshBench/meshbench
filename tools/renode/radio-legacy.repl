@@ -1,0 +1,9 @@
+// The SX1262 on Renode's own spi2, which models the legacy register interface.
+//
+// Kept separate from radio.repl because the two are exclusive: Renode's model
+// defines either the legacy TXD/RXD registers or the EasyDMA pointers, not
+// both. Firmware written against SPIM needs radio.repl; firmware that pokes the
+// legacy registers needs this one.
+lora: Radio.RadioServerSX1262 @ spi2
+    host: "127.0.0.1"
+    port: 7777

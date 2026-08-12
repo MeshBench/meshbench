@@ -1,0 +1,61 @@
+i @tools/renode/peripherals/NRF52840_TWIM.cs
+i @tools/renode/peripherals/NRF52840_SAADC.cs
+i @tools/renode/peripherals/RadioServerSX1262.cs
+i @tools/renode/peripherals/NRF52840_Clock.cs
+i @tools/renode/peripherals/NRF52840_Temp.cs
+mach create "rak"
+machine LoadPlatformDescription @platforms/cpus/nrf52840.repl
+machine LoadPlatformDescription @tools/renode/ficr.repl
+machine LoadPlatformDescription @tools/renode/uicr.repl
+machine LoadPlatformDescription @tools/renode/temp.repl
+sysbus Unregister sysbus.clock
+machine LoadPlatformDescription @tools/renode/clock.repl
+machine LoadPlatformDescription @tools/renode/saadc.repl
+sysbus Unregister sysbus.spi2
+sysbus Unregister sysbus.twi0
+sysbus Unregister sysbus.twi1
+machine LoadPlatformDescription @tools/renode/twim.repl
+machine LoadPlatformDescription @tools/renode/spim3.repl
+
+: Erased flash, then every real region in flash order. Erased matters: the MBR
+: decides whether a bootloader exists by testing words against 0xFFFFFFFF, and
+: on a zeroed machine every such test answers "present" and it jumps into
+: nothing.
+sysbus LoadBinary @/tmp/erased_flash.bin 0x0
+sysbus LoadBinary @/tmp/erased_uicr.bin 0x10001000
+sysbus LoadBinary @/tmp/s140.bin 0x0
+sysbus LoadBinary @/tmp/boot_00000000.bin 0x0
+sysbus LoadBinary @/tmp/rak.bin 0x26000
+
+cpu VectorTableOffset 0x0
+cpu SP `sysbus ReadDoubleWord 0x0`
+cpu PC `sysbus ReadDoubleWord 0x4`
+
+logLevel 3
+sysbus WriteDoubleWord 0x10000060 0xDEADBEEF
+sysbus WriteDoubleWord 0x10000064 0xCAFEF00D
+sysbus WriteDoubleWord 0x10000080 0x11111111
+sysbus WriteDoubleWord 0x10000084 0x22222222
+sysbus WriteDoubleWord 0x10000088 0x33333333
+sysbus WriteDoubleWord 0x1000008C 0x44444444
+sysbus WriteDoubleWord 0x10000090 0x22222222
+sysbus WriteDoubleWord 0x10000094 0x44444444
+sysbus WriteDoubleWord 0x10000098 0x66666666
+sysbus WriteDoubleWord 0x1000009C 0x88888888
+sysbus WriteDoubleWord 0x100000A0 0x00000000
+sysbus WriteDoubleWord 0x100000A4 0xA1B2C3D4
+sysbus WriteDoubleWord 0x100000A8 0x0000E5F6
+sysbus WriteDoubleWord 0x10000100 0x00052840
+sysbus WriteDoubleWord 0x10000104 0x41414141
+sysbus WriteDoubleWord 0x10000108 0x00002004
+sysbus WriteDoubleWord 0x1000010C 0x00000040
+sysbus WriteDoubleWord 0x10000110 0x00000100
+sysbus WriteDoubleWord 0x10000130 0x00000001
+sysbus WriteDoubleWord 0x10000134 0x00000001
+sysbus WriteDoubleWord 0xFF8 0xFFFFFFFF
+sysbus WriteDoubleWord 0xFFC 0xFFFFFFFF
+sysbus WriteDoubleWord 0xFF8 0xFFFFFFFF
+sysbus WriteDoubleWord 0xFFC 0xFFFFFFFF
+uart0 CreateFileBackend @/tmp/rak_uart.log true
+spi3.lora Connect
+start

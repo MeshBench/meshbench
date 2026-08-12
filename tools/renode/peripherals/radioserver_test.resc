@@ -1,0 +1,45 @@
+:name: SX1262 over the radio model
+:description: Drives the Renode peripheral directly, before any firmware depends on it.
+:
+: The peripheral is a wire to radioserver rather than a model of a chip, so what
+: is under test here is the wire: chip select framing, byte order, and that the
+: answers coming back are the ones VirtualSX1262 gives a native node.
+:
+: Start the radio model first, on a TCP port, with no engine attached:
+:   radioserver :7777
+:
+: Then:
+:   renode tools/renode/peripherals/radioserver_test.resc
+
+mach create "radio"
+machine LoadPlatformDescription @tools/renode/peripherals/radioserver.repl
+
+radio Connect
+
+: GetStatus (0xC0) then one byte clocked out to read the answer. A chip in
+: standby answers 0x20 - mode 2 in bits 6:4 - and a chip that is not there
+: answers 0x00, which is how "no radio model" looks from the firmware's side.
+echo "GetStatus, expect 0x2x:"
+radio Transmit 0xC0
+radio Transmit 0x00
+
+: WriteBuffer at offset 0, three bytes, then read them back. This is the one
+: that caught the earlier model out: the buffer commands are variable length and
+: run until chip select deasserts, so a model treating them as fixed length
+: parses payload as opcodes and returns garbage after the first byte.
+echo "WriteBuffer AA BB CC:"
+radio Transmit 0x0E
+radio Transmit 0x00
+radio Transmit 0xAA
+radio Transmit 0xBB
+radio Transmit 0xCC
+radio FinishTransmission
+
+echo "ReadBuffer, expect AA BB CC:"
+radio Transmit 0x1E
+radio Transmit 0x00
+radio Transmit 0x00
+radio Transmit 0x00
+radio Transmit 0x00
+radio Transmit 0x00
+radio FinishTransmission

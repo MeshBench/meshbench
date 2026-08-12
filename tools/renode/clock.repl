@@ -1,0 +1,7 @@
+// CLOCK, replacing Renode's partial one.
+//
+// Theirs starts the oscillators and has no calibration timer, which the
+// SoftDevice waits on during initialisation. Redefining the same name at the
+// same address replaces it; a peripheral can only be registered once.
+clock: Miscellaneous.NRF52840_Clock @ sysbus 0x40000000
+    IRQ -> nvic@0

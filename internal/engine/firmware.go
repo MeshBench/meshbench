@@ -375,8 +375,19 @@ func emulatedBackend(spec scenario.Node) (*firmware.EmulatedNode, error) {
 	if err != nil {
 		return nil, err
 	}
-	if board.QEMU == nil || !scenario.EmulationSupported(board.Name) {
+	if !scenario.EmulationSupported(board.Name) {
 		return nil, fmt.Errorf("%s has no verified emulation wiring", board.Name)
+	}
+	if board.QEMU == nil && board.Renode == nil {
+		return nil, fmt.Errorf("%s names no emulator", board.Name)
+	}
+
+	// The image format follows the MCU, not a preference: the ESP32 boards
+	// publish a merged .bin and the nRF52 ones a .uf2, and neither emulator
+	// will take the other's.
+	format := "bin"
+	if board.Renode != nil {
+		format = "uf2"
 	}
 
 	cache := firmware.DefaultCacheDir()
@@ -384,7 +395,7 @@ func emulatedBackend(spec scenario.Node) (*firmware.EmulatedNode, error) {
 		Board:   board.Name,
 		Role:    spec.Firmware.Role,
 		Version: spec.Firmware.Version,
-		Format:  "bin",
+		Format:  format,
 	}
 	// A companion publishes a BLE build and a USB one. Only the USB build is
 	// reachable here: its client arrives over the serial port, which an
@@ -399,18 +410,35 @@ func emulatedBackend(spec scenario.Node) (*firmware.EmulatedNode, error) {
 			spec.Firmware.Version)
 	}
 
-	// Padded once per node, beside its own working directory: QEMU takes only
-	// 2, 4, 8 or 16 MB images and the size has to match the image header.
 	dir := firmware.NodeWorkDir(spec.Name)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
 	}
+
+	if board.Renode != nil {
+		return &firmware.EmulatedNode{
+			Emulator: firmware.Renode,
+			Image:    src,
+			Platform: board.Renode.Platform,
+			SPIBase:  board.Renode.SPIBase,
+			NssPort:  board.Renode.NssPort,
+			NssPin:   board.Renode.NssPin,
+			IrqPort:  board.Renode.IrqPort,
+			IrqPin:   board.Renode.IrqPin,
+			NodeName: spec.Name,
+			Dir:      dir,
+		}, nil
+	}
+
+	// Padded once per node, beside its own working directory: QEMU takes only
+	// 2, 4, 8 or 16 MB images and the size has to match the image header.
 	padded := filepath.Join(dir, "flash.bin")
 	if _, err := firmware.PadImage(src, padded); err != nil {
 		return nil, err
 	}
 
 	return &firmware.EmulatedNode{
+		Emulator: firmware.QEMU,
 		Image:    padded,
 		Machine:  board.QEMU.Machine,
 		SPI:      board.QEMU.SPI,

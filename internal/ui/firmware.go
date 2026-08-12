@@ -323,6 +323,7 @@ func (a *App) rebuildForFirmware() {
 // The per-node picker answers "what does this one run"; nobody could answer
 // "what do I have, and what is my fleet on" without opening forty of them.
 func (a *App) drawFirmwareWindow() {
+	a.fwDrainDownloadMsg()
 	if !a.winFirmware {
 		return
 	}
