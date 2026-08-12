@@ -153,9 +153,9 @@ func (tb *Table) header(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 				}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					if c.Right {
 						return layout.E.Layout(gtx,
-							Mono(t, t.Sz.Caption, t.P.Faint, title))
+							Text(t, t.Sz.Caption, t.P.Faint, title))
 					}
-					return Mono(t, t.Sz.Caption, t.P.Faint, title)(gtx)
+					return Text(t, t.Sz.Caption, t.P.Faint, title)(gtx)
 				})
 			})
 		}

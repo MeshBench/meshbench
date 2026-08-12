@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"gioui.org/app"
@@ -44,6 +45,11 @@ func main() {
 
 	sh := shell.New()
 	mv := &comp.MapView{}
+	// The tile cache the old workbench already filled: 37 MB of it on this
+	// machine, and the same store, so nothing is downloaded twice.
+	if cache, err := os.UserCacheDir(); err == nil {
+		mv.Tiles = comp.NewTiles(filepath.Join(cache, "meshcoresim", "tiles"), "carto-dark")
+	}
 	nodes := &nodesPanel{}
 	sh.Add(&shell.Panel{Name: "Map", Windowable: true,
 		Draw: func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {

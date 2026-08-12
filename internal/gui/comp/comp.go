@@ -9,6 +9,7 @@ import (
 	"image"
 	"image/color"
 
+	"gioui.org/font"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
@@ -73,11 +74,14 @@ func Mono(t *theme.Theme, size unit.Sp, c color.NRGBA, s string) layout.Widget {
 }
 
 // SectionTitle is the label above a group of controls.
+//
+// The UI face in sentence case, not monospace capitals. Uppercase mono reads
+// as a machine label shouting a category; a panel title is a name.
 func SectionTitle(t *theme.Theme, s string) layout.Widget {
 	return func(gtx layout.Context) layout.Dimensions {
-		l := material.Label(t.M, t.Sz.Section, upper(s))
+		l := material.Label(t.M, t.Sz.Section, s)
 		l.Color = t.P.Dim
-		l.Font = t.Mono
+		l.Font.Weight = font.Medium
 		return l.Layout(gtx)
 	}
 }
@@ -251,14 +255,4 @@ func (c *Check) Layout(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 	cb.IconColor = t.P.Accent
 	cb.TextSize = t.Sz.Body
 	return cb.Layout(gtx)
-}
-
-func upper(s string) string {
-	b := []rune(s)
-	for i, r := range b {
-		if r >= 'a' && r <= 'z' {
-			b[i] = r - 32
-		}
-	}
-	return string(b)
 }

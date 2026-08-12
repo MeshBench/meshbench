@@ -22,6 +22,9 @@ import (
 // outside the viewport is skipped before it becomes a draw op at all. The spike
 // measured 24 fps naive, 35 batched; culling is the other half.
 type MapView struct {
+	// Tiles is the basemap. Nil draws no basemap, which is what an offline
+	// first run looks like, and the map still works.
+	Tiles *Tiles
 	// Zoom and Centre are the camera. Kept here rather than in state because
 	// where somebody is looking is a property of the view, not of the world.
 	Zoom          float64
@@ -53,6 +56,12 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 	}
 	if m.LabelEveryNth == 0 {
 		m.LabelEveryNth = 4
+	}
+
+	// The basemap first, under everything. Only cached tiles are drawn: a
+	// redraw that waits on the network is a window that stops painting.
+	if m.Tiles != nil {
+		m.Tiles.Draw(gtx, sz, m.CentreLat, m.CentreLon, m.Zoom)
 	}
 
 	pts := m.project(s, sz)
