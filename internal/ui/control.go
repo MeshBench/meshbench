@@ -981,7 +981,11 @@ func (a *App) ctlPlace(kind, name string, lat, lon, height, tx float64, role str
 	if height <= 0 {
 		height = 10
 	}
-	if tx <= 0 && k.Transmits() {
+	// An emitter carries no mesh traffic, so Transmits() is false for it - but
+	// it is the one kind that does nothing *except* transmit, and placing one
+	// without a power failed validation with "an emitter with no power emits
+	// nothing", which is true and unhelpful when nobody was asked for a power.
+	if tx <= 0 && (k.Transmits() || k == scenario.Emitter) {
 		tx = board.MaxTxDBm
 	}
 	n := scenario.Node{
@@ -1302,6 +1306,32 @@ func (a *App) handleUICommand(method string, params json.RawMessage) (any, bool,
 		// indistinguishable from having done nothing.
 		a.infer.appliedN = a.applyInference()
 		return map[string]any{"applied": a.infer.appliedN}, true, nil
+	case "nodes.regions":
+		// Inference only reaches nodes that were seen on the real network, so a
+		// node placed by hand holds none and relays nothing - which looks like
+		// a dead node rather than an unconfigured one. This is how a scenario
+		// built over the socket gives it the regions its neighbours hold.
+		var p struct {
+			Node    string   `json:"node"`
+			Regions []string `json:"regions"`
+			Scope   string   `json:"default_scope"`
+		}
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, true, err
+		}
+		i := a.nodeIndex(p.Node)
+		if i < 0 {
+			return nil, true, fmt.Errorf("no node named %q", p.Node)
+		}
+		n := &a.Nodes[i]
+		if p.Regions != nil {
+			n.Regions = append(n.Regions[:0], p.Regions...)
+		}
+		if p.Scope != "" {
+			n.DefaultScope = p.Scope
+		}
+		return map[string]any{"node": n.Name, "regions": n.Regions,
+			"default_scope": n.DefaultScope}, true, nil
 	case "nodes.allow_flood":
 		// Off unless the caller says otherwise, so the verb cannot make a mesh
 		// more permissive by being called without arguments.

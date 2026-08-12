@@ -11,57 +11,19 @@ import (
 
 	"github.com/A13xB0/meshcoresim/internal/boundary"
 	"github.com/A13xB0/meshcoresim/internal/engine"
-	"github.com/A13xB0/meshcoresim/internal/scenario"
+	"github.com/A13xB0/meshcoresim/internal/fixture"
 )
 
-// project is a whole setup: the network, where it is, and how it is being run.
-//
-// A saved network is the nodes alone, which loses the study around them — the
-// boundary, the seed, the traffic schedule, the assertions. Reopening a piece
-// of work should reopen the work, not the nodes it happened to contain.
-type project struct {
-	Name    string          `json:"name"`
-	Saved   time.Time       `json:"saved"`
-	Nodes   []scenario.Node `json:"nodes"`
-	Seed    uint64          `json:"seed"`
-	FreqMHz float64         `json:"freq_mhz"`
-
-	// Areas are the boundary's chosen regions, by name, with their polygons —
-	// carried rather than re-fetched, so a project opens offline and gives the
-	// same answer months later even if OSM's outline has moved.
-	Areas    []savedArea `json:"areas"`
-	MarginKm float64     `json:"margin_km"`
-
-	Sends      []savedSend      `json:"sends"`
-	Assertions []savedAssertion `json:"assertions"`
-
-	// View is where the map was looking, because reopening a study half a
-	// country from where it was left is a small thing that feels wrong.
-	Lat            float64 `json:"lat,omitempty"`
-	Lon            float64 `json:"lon,omitempty"`
-	MetresPerPixel float64 `json:"metres_per_pixel,omitempty"`
-}
-
-type savedArea struct {
-	Name       string              `json:"name"`
-	Boundaries []scenario.Boundary `json:"boundaries"`
-}
-
-type savedSend struct {
-	Node    string `json:"node"`
-	AtMs    uint32 `json:"at_ms"`
-	EveryMs uint32 `json:"every_ms"`
-	Command string `json:"command"`
-}
-
-type savedAssertion struct {
-	Kind     string  `json:"kind"`
-	Node     string  `json:"node,omitempty"`
-	WithinMs uint32  `json:"within_ms,omitempty"`
-	AtLeast  int     `json:"at_least,omitempty"`
-	AtMost   int     `json:"at_most,omitempty"`
-	MaxPct   float64 `json:"max_pct,omitempty"`
-}
+// The workbench's saved setup is the shipped fixture format, under the names
+// this file has always used. One definition, in internal/fixture, because the
+// headless test runner reads the same files and a second copy of the struct
+// would drift until a fixture loaded in one program and not the other.
+type (
+	project        = fixture.Fixture
+	savedArea      = fixture.Area
+	savedSend      = fixture.Send
+	savedAssertion = fixture.Assertion
+)
 
 func projectDir() string {
 	base, err := os.UserConfigDir()
