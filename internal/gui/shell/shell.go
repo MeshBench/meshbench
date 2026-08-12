@@ -8,7 +8,12 @@
 package shell
 
 import (
+	"image"
+
 	"gioui.org/layout"
+	"gioui.org/op"
+	"gioui.org/op/clip"
+	"gioui.org/op/paint"
 	"gioui.org/unit"
 	"gioui.org/widget"
 
@@ -36,6 +41,13 @@ type Shell struct {
 	menus    []menu
 	Status   string
 	OnPopOut func(name string)
+	// OnMenu is called with a menu entry's action.
+	OnMenu func(action string)
+	// openMenu is which menu is showing, or -1. Not zero: zero is the first
+	// menu, and a zero value that means "File is open" opens it on launch.
+	openMenu int
+	tr       transport
+	snap     *state.Snapshot
 	// PoppedOut reports whether a panel is currently living in its own window.
 	//
 	// A panel that has moved out must not also be drawn here. Two frame loops
@@ -50,13 +62,39 @@ type Shell struct {
 type menu struct {
 	name  string
 	click widget.Clickable
+	items []MenuItem
+	// x is where the menu bar actually laid this title out, filled during the
+	// bar's own layout. The first attempt guessed it as 8 + 74*index, which is
+	// right for the first menu and wrong for every other one, because menu
+	// titles are different widths.
+	x int
+}
+
+// MenuItem is one entry of a menu, named for what it does and carrying an
+// action rather than a closure, so a click and a script take one route.
+type MenuItem struct {
+	Label    string
+	Action   string
+	Shortcut string
+	click    widget.Clickable
+}
+
+// SetMenu gives a menu its entries.
+func (sh *Shell) SetMenu(name string, items []MenuItem) {
+	for i := range sh.menus {
+		if sh.menus[i].name == name {
+			sh.menus[i].items = items
+			return
+		}
+	}
 }
 
 // New builds the shell with the standard menus.
 func New() *Shell {
 	sh := &Shell{
-		Panels: map[string]*Panel{},
-		popOut: map[string]*widget.Clickable{},
+		Panels:   map[string]*Panel{},
+		popOut:   map[string]*widget.Clickable{},
+		openMenu: -1,
 	}
 	for _, m := range []string{"File", "View", "Simulation", "Repeaters", "Planning", "Window", "Help"} {
 		sh.menus = append(sh.menus, menu{name: m})
@@ -72,6 +110,9 @@ func (sh *Shell) Add(p *Panel) {
 
 // Layout draws the whole frame for one frame, from one snapshot.
 func (sh *Shell) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+	// Held for the frame so the menu bar's transport can read it without
+	// threading a snapshot through every chrome function.
+	sh.snap = s
 	comp.Fill(gtx, t.P.Ground)
 	for i := range sh.tabs {
 		if sh.tabs[i].Clicked(gtx) {
@@ -83,6 +124,8 @@ func (sh *Shell) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) l
 			sh.OnPopOut(name)
 		}
 	}
+	// The dropdown draws over the frame, so it goes last.
+	defer func() { sh.menuDrop(t, gtx) }()
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return sh.menuBar(t, gtx) }),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return sh.viewBar(t, gtx, s) }),
@@ -94,18 +137,48 @@ func (sh *Shell) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) l
 }
 
 func (sh *Shell) menuBar(t *theme.Theme, gtx layout.Context) layout.Dimensions {
+	// One row, said here rather than left to the children.
+	//
+	// A rigid child of a vertical flex is offered the whole remaining height,
+	// and anything inside that fills it - a VRule, a flex with Middle
+	// alignment - takes all of it and squeezes the body to nothing. Twice now.
+	// Constraining the bar is the fix that holds however its contents change.
+	gtx.Constraints.Max.Y = gtx.Dp(t.RowHeight())
+	gtx.Constraints.Min.Y = gtx.Constraints.Max.Y
 	comp.Fill(gtx, t.P.Panel)
 	children := make([]layout.FlexChild, 0, len(sh.menus)+2)
+	// The running x, accumulated as each title is measured, so a dropdown
+	// opens under the title it belongs to whatever the titles are called.
+	runX := gtx.Dp(t.Sp.XS)
 	for i := range sh.menus {
 		m := &sh.menus[i]
+		idx := i
+		if m.click.Clicked(gtx) {
+			if sh.openMenu == idx {
+				sh.openMenu = -1
+			} else {
+				sh.openMenu = idx
+			}
+		}
+		fg := t.P.Dim
+		if sh.openMenu == idx {
+			fg = t.P.Ink
+		}
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return m.click.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			d := m.click.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Inset{
 					Left: t.Sp.S, Right: t.Sp.S, Top: t.Sp.XS, Bottom: t.Sp.XS,
-				}.Layout(gtx, comp.Text(t, t.Sz.Body, t.P.Dim, m.name))
+				}.Layout(gtx, comp.Text(t, t.Sz.Body, fg, m.name))
 			})
+			m.x = runX
+			runX += d.Size.X
+			return d
 		}))
 	}
+	children = append(children, layout.Rigid(comp.VRule(t)))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return sh.transportBar(t, gtx, sh.snap)
+	}))
 	children = append(children, layout.Flexed(1, comp.Spacer))
 	// The honesty line, in the chrome, where it cannot be missed.
 	children = append(children, layout.Rigid(
@@ -118,6 +191,8 @@ func (sh *Shell) menuBar(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 }
 
 func (sh *Shell) viewBar(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+	gtx.Constraints.Max.Y = gtx.Dp(t.RowHeight())
+	gtx.Constraints.Min.Y = gtx.Constraints.Max.Y
 	comp.Fill(gtx, t.P.Panel)
 	children := make([]layout.FlexChild, 0, numViews+3)
 	for i := 0; i < int(numViews); i++ {
@@ -251,4 +326,71 @@ func EmptyPanel(name, what string) *Panel {
 				comp.Text(t, t.Sz.Caption, t.P.Faint, what))
 		},
 	}
+}
+
+// menuDrop draws the open menu's entries over the frame.
+//
+// At the top level rather than inside the bar: a dropdown clipped to a
+// one-row-tall bar is a dropdown nobody can read. Its x comes from where the
+// bar actually laid the title out.
+func (sh *Shell) menuDrop(t *theme.Theme, gtx layout.Context) {
+	if sh.openMenu < 0 || sh.openMenu >= len(sh.menus) {
+		return
+	}
+	m := &sh.menus[sh.openMenu]
+	if len(m.items) == 0 {
+		return
+	}
+	for i := range m.items {
+		if m.items[i].click.Clicked(gtx) {
+			sh.openMenu = -1
+			if sh.OnMenu != nil {
+				sh.OnMenu(m.items[i].Action)
+			}
+			return
+		}
+	}
+	pad := gtx.Dp(t.Sp.S)
+	inner := gtx
+	inner.Constraints.Min = image.Point{}
+	inner.Constraints.Max = image.Pt(gtx.Dp(340), gtx.Constraints.Max.Y)
+
+	rec := op.Record(gtx.Ops)
+	var kids []layout.FlexChild
+	for i := range m.items {
+		i := i
+		kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return m.items[i].click.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				if m.items[i].click.Hovered() {
+					comp.FillRect(gtx, image.Pt(gtx.Constraints.Max.X,
+						gtx.Dp(t.RowHeight())), theme.Alpha(t.P.Accent, 0.18))
+				}
+				return layout.Inset{Left: t.Sp.S, Right: t.Sp.S,
+					Top: t.Sp.XS, Bottom: t.Sp.XS}.Layout(gtx,
+					func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{}.Layout(gtx,
+							layout.Rigid(comp.Text(t, t.Sz.Body, t.P.Ink, m.items[i].Label)),
+							layout.Flexed(1, comp.Spacer),
+							layout.Rigid(comp.Mono(t, t.Sz.Caption, t.P.Faint,
+								m.items[i].Shortcut)),
+						)
+					})
+			})
+		}))
+	}
+	dims := layout.Flex{Axis: layout.Vertical}.Layout(inner, kids...)
+	content := rec.Stop()
+
+	box := image.Pt(dims.Size.X+pad*2, dims.Size.Y+pad*2)
+	x := m.x
+	if x+box.X > gtx.Constraints.Max.X {
+		x = gtx.Constraints.Max.X - box.X
+	}
+	off := op.Offset(image.Pt(x, gtx.Dp(t.RowHeight()))).Push(gtx.Ops)
+	defer off.Pop()
+	paint.FillShape(gtx.Ops, theme.Alpha(t.P.Panel, 0.98), clip.Rect{Max: box}.Op())
+	comp.Border(gtx, box, 2, 1, t.P.Rule)
+	in := op.Offset(image.Pt(pad, pad)).Push(gtx.Ops)
+	content.Add(gtx.Ops)
+	in.Pop()
 }

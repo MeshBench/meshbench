@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/pprof"
+	"strings"
 	"time"
 
 	"gioui.org/app"
@@ -391,6 +392,45 @@ func main() {
 
 	sh.Add(&shell.Panel{Name: "Settings", Windowable: true,
 		Draw: (&settingsPanel{set: sets}).Draw})
+	sh.SetMenu("File", []shell.MenuItem{
+		{Label: "Save this run", Action: "run.save"},
+	})
+	sh.SetMenu("View", []shell.MenuItem{
+		{Label: "Settings", Action: "panel.Settings"},
+		{Label: "Experiment log", Action: "panel.Experiment log"},
+		{Label: "Configuration", Action: "panel.Configuration"},
+	})
+	sh.SetMenu("Simulation", []shell.MenuItem{
+		{Label: "Play or pause", Action: "sim.toggle"},
+		{Label: "One step", Action: "sim.step"},
+		{Label: "Originate a packet", Action: "sim.inject"},
+		{Label: "Capture the waterfall", Action: "waterfall.capture"},
+	})
+	sh.SetMenu("Repeaters", []shell.MenuItem{
+		{Label: "Fleet", Action: "panel.Fleet"},
+		{Label: "Firmware", Action: "panel.Firmware"},
+		{Label: "Coverage from the selection", Action: "coverage.compute"},
+	})
+	sh.SetMenu("Planning", []shell.MenuItem{
+		{Label: "Routes between two selected nodes", Action: "plan.routes"},
+		{Label: "Boundary", Action: "panel.Boundary"},
+		{Label: "Import a live network", Action: "panel.Import"},
+	})
+	sh.SetMenu("Window", []shell.MenuItem{
+		{Label: "Map in its own window", Action: "panel.Map"},
+		{Label: "Scoreboard in its own window", Action: "panel.Scoreboard"},
+		{Label: "Events in its own window", Action: "panel.Events"},
+	})
+	sh.SetMenu("Help", []shell.MenuItem{
+		{Label: "What this run assumes", Action: "panel.Configuration"},
+	})
+	sh.OnMenu = func(action string) {
+		if name, ok := strings.CutPrefix(action, "panel."); ok {
+			sh.OnPopOut(name)
+			return
+		}
+		go func() { _, _ = st.Do(ctx, action, nil) }()
+	}
 	sh.PoppedOut = wins.has
 	sh.OnPopOut = func(name string) {
 		wins.popOut(name, sh, func() *theme.Theme {
