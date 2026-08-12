@@ -9,6 +9,7 @@ import (
 	"image"
 	"os"
 	"path/filepath"
+	"runtime"
 	"runtime/pprof"
 	"strings"
 	"time"
@@ -37,6 +38,7 @@ func main() {
 	viewFlag := flag.String("view", "plan", "which view to open")
 	fpsFlag := flag.Bool("fps", false, "report frames per second to stderr and /tmp/wb2-fps.log")
 	panelFlag := flag.String("panel", "", "draw only this panel, filling the window")
+	memFlag := flag.String("memprofile", "", "write a heap profile here on exit")
 	profFlag := flag.String("cpuprofile", "", "write a CPU profile here")
 	playFlag := flag.Bool("play", false, "start the simulation immediately")
 	injectFlag := flag.String("inject", "", "originate a packet at this node once running")
@@ -386,6 +388,15 @@ func main() {
 		go func() {
 			time.Sleep(*quitFlag)
 			pprof.StopCPUProfile()
+			if *memFlag != "" {
+				// After a GC, so what is reported is what is retained rather
+				// than what merely has not been collected yet.
+				runtime.GC()
+				if f, err := os.Create(*memFlag); err == nil {
+					_ = pprof.Lookup("heap").WriteTo(f, 0)
+					_ = f.Close()
+				}
+			}
 			os.Exit(0)
 		}()
 	}

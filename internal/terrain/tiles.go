@@ -56,8 +56,22 @@ type TileStore struct {
 	// OnProgress, if set, is called as tiles are fetched.
 	OnProgress func(done, total int)
 
+	// MaxLoadedTiles caps the decoded tiles held in memory. Zero means the
+	// default.
+	//
+	// A decoded tile is 256x256 float32, a quarter of a megabyte, and this
+	// cache had no bound at all: a workbench left running over a national
+	// scenario reached 9.5 GB, of which 1.5 GB was this map after twenty-five
+	// seconds. The tiles on disk number 32,254, so it was going further.
+	MaxLoadedTiles int
+
 	mu     sync.RWMutex
 	loaded map[string]*tile
+	// order is insertion order, for eviction. A ring of keys rather than a
+	// real LRU: profile sampling walks a line across the map and comes back
+	// along a neighbouring one, so what is worth keeping is what was read
+	// recently in time, which insertion order already approximates.
+	order []string
 	// inflight prevents the same tile being fetched by several goroutines,
 	// which on a raster computation is the normal case rather than a rare one.
 	inflight map[string]*sync.WaitGroup
@@ -221,7 +235,7 @@ func (s *TileStore) get(ctx context.Context, x, y int) (*tile, error) {
 		return nil, err
 	}
 	s.mu.Lock()
-	s.loaded[k] = loaded
+	s.remember(k, loaded)
 	s.mu.Unlock()
 	return loaded, nil
 }
@@ -316,4 +330,37 @@ func decodeTerrarium(b []byte) (*tile, error) {
 		}
 	}
 	return t, nil
+}
+
+// DefaultMaxLoadedTiles is 1,024 decoded tiles, about 256 MB.
+//
+// Enough that a profile across a country does not thrash, small enough that a
+// long-running workbench does not grow without bound.
+const DefaultMaxLoadedTiles = 1024
+
+// remember stores a decoded tile and evicts the oldest once the cap is passed.
+// Called with the lock held.
+func (s *TileStore) remember(k string, t *tile) {
+	if _, exists := s.loaded[k]; !exists {
+		s.order = append(s.order, k)
+	}
+	s.loaded[k] = t
+
+	max := s.MaxLoadedTiles
+	if max <= 0 {
+		max = DefaultMaxLoadedTiles
+	}
+	for len(s.order) > max {
+		oldest := s.order[0]
+		s.order = s.order[1:]
+		delete(s.loaded, oldest)
+	}
+}
+
+// LoadedTiles is how many decoded tiles are held, for a test and for anybody
+// wondering where the memory went.
+func (s *TileStore) LoadedTiles() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.loaded)
 }
