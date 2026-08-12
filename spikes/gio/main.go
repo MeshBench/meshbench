@@ -18,7 +18,9 @@ import (
 
 	"gioui.org/app"
 	"gioui.org/f32"
+	"gioui.org/font"
 	"gioui.org/font/gofont"
+	"gioui.org/font/opentype"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
@@ -68,7 +70,11 @@ func main() {
 		sc:       loadScene(fixture),
 		selected: -1,
 	}
-	u.th.Shaper = text.NewShaper(text.WithCollection(gofont.Collection()))
+	// The Go fonts have no emoji glyphs, and several real node names carry
+	// them. A shaper is given a collection and falls back through it per rune,
+	// so adding an emoji face is all that is needed - the font is found on the
+	// system rather than embedded, with the text still rendering without it.
+	u.th.Shaper = text.NewShaper(text.WithCollection(withEmoji(gofont.Collection())))
 	u.filter.SingleLine = true
 	for _, n := range []string{"Plan", "Run", "Debug", "Verify", "Bench", "App"} {
 		u.views = append(u.views, viewTab{name: n, on: n == "Plan"})
@@ -414,6 +420,40 @@ func (u *ui) statusBar(gtx layout.Context) layout.Dimensions {
 }
 
 const giover = "v0.10.2"
+
+// emojiFonts are where a colour emoji face usually lives. The first one that
+// parses is used.
+var emojiFonts = []string{
+	"/usr/share/fonts/noto/NotoColorEmoji.ttf",
+	"/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
+	"/usr/share/fonts/google-noto-emoji/NotoColorEmoji.ttf",
+	"/System/Library/Fonts/Apple Color Emoji.ttc",
+	"C:\\Windows\\Fonts\\seguiemj.ttf",
+}
+
+// withEmoji appends an emoji face to a collection, if one can be found.
+//
+// Shaping falls through a collection rune by rune, so the text face stays in
+// charge of everything it has a glyph for and only the emoji land on the emoji
+// face. A missing font is not an error: the names still render, without their
+// pictures, which is what the collection did before.
+func withEmoji(base []font.FontFace) []font.FontFace {
+	for _, p := range emojiFonts {
+		b, err := os.ReadFile(p)
+		if err != nil {
+			continue
+		}
+		faces, err := opentype.ParseCollection(b)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "emoji font %s: %v\n", p, err)
+			continue
+		}
+		fmt.Fprintf(os.Stderr, "emoji from %s (%d face(s))\n", p, len(faces))
+		return append(base, faces...)
+	}
+	fmt.Fprintln(os.Stderr, "no emoji font found; names will render without them")
+	return base
+}
 
 // --- small helpers, so the layout above reads as layout ---------------------
 
