@@ -36,7 +36,15 @@ type Shell struct {
 	menus    []menu
 	Status   string
 	OnPopOut func(name string)
-	popOut   map[string]*widget.Clickable
+	// PoppedOut reports whether a panel is currently living in its own window.
+	//
+	// A panel that has moved out must not also be drawn here. Two frame loops
+	// laying out one panel share its widget state - one list's scroll
+	// position, one editor's caret, one table's macros - and Gio's ops are not
+	// safe for that: the first attempt crashed with an unfinished child, which
+	// is one goroutine's macro being closed by another's.
+	PoppedOut func(name string) bool
+	popOut    map[string]*widget.Clickable
 }
 
 type menu struct {
@@ -203,6 +211,12 @@ func (sh *Shell) panel(t *theme.Theme, gtx layout.Context, s *state.Snapshot, na
 				if p == nil {
 					return layout.Center.Layout(gtx,
 						comp.Text(t, t.Sz.Caption, t.P.Faint, "not built yet"))
+				}
+				if sh.PoppedOut != nil && sh.PoppedOut(name) {
+					// Said, not left blank: a panel that has gone somewhere
+					// looks identical to one that has broken.
+					return layout.Center.Layout(gtx,
+						comp.Text(t, t.Sz.Caption, t.P.Dim, "in its own window"))
 				}
 				return p.Draw(t, gtx, s)
 			}),

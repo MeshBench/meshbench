@@ -39,6 +39,7 @@ func main() {
 	profFlag := flag.String("cpuprofile", "", "write a CPU profile here")
 	playFlag := flag.Bool("play", false, "start the simulation immediately")
 	injectFlag := flag.String("inject", "", "originate a packet at this node once running")
+	popFlag := flag.String("pop-out", "", "open this panel in its own window at startup")
 	importFlag := flag.String("import", "", "describe an import from this CoreScope URL at startup")
 	planFlag := flag.String("plan", "", "plan between the selected node and this one at startup")
 	sweepFlag := flag.Bool("sweep", false, "run the default sweep at startup")
@@ -94,6 +95,7 @@ func main() {
 	}()
 
 	sh := shell.New()
+	wins := newWindows()
 	mv := &comp.MapView{}
 	// The tile cache the old workbench already filled: 37 MB of it on this
 	// machine, and the same store, so nothing is downloaded twice.
@@ -382,6 +384,23 @@ func main() {
 			time.Sleep(*quitFlag)
 			pprof.StopCPUProfile()
 			os.Exit(0)
+		}()
+	}
+
+	sh.PoppedOut = wins.has
+	sh.OnPopOut = func(name string) {
+		wins.popOut(name, sh, func() *theme.Theme {
+			// A shaper of its own, per window. See windows.go.
+			return theme.New(mode, theme.Default,
+				text.NewShaper(text.WithCollection(withEmoji(gofont.Collection()))))
+		}, st)
+	}
+	if *popFlag != "" {
+		// Scriptable, so that a window which only opens on a click is a
+		// window nobody can check without a hand on the mouse.
+		go func() {
+			time.Sleep(3 * time.Second)
+			sh.OnPopOut(*popFlag)
 		}()
 	}
 
