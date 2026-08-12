@@ -21,6 +21,7 @@ import (
 	"gioui.org/widget"
 
 	"github.com/A13xB0/meshcoresim/internal/gui/comp"
+	"github.com/A13xB0/meshcoresim/internal/gui/desktop"
 	"github.com/A13xB0/meshcoresim/internal/gui/shell"
 	"github.com/A13xB0/meshcoresim/internal/gui/state"
 	"github.com/A13xB0/meshcoresim/internal/gui/theme"
@@ -94,6 +95,9 @@ func main() {
 	th := theme.New(mode, theme.Default, sh2)
 
 	go func() {
+		// Before the window: Gio reads the cursor theme once, when it
+		// makes one, and the desktop does not put it in the environment.
+		desktop.MatchSystemCursor()
 		w := new(app.Window)
 		w.Option(app.Title("MeshBench workbench"), app.Size(unit.Dp(1500), unit.Dp(940)))
 		var ops op.Ops
