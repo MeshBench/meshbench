@@ -50,6 +50,17 @@ jobs:
           go vet ./...
           go test ./...
           go build -trimpath -o dist/meshbench/meshbench ./cmd/meshcoresim
+          # The Gio workbench, alongside the imgui one rather than instead of
+          # it: both ship until the two have been compared feature by feature.
+          #
+          # The app ID is set here rather than left to default. Gio takes the
+          # Wayland app_id and the X11 class from it, and the default is the
+          # binary's own name - so a build called wb2 announces itself to the
+          # compositor as wb2, and a desktop file, a taskbar grouping and a
+          # window-manager rule all miss it.
+          go build -trimpath \
+            -ldflags "-X gioui.org/app.ID=uk.co.hectospark.meshbench" \
+            -o dist/meshbench/meshbench-workbench ./cmd/workbench2
 
       - name: Fetch the emulators
         env:
