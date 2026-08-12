@@ -10,14 +10,12 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/pprof"
-	"strings"
 	"time"
 
 	"gioui.org/app"
 	"gioui.org/font"
 	"gioui.org/font/gofont"
 	"gioui.org/font/opentype"
-	"gioui.org/io/key"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/text"
@@ -41,7 +39,6 @@ func main() {
 	profFlag := flag.String("cpuprofile", "", "write a CPU profile here")
 	playFlag := flag.Bool("play", false, "start the simulation immediately")
 	injectFlag := flag.String("inject", "", "originate a packet at this node once running")
-	menuFlag := flag.String("open-menu", "", "show this menu's entries at startup")
 	popFlag := flag.String("pop-out", "", "open this panel in its own window at startup")
 	importFlag := flag.String("import", "", "describe an import from this CoreScope URL at startup")
 	planFlag := flag.String("plan", "", "plan between the selected node and this one at startup")
@@ -394,75 +391,6 @@ func main() {
 
 	sh.Add(&shell.Panel{Name: "Settings", Windowable: true,
 		Draw: (&settingsPanel{set: sets}).Draw})
-	// The menus, as lists of what the application can do. Each entry is an
-	// action the store or the shell already has, so the menu bar cannot offer
-	// something no other route can reach.
-	sh.SetMenu("File", []shell.MenuItem{
-		{Label: "Open a shipped fixture", Action: "project.open.fixture"},
-		{Label: "Save this run", Action: "run.save", Shortcut: "ctrl S"},
-	})
-	sh.SetMenu("View", []shell.MenuItem{
-		{Label: "Settings", Action: "panel.Settings"},
-		{Label: "Experiment log", Action: "panel.Experiment log"},
-		{Label: "Configuration", Action: "panel.Configuration"},
-	})
-	sh.SetMenu("Simulation", []shell.MenuItem{
-		{Label: "Play", Action: "sim.play", Shortcut: "space"},
-		{Label: "Pause", Action: "sim.pause", Shortcut: "space"},
-		{Label: "Originate a packet", Action: "sim.inject"},
-		{Label: "Capture the waterfall", Action: "waterfall.capture"},
-	})
-	sh.SetMenu("Repeaters", []shell.MenuItem{
-		{Label: "Fleet", Action: "panel.Fleet"},
-		{Label: "Firmware", Action: "panel.Firmware"},
-		{Label: "Coverage from the selection", Action: "coverage.compute"},
-	})
-	sh.SetMenu("Planning", []shell.MenuItem{
-		{Label: "Routes between two selected nodes", Action: "plan.routes"},
-		{Label: "Boundary", Action: "panel.Boundary"},
-		{Label: "Import a live network", Action: "panel.Import"},
-	})
-	sh.SetMenu("Window", []shell.MenuItem{
-		{Label: "Map in its own window", Action: "panel.Map"},
-		{Label: "Scoreboard in its own window", Action: "panel.Scoreboard"},
-		{Label: "Events in its own window", Action: "panel.Events"},
-	})
-	sh.SetMenu("Help", []shell.MenuItem{
-		{Label: "What this run assumes", Action: "panel.Configuration"},
-	})
-	// The bindings. Menu labels and the sheet are generated from this, so
-	// there is one place a shortcut is decided.
-	if clashes := sh.SetShortcuts([]shell.Shortcut{
-		{Name: key.NameSpace, Action: "sim.toggle", What: "play or pause"},
-		{Name: "S", Mods: key.ModCtrl, Action: "run.save", What: "save this run"},
-		{Name: "I", Mods: key.ModCtrl, Action: "sim.inject", What: "originate a packet at the selection"},
-		{Name: "K", Mods: key.ModCtrl, Action: "coverage.compute", What: "coverage from the selection"},
-		{Name: "W", Mods: key.ModCtrl, Action: "waterfall.capture", What: "capture the waterfall"},
-		{Name: "L", Mods: key.ModCtrl, Action: "plan.routes", What: "routes between two selected nodes"},
-		{Name: "M", Mods: key.ModCtrl, Action: "panel.Map", What: "map in its own window"},
-		{Name: "P", Mods: key.ModCtrl, Action: "panel.Settings", What: "settings"},
-		{Name: "/", Mods: key.ModCtrl, Action: "panel.Shortcuts", What: "this list"},
-	}); len(clashes) > 0 {
-		// Loudly, at startup, rather than silently at the first press.
-		for _, c := range clashes {
-			fmt.Fprintln(os.Stderr, "shortcut conflict:", c)
-		}
-		os.Exit(2)
-	}
-	sh.Add(&shell.Panel{Name: "Shortcuts", Windowable: true,
-		Draw: (&shortcutsPanel{sh: sh}).Draw})
-	sh.OnMenu = func(action string) {
-		// A menu entry either opens a panel in its own window or is a verb.
-		// Two kinds and no third, so nothing here needs a special case.
-		if name, ok := strings.CutPrefix(action, "panel."); ok {
-			sh.OnPopOut(name)
-			return
-		}
-		go func() { _, _ = st.Do(ctx, action, nil) }()
-	}
-	if *menuFlag != "" {
-		sh.OpenMenu(*menuFlag)
-	}
 	sh.PoppedOut = wins.has
 	sh.OnPopOut = func(name string) {
 		wins.popOut(name, sh, func() *theme.Theme {

@@ -19,6 +19,7 @@ package state
 import (
 	"context"
 	"errors"
+	"fmt"
 	"image"
 	"sync"
 	"sync/atomic"
@@ -37,8 +38,11 @@ type Snapshot struct {
 	NowMs uint32
 	// Playing reports whether the engine is advancing.
 	Playing bool
-	Seed    uint64
-	Nodes   []Node
+	// StepMs is how much simulated time one tick advances, so the interface
+	// can say how fast it is going rather than only whether it is going.
+	StepMs uint32
+	Seed   uint64
+	Nodes  []Node
 	// Jobs are long operations in flight, so the interface can show them and
 	// offer to cancel rather than appearing to have hung.
 	Jobs []Job
@@ -471,7 +475,11 @@ func (s *Store) Run(ctx context.Context) {
 			h, ok := s.handlers[c.verb]
 			s.mu.Unlock()
 			if !ok {
-				c.reply <- result{nil, ErrUnknownVerb}
+				// Named. The comment on ErrUnknownVerb has always said "by
+				// name" and the error has never carried one, so a typo at a
+				// socket returned "unknown verb" and left somebody to work out
+				// which of forty it was.
+				c.reply <- result{nil, fmt.Errorf("%w: %q", ErrUnknownVerb, c.verb)}
 				continue
 			}
 			v, err := h(&s.world, c.params)
@@ -580,3 +588,20 @@ func (w *World) Say(msg string) {
 		w.Log = w.Log[len(w.Log)-20:]
 	}
 }
+
+// SetStepMs changes how much simulated time one tick advances.
+//
+// Called on the store's goroutine, from a verb, so the pacing cannot change
+// halfway through a tick.
+func (s *Store) SetStepMs(ms uint32) {
+	if ms < 1 {
+		ms = 1
+	}
+	if ms > 1000 {
+		ms = 1000
+	}
+	s.stepMs = ms
+}
+
+// StepMs is the current tick size.
+func (s *Store) StepMs() uint32 { return s.stepMs }

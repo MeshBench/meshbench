@@ -28,3 +28,4 @@ tools/armfw/build/
 # Electron's spike pulls a 177 MB Chromium binary; npm install brings it back.
 spikes/electron/node_modules/
 spikes/electron/package-lock.json
+workbench2
