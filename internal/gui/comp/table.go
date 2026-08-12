@@ -299,3 +299,13 @@ func (tb *Table) search(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 	return layout.Inset{Left: t.Sp.S, Right: t.Sp.S,
 		Top: t.Sp.XS, Bottom: t.Sp.XS}.Layout(gtx, ed.Layout)
 }
+
+// ShownKeys is the set of rows surviving the filter, so a caller can total
+// exactly what is on screen rather than what it handed over.
+func (tb *Table) ShownKeys() map[string]bool {
+	out := make(map[string]bool, len(tb.shown))
+	for _, r := range tb.shown {
+		out[r.Key] = true
+	}
+	return out
+}
