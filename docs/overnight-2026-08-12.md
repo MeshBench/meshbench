@@ -211,6 +211,41 @@ fixture:
   mesh three times and the last one wins. The UI's "use for role" filters by
   kind; the verb does not. This happened here and had to be repaired per node.
 
+## CI, which was red before I started
+
+main has been failing since at least 11 August, and not for anything in the
+code: the runner had no GL or X11 headers, so every step that compiles a
+package - vet, lint, test - stopped at "GL/gl.h: No such file or directory" in
+under a minute. go.mod also asks for Go 1.24 while the workflow pinned 1.23.
+
+Fixed, and with the compiler reaching them for the first time in a while the
+linter found six dead symbols, now deleted. **Conflict markers, gofmt, vet,
+golangci-lint and `go test -race` all pass on CI now.**
+
+One step still fails, and it is a decision rather than a defect: **the 500-line
+file limit, with fourteen files over it.**
+
+    internal/ui/control.go        1643
+    internal/ui/experiment.go     1099
+    internal/ui/windows.go        1076
+    internal/engine/engine.go     1028
+    tools/dissector/*.lua          971
+    internal/ui/benchview.go       972
+    internal/ui/app.go             941
+    internal/ui/workbench.go       789
+    internal/ui/companiontab.go    721
+    internal/ui/config.go          686
+    internal/companion/proto/*.go  633
+    internal/ui/importwin.go       602
+    internal/ui/workspace.go       558
+    internal/ui/traffic.go         538
+
+The codebase has outgrown its own rule, and the gate has been unreachable long
+enough that nobody had to notice. Three ways out - split them, mark exemptions,
+or move the limit - and picking one for you at five in the morning would be
+inventing policy. I added about sixty lines to `control.go` tonight, which is
+the worst of them.
+
 ## What needs you
 
 1. **The `rx_delay_base` finding is worth telling the MeshCore developers.** A
@@ -279,6 +314,41 @@ alone.
 
 **Seven more study reports.** Four of the eight ideas cannot produce a result
 until the harness measures offered load and airtime.
+
+## CI, which was red before I started
+
+main has been failing since at least 11 August, and not for anything in the
+code: the runner had no GL or X11 headers, so every step that compiles a
+package - vet, lint, test - stopped at "GL/gl.h: No such file or directory" in
+under a minute. go.mod also asks for Go 1.24 while the workflow pinned 1.23.
+
+Fixed, and with the compiler reaching them for the first time in a while the
+linter found six dead symbols, now deleted. **Conflict markers, gofmt, vet,
+golangci-lint and `go test -race` all pass on CI now.**
+
+One step still fails, and it is a decision rather than a defect: **the 500-line
+file limit, with fourteen files over it.**
+
+    internal/ui/control.go        1643
+    internal/ui/experiment.go     1099
+    internal/ui/windows.go        1076
+    internal/engine/engine.go     1028
+    tools/dissector/*.lua          971
+    internal/ui/benchview.go       972
+    internal/ui/app.go             941
+    internal/ui/workbench.go       789
+    internal/ui/companiontab.go    721
+    internal/ui/config.go          686
+    internal/companion/proto/*.go  633
+    internal/ui/importwin.go       602
+    internal/ui/workspace.go       558
+    internal/ui/traffic.go         538
+
+The codebase has outgrown its own rule, and the gate has been unreachable long
+enough that nobody had to notice. Three ways out - split them, mark exemptions,
+or move the limit - and picking one for you at five in the morning would be
+inventing policy. I added about sixty lines to `control.go` tonight, which is
+the worst of them.
 
 ## What needs you
 
