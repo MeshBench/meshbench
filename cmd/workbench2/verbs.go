@@ -330,6 +330,33 @@ func registerVerbs(st *state.Store, s *sim) {
 		w.Budgets = s.budgetsFor(at, w.Links)
 		return map[string]any{"budgets": len(w.Budgets)}, nil
 	})
+	st.Handle("energy.for_selection", func(w *state.World, _ any) (any, error) {
+		at := -1
+		for i := range w.Nodes {
+			if w.Nodes[i].Selected {
+				at = i
+				break
+			}
+		}
+		if at < 0 || at >= len(s.nodes) {
+			return nil, fmt.Errorf("no node selected")
+		}
+		// The duty cycle the run measured, not one typed into a form.
+		duty := 0.0
+		for _, v := range w.Scores {
+			if v.Name == w.Nodes[at].Name {
+				duty = v.DutyCyclePct
+			}
+		}
+		e, err := energyFor(s.nodes[at], duty)
+		if err != nil {
+			return nil, err
+		}
+		w.Energy = e
+		w.Say(fmt.Sprintf("%s: worst state of charge %.0f%% on day %d, %d dead days",
+			e.Node, e.WorstSoC*100, e.WorstDay, e.DeadDays))
+		return map[string]any{"node": e.Node}, nil
+	})
 	st.Handle("session.describe", func(w *state.World, _ any) (any, error) {
 		return map[string]any{
 			"nodes": len(w.Nodes), "seed": w.Seed, "now_ms": w.NowMs,

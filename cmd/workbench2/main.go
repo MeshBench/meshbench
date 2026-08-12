@@ -42,6 +42,7 @@ func main() {
 	shadeFlag := flag.Bool("terrain", false, "shade the relief at startup")
 	coverFlag := flag.String("coverage", "",
 		"compute and show coverage from this node at startup")
+	energyFlag := flag.Bool("energy", false, "run the site study for the selected node at startup")
 	captureFlag := flag.String("capture", "",
 		"capture the waterfall at this node once the run has traffic")
 	injectEvery := flag.Duration("inject-every", 0,
@@ -118,6 +119,13 @@ func main() {
 		}()
 	}
 
+	if *energyFlag {
+		// After the scoreboard has a duty cycle to size the site against.
+		go func() {
+			time.Sleep(4 * time.Second)
+			_, _ = st.Do(ctx, "energy.for_selection", nil)
+		}()
+	}
 	if *captureFlag != "" {
 		// Capture the next transmission rather than this instant.
 		//
@@ -220,6 +228,10 @@ func main() {
 	sh.Add(&shell.Panel{Name: "Matrix", Windowable: true,
 		Draw: func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
 			return comp.Matrix{}.Layout(t, gtx, s)
+		}})
+	sh.Add(&shell.Panel{Name: "Energy", Windowable: true,
+		Draw: func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+			return comp.Energy{}.Layout(t, gtx, s)
 		}})
 	wf := &comp.Waterfall{}
 	sh.Add(&shell.Panel{Name: "Waterfall", Windowable: true,

@@ -76,6 +76,8 @@ type Snapshot struct {
 	Budgets []Budget
 	// Matrix is the sweep last loaded, or nil.
 	Matrix *Matrix
+	// Energy is the site study last run, or nil.
+	Energy *Energy
 }
 
 // Point is a position, and the only geometry the snapshot carries.
@@ -195,6 +197,21 @@ type Matrix struct {
 	Values []float64
 }
 
+// Energy is a year at one site.
+//
+// SoC is the daily minimum state of charge, not the daily mean: a pack that
+// averages half full and empties every night at three is a pack that does not
+// work, and the mean is the number that hides it.
+type Energy struct {
+	Node         string
+	DutyPct      float64
+	SoC          []float64
+	WorstSoC     float64
+	WorstDay     int
+	DeadDays     int
+	AutonomyDays float64
+}
+
 // Node is one node, as the interface needs it.
 type Node struct {
 	Name     string
@@ -268,6 +285,8 @@ type World struct {
 	Budgets []Budget
 	// Matrix is the sweep last loaded, or nil.
 	Matrix *Matrix
+	// Energy is the site study last run, or nil.
+	Energy *Energy
 
 	// Tick is called every step while playing, and is where engine pacing
 	// lives now that it is out of the frame loop. Nil means no engine.
@@ -449,6 +468,7 @@ func (s *Store) publish() {
 		WaterfallNote: s.world.WaterfallNote,
 		Budgets:       s.world.Budgets,
 		Matrix:        s.world.Matrix,
+		Energy:        s.world.Energy,
 	})
 }
 
