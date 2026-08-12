@@ -182,13 +182,17 @@ func main() {
 	scores := &scorePanel{}
 	sh.Add(&shell.Panel{Name: "Events", Windowable: true, Draw: events.Draw})
 	sh.Add(&shell.Panel{Name: "Scoreboard", Windowable: true, Draw: scores.Draw})
+	tl := &comp.Timeline{}
+	sh.Add(&shell.Panel{Name: "Packet timeline", Windowable: true,
+		Draw: func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+			return tl.Layout(t, gtx, s)
+		}})
 	fw := &firmwarePanel{}
 	runs := &runsPanel{}
 	sh.Add(&shell.Panel{Name: "Firmware", Windowable: true, Draw: fw.Draw})
 	sh.Add(&shell.Panel{Name: "Runs", Windowable: true, Draw: runs.Draw})
 	for _, p := range []struct{ name, what string }{
 		{"Schedule", "sends and assertions - P6"},
-		{"Packet timeline", "lanes on a shared time axis - P5"},
 		{"Link", "both directions, always - P6"},
 		{"Compare", "two runs, metric by metric - P6"},
 		{"Validate", "residuals against reality - P6"},
