@@ -67,6 +67,11 @@ type Snapshot struct {
 	Events     []Event
 	EventTotal int
 	Scores     []Score
+	// Waterfall is the last capture, and WaterfallNote is why there is not
+	// one. An empty waterfall and a broken one look identical, so the reason
+	// travels with the absence.
+	Waterfall     *Coverage
+	WaterfallNote string
 }
 
 // Point is a position, and the only geometry the snapshot carries.
@@ -219,6 +224,9 @@ type World struct {
 	Events     []Event
 	EventTotal int
 	Scores     []Score
+	// Waterfall is the last capture; WaterfallNote is why there is not one.
+	Waterfall     *Coverage
+	WaterfallNote string
 
 	// Tick is called every step while playing, and is where engine pacing
 	// lives now that it is out of the frame loop. Nil means no engine.
@@ -393,9 +401,11 @@ func (s *Store) publish() {
 		Shade:    s.world.Shade,
 		// Events and scores are already rebuilt fresh on every tick, so they
 		// are handed over rather than copied again.
-		Events:     s.world.Events,
-		EventTotal: s.world.EventTotal,
-		Scores:     s.world.Scores,
+		Events:        s.world.Events,
+		EventTotal:    s.world.EventTotal,
+		Scores:        s.world.Scores,
+		Waterfall:     s.world.Waterfall,
+		WaterfallNote: s.world.WaterfallNote,
 	})
 }
 

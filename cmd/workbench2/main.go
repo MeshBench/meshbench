@@ -42,6 +42,8 @@ func main() {
 	shadeFlag := flag.Bool("terrain", false, "shade the relief at startup")
 	coverFlag := flag.String("coverage", "",
 		"compute and show coverage from this node at startup")
+	captureFlag := flag.String("capture", "",
+		"capture the waterfall at this node once the run has traffic")
 	injectEvery := flag.Duration("inject-every", 0,
 		"keep originating at that node this often; for looking at the traffic layer")
 	quitFlag := flag.Duration("quit-after", 0, "exit after this long; 0 runs until closed")
@@ -110,6 +112,24 @@ func main() {
 		}()
 	}
 
+	if *captureFlag != "" {
+		// Capture the next transmission rather than this instant.
+		//
+		// A LoRa packet is tens of milliseconds and the channel is idle
+		// between them, so a capture taken at an arbitrary moment is almost
+		// always a picture of noise - which is what the first attempt at this
+		// produced, correctly and uselessly. Retry until the channel has
+		// something on it.
+		go func() {
+			for i := 0; i < 200; i++ {
+				time.Sleep(100 * time.Millisecond)
+				_, _ = st.Do(ctx, "waterfall.capture", *captureFlag)
+				if snap := st.Snapshot(); snap != nil && snap.Waterfall != nil {
+					return
+				}
+			}
+		}()
+	}
 	if *coverFlag != "" {
 		mv.Layers.Coverage = true
 		go func() { _, _ = st.Do(ctx, "coverage.compute", *coverFlag) }()
@@ -186,6 +206,11 @@ func main() {
 	sh.Add(&shell.Panel{Name: "Packet timeline", Windowable: true,
 		Draw: func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
 			return tl.Layout(t, gtx, s)
+		}})
+	wf := &comp.Waterfall{}
+	sh.Add(&shell.Panel{Name: "Waterfall", Windowable: true,
+		Draw: func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+			return wf.Layout(t, gtx, s)
 		}})
 	fw := &firmwarePanel{}
 	runs := &runsPanel{}

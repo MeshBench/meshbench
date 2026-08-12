@@ -271,6 +271,33 @@ func registerVerbs(st *state.Store, s *sim) {
 		w.Say("terrain shading: no elevation data for this view")
 		return nil, nil
 	})
+	st.Handle("waterfall.capture", func(w *state.World, p any) (any, error) {
+		at := -1
+		if name, ok := p.(string); ok && name != "" {
+			for i := range w.Nodes {
+				if w.Nodes[i].Name == name {
+					at = i
+				}
+			}
+		} else {
+			for i := range w.Nodes {
+				if w.Nodes[i].Selected {
+					at = i
+					break
+				}
+			}
+		}
+		// Captured here rather than on a worker: this is one 200 ms window of
+		// samples through one FFT, not a national raster, and doing it inline
+		// means the capture is of the instant that was asked for rather than
+		// of whenever a goroutine got round to it.
+		img, note := s.capture(context.Background(), at)
+		w.Waterfall, w.WaterfallNote = img, note
+		if note != "" {
+			w.Say(note)
+		}
+		return map[string]any{"captured": img != nil}, nil
+	})
 	st.Handle("coverage.clear", func(w *state.World, _ any) (any, error) {
 		w.Coverage = nil
 		return nil, nil
