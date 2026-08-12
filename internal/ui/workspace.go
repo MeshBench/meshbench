@@ -22,6 +22,7 @@ const (
 	wsDebug
 	wsVerify
 	wsBench
+	wsApp
 	workspaceCount
 )
 
@@ -35,6 +36,8 @@ func (w workspace) String() string {
 		return "Verify"
 	case wsBench:
 		return "Bench"
+	case wsApp:
+		return "App"
 	default:
 		return "Plan"
 	}
@@ -52,6 +55,8 @@ func (w workspace) purpose() string {
 		return "check it is still true: baselines, A/B bisect, residuals against reality"
 	case wsBench:
 		return "compare configurations: sweep a parameter, repeat it, read what differed"
+	case wsApp:
+		return "write a client against it: an endpoint to point your app at, the protocol decoded, faults on a button"
 	default:
 		return "build and site: import, place, drag, boundary, coverage"
 	}
@@ -113,6 +118,7 @@ func (a *App) panelRegistry() []*panelSpec {
 		{name: "Boundary", draw: a.drawBoundaryBody, open: false},
 		{name: "Planning", draw: a.drawPlanningBody, open: false},
 		{name: "Fleet", draw: a.drawFleetBody, open: false},
+		{name: "Companion bench", draw: a.drawCompanionBench, open: false},
 	}
 	return a.panelList
 }
@@ -187,6 +193,10 @@ func (a *App) openPanelsFor(w workspace) {
 		// Comparing configurations: the sweep, what it is doing, and what came
 		// out. No map - an experiment is read, not sited.
 		wsBench: {"Sweep", "Runs", "Experiment log", "Matrix", "Timelines", "Configuration"},
+		// The application developer's view. No map, no waterfall: they are
+		// writing a client, and what they need is an address, the protocol in
+		// both directions, and a way to break it on purpose.
+		wsApp: {"Companion bench", "Events", "Console", "Nodes"},
 	}
 	want := map[string]bool{}
 	for _, n := range names[w] {
