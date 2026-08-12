@@ -238,6 +238,10 @@ func main() {
 		Draw: func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
 			return wf.Layout(t, gtx, s)
 		}})
+	cfg := &configPanel{}
+	logp := &logPanel{}
+	sh.Add(&shell.Panel{Name: "Configuration", Windowable: true, Draw: cfg.Draw})
+	sh.Add(&shell.Panel{Name: "Experiment log", Windowable: true, Draw: logp.Draw})
 	fleet := &fleetPanel{}
 	bounds := &boundaryPanel{}
 	tls := &timelinesPanel{}
