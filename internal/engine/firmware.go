@@ -2,11 +2,14 @@ package engine
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"sync"
 	"time"
 
@@ -78,6 +81,13 @@ func (e *Engine) AttachNativeProgress(ctx context.Context, seed uint64, progress
 		}
 		resolved[key] = path
 	}
+	e.mu.Lock()
+	e.builds = e.builds[:0]
+	for key, path := range resolved {
+		e.builds = append(e.builds, Build{Key: key, Path: path, Sum: shortSum(path)})
+	}
+	sort.Slice(e.builds, func(i, j int) bool { return e.builds[i].Key < e.builds[j].Key })
+	e.mu.Unlock()
 
 	// Bounded concurrency: the work is process startup and a socket handshake,
 	// so it is latency, not CPU, and running it one at a time wastes all of it.
@@ -447,4 +457,42 @@ func emulatedBackend(spec scenario.Node) (*firmware.EmulatedNode, error) {
 		NodeName: spec.Name,
 		Dir:      dir,
 	}, nil
+}
+
+// Build is one firmware binary this run attached, with enough to prove it.
+//
+// A result is only interpretable if you know which binary produced it. Naming
+// the version is not enough: two runs can name the same version and resolve to
+// different files, and two arms can name different versions and resolve to the
+// same file. The path and a checksum settle both cases without anybody having
+// to reconstruct what was on disk at the time.
+type Build struct {
+	// Key is role@version, as the resolver was asked for it.
+	Key  string
+	Path string
+	// Sum is the first 12 hex digits of the binary's SHA-256.
+	Sum string
+}
+
+// Builds is what the current firmware attach resolved to.
+func (e *Engine) Builds() []Build {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	out := make([]Build, len(e.builds))
+	copy(out, e.builds)
+	return out
+}
+
+// shortSum hashes a binary so two runs can be compared without keeping it.
+func shortSum(path string) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer func() { _ = f.Close() }()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return ""
+	}
+	return hex.EncodeToString(h.Sum(nil))[:12]
 }
