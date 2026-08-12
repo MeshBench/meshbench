@@ -104,6 +104,10 @@ type expResult struct {
 	Arm  string
 	Seed uint64
 
+	// Builds is role@version=checksum for every binary this run attached, so a
+	// result can be traced to the file that produced it.
+	Builds []string
+
 	TX, RX     int
 	Collisions int
 	Deaf       int
@@ -531,6 +535,14 @@ func (a *App) measure(arm string, seed uint64, from int, burstMs uint32) expResu
 	if a.eng == nil {
 		return r
 	}
+	// Which binaries actually produced this run. An arm names a version; a
+	// version resolves to a file; the two can disagree, and when they do the
+	// numbers are attributed to the wrong change. Recording the path and a
+	// checksum makes that answerable after the fact instead of by rerunning.
+	for _, b := range a.eng.Builds() {
+		r.Builds = append(r.Builds, fmt.Sprintf("%s=%s", b.Key, b.Sum))
+	}
+	sort.Strings(r.Builds)
 	events := a.eng.Events()
 	if from > len(events) {
 		from = len(events)

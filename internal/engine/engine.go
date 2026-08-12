@@ -109,8 +109,12 @@ type Engine struct {
 	Config  Config
 	Ledger  capture.Ledger
 
-	mu     sync.Mutex
-	nodes  []*Node
+	mu    sync.Mutex
+	nodes []*Node
+	// builds is what the last firmware attach resolved to, so a result can
+	// name the binary that produced it rather than the version somebody asked
+	// for. The two are not the same thing.
+	builds []Build
 	events []Event
 	nowMs  uint32
 	packet uint64

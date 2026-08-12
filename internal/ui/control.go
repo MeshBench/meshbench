@@ -498,6 +498,7 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 		for _, r := range e.results {
 			rows = append(rows, map[string]any{
 				"arm": r.Arm, "seed": r.Seed, "tx": r.TX, "rx": r.RX,
+				"builds":   r.Builds,
 				"messages": r.Messages, "reach_pct": r.MeanReachPct,
 				"reach_each": r.ReachPerMsg, "senders_of": r.SenderOf,
 				"to_repeaters": r.RepHit, "repeater_chances": r.RepChances,
