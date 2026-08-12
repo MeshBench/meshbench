@@ -44,6 +44,8 @@ func commands() []command {
 		{"airtime", "LoRa time on air, as the firmware computes it", runAirtime},
 		{"traffic", "flood a message through a network and report what happened", runTraffic},
 		{"basemap", "download map tiles for an area", runBasemap},
+		{"dev", "build a MeshCore checkout and give it to the workbench", runDev},
+		{"serve", "run a mesh and expose a companion to your app", runServe},
 		{"test", "run a fixture on real firmware and check its assertions", runTest},
 		{"workbench", "open the desktop workbench: build a scenario on a map and run it", runWorkbench},
 	}
