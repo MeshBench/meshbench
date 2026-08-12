@@ -22,3 +22,14 @@ lora: Radio.RadioServerSX1262 @ spi3
     // it the firmware configures the radio and then waits on a pin nothing
     // drives, which looks exactly like a radio that never receives.
     IRQ -> gpio1@15
+
+// Chip select, from the pin RadioLib actually drives.
+//
+// Renode's SPI model calls Transmit() for every byte and never calls
+// FinishTransmission(), so the chip never sees a transaction boundary - it
+// took 3,320 bytes and executed not one command, because VirtualSX1262 acts on
+// a command when chip select is released. RadioLib drives NSS as an ordinary
+// GPIO rather than letting the controller do it, so the boundary is here: P1.10
+// on a RAK4631, which is pin 42 flat and pin 10 of gpio1.
+gpio1:
+    10 -> lora@0
