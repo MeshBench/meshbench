@@ -1,0 +1,266 @@
+package comp
+
+import (
+	"image"
+	"sort"
+	"strings"
+
+	"gioui.org/layout"
+	"gioui.org/op"
+	"gioui.org/unit"
+	"gioui.org/widget"
+
+	"github.com/A13xB0/meshcoresim/internal/gui/theme"
+)
+
+// Column describes one column of a Table.
+type Column struct {
+	Title string
+	// Width in Dp. Zero means "take the remaining space", and at most one
+	// column should say so.
+	Width unit.Dp
+	// Right aligns numeric columns, which is what makes tabular figures worth
+	// having.
+	Right bool
+	// Mono renders this column in the monospace face: identifiers, versions,
+	// checksums and anything compared by eye down a column.
+	Mono bool
+	// Sortable columns get a header that responds to a click.
+	Sortable bool
+}
+
+// Row is one row's cells plus the identity the table sorts and selects by.
+//
+// Key is the point: a row is identified by something stable, not by its index,
+// so a re-sort moves rows rather than renaming them. The old firmware table
+// flickered every frame precisely because equal sort keys left the order free
+// to change between frames.
+type Row struct {
+	Key   string
+	Cells []string
+	// Tint colours a small swatch at the start of the row, for node kind and
+	// similar. Zero alpha means no swatch.
+	Tint [4]uint8
+}
+
+// Table is a virtualised, sortable, selectable table.
+//
+// Virtualised: only the visible rows are built, so a 311-node network and a
+// 20,000-event ledger cost the same per frame. The old table capped itself at
+// 150 rows and said so, which is a worse answer than drawing what is asked for.
+type Table struct {
+	Cols     []Column
+	Filter   widget.Editor
+	List     widget.List
+	SortCol  int
+	SortDesc bool
+	// Selected is the Key of the selected row, so selection survives a re-sort
+	// and a filter change.
+	Selected string
+
+	headers []widget.Clickable
+	rows    []widget.Clickable
+	shown   []Row
+}
+
+// SetRows replaces the table's contents. Sorting and filtering are applied
+// here rather than during layout, so a frame never does work proportional to
+// the whole data set.
+func (tb *Table) SetRows(rows []Row) {
+	want := strings.ToLower(strings.TrimSpace(tb.Filter.Text()))
+	tb.shown = tb.shown[:0]
+	for _, r := range rows {
+		if want == "" || rowMatches(r, want) {
+			tb.shown = append(tb.shown, r)
+		}
+	}
+	col := tb.SortCol
+	if col >= 0 && col < len(tb.Cols) {
+		// A total order: the sort key first, then the row's own key. Without
+		// the second term, rows with equal values are free to swap places on
+		// every sort, which is what made the old table shimmer.
+		sort.SliceStable(tb.shown, func(i, j int) bool {
+			a, b := cellAt(tb.shown[i], col), cellAt(tb.shown[j], col)
+			if a == b {
+				return tb.shown[i].Key < tb.shown[j].Key
+			}
+			if tb.SortDesc {
+				return a > b
+			}
+			return a < b
+		})
+	}
+	for len(tb.rows) < len(tb.shown) {
+		tb.rows = append(tb.rows, widget.Clickable{})
+	}
+	for len(tb.headers) < len(tb.Cols) {
+		tb.headers = append(tb.headers, widget.Clickable{})
+	}
+}
+
+// Shown is how many rows survive the filter, for a caller that wants to say
+// "12 of 311".
+func (tb *Table) Shown() int { return len(tb.shown) }
+
+// Layout draws the table. onSelect is called with a row key when a row is
+// clicked, so selection is the caller's business rather than the widget's.
+func (tb *Table) Layout(t *theme.Theme, gtx layout.Context, onSelect func(key string)) layout.Dimensions {
+	tb.List.Axis = layout.Vertical
+	for i := range tb.headers {
+		if tb.headers[i].Clicked(gtx) && tb.Cols[i].Sortable {
+			if tb.SortCol == i {
+				tb.SortDesc = !tb.SortDesc
+			} else {
+				tb.SortCol, tb.SortDesc = i, false
+			}
+		}
+	}
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return tb.header(t, gtx) }),
+		layout.Rigid(HRule(t)),
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			if len(tb.shown) == 0 {
+				return tb.empty(t, gtx)
+			}
+			return material_List(t, &tb.List).Layout(gtx, len(tb.shown),
+				func(gtx layout.Context, i int) layout.Dimensions {
+					if tb.rows[i].Clicked(gtx) && onSelect != nil {
+						onSelect(tb.shown[i].Key)
+					}
+					return tb.row(t, gtx, i)
+				})
+		}),
+	)
+}
+
+func (tb *Table) header(t *theme.Theme, gtx layout.Context) layout.Dimensions {
+	children := make([]layout.FlexChild, 0, len(tb.Cols))
+	for i := range tb.Cols {
+		i := i
+		c := tb.Cols[i]
+		w := func(gtx layout.Context) layout.Dimensions {
+			title := c.Title
+			if tb.SortCol == i && c.Sortable {
+				if tb.SortDesc {
+					title += "  v"
+				} else {
+					title += "  ^"
+				}
+			}
+			return tb.headers[i].Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{
+					Top: t.Sp.XS, Bottom: t.Sp.XS, Left: t.Sp.S, Right: t.Sp.S,
+				}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					if c.Right {
+						return layout.E.Layout(gtx,
+							Mono(t, t.Sz.Caption, t.P.Faint, title))
+					}
+					return Mono(t, t.Sz.Caption, t.P.Faint, title)(gtx)
+				})
+			})
+		}
+		if c.Width == 0 {
+			children = append(children, layout.Flexed(1, w))
+		} else {
+			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				gtx.Constraints.Min.X = gtx.Dp(c.Width)
+				gtx.Constraints.Max.X = gtx.Dp(c.Width)
+				return w(gtx)
+			}))
+		}
+	}
+	return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, children...)
+}
+
+func (tb *Table) row(t *theme.Theme, gtx layout.Context, idx int) layout.Dimensions {
+	r := tb.shown[idx]
+	selected := r.Key == tb.Selected
+	return tb.rows[idx].Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		h := gtx.Dp(t.RowHeight())
+		macro := op.Record(gtx.Ops)
+		children := make([]layout.FlexChild, 0, len(tb.Cols)+1)
+		if r.Tint[3] > 0 {
+			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Left: t.Sp.S, Right: t.Sp.XS}.Layout(gtx,
+					func(gtx layout.Context) layout.Dimensions {
+						d := gtx.Dp(8)
+						return FillRect(gtx, image.Pt(d, d),
+							nrgba(r.Tint))
+					})
+			}))
+		}
+		for i := range tb.Cols {
+			i := i
+			c := tb.Cols[i]
+			cell := cellAt(r, i)
+			w := func(gtx layout.Context) layout.Dimensions {
+				fg := t.P.Ink
+				if i > 0 {
+					fg = t.P.Dim
+				}
+				render := Text(t, t.Sz.Body, fg, cell)
+				if c.Mono {
+					render = Mono(t, t.Sz.Data, fg, cell)
+				}
+				return layout.Inset{Left: t.Sp.S, Right: t.Sp.S}.Layout(gtx,
+					func(gtx layout.Context) layout.Dimensions {
+						if c.Right {
+							return layout.E.Layout(gtx, render)
+						}
+						return render(gtx)
+					})
+			}
+			if c.Width == 0 {
+				children = append(children, layout.Flexed(1, w))
+			} else {
+				children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					gtx.Constraints.Min.X = gtx.Dp(c.Width)
+					gtx.Constraints.Max.X = gtx.Dp(c.Width)
+					return w(gtx)
+				}))
+			}
+		}
+		gtx.Constraints.Min.Y = h
+		gtx.Constraints.Max.Y = h
+		dims := layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, children...)
+		call := macro.Stop()
+		dims.Size.Y = h
+		switch {
+		case selected:
+			FillRect(gtx, image.Pt(gtx.Constraints.Max.X, h), t.P.Selected)
+		case tb.rows[idx].Hovered():
+			FillRect(gtx, image.Pt(gtx.Constraints.Max.X, h), theme.Alpha(t.P.Ink, 0.05))
+		}
+		call.Add(gtx.Ops)
+		return dims
+	})
+}
+
+// empty says what to do next rather than "no data", which is the difference
+// between an interface that is unhelpful and one that is broken-looking.
+func (tb *Table) empty(t *theme.Theme, gtx layout.Context) layout.Dimensions {
+	msg := "nothing here yet"
+	if strings.TrimSpace(tb.Filter.Text()) != "" {
+		msg = "nothing matches that filter"
+	}
+	return layout.Center.Layout(gtx, Text(t, t.Sz.Body, t.P.Faint, msg))
+}
+
+func rowMatches(r Row, want string) bool {
+	if strings.Contains(strings.ToLower(r.Key), want) {
+		return true
+	}
+	for _, c := range r.Cells {
+		if strings.Contains(strings.ToLower(c), want) {
+			return true
+		}
+	}
+	return false
+}
+
+func cellAt(r Row, i int) string {
+	if i < 0 || i >= len(r.Cells) {
+		return ""
+	}
+	return r.Cells[i]
+}
