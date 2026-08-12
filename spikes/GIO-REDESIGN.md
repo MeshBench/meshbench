@@ -471,9 +471,17 @@ The single most important surface, and the one with the most overlays.
 - [ ] **10.11** Measure tool with distance and bearing
 - [ ] **10.12** Layer panel controlling every overlay
 - [ ] **10.13** Scale bar, attribution, and the honesty line
-- [ ] **10.14** Frame budget: 300 nodes and 2,000 links at 60 fps, measured -
-      **this is the unproven surface, not the waterfall**, and it is in the
-      pre-P0 spike
+- [ ] **10.14** Frame budget at real scale (311 nodes, 1,223 links on the
+      shipped Scotland and Ireland fixture), 60 fps. **Spiked, and open**: a
+      naive per-frame implementation measured ~24 fps on real hardware; batching
+      every link into one draw call recovered to ~35 fps. Neither clears 60.
+      Closing the gap needs viewport culling and path caching across static
+      frames, both named as P3 sub-tasks below rather than left as a wish.
+      See `spikes/SPIKE-RESULTS.md`.
+- [ ] **10.14a** Viewport culling: do not build draw ops for links or nodes
+      outside the visible region.
+- [ ] **10.14b** Cache the compiled path across frames where the camera has not
+      moved and the network has not changed; reissue only on invalidation.
 
 ## 11. Interaction and accessibility
 
@@ -540,8 +548,9 @@ mode makes it possible, and that is a large part of the value.
       with a tolerance, in CI under software Vulkan (lavapipe) - not whole
       views, which the plan itself predicts would become disabled noise
 - [ ] **13.4** The parity script from 12.9, run against a real scenario
-- [ ] **13.5** Frame budget test: the 311-node fixture at 60 fps, failing CI if
-      it regresses
+- [ ] **13.5** Frame budget test: the 311-node fixture at 60 fps, **after**
+      10.14a and 10.14b land - on the spike's evidence it fails before them -
+      failing CI if it regresses once it passes
 - [ ] **13.6** A smoke test that opens every panel and every window and asserts
       nothing panics
 
@@ -667,12 +676,29 @@ estimate, because it is where the existing coupling gets discovered properly.
 **The cheapest thing that would sharpen this estimate** is the two-surface
 spike in section 20: half a day, and it retires both frame-budget unknowns.
 
-## 20. Suggested first move
+## 20. The spike, run
 
-Not P0. **One half-day spike with two surfaces in it: the waterfall as a
-per-frame texture, and the map stressed at 300 nodes and 2,000 stroked links.**
-Together they retire both frame-budget unknowns, and the map is the one the
-review judged more likely to bite. If both hold, start P0 the same week.
+Done, on real hardware (AMD RX 5700 XT, RADV, confirmed - not software
+rendering) against the real 311-node, 1,223-link Scotland and Ireland fixture,
+composited over a synthetic basemap so the test pays the real map's compositing
+cost. Full numbers and method in `spikes/SPIKE-RESULTS.md`.
+
+**The waterfall clears at 60 fps**, once measured correctly - the first attempt
+conflated CPU-side synthetic spectrogram generation with the texture-upload
+question actually being asked, and isolating them (a pre-rendered ring of
+frames) settled it: this surface was never the risk.
+
+**The map does not clear 60 fps**, and the review's instinct that it was the
+likelier long pole was right. Naive per-frame drawing measured ~24 fps; batching
+every link into one draw call - the standard first optimisation - recovered to
+~35 fps. Real headroom, not close to a toolkit ceiling, but short of the target
+on its own. Two named, ordinary levers - viewport culling and path caching
+across static frames - are neither exotic nor spiked yet, and are now explicit
+P3 sub-tasks (10.14a, 10.14b) gating the frame-budget test in 13.5 rather than
+an assumption riding on an unqualified "if both hold."
+
+**P0 starts on this evidence.** The map risk is real, bounded, and has a named
+fix; it does not reopen the toolkit choice.
 
 ## 21. Review
 
