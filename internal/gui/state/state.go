@@ -83,6 +83,8 @@ type Snapshot struct {
 	Assertions []Assertion
 	// Endpoints are the companions currently served.
 	Endpoints []Endpoint
+	// Routes are the planner's last answer.
+	Routes []Route
 }
 
 // Point is a position, and the only geometry the snapshot carries.
@@ -243,6 +245,14 @@ type Endpoint struct {
 	Attached bool
 }
 
+// Route is one way to connect two points, from the planner.
+type Route struct {
+	NewSites     int
+	Hops         int
+	LongestHopKm float64
+	Through      string
+}
+
 // Node is one node, as the interface needs it.
 type Node struct {
 	Name     string
@@ -323,6 +333,8 @@ type World struct {
 	Assertions []Assertion
 	// Endpoints are the companions currently served.
 	Endpoints []Endpoint
+	// Routes are the planner's last answer.
+	Routes []Route
 
 	// Tick is called every step while playing, and is where engine pacing
 	// lives now that it is out of the frame loop. Nil means no engine.
@@ -508,6 +520,7 @@ func (s *Store) publish() {
 		Sends:         s.world.Sends,
 		Assertions:    s.world.Assertions,
 		Endpoints:     s.world.Endpoints,
+		Routes:        s.world.Routes,
 	})
 }
 

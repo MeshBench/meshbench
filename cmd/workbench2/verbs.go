@@ -461,6 +461,40 @@ func registerVerbs(st *state.Store, s *sim) {
 		}
 		return nil, nil
 	})
+	st.Handle("plan.routes", func(w *state.World, _ any) (any, error) {
+		var picked []string
+		for i := range w.Nodes {
+			if w.Nodes[i].Selected {
+				picked = append(picked, w.Nodes[i].Name)
+			}
+		}
+		if len(picked) < 2 {
+			return nil, fmt.Errorf("select two nodes to plan between")
+		}
+		from, to := picked[0], picked[len(picked)-1]
+		w.Say("searching for routes between " + from + " and " + to)
+		go func() {
+			ctx := context.Background()
+			routes, err := s.routesBetween(from, to)
+			if err != nil {
+				_, _ = st.Do(ctx, "plan.failed", err.Error())
+				return
+			}
+			_, _ = st.Do(ctx, "plan.set", routes)
+		}()
+		return map[string]any{"from": from, "to": to}, nil
+	})
+	st.Handle("plan.set", func(w *state.World, p any) (any, error) {
+		routes, _ := p.([]state.Route)
+		w.Routes = routes
+		w.Say(fmt.Sprintf("%d route(s) found", len(routes)))
+		return map[string]any{"routes": len(routes)}, nil
+	})
+	st.Handle("plan.failed", func(w *state.World, p any) (any, error) {
+		msg, _ := p.(string)
+		w.Say("planning: " + msg)
+		return nil, nil
+	})
 	st.Handle("session.describe", func(w *state.World, _ any) (any, error) {
 		return map[string]any{
 			"nodes": len(w.Nodes), "seed": w.Seed, "now_ms": w.NowMs,

@@ -274,3 +274,41 @@ func bearingDeg(lat1, lon1, lat2, lon2 float64) float64 {
 	}
 	return b
 }
+
+// LossBetween is the path loss between two points, over the terrain profile
+// between them.
+//
+// Exported because a raster is not the only thing that needs a path loss: a
+// route search asks the same question about a mast that does not exist yet.
+// Written here, next to evaluate, and using the same profile and the same two
+// terms, so that a planned link and a drawn one cannot disagree about the
+// propagation while agreeing about everything else.
+//
+// Reports false where the terrain has no data, which is not the same as a
+// large loss: one is ignorance and the other is a result.
+func LossBetween(t Terrain, aLat, aLon, aHeightAGLm, bLat, bLon, bHeightAGLm,
+	freqMHz, profileStepM float64) (float64, bool) {
+
+	if _, ok := t.ElevationM(aLat, aLon); !ok {
+		return 0, false
+	}
+	if _, ok := t.ElevationM(bLat, bLon); !ok {
+		return 0, false
+	}
+	distKm := haversineKm(aLat, aLon, bLat, bLon)
+	if distKm <= 0 {
+		return 0, false
+	}
+	if profileStepM <= 0 {
+		profileStepM = 120
+	}
+	profile, ok := sampleProfile(t, aLat, aLon, bLat, bLon, distKm, profileStepM)
+	if !ok {
+		return 0, false
+	}
+	// Heights above ground, not absolute altitudes: MultiEdgeLossDB adds the
+	// profile's own endpoint elevations itself, and passing absolute values
+	// counts the ground twice and buys clearance the path does not have.
+	return terrain.FSPLdB(distKm, freqMHz) +
+		terrain.MultiEdgeLossDB(profile, aHeightAGLm, bHeightAGLm, freqMHz), true
+}

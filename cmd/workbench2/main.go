@@ -39,6 +39,7 @@ func main() {
 	profFlag := flag.String("cpuprofile", "", "write a CPU profile here")
 	playFlag := flag.Bool("play", false, "start the simulation immediately")
 	injectFlag := flag.String("inject", "", "originate a packet at this node once running")
+	planFlag := flag.String("plan", "", "plan between the selected node and this one at startup")
 	sweepFlag := flag.Bool("sweep", false, "run the default sweep at startup")
 	saveRunFlag := flag.String("save-run", "", "save a run record under this name, then keep running")
 	shadeFlag := flag.Bool("terrain", false, "shade the relief at startup")
@@ -133,6 +134,13 @@ func main() {
 			// After the run has had time to produce counters worth recording.
 			time.Sleep(18 * time.Second)
 			_, _ = st.Do(ctx, "run.save", *saveRunFlag)
+		}()
+	}
+	if *planFlag != "" {
+		go func() {
+			time.Sleep(6 * time.Second)
+			_, _ = st.Do(ctx, "nodes.add_to_selection", []string{*planFlag})
+			_, _ = st.Do(ctx, "plan.routes", nil)
 		}()
 	}
 	if *sweepFlag {
@@ -254,6 +262,11 @@ func main() {
 		Draw: func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
 			return wf.Layout(t, gtx, s)
 		}})
+	plan := &planPanel{}
+	plan.OnRun = func() {
+		go func() { _, _ = st.Do(ctx, "plan.routes", nil) }()
+	}
+	sh.Add(&shell.Panel{Name: "Planning", Windowable: true, Draw: plan.Draw})
 	cmpP := &comparePanel{}
 	cmpP.OnSave = func() {
 		go func() { _, _ = st.Do(ctx, "run.save", "run") }()
