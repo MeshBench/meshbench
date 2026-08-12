@@ -28,6 +28,7 @@ type sim struct {
 	nodes   []scenario.Node
 	terr    coverage.Terrain
 	warming atomic.Bool
+	served  map[string]*engine.CompanionLink
 }
 
 // terrainStore is the elevation the engine sees.

@@ -238,6 +238,22 @@ func main() {
 		Draw: func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
 			return wf.Layout(t, gtx, s)
 		}})
+	bench := &benchPanel{}
+	bench.OnAction = func(action, node string) {
+		go func() {
+			switch action {
+			case "serve.tcp":
+				_, _ = st.Do(ctx, "bench.serve",
+					map[string]any{"node": node, "kind": "tcp"})
+			case "serve.serial":
+				_, _ = st.Do(ctx, "bench.serve",
+					map[string]any{"node": node, "kind": "serial"})
+			default:
+				_, _ = st.Do(ctx, action, nil)
+			}
+		}()
+	}
+	sh.Add(&shell.Panel{Name: "Companion bench", Windowable: true, Draw: bench.Draw})
 	sched := &schedulePanel{}
 	console := &consolePanel{}
 	sh.Add(&shell.Panel{Name: "Schedule", Windowable: true, Draw: sched.Draw})
@@ -251,7 +267,6 @@ func main() {
 		{"Compare", "two runs, metric by metric - P6"},
 		{"Validate", "residuals against reality - P6"},
 		{"Sweep", "arms, seeds, senders - P6"},
-		{"Companion bench", "an endpoint to point your client at - P6"},
 	} {
 		sh.Add(shell.EmptyPanel(p.name, p.what))
 	}

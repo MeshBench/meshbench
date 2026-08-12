@@ -81,6 +81,8 @@ type Snapshot struct {
 	// Sends and Assertions are the fixture's schedule and its claims.
 	Sends      []Send
 	Assertions []Assertion
+	// Endpoints are the companions currently served.
+	Endpoints []Endpoint
 }
 
 // Point is a position, and the only geometry the snapshot carries.
@@ -233,6 +235,14 @@ type Assertion struct {
 	MaxPct   float64
 }
 
+// Endpoint is one companion served to a client.
+type Endpoint struct {
+	Node     string
+	Kind     string
+	Addr     string
+	Attached bool
+}
+
 // Node is one node, as the interface needs it.
 type Node struct {
 	Name     string
@@ -311,6 +321,8 @@ type World struct {
 	// Sends and Assertions are the fixture's schedule and its claims.
 	Sends      []Send
 	Assertions []Assertion
+	// Endpoints are the companions currently served.
+	Endpoints []Endpoint
 
 	// Tick is called every step while playing, and is where engine pacing
 	// lives now that it is out of the frame loop. Nil means no engine.
@@ -495,6 +507,7 @@ func (s *Store) publish() {
 		Energy:        s.world.Energy,
 		Sends:         s.world.Sends,
 		Assertions:    s.world.Assertions,
+		Endpoints:     s.world.Endpoints,
 	})
 }
 
