@@ -140,11 +140,34 @@ the traps rather than leaving them to whoever runs it: storage per arm through
 the new `MESHCORESIM_NODEFS`, `-count=1`, and a build per role in every arm.
 Verified by reproducing the result without the manual process.
 
+## Later still
+
+**The PlatformIO hook is written and the hand-over verified.**
+`tools/platformio/meshbench.py` reads board and role from the environment name
+and gives the image to a running workbench through `firmware.import`, named
+after the branch it came from. Tested by driving the same verb with a real
+image, which appeared in the library as `simple_repeater local-hooktest
+(RAK_4631)`.
+
+**A Linux packaging workflow**, `.github/workflows/package.yml`: built on the
+oldest Ubuntu we support because glibc is most of what "every flavour" means,
+both emulators bundled beside the binary, QEMU symlinked rather than copied. Not
+yet run.
+
+**The documentation site exists**, private, Pages deliberately not enabled. The
+firmware library page is written from a real window-only capture with the marks
+drawn on it, plus the annotation tool and a rule with a trigger rather than a
+wish.
+
+**The first screenshot attempt had to be thrown away.** A fullscreen grab took
+the whole desktop with it, including a browser showing MeshCIM pull requests -
+a private repository with a proprietary licence. Nothing left the machine, and
+the rule in the docs repository now says window-only and look before committing.
+
 ## What did not happen
 
-No packaging, no docs site, no app-testing harness, no Companion bench, no
-PlatformIO hook. The medium and large fixtures are not built: same recipe, more
-waiting.
+No app-testing harness and no Companion bench. The medium and large fixtures are
+not built: same recipe, more waiting. The packaging workflow has never run.
 
 **Seven of the eight ideas have no report**, and that needs saying properly
 rather than as a shortfall. Two of them are pre-registered as expected nulls - a
