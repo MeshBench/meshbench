@@ -222,3 +222,64 @@ fixture:
    rewrite the pre-registered eight after seeing a result; `help` is arm 11.
 3. `nodefs.prestudy` holds your previous node identities. Say the word and I will
    restore or delete it.
+
+## Before morning
+
+**The permissive fixture was a lie, and now is not.** `fixture-fife-permissive`
+shipped byte-identical to the strict one. What made it permissive was a console
+line typed at a running node, and console lines are not saved, so both variants
+forwarded exactly the same traffic while the documentation said otherwise. It is
+a stored field on the node now, reissued by provisioning at every firmware
+start, with a test that fails if that stops being true, a checkbox under the
+inference results and a `nodes.allow_flood` verb.
+
+Being honest about the other half: **the permissive variant is declared, not
+demonstrated.** The firmware accepts `region allowf *` and answers OK, but
+flooding a scope only one node holds gave 51 transmissions and 521 receptions
+strict against 51 and 520 permissive - the same answer twice, far inside the
+±20% floor. Either the wildcard needs `region put *` first, or that experiment
+could not see the difference. Strict is the one to believe either way.
+
+**All three fixtures are built**, both variants each: Fife 58, Scotland 161,
+Scotland and Ireland 311, every one carrying one of each node kind that exists.
+Three control-socket gaps had to be closed to do it - `nodes.place` accepted
+three kinds of six, there was no way to give a placed node its neighbours'
+regions, and an emitter placed without a power failed validation.
+
+**Packaging runs and is green.** 15 MB, eleven minutes. It cannot be built on
+ubuntu-22.04: cimgui-go ships a prebuilt archive needing glibc 2.38, so the
+bundle's floor is set by a dependency rather than by our choice of runner. The
+bundle ships without either emulator and says so - neither fork has published a
+release yet, which is the next piece.
+
+**`meshcoresim test` is the app-testing harness.** Load a fixture, provision it,
+run it on real firmware, check its assertions, write JUnit, exit non-zero on
+failure. Verified: the Fife pair passes in 26 seconds, and fails loudly when an
+assertion does not hold. `-endpoint tcp:<node>` serves one node's companion
+protocol to a real client and prints the address.
+
+Its first version reported **zero deliveries on a healthy mesh**, because it
+never provisioned the nodes - no name, no clock, no position, no regions. That
+is the coupling ADR-0019 was written about, showing up in practice: the
+workbench's provisioning lives in the UI package. The region half is shared code
+now, in `internal/fixture`, because that is the part with the trap in it.
+
+## Still not done
+
+The **Companion bench panel**. The endpoint half exists headlessly and the
+Companion tab already decodes the protocol both ways, so what is missing is the
+developer's front door: fault-injection buttons and one click for "give me a
+mesh and an endpoint".
+
+**Emulator releases** for the two forks, without which the bundle is the binary
+alone.
+
+**Seven more study reports.** Four of the eight ideas cannot produce a result
+until the harness measures offered load and airtime.
+
+## What needs you
+
+1. Whether to publish the study report on the `relay-suppression` branch.
+2. Whether the wildcard region needs `region put *` - one question to the
+   MeshCore developers settles whether the permissive fixtures do anything.
+3. Whether to raise `rx_delay_base` upstream.

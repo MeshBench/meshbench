@@ -1,6 +1,6 @@
 {
   "name": "fixture-fife-permissive",
-  "saved": "2026-08-12T03:34:46.57382437+01:00",
+  "saved": "2026-08-12T04:24:02.136480939+01:00",
   "nodes": [
     {
       "Name": "Abernethy Repeater",
@@ -11,6 +11,7 @@
         "#sco"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
@@ -42,7 +43,7 @@
       "NoiseFigureDB": 6
     },
     {
-      "Name": "Alba-Éireann-01",
+      "Name": "Alba-\u00c9ireann-01",
       "Kind": "simple-repeater",
       "Board": "RAK4631",
       "PublicKey": "e426c0041016cdadfed8665741648402d577edae40b7a94e52066ce70ca4e7a4",
@@ -54,6 +55,7 @@
         "#ioi-admin"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
@@ -93,6 +95,7 @@
         "#sco"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
@@ -124,12 +127,13 @@
       "NoiseFigureDB": 6
     },
     {
-      "Name": "AngusOutlaw2📡",
+      "Name": "AngusOutlaw2\ud83d\udce1",
       "Kind": "companion",
       "Board": "RAK4631",
       "PublicKey": "50ad68925a26340e72e182e5ac869c9b501b77a3686f529c941d717032964f09",
       "Regions": null,
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
@@ -167,6 +171,7 @@
       "PublicKey": "09e0cfde27d8f86341c7cad7d98f4107a9cf8a594968dfd1304adad16e92bf22",
       "Regions": null,
       "DefaultScope": "",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
@@ -204,6 +209,7 @@
       "PublicKey": "e7296105ea7f0a4232b3b963e5f860b789c88b5a2dd4f2eb96a4d41dda5ad8fe",
       "Regions": null,
       "DefaultScope": "",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
@@ -243,6 +249,7 @@
         "#sco"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
@@ -274,7 +281,7 @@
       "NoiseFigureDB": 6
     },
     {
-      "Name": "Bishop Hill ☀️🔋",
+      "Name": "Bishop Hill \u2600\ufe0f\ud83d\udd0b",
       "Kind": "simple-repeater",
       "Board": "RAK4631",
       "PublicKey": "2eecdff2c19996b333c5059a40740dfa8bf8b803f306c23084269f8a39edf8b4",
@@ -286,6 +293,7 @@
         "#fif"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
@@ -326,6 +334,7 @@
         "#ioi"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
@@ -362,12 +371,13 @@
       "Board": "RAK4631",
       "PublicKey": "0aa023c9c07a10ded81d4a4f8e5a45db527c583e08aecfe4064e33139c17a26a",
       "Regions": [
-        "#sco",
         "#ioi",
+        "#sco",
         "#wls",
         "#ioi-admin"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
@@ -399,16 +409,17 @@
       "NoiseFigureDB": 6
     },
     {
-      "Name": "Cadham Village 🏘️",
+      "Name": "Cadham Village \ud83c\udfd8\ufe0f",
       "Kind": "simple-repeater",
       "Board": "RAK4631",
       "PublicKey": "04f1fe66a27b35a586704323de2267c8b11cd0719e5af499035a0bc69e3689e8",
       "Regions": [
+        "#ioi",
         "#sco",
-        "#fif",
-        "#ioi"
+        "#wls"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
@@ -448,6 +459,7 @@
         "#sco"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
@@ -488,6 +500,7 @@
         "#sco"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
@@ -519,7 +532,7 @@
       "NoiseFigureDB": 6
     },
     {
-      "Name": "Drumcarrow Craig NWR ��",
+      "Name": "Drumcarrow Craig NWR \ufffd\ufffd",
       "Kind": "simple-repeater",
       "Board": "RAK4631",
       "PublicKey": "07f1fef7b2c51616cb9207f4afafce3c14a4fb20f9e216ab6fad3584235be50b",
@@ -528,6 +541,7 @@
         "#ioi"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
@@ -559,7 +573,7 @@
       "NoiseFigureDB": 6
     },
     {
-      "Name": "Duke Listen'em ☢️",
+      "Name": "Duke Listen'em \u2622\ufe0f",
       "Kind": "simple-repeater",
       "Board": "RAK4631",
       "PublicKey": "3dfb86967209667c2e4028bc739a335fba7a88da6257fe69a4804a5520f65c11",
@@ -569,11 +583,12 @@
         "#fif"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -608,11 +623,12 @@
         "#sco"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -648,11 +664,12 @@
         "#ioi"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -685,11 +702,12 @@
       "PublicKey": "ddfedeeee2b27f78a3495e2770a0b665fb4a708d588b7c1dbbdfbb3a5aeed4cf",
       "Regions": null,
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "companion_radio",
+        "Version": "companion-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -716,7 +734,7 @@
       "NoiseFigureDB": 6
     },
     {
-      "Name": "Kellie Law NWR 🌤️�",
+      "Name": "Kellie Law NWR \ud83c\udf24\ufe0f\ufffd",
       "Kind": "simple-repeater",
       "Board": "RAK4631",
       "PublicKey": "06f1fece5ea0422a26b32e5f23d8f8acb2db02c684897eeedec8097223e64d1e",
@@ -725,11 +743,12 @@
         "#sco"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -756,7 +775,7 @@
       "NoiseFigureDB": 6
     },
     {
-      "Name": "Leslie 🏘",
+      "Name": "Leslie \ud83c\udfd8",
       "Kind": "simple-repeater",
       "Board": "RAK4631",
       "PublicKey": "03f1fe3b9b86e54ce86d928ed50df7f361b7745ee43d8efaf3e7fc8108d88c89",
@@ -766,11 +785,12 @@
         "#wls"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -797,7 +817,7 @@
       "NoiseFigureDB": 6
     },
     {
-      "Name": "Lucklaw Hill ⛰️🌤",
+      "Name": "Lucklaw Hill \u26f0\ufe0f\ud83c\udf24",
       "Kind": "simple-repeater",
       "Board": "RAK4631",
       "PublicKey": "05f1fe40f295291f57d5a18ca5f2d11c64c90a7068dfb13b0ab531b9a23300f9",
@@ -807,11 +827,12 @@
         "#wls"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -850,11 +871,12 @@
         "#ioi-admin"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -890,11 +912,12 @@
         "#ioi"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -931,11 +954,12 @@
         "#sco"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -972,11 +996,12 @@
         "#sco"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "companion_radio",
+        "Version": "companion-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -1013,11 +1038,12 @@
         "#fif"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -1054,11 +1080,12 @@
         "#fif"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -1096,11 +1123,12 @@
         "#gla"
       ],
       "DefaultScope": "",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -1136,11 +1164,12 @@
         "#ioi"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -1175,11 +1204,12 @@
         "#sco"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "companion_radio",
+        "Version": "companion-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -1215,11 +1245,12 @@
         "#sco"
       ],
       "DefaultScope": "",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -1257,11 +1288,12 @@
         "#fif"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -1294,11 +1326,12 @@
       "PublicKey": "3a708cfb1f7a6c053c0d38101b47be2764bdba39649a2c693de7935110b0476a",
       "Regions": null,
       "DefaultScope": "",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "companion_radio",
+        "Version": "companion-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -1334,11 +1367,12 @@
         "#ioi"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -1374,11 +1408,12 @@
         "#ioi"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -1415,11 +1450,12 @@
         "#fif"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -1458,11 +1494,12 @@
         "#per"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -1494,15 +1531,17 @@
       "Board": "RAK4631",
       "PublicKey": "c97276aadc2b64c9d5344c9233086ed57e50ece07af3b12ccdab2bfe6466aff0",
       "Regions": [
+        "#sco",
         "#ioi",
-        "#sco"
+        "#fif"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -1537,11 +1576,12 @@
         "#sco"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -1577,11 +1617,12 @@
         "#fif"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -1617,11 +1658,12 @@
         "#sco"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -1654,14 +1696,15 @@
       "PublicKey": "45b551a859019b27f1ba8fa0e9b71139a1b1a96d21ea2b1ca0d562fd3607526a",
       "Regions": [
         "#sco",
-        "#ioi"
+        "#fif"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -1688,7 +1731,7 @@
       "NoiseFigureDB": 6
     },
     {
-      "Name": "West Lomond ⛰️🌤",
+      "Name": "West Lomond \u26f0\ufe0f\ud83c\udf24",
       "Kind": "simple-repeater",
       "Board": "RAK4631",
       "PublicKey": "02f1fec87388205862e6dc3c370a7611cf61d1c307885959d2e30cec59ef9974",
@@ -1699,11 +1742,12 @@
         "#wls"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -1740,11 +1784,12 @@
         "#per"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -1780,11 +1825,12 @@
         "#sco"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -1820,11 +1866,12 @@
         "#sco"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -1861,11 +1908,12 @@
         "#fif"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -1901,11 +1949,12 @@
         "#ioi"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -1942,11 +1991,12 @@
         "#wls"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -1982,11 +2032,12 @@
         "#sco"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -2022,11 +2073,12 @@
         "#sco"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -2065,11 +2117,12 @@
         "#wls"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -2107,11 +2160,12 @@
         "#fif"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -2147,11 +2201,12 @@
         "#ioi"
       ],
       "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
-        "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
         "Board": ""
       },
       "Position": {
@@ -2178,12 +2233,97 @@
       "NoiseFigureDB": 6
     },
     {
-      "Name": "Fixture Observer",
+      "Name": "St Andrews Room Server",
+      "Kind": "room-server",
+      "Board": "",
+      "PublicKey": "",
+      "Regions": [
+        "#ioi",
+        "#sco",
+        "#wls"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_room_server",
+        "Version": "room-server-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 56.3398,
+        "Lon": -2.7967
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 15,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Largo Law Advanced",
+      "Kind": "advanced-repeater",
+      "Board": "",
+      "PublicKey": "",
+      "Regions": [
+        "#ioi",
+        "#sco",
+        "#wls"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 56.2286,
+        "Lon": -2.9169
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 20,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Kirkcaldy SDR Observer",
       "Kind": "sdr-observer",
       "Board": "",
       "PublicKey": "",
       "Regions": null,
       "DefaultScope": "",
+      "AllowAnyFlood": false,
       "EmitterDutyPct": 0,
       "FloodMaxSeen": 0,
       "Firmware": {
@@ -2192,11 +2332,11 @@
         "Board": ""
       },
       "Position": {
-        "Lat": 56.19,
-        "Lon": -3.02
+        "Lat": 56.1128,
+        "Lon": -3.158
       },
       "UncertaintyKm": 0,
-      "HeightAGLm": 5,
+      "HeightAGLm": 12,
       "Antenna": {
         "pattern": {
           "type": "collinear",
@@ -2212,6 +2352,44 @@
         "CodingRate": 4
       },
       "TxPowerDBm": 0,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Dunfermline Interferer",
+      "Kind": "emitter",
+      "Board": "",
+      "PublicKey": "",
+      "Regions": null,
+      "DefaultScope": "",
+      "AllowAnyFlood": false,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "",
+        "Version": "",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 56.0719,
+        "Lon": -3.4393
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 20,
       "NoiseFigureDB": 6
     }
   ],
@@ -3338,11 +3516,1137 @@
           "Holes": null
         }
       ]
+    },
+    {
+      "name": "Fife",
+      "boundaries": [
+        {
+          "Name": "Fife",
+          "Source": "osm",
+          "Vintage": "",
+          "Rings": [
+            [
+              {
+                "Lat": 56.0765665,
+                "Lon": -3.7399184
+              },
+              {
+                "Lat": 56.0550955,
+                "Lon": -3.7083138
+              },
+              {
+                "Lat": 56.0470806,
+                "Lon": -3.686575
+              },
+              {
+                "Lat": 56.0446295,
+                "Lon": -3.6603281
+              },
+              {
+                "Lat": 56.0477325,
+                "Lon": -3.6430682
+              },
+              {
+                "Lat": 56.0518262,
+                "Lon": -3.6548583
+              },
+              {
+                "Lat": 56.0475867,
+                "Lon": -3.6386917
+              },
+              {
+                "Lat": 56.0472322,
+                "Lon": -3.6115141
+              },
+              {
+                "Lat": 56.0454093,
+                "Lon": -3.6033497
+              },
+              {
+                "Lat": 56.0432093,
+                "Lon": -3.6058543
+              },
+              {
+                "Lat": 56.04203,
+                "Lon": -3.6038067
+              },
+              {
+                "Lat": 56.0422619,
+                "Lon": -3.5643398
+              },
+              {
+                "Lat": 56.0447566,
+                "Lon": -3.5675729
+              },
+              {
+                "Lat": 56.0385327,
+                "Lon": -3.5528885
+              },
+              {
+                "Lat": 56.0332491,
+                "Lon": -3.4940352
+              },
+              {
+                "Lat": 56.0274468,
+                "Lon": -3.4647598
+              },
+              {
+                "Lat": 56.0121125,
+                "Lon": -3.4644665
+              },
+              {
+                "Lat": 56.0121589,
+                "Lon": -3.4207165
+              },
+              {
+                "Lat": 56.0164832,
+                "Lon": -3.4129075
+              },
+              {
+                "Lat": 56.0068648,
+                "Lon": -3.4032263
+              },
+              {
+                "Lat": 56.0057894,
+                "Lon": -3.3907567
+              },
+              {
+                "Lat": 56.0109791,
+                "Lon": -3.3871488
+              },
+              {
+                "Lat": 56.0176205,
+                "Lon": -3.3885864
+              },
+              {
+                "Lat": 56.0258285,
+                "Lon": -3.3829844
+              },
+              {
+                "Lat": 56.0278729,
+                "Lon": -3.3721617
+              },
+              {
+                "Lat": 56.0252908,
+                "Lon": -3.3579997
+              },
+              {
+                "Lat": 56.0337125,
+                "Lon": -3.3398037
+              },
+              {
+                "Lat": 56.0324448,
+                "Lon": -3.335982
+              },
+              {
+                "Lat": 56.0360833,
+                "Lon": -3.329134
+              },
+              {
+                "Lat": 56.034031,
+                "Lon": -3.3198512
+              },
+              {
+                "Lat": 56.0382253,
+                "Lon": -3.3077941
+              },
+              {
+                "Lat": 56.0460279,
+                "Lon": -3.3037605
+              },
+              {
+                "Lat": 56.0510749,
+                "Lon": -3.2927589
+              },
+              {
+                "Lat": 56.0502571,
+                "Lon": -3.2828379
+              },
+              {
+                "Lat": 56.0567222,
+                "Lon": -3.2769745
+              },
+              {
+                "Lat": 56.059831,
+                "Lon": -3.2524465
+              },
+              {
+                "Lat": 56.05823,
+                "Lon": -3.249944
+              },
+              {
+                "Lat": 56.0567147,
+                "Lon": -3.2517529
+              },
+              {
+                "Lat": 56.0541991,
+                "Lon": -3.2381848
+              },
+              {
+                "Lat": 56.0557077,
+                "Lon": -3.2391726
+              },
+              {
+                "Lat": 56.0564989,
+                "Lon": -3.2381985
+              },
+              {
+                "Lat": 56.0537146,
+                "Lon": -3.2361137
+              },
+              {
+                "Lat": 56.0570089,
+                "Lon": -3.2247064
+              },
+              {
+                "Lat": 56.0534231,
+                "Lon": -3.2082426
+              },
+              {
+                "Lat": 56.0611638,
+                "Lon": -3.1927283
+              },
+              {
+                "Lat": 56.0620354,
+                "Lon": -3.1724948
+              },
+              {
+                "Lat": 56.0672324,
+                "Lon": -3.1716471
+              },
+              {
+                "Lat": 56.0835883,
+                "Lon": -3.1554459
+              },
+              {
+                "Lat": 56.0992476,
+                "Lon": -3.1590048
+              },
+              {
+                "Lat": 56.1150741,
+                "Lon": -3.150751
+              },
+              {
+                "Lat": 56.1128851,
+                "Lon": -3.1482638
+              },
+              {
+                "Lat": 56.1175248,
+                "Lon": -3.1432569
+              },
+              {
+                "Lat": 56.1215466,
+                "Lon": -3.1230768
+              },
+              {
+                "Lat": 56.1396329,
+                "Lon": -3.0950413
+              },
+              {
+                "Lat": 56.1387988,
+                "Lon": -3.0845834
+              },
+              {
+                "Lat": 56.163841,
+                "Lon": -3.0527758
+              },
+              {
+                "Lat": 56.167894,
+                "Lon": -3.0446981
+              },
+              {
+                "Lat": 56.1661272,
+                "Lon": -3.0365061
+              },
+              {
+                "Lat": 56.1743559,
+                "Lon": -3.0176578
+              },
+              {
+                "Lat": 56.180609,
+                "Lon": -3.01256
+              },
+              {
+                "Lat": 56.1792729,
+                "Lon": -3.0079214
+              },
+              {
+                "Lat": 56.1910303,
+                "Lon": -2.9945792
+              },
+              {
+                "Lat": 56.206762,
+                "Lon": -2.9636966
+              },
+              {
+                "Lat": 56.2103089,
+                "Lon": -2.9426352
+              },
+              {
+                "Lat": 56.2135314,
+                "Lon": -2.9434055
+              },
+              {
+                "Lat": 56.2104562,
+                "Lon": -2.9421713
+              },
+              {
+                "Lat": 56.2094761,
+                "Lon": -2.9140119
+              },
+              {
+                "Lat": 56.2027689,
+                "Lon": -2.8881366
+              },
+              {
+                "Lat": 56.1973993,
+                "Lon": -2.8826473
+              },
+              {
+                "Lat": 56.1924867,
+                "Lon": -2.8849967
+              },
+              {
+                "Lat": 56.186995,
+                "Lon": -2.8691949
+              },
+              {
+                "Lat": 56.1875014,
+                "Lon": -2.8540399
+              },
+              {
+                "Lat": 56.1826022,
+                "Lon": -2.8431454
+              },
+              {
+                "Lat": 56.1880268,
+                "Lon": -2.8245514
+              },
+              {
+                "Lat": 56.1834634,
+                "Lon": -2.8076825
+              },
+              {
+                "Lat": 56.1927422,
+                "Lon": -2.7972695
+              },
+              {
+                "Lat": 56.1999908,
+                "Lon": -2.779694
+              },
+              {
+                "Lat": 56.2128173,
+                "Lon": -2.7273574
+              },
+              {
+                "Lat": 56.2104673,
+                "Lon": -2.7291347
+              },
+              {
+                "Lat": 56.2152618,
+                "Lon": -2.704908
+              },
+              {
+                "Lat": 56.217476,
+                "Lon": -2.7074278
+              },
+              {
+                "Lat": 56.2167085,
+                "Lon": -2.703614
+              },
+              {
+                "Lat": 56.2201546,
+                "Lon": -2.7030579
+              },
+              {
+                "Lat": 56.219631,
+                "Lon": -2.6968239
+              },
+              {
+                "Lat": 56.2206438,
+                "Lon": -2.6991741
+              },
+              {
+                "Lat": 56.2216119,
+                "Lon": -2.6998755
+              },
+              {
+                "Lat": 56.221615,
+                "Lon": -2.6975904
+              },
+              {
+                "Lat": 56.2191335,
+                "Lon": -2.6966294
+              },
+              {
+                "Lat": 56.2227804,
+                "Lon": -2.685523
+              },
+              {
+                "Lat": 56.2331916,
+                "Lon": -2.6703038
+              },
+              {
+                "Lat": 56.2377269,
+                "Lon": -2.6536934
+              },
+              {
+                "Lat": 56.2496552,
+                "Lon": -2.6353299
+              },
+              {
+                "Lat": 56.2524369,
+                "Lon": -2.6254472
+              },
+              {
+                "Lat": 56.256715,
+                "Lon": -2.627102
+              },
+              {
+                "Lat": 56.2635437,
+                "Lon": -2.5999849
+              },
+              {
+                "Lat": 56.2786674,
+                "Lon": -2.5830112
+              },
+              {
+                "Lat": 56.2833669,
+                "Lon": -2.5875945
+              },
+              {
+                "Lat": 56.283523,
+                "Lon": -2.5952839
+              },
+              {
+                "Lat": 56.289,
+                "Lon": -2.5951405
+              },
+              {
+                "Lat": 56.2884815,
+                "Lon": -2.6126595
+              },
+              {
+                "Lat": 56.2944895,
+                "Lon": -2.628533
+              },
+              {
+                "Lat": 56.2984103,
+                "Lon": -2.6302936
+              },
+              {
+                "Lat": 56.302101,
+                "Lon": -2.6398933
+              },
+              {
+                "Lat": 56.3041799,
+                "Lon": -2.6385686
+              },
+              {
+                "Lat": 56.3110511,
+                "Lon": -2.6542988
+              },
+              {
+                "Lat": 56.3178403,
+                "Lon": -2.6554074
+              },
+              {
+                "Lat": 56.3195758,
+                "Lon": -2.6595149
+              },
+              {
+                "Lat": 56.3210671,
+                "Lon": -2.6761228
+              },
+              {
+                "Lat": 56.3262687,
+                "Lon": -2.6822706
+              },
+              {
+                "Lat": 56.3269628,
+                "Lon": -2.6893177
+              },
+              {
+                "Lat": 56.3272537,
+                "Lon": -2.6871789
+              },
+              {
+                "Lat": 56.3256133,
+                "Lon": -2.704611
+              },
+              {
+                "Lat": 56.329418,
+                "Lon": -2.7148106
+              },
+              {
+                "Lat": 56.3269307,
+                "Lon": -2.7203545
+              },
+              {
+                "Lat": 56.328428,
+                "Lon": -2.7372288
+              },
+              {
+                "Lat": 56.3331125,
+                "Lon": -2.748001
+              },
+              {
+                "Lat": 56.3334592,
+                "Lon": -2.7751455
+              },
+              {
+                "Lat": 56.3391467,
+                "Lon": -2.7800819
+              },
+              {
+                "Lat": 56.3390593,
+                "Lon": -2.7841792
+              },
+              {
+                "Lat": 56.3400909,
+                "Lon": -2.7778619
+              },
+              {
+                "Lat": 56.346339,
+                "Lon": -2.7997628
+              },
+              {
+                "Lat": 56.3659652,
+                "Lon": -2.8068341
+              },
+              {
+                "Lat": 56.3695343,
+                "Lon": -2.8107971
+              },
+              {
+                "Lat": 56.3752239,
+                "Lon": -2.8025448
+              },
+              {
+                "Lat": 56.3862383,
+                "Lon": -2.805845
+              },
+              {
+                "Lat": 56.3989384,
+                "Lon": -2.8045429
+              },
+              {
+                "Lat": 56.4130013,
+                "Lon": -2.8009014
+              },
+              {
+                "Lat": 56.4167441,
+                "Lon": -2.7971223
+              },
+              {
+                "Lat": 56.4169873,
+                "Lon": -2.7992065
+              },
+              {
+                "Lat": 56.4221838,
+                "Lon": -2.7941407
+              },
+              {
+                "Lat": 56.4263475,
+                "Lon": -2.7954129
+              },
+              {
+                "Lat": 56.4250136,
+                "Lon": -2.79225
+              },
+              {
+                "Lat": 56.4310957,
+                "Lon": -2.7949453
+              },
+              {
+                "Lat": 56.42864,
+                "Lon": -2.7875897
+              },
+              {
+                "Lat": 56.4331614,
+                "Lon": -2.7957921
+              },
+              {
+                "Lat": 56.4357613,
+                "Lon": -2.7975203
+              },
+              {
+                "Lat": 56.4353893,
+                "Lon": -2.7930516
+              },
+              {
+                "Lat": 56.4418443,
+                "Lon": -2.8050108
+              },
+              {
+                "Lat": 56.4477875,
+                "Lon": -2.8090137
+              },
+              {
+                "Lat": 56.4432578,
+                "Lon": -2.8050163
+              },
+              {
+                "Lat": 56.4380252,
+                "Lon": -2.7940898
+              },
+              {
+                "Lat": 56.4411902,
+                "Lon": -2.7982517
+              },
+              {
+                "Lat": 56.4423098,
+                "Lon": -2.7942523
+              },
+              {
+                "Lat": 56.4388938,
+                "Lon": -2.7891833
+              },
+              {
+                "Lat": 56.4441215,
+                "Lon": -2.7953304
+              },
+              {
+                "Lat": 56.4415244,
+                "Lon": -2.7659461
+              },
+              {
+                "Lat": 56.4462642,
+                "Lon": -2.7489117
+              },
+              {
+                "Lat": 56.4457573,
+                "Lon": -2.6953847
+              },
+              {
+                "Lat": 56.4491343,
+                "Lon": -2.713057
+              },
+              {
+                "Lat": 56.4463013,
+                "Lon": -2.7613037
+              },
+              {
+                "Lat": 56.4448487,
+                "Lon": -2.75973
+              },
+              {
+                "Lat": 56.4495247,
+                "Lon": -2.8186912
+              },
+              {
+                "Lat": 56.4479925,
+                "Lon": -2.8233479
+              },
+              {
+                "Lat": 56.4472848,
+                "Lon": -2.8240661
+              },
+              {
+                "Lat": 56.4465522,
+                "Lon": -2.8252596
+              },
+              {
+                "Lat": 56.4464474,
+                "Lon": -2.8257665
+              },
+              {
+                "Lat": 56.4492535,
+                "Lon": -2.8222369
+              },
+              {
+                "Lat": 56.4469943,
+                "Lon": -2.833449
+              },
+              {
+                "Lat": 56.4482613,
+                "Lon": -2.8314099
+              },
+              {
+                "Lat": 56.4534407,
+                "Lon": -2.8900927
+              },
+              {
+                "Lat": 56.4518524,
+                "Lon": -2.9228878
+              },
+              {
+                "Lat": 56.448008,
+                "Lon": -2.9354907
+              },
+              {
+                "Lat": 56.4358894,
+                "Lon": -2.9493583
+              },
+              {
+                "Lat": 56.4239882,
+                "Lon": -2.9869352
+              },
+              {
+                "Lat": 56.4187016,
+                "Lon": -3.014498
+              },
+              {
+                "Lat": 56.4183035,
+                "Lon": -3.0286536
+              },
+              {
+                "Lat": 56.4171927,
+                "Lon": -3.0293994
+              },
+              {
+                "Lat": 56.417029,
+                "Lon": -3.0332877
+              },
+              {
+                "Lat": 56.4187174,
+                "Lon": -3.0279225
+              },
+              {
+                "Lat": 56.4195422,
+                "Lon": -3.0163146
+              },
+              {
+                "Lat": 56.4208714,
+                "Lon": -3.0144269
+              },
+              {
+                "Lat": 56.4220962,
+                "Lon": -3.0215399
+              },
+              {
+                "Lat": 56.4159866,
+                "Lon": -3.0402525
+              },
+              {
+                "Lat": 56.4043799,
+                "Lon": -3.0614274
+              },
+              {
+                "Lat": 56.3943336,
+                "Lon": -3.0953309
+              },
+              {
+                "Lat": 56.3927811,
+                "Lon": -3.1162732
+              },
+              {
+                "Lat": 56.3605162,
+                "Lon": -3.2113024
+              },
+              {
+                "Lat": 56.3514919,
+                "Lon": -3.2561926
+              },
+              {
+                "Lat": 56.3508901,
+                "Lon": -3.2769969
+              },
+              {
+                "Lat": 56.3477309,
+                "Lon": -3.2736731
+              },
+              {
+                "Lat": 56.346277,
+                "Lon": -3.2556422
+              },
+              {
+                "Lat": 56.342423,
+                "Lon": -3.2584179
+              },
+              {
+                "Lat": 56.3401058,
+                "Lon": -3.25603
+              },
+              {
+                "Lat": 56.3390771,
+                "Lon": -3.267582
+              },
+              {
+                "Lat": 56.3349206,
+                "Lon": -3.2684535
+              },
+              {
+                "Lat": 56.3339711,
+                "Lon": -3.2729089
+              },
+              {
+                "Lat": 56.332407,
+                "Lon": -3.2676213
+              },
+              {
+                "Lat": 56.3281617,
+                "Lon": -3.2665635
+              },
+              {
+                "Lat": 56.3241966,
+                "Lon": -3.2827192
+              },
+              {
+                "Lat": 56.3139879,
+                "Lon": -3.3006222
+              },
+              {
+                "Lat": 56.3112386,
+                "Lon": -3.2945169
+              },
+              {
+                "Lat": 56.3099436,
+                "Lon": -3.2996911
+              },
+              {
+                "Lat": 56.3003201,
+                "Lon": -3.2938923
+              },
+              {
+                "Lat": 56.2975294,
+                "Lon": -3.2962057
+              },
+              {
+                "Lat": 56.292804,
+                "Lon": -3.2922648
+              },
+              {
+                "Lat": 56.2887125,
+                "Lon": -3.2936987
+              },
+              {
+                "Lat": 56.2901154,
+                "Lon": -3.2996723
+              },
+              {
+                "Lat": 56.2828088,
+                "Lon": -3.32483
+              },
+              {
+                "Lat": 56.2894579,
+                "Lon": -3.335534
+              },
+              {
+                "Lat": 56.2856794,
+                "Lon": -3.3507895
+              },
+              {
+                "Lat": 56.2829191,
+                "Lon": -3.3536724
+              },
+              {
+                "Lat": 56.2804297,
+                "Lon": -3.3516639
+              },
+              {
+                "Lat": 56.2687888,
+                "Lon": -3.383666
+              },
+              {
+                "Lat": 56.2626181,
+                "Lon": -3.3773454
+              },
+              {
+                "Lat": 56.25528,
+                "Lon": -3.3533066
+              },
+              {
+                "Lat": 56.2397682,
+                "Lon": -3.3674924
+              },
+              {
+                "Lat": 56.2373574,
+                "Lon": -3.3293315
+              },
+              {
+                "Lat": 56.2395317,
+                "Lon": -3.3148788
+              },
+              {
+                "Lat": 56.2338533,
+                "Lon": -3.2799848
+              },
+              {
+                "Lat": 56.2297395,
+                "Lon": -3.2912552
+              },
+              {
+                "Lat": 56.2249889,
+                "Lon": -3.2902342
+              },
+              {
+                "Lat": 56.2200584,
+                "Lon": -3.264841
+              },
+              {
+                "Lat": 56.2146306,
+                "Lon": -3.2682983
+              },
+              {
+                "Lat": 56.2141713,
+                "Lon": -3.2749283
+              },
+              {
+                "Lat": 56.2026911,
+                "Lon": -3.2700194
+              },
+              {
+                "Lat": 56.2029552,
+                "Lon": -3.2665269
+              },
+              {
+                "Lat": 56.1961448,
+                "Lon": -3.2609469
+              },
+              {
+                "Lat": 56.1853118,
+                "Lon": -3.3091262
+              },
+              {
+                "Lat": 56.1794744,
+                "Lon": -3.3062935
+              },
+              {
+                "Lat": 56.1734632,
+                "Lon": -3.2928847
+              },
+              {
+                "Lat": 56.1705829,
+                "Lon": -3.2965357
+              },
+              {
+                "Lat": 56.1664919,
+                "Lon": -3.3164187
+              },
+              {
+                "Lat": 56.1718905,
+                "Lon": -3.3243056
+              },
+              {
+                "Lat": 56.1729479,
+                "Lon": -3.3454488
+              },
+              {
+                "Lat": 56.164402,
+                "Lon": -3.3717104
+              },
+              {
+                "Lat": 56.1550354,
+                "Lon": -3.3665794
+              },
+              {
+                "Lat": 56.145847,
+                "Lon": -3.3699136
+              },
+              {
+                "Lat": 56.1384272,
+                "Lon": -3.4166374
+              },
+              {
+                "Lat": 56.1422072,
+                "Lon": -3.4328549
+              },
+              {
+                "Lat": 56.1450826,
+                "Lon": -3.4344829
+              },
+              {
+                "Lat": 56.1470925,
+                "Lon": -3.4520275
+              },
+              {
+                "Lat": 56.150384,
+                "Lon": -3.4537051
+              },
+              {
+                "Lat": 56.1462671,
+                "Lon": -3.46031
+              },
+              {
+                "Lat": 56.1491425,
+                "Lon": -3.4675181
+              },
+              {
+                "Lat": 56.1469348,
+                "Lon": -3.478967
+              },
+              {
+                "Lat": 56.1498128,
+                "Lon": -3.4988779
+              },
+              {
+                "Lat": 56.1464683,
+                "Lon": -3.5400111
+              },
+              {
+                "Lat": 56.1585301,
+                "Lon": -3.5461069
+              },
+              {
+                "Lat": 56.1590607,
+                "Lon": -3.5688125
+              },
+              {
+                "Lat": 56.1507579,
+                "Lon": -3.5829675
+              },
+              {
+                "Lat": 56.1440654,
+                "Lon": -3.5838061
+              },
+              {
+                "Lat": 56.1410875,
+                "Lon": -3.5782582
+              },
+              {
+                "Lat": 56.1393161,
+                "Lon": -3.5809569
+              },
+              {
+                "Lat": 56.1293545,
+                "Lon": -3.6499429
+              },
+              {
+                "Lat": 56.1249375,
+                "Lon": -3.6544079
+              },
+              {
+                "Lat": 56.1230499,
+                "Lon": -3.6639454
+              },
+              {
+                "Lat": 56.1104228,
+                "Lon": -3.6287953
+              },
+              {
+                "Lat": 56.1078315,
+                "Lon": -3.6724665
+              },
+              {
+                "Lat": 56.1002435,
+                "Lon": -3.6744574
+              },
+              {
+                "Lat": 56.1044906,
+                "Lon": -3.7146293
+              },
+              {
+                "Lat": 56.0877903,
+                "Lon": -3.7214524
+              },
+              {
+                "Lat": 56.0852808,
+                "Lon": -3.734524
+              },
+              {
+                "Lat": 56.0765665,
+                "Lon": -3.7399184
+              }
+            ]
+          ],
+          "Holes": null
+        },
+        {
+          "Name": "Fife",
+          "Source": "osm",
+          "Vintage": "",
+          "Rings": [
+            [
+              {
+                "Lat": 56.0274932,
+                "Lon": -3.309307
+              },
+              {
+                "Lat": 56.0262057,
+                "Lon": -3.3065956
+              },
+              {
+                "Lat": 56.0291745,
+                "Lon": -3.2942283
+              },
+              {
+                "Lat": 56.0312648,
+                "Lon": -3.3024811
+              },
+              {
+                "Lat": 56.0274932,
+                "Lon": -3.309307
+              }
+            ]
+          ],
+          "Holes": null
+        },
+        {
+          "Name": "Fife",
+          "Source": "osm",
+          "Vintage": "",
+          "Rings": [
+            [
+              {
+                "Lat": 56.0344558,
+                "Lon": -3.1427221
+              },
+              {
+                "Lat": 56.0311922,
+                "Lon": -3.1361263
+              },
+              {
+                "Lat": 56.0234459,
+                "Lon": -3.12693
+              },
+              {
+                "Lat": 56.0363921,
+                "Lon": -3.1354285
+              },
+              {
+                "Lat": 56.0344558,
+                "Lon": -3.1427221
+              }
+            ]
+          ],
+          "Holes": null
+        },
+        {
+          "Name": "Fife",
+          "Source": "osm",
+          "Vintage": "",
+          "Rings": [
+            [
+              {
+                "Lat": 56.1926988,
+                "Lon": -2.5682221
+              },
+              {
+                "Lat": 56.183053,
+                "Lon": -2.5573631
+              },
+              {
+                "Lat": 56.1795329,
+                "Lon": -2.5495333
+              },
+              {
+                "Lat": 56.1809524,
+                "Lon": -2.5442634
+              },
+              {
+                "Lat": 56.1931288,
+                "Lon": -2.5625997
+              },
+              {
+                "Lat": 56.1926988,
+                "Lon": -2.5682221
+              }
+            ]
+          ],
+          "Holes": null
+        }
+      ]
     }
   ],
   "margin_km": 30,
   "sends": null,
-  "assertions": null,
+  "assertions": [
+    {
+      "kind": "delivered",
+      "at_least": 10
+    }
+  ],
   "lat": 56.219764999999995,
   "lon": -3.4357145,
   "metres_per_pixel": 132.82971266101615
