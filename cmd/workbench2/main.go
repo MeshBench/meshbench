@@ -178,9 +178,12 @@ func main() {
 		}})
 	sh.Add(&shell.Panel{Name: "Nodes", Windowable: true, Draw: nodes.Draw})
 	sh.Add(&shell.Panel{Name: "Inspector", Windowable: true, Draw: drawInspector})
+	events := &eventsPanel{}
+	scores := &scorePanel{}
+	sh.Add(&shell.Panel{Name: "Events", Windowable: true, Draw: events.Draw})
+	sh.Add(&shell.Panel{Name: "Scoreboard", Windowable: true, Draw: scores.Draw})
 	for _, p := range []struct{ name, what string }{
 		{"Schedule", "sends and assertions - P6"},
-		{"Scoreboard", "per-node counters - P4"},
 		{"Packet timeline", "lanes on a shared time axis - P5"},
 		{"Link", "both directions, always - P6"},
 		{"Compare", "two runs, metric by metric - P6"},
@@ -189,7 +192,6 @@ func main() {
 		{"Sweep", "arms, seeds, senders - P6"},
 		{"Matrix", "arms against seeds - P5"},
 		{"Companion bench", "an endpoint to point your client at - P6"},
-		{"Events", "every event with its cause - P4"},
 		{"Console", "per-node tabs - P6"},
 	} {
 		sh.Add(shell.EmptyPanel(p.name, p.what))

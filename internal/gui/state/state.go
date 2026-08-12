@@ -61,6 +61,12 @@ type Snapshot struct {
 	// for the view it was computed over.
 	Coverage *Coverage
 	Shade    *Coverage
+	// Events is the tail of the engine's log, oldest first, and EventTotal is
+	// how many there have been. The tail rather than all of them because a
+	// snapshot is copied on every publish and a long run has millions.
+	Events     []Event
+	EventTotal int
+	Scores     []Score
 }
 
 // Point is a position, and the only geometry the snapshot carries.
@@ -118,6 +124,33 @@ type Coverage struct {
 	// "no coverage" and "no data" look identical on a map and are not the same
 	// claim.
 	NoDataCells, Cells int
+}
+
+// Event is one thing the engine did, as a table needs it.
+//
+// The frame bytes are deliberately not here. A snapshot is copied on every
+// publish, and a hundred thousand events each carrying a frame is real memory
+// for something only the inspector ever opens; it asks the store for the frame
+// of the one event somebody clicked.
+type Event struct {
+	AtMs      uint32
+	Kind      string
+	From, To  string
+	MessageID uint64
+	PacketID  uint64
+	SNRdB     float64
+	Detail    string
+}
+
+// Score is one node's counters.
+type Score struct {
+	Name           string
+	Sent           int
+	Heard          int
+	AirtimeMs      float64
+	DutyCyclePct   float64
+	UniqueDelivery int
+	RedundantRelay int
 }
 
 // Node is one node, as the interface needs it.
@@ -182,6 +215,10 @@ type World struct {
 	// for the view it was computed over.
 	Coverage *Coverage
 	Shade    *Coverage
+	// Events is the tail of the engine's log; EventTotal counts all of them.
+	Events     []Event
+	EventTotal int
+	Scores     []Score
 
 	// Tick is called every step while playing, and is where engine pacing
 	// lives now that it is out of the frame loop. Nil means no engine.
@@ -354,6 +391,11 @@ func (s *Store) publish() {
 		Trails:   trails,
 		Coverage: s.world.Coverage,
 		Shade:    s.world.Shade,
+		// Events and scores are already rebuilt fresh on every tick, so they
+		// are handed over rather than copied again.
+		Events:     s.world.Events,
+		EventTotal: s.world.EventTotal,
+		Scores:     s.world.Scores,
 	})
 }
 

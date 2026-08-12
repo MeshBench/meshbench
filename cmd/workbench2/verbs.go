@@ -38,6 +38,10 @@ func registerVerbs(st *state.Store, s *sim) {
 		// One engine step per tick. Step is the engine's own unit of time
 		// and takes its size from the config, so the store paces it rather
 		// than redefining it.
+		// eventTail is how many of the most recent events the tables show. A
+		// run of an hour has millions, and a table nobody can scroll to the
+		// end of is not more honest than one that says how many there were.
+		const eventTail = 2000
 		index := map[string]int{}
 		for i, n := range f.nodes {
 			index[n.Name] = i
@@ -55,6 +59,8 @@ func registerVerbs(st *state.Store, s *sim) {
 				from = w.NowMs - trailWindowMs
 			}
 			w.Trails = s.trailsSince(from, index)
+			w.Events, w.EventTotal = s.eventTail(eventTail)
+			w.Scores = s.scores()
 		}
 
 		w.Say(fmt.Sprintf("opened %s: %d nodes, %d links, %d areas",

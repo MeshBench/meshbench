@@ -176,3 +176,41 @@ func (s *sim) trailsSince(fromMs uint32, index map[string]int) []state.Trail {
 	}
 	return out
 }
+
+// eventTail is the most recent n events, oldest first, and the total.
+func (s *sim) eventTail(n int) ([]state.Event, int) {
+	if s.eng == nil {
+		return nil, 0
+	}
+	all := s.eng.Events()
+	total := len(all)
+	if len(all) > n {
+		all = all[len(all)-n:]
+	}
+	out := make([]state.Event, 0, len(all))
+	for _, e := range all {
+		out = append(out, state.Event{
+			AtMs: e.AtMs, Kind: e.Kind, From: e.From, To: e.To,
+			MessageID: e.MessageID, PacketID: e.PacketID,
+			SNRdB: e.SNRdB, Detail: e.Detail,
+		})
+	}
+	return out, total
+}
+
+// scores is the engine's own scoreboard, projected.
+func (s *sim) scores() []state.Score {
+	if s.eng == nil {
+		return nil
+	}
+	sb := s.eng.Scoreboard()
+	out := make([]state.Score, 0, len(sb))
+	for _, v := range sb {
+		out = append(out, state.Score{
+			Name: v.Name, Sent: v.Sent, Heard: v.Heard,
+			AirtimeMs: v.AirtimeMs, DutyCyclePct: v.DutyCyclePct,
+			UniqueDelivery: v.UniqueDelivery, RedundantRelay: v.RedundantRelay,
+		})
+	}
+	return out
+}
