@@ -238,18 +238,20 @@ func main() {
 		Draw: func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
 			return wf.Layout(t, gtx, s)
 		}})
+	sched := &schedulePanel{}
+	console := &consolePanel{}
+	sh.Add(&shell.Panel{Name: "Schedule", Windowable: true, Draw: sched.Draw})
+	sh.Add(&shell.Panel{Name: "Link", Windowable: true, Draw: linkPanel{}.Draw})
+	sh.Add(&shell.Panel{Name: "Console", Windowable: true, Draw: console.Draw})
 	fw := &firmwarePanel{}
 	runs := &runsPanel{}
 	sh.Add(&shell.Panel{Name: "Firmware", Windowable: true, Draw: fw.Draw})
 	sh.Add(&shell.Panel{Name: "Runs", Windowable: true, Draw: runs.Draw})
 	for _, p := range []struct{ name, what string }{
-		{"Schedule", "sends and assertions - P6"},
-		{"Link", "both directions, always - P6"},
 		{"Compare", "two runs, metric by metric - P6"},
 		{"Validate", "residuals against reality - P6"},
 		{"Sweep", "arms, seeds, senders - P6"},
 		{"Companion bench", "an endpoint to point your client at - P6"},
-		{"Console", "per-node tabs - P6"},
 	} {
 		sh.Add(shell.EmptyPanel(p.name, p.what))
 	}

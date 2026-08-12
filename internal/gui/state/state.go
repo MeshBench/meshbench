@@ -78,6 +78,9 @@ type Snapshot struct {
 	Matrix *Matrix
 	// Energy is the site study last run, or nil.
 	Energy *Energy
+	// Sends and Assertions are the fixture's schedule and its claims.
+	Sends      []Send
+	Assertions []Assertion
 }
 
 // Point is a position, and the only geometry the snapshot carries.
@@ -212,6 +215,24 @@ type Energy struct {
 	AutonomyDays float64
 }
 
+// Send is one scheduled line at a node, from the fixture.
+type Send struct {
+	Node    string
+	AtMs    uint32
+	EveryMs uint32
+	Command string
+}
+
+// Assertion is one claim the fixture makes about a run.
+type Assertion struct {
+	Kind     string
+	Node     string
+	WithinMs uint32
+	AtLeast  int
+	AtMost   int
+	MaxPct   float64
+}
+
 // Node is one node, as the interface needs it.
 type Node struct {
 	Name     string
@@ -287,6 +308,9 @@ type World struct {
 	Matrix *Matrix
 	// Energy is the site study last run, or nil.
 	Energy *Energy
+	// Sends and Assertions are the fixture's schedule and its claims.
+	Sends      []Send
+	Assertions []Assertion
 
 	// Tick is called every step while playing, and is where engine pacing
 	// lives now that it is out of the frame loop. Nil means no engine.
@@ -469,6 +493,8 @@ func (s *Store) publish() {
 		Budgets:       s.world.Budgets,
 		Matrix:        s.world.Matrix,
 		Energy:        s.world.Energy,
+		Sends:         s.world.Sends,
+		Assertions:    s.world.Assertions,
 	})
 }
 

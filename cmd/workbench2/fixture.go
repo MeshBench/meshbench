@@ -15,10 +15,12 @@ import (
 
 // loaded is everything one fixture supplies the interface.
 type loaded struct {
-	nodes  []state.Node
-	scene  []scenario.Node
-	areas  []state.Area
-	margin float64
+	nodes      []state.Node
+	scene      []scenario.Node
+	areas      []state.Area
+	margin     float64
+	sends      []state.Send
+	assertions []state.Assertion
 }
 
 func loadFixture(path string) (loaded, error) {
@@ -39,6 +41,18 @@ func loadFixture(path string) (loaded, error) {
 			Regions: n.Regions, Firmware: n.Firmware.Version,
 			Selected: i == 0,
 			Pattern:  patternOf(n),
+		})
+	}
+	for _, snd := range f.Sends {
+		out.sends = append(out.sends, state.Send{
+			Node: snd.Node, AtMs: snd.AtMs, EveryMs: snd.EveryMs,
+			Command: snd.Command,
+		})
+	}
+	for _, a := range f.Assertions {
+		out.assertions = append(out.assertions, state.Assertion{
+			Kind: a.Kind, Node: a.Node, WithinMs: a.WithinMs,
+			AtLeast: a.AtLeast, AtMost: a.AtMost, MaxPct: a.MaxPct,
 		})
 	}
 	for _, a := range f.Areas {

@@ -22,6 +22,7 @@ func registerVerbs(st *state.Store, s *sim) {
 			return nil, err
 		}
 		w.Nodes, w.Areas, w.MarginKm = f.nodes, f.areas, f.margin
+		w.Sends, w.Assertions = f.sends, f.assertions
 		w.Seed = 9001
 
 		// Build the engine, but do not ask it for margins here.
