@@ -150,6 +150,7 @@ func (a *App) drawInferBody() {
 	}
 	imgui.SameLine()
 	textDim(fmt.Sprintf("%d applied", s.appliedN))
+	a.drawAnyFloodSwitch()
 	if s.appliedN > 0 {
 		if a.eng != nil && a.eng.FirmwareCount() > 0 {
 			textDimWrap("sent to the running nodes now, and issued again whenever firmware " +
@@ -275,7 +276,6 @@ func (a *App) pollInference() {
 	}
 }
 
-// applyInference writes what was found onto the scenario's nodes.
 // applyInference writes what was found onto the scenario's nodes.
 //
 // Onto the *scenario*: nothing is sent to a repeater here. The regions reach

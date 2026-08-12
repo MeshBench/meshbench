@@ -18,8 +18,17 @@ on:
 
 jobs:
   linux:
-    runs-on: ubuntu-22.04   # oldest we support: glibc is most of what
-                            # "every flavour of Linux" actually means
+    # The oldest base that can link, which is not the oldest base we would
+    # like. cimgui-go v1.6.0 ships a *prebuilt* cimgui.a, and it references
+    # __isoc23_sscanf - a symbol glibc only grew in 2.38. On ubuntu-22.04
+    # (glibc 2.35) the Go build succeeds and the link of internal/ui fails
+    # with several hundred undefined references, which reads like a broken
+    # toolchain and is a dependency's floor showing through.
+    #
+    # So the bundle's real glibc floor is 2.38 - Ubuntu 24.04, Debian 13,
+    # Fedora 39 and newer - and lowering it means building cimgui from source
+    # rather than choosing a different runner.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5

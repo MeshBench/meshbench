@@ -599,10 +599,17 @@ func (a *App) regionCommands(i int) []string {
 	// them. Scoped traffic then reached nobody: the senders transmitted, no
 	// repeater relayed, and the run looked like a mesh with terrible RF rather
 	// than one that had not been configured.
-	if len(n.Regions) == 0 && !a.cfg.setRegionOnStart {
+	if len(n.Regions) == 0 && !n.AllowAnyFlood && !a.cfg.setRegionOnStart {
 		return nil
 	}
 	var out []string
+	// The wildcard is the parent of every region, so allowing flooding on it
+	// forwards traffic whatever it is scoped to. Issued first: it is the one
+	// line that makes a node relay something it was never told about, and a
+	// reader of the provisioning log should meet it before the specifics.
+	if n.Kind.Transmits() && n.AllowAnyFlood {
+		out = append(out, "region allowf *", "region save")
+	}
 	// A node that was observed in real regions is configured with those,
 	// whatever the study area is called: this came from the node's own traffic
 	// and is a fact about it, where the study area is a name someone chose.
