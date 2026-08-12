@@ -63,13 +63,6 @@ func (a *App) boardImageFor(board, role, version string) (firmware.BoardImage, e
 	return firmware.BoardImage{}, fmt.Errorf("no %s image for %s at %s", board, role, version)
 }
 
-func (a *App) selectedNode() *scenario.Node {
-	if a.selected < 0 || a.selected >= len(a.Nodes) {
-		return nil
-	}
-	return &a.Nodes[a.selected]
-}
-
 func (a *App) drawFirmwareTable() {
 	all := a.fwRows()
 

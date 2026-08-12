@@ -16,8 +16,18 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.23"
+          go-version: "1.24"
           cache: true
+
+      # cgo, through cimgui-go. Every step below that compiles a package -
+      # vet, lint, test - compiles the UI package too, and without these it
+      # stops at "GL/gl.h: No such file or directory". The binary still runs
+      # headless; it is the *build* that needs the headers.
+      - name: Headers cgo needs
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            gcc pkg-config libgl1-mesa-dev xorg-dev
 
       # Learned on hamreach: a botched merge once staged conflict markers into
       # a source file and 42 of 52 tests went red for that one reason.
