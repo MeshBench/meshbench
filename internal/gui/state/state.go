@@ -127,6 +127,13 @@ type Node struct {
 	Sent     int
 	Heard    int
 	Selected bool
+	// Pattern is the antenna's gain in dBi at every 10 degrees of compass
+	// bearing, feedline loss already deducted, starting at north.
+	//
+	// Sampled here rather than in the renderer because the renderer's job is
+	// to draw a snapshot, not to know what an antenna is. Nil for a node with
+	// no pattern, which is drawn as no overlay rather than as a circle.
+	Pattern []float64
 }
 
 // Job is one long-running operation.

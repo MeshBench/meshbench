@@ -6,6 +6,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"image"
 	"os"
 	"path/filepath"
 	"runtime/pprof"
@@ -116,9 +117,11 @@ func main() {
 	// The map reports what it can see; whatever wants to compute something
 	// for that view reads it here rather than duplicating the projection.
 	var view [4]float64
+	var lastSize image.Point
 	mv.ViewBox = func(south, north, west, east float64) {
 		view = [4]float64{south, north, west, east}
 	}
+	mv.OnSize = func(sz image.Point) { lastSize = sz }
 	if *shadeFlag {
 		mv.Layers.Terrain = true
 		go func() {
@@ -127,6 +130,34 @@ func main() {
 			time.Sleep(2 * time.Second)
 			_, _ = st.Do(ctx, "terrain.shade", view)
 		}()
+	}
+	// A menu entry is a name, not a closure: the camera actions are the map's
+	// own business, and everything else is a verb the store already has.
+	mv.OnMenu = func(action, node string, lat, lon float64) {
+		switch action {
+		case "map.fit":
+			mv.Fit(st.Snapshot(), lastSize)
+		case "map.centre":
+			mv.FocusOn(st.Snapshot(), node)
+		case "map.centre_here":
+			mv.CentreOn(lat, lon)
+		case "map.neighbours":
+			go func() { _, _ = st.Do(ctx, "nodes.select_many", []string{node}) }()
+		case "coverage.compute":
+			mv.Layers.Coverage = true
+			go func() { _, _ = st.Do(ctx, "coverage.compute", node) }()
+		case "coverage.clear":
+			mv.Layers.Coverage = false
+			go func() { _, _ = st.Do(ctx, "coverage.clear", nil) }()
+		case "sim.inject":
+			go func() { _, _ = st.Do(ctx, "sim.inject", node) }()
+		case "panel.pop_out":
+			// The shell owns what a pop-out means; the map only says which
+			// panel the request was about.
+			if sh.OnPopOut != nil {
+				sh.OnPopOut("Map")
+			}
+		}
 	}
 	mv.OnLayerOn = func(layer string) {
 		switch layer {
@@ -138,6 +169,8 @@ func main() {
 		}
 	}
 
+	// Selecting the first node at load also selects its neighbours overlay,
+	// so the map opens saying something rather than nothing.
 	nodes := &nodesPanel{}
 	sh.Add(&shell.Panel{Name: "Map", Windowable: true,
 		Draw: func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {

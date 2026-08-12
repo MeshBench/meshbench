@@ -76,6 +76,16 @@ func (m *MapView) handle(gtx layout.Context, sz image.Point, pts []projected) {
 		case pointer.Press:
 			m.cam.from, m.cam.last, m.cam.moved = e.Position, e.Position, false
 			m.cam.nodeIndex = nearestWithin(pts, e.Position, 10)
+			// A right-click is a question about what is under the pointer, not
+			// a gesture: it opens a menu and starts no drag.
+			if e.Buttons.Contain(pointer.ButtonSecondary) {
+				m.openMenu(e.Position, pts, sz)
+				m.cam.drag = dragNone
+				continue
+			}
+			// Any other press dismisses an open menu, which is what clicking
+			// away from a menu means everywhere else.
+			m.menu.open = false
 			switch {
 			case m.Layers.Measure:
 				m.cam.drag = dragMeasure
@@ -226,4 +236,17 @@ func nearestWithin(pts []projected, at f32.Point, radius float32) int {
 func boxOf(a, b f32.Point) image.Rectangle {
 	r := image.Rect(int(a.X), int(a.Y), int(b.X), int(b.Y))
 	return r.Canon()
+}
+
+// openMenu puts the context menu under the pointer.
+func (m *MapView) openMenu(at f32.Point, pts []projected, sz image.Point) {
+	name := ""
+	if i := nearestWithin(pts, at, 10); i >= 0 {
+		name = pts[i].n.Name
+	}
+	lat, lon := m.unproject(at, sz)
+	m.menu = mapMenu{
+		open: true, at: image.Pt(int(at.X), int(at.Y)),
+		node: name, lat: lat, lon: lon, items: menuFor(name),
+	}
 }

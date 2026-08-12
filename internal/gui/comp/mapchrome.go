@@ -29,12 +29,14 @@ type Layers struct {
 	Traffic    bool
 	Coverage   bool
 	Terrain    bool
+	Regions    bool
+	Pattern    bool
 	// Measure puts the map in measuring mode, where a drag reports a distance
 	// and a bearing instead of panning.
 	Measure bool
 
 	set     bool
-	toggles [10]Check
+	toggles [12]Check
 }
 
 // defaults are applied once, so a zero Layers is a sensible map rather than an
@@ -63,6 +65,8 @@ func (l *Layers) rows() []layerRow {
 		{"Traffic", &l.Traffic},
 		{"Coverage", &l.Coverage},
 		{"Terrain", &l.Terrain},
+		{"Regions", &l.Regions},
+		{"Antenna", &l.Pattern},
 		{"Measure", &l.Measure},
 	}
 }

@@ -39,11 +39,15 @@ type MapView struct {
 	covFor      string
 	shadeOp     paint.ImageOp
 	shadeFor    string
+	menu        mapMenu
 	// ViewBox reports the visible bounds after each frame, so whatever wants
 	// to compute something for this view can ask for the right area.
 	ViewBox func(south, north, west, east float64)
-	labels  labeller
-	sizes   labelSizer
+	// OnSize reports the map's pixel size each frame, so an action taken from
+	// a menu can frame the network without guessing how big the map is.
+	OnSize func(image.Point)
+	labels labeller
+	sizes  labelSizer
 	// Layers is what is drawn. Exported so a window, a menu or a script can
 	// set it without reaching through the map.
 	Layers Layers
@@ -55,6 +59,9 @@ type MapView struct {
 	// that needs computing - coverage - is asked for here rather than done
 	// here.
 	OnLayerOn func(layer string)
+	// OnMenu is called when a context menu entry is chosen: the action, the
+	// node it was opened on if any, and where on the ground it was opened.
+	OnMenu func(action, node string, lat, lon float64)
 	// OnMove is called while a node is being dragged, every frame it moves,
 	// so the rest of the interface follows the drag rather than jumping at
 	// the end of it.
@@ -144,6 +151,15 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 		paint.FillShape(gtx.Ops, t.NodeColour(k), clip.Outline{Path: np.End()}.Op())
 	}
 
+	// What the selection tells you, over the topology and under the traffic.
+	if m.Layers.Regions {
+		m.drawRegions(t, gtx, pts, sz)
+	}
+	m.drawNeighbours(t, gtx, pts, sz, s)
+	if m.Layers.Pattern {
+		m.drawPattern(t, gtx, pts, sz)
+	}
+
 	// Traffic over topology: a trail is what is happening now, and the
 	// topology is what is always true.
 	if m.Layers.Traffic {
@@ -187,7 +203,11 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 	if m.Layers.Coverage {
 		m.coverageLegend(t, gtx, sz, s)
 	}
+	m.layoutMenu(t, gtx, sz)
 
+	if m.OnSize != nil {
+		m.OnSize(sz)
+	}
 	if m.ViewBox != nil {
 		south, west := m.unproject(f32.Pt(0, float32(sz.Y)), sz)
 		north, east := m.unproject(f32.Pt(float32(sz.X), 0), sz)
@@ -294,4 +314,27 @@ func (m *MapView) ringPass(gtx layout.Context, pts []projected, sz image.Point,
 func ring(p *clip.Path, c f32.Point, r, w float32) {
 	dot(p, c, r)
 	dotReversed(p, c, r-w)
+}
+
+// Fit frames every node with a margin (10.9).
+func (m *MapView) Fit(s *state.Snapshot, sz image.Point) {
+	if s == nil || len(s.Nodes) == 0 {
+		return
+	}
+	m.fit(s, sz)
+}
+
+// FocusOn centres the camera on a named node without changing the zoom, which
+// is what "centre on this" means: the same view, somewhere else.
+func (m *MapView) FocusOn(s *state.Snapshot, name string) bool {
+	if s == nil {
+		return false
+	}
+	for i := range s.Nodes {
+		if s.Nodes[i].Name == name {
+			m.CentreOn(s.Nodes[i].Lat, s.Nodes[i].Lon)
+			return true
+		}
+	}
+	return false
 }

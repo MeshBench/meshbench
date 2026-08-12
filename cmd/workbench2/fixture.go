@@ -38,6 +38,7 @@ func loadFixture(path string) (loaded, error) {
 			HeightM: n.HeightAGLm, TxDBm: n.TxPowerDBm,
 			Regions: n.Regions, Firmware: n.Firmware.Version,
 			Selected: i == 0,
+			Pattern:  patternOf(n),
 		})
 	}
 	for _, a := range f.Areas {
@@ -63,6 +64,27 @@ func ringOf(r scenario.Ring) []state.Point {
 	out := make([]state.Point, 0, len(r))
 	for _, p := range r {
 		out = append(out, state.Point{Lat: p.Lat, Lon: p.Lon})
+	}
+	return out
+}
+
+// patternSamples is how finely the antenna pattern is sampled: every ten
+// degrees, which is smooth enough at the size it is drawn and cheap enough to
+// keep on every node in the snapshot.
+const patternSamples = 36
+
+// patternOf samples an antenna's horizontal gain, or returns nil.
+//
+// At the horizon, because a map is a plan view: what a downtilt does to the
+// gain towards a hilltop is a question for the budget panel, which has the
+// geometry to answer it.
+func patternOf(n scenario.Node) []float64 {
+	if n.Antenna.Pattern == nil {
+		return nil
+	}
+	out := make([]float64, patternSamples)
+	for i := range out {
+		out[i] = n.Antenna.GainTowardsDBi(float64(i)*360/patternSamples, 0)
 	}
 	return out
 }

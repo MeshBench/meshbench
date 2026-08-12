@@ -1,6 +1,7 @@
 package comp
 
 import (
+	"image/color"
 	"math"
 
 	"gioui.org/f32"
@@ -98,4 +99,34 @@ func dotReversed(p *clip.Path, c f32.Point, r float32) {
 		p.LineTo(q)
 	}
 	p.Close()
+}
+
+// colorNRGBA is an alias so the map code can name a colour without every file
+// importing image/color for one type.
+type colorNRGBA = color.NRGBA
+
+// hsv converts to the colour space Gio draws in. Hue in degrees.
+func hsv(h, s, v float64) color.NRGBA {
+	h = math.Mod(math.Mod(h, 360)+360, 360) / 60
+	i := math.Floor(h)
+	f := h - i
+	p := v * (1 - s)
+	q := v * (1 - s*f)
+	t := v * (1 - s*(1-f))
+	var r, g, b float64
+	switch int(i) % 6 {
+	case 0:
+		r, g, b = v, t, p
+	case 1:
+		r, g, b = q, v, p
+	case 2:
+		r, g, b = p, v, t
+	case 3:
+		r, g, b = p, q, v
+	case 4:
+		r, g, b = t, p, v
+	default:
+		r, g, b = v, p, q
+	}
+	return color.NRGBA{R: uint8(r * 255), G: uint8(g * 255), B: uint8(b * 255), A: 255}
 }
