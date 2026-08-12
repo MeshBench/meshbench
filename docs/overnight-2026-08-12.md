@@ -307,6 +307,48 @@ two are what the workbench can actually cause; radio faults belong to the RF
 model. Verified by connecting a plain socket to the address it printed and
 reading 4,096 bytes of companion protocol back.
 
+## The study, run for real
+
+The eight ideas were pre-registered before any of this. What existed when I came
+back to them was thirteen local branches, of which **four carried a commit and
+nine were empty placeholders** - so the study had been designed and not run. It
+has now been run.
+
+Two control arms, built from identical source on two branches, were run first.
+**They agreed on every seed**, so the differences below are the firmware.
+
+| arm | transmissions | delivered |
+|---|---|---|
+| control, twice | 93.0 | 56 of 55 |
+| 1. cancel a queued relay, alone | 93.0 | 56 of 55 |
+| 2. retransmit delay cannot be zero | 93.0 | 56 of 55 |
+| 8. do not force a transmit through a busy channel | 93.0 | 56 of 55 |
+| `rx_delay_base = 10.0` | **78.9** | 56 of 55 |
+| `rx_delay_base = 10.0` plus idea 1 | **71.9** | 56 of 55 |
+
+Fife strict, 56 nodes, real firmware, eight seeds an arm. **-15.2% and -22.7%
+transmissions with delivery identical in every seed.** Two reports written:
+`docs/study-report-rx-delay.md` and `docs/study-report-relay-suppression.md`.
+
+**On the ±20% floor.** It does not apply to this metric, and saying it does
+would be quoting a number rather than using one. The floor was measured on reach
+under contention from eight simultaneous senders. Here the control transmitted
+93 packets on *every one of eight seeds* - not a mean, the same integer eight
+times - because with one originator and no receive delay the count is a property
+of the topology. Receptions are the noisy metric here, 548 to 754 in the
+control, about ±17%, which is why neither report leans on them.
+
+**The null results are the most useful part.** Idea 1 alone changed nothing,
+because `rx_delay_base` ships at zero so no relay ever waits long enough to be
+beaten: the cancellation path is dead code in the shipped configuration. The
+same change on top of a receive delay removes a further 8.9%. Measuring either
+alone gives the wrong answer about it.
+
+Ideas 3 to 7 are still branches with no commit. Three of them need something the
+harness cannot measure yet - offered load, per-region airtime, request and
+response traffic - and two were cut for time. That is written up in
+`docs/study-protocol-ideas.md` rather than left implicit.
+
 ## Still not done
 
 **Emulator releases** for the two forks, without which the bundle is the binary

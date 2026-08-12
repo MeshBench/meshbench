@@ -193,3 +193,66 @@ Stated in advance so it cannot be rationalised later.
 - any arm whose firmware fails to build being quietly dropped without being named
 - reporting a delta smaller than the floor as an improvement
 - comparing arms run with different seeds, fixtures or node counts
+
+
+## Results, 12 August 2026
+
+Fife strict fixture, 56 nodes running real MeshCore firmware, one flood per run,
+eight seeds per arm. Two control arms from identical source were run first:
+**they agreed on every seed**, so a difference measured here is the firmware.
+
+| arm | transmissions | receptions | delivered | verdict |
+|---|---|---|---|---|
+| control (twice, identical source) | 93.0 | 611.9 | 56 of 55 | the baseline |
+| 1. cancel a queued relay | 93.0 | 611.9 | 56 of 55 | no change **alone** |
+| 2. retransmit delay cannot be zero | 93.0 | 591.7 | 56 of 55 | no change |
+| 8. do not force a transmit through a busy channel | 93.0 | 591.7 | 56 of 55 | no change |
+| `rx_delay_base = 10.0` | 78.9 | 670.2 | 56 of 55 | **-15.2% transmissions** |
+| `rx_delay_base = 10.0` + idea 1 | 71.9 | 665.0 | 56 of 55 | **-22.7% transmissions** |
+
+Two reports: `docs/study-report-rx-delay.md` and
+`docs/study-report-relay-suppression.md`.
+
+**The control transmitted 93 packets on every one of eight seeds.** Not a mean:
+the number 93, eight times. With one originator and no receive delay, every
+repeater that hears the flood relays exactly once and `markSeen()` suppresses
+the second copy, so the count is a property of the topology. The ±20% floor
+quoted elsewhere in this project was measured on *reach under contention from
+eight simultaneous senders*; it is a property of that contention and does not
+transfer to this metric. Receptions **are** noisy here: the control ranged 548
+to 754, about ±17%, which is why nothing in the reports leans on them.
+
+### The three that changed nothing, and why
+
+**Idea 1 alone is dead code.** `rx_delay_base` ships as `0.0f`, so
+`calcRxDelay()` returns zero and every node relays on receipt. A queued relay
+never waits long enough for anybody to beat it, so there is nothing to cancel.
+The same change on top of a receive delay removes a further 8.9%. Measuring
+either alone gives the wrong answer about it.
+
+**Idea 2 was declared a sanity arm before it ran**, and behaved like one.
+`nextInt(0, 5t+1)` draws zero rarely enough at these airtimes that forbidding it
+is unmeasurable. A large delta here would have meant the harness was suspect; a
+null result is the expected outcome and worth having on the record.
+
+**Idea 8's code path was never reached.** Forcing a transmit only happens after
+CAD has reported busy for longer than `getCADFailMaxDuration()`, and on 56 nodes
+at SF8 with one flood in flight that does not occur. The change is untested
+rather than useless: it needs a scenario with genuine congestion, which means
+offered load from many senders.
+
+### The four not implemented
+
+Ideas 3 to 7 minus 4 remain branches with no commit on them, and the reason is
+the same in each case: **the harness cannot yet measure what they claim to
+improve.**
+
+- **3. cycle-aware loop detection** and **4. density-aware backoff** are
+  implementable today and were cut for time, not for measurability.
+- **5. region-aware duty budget** needs per-region airtime accounting.
+- **6. congestion-aware hop limits** needs offered load, as idea 8 does.
+- **7. ACK redundancy on poor paths** needs request and response traffic, and
+  every run here floods one message one way.
+
+Adding offered load and airtime per node to the study harness unblocks 6 and 8
+together, and is the single most useful next piece of tooling.
