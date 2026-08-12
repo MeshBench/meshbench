@@ -134,6 +134,18 @@ func registerVerbs(st *state.Store, s *sim) {
 	st.Handle("links.set", func(w *state.World, p any) (any, error) {
 		links, _ := p.([]state.Link)
 		w.Links = links
+		// The budget is about a link, so it cannot exist before the links do.
+		// Asking for it on a timer at startup gave an empty panel, because
+		// measuring 48,000 path losses takes longer than any timer worth
+		// guessing at.
+		at := -1
+		for i := range w.Nodes {
+			if w.Nodes[i].Selected {
+				at = i
+				break
+			}
+		}
+		w.Budgets = s.budgetsFor(at, links)
 		w.Say(fmt.Sprintf("%d links, weighted by the weaker direction's margin",
 			len(links)))
 		return map[string]any{"links": len(links)}, nil
@@ -306,6 +318,17 @@ func registerVerbs(st *state.Store, s *sim) {
 		msg, _ := p.(string)
 		w.Say("coverage failed: " + msg)
 		return nil, nil
+	})
+	st.Handle("budget.for_selection", func(w *state.World, _ any) (any, error) {
+		at := -1
+		for i := range w.Nodes {
+			if w.Nodes[i].Selected {
+				at = i
+				break
+			}
+		}
+		w.Budgets = s.budgetsFor(at, w.Links)
+		return map[string]any{"budgets": len(w.Budgets)}, nil
 	})
 	st.Handle("session.describe", func(w *state.World, _ any) (any, error) {
 		return map[string]any{

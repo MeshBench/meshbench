@@ -79,3 +79,19 @@ func TestAnUnknownSpreadingFactorHasAStatedDefault(t *testing.T) {
 		t.Fatalf("got %.1f, want the SF10 default of -15", got)
 	}
 }
+
+// The breakdown must add up to the number it is breaking down. A budget panel
+// whose lines do not sum to the margin beside it invites somebody to trust the
+// wrong one.
+func TestTermsSumToTheOneWayMargin(t *testing.T) {
+	a, b := node(22, 6, 0.8, 10), node(14, 2.15, 0.2, 10)
+	const loss = 131.5
+
+	var sum float64
+	for _, term := range Terms(a, b, loss) {
+		sum += term.DB
+	}
+	if got := OneWayDB(a, b, loss); math.Abs(sum-got) > 1e-9 {
+		t.Fatalf("terms sum to %.6f, one-way margin is %.6f", sum, got)
+	}
+}

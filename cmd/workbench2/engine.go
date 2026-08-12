@@ -9,6 +9,7 @@ package main
 
 import (
 	"context"
+	"math"
 	"os"
 	"path/filepath"
 	"sync/atomic"
@@ -211,6 +212,55 @@ func (s *sim) scores() []state.Score {
 			AirtimeMs: v.AirtimeMs, DutyCyclePct: v.DutyCyclePct,
 			UniqueDelivery: v.UniqueDelivery, RedundantRelay: v.RedundantRelay,
 		})
+	}
+	return out
+}
+
+// budgetsFor breaks down the strongest link at a node, both ways.
+//
+// The strongest rather than a chosen one, because the question a budget panel
+// answers when nothing has been picked is "how is this node doing at all",
+// and its best link is the honest answer to that.
+func (s *sim) budgetsFor(at int, links []state.Link) []state.Budget {
+	if s.eng == nil || at < 0 || at >= len(s.nodes) {
+		return nil
+	}
+	best, bestM := -1, math.Inf(-1)
+	for _, l := range links {
+		if !l.Known {
+			continue
+		}
+		other := -1
+		if l.A == at {
+			other = l.B
+		} else if l.B == at {
+			other = l.A
+		}
+		if other < 0 || l.MarginDB <= bestM {
+			continue
+		}
+		best, bestM = other, l.MarginDB
+	}
+	if best < 0 {
+		return nil
+	}
+	loss, ok := s.eng.PathLossForTest(at, best)
+	if !ok {
+		return nil
+	}
+	a, b := s.nodes[at], s.nodes[best]
+	return []state.Budget{
+		{From: a.Name, To: b.Name, MarginDB: linkbudget.OneWayDB(a, b, loss),
+			Terms: termsOf(linkbudget.Terms(a, b, loss))},
+		{From: b.Name, To: a.Name, MarginDB: linkbudget.OneWayDB(b, a, loss),
+			Terms: termsOf(linkbudget.Terms(b, a, loss))},
+	}
+}
+
+func termsOf(in []linkbudget.Term) []state.BudgetTerm {
+	out := make([]state.BudgetTerm, 0, len(in))
+	for _, t := range in {
+		out = append(out, state.BudgetTerm{Name: t.Name, DB: t.DB})
 	}
 	return out
 }

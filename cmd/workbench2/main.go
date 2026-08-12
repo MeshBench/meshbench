@@ -103,7 +103,13 @@ func main() {
 		if additive {
 			verb = "nodes.add_to_selection"
 		}
-		go func() { _, _ = st.Do(ctx, verb, names) }()
+		go func() {
+			_, _ = st.Do(ctx, verb, names)
+			// The budget follows the selection: it is a panel about whatever
+			// is selected, and asking for it separately would let the two
+			// disagree about what that is.
+			_, _ = st.Do(ctx, "budget.for_selection", nil)
+		}()
 	}
 	mv.OnMove = func(name string, lat, lon float64) {
 		go func() {
@@ -206,6 +212,10 @@ func main() {
 	sh.Add(&shell.Panel{Name: "Packet timeline", Windowable: true,
 		Draw: func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
 			return tl.Layout(t, gtx, s)
+		}})
+	sh.Add(&shell.Panel{Name: "Budget", Windowable: true,
+		Draw: func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+			return comp.Budget{}.Layout(t, gtx, s)
 		}})
 	wf := &comp.Waterfall{}
 	sh.Add(&shell.Panel{Name: "Waterfall", Windowable: true,

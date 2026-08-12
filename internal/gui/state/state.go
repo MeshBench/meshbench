@@ -72,6 +72,8 @@ type Snapshot struct {
 	// travels with the absence.
 	Waterfall     *Coverage
 	WaterfallNote string
+	// Budgets are the two directions of the link last asked about.
+	Budgets []Budget
 }
 
 // Point is a position, and the only geometry the snapshot carries.
@@ -158,6 +160,26 @@ type Score struct {
 	RedundantRelay int
 }
 
+// BudgetTerm is one line of a link budget: a named quantity in decibels and
+// whether it adds or takes away.
+//
+// Carried as terms rather than as a total because the total is the one thing
+// somebody can already read off the map. What a budget panel is for is which
+// term is the reason.
+type BudgetTerm struct {
+	Name string
+	DB   float64
+}
+
+// Budget is one direction of one link, broken down.
+type Budget struct {
+	From, To string
+	Terms    []BudgetTerm
+	// MarginDB is the running total after every term, and is what the map
+	// draws. Kept so the panel and the map cannot disagree by rounding.
+	MarginDB float64
+}
+
 // Node is one node, as the interface needs it.
 type Node struct {
 	Name     string
@@ -227,6 +249,8 @@ type World struct {
 	// Waterfall is the last capture; WaterfallNote is why there is not one.
 	Waterfall     *Coverage
 	WaterfallNote string
+	// Budgets are the two directions of the link last asked about.
+	Budgets []Budget
 
 	// Tick is called every step while playing, and is where engine pacing
 	// lives now that it is out of the frame loop. Nil means no engine.
@@ -406,6 +430,7 @@ func (s *Store) publish() {
 		Scores:        s.world.Scores,
 		Waterfall:     s.world.Waterfall,
 		WaterfallNote: s.world.WaterfallNote,
+		Budgets:       s.world.Budgets,
 	})
 }
 

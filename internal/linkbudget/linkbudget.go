@@ -83,3 +83,25 @@ func OneWayDB(a, b scenario.Node, lossDB float64) float64 {
 func MarginDB(a, b scenario.Node, lossDB float64) float64 {
 	return math.Min(OneWayDB(a, b, lossDB), OneWayDB(b, a, lossDB))
 }
+
+// Term is one named quantity in a budget, in decibels.
+type Term struct {
+	Name string
+	DB   float64
+}
+
+// Terms breaks a one-way budget into the lines that make it up, in the order
+// a signal meets them.
+//
+// The sum of the terms is exactly OneWayDB. That is not a coincidence to be
+// checked by eye - a breakdown that does not add up to the number beside it is
+// worse than no breakdown, because it invites somebody to trust the wrong one.
+func Terms(a, b scenario.Node, lossDB float64) []Term {
+	return []Term{
+		{"transmit power", a.TxPowerDBm},
+		{"antenna, transmitting", GainDBi(a)},
+		{"path loss", -lossDB},
+		{"antenna, receiving", GainDBi(b)},
+		{"receiver sensitivity", -SensitivityDBm(b)},
+	}
+}
