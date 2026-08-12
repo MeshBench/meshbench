@@ -106,11 +106,58 @@ synthetic one.
   simultaneous senders, not of the simulator. Single-originator floods are
   deterministic and small deltas there are real.
 
+## Waves 1 and 2, after the study
+
+**Wave 1 is done.**
+
+*Headless, ADR-0019: a headless mode rather than a virtual display.* The spike
+went the interesting way. Xvfb is not the obstacle - it offers GLX and Mesa
+reports direct rendering through llvmpipe, and the application starts under it
+and binds its control socket. But no verb answered, and the cause was not
+isolated, which the ADR says rather than implying a verdict the spike did not
+reach. The decision does not rest on that: control verbs are serviced on the
+frame thread, so a CI harness driving them is hostage to the renderer, and a
+virtual display hides that coupling in the environment where it is hardest to
+debug. MeshCore ships a devcontainer, so firmware developers meet it too.
+
+*The tool manifest*, `docs/tools-manifest.md`: four tools, why each is pinned
+rather than taken from a distribution, and why PATH comes last.
+
+**Wave 2 is started.**
+
+*QEMU builds in CI.* `MeshBench/qemu` produces a packaged `qemu-system-xtensa`,
+Linux only, with macOS and Windows as visible skipped rows carrying reasons. It
+asserts the SX1262 device is in the tree it built.
+
+*The Fife fixture is real*, `docs/fixtures.md` and `fixtures/`. 55 nodes from
+live CoreScope, regions inferred from 20,500 packets over a week and applied to
+53 of them, in strict and permissive variants. The permissive one adds
+`region allowf *` so a first run works before anyone learns the scope rules, and
+says so in its provenance.
+
+**The firmware A/B tooling is built**, `tools/firmware-ab/ab.sh`, and it encodes
+the traps rather than leaving them to whoever runs it: storage per arm through
+the new `MESHCORESIM_NODEFS`, `-count=1`, and a build per role in every arm.
+Verified by reproducing the result without the manual process.
+
 ## What did not happen
 
-Waves 1 to 3 are untouched: no headless decision, no tool manifest, no fork CI,
-no packaging, no fixtures, no docs site. The night went to Wave 4 because the
-goal named it the priority.
+No packaging, no docs site, no app-testing harness, no Companion bench, no
+PlatformIO hook. The medium and large fixtures are not built: same recipe, more
+waiting.
+
+**Seven of the eight ideas have no report**, and that needs saying properly
+rather than as a shortfall. Two of them are pre-registered as expected nulls - a
+sanity arm and a negative control - and a null earns a line in the study, not a
+report. The other five cannot be measured by the current harness at all: it
+sends one advert and counts what the mesh does with it, so it can see
+flood-relay changes and nothing else. Ideas 5, 6 and 8 need sustained offered
+load and airtime accounting; idea 7 needs request and response traffic, which
+the harness does not generate.
+
+Building that is the next real piece of work, and it is the same thing the
+app-testing harness needs. Running four more arms through a harness that cannot
+see what they change would produce four more nulls and no knowledge.
 
 The study ran on the **saved 308-node import from the earlier study**, not on a
 freshly built fixture, because the fixtures are Wave 2. It is the right network -
@@ -127,6 +174,19 @@ I could not render it to check: the only browser on the machine is a snap, and
 its headless screenshot lands inside the snap's private tmp where I could not
 retrieve it. The style block is byte identical to the published report, so it
 will look like its sibling, but nobody has actually looked at it yet.
+
+## Two more gaps found by using it
+
+Both in the control socket rather than the model, both found while building the
+fixture:
+
+- `nodes.place` refuses `room-server` and `emitter`: *unknown kind "emitter";
+  have repeater, companion, observer*. Both kinds exist in the model, so a
+  fixture cannot carry one of every kind through the socket.
+- `firmware.set` with a role and no node applies to **every** node that runs
+  firmware and sets its role, so three calls to pin three roles convert the whole
+  mesh three times and the last one wins. The UI's "use for role" filters by
+  kind; the verb does not. This happened here and had to be repaired per node.
 
 ## What needs you
 
