@@ -264,12 +264,15 @@ is the coupling ADR-0019 was written about, showing up in practice: the
 workbench's provisioning lives in the UI package. The region half is shared code
 now, in `internal/fixture`, because that is the part with the trap in it.
 
-## Still not done
+**The Companion bench landed after all**, in a new App view: every companion
+with a TCP or serial button, the address with a copy button, whether a client is
+attached, one click for a mesh and an endpoint, and two faults - drop every
+client connection, inject a stray frame. Two rather than a page of them, because
+two are what the workbench can actually cause; radio faults belong to the RF
+model. Verified by connecting a plain socket to the address it printed and
+reading 4,096 bytes of companion protocol back.
 
-The **Companion bench panel**. The endpoint half exists headlessly and the
-Companion tab already decodes the protocol both ways, so what is missing is the
-developer's front door: fault-injection buttons and one click for "give me a
-mesh and an endpoint".
+## Still not done
 
 **Emulator releases** for the two forks, without which the bundle is the binary
 alone.
