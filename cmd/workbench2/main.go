@@ -357,7 +357,9 @@ func main() {
 	if *modeFlag == "light" {
 		mode = theme.Light
 	}
+	sets := newSettings(mode)
 	th := theme.New(mode, theme.Default, sh2)
+	thGen := uint64(1)
 
 	var meter *fpsMeter
 	if *fpsFlag {
@@ -387,11 +389,15 @@ func main() {
 		}()
 	}
 
+	sh.Add(&shell.Panel{Name: "Settings", Windowable: true,
+		Draw: (&settingsPanel{set: sets}).Draw})
 	sh.PoppedOut = wins.has
 	sh.OnPopOut = func(name string) {
 		wins.popOut(name, sh, func() *theme.Theme {
-			// A shaper of its own, per window. See windows.go.
-			return theme.New(mode, theme.Default,
+			// A shaper of its own, per window, and the current settings so a
+			// window opened after a theme change does not open in the old one.
+			m, d, _ := sets.get()
+			return theme.New(m, d,
 				text.NewShaper(text.WithCollection(withEmoji(gofont.Collection()))))
 		}, st)
 	}
@@ -419,6 +425,13 @@ func main() {
 			case app.FrameEvent:
 				gtx := app.NewContext(&ops, e)
 				began := time.Now()
+				// Rebuilt only when something changed: a theme per frame
+				// would throw away the shaper's font cache sixty times a
+				// second to no purpose.
+				if m, d, g := sets.get(); g != thGen {
+					th = theme.New(m, d, sh2)
+					thGen = g
+				}
 				if p := sh.Panels[*panelFlag]; p != nil {
 					comp.Fill(gtx, th.P.Ground)
 					p.Draw(th, gtx, st.Snapshot())
