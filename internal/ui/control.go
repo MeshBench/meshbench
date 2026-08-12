@@ -1457,8 +1457,15 @@ func (a *App) handleUICommand(method string, params json.RawMessage) (any, bool,
 		for _, c := range s.contacts {
 			contacts = append(contacts, map[string]any{"name": c.Name, "hops": c.OutPathLen})
 		}
-		return map[string]any{"channels": chans, "messages": msgs,
-			"contacts": contacts, "error": s.err}, true, nil
+		out := map[string]any{"channels": chans, "messages": msgs,
+			"contacts": contacts, "error": s.err}
+		// What the firmware says its own ceiling is. A scenario asking for more
+		// is clamped to this, and the only sign of that used to be a status
+		// line that scrolled away.
+		if s.self != nil {
+			out["max_tx_dbm"] = s.self.MaxTxPowerDBm
+		}
+		return out, true, nil
 	case "companion.send":
 		s := a.comps[arg("node")]
 		if s == nil {
