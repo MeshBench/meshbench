@@ -31,6 +31,7 @@ type Sim struct {
 	starting atomic.Bool
 	cpu      *cpuSampler
 	history  *nodeHistory
+	states   map[string]string
 	served   map[string]*engine.CompanionLink
 }
 

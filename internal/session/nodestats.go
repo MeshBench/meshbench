@@ -127,6 +127,9 @@ func (s *Sim) nodeStats(events []state.Event) []state.NodeStat {
 	live := map[int]bool{}
 	for i, n := range nodes {
 		st := state.NodeStat{Name: n.Spec.Name, Sent: n.Sent, Heard: n.Heard}
+		if s.states != nil {
+			st.State = s.states[n.Spec.Name]
+		}
 		if i < len(s.nodes) {
 			st.Firmware = s.nodes[i].Firmware.Version
 		}
@@ -275,4 +278,54 @@ func pushInt(s []int, v int) []int {
 		s = s[len(s)-historyLen:]
 	}
 	return s
+}
+
+// setState records what a node is doing between the states it rests in.
+//
+// Kept here rather than inferred from whether a process exists, because the
+// interesting moments are the ones where it does not: a row that goes blank
+// while its firmware is being changed looks exactly like a node that has died.
+func (s *Sim) setState(name, what string) {
+	if s.states == nil {
+		s.states = map[string]string{}
+	}
+	if what == "" {
+		delete(s.states, name)
+		return
+	}
+	s.states[name] = what
+}
+
+// Reflash stops a node, gives it a different build, and starts it again.
+//
+// The whole cycle, because firmware is chosen when a node launches: setting the
+// version on a running node changes nothing until something else restarts it,
+// and a control that appears to do nothing is one somebody presses twice.
+func (s *Sim) Reflash(ctx context.Context, st *state.Store, name, version string, seed uint64) {
+	go func() {
+		announce := func(what string) {
+			s.setState(name, what)
+			_, _ = st.Do(ctx, "nodes.stats", nil)
+		}
+		announce("stopping")
+		if err := s.stopNode(name); err != nil {
+			// Not running is not a failure here: the point is to end up
+			// running the requested build.
+			_ = err
+		}
+		announce("provisioning")
+		if err := s.setFirmware(name, version); err != nil {
+			s.setState(name, "")
+			_, _ = st.Do(ctx, "node.reflash_failed", err.Error())
+			return
+		}
+		announce("starting")
+		if err := s.startNode(ctx, name, seed); err != nil {
+			s.setState(name, "")
+			_, _ = st.Do(ctx, "node.reflash_failed", err.Error())
+			return
+		}
+		s.setState(name, "")
+		_, _ = st.Do(ctx, "node.reflashed", name+" now runs "+version)
+	}()
 }

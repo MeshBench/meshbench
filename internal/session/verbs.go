@@ -654,6 +654,29 @@ func Register(st *state.Store, s *Sim) {
 		m, _ := p.(map[string]any)
 		name, _ := m["node"].(string)
 		version, _ := m["version"].(string)
+		// Applied, not just recorded: stop, provision, start. Firmware is
+		// chosen when a node launches, so setting it on a running node changes
+		// nothing until something restarts it.
+		s.Reflash(context.Background(), st, name, version, w.Seed)
+		w.Say(name + ": changing to " + version)
+		return map[string]any{"node": name, "version": version}, nil
+	})
+	st.Handle("node.reflashed", func(w *state.World, p any) (any, error) {
+		msg, _ := p.(string)
+		w.Stats = s.nodeStats(w.Events)
+		w.Say(msg)
+		return nil, nil
+	})
+	st.Handle("node.reflash_failed", func(w *state.World, p any) (any, error) {
+		msg, _ := p.(string)
+		w.Stats = s.nodeStats(w.Events)
+		w.Say("firmware change failed: " + msg)
+		return nil, nil
+	})
+	st.Handle("node.set_firmware_only", func(w *state.World, p any) (any, error) {
+		m, _ := p.(map[string]any)
+		name, _ := m["node"].(string)
+		version, _ := m["version"].(string)
 		if err := s.setFirmware(name, version); err != nil {
 			return nil, err
 		}

@@ -29,6 +29,10 @@ type Column struct {
 	Mono bool
 	// Sortable columns get a header that responds to a click.
 	Sortable bool
+	// Menu makes this column's cells clickable, for a value that is chosen
+	// rather than read. The table reports the click; what to show is the
+	// caller's business, because the table does not know what the values are.
+	Menu bool
 }
 
 // Row is one row's cells plus the identity the table sorts and selects by.
@@ -58,6 +62,10 @@ type Table struct {
 	SortDesc bool
 	// FilterHint is what the search box says when it is empty.
 	FilterHint string
+	// OnCell is called when a Menu column's cell is clicked, with the row's
+	// key and the column index.
+	OnCell func(key string, col int)
+	cells  map[string]*widget.Clickable
 	// Selected is the Key of the selected row, so selection survives a re-sort
 	// and a filter change.
 	Selected string
@@ -219,6 +227,29 @@ func (tb *Table) row(t *theme.Theme, gtx layout.Context, idx int) layout.Dimensi
 				if c.Mono {
 					render = OneLine(t, t.Sz.Data, fg, cell, true)
 				}
+				if c.Menu {
+					// A caret, so a cell that can be changed does not look
+					// like one that cannot.
+					inner := render
+					ck := tb.cell(r.Key, i)
+					render = func(gtx layout.Context) layout.Dimensions {
+						if ck.Clicked(gtx) && tb.OnCell != nil {
+							tb.OnCell(r.Key, i)
+						}
+						return ck.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							bg := theme.Alpha(t.P.Ink, 0.05)
+							if ck.Hovered() {
+								bg = theme.Alpha(t.P.Accent, 0.18)
+							}
+							FillRect(gtx, image.Pt(gtx.Constraints.Max.X,
+								gtx.Dp(t.RowHeight())-gtx.Dp(4)), bg)
+							return layout.Flex{}.Layout(gtx,
+								layout.Flexed(1, inner),
+								layout.Rigid(Text(t, t.Sz.Caption, t.P.Dim, " v")),
+							)
+						})
+					}
+				}
 				return layout.Inset{Left: t.Sp.S, Right: t.Sp.S}.Layout(gtx,
 					func(gtx layout.Context) layout.Dimensions {
 						if c.Right {
@@ -308,4 +339,20 @@ func (tb *Table) ShownKeys() map[string]bool {
 		out[r.Key] = true
 	}
 	return out
+}
+
+// cell is the clickable for one interactive cell, kept by row key so it
+// survives a re-sort - which is the same reason rows are keyed rather than
+// indexed.
+func (tb *Table) cell(key string, col int) *widget.Clickable {
+	if tb.cells == nil {
+		tb.cells = map[string]*widget.Clickable{}
+	}
+	k := key + "\x00" + string(rune('0'+col))
+	c, ok := tb.cells[k]
+	if !ok {
+		c = &widget.Clickable{}
+		tb.cells[k] = c
+	}
+	return c
 }

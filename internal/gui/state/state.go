@@ -313,6 +313,11 @@ type NodeStat struct {
 	// Firmware is the build it is running.
 	Firmware string
 	Running  bool
+	// State is what the node is doing: running, stopped, or one of the
+	// transitions - stopping, provisioning, starting. A boolean cannot say
+	// "changing firmware", and a row that goes blank while it happens looks
+	// like a node that has died.
+	State string
 	// PID, and what the process is costing. RSSBytes is resident memory;
 	// CPUPct is a share of one core since the last sample.
 	PID      int

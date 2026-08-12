@@ -37,6 +37,9 @@ type nodeViewPanel struct {
 	buildBtns  []comp.Button
 	buildsRead bool
 	buildList  widget.List
+	// pickFor is the node whose firmware list is open, or "".
+	pickFor   string
+	closePick comp.Button
 	// OnFirmware asks the store to put a build on a node.
 	OnFirmware func(node, version string)
 
@@ -50,7 +53,7 @@ func (p *nodeViewPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 			{Title: "node", Width: 190, Sortable: true},
 			{Title: "state", Width: 86, Sortable: true},
 			{Title: "backend", Width: 90, Sortable: true},
-			{Title: "firmware", Width: 180, Mono: true, Sortable: true},
+			{Title: "firmware", Width: 200, Mono: true, Sortable: true, Menu: true},
 			{Title: "memory", Width: 96, Right: true, Mono: true, Sortable: true},
 			{Title: "cpu time", Width: 88, Right: true, Mono: true, Sortable: true},
 			{Title: "cpu now", Width: 78, Right: true, Mono: true, Sortable: true},
@@ -102,6 +105,12 @@ func (p *nodeViewPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 		}
 	}
 
+	p.tb.OnCell = func(key string, col int) {
+		if col == 3 {
+			p.pickFor = key
+		}
+	}
+
 	rows := make([]comp.Row, 0, len(s.Stats))
 	var totalRSS int64
 	var totalCPU float64
@@ -117,9 +126,12 @@ func (p *nodeViewPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 		shownRSS += n.RSSBytes
 		shownCPU += n.CPUPct
 		shownMs += n.CPUms
-		st := "stopped"
-		if n.Running {
-			st = "running"
+		st := n.State
+		if st == "" {
+			st = "stopped"
+			if n.Running {
+				st = "running"
+			}
 		}
 		rows = append(rows, comp.Row{
 			Key: n.Name,
@@ -176,7 +188,7 @@ func (p *nodeViewPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 				btn(t, &p.stop), btn(t, &p.start), btn(t, &p.refresh),
 			)
 		}),
-		layout.Rigid(p.firmwarePicker(t, selectedNode(s))),
+		layout.Rigid(p.firmwareList(t)),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			// A reserved height, so the flex takes it from the table above
 			// rather than the graphs running off the bottom of the window.
@@ -277,6 +289,49 @@ var _ = widget.Bool{}
 // It says which node it would change, because a row of version buttons with
 // nothing naming the target is a control somebody presses and then has to go
 // and check.
+// firmwareList is the open dropdown for one node's firmware cell.
+//
+// A list rather than a row of buttons, because the number of installed builds
+// is whatever somebody has installed - nine already overflowed a row, and a
+// control that works until you install a tenth is not a control.
+func (p *nodeViewPanel) firmwareList(t *theme.Theme) layout.Widget {
+	return func(gtx layout.Context) layout.Dimensions {
+		if p.pickFor == "" {
+			return comp.Text(t, t.Sz.Caption, t.P.Faint,
+				"click a firmware cell to change what that node runs")(gtx)
+		}
+		if p.closePick.Label == "" {
+			p.closePick.Label, p.closePick.Kind = "cancel", comp.Quiet
+		}
+		if p.closePick.Click.Clicked(gtx) {
+			p.pickFor = ""
+			return layout.Dimensions{}
+		}
+		for i := range p.buildBtns {
+			if p.buildBtns[i].Click.Clicked(gtx) && p.OnFirmware != nil {
+				p.OnFirmware(p.pickFor, p.builds[i])
+				p.pickFor = ""
+				return layout.Dimensions{}
+			}
+		}
+		p.buildList.Axis = layout.Horizontal
+		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+			layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Ink, p.pickFor+" runs:  ")),
+			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+				return comp.List(t, &p.buildList, len(p.buildBtns),
+					func(gtx layout.Context, i int) layout.Dimensions {
+						gtx.Constraints.Min.X = 0
+						return layout.Inset{Right: t.Sp.S}.Layout(gtx,
+							func(gtx layout.Context) layout.Dimensions {
+								return p.buildBtns[i].Layout(t, gtx)
+							})
+					})(gtx)
+			}),
+			btn(t, &p.closePick),
+		)
+	}
+}
+
 func (p *nodeViewPanel) firmwarePicker(t *theme.Theme, selected string) layout.Widget {
 	return func(gtx layout.Context) layout.Dimensions {
 		who := selected
