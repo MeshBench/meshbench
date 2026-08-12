@@ -81,6 +81,11 @@ type Link struct {
 	// decode. Negative is a link that does not close. The weaker direction,
 	// because a link that works in one direction only is not a link.
 	MarginDB float64
+	// AtoB and BtoA are the two directions separately. Carried because the
+	// asymmetry between them is a real property of a link - a mast heard by a
+	// handheld it cannot answer - and MarginDB, being the weaker of the two,
+	// is exactly the number that hides it.
+	AtoB, BtoA float64
 	// Known is false when nothing has computed a margin yet, which is not the
 	// same as a margin of zero and must not be drawn as one.
 	Known bool

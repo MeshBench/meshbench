@@ -100,7 +100,11 @@ func (s *sim) links() []state.Link {
 			if m < -20 {
 				continue
 			}
-			out = append(out, state.Link{A: i, B: j, MarginDB: m, Known: true})
+			out = append(out, state.Link{
+				A: i, B: j, MarginDB: m, Known: true,
+				AtoB: linkbudget.OneWayDB(s.nodes[i], s.nodes[j], loss),
+				BtoA: linkbudget.OneWayDB(s.nodes[j], s.nodes[i], loss),
+			})
 		}
 	}
 	return out

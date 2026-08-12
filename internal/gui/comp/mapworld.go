@@ -92,7 +92,66 @@ func (m *MapView) drawLinks(t *theme.Theme, gtx layout.Context, pts []projected,
 		paint.FillShape(gtx.Ops, theme.Alpha(col, float32(b.a)), clip.Outline{Path: spec}.Op())
 		drawn += n
 	}
+	m.drawAsymmetry(t, gtx, pts, sz, s, cut)
 	return drawn, len(s.Links)
+}
+
+// asymmetryDB is how lopsided a link has to be before the map says so.
+//
+// Three decibels is a factor of two in power and about the point at which the
+// difference stops being arithmetic and starts being an operational fact:
+// somebody can hear the repeater and cannot work it.
+const asymmetryDB = 3
+
+// drawAsymmetry marks links that work much better one way than the other, with
+// a tick at the end that struggles to be heard.
+//
+// This is the direction half of 10.3. Without it the map draws every link by
+// its weaker direction, which is the right conservative summary and also the
+// one number that hides the asymmetry entirely.
+func (m *MapView) drawAsymmetry(t *theme.Theme, gtx layout.Context, pts []projected,
+	sz image.Point, s *state.Snapshot, cut float64) {
+
+	var path clip.Path
+	path.Begin(gtx.Ops)
+	n := 0
+	for _, l := range s.Links {
+		if !l.Known || l.MarginDB < 0 || l.MarginDB < cut {
+			continue
+		}
+		d := l.AtoB - l.BtoA
+		if math.Abs(d) < asymmetryDB {
+			continue
+		}
+		if l.A >= len(pts) || l.B >= len(pts) {
+			continue
+		}
+		a, b := pts[l.A], pts[l.B]
+		// The tick goes at the end that struggles: if A reaches B far better
+		// than B reaches A, it is B that cannot answer.
+		weak, strong := b, a
+		if d < 0 {
+			weak, strong = a, b
+		}
+		if offscreen(weak, sz) {
+			continue
+		}
+		// A short bar across the link, a few pixels in from the weak end.
+		dx, dy := strong.x-weak.x, strong.y-weak.y
+		ln := length(f32.Pt(dx, dy))
+		if ln < 20 {
+			continue
+		}
+		ux, uy := dx/ln, dy/ln
+		cx, cy := weak.x+ux*9, weak.y+uy*9
+		segment(&path, f32.Pt(cx-uy*4, cy+ux*4), f32.Pt(cx+uy*4, cy-ux*4), 1.6)
+		n++
+	}
+	spec := path.End()
+	if n > 0 {
+		paint.FillShape(gtx.Ops, theme.Alpha(t.P.Bad, 0.8),
+			clip.Outline{Path: spec}.Op())
+	}
 }
 
 // maxDrawnLinks is how many the map will draw before it starts taking the
