@@ -17,3 +17,8 @@ spi3: SPI.NRF52840_SPI @ sysbus 0x4002F000
 lora: Radio.RadioServerSX1262 @ spi3
     host: "127.0.0.1"
     port: 7777
+    // DIO1 into the MCU. The RAK4631 wires it to P1.15, which is pin 47 in the
+    // flat numbering the Adafruit core uses and pin 15 of gpio1 here. Without
+    // it the firmware configures the radio and then waits on a pin nothing
+    // drives, which looks exactly like a radio that never receives.
+    IRQ -> gpio1@15

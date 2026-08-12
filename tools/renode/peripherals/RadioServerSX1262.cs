@@ -27,6 +27,8 @@ using Antmicro.Renode.Core;
 using Antmicro.Renode.Core.Structure;
 using Antmicro.Renode.Logging;
 using Antmicro.Renode.Peripherals.SPI;
+using Antmicro.Renode.Peripherals.Timers;
+using Antmicro.Renode.Time;
 
 namespace Antmicro.Renode.Peripherals.Radio
 {
@@ -37,7 +39,25 @@ namespace Antmicro.Renode.Peripherals.Radio
             this.machine = machine;
             this.host = host;
             this.port = port;
+
+            // DIO1, polled. The chip is in another process, so there is nothing
+            // to push an interrupt across - and the alternative, having the
+            // firmware poll the IRQ register over SPI, is what the ESP32 build
+            // does but the nRF52 one does not. It waits on the pin.
+            //
+            // A kilohertz is far finer than anything the radio times: the
+            // shortest thing DIO1 signals is a preamble detection, tens of
+            // milliseconds at these spreading factors.
+            irqPoll = new LimitTimer(machine.ClockSource, 1000, this, "dio1",
+                                     limit: 1, eventEnabled: true,
+                                     direction: Direction.Ascending,
+                                     enabled: false, workMode: WorkMode.Periodic);
+            irqPoll.LimitReached += PollIrq;
         }
+
+        // DIO1 into the MCU. Wired in the platform description to the pin the
+        // board uses - P1.15 on a RAK4631.
+        public GPIO IRQ { get; } = new GPIO();
 
         // Connect when the script says so rather than in the constructor: a
         // platform description is loaded before the radio model is running, and
@@ -57,6 +77,7 @@ namespace Antmicro.Renode.Peripherals.Radio
                 client = new TcpClient(host, port) { NoDelay = true };
                 stream = client.GetStream();
                 this.Log(LogLevel.Info, "chip attached via radio model at {0}:{1}", host, port);
+                irqPoll.Enabled = true;
             }
             catch(Exception e)
             {
@@ -99,6 +120,8 @@ namespace Antmicro.Renode.Peripherals.Radio
             {
                 return 0;
             }
+            lock(wire)
+            {
             try
             {
                 // The controller may clock bytes without ever touching NSS, if
@@ -125,6 +148,7 @@ namespace Antmicro.Renode.Peripherals.Radio
             {
                 Drop(e.Message);
                 return 0;
+            }
             }
         }
 
@@ -154,19 +178,54 @@ namespace Antmicro.Renode.Peripherals.Radio
             implicitSelect = false;
         }
 
+        // Ask the chip whether DIO1 is asserted, and drive the pin to match.
+        private void PollIrq()
+        {
+            if(stream == null)
+            {
+                return;
+            }
+            lock(wire)
+            {
+                try
+                {
+                    stream.WriteByte(ReadIrq);
+                    var got = stream.ReadByte();
+                    if(got < 0)
+                    {
+                        Drop("the radio model closed the connection");
+                        return;
+                    }
+                    var asserted = got != 0;
+                    if(asserted != irqLine)
+                    {
+                        irqLine = asserted;
+                        IRQ.Set(asserted);
+                    }
+                }
+                catch(Exception e)
+                {
+                    Drop(e.Message);
+                }
+            }
+        }
+
         private void Send(byte tag)
         {
             if(stream == null)
             {
                 return;
             }
-            try
+            lock(wire)
             {
-                stream.WriteByte(tag);
-            }
-            catch(Exception e)
-            {
-                Drop(e.Message);
+                try
+                {
+                    stream.WriteByte(tag);
+                }
+                catch(Exception e)
+                {
+                    Drop(e.Message);
+                }
             }
         }
 
@@ -184,6 +243,7 @@ namespace Antmicro.Renode.Peripherals.Radio
         private const byte CsRelease = 0x02;
         private const byte Xfer = 0x03;
         private const byte ReadBusy = 0x04;
+        private const byte ReadIrq = 0x05;
 
         // Which GPIO carries chip select into this peripheral. Renode numbers
         // the connections a platform declares, so this is the index in the
@@ -198,5 +258,11 @@ namespace Antmicro.Renode.Peripherals.Radio
         private NetworkStream stream;
         private bool selected;
         private bool implicitSelect;
+        private bool irqLine;
+        private readonly LimitTimer irqPoll;
+        // One socket, two threads: SPI arrives on the CPU thread and the DIO1
+        // poll on a timer. Interleaving a tag with a transfer would desync the
+        // stream and read one answer as another.
+        private readonly object wire = new object();
     }
 }
