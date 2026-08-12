@@ -7,6 +7,7 @@ import (
 
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/op/clip"
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
@@ -131,6 +132,13 @@ func (tb *Table) Layout(t *theme.Theme, gtx layout.Context, onSelect func(key st
 			if len(tb.shown) == 0 {
 				return tb.empty(t, gtx)
 			}
+			// Clipped to the space the flex gave it.
+			//
+			// A scrolling list draws the row that is half off the bottom, and
+			// without a clip that half lands on whatever the flex put beneath -
+			// which is how the node view's total line ended up sitting on top
+			// of its own last row.
+			defer clip.Rect{Max: gtx.Constraints.Max}.Push(gtx.Ops).Pop()
 			return material_List(t, &tb.List).Layout(gtx, len(tb.shown),
 				func(gtx layout.Context, i int) layout.Dimensions {
 					if tb.rows[i].Clicked(gtx) && onSelect != nil {
