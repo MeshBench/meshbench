@@ -45,6 +45,38 @@ type Snapshot struct {
 	// last few so a message cannot scroll away before it is read.
 	Status string
 	Log    []string
+	// Areas are the study boundaries, and MarginKm the band outside them
+	// within which external nodes still matter.
+	Areas    []Area
+	MarginKm float64
+	// Links are the pairs that can hear each other, with the weaker
+	// direction's margin. Computed when the network changes rather than per
+	// frame: it is an n-squared path loss, and the answer only moves when a
+	// node does.
+	Links []Link
+}
+
+// Point is a position, and the only geometry the snapshot carries.
+type Point struct{ Lat, Lon float64 }
+
+// Area is one study boundary: outer rings, and holes that are outside it.
+type Area struct {
+	Name  string
+	Rings [][]Point
+	Holes [][]Point
+}
+
+// Link is a pair that can hear each other.
+type Link struct {
+	// A and B index into Nodes.
+	A, B int
+	// MarginDB is the weaker direction's margin above what that end needs to
+	// decode. Negative is a link that does not close. The weaker direction,
+	// because a link that works in one direction only is not a link.
+	MarginDB float64
+	// Known is false when nothing has computed a margin yet, which is not the
+	// same as a margin of zero and must not be drawn as one.
+	Known bool
 }
 
 // Node is one node, as the interface needs it.
@@ -85,6 +117,15 @@ type World struct {
 	Jobs    []Job
 	Status  string
 	Log     []string
+	// Areas are the study boundaries, and MarginKm the band outside them
+	// within which external nodes still matter.
+	Areas    []Area
+	MarginKm float64
+	// Links are the pairs that can hear each other, with the weaker
+	// direction's margin. Computed when the network changes rather than per
+	// frame: it is an n-squared path loss, and the answer only moves when a
+	// node does.
+	Links []Link
 
 	// Tick is called every step while playing, and is where engine pacing
 	// lives now that it is out of the frame loop. Nil means no engine.
@@ -234,15 +275,24 @@ func (s *Store) publish() {
 	copy(jobs, s.world.Jobs)
 	log := make([]string, len(s.world.Log))
 	copy(log, s.world.Log)
+	// Links and areas are copied too. A snapshot the renderer may hold for
+	// several frames must not alias a slice the store can still append to.
+	links := make([]Link, len(s.world.Links))
+	copy(links, s.world.Links)
+	areas := make([]Area, len(s.world.Areas))
+	copy(areas, s.world.Areas)
 	s.snap.Store(&Snapshot{
-		Seq:     s.seq,
-		NowMs:   s.world.NowMs,
-		Playing: s.world.Playing,
-		Seed:    s.world.Seed,
-		Nodes:   nodes,
-		Jobs:    jobs,
-		Status:  s.world.Status,
-		Log:     log,
+		Seq:      s.seq,
+		NowMs:    s.world.NowMs,
+		Playing:  s.world.Playing,
+		Seed:     s.world.Seed,
+		Nodes:    nodes,
+		Jobs:     jobs,
+		Status:   s.world.Status,
+		Log:      log,
+		Areas:    areas,
+		MarginKm: s.world.MarginKm,
+		Links:    links,
 	})
 }
 

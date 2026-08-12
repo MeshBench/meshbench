@@ -88,37 +88,17 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 		drawn, want = m.Tiles.Draw(gtx, sz, m.CentreLat, m.CentreLon, m.Zoom)
 	}
 
-	// Links, batched. One path, one fill, however many links.
-	//
-	// Which pairs are linked comes from the cache; where they are on screen
-	// does not, so the cull stays here where the camera is known.
-	var lp clip.Path
-	lp.Begin(gtx.Ops)
+	// The study boundaries, under the network.
+	if m.Layers.Boundaries {
+		m.drawAreas(t, gtx, sz, s)
+	}
+
+	// Links, weighted by the margin the engine measured. See mapworld.go.
 	links := 0
-	for _, pr := range m.links.get(pts) {
-		a, b := pts[pr[0]], pts[pr[1]]
-		if offscreen(a, sz) && offscreen(b, sz) {
-			continue
-		}
-		// A link shorter than the node markers at each end is drawn entirely
-		// underneath them. On a national view a third of the links in the
-		// dense clusters are this, and each one still costs a quad to encode
-		// and tessellate.
-		dx, dy := a.x-b.x, a.y-b.y
-		if dx*dx+dy*dy < 64 {
-			continue
-		}
-		segment(&lp, f32.Pt(a.x, a.y), f32.Pt(b.x, b.y), 1)
-		links++
+	if m.Layers.Links {
+		links = m.drawLinks(t, gtx, pts, sz, s)
 	}
-	// End unconditionally. Begin opens a macro, and a macro left open by a
-	// frame with nothing in it panics the next path that tries to start one -
-	// which is a crash on an empty map, the easiest state to reach.
-	spec := lp.End()
-	if links > 0 && m.Layers.Links {
-		paint.FillShape(gtx.Ops, theme.Alpha(t.P.Accent, 0.22),
-			clip.Outline{Path: spec}.Op())
-	}
+	_ = links
 
 	// Nodes, grouped by kind so each kind is one filled path rather than one
 	// per node.
@@ -172,7 +152,8 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 	}
 
 	m.measureReadout(t, gtx, sz)
-	m.scaleBar(t, gtx, sz, basemapNote(drawn, want, m.Tiles != nil && m.Layers.Basemap))
+	m.scaleBar(t, gtx, sz, mapNote(s, basemapNote(drawn, want,
+		m.Tiles != nil && m.Layers.Basemap)))
 	m.layerPanel(t, gtx, sz)
 
 	return layout.Dimensions{Size: sz}

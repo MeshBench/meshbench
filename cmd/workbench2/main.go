@@ -40,14 +40,21 @@ func main() {
 	flag.Parse()
 
 	st := state.New(10)
-	registerVerbs(st)
+	sm := &sim{}
+	registerVerbs(st, sm)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go st.Run(ctx)
 
-	if _, err := st.Do(ctx, "project.open", *fixture); err != nil {
-		fmt.Fprintln(os.Stderr, "loading:", err)
-	}
+	// Opened on a worker, not here. Building the engine for a national
+	// fixture takes a moment, and doing it before the window exists is an
+	// application that has not appeared yet - which is indistinguishable, to
+	// whoever started it, from one that has crashed.
+	go func() {
+		if _, err := st.Do(ctx, "project.open", *fixture); err != nil {
+			fmt.Fprintln(os.Stderr, "loading:", err)
+		}
+	}()
 
 	sh := shell.New()
 	mv := &comp.MapView{}

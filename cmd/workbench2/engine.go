@@ -1,0 +1,140 @@
+// The engine, behind the state layer.
+//
+// The old workbench built an engine and then read it from the frame loop. Here
+// the store owns it: verbs ask it for things, the ticker advances it, and the
+// renderer only ever sees a snapshot. That is the whole point of P0, and it is
+// why the link margins below are computed once when the network changes rather
+// than on every frame that draws them.
+package main
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"sync/atomic"
+
+	"github.com/A13xB0/meshcoresim/internal/coverage"
+	"github.com/A13xB0/meshcoresim/internal/engine"
+	"github.com/A13xB0/meshcoresim/internal/gui/state"
+	"github.com/A13xB0/meshcoresim/internal/linkbudget"
+	"github.com/A13xB0/meshcoresim/internal/scenario"
+	"github.com/A13xB0/meshcoresim/internal/terrain"
+)
+
+// sim holds the engine and the scenario it was built from.
+type sim struct {
+	eng     *engine.Engine
+	nodes   []scenario.Node
+	terr    coverage.Terrain
+	warming atomic.Bool
+}
+
+// terrainStore is the elevation the engine sees.
+//
+// The same on-disk cache the rest of the tool fills, and offline: a path loss
+// computed while a tile downloads is a path loss nobody asked for at a moment
+// nobody chose. Missing tiles answer "no data", which the engine already
+// handles - it is bare earth for that profile and says so.
+func (s *sim) terrain() coverage.Terrain {
+	if s.terr != nil {
+		return s.terr
+	}
+	cache, err := os.UserCacheDir()
+	if err != nil {
+		s.terr = bareEarth{}
+		return s.terr
+	}
+	st, err := terrain.NewTileStore(filepath.Join(cache, "meshcoresim", "terrain"))
+	if err != nil {
+		s.terr = bareEarth{}
+		return s.terr
+	}
+	st.Zoom = terrain.DefaultZoom
+	s.terr = st
+	return s.terr
+}
+
+// bareEarth answers for nowhere, which is not the same as answering zero: the
+// engine treats "no data" as a profile it cannot use rather than as sea level
+// across the Atlantic.
+type bareEarth struct{}
+
+func (bareEarth) ElevationM(float64, float64) (float64, bool) { return 0, false }
+
+// build makes an engine for a set of nodes.
+func (s *sim) build(nodes []scenario.Node, freqMHz float64) {
+	if s.eng != nil {
+		_ = s.eng.Close()
+	}
+	s.nodes = nodes
+	s.eng = engine.New(s.terrain(), engine.Config{
+		FreqMHz: freqMHz, SF: 10, BandwidthHz: 250e3, CodingRate: 1,
+		NoiseFigDB: 6, StepMs: 10, Seed: 9001,
+	})
+	for _, n := range nodes {
+		s.eng.Add(n, nil)
+	}
+}
+
+// links is every pair that can hear each other, with the weaker direction's
+// margin, from the engine's own path loss.
+//
+// n squared, and on the 311 node fixture that is 48,000 path losses - which is
+// why it is a verb that runs once on the store's goroutine and lands in the
+// snapshot, rather than something the map does while drawing.
+func (s *sim) links() []state.Link {
+	if s.eng == nil {
+		return nil
+	}
+	var out []state.Link
+	for i := range s.nodes {
+		for j := i + 1; j < len(s.nodes); j++ {
+			loss, ok := s.eng.PathLossForTest(i, j)
+			if !ok {
+				continue
+			}
+			m := linkbudget.MarginDB(s.nodes[i], s.nodes[j], loss)
+			// A link that does not close in the weaker direction by a wide
+			// margin is not a link anybody wants drawn: below -20 dB the pair
+			// is a different part of the country.
+			if m < -20 {
+				continue
+			}
+			out = append(out, state.Link{A: i, B: j, MarginDB: m, Known: true})
+		}
+	}
+	return out
+}
+
+// warm computes the link margins on a worker and hands them to the store.
+//
+// One at a time: a second warm while the first is running would compute the
+// same thing twice and race to publish it.
+func (s *sim) warm(st *state.Store, nodes int) {
+	if s.eng == nil || s.warming.Swap(true) {
+		return
+	}
+	go func() {
+		defer s.warming.Store(false)
+		ctx := context.Background()
+		total := nodes * (nodes - 1) / 2
+		_, _ = st.Do(ctx, "job.progress", state.Job{
+			ID: "links", What: "measuring every link", Total: total})
+
+		s.eng.WarmLinks(ctx, func(done, of int) {
+			// Not every step: a progress update is a verb, and a verb per
+			// path loss would make the queue the slow part.
+			if done%2000 != 0 {
+				return
+			}
+			_, _ = st.Do(ctx, "job.progress", state.Job{
+				ID: "links", What: "measuring every link", Done: done, Total: of})
+		})
+
+		links := s.links()
+		_, _ = st.Do(ctx, "links.set", links)
+		_, _ = st.Do(ctx, "job.progress", state.Job{
+			ID: "links", What: "measuring every link",
+			Done: total, Total: total, Finished: true})
+	}()
+}

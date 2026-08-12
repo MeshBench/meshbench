@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/A13xB0/meshcoresim/internal/gui/state"
@@ -13,17 +14,37 @@ import (
 // registerVerbs wires the control verbs onto the store. Only the few the new
 // UI needs so far; the rest arrive as their panels do, and the parity test in
 // 12.9 is generated from what is registered here.
-func registerVerbs(st *state.Store) {
+func registerVerbs(st *state.Store, s *sim) {
 	st.Handle("project.open", func(w *state.World, p any) (any, error) {
 		path, _ := p.(string)
-		nodes, err := loadFixture(path)
+		f, err := loadFixture(path)
 		if err != nil {
 			return nil, err
 		}
-		w.Nodes = nodes
+		w.Nodes, w.Areas, w.MarginKm = f.nodes, f.areas, f.margin
 		w.Seed = 9001
-		w.Say(fmt.Sprintf("opened %s: %d nodes", path, len(nodes)))
-		return map[string]any{"opened": path, "nodes": len(nodes)}, nil
+
+		// Build the engine, but do not ask it for margins here.
+		//
+		// A margin is a path loss, and a path loss over real terrain is a
+		// profile sampled along the ground. 48,000 of them is minutes, and
+		// this handler runs on the store's goroutine with the window not yet
+		// open - which is exactly how the first attempt produced an
+		// application that never appeared. So: a job, and a map that draws
+		// proximity links until the real ones arrive.
+		s.build(f.scene, 869.618)
+		w.Links = nil
+		s.warm(st, len(f.scene))
+		// One engine step per tick. Step is the engine's own unit of time
+		// and takes its size from the config, so the store paces it rather
+		// than redefining it.
+		w.Tick = func(uint32) { _ = s.eng.Step(context.Background()) }
+
+		w.Say(fmt.Sprintf("opened %s: %d nodes, %d links, %d areas",
+			path, len(f.nodes), len(w.Links), len(f.areas)))
+		return map[string]any{
+			"opened": path, "nodes": len(f.nodes), "links": len(w.Links),
+		}, nil
 	})
 	st.Handle("sim.play", func(w *state.World, _ any) (any, error) {
 		w.Playing = true
@@ -80,6 +101,30 @@ func registerVerbs(st *state.Store) {
 			}
 		}
 		return map[string]any{"added": n}, nil
+	})
+	st.Handle("links.recompute", func(w *state.World, _ any) (any, error) {
+		// Also the verb a node move calls when the drag ends, so dragging a
+		// node across a country does not recompute every frame of the drag.
+		s.warm(st, len(w.Nodes))
+		return map[string]any{"warming": true}, nil
+	})
+	st.Handle("links.set", func(w *state.World, p any) (any, error) {
+		links, _ := p.([]state.Link)
+		w.Links = links
+		w.Say(fmt.Sprintf("%d links, weighted by the weaker direction's margin",
+			len(links)))
+		return map[string]any{"links": len(links)}, nil
+	})
+	st.Handle("job.progress", func(w *state.World, p any) (any, error) {
+		j, _ := p.(state.Job)
+		for i := range w.Jobs {
+			if w.Jobs[i].ID == j.ID {
+				w.Jobs[i] = j
+				return nil, nil
+			}
+		}
+		w.Jobs = append(w.Jobs, j)
+		return nil, nil
 	})
 	st.Handle("nodes.move", func(w *state.World, p any) (any, error) {
 		m, _ := p.(map[string]any)

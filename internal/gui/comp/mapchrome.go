@@ -9,6 +9,7 @@ import (
 	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
+	"github.com/A13xB0/meshcoresim/internal/gui/state"
 	"github.com/A13xB0/meshcoresim/internal/gui/theme"
 )
 
@@ -19,16 +20,18 @@ import (
 // settings file, because the answer to "why can I not see the links" should be
 // visible on the same screen as the links.
 type Layers struct {
-	Basemap bool
-	Links   bool
-	Nodes   bool
-	Labels  bool
+	Basemap    bool
+	Boundaries bool
+	Links      bool
+	WeakLinks  bool
+	Nodes      bool
+	Labels     bool
 	// Measure puts the map in measuring mode, where a drag reports a distance
 	// and a bearing instead of panning.
 	Measure bool
 
 	set     bool
-	toggles [5]Check
+	toggles [7]Check
 }
 
 // defaults are applied once, so a zero Layers is a sensible map rather than an
@@ -37,7 +40,8 @@ func (l *Layers) defaults() {
 	if l.set {
 		return
 	}
-	l.Basemap, l.Links, l.Nodes, l.Labels, l.set = true, true, true, true, true
+	l.Basemap, l.Boundaries, l.Links = true, true, true
+	l.Nodes, l.Labels, l.set = true, true, true
 }
 
 type layerRow struct {
@@ -48,7 +52,9 @@ type layerRow struct {
 func (l *Layers) rows() []layerRow {
 	return []layerRow{
 		{"Basemap", &l.Basemap},
+		{"Boundaries", &l.Boundaries},
 		{"Links", &l.Links},
+		{"Weak links", &l.WeakLinks},
 		{"Nodes", &l.Nodes},
 		{"Labels", &l.Labels},
 		{"Measure", &l.Measure},
@@ -71,29 +77,39 @@ func (m *MapView) layerPanel(t *theme.Theme, gtx layout.Context, sz image.Point)
 		}
 	}
 
-	// In device pixels, via Dp: a raw constant here is a panel that is the
-	// right size on one display and half of it on the next.
-	w := gtx.Dp(150)
-	h := gtx.Dp(t.Sp.S)*2 + len(rows)*gtx.Dp(t.RowHeight())
-	at := image.Pt(sz.X-w-gtx.Dp(t.Sp.M), gtx.Dp(t.Sp.M))
+	// Measure the rows, then draw a box that fits them.
+	//
+	// Sized by arithmetic - rows times row height plus inset - the box was a
+	// row and a half short, because a checkbox is not a table row and never
+	// agreed to be one. Recording the content first costs one macro and
+	// cannot be wrong.
+	pad := gtx.Dp(t.Sp.S)
+	inner := gtx
+	inner.Constraints.Min = image.Point{}
+	inner.Constraints.Max = image.Pt(gtx.Dp(200), sz.Y)
+
+	rec := op.Record(gtx.Ops)
+	var kids []layout.FlexChild
+	for i := range rows {
+		i := i
+		kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return m.Layers.toggles[i].Layout(t, gtx)
+		}))
+	}
+	dims := layout.Flex{Axis: layout.Vertical}.Layout(inner, kids...)
+	content := rec.Stop()
+
+	box := image.Pt(dims.Size.X+pad*2, dims.Size.Y+pad*2)
+	at := image.Pt(sz.X-box.X-gtx.Dp(t.Sp.M), gtx.Dp(t.Sp.M))
 	off := op.Offset(at).Push(gtx.Ops)
 	defer off.Pop()
 
-	paint.FillShape(gtx.Ops, theme.Alpha(t.P.Panel, 0.88),
-		clip.Rect{Max: image.Pt(w, h)}.Op())
-	Border(gtx, image.Pt(w, h), 2, 1, t.P.Rule)
+	paint.FillShape(gtx.Ops, theme.Alpha(t.P.Panel, 0.88), clip.Rect{Max: box}.Op())
+	Border(gtx, box, 2, 1, t.P.Rule)
 
-	gtx.Constraints = layout.Exact(image.Pt(w, h))
-	layout.UniformInset(t.Sp.S).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		var kids []layout.FlexChild
-		for i := range rows {
-			i := i
-			kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return m.Layers.toggles[i].Layout(t, gtx)
-			}))
-		}
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, kids...)
-	})
+	in := op.Offset(image.Pt(pad, pad)).Push(gtx.Ops)
+	content.Add(gtx.Ops)
+	in.Pop()
 }
 
 // scaleBar draws a bar of a round number of kilometres, and says how round.
@@ -236,4 +252,17 @@ func above(gtx layout.Context, at image.Point, gap int, w layout.Widget) {
 	off := op.Offset(image.Pt(at.X, at.Y-d.Size.Y-gap)).Push(gtx.Ops)
 	call.Add(gtx.Ops)
 	off.Pop()
+}
+
+// mapNote adds the study margin to the attribution line.
+//
+// The margin was drawn as a band of circles around the boundary, which
+// rendered as a row of visible octagons and read as geography rather than as
+// a rule. A boundary is a line and a margin is a number; the honest drawing of
+// a number is the number.
+func mapNote(s *state.Snapshot, basemap string) string {
+	if s == nil || s.MarginKm <= 0 {
+		return basemap
+	}
+	return fmt.Sprintf("study margin %g km    %s", s.MarginKm, basemap)
 }

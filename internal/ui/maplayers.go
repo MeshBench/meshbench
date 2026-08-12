@@ -6,7 +6,7 @@ import (
 
 	"github.com/AllenDang/cimgui-go/imgui"
 
-	"github.com/A13xB0/meshcoresim/internal/scenario"
+	"github.com/A13xB0/meshcoresim/internal/linkbudget"
 )
 
 // mapLayers is which optional overlays are drawn.
@@ -261,16 +261,9 @@ func (a *App) linkMargin(i, j int) (float64, bool) {
 	if !ok {
 		return 0, false
 	}
-	ni, nj := a.Nodes[i], a.Nodes[j]
-	gain := func(n scenario.Node) float64 {
-		if n.Antenna.Pattern == nil {
-			return 0
-		}
-		return n.Antenna.Pattern.PeakDBi() - n.Antenna.FeedlineDB
-	}
-	out := ni.TxPowerDBm + gain(ni) - loss + gain(nj)
-	in := nj.TxPowerDBm + gain(nj) - loss + gain(ni)
-	floor := noiseFloorFor(nj) + requiredSNR(nj)
-	floorBack := noiseFloorFor(ni) + requiredSNR(ni)
-	return math.Min(out-floor, in-floorBack), true
+	// Through internal/linkbudget, which the new interface uses too. Two
+	// copies of a link budget drift in the direction of whichever one somebody
+	// last looked at, and the map and the budget panel disagreeing about
+	// whether a link closes is the worst version of that.
+	return linkbudget.MarginDB(a.Nodes[i], a.Nodes[j], loss), true
 }
