@@ -64,9 +64,42 @@ type Board struct {
 	// a chip that is not there.
 	QEMU *QEMUWiring
 
+	// Renode is the ARM equivalent, for the nRF52 boards. A board has one or
+	// the other, never both: which emulator can run it follows from its MCU.
+	Renode *RenodeWiring
+
 	// Notes carries anything an engineer would want to know before trusting a
 	// figure here.
 	Notes string
+}
+
+// RenodeWiring is the same idea for the nRF52 boards, which run under Renode.
+//
+// Two of these mattered more than the rest and neither is guessable. The radio
+// is on SPIM3 at 0x4002F000 - the high-speed controller the nRF52840 adds,
+// which Renode does not model at all, so a node wired to any other controller
+// transfers bytes into an address with nothing behind it. And chip select is a
+// GPIO: Renode's SPI model never calls FinishTransmission, so without the NSS
+// pin wired the chip takes bytes for ever and executes no command.
+type RenodeWiring struct {
+	// Platform is the base platform description, relative to Renode's own
+	// directory.
+	Platform string
+
+	// SPIBase is where the controller the radio hangs off lives.
+	SPIBase uint32
+
+	// NssPort and NssPin are the GPIO carrying chip select: the port as Renode
+	// names it, and the pin within that port. On a RAK4631 the radio's NSS is
+	// P1.10, which is pin 42 in the flat numbering the Arduino core uses.
+	NssPort string
+	NssPin  int
+
+	// IrqPort and IrqPin are DIO1, which is how the chip tells this MCU that a
+	// packet arrived or a transmission finished. The ESP32 firmware polls the
+	// IRQ register over SPI instead and does not need this.
+	IrqPort string
+	IrqPin  int
 }
 
 // QEMUWiring is everything an emulated node needs beyond its firmware image.
@@ -227,6 +260,8 @@ var boards = []Board{
 			"whose sleep current does not matter. Check the licence conditions before " +
 			"simulating it at full power.",
 	},
+
+	rak4631Board,
 }
 
 // Boards returns the profiles, sorted.
@@ -253,6 +288,37 @@ func BoardByName(name string) (Board, error) {
 		name, strings.Join(names, ", "))
 }
 
+// rak4631Board is the first nRF52 board to run its published firmware here.
+//
+// Verified the same way the E22 was: its own image, off the flasher, booting
+// and putting an advert on the channel - MBR to SoftDevice to application, then
+// SetStandby, SetDIO3AsTCXOCtrl, SetPacketType(LoRa) and a 127-byte advert.
+var rak4631Board = Board{
+	Name:   "RAK_4631",
+	MCU:    "nRF52840",
+	Radio:  "SX1262",
+	Vendor: "RAKwireless",
+
+	MaxTxDBm:       22,
+	FeedlineDB:     0.6,
+	AntennaDBi:     2.0,
+	SensitivityDBm: -137,
+	NoiseFigureDB:  6,
+
+	Renode: &RenodeWiring{
+		Platform: "platforms/cpus/nrf52840.repl",
+		SPIBase:  0x4002F000,
+		NssPort:  "gpio1",
+		NssPin:   10,
+		IrqPort:  "gpio1",
+		IrqPin:   15,
+	},
+
+	Notes: "Published .uf2 images are linked above a Nordic SoftDevice, which " +
+		"cannot be redistributed - anyone running one supplies their own copy. " +
+		"The radio is on SPIM3, which stock Renode does not model.",
+}
+
 // EmulationVerified lists the boards whose firmware has actually been booted
 // under emulation and driven its radio.
 //
@@ -267,6 +333,7 @@ func BoardByName(name string) (Board, error) {
 // question of whether anyone has confirmed it.
 var EmulationVerified = []string{
 	"Generic_E22_sx1262",
+	"RAK_4631",
 }
 
 // EmulationSupported reports whether a board can be run under emulation today.

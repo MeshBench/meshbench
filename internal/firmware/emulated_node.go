@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -20,6 +21,16 @@ import (
 const (
 	EnvQEMU        = "MESHCORESIM_QEMU"
 	EnvRadioServer = "MESHCORESIM_RADIO_SERVER"
+)
+
+// Emulator is which one runs a node. It follows from the board's MCU rather
+// than from a preference: QEMU has the Xtensa cores and Renode has the ARM
+// ones, and neither will take the other's firmware.
+type Emulator int
+
+const (
+	QEMU Emulator = iota
+	Renode
 )
 
 // EmulatedNode is one node running a published board image under QEMU.
@@ -45,13 +56,117 @@ type EmulatedNode struct {
 	FlashMB  int
 	NodeName string
 
+	// Emulator selects QEMU or Renode.
+	Emulator Emulator
+
+	// Renode wiring. Platform is its base description; the rest is where the
+	// radio hangs off and which pins carry chip select and DIO1. Chip select
+	// matters more than it looks: Renode's SPI model never ends a transmission,
+	// so without the pin the chip takes bytes for ever and executes no command.
+	Platform string
+	SPIBase  uint32
+	NssPort  string
+	NssPin   int
+	IrqPort  string
+	IrqPin   int
+
 	// Dir is where the socket and logs live for this node.
 	Dir string
 
-	mu    sync.Mutex
-	qemu  *exec.Cmd
-	radio *exec.Cmd
-	sock  string
+	mu        sync.Mutex
+	qemu      *exec.Cmd
+	radio     *exec.Cmd
+	sock      string
+	radioPort int
+}
+
+// startRenode writes the machine description this node needs and runs it.
+//
+// Generated rather than kept as a file, because three of the values are
+// per-node: the radio model's port, the node's own working directory, and the
+// image. A shared script would need all three passed in anyway.
+func (e *EmulatedNode) startRenode(ctx context.Context) error {
+	renodeBin, err := lookupTool(EnvRenode, "renode")
+	if err != nil {
+		return err
+	}
+	tools := ToolsDir()
+	script := filepath.Join(e.Dir, "node.resc")
+	body := fmt.Sprintf(`i @%[1]s/peripherals/RadioServerSX1262.cs
+i @%[1]s/peripherals/NRF52840_Temp.cs
+i @%[1]s/peripherals/NRF52840_Clock.cs
+i @%[1]s/peripherals/NRF52840_SAADC.cs
+i @%[1]s/peripherals/NRF52840_TWIM.cs
+
+mach create "%[2]s"
+machine LoadPlatformDescription @%[3]s
+machine LoadPlatformDescription @%[1]s/ficr.repl
+machine LoadPlatformDescription @%[1]s/uicr.repl
+machine LoadPlatformDescription @%[1]s/temp.repl
+sysbus Unregister sysbus.clock
+machine LoadPlatformDescription @%[1]s/clock.repl
+machine LoadPlatformDescription @%[1]s/saadc.repl
+sysbus Unregister sysbus.twi0
+sysbus Unregister sysbus.twi1
+machine LoadPlatformDescription @%[1]s/twim.repl
+
+spi3: SPI.NRF52840_SPI @ sysbus 0x%[4]X
+    easyDMA: true
+
+lora: Radio.RadioServerSX1262 @ spi3
+    host: "127.0.0.1"
+    port: %[5]d
+    IRQ -> %[6]s@%[7]d
+
+%[8]s:
+    %[9]d -> lora@0
+
+sysbus LoadBinary @%[10]s 0x0
+spi3.lora Connect
+start
+`, tools, e.NodeName, e.Platform, e.SPIBase, e.radioPort,
+		e.IrqPort, e.IrqPin, e.NssPort, e.NssPin, e.Image)
+	if err := os.WriteFile(script, []byte(body), 0o644); err != nil {
+		return err
+	}
+
+	log, err := os.Create(filepath.Join(e.Dir, "console.log"))
+	if err != nil {
+		return err
+	}
+	e.qemu = exec.CommandContext(ctx, renodeBin,
+		"--disable-xwt", "--console", "-e", "include @"+script)
+	e.qemu.Stdout, e.qemu.Stderr = log, log
+	if err := e.qemu.Start(); err != nil {
+		return fmt.Errorf("firmware: starting the emulator: %w", err)
+	}
+	return nil
+}
+
+// waitForPort reads back the port the radio model chose.
+//
+// Asked for rather than assumed: a scenario starting several emulated nodes at
+// once cannot pick ports itself without racing, so the model takes 0, binds
+// whatever it gets, and prints it.
+func waitForPort(ctx context.Context, logPath string) (int, error) {
+	for i := 0; i < 200; i++ {
+		if b, err := os.ReadFile(logPath); err == nil {
+			if i := strings.Index(string(b), "127.0.0.1:"); i >= 0 {
+				rest := string(b)[i+len("127.0.0.1:"):]
+				if j := strings.IndexAny(rest, "\r\n"); j > 0 {
+					if p, err := strconv.Atoi(strings.TrimSpace(rest[:j])); err == nil {
+						return p, nil
+					}
+				}
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return 0, ctx.Err()
+		case <-time.After(25 * time.Millisecond):
+		}
+	}
+	return 0, fmt.Errorf("firmware: the radio model never said which port it took")
 }
 
 func (e *EmulatedNode) Kind() string { return "emulated" }
@@ -79,8 +194,15 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	if err := os.MkdirAll(e.Dir, 0o755); err != nil {
 		return err
 	}
-	e.sock = filepath.Join(e.Dir, "radio.sock")
-	_ = os.Remove(e.sock)
+	if e.Emulator == Renode {
+		// Renode runs on Mono, whose Unix domain socket support is not worth
+		// betting a node on. Port 0 asks the radio model to choose, and it
+		// prints what it got.
+		e.sock = ":0"
+	} else {
+		e.sock = filepath.Join(e.Dir, "radio.sock")
+		_ = os.Remove(e.sock)
+	}
 
 	radioBin, err := lookupTool(EnvRadioServer, "radioserver")
 	if err != nil {
@@ -104,9 +226,24 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	if err := e.radio.Start(); err != nil {
 		return fmt.Errorf("firmware: starting the radio model: %w", err)
 	}
-	if err := waitForSocket(ctx, e.sock); err != nil {
+	if e.Emulator == Renode {
+		port, err := waitForPort(ctx, filepath.Join(e.Dir, "radio.log"))
+		if err != nil {
+			_ = e.stopLocked()
+			return err
+		}
+		e.radioPort = port
+	} else if err := waitForSocket(ctx, e.sock); err != nil {
 		_ = e.stopLocked()
 		return err
+	}
+
+	if e.Emulator == Renode {
+		if err := e.startRenode(ctx); err != nil {
+			_ = e.stopLocked()
+			return err
+		}
+		return nil
 	}
 
 	machine := fmt.Sprintf("%s,radio-path=%s,radio-spi=%d,radio-nss=%d,radio-busy=%d",

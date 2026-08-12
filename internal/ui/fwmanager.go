@@ -115,6 +115,20 @@ const fwSortDefault = -1
 // here so the drawing loop stays a drawing loop. Ties fall back to role then
 // version, so a sort on a column with many equal values still produces a stable
 // reading order rather than shuffling on every frame.
+// fwDrainDownloadMsg moves a finished download's message onto the status line.
+//
+// The download runs on its own goroutine and the status line belongs to the
+// frame thread, so the message is parked under the mutex and collected here.
+func (a *App) fwDrainDownloadMsg() {
+	a.fwDlMu.Lock()
+	msg := a.fwDoneMsg
+	a.fwDoneMsg = ""
+	a.fwDlMu.Unlock()
+	if msg != "" {
+		a.status = msg
+	}
+}
+
 func fwSortRows(rows []fwRow, col int, ascending bool) {
 	less := func(i, j int) bool {
 		a, b := rows[i], rows[j]
@@ -163,7 +177,18 @@ func fwSortRows(rows []fwRow, col int, ascending bool) {
 		if a.Role != b.Role {
 			return a.Role < b.Role
 		}
-		return a.Version > b.Version
+		if a.Version != b.Version {
+			return a.Version > b.Version
+		}
+		// Board, then the asset name, so the comparator is a total order.
+		// Without these two the rows that tie were left in whatever order they
+		// came out of a map - and Go randomises that per iteration, so the
+		// table reshuffled every frame and read as flashing. It only appeared
+		// once more than one board published the same role and version.
+		if a.Board != b.Board {
+			return a.Board < b.Board
+		}
+		return a.key() < b.key()
 	}
 	if col == fwSortDefault {
 		// The default is one order, not an ascending and a descending one.
@@ -234,7 +259,11 @@ func (a *App) boardImageFor(board, role, version string) (firmware.BoardImage, e
 	}
 	var roles []string
 	for _, img := range a.fw.boardImages() {
-		if !strings.EqualFold(img.Board, board) || !img.Merged || img.Format != "bin" {
+		// Bootable means different things per family: a merged .bin for the
+		// ESP32 boards, a .uf2 for the nRF52 ones, which are never merged
+		// because their bootloader and SoftDevice are flashed separately.
+		bootable := (img.Format == "bin" && img.Merged) || img.Format == "uf2"
+		if !strings.EqualFold(img.Board, board) || !bootable {
 			continue
 		}
 		if img.Version == version && img.Role == role {
@@ -581,6 +610,10 @@ func (a *App) downloadImage(img firmware.BoardImage) {
 			return
 		}
 		a.fwDownloadErr = ""
+		// Said, not left. The status line kept reading "downloading" after the
+		// file had landed, so the only way to learn it had worked was to
+		// dismiss the message and go and look at the row.
+		a.fwDoneMsg = img.Name + " downloaded"
 	}()
 }
 

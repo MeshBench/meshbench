@@ -230,7 +230,17 @@ const maxReleasePages = 10
 func Runnable(images []BoardImage, wired func(board string) bool) []BoardImage {
 	var out []BoardImage
 	for _, img := range images {
-		if !img.Merged || img.Format != "bin" {
+		// A merged .bin for the ESP32 boards, a .uf2 for the nRF52 ones. The
+		// nRF52 images are not merged - the bootloader and SoftDevice are
+		// flashed separately on real hardware and supplied separately here -
+		// so requiring "merged" would reject every one of them.
+		switch img.Format {
+		case "bin":
+			if !img.Merged {
+				continue
+			}
+		case "uf2":
+		default:
 			continue
 		}
 		if wired != nil && !wired(img.Board) {
