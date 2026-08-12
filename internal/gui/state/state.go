@@ -57,8 +57,10 @@ type Snapshot struct {
 	Links []Link
 	// Trails are recent transmissions for the map to fade out.
 	Trails []Trail
-	// Coverage is the raster last asked for, or nil.
+	// Coverage is the raster last asked for, or nil. Shade is the hillshade
+	// for the view it was computed over.
 	Coverage *Coverage
+	Shade    *Coverage
 }
 
 // Point is a position, and the only geometry the snapshot carries.
@@ -164,8 +166,10 @@ type World struct {
 	// that has been going for an hour has more of them than a map can say
 	// anything about.
 	Trails []Trail
-	// Coverage is the raster last asked for, or nil.
+	// Coverage is the raster last asked for, or nil. Shade is the hillshade
+	// for the view it was computed over.
 	Coverage *Coverage
+	Shade    *Coverage
 
 	// Tick is called every step while playing, and is where engine pacing
 	// lives now that it is out of the frame loop. Nil means no engine.
@@ -337,6 +341,7 @@ func (s *Store) publish() {
 		Links:    links,
 		Trails:   trails,
 		Coverage: s.world.Coverage,
+		Shade:    s.world.Shade,
 	})
 }
 

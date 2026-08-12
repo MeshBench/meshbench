@@ -38,6 +38,7 @@ func main() {
 	profFlag := flag.String("cpuprofile", "", "write a CPU profile here")
 	playFlag := flag.Bool("play", false, "start the simulation immediately")
 	injectFlag := flag.String("inject", "", "originate a packet at this node once running")
+	shadeFlag := flag.Bool("terrain", false, "shade the relief at startup")
 	coverFlag := flag.String("coverage", "",
 		"compute and show coverage from this node at startup")
 	injectEvery := flag.Duration("inject-every", 0,
@@ -112,11 +113,29 @@ func main() {
 		mv.Layers.Coverage = true
 		go func() { _, _ = st.Do(ctx, "coverage.compute", *coverFlag) }()
 	}
+	// The map reports what it can see; whatever wants to compute something
+	// for that view reads it here rather than duplicating the projection.
+	var view [4]float64
+	mv.ViewBox = func(south, north, west, east float64) {
+		view = [4]float64{south, north, west, east}
+	}
+	if *shadeFlag {
+		mv.Layers.Terrain = true
+		go func() {
+			// After a frame or two, so the view box is the view rather than
+			// the zero value.
+			time.Sleep(2 * time.Second)
+			_, _ = st.Do(ctx, "terrain.shade", view)
+		}()
+	}
 	mv.OnLayerOn = func(layer string) {
-		if layer != "Coverage" {
-			return
+		switch layer {
+		case "Coverage":
+			go func() { _, _ = st.Do(ctx, "coverage.compute", nil) }()
+		case "Terrain":
+			box := view
+			go func() { _, _ = st.Do(ctx, "terrain.shade", box) }()
 		}
-		go func() { _, _ = st.Do(ctx, "coverage.compute", nil) }()
 	}
 
 	nodes := &nodesPanel{}

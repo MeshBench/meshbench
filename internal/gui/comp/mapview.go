@@ -37,8 +37,13 @@ type MapView struct {
 	cutSeq      uint64
 	covOp       paint.ImageOp
 	covFor      string
-	labels      labeller
-	sizes       labelSizer
+	shadeOp     paint.ImageOp
+	shadeFor    string
+	// ViewBox reports the visible bounds after each frame, so whatever wants
+	// to compute something for this view can ask for the right area.
+	ViewBox func(south, north, west, east float64)
+	labels  labeller
+	sizes   labelSizer
 	// Layers is what is drawn. Exported so a window, a menu or a script can
 	// set it without reaching through the map.
 	Layers Layers
@@ -94,6 +99,11 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 	drawn, want := 0, 0
 	if m.Tiles != nil && m.Layers.Basemap {
 		drawn, want = m.Tiles.Draw(gtx, sz, m.CentreLat, m.CentreLon, m.Zoom)
+	}
+
+	// Relief over the basemap and under everything else.
+	if m.Layers.Terrain && s.Shade != nil {
+		m.drawRaster(gtx, sz, s.Shade, &m.shadeOp, &m.shadeFor)
 	}
 
 	// Coverage under everything but the basemap: it is the ground a network
@@ -178,6 +188,11 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 		m.coverageLegend(t, gtx, sz, s)
 	}
 
+	if m.ViewBox != nil {
+		south, west := m.unproject(f32.Pt(0, float32(sz.Y)), sz)
+		north, east := m.unproject(f32.Pt(float32(sz.X), 0), sz)
+		m.ViewBox(south, north, west, east)
+	}
 	return layout.Dimensions{Size: sz}
 }
 

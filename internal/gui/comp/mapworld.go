@@ -284,14 +284,20 @@ func (m *MapView) drawTrails(t *theme.Theme, gtx layout.Context, pts []projected
 	}
 }
 
-// drawCoverage paints the raster under the network, and its legend over it.
-//
-// Under, because coverage is the ground a network sits on: drawn over the
-// links it would hide the thing it is meant to explain.
+// drawCoverage paints the coverage raster under the network.
 func (m *MapView) drawCoverage(t *theme.Theme, gtx layout.Context, sz image.Point,
 	s *state.Snapshot) {
+	m.drawRaster(gtx, sz, s.Coverage, &m.covOp, &m.covFor)
+}
 
-	c := s.Coverage
+// drawRaster paints a geographic image into its place on the map.
+//
+// Shared by coverage and by the hillshade, because they are the same problem:
+// an image with corners in degrees, drawn where those corners land, with the
+// upload done once rather than per frame.
+func (m *MapView) drawRaster(gtx layout.Context, sz image.Point, c *state.Coverage,
+	cached *paint.ImageOp, cachedFor *string) {
+
 	if c == nil || c.Image == nil {
 		return
 	}
@@ -301,15 +307,15 @@ func (m *MapView) drawCoverage(t *theme.Theme, gtx layout.Context, sz image.Poin
 	if w < 1 || h < 1 {
 		return
 	}
-	if m.covOp.Size().X == 0 || m.covFor != c.Node {
-		m.covOp = paint.NewImageOp(c.Image)
-		m.covFor = c.Node
+	if *cachedFor != c.Node || cached.Size().X == 0 {
+		*cached = paint.NewImageOp(c.Image)
+		*cachedFor = c.Node
 	}
 	off := op.Offset(image.Pt(int(nw.X), int(nw.Y))).Push(gtx.Ops)
 	cl := clip.Rect{Max: image.Pt(int(w)+1, int(h)+1)}.Push(gtx.Ops)
 	b := c.Image.Bounds()
 	sc := op.Affine(f32Scale(w/float32(b.Dx()), h/float32(b.Dy()))).Push(gtx.Ops)
-	m.covOp.Add(gtx.Ops)
+	cached.Add(gtx.Ops)
 	paint.PaintOp{}.Add(gtx.Ops)
 	sc.Pop()
 	cl.Pop()

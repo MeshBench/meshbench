@@ -236,6 +236,35 @@ func registerVerbs(st *state.Store, s *sim) {
 		}
 		return map[string]any{"node": cov.Node}, nil
 	})
+	st.Handle("terrain.shade", func(w *state.World, p any) (any, error) {
+		box, _ := p.([4]float64)
+		if box == [4]float64{} {
+			return nil, fmt.Errorf("no view to shade")
+		}
+		go func() {
+			ctx := context.Background()
+			sh, err := s.hillshade(box[0], box[1], box[2], box[3])
+			if err != nil || sh == nil {
+				_, _ = st.Do(ctx, "terrain.shade_failed", nil)
+				return
+			}
+			_, _ = st.Do(ctx, "terrain.shade_set", sh)
+		}()
+		return map[string]any{"shading": true}, nil
+	})
+	st.Handle("terrain.shade_set", func(w *state.World, p any) (any, error) {
+		sh, _ := p.(*state.Coverage)
+		w.Shade = sh
+		if sh != nil && sh.NoDataCells > sh.Cells/2 {
+			w.Say("terrain shading: most of this view has no elevation data cached")
+		}
+		return nil, nil
+	})
+	st.Handle("terrain.shade_failed", func(w *state.World, _ any) (any, error) {
+		w.Shade = nil
+		w.Say("terrain shading: no elevation data for this view")
+		return nil, nil
+	})
 	st.Handle("coverage.clear", func(w *state.World, _ any) (any, error) {
 		w.Coverage = nil
 		return nil, nil
