@@ -1,0 +1,19 @@
+// SPIM3 at 0x4002F000, absent from Renode's nRF52840 platform, with the SX1262
+// on it.
+//
+// This is the controller the RAK4631's radio is actually wired to, and the one
+// the Adafruit core's SPI object drives on this part. Renode declares spi0..2
+// and stops, so every transfer the firmware made went to an address with no
+// peripheral behind it: reads returned zero, EVENTS_END never arrived, and it
+// polled 0x118 for ever.
+//
+// It looked like a crypto engine because 0x4002F000 is easy to misread as
+// CryptoCell. The register offsets are what settled it - 0x118 EVENTS_END,
+// 0x304 INTENSET, 0x308 INTENCLR are a SPIM, not a crypto block.
+spi3: SPI.NRF52840_SPI @ sysbus 0x4002F000
+    easyDMA: true
+    -> nvic@0x2F
+
+lora: Radio.RadioServerSX1262 @ spi3
+    host: "127.0.0.1"
+    port: 7777

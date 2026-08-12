@@ -125,6 +125,41 @@ faults within **45 instructions** pushing an exception frame to a bogus stack.
 SP and PC must be read from the vector table of whatever boots first — the MBR's
 at 0, not the application's. `uf2tobin.py` prints both.
 
+## The radio is on SPIM3, and that was the whole problem
+
+0x4002F000 is NRF_SPIM3_BASE - the high-speed SPI controller the nRF52840 adds
+and the one the RAK4631's radio is wired to. Renode's platform declares spi0..2
+and stops there, so every transfer the firmware made went to an address with no
+peripheral behind it. Reads returned zero, EVENTS_END never arrived, and it
+polled 0x118 for ever.
+
+It was briefly written up here as CryptoCell, because 0x4002F000 is easy to
+misread as the crypto block. The register offsets settled it: 0x118 EVENTS_END,
+0x304 INTENSET, 0x308 INTENCLR are a SPIM.
+
+With spim3.repl the published RAK4631 firmware configures the chip: **3,320
+bytes of SPI into the same VirtualSX1262 a native node uses.** That is real
+radio initialisation - packet type, frequency, modulation parameters,
+calibration - by the bytes people flash.
+
+## What is missing now: the DIO1 interrupt
+
+After those 3,320 bytes the firmware stops touching SPI, and stays silent for
+420 seconds of its own time (RTC1 at 1024 Hz reads 430,213 ticks). It is not
+polling the chip for interrupt flags; it is waiting on the DIO1 pin, and nothing
+drives it.
+
+The radio model has no way to say so. Its emulator protocol is four tags - chip
+select, transfer, and read-busy - with no interrupt channel, because the QEMU
+path did not need one. Closing this needs:
+
+  - a read-IRQ tag in radioserver, answering the chip's IRQ line
+  - the Renode peripheral polling it and driving a GPIO
+  - that GPIO wired to P_LORA_DIO_1 for the board in question
+
+That is the last piece for an nRF52 node, and it is small - but it spans both
+repositories and is not something to half-finish.
+
 ## Where it stops now, and why a stub would be worse than a stall
 
 After TEMP, the calibration timer, SAADC and TWIM, the published RAK4631 build

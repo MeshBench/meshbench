@@ -15,7 +15,7 @@ sysbus Unregister sysbus.spi2
 sysbus Unregister sysbus.twi0
 sysbus Unregister sysbus.twi1
 machine LoadPlatformDescription @tools/renode/twim.repl
-machine LoadPlatformDescription @tools/renode/radio.repl
+machine LoadPlatformDescription @tools/renode/spim3.repl
 
 : Erased flash, then every real region in flash order. Erased matters: the MBR
 : decides whether a bootloader exists by testing words against 0xFFFFFFFF, and
@@ -57,5 +57,5 @@ sysbus WriteDoubleWord 0xFFC 0xFFFFFFFF
 sysbus WriteDoubleWord 0xFF8 0xFFFFFFFF
 sysbus WriteDoubleWord 0xFFC 0xFFFFFFFF
 uart0 CreateFileBackend @/tmp/rak_uart.log true
-spi2.lora Connect
+spi3.lora Connect
 start
