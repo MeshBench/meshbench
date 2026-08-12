@@ -9,6 +9,7 @@ package shell
 
 import (
 	"image"
+	"sort"
 
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -77,6 +78,27 @@ type MenuItem struct {
 	Action   string
 	Shortcut string
 	click    widget.Clickable
+}
+
+// WindowMenu fills a menu with every panel that can become a window.
+//
+// Generated rather than hand-listed. A written list is a list that goes stale
+// the moment a panel is added, and the symptom is somebody looking for a panel
+// they had before and not finding it - which is exactly what a hand-written
+// Window menu of three entries did.
+func (sh *Shell) WindowMenu(name string) {
+	names := make([]string, 0, len(sh.Panels))
+	for n, p := range sh.Panels {
+		if p != nil && p.Windowable {
+			names = append(names, n)
+		}
+	}
+	sort.Strings(names)
+	items := make([]MenuItem, 0, len(names))
+	for _, n := range names {
+		items = append(items, MenuItem{Label: n, Action: "panel." + n})
+	}
+	sh.SetMenu(name, items)
 }
 
 // SetMenu gives a menu its entries.

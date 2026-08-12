@@ -416,11 +416,9 @@ func main() {
 		{Label: "Boundary", Action: "panel.Boundary"},
 		{Label: "Import a live network", Action: "panel.Import"},
 	})
-	sh.SetMenu("Window", []shell.MenuItem{
-		{Label: "Map in its own window", Action: "panel.Map"},
-		{Label: "Scoreboard in its own window", Action: "panel.Scoreboard"},
-		{Label: "Events in its own window", Action: "panel.Events"},
-	})
+	// Every windowable panel, generated. A hand-written list of three left
+	// somebody hunting for the Nodes window they had before.
+	sh.WindowMenu("Window")
 	sh.SetMenu("Help", []shell.MenuItem{
 		{Label: "What this run assumes", Action: "panel.Configuration"},
 	})
