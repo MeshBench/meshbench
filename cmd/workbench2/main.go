@@ -39,6 +39,7 @@ func main() {
 	profFlag := flag.String("cpuprofile", "", "write a CPU profile here")
 	playFlag := flag.Bool("play", false, "start the simulation immediately")
 	injectFlag := flag.String("inject", "", "originate a packet at this node once running")
+	importFlag := flag.String("import", "", "describe an import from this CoreScope URL at startup")
 	planFlag := flag.String("plan", "", "plan between the selected node and this one at startup")
 	sweepFlag := flag.Bool("sweep", false, "run the default sweep at startup")
 	saveRunFlag := flag.String("save-run", "", "save a run record under this name, then keep running")
@@ -134,6 +135,12 @@ func main() {
 			// After the run has had time to produce counters worth recording.
 			time.Sleep(18 * time.Second)
 			_, _ = st.Do(ctx, "run.save", *saveRunFlag)
+		}()
+	}
+	if *importFlag != "" {
+		go func() {
+			time.Sleep(4 * time.Second)
+			_, _ = st.Do(ctx, "import.describe", *importFlag)
 		}()
 	}
 	if *planFlag != "" {
@@ -262,6 +269,11 @@ func main() {
 		Draw: func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
 			return wf.Layout(t, gtx, s)
 		}})
+	imp := &importPanel{}
+	imp.OnFetch = func(url string) {
+		go func() { _, _ = st.Do(ctx, "import.describe", url) }()
+	}
+	sh.Add(&shell.Panel{Name: "Import", Windowable: true, Draw: imp.Draw})
 	plan := &planPanel{}
 	plan.OnRun = func() {
 		go func() { _, _ = st.Do(ctx, "plan.routes", nil) }()

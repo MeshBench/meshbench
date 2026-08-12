@@ -7,6 +7,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/A13xB0/meshcoresim/internal/gui/state"
 )
@@ -493,6 +494,36 @@ func registerVerbs(st *state.Store, s *sim) {
 	st.Handle("plan.failed", func(w *state.World, p any) (any, error) {
 		msg, _ := p.(string)
 		w.Say("planning: " + msg)
+		return nil, nil
+	})
+	st.Handle("import.describe", func(w *state.World, p any) (any, error) {
+		url, _ := p.(string)
+		w.Say("fetching " + url)
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+			defer cancel()
+			im, err := importFrom(ctx, url)
+			if err != nil {
+				_, _ = st.Do(context.Background(), "import.failed", err.Error())
+				return
+			}
+			_, _ = st.Do(context.Background(), "import.set", im)
+		}()
+		return map[string]any{"url": url}, nil
+	})
+	st.Handle("import.set", func(w *state.World, p any) (any, error) {
+		im, _ := p.(*state.Import)
+		w.Import = im
+		if im != nil {
+			w.Say(fmt.Sprintf(
+				"%s: %d records, %d importable, %d with no position, %d placed loosely",
+				im.URL, im.Records, im.Nodes, im.SkippedNoPosition, im.Uncertain))
+		}
+		return nil, nil
+	})
+	st.Handle("import.failed", func(w *state.World, p any) (any, error) {
+		msg, _ := p.(string)
+		w.Say("import failed: " + msg)
 		return nil, nil
 	})
 	st.Handle("session.describe", func(w *state.World, _ any) (any, error) {

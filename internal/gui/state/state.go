@@ -85,6 +85,8 @@ type Snapshot struct {
 	Endpoints []Endpoint
 	// Routes are the planner's last answer.
 	Routes []Route
+	// Import is the last fetch's description, or nil.
+	Import *Import
 }
 
 // Point is a position, and the only geometry the snapshot carries.
@@ -253,6 +255,17 @@ type Route struct {
 	Through      string
 }
 
+// Import is what a fetch found, before anything is committed.
+type Import struct {
+	URL               string
+	Records           int
+	Nodes             int
+	SkippedNoPosition int
+	SkippedOutside    int
+	Uncertain         int
+	Participants      int
+}
+
 // Node is one node, as the interface needs it.
 type Node struct {
 	Name     string
@@ -335,6 +348,8 @@ type World struct {
 	Endpoints []Endpoint
 	// Routes are the planner's last answer.
 	Routes []Route
+	// Import is the last fetch's description, or nil.
+	Import *Import
 
 	// Tick is called every step while playing, and is where engine pacing
 	// lives now that it is out of the frame loop. Nil means no engine.
@@ -521,6 +536,7 @@ func (s *Store) publish() {
 		Assertions:    s.world.Assertions,
 		Endpoints:     s.world.Endpoints,
 		Routes:        s.world.Routes,
+		Import:        s.world.Import,
 	})
 }
 
