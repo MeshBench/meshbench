@@ -22,6 +22,14 @@ type SweepArm struct {
 	// here is offered load, which is the one the map already showed buys
 	// redundancy rather than delivery.
 	EveryMs uint32
+	// RepeaterVersion and CompanionVersion put a firmware build under test.
+	//
+	// This is what lets a sweep answer "does this release behave differently",
+	// which is the question the listen-before-talk study asked and which an
+	// offered-load sweep cannot reach. Empty leaves the scenario's own pin
+	// alone.
+	RepeaterVersion  string
+	CompanionVersion string
 }
 
 // SweepPlan is what to run.
@@ -98,6 +106,11 @@ func (s *Sim) runCell(ctx context.Context, p SweepPlan, arm SweepArm, seed uint6
 	defer func() { _ = eng.Close() }()
 	at := 0
 	for i, n := range s.nodes {
+		// The arm's firmware, pinned per node before the engine sees it. Set
+		// on a copy: the scenario is shared by every cell, and an arm that
+		// edited it would leave its version behind for the next one - which is
+		// the silent failure the firmware-A/B tool was written to prevent.
+		n = withFirmware(n, arm)
 		eng.Add(n, nil)
 		if n.Name == p.Node {
 			at = i
@@ -149,4 +162,21 @@ func FirstCompanion(nodes []scenario.Node) string {
 		return nodes[0].Name
 	}
 	return ""
+}
+
+// withFirmware returns the node with this arm's build pinned, by role.
+//
+// By role rather than by name, because an arm is a claim about a release
+// rather than about one node, and pinning every node individually is how a
+// sweep ends up with three roles converted to the last one set.
+func withFirmware(n scenario.Node, arm SweepArm) scenario.Node {
+	switch {
+	case n.Kind == scenario.Companion && arm.CompanionVersion != "":
+		n.Firmware.Version = arm.CompanionVersion
+		n.Firmware.Role = "companion_radio"
+	case n.Kind.RunsFirmware() && n.Kind != scenario.Companion && arm.RepeaterVersion != "":
+		n.Firmware.Version = arm.RepeaterVersion
+		n.Firmware.Role = "simple_repeater"
+	}
+	return n
 }
