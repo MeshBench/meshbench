@@ -63,7 +63,7 @@ func Register(st *state.Store, s *Sim) {
 			w.Trails = s.trailsSince(from, index)
 			w.Events, w.EventTotal = s.eventTail(eventTail)
 			w.Scores = s.scores()
-			w.Stats = s.nodeStats()
+			w.Stats = s.nodeStats(w.Events)
 		}
 
 		w.Say(fmt.Sprintf("opened %s: %d nodes, %d links, %d areas",
@@ -619,7 +619,7 @@ func Register(st *state.Store, s *Sim) {
 	st.Handle("nodes.stats", func(w *state.World, _ any) (any, error) {
 		// Also on demand, because a paused simulation still costs memory and
 		// somebody looking at the node view has usually just paused it.
-		w.Stats = s.nodeStats()
+		w.Stats = s.nodeStats(w.Events)
 		return map[string]any{"nodes": len(w.Stats)}, nil
 	})
 	st.Handle("node.stop", func(w *state.World, p any) (any, error) {
@@ -627,7 +627,7 @@ func Register(st *state.Store, s *Sim) {
 		if err := s.stopNode(name); err != nil {
 			return nil, err
 		}
-		w.Stats = s.nodeStats()
+		w.Stats = s.nodeStats(w.Events)
 		w.Say("stopped " + name)
 		return map[string]any{"stopped": name}, nil
 	})
@@ -636,7 +636,7 @@ func Register(st *state.Store, s *Sim) {
 		if err := s.startNode(context.Background(), name, w.Seed); err != nil {
 			return nil, err
 		}
-		w.Stats = s.nodeStats()
+		w.Stats = s.nodeStats(w.Events)
 		w.Say("started " + name)
 		return map[string]any{"started": name}, nil
 	})

@@ -325,6 +325,12 @@ func main() {
 			_, _ = st.Do(ctx, action, node)
 		}()
 	}
+	nv.OnFirmware = func(node, version string) {
+		go func() {
+			_, _ = st.Do(ctx, "node.set_firmware",
+				map[string]any{"node": node, "version": version})
+		}()
+	}
 	sh.Add(&shell.Panel{Name: "Nodes running", Windowable: true, Draw: nv.Draw})
 	fleet := &fleetPanel{}
 	bounds := &boundaryPanel{}

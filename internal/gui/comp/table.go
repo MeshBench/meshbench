@@ -9,6 +9,7 @@ import (
 	"gioui.org/op"
 	"gioui.org/unit"
 	"gioui.org/widget"
+	"gioui.org/widget/material"
 
 	"github.com/A13xB0/meshcoresim/internal/gui/theme"
 )
@@ -54,6 +55,8 @@ type Table struct {
 	List     widget.List
 	SortCol  int
 	SortDesc bool
+	// FilterHint is what the search box says when it is empty.
+	FilterHint string
 	// Selected is the Key of the selected row, so selection survives a re-sort
 	// and a filter change.
 	Selected string
@@ -116,6 +119,12 @@ func (tb *Table) Layout(t *theme.Theme, gtx layout.Context, onSelect func(key st
 		}
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		// The search box, which SetRows has always applied and nothing ever
+		// drew. The filtering worked; there was simply no way to type into it,
+		// so every table in the interface looked as though it had no search.
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return tb.search(t, gtx)
+		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return tb.header(t, gtx) }),
 		layout.Rigid(HRule(t)),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
@@ -263,4 +272,22 @@ func cellAt(r Row, i int) string {
 		return ""
 	}
 	return r.Cells[i]
+}
+
+// search is the filter box above the header.
+//
+// Its hint says what it matches on rather than "search", because a box that
+// does not say what it looks at gets tried once with the wrong thing.
+func (tb *Table) search(t *theme.Theme, gtx layout.Context) layout.Dimensions {
+	tb.Filter.SingleLine = true
+	hint := tb.FilterHint
+	if hint == "" {
+		hint = "filter - matches any column"
+	}
+	ed := material.Editor(t.M, &tb.Filter, hint)
+	ed.Color = t.P.Ink
+	ed.HintColor = t.P.Faint
+	ed.TextSize = t.Sz.Body
+	return layout.Inset{Left: t.Sp.S, Right: t.Sp.S,
+		Top: t.Sp.XS, Bottom: t.Sp.XS}.Layout(gtx, ed.Layout)
 }

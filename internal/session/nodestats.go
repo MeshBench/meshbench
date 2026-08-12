@@ -93,13 +93,34 @@ func (c *cpuSampler) forget(live map[int]bool) {
 }
 
 // nodeStats collects a row per node.
-func (s *Sim) nodeStats() []state.NodeStat {
+//
+// events is the tail the store already keeps, so last-sent and last-heard cost
+// one pass over it rather than a second log kept per node - and they cannot
+// disagree with the events table, which is the more useful property.
+func (s *Sim) nodeStats(events []state.Event) []state.NodeStat {
 	if s.eng == nil {
 		return nil
 	}
 	if s.cpu == nil {
 		s.cpu = newCPUSampler()
 	}
+	// Newest wins, so walk forwards and overwrite.
+	type last struct {
+		atMs uint32
+		who  string
+	}
+	sent, heard := map[string]last{}, map[string]last{}
+	for i := range events {
+		e := &events[i]
+		switch e.Kind {
+		case "tx":
+			sent[e.From] = last{atMs: e.AtMs, who: "flood"}
+		case "rx":
+			heard[e.To] = last{atMs: e.AtMs, who: e.From}
+			sent[e.From] = last{atMs: e.AtMs, who: e.To}
+		}
+	}
+
 	nodes := s.eng.Nodes()
 	out := make([]state.NodeStat, 0, len(nodes))
 	live := map[int]bool{}
@@ -117,6 +138,12 @@ func (s *Sim) nodeStats() []state.NodeStat {
 			if p, ok := n.Firmware.Backend.(interface{ PID() int }); ok {
 				st.PID = p.PID()
 			}
+		}
+		if l, ok := sent[st.Name]; ok {
+			st.LastSentMs, st.LastSentTo = l.atMs, l.who
+		}
+		if l, ok := heard[st.Name]; ok {
+			st.LastHeardMs, st.LastHeardFrom = l.atMs, l.who
 		}
 		if st.PID > 0 {
 			live[st.PID] = true
