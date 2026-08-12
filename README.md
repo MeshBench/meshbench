@@ -145,8 +145,9 @@ at all.
 
 ### Setting one up today
 
-Until this is packaged, an emulated node needs two binaries that are not on any
-distribution: a QEMU carrying our SX1262 device, and the radio model itself.
+Until this is packaged, an emulated node needs binaries that are not on any
+distribution: a QEMU carrying our SX1262 device for the ESP32 boards, a Renode
+carrying the SEVONPEND fix for the nRF52 ones, and the radio model both talk to.
 Put them where the application looks and nothing else is needed — no environment
 variables, no flags.
 
@@ -154,7 +155,13 @@ variables, no flags.
 mkdir -p ~/.cache/meshcoresim/tools
 ln -sf /path/to/qemu-system-xtensa ~/.cache/meshcoresim/tools/
 cp /path/to/radioserver ~/.cache/meshcoresim/tools/
+ln -sf /path/to/renode ~/.cache/meshcoresim/tools/          # nRF52 only
 ```
+
+The Renode build comes from our fork's CI, which publishes a portable package
+with the .NET runtime inside it, so nothing has to be installed to run it. Its
+peripherals and platform files live in `tools/renode/` and are loaded from that
+same tools directory.
 
 A symlink is right for QEMU: it finds its own data files by resolving its real
 path, so a bare copy of the binary will not run. `radioserver` builds from
@@ -182,42 +189,49 @@ image come up, not when its MCU is supported.
 | architecture | boards | what runs | state |
 |---|---|---|---|
 | ESP32 family (Xtensa) | 40 | the published `.bin`, byte for byte, under QEMU | working, one board verified |
-| nRF52840 (Cortex-M4) | 36 | our own SoftDevice-free ARM build, under Renode | mesh stack runs; radio being wired |
+| nRF52840 (Cortex-M4) | 36 | the published `.uf2`, byte for byte, under Renode | working, one board verified |
 | RP2040 (Cortex-M0+) | 4 | — | not started |
 | STM32 (Cortex-M4) | 4 | — | not started |
 | ESP32-C6 (RISC-V) | 3 | — | not started |
 
-**The nRF52 published binaries do not run yet, and we have stopped trying.**
-That is a judgement about cost, not a proof of impossibility — worth being exact
-about, because the two are easy to confuse.
+**The nRF52 published binaries do run**, and getting there took a fork of the
+emulator. Worth reading before anyone tries to reproduce it, because five of the
+six faults were in things that looked like they already worked.
 
-They are linked above a Nordic SoftDevice and make 119 SVC calls into it.
-Without one they execute the stack-fill pattern and die at `0xA5A5A5A4`. Adding
-FICR, then PWM0–3, left the instruction count at *exactly* 233,455 both times;
-identical counts prove those peripherals were never on the path, and disproved
-two of our own diagnoses.
+They are linked above a Nordic SoftDevice and make 119 SVC calls into it, and
+the first mistake was ours: **erased flash**. Real nRF52 flash erases to `0xFF`
+and Renode's memory starts at `0x00`, as did our own hex-to-binary converter.
+The MBR decides whether a bootloader exists by testing words against
+`0xFFFFFFFF`, so every such test answered "present, at address 0" and it
+dereferenced a null pointer — 2.4 billion instructions going nowhere. MeshCore's
+own OTAFIX bootloader package supplies the other half, because it carries the
+UICR the MBR reads that address from.
 
-With the real s140 6.1.1 supplied there is **no abort** — 1.4 billion
-instructions, and then an idle loop at `PC = 0xa80`: `WFE`, branch to self, and
-an indirect dispatch. That is a CPU waiting on an interrupt that never arrives,
-which is a missing emulated event rather than a wall. Raising
-`EVENTS_HFCLKSTARTED` and `EVENTS_LFCLKSTARTED` changed nothing and Renode does
-model `NRF_CLOCK`, so that guess was wrong; the untested suspects are the
-peripherals the SoftDevice owns — RTC0, the SWI/EGU software interrupts its
-scheduler runs on, and POWER events — of which Renode models a subset.
+Then four peripherals Renode does not model at all — TEMP, the CLOCK
+calibration timer, SAADC and TWIM — each a handful of registers, each stalling
+the boot somewhere different. And one it models incorrectly: **SEVONPEND**.
+Firmware sets it so that an interrupt entering the pending state wakes `WFE`
+even while that interrupt is disabled, then reads ISPR and handles the source in
+thread mode. Renode asked whether a pending interrupt could be *taken*, which a
+disabled one never can. That fix is in our fork; see `docs/repositories.md`.
 
-Someone could pick that up. We did not, for two reasons. Past this point it is
-reverse-engineering a proprietary binary that Renode does not claim to emulate
-faithfully, with no way to bound the effort. And the SoftDevice is licensed by
-Nordic and cannot be redistributed, so even a working result would need every
-user to supply their own copy.
+The last one was chip select. Renode's SPI model calls `Transmit()` per byte and
+never calls `FinishTransmission()`, so the chip never saw a transaction
+boundary — and the chip model executes a command when chip select is *released*.
+It took 3,320 bytes and executed none of them, the same count to the byte on
+every run. RadioLib drives NSS as an ordinary GPIO, so the boundary was
+available all along on P1.10, and the radio is on SPIM3 at `0x4002F000`, which
+stock Renode does not model either.
 
-So the ARM path runs a **SoftDevice-free build of the same MeshCore source**
-instead. It is not the flashed bytes and is not described as if it were — but it
-is real `Mesh`, `Dispatcher`, `Packet`, Ed25519 and AES compiled for Cortex-M4,
-which catches compiler, word-size and codegen differences the host build cannot.
-`simple_repeater` contains no BLE code at all; the SoftDevice comes from the
-Adafruit core's linker layout, not from anything the repeater calls.
+With those, a RAK4631 boots MBR → SoftDevice → MeshCore, configures its radio,
+and puts a 127-byte advert on the channel.
+
+**The SoftDevice still cannot be redistributed.** Nordic licenses it, so anyone
+running a published nRF52 image supplies their own copy — which is why
+`tools/armfw/` stays: a SoftDevice-free build of the same MeshCore source is
+what we can actually hand to someone. It is not the flashed bytes and is not
+described as if it were, and its radio is a stub, so it proves the mesh stack
+compiles and runs on Cortex-M4 rather than that a node works.
 
 All three paths share one chip model. `VirtualSX1262` runs in process for a
 native node, and `radioserver` puts the same object behind a socket for QEMU and

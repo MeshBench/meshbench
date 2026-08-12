@@ -15,12 +15,18 @@ Being exact, because "emulation works" is three different claims.
 | path | state | what it proves |
 |---|---|---|
 | **ESP32, published `.bin`** | working, one board verified | the bytes off the flasher, on the mesh |
-| **nRF52, published `.uf2`** | boots to the app's idle loop | the chain runs; not yet a node |
+| **nRF52, published `.uf2`** | working, one board verified | the bytes off the flasher, on the mesh |
 | **nRF52, SoftDevice-free build** | mesh stack runs on ARM | compiler, word size, ARM codegen |
 
-Only the first is a node someone can use. `Generic_E22_sx1262` running published
-v1.17.0 had its advert decoded by 38 nodes of a ScotMesh import. Everything
-below assumes we ship that and treat the ARM paths as work in progress.
+Both published paths are nodes someone can use. `Generic_E22_sx1262` running
+v1.17.0 had its advert decoded by 38 nodes of a ScotMesh import; `RAK_4631`
+running v1.17.0 boots MBR → SoftDevice → MeshCore and puts a 127-byte advert on
+the channel. One board each, of eighty-seven.
+
+The third row is not a fallback for the second. `tools/armfw/` proves the mesh
+stack compiles and runs on Cortex-M4; its radio is a stub, so it is not a node
+and cannot become one without a real RadioLib build behind it. It earns its keep
+as the thing we can hand to someone who has no SoftDevice.
 
 ## The pieces, and where each comes from
 
@@ -30,7 +36,7 @@ Four things have to be present. Only two can be shipped.
 |---|---|---|---|
 | QEMU with our SX1262 | `A13xB0/qemu`, branch `meshbench-sx1262` | yes | ~69 MB |
 | `radioserver` | `A13xB0/meshcore-native`, `bridge/radioserver.cpp` | yes | ~40 KB |
-| Renode + our peripherals | upstream Renode 1.16, plus `tools/renode/` | probably not | ~200 MB |
+| Renode with our SEVONPEND fix | `A13xB0/renode`, branch `meshbench` | yes | ~60 MB packed |
 | Nordic SoftDevice | Nordic, per-user | **no — licence** | 155 KB |
 
 Board images and native builds are *not* in this list. They are downloaded on
@@ -74,12 +80,21 @@ worth betting a node on.
 
 ### Renode
 
-Only needed for ARM, which is not shippable as a node yet. When it is, note that
-Renode is a 200 MB Mono application and our contribution is four small files
-loaded at runtime (`tools/renode/peripherals/*.cs`, `*.repl`). Bundling Renode
-is a large step for a path that currently adds one architecture; asking people
-to install Renode themselves and pointing at it is probably the right first
-move.
+Needed for the nRF52 boards, and it has to be **our** build rather than an
+upstream release: SEVONPEND is wrong in stock Renode, and without the fix the
+firmware sleeps for ever with its wake condition already true. The fork's CI
+publishes a portable package with the .NET runtime inside it, about 60 MB
+packed, so nothing has to be installed to run it.
+
+Our peripherals and platform files (`tools/renode/peripherals/*.cs`, `*.repl`)
+are loaded at runtime from the tools directory rather than compiled in, which
+keeps them in this repository where they are read alongside the boards they
+describe.
+
+Five of the six things that had to be fixed were in Renode rather than in the
+firmware, and four of those were peripherals it does not model at all. Expect
+the next board to need one or two more; `docs/repositories.md` says where the
+patches live.
 
 ### The SoftDevice
 
