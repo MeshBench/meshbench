@@ -28,13 +28,19 @@ type Tiles struct {
 
 	mu      sync.Mutex
 	fetched map[string]bool
-	ops     map[string]paint.ImageOp
+	ops     map[string]uploaded
+}
+
+// uploaded is a tile that has been decoded once and handed to the GPU.
+type uploaded struct {
+	op   paint.ImageOp
+	size image.Point
 }
 
 // NewTiles prepares a tile layer. A nil store is legal and draws nothing,
 // which is what an offline first run looks like.
 func NewTiles(cacheDir, layerID string) *Tiles {
-	t := &Tiles{fetched: map[string]bool{}, ops: map[string]paint.ImageOp{}}
+	t := &Tiles{fetched: map[string]bool{}, ops: map[string]uploaded{}}
 	if l, ok := basemap.ByID(layerID); ok {
 		t.Layer = l
 	}
@@ -71,11 +77,22 @@ func (t *Tiles) Draw(gtx layout.Context, sz image.Point, centreLat, centreLon, z
 	for _, xy := range basemap.TilesFor(south, north, west, east, z) {
 		want++
 		x, y := xy[0], xy[1]
-		img, ok := t.Store.Cached(t.Layer, z, x, y)
+
+		// The upload cache is asked first, and the store only on a miss.
+		// Store.Cached reads and decodes the PNG from disk, so asking it once
+		// per tile per frame decoded the whole visible basemap sixty times a
+		// second - 12% of the map's CPU profile, to produce an image that had
+		// not changed since it was downloaded.
+		iop, size, ok := t.cachedOp(z, x, y)
 		if !ok {
-			t.fetchOnce(z, x, y)
-			continue
+			img, have := t.Store.Cached(t.Layer, z, x, y)
+			if !have {
+				t.fetchOnce(z, x, y)
+				continue
+			}
+			iop, size = t.putOp(z, x, y, img)
 		}
+
 		// Where this tile's north-west corner lands on screen.
 		lat, lon := tileNW(x, y, z)
 		px := float64(sz.X)/2 + (lon-centreLon)*cos*zoomPxPerDeg
@@ -92,10 +109,9 @@ func (t *Tiles) Draw(gtx layout.Context, sz image.Point, centreLat, centreLon, z
 
 		off := op.Offset(image.Pt(int(px), int(py))).Push(gtx.Ops)
 		cl := clip.Rect{Max: image.Pt(int(w)+1, int(h)+1)}.Push(gtx.Ops)
-		iop := t.imageOp(z, x, y, img)
 		// Scale the 256 pixel tile to the space it covers.
-		sc := op.Affine(f32Scale(float32(w)/float32(img.Bounds().Dx()),
-			float32(h)/float32(img.Bounds().Dy()))).Push(gtx.Ops)
+		sc := op.Affine(f32Scale(float32(w)/float32(size.X),
+			float32(h)/float32(size.Y))).Push(gtx.Ops)
 		iop.Add(gtx.Ops)
 		paint.PaintOp{}.Add(gtx.Ops)
 		sc.Pop()
@@ -106,19 +122,25 @@ func (t *Tiles) Draw(gtx layout.Context, sz image.Point, centreLat, centreLon, z
 	return drawn, want
 }
 
-// imageOp caches the upload, so a tile is not re-uploaded to the GPU on every
-// frame. This is the difference between a map that costs nothing to redraw and
-// one that costs its whole area every frame.
-func (t *Tiles) imageOp(z, x, y int, img *image.RGBA) paint.ImageOp {
+// cachedOp returns an already-uploaded tile, and whether there was one.
+func (t *Tiles) cachedOp(z, x, y int) (paint.ImageOp, image.Point, bool) {
 	k := tileKey(t.Layer.ID, z, x, y)
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if op, ok := t.ops[k]; ok {
-		return op
-	}
-	op := paint.NewImageOp(img)
-	t.ops[k] = op
-	return op
+	c, ok := t.ops[k]
+	return c.op, c.size, ok
+}
+
+// putOp uploads a tile once and remembers it. This is the difference between
+// a map that costs nothing to redraw and one that costs its whole area every
+// frame.
+func (t *Tiles) putOp(z, x, y int, img *image.RGBA) (paint.ImageOp, image.Point) {
+	k := tileKey(t.Layer.ID, z, x, y)
+	c := uploaded{op: paint.NewImageOp(img), size: img.Bounds().Size()}
+	t.mu.Lock()
+	t.ops[k] = c
+	t.mu.Unlock()
+	return c.op, c.size
 }
 
 // fetchOnce asks for a missing tile exactly once per session.

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime/pprof"
 	"time"
 
 	"gioui.org/app"
@@ -32,6 +33,10 @@ func main() {
 		"network to load")
 	modeFlag := flag.String("theme", "dark", "dark or light")
 	viewFlag := flag.String("view", "plan", "which view to open")
+	fpsFlag := flag.Bool("fps", false, "report frames per second to stderr and /tmp/wb2-fps.log")
+	panelFlag := flag.String("panel", "", "draw only this panel, filling the window")
+	profFlag := flag.String("cpuprofile", "", "write a CPU profile here")
+	quitFlag := flag.Duration("quit-after", 0, "exit after this long; 0 runs until closed")
 	flag.Parse()
 
 	st := state.New(10)
@@ -94,6 +99,34 @@ func main() {
 	}
 	th := theme.New(mode, theme.Default, sh2)
 
+	var meter *fpsMeter
+	if *fpsFlag {
+		what := "shell"
+		if *panelFlag != "" {
+			what = *panelFlag
+		}
+		meter = newFPSMeter(fmt.Sprintf("%-9s", what), "/tmp/wb2-fps.log")
+	}
+	if *profFlag != "" {
+		f, err := os.Create(*profFlag)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		if err := pprof.StartCPUProfile(f); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		defer pprof.StopCPUProfile()
+	}
+	if *quitFlag > 0 {
+		go func() {
+			time.Sleep(*quitFlag)
+			pprof.StopCPUProfile()
+			os.Exit(0)
+		}()
+	}
+
 	go func() {
 		// Before the window: Gio reads the cursor theme once, when it
 		// makes one, and the desktop does not put it in the environment.
@@ -108,8 +141,17 @@ func main() {
 				os.Exit(0)
 			case app.FrameEvent:
 				gtx := app.NewContext(&ops, e)
-				sh.Layout(th, gtx, st.Snapshot())
+				began := time.Now()
+				if p := sh.Panels[*panelFlag]; p != nil {
+					comp.Fill(gtx, th.P.Ground)
+					p.Draw(th, gtx, st.Snapshot())
+				} else {
+					sh.Layout(th, gtx, st.Snapshot())
+				}
 				e.Frame(gtx.Ops)
+				if meter != nil {
+					meter.frame(time.Since(began))
+				}
 				// The renderer asks for the next frame; it does not drive the
 				// simulation, which advances on the store's own ticker.
 				w.Invalidate()

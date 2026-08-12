@@ -31,6 +31,7 @@ type MapView struct {
 	CentreLat     float64
 	CentreLon     float64
 	initialised   bool
+	links         linkCache
 	LabelEveryNth int
 }
 
@@ -67,26 +68,23 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 	pts := m.project(s, sz)
 
 	// Links, batched. One path, one fill, however many links.
+	//
+	// Which pairs are linked comes from the cache; where they are on screen
+	// does not, so the cull stays here where the camera is known.
 	var lp clip.Path
 	lp.Begin(gtx.Ops)
 	links := 0
-	for i := range pts {
-		for j := i + 1; j < len(pts); j++ {
-			if !near(pts[i].n, pts[j].n) {
-				continue
-			}
-			// Cull: a segment with both ends off-screen cannot be visible.
-			if offscreen(pts[i], sz) && offscreen(pts[j], sz) {
-				continue
-			}
-			lp.MoveTo(f32.Pt(pts[i].x, pts[i].y))
-			lp.LineTo(f32.Pt(pts[j].x, pts[j].y))
-			links++
+	for _, pr := range m.links.get(pts) {
+		a, b := pts[pr[0]], pts[pr[1]]
+		if offscreen(a, sz) && offscreen(b, sz) {
+			continue
 		}
+		segment(&lp, f32.Pt(a.x, a.y), f32.Pt(b.x, b.y), 1)
+		links++
 	}
 	if links > 0 {
 		paint.FillShape(gtx.Ops, theme.Alpha(t.P.Accent, 0.22),
-			clip.Stroke{Path: lp.End(), Width: 1}.Op())
+			clip.Outline{Path: lp.End()}.Op())
 	}
 
 	// Nodes, grouped by kind so each kind is one filled path rather than one
@@ -102,7 +100,7 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 		var np clip.Path
 		np.Begin(gtx.Ops)
 		for _, p := range list {
-			circle(&np, f32.Pt(p.x, p.y), 4)
+			dot(&np, f32.Pt(p.x, p.y), 4)
 		}
 		paint.FillShape(gtx.Ops, t.NodeColour(k), clip.Outline{Path: np.End()}.Op())
 	}
@@ -171,31 +169,9 @@ func (m *MapView) project(s *state.Snapshot, sz image.Point) []projected {
 	return out
 }
 
-// near is the same proximity rule the rest of the tool uses for a quick link
-// estimate: close enough to hear on this band.
-func near(a, b *state.Node) bool {
-	const r = 6371.0
-	dLat := (b.Lat - a.Lat) * math.Pi / 180
-	dLon := (b.Lon - a.Lon) * math.Pi / 180
-	la, lb := a.Lat*math.Pi/180, b.Lat*math.Pi/180
-	h := math.Sin(dLat/2)*math.Sin(dLat/2) +
-		math.Cos(la)*math.Cos(lb)*math.Sin(dLon/2)*math.Sin(dLon/2)
-	return 2*r*math.Asin(math.Sqrt(h)) < 18
-}
-
 func offscreen(p projected, sz image.Point) bool {
 	const m = 40
 	return p.x < -m || p.y < -m || p.x > float32(sz.X)+m || p.y > float32(sz.Y)+m
-}
-
-func circle(p *clip.Path, c f32.Point, r float32) {
-	const k = 0.5522847498
-	p.MoveTo(f32.Pt(c.X+r, c.Y))
-	p.CubeTo(f32.Pt(c.X+r, c.Y+r*k), f32.Pt(c.X+r*k, c.Y+r), f32.Pt(c.X, c.Y+r))
-	p.CubeTo(f32.Pt(c.X-r*k, c.Y+r), f32.Pt(c.X-r, c.Y+r*k), f32.Pt(c.X-r, c.Y))
-	p.CubeTo(f32.Pt(c.X-r, c.Y-r*k), f32.Pt(c.X-r*k, c.Y-r), f32.Pt(c.X, c.Y-r))
-	p.CubeTo(f32.Pt(c.X+r*k, c.Y-r), f32.Pt(c.X+r, c.Y-r*k), f32.Pt(c.X+r, c.Y))
-	p.Close()
 }
 
 func kindOf(k string) theme.NodeKind {
