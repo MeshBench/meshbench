@@ -133,6 +133,17 @@ type Node struct {
 	Regions      []string
 	DefaultScope string
 
+	// AllowAnyFlood makes this node forward flood traffic whatever region it
+	// is scoped to, by allowing the wildcard region rather than only the ones
+	// it holds. `region allowf *`.
+	//
+	// It is deliberately a stored field and not a console command typed at a
+	// running node: what the firmware was told at boot does not survive into a
+	// saved scenario, so a fixture claiming to be permissive would load as a
+	// strict one and nothing would say so. It is more permissive than any real
+	// network, which is why it is per node and off unless asked for.
+	AllowAnyFlood bool
+
 	// EmitterDutyPct is how much of the time an Emitter is keyed, 0-100.
 	// Duty matters as much as power: a paging transmitter at 10% is a
 	// different neighbour from a broadcast carrier at 100%.

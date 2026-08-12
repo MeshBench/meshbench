@@ -138,11 +138,15 @@ func (a *App) handleControlInner(method string, params json.RawMessage) (any, er
 			HeightM  float64 `json:"height_m"`
 			TxDBm    float64 `json:"tx_dbm"`
 			Firmware string  `json:"firmware_role"`
+			// Duty matters as much as power for an emitter: a paging
+			// transmitter at 10% is a different neighbour from a broadcast
+			// carrier at 100%. Zero is a real answer and leaves it silent.
+			DutyPct float64 `json:"duty_pct"`
 		}
 		if err := json.Unmarshal(params, &p); err != nil {
 			return nil, err
 		}
-		return a.ctlPlace(p.Kind, p.Name, p.Lat, p.Lon, p.HeightM, p.TxDBm, p.Firmware)
+		return a.ctlPlace(p.Kind, p.Name, p.Lat, p.Lon, p.HeightM, p.TxDBm, p.Firmware, p.DutyPct)
 
 	case "nodes.delete":
 		var p struct {
@@ -948,20 +952,31 @@ func (a *App) ctlEvents(limit int) []map[string]any {
 }
 
 // ctlPlace adds a node from outside.
-func (a *App) ctlPlace(kind, name string, lat, lon, height, tx float64, role string) (any, error) {
+func (a *App) ctlPlace(kind, name string, lat, lon, height, tx float64, role string, duty float64) (any, error) {
 	board, err := scenario.BoardByName(a.placeBoard)
 	if err != nil {
 		return nil, err
 	}
+	// Every kind the model has, under the name the model uses and under the
+	// short one somebody types. Three of them used to be missing here, so a
+	// scenario built over the socket could not carry one of each - which read
+	// as a limit of the simulator and was a limit of this switch.
 	k := scenario.SimpleRepeater
 	switch kind {
 	case "companion":
 		k = scenario.Companion
 	case "observer", "sdr-observer":
 		k = scenario.SDRObserver
+	case "room-server", "room_server", "room":
+		k = scenario.RoomServer
+	case "advanced-repeater", "advanced_repeater", "advanced":
+		k = scenario.AdvancedRepeater
+	case "emitter", "interferer":
+		k = scenario.Emitter
 	case "", "repeater", "simple-repeater":
 	default:
-		return nil, fmt.Errorf("unknown kind %q; have repeater, companion, observer", kind)
+		return nil, fmt.Errorf("unknown kind %q; have repeater, advanced-repeater, "+
+			"companion, room-server, observer, emitter", kind)
 	}
 	if height <= 0 {
 		height = 10
@@ -977,8 +992,9 @@ func (a *App) ctlPlace(kind, name string, lat, lon, height, tx float64, role str
 			Pattern:      antenna.Collinear{GainDBiPeak: board.AntennaDBi + 4},
 			Polarisation: "vertical", FeedlineDB: board.FeedlineDB,
 		},
-		Radio:    scenario.RadioConfig{CentreHz: a.freqMHz * 1e6, BandwidthHz: 62500, SpreadFactor: 8, CodingRate: 4},
-		Firmware: scenario.FirmwareRef{Role: role},
+		Radio:          scenario.RadioConfig{CentreHz: a.freqMHz * 1e6, BandwidthHz: 62500, SpreadFactor: 8, CodingRate: 4},
+		Firmware:       scenario.FirmwareRef{Role: role},
+		EmitterDutyPct: duty,
 	}
 	if n.Name == "" {
 		n.Name = a.uniqueName(string(k))
@@ -1057,6 +1073,24 @@ func (a *App) handleUICommand(method string, params json.RawMessage) (any, bool,
 			return v
 		}
 		return ""
+	}
+	// A JSON true is a bool, not a string and not a number, so it reaches
+	// neither helper above. A caller writing {"on": true} and getting silence
+	// would be right to be annoyed.
+	flag := func(key string) bool {
+		var m map[string]any
+		if json.Unmarshal(params, &m) != nil {
+			return false
+		}
+		switch v := m[key].(type) {
+		case bool:
+			return v
+		case string:
+			return v == "true" || v == "1" || v == "yes"
+		case float64:
+			return v != 0
+		}
+		return false
 	}
 	num := func(key string) (float64, bool) {
 		var m map[string]any
@@ -1268,6 +1302,13 @@ func (a *App) handleUICommand(method string, params json.RawMessage) (any, bool,
 		// indistinguishable from having done nothing.
 		a.infer.appliedN = a.applyInference()
 		return map[string]any{"applied": a.infer.appliedN}, true, nil
+	case "nodes.allow_flood":
+		// Off unless the caller says otherwise, so the verb cannot make a mesh
+		// more permissive by being called without arguments.
+		changed := a.setAnyFlood(flag("on"))
+		now, total := a.anyFloodState()
+		return map[string]any{"changed": changed, "on": now, "transmitting": total,
+			"permissive": now > 0}, true, nil
 	case "firmware.set":
 		role, version, board := arg("role"), arg("version"), arg("board")
 		if version == "" {
