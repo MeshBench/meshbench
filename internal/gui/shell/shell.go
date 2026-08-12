@@ -8,7 +8,12 @@
 package shell
 
 import (
+	"image"
+
 	"gioui.org/layout"
+	"gioui.org/op"
+	"gioui.org/op/clip"
+	"gioui.org/op/paint"
 	"gioui.org/unit"
 	"gioui.org/widget"
 
@@ -36,6 +41,10 @@ type Shell struct {
 	menus    []menu
 	Status   string
 	OnPopOut func(name string)
+	// OnMenu is called with a menu entry's action.
+	OnMenu func(action string)
+	// openMenu is which menu is showing its entries, by index, or -1.
+	openMenu int
 	// PoppedOut reports whether a panel is currently living in its own window.
 	//
 	// A panel that has moved out must not also be drawn here. Two frame loops
@@ -50,6 +59,44 @@ type Shell struct {
 type menu struct {
 	name  string
 	click widget.Clickable
+	items []MenuItem
+}
+
+// MenuItem is one entry of a menu.
+//
+// Named for what it does and carrying the action rather than a closure, so the
+// same list drives a click and a script, and so the menu can be read as a list
+// of what the application can do.
+type MenuItem struct {
+	Label  string
+	Action string
+	// Shortcut is shown beside the label. Descriptive: the binding lives with
+	// the key handling, and a menu that invents its own would drift from it.
+	Shortcut string
+	click    widget.Clickable
+}
+
+// OpenMenu shows a menu's entries, by name.
+//
+// Exported so a menu can be checked without a hand on the mouse: a dropdown
+// that only appears on a click is one no screenshot can catch.
+func (sh *Shell) OpenMenu(name string) {
+	for i := range sh.menus {
+		if sh.menus[i].name == name {
+			sh.openMenu = i
+			return
+		}
+	}
+}
+
+// SetMenu gives a menu its entries.
+func (sh *Shell) SetMenu(name string, items []MenuItem) {
+	for i := range sh.menus {
+		if sh.menus[i].name == name {
+			sh.menus[i].items = items
+			return
+		}
+	}
 }
 
 // New builds the shell with the standard menus.
@@ -83,6 +130,9 @@ func (sh *Shell) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) l
 			sh.OnPopOut(name)
 		}
 	}
+	// The dropdown is drawn after the frame it sits over, so it is recorded
+	// here and replayed at the end rather than clipped inside the menu bar.
+	defer func() { sh.menuDrop(t, gtx) }()
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return sh.menuBar(t, gtx) }),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return sh.viewBar(t, gtx, s) }),
@@ -98,11 +148,25 @@ func (sh *Shell) menuBar(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 	children := make([]layout.FlexChild, 0, len(sh.menus)+2)
 	for i := range sh.menus {
 		m := &sh.menus[i]
+		idx := i
+		if m.click.Clicked(gtx) {
+			// A second click on an open menu closes it, which is what every
+			// other menu bar does and what a hand expects.
+			if sh.openMenu == idx {
+				sh.openMenu = -1
+			} else {
+				sh.openMenu = idx
+			}
+		}
+		fg := t.P.Dim
+		if sh.openMenu == idx {
+			fg = t.P.Ink
+		}
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return m.click.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Inset{
 					Left: t.Sp.S, Right: t.Sp.S, Top: t.Sp.XS, Bottom: t.Sp.XS,
-				}.Layout(gtx, comp.Text(t, t.Sz.Body, t.P.Dim, m.name))
+				}.Layout(gtx, comp.Text(t, t.Sz.Body, fg, m.name))
 			})
 		}))
 	}
@@ -251,4 +315,71 @@ func EmptyPanel(name, what string) *Panel {
 				comp.Text(t, t.Sz.Caption, t.P.Faint, what))
 		},
 	}
+}
+
+// menuDrop draws the open menu's entries over the rest of the frame.
+//
+// Drawn last, at the top level, rather than inside the menu bar: a dropdown
+// clipped to the bar it came from is a dropdown nobody can read, and the bar is
+// one row tall.
+func (sh *Shell) menuDrop(t *theme.Theme, gtx layout.Context) {
+	if sh.openMenu < 0 || sh.openMenu >= len(sh.menus) {
+		return
+	}
+	m := &sh.menus[sh.openMenu]
+	if len(m.items) == 0 {
+		return
+	}
+	for i := range m.items {
+		if m.items[i].click.Clicked(gtx) {
+			sh.openMenu = -1
+			if sh.OnMenu != nil {
+				sh.OnMenu(m.items[i].Action)
+			}
+			return
+		}
+	}
+	// Under the bar, and roughly under its own title: menus are laid out in
+	// order, so an index is a good enough x for a bar of short words.
+	x := gtx.Dp(unit.Dp(8 + 74*sh.openMenu))
+	y := gtx.Dp(t.RowHeight())
+	pad := gtx.Dp(t.Sp.S)
+
+	inner := gtx
+	inner.Constraints.Min = image.Point{}
+	inner.Constraints.Max = image.Pt(gtx.Dp(320), gtx.Constraints.Max.Y)
+	rec := op.Record(gtx.Ops)
+	var kids []layout.FlexChild
+	for i := range m.items {
+		i := i
+		kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return m.items[i].click.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				if m.items[i].click.Hovered() {
+					comp.FillRect(gtx, image.Pt(gtx.Constraints.Max.X,
+						gtx.Dp(t.RowHeight())), theme.Alpha(t.P.Accent, 0.18))
+				}
+				return layout.Inset{Left: t.Sp.S, Right: t.Sp.S,
+					Top: t.Sp.XS, Bottom: t.Sp.XS}.Layout(gtx,
+					func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{}.Layout(gtx,
+							layout.Rigid(comp.Text(t, t.Sz.Body, t.P.Ink, m.items[i].Label)),
+							layout.Flexed(1, comp.Spacer),
+							layout.Rigid(comp.Mono(t, t.Sz.Caption, t.P.Faint,
+								m.items[i].Shortcut)),
+						)
+					})
+			})
+		}))
+	}
+	dims := layout.Flex{Axis: layout.Vertical}.Layout(inner, kids...)
+	content := rec.Stop()
+
+	box := image.Pt(dims.Size.X+pad*2, dims.Size.Y+pad*2)
+	off := op.Offset(image.Pt(x, y)).Push(gtx.Ops)
+	defer off.Pop()
+	paint.FillShape(gtx.Ops, theme.Alpha(t.P.Panel, 0.98), clip.Rect{Max: box}.Op())
+	comp.Border(gtx, box, 2, 1, t.P.Rule)
+	in := op.Offset(image.Pt(pad, pad)).Push(gtx.Ops)
+	content.Add(gtx.Ops)
+	in.Pop()
 }
