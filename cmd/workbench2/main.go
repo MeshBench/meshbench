@@ -106,6 +106,9 @@ func main() {
 		defer func() { _ = srv.Close() }()
 	}
 
+	// Close the nodes when asked to stop. See shutdown.go.
+	onSignal(ctx, cancel, sm)
+
 	sh := shell.New()
 	wins := newWindows()
 	mv := &comp.MapView{}

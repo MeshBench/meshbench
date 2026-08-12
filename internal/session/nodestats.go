@@ -43,21 +43,21 @@ func newCPUSampler() *cpuSampler { return &cpuSampler{last: map[int]cpuSample{}}
 // the same constant rather than changing which node is the expensive one.
 const clockTicks = 100
 
-func (c *cpuSampler) sample(pid int) (rssBytes int64, cpuPct float64) {
+func (c *cpuSampler) sample(pid int) (rssBytes int64, cpuPct float64, cpuMs int64) {
 	b, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
 	if err != nil {
-		return 0, 0
+		return 0, 0, 0
 	}
 	// The process name can contain spaces and brackets, so fields are counted
 	// from the closing bracket rather than from the start.
 	i := strings.LastIndexByte(string(b), ')')
 	if i < 0 {
-		return 0, 0
+		return 0, 0, 0
 	}
 	f := strings.Fields(string(b)[i+1:])
 	// After the name: state is f[0], so utime is field 14 overall = f[11].
 	if len(f) < 22 {
-		return 0, 0
+		return 0, 0, 0
 	}
 	utime, _ := strconv.ParseUint(f[11], 10, 64)
 	stime, _ := strconv.ParseUint(f[12], 10, 64)
@@ -70,14 +70,15 @@ func (c *cpuSampler) sample(pid int) (rssBytes int64, cpuPct float64) {
 	prev, seen := c.last[pid]
 	c.last[pid] = cpuSample{ticks: ticks, at: now}
 	c.mu.Unlock()
+	cpuMs = int64(ticks) * 1000 / clockTicks
 	if !seen {
-		return rssBytes, 0
+		return rssBytes, 0, cpuMs
 	}
 	dt := now.Sub(prev.at).Seconds()
 	if dt <= 0 || ticks < prev.ticks {
-		return rssBytes, 0
+		return rssBytes, 0, cpuMs
 	}
-	return rssBytes, float64(ticks-prev.ticks) / clockTicks / dt * 100
+	return rssBytes, float64(ticks-prev.ticks) / clockTicks / dt * 100, cpuMs
 }
 
 // forget drops a process that has gone, so a long session does not accumulate
@@ -147,7 +148,7 @@ func (s *Sim) nodeStats(events []state.Event) []state.NodeStat {
 		}
 		if st.PID > 0 {
 			live[st.PID] = true
-			st.RSSBytes, st.CPUPct = s.cpu.sample(st.PID)
+			st.RSSBytes, st.CPUPct, st.CPUms = s.cpu.sample(st.PID)
 		}
 		out = append(out, st)
 	}
@@ -204,4 +205,74 @@ func (s *Sim) setFirmware(name, version string) error {
 		}
 	}
 	return fmt.Errorf("no node named %q", name)
+}
+
+// history is a bounded ring of samples per node, for the graphs.
+//
+// Kept in the session rather than the panel because a panel that owns its own
+// history loses it when the panel is closed, popped into a window, or drawn by
+// a second front end - and the first question after "which node" is usually
+// "was it always like that".
+const historyLen = 240
+
+type nodeHistory struct {
+	mu   sync.Mutex
+	rss  map[string][]int64
+	cpu  map[string][]float64
+	sent map[string][]int
+}
+
+func newNodeHistory() *nodeHistory {
+	return &nodeHistory{
+		rss:  map[string][]int64{},
+		cpu:  map[string][]float64{},
+		sent: map[string][]int{},
+	}
+}
+
+// record appends this sample and drops the oldest.
+func (h *nodeHistory) record(stats []state.NodeStat) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, s := range stats {
+		h.rss[s.Name] = pushInt64(h.rss[s.Name], s.RSSBytes)
+		h.cpu[s.Name] = pushFloat(h.cpu[s.Name], s.CPUPct)
+		h.sent[s.Name] = pushInt(h.sent[s.Name], s.Sent)
+	}
+}
+
+// seriesFor is what the graphs draw.
+func (h *nodeHistory) seriesFor(name string) state.NodeSeries {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return state.NodeSeries{
+		Name: name,
+		RSS:  append([]int64(nil), h.rss[name]...),
+		CPU:  append([]float64(nil), h.cpu[name]...),
+		Sent: append([]int(nil), h.sent[name]...),
+	}
+}
+
+func pushInt64(s []int64, v int64) []int64 {
+	s = append(s, v)
+	if len(s) > historyLen {
+		s = s[len(s)-historyLen:]
+	}
+	return s
+}
+
+func pushFloat(s []float64, v float64) []float64 {
+	s = append(s, v)
+	if len(s) > historyLen {
+		s = s[len(s)-historyLen:]
+	}
+	return s
+}
+
+func pushInt(s []int, v int) []int {
+	s = append(s, v)
+	if len(s) > historyLen {
+		s = s[len(s)-historyLen:]
+	}
+	return s
 }

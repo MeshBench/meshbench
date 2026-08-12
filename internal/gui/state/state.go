@@ -97,6 +97,8 @@ type Snapshot struct {
 	Residuals *Residuals
 	// Stats is per-node cost and traffic, for the node view.
 	Stats []NodeStat
+	// Series is the selected node's history, for its graphs.
+	Series NodeSeries
 }
 
 // Point is a position, and the only geometry the snapshot carries.
@@ -315,7 +317,16 @@ type NodeStat struct {
 	// CPUPct is a share of one core since the last sample.
 	PID      int
 	RSSBytes int64
-	CPUPct   float64
+	// CPUPct is a share of one core since the last sample, and CPUms is the
+	// total processor time this node has used since it started.
+	//
+	// Both, because they answer different questions and the percentage alone
+	// is unreadable: a node quietly ticking over reads 0.3%, and fifty of them
+	// reading 0.3% tells you nothing about which has done the most work. The
+	// total does, and it needs no delta - so it is also immune to the startup
+	// burst that makes a freshly attached node read high.
+	CPUPct float64
+	CPUms  int64
 
 	// Sent and Heard are packets; LastSentMs and LastHeardMs are when, in
 	// simulated time. Zero means never, which is why they are separate from
@@ -328,6 +339,16 @@ type NodeStat struct {
 	// a radio that cries busy too readily.
 	IRQReads, BusyReads uint32
 	BusyMs, Spurious    uint32
+}
+
+// NodeSeries is one node's recent history, for its graphs.
+//
+// Oldest first, so drawing it left to right is drawing it forwards.
+type NodeSeries struct {
+	Name string
+	RSS  []int64
+	CPU  []float64
+	Sent []int
 }
 
 // Node is one node, as the interface needs it.
@@ -420,6 +441,8 @@ type World struct {
 	Residuals *Residuals
 	// Stats is per-node cost and traffic, for the node view.
 	Stats []NodeStat
+	// Series is the selected node's history, for its graphs.
+	Series NodeSeries
 
 	// Tick is called every step while playing, and is where engine pacing
 	// lives now that it is out of the frame loop. Nil means no engine.
@@ -614,6 +637,7 @@ func (s *Store) publish() {
 		Observed:      s.world.Observed,
 		Residuals:     s.world.Residuals,
 		Stats:         s.world.Stats,
+		Series:        s.world.Series,
 	})
 }
 

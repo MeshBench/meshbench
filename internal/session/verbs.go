@@ -64,6 +64,16 @@ func Register(st *state.Store, s *Sim) {
 			w.Events, w.EventTotal = s.eventTail(eventTail)
 			w.Scores = s.scores()
 			w.Stats = s.nodeStats(w.Events)
+			if s.history == nil {
+				s.history = newNodeHistory()
+			}
+			s.history.record(w.Stats)
+			for i := range w.Nodes {
+				if w.Nodes[i].Selected {
+					w.Series = s.history.seriesFor(w.Nodes[i].Name)
+					break
+				}
+			}
 		}
 
 		w.Say(fmt.Sprintf("opened %s: %d nodes, %d links, %d areas",

@@ -30,6 +30,7 @@ type Sim struct {
 	warming  atomic.Bool
 	starting atomic.Bool
 	cpu      *cpuSampler
+	history  *nodeHistory
 	served   map[string]*engine.CompanionLink
 }
 
@@ -307,4 +308,20 @@ func (s *Sim) firmwareCount() int {
 		return 0
 	}
 	return s.eng.FirmwareCount()
+}
+
+// Close shuts the simulation down, firmware included.
+//
+// Safe on a Sim that never built an engine, because the common shutdown path
+// is a workbench closed before anything was loaded.
+func (s *Sim) Close() {
+	if s.eng == nil {
+		return
+	}
+	for name, l := range s.served {
+		_ = l.Close()
+		delete(s.served, name)
+	}
+	_ = s.eng.Close()
+	s.eng = nil
 }
