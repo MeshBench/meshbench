@@ -87,6 +87,10 @@ type Snapshot struct {
 	Routes []Route
 	// Import is the last fetch's description, or nil.
 	Import *Import
+	// Observed is recent traffic on the real network; Residuals is the model
+	// measured against it.
+	Observed  []Observed
+	Residuals *Residuals
 }
 
 // Point is a position, and the only geometry the snapshot carries.
@@ -266,6 +270,28 @@ type Import struct {
 	Participants      int
 }
 
+// Observed is one reception on the real network.
+type Observed struct {
+	At       time.Time
+	Receiver string
+	Origin   string
+	HopCount int
+	HasSNR   bool
+	SNRdB    float64
+	PacketID string
+}
+
+// Residuals is the model measured against those receptions.
+//
+// A bias and a spread rather than a verdict: "3 dB optimistic on this network"
+// is something somebody can correct for, and "validation failed" is not.
+type Residuals struct {
+	Matched   int
+	Unmatched int
+	MedianDB  float64
+	IQRdB     float64
+}
+
 // Node is one node, as the interface needs it.
 type Node struct {
 	Name     string
@@ -350,6 +376,10 @@ type World struct {
 	Routes []Route
 	// Import is the last fetch's description, or nil.
 	Import *Import
+	// Observed is recent traffic on the real network; Residuals is the model
+	// measured against it.
+	Observed  []Observed
+	Residuals *Residuals
 
 	// Tick is called every step while playing, and is where engine pacing
 	// lives now that it is out of the frame loop. Nil means no engine.
@@ -537,6 +567,8 @@ func (s *Store) publish() {
 		Endpoints:     s.world.Endpoints,
 		Routes:        s.world.Routes,
 		Import:        s.world.Import,
+		Observed:      s.world.Observed,
+		Residuals:     s.world.Residuals,
 	})
 }
 

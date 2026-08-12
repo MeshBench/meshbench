@@ -139,6 +139,12 @@ func main() {
 	}
 	if *importFlag != "" {
 		go func() {
+			time.Sleep(9 * time.Second)
+			_, _ = st.Do(ctx, "feed.pull", *importFlag)
+		}()
+	}
+	if *importFlag != "" {
+		go func() {
 			time.Sleep(4 * time.Second)
 			_, _ = st.Do(ctx, "import.describe", *importFlag)
 		}()
@@ -269,6 +275,13 @@ func main() {
 		Draw: func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
 			return wf.Layout(t, gtx, s)
 		}})
+	feed := &feedPanel{}
+	feed.OnPull = func() {
+		go func() { _, _ = st.Do(ctx, "feed.pull", *importFlag) }()
+	}
+	sh.Add(&shell.Panel{Name: "Live feed", Windowable: true, Draw: feed.Draw})
+	sh.Add(&shell.Panel{Name: "Validate", Windowable: true,
+		Draw: (&validatePanel{}).Draw})
 	imp := &importPanel{}
 	imp.OnFetch = func(url string) {
 		go func() { _, _ = st.Do(ctx, "import.describe", url) }()
@@ -320,7 +333,6 @@ func main() {
 	sh.Add(&shell.Panel{Name: "Firmware", Windowable: true, Draw: fw.Draw})
 	sh.Add(&shell.Panel{Name: "Runs", Windowable: true, Draw: runs.Draw})
 	for _, p := range []struct{ name, what string }{
-		{"Validate", "residuals against reality - P6"},
 		{"Sweep", "arms, seeds, senders - P6"},
 	} {
 		sh.Add(shell.EmptyPanel(p.name, p.what))

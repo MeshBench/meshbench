@@ -526,6 +526,43 @@ func registerVerbs(st *state.Store, s *sim) {
 		w.Say("import failed: " + msg)
 		return nil, nil
 	})
+	st.Handle("feed.pull", func(w *state.World, p any) (any, error) {
+		url, _ := p.(string)
+		if url == "" {
+			return nil, fmt.Errorf("no deployment to pull from")
+		}
+		w.Say("pulling recent receptions from " + url)
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+			defer cancel()
+			obs, err := pullObserved(ctx, url, time.Hour)
+			if err != nil {
+				// Its own message, not the import one: a deployment can
+				// publish nodes and not receptions, and telling somebody the
+				// import failed when the import worked sends them to the
+				// wrong place.
+				_, _ = st.Do(context.Background(), "feed.failed", err.Error())
+				return
+			}
+			_, _ = st.Do(context.Background(), "feed.set", obs)
+		}()
+		return map[string]any{"url": url}, nil
+	})
+	st.Handle("feed.failed", func(w *state.World, p any) (any, error) {
+		msg, _ := p.(string)
+		w.Say("no live feed: " + msg)
+		return nil, nil
+	})
+	st.Handle("feed.set", func(w *state.World, p any) (any, error) {
+		obs, _ := p.([]state.Observed)
+		w.Observed = obs
+		// Residuals fall out of the same data, so they are computed here
+		// rather than behind a second button somebody has to know to press.
+		w.Residuals = s.residualsOf(obs, w.Links, w.Nodes)
+		w.Say(fmt.Sprintf("%d receptions; %d matched a link in this scenario",
+			len(obs), w.Residuals.Matched))
+		return map[string]any{"receptions": len(obs)}, nil
+	})
 	st.Handle("session.describe", func(w *state.World, _ any) (any, error) {
 		return map[string]any{
 			"nodes": len(w.Nodes), "seed": w.Seed, "now_ms": w.NowMs,
