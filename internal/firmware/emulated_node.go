@@ -385,16 +385,6 @@ func PadImage(src, dst string) (int, error) {
 	return mb, os.WriteFile(dst, out, 0o644)
 }
 
-// qemuMachineArg is exported for the tests and for anything that wants to show
-// an operator the command that was run.
-func qemuMachineArg(machine, sock string, spi, nss, busy int) string {
-	return machine +
-		",radio-path=" + sock +
-		",radio-spi=" + strconv.Itoa(spi) +
-		",radio-nss=" + strconv.Itoa(nss) +
-		",radio-busy=" + strconv.Itoa(busy)
-}
-
 // waitForSocket blocks until the radio model is listening, or the context ends.
 //
 // Polled rather than assumed: the device connects to this socket as QEMU

@@ -813,16 +813,6 @@ func containsInt(s []int, v int) bool {
 	return false
 }
 
-func removeStr(s []string, v string) []string {
-	var out []string
-	for _, x := range s {
-		if x != v {
-			out = append(out, x)
-		}
-	}
-	return out
-}
-
 // drawBenchConfig shows what each arm will actually apply, and what the network
 // it is applied to looks like.
 //

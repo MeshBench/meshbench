@@ -213,7 +213,6 @@ type App struct {
 	// something can just run it.
 	statusAction string
 	statusDo     func()
-	fifoPath     string
 	// captureUDP keeps the live capture alive across engine rebuilds.
 	captureUDP bool
 	// capturePath does the same for a capture being written to a file.

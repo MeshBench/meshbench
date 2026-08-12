@@ -1028,15 +1028,6 @@ func dissectorPath() string {
 	return filepath.Join("tools", "dissector", name)
 }
 
-// dumpcapProblem explains why live capture will not work, or "" if it will.
-func dumpcapProblem() string {
-	if usableDumpcap() != "" {
-		return ""
-	}
-	return "live capture needs Wireshark's dumpcap, which is not installed - " +
-		"use 'capture to pcapng...' and open the file instead"
-}
-
 // usableDumpcap returns a dumpcap this user can actually execute, making one
 // if necessary.
 //
