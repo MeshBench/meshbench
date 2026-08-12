@@ -36,6 +36,10 @@ func main() {
 	fpsFlag := flag.Bool("fps", false, "report frames per second to stderr and /tmp/wb2-fps.log")
 	panelFlag := flag.String("panel", "", "draw only this panel, filling the window")
 	profFlag := flag.String("cpuprofile", "", "write a CPU profile here")
+	playFlag := flag.Bool("play", false, "start the simulation immediately")
+	injectFlag := flag.String("inject", "", "originate a packet at this node once running")
+	injectEvery := flag.Duration("inject-every", 0,
+		"keep originating at that node this often; for looking at the traffic layer")
 	quitFlag := flag.Duration("quit-after", 0, "exit after this long; 0 runs until closed")
 	flag.Parse()
 
@@ -53,6 +57,28 @@ func main() {
 	go func() {
 		if _, err := st.Do(ctx, "project.open", *fixture); err != nil {
 			fmt.Fprintln(os.Stderr, "loading:", err)
+		}
+		if *playFlag {
+			_, _ = st.Do(ctx, "sim.play", nil)
+		}
+		if *injectFlag != "" {
+			_, _ = st.Do(ctx, "sim.inject", *injectFlag)
+		}
+		if *injectFlag != "" && *injectEvery > 0 {
+			// Wall-clock rather than simulated time, because this exists to
+			// put something on the map while a person is looking at it.
+			go func() {
+				t := time.NewTicker(*injectEvery)
+				defer t.Stop()
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					case <-t.C:
+						_, _ = st.Do(ctx, "sim.inject", *injectFlag)
+					}
+				}
+			}()
 		}
 	}()
 

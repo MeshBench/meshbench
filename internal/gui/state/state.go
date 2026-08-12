@@ -54,6 +54,8 @@ type Snapshot struct {
 	// frame: it is an n-squared path loss, and the answer only moves when a
 	// node does.
 	Links []Link
+	// Trails are recent transmissions for the map to fade out.
+	Trails []Trail
 }
 
 // Point is a position, and the only geometry the snapshot carries.
@@ -77,6 +79,20 @@ type Link struct {
 	// Known is false when nothing has computed a margin yet, which is not the
 	// same as a margin of zero and must not be drawn as one.
 	Known bool
+}
+
+// Trail is one transmission recently on the air, for the map to fade out.
+//
+// Kept as node indices and a time rather than as a colour and an alpha: how
+// old a packet is, is a fact about the run; how faint to draw it is a decision
+// about a frame, and the two do not belong in the same place.
+type Trail struct {
+	// From indexes into Nodes. To is -1 for a transmission nobody received,
+	// which is drawn as a stub rather than as a link and is the whole reason
+	// this is not a list of links.
+	From, To  int
+	AtMs      uint32
+	Delivered bool
 }
 
 // Node is one node, as the interface needs it.
@@ -126,6 +142,10 @@ type World struct {
 	// frame: it is an n-squared path loss, and the answer only moves when a
 	// node does.
 	Links []Link
+	// Trails are recent transmissions, newest last. Bounded, because a run
+	// that has been going for an hour has more of them than a map can say
+	// anything about.
+	Trails []Trail
 
 	// Tick is called every step while playing, and is where engine pacing
 	// lives now that it is out of the frame loop. Nil means no engine.
@@ -281,6 +301,8 @@ func (s *Store) publish() {
 	copy(links, s.world.Links)
 	areas := make([]Area, len(s.world.Areas))
 	copy(areas, s.world.Areas)
+	trails := make([]Trail, len(s.world.Trails))
+	copy(trails, s.world.Trails)
 	s.snap.Store(&Snapshot{
 		Seq:      s.seq,
 		NowMs:    s.world.NowMs,
@@ -293,6 +315,7 @@ func (s *Store) publish() {
 		Areas:    areas,
 		MarginKm: s.world.MarginKm,
 		Links:    links,
+		Trails:   trails,
 	})
 }
 

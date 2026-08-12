@@ -38,7 +38,24 @@ func registerVerbs(st *state.Store, s *sim) {
 		// One engine step per tick. Step is the engine's own unit of time
 		// and takes its size from the config, so the store paces it rather
 		// than redefining it.
-		w.Tick = func(uint32) { _ = s.eng.Step(context.Background()) }
+		index := map[string]int{}
+		for i, n := range f.nodes {
+			index[n.Name] = i
+		}
+		w.Tick = func(uint32) {
+			_ = s.eng.Step(context.Background())
+			w.NowMs = s.eng.NowMs()
+			// Trails from the last few seconds of simulated time. Recomputed
+			// from the event log rather than accumulated, so a seek backwards
+			// or a rebuilt engine cannot leave a trail on the map for a
+			// transmission that is no longer in the run.
+			const trailWindowMs = 4000
+			from := uint32(0)
+			if w.NowMs > trailWindowMs {
+				from = w.NowMs - trailWindowMs
+			}
+			w.Trails = s.trailsSince(from, index)
+		}
 
 		w.Say(fmt.Sprintf("opened %s: %d nodes, %d links, %d areas",
 			path, len(f.nodes), len(w.Links), len(f.areas)))
@@ -138,6 +155,33 @@ func registerVerbs(st *state.Store, s *sim) {
 			}
 		}
 		return nil, fmt.Errorf("no node named %q", name)
+	})
+	st.Handle("sim.inject", func(w *state.World, p any) (any, error) {
+		// Originating a packet without firmware on the node. The engine
+		// delivers to everything in range regardless, so this exercises the
+		// radio model and the map's traffic layer; what it does not exercise
+		// is relaying, which is a firmware behaviour and needs a firmware.
+		if s.eng == nil {
+			return nil, fmt.Errorf("no simulation")
+		}
+		at := 0
+		if name, ok := p.(string); ok && name != "" {
+			for i := range w.Nodes {
+				if w.Nodes[i].Name == name {
+					at = i
+				}
+			}
+		} else {
+			for i := range w.Nodes {
+				if w.Nodes[i].Selected {
+					at = i
+					break
+				}
+			}
+		}
+		s.eng.Inject(at, []byte("msim-map-trace"))
+		w.Say("injected a packet at " + w.Nodes[at].Name)
+		return map[string]any{"at": w.Nodes[at].Name}, nil
 	})
 	st.Handle("session.describe", func(w *state.World, _ any) (any, error) {
 		return map[string]any{

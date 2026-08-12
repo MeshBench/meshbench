@@ -33,6 +33,8 @@ type MapView struct {
 	initialised bool
 	links       linkCache
 	cam         camera
+	cut         float64
+	cutSeq      uint64
 	labels      labeller
 	sizes       labelSizer
 	// Layers is what is drawn. Exported so a window, a menu or a script can
@@ -94,11 +96,10 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 	}
 
 	// Links, weighted by the margin the engine measured. See mapworld.go.
-	links := 0
+	shownLinks, totalLinks := 0, 0
 	if m.Layers.Links {
-		links = m.drawLinks(t, gtx, pts, sz, s)
+		shownLinks, totalLinks = m.drawLinks(t, gtx, pts, sz, s)
 	}
-	_ = links
 
 	// Nodes, grouped by kind so each kind is one filled path rather than one
 	// per node.
@@ -119,6 +120,12 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 			dot(&np, f32.Pt(p.x, p.y), 4)
 		}
 		paint.FillShape(gtx.Ops, t.NodeColour(k), clip.Outline{Path: np.End()}.Op())
+	}
+
+	// Traffic over topology: a trail is what is happening now, and the
+	// topology is what is always true.
+	if m.Layers.Traffic {
+		m.drawTrails(t, gtx, pts, sz, s)
 	}
 
 	// Selection and hover, drawn over the nodes as rings so that colour is
@@ -152,8 +159,8 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 	}
 
 	m.measureReadout(t, gtx, sz)
-	m.scaleBar(t, gtx, sz, mapNote(s, basemapNote(drawn, want,
-		m.Tiles != nil && m.Layers.Basemap)))
+	m.scaleBar(t, gtx, sz, mapNote(s, shownLinks, totalLinks,
+		basemapNote(drawn, want, m.Tiles != nil && m.Layers.Basemap)))
 	m.layerPanel(t, gtx, sz)
 
 	return layout.Dimensions{Size: sz}

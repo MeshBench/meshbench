@@ -26,12 +26,13 @@ type Layers struct {
 	WeakLinks  bool
 	Nodes      bool
 	Labels     bool
+	Traffic    bool
 	// Measure puts the map in measuring mode, where a drag reports a distance
 	// and a bearing instead of panning.
 	Measure bool
 
 	set     bool
-	toggles [7]Check
+	toggles [8]Check
 }
 
 // defaults are applied once, so a zero Layers is a sensible map rather than an
@@ -41,7 +42,7 @@ func (l *Layers) defaults() {
 		return
 	}
 	l.Basemap, l.Boundaries, l.Links = true, true, true
-	l.Nodes, l.Labels, l.set = true, true, true
+	l.Nodes, l.Labels, l.Traffic, l.set = true, true, true, true
 }
 
 type layerRow struct {
@@ -57,6 +58,7 @@ func (l *Layers) rows() []layerRow {
 		{"Weak links", &l.WeakLinks},
 		{"Nodes", &l.Nodes},
 		{"Labels", &l.Labels},
+		{"Traffic", &l.Traffic},
 		{"Measure", &l.Measure},
 	}
 }
@@ -260,9 +262,13 @@ func above(gtx layout.Context, at image.Point, gap int, w layout.Widget) {
 // rendered as a row of visible octagons and read as geography rather than as
 // a rule. A boundary is a line and a margin is a number; the honest drawing of
 // a number is the number.
-func mapNote(s *state.Snapshot, basemap string) string {
-	if s == nil || s.MarginKm <= 0 {
-		return basemap
+func mapNote(s *state.Snapshot, shown, total int, basemap string) string {
+	out := ""
+	if total > 0 && shown < total {
+		out = fmt.Sprintf("showing the %d strongest of %d links    ", shown, total)
 	}
-	return fmt.Sprintf("study margin %g km    %s", s.MarginKm, basemap)
+	if s != nil && s.MarginKm > 0 {
+		out += fmt.Sprintf("study margin %g km    ", s.MarginKm)
+	}
+	return out + basemap
 }

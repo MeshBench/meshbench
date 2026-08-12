@@ -138,3 +138,37 @@ func (s *sim) warm(st *state.Store, nodes int) {
 			Done: total, Total: total, Finished: true})
 	}()
 }
+
+// trailsSince turns the engine's events into map trails.
+//
+// Only "tx" and "rx" - a "miss" is a reception that did not happen, and drawing
+// it as traffic would put a line on the map for a packet that never arrived.
+// A tx nobody received still gets a trail, with To of -1, because a repeater
+// shouting into an empty valley is exactly the thing somebody is looking for.
+func (s *sim) trailsSince(fromMs uint32, index map[string]int) []state.Trail {
+	if s.eng == nil {
+		return nil
+	}
+	var out []state.Trail
+	for _, e := range s.eng.Events() {
+		if e.AtMs < fromMs {
+			continue
+		}
+		from, ok := index[e.From]
+		if !ok {
+			continue
+		}
+		switch e.Kind {
+		case "tx":
+			out = append(out, state.Trail{From: from, To: -1, AtMs: e.AtMs})
+		case "rx":
+			to, ok := index[e.To]
+			if !ok {
+				continue
+			}
+			out = append(out, state.Trail{
+				From: from, To: to, AtMs: e.AtMs, Delivered: true})
+		}
+	}
+	return out
+}

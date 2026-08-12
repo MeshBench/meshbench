@@ -3,6 +3,7 @@ package comp
 import (
 	"image"
 	"math"
+	"sort"
 
 	"gioui.org/f32"
 	"gioui.org/layout"
@@ -24,11 +25,12 @@ import (
 // path loss, through the same link budget the budget panel uses, so the map
 // and the panel cannot disagree.
 func (m *MapView) drawLinks(t *theme.Theme, gtx layout.Context, pts []projected,
-	sz image.Point, s *state.Snapshot) int {
+	sz image.Point, s *state.Snapshot) (drawn, total int) {
 
 	if len(s.Links) == 0 {
-		return m.drawProximityLinks(t, gtx, pts, sz)
+		return m.drawProximityLinks(t, gtx, pts, sz), 0
 	}
+	cut := m.linkCut(s)
 	// One path per band, so a frame is three fills rather than one per link.
 	bands := []struct {
 		lo, hi float64
@@ -53,13 +55,15 @@ func (m *MapView) drawLinks(t *theme.Theme, gtx layout.Context, pts []projected,
 	if !m.Layers.WeakLinks {
 		bands = bands[:2]
 	}
-	drawn := 0
 	for _, b := range bands {
 		var path clip.Path
 		path.Begin(gtx.Ops)
 		n := 0
 		for _, l := range s.Links {
 			if !l.Known || l.MarginDB < b.lo || l.MarginDB >= b.hi {
+				continue
+			}
+			if l.MarginDB < cut {
 				continue
 			}
 			if l.A >= len(pts) || l.B >= len(pts) {
@@ -86,7 +90,46 @@ func (m *MapView) drawLinks(t *theme.Theme, gtx layout.Context, pts []projected,
 		paint.FillShape(gtx.Ops, theme.Alpha(col, float32(b.a)), clip.Outline{Path: spec}.Op())
 		drawn += n
 	}
-	return drawn
+	return drawn, len(s.Links)
+}
+
+// maxDrawnLinks is how many the map will draw before it starts taking the
+// strongest.
+//
+// Not tidiness: with no terrain tiles cached the engine has no profile to cut
+// a path against, so links close at distances they would not over real ground
+// and the 311 node fixture produced 12,924 of them. Drawing all of those took
+// long enough per frame that the compositor marked the window as not
+// responding. The cap is stated on the map rather than applied quietly,
+// because a map showing a tenth of the links without saying so is worse than a
+// slow one.
+const maxDrawnLinks = 2500
+
+// linkCut is the margin below which links are not drawn, chosen so that at
+// most maxDrawnLinks are.
+//
+// Recomputed only when the snapshot changes, because sorting twelve thousand
+// margins every frame is the problem it was meant to solve.
+func (m *MapView) linkCut(s *state.Snapshot) float64 {
+	if s.Seq == m.cutSeq {
+		return m.cut
+	}
+	m.cutSeq = s.Seq
+	m.cut = math.Inf(-1)
+	if len(s.Links) <= maxDrawnLinks {
+		return m.cut
+	}
+	margins := make([]float64, 0, len(s.Links))
+	for _, l := range s.Links {
+		if l.Known {
+			margins = append(margins, l.MarginDB)
+		}
+	}
+	sort.Float64s(margins)
+	if n := len(margins) - maxDrawnLinks; n > 0 {
+		m.cut = margins[n]
+	}
+	return m.cut
 }
 
 // drawProximityLinks is the fallback for a network nothing has computed
@@ -176,4 +219,65 @@ func (m *MapView) projectPoint(p state.Point, sz image.Point) f32.Point {
 		float32(float64(sz.X)/2+(p.Lon-m.CentreLon)*cos*m.Zoom),
 		float32(float64(sz.Y)/2-(p.Lat-m.CentreLat)*m.Zoom),
 	)
+}
+
+// trailWindowMs must match what fills Snapshot.Trails: the store decides how
+// far back a trail is kept, and the map only decides how to fade it.
+const trailWindowMs = 4000
+
+// drawTrails fades recent transmissions out over the window they are kept for.
+//
+// Newest brightest, and drawn last so traffic sits over the topology rather
+// than under it. A delivered hop is a line between two nodes; a transmission
+// nobody received is a short stub in no particular direction, because it went
+// nowhere and drawing it as reaching somewhere would be a lie about the run.
+func (m *MapView) drawTrails(t *theme.Theme, gtx layout.Context, pts []projected,
+	sz image.Point, s *state.Snapshot) {
+
+	if len(s.Trails) == 0 {
+		return
+	}
+	// Grouped into a few alpha steps, because one fill per trail is one draw
+	// call per packet and a busy mesh has thousands.
+	const steps = 4
+	for step := 0; step < steps; step++ {
+		newest := float64(step) / steps
+		oldest := float64(step+1) / steps
+		var path clip.Path
+		path.Begin(gtx.Ops)
+		n := 0
+		for _, tr := range s.Trails {
+			age := float64(s.NowMs-tr.AtMs) / trailWindowMs
+			if age < newest || age >= oldest || age > 1 {
+				continue
+			}
+			if tr.From < 0 || tr.From >= len(pts) {
+				continue
+			}
+			a := pts[tr.From]
+			if tr.To < 0 || tr.To >= len(pts) {
+				// A transmission with no receiver: a stub upwards, which is
+				// not a direction on the map and cannot be read as one.
+				segment(&path, f32.Pt(a.x, a.y), f32.Pt(a.x, a.y-7), 2)
+				n++
+				continue
+			}
+			b := pts[tr.To]
+			if offscreen(a, sz) && offscreen(b, sz) {
+				continue
+			}
+			segment(&path, f32.Pt(a.x, a.y), f32.Pt(b.x, b.y), 2)
+			n++
+		}
+		spec := path.End()
+		if n == 0 {
+			continue
+		}
+		// Ink rather than the selection colour: a trail has to read against
+		// links that are already green and amber, and the colour left that is
+		// not one of those is no colour at all.
+		alpha := float32(0.9 * (1 - float64(step)/steps))
+		paint.FillShape(gtx.Ops, theme.Alpha(t.P.Ink, alpha),
+			clip.Outline{Path: spec}.Op())
+	}
 }
