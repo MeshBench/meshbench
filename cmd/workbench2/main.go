@@ -238,6 +238,12 @@ func main() {
 		Draw: func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
 			return wf.Layout(t, gtx, s)
 		}})
+	fleet := &fleetPanel{}
+	bounds := &boundaryPanel{}
+	tls := &timelinesPanel{}
+	sh.Add(&shell.Panel{Name: "Fleet", Windowable: true, Draw: fleet.Draw})
+	sh.Add(&shell.Panel{Name: "Boundary", Windowable: true, Draw: bounds.Draw})
+	sh.Add(&shell.Panel{Name: "Timelines", Windowable: true, Draw: tls.Draw})
 	bench := &benchPanel{}
 	bench.OnAction = func(action, node string) {
 		go func() {
