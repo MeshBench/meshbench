@@ -182,13 +182,16 @@ func main() {
 	scores := &scorePanel{}
 	sh.Add(&shell.Panel{Name: "Events", Windowable: true, Draw: events.Draw})
 	sh.Add(&shell.Panel{Name: "Scoreboard", Windowable: true, Draw: scores.Draw})
+	fw := &firmwarePanel{}
+	runs := &runsPanel{}
+	sh.Add(&shell.Panel{Name: "Firmware", Windowable: true, Draw: fw.Draw})
+	sh.Add(&shell.Panel{Name: "Runs", Windowable: true, Draw: runs.Draw})
 	for _, p := range []struct{ name, what string }{
 		{"Schedule", "sends and assertions - P6"},
 		{"Packet timeline", "lanes on a shared time axis - P5"},
 		{"Link", "both directions, always - P6"},
 		{"Compare", "two runs, metric by metric - P6"},
 		{"Validate", "residuals against reality - P6"},
-		{"Runs", "every run with its build checksum - P4"},
 		{"Sweep", "arms, seeds, senders - P6"},
 		{"Matrix", "arms against seeds - P5"},
 		{"Companion bench", "an endpoint to point your client at - P6"},

@@ -198,9 +198,9 @@ func (tb *Table) row(t *theme.Theme, gtx layout.Context, idx int) layout.Dimensi
 				if i > 0 {
 					fg = t.P.Dim
 				}
-				render := Text(t, t.Sz.Body, fg, cell)
+				render := OneLine(t, t.Sz.Body, fg, cell, false)
 				if c.Mono {
-					render = Mono(t, t.Sz.Data, fg, cell)
+					render = OneLine(t, t.Sz.Data, fg, cell, true)
 				}
 				return layout.Inset{Left: t.Sp.S, Right: t.Sp.S}.Layout(gtx,
 					func(gtx layout.Context) layout.Dimensions {

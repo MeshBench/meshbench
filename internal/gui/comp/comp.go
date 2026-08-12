@@ -62,6 +62,25 @@ func Text(t *theme.Theme, size unit.Sp, c color.NRGBA, s string) layout.Widget {
 	}
 }
 
+// OneLine is text that is cut off rather than wrapped.
+//
+// For anything in a fixed-width column. A wrapped cell is taller than the row
+// it is in, so it draws over the row below and the table looks broken - which
+// is what the firmware table did the first time it met a version name with a
+// suffix on it.
+func OneLine(t *theme.Theme, size unit.Sp, c color.NRGBA, s string, mono bool) layout.Widget {
+	return func(gtx layout.Context) layout.Dimensions {
+		l := material.Label(t.M, size, s)
+		l.Color = c
+		l.MaxLines = 1
+		l.Truncator = "..."
+		if mono {
+			l.Font = t.Mono
+		}
+		return l.Layout(gtx)
+	}
+}
+
 // Mono is text in the monospace face, for anything that lines up in a column
 // or is copied into a config file.
 func Mono(t *theme.Theme, size unit.Sp, c color.NRGBA, s string) layout.Widget {
