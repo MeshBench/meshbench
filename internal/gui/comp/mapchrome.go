@@ -27,12 +27,13 @@ type Layers struct {
 	Nodes      bool
 	Labels     bool
 	Traffic    bool
+	Coverage   bool
 	// Measure puts the map in measuring mode, where a drag reports a distance
 	// and a bearing instead of panning.
 	Measure bool
 
 	set     bool
-	toggles [8]Check
+	toggles [9]Check
 }
 
 // defaults are applied once, so a zero Layers is a sensible map rather than an
@@ -59,6 +60,7 @@ func (l *Layers) rows() []layerRow {
 		{"Nodes", &l.Nodes},
 		{"Labels", &l.Labels},
 		{"Traffic", &l.Traffic},
+		{"Coverage", &l.Coverage},
 		{"Measure", &l.Measure},
 	}
 }
@@ -73,7 +75,14 @@ func (m *MapView) layerPanel(t *theme.Theme, gtx layout.Context, sz image.Point)
 		c := &m.Layers.toggles[i]
 		c.Label = rows[i].name
 		if c.Bool.Update(gtx) {
+			was := *rows[i].on
 			*rows[i].on = c.Bool.Value
+			// Turning a layer on can be a request for something that has to
+			// be computed. The map does not compute it: it says so, and the
+			// store decides.
+			if !was && c.Bool.Value && m.OnLayerOn != nil {
+				m.OnLayerOn(rows[i].name)
+			}
 		} else {
 			c.Bool.Value = *rows[i].on
 		}

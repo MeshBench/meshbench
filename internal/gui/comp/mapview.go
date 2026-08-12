@@ -35,6 +35,8 @@ type MapView struct {
 	cam         camera
 	cut         float64
 	cutSeq      uint64
+	covOp       paint.ImageOp
+	covFor      string
 	labels      labeller
 	sizes       labelSizer
 	// Layers is what is drawn. Exported so a window, a menu or a script can
@@ -44,6 +46,10 @@ type MapView struct {
 	// OnSelect is called when the pointer changes the selection. Additive is
 	// a shift-click or a shift-drag, which adds rather than replaces.
 	OnSelect func(names []string, additive bool)
+	// OnLayerOn is called when a layer is switched on, by its name. A layer
+	// that needs computing - coverage - is asked for here rather than done
+	// here.
+	OnLayerOn func(layer string)
 	// OnMove is called while a node is being dragged, every frame it moves,
 	// so the rest of the interface follows the drag rather than jumping at
 	// the end of it.
@@ -88,6 +94,12 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 	drawn, want := 0, 0
 	if m.Tiles != nil && m.Layers.Basemap {
 		drawn, want = m.Tiles.Draw(gtx, sz, m.CentreLat, m.CentreLon, m.Zoom)
+	}
+
+	// Coverage under everything but the basemap: it is the ground a network
+	// sits on, and drawn over the links it would hide what it explains.
+	if m.Layers.Coverage {
+		m.drawCoverage(t, gtx, sz, s)
 	}
 
 	// The study boundaries, under the network.
@@ -162,6 +174,9 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 	m.scaleBar(t, gtx, sz, mapNote(s, shownLinks, totalLinks,
 		basemapNote(drawn, want, m.Tiles != nil && m.Layers.Basemap)))
 	m.layerPanel(t, gtx, sz)
+	if m.Layers.Coverage {
+		m.coverageLegend(t, gtx, sz, s)
+	}
 
 	return layout.Dimensions{Size: sz}
 }

@@ -38,6 +38,8 @@ func main() {
 	profFlag := flag.String("cpuprofile", "", "write a CPU profile here")
 	playFlag := flag.Bool("play", false, "start the simulation immediately")
 	injectFlag := flag.String("inject", "", "originate a packet at this node once running")
+	coverFlag := flag.String("coverage", "",
+		"compute and show coverage from this node at startup")
 	injectEvery := flag.Duration("inject-every", 0,
 		"keep originating at that node this often; for looking at the traffic layer")
 	quitFlag := flag.Duration("quit-after", 0, "exit after this long; 0 runs until closed")
@@ -104,6 +106,17 @@ func main() {
 			_, _ = st.Do(ctx, "nodes.move",
 				map[string]any{"name": name, "lat": lat, "lon": lon})
 		}()
+	}
+
+	if *coverFlag != "" {
+		mv.Layers.Coverage = true
+		go func() { _, _ = st.Do(ctx, "coverage.compute", *coverFlag) }()
+	}
+	mv.OnLayerOn = func(layer string) {
+		if layer != "Coverage" {
+			return
+		}
+		go func() { _, _ = st.Do(ctx, "coverage.compute", nil) }()
 	}
 
 	nodes := &nodesPanel{}

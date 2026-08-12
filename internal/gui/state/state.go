@@ -19,6 +19,7 @@ package state
 import (
 	"context"
 	"errors"
+	"image"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -56,6 +57,8 @@ type Snapshot struct {
 	Links []Link
 	// Trails are recent transmissions for the map to fade out.
 	Trails []Trail
+	// Coverage is the raster last asked for, or nil.
+	Coverage *Coverage
 }
 
 // Point is a position, and the only geometry the snapshot carries.
@@ -93,6 +96,21 @@ type Trail struct {
 	From, To  int
 	AtMs      uint32
 	Delivered bool
+}
+
+// Coverage is a computed raster, ready to draw.
+//
+// An image rather than cells: a renderer that has to know what a decibel is in
+// order to paint a picture is one that will eventually disagree with the panel
+// printing the number.
+type Coverage struct {
+	Node                     string
+	Image                    *image.RGBA
+	South, North, West, East float64
+	// NoDataCells of Cells had no elevation to answer with. Carried because
+	// "no coverage" and "no data" look identical on a map and are not the same
+	// claim.
+	NoDataCells, Cells int
 }
 
 // Node is one node, as the interface needs it.
@@ -146,6 +164,8 @@ type World struct {
 	// that has been going for an hour has more of them than a map can say
 	// anything about.
 	Trails []Trail
+	// Coverage is the raster last asked for, or nil.
+	Coverage *Coverage
 
 	// Tick is called every step while playing, and is where engine pacing
 	// lives now that it is out of the frame loop. Nil means no engine.
@@ -316,6 +336,7 @@ func (s *Store) publish() {
 		MarginKm: s.world.MarginKm,
 		Links:    links,
 		Trails:   trails,
+		Coverage: s.world.Coverage,
 	})
 }
 

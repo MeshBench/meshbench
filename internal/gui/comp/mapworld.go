@@ -1,12 +1,14 @@
 package comp
 
 import (
+	"fmt"
 	"image"
 	"math"
 	"sort"
 
 	"gioui.org/f32"
 	"gioui.org/layout"
+	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 
@@ -280,4 +282,97 @@ func (m *MapView) drawTrails(t *theme.Theme, gtx layout.Context, pts []projected
 		paint.FillShape(gtx.Ops, theme.Alpha(t.P.Ink, alpha),
 			clip.Outline{Path: spec}.Op())
 	}
+}
+
+// drawCoverage paints the raster under the network, and its legend over it.
+//
+// Under, because coverage is the ground a network sits on: drawn over the
+// links it would hide the thing it is meant to explain.
+func (m *MapView) drawCoverage(t *theme.Theme, gtx layout.Context, sz image.Point,
+	s *state.Snapshot) {
+
+	c := s.Coverage
+	if c == nil || c.Image == nil {
+		return
+	}
+	nw := m.projectPoint(state.Point{Lat: c.North, Lon: c.West}, sz)
+	se := m.projectPoint(state.Point{Lat: c.South, Lon: c.East}, sz)
+	w, h := se.X-nw.X, se.Y-nw.Y
+	if w < 1 || h < 1 {
+		return
+	}
+	if m.covOp.Size().X == 0 || m.covFor != c.Node {
+		m.covOp = paint.NewImageOp(c.Image)
+		m.covFor = c.Node
+	}
+	off := op.Offset(image.Pt(int(nw.X), int(nw.Y))).Push(gtx.Ops)
+	cl := clip.Rect{Max: image.Pt(int(w)+1, int(h)+1)}.Push(gtx.Ops)
+	b := c.Image.Bounds()
+	sc := op.Affine(f32Scale(w/float32(b.Dx()), h/float32(b.Dy()))).Push(gtx.Ops)
+	m.covOp.Add(gtx.Ops)
+	paint.PaintOp{}.Add(gtx.Ops)
+	sc.Pop()
+	cl.Pop()
+	off.Pop()
+}
+
+// coverageLegend says what the colours mean, in dB.
+//
+// A coverage picture without a legend is a mood. The no-data count is on it
+// too, because a raster computed with no elevation is a statement about the
+// tile cache that looks exactly like a statement about radio.
+func (m *MapView) coverageLegend(t *theme.Theme, gtx layout.Context, sz image.Point,
+	s *state.Snapshot) {
+
+	c := s.Coverage
+	if c == nil {
+		return
+	}
+	rows := []struct {
+		col   color.NRGBA
+		label string
+	}{
+		{color.NRGBA{R: 40, G: 170, B: 120, A: 200}, "20 dB and over"},
+		{color.NRGBA{R: 90, G: 180, B: 100, A: 200}, "10 to 20 dB"},
+		{color.NRGBA{R: 200, G: 180, B: 70, A: 200}, "3 to 10 dB"},
+		{color.NRGBA{R: 210, G: 130, B: 60, A: 200}, "0 to 3 dB"},
+		{color.NRGBA{R: 200, G: 120, B: 40, A: 140}, "heard, cannot answer"},
+	}
+	pad := gtx.Dp(t.Sp.S)
+	sw := gtx.Dp(12)
+	rec := op.Record(gtx.Ops)
+	var kids []layout.FlexChild
+	kids = append(kids, layout.Rigid(SectionTitle(t, "coverage from "+c.Node)))
+	for _, r := range rows {
+		r := r
+		kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					paint.FillShape(gtx.Ops, r.col, clip.Rect{Max: image.Pt(sw, sw)}.Op())
+					return layout.Dimensions{Size: image.Pt(sw+pad, sw)}
+				}),
+				layout.Rigid(Text(t, t.Sz.Caption, t.P.Dim, r.label)),
+			)
+		}))
+	}
+	if c.NoDataCells > 0 {
+		kids = append(kids, layout.Rigid(Text(t, t.Sz.Caption, t.P.Warn,
+			fmt.Sprintf("%d of %d cells had no elevation data",
+				c.NoDataCells, c.Cells))))
+	}
+	inner := gtx
+	inner.Constraints.Min = image.Point{}
+	inner.Constraints.Max = image.Pt(gtx.Dp(320), sz.Y)
+	dims := layout.Flex{Axis: layout.Vertical}.Layout(inner, kids...)
+	content := rec.Stop()
+
+	box := image.Pt(dims.Size.X+pad*2, dims.Size.Y+pad*2)
+	at := image.Pt(gtx.Dp(t.Sp.M), sz.Y-box.Y-gtx.Dp(t.Sp.XL)*2)
+	off := op.Offset(at).Push(gtx.Ops)
+	defer off.Pop()
+	paint.FillShape(gtx.Ops, theme.Alpha(t.P.Panel, 0.9), clip.Rect{Max: box}.Op())
+	Border(gtx, box, 2, 1, t.P.Rule)
+	in := op.Offset(image.Pt(pad, pad)).Push(gtx.Ops)
+	content.Add(gtx.Ops)
+	in.Pop()
 }

@@ -183,6 +183,68 @@ func registerVerbs(st *state.Store, s *sim) {
 		w.Say("injected a packet at " + w.Nodes[at].Name)
 		return map[string]any{"at": w.Nodes[at].Name}, nil
 	})
+	st.Handle("coverage.compute", func(w *state.World, p any) (any, error) {
+		// The selected node unless told otherwise, because "coverage from
+		// here" is what somebody means when they have just clicked a node.
+		at := -1
+		if name, ok := p.(string); ok && name != "" {
+			for i := range w.Nodes {
+				if w.Nodes[i].Name == name {
+					at = i
+				}
+			}
+		} else {
+			for i := range w.Nodes {
+				if w.Nodes[i].Selected {
+					at = i
+					break
+				}
+			}
+		}
+		if at < 0 || at >= len(s.nodes) {
+			return nil, fmt.Errorf("no node selected to compute coverage from")
+		}
+		n := s.nodes[at]
+		w.Say("computing coverage from " + n.Name)
+		// On a worker: 25,600 terrain profiles is not a thing to do on the
+		// goroutine that owns the world.
+		go func() {
+			ctx := context.Background()
+			cov, err := s.coverageFor(ctx, n, 60)
+			if err != nil {
+				_, _ = st.Do(ctx, "coverage.failed", err.Error())
+				return
+			}
+			_, _ = st.Do(ctx, "coverage.set", cov)
+		}()
+		return map[string]any{"from": n.Name}, nil
+	})
+	st.Handle("coverage.set", func(w *state.World, p any) (any, error) {
+		cov, _ := p.(*state.Coverage)
+		w.Coverage = cov
+		if cov == nil {
+			return nil, nil
+		}
+		// Say how much of it is ignorance rather than absence. A raster
+		// computed with no elevation data is mostly a statement about the
+		// tile cache, and it looks exactly like a statement about radio.
+		if cov.NoDataCells > 0 {
+			w.Say(fmt.Sprintf("coverage from %s: %d of %d cells had no elevation data",
+				cov.Node, cov.NoDataCells, cov.Cells))
+		} else {
+			w.Say("coverage from " + cov.Node)
+		}
+		return map[string]any{"node": cov.Node}, nil
+	})
+	st.Handle("coverage.clear", func(w *state.World, _ any) (any, error) {
+		w.Coverage = nil
+		return nil, nil
+	})
+	st.Handle("coverage.failed", func(w *state.World, p any) (any, error) {
+		msg, _ := p.(string)
+		w.Say("coverage failed: " + msg)
+		return nil, nil
+	})
 	st.Handle("session.describe", func(w *state.World, _ any) (any, error) {
 		return map[string]any{
 			"nodes": len(w.Nodes), "seed": w.Seed, "now_ms": w.NowMs,
