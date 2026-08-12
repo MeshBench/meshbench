@@ -2,6 +2,7 @@ package engine_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -93,10 +94,21 @@ func studyRun(t *testing.T, seed uint64) (out struct {
 	radio := scenario.RadioConfig{CentreHz: 869.525e6, BandwidthHz: 250e3,
 		SpreadFactor: 10, CodingRate: 1}
 
-	// A 4x4 grid at ~22 km spacing: each node hears its neighbours and not the
-	// far side, so a flood has to be relayed and there is real choice about who
-	// relays it. Spacing chosen so a hop is comfortably decodable and two hops
-	// is not - the same basis as the flood test.
+	// A real network if one is named, and a grid otherwise.
+	//
+	// The grid exists because the shipped fixtures do not yet, and it is honest
+	// about what it is: regular spacing, uniform power, no terrain variety. A
+	// saved import has none of those conveniences, which is the point of running
+	// both - an effect that only appears on a lattice is an artefact of the
+	// lattice.
+	if path := os.Getenv("STUDY_SCENARIO"); path != "" {
+		names := studyLoadProject(t, e, path)
+		if err := e.AttachNativeProgress(ctx, seed, nil); err != nil {
+			t.Fatal(err)
+		}
+		return studyOriginate(t, ctx, e, names)
+	}
+
 	const rows, cols = 4, 4
 	const stepLat, stepLon = 0.20, 0.36
 	names := make([]string, 0, rows*cols)
@@ -120,11 +132,89 @@ func studyRun(t *testing.T, seed uint64) (out struct {
 	if err := e.AttachNative(ctx, seed); err != nil {
 		t.Fatal(err)
 	}
+	return studyOriginate(t, ctx, e, names)
+}
 
-	// One corner originates. Everything measured is what the mesh did with it.
-	src, ok := e.NodeByName("g00")
-	if !ok || src.Firmware == nil {
-		t.Fatal("no source node")
+// studyLoadProject adds the nodes of a saved project to the engine.
+//
+// Only the nodes: the saved areas and map position are for the workbench, and
+// the radio configuration comes from the run rather than the file so every arm
+// is measured on the same channel.
+func studyLoadProject(t *testing.T, e *engine.Engine, path string) []string {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc struct {
+		Nodes []scenario.Node `json:"nodes"`
+	}
+	if err := json.Unmarshal(b, &doc); err != nil {
+		t.Fatal(err)
+	}
+	// The preset the imported network actually runs: EU/UK (Narrow). Using the
+	// synthetic SF10/250k here would measure a different radio from the one
+	// these nodes were sited for.
+	imported := scenario.RadioConfig{CentreHz: 869.618e6, BandwidthHz: 62_500,
+		SpreadFactor: 8, CodingRate: 4}
+
+	// A version is a per-role release tag, so each role is pinned separately.
+	// A companion asked for repeater-v1.17.0 resolves nothing, and the failure
+	// arrives minutes later as "runs no firmware".
+	version := map[string]string{
+		"simple_repeater":    "repeater-v1.17.0",
+		"companion_radio":    "companion-v1.17.0",
+		"simple_room_server": "room-server-v1.17.0",
+	}
+
+	var names []string
+	for i := range doc.Nodes {
+		n := doc.Nodes[i]
+		if !n.Kind.RunsFirmware() {
+			continue // observers and emitters carry no firmware to compare
+		}
+		n.Radio = imported
+		role := n.Firmware.Role
+		if role == "" {
+			role = n.Kind.Application()
+			n.Firmware.Role = role
+		}
+		if v, ok := version[role]; ok {
+			n.Firmware.Version = v
+		}
+		// Never emulated here: an emulated node runs on wall time and would make
+		// the arm unrepeatable, which is the one thing this harness needs.
+		n.Firmware.Board = ""
+		e.Add(n, nil)
+		names = append(names, n.Name)
+	}
+	t.Logf("loaded %d nodes from %s", len(names), path)
+	return names
+}
+
+// studyOriginate sends one advert and counts what the mesh did with it.
+func studyOriginate(t *testing.T, ctx context.Context, e *engine.Engine,
+	names []string) (out struct {
+	tx, rx, dupes, delivered, reachable int
+}) {
+	t.Helper()
+	if len(names) == 0 {
+		t.Fatal("no nodes")
+	}
+	// Originate from a repeater, never a companion. A companion has no command
+	// line - it speaks the companion protocol over its serial link - so typing
+	// at one does nothing at all, with no error, which reads as a mesh that
+	// dropped the first hop.
+	var src *engine.Node
+	for _, name := range names {
+		n, ok := e.NodeByName(name)
+		if ok && n.Firmware != nil && n.Spec.Kind == scenario.SimpleRepeater {
+			src = n
+			break
+		}
+	}
+	if src == nil {
+		t.Fatal("no repeater to originate from")
 	}
 	if err := src.Firmware.Bridge.Type([]byte("advert\r\n")); err != nil {
 		t.Fatal(err)
