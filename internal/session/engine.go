@@ -512,6 +512,9 @@ func (s *Sim) startFirmware(st *state.Store, seed uint64) {
 			_, _ = st.Do(ctx, "job.progress", state.Job{
 				ID: "firmware", What: "telling every node what it is",
 				Done: n, Total: n})
+			// Time has to move for the firmware to read what was queued at
+			// its serial input; the old workbench steps sixty here too.
+			_, _ = st.Do(ctx, "sim.settle", nil)
 		}
 		_, _ = st.Do(ctx, "firmware.started", nil)
 	}()

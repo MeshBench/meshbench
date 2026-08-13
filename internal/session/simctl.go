@@ -9,6 +9,7 @@
 package session
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/A13xB0/meshcoresim/internal/gui/state"
@@ -61,6 +62,26 @@ func registerSimControl(st *state.Store, s *Sim) {
 			}
 		}
 		return map[string]any{"seed": w.Seed}, nil
+	})
+
+	// sim.settle advances the engine without the run being on. Provisioning
+	// queues commands at each node's serial input, and time has to move for
+	// the firmware to read and act on them - the old workbench steps sixty
+	// after configuring, and without the same here a paused mesh has been
+	// told everything and heard nothing.
+	st.Handle("sim.settle", func(w *state.World, p any) (any, error) {
+		if s.eng == nil {
+			return nil, fmt.Errorf("no simulation")
+		}
+		n := 60
+		if v, ok := numField(p, "steps"); ok && v > 0 {
+			n = int(v)
+		}
+		for i := 0; i < n; i++ {
+			_ = s.eng.Step(context.Background())
+		}
+		w.NowMs = s.eng.NowMs()
+		return map[string]any{"now_ms": w.NowMs, "steps": n}, nil
 	})
 
 	st.Handle("sim.reset", func(w *state.World, _ any) (any, error) {

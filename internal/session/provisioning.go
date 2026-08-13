@@ -111,6 +111,16 @@ func whyProvision(cmd string) string {
 			"reads as a radio fault"
 	case strings.HasPrefix(cmd, "set advert.hops"):
 		return "caps how far an advert floods"
+	case strings.HasPrefix(cmd, "set flood.max.advert"):
+		return "how far an advert is relayed - the firmware ships with 8, " +
+			"short on a national mesh, and a node whose advert never arrives " +
+			"is one nobody can route to"
+	case strings.HasPrefix(cmd, "set path.hash.mode"):
+		return "the firmware's own path-hash switch, varied by studies"
+	case strings.HasPrefix(cmd, "set loop.detect"):
+		return "the firmware's loop detection level, varied by studies"
+	case strings.HasPrefix(cmd, "set cad"):
+		return "channel-activity detection, varied by studies"
 	}
 	return "from this session's settings"
 }

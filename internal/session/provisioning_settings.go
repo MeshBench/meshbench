@@ -48,15 +48,33 @@ type Provisioning struct {
 	// StaggerMs spreads node starts, because bringing several hundred up in
 	// the same millisecond is a burst no real network ever sees.
 	StaggerMs int `json:"stagger_ms"`
+	// FloodMaxAdvert caps how far an advert is relayed. The firmware ships
+	// with 8, which is generous on a town and short on a country: a node
+	// whose advert never arrives is a node nobody can route to. Zero leaves
+	// the firmware alone.
+	FloodMaxAdvert int `json:"flood_max_advert"`
+	// PathHashMode, LoopDetect and CadMode are the firmware's own switches,
+	// passed through for studies that vary them. -1 and empty leave the
+	// firmware's defaults alone.
+	PathHashMode int    `json:"path_hash_mode"`
+	LoopDetect   string `json:"loop_detect"`
+	CadMode      string `json:"cad"`
 	// Extra is whatever this particular study needs, sent after the rest.
 	Extra string `json:"extra"`
 }
 
-// DefaultProvisioning is what the shipped fixtures were built with.
+// DefaultProvisioning is what the shipped fixtures were built with - the same
+// values the old workbench applies at attach, because a run moved between the
+// two must be the same run.
 func DefaultProvisioning() Provisioning {
 	return Provisioning{
 		SetName: true, SetPosition: true, SetClock: true,
 		StaggerMs: 250,
+		// 32 against the firmware's default of 8, matching the old
+		// workbench: the cost is airtime on adverts, which are small and
+		// infrequent; the alternative is unroutable nodes on national runs.
+		FloodMaxAdvert: 32,
+		PathHashMode:   -1,
 	}
 }
 
@@ -86,6 +104,18 @@ func registerProvisioningSettings(st *state.Store, s *Sim) {
 		}
 		if v, ok := numField(p, "stagger_ms"); ok {
 			pr.StaggerMs = int(v)
+		}
+		if v, ok := numField(p, "flood_max_advert"); ok {
+			pr.FloodMaxAdvert = int(v)
+		}
+		if v, ok := numField(p, "path_hash_mode"); ok {
+			pr.PathHashMode = int(v)
+		}
+		if v, ok := stringField(p, "loop_detect"); ok {
+			pr.LoopDetect = v
+		}
+		if v, ok := stringField(p, "cad"); ok {
+			pr.CadMode = v
 		}
 		if v, ok := stringField(p, "extra"); ok {
 			pr.Extra = v
@@ -136,7 +166,9 @@ func (p Provisioning) describe() map[string]any {
 		"set_clock": p.SetClock, "region_from_area": p.RegionFromArea,
 		"default_scope": p.DefaultScope, "advert_hops": p.AdvertHops,
 		"stagger_ms": p.StaggerMs, "extra": p.Extra,
-		"advert_minutes": p.AdvertMinutes,
+		"advert_minutes":   p.AdvertMinutes,
+		"flood_max_advert": p.FloodMaxAdvert, "path_hash_mode": p.PathHashMode,
+		"loop_detect": p.LoopDetect, "cad": p.CadMode,
 	}
 }
 
@@ -148,7 +180,20 @@ func (p Provisioning) describe() map[string]any {
 func (p Provisioning) commandsFor(n scenario.Node) []string {
 	var out []string
 	if p.SetName && n.Name != "" {
-		out = append(out, "set name "+n.Name)
+		// Truncated to the firmware's own field width, on a rune boundary:
+		// sending more is not an error the CLI reports - it stores the first
+		// part - and ScotMesh names carry emoji, so a byte cut would hand the
+		// firmware half a UTF-8 sequence.
+		out = append(out, "set name "+truncateRunes(n.Name, maxNodeNameRunes))
+	}
+	if p.PathHashMode >= 0 {
+		out = append(out, fmt.Sprintf("set path.hash.mode %d", p.PathHashMode))
+	}
+	if p.LoopDetect != "" && n.Kind.Transmits() {
+		out = append(out, "set loop.detect "+p.LoopDetect)
+	}
+	if p.CadMode != "" && n.Kind.Transmits() {
+		out = append(out, "set cad "+p.CadMode)
 	}
 	if p.SetPosition && (n.Position.Lat != 0 || n.Position.Lon != 0) {
 		out = append(out, fmt.Sprintf("set lat %.6f", n.Position.Lat),
@@ -180,6 +225,9 @@ func (p Provisioning) commandsFor(n scenario.Node) []string {
 	if p.AdvertHops > 0 {
 		out = append(out, fmt.Sprintf("set advert.hops %d", p.AdvertHops))
 	}
+	if p.FloodMaxAdvert > 0 && n.Kind.Transmits() {
+		out = append(out, fmt.Sprintf("set flood.max.advert %d", p.FloodMaxAdvert))
+	}
 	if p.Extra != "" {
 		for _, line := range strings.Split(p.Extra, "\n") {
 			if line = strings.TrimSpace(line); line != "" {
@@ -194,3 +242,16 @@ func (p Provisioning) commandsFor(n scenario.Node) []string {
 // comfortably after the 1.17 release. The same constant the old workbench uses,
 // so a run started in either lands on the same instant.
 const scenarioEpoch = 1788220800
+
+// maxNodeNameRunes is MeshCore's own node_name field width, the same constant
+// the old workbench truncates to.
+const maxNodeNameRunes = 32
+
+// truncateRunes cuts on a rune boundary, never inside one.
+func truncateRunes(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n])
+}
