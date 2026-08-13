@@ -1,7 +1,10 @@
 package main
 
 import (
+	"sync"
+
 	"fmt"
+	"github.com/A13xB0/meshcoresim/internal/gui/comp"
 	"sort"
 	"strings"
 	"sync/atomic"
@@ -19,6 +22,18 @@ import (
 type workbenchUI struct {
 	sh  *shell.Shell
 	sim *session.Sim
+	mv  *comp.MapView
+
+	// camera is the next camera request, applied by the frame loop. The
+	// MapView's own fields are read while drawing, so a verb must not write
+	// them from the store's goroutine.
+	camMu   sync.Mutex
+	camWant *cameraWant
+}
+
+type cameraWant struct {
+	fit            bool
+	lat, lon, zoom float64
 }
 
 var _ session.UI = (*workbenchUI)(nil)
@@ -52,3 +67,34 @@ func (u *workbenchUI) PanelNames() []string {
 }
 
 func (u *workbenchUI) Quit() { quit(u.sim) }
+
+func (u *workbenchUI) CentreMap(lat, lon, zoom float64) {
+	u.camMu.Lock()
+	defer u.camMu.Unlock()
+	u.camWant = &cameraWant{lat: lat, lon: lon, zoom: zoom}
+}
+
+func (u *workbenchUI) FitMap() {
+	u.camMu.Lock()
+	defer u.camMu.Unlock()
+	u.camWant = &cameraWant{fit: true}
+}
+
+// applyCamera runs on the frame goroutine, before the map draws.
+func (u *workbenchUI) applyCamera() {
+	u.camMu.Lock()
+	want := u.camWant
+	u.camWant = nil
+	u.camMu.Unlock()
+	if want == nil || u.mv == nil {
+		return
+	}
+	if want.fit {
+		u.mv.FitNext = true
+		return
+	}
+	u.mv.CentreLat, u.mv.CentreLon = want.lat, want.lon
+	if want.zoom > 0 {
+		u.mv.Zoom = want.zoom
+	}
+}

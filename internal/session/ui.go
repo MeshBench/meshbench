@@ -26,6 +26,13 @@ type UI interface {
 	PanelNames() []string
 	// Quit closes the application, stopping firmware on the way out.
 	Quit()
+	// CentreMap points the camera at a position. Zoom of zero leaves the
+	// current scale alone, so "look here" and "look here this close" are the
+	// same verb rather than two.
+	CentreMap(lat, lon, zoom float64)
+	// FitMap frames every node, which is the only camera request that needs
+	// no numbers and is the one somebody driving a capture usually wants.
+	FitMap()
 }
 
 // SetUI attaches an interface. Safe to leave unset.
@@ -71,4 +78,69 @@ func registerUI(st *state.Store, s *Sim) {
 		go s.Close()
 		return map[string]any{"closing": true, "headless": true}, nil
 	})
+}
+
+func registerMapCamera(st *state.Store, s *Sim) {
+	// map.centre: look at a place, or at a node.
+	//
+	// A name is accepted as well as a position because a caller aiming a
+	// capture knows "Bishop Hill" and would otherwise have to look its
+	// coordinates up first.
+	st.Handle("map.centre", func(w *state.World, p any) (any, error) {
+		if err := s.needUI(); err != nil {
+			return nil, err
+		}
+		var lat, lon, zoom float64
+		if name, ok := p.(string); ok {
+			n, found := findNode(w.Nodes, name)
+			if !found {
+				return nil, fmt.Errorf("no node named %q", name)
+			}
+			lat, lon = n.Lat, n.Lon
+		} else {
+			if v, ok := numField(p, "node"); !ok {
+				_ = v
+			}
+			if m, ok := p.(map[string]any); ok {
+				if name, ok := m["node"].(string); ok && name != "" {
+					n, found := findNode(w.Nodes, name)
+					if !found {
+						return nil, fmt.Errorf("no node named %q", name)
+					}
+					lat, lon = n.Lat, n.Lon
+				}
+			}
+			if v, ok := numField(p, "lat"); ok {
+				lat = v
+			}
+			if v, ok := numField(p, "lon"); ok {
+				lon = v
+			}
+			if v, ok := numField(p, "zoom"); ok {
+				zoom = v
+			}
+		}
+		if lat == 0 && lon == 0 {
+			return nil, fmt.Errorf("map.centre needs a node, or a lat and lon")
+		}
+		s.ui.CentreMap(lat, lon, zoom)
+		return map[string]any{"lat": lat, "lon": lon, "zoom": zoom}, nil
+	})
+
+	st.Handle("map.fit", func(w *state.World, _ any) (any, error) {
+		if err := s.needUI(); err != nil {
+			return nil, err
+		}
+		s.ui.FitMap()
+		return map[string]any{"nodes": len(w.Nodes)}, nil
+	})
+}
+
+func findNode(nodes []state.Node, name string) (state.Node, bool) {
+	for _, n := range nodes {
+		if n.Name == name {
+			return n, true
+		}
+	}
+	return state.Node{}, false
 }

@@ -27,7 +27,10 @@ type MapView struct {
 	Tiles *Tiles
 	// Zoom and Centre are the camera. Kept here rather than in state because
 	// where somebody is looking is a property of the view, not of the world.
-	Zoom        float64
+	Zoom float64
+	// FitNext asks the next frame to frame every node. Set from anywhere;
+	// cleared here once honoured.
+	FitNext     bool
 	CentreLat   float64
 	CentreLon   float64
 	initialised bool
@@ -84,9 +87,11 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 		return layout.Center.Layout(gtx,
 			Text(t, t.Sz.Caption, t.P.Faint, "no network loaded"))
 	}
-	if !m.initialised {
+	if !m.initialised || m.FitNext {
+		// FitNext is how something outside the frame loop asks for a fit:
+		// framing needs the widget's size, which only exists here.
 		m.fit(s, sz)
-		m.initialised = true
+		m.initialised, m.FitNext = true, false
 	}
 	m.Layers.defaults()
 

@@ -115,9 +115,10 @@ func main() {
 	onSignal(ctx, cancel, sm)
 
 	sh := shell.New()
-	sm.SetUI(&workbenchUI{sh: sh, sim: sm})
 	wins := newWindows()
 	mv := &comp.MapView{}
+	wbUI := &workbenchUI{sh: sh, sim: sm, mv: mv}
+	sm.SetUI(wbUI)
 	// The tile cache the old workbench already filled: 37 MB of it on this
 	// machine, and the same store, so nothing is downloaded twice.
 	if cache, err := os.UserCacheDir(); err == nil {
@@ -268,6 +269,7 @@ func main() {
 	nodes := &nodesPanel{}
 	sh.Add(&shell.Panel{Name: "Map", Windowable: true,
 		Draw: func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+			wbUI.applyCamera()
 			return mv.Layout(t, gtx, s)
 		}})
 	sh.Add(&shell.Panel{Name: "Nodes", Windowable: true, Draw: nodes.Draw})
