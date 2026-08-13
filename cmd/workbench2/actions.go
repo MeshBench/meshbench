@@ -22,7 +22,12 @@ import (
 // short forms - a node, a command, a number - and stacking every one of them
 // vertically pushes the table off the bottom of a docked panel.
 type actionBar struct {
-	fields  []*comp.Field
+	fields []*comp.Field
+	// extras sit between the fields and the buttons: a dropdown, a switch -
+	// any control that is neither a box nor a button but belongs in the row.
+	// They take the theme at draw time, not at build time, so a theme change
+	// reaches them like everything else.
+	extras  []func(t *theme.Theme, gtx layout.Context) layout.Dimensions
 	buttons []*comp.Button
 	note    string
 }
@@ -45,6 +50,14 @@ func (a *actionBar) layout(t *theme.Theme, gtx layout.Context) layout.Dimensions
 			return layout.Inset{Right: t.Sp.S}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return f.Layout(t, gtx)
 			})
+		}))
+	}
+	for _, e := range a.extras {
+		e := e
+		kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			gtx.Constraints.Max.X = min(gtx.Constraints.Max.X, gtx.Dp(220))
+			return layout.Inset{Right: t.Sp.S}.Layout(gtx,
+				func(gtx layout.Context) layout.Dimensions { return e(t, gtx) })
 		}))
 	}
 	for _, b := range a.buttons {
@@ -107,6 +120,13 @@ func (a *actionBar) stacked(t *theme.Theme, gtx layout.Context) layout.Dimension
 		kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx,
 				func(gtx layout.Context) layout.Dimensions { return f.Layout(t, gtx) })
+		}))
+	}
+	for _, e := range a.extras {
+		e := e
+		kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx,
+				func(gtx layout.Context) layout.Dimensions { return e(t, gtx) })
 		}))
 	}
 	for _, b := range a.buttons {

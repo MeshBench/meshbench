@@ -20,7 +20,15 @@ type Do func(verb string, params any)
 type fleetControls struct {
 	bar     actionBar
 	command comp.Field
-	kind    comp.Field
+	// kind is a dropdown, not a box: the tokens are the scenario's own -
+	// "simple-repeater", not "repeater" - and a box that wants the exact
+	// token is a box that silently filters to nobody when given the word a
+	// person would type.
+	kind comp.Dropdown
+	// kindTok is the chosen scenario token; empty sends to every kind.
+	kindTok string
+	// choose opens the shell's chooser, the one way anything picks from a list.
+	choose  func(title string, opts []string, pick func(string))
 	send    comp.Button
 	regions comp.Field
 	setReg  comp.Button
@@ -35,6 +43,18 @@ type fleetControls struct {
 	built bool
 }
 
+// fleetKinds is the kind filter, in a person's words on the left and the
+// scenario's own token on the right.
+var fleetKinds = []struct{ label, token string }{
+	{"every kind", ""},
+	{"repeaters", "simple-repeater"},
+	{"advanced repeaters", "advanced-repeater"},
+	{"room servers", "room-server"},
+	{"companions", "companion"},
+	{"observers", "sdr-observer"},
+	{"emitters", "emitter"},
+}
+
 // fleetQuick is what those buttons put in the box.
 var fleetQuick = [4]struct{ label, cmd string }{
 	{"advert", "advert"},
@@ -47,14 +67,34 @@ func (c *fleetControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 	if !c.built {
 		c.command.Hint = "a MeshCore command, sent to every node"
 		c.command.Editor.SingleLine = true
-		c.kind.Hint = "only this kind (blank: all)"
-		c.kind.Editor.SingleLine = true
+		c.kind.Value = "every kind"
+		c.kind.OnOpen = func() {
+			if c.choose == nil {
+				return
+			}
+			opts := make([]string, 0, len(fleetKinds))
+			for _, k := range fleetKinds {
+				opts = append(opts, k.label)
+			}
+			c.choose("Send to which kind?", opts, func(picked string) {
+				for _, k := range fleetKinds {
+					if k.label == picked {
+						c.kindTok, c.kind.Value = k.token, k.label
+					}
+				}
+			})
+		}
 		c.regions.Hint = "regions, space separated"
 		c.regions.Editor.SingleLine = true
 		c.send.Label, c.send.Kind = "send to the fleet", comp.Primary
 		c.setReg.Label, c.setReg.Kind = "set regions", comp.Secondary
 		c.allow.Label, c.allow.Kind = "allow any flood", comp.Secondary
-		c.bar.fields = []*comp.Field{&c.command, &c.kind}
+		c.bar.fields = []*comp.Field{&c.command}
+		c.bar.extras = []func(*theme.Theme, layout.Context) layout.Dimensions{
+			func(t *theme.Theme, gtx layout.Context) layout.Dimensions {
+				return c.kind.Layout(t, gtx)
+			},
+		}
 		c.bar.buttons = []*comp.Button{&c.send}
 		for i := range c.quick {
 			c.quick[i].Label, c.quick[i].Kind = fleetQuick[i].label, comp.Quiet
@@ -65,7 +105,7 @@ func (c *fleetControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 	}
 	if c.send.Click.Clicked(gtx) && c.do != nil {
 		c.do("fleet.send", map[string]any{
-			"command": fieldText(&c.command), "kind": fieldText(&c.kind),
+			"command": fieldText(&c.command), "kind": c.kindTok,
 		})
 	}
 	if c.setReg.Click.Clicked(gtx) && c.do != nil {

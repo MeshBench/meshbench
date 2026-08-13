@@ -157,7 +157,14 @@ func main() {
 			)
 		}
 	}
-	fleetCtl := &fleetControls{do: do}
+	// One chooser for every dropdown: the shell's overlay is the single way
+	// anything here picks from a list.
+	chooser := func(title string, opts []string, pick func(string)) {
+		sh.Ask.Post(func(ask *shell.Prompt) {
+			ask.Choose(title, "filter", opts, pick)
+		})
+	}
+	fleetCtl := &fleetControls{do: do, choose: chooser}
 	schedCtl := &scheduleControls{do: do}
 	importCtl := &importControls{do: do}
 	boundCtl := &boundaryControls{do: do}
@@ -490,12 +497,7 @@ func main() {
 		go func() { _, _ = st.Do(ctx, "run.save", "run") }()
 	}
 	sh.Add(&shell.Panel{Name: "Compare", Windowable: true, Draw: cmpP.Draw})
-	cfg := &configPanel{do: do}
-	cfg.choose = func(title string, opts []string, pick func(string)) {
-		sh.Ask.Post(func(ask *shell.Prompt) {
-			ask.Choose(title, "filter", opts, pick)
-		})
-	}
+	cfg := &configPanel{do: do, choose: chooser}
 	if *cfgSection != "" {
 		cfg.Open(*cfgSection)
 	}

@@ -271,6 +271,7 @@ type target struct {
 // boxes, so a panel added to one is audited by both.
 func auditTargets(r *recorder) []target {
 	fleet := &fleetControls{do: r.do}
+	fleet.choose = func(title string, _ []string, _ func(string)) { r.do("ui.choose", title) }
 	sched := &scheduleControls{do: r.do}
 	imp := &importControls{do: r.do}
 	bound := &boundaryControls{do: r.do}
