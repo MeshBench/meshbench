@@ -199,10 +199,13 @@ func findNode(nodes []state.Node, name string) (state.Node, bool) {
 func registerUIVerbs(st *state.Store, s *Sim) {
 	need := func() error { return s.needUI() }
 
-	// status: the one-line answer to "what is this doing", which the old
-	// workbench answered and this did not. Anything driving the workbench
+	// session.status: the one-line answer to "what is this doing", which the
+	// old workbench answered and this did not. Anything driving the workbench
 	// polls it, so it must never fail and never need a loaded network.
-	st.Handle("status", func(w *state.World, _ any) (any, error) {
+	//
+	// Namespaced, unlike the old workbench1 verb of the same purpose: every
+	// verb here is noun.verb so a script reads as a sentence.
+	st.Handle("session.status", func(w *state.World, _ any) (any, error) {
 		out := map[string]any{
 			"status": w.Status, "nodes": len(w.Nodes), "playing": w.Playing,
 			"now_ms": w.NowMs, "firmware_running": w.FirmwareRunning,

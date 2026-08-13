@@ -31,20 +31,28 @@ func TestMenuItemsWorkWithNoParameters(t *testing.T) {
 	_, _ = store.Do(ctx, "nodes.select", "Abernethy Repeater")
 
 	// Exactly what the workbench's menus send today.
-	items := []struct{ menu, label, verb string }{
-		{"File", "Save this network", "project.save"},
-		{"File", "Save this run", "run.save"},
-		{"File", "Export the event log", "events.dump"},
-		{"Simulation", "One step", "sim.step"},
-		{"Simulation", "Back to the start", "sim.reset"},
-		{"Simulation", "Start firmware on every node", "firmware.start"},
-		{"Simulation", "Wipe every node's memory", "firmware.wipe"},
-		{"Simulation", "Originate a packet", "sim.inject"},
-		{"Simulation", "Capture the waterfall", "waterfall.capture"},
-		{"Simulation", "Capture to a pcapng file", "capture.file"},
-		{"Repeaters", "Coverage from the selection", "coverage.compute"},
-		{"Planning", "Routes between two selected nodes", "plan.routes"},
-		{"Help", "What this run assumes", "panel.Configuration"},
+	// asks marks the entries that put a question on screen before the verb
+	// runs, because the verb needs something a menu entry cannot carry. They
+	// must fail without it - a verb that quietly invents a name or a pair of
+	// nodes is worse than one that refuses.
+	items := []struct {
+		menu, label, verb string
+		asks              bool
+	}{
+		{"File", "Open a saved network", "project.open", true},
+		{"File", "Save this network", "project.save", true},
+		{"File", "Save this run", "run.save", false},
+		{"File", "Export the event log", "events.dump", false},
+		{"Simulation", "One step", "sim.step", false},
+		{"Simulation", "Back to the start", "sim.reset", false},
+		{"Simulation", "Start firmware on every node", "firmware.start", false},
+		{"Simulation", "Wipe every node's memory", "firmware.wipe", false},
+		{"Simulation", "Originate a packet", "sim.inject", false},
+		{"Simulation", "Capture the waterfall", "waterfall.capture", false},
+		{"Simulation", "Capture to a pcapng file", "capture.file", false},
+		{"Repeaters", "Coverage from the selection", "coverage.compute", false},
+		{"Planning", "Routes between two selected nodes", "plan.routes", true},
+		{"Help", "What this run assumes", "panel.Configuration", false},
 	}
 
 	var broken []string
@@ -53,6 +61,16 @@ func TestMenuItemsWorkWithNoParameters(t *testing.T) {
 			continue // the shell handles these itself
 		}
 		_, err := store.Do(ctx, it.verb, nil)
+		if it.asks {
+			if err == nil {
+				t.Errorf("%s > %s ran with no parameter; the workbench asks for "+
+					"one, so the verb accepting nothing means the answer was "+
+					"discarded", it.menu, it.label)
+			} else {
+				t.Logf("asks %s > %s: %v", it.menu, it.label, err)
+			}
+			continue
+		}
 		if err != nil {
 			broken = append(broken, it.menu+" > "+it.label+"  ("+it.verb+"): "+err.Error())
 			continue

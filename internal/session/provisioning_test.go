@@ -23,7 +23,10 @@ func TestScriptIsWhatIsSent(t *testing.T) {
 			got = append(got, l.Command)
 		}
 	}
-	want := fixture.RegionCommands(n)
+	// What is sent is the session's own settings first - name, clock - and
+	// then the regions. The test used to compare against the regions alone,
+	// and so failed the moment provisioning learned to set a name.
+	want := append(DefaultProvisioning().commandsFor(n), fixture.RegionCommands(n)...)
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("script has drifted from what is sent:\n got %q\nwant %q", got, want)
 	}
@@ -38,16 +41,21 @@ func TestEveryLineSaysWhy(t *testing.T) {
 	}
 }
 
-// A node with nothing to send still gets an answer, because "the panel showed
+// A node with no regions still gets an answer, because "the panel showed
 // nothing" and "this node is told nothing" look identical otherwise.
+//
+// It is no longer told nothing at all: every node is given its name and the
+// run's clock. What it must not be given is a region line, since it carries no
+// regions - that is what this guards.
 func TestSilentNodeSaysSo(t *testing.T) {
 	got := ProvisioningFor(scenario.Node{Name: "Quiet", Kind: scenario.Companion})
 	if len(got) < 2 {
 		t.Fatalf("expected an explanation, got %v", got)
 	}
 	for _, l := range got {
-		if !l.Comment {
-			t.Errorf("a node with no regions should send nothing, got %q", l.Command)
+		if !l.Comment && strings.HasPrefix(l.Command, "region") {
+			t.Errorf("a node with no regions should be told about none, got %q",
+				l.Command)
 		}
 	}
 }

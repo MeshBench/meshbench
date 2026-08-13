@@ -657,6 +657,17 @@ func main() {
 			}()
 			return
 		}
+		// Planning between two nodes, when two are not already selected.
+		//
+		// The verb reads the selection, so from a menu it simply refused, and
+		// "select two nodes to plan between" in a status bar is a rebuke rather
+		// than an instruction. Asking for the ends is the instruction.
+		if action == "plan.routes" {
+			if sel := selectedNames(st.Snapshot()); len(sel) < 2 {
+				askForRouteEnds(ctx, st, &sh.Ask, sel)
+				return
+			}
+		}
 		// Verbs that need a word from the operator. A menu entry carries no
 		// parameters, so before this the item fired, the verb refused, and the
 		// only trace was a line in the status bar nobody was reading.
@@ -867,4 +878,59 @@ var menuAsks = map[string]struct {
 			return "network-" + time.Now().Format("20060102-1504")
 		},
 	},
+}
+
+// selectedNames is who is selected right now.
+func selectedNames(s *state.Snapshot) []string {
+	if s == nil {
+		return nil
+	}
+	var out []string
+	for i := range s.Nodes {
+		if s.Nodes[i].Selected {
+			out = append(out, s.Nodes[i].Name)
+		}
+	}
+	return out
+}
+
+// askForRouteEnds gets the two ends the route search needs, then selects them
+// and runs it - so the selection ends up saying what was planned, which is
+// what somebody who selected the nodes by hand would have seen.
+func askForRouteEnds(ctx context.Context, st *state.Store, ask *shell.Prompt,
+	sel []string) {
+	s := st.Snapshot()
+	if s == nil || len(s.Nodes) < 2 {
+		return
+	}
+	names := make([]string, 0, len(s.Nodes))
+	for i := range s.Nodes {
+		names = append(names, s.Nodes[i].Name)
+	}
+	run := func(from, to string) {
+		go func() {
+			_, _ = st.Do(ctx, "nodes.select_many", []string{from, to})
+			_, _ = st.Do(ctx, "plan.routes", nil)
+		}()
+	}
+	if len(sel) == 1 {
+		from := sel[0]
+		ask.Choose("Plan a route from "+from+" to", "filter",
+			except(names, from), func(to string) { run(from, to) })
+		return
+	}
+	ask.Choose("Plan a route from", "filter", names, func(from string) {
+		ask.Choose("Plan a route from "+from+" to", "filter",
+			except(names, from), func(to string) { run(from, to) })
+	})
+}
+
+func except(names []string, drop string) []string {
+	out := make([]string, 0, len(names))
+	for _, n := range names {
+		if n != drop {
+			out = append(out, n)
+		}
+	}
+	return out
 }
