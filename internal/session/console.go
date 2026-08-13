@@ -7,6 +7,7 @@
 package session
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/A13xB0/meshcoresim/internal/console"
@@ -71,11 +72,20 @@ func registerConsole(st *state.Store, s *Sim) {
 		if err := n.Firmware.Bridge.Type([]byte(cmd + "\r\n")); err != nil {
 			return nil, err
 		}
-		// The reply arrives when the engine next steps, and the engine steps on
-		// the store's ticker - which is this goroutine. Waiting for it here is
-		// waiting for yourself: with fifty-eight firmware processes it blocked
-		// every other verb for seconds, and from outside that is a hung socket.
-		// Type, return, and let console.read collect the answer.
+		// The reply arrives when the engine next steps. Playing, the ticker
+		// does that within milliseconds and the tick republishes the console.
+		// Paused, nothing would ever step - so a typed command answered with
+		// silence until somebody pressed play, which reads as a console that
+		// does not answer. The old workbench steps sixty after typing; the
+		// same here, but only when paused: waiting for the ticker from the
+		// ticker's own goroutine is waiting for yourself, and with
+		// fifty-eight firmware processes it blocked every verb for seconds.
+		if !w.Playing {
+			for i := 0; i < 60; i++ {
+				_ = s.eng.Step(context.Background())
+			}
+			w.NowMs = s.eng.NowMs()
+		}
 		w.Console, w.ConsoleNode = buf.Snapshot(), name
 		_ = mark
 		return map[string]any{
