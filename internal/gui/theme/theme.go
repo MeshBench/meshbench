@@ -54,6 +54,11 @@ type Palette struct {
 	// Selection background, distinct from Accent so a selected row does not
 	// shout as loudly as a button.
 	Selected color.NRGBA
+	// MapInk and MapPlate are for text drawn on the basemap itself. The same
+	// in both modes, deliberately: a label on the map contends with the map's
+	// own colours, not the theme's ground, and it must read against a dark
+	// hillshade and a light street map without changing with the layer.
+	MapInk, MapPlate color.NRGBA
 }
 
 // dark is the primary palette. Neutrals carry a slight blue-green bias rather
@@ -73,6 +78,8 @@ var dark = Palette{
 	Warn:      rgb(0xe0, 0xa8, 0x5c),
 	Bad:       rgb(0xe0, 0x7a, 0x6a),
 	Selected:  rgb(0x1d, 0x2c, 0x2c),
+	MapInk:    rgb(0xf2, 0xf5, 0xff),
+	MapPlate:  color.NRGBA{R: 0x0d, G: 0x0f, B: 0x14, A: 0xb3},
 }
 
 // light is a real design rather than an inversion: the accent darkens so it
@@ -91,6 +98,9 @@ var light = Palette{
 	Warn:      rgb(0x8a, 0x5a, 0x16),
 	Bad:       rgb(0x9c, 0x3b, 0x2c),
 	Selected:  rgb(0xdd, 0xeb, 0xe6),
+	// The same as dark's, on purpose: see the field comment.
+	MapInk:   rgb(0xf2, 0xf5, 0xff),
+	MapPlate: color.NRGBA{R: 0x0d, G: 0x0f, B: 0x14, A: 0xb3},
 }
 
 // NodeKind colours the six node kinds. Chosen to stay distinguishable under

@@ -260,23 +260,43 @@ func (m *MapView) scaleBar(t *theme.Theme, gtx layout.Context, sz image.Point, n
 
 	y := sz.Y - gtx.Dp(t.Sp.XL)
 	x := gtx.Dp(t.Sp.M)
-	off := op.Offset(image.Pt(x, y)).Push(gtx.Ops)
+
+	// The scale and the attribution share one dark strip, so both stay
+	// readable whatever basemap is underneath - attribution that cannot be
+	// read is not attribution, and every layer here requires it. The old
+	// workbench learned this as MSIM-10.
+	noteW := 0
+	{
+		m := op.Record(gtx.Ops)
+		d := Mono(t, t.Sz.Caption, t.P.MapInk, note)(unbounded(gtx))
+		m.Stop()
+		noteW = d.Size.X
+	}
+	stripW := px + gtx.Dp(24)
+	if noteW+gtx.Dp(24) > stripW {
+		stripW = noteW + gtx.Dp(24)
+	}
+	off := op.Offset(image.Pt(x-gtx.Dp(8), y-gtx.Dp(24))).Push(gtx.Ops)
+	RoundRect(gtx, image.Pt(stripW, gtx.Dp(50)), 4, t.P.MapPlate)
+	off.Pop()
+
+	off = op.Offset(image.Pt(x, y)).Push(gtx.Ops)
 	// A bar with end ticks, so it is read as a measurement rather than a rule.
-	paint.FillShape(gtx.Ops, t.P.Dim, clip.Rect{
+	paint.FillShape(gtx.Ops, t.P.MapInk, clip.Rect{
 		Min: image.Pt(0, 0), Max: image.Pt(px, 2)}.Op())
-	paint.FillShape(gtx.Ops, t.P.Dim, clip.Rect{
+	paint.FillShape(gtx.Ops, t.P.MapInk, clip.Rect{
 		Min: image.Pt(0, -4), Max: image.Pt(2, 6)}.Op())
-	paint.FillShape(gtx.Ops, t.P.Dim, clip.Rect{
+	paint.FillShape(gtx.Ops, t.P.MapInk, clip.Rect{
 		Min: image.Pt(px-2, -4), Max: image.Pt(px, 6)}.Op())
 	off.Pop()
 
 	// Above the bar by exactly its own height. Guessing a gap in Dp put the
 	// distance on top of the bar it was labelling.
 	above(gtx, image.Pt(x, y), gtx.Dp(3),
-		Mono(t, t.Sz.Caption, t.P.Dim, distanceLabel(metres)))
+		Mono(t, t.Sz.Caption, t.P.MapInk, distanceLabel(metres)))
 
 	off = op.Offset(image.Pt(x, y+gtx.Dp(t.Sp.S))).Push(gtx.Ops)
-	Mono(t, t.Sz.Caption, t.P.Faint, note)(unbounded(gtx))
+	Mono(t, t.Sz.Caption, theme.Alpha(t.P.MapInk, 0.85), note)(unbounded(gtx))
 	off.Pop()
 }
 

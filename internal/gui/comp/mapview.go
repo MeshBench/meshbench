@@ -198,6 +198,17 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 			paint.FillShape(gtx.Ops, theme.Alpha(t.NodeColour(k), 0.22),
 				clip.Outline{Path: np.End()}.Op())
 		}
+		// A dark ring under every marker first, one path for all of them, so
+		// a dot reads against a dark hillshade and a light street map without
+		// changing colour with the layer.
+		var ring clip.Path
+		ring.Begin(gtx.Ops)
+		for _, list := range byKind {
+			for _, p := range list {
+				dot(&ring, f32.Pt(p.x, p.y), 6)
+			}
+		}
+		paint.FillShape(gtx.Ops, t.P.MapPlate, clip.Outline{Path: ring.End()}.Op())
 		for k, list := range byKind {
 			var np clip.Path
 			np.Begin(gtx.Ops)
@@ -235,17 +246,19 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 			func(i int) image.Point { return m.sizes.measure(gtx, t, pts[i].n.Name) })
 	}
 	for i, at := range spots {
-		col := t.P.Dim
+		// The old workbench's recipe, kept because it is proven: near-white
+		// ink on a dark plate, whatever the theme and whatever the basemap.
+		// A label on the map contends with the map's own colours - white text
+		// was invisible over the light street map, which is exactly where the
+		// place names it competes with already are.
+		col := theme.Alpha(t.P.MapInk, 0.85)
 		if pts[i].n.Selected || i == m.cam.hover {
-			col = t.P.Ink
+			col = t.P.MapInk
 		}
 		off := op.Offset(at).Push(gtx.Ops)
-		// A translucent plate under each name, so labels stay readable on
-		// any basemap: the theme's ink is chosen against the theme's ground,
-		// and the Light and Topographic maps are neither.
 		if sz := m.sizes.measure(gtx, t, pts[i].n.Name); sz.X > 0 {
-			pad := gtx.Dp(2)
-			RoundRect(gtx, image.Pt(sz.X+pad*2, sz.Y), 3, theme.Alpha(t.P.Ground, 0.55))
+			pad := gtx.Dp(3)
+			RoundRect(gtx, image.Pt(sz.X+pad*2, sz.Y), 3, t.P.MapPlate)
 			in := op.Offset(image.Pt(pad, 0)).Push(gtx.Ops)
 			Text(t, t.Sz.Caption, col, pts[i].n.Name)(unbounded(gtx))
 			in.Pop()
