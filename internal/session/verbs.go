@@ -36,6 +36,7 @@ func Register(st *state.Store, s *Sim) {
 	registerCompanion(st, s)
 	registerMeshCLI(st, s)
 	registerProvisioningSettings(st, s)
+	registerRadioReconcile(st, s)
 	registerExperiment(st, s)
 	registerExperimentDone(st, s)
 	registerCoverageCombined(st, s)

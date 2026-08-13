@@ -28,6 +28,16 @@ type actionBar struct {
 }
 
 func (a *actionBar) layout(t *theme.Theme, gtx layout.Context) layout.Dimensions {
+	// Wrap when the column is narrow.
+	//
+	// One row is right in a docked panel across the width of a window, and
+	// wrong in the Inspector's column, where three buttons were squeezed into
+	// vertical strips one letter wide. A control nobody can read is not a
+	// control, so below this width each one gets its own line.
+	narrow := gtx.Constraints.Max.X < gtx.Dp(560)
+	if narrow {
+		return a.stacked(t, gtx)
+	}
 	kids := make([]layout.FlexChild, 0, len(a.fields)+len(a.buttons))
 	for _, f := range a.fields {
 		f := f
@@ -87,4 +97,30 @@ func selectedNodeName(s *state.Snapshot) string {
 		}
 	}
 	return ""
+}
+
+// stacked is the narrow-column form: fields full width, one button per line.
+func (a *actionBar) stacked(t *theme.Theme, gtx layout.Context) layout.Dimensions {
+	kids := make([]layout.FlexChild, 0, len(a.fields)+len(a.buttons)+1)
+	for _, f := range a.fields {
+		f := f
+		kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx,
+				func(gtx layout.Context) layout.Dimensions { return f.Layout(t, gtx) })
+		}))
+	}
+	for _, b := range a.buttons {
+		b := b
+		kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx,
+				func(gtx layout.Context) layout.Dimensions { return b.Layout(t, gtx) })
+		}))
+	}
+	if a.note != "" {
+		kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Bottom: t.Sp.S}.Layout(gtx,
+				comp.Text(t, t.Sz.Caption, t.P.Faint, a.note))
+		}))
+	}
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, kids...)
 }
