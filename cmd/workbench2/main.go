@@ -361,6 +361,25 @@ func main() {
 		}()
 	}
 	sh.Add(&shell.Panel{Name: "Nodes running", Windowable: true, Draw: nv.Draw})
+	// Keep the node view live while somebody is looking at it.
+	//
+	// Sampling costs a /proc read per node, so it is driven by the panel
+	// having drawn rather than by a timer that runs whether or not the view
+	// is open - and it stops as soon as the panel does.
+	go func() {
+		t := time.NewTicker(2 * time.Second)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				if nv.watched.Swap(false) {
+					_, _ = st.Do(ctx, "nodes.stats", nil)
+				}
+			}
+		}
+	}()
 	fleet := &fleetPanel{}
 	bounds := &boundaryPanel{}
 	tls := &timelinesPanel{}

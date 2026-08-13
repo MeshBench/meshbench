@@ -10,6 +10,7 @@ package main
 import (
 	"fmt"
 	"image"
+	"sync/atomic"
 
 	"gioui.org/f32"
 	"os"
@@ -27,6 +28,12 @@ import (
 )
 
 type nodeViewPanel struct {
+	// watched is set every time this panel draws, and cleared by whoever
+	// refreshes it. A live memory and processor view that only updates when a
+	// button is pressed is not a live view; sampling /proc for every node when
+	// nobody has the panel open is waste. This is how it does neither.
+	watched atomic.Bool
+
 	tb   comp.Table
 	init bool
 
@@ -56,6 +63,8 @@ type nodeViewPanel struct {
 }
 
 func (p *nodeViewPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+	p.watched.Store(true)
+
 	if !p.init {
 		p.tb.Cols = []comp.Column{
 			{Title: "node", Width: 190, Sortable: true},
