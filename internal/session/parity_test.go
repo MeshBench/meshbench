@@ -48,22 +48,8 @@ var stillMissing = map[string]string{
 	"experiment.stop":       "P6",
 	"experiment.vary":       "P6",
 	"loop.detect":           "P4",
-	"map.filter":            "P3",
-	"map.zoom":              "P3",
 	"nodes.place":           "P5",
-	"panel.dock":            "P7",
-	"panel.open":            "P7",
-	"panel.pop_out":         "P7",
 	"radio.preset":          "P5",
-	"tool.set":              "P3",
-	"ui.scale":              "P7",
-	"ui.state":              "P7",
-	"view.delete":           "P7",
-	"view.list":             "P7",
-	"view.load":             "P7",
-	"view.save":             "P7",
-	"window.close":          "P7",
-	"window.open":           "P7",
 }
 
 var oldVerb = regexp.MustCompile(`case "([a-z_]+\.[a-z_]+)"`)

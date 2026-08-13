@@ -552,6 +552,10 @@ func main() {
 		return theme.New(m, d,
 			text.NewShaper(text.WithCollection(withEmoji(gofont.Collection()))))
 	}
+	wbUI.dock = func(name string) { wins.dock(name) }
+	wbUI.closeWin = func(name string) error { return wins.close(name) }
+	wbUI.scale = sets.getScale
+	wbUI.setScale = sets.setScale
 	sh.PoppedOut = wins.has
 	sh.OnPopOut = func(name string) {
 		wins.popOut(name, sh, func() *theme.Theme {

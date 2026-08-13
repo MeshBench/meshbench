@@ -75,3 +75,14 @@ func layoutFor(v View) (main string, side []string) {
 // NumViews is how many views there are, for anything outside this package
 // that has to enumerate them - a verb naming one, or a test covering all.
 const NumViews = numViews
+
+// PanelsIn is every panel a view shows, for anything outside this package that
+// needs to know where a panel lives - showing one means showing its view.
+func PanelsIn(v View) []string {
+	main, side := layoutFor(v)
+	out := make([]string, 0, len(side)+1)
+	if main != "" {
+		out = append(out, main)
+	}
+	return append(out, side...)
+}

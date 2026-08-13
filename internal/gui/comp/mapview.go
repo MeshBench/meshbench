@@ -4,6 +4,7 @@ import (
 	"image"
 	"image/color"
 	"math"
+	"strings"
 
 	"gioui.org/f32"
 	"gioui.org/layout"
@@ -30,7 +31,13 @@ type MapView struct {
 	Zoom float64
 	// FitNext asks the next frame to frame every node. Set from anywhere;
 	// cleared here once honoured.
-	FitNext     bool
+	FitNext bool
+	// Filter dims every node whose name or kind does not contain it. Dims
+	// rather than hides, because a node that vanishes from a map looks like
+	// a node that is not in the scenario at all.
+	Filter string
+	// Tool is what a click does: select, move, place, link or measure.
+	Tool        string
 	CentreLat   float64
 	CentreLon   float64
 	initialised bool
@@ -136,24 +143,43 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 	}
 
 	// Nodes, grouped by kind so each kind is one filled path rather than one
-	// per node.
+	// per node, and split by whether the filter matches. Two passes, because
+	// one path can only have one colour.
 	byKind := map[theme.NodeKind][]projected{}
+	dimKind := map[theme.NodeKind][]projected{}
+	filterWant := strings.ToLower(strings.TrimSpace(m.Filter))
 	for _, p := range pts {
 		if offscreen(p, sz) {
 			continue
 		}
-		byKind[kindOf(p.n.Kind)] = append(byKind[kindOf(p.n.Kind)], p)
+		k := kindOf(p.n.Kind)
+		if filterWant != "" && !nodeMatches(p.n, filterWant) {
+			dimKind[k] = append(dimKind[k], p)
+			continue
+		}
+		byKind[k] = append(byKind[k], p)
 	}
-	for k, list := range byKind {
-		if !m.Layers.Nodes {
-			break
+	if m.Layers.Nodes {
+		// The ones that do not match are drawn first and faint, so they stay
+		// on the map. A node that vanishes reads as a node that is not in the
+		// scenario, which is a different and much more alarming thing.
+		for k, list := range dimKind {
+			var np clip.Path
+			np.Begin(gtx.Ops)
+			for _, p := range list {
+				dot(&np, f32.Pt(p.x, p.y), 3)
+			}
+			paint.FillShape(gtx.Ops, theme.Alpha(t.NodeColour(k), 0.22),
+				clip.Outline{Path: np.End()}.Op())
 		}
-		var np clip.Path
-		np.Begin(gtx.Ops)
-		for _, p := range list {
-			dot(&np, f32.Pt(p.x, p.y), 4)
+		for k, list := range byKind {
+			var np clip.Path
+			np.Begin(gtx.Ops)
+			for _, p := range list {
+				dot(&np, f32.Pt(p.x, p.y), 5)
+			}
+			paint.FillShape(gtx.Ops, t.NodeColour(k), clip.Outline{Path: np.End()}.Op())
 		}
-		paint.FillShape(gtx.Ops, t.NodeColour(k), clip.Outline{Path: np.End()}.Op())
 	}
 
 	// What the selection tells you, over the topology and under the traffic.
@@ -342,4 +368,10 @@ func (m *MapView) FocusOn(s *state.Snapshot, name string) bool {
 		}
 	}
 	return false
+}
+
+// nodeMatches is the map filter: name or kind, case-insensitively.
+func nodeMatches(n *state.Node, want string) bool {
+	return strings.Contains(strings.ToLower(n.Name), want) ||
+		strings.Contains(strings.ToLower(n.Kind), want)
 }

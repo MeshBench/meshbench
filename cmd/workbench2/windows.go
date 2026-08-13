@@ -9,7 +9,10 @@
 package main
 
 import (
+	"fmt"
 	"sync"
+
+	"gioui.org/io/system"
 
 	"gioui.org/app"
 	"gioui.org/layout"
@@ -27,6 +30,9 @@ import (
 type windows struct {
 	mu   sync.Mutex
 	open map[string]bool
+	// closing is which windows have been asked to go away, read by each
+	// window's own loop.
+	closing map[string]bool
 }
 
 func newWindows() *windows { return &windows{open: map[string]bool{}} }
@@ -76,6 +82,9 @@ func (w *windows) popOut(name string, sh *shell.Shell, newTheme func() *theme.Th
 			case app.DestroyEvent:
 				return
 			case app.FrameEvent:
+				if w.wantsClose(name) {
+					win.Perform(system.ActionClose)
+				}
 				gtx := app.NewContext(&ops, e)
 				comp.Fill(gtx, th.P.Ground)
 				layout.UniformInset(th.Sp.M).Layout(gtx,
@@ -94,4 +103,43 @@ func (w *windows) has(name string) bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	return w.open[name]
+}
+
+// dock and close ask a popped-out window to go away.
+//
+// The window owns its own event loop, so this cannot close it directly: it
+// records the wish and the loop reads it on its next frame. Closing a window
+// from another goroutine is how Gio's event queue ends up with a destroyed
+// window still in it.
+func (w *windows) dock(name string) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.closing == nil {
+		w.closing = map[string]bool{}
+	}
+	if w.open[name] {
+		w.closing[name] = true
+	}
+}
+
+func (w *windows) close(name string) error {
+	w.mu.Lock()
+	open := w.open[name]
+	w.mu.Unlock()
+	if !open {
+		return fmt.Errorf("%s is not in its own window", name)
+	}
+	w.dock(name)
+	return nil
+}
+
+// wantsClose reports and clears the wish, on the window's own goroutine.
+func (w *windows) wantsClose(name string) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.closing[name] {
+		delete(w.closing, name)
+		return true
+	}
+	return false
 }

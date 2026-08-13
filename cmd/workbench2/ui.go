@@ -34,6 +34,12 @@ type workbenchUI struct {
 	// onCommand and onAction carry a node window's controls back to the store.
 	onCommand func(node, line string)
 	onAction  func(action, node string)
+	// dock, closeWin, scale and setScale are the pieces of the window and
+	// settings machinery a verb needs to reach.
+	dock     func(name string)
+	closeWin func(name string) error
+	scale    func() float64
+	setScale func(float64)
 
 	// camera is the next camera request, applied by the frame loop. The
 	// MapView's own fields are read while drawing, so a verb must not write
@@ -45,6 +51,10 @@ type workbenchUI struct {
 type cameraWant struct {
 	fit            bool
 	lat, lon, zoom float64
+	// zoomBy multiplies the current scale rather than setting it, which is
+	// what a zoom button does and what a caller without the current value can
+	// ask for.
+	zoomBy float64
 }
 
 var _ session.UI = (*workbenchUI)(nil)
@@ -102,6 +112,10 @@ func (u *workbenchUI) applyCamera() {
 	}
 	if want.fit {
 		u.mv.FitNext = true
+		return
+	}
+	if want.zoomBy > 0 {
+		u.mv.Zoom *= want.zoomBy
 		return
 	}
 	u.mv.CentreLat, u.mv.CentreLon = want.lat, want.lon

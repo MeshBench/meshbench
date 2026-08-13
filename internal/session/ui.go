@@ -35,6 +35,32 @@ type UI interface {
 	FitMap()
 	// OpenNodeWindow gives one node a window of its own.
 	OpenNodeWindow(node string)
+
+	// OpenPanel shows a panel. where is "" for in the layout, "window" for
+	// its own window, or "dock" to bring it back.
+	OpenPanel(name, where string) error
+	// CloseWindow closes a popped-out panel's window.
+	CloseWindow(name string) error
+
+	// Scale and SetScale are the interface's own size, which somebody on a
+	// high-density screen changes once and then never thinks about again.
+	Scale() float64
+	SetScale(v float64)
+
+	// SaveView, LoadView, ListViews and DeleteView are named arrangements.
+	SaveView(name string) error
+	LoadView(name string) error
+	ListViews() []string
+	DeleteView(name string) error
+
+	// ZoomMap multiplies the current scale; FilterMap dims what does not
+	// match; SetTool chooses what a click on the map does.
+	ZoomMap(factor float64)
+	FilterMap(query string)
+	SetTool(name string) error
+
+	// State is what the interface is showing, for a caller that has no eyes.
+	State() map[string]any
 }
 
 // SetUI attaches an interface. Safe to leave unset.
@@ -163,4 +189,157 @@ func findNode(nodes []state.Node, name string) (state.Node, bool) {
 		}
 	}
 	return state.Node{}, false
+}
+
+// registerUIVerbs are the ones that move the interface rather than the model.
+//
+// They live here, not in the workbench, so a headless driver gets the same
+// vocabulary and a clear "no interface attached" rather than an absence that
+// looks like a version mismatch.
+func registerUIVerbs(st *state.Store, s *Sim) {
+	need := func() error { return s.needUI() }
+
+	st.Handle("panel.open", func(w *state.World, p any) (any, error) {
+		if err := need(); err != nil {
+			return nil, err
+		}
+		name, _ := stringField(p, "name")
+		if err := s.ui.OpenPanel(name, ""); err != nil {
+			return nil, err
+		}
+		w.Say("showing " + name)
+		return map[string]any{"panel": name}, nil
+	})
+	st.Handle("panel.pop_out", func(w *state.World, p any) (any, error) {
+		if err := need(); err != nil {
+			return nil, err
+		}
+		name, _ := stringField(p, "name")
+		if err := s.ui.OpenPanel(name, "window"); err != nil {
+			return nil, err
+		}
+		return map[string]any{"panel": name, "where": "window"}, nil
+	})
+	st.Handle("panel.dock", func(w *state.World, p any) (any, error) {
+		if err := need(); err != nil {
+			return nil, err
+		}
+		name, _ := stringField(p, "name")
+		if err := s.ui.OpenPanel(name, "dock"); err != nil {
+			return nil, err
+		}
+		return map[string]any{"panel": name, "where": "layout"}, nil
+	})
+	st.Handle("window.open", func(w *state.World, p any) (any, error) {
+		if err := need(); err != nil {
+			return nil, err
+		}
+		name, _ := stringField(p, "name")
+		if err := s.ui.OpenPanel(name, "window"); err != nil {
+			return nil, err
+		}
+		return map[string]any{"window": name}, nil
+	})
+	st.Handle("window.close", func(w *state.World, p any) (any, error) {
+		if err := need(); err != nil {
+			return nil, err
+		}
+		name, _ := stringField(p, "name")
+		if err := s.ui.CloseWindow(name); err != nil {
+			return nil, err
+		}
+		return map[string]any{"closed": name}, nil
+	})
+
+	st.Handle("ui.scale", func(w *state.World, p any) (any, error) {
+		if err := need(); err != nil {
+			return nil, err
+		}
+		if v, ok := numField(p, "scale"); ok && v > 0 {
+			s.ui.SetScale(v)
+			w.Say(fmt.Sprintf("interface scale %.2f", v))
+		}
+		return map[string]any{"scale": s.ui.Scale()}, nil
+	})
+	st.Handle("ui.state", func(w *state.World, _ any) (any, error) {
+		if err := need(); err != nil {
+			return nil, err
+		}
+		out := s.ui.State()
+		out["nodes"] = len(w.Nodes)
+		out["playing"] = w.Playing
+		out["now_ms"] = w.NowMs
+		out["jobs"] = len(w.Jobs)
+		return out, nil
+	})
+
+	st.Handle("view.save", func(w *state.World, p any) (any, error) {
+		if err := need(); err != nil {
+			return nil, err
+		}
+		name, _ := stringField(p, "name")
+		if err := s.ui.SaveView(name); err != nil {
+			return nil, err
+		}
+		w.Say("saved view " + name)
+		return map[string]any{"saved": name}, nil
+	})
+	st.Handle("view.load", func(w *state.World, p any) (any, error) {
+		if err := need(); err != nil {
+			return nil, err
+		}
+		name, _ := stringField(p, "name")
+		if err := s.ui.LoadView(name); err != nil {
+			return nil, err
+		}
+		return map[string]any{"loaded": name}, nil
+	})
+	st.Handle("view.list", func(_ *state.World, _ any) (any, error) {
+		if err := need(); err != nil {
+			return nil, err
+		}
+		return map[string]any{"views": s.ui.ListViews()}, nil
+	})
+	st.Handle("view.delete", func(w *state.World, p any) (any, error) {
+		if err := need(); err != nil {
+			return nil, err
+		}
+		name, _ := stringField(p, "name")
+		if err := s.ui.DeleteView(name); err != nil {
+			return nil, err
+		}
+		return map[string]any{"deleted": name}, nil
+	})
+
+	st.Handle("map.zoom", func(w *state.World, p any) (any, error) {
+		if err := need(); err != nil {
+			return nil, err
+		}
+		f := 2.0
+		if v, ok := numField(p, "factor"); ok && v > 0 {
+			f = v
+		}
+		s.ui.ZoomMap(f)
+		return map[string]any{"factor": f}, nil
+	})
+	st.Handle("map.filter", func(w *state.World, p any) (any, error) {
+		if err := need(); err != nil {
+			return nil, err
+		}
+		q, _ := stringField(p, "query")
+		s.ui.FilterMap(q)
+		w.Say("map filter: " + q)
+		return map[string]any{"query": q}, nil
+	})
+	st.Handle("tool.set", func(w *state.World, p any) (any, error) {
+		if err := need(); err != nil {
+			return nil, err
+		}
+		name, _ := stringField(p, "name")
+		if err := s.ui.SetTool(name); err != nil {
+			return nil, err
+		}
+		w.Say("tool: " + name)
+		return map[string]any{"tool": name}, nil
+	})
 }

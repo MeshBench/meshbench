@@ -31,6 +31,7 @@ func Register(st *state.Store, s *Sim) {
 	registerPlanningVerbs(st, s)
 	registerSchedule(st, s)
 	registerValidate(st, s)
+	registerUIVerbs(st, s)
 	registerCoverageCombined(st, s)
 	st.Handle("project.open", func(w *state.World, p any) (any, error) {
 		path, _ := p.(string)

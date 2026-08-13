@@ -23,11 +23,31 @@ type settings struct {
 	mu      sync.Mutex
 	mode    theme.Mode
 	density theme.Density
+	scale   float64
 	gen     uint64
 }
 
 func newSettings(mode theme.Mode) *settings {
-	return &settings{mode: mode, density: theme.Default, gen: 1}
+	return &settings{mode: mode, density: theme.Default, scale: 1, gen: 1}
+}
+
+// scale is the interface's own size. Kept beside the theme because changing it
+// invalidates the same things a theme change does.
+func (s *settings) getScale() float64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.scale <= 0 {
+		return 1
+	}
+	return s.scale
+}
+
+func (s *settings) setScale(v float64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if v > 0 && s.scale != v {
+		s.scale, s.gen = v, s.gen+1
+	}
 }
 
 func (s *settings) get() (theme.Mode, theme.Density, uint64) {
