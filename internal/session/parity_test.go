@@ -27,9 +27,6 @@ import (
 // stillMissing are the old socket's verbs this build does not answer yet.
 var stillMissing = map[string]string{
 	"assert.check":          "P6",
-	"boundary.accept":       "P5",
-	"boundary.prune":        "P5",
-	"boundary.set":          "P5",
 	"capture.file":          "P6",
 	"capture.wireshark":     "P6",
 	"companion.add_channel": "P6",
@@ -40,7 +37,6 @@ var stillMissing = map[string]string{
 	"companion.raw":         "P6",
 	"companion.send":        "P6",
 	"companion.state":       "P6",
-	"coverage.start":        "P5",
 	"experiment.base":       "P6",
 	"experiment.compare":    "P6",
 	"experiment.define":     "P6",
@@ -59,8 +55,6 @@ var stillMissing = map[string]string{
 	"panel.dock":            "P7",
 	"panel.open":            "P7",
 	"panel.pop_out":         "P7",
-	"project.list":          "P7",
-	"project.save":          "P7",
 	"radio.preset":          "P5",
 	"tool.set":              "P3",
 	"ui.scale":              "P7",
