@@ -9,6 +9,7 @@ package session
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -24,6 +25,11 @@ import (
 
 // Sim holds the engine and the scenario it was built from.
 type Sim struct {
+	// freqMHz and seed are what the current engine was built with, so a
+	// rebuild reproduces it rather than guessing.
+	freqMHz float64
+	seed    uint64
+
 	eng      *engine.Engine
 	nodes    []scenario.Node
 	terr     coverage.Terrain
@@ -69,13 +75,25 @@ func (bareEarth) ElevationM(float64, float64) (float64, bool) { return 0, false 
 
 // build makes an engine for a set of nodes.
 func (s *Sim) build(nodes []scenario.Node, freqMHz float64) {
+	s.buildSeeded(nodes, freqMHz, defaultSeed)
+}
+
+// defaultSeed is the one a fresh session starts from. Fixed, because a
+// simulator whose default run differs every time cannot be used to show
+// anybody a result.
+const defaultSeed = 9001
+
+// buildSeeded is build, with the draw stated.
+func (s *Sim) buildSeeded(nodes []scenario.Node, freqMHz float64, seed uint64) {
 	if s.eng != nil {
 		_ = s.eng.Close()
 	}
 	s.nodes = nodes
+	s.freqMHz = freqMHz
+	s.seed = seed
 	s.eng = engine.New(s.terrain(), engine.Config{
 		FreqMHz: freqMHz, SF: 10, BandwidthHz: 250e3, CodingRate: 1,
-		NoiseFigDB: 6, StepMs: 10, Seed: 9001,
+		NoiseFigDB: 6, StepMs: 10, Seed: seed,
 	})
 	for _, n := range nodes {
 		s.eng.Add(n, nil)
@@ -325,4 +343,25 @@ func (s *Sim) Close() {
 	}
 	_ = s.eng.Close()
 	s.eng = nil
+}
+
+// rebuild starts the same network again from the world's seed.
+//
+// The engine is remade rather than rewound: an engine carries queued packets,
+// per-node radio state and the firmware processes' own memory, and there is no
+// honest way to unwind those to zero. Firmware is left alone, because
+// restarting several hundred processes to change a seed is a different and
+// much slower operation than the caller asked for.
+func (s *Sim) rebuild(w *state.World) error {
+	if len(s.nodes) == 0 {
+		return fmt.Errorf("no network loaded")
+	}
+	seed := w.Seed
+	if seed == 0 {
+		seed = defaultSeed
+	}
+	s.buildSeeded(s.nodes, s.freqMHz, seed)
+	w.NowMs, w.Seed = 0, seed
+	w.Events, w.EventTotal = nil, 0
+	return nil
 }

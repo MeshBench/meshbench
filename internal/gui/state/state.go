@@ -38,6 +38,8 @@ type Snapshot struct {
 	NowMs uint32
 	// Playing reports whether the engine is advancing.
 	Playing bool
+	// RunUntilMs is the simulated time this run stops at; zero means open.
+	RunUntilMs uint32
 	// StepMs is how much simulated time one tick advances, so the interface
 	// can say how fast it is going rather than only whether it is going.
 	StepMs uint32
@@ -408,11 +410,16 @@ type Handler func(w *World, params any) (any, error)
 type World struct {
 	NowMs   uint32
 	Playing bool
-	Seed    uint64
-	Nodes   []Node
-	Jobs    []Job
-	Status  string
-	Log     []string
+	// RunUntilMs stops the run at a simulated time. Zero means run until
+	// somebody says otherwise. A run bounded in simulated time is the only
+	// kind a script can wait for: wall time says nothing about how far the
+	// simulation actually got.
+	RunUntilMs uint32
+	Seed       uint64
+	Nodes      []Node
+	Jobs       []Job
+	Status     string
+	Log        []string
 	// Areas are the study boundaries, and MarginKm the band outside them
 	// within which external nodes still matter.
 	Areas    []Area
@@ -573,6 +580,13 @@ func (s *Store) Run(ctx context.Context) {
 				if s.world.Tick != nil {
 					s.world.Tick(s.stepMs)
 				}
+				// Checked after the step, so "run for 10 s" ends at or past
+				// ten seconds rather than one tick short of it.
+				if s.world.RunUntilMs != 0 && s.world.NowMs >= s.world.RunUntilMs {
+					s.world.Playing = false
+					s.world.RunUntilMs = 0
+					s.world.Say("run finished")
+				}
 				s.publish()
 			}
 		}
@@ -625,20 +639,21 @@ func (s *Store) publish() {
 	trails := make([]Trail, len(s.world.Trails))
 	copy(trails, s.world.Trails)
 	s.snap.Store(&Snapshot{
-		Seq:      s.seq,
-		NowMs:    s.world.NowMs,
-		Playing:  s.world.Playing,
-		Seed:     s.world.Seed,
-		Nodes:    nodes,
-		Jobs:     jobs,
-		Status:   s.world.Status,
-		Log:      log,
-		Areas:    areas,
-		MarginKm: s.world.MarginKm,
-		Links:    links,
-		Trails:   trails,
-		Coverage: s.world.Coverage,
-		Shade:    s.world.Shade,
+		Seq:        s.seq,
+		NowMs:      s.world.NowMs,
+		Playing:    s.world.Playing,
+		RunUntilMs: s.world.RunUntilMs,
+		Seed:       s.world.Seed,
+		Nodes:      nodes,
+		Jobs:       jobs,
+		Status:     s.world.Status,
+		Log:        log,
+		Areas:      areas,
+		MarginKm:   s.world.MarginKm,
+		Links:      links,
+		Trails:     trails,
+		Coverage:   s.world.Coverage,
+		Shade:      s.world.Shade,
 		// Events and scores are already rebuilt fresh on every tick, so they
 		// are handed over rather than copied again.
 		Events:           s.world.Events,
