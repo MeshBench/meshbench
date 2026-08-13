@@ -55,10 +55,23 @@ func TestOneExperimentCellReportsWhatItDid(t *testing.T) {
 
 // Two seeds have to disagree.
 //
-// The first real comparison in this build returned bit-identical numbers for
-// seed 1 and seed 2 in both arms, which is one draw repeated rather than a
-// spread - and a difference between arms cannot be called larger than a noise
-// nobody has measured. This is the check that says so.
+// KNOWN FAILING, and left that way on purpose.
+//
+// A comparison whose seeds return identical numbers is one draw repeated, not
+// a spread, and a difference between arms cannot then be called larger than a
+// noise nobody has measured. That makes this the single check standing
+// between the experiment machinery and a result that looks like a
+// measurement.
+//
+// Adverting the nodes before the flood was necessary and not sufficient: it
+// produced a two-packet difference once, which was within the timing noise of
+// the run and should not have been read as the seed reaching the simulation.
+// It does not reproduce. Something downstream of the seed - node identity is
+// pinned by the fixture, and the boot stagger may be swamped by the settle
+// window - is making the run deterministic.
+//
+// Leave it red. A green suite that hides this would let somebody publish a
+// firmware delta with no noise floor under it.
 func TestSeedsDisagree(t *testing.T) {
 	if testing.Short() {
 		t.Skip("starts real firmware twice")
