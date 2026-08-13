@@ -26,26 +26,18 @@ import (
 
 // stillMissing are the old socket's verbs this build does not answer yet.
 var stillMissing = map[string]string{
-	"companion.add_channel": "P6",
-	"companion.advert":      "P6",
-	"companion.configure":   "P6",
-	"companion.connect":     "P6",
-	"companion.disconnect":  "P6",
-	"companion.raw":         "P6",
-	"companion.send":        "P6",
-	"companion.state":       "P6",
-	"experiment.base":       "P6",
-	"experiment.compare":    "P6",
-	"experiment.define":     "P6",
-	"experiment.export":     "P6",
-	"experiment.results":    "P6",
-	"experiment.seeds":      "P6",
-	"experiment.senders":    "P6",
-	"experiment.start":      "P6",
-	"experiment.state":      "P6",
-	"experiment.stop":       "P6",
-	"experiment.vary":       "P6",
-	"loop.detect":           "P4",
+	"experiment.base":    "P6",
+	"experiment.compare": "P6",
+	"experiment.define":  "P6",
+	"experiment.export":  "P6",
+	"experiment.results": "P6",
+	"experiment.seeds":   "P6",
+	"experiment.senders": "P6",
+	"experiment.start":   "P6",
+	"experiment.state":   "P6",
+	"experiment.stop":    "P6",
+	"experiment.vary":    "P6",
+	"loop.detect":        "P4",
 }
 
 var oldVerb = regexp.MustCompile(`case "([a-z_]+\.[a-z_]+)"`)

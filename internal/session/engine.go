@@ -35,6 +35,8 @@ type Sim struct {
 	imp *importState
 	// capturePath is where frames are being written, if anywhere.
 	capturePath string
+	// comps is one session per connected companion.
+	comps map[string]*compSession
 	// areas is the accepted study area, as boundaries.
 	areas []scenario.Boundary
 	// foundAreas is the last search's matches, awaiting a choice.
