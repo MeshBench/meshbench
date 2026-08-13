@@ -166,6 +166,29 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 		return out
 	}
 
+	// Advert every node before the flood.
+	//
+	// Two reasons, and the second is why every seed of an arm returned
+	// identical numbers. Adverts populate each node's idea of its neighbours,
+	// so a flood into a silent mesh is not the mesh anybody runs. And they are
+	// the traffic that collides: which adverts survive depends on the boot
+	// stagger, which is derived from the seed, so without them the whole run
+	// is deterministic and the spread being reported is one draw repeated.
+	for _, n := range nodes {
+		en, ok := eng.NodeByName(n.Name)
+		if !ok || en.Firmware == nil {
+			continue
+		}
+		if err := en.Firmware.Bridge.Type([]byte("advert\r\n")); err != nil {
+			out.Err = "advert at " + n.Name + ": " + err.Error()
+			return out
+		}
+	}
+	if err := stepFor(ctx, eng, 6*time.Second); err != nil {
+		out.Err = "adverts: " + err.Error()
+		return out
+	}
+
 	// A companion session per sender, which is how a message is originated:
 	// the same path a phone takes.
 	sessions := map[string]*compSession{}
