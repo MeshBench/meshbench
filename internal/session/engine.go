@@ -13,6 +13,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 
 	"github.com/A13xB0/meshcoresim/internal/boundary"
@@ -41,9 +42,10 @@ type Sim struct {
 	exp *experiment
 	// feeding reports whether the live feed should keep pulling.
 	feeding atomic.Bool
-	// warmStale marks that the network changed while links were being
-	// measured, so the measurement has to be repeated.
-	warmStale atomic.Bool
+	// warmCancel stops the measurement in flight when the network changes
+	// under it, guarded by warmMu.
+	warmMu     sync.Mutex
+	warmCancel context.CancelFunc
 	// areas is the accepted study area, as boundaries.
 	areas []scenario.Boundary
 	// foundAreas is the last search's matches, awaiting a choice.
@@ -194,19 +196,23 @@ func (s *Sim) warm(st *state.Store, nodes int) {
 	if s.eng == nil {
 		return
 	}
-	// A request that arrives while one is running marks the work stale rather
-	// than being dropped. Dropping it is what happened when a real import
-	// committed while the fixture's own warm was still going: the commit's
-	// links were never measured, links.recompute no-opped for the same
-	// reason, and the map sat at zero links for a network of 676 nodes with
-	// nothing saying why.
-	if s.warming.Swap(true) {
-		s.warmStale.Store(true)
-		return
+	// Cancel whatever is running and start again.
+	//
+	// Marking it stale and repeating afterwards was not enough: a warm holds
+	// no copy of the engine, so one started for a 58-node fixture carried on
+	// against the 676-node import that replaced it - 228,000 terrain profiles
+	// for a network nobody is looking at, while the 44 nodes that were
+	// actually on screen showed no links at all and nothing said why.
+	s.warmMu.Lock()
+	if s.warmCancel != nil {
+		s.warmCancel()
 	}
+	ctx, cancel := context.WithCancel(context.Background())
+	s.warmCancel = cancel
+	s.warmMu.Unlock()
+
 	go func() {
-		defer s.warming.Store(false)
-		ctx := context.Background()
+		defer cancel()
 		total := nodes * (nodes - 1) / 2
 		_, _ = st.Do(ctx, "job.progress", state.Job{
 			ID: "links", What: "measuring every link", Total: total})
@@ -221,17 +227,20 @@ func (s *Sim) warm(st *state.Store, nodes int) {
 				ID: "links", What: "measuring every link", Done: done, Total: of})
 		})
 
+		if ctx.Err() != nil {
+			// Superseded: what this measured is about a network that has been
+			// replaced, and publishing it would put another network's links
+			// on the map.
+			return
+		}
 		links := s.links()
-		_, _ = st.Do(ctx, "links.set", links)
-		_, _ = st.Do(ctx, "job.progress", state.Job{
+		if ctx.Err() != nil {
+			return
+		}
+		_, _ = st.Do(context.Background(), "links.set", links)
+		_, _ = st.Do(context.Background(), "job.progress", state.Job{
 			ID: "links", What: "measuring every link",
 			Done: total, Total: total, Finished: true})
-		// Somebody changed the network while this was running, so what was
-		// just measured is about a network that no longer exists.
-		if s.warmStale.Swap(false) {
-			s.warming.Store(false)
-			s.warm(st, len(s.nodes))
-		}
 	}()
 }
 
