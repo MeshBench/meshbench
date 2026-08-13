@@ -5,7 +5,11 @@ import (
 
 	"gioui.org/f32"
 
+	"gioui.org/layout"
+
+	"github.com/A13xB0/meshcoresim/internal/gui/comp"
 	"github.com/A13xB0/meshcoresim/internal/gui/state"
+	"github.com/A13xB0/meshcoresim/internal/gui/theme"
 )
 
 // Do the buttons do anything?
@@ -230,5 +234,35 @@ func TestFeedControlsStartAndStop(t *testing.T) {
 		if !r.saw(want) {
 			t.Errorf("no button reached %s; got %v", want, r.verbs)
 		}
+	}
+}
+
+// The map toolbar: typing filters, and the tools select.
+func TestMapToolbarFiltersAndPicksTools(t *testing.T) {
+	mv := &comp.MapView{Zoom: 1000}
+	m := &mapTools{mv: mv}
+	h := newPanelHarness(
+		func(t *theme.Theme, gtx layout.Context, _ *state.Snapshot) layout.Dimensions {
+			return m.Draw(t, gtx)
+		}, &state.Snapshot{})
+	h.frame()
+
+	// The filter applies as it is typed, with no button to press. The text is
+	// set directly because where the box sits is the layout's business, and
+	// typing itself is covered by the filter tests.
+	m.filter.Editor.SetText("repeater")
+	h.frame()
+	if mv.Filter != "repeater" {
+		t.Errorf("map filter is %q after typing", mv.Filter)
+	}
+
+	// A tool other than the default, found by pressing along the row.
+	before := mv.Zoom
+	h.pressAlong(22)
+	if mv.Tool == "" || mv.Tool == "select" {
+		t.Errorf("no tool was chosen; tool is %q", mv.Tool)
+	}
+	if mv.Zoom == before && !mv.FitNext {
+		t.Errorf("neither zoom nor fit responded: zoom %v, fitNext %v", mv.Zoom, mv.FitNext)
 	}
 }

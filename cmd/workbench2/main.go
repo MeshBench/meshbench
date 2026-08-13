@@ -312,10 +312,18 @@ func main() {
 	// Selecting the first node at load also selects its neighbours overlay,
 	// so the map opens saying something rather than nothing.
 	nodes := &nodesPanel{}
+	mapTop := &mapTools{mv: mv}
 	sh.Add(&shell.Panel{Name: "Map", Windowable: true,
 		Draw: func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
 			wbUI.applyCamera()
-			return mv.Layout(t, gtx, s)
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return mapTop.Draw(t, gtx)
+				}),
+				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+					return mv.Layout(t, gtx, s)
+				}),
+			)
 		}})
 	sh.Add(&shell.Panel{Name: "Nodes", Windowable: true, Draw: nodes.Draw})
 	sh.Add(&shell.Panel{Name: "Inspector", Windowable: true, Draw: drawInspector})
