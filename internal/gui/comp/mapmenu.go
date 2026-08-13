@@ -55,7 +55,7 @@ func menuFor(node string) []MenuItem {
 			{Label: "Coverage from here", Action: "coverage.compute"},
 			{Label: "Show only this node's neighbours", Action: "map.neighbours"},
 			{Label: "Originate a packet here", Action: "sim.inject"},
-			{Label: "Open in its own window", Action: "node.window"},
+			{Label: "Open node window", Action: "node.window"},
 		}
 	}
 	return []MenuItem{

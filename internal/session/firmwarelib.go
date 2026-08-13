@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 
 	"github.com/A13xB0/meshcoresim/internal/firmware"
 	"github.com/A13xB0/meshcoresim/internal/gui/state"
@@ -49,6 +50,32 @@ func registerFirmwareLibrary(st *state.Store, s *Sim) {
 	// and the Gio build answered it with a form asking for a version somebody
 	// was expected to already know.
 	st.Handle("firmware.library", func(w *state.World, _ any) (any, error) {
+		// Disk first, immediately; the network once, afterwards. The library
+		// read only the catalogue's cache, and everything in the cache is by
+		// definition already downloaded - so the one thing a library is for,
+		// showing what could be fetched, never appeared on it.
+		if s.publishedNet == nil && !s.fetchingPublished {
+			s.fetchingPublished = true
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+				defer cancel()
+				cat := &firmware.NativeCatalogue{CacheDir: firmware.DefaultCacheDir()}
+				images, err := cat.List(ctx)
+				list := []publishedBuild{}
+				if err == nil {
+					for _, img := range images {
+						if img.ForThisMachine() {
+							list = append(list, publishedBuild{
+								role: img.Role, version: img.Version,
+							})
+						}
+					}
+				}
+				// An empty non-nil list on failure, so a dead network is one
+				// failed fetch rather than a fetch per frame.
+				_, _ = st.Do(context.Background(), "firmware.published", list)
+			}()
+		}
 		rows := map[string]*state.FirmwareRow{}
 		key := func(role, version, board string) string {
 			return role + "\x00" + version + "\x00" + board
@@ -112,6 +139,14 @@ func registerFirmwareLibrary(st *state.Store, s *Sim) {
 		})
 		w.Library = out
 		return map[string]any{"builds": len(out)}, nil
+	})
+
+	// firmware.published: what the catalogue offers, landed from the fetch.
+	st.Handle("firmware.published", func(w *state.World, p any) (any, error) {
+		list, _ := p.([]publishedBuild)
+		s.publishedNet = list
+		s.fetchingPublished = false
+		return map[string]any{"published": len(list)}, nil
 	})
 
 	// firmware.download: fetch a published build now rather than on first
@@ -416,5 +451,6 @@ func (s *Sim) publishedBuilds() []publishedBuild {
 		}
 		out = append(out, publishedBuild{role: img.Role, version: img.Version})
 	}
+	out = append(out, s.publishedNet...)
 	return out
 }

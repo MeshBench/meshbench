@@ -352,6 +352,10 @@ func main() {
 		go func() { _, _ = st.Do(ctx, "nodes.select", name) }()
 	}
 	mapTop := &mapTools{mv: mv}
+	// A double-click on a node is "show me this one".
+	mv.OnNodeOpen = func(name string) {
+		go func() { _, _ = st.Do(ctx, "node.window", name) }()
+	}
 	// The place tool puts a node where it was clicked.
 	//
 	// The kind comes from the toolbar rather than from the map: what a place
@@ -1110,10 +1114,12 @@ func workbenchMenus() []menu {
 			{Label: "What they are told at boot", Action: "panel.Provisioning"},
 			{Label: "Coverage from the selection", Action: "coverage.compute"},
 		}},
+		// Import is under File, with opening and saving, and not here as
+		// well: one entry in two menus is two entries to keep in step and one
+		// of them is always the stale one.
 		{"Planning", []shell.MenuItem{
 			{Label: "Routes between two selected nodes", Action: "plan.routes"},
 			{Label: "Boundary", Action: "panel.Boundary"},
-			{Label: "Import a live network", Action: "panel.Import"},
 		}},
 		// Window is generated from the panels themselves, so it is not here.
 		{"Help", []shell.MenuItem{

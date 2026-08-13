@@ -86,7 +86,11 @@ func (p *settingsPanel) Draw(t *theme.Theme, gtx layout.Context, _ *state.Snapsh
 	if !p.init {
 		p.dark.Label, p.light.Label = "dark", "light"
 		p.comfortable.Label = "comfortable"
-		p.normal.Label = "default"
+		// Not "default": the zero value of Density is Comfortable, so a fresh
+		// install opens on that one, and a button next to it claiming to be
+		// the default is a small lie that costs somebody a minute working out
+		// which of the two they are looking at.
+		p.normal.Label = "standard"
 		p.tight.Label = "compact"
 		p.init = true
 	}

@@ -35,6 +35,10 @@ type Sim struct {
 	// fleetPending is a fleet command sent and not yet answered, held until the
 	// engine has run far enough for the nodes to have replied.
 	fleetPending *fleetPending
+	// publishedNet is what the firmware catalogue offers, fetched once; nil
+	// until the fetch has answered, empty after a fetch that failed.
+	publishedNet      []publishedBuild
+	fetchingPublished bool
 	// imp is what has been fetched from a deployment but not yet applied.
 	imp *importState
 	// capturePath is where frames are being written, if anywhere.

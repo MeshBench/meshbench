@@ -1,6 +1,8 @@
 package comp
 
 import (
+	"time"
+
 	"image"
 	"math"
 
@@ -207,6 +209,23 @@ func (m *MapView) release(e pointer.Event, pts []projected, sz image.Point) {
 		// A drag is not a click. Releasing after moving the map or a node must
 		// not also change what is selected.
 	default:
+		// Two clicks on the same node inside half a second open its window.
+		// Half a second is the double-click convention everywhere, and the
+		// name has to match: two fast clicks on two different nodes are two
+		// selections, not a request to open either.
+		if i := nearestWithin(pts, e.Position, 10); i >= 0 {
+			name := pts[i].n.Name
+			if name == m.lastClickName && e.Time-m.lastClickAt < 500*time.Millisecond {
+				m.lastClickName = ""
+				if m.OnNodeOpen != nil {
+					m.OnNodeOpen(name)
+				}
+				return
+			}
+			m.lastClickName, m.lastClickAt = name, e.Time
+		} else {
+			m.lastClickName = ""
+		}
 		m.selectAt(e.Position, pts, false)
 	}
 }

@@ -246,14 +246,29 @@ type fleetPending struct {
 func (s *Sim) collectFleet(st *state.Store, playing bool) {
 	ctx := context.Background()
 	if playing {
-		// Long enough for the slowest of them.
+		// Two seconds of the mesh's own time, not the wall's.
 		//
-		// At a second, a handful of nodes were still mid-answer when the
-		// console was read and their row showed the echo with nothing after
-		// it, which reads as a node that did not reply.
-		time.Sleep(2500 * time.Millisecond)
+		// A wall-clock wait was right on the small fixture and wrong on the
+		// big one: 311 real firmware processes make a simulated second cost
+		// many wall seconds, so the wait expired before the nodes' loops had
+		// run and every repeater "said" nothing. What the reply actually
+		// needs is simulated time, so that is what is waited for - with a
+		// wall-clock ceiling so a paused or wedged run still answers with
+		// what it has.
+		start := uint32(0)
+		if snap := st.Snapshot(); snap != nil {
+			start = snap.NowMs
+		}
+		deadline := time.Now().Add(45 * time.Second)
+		for time.Now().Before(deadline) {
+			time.Sleep(300 * time.Millisecond)
+			snap := st.Snapshot()
+			if snap == nil || snap.NowMs >= start+2000 || !snap.Playing {
+				break
+			}
+		}
 	} else {
-		for i := 0; i < 100; i++ {
+		for i := 0; i < 200; i++ {
 			if _, err := st.Do(ctx, "sim.step", nil); err != nil {
 				break
 			}

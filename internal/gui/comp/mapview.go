@@ -1,6 +1,8 @@
 package comp
 
 import (
+	"time"
+
 	"image"
 	"image/color"
 	"math"
@@ -83,6 +85,12 @@ type MapView struct {
 	// it was clicked. What kind of node to put there is the workbench's
 	// decision, not the map's.
 	OnPlace func(lat, lon float64)
+	// OnNodeOpen is called when a node is double-clicked, which is the
+	// gesture that means "show me this one" everywhere else.
+	OnNodeOpen func(name string)
+	// lastClick remembers the previous click for the double-click test.
+	lastClickName string
+	lastClickAt   time.Duration
 	// OnLinkPair is called when the link tool has been given two nodes. What
 	// to do with the pair - select them and break the link into its terms -
 	// belongs to whoever knows what a link budget is.

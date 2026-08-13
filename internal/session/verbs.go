@@ -81,6 +81,15 @@ func Register(st *state.Store, s *Sim) {
 			for _, buf := range s.consoles {
 				buf.SetNow(w.NowMs)
 			}
+			// And the one being looked at is re-read after it. A reply lands
+			// in the buffer when the firmware's loop runs, which is now -
+			// published only on the next console.type, every answer appeared
+			// one command late, which reads as a console that does not answer.
+			if w.ConsoleNode != "" {
+				if buf, ok := s.consoles[w.ConsoleNode]; ok {
+					w.Console = buf.Snapshot()
+				}
+			}
 			// Trails from the last few seconds of simulated time. Recomputed
 			// from the event log rather than accumulated, so a seek backwards
 			// or a rebuilt engine cannot leave a trail on the map for a
@@ -393,8 +402,19 @@ func Register(st *state.Store, s *Sim) {
 		// of whenever a goroutine got round to it.
 		img, note := s.capture(context.Background(), at)
 		w.Waterfall, w.WaterfallNote = img, note
-		if note != "" {
+		// Silence was the whole fault here. It answered "captured: false" and
+		// said nothing at all, so picking it from a menu looked exactly like
+		// picking an entry that is not wired up.
+		switch {
+		case note != "":
 			w.Say(note)
+		case img == nil && at < 0:
+			w.Say("a waterfall is what one node hears: select one, then capture")
+		case img == nil:
+			w.Say("nothing was on the air in that instant - capture while " +
+				"something is transmitting")
+		default:
+			w.Say("captured 200 ms of what " + w.Nodes[at].Name + " hears")
 		}
 		return map[string]any{"captured": img != nil}, nil
 	})
