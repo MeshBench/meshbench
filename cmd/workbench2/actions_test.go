@@ -268,35 +268,6 @@ func TestMapToolbarFiltersAndPicksTools(t *testing.T) {
 	}
 }
 
-func TestFirmwareControlsReachTheirVerbs(t *testing.T) {
-	r := &recorder{}
-	c := &firmwareControls{do: r.do}
-	h := newPanelHarness(c.Draw, &state.Snapshot{})
-	h.frame()
-	c.role.Editor.SetText("simple_repeater")
-	c.version.Editor.SetText("repeater-v1.17.0")
-	c.path.Editor.SetText("/tmp/build")
-	h.frame()
-	h.pressAlong(22)
-	h.pressAlong(74)
-
-	for _, want := range []string{"firmware.download", "firmware.set",
-		"firmware.import", "firmware.delete", "firmware.wipe"} {
-		if !r.saw(want) {
-			t.Errorf("no button reached %s; got %v", want, r.verbs)
-		}
-	}
-	for i, v := range r.verbs {
-		if v != "firmware.download" {
-			continue
-		}
-		m, _ := r.params[i].(map[string]any)
-		if got, _ := m["version"].(string); got != "repeater-v1.17.0" {
-			t.Errorf("download asked for %q, not the typed version", got)
-		}
-	}
-}
-
 func TestInspectorControlsReachTheirVerbs(t *testing.T) {
 	r := &recorder{}
 	c := &inspectorControls{do: r.do}

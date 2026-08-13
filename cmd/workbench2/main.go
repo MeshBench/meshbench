@@ -153,7 +153,6 @@ func main() {
 	benchCtl := &benchControls{do: do}
 	feedCtl := &feedControls{do: do}
 	sweepCtl := &sweepControls{do: do}
-	fwCtl := &firmwareControls{do: do}
 	inspCtl := &inspectorControls{do: do}
 	provCtl := &provisioningControls{do: do}
 
@@ -562,9 +561,22 @@ func main() {
 	sh.Add(&shell.Panel{Name: "Link", Windowable: true, Draw: linkPanel{}.Draw})
 	sh.Add(&shell.Panel{Name: "Console", Windowable: true, Draw: console.Draw})
 	fw := &firmwarePanel{}
+	// The library asks for itself, and asks again after anything that changes
+	// it. A panel that reads the cache directly cannot know when a download
+	// has landed.
+	fw.Refresh = func() {
+		go func() { _, _ = st.Do(ctx, "firmware.library", nil) }()
+	}
+	fw.OnAction = func(verb string, params map[string]any) {
+		go func() {
+			if _, err := st.Do(ctx, verb, params); err != nil {
+				_, _ = st.Do(ctx, "ui.said", verb+": "+err.Error())
+			}
+			_, _ = st.Do(ctx, "firmware.library", nil)
+		}()
+	}
 	runs := &runsPanel{}
-	sh.Add(&shell.Panel{Name: "Firmware", Windowable: true,
-		Draw: withControls(fwCtl.Draw, fw.Draw)})
+	sh.Add(&shell.Panel{Name: "Firmware", Windowable: true, Draw: fw.Draw})
 	sh.Add(&shell.Panel{Name: "Runs", Windowable: true, Draw: runs.Draw})
 	sh.Add(&shell.Panel{Name: "Sweep", Windowable: true,
 		Draw: withControls(sweepCtl.Draw, (&sweepResults{}).Draw)})

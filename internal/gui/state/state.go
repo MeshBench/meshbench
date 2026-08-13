@@ -99,6 +99,8 @@ type Snapshot struct {
 	Residuals *Residuals
 	// Stats is per-node cost and traffic, for the node view.
 	Stats []NodeStat
+	// Library is every build, published or on disk, with what runs it.
+	Library []FirmwareRow
 	// Builds is the firmware library on this machine.
 	Builds []Build
 	// Experiment is the A/B matrix's summary, and ExperimentWarning is why it
@@ -162,6 +164,25 @@ type Link struct {
 type FleetReply struct {
 	Node  string
 	Reply string
+}
+
+// FirmwareRow is one build in the library: published, on disk, or both.
+//
+// Merged rather than two lists, because a build imported from a branch is in
+// no catalogue and is exactly the kind of thing worth testing, while a
+// published one that has never been fetched still has to be offerable.
+type FirmwareRow struct {
+	Role    string
+	Version string
+	// Board is empty for a host build. A build for a board runs as emulated
+	// hardware, which costs an emulator per node, so the two are never mixed
+	// up silently.
+	Board  string
+	Bytes  int64
+	OnDisk bool
+	// InUse is how many nodes in this scenario run it, so a delete can say
+	// what it would break.
+	InUse int
 }
 
 // Trail is one transmission recently on the air, for the map to fade out.
@@ -524,6 +545,8 @@ type World struct {
 	Residuals *Residuals
 	// Stats is per-node cost and traffic, for the node view.
 	Stats []NodeStat
+	// Library is every build, published or on disk, with what runs it.
+	Library []FirmwareRow
 	// Builds is the firmware library on this machine.
 	Builds []Build
 	// Experiment is the A/B matrix's summary, and ExperimentWarning is why it
@@ -788,6 +811,7 @@ func (s *Store) publish() {
 		Residuals:         s.world.Residuals,
 		Stats:             s.world.Stats,
 		Builds:            s.world.Builds,
+		Library:           append([]FirmwareRow(nil), s.world.Library...),
 		Experiment:        s.world.Experiment,
 		ExperimentWarning: s.world.ExperimentWarning,
 		Series:            s.world.Series,

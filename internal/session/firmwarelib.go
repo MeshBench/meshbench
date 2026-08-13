@@ -40,6 +40,80 @@ func registerFirmwareLibrary(st *state.Store, s *Sim) {
 		return map[string]any{"cache": cache, "installed": out}, nil
 	})
 
+	// firmware.library: every build there is, and what runs it.
+	//
+	// Published and on disk in one list rather than two, because a build
+	// imported from a branch is in no catalogue and is exactly the kind of
+	// thing worth testing, while a published one nobody has fetched still has
+	// to be offerable. The old workbench answers this question with a table
+	// and the Gio build answered it with a form asking for a version somebody
+	// was expected to already know.
+	st.Handle("firmware.library", func(w *state.World, _ any) (any, error) {
+		rows := map[string]*state.FirmwareRow{}
+		key := func(role, version, board string) string {
+			return role + "\x00" + version + "\x00" + board
+		}
+		add := func(role, version, board string) *state.FirmwareRow {
+			k := key(role, version, board)
+			if r, ok := rows[k]; ok {
+				return r
+			}
+			r := &state.FirmwareRow{Role: role, Version: version, Board: board}
+			rows[k] = r
+			return r
+		}
+		// What is on disk: the only thing that decides what a node can run
+		// today, and what a delete has to act on.
+		for _, in := range firmware.ListInstalled(firmware.DefaultCacheDir()) {
+			r := add(in.Role, in.Version, in.Board)
+			r.OnDisk, r.Bytes = true, in.Bytes
+		}
+		// What is published for this machine, from the cache rather than the
+		// network: a library that can only be read online is no use to
+		// somebody about to work without it.
+		for _, img := range s.publishedBuilds() {
+			add(img.role, img.version, img.board)
+		}
+		// What the scenario is running, so a row can say what deleting it
+		// would break.
+		for _, n := range s.nodes {
+			if !n.Kind.RunsFirmware() || n.Firmware.Version == "" {
+				continue
+			}
+			role := nodeRole(n)
+			if r, ok := rows[key(role, n.Firmware.Version, n.Firmware.Board)]; ok {
+				r.InUse++
+				continue
+			}
+			r := add(role, n.Firmware.Version, n.Firmware.Board)
+			r.InUse++
+		}
+		out := make([]state.FirmwareRow, 0, len(rows))
+		for _, r := range rows {
+			out = append(out, *r)
+		}
+		// In use first, then what is here, then the rest: the order somebody
+		// is closest to.
+		sort.Slice(out, func(i, j int) bool {
+			a, b := out[i], out[j]
+			if (a.InUse > 0) != (b.InUse > 0) {
+				return a.InUse > 0
+			}
+			if a.OnDisk != b.OnDisk {
+				return a.OnDisk
+			}
+			if a.Role != b.Role {
+				return a.Role < b.Role
+			}
+			if a.Version != b.Version {
+				return a.Version < b.Version
+			}
+			return a.Board < b.Board
+		})
+		w.Library = out
+		return map[string]any{"builds": len(out)}, nil
+	})
+
 	// firmware.download: fetch a published build now rather than on first
 	// use, which is what somebody about to work offline actually wants.
 	st.Handle("firmware.download", func(w *state.World, p any) (any, error) {
@@ -322,4 +396,25 @@ func nodeRole(n scenario.Node) string {
 		return r
 	}
 	return string(n.Kind.Application())
+}
+
+// publishedBuild is one build the catalogue offers, in the fields the library
+// needs.
+type publishedBuild struct{ role, version, board string }
+
+// publishedBuilds is what can be downloaded, read from the catalogue's cache.
+//
+// From the cache and never the network: this is called to draw a panel, and a
+// panel that waits on a fetch is a panel that hangs.
+func (s *Sim) publishedBuilds() []publishedBuild {
+	var out []publishedBuild
+	cache := firmware.DefaultCacheDir()
+	cat := &firmware.NativeCatalogue{CacheDir: cache}
+	for _, img := range cat.CachedImages() {
+		if !img.ForThisMachine() {
+			continue
+		}
+		out = append(out, publishedBuild{role: img.Role, version: img.Version})
+	}
+	return out
 }

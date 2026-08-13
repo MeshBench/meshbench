@@ -278,7 +278,6 @@ func auditTargets(r *recorder) []target {
 	bench := &benchControls{do: r.do}
 	feed := &feedControls{do: r.do}
 	sweep := &sweepControls{do: r.do}
-	firm := &firmwareControls{do: r.do}
 	insp := &inspectorControls{do: r.do}
 	prov := &provisioningControls{do: r.do}
 
@@ -358,7 +357,6 @@ func auditTargets(r *recorder) []target {
 		{"Companion bench", bench, bench.Draw, nil, nil, nil, nil},
 		{"Live feed", feed, feed.Draw, nil, nil, nil, nil},
 		{"Sweep", sweep, sweep.Draw, nil, nil, nil, nil},
-		{"Firmware", firm, firm.Draw, nil, nil, nil, nil},
 		{"Inspector", insp, insp.Draw, nil, nil, nil, nil},
 		{"Provisioning", prov, prov.Draw, nil, nil, nil, nil},
 	}
