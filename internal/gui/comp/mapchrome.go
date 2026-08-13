@@ -45,7 +45,12 @@ func (l *Layers) defaults() {
 	if l.set {
 		return
 	}
-	l.Basemap, l.Boundaries, l.Links = true, true, true
+	// Links start off. On the shipped fixtures that layer is 1,619 lines on
+	// Fife and 1,223 on Scotland and Ireland, which is most of what is on
+	// screen before anybody has asked a question - the network reads as a
+	// mesh of green rather than as a set of nodes in places. Turn it on when
+	// the question is about reach.
+	l.Basemap, l.Boundaries = true, true
 	l.Nodes, l.Labels, l.Traffic, l.set = true, true, true, true
 }
 
