@@ -26,6 +26,7 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 
+	"github.com/A13xB0/meshcoresim/internal/basemap"
 	"github.com/A13xB0/meshcoresim/internal/gui/comp"
 	"github.com/A13xB0/meshcoresim/internal/gui/desktop"
 	"github.com/A13xB0/meshcoresim/internal/gui/shell"
@@ -197,9 +198,33 @@ func main() {
 	}
 	sm.SetUI(wbUI)
 	// The tile cache the old workbench already filled: 37 MB of it on this
-	// machine, and the same store, so nothing is downloaded twice.
+	// machine, and the same store, so nothing is downloaded twice. The layer
+	// is the remembered choice, like the old workbench's.
 	if cache, err := os.UserCacheDir(); err == nil {
-		mv.Tiles = comp.NewTiles(filepath.Join(cache, "meshcoresim", "tiles"), "carto-dark")
+		layerID := "carto-dark"
+		if id := sm.Basemap(); id != "" {
+			layerID = id
+		}
+		mv.Tiles = comp.NewTiles(filepath.Join(cache, "meshcoresim", "tiles"), layerID)
+	}
+	// The basemap picker at the top of the map's layer panel: base layers
+	// only - overlays are not a map - chosen through the shell's chooser and
+	// remembered across launches.
+	mv.OnBasemap = func() {
+		var names []string
+		for _, l := range basemap.Layers() {
+			if l.Kind == basemap.Base {
+				names = append(names, l.Name)
+			}
+		}
+		chooser("Basemap", names, func(picked string) {
+			for _, l := range basemap.Layers() {
+				if l.Name == picked && mv.Tiles != nil {
+					mv.Tiles.SetLayer(l.ID)
+					do("map.basemap", map[string]any{"id": l.ID})
+				}
+			}
+		})
 	}
 	// The map decides, the store changes. A pointer gesture is not allowed to
 	// write to the world directly, so both of these go through the same verbs

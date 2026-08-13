@@ -74,6 +74,10 @@ type MapView struct {
 	// that needs computing - coverage - is asked for here rather than done
 	// here.
 	OnLayerOn func(layer string)
+	// OnBasemap is called when the basemap row at the top of the layer panel
+	// is pressed. The choosing happens in the shell's overlay, like every
+	// other pick-from-a-list.
+	OnBasemap func()
 	// OnMenu is called when a context menu entry is chosen: the action, the
 	// node it was opened on if any, and where on the ground it was opened.
 	OnMenu func(action, node string, lat, lon float64)
@@ -250,8 +254,12 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 	}
 
 	m.measureReadout(t, gtx, sz)
+	attrib := ""
+	if m.Tiles != nil {
+		attrib = m.Tiles.Layer.Attribution
+	}
 	m.scaleBar(t, gtx, sz, mapNote(s, shownLinks, totalLinks,
-		basemapNote(drawn, want, m.Tiles != nil && m.Layers.Basemap)))
+		basemapNote(drawn, want, m.Tiles != nil && m.Layers.Basemap, attrib)))
 	m.layerPanel(t, gtx, sz, s)
 	if m.Layers.Coverage {
 		m.coverageLegend(t, gtx, sz, s)

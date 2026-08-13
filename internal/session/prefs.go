@@ -12,6 +12,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/A13xB0/meshcoresim/internal/gui/state"
 )
 
 // Prefs are the machine-level choices, as the file stores them.
@@ -25,6 +27,9 @@ type Prefs struct {
 	// "never said" are different answers and only one of them lets the
 	// hardware default decide.
 	GPU *bool `json:"gpu,omitempty"`
+	// Basemap is the chosen map layer's ID - carto-dark, carto-light,
+	// esri-topo. Empty means the default.
+	Basemap string `json:"basemap,omitempty"`
 }
 
 // prefsPath is ~/.config/meshcoresim/workbench2.json, or empty when the
@@ -89,6 +94,26 @@ func (s *Sim) savePrefs() {
 		return
 	}
 	_ = os.WriteFile(path, append(b, '\n'), 0o644)
+}
+
+// Basemap is the remembered map layer's ID, for the command to hand the map
+// at startup. Empty means nobody has chosen.
+func (s *Sim) Basemap() string { return s.prefs.Basemap }
+
+// registerBasemap remembers which map is under everything.
+//
+// The session never draws the map; it only keeps the choice, because the
+// choice is the kind of thing that was decided again every launch until the
+// settings file existed.
+func registerBasemap(st *state.Store, s *Sim) {
+	st.Handle("map.basemap", func(w *state.World, p any) (any, error) {
+		if id, ok := stringField(p, "id"); ok && id != "" {
+			s.prefs.Basemap = id
+			s.savePrefs()
+			w.Say("the basemap is " + id + ", here and on the next launch")
+		}
+		return map[string]any{"id": s.prefs.Basemap}, nil
+	})
 }
 
 // tileCacheDir is where terrain tiles live: the chosen place, or the default.

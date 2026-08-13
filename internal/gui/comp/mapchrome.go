@@ -46,6 +46,8 @@ type Layers struct {
 	set     bool
 	toggles [12]Check
 	keys    [6]widget.Clickable
+	// baseRow is the basemap picker at the top of the panel.
+	baseRow widget.Clickable
 }
 
 // defaults are applied once, so a zero Layers is a sensible map rather than an
@@ -182,8 +184,38 @@ func (m *MapView) layerPanel(t *theme.Theme, gtx layout.Context, sz image.Point,
 	inner.Constraints.Min = image.Point{}
 	inner.Constraints.Max = image.Pt(gtx.Dp(200), sz.Y)
 
+	if m.Layers.baseRow.Clicked(gtx) && m.OnBasemap != nil {
+		m.OnBasemap()
+	}
+
 	rec := op.Record(gtx.Ops)
 	var kids []layout.FlexChild
+	// The basemap picker first: which map is under everything is the first
+	// question about the map, and the old workbench answered it here too.
+	if m.Tiles != nil {
+		kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return m.Layers.baseRow.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				name := m.Tiles.Layer.Name
+				ink := t.P.Ink
+				if m.Layers.baseRow.Hovered() {
+					ink = t.P.Accent
+				}
+				return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx,
+					func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+							layout.Rigid(Text(t, t.Sz.Caption, t.P.Faint, "map:  ")),
+							layout.Rigid(Text(t, t.Sz.Caption, ink, name)),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return layout.Inset{Left: t.Sp.XS}.Layout(gtx,
+									func(gtx layout.Context) layout.Dimensions {
+										return chevronDown(t, gtx)
+									})
+							}),
+						)
+					})
+			})
+		}))
+	}
 	for i := range rows {
 		i := i
 		kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -324,8 +356,13 @@ func bearing(lat1, lon1, lat2, lon2 float64) float64 {
 // under the scale bar rather than a dialog: a missing basemap does not stop
 // anybody working, but a map that is quietly half-drawn invites somebody to
 // read the gaps as geography.
-func basemapNote(drawn, want int, on bool) string {
-	const attrib = "Elevation: AWS terrarium    (c) OpenStreetMap"
+func basemapNote(drawn, want int, on bool, layerAttrib string) string {
+	// The layer's own credit, not a constant: the satellite imagery is not
+	// OpenStreetMap's and must not be credited as if it were.
+	attrib := "Elevation: AWS terrarium"
+	if layerAttrib != "" {
+		attrib += "    " + layerAttrib
+	}
 	switch {
 	case !on:
 		return "basemap off"

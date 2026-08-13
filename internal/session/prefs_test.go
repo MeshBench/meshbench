@@ -1,9 +1,12 @@
 package session
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/A13xB0/meshcoresim/internal/gui/state"
 )
 
 // A move carries every file over, keeps the layout, and empties the source.
@@ -101,6 +104,23 @@ func TestMatrixRoundTrip(t *testing.T) {
 	s := &Sim{}
 	if s.matrixDir() != "" {
 		t.Error("a session without LoadPrefs got a matrix directory")
+	}
+}
+
+// The basemap choice lands in the session and comes back, which is what the
+// command reads at the next launch.
+func TestBasemapChoiceIsKept(t *testing.T) {
+	st := state.New(10)
+	s := &Sim{}
+	Register(st, s)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go st.Run(ctx)
+	if _, err := st.Do(ctx, "map.basemap", map[string]any{"id": "carto-light"}); err != nil {
+		t.Fatalf("map.basemap: %v", err)
+	}
+	if got := s.Basemap(); got != "carto-light" {
+		t.Errorf("the session remembers %q, want carto-light", got)
 	}
 }
 

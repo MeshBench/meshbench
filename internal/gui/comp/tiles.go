@@ -59,6 +59,16 @@ func NewTiles(cacheDir, layerID string) *Tiles {
 	return t
 }
 
+// SetLayer switches the basemap by its ID.
+//
+// Everything cached - uploads, decodes, fetch marks - is already keyed by
+// layer, so nothing needs clearing and switching back to a map is instant.
+func (t *Tiles) SetLayer(id string) {
+	if l, ok := basemap.ByID(id); ok {
+		t.Layer = l
+	}
+}
+
 // Draw paints the tiles covering a viewport, and returns how many were
 // actually available. The caller decides what to say about the difference.
 func (t *Tiles) Draw(gtx layout.Context, sz image.Point, centreLat, centreLon, zoomPxPerDeg float64) (drawn, want int) {
