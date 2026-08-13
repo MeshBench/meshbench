@@ -724,6 +724,30 @@ func (e *Engine) profile(from, to scenario.Node, distKm float64) ([]terrain.Poin
 	return out, true
 }
 
+// LinkCacheSnapshot copies the measured matrix out, so a rebuild that changes
+// nothing geometric does not have to measure it again.
+func (e *Engine) LinkCacheSnapshot() map[[2]int]float64 {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	out := make(map[[2]int]float64, len(e.linkCache))
+	for k, v := range e.linkCache {
+		out[k] = v
+	}
+	return out
+}
+
+// RestoreLinkCache puts a snapshot back. The caller vouches that the geometry
+// it was measured over is this engine's geometry; nothing here can check that,
+// which is why the session keys it on a hash of everything the loss depends
+// on.
+func (e *Engine) RestoreLinkCache(m map[[2]int]float64) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for k, v := range m {
+		e.linkCache[k] = v
+	}
+}
+
 // PrimeLinks fills the cache from a matrix somebody else computed.
 //
 // The matrix is the upper triangle of an n by n grid, in the same node order
@@ -797,7 +821,10 @@ func (e *Engine) WarmLinks(ctx context.Context, progress func(done, total int)) 
 			defer wg.Done()
 			for p := range pairs {
 				e.pathLoss(p.a, p.b)
-				if d := done.Add(1); progress != nil && d%512 == 0 {
+				// The first pair as well as every 512th: the first is what
+				// moves a status line off the previous phase, and it is the
+				// one a throttle otherwise never lets through.
+				if d := done.Add(1); progress != nil && (d == 1 || d%512 == 0) {
 					progress(int(d), total)
 				}
 			}

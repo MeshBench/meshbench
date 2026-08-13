@@ -65,10 +65,16 @@ func Open() (*Device, error) {
 		return nil, fmt.Errorf("gpu: no device: %w", err)
 	}
 	info := ad.GetInfo()
+	// The device's own limits, not the adapter's. The request for the
+	// adapter's limits can be refused, and the fallback device then sits at
+	// WebGPU's defaults - so sizing work from what the adapter advertised
+	// binds a 268 MB grid to a 128 MiB limit and fails after the grid was
+	// already built.
+	actual := dev.GetLimits()
 	d := &Device{
 		instance: inst, adapter: ad, device: dev, queue: dev.GetQueue(),
 		Name: info.Name, Backend: info.BackendType.String(),
-		MaxStorageMB: supported.Limits.MaxStorageBufferBindingSize / (1 << 20),
+		MaxStorageMB: actual.Limits.MaxStorageBufferBindingSize / (1 << 20),
 	}
 	mod, err := dev.CreateShaderModule(&wgpu.ShaderModuleDescriptor{
 		Label:          "dechirp",

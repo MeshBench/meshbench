@@ -9,7 +9,9 @@ package session
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
+	"hash/fnv"
 	"math"
 	"os"
 	"path/filepath"
@@ -50,6 +52,9 @@ type Sim struct {
 	// gpuAsked records that the machine has been asked whether it has a GPU,
 	// so the answer is not re-opened on every warm.
 	gpuAsked bool
+	// geomFP fingerprints everything a path loss depends on, so a rebuild
+	// can tell whether the measured matrix is still about this network.
+	geomFP uint64
 	// grid is the rasterised terrain the pair kernel reads, kept because
 	// building it is the expensive half and it is about the ground rather
 	// than about the nodes.
@@ -174,12 +179,32 @@ const defaultSeed = 9001
 
 // buildSeeded is build, with the draw stated.
 func (s *Sim) buildSeeded(nodes []scenario.Node, freqMHz float64, seed uint64) {
+	// A rebuild that changes nothing geometric keeps the measured matrix.
+	//
+	// Reset, a new seed, and switching run kinds all remake the engine, and
+	// the old workbench re-measures every pair each time - fast only because
+	// its tiles are hot. A path loss depends on where the nodes are, their
+	// heights and powers, the frequency and the excess loss, and on nothing
+	// else the rebuild changes; if that whole fingerprint is unchanged, the
+	// matrix is the same matrix.
+	var carried map[[2]int]float64
+	fp := geometryFingerprint(nodes, freqMHz, s.excessLossDB)
+	if s.eng != nil && fp == s.geomFP {
+		carried = s.eng.LinkCacheSnapshot()
+	}
 	// Cold from this moment. An engine is rebuilt rather than rewound, and a
 	// new one carries no link cache: the old workbench warms on every rebuild
 	// for exactly this reason, and its comment is worth repeating - an empty
 	// cache bills its terrain profiles to whoever sends the first message,
 	// which reads as "runs fine until I send, then stuck".
 	s.cold, s.warmed = true, false
+	s.geomFP = fp
+	defer func() {
+		if carried != nil && s.eng != nil {
+			s.eng.RestoreLinkCache(carried)
+			s.cold, s.warmed = false, true
+		}
+	}()
 	if s.eng != nil {
 		_ = s.eng.Close()
 	}
@@ -290,12 +315,10 @@ func (s *Sim) warm(st *state.Store, nodes int) {
 		}
 
 		s.eng.WarmLinks(ctx, func(done, of int) {
-			// The first pair immediately and then every two-thousandth: the
-			// early one is what moves the status off the previous phase, and
-			// a verb per path loss would make the queue the slow part.
-			if done != 1 && done%2000 != 0 {
-				return
-			}
+			// No second throttle here: the engine already reports every 512th
+			// pair, and a filter stacked on a filter only let through their
+			// common multiples - the first status update came at pair 32,000,
+			// which on the processor is most of the warm spent looking hung.
 			_, _ = st.Do(ctx, "job.progress", state.Job{
 				ID: "links", What: "measuring every link on the processor",
 				Done: done, Total: of})
@@ -572,4 +595,24 @@ func (s *Sim) warming() bool {
 	s.warmMu.Lock()
 	defer s.warmMu.Unlock()
 	return s.warmCancel != nil && !s.warmed
+}
+
+// geometryFingerprint hashes everything a path loss depends on.
+func geometryFingerprint(nodes []scenario.Node, freqMHz, excess float64) uint64 {
+	h := fnv.New64a()
+	b := make([]byte, 8)
+	put := func(f float64) {
+		binary.LittleEndian.PutUint64(b, math.Float64bits(f))
+		_, _ = h.Write(b)
+	}
+	put(freqMHz)
+	put(excess)
+	for _, n := range nodes {
+		_, _ = h.Write([]byte(n.Name))
+		put(n.Position.Lat)
+		put(n.Position.Lon)
+		put(n.HeightAGLm)
+		put(n.TxPowerDBm)
+	}
+	return h.Sum64()
 }
