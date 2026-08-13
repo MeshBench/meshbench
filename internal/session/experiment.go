@@ -381,6 +381,21 @@ func (e *experiment) notAResultYet() string {
 			return "at least one run failed: " + r.Err
 		}
 	}
+	// Identical runs across seeds are not a spread, they are one draw
+	// repeated - and a difference between arms cannot be called larger than a
+	// noise that has not been measured. This is the check the study this
+	// replaces had to make by hand, and got wrong.
+	for _, sum := range e.summarise() {
+		if n, _ := sum["runs"].(int); n < 2 {
+			continue
+		}
+		if sp, _ := sum["rx_spread"].(float64); sp == 0 {
+			return fmt.Sprintf(
+				"every seed of %v returned the same numbers: the seed is not "+
+					"varying anything, so there is no spread to compare against",
+				sum["arm"])
+		}
+	}
 	return ""
 }
 
