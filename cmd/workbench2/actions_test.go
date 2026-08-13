@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"gioui.org/f32"
@@ -264,5 +265,94 @@ func TestMapToolbarFiltersAndPicksTools(t *testing.T) {
 	}
 	if mv.Zoom == before && !mv.FitNext {
 		t.Errorf("neither zoom nor fit responded: zoom %v, fitNext %v", mv.Zoom, mv.FitNext)
+	}
+}
+
+func TestFirmwareControlsReachTheirVerbs(t *testing.T) {
+	r := &recorder{}
+	c := &firmwareControls{do: r.do}
+	h := newPanelHarness(c.Draw, &state.Snapshot{})
+	h.frame()
+	c.role.Editor.SetText("simple_repeater")
+	c.version.Editor.SetText("repeater-v1.17.0")
+	c.path.Editor.SetText("/tmp/build")
+	h.frame()
+	h.pressAlong(22)
+	h.pressAlong(74)
+
+	for _, want := range []string{"firmware.download", "firmware.set",
+		"firmware.import", "firmware.delete", "firmware.wipe"} {
+		if !r.saw(want) {
+			t.Errorf("no button reached %s; got %v", want, r.verbs)
+		}
+	}
+	for i, v := range r.verbs {
+		if v != "firmware.download" {
+			continue
+		}
+		m, _ := r.params[i].(map[string]any)
+		if got, _ := m["version"].(string); got != "repeater-v1.17.0" {
+			t.Errorf("download asked for %q, not the typed version", got)
+		}
+	}
+}
+
+func TestInspectorControlsReachTheirVerbs(t *testing.T) {
+	r := &recorder{}
+	c := &inspectorControls{do: r.do}
+	h := newPanelHarness(c.Draw, &state.Snapshot{
+		Nodes: []state.Node{{Name: "Bishop Hill", Selected: true}},
+	})
+	h.frame()
+	h.pressAlong(22)
+	h.pressAlong(74)
+
+	for _, want := range []string{"budget.for_selection", "energy.for_selection",
+		"coverage.compute", "node.window", "node.provisioning", "nodes.select_many"} {
+		if !r.saw(want) {
+			t.Errorf("no button reached %s; got %v", want, r.verbs)
+		}
+	}
+	// The ones that act on a node must carry the selected one.
+	for i, v := range r.verbs {
+		if v != "coverage.compute" {
+			continue
+		}
+		if got, _ := r.params[i].(string); got != "Bishop Hill" {
+			t.Errorf("coverage asked about %q, not the selection", got)
+		}
+	}
+}
+
+func TestCompanionTabSpeaksMeshcoreCLI(t *testing.T) {
+	var lines []string
+	c := &companionTab{node: "AngusOutlaw1", OnCLI: func(_, line string) {
+		lines = append(lines, line)
+	}}
+	h := newPanelHarness(
+		func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+			return c.Draw(t, gtx, s)
+		}, &state.Snapshot{})
+	h.frame()
+	c.freq.Editor.SetText("869618")
+	c.bw.Editor.SetText("62500")
+	c.sf.Editor.SetText("8")
+	c.cr.Editor.SetText("8")
+	c.name.Editor.SetText("Angus")
+	c.txdbm.Editor.SetText("22")
+	h.frame()
+	// A grid rather than four guessed rows: these bars carry notes, so their
+	// heights differ and a row written down in advance is a test of the
+	// layout rather than of the controls.
+	for y := float32(14); y < 320; y += 14 {
+		h.pressAlong(y)
+	}
+
+	joined := strings.Join(lines, " | ")
+	for _, want := range []string{"set radio 869618 62500 8 8", "set name Angus",
+		"set tx 22", "get_channel", "sync_msgs", "contacts", "__disconnect"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("no control produced %q; got: %s", want, joined)
+		}
 	}
 }

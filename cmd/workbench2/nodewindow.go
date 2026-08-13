@@ -31,6 +31,10 @@ const (
 	tabConsole nodeTab = iota
 	tabStats
 	tabActivity
+	// tabCompanion only exists for a node that speaks the companion
+	// protocol. A repeater has no channels and no contacts, and a tab that is
+	// always there and always empty teaches people to ignore tabs.
+	tabCompanion
 )
 
 func (n nodeTab) String() string {
@@ -39,6 +43,8 @@ func (n nodeTab) String() string {
 		return "Stats"
 	case tabActivity:
 		return "Activity"
+	case tabCompanion:
+		return "Radio & contacts"
 	}
 	return "Console"
 }
@@ -56,7 +62,8 @@ func (p *nodeWindowPanel) tabTitle(n nodeTab) string {
 type nodeWindowPanel struct {
 	node string
 	tab  nodeTab
-	tabs [3]widget.Clickable
+	tabs [4]widget.Clickable
+	comp companionTab
 
 	input    comp.Field
 	send     comp.Button
@@ -128,6 +135,9 @@ func (p *nodeWindowPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snap
 				return p.stats(t, gtx, s)
 			case tabActivity:
 				return p.activity(t, gtx, s)
+			case tabCompanion:
+				p.comp.node, p.comp.OnCLI = p.node, p.OnCLI
+				return p.comp.Draw(t, gtx, s)
 			}
 			return p.console(t, gtx, s)
 		}),
@@ -164,8 +174,12 @@ func (p *nodeWindowPanel) head(t *theme.Theme, s *state.Snapshot) layout.Widget 
 			}),
 			layout.Rigid(layout.Spacer{Height: t.Sp.XS}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				tabs := 3
+				if p.isCompanion() {
+					tabs = 4
+				}
 				var kids []layout.FlexChild
-				for i := 0; i < 3; i++ {
+				for i := 0; i < tabs; i++ {
 					i := i
 					kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						fg := t.P.Dim
@@ -406,4 +420,134 @@ func kindOfNode(st *state.Store, node string) string {
 		}
 	}
 	return ""
+}
+
+// companionTab is the radio, the channels and the contacts, for a node that
+// speaks the companion protocol.
+//
+// The old workbench had these on a tab of the node window and this build had
+// none of it. They are the settings a client changes and then wonders why the
+// mesh went quiet: a radio preset that no longer matches its neighbours is a
+// node that hears nothing and reports no fault.
+type companionTab struct {
+	freq, bw, sf, cr comp.Field
+	txdbm, name      comp.Field
+	channel, msg     comp.Field
+
+	applyRadio comp.Button
+	applyName  comp.Button
+	getChans   comp.Button
+	syncMsgs   comp.Button
+	contacts   comp.Button
+	takeOver   comp.Button
+	release    comp.Button
+
+	list  widget.List
+	built bool
+
+	// OnCLI carries every one of these as a meshcore-cli line, so the buttons
+	// and the command line cannot mean different things.
+	OnCLI func(node, line string)
+	node  string
+}
+
+func (c *companionTab) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+	if !c.built {
+		c.freq.Hint, c.bw.Hint = "freq kHz", "bandwidth Hz"
+		c.sf.Hint, c.cr.Hint = "spreading factor", "coding rate"
+		c.txdbm.Hint, c.name.Hint = "tx dBm", "advertised name"
+		c.channel.Hint, c.msg.Hint = "channel", "message"
+		for _, f := range []*comp.Field{&c.freq, &c.bw, &c.sf, &c.cr,
+			&c.txdbm, &c.name, &c.channel, &c.msg} {
+			f.Editor.SingleLine = true
+		}
+		c.applyRadio.Label, c.applyRadio.Kind = "apply to the node", comp.Primary
+		c.applyName.Label, c.applyName.Kind = "set name and power", comp.Secondary
+		c.getChans.Label, c.getChans.Kind = "read channel", comp.Secondary
+		c.syncMsgs.Label, c.syncMsgs.Kind = "sync messages", comp.Secondary
+		c.contacts.Label, c.contacts.Kind = "sync contacts", comp.Secondary
+		c.takeOver.Label, c.takeOver.Kind = "take it over", comp.Primary
+		c.release.Label, c.release.Kind = "give it back", comp.Quiet
+		c.built = true
+	}
+	send := func(line string) {
+		if c.OnCLI != nil {
+			c.OnCLI(c.node, line)
+		}
+	}
+	if c.applyRadio.Click.Clicked(gtx) {
+		send(fmt.Sprintf("set radio %s %s %s %s",
+			fieldText(&c.freq), fieldText(&c.bw), fieldText(&c.sf), fieldText(&c.cr)))
+	}
+	if c.applyName.Click.Clicked(gtx) {
+		if n := fieldText(&c.name); n != "" {
+			send("set name " + n)
+		}
+		if p := fieldText(&c.txdbm); p != "" {
+			send("set tx " + p)
+		}
+	}
+	if c.getChans.Click.Clicked(gtx) {
+		send("get_channel " + orZero(fieldText(&c.channel)))
+	}
+	if c.syncMsgs.Click.Clicked(gtx) {
+		send("sync_msgs")
+	}
+	if c.contacts.Click.Clicked(gtx) {
+		send("contacts")
+	}
+	if c.takeOver.Click.Clicked(gtx) {
+		send("infos")
+	}
+	if c.release.Click.Clicked(gtx) && c.OnCLI != nil {
+		// Releasing hands the port back to the console, which is what somebody
+		// wants after looking rather than after changing anything.
+		c.OnCLI(c.node, "__disconnect")
+	}
+
+	radio := actionBar{
+		fields:  []*comp.Field{&c.freq, &c.bw, &c.sf, &c.cr},
+		buttons: []*comp.Button{&c.applyRadio},
+		note: "a preset that no longer matches its neighbours is a node that " +
+			"hears nothing and reports no fault",
+	}
+	ident := actionBar{
+		fields:  []*comp.Field{&c.name, &c.txdbm},
+		buttons: []*comp.Button{&c.applyName},
+	}
+	traffic := actionBar{
+		fields:  []*comp.Field{&c.channel},
+		buttons: []*comp.Button{&c.getChans, &c.syncMsgs, &c.contacts},
+	}
+	claim := actionBar{
+		buttons: []*comp.Button{&c.takeOver, &c.release},
+		note: "taking it over claims the node's serial port, so its console " +
+			"goes quiet until you give it back",
+	}
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return radio.layout(t, gtx) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return ident.layout(t, gtx) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return traffic.layout(t, gtx) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return claim.layout(t, gtx) }),
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			lines := []string(nil)
+			if s != nil && s.ConsoleNode == c.node {
+				lines = s.Console
+			}
+			if len(lines) == 0 {
+				return layout.Center.Layout(gtx, comp.Text(t, t.Sz.Caption, t.P.Faint,
+					"what the node answers appears here and in the meshcore-cli tab"))
+			}
+			return comp.List(t, &c.list, len(lines), func(gtx layout.Context, i int) layout.Dimensions {
+				return comp.Mono(t, t.Sz.Data, t.P.Ink, lines[i])(gtx)
+			})(gtx)
+		}),
+	)
+}
+
+func orZero(s string) string {
+	if s == "" {
+		return "0"
+	}
+	return s
 }

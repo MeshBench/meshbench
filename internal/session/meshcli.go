@@ -199,6 +199,20 @@ func registerMeshCLI(st *state.Store, s *Sim) {
 		if line == "?" || line == "help" {
 			return map[string]any{"node": node, "reply": meshcliHelp()}, nil
 		}
+		// Giving the port back is not a meshcore-cli command - a real client
+		// disconnects by closing the link - so it has a name that cannot
+		// collide with one.
+		if line == "__disconnect" {
+			if c, ok := s.comps[node]; ok {
+				if c.release != nil {
+					c.release()
+				}
+				delete(s.comps, node)
+				w.Say(node + " released; its console has the port back")
+				return map[string]any{"node": node, "reply": "released"}, nil
+			}
+			return map[string]any{"node": node, "reply": "was not connected"}, nil
+		}
 		fields := strings.Fields(line)
 		head, args := fields[0], fields[1:]
 
