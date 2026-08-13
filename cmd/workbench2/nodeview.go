@@ -66,21 +66,7 @@ func (p *nodeViewPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 	p.watched.Store(true)
 
 	if !p.init {
-		p.tb.Cols = []comp.Column{
-			{Title: "node", Width: 190, Sortable: true},
-			{Title: "state", Width: 86, Sortable: true},
-			{Title: "backend", Width: 90, Sortable: true},
-			{Title: "firmware", Width: 200, Mono: true, Sortable: true, Menu: true},
-			{Title: "memory", Width: 96, Right: true, Mono: true, Sortable: true},
-			{Title: "cpu time", Width: 88, Right: true, Mono: true, Sortable: true},
-			{Title: "cpu now", Width: 78, Right: true, Mono: true, Sortable: true},
-			{Title: "tx", Width: 60, Right: true, Mono: true, Sortable: true},
-			{Title: "rx", Width: 60, Right: true, Mono: true, Sortable: true},
-			{Title: "last sent", Width: 150, Sortable: true},
-			{Title: "last heard", Width: 150, Sortable: true},
-			{Title: "busy", Width: 74, Right: true, Mono: true, Sortable: true},
-			{Title: "spurious", Right: true, Mono: true, Sortable: true},
-		}
+		p.tb.Cols = nodeColumns()
 		p.tb.SortCol, p.tb.SortDesc = 4, true
 		p.running.Label, p.running.Bool.Value = "running", true
 		p.stopped.Label, p.stopped.Bool.Value = "stopped", true
@@ -156,15 +142,8 @@ func (p *nodeViewPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 			}
 		}
 		rows = append(rows, comp.Row{
-			Key: n.Name,
-			Cells: []string{
-				n.Name, st, orDash(n.Backend), orDash(n.Firmware),
-				cpuTime(n.CPUms), fmt.Sprintf("%.1f%%", n.CPUPct),
-				fmt.Sprintf("%d", n.Sent), fmt.Sprintf("%d", n.Heard),
-				lastPacket(n.LastSentMs, n.LastSentTo),
-				lastPacket(n.LastHeardMs, n.LastHeardFrom),
-				busyPct(n), fmt.Sprintf("%d", n.Spurious),
-			},
+			Key:   n.Name,
+			Cells: nodeCells(n, st),
 		})
 	}
 	p.tb.SetRows(rows)
@@ -556,5 +535,39 @@ func provisioningScript(t *theme.Theme, s *state.Snapshot) layout.Widget {
 			}))
 		}
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, kids...)
+	}
+}
+
+// nodeColumns and nodeCells are declared next to each other, and a test holds
+// them side by side. A row one cell short does not fail - it shifts, and every
+// value lands under the heading to its left, which is how memory read as a
+// dash while receptions were counted as transmissions.
+func nodeColumns() []comp.Column {
+	return []comp.Column{
+		{Title: "node", Width: 190, Sortable: true},
+		{Title: "state", Width: 86, Sortable: true},
+		{Title: "backend", Width: 90, Sortable: true},
+		{Title: "firmware", Width: 200, Mono: true, Sortable: true, Menu: true},
+		{Title: "memory", Width: 96, Right: true, Mono: true, Sortable: true},
+		{Title: "cpu time", Width: 88, Right: true, Mono: true, Sortable: true},
+		{Title: "cpu now", Width: 78, Right: true, Mono: true, Sortable: true},
+		{Title: "tx", Width: 60, Right: true, Mono: true, Sortable: true},
+		{Title: "rx", Width: 60, Right: true, Mono: true, Sortable: true},
+		{Title: "last sent", Width: 150, Sortable: true},
+		{Title: "last heard", Width: 150, Sortable: true},
+		{Title: "busy", Width: 74, Right: true, Mono: true, Sortable: true},
+		{Title: "spurious", Right: true, Mono: true, Sortable: true},
+	}
+}
+
+func nodeCells(n state.NodeStat, st string) []string {
+	return []string{
+		n.Name, st, orDash(n.Backend), orDash(n.Firmware),
+		siBytes(n.RSSBytes),
+		cpuTime(n.CPUms), fmt.Sprintf("%.1f%%", n.CPUPct),
+		fmt.Sprintf("%d", n.Sent), fmt.Sprintf("%d", n.Heard),
+		lastPacket(n.LastSentMs, n.LastSentTo),
+		lastPacket(n.LastHeardMs, n.LastHeardFrom),
+		busyPct(n), fmt.Sprintf("%d", n.Spurious),
 	}
 }
