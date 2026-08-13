@@ -1,5 +1,13 @@
 # Workbench 2: the plan to parity
 
+Every item on this plan has landed and been verified in the running
+application: provisioning at attach with the old workbench's startup knobs,
+stepping after commands (paused consoles answer), fleet reply collection (all
+309 firmware nodes on the national fixture answer "ver"), tool gating, the
+layers (the hillshade now draws relief visible on the dark basemap), and the
+polish items - the fleet's kind filter is a dropdown, the waterfall speaks on
+every outcome, Import lives in one menu.
+
 Written after reading workbench 1's source against workbench 2's, with every
 fault Alex has reported. The one-line diagnosis, which is also the reason this
 list exists: **workbench 1 is full of load-bearing behaviour that never made it

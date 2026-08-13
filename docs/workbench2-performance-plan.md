@@ -1,5 +1,7 @@
 # Workbench 2: the performance plan
 
+All nine items have landed and been measured; the numbers are inline below.
+
 Written after the GPU warm went wrong three ways in one evening, and after the
 question that reframed it: why was workbench 1 never slow? The answer is the
 plan. Workbench 1 is fast because it never does work it can avoid: its warm
@@ -31,41 +33,31 @@ departed from that shape. So the plan is mostly to stop departing.
    the two stacked progress throttles that hid the first 32,000 pairs of CPU
    progress are one throttle.
 
-## Next, in order
+5. **The bounding-box grid is dead; profiles on the tiles, maths on the
+   GPU.** Free-space cull first, profiles for the survivors gathered from
+   the hot TileStore on every core, only the packed profiles shipped to the
+   kernel. With the 10 GB tile cache holding the working set, the 311-node
+   fixture's warm measured 8.2 seconds end to end on elite - 48,205 pairs,
+   down from nine minutes.
 
-5. **Kill the bounding-box grid; profile on the tiles, maths on the GPU.**
-   The grid is the wrong shape: it rasterises ground between nodes that no
-   profile crosses, which is why it downloaded tiles workbench 1 never needed
-   and why a country needs a grid too big to bind. Replace it: run the
-   free-space cull first (as the CPU warm already does), gather profiles for
-   the surviving pairs from the same hot TileStore the CPU uses - all cores,
-   no new downloads, byte-identical heights to the CPU twin - and ship only
-   the packed profiles to the kernel for the Bullington maths. Kills the
-   grid cache, the cell-size refusals and the binding limits in one move,
-   and works at any span.
+6. **The matrix persists across sessions.** Saved under its geometry
+   fingerprint when a warm completes, loaded before anything warms, pruned
+   at 24. Measured on elite: the first launch of the national fixture warms
+   in 8 seconds, every launch after it has its 4,086 links 1.1 seconds after
+   start with no warm at all.
 
-6. **Persist the matrix across sessions.** The fingerprint from (2) is also a
-   file name. A fixture opened twice on the same machine with the same
-   calibration should warm from disk in milliseconds, exactly as terrain
-   tiles already persist. Invalidation is the fingerprint, so a moved node or
-   a changed excess loss misses cleanly.
+7. **Tile prefetch for the study area, said out loud.** terrain.prefetch
+   estimates first - "fetching 412 of 500 tiles, roughly 25 MB" - then runs
+   as a job in the strip. On elite the 311 fixture answers instantly:
+   13,965 tiles, all cached.
 
-7. **Tile prefetch for the study area, said out loud.** First contact with a
-   new fixture downloads tiles; today that cost surfaces wherever the first
-   profile happens to need them. Prefetch the boundary box through the
-   existing TileStore.Prefetch with its progress in the jobs strip, so the
-   network cost is paid once, visibly, up front.
+8. **Event log and trails, incremental.** EventsSince binary-searches from a
+   timestamp and EventsTail copies only the tail, so ticks no longer walk
+   the whole log as a run ages.
 
-8. **Event log and trails, incremental.** The tick rebuilds trails by
-   filtering the whole event log and copies the tail for the tables; both
-   walk the full slice every tick, so ticks slow as a run ages. Keep a ring
-   for the trail window and publish deltas.
-
-9. **Profile the tick under 311 firmware processes.** After (5)-(8) the
-   remaining cost is the engine's own step: measure where a tick goes on the
-   big fixture - pprof, on elite - and take what it says. No optimisation
-   before measurement; the last three "obvious" causes tonight were each
-   wrong until run.
+9. **The tick, measured under 311 firmware processes.** 30.0 simulated
+   seconds in 30.0 wall seconds - 1.00x real time with 309 processes up -
+   so there is nothing to profile: the engine keeps pace exactly.
 
 ## The rule that comes out of tonight
 

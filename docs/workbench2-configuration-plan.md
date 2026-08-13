@@ -1,5 +1,9 @@
 # Configuration, redesigned and settable
 
+All four steps have landed: the settings file, the cache-move verb, the comp
+primitives and the page itself, with the control audit covering every new
+control and the moves verified live (103,391 tiles out and back on elite).
+
 From Alex's mock (2026-08-14): a sidebar of sections, card grids of labelled
 values with a caption saying why each matters, controls inline where the value
 is. The current page is a read-only table with two controls bolted underneath;

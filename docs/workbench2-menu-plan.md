@@ -1,5 +1,9 @@
 # The menus, redesigned
 
+Landed in full: sections, drawn glyphs, shortcuts on the shell's key filter,
+and the scrollable Window menu with its pinned show-all row - captured live
+against this design and matching it.
+
 From the UX design (2026-08-14): every dropdown gains section headings, icons
 and shortcuts, and the Window menu stops being a wall.
 
