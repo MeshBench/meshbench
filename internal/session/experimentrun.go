@@ -14,6 +14,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"time"
+
+	"github.com/A13xB0/meshcoresim/internal/companion/proto"
 	"github.com/A13xB0/meshcoresim/internal/engine"
 	"github.com/A13xB0/meshcoresim/internal/gui/state"
 	"github.com/A13xB0/meshcoresim/internal/scenario"
@@ -77,17 +80,28 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 	})
 	defer func() { _ = eng.Close() }()
 
-	senders := map[string]int{}
-	for i, n := range nodes {
+	senders := map[string]bool{}
+	for _, n := range nodes {
 		n = withFirmware(n, SweepArm{
 			RepeaterVersion:  arm.RepeaterVersion,
 			CompanionVersion: arm.CompanionVersion,
 		})
 		eng.Add(n, nil)
 		for _, want := range e.Senders {
-			if n.Name == want {
-				senders[want] = i
+			if n.Name != want {
+				continue
 			}
+			// A sender has to be a companion. Firing at a repeater by
+			// injecting bytes at the radio does not make its firmware
+			// originate anything: the first run of this measured four cells
+			// of zero and reported no error, which is the shape of failure
+			// this whole apparatus exists to avoid.
+			if n.Kind != scenario.Companion {
+				out.Err = want + " is a " + string(n.Kind) +
+					"; a message is originated by a companion"
+				return out
+			}
+			senders[want] = true
 		}
 	}
 	if len(senders) == 0 {
@@ -102,6 +116,25 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 		return out
 	}
 
+	// A companion session per sender, which is how a message is originated:
+	// the same path a phone takes.
+	sessions := map[string]*compSession{}
+	for name := range senders {
+		en, ok := eng.NodeByName(name)
+		if !ok || en.Firmware == nil {
+			out.Err = name + " has no firmware after attach"
+			return out
+		}
+		c := &compSession{node: name}
+		c.release = en.Firmware.Bridge.Claim(c)
+		defer c.release()
+		sessions[name] = c
+		if err := en.Firmware.Bridge.Type(proto.AppStart("meshbench")); err != nil {
+			out.Err = "app start at " + name + ": " + err.Error()
+			return out
+		}
+	}
+
 	fired := false
 	for eng.NowMs() < e.RunForMs {
 		if ctx.Err() != nil {
@@ -112,8 +145,14 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 		// wall-clock moment: arms take different amounts of real time to boot
 		// and firing on a timer compares different points of the run.
 		if !fired && eng.NowMs() >= e.SendAtMs {
-			for _, at := range senders {
-				eng.Inject(at, []byte("msim-experiment"))
+			text := fmt.Sprintf("%s seed %d", arm.Label, seed)
+			for name := range sessions {
+				en, _ := eng.NodeByName(name)
+				if err := en.Firmware.Bridge.Type(
+					proto.SendChannelText(0, time.Unix(0, 0), text)); err != nil {
+					out.Err = "send at " + name + ": " + err.Error()
+					return out
+				}
 			}
 			fired = true
 		}
@@ -121,6 +160,10 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 			out.Err = err.Error()
 			break
 		}
+	}
+	if !fired {
+		out.Err = fmt.Sprintf("the run ended at %d ms without reaching send_at_ms of %d",
+			eng.NowMs(), e.SendAtMs)
 	}
 
 	for _, v := range eng.Scoreboard() {
