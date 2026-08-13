@@ -205,3 +205,41 @@ func stringField(p any, name string) (string, bool) {
 }
 
 var _ = sort.Strings
+
+// buildsMissing is every node that would fail to start, by name.
+//
+// Checked before the first process is launched rather than discovered node by
+// node afterwards: a half-started mesh measures a network that does not exist,
+// and the operator sees a status line that never changes.
+func (s *Sim) buildsMissing() []string {
+	cache := firmware.DefaultCacheDir()
+	have := map[string]bool{}
+	for _, b := range firmware.ListInstalled(cache) {
+		have[b.Role+"@"+b.Version] = true
+		have[b.Version] = true
+	}
+	var out []string
+	for _, n := range s.nodes {
+		if !n.Kind.RunsFirmware() {
+			continue
+		}
+		if n.Firmware.Version == "" {
+			out = append(out, n.Name+" (no version pinned)")
+			continue
+		}
+		role := string(n.Firmware.Role)
+		if role == "" {
+			role = string(n.Kind.Application())
+		}
+		if have[role+"@"+n.Firmware.Version] || have[n.Firmware.Version] {
+			continue
+		}
+		out = append(out, fmt.Sprintf("%s (%s %s)", n.Name, role, n.Firmware.Version))
+	}
+	// Naming forty nodes helps nobody; naming three and counting the rest
+	// does.
+	if len(out) > 4 {
+		return append(out[:4], fmt.Sprintf("and %d more", len(out)-4))
+	}
+	return out
+}

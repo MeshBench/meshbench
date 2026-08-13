@@ -308,6 +308,19 @@ func main() {
 			if sh.OnPopOut != nil {
 				sh.OnPopOut("Map")
 			}
+		default:
+			// Everything else is a verb about this node.
+			//
+			// There was no default, so a menu entry whose action was not in
+			// the list above fell through and did nothing at all - which is
+			// how "open in its own window" came to be silent after its action
+			// was changed. A menu item that reaches nothing must be
+			// impossible to write, not merely unlikely.
+			go func() {
+				if _, err := st.Do(ctx, action, node); err != nil {
+					_, _ = st.Do(ctx, "ui.said", action+": "+err.Error())
+				}
+			}()
 		}
 	}
 	mv.OnLayerOn = func(layer string) {
@@ -561,23 +574,41 @@ func main() {
 
 	sh.Add(&shell.Panel{Name: "Settings", Windowable: true,
 		Draw: (&settingsPanel{set: sets}).Draw})
+	// File is where a session begins and ends, and it had one item in it.
+	//
+	// Firmware lives here rather than under Repeaters because a companion, a
+	// room server and an SDR observer all run firmware too - filing it under
+	// one node type is how somebody looking for a companion build never finds
+	// it.
 	sh.SetMenu("File", []shell.MenuItem{
+		{Label: "Open a saved network", Action: "panel.Import"},
+		{Label: "Save this network", Action: "project.save"},
 		{Label: "Save this run", Action: "run.save"},
+		{Label: "Firmware library", Action: "panel.Firmware"},
+		{Label: "Import a live network", Action: "panel.Import"},
+		{Label: "Export the event log", Action: "events.dump"},
+		{Label: "Quit", Action: "app.quit"},
 	})
 	sh.SetMenu("View", []shell.MenuItem{
 		{Label: "Settings", Action: "panel.Settings"},
+		{Label: "Nodes running", Action: "panel.Nodes running"},
+		{Label: "Companion bench", Action: "panel.Companion bench"},
 		{Label: "Experiment log", Action: "panel.Experiment log"},
 		{Label: "Configuration", Action: "panel.Configuration"},
 	})
 	sh.SetMenu("Simulation", []shell.MenuItem{
-		{Label: "Play or pause", Action: "sim.toggle"},
+		{Label: "Play or pause", Action: "sim.start"},
 		{Label: "One step", Action: "sim.step"},
+		{Label: "Back to the start", Action: "sim.reset"},
+		{Label: "Start firmware on every node", Action: "firmware.start"},
+		{Label: "Wipe every node's memory", Action: "firmware.wipe"},
 		{Label: "Originate a packet", Action: "sim.inject"},
 		{Label: "Capture the waterfall", Action: "waterfall.capture"},
+		{Label: "Capture to a pcapng file", Action: "capture.file"},
 	})
 	sh.SetMenu("Repeaters", []shell.MenuItem{
-		{Label: "Fleet", Action: "panel.Fleet"},
-		{Label: "Firmware", Action: "panel.Firmware"},
+		{Label: "Send a command to the fleet", Action: "panel.Fleet"},
+		{Label: "What they are told at boot", Action: "panel.Provisioning"},
 		{Label: "Coverage from the selection", Action: "coverage.compute"},
 	})
 	sh.SetMenu("Planning", []shell.MenuItem{

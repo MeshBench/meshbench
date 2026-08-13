@@ -650,11 +650,25 @@ func Register(st *state.Store, s *Sim) {
 		return map[string]any{"starting": true}, nil
 	})
 	st.Handle("firmware.started", func(w *state.World, _ any) (any, error) {
-		w.Say(fmt.Sprintf("%d nodes running firmware", s.firmwareCount()))
-		return map[string]any{"running": s.firmwareCount()}, nil
+		n := s.firmwareCount()
+		if w.PendingPlay {
+			// The run was waiting for the mesh rather than racing it.
+			w.PendingPlay, w.Playing = false, true
+			w.Say(fmt.Sprintf("%d nodes running firmware; running", n))
+			return map[string]any{"running": n, "playing": true}, nil
+		}
+		w.Say(fmt.Sprintf("%d nodes running firmware", n))
+		return map[string]any{"running": n}, nil
 	})
 	st.Handle("firmware.failed", func(w *state.World, p any) (any, error) {
 		msg, _ := p.(string)
+		// A run that was waiting for firmware does not start on a failure. It
+		// would advance a clock over a mesh that is not there.
+		if w.PendingPlay {
+			w.PendingPlay = false
+			w.Say("firmware failed, so the run has not started: " + msg)
+			return nil, nil
+		}
 		w.Say("firmware: " + msg)
 		return nil, nil
 	})

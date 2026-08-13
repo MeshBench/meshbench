@@ -9,7 +9,9 @@
 package session
 
 import (
+	"fmt"
 	"github.com/A13xB0/meshcoresim/internal/gui/state"
+	"strings"
 )
 
 func registerRunKind(st *state.Store, s *Sim) {
@@ -39,21 +41,37 @@ func registerRunKind(st *state.Store, s *Sim) {
 			w.Say("paused")
 			return map[string]any{"playing": false}, nil
 		}
-		started := false
 		if w.RealFirmware && s.eng != nil && s.firmwareCount() == 0 && len(w.Nodes) > 0 {
+			// Every node needs a build before any node starts.
+			//
+			// Starting anyway leaves half a mesh up and the run measuring a
+			// network that does not exist, and the operator sees "starting
+			// MeshCore" for ever with nothing saying which node had no
+			// firmware. Say it before the first process is launched.
+			if missing := s.buildsMissing(); len(missing) > 0 {
+				return nil, fmt.Errorf(
+					"no firmware for %d of %d nodes, so this run would be half a mesh: %s. "+
+						"Pin one in the Firmware panel, or download it there",
+					len(missing), len(s.nodes), strings.Join(missing, ", "))
+			}
 			// Called directly, not through st.Do: this handler already runs
 			// on the store's goroutine, and asking the store to do something
-			// from inside it is a wait for yourself. It deadlocked the whole
-			// session, which from outside looks exactly like a hung socket.
+			// from inside it is a wait for yourself.
 			s.startFirmware(st, w.Seed)
-			started = true
-			w.Say("starting MeshCore on every node, then running")
+			// Not playing yet.
+			//
+			// Playing immediately started the clock against nodes that were
+			// still attaching, so the store's ticker drove an engine whose
+			// nodes had no process behind them and wedged - the status said
+			// "starting MeshCore" and nothing ever moved again. The run
+			// begins when the mesh is up; firmware.started turns it on.
+			w.PendingPlay = true
+			w.Say("starting MeshCore on every node; the run begins when they are up")
+			return map[string]any{"playing": false, "starting_firmware": true}, nil
 		}
 		w.Playing = true
-		if !started {
-			w.Say("playing")
-		}
-		return map[string]any{"playing": true, "started_firmware": started}, nil
+		w.Say("playing")
+		return map[string]any{"playing": true, "started_firmware": false}, nil
 	})
 }
 

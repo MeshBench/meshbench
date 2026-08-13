@@ -119,6 +119,8 @@ type Snapshot struct {
 	// FirmwareStarting reports a start in progress.
 	FirmwareRunning  int
 	FirmwareStarting bool
+	// PendingPlay is a run waiting for its firmware to come up.
+	PendingPlay bool
 }
 
 // Point is a position, and the only geometry the snapshot carries.
@@ -534,6 +536,9 @@ type World struct {
 	FirmwareRunning int
 	// FirmwareStarting reports a start in progress.
 	FirmwareStarting bool
+	// PendingPlay is a run waiting for its firmware to come up. The clock
+	// must not advance over a mesh that is still attaching.
+	PendingPlay bool
 
 	// Tick is called every step while playing, and is where engine pacing
 	// lives now that it is out of the frame loop. Nil means no engine.

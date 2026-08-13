@@ -117,10 +117,91 @@ func snapshotSummary(s *state.Snapshot) map[string]any {
 			break
 		}
 	}
-	return map[string]any{
+	// Counts first, because a caller polling in a loop wants the cheap
+	// summary and not the whole world every second.
+	out := map[string]any{
 		"seq": s.Seq, "now_ms": s.NowMs, "playing": s.Playing, "seed": s.Seed,
 		"nodes": len(s.Nodes), "links": len(s.Links), "areas": len(s.Areas),
 		"events": s.EventTotal, "scores": len(s.Scores),
 		"selected": selected, "status": s.Status,
 	}
+
+	// Then the state itself.
+	//
+	// This used to be the eleven scalars above and nothing else, which made
+	// the socket a summary rather than a view of the session: endpoints,
+	// jobs, residuals, the firmware library, the console, node statistics and
+	// everything else existed in the snapshot the panels draw from and were
+	// invisible to anything driving the workbench. A caller could not see
+	// what it had just asked for, and neither could a test.
+	out["real_firmware"] = s.RealFirmware
+	out["firmware_running"] = s.FirmwareRunning
+	out["firmware_starting"] = s.FirmwareStarting
+	out["pending_play"] = s.PendingPlay
+	out["step_ms"] = s.StepMs
+	out["margin_km"] = s.MarginKm
+
+	if len(s.Endpoints) > 0 {
+		eps := make([]map[string]any, 0, len(s.Endpoints))
+		for _, e := range s.Endpoints {
+			eps = append(eps, map[string]any{
+				"node": e.Node, "addr": e.Addr, "kind": e.Kind,
+				"attached": e.Attached,
+			})
+		}
+		out["endpoints"] = eps
+	}
+	if len(s.Jobs) > 0 {
+		jobs := make([]map[string]any, 0, len(s.Jobs))
+		for _, j := range s.Jobs {
+			jobs = append(jobs, map[string]any{
+				"id": j.ID, "what": j.What, "done": j.Done,
+				"total": j.Total, "finished": j.Finished,
+			})
+		}
+		out["jobs"] = jobs
+	}
+	if s.Residuals != nil {
+		out["residuals"] = map[string]any{
+			"matched": s.Residuals.Matched, "unmatched": s.Residuals.Unmatched,
+			"median_db": s.Residuals.MedianDB, "iqr_db": s.Residuals.IQRdB,
+		}
+	}
+	if len(s.Builds) > 0 {
+		out["builds"] = len(s.Builds)
+	}
+	if len(s.Stats) > 0 {
+		out["node_stats"] = len(s.Stats)
+	}
+	if len(s.Console) > 0 {
+		out["console_node"] = s.ConsoleNode
+		out["console_lines"] = len(s.Console)
+	}
+	if len(s.Provisioning) > 0 {
+		out["provisioning_node"] = s.ProvisioningNode
+		out["provisioning_lines"] = len(s.Provisioning)
+	}
+	if len(s.Experiment) > 0 {
+		out["experiment_arms"] = len(s.Experiment)
+		out["experiment_warning"] = s.ExperimentWarning
+	}
+	if len(s.Sends) > 0 {
+		out["scheduled_sends"] = len(s.Sends)
+	}
+	if len(s.Assertions) > 0 {
+		out["assertions"] = len(s.Assertions)
+	}
+	if s.Import != nil {
+		out["import"] = map[string]any{
+			"url": s.Import.URL, "records": s.Import.Records,
+			"nodes": s.Import.Nodes,
+		}
+	}
+	if s.Coverage != nil {
+		out["coverage"] = true
+	}
+	if s.Waterfall != nil {
+		out["waterfall"] = true
+	}
+	return out
 }
