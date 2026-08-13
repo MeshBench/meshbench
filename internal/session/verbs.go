@@ -22,6 +22,7 @@ func Register(st *state.Store, s *Sim) {
 	registerMapCamera(st, s)
 	registerExcessLoss(st, s)
 	registerConsole(st, s)
+	registerRunKind(st, s)
 	st.Handle("project.open", func(w *state.World, p any) (any, error) {
 		path, _ := p.(string)
 		f, err := LoadFixture(path)
@@ -55,6 +56,7 @@ func Register(st *state.Store, s *Sim) {
 			index[n.Name] = i
 		}
 		w.Tick = func(uint32) {
+			w.FirmwareRunning, w.FirmwareStarting = s.firmwareCount(), s.starting.Load()
 			_ = s.eng.Step(context.Background())
 			w.NowMs = s.eng.NowMs()
 			// Trails from the last few seconds of simulated time. Recomputed

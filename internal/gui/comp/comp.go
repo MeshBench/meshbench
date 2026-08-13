@@ -210,7 +210,18 @@ type Field struct {
 	Error  string
 }
 
+// Layout draws the field around its own editor.
 func (f *Field) Layout(t *theme.Theme, gtx layout.Context) layout.Dimensions {
+	return f.LayoutEditor(t, gtx, &f.Editor)
+}
+
+// LayoutEditor draws the same chrome around an editor somebody else owns.
+//
+// Take the editor by pointer, always. Gio identifies a widget by its address,
+// so an editor copied into a fresh struct each frame is a different widget
+// every frame: the click focuses one and the keystrokes arrive at another. The
+// node filter drew perfectly and accepted nothing.
+func (f *Field) LayoutEditor(t *theme.Theme, gtx layout.Context, ed *widget.Editor) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if f.Label == "" {
@@ -223,7 +234,7 @@ func (f *Field) Layout(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 			line := t.P.Rule
 			if f.Error != "" {
 				line = t.P.Bad
-			} else if gtx.Focused(&f.Editor) {
+			} else if gtx.Focused(ed) {
 				line = t.P.Accent
 			}
 			macro := op.Record(gtx.Ops)
@@ -232,7 +243,7 @@ func (f *Field) Layout(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 			}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-						e := material.Editor(t.M, &f.Editor, f.Hint)
+						e := material.Editor(t.M, ed, f.Hint)
 						e.TextSize = t.Sz.Body
 						e.Color = t.P.Ink
 						e.HintColor = t.P.Faint

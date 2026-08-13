@@ -1,8 +1,10 @@
 package shell
 
 import (
+	"fmt"
 	"image"
 	"image/color"
+	"math"
 
 	"gioui.org/f32"
 	"gioui.org/layout"
@@ -23,6 +25,10 @@ import (
 // shortcut looks like a simulator that cannot be played.
 type transport struct {
 	play, step, slow, fast widget.Clickable
+	restart, real          widget.Clickable
+	// confirmRestart makes the second press the destructive one. A run is
+	// cheap to lose and expensive to notice you have lost.
+	confirmRestart bool
 }
 
 // transportBar draws the controls. One row tall, said explicitly: as a rigid
@@ -35,7 +41,20 @@ func (sh *Shell) transportBar(t *theme.Theme, gtx layout.Context, s *state.Snaps
 		}
 	}
 	if sh.tr.play.Clicked(gtx) {
-		fire("sim.toggle")
+		// sim.start, not sim.toggle: play is one decision, and if this is a
+		// real-firmware run it starts MeshCore before advancing the clock.
+		fire("sim.start")
+	}
+	if sh.tr.restart.Clicked(gtx) {
+		if sh.tr.confirmRestart {
+			sh.tr.confirmRestart = false
+			fire("sim.reset")
+		} else {
+			sh.tr.confirmRestart = true
+		}
+	}
+	if sh.tr.real.Clicked(gtx) {
+		fire("ui.toggle_real_firmware")
 	}
 	if sh.tr.step.Clicked(gtx) {
 		fire("sim.step")
@@ -72,12 +91,86 @@ func (sh *Shell) transportBar(t *theme.Theme, gtx layout.Context, s *state.Snaps
 	if s != nil && s.Playing {
 		sym = symPause
 	}
-	return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+	// Anything but the transport itself cancels a pending restart, so a
+	// half-pressed confirm cannot sit there waiting to catch somebody out.
+	if s != nil && s.Playing {
+		sh.tr.confirmRestart = false
+	}
+
+	children := []layout.FlexChild{
 		btn(&sh.tr.play, sym, true),
 		btn(&sh.tr.step, symStep, false),
+		btn(&sh.tr.restart, symRestart, sh.tr.confirmRestart),
 		btn(&sh.tr.slow, symSlower, false),
 		btn(&sh.tr.fast, symFaster, false),
-	)
+	}
+	if sh.tr.confirmRestart {
+		children = append(children, layout.Rigid(chip(t, t.P.Bad, "press again to discard the run")))
+	} else {
+		children = append(children, layout.Rigid(speedChip(t, s)))
+		children = append(children, layout.Rigid(realFirmware(t, &sh.tr.real, s)))
+	}
+	return layout.Flex{Alignment: layout.Middle}.Layout(gtx, children...)
+}
+
+// chip is a small piece of text in the bar, vertically centred.
+func chip(t *theme.Theme, col color.NRGBA, s string) layout.Widget {
+	return func(gtx layout.Context) layout.Dimensions {
+		return layout.Inset{Left: t.Sp.S, Right: t.Sp.XS}.Layout(gtx,
+			func(gtx layout.Context) layout.Dimensions {
+				return layout.Center.Layout(gtx, comp.Text(t, t.Sz.Caption, col, s))
+			})
+	}
+}
+
+// speedChip says how fast simulated time is running, in the engine's own unit.
+//
+// "1x" would be a claim about wall time that a simulator advancing on a ticker
+// cannot honestly make; milliseconds per tick is what the two arrows actually
+// change.
+func speedChip(t *theme.Theme, s *state.Snapshot) layout.Widget {
+	ms := uint32(10)
+	if s != nil && s.StepMs > 0 {
+		ms = s.StepMs
+	}
+	return chip(t, t.P.Faint, fmt.Sprintf("%d ms/tick", ms))
+}
+
+// realFirmware is what kind of run this is, stated once beside the transport.
+//
+// Once processes are up it stops being a choice and becomes a fact: changing
+// it would mean restarting several hundred of them, so it reports instead.
+func realFirmware(t *theme.Theme, c *widget.Clickable, s *state.Snapshot) layout.Widget {
+	return func(gtx layout.Context) layout.Dimensions {
+		if s == nil {
+			return layout.Dimensions{}
+		}
+		if s.FirmwareStarting {
+			return chip(t, t.P.Warn, "starting MeshCore...")(gtx)
+		}
+		if s.FirmwareRunning > 0 {
+			return chip(t, t.P.Good,
+				fmt.Sprintf("%d on MeshCore", s.FirmwareRunning))(gtx)
+		}
+		return c.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			fg := t.P.Faint
+			if s.RealFirmware {
+				fg = t.P.Accent
+			}
+			if c.Hovered() {
+				fg = t.P.Ink
+			}
+			mark := "OFF"
+			if s.RealFirmware {
+				mark = "ON"
+			}
+			return layout.Inset{Left: t.Sp.S, Right: t.Sp.S}.Layout(gtx,
+				func(gtx layout.Context) layout.Dimensions {
+					return layout.Center.Layout(gtx,
+						comp.Text(t, t.Sz.Caption, fg, "real firmware "+mark))
+				})
+		})
+	}
 }
 
 // symbol is a transport glyph, drawn rather than typed.
@@ -93,6 +186,7 @@ const (
 	symStep
 	symSlower
 	symFaster
+	symRestart
 )
 
 func drawSymbol(gtx layout.Context, s symbol, box int, col color.NRGBA) {
@@ -131,6 +225,33 @@ func drawSymbol(gtx layout.Context, s symbol, box int, col color.NRGBA) {
 	case symFaster:
 		tri(&p, -r*0.5, 1)
 		tri(&p, r*0.5, 1)
+	case symRestart:
+		// An open ring with an arrowhead: three quarters of a circle drawn as
+		// a filled annulus, because a stroked arc costs Gio's whole stroke
+		// machinery for eleven pixels of glyph.
+		const seg = 24
+		inner, outer := r*0.62, r*0.92
+		start, sweep := -0.4*math.Pi, 1.6*math.Pi
+		for i := 0; i <= seg; i++ {
+			a := start + sweep*float64(i)/seg
+			pt := f32.Pt(cx+outer*float32(math.Cos(a)), cy+outer*float32(math.Sin(a)))
+			if i == 0 {
+				p.MoveTo(pt)
+			} else {
+				p.LineTo(pt)
+			}
+		}
+		for i := seg; i >= 0; i-- {
+			a := start + sweep*float64(i)/seg
+			p.LineTo(f32.Pt(cx+inner*float32(math.Cos(a)), cy+inner*float32(math.Sin(a))))
+		}
+		p.Close()
+		// The head, so it reads as a direction rather than a broken ring.
+		hx, hy := cx+outer*float32(math.Cos(start)), cy+outer*float32(math.Sin(start))
+		p.MoveTo(f32.Pt(hx-r*0.1, hy-r*0.55))
+		p.LineTo(f32.Pt(hx+r*0.5, hy+r*0.05))
+		p.LineTo(f32.Pt(hx-r*0.45, hy+r*0.3))
+		p.Close()
 	}
 	paint.FillShape(gtx.Ops, col, clip.Outline{Path: p.End()}.Op())
 }

@@ -12,9 +12,21 @@ import (
 
 // nodesPanel is the node list, on the new table component.
 type nodesPanel struct {
-	tbl   comp.Table
-	built bool
-	seq   uint64
+	tbl comp.Table
+	// filter is kept here rather than built each frame.
+	//
+	// Gio tracks focus by the widget's address, so a Field declared inside
+	// Draw is a different editor every frame: the click focuses one, and by
+	// the time the characters arrive it no longer exists. The box drew
+	// correctly and would not accept a single keystroke.
+	filter comp.Field
+	built  bool
+	// seq is the snapshot this table was built from, and rowsSet says whether
+	// it has ever been built. Without the second, a first snapshot whose
+	// sequence happens to equal the zero value is skipped and the panel shows
+	// an empty list of a network that is loaded.
+	seq     uint64
+	rowsSet bool
 }
 
 func (np *nodesPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
@@ -26,7 +38,7 @@ func (np *nodesPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 		}
 		np.built = true
 	}
-	if s != nil && s.Seq != np.seq {
+	if s != nil && (!np.rowsSet || s.Seq != np.seq) {
 		rows := make([]comp.Row, 0, len(s.Nodes))
 		for i := range s.Nodes {
 			n := &s.Nodes[i]
@@ -37,15 +49,14 @@ func (np *nodesPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 			})
 		}
 		np.tbl.SetRows(rows)
-		np.seq = s.Seq
+		np.seq, np.rowsSet = s.Seq, true
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			f := comp.Field{Hint: "filter by name or kind"}
-			f.Editor = np.tbl.Filter
-			d := f.Layout(t, gtx)
-			np.tbl.Filter = f.Editor
-			return d
+			// The table's own editor, drawn with the field's chrome. One
+			// widget at one address, which is what focus is keyed on.
+			np.filter.Hint = "filter by name or kind"
+			return np.filter.LayoutEditor(t, gtx, &np.tbl.Filter)
 		}),
 		layout.Rigid(layout.Spacer{Height: t.Sp.S}.Layout),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {

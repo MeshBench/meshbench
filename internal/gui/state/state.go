@@ -107,6 +107,12 @@ type Snapshot struct {
 	// Console is one node's firmware scrollback.
 	Console     []string
 	ConsoleNode string
+	// RealFirmware is whether play starts MeshCore on every node.
+	RealFirmware bool
+	// FirmwareRunning is how many nodes have a process up, and
+	// FirmwareStarting reports a start in progress.
+	FirmwareRunning  int
+	FirmwareStarting bool
 }
 
 // Point is a position, and the only geometry the snapshot carries.
@@ -476,6 +482,17 @@ type World struct {
 	// Console is one node's firmware scrollback.
 	Console     []string
 	ConsoleNode string
+	// RealFirmware is what kind of run this is: on, play starts one MeshCore
+	// process per node and every relay decision is the firmware's own. Off,
+	// the channel and the collisions are still real but nothing decides to
+	// relay. It is a property of the run, set once, and play honours it -
+	// rather than a second button that has to be pressed first, in the right
+	// order, or the run is a different simulation than intended.
+	RealFirmware bool
+	// FirmwareRunning is how many nodes have a process up.
+	FirmwareRunning int
+	// FirmwareStarting reports a start in progress.
+	FirmwareStarting bool
 
 	// Tick is called every step while playing, and is where engine pacing
 	// lives now that it is out of the frame loop. Nil means no engine.
@@ -681,6 +698,9 @@ func (s *Store) publish() {
 		Series:           s.world.Series,
 		Provisioning:     s.world.Provisioning,
 		Console:          s.world.Console,
+		RealFirmware:     s.world.RealFirmware,
+		FirmwareRunning:  s.world.FirmwareRunning,
+		FirmwareStarting: s.world.FirmwareStarting,
 		ConsoleNode:      s.world.ConsoleNode,
 		ProvisioningNode: s.world.ProvisioningNode,
 	})

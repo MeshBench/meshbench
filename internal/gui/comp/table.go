@@ -79,15 +79,31 @@ type Table struct {
 	Selected string
 
 	headers []widget.Clickable
-	rows    []widget.Clickable
-	shown   []Row
+	// all is every row last handed over, before filtering.
+	all []Row
+	// lastFilter is the filter text the shown set was built with.
+	lastFilter string
+	rows       []widget.Clickable
+	shown      []Row
 }
 
 // SetRows replaces the table's contents. Sorting and filtering are applied
 // here rather than during layout, so a frame never does work proportional to
 // the whole data set.
 func (tb *Table) SetRows(rows []Row) {
+	// Kept so the filter can be re-applied when somebody types, without the
+	// caller having to hand the rows over again. Filtering used to happen
+	// only here, and callers only call this when their data changes: typing
+	// into the box did nothing at all until something else moved.
+	tb.all = append(tb.all[:0], rows...)
+	tb.applyFilter()
+}
+
+// applyFilter rebuilds the shown set from the rows last given.
+func (tb *Table) applyFilter() {
+	rows := tb.all
 	want := strings.ToLower(strings.TrimSpace(tb.Filter.Text()))
+	tb.lastFilter = want
 	tb.shown = tb.shown[:0]
 	for _, r := range rows {
 		if want == "" || rowMatches(r, want) {
@@ -126,6 +142,19 @@ func (tb *Table) Shown() int { return len(tb.shown) }
 // clicked, so selection is the caller's business rather than the widget's.
 func (tb *Table) Layout(t *theme.Theme, gtx layout.Context, onSelect func(key string)) layout.Dimensions {
 	tb.List.Axis = layout.Vertical
+	// Re-filter when the box has been typed into. The editor changes on the
+	// frame the character arrives; nothing else need happen for the list to
+	// follow it.
+	if want := strings.ToLower(strings.TrimSpace(tb.Filter.Text())); want != tb.lastFilter {
+		tb.applyFilter()
+	}
+	// Sized here, where they are used, not only in SetRows. A table laid out
+	// before its first SetRows - a panel drawn from a snapshot whose sequence
+	// has not moved, or a window opened at the wrong moment - indexed a
+	// zero-length slice and took the process with it.
+	for len(tb.headers) < len(tb.Cols) {
+		tb.headers = append(tb.headers, widget.Clickable{})
+	}
 	for i := range tb.headers {
 		if tb.headers[i].Clicked(gtx) && tb.Cols[i].Sortable {
 			if tb.SortCol == i {

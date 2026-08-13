@@ -515,6 +515,18 @@ func main() {
 			sh.OnPopOut(name)
 			return
 		}
+		if action == "ui.toggle_real_firmware" {
+			// Read the current value and send its opposite, so the control
+			// never has its own copy of the answer to drift from the store's.
+			go func() {
+				real := false
+				if s := st.Snapshot(); s != nil {
+					real = s.RealFirmware
+				}
+				_, _ = st.Do(ctx, "sim.kind", map[string]any{"real": !real})
+			}()
+			return
+		}
 		go func() { _, _ = st.Do(ctx, action, nil) }()
 	}
 	sh.PoppedOut = wins.has
