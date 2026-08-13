@@ -33,6 +33,8 @@ type UI interface {
 	// FitMap frames every node, which is the only camera request that needs
 	// no numbers and is the one somebody driving a capture usually wants.
 	FitMap()
+	// OpenNodeWindow gives one node a window of its own.
+	OpenNodeWindow(node string)
 }
 
 // SetUI attaches an interface. Safe to leave unset.
@@ -77,6 +79,24 @@ func registerUI(st *state.Store, s *Sim) {
 		// asks to quit means it.
 		go s.Close()
 		return map[string]any{"closing": true, "headless": true}, nil
+	})
+}
+
+func registerNodeWindow(st *state.Store, s *Sim) {
+	// node.window: the thing people put on a second monitor.
+	st.Handle("node.window", func(w *state.World, p any) (any, error) {
+		if err := s.needUI(); err != nil {
+			return nil, err
+		}
+		name, _ := p.(string)
+		if m, ok := p.(map[string]any); ok {
+			name, _ = m["node"].(string)
+		}
+		if _, found := findNode(w.Nodes, name); !found {
+			return nil, fmt.Errorf("no node named %q", name)
+		}
+		s.ui.OpenNodeWindow(name)
+		return map[string]any{"node": name}, nil
 	})
 }
 

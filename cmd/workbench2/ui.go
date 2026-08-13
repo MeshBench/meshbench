@@ -10,6 +10,8 @@ import (
 	"sync/atomic"
 
 	"github.com/A13xB0/meshcoresim/internal/gui/shell"
+	"github.com/A13xB0/meshcoresim/internal/gui/state"
+	"github.com/A13xB0/meshcoresim/internal/gui/theme"
 	"github.com/A13xB0/meshcoresim/internal/session"
 )
 
@@ -20,9 +22,18 @@ import (
 // applies it. Writing it from the store's goroutine would be the kind of race
 // that shows up as a torn frame once a week rather than as a failing test.
 type workbenchUI struct {
-	sh  *shell.Shell
-	sim *session.Sim
-	mv  *comp.MapView
+	sh    *shell.Shell
+	sim   *session.Sim
+	mv    *comp.MapView
+	nodes *nodeWindows
+	store *state.Store
+	// newTheme gives each window a shaper of its own: Gio's is not safe for
+	// concurrent use and two frame loops sharing one corrupts its glyph
+	// buffer.
+	newTheme func() *theme.Theme
+	// onCommand and onAction carry a node window's controls back to the store.
+	onCommand func(node, line string)
+	onAction  func(action, node string)
 
 	// camera is the next camera request, applied by the frame loop. The
 	// MapView's own fields are read while drawing, so a verb must not write
@@ -97,4 +108,11 @@ func (u *workbenchUI) applyCamera() {
 	if want.zoom > 0 {
 		u.mv.Zoom = want.zoom
 	}
+}
+
+func (u *workbenchUI) OpenNodeWindow(node string) {
+	if u.nodes == nil || u.newTheme == nil {
+		return
+	}
+	u.nodes.openFor(node, u.newTheme, u.store, u.onCommand, u.onAction)
 }

@@ -47,6 +47,7 @@ func main() {
 	openFwFlag := flag.String("open-firmware", "", "open this node's firmware list at startup")
 	openMenuFlag := flag.String("node-menu", "", "open this node's context menu at startup")
 	provFlag := flag.String("provisioning", "", "show what this node is told at boot, at startup")
+	nodeWinFlag := flag.String("node-window", "", "open this node's own window at startup")
 	filterFlag := flag.String("filter", "", "preset the node view's search box, so a filtered table can be captured")
 	popFlag := flag.String("pop-out", "", "open this panel in its own window at startup")
 	importFlag := flag.String("import", "", "describe an import from this CoreScope URL at startup")
@@ -117,7 +118,16 @@ func main() {
 	sh := shell.New()
 	wins := newWindows()
 	mv := &comp.MapView{}
-	wbUI := &workbenchUI{sh: sh, sim: sm, mv: mv}
+	wbUI := &workbenchUI{sh: sh, sim: sm, mv: mv, nodes: newNodeWindows(), store: st}
+	wbUI.onCommand = func(node, line string) {
+		go func() {
+			_, _ = st.Do(ctx, "console.type",
+				map[string]any{"node": node, "command": line})
+		}()
+	}
+	wbUI.onAction = func(action, node string) {
+		go func() { _, _ = st.Do(ctx, action, node) }()
+	}
 	sm.SetUI(wbUI)
 	// The tile cache the old workbench already filled: 37 MB of it on this
 	// machine, and the same store, so nothing is downloaded twice.
@@ -345,6 +355,14 @@ func main() {
 	if *filterFlag != "" {
 		nv.SetFilter(*filterFlag)
 	}
+	if *nodeWinFlag != "" {
+		go func() {
+			time.Sleep(4 * time.Second)
+			if _, err := st.Do(ctx, "node.window", *nodeWinFlag); err != nil {
+				fmt.Fprintln(os.Stderr, "node.window:", err)
+			}
+		}()
+	}
 	if *provFlag != "" {
 		go func() {
 			if _, err := st.Do(ctx, "node.provisioning", *provFlag); err != nil {
@@ -528,6 +546,11 @@ func main() {
 			return
 		}
 		go func() { _, _ = st.Do(ctx, action, nil) }()
+	}
+	wbUI.newTheme = func() *theme.Theme {
+		m, d, _ := sets.get()
+		return theme.New(m, d,
+			text.NewShaper(text.WithCollection(withEmoji(gofont.Collection()))))
 	}
 	sh.PoppedOut = wins.has
 	sh.OnPopOut = func(name string) {

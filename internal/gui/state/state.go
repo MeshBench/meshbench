@@ -99,6 +99,8 @@ type Snapshot struct {
 	Residuals *Residuals
 	// Stats is per-node cost and traffic, for the node view.
 	Stats []NodeStat
+	// Builds is the firmware library on this machine.
+	Builds []Build
 	// Series is the selected node's history, for its graphs.
 	Series NodeSeries
 	// Provisioning is the script for the node last asked about.
@@ -186,6 +188,20 @@ type Event struct {
 	PacketID  uint64
 	SNRdB     float64
 	Detail    string
+}
+
+// Build is one firmware image on this machine.
+//
+// What is in the cache is the only thing that decides what a node can run: a
+// build that failed to download and one in daily use look identical from
+// anywhere else.
+type Build struct {
+	Native  bool
+	Version string
+	Role    string
+	Board   string
+	Bytes   int64
+	Path    string
 }
 
 // Score is one node's counters.
@@ -474,6 +490,8 @@ type World struct {
 	Residuals *Residuals
 	// Stats is per-node cost and traffic, for the node view.
 	Stats []NodeStat
+	// Builds is the firmware library on this machine.
+	Builds []Build
 	// Series is the selected node's history, for its graphs.
 	Series NodeSeries
 	// Provisioning is the script for the node last asked about.
@@ -695,6 +713,7 @@ func (s *Store) publish() {
 		Observed:         s.world.Observed,
 		Residuals:        s.world.Residuals,
 		Stats:            s.world.Stats,
+		Builds:           s.world.Builds,
 		Series:           s.world.Series,
 		Provisioning:     s.world.Provisioning,
 		Console:          s.world.Console,
