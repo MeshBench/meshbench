@@ -63,7 +63,16 @@ func Register(st *state.Store, s *Sim) {
 		// proximity links until the real ones arrive.
 		s.build(f.scene, 869.618)
 		w.Links = nil
-		s.warm(st, len(f.scene))
+		if s.warmed {
+			// The matrix arrived with the engine - carried in-process or read
+			// from disk under this geometry's fingerprint - so the links are
+			// forty-eight thousand cache reads, not a warm.
+			w.Links = s.links()
+			w.Say(fmt.Sprintf("this network was measured before: %d links, from disk",
+				len(w.Links)))
+		} else {
+			s.warm(st, len(f.scene))
+		}
 		// One engine step per tick. Step is the engine's own unit of time
 		// and takes its size from the config, so the store paces it rather
 		// than redefining it.
