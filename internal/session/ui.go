@@ -199,6 +199,14 @@ func findNode(nodes []state.Node, name string) (state.Node, bool) {
 func registerUIVerbs(st *state.Store, s *Sim) {
 	need := func() error { return s.needUI() }
 
+	// ui.said puts a line in the status bar. A control whose verb failed and
+	// said nothing is indistinguishable from a control that does nothing.
+	st.Handle("ui.said", func(w *state.World, p any) (any, error) {
+		msg, _ := p.(string)
+		w.Say(msg)
+		return map[string]any{"said": msg}, nil
+	})
+
 	st.Handle("panel.open", func(w *state.World, p any) (any, error) {
 		if err := need(); err != nil {
 			return nil, err

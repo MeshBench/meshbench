@@ -117,6 +117,38 @@ func main() {
 
 	sh := shell.New()
 	wins := newWindows()
+	// One dispatcher for every action panel. A verb that fails says so in the
+	// status bar rather than silently doing nothing, which is what a button
+	// with no feedback looks like from the other side of the screen.
+	do := func(verb string, params any) {
+		go func() {
+			if _, err := st.Do(ctx, verb, params); err != nil {
+				_, _ = st.Do(ctx, "ui.said", verb+": "+err.Error())
+			}
+		}()
+	}
+	// withControls puts an action bar above a panel's own body.
+	withControls := func(ctrl func(*theme.Theme, layout.Context, *state.Snapshot) layout.Dimensions,
+		body func(*theme.Theme, layout.Context, *state.Snapshot) layout.Dimensions,
+	) func(*theme.Theme, layout.Context, *state.Snapshot) layout.Dimensions {
+		return func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return ctrl(t, gtx, s)
+				}),
+				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+					return body(t, gtx, s)
+				}),
+			)
+		}
+	}
+	fleetCtl := &fleetControls{do: do}
+	schedCtl := &scheduleControls{do: do}
+	importCtl := &importControls{do: do}
+	boundCtl := &boundaryControls{do: do}
+	validCtl := &validateControls{do: do}
+	planCtl := &planningControls{do: do}
+
 	mv := &comp.MapView{}
 	wbUI := &workbenchUI{sh: sh, sim: sm, mv: mv, nodes: newNodeWindows(), store: st}
 	wbUI.onCommand = func(node, line string) {
@@ -316,17 +348,19 @@ func main() {
 	}
 	sh.Add(&shell.Panel{Name: "Live feed", Windowable: true, Draw: feed.Draw})
 	sh.Add(&shell.Panel{Name: "Validate", Windowable: true,
-		Draw: (&validatePanel{}).Draw})
+		Draw: withControls(validCtl.Draw, (&validatePanel{}).Draw)})
 	imp := &importPanel{}
 	imp.OnFetch = func(url string) {
 		go func() { _, _ = st.Do(ctx, "import.describe", url) }()
 	}
-	sh.Add(&shell.Panel{Name: "Import", Windowable: true, Draw: imp.Draw})
+	sh.Add(&shell.Panel{Name: "Import", Windowable: true,
+		Draw: withControls(importCtl.Draw, imp.Draw)})
 	plan := &planPanel{}
 	plan.OnRun = func() {
 		go func() { _, _ = st.Do(ctx, "plan.routes", nil) }()
 	}
-	sh.Add(&shell.Panel{Name: "Planning", Windowable: true, Draw: plan.Draw})
+	sh.Add(&shell.Panel{Name: "Planning", Windowable: true,
+		Draw: withControls(planCtl.Draw, plan.Draw)})
 	cmpP := &comparePanel{}
 	cmpP.OnSave = func() {
 		go func() { _, _ = st.Do(ctx, "run.save", "run") }()
@@ -404,8 +438,10 @@ func main() {
 	fleet := &fleetPanel{}
 	bounds := &boundaryPanel{}
 	tls := &timelinesPanel{}
-	sh.Add(&shell.Panel{Name: "Fleet", Windowable: true, Draw: fleet.Draw})
-	sh.Add(&shell.Panel{Name: "Boundary", Windowable: true, Draw: bounds.Draw})
+	sh.Add(&shell.Panel{Name: "Fleet", Windowable: true,
+		Draw: withControls(fleetCtl.Draw, fleet.Draw)})
+	sh.Add(&shell.Panel{Name: "Boundary", Windowable: true,
+		Draw: withControls(boundCtl.Draw, bounds.Draw)})
 	sh.Add(&shell.Panel{Name: "Timelines", Windowable: true, Draw: tls.Draw})
 	bench := &benchPanel{}
 	bench.OnAction = func(action, node string) {
@@ -425,7 +461,8 @@ func main() {
 	sh.Add(&shell.Panel{Name: "Companion bench", Windowable: true, Draw: bench.Draw})
 	sched := &schedulePanel{}
 	console := &consolePanel{}
-	sh.Add(&shell.Panel{Name: "Schedule", Windowable: true, Draw: sched.Draw})
+	sh.Add(&shell.Panel{Name: "Schedule", Windowable: true,
+		Draw: withControls(schedCtl.Draw, sched.Draw)})
 	sh.Add(&shell.Panel{Name: "Link", Windowable: true, Draw: linkPanel{}.Draw})
 	sh.Add(&shell.Panel{Name: "Console", Windowable: true, Draw: console.Draw})
 	fw := &firmwarePanel{}
