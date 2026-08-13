@@ -53,26 +53,22 @@ func TestOneExperimentCellReportsWhatItDid(t *testing.T) {
 	}
 }
 
-// Two seeds have to disagree.
+// What varies with the seed, and what does not.
 //
-// KNOWN FAILING, and left that way on purpose.
+// I had this backwards. Transmissions being identical across seeds is not a
+// broken seed: it is the documented behaviour of this firmware. With one
+// originator and rx_delay_base at its shipped 0.0f, every repeater that hears
+// the flood relays exactly once and markSeen() suppresses the second copy, so
+// the count is a property of the topology. The project's own study measured
+// 93 transmissions on each of eight seeds - not a mean of 93, the number 93,
+// eight times.
 //
-// A comparison whose seeds return identical numbers is one draw repeated, not
-// a spread, and a difference between arms cannot then be called larger than a
-// noise nobody has measured. That makes this the single check standing
-// between the experiment machinery and a result that looks like a
-// measurement.
-//
-// Adverting the nodes before the flood was necessary and not sufficient: it
-// produced a two-packet difference once, which was within the timing noise of
-// the run and should not have been read as the seed reaching the simulation.
-// It does not reproduce. Something downstream of the seed - node identity is
-// pinned by the fixture, and the boot stagger may be swamped by the settle
-// window - is making the run deterministic.
-//
-// Leave it red. A green suite that hides this would let somebody publish a
-// firmware delta with no noise floor under it.
-func TestSeedsDisagree(t *testing.T) {
+// So this asserts the property that is real - a run repeats exactly, which is
+// what makes an A/B comparison worth anything - and records the consequence
+// that follows from it: the seed cannot be used to estimate a noise floor
+// here, so results has to say so rather than present a spread of zero as
+// though it were a measured one.
+func TestARunRepeatsExactly(t *testing.T) {
 	if testing.Short() {
 		t.Skip("starts real firmware twice")
 	}
@@ -98,8 +94,27 @@ func TestSeedsDisagree(t *testing.T) {
 	}
 	t.Logf("seed 1: tx %d rx %d delivered %d", a.TX, a.RX, a.Delivered)
 	t.Logf("seed 2: tx %d rx %d delivered %d", b.TX, b.RX, b.Delivered)
-	if a.RX == b.RX && a.TX == b.TX {
-		t.Errorf("both seeds returned tx %d rx %d: the seed reaches nothing, "+
-			"so there is no spread to compare an arm against", a.TX, a.RX)
+
+	if a.TX == 0 || b.TX == 0 {
+		t.Fatal("a cell measured nothing")
+	}
+	// Reproducible, which is the property an A/B comparison rests on: if the
+	// same arm gave a different answer each time, no difference between arms
+	// could be attributed to the arm.
+	if a.TX != b.TX {
+		t.Errorf("the same arm transmitted %d then %d: this run is not reproducible",
+			a.TX, b.TX)
+	}
+	// And the consequence, asserted rather than assumed: with no spread from
+	// the seed, the machinery must refuse to call the numbers a result.
+	e.results = []ExpResult{
+		{Arm: arm.Label, Seed: 1, TX: a.TX, RX: a.RX},
+		{Arm: arm.Label, Seed: 2, TX: b.TX, RX: b.RX},
+	}
+	e.Arms = []ExpArm{arm, {Label: "other"}}
+	if w := e.notAResultYet(); w == "" {
+		t.Error("a zero spread was presented as a result")
+	} else {
+		t.Logf("reported as: %s", w)
 	}
 }

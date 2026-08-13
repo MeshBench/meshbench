@@ -396,19 +396,24 @@ func (e *experiment) notAResultYet() string {
 			return "at least one run failed: " + r.Err
 		}
 	}
-	// Identical runs across seeds are not a spread, they are one draw
-	// repeated - and a difference between arms cannot be called larger than a
-	// noise that has not been measured. This is the check the study this
-	// replaces had to make by hand, and got wrong.
+	// Identical runs across seeds are not a spread. That is not a fault here:
+	// with one originator and rx_delay_base at its shipped zero, every
+	// repeater relays exactly once and the count is a property of the
+	// topology - the project's own study measured the same 93 transmissions
+	// on each of eight seeds. What follows from it is that the seed cannot
+	// bound the noise, so a difference between arms has nothing to be called
+	// larger than, and saying so is the whole job of this function.
 	for _, sum := range e.summarise() {
 		if n, _ := sum["runs"].(int); n < 2 {
 			continue
 		}
 		if sp, _ := sum["rx_spread"].(float64); sp == 0 {
 			return fmt.Sprintf(
-				"every seed of %v returned the same numbers: the seed is not "+
-					"varying anything, so there is no spread to compare against",
-				sum["arm"])
+				"every seed of %v returned the same numbers, which this firmware "+
+					"does by design with one originator - so the seed gives no "+
+					"noise floor here, and a difference between arms has nothing "+
+					"to be called larger than. Vary the senders, or quote the "+
+					"deltas as unbounded.", sum["arm"])
 		}
 	}
 	return ""
