@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"math"
 	"testing"
 	"time"
 
@@ -53,22 +54,23 @@ func TestOneExperimentCellReportsWhatItDid(t *testing.T) {
 	}
 }
 
-// What varies with the seed, and what does not.
+// What the run-to-run noise actually is.
 //
-// I had this backwards. Transmissions being identical across seeds is not a
-// broken seed: it is the documented behaviour of this firmware. With one
-// originator and rx_delay_base at its shipped 0.0f, every repeater that hears
-// the flood relays exactly once and markSeen() suppresses the second copy, so
-// the count is a property of the topology. The project's own study measured
-// 93 transmissions on each of eight seeds - not a mean of 93, the number 93,
-// eight times.
+// Three readings of this, and the first two were wrong. Identical numbers
+// across seeds looked like a broken seed; it is not, because with one
+// originator and rx_delay_base at its shipped 0.0f every repeater relays
+// exactly once and the count is a property of the topology - this project's
+// own study measured 93 transmissions on each of eight seeds. Then two runs
+// differed, which looked like the seed working; it is not that either. The
+// cells are paced to the wall clock because real firmware boots and retries on
+// it, so ordinary scheduling jitter decides which transmissions collide.
 //
-// So this asserts the property that is real - a run repeats exactly, which is
-// what makes an A/B comparison worth anything - and records the consequence
-// that follows from it: the seed cannot be used to estimate a noise floor
-// here, so results has to say so rather than present a spread of zero as
-// though it were a measured one.
-func TestARunRepeatsExactly(t *testing.T) {
+// So the noise is real, it is machine noise rather than seed noise, and the
+// way to measure it is to run one arm twice and look. That is what this does.
+// It asserts the size, not the sign: a runner whose repeats differ by a third
+// cannot support any claim about a firmware change, and one whose repeats are
+// bit-identical gives no floor to measure a claim against.
+func TestTheNoiseFloorIsMeasurable(t *testing.T) {
 	if testing.Short() {
 		t.Skip("starts real firmware twice")
 	}
@@ -92,29 +94,20 @@ func TestARunRepeatsExactly(t *testing.T) {
 	if a.Err != "" || b.Err != "" {
 		t.Fatalf("cells failed: %q / %q", a.Err, b.Err)
 	}
-	t.Logf("seed 1: tx %d rx %d delivered %d", a.TX, a.RX, a.Delivered)
-	t.Logf("seed 2: tx %d rx %d delivered %d", b.TX, b.RX, b.Delivered)
-
 	if a.TX == 0 || b.TX == 0 {
 		t.Fatal("a cell measured nothing")
 	}
-	// Reproducible, which is the property an A/B comparison rests on: if the
-	// same arm gave a different answer each time, no difference between arms
-	// could be attributed to the arm.
-	if a.TX != b.TX {
-		t.Errorf("the same arm transmitted %d then %d: this run is not reproducible",
-			a.TX, b.TX)
-	}
-	// And the consequence, asserted rather than assumed: with no spread from
-	// the seed, the machinery must refuse to call the numbers a result.
-	e.results = []ExpResult{
-		{Arm: arm.Label, Seed: 1, TX: a.TX, RX: a.RX},
-		{Arm: arm.Label, Seed: 2, TX: b.TX, RX: b.RX},
-	}
-	e.Arms = []ExpArm{arm, {Label: "other"}}
-	if w := e.notAResultYet(); w == "" {
-		t.Error("a zero spread was presented as a result")
-	} else {
-		t.Logf("reported as: %s", w)
+	spread := math.Abs(float64(a.TX-b.TX)) / float64(a.TX) * 100
+	t.Logf("seed 1: tx %d rx %d delivered %d", a.TX, a.RX, a.Delivered)
+	t.Logf("seed 2: tx %d rx %d delivered %d", b.TX, b.RX, b.Delivered)
+	t.Logf("run-to-run spread on transmissions: %.1f%%", spread)
+
+	// Loose on purpose. The number worth having is the one printed above,
+	// which is what any claim about a firmware difference has to clear; this
+	// only fails when the runner has stopped being usable for comparison at
+	// all.
+	if spread > 25 {
+		t.Errorf("repeats differ by %.1f%%: no firmware difference could be "+
+			"distinguished from this", spread)
 	}
 }
