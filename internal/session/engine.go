@@ -31,6 +31,8 @@ type Sim struct {
 	ui UI
 	// consoles is one scrollback per node, keyed by name.
 	consoles map[string]*console.Buf
+	// imp is what has been fetched from a deployment but not yet applied.
+	imp *importState
 
 	// freqMHz and seed are what the current engine was built with, so a
 	// rebuild reproduces it rather than guessing.

@@ -29,6 +29,14 @@ type Tiles struct {
 	mu      sync.Mutex
 	fetched map[string]bool
 	ops     map[string]uploaded
+	// decoding is the set of tiles being read off disk on a worker. Decoding
+	// a PNG is tens of microseconds; a screenful of new ones is tens of
+	// milliseconds, and doing that inside a frame is the stutter somebody
+	// feels the first time they pan somewhere new.
+	decoding map[string]bool
+	// ready carries decoded tiles back to the frame thread, which is the only
+	// place a paint.ImageOp may be made.
+	ready map[string]*image.RGBA
 }
 
 // uploaded is a tile that has been decoded once and handed to the GPU.
@@ -40,7 +48,8 @@ type uploaded struct {
 // NewTiles prepares a tile layer. A nil store is legal and draws nothing,
 // which is what an offline first run looks like.
 func NewTiles(cacheDir, layerID string) *Tiles {
-	t := &Tiles{fetched: map[string]bool{}, ops: map[string]uploaded{}}
+	t := &Tiles{fetched: map[string]bool{}, ops: map[string]uploaded{},
+		decoding: map[string]bool{}, ready: map[string]*image.RGBA{}}
 	if l, ok := basemap.ByID(layerID); ok {
 		t.Layer = l
 	}
@@ -85,12 +94,14 @@ func (t *Tiles) Draw(gtx layout.Context, sz image.Point, centreLat, centreLon, z
 		// not changed since it was downloaded.
 		iop, size, ok := t.cachedOp(z, x, y)
 		if !ok {
-			img, have := t.Store.Cached(t.Layer, z, x, y)
-			if !have {
-				t.fetchOnce(z, x, y)
+			// Anything a worker finished since the last frame, uploaded here
+			// where it is legal to do so.
+			if img, done := t.takeDecoded(z, x, y); done {
+				iop, size = t.putOp(z, x, y, img)
+			} else {
+				t.decodeOnce(z, x, y)
 				continue
 			}
-			iop, size = t.putOp(z, x, y, img)
 		}
 
 		// Where this tile's north-west corner lands on screen.
@@ -154,6 +165,44 @@ func (t *Tiles) fetchOnce(z, x, y int) {
 	t.fetched[k] = true
 	t.mu.Unlock()
 	go func() { _ = t.Store.Fetch(context.Background(), t.Layer, z, x, y) }()
+}
+
+// decodeOnce reads and decodes a tile on a worker, or starts the download if
+// it is not on disk yet. Either way this frame draws without it.
+func (t *Tiles) decodeOnce(z, x, y int) {
+	k := tileKey(t.Layer.ID, z, x, y)
+	t.mu.Lock()
+	if t.decoding[k] {
+		t.mu.Unlock()
+		return
+	}
+	t.decoding[k] = true
+	t.mu.Unlock()
+
+	go func() {
+		img, have := t.Store.Cached(t.Layer, z, x, y)
+		t.mu.Lock()
+		delete(t.decoding, k)
+		if have {
+			t.ready[k] = img
+		}
+		t.mu.Unlock()
+		if !have {
+			t.fetchOnce(z, x, y)
+		}
+	}()
+}
+
+// takeDecoded hands over a tile a worker finished, once.
+func (t *Tiles) takeDecoded(z, x, y int) (*image.RGBA, bool) {
+	k := tileKey(t.Layer.ID, z, x, y)
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	img, ok := t.ready[k]
+	if ok {
+		delete(t.ready, k)
+	}
+	return img, ok
 }
 
 func tileKey(id string, z, x, y int) string {
