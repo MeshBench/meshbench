@@ -240,7 +240,16 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 			col = t.P.Ink
 		}
 		off := op.Offset(at).Push(gtx.Ops)
-		Text(t, t.Sz.Caption, col, pts[i].n.Name)(unbounded(gtx))
+		// A translucent plate under each name, so labels stay readable on
+		// any basemap: the theme's ink is chosen against the theme's ground,
+		// and the Light and Topographic maps are neither.
+		if sz := m.sizes.measure(gtx, t, pts[i].n.Name); sz.X > 0 {
+			pad := gtx.Dp(2)
+			RoundRect(gtx, image.Pt(sz.X+pad*2, sz.Y), 3, theme.Alpha(t.P.Ground, 0.55))
+			in := op.Offset(image.Pt(pad, 0)).Push(gtx.Ops)
+			Text(t, t.Sz.Caption, col, pts[i].n.Name)(unbounded(gtx))
+			in.Pop()
+		}
 		off.Pop()
 	}
 
