@@ -36,6 +36,14 @@ type mapMenu struct {
 	lat   float64
 	lon   float64
 	items []MenuItem
+	// box is where the menu was last drawn, in map pixels.
+	//
+	// The map dismisses an open menu on any press, which is what clicking
+	// away from a menu means - and it was also doing it for the press that
+	// lands on an entry. The entry's own click was registered and then never
+	// read, because the menu had closed by the frame that would have read it.
+	// So the map has to know where the menu is in order to leave it alone.
+	box image.Rectangle
 }
 
 // menuFor is the list for a right-click, which depends on whether it landed on
@@ -98,6 +106,7 @@ func (m *MapView) layoutMenu(t *theme.Theme, gtx layout.Context, sz image.Point)
 	if at.Y+box.Y > sz.Y {
 		at.Y = sz.Y - box.Y
 	}
+	m.menu.box = image.Rectangle{Min: at, Max: at.Add(box)}
 	off := op.Offset(at).Push(gtx.Ops)
 	defer off.Pop()
 	paint.FillShape(gtx.Ops, theme.Alpha(t.P.Panel, 0.97), clip.Rect{Max: box}.Op())

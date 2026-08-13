@@ -404,6 +404,11 @@ func (s *Sim) startFirmware(st *state.Store, seed uint64) {
 			_, _ = st.Do(ctx, "firmware.failed", err.Error())
 			return
 		}
+		if n := s.provisionAll(); n > 0 {
+			_, _ = st.Do(ctx, "job.progress", state.Job{
+				ID: "firmware", What: "telling every node what it is",
+				Done: n, Total: n})
+		}
 		_, _ = st.Do(ctx, "firmware.started", nil)
 	}()
 }
@@ -451,4 +456,45 @@ func (s *Sim) rebuild(w *state.World) error {
 	w.NowMs, w.Seed = 0, seed
 	w.Events, w.EventTotal = nil, 0
 	return nil
+}
+
+// provisionAll tells every node what it is, as soon as its firmware is up.
+//
+// This is the step that decides whether anything relays. A node that has not
+// been told its regions holds none, so it forwards nothing and reports no
+// error - which is what a mesh of three hundred nodes sitting in total silence
+// for four minutes looked like. The old workbench does this in attachFirmware;
+// this build did it only inside an experiment, so the one path an operator
+// actually uses - press play - brought up MeshCore everywhere and told it
+// nothing.
+//
+// The same lines the provisioning panel shows, so what is read and what is
+// sent cannot drift apart. On the starting goroutine rather than in a verb,
+// because three hundred nodes times seven commands is work proportional to the
+// network and that does not belong on the store's thread.
+func (s *Sim) provisionAll() int {
+	if s.eng == nil {
+		return 0
+	}
+	done := 0
+	for _, n := range s.nodes {
+		en, ok := s.eng.NodeByName(n.Name)
+		if !ok || en.Firmware == nil {
+			continue
+		}
+		sent := false
+		for _, line := range ProvisioningFor(n) {
+			if line.Comment {
+				continue
+			}
+			if err := en.Firmware.Bridge.Type([]byte(line.Command + "\r\n")); err != nil {
+				break
+			}
+			sent = true
+		}
+		if sent {
+			done++
+		}
+	}
+	return done
 }

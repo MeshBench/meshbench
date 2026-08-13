@@ -83,6 +83,19 @@ func (m *MapView) handle(gtx layout.Context, sz image.Point, pts []projected) {
 				m.cam.drag = dragNone
 				continue
 			}
+			// A press inside an open menu belongs to the menu.
+			//
+			// Dismissing on any press dismissed on the press that chose an
+			// entry too: the entry registered its click and the menu was shut
+			// before the frame that would have acted on it, so choosing
+			// anything did nothing at all.
+			if m.menu.open && e.Position.X >= float32(m.menu.box.Min.X) &&
+				e.Position.X < float32(m.menu.box.Max.X) &&
+				e.Position.Y >= float32(m.menu.box.Min.Y) &&
+				e.Position.Y < float32(m.menu.box.Max.Y) {
+				m.cam.drag = dragNone
+				continue
+			}
 			// Any other press dismisses an open menu, which is what clicking
 			// away from a menu means everywhere else.
 			m.menu.open = false

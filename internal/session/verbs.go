@@ -656,6 +656,12 @@ func Register(st *state.Store, s *Sim) {
 	})
 	st.Handle("firmware.started", func(w *state.World, _ any) (any, error) {
 		n := s.firmwareCount()
+		// The count, here as well as on the tick.
+		//
+		// It was only ever written while the engine was stepping, so a mesh
+		// that was up but paused reported nought running - which is what the
+		// status line said while fifty-six processes answered their consoles.
+		w.FirmwareRunning = n
 		if w.PendingPlay {
 			// The mesh is up, and that is all this reports.
 			//
