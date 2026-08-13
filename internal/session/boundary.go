@@ -50,25 +50,36 @@ func registerBoundary(st *state.Store, s *Sim) {
 		}
 		c := &boundary.Client{}
 		var chosen []scenario.Boundary
+		matched := name
 		if bs, ok := c.Cached(name); ok {
 			chosen = bs
 		} else {
-			found, err := c.Search(context.Background(), name)
-			if err != nil {
-				return nil, err
-			}
-			for _, f := range found {
-				if strings.EqualFold(f.Name, name) {
+			// What the search offered, not only what was typed. Searching
+			// "Scotland" returns "Alba / Scotland", and refusing to accept
+			// the thing it just offered because the words differ is a dead
+			// end with no way out of it.
+			for _, f := range s.foundAreas {
+				if strings.EqualFold(f.Name, name) ||
+					strings.Contains(strings.ToLower(f.Name), strings.ToLower(name)) {
 					if bs, ok := c.Cached(f.Name); ok {
-						chosen = bs
+						chosen, matched = bs, f.Name
+						break
 					}
-					break
 				}
 			}
 		}
 		if len(chosen) == 0 {
-			return nil, fmt.Errorf("no boundary for %q; search for it first", name)
+			var offered []string
+			for _, f := range s.foundAreas {
+				offered = append(offered, f.Name)
+			}
+			if len(offered) == 0 {
+				return nil, fmt.Errorf("no boundary for %q; search for it first", name)
+			}
+			return nil, fmt.Errorf("no boundary matching %q; the search offered: %s",
+				name, strings.Join(offered, ", "))
 		}
+		name = matched
 		area := state.Area{Name: name}
 		for _, b := range chosen {
 			for _, r := range b.Rings {
