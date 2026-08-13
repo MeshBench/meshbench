@@ -57,6 +57,7 @@ func main() {
 	shadeFlag := flag.Bool("terrain", false, "shade the relief at startup")
 	menuFlag := flag.String("menu", "", "fire this menu action at startup, so what it opens can be captured")
 	cfgSection := flag.String("config-section", "", "open the Configuration page on this section")
+	dropFlag := flag.String("drop-menu", "", "open this menu's dropdown at startup, so it can be captured")
 	nodeTabFlag := flag.Int("node-tab", 0, "which tab a node window opens on: 0 console, 1 stats, 2 activity, 3 companion")
 	coverFlag := flag.String("coverage", "",
 		"compute and show coverage from this node at startup")
@@ -674,9 +675,30 @@ func main() {
 		sh.SetMenu(m.Name, m.Items)
 	}
 	sh.WindowMenu("Window")
+	if *dropFlag != "" {
+		// Before the frame loop starts, so no goroutine races the renderer.
+		sh.OpenMenu(*dropFlag)
+	}
 	sh.OnMenu = func(action string) {
 		if name, ok := strings.CutPrefix(action, "panel."); ok {
 			sh.OnPopOut(name)
+			return
+		}
+		// The Window menu's overflow: every panel in the chooser, for when
+		// the scrolling list is more list than anybody wants to scroll.
+		if action == "window.showall" {
+			var names []string
+			for n, p := range sh.Panels {
+				if p != nil && p.Windowable {
+					names = append(names, n)
+				}
+			}
+			sort.Strings(names)
+			sh.Ask.Post(func(ask *shell.Prompt) {
+				ask.Choose("Open a panel", "filter", names, func(name string) {
+					sh.OnPopOut(name)
+				})
+			})
 			return
 		}
 		// Opening one of your own networks: the names are already known, so the
@@ -1100,49 +1122,79 @@ type menu struct {
 // keeping its own copy. The copy drifted - it was still pressing the entry that
 // opened the import panel after that entry had become "open a saved network" -
 // so the test passed while checking a menu bar nobody had.
+// The sections, icons and shortcuts are the UX design's, verbatim: grouped by
+// purpose under headings, the most common action first in each menu, and the
+// binding shown in the row is the binding the shell registers - one table
+// feeds both, so they cannot drift apart.
 func workbenchMenus() []menu {
 	return []menu{
 		{"File", []shell.MenuItem{
-			{Label: "Open a saved network", Action: "project.open"},
-			{Label: "Save this network", Action: "project.save"},
-			{Label: "Save this run", Action: "run.save"},
-			{Label: "Firmware library", Action: "panel.Firmware"},
-			{Label: "Import a live network", Action: "panel.Import"},
-			{Label: "Export the event log", Action: "events.dump"},
-			{Label: "Quit", Action: "app.quit"},
+			{Label: "Open a saved network", Action: "project.open",
+				Section: "Open & Save", Icon: "folder", Shortcut: "Ctrl+O"},
+			{Label: "Save this network", Action: "project.save",
+				Section: "Open & Save", Icon: "save", Shortcut: "Ctrl+S"},
+			{Label: "Save this run", Action: "run.save",
+				Section: "Open & Save", Icon: "save", Shortcut: "Ctrl+Shift+S"},
+			{Label: "Firmware library", Action: "panel.Firmware",
+				Section: "Import & Export", Icon: "chip"},
+			{Label: "Import a live network", Action: "panel.Import",
+				Section: "Import & Export", Icon: "import"},
+			{Label: "Export the event log", Action: "events.dump",
+				Section: "Import & Export", Icon: "export"},
+			{Label: "Quit", Action: "app.quit",
+				Section: "Exit", Icon: "exit", Shortcut: "Ctrl+Q"},
 		}},
 		{"View", []shell.MenuItem{
-			{Label: "Settings", Action: "panel.Settings"},
-			{Label: "Nodes running", Action: "panel.Nodes running"},
-			{Label: "Companion bench", Action: "panel.Companion bench"},
-			{Label: "Experiment log", Action: "panel.Experiment log"},
-			{Label: "Configuration", Action: "panel.Configuration"},
+			{Label: "Nodes running", Action: "panel.Nodes running",
+				Section: "Overview", Icon: "nodes"},
+			{Label: "Companion bench", Action: "panel.Companion bench",
+				Section: "Overview", Icon: "chip"},
+			{Label: "Experiment log", Action: "panel.Experiment log",
+				Section: "Diagnostics", Icon: "log"},
+			{Label: "Configuration", Action: "panel.Configuration",
+				Section: "Diagnostics", Icon: "sliders"},
+			{Label: "Settings", Action: "panel.Settings",
+				Section: "Preferences", Icon: "settings"},
 		}},
 		{"Simulation", []shell.MenuItem{
-			{Label: "Play or pause", Action: "sim.start"},
-			{Label: "One step", Action: "sim.step"},
-			{Label: "Back to the start", Action: "sim.reset"},
-			{Label: "Start firmware on every node", Action: "firmware.start"},
-			{Label: "Wipe every node's memory", Action: "firmware.wipe"},
-			{Label: "Originate a packet", Action: "sim.inject"},
-			{Label: "Capture the waterfall", Action: "waterfall.capture"},
-			{Label: "Capture to a pcapng file", Action: "capture.file"},
+			{Label: "Play or pause", Action: "sim.start",
+				Section: "Control", Icon: "play", Shortcut: "Space"},
+			{Label: "One step", Action: "sim.step",
+				Section: "Control", Icon: "step"},
+			{Label: "Back to the start", Action: "sim.reset",
+				Section: "Control", Icon: "back"},
+			{Label: "Start firmware on every node", Action: "firmware.start",
+				Section: "Nodes", Icon: "power"},
+			{Label: "Wipe every node's memory", Action: "firmware.wipe",
+				Section: "Nodes", Icon: "wipe"},
+			{Label: "Originate a packet", Action: "sim.inject",
+				Section: "Tools", Icon: "packet"},
+			{Label: "Capture the waterfall", Action: "waterfall.capture",
+				Section: "Tools", Icon: "waterfall"},
+			{Label: "Capture to a pcapng file", Action: "capture.file",
+				Section: "Tools", Icon: "pcap"},
 		}},
 		{"Repeaters", []shell.MenuItem{
-			{Label: "Send a command to the fleet", Action: "panel.Fleet"},
-			{Label: "What they are told at boot", Action: "panel.Provisioning"},
-			{Label: "Coverage from the selection", Action: "coverage.compute"},
+			{Label: "Send a command to the fleet", Action: "panel.Fleet",
+				Section: "Commands", Icon: "send"},
+			{Label: "What they are told at boot", Action: "panel.Provisioning",
+				Section: "Boot", Icon: "boot"},
+			{Label: "Coverage from the selection", Action: "coverage.compute",
+				Section: "Analysis", Icon: "coverage"},
 		}},
 		// Import is under File, with opening and saving, and not here as
 		// well: one entry in two menus is two entries to keep in step and one
 		// of them is always the stale one.
 		{"Planning", []shell.MenuItem{
-			{Label: "Routes between two selected nodes", Action: "plan.routes"},
-			{Label: "Boundary", Action: "panel.Boundary"},
+			{Label: "Routes between two selected nodes", Action: "plan.routes",
+				Section: "Tools", Icon: "route"},
+			{Label: "Boundary", Action: "panel.Boundary",
+				Section: "Tools", Icon: "boundary"},
 		}},
 		// Window is generated from the panels themselves, so it is not here.
 		{"Help", []shell.MenuItem{
-			{Label: "What this run assumes", Action: "panel.Configuration"},
+			{Label: "What this run assumes", Action: "panel.Configuration",
+				Icon: "help"},
 		}},
 	}
 }
