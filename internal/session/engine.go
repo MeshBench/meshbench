@@ -13,8 +13,6 @@ import (
 	"fmt"
 	"hash/fnv"
 	"math"
-	"os"
-	"path/filepath"
 	"sync"
 	"sync/atomic"
 
@@ -54,6 +52,13 @@ type Sim struct {
 	gpuAsked bool
 	// tileCacheTiles overrides the tile cache bound, chosen in Configuration.
 	tileCacheTiles int
+	// prefs is what survives a restart, and persist is whether saving is on -
+	// off in tests, on when the command has called LoadPrefs.
+	prefs   Prefs
+	persist bool
+	// movingCache reports a cache move in flight, so a second one cannot
+	// start into the middle of the first.
+	movingCache atomic.Bool
 	// geomFP fingerprints everything a path loss depends on, so a rebuild
 	// can tell whether the measured matrix is still about this network.
 	geomFP uint64
@@ -122,12 +127,12 @@ func (s *Sim) terrain() coverage.Terrain {
 	if s.terr != nil {
 		return s.terr
 	}
-	cache, err := os.UserCacheDir()
-	if err != nil {
+	dir := s.tileCacheDir()
+	if dir == "" {
 		s.terr = bareEarth{}
 		return s.terr
 	}
-	st, err := terrain.NewTileStore(filepath.Join(cache, "meshcoresim", "terrain"))
+	st, err := terrain.NewTileStore(dir)
 	if err != nil {
 		s.terr = bareEarth{}
 		return s.terr

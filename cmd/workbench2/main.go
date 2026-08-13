@@ -69,10 +69,20 @@ func main() {
 
 	st := state.New(10)
 	sm := &session.Sim{}
+	// What survived the last session: the GPU choice, the cache bound and
+	// where the cache lives. Loaded here rather than in Register, so a test's
+	// session never depends on this machine's own file.
+	sm.LoadPrefs()
 	session.Register(st, sm)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go st.Run(ctx)
+	// Put the loaded settings in the snapshot, so the Configuration page
+	// opens saying what is actually in force rather than its zero values.
+	go func() {
+		_, _ = st.Do(ctx, "terrain.cache", nil)
+		_, _ = st.Do(ctx, "gpu.state", nil)
+	}()
 
 	// Opened on a worker, not here. Building the engine for a national
 	// fixture takes a moment, and doing it before the window exists is an

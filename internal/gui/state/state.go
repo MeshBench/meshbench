@@ -103,8 +103,10 @@ type Snapshot struct {
 	Library []FirmwareRow
 	// GPU is what hardware there is and what the last warm did with it.
 	GPU GPUState
-	// TileCacheGB bounds the decoded terrain tiles held in memory.
-	TileCacheGB float64
+	// TileCacheGB bounds the decoded terrain tiles held in memory, and
+	// TileCacheDir is where they live on disk.
+	TileCacheGB  float64
+	TileCacheDir string
 	// Builds is the firmware library on this machine.
 	Builds []Build
 	// Experiment is the A/B matrix's summary, and ExperimentWarning is why it
@@ -574,8 +576,10 @@ type World struct {
 	Library []FirmwareRow
 	// GPU is what hardware there is and what the last warm did with it.
 	GPU GPUState
-	// TileCacheGB bounds the decoded terrain tiles held in memory.
-	TileCacheGB float64
+	// TileCacheGB bounds the decoded terrain tiles held in memory, and
+	// TileCacheDir is where they live on disk.
+	TileCacheGB  float64
+	TileCacheDir string
 	// Builds is the firmware library on this machine.
 	Builds []Build
 	// Experiment is the A/B matrix's summary, and ExperimentWarning is why it
@@ -843,6 +847,7 @@ func (s *Store) publish() {
 		Library:           append([]FirmwareRow(nil), s.world.Library...),
 		GPU:               s.world.GPU,
 		TileCacheGB:       s.world.TileCacheGB,
+		TileCacheDir:      s.world.TileCacheDir,
 		Experiment:        s.world.Experiment,
 		ExperimentWarning: s.world.ExperimentWarning,
 		Series:            s.world.Series,

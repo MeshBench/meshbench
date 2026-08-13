@@ -183,7 +183,21 @@ func (s *TileStore) Prefetch(ctx context.Context, south, north, west, east float
 }
 
 func (s *TileStore) path(x, y int) string {
-	return filepath.Join(s.CacheDir, fmt.Sprintf("%d", s.zoom()), fmt.Sprintf("%d", x), fmt.Sprintf("%d.png", y))
+	s.mu.RLock()
+	dir := s.CacheDir
+	s.mu.RUnlock()
+	return filepath.Join(dir, fmt.Sprintf("%d", s.zoom()), fmt.Sprintf("%d", x), fmt.Sprintf("%d.png", y))
+}
+
+// SetCacheDir points the store at a new directory, under the lock.
+//
+// For the Configuration page's cache move: called only after the tiles have
+// been carried over, and the decoded tiles in memory survive it, so nothing
+// re-decodes and nothing re-downloads.
+func (s *TileStore) SetCacheDir(dir string) {
+	s.mu.Lock()
+	s.CacheDir = dir
+	s.mu.Unlock()
 }
 
 func (s *TileStore) key(x, y int) string { return fmt.Sprintf("%d/%d/%d", s.zoom(), x, y) }
@@ -332,18 +346,16 @@ func decodeTerrarium(b []byte) (*tile, error) {
 	return t, nil
 }
 
-// DefaultMaxLoadedTiles is 8,192 decoded tiles, about 2 GB.
+// DefaultMaxLoadedTiles is 40,960 decoded tiles at a quarter megabyte each:
+// 10 GB, a whole country several times over, on machines that carry three
+// times that. Settable from the Configuration page for machines that do not.
 //
 // The old cap of 1,024 believed its own comment - "enough that a profile
 // across a country does not thrash" - and it was not: a national scenario
 // has tens of thousands of tiles on disk, so warming 48,000 criss-crossing
 // profiles evicted constantly and re-decoded PNGs at milliseconds each. That
 // thrash was the whole cost of a nine-minute warm whose arithmetic took 30
-// milliseconds. Two gigabytes holds a country; the development machines
-// carry 32.
-// 40,960 tiles at a quarter megabyte each is 10 GB: a whole country several
-// times over, on machines that carry three times that. Settable from the
-// Configuration page for machines that do not.
+// milliseconds.
 const DefaultMaxLoadedTiles = 40960
 
 // remember stores a decoded tile and evicts the oldest once the cap is passed.
