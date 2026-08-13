@@ -175,6 +175,14 @@ func snapshotSummary(s *state.Snapshot) map[string]any {
 	}
 	if len(s.Console) > 0 {
 		out["console_node"] = s.ConsoleNode
+	}
+	if len(s.FleetReplies) > 0 {
+		reps := make([]any, 0, len(s.FleetReplies))
+		for _, r := range s.FleetReplies {
+			reps = append(reps, map[string]any{"node": r.Node, "reply": r.Reply})
+		}
+		out["fleet_replies"] = reps
+		out["fleet_command"] = s.FleetCommand
 		out["console_lines"] = len(s.Console)
 	}
 	if len(s.Provisioning) > 0 {

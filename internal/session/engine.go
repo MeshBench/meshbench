@@ -32,6 +32,9 @@ type Sim struct {
 	ui UI
 	// consoles is one scrollback per node, keyed by name.
 	consoles map[string]*console.Buf
+	// fleetPending is a fleet command sent and not yet answered, held until the
+	// engine has run far enough for the nodes to have replied.
+	fleetPending *fleetPending
 	// imp is what has been fetched from a deployment but not yet applied.
 	imp *importState
 	// capturePath is where frames are being written, if anywhere.

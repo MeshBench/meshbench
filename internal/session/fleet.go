@@ -6,9 +6,12 @@
 package session
 
 import (
+	"context"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/A13xB0/meshcoresim/internal/gui/state"
 	"github.com/A13xB0/meshcoresim/internal/scenario"
@@ -53,6 +56,7 @@ func registerFleet(st *state.Store, s *Sim) {
 				"measured is a different mesh"
 		}
 		replies := map[string]string{}
+		marks := map[string]int{}
 		for _, name := range targets {
 			buf, err := s.consoleFor(name)
 			if err != nil {
@@ -66,9 +70,22 @@ func registerFleet(st *state.Store, s *Sim) {
 				replies[name] = "send failed: " + err.Error()
 				continue
 			}
-			replies[name] = strings.Join(buf.LinesSince(mark), " ")
+			marks[name] = mark
+			replies[name] = ""
 		}
-		w.Say(fmt.Sprintf("sent %q to %d nodes", cmd, len(targets)))
+		// The replies do not exist yet.
+		//
+		// A node answers on its own next loop, and its loop only runs when the
+		// engine steps. Reading the console here read the moment before the
+		// command was sent, so every reply was empty and the panel had nothing
+		// to show - which is what "fleet commands do not work" looked like.
+		// The old workbench steps a second of simulated time between sending
+		// and reading; this cannot do that here, because stepping is the
+		// store's own work and this is the store's own goroutine.
+		s.fleetPending = &fleetPending{cmd: cmd, marks: marks}
+		w.FleetCommand, w.FleetReplies = cmd, nil
+		w.Say(fmt.Sprintf("sent %q to %d nodes; waiting for their replies", cmd, len(targets)))
+		go s.collectFleet(st, w.Playing)
 		out := map[string]any{
 			"command": cmd, "sent_to": len(targets), "replies": replies,
 		}
@@ -76,6 +93,42 @@ func registerFleet(st *state.Store, s *Sim) {
 			out["warning"] = warn
 		}
 		return out, nil
+	})
+
+	// fleet.replies: what came back, once the engine has run far enough for
+	// the nodes to have answered.
+	st.Handle("fleet.replies", func(w *state.World, _ any) (any, error) {
+		pend := s.fleetPending
+		if pend == nil {
+			return map[string]any{"replies": 0}, nil
+		}
+		s.fleetPending = nil
+		out := make([]state.FleetReply, 0, len(pend.marks))
+		for name, mark := range pend.marks {
+			buf, err := s.consoleFor(name)
+			if err != nil {
+				out = append(out, state.FleetReply{Node: name, Reply: "no console"})
+				continue
+			}
+			said := answerOnly(buf.LinesSince(mark), cmdOf(pend))
+			// A companion hears the line and does not answer it.
+			//
+			// It speaks the binary protocol a phone speaks, not the repeater
+			// CLI, so a fleet command reaches it and means nothing - and a
+			// blank row reads as a node that failed rather than one that was
+			// asked the wrong question.
+			if isCompanionNode(s.nodes, name) {
+				said = "a companion: speaks the app protocol, not this CLI - " +
+					"use its own tab"
+			} else if said == "" {
+				said = "-"
+			}
+			out = append(out, state.FleetReply{Node: name, Reply: said})
+		}
+		sort.Slice(out, func(i, j int) bool { return out[i].Node < out[j].Node })
+		w.FleetReplies, w.FleetCommand = out, pend.cmd
+		w.Say(fmt.Sprintf("%d nodes answered %q", len(out), pend.cmd))
+		return map[string]any{"replies": len(out)}, nil
 	})
 
 	// nodes.regions and nodes.allow_flood: the two that decide whether
@@ -174,4 +227,68 @@ func invalidates(cmd string) bool {
 		return true
 	}
 	return false
+}
+
+// fleetPending is a command sent and not yet answered.
+type fleetPending struct {
+	cmd   string
+	marks map[string]int
+}
+
+// collectFleet gives the mesh a second of its own time to answer, then asks
+// for the replies.
+//
+// A second, because a node reads its serial input on its next loop and answers
+// within a tick or two - the same window the old workbench uses. When the run
+// is already playing the store's ticker provides that time, so this only waits
+// for it; when it is paused nothing would ever step, so the steps are asked
+// for one at a time through the store rather than taken from under it.
+func (s *Sim) collectFleet(st *state.Store, playing bool) {
+	ctx := context.Background()
+	if playing {
+		// Long enough for the slowest of them.
+		//
+		// At a second, a handful of nodes were still mid-answer when the
+		// console was read and their row showed the echo with nothing after
+		// it, which reads as a node that did not reply.
+		time.Sleep(2500 * time.Millisecond)
+	} else {
+		for i := 0; i < 100; i++ {
+			if _, err := st.Do(ctx, "sim.step", nil); err != nil {
+				break
+			}
+		}
+	}
+	_, _ = st.Do(ctx, "fleet.replies", nil)
+}
+
+// cmdOf is the command a pending fleet send was about.
+func cmdOf(p *fleetPending) string { return p.cmd }
+
+// answerOnly is what the node said, without the conversation around it.
+//
+// A console line carries the simulated time it was written at, and the node
+// echoes what it was sent before answering it. Grouped replies made that
+// obvious: every row read "5.010 > advert 5.010 advert 5.010 -> OK", where the
+// only part anybody wants is the last few words.
+func answerOnly(lines []string, cmd string) string {
+	var out []string
+	for _, l := range lines {
+		// Drop the timestamp, which is the first field and a number. Trimmed
+		// first: the line is padded on the left, so looking for the gap after
+		// the timestamp found the padding instead and changed nothing.
+		l = strings.TrimSpace(l)
+		if first, rest, ok := strings.Cut(l, " "); ok {
+			if _, err := strconv.ParseFloat(first, 64); err == nil {
+				l = strings.TrimSpace(rest)
+			}
+		}
+		l = strings.TrimPrefix(l, "-> ")
+		switch {
+		case l == "", l == cmd, l == "> "+cmd:
+		default:
+			out = append(out, l)
+		}
+	}
+	return strings.TrimSpace(strings.Join(out, " "))
 }

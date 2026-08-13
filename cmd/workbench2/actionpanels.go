@@ -25,8 +25,22 @@ type fleetControls struct {
 	regions comp.Field
 	setReg  comp.Button
 	allow   comp.Button
-	do      Do
-	built   bool
+	// quick are the lines people send often enough that typing them is the
+	// only thing standing between a mesh and saying something. The old
+	// workbench put them behind a button each; the same idea, and they fill
+	// the box rather than going out the door, so the exact line is read
+	// before forty nodes are asked to obey it.
+	quick [4]comp.Button
+	do    Do
+	built bool
+}
+
+// fleetQuick is what those buttons put in the box.
+var fleetQuick = [4]struct{ label, cmd string }{
+	{"advert", "advert"},
+	{"flood advert", "floodadv"},
+	{"what version", "ver"},
+	{"how it is", "status"},
 }
 
 func (c *fleetControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
@@ -42,6 +56,9 @@ func (c *fleetControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 		c.allow.Label, c.allow.Kind = "allow any flood", comp.Secondary
 		c.bar.fields = []*comp.Field{&c.command, &c.kind}
 		c.bar.buttons = []*comp.Button{&c.send}
+		for i := range c.quick {
+			c.quick[i].Label, c.quick[i].Kind = fleetQuick[i].label, comp.Quiet
+		}
 		c.bar.note = "a command that changes what the nodes are makes anything " +
 			"already measured a different mesh; the reply says so before it is sent"
 		c.built = true
@@ -61,13 +78,25 @@ func (c *fleetControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 	if c.allow.Click.Clicked(gtx) && c.do != nil {
 		c.do("nodes.allow_flood", map[string]any{"on": true})
 	}
+	for i := range c.quick {
+		if c.quick[i].Click.Clicked(gtx) {
+			c.command.Editor.SetText(fleetQuick[i].cmd)
+		}
+	}
 	second := actionBar{
 		fields:  []*comp.Field{&c.regions},
 		buttons: []*comp.Button{&c.setReg, &c.allow},
 	}
+	third := actionBar{
+		buttons: []*comp.Button{&c.quick[0], &c.quick[1], &c.quick[2], &c.quick[3]},
+		note: "nothing in a mesh speaks until it is asked to: MeshCore will not " +
+			"advertise more often than hourly, so a short run is made to talk " +
+			"with advert",
+	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return c.bar.layout(t, gtx) }),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return second.layout(t, gtx) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return third.layout(t, gtx) }),
 	)
 }
 

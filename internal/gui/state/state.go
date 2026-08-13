@@ -113,6 +113,12 @@ type Snapshot struct {
 	// Console is one node's firmware scrollback.
 	Console     []string
 	ConsoleNode string
+	// FleetReplies is what each node said to the last fleet command. A
+	// command sent to forty nodes with no reply shown is indistinguishable
+	// from one that went nowhere.
+	FleetReplies []FleetReply
+	// FleetCommand is the command they are replies to.
+	FleetCommand string
 	// RealFirmware is whether play starts MeshCore on every node.
 	RealFirmware bool
 	// FirmwareRunning is how many nodes have a process up, and
@@ -149,6 +155,13 @@ type Link struct {
 	// Known is false when nothing has computed a margin yet, which is not the
 	// same as a margin of zero and must not be drawn as one.
 	Known bool
+}
+
+// FleetReply is one node's answer to a fleet command, in the firmware's own
+// words.
+type FleetReply struct {
+	Node  string
+	Reply string
 }
 
 // Trail is one transmission recently on the air, for the map to fade out.
@@ -525,6 +538,12 @@ type World struct {
 	// Console is one node's firmware scrollback.
 	Console     []string
 	ConsoleNode string
+	// FleetReplies is what each node said to the last fleet command. A
+	// command sent to forty nodes with no reply shown is indistinguishable
+	// from one that went nowhere.
+	FleetReplies []FleetReply
+	// FleetCommand is the command they are replies to.
+	FleetCommand string
 	// RealFirmware is what kind of run this is: on, play starts one MeshCore
 	// process per node and every relay decision is the firmware's own. Off,
 	// the channel and the collisions are still real but nothing decides to
@@ -774,6 +793,8 @@ func (s *Store) publish() {
 		Series:            s.world.Series,
 		Provisioning:      s.world.Provisioning,
 		Console:           s.world.Console,
+		FleetReplies:      append([]FleetReply(nil), s.world.FleetReplies...),
+		FleetCommand:      s.world.FleetCommand,
 		RealFirmware:      s.world.RealFirmware,
 		FirmwareRunning:   s.world.FirmwareRunning,
 		FirmwareStarting:  s.world.FirmwareStarting,
