@@ -151,6 +151,8 @@ func main() {
 	benchCtl := &benchControls{do: do}
 	feedCtl := &feedControls{do: do}
 	sweepCtl := &sweepControls{do: do}
+	fwCtl := &firmwareControls{do: do}
+	inspCtl := &inspectorControls{do: do}
 
 	mv := &comp.MapView{}
 	wbUI := &workbenchUI{sh: sh, sim: sm, mv: mv, nodes: newNodeWindows(), store: st}
@@ -162,6 +164,14 @@ func main() {
 	}
 	wbUI.onAction = func(action, node string) {
 		go func() { _, _ = st.Do(ctx, action, node) }()
+	}
+	wbUI.onCLI = func(node, line string) {
+		go func() {
+			if _, err := st.Do(ctx, "console.cli",
+				map[string]any{"node": node, "command": line}); err != nil {
+				_, _ = st.Do(ctx, "ui.said", err.Error())
+			}
+		}()
 	}
 	sm.SetUI(wbUI)
 	// The tile cache the old workbench already filled: 37 MB of it on this
@@ -326,7 +336,8 @@ func main() {
 			)
 		}})
 	sh.Add(&shell.Panel{Name: "Nodes", Windowable: true, Draw: nodes.Draw})
-	sh.Add(&shell.Panel{Name: "Inspector", Windowable: true, Draw: drawInspector})
+	sh.Add(&shell.Panel{Name: "Inspector", Windowable: true,
+		Draw: withControls(inspCtl.Draw, drawInspector)})
 	events := &eventsPanel{}
 	scores := &scorePanel{}
 	sh.Add(&shell.Panel{Name: "Events", Windowable: true, Draw: events.Draw})
@@ -480,7 +491,8 @@ func main() {
 	sh.Add(&shell.Panel{Name: "Console", Windowable: true, Draw: console.Draw})
 	fw := &firmwarePanel{}
 	runs := &runsPanel{}
-	sh.Add(&shell.Panel{Name: "Firmware", Windowable: true, Draw: fw.Draw})
+	sh.Add(&shell.Panel{Name: "Firmware", Windowable: true,
+		Draw: withControls(fwCtl.Draw, fw.Draw)})
 	sh.Add(&shell.Panel{Name: "Runs", Windowable: true, Draw: runs.Draw})
 	sh.Add(&shell.Panel{Name: "Sweep", Windowable: true,
 		Draw: withControls(sweepCtl.Draw, (&sweepResults{}).Draw)})

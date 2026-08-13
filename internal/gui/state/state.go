@@ -636,6 +636,29 @@ func (s *Store) Run(ctx context.Context) {
 			s.publish()
 			c.reply <- result{v, err}
 		case <-tick.C:
+			// Answer everything waiting before stepping.
+			//
+			// A step with fifty-eight real firmware processes behind it takes
+			// far longer than the tick interval, so the ticker is always ready
+			// and select gives a queued verb only even odds against it. That
+			// is enough to make the control socket time out while a run is
+			// playing - the workbench looks hung precisely when it is working
+			// hardest. Commands are cheap; drain them first.
+			for drained := 0; drained < 64; drained++ {
+				select {
+				case c := <-s.cmds:
+					h, ok := s.handlers[c.verb]
+					if !ok {
+						c.reply <- result{nil, fmt.Errorf("%w: %q", ErrUnknownVerb, c.verb)}
+						continue
+					}
+					v, err := h(&s.world, c.params)
+					s.publish()
+					c.reply <- result{v, err}
+				default:
+					drained = 64
+				}
+			}
 			// Engine pacing, out of the frame loop. Simulated time advances on
 			// this ticker whether or not anything is being drawn, which is what
 			// makes a headless run and a watched run the same run.

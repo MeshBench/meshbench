@@ -34,6 +34,8 @@ func Register(st *state.Store, s *Sim) {
 	registerUIVerbs(st, s)
 	registerCapture(st, s)
 	registerCompanion(st, s)
+	registerMeshCLI(st, s)
+	registerProvisioningSettings(st, s)
 	registerExperiment(st, s)
 	registerExperimentDone(st, s)
 	registerCoverageCombined(st, s)

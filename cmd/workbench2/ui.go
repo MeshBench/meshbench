@@ -34,6 +34,7 @@ type workbenchUI struct {
 	// onCommand and onAction carry a node window's controls back to the store.
 	onCommand func(node, line string)
 	onAction  func(action, node string)
+	onCLI     func(node, line string)
 	// dock, closeWin, scale and setScale are the pieces of the window and
 	// settings machinery a verb needs to reach.
 	dock     func(name string)
@@ -128,5 +129,5 @@ func (u *workbenchUI) OpenNodeWindow(node string) {
 	if u.nodes == nil || u.newTheme == nil {
 		return
 	}
-	u.nodes.openFor(node, u.newTheme, u.store, u.onCommand, u.onAction)
+	u.nodes.openFor(node, u.newTheme, u.store, u.onCommand, u.onAction, u.onCLI)
 }

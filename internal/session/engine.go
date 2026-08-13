@@ -44,6 +44,8 @@ type Sim struct {
 	feeding atomic.Bool
 	// warmCancel stops the measurement in flight when the network changes
 	// under it, guarded by warmMu.
+	// prov is what every node is told at boot.
+	prov       *Provisioning
 	warmMu     sync.Mutex
 	warmCancel context.CancelFunc
 	// areas is the accepted study area, as boundaries.

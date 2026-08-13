@@ -43,6 +43,14 @@ func (n nodeTab) String() string {
 	return "Console"
 }
 
+// tabTitle is the console tab's name, which says which console it is.
+func (p *nodeWindowPanel) tabTitle(n nodeTab) string {
+	if n == tabConsole && p.isCompanion() {
+		return "meshcore-cli"
+	}
+	return n.String()
+}
+
 // nodeWindowPanel is the body. Kept separate from the window so it can be
 // drawn - and tested - without one.
 type nodeWindowPanel struct {
@@ -63,6 +71,11 @@ type nodeWindowPanel struct {
 
 	// OnCommand is given a line to send to the node's firmware.
 	OnCommand func(node, line string)
+	// OnCLI is the same for a companion, whose lines are meshcore-cli rather
+	// than the firmware's own console.
+	OnCLI func(node, line string)
+	// Kind is what this node is, which decides which of the two it gets.
+	Kind string
 	// OnAction is given a verb and this node's name.
 	OnAction func(action, node string)
 }
@@ -91,9 +104,17 @@ func (p *nodeWindowPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snap
 			submitted = true
 		}
 	}
-	if (p.send.Click.Clicked(gtx) || submitted) && p.OnCommand != nil {
+	if p.send.Click.Clicked(gtx) || submitted {
 		if line := strings.TrimSpace(p.input.Editor.Text()); line != "" {
-			p.OnCommand(p.node, line)
+			// A companion has no text console: it speaks the framed protocol
+			// a phone speaks, so what it gets is meshcore-cli's vocabulary -
+			// the tool people already use against real hardware - rather than
+			// a console that would answer nothing.
+			if p.isCompanion() && p.OnCLI != nil {
+				p.OnCLI(p.node, line)
+			} else if p.OnCommand != nil {
+				p.OnCommand(p.node, line)
+			}
 			p.input.Editor.SetText("")
 		}
 	}
@@ -154,7 +175,7 @@ func (p *nodeWindowPanel) head(t *theme.Theme, s *state.Snapshot) layout.Widget 
 						return p.tabs[i].Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return layout.Inset{Right: t.Sp.M, Top: t.Sp.XS,
 								Bottom: t.Sp.XS}.Layout(gtx,
-								comp.Text(t, t.Sz.Body, fg, nodeTab(i).String()))
+								comp.Text(t, t.Sz.Body, fg, p.tabTitle(nodeTab(i))))
 						})
 					}))
 				}
@@ -174,8 +195,12 @@ func (p *nodeWindowPanel) console(t *theme.Theme, gtx layout.Context, s *state.S
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			if len(lines) == 0 {
-				return layout.Center.Layout(gtx, comp.Text(t, t.Sz.Caption, t.P.Faint,
-					"nothing printed yet - start the node, or type a command"))
+				hint := "nothing printed yet - start the node, or type a command"
+				if p.isCompanion() {
+					hint = "a simulated companion. Type ? for what meshcore-cli " +
+						"commands this build answers."
+				}
+				return layout.Center.Layout(gtx, comp.Text(t, t.Sz.Caption, t.P.Faint, hint))
 			}
 			p.list.Axis = layout.Vertical
 			// Anchored at the end: a console is read from the bottom.
@@ -189,6 +214,9 @@ func (p *nodeWindowPanel) console(t *theme.Theme, gtx layout.Context, s *state.S
 			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 					p.input.Hint = "a MeshCore command, then Enter"
+					if p.isCompanion() {
+						p.input.Hint = "a meshcore-cli command, then Enter - ? for the list"
+					}
 					p.input.Editor.SingleLine = true
 					p.input.Editor.Submit = true
 					return p.input.Layout(t, gtx)
@@ -200,9 +228,15 @@ func (p *nodeWindowPanel) console(t *theme.Theme, gtx layout.Context, s *state.S
 				}),
 			)
 		}),
-		layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint,
-			"replies do not arrive while a sweep owns the clock: the firmware "+
-				"only speaks when the engine steps it")),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			note := "replies do not arrive while a sweep owns the clock: the " +
+				"firmware only speaks when the engine steps it"
+			if p.isCompanion() {
+				note = "meshcore-cli, against a simulated companion. Commands it " +
+					"has and this does not are refused by name rather than ignored."
+			}
+			return comp.OneLine(t, t.Sz.Caption, t.P.Faint, note, false)(gtx)
+		}),
 	)
 }
 
@@ -290,6 +324,11 @@ func (p *nodeWindowPanel) activity(t *theme.Theme, gtx layout.Context, s *state.
 	return p.acts.Layout(t, gtx, func(string) {})
 }
 
+// isCompanion decides which command line this node gets.
+func (p *nodeWindowPanel) isCompanion() bool {
+	return strings.Contains(strings.ToLower(p.Kind), "companion")
+}
+
 func (p *nodeWindowPanel) statFor(s *state.Snapshot) *state.NodeStat {
 	if s == nil {
 		return nil
@@ -312,7 +351,8 @@ type nodeWindows struct {
 func newNodeWindows() *nodeWindows { return &nodeWindows{open: map[string]bool{}} }
 
 func (w *nodeWindows) openFor(node string, newTheme func() *theme.Theme,
-	st *state.Store, onCommand func(node, line string), onAction func(action, node string)) {
+	st *state.Store, onCommand func(node, line string), onAction func(action, node string),
+	onCLI func(node, line string)) {
 	w.mu.Lock()
 	if w.open[node] {
 		w.mu.Unlock()
@@ -328,7 +368,8 @@ func (w *nodeWindows) openFor(node string, newTheme func() *theme.Theme,
 			w.mu.Unlock()
 		}()
 		th := newTheme()
-		p := &nodeWindowPanel{node: node, OnCommand: onCommand, OnAction: onAction}
+		p := &nodeWindowPanel{node: node, OnCommand: onCommand, OnAction: onAction,
+			OnCLI: onCLI, Kind: kindOfNode(st, node)}
 		win := new(app.Window)
 		win.Option(app.Title("MeshBench - "+node), app.Size(unit.Dp(820), unit.Dp(620)))
 		var ops op.Ops
@@ -352,3 +393,17 @@ func (w *nodeWindows) openFor(node string, newTheme func() *theme.Theme,
 
 var _ = key.NameEscape
 var _ = image.Pt
+
+// kindOfNode reads what a node is from the current snapshot.
+func kindOfNode(st *state.Store, node string) string {
+	s := st.Snapshot()
+	if s == nil {
+		return ""
+	}
+	for i := range s.Nodes {
+		if s.Nodes[i].Name == node {
+			return s.Nodes[i].Kind
+		}
+	}
+	return ""
+}

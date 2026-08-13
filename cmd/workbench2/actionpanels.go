@@ -580,3 +580,174 @@ func (p *sweepResults) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 		}),
 	)
 }
+
+// firmwareControls is the library: what is on this machine, and what can be.
+//
+// What is in the cache is the only thing that decides what a node can run, so
+// the filters matter as much as the actions: a board image and a native build
+// of the same version are different artefacts and only one of them will start
+// on this machine.
+type firmwareControls struct {
+	bar      actionBar
+	role     comp.Field
+	version  comp.Field
+	board    comp.Field
+	path     comp.Field
+	download comp.Button
+	imprt    comp.Button
+	del      comp.Button
+	useFor   comp.Button
+	wipe     comp.Button
+	native   comp.Check
+	boards   comp.Check
+	onDisk   comp.Check
+	do       Do
+	built    bool
+}
+
+func (c *firmwareControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+	if !c.built {
+		c.role.Hint = "role: simple_repeater, companion_radio"
+		c.version.Hint = "version"
+		c.board.Hint = "board (blank: a native build)"
+		c.path.Hint = "path to your own build, to import or delete"
+		for _, f := range []*comp.Field{&c.role, &c.version, &c.board, &c.path} {
+			f.Editor.SingleLine = true
+		}
+		c.download.Label, c.download.Kind = "download", comp.Primary
+		c.imprt.Label, c.imprt.Kind = "import", comp.Secondary
+		c.del.Label, c.del.Kind = "delete", comp.Destructive
+		c.useFor.Label, c.useFor.Kind = "use for this role", comp.Secondary
+		c.wipe.Label, c.wipe.Kind = "wipe every node's memory", comp.Destructive
+		c.native.Label, c.native.Bool.Value = "native only", false
+		c.boards.Label = "boards only"
+		c.onDisk.Label, c.onDisk.Bool.Value = "on disk only", true
+		c.bar.fields = []*comp.Field{&c.role, &c.version, &c.board}
+		c.bar.buttons = []*comp.Button{&c.download, &c.useFor}
+		c.bar.note = "a board image and a native build of one version are different " +
+			"artefacts, and only the native one starts on this machine"
+		c.built = true
+	}
+	if c.download.Click.Clicked(gtx) && c.do != nil {
+		c.do("firmware.download", map[string]any{
+			"role": fieldText(&c.role), "version": fieldText(&c.version),
+			"board": fieldText(&c.board),
+		})
+	}
+	if c.useFor.Click.Clicked(gtx) && c.do != nil {
+		c.do("firmware.set", map[string]any{
+			"version": fieldText(&c.version), "role": fieldText(&c.role),
+		})
+	}
+	if c.imprt.Click.Clicked(gtx) && c.do != nil {
+		c.do("firmware.import", map[string]any{
+			"path": fieldText(&c.path), "role": fieldText(&c.role),
+			"board": fieldText(&c.board),
+		})
+	}
+	if c.del.Click.Clicked(gtx) && c.do != nil {
+		c.do("firmware.delete", map[string]any{"path": fieldText(&c.path)})
+	}
+	if c.wipe.Click.Clicked(gtx) && c.do != nil {
+		c.do("firmware.wipe", nil)
+	}
+	second := actionBar{
+		fields:  []*comp.Field{&c.path},
+		buttons: []*comp.Button{&c.imprt, &c.del, &c.wipe},
+		note: "wipe exists because a node keeps its settings between runs exactly " +
+			"as hardware does, so it never reaches a changed default and both arms " +
+			"of a study return identical numbers",
+	}
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return c.bar.layout(t, gtx) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return second.layout(t, gtx) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return c.native.Layout(t, gtx)
+				}),
+				layout.Rigid(layout.Spacer{Width: t.Sp.M}.Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return c.boards.Layout(t, gtx)
+				}),
+				layout.Rigid(layout.Spacer{Width: t.Sp.M}.Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return c.onDisk.Layout(t, gtx)
+				}),
+			)
+		}),
+		layout.Rigid(layout.Spacer{Height: t.Sp.S}.Layout),
+	)
+}
+
+// Keep reports whether a build survives the filters, for the table above.
+func (c *firmwareControls) Keep(b state.Build) bool {
+	if c.native.Bool.Value && !b.Native {
+		return false
+	}
+	if c.boards.Bool.Value && b.Native {
+		return false
+	}
+	if c.onDisk.Bool.Value && b.Bytes == 0 {
+		return false
+	}
+	return true
+}
+
+// inspectorControls is what you can do to the node you are looking at.
+//
+// The Inspector displayed a node and did nothing with it, which made it the
+// one panel where selecting something led nowhere.
+type inspectorControls struct {
+	bar     actionBar
+	why     comp.Button
+	energy  comp.Button
+	cover   comp.Button
+	window  comp.Button
+	clear   comp.Button
+	provis  comp.Button
+	do      Do
+	built   bool
+	current string
+}
+
+func (c *inspectorControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+	if !c.built {
+		c.why.Label, c.why.Kind = "why this link?", comp.Primary
+		c.energy.Label, c.energy.Kind = "does it survive December?", comp.Secondary
+		c.cover.Label, c.cover.Kind = "coverage from here", comp.Secondary
+		c.window.Label, c.window.Kind = "its own window", comp.Secondary
+		c.provis.Label, c.provis.Kind = "what it is told at boot", comp.Secondary
+		c.clear.Label, c.clear.Kind = "clear selection", comp.Quiet
+		c.bar.buttons = []*comp.Button{&c.why, &c.energy, &c.cover}
+		c.bar.note = "the budget breaks a link into its terms; December asks whether " +
+			"a solar node at this latitude survives the shortest days"
+		c.built = true
+	}
+	c.current = selectedNodeName(s)
+	if c.why.Click.Clicked(gtx) && c.do != nil {
+		c.do("budget.for_selection", nil)
+	}
+	if c.energy.Click.Clicked(gtx) && c.do != nil {
+		c.do("energy.for_selection", nil)
+	}
+	if c.cover.Click.Clicked(gtx) && c.do != nil {
+		c.do("coverage.compute", c.current)
+	}
+	if c.window.Click.Clicked(gtx) && c.do != nil {
+		c.do("node.window", c.current)
+	}
+	if c.provis.Click.Clicked(gtx) && c.do != nil {
+		c.do("node.provisioning", c.current)
+	}
+	if c.clear.Click.Clicked(gtx) && c.do != nil {
+		c.do("nodes.select_many", []string{})
+	}
+	second := actionBar{
+		buttons: []*comp.Button{&c.window, &c.provis, &c.clear},
+	}
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return c.bar.layout(t, gtx) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return second.layout(t, gtx) }),
+	)
+}

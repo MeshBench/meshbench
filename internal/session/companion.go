@@ -318,3 +318,34 @@ func compFrame(payload []byte) []byte {
 	out = binary.LittleEndian.AppendUint16(out, uint16(len(payload)))
 	return append(out, payload...)
 }
+
+// Lines is the session's recent traffic, for a console to draw.
+func (c *compSession) Lines() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]string(nil), c.last...)
+}
+
+// connectCompanion claims a node's port for the companion protocol.
+//
+// Called from inside a handler, so it does not go through the store: asking
+// the store to do something while running on it is a wait for yourself.
+func (s *Sim) connectCompanion(node string) error {
+	if s.comps == nil {
+		s.comps = map[string]*compSession{}
+	}
+	if _, already := s.comps[node]; already {
+		return nil
+	}
+	if s.eng == nil {
+		return fmt.Errorf("no network loaded")
+	}
+	en, ok := s.eng.NodeByName(node)
+	if !ok || en.Firmware == nil {
+		return fmt.Errorf("%s runs no firmware, so it has no companion interface", node)
+	}
+	c := &compSession{node: node}
+	c.release = en.Firmware.Bridge.Claim(c)
+	s.comps[node] = c
+	return en.Firmware.Bridge.Type(compFrame(proto.AppStart("meshbench")))
+}
