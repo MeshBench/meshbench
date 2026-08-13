@@ -30,11 +30,13 @@ import (
 
 // harness is a shell and enough scaffolding to click on it.
 type harness struct {
-	sh  *Shell
-	th  *theme.Theme
-	r   input.Router
-	ops op.Ops
-	sz  image.Point
+	sh *Shell
+	// actions is what the chrome asked for, for the tests that press it.
+	actions []string
+	th      *theme.Theme
+	r       input.Router
+	ops     op.Ops
+	sz      image.Point
 }
 
 func newHarness(t *testing.T) *harness {
