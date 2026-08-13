@@ -406,7 +406,7 @@ func (sh *Shell) menuDrop(t *theme.Theme, gtx layout.Context) {
 		}
 	}
 	pad := gtx.Dp(t.Sp.S)
-	width := gtx.Dp(300)
+	width := gtx.Dp(330)
 	// Any glyph anywhere in the menu indents every label, so the labels line
 	// up whether or not their own row has one.
 	hasIcons := false
@@ -489,8 +489,10 @@ func (sh *Shell) menuDrop(t *theme.Theme, gtx layout.Context) {
 				count--
 			}
 			return comp.List(t, &m.list, count, func(gtx layout.Context, i int) layout.Dimensions {
-				gtx.Constraints.Min.X = inner.Constraints.Max.X
-				gtx.Constraints.Max.X = inner.Constraints.Max.X
+				// The width the list offers, not the menu's own: the list
+				// keeps a scrollbar gutter, and rows forced past it clip
+				// their shortcut column at the box edge.
+				gtx.Constraints.Min.X = gtx.Constraints.Max.X
 				it := &m.items[i]
 				var kids []layout.FlexChild
 				if it.Section != prev {
