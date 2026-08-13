@@ -49,6 +49,9 @@ type Layer struct {
 	ID   string
 	Name string
 	Kind Kind
+	// Dark reports a layer whose ground is dark, so text drawn over the map
+	// can pick an ink that reads on it rather than one chosen for the theme.
+	Dark bool
 
 	// URL template with {z}/{x}/{y}.
 	URL string
@@ -92,7 +95,7 @@ func Layers() []Layer {
 			RequiresReview: true,
 		},
 		{
-			ID: "carto-dark", Name: "Dark", Kind: Base, MaxZoom: 20,
+			ID: "carto-dark", Name: "Dark", Kind: Base, Dark: true, MaxZoom: 20,
 			URL:            "https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
 			Attribution:    "(c) OpenStreetMap contributors, (c) CARTO",
 			Terms:          "As CARTO light above.",
@@ -109,7 +112,7 @@ func Layers() []Layer {
 			RequiresReview: true,
 		},
 		{
-			ID: "esri-imagery", Name: "Satellite", Kind: Base, MaxZoom: 19,
+			ID: "esri-imagery", Name: "Satellite", Kind: Base, Dark: true, MaxZoom: 19,
 			URL: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/" +
 				"MapServer/tile/{z}/{y}/{x}",
 			Attribution: "Imagery (c) Esri, Maxar, Earthstar Geographics",

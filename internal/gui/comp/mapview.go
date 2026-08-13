@@ -245,24 +245,14 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 		spots = m.labels.place(pts, sz, m.cam.hover,
 			func(i int) image.Point { return m.sizes.measure(gtx, t, pts[i].n.Name) })
 	}
+	ink := m.baseInk(t)
 	for i, at := range spots {
-		// The old workbench's recipe, kept because it is proven: near-white
-		// ink on a dark plate, whatever the theme and whatever the basemap.
-		// A label on the map contends with the map's own colours - white text
-		// was invisible over the light street map, which is exactly where the
-		// place names it competes with already are.
-		col := theme.Alpha(t.P.MapInk, 0.85)
+		col := theme.Alpha(ink, 0.85)
 		if pts[i].n.Selected || i == m.cam.hover {
-			col = t.P.MapInk
+			col = ink
 		}
 		off := op.Offset(at).Push(gtx.Ops)
-		if sz := m.sizes.measure(gtx, t, pts[i].n.Name); sz.X > 0 {
-			pad := gtx.Dp(3)
-			RoundRect(gtx, image.Pt(sz.X+pad*2, sz.Y), 3, t.P.MapPlate)
-			in := op.Offset(image.Pt(pad, 0)).Push(gtx.Ops)
-			Text(t, t.Sz.Caption, col, pts[i].n.Name)(unbounded(gtx))
-			in.Pop()
-		}
+		Text(t, t.Sz.Caption, col, pts[i].n.Name)(unbounded(gtx))
 		off.Pop()
 	}
 
