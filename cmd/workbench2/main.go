@@ -153,6 +153,7 @@ func main() {
 	sweepCtl := &sweepControls{do: do}
 	fwCtl := &firmwareControls{do: do}
 	inspCtl := &inspectorControls{do: do}
+	provCtl := &provisioningControls{do: do}
 
 	mv := &comp.MapView{}
 	wbUI := &workbenchUI{sh: sh, sim: sm, mv: mv, nodes: newNodeWindows(), store: st}
@@ -391,6 +392,9 @@ func main() {
 	sh.Add(&shell.Panel{Name: "Compare", Windowable: true, Draw: cmpP.Draw})
 	cfg := &configPanel{}
 	logp := &logPanel{}
+	sh.Add(&shell.Panel{Name: "Provisioning", Windowable: true,
+		Draw: withControls(provCtl.Draw, shell.EmptyPanel("Provisioning",
+			"what every node is told when it starts").Draw)})
 	sh.Add(&shell.Panel{Name: "Configuration", Windowable: true, Draw: cfg.Draw})
 	sh.Add(&shell.Panel{Name: "Experiment log", Windowable: true, Draw: logp.Draw})
 	nv := &nodeViewPanel{}
