@@ -146,9 +146,10 @@ func registerValidate(st *state.Store, s *Sim) {
 			if err := s.rebuild(w); err != nil {
 				return nil, err
 			}
-			w.Links = s.links()
+			w.Links = nil
+			s.warm(st, len(s.nodes))
 		}
-		w.Say(fmt.Sprintf("excess path loss calibrated to %.1f dB", db))
+		w.Say(fmt.Sprintf("excess path loss calibrated to %.1f dB; measuring links", db))
 		return map[string]any{"db": db, "links": len(w.Links)}, nil
 	})
 
@@ -160,7 +161,8 @@ func registerValidate(st *state.Store, s *Sim) {
 			if err := s.rebuild(w); err != nil {
 				return nil, err
 			}
-			w.Links = s.links()
+			w.Links = nil
+			s.warm(st, len(s.nodes))
 		}
 		w.Say(fmt.Sprintf("excess path loss back to the %d dB default", DefaultExcessLossDB))
 		return map[string]any{"db": DefaultExcessLossDB}, nil

@@ -100,7 +100,8 @@ func registerCapture(st *state.Store, s *Sim) {
 			// The engine caches path loss per pair and a preset changes the
 			// frequency, so the cache is answering about a different radio.
 			s.buildSeeded(s.nodes, preset.FreqMHz, s.seed)
-			w.Links = s.links()
+			w.Links = nil
+			s.warm(st, len(s.nodes))
 		}
 		w.Say(fmt.Sprintf("%d nodes on %s", n, label))
 		return map[string]any{"preset": label, "nodes": n}, nil

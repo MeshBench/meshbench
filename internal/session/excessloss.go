@@ -28,11 +28,14 @@ func registerExcessLoss(st *state.Store, s *Sim) {
 			if len(s.nodes) > 0 {
 				// Rebuilt, because path loss is cached per pair for the life
 				// of an engine - terrain does not move, so the cache never
-				// expires on its own.
+				// expires on its own. Measured in the background, because on
+				// a 166-node import that is 13,695 terrain profiles and doing
+				// them here stops the store answering anything.
 				if err := s.rebuild(w); err != nil {
 					return nil, err
 				}
-				w.Links = s.links()
+				w.Links = nil
+				s.warm(st, len(s.nodes))
 			}
 			w.Say(fmt.Sprintf("excess path loss %.1f dB", v))
 		}
