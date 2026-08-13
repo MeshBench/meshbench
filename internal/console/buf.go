@@ -21,9 +21,14 @@ type Buf struct {
 	// Input is the half-typed command. Per node, not per panel: the same node's
 	// console in the bottom tab and in its own window is the same terminal.
 	Input string
-	// NowMs is the simulated clock at the moment output arrives, written by the
-	// frame thread before each step and read by the bridge's goroutine.
-	NowMs uint32
+	// nowMs is the simulated clock at the moment output arrives, written
+	// before each step and read by the bridge's goroutine as output lands.
+	//
+	// Behind the mutex, and reached through SetNow: it is written by whoever
+	// steps the engine and read by the goroutine draining a serial port, and
+	// an exported field was written by nobody at all - every line in the Gio
+	// build's console was stamped 0.000.
+	nowMs uint32
 
 	mu      sync.Mutex
 	lines   []string
@@ -50,7 +55,7 @@ func (c *Buf) Write(p []byte) (int, error) {
 		// consoles is reading them at one instant, which is impossible with
 		// four terminal windows and impossible here without this.
 		line := strings.TrimRight(c.partial[:i], "\r")
-		c.lines = append(c.lines, fmt.Sprintf("%8.3f  %s", float64(c.NowMs)/1000, line))
+		c.lines = append(c.lines, fmt.Sprintf("%8.3f  %s", float64(c.nowMs)/1000, line))
 		c.partial = c.partial[i+1:]
 	}
 	if n := len(c.lines) - MaxLines; n > 0 {
@@ -93,7 +98,7 @@ func (c *Buf) LinesSince(mark int) []string {
 
 func (c *Buf) Echo(line string) {
 	c.mu.Lock()
-	c.lines = append(c.lines, fmt.Sprintf("%8.3f  > %s", float64(c.NowMs)/1000, line))
+	c.lines = append(c.lines, fmt.Sprintf("%8.3f  > %s", float64(c.nowMs)/1000, line))
 	c.mu.Unlock()
 }
 
@@ -103,3 +108,11 @@ func (c *Buf) Echo(line string) {
 // interface is how a node is configured, and a workbench that cannot reach it
 // can build a mesh but not administer one. Everything below the Input box came
 // out of the firmware; nothing here composes a reply.
+
+// SetNow tells the buffer what the clock reads, before the step that will
+// produce the output it stamps.
+func (c *Buf) SetNow(ms uint32) {
+	c.mu.Lock()
+	c.nowMs = ms
+	c.mu.Unlock()
+}

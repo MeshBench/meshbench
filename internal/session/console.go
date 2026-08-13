@@ -36,6 +36,10 @@ func (s *Sim) consoleFor(name string) (*console.Buf, error) {
 	buf, seen := s.consoles[name]
 	if !seen || buf.Bridge != n.Firmware.Bridge {
 		buf = &console.Buf{Bridge: n.Firmware.Bridge}
+		// The clock at the moment it is attached, not at the next step: a
+		// buffer created by the very command being typed would otherwise
+		// stamp that line 0.000 whatever the run had reached.
+		buf.SetNow(s.eng.NowMs())
 		n.Firmware.Bridge.Console(buf)
 		s.consoles[name] = buf
 	}
@@ -91,6 +95,18 @@ func registerConsole(st *state.Store, s *Sim) {
 			return nil, err
 		}
 		w.Console, w.ConsoleNode = buf.Snapshot(), name
-		return map[string]any{"node": name, "lines": len(w.Console)}, nil
+		// The scrollback itself, not a count of it.
+		//
+		// It reported only how many lines there were, which is exactly the
+		// thing a caller already knows it does not know. The tail rather than
+		// all of it: a node that has been running for an hour has thousands,
+		// and nobody reads the first one.
+		tail := w.Console
+		if n := 200; len(tail) > n {
+			tail = tail[len(tail)-n:]
+		}
+		return map[string]any{
+			"node": name, "lines": len(w.Console), "tail": tail,
+		}, nil
 	})
 }

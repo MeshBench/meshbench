@@ -76,6 +76,11 @@ func Register(st *state.Store, s *Sim) {
 			w.FirmwareRunning, w.FirmwareStarting = s.firmwareCount(), s.starting.Load()
 			_ = s.eng.Step(context.Background())
 			w.NowMs = s.eng.NowMs()
+			// Every open console gets the clock before the step that will
+			// produce the lines it stamps.
+			for _, buf := range s.consoles {
+				buf.SetNow(w.NowMs)
+			}
 			// Trails from the last few seconds of simulated time. Recomputed
 			// from the event log rather than accumulated, so a seek backwards
 			// or a rebuilt engine cannot leave a trail on the map for a
