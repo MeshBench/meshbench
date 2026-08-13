@@ -41,6 +41,9 @@ type Sim struct {
 	exp *experiment
 	// feeding reports whether the live feed should keep pulling.
 	feeding atomic.Bool
+	// warmStale marks that the network changed while links were being
+	// measured, so the measurement has to be repeated.
+	warmStale atomic.Bool
 	// areas is the accepted study area, as boundaries.
 	areas []scenario.Boundary
 	// foundAreas is the last search's matches, awaiting a choice.
@@ -188,7 +191,17 @@ func (s *Sim) links() []state.Link {
 // One at a time: a second warm while the first is running would compute the
 // same thing twice and race to publish it.
 func (s *Sim) warm(st *state.Store, nodes int) {
-	if s.eng == nil || s.warming.Swap(true) {
+	if s.eng == nil {
+		return
+	}
+	// A request that arrives while one is running marks the work stale rather
+	// than being dropped. Dropping it is what happened when a real import
+	// committed while the fixture's own warm was still going: the commit's
+	// links were never measured, links.recompute no-opped for the same
+	// reason, and the map sat at zero links for a network of 676 nodes with
+	// nothing saying why.
+	if s.warming.Swap(true) {
+		s.warmStale.Store(true)
 		return
 	}
 	go func() {
@@ -213,6 +226,12 @@ func (s *Sim) warm(st *state.Store, nodes int) {
 		_, _ = st.Do(ctx, "job.progress", state.Job{
 			ID: "links", What: "measuring every link",
 			Done: total, Total: total, Finished: true})
+		// Somebody changed the network while this was running, so what was
+		// just measured is about a network that no longer exists.
+		if s.warmStale.Swap(false) {
+			s.warming.Store(false)
+			s.warm(st, len(s.nodes))
+		}
 	}()
 }
 
