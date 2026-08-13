@@ -328,7 +328,18 @@ func main() {
 	mv.OnLayerOn = func(layer string) {
 		switch layer {
 		case "Coverage":
-			go func() { _, _ = st.Do(ctx, "coverage.compute", nil) }()
+			// Coverage is coverage from somewhere, so it needs a node. With
+			// none selected the verb refused into a status line and the layer
+			// sat ticked over an unchanged map, which is what "coverage does
+			// not work" looked like.
+			go func() {
+				if _, err := st.Do(ctx, "coverage.compute", nil); err != nil {
+					_, _ = st.Do(ctx, "ui.said",
+						"coverage is coverage from a node: select one, then turn this on")
+					return
+				}
+				_, _ = st.Do(ctx, "ui.said", "working out what it reaches")
+			}()
 		case "Terrain":
 			box := view
 			go func() { _, _ = st.Do(ctx, "terrain.shade", box) }()

@@ -58,6 +58,13 @@ type UI interface {
 	ZoomMap(factor float64)
 	FilterMap(query string)
 	SetTool(name string) error
+	// SetLayer turns a map layer on or off by the name the map shows, and
+	// reports the ones there are when it does not know it. A layer that can
+	// only be reached by clicking cannot be reached by a script, a capture or
+	// a test - which is how coverage and terrain went unchecked.
+	SetLayer(name string, on bool) error
+	// Layers is what is drawn right now.
+	Layers() map[string]bool
 
 	// State is what the interface is showing, for a caller that has no eyes.
 	State() map[string]any
@@ -372,5 +379,32 @@ func registerUIVerbs(st *state.Store, s *Sim) {
 		}
 		w.Say("tool: " + name)
 		return map[string]any{"tool": name}, nil
+	})
+
+	// map.layer: draw this, or stop drawing it.
+	st.Handle("map.layer", func(w *state.World, p any) (any, error) {
+		if err := need(); err != nil {
+			return nil, err
+		}
+		name, _ := stringField(p, "name")
+		if name == "" {
+			name = soleString(p)
+		}
+		on := true
+		if v, ok := boolField(p, "on"); ok {
+			on = v
+		}
+		if err := s.ui.SetLayer(name, on); err != nil {
+			return nil, err
+		}
+		return map[string]any{"layers": s.ui.Layers()}, nil
+	})
+
+	// map.layers: what the map is drawing.
+	st.Handle("map.layers", func(w *state.World, _ any) (any, error) {
+		if err := need(); err != nil {
+			return nil, err
+		}
+		return map[string]any{"layers": s.ui.Layers()}, nil
 	})
 }

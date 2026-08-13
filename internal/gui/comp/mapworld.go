@@ -50,13 +50,11 @@ func (m *MapView) drawLinks(t *theme.Theme, gtx layout.Context, pts []projected,
 			return [3]uint8{p.Bad.R, p.Bad.G, p.Bad.B}
 		}},
 	}
-	// The band that does not close is off by default. On this fixture it is
-	// 11,000 links against 1,200 that do, and drawing it swamps every link
-	// anybody wants to see. It is a switch rather than a deletion, because
-	// "which pairs nearly hear each other" is a real question.
-	if !m.Layers.WeakLinks {
-		bands = bands[:2]
-	}
+	// The band that does not close is never drawn. On this fixture it is
+	// 11,000 links against 1,200 that do, and it swamped every link anybody
+	// wanted to see - which is why the switch for it was asked to go rather
+	// than to be fixed.
+	bands = bands[:2]
 	for _, b := range bands {
 		var path clip.Path
 		path.Begin(gtx.Ops)

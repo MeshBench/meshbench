@@ -24,7 +24,6 @@ type Layers struct {
 	Basemap    bool
 	Boundaries bool
 	Links      bool
-	WeakLinks  bool
 	Nodes      bool
 	Labels     bool
 	Traffic    bool
@@ -71,7 +70,6 @@ func (l *Layers) rows() []layerRow {
 		{"Basemap", &l.Basemap},
 		{"Boundaries", &l.Boundaries},
 		{"Links", &l.Links},
-		{"Weak links", &l.WeakLinks},
 		{"Nodes", &l.Nodes},
 		{"Labels", &l.Labels},
 		{"Traffic", &l.Traffic},

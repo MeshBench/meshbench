@@ -184,6 +184,54 @@ func (u *workbenchUI) SetTool(name string) error {
 	return fmt.Errorf("no tool %q; there is select, move, place, link and measure", name)
 }
 
+// layerFields maps what the map calls a layer to the flag behind it, so the
+// verb, the panel and the key all name the same things.
+func (u *workbenchUI) layerFields() map[string]*bool {
+	if u.mv == nil {
+		return nil
+	}
+	l := &u.mv.Layers
+	return map[string]*bool{
+		"basemap": &l.Basemap, "boundaries": &l.Boundaries,
+		"links": &l.Links, "nodes": &l.Nodes, "labels": &l.Labels,
+		"traffic": &l.Traffic, "coverage": &l.Coverage, "terrain": &l.Terrain,
+		"regions": &l.Regions, "antenna": &l.Pattern, "measure": &l.Measure,
+	}
+}
+
+func (u *workbenchUI) SetLayer(name string, on bool) error {
+	fields := u.layerFields()
+	if fields == nil {
+		return fmt.Errorf("no map")
+	}
+	want := strings.ToLower(strings.TrimSpace(name))
+	f, ok := fields[want]
+	if !ok {
+		names := make([]string, 0, len(fields))
+		for n := range fields {
+			names = append(names, n)
+		}
+		sort.Strings(names)
+		return fmt.Errorf("no layer %q; there is %s", name, strings.Join(names, ", "))
+	}
+	was := *f
+	*f = on
+	// Turning one on can be a request for something that has to be computed.
+	// The map says so rather than computing it, and so does this.
+	if on && !was && u.mv.OnLayerOn != nil {
+		u.mv.OnLayerOn(strings.ToUpper(want[:1]) + want[1:])
+	}
+	return nil
+}
+
+func (u *workbenchUI) Layers() map[string]bool {
+	out := map[string]bool{}
+	for name, f := range u.layerFields() {
+		out[name] = *f
+	}
+	return out
+}
+
 func (u *workbenchUI) State() map[string]any {
 	popped := []string{}
 	for _, n := range u.PanelNames() {

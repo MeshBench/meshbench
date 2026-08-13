@@ -204,6 +204,18 @@ func Register(st *state.Store, s *Sim) {
 		w.Jobs = append(w.Jobs, j)
 		return nil, nil
 	})
+	// job.done removes one, because a progress bar that never goes away is a
+	// worse lie than no progress bar.
+	st.Handle("job.done", func(w *state.World, p any) (any, error) {
+		id := soleString(p)
+		for i := range w.Jobs {
+			if w.Jobs[i].ID == id {
+				w.Jobs = append(w.Jobs[:i], w.Jobs[i+1:]...)
+				break
+			}
+		}
+		return nil, nil
+	})
 	st.Handle("nodes.move", func(w *state.World, p any) (any, error) {
 		m, _ := p.(map[string]any)
 		name, _ := m["name"].(string)
@@ -298,13 +310,46 @@ func Register(st *state.Store, s *Sim) {
 		return map[string]any{"node": cov.Node}, nil
 	})
 	st.Handle("terrain.shade", func(w *state.World, p any) (any, error) {
-		box, _ := p.([4]float64)
-		if box == [4]float64{} {
-			return nil, fmt.Errorf("no view to shade")
+		// Either shape: the map hands over the array it keeps, and anything
+		// driving the workbench from outside has only JSON, which arrives as
+		// a list. It took the array alone, so shading could not be asked for
+		// from a script, a capture or a test at all.
+		box, ok := p.([4]float64)
+		if !ok {
+			var got []float64
+			switch v := p.(type) {
+			case []float64:
+				got = v
+			case []any:
+				for _, x := range v {
+					f, isNum := x.(float64)
+					if !isNum {
+						break
+					}
+					got = append(got, f)
+				}
+			}
+			if len(got) == 4 {
+				box, ok = [4]float64{got[0], got[1], got[2], got[3]}, true
+			}
 		}
+		if !ok || box == [4]float64{} {
+			return nil, fmt.Errorf("terrain.shade needs the view to shade, " +
+				"as south, north, west, east")
+		}
+		// Said out loud while it happens.
+		//
+		// Shading a view is a tile fetch and a pass over every cell in it, and
+		// it took a minute and a half on a view of Fife with nothing on screen
+		// saying so. A layer switched on that does nothing visible for ninety
+		// seconds is a layer that does not work, which is what it was reported
+		// as.
 		go func() {
 			ctx := context.Background()
+			_, _ = st.Do(ctx, "job.progress", state.Job{
+				ID: "shade", What: "shading the terrain in this view"})
 			sh, err := s.hillshade(box[0], box[1], box[2], box[3])
+			_, _ = st.Do(ctx, "job.done", "shade")
 			if err != nil || sh == nil {
 				_, _ = st.Do(ctx, "terrain.shade_failed", nil)
 				return
