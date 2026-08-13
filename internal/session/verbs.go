@@ -20,6 +20,8 @@ func Register(st *state.Store, s *Sim) {
 	registerInventory(st, s)
 	registerUI(st, s)
 	registerMapCamera(st, s)
+	registerExcessLoss(st, s)
+	registerConsole(st, s)
 	st.Handle("project.open", func(w *state.World, p any) (any, error) {
 		path, _ := p.(string)
 		f, err := LoadFixture(path)

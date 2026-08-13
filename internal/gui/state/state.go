@@ -104,6 +104,9 @@ type Snapshot struct {
 	// Provisioning is the script for the node last asked about.
 	Provisioning     []ProvisionLine
 	ProvisioningNode string
+	// Console is one node's firmware scrollback.
+	Console     []string
+	ConsoleNode string
 }
 
 // Point is a position, and the only geometry the snapshot carries.
@@ -470,6 +473,9 @@ type World struct {
 	// Provisioning is the script for the node last asked about.
 	Provisioning     []ProvisionLine
 	ProvisioningNode string
+	// Console is one node's firmware scrollback.
+	Console     []string
+	ConsoleNode string
 
 	// Tick is called every step while playing, and is where engine pacing
 	// lives now that it is out of the frame loop. Nil means no engine.
@@ -674,6 +680,8 @@ func (s *Store) publish() {
 		Stats:            s.world.Stats,
 		Series:           s.world.Series,
 		Provisioning:     s.world.Provisioning,
+		Console:          s.world.Console,
+		ConsoleNode:      s.world.ConsoleNode,
 		ProvisioningNode: s.world.ProvisioningNode,
 	})
 }

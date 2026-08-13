@@ -9,7 +9,9 @@ package session
 
 import (
 	"context"
+
 	"fmt"
+	"github.com/A13xB0/meshcoresim/internal/console"
 	"math"
 	"os"
 	"path/filepath"
@@ -27,11 +29,18 @@ import (
 type Sim struct {
 	// ui is whatever is drawing this session, if anything.
 	ui UI
+	// consoles is one scrollback per node, keyed by name.
+	consoles map[string]*console.Buf
 
 	// freqMHz and seed are what the current engine was built with, so a
 	// rebuild reproduces it rather than guessing.
 	freqMHz float64
 	seed    uint64
+	// excessLossDB is the calibration term: everything the bare-earth model
+	// does not contain - vegetation, buildings, the ground itself not being a
+	// knife edge. Zero is an honest default only because it is stated; it is
+	// also why a path over a ridge closes here that does not close in Fife.
+	excessLossDB float64
 
 	eng      *engine.Engine
 	nodes    []scenario.Node
@@ -97,6 +106,7 @@ func (s *Sim) buildSeeded(nodes []scenario.Node, freqMHz float64, seed uint64) {
 	s.eng = engine.New(s.terrain(), engine.Config{
 		FreqMHz: freqMHz, SF: 10, BandwidthHz: 250e3, CodingRate: 1,
 		NoiseFigDB: 6, StepMs: 10, Seed: seed,
+		ExcessPathLossDB: s.excessLossDB,
 	})
 	for _, n := range nodes {
 		s.eng.Add(n, nil)
