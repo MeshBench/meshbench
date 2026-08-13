@@ -120,8 +120,16 @@ func registerImport(st *state.Store, s *Sim) {
 		}
 		s.buildSeeded(nodes, 869.618, s.seed)
 		w.Nodes = stateNodes(nodes)
-		w.Links = s.links()
-		w.Say(fmt.Sprintf("committed %d nodes (%s)", len(nodes), strategy))
+		// Links as a job, not here.
+		//
+		// Every pair is a path loss over real terrain: 676 imported nodes is
+		// 228,000 of them, which is minutes. Computing that inside the handler
+		// blocks the store goroutine, so nothing draws and no other verb is
+		// answered - and from outside a commit that takes four minutes and a
+		// commit that hung are the same thing.
+		w.Links = nil
+		s.warm(st, len(nodes))
+		w.Say(fmt.Sprintf("committed %d nodes (%s); measuring links", len(nodes), strategy))
 		return map[string]any{"nodes": len(nodes), "strategy": strategy}, nil
 	})
 

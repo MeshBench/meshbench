@@ -107,7 +107,8 @@ func registerBoundary(st *state.Store, s *Sim) {
 		}
 		s.buildSeeded(kept, s.freqMHz, s.seed)
 		w.Nodes = stateNodes(kept)
-		w.Links = s.links()
+		w.Links = nil
+		s.warm(st, len(kept))
 		w.Say(fmt.Sprintf("removed %d nodes outside the study area", removed))
 		return map[string]any{"removed": removed, "nodes": len(kept)}, nil
 	})
