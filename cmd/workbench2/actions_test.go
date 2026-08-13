@@ -148,3 +148,87 @@ func TestValidateControlsReachCalibration(t *testing.T) {
 		}
 	}
 }
+
+func TestBenchControlsReachTheirVerbs(t *testing.T) {
+	r := &recorder{}
+	c := &benchControls{do: r.do}
+	h := newPanelHarness(c.Draw, &state.Snapshot{
+		Nodes: []state.Node{{Name: "AngusOutlaw1", Kind: "companion", Selected: true}},
+	})
+	h.frame()
+	c.msg.Editor.SetText("hello")
+	h.frame()
+	h.pressAlong(22)
+	h.pressAlong(74)
+
+	for _, want := range []string{"bench.serve", "bench.drop", "bench.stray",
+		"companion.connect", "companion.send", "companion.advert"} {
+		if !r.saw(want) {
+			t.Errorf("no button reached %s; got %v", want, r.verbs)
+		}
+	}
+	// With the node field blank it must act on the selection, not on "".
+	for i, v := range r.verbs {
+		if v != "companion.connect" {
+			continue
+		}
+		m, _ := r.params[i].(map[string]any)
+		if got, _ := m["node"].(string); got != "AngusOutlaw1" {
+			t.Errorf("connect acted on %q, not the selected node", got)
+		}
+	}
+}
+
+func TestSweepControlsDefineAndRun(t *testing.T) {
+	r := &recorder{}
+	c := &sweepControls{do: r.do}
+	h := newPanelHarness(c.Draw, &state.Snapshot{})
+	h.frame()
+	c.versions.Editor.SetText("repeater-v1.16.0 repeater-v1.17.0")
+	c.seeds.Editor.SetText("1 2 3")
+	c.sender.Editor.SetText("AngusOutlaw1")
+	h.frame()
+	h.pressAlong(22)
+
+	for _, want := range []string{"experiment.vary", "experiment.seeds",
+		"experiment.senders", "experiment.start", "experiment.stop", "experiment.export"} {
+		if !r.saw(want) {
+			t.Errorf("no button reached %s; got %v", want, r.verbs)
+		}
+	}
+	for i, v := range r.verbs {
+		if v != "experiment.vary" {
+			continue
+		}
+		m, _ := r.params[i].(map[string]any)
+		vs, _ := m["values"].([]any)
+		if len(vs) != 2 {
+			t.Errorf("vary carried %v, want the two versions typed", vs)
+		}
+	}
+	for i, v := range r.verbs {
+		if v != "experiment.seeds" {
+			continue
+		}
+		m, _ := r.params[i].(map[string]any)
+		ss, _ := m["seeds"].([]any)
+		if len(ss) != 3 {
+			t.Errorf("seeds carried %v, want three", ss)
+		}
+	}
+}
+
+func TestFeedControlsStartAndStop(t *testing.T) {
+	r := &recorder{}
+	c := &feedControls{do: r.do}
+	h := newPanelHarness(c.Draw, &state.Snapshot{})
+	h.frame()
+	c.url.Editor.SetText("https://example.test/")
+	h.frame()
+	h.pressAlong(22)
+	for _, want := range []string{"feed.pull", "feed.stop"} {
+		if !r.saw(want) {
+			t.Errorf("no button reached %s; got %v", want, r.verbs)
+		}
+	}
+}

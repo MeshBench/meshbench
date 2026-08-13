@@ -294,10 +294,25 @@ func registerExperiment(st *state.Store, s *Sim) {
 				"err": r.Err,
 			})
 		}
-		out := map[string]any{"runs": runs, "arms": e.summarise()}
-		if w := e.notAResultYet(); w != "" {
-			out["warning"] = w
+		sums := e.summarise()
+		out := map[string]any{"runs": runs, "arms": sums}
+		warn := e.notAResultYet()
+		if warn != "" {
+			out["warning"] = warn
 		}
+		w.Experiment = w.Experiment[:0]
+		for _, m := range sums {
+			w.Experiment = append(w.Experiment, state.ArmSummary{
+				Arm:       m["arm"].(string),
+				Runs:      m["runs"].(int),
+				TX:        m["tx"].(float64),
+				RX:        m["rx"].(float64),
+				Delivered: m["delivered"].(float64),
+				Redundant: m["redundant"].(float64),
+				RXSpread:  m["rx_spread"].(float64),
+			})
+		}
+		w.ExperimentWarning = warn
 		return out, nil
 	})
 

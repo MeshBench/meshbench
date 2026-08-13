@@ -148,6 +148,9 @@ func main() {
 	boundCtl := &boundaryControls{do: do}
 	validCtl := &validateControls{do: do}
 	planCtl := &planningControls{do: do}
+	benchCtl := &benchControls{do: do}
+	feedCtl := &feedControls{do: do}
+	sweepCtl := &sweepControls{do: do}
 
 	mv := &comp.MapView{}
 	wbUI := &workbenchUI{sh: sh, sim: sm, mv: mv, nodes: newNodeWindows(), store: st}
@@ -346,7 +349,8 @@ func main() {
 	feed.OnPull = func() {
 		go func() { _, _ = st.Do(ctx, "feed.pull", *importFlag) }()
 	}
-	sh.Add(&shell.Panel{Name: "Live feed", Windowable: true, Draw: feed.Draw})
+	sh.Add(&shell.Panel{Name: "Live feed", Windowable: true,
+		Draw: withControls(feedCtl.Draw, feed.Draw)})
 	sh.Add(&shell.Panel{Name: "Validate", Windowable: true,
 		Draw: withControls(validCtl.Draw, (&validatePanel{}).Draw)})
 	imp := &importPanel{}
@@ -458,7 +462,8 @@ func main() {
 			}
 		}()
 	}
-	sh.Add(&shell.Panel{Name: "Companion bench", Windowable: true, Draw: bench.Draw})
+	sh.Add(&shell.Panel{Name: "Companion bench", Windowable: true,
+		Draw: withControls(benchCtl.Draw, bench.Draw)})
 	sched := &schedulePanel{}
 	console := &consolePanel{}
 	sh.Add(&shell.Panel{Name: "Schedule", Windowable: true,
@@ -469,11 +474,8 @@ func main() {
 	runs := &runsPanel{}
 	sh.Add(&shell.Panel{Name: "Firmware", Windowable: true, Draw: fw.Draw})
 	sh.Add(&shell.Panel{Name: "Runs", Windowable: true, Draw: runs.Draw})
-	for _, p := range []struct{ name, what string }{
-		{"Sweep", "arms, seeds, senders - P6"},
-	} {
-		sh.Add(shell.EmptyPanel(p.name, p.what))
-	}
+	sh.Add(&shell.Panel{Name: "Sweep", Windowable: true,
+		Draw: withControls(sweepCtl.Draw, (&sweepResults{}).Draw)})
 	switch *viewFlag {
 	case "run":
 		sh.View = shell.Run

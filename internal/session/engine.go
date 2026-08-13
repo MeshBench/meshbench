@@ -39,6 +39,8 @@ type Sim struct {
 	comps map[string]*compSession
 	// exp is the A/B matrix and what has come back from it.
 	exp *experiment
+	// feeding reports whether the live feed should keep pulling.
+	feeding atomic.Bool
 	// areas is the accepted study area, as boundaries.
 	areas []scenario.Boundary
 	// foundAreas is the last search's matches, awaiting a choice.

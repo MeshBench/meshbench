@@ -101,6 +101,10 @@ type Snapshot struct {
 	Stats []NodeStat
 	// Builds is the firmware library on this machine.
 	Builds []Build
+	// Experiment is the A/B matrix's summary, and ExperimentWarning is why it
+	// is not yet a result.
+	Experiment        []ArmSummary
+	ExperimentWarning string
 	// Series is the selected node's history, for its graphs.
 	Series NodeSeries
 	// Provisioning is the script for the node last asked about.
@@ -188,6 +192,21 @@ type Event struct {
 	PacketID  uint64
 	SNRdB     float64
 	Detail    string
+}
+
+// ArmSummary is one arm of an experiment, averaged over its seeds.
+type ArmSummary struct {
+	Arm       string
+	Runs      int
+	TX        float64
+	RX        float64
+	Delivered float64
+	Redundant float64
+	// RXSpread is the range of receptions across seeds. Zero means every seed
+	// returned the same number, which is one draw repeated rather than a
+	// spread - and a difference between arms cannot be called larger than a
+	// noise nobody has measured.
+	RXSpread float64
 }
 
 // Build is one firmware image on this machine.
@@ -492,6 +511,10 @@ type World struct {
 	Stats []NodeStat
 	// Builds is the firmware library on this machine.
 	Builds []Build
+	// Experiment is the A/B matrix's summary, and ExperimentWarning is why it
+	// is not yet a result.
+	Experiment        []ArmSummary
+	ExperimentWarning string
 	// Series is the selected node's history, for its graphs.
 	Series NodeSeries
 	// Provisioning is the script for the node last asked about.
@@ -697,31 +720,33 @@ func (s *Store) publish() {
 		Shade:      s.world.Shade,
 		// Events and scores are already rebuilt fresh on every tick, so they
 		// are handed over rather than copied again.
-		Events:           s.world.Events,
-		EventTotal:       s.world.EventTotal,
-		Scores:           s.world.Scores,
-		Waterfall:        s.world.Waterfall,
-		WaterfallNote:    s.world.WaterfallNote,
-		Budgets:          s.world.Budgets,
-		Matrix:           s.world.Matrix,
-		Energy:           s.world.Energy,
-		Sends:            s.world.Sends,
-		Assertions:       s.world.Assertions,
-		Endpoints:        s.world.Endpoints,
-		Routes:           s.world.Routes,
-		Import:           s.world.Import,
-		Observed:         s.world.Observed,
-		Residuals:        s.world.Residuals,
-		Stats:            s.world.Stats,
-		Builds:           s.world.Builds,
-		Series:           s.world.Series,
-		Provisioning:     s.world.Provisioning,
-		Console:          s.world.Console,
-		RealFirmware:     s.world.RealFirmware,
-		FirmwareRunning:  s.world.FirmwareRunning,
-		FirmwareStarting: s.world.FirmwareStarting,
-		ConsoleNode:      s.world.ConsoleNode,
-		ProvisioningNode: s.world.ProvisioningNode,
+		Events:            s.world.Events,
+		EventTotal:        s.world.EventTotal,
+		Scores:            s.world.Scores,
+		Waterfall:         s.world.Waterfall,
+		WaterfallNote:     s.world.WaterfallNote,
+		Budgets:           s.world.Budgets,
+		Matrix:            s.world.Matrix,
+		Energy:            s.world.Energy,
+		Sends:             s.world.Sends,
+		Assertions:        s.world.Assertions,
+		Endpoints:         s.world.Endpoints,
+		Routes:            s.world.Routes,
+		Import:            s.world.Import,
+		Observed:          s.world.Observed,
+		Residuals:         s.world.Residuals,
+		Stats:             s.world.Stats,
+		Builds:            s.world.Builds,
+		Experiment:        s.world.Experiment,
+		ExperimentWarning: s.world.ExperimentWarning,
+		Series:            s.world.Series,
+		Provisioning:      s.world.Provisioning,
+		Console:           s.world.Console,
+		RealFirmware:      s.world.RealFirmware,
+		FirmwareRunning:   s.world.FirmwareRunning,
+		FirmwareStarting:  s.world.FirmwareStarting,
+		ConsoleNode:       s.world.ConsoleNode,
+		ProvisioningNode:  s.world.ProvisioningNode,
 	})
 }
 

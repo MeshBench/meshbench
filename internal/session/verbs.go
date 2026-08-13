@@ -559,8 +559,21 @@ func Register(st *state.Store, s *Sim) {
 		w.Say("import failed: " + msg)
 		return nil, nil
 	})
+	// feed.stop: the live feed is a pull with a deadline rather than a socket
+	// held open, so stopping it means not starting the next one. Said plainly
+	// because a stop button that appears to do nothing is worse than no stop
+	// button.
+	st.Handle("feed.stop", func(w *state.World, _ any) (any, error) {
+		s.feeding.Store(false)
+		w.Say("live feed stopped; the traffic already pulled stays")
+		return map[string]any{"stopped": true}, nil
+	})
 	st.Handle("feed.pull", func(w *state.World, p any) (any, error) {
 		url, _ := p.(string)
+		if m, ok := p.(map[string]any); ok {
+			url, _ = m["url"].(string)
+		}
+		s.feeding.Store(true)
 		if url == "" {
 			return nil, fmt.Errorf("no deployment to pull from")
 		}

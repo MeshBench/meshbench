@@ -52,6 +52,9 @@ func (s *Sim) runExperiment(ctx context.Context, st *state.Store, e *experiment,
 			_, _ = st.Do(context.Background(), "job.progress", state.Job{
 				ID: "experiment", What: "running arms",
 				Done: done, Total: e.runsTotal()})
+			// Publish as it goes: an experiment that shows nothing until the
+			// last cell is one nobody can tell is working.
+			_, _ = st.Do(context.Background(), "experiment.results", nil)
 		}
 	}
 }

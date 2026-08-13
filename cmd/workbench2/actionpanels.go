@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 
 	"gioui.org/layout"
 
@@ -335,3 +336,247 @@ func fieldsOf(s string) []string {
 }
 
 var _ = fmt.Sprintf
+
+// benchControls is the companion bench: a mesh and an endpoint, then the
+// faults a happy path never reaches.
+type benchControls struct {
+	bar    actionBar
+	node   comp.Field
+	tcp    comp.Button
+	serial comp.Button
+	drop   comp.Button
+	stray  comp.Button
+	conn   comp.Button
+	msg    comp.Field
+	send   comp.Button
+	advert comp.Button
+	do     Do
+	built  bool
+}
+
+func (c *benchControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+	if !c.built {
+		c.node.Hint = "companion (blank: the selected node)"
+		c.msg.Hint = "a message to send from it"
+		c.node.Editor.SingleLine = true
+		c.msg.Editor.SingleLine = true
+		c.tcp.Label, c.tcp.Kind = "serve TCP", comp.Primary
+		c.serial.Label, c.serial.Kind = "serve serial", comp.Secondary
+		c.drop.Label, c.drop.Kind = "drop clients", comp.Destructive
+		c.stray.Label, c.stray.Kind = "inject a stray frame", comp.Secondary
+		c.conn.Label, c.conn.Kind = "connect as a client", comp.Primary
+		c.send.Label, c.send.Kind = "send", comp.Secondary
+		c.advert.Label, c.advert.Kind = "advert", comp.Secondary
+		c.bar.fields = []*comp.Field{&c.node}
+		c.bar.buttons = []*comp.Button{&c.tcp, &c.serial, &c.drop, &c.stray}
+		c.bar.note = "both transports carry the firmware's own serial protocol byte " +
+			"for byte; the faults are what an application that reconnects cleanly survives"
+		c.built = true
+	}
+	who := func() string {
+		if n := fieldText(&c.node); n != "" {
+			return n
+		}
+		return selectedNodeName(s)
+	}
+	if c.tcp.Click.Clicked(gtx) && c.do != nil {
+		c.do("bench.serve", map[string]any{"node": who(), "kind": "tcp"})
+	}
+	if c.serial.Click.Clicked(gtx) && c.do != nil {
+		c.do("bench.serve", map[string]any{"node": who(), "kind": "serial"})
+	}
+	if c.drop.Click.Clicked(gtx) && c.do != nil {
+		c.do("bench.drop", nil)
+	}
+	if c.stray.Click.Clicked(gtx) && c.do != nil {
+		c.do("bench.stray", map[string]any{"node": who()})
+	}
+	if c.conn.Click.Clicked(gtx) && c.do != nil {
+		c.do("companion.connect", map[string]any{"node": who()})
+	}
+	if c.send.Click.Clicked(gtx) && c.do != nil {
+		c.do("companion.send", map[string]any{"node": who(), "text": fieldText(&c.msg)})
+	}
+	if c.advert.Click.Clicked(gtx) && c.do != nil {
+		c.do("companion.advert", map[string]any{"node": who()})
+	}
+	second := actionBar{
+		fields:  []*comp.Field{&c.msg},
+		buttons: []*comp.Button{&c.conn, &c.send, &c.advert},
+		note:    "connecting claims the node's port, so its console goes quiet until you disconnect",
+	}
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return c.bar.layout(t, gtx) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return second.layout(t, gtx) }),
+	)
+}
+
+// feedControls replays the real network's traffic into the simulation.
+type feedControls struct {
+	bar   actionBar
+	url   comp.Field
+	start comp.Button
+	stop  comp.Button
+	do    Do
+	built bool
+}
+
+func (c *feedControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+	if !c.built {
+		c.url.Hint = "a CoreScope deployment URL"
+		c.url.Editor.SingleLine = true
+		c.start.Label, c.start.Kind = "start live feed", comp.Primary
+		c.stop.Label, c.stop.Kind = "stop", comp.Quiet
+		c.bar.fields = []*comp.Field{&c.url}
+		c.bar.buttons = []*comp.Button{&c.start, &c.stop}
+		c.bar.note = "packets are taken at their first hop and re-transmitted by the " +
+			"same-named node here, so what you watch is the simulated mesh relaying real traffic"
+		c.built = true
+	}
+	if c.start.Click.Clicked(gtx) && c.do != nil {
+		c.do("feed.pull", map[string]any{"url": fieldText(&c.url)})
+	}
+	if c.stop.Click.Clicked(gtx) && c.do != nil {
+		c.do("feed.stop", nil)
+	}
+	return c.bar.layout(t, gtx)
+}
+
+// sweepControls defines an A/B experiment: arms, seeds, sender, timing.
+type sweepControls struct {
+	bar      actionBar
+	versions comp.Field
+	seeds    comp.Field
+	sender   comp.Field
+	runFor   comp.Field
+	define   comp.Button
+	start    comp.Button
+	stop     comp.Button
+	export   comp.Button
+	do       Do
+	built    bool
+}
+
+func (c *sweepControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+	if !c.built {
+		c.versions.Hint = "repeater versions, space separated"
+		c.seeds.Hint = "seeds, e.g. 1 2 3 4"
+		c.sender.Hint = "sender: a companion"
+		c.runFor.Hint = "run for, seconds"
+		for _, f := range []*comp.Field{&c.versions, &c.seeds, &c.sender, &c.runFor} {
+			f.Editor.SingleLine = true
+		}
+		c.define.Label, c.define.Kind = "define", comp.Secondary
+		c.start.Label, c.start.Kind = "run it", comp.Primary
+		c.stop.Label, c.stop.Kind = "stop", comp.Destructive
+		c.export.Label, c.export.Kind = "export", comp.Quiet
+		c.bar.fields = []*comp.Field{&c.versions, &c.seeds}
+		c.bar.buttons = []*comp.Button{&c.define, &c.start, &c.stop, &c.export}
+		c.bar.note = "a message is originated by a companion, so the sender has to be " +
+			"one; two seeds that agree exactly are one draw repeated, not a spread"
+		c.built = true
+	}
+	if c.define.Click.Clicked(gtx) && c.do != nil {
+		var vs []any
+		for _, v := range splitFields(fieldText(&c.versions)) {
+			vs = append(vs, v)
+		}
+		if len(vs) > 0 {
+			c.do("experiment.vary", map[string]any{
+				"parameter": "repeater_version", "values": vs})
+		}
+		var ss []any
+		for _, v := range splitFields(fieldText(&c.seeds)) {
+			if n, err := strconv.ParseFloat(v, 64); err == nil {
+				ss = append(ss, n)
+			}
+		}
+		if len(ss) > 0 {
+			c.do("experiment.seeds", map[string]any{"seeds": ss})
+		}
+		if n := fieldText(&c.sender); n != "" {
+			c.do("experiment.senders", map[string]any{"senders": []any{n}})
+		}
+		if v, ok := num(&c.runFor); ok {
+			c.do("experiment.base", map[string]any{"run_for_ms": v * 1000})
+		}
+	}
+	if c.start.Click.Clicked(gtx) && c.do != nil {
+		c.do("experiment.start", nil)
+	}
+	if c.stop.Click.Clicked(gtx) && c.do != nil {
+		c.do("experiment.stop", nil)
+	}
+	if c.export.Click.Clicked(gtx) && c.do != nil {
+		c.do("experiment.export", nil)
+	}
+	second := actionBar{
+		fields:  []*comp.Field{&c.sender, &c.runFor},
+		buttons: nil,
+	}
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return c.bar.layout(t, gtx) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return second.layout(t, gtx) }),
+	)
+}
+
+// sweepResults is what the arms came back with, and whether it is a result.
+type sweepResults struct {
+	tb    comp.Table
+	init  bool
+	seq   uint64
+	shown bool
+}
+
+func (p *sweepResults) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+	if !p.init {
+		p.tb.Cols = []comp.Column{
+			{Title: "arm", Width: 190, Sortable: true},
+			{Title: "runs", Width: 60, Right: true, Mono: true},
+			{Title: "tx", Width: 90, Right: true, Mono: true, Sortable: true},
+			{Title: "rx", Width: 90, Right: true, Mono: true, Sortable: true},
+			{Title: "delivered", Width: 100, Right: true, Mono: true},
+			{Title: "redundant", Width: 100, Right: true, Mono: true},
+			{Title: "rx spread", Right: true, Mono: true},
+		}
+		p.tb.SortCol, p.tb.SortDesc = 2, true
+		p.init = true
+	}
+	if s == nil {
+		return layout.Dimensions{}
+	}
+	if !p.shown || s.Seq != p.seq {
+		rows := make([]comp.Row, 0, len(s.Experiment))
+		for _, a := range s.Experiment {
+			rows = append(rows, comp.Row{
+				Key: a.Arm,
+				Cells: []string{
+					a.Arm, fmt.Sprintf("%d", a.Runs),
+					fmt.Sprintf("%.1f", a.TX), fmt.Sprintf("%.1f", a.RX),
+					fmt.Sprintf("%.1f", a.Delivered), fmt.Sprintf("%.1f", a.Redundant),
+					fmt.Sprintf("%.0f", a.RXSpread),
+				},
+			})
+		}
+		p.tb.SetRows(rows)
+		p.seq, p.shown = s.Seq, true
+	}
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if s.ExperimentWarning == "" {
+				return layout.Dimensions{}
+			}
+			// Said above the numbers, not below them: a warning underneath a
+			// table is read after somebody has already believed it.
+			return layout.Inset{Bottom: t.Sp.S}.Layout(gtx,
+				comp.OneLine(t, t.Sz.Body, t.P.Warn, "not a result yet: "+s.ExperimentWarning, false))
+		}),
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			if len(s.Experiment) == 0 {
+				return layout.Center.Layout(gtx, comp.Text(t, t.Sz.Caption, t.P.Faint,
+					"define arms and seeds above, then run it"))
+			}
+			return p.tb.Layout(t, gtx, func(string) {})
+		}),
+	)
+}
