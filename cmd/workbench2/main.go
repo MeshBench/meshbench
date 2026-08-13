@@ -647,13 +647,35 @@ func main() {
 				if raw, ok := m["projects"].([]string); ok {
 					names = raw
 				}
-				sh.Ask.Choose("Open a saved network", "filter", names,
-					func(name string) {
-						go func() {
-							_, _ = st.Do(ctx, "project.open",
-								filepath.Join(dir, name+".json"))
-						}()
-					})
+				sh.Ask.Post(func(ask *shell.Prompt) {
+					ask.Choose("Open a saved network", "filter", names,
+						func(name string) {
+							go func() {
+								_, _ = st.Do(ctx, "project.open",
+									filepath.Join(dir, name+".json"))
+							}()
+						})
+				})
+			}()
+			return
+		}
+		// Play, when the nodes have no build to run.
+		//
+		// The verb refuses, correctly - a run with half a mesh up measures a
+		// network that does not exist. But the refusal named 34 nodes and left
+		// the operator to go and pin them, which is not a thing anybody does one
+		// node at a time. Ask by role instead, which is how firmware is chosen
+		// anyway: one answer covers every repeater.
+		if action == "sim.start" {
+			go func() {
+				res, err := st.Do(ctx, "firmware.needed", nil)
+				if err == nil {
+					if roles := rolesNeeding(res); len(roles) > 0 {
+						askForFirmware(ctx, st, &sh.Ask, roles)
+						return
+					}
+				}
+				_, _ = st.Do(ctx, "sim.start", nil)
 			}()
 			return
 		}
@@ -933,4 +955,87 @@ func except(names []string, drop string) []string {
 		}
 	}
 	return out
+}
+
+// roleNeed is one role with nodes that have nothing to run.
+type roleNeed struct {
+	role    string
+	nodes   int
+	choices []string
+}
+
+// rolesNeeding reads firmware.needed's answer.
+func rolesNeeding(res any) []roleNeed {
+	m, _ := res.(map[string]any)
+	raw, _ := m["roles"].([]any)
+	var out []roleNeed
+	for _, r := range raw {
+		rm, _ := r.(map[string]any)
+		n := roleNeed{role: fmt.Sprint(rm["role"])}
+		switch v := rm["nodes"].(type) {
+		case int:
+			n.nodes = v
+		case float64:
+			n.nodes = int(v)
+		}
+		if cs, ok := rm["choices"].([]string); ok {
+			n.choices = cs
+		}
+		out = append(out, n)
+	}
+	return out
+}
+
+// askForFirmware asks what each role should run, then starts the run.
+//
+// One question per role, in turn, because two modal questions at once is a
+// state nobody can reason about. A role with nothing installed is said aloud
+// rather than skipped silently - "the run did not start" and "there is no
+// companion build on this machine" are not the same problem.
+func askForFirmware(ctx context.Context, st *state.Store, ask *shell.Prompt,
+	roles []roleNeed) {
+	if len(roles) == 0 {
+		go func() { _, _ = st.Do(ctx, "sim.start", nil) }()
+		return
+	}
+	r := roles[0]
+	rest := roles[1:]
+	if len(r.choices) == 0 {
+		go func() {
+			_, _ = st.Do(ctx, "ui.said", fmt.Sprintf(
+				"%d %s have nothing to run, and no build for them is installed - "+
+					"download one in the Firmware library",
+				r.nodes, readableRole(r.role)))
+		}()
+		return
+	}
+	title := fmt.Sprintf("What should the %d %s run?", r.nodes, readableRole(r.role))
+	ask.Post(func(a *shell.Prompt) {
+		a.Choose(title, "filter", r.choices, func(version string) {
+			go func() {
+				_, _ = st.Do(ctx, "firmware.set",
+					map[string]any{"role": r.role, "version": version})
+				askForFirmware(ctx, st, a, rest)
+			}()
+		})
+	})
+}
+
+// readableRole says a role the way somebody would.
+//
+// The token is what firmware.set matches on and is not for reading:
+// "simple_room_server" in a question about what to run is the program
+// talking to itself.
+func readableRole(role string) string {
+	switch role {
+	case "simple_repeater":
+		return "repeaters"
+	case "advanced_repeater":
+		return "advanced repeaters"
+	case "companion_radio":
+		return "companions"
+	case "simple_room_server":
+		return "room servers"
+	}
+	return strings.ReplaceAll(role, "_", " ") + " nodes"
 }

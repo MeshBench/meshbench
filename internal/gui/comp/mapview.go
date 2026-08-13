@@ -153,6 +153,9 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 			continue
 		}
 		k := kindOf(p.n.Kind)
+		if int(k) < len(m.Layers.HideKind) && m.Layers.HideKind[k] {
+			continue
+		}
 		if filterWant != "" && !nodeMatches(p.n, filterWant) {
 			dimKind[k] = append(dimKind[k], p)
 			continue
@@ -230,7 +233,7 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 	m.measureReadout(t, gtx, sz)
 	m.scaleBar(t, gtx, sz, mapNote(s, shownLinks, totalLinks,
 		basemapNote(drawn, want, m.Tiles != nil && m.Layers.Basemap)))
-	m.layerPanel(t, gtx, sz)
+	m.layerPanel(t, gtx, sz, s)
 	if m.Layers.Coverage {
 		m.coverageLegend(t, gtx, sz, s)
 	}

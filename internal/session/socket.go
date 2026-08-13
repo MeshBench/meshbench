@@ -80,15 +80,15 @@ func decodeParams(raw json.RawMessage) (any, error) {
 	}
 	switch t := v.(type) {
 	case map[string]any:
-		// A single-key object naming the parameter is how the old socket's
-		// callers write it: {"name": "..."} rather than a bare string.
-		if len(t) == 1 {
-			for _, only := range t {
-				if s, ok := only.(string); ok {
-					return s, nil
-				}
-			}
-		}
+		// Objects arrive as objects.
+		//
+		// This used to unwrap a single-key one to a bare string, because that
+		// is how the old socket's callers write a one-parameter verb. It also
+		// made {"version": "x"} indistinguishable from {"node": "x"} to a verb
+		// that takes both: firmware.set read the same string as the version,
+		// the node and the role, matched no node, and said it had pinned
+		// nothing. The unwrapping now happens where the verb knows which
+		// parameter it wants - see soleString.
 		return t, nil
 	case []any:
 		out := make([]string, 0, len(t))

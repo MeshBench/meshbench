@@ -41,7 +41,7 @@ func Register(st *state.Store, s *Sim) {
 	registerExperimentDone(st, s)
 	registerCoverageCombined(st, s)
 	st.Handle("project.open", func(w *state.World, p any) (any, error) {
-		path, _ := p.(string)
+		path := soleString(p)
 		f, err := LoadFixture(path)
 		if err != nil {
 			return nil, err
@@ -118,7 +118,7 @@ func Register(st *state.Store, s *Sim) {
 		return map[string]any{"playing": false}, nil
 	})
 	st.Handle("nodes.select", func(w *state.World, p any) (any, error) {
-		name, _ := p.(string)
+		name := soleString(p)
 		for i := range w.Nodes {
 			w.Nodes[i].Selected = w.Nodes[i].Name == name
 		}
@@ -221,7 +221,7 @@ func Register(st *state.Store, s *Sim) {
 			return nil, fmt.Errorf("no simulation")
 		}
 		at := 0
-		if name, ok := p.(string); ok && name != "" {
+		if name := soleString(p); name != "" {
 			for i := range w.Nodes {
 				if w.Nodes[i].Name == name {
 					at = i
@@ -243,7 +243,7 @@ func Register(st *state.Store, s *Sim) {
 		// The selected node unless told otherwise, because "coverage from
 		// here" is what somebody means when they have just clicked a node.
 		at := -1
-		if name, ok := p.(string); ok && name != "" {
+		if name := soleString(p); name != "" {
 			for i := range w.Nodes {
 				if w.Nodes[i].Name == name {
 					at = i
@@ -323,7 +323,7 @@ func Register(st *state.Store, s *Sim) {
 	})
 	st.Handle("waterfall.capture", func(w *state.World, p any) (any, error) {
 		at := -1
-		if name, ok := p.(string); ok && name != "" {
+		if name := soleString(p); name != "" {
 			for i := range w.Nodes {
 				if w.Nodes[i].Name == name {
 					at = i
@@ -353,7 +353,7 @@ func Register(st *state.Store, s *Sim) {
 		return nil, nil
 	})
 	st.Handle("coverage.failed", func(w *state.World, p any) (any, error) {
-		msg, _ := p.(string)
+		msg := soleString(p)
 		w.Say("coverage failed: " + msg)
 		return nil, nil
 	})
@@ -444,7 +444,7 @@ func Register(st *state.Store, s *Sim) {
 		return nil, nil
 	})
 	st.Handle("run.save", func(w *state.World, p any) (any, error) {
-		name, _ := p.(string)
+		name := soleString(p)
 		if name == "" {
 			name = "run"
 		}
@@ -528,12 +528,12 @@ func Register(st *state.Store, s *Sim) {
 		return map[string]any{"routes": len(routes)}, nil
 	})
 	st.Handle("plan.failed", func(w *state.World, p any) (any, error) {
-		msg, _ := p.(string)
+		msg := soleString(p)
 		w.Say("planning: " + msg)
 		return nil, nil
 	})
 	st.Handle("import.describe", func(w *state.World, p any) (any, error) {
-		url, _ := p.(string)
+		url := soleString(p)
 		w.Say("fetching " + url)
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
@@ -558,7 +558,7 @@ func Register(st *state.Store, s *Sim) {
 		return nil, nil
 	})
 	st.Handle("import.failed", func(w *state.World, p any) (any, error) {
-		msg, _ := p.(string)
+		msg := soleString(p)
 		w.Say("import failed: " + msg)
 		return nil, nil
 	})
@@ -572,7 +572,7 @@ func Register(st *state.Store, s *Sim) {
 		return map[string]any{"stopped": true}, nil
 	})
 	st.Handle("feed.pull", func(w *state.World, p any) (any, error) {
-		url, _ := p.(string)
+		url := soleString(p)
 		if m, ok := p.(map[string]any); ok {
 			url, _ = m["url"].(string)
 		}
@@ -598,7 +598,7 @@ func Register(st *state.Store, s *Sim) {
 		return map[string]any{"url": url}, nil
 	})
 	st.Handle("feed.failed", func(w *state.World, p any) (any, error) {
-		msg, _ := p.(string)
+		msg := soleString(p)
 		w.Say("no live feed: " + msg)
 		return nil, nil
 	})
@@ -652,16 +652,21 @@ func Register(st *state.Store, s *Sim) {
 	st.Handle("firmware.started", func(w *state.World, _ any) (any, error) {
 		n := s.firmwareCount()
 		if w.PendingPlay {
-			// The run was waiting for the mesh rather than racing it.
-			w.PendingPlay, w.Playing = false, true
-			w.Say(fmt.Sprintf("%d nodes running firmware; running", n))
-			return map[string]any{"running": n, "playing": true}, nil
+			// The mesh is up, and that is all this reports.
+			//
+			// It used to start the run here, which meant one press of play
+			// produced two things happening a minute apart with nothing
+			// asking for the second. Play is what starts a run; this says
+			// when pressing it will do something.
+			w.PendingPlay = false
+			w.Say(fmt.Sprintf("%d nodes running firmware - press play to start the run", n))
+			return map[string]any{"running": n, "playing": false}, nil
 		}
 		w.Say(fmt.Sprintf("%d nodes running firmware", n))
 		return map[string]any{"running": n}, nil
 	})
 	st.Handle("firmware.failed", func(w *state.World, p any) (any, error) {
-		msg, _ := p.(string)
+		msg := soleString(p)
 		// A run that was waiting for firmware does not start on a failure. It
 		// would advance a clock over a mesh that is not there.
 		if w.PendingPlay {
@@ -685,7 +690,7 @@ func Register(st *state.Store, s *Sim) {
 		return map[string]any{"nodes": len(w.Stats)}, nil
 	})
 	st.Handle("node.stop", func(w *state.World, p any) (any, error) {
-		name, _ := p.(string)
+		name := soleString(p)
 		if err := s.stopNode(name); err != nil {
 			return nil, err
 		}
@@ -694,7 +699,7 @@ func Register(st *state.Store, s *Sim) {
 		return map[string]any{"stopped": name}, nil
 	})
 	st.Handle("node.start", func(w *state.World, p any) (any, error) {
-		name, _ := p.(string)
+		name := soleString(p)
 		if err := s.startNode(context.Background(), name, w.Seed); err != nil {
 			return nil, err
 		}
@@ -714,13 +719,13 @@ func Register(st *state.Store, s *Sim) {
 		return map[string]any{"node": name, "version": version}, nil
 	})
 	st.Handle("node.reflashed", func(w *state.World, p any) (any, error) {
-		msg, _ := p.(string)
+		msg := soleString(p)
 		w.Stats = s.nodeStats(w.Events)
 		w.Say(msg)
 		return nil, nil
 	})
 	st.Handle("node.reflash_failed", func(w *state.World, p any) (any, error) {
-		msg, _ := p.(string)
+		msg := soleString(p)
 		w.Stats = s.nodeStats(w.Events)
 		w.Say("firmware change failed: " + msg)
 		return nil, nil
@@ -740,7 +745,7 @@ func Register(st *state.Store, s *Sim) {
 		return map[string]any{"node": name, "version": version}, nil
 	})
 	st.Handle("node.provisioning", func(w *state.World, p any) (any, error) {
-		name, _ := p.(string)
+		name := soleString(p)
 		lines, err := s.provisioningFor(name)
 		if err != nil {
 			return nil, err

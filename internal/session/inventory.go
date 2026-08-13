@@ -58,7 +58,7 @@ func registerInventory(st *state.Store, s *Sim) {
 	// NDJSON because a run's log is appended to and read back a line at a
 	// time; a single JSON array cannot be streamed and cannot be tailed.
 	st.Handle("events.dump", func(w *state.World, p any) (any, error) {
-		path, _ := p.(string)
+		path := soleString(p)
 		if m, ok := p.(map[string]any); ok {
 			path, _ = m["path"].(string)
 		}

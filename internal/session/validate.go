@@ -134,7 +134,7 @@ func registerValidate(st *state.Store, s *Sim) {
 	})
 
 	st.Handle("validate.failed", func(w *state.World, p any) (any, error) {
-		msg, _ := p.(string)
+		msg := soleString(p)
 		w.Jobs = finishJob(w.Jobs, "validate")
 		w.Say("validate: " + msg)
 		return nil, nil

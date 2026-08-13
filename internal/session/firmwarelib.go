@@ -16,6 +16,7 @@ import (
 
 	"github.com/A13xB0/meshcoresim/internal/firmware"
 	"github.com/A13xB0/meshcoresim/internal/gui/state"
+	"github.com/A13xB0/meshcoresim/internal/scenario"
 )
 
 func registerFirmwareLibrary(st *state.Store, s *Sim) {
@@ -104,6 +105,53 @@ func registerFirmwareLibrary(st *state.Store, s *Sim) {
 		return map[string]any{"deleted": clean}, nil
 	})
 
+	// firmware.needed: which roles have nodes with no usable build, and what
+	// is installed for each.
+	//
+	// "no firmware for 34 of 58 nodes" is a diagnosis, not a way out. A run
+	// that cannot start should be able to ask what these nodes ought to run,
+	// and by role rather than by node, because pinning fifty-eight of them one
+	// at a time is not a question anybody answers.
+	st.Handle("firmware.needed", func(w *state.World, _ any) (any, error) {
+		installed := firmware.ListInstalled(firmware.DefaultCacheDir())
+		have := map[string]bool{}
+		for _, b := range installed {
+			have[b.Role+"@"+b.Version] = true
+			have[b.Version] = true
+		}
+		var order []string
+		counts := map[string]int{}
+		for _, n := range s.nodes {
+			if !n.Kind.RunsFirmware() {
+				continue
+			}
+			role := nodeRole(n)
+			if v := n.Firmware.Version; v != "" && (have[role+"@"+v] || have[v]) {
+				continue
+			}
+			if counts[role] == 0 {
+				order = append(order, role)
+			}
+			counts[role]++
+		}
+		roles := make([]any, 0, len(order))
+		for _, role := range order {
+			seen := map[string]bool{}
+			var choices []string
+			for _, b := range installed {
+				if b.Role == role && !seen[b.Version] {
+					seen[b.Version] = true
+					choices = append(choices, b.Version)
+				}
+			}
+			sort.Strings(choices)
+			roles = append(roles, map[string]any{
+				"role": role, "nodes": counts[role], "choices": choices,
+			})
+		}
+		return map[string]any{"roles": roles}, nil
+	})
+
 	// firmware.set: pin a build to a role, or to one node.
 	st.Handle("firmware.set", func(w *state.World, p any) (any, error) {
 		version, _ := stringField(p, "version")
@@ -117,7 +165,10 @@ func registerFirmwareLibrary(st *state.Store, s *Sim) {
 			if node != "" && s.nodes[i].Name != node {
 				continue
 			}
-			if role != "" && string(s.nodes[i].Firmware.Role) != role {
+			// The role a node runs under, not the role it has been pinned
+			// to: a node with no build chosen yet has an empty one, and
+			// those are exactly the nodes being asked about.
+			if role != "" && nodeRole(s.nodes[i]) != role {
 				continue
 			}
 			s.nodes[i].Firmware.Version = version
@@ -129,7 +180,9 @@ func registerFirmwareLibrary(st *state.Store, s *Sim) {
 			}
 		}
 		w.Say(fmt.Sprintf("%d nodes pinned to %s", n, version))
-		return map[string]any{"version": version, "nodes": n}, nil
+		return map[string]any{
+			"version": version, "nodes": n, "considered": len(s.nodes),
+		}, nil
 	})
 
 	// firmware.wipe: a node keeps its preferences between runs exactly as
@@ -204,8 +257,6 @@ func stringField(p any, name string) (string, bool) {
 	return "", false
 }
 
-var _ = sort.Strings
-
 // buildsMissing is every node that would fail to start, by name.
 //
 // Checked before the first process is launched rather than discovered node by
@@ -242,4 +293,33 @@ func (s *Sim) buildsMissing() []string {
 		return append(out[:4], fmt.Sprintf("and %d more", len(out)-4))
 	}
 	return out
+}
+
+// soleString reads a verb's one parameter, which arrives either as a bare
+// value or as the single-key object the old socket's callers write.
+//
+// Read here rather than unwrapped at the socket, because the socket cannot
+// know which parameter a single key was meant to be.
+func soleString(p any) string {
+	switch v := p.(type) {
+	case string:
+		return v
+	case map[string]any:
+		if len(v) == 1 {
+			for _, only := range v {
+				if s, ok := only.(string); ok {
+					return s
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// nodeRole is what a node runs: its pinned role, or the one its kind implies.
+func nodeRole(n scenario.Node) string {
+	if r := string(n.Firmware.Role); r != "" {
+		return r
+	}
+	return string(n.Kind.Application())
 }

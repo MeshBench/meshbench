@@ -58,15 +58,18 @@ func registerRunKind(st *state.Store, s *Sim) {
 			// on the store's goroutine, and asking the store to do something
 			// from inside it is a wait for yourself.
 			s.startFirmware(st, w.Seed)
-			// Not playing yet.
+			// Not playing yet, and not later either.
 			//
 			// Playing immediately started the clock against nodes that were
 			// still attaching, so the store's ticker drove an engine whose
 			// nodes had no process behind them and wedged - the status said
-			// "starting MeshCore" and nothing ever moved again. The run
-			// begins when the mesh is up; firmware.started turns it on.
+			// "starting MeshCore" and nothing ever moved again. Starting the
+			// run for you once they were up fixed the wedge and introduced a
+			// different confusion: one press, two things, a minute apart.
+			// So this press brings the mesh up and says so, and the next one
+			// starts the run.
 			w.PendingPlay = true
-			w.Say("starting MeshCore on every node; the run begins when they are up")
+			w.Say("starting MeshCore on every node - play again once they are up")
 			return map[string]any{"playing": false, "starting_firmware": true}, nil
 		}
 		w.Playing = true

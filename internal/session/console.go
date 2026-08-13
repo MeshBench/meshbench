@@ -82,7 +82,7 @@ func registerConsole(st *state.Store, s *Sim) {
 
 	// console.read: the scrollback, for a window that is drawing it.
 	st.Handle("console.read", func(w *state.World, p any) (any, error) {
-		name, _ := p.(string)
+		name := soleString(p)
 		if m, ok := p.(map[string]any); ok {
 			name, _ = m["node"].(string)
 		}

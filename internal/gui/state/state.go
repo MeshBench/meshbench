@@ -589,6 +589,10 @@ func New(stepMs uint32) *Store {
 		done:     make(chan struct{}),
 		stepMs:   stepMs,
 	}
+	// Real firmware is what this simulator is for, so it is the assumption
+	// rather than a switch to be found first. Turning it off is a deliberate
+	// choice - a channel with no firmware behind it - and reads as one.
+	s.world.RealFirmware = true
 	s.publish()
 	return s
 }

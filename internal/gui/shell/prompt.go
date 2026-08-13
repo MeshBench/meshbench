@@ -12,6 +12,7 @@ package shell
 
 import (
 	"strings"
+	"sync"
 
 	"gioui.org/io/event"
 	"gioui.org/io/key"
@@ -45,6 +46,31 @@ type Prompt struct {
 	shown   []int
 	list    widget.List
 	btns    []comp.Button
+
+	// queued are questions raised from somewhere other than the frame loop -
+	// a verb's reply, which arrives on a goroutine of its own. Opening one
+	// there would write the widget state the frame loop is reading, so they
+	// wait and are drained at the top of the next frame.
+	mu     sync.Mutex
+	queued []func(*Prompt)
+}
+
+// Post raises a question from another goroutine. It happens on the next frame.
+func (p *Prompt) Post(f func(*Prompt)) {
+	p.mu.Lock()
+	p.queued = append(p.queued, f)
+	p.mu.Unlock()
+}
+
+// drain runs what was posted, on the frame loop.
+func (p *Prompt) drain() {
+	p.mu.Lock()
+	q := p.queued
+	p.queued = nil
+	p.mu.Unlock()
+	for _, f := range q {
+		f(p)
+	}
 }
 
 // Open asks a question. Opening a second one replaces the first rather than
@@ -79,6 +105,7 @@ func (p *Prompt) Close() { p.open = false }
 
 // Layout draws the question over everything else.
 func (p *Prompt) Layout(t *theme.Theme, gtx layout.Context) layout.Dimensions {
+	p.drain()
 	if !p.open {
 		return layout.Dimensions{}
 	}

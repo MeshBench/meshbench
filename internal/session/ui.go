@@ -78,7 +78,7 @@ func registerUI(st *state.Store, s *Sim) {
 		if err := s.needUI(); err != nil {
 			return nil, err
 		}
-		name, _ := p.(string)
+		name := soleString(p)
 		if m, ok := p.(map[string]any); ok {
 			name, _ = m["view"].(string)
 		}
@@ -114,7 +114,7 @@ func registerNodeWindow(st *state.Store, s *Sim) {
 		if err := s.needUI(); err != nil {
 			return nil, err
 		}
-		name, _ := p.(string)
+		name := soleString(p)
 		if m, ok := p.(map[string]any); ok {
 			name, _ = m["node"].(string)
 		}
@@ -137,7 +137,7 @@ func registerMapCamera(st *state.Store, s *Sim) {
 			return nil, err
 		}
 		var lat, lon, zoom float64
-		if name, ok := p.(string); ok {
+		if name := soleString(p); name != "" {
 			n, found := findNode(w.Nodes, name)
 			if !found {
 				return nil, fmt.Errorf("no node named %q", name)
@@ -225,7 +225,7 @@ func registerUIVerbs(st *state.Store, s *Sim) {
 	// ui.said puts a line in the status bar. A control whose verb failed and
 	// said nothing is indistinguishable from a control that does nothing.
 	st.Handle("ui.said", func(w *state.World, p any) (any, error) {
-		msg, _ := p.(string)
+		msg := soleString(p)
 		w.Say(msg)
 		return map[string]any{"said": msg}, nil
 	})

@@ -9,6 +9,7 @@ import (
 	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
+	"gioui.org/widget"
 	"github.com/A13xB0/meshcoresim/internal/gui/state"
 	"github.com/A13xB0/meshcoresim/internal/gui/theme"
 )
@@ -35,8 +36,14 @@ type Layers struct {
 	// and a bearing instead of panning.
 	Measure bool
 
+	// HideKind switches off one kind of node, from the key. The key is where
+	// somebody looks to find out what a colour means, so it is also where
+	// they reach to stop drawing it.
+	HideKind [6]bool
+
 	set     bool
 	toggles [12]Check
+	keys    [6]widget.Clickable
 }
 
 // defaults are applied once, so a zero Layers is a sensible map rather than an
@@ -76,8 +83,72 @@ func (l *Layers) rows() []layerRow {
 	}
 }
 
+// kindNames name the six node kinds, in the order theme.NodeKind declares
+// them, so a colour on the map can be read off the key.
+var kindNames = [6]string{
+	"Repeater", "Advanced repeater", "Companion", "Room server",
+	"Observer", "Emitter",
+}
+
+// keyRows is the key: every kind the loaded network actually contains, with
+// its colour and whether it is being drawn.
+//
+// Only the kinds present, because a key naming six things when the map has
+// three is a legend for a different map.
+func (m *MapView) keyRows(t *theme.Theme, gtx layout.Context,
+	s *state.Snapshot) []layout.FlexChild {
+	if s == nil {
+		return nil
+	}
+	var present [6]bool
+	for i := range s.Nodes {
+		k := kindOf(s.Nodes[i].Kind)
+		if int(k) >= 0 && int(k) < len(present) {
+			present[k] = true
+		}
+	}
+	var kids []layout.FlexChild
+	first := true
+	for k := range present {
+		if !present[k] {
+			continue
+		}
+		k := k
+		if first {
+			first = false
+			kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Top: t.Sp.XS, Bottom: t.Sp.XS}.Layout(gtx,
+					Text(t, t.Sz.Caption, t.P.Faint, "key - click to hide"))
+			}))
+		}
+		if m.Layers.keys[k].Clicked(gtx) {
+			m.Layers.HideKind[k] = !m.Layers.HideKind[k]
+		}
+		kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return m.Layers.keys[k].Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				col, ink := t.NodeColour(theme.NodeKind(k)), t.P.Ink
+				if m.Layers.HideKind[k] {
+					col, ink = theme.Alpha(col, 0.25), t.P.Faint
+				}
+				return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						d := gtx.Dp(10)
+						paint.FillShape(gtx.Ops, col, clip.Ellipse{
+							Max: image.Pt(d, d),
+						}.Op(gtx.Ops))
+						return layout.Dimensions{Size: image.Pt(d+gtx.Dp(t.Sp.XS), d)}
+					}),
+					layout.Rigid(Text(t, t.Sz.Caption, ink, kindNames[k])),
+				)
+			})
+		}))
+	}
+	return kids
+}
+
 // layerPanel draws the layer switches in the top right of the map.
-func (m *MapView) layerPanel(t *theme.Theme, gtx layout.Context, sz image.Point) {
+func (m *MapView) layerPanel(t *theme.Theme, gtx layout.Context, sz image.Point,
+	s *state.Snapshot) {
 	rows := m.Layers.rows()
 	for i := range rows {
 		// The checkbox owns the interaction; the layer owns the truth. Read
@@ -118,6 +189,7 @@ func (m *MapView) layerPanel(t *theme.Theme, gtx layout.Context, sz image.Point)
 			return m.Layers.toggles[i].Layout(t, gtx)
 		}))
 	}
+	kids = append(kids, m.keyRows(t, inner, s)...)
 	dims := layout.Flex{Axis: layout.Vertical}.Layout(inner, kids...)
 	content := rec.Stop()
 
