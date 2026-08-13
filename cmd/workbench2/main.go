@@ -55,6 +55,7 @@ func main() {
 	sweepFlag := flag.Bool("sweep", false, "run the default sweep at startup")
 	saveRunFlag := flag.String("save-run", "", "save a run record under this name, then keep running")
 	shadeFlag := flag.Bool("terrain", false, "shade the relief at startup")
+	menuFlag := flag.String("menu", "", "fire this menu action at startup, so what it opens can be captured")
 	coverFlag := flag.String("coverage", "",
 		"compute and show coverage from this node at startup")
 	energyFlag := flag.Bool("energy", false, "run the site study for the selected node at startup")
@@ -584,7 +585,7 @@ func main() {
 	// one node type is how somebody looking for a companion build never finds
 	// it.
 	sh.SetMenu("File", []shell.MenuItem{
-		{Label: "Open a saved network", Action: "panel.Import"},
+		{Label: "Open a saved network", Action: "project.open"},
 		{Label: "Save this network", Action: "project.save"},
 		{Label: "Save this run", Action: "run.save"},
 		{Label: "Firmware library", Action: "panel.Firmware"},
@@ -630,6 +631,46 @@ func main() {
 			sh.OnPopOut(name)
 			return
 		}
+		// Opening one of your own networks: the names are already known, so the
+		// question offers them rather than asking for a path. Before this the
+		// entry opened the live-import panel, which is a different thing that
+		// happens to also produce nodes.
+		if action == "project.open" {
+			go func() {
+				res, err := st.Do(ctx, "project.list", nil)
+				if err != nil {
+					return
+				}
+				m, _ := res.(map[string]any)
+				dir, _ := m["dir"].(string)
+				var names []string
+				if raw, ok := m["projects"].([]string); ok {
+					names = raw
+				}
+				sh.Ask.Choose("Open a saved network", "filter", names,
+					func(name string) {
+						go func() {
+							_, _ = st.Do(ctx, "project.open",
+								filepath.Join(dir, name+".json"))
+						}()
+					})
+			}()
+			return
+		}
+		// Verbs that need a word from the operator. A menu entry carries no
+		// parameters, so before this the item fired, the verb refused, and the
+		// only trace was a line in the status bar nobody was reading.
+		if ask, ok := menuAsks[action]; ok {
+			sh.Ask.Open(ask.title, ask.hint, ask.initial(), func(answer string) {
+				if strings.TrimSpace(answer) == "" {
+					return
+				}
+				go func() {
+					_, _ = st.Do(ctx, action, map[string]any{ask.field: answer})
+				}()
+			})
+			return
+		}
 		if action == "ui.toggle_real_firmware" {
 			// Read the current value and send its opposite, so the control
 			// never has its own copy of the answer to drift from the store's.
@@ -643,6 +684,9 @@ func main() {
 			return
 		}
 		go func() { _, _ = st.Do(ctx, action, nil) }()
+	}
+	if *menuFlag != "" {
+		sh.OnMenu(*menuFlag)
 	}
 	wbUI.newTheme = func() *theme.Theme {
 		m, d, _ := sets.get()
@@ -805,3 +849,22 @@ func join(v []string) string {
 
 var _ = widget.Clickable{}
 var _ = time.Now
+
+// menuAsks maps a verb to the one thing it needs before it can run.
+//
+// Keeping it beside the menu rather than inside the verb is deliberate: the
+// verb is also driven by scripts, which supply the parameter directly and
+// should not be made to answer a question.
+var menuAsks = map[string]struct {
+	title, hint, field string
+	initial            func() string
+}{
+	"project.save": {
+		title: "Save this network as",
+		hint:  "a name, no extension",
+		field: "name",
+		initial: func() string {
+			return "network-" + time.Now().Format("20060102-1504")
+		},
+	},
+}

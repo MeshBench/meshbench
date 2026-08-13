@@ -58,6 +58,9 @@ type Shell struct {
 	// is one goroutine's macro being closed by another's.
 	PoppedOut func(name string) bool
 	popOut    map[string]*widget.Clickable
+	// Ask is the one question the shell can put on screen. A menu entry
+	// carries no parameters, so a verb needing a name had nowhere to get one.
+	Ask Prompt
 }
 
 type menu struct {
@@ -146,8 +149,12 @@ func (sh *Shell) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) l
 			sh.OnPopOut(name)
 		}
 	}
-	// The dropdown draws over the frame, so it goes last.
-	defer func() { sh.menuDrop(t, gtx) }()
+	// The dropdown draws over the frame, so it goes last - and the question
+	// after it, because a question is modal and the dropdown is not.
+	defer func() {
+		sh.menuDrop(t, gtx)
+		sh.Ask.Layout(t, gtx)
+	}()
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return sh.menuBar(t, gtx) }),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return sh.viewBar(t, gtx, s) }),
