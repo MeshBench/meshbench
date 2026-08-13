@@ -7,6 +7,7 @@ package session
 
 import (
 	"context"
+	"fmt"
 	"image"
 	"image/color"
 	"math"
@@ -28,8 +29,28 @@ const covGrid = 160
 // the renderer, and a renderer that has to know what a decibel is in order to
 // draw a picture is a renderer that will eventually disagree with the panel
 // that prints the number.
+// coverageRasterFor is the raster before it is painted, which is what the
+// network-wide questions combine.
+func (s *Sim) coverageRasterFor(ctx context.Context, name string, spanKm float64) (
+	*coverage.Raster, error) {
+	for _, n := range s.nodes {
+		if n.Name != name {
+			continue
+		}
+		_, r, err := s.coverageWithRaster(ctx, n, spanKm)
+		return r, err
+	}
+	return nil, fmt.Errorf("no node named %q", name)
+}
+
 func (s *Sim) coverageFor(ctx context.Context, n scenario.Node, spanKm float64) (
 	*state.Coverage, error) {
+	c, _, err := s.coverageWithRaster(ctx, n, spanKm)
+	return c, err
+}
+
+func (s *Sim) coverageWithRaster(ctx context.Context, n scenario.Node, spanKm float64) (
+	*state.Coverage, *coverage.Raster, error) {
 
 	// A square of spanKm each way, in degrees.
 	dLat := spanKm / 111.32
@@ -55,9 +76,9 @@ func (s *Sim) coverageFor(ctx context.Context, n scenario.Node, spanKm float64) 
 		RemoteSensitivityDBm: linkbudget.SensitivityDBm(n), ProfileStepM: 120,
 	}
 	if err := coverage.Compute(fixed, s.terrain(), r, opts); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return paintCoverage(r, n), nil
+	return paintCoverage(r, n), r, nil
 }
 
 func freqOf(n scenario.Node) float64 {

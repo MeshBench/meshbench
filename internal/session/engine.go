@@ -9,14 +9,14 @@ package session
 
 import (
 	"context"
-
 	"fmt"
-	"github.com/A13xB0/meshcoresim/internal/console"
 	"math"
 	"os"
 	"path/filepath"
 	"sync/atomic"
 
+	"github.com/A13xB0/meshcoresim/internal/boundary"
+	"github.com/A13xB0/meshcoresim/internal/console"
 	"github.com/A13xB0/meshcoresim/internal/coverage"
 	"github.com/A13xB0/meshcoresim/internal/engine"
 	"github.com/A13xB0/meshcoresim/internal/gui/state"
@@ -33,6 +33,10 @@ type Sim struct {
 	consoles map[string]*console.Buf
 	// imp is what has been fetched from a deployment but not yet applied.
 	imp *importState
+	// areas is the accepted study area, as boundaries.
+	areas []scenario.Boundary
+	// foundAreas is the last search's matches, awaiting a choice.
+	foundAreas []boundary.Found
 
 	// freqMHz and seed are what the current engine was built with, so a
 	// rebuild reproduces it rather than guessing.

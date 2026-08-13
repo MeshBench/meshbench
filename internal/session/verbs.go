@@ -27,6 +27,9 @@ func Register(st *state.Store, s *Sim) {
 	registerFirmwareLibrary(st, s)
 	registerFleet(st, s)
 	registerImport(st, s)
+	registerBoundary(st, s)
+	registerPlanningVerbs(st, s)
+	registerCoverageCombined(st, s)
 	st.Handle("project.open", func(w *state.World, p any) (any, error) {
 		path, _ := p.(string)
 		f, err := LoadFixture(path)
