@@ -73,13 +73,33 @@ func (s *Sim) hillshade(south, north, west, east float64) (*state.Coverage, erro
 			if v < 0 {
 				v = 0
 			}
-			// Drawn as shadow rather than as light: the basemap underneath is
-			// already the picture, and this is the relief on top of it.
-			a := uint8(110 * (1 - v))
+			// Relief in both directions, not shadow alone. Shadow-only was
+			// black at up to 43% alpha, which over the carto-dark basemap is
+			// invisible by construction - the layer computed, drew, and
+			// changed nothing anybody could see. Slopes facing the light
+			// brighten, slopes facing away darken, and flat ground is left
+			// exactly as the basemap painted it.
+			const flat = 0.70710678 // sin(45 deg): what level ground scores
+			d := v - flat
+			px := color.RGBA{}
+			if d > 0 {
+				a := d * 300
+				if a > 170 {
+					a = 170
+				}
+				// White, premultiplied.
+				px = color.RGBA{R: uint8(a), G: uint8(a), B: uint8(a), A: uint8(a)}
+			} else {
+				a := -d * 300
+				if a > 170 {
+					a = 170
+				}
+				px = color.RGBA{A: uint8(a)}
+			}
 			// The grid's y=0 is the south edge; an image's is the top. Not
 			// flipping this is a hillshade lit from the south-west that looks
 			// like a valley wherever there is a hill.
-			img.SetRGBA(x, shadeGrid-1-y, color.RGBA{A: a})
+			img.SetRGBA(x, shadeGrid-1-y, px)
 		}
 	}
 	if known == 0 {
