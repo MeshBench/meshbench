@@ -17,6 +17,7 @@ import (
 // 12.9 is generated from what is registered here.
 func Register(st *state.Store, s *Sim) {
 	registerSimControl(st, s)
+	registerInventory(st, s)
 	st.Handle("project.open", func(w *state.World, p any) (any, error) {
 		path, _ := p.(string)
 		f, err := LoadFixture(path)
