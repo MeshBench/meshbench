@@ -26,8 +26,6 @@ import (
 
 // stillMissing are the old socket's verbs this build does not answer yet.
 var stillMissing = map[string]string{
-	"capture.file":          "P6",
-	"capture.wireshark":     "P6",
 	"companion.add_channel": "P6",
 	"companion.advert":      "P6",
 	"companion.configure":   "P6",
@@ -48,8 +46,6 @@ var stillMissing = map[string]string{
 	"experiment.stop":       "P6",
 	"experiment.vary":       "P6",
 	"loop.detect":           "P4",
-	"nodes.place":           "P5",
-	"radio.preset":          "P5",
 }
 
 var oldVerb = regexp.MustCompile(`case "([a-z_]+\.[a-z_]+)"`)

@@ -33,6 +33,8 @@ type Sim struct {
 	consoles map[string]*console.Buf
 	// imp is what has been fetched from a deployment but not yet applied.
 	imp *importState
+	// capturePath is where frames are being written, if anywhere.
+	capturePath string
 	// areas is the accepted study area, as boundaries.
 	areas []scenario.Boundary
 	// foundAreas is the last search's matches, awaiting a choice.
