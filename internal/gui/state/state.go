@@ -814,6 +814,9 @@ func (s *Store) publish() {
 		NowMs:      s.world.NowMs,
 		Playing:    s.world.Playing,
 		RunUntilMs: s.world.RunUntilMs,
+		// The declared field was never filled in, so any page saying how fast
+		// the run goes read zero and had to guess.
+		StepMs: s.stepMs,
 		Seed:       s.world.Seed,
 		Nodes:      nodes,
 		Jobs:       jobs,

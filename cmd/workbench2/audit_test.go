@@ -216,7 +216,8 @@ func fieldGuess(hint string) string {
 	switch {
 	case strings.Contains(h, "seed"), strings.Contains(h, "how many"),
 		strings.Contains(h, "seconds"), strings.Contains(h, "ms"),
-		strings.Contains(h, "db"), strings.Contains(h, "hours"):
+		strings.Contains(h, "db"), strings.Contains(h, "hours"),
+		strings.Contains(h, "km"), strings.Contains(h, "gb"):
 		return "2"
 	case strings.Contains(h, "url"):
 		return "https://example.invalid"
@@ -297,6 +298,13 @@ func auditTargets(r *recorder) []target {
 	nw.OnAction = func(a, n string) { r.do(a, n) }
 	nw.comp.OnCLI = func(n, l string) { r.do("console.cli", l) }
 	sets := &settingsPanel{set: &settings{}}
+	cfg := &configPanel{do: r.do}
+	// Choosing is the shell's overlay; what the audit can ask is whether
+	// pressing the dropdown reaches the chooser at all.
+	cfg.choose = func(title string, _ []string, _ func(string)) { r.do("ui.choose", title) }
+	snapGPU := auditSnapshot()
+	snapGPU.GPU = state.GPUState{Present: true, Enabled: true,
+		Device: "Audit Graphics 3000", Backend: "vulkan"}
 	cmpP := &comparePanel{OnSave: func() { r.do("run.save", nil) }}
 	planP := &planPanel{OnRun: func() { r.do("plan.routes", nil) }}
 	impP := &importPanel{OnFetch: func(u string) { r.do("import.describe", u) }}
@@ -359,6 +367,9 @@ func auditTargets(r *recorder) []target {
 		{"Sweep", sweep, sweep.Draw, nil, nil, nil, nil},
 		{"Inspector", insp, insp.Draw, nil, nil, nil, nil},
 		{"Provisioning", prov, prov.Draw, nil, nil, nil, nil},
+		// The flat layout, so every section's controls are on screen at once;
+		// the sidebar's own switching is TestConfigurationSectionsSwitch.
+		{"Configuration", cfg, cfg.auditDraw, snapGPU, nil, nil, nil},
 	}
 	return targets
 }

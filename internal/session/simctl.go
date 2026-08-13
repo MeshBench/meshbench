@@ -72,6 +72,16 @@ func registerSimControl(st *state.Store, s *Sim) {
 		return map[string]any{"seed": w.Seed, "now_ms": w.NowMs}, nil
 	})
 
+	// study.margin: how far outside the boundary a node still matters. It was
+	// readable everywhere and settable nowhere but the fixture file.
+	st.Handle("study.margin", func(w *state.World, p any) (any, error) {
+		if v, ok := numField(p, "km"); ok && v >= 0 {
+			w.MarginKm = v
+			w.Say(fmt.Sprintf("study margin %g km", v))
+		}
+		return map[string]any{"km": w.MarginKm}, nil
+	})
+
 	// sim.speed: the old socket said "factor" and meant a multiplier of real
 	// time; this build paces in simulated milliseconds per tick, which is the
 	// same control said honestly. A factor is accepted and converted so an

@@ -470,12 +470,11 @@ func main() {
 		go func() { _, _ = st.Do(ctx, "run.save", "run") }()
 	}
 	sh.Add(&shell.Panel{Name: "Compare", Windowable: true, Draw: cmpP.Draw})
-	cfg := &configPanel{}
-	cfg.OnCache = func(gb float64) {
-		go func() { _, _ = st.Do(ctx, "terrain.cache", map[string]any{"gb": gb}) }()
-	}
-	cfg.OnGPU = func(on bool) {
-		go func() { _, _ = st.Do(ctx, "gpu.set", map[string]any{"on": on}) }()
+	cfg := &configPanel{do: do}
+	cfg.choose = func(title string, opts []string, pick func(string)) {
+		sh.Ask.Post(func(ask *shell.Prompt) {
+			ask.Choose(title, "filter", opts, pick)
+		})
 	}
 	logp := &logPanel{}
 	sh.Add(&shell.Panel{Name: "Provisioning", Windowable: true,
