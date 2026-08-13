@@ -57,8 +57,9 @@ type Sim struct {
 	prefs   Prefs
 	persist bool
 	// movingCache reports a cache move in flight, so a second one cannot
-	// start into the middle of the first.
+	// start into the middle of the first; prefetching, the same for tiles.
 	movingCache atomic.Bool
+	prefetching atomic.Bool
 	// geomFP fingerprints everything a path loss depends on, so a rebuild
 	// can tell whether the measured matrix is still about this network.
 	geomFP uint64
@@ -201,6 +202,12 @@ func (s *Sim) buildSeeded(nodes []scenario.Node, freqMHz float64, seed uint64) {
 	fp := geometryFingerprint(nodes, freqMHz, s.excessLossDB)
 	if s.eng != nil && fp == s.geomFP {
 		carried = s.eng.LinkCacheSnapshot()
+	}
+	if carried == nil {
+		// Nothing in this process, but perhaps on disk: a matrix measured in
+		// a previous launch for this exact geometry is this geometry's
+		// matrix, and reading it is a file open instead of a warm.
+		carried = loadMatrix(s.matrixDir(), fp)
 	}
 	// Cold from this moment. An engine is rebuilt rather than rewound, and a
 	// new one carries no link cache: the old workbench warms on every rebuild
@@ -347,6 +354,10 @@ func (s *Sim) warm(st *state.Store, nodes int) {
 		s.warmMu.Lock()
 		s.warmed = true
 		s.warmMu.Unlock()
+		// What was measured survives the process, keyed by the geometry it
+		// is about. On its own goroutine already, and after the staleness
+		// checks, so what lands on disk is a matrix somebody saw.
+		saveMatrix(s.matrixDir(), s.geomFP, s.eng.LinkCacheSnapshot())
 		_, _ = st.Do(context.Background(), "links.set", links)
 		_, _ = st.Do(context.Background(), "job.progress", state.Job{
 			ID: "links", What: "measuring every link",

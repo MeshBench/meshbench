@@ -79,6 +79,31 @@ func TestValidateCacheDirRefusesNesting(t *testing.T) {
 	}
 }
 
+// A matrix saved under a fingerprint comes back exactly, and an unknown
+// fingerprint answers nil rather than somebody else's matrix.
+func TestMatrixRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	m := map[[2]int]float64{{0, 1}: 121.5, {0, 2}: 140.25, {5, 9}: 99.75}
+	saveMatrix(dir, 0xdeadbeef, m)
+	got := loadMatrix(dir, 0xdeadbeef)
+	if len(got) != len(m) {
+		t.Fatalf("loaded %d pairs, want %d", len(got), len(m))
+	}
+	for k, v := range m {
+		if got[k] != v {
+			t.Errorf("pair %v came back %v, want %v", k, got[k], v)
+		}
+	}
+	if loadMatrix(dir, 0x1234) != nil {
+		t.Error("an unknown fingerprint answered a matrix")
+	}
+	// Persistence off means no directory and a quiet no-op.
+	s := &Sim{}
+	if s.matrixDir() != "" {
+		t.Error("a session without LoadPrefs got a matrix directory")
+	}
+}
+
 // A session that never called LoadPrefs never writes a file, which is what
 // keeps every other test from scribbling on the developer's own settings.
 func TestSavePrefsIsOffByDefault(t *testing.T) {
