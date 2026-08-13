@@ -91,6 +91,13 @@ func (sh *Shell) transportBar(t *theme.Theme, gtx layout.Context, s *state.Snaps
 	if s != nil && s.Playing {
 		sym = symPause
 	}
+	// Warming wins over both. Until the matrix is measured a run would spend
+	// its first transmission computing every path loss in the network, so the
+	// control says what is happening rather than looking idle.
+	warm := warmingJob(s)
+	if warm != nil {
+		sym = symWarming
+	}
 	// Anything but the transport itself cancels a pending restart, so a
 	// half-pressed confirm cannot sit there waiting to catch somebody out.
 	if s != nil && s.Playing {
@@ -104,7 +111,9 @@ func (sh *Shell) transportBar(t *theme.Theme, gtx layout.Context, s *state.Snaps
 		btn(&sh.tr.slow, symSlower, false),
 		btn(&sh.tr.fast, symFaster, false),
 	}
-	if sh.tr.confirmRestart {
+	if warm != nil {
+		children = append(children, layout.Rigid(chip(t, t.P.Warn, warmingWords(warm))))
+	} else if sh.tr.confirmRestart {
 		children = append(children, layout.Rigid(chip(t, t.P.Bad, "press again to discard the run")))
 	} else {
 		children = append(children, layout.Rigid(speedChip(t, s)))
@@ -187,6 +196,10 @@ const (
 	symSlower
 	symFaster
 	symRestart
+	// symWarming is a flame: the run cannot start yet because the path-loss
+	// matrix is still being measured, and a play button that looks pressable
+	// while nothing happens is the thing this exists to prevent.
+	symWarming
 )
 
 func drawSymbol(gtx layout.Context, s symbol, box int, col color.NRGBA) {
@@ -225,6 +238,20 @@ func drawSymbol(gtx layout.Context, s symbol, box int, col color.NRGBA) {
 	case symFaster:
 		tri(&p, -r*0.5, 1)
 		tri(&p, r*0.5, 1)
+	case symWarming:
+		// A flame: two curves meeting at a point, filled. Rough on purpose -
+		// eleven pixels of glyph does not need a bezier.
+		p.MoveTo(f32.Pt(cx, cy-r*1.1))
+		p.LineTo(f32.Pt(cx+r*0.75, cy+r*0.1))
+		p.LineTo(f32.Pt(cx+r*0.45, cy+r*0.95))
+		p.LineTo(f32.Pt(cx-r*0.45, cy+r*0.95))
+		p.LineTo(f32.Pt(cx-r*0.75, cy+r*0.1))
+		p.Close()
+		p.MoveTo(f32.Pt(cx, cy-r*0.1))
+		p.LineTo(f32.Pt(cx+r*0.3, cy+r*0.45))
+		p.LineTo(f32.Pt(cx, cy+r*0.95))
+		p.LineTo(f32.Pt(cx-r*0.3, cy+r*0.45))
+		p.Close()
 	case symRestart:
 		// An open ring with an arrowhead: three quarters of a circle drawn as
 		// a filled annulus, because a stroked arc costs Gio's whole stroke
@@ -257,3 +284,25 @@ func drawSymbol(gtx layout.Context, s symbol, box int, col color.NRGBA) {
 }
 
 var _ = op.Offset
+
+// warmingJob is the link measurement, if one is running.
+func warmingJob(s *state.Snapshot) *state.Job {
+	if s == nil {
+		return nil
+	}
+	for i := range s.Jobs {
+		if s.Jobs[i].ID == "links" && !s.Jobs[i].Finished {
+			return &s.Jobs[i]
+		}
+	}
+	return nil
+}
+
+// warmingWords says how far it has got, because "warming up" with no end in
+// sight and "warming up, 40,000 of 48,000" are different amounts of patience.
+func warmingWords(j *state.Job) string {
+	if j.Total > 0 && j.Done > 0 {
+		return fmt.Sprintf("warming up - %d of %d links measured", j.Done, j.Total)
+	}
+	return "warming up - measuring every link"
+}

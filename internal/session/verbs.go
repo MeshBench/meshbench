@@ -75,6 +75,12 @@ func Register(st *state.Store, s *Sim) {
 		w.Tick = func(uint32) {
 			w.FirmwareRunning, w.FirmwareStarting = s.firmwareCount(), s.starting.Load()
 			_ = s.eng.Step(context.Background())
+			// A rebuild anywhere leaves the matrix cold; this is the one
+			// place every run passes through, so it is where the warm is
+			// made certain rather than remembered at nine call sites.
+			if s.cold && len(s.nodes) >= 10 {
+				s.warm(st, len(s.nodes))
+			}
 			w.NowMs = s.eng.NowMs()
 			// Every open console gets the clock before the step that will
 			// produce the lines it stamps.

@@ -32,6 +32,12 @@ type Sim struct {
 	ui UI
 	// consoles is one scrollback per node, keyed by name.
 	consoles map[string]*console.Buf
+	// cold reports that the engine has been rebuilt and its link cache is
+	// empty, so the next thing that can warm it should.
+	cold bool
+	// warmed reports that the matrix has been measured for the engine as it
+	// stands. Cleared by a rebuild, set when a warm finishes uncancelled.
+	warmed bool
 	// fleetPending is a fleet command sent and not yet answered, held until the
 	// engine has run far enough for the nodes to have replied.
 	fleetPending *fleetPending
@@ -75,7 +81,6 @@ type Sim struct {
 	eng      *engine.Engine
 	nodes    []scenario.Node
 	terr     coverage.Terrain
-	warming  atomic.Bool
 	starting atomic.Bool
 	cpu      *cpuSampler
 	history  *nodeHistory
@@ -152,6 +157,12 @@ const defaultSeed = 9001
 
 // buildSeeded is build, with the draw stated.
 func (s *Sim) buildSeeded(nodes []scenario.Node, freqMHz float64, seed uint64) {
+	// Cold from this moment. An engine is rebuilt rather than rewound, and a
+	// new one carries no link cache: the old workbench warms on every rebuild
+	// for exactly this reason, and its comment is worth repeating - an empty
+	// cache bills its terrain profiles to whoever sends the first message,
+	// which reads as "runs fine until I send, then stuck".
+	s.cold, s.warmed = true, false
 	if s.eng != nil {
 		_ = s.eng.Close()
 	}
@@ -228,6 +239,7 @@ func (s *Sim) warm(st *state.Store, nodes int) {
 	s.warmCancel = cancel
 	s.warmMu.Unlock()
 
+	s.cold = false
 	go func() {
 		defer cancel()
 		total := nodes * (nodes - 1) / 2
@@ -254,6 +266,9 @@ func (s *Sim) warm(st *state.Store, nodes int) {
 		if ctx.Err() != nil {
 			return
 		}
+		s.warmMu.Lock()
+		s.warmed = true
+		s.warmMu.Unlock()
 		_, _ = st.Do(context.Background(), "links.set", links)
 		_, _ = st.Do(context.Background(), "job.progress", state.Job{
 			ID: "links", What: "measuring every link",
@@ -504,4 +519,12 @@ func (s *Sim) provisionAll() int {
 		}
 	}
 	return done
+}
+
+// warming reports whether the link matrix is still being measured, which is
+// the one thing a run must not start in front of.
+func (s *Sim) warming() bool {
+	s.warmMu.Lock()
+	defer s.warmMu.Unlock()
+	return s.warmCancel != nil && !s.warmed
 }

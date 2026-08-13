@@ -41,6 +41,17 @@ func registerRunKind(st *state.Store, s *Sim) {
 			w.Say("paused")
 			return map[string]any{"playing": false}, nil
 		}
+		// A cold engine warms before it runs.
+		//
+		// Nothing is blocked while it does: the measurement is already a job
+		// on its own goroutine, and this only declines to start the clock
+		// until it has finished. The alternative is a run whose first packet
+		// pays for the whole path-loss matrix on whichever thread delivered
+		// it, which is what "it stalls the moment I send" was.
+		if s.warming() {
+			w.Say("warming up: the run starts when every link has been measured")
+			return map[string]any{"playing": false, "warming": true}, nil
+		}
 		if w.RealFirmware && s.eng != nil && s.firmwareCount() == 0 && len(w.Nodes) > 0 {
 			// Every node needs a build before any node starts.
 			//

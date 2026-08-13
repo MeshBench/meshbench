@@ -147,7 +147,11 @@ func registerCapture(st *state.Store, s *Sim) {
 		nodes := append(append([]scenario.Node(nil), s.nodes...), node)
 		s.buildSeeded(nodes, s.freqMHz, s.seed)
 		w.Nodes = stateNodes(nodes)
-		w.Links = s.links()
+		// Not s.links() here: that measures every pair, inline, on the
+		// store's goroutine - 48,000 terrain profiles on a national network,
+		// with the whole application waiting on it. The warm publishes them
+		// when it has them.
+		s.warm(st, len(nodes))
 		w.Say("placed " + name)
 		return map[string]any{
 			"placed": name, "kind": kind, "regions": node.Regions,
