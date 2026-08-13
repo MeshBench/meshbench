@@ -20,7 +20,6 @@ import (
 type feedPanel struct {
 	tb   comp.Table
 	init bool
-	pull comp.Button
 	// OnPull asks the store to fetch recent receptions.
 	OnPull func()
 }
@@ -36,11 +35,7 @@ func (p *feedPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 			{Title: "packet", Mono: true},
 		}
 		p.tb.SortCol, p.tb.SortDesc = 0, true
-		p.pull.Label, p.pull.Kind = "pull the last hour", comp.Primary
 		p.init = true
-	}
-	if p.pull.Click.Clicked(gtx) && p.OnPull != nil {
-		p.OnPull()
 	}
 	body := func(gtx layout.Context) layout.Dimensions {
 		if s == nil || len(s.Observed) == 0 {
@@ -68,10 +63,6 @@ func (p *feedPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(comp.SectionTitle(t, "the real network")),
 		layout.Flexed(1, body),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			gtx.Constraints.Min.X = 0
-			return p.pull.Layout(t, gtx)
-		}),
 	)
 }
 

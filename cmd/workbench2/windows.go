@@ -76,6 +76,15 @@ func (w *windows) popOut(name string, sh *shell.Shell, newTheme func() *theme.Th
 		// application, not six applications.
 		win.Option(app.Title("MeshBench - "+name),
 			app.Size(unit.Dp(900), unit.Dp(640)))
+		// Brought to the front as it opens.
+		//
+		// Gio can raise a window and cannot pin one above the others: there is
+		// an ActionRaise and no always-on-top, and under Wayland no client can
+		// ask for that at all - it is the compositor's to decide, which is
+		// what a KWin window rule is for. Raising covers what going behind the
+		// main window actually costs somebody, which is opening a panel and
+		// not seeing it.
+		win.Perform(system.ActionRaise)
 		var ops op.Ops
 		for {
 			switch e := win.Event().(type) {

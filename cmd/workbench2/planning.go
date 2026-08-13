@@ -21,7 +21,6 @@ import (
 type planPanel struct {
 	tb   comp.Table
 	init bool
-	run  comp.Button
 	// OnRun asks the store to search.
 	OnRun func()
 }
@@ -36,10 +35,6 @@ func (p *planPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 			{Title: "through"},
 		}
 		p.tb.SortCol, p.init = 1, true
-		p.run.Label, p.run.Kind = "find routes between the two selected nodes", comp.Primary
-	}
-	if p.run.Click.Clicked(gtx) && p.OnRun != nil {
-		p.OnRun()
 	}
 	body := func(gtx layout.Context) layout.Dimensions {
 		if s == nil || len(s.Routes) == 0 {
@@ -65,9 +60,5 @@ func (p *planPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(comp.SectionTitle(t, "fewest new sites, not fewest hops")),
 		layout.Flexed(1, body),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			gtx.Constraints.Min.X = 0
-			return p.run.Layout(t, gtx)
-		}),
 	)
 }

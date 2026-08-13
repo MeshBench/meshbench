@@ -21,10 +21,9 @@ import (
 // importPanel fetches a deployment and says what it found before anything is
 // committed to the scenario.
 type importPanel struct {
-	url   comp.Field
-	fetch comp.Button
-	tb    comp.Table
-	init  bool
+	url  comp.Field
+	tb   comp.Table
+	init bool
 	// OnFetch asks the store to import from this URL.
 	OnFetch func(url string)
 }
@@ -33,16 +32,12 @@ func (p *importPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 	if !p.init {
 		p.url.Label = "CoreScope deployment"
 		p.url.Hint = "https://example.compute.oarc.uk"
-		p.fetch.Label, p.fetch.Kind = "fetch and describe", comp.Primary
 		p.tb.Cols = []comp.Column{
 			{Title: "outcome", Width: 260},
 			{Title: "count", Width: 100, Right: true, Mono: true},
 			{Title: "what it means"},
 		}
 		p.init = true
-	}
-	if p.fetch.Click.Clicked(gtx) && p.OnFetch != nil {
-		p.OnFetch(p.url.Editor.Text())
 	}
 
 	body := func(gtx layout.Context) layout.Dimensions {
@@ -77,10 +72,6 @@ func (p *importPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 		layout.Rigid(comp.SectionTitle(t, "import a live network")),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return p.url.Layout(t, gtx)
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			gtx.Constraints.Min.X = 0
-			return p.fetch.Layout(t, gtx)
 		}),
 		layout.Flexed(1, body),
 		layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Warn,

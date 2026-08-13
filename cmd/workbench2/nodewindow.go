@@ -14,6 +14,7 @@ import (
 
 	"gioui.org/app"
 	"gioui.org/io/key"
+	"gioui.org/io/system"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/unit"
@@ -387,6 +388,8 @@ func (w *nodeWindows) openFor(node string, newTheme func() *theme.Theme,
 		p.tab = openOnTab
 		win := new(app.Window)
 		win.Option(app.Title("MeshBench - "+node), app.Size(unit.Dp(820), unit.Dp(620)))
+		// Raised as it opens; see windows.go for why that is all there is.
+		win.Perform(system.ActionRaise)
 		var ops op.Ops
 		for {
 			switch e := win.Event().(type) {
