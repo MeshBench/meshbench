@@ -9,6 +9,7 @@ package session
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/A13xB0/meshcoresim/internal/gui/state"
@@ -25,6 +26,7 @@ func registerValidate(st *state.Store, s *Sim) {
 		if url == "" {
 			return nil, fmt.Errorf("no source: set one with import.set_source")
 		}
+		url = strings.TrimRight(url, "/")
 		hours := 24.0
 		if v, ok := numField(p, "hours"); ok && v > 0 {
 			hours = v
@@ -35,12 +37,41 @@ func registerValidate(st *state.Store, s *Sim) {
 		go func() {
 			cs := &provider.CoreScope{BaseURL: url}
 			since := time.Now().Add(-time.Duration(hours) * time.Hour)
+			// The receptions endpoint first, because where it exists it is
+			// exactly this question. Where it does not - a live CoreScope
+			// answers /api/receptions with its own HTML - the packets
+			// endpoint carries the same evidence: an observer, a hop count
+			// and the SNR it heard.
 			recs, err := cs.Receptions(context.Background(), since)
-			if err != nil {
-				_, _ = st.Do(context.Background(), "validate.failed", err.Error())
+			if err == nil && len(recs) > 0 {
+				_, _ = st.Do(context.Background(), "validate.compare", recs)
 				return
 			}
-			_, _ = st.Do(context.Background(), "validate.compare", recs)
+			pkts, perr := cs.Packets(context.Background(), 20000, nil)
+			if perr != nil {
+				if err == nil {
+					err = perr
+				}
+				_, _ = st.Do(context.Background(), "validate.failed",
+					"neither endpoint answered: "+err.Error())
+				return
+			}
+			var out []provider.Reception
+			for _, p := range pkts {
+				if !p.HasSNR || p.At.Before(since) || p.Receiver == "" {
+					continue
+				}
+				origin := p.Origin
+				if origin == "" {
+					origin = p.Sender
+				}
+				out = append(out, provider.Reception{
+					At: p.At, Receiver: p.Receiver, Origin: origin,
+					HopCount: len(p.PathHashes),
+					HasSNR:   true, SNRdB: p.SNRdB,
+				})
+			}
+			_, _ = st.Do(context.Background(), "validate.compare", out)
 		}()
 		return map[string]any{"fetching": true, "hours": hours}, nil
 	})

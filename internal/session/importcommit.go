@@ -35,6 +35,12 @@ func registerImport(st *state.Store, s *Sim) {
 		if url == "" {
 			return nil, fmt.Errorf("import.set_source needs a url")
 		}
+		// A trailing slash is what anybody pastes from a browser, and the
+		// provider joins paths with a bare "/", so it asks for
+		// //api/receptions and gets the site's HTML back. Trimmed here rather
+		// than in the provider, because this is where a person's typing
+		// arrives.
+		url = strings.TrimRight(url, "/")
 		if s.imp == nil {
 			s.imp = &importState{}
 		}

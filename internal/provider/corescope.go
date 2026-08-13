@@ -278,6 +278,9 @@ type csPacketRow struct {
 	Origin     string   `json:"origin"`
 	Time       any      `json:"timestamp"`
 	Time2      any      `json:"time"`
+	// SNR as this observer heard it. A pointer because zero is a real SNR and
+	// only null means "not reported".
+	SNR *float64 `json:"snr"`
 }
 
 // fetchPacketPage decodes one page, accepting either shape CoreScope answers
@@ -327,6 +330,9 @@ func (c *CoreScope) recordFrom(r csPacketRow) (PacketRecord, bool) {
 		rec.At = ts
 	} else if ts, ok := parseTime(r.Time2); ok {
 		rec.At = ts
+	}
+	if r.SNR != nil {
+		rec.HasSNR, rec.SNRdB = true, *r.SNR
 	}
 	// The last name on the resolved path is whoever transmitted the copy that
 	// was heard - the node whose behaviour this packet is evidence about.

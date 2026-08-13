@@ -275,6 +275,14 @@ type PacketRecord struct {
 	// origin. The live feed replays only the first hop, and this is how it
 	// knows which copies those are.
 	PathHashes []string
+
+	// HasSNR and SNRdB are how strongly this observer heard this copy. The
+	// receptions endpoint does not exist on every deployment - a live
+	// CoreScope answers /api/packets with JSON and /api/receptions with its
+	// own HTML - so this is where a measured signal level actually comes
+	// from.
+	HasSNR bool
+	SNRdB  float64
 }
 
 func containsString(list []string, want string) bool {
