@@ -47,7 +47,7 @@ func registerValidate(st *state.Store, s *Sim) {
 				_, _ = st.Do(context.Background(), "validate.compare", recs)
 				return
 			}
-			pkts, perr := cs.Packets(context.Background(), 20000, nil)
+			pkts, perr := cs.Packets(context.Background(), 4000, nil)
 			if perr != nil {
 				if err == nil {
 					err = perr
@@ -71,7 +71,18 @@ func registerValidate(st *state.Store, s *Sim) {
 					HasSNR:   true, SNRdB: p.SNRdB,
 				})
 			}
-			_, _ = st.Do(context.Background(), "validate.compare", out)
+			if len(out) == 0 {
+				_, _ = st.Do(context.Background(), "validate.failed",
+					fmt.Sprintf("%d packets carried no SNR from a named observer in that window",
+						len(pkts)))
+				return
+			}
+			// Reported, not discarded: an error returned to a goroutine
+			// nobody reads is a step that silently did not happen, and the
+			// next thing to run then calibrates against nothing.
+			if _, err := st.Do(context.Background(), "validate.compare", out); err != nil {
+				_, _ = st.Do(context.Background(), "validate.failed", err.Error())
+			}
 		}()
 		return map[string]any{"fetching": true, "hours": hours}, nil
 	})
@@ -112,12 +123,20 @@ func registerValidate(st *state.Store, s *Sim) {
 
 	// validate.calibrate: apply what the comparison found.
 	st.Handle("validate.calibrate", func(w *state.World, p any) (any, error) {
-		db := 0.0
-		if w.Residuals != nil {
-			db = maxFloat(0, w.Residuals.MedianDB)
+		db, have := 0.0, false
+		if w.Residuals != nil && w.Residuals.Matched > 0 {
+			db, have = maxFloat(0, w.Residuals.MedianDB), true
 		}
 		if v, ok := numField(p, "db"); ok {
-			db = v
+			db, have = v, true
+		}
+		// Refuse rather than default. Called with nothing measured this used
+		// to apply 0 dB, which is not "no calibration" - it is the most
+		// optimistic model there is, and it silently put back every link that
+		// crosses a ridge.
+		if !have {
+			return nil, fmt.Errorf(
+				"nothing has been measured yet: fetch observations first, or give a db")
 		}
 		if db < 0 {
 			return nil, fmt.Errorf("excess loss is a loss: %.1f dB would add signal", db)
