@@ -461,6 +461,9 @@ func main() {
 	}
 	sh.Add(&shell.Panel{Name: "Compare", Windowable: true, Draw: cmpP.Draw})
 	cfg := &configPanel{}
+	cfg.OnCache = func(gb float64) {
+		go func() { _, _ = st.Do(ctx, "terrain.cache", map[string]any{"gb": gb}) }()
+	}
 	cfg.OnGPU = func(on bool) {
 		go func() { _, _ = st.Do(ctx, "gpu.set", map[string]any{"on": on}) }()
 	}

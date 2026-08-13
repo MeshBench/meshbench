@@ -341,7 +341,10 @@ func decodeTerrarium(b []byte) (*tile, error) {
 // thrash was the whole cost of a nine-minute warm whose arithmetic took 30
 // milliseconds. Two gigabytes holds a country; the development machines
 // carry 32.
-const DefaultMaxLoadedTiles = 8192
+// 40,960 tiles at a quarter megabyte each is 10 GB: a whole country several
+// times over, on machines that carry three times that. Settable from the
+// Configuration page for machines that do not.
+const DefaultMaxLoadedTiles = 40960
 
 // remember stores a decoded tile and evicts the oldest once the cap is passed.
 // Called with the lock held.

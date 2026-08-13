@@ -225,6 +225,25 @@ func (s *Sim) gpuDefault() {
 	s.gpuWarm = s.gpuProbe.present
 }
 
+// registerTileCache is the tile cache bound, in the unit people think in.
+func registerTileCache(st *state.Store, s *Sim) {
+	st.Handle("terrain.cache", func(w *state.World, p any) (any, error) {
+		if v, ok := numField(p, "gb"); ok && v >= 0.25 {
+			tiles := int(v * 4096) // a decoded tile is a quarter megabyte
+			s.tileCacheTiles = tiles
+			if ts, ok := s.terr.(*terrain.TileStore); ok && ts != nil {
+				ts.MaxLoadedTiles = tiles
+			}
+			w.TileCacheGB = v
+			w.Say(fmt.Sprintf("the tile cache holds %.3g GB", v))
+		}
+		if w.TileCacheGB == 0 {
+			w.TileCacheGB = float64(terrain.DefaultMaxLoadedTiles) / 4096
+		}
+		return map[string]any{"gb": w.TileCacheGB}, nil
+	})
+}
+
 // registerGPU is the switch and what it did.
 func registerGPU(st *state.Store, s *Sim) {
 	// gpu.set: on or off, said once and remembered.

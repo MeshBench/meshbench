@@ -52,6 +52,8 @@ type Sim struct {
 	// gpuAsked records that the machine has been asked whether it has a GPU,
 	// so the answer is not re-opened on every warm.
 	gpuAsked bool
+	// tileCacheTiles overrides the tile cache bound, chosen in Configuration.
+	tileCacheTiles int
 	// geomFP fingerprints everything a path loss depends on, so a rebuild
 	// can tell whether the measured matrix is still about this network.
 	geomFP uint64
@@ -131,6 +133,9 @@ func (s *Sim) terrain() coverage.Terrain {
 		return s.terr
 	}
 	st.Zoom = terrain.DefaultZoom
+	if s.tileCacheTiles > 0 {
+		st.MaxLoadedTiles = s.tileCacheTiles
+	}
 	s.terr = st
 	return s.terr
 }

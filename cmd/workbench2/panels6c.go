@@ -3,6 +3,7 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 
 	"gioui.org/layout"
 	"gioui.org/widget"
@@ -18,8 +19,12 @@ import (
 // means rebuilding it, and a field that silently does nothing until a rebuild
 // is worse than a value you cannot edit.
 type configPanel struct {
-	tb  comp.Table
-	gpu comp.Check
+	tb    comp.Table
+	gpu   comp.Check
+	cache comp.Field
+	setC  comp.Button
+	// OnCache sets the tile cache bound, in GB.
+	OnCache func(gb float64)
 	// OnGPU turns the graphics path on and off.
 	OnGPU func(on bool)
 	init  bool
@@ -34,6 +39,9 @@ func (p *configPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 			{Title: "why it matters"},
 		}
 		p.gpu.Label = "measure links on the GPU"
+		p.cache.Hint = "tile cache, GB"
+		p.cache.Editor.SingleLine = true
+		p.setC.Label, p.setC.Kind = "set cache", comp.Secondary
 		p.init = true
 	}
 	if s == nil {
@@ -76,6 +84,19 @@ func (p *configPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 			"results are a best case: no multipath, bare earth, ideal demodulator")),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			return p.tb.Layout(t, gtx, nil)
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if p.setC.Click.Clicked(gtx) && p.OnCache != nil {
+				if v, err := strconv.ParseFloat(fieldText(&p.cache), 64); err == nil && v > 0 {
+					p.OnCache(v)
+				}
+			}
+			bar := actionBar{fields: []*comp.Field{&p.cache},
+				buttons: []*comp.Button{&p.setC},
+				note: fmt.Sprintf("decoded terrain tiles held in memory - now %.3g GB; "+
+					"a cache smaller than the study area re-reads tiles from disk constantly",
+					cacheGB(s))}
+			return bar.layout(t, gtx)
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return p.gpu.Layout(t, gtx)
@@ -149,4 +170,13 @@ func (p *logPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) l
 				})(gtx)
 		}),
 	)
+}
+
+// cacheGB is the bound as the session reports it, or the default before it
+// has said anything.
+func cacheGB(s *state.Snapshot) float64 {
+	if s != nil && s.TileCacheGB > 0 {
+		return s.TileCacheGB
+	}
+	return 10
 }

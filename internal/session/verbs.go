@@ -27,6 +27,7 @@ func Register(st *state.Store, s *Sim) {
 	registerFirmwareLibrary(st, s)
 	registerFleet(st, s)
 	registerGPU(st, s)
+	registerTileCache(st, s)
 	registerImport(st, s)
 	registerBoundary(st, s)
 	registerPlanningVerbs(st, s)
