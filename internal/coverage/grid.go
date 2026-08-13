@@ -1,6 +1,11 @@
 package coverage
 
-import "math"
+import (
+	"math"
+	"runtime"
+	"sync"
+	"sync/atomic"
+)
 
 // HeightGrid is the terrain rasterised once for one coverage area.
 //
@@ -26,20 +31,65 @@ const NoDataHeight = float32(-1e30)
 // the tiles are not downloaded, and the caller should say so rather than
 // produce a raster of holes.
 func RasteriseHeights(t Terrain, south, north, west, east float64, w, h int) (HeightGrid, float64) {
+	return RasteriseHeightsProgress(t, south, north, west, east, w, h, nil)
+}
+
+// RasteriseHeightsProgress is the same, saying how many rows are done.
+//
+// Sixty-seven million elevation lookups is a wait somebody is sitting through,
+// and a wait with nothing on screen is indistinguishable from a hang - which
+// is what this was reported as.
+func RasteriseHeightsProgress(t Terrain, south, north, west, east float64,
+	w, h int, progress func(done, total int)) (HeightGrid, float64) {
 	g := HeightGrid{South: south, North: north, West: west, East: east, W: w, H: h,
 		Heights: make([]float32, w*h)}
-	known := 0
-	for y := 0; y < h; y++ {
-		lat := south + (north-south)*(float64(y)+0.5)/float64(h)
-		for x := 0; x < w; x++ {
-			lon := west + (east-west)*(float64(x)+0.5)/float64(w)
-			if m, ok := t.ElevationM(lat, lon); ok {
-				g.Heights[y*w+x] = float32(m)
-				known++
-			} else {
-				g.Heights[y*w+x] = NoDataHeight
+
+	// A row per worker, across every core.
+	//
+	// An 8192 square grid is 67 million elevation lookups, and serially that
+	// is over a minute of one core while eleven others watch - which on the
+	// network that most needs the grid is most of the reason the GPU path
+	// looked slow. Rows are independent and each writes only its own span, so
+	// there is nothing to lock.
+	rows := make([]int, h)
+	var done atomic.Int64
+	var wg sync.WaitGroup
+	workers := runtime.NumCPU()
+	if workers > h {
+		workers = h
+	}
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func(start int) {
+			defer wg.Done()
+			for y := start; y < h; y += workers {
+				lat := south + (north-south)*(float64(y)+0.5)/float64(h)
+				seen := 0
+				for x := 0; x < w; x++ {
+					lon := west + (east-west)*(float64(x)+0.5)/float64(w)
+					if m, ok := t.ElevationM(lat, lon); ok {
+						g.Heights[y*w+x] = float32(m)
+						seen++
+					} else {
+						g.Heights[y*w+x] = NoDataHeight
+					}
+				}
+				rows[y] = seen
+				if progress != nil {
+					// Every thirty-second row: a callback per row of an 8192
+					// grid is a verb eight thousand times.
+					if n := int(done.Add(1)); n%32 == 0 || n == h {
+						progress(n, h)
+					}
+				}
 			}
-		}
+		}(i)
+	}
+	wg.Wait()
+
+	known := 0
+	for _, n := range rows {
+		known += n
 	}
 	return g, float64(known) / float64(w*h)
 }

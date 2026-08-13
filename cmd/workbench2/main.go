@@ -461,6 +461,9 @@ func main() {
 	}
 	sh.Add(&shell.Panel{Name: "Compare", Windowable: true, Draw: cmpP.Draw})
 	cfg := &configPanel{}
+	cfg.OnGPU = func(on bool) {
+		go func() { _, _ = st.Do(ctx, "gpu.set", map[string]any{"on": on}) }()
+	}
 	logp := &logPanel{}
 	sh.Add(&shell.Panel{Name: "Provisioning", Windowable: true,
 		Draw: withControls(provCtl.Draw, shell.EmptyPanel("Provisioning",

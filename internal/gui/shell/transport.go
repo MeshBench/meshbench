@@ -301,8 +301,19 @@ func warmingJob(s *state.Snapshot) *state.Job {
 // warmingWords says how far it has got, because "warming up" with no end in
 // sight and "warming up, 40,000 of 48,000" are different amounts of patience.
 func warmingWords(j *state.Job) string {
+	// A percentage rather than a bar: this sits in a one-row strip beside four
+	// other controls, and it is a number somebody glances at rather than
+	// watches.
 	if j.Total > 0 && j.Done > 0 {
-		return fmt.Sprintf("warming up - %d of %d links measured", j.Done, j.Total)
+		pct := float64(j.Done) / float64(j.Total) * 100
+		what := j.What
+		if what == "" {
+			what = "warming up"
+		}
+		return fmt.Sprintf("%s - %.0f%%", what, pct)
+	}
+	if j.What != "" {
+		return j.What
 	}
 	return "warming up - measuring every link"
 }

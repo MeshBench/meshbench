@@ -38,6 +38,23 @@ type Sim struct {
 	// warmed reports that the matrix has been measured for the engine as it
 	// stands. Cleared by a rebuild, set when a warm finishes uncancelled.
 	warmed bool
+	// gpuWarm is whether the link matrix is measured on the GPU when one can
+	// answer to the same accuracy. Off by default: it reads a rasterised
+	// height grid rather than the DEM, which is the same answer on a county
+	// and a different one on a continent.
+	gpuWarm bool
+	gpuMu   sync.Mutex
+	// gpuProbe is what asking this machine for a GPU answered, kept because
+	// asking twice opens a device twice.
+	gpuProbe *gpuProbe
+	// gpuAsked records that the machine has been asked whether it has a GPU,
+	// so the answer is not re-opened on every warm.
+	gpuAsked bool
+	// grid is the rasterised terrain the pair kernel reads, kept because
+	// building it is the expensive half and it is about the ground rather
+	// than about the nodes.
+	grid    coverage.HeightGrid
+	lastGPU GPUWarmResult
 	// fleetPending is a fleet command sent and not yet answered, held until the
 	// engine has run far enough for the nodes to have replied.
 	fleetPending *fleetPending
@@ -246,14 +263,42 @@ func (s *Sim) warm(st *state.Store, nodes int) {
 		_, _ = st.Do(ctx, "job.progress", state.Job{
 			ID: "links", What: "measuring every link", Total: total})
 
+		// On by default where there is hardware for it, decided once.
+		s.gpuDefault()
+		// The GPU first, if it is switched on and can answer honestly. What
+		// it fills, the cores below no longer have to: WarmLinks asks the
+		// cache before it measures anything.
+		if s.gpuWarm {
+			res := s.warmOnGPU(func(what string, done, total int) {
+				_, _ = st.Do(ctx, "job.progress", state.Job{
+					ID: "links", What: what, Done: done, Total: total})
+			})
+			s.gpuMu.Lock()
+			s.lastGPU = res
+			s.gpuMu.Unlock()
+			if res.Used {
+				_, _ = st.Do(ctx, "job.progress", state.Job{
+					ID: "links", What: "measuring every link on the GPU",
+					Done: res.Pairs, Total: total})
+			} else if res.Why != "" {
+				// Said aloud. A silent fall back is a status frozen on the
+				// last phase while every core spikes, which reads as a hang.
+				_, _ = st.Do(ctx, "ui.said",
+					"the GPU declined this one - "+res.Why+" - measuring on the processor")
+			}
+			_, _ = st.Do(ctx, "gpu.state", nil)
+		}
+
 		s.eng.WarmLinks(ctx, func(done, of int) {
-			// Not every step: a progress update is a verb, and a verb per
-			// path loss would make the queue the slow part.
-			if done%2000 != 0 {
+			// The first pair immediately and then every two-thousandth: the
+			// early one is what moves the status off the previous phase, and
+			// a verb per path loss would make the queue the slow part.
+			if done != 1 && done%2000 != 0 {
 				return
 			}
 			_, _ = st.Do(ctx, "job.progress", state.Job{
-				ID: "links", What: "measuring every link", Done: done, Total: of})
+				ID: "links", What: "measuring every link on the processor",
+				Done: done, Total: of})
 		})
 
 		if ctx.Err() != nil {

@@ -18,8 +18,12 @@ import (
 // means rebuilding it, and a field that silently does nothing until a rebuild
 // is worse than a value you cannot edit.
 type configPanel struct {
-	tb   comp.Table
-	init bool
+	tb  comp.Table
+	gpu comp.Check
+	// OnGPU turns the graphics path on and off.
+	OnGPU func(on bool)
+	init  bool
+	was   bool
 }
 
 func (p *configPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
@@ -29,10 +33,22 @@ func (p *configPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 			{Title: "value", Width: 200, Mono: true},
 			{Title: "why it matters"},
 		}
+		p.gpu.Label = "measure links on the GPU"
 		p.init = true
 	}
 	if s == nil {
 		return layout.Dimensions{}
+	}
+	// The switch follows the session unless somebody has just moved it, so a
+	// run that turned it off is not fought by a checkbox that thinks it is on.
+	if p.gpu.Bool.Update(gtx) {
+		p.was = p.gpu.Bool.Value
+		if p.OnGPU != nil {
+			p.OnGPU(p.gpu.Bool.Value)
+		}
+	} else if s.GPU.Enabled != p.was {
+		p.was = s.GPU.Enabled
+		p.gpu.Bool.Value = s.GPU.Enabled
 	}
 	rows := []comp.Row{
 		{Key: "seed", Cells: []string{"seed", fmt.Sprintf("%d", s.Seed),
@@ -52,6 +68,7 @@ func (p *configPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 		{Key: "events", Cells: []string{"events", fmt.Sprintf("%d", s.EventTotal),
 			"the whole log; the tables show the tail of it"}},
 	}
+	rows = append(rows, gpuRows(s.GPU)...)
 	p.tb.SetRows(rows)
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(comp.SectionTitle(t, "this run")),
@@ -60,7 +77,51 @@ func (p *configPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			return p.tb.Layout(t, gtx, nil)
 		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return p.gpu.Layout(t, gtx)
+		}),
+		layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint, gpuNote(s.GPU))),
 	)
+}
+
+// gpuRows say what hardware there is and what the last warm did with it.
+//
+// What it did, and not only whether it is switched on: a page reading "GPU
+// acceleration: on" over a run that quietly fell back to the processor is the
+// kind of claim this project does not make.
+func gpuRows(g state.GPUState) []comp.Row {
+	present := "none found"
+	if g.Present {
+		present = g.Device + " (" + g.Backend + ")"
+	}
+	rows := []comp.Row{
+		{Key: "gpu", Cells: []string{"graphics device", present,
+			"every GPU path has a processor twin that answers the same, more slowly"}},
+		{Key: "gpuon", Cells: []string{"links measured on the GPU",
+			fmt.Sprintf("%t", g.Enabled),
+			"forty-eight thousand independent profiles is the shape a compute shader is for"}},
+	}
+	if g.Pairs > 0 {
+		rows = append(rows, comp.Row{Key: "gpupairs", Cells: []string{
+			"last warm on the GPU",
+			fmt.Sprintf("%d pairs in %d ms", g.Pairs, g.Ms),
+			fmt.Sprintf("sampled at %.0f m per cell", g.CellM)}})
+	}
+	return rows
+}
+
+// gpuNote is why the last warm did not use the GPU, when it did not.
+func gpuNote(g state.GPUState) string {
+	switch {
+	case !g.Present:
+		return "no graphics device: " + g.Why
+	case g.Enabled && g.Why != "":
+		return "the last warm used the processor: " + g.Why
+	case g.Enabled:
+		return "the kernel is held to its processor twin by an equivalence " +
+			"test, and refuses a grid too coarse to be the same answer"
+	}
+	return "off: every link is measured on the processor, across every core"
 }
 
 // logPanel is what has happened in this session, newest last (6.14).

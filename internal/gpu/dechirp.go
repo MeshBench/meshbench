@@ -25,8 +25,12 @@ type Device struct {
 	queue    *wgpu.Queue
 	dechirp  *wgpu.ComputePipeline
 	coverage *wgpu.ComputePipeline
+	pairs    *wgpu.ComputePipeline
 	Name     string
 	Backend  string
+	// MaxStorageMB is the largest storage buffer this device will bind, so a
+	// caller sizing a grid can ask first rather than fail after.
+	MaxStorageMB uint64
 }
 
 // Open acquires a GPU and compiles every shader up front.
@@ -43,7 +47,20 @@ func Open() (*Device, error) {
 	if err != nil {
 		return nil, fmt.Errorf("gpu: no adapter: %w", err)
 	}
-	dev, err := ad.RequestDevice(nil)
+	// The adapter's own limits rather than WebGPU's defaults. The default
+	// storage-buffer binding is 128 MiB, and a country-sized height grid is
+	// twice that: with the default, the pairs kernel fails to bind on exactly
+	// the network that needs it most, and the failure reads as a silent fall
+	// back to the processor.
+	supported := ad.GetLimits()
+	dev, err := ad.RequestDevice(&wgpu.DeviceDescriptor{
+		RequiredLimits: &wgpu.RequiredLimits{Limits: supported.Limits},
+	})
+	if err != nil {
+		// A card that refuses its own reported limits still works at the
+		// defaults, only smaller.
+		dev, err = ad.RequestDevice(nil)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("gpu: no device: %w", err)
 	}
@@ -51,6 +68,7 @@ func Open() (*Device, error) {
 	d := &Device{
 		instance: inst, adapter: ad, device: dev, queue: dev.GetQueue(),
 		Name: info.Name, Backend: info.BackendType.String(),
+		MaxStorageMB: supported.Limits.MaxStorageBufferBindingSize / (1 << 20),
 	}
 	mod, err := dev.CreateShaderModule(&wgpu.ShaderModuleDescriptor{
 		Label:          "dechirp",
@@ -68,6 +86,9 @@ func Open() (*Device, error) {
 		return nil, fmt.Errorf("gpu: dechirp pipeline: %w", err)
 	}
 	if err := d.compileCoverage(); err != nil {
+		return nil, err
+	}
+	if err := d.compilePairs(); err != nil {
 		return nil, err
 	}
 	return d, nil

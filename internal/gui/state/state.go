@@ -101,6 +101,8 @@ type Snapshot struct {
 	Stats []NodeStat
 	// Library is every build, published or on disk, with what runs it.
 	Library []FirmwareRow
+	// GPU is what hardware there is and what the last warm did with it.
+	GPU GPUState
 	// Builds is the firmware library on this machine.
 	Builds []Build
 	// Experiment is the A/B matrix's summary, and ExperimentWarning is why it
@@ -164,6 +166,27 @@ type Link struct {
 type FleetReply struct {
 	Node  string
 	Reply string
+}
+
+// GPUState is the graphics hardware, whether it is being used, and what it
+// last did.
+//
+// What it last did rather than only whether it is switched on: "GPU
+// acceleration: on" over a run that quietly fell back to the cores is exactly
+// the kind of claim this project does not make.
+type GPUState struct {
+	Enabled bool
+	Present bool
+	Device  string
+	Backend string
+	// Why is the reason there is no GPU, or the reason the last warm did not
+	// use the one there is.
+	Why string
+	// Used, Pairs, CellM and Ms describe the last warm.
+	Used  bool
+	Pairs int
+	CellM float64
+	Ms    int64
 }
 
 // FirmwareRow is one build in the library: published, on disk, or both.
@@ -547,6 +570,8 @@ type World struct {
 	Stats []NodeStat
 	// Library is every build, published or on disk, with what runs it.
 	Library []FirmwareRow
+	// GPU is what hardware there is and what the last warm did with it.
+	GPU GPUState
 	// Builds is the firmware library on this machine.
 	Builds []Build
 	// Experiment is the A/B matrix's summary, and ExperimentWarning is why it
@@ -812,6 +837,7 @@ func (s *Store) publish() {
 		Stats:             s.world.Stats,
 		Builds:            s.world.Builds,
 		Library:           append([]FirmwareRow(nil), s.world.Library...),
+		GPU:               s.world.GPU,
 		Experiment:        s.world.Experiment,
 		ExperimentWarning: s.world.ExperimentWarning,
 		Series:            s.world.Series,

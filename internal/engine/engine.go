@@ -724,6 +724,42 @@ func (e *Engine) profile(from, to scenario.Node, distKm float64) ([]terrain.Poin
 	return out, true
 }
 
+// PrimeLinks fills the cache from a matrix somebody else computed.
+//
+// The matrix is the upper triangle of an n by n grid, in the same node order
+// the engine holds, carrying free-space plus diffraction and not the excess
+// path loss, which is this engine's own setting and is added here. Pairs the
+// terrain could not answer for are left out rather than guessed at: they fall
+// back to the profile the lazy path would have taken.
+//
+// It exists so the measurement can be done somewhere other than these cores -
+// on a GPU, where forty-eight thousand independent profiles is what the
+// hardware is for - without that path having to know anything about the
+// engine's locking or its cache.
+func (e *Engine) PrimeLinks(n int, loss []float32, noData float32) int {
+	if n <= 1 || len(loss) < n*n {
+		return 0
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if n != len(e.nodes) {
+		// A matrix about a different network is worse than no matrix.
+		return 0
+	}
+	filled := 0
+	for a := 0; a < n; a++ {
+		for b := a + 1; b < n; b++ {
+			v := loss[a*n+b]
+			if v == noData || math.IsInf(float64(v), 0) || math.IsNaN(float64(v)) {
+				continue
+			}
+			e.linkCache[[2]int{a, b}] = float64(v) + e.Config.ExcessPathLossDB
+			filled++
+		}
+	}
+	return filled
+}
+
 // WarmLinks computes the whole path-loss matrix, in parallel.
 //
 // The cache fills lazily otherwise, which means the first flood pays for every
