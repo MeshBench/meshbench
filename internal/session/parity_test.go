@@ -40,7 +40,6 @@ var stillMissing = map[string]string{
 	"companion.raw":         "P6",
 	"companion.send":        "P6",
 	"companion.state":       "P6",
-	"console.type":          "P4",
 	"coverage.start":        "P5",
 	"experiment.base":       "P6",
 	"experiment.compare":    "P6",
