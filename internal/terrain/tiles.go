@@ -332,11 +332,16 @@ func decodeTerrarium(b []byte) (*tile, error) {
 	return t, nil
 }
 
-// DefaultMaxLoadedTiles is 1,024 decoded tiles, about 256 MB.
+// DefaultMaxLoadedTiles is 8,192 decoded tiles, about 2 GB.
 //
-// Enough that a profile across a country does not thrash, small enough that a
-// long-running workbench does not grow without bound.
-const DefaultMaxLoadedTiles = 1024
+// The old cap of 1,024 believed its own comment - "enough that a profile
+// across a country does not thrash" - and it was not: a national scenario
+// has tens of thousands of tiles on disk, so warming 48,000 criss-crossing
+// profiles evicted constantly and re-decoded PNGs at milliseconds each. That
+// thrash was the whole cost of a nine-minute warm whose arithmetic took 30
+// milliseconds. Two gigabytes holds a country; the development machines
+// carry 32.
+const DefaultMaxLoadedTiles = 8192
 
 // remember stores a decoded tile and evicts the oldest once the cap is passed.
 // Called with the lock held.
