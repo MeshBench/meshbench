@@ -13,6 +13,7 @@ import (
 	"runtime/pprof"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"gioui.org/app"
@@ -280,19 +281,36 @@ func main() {
 	}
 	// The map reports what it can see; whatever wants to compute something
 	// for that view reads it here rather than duplicating the projection.
+	// Guarded: the frame loop writes it and the capture flag's goroutine
+	// reads it.
+	var viewMu sync.Mutex
 	var view [4]float64
+	getView := func() [4]float64 {
+		viewMu.Lock()
+		defer viewMu.Unlock()
+		return view
+	}
 	var lastSize image.Point
 	mv.ViewBox = func(south, north, west, east float64) {
+		viewMu.Lock()
 		view = [4]float64{south, north, west, east}
+		viewMu.Unlock()
 	}
 	mv.OnSize = func(sz image.Point) { lastSize = sz }
 	if *shadeFlag {
 		mv.Layers.Terrain = true
 		go func() {
-			// After a frame or two, so the view box is the view rather than
-			// the zero value.
-			time.Sleep(2 * time.Second)
-			_, _ = st.Do(ctx, "terrain.shade", view)
+			// Until the map has drawn once, the view box is the zero value
+			// and the verb rightly refuses it. A fixed two-second guess was
+			// routinely too early, which is why this flag produced a ticked
+			// layer over an unshaded map.
+			for i := 0; i < 30; i++ {
+				time.Sleep(2 * time.Second)
+				if v := getView(); v != [4]float64{} {
+					_, _ = st.Do(ctx, "terrain.shade", v)
+					return
+				}
+			}
 		}()
 	}
 	// A menu entry is a name, not a closure: the camera actions are the map's
@@ -352,7 +370,7 @@ func main() {
 				_, _ = st.Do(ctx, "ui.said", "working out what it reaches")
 			}()
 		case "Terrain":
-			box := view
+			box := getView()
 			go func() { _, _ = st.Do(ctx, "terrain.shade", box) }()
 		}
 	}
