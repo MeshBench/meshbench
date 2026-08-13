@@ -3,58 +3,26 @@ package session
 import (
 	"fmt"
 	"math"
+	"runtime"
+	"sync"
 	"time"
 
 	"github.com/A13xB0/meshcoresim/internal/coverage"
+	"github.com/A13xB0/meshcoresim/internal/dsp"
 	"github.com/A13xB0/meshcoresim/internal/gpu"
 	"github.com/A13xB0/meshcoresim/internal/gui/state"
+	"github.com/A13xB0/meshcoresim/internal/terrain"
 )
 
-// Warming the link matrix on the GPU.
+// Warming the link matrix with the GPU.
 //
-// Forty-eight thousand profiles, none of which depends on another, on a
-// machine whose cores are already running three hundred firmware processes.
-// That is the shape a compute shader is for, and the kernel is held to its CPU
-// twin by an equivalence test.
-//
-// It is not the default, and the reason is honest rather than cautious: the
-// kernel reads a rasterised height grid, and a grid is not the DEM. On a
-// county the cells come out finer than the elevation data itself and the
-// answer is the same to a hundredth of a decibel; on a country-sized import
-// the same grid is hundreds of metres per cell, which is a different
-// simulation. So the cell size is measured, shown, and refused when it is too
-// coarse to be the same answer.
-
-// gpuGridMin and gpuGridMax bound the raster the kernel samples. Square, and
-// grown until its cells are fine enough to be the same answer as the DEM: a
-// county needs 4096, a country needs 8192, and 8192 squared is 268 MB of
-// float32, which is the most worth putting on a graphics card for this.
-const (
-	gpuGridMin = 2048
-	gpuGridMax = 8192
-)
-
-// gpuGridFor is the smallest grid whose cells are fine enough for this view.
-// The second return is the cell size it achieves, which is reported whether or
-// not it is good enough.
-func gpuGridFor(south, north float64) (int, float64) {
-	spanM := (north - south) * 111320
-	for n := gpuGridMin; n <= gpuGridMax; n *= 2 {
-		if cell := spanM / float64(n); cell <= gpuMaxCellM {
-			return n, cell
-		}
-	}
-	return gpuGridMax, spanM / gpuGridMax
-}
-
-// gpuMinPairs is the least work worth moving. Below it the grid costs more to
-// build than the pairs cost to measure.
-const gpuMinPairs = 4000
-
-// gpuMaxCellM is the coarsest cell this will use. Beyond it the CPU does the
-// work, because a profile sampled every quarter of a kilometre is not the
-// terrain the rest of the simulator is using.
-const gpuMaxCellM = 120.0
+// The shape is the old workbench's, because that shape is why it was never
+// slow: cull the pairs free space already rules out, walk profiles only over
+// ground the surviving paths actually cross - from the same hot tile cache
+// the processor uses, on every core - and then do the diffraction arithmetic.
+// The one departure is where the arithmetic runs. The first attempt instead
+// rasterised the whole bounding box, which downloaded tiles no path crosses
+// and outgrew what a card will bind; profiles are small at any span.
 
 // GPUWarmResult is what a warm did, for the page that reports it.
 type GPUWarmResult struct {
@@ -65,6 +33,181 @@ type GPUWarmResult struct {
 	Pairs    int
 	CellM    float64
 	Duration time.Duration
+}
+
+// gpuMinPairs is the least work worth opening a device for.
+const gpuMinPairs = 500
+
+// warmOnGPU fills the engine's link cache, reporting what it did. A result
+// with Used false means the processor should do the work instead.
+func (s *Sim) warmOnGPU(progress func(what string, done, total int)) GPUWarmResult {
+	var out GPUWarmResult
+	n := len(s.nodes)
+	if s.eng == nil || n < 2 {
+		out.Why = "no network"
+		return out
+	}
+	if n*(n-1)/2 < gpuMinPairs {
+		out.Why = fmt.Sprintf("%d pairs is not enough work to be worth a device", n*(n-1)/2)
+		return out
+	}
+
+	dev, err := gpu.Open()
+	if err != nil {
+		out.Why = err.Error()
+		return out
+	}
+	defer dev.Close()
+	out.Device, out.Backend = dev.Name, dev.Backend
+	started := time.Now()
+
+	// The cull, exactly as the engine's own pathLoss makes it: terrain only
+	// ever adds loss, so a pair that cannot matter over flat vacuum cannot
+	// matter at all, and the profile is the expensive part. Culled pairs get
+	// their free-space figure, which is what the engine itself caches for
+	// them.
+	noise := dsp.NoiseFloorDBm(250e3, 6)
+	type job struct {
+		a, b   int
+		distKm float64
+	}
+	var jobs []job
+	loss := make([]float32, n*n)
+	for i := range loss {
+		loss[i] = coverage.NoDataLoss
+	}
+	culled := 0
+	for a := 0; a < n; a++ {
+		for b := a + 1; b < n; b++ {
+			na, nb := s.nodes[a], s.nodes[b]
+			distKm := haversineKmSession(na.Position.Lat, na.Position.Lon,
+				nb.Position.Lat, nb.Position.Lon)
+			if distKm <= 0 {
+				continue
+			}
+			fspl := terrain.FSPLdB(distKm, s.freqMHz)
+			bestTx := math.Max(na.TxPowerDBm, nb.TxPowerDBm)
+			// A generous allowance for antenna gain on both ends, so this
+			// cull is never tighter than the engine's own.
+			if bestTx+24-fspl < noise-30 {
+				loss[a*n+b] = float32(fspl)
+				culled++
+				continue
+			}
+			jobs = append(jobs, job{a: a, b: b, distKm: distKm})
+		}
+	}
+
+	// Profiles, every core, from the tile cache. The same sampling as the
+	// engine's own profile: a point per 60 m, at least two, at most 256.
+	terr := s.terrain()
+	type packed struct {
+		idx     int
+		heights []float32
+		distM   float64
+		aglA    float64
+		aglB    float64
+	}
+	results := make([]packed, len(jobs))
+	var done64 sync.WaitGroup
+	workers := runtime.NumCPU()
+	var counter int64
+	var mu sync.Mutex
+	next := 0
+	for w := 0; w < workers; w++ {
+		done64.Add(1)
+		go func() {
+			defer done64.Done()
+			for {
+				mu.Lock()
+				i := next
+				next++
+				mu.Unlock()
+				if i >= len(jobs) {
+					return
+				}
+				j := jobs[i]
+				na, nb := s.nodes[j.a], s.nodes[j.b]
+				steps := int(j.distKm * 1000 / 60)
+				if steps < 2 {
+					steps = 2
+				}
+				if steps > 256 {
+					steps = 256
+				}
+				hs := make([]float32, steps+1)
+				ok := true
+				for k := 0; k <= steps; k++ {
+					f := float64(k) / float64(steps)
+					h, got := terr.ElevationM(
+						na.Position.Lat+(nb.Position.Lat-na.Position.Lat)*f,
+						na.Position.Lon+(nb.Position.Lon-na.Position.Lon)*f)
+					if !got {
+						ok = false
+						break
+					}
+					hs[k] = float32(h)
+				}
+				if ok {
+					results[i] = packed{idx: i, heights: hs, distM: j.distKm * 1000,
+						aglA: na.HeightAGLm, aglB: nb.HeightAGLm}
+				}
+				mu.Lock()
+				counter++
+				c := counter
+				mu.Unlock()
+				if progress != nil && (c == 1 || c%512 == 0) {
+					progress("walking the ground under each link", int(c), len(jobs))
+				}
+			}
+		}()
+	}
+	done64.Wait()
+
+	// Pack and dispatch.
+	var prof coverage.PairProfiles
+	packedIdx := make([]int, 0, len(jobs))
+	for i, r := range results {
+		if r.heights == nil {
+			continue
+		}
+		prof.Add(r.heights, r.distM, r.aglA, r.aglB)
+		packedIdx = append(packedIdx, i)
+	}
+	if prof.Pairs() > 0 {
+		if progress != nil {
+			progress("diffraction on the GPU", prof.Pairs(), prof.Pairs())
+		}
+		res, err := dev.PairProfileLoss(prof, s.freqMHz)
+		if err != nil {
+			out.Why = err.Error()
+			return out
+		}
+		for k, li := range packedIdx {
+			j := jobs[li]
+			loss[j.a*n+j.b] = res[k]
+		}
+	}
+
+	out.Pairs = s.eng.PrimeLinks(n, loss, coverage.NoDataLoss)
+	out.Duration = time.Since(started)
+	out.Used = out.Pairs > 0
+	if !out.Used {
+		out.Why = "nothing could be measured: no elevation data for these paths"
+	}
+	_ = culled
+	return out
+}
+
+// haversineKmSession is the same great-circle the engine uses.
+func haversineKmSession(lat1, lon1, lat2, lon2 float64) float64 {
+	const r = 6371.0
+	rad := math.Pi / 180
+	dLat := (lat2 - lat1) * rad
+	dLon := (lon2 - lon1) * rad
+	a := math.Sin(dLat/2)*math.Sin(dLat/2) +
+		math.Cos(lat1*rad)*math.Cos(lat2*rad)*math.Sin(dLon/2)*math.Sin(dLon/2)
+	return 2 * r * math.Asin(math.Min(1, math.Sqrt(a)))
 }
 
 // gpuDefault decides, once, whether to use the GPU without being asked.
@@ -80,108 +223,6 @@ func (s *Sim) gpuDefault() {
 	s.gpuAsked = true
 	s.probeGPU()
 	s.gpuWarm = s.gpuProbe.present
-}
-
-// warmOnGPU fills the engine's link cache from the pair kernel, and reports
-// what it did. A false first return means the CPU should do the work.
-func (s *Sim) warmOnGPU(progress func(what string, done, total int)) GPUWarmResult {
-	var out GPUWarmResult
-	if s.eng == nil || len(s.nodes) < 2 {
-		out.Why = "no network"
-		return out
-	}
-	south, north := math.Inf(1), math.Inf(-1)
-	west, east := math.Inf(1), math.Inf(-1)
-	for _, n := range s.nodes {
-		south = math.Min(south, n.Position.Lat)
-		north = math.Max(north, n.Position.Lat)
-		west = math.Min(west, n.Position.Lon)
-		east = math.Max(east, n.Position.Lon)
-	}
-	// A margin, so a node on the edge still has ground beyond it to diffract
-	// over.
-	padLat := math.Max(0.05, (north-south)*0.05)
-	padLon := math.Max(0.05, (east-west)*0.05)
-	south, north = south-padLat, north+padLat
-	west, east = west-padLon, east+padLon
-
-	// Worth doing at all.
-	//
-	// The kernel is sixty-five milliseconds for forty-eight thousand pairs;
-	// rasterising the grid it reads is sixteen million elevation lookups, and
-	// on a small network that trade is the wrong way round - measured at
-	// twenty seconds against a couple for the cores. So the grid is cached,
-	// and below a few thousand pairs the processor does the work.
-	pairs := len(s.nodes) * (len(s.nodes) - 1) / 2
-	if pairs < gpuMinPairs && !s.hasGrid(south, north, west, east) {
-		out.Why = fmt.Sprintf("%d pairs is less work than building the height "+
-			"grid to do it on", pairs)
-		return out
-	}
-
-	// The cell size, north-south, which is the one that does not change with
-	// latitude.
-	grid, cell := gpuGridFor(south, north)
-	out.CellM = cell
-	if out.CellM > gpuMaxCellM {
-		out.Why = fmt.Sprintf("this network spans %.0f km, so even a %d cell grid "+
-			"is %.0f m per cell - coarser than the terrain the rest of the run uses",
-			(north-south)*111.32, gpuGridMax, out.CellM)
-		return out
-	}
-
-	dev, err := gpu.Open()
-	if err != nil {
-		out.Why = err.Error()
-		return out
-	}
-	defer dev.Close()
-	out.Device, out.Backend = dev.Name, dev.Backend
-
-	// The grid has to fit in one storage binding on this card. Asked, not
-	// assumed: at the WebGPU default of 128 MiB an 8192 grid does not bind,
-	// and the kernel failing after the grid was built is twenty wasted
-	// seconds and a silent fall back.
-	if need := uint64(grid) * uint64(grid) * 4 / (1 << 20); need >= dev.MaxStorageMB {
-		for grid > gpuGridMin && uint64(grid)*uint64(grid)*4/(1<<20) >= dev.MaxStorageMB {
-			grid /= 2
-		}
-		out.CellM = (north - south) * 111320 / float64(grid)
-		if out.CellM > gpuMaxCellM {
-			out.Why = fmt.Sprintf("this card binds %d MB at most, so the finest "+
-				"grid that fits is %.0f m per cell - coarser than the terrain "+
-				"the rest of the run uses", dev.MaxStorageMB, out.CellM)
-			return out
-		}
-	}
-
-	started := time.Now()
-	g, ok := s.heightGrid(south, north, west, east, grid, progress)
-	if !ok {
-		out.Why = "most of this view has no elevation data cached"
-		return out
-	}
-
-	nodes := make([]coverage.PairNode, 0, len(s.nodes))
-	for _, n := range s.nodes {
-		nodes = append(nodes, coverage.PairNode{
-			Lat: n.Position.Lat, Lon: n.Position.Lon, AGLm: n.HeightAGLm,
-		})
-	}
-	loss, err := dev.PairLoss(g, nodes, coverage.PairParams{
-		FreqMHz: s.freqMHz, StepM: 60, StepsCap: 256,
-	})
-	if err != nil {
-		out.Why = err.Error()
-		return out
-	}
-	out.Pairs = s.eng.PrimeLinks(len(nodes), loss, coverage.NoDataLoss)
-	out.Duration = time.Since(started)
-	out.Used = out.Pairs > 0
-	if !out.Used {
-		out.Why = "the matrix was about a different network by the time it landed"
-	}
-	return out
 }
 
 // registerGPU is the switch and what it did.
@@ -241,8 +282,7 @@ func (s *Sim) gpuState() map[string]any {
 		}
 		out["last_warm"] = lastOut
 	}
-	out["grid_max"] = gpuGridMax
-	out["coarsest_cell_m"] = gpuMaxCellM
+
 	return out
 }
 
@@ -292,35 +332,4 @@ func (s *Sim) gpuWorldState() state.GPUState {
 		out.Why = last.Why
 	}
 	return out
-}
-
-// heightGrid is the raster the kernel reads, built once per view.
-//
-// Sixteen million elevation lookups is the expensive half of this, and it
-// depends on the ground rather than on the nodes: moving a node, changing a
-// seed or restarting a run all reuse it, and only a different area pays again.
-func (s *Sim) heightGrid(south, north, west, east float64, grid int,
-	progress func(what string, done, total int)) (coverage.HeightGrid, bool) {
-
-	if s.hasGrid(south, north, west, east) {
-		return s.grid, true
-	}
-	g, known := coverage.RasteriseHeightsProgress(s.terrain(), south, north, west, east,
-		grid, grid, func(done, total int) {
-			if progress != nil {
-				progress("reading the ground for the GPU", done, total)
-			}
-		})
-	if known < 0.5 {
-		return coverage.HeightGrid{}, false
-	}
-	s.grid = g
-	return g, true
-}
-
-// hasGrid reports whether the cached raster is about this view.
-func (s *Sim) hasGrid(south, north, west, east float64) bool {
-	g := s.grid
-	return g.W > 0 && g.South == south && g.North == north &&
-		g.West == west && g.East == east
 }

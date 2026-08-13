@@ -2,81 +2,69 @@ package coverage
 
 import "math"
 
-// The pair matrix: every node's path loss to every other, over a rasterised
-// height grid.
-//
-// This is the CPU twin of the pairs kernel (ADR-0004): the same construction
-// as GridLossCPU with the raster cell replaced by another node. It exists so
-// the GPU has something to be tested against, and so a machine without a
-// usable GPU loses time rather than the feature.
-
-// PairNode is one end of a path: where it is, and how far above the ground its
-// antenna sits.
-type PairNode struct {
-	Lat, Lon float64
-	AGLm     float64
-}
-
-// PairParams are the things every pair shares.
-type PairParams struct {
-	FreqMHz float64
-	// StepM is how far apart the profile samples are, and StepsCap bounds a
-	// long path so it cannot cost more than it is worth. Both match the
-	// engine's own profile, so the two answers are about the same shape of
-	// path.
-	StepM    float64
-	StepsCap int
-}
-
 // NoDataLoss marks a pair the terrain could not answer for.
 const NoDataLoss = float32(3.4e38)
 
-// PairLossCPU fills an n by n matrix; only the upper triangle is written, and
-// the rest is left at zero, exactly as the kernel leaves it.
-func PairLossCPU(g HeightGrid, nodes []PairNode, p PairParams) []float32 {
-	n := len(nodes)
-	out := make([]float32, n*n)
-	for a := 0; a < n; a++ {
-		for b := a + 1; b < n; b++ {
-			out[a*n+b] = pairLoss(g, nodes[a], nodes[b], p)
-		}
+// The profile-based pair loss: the CPU twin of the pairs kernel (ADR-0004).
+//
+// PairProfiles is the packed form both sides read: every profile's heights end
+// to end, with per-pair offsets, counts, distances and antenna heights. Packed
+// once on the CPU from the hot tile cache, so the two computations see
+// byte-identical ground.
+type PairProfiles struct {
+	Heights []float32
+	// MetaU is offset, count per pair. MetaF is distance in metres, antenna
+	// height A, antenna height B per pair.
+	MetaU []uint32
+	MetaF []float32
+}
+
+// Pairs is how many pairs are packed.
+func (p PairProfiles) Pairs() int { return len(p.MetaU) / 2 }
+
+// Add packs one profile and returns its index.
+func (p *PairProfiles) Add(heights []float32, distM, aglA, aglB float64) int {
+	off := uint32(len(p.Heights))
+	p.Heights = append(p.Heights, heights...)
+	p.MetaU = append(p.MetaU, off, uint32(len(heights)))
+	p.MetaF = append(p.MetaF, float32(distM), float32(aglA), float32(aglB))
+	return p.Pairs() - 1
+}
+
+// ProfilePairLossCPU computes every packed pair, exactly as the kernel does.
+func ProfilePairLossCPU(p PairProfiles, freqMHz float64) []float32 {
+	out := make([]float32, p.Pairs())
+	for i := range out {
+		out[i] = profilePairLoss(p, i, freqMHz)
 	}
 	return out
 }
 
-func pairLoss(g HeightGrid, na, nb PairNode, p PairParams) float32 {
-	distKm := haversineKm(na.Lat, na.Lon, nb.Lat, nb.Lon)
-	if distKm <= 0 {
-		return NoDataLoss
-	}
-	ga, okA := g.At(na.Lat, na.Lon)
-	gb, okB := g.At(nb.Lat, nb.Lon)
-	if !okA || !okB {
-		return NoDataLoss
+func profilePairLoss(p PairProfiles, idx int, freqMHz float64) float32 {
+	off := int(p.MetaU[idx*2])
+	cnt := int(p.MetaU[idx*2+1])
+	d := float64(p.MetaF[idx*3])
+	aglA := float64(p.MetaF[idx*3+1])
+	aglB := float64(p.MetaF[idx*3+2])
+
+	distKm := d / 1000
+	fspl := 32.44 + 20*math.Log10(distKm) + 20*math.Log10(freqMHz)
+	if cnt < 3 {
+		return float32(fspl)
 	}
 
-	d := distKm * 1000
-	lambda := 299.792458 / p.FreqMHz
-	txAlt := ga + na.AGLm
-	rxAlt := gb + nb.AGLm
+	lambda := 299.792458 / freqMHz
+	txAlt := float64(p.Heights[off]) + aglA
+	rxAlt := float64(p.Heights[off+cnt-1]) + aglB
 	slope := (rxAlt - txAlt) / d
-
-	steps := int(math.Max(2, math.Floor(d/p.StepM)))
-	if steps > p.StepsCap {
-		steps = p.StepsCap
-	}
+	n := float64(cnt - 1)
 
 	maxFromTx, maxFromRx, worstV := math.Inf(-1), math.Inf(-1), math.Inf(-1)
-	seen := false
-	for i := 1; i < steps; i++ {
-		f := float64(i) / float64(steps)
-		h, ok := g.At(na.Lat+(nb.Lat-na.Lat)*f, na.Lon+(nb.Lon-na.Lon)*f)
-		if !ok {
-			return NoDataLoss
-		}
+	for i := 1; i < cnt-1; i++ {
+		f := float64(i) / n
 		d1 := d * f
 		d2 := d - d1
-		hb := h + d1*d2/(2*4.0/3.0*6371000)
+		hb := float64(p.Heights[off+i]) + d1*d2/(2*4.0/3.0*6371000)
 		if s := (hb - txAlt) / d1; s > maxFromTx {
 			maxFromTx = s
 		}
@@ -87,12 +75,6 @@ func pairLoss(g HeightGrid, na, nb PairNode, p PairParams) float32 {
 		if v := hLos * math.Sqrt(2*d/(lambda*d1*d2)); v > worstV {
 			worstV = v
 		}
-		seen = true
-	}
-
-	fspl := 32.44 + 20*math.Log10(distKm) + 20*math.Log10(p.FreqMHz)
-	if !seen {
-		return float32(fspl)
 	}
 
 	var v float64
