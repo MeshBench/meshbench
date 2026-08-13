@@ -133,7 +133,16 @@ func Pill(t *theme.Theme, c color.NRGBA, label string) layout.Widget {
 			)
 		})
 		call := macro.Stop()
-		RoundRect(gtx, dims.Size, 999, theme.Alpha(c, 0.13))
+		// A capsule, not RoundRect with a huge radius: Gio does not clamp
+		// corner radii, and a radius bigger than the rectangle renders as
+		// smears of the fill colour across the window.
+		rr := dims.Size.Y / 2
+		func() {
+			defer clip.RRect{Rect: image.Rectangle{Max: dims.Size},
+				NE: rr, NW: rr, SE: rr, SW: rr}.Push(gtx.Ops).Pop()
+			paint.ColorOp{Color: theme.Alpha(c, 0.13)}.Add(gtx.Ops)
+			paint.PaintOp{}.Add(gtx.Ops)
+		}()
 		call.Add(gtx.Ops)
 		return dims
 	}
