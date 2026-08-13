@@ -115,6 +115,7 @@ func main() {
 	onSignal(ctx, cancel, sm)
 
 	sh := shell.New()
+	sm.SetUI(&workbenchUI{sh: sh, sim: sm})
 	wins := newWindows()
 	mv := &comp.MapView{}
 	// The tile cache the old workbench already filled: 37 MB of it on this
@@ -580,6 +581,10 @@ func main() {
 					comp.Fill(gtx, th.P.Ground)
 					p.Draw(th, gtx, st.Snapshot())
 				} else {
+					// Applied here, on the goroutine that owns it.
+					if v := pendingView.Swap(0); v > 0 {
+						sh.View = shell.View(v - 1)
+					}
 					sh.Layout(th, gtx, st.Snapshot())
 				}
 				e.Frame(gtx.Ops)

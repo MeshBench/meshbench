@@ -25,6 +25,9 @@ import (
 
 // Sim holds the engine and the scenario it was built from.
 type Sim struct {
+	// ui is whatever is drawing this session, if anything.
+	ui UI
+
 	// freqMHz and seed are what the current engine was built with, so a
 	// rebuild reproduces it rather than guessing.
 	freqMHz float64

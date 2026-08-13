@@ -26,7 +26,6 @@ import (
 
 // stillMissing are the old socket's verbs this build does not answer yet.
 var stillMissing = map[string]string{
-	"app.quit":              "P7",
 	"assert.check":          "P6",
 	"boundary.accept":       "P5",
 	"boundary.prune":        "P5",
@@ -80,7 +79,6 @@ var stillMissing = map[string]string{
 	"panel.dock":            "P7",
 	"panel.open":            "P7",
 	"panel.pop_out":         "P7",
-	"panels.list":           "P7",
 	"project.list":          "P7",
 	"project.save":          "P7",
 	"radio.preset":          "P5",
@@ -93,7 +91,6 @@ var stillMissing = map[string]string{
 	"view.save":             "P7",
 	"window.close":          "P7",
 	"window.open":           "P7",
-	"workspace.set":         "P7",
 }
 
 var oldVerb = regexp.MustCompile(`case "([a-z_]+\.[a-z_]+)"`)

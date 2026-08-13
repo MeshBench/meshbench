@@ -71,3 +71,7 @@ func layoutFor(v View) (main string, side []string) {
 		return "Map", []string{"Nodes", "Inspector"}
 	}
 }
+
+// NumViews is how many views there are, for anything outside this package
+// that has to enumerate them - a verb naming one, or a test covering all.
+const NumViews = numViews

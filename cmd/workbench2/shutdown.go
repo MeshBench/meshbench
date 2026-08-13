@@ -47,3 +47,22 @@ func onSignal(ctx context.Context, cancel context.CancelFunc, s *session.Sim) {
 		os.Exit(0)
 	}()
 }
+
+// quit stops firmware and ends the process, the same way a signal does.
+//
+// Bounded, because a node that will not die must not stop the application
+// closing: an operator who has asked twice will use kill, and then nothing
+// gets stopped cleanly at all.
+func quit(s *session.Sim) {
+	done := make(chan struct{})
+	go func() {
+		s.Close()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(20 * time.Second):
+		fmt.Fprintln(os.Stderr, "firmware did not stop in 20s; exiting anyway")
+	}
+	os.Exit(0)
+}
