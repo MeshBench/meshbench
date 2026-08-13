@@ -37,6 +37,8 @@ type Sim struct {
 	capturePath string
 	// comps is one session per connected companion.
 	comps map[string]*compSession
+	// exp is the A/B matrix and what has come back from it.
+	exp *experiment
 	// areas is the accepted study area, as boundaries.
 	areas []scenario.Boundary
 	// foundAreas is the last search's matches, awaiting a choice.

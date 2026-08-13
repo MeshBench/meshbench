@@ -25,44 +25,26 @@ import (
 // line here.
 
 // stillMissing are the old socket's verbs this build does not answer yet.
-var stillMissing = map[string]string{
-	"experiment.base":    "P6",
-	"experiment.compare": "P6",
-	"experiment.define":  "P6",
-	"experiment.export":  "P6",
-	"experiment.results": "P6",
-	"experiment.seeds":   "P6",
-	"experiment.senders": "P6",
-	"experiment.start":   "P6",
-	"experiment.state":   "P6",
-	"experiment.stop":    "P6",
-	"experiment.vary":    "P6",
-	"loop.detect":        "P4",
-}
+var stillMissing = map[string]string{}
 
 var oldVerb = regexp.MustCompile(`case "([a-z_]+\.[a-z_]+)"`)
 
 // oldVerbs is what internal/ui answers, read from its dispatch rather than
 // from a list somebody maintains.
+//
+// Only control.go, which is the dispatch. Reading every file counted
+// "loop.detect" as a verb because a sweep parameter switch happens to use the
+// same shape, and a denominator with a phantom in it makes the last verb
+// impossible to close.
 func oldVerbs(t *testing.T) []string {
 	t.Helper()
-	dir := filepath.Join("..", "ui")
-	entries, err := os.ReadDir(dir)
+	b, err := os.ReadFile(filepath.Join("..", "ui", "control.go"))
 	if err != nil {
 		t.Skipf("no old workbench to compare against: %v", err)
 	}
 	seen := map[string]bool{}
-	for _, e := range entries {
-		if !strings.HasSuffix(e.Name(), ".go") {
-			continue
-		}
-		b, err := os.ReadFile(filepath.Join(dir, e.Name()))
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, m := range oldVerb.FindAllSubmatch(b, -1) {
-			seen[string(m[1])] = true
-		}
+	for _, m := range oldVerb.FindAllSubmatch(b, -1) {
+		seen[string(m[1])] = true
 	}
 	var out []string
 	for v := range seen {
