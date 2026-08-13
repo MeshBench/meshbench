@@ -477,11 +477,19 @@ func (c *sweepControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 		c.built = true
 	}
 	if c.define.Click.Clicked(gtx) && c.do != nil {
+		// Said aloud when nothing was defined.
+		//
+		// Every branch below is guarded on its box holding something, so
+		// pressing this with the boxes empty did nothing at all and reported
+		// nothing at all - which is indistinguishable from a button that is
+		// not connected.
+		asked := 0
 		var vs []any
 		for _, v := range splitFields(fieldText(&c.versions)) {
 			vs = append(vs, v)
 		}
 		if len(vs) > 0 {
+			asked++
 			c.do("experiment.vary", map[string]any{
 				"parameter": "repeater_version", "values": vs})
 		}
@@ -492,13 +500,20 @@ func (c *sweepControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 			}
 		}
 		if len(ss) > 0 {
+			asked++
 			c.do("experiment.seeds", map[string]any{"seeds": ss})
 		}
 		if n := fieldText(&c.sender); n != "" {
+			asked++
 			c.do("experiment.senders", map[string]any{"senders": []any{n}})
 		}
 		if v, ok := num(&c.runFor); ok {
+			asked++
 			c.do("experiment.base", map[string]any{"run_for_ms": v * 1000})
+		}
+		if asked == 0 {
+			c.do("ui.said", "nothing to define: fill in the versions to compare, "+
+				"the seeds to run each on, who sends, or how long a cell runs")
 		}
 	}
 	if c.start.Click.Clicked(gtx) && c.do != nil {

@@ -56,6 +56,7 @@ func main() {
 	saveRunFlag := flag.String("save-run", "", "save a run record under this name, then keep running")
 	shadeFlag := flag.Bool("terrain", false, "shade the relief at startup")
 	menuFlag := flag.String("menu", "", "fire this menu action at startup, so what it opens can be captured")
+	nodeTabFlag := flag.Int("node-tab", 0, "which tab a node window opens on: 0 console, 1 stats, 2 activity, 3 companion")
 	coverFlag := flag.String("coverage", "",
 		"compute and show coverage from this node at startup")
 	energyFlag := flag.Bool("energy", false, "run the site study for the selected node at startup")
@@ -433,6 +434,7 @@ func main() {
 	if *filterFlag != "" {
 		nv.SetFilter(*filterFlag)
 	}
+	openOnTab = nodeTab(*nodeTabFlag)
 	if *nodeWinFlag != "" {
 		go func() {
 			time.Sleep(4 * time.Second)
@@ -584,48 +586,10 @@ func main() {
 	// room server and an SDR observer all run firmware too - filing it under
 	// one node type is how somebody looking for a companion build never finds
 	// it.
-	sh.SetMenu("File", []shell.MenuItem{
-		{Label: "Open a saved network", Action: "project.open"},
-		{Label: "Save this network", Action: "project.save"},
-		{Label: "Save this run", Action: "run.save"},
-		{Label: "Firmware library", Action: "panel.Firmware"},
-		{Label: "Import a live network", Action: "panel.Import"},
-		{Label: "Export the event log", Action: "events.dump"},
-		{Label: "Quit", Action: "app.quit"},
-	})
-	sh.SetMenu("View", []shell.MenuItem{
-		{Label: "Settings", Action: "panel.Settings"},
-		{Label: "Nodes running", Action: "panel.Nodes running"},
-		{Label: "Companion bench", Action: "panel.Companion bench"},
-		{Label: "Experiment log", Action: "panel.Experiment log"},
-		{Label: "Configuration", Action: "panel.Configuration"},
-	})
-	sh.SetMenu("Simulation", []shell.MenuItem{
-		{Label: "Play or pause", Action: "sim.start"},
-		{Label: "One step", Action: "sim.step"},
-		{Label: "Back to the start", Action: "sim.reset"},
-		{Label: "Start firmware on every node", Action: "firmware.start"},
-		{Label: "Wipe every node's memory", Action: "firmware.wipe"},
-		{Label: "Originate a packet", Action: "sim.inject"},
-		{Label: "Capture the waterfall", Action: "waterfall.capture"},
-		{Label: "Capture to a pcapng file", Action: "capture.file"},
-	})
-	sh.SetMenu("Repeaters", []shell.MenuItem{
-		{Label: "Send a command to the fleet", Action: "panel.Fleet"},
-		{Label: "What they are told at boot", Action: "panel.Provisioning"},
-		{Label: "Coverage from the selection", Action: "coverage.compute"},
-	})
-	sh.SetMenu("Planning", []shell.MenuItem{
-		{Label: "Routes between two selected nodes", Action: "plan.routes"},
-		{Label: "Boundary", Action: "panel.Boundary"},
-		{Label: "Import a live network", Action: "panel.Import"},
-	})
-	// Every windowable panel, generated. A hand-written list of three left
-	// somebody hunting for the Nodes window they had before.
+	for _, m := range workbenchMenus() {
+		sh.SetMenu(m.Name, m.Items)
+	}
 	sh.WindowMenu("Window")
-	sh.SetMenu("Help", []shell.MenuItem{
-		{Label: "What this run assumes", Action: "panel.Configuration"},
-	})
 	sh.OnMenu = func(action string) {
 		if name, ok := strings.CutPrefix(action, "panel."); ok {
 			sh.OnPopOut(name)
@@ -1038,4 +1002,61 @@ func readableRole(role string) string {
 		return "room servers"
 	}
 	return strings.ReplaceAll(role, "_", " ") + " nodes"
+}
+
+// menu is one menu bar heading and what is under it.
+type menu struct {
+	Name  string
+	Items []shell.MenuItem
+}
+
+// workbenchMenus is the menu bar, in one place.
+//
+// It used to be a run of SetMenu calls, with the test that presses every entry
+// keeping its own copy. The copy drifted - it was still pressing the entry that
+// opened the import panel after that entry had become "open a saved network" -
+// so the test passed while checking a menu bar nobody had.
+func workbenchMenus() []menu {
+	return []menu{
+		{"File", []shell.MenuItem{
+			{Label: "Open a saved network", Action: "project.open"},
+			{Label: "Save this network", Action: "project.save"},
+			{Label: "Save this run", Action: "run.save"},
+			{Label: "Firmware library", Action: "panel.Firmware"},
+			{Label: "Import a live network", Action: "panel.Import"},
+			{Label: "Export the event log", Action: "events.dump"},
+			{Label: "Quit", Action: "app.quit"},
+		}},
+		{"View", []shell.MenuItem{
+			{Label: "Settings", Action: "panel.Settings"},
+			{Label: "Nodes running", Action: "panel.Nodes running"},
+			{Label: "Companion bench", Action: "panel.Companion bench"},
+			{Label: "Experiment log", Action: "panel.Experiment log"},
+			{Label: "Configuration", Action: "panel.Configuration"},
+		}},
+		{"Simulation", []shell.MenuItem{
+			{Label: "Play or pause", Action: "sim.start"},
+			{Label: "One step", Action: "sim.step"},
+			{Label: "Back to the start", Action: "sim.reset"},
+			{Label: "Start firmware on every node", Action: "firmware.start"},
+			{Label: "Wipe every node's memory", Action: "firmware.wipe"},
+			{Label: "Originate a packet", Action: "sim.inject"},
+			{Label: "Capture the waterfall", Action: "waterfall.capture"},
+			{Label: "Capture to a pcapng file", Action: "capture.file"},
+		}},
+		{"Repeaters", []shell.MenuItem{
+			{Label: "Send a command to the fleet", Action: "panel.Fleet"},
+			{Label: "What they are told at boot", Action: "panel.Provisioning"},
+			{Label: "Coverage from the selection", Action: "coverage.compute"},
+		}},
+		{"Planning", []shell.MenuItem{
+			{Label: "Routes between two selected nodes", Action: "plan.routes"},
+			{Label: "Boundary", Action: "panel.Boundary"},
+			{Label: "Import a live network", Action: "panel.Import"},
+		}},
+		// Window is generated from the panels themselves, so it is not here.
+		{"Help", []shell.MenuItem{
+			{Label: "What this run assumes", Action: "panel.Configuration"},
+		}},
+	}
 }

@@ -98,27 +98,10 @@ func (h *shellHarness) click(at f32.Point) {
 // TestEveryMenuItemReachesSomething opens each menu and presses every entry.
 func TestEveryMenuItemReachesSomething(t *testing.T) {
 	h := newShellHarness(t)
-	// The menus the workbench sets, with the items it sets on them.
-	menus := map[string][]shell.MenuItem{
-		"File": {
-			{Label: "Open a saved network", Action: "panel.Import"},
-			{Label: "Save this network", Action: "project.save"},
-			{Label: "Save this run", Action: "run.save"},
-			{Label: "Firmware library", Action: "panel.Firmware"},
-			{Label: "Import a live network", Action: "panel.Import"},
-			{Label: "Export the event log", Action: "events.dump"},
-			{Label: "Quit", Action: "app.quit"},
-		},
-		"Simulation": {
-			{Label: "Play or pause", Action: "sim.start"},
-			{Label: "One step", Action: "sim.step"},
-			{Label: "Back to the start", Action: "sim.reset"},
-			{Label: "Start firmware on every node", Action: "firmware.start"},
-			{Label: "Wipe every node's memory", Action: "firmware.wipe"},
-			{Label: "Originate a packet", Action: "sim.inject"},
-			{Label: "Capture the waterfall", Action: "waterfall.capture"},
-			{Label: "Capture to a pcapng file", Action: "capture.file"},
-		},
+	// The workbench's own menu bar, not a copy of it.
+	menus := map[string][]shell.MenuItem{}
+	for _, m := range workbenchMenus() {
+		menus[m.Name] = m.Items
 	}
 	for name, items := range menus {
 		h.sh.SetMenu(name, items)

@@ -384,6 +384,7 @@ func (w *nodeWindows) openFor(node string, newTheme func() *theme.Theme,
 		th := newTheme()
 		p := &nodeWindowPanel{node: node, OnCommand: onCommand, OnAction: onAction,
 			OnCLI: onCLI, Kind: kindOfNode(st, node)}
+		p.tab = openOnTab
 		win := new(app.Window)
 		win.Option(app.Title("MeshBench - "+node), app.Size(unit.Dp(820), unit.Dp(620)))
 		var ops op.Ops
@@ -436,6 +437,7 @@ type companionTab struct {
 
 	applyRadio comp.Button
 	applyName  comp.Button
+	sendMsg    comp.Button
 	getChans   comp.Button
 	syncMsgs   comp.Button
 	contacts   comp.Button
@@ -463,6 +465,7 @@ func (c *companionTab) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 		}
 		c.applyRadio.Label, c.applyRadio.Kind = "apply to the node", comp.Primary
 		c.applyName.Label, c.applyName.Kind = "set name and power", comp.Secondary
+		c.sendMsg.Label, c.sendMsg.Kind = "send it", comp.Primary
 		c.getChans.Label, c.getChans.Kind = "read channel", comp.Secondary
 		c.syncMsgs.Label, c.syncMsgs.Kind = "sync messages", comp.Secondary
 		c.contacts.Label, c.contacts.Kind = "sync contacts", comp.Secondary
@@ -485,6 +488,22 @@ func (c *companionTab) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 		}
 		if p := fieldText(&c.txdbm); p != "" {
 			send("set tx " + p)
+		}
+	}
+	// Sending a message from a companion, which is the thing a companion is
+	// for.
+	//
+	// The box for it was declared, given a hint, and never laid out: a text
+	// box that exists in the source and not on the screen. With no channel it
+	// goes to the public one, which is what meshcore-cli does.
+	if c.sendMsg.Click.Clicked(gtx) {
+		if m := fieldText(&c.msg); m != "" {
+			if ch := fieldText(&c.channel); ch != "" && ch != "0" {
+				send("chan " + ch + " " + m)
+			} else {
+				send("public " + m)
+			}
+			c.msg.Editor.SetText("")
 		}
 	}
 	if c.getChans.Click.Clicked(gtx) {
@@ -516,8 +535,10 @@ func (c *companionTab) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 		buttons: []*comp.Button{&c.applyName},
 	}
 	traffic := actionBar{
-		fields:  []*comp.Field{&c.channel},
-		buttons: []*comp.Button{&c.getChans, &c.syncMsgs, &c.contacts},
+		fields:  []*comp.Field{&c.channel, &c.msg},
+		buttons: []*comp.Button{&c.sendMsg, &c.getChans, &c.syncMsgs, &c.contacts},
+		note: "a message with no channel goes to the public one, as it does " +
+			"from meshcore-cli",
 	}
 	claim := actionBar{
 		buttons: []*comp.Button{&c.takeOver, &c.release},
@@ -551,3 +572,9 @@ func orZero(s string) string {
 	}
 	return s
 }
+
+// openOnTab is which tab a node window opens on. Console, except when a
+// capture is being taken of one of the others - a tab cannot be reached from
+// outside the application otherwise, and a screenshot of it is how the tab
+// gets checked.
+var openOnTab nodeTab
