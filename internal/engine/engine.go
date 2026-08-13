@@ -232,6 +232,43 @@ func (e *Engine) Events() []Event {
 	return out
 }
 
+// EventsTail copies only the last n events, and says how many there are.
+//
+// The tick asked for Events() and threw away all but the tail, which is a
+// copy of the whole run's history per tick - quadratic over a run's life,
+// and the reason a long run's ticks grew slow.
+func (e *Engine) EventsTail(n int) ([]Event, int) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	total := len(e.events)
+	if n > total {
+		n = total
+	}
+	out := make([]Event, n)
+	copy(out, e.events[total-n:])
+	return out, total
+}
+
+// EventsSince copies only the events at or after a simulated moment. Events
+// arrive in time order, so the start is found by binary search rather than by
+// walking the whole log.
+func (e *Engine) EventsSince(fromMs uint32) []Event {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	lo, hi := 0, len(e.events)
+	for lo < hi {
+		mid := (lo + hi) / 2
+		if e.events[mid].AtMs < fromMs {
+			lo = mid + 1
+		} else {
+			hi = mid
+		}
+	}
+	out := make([]Event, len(e.events)-lo)
+	copy(out, e.events[lo:])
+	return out
+}
+
 // NowMs is the simulated clock.
 func (e *Engine) NowMs() uint32 {
 	e.mu.Lock()

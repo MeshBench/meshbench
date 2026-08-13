@@ -355,10 +355,7 @@ func (s *Sim) trailsSince(fromMs uint32, index map[string]int) []state.Trail {
 		return nil
 	}
 	var out []state.Trail
-	for _, e := range s.eng.Events() {
-		if e.AtMs < fromMs {
-			continue
-		}
+	for _, e := range s.eng.EventsSince(fromMs) {
 		from, ok := index[e.From]
 		if !ok {
 			continue
@@ -383,11 +380,7 @@ func (s *Sim) eventTail(n int) ([]state.Event, int) {
 	if s.eng == nil {
 		return nil, 0
 	}
-	all := s.eng.Events()
-	total := len(all)
-	if len(all) > n {
-		all = all[len(all)-n:]
-	}
+	all, total := s.eng.EventsTail(n)
 	out := make([]state.Event, 0, len(all))
 	for _, e := range all {
 		out = append(out, state.Event{
