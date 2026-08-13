@@ -50,7 +50,10 @@ type ExpResult struct {
 	Redundant int     `json:"redundant"`
 	Collided  int     `json:"collisions"`
 	AirtimeMs float64 `json:"airtime_ms"`
-	Err       string  `json:"err,omitempty"`
+	// Firmware is how many processes this cell actually started, so a cell
+	// that measured nothing is distinguishable from one that ran.
+	Firmware int    `json:"firmware"`
+	Err      string `json:"err,omitempty"`
 }
 
 // experiment is the matrix and what has come back from it.

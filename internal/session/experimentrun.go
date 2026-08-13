@@ -61,6 +61,7 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 	nodes []scenario.Node) ExpResult {
 
 	out := ExpResult{Arm: arm.Label, Seed: seed}
+	began := time.Now()
 
 	// Storage of its own, named for the arm and the seed.
 	root, err := os.MkdirTemp("", "meshbench-arm-")
@@ -69,8 +70,16 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 		return out
 	}
 	defer os.RemoveAll(root)
+	// Created, not just named: a node whose storage directory does not exist
+	// starts and exits, and the attach still reports success because the
+	// socket handshake happened first.
+	fs := filepath.Join(root, "nodefs")
+	if err := os.MkdirAll(fs, 0o755); err != nil {
+		out.Err = err.Error()
+		return out
+	}
 	old := os.Getenv("MESHCORESIM_NODEFS")
-	_ = os.Setenv("MESHCORESIM_NODEFS", filepath.Join(root, "nodefs"))
+	_ = os.Setenv("MESHCORESIM_NODEFS", fs)
 	defer os.Setenv("MESHCORESIM_NODEFS", old)
 
 	eng := engine.New(s.terrain(), engine.Config{
@@ -111,8 +120,49 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 
 	// Real MeshCore, because an arm that pins a firmware version and then runs
 	// the engine's own relay logic measures nothing about that version.
-	if err := eng.AttachNativeProgress(ctx, seed, nil); err != nil {
+	started, wanted := 0, 0
+	if err := eng.AttachNativeProgress(ctx, seed, func(done, total int) {
+		started, wanted = done, total
+	}); err != nil {
 		out.Err = "starting firmware: " + err.Error()
+		return out
+	}
+	// Nothing attached is not a run. It reported four cells of zeros without
+	// this, which reads as a measurement rather than as a cell that never
+	// started.
+	if wanted == 0 || started == 0 {
+		out.Err = fmt.Sprintf(
+			"no firmware attached (%d of %d): the arm measured nothing", started, wanted)
+		return out
+	}
+	out.Firmware = started
+
+	// Provision every node before the run.
+	//
+	// This is the step that decides whether anything relays. A node that has
+	// not been told its regions holds none, so it forwards nothing and reports
+	// no error - which is what four cells of zeros looked like. The commands
+	// are the same ones ProvisioningFor shows in the node panel, so what the
+	// operator reads and what the arm sends cannot drift apart.
+	for _, n := range nodes {
+		en, ok := eng.NodeByName(n.Name)
+		if !ok || en.Firmware == nil {
+			continue
+		}
+		for _, line := range ProvisioningFor(n) {
+			if line.Comment {
+				continue
+			}
+			if err := en.Firmware.Bridge.Type([]byte(line.Command + "\r\n")); err != nil {
+				out.Err = "provisioning " + n.Name + ": " + err.Error()
+				return out
+			}
+		}
+	}
+	// Let the commands be read before anything is measured: they are answered
+	// by the firmware, which only runs when the engine steps.
+	if err := stepFor(ctx, eng, 2*time.Second); err != nil {
+		out.Err = "settling: " + err.Error()
 		return out
 	}
 
@@ -129,7 +179,7 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 		c.release = en.Firmware.Bridge.Claim(c)
 		defer c.release()
 		sessions[name] = c
-		if err := en.Firmware.Bridge.Type(proto.AppStart("meshbench")); err != nil {
+		if err := en.Firmware.Bridge.Type(compFrame(proto.AppStart("meshbench"))); err != nil {
 			out.Err = "app start at " + name + ": " + err.Error()
 			return out
 		}
@@ -149,7 +199,7 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 			for name := range sessions {
 				en, _ := eng.NodeByName(name)
 				if err := en.Firmware.Bridge.Type(
-					proto.SendChannelText(0, time.Unix(0, 0), text)); err != nil {
+					compFrame(proto.SendChannelText(0, time.Unix(0, 0), text))); err != nil {
 					out.Err = "send at " + name + ": " + err.Error()
 					return out
 				}
@@ -159,6 +209,17 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 		if err := eng.Step(ctx); err != nil {
 			out.Err = err.Error()
 			break
+		}
+		// Paced to real time.
+		//
+		// Real firmware is a real process: it boots, waits and retries on the
+		// wall clock, not on simulated time. Stepping as fast as the engine
+		// will go ran ninety seconds of simulated time in three seconds of
+		// real time, so every node was still booting when the run ended - and
+		// the cell reported zero transmissions and no error, which reads as a
+		// result rather than as a race.
+		if d := time.Duration(eng.NowMs())*time.Millisecond - time.Since(began); d > 0 {
+			time.Sleep(min(d, 50*time.Millisecond))
 		}
 	}
 	if !fired {
@@ -191,4 +252,17 @@ func registerExperimentDone(st *state.Store, s *Sim) {
 		}
 		return map[string]any{"runs": n, "warning": warn}, nil
 	})
+}
+
+// stepFor advances the engine for a stretch of real time, which is what a
+// process needs to boot: simulated time is free and wall time is not.
+func stepFor(ctx context.Context, eng *engine.Engine, d time.Duration) error {
+	deadline := time.Now().Add(d)
+	for time.Now().Before(deadline) {
+		if err := eng.Step(ctx); err != nil {
+			return err
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+	return nil
 }

@@ -10,6 +10,7 @@
 package session
 
 import (
+	"encoding/binary"
 	"fmt"
 	"strings"
 	"sync"
@@ -43,15 +44,27 @@ func (c *compSession) Write(b []byte) (int, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.partial = append(c.partial, b...)
+	// MeshCore's own framing: '>' from the device, then a little-endian
+	// length, then that many bytes. Anything else in the stream is the
+	// firmware's console output and is skipped rather than guessed at - the
+	// first version of this read the length from wherever the buffer happened
+	// to start and decoded rubbish.
 	for {
+		i := 0
+		for i < len(c.partial) && c.partial[i] != '>' {
+			i++
+		}
+		if i > 0 {
+			c.partial = c.partial[i:]
+		}
 		if len(c.partial) < 3 {
 			break
 		}
-		n := int(c.partial[1]) | int(c.partial[2])<<8
+		n := int(binary.LittleEndian.Uint16(c.partial[1:3]))
 		if len(c.partial) < 3+n {
 			break
 		}
-		frame := c.partial[3 : 3+n]
+		frame := append([]byte(nil), c.partial[3:3+n]...)
 		c.partial = c.partial[3+n:]
 		f, err := proto.Decode(frame)
 		if err != nil {
@@ -121,10 +134,10 @@ func registerCompanion(st *state.Store, s *Sim) {
 		s.comps[node] = c
 		// AppStart then a device query: the same opening a phone makes, so a
 		// node that answers one and not the other is visible as such.
-		if err := en.Firmware.Bridge.Type(proto.AppStart("meshbench")); err != nil {
+		if err := en.Firmware.Bridge.Type(compFrame(proto.AppStart("meshbench"))); err != nil {
 			return nil, err
 		}
-		_ = en.Firmware.Bridge.Type(proto.DeviceQuery())
+		_ = en.Firmware.Bridge.Type(compFrame(proto.DeviceQuery()))
 		w.Say("connected to " + node + " as a companion")
 		return map[string]any{"connected": node}, nil
 	})
@@ -178,8 +191,7 @@ func registerCompanion(st *state.Store, s *Sim) {
 		if v, ok := numField(p, "channel"); ok {
 			idx = uint8(v)
 		}
-		if err := en.Firmware.Bridge.Type(
-			proto.SendChannelText(idx, time.Now(), text)); err != nil {
+		if err := en.Firmware.Bridge.Type(compFrame(proto.SendChannelText(idx, time.Now(), text))); err != nil {
 			return nil, err
 		}
 		c.note("sent: " + text)
@@ -197,7 +209,7 @@ func registerCompanion(st *state.Store, s *Sim) {
 		if v, ok := boolField(p, "flood"); ok {
 			flood = v
 		}
-		if err := en.Firmware.Bridge.Type(proto.SendSelfAdvert(flood)); err != nil {
+		if err := en.Firmware.Bridge.Type(compFrame(proto.SendSelfAdvert(flood))); err != nil {
 			return nil, err
 		}
 		c.note("advert sent")
@@ -214,7 +226,7 @@ func registerCompanion(st *state.Store, s *Sim) {
 		if v, ok := numField(p, "index"); ok {
 			idx = uint8(v)
 		}
-		if err := en.Firmware.Bridge.Type(proto.GetChannel(idx)); err != nil {
+		if err := en.Firmware.Bridge.Type(compFrame(proto.GetChannel(idx))); err != nil {
 			return nil, err
 		}
 		return map[string]any{"asked_for_channel": idx}, nil
@@ -228,20 +240,20 @@ func registerCompanion(st *state.Store, s *Sim) {
 		}
 		done := []string{}
 		if name, ok := stringField(p, "name"); ok && name != "" {
-			if err := en.Firmware.Bridge.Type(proto.SetAdvertName(name)); err != nil {
+			if err := en.Firmware.Bridge.Type(compFrame(proto.SetAdvertName(name))); err != nil {
 				return nil, err
 			}
 			done = append(done, "name")
 		}
 		if lat, ok := numField(p, "lat"); ok {
 			lon, _ := numField(p, "lon")
-			if err := en.Firmware.Bridge.Type(proto.SetAdvertLatLon(lat, lon)); err != nil {
+			if err := en.Firmware.Bridge.Type(compFrame(proto.SetAdvertLatLon(lat, lon))); err != nil {
 				return nil, err
 			}
 			done = append(done, "position")
 		}
 		if dbm, ok := numField(p, "tx_dbm"); ok {
-			if err := en.Firmware.Bridge.Type(proto.SetTxPower(uint8(dbm))); err != nil {
+			if err := en.Firmware.Bridge.Type(compFrame(proto.SetTxPower(uint8(dbm)))); err != nil {
 				return nil, err
 			}
 			done = append(done, "tx power")
@@ -274,7 +286,7 @@ func registerCompanion(st *state.Store, s *Sim) {
 		if len(b) == 0 {
 			return nil, fmt.Errorf("companion.raw needs bytes")
 		}
-		if err := en.Firmware.Bridge.Type(b); err != nil {
+		if err := en.Firmware.Bridge.Type(compFrame(b)); err != nil {
 			return nil, err
 		}
 		c.note(fmt.Sprintf("raw: %d bytes", len(b)))
@@ -292,4 +304,17 @@ func (s *Sim) companionFor(node string) (*compSession, *engine.Node, error) {
 		return nil, nil, fmt.Errorf("%s runs no firmware", node)
 	}
 	return c, en, nil
+}
+
+// compFrame wraps a payload the way the device expects it.
+//
+// '<' towards the node, a little-endian length, then the payload. Sending the
+// payload bare is not a malformed frame, it is console text: the firmware
+// reads it as somebody typing and answers nothing, which is what an
+// experiment measuring zero transmissions looked like.
+func compFrame(payload []byte) []byte {
+	out := make([]byte, 0, 3+len(payload))
+	out = append(out, '<')
+	out = binary.LittleEndian.AppendUint16(out, uint16(len(payload)))
+	return append(out, payload...)
 }
