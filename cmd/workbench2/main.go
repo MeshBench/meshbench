@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/pprof"
+	"sort"
 	"strings"
 	"time"
 
@@ -45,6 +46,7 @@ func main() {
 	injectFlag := flag.String("inject", "", "originate a packet at this node once running")
 	openFwFlag := flag.String("open-firmware", "", "open this node's firmware list at startup")
 	openMenuFlag := flag.String("node-menu", "", "open this node's context menu at startup")
+	provFlag := flag.String("provisioning", "", "show what this node is told at boot, at startup")
 	filterFlag := flag.String("filter", "", "preset the node view's search box, so a filtered table can be captured")
 	popFlag := flag.String("pop-out", "", "open this panel in its own window at startup")
 	importFlag := flag.String("import", "", "describe an import from this CoreScope URL at startup")
@@ -340,6 +342,13 @@ func main() {
 	if *filterFlag != "" {
 		nv.SetFilter(*filterFlag)
 	}
+	if *provFlag != "" {
+		go func() {
+			if _, err := st.Do(ctx, "node.provisioning", *provFlag); err != nil {
+				fmt.Fprintln(os.Stderr, "provisioning:", err)
+			}
+		}()
+	}
 	if *openFwFlag != "" {
 		nv.OpenFirmware(*openFwFlag)
 	}
@@ -503,6 +512,27 @@ func main() {
 			time.Sleep(3 * time.Second)
 			sh.OnPopOut(*popFlag)
 		}()
+	}
+
+	// A misspelled panel name used to draw the whole shell instead, which
+	// looks like the flag was ignored rather than wrong - and a name with a
+	// space in it is easy to split by accident on the way here.
+	for _, f := range []struct{ flag, name string }{
+		{"-panel", *panelFlag}, {"-pop-out", *popFlag},
+	} {
+		if f.name == "" {
+			continue
+		}
+		if _, ok := sh.Panels[f.name]; !ok {
+			var have []string
+			for n := range sh.Panels {
+				have = append(have, n)
+			}
+			sort.Strings(have)
+			fmt.Fprintf(os.Stderr, "%s %q: no such panel. There is: %s\n",
+				f.flag, f.name, strings.Join(have, ", "))
+			os.Exit(2)
+		}
 	}
 
 	go func() {

@@ -687,6 +687,21 @@ func Register(st *state.Store, s *Sim) {
 		w.Say(name + " will run " + version + " when it next starts")
 		return map[string]any{"node": name, "version": version}, nil
 	})
+	st.Handle("node.provisioning", func(w *state.World, p any) (any, error) {
+		name, _ := p.(string)
+		lines, err := s.provisioningFor(name)
+		if err != nil {
+			return nil, err
+		}
+		w.Provisioning, w.ProvisioningNode = lines, name
+		var cmds []string
+		for _, l := range lines {
+			if !l.Comment {
+				cmds = append(cmds, l.Command)
+			}
+		}
+		return map[string]any{"node": name, "commands": cmds}, nil
+	})
 	st.Handle("session.describe", func(w *state.World, _ any) (any, error) {
 		return map[string]any{
 			"nodes": len(w.Nodes), "seed": w.Seed, "now_ms": w.NowMs,

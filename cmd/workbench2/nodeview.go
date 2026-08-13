@@ -203,6 +203,7 @@ func (p *nodeViewPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 		}),
 		layout.Rigid(p.firmwareList(t)),
 		layout.Rigid(p.contextMenu(t)),
+		layout.Rigid(provisioningScript(t, s)),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			// The graphs give up their space while a menu is open.
 			//
@@ -464,6 +465,7 @@ func nodeMenuFor(name string, s *state.Snapshot) []comp.MenuItem {
 	}
 	return append(items,
 		comp.MenuItem{Label: "Change its firmware", Action: "ui.firmware"},
+		comp.MenuItem{Label: "Show what it is told at boot", Action: "node.provisioning"},
 		comp.MenuItem{Label: "Coverage from here", Action: "coverage.compute"},
 		comp.MenuItem{Label: "Originate a packet here", Action: "sim.inject"},
 		comp.MenuItem{Label: "Capture the waterfall here", Action: "waterfall.capture"},
@@ -506,4 +508,44 @@ func (p *nodeViewPanel) OpenFirmware(node string) { p.pickFor = node }
 func (p *nodeViewPanel) OpenMenu(node string, s *state.Snapshot) {
 	p.menuFor = node
 	p.menuItems = nodeMenuFor(node, s)
+}
+
+// provisioningScript shows what a node is sent before a run.
+//
+// In the console's own voice, monospaced and in order, because the point is
+// that it is the same text somebody would type - a script they can copy into a
+// terminal and watch fail there, rather than a description of what the
+// application does somewhere they cannot see.
+func provisioningScript(t *theme.Theme, s *state.Snapshot) layout.Widget {
+	return func(gtx layout.Context) layout.Dimensions {
+		if s == nil || len(s.Provisioning) == 0 {
+			return layout.Dimensions{}
+		}
+		kids := []layout.FlexChild{
+			layout.Rigid(comp.SectionTitle(t, s.ProvisioningNode+" is told, at boot:")),
+		}
+		for _, l := range s.Provisioning {
+			l := l
+			col := t.P.Ink
+			if l.Comment {
+				col = t.P.Faint
+			}
+			kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				// A comment is already prose, so it takes the whole width
+				// rather than being cut off by a column sized for commands.
+				if l.Comment {
+					return comp.OneLine(t, t.Sz.Data, col, l.Command+"  -  "+l.Why, false)(gtx)
+				}
+				return layout.Flex{}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						gtx.Constraints.Min.X = gtx.Dp(230)
+						gtx.Constraints.Max.X = gtx.Dp(230)
+						return comp.Mono(t, t.Sz.Data, col, l.Command)(gtx)
+					}),
+					layout.Flexed(1, comp.OneLine(t, t.Sz.Caption, t.P.Dim, l.Why, false)),
+				)
+			}))
+		}
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, kids...)
+	}
 }

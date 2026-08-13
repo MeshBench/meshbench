@@ -99,6 +99,9 @@ type Snapshot struct {
 	Stats []NodeStat
 	// Series is the selected node's history, for its graphs.
 	Series NodeSeries
+	// Provisioning is the script for the node last asked about.
+	Provisioning     []ProvisionLine
+	ProvisioningNode string
 }
 
 // Point is a position, and the only geometry the snapshot carries.
@@ -356,6 +359,15 @@ type NodeSeries struct {
 	Sent []int
 }
 
+// ProvisionLine is one console line a node is sent before a run, and why.
+type ProvisionLine struct {
+	Command string
+	Why     string
+	// Comment marks a line that is not sent, so a reader can tell the script
+	// from its annotations.
+	Comment bool
+}
+
 // Node is one node, as the interface needs it.
 type Node struct {
 	Name     string
@@ -448,6 +460,9 @@ type World struct {
 	Stats []NodeStat
 	// Series is the selected node's history, for its graphs.
 	Series NodeSeries
+	// Provisioning is the script for the node last asked about.
+	Provisioning     []ProvisionLine
+	ProvisioningNode string
 
 	// Tick is called every step while playing, and is where engine pacing
 	// lives now that it is out of the frame loop. Nil means no engine.
@@ -626,23 +641,25 @@ func (s *Store) publish() {
 		Shade:    s.world.Shade,
 		// Events and scores are already rebuilt fresh on every tick, so they
 		// are handed over rather than copied again.
-		Events:        s.world.Events,
-		EventTotal:    s.world.EventTotal,
-		Scores:        s.world.Scores,
-		Waterfall:     s.world.Waterfall,
-		WaterfallNote: s.world.WaterfallNote,
-		Budgets:       s.world.Budgets,
-		Matrix:        s.world.Matrix,
-		Energy:        s.world.Energy,
-		Sends:         s.world.Sends,
-		Assertions:    s.world.Assertions,
-		Endpoints:     s.world.Endpoints,
-		Routes:        s.world.Routes,
-		Import:        s.world.Import,
-		Observed:      s.world.Observed,
-		Residuals:     s.world.Residuals,
-		Stats:         s.world.Stats,
-		Series:        s.world.Series,
+		Events:           s.world.Events,
+		EventTotal:       s.world.EventTotal,
+		Scores:           s.world.Scores,
+		Waterfall:        s.world.Waterfall,
+		WaterfallNote:    s.world.WaterfallNote,
+		Budgets:          s.world.Budgets,
+		Matrix:           s.world.Matrix,
+		Energy:           s.world.Energy,
+		Sends:            s.world.Sends,
+		Assertions:       s.world.Assertions,
+		Endpoints:        s.world.Endpoints,
+		Routes:           s.world.Routes,
+		Import:           s.world.Import,
+		Observed:         s.world.Observed,
+		Residuals:        s.world.Residuals,
+		Stats:            s.world.Stats,
+		Series:           s.world.Series,
+		Provisioning:     s.world.Provisioning,
+		ProvisioningNode: s.world.ProvisioningNode,
 	})
 }
 
