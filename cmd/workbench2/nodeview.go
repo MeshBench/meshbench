@@ -10,6 +10,7 @@ package main
 import (
 	"fmt"
 	"image"
+	"strings"
 	"sync/atomic"
 
 	"gioui.org/f32"
@@ -19,6 +20,7 @@ import (
 	"sort"
 
 	"gioui.org/layout"
+	"gioui.org/op"
 	"gioui.org/widget"
 
 	"github.com/A13xB0/meshcoresim/internal/firmware"
@@ -55,6 +57,9 @@ type nodeViewPanel struct {
 	menuAt    image.Point
 	menuItems []comp.MenuItem
 	closePick comp.Button
+	// pickFilter narrows the build list, because there are dozens.
+	pickFilter  comp.Field
+	shownBuilds []int
 	// OnFirmware asks the store to put a build on a node.
 	OnFirmware func(node, version string)
 
@@ -63,6 +68,19 @@ type nodeViewPanel struct {
 }
 
 func (p *nodeViewPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+	// The firmware list is drawn over the panel, not inside its flex.
+	//
+	// It was a rigid child after a flexed table, so the table took the space
+	// and the list was laid out at zero height: open, invisible, and
+	// impossible to click. Choosing a build was unreachable by pointing at
+	// anything, which is the only way a person would try.
+	if p.pickFor != "" {
+		defer func() {
+			macro := op.Record(gtx.Ops)
+			p.firmwareOverlay(t, gtx)
+			macro.Stop().Add(gtx.Ops)
+		}()
+	}
 	p.watched.Store(true)
 
 	if !p.init {
@@ -102,12 +120,6 @@ func (p *nodeViewPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 			p.buildBtns[i].Kind = comp.Secondary
 		}
 	}
-	for i := range p.buildBtns {
-		if p.buildBtns[i].Click.Clicked(gtx) && p.OnFirmware != nil && selectedNode(s) != "" {
-			p.OnFirmware(selectedNode(s), p.builds[i])
-		}
-	}
-
 	p.tb.OnRightClick = func(key string, at f32.Point) {
 		p.menuFor = key
 		p.menuAt = image.Pt(int(at.X), int(at.Y))
@@ -189,7 +201,6 @@ func (p *nodeViewPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 				btn(t, &p.stop), btn(t, &p.start), btn(t, &p.refresh),
 			)
 		}),
-		layout.Rigid(p.firmwareList(t)),
 		layout.Rigid(p.contextMenu(t)),
 		layout.Rigid(provisioningScript(t, s)),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -314,7 +325,7 @@ func (p *nodeViewPanel) firmwareList(t *theme.Theme) layout.Widget {
 			p.closePick.Label, p.closePick.Kind = "cancel", comp.Quiet
 		}
 		if p.closePick.Click.Clicked(gtx) {
-			p.pickFor = ""
+			p.pickFor, p.pickFilter.Editor = "", widget.Editor{}
 			return layout.Dimensions{}
 		}
 		for i := range p.buildBtns {
@@ -324,20 +335,50 @@ func (p *nodeViewPanel) firmwareList(t *theme.Theme) layout.Widget {
 				return layout.Dimensions{}
 			}
 		}
-		p.buildList.Axis = layout.Horizontal
-		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-			layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Ink, p.pickFor+" runs:  ")),
+
+		// Which builds survive the box.
+		//
+		// Thirty-nine are installed on this machine. A horizontal row of
+		// thirty-nine buttons is not a control, and it put cancel where the
+		// first click lands - so choosing a build closed the list instead.
+		want := strings.ToLower(strings.TrimSpace(p.pickFilter.Editor.Text()))
+		shown := p.shownBuilds[:0]
+		for i := range p.builds {
+			if want == "" || strings.Contains(strings.ToLower(p.builds[i]), want) {
+				shown = append(shown, i)
+			}
+		}
+		p.shownBuilds = shown
+
+		p.buildList.Axis = layout.Vertical
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+					layout.Rigid(comp.Text(t, t.Sz.Body, t.P.Ink,
+						"What should "+p.pickFor+" run?")),
+					layout.Flexed(1, comp.Spacer),
+					btn(t, &p.closePick),
+				)
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				p.pickFilter.Hint = fmt.Sprintf("filter %d builds", len(p.builds))
+				p.pickFilter.Editor.SingleLine = true
+				return p.pickFilter.Layout(t, gtx)
+			}),
+			layout.Rigid(layout.Spacer{Height: t.Sp.XS}.Layout),
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-				return comp.List(t, &p.buildList, len(p.buildBtns),
+				if len(shown) == 0 {
+					return layout.Center.Layout(gtx, comp.Text(t, t.Sz.Caption,
+						t.P.Faint, "nothing matches that"))
+				}
+				return comp.List(t, &p.buildList, len(shown),
 					func(gtx layout.Context, i int) layout.Dimensions {
-						gtx.Constraints.Min.X = 0
-						return layout.Inset{Right: t.Sp.S}.Layout(gtx,
+						return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx,
 							func(gtx layout.Context) layout.Dimensions {
-								return p.buildBtns[i].Layout(t, gtx)
+								return p.buildBtns[shown[i]].Layout(t, gtx)
 							})
 					})(gtx)
 			}),
-			btn(t, &p.closePick),
 		)
 	}
 }
@@ -570,4 +611,27 @@ func nodeCells(n state.NodeStat, st string) []string {
 		lastPacket(n.LastHeardMs, n.LastHeardFrom),
 		busyPct(n), fmt.Sprintf("%d", n.Spurious),
 	}
+}
+
+// firmwareOverlay draws the build list over the panel, centred.
+func (p *nodeViewPanel) firmwareOverlay(t *theme.Theme, gtx layout.Context) layout.Dimensions {
+	comp.FillRect(gtx, gtx.Constraints.Max, theme.Alpha(t.P.Ground, 0.86))
+	return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		w, h := gtx.Dp(520), gtx.Dp(420)
+		if w > gtx.Constraints.Max.X {
+			w = gtx.Constraints.Max.X
+		}
+		if h > gtx.Constraints.Max.Y {
+			h = gtx.Constraints.Max.Y
+		}
+		gtx.Constraints.Min = image.Pt(w, h)
+		gtx.Constraints.Max = image.Pt(w, h)
+		macro := op.Record(gtx.Ops)
+		dims := layout.UniformInset(t.Sp.M).Layout(gtx, p.firmwareList(t))
+		call := macro.Stop()
+		comp.RoundRect(gtx, dims.Size, 6, t.P.Panel)
+		comp.Border(gtx, dims.Size, 6, 1, t.P.Rule)
+		call.Add(gtx.Ops)
+		return dims
+	})
 }

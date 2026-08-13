@@ -416,3 +416,29 @@ func (sh *Shell) menuDrop(t *theme.Theme, gtx layout.Context) {
 	content.Add(gtx.Ops)
 	in.Pop()
 }
+
+// MenuX is where a menu's title sits in the bar, or -1 if there is no such
+// menu. For a test that has to press the thing where it actually is rather
+// than where a coordinate written down in advance says it should be.
+func (sh *Shell) MenuX(name string) int {
+	for i := range sh.menus {
+		if sh.menus[i].name == name {
+			return sh.menus[i].x
+		}
+	}
+	return -1
+}
+
+// MenuItems is what a named menu carries, for the same reason.
+func (sh *Shell) MenuItems(name string) []MenuItem {
+	for i := range sh.menus {
+		if sh.menus[i].name == name {
+			return sh.menus[i].items
+		}
+	}
+	return nil
+}
+
+// OpenMenuIndex is which menu is open, or -1. A menu that will not open is a
+// different fault from one whose entries do nothing.
+func (sh *Shell) OpenMenuIndex() int { return sh.openMenu }

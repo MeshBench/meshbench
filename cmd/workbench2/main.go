@@ -336,6 +336,9 @@ func main() {
 	// Selecting the first node at load also selects its neighbours overlay,
 	// so the map opens saying something rather than nothing.
 	nodes := &nodesPanel{}
+	nodes.OnSelect = func(name string) {
+		go func() { _, _ = st.Do(ctx, "nodes.select", name) }()
+	}
 	mapTop := &mapTools{mv: mv}
 	sh.Add(&shell.Panel{Name: "Map", Windowable: true,
 		Draw: func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {

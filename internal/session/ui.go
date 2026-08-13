@@ -199,6 +199,26 @@ func findNode(nodes []state.Node, name string) (state.Node, bool) {
 func registerUIVerbs(st *state.Store, s *Sim) {
 	need := func() error { return s.needUI() }
 
+	// status: the one-line answer to "what is this doing", which the old
+	// workbench answered and this did not. Anything driving the workbench
+	// polls it, so it must never fail and never need a loaded network.
+	st.Handle("status", func(w *state.World, _ any) (any, error) {
+		out := map[string]any{
+			"status": w.Status, "nodes": len(w.Nodes), "playing": w.Playing,
+			"now_ms": w.NowMs, "firmware_running": w.FirmwareRunning,
+		}
+		if w.PendingPlay {
+			out["status"] = "waiting for firmware before the run starts"
+		}
+		if len(w.Jobs) > 0 {
+			j := w.Jobs[len(w.Jobs)-1]
+			out["job"] = map[string]any{
+				"what": j.What, "done": j.Done, "total": j.Total,
+			}
+		}
+		return out, nil
+	})
+
 	// ui.said puts a line in the status bar. A control whose verb failed and
 	// said nothing is indistinguishable from a control that does nothing.
 	st.Handle("ui.said", func(w *state.World, p any) (any, error) {

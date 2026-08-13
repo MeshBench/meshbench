@@ -1,0 +1,143 @@
+// Asking for one thing.
+//
+// A menu entry carries no parameters, so every verb needing a name, a path or
+// a number failed the moment somebody picked it: it fired, it errored, and all
+// they saw was a status line. "Save this network" was the plainest case - a
+// File menu staple that could not work, because there was nowhere to type the
+// name.
+//
+// This is the smallest thing that fixes it. One question, one answer, Enter to
+// accept and Escape to abandon.
+package shell
+
+import (
+	"image"
+
+	"gioui.org/io/key"
+	"gioui.org/layout"
+	"gioui.org/op"
+	"gioui.org/widget"
+
+	"github.com/A13xB0/meshcoresim/internal/gui/comp"
+	"github.com/A13xB0/meshcoresim/internal/gui/theme"
+)
+
+// Prompt is a question waiting for an answer.
+type Prompt struct {
+	// Title is the question. Ask is what to do with the answer.
+	Title string
+	Hint  string
+	Ask   func(answer string)
+
+	field  comp.Field
+	ok     comp.Button
+	cancel comp.Button
+	built  bool
+	open   bool
+}
+
+// Open asks a question. Opening a second one replaces the first rather than
+// stacking: two modal questions at once is a state nobody can reason about.
+func (p *Prompt) Open(title, hint, initial string, ask func(string)) {
+	p.Title, p.Hint, p.Ask = title, hint, ask
+	p.field.Editor.SetText(initial)
+	p.field.Editor.SingleLine = true
+	p.field.Editor.Submit = true
+	p.open = true
+}
+
+// Showing reports whether a question is on screen, so the shell can dim what
+// is behind it.
+func (p *Prompt) Showing() bool { return p.open }
+
+func (p *Prompt) Close() { p.open = false }
+
+// Layout draws the question over everything else.
+func (p *Prompt) Layout(t *theme.Theme, gtx layout.Context) layout.Dimensions {
+	if !p.open {
+		return layout.Dimensions{}
+	}
+	if !p.built {
+		p.ok.Label, p.ok.Kind = "OK", comp.Primary
+		p.cancel.Label, p.cancel.Kind = "Cancel", comp.Quiet
+		p.built = true
+	}
+	p.field.Hint = p.Hint
+
+	submitted := false
+	for {
+		ev, ok := p.field.Editor.Update(gtx)
+		if !ok {
+			break
+		}
+		if _, ok := ev.(widget.SubmitEvent); ok {
+			submitted = true
+		}
+	}
+	// Escape abandons, which is the other half of a modal question and the
+	// half people reach for when they opened it by accident.
+	for {
+		ev, ok := gtx.Event(key.Filter{Name: key.NameEscape})
+		if !ok {
+			break
+		}
+		if ke, ok := ev.(key.Event); ok && ke.State == key.Press {
+			p.open = false
+			return layout.Dimensions{Size: gtx.Constraints.Max}
+		}
+	}
+	if p.cancel.Click.Clicked(gtx) {
+		p.open = false
+		return layout.Dimensions{Size: gtx.Constraints.Max}
+	}
+	if p.ok.Click.Clicked(gtx) || submitted {
+		answer := p.field.Editor.Text()
+		p.open = false
+		if p.Ask != nil {
+			p.Ask(answer)
+		}
+		return layout.Dimensions{Size: gtx.Constraints.Max}
+	}
+
+	// Dim what is behind it, so it reads as one question rather than as a
+	// panel that has appeared in the middle of the window.
+	comp.FillRect(gtx, gtx.Constraints.Max, theme.Alpha(t.P.Ground, 0.82))
+	key.InputHintOp{}.Add(gtx.Ops)
+
+	return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		gtx.Constraints.Max.X = gtx.Dp(520)
+		gtx.Constraints.Min.X = gtx.Dp(520)
+		macro := op.Record(gtx.Ops)
+		dims := layout.UniformInset(t.Sp.M).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(comp.Text(t, t.Sz.Title, t.P.Ink, p.Title)),
+				layout.Rigid(layout.Spacer{Height: t.Sp.S}.Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return p.field.Layout(t, gtx)
+				}),
+				layout.Rigid(layout.Spacer{Height: t.Sp.S}.Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{}.Layout(gtx,
+						layout.Flexed(1, comp.Spacer),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return layout.Inset{Right: t.Sp.S}.Layout(gtx,
+								func(gtx layout.Context) layout.Dimensions {
+									return p.cancel.Layout(t, gtx)
+								})
+						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return p.ok.Layout(t, gtx)
+						}),
+					)
+				}),
+			)
+		})
+		call := macro.Stop()
+		comp.RoundRect(gtx, dims.Size, 6, t.P.Panel)
+		comp.Border(gtx, dims.Size, 6, 1, t.P.Rule)
+		call.Add(gtx.Ops)
+		return dims
+	})
+}
+
+var _ = image.Pt

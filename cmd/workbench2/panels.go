@@ -12,7 +12,14 @@ import (
 
 // nodesPanel is the node list, on the new table component.
 type nodesPanel struct {
-	tbl comp.Table
+	// OnSelect tells the rest of the workbench which node was picked.
+	//
+	// Without it this table set its own highlight and nothing else: the map
+	// did not follow, the Inspector did not follow, and every control that
+	// acts on "the selected node" acted on a different one. A list you can
+	// click and that changes nothing is decoration.
+	OnSelect func(node string)
+	tbl      comp.Table
 	// filter is kept here rather than built each frame.
 	//
 	// Gio tracks focus by the widget's address, so a Field declared inside
@@ -60,7 +67,12 @@ func (np *nodesPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 		}),
 		layout.Rigid(layout.Spacer{Height: t.Sp.S}.Layout),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			return np.tbl.Layout(t, gtx, func(key string) { np.tbl.Selected = key })
+			return np.tbl.Layout(t, gtx, func(key string) {
+				np.tbl.Selected = key
+				if np.OnSelect != nil {
+					np.OnSelect(key)
+				}
+			})
 		}),
 	)
 }
