@@ -7,9 +7,7 @@
 package session
 
 import (
-	"context"
 	"fmt"
-	"time"
 
 	"github.com/A13xB0/meshcoresim/internal/console"
 	"github.com/A13xB0/meshcoresim/internal/gui/state"
@@ -69,18 +67,17 @@ func registerConsole(st *state.Store, s *Sim) {
 		if err := n.Firmware.Bridge.Type([]byte(cmd + "\r\n")); err != nil {
 			return nil, err
 		}
-		// Step the engine so the firmware gets a chance to answer. Without
-		// this the reply arrives after the caller has already been told there
-		// was none.
-		deadline := time.Now().Add(2 * time.Second)
-		for time.Now().Before(deadline) {
-			_ = s.eng.Step(context.Background())
-			if len(buf.LinesSince(mark)) > 1 {
-				break
-			}
-		}
+		// The reply arrives when the engine next steps, and the engine steps on
+		// the store's ticker - which is this goroutine. Waiting for it here is
+		// waiting for yourself: with fifty-eight firmware processes it blocked
+		// every other verb for seconds, and from outside that is a hung socket.
+		// Type, return, and let console.read collect the answer.
 		w.Console, w.ConsoleNode = buf.Snapshot(), name
-		return map[string]any{"node": name, "reply": buf.LinesSince(mark)}, nil
+		_ = mark
+		return map[string]any{
+			"node": name, "sent": cmd,
+			"note": "the reply lands when the engine next steps; read it with console.read",
+		}, nil
 	})
 
 	// console.read: the scrollback, for a window that is drawing it.

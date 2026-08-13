@@ -29,6 +29,8 @@ func Register(st *state.Store, s *Sim) {
 	registerImport(st, s)
 	registerBoundary(st, s)
 	registerPlanningVerbs(st, s)
+	registerSchedule(st, s)
+	registerValidate(st, s)
 	registerCoverageCombined(st, s)
 	st.Handle("project.open", func(w *state.World, p any) (any, error) {
 		path, _ := p.(string)

@@ -26,7 +26,6 @@ import (
 
 // stillMissing are the old socket's verbs this build does not answer yet.
 var stillMissing = map[string]string{
-	"assert.check":          "P6",
 	"capture.file":          "P6",
 	"capture.wireshark":     "P6",
 	"companion.add_channel": "P6",
