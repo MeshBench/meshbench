@@ -99,13 +99,23 @@ func (m *MapView) handle(gtx layout.Context, sz image.Point, pts []projected) {
 			// Any other press dismisses an open menu, which is what clicking
 			// away from a menu means everywhere else.
 			m.menu.open = false
+			// What a press starts depends on the tool.
+			//
+			// Nothing read the tool at all: every mode dragged a node, which
+			// is why a repeater could be walked across the map while the
+			// toolbar said "link", and place and link did nothing whatever.
 			switch {
-			case m.Layers.Measure:
+			case m.Tool == "measure" || m.Layers.Measure:
 				m.cam.drag = dragMeasure
 			case e.Modifiers.Contain(key.ModShift):
 				m.cam.drag, m.cam.boxTo = dragBox, e.Position
-			case m.cam.nodeIndex >= 0:
+			case m.Tool == "move" && m.cam.nodeIndex >= 0:
 				m.cam.drag = dragNode
+			case m.Tool == "place", m.Tool == "link":
+				// Both act on the release, so that a press which turns into a
+				// drag pans the map instead of placing something nobody
+				// meant to place.
+				m.cam.drag = dragPan
 			default:
 				m.cam.drag = dragPan
 			}
@@ -137,6 +147,42 @@ func (m *MapView) handle(gtx layout.Context, sz image.Point, pts []projected) {
 
 // release is where a gesture becomes a decision.
 func (m *MapView) release(e pointer.Event, pts []projected, sz image.Point) {
+	// The tools that act on a click rather than on a drag.
+	//
+	// Checked before anything else and only when the pointer did not move,
+	// because a press that turned into a pan is somebody looking around, not
+	// somebody placing a repeater in the sea.
+	if !m.cam.moved {
+		switch m.Tool {
+		case "place":
+			if m.OnPlace != nil {
+				lat, lon := m.unproject(e.Position, sz)
+				m.OnPlace(lat, lon)
+			}
+			return
+		case "link":
+			i := nearestWithin(pts, e.Position, 10)
+			if i < 0 {
+				// A click on open ground abandons a half-made link, which is
+				// what it means everywhere else.
+				m.linkFrom = ""
+				return
+			}
+			name := pts[i].n.Name
+			if m.linkFrom == "" || m.linkFrom == name {
+				m.linkFrom = name
+				if m.OnSelect != nil {
+					m.OnSelect([]string{name}, false)
+				}
+				return
+			}
+			if m.OnLinkPair != nil {
+				m.OnLinkPair(m.linkFrom, name)
+			}
+			m.linkFrom = ""
+			return
+		}
+	}
 	switch {
 	case m.cam.drag == dragMeasure:
 		// A measurement is not a selection.

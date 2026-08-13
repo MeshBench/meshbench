@@ -37,7 +37,10 @@ type MapView struct {
 	// a node that is not in the scenario at all.
 	Filter string
 	// Tool is what a click does: select, move, place, link or measure.
-	Tool        string
+	Tool string
+	// linkFrom is the first end of a link being made with the link tool. A
+	// link takes two clicks, so the first one has to be remembered somewhere.
+	linkFrom    string
 	CentreLat   float64
 	CentreLon   float64
 	initialised bool
@@ -76,6 +79,14 @@ type MapView struct {
 	// so the rest of the interface follows the drag rather than jumping at
 	// the end of it.
 	OnMove func(name string, lat, lon float64)
+	// OnPlace is called when the place tool is used, with where on the ground
+	// it was clicked. What kind of node to put there is the workbench's
+	// decision, not the map's.
+	OnPlace func(lat, lon float64)
+	// OnLinkPair is called when the link tool has been given two nodes. What
+	// to do with the pair - select them and break the link into its terms -
+	// belongs to whoever knows what a link budget is.
+	OnLinkPair func(a, b string)
 }
 
 type projected struct {

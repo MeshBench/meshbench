@@ -29,6 +29,16 @@ func ProvisioningFor(n scenario.Node) []state.ProvisionLine {
 	return provisioningWith(DefaultProvisioning(), n)
 }
 
+// provisioningFor is the script under this session's own settings.
+//
+// The settings the operator changed, rather than the defaults. Everything sent
+// at start went through the defaults, so the Provisioning panel could be set
+// to anything at all and the nodes were told the same thing regardless - which
+// is worse than the panel not existing.
+func (s *Sim) provisionLines(n scenario.Node) []state.ProvisionLine {
+	return provisioningWith(*s.provisioning(), n)
+}
+
 // provisioningWith is the script under a stated set of settings.
 func provisioningWith(prov Provisioning, n scenario.Node) []state.ProvisionLine {
 	var out []state.ProvisionLine
@@ -80,7 +90,7 @@ func provisioningWith(prov Provisioning, n scenario.Node) []state.ProvisionLine 
 func (s *Sim) provisioningFor(name string) ([]state.ProvisionLine, error) {
 	for _, n := range s.nodes {
 		if n.Name == name {
-			return ProvisioningFor(n), nil
+			return s.provisionLines(n), nil
 		}
 	}
 	return nil, fmt.Errorf("no node named %q", name)

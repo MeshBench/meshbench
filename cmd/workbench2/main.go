@@ -342,6 +342,44 @@ func main() {
 		go func() { _, _ = st.Do(ctx, "nodes.select", name) }()
 	}
 	mapTop := &mapTools{mv: mv}
+	// The place tool puts a node where it was clicked.
+	//
+	// The kind comes from the toolbar rather than from the map: what a place
+	// tool places is a decision about the network, and the map's business is
+	// where. Named from the kind and a count, because a node with no name is
+	// a node no command can be aimed at.
+	mv.OnPlace = func(lat, lon float64) {
+		kind, name := mapTop.placeKind, ""
+		if kind == "" {
+			kind = "simple-repeater"
+		}
+		if s := st.Snapshot(); s != nil {
+			name = nextPlacedName(kind, s)
+		}
+		go func() {
+			if _, err := st.Do(ctx, "nodes.place", map[string]any{
+				"name": name, "kind": kind, "lat": lat, "lon": lon,
+			}); err != nil {
+				_, _ = st.Do(ctx, "ui.said", "place: "+err.Error())
+				return
+			}
+			_, _ = st.Do(ctx, "ui.said", "placed "+name+" - drag it with the move tool")
+		}()
+	}
+	// The link tool asks the question the Inspector asks: what does this link
+	// cost, in both directions.
+	mv.OnLinkPair = func(a, b string) {
+		go func() {
+			if _, err := st.Do(ctx, "nodes.select_many", []string{a, b}); err != nil {
+				return
+			}
+			if _, err := st.Do(ctx, "budget.for_selection", nil); err != nil {
+				_, _ = st.Do(ctx, "ui.said", "link: "+err.Error())
+				return
+			}
+			_, _ = st.Do(ctx, "ui.said", a+" to "+b+": the budget is in the Link panel")
+		}()
+	}
 	sh.Add(&shell.Panel{Name: "Map", Windowable: true,
 		Draw: func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
 			wbUI.applyCamera()
@@ -1058,5 +1096,21 @@ func workbenchMenus() []menu {
 		{"Help", []shell.MenuItem{
 			{Label: "What this run assumes", Action: "panel.Configuration"},
 		}},
+	}
+}
+
+// nextPlacedName is a name nothing else has, in the kind's own words.
+func nextPlacedName(kind string, s *state.Snapshot) string {
+	base := strings.ReplaceAll(kind, "simple-", "")
+	base = strings.ReplaceAll(base, "-", " ")
+	taken := map[string]bool{}
+	for i := range s.Nodes {
+		taken[s.Nodes[i].Name] = true
+	}
+	for n := 1; ; n++ {
+		name := fmt.Sprintf("new %s %d", base, n)
+		if !taken[name] {
+			return name
+		}
 	}
 }

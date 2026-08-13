@@ -23,6 +23,11 @@ type mapTools struct {
 
 	tools   [5]widget.Clickable
 	current string
+	// placeKind is what the place tool places, and the row of choices that
+	// appears when place is the tool. The old workbench had a tool per kind;
+	// one tool and a kind beside it says the same thing in less rail.
+	placeKind string
+	kinds     [4]widget.Clickable
 
 	mv    *comp.MapView
 	snap  func() *state.Snapshot
@@ -30,6 +35,15 @@ type mapTools struct {
 }
 
 var toolNames = [5]string{"select", "move", "place", "link", "measure"}
+
+// placeKinds are what the place tool can put down, in the scenario's own
+// words. The same four the old workbench had as separate tools.
+var placeKinds = [4]struct{ label, kind string }{
+	{"repeater", "simple-repeater"},
+	{"companion", "companion"},
+	{"observer", "sdr-observer"},
+	{"emitter", "emitter"},
+}
 
 // Draw is the toolbar. One row above the map, because the map is the thing
 // being looked at and a sidebar of controls would take width from it.
@@ -41,6 +55,12 @@ func (m *mapTools) Draw(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 		m.zoomIn.Label, m.zoomIn.Kind = "+", comp.Quiet
 		m.zoomUt.Label, m.zoomUt.Kind = "-", comp.Quiet
 		m.current = "select"
+		// Said out loud rather than left implied. The map reads Tool to decide
+		// what a click does, and an empty one while the toolbar shows "select"
+		// highlighted is the toolbar and the map disagreeing.
+		if m.mv != nil {
+			m.mv.Tool = m.current
+		}
 		m.built = true
 	}
 	// The filter applies as it is typed: a box that needs a button pressed
@@ -96,6 +116,49 @@ func (m *mapTools) Draw(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 		}))
 	}
 	return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return layout.Flex{Alignment: layout.Middle}.Layout(gtx, kids...)
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Alignment: layout.Middle}.Layout(gtx, kids...)
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return m.kindRow(t, gtx)
+			}),
+		)
 	})
+}
+
+// kindRow is what the place tool will place, on a line of its own.
+//
+// Of its own because the toolbar is already a full row: four more labels
+// beside the tools pushed link and measure off the end of a narrow map, which
+// is a worse fault than the one the kinds were added to fix.
+func (m *mapTools) kindRow(t *theme.Theme, gtx layout.Context) layout.Dimensions {
+	if m.current != "place" {
+		return layout.Dimensions{}
+	}
+	if m.placeKind == "" {
+		m.placeKind = placeKinds[0].kind
+	}
+	kids := []layout.FlexChild{
+		layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint, "place a ")),
+	}
+	for i := range placeKinds {
+		i := i
+		if m.kinds[i].Clicked(gtx) {
+			m.placeKind = placeKinds[i].kind
+		}
+		kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			fg := t.P.Dim
+			if m.placeKind == placeKinds[i].kind {
+				fg = t.P.Accent
+			}
+			return m.kinds[i].Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Left: t.Sp.XS, Right: t.Sp.XS}.Layout(gtx,
+					comp.Text(t, t.Sz.Caption, fg, placeKinds[i].label))
+			})
+		}))
+	}
+	kids = append(kids, layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint,
+		" - then click the map")))
+	return layout.Flex{Alignment: layout.Middle}.Layout(gtx, kids...)
 }

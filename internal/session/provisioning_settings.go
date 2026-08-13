@@ -35,6 +35,16 @@ type Provisioning struct {
 	// AdvertHops caps how far an advert floods. Zero leaves the firmware's
 	// own setting alone.
 	AdvertHops int `json:"advert_hops"`
+	// AdvertMinutes is how often a node says it is there, zero-hop.
+	//
+	// Zero, which is MeshCore's own default, and means never. Worth knowing
+	// before setting it: the firmware refuses anything outside 60 to 240
+	// minutes - "Error: interval range is 60-240 minutes" - so a mesh cannot
+	// be made to advertise every minute to liven up a short run. Nothing in
+	// either workbench originates traffic on its own; a run is made to talk by
+	// asking it to, which is what the fleet's advert command is for.
+	AdvertMinutes int `json:"advert_minutes"`
+
 	// StaggerMs spreads node starts, because bringing several hundred up in
 	// the same millisecond is a burst no real network ever sees.
 	StaggerMs int `json:"stagger_ms"`
@@ -70,6 +80,9 @@ func registerProvisioningSettings(st *state.Store, s *Sim) {
 		}
 		if v, ok := numField(p, "advert_hops"); ok {
 			pr.AdvertHops = int(v)
+		}
+		if v, ok := numField(p, "advert_minutes"); ok {
+			pr.AdvertMinutes = int(v)
 		}
 		if v, ok := numField(p, "stagger_ms"); ok {
 			pr.StaggerMs = int(v)
@@ -123,6 +136,7 @@ func (p Provisioning) describe() map[string]any {
 		"set_clock": p.SetClock, "region_from_area": p.RegionFromArea,
 		"default_scope": p.DefaultScope, "advert_hops": p.AdvertHops,
 		"stagger_ms": p.StaggerMs, "extra": p.Extra,
+		"advert_minutes": p.AdvertMinutes,
 	}
 }
 
@@ -143,7 +157,25 @@ func (p Provisioning) commandsFor(n scenario.Node) []string {
 	if p.SetClock {
 		// The run's own clock, the same on every node. A node whose clock
 		// disagrees rejects messages as replays, which reads as a radio fault.
-		out = append(out, "time 0")
+		//
+		// A real epoch rather than zero, and the same one the old workbench
+		// uses. MeshCore timestamps what it sends and judges freshness by it;
+		// a node that believes it is 1970 is not a node in the same
+		// conversation as the rest. Fixed rather than wall clock, so a run
+		// stays reproducible.
+		out = append(out, fmt.Sprintf("time %d", scenarioEpoch))
+	}
+	// Clamped to what the firmware accepts, rather than sent and refused into
+	// a console nobody is reading.
+	if p.AdvertMinutes > 0 && n.Kind.Transmits() {
+		mins := p.AdvertMinutes
+		if mins < 60 {
+			mins = 60
+		}
+		if mins > 240 {
+			mins = 240
+		}
+		out = append(out, fmt.Sprintf("set advert.interval %d", mins))
 	}
 	if p.AdvertHops > 0 {
 		out = append(out, fmt.Sprintf("set advert.hops %d", p.AdvertHops))
@@ -157,3 +189,8 @@ func (p Provisioning) commandsFor(n scenario.Node) []string {
 	}
 	return out
 }
+
+// scenarioEpoch is the clock every node is set to at boot: 2026-09-01T00:00:00Z,
+// comfortably after the 1.17 release. The same constant the old workbench uses,
+// so a run started in either lands on the same instant.
+const scenarioEpoch = 1788220800

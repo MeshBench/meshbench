@@ -483,7 +483,7 @@ func (s *Sim) provisionAll() int {
 			continue
 		}
 		sent := false
-		for _, line := range ProvisioningFor(n) {
+		for _, line := range s.provisionLines(n) {
 			if line.Comment {
 				continue
 			}
