@@ -120,12 +120,20 @@ func (s *Sim) build(nodes []scenario.Node, freqMHz float64) {
 // close on ScotMesh: The Mysterons reached Leslie, Cadham and Bishop Hill
 // through the Lomond Hills, which is not possible and was reported as such.
 //
-// 20 dB is what it takes for those three to fail, and it sits inside the range
-// normally quoted for 869 MHz over mixed rural terrain with vegetation. It is
-// a calibration, not a measurement: set your own with rf.excess_loss once
-// there are observations to fit against, which is what the Validate panel is
-// for. Studies comparing two firmware builds are unaffected in direction,
-// because both arms carry the same term.
+// It is now a measurement rather than the guess it started as. Fitted against
+// 118 real receptions from the live ScotMesh deployment - packets carrying an
+// SNR from an observer whose public key matches a node in the scenario - the
+// median residual is +20.4 dB, positive meaning the model predicted more
+// signal than was heard.
+//
+// The value was chosen before that as "what it takes for the three impossible
+// links across the Lomond ridge to fail", and it landed within half a decibel
+// of what the network says. That is luck as much as judgement, and the reason
+// the fit exists is so nobody has to rely on it again: validate.fetch then
+// validate.calibrate re-derives it from whatever observations are current.
+//
+// Studies comparing two firmware builds are unaffected in direction, because
+// both arms carry the same term.
 const DefaultExcessLossDB = 20
 
 // defaultSeed is the one a fresh session starts from. Fixed, because a

@@ -56,20 +56,66 @@ func registerValidate(st *state.Store, s *Sim) {
 					"neither endpoint answered: "+err.Error())
 				return
 			}
+			// Names, not keys.
+			//
+			// CoreScope's packet records carry no origin field, and the path
+			// it resolves is a list of public keys. Every observation
+			// therefore names a pair that no scenario recognises - which is
+			// why 3,989 of them matched nothing at all. The scenario's own
+			// nodes keep the real key they were imported with, so the map
+			// exists; it just was not being made.
+			byKey := map[string]string{}
+			for _, n := range s.nodes {
+				if k := strings.ToLower(n.PublicKey); k != "" {
+					byKey[k] = n.Name
+				}
+			}
+			named := func(key string) string {
+				k := strings.ToLower(key)
+				if name, ok := byKey[k]; ok {
+					return name
+				}
+				// A prefix is enough: MeshCore paths carry the first bytes of
+				// a key, and a source that resolves them may hand back either.
+				for full, name := range byKey {
+					if len(k) >= 8 && strings.HasPrefix(full, k) {
+						return name
+					}
+				}
+				return ""
+			}
+
 			var out []provider.Reception
+			unresolved := 0
 			for _, p := range pkts {
 				if !p.HasSNR || p.At.Before(since) || p.Receiver == "" {
 					continue
 				}
 				origin := p.Origin
+				if origin == "" && len(p.RelayPath) > 0 {
+					// The first name on the path is who originated it; the
+					// last is whoever transmitted the copy that was heard.
+					origin = named(p.RelayPath[0])
+				}
 				if origin == "" {
-					origin = p.Sender
+					origin = named(p.Sender)
+				}
+				if origin == "" {
+					unresolved++
+					continue
 				}
 				out = append(out, provider.Reception{
 					At: p.At, Receiver: p.Receiver, Origin: origin,
 					HopCount: len(p.PathHashes),
 					HasSNR:   true, SNRdB: p.SNRdB,
 				})
+			}
+			if len(out) == 0 && unresolved > 0 {
+				_, _ = st.Do(context.Background(), "validate.failed", fmt.Sprintf(
+					"%d observations carried SNR but none named a node in this "+
+						"scenario: the keys they carry belong to a different network",
+					unresolved))
+				return
 			}
 			if len(out) == 0 {
 				_, _ = st.Do(context.Background(), "validate.failed",
