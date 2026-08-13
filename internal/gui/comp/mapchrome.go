@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"image"
 	"math"
+	"sort"
+
+	"gioui.org/f32"
 
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -188,6 +191,7 @@ func (m *MapView) layerPanel(t *theme.Theme, gtx layout.Context, sz image.Point,
 		}))
 	}
 	kids = append(kids, m.keyRows(t, inner, s)...)
+	kids = append(kids, m.regionKeyRows(t, inner, s)...)
 	dims := layout.Flex{Axis: layout.Vertical}.Layout(inner, kids...)
 	content := rec.Stop()
 
@@ -361,4 +365,57 @@ func mapNote(s *state.Snapshot, shown, total int, basemap string) string {
 		out += fmt.Sprintf("study margin %g km    ", s.MarginKm)
 	}
 	return out + basemap
+}
+
+// regionKeyRows names the regions being drawn, while they are being drawn.
+//
+// The ring around a node is a hash of its region's name, so without this the
+// layer is a set of coloured rings that mean something to nobody. Only while
+// the layer is on, and only the regions actually on screen.
+func (m *MapView) regionKeyRows(t *theme.Theme, gtx layout.Context,
+	s *state.Snapshot) []layout.FlexChild {
+	if !m.Layers.Regions || s == nil {
+		return nil
+	}
+	seen := map[string]bool{}
+	var names []string
+	for i := range s.Nodes {
+		if len(s.Nodes[i].Regions) == 0 {
+			continue
+		}
+		r := s.Nodes[i].Regions[0]
+		if !seen[r] {
+			seen[r] = true
+			names = append(names, r)
+		}
+	}
+	if len(names) == 0 {
+		return []layout.FlexChild{layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Top: t.Sp.XS}.Layout(gtx,
+				Text(t, t.Sz.Caption, t.P.Faint, "no node here holds a region"))
+		})}
+	}
+	sort.Strings(names)
+	kids := []layout.FlexChild{layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return layout.Inset{Top: t.Sp.XS, Bottom: t.Sp.XS}.Layout(gtx,
+			Text(t, t.Sz.Caption, t.P.Faint, "regions"))
+	})}
+	for _, name := range names {
+		name := name
+		kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					d := gtx.Dp(10)
+					var path clip.Path
+					path.Begin(gtx.Ops)
+					ring(&path, f32.Pt(float32(d)/2, float32(d)/2), float32(d)/2, 1.5)
+					paint.FillShape(gtx.Ops, theme.Alpha(regionColour(name), 0.85),
+						clip.Outline{Path: path.End()}.Op())
+					return layout.Dimensions{Size: image.Pt(d+gtx.Dp(t.Sp.XS), d)}
+				}),
+				layout.Rigid(Text(t, t.Sz.Caption, t.P.Ink, name)),
+			)
+		}))
+	}
+	return kids
 }
