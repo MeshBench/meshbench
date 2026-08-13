@@ -56,6 +56,7 @@ func main() {
 	saveRunFlag := flag.String("save-run", "", "save a run record under this name, then keep running")
 	shadeFlag := flag.Bool("terrain", false, "shade the relief at startup")
 	menuFlag := flag.String("menu", "", "fire this menu action at startup, so what it opens can be captured")
+	cfgSection := flag.String("config-section", "", "open the Configuration page on this section")
 	nodeTabFlag := flag.Int("node-tab", 0, "which tab a node window opens on: 0 console, 1 stats, 2 activity, 3 companion")
 	coverFlag := flag.String("coverage", "",
 		"compute and show coverage from this node at startup")
@@ -475,6 +476,9 @@ func main() {
 		sh.Ask.Post(func(ask *shell.Prompt) {
 			ask.Choose(title, "filter", opts, pick)
 		})
+	}
+	if *cfgSection != "" {
+		cfg.Open(*cfgSection)
 	}
 	logp := &logPanel{}
 	sh.Add(&shell.Panel{Name: "Provisioning", Windowable: true,

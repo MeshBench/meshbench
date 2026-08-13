@@ -611,6 +611,16 @@ func (p *configPanel) system(t *theme.Theme, s *state.Snapshot) []layout.Widget 
 	}
 }
 
+// Open opens a named section, for the capture flag: a section that only
+// opens on a click is a section nobody can check without a hand on the mouse.
+func (p *configPanel) Open(name string) {
+	for i, s := range configSections {
+		if strings.EqualFold(s, name) {
+			p.active = i
+		}
+	}
+}
+
 // auditDraw is every control this panel owns, laid flat with no sections, so
 // the audit presses each one regardless of which section happens to be open.
 // The real layout's section switching has its own test beside the audit.
