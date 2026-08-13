@@ -38,9 +38,11 @@ type Sim struct {
 	seed    uint64
 	// excessLossDB is the calibration term: everything the bare-earth model
 	// does not contain - vegetation, buildings, the ground itself not being a
-	// knife edge. Zero is an honest default only because it is stated; it is
-	// also why a path over a ridge closes here that does not close in Fife.
+	// knife edge.
 	excessLossDB float64
+	// excessSet distinguishes "nobody has said" from "somebody said zero",
+	// which are different answers and only one of them is a default.
+	excessSet bool
 
 	eng      *engine.Engine
 	nodes    []scenario.Node
@@ -90,6 +92,23 @@ func (s *Sim) build(nodes []scenario.Node, freqMHz float64) {
 	s.buildSeeded(nodes, freqMHz, defaultSeed)
 }
 
+// DefaultExcessLossDB is what the bare-earth model is missing.
+//
+// The diffraction calculation is sound - measured against the DEM it charges
+// +47 dB for a 326 m ridge and exactly zero for a clear path - but it models
+// bare earth. It has no trees, no buildings and no ground that is anything but
+// a knife edge, so paths that cross a ridge close in the simulator that do not
+// close on ScotMesh: The Mysterons reached Leslie, Cadham and Bishop Hill
+// through the Lomond Hills, which is not possible and was reported as such.
+//
+// 20 dB is what it takes for those three to fail, and it sits inside the range
+// normally quoted for 869 MHz over mixed rural terrain with vegetation. It is
+// a calibration, not a measurement: set your own with rf.excess_loss once
+// there are observations to fit against, which is what the Validate panel is
+// for. Studies comparing two firmware builds are unaffected in direction,
+// because both arms carry the same term.
+const DefaultExcessLossDB = 20
+
 // defaultSeed is the one a fresh session starts from. Fixed, because a
 // simulator whose default run differs every time cannot be used to show
 // anybody a result.
@@ -103,6 +122,9 @@ func (s *Sim) buildSeeded(nodes []scenario.Node, freqMHz float64, seed uint64) {
 	s.nodes = nodes
 	s.freqMHz = freqMHz
 	s.seed = seed
+	if !s.excessSet {
+		s.excessLossDB = DefaultExcessLossDB
+	}
 	s.eng = engine.New(s.terrain(), engine.Config{
 		FreqMHz: freqMHz, SF: 10, BandwidthHz: 250e3, CodingRate: 1,
 		NoiseFigDB: 6, StepMs: 10, Seed: seed,

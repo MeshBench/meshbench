@@ -24,7 +24,7 @@ func registerExcessLoss(st *state.Store, s *Sim) {
 			if v < 0 {
 				return nil, fmt.Errorf("excess loss is a loss: %.1f dB would add signal", v)
 			}
-			s.excessLossDB = v
+			s.excessLossDB, s.excessSet = v, true
 			if len(s.nodes) > 0 {
 				// Rebuilt, because path loss is cached per pair for the life
 				// of an engine - terrain does not move, so the cache never
