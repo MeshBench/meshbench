@@ -48,24 +48,21 @@ func registerBoundary(st *state.Store, s *Sim) {
 		if name == "" {
 			return nil, fmt.Errorf("boundary.accept needs a name")
 		}
-		c := &boundary.Client{}
+		// The geometry the search already returned.
+		//
+		// It went through the client's disk cache before, which is empty
+		// unless a CacheDir was set - and none was, so every accept failed
+		// with "no boundary for that", having just been handed the boundary.
 		var chosen []scenario.Boundary
 		matched := name
-		if bs, ok := c.Cached(name); ok {
-			chosen = bs
-		} else {
-			// What the search offered, not only what was typed. Searching
-			// "Scotland" returns "Alba / Scotland", and refusing to accept
-			// the thing it just offered because the words differ is a dead
-			// end with no way out of it.
-			for _, f := range s.foundAreas {
-				if strings.EqualFold(f.Name, name) ||
-					strings.Contains(strings.ToLower(f.Name), strings.ToLower(name)) {
-					if bs, ok := c.Cached(f.Name); ok {
-						chosen, matched = bs, f.Name
-						break
-					}
-				}
+		for _, f := range s.foundAreas {
+			// What the search offered, not only what was typed: searching
+			// "Scotland" returns "Alba / Scotland", and refusing the thing it
+			// just offered is a dead end with no way out from the panel.
+			if strings.EqualFold(f.Name, name) ||
+				strings.Contains(strings.ToLower(f.Name), strings.ToLower(name)) {
+				chosen, matched = f.Boundaries, f.Name
+				break
 			}
 		}
 		if len(chosen) == 0 {
