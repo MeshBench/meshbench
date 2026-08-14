@@ -137,6 +137,38 @@ absolute path, and read the job progress from the control socket rather than
 the screen. That needs Alex's say-so, because starting it puts a window on his
 live desktop.
 
+## Does any of this affect Windows? Measured, not guessed
+
+Run on a Windows runner (`.github/workflows/windows-check.yml`, manual only -
+Windows minutes bill at double on a private repository).
+
+**Bug 1 (fixtures): yes.** Running the binary from a directory with no
+`fixtures` beside it, `meshbench check` could not find one. Windows escapes it
+only in the lucky case - double-clicking `meshbench.exe` in Explorer sets the
+working directory to the exe's own folder, where the zip does put `fixtures/`.
+A Start Menu shortcut, a pinned launch, or running from anywhere else breaks
+exactly as macOS and the Linux launchers do. The fix is the same and is needed
+for all three.
+
+**Bug 3 (the link warm): the GPU half is still unknown on Windows, and a
+hosted runner cannot answer it.** The runner reports "Microsoft Hyper-V Video":
+no Vulkan surface extensions, an OpenGL 1.1 context, and wgpu ends with
+`no adapter: failed to request adapter`. Every GPU equivalence test therefore
+*skipped*. So DX12 - what an actual Windows user's machine would use - has
+still never executed these kernels. That needs real hardware, not CI.
+
+Two further bugs fell out of the same run:
+
+- **`TestCoverageKernelMatchesCPU` fails where every other GPU test skips.**
+  The others say "no usable GPU here" and skip; this one does not have that
+  guard, so it fails on any machine without an adapter - a VM, a CI runner,
+  a laptop with no usable GPU. The suite should report "no GPU to compare
+  against", not "the kernel is wrong".
+- **`TestImportLandsWhereTheRunnerLooks` fails on Windows**: "imported native
+  build is not executable". Windows has no executable bit, so a check for one
+  is meaningless there - and importing a native firmware build is a real user
+  path, not only a test.
+
 ## Order
 
 1. Fixtures (1) - it is the largest user-visible breakage, it is entirely in
