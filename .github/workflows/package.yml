@@ -335,8 +335,12 @@ jobs:
     # Windows both run on Linux runners, which are free even here. A test
     # build should not spend thirty billable minutes proving the dmg still
     # packs.
+    # Alex's own Mac, as an org runner. package.yml runs only on tags and
+    # manual dispatch - events that need write access - so nothing an
+    # outsider does can schedule work on it. Hosted macos-14 was the paid
+    # leg on this private repository; the M4 is free and faster.
     if: inputs.mac
-    runs-on: macos-14
+    runs-on: [self-hosted, macos-m4]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
