@@ -13,6 +13,10 @@ on:
     tags: ['v*']
   workflow_dispatch:
     inputs:
+      version:
+        description: 'Version to release, e.g. 0.0.1 (blank builds without releasing)'
+        type: string
+        default: ''
       release:
         description: 'Publish a release from this build'
         type: boolean
@@ -76,8 +80,13 @@ jobs:
           # Reverse DNS wants a domain the project controls, and MeshBench owns
           # no domain - so it takes the form for a GitHub-hosted project, which
           # is what Flathub asks for too. It follows the org, not a person.
-          VERSION="${GITHUB_REF_NAME}"
-          case "$VERSION" in v*) ;; *) VERSION="dev-$(git rev-parse --short HEAD)";; esac
+          VERSION="${{ inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            case "${GITHUB_REF_NAME}" in
+              v*) VERSION="${GITHUB_REF_NAME#v}" ;;
+              *)  VERSION="0.0.0-dev-$(git rev-parse --short HEAD)" ;;
+            esac
+          fi
           go build -trimpath \
             -ldflags "-X gioui.org/app.ID=io.github.meshbench.meshbench \
                       -X github.com/MeshBench/meshbench/internal/workbench.Version=$VERSION" \
@@ -188,7 +197,13 @@ jobs:
           # that made it. The repository is private for now, so the source
           # travels with the release rather than being a link. When the
           # repository goes public this can become a URL in the notes.
-          VERSION="${GITHUB_REF_NAME:-dev}"
+          VERSION="${{ inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            case "${GITHUB_REF_NAME}" in
+              v*) VERSION="${GITHUB_REF_NAME#v}" ;;
+              *)  VERSION="0.0.0-dev-$(git rev-parse --short HEAD)" ;;
+            esac
+          fi
           (cd .. && git archive --format=tar.gz \
             --prefix="meshbench-${VERSION}/" -o "dist/meshbench-${VERSION}-source.tar.gz" HEAD)
           sha256sum *.tar.gz > SHA256SUMS   # AppImage and .deb are added after they are built
@@ -204,8 +219,13 @@ jobs:
         run: |
           set -e
           go run ./tools/icon
-          VERSION="${GITHUB_REF_NAME}"
-          case "$VERSION" in v*) VERSION="${VERSION#v}";; *) VERSION="0.0.0";; esac
+          VERSION="${{ inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            case "${GITHUB_REF_NAME}" in
+              v*) VERSION="${GITHUB_REF_NAME#v}" ;;
+              *)  VERSION="0.0.0-dev-$(git rev-parse --short HEAD)" ;;
+            esac
+          fi
 
           # An AppDir is just the tree an installed application would have.
           # linuxdeploy turns it into a single file that runs on any distro
@@ -292,20 +312,6 @@ jobs:
             dist/*.deb
             dist/SHA256SUMS
 
-      - name: Release
-        if: startsWith(github.ref, 'refs/tags/') || inputs.release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -e
-          # An unlicensed project cannot be released to end users:
-          # this is the gate that makes the decision unavoidable.
-          go run ./tools/licgen -require-project-licence
-          TAG="${GITHUB_REF_NAME:-$(date -u +%Y%m%d)-$(git rev-parse --short HEAD)}"
-          FILES=$(ls dist/*.tar.gz dist/*.AppImage dist/*.deb dist/SHA256SUMS 2>/dev/null)
-          gh release create "$TAG" $FILES --generate-notes || \
-            gh release upload "$TAG" $FILES --clobber
-
   macos:
     # macos-14 is Apple Silicon and is the standard runner, not the xlarge -
     # larger runners are billed on every plan and fail with a message about
@@ -326,8 +332,13 @@ jobs:
       - name: Build the bundle
         run: |
           set -e
-          VERSION="${GITHUB_REF_NAME}"
-          case "$VERSION" in v*) VERSION="${VERSION#v}";; *) VERSION="0.0.0";; esac
+          VERSION="${{ inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            case "${GITHUB_REF_NAME}" in
+              v*) VERSION="${GITHUB_REF_NAME#v}" ;;
+              *)  VERSION="0.0.0-dev-$(git rev-parse --short HEAD)" ;;
+            esac
+          fi
           packaging/macos-app.sh "$VERSION"
 
       - name: Fetch the emulators
@@ -355,8 +366,13 @@ jobs:
       - name: Repack the dmg with the emulators in it
         run: |
           set -e
-          VERSION="${GITHUB_REF_NAME}"
-          case "$VERSION" in v*) VERSION="${VERSION#v}";; *) VERSION="0.0.0";; esac
+          VERSION="${{ inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            case "${GITHUB_REF_NAME}" in
+              v*) VERSION="${GITHUB_REF_NAME#v}" ;;
+              *)  VERSION="0.0.0-dev-$(git rev-parse --short HEAD)" ;;
+            esac
+          fi
           rm -f dist/MeshBench-*.dmg
           hdiutil create -quiet -volname "MeshBench $VERSION" -srcfolder dist/macos \
             -ov -format UDZO "dist/MeshBench-${VERSION}-arm64.dmg"
@@ -398,8 +414,13 @@ jobs:
         # is a confusing way to be told the tools ran in the wrong direction.
         run: |
           set -e
-          VERSION="${GITHUB_REF_NAME}"
-          case "$VERSION" in v*) ;; *) VERSION="dev-$(git rev-parse --short HEAD)";; esac
+          VERSION="${{ inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            case "${GITHUB_REF_NAME}" in
+              v*) VERSION="${GITHUB_REF_NAME#v}" ;;
+              *)  VERSION="0.0.0-dev-$(git rev-parse --short HEAD)" ;;
+            esac
+          fi
           go run ./tools/licgen -text dist/meshbench/LICENCES
           GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc \
           go build -trimpath \
@@ -432,3 +453,86 @@ jobs:
           name: meshbench-windows
           retention-days: 5
           path: dist/*.zip
+
+  release:
+    # One release, once every platform has built. Publishing per-job would put
+    # the Linux downloads on a release page that has no Mac or Windows build
+    # in it yet, which is a release somebody downloads halfway through.
+    #
+    # always(), so a platform that fails does not withhold the ones that
+    # worked - but the tarball and the AppImage are required below, because a
+    # release missing the thing most people came for is worse than no release.
+    if: always() && inputs.release
+    needs: [linux, macos, windows]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.24', cache: true }
+      - uses: actions/download-artifact@v4
+        with: { path: incoming }
+
+      - name: Collect
+        run: |
+          set -e
+          mkdir -p dist
+          find incoming -type f \( -name '*.tar.gz' -o -name '*.AppImage' \
+            -o -name '*.deb' -o -name '*.zip' -o -name '*.dmg' \) -exec cp {} dist/ \;
+          ls -la dist
+
+      - name: Refuse a release nobody can use
+        run: |
+          set -e
+          # The Linux downloads are the ones this release exists for today.
+          # macOS and Windows are allowed to be missing and say so in the
+          # notes; Linux missing means something went wrong upstream of here.
+          ls dist/*.AppImage >/dev/null || { echo "::error::no AppImage"; exit 1; }
+          ls dist/meshbench-linux-x86_64.tar.gz >/dev/null || { echo "::error::no Linux tarball"; exit 1; }
+          # And the project still has to have a licence to be given away.
+          go run ./tools/licgen -require-project-licence
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          VERSION="${{ inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            case "${GITHUB_REF_NAME}" in
+              v*) VERSION="${GITHUB_REF_NAME#v}" ;;
+              *)  echo "::error::set a version to release"; exit 1 ;;
+            esac
+          fi
+          TAG="v${VERSION}"
+
+          # GPL-3.0 section 6: whoever gets the binary can have the source.
+          git archive --format=tar.gz --prefix="meshbench-${VERSION}/" \
+            -o "dist/meshbench-${VERSION}-source.tar.gz" HEAD
+          (cd dist && sha256sum * > SHA256SUMS && cat SHA256SUMS)
+
+          {
+            echo "## Installing"
+            echo
+            echo "See the [quick start](https://github.com/MeshBench/meshbench#install-and-run) for each platform."
+            echo
+            echo "| platform | download | notes |"
+            echo "|---|---|---|"
+            ls dist/*.AppImage >/dev/null 2>&1 && echo "| Linux | \`.AppImage\` | one file, any distribution |"
+            ls dist/*.deb >/dev/null 2>&1 && echo "| Debian, Ubuntu | \`.deb\` | \`sudo apt install ./meshbench_*.deb\` |"
+            ls dist/meshbench-linux-x86_64.tar.gz >/dev/null 2>&1 && echo "| Linux | \`.tar.gz\` | includes the QEMU and Renode emulators |"
+            ls dist/*.dmg >/dev/null 2>&1 && echo "| macOS (Apple Silicon) | \`.dmg\` | **unsigned** - right-click Open, see the README |" || echo "| macOS | - | did not build for this release |"
+            ls dist/*.zip >/dev/null 2>&1 && echo "| Windows | \`.zip\` | unzip and run \`meshbench.exe\`; SmartScreen will warn |" || echo "| Windows | - | did not build for this release |"
+            echo
+            echo "Neither the macOS nor the Windows build is code-signed yet, so both"
+            echo "operating systems will object the first time. The README says exactly"
+            echo "what they say and how to proceed."
+            echo
+            echo "\`SHA256SUMS\` covers every file here. The source archive is included"
+            echo "because MeshBench is GPL-3.0-or-later and the repository is private."
+          } > /tmp/notes.md
+
+          gh release create "$TAG" dist/* --target "${GITHUB_SHA}" \
+            --title "MeshBench $VERSION" --notes-file /tmp/notes.md \
+            || gh release upload "$TAG" dist/* --clobber
