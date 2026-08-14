@@ -97,6 +97,17 @@ func companionSetup(n scenario.Node, arm ExpArm, e *experiment) [][]byte {
 	return out
 }
 
+// stage records where a cell has got to.
+//
+// Every line carries the arm and the seed, because the failure this is for is a
+// cell that stops moving: without a stage the log says only which cell started,
+// and a stall in attach looks exactly like a stall in the run loop.
+func (e *experiment) stage(arm ExpArm, seed uint64, what string) {
+	e.mu.Lock()
+	e.logf("%s %d: %s", arm.Label, seed, what)
+	e.mu.Unlock()
+}
+
 // runArm is one cell: one configuration at one seed, on real firmware.
 func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64,
 	nodes []scenario.Node) ExpResult {
@@ -177,6 +188,7 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 		return out
 	}
 	out.Firmware = started
+	e.stage(arm, seed, fmt.Sprintf("%d of %d firmware attached", started, wanted))
 
 	// Provision every node before the run.
 	//
@@ -241,6 +253,68 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 			map[bool]string{true: ", ...", false: ""}[len(refused) > 3])
 		e.mu.Unlock()
 	}
+	// The senders are claimed before anything settles.
+	//
+	// A companion does not answer a tick until its app session has started, so
+	// an engine stepped before that waits on it for ever - which is exactly
+	// where this stalled: 159 of 159 attached, provisioned, and then the first
+	// settle never returned. The old workbench connects before it settles and
+	// records why: "claiming a sender steps the engine".
+	e.stage(arm, seed, "claiming senders")
+
+	// A companion session per sender, which is how a message is originated:
+	// the same path a phone takes.
+	sessions := map[string]*compSession{}
+	for name := range senders {
+		en, ok := eng.NodeByName(name)
+		if !ok || en.Firmware == nil {
+			out.Err = name + " has no firmware after attach"
+			return out
+		}
+		c := &compSession{node: name}
+		c.release = en.Firmware.Bridge.Claim(c)
+		defer c.release()
+		sessions[name] = c
+		if err := en.Firmware.Bridge.Type(compFrame(proto.AppStart("meshbench"))); err != nil {
+			out.Err = "app start at " + name + ": " + err.Error()
+			return out
+		}
+	}
+	// The handshake has to land before anything else is said.
+	//
+	// Everything a companion is told waits on the reply to AppStart, and a
+	// reply needs time to move: sending the configuration in the same breath
+	// put frames in front of a firmware that had not finished starting, and it
+	// left the bridge - "no node attached" on the very next step.
+	e.stage(arm, seed, "senders claimed, handshaking")
+	if err := stepFor(ctx, eng, 500*time.Millisecond); err != nil {
+		out.Err = "companion handshake: " + err.Error()
+		return out
+	}
+
+	// And what each needs to be on the mesh's channel at all.
+	//
+	// A companion's radio preferences start empty: nothing has told it, because
+	// the CLI it cannot take is the only thing that told anything else. An
+	// unconfigured sender is not on the scenario's frequency, so it originates
+	// onto a channel no repeater is listening to and the cell measures nothing
+	// while reporting no error.
+	for name := range sessions {
+		en, _ := eng.NodeByName(name)
+		for _, msg := range companionSetup(nodeNamed(nodes, name), arm, e) {
+			if err := en.Firmware.Bridge.Type(compFrame(msg)); err != nil {
+				out.Err = "configuring " + name + ": " + err.Error()
+				return out
+			}
+		}
+	}
+	e.stage(arm, seed, "senders configured, settling")
+	// The commands are answered by firmware, which only runs when time moves.
+	if err := stepFor(ctx, eng, 2*time.Second); err != nil {
+		out.Err = "configuring senders: " + err.Error()
+		return out
+	}
+	e.stage(arm, seed, "provisioned, settling")
 	// Let the commands be read before anything is measured: they are answered
 	// by the firmware, which only runs when the engine steps.
 	if err := stepFor(ctx, eng, 2*time.Second); err != nil {
@@ -266,47 +340,12 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 			return out
 		}
 	}
+	e.stage(arm, seed, "adverts sent, settling")
 	if err := stepFor(ctx, eng, 6*time.Second); err != nil {
 		out.Err = "adverts: " + err.Error()
 		return out
 	}
-
-	// A companion session per sender, which is how a message is originated:
-	// the same path a phone takes.
-	sessions := map[string]*compSession{}
-	for name := range senders {
-		en, ok := eng.NodeByName(name)
-		if !ok || en.Firmware == nil {
-			out.Err = name + " has no firmware after attach"
-			return out
-		}
-		c := &compSession{node: name}
-		c.release = en.Firmware.Bridge.Claim(c)
-		defer c.release()
-		sessions[name] = c
-		if err := en.Firmware.Bridge.Type(compFrame(proto.AppStart("meshbench"))); err != nil {
-			out.Err = "app start at " + name + ": " + err.Error()
-			return out
-		}
-		// And what it needs to be on the mesh's channel at all.
-		//
-		// A companion's radio preferences start empty: nothing has told it,
-		// because the CLI it cannot take is the only thing that told anything
-		// else. An unconfigured sender is not on the scenario's frequency, so
-		// it originates onto a channel no repeater is listening to and the cell
-		// measures nothing while reporting no error.
-		for _, msg := range companionSetup(nodeNamed(nodes, name), arm, e) {
-			if err := en.Firmware.Bridge.Type(compFrame(msg)); err != nil {
-				out.Err = "configuring " + name + ": " + err.Error()
-				return out
-			}
-		}
-	}
-	// The commands are answered by firmware, which only runs when time moves.
-	if err := stepFor(ctx, eng, 2*time.Second); err != nil {
-		out.Err = "configuring senders: " + err.Error()
-		return out
-	}
+	e.stage(arm, seed, "running to send_at")
 
 	// Where the ledger stood when this cell started, so the counting below is
 	// this run's traffic and not the boot chatter of three hundred nodes.
@@ -353,6 +392,7 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 				_ = at
 			}
 			fired, burstMs = true, eng.NowMs()
+			e.stage(arm, seed, fmt.Sprintf("fired at %d ms", burstMs))
 		}
 		// Anything whose moment has come.
 		for i := 0; i < len(pending); i++ {

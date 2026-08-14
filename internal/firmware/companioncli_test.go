@@ -3,22 +3,33 @@ package firmware_test
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/MeshBench/meshbench/internal/companion/proto"
 	"github.com/MeshBench/meshbench/internal/firmware"
 )
 
-// What a companion does when the text CLI is typed at it.
+// frame is the companion protocol's own framing: '<', a little-endian length,
+// then the payload. The same one the session uses.
+func frame(payload []byte) []byte {
+	out := make([]byte, 0, 3+len(payload))
+	out = append(out, '<')
+	out = binary.LittleEndian.AppendUint16(out, uint16(len(payload)))
+	return append(out, payload...)
+}
+
+// What a companion does when it is spoken to, and what it says on the way out.
 //
-// A sweep of eight cells failed on its first companion with "connection reset
-// by peer", and the node was gone afterwards. Provisioning types the same lines
-// at every node regardless of role, so this asks the narrow question directly:
-// does a companion_radio build survive being spoken to in CLI?
+// Every cell of a sweep died at the sender: first on the repeater CLI, then on
+// the AppStart handshake. The experiment discards a node's stderr, so this is
+// the only place the firmware's own account of it is visible.
 //
-//	MESHCORESIM_LIVE=1 go test ./internal/firmware/ -run TestACompanionSurvivesTheCLI -v
-func TestACompanionSurvivesTheCLI(t *testing.T) {
+//	MESHCORESIM_LIVE=1 MESHCORESIM_NATIVE=~/msim/meshcore-native/build \
+//	go test ./internal/firmware/ -run TestWhatKillsACompanion -v
+func TestWhatKillsACompanion(t *testing.T) {
 	if os.Getenv("MESHCORESIM_LIVE") == "" {
 		t.Skip("set MESHCORESIM_LIVE=1")
 	}
@@ -37,31 +48,36 @@ func TestACompanionSurvivesTheCLI(t *testing.T) {
 	deadline := time.Now().Add(10 * time.Second)
 	for !n.Bridge.Attached() {
 		if time.Now().After(deadline) {
-			t.Fatal("the companion never connected to the bridge")
+			t.Fatalf("never attached; stderr:\n%s", log)
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
+	t.Log("attached")
 
-	// The lines provisioning sends, in the order it sends them.
-	for _, line := range []string{
-		"set name Probe",
-		"time 1788220800",
-		"set flood.max.advert 32",
-		"region put sco",
-		"region allowf sco",
-		"region save",
-		"region default sco",
-	} {
-		if err := n.Bridge.Type([]byte(line + "\r\n")); err != nil {
-			t.Fatalf("typing %q at a companion: %v\nnode stderr:\n%s", line, err, log)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	// A tick first, with nothing said: does a companion advance at all before
+	// its app session exists?
+	if err := n.Bridge.SetChannelBusy(false); err != nil {
+		t.Fatalf("channel state: %v\nstderr:\n%s", err, log)
+	}
+	if err := n.Bridge.Advance(ctx, 100); err != nil {
+		t.Fatalf("a companion would not advance before AppStart: %v\nstderr:\n%s", err, log)
+	}
+	t.Log("advanced 100 ms with no session")
+
+	// Then the handshake.
+	if err := n.Bridge.Type(frame(proto.AppStart("meshbench"))); err != nil {
+		t.Fatalf("AppStart: %v\nstderr:\n%s", err, log)
+	}
+	for i := 0; i < 5; i++ {
+		if err := n.Bridge.SetChannelBusy(false); err != nil {
+			t.Fatalf("channel state after AppStart (tick %d): %v\nstderr:\n%s", i, err, log)
 		}
-		// Time has to move for the firmware to read its serial input.
-		if err := n.Bridge.Advance(context.Background(), uint32(200)); err != nil {
-			t.Fatalf("advancing after %q: %v\nnode stderr:\n%s", line, err, log)
+		if err := n.Bridge.Advance(ctx, uint32(200*(i+1))); err != nil {
+			t.Fatalf("advance after AppStart (tick %d): %v\nstderr:\n%s", i, err, log)
 		}
 	}
-	if !n.Bridge.Attached() {
-		t.Fatalf("the companion left the bridge after the CLI\nnode stderr:\n%s", log)
-	}
-	t.Logf("the companion took every line; stderr:\n%s", log)
+	t.Logf("the companion survived AppStart; stderr:\n%s", log)
 }
