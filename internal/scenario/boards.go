@@ -68,9 +68,33 @@ type Board struct {
 	// the other, never both: which emulator can run it follows from its MCU.
 	Renode *RenodeWiring
 
+	// FEM is the board's front-end module, where it has one. Nil means the
+	// radio drives the antenna directly.
+	FEM *FEM
+
 	// Notes carries anything an engineer would want to know before trusting a
 	// figure here.
 	Notes string
+}
+
+// FEM is a front-end module: an external amplifier and RF switch that the
+// firmware brings into circuit by driving a GPIO, not through the radio.
+//
+// It is modelled because MaxTxDBm above is a claim about the board and not
+// about the firmware running on it. A Heltec T096 is compiled for 9 dBm at the
+// chip and reaches about 22 dBm at the antenna through a KCT8103L; a firmware
+// that fails to switch the module in transmits at 9. Nothing in the radio's own
+// registers says so, and before this the simulator reported 22 either way.
+type FEM struct {
+	// TxGainDB is what the module contributes on transmit while its enable line
+	// is asserted.
+	TxGainDB float64
+
+	// TxLossDB is what the transmit path costs when it is not asserted. Small
+	// where the module is only an amplifier and the signal leaks past it; large
+	// where it is also the antenna switch, because then the path is not
+	// connected at all.
+	TxLossDB float64
 }
 
 // RenodeWiring is the same idea for the nRF52 boards, which run under Renode.

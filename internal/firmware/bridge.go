@@ -185,13 +185,33 @@ func (b *Bridge) read(c net.Conn) {
 
 		case kindRadioStats:
 			if n >= 16 {
-				b.mu.Lock()
-				b.stats = RadioStats{
+				st := RadioStats{
 					IRQReads:   binary.BigEndian.Uint32(buf[0:]),
 					BusyReads:  binary.BigEndian.Uint32(buf[4:]),
 					BusyMs:     binary.BigEndian.Uint32(buf[8:]),
 					SpuriousUp: binary.BigEndian.Uint32(buf[12:]),
 				}
+				// The configured-radio tail is newer than the counters, so it is
+				// read on length rather than assumed. Configured is what tells
+				// the engine "this node did not say" apart from "this node said
+				// zero" - and the difference matters, because a zero transmit
+				// power is a legal thing for a radio to be set to.
+				if n >= 36 {
+					st.RxGainReg = buf[16]
+					st.TxPowerDBm = int8(buf[17])
+					st.FemEnabled = buf[18] != 0
+					st.Mode = buf[19]
+					st.SF = buf[20]
+					st.CR = buf[21]
+					st.FreqHz = binary.BigEndian.Uint32(buf[22:])
+					st.BandwidthHz = binary.BigEndian.Uint32(buf[26:])
+					st.PreambleSyms = binary.BigEndian.Uint16(buf[30:])
+					st.IRQMask = binary.BigEndian.Uint16(buf[32:])
+					st.IRQFlags = binary.BigEndian.Uint16(buf[34:])
+					st.Configured = true
+				}
+				b.mu.Lock()
+				b.stats = st
 				b.mu.Unlock()
 			}
 
@@ -324,7 +344,59 @@ type RadioStats struct {
 	// SpuriousUp counts deliberately injected false detections, on the faulty
 	// chip variants. Zero on a chip that behaves.
 	SpuriousUp uint32
+
+	// Configured reports that the fields below were sent at all. A node built
+	// before the radio reported its own configuration leaves them zero, and
+	// zero is a legal value for most of them.
+	Configured bool
+
+	// RxGainReg is register 0x08AC as the firmware last left it: 0x96 boosted,
+	// 0x94 power saving. Reported raw because deciding what a value is worth in
+	// decibels is the engine's business, not the chip's.
+	//
+	// Worth watching because MeshCore re-applies the compile-time
+	// SX126X_RX_BOOSTED_GAIN macro on every AGC reset rather than the operator's
+	// runtime setting, so the two silently diverge - and the firmware's own CLI
+	// keeps reporting the setting the operator chose.
+	RxGainReg uint8
+
+	// TxPowerDBm is what SetTxParams asked the PA for. Not what leaves the
+	// antenna: a board with a front-end module adds to this, and only if the
+	// firmware switched the module on.
+	TxPowerDBm int8
+
+	// FemEnabled is the front-end module's transmit-enable line. False on a
+	// board that has no such line, so it means something only where the board
+	// profile says a module is fitted.
+	FemEnabled bool
+
+	// The modem, as the firmware programmed it. None of this was visible from
+	// outside the chip before, which is how a node set to the wrong spreading
+	// factor looks exactly like one set to the right one.
+	Mode         uint8 // 0 standby, 1 rx, 2 tx, 3 cad
+	SF           uint8
+	CR           uint8
+	FreqHz       uint32
+	BandwidthHz  uint32
+	PreambleSyms uint16
+
+	// IRQMask is what the firmware allowed to raise DIO1; IRQFlags is what is
+	// currently raised. The pair is how a node that has stopped transmitting
+	// because a flag stuck is told apart from one with nothing to say.
+	IRQMask, IRQFlags uint16
 }
+
+// Receive gain, as RadioLib writes it to register 0x08AC.
+const (
+	RxGainBoosted     uint8 = 0x96
+	RxGainPowerSaving uint8 = 0x94
+)
+
+// RxBoosted reports whether the chip is in boosted receive gain.
+//
+// Only meaningful when Configured: an unreported register reads as zero, which
+// is neither of the two values the datasheet defines.
+func (s RadioStats) RxBoosted() bool { return s.RxGainReg == RxGainBoosted }
 
 // Stats reports the radio's account of this node.
 func (b *Bridge) Stats() RadioStats {

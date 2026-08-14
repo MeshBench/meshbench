@@ -643,6 +643,11 @@ func geometryFingerprint(nodes []scenario.Node, freqMHz, excess float64) uint64 
 		put(n.Position.Lon)
 		put(n.HeightAGLm)
 		put(n.TxPowerDBm)
+		// Noise figure is in here because the engine's path-loss cull decides
+		// against the noise floor, so a node that got quieter can bring a pair
+		// back that a previous run discarded. Leaving it out meant a stale
+		// matrix loaded from disk and looked authoritative.
+		put(n.NoiseFigureDB)
 	}
 	return h.Sum64()
 }
