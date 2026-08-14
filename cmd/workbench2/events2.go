@@ -190,8 +190,10 @@ func (p *eventsPanel) chipRow(t *theme.Theme, gtx layout.Context, s *state.Snaps
 		class := eventClasses[i]
 		kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			n := classCount(s.Counts, class)
-			if p.compact && (class == "half-duplex" || class == "interference" || class == "floor") &&
-				n == 0 {
+			// The compact column fits three chips; the causes are already on
+			// the rows as coloured dots, and a chip squeezed past the edge
+			// folds into a vertical smear.
+			if p.compact && class != "sent" && class != "received" {
 				return layout.Dimensions{}
 			}
 			return layout.Inset{Right: t.Sp.XS}.Layout(gtx,
