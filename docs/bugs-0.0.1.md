@@ -43,37 +43,63 @@ is a property of the *install*.
 **Also worth doing**: File > Open should start in a directory that exists on
 that platform rather than the process's working directory.
 
-## 2. No firmware to download on macOS or Windows
+## 2. The published board images are missing from the Firmware Library
 
-**Measured.** `MeshBench/meshcore-native` is public and has releases, but every
-release contains exactly one asset and it is Linux:
+**This one is a migration gap, not a network fault**, and Alex named it: it
+worked in workbench1.
 
-    companion-v1.17.0  ->  meshcore-companion_radio-linux-amd64
-    repeater-v1.17.0   ->  meshcore-simple_repeater-linux-amd64
+**Measured.** Every layer below the panel is healthy. Listing the published
+board images from `meshcore-dev/MeshCore` works unauthenticated, costs about
+one API request (the releases come back with their assets inline, so the whole
+catalogue is one page) and returns **7,982 images in about a second**. The
+asset names still parse - `Ebyte_EoRa-S3_companion_radio_ble-v1.17.1-d929643-merged.bin`
+matches the pattern exactly. Downloading one works from the command line on
+**both** Linux and macOS:
 
-No release in the repository carries a darwin or windows asset. MeshBench asks
-for `meshcore-<role>-<GOOS>-<GOARCH>` (`native_catalogue.go:310`) and matches
-on `runtime.GOOS`/`GOARCH`, so on a Mac it correctly finds nothing. The bug is
-not in the download code; there is nothing to download.
+    meshbench firmware -get RAK_4631/repeater
+    RAK_4631/repeater repeater-v1.14.1 -> .../RAK_4631_repeater-v1.14.1-467959c.uf2
 
-**Fix.** Two repositories, and the order matters:
+**Cause.** The Gio library only ever asks the *native* catalogue.
+`firmware.library` fetches with `firmware.NativeCatalogue{}.List` and keeps
+only images where `ForThisMachine()` is true (`internal/session/firmwarelib.go:62`),
+and `publishedBuilds()` reads `NativeCatalogue.CachedImages()` for the same
+reason. `BoardCatalogue` - the flasher images, the emulated-board half - is
+never consulted for the *published* list at all.
 
-1. **`MeshBench/meshcore-native` builds for more than Linux.** It compiles
-   MeshCore's host variant, so it needs a compiler per target rather than
-   anything clever: a `macos-14` job for `darwin-arm64` (free - that repository
-   is public), and mingw or a `windows-latest` job for `windows-amd64`.
-   Publish them into the same releases with the same naming, and MeshBench
-   picks them up with no change at all.
-2. **MeshBench says so when the shelf is empty.** Today an unavailable
-   platform reads as a failure. The Firmware Library should say "no native
-   MeshCore build for macOS yet - emulated boards still work" in the same
-   voice the emulator gaps already use. That is a small change and it is worth
-   making regardless, because it is what the user sees while (1) is being
-   built.
+Everything else is already in place, which is why this is small: `downloadBuild`
+takes a board and uses `BoardCatalogue.Ensure` when it gets one
+(`firmwarelib.go:327`), `state.FirmwareRow` carries a `Board`, and the panel
+renders board rows. Only the listing is missing. workbench1 did exactly this
+and its own comment records the shape of the problem it solved - "every
+published version of every supported board is thousands of rows" - which is
+why it filtered rather than listed everything.
 
-Note the ordering consequence: **native nodes are the common path**, so until
-(1) lands, a Mac or Windows user gets emulated boards and planning but cannot
-run native firmware. That should be in the release notes, not discovered.
+**Why it looked like a macOS problem.** On Linux the native catalogue has
+`linux-amd64` assets, so the library shows *something* and the missing board
+half is easy to miss. On macOS `ForThisMachine()` matches nothing, because
+`meshcore-native` publishes only `meshcore-*-linux-amd64` - so the panel is
+completely empty and the fault becomes obvious.
+
+**Fix, in two parts.**
+
+1. **Give the library the board catalogue back.** Fetch `BoardCatalogue.ListAll`
+   alongside the native list on the same worker, and merge. It must be
+   filtered before it reaches the panel - 7,982 rows is not a library, it is a
+   denial of service on the eye - so: only boards MeshBench can actually run
+   (`scenario.Boards`), newest version per board and role by default, with the
+   older versions behind the version chip. workbench1's rows are the reference
+   for what to show.
+2. **Native firmware for macOS and Windows** stays a real and separate gap:
+   `MeshBench/meshcore-native` publishes only `linux-amd64`, so native nodes
+   cannot run on a Mac at all. That wants a `macos-14` job and a Windows job
+   in *that* repository, publishing with the same naming, after which
+   MeshBench needs no change. Until then the library should say "no native
+   MeshCore build for macOS yet - emulated boards still work" rather than
+   showing an empty shelf.
+
+**Noticed while testing**: `-get RAK_4631/repeater` fetched **v1.14.1** when
+v1.17.1 exists. Whatever picks a version when the caller does not name one is
+choosing arbitrarily rather than choosing the newest.
 
 ## 3. "Walking the links" does not progress on macOS
 
