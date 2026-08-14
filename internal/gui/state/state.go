@@ -574,10 +574,13 @@ type Node struct {
 	HeightM  float64
 	TxDBm    float64
 	Regions  []string
-	Firmware string
-	Sent     int
-	Heard    int
-	Selected bool
+	// DefaultScope is the region this node originates under, which the map
+	// draws as the innermost ring.
+	DefaultScope string
+	Firmware     string
+	Sent         int
+	Heard        int
+	Selected     bool
 	// Pattern is the antenna's gain in dBi at every 10 degrees of compass
 	// bearing, feedline loss already deducted, starting at north.
 	//

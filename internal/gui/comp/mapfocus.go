@@ -103,27 +103,54 @@ func (m *MapView) drawNeighbours(t *theme.Theme, gtx layout.Context, pts []proje
 	}
 }
 
-// drawRegions rings each node in a colour derived from its first region
-// (10.8b).
+// drawRegions rings each node once per region it holds, concentrically: the
+// region it originates under innermost, each additional one a ring further
+// out, for as many rings as it takes (10.8b).
 //
-// Derived rather than assigned, because regions are discovered from a live
-// network and there is no fixed list to assign colours from. The same region
-// is the same colour in every run, which is what matters.
+// Concentric because a node holds several regions at once - the old drawing
+// showed only the first, which on a node holding four was a claim about one
+// quarter of its configuration. Colours are derived from the name rather than
+// assigned, because regions are discovered from a live network and there is
+// no fixed list; the same region is the same colour in every run.
 func (m *MapView) drawRegions(t *theme.Theme, gtx layout.Context, pts []projected,
 	sz image.Point) {
 
-	byRegion := map[string][]projected{}
+	// One path per region so each is one fill, however many nodes carry it.
+	type ringAt struct {
+		p projected
+		r float32
+	}
+	byRegion := map[string][]ringAt{}
 	for _, p := range pts {
 		if offscreen(p, sz) || len(p.n.Regions) == 0 {
 			continue
 		}
-		byRegion[p.n.Regions[0]] = append(byRegion[p.n.Regions[0]], p)
+		// The default scope first, where the node states one it holds;
+		// otherwise the order the node holds them in.
+		order := make([]string, 0, len(p.n.Regions))
+		if d := p.n.DefaultScope; d != "" {
+			for _, r := range p.n.Regions {
+				if r == d {
+					order = append(order, d)
+				}
+			}
+		}
+		for _, r := range p.n.Regions {
+			if len(order) > 0 && r == order[0] {
+				continue
+			}
+			order = append(order, r)
+		}
+		for i, region := range order {
+			byRegion[region] = append(byRegion[region],
+				ringAt{p: p, r: 6.5 + float32(i)*3})
+		}
 	}
 	for region, list := range byRegion {
 		var path clip.Path
 		path.Begin(gtx.Ops)
-		for _, p := range list {
-			ring(&path, f32.Pt(p.x, p.y), 6.5, 1.5)
+		for _, at := range list {
+			ring(&path, f32.Pt(at.p.x, at.p.y), at.r, 1.5)
 		}
 		spec := path.End()
 		paint.FillShape(gtx.Ops, theme.Alpha(regionColour(region), 0.85),

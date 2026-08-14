@@ -233,10 +233,13 @@ func (p *eventsPanel) headerRow(t *theme.Theme, gtx layout.Context) layout.Dimen
 	}
 	kids := []layout.FlexChild{
 		cell(tw, "Time"), cell(fw, "From"), cell(fw, "To"), cell(snr, "SNR (dB)"),
-		cell(pill, "Type"),
 	}
 	if !p.compact {
-		kids = append(kids, layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint, "What happened")))
+		// The compact view's type column is a dot; a header wider than the
+		// column wraps at the panel edge, so it goes unlabelled there.
+		kids = append(kids,
+			cell(pill, "Type"),
+			layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint, "What happened")))
 	}
 	return layout.Inset{Top: t.Sp.XS, Bottom: t.Sp.XS}.Layout(gtx,
 		func(gtx layout.Context) layout.Dimensions {

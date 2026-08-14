@@ -657,6 +657,29 @@ func main() {
 			_, _ = st.Do(ctx, "firmware.library", nil)
 		}()
 	}
+	// Importing needs a path and a role, which a button cannot carry: ask for
+	// both through the shell, then refresh so the new build appears.
+	fw.OnImport = func() {
+		sh.Ask.Open("Import a build from", "path to a binary", "", func(path string) {
+			if strings.TrimSpace(path) == "" {
+				return
+			}
+			sh.Ask.Post(func(ask *shell.Prompt) {
+				ask.Choose("Import it as which role?", "filter", []string{
+					"simple_repeater", "advanced_repeater", "companion_radio",
+					"simple_room_server",
+				}, func(role string) {
+					go func() {
+						if _, err := st.Do(ctx, "firmware.import",
+							map[string]any{"path": path, "role": role}); err != nil {
+							_, _ = st.Do(ctx, "ui.said", "import: "+err.Error())
+						}
+						_, _ = st.Do(ctx, "firmware.library", nil)
+					}()
+				})
+			})
+		})
+	}
 	runs := &runsPanel{}
 	sh.Add(&shell.Panel{Name: "Firmware", Windowable: true, Draw: fw.Draw})
 	sh.Add(&shell.Panel{Name: "Runs", Windowable: true, Draw: runs.Draw})

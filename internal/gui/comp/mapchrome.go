@@ -438,13 +438,14 @@ func (m *MapView) regionKeyRows(t *theme.Theme, gtx layout.Context,
 	seen := map[string]bool{}
 	var names []string
 	for i := range s.Nodes {
-		if len(s.Nodes[i].Regions) == 0 {
-			continue
-		}
-		r := s.Nodes[i].Regions[0]
-		if !seen[r] {
-			seen[r] = true
-			names = append(names, r)
+		// Every region a node holds, not only its first: the rings are
+		// concentric now, and a key that names a quarter of them is a key
+		// for a different map.
+		for _, r := range s.Nodes[i].Regions {
+			if !seen[r] {
+				seen[r] = true
+				names = append(names, r)
+			}
 		}
 	}
 	if len(names) == 0 {

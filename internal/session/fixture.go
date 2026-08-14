@@ -38,7 +38,8 @@ func LoadFixture(path string) (Loaded, error) {
 			Name: n.Name, Kind: string(n.Kind),
 			Lat: n.Position.Lat, Lon: n.Position.Lon,
 			HeightM: n.HeightAGLm, TxDBm: n.TxPowerDBm,
-			Regions: n.Regions, Firmware: n.Firmware.Version,
+			Regions: n.Regions, DefaultScope: n.DefaultScope,
+			Firmware: n.Firmware.Version,
 			Selected: i == 0,
 			Pattern:  patternOf(n),
 		})
