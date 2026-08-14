@@ -554,7 +554,7 @@ type sweepControls struct {
 	// Long lists scroll. Thirty-five companions pushed the panels below them
 	// off the bottom of the window, and there was no way to reach the end of
 	// the list or anything under it.
-	armScroll, sendScroll widget.List
+	armScroll, sendScroll, panelScroll widget.List
 
 	seeds  comp.Field
 	runFor comp.Field
@@ -665,6 +665,7 @@ func (c *sweepControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 		c.varyVals.Editor.SingleLine = true
 		c.addArms.Label, c.addArms.Kind = "add arms", comp.Secondary
 		c.armScroll.Axis, c.sendScroll.Axis = layout.Vertical, layout.Vertical
+		c.panelScroll.Axis = layout.Vertical
 		c.varyDD.OnOpen = func() {
 			if c.choose == nil {
 				return
@@ -884,20 +885,26 @@ func (c *sweepControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 		note: "a message is originated by a companion, so the sender has to be " +
 			"one; two seeds that agree exactly are one draw repeated, not a spread",
 	}
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+	// The whole panel scrolls.
+	//
+	// It is a column of a dozen controls in a fixed-width rail, and the ones
+	// that matter most - define, run it, and the estimate saying what run it is
+	// about to cost - are at the bottom. Without this they are simply not on
+	// the screen, and nothing indicates that there is more.
+	sections := []layout.Widget{
+		func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Bottom: t.Sp.S}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return c.addArm.Layout(t, gtx)
 			})
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return c.armList(t, gtx) }),
+		},
+		func(gtx layout.Context) layout.Dimensions { return c.armList(t, gtx) },
 		// Crossing, under the list it crosses onto.
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: t.Sp.S}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return c.varyDD.Layout(t, gtx)
 			})
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		},
+		func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: t.Sp.XS}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
@@ -909,14 +916,14 @@ func (c *sweepControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 					}),
 				)
 			})
-		}),
-		layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint,
-			"crossed onto the arms above: three values by two arms is six")),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		},
+		comp.Text(t, t.Sz.Caption, t.P.Faint,
+			"crossed onto the arms above: three values by two arms is six"),
+		func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: t.Sp.S}.Layout(gtx,
 				func(gtx layout.Context) layout.Dimensions { return c.sender.Layout(t, gtx) })
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		},
+		func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: t.Sp.XS, Bottom: t.Sp.XS}.Layout(gtx,
 				func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
@@ -929,11 +936,17 @@ func (c *sweepControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 						}),
 					)
 				})
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return c.senderList(t, gtx) }),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return bar.layout(t, gtx) }),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return c.estimate(t, gtx) }),
-	)
+		},
+		func(gtx layout.Context) layout.Dimensions { return c.senderList(t, gtx) },
+		func(gtx layout.Context) layout.Dimensions { return bar.layout(t, gtx) },
+		func(gtx layout.Context) layout.Dimensions { return c.estimate(t, gtx) },
+	}
+	sections = append(sections, func(gtx layout.Context) layout.Dimensions {
+		return layout.Spacer{Height: t.Sp.M}.Layout(gtx)
+	})
+	return comp.List(t, &c.panelScroll, len(sections), func(gtx layout.Context, i int) layout.Dimensions {
+		return sections[i](gtx)
+	})(gtx)
 }
 
 // armList draws the chosen arms, each with a way to take it off again.

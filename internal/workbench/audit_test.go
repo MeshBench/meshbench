@@ -290,7 +290,17 @@ func auditTargets(r *recorder) []target {
 	plan := &planningControls{do: r.do}
 	bench := &benchControls{do: r.do}
 	feed := &feedControls{do: r.do}
-	sweep := &sweepControls{do: r.do}
+	// A dropdown's job is to open the chooser, so the audit has to answer one:
+	// without it these three press and reach nothing, which is true of every
+	// dropdown and not a fault in any of them.
+	sweep := &sweepControls{do: r.do,
+		choose: func(_ string, opts []string, pick func(string)) {
+			if len(opts) > 0 {
+				pick(opts[0])
+			}
+		},
+		askText: func(_, _, _ string, got func(string)) { got("rxdelay.base") },
+	}
 	prov := &provisioningControls{do: r.do}
 
 	nodes := &nodesPanel{}
@@ -359,7 +369,11 @@ func auditTargets(r *recorder) []target {
 		{"Planning", plan, plan.Draw, nil, nil, nil, nil},
 		{"Companion bench", bench, bench.Draw, nil, nil, nil, nil},
 		{"Live feed", feed, feed.Draw, nil, nil, nil, nil},
-		{"Sweep", sweep, sweep.Draw, nil, nil, nil, nil},
+		{"Sweep", sweep, sweep.Draw, nil, nil, nil, map[string]string{
+			// Choosing what to vary is not an action; "add arms" is the one
+			// that crosses it, and it is audited.
+			"varyDD.Btn": "picks the parameter; add arms is what applies it",
+		}},
 		{"Provisioning", prov, prov.Draw, nil, nil, nil, nil},
 		// The flat layout, so every section's controls are on screen at once;
 		// the sidebar's own switching is TestConfigurationSectionsSwitch.
