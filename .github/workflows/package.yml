@@ -242,7 +242,15 @@ jobs:
           DEB=dist/deb
           mkdir -p $DEB/DEBIAN $DEB/usr/bin $DEB/usr/share/applications \
                    $DEB/usr/share/metainfo $DEB/usr/share/meshbench
-          cp -r $APP/usr/share/icons $DEB/usr/share/
+          # From packaging/, not from the AppDir: linuxdeploy drops its own
+          # copy of the icon in there under the source file's name, and that
+          # stray meshbench-256.png would ride into the .deb's icon theme
+          # where nothing looks for it.
+          for px in 16 24 32 48 64 128 256 512; do
+            d=$DEB/usr/share/icons/hicolor/${px}x${px}/apps
+            mkdir -p $d
+            cp packaging/icons/meshbench-${px}.png $d/io.github.meshbench.meshbench.png
+          done
           cp $APP/usr/bin/meshbench $DEB/usr/bin/
           cp -r $APP/usr/share/meshbench/* $DEB/usr/share/meshbench/
           cp packaging/meshbench.desktop $DEB/usr/share/applications/
