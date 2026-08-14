@@ -31,6 +31,7 @@ import (
 	fixturelib "github.com/MeshBench/meshbench/internal/fixture"
 	"github.com/MeshBench/meshbench/internal/gui/comp"
 	"github.com/MeshBench/meshbench/internal/gui/desktop"
+	"github.com/MeshBench/meshbench/internal/gui/pick"
 	"github.com/MeshBench/meshbench/internal/gui/shell"
 	"github.com/MeshBench/meshbench/internal/gui/state"
 	"github.com/MeshBench/meshbench/internal/gui/theme"
@@ -154,6 +155,16 @@ func Run(args []string) {
 	onSignal(ctx, cancel, sm)
 
 	sh := shell.New()
+	// How the shell opens a file dialog. Wired here rather than inside the
+	// shell so that package keeps knowing nothing about which library does
+	// it - and so a test can replace it.
+	shell.Browse = func(title, start string, what shell.PathAsk) (string, error) {
+		var f []pick.Filter
+		if len(what.Extensions) > 0 {
+			f = append(f, pick.Filter{Name: what.FilterName, Extensions: what.Extensions})
+		}
+		return pick.Open(title, start, pick.Kind(what.Kind), f...)
+	}
 	wins := newWindows()
 	// One dispatcher for every action panel. A verb that fails says so in the
 	// status bar rather than silently doing nothing, which is what a button
@@ -711,25 +722,26 @@ func Run(args []string) {
 	// Importing needs a path and a role, which a button cannot carry: ask for
 	// both through the shell, then refresh so the new build appears.
 	fw.OnImport = func() {
-		sh.Ask.Open("Import a build from", "path to a binary", "", func(path string) {
-			if strings.TrimSpace(path) == "" {
-				return
-			}
-			sh.Ask.Post(func(ask *shell.Prompt) {
-				ask.Choose("Import it as which role?", "filter", []string{
-					"simple_repeater", "advanced_repeater", "companion_radio",
-					"simple_room_server",
-				}, func(role string) {
-					go func() {
-						if _, err := st.Do(ctx, "firmware.import",
-							map[string]any{"path": path, "role": role}); err != nil {
-							_, _ = st.Do(ctx, "ui.said", "import: "+err.Error())
-						}
-						_, _ = st.Do(ctx, "firmware.library", nil)
-					}()
+		sh.Ask.OpenPath("Import a build from", "path to a binary", "",
+			shell.PathAsk{Kind: shell.PathFile}, func(path string) {
+				if strings.TrimSpace(path) == "" {
+					return
+				}
+				sh.Ask.Post(func(ask *shell.Prompt) {
+					ask.Choose("Import it as which role?", "filter", []string{
+						"simple_repeater", "advanced_repeater", "companion_radio",
+						"simple_room_server",
+					}, func(role string) {
+						go func() {
+							if _, err := st.Do(ctx, "firmware.import",
+								map[string]any{"path": path, "role": role}); err != nil {
+								_, _ = st.Do(ctx, "ui.said", "import: "+err.Error())
+							}
+							_, _ = st.Do(ctx, "firmware.library", nil)
+						}()
+					})
 				})
 			})
-		})
 	}
 	runs := &runsPanel{}
 	sh.Add(&shell.Panel{Name: "Firmware", Windowable: true, Draw: fw.Draw})

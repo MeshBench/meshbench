@@ -93,28 +93,40 @@ behind anything is its own annoyance.
 
 **Cause.** There is no file dialog anywhere in MeshBench. `Ask.Open` gives a
 text field and a hint - "path to a binary" - and expects a path to be typed or
-pasted. That is fine for a script and hostile in a window.
+pasted. Fine for a script, hostile in a window.
 
-**Two ways, and they are not equivalent:**
+**Decision (Alex): use each platform's own dialog, not an in-app one.**
 
-- **Native dialogs** (NSOpenPanel, `GetOpenFileName`, xdg-desktop-portal).
-  What people expect, and three platform implementations plus a portal
-  fallback, each with its own failure mode. Under Wayland the portal is the
-  only route and it is not always present.
-- **An in-app browser**, drawn like the existing chooser: a list of entries,
-  a filter box, `..` to go up, Enter to accept. Portable by construction,
-  works identically on every platform, needs no cgo, and - the part that
-  matters for this project - it can be driven by the control audit and
-  captured by the screenshot flags, so it is testable the way everything else
-  here is.
+`ncruces/zenity` does exactly that and costs less than writing three of them:
 
-**Recommendation: build the in-app browser**, reusing `Prompt.Choose`'s shape,
-and add a `Browse` affordance beside every path field. Natives can come later
-for the platforms where the portal is dependable; the in-app one is the
-baseline that always works. Every place that asks for a path gets the button -
-today that is import, open, save-as, the tile cache directory and the
-firmware import - which is one component used five times rather than five
-dialogs.
+| platform | what it drives |
+|---|---|
+| macOS | `osascript` -> the real Finder open/save panel |
+| Windows | `IFileOpenDialog` through COM |
+| Linux | xdg-desktop-portal, then zenity, then kdialog |
+
+It is **MIT** (compatible with our GPL-3.0, and the licence window picks it up
+automatically), actively maintained, and - the part that matters here - **no
+cgo**, so it does not complicate the Windows cross-build or the macOS bundle.
+The Linux portal path also works under Wayland, where an in-app browser would
+have been the only other option.
+
+**Where the button goes.** Five places ask for a path today: firmware import,
+open a network, save as, the tile cache directory, and the fixture field. One
+affordance used five times, not five dialogs:
+
+- `Prompt.Open` gains a path variant - the same text field, plus a **browse**
+  button that opens the platform dialog and fills the field. Typing still
+  works, which keeps every script and the control audit working.
+- The dialog is a blocking call on its own goroutine; the answer arrives back
+  through the same callback the field uses, so nothing else changes.
+
+**What this costs in testing.** A native dialog cannot be driven by the
+control audit or captured by the screenshot flags - it is not our window. So
+the audit keeps pressing the *field*, which still works, and the browse button
+is covered by a test that it invokes the picker rather than by driving the
+picker itself. That is the trade for dialogs people recognise, and it is the
+right trade.
 
 ## Order
 

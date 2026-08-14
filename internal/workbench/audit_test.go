@@ -12,6 +12,7 @@ import (
 	"gioui.org/layout"
 
 	"github.com/MeshBench/meshbench/internal/gui/comp"
+	"github.com/MeshBench/meshbench/internal/gui/shell"
 	"github.com/MeshBench/meshbench/internal/gui/state"
 	"github.com/MeshBench/meshbench/internal/gui/theme"
 )
@@ -271,6 +272,15 @@ type target struct {
 // Shared by the tests that press the buttons and the one that types into the
 // boxes, so a panel added to one is audited by both.
 func auditTargets(r *recorder) []target {
+	// The file dialog is the platform's, not ours, so the audit cannot drive
+	// it - but it can check the button reaches it. Without this the browse
+	// buttons look like dead controls, which is the one thing this test
+	// exists to catch, and it would have been silenced by exempting them.
+	shell.Browse = func(title, _ string, _ shell.PathAsk) (string, error) {
+		r.do("ui.browse", title)
+		return "", nil
+	}
+
 	fleet := &fleetControls{do: r.do}
 	fleet.choose = func(title string, _ []string, _ func(string)) { r.do("ui.choose", title) }
 	sched := &scheduleControls{do: r.do}

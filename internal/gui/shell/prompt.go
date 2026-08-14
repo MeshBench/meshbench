@@ -36,8 +36,16 @@ type Prompt struct {
 	field  comp.Field
 	ok     comp.Button
 	cancel comp.Button
+	browse comp.Button
 	built  bool
 	open   bool
+
+	// browsing is what the browse button should open, when the question is
+	// asking for a path. Zero means it is not that kind of question and no
+	// button is drawn - "what should this node be called" has nothing to
+	// browse for.
+	browsing  *PathAsk
+	browseErr string
 
 	// choices, when it has any, turns the question into a chooser: the same
 	// modal, but answered by pointing at one of the things it offers rather
@@ -78,10 +86,45 @@ func (p *Prompt) drain() {
 func (p *Prompt) Open(title, hint, initial string, ask func(string)) {
 	p.Title, p.Hint, p.Ask = title, hint, ask
 	p.choices, p.btns = nil, nil
+	p.browsing, p.browseErr = nil, ""
 	p.field.Editor.SetText(initial)
 	p.field.Editor.SingleLine = true
 	p.field.Editor.Submit = true
 	p.open = true
+}
+
+// PathAsk describes what a browse button should open.
+type PathAsk struct {
+	// Kind is a file, a file that need not exist yet, or a directory. It maps
+	// to pick.Kind without this package importing it, so the shell stays
+	// unaware of which library opens the dialog.
+	Kind int
+	// FilterName and Extensions narrow what the dialog offers - "MeshBench
+	// networks", {"json"}.
+	FilterName string
+	Extensions []string
+}
+
+// Kinds a PathAsk can be, matching pick.File, pick.SaveFile, pick.Directory.
+const (
+	PathFile = iota
+	PathSaveFile
+	PathDirectory
+)
+
+// Browse, when set, opens the platform's file dialog and returns what was
+// chosen, or "" if the person cancelled. Wired once by the application so the
+// shell does not depend on how a dialog is opened.
+var Browse func(title, start string, ask PathAsk) (string, error)
+
+// OpenPath asks for a path: the same typed field, plus a button that opens
+// the platform's own dialog and fills it in.
+//
+// Typing still works, so every script, every saved command and the control
+// audit carry on unchanged - the button is an addition, not a replacement.
+func (p *Prompt) OpenPath(title, hint, initial string, what PathAsk, ask func(string)) {
+	p.Open(title, hint, initial, ask)
+	p.browsing = &what
 }
 
 // Choose asks the same question with the answers already on screen. An empty
@@ -112,7 +155,27 @@ func (p *Prompt) Layout(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 	if !p.built {
 		p.ok.Label, p.ok.Kind = "OK", comp.Primary
 		p.cancel.Label, p.cancel.Kind = "Cancel", comp.Quiet
+		p.browse.Label, p.browse.Kind = "browse...", comp.Secondary
 		p.built = true
+	}
+	if p.browsing != nil && p.browse.Click.Clicked(gtx) && Browse != nil {
+		what, start := *p.browsing, p.field.Editor.Text()
+		// On its own goroutine: the dialog blocks until the person answers,
+		// and the frame loop cannot wait for that. The answer comes back
+		// through Post, which is how everything else off the frame loop
+		// reaches this.
+		go func() {
+			got, err := Browse(p.Title, start, what)
+			p.Post(func(pr *Prompt) {
+				switch {
+				case err != nil:
+					pr.browseErr = "could not open a file dialog: " + err.Error()
+				case got != "":
+					pr.field.Editor.SetText(got)
+					pr.browseErr = ""
+				}
+			})
+		}()
 	}
 	p.field.Hint = p.Hint
 
@@ -196,7 +259,21 @@ func (p *Prompt) Layout(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{}.Layout(gtx,
-						layout.Flexed(1, comp.Spacer),
+						// Browse on the left, away from OK and Cancel: it
+						// answers the question rather than ending it.
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							if p.browsing == nil {
+								return layout.Dimensions{}
+							}
+							return p.browse.Layout(t, gtx)
+						}),
+						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+							if p.browseErr == "" {
+								return comp.Spacer(gtx)
+							}
+							return layout.Inset{Left: t.Sp.S}.Layout(gtx,
+								comp.Text(t, t.Sz.Caption, t.P.Warn, p.browseErr))
+						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							return layout.Inset{Right: t.Sp.S}.Layout(gtx,
 								func(gtx layout.Context) layout.Dimensions {

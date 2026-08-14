@@ -6,12 +6,14 @@ import (
 	"image"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/widget"
 
 	"github.com/MeshBench/meshbench/internal/gui/comp"
+	"github.com/MeshBench/meshbench/internal/gui/shell"
 	"github.com/MeshBench/meshbench/internal/gui/state"
 	"github.com/MeshBench/meshbench/internal/gui/theme"
 )
@@ -36,27 +38,31 @@ type configPanel struct {
 	active  int
 	scroll  widget.List
 
-	gpu       comp.Check
-	realFW    comp.Check
-	seed      comp.Field
-	setSeed   comp.Button
-	speed     comp.Field
-	setSpeed  comp.Button
-	margin    comp.Field
-	setMargin comp.Button
-	excess    comp.Field
-	setExcess comp.Button
-	device    comp.Dropdown
-	cacheDD   comp.Dropdown
-	themeDD   comp.Dropdown
-	densityDD comp.Dropdown
-	scale     comp.Field
-	setScale  comp.Button
-	cacheGBf  comp.Field
-	setCache  comp.Button
-	cacheDir  comp.Field
-	moveCache comp.Button
-	recomp    comp.Button
+	gpu         comp.Check
+	realFW      comp.Check
+	seed        comp.Field
+	setSeed     comp.Button
+	speed       comp.Field
+	setSpeed    comp.Button
+	margin      comp.Field
+	setMargin   comp.Button
+	excess      comp.Field
+	setExcess   comp.Button
+	device      comp.Dropdown
+	cacheDD     comp.Dropdown
+	themeDD     comp.Dropdown
+	densityDD   comp.Dropdown
+	scale       comp.Field
+	setScale    comp.Button
+	cacheGBf    comp.Field
+	setCache    comp.Button
+	cacheDir    comp.Field
+	moveCache   comp.Button
+	browseCache comp.Button
+	// pickedCache carries a browse answer back from the goroutine the
+	// dialog blocks on, to be read at the top of the next frame.
+	pickedCache atomic.Value
+	recomp      comp.Button
 
 	init            bool
 	wasGPU, wasReal bool
@@ -96,6 +102,7 @@ func (p *configPanel) build() {
 	p.cacheDir.Hint, p.cacheDir.Label = "a directory path", "Move the cache to"
 	p.cacheDir.Editor.SingleLine = true
 	p.moveCache.Label, p.moveCache.Kind = "move the cache", comp.Secondary
+	p.browseCache.Label, p.browseCache.Kind = "browse...", comp.Quiet
 	p.recomp.Label, p.recomp.Kind = "measure every link again", comp.Secondary
 	for _, f := range []*comp.Field{&p.seed, &p.speed, &p.margin, &p.excess, &p.cacheGBf} {
 		f.Editor.SingleLine = true
@@ -181,6 +188,24 @@ func (p *configPanel) update(gtx layout.Context, s *state.Snapshot) {
 		}
 		n.field.Error = ""
 		p.do(n.verb, map[string]any{n.key: v})
+	}
+	// A directory is a thing to point at, not a path to remember and type.
+	if p.browseCache.Click.Clicked(gtx) && shell.Browse != nil {
+		start := strings.TrimSpace(fieldText(&p.cacheDir))
+		go func() {
+			got, err := shell.Browse("Where should the tiles live?", start,
+				shell.PathAsk{Kind: shell.PathDirectory})
+			p.pickedCache.Store(&pickResult{path: got, err: err})
+		}()
+	}
+	if r, _ := p.pickedCache.Swap((*pickResult)(nil)).(*pickResult); r != nil {
+		switch {
+		case r.err != nil:
+			p.cacheDir.Error = "could not open a file dialog: " + r.err.Error()
+		case r.path != "":
+			p.cacheDir.Editor.SetText(r.path)
+			p.cacheDir.Error = ""
+		}
 	}
 	if p.moveCache.Click.Clicked(gtx) && p.do != nil {
 		dir := strings.TrimSpace(fieldText(&p.cacheDir))
@@ -776,6 +801,17 @@ func (p *configPanel) fieldRow(t *theme.Theme, f *comp.Field, b *comp.Button, wh
 						return f.Layout(t, gtx)
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						// Only the field that wants a directory gets a browse
+						// button; the others take numbers.
+						if f != &p.cacheDir {
+							return layout.Dimensions{}
+						}
+						return layout.Inset{Left: t.Sp.S, Bottom: t.Sp.XXS}.Layout(gtx,
+							func(gtx layout.Context) layout.Dimensions {
+								return p.browseCache.Layout(t, gtx)
+							})
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Left: t.Sp.S, Bottom: t.Sp.XXS}.Layout(gtx,
 							func(gtx layout.Context) layout.Dimensions {
 								return b.Layout(t, gtx)
@@ -867,4 +903,10 @@ func cacheGB(s *state.Snapshot) float64 {
 		return s.TileCacheGB
 	}
 	return 10
+}
+
+// pickResult is a browse answer on its way back to the frame loop.
+type pickResult struct {
+	path string
+	err  error
 }
