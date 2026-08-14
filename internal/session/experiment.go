@@ -694,11 +694,19 @@ func (e *experiment) notAResultYet() string {
 			continue
 		}
 		if sp, _ := sum["rx_spread"].(float64); sp == 0 {
+			// What was observed, and not why.
+			//
+			// This used to assert a cause - "which this firmware does by design
+			// with one originator" - and that cause was wrong the first time it
+			// was read in anger: the run had two originators, and three of the
+			// four arms varied normally. A message that explains is worth more
+			// than one that reports, but only while the explanation holds, and
+			// a confident wrong reason sends the reader looking in the wrong
+			// place. What is certain is the consequence.
 			return fmt.Sprintf(
-				"every seed of %v returned the same numbers, which this firmware "+
-					"does by design with one originator - so the seed gives no "+
-					"noise floor here, and a difference between arms has nothing "+
-					"to be called larger than. Vary the senders, or quote the "+
+				"every seed of %v returned the same numbers, so the seed gives no "+
+					"noise floor here and a difference between arms has nothing to "+
+					"be called larger than. Add senders or seeds, or quote the "+
 					"deltas as unbounded.", sum["arm"])
 		}
 	}

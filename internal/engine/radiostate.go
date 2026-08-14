@@ -16,10 +16,22 @@ import "github.com/MeshBench/meshbench/internal/firmware"
 // RxBoostedGainImprovementDB is how much better the receiver is in boosted gain
 // than in power saving.
 //
-// A chosen figure rather than a cited one: neither RadioLib nor MeshCore states
-// a decibel number for this anywhere in their sources, so it cannot be traced
-// the way the rest of internal/scenario's figures can. Section 9.6 of the SX126x
-// datasheet is the authority. Named so that reconciling it is one edit.
+// **This figure is not traceable to a source, and may not be documented at
+// all.** Neither RadioLib nor MeshCore states a decibel number for it anywhere.
+// RadioLib's own maintainer left the feature unimplemented for exactly this
+// reason, writing that "what exactly it means to 'consume more power to improve
+// the sensitivity' seems to be undocumented. Is it an improvement of 10% or
+// 0.1%?" (jgromes/RadioLib discussion 370). Semtech's datasheet points at the
+// setting without quantifying it.
+//
+// So 2.0 is a placeholder of the right order, not a measurement, and it is the
+// one number in this package that cannot be defended. Anything that turns on it
+// must say so. The honest ways out are a bench measurement against real
+// hardware, or expressing results as a range across plausible values - not a
+// more confident constant.
+//
+// CLAUDE.md's rule for internal/scenario applies here too: anything uncertain
+// belongs in a note rather than smoothed over.
 const RxBoostedGainImprovementDB = 2.0
 
 // txPowerUnset is what the chip reports before the firmware has called

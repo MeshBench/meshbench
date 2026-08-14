@@ -139,6 +139,15 @@ func (s *Sim) nodeStats(events []state.Event) []state.NodeStat {
 			r := n.Firmware.Bridge.Stats()
 			st.IRQReads, st.BusyReads = r.IRQReads, r.BusyReads
 			st.BusyMs, st.Spurious = r.BusyMs, r.SpuriousUp
+			st.Radio = state.RadioState{
+				Reported: r.Configured, GainReg: r.RxGainReg,
+				Boosted: r.RxBoosted(), TxPowerDBm: r.TxPowerDBm,
+				FemLive: r.FemEnabled, FemAtTx: uint8(r.FemAtTx),
+				Mode: r.Mode, SF: r.SF, CR: r.CR,
+				FreqHz: r.FreqHz, BandwidthHz: r.BandwidthHz,
+				PreambleSyms: r.PreambleSyms,
+				IRQMask:      r.IRQMask, IRQFlags: r.IRQFlags,
+			}
 			if p, ok := n.Firmware.Backend.(interface{ PID() int }); ok {
 				st.PID = p.PID()
 			}

@@ -72,7 +72,8 @@ func Run(args []string) {
 		"scope the Licences panel to one section: forks, bundled, golibs, runtime, data")
 	dropFlag := flag.String("drop-menu", "", "open this menu's dropdown at startup, so it can be captured")
 	layersFlag := flag.String("layers", "", "switch these map layers on at startup, comma separated")
-	nodeTabFlag := flag.Int("node-tab", 0, "which tab a node window opens on: 0 console, 1 companion, 2 settings, 3 stats, 4 activity, 5 connect")
+	nodeTabFlag := flag.Int("node-tab", 0, "which tab a node window opens on: "+
+		"0 console, 1 companion, 2 settings, 3 radio, 4 stats, 5 activity, 6 connect")
 	coverFlag := flag.String("coverage", "",
 		"compute and show coverage from this node at startup")
 	energyFlag := flag.Bool("energy", false, "run the site study for the selected node at startup")

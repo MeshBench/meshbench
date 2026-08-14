@@ -5,6 +5,31 @@ Recovered from `51a41d8^:internal/ui/experiment.go` (1111 lines) and
 layout, and because two of the things found on the way are live faults rather
 than missing features.
 
+## Open: an arm whose seeds do not separate
+
+Unresolved, and recorded with its evidence rather than a guess.
+
+On `fixture-scotland-strict` (161 nodes, 2074 links), three of four arms varied
+across seeds 4417 and 9001 by 1.3–1.9 % on receptions. The fourth,
+`1.17.1 · agc.reset.interval 0`, returned byte-identical figures on both seeds —
+2326 tx, 4142 rx, 2106 delivered, 7275 collisions, twice.
+
+On `fixture-fife-strict` (58 nodes, 848 links) **all four** arms returned
+identical figures across the same two seeds.
+
+So the seed does change a run — it demonstrably did on three Scotland arms — and
+something about the smaller mesh, and about that one Scotland arm, leaves it with
+nothing to change. Both runs had two originators, which rules out the
+single-originator explanation the warning used to assert; that wording has been
+removed for claiming a cause it had not established.
+
+Worth checking next: whether the seed reaches anything a dense mesh is sensitive
+to. It drives the engine's AWGN and the node boot stagger, and on a mesh where no
+link is marginal, noise flips no decode and the flood is the same flood. If that
+is the mechanism then the fix is not to the bench but to the scenario — a study
+that wants a noise floor needs a link close enough to the edge for noise to
+matter.
+
 ## A node exits on a message kind it does not know
 
 `bridge/main.cpp` ends its loop with `default: goto done`. A native node whose

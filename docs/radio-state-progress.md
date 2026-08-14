@@ -145,10 +145,15 @@ R1Neo — all nRF52, so Renode rather than QEMU. Only T-Beam Supreme S3 is ESP32
 
 ## Unknowns still open
 
-1. **`RxBoostedGainImprovementDB = 2.0` is invented.** Neither RadioLib nor
-   MeshCore states a dB figure anywhere. SX126x datasheet section 9.6 is the
-   authority and this must be reconciled before any sensitivity number derived
-   from it is published.
+1. **`RxBoostedGainImprovementDB = 2.0` cannot be traced, and may not be
+   documented at all.** Neither RadioLib nor MeshCore states a dB figure, and
+   RadioLib's maintainer left the feature unimplemented for that reason —
+   *"what exactly it means to 'consume more power to improve the sensitivity'
+   seems to be undocumented. Is it an improvement of 10% or 0.1%?"*
+   (jgromes/RadioLib discussion 370). Semtech points at the setting without
+   quantifying it. The ways out are a bench measurement against real hardware,
+   or quoting results as a range across plausible values. A more confident
+   constant is not one of them.
 2. **Whether `CALIBRATE_ALL` really clears 0x08AC.** MeshCore's own comment says
    "RX settings that calibration *may* reset". We model the chip behaving the way
    the firmware's authors assumed. Same datasheet section.
