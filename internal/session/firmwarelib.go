@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/firmware"
@@ -59,10 +60,11 @@ func registerFirmwareLibrary(st *state.Store, s *Sim) {
 			go func() {
 				ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 				defer cancel()
-				cat := &firmware.NativeCatalogue{CacheDir: firmware.DefaultCacheDir()}
-				images, err := cat.List(ctx)
 				list := []publishedBuild{}
-				if err == nil {
+				// The native builds: MeshCore compiled for this machine, which
+				// is how most nodes run.
+				cat := &firmware.NativeCatalogue{CacheDir: firmware.DefaultCacheDir()}
+				if images, err := cat.List(ctx); err == nil {
 					for _, img := range images {
 						if img.ForThisMachine() {
 							list = append(list, publishedBuild{
@@ -71,6 +73,13 @@ func registerFirmwareLibrary(st *state.Store, s *Sim) {
 						}
 					}
 				}
+				// And the published board images - the ones the flasher
+				// serves, which emulated boards run. workbench1 listed these
+				// and the Gio library never did, so the whole emulated half
+				// of the library was missing: on Linux the native builds hid
+				// it, and on a Mac, where no native build exists yet, the
+				// panel was simply empty.
+				list = append(list, publishedBoards(ctx)...)
 				// An empty non-nil list on failure, so a dead network is one
 				// failed fetch rather than a fetch per frame.
 				_, _ = st.Do(context.Background(), "firmware.published", list)
@@ -431,6 +440,79 @@ func nodeRole(n scenario.Node) string {
 		return r
 	}
 	return string(n.Kind.Application())
+}
+
+// publishedBoards is the published board images, filtered down to something a
+// person can read.
+//
+// The catalogue is about eight thousand images - every version of every board
+// and role MeshCore has ever published. All of them on a panel is not a
+// library, so this keeps the boards MeshBench can actually run and, for each
+// board and role, the newest version. Older ones stay one click away in the
+// firmware picker, which reads the catalogue directly.
+func publishedBoards(ctx context.Context) []publishedBuild {
+	cat := &firmware.BoardCatalogue{CacheDir: firmware.DefaultCacheDir()}
+	imgs, err := cat.ListAll(ctx)
+	if err != nil {
+		return nil
+	}
+	known := map[string]bool{}
+	for _, b := range scenario.Boards() {
+		known[strings.ToLower(b.Name)] = true
+	}
+	// Newest version per board and role. Versions are vX.Y.Z, so comparing
+	// them as numbers rather than strings keeps v1.9.0 below v1.17.0.
+	best := map[string]publishedBuild{}
+	for _, img := range imgs {
+		if !known[strings.ToLower(img.Board)] {
+			continue
+		}
+		k := img.Board + "\x00" + img.Role
+		if cur, ok := best[k]; ok && !newerVersion(img.Version, cur.version) {
+			continue
+		}
+		best[k] = publishedBuild{role: img.Role, version: img.Version, board: img.Board}
+	}
+	out := make([]publishedBuild, 0, len(best))
+	for _, b := range best {
+		out = append(out, b)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].board != out[j].board {
+			return out[i].board < out[j].board
+		}
+		return out[i].role < out[j].role
+	})
+	return out
+}
+
+// newerVersion compares vX.Y.Z by number, so v1.9.0 sorts below v1.17.0 -
+// which a string comparison gets backwards, and which is how asking for a
+// board with no version came back with v1.14.1 while v1.17.1 existed.
+func newerVersion(a, b string) bool {
+	pa, pb := versionParts(a), versionParts(b)
+	for i := 0; i < len(pa) && i < len(pb); i++ {
+		if pa[i] != pb[i] {
+			return pa[i] > pb[i]
+		}
+	}
+	return len(pa) > len(pb)
+}
+
+func versionParts(v string) []int {
+	v = strings.TrimPrefix(strings.TrimSpace(v), "v")
+	var out []int
+	for _, f := range strings.Split(v, ".") {
+		n := 0
+		for _, r := range f {
+			if r < '0' || r > '9' {
+				break
+			}
+			n = n*10 + int(r-'0')
+		}
+		out = append(out, n)
+	}
+	return out
 }
 
 // publishedBuild is one build the catalogue offers, in the fields the library
