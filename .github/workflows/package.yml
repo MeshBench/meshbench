@@ -432,6 +432,8 @@ jobs:
           sudo apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64 zip
 
       - name: Build
+        env:
+          GH_TOKEN: ${{ github.token }}
         # The cross-compile variables go on the one command that cross
         # compiles. As step-level env they also applied to `go run`, which
         # then built a Windows licgen.exe and tried to execute it on Linux -
@@ -454,6 +456,22 @@ jobs:
             -o dist/meshbench/meshbench.exe ./cmd/meshcoresim
           cp -r fixtures dist/meshbench/fixtures
           go run ./tools/icon && cp packaging/icons/meshbench-256.png dist/meshbench/meshbench.png
+
+          # The emulators, same as the Linux tarball and the macOS bundle. A
+          # zip cannot carry symlinks, so nothing is linked: lookupTool knows
+          # the unpacked layouts (qemu/bin/qemu-system-xtensa.exe) and the
+          # .exe suffix, and searches them beside the binary.
+          cd dist/meshbench
+          gh release download --repo MeshBench/qemu \
+            --pattern '*xtensa*x86_64-w64-mingw32.tar.xz' --dir . --clobber \
+            || echo "::warning::no Windows QEMU release; ESP32 boards will not emulate"
+          gh release download --repo MeshBench/renode \
+            --pattern '*windows*' --dir . --clobber \
+            || echo "::warning::no Windows Renode release; nRF52 boards will not emulate"
+          for f in *.tar.xz *.tar.gz; do [ -e "$f" ] || continue; tar xf "$f" && rm "$f"; done
+          for f in *.zip; do [ -e "$f" ] || continue; unzip -q "$f" && rm "$f"; done
+          ls -la
+          cd ../..
           cat > dist/meshbench/README.txt <<'TXT'
           MeshBench for Windows
 
@@ -462,9 +480,10 @@ jobs:
           says which build this is.
 
           Native MeshCore firmware is downloaded on first use and cached.
-          Emulated ESP32 and nRF52 boards are not available on Windows yet:
-          the emulator bridge still assumes Unix sockets. Everything else -
-          the map, the channel, terrain, planning - works.
+          The QEMU and Renode emulators are in this zip, so emulated ESP32
+          and nRF52 boards work out of the box. They are MeshBench builds,
+          not upstream ones - ours carry an SX1262 device and a SEVONPEND
+          fix that published firmware needs.
 
           Licences are in LICENCES\, and in the application under
           Help > Licences & attributions.

@@ -336,13 +336,29 @@ func lookupTool(env, name string) (string, error) {
 		}
 		return "", fmt.Errorf("firmware: %s points at %s, which is not there", env, p)
 	}
+	// The names a tool might be found under in a directory. Windows names its
+	// executables, and a zip cannot carry the symlink the Linux tarball and
+	// the macOS bundle use - so the emulator's own unpacked layout is
+	// searched too, rather than requiring a link nobody could ship.
+	candidates := []string{name}
+	if runtime.GOOS == "windows" {
+		candidates = append(candidates, name+".exe")
+	}
+	subdirs := []string{"", "qemu/bin", "qemu-meshbench/bin"}
 	if self, err := os.Executable(); err == nil {
-		if p := filepath.Join(filepath.Dir(self), name); fileExists(p) {
-			return p, nil
+		dir := filepath.Dir(self)
+		for _, sub := range subdirs {
+			for _, cand := range candidates {
+				if p := filepath.Join(dir, sub, cand); fileExists(p) {
+					return p, nil
+				}
+			}
 		}
 	}
-	if p := filepath.Join(ToolsDir(), name); fileExists(p) {
-		return p, nil
+	for _, cand := range candidates {
+		if p := filepath.Join(ToolsDir(), cand); fileExists(p) {
+			return p, nil
+		}
 	}
 	if p, err := exec.LookPath(name); err == nil {
 		return p, nil
