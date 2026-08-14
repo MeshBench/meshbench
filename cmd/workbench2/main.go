@@ -60,6 +60,7 @@ func main() {
 	menuFlag := flag.String("menu", "", "fire this menu action at startup, so what it opens can be captured")
 	cfgSection := flag.String("config-section", "", "open the Configuration page on this section")
 	dropFlag := flag.String("drop-menu", "", "open this menu's dropdown at startup, so it can be captured")
+	layersFlag := flag.String("layers", "", "switch these map layers on at startup, comma separated")
 	nodeTabFlag := flag.Int("node-tab", 0, "which tab a node window opens on: 0 console, 1 stats, 2 activity, 3 companion")
 	coverFlag := flag.String("coverage", "",
 		"compute and show coverage from this node at startup")
@@ -319,6 +320,21 @@ func main() {
 	if *coverFlag != "" {
 		mv.Layers.Coverage = true
 		go func() { _, _ = st.Do(ctx, "coverage.compute", *coverFlag) }()
+	}
+	// A layer that only turns on by a click is a layer nobody can capture.
+	for _, l := range strings.Split(*layersFlag, ",") {
+		switch strings.TrimSpace(strings.ToLower(l)) {
+		case "regions":
+			mv.Layers.Regions = true
+		case "links":
+			mv.Layers.Links = true
+		case "coverage":
+			mv.Layers.Coverage = true
+		case "terrain":
+			mv.Layers.Terrain = true
+		case "antenna":
+			mv.Layers.Pattern = true
+		}
 	}
 	// The map reports what it can see; whatever wants to compute something
 	// for that view reads it here rather than duplicating the projection.
