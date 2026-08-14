@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -194,10 +195,16 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	if err := os.MkdirAll(e.Dir, 0o755); err != nil {
 		return err
 	}
-	if e.Emulator == Renode {
-		// Renode runs on Mono, whose Unix domain socket support is not worth
-		// betting a node on. Port 0 asks the radio model to choose, and it
-		// prints what it got.
+	// A TCP port on Windows, a Unix socket everywhere else.
+	//
+	// Renode has always used a port: it runs on Mono, whose Unix domain
+	// socket support is not worth betting a node on. QEMU used a socket file,
+	// which is the one thing Windows cannot give it - so emulated ESP32
+	// boards stopped at the platform rather than at anything technical. The
+	// device takes either now (it parses the string), and a Unix socket stays
+	// the default where there is one: it needs no port and cannot collide.
+	if e.Emulator == Renode || runtime.GOOS == "windows" {
+		// Port 0 asks the radio model to choose, and it prints what it got.
 		e.sock = ":0"
 	} else {
 		e.sock = filepath.Join(e.Dir, "radio.sock")
@@ -226,7 +233,7 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	if err := e.radio.Start(); err != nil {
 		return fmt.Errorf("firmware: starting the radio model: %w", err)
 	}
-	if e.Emulator == Renode {
+	if e.sock == ":0" {
 		port, err := waitForPort(ctx, filepath.Join(e.Dir, "radio.log"))
 		if err != nil {
 			_ = e.stopLocked()
@@ -246,8 +253,14 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 		return nil
 	}
 
+	// What the device is told to connect to: the socket file, or the port the
+	// radio model chose when there is no socket file to have.
+	radioAt := e.sock
+	if e.radioPort != 0 {
+		radioAt = fmt.Sprintf("127.0.0.1:%d", e.radioPort)
+	}
 	machine := fmt.Sprintf("%s,radio-path=%s,radio-spi=%d,radio-nss=%d,radio-busy=%d",
-		e.Machine, e.sock, e.SPI, e.NSS, e.Busy)
+		e.Machine, radioAt, e.SPI, e.NSS, e.Busy)
 
 	qemuLog, err := os.Create(filepath.Join(e.Dir, "console.log"))
 	if err != nil {
