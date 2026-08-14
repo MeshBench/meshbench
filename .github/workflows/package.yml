@@ -61,7 +61,11 @@ jobs:
           set -e
           test -z "$(gofmt -l ./cmd ./internal ./tools)"
           go vet ./...
-          go test ./...
+          # -short: the long tests boot real firmware and measure run-to-run
+          # spread, which needs an idle machine - a shared runner fails the
+          # noise-floor measurement on load, not on code. The full suite is
+          # ci.yml's job; this gate is that the artifact builds and works.
+          go test -short ./...
           # One shipped binary since the cutover: `meshbench workbench` is the
           # Gio app, and `workbench1` keeps the old one reachable until it is
           # deleted.
