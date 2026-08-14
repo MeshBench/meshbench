@@ -3,6 +3,7 @@ package firmware_test
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -135,7 +136,10 @@ func TestImportLandsWhereTheRunnerLooks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if st.Mode()&0o111 == 0 {
+	// Windows has no executable bit - a file is executable there by its
+	// extension - so asking for one fails on a platform where nothing is
+	// wrong.
+	if runtime.GOOS != "windows" && st.Mode()&0o111 == 0 {
 		t.Error("imported native build is not executable")
 	}
 	if len(firmware.ListInstalled(cache)) != 1 {

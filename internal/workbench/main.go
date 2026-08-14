@@ -28,6 +28,7 @@ import (
 	"gioui.org/widget"
 
 	"github.com/MeshBench/meshbench/internal/basemap"
+	fixturelib "github.com/MeshBench/meshbench/internal/fixture"
 	"github.com/MeshBench/meshbench/internal/gui/comp"
 	"github.com/MeshBench/meshbench/internal/gui/desktop"
 	"github.com/MeshBench/meshbench/internal/gui/shell"
@@ -39,8 +40,12 @@ import (
 // Run is the whole application. It owns the process: it parses args, opens
 // windows, and only returns when the last one closes.
 func Run(args []string) {
-	fixture := flag.String("fixture", "fixtures/fixture-scotland-ireland-strict.json",
-		"network to load")
+	// A name, not a path: an installed copy has no fixtures in its working
+	// directory, and this default has to open on a machine where the only
+	// copy is the one inside the binary. A path still works and still wins.
+	fixture := flag.String("fixture", "scotland-ireland-strict",
+		"network to load: a name (see -list-fixtures) or a path to a .json")
+	listFixtures := flag.Bool("list-fixtures", false, "list the built-in networks and exit")
 	modeFlag := flag.String("theme", "dark", "dark or light")
 	viewFlag := flag.String("view", "plan", "which view to open")
 	fpsFlag := flag.Bool("fps", false, "report frames per second to stderr and /tmp/wb2-fps.log")
@@ -79,6 +84,12 @@ func Run(args []string) {
 	_ = flag.CommandLine.Parse(args)
 	if *versionFlag {
 		fmt.Println("MeshBench", Version)
+		return
+	}
+	if *listFixtures {
+		for _, n := range fixturelib.Embedded() {
+			fmt.Println(n)
+		}
 		return
 	}
 

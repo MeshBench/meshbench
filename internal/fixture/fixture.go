@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	embedded "github.com/MeshBench/meshbench/fixtures"
 	"github.com/MeshBench/meshbench/internal/engine"
 	"github.com/MeshBench/meshbench/internal/scenario"
 )
@@ -74,9 +75,13 @@ type Assertion struct {
 	MaxPct   float64 `json:"max_pct,omitempty"`
 }
 
-// Load reads a fixture from a path.
+// Load reads a fixture by path or by name.
+//
+// A path is read as given. A name goes through Find, which looks where an
+// installed copy keeps its fixtures and then inside the binary - see find.go
+// for why that is not optional.
 func Load(path string) (*Fixture, error) {
-	b, err := os.ReadFile(path)
+	b, err := read(path)
 	if err != nil {
 		return nil, err
 	}
@@ -156,4 +161,17 @@ func (f *Fixture) Permissive() (on, transmitting int) {
 		}
 	}
 	return on, transmitting
+}
+
+// read resolves a fixture and returns its bytes, from disk or from the copy
+// compiled in.
+func read(nameOrPath string) ([]byte, error) {
+	where, isEmbedded, err := Find(nameOrPath)
+	if err != nil {
+		return nil, err
+	}
+	if isEmbedded {
+		return embedded.FS.ReadFile(where)
+	}
+	return os.ReadFile(where)
 }

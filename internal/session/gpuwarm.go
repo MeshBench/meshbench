@@ -413,7 +413,19 @@ func (s *Sim) probeGPU() {
 	}
 	p := &gpuProbe{}
 	if d, err := gpu.Open(); err == nil {
-		p.name, p.backend, p.present = d.Name, d.Backend, true
+		p.name, p.backend = d.Name, d.Backend
+		// Opening is not the same as being right. A d3d12 adapter opened
+		// cleanly, compiled the shaders, ran them, and returned coverage
+		// cells nearly ten decibels away from the processor's - a wrong
+		// answer with nothing to see. So the device proves itself against
+		// the CPU twin on a small problem before it is trusted with the
+		// network, and a device that fails says why rather than quietly
+		// producing plausible numbers.
+		if err := d.SelfCheck(); err != nil {
+			p.present, p.why = false, err.Error()
+		} else {
+			p.present = true
+		}
 		d.Close()
 	} else {
 		p.why = err.Error()
