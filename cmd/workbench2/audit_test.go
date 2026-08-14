@@ -297,6 +297,7 @@ func auditTargets(r *recorder) []target {
 	snapWithConsole.Console = []string{"   0.000  > advert"}
 	nw.OnCommand = func(n, l string) { r.do("console.type", l) }
 	nw.OnAction = func(a, n string) { r.do(a, n) }
+	nw.OnServe = func(node, kind string) { r.do("bench.serve", kind) }
 	nw.comp.OnCLI = func(n, l string) { r.do("console.cli", l) }
 	cfgSets := &settings{}
 	cfg := &configPanel{do: r.do, sets: cfgSets}
@@ -316,7 +317,7 @@ func auditTargets(r *recorder) []target {
 		{"Nodes running", nv, nv.Draw, nil,
 			// Choosing a build closes the list, so it is reopened before each.
 			func() { nv.pickFor = "Abernethy Repeater" }, nil, buildSkips()},
-		{"Node window", nw, nw.Draw, snapWithConsole,
+		{"Node window", nw, nw.auditDraw, snapWithConsole,
 			// The tab row is above everything, so a pointer moving down the
 			// panel leaves the console before it reaches the send button.
 			func() { nw.tab = 0 }, nil, map[string]string{
@@ -334,7 +335,7 @@ func auditTargets(r *recorder) []target {
 				// The node is running, so the head offers stop and not start.
 				"start": "drawn only when the node is stopped",
 			}},
-		{"Node window: companion", &nw.comp, nw.comp.Draw, nil, nil, nil, nil},
+		{"Node window: companion", &nw.comp, nw.comp.auditDraw, nil, nil, nil, nil},
 		{"Compare", cmpP, cmpP.Draw, nil, nil, nil, nil},
 		{"Planning (view)", planP, planP.Draw, nil, nil, nil, nil},
 		{"Import (view)", impP, impP.Draw, nil, nil, nil, nil},

@@ -269,8 +269,8 @@ func TestMapToolbarFiltersAndPicksTools(t *testing.T) {
 }
 
 func TestInspectorIsTheLightEventsView(t *testing.T) {
-	// The Inspector shows the selected node's own events; clicking a row and
-	// opening it must reach the packet view with that row's id.
+	// The Inspector shows the selected node's own events, and clicking a row
+	// opens the packet view directly - no intermediate pane.
 	opened := uint64(0)
 	p := &eventsPanel{compact: true, forNode: true,
 		OnOpenPacket: func(id uint64) { opened = id }}
@@ -285,8 +285,6 @@ func TestInspectorIsTheLightEventsView(t *testing.T) {
 	})
 	h.frame()
 	h.frame()
-	// Two of the three events touch the selected node; select the first and
-	// open its packet.
 	key := eventKey(&state.Event{AtMs: 1000, Kind: "tx", From: "Bishop Hill", PacketID: 7, Class: "sent"})
 	ck, ok := p.rows[key]
 	if !ok {
@@ -300,15 +298,8 @@ func TestInspectorIsTheLightEventsView(t *testing.T) {
 	ck.Click()
 	h.frame()
 	h.frame()
-	if p.sel == nil {
-		t.Fatal("clicking a row selected nothing")
-	}
-	p.openBtn.Click.Click()
-	// The compact view has no detail pane; open goes through the full panel.
-	// Directly exercise the callback path the detail pane uses.
-	p.OnOpenPacket(p.sel.PacketID)
 	if opened != 7 {
-		t.Errorf("opening the packet reached id %d, want 7", opened)
+		t.Errorf("clicking the row opened packet %d, want 7", opened)
 	}
 }
 func TestCompanionTabSpeaksMeshcoreCLI(t *testing.T) {
@@ -316,9 +307,10 @@ func TestCompanionTabSpeaksMeshcoreCLI(t *testing.T) {
 	c := &companionTab{node: "AngusOutlaw1", OnCLI: func(_, line string) {
 		lines = append(lines, line)
 	}}
+	// The flat layout: the real one hides most controls behind sub-tabs.
 	h := newPanelHarness(
 		func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
-			return c.Draw(t, gtx, s)
+			return c.auditDraw(t, gtx, s)
 		}, &state.Snapshot{})
 	h.frame()
 	c.freq.Editor.SetText("869618")
@@ -331,7 +323,12 @@ func TestCompanionTabSpeaksMeshcoreCLI(t *testing.T) {
 	// A grid rather than four guessed rows: these bars carry notes, so their
 	// heights differ and a row written down in advance is a test of the
 	// layout rather than of the controls.
-	for y := float32(14); y < 320; y += 14 {
+	for y := float32(6); y < 340; y += 10 {
+		h.pressAlong(y)
+	}
+	// The strip swaps connect for disconnect once claimed, so it gets a
+	// second pass.
+	for y := float32(6); y < 40; y += 8 {
 		h.pressAlong(y)
 	}
 

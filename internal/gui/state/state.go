@@ -82,8 +82,10 @@ type Snapshot struct {
 	// travels with the absence.
 	Waterfall     *Coverage
 	WaterfallNote string
-	// Budgets are the two directions of the link last asked about.
-	Budgets []Budget
+	// Budgets are the two directions of the link last asked about, and
+	// LinkProfile the cut-through between that pair.
+	Budgets     []Budget
+	LinkProfile *Profile
 	// Matrix is the sweep last loaded, or nil.
 	Matrix *Matrix
 	// Energy is the site study last run, or nil.
@@ -139,6 +141,36 @@ type Snapshot struct {
 	FirmwareStarting bool
 	// PendingPlay is a run waiting for its firmware to come up.
 	PendingPlay bool
+}
+
+// Profile is the cut-through between one pair: the ground with the earth's
+// curvature in it, the sight line, the first Fresnel zone, and the knife
+// edges with what each costs. The picture wb1's Link tab drew.
+type Profile struct {
+	From, To   string
+	DistanceKm float64
+	// AtoB and BtoA are the one-way margins, so the chart carries the same
+	// numbers the budget does.
+	AtoB, BtoA  float64
+	Samples     []ProfileSample
+	Edges       []ProfileEdge
+	Verdict     string
+	LowM, HighM float64
+}
+
+// ProfileSample is one point along the path, in metres.
+type ProfileSample struct {
+	DistM    float64
+	BulgedM  float64
+	LOSm     float64
+	FresnelM float64
+}
+
+// ProfileEdge is one obstruction and its own Bullington contribution -
+// presented as a decomposition, never as an addition.
+type ProfileEdge struct {
+	DistM  float64
+	LossDB float64
 }
 
 // Point is a position, and the only geometry the snapshot carries.
@@ -338,10 +370,13 @@ type PacketReception struct {
 
 // PacketHop is one transmission of the followed message.
 type PacketHop struct {
-	AtMs     uint32
-	By       string
-	Hops     int
-	Heard    []string
+	AtMs  uint32
+	By    string
+	Hops  int
+	Heard []string
+	// MissedBy names who could not decode this relay; Missed keeps the count
+	// for callers that only need the number.
+	MissedBy []string
 	Missed   int
 	PacketID uint64
 }
@@ -647,8 +682,10 @@ type World struct {
 	// Waterfall is the last capture; WaterfallNote is why there is not one.
 	Waterfall     *Coverage
 	WaterfallNote string
-	// Budgets are the two directions of the link last asked about.
-	Budgets []Budget
+	// Budgets are the two directions of the link last asked about, and
+	// LinkProfile the cut-through between that pair.
+	Budgets     []Budget
+	LinkProfile *Profile
 	// Matrix is the sweep last loaded, or nil.
 	Matrix *Matrix
 	// Energy is the site study last run, or nil.
@@ -934,6 +971,7 @@ func (s *Store) publish() {
 		Waterfall:         s.world.Waterfall,
 		WaterfallNote:     s.world.WaterfallNote,
 		Budgets:           s.world.Budgets,
+		LinkProfile:       s.world.LinkProfile,
 		Matrix:            s.world.Matrix,
 		Energy:            s.world.Energy,
 		Sends:             s.world.Sends,

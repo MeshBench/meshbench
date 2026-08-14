@@ -61,7 +61,7 @@ func main() {
 	cfgSection := flag.String("config-section", "", "open the Configuration page on this section")
 	dropFlag := flag.String("drop-menu", "", "open this menu's dropdown at startup, so it can be captured")
 	layersFlag := flag.String("layers", "", "switch these map layers on at startup, comma separated")
-	nodeTabFlag := flag.Int("node-tab", 0, "which tab a node window opens on: 0 console, 1 stats, 2 activity, 3 companion")
+	nodeTabFlag := flag.Int("node-tab", 0, "which tab a node window opens on: 0 console, 1 companion, 2 settings, 3 stats, 4 activity, 5 connect")
 	coverFlag := flag.String("coverage", "",
 		"compute and show coverage from this node at startup")
 	energyFlag := flag.Bool("energy", false, "run the site study for the selected node at startup")
@@ -206,6 +206,15 @@ func main() {
 			}
 		}()
 	}
+	wbUI.onServe = func(node, kind string) {
+		go func() {
+			if _, err := st.Do(ctx, "bench.serve",
+				map[string]any{"node": node, "kind": kind}); err != nil {
+				_, _ = st.Do(ctx, "ui.said", "serve: "+err.Error())
+			}
+		}()
+	}
+	wbUI.onOpenPacket = openPacket
 	sm.SetUI(wbUI)
 	// The tile cache the old workbench already filled: 37 MB of it on this
 	// machine, and the same store, so nothing is downloaded twice. The layer

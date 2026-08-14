@@ -102,30 +102,6 @@ func boundsOf(a state.Assertion) string {
 }
 
 // linkPanel is one link, both directions, always (6.3).
-type linkPanel struct{}
-
-func (linkPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
-	if s == nil || len(s.Budgets) == 0 {
-		return layout.Center.Layout(gtx, comp.Text(t, t.Sz.Body, t.P.Dim,
-			"select a node to see its strongest link"))
-	}
-	var kids []layout.FlexChild
-	for i := range s.Budgets {
-		b := &s.Budgets[i]
-		kids = append(kids,
-			layout.Rigid(comp.SectionTitle(t, b.From+" to "+b.To)),
-			layout.Rigid(comp.Mono(t, t.Sz.Body, verdictColour(t, b.MarginDB),
-				fmt.Sprintf("margin %+.1f dB   %s", b.MarginDB, verdictWord(b.MarginDB)))),
-		)
-		for _, term := range b.Terms {
-			kids = append(kids, layout.Rigid(comp.Mono(t, t.Sz.Caption, t.P.Dim,
-				fmt.Sprintf("  %-22s %+8.1f", term.Name, term.DB))))
-		}
-		kids = append(kids, layout.Rigid(comp.Spacer))
-	}
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, kids...)
-}
-
 func verdictWord(m float64) string {
 	switch {
 	case m < 0:

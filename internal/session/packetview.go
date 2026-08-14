@@ -32,7 +32,21 @@ func registerPacket(st *state.Store, s *Sim) {
 		if id == 0 {
 			return nil, fmt.Errorf("packet.open needs the packet's id")
 		}
+		// seek walks to the next packet that still exists in that direction,
+		// for the view's previous/next arrows - ids are dense but a frame can
+		// be gone from the ledger.
+		seek := 0
+		if v, ok := numField(p, "seek"); ok {
+			seek = int(v)
+		}
 		pk := s.buildPacket(id)
+		for tries := 0; pk == nil && seek != 0 && tries < 50; tries++ {
+			if seek < 0 && id <= 1 {
+				break
+			}
+			id = uint64(int64(id) + int64(seek))
+			pk = s.buildPacket(id)
+		}
 		if pk == nil {
 			return nil, fmt.Errorf("packet %d is no longer in the ledger", id)
 		}
@@ -176,6 +190,7 @@ func (s *Sim) buildPacket(id uint64) *state.Packet {
 		case "miss":
 			if i, ok := byPacket[ev.PacketID]; ok {
 				pk.Journey[i].Missed++
+				pk.Journey[i].MissedBy = append(pk.Journey[i].MissedBy, ev.To)
 			}
 		}
 	}

@@ -35,6 +35,10 @@ type workbenchUI struct {
 	onCommand func(node, line string)
 	onAction  func(action, node string)
 	onCLI     func(node, line string)
+	// onServe serves a companion to a real client; onOpenPacket opens the
+	// packet view from an activity row.
+	onServe      func(node, kind string)
+	onOpenPacket func(id uint64)
 	// dock, closeWin, scale and setScale are the pieces of the window and
 	// settings machinery a verb needs to reach.
 	dock     func(name string)
@@ -129,5 +133,6 @@ func (u *workbenchUI) OpenNodeWindow(node string) {
 	if u.nodes == nil || u.newTheme == nil {
 		return
 	}
-	u.nodes.openFor(node, u.newTheme, u.store, u.onCommand, u.onAction, u.onCLI)
+	u.nodes.openFor(node, u.newTheme, u.store, u.onCommand, u.onAction, u.onCLI,
+		u.onServe, u.onOpenPacket)
 }
