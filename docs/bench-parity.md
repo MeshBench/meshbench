@@ -5,6 +5,39 @@ Recovered from `51a41d8^:internal/ui/experiment.go` (1111 lines) and
 layout, and because two of the things found on the way are live faults rather
 than missing features.
 
+## The bench had never run a cell
+
+Found by running it. Every cell of an eight-cell sweep failed on the first
+companion it reached — `provisioning AngusOutlaw1: connection reset by peer` —
+and the node was gone afterwards.
+
+workbench1 recorded the reason and worked around it, in `compConnect`:
+
+> The companion's own radio preferences start empty - nothing has ever told it,
+> because provisioning speaks the repeater CLI and a companion build does not
+> take those commands. That is why it reported 0 MHz: not a decoding fault, an
+> unconfigured node.
+
+workbench2 inherited the provisioning loop and not the knowledge. Two faults
+came out of it, and the second is much worse than the first:
+
+1. **Typing the CLI at a companion kills it.** Its serial port speaks the
+   binary companion protocol; text arrives as a malformed frame and the process
+   exits. The normal session hit this too and swallowed the error
+   (`provisionAll` breaks and moves on), so it had been happening invisibly
+   outside the bench as well.
+2. **Senders were never configured at all.** No clock, no radio parameters, no
+   transmit power. A sender left on its firmware's defaults is not on the
+   scenario's frequency, so it originates onto a channel no repeater is
+   listening to — the cell measures nothing and reports no error. That is the
+   exact failure this apparatus exists to detect, sitting inside the apparatus.
+
+Fixed as workbench1 did it: companions are skipped by CLI provisioning, and
+configured over the companion protocol once their session is claimed — clock,
+radio params, transmit power, advert name, and the arm's own path hash mode.
+That last one is why companion and repeater path hash are separate fields, and
+until now there was nothing to send it to.
+
 ## Two live faults, before any parity work
 
 **Collisions are permanently zero.** `ExpResult.Collided` is never assigned:
