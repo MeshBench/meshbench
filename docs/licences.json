@@ -1,0 +1,128 @@
+{
+	"project": {
+		"name": "MeshBench",
+		"licence": "none chosen yet",
+		"detail": "ADR-0001: a licence for MeshBench itself has not been chosen. Until it is, no rights are granted beyond running this copy, and the release pipeline refuses to publish a tagged build.",
+		"link": "https://github.com/A13xB0/meshcoresim"
+	},
+	"forks": [
+		{
+			"name": "MeshBench/qemu",
+			"detail": "Fork of qemu-project/qemu, branch meshbench-sx1262. Adds an SX1262 LoRa radio device upstream does not have, so ESP32 firmware sees its chip. The emulator in this bundle is built from this fork; the fork repository is the source offer.",
+			"licence": "GPL-2.0",
+			"link": "https://github.com/MeshBench/qemu",
+			"text_files": ["qemu-COPYING.txt"]
+		},
+		{
+			"name": "MeshBench/tlib",
+			"detail": "Fork of antmicro/tlib (Renode's translation library), branch sevonpend-any-pending. SEVONPEND now wakes the core on any pended interrupt, not only a newly pended one - without this, published nRF52 firmware sleeps for ever.",
+			"licence": "LGPL (libqemu lineage)",
+			"link": "https://github.com/MeshBench/tlib",
+			"text_files": ["tlib-LICENSE.txt"]
+		},
+		{
+			"name": "MeshBench/renode-infrastructure",
+			"detail": "Fork of renode/renode-infrastructure. The C# half of the SEVONPEND fix, matching the tlib change.",
+			"licence": "MIT + LGPL",
+			"link": "https://github.com/MeshBench/renode-infrastructure",
+			"text_files": ["renode-infrastructure-MIT.txt", "renode-infrastructure-LGPL.txt"]
+		},
+		{
+			"name": "MeshBench/renode",
+			"detail": "Fork of renode/renode, branch meshbench. A portable bundle build that carries its own .NET runtime, so nRF52 emulation needs nothing installed.",
+			"licence": "MIT",
+			"link": "https://github.com/MeshBench/renode",
+			"text_files": ["renode-LICENSE.txt"]
+		},
+		{
+			"name": "MeshBench/meshcore-native",
+			"detail": "Builds meshcore-dev/MeshCore applications unmodified and adds the host variant and bridge that let them run as plain processes. MeshBench downloads these builds at runtime; they are not in this bundle. Its NOTICE is reproduced below.",
+			"licence": "MIT",
+			"link": "https://github.com/MeshBench/meshcore-native",
+			"text_files": ["meshcore-native-NOTICE.md", "meshcore-native-LICENSE.txt"]
+		}
+	],
+	"bundled": [
+		{
+			"name": ".NET runtime",
+			"detail": "Inside the Renode portable bundle, so nothing needs installing to emulate nRF52 boards.",
+			"licence": "MIT",
+			"link": "https://github.com/dotnet/runtime",
+			"text_files": ["dotnet-MIT.txt"]
+		},
+		{
+			"name": "Dear ImGui / cimgui",
+			"detail": "The native half of the old workbench1, which still ships in this binary until it is removed.",
+			"licence": "MIT",
+			"link": "https://github.com/ocornut/imgui",
+			"text_files": ["imgui-LICENSE.txt"]
+		},
+		{
+			"name": "wgpu-native",
+			"detail": "The GPU library inside cogentcore/webgpu that computes terrain profiles.",
+			"licence": "MIT or Apache-2.0",
+			"link": "https://github.com/gfx-rs/wgpu-native",
+			"text_files": ["wgpu-MIT.txt"]
+		},
+		{
+			"name": "Noto Color Emoji",
+			"detail": "Bundled beside the binary so node names with emoji render on machines without the font.",
+			"licence": "OFL-1.1",
+			"link": "https://github.com/googlefonts/noto-emoji",
+			"text_files": ["noto-emoji-OFL.txt"]
+		}
+	],
+	"runtime": [
+		{
+			"name": "MeshCore",
+			"detail": "The firmware under test. Builds are downloaded from MeshBench/meshcore-native releases on first use and cached; MeshCore is never redistributed inside this bundle.",
+			"licence": "MIT",
+			"link": "https://github.com/meshcore-dev/MeshCore",
+			"text_files": ["meshcore-LICENSE.txt"]
+		},
+		{
+			"name": "Board firmware images",
+			"detail": "Published MeshCore releases and flasher.meshcore.io, fetched on first use and cached under ~/.cache/meshcoresim.",
+			"licence": "MIT (as MeshCore publishes them)",
+			"link": "https://flasher.meshcore.io",
+			"text": "Downloaded on demand under MeshCore's own terms; see the MeshCore entry above."
+		},
+		{
+			"name": "Nordic SoftDevice",
+			"detail": "Not ours and cannot be redistributed. Anyone running published nRF52 firmware supplies their own copy; MeshBench never downloads or ships it.",
+			"licence": "Nordic licence agreement",
+			"link": "https://www.nordicsemi.com",
+			"text": "The SoftDevice is distributed by Nordic Semiconductor under its own licence agreement and is deliberately absent from MeshBench bundles and downloads."
+		}
+	],
+	"data": [
+		{
+			"name": "OpenStreetMap",
+			"detail": "Basemap data for the standard and CARTO styles.",
+			"licence": "ODbL 1.0",
+			"link": "https://www.openstreetmap.org/copyright",
+			"text": "Map data (c) OpenStreetMap contributors, available under the Open Database Licence. Tiles rendered from this data carry their provider's terms."
+		},
+		{
+			"name": "CARTO basemaps",
+			"detail": "The light and dark basemap styles.",
+			"licence": "attribution required",
+			"link": "https://carto.com/attributions",
+			"text": "Basemap style and tiles (c) CARTO, map data (c) OpenStreetMap contributors."
+		},
+		{
+			"name": "Esri World Imagery",
+			"detail": "The satellite basemap.",
+			"licence": "Esri terms of use",
+			"link": "https://www.esri.com",
+			"text": "Imagery (c) Esri and its data partners: Maxar, Earthstar Geographics, and the GIS user community."
+		},
+		{
+			"name": "Terrain Tiles on AWS",
+			"detail": "Elevation for hillshade, link budgets and the cut-through profiles (Mapzen terrarium tiles).",
+			"licence": "open data, attribution required",
+			"link": "https://registry.opendata.aws/terrain-tiles/",
+			"text": "Terrain Tiles from the AWS Open Data programme, produced by Mapzen; contains elevation data from SRTM (NASA), USGS 3DEP, ETOPO1 (NOAA) and other public sources."
+		}
+	]
+}
