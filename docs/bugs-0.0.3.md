@@ -41,6 +41,49 @@ pinned to v1.17.0 has nothing to run anywhere except Linux. Hence "firmware on
    floating "newest", would open on any machine. That is a design decision
    rather than a bug fix, so it wants a moment's thought rather than a patch.
 
+## 1b. The pin never reaches the thing that starts firmware
+
+**This is the one that matters**, and it explains the report exactly: the
+library said 273 nodes were on `repeater-v1.17.1`, and starting them asked for
+`repeater-v1.17.0`.
+
+**Measured.** `firmware.set` writes the version in two places
+(`firmwarelib.go`):
+
+    s.nodes[i].Firmware.Version = version   // the session's scenario
+    w.Nodes[i].Firmware = version           // what the panel draws
+
+The engine is neither of them. `engine.New` takes the nodes and keeps its own
+`[]*Node`, each with a copy of the spec, and `AttachNative` reads the version
+from *that* copy (`engine/firmware.go:72`: `key := role + "@" + n.Spec.Firmware.Version`).
+Nothing pushes a changed pin into it - `setFirmware` for a single node has the
+same gap - and `startFirmware` attaches to the existing engine rather than
+rebuilding from the scenario.
+
+So the count in the library, the version on the row, and the message on screen
+all come from the session's list, while what actually runs comes from a copy
+made when the network was opened. They agreed until somebody changed a pin.
+
+**Fix.** The engine's copy is the one that runs, so a pin has to reach it.
+Either:
+
+- **push the change through**: `firmware.set` and `setFirmware` ask the engine
+  to update the spec of the nodes they touched, which is a small method on the
+  engine and keeps the single-copy design; or
+- **rebuild before starting**: `startFirmware` reconciles the engine's specs
+  with the scenario first, which is one place rather than two but pays for it
+  on every start.
+
+The first is better: the change is small, it is where the user's intent
+arrives, and it leaves starting fast. Either way this wants a test that sets a
+pin and asserts the engine agrees - the two lists silently disagreeing is
+exactly the kind of thing that only shows up as a wrong answer much later.
+
+**Note how it presented**: because the pin looked applied everywhere a person
+can see, the failure read as "the version I chose is not available" - which
+sent me to the catalogue, not to the pin. The bug below (the error naming the
+role rather than the platform) made that worse.
+
 ## 2. The error blames the wrong thing
 
     MeshCore repeater-v1.17.0 has no simple_repeater build for darwin-arm64;
