@@ -5,6 +5,8 @@ name: package
 # Linux only for now, deliberately. macOS and Windows are visible below and
 # skipped, with the reason in the file: an absent row gets forgotten, a skipped
 # one with a reason gets picked up.
+#
+# The plan this implements is docs/release-packaging-plan.md.
 
 on:
   push:
@@ -27,7 +29,8 @@ jobs:
     #
     # So the bundle's real glibc floor is 2.38 - Ubuntu 24.04, Debian 13,
     # Fedora 39 and newer - and lowering it means building cimgui from source
-    # rather than choosing a different runner.
+    # rather than choosing a different runner. The floor drops the day
+    # workbench1 and internal/ui are deleted, since nothing else links cimgui.
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -43,24 +46,34 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             gcc pkg-config libgl1-mesa-dev xorg-dev
 
+      - name: Licences are fresh
+        # The window shows what the binary links. Regenerate and diff: a new
+        # dependency without a licence entry fails here, not in a lawyer's
+        # inbox. licgen itself fails on a module whose licence it cannot name.
+        run: |
+          go run ./tools/licgen
+          git diff --exit-code -- internal/workbench/licences/licences.json
+
       - name: Build and check
         run: |
           set -e
-          test -z "$(gofmt -l ./cmd ./internal)"
+          test -z "$(gofmt -l ./cmd ./internal ./tools)"
           go vet ./...
           go test ./...
-          go build -trimpath -o dist/meshbench/meshbench ./cmd/meshcoresim
-          # The Gio workbench, alongside the imgui one rather than instead of
-          # it: both ship until the two have been compared feature by feature.
+          # One shipped binary since the cutover: `meshbench workbench` is the
+          # Gio app, and `workbench1` keeps the old one reachable until it is
+          # deleted.
           #
           # The app ID is set here rather than left to default. Gio takes the
           # Wayland app_id and the X11 class from it, and the default is the
-          # binary's own name - so a build called wb2 announces itself to the
-          # compositor as wb2, and a desktop file, a taskbar grouping and a
-          # window-manager rule all miss it.
+          # binary's own name - so a taskbar grouping and a window-manager rule
+          # would otherwise key on whatever the file happened to be called.
+          VERSION="${GITHUB_REF_NAME}"
+          case "$VERSION" in v*) ;; *) VERSION="dev-$(git rev-parse --short HEAD)";; esac
           go build -trimpath \
-            -ldflags "-X gioui.org/app.ID=uk.co.hectospark.meshbench" \
-            -o dist/meshbench/meshbench-workbench ./cmd/workbench2
+            -ldflags "-X gioui.org/app.ID=uk.co.hectospark.meshbench \
+                      -X github.com/A13xB0/meshcoresim/internal/workbench.Version=$VERSION" \
+            -o dist/meshbench/meshbench ./cmd/meshcoresim
 
       - name: Fetch the emulators
         env:
@@ -79,10 +92,27 @@ jobs:
           for f in *.tar.gz; do [ -e "$f" ] && tar xzf "$f" && rm "$f"; done
           ls -la
 
+      - name: Fonts and fixtures
+        run: |
+          set -e
+          # Emoji in node names should not depend on the user's font packages;
+          # withEmoji() looks in fonts/ beside the binary first. OFL-1.1, and
+          # the licence window carries the attribution.
+          mkdir -p dist/meshbench/fonts
+          curl -fsSL -o dist/meshbench/fonts/NotoColorEmoji.ttf \
+            https://github.com/googlefonts/noto-emoji/raw/main/fonts/NotoColorEmoji.ttf \
+            || echo "::warning::emoji font not fetched, bundle falls back to system fonts"
+          # The shipped fixtures, so the workbench has something to open on a
+          # machine with nothing else on it.
+          cp -r fixtures dist/meshbench/fixtures
+
       - name: Assemble
         run: |
           set -e
           cd dist/meshbench
+          # The same inventory the Help > Licences window shows, as files, for
+          # the people who read a directory rather than open a window.
+          (cd ../.. && go run ./tools/licgen -text dist/meshbench/LICENCES)
           # Beside the binary is where MeshBench looks second, after the
           # environment variable and before its cache. A desktop application is
           # not launched from a shell, so PATH is nearly useless to it.
@@ -91,6 +121,9 @@ jobs:
           MeshBench
 
           Run ./meshbench workbench
+
+          Needs a Linux with glibc 2.38 or newer (Ubuntu 24.04, Debian 13,
+          Fedora 39, or anything more recent) and a GPU with Vulkan or GL.
 
           The emulators beside this file are found automatically. They are not
           distribution builds and cannot be: the QEMU carries an SX1262 device
@@ -102,33 +135,57 @@ jobs:
 
           Native MeshCore builds and board images are downloaded on first use and
           cached under ~/.cache/meshcoresim. Nothing else is needed.
+
+          Everything this bundle ships under is in LICENCES/, and in the
+          application under Help > Licences & attributions. `workbench1` runs
+          the old interface, kept until the new one has bedded in.
           TXT
           cd ..
+          # MeshCIM is proprietary and must never appear in an artifact, under
+          # any spelling. Cheap insurance against a fixture or doc drifting in.
+          if grep -ri meshcim . >/dev/null 2>&1; then
+            echo "::error::MeshCIM reference found in the bundle"; exit 1
+          fi
           tar czf meshbench-linux-x86_64.tar.gz meshbench
-          ls -la *.tar.gz
+          sha256sum *.tar.gz > SHA256SUMS
+          # The smoke is the artifact, not the tree: unpack what users get and
+          # ask it who it is. The graphical smoke stays on a real desktop
+          # before tagging, per the plan's acceptance.
+          mkdir /tmp/smoke && tar xzf meshbench-linux-x86_64.tar.gz -C /tmp/smoke
+          /tmp/smoke/meshbench/meshbench workbench -version
+          test -s /tmp/smoke/meshbench/LICENCES/INDEX.txt
+          ls -la *.tar.gz SHA256SUMS
 
       - uses: actions/upload-artifact@v4
         with:
           name: meshbench-linux
-          path: dist/*.tar.gz
+          path: |
+            dist/*.tar.gz
+            dist/SHA256SUMS
 
       - name: Release
         if: startsWith(github.ref, 'refs/tags/') || inputs.release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -e
+          # An unlicensed project cannot be released to end users (ADR-0001):
+          # this is the gate that makes the decision unavoidable.
+          go run ./tools/licgen -require-project-licence
           TAG="${GITHUB_REF_NAME:-$(date -u +%Y%m%d)-$(git rev-parse --short HEAD)}"
-          gh release create "$TAG" dist/*.tar.gz --generate-notes || \
-            gh release upload "$TAG" dist/*.tar.gz --clobber
+          gh release create "$TAG" dist/*.tar.gz dist/SHA256SUMS --generate-notes || \
+            gh release upload "$TAG" dist/*.tar.gz dist/SHA256SUMS --clobber
 
   macos:
     if: false   # no runner yet: the QEMU fork has never been built on Darwin,
-                # and Apple Silicon needs its own build rather than an x86_64 one
+                # Apple Silicon needs its own build rather than an x86_64 one,
+                # and meshcore-native publishes no darwin-arm64 host builds.
+                # The phase plan is in docs/release-packaging-plan.md.
     runs-on: macos-14
-    steps: [{ run: 'echo see docs/packaging-emulation.md' }]
+    steps: [{ run: 'echo see docs/release-packaging-plan.md' }]
 
   windows:
     if: false   # no runner yet: radioserver's QEMU path uses Unix sockets. The
                 # TCP path it already has for Renode is what this needs first.
     runs-on: windows-latest
-    steps: [{ run: 'echo see docs/packaging-emulation.md' }]
+    steps: [{ run: 'echo see docs/release-packaging-plan.md' }]
