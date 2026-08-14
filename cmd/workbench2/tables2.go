@@ -137,13 +137,19 @@ func (p *firmwarePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 			nMachine++
 		}
 	}
-	// The newest version per role gets the swatch the mock gives a "Latest"
+	// The newest release per role gets the swatch the mock gives a "Latest"
 	// chip - the table draws strings, so the mark is the row's tint and the
-	// legend says so.
+	// legend says so. Only real releases compete: a study build or a branch
+	// named txcheck-22 is somebody's experiment, not anyone's latest.
 	latest := map[string]string{}
 	for i := range s.Library {
 		r := s.Library[i]
-		if laxVersionLess(latest[r.Role], r.Version) {
+		num, ok := releaseVersion(r.Version)
+		if !ok {
+			continue
+		}
+		cur, _ := releaseVersion(latest[r.Role])
+		if latest[r.Role] == "" || laxVersionLess(cur, num) {
 			latest[r.Role] = r.Version
 		}
 	}
@@ -257,6 +263,17 @@ func (p *firmwarePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 				})
 		}),
 	)
+}
+
+// releaseVersion extracts the numbers from a release name like
+// repeater-v1.17.0. Not-a-release answers false, which is what keeps study
+// builds and branches out of the running for "latest".
+func releaseVersion(v string) (string, bool) {
+	i := strings.LastIndex(v, "-v")
+	if i < 0 || i+2 >= len(v) || !isDigit(v[i+2]) {
+		return "", false
+	}
+	return v[i+2:], true
 }
 
 // laxVersionLess orders versions well enough to mark the newest: numeric
