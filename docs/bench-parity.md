@@ -5,6 +5,36 @@ Recovered from `51a41d8^:internal/ui/experiment.go` (1111 lines) and
 layout, and because two of the things found on the way are live faults rather
 than missing features.
 
+## A node exits on a message kind it does not know
+
+`bridge/main.cpp` ends its loop with `default: goto done`. A native node whose
+binary predates a change to the bridge protocol therefore leaves at the first
+message it cannot parse, printing `bridge: closed after 0 ms` to a stderr the
+experiment discards.
+
+That cost most of an afternoon. Rebuilding after a chip change rebuilt only the
+role under test — `simple_repeater` — so repeaters ran current firmware and
+companions ran a binary five days older. Every symptom pointed somewhere else:
+`connection reset by peer` while provisioning, then `no node attached`, then a
+settle that never returned. Two ordering faults were found and fixed on the way
+and neither was the cause.
+
+Three things follow.
+
+**Rebuild every role, not the one being tested.** `build.sh` takes a role, and
+there are six. `kiss_modem`, `simple_secure_chat` and `simple_sensor` are still
+from 2026-08-09 at the time of writing.
+
+**Never rebuild into `build/` while a sweep is running.** Cells started later
+would run different firmware from cells started earlier, and nothing would say
+so. `build.sh <role> <outdir>` builds somewhere else, which is how the change
+above was verified.
+
+**A stage log is what turned this from guessing into one measurement.** The old
+workbench logged every phase with its arm and seed; this one logged only which
+cell had started, so a stall in attach looked exactly like a stall in the run
+loop. It logs stages now.
+
 ## The bench had never run a cell
 
 Found by running it. Every cell of an eight-cell sweep failed on the first
