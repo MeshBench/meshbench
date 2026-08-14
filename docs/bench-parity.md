@@ -23,12 +23,20 @@ nothing to change. Both runs had two originators, which rules out the
 single-originator explanation the warning used to assert; that wording has been
 removed for claiming a cause it had not established.
 
-Worth checking next: whether the seed reaches anything a dense mesh is sensitive
-to. It drives the engine's AWGN and the node boot stagger, and on a mesh where no
-link is marginal, noise flips no decode and the flood is the same flood. If that
-is the mechanism then the fix is not to the bench but to the scenario — a study
-that wants a noise floor needs a link close enough to the edge for noise to
-matter.
+The obvious explanation was that the seed reaches nothing a dense mesh is
+sensitive to: it drives the engine's AWGN and the boot stagger, and on a mesh
+where no link is marginal, noise flips no decode and the flood is the same
+flood.
+
+**That has been measured and it is not the answer.** `Engine.LinkMargins` puts
+6.08 % of Scotland's decoding directions within 2 dB of their demodulator's
+floor, and Fife — the fixture where *all four* arms returned identical figures —
+is higher still at 6.73 %. Both meshes have ample marginal links for noise to
+act on. See `docs/why-the-bench-saw-nothing.md`.
+
+So this remains genuinely open. The next thing to check is whether the seed
+reaches the decode path at all in a run, rather than whether the scenario could
+respond to it if it did.
 
 ## A node exits on a message kind it does not know
 

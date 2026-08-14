@@ -128,47 +128,55 @@ A `paired` experiment mode: one run, two receiver configurations, per-link
 outcomes compared. The metric is the count of receptions that flipped and which
 links they were on — not a percentage change in a total.
 
-## Cause 4 — the observable washes out what we are looking for
+## Cause 4 — measured, and it is not what I assumed
 
-A country-sized flood delivers through many redundant paths. A link either
-closes with tens of dB to spare or is blocked by terrain by tens of dB;
-removing 2 dB changes the outcome only on links sitting within 2 dB of
-threshold, and if a node has ten strong neighbours, losing its two weakest
-changes nothing about delivery.
+The hypothesis here was that a country-sized flood delivers through so many
+redundant paths that no link sits near enough to threshold for 2 dB to matter,
+and that the zero seed spread was the same property showing itself.
 
-Two pieces of evidence, both from our own runs, and neither is proof:
+**That has now been measured, and it is wrong.** `Engine.LinkMargins` computes,
+for every ordered pair the link cache has a path for, how far above its
+demodulator's floor the signal arrives — the same arithmetic `deliver` performs
+per transmission, over the cache instead of over a packet in flight.
 
-- Within 1.17.0, enabling AGC resets moved receptions by **−0.0 %**. Given
-  cause 1 this arm was not actually manipulated, so it is weaker evidence than
-  it looked.
-- **Seed spread was 0.00 % on one Scotland arm and on all four Fife arms.**
-  This one still stands, and it is the useful one. The seed drives the channel
-  noise. A scenario in which changing the noise changes no outcome has no link
-  near threshold — and a scenario with no link near threshold cannot express a
-  receiver sensitivity change either. **Those are the same property.** The
-  zero-spread arms were telling us the fixture was insensitive, and I read it
-  as a bench defect.
+| | directions with a path | decoding | median margin | within 2 dB | within 1 dB |
+|---|---|---|---|---|---|
+| Scotland (161 nodes) | 25 600 | 1 661 | 18.2 dB | **101 (6.08 %)** | 40 (2.41 %) |
+| Fife (58 nodes) | 3 249 | 565 | 19.1 dB | **38 (6.73 %)** | 21 (3.72 %) |
 
-That also resolves the open question in `docs/bench-parity.md`: the arm whose
-seeds did not separate is not a bug, it is a measurement of the scenario.
+The distribution is not the bimodal wall of certainties I described. Scotland's
+tenth percentile is 4.1 dB and its lowest decoding direction is 0.1 dB above the
+floor: there is a real population living at the edge, and **about one decoding
+direction in sixteen could be flipped by 2 dB**.
+
+So the fixture can express this effect. Causes 1 and 2 already explain the null
+result on their own, and this one does not need to be invoked.
+
+**Fife settles it.** Fife has proportionally *more* near-threshold links than
+Scotland, and it was the fixture where all four arms returned byte-identical
+figures across two seeds. If marginal links were what the seed acts on, Fife
+should have been the noisiest of the two. The claim that zero seed spread and
+insensitivity to receiver gain are "the same property" is therefore refuted —
+and so is my use of it to close the open question in `docs/bench-parity.md`.
+That open is still open.
+
+What does survive is narrower and more useful: the marginal links exist, but
+**aggregate delivery counts destroy them**. Flipping 101 of 1 661 directions
+need not change which nodes ultimately receive a flood, because the flood
+reaches them by other edges. The signal is present at link level and is thrown
+away by summing.
 
 ### What to do
 
-**Measure the fixture's sensitivity before running an experiment on it.**
-`Engine.PathLossForTest(a, b)` already gives per-link path loss; with the
-board's noise figure and the SF/BW in the fixture, the received-power margin
-above demodulator threshold is arithmetic. The deliverable is a histogram, and
-one number from it: **the fraction of links within 2 dB of threshold**. If that
-fraction is near zero, no aggregate metric on that fixture can resolve this
-effect and the sweep should say so instead of running for an hour.
+That points somewhere different from where I first pointed it. The fixture does
+not need replacing and the sweep does not need a precondition that refuses to
+run on it — **the metric needs replacing.** Count per-link outcomes and the
+directions that flipped, not totals over a mesh. Cause 3's paired design is the
+way to do it, and it is now the highest-value item here rather than the third.
 
-For orientation, the Scotland fixture is SF8 at 62.5 kHz with NF 6 dB, which
-puts the noise floor at −120 dBm and sensitivity near −130 dBm. Boosted gain
-moves that to −132. The question is purely how many of the 2074 links live in
-that 2 dB band, and it has an answer we have never computed.
-
-Then promote seed spread from a warning to what it is: **a sensitivity meter
-for the scenario**, reported before the run rather than as an apology after it.
+Report the margin distribution in the Bench anyway, because it says what a given
+scenario can be asked and none of us knew the number until now. But report it as
+context, not as a gate.
 
 ## Cause 5 — the figure we would be measuring is a placeholder
 
@@ -188,16 +196,18 @@ close it properly.
 
 ## What to do, in order
 
+Reordered once cause 4 was measured rather than assumed.
+
 1. **Arm the mechanism and assert it landed.** `set radio.rxgain on` in
    provisioning, plus a precondition check that reads the gain register back
    and fails the cell if the arm's manipulation is not present on the chip.
    Cheapest, and nothing below is meaningful without it.
-2. **Measure the fixture's link-margin distribution**, and report the fraction
-   of links within 2 dB of threshold in the Bench before a sweep runs. This
-   decides whether the rest is worth doing on Scotland or needs a scenario
-   built at the edge.
-3. **Add the paired-run mode** — one channel realisation, receiver varied,
-   flipped receptions counted per link.
+2. **Add the paired-run mode** — one channel realisation, receiver varied,
+   flipped receptions counted per link. Promoted from third: the margin
+   measurement says the effect is visible at link level and destroyed by
+   aggregation, so the metric is the binding constraint, not the scenario.
+3. **Report the margin distribution in the Bench** as context on what a
+   scenario can be asked. Done as `Engine.LinkMargins`; the display is left.
 4. **A mixed fixture with E22 nodes**, so W3 is exercised at all; record the
    T096 gap in `docs/shortcomings.md` rather than implying coverage.
 5. **Sweep `RxBoostedGainImprovementDB`** and quote the effect as a function of
@@ -205,9 +215,8 @@ close it properly.
 6. **Port wb1's `investigate` checks**, of which step 1 is the most valuable
    made mandatory.
 
-Steps 1 and 2 together are small and would have changed the last sweep's
-outcome from "no difference" to either a measured effect or a stated reason
-the fixture cannot show one. Both are better answers than the one we got.
+Steps 1 and 2 together would have changed the last sweep's outcome from "no
+difference" to a measured count of flipped links, which is an answer either way.
 
 ## The thing worth keeping
 
