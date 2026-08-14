@@ -20,6 +20,7 @@ import (
 	"math"
 	"runtime"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -136,6 +137,9 @@ type Engine struct {
 	// during a run, and recomputing a profile per packet per pair is the
 	// difference between a run that takes seconds and one that takes hours.
 	linkCache map[[2]int]float64
+	// classCounts is events by class, kept as they are recorded so the cards
+	// that show them never walk the log.
+	classCounts map[string]int
 
 	// capture, when a run is being recorded to pcapng.
 	capture *Capture
@@ -891,11 +895,52 @@ func (e *Engine) PathLossForTest(a, b int) (float64, bool) { return e.pathLoss(a
 func (e *Engine) record(ev Event) {
 	e.mu.Lock()
 	e.events = append(e.events, ev)
+	if e.classCounts == nil {
+		e.classCounts = map[string]int{}
+	}
+	e.classCounts[EventClass(ev.Kind, ev.Detail)]++
 	l := e.eventLog
 	e.mu.Unlock()
 	if l != nil {
 		l.write(ev)
 	}
+}
+
+// EventClass buckets an event by what happened to it, which is what the
+// interface's cards and filter chips count: a miss lost to the node's own
+// transmitter, a miss lost to a stronger signal, and a miss that was simply
+// too quiet are three different problems with three different fixes.
+func EventClass(kind, detail string) string {
+	switch kind {
+	case "tx":
+		return "sent"
+	case "rx":
+		return "received"
+	}
+	// Prefixes, matching how the details above are written - and not
+	// strings.Contains, which a guard test forbids in this package to keep
+	// region logic out of the channel.
+	switch {
+	case strings.HasPrefix(detail, "its own transmitter"):
+		return "half-duplex"
+	case strings.HasPrefix(detail, "would have decoded"):
+		return "interference"
+	default:
+		return "floor"
+	}
+}
+
+// EventCounts is how many events of each class the run has produced, counted
+// as they are recorded rather than by walking the log - the log is millions
+// on a long run, and the cards asking for these ask every tick.
+func (e *Engine) EventCounts() map[string]int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	out := make(map[string]int, len(e.classCounts))
+	for k, v := range e.classCounts {
+		out[k] = v
+	}
+	return out
 }
 
 // Scoreboard is the per-node summary, ordered worst-value first.

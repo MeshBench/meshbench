@@ -72,7 +72,11 @@ type Snapshot struct {
 	// snapshot is copied on every publish and a long run has millions.
 	Events     []Event
 	EventTotal int
-	Scores     []Score
+	// Counts is the whole run's events by class, for the cards.
+	Counts EventCounts
+	// Packet is the transmission last opened, dissected, or nil.
+	Packet *Packet
+	Scores []Score
 	// Waterfall is the last capture, and WaterfallNote is why there is not
 	// one. An empty waterfall and a broken one look identical, so the reason
 	// travels with the absence.
@@ -245,8 +249,8 @@ type Coverage struct {
 //
 // The frame bytes are deliberately not here. A snapshot is copied on every
 // publish, and a hundred thousand events each carrying a frame is real memory
-// for something only the inspector ever opens; it asks the store for the frame
-// of the one event somebody clicked.
+// for something only the packet view ever opens; it asks the store for the
+// one packet somebody clicked.
 type Event struct {
 	AtMs      uint32
 	Kind      string
@@ -255,6 +259,91 @@ type Event struct {
 	PacketID  uint64
 	SNRdB     float64
 	Detail    string
+	// Class buckets the event for the cards and chips: sent, received,
+	// half-duplex, interference, floor.
+	Class string
+}
+
+// EventCounts is the whole run's events by class, for the cards above the
+// table - counted by the engine as they happen, never by walking the log.
+type EventCounts struct {
+	Sent, Received, HalfDuplex, Interference, Floor int
+}
+
+// Total is every event the run has produced.
+func (c EventCounts) Total() int {
+	return c.Sent + c.Received + c.HalfDuplex + c.Interference + c.Floor
+}
+
+// Packet is one transmission, dissected, with everywhere it went - the view a
+// real capture cannot produce, because no observer is everywhere. Built by
+// packet.open when an event is clicked.
+type Packet struct {
+	ID        uint64
+	MessageID uint64
+	Origin    string
+	AtMs      uint32
+	Heard     int
+	Missed    int
+	// Malformed is the dissection's complaint, empty when the frame parsed.
+	Malformed string
+	// The header, in the dissector's words.
+	RouteType   string
+	PayloadType string
+	Version     string
+	Transport   string
+	// Path is the hop hashes, resolved to node names where the run knows
+	// them - approximate by construction and labelled where it fails.
+	Path []string
+	// PayloadFields are what the payload carries in clear; PayloadNote is
+	// what to say when it carries nothing readable.
+	PayloadFields []PacketField
+	PayloadNote   string
+	// RawLines is the frame as a formatted hex dump, one line per 16 bytes.
+	RawLines []string
+	// Fates is what happened at every node that logged an event for this
+	// packet; Ledger is the radio-level truth for every receiver.
+	Fates  []PacketFate
+	Ledger []PacketReception
+	// Journey follows the message this packet carried across every relay.
+	Journey       []PacketHop
+	Transmissions int
+	Reached       int
+}
+
+// PacketField is one dissected name and value.
+type PacketField struct{ Name, Value string }
+
+// PacketFate is one node's outcome for one packet.
+type PacketFate struct {
+	AtMs  uint32
+	Node  string
+	Kind  string
+	SNRdB float64
+	What  string
+}
+
+// PacketReception is one row of the reception ledger: what one receiver's
+// radio made of one packet, whether or not its firmware ever knew.
+type PacketReception struct {
+	Node     string
+	From     string
+	Offered  bool
+	RSSIdBm  float64
+	SNRdB    float64
+	Demod    bool
+	CRCOK    bool
+	Firmware string // accepted, dropped, never saw it
+}
+
+// PacketHop is one transmission of the followed message.
+type PacketHop struct {
+	AtMs     uint32
+	By       string
+	Hops     int
+	Heard    []string
+	Missed   int
+	PacketID uint64
 }
 
 // ArmSummary is one arm of an experiment, averaged over its seeds.
@@ -547,7 +636,11 @@ type World struct {
 	// Events is the tail of the engine's log; EventTotal counts all of them.
 	Events     []Event
 	EventTotal int
-	Scores     []Score
+	// Counts is the whole run's events by class, for the cards.
+	Counts EventCounts
+	// Packet is the transmission last opened, dissected, or nil.
+	Packet *Packet
+	Scores []Score
 	// Waterfall is the last capture; WaterfallNote is why there is not one.
 	Waterfall     *Coverage
 	WaterfallNote string
@@ -832,6 +925,8 @@ func (s *Store) publish() {
 		// are handed over rather than copied again.
 		Events:            s.world.Events,
 		EventTotal:        s.world.EventTotal,
+		Counts:            s.world.Counts,
+		Packet:            s.world.Packet,
 		Scores:            s.world.Scores,
 		Waterfall:         s.world.Waterfall,
 		WaterfallNote:     s.world.WaterfallNote,

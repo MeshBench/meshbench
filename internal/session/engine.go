@@ -408,9 +408,22 @@ func (s *Sim) eventTail(n int) ([]state.Event, int) {
 			AtMs: e.AtMs, Kind: e.Kind, From: e.From, To: e.To,
 			MessageID: e.MessageID, PacketID: e.PacketID,
 			SNRdB: e.SNRdB, Detail: e.Detail,
+			Class: engine.EventClass(e.Kind, e.Detail),
 		})
 	}
 	return out, total
+}
+
+// eventCounts is the whole run's events by class, in the snapshot's shape.
+func (s *Sim) eventCounts() state.EventCounts {
+	if s.eng == nil {
+		return state.EventCounts{}
+	}
+	c := s.eng.EventCounts()
+	return state.EventCounts{
+		Sent: c["sent"], Received: c["received"], HalfDuplex: c["half-duplex"],
+		Interference: c["interference"], Floor: c["floor"],
+	}
 }
 
 // scores is the engine's own scoreboard, projected.

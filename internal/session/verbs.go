@@ -30,6 +30,7 @@ func Register(st *state.Store, s *Sim) {
 	registerTileCache(st, s)
 	registerTerrainPrefetch(st, s)
 	registerBasemap(st, s)
+	registerPacket(st, s)
 	registerImport(st, s)
 	registerBoundary(st, s)
 	registerPlanningVerbs(st, s)
@@ -120,6 +121,7 @@ func Register(st *state.Store, s *Sim) {
 			}
 			w.Trails = s.trailsSince(from, index)
 			w.Events, w.EventTotal = s.eventTail(eventTail)
+			w.Counts = s.eventCounts()
 			w.Scores = s.scores()
 			w.Stats = s.nodeStats(w.Events)
 			if s.history == nil {
