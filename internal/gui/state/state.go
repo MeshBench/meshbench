@@ -246,6 +246,14 @@ type FirmwareRow struct {
 	// InUse is how many nodes in this scenario run it, so a delete can say
 	// what it would break.
 	InUse int
+	// Unavailable marks a row that exists only because nodes are pinned to
+	// it: nothing on disk, and nothing published this machine could run.
+	//
+	// Without this such a row looks like any other build until somebody tries
+	// to start it, and then vanishes the moment the nodes are repointed -
+	// which reads as the library losing builds rather than as a pin nobody
+	// can honour.
+	Unavailable bool
 }
 
 // Trail is one transmission recently on the air, for the map to fade out.

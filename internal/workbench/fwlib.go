@@ -304,6 +304,8 @@ func (p *firmwarePanel) row(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 	}
 	if w.act.Clicked(gtx) {
 		switch {
+		case r.Unavailable:
+			// Nothing to download and nothing to delete.
 		case !r.OnDisk:
 			if p.OnAction != nil {
 				p.OnAction("firmware.download", map[string]any{
@@ -340,6 +342,13 @@ func (p *firmwarePanel) row(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 	runsAs := "this machine"
 	if r.Board != "" {
 		runsAs = r.Board + " (emulated)"
+	}
+	// A row that exists only because nodes are pinned to it: no file, and
+	// nothing published this machine could fetch. Saying so here is the
+	// difference between "the library lost a build" and "these nodes are
+	// pinned to something that was never built for you".
+	if r.Unavailable {
+		runsAs += " - not published for this machine"
 	}
 	size := "-"
 	if r.OnDisk {
@@ -378,7 +387,11 @@ func (p *firmwarePanel) row(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 						}),
 						cell(fwCols[7].width, func(gtx layout.Context) layout.Dimensions {
 							label, line, ink := "delete", t.P.Rule, t.P.Dim
-							if !r.OnDisk {
+							if r.Unavailable {
+								// Nothing to fetch, so no button that implies
+								// there is.
+								label, ink = "unavailable", t.P.Warn
+							} else if !r.OnDisk {
 								label, ink = "get", t.P.Accent
 							} else if p.confirm == key {
 								label, line, ink = "sure?", t.P.Bad, t.P.Bad

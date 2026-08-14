@@ -3,6 +3,7 @@ package firmware
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -277,24 +278,57 @@ func (c *NativeCatalogue) Ensure(ctx context.Context, role, version string) (str
 			"Already-downloaded firmware keeps working without it", err)
 	}
 
-	var roles []string
+	// Three things worth knowing when this fails, and the old message gave
+	// none of them: whether the version exists at all, which platforms it was
+	// built for, and which versions of this role *do* run here. It used to
+	// answer with the roles published for the version while ignoring the
+	// platform - so a Mac was told "has no simple_repeater build for
+	// darwin-arm64; it publishes simple_repeater", which names the one thing
+	// that was not missing.
+	var roles, platforms, hereVersions []string
 	for _, img := range images {
+		if img.Role == role && img.ForThisMachine() {
+			if img.Version == version {
+				return c.Fetch(ctx, img)
+			}
+			if !contains(hereVersions, img.Version) {
+				hereVersions = append(hereVersions, img.Version)
+			}
+		}
 		if img.Version != version {
 			continue
 		}
 		if !contains(roles, img.Role) {
 			roles = append(roles, img.Role)
 		}
-		if img.Role == role && img.ForThisMachine() {
-			return c.Fetch(ctx, img)
+		if img.Role == role {
+			if p := img.OS + "-" + img.Arch; !contains(platforms, p) {
+				platforms = append(platforms, p)
+			}
 		}
 	}
 	if len(roles) == 0 {
 		return "", fmt.Errorf("firmware: no native builds published for MeshCore %s", version)
 	}
 	sort.Strings(roles)
-	return "", fmt.Errorf("firmware: MeshCore %s has no %s build for %s-%s; it publishes %s",
-		version, role, runtime.GOOS, runtime.GOARCH, strings.Join(roles, ", "))
+	sort.Strings(platforms)
+	sort.Strings(hereVersions)
+
+	here := runtime.GOOS + "-" + runtime.GOARCH
+	if len(platforms) == 0 {
+		return "", fmt.Errorf(
+			"firmware: MeshCore %s publishes no %s build at all (it has %s); "+
+				"this machine is %s", version, role, strings.Join(roles, ", "), here)
+	}
+	msg := fmt.Sprintf("firmware: MeshCore %s has a %s build for %s, but not for %s",
+		version, role, strings.Join(platforms, ", "), here)
+	if len(hereVersions) > 0 {
+		msg += fmt.Sprintf("; %s does run here as %s",
+			role, strings.Join(hereVersions, ", "))
+	} else {
+		msg += fmt.Sprintf("; no version of %s is published for %s yet", role, here)
+	}
+	return "", errors.New(msg)
 }
 
 // fetchDirect downloads a release asset by its predictable URL.

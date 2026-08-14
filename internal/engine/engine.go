@@ -220,6 +220,37 @@ func (e *Engine) Nodes() []*Node {
 	return out
 }
 
+// PinFirmware changes which build a node will run the next time it starts,
+// and reports how many nodes it changed.
+//
+// This exists because the engine keeps its own copy of every node's spec,
+// taken when the network was built. A pin set anywhere else - the library
+// panel, the control socket, a script - lands in the session's scenario and
+// in what the interface draws, and the two of them agreed with each other
+// while disagreeing with the copy that actually starts processes. The symptom
+// was a library saying 273 nodes run v1.17.1 and a start that asked for
+// v1.17.0, which sends whoever sees it looking in the catalogue rather than
+// at the pin.
+//
+// A node that is already running keeps running what it started with; the pin
+// applies at its next start, which is what "will run next time" means.
+func (e *Engine) PinFirmware(name, version string) int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	n := 0
+	for _, nd := range e.nodes {
+		if name != "" && nd.Spec.Name != name {
+			continue
+		}
+		if nd.Spec.Firmware.Version == version {
+			continue
+		}
+		nd.Spec.Firmware.Version = version
+		n++
+	}
+	return n
+}
+
 // Events is everything that has happened, in order.
 // EventCount is the ledger length, for callers deciding whether to resnapshot.
 func (e *Engine) EventCount() int {

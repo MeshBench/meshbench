@@ -116,14 +116,31 @@ func registerFirmwareLibrary(st *state.Store, s *Sim) {
 		w.Jobs = append(w.Jobs, state.Job{
 			ID: id, What: "downloading " + role + " " + version, Total: 1})
 		go func() {
-			err := downloadBuild(context.Background(), role, version, board)
+			ctx := context.Background()
+			what := "downloading " + role + " " + version
+			// Bytes rather than one step: the job used to sit at 0 of 1 until
+			// the file landed, which on a slow link is what a stall looks
+			// like. Reported per whole percent by the catalogue.
+			err := downloadBuildProgress(ctx, role, version, board,
+				func(got, total int64) {
+					_, _ = st.Do(ctx, "job.progress", state.Job{
+						ID: id, What: what,
+						Done: int(got / 1024), Total: int(total / 1024),
+					})
+				})
 			done := "downloaded " + role + " " + version
 			if err != nil {
 				done = "download failed: " + err.Error()
 			}
-			_, _ = st.Do(context.Background(), "job.progress", state.Job{
+			_, _ = st.Do(ctx, "job.progress", state.Job{
 				ID: id, What: done, Done: 1, Total: 1, Finished: true})
-			_, _ = st.Do(context.Background(), "firmware.installed", nil)
+			// Both lists: what is installed, and the library the panel draws.
+			// Only the first was refreshed, so a finished download left the
+			// row saying "not downloaded" until something else happened to
+			// rebuild it - which is why downloading looked like it did
+			// nothing at all.
+			_, _ = st.Do(ctx, "firmware.installed", nil)
+			_, _ = st.Do(ctx, "firmware.library", nil)
 		}()
 		return map[string]any{"downloading": true, "role": role, "version": version}, nil
 	})
@@ -235,6 +252,13 @@ func registerFirmwareLibrary(st *state.Store, s *Sim) {
 				continue
 			}
 			s.nodes[i].Firmware.Version = version
+			// And the engine, which holds its own copy of every spec and is
+			// the one that actually starts a process. Without this the
+			// library, the row and the message all agree with each other and
+			// the run asks for whatever the network was opened with.
+			if s.eng != nil {
+				s.eng.PinFirmware(s.nodes[i].Name, version)
+			}
 			n++
 		}
 		for i := range w.Nodes {
@@ -277,9 +301,15 @@ func registerFirmwareLibrary(st *state.Store, s *Sim) {
 
 // downloadBuild fetches one build into the cache.
 func downloadBuild(ctx context.Context, role, version, board string) error {
+	return downloadBuildProgress(ctx, role, version, board, nil)
+}
+
+func downloadBuildProgress(ctx context.Context, role, version, board string,
+	onProgress func(done, total int64),
+) error {
 	cache := firmware.DefaultCacheDir()
 	if board != "" {
-		bc := &firmware.BoardCatalogue{CacheDir: cache}
+		bc := &firmware.BoardCatalogue{CacheDir: cache, OnProgress: onProgress}
 		imgs, err := bc.List(ctx, version)
 		if err != nil {
 			return err
@@ -412,8 +442,10 @@ func (s *Sim) fillLibrary(w *state.World) {
 	// What is published for this machine, from the cache rather than the
 	// network: a library that can only be read online is no use to
 	// somebody about to work without it.
+	published := map[string]bool{}
 	for _, img := range s.publishedBuilds() {
 		add(img.role, img.version, img.board)
+		published[key(img.role, img.version, img.board)] = true
 	}
 	// What the scenario is running, so a row can say what deleting it
 	// would break.
@@ -431,6 +463,11 @@ func (s *Sim) fillLibrary(w *state.World) {
 	}
 	out := make([]state.FirmwareRow, 0, len(rows))
 	for _, r := range rows {
+		// Nothing on disk and nothing published for this machine, yet nodes
+		// point at it: the scenario is asking for a build nobody here can
+		// run, and the row should say so rather than wait to be discovered
+		// at start time.
+		r.Unavailable = !r.OnDisk && !published[key(r.Role, r.Version, r.Board)]
 		out = append(out, *r)
 	}
 	// In use first, then what is here, then the rest: the order somebody

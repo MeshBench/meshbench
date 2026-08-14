@@ -204,6 +204,10 @@ func (s *Sim) setFirmware(name, version string) error {
 	for i := range s.nodes {
 		if s.nodes[i].Name == name {
 			s.nodes[i].Firmware.Version = version
+			// The engine keeps its own copy; see Engine.PinFirmware.
+			if s.eng != nil {
+				s.eng.PinFirmware(name, version)
+			}
 			return nil
 		}
 	}

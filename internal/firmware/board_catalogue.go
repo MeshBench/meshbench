@@ -97,7 +97,12 @@ func ParseAssetName(name string) (BoardImage, bool) {
 //
 // Same source as the flasher, and the same source NativeCatalogue already
 // talks to, so a machine that can reach one can reach the other.
+// OnProgress, when set, is called as bytes arrive so a download can show a
+// bar rather than a single step that sits at zero until it finishes. A 1.2 MB
+// image over a slow link is otherwise indistinguishable from a stall.
 type BoardCatalogue struct {
+	OnProgress func(done, total int64)
+
 	// Repo is owner/name; empty means MeshCore's own.
 	Repo string
 	HTTP Doer
@@ -299,7 +304,11 @@ func (c *BoardCatalogue) Ensure(ctx context.Context, img BoardImage) (string, er
 	if err != nil {
 		return "", err
 	}
-	if _, err := io.Copy(f, body); err != nil {
+	var src io.Reader = body
+	if c.OnProgress != nil && img.Bytes > 0 {
+		src = &countingReader{r: body, total: img.Bytes, report: c.OnProgress}
+	}
+	if _, err := io.Copy(f, src); err != nil {
 		_ = f.Close()
 		_ = os.Remove(tmp)
 		return "", err
@@ -338,4 +347,27 @@ func (c *BoardCatalogue) get(ctx context.Context, url, accept string) (io.ReadCl
 		return nil, fmt.Errorf("%s returned %s", url, resp.Status)
 	}
 	return resp.Body, nil
+}
+
+// countingReader reports as it goes, throttled to whole percent so a slow
+// link does not spend its time posting verbs instead of reading bytes.
+type countingReader struct {
+	r      io.Reader
+	total  int64
+	done   int64
+	lastPc int
+	report func(done, total int64)
+}
+
+func (c *countingReader) Read(p []byte) (int, error) {
+	n, err := c.r.Read(p)
+	c.done += int64(n)
+	if c.total > 0 {
+		pc := int(c.done * 100 / c.total)
+		if pc != c.lastPc {
+			c.lastPc = pc
+			c.report(c.done, c.total)
+		}
+	}
+	return n, err
 }
