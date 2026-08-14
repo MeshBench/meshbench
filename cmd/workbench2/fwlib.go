@@ -262,16 +262,14 @@ func (p *firmwarePanel) tabRow(t *theme.Theme, gtx layout.Context, nAll, nDisk, 
 
 func (p *firmwarePanel) colHeads(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 	var kids []layout.FlexChild
-	for i, c := range fwCols {
+	for _, c := range fwCols {
 		c := c
-		if i == len(fwCols)-1 {
-			kids = append(kids, layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint, c.label)))
-			break
-		}
 		kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			w := gtx.Dp(unitDp(c.width))
 			gtx.Constraints.Min.X, gtx.Constraints.Max.X = w, w
-			return comp.Text(t, t.Sz.Caption, t.P.Faint, c.label)(gtx)
+			d := comp.Text(t, t.Sz.Caption, t.P.Faint, c.label)(gtx)
+			d.Size.X = w
+			return d
 		}))
 	}
 	return layout.Inset{Top: t.Sp.XS, Bottom: t.Sp.XS}.Layout(gtx,
@@ -321,7 +319,12 @@ func (p *firmwarePanel) row(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 		return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			px := gtx.Dp(unitDp(width))
 			gtx.Constraints.Min.X, gtx.Constraints.Max.X = px, px
-			return wgt(gtx)
+			d := wgt(gtx)
+			// The column owns its width whatever the content drew: a tick is
+			// twelve pixels, and without this everything after it slides left
+			// and stops lining up with the headers.
+			d.Size.X = px
+			return d
 		})
 	}
 	runsAs := "this machine"

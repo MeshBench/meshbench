@@ -228,7 +228,9 @@ func (p *eventsPanel) headerRow(t *theme.Theme, gtx layout.Context) layout.Dimen
 	cell := func(w int, label string) layout.FlexChild {
 		return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min.X, gtx.Constraints.Max.X = w, w
-			return comp.Text(t, t.Sz.Caption, t.P.Faint, label)(gtx)
+			d := comp.Text(t, t.Sz.Caption, t.P.Faint, label)(gtx)
+			d.Size.X = w
+			return d
 		})
 	}
 	kids := []layout.FlexChild{
@@ -277,7 +279,9 @@ func (p *eventsPanel) table(t *theme.Theme, gtx layout.Context, shown []*state.E
 				cell := func(w int, wgt layout.Widget) layout.FlexChild {
 					return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						gtx.Constraints.Min.X, gtx.Constraints.Max.X = w, w
-						return wgt(gtx)
+						d := wgt(gtx)
+						d.Size.X = w
+						return d
 					})
 				}
 				kids := []layout.FlexChild{
