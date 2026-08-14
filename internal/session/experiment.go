@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -172,6 +173,20 @@ func varied(base ExpArm, param, v string) (ExpArm, string, error) {
 	return arm, "", fmt.Errorf("cannot vary %q; there is: %s", param, strings.Join(have, ", "))
 }
 
+// padTo brings a message up to a stated size, or leaves it alone when the size
+// is zero or already past it.
+//
+// Airtime scales with payload and airtime is what collides, so the size of the
+// thing being flooded is part of the experiment rather than a detail of it.
+// Padded with dots rather than spaces: a run of spaces in a console is
+// indistinguishable from a message that ended.
+func padTo(text string, size int) string {
+	if size <= 0 || len(text) >= size {
+		return text
+	}
+	return text + strings.Repeat(".", size-len(text))
+}
+
 // bareVersion is a build name with its role and its v stripped, because an arm
 // column headed "repeater-v1.17.0 · 1-byte" spends most of its width on the two
 // things every arm in the sweep has in common.
@@ -204,6 +219,11 @@ type ExpResult struct {
 	// that measured nothing is distinguishable from one that ran.
 	Firmware int    `json:"firmware"`
 	Err      string `json:"err,omitempty"`
+
+	// PerSecond is receptions in each second after the burst. The shape of a
+	// flood, rather than its total: one clean wave and a long tail of retries
+	// deliver the same count and are not the same network.
+	PerSecond []int `json:"per_second,omitempty"`
 }
 
 // experiment is the matrix and what has come back from it.
@@ -215,7 +235,17 @@ type experiment struct {
 	RunForMs uint32   `json:"run_for_ms"`
 	SendAtMs uint32   `json:"send_at_ms"`
 
+	// SpreadMs staggers the senders across the burst instead of firing them on
+	// one instant. Zero is all at once, which is the sharpest test of
+	// contention and the least like anything real.
+	SpreadMs uint32 `json:"spread_ms"`
+	// Bytes pads the message. Airtime scales with payload and airtime is what
+	// collides, so a one-byte label and a full message are different
+	// experiments. Zero sends the label alone.
+	Bytes int `json:"bytes"`
+
 	running bool
+	paused  bool
 	cancel  context.CancelFunc
 	results []ExpResult
 	log     []string
@@ -282,6 +312,12 @@ func registerExperiment(st *state.Store, s *Sim) {
 		}
 		if v, ok := numField(p, "send_at_ms"); ok && v > 0 {
 			e.SendAtMs = uint32(v)
+		}
+		if v, ok := numField(p, "spread_ms"); ok && v >= 0 {
+			e.SpreadMs = uint32(v)
+		}
+		if v, ok := numField(p, "bytes"); ok && v >= 0 {
+			e.Bytes = int(v)
 		}
 		return e.describe(), nil
 	})
@@ -466,17 +502,27 @@ func registerExperiment(st *state.Store, s *Sim) {
 		}
 		w.Experiment = w.Experiment[:0]
 		for _, m := range sums {
+			arm := m["arm"].(string)
 			w.Experiment = append(w.Experiment, state.ArmSummary{
-				Arm:       m["arm"].(string),
+				Arm:       arm,
 				Runs:      m["runs"].(int),
 				TX:        m["tx"].(float64),
 				RX:        m["rx"].(float64),
 				Delivered: m["delivered"].(float64),
 				Redundant: m["redundant"].(float64),
+				Collided:  m["collisions"].(float64),
+				AirtimeMs: m["airtime_ms"].(float64),
 				RXSpread:  m["rx_spread"].(float64),
+				PerSecond: e.perSecondFor(arm),
 			})
 		}
+		w.ExperimentRuns = e.runRows()
 		w.ExperimentWarning = warn
+		if len(e.results) >= e.runsTotal() && e.runsTotal() > 0 && !e.running {
+			w.ExperimentVerdict = e.verdict()
+		} else {
+			w.ExperimentVerdict = ""
+		}
 		return out, nil
 	})
 
@@ -537,10 +583,22 @@ func registerExperiment(st *state.Store, s *Sim) {
 	})
 }
 
+// armLabels is what was defined, said back. A count of arms is not enough to
+// tell a cross that worked from one that quietly produced the wrong six.
+func (e *experiment) armLabels() []string {
+	out := make([]string, 0, len(e.Arms))
+	for _, a := range e.Arms {
+		out = append(out, a.Label)
+	}
+	return out
+}
+
 func (e *experiment) describe() map[string]any {
 	return map[string]any{
 		"arms": len(e.Arms), "seeds": len(e.Seeds), "senders": len(e.Senders),
 		"runs": e.runsTotal(), "run_for_ms": e.RunForMs, "send_at_ms": e.SendAtMs,
+		"spread_ms": e.SpreadMs, "bytes": e.Bytes,
+		"arm_labels": e.armLabels(),
 	}
 }
 
@@ -580,7 +638,146 @@ func (e *experiment) notAResultYet() string {
 					"deltas as unbounded.", sum["arm"])
 		}
 	}
+
+	// And the comparison that decides whether any of it is a result: the seeds
+	// disagreeing among themselves by more than the arms disagree with each
+	// other means the difference on the table is inside the noise, whatever
+	// its sign.
+	if spread, between, ok := e.spreadAgainstBetween(); ok && spread >= between {
+		return fmt.Sprintf(
+			"the seeds disagree by more than the arms do on receptions "+
+				"(±%.1f%% within an arm, %.1f%% between them) - add repeats",
+			spread*100, between*100)
+	}
 	return ""
+}
+
+// perSecondFor sums one arm's histograms across its seeds.
+//
+// Summed rather than averaged, and every arm drawn on one scale afterwards:
+// what is being compared is the shape, and a per-panel scale would flatten the
+// arm that delivered least into looking identical to the one that delivered
+// most.
+func (e *experiment) perSecondFor(arm string) []int {
+	var out []int
+	for _, r := range e.results {
+		if r.Arm != arm {
+			continue
+		}
+		for i, v := range r.PerSecond {
+			if i >= len(out) {
+				out = append(out, make([]int, i-len(out)+1)...)
+			}
+			out[i] += v
+		}
+	}
+	return out
+}
+
+// runRows is every cell of the matrix and where it has got to.
+//
+// Results are positional - arm outer, seed inner, in the order they were
+// defined - so the cell after the last result is the one running now.
+func (e *experiment) runRows() []state.RunRow {
+	var out []state.RunRow
+	done := len(e.results)
+	i := 0
+	for _, arm := range e.Arms {
+		for _, seed := range e.Seeds {
+			row := state.RunRow{Arm: arm.Label, Seed: seed, State: "queued"}
+			switch {
+			case i < done:
+				r := e.results[i]
+				row.State = "done"
+				row.Result = fmt.Sprintf("%d tx  %d rx  %d delivered",
+					r.TX, r.RX, r.Delivered)
+				if r.Err != "" {
+					row.State, row.Result = "failed", r.Err
+				}
+			case i == done && e.running:
+				row.State = "running"
+			}
+			out = append(out, row)
+			i++
+		}
+	}
+	return out
+}
+
+// verdict is what the sweep found, in one line, once it has finished.
+//
+// It exists because a table of numbers is not an answer, and because the
+// answer is usually "nothing changed" - which somebody reading six columns of
+// small percentages will not conclude on their own, and will instead read as a
+// small change.
+func (e *experiment) verdict() string {
+	sums := e.summarise()
+	if len(sums) < 2 {
+		return ""
+	}
+	base := sums[0]
+	spread, _, _ := e.spreadAgainstBetween()
+
+	// Every metric here is one where less is better, except delivery.
+	metrics := []struct {
+		key, said string
+	}{
+		{"rx", "receptions"},
+		{"tx", "transmissions"},
+		{"collisions", "collisions"},
+		{"airtime_ms", "airtime"},
+		{"delivered", "unique deliveries"},
+		{"redundant", "redundant relays"},
+	}
+	biggest, what, which := 0.0, "", ""
+	for _, s := range sums[1:] {
+		for _, m := range metrics {
+			ref, _ := base[m.key].(float64)
+			got, _ := s[m.key].(float64)
+			if ref == 0 {
+				continue
+			}
+			d := (got - ref) / ref
+			if math.Abs(d) > math.Abs(biggest) {
+				biggest, what, which = d, m.said, s["arm"].(string)
+			}
+		}
+	}
+	switch {
+	case what == "" || math.Abs(biggest) < 0.005:
+		return "No difference. Every arm produced the same numbers."
+	case math.Abs(biggest) <= spread:
+		return fmt.Sprintf(
+			"No difference worth reporting: the largest change, %s on %s by %+.1f%%, "+
+				"is inside the ±%.1f%% the seeds vary by on their own.",
+			what, which, biggest*100, spread*100)
+	default:
+		return fmt.Sprintf("%s changed %s by %+.1f%%, against a seed spread of ±%.1f%%.",
+			which, what, biggest*100, spread*100)
+	}
+}
+
+// spreadAgainstBetween is the worst arm's seed spread, and how far apart the
+// arms' own means are. Both as fractions, so they can be compared.
+func (e *experiment) spreadAgainstBetween() (spread, between float64, ok bool) {
+	sums := e.summarise()
+	if len(sums) < 2 {
+		return 0, 0, false
+	}
+	lo, hi := math.Inf(1), math.Inf(-1)
+	for _, s := range sums {
+		rx, _ := s["rx"].(float64)
+		lo, hi = math.Min(lo, rx), math.Max(hi, rx)
+		sp, _ := s["rx_spread"].(float64)
+		spread = math.Max(spread, sp)
+	}
+	if hi <= 0 {
+		return 0, 0, false
+	}
+	// Normalised by the largest mean rather than by the smallest or the
+	// average: it is the conservative choice, and makes the between-arm figure
+	// harder to clear rather than easier.
+	return spread, (hi - lo) / hi, true
 }
 
 func (e *experiment) summarise() []map[string]any {
@@ -619,11 +816,18 @@ func (e *experiment) summarise() []map[string]any {
 
 // spreadOf is the range of receptions across seeds, which is what says whether
 // a difference between arms is bigger than the noise within one.
+// spreadOf is how much the seeds of one arm disagree, as a fraction of that
+// arm's mean: half the range, so it reads as the ± either side of the middle.
+//
+// A fraction rather than a count of receptions, because it exists to be
+// compared against the difference between arms, and that comparison is
+// meaningless in absolute terms - twelve receptions is noise on a national
+// flood and the whole result on a valley.
 func spreadOf(rs []ExpResult) float64 {
 	if len(rs) < 2 {
 		return 0
 	}
-	lo, hi := float64(rs[0].RX), float64(rs[0].RX)
+	lo, hi, sum := float64(rs[0].RX), float64(rs[0].RX), 0.0
 	for _, r := range rs {
 		v := float64(r.RX)
 		if v < lo {
@@ -632,8 +836,13 @@ func spreadOf(rs []ExpResult) float64 {
 		if v > hi {
 			hi = v
 		}
+		sum += v
 	}
-	return hi - lo
+	mean := sum / float64(len(rs))
+	if mean == 0 {
+		return 0
+	}
+	return (hi - lo) / 2 / mean
 }
 
 var _ = time.Now

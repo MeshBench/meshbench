@@ -2,10 +2,12 @@ package workbench
 
 import (
 	"fmt"
+	"image/color"
 	"sort"
 	"strconv"
 
 	"gioui.org/layout"
+	"gioui.org/unit"
 
 	"github.com/MeshBench/meshbench/internal/gui/comp"
 	"github.com/MeshBench/meshbench/internal/gui/state"
@@ -527,8 +529,16 @@ type sweepControls struct {
 	// each frame is a widget that never registers a press.
 	armRm map[string]*comp.Button
 
-	// senderName is the companion picked; empty until one is.
-	senderName string
+	// senders are the companions that will originate. A list, not one name:
+	// a single originator makes every seed of an arm return the same numbers,
+	// so the seed cannot bound the noise and no difference between arms has
+	// anything to be called larger than.
+	senders   []string
+	senderRm  map[string]*comp.Button
+	allSend   comp.Button
+	noneSend  comp.Button
+	spreadFld comp.Field
+	bytesFld  comp.Field
 
 	seeds  comp.Field
 	runFor comp.Field
@@ -591,6 +601,13 @@ func (c *sweepControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 		c.addArm.Label, c.addArm.Value = "arms: repeater firmware to compare", "add an arm..."
 		c.sender.Label, c.sender.Value = "sender", "choose a companion..."
 		c.armRm = map[string]*comp.Button{}
+		c.senderRm = map[string]*comp.Button{}
+		c.allSend.Label, c.allSend.Kind = "all", comp.Quiet
+		c.noneSend.Label, c.noneSend.Kind = "none", comp.Quiet
+		c.spreadFld.Hint = "fired N s apart (0 = together)"
+		c.bytesFld.Hint = "message size, bytes (0 = a short label)"
+		c.spreadFld.Editor.SingleLine = true
+		c.bytesFld.Editor.SingleLine = true
 		c.define.Label, c.define.Kind = "define", comp.Secondary
 		c.start.Label, c.start.Kind = "run it", comp.Primary
 		c.stop.Label, c.stop.Kind = "stop", comp.Destructive
@@ -628,7 +645,12 @@ func (c *sweepControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 				return
 			}
 			c.choose("Who sends?", opts, func(picked string) {
-				c.senderName, c.sender.Value = picked, picked
+				for _, n := range c.senders {
+					if n == picked {
+						return
+					}
+				}
+				c.senders = append(c.senders, picked)
 			})
 		}
 		c.built = true
@@ -663,9 +685,21 @@ func (c *sweepControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 			asked++
 			c.do("experiment.seeds", map[string]any{"seeds": ss})
 		}
-		if c.senderName != "" {
+		if len(c.senders) > 0 {
 			asked++
-			c.do("experiment.senders", map[string]any{"senders": []any{c.senderName}})
+			var ns []any
+			for _, n := range c.senders {
+				ns = append(ns, n)
+			}
+			c.do("experiment.senders", map[string]any{"senders": ns})
+		}
+		if v, ok := num(&c.spreadFld); ok {
+			asked++
+			c.do("experiment.define", map[string]any{"spread_ms": v * 1000})
+		}
+		if v, ok := num(&c.bytesFld); ok && v > 0 {
+			asked++
+			c.do("experiment.define", map[string]any{"bytes": v})
 		}
 		if v, ok := num(&c.runFor); ok {
 			asked++
@@ -695,8 +729,22 @@ func (c *sweepControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 		}
 	}
 
+	for i := 0; i < len(c.senders); i++ {
+		b := c.senderRm[c.senders[i]]
+		if b != nil && b.Click.Clicked(gtx) {
+			c.senders = append(c.senders[:i], c.senders[i+1:]...)
+			i--
+		}
+	}
+	if c.allSend.Click.Clicked(gtx) {
+		c.senders = companionsIn(c.snap)
+	}
+	if c.noneSend.Click.Clicked(gtx) {
+		c.senders = nil
+	}
+
 	bar := actionBar{
-		fields:  []*comp.Field{&c.seeds, &c.runFor},
+		fields:  []*comp.Field{&c.seeds, &c.runFor, &c.spreadFld, &c.bytesFld},
 		buttons: []*comp.Button{&c.define, &c.start, &c.stop, &c.export},
 		note: "a message is originated by a companion, so the sender has to be " +
 			"one; two seeds that agree exactly are one draw repeated, not a spread",
@@ -709,9 +757,24 @@ func (c *sweepControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return c.armList(t, gtx) }),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Top: t.Sp.S, Bottom: t.Sp.S}.Layout(gtx,
+			return layout.Inset{Top: t.Sp.S}.Layout(gtx,
 				func(gtx layout.Context) layout.Dimensions { return c.sender.Layout(t, gtx) })
 		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Top: t.Sp.XS, Bottom: t.Sp.XS}.Layout(gtx,
+				func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return c.allSend.Layout(t, gtx)
+						}),
+						layout.Rigid(layout.Spacer{Width: t.Sp.S}.Layout),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return c.noneSend.Layout(t, gtx)
+						}),
+					)
+				})
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return c.senderList(t, gtx) }),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return bar.layout(t, gtx) }),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return c.estimate(t, gtx) }),
 	)
@@ -746,6 +809,36 @@ func (c *sweepControls) armList(t *theme.Theme, gtx layout.Context) layout.Dimen
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
+// senderList draws who will originate, each with a way to take them off.
+func (c *sweepControls) senderList(t *theme.Theme, gtx layout.Context) layout.Dimensions {
+	if len(c.senders) == 0 {
+		// Red rather than grey: a sweep with no sender runs every cell and
+		// measures nothing, and it is the easiest thing here to forget.
+		return comp.OneLine(t, t.Sz.Caption, t.P.Bad,
+			"nobody sends: every cell would run and measure nothing", false)(gtx)
+	}
+	children := make([]layout.FlexChild, 0, len(c.senders))
+	for _, n := range c.senders {
+		n := n
+		if c.senderRm[n] == nil {
+			c.senderRm[n] = &comp.Button{Label: "x", Kind: comp.Quiet}
+		}
+		b := c.senderRm[n]
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return b.Layout(t, gtx)
+					}),
+					layout.Rigid(layout.Spacer{Width: t.Sp.S}.Layout),
+					layout.Flexed(1, comp.OneLine(t, t.Sz.Body, t.P.Ink, n, false)),
+				)
+			})
+		}))
+	}
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+}
+
 // estimate says what pressing "run it" is about to cost, before it is pressed.
 func (c *sweepControls) estimate(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 	seeds := len(splitFields(fieldText(&c.seeds)))
@@ -770,6 +863,40 @@ func roughDuration(secs int) string {
 	return fmt.Sprintf("%dm%02ds", secs/60, secs%60)
 }
 
+// armCol is one column of the matrix.
+//
+// Better says which way is good, because it decides the colour of a delta and
+// getting it backwards makes a regression look like a win. Most of these are
+// costs - transmissions, collisions, airtime - where less is better, which is
+// the opposite of the convention most tables use.
+type armCol struct {
+	title  string
+	width  int
+	value  func(state.ArmSummary) float64
+	unit   string
+	better int // -1 less is better, +1 more is better, 0 no delta
+}
+
+var armCols = []armCol{
+	{title: "arm", width: 230},
+	{title: "runs", width: 60,
+		value: func(a state.ArmSummary) float64 { return float64(a.Runs) }},
+	{title: "tx", width: 90, better: -1,
+		value: func(a state.ArmSummary) float64 { return a.TX }},
+	{title: "rx", width: 90, better: +1,
+		value: func(a state.ArmSummary) float64 { return a.RX }},
+	{title: "delivered", width: 100, better: +1,
+		value: func(a state.ArmSummary) float64 { return a.Delivered }},
+	{title: "redundant", width: 100, better: -1,
+		value: func(a state.ArmSummary) float64 { return a.Redundant }},
+	{title: "collisions", width: 100, better: -1,
+		value: func(a state.ArmSummary) float64 { return a.Collided }},
+	{title: "airtime", width: 100, unit: " s", better: -1,
+		value: func(a state.ArmSummary) float64 { return a.AirtimeMs / 1000 }},
+	{title: "seed spread", width: 110,
+		value: func(a state.ArmSummary) float64 { return a.RXSpread * 100 }, unit: "%"},
+}
+
 // sweepResults is what the arms came back with, and whether it is a result.
 type sweepResults struct {
 	tb    comp.Table
@@ -779,37 +906,8 @@ type sweepResults struct {
 }
 
 func (p *sweepResults) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
-	if !p.init {
-		p.tb.Cols = []comp.Column{
-			{Title: "arm", Width: 190, Sortable: true},
-			{Title: "runs", Width: 60, Right: true, Mono: true},
-			{Title: "tx", Width: 90, Right: true, Mono: true, Sortable: true},
-			{Title: "rx", Width: 90, Right: true, Mono: true, Sortable: true},
-			{Title: "delivered", Width: 100, Right: true, Mono: true},
-			{Title: "redundant", Width: 100, Right: true, Mono: true},
-			{Title: "rx spread", Right: true, Mono: true},
-		}
-		p.tb.SortCol, p.tb.SortDesc = 2, true
-		p.init = true
-	}
 	if s == nil {
 		return layout.Dimensions{}
-	}
-	if !p.shown || s.Seq != p.seq {
-		rows := make([]comp.Row, 0, len(s.Experiment))
-		for _, a := range s.Experiment {
-			rows = append(rows, comp.Row{
-				Key: a.Arm,
-				Cells: []string{
-					a.Arm, fmt.Sprintf("%d", a.Runs),
-					fmt.Sprintf("%.1f", a.TX), fmt.Sprintf("%.1f", a.RX),
-					fmt.Sprintf("%.1f", a.Delivered), fmt.Sprintf("%.1f", a.Redundant),
-					fmt.Sprintf("%.0f", a.RXSpread),
-				},
-			})
-		}
-		p.tb.SetRows(rows)
-		p.seq, p.shown = s.Seq, true
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -819,16 +917,104 @@ func (p *sweepResults) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 			// Said above the numbers, not below them: a warning underneath a
 			// table is read after somebody has already believed it.
 			return layout.Inset{Bottom: t.Sp.S}.Layout(gtx,
-				comp.OneLine(t, t.Sz.Body, t.P.Warn, "not a result yet: "+s.ExperimentWarning, false))
+				comp.OneLine(t, t.Sz.Body, t.P.Warn,
+					"not a result yet: "+s.ExperimentWarning, false))
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if s.ExperimentVerdict == "" {
+				return layout.Dimensions{}
+			}
+			return layout.Inset{Bottom: t.Sp.S}.Layout(gtx,
+				comp.OneLine(t, t.Sz.Body, t.P.Ink, s.ExperimentVerdict, false))
 		}),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			if len(s.Experiment) == 0 {
 				return layout.Center.Layout(gtx, comp.Text(t, t.Sz.Caption, t.P.Faint,
 					"define arms and seeds above, then run it"))
 			}
-			return p.tb.Layout(t, gtx, func(string) {})
+			return p.matrix(t, gtx, s)
 		}),
 	)
+}
+
+// matrix draws the arms against the first of them.
+//
+// Every cell but the baseline's shows only how far it moved, because that is
+// the question: six columns of absolute figures make the reader do the
+// subtraction, and they do it on the two arms that happen to be adjacent.
+func (p *sweepResults) matrix(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+	base := s.Experiment[0]
+
+	cell := func(text string, colour color.NRGBA, w int, mono bool) layout.FlexChild {
+		return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			px := gtx.Dp(unit.Dp(w))
+			gtx.Constraints.Min.X, gtx.Constraints.Max.X = px, px
+			d := comp.OneLine(t, t.Sz.Body, colour, text, mono)(gtx)
+			// Forced to the declared width: a cell that measures itself slides
+			// every column after it out from under its own header.
+			d.Size.X = px
+			return d
+		})
+	}
+
+	children := []layout.FlexChild{
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			head := make([]layout.FlexChild, 0, len(armCols))
+			for _, c := range armCols {
+				head = append(head, cell(c.title, t.P.Dim, c.width, false))
+			}
+			return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, head...)
+		}),
+		layout.Rigid(layout.Spacer{Height: t.Sp.XS}.Layout),
+		layout.Rigid(comp.HRule(t)),
+		layout.Rigid(layout.Spacer{Height: t.Sp.XS}.Layout),
+	}
+
+	for i, a := range s.Experiment {
+		i, a := i, a
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			row := make([]layout.FlexChild, 0, len(armCols))
+			for _, c := range armCols {
+				switch {
+				case c.value == nil:
+					row = append(row, cell(a.Arm, t.P.Ink, c.width, false))
+				case i == 0 || c.better == 0:
+					row = append(row, cell(
+						fmt.Sprintf("%.0f%s", c.value(a), c.unit), t.P.Ink, c.width, true))
+				default:
+					ref := c.value(base)
+					if ref == 0 {
+						row = append(row, cell(
+							fmt.Sprintf("%.0f%s", c.value(a), c.unit), t.P.Ink, c.width, true))
+						continue
+					}
+					d := (c.value(a) - ref) / ref * 100
+					colour := t.P.Dim
+					switch {
+					case d > 0.5:
+						colour = t.P.Bad
+					case d < -0.5:
+						colour = t.P.Good
+					}
+					// Flipped where more is the good direction. Without this a
+					// firmware that delivered more would be painted red.
+					if c.better > 0 && d > 0.5 {
+						colour = t.P.Good
+					} else if c.better > 0 && d < -0.5 {
+						colour = t.P.Bad
+					}
+					row = append(row, cell(fmt.Sprintf("%+.1f%%", d), colour, c.width, true))
+				}
+			}
+			return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, row...)
+		}))
+	}
+	children = append(children,
+		layout.Rigid(layout.Spacer{Height: t.Sp.S}.Layout),
+		layout.Rigid(comp.OneLine(t, t.Sz.Caption, t.P.Faint,
+			"against "+base.Arm+"; every column but rx and delivered is a cost, "+
+				"so red is worse in both directions", false)))
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
 // provisioningControls is what every node is told at boot.

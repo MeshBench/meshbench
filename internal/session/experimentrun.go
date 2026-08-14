@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"time"
@@ -221,6 +222,19 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 		}
 	}
 
+	// Where the ledger stood when this cell started, so the counting below is
+	// this run's traffic and not the boot chatter of three hundred nodes.
+	baseline := len(eng.Events())
+	burstMs := uint32(0)
+
+	// Sends waiting for their moment, when the senders are staggered.
+	type pendingSend struct {
+		node string
+		atMs uint32
+		text string
+	}
+	var pending []pendingSend
+
 	fired := false
 	for eng.NowMs() < e.RunForMs {
 		if ctx.Err() != nil {
@@ -231,16 +245,42 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 		// wall-clock moment: arms take different amounts of real time to boot
 		// and firing on a timer compares different points of the run.
 		if !fired && eng.NowMs() >= e.SendAtMs {
-			text := fmt.Sprintf("%s seed %d", arm.Label, seed)
-			for name := range sessions {
-				en, _ := eng.NodeByName(name)
-				if err := en.Firmware.Bridge.Type(
-					compFrame(proto.SendChannelText(0, time.Unix(0, 0), text))); err != nil {
-					out.Err = "send at " + name + ": " + err.Error()
-					return out
-				}
+			text := padTo(fmt.Sprintf("%s seed %d", arm.Label, seed), e.Bytes)
+			// Staggered across the burst when asked for. An arm may override
+			// the experiment's own, because "does spreading them help" is a
+			// question about the arms rather than about the run.
+			spread := e.SpreadMs
+			if arm.SpreadMs != nil {
+				spread = uint32(*arm.SpreadMs)
 			}
-			fired = true
+			names := make([]string, 0, len(sessions))
+			for name := range sessions {
+				names = append(names, name)
+			}
+			sort.Strings(names) // one seed, one order
+			for i, name := range names {
+				at := eng.NowMs()
+				if spread > 0 && len(names) > 1 {
+					at += uint32(i) * spread / uint32(len(names)-1)
+				}
+				pending = append(pending, pendingSend{node: name, atMs: at, text: text})
+				_ = at
+			}
+			fired, burstMs = true, eng.NowMs()
+		}
+		// Anything whose moment has come.
+		for i := 0; i < len(pending); i++ {
+			if eng.NowMs() < pending[i].atMs {
+				continue
+			}
+			en, _ := eng.NodeByName(pending[i].node)
+			if err := en.Firmware.Bridge.Type(compFrame(
+				proto.SendChannelText(0, time.Unix(0, 0), pending[i].text))); err != nil {
+				out.Err = "send at " + pending[i].node + ": " + err.Error()
+				return out
+			}
+			pending = append(pending[:i], pending[i+1:]...)
+			i--
 		}
 		if err := eng.Step(ctx); err != nil {
 			out.Err = err.Error()
@@ -271,16 +311,29 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 		out.AirtimeMs += float64(v.AirtimeMs)
 	}
 
-	// Collisions, which nothing was counting.
+	// Collisions, and the shape of the flood, both off the ledger.
 	//
-	// The scoreboard has no field for them, so Collided stayed zero however
-	// hard the arms collided - and a zero that is never written looks exactly
-	// like a channel nobody contended for. It comes off the ledger instead: a
-	// miss that would have decoded on its own and did not, which is the engine's
-	// own account of capture rather than a rule imposed on top of it.
-	for _, ev := range eng.Events() {
-		if ev.Kind == "miss" && strings.Contains(ev.Detail, "stronger interferer") {
+	// Collisions had nothing counting them at all: the scoreboard has no field
+	// for them, so Collided stayed zero however hard the arms collided, and a
+	// zero that is never written looks exactly like a channel nobody contended
+	// for. It is a miss that would have decoded on its own and did not, which
+	// is the engine's own account of capture rather than a rule on top of it.
+	//
+	// PerSecond is receptions per second after the burst. A total says which
+	// arm delivered more; the shape says whether it did so in one clean wave or
+	// in a long tail of retries, and those are different networks.
+	if e.RunForMs > burstMs {
+		secs := int((e.RunForMs-burstMs)/1000) + 1
+		out.PerSecond = make([]int, secs)
+	}
+	for _, ev := range eng.Events()[min(baseline, len(eng.Events())):] {
+		switch {
+		case ev.Kind == "miss" && strings.Contains(ev.Detail, "stronger interferer"):
 			out.Collided++
+		case ev.Kind == "rx" && fired && ev.AtMs >= burstMs:
+			if b := int((ev.AtMs - burstMs) / 1000); b >= 0 && b < len(out.PerSecond) {
+				out.PerSecond[b]++
+			}
 		}
 	}
 	return out

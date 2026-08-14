@@ -119,6 +119,10 @@ type Snapshot struct {
 	// is not yet a result.
 	Experiment        []ArmSummary
 	ExperimentWarning string
+	// ExperimentRuns is every cell, so a sweep can be watched rather than
+	// waited on; ExperimentVerdict is what it concluded, once it has.
+	ExperimentRuns    []RunRow
+	ExperimentVerdict string
 	// Series is the selected node's history, for its graphs.
 	Series NodeSeries
 	// Provisioning is the script for the node last asked about.
@@ -397,11 +401,29 @@ type ArmSummary struct {
 	RX        float64
 	Delivered float64
 	Redundant float64
-	// RXSpread is the range of receptions across seeds. Zero means every seed
+	Collided  float64
+	AirtimeMs float64
+	// RXSpread is how much the seeds of this arm disagree, as a fraction of
+	// its own mean: half the range, so it reads as a ±. Zero means every seed
 	// returned the same number, which is one draw repeated rather than a
 	// spread - and a difference between arms cannot be called larger than a
 	// noise nobody has measured.
 	RXSpread float64
+	// PerSecond is receptions in each second after the burst, summed over this
+	// arm's seeds. The shape of the flood rather than its total.
+	PerSecond []int
+}
+
+// RunRow is one cell of the matrix: an arm at a seed, and where it has got to.
+//
+// Per run rather than per arm because a sweep is watched while it runs, and an
+// arm summary says nothing until every seed of it has finished.
+type RunRow struct {
+	Arm   string
+	Seed  uint64
+	State string // queued, running, done, failed
+	// Result is what came back, or why nothing did.
+	Result string
 }
 
 // Build is one firmware image on this machine.
@@ -727,6 +749,10 @@ type World struct {
 	// is not yet a result.
 	Experiment        []ArmSummary
 	ExperimentWarning string
+	// ExperimentRuns is every cell, so a sweep can be watched rather than
+	// waited on; ExperimentVerdict is what it concluded, once it has.
+	ExperimentRuns    []RunRow
+	ExperimentVerdict string
 	// Series is the selected node's history, for its graphs.
 	Series NodeSeries
 	// Provisioning is the script for the node last asked about.
@@ -997,6 +1023,8 @@ func (s *Store) publish() {
 		TileCacheDir:      s.world.TileCacheDir,
 		Experiment:        s.world.Experiment,
 		ExperimentWarning: s.world.ExperimentWarning,
+		ExperimentRuns:    s.world.ExperimentRuns,
+		ExperimentVerdict: s.world.ExperimentVerdict,
 		Series:            s.world.Series,
 		Provisioning:      s.world.Provisioning,
 		Console:           s.world.Console,

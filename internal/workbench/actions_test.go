@@ -222,8 +222,8 @@ func TestSweepArmsAndSenderArePicked(t *testing.T) {
 	if len(asked) != 1 || asked[0] != "AngusOutlaw1" {
 		t.Fatalf("offered %v as senders; only a companion can originate", asked)
 	}
-	if c.senderName != "AngusOutlaw1" {
-		t.Fatalf("sender is %q after picking", c.senderName)
+	if len(c.senders) != 1 || c.senders[0] != "AngusOutlaw1" {
+		t.Fatalf("senders are %v after picking", c.senders)
 	}
 	// Adding the same firmware twice is one column drawn twice.
 	c.addArm.OnOpen()
@@ -238,13 +238,13 @@ func TestSweepControlsDefineAndRun(t *testing.T) {
 	h := newPanelHarness(c.Draw, &state.Snapshot{})
 	h.frame()
 	c.arms = []string{"repeater-v1.16.0", "repeater-v1.17.0"}
-	c.senderName = "AngusOutlaw1"
+	c.senders = []string{"AngusOutlaw1"}
 	c.seeds.Editor.SetText("1 2 3")
 	h.frame()
 	// Bottom upwards. The buttons sit below the arm list, and each arm carries
 	// a remove button: pressing downwards would take the arms off before
 	// reaching the button that reads them.
-	for y := float32(200); y >= 8; y -= 8 {
+	for y := float32(600); y >= 8; y -= 8 {
 		h.pressAlong(y)
 	}
 
