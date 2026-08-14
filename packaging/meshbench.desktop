@@ -1,0 +1,16 @@
+[Desktop Entry]
+Type=Application
+Name=MeshBench
+GenericName=Mesh network simulator
+Comment=Plan and test MeshCore LoRa networks against real firmware
+Exec=meshbench workbench %f
+TryExec=meshbench
+Icon=io.github.meshbench.meshbench
+Terminal=false
+Categories=Science;Engineering;HamRadio;Network;
+Keywords=LoRa;mesh;MeshCore;radio;RF;simulation;propagation;
+# Must match gioui.org/app.ID, which the release build stamps in. Without it
+# the compositor cannot tell that this window belongs to this launcher entry,
+# and the taskbar shows a generic icon beside a correct one.
+StartupWMClass=io.github.meshbench.meshbench
+StartupNotify=true

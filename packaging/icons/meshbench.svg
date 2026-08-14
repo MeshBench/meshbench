@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>MeshBench</title>
+  <rect width="512" height="512" rx="96" fill="#0d1113"/>
+  <circle cx="154" cy="164" r="93" fill="none" stroke="#4ac4a8" stroke-opacity="0.35" stroke-width="10"/>
+  <line x1="154" y1="164" x2="369" y2="133" stroke="#4ac4a8" stroke-opacity="1.00" stroke-width="14" stroke-linecap="round"/>
+  <line x1="154" y1="164" x2="138" y2="369" stroke="#4ac4a8" stroke-opacity="1.00" stroke-width="14" stroke-linecap="round"/>
+  <line x1="154" y1="164" x2="389" y2="358" stroke="#4ac4a8" stroke-opacity="0.40" stroke-width="9" stroke-linecap="round"/>
+  <line x1="389" y1="358" x2="138" y2="369" stroke="#4ac4a8" stroke-opacity="0.40" stroke-width="9" stroke-linecap="round"/>
+  <circle cx="154" cy="164" r="36" fill="#4ac4a8"/>
+  <circle cx="369" cy="133" r="28" fill="#4ac4a8"/>
+  <circle cx="389" cy="358" r="28" fill="#4ac4a8"/>
+  <circle cx="138" cy="369" r="28" fill="#4ac4a8"/>
+</svg>

@@ -191,7 +191,7 @@ jobs:
           VERSION="${GITHUB_REF_NAME:-dev}"
           (cd .. && git archive --format=tar.gz \
             --prefix="meshbench-${VERSION}/" -o "dist/meshbench-${VERSION}-source.tar.gz" HEAD)
-          sha256sum *.tar.gz > SHA256SUMS
+          sha256sum *.tar.gz > SHA256SUMS   # AppImage and .deb are added after they are built
           # The smoke is the artifact, not the tree: unpack what users get and
           # ask it who it is. The graphical smoke stays on a real desktop
           # before tagging, per the plan's acceptance.
@@ -199,6 +199,75 @@ jobs:
           /tmp/smoke/meshbench/meshbench workbench -version
           test -s /tmp/smoke/meshbench/LICENCES/INDEX.txt
           ls -la *.tar.gz SHA256SUMS
+
+      - name: Desktop integration, AppImage and .deb
+        run: |
+          set -e
+          go run ./tools/icon
+          VERSION="${GITHUB_REF_NAME}"
+          case "$VERSION" in v*) VERSION="${VERSION#v}";; *) VERSION="0.0.0";; esac
+
+          # An AppDir is just the tree an installed application would have.
+          # linuxdeploy turns it into a single file that runs on any distro
+          # above the glibc floor, which is the "just give me the thing"
+          # download - Arch and Fedora included, with no packaging of ours.
+          APP=dist/AppDir
+          mkdir -p $APP/usr/bin $APP/usr/share/applications \
+                   $APP/usr/share/metainfo $APP/usr/share/meshbench
+          cp dist/meshbench/meshbench $APP/usr/bin/
+          cp -r dist/meshbench/fixtures dist/meshbench/fonts \
+                dist/meshbench/LICENCES $APP/usr/share/meshbench/
+          cp packaging/meshbench.desktop $APP/usr/share/applications/
+          cp packaging/io.github.meshbench.meshbench.metainfo.xml $APP/usr/share/metainfo/
+          for px in 16 24 32 48 64 128 256 512; do
+            d=$APP/usr/share/icons/hicolor/${px}x${px}/apps
+            mkdir -p $d
+            cp packaging/icons/meshbench-${px}.png $d/io.github.meshbench.meshbench.png
+          done
+
+          curl -fsSL -o /tmp/linuxdeploy \
+            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          chmod +x /tmp/linuxdeploy
+          # No FUSE on the runner, so the tools have to unpack themselves.
+          export APPIMAGE_EXTRACT_AND_RUN=1
+          /tmp/linuxdeploy --appdir $APP --output appimage \
+            -d packaging/meshbench.desktop \
+            -i packaging/icons/meshbench-256.png \
+            || echo "::warning::AppImage build failed; the tarball still stands"
+          mv MeshBench*.AppImage dist/meshbench-${VERSION}-x86_64.AppImage 2>/dev/null || true
+
+          # A .deb for our own apt repository. Depends names the real floor,
+          # so apt refuses on a machine that cannot run it rather than
+          # installing something that dies at launch.
+          DEB=dist/deb
+          mkdir -p $DEB/DEBIAN $DEB/usr/bin $DEB/usr/share/applications \
+                   $DEB/usr/share/metainfo $DEB/usr/share/meshbench
+          cp -r $APP/usr/share/icons $DEB/usr/share/
+          cp $APP/usr/bin/meshbench $DEB/usr/bin/
+          cp -r $APP/usr/share/meshbench/* $DEB/usr/share/meshbench/
+          cp packaging/meshbench.desktop $DEB/usr/share/applications/
+          cp packaging/io.github.meshbench.meshbench.metainfo.xml $DEB/usr/share/metainfo/
+          cat > $DEB/DEBIAN/control <<CONTROL
+          Package: meshbench
+          Version: ${VERSION}
+          Section: science
+          Priority: optional
+          Architecture: amd64
+          Maintainer: MeshBench <noreply@github.com>
+          Depends: libc6 (>= 2.34), libgl1, libx11-6, libxkbcommon0, libwayland-client0, libvulkan1
+          Description: Plan and test MeshCore LoRa networks against real firmware
+           MeshBench runs real MeshCore firmware against a sample-accurate LoRa
+           channel over real terrain, and says what arrived at the antenna and why.
+          CONTROL
+          sed -i 's/^          //' $DEB/DEBIAN/control
+          dpkg-deb --build --root-owner-group $DEB dist/meshbench_${VERSION}_amd64.deb
+
+          # Re-taken now that every downloadable exists. The Assemble step's
+          # SHA256SUMS covered the tarballs alone, and a checksum file that
+          # lists some of the artifacts is worse than none: it reads as
+          # complete.
+          (cd dist && rm -rf AppDir deb && sha256sum *.tar.gz *.AppImage *.deb 2>/dev/null > SHA256SUMS; cat SHA256SUMS)
+          ls -la dist/
 
       - uses: actions/upload-artifact@v4
         with:
@@ -211,6 +280,8 @@ jobs:
           retention-days: 5
           path: |
             dist/*.tar.gz
+            dist/*.AppImage
+            dist/*.deb
             dist/SHA256SUMS
 
       - name: Release
@@ -223,8 +294,9 @@ jobs:
           # this is the gate that makes the decision unavoidable.
           go run ./tools/licgen -require-project-licence
           TAG="${GITHUB_REF_NAME:-$(date -u +%Y%m%d)-$(git rev-parse --short HEAD)}"
-          gh release create "$TAG" dist/*.tar.gz dist/SHA256SUMS --generate-notes || \
-            gh release upload "$TAG" dist/*.tar.gz dist/SHA256SUMS --clobber
+          FILES=$(ls dist/*.tar.gz dist/*.AppImage dist/*.deb dist/SHA256SUMS 2>/dev/null)
+          gh release create "$TAG" $FILES --generate-notes || \
+            gh release upload "$TAG" $FILES --clobber
 
   macos:
     if: false   # waiting on a self-hosted Mac runner, deliberately: hosted
@@ -236,7 +308,65 @@ jobs:
     steps: [{ run: 'echo see docs/release-packaging-plan.md' }]
 
   windows:
-    if: false   # no runner yet: radioserver's QEMU path uses Unix sockets. The
-                # TCP path it already has for Renode is what this needs first.
-    runs-on: windows-latest
-    steps: [{ run: 'echo see docs/release-packaging-plan.md' }]
+    # Cross-compiled from Linux with mingw rather than built on a Windows
+    # runner: Gio's Windows backend and wgpu both build that way, and Windows
+    # minutes bill at 2x on a private repository for a build that needs
+    # nothing from Windows itself.
+    #
+    # This produces the application. Emulated ESP32 boards still need
+    # radioserver's QEMU transport to stop assuming Unix sockets - the TCP
+    # path it already has for Renode is what that wants - so a Windows user
+    # gets the workbench and native firmware, and the honest line about
+    # emulated boards.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.24', cache: true }
+
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64 zip
+
+      - name: Build
+        env:
+          GOOS: windows
+          GOARCH: amd64
+          CGO_ENABLED: '1'
+          CC: x86_64-w64-mingw32-gcc
+        run: |
+          set -e
+          VERSION="${GITHUB_REF_NAME}"
+          case "$VERSION" in v*) ;; *) VERSION="dev-$(git rev-parse --short HEAD)";; esac
+          go run ./tools/licgen -text dist/meshbench/LICENCES
+          go build -trimpath \
+            -ldflags "-H windowsgui -X gioui.org/app.ID=io.github.meshbench.meshbench \
+                      -X github.com/MeshBench/meshbench/internal/workbench.Version=$VERSION" \
+            -o dist/meshbench/meshbench.exe ./cmd/meshcoresim
+          cp -r fixtures dist/meshbench/fixtures
+          go run ./tools/icon && cp packaging/icons/meshbench-256.png dist/meshbench/meshbench.png
+          cat > dist/meshbench/README.txt <<'TXT'
+          MeshBench for Windows
+
+          Run meshbench.exe - it opens the workbench. From a terminal,
+          `meshbench.exe workbench` does the same and `meshbench.exe -version`
+          says which build this is.
+
+          Native MeshCore firmware is downloaded on first use and cached.
+          Emulated ESP32 and nRF52 boards are not available on Windows yet:
+          the emulator bridge still assumes Unix sockets. Everything else -
+          the map, the channel, terrain, planning - works.
+
+          Licences are in LICENCES\, and in the application under
+          Help > Licences & attributions.
+          TXT
+          (cd dist && zip -qr meshbench-${VERSION}-windows-x86_64.zip meshbench)
+          ls -la dist/*.zip
+          file dist/meshbench/meshbench.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: meshbench-windows
+          retention-days: 5
+          path: dist/*.zip

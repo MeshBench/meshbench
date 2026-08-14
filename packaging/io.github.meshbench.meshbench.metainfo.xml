@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  AppStream metadata: what a software centre, an AppImage and Flathub all read
+  to decide how to present MeshBench. The id is the application id the binary
+  is built with, because that is what ties the window, the launcher entry and
+  this file to each other.
+-->
+<component type="desktop-application">
+  <id>io.github.meshbench.meshbench</id>
+  <name>MeshBench</name>
+  <summary>Plan and test MeshCore LoRa networks against real firmware</summary>
+
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+
+  <description>
+    <p>
+      MeshBench runs real MeshCore firmware against a sample-accurate LoRa
+      channel over real terrain, so the question it answers is not whether a
+      packet might get through but what actually arrived at the antenna, and
+      why.
+    </p>
+    <p>
+      Place nodes on a map, run the network, and read what happened: every
+      transmission and reception, why a packet was lost, the terrain profile
+      between two sites, and the link budget with the assumptions stated. The
+      firmware under test is the firmware that ships on the hardware.
+    </p>
+    <p>
+      Results are a best case - no multipath, bare earth, an ideal
+      demodulator - and the application says so wherever it shows a number.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">meshbench.desktop</launchable>
+
+  <categories>
+    <category>Science</category>
+    <category>Engineering</category>
+    <category>HamRadio</category>
+  </categories>
+
+  <keywords>
+    <keyword>LoRa</keyword>
+    <keyword>mesh</keyword>
+    <keyword>MeshCore</keyword>
+    <keyword>propagation</keyword>
+    <keyword>RF</keyword>
+  </keywords>
+
+  <url type="homepage">https://github.com/MeshBench/meshbench</url>
+  <url type="bugtracker">https://github.com/MeshBench/meshbench/issues</url>
+
+  <provides>
+    <binary>meshbench</binary>
+  </provides>
+
+  <content_rating type="oars-1.1"/>
+
+  <releases>
+    <release version="0.1.0" date="2026-08-14">
+      <description>
+        <p>First packaged release.</p>
+      </description>
+    </release>
+  </releases>
+</component>
