@@ -221,10 +221,11 @@ jobs:
             gh release upload "$TAG" dist/*.tar.gz dist/SHA256SUMS --clobber
 
   macos:
-    if: false   # no runner yet: the QEMU fork has never been built on Darwin,
-                # Apple Silicon needs its own build rather than an x86_64 one,
-                # and meshcore-native publishes no darwin-arm64 host builds.
-                # The phase plan is in docs/release-packaging-plan.md.
+    if: false   # waiting on a self-hosted Mac runner, deliberately: hosted
+                # macOS minutes bill at 10x on a private repository. Also
+                # still missing underneath - the QEMU fork does not build for
+                # Apple Silicon, and meshcore-native publishes no darwin-arm64
+                # host builds. See docs/distribution-plan.md.
     runs-on: macos-14
     steps: [{ run: 'echo see docs/release-packaging-plan.md' }]
 

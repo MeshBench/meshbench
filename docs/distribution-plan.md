@@ -86,6 +86,13 @@ Channels, in the order they pay off:
 
 ### macOS
 
+**Deferred until there is a self-hosted Mac runner** (Alex, 14 August 2026).
+Hosted macOS minutes are billed at 10x on private repositories, and MeshBench
+is private; the emulator fork is public so its macOS legs are free, but
+`aarch64-apple-darwin` has never built there anyway. Both are parked rather
+than deleted - re-enabling each is one line. Everything below is what happens
+once the runner exists, and none of it blocks Linux or Windows.
+
 - **A real `.app` bundle** (`gogio` produces one for Gio apps; the CLI stays
   reachable as `meshbench` via a symlinked helper), packed into a `.dmg`.
 - **Sign and notarise from day one of public release.** An Apple Developer ID
@@ -161,8 +168,9 @@ Ordered by what unblocks what:
 3. Desktop integration files (`.desktop`, icon, appstream metainfo under the
    existing app ID) - shared by AppImage, apt, Flathub.
 4. AppImage + AUR + apt repo (Linux consumer channels).
-5. macOS leg: .app/.dmg, tap, signing. meshcore-native darwin builds in
-   parallel (separate repo, separate work).
+5. macOS leg, **once the self-hosted Mac runner exists**: .app/.dmg, tap,
+   signing. meshcore-native darwin builds in parallel (separate repo,
+   separate work).
 6. Windows leg: radioserver TCP transport → zip → MSI → winget + Scoop.
 7. Flathub, once 1-4 are stable.
 8. Acceptance per platform, then the public v1 release fans out to every
