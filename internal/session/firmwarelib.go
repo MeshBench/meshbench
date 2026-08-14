@@ -85,69 +85,8 @@ func registerFirmwareLibrary(st *state.Store, s *Sim) {
 				_, _ = st.Do(context.Background(), "firmware.published", list)
 			}()
 		}
-		rows := map[string]*state.FirmwareRow{}
-		key := func(role, version, board string) string {
-			return role + "\x00" + version + "\x00" + board
-		}
-		add := func(role, version, board string) *state.FirmwareRow {
-			k := key(role, version, board)
-			if r, ok := rows[k]; ok {
-				return r
-			}
-			r := &state.FirmwareRow{Role: role, Version: version, Board: board}
-			rows[k] = r
-			return r
-		}
-		// What is on disk: the only thing that decides what a node can run
-		// today, and what a delete has to act on.
-		for _, in := range firmware.ListInstalled(firmware.DefaultCacheDir()) {
-			r := add(in.Role, in.Version, in.Board)
-			r.OnDisk, r.Bytes = true, in.Bytes
-		}
-		// What is published for this machine, from the cache rather than the
-		// network: a library that can only be read online is no use to
-		// somebody about to work without it.
-		for _, img := range s.publishedBuilds() {
-			add(img.role, img.version, img.board)
-		}
-		// What the scenario is running, so a row can say what deleting it
-		// would break.
-		for _, n := range s.nodes {
-			if !n.Kind.RunsFirmware() || n.Firmware.Version == "" {
-				continue
-			}
-			role := nodeRole(n)
-			if r, ok := rows[key(role, n.Firmware.Version, n.Firmware.Board)]; ok {
-				r.InUse++
-				continue
-			}
-			r := add(role, n.Firmware.Version, n.Firmware.Board)
-			r.InUse++
-		}
-		out := make([]state.FirmwareRow, 0, len(rows))
-		for _, r := range rows {
-			out = append(out, *r)
-		}
-		// In use first, then what is here, then the rest: the order somebody
-		// is closest to.
-		sort.Slice(out, func(i, j int) bool {
-			a, b := out[i], out[j]
-			if (a.InUse > 0) != (b.InUse > 0) {
-				return a.InUse > 0
-			}
-			if a.OnDisk != b.OnDisk {
-				return a.OnDisk
-			}
-			if a.Role != b.Role {
-				return a.Role < b.Role
-			}
-			if a.Version != b.Version {
-				return a.Version < b.Version
-			}
-			return a.Board < b.Board
-		})
-		w.Library = out
-		return map[string]any{"builds": len(out)}, nil
+		s.fillLibrary(w)
+		return map[string]any{"builds": len(w.Library)}, nil
 	})
 
 	// firmware.published: what the catalogue offers, landed from the fetch.
@@ -155,7 +94,13 @@ func registerFirmwareLibrary(st *state.Store, s *Sim) {
 		list, _ := p.([]publishedBuild)
 		s.publishedNet = list
 		s.fetchingPublished = false
-		return map[string]any{"published": len(list)}, nil
+		// Rebuild the rows here, or the fetch lands in a field nobody reads
+		// again: the panel asks for the library once, the network answers a
+		// few seconds later, and without this the answer sits unused until
+		// somebody presses refresh. Which is what "the published builds never
+		// appear" looked like.
+		s.fillLibrary(w)
+		return map[string]any{"published": len(list), "builds": len(w.Library)}, nil
 	})
 
 	// firmware.download: fetch a published build now rather than on first
@@ -440,6 +385,73 @@ func nodeRole(n scenario.Node) string {
 		return r
 	}
 	return string(n.Kind.Application())
+}
+
+// fillLibrary puts every build there is into the world: what is on disk, what
+// is published, and what the scenario is running.
+func (s *Sim) fillLibrary(w *state.World) {
+	rows := map[string]*state.FirmwareRow{}
+	key := func(role, version, board string) string {
+		return role + "\x00" + version + "\x00" + board
+	}
+	add := func(role, version, board string) *state.FirmwareRow {
+		k := key(role, version, board)
+		if r, ok := rows[k]; ok {
+			return r
+		}
+		r := &state.FirmwareRow{Role: role, Version: version, Board: board}
+		rows[k] = r
+		return r
+	}
+	// What is on disk: the only thing that decides what a node can run
+	// today, and what a delete has to act on.
+	for _, in := range firmware.ListInstalled(firmware.DefaultCacheDir()) {
+		r := add(in.Role, in.Version, in.Board)
+		r.OnDisk, r.Bytes = true, in.Bytes
+	}
+	// What is published for this machine, from the cache rather than the
+	// network: a library that can only be read online is no use to
+	// somebody about to work without it.
+	for _, img := range s.publishedBuilds() {
+		add(img.role, img.version, img.board)
+	}
+	// What the scenario is running, so a row can say what deleting it
+	// would break.
+	for _, n := range s.nodes {
+		if !n.Kind.RunsFirmware() || n.Firmware.Version == "" {
+			continue
+		}
+		role := nodeRole(n)
+		if r, ok := rows[key(role, n.Firmware.Version, n.Firmware.Board)]; ok {
+			r.InUse++
+			continue
+		}
+		r := add(role, n.Firmware.Version, n.Firmware.Board)
+		r.InUse++
+	}
+	out := make([]state.FirmwareRow, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, *r)
+	}
+	// In use first, then what is here, then the rest: the order somebody
+	// is closest to.
+	sort.Slice(out, func(i, j int) bool {
+		a, b := out[i], out[j]
+		if (a.InUse > 0) != (b.InUse > 0) {
+			return a.InUse > 0
+		}
+		if a.OnDisk != b.OnDisk {
+			return a.OnDisk
+		}
+		if a.Role != b.Role {
+			return a.Role < b.Role
+		}
+		if a.Version != b.Version {
+			return a.Version < b.Version
+		}
+		return a.Board < b.Board
+	})
+	w.Library = out
 }
 
 // publishedBoards is the published board images, filtered down to something a
