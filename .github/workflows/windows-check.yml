@@ -1,0 +1,52 @@
+name: windows-check
+
+# Does MeshBench actually work on Windows, beyond compiling?
+#
+# The GPU kernels are proven on Metal (a real Mac) and on Vulkan (Linux), and
+# have never once been run on DX12 - which is the backend every Windows user
+# would get. A kernel that is wrong there fails as a silently slow or silently
+# empty link warm, which is exactly the kind of bug that reaches a user.
+#
+# Manual, not on push: Windows minutes bill at double on a private repository,
+# and this only needs running when something touches the GPU or the platform
+# layer.
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.24', cache: true }
+
+      - name: What GPU the runner offers
+        shell: bash
+        run: |
+          # A hosted runner has no real GPU; wgpu falls back to WARP, DX12's
+          # software rasteriser. That still exercises the shader translation
+          # and the buffer bindings, which is where a backend goes wrong -
+          # only the timings are meaningless.
+          powershell -Command "Get-CimInstance Win32_VideoController | Select-Object -Property Name,DriverVersion | Format-List" || true
+
+      - name: The GPU kernels against their CPU twins
+        shell: bash
+        run: go test ./internal/gpu/ -count=1 -v -timeout 15m 2>&1 | tail -40
+
+      - name: The platform layer
+        shell: bash
+        run: go test ./internal/firmware/ ./internal/companion/ ./internal/engine/ -short -count=1 2>&1 | tail -20
+
+      - name: Does it open its own network with no fixtures beside it
+        shell: bash
+        run: |
+          set -e
+          go build -o meshbench.exe ./cmd/meshcoresim
+          mkdir -p /tmp/elsewhere && cp meshbench.exe /tmp/elsewhere/
+          cd /tmp/elsewhere
+          # The question bug 1 asks, on Windows: run from a directory with no
+          # fixtures in it and see whether the application can still find its
+          # own example network.
+          ./meshbench.exe check 2>&1 | tail -5 || echo "check needs a fixture - which is the bug"
+          ./meshbench.exe workbench -version
