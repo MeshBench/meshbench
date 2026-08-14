@@ -210,6 +210,9 @@ func (b *Bridge) read(c net.Conn) {
 					st.IRQFlags = binary.BigEndian.Uint16(buf[34:])
 					st.Configured = true
 				}
+				if n >= 37 {
+					st.FemAtTx = FemState(buf[36])
+				}
 				b.mu.Lock()
 				b.stats = st
 				b.mu.Unlock()
@@ -365,10 +368,15 @@ type RadioStats struct {
 	// firmware switched the module on.
 	TxPowerDBm int8
 
-	// FemEnabled is the front-end module's transmit-enable line. False on a
-	// board that has no such line, so it means something only where the board
-	// profile says a module is fitted.
+	// FemEnabled is the front-end module's transmit-enable line as it stands
+	// now. Useful for showing what the radio is doing; not the right thing to
+	// compute power from, because the line is meant to be low while the node
+	// listens and RadioLib only raises it just before a transmission.
 	FemEnabled bool
+
+	// FemAtTx is where the line stood at the instant this node last began
+	// transmitting, which is the only moment it decides anything.
+	FemAtTx FemState
 
 	// The modem, as the firmware programmed it. None of this was visible from
 	// outside the chip before, which is how a node set to the wrong spreading
@@ -385,6 +393,18 @@ type RadioStats struct {
 	// because a flag stuck is told apart from one with nothing to say.
 	IRQMask, IRQFlags uint16
 }
+
+// FemState is whether a board's front-end module was in circuit when the node
+// transmitted. Three states rather than a bool: a node that has not transmitted
+// has not answered the question, and reading that as "the module was out" would
+// dock it for having nothing to say.
+type FemState uint8
+
+const (
+	FemUnknown FemState = 0
+	FemOut     FemState = 1
+	FemIn      FemState = 2
+)
 
 // Receive gain, as RadioLib writes it to register 0x08AC.
 const (

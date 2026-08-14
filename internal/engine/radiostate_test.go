@@ -18,9 +18,9 @@ func board(nfDB, txDBm float64, fem *scenario.FEM) *Node {
 }
 
 // configured is what a radio that has come up and been set up reports.
-func configured(gain uint8, txDBm int8, fem bool) firmware.RadioStats {
+func configured(gain uint8, txDBm int8, fem firmware.FemState) firmware.RadioStats {
 	return firmware.RadioStats{
-		Configured: true, RxGainReg: gain, TxPowerDBm: txDBm, FemEnabled: fem,
+		Configured: true, RxGainReg: gain, TxPowerDBm: txDBm, FemAtTx: fem,
 	}
 }
 
@@ -40,12 +40,12 @@ func TestAnUnreportedRadioLeavesTheBoardFiguresAlone(t *testing.T) {
 func TestBoostedGainImprovesTheNoiseFigure(t *testing.T) {
 	n := board(6, 22, nil)
 
-	_, nf, ok := effectiveRF(n, configured(firmware.RxGainPowerSaving, 22, false))
+	_, nf, ok := effectiveRF(n, configured(firmware.RxGainPowerSaving, 22, firmware.FemUnknown))
 	if !ok || nf != 6 {
 		t.Fatalf("power saving: noise figure = %v, want the board's 6", nf)
 	}
 
-	_, nf, ok = effectiveRF(n, configured(firmware.RxGainBoosted, 22, false))
+	_, nf, ok = effectiveRF(n, configured(firmware.RxGainBoosted, 22, firmware.FemUnknown))
 	if !ok {
 		t.Fatal("boosted: not reported")
 	}
@@ -64,8 +64,8 @@ func TestBoostedGainImprovesTheNoiseFigure(t *testing.T) {
 func TestGainLostToAnAGCResetCostsSensitivity(t *testing.T) {
 	n := board(6, 22, nil)
 
-	_, before, _ := effectiveRF(n, configured(firmware.RxGainBoosted, 22, false))
-	_, after, _ := effectiveRF(n, configured(firmware.RxGainPowerSaving, 22, false))
+	_, before, _ := effectiveRF(n, configured(firmware.RxGainBoosted, 22, firmware.FemUnknown))
+	_, after, _ := effectiveRF(n, configured(firmware.RxGainPowerSaving, 22, firmware.FemUnknown))
 
 	if after <= before {
 		t.Fatalf("losing boosted gain did not worsen the receiver: %v then %v",
@@ -77,13 +77,24 @@ func TestGainLostToAnAGCResetCostsSensitivity(t *testing.T) {
 }
 
 // A board with no front-end module is unaffected by the transmit-enable line,
-// because it has no such line and whether it is asserted means nothing.
+// because it has no such line and whether it was asserted means nothing.
 func TestABoardWithNoModuleIgnoresTheEnableLine(t *testing.T) {
 	n := board(6, 22, nil)
-	on, _, _ := effectiveRF(n, configured(firmware.RxGainBoosted, 14, true))
-	off, _, _ := effectiveRF(n, configured(firmware.RxGainBoosted, 14, false))
-	if on != off || on != 14 {
-		t.Fatalf("no module: enabled %v, disabled %v, want 14 either way", on, off)
+	in, _, _ := effectiveRF(n, configured(firmware.RxGainBoosted, 14, firmware.FemIn))
+	out, _, _ := effectiveRF(n, configured(firmware.RxGainBoosted, 14, firmware.FemOut))
+	if in != out || in != 14 {
+		t.Fatalf("no module: in %v, out %v, want 14 either way", in, out)
+	}
+}
+
+// A node that has not transmitted has not answered the question, and must not
+// be charged the loss for it. Observed on a live run: reading the line's current
+// level docked a node 25 dB for the ordinary state of listening.
+func TestANodeThatHasNotTransmittedIsNotChargedForIt(t *testing.T) {
+	n := board(6, 22, &scenario.FEM{TxGainDB: 0, TxLossDB: 25})
+	tx, _, ok := effectiveRF(n, configured(firmware.RxGainBoosted, 22, firmware.FemUnknown))
+	if !ok || tx != 22 {
+		t.Fatalf("never transmitted: %v dBm, want the board's 22 untouched", tx)
 	}
 }
 
@@ -92,16 +103,15 @@ func TestABoardWithNoModuleIgnoresTheEnableLine(t *testing.T) {
 // module in transmits 13 dB down - which is the difference between a link and
 // no link, and which the board profile's MaxTxDBm cannot express.
 func TestAnUnswitchedFrontEndCostsItsGain(t *testing.T) {
-	fem := &scenario.FEM{TxGainDB: 13, TxLossDB: 0}
-	n := board(6, 22, fem)
+	n := board(6, 22, &scenario.FEM{TxGainDB: 13, TxLossDB: 0})
 
-	on, _, _ := effectiveRF(n, configured(firmware.RxGainBoosted, 9, true))
-	if on != 22 {
-		t.Fatalf("module switched in: %v dBm, want 9 + 13", on)
+	in, _, _ := effectiveRF(n, configured(firmware.RxGainBoosted, 9, firmware.FemIn))
+	if in != 22 {
+		t.Fatalf("module switched in: %v dBm, want 9 + 13", in)
 	}
-	off, _, _ := effectiveRF(n, configured(firmware.RxGainBoosted, 9, false))
-	if off != 9 {
-		t.Fatalf("module not switched in: %v dBm, want the chip's 9", off)
+	out, _, _ := effectiveRF(n, configured(firmware.RxGainBoosted, 9, firmware.FemOut))
+	if out != 9 {
+		t.Fatalf("module not switched in: %v dBm, want the chip's 9", out)
 	}
 }
 
@@ -109,12 +119,11 @@ func TestAnUnswitchedFrontEndCostsItsGain(t *testing.T) {
 // not merely cost gain - the path is not connected, and what leaks past is far
 // below anything that closes a link.
 func TestAnUnswitchedAntennaPathLosesFarMoreThanGain(t *testing.T) {
-	fem := &scenario.FEM{TxGainDB: 0, TxLossDB: 25}
-	n := board(6, 22, fem)
+	n := board(6, 22, &scenario.FEM{TxGainDB: 0, TxLossDB: 25})
 
-	off, _, _ := effectiveRF(n, configured(firmware.RxGainBoosted, 22, false))
-	if off != -3 {
-		t.Fatalf("path not switched: %v dBm, want 22 - 25", off)
+	out, _, _ := effectiveRF(n, configured(firmware.RxGainBoosted, 22, firmware.FemOut))
+	if out != -3 {
+		t.Fatalf("path not switched: %v dBm, want 22 - 25", out)
 	}
 }
 
@@ -122,12 +131,12 @@ func TestAnUnswitchedAntennaPathLosesFarMoreThanGain(t *testing.T) {
 // A chip that has not been given SetTxParams yet must fall back to the board.
 func TestATransmitPowerNobodySetFallsBackToTheBoard(t *testing.T) {
 	n := board(6, 22, nil)
-	tx, _, ok := effectiveRF(n, configured(firmware.RxGainBoosted, txPowerUnset, false))
+	tx, _, ok := effectiveRF(n, configured(firmware.RxGainBoosted, txPowerUnset, firmware.FemUnknown))
 	if !ok || tx != 22 {
 		t.Fatalf("unset transmit power gave %v dBm, want the board's 22", tx)
 	}
 
-	tx, _, _ = effectiveRF(n, configured(firmware.RxGainBoosted, 0, false))
+	tx, _, _ = effectiveRF(n, configured(firmware.RxGainBoosted, 0, firmware.FemUnknown))
 	if tx != 0 {
 		t.Fatalf("a radio set to 0 dBm reported %v; 0 is a real setting", tx)
 	}

@@ -463,6 +463,7 @@ func emulatedBackend(spec scenario.Node) (*firmware.EmulatedNode, error) {
 		Machine:  board.QEMU.Machine,
 		SPI:      board.QEMU.SPI,
 		NSS:      board.QEMU.NSS,
+		FEM:      board.QEMU.FEM,
 		Busy:     board.QEMU.Busy,
 		NodeName: spec.Name,
 		Dir:      dir,

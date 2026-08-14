@@ -53,10 +53,14 @@ func effectiveRF(n *Node, st firmware.RadioStats) (txDBm, nfDB float64, ok bool)
 	if st.TxPowerDBm != txPowerUnset {
 		txDBm = float64(st.TxPowerDBm)
 	}
+	// Judged at the instant the node last transmitted, not on the line's
+	// current level: the line is meant to be low while it listens, and a node
+	// that has not transmitted at all has not answered the question.
 	if fem := n.Spec.FEM; fem != nil {
-		if st.FemEnabled {
+		switch st.FemAtTx {
+		case firmware.FemIn:
 			txDBm += fem.TxGainDB
-		} else {
+		case firmware.FemOut:
 			txDBm -= fem.TxLossDB
 		}
 	}
