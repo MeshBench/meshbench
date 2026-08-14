@@ -2,6 +2,8 @@ package workbench
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -33,6 +35,22 @@ func (w *walk) report(t *testing.T, what string) {
 
 // Change one node's firmware, from the node table.
 func TestWorkflowChangeOneNodesFirmware(t *testing.T) {
+	// The picker lists what is installed in the machine's firmware cache,
+	// and a fresh machine has nothing - so the test brings its own cache
+	// rather than riding on whatever this machine has downloaded.
+	cache := t.TempDir()
+	for _, v := range []string{"repeater-v1.16.0", "repeater-v1.17.0"} {
+		dir := filepath.Join(cache, "meshcoresim", "firmware", "native", v)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "meshcore-simple_repeater"),
+			[]byte("not a real firmware"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("XDG_CACHE_HOME", cache)
+
 	w := &walk{}
 	p := &nodeViewPanel{}
 	var did []string
