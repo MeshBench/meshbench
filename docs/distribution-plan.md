@@ -86,12 +86,17 @@ Channels, in the order they pay off:
 
 ### macOS
 
-**Deferred until there is a self-hosted Mac runner** (Alex, 14 August 2026).
-Hosted macOS minutes are billed at 10x on private repositories, and MeshBench
-is private; the emulator fork is public so its macOS legs are free, but
-`aarch64-apple-darwin` has never built there anyway. Both are parked rather
-than deleted - re-enabling each is one line. Everything below is what happens
-once the runner exists, and none of it blocks Linux or Windows.
+**Two different answers, because two different repositories.** The emulator
+forks are public, so hosted runners are free there and their macOS legs are
+on: `macos-14` is Apple Silicon and both `x86_64-apple-darwin` and
+`aarch64-apple-darwin` build (14 August 2026). What had never worked was
+`macos-14-xlarge` - a *larger* runner, and those are billed on every plan,
+public or not, which surfaced as "recent account payments have failed" and
+looked like an account problem rather than a label.
+
+MeshBench itself is **private**, where macOS bills at 10x, so its own macOS
+leg waits for either a self-hosted Mac runner or the repository going public.
+Neither blocks Linux or Windows.
 
 - **A real `.app` bundle** (`gogio` produces one for Gio apps; the CLI stays
   reachable as `meshbench` via a symlinked helper), packed into a `.dmg`.
@@ -106,10 +111,11 @@ once the runner exists, and none of it blocks Linux or Windows.
   the notability bar is met - not a launch dependency.
 - arm64 first (`macos-14` runner). Intel via `macos-13` only if telemetry or
   requests justify it - MeshCore's own audience skews recent.
-- Emulators on macOS: meshcore-native needs darwin-arm64 host builds
-  published (native nodes), then the Renode fork portable for darwin (Renode
-  upstream supports macOS; our portable bundling extends), QEMU fork last.
-  The catalogue's honesty line covers the gap meanwhile.
+- Emulators on macOS: **QEMU is done** - the fork publishes
+  `x86_64-apple-darwin` and `aarch64-apple-darwin` archives. Still needed:
+  darwin-arm64 host builds from meshcore-native (native nodes), and the
+  Renode fork portable for darwin. The catalogue's honesty line covers the
+  gap meanwhile.
 
 ### Windows
 
@@ -132,7 +138,8 @@ Ordered by what unblocks what:
    growl at an unsigned installer for a while; accept the growl at first,
    revisit when there's revenue or volume.
 - Emulator builds for Windows: Renode upstream supports Windows so the fork
-  portable extends; the QEMU fork via MSYS2/mingw is known territory. Both
+  portable extends. **The QEMU fork's mingw legs currently fail** (14 August
+  2026) - that is the piece to fix before Windows can emulate ESP32. Both
   wait on the transport work; the catalogue's honesty line covers the gap.
 
 ## Release engineering that spans all of it
@@ -158,6 +165,34 @@ Ordered by what unblocks what:
   release, but nothing ships. (GPL §6 source archives already ship beside
   binaries and simply continue.)
 
+## What running the artifacts taught us (14 August 2026)
+
+Written down because each of these was invisible until the published archive
+was unpacked on a machine that had not built it:
+
+- **A bundled emulator has to carry its libraries.** QEMU shipped linked
+  against SDL (a display library, on an emulator we drive headless over
+  sockets) and then against libslirp, libpixman and libgcrypt. On a clean
+  machine it failed to start before reaching `main`, which from the user's
+  side is indistinguishable from MeshBench being broken. It now builds
+  `--disable-sdl` with `-rpath=$ORIGIN/../lib` and carries the rest in
+  `qemu/lib`. glibc stays the host's.
+- **A directory is not an executable.** `lookupTool` looks for a file beside
+  the binary, so Renode's version-stamped portable directory was invisible
+  until the bundle symlinked it. Anything the bundle adds needs the same
+  check: present is not the same as findable.
+- **Partial matrices need a floor.** Publishing "whatever built" is right,
+  but a release with no binaries in it still becomes *latest* and shadows the
+  last good one for anybody downloading by pattern. The release step now
+  refuses to publish without at least one platform archive.
+- **Larger runners bill everywhere.** `macos-14-xlarge` is billed on public
+  repositories too, and the failure reads as an account problem rather than a
+  label. `macos-14` is already Apple Silicon and free.
+- **Artifact storage is metered separately from minutes.** 30-110 MB bundles
+  at the default ninety-day retention fill a Free plan's 500 MB allowance
+  while the minutes sit untouched. Retention is five days; releases keep the
+  copies that matter.
+
 ## Order of work
 
 1. Emulator catalogue + runtime download/cache/checksum (Linux first, where
@@ -168,9 +203,9 @@ Ordered by what unblocks what:
 3. Desktop integration files (`.desktop`, icon, appstream metainfo under the
    existing app ID) - shared by AppImage, apt, Flathub.
 4. AppImage + AUR + apt repo (Linux consumer channels).
-5. macOS leg, **once the self-hosted Mac runner exists**: .app/.dmg, tap,
-   signing. meshcore-native darwin builds in parallel (separate repo,
-   separate work).
+5. macOS leg, once a Mac runner exists (self-hosted, or hosted if the
+   repository goes public): .app/.dmg, tap, signing. meshcore-native darwin
+   builds in parallel (separate repo, separate work).
 6. Windows leg: radioserver TCP transport → zip → MSI → winget + Scoop.
 7. Flathub, once 1-4 are stable.
 8. Acceptance per platform, then the public v1 release fans out to every
