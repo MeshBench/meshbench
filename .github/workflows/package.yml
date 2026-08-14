@@ -330,16 +330,17 @@ jobs:
           sudo apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64 zip
 
       - name: Build
-        env:
-          GOOS: windows
-          GOARCH: amd64
-          CGO_ENABLED: '1'
-          CC: x86_64-w64-mingw32-gcc
+        # The cross-compile variables go on the one command that cross
+        # compiles. As step-level env they also applied to `go run`, which
+        # then built a Windows licgen.exe and tried to execute it on Linux -
+        # where mono met it and said the file is not a valid CIL image, which
+        # is a confusing way to be told the tools ran in the wrong direction.
         run: |
           set -e
           VERSION="${GITHUB_REF_NAME}"
           case "$VERSION" in v*) ;; *) VERSION="dev-$(git rev-parse --short HEAD)";; esac
           go run ./tools/licgen -text dist/meshbench/LICENCES
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc \
           go build -trimpath \
             -ldflags "-H windowsgui -X gioui.org/app.ID=io.github.meshbench.meshbench \
                       -X github.com/MeshBench/meshbench/internal/workbench.Version=$VERSION" \
