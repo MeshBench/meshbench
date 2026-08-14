@@ -203,6 +203,12 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: meshbench-linux
+          # Days, not the default ninety. These bundles are 30-110 MB each and
+          # a tagged release keeps its own copy for ever as a release asset -
+          # so a long retention here buys nothing and quietly fills the
+          # account's Actions storage, which is metered separately from
+          # minutes and fails the billing check on its own.
+          retention-days: 5
           path: |
             dist/*.tar.gz
             dist/SHA256SUMS

@@ -26,8 +26,13 @@ jobs:
       - name: Headers cgo needs
         run: |
           sudo apt-get update
+          # Gio links against Wayland, xkbcommon, EGL and Vulkan as well as
+          # GL and X11 - vet and test both compile the GUI packages, so the
+          # headers are needed here even though nothing opens a window.
           sudo apt-get install -y --no-install-recommends \
-            gcc pkg-config libgl1-mesa-dev xorg-dev
+            gcc pkg-config libgl1-mesa-dev xorg-dev \
+            libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev \
+            libx11-xcb-dev libegl1-mesa-dev libvulkan-dev libffi-dev
 
       # Learned on hamreach: a botched merge once staged conflict markers into
       # a source file and 42 of 52 tests went red for that one reason.
