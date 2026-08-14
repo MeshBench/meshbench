@@ -169,6 +169,40 @@ Two further bugs fell out of the same run:
   is meaningless there - and importing a native firmware build is a real user
   path, not only a test.
 
+## What was fixed, and what is left (14 August 2026)
+
+Fixed and verified in the running application:
+
+- **Fixtures** are embedded and resolved by name, with a search path for the
+  places an install keeps them. Verified by launching the workbench with
+  `-fixture fife-strict` from `/tmp`, where no fixtures exist.
+- **The Firmware Library shows the published board images again** - 62 builds
+  where it showed 39, with the emulated boards listed and a `get` on each -
+  and it rebuilds itself when the catalogue answers, which it never did
+  before, so the fetch used to land in a field nobody read again.
+- **A filter for them**: "Emulated boards" beside the existing chips.
+- **Newest is counted, not compared as text**, so v1.17.1 stops losing to
+  v1.9.0.
+- **The GPU has to prove itself** against the CPU twin before it is used, so
+  the d3d12 divergence cannot silently produce wrong link budgets.
+- **Firmware import** no longer asks Windows for an executable bit.
+- **MeshCore host firmware builds on macOS**, which needed three portability
+  fixes in `meshcore-native`: POSIX `random()` replaced with a deterministic
+  generator that is identical on every platform (it was also giving different
+  answers per platform for the same seed), `mapfile` replaced with a read loop
+  because macOS ships bash 3.2, and the remaining empty-array expansions
+  guarded for the same reason.
+
+Left:
+
+- **Native firmware for Windows.** After the `random` and `mkdir` fixes it now
+  fails inside mingw's own `winuser.h`, which is a header-collision problem
+  rather than a missing function. Emulated boards cover Windows meanwhile.
+- **DX12.** The kernels have still never run on a real Windows GPU; the
+  hosted runner has none. The self-check protects users either way - a device
+  that disagrees is refused rather than trusted - but the underlying question
+  is open, and Alex has a Windows machine to answer it on.
+
 ## Order
 
 1. Fixtures (1) - it is the largest user-visible breakage, it is entirely in
