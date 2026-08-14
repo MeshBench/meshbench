@@ -2,10 +2,11 @@
 //
 // A header that says what the page is for with the actions beside it, counted
 // tabs for the three views, search and a role filter, and generous rows - a
-// tinted role icon, the version with a Latest chip on the newest release, how
-// it runs, its size, a tick for on disk, who uses it, a bordered use-for-role
-// control and a delete that asks twice. The footer says how much is shown and
-// what the marks mean.
+// tinted role icon, the version, how it runs, its size, a tick for on disk,
+// who uses it, a bordered use-for-role control and a delete that asks twice.
+// The footer says how much is shown and what the marks mean. Deliberately no
+// "Latest" mark: version names here include branches and study builds, and a
+// chip that guesses wrong crowns somebody's experiment - Alex's call.
 package main
 
 import (
@@ -144,7 +145,6 @@ func (p *firmwarePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 			nMachine++
 		}
 	}
-	latest := latestReleases(s.Library)
 
 	want := strings.ToLower(fieldText(&p.search))
 	shown := make([]state.FirmwareRow, 0, len(s.Library))
@@ -190,7 +190,7 @@ func (p *firmwarePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 					"nothing here - other tabs may hold builds, and scan builds asks the catalogue"))
 			}
 			return comp.List(t, &p.list, len(shown), func(gtx layout.Context, i int) layout.Dimensions {
-				return p.row(t, gtx, s, shown[i], latest)
+				return p.row(t, gtx, s, shown[i])
 			})(gtx)
 		}),
 		layout.Rigid(comp.HRule(t)),
@@ -281,7 +281,7 @@ func (p *firmwarePanel) colHeads(t *theme.Theme, gtx layout.Context) layout.Dime
 }
 
 func (p *firmwarePanel) row(t *theme.Theme, gtx layout.Context, s *state.Snapshot,
-	r state.FirmwareRow, latest map[string]string) layout.Dimensions {
+	r state.FirmwareRow) layout.Dimensions {
 
 	key := buildKey(r)
 	w, ok := p.rows[key]
@@ -350,18 +350,7 @@ func (p *firmwarePanel) row(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 								layout.Rigid(comp.OneLine(t, t.Sz.Caption, t.P.Ink, r.Role, true)),
 							)
 						}),
-						cell(fwCols[1].width, func(gtx layout.Context) layout.Dimensions {
-							kids := []layout.FlexChild{
-								layout.Rigid(comp.OneLine(t, t.Sz.Caption, t.P.Ink, r.Version, true)),
-							}
-							if latest[r.Role] == r.Version {
-								kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									return layout.Inset{Left: t.Sp.S}.Layout(gtx,
-										latestChip(t))
-								}))
-							}
-							return layout.Flex{Alignment: layout.Middle}.Layout(gtx, kids...)
-						}),
+						cell(fwCols[1].width, comp.OneLine(t, t.Sz.Caption, t.P.Ink, r.Version, true)),
 						cell(fwCols[2].width, comp.Text(t, t.Sz.Caption, t.P.Dim, runsAs)),
 						cell(fwCols[3].width, comp.Mono(t, t.Sz.Caption, t.P.Dim, size)),
 						cell(fwCols[4].width, func(gtx layout.Context) layout.Dimensions {
@@ -473,28 +462,6 @@ func roleIcon(t *theme.Theme, gtx layout.Context, role string) layout.Dimensions
 	return layout.Dimensions{Size: imagePtXY(d+gtx.Dp(t.Sp.S), d)}
 }
 
-// latestChip is the green capsule the newest release per role wears.
-func latestChip(t *theme.Theme) layout.Widget {
-	return func(gtx layout.Context) layout.Dimensions {
-		macro := op.Record(gtx.Ops)
-		dims := layout.Inset{
-			Top: t.Sp.XXS, Bottom: t.Sp.XXS, Left: t.Sp.S, Right: t.Sp.S,
-		}.Layout(gtx, comp.Text(t, t.Sz.Caption, t.P.Good, "Latest"))
-		call := macro.Stop()
-		rr := dims.Size.Y / 2
-		shape := clip.RRect{Rect: imageRectSz(dims.Size), NE: rr, NW: rr, SE: rr, SW: rr}
-		func() {
-			defer shape.Push(gtx.Ops).Pop()
-			paint.ColorOp{Color: theme.Alpha(t.P.Good, 0.12)}.Add(gtx.Ops)
-			paint.PaintOp{}.Add(gtx.Ops)
-		}()
-		paint.FillShape(gtx.Ops, theme.Alpha(t.P.Good, 0.7),
-			clip.Stroke{Path: shape.Path(gtx.Ops), Width: 1}.Op())
-		call.Add(gtx.Ops)
-		return dims
-	}
-}
-
 // borderedAction is the mock's per-row control: a bordered rounded box that
 // reads as pressable without shouting like a primary button.
 func borderedAction(t *theme.Theme, gtx layout.Context, ck *widget.Clickable,
@@ -538,70 +505,3 @@ func cross(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 	}
 	return layout.Dimensions{Size: imagePtXY(int(s), int(s))}
 }
-
-// latestReleases is the newest -vX.Y.Z per role. Only real releases compete:
-// a study build or a branch named txcheck-22 is somebody's experiment, not
-// anyone's latest.
-func latestReleases(lib []state.FirmwareRow) map[string]string {
-	latest := map[string]string{}
-	for i := range lib {
-		r := lib[i]
-		num, ok := releaseVersion(r.Version)
-		if !ok {
-			continue
-		}
-		cur, _ := releaseVersion(latest[r.Role])
-		if latest[r.Role] == "" || laxVersionLess(cur, num) {
-			latest[r.Role] = r.Version
-		}
-	}
-	return latest
-}
-
-// releaseVersion extracts the numbers from a release name like
-// repeater-v1.17.0; not-a-release answers false.
-func releaseVersion(v string) (string, bool) {
-	i := strings.LastIndex(v, "-v")
-	if i < 0 || i+2 >= len(v) || !isDigit(v[i+2]) {
-		return "", false
-	}
-	return v[i+2:], true
-}
-
-// laxVersionLess orders versions well enough to mark the newest: numeric
-// runs compare as numbers, so v1.9 sits below v1.17.
-func laxVersionLess(a, b string) bool {
-	if a == "" {
-		return b != ""
-	}
-	ai, bi := 0, 0
-	for ai < len(a) && bi < len(b) {
-		ca, cb := a[ai], b[bi]
-		if isDigit(ca) && isDigit(cb) {
-			ja, jb := ai, bi
-			for ja < len(a) && isDigit(a[ja]) {
-				ja++
-			}
-			for jb < len(b) && isDigit(b[jb]) {
-				jb++
-			}
-			na, nb := a[ai:ja], b[bi:jb]
-			if len(na) != len(nb) {
-				return len(na) < len(nb)
-			}
-			if na != nb {
-				return na < nb
-			}
-			ai, bi = ja, jb
-			continue
-		}
-		if ca != cb {
-			return ca < cb
-		}
-		ai++
-		bi++
-	}
-	return len(a)-ai < len(b)-bi
-}
-
-func isDigit(c byte) bool { return c >= '0' && c <= '9' }
