@@ -12,6 +12,91 @@ path loss over real terrain, adds thermal noise, and lets each receiver's
 demodulator find out. Capture effect, partial collisions and sensitivity are
 *emergent*, not rules someone wrote down.
 
+## Install and run
+
+Downloads are on the [releases page](https://github.com/MeshBench/meshbench/releases).
+Every one of them carries the application, the map fixtures, the licences and
+an emoji-capable font; nothing else has to be installed first.
+
+### Linux
+
+**AppImage** — one file, any distribution, no install:
+
+```bash
+chmod +x meshbench-*-x86_64.AppImage
+./meshbench-*-x86_64.AppImage
+```
+
+**Debian and Ubuntu** — puts it in the launcher with an icon:
+
+```bash
+sudo apt install ./meshbench_*_amd64.deb
+meshbench workbench          # or find MeshBench in the applications menu
+```
+
+**Tarball** — the same application plus the QEMU and Renode emulators, for
+emulating real board firmware offline:
+
+```bash
+tar xzf meshbench-linux-x86_64.tar.gz
+cd meshbench && ./meshbench workbench
+```
+
+Needs glibc 2.34 or newer (Ubuntu 22.04, Debian 12, RHEL 9, Fedora 35 and
+anything since) and a GPU with Vulkan or GL. The `.deb` declares its
+dependencies, so apt refuses on a machine that cannot run it rather than
+installing something that dies at launch.
+
+### macOS (Apple Silicon)
+
+Open `MeshBench-*-arm64.dmg` and drag MeshBench to Applications.
+
+> **The application is not signed with an Apple Developer ID yet**, so macOS
+> will refuse to open it on the first attempt — "MeshBench is damaged" or
+> "cannot be opened because the developer cannot be verified". It is neither
+> damaged nor unverified in any sense that matters; it is unsigned, and that
+> costs an Apple developer account we have not bought yet.
+>
+> To open it anyway, pick one:
+>
+> 1. **Right-click the app in Applications and choose Open**, then Open again
+>    in the dialog. macOS remembers the decision.
+> 2. If that dialog does not offer Open, go to **System Settings → Privacy &
+>    Security**, scroll to the message about MeshBench and click **Open
+>    Anyway**.
+> 3. From a terminal, clear the quarantine flag the browser attached:
+>    ```bash
+>    xattr -dr com.apple.quarantine /Applications/MeshBench.app
+>    ```
+>
+> This will stop being necessary once the build is signed and notarised.
+
+Intel Macs are not built yet. Ask if you need one.
+
+### Windows
+
+Unzip `meshbench-*-windows-x86_64.zip` anywhere and run `meshbench.exe`.
+
+Windows SmartScreen will warn about an unrecognised publisher for the same
+reason macOS does — the binary is unsigned. Click **More info → Run anyway**.
+
+Emulated ESP32 and nRF52 boards work on Windows, but the emulators are not in
+the zip yet; native firmware, the channel, terrain and planning all are.
+
+### What arrives later, over the network
+
+Nothing needs a toolchain, but three things are fetched on first use and cached
+under `~/.cache/meshcoresim` (`%LOCALAPPDATA%` on Windows):
+
+| what | where from | when |
+|---|---|---|
+| MeshCore firmware builds | `MeshBench/meshcore-native` releases | first time a node runs firmware |
+| board images | MeshCore's own releases | first time a board is emulated |
+| map and terrain tiles | OpenStreetMap, CARTO, Esri, AWS terrarium | as the map is panned |
+
+Everything the application ships under is listed in **Help → Licences &
+attributions**, and in `LICENCES/` beside the binary.
+
 ## Where the real ends and the simulation begins
 
 The claim "it runs real firmware" is worth being exact about, because the
@@ -297,11 +382,15 @@ Early. Design settled, implementation starting. Decisions live in Plane project
 **MSIM** as `ADR-0001` … `ADR-0009`, with a UX spec and the baseband technical
 design alongside them.
 
-## Building and running
+## Building from source
 
-Needs a GPU and a display. **It does not run on the dev VM** (virtual VGA, no
-display) — develop there, run on a Mac. CI exercises the CPU reference path,
-which per ADR-0004 is a maintained oracle rather than a fallback.
+Installing is above; this is for working on it. Needs a GPU and a display -
+**it does not run on the dev VM** (virtual VGA, no display). CI exercises the
+CPU reference path, which per ADR-0004 is a maintained oracle rather than a
+fallback.
+
+Building the downloadable artifacts is `.github/workflows/package.yml` for
+Linux and Windows, and `packaging/macos-app.sh` for the macOS bundle.
 
 ```bash
 go test ./...        # CPU reference path

@@ -307,14 +307,67 @@ jobs:
             gh release upload "$TAG" $FILES --clobber
 
   macos:
-    if: false   # waiting on a self-hosted Mac runner, deliberately: hosted
-                # macOS minutes bill at 10x on a private repository. Also
-                # still missing underneath - the QEMU fork does not build for
-                # Apple Silicon, and meshcore-native publishes no darwin-arm64
-                # host builds. See docs/distribution-plan.md.
+    # macos-14 is Apple Silicon and is the standard runner, not the xlarge -
+    # larger runners are billed on every plan and fail with a message about
+    # account payments, which is a confusing way to be told you picked the
+    # expensive label.
+    #
+    # Hosted minutes bill at 10x on a private repository, which is affordable
+    # here precisely because this workflow runs on tags and manual dispatch
+    # only, never on push: a release build is about three minutes, so roughly
+    # thirty billable minutes a release. If it ever moves to per-push, move it
+    # to a Mac we own at the same time.
     runs-on: macos-14
-    steps: [{ run: 'echo see docs/release-packaging-plan.md' }]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.24', cache: true }
 
+      - name: Build the bundle
+        run: |
+          set -e
+          VERSION="${GITHUB_REF_NAME}"
+          case "$VERSION" in v*) VERSION="${VERSION#v}";; *) VERSION="0.0.0";; esac
+          packaging/macos-app.sh "$VERSION"
+
+      - name: Fetch the emulators
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          # Beside the bundle rather than inside it: these are separate
+          # programs, and a .app with emulators buried in it is one nobody can
+          # notarise in a single piece later. The dmg carries both.
+          cd dist/macos
+          gh release download --repo MeshBench/qemu \
+            --pattern '*xtensa*aarch64-apple-darwin.tar.xz' --dir . --clobber \
+            || echo "::warning::no macOS QEMU release yet; ESP32 boards will not emulate"
+          gh release download --repo MeshBench/renode \
+            --pattern '*macos*.tar.gz' --dir . --clobber \
+            || echo "::warning::no macOS Renode release yet; nRF52 boards will not emulate"
+          for f in *.tar.xz *.tar.gz; do [ -e "$f" ] || continue; tar xf "$f" && rm "$f"; done
+          # The same lookup as every platform: an executable file beside the
+          # binary. Renode's macOS tree names its launcher with a capital R.
+          [ -d qemu ] && ln -sf qemu/bin/qemu-system-xtensa .
+          [ -f Release/osx-arm64/Renode ] && ln -sf Release/osx-arm64/Renode renode
+          ls -la
+
+      - name: Repack the dmg with the emulators in it
+        run: |
+          set -e
+          VERSION="${GITHUB_REF_NAME}"
+          case "$VERSION" in v*) VERSION="${VERSION#v}";; *) VERSION="0.0.0";; esac
+          rm -f dist/MeshBench-*.dmg
+          hdiutil create -quiet -volname "MeshBench $VERSION" -srcfolder dist/macos \
+            -ov -format UDZO "dist/MeshBench-${VERSION}-arm64.dmg"
+          ls -la dist/*.dmg
+          shasum -a 256 dist/*.dmg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: meshbench-macos
+          retention-days: 5
+          path: dist/*.dmg
   windows:
     # Cross-compiled from Linux with mingw rather than built on a Windows
     # runner: Gio's Windows backend and wgpu both build that way, and Windows
