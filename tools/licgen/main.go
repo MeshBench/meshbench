@@ -61,6 +61,10 @@ type curated struct {
 	Bundled []curatedEntry `json:"bundled"`
 	Runtime []curatedEntry `json:"runtime"`
 	Data    []curatedEntry `json:"data"`
+	// GoNotes says something a licence file does not, keyed by module path.
+	// The one that matters: paho is dual-licensed and we take the branch
+	// that is GPL-compatible, which no automatic reading would know.
+	GoNotes map[string]string `json:"go_notes,omitempty"`
 }
 
 type curatedEntry struct {
@@ -87,16 +91,26 @@ func main() {
 		if strings.Contains(strings.ToLower(cur.Project.Licence), "none") {
 			fatal(fmt.Errorf("the project has no licence (ADR-0001): a release cannot ship; choose one and update docs/licences.json"))
 		}
+		if _, err := os.Stat(filepath.Join(root, "LICENSE")); err != nil {
+			fatal(fmt.Errorf("docs/licences.json names a licence but there is no LICENSE file: %w", err))
+		}
 		return
 	}
 
-	golibs, err := goLibraries(root)
+	golibs, err := goLibraries(root, cur.GoNotes)
 	if err != nil {
 		fatal(err)
 	}
 
+	// The project's own text is the LICENSE file itself, so the window can
+	// only ever show what the repository actually ships under.
+	project := cur.Project.resolve(root)
+	if b, err := os.ReadFile(filepath.Join(root, "LICENSE")); err == nil {
+		project.Text = strings.TrimSpace(string(b))
+	}
+
 	out := File{Sections: []Section{
-		{Key: "project", Title: "MeshBench", Entries: []Entry{cur.Project.resolve(root)}},
+		{Key: "project", Title: "MeshBench", Entries: []Entry{project}},
 		{Key: "forks", Title: "Modified forks",
 			Blurb:   "Repositories forked and changed for MeshBench. Each entry says what was changed; the fork is the source offer for the binaries in this bundle.",
 			Entries: resolve(root, cur.Forks)},
@@ -175,7 +189,7 @@ func readCurated(root string) (curated, error) {
 
 // goLibraries walks the build graph of ./cmd/meshcoresim (the superset: both
 // workbenches) and reads each linked module's licence from the module cache.
-func goLibraries(root string) ([]Entry, error) {
+func goLibraries(root string, notes map[string]string) ([]Entry, error) {
 	cmd := exec.Command("go", "list", "-deps",
 		"-f", `{{if .Module}}{{if not .Module.Main}}{{.Module.Path}}	{{.Module.Version}}	{{.Module.Dir}}{{end}}{{end}}`,
 		"./cmd/meshcoresim")
@@ -200,13 +214,17 @@ func goLibraries(root string) ([]Entry, error) {
 			return nil, fmt.Errorf("%s: %w", mod, err)
 		}
 		name := classify(text)
-		if name == "" || strings.HasPrefix(name, "GPL") || strings.HasPrefix(name, "AGPL") {
-			unknown = append(unknown, fmt.Sprintf("%s (%s)", mod, orWord(name, "unrecognised")))
+		if why := incompatible(name); why != "" {
+			unknown = append(unknown, fmt.Sprintf("%s (%s: %s)", mod, orWord(name, "unrecognised"), why))
 			continue
+		}
+		detail := ver
+		if n := notes[mod]; n != "" {
+			detail = ver + " - " + n
 		}
 		entries = append(entries, Entry{
 			Name:    mod,
-			Detail:  ver,
+			Detail:  detail,
 			Licence: name,
 			Link:    "https://" + mod,
 			Text:    strings.TrimSpace(text),
@@ -237,6 +255,31 @@ func licenceText(dir string) (string, error) {
 	return "", fmt.Errorf("no licence file in %s", dir)
 }
 
+// incompatible says why a linked module's licence cannot ship inside
+// MeshBench, or "" when it can. MeshBench is GPL-3.0-or-later (ADR-0001), so
+// the question is not "is this permissive" but "can this be combined with
+// GPL-3.0 and conveyed".
+//
+// This is about *linked* code only. The emulator forks are separate processes
+// and are not measured here - a GPL-2.0 QEMU beside our binary is aggregation,
+// which is why that fork is fine and a GPL-2.0-only Go module would not be.
+func incompatible(name string) string {
+	switch {
+	case name == "":
+		return "licence not recognised"
+	case name == "GPL-2.0-only":
+		return "GPL-2.0 without 'or later' cannot combine with GPL-3.0"
+	case name == "EPL-2.0":
+		return "EPL-2.0 alone is not GPL-compatible; only the dual EPL/EDL form is"
+	case strings.HasPrefix(name, "AGPL"):
+		return "AGPL would change the terms of the whole work"
+	case strings.Contains(strings.ToUpper(name), "SSPL"),
+		strings.Contains(strings.ToUpper(name), "BUSL"):
+		return "source-available, not free software: cannot ship in a GPL work"
+	}
+	return ""
+}
+
 // classify names a licence from its text. Deliberately small: it covers what
 // this project actually links, and an unmatched text fails generation rather
 // than shipping as a shrug.
@@ -251,6 +294,18 @@ func classify(text string) string {
 	}
 	t := strings.ToLower(text)
 	switch {
+	// Eclipse dual licensing, which decides GPL compatibility and which no
+	// single-name reading would catch: EPL alone cannot be linked into a GPL
+	// program, EDL-1.0 is BSD-3-Clause verbatim and can.
+	case strings.Contains(t, "eclipse public license") &&
+		strings.Contains(t, "eclipse distribution license"):
+		return "EPL-2.0 or EDL-1.0"
+	case strings.Contains(t, "eclipse public license"):
+		return "EPL-2.0"
+	case strings.Contains(t, "gnu affero"):
+		return "AGPL-3.0"
+	case strings.Contains(t, "gnu lesser general public license"):
+		return "LGPL"
 	case strings.Contains(t, "mit license") ||
 		strings.Contains(t, "permission is hereby granted, free of charge"):
 		return "MIT"
@@ -261,6 +316,12 @@ func classify(text string) string {
 	case strings.Contains(t, "eclipse public license"):
 		return "EPL-2.0"
 	case strings.Contains(t, "gnu general public license"):
+		// Version 2 without the "or later" escape hatch cannot be combined
+		// with our GPL-3.0; version 3 and "2 or later" can.
+		if strings.Contains(t, "version 2") &&
+			!strings.Contains(t, "any later version") {
+			return "GPL-2.0-only"
+		}
 		return "GPL"
 	case strings.Contains(t, "redistribution and use in source and binary forms"):
 		if strings.Contains(t, "neither the name") {

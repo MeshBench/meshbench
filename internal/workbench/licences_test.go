@@ -56,13 +56,44 @@ func TestLicenceInventoryIsCompleteAndOrdered(t *testing.T) {
 	if len(golibs.Entries) < 10 {
 		t.Fatalf("only %d Go modules listed - the inventory looks stale; run go generate ./internal/workbench/licences", len(golibs.Entries))
 	}
+	// MeshBench is GPL-3.0-or-later (ADR-0001), so a linked module has to be
+	// combinable with that - which is a different question from "permissive".
+	// The mirror of tools/licgen's own rule; if they ever disagree, this is
+	// the one a reader sees.
 	for _, e := range golibs.Entries {
 		if e.Licence == "" || e.Text == "" {
 			t.Errorf("%s: licence %q, text %d bytes", e.Name, e.Licence, len(e.Text))
 		}
-		if strings.HasPrefix(e.Licence, "GPL") || strings.HasPrefix(e.Licence, "AGPL") {
-			t.Errorf("%s is %s: a linked module cannot ship under it", e.Name, e.Licence)
+		switch {
+		case e.Licence == "GPL-2.0-only",
+			e.Licence == "EPL-2.0",
+			strings.HasPrefix(e.Licence, "AGPL"):
+			t.Errorf("%s is %s: cannot be combined with GPL-3.0", e.Name, e.Licence)
 		}
+	}
+
+	// The one that needs a human to have looked: paho is dual-licensed, and
+	// only one of the two branches can ship inside a GPL work.
+	for _, e := range golibs.Entries {
+		if strings.Contains(e.Name, "paho") &&
+			!strings.Contains(e.Detail, "EDL") {
+			t.Errorf("paho's entry does not say which branch MeshBench takes: %q", e.Detail)
+		}
+	}
+}
+
+func TestTheProjectHasALicence(t *testing.T) {
+	f, err := licences.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := f.Sections[0].Entries[0]
+	if strings.Contains(strings.ToLower(p.Licence), "none") {
+		t.Fatal("the project's licence is unchosen: releases are blocked (ADR-0001)")
+	}
+	// The window shows the LICENSE file itself, not a summary of it.
+	if !strings.Contains(p.Text, "GNU GENERAL PUBLIC LICENSE") {
+		t.Errorf("the project entry does not carry the licence text (%d bytes)", len(p.Text))
 	}
 }
 

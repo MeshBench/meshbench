@@ -1,9 +1,12 @@
 {
 	"project": {
 		"name": "MeshBench",
-		"licence": "none chosen yet",
-		"detail": "ADR-0001: a licence for MeshBench itself has not been chosen. Until it is, no rights are granted beyond running this copy, and the release pipeline refuses to publish a tagged build.",
-		"link": "https://github.com/A13xB0/meshcoresim"
+		"licence": "GPL-3.0-or-later",
+		"detail": "ADR-0001. You may use, study, modify and share this program; versions you pass on to others must come with their source under the same terms. Every release carries a source archive while the repository is private.",
+		"link": "https://github.com/MeshBench/meshbench"
+	},
+	"go_notes": {
+		"github.com/eclipse/paho.mqtt.golang": "dual-licensed EPL-2.0 or EDL-1.0; MeshBench takes the EDL-1.0 branch, which is BSD-3-Clause and GPL-compatible"
 	},
 	"forks": [
 		{

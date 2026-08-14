@@ -5,9 +5,12 @@ against a **sample-accurate LoRa baseband channel** with real noise, so the
 question it answers is not "would a packet get through" but "what actually
 arrived at the antenna, and why".
 
-**Private, A13xB0. No licence chosen yet** — see ADR-0001. Do not add a LICENSE
-file or make this public without an explicit decision; MeshCore's own licence is
-linked into our binary (ADR-0002) and constrains the choice.
+**GPL-3.0-or-later** — see `docs/adr-0001-licence.md`. The repository is still
+private; publishing binaries from a private repository means each release
+carries a source archive, which the pipeline does. MeshCore is *not* linked into
+our binary — it is built in `MeshBench/meshcore-native` and downloaded at
+runtime, which is what freed the choice — so do not reintroduce a direct
+dependency on it without a new ADR.
 
 ## Tracking
 
