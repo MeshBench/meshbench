@@ -61,7 +61,12 @@ jobs:
       # CI has no GPU (and neither does the dev VM), so this exercises the CPU
       # reference path only — which is exactly why ADR-0004 requires one.
       - name: test
-        run: go test -race -count=1 ./...
+        # -timeout, because the default is ten minutes per package and the
+        # workbench's own package spends most of that rendering frames for
+        # the control audit. It takes ~85s on a developer machine and blows
+        # the default on a two-core runner under -race, which reads as a hang
+        # and is a budget.
+        run: go test -race -count=1 -timeout 30m ./...
 
       # The 500-line hard limit from CLAUDE.md. Applied to shaders and the
       # dissector too, not just Go: hamreach enforced Go only and its largest
