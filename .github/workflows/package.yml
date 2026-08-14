@@ -96,11 +96,17 @@ jobs:
           # forks' own release artifacts carry a meshbench mark in the name -
           # nobody should mistake one for an upstream build. The patterns
           # wildcard around it rather than pinning where in the name it sits.
-          gh release download --repo MeshBench/qemu --pattern '*linux*x86_64*.tar.gz' \
+          #
+          # QEMU's archives are .tar.xz and carry the target in the name;
+          # only the Xtensa one runs ESP32 firmware, so the riscv32 build in
+          # the same release is deliberately not downloaded.
+          gh release download --repo MeshBench/qemu --pattern '*xtensa*x86_64-linux-gnu.tar.xz' \
             --dir . --clobber || echo "::warning::no QEMU release yet, bundle ships without it"
-          gh release download --repo MeshBench/renode --pattern '*linux*portable*.tar.gz' \
+          gh release download --repo MeshBench/renode --pattern '*linux*portable*meshbench*.tar.gz' \
             --dir . --clobber || echo "::warning::no Renode release yet, bundle ships without it"
-          for f in *.tar.gz; do [ -e "$f" ] && tar xzf "$f" && rm "$f"; done
+          # -xf rather than -xzf: the two forks package differently and the
+          # bundle should not care which. tar reads the compression itself.
+          for f in *.tar.gz *.tar.xz; do [ -e "$f" ] || continue; tar xf "$f" && rm "$f"; done
           ls -la
 
       - name: Fonts and fixtures
@@ -127,7 +133,11 @@ jobs:
           # Beside the binary is where MeshBench looks second, after the
           # environment variable and before its cache. A desktop application is
           # not launched from a shell, so PATH is nearly useless to it.
-          [ -d qemu-meshbench ] && ln -sf qemu-meshbench/bin/qemu-system-xtensa .
+          # QEMU's archive unpacks to qemu/; the symlink is what MeshBench
+          # finds beside its own binary.
+          for d in qemu qemu-meshbench; do
+            [ -d "$d" ] && ln -sf "$d/bin/qemu-system-xtensa" . && break
+          done
           cat > README.txt <<'TXT'
           MeshBench
 
