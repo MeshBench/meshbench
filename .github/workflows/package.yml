@@ -94,10 +94,13 @@ jobs:
           # Both are our forks and neither can be a distribution build: ours
           # carry the SX1262 device and the SEVONPEND fix respectively, and a
           # stock build of either runs, reports no chip or hangs, and looks like
-          # our fault.
-          gh release download --repo MeshBench/qemu --pattern '*linux-x86_64.tar.gz' \
+          # our fault. The changes are deliberately not upstreamed, so the
+          # forks' own release artifacts carry a meshbench mark in the name -
+          # nobody should mistake one for an upstream build. The patterns
+          # wildcard around it rather than pinning where in the name it sits.
+          gh release download --repo MeshBench/qemu --pattern '*linux*x86_64*.tar.gz' \
             --dir . --clobber || echo "::warning::no QEMU release yet, bundle ships without it"
-          gh release download --repo MeshBench/renode --pattern '*linux-portable.tar.gz' \
+          gh release download --repo MeshBench/renode --pattern '*linux*portable*.tar.gz' \
             --dir . --clobber || echo "::warning::no Renode release yet, bundle ships without it"
           for f in *.tar.gz; do [ -e "$f" ] && tar xzf "$f" && rm "$f"; done
           ls -la
@@ -135,10 +138,17 @@ jobs:
           Needs a Linux with glibc 2.38 or newer (Ubuntu 24.04, Debian 13,
           Fedora 39, or anything more recent) and a GPU with Vulkan or GL.
 
+          MeshBench is free software under the GNU General Public Licence,
+          version 3 or later. The full terms are in LICENCES/, and the source
+          for this exact build is the meshbench-*-source.tar.gz published beside
+          it on the release page.
+
           The emulators beside this file are found automatically. They are not
           distribution builds and cannot be: the QEMU carries an SX1262 device
           upstream does not have, and the Renode carries a SEVONPEND fix without
-          which published nRF52 firmware sleeps for ever.
+          which published nRF52 firmware sleeps for ever. Their release
+          artifacts say meshbench in the name for that reason - these forks are
+          built for this simulator and are not upstream releases.
 
           qemu-system-xtensa is a symlink on purpose. QEMU resolves its own path
           to find its data files, so a bare copy of the binary will not run.
@@ -157,6 +167,13 @@ jobs:
             echo "::error::MeshCIM reference found in the bundle"; exit 1
           fi
           tar czf meshbench-linux-x86_64.tar.gz meshbench
+          # GPL-3.0 section 6: whoever receives the binary can have the source
+          # that made it. The repository is private for now, so the source
+          # travels with the release rather than being a link. When the
+          # repository goes public this can become a URL in the notes.
+          VERSION="${GITHUB_REF_NAME:-dev}"
+          (cd .. && git archive --format=tar.gz \
+            --prefix="meshbench-${VERSION}/" -o "dist/meshbench-${VERSION}-source.tar.gz" HEAD)
           sha256sum *.tar.gz > SHA256SUMS
           # The smoke is the artifact, not the tree: unpack what users get and
           # ask it who it is. The graphical smoke stays on a real desktop

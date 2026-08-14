@@ -11,18 +11,38 @@ its decisions stand (native build because of cgo, glibc 2.38 floor from
 cimgui, emulator forks fetched from our releases, the qemu symlink, README in
 the bundle). This plan is what changes and what is added.
 
-## 0. The blocking decision: MeshBench's own licence
+## 0. The licence: settled, GPL-3.0-or-later
 
-ADR-0001 records that no licence has been chosen for `A13xB0/meshcoresim`.
-A release aimed at end users distributes the work; **a repository with no
-licence grants nobody the right to use it**. Nothing below ships until Alex
-picks one. Constraints worth knowing when choosing:
+**Resolved 14 August 2026 - see `docs/adr-0001-licence.md`.** MeshBench is
+GPL-3.0-or-later; the LICENSE file is in the repository root and the licence
+window shows it as its first entry.
+
+Two consequences the pipeline implements:
+
+- **Binaries carry their source.** GPL-3.0 §6 gives whoever receives the
+  binary the right to its Corresponding Source, and the repository is private,
+  so each release publishes `meshbench-<tag>-source.tar.gz` beside the bundle.
+  When the repository is made public a link replaces it.
+- **What is linked had to be checked, and was.** Everything compiled in is
+  GPL-3.0-compatible; the one that needed a decision is
+  `eclipse/paho.mqtt.golang`, dual-licensed EPL-2.0 **or** EDL-1.0, where only
+  the EDL branch (BSD-3-Clause) may be combined with GPL. MeshBench takes EDL,
+  the licence window says so on that entry, and `tools/licgen` now fails the
+  build on EPL-only, GPL-2.0-only, AGPL or SSPL/BUSL dependencies.
+
+The original constraints, kept because they still shape the bundle:
 
 - The bundle redistributes our **QEMU fork - GPLv2**. That is fine alongside
-  any licence for MeshBench itself (separate programs in one archive, not one
-  work), but the bundle must offer the QEMU source - a link to
-  `MeshBench/qemu` in the licence window satisfies the offer since the fork
-  is public. Same for tlib/renode-infrastructure under their upstream terms.
+  MeshBench's GPL-3.0 (separate programs in one archive, not one work - they
+  talk over sockets, nothing is linked), and the bundle must offer the QEMU
+  source, which the public `MeshBench/qemu` repository does. Same for
+  tlib/renode-infrastructure under their upstream terms.
+- **The fork releases are marked as ours.** The SX1262 device and the
+  SEVONPEND fix are not upstreamed - no pull requests - so the artifacts in
+  those forks' releases carry `meshbench` in the file name, and this pipeline
+  matches them with wildcards on both sides rather than pinning where in the
+  name the mark sits. A user who finds one of these files loose on disk should
+  be able to tell it is a MeshBench build and not an upstream release.
 - MeshCore itself is **downloaded at runtime, never redistributed by us** -
   the catalogue pulls builds from `MeshBench/meshcore-native` releases and
   board images from upstream's releases - so MeshCore's licence binds those
