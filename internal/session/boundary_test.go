@@ -23,7 +23,6 @@ func TestTheSessionKnowsNothingAboutAnyToolkit(t *testing.T) {
 		"github.com/MeshBench/meshbench/internal/gui/comp",
 		"github.com/MeshBench/meshbench/internal/gui/shell",
 		"github.com/MeshBench/meshbench/internal/gui/theme",
-		"github.com/MeshBench/meshbench/internal/ui",
 	}
 	files, err := filepath.Glob("*.go")
 	if err != nil {

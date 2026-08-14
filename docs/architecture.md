@@ -58,7 +58,7 @@ happens at the RF layer**, so we record frames the firmware never sees.
 | `internal/capture` | pcapng, event log, reception ledger. | Alter what it records. |
 | `internal/sdr` | IQ export, SigMF, streaming. | Recompute anything. |
 | `internal/companion` | TCP and PTY companion transports. | Touch the RF path. |
-| `internal/ui` | ImGui panels. | Contain physics. |
+| `internal/gui` + `internal/workbench` | Gio primitives and the workbench's panels. | Contain physics. |
 | `internal/mockup` + `tools/mockup` | Documentation figures only. | Be imported by anything at runtime. |
 
 ## The firmware boundary

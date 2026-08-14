@@ -44,7 +44,8 @@ internal/scenario/ nodes, import, persistence, seeds
 internal/capture/  pcapng, event log
 internal/sdr/      IQ export, SigMF, streaming
 internal/companion/ TCP and PTY companion transports
-internal/ui/       ImGui panels
+internal/gui/      Gio primitives: theme, components, shell, map view
+internal/workbench/ the workbench itself: panels, state, wiring
 shaders/           WGSL compute shaders
 tools/dissector/   Wireshark Lua dissector
 ```
@@ -94,7 +95,7 @@ Mechanical, because taste does not survive scale — and this codebase will be b
 
 ## It is an application, and it runs standalone
 
-A native desktop application — Go and imgui (ADR-0005). **Not a web
+A native desktop application — Go and Gio. **Not a web
 application**, not a browser tab, not a local server with a front end pointed at
 it. If a design starts describing endpoints, sessions or a front end, it has
 drifted.

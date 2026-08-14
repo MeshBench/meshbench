@@ -52,9 +52,19 @@ func TestLicenceInventoryIsCompleteAndOrdered(t *testing.T) {
 		}
 	}
 
+	// Named rather than counted: a count has to be edited every time a
+	// dependency comes or goes, and the edit is indistinguishable from
+	// papering over a generation that silently produced nothing. These are
+	// modules the binary cannot be built without.
 	golibs := f.Sections[order["golibs"]]
-	if len(golibs.Entries) < 10 {
-		t.Fatalf("only %d Go modules listed - the inventory looks stale; run go generate ./internal/workbench/licences", len(golibs.Entries))
+	linked := map[string]bool{}
+	for _, e := range golibs.Entries {
+		linked[e.Name] = true
+	}
+	for _, must := range []string{"gioui.org", "github.com/cogentcore/webgpu"} {
+		if !linked[must] {
+			t.Fatalf("%s is linked into the binary but absent from the inventory; run go generate ./internal/workbench/licences", must)
+		}
 	}
 	// MeshBench is GPL-3.0-or-later (docs/licence.md), so a linked module has to be
 	// combinable with that - which is a different question from "permissive".

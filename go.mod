@@ -4,7 +4,6 @@ go 1.24.0
 
 require (
 	gioui.org v0.10.2
-	github.com/AllenDang/cimgui-go v1.6.0
 	github.com/cogentcore/webgpu v0.23.0
 	github.com/eclipse/paho.mqtt.golang v1.5.1
 	golang.org/x/image v0.26.0

@@ -14,35 +14,47 @@
 			"detail": "Fork of qemu-project/qemu, branch meshbench-sx1262. Adds an SX1262 LoRa radio device upstream does not have, so ESP32 firmware sees its chip. The emulator in this bundle is built from this fork; the fork repository is the source offer.",
 			"licence": "GPL-2.0",
 			"link": "https://github.com/MeshBench/qemu",
-			"text_files": ["qemu-COPYING.txt"]
+			"text_files": [
+				"qemu-COPYING.txt"
+			]
 		},
 		{
 			"name": "MeshBench/tlib",
 			"detail": "Fork of antmicro/tlib (Renode's translation library), branch sevonpend-any-pending. SEVONPEND now wakes the core on any pended interrupt, not only a newly pended one - without this, published nRF52 firmware sleeps for ever.",
 			"licence": "LGPL (libqemu lineage)",
 			"link": "https://github.com/MeshBench/tlib",
-			"text_files": ["tlib-LICENSE.txt"]
+			"text_files": [
+				"tlib-LICENSE.txt"
+			]
 		},
 		{
 			"name": "MeshBench/renode-infrastructure",
 			"detail": "Fork of renode/renode-infrastructure. The C# half of the SEVONPEND fix, matching the tlib change.",
 			"licence": "MIT + LGPL",
 			"link": "https://github.com/MeshBench/renode-infrastructure",
-			"text_files": ["renode-infrastructure-MIT.txt", "renode-infrastructure-LGPL.txt"]
+			"text_files": [
+				"renode-infrastructure-MIT.txt",
+				"renode-infrastructure-LGPL.txt"
+			]
 		},
 		{
 			"name": "MeshBench/renode",
 			"detail": "Fork of renode/renode, branch meshbench. A portable bundle build that carries its own .NET runtime, so nRF52 emulation needs nothing installed.",
 			"licence": "MIT",
 			"link": "https://github.com/MeshBench/renode",
-			"text_files": ["renode-LICENSE.txt"]
+			"text_files": [
+				"renode-LICENSE.txt"
+			]
 		},
 		{
 			"name": "MeshBench/meshcore-native",
 			"detail": "Builds meshcore-dev/MeshCore applications unmodified and adds the host variant and bridge that let them run as plain processes. MeshBench downloads these builds at runtime; they are not in this bundle. Its NOTICE is reproduced below.",
 			"licence": "MIT",
 			"link": "https://github.com/MeshBench/meshcore-native",
-			"text_files": ["meshcore-native-NOTICE.md", "meshcore-native-LICENSE.txt"]
+			"text_files": [
+				"meshcore-native-NOTICE.md",
+				"meshcore-native-LICENSE.txt"
+			]
 		}
 	],
 	"bundled": [
@@ -51,28 +63,27 @@
 			"detail": "Inside the Renode portable bundle, so nothing needs installing to emulate nRF52 boards.",
 			"licence": "MIT",
 			"link": "https://github.com/dotnet/runtime",
-			"text_files": ["dotnet-MIT.txt"]
-		},
-		{
-			"name": "Dear ImGui / cimgui",
-			"detail": "The native half of the old workbench1, which still ships in this binary until it is removed.",
-			"licence": "MIT",
-			"link": "https://github.com/ocornut/imgui",
-			"text_files": ["imgui-LICENSE.txt"]
+			"text_files": [
+				"dotnet-MIT.txt"
+			]
 		},
 		{
 			"name": "wgpu-native",
 			"detail": "The GPU library inside cogentcore/webgpu that computes terrain profiles.",
 			"licence": "MIT or Apache-2.0",
 			"link": "https://github.com/gfx-rs/wgpu-native",
-			"text_files": ["wgpu-MIT.txt"]
+			"text_files": [
+				"wgpu-MIT.txt"
+			]
 		},
 		{
 			"name": "Noto Color Emoji",
 			"detail": "Bundled beside the binary so node names with emoji render on machines without the font.",
 			"licence": "OFL-1.1",
 			"link": "https://github.com/googlefonts/noto-emoji",
-			"text_files": ["noto-emoji-OFL.txt"]
+			"text_files": [
+				"noto-emoji-OFL.txt"
+			]
 		}
 	],
 	"runtime": [
@@ -81,7 +92,9 @@
 			"detail": "The firmware under test. Builds are downloaded from MeshBench/meshcore-native releases on first use and cached; MeshCore is never redistributed inside this bundle.",
 			"licence": "MIT",
 			"link": "https://github.com/meshcore-dev/MeshCore",
-			"text_files": ["meshcore-LICENSE.txt"]
+			"text_files": [
+				"meshcore-LICENSE.txt"
+			]
 		},
 		{
 			"name": "Board firmware images",

@@ -20,18 +20,17 @@ on:
 
 jobs:
   linux:
-    # The oldest base that can link, which is not the oldest base we would
-    # like. cimgui-go v1.6.0 ships a *prebuilt* cimgui.a, and it references
-    # __isoc23_sscanf - a symbol glibc only grew in 2.38. On ubuntu-22.04
-    # (glibc 2.35) the Go build succeeds and the link of internal/ui fails
-    # with several hundred undefined references, which reads like a broken
-    # toolchain and is a dependency's floor showing through.
+    # The oldest base that can link. This used to be 24.04 because cimgui-go
+    # shipped a prebuilt cimgui.a referencing __isoc23_sscanf, a symbol glibc
+    # only grew in 2.38 - a dependency's floor showing through as several
+    # hundred undefined references. workbench1 and internal/ui are gone, so
+    # nothing links cimgui and the floor is now the runner's own glibc: 2.35,
+    # which reaches Ubuntu 22.04, Debian 12 and RHEL 9.
     #
-    # So the bundle's real glibc floor is 2.38 - Ubuntu 24.04, Debian 13,
-    # Fedora 39 and newer - and lowering it means building cimgui from source
-    # rather than choosing a different runner. The floor drops the day
-    # workbench1 and internal/ui are deleted, since nothing else links cimgui.
-    runs-on: ubuntu-24.04
+    # Build on the oldest base you intend to support, because glibc symbol
+    # versioning is one-way: a binary linked against 2.35 runs on 2.38, and
+    # never the other way round.
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -40,7 +39,7 @@ jobs:
       - name: Dependencies
         run: |
           sudo apt-get update
-          # cgo through cimgui-go and Gio, so this is a native build and not a
+          # cgo through Gio and wgpu, so this is a native build and not a
           # cross-compile. GL, X11, Wayland, xkbcommon, EGL and Vulkan headers
           # are all needed to link even though the binary can run headless.
           sudo apt-get install -y --no-install-recommends \
@@ -66,9 +65,8 @@ jobs:
           # noise-floor measurement on load, not on code. The full suite is
           # ci.yml's job; this gate is that the artifact builds and works.
           go test -short ./...
-          # One shipped binary since the cutover: `meshbench workbench` is the
-          # Gio app, and `workbench1` keeps the old one reachable until it is
-          # deleted.
+          # One binary, one workbench: `meshbench workbench` is the Gio app,
+          # and the imgui one it replaced has been deleted.
           #
           # The app ID is set here rather than left to default. Gio takes the
           # Wayland app_id and the X11 class from it, and the default is the
@@ -135,8 +133,7 @@ jobs:
 
           Run ./meshbench workbench
 
-          Needs a Linux with glibc 2.38 or newer (Ubuntu 24.04, Debian 13,
-          Fedora 39, or anything more recent) and a GPU with Vulkan or GL.
+          Needs a GPU with Vulkan or GL.
 
           MeshBench is free software under the GNU General Public Licence,
           version 3 or later. The full terms are in LICENCES/, and the source
@@ -156,9 +153,11 @@ jobs:
           Native MeshCore builds and board images are downloaded on first use and
           cached under ~/.cache/meshcoresim. Nothing else is needed.
 
+          Needs glibc 2.35 or newer: Ubuntu 22.04, Debian 12, RHEL 9, or
+          anything more recent.
+
           Everything this bundle ships under is in LICENCES/, and in the
-          application under Help > Licences & attributions. `workbench1` runs
-          the old interface, kept until the new one has bedded in.
+          application under Help > Licences & attributions.
           TXT
           cd ..
           # MeshCIM is proprietary and must never appear in an artifact, under

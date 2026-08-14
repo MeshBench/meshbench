@@ -338,9 +338,9 @@ strictly, so `signalRssiPkt` read zero on every native run.
 
 ## Working on the desktop app
 
-**Never launch it with `go run`.** That recompiles cimgui-go's cgo every time,
-which is three minutes per restart against about eight seconds for a prebuilt
-binary — and that gap decides whether a layout gets checked or guessed at:
+**Never launch it with `go run`.** It relinks the cgo in Gio and wgpu every
+time, which costs far more per restart than a prebuilt binary — and that gap
+decides whether a layout gets checked or guessed at:
 
     go build -o msim ./cmd/meshcoresim && ./msim workbench
 
