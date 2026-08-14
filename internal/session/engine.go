@@ -295,6 +295,10 @@ func (s *Sim) warm(st *state.Store, nodes int) {
 	s.warmMu.Unlock()
 
 	s.cold = false
+	// The network this warm is for, taken now. Everything below runs after
+	// the verb that started it has returned, and s.eng/s.nodes belong to
+	// whatever has been opened since.
+	eng, warmNodes, freqMHz := s.eng, s.nodes, s.freqMHz
 	go func() {
 		defer cancel()
 		total := nodes * (nodes - 1) / 2
@@ -307,7 +311,7 @@ func (s *Sim) warm(st *state.Store, nodes int) {
 		// it fills, the cores below no longer have to: WarmLinks asks the
 		// cache before it measures anything.
 		if s.gpuWarm {
-			res := s.warmOnGPU(func(what string, done, total int) {
+			res := s.warmOnGPU(eng, warmNodes, freqMHz, func(what string, done, total int) {
 				_, _ = st.Do(ctx, "job.progress", state.Job{
 					ID: "links", What: what, Done: done, Total: total})
 			})
@@ -327,7 +331,7 @@ func (s *Sim) warm(st *state.Store, nodes int) {
 			_, _ = st.Do(ctx, "gpu.state", nil)
 		}
 
-		s.eng.WarmLinks(ctx, func(done, of int) {
+		eng.WarmLinks(ctx, func(done, of int) {
 			// No second throttle here: the engine already reports every 512th
 			// pair, and a filter stacked on a filter only let through their
 			// common multiples - the first status update came at pair 32,000,

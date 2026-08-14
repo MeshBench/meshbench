@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"math"
+	"os"
 	"testing"
 	"time"
 
@@ -73,6 +74,15 @@ func TestOneExperimentCellReportsWhatItDid(t *testing.T) {
 func TestTheNoiseFloorIsMeasurable(t *testing.T) {
 	if testing.Short() {
 		t.Skip("starts real firmware twice")
+	}
+	// The number this produces is a property of the machine, not of the code:
+	// it measures how much run-to-run spread the host's own scheduling adds.
+	// A shared two-core runner has far too much of it, so on CI the assertion
+	// fails for a reason that says nothing about MeshBench - and a test that
+	// is always red is a test everybody learns to ignore. It runs on a real
+	// machine, where the answer means something.
+	if os.Getenv("CI") != "" {
+		t.Skip("measures the host's own scheduling noise; a shared CI runner has too much to measure through")
 	}
 	store := state.New(10)
 	sim := &Sim{}

@@ -31,7 +31,8 @@ func (e *Engine) AttachNative(ctx context.Context, seed uint64) error {
 }
 
 // AttachNativeProgress is AttachNative with a progress callback and bounded
-// concurrency.
+// concurrency. The callback is serialised, so it may write to variables the
+// caller reads after this returns without a lock of its own.
 //
 // Both exist for the same reason: a Scotland-sized scenario is 155 nodes, and
 // starting them one at a time is minutes of work with nothing said about it.
@@ -101,6 +102,13 @@ func (e *Engine) AttachNativeProgress(ctx context.Context, seed uint64, progress
 	}
 
 	var mu sync.Mutex
+	// Progress callbacks are serialised on their own lock, not on mu.
+	// Every worker reports, so an unguarded callback runs concurrently
+	// with itself and races whatever the caller's closure writes - which
+	// is a bug in every caller rather than in one of them, so it is fixed
+	// here. Its own lock, because holding mu across somebody else's code
+	// invites a deadlock the callers cannot see.
+	var pmu sync.Mutex
 	attached, failed, done := 0, 0, 0
 	var firstErr = resolveErr
 
@@ -252,7 +260,9 @@ func (e *Engine) AttachNativeProgress(ctx context.Context, seed uint64, progress
 				d := done
 				mu.Unlock()
 				if progress != nil {
+					pmu.Lock()
 					progress(d, todo)
+					pmu.Unlock()
 				}
 			}
 		}()

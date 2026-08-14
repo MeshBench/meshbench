@@ -10,8 +10,10 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/coverage"
 	"github.com/MeshBench/meshbench/internal/dsp"
+	"github.com/MeshBench/meshbench/internal/engine"
 	"github.com/MeshBench/meshbench/internal/gpu"
 	"github.com/MeshBench/meshbench/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/scenario"
 	"github.com/MeshBench/meshbench/internal/terrain"
 )
 
@@ -41,10 +43,17 @@ const gpuMinPairs = 500
 
 // warmOnGPU fills the engine's link cache, reporting what it did. A result
 // with Used false means the processor should do the work instead.
-func (s *Sim) warmOnGPU(progress func(what string, done, total int)) GPUWarmResult {
+// The engine, the nodes and the frequency are passed in rather than read from
+// the Sim, because this runs on a goroutine that outlives the verb that
+// started it: opening another network replaces all three while this is still
+// measuring, and reading them here is a race with whoever did the replacing.
+// A warm measures the network it was started for, or it is cancelled.
+func (s *Sim) warmOnGPU(eng *engine.Engine, nodes []scenario.Node, freqMHz float64,
+	progress func(what string, done, total int),
+) GPUWarmResult {
 	var out GPUWarmResult
-	n := len(s.nodes)
-	if s.eng == nil || n < 2 {
+	n := len(nodes)
+	if eng == nil || n < 2 {
 		out.Why = "no network"
 		return out
 	}
@@ -80,13 +89,13 @@ func (s *Sim) warmOnGPU(progress func(what string, done, total int)) GPUWarmResu
 	culled := 0
 	for a := 0; a < n; a++ {
 		for b := a + 1; b < n; b++ {
-			na, nb := s.nodes[a], s.nodes[b]
+			na, nb := nodes[a], nodes[b]
 			distKm := haversineKmSession(na.Position.Lat, na.Position.Lon,
 				nb.Position.Lat, nb.Position.Lon)
 			if distKm <= 0 {
 				continue
 			}
-			fspl := terrain.FSPLdB(distKm, s.freqMHz)
+			fspl := terrain.FSPLdB(distKm, freqMHz)
 			bestTx := math.Max(na.TxPowerDBm, nb.TxPowerDBm)
 			// A generous allowance for antenna gain on both ends, so this
 			// cull is never tighter than the engine's own.
@@ -128,7 +137,7 @@ func (s *Sim) warmOnGPU(progress func(what string, done, total int)) GPUWarmResu
 					return
 				}
 				j := jobs[i]
-				na, nb := s.nodes[j.a], s.nodes[j.b]
+				na, nb := nodes[j.a], nodes[j.b]
 				steps := int(j.distKm * 1000 / 60)
 				if steps < 2 {
 					steps = 2
@@ -190,7 +199,7 @@ func (s *Sim) warmOnGPU(progress func(what string, done, total int)) GPUWarmResu
 		}
 	}
 
-	out.Pairs = s.eng.PrimeLinks(n, loss, coverage.NoDataLoss)
+	out.Pairs = eng.PrimeLinks(n, loss, coverage.NoDataLoss)
 	out.Duration = time.Since(started)
 	out.Used = out.Pairs > 0
 	if !out.Used {
