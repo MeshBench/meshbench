@@ -658,7 +658,7 @@ func main() {
 		Draw: withControls(schedCtl.Draw, sched.Draw)})
 	sh.Add(&shell.Panel{Name: "Link", Windowable: true, Draw: linkPanel{}.Draw})
 	sh.Add(&shell.Panel{Name: "Console", Windowable: true, Draw: console.Draw})
-	fw := &firmwarePanel{}
+	fw := &firmwarePanel{choose: chooser}
 	// The library asks for itself, and asks again after anything that changes
 	// it. A panel that reads the cache directly cannot know when a download
 	// has landed.
