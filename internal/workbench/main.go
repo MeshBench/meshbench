@@ -73,7 +73,12 @@ func Run(args []string) {
 	injectEvery := flag.Duration("inject-every", 0,
 		"keep originating at that node this often; for looking at the traffic layer")
 	quitFlag := flag.Duration("quit-after", 0, "exit after this long; 0 runs until closed")
+	versionFlag := flag.Bool("version", false, "print the version and exit")
 	_ = flag.CommandLine.Parse(args)
+	if *versionFlag {
+		fmt.Println("MeshBench", Version)
+		return
+	}
 
 	st := state.New(10)
 	sm := &session.Sim{}
@@ -573,6 +578,8 @@ func Run(args []string) {
 			"what every node is told when it starts").Draw)})
 	sh.Add(&shell.Panel{Name: "Configuration", Windowable: true, Draw: cfg.Draw})
 	sh.Add(&shell.Panel{Name: "Experiment log", Windowable: true, Draw: logp.Draw})
+	lic := &licPanel{}
+	sh.Add(&shell.Panel{Name: "Licences", Windowable: true, Draw: lic.Draw})
 	nv := &nodeViewPanel{}
 	nv.OnAction = func(action, node string) {
 		go func() {
@@ -1015,11 +1022,19 @@ func Run(args []string) {
 }
 
 func withEmoji(base []font.FontFace) []font.FontFace {
-	for _, p := range []string{
+	// The bundle carries the font beside the binary, so emoji in node names
+	// do not depend on what the machine happens to have installed.
+	paths := []string{
 		"/usr/share/fonts/noto/NotoColorEmoji.ttf",
 		"/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
 		"/System/Library/Fonts/Apple Color Emoji.ttc",
-	} {
+	}
+	if exe, err := os.Executable(); err == nil {
+		paths = append([]string{
+			filepath.Join(filepath.Dir(exe), "fonts", "NotoColorEmoji.ttf"),
+		}, paths...)
+	}
+	for _, p := range paths {
 		b, err := os.ReadFile(p)
 		if err != nil {
 			continue
@@ -1324,6 +1339,8 @@ func workbenchMenus() []menu {
 		{"Help", []shell.MenuItem{
 			{Label: "What this run assumes", Action: "panel.Configuration",
 				Icon: "help"},
+			{Label: "Licences & attributions", Action: "panel.Licences",
+				Icon: "doc"},
 		}},
 	}
 }
