@@ -56,7 +56,7 @@ func TestLicenceInventoryIsCompleteAndOrdered(t *testing.T) {
 	if len(golibs.Entries) < 10 {
 		t.Fatalf("only %d Go modules listed - the inventory looks stale; run go generate ./internal/workbench/licences", len(golibs.Entries))
 	}
-	// MeshBench is GPL-3.0-or-later (ADR-0001), so a linked module has to be
+	// MeshBench is GPL-3.0-or-later (docs/licence.md), so a linked module has to be
 	// combinable with that - which is a different question from "permissive".
 	// The mirror of tools/licgen's own rule; if they ever disagree, this is
 	// the one a reader sees.
@@ -89,7 +89,7 @@ func TestTheProjectHasALicence(t *testing.T) {
 	}
 	p := f.Sections[0].Entries[0]
 	if strings.Contains(strings.ToLower(p.Licence), "none") {
-		t.Fatal("the project's licence is unchosen: releases are blocked (ADR-0001)")
+		t.Fatal("the project's licence is unchosen: releases are blocked")
 	}
 	// The window shows the LICENSE file itself, not a summary of it.
 	if !strings.Contains(p.Text, "GNU GENERAL PUBLIC LICENSE") {

@@ -1,7 +1,9 @@
-# ADR-0001: MeshBench is GPL-3.0-or-later
+# MeshBench is GPL-3.0-or-later
 
-**Status:** accepted, 14 August 2026
-**Supersedes:** the placeholder ADR-0001 ("no licence chosen yet")
+**Decided 14 August 2026.** The licence decision and its reasoning, kept here
+rather than as a numbered ADR: the "no licence chosen yet" notes scattered
+through the docs pointed at an ADR number Plane already uses for something
+else, so they pointed nowhere useful and are gone.
 
 ## The question
 

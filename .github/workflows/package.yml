@@ -196,7 +196,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -e
-          # An unlicensed project cannot be released to end users (ADR-0001):
+          # An unlicensed project cannot be released to end users:
           # this is the gate that makes the decision unavoidable.
           go run ./tools/licgen -require-project-licence
           TAG="${GITHUB_REF_NAME:-$(date -u +%Y%m%d)-$(git rev-parse --short HEAD)}"

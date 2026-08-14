@@ -57,9 +57,9 @@ the machine references it unconditionally.
     ./configure --target-list=xtensa-softmmu --disable-werror --enable-slirp --enable-gcrypt
 
 Licensing is GPLv2, so shipping the binary means shipping or offering the
-source. That is ordinary, but it interacts with ADR-0001: MeshBench has no
-licence chosen yet, and a GPL binary in the same installer is a decision to make
-deliberately rather than discover.
+source - which the public `MeshBench/qemu` fork is. MeshBench itself is
+GPL-3.0-or-later (`docs/licence.md`), and QEMU stays a separate process rather
+than linked code, so the two sit in one bundle as aggregation.
 
 Only `qemu-system-xtensa` is needed, and it finds its own data files by
 resolving `/proc/self/exe`, so a symlink into the tools directory works and a

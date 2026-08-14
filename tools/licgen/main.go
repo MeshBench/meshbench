@@ -89,7 +89,7 @@ func main() {
 	}
 	if *requireLicence {
 		if strings.Contains(strings.ToLower(cur.Project.Licence), "none") {
-			fatal(fmt.Errorf("the project has no licence (ADR-0001): a release cannot ship; choose one and update docs/licences.json"))
+			fatal(fmt.Errorf("the project has no licence: a release cannot ship; choose one, write it up in docs/licence.md and update docs/licences.json"))
 		}
 		if _, err := os.Stat(filepath.Join(root, "LICENSE")); err != nil {
 			fatal(fmt.Errorf("docs/licences.json names a licence but there is no LICENSE file: %w", err))
@@ -256,7 +256,7 @@ func licenceText(dir string) (string, error) {
 }
 
 // incompatible says why a linked module's licence cannot ship inside
-// MeshBench, or "" when it can. MeshBench is GPL-3.0-or-later (ADR-0001), so
+// MeshBench, or "" when it can. MeshBench is GPL-3.0-or-later (docs/licence.md), so
 // the question is not "is this permissive" but "can this be combined with
 // GPL-3.0 and conveyed".
 //

@@ -13,7 +13,7 @@ the bundle). This plan is what changes and what is added.
 
 ## 0. The licence: settled, GPL-3.0-or-later
 
-**Resolved 14 August 2026 - see `docs/adr-0001-licence.md`.** MeshBench is
+**Resolved 14 August 2026 - see `docs/licence.md`.** MeshBench is
 GPL-3.0-or-later; the LICENSE file is in the repository root and the licence
 window shows it as its first entry.
 
@@ -53,8 +53,8 @@ The original constraints, kept because they still shape the bundle:
   bundle for `meshcim`/`MeshCIM` and fail if anything matches - cheap
   insurance against an accidental fixture or doc drifting in.
 
-The ADR gets written when the choice is made; the licence window's first
-entry renders whatever it says.
+The licence window's first entry renders the LICENSE file itself, so it
+cannot drift from what the repository actually ships under.
 
 ## 1. What "all dependencies included" means here
 
@@ -109,7 +109,7 @@ file, so the window can never drift from what was actually linked.
 
 **Order, per Alex - forks first, because that is modified code:**
 
-1. **MeshBench itself** - the ADR-0001 licence, once chosen.
+1. **MeshBench itself** - GPL-3.0-or-later, from the LICENSE file.
 2. **Modified forks** (from `docs/repositories.md`, kept as the single
    source): `MeshBench/qemu` (GPLv2, what we changed, link to branch),
    `MeshBench/tlib`, `MeshBench/renode-infrastructure`, `MeshBench/renode`,
@@ -180,7 +180,7 @@ renders above section 4.
 
 ## Order of work
 
-1. ADR-0001: Alex chooses the licence (blocks shipping, nothing else).
+1. ~~Choose the licence~~ - done: GPL-3.0-or-later, `docs/licence.md`.
 2. `docs/licences.yaml` + generator + embed + the Licences panel (window
    works in dev builds immediately).
 3. package.yml: cutover cleanup, licences step, tripwire, checksums, smoke.

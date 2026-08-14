@@ -11,7 +11,7 @@ Everything except MeshBench itself is in the **MeshBench** organisation.
 
 | repository | what it is | licence |
 |---|---|---|
-| `MeshBench/meshbench` | MeshBench itself | none chosen yet — ADR-0001 |
+| `MeshBench/meshbench` | MeshBench itself | GPL-3.0-or-later — `docs/licence.md` |
 | `MeshBench/meshcore-native` | host builds of MeshCore, `VirtualSX1262`, the bridge and `radioserver` | see its NOTICE |
 | `MeshBench/meshbench-reports` | the published reports site | — |
 | `MeshBench/qemu` | QEMU with our SX1262 | GPLv2, upstream's |

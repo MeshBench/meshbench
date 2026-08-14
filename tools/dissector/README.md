@@ -50,9 +50,8 @@ advert app-data, acks, traces, group data — and two dissectors for one format
 only guarantees they drift. Ours calls it for the frame body.
 
 **Licensing:** that file is GPL-2.0-only. It is a standalone script Wireshark
-loads at runtime, not linked into the binary, but it is still GPL and this
-project has not chosen a licence (ADR-0001). Worth settling deliberately rather
-than by accident.
+loads at runtime, not linked into the binary, so it sits alongside MeshBench's
+own GPL-3.0-or-later (`docs/licence.md`) rather than combining with it.
 
 ## Loading them
 

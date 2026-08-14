@@ -94,7 +94,7 @@ func (p *licPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) l
 }
 
 // header is the project's own entry: name, version, and the licence line,
-// which is a warning for as long as ADR-0001 is unresolved.
+// which is a warning for as long as no licence has been chosen.
 func (p *licPanel) header(t *theme.Theme) layout.Widget {
 	proj := licences.Entry{Name: "MeshBench", Licence: "unknown"}
 	for _, s := range p.file.Sections {

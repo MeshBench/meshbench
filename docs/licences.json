@@ -2,7 +2,7 @@
 	"project": {
 		"name": "MeshBench",
 		"licence": "GPL-3.0-or-later",
-		"detail": "ADR-0001. You may use, study, modify and share this program; versions you pass on to others must come with their source under the same terms. Every release carries a source archive while the repository is private.",
+		"detail": "You may use, study, modify and share this program; versions you pass on to others must come with their source under the same terms. Every release carries a source archive while the repository is private.",
 		"link": "https://github.com/MeshBench/meshbench"
 	},
 	"go_notes": {
