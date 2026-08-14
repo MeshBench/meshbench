@@ -48,6 +48,7 @@ func commands() []command {
 		{"serve", "run a mesh and expose a companion to your app", runServe},
 		{"test", "run a fixture on real firmware and check its assertions", runTest},
 		{"workbench", "open the desktop workbench: build a scenario on a map and run it", runWorkbench},
+		{"workbench1", "the previous imgui workbench, kept until the new one has bedded in", runWorkbench1},
 	}
 }
 
