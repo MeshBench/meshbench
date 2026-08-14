@@ -346,10 +346,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -e
-          # Beside the bundle rather than inside it: these are separate
-          # programs, and a .app with emulators buried in it is one nobody can
-          # notarise in a single piece later. The dmg carries both.
-          cd dist/macos
+          # Inside the bundle, not beside it. A dmg with the app and the
+          # emulators as siblings looks fine and then loses the emulators the
+          # moment somebody drags MeshBench to Applications, which is what
+          # everybody does - and emulated boards would stop working for a
+          # reason nobody could see.
+          APP=dist/macos/MeshBench.app
+          mkdir -p "$APP/Contents/Resources/emulators"
+          cd "$APP/Contents/Resources/emulators"
           gh release download --repo MeshBench/qemu \
             --pattern '*xtensa*aarch64-apple-darwin.tar.xz' --dir . --clobber \
             || echo "::warning::no macOS QEMU release yet; ESP32 boards will not emulate"
@@ -357,11 +361,18 @@ jobs:
             --pattern '*macos*.tar.gz' --dir . --clobber \
             || echo "::warning::no macOS Renode release yet; nRF52 boards will not emulate"
           for f in *.tar.xz *.tar.gz; do [ -e "$f" ] || continue; tar xf "$f" && rm "$f"; done
-          # The same lookup as every platform: an executable file beside the
-          # binary. Renode's macOS tree names its launcher with a capital R.
-          [ -d qemu ] && ln -sf qemu/bin/qemu-system-xtensa .
-          [ -f Release/osx-arm64/Renode ] && ln -sf Release/osx-arm64/Renode renode
-          ls -la
+          cd - >/dev/null
+          # MeshBench looks for an executable file beside its own binary, so
+          # the links live in MacOS/ and point into Resources/.
+          [ -d "$APP/Contents/Resources/emulators/qemu" ] && \
+            ln -sf ../Resources/emulators/qemu/bin/qemu-system-xtensa "$APP/Contents/MacOS/qemu-system-xtensa"
+          [ -f "$APP/Contents/Resources/emulators/Release/osx-arm64/Renode" ] && \
+            ln -sf ../Resources/emulators/Release/osx-arm64/Renode "$APP/Contents/MacOS/renode"
+          # Signing has to happen again: the bundle was signed before these
+          # arrived, and adding files to a signed bundle invalidates it.
+          codesign --force --deep --sign - "$APP"
+          codesign --verify --verbose=2 "$APP" 2>&1 | tail -2
+          ls -la "$APP/Contents/MacOS"
 
       - name: Repack the dmg with the emulators in it
         run: |
