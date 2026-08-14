@@ -347,6 +347,15 @@ func lookupTool(env, name string) (string, error) {
 	subdirs := []string{"", "qemu/bin", "qemu-meshbench/bin"}
 	if self, err := os.Executable(); err == nil {
 		dir := filepath.Dir(self)
+		// Renode unpacks into a directory carrying its version, so the name
+		// changes with every release and cannot be listed above. Globbing for
+		// the shape is what the Linux tarball's symlink step already does;
+		// this is the same rule on the side that has to find it.
+		if matches, err := filepath.Glob(filepath.Join(dir, "renode*-portable")); err == nil {
+			for _, m := range matches {
+				subdirs = append(subdirs, filepath.Base(m))
+			}
+		}
 		for _, sub := range subdirs {
 			for _, cand := range candidates {
 				if p := filepath.Join(dir, sub, cand); fileExists(p) {
