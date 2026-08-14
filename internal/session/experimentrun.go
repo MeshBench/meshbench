@@ -61,6 +61,42 @@ func (s *Sim) runExperiment(ctx context.Context, st *state.Store, e *experiment,
 	}
 }
 
+// nodeNamed finds a node in the scenario by name.
+func nodeNamed(nodes []scenario.Node, name string) scenario.Node {
+	for _, n := range nodes {
+		if n.Name == name {
+			return n
+		}
+	}
+	return scenario.Node{}
+}
+
+// companionSetup is what a sender has to be told before it can originate.
+//
+// Through the companion protocol, because that is the only interface a
+// companion build has: the repeater CLI that configures everything else does
+// not reach it. The clock first, since a message sent before it is set carries
+// a timestamp from an epoch nobody else is in.
+func companionSetup(n scenario.Node, arm ExpArm, e *experiment) [][]byte {
+	r := n.Radio
+	out := [][]byte{
+		proto.SetDeviceTime(uint32(scenarioEpoch)),
+		proto.SetRadioParams(uint32(r.CentreHz/1000), uint32(r.BandwidthHz),
+			uint8(r.SpreadFactor), uint8(r.CodingRate+4)),
+		proto.SetTxPower(uint8(n.TxPowerDBm)),
+	}
+	if n.Name != "" {
+		out = append(out, proto.SetAdvertName(n.Name))
+	}
+	// The arm's own path hash mode, which is a companion setting: what a
+	// message carries is stamped by whoever originated it and honoured at
+	// every hop, so this is the one that decides the experiment.
+	if arm.PathHashMode != nil {
+		out = append(out, proto.SetPathHashMode(uint8(*arm.PathHashMode)))
+	}
+	return out
+}
+
 // runArm is one cell: one configuration at one seed, on real firmware.
 func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64,
 	nodes []scenario.Node) ExpResult {
@@ -149,9 +185,22 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 	// no error - which is what four cells of zeros looked like. The commands
 	// are the same ones ProvisioningFor shows in the node panel, so what the
 	// operator reads and what the arm sends cannot drift apart.
+	var refused []string
 	for _, n := range nodes {
 		en, ok := eng.NodeByName(n.Name)
 		if !ok || en.Firmware == nil {
+			continue
+		}
+		// Not a companion.
+		//
+		// Provisioning speaks the repeater CLI and a companion build does not
+		// take those commands - the old workbench recorded exactly this, and it
+		// is why a companion reported 0 MHz rather than the scenario's channel.
+		// Worse here than there: typing at one closed its console, the node
+		// exited, and every cell of the sweep failed on the first companion it
+		// reached. What a companion needs is sent through the protocol that can
+		// actually set it, once its session is claimed.
+		if n.Kind == scenario.Companion {
 			continue
 		}
 		// The session's settings with this arm written over them.
@@ -168,10 +217,29 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 				continue
 			}
 			if err := en.Firmware.Bridge.Type([]byte(line.Command + "\r\n")); err != nil {
-				out.Err = "provisioning " + n.Name + ": " + err.Error()
-				return out
+				// Counted, not fatal.
+				//
+				// A companion's serial port speaks the binary companion
+				// protocol rather than the text CLI, so typing at one can close
+				// its console - and that is not a reason to throw the cell away,
+				// because a sender is driven through that protocol a moment
+				// later anyway. The old workbench recorded the error and carried
+				// on; this failed all eight cells of a sweep on the first
+				// companion it reached.
+				refused = append(refused, n.Name)
+				break
 			}
 		}
+	}
+	// Said rather than swallowed. A cell where a third of the mesh refused its
+	// settings is not a cell to compare against one where none did, and the
+	// count is the only place that shows.
+	if len(refused) > 0 {
+		e.mu.Lock()
+		e.logf("%s %d: %d nodes refused provisioning (%s%s)", arm.Label, seed,
+			len(refused), strings.Join(refused[:min(3, len(refused))], ", "),
+			map[bool]string{true: ", ...", false: ""}[len(refused) > 3])
+		e.mu.Unlock()
 	}
 	// Let the commands be read before anything is measured: they are answered
 	// by the firmware, which only runs when the engine steps.
@@ -220,6 +288,24 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 			out.Err = "app start at " + name + ": " + err.Error()
 			return out
 		}
+		// And what it needs to be on the mesh's channel at all.
+		//
+		// A companion's radio preferences start empty: nothing has told it,
+		// because the CLI it cannot take is the only thing that told anything
+		// else. An unconfigured sender is not on the scenario's frequency, so
+		// it originates onto a channel no repeater is listening to and the cell
+		// measures nothing while reporting no error.
+		for _, msg := range companionSetup(nodeNamed(nodes, name), arm, e) {
+			if err := en.Firmware.Bridge.Type(compFrame(msg)); err != nil {
+				out.Err = "configuring " + name + ": " + err.Error()
+				return out
+			}
+		}
+	}
+	// The commands are answered by firmware, which only runs when time moves.
+	if err := stepFor(ctx, eng, 2*time.Second); err != nil {
+		out.Err = "configuring senders: " + err.Error()
+		return out
 	}
 
 	// Where the ledger stood when this cell started, so the counting below is
