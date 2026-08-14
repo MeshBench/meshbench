@@ -62,11 +62,7 @@ type Sim struct {
 	prefetching atomic.Bool
 	// geomFP fingerprints everything a path loss depends on, so a rebuild
 	// can tell whether the measured matrix is still about this network.
-	geomFP uint64
-	// grid is the rasterised terrain the pair kernel reads, kept because
-	// building it is the expensive half and it is about the ground rather
-	// than about the nodes.
-	grid    coverage.HeightGrid
+	geomFP  uint64
 	lastGPU GPUWarmResult
 	// fleetPending is a fleet command sent and not yet answered, held until the
 	// engine has run far enough for the nodes to have replied.

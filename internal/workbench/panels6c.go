@@ -58,9 +58,8 @@ type configPanel struct {
 	moveCache comp.Button
 	recomp    comp.Button
 
-	init             bool
-	wasGPU, wasReal  bool
-	haveGPU, haveRun bool
+	init            bool
+	wasGPU, wasReal bool
 }
 
 // configSections is the sidebar, in the mock's order. Overview first, then

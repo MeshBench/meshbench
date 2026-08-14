@@ -66,7 +66,7 @@ func runDev(ctx context.Context, args []string) error {
 		if err := tell("firmware.import", map[string]any{
 			"path": bin, "role": *role, "version": label}); err != nil {
 			fmt.Println("  workbench not running, so it is cached but not loaded")
-			return nil
+			return nil //nolint:nilerr // not an error: the build is cached either way
 		}
 		fmt.Println("  in the workbench's firmware library")
 		if *assign {
@@ -202,7 +202,7 @@ func newestSource(root string) time.Time {
 	for _, dir := range []string{"src", "examples"} {
 		_ = filepath.Walk(filepath.Join(root, dir), func(p string, fi os.FileInfo, err error) error {
 			if err != nil || fi.IsDir() {
-				return nil
+				return nil //nolint:nilerr // an unreadable entry skips, it does not stop the walk
 			}
 			switch filepath.Ext(p) {
 			case ".cpp", ".h", ".hpp", ".c":

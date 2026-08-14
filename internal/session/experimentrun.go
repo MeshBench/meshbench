@@ -72,7 +72,7 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 		out.Err = err.Error()
 		return out
 	}
-	defer os.RemoveAll(root)
+	defer func() { _ = os.RemoveAll(root) }()
 	// Created, not just named: a node whose storage directory does not exist
 	// starts and exits, and the attach still reports success because the
 	// socket handshake happened first.
@@ -83,7 +83,7 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 	}
 	old := os.Getenv("MESHCORESIM_NODEFS")
 	_ = os.Setenv("MESHCORESIM_NODEFS", fs)
-	defer os.Setenv("MESHCORESIM_NODEFS", old)
+	defer func() { _ = os.Setenv("MESHCORESIM_NODEFS", old) }()
 
 	eng := engine.New(s.terrain(), engine.Config{
 		FreqMHz: 869.618, SF: 10, BandwidthHz: 250e3, CodingRate: 1,

@@ -101,17 +101,6 @@ func boundsOf(a state.Assertion) string {
 	return out
 }
 
-// linkPanel is one link, both directions, always (6.3).
-func verdictWord(m float64) string {
-	switch {
-	case m < 0:
-		return "does not close"
-	case m < 6:
-		return "marginal"
-	}
-	return "comfortable"
-}
-
 func verdictColour(t *theme.Theme, m float64) color.NRGBA {
 	switch {
 	case m < 0:

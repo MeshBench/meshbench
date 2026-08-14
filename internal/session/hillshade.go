@@ -81,7 +81,7 @@ func (s *Sim) hillshade(south, north, west, east float64) (*state.Coverage, erro
 			// exactly as the basemap painted it.
 			const flat = 0.70710678 // sin(45 deg): what level ground scores
 			d := v - flat
-			px := color.RGBA{}
+			var px color.RGBA
 			if d > 0 {
 				a := d * 300
 				if a > 170 {

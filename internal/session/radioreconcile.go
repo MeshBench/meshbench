@@ -78,7 +78,7 @@ func registerRadioReconcile(st *state.Store, s *Sim) {
 			if err := s.connectCompanion(name); err != nil {
 				out["reported"] = nil
 				out["note"] = "not a connected companion: " + err.Error()
-				return out, nil
+				return out, nil //nolint:nilerr // the verb answers with the reason rather than failing
 			}
 			c = s.comps[name]
 		}

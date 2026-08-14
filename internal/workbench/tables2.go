@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"time"
 
 	"gioui.org/layout"
@@ -35,23 +34,6 @@ import (
 // no path and still has to be a row.
 func buildKey(r state.FirmwareRow) string {
 	return r.Role + "\x00" + r.Version + "\x00" + r.Board
-}
-
-func splitBuildKey(k string) (role, version, board string) {
-	parts := strings.SplitN(k, "\x00", 3)
-	for len(parts) < 3 {
-		parts = append(parts, "")
-	}
-	return parts[0], parts[1], parts[2]
-}
-
-func findLibraryRow(s *state.Snapshot, key string) *state.FirmwareRow {
-	for i := range s.Library {
-		if buildKey(s.Library[i]) == key {
-			return &s.Library[i]
-		}
-	}
-	return nil
 }
 
 type runsPanel struct {

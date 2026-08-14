@@ -109,7 +109,7 @@ func readGroup(path, group string) map[string]string {
 	if err != nil {
 		return out
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	in := false
 	sc := bufio.NewScanner(f)

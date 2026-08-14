@@ -11,7 +11,6 @@ import (
 	"fmt"
 
 	"gioui.org/layout"
-	"gioui.org/unit"
 
 	"github.com/MeshBench/meshbench/internal/gui/comp"
 	"github.com/MeshBench/meshbench/internal/gui/state"
@@ -28,19 +27,6 @@ func snrOf(e *state.Event) string {
 		return ""
 	}
 	return fmt.Sprintf("%.1f", e.SNRdB)
-}
-
-func eventTint(t *theme.Theme, kind string) [4]uint8 {
-	var c = t.P.Dim
-	switch kind {
-	case "tx":
-		c = t.P.Accent
-	case "rx":
-		c = t.P.Good
-	case "miss":
-		c = t.P.Bad
-	}
-	return [4]uint8{c.R, c.G, c.B, 255}
 }
 
 // scorePanel is the per-node counters (6.8).
@@ -81,25 +67,4 @@ func (p *scorePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot)
 	}
 	p.tb.SetRows(rows)
 	return p.tb.Layout(t, gtx, nil)
-}
-
-// withCount puts a line under a table saying how much of the truth it shows.
-//
-// Only when it is showing less than all of it. A table that always announces
-// its own completeness trains somebody to stop reading the line, which is
-// exactly when it matters.
-func withCount(t *theme.Theme, gtx layout.Context, d layout.Dimensions,
-	label string, capped bool) layout.Dimensions {
-
-	if !capped {
-		return d
-	}
-	col := t.P.Warn
-	off := layout.Inset{Top: unit.Dp(2)}
-	_ = off
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return d }),
-		layout.Rigid(comp.Text(t, t.Sz.Caption, col, label+
-			" - the rest are older than the tail the interface keeps")),
-	)
 }

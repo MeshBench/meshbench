@@ -1082,22 +1082,6 @@ func kindOf(k string) theme.NodeKind {
 }
 
 func itoa(i int) string { return fmt.Sprintf("%d", i) }
-func ftoa(f float64) string {
-	if f == float64(int(f)) {
-		return fmt.Sprintf("%.0f", f)
-	}
-	return fmt.Sprintf("%.5f", f)
-}
-func join(v []string) string {
-	out := ""
-	for i, s := range v {
-		if i > 0 {
-			out += " "
-		}
-		out += s
-	}
-	return out
-}
 
 var _ = widget.Clickable{}
 var _ = time.Now

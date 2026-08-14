@@ -383,40 +383,6 @@ func (p *nodeViewPanel) firmwareList(t *theme.Theme) layout.Widget {
 	}
 }
 
-func (p *nodeViewPanel) firmwarePicker(t *theme.Theme, selected string) layout.Widget {
-	return func(gtx layout.Context) layout.Dimensions {
-		who := selected
-		if who == "" {
-			return comp.Text(t, t.Sz.Caption, t.P.Faint,
-				"select a node to change its firmware")(gtx)
-		}
-		if len(p.builds) == 0 {
-			return comp.Text(t, t.Sz.Caption, t.P.Warn,
-				"no firmware installed - meshbench firmware install")(gtx)
-		}
-		// A scrolling row rather than a plain flex.
-		//
-		// Nine builds already overflowed the panel and wrapped the last button
-		// down the right edge, and the number of builds is whatever somebody
-		// has installed - so it has to hold any number rather than as many as
-		// happened to fit when it was written.
-		p.buildList.Axis = layout.Horizontal
-		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-			layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Dim, "run on "+who+":  ")),
-			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-				return comp.List(t, &p.buildList, len(p.buildBtns),
-					func(gtx layout.Context, i int) layout.Dimensions {
-						gtx.Constraints.Min.X = 0
-						return layout.Inset{Right: t.Sp.S}.Layout(gtx,
-							func(gtx layout.Context) layout.Dimensions {
-								return p.buildBtns[i].Layout(t, gtx)
-							})
-					})(gtx)
-			}),
-		)
-	}
-}
-
 // installedBuilds is the native builds this machine has, newest name last.
 func installedBuilds() []string {
 	cache, err := os.UserCacheDir()

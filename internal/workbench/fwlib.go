@@ -32,10 +32,9 @@ import (
 // Small aliases that keep the drawing code readable.
 type colorNRGBA = color.NRGBA
 
-func unitDp(v int) unit.Dp                       { return unit.Dp(v) }
-func imagePtXY(x, y int) image.Point             { return image.Pt(x, y) }
-func imageRectPt(d int) image.Rectangle          { return image.Rect(0, 0, d, d) }
-func imageRectSz(sz image.Point) image.Rectangle { return image.Rectangle{Max: sz} }
+func unitDp(v int) unit.Dp              { return unit.Dp(v) }
+func imagePtXY(x, y int) image.Point    { return image.Pt(x, y) }
+func imageRectPt(d int) image.Rectangle { return image.Rect(0, 0, d, d) }
 
 type fwRowW struct {
 	use, act widget.Clickable

@@ -62,7 +62,7 @@ func (m *fpsMeter) frame(cost time.Duration) {
 		m.label, fps, ms(m.pct(50)), ms(m.pct(95)), ms(m.pct(100)), m.warmNote(now))
 	fmt.Fprintln(os.Stderr, line)
 	if m.log != nil {
-		fmt.Fprintln(m.log, line)
+		_, _ = fmt.Fprintln(m.log, line)
 	}
 	m.frames, m.worst, m.since, m.costs = 0, 0, now, m.costs[:0]
 }

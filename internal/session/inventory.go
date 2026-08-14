@@ -69,7 +69,7 @@ func registerInventory(st *state.Store, s *Sim) {
 		if err != nil {
 			return nil, err
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 		enc := json.NewEncoder(f)
 		for _, e := range w.Events {
 			if err := enc.Encode(eventAsMap(e)); err != nil {

@@ -495,9 +495,10 @@ func (p *packetPanel) ledger(t *theme.Theme, gtx layout.Context, pk *state.Packe
 					rssi, snr = fmt.Sprintf("%.1f", r.RSSIdBm), fmt.Sprintf("%+.1f", r.SNRdB)
 				}
 				fwInk := t.P.Faint
-				if r.Firmware == "accepted" {
+				switch r.Firmware {
+				case "accepted":
 					fwInk = t.P.Good
-				} else if r.Firmware == "dropped" {
+				case "dropped":
 					fwInk = t.P.Warn
 				}
 				return layout.Inset{Top: t.Sp.XS, Bottom: t.Sp.XS}.Layout(gtx,

@@ -378,9 +378,7 @@ func (c *planningControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Sna
 
 func splitFields(s string) []string {
 	var out []string
-	for _, f := range fieldsOf(s) {
-		out = append(out, f)
-	}
+	out = append(out, fieldsOf(s)...)
 	return out
 }
 
@@ -681,7 +679,6 @@ type provisioningControls struct {
 	toRunning        comp.Button
 	do               Do
 	built            bool
-	sent             bool
 }
 
 func (c *provisioningControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {

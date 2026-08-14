@@ -98,8 +98,8 @@ func TestBareSystemGetsTheCommonDefault(t *testing.T) {
 	d := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(d, ".config"))
 	t.Setenv("HOME", d)
-	os.Unsetenv("XCURSOR_THEME")
-	os.Unsetenv("XCURSOR_SIZE")
+	_ = os.Unsetenv("XCURSOR_THEME")
+	_ = os.Unsetenv("XCURSOR_SIZE")
 
 	if _, size := MatchSystemCursor(); size != defaultSize {
 		t.Fatalf("got %d, want %d", size, defaultSize)

@@ -299,8 +299,8 @@ func answerOnly(lines []string, cmd string) string {
 			}
 		}
 		l = strings.TrimPrefix(l, "-> ")
-		switch {
-		case l == "", l == cmd, l == "> "+cmd:
+		switch l {
+		case "", cmd, "> " + cmd:
 		default:
 			out = append(out, l)
 		}

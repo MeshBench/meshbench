@@ -11,7 +11,6 @@ import (
 	"gioui.org/widget"
 
 	"github.com/MeshBench/meshbench/internal/gui/comp"
-	"github.com/MeshBench/meshbench/internal/gui/state"
 	"github.com/MeshBench/meshbench/internal/gui/theme"
 )
 
@@ -30,7 +29,6 @@ type mapTools struct {
 	kinds     [4]widget.Clickable
 
 	mv    *comp.MapView
-	snap  func() *state.Snapshot
 	built bool
 }
 
