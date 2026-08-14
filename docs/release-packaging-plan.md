@@ -56,7 +56,7 @@ The runtime surface, audited:
 
 Notable: since the cutover the extra `meshbench-workbench` binary in
 package.yml is redundant - `meshbench workbench` is the Gio app. Keep ONE
-shipped binary; the `-X gioui.org/app.ID=uk.co.hectospark.meshbench` ldflag
+shipped binary; the `-X gioui.org/app.ID=io.github.meshbench.meshbench` ldflag
 moves onto it. (`cmd/workbench2` remains a dev tool, not shipped.)
 
 ## 2. Artifacts and platforms, phased

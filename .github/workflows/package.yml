@@ -74,10 +74,14 @@ jobs:
           # Wayland app_id and the X11 class from it, and the default is the
           # binary's own name - so a taskbar grouping and a window-manager rule
           # would otherwise key on whatever the file happened to be called.
+          #
+          # Reverse DNS wants a domain the project controls, and MeshBench owns
+          # no domain - so it takes the form for a GitHub-hosted project, which
+          # is what Flathub asks for too. It follows the org, not a person.
           VERSION="${GITHUB_REF_NAME}"
           case "$VERSION" in v*) ;; *) VERSION="dev-$(git rev-parse --short HEAD)";; esac
           go build -trimpath \
-            -ldflags "-X gioui.org/app.ID=uk.co.hectospark.meshbench \
+            -ldflags "-X gioui.org/app.ID=io.github.meshbench.meshbench \
                       -X github.com/A13xB0/meshcoresim/internal/workbench.Version=$VERSION" \
             -o dist/meshbench/meshbench ./cmd/meshcoresim
 
