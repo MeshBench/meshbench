@@ -21,6 +21,14 @@ on:
         description: 'Publish a release from this build'
         type: boolean
         default: false
+      mac:
+        description: 'Build the macOS dmg (hosted macOS minutes bill at 10x on a private repo - leave off for a test build)'
+        type: boolean
+        default: true
+      windows:
+        description: 'Build the Windows zip (cross-compiled on Linux, so free)'
+        type: boolean
+        default: true
 
 jobs:
   linux:
@@ -323,6 +331,11 @@ jobs:
     # only, never on push: a release build is about three minutes, so roughly
     # thirty billable minutes a release. If it ever moves to per-push, move it
     # to a Mac we own at the same time.
+    # Skippable, because this is the only leg that costs anything: Linux and
+    # Windows both run on Linux runners, which are free even here. A test
+    # build should not spend thirty billable minutes proving the dmg still
+    # packs.
+    if: inputs.mac
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
@@ -406,6 +419,7 @@ jobs:
     # path it already has for Renode is what that wants - so a Windows user
     # gets the workbench and native firmware, and the honest line about
     # emulated boards.
+    if: inputs.windows
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
