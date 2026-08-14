@@ -195,7 +195,8 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	if err := os.MkdirAll(e.Dir, 0o755); err != nil {
 		return err
 	}
-	// A TCP port on Windows, a Unix socket everywhere else.
+	// A Unix socket for QEMU on Linux and macOS; a TCP port for Renode
+	// anywhere, and for either emulator on Windows.
 	//
 	// Renode has always used a port: it runs on Mono, whose Unix domain
 	// socket support is not worth betting a node on. QEMU used a socket file,
