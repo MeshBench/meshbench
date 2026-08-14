@@ -392,6 +392,7 @@ func (p *nodeWindowPanel) settings(t *theme.Theme, gtx layout.Context, s *state.
 			)
 		},
 	}
+	p.setList.Axis = layout.Vertical
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			return comp.List(t, &p.setList, len(rows), func(gtx layout.Context, i int) layout.Dimensions {
@@ -509,6 +510,7 @@ func (p *nodeWindowPanel) stats(t *theme.Theme, gtx layout.Context, s *state.Sna
 		{"radio busy", busyPct(*st)},
 		{"spurious interrupts", fmt.Sprintf("%d", st.Spurious)},
 	}
+	p.statList.Axis = layout.Vertical
 	return comp.List(t, &p.statList, len(rows), func(gtx layout.Context, i int) layout.Dimensions {
 		return layout.Flex{}.Layout(gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
