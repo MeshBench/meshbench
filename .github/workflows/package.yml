@@ -133,11 +133,19 @@ jobs:
           # Beside the binary is where MeshBench looks second, after the
           # environment variable and before its cache. A desktop application is
           # not launched from a shell, so PATH is nearly useless to it.
-          # QEMU's archive unpacks to qemu/; the symlink is what MeshBench
-          # finds beside its own binary.
+          # Both emulators unpack into their own directory, and MeshBench
+          # looks for an executable *file* beside its own binary - so each
+          # needs a symlink or the bundle contains an emulator nobody can
+          # find. Renode's directory carries its version, so match on the
+          # shape rather than a name that changes with every release.
           for d in qemu qemu-meshbench; do
             [ -d "$d" ] && ln -sf "$d/bin/qemu-system-xtensa" . && break
           done
+          for d in renode_*-portable renode-*-portable renode; do
+            [ -x "$d/renode" ] && ln -sf "$d/renode" . && break
+          done
+          ls -la qemu-system-xtensa renode 2>&1 || \
+            echo "::warning::an emulator symlink is missing; the bundle has it but MeshBench will not find it"
           cat > README.txt <<'TXT'
           MeshBench
 
