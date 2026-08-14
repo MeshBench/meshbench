@@ -34,10 +34,13 @@ type licPanel struct {
 	// somebody asked for it.
 	open   map[string]*widget.Clickable
 	opened map[string]bool
+	// openAt is the section a capture asked for, applied on the first frame.
+	openAt string
 }
 
 func (p *licPanel) build() {
 	p.built = true
+	p.filter = p.openAt
 	p.search.Hint = "search licences"
 	p.search.Editor.SingleLine = true
 	p.list.Axis = layout.Vertical

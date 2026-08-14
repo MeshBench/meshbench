@@ -62,6 +62,8 @@ func Run(args []string) {
 	shadeFlag := flag.Bool("terrain", false, "shade the relief at startup")
 	menuFlag := flag.String("menu", "", "fire this menu action at startup, so what it opens can be captured")
 	cfgSection := flag.String("config-section", "", "open the Configuration page on this section")
+	licSection := flag.String("licence-section", "",
+		"scope the Licences panel to one section: forks, bundled, golibs, runtime, data")
 	dropFlag := flag.String("drop-menu", "", "open this menu's dropdown at startup, so it can be captured")
 	layersFlag := flag.String("layers", "", "switch these map layers on at startup, comma separated")
 	nodeTabFlag := flag.Int("node-tab", 0, "which tab a node window opens on: 0 console, 1 companion, 2 settings, 3 stats, 4 activity, 5 connect")
@@ -579,6 +581,9 @@ func Run(args []string) {
 	sh.Add(&shell.Panel{Name: "Configuration", Windowable: true, Draw: cfg.Draw})
 	sh.Add(&shell.Panel{Name: "Experiment log", Windowable: true, Draw: logp.Draw})
 	lic := &licPanel{}
+	// A chip is a click, and a click cannot be captured; the flag is how a
+	// screenshot of one section gets taken.
+	lic.openAt = *licSection
 	sh.Add(&shell.Panel{Name: "Licences", Windowable: true, Draw: lic.Draw})
 	nv := &nodeViewPanel{}
 	nv.OnAction = func(action, node string) {
