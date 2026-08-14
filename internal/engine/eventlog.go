@@ -6,8 +6,6 @@ import (
 	"os"
 	"sync"
 	"sync/atomic"
-
-	"golang.org/x/sys/unix"
 )
 
 // eventLog streams every engine event as one JSON object per line.
@@ -120,7 +118,7 @@ func (l *eventLog) close() error {
 // are the same pcapng stream the file capture writes — Wireshark reads it
 // with `wireshark -k -i <path>`.
 func (e *Engine) StartCaptureFIFO(path string) error {
-	if err := unix.Mkfifo(path, 0o600); err != nil && !os.IsExist(err) {
+	if err := mkfifo(path); err != nil && !os.IsExist(err) {
 		return fmt.Errorf("engine: fifo: %w", err)
 	}
 	f, err := os.OpenFile(path, os.O_RDWR, 0)

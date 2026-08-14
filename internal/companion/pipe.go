@@ -6,8 +6,6 @@ import (
 	"net"
 	"os"
 	"sync"
-
-	"golang.org/x/sys/unix"
 )
 
 // Serial is a node's serial port, as the simulator sees it.
@@ -178,34 +176,6 @@ type PTYLink struct {
 	pipe   *Pipe
 }
 
-// OpenSerial creates a virtual serial device for one node.
-func OpenSerial(s Serial) (*PTYLink, error) {
-	m, err := os.OpenFile("/dev/ptmx", os.O_RDWR, 0)
-	if err != nil {
-		return nil, fmt.Errorf("companion: open ptmx: %w", err)
-	}
-	if err := unix.IoctlSetPointerInt(int(m.Fd()), unix.TIOCSPTLCK, 0); err != nil {
-		_ = m.Close()
-		return nil, fmt.Errorf("companion: unlock pty: %w", err)
-	}
-	n, err := unix.IoctlGetInt(int(m.Fd()), unix.TIOCGPTN)
-	if err != nil {
-		_ = m.Close()
-		return nil, fmt.Errorf("companion: pty number: %w", err)
-	}
-	// Raw mode. A pty defaults to canonical line discipline, which buffers by
-	// line and mangles control bytes — fatal for binary framing, and it fails
-	// as a silent timeout rather than as an error.
-	if err := setRaw(int(m.Fd())); err != nil {
-		_ = m.Close()
-		return nil, fmt.Errorf("companion: raw mode: %w", err)
-	}
-
-	l := &PTYLink{master: m, path: fmt.Sprintf("/dev/pts/%d", n), pipe: NewPipe(s)}
-	l.pipe.attach(m)
-	return l, nil
-}
-
 // Path is the device to point client software at.
 func (l *PTYLink) Path() string { return l.path }
 
@@ -218,24 +188,4 @@ func (l *PTYLink) Attached() bool { return l.pipe.Attached() }
 func (l *PTYLink) Close() error {
 	_ = l.pipe.Close()
 	return l.master.Close()
-}
-
-// setRaw puts a pty into raw mode.
-//
-// A pty defaults to canonical line discipline: it buffers by line, translates
-// CR and LF, and eats control bytes. MeshCore's framing is binary and contains
-// all of those, so without this a client sees a stream that is subtly wrong —
-// and it fails as a timeout waiting for a frame rather than as an error.
-func setRaw(fd int) error {
-	t, err := unix.IoctlGetTermios(fd, unix.TCGETS)
-	if err != nil {
-		return err
-	}
-	t.Iflag &^= unix.IGNBRK | unix.BRKINT | unix.PARMRK | unix.ISTRIP |
-		unix.INLCR | unix.IGNCR | unix.ICRNL | unix.IXON
-	t.Oflag &^= unix.OPOST
-	t.Lflag &^= unix.ECHO | unix.ECHONL | unix.ICANON | unix.ISIG | unix.IEXTEN
-	t.Cflag &^= unix.CSIZE | unix.PARENB
-	t.Cflag |= unix.CS8
-	return unix.IoctlSetTermios(fd, unix.TCSETS, t)
 }
