@@ -359,8 +359,6 @@ jobs:
           packaging/macos-app.sh "$VERSION"
 
       - name: Fetch the emulators
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -e
           # Inside the bundle, not beside it. A dmg with the app and the
@@ -368,15 +366,26 @@ jobs:
           # moment somebody drags MeshBench to Applications, which is what
           # everybody does - and emulated boards would stop working for a
           # reason nobody could see.
+          #
+          # curl against the public releases API, not gh: this job runs on
+          # the org's own Mac, which has no gh - and the first build there
+          # produced a 16 MB dmg with no emulators in it while the job stayed
+          # green. fetch() fails loudly instead; a dmg without its emulators
+          # is a broken artifact, not a warning.
+          fetch() {
+            url=$(curl -fsSL "https://api.github.com/repos/$1/releases/latest" \
+              | python3 -c "import sys,json,fnmatch; r=json.load(sys.stdin); print(next((a['browser_download_url'] for a in r['assets'] if fnmatch.fnmatch(a['name'], '$2')), ''))")
+            if [ -z "$url" ]; then
+              echo "::error::no asset matching $2 in $1's latest release"; exit 1
+            fi
+            echo "fetching $url"
+            curl -fsSL -O "$url"
+          }
           APP=dist/macos/MeshBench.app
           mkdir -p "$APP/Contents/Resources/emulators"
           cd "$APP/Contents/Resources/emulators"
-          gh release download --repo MeshBench/qemu \
-            --pattern '*xtensa*aarch64-apple-darwin.tar.xz' --dir . --clobber \
-            || echo "::warning::no macOS QEMU release yet; ESP32 boards will not emulate"
-          gh release download --repo MeshBench/renode \
-            --pattern '*macos*.tar.gz' --dir . --clobber \
-            || echo "::warning::no macOS Renode release yet; nRF52 boards will not emulate"
+          fetch MeshBench/qemu '*xtensa*aarch64-apple-darwin.tar.xz'
+          fetch MeshBench/renode '*macos*.tar.gz'
           for f in *.tar.xz *.tar.gz; do [ -e "$f" ] || continue; tar xf "$f" && rm "$f"; done
           cd - >/dev/null
           # MeshBench looks for an executable file beside its own binary, so
