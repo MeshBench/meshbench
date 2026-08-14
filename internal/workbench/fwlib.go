@@ -41,19 +41,19 @@ type fwRowW struct {
 }
 
 type firmwarePanel struct {
-	tabAll, tabDisk, tabMachine comp.Chip
-	tab                         int
-	search                      comp.Field
-	filterBtn                   comp.Chip
-	roleFilter                  string
-	importBtn                   comp.Button
-	refreshBtn                  comp.Button
-	scanBtn                     comp.Button
-	list                        widget.List
-	rows                        map[string]*fwRowW
-	confirm                     string
-	built                       bool
-	asked                       bool
+	tabAll, tabDisk, tabMachine, tabBoards comp.Chip
+	tab                                    int
+	search                                 comp.Field
+	filterBtn                              comp.Chip
+	roleFilter                             string
+	importBtn                              comp.Button
+	refreshBtn                             comp.Button
+	scanBtn                                comp.Button
+	list                                   widget.List
+	rows                                   map[string]*fwRowW
+	confirm                                string
+	built                                  bool
+	asked                                  bool
 	// OnAction sends a verb about one build; Refresh asks for the library
 	// again; OnImport asks for a path and a role; choose opens the chooser.
 	OnAction func(verb string, params map[string]any)
@@ -100,6 +100,9 @@ func (p *firmwarePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 	if p.tabMachine.Click.Clicked(gtx) {
 		p.tab = 2
 	}
+	if p.tabBoards.Click.Clicked(gtx) {
+		p.tab = 3
+	}
 	if p.importBtn.Click.Clicked(gtx) && p.OnImport != nil {
 		p.OnImport()
 	}
@@ -134,14 +137,18 @@ func (p *firmwarePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 		return layout.Dimensions{}
 	}
 
-	nAll, nDisk, nMachine := 0, 0, 0
+	nAll, nDisk, nMachine, nBoards := 0, 0, 0, 0
 	for i := range s.Library {
 		nAll++
 		if s.Library[i].OnDisk {
 			nDisk++
 		}
+		// A build with no board runs as this machine; one with a board is a
+		// published image for real hardware, run under emulation.
 		if s.Library[i].Board == "" {
 			nMachine++
+		} else {
+			nBoards++
 		}
 	}
 
@@ -153,6 +160,9 @@ func (p *firmwarePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 			continue
 		}
 		if p.tab == 2 && r.Board != "" {
+			continue
+		}
+		if p.tab == 3 && r.Board == "" {
 			continue
 		}
 		if p.roleFilter != "" && r.Role != p.roleFilter {
@@ -177,7 +187,7 @@ func (p *firmwarePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 			return p.header(t, gtx)
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return p.tabRow(t, gtx, nAll, nDisk, nMachine)
+			return p.tabRow(t, gtx, nAll, nDisk, nMachine, nBoards)
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return p.colHeads(t, gtx)
@@ -226,7 +236,7 @@ func (p *firmwarePanel) header(t *theme.Theme, gtx layout.Context) layout.Dimens
 	})
 }
 
-func (p *firmwarePanel) tabRow(t *theme.Theme, gtx layout.Context, nAll, nDisk, nMachine int) layout.Dimensions {
+func (p *firmwarePanel) tabRow(t *theme.Theme, gtx layout.Context, nAll, nDisk, nMachine, nBoards int) layout.Dimensions {
 	chip := func(c *comp.Chip, label string, n, tab int) layout.FlexChild {
 		return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Right: t.Sp.S}.Layout(gtx,
@@ -244,6 +254,7 @@ func (p *firmwarePanel) tabRow(t *theme.Theme, gtx layout.Context, nAll, nDisk, 
 			chip(&p.tabAll, "All builds", nAll, 0),
 			chip(&p.tabDisk, "On disk only", nDisk, 1),
 			chip(&p.tabMachine, "This machine only", nMachine, 2),
+			chip(&p.tabBoards, "Emulated boards", nBoards, 3),
 			layout.Flexed(1, comp.Spacer),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				gtx.Constraints.Max.X = gtx.Dp(220)
