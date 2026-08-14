@@ -12,11 +12,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/A13xB0/meshcoresim/internal/antenna"
-	"github.com/A13xB0/meshcoresim/internal/dsp"
-	m "github.com/A13xB0/meshcoresim/internal/mockup"
-	"github.com/A13xB0/meshcoresim/internal/rf"
-	"github.com/A13xB0/meshcoresim/internal/terrain"
+	"github.com/MeshBench/meshbench/internal/antenna"
+	"github.com/MeshBench/meshbench/internal/dsp"
+	m "github.com/MeshBench/meshbench/internal/mockup"
+	"github.com/MeshBench/meshbench/internal/rf"
+	"github.com/MeshBench/meshbench/internal/terrain"
 )
 
 func sq(x float64) float64 { return x * x }

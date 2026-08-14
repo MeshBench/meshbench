@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/firmware"
+	"github.com/MeshBench/meshbench/internal/firmware"
 )
 
 // A cross-check that reports "they matched" when neither side transmitted has

@@ -19,8 +19,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/A13xB0/meshcoresim/internal/companion/proto"
-	"github.com/A13xB0/meshcoresim/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/companion/proto"
+	"github.com/MeshBench/meshbench/internal/gui/state"
 )
 
 // cliCommand is one meshcore-cli verb this build answers.

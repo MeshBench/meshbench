@@ -11,8 +11,8 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/A13xB0/meshcoresim/internal/gui/state"
-	"github.com/A13xB0/meshcoresim/internal/terrain"
+	"github.com/MeshBench/meshbench/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/terrain"
 )
 
 func registerTerrainPrefetch(st *state.Store, s *Sim) {

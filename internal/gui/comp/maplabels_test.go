@@ -4,7 +4,7 @@ import (
 	"image"
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/gui/state"
 )
 
 // named builds points at pixel positions, which is what placement works in.

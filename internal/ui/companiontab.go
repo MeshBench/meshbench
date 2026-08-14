@@ -9,9 +9,9 @@ import (
 
 	"github.com/AllenDang/cimgui-go/imgui"
 
-	"github.com/A13xB0/meshcoresim/internal/companion/proto"
-	"github.com/A13xB0/meshcoresim/internal/provider"
-	"github.com/A13xB0/meshcoresim/internal/scenario"
+	"github.com/MeshBench/meshbench/internal/companion/proto"
+	"github.com/MeshBench/meshbench/internal/provider"
+	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
 // compSession is one open conversation with a companion node's firmware.

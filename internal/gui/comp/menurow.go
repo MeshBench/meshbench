@@ -4,7 +4,7 @@ import (
 	"gioui.org/layout"
 	"gioui.org/widget"
 
-	"github.com/A13xB0/meshcoresim/internal/gui/theme"
+	"github.com/MeshBench/meshbench/internal/gui/theme"
 )
 
 // This reuses MenuItem from the map's context menu: one shape for "an action a

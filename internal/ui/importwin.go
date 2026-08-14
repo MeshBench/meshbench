@@ -12,8 +12,8 @@ import (
 
 	"github.com/AllenDang/cimgui-go/imgui"
 
-	"github.com/A13xB0/meshcoresim/internal/provider"
-	"github.com/A13xB0/meshcoresim/internal/scenario"
+	"github.com/MeshBench/meshbench/internal/provider"
+	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
 // importState is the Import window: where a network comes from, what arriving

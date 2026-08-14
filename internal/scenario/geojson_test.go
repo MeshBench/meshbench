@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/scenario"
+	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
 // GeoJSON is [lon, lat]; everything else in this codebase is lat, lon. Getting

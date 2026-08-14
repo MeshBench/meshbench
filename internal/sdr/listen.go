@@ -3,7 +3,7 @@ package sdr
 import (
 	"math"
 
-	"github.com/A13xB0/meshcoresim/internal/dsp"
+	"github.com/MeshBench/meshbench/internal/dsp"
 )
 
 // Tuning is where in the captured spectrum to listen, and how wide.

@@ -14,8 +14,8 @@ import (
 	"gioui.org/text"
 	"gioui.org/unit"
 
-	"github.com/A13xB0/meshcoresim/internal/gui/state"
-	"github.com/A13xB0/meshcoresim/internal/gui/theme"
+	"github.com/MeshBench/meshbench/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/gui/theme"
 )
 
 // Can you type into it?

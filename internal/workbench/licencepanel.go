@@ -14,10 +14,10 @@ import (
 	"gioui.org/layout"
 	"gioui.org/widget"
 
-	"github.com/A13xB0/meshcoresim/internal/gui/comp"
-	"github.com/A13xB0/meshcoresim/internal/gui/state"
-	"github.com/A13xB0/meshcoresim/internal/gui/theme"
-	"github.com/A13xB0/meshcoresim/internal/workbench/licences"
+	"github.com/MeshBench/meshbench/internal/gui/comp"
+	"github.com/MeshBench/meshbench/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/gui/theme"
+	"github.com/MeshBench/meshbench/internal/workbench/licences"
 )
 
 type licPanel struct {

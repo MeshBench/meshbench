@@ -12,9 +12,9 @@ import (
 	"math"
 	"strings"
 
-	"github.com/A13xB0/meshcoresim/internal/boundary"
-	"github.com/A13xB0/meshcoresim/internal/gui/state"
-	"github.com/A13xB0/meshcoresim/internal/scenario"
+	"github.com/MeshBench/meshbench/internal/boundary"
+	"github.com/MeshBench/meshbench/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
 func registerBoundary(st *state.Store, s *Sim) {

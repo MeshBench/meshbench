@@ -3,7 +3,7 @@ package provider_test
 import (
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/provider"
+	"github.com/MeshBench/meshbench/internal/provider"
 )
 
 func frame(route, payload byte, path ...byte) []byte {

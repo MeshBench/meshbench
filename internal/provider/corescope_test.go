@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/provider"
+	"github.com/MeshBench/meshbench/internal/provider"
 )
 
 // The live-instance failure this holds down: CoreScope answers

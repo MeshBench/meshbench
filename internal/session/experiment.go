@@ -28,9 +28,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/A13xB0/meshcoresim/internal/engine"
-	"github.com/A13xB0/meshcoresim/internal/gui/state"
-	"github.com/A13xB0/meshcoresim/internal/scenario"
+	"github.com/MeshBench/meshbench/internal/engine"
+	"github.com/MeshBench/meshbench/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
 // ExpArm is one configuration under test.

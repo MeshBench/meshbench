@@ -5,7 +5,7 @@ import (
 	"math"
 	"sort"
 
-	"github.com/A13xB0/meshcoresim/internal/provider"
+	"github.com/MeshBench/meshbench/internal/provider"
 )
 
 // Predict is the model's answer for one directed link: the SNR the receiver

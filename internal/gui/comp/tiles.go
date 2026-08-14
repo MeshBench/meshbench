@@ -11,7 +11,7 @@ import (
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 
-	"github.com/A13xB0/meshcoresim/internal/basemap"
+	"github.com/MeshBench/meshbench/internal/basemap"
 )
 
 // Tiles draws the basemap under everything else.

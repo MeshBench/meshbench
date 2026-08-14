@@ -10,13 +10,13 @@ import (
 	"math"
 	"os"
 
-	"github.com/A13xB0/meshcoresim/internal/coverage"
-	"github.com/A13xB0/meshcoresim/internal/dsp"
-	"github.com/A13xB0/meshcoresim/internal/planning"
-	"github.com/A13xB0/meshcoresim/internal/rf"
-	"github.com/A13xB0/meshcoresim/internal/scenario"
-	"github.com/A13xB0/meshcoresim/internal/sdr"
-	"github.com/A13xB0/meshcoresim/internal/terrain"
+	"github.com/MeshBench/meshbench/internal/coverage"
+	"github.com/MeshBench/meshbench/internal/dsp"
+	"github.com/MeshBench/meshbench/internal/planning"
+	"github.com/MeshBench/meshbench/internal/rf"
+	"github.com/MeshBench/meshbench/internal/scenario"
+	"github.com/MeshBench/meshbench/internal/sdr"
+	"github.com/MeshBench/meshbench/internal/terrain"
 )
 
 func runLink(ctx context.Context, args []string) error {

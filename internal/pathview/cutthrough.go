@@ -17,7 +17,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/A13xB0/meshcoresim/internal/terrain"
+	"github.com/MeshBench/meshbench/internal/terrain"
 )
 
 // Terrain supplies ground elevation.

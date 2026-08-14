@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/A13xB0/meshcoresim/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/gui/state"
 )
 
 // cpuSampler turns cumulative CPU ticks into a share of one core.

@@ -7,7 +7,7 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op"
 
-	"github.com/A13xB0/meshcoresim/internal/gui/theme"
+	"github.com/MeshBench/meshbench/internal/gui/theme"
 )
 
 // Labels that do not sit on top of each other.

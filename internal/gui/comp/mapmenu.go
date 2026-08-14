@@ -9,7 +9,7 @@ import (
 	"gioui.org/op/paint"
 	"gioui.org/widget"
 
-	"github.com/A13xB0/meshcoresim/internal/gui/theme"
+	"github.com/MeshBench/meshbench/internal/gui/theme"
 )
 
 // The right-click menu (10.8d).

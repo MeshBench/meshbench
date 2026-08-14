@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/energy"
+	"github.com/MeshBench/meshbench/internal/energy"
 )
 
 // A Scottish hilltop: the case this package exists to answer.

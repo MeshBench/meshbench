@@ -6,8 +6,8 @@ import (
 
 	"github.com/AllenDang/cimgui-go/imgui"
 
-	"github.com/A13xB0/meshcoresim/internal/capture"
-	"github.com/A13xB0/meshcoresim/internal/engine"
+	"github.com/MeshBench/meshbench/internal/capture"
+	"github.com/MeshBench/meshbench/internal/engine"
 )
 
 // packetState is the inspector's selection: one packet, by id.

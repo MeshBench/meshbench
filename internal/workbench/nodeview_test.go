@@ -3,7 +3,7 @@ package workbench
 import (
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/gui/state"
 )
 
 // A row with fewer cells than there are columns does not fail: it shifts.

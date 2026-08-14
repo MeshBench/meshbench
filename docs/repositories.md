@@ -11,7 +11,7 @@ Everything except MeshBench itself is in the **MeshBench** organisation.
 
 | repository | what it is | licence |
 |---|---|---|
-| `A13xB0/meshcoresim` | MeshBench itself | none chosen yet — ADR-0001 |
+| `MeshBench/meshbench` | MeshBench itself | none chosen yet — ADR-0001 |
 | `MeshBench/meshcore-native` | host builds of MeshCore, `VirtualSX1262`, the bridge and `radioserver` | see its NOTICE |
 | `MeshBench/meshbench-reports` | the published reports site | — |
 | `MeshBench/qemu` | QEMU with our SX1262 | GPLv2, upstream's |
@@ -104,4 +104,4 @@ follow a redirect:
    listen-before-talk report was given out as a keynote link - points at the old
    one.
 
-Still to move: **`A13xB0/meshcoresim`** itself.
+Still to move: **`MeshBench/meshbench`** itself.

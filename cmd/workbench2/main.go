@@ -5,7 +5,7 @@ package main
 import (
 	"os"
 
-	"github.com/A13xB0/meshcoresim/internal/workbench"
+	"github.com/MeshBench/meshbench/internal/workbench"
 )
 
 func main() {

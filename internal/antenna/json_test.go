@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/antenna"
+	"github.com/MeshBench/meshbench/internal/antenna"
 )
 
 // A saved scenario must come back with the same antennas it left with. Before

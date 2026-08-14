@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/A13xB0/meshcoresim/internal/scenario"
+	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
 // scenarioDir is where saved networks live.

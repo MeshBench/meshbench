@@ -19,8 +19,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/A13xB0/meshcoresim/internal/control"
-	"github.com/A13xB0/meshcoresim/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/control"
+	"github.com/MeshBench/meshbench/internal/gui/state"
 )
 
 // ServeControl opens the socket and answers from the store.

@@ -6,9 +6,9 @@ import (
 	"gioui.org/f32"
 	"gioui.org/layout"
 
-	"github.com/A13xB0/meshcoresim/internal/gui/shell"
-	"github.com/A13xB0/meshcoresim/internal/gui/state"
-	"github.com/A13xB0/meshcoresim/internal/gui/theme"
+	"github.com/MeshBench/meshbench/internal/gui/shell"
+	"github.com/MeshBench/meshbench/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/gui/theme"
 )
 
 // The question a menu entry asks, driven by pointing at it.

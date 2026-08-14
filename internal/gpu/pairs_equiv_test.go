@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/A13xB0/meshcoresim/internal/coverage"
+	"github.com/MeshBench/meshbench/internal/coverage"
 )
 
 // syntheticProfiles packs pairs with real relief in them: hills between the

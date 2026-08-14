@@ -9,9 +9,9 @@ import (
 
 	"github.com/AllenDang/cimgui-go/imgui"
 
-	"github.com/A13xB0/meshcoresim/internal/capture"
-	"github.com/A13xB0/meshcoresim/internal/mqttclient"
-	"github.com/A13xB0/meshcoresim/internal/provider"
+	"github.com/MeshBench/meshbench/internal/capture"
+	"github.com/MeshBench/meshbench/internal/mqttclient"
+	"github.com/MeshBench/meshbench/internal/provider"
 )
 
 // liveCopy is one real transmission worth replaying: the frame, and the

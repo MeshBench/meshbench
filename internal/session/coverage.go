@@ -12,10 +12,10 @@ import (
 	"image/color"
 	"math"
 
-	"github.com/A13xB0/meshcoresim/internal/coverage"
-	"github.com/A13xB0/meshcoresim/internal/gui/state"
-	"github.com/A13xB0/meshcoresim/internal/linkbudget"
-	"github.com/A13xB0/meshcoresim/internal/scenario"
+	"github.com/MeshBench/meshbench/internal/coverage"
+	"github.com/MeshBench/meshbench/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/linkbudget"
+	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
 // covGrid is the raster resolution. 160 square is 25,600 cells, each one a

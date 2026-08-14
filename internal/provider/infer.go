@@ -5,7 +5,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/A13xB0/meshcoresim/internal/capture"
+	"github.com/MeshBench/meshbench/internal/capture"
 )
 
 // Inferred is what observed traffic says about a node's configuration.

@@ -27,13 +27,13 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 
-	"github.com/A13xB0/meshcoresim/internal/basemap"
-	"github.com/A13xB0/meshcoresim/internal/gui/comp"
-	"github.com/A13xB0/meshcoresim/internal/gui/desktop"
-	"github.com/A13xB0/meshcoresim/internal/gui/shell"
-	"github.com/A13xB0/meshcoresim/internal/gui/state"
-	"github.com/A13xB0/meshcoresim/internal/gui/theme"
-	"github.com/A13xB0/meshcoresim/internal/session"
+	"github.com/MeshBench/meshbench/internal/basemap"
+	"github.com/MeshBench/meshbench/internal/gui/comp"
+	"github.com/MeshBench/meshbench/internal/gui/desktop"
+	"github.com/MeshBench/meshbench/internal/gui/shell"
+	"github.com/MeshBench/meshbench/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/gui/theme"
+	"github.com/MeshBench/meshbench/internal/session"
 )
 
 // Run is the whole application. It owns the process: it parses args, opens

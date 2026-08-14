@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/pathview"
+	"github.com/MeshBench/meshbench/internal/pathview"
 )
 
 type flat struct{ h float64 }

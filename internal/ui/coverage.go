@@ -9,9 +9,9 @@ import (
 
 	"github.com/AllenDang/cimgui-go/imgui"
 
-	"github.com/A13xB0/meshcoresim/internal/coverage"
-	"github.com/A13xB0/meshcoresim/internal/gpu"
-	"github.com/A13xB0/meshcoresim/internal/scenario"
+	"github.com/MeshBench/meshbench/internal/coverage"
+	"github.com/MeshBench/meshbench/internal/gpu"
+	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
 // coverageState is one node's coverage raster, drawn on the map.

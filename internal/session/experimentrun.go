@@ -16,10 +16,10 @@ import (
 
 	"time"
 
-	"github.com/A13xB0/meshcoresim/internal/companion/proto"
-	"github.com/A13xB0/meshcoresim/internal/engine"
-	"github.com/A13xB0/meshcoresim/internal/gui/state"
-	"github.com/A13xB0/meshcoresim/internal/scenario"
+	"github.com/MeshBench/meshbench/internal/companion/proto"
+	"github.com/MeshBench/meshbench/internal/engine"
+	"github.com/MeshBench/meshbench/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
 func (s *Sim) runExperiment(ctx context.Context, st *state.Store, e *experiment,

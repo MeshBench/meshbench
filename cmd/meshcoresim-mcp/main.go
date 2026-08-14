@@ -13,8 +13,8 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/A13xB0/meshcoresim/internal/mcp"
-	"github.com/A13xB0/meshcoresim/internal/terrain"
+	"github.com/MeshBench/meshbench/internal/mcp"
+	"github.com/MeshBench/meshbench/internal/terrain"
 )
 
 const version = "0.1.0"

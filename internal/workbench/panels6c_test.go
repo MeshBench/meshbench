@@ -3,7 +3,7 @@ package workbench
 import (
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/gui/state"
 )
 
 // The sidebar opens the section that was pressed. Its rows are plain

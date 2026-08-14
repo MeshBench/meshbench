@@ -9,8 +9,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/A13xB0/meshcoresim/internal/energy"
-	"github.com/A13xB0/meshcoresim/internal/firmware"
+	"github.com/MeshBench/meshbench/internal/energy"
+	"github.com/MeshBench/meshbench/internal/firmware"
 )
 
 func runTerrain(ctx context.Context, args []string) error {

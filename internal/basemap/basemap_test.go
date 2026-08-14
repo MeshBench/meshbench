@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/basemap"
+	"github.com/MeshBench/meshbench/internal/basemap"
 )
 
 func tile(c color.RGBA) []byte {

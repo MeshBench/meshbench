@@ -13,7 +13,7 @@ import (
 	"math"
 	"sort"
 
-	"github.com/A13xB0/meshcoresim/internal/coverage"
+	"github.com/MeshBench/meshbench/internal/coverage"
 )
 
 // Candidate is a place a node might go.

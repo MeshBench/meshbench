@@ -5,9 +5,9 @@ import (
 	"math"
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/dsp"
-	"github.com/A13xB0/meshcoresim/internal/rf"
-	"github.com/A13xB0/meshcoresim/internal/sdr"
+	"github.com/MeshBench/meshbench/internal/dsp"
+	"github.com/MeshBench/meshbench/internal/rf"
+	"github.com/MeshBench/meshbench/internal/sdr"
 )
 
 func observer() sdr.Observer {

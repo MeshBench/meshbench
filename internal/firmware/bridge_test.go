@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/A13xB0/meshcoresim/internal/dsp"
-	"github.com/A13xB0/meshcoresim/internal/rf"
+	"github.com/MeshBench/meshbench/internal/dsp"
+	"github.com/MeshBench/meshbench/internal/rf"
 )
 
 // Stands in for the SX1262 peripheral: the emulator side of the wire.

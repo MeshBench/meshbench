@@ -8,7 +8,7 @@ package workbench
 import (
 	"sync"
 
-	"github.com/A13xB0/meshcoresim/internal/gui/theme"
+	"github.com/MeshBench/meshbench/internal/gui/theme"
 )
 
 // settings is what the interface looks like, shared between windows.

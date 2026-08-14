@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/firmware"
+	"github.com/MeshBench/meshbench/internal/firmware"
 )
 
 type catServer struct {

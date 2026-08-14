@@ -8,11 +8,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/A13xB0/meshcoresim/internal/coverage"
-	"github.com/A13xB0/meshcoresim/internal/dsp"
-	"github.com/A13xB0/meshcoresim/internal/gpu"
-	"github.com/A13xB0/meshcoresim/internal/gui/state"
-	"github.com/A13xB0/meshcoresim/internal/terrain"
+	"github.com/MeshBench/meshbench/internal/coverage"
+	"github.com/MeshBench/meshbench/internal/dsp"
+	"github.com/MeshBench/meshbench/internal/gpu"
+	"github.com/MeshBench/meshbench/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/terrain"
 )
 
 // Warming the link matrix with the GPU.

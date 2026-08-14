@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/A13xB0/meshcoresim/internal/provider"
+	"github.com/MeshBench/meshbench/internal/provider"
 )
 
 type fakeHTTP struct {

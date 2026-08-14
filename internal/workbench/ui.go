@@ -4,15 +4,15 @@ import (
 	"sync"
 
 	"fmt"
-	"github.com/A13xB0/meshcoresim/internal/gui/comp"
+	"github.com/MeshBench/meshbench/internal/gui/comp"
 	"sort"
 	"strings"
 	"sync/atomic"
 
-	"github.com/A13xB0/meshcoresim/internal/gui/shell"
-	"github.com/A13xB0/meshcoresim/internal/gui/state"
-	"github.com/A13xB0/meshcoresim/internal/gui/theme"
-	"github.com/A13xB0/meshcoresim/internal/session"
+	"github.com/MeshBench/meshbench/internal/gui/shell"
+	"github.com/MeshBench/meshbench/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/gui/theme"
+	"github.com/MeshBench/meshbench/internal/session"
 )
 
 // workbenchUI is how the session moves this window.

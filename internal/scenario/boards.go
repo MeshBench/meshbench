@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/A13xB0/meshcoresim/internal/energy"
+	"github.com/MeshBench/meshbench/internal/energy"
 )
 
 // Board is a hardware profile: what a given piece of hardware can actually do.

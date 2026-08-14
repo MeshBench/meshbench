@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/rf"
+	"github.com/MeshBench/meshbench/internal/rf"
 )
 
 func channel() rf.Channel { return rf.Channel{CentreHz: 869.525e6, BandwidthHz: 250e3} }

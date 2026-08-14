@@ -4,8 +4,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/antenna"
-	"github.com/A13xB0/meshcoresim/internal/scenario"
+	"github.com/MeshBench/meshbench/internal/antenna"
+	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
 func node(txDBm, gainDBi, feedDB float64, sf int) scenario.Node {

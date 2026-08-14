@@ -14,8 +14,8 @@ import (
 
 	"image/color"
 
-	"github.com/A13xB0/meshcoresim/internal/gui/state"
-	"github.com/A13xB0/meshcoresim/internal/gui/theme"
+	"github.com/MeshBench/meshbench/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/gui/theme"
 )
 
 // The world under the network: boundaries, the study margin, and links drawn

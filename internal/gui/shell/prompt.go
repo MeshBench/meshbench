@@ -22,8 +22,8 @@ import (
 	"gioui.org/op/clip"
 	"gioui.org/widget"
 
-	"github.com/A13xB0/meshcoresim/internal/gui/comp"
-	"github.com/A13xB0/meshcoresim/internal/gui/theme"
+	"github.com/MeshBench/meshbench/internal/gui/comp"
+	"github.com/MeshBench/meshbench/internal/gui/theme"
 )
 
 // Prompt is a question waiting for an answer.

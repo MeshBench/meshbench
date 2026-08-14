@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/planning"
+	"github.com/MeshBench/meshbench/internal/planning"
 )
 
 // rangeChecker: a link works within a fixed distance. Stated geometry rather

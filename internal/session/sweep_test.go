@@ -3,7 +3,7 @@ package session
 import (
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/scenario"
+	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
 func nodes() []scenario.Node {

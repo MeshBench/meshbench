@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/A13xB0/meshcoresim/internal/firmware"
+	"github.com/MeshBench/meshbench/internal/firmware"
 )
 
 // safeBuf collects console output written from the bridge's goroutine.

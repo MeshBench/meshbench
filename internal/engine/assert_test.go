@@ -3,7 +3,7 @@ package engine_test
 import (
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/engine"
+	"github.com/MeshBench/meshbench/internal/engine"
 )
 
 // An assertion that fails must say why. A verdict with no evidence sends

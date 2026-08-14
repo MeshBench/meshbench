@@ -19,7 +19,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/A13xB0/meshcoresim/internal/session"
+	"github.com/MeshBench/meshbench/internal/session"
 )
 
 // onSignal closes the session when the process is asked to stop.

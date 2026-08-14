@@ -6,7 +6,7 @@ import (
 
 	"github.com/AllenDang/cimgui-go/imgui"
 
-	"github.com/A13xB0/meshcoresim/internal/engine"
+	"github.com/MeshBench/meshbench/internal/engine"
 )
 
 // timeGraphState is the packet timeline's view of time.

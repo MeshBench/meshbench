@@ -16,8 +16,8 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/A13xB0/meshcoresim/internal/dsp"
-	"github.com/A13xB0/meshcoresim/internal/rf"
+	"github.com/MeshBench/meshbench/internal/dsp"
+	"github.com/MeshBench/meshbench/internal/rf"
 )
 
 // Observer is a receive-only node.

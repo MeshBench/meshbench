@@ -7,11 +7,11 @@ import (
 	"math"
 	"strings"
 
-	"github.com/A13xB0/meshcoresim/internal/coverage"
-	"github.com/A13xB0/meshcoresim/internal/dsp"
-	"github.com/A13xB0/meshcoresim/internal/energy"
-	"github.com/A13xB0/meshcoresim/internal/planning"
-	"github.com/A13xB0/meshcoresim/internal/terrain"
+	"github.com/MeshBench/meshbench/internal/coverage"
+	"github.com/MeshBench/meshbench/internal/dsp"
+	"github.com/MeshBench/meshbench/internal/energy"
+	"github.com/MeshBench/meshbench/internal/planning"
+	"github.com/MeshBench/meshbench/internal/terrain"
 )
 
 // Terrain is the elevation source the tools need. Aliased from the coverage

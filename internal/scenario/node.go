@@ -3,8 +3,8 @@ package scenario
 import (
 	"fmt"
 
-	"github.com/A13xB0/meshcoresim/internal/antenna"
-	"github.com/A13xB0/meshcoresim/internal/sdr"
+	"github.com/MeshBench/meshbench/internal/antenna"
+	"github.com/MeshBench/meshbench/internal/sdr"
 )
 
 // Kind is what a node is.

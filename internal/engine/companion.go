@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/A13xB0/meshcoresim/internal/companion"
+	"github.com/MeshBench/meshbench/internal/companion"
 )
 
 // nodeSerial is one node's UART, as the companion transports need it.

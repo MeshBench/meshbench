@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/A13xB0/meshcoresim/internal/companion/proto"
+	"github.com/MeshBench/meshbench/internal/companion/proto"
 )
 
 // The channel send is the frame the whole tab exists to produce, and its

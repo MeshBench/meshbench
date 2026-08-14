@@ -7,8 +7,8 @@ import (
 
 	"gioui.org/layout"
 
-	"github.com/A13xB0/meshcoresim/internal/gui/comp"
-	"github.com/A13xB0/meshcoresim/internal/gui/theme"
+	"github.com/MeshBench/meshbench/internal/gui/comp"
+	"github.com/MeshBench/meshbench/internal/gui/theme"
 )
 
 func (g *gallery) leftColumn(gtx layout.Context) layout.Dimensions {

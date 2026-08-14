@@ -3,7 +3,7 @@ package ui
 import (
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/provider"
+	"github.com/MeshBench/meshbench/internal/provider"
 )
 
 // The two halves of a scoped mesh spell a region differently, and the mismatch

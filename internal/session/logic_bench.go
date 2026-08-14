@@ -2,8 +2,8 @@ package session
 
 import (
 	"fmt"
-	"github.com/A13xB0/meshcoresim/internal/engine"
-	"github.com/A13xB0/meshcoresim/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/engine"
+	"github.com/MeshBench/meshbench/internal/gui/state"
 	"sort"
 )
 

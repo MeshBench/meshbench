@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/scenario"
+	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
 // Every figure in a board profile has to be defensible. These are the checks

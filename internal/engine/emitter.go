@@ -3,8 +3,8 @@ package engine
 import (
 	"math"
 
-	"github.com/A13xB0/meshcoresim/internal/dsp"
-	"github.com/A13xB0/meshcoresim/internal/scenario"
+	"github.com/MeshBench/meshbench/internal/dsp"
+	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
 // emitterNoiseAt is the extra noise power an emitter fleet delivers into one

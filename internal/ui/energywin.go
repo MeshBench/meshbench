@@ -7,8 +7,8 @@ import (
 
 	"github.com/AllenDang/cimgui-go/imgui"
 
-	"github.com/A13xB0/meshcoresim/internal/energy"
-	"github.com/A13xB0/meshcoresim/internal/scenario"
+	"github.com/MeshBench/meshbench/internal/energy"
+	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
 // energyState is the Energy panel: the winter question, for the selection.

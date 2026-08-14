@@ -4,7 +4,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/A13xB0/meshcoresim/internal/firmware"
+	"github.com/MeshBench/meshbench/internal/firmware"
 )
 
 // The firmware library's list: what a row is, and how the list is ordered and

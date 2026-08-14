@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/dsp"
+	"github.com/MeshBench/meshbench/internal/dsp"
 )
 
 const sf = 8

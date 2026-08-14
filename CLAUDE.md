@@ -1,6 +1,6 @@
-# MeshcoreSim
+# MeshBench
 
-An RF-accurate MeshCore network simulator. It runs **real MeshCore firmware**
+`MeshBench/meshbench` — an RF-accurate MeshCore network simulator. It runs **real MeshCore firmware**
 against a **sample-accurate LoRa baseband channel** with real noise, so the
 question it answers is not "would a packet get through" but "what actually
 arrived at the antenna, and why".
@@ -116,7 +116,7 @@ cores, a real GPU, and the Renode and QEMU toolchains for the firmware work.
 The full suite with `-race` runs there in about three minutes; on the VM it is
 several times that and the GPU path cannot run at all.
 
-Clone with `gh repo clone A13xB0/meshcoresim`. `golangci-lint` is pinned to the
+Clone with `gh repo clone MeshBench/meshbench`. `golangci-lint` is pinned to the
 version CI uses (v2.1.6) at `~/go/bin`.
 
 ## Running

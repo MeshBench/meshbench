@@ -2,10 +2,10 @@ package session
 
 import (
 	"fmt"
-	"github.com/A13xB0/meshcoresim/internal/coverage"
-	"github.com/A13xB0/meshcoresim/internal/gui/state"
-	"github.com/A13xB0/meshcoresim/internal/linkbudget"
-	"github.com/A13xB0/meshcoresim/internal/planning"
+	"github.com/MeshBench/meshbench/internal/coverage"
+	"github.com/MeshBench/meshbench/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/linkbudget"
+	"github.com/MeshBench/meshbench/internal/planning"
 )
 
 // budgetChecker answers "can these two work" with the same link budget the map

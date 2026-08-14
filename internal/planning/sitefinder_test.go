@@ -3,8 +3,8 @@ package planning_test
 import (
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/coverage"
-	"github.com/A13xB0/meshcoresim/internal/planning"
+	"github.com/MeshBench/meshbench/internal/coverage"
+	"github.com/MeshBench/meshbench/internal/planning"
 )
 
 // Rasters built by hand, so the tests assert against a network whose shape is

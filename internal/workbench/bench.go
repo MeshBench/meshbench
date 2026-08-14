@@ -11,9 +11,9 @@ import (
 
 	"gioui.org/layout"
 
-	"github.com/A13xB0/meshcoresim/internal/gui/comp"
-	"github.com/A13xB0/meshcoresim/internal/gui/state"
-	"github.com/A13xB0/meshcoresim/internal/gui/theme"
+	"github.com/MeshBench/meshbench/internal/gui/comp"
+	"github.com/MeshBench/meshbench/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/gui/theme"
 )
 
 // benchPanel lists the companions and what each is served on.

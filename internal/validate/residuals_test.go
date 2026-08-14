@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/provider"
-	"github.com/A13xB0/meshcoresim/internal/validate"
+	"github.com/MeshBench/meshbench/internal/provider"
+	"github.com/MeshBench/meshbench/internal/validate"
 )
 
 type flat struct{ h float64 }

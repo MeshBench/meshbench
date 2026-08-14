@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/A13xB0/meshcoresim/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/gui/state"
 )
 
 // Register wires the control verbs onto the store. Only the few the new

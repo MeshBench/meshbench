@@ -1,4 +1,4 @@
-module github.com/A13xB0/meshcoresim
+module github.com/MeshBench/meshbench
 
 go 1.24.0
 

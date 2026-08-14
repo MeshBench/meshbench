@@ -12,7 +12,7 @@ import (
 	"os"
 	"path/filepath"
 
-	m "github.com/A13xB0/meshcoresim/internal/mockup"
+	m "github.com/MeshBench/meshbench/internal/mockup"
 )
 
 func main() {

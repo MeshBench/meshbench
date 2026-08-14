@@ -27,8 +27,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/A13xB0/meshcoresim/internal/dsp"
-	"github.com/A13xB0/meshcoresim/internal/provider"
+	"github.com/MeshBench/meshbench/internal/dsp"
+	"github.com/MeshBench/meshbench/internal/provider"
 )
 
 // Transmission is one recovered transmission.

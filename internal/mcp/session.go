@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/A13xB0/meshcoresim/internal/control"
+	"github.com/MeshBench/meshbench/internal/control"
 )
 
 // RegisterSessionTools exposes a running workbench, if one is listening.

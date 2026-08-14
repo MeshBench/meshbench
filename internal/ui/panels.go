@@ -7,11 +7,11 @@ import (
 
 	"github.com/AllenDang/cimgui-go/imgui"
 
-	"github.com/A13xB0/meshcoresim/internal/coverage"
-	"github.com/A13xB0/meshcoresim/internal/pathview"
-	"github.com/A13xB0/meshcoresim/internal/planning"
-	"github.com/A13xB0/meshcoresim/internal/scenario"
-	"github.com/A13xB0/meshcoresim/internal/terrain"
+	"github.com/MeshBench/meshbench/internal/coverage"
+	"github.com/MeshBench/meshbench/internal/pathview"
+	"github.com/MeshBench/meshbench/internal/planning"
+	"github.com/MeshBench/meshbench/internal/scenario"
+	"github.com/MeshBench/meshbench/internal/terrain"
 )
 
 func (a *App) drawNodeRows() {

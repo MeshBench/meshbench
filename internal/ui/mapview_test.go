@@ -4,8 +4,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/scenario"
-	"github.com/A13xB0/meshcoresim/internal/ui"
+	"github.com/MeshBench/meshbench/internal/scenario"
+	"github.com/MeshBench/meshbench/internal/ui"
 )
 
 func view() ui.MapView {

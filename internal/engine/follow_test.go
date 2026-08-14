@@ -3,7 +3,7 @@ package engine_test
 import (
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/engine"
+	"github.com/MeshBench/meshbench/internal/engine"
 )
 
 // A message must keep one identity across every hop.

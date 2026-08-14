@@ -7,10 +7,10 @@ import (
 
 	"gioui.org/layout"
 
-	"github.com/A13xB0/meshcoresim/internal/gui/comp"
-	"github.com/A13xB0/meshcoresim/internal/gui/state"
-	"github.com/A13xB0/meshcoresim/internal/gui/theme"
-	"github.com/A13xB0/meshcoresim/internal/session"
+	"github.com/MeshBench/meshbench/internal/gui/comp"
+	"github.com/MeshBench/meshbench/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/gui/theme"
+	"github.com/MeshBench/meshbench/internal/session"
 )
 
 // comparePanel compares the two most recent saved runs.

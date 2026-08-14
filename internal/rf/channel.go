@@ -11,7 +11,7 @@ import (
 	"math"
 	"math/cmplx"
 
-	"github.com/A13xB0/meshcoresim/internal/dsp"
+	"github.com/MeshBench/meshbench/internal/dsp"
 )
 
 // Transmission is one node's waveform arriving at one receiver, already priced

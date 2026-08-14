@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/A13xB0/meshcoresim/internal/companion/proto"
-	"github.com/A13xB0/meshcoresim/internal/engine"
-	"github.com/A13xB0/meshcoresim/internal/firmware"
-	"github.com/A13xB0/meshcoresim/internal/scenario"
+	"github.com/MeshBench/meshbench/internal/companion/proto"
+	"github.com/MeshBench/meshbench/internal/engine"
+	"github.com/MeshBench/meshbench/internal/firmware"
+	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
 // An experiment runs one scenario under several configurations and reports what

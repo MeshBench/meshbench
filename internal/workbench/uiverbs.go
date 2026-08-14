@@ -14,7 +14,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/A13xB0/meshcoresim/internal/gui/shell"
+	"github.com/MeshBench/meshbench/internal/gui/shell"
 )
 
 func (u *workbenchUI) OpenPanel(name, where string) error {

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/A13xB0/meshcoresim/internal/engine"
-	"github.com/A13xB0/meshcoresim/internal/fixture"
+	"github.com/MeshBench/meshbench/internal/engine"
+	"github.com/MeshBench/meshbench/internal/fixture"
 )
 
 // runTest is the regression harness: load a fixture, run it on real firmware,

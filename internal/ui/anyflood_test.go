@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/scenario"
+	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
 // A permissive fixture has to survive being saved and loaded, and the thing

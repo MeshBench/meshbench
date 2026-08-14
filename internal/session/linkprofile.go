@@ -9,10 +9,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/A13xB0/meshcoresim/internal/gui/state"
-	"github.com/A13xB0/meshcoresim/internal/pathview"
-	"github.com/A13xB0/meshcoresim/internal/scenario"
-	"github.com/A13xB0/meshcoresim/internal/terrain"
+	"github.com/MeshBench/meshbench/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/pathview"
+	"github.com/MeshBench/meshbench/internal/scenario"
+	"github.com/MeshBench/meshbench/internal/terrain"
 )
 
 // profileFor computes the cut-through for a named pair on a worker and hands

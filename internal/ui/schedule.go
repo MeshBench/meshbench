@@ -3,7 +3,7 @@ package ui
 import (
 	"fmt"
 
-	"github.com/A13xB0/meshcoresim/internal/engine"
+	"github.com/MeshBench/meshbench/internal/engine"
 
 	"github.com/AllenDang/cimgui-go/imgui"
 )

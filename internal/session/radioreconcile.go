@@ -18,9 +18,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/A13xB0/meshcoresim/internal/companion/proto"
-	"github.com/A13xB0/meshcoresim/internal/gui/state"
-	"github.com/A13xB0/meshcoresim/internal/scenario"
+	"github.com/MeshBench/meshbench/internal/companion/proto"
+	"github.com/MeshBench/meshbench/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
 func registerRadioReconcile(st *state.Store, s *Sim) {

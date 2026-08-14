@@ -9,7 +9,7 @@ import (
 
 	"gioui.org/f32"
 
-	"github.com/A13xB0/meshcoresim/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/gui/state"
 )
 
 // The workflows, walked by clicking.

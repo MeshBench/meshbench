@@ -15,9 +15,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/A13xB0/meshcoresim/internal/fixture"
-	"github.com/A13xB0/meshcoresim/internal/gui/state"
-	"github.com/A13xB0/meshcoresim/internal/scenario"
+	"github.com/MeshBench/meshbench/internal/fixture"
+	"github.com/MeshBench/meshbench/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
 // ProvisioningFor is the script for one node, with each line's reason.

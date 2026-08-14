@@ -11,8 +11,8 @@ package linkbudget
 import (
 	"math"
 
-	"github.com/A13xB0/meshcoresim/internal/dsp"
-	"github.com/A13xB0/meshcoresim/internal/scenario"
+	"github.com/MeshBench/meshbench/internal/dsp"
+	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
 // DefaultBandwidthHz and DefaultSF are what a node that has not said gets.

@@ -7,7 +7,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/A13xB0/meshcoresim/internal/capture"
+	"github.com/MeshBench/meshbench/internal/capture"
 )
 
 // Capture writes every reception to a pcapng file as the run happens.

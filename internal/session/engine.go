@@ -16,14 +16,14 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/A13xB0/meshcoresim/internal/boundary"
-	"github.com/A13xB0/meshcoresim/internal/console"
-	"github.com/A13xB0/meshcoresim/internal/coverage"
-	"github.com/A13xB0/meshcoresim/internal/engine"
-	"github.com/A13xB0/meshcoresim/internal/gui/state"
-	"github.com/A13xB0/meshcoresim/internal/linkbudget"
-	"github.com/A13xB0/meshcoresim/internal/scenario"
-	"github.com/A13xB0/meshcoresim/internal/terrain"
+	"github.com/MeshBench/meshbench/internal/boundary"
+	"github.com/MeshBench/meshbench/internal/console"
+	"github.com/MeshBench/meshbench/internal/coverage"
+	"github.com/MeshBench/meshbench/internal/engine"
+	"github.com/MeshBench/meshbench/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/linkbudget"
+	"github.com/MeshBench/meshbench/internal/scenario"
+	"github.com/MeshBench/meshbench/internal/terrain"
 )
 
 // Sim holds the engine and the scenario it was built from.

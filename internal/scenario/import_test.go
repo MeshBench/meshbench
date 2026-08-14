@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/provider"
-	"github.com/A13xB0/meshcoresim/internal/scenario"
+	"github.com/MeshBench/meshbench/internal/provider"
+	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
 func importOpts() scenario.ImportOptions {

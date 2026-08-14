@@ -6,7 +6,7 @@ import (
 	"math/cmplx"
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/dsp"
+	"github.com/MeshBench/meshbench/internal/dsp"
 )
 
 // The harness ADR-0004 requires: every GPU kernel has a CPU twin, and a test

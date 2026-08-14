@@ -7,7 +7,7 @@ import (
 
 	"github.com/AllenDang/cimgui-go/imgui"
 
-	"github.com/A13xB0/meshcoresim/internal/engine"
+	"github.com/MeshBench/meshbench/internal/engine"
 )
 
 // companionPorts is the set of listening companion sockets, keyed by node.

@@ -10,8 +10,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/A13xB0/meshcoresim/internal/console"
-	"github.com/A13xB0/meshcoresim/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/console"
+	"github.com/MeshBench/meshbench/internal/gui/state"
 )
 
 // consoleFor returns the buffer attached to a node's firmware, attaching one

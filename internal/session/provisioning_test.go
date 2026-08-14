@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/fixture"
-	"github.com/A13xB0/meshcoresim/internal/scenario"
+	"github.com/MeshBench/meshbench/internal/fixture"
+	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
 // The script has to be the commands, not a description of them. If these ever

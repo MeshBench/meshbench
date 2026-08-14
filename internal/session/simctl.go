@@ -12,7 +12,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/A13xB0/meshcoresim/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/gui/state"
 )
 
 // registerSimControl adds the run-from-a-script verbs.

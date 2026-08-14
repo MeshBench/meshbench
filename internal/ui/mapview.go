@@ -5,8 +5,8 @@ import (
 	"image/color"
 	"math"
 
-	"github.com/A13xB0/meshcoresim/internal/basemap"
-	"github.com/A13xB0/meshcoresim/internal/scenario"
+	"github.com/MeshBench/meshbench/internal/basemap"
+	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
 // MapView is the geographic viewport: what part of the world is on screen.

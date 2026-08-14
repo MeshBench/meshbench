@@ -5,7 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 
-	"github.com/A13xB0/meshcoresim/internal/capture"
+	"github.com/MeshBench/meshbench/internal/capture"
 )
 
 // RegionKey derives a region's transport key from its name.

@@ -3,7 +3,7 @@ package firmware_test
 import (
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/firmware"
+	"github.com/MeshBench/meshbench/internal/firmware"
 )
 
 // Real asset names from repeater-v1.17.0. The catalogue is the naming scheme,

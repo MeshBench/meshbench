@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/A13xB0/meshcoresim/internal/companion"
+	"github.com/MeshBench/meshbench/internal/companion"
 )
 
 // fakeSerial stands in for a node's UART.

@@ -82,7 +82,7 @@ jobs:
           case "$VERSION" in v*) ;; *) VERSION="dev-$(git rev-parse --short HEAD)";; esac
           go build -trimpath \
             -ldflags "-X gioui.org/app.ID=io.github.meshbench.meshbench \
-                      -X github.com/A13xB0/meshcoresim/internal/workbench.Version=$VERSION" \
+                      -X github.com/MeshBench/meshbench/internal/workbench.Version=$VERSION" \
             -o dist/meshbench/meshbench ./cmd/meshcoresim
 
       - name: Fetch the emulators

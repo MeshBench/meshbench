@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/A13xB0/meshcoresim/internal/boundary"
-	"github.com/A13xB0/meshcoresim/internal/engine"
-	"github.com/A13xB0/meshcoresim/internal/fixture"
+	"github.com/MeshBench/meshbench/internal/boundary"
+	"github.com/MeshBench/meshbench/internal/engine"
+	"github.com/MeshBench/meshbench/internal/fixture"
 )
 
 // The workbench's saved setup is the shipped fixture format, under the names

@@ -8,7 +8,7 @@ import (
 
 	"github.com/cogentcore/webgpu/wgpu"
 
-	"github.com/A13xB0/meshcoresim/internal/coverage"
+	"github.com/MeshBench/meshbench/internal/coverage"
 )
 
 //go:embed coverage.wgsl

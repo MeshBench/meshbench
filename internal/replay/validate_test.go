@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/provider"
-	"github.com/A13xB0/meshcoresim/internal/replay"
+	"github.com/MeshBench/meshbench/internal/provider"
+	"github.com/MeshBench/meshbench/internal/replay"
 )
 
 func rx(pkt, origin, recv string, snr float64) provider.Reception {

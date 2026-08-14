@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/capture"
+	"github.com/MeshBench/meshbench/internal/capture"
 )
 
 // A flood advert, as MeshCore builds one: header, path length, two hops of

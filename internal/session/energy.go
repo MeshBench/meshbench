@@ -10,9 +10,9 @@
 package session
 
 import (
-	"github.com/A13xB0/meshcoresim/internal/energy"
-	"github.com/A13xB0/meshcoresim/internal/gui/state"
-	"github.com/A13xB0/meshcoresim/internal/scenario"
+	"github.com/MeshBench/meshbench/internal/energy"
+	"github.com/MeshBench/meshbench/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
 // A typical UK hilltop repeater, stated here so that changing it is a decision

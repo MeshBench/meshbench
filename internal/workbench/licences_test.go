@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/workbench/licences"
+	"github.com/MeshBench/meshbench/internal/workbench/licences"
 )
 
 // The licence window's contract: the embedded inventory is real, the forks

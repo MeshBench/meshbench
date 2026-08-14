@@ -14,8 +14,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/A13xB0/meshcoresim/internal/coverage"
-	"github.com/A13xB0/meshcoresim/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/coverage"
+	"github.com/MeshBench/meshbench/internal/gui/state"
 )
 
 func registerPlanningVerbs(st *state.Store, s *Sim) {

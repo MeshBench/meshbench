@@ -7,8 +7,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/A13xB0/meshcoresim/internal/basemap"
-	"github.com/A13xB0/meshcoresim/internal/ui"
+	"github.com/MeshBench/meshbench/internal/basemap"
+	"github.com/MeshBench/meshbench/internal/ui"
 )
 
 // runWorkbench1 opens the previous, imgui workbench.

@@ -3,7 +3,7 @@ package comp
 import (
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/gui/state"
 )
 
 // at builds points for nodes at the given positions, as project() would.

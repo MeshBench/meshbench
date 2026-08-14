@@ -18,7 +18,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/A13xB0/meshcoresim/internal/scenario"
+	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
 // DefaultBaseURL is OSM's public Nominatim.
@@ -73,7 +73,7 @@ func (c *Client) Search(ctx context.Context, query string) ([]Found, error) {
 	}
 	// Nominatim's policy requires an identifiable agent; anonymous requests
 	// get blocked, which would present as "search never works".
-	req.Header.Set("User-Agent", "meshcoresim/0.1 (github.com/A13xB0/meshcoresim)")
+	req.Header.Set("User-Agent", "meshcoresim/0.1 (github.com/MeshBench/meshbench)")
 
 	client := c.HTTP
 	if client == nil {
@@ -190,7 +190,7 @@ func (c *Client) ReverseSearch(ctx context.Context, lat, lon float64) ([]Found, 
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "meshcoresim/0.1 (github.com/A13xB0/meshcoresim)")
+	req.Header.Set("User-Agent", "meshcoresim/0.1 (github.com/MeshBench/meshbench)")
 
 	client := c.HTTP
 	if client == nil {

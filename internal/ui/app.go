@@ -25,12 +25,12 @@ import (
 	"github.com/AllenDang/cimgui-go/backend/glfwbackend"
 	"github.com/AllenDang/cimgui-go/imgui"
 
-	"github.com/A13xB0/meshcoresim/internal/antenna"
-	"github.com/A13xB0/meshcoresim/internal/basemap"
-	"github.com/A13xB0/meshcoresim/internal/control"
-	"github.com/A13xB0/meshcoresim/internal/engine"
-	"github.com/A13xB0/meshcoresim/internal/pathview"
-	"github.com/A13xB0/meshcoresim/internal/scenario"
+	"github.com/MeshBench/meshbench/internal/antenna"
+	"github.com/MeshBench/meshbench/internal/basemap"
+	"github.com/MeshBench/meshbench/internal/control"
+	"github.com/MeshBench/meshbench/internal/engine"
+	"github.com/MeshBench/meshbench/internal/pathview"
+	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
 // Terrain is the elevation source. An interface so the application can be run

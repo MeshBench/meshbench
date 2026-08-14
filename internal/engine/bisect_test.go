@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/engine"
+	"github.com/MeshBench/meshbench/internal/engine"
 )
 
 func TestBisectFindsTheSingleCulprit(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/coverage"
+	"github.com/MeshBench/meshbench/internal/coverage"
 )
 
 // hilly builds a synthetic height grid with real structure: ridges tall

@@ -6,7 +6,7 @@ import (
 
 	"github.com/AllenDang/cimgui-go/imgui"
 
-	"github.com/A13xB0/meshcoresim/internal/linkbudget"
+	"github.com/MeshBench/meshbench/internal/linkbudget"
 )
 
 // mapLayers is which optional overlays are drawn.

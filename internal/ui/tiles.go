@@ -8,7 +8,7 @@ import (
 
 	"github.com/AllenDang/cimgui-go/imgui"
 
-	"github.com/A13xB0/meshcoresim/internal/basemap"
+	"github.com/MeshBench/meshbench/internal/basemap"
 )
 
 // tileCache draws a map the way a map is drawn: one textured quad per tile,

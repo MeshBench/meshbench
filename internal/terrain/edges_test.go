@@ -3,7 +3,7 @@ package terrain_test
 import (
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/terrain"
+	"github.com/MeshBench/meshbench/internal/terrain"
 )
 
 // One hill is one edge, not the forty samples that describe it. A decomposition

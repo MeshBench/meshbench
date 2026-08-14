@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/coverage"
+	"github.com/MeshBench/meshbench/internal/coverage"
 )
 
 // A ridge running north-south at a fixed longitude, with flat ground either

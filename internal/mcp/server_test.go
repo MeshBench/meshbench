@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/A13xB0/meshcoresim/internal/mcp"
+	"github.com/MeshBench/meshbench/internal/mcp"
 )
 
 type flatTerrain struct{ h float64 }
