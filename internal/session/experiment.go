@@ -25,6 +25,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -34,10 +36,158 @@ import (
 )
 
 // ExpArm is one configuration under test.
+//
+// Everything past the two firmware fields is a provisioning setting, because
+// the questions worth asking of a mesh are mostly not "which build" - they are
+// how much of a path a message carries, whether repeaters detect loops, and
+// whether anybody listens before talking.
 type ExpArm struct {
 	Label            string `json:"label"`
 	RepeaterVersion  string `json:"repeater_version"`
 	CompanionVersion string `json:"companion_version"`
+
+	// PathHashMode is the *companion's* setting, and it is the one that
+	// decides what a message carries: the originator stamps it and every hop
+	// honours it. RepPathHash is the repeaters' own, which only affects the
+	// adverts they originate and is normally held constant.
+	//
+	// Pointers rather than a -1 sentinel. Mode 0 is a real value - one byte per
+	// hop - and it is also the zero value, so "unset" and "one byte" were the
+	// same thing to every path that built an arm without naming the field.
+	PathHashMode *int `json:"path_hash_mode,omitempty"`
+	RepPathHash  *int `json:"rep_path_hash,omitempty"`
+
+	// LoopDetect is off, minimal, moderate or strict; CAD is on or off. Empty
+	// leaves whatever the scenario has.
+	LoopDetect string `json:"loop_detect,omitempty"`
+	CAD        string `json:"cad,omitempty"`
+
+	// SpreadMs staggers this arm's senders across the burst, overriding the
+	// experiment's own.
+	SpreadMs *int `json:"spread_ms,omitempty"`
+}
+
+// applyOver writes only what this arm actually names, over a base.
+//
+// The distinction against writing every field is load-bearing: an arm varying
+// one parameter must leave the other seven as the base set them, and a struct
+// copy would silently reset them to their zero values - which for path hash
+// mode is a real setting rather than "unset".
+func (a ExpArm) applyOver(p *Provisioning) {
+	if a.PathHashMode != nil {
+		p.CompPathHashMode = *a.PathHashMode
+	}
+	if a.RepPathHash != nil {
+		p.PathHashMode = *a.RepPathHash
+	}
+	if a.LoopDetect != "" {
+		p.LoopDetect = a.LoopDetect
+	}
+	if a.CAD != "" {
+		p.CadMode = a.CAD
+	}
+}
+
+// names reports whether this arm sets anything at all. An arm that names
+// nothing is a placeholder to be replaced by the first cross, not something to
+// cross onto.
+func (a ExpArm) names() bool {
+	return a.RepeaterVersion != "" || a.CompanionVersion != "" ||
+		a.PathHashMode != nil || a.RepPathHash != nil ||
+		a.LoopDetect != "" || a.CAD != "" || a.SpreadMs != nil
+}
+
+// VaryParams is every parameter an arm can be crossed on, in the order the
+// Bench offers them, with the values it offers by default.
+//
+// One table so the panel, the verb and anything scripting this cannot drift:
+// a dropdown listing a parameter the verb rejects is worse than not offering
+// it, because the failure arrives after the arms have been built.
+var VaryParams = []struct {
+	Name, Label, Defaults string
+}{
+	{"path_hash_mode", "companion path hash", "0, 1, 2"},
+	{"rep_path_hash", "repeater path hash", "0, 1, 2"},
+	{"loop_detect", "loop.detect", "off, minimal, moderate, strict"},
+	{"cad", "cad", "off, on"},
+	{"repeater_version", "repeater firmware", ""},
+	{"companion_version", "companion firmware", ""},
+	{"spread_ms", "spread", "0, 5, 20"},
+}
+
+// varied returns the arm with one parameter set, and the label segment that
+// records it.
+func varied(base ExpArm, param, v string) (ExpArm, string, error) {
+	arm := base
+	switch param {
+	case "repeater_version":
+		arm.RepeaterVersion = v
+		return arm, bareVersion(v, "repeater-"), nil
+	case "companion_version":
+		arm.CompanionVersion = v
+		return arm, bareVersion(v, "companion-"), nil
+	case "path_hash_mode", "rep_path_hash":
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 0 || n > 2 {
+			return arm, "", fmt.Errorf("path hash mode is 0, 1 or 2; got %q", v)
+		}
+		if param == "path_hash_mode" {
+			arm.PathHashMode = &n
+			// n+1 because mode 0 is one byte per hop, and an arm labelled
+			// "0-byte" reads as a path that carries nothing.
+			return arm, fmt.Sprintf("%d-byte", n+1), nil
+		}
+		arm.RepPathHash = &n
+		return arm, fmt.Sprintf("rpt %d-byte", n+1), nil
+	case "loop_detect":
+		switch v {
+		case "off", "minimal", "moderate", "strict":
+		default:
+			return arm, "", fmt.Errorf("loop.detect is off, minimal, moderate or strict; got %q", v)
+		}
+		arm.LoopDetect = v
+		return arm, "loop " + v, nil
+	case "cad":
+		if v != "on" && v != "off" {
+			return arm, "", fmt.Errorf("cad is on or off; got %q", v)
+		}
+		arm.CAD = v
+		return arm, "cad " + v, nil
+	case "spread_ms":
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 0 {
+			return arm, "", fmt.Errorf("spread is a whole number of seconds; got %q", v)
+		}
+		ms := n * 1000
+		arm.SpreadMs = &ms
+		if n == 0 {
+			return arm, "all at once", nil
+		}
+		return arm, fmt.Sprintf("over %ds", n), nil
+	}
+	var have []string
+	for _, p := range VaryParams {
+		have = append(have, p.Name)
+	}
+	return arm, "", fmt.Errorf("cannot vary %q; there is: %s", param, strings.Join(have, ", "))
+}
+
+// bareVersion is a build name with its role and its v stripped, because an arm
+// column headed "repeater-v1.17.0 · 1-byte" spends most of its width on the two
+// things every arm in the sweep has in common.
+func bareVersion(v, role string) string {
+	return strings.TrimPrefix(strings.TrimPrefix(v, role), "v")
+}
+
+// joinLabel builds an arm's name one crossed parameter at a time.
+func joinLabel(a, b string) string {
+	if a == "" {
+		return b
+	}
+	if b == "" {
+		return a
+	}
+	return a + " · " + b
 }
 
 // ExpResult is one arm at one seed.
@@ -151,25 +301,39 @@ func registerExperiment(st *state.Store, s *Sim) {
 				}
 			}
 		}
-		if param != "repeater_version" && param != "companion_version" {
-			return nil, fmt.Errorf(
-				"this build varies repeater_version and companion_version; %q needs the study engine", param)
-		}
 		if len(values) == 0 {
 			return nil, fmt.Errorf("experiment.vary needs values")
 		}
 		// A finished sweep's arms are the last question, not this one.
 		e.results = nil
-		e.Arms = e.Arms[:0]
-		for _, v := range values {
-			arm := ExpArm{Label: v}
-			if param == "repeater_version" {
-				arm.RepeaterVersion = v
-			} else {
-				arm.CompanionVersion = v
-			}
-			e.Arms = append(e.Arms, arm)
+
+		// Crossed onto what is already there, not put in its place. Three path
+		// hash sizes by two firmware versions is six arms, and varying twice
+		// used to leave two - the second call throwing the first away without
+		// saying so.
+		//
+		// An arm that names nothing is a placeholder rather than something to
+		// cross onto, so the first vary from a fresh experiment gives clean
+		// labels instead of "baseline · 1.17.0".
+		base := e.Arms
+		if len(base) == 0 || (len(base) == 1 && !base[0].names()) {
+			base = []ExpArm{{}}
 		}
+		var out []ExpArm
+		for _, b := range base {
+			for _, v := range values {
+				arm, seg, err := varied(b, param, v)
+				if err != nil {
+					return nil, err
+				}
+				arm.Label = joinLabel(b.Label, seg)
+				out = append(out, arm)
+			}
+		}
+		if len(out) == 0 {
+			return nil, fmt.Errorf("experiment.vary produced no arms from %v", values)
+		}
+		e.Arms = out
 		return e.describe(), nil
 	})
 

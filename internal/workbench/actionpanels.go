@@ -2,6 +2,7 @@ package workbench
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 
 	"gioui.org/layout"
@@ -511,38 +512,130 @@ func (c *feedControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 
 // sweepControls defines an A/B experiment: arms, seeds, sender, timing.
 type sweepControls struct {
-	bar      actionBar
-	versions comp.Field
-	seeds    comp.Field
-	sender   comp.Field
-	runFor   comp.Field
-	define   comp.Button
-	start    comp.Button
-	stop     comp.Button
-	export   comp.Button
-	do       Do
-	built    bool
+	// addArm and sender are dropdowns rather than boxes because both are a
+	// choice from a list this machine already knows: the firmware library, and
+	// the companions in the scenario. Typing a version was the old shape and it
+	// was wrong twice over - a misremembered tag defines an arm that cannot
+	// start, and nothing in the panel said which tags existed.
+	addArm comp.Dropdown
+	sender comp.Dropdown
+
+	// arms are the versions chosen, in the order chosen. An arm is one column
+	// of the comparison, so this is what "define" turns into experiment.vary.
+	arms []string
+	// armRm is one remove button per arm, pooled by version: a widget rebuilt
+	// each frame is a widget that never registers a press.
+	armRm map[string]*comp.Button
+
+	// senderName is the companion picked; empty until one is.
+	senderName string
+
+	seeds  comp.Field
+	runFor comp.Field
+	// snap is the latest snapshot, kept because a dropdown's chooser runs
+	// after the frame that opened it.
+	snap   *state.Snapshot
+	define comp.Button
+	start  comp.Button
+	stop   comp.Button
+	export comp.Button
+	// choose opens the shell's chooser, the one way anything picks from a list.
+	choose func(title string, opts []string, pick func(string))
+	do     Do
+	built  bool
+}
+
+// repeaterBuilds is every repeater firmware this machine holds, newest name
+// last, deduplicated: the library lists one entry per board as well as the
+// native build, and an arm is a version rather than a file.
+func repeaterBuilds(s *state.Snapshot) []string {
+	if s == nil {
+		return nil
+	}
+	seen := map[string]bool{}
+	var out []string
+	for _, b := range s.Builds {
+		if b.Role != "simple_repeater" || !b.Native || seen[b.Version] {
+			continue
+		}
+		seen[b.Version] = true
+		out = append(out, b.Version)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// companionsIn is who can originate a message. A repeater relays; only a
+// companion starts anything, which is why the sender list is not every node.
+func companionsIn(s *state.Snapshot) []string {
+	if s == nil {
+		return nil
+	}
+	var out []string
+	for i := range s.Nodes {
+		if s.Nodes[i].Kind == "companion" {
+			out = append(out, s.Nodes[i].Name)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 func (c *sweepControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
 	if !c.built {
-		c.versions.Hint = "repeater versions, space separated"
 		c.seeds.Hint = "seeds, e.g. 1 2 3 4"
-		c.sender.Hint = "sender: a companion"
 		c.runFor.Hint = "run for, seconds"
-		for _, f := range []*comp.Field{&c.versions, &c.seeds, &c.sender, &c.runFor} {
+		for _, f := range []*comp.Field{&c.seeds, &c.runFor} {
 			f.Editor.SingleLine = true
 		}
+		c.addArm.Label, c.addArm.Value = "arms: repeater firmware to compare", "add an arm..."
+		c.sender.Label, c.sender.Value = "sender", "choose a companion..."
+		c.armRm = map[string]*comp.Button{}
 		c.define.Label, c.define.Kind = "define", comp.Secondary
 		c.start.Label, c.start.Kind = "run it", comp.Primary
 		c.stop.Label, c.stop.Kind = "stop", comp.Destructive
 		c.export.Label, c.export.Kind = "export", comp.Quiet
-		c.bar.fields = []*comp.Field{&c.versions, &c.seeds}
-		c.bar.buttons = []*comp.Button{&c.define, &c.start, &c.stop, &c.export}
-		c.bar.note = "a message is originated by a companion, so the sender has to be " +
-			"one; two seeds that agree exactly are one draw repeated, not a spread"
+		c.addArm.OnOpen = func() {
+			if c.choose == nil {
+				return
+			}
+			opts := repeaterBuilds(c.snap)
+			if len(opts) == 0 {
+				if c.do != nil {
+					c.do("ui.said", "no repeater firmware in the library to compare; "+
+						"download one from the Firmware panel first")
+				}
+				return
+			}
+			c.choose("Which firmware is this arm?", opts, func(picked string) {
+				for _, a := range c.arms {
+					if a == picked {
+						return // already an arm; adding it twice is one column drawn twice
+					}
+				}
+				c.arms = append(c.arms, picked)
+			})
+		}
+		c.sender.OnOpen = func() {
+			if c.choose == nil {
+				return
+			}
+			opts := companionsIn(c.snap)
+			if len(opts) == 0 {
+				if c.do != nil {
+					c.do("ui.said", "no companion in this network to originate a message")
+				}
+				return
+			}
+			c.choose("Who sends?", opts, func(picked string) {
+				c.senderName, c.sender.Value = picked, picked
+			})
+		}
 		c.built = true
 	}
+	// The dropdowns are opened from a callback that runs outside this frame, so
+	// the snapshot they read has to be kept rather than captured.
+	c.snap = s
 	if c.define.Click.Clicked(gtx) && c.do != nil {
 		// Said aloud when nothing was defined.
 		//
@@ -552,7 +645,7 @@ func (c *sweepControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 		// not connected.
 		asked := 0
 		var vs []any
-		for _, v := range splitFields(fieldText(&c.versions)) {
+		for _, v := range c.arms {
 			vs = append(vs, v)
 		}
 		if len(vs) > 0 {
@@ -570,16 +663,16 @@ func (c *sweepControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 			asked++
 			c.do("experiment.seeds", map[string]any{"seeds": ss})
 		}
-		if n := fieldText(&c.sender); n != "" {
+		if c.senderName != "" {
 			asked++
-			c.do("experiment.senders", map[string]any{"senders": []any{n}})
+			c.do("experiment.senders", map[string]any{"senders": []any{c.senderName}})
 		}
 		if v, ok := num(&c.runFor); ok {
 			asked++
 			c.do("experiment.base", map[string]any{"run_for_ms": v * 1000})
 		}
 		if asked == 0 {
-			c.do("ui.said", "nothing to define: fill in the versions to compare, "+
+			c.do("ui.said", "nothing to define: add an arm to compare, "+
 				"the seeds to run each on, who sends, or how long a cell runs")
 		}
 	}
@@ -592,14 +685,89 @@ func (c *sweepControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 	if c.export.Click.Clicked(gtx) && c.do != nil {
 		c.do("experiment.export", nil)
 	}
-	second := actionBar{
-		fields:  []*comp.Field{&c.sender, &c.runFor},
-		buttons: nil,
+	// Remove buttons are read before the list is drawn, so a press takes effect
+	// on the frame it happened rather than the one after.
+	for i := 0; i < len(c.arms); i++ {
+		b := c.armRm[c.arms[i]]
+		if b != nil && b.Click.Clicked(gtx) {
+			c.arms = append(c.arms[:i], c.arms[i+1:]...)
+			i--
+		}
+	}
+
+	bar := actionBar{
+		fields:  []*comp.Field{&c.seeds, &c.runFor},
+		buttons: []*comp.Button{&c.define, &c.start, &c.stop, &c.export},
+		note: "a message is originated by a companion, so the sender has to be " +
+			"one; two seeds that agree exactly are one draw repeated, not a spread",
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return c.bar.layout(t, gtx) }),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return second.layout(t, gtx) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Bottom: t.Sp.S}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return c.addArm.Layout(t, gtx)
+			})
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return c.armList(t, gtx) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Top: t.Sp.S, Bottom: t.Sp.S}.Layout(gtx,
+				func(gtx layout.Context) layout.Dimensions { return c.sender.Layout(t, gtx) })
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return bar.layout(t, gtx) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return c.estimate(t, gtx) }),
 	)
+}
+
+// armList draws the chosen arms, each with a way to take it off again.
+func (c *sweepControls) armList(t *theme.Theme, gtx layout.Context) layout.Dimensions {
+	if len(c.arms) == 0 {
+		return comp.Text(t, t.Sz.Caption, t.P.Faint,
+			"no arms yet - an arm is one firmware to compare")(gtx)
+	}
+	children := make([]layout.FlexChild, 0, len(c.arms))
+	for _, a := range c.arms {
+		a := a
+		if c.armRm[a] == nil {
+			b := &comp.Button{Label: "x", Kind: comp.Quiet}
+			c.armRm[a] = b
+		}
+		b := c.armRm[a]
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return b.Layout(t, gtx)
+					}),
+					layout.Rigid(layout.Spacer{Width: t.Sp.S}.Layout),
+					layout.Flexed(1, comp.OneLine(t, t.Sz.Body, t.P.Ink, a, true)),
+				)
+			})
+		}))
+	}
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+}
+
+// estimate says what pressing "run it" is about to cost, before it is pressed.
+func (c *sweepControls) estimate(t *theme.Theme, gtx layout.Context) layout.Dimensions {
+	seeds := len(splitFields(fieldText(&c.seeds)))
+	if seeds == 0 || len(c.arms) == 0 {
+		return layout.Dimensions{}
+	}
+	runs := len(c.arms) * seeds
+	line := fmt.Sprintf("%d arms x %d seeds = %d runs", len(c.arms), seeds, runs)
+	if secs, ok := num(&c.runFor); ok && secs > 0 {
+		line += fmt.Sprintf(", about %s", roughDuration(runs*int(secs)))
+	}
+	return layout.Inset{Top: t.Sp.S}.Layout(gtx,
+		comp.Text(t, t.Sz.Caption, t.P.Dim, line))
+}
+
+// roughDuration is minutes and seconds, because a sweep is measured in the
+// first and nobody waits on the second.
+func roughDuration(secs int) string {
+	if secs < 60 {
+		return fmt.Sprintf("%ds", secs)
+	}
+	return fmt.Sprintf("%dm%02ds", secs/60, secs%60)
 }
 
 // sweepResults is what the arms came back with, and whether it is a result.

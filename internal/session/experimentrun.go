@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"time"
 
@@ -152,7 +153,16 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 		if !ok || en.Firmware == nil {
 			continue
 		}
-		for _, line := range ProvisioningFor(n) {
+		// The session's settings with this arm written over them.
+		//
+		// Two faults in one line before this. The settings were the defaults,
+		// whatever the Provisioning panel said - the same fault provisionLines
+		// was written to fix at start-up, missed here - so a study that turned
+		// a setting on compared two cells that both had it off. And the arm's
+		// own settings reached nothing at all, so an arm varying loop detection
+		// was a label with no effect behind it. Both ran cleanly and reported
+		// no difference, which is the worst way for this to fail.
+		for _, line := range s.provisionLinesFor(n, arm) {
 			if line.Comment {
 				continue
 			}
@@ -259,6 +269,19 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 		out.Delivered += v.UniqueDelivery
 		out.Redundant += v.RedundantRelay
 		out.AirtimeMs += float64(v.AirtimeMs)
+	}
+
+	// Collisions, which nothing was counting.
+	//
+	// The scoreboard has no field for them, so Collided stayed zero however
+	// hard the arms collided - and a zero that is never written looks exactly
+	// like a channel nobody contended for. It comes off the ledger instead: a
+	// miss that would have decoded on its own and did not, which is the engine's
+	// own account of capture rather than a rule imposed on top of it.
+	for _, ev := range eng.Events() {
+		if ev.Kind == "miss" && strings.Contains(ev.Detail, "stronger interferer") {
+			out.Collided++
+		}
 	}
 	return out
 }

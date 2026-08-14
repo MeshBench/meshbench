@@ -109,6 +109,12 @@ func Run(args []string) {
 	go func() {
 		_, _ = st.Do(ctx, "terrain.cache", nil)
 		_, _ = st.Do(ctx, "gpu.state", nil)
+		// What firmware is on this machine, before anything asks to choose
+		// from it. The library was filled only by opening the Firmware panel,
+		// so the Bench offered an empty list of arms and said the machine held
+		// no repeater builds while holding several - a listing of one
+		// directory, deferred far past the point it was needed.
+		_, _ = st.Do(ctx, "firmware.installed", nil)
 	}()
 
 	// Opened on a worker, not here. Building the engine for a national
@@ -212,7 +218,7 @@ func Run(args []string) {
 	planCtl := &planningControls{do: do}
 	benchCtl := &benchControls{do: do}
 	feedCtl := &feedControls{do: do}
-	sweepCtl := &sweepControls{do: do}
+	sweepCtl := &sweepControls{do: do, choose: chooserIn("Sweep")}
 	provCtl := &provisioningControls{do: do}
 	// openPacket dissects a clicked transmission and puts the packet view in
 	// its own window, which is where wb1 kept it.
@@ -757,8 +763,14 @@ func Run(args []string) {
 	runs := &runsPanel{}
 	sh.Add(&shell.Panel{Name: "Firmware", Windowable: true, Draw: fw.Draw})
 	sh.Add(&shell.Panel{Name: "Runs", Windowable: true, Draw: runs.Draw})
-	sh.Add(&shell.Panel{Name: "Sweep", Windowable: true,
-		Draw: withControls(sweepCtl.Draw, (&sweepResults{}).Draw)})
+	// Controls and results are two panels, not one.
+	//
+	// Together in a 340dp rail they made each other useless: the fields were
+	// too narrow to read a version string in, and the table underneath got
+	// whatever was left, which was nothing. The Bench view puts the controls in
+	// a fixed column and gives the table the middle.
+	sh.Add(&shell.Panel{Name: "Sweep", Windowable: true, Draw: sweepCtl.Draw})
+	sh.Add(&shell.Panel{Name: "Results", Windowable: true, Draw: (&sweepResults{}).Draw})
 	switch *viewFlag {
 	case "run":
 		sh.View = shell.Run
