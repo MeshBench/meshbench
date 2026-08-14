@@ -174,8 +174,17 @@ func main() {
 	benchCtl := &benchControls{do: do}
 	feedCtl := &feedControls{do: do}
 	sweepCtl := &sweepControls{do: do}
-	inspCtl := &inspectorControls{do: do}
 	provCtl := &provisioningControls{do: do}
+	// openPacket dissects a clicked transmission and puts the packet view in
+	// its own window, which is where wb1 kept it.
+	openPacket := func(id uint64) {
+		go func() {
+			if _, err := st.Do(ctx, "packet.open", map[string]any{"id": float64(id)}); err != nil {
+				_, _ = st.Do(ctx, "ui.said", "packet: "+err.Error())
+			}
+		}()
+		sh.OnPopOut("Packet")
+	}
 
 	mv := &comp.MapView{}
 	wbUI := &workbenchUI{sh: sh, sim: sm, mv: mv, nodes: newNodeWindows(), store: st}
@@ -469,9 +478,13 @@ func main() {
 			)
 		}})
 	sh.Add(&shell.Panel{Name: "Nodes", Windowable: true, Draw: nodes.Draw})
-	sh.Add(&shell.Panel{Name: "Inspector", Windowable: true,
-		Draw: withControls(inspCtl.Draw, drawInspector)})
-	events := &eventsPanel{}
+	// The Inspector is the events panel's light form, scoped to the
+	// selection: what this node has said and heard, not a form about it.
+	insp := &eventsPanel{compact: true, forNode: true, OnOpenPacket: openPacket}
+	sh.Add(&shell.Panel{Name: "Inspector", Windowable: true, Draw: insp.Draw})
+	pkt := &packetPanel{do: do}
+	sh.Add(&shell.Panel{Name: "Packet", Windowable: true, Draw: pkt.Draw})
+	events := &eventsPanel{OnOpenPacket: openPacket}
 	scores := &scorePanel{}
 	sh.Add(&shell.Panel{Name: "Events", Windowable: true, Draw: events.Draw})
 	sh.Add(&shell.Panel{Name: "Scoreboard", Windowable: true, Draw: scores.Draw})
@@ -708,8 +721,10 @@ func main() {
 		}()
 	}
 
-	sh.Add(&shell.Panel{Name: "Settings", Windowable: true,
-		Draw: (&settingsPanel{set: sets}).Draw})
+	// The interface's own settings live on the Configuration page now, under
+	// Interface - a Settings panel beside a Configuration page was two homes
+	// for one kind of thing.
+	cfg.sets = sets
 	// File is where a session begins and ends, and it had one item in it.
 	//
 	// Firmware lives here rather than under Repeaters because a companion, a
@@ -718,6 +733,18 @@ func main() {
 	// it.
 	for _, m := range workbenchMenus() {
 		sh.SetMenu(m.Name, m.Items)
+	}
+	// The Window menu had become a dumping ground: every panel, alphabetical,
+	// thirty rows deep. It lists the daily set; everything else stays one
+	// step away behind "Show all panels...".
+	for _, name := range []string{
+		"Map", "Events", "Nodes", "Nodes running", "Console", "Fleet",
+		"Firmware", "Configuration", "Packet timeline", "Packet",
+		"Waterfall", "Companion bench", "Experiment log",
+	} {
+		if p := sh.Panels[name]; p != nil {
+			p.InWindowMenu = true
+		}
 	}
 	sh.WindowMenu("Window")
 	if *dropFlag != "" {
@@ -817,6 +844,12 @@ func main() {
 					_, _ = st.Do(ctx, action, map[string]any{ask.field: answer})
 				}()
 			})
+			return
+		}
+		// The interface's own settings are a Configuration section now.
+		if action == "config.interface" {
+			cfg.Open("Interface")
+			sh.OnPopOut("Configuration")
 			return
 		}
 		if action == "ui.toggle_real_firmware" {
@@ -1198,7 +1231,7 @@ func workbenchMenus() []menu {
 				Section: "Diagnostics", Icon: "log"},
 			{Label: "Configuration", Action: "panel.Configuration",
 				Section: "Diagnostics", Icon: "sliders"},
-			{Label: "Settings", Action: "panel.Settings",
+			{Label: "Settings", Action: "config.interface",
 				Section: "Preferences", Icon: "settings"},
 		}},
 		{"Simulation", []shell.MenuItem{

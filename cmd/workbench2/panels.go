@@ -3,7 +3,6 @@ package main
 
 import (
 	"gioui.org/layout"
-	"gioui.org/unit"
 
 	"github.com/A13xB0/meshcoresim/internal/gui/comp"
 	"github.com/A13xB0/meshcoresim/internal/gui/state"
@@ -75,48 +74,4 @@ func (np *nodesPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 			})
 		}),
 	)
-}
-
-func drawInspector(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
-	if s == nil || len(s.Nodes) == 0 {
-		return layout.Center.Layout(gtx,
-			comp.Text(t, t.Sz.Caption, t.P.Faint, "nothing selected"))
-	}
-	n := s.Nodes[0]
-	for i := range s.Nodes {
-		if s.Nodes[i].Selected {
-			n = s.Nodes[i]
-			break
-		}
-	}
-	rows := [][2]string{
-		{"name", n.Name},
-		{"kind", shortKind(n.Kind)},
-		{"latitude", ftoa(n.Lat)},
-		{"longitude", ftoa(n.Lon)},
-		{"height", ftoa(n.HeightM) + " m above ground"},
-		{"transmit power", ftoa(n.TxDBm) + " dBm"},
-		{"regions", join(n.Regions)},
-		{"firmware", n.Firmware},
-	}
-	children := make([]layout.FlexChild, 0, len(rows))
-	for _, r := range rows {
-		k, v := r[0], r[1]
-		if v == "" {
-			v = "none"
-		}
-		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						w := gtx.Dp(unit.Dp(110))
-						gtx.Constraints.Min.X, gtx.Constraints.Max.X = w, w
-						return comp.Text(t, t.Sz.Label, t.P.Dim, k)(gtx)
-					}),
-					layout.Flexed(1, comp.Text(t, t.Sz.Body, t.P.Ink, v)),
-				)
-			})
-		}))
-	}
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }

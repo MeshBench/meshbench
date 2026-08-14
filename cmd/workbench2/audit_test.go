@@ -217,7 +217,8 @@ func fieldGuess(hint string) string {
 	case strings.Contains(h, "seed"), strings.Contains(h, "how many"),
 		strings.Contains(h, "seconds"), strings.Contains(h, "ms"),
 		strings.Contains(h, "db"), strings.Contains(h, "hours"),
-		strings.Contains(h, "km"), strings.Contains(h, "gb"):
+		strings.Contains(h, "km"), strings.Contains(h, "gb"),
+		strings.Contains(h, "scale"):
 		return "2"
 	case strings.Contains(h, "url"):
 		return "https://example.invalid"
@@ -280,7 +281,6 @@ func auditTargets(r *recorder) []target {
 	bench := &benchControls{do: r.do}
 	feed := &feedControls{do: r.do}
 	sweep := &sweepControls{do: r.do}
-	insp := &inspectorControls{do: r.do}
 	prov := &provisioningControls{do: r.do}
 
 	nodes := &nodesPanel{}
@@ -298,8 +298,8 @@ func auditTargets(r *recorder) []target {
 	nw.OnCommand = func(n, l string) { r.do("console.type", l) }
 	nw.OnAction = func(a, n string) { r.do(a, n) }
 	nw.comp.OnCLI = func(n, l string) { r.do("console.cli", l) }
-	sets := &settingsPanel{set: &settings{}}
-	cfg := &configPanel{do: r.do}
+	cfgSets := &settings{}
+	cfg := &configPanel{do: r.do, sets: cfgSets}
 	// Choosing is the shell's overlay; what the audit can ask is whether
 	// pressing the dropdown reaches the chooser at all.
 	cfg.choose = func(title string, _ []string, _ func(string)) { r.do("ui.choose", title) }
@@ -335,23 +335,6 @@ func auditTargets(r *recorder) []target {
 				"start": "drawn only when the node is stopped",
 			}},
 		{"Node window: companion", &nw.comp, nw.comp.Draw, nil, nil, nil, nil},
-		{"Settings", sets, sets.Draw, nil, nil,
-			// The settings panel changes the interface rather than the
-			// simulation, so its controls reach the settings object and never
-			// a verb. Counting what it changes is the same question asked of
-			// the right thing.
-			func() int {
-				m, d, gen := sets.set.get()
-				return int(m)*7 + int(d)*3 + int(gen)*100
-			}, map[string]string{
-				// A fresh settings object is already dark and already comfortable
-				// - Comfortable is the zero value of Density - so pressing either
-				// is a no-op by definition rather than a control that is not
-				// wired. That the button labelled "default" is therefore not the
-				// default is a real thing, and a naming decision rather than a
-				// wiring one.
-				"dark": "already selected", "comfortable": "already selected",
-			}},
 		{"Compare", cmpP, cmpP.Draw, nil, nil, nil, nil},
 		{"Planning (view)", planP, planP.Draw, nil, nil, nil, nil},
 		{"Import (view)", impP, impP.Draw, nil, nil, nil, nil},
@@ -366,11 +349,17 @@ func auditTargets(r *recorder) []target {
 		{"Companion bench", bench, bench.Draw, nil, nil, nil, nil},
 		{"Live feed", feed, feed.Draw, nil, nil, nil, nil},
 		{"Sweep", sweep, sweep.Draw, nil, nil, nil, nil},
-		{"Inspector", insp, insp.Draw, nil, nil, nil, nil},
 		{"Provisioning", prov, prov.Draw, nil, nil, nil, nil},
 		// The flat layout, so every section's controls are on screen at once;
 		// the sidebar's own switching is TestConfigurationSectionsSwitch.
-		{"Configuration", cfg, cfg.auditDraw, snapGPU, nil, nil, nil},
+		// Fired counts the settings generation too: the Interface controls
+		// change the interface, not the simulation, and that is still doing
+		// something.
+		{"Configuration", cfg, cfg.auditDraw, snapGPU, nil,
+			func() int {
+				_, _, gen := cfgSets.get()
+				return len(r.verbs)*1000 + int(gen)
+			}, nil},
 	}
 	return targets
 }

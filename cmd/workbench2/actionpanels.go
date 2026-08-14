@@ -665,64 +665,6 @@ func (p *sweepResults) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 	)
 }
 
-// inspectorControls is what you can do to the node you are looking at.
-//
-// The Inspector displayed a node and did nothing with it, which made it the
-// one panel where selecting something led nowhere.
-type inspectorControls struct {
-	bar     actionBar
-	why     comp.Button
-	energy  comp.Button
-	cover   comp.Button
-	window  comp.Button
-	clear   comp.Button
-	provis  comp.Button
-	do      Do
-	built   bool
-	current string
-}
-
-func (c *inspectorControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
-	if !c.built {
-		c.why.Label, c.why.Kind = "why this link?", comp.Primary
-		c.energy.Label, c.energy.Kind = "does it survive December?", comp.Secondary
-		c.cover.Label, c.cover.Kind = "coverage from here", comp.Secondary
-		c.window.Label, c.window.Kind = "its own window", comp.Secondary
-		c.provis.Label, c.provis.Kind = "what it is told at boot", comp.Secondary
-		c.clear.Label, c.clear.Kind = "clear selection", comp.Quiet
-		c.bar.buttons = []*comp.Button{&c.why, &c.energy, &c.cover}
-		c.bar.note = "the budget breaks a link into its terms; December asks whether " +
-			"a solar node at this latitude survives the shortest days"
-		c.built = true
-	}
-	c.current = selectedNodeName(s)
-	if c.why.Click.Clicked(gtx) && c.do != nil {
-		c.do("budget.for_selection", nil)
-	}
-	if c.energy.Click.Clicked(gtx) && c.do != nil {
-		c.do("energy.for_selection", nil)
-	}
-	if c.cover.Click.Clicked(gtx) && c.do != nil {
-		c.do("coverage.compute", c.current)
-	}
-	if c.window.Click.Clicked(gtx) && c.do != nil {
-		c.do("node.window", c.current)
-	}
-	if c.provis.Click.Clicked(gtx) && c.do != nil {
-		c.do("node.provisioning", c.current)
-	}
-	if c.clear.Click.Clicked(gtx) && c.do != nil {
-		c.do("nodes.select_many", []string{})
-	}
-	second := actionBar{
-		buttons: []*comp.Button{&c.window, &c.provis, &c.clear},
-	}
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return c.bar.layout(t, gtx) }),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return second.layout(t, gtx) }),
-	)
-}
-
 // provisioningControls is what every node is told at boot.
 //
 // Each switch here is a failure somebody has had. A node without its name

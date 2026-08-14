@@ -34,6 +34,10 @@ type Panel struct {
 	// panel in the old design could, and scripts rely on panel.pop_out being
 	// generic, so this defaults to true.
 	Windowable bool
+	// InWindowMenu lists the panel in the Window menu itself. The menu had
+	// become a dumping ground of every panel alphabetically; the daily set
+	// is listed, and the rest stay one step away behind "Show all panels...".
+	InWindowMenu bool
 }
 
 // Shell is the whole frame.
@@ -109,10 +113,26 @@ type MenuItem struct {
 // Window menu of three entries did.
 func (sh *Shell) WindowMenu(name string) {
 	names := make([]string, 0, len(sh.Panels))
+	listed := 0
 	for n, p := range sh.Panels {
-		if p != nil && p.Windowable {
-			names = append(names, n)
+		if p == nil || !p.Windowable {
+			continue
 		}
+		if p.InWindowMenu {
+			listed++
+		}
+		names = append(names, n)
+	}
+	// Curated when anything opted in; the old everything-alphabetical list
+	// when nothing has, which is what a test shell full of empty panels gets.
+	if listed > 0 {
+		curated := names[:0]
+		for _, n := range names {
+			if sh.Panels[n].InWindowMenu {
+				curated = append(curated, n)
+			}
+		}
+		names = curated
 	}
 	sort.Strings(names)
 	items := make([]MenuItem, 0, len(names)+1)

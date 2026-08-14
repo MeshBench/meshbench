@@ -66,7 +66,7 @@ func newShellHarness(t *testing.T) *shellHarness {
 		"Validate", "Energy", "Live feed", "Console", "Schedule", "Compare",
 		"Sweep", "Runs", "Matrix", "Timelines", "Experiment log",
 		"Configuration", "Firmware", "Fleet", "Companion bench",
-		"Nodes running", "Settings", "Provisioning",
+		"Nodes running", "Provisioning", "Packet",
 	} {
 		h.sh.Add(shell.EmptyPanel(n, "for the walkthrough"))
 	}

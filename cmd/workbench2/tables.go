@@ -18,50 +18,7 @@ import (
 	"github.com/A13xB0/meshcoresim/internal/gui/theme"
 )
 
-// eventsPanel is every event with its cause (6.7).
-type eventsPanel struct {
-	tb   comp.Table
-	init bool
-}
-
-func (p *eventsPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
-	if !p.init {
-		p.tb.Cols = []comp.Column{
-			{Title: "at", Width: 74, Right: true, Mono: true, Sortable: true},
-			{Title: "kind", Width: 52, Sortable: true},
-			{Title: "from", Width: 150, Sortable: true},
-			{Title: "to", Width: 150, Sortable: true},
-			{Title: "message", Width: 92, Mono: true, Right: true},
-			{Title: "SNR", Width: 66, Right: true, Mono: true, Sortable: true},
-			{Title: "detail"},
-		}
-		// Newest first: an event table is read from the end.
-		p.tb.SortCol, p.tb.SortDesc, p.init = 0, true, true
-	}
-	if s == nil {
-		return layout.Dimensions{}
-	}
-	rows := make([]comp.Row, 0, len(s.Events))
-	for i := range s.Events {
-		e := &s.Events[i]
-		rows = append(rows, comp.Row{
-			// Packet and index together: two events of one packet are two
-			// rows, and a key that collides makes a table flicker.
-			Key: fmt.Sprintf("%d/%d", e.PacketID, i),
-			Cells: []string{
-				fmt.Sprintf("%8.3f", float64(e.AtMs)/1000),
-				e.Kind, e.From, e.To,
-				fmt.Sprintf("%d", e.MessageID%100000),
-				snrOf(e), e.Detail,
-			},
-			Tint: eventTint(t, e.Kind),
-		})
-	}
-	p.tb.SetRows(rows)
-	return withCount(t, gtx, p.tb.Layout(t, gtx, nil),
-		fmt.Sprintf("%d of %d events", len(s.Events), s.EventTotal),
-		s.EventTotal > len(s.Events))
-}
+// The events panel lives in events2.go, redesigned around causes.
 
 // snrOf prints the signal-to-noise ratio only where one was measured. A
 // transmission has no SNR - it is the receiver that has one - and printing

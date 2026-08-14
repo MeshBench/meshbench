@@ -25,6 +25,9 @@ type configPanel struct {
 	// choose opens the shell's chooser; the dropdowns hand their choosing to
 	// it so there is exactly one way anything picks from a list.
 	choose func(title string, opts []string, pick func(string))
+	// sets is the interface's own settings - theme, density, scale - which
+	// live here now that the separate Settings panel is gone.
+	sets *settings
 
 	// secRows are plain clickables rather than buttons: they change which
 	// section is open, not the world, so the control audit - which asks
@@ -45,6 +48,10 @@ type configPanel struct {
 	setExcess comp.Button
 	device    comp.Dropdown
 	cacheDD   comp.Dropdown
+	themeDD   comp.Dropdown
+	densityDD comp.Dropdown
+	scale     comp.Field
+	setScale  comp.Button
 	cacheGBf  comp.Field
 	setCache  comp.Button
 	cacheDir  comp.Field
@@ -60,7 +67,7 @@ type configPanel struct {
 // the simulation's own terms, then the machine's.
 var configSections = []string{
 	"Overview", "General", "Nodes", "Links", "Environment", "Time", "Seed",
-	"Graphics", "Events", "System",
+	"Graphics", "Events", "System", "Interface",
 }
 
 // configHeads is which sidebar rows get a heading above them.
@@ -80,6 +87,11 @@ func (p *configPanel) build() {
 	p.setExcess.Label, p.setExcess.Kind = "set loss", comp.Secondary
 	p.device.Label = "Graphics device"
 	p.cacheDD.Label = "Tile cache"
+	p.themeDD.Label = "Theme"
+	p.densityDD.Label = "Density"
+	p.scale.Hint, p.scale.Label = "scale, 0.5 to 3", "Scale"
+	p.scale.Editor.SingleLine = true
+	p.setScale.Label, p.setScale.Kind = "set scale", comp.Secondary
 	p.cacheGBf.Hint, p.cacheGBf.Label, p.cacheGBf.Suffix = "GB", "Tile cache", "GB"
 	p.setCache.Label, p.setCache.Kind = "set cache", comp.Secondary
 	p.cacheDir.Hint, p.cacheDir.Label = "a directory path", "Move the cache to"
@@ -182,6 +194,14 @@ func (p *configPanel) update(gtx layout.Context, s *state.Snapshot) {
 	}
 	if p.recomp.Click.Clicked(gtx) && p.do != nil {
 		p.do("links.recompute", nil)
+	}
+	if p.setScale.Click.Clicked(gtx) && p.sets != nil {
+		if v, err := strconv.ParseFloat(strings.TrimSpace(fieldText(&p.scale)), 64); err == nil && v >= 0.5 && v <= 3 {
+			p.scale.Error = ""
+			p.sets.setScale(v)
+		} else {
+			p.scale.Error = "between 0.5 and 3"
+		}
 	}
 
 	// The dropdowns: current value from the snapshot, choosing through the
@@ -296,6 +316,8 @@ func (p *configPanel) section(t *theme.Theme, gtx layout.Context, s *state.Snaps
 		cards = p.eventsCards(t, s)
 	case "System":
 		cards = p.system(t, s)
+	case "Interface":
+		cards = p.interfaceCards(t, s)
 	}
 	return comp.List(t, &p.scroll, len(cards), func(gtx layout.Context, i int) layout.Dimensions {
 		return layout.Inset{Bottom: t.Sp.M}.Layout(gtx, cards[i])
@@ -632,6 +654,11 @@ func (p *configPanel) auditDraw(t *theme.Theme, gtx layout.Context, s *state.Sna
 		return layout.Dimensions{}
 	}
 	p.update(gtx, s)
+	// The Interface dropdowns fill their values inside interfaceCards, which
+	// the flat layout also needs before drawing them.
+	if p.sets != nil {
+		_ = p.interfaceCards(t, s)
+	}
 	rows := []layout.Widget{
 		p.fieldRow(t, &p.seed, &p.setSeed, ""),
 		p.fieldRow(t, &p.speed, &p.setSpeed, ""),
@@ -644,6 +671,9 @@ func (p *configPanel) auditDraw(t *theme.Theme, gtx layout.Context, s *state.Sna
 		func(gtx layout.Context) layout.Dimensions { return p.realFW.LayoutSwitch(t, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.device.Layout(t, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.cacheDD.Layout(t, gtx) },
+		p.fieldRow(t, &p.scale, &p.setScale, ""),
+		func(gtx layout.Context) layout.Dimensions { return p.themeDD.Layout(t, gtx) },
+		func(gtx layout.Context) layout.Dimensions { return p.densityDD.Layout(t, gtx) },
 	}
 	var kids []layout.FlexChild
 	for _, r := range rows {
@@ -653,6 +683,86 @@ func (p *configPanel) auditDraw(t *theme.Theme, gtx layout.Context, s *state.Sna
 		}))
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, kids...)
+}
+
+// interfaceCards is the interface's own settings: theme, density, scale.
+// Applied live, in every window - a theme somebody cannot see the effect of
+// until they restart is a theme they set by trial and error.
+func (p *configPanel) interfaceCards(t *theme.Theme, s *state.Snapshot) []layout.Widget {
+	if p.sets == nil {
+		return []layout.Widget{comp.Card(t, "Interface",
+			comp.Text(t, t.Sz.Caption, t.P.Faint, "no interface settings here"))}
+	}
+	mode, density, _ := p.sets.get()
+	p.themeDD.Value = "Dark"
+	if mode == theme.Light {
+		p.themeDD.Value = "Light"
+	}
+	p.themeDD.OnOpen = func() {
+		if p.choose == nil {
+			return
+		}
+		p.choose("Theme", []string{"Dark", "Light"}, func(picked string) {
+			m := theme.Dark
+			if picked == "Light" {
+				m = theme.Light
+			}
+			p.sets.setMode(m)
+		})
+	}
+	switch density {
+	case theme.Comfortable:
+		p.densityDD.Value = "Comfortable"
+	case theme.Compact:
+		p.densityDD.Value = "Compact"
+	default:
+		p.densityDD.Value = "Standard"
+	}
+	p.densityDD.OnOpen = func() {
+		if p.choose == nil {
+			return
+		}
+		p.choose("Density", []string{"Comfortable", "Standard", "Compact"},
+			func(picked string) {
+				switch picked {
+				case "Comfortable":
+					p.sets.setDensity(theme.Comfortable)
+				case "Compact":
+					p.sets.setDensity(theme.Compact)
+				default:
+					p.sets.setDensity(theme.Default)
+				}
+			})
+	}
+	return []layout.Widget{
+		comp.Card(t, "Appearance", func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{}.Layout(gtx,
+						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+							return layout.Inset{Right: t.Sp.M}.Layout(gtx,
+								func(gtx layout.Context) layout.Dimensions {
+									return p.themeDD.Layout(t, gtx)
+								})
+						}),
+						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+							return p.densityDD.Layout(t, gtx)
+						}),
+					)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Top: t.Sp.XS}.Layout(gtx,
+						comp.Text(t, t.Sz.Caption, t.P.Faint,
+							"light is a design of its own, not the dark one inverted; "+
+								"density trades what fits on screen against how big a "+
+								"thing is to click - changes apply immediately, in every window"))
+				}),
+			)
+		}),
+		comp.Card(t, "Scale", p.fieldRow(t, &p.scale, &p.setScale,
+			"the whole interface's size; for a screen whose pixels and viewing "+
+				"distance disagree with the platform's guess")),
+	}
 }
 
 // fieldRow is a field, its button and the reason underneath - the shape every
