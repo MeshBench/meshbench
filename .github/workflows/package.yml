@@ -40,11 +40,13 @@ jobs:
       - name: Dependencies
         run: |
           sudo apt-get update
-          # cgo through cimgui-go, so this is a native build and not a
-          # cross-compile. GL and X11 headers are needed to link even though the
-          # binary can run headless.
+          # cgo through cimgui-go and Gio, so this is a native build and not a
+          # cross-compile. GL, X11, Wayland, xkbcommon, EGL and Vulkan headers
+          # are all needed to link even though the binary can run headless.
           sudo apt-get install -y --no-install-recommends \
-            gcc pkg-config libgl1-mesa-dev xorg-dev
+            gcc pkg-config libgl1-mesa-dev xorg-dev \
+            libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev \
+            libx11-xcb-dev libegl1-mesa-dev libvulkan-dev libffi-dev
 
       - name: Licences are fresh
         # The window shows what the binary links. Regenerate and diff: a new
