@@ -40,6 +40,9 @@ type eventsPanel struct {
 	built    bool
 	compact  bool
 	forNode  bool
+	// scopedTo is the node the view is filtered to this frame, for the
+	// empty state to name.
+	scopedTo string
 	// OnOpenPacket opens the packet view for a row's transmission.
 	OnOpenPacket func(id uint64)
 }
@@ -108,6 +111,10 @@ func (p *eventsPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 	// The visible rows: the tail, filtered by chip and search. The selected
 	// node scopes the compact variant, which is what the Inspector shows.
 	sel := selectedNodeName(s)
+	p.scopedTo = ""
+	if p.forNode {
+		p.scopedTo = sel
+	}
 	want := strings.ToLower(fieldText(&p.search))
 	shown := make([]*state.Event, 0, len(s.Events))
 	for i := range s.Events {
@@ -257,6 +264,17 @@ func eventKey(e *state.Event) string {
 }
 
 func (p *eventsPanel) table(t *theme.Theme, gtx layout.Context, shown []*state.Event) layout.Dimensions {
+	// An empty scoped view says what it is waiting for. "0 of 744
+	// (filtered)" with a blank pane reads as broken; it is a node that has
+	// not spoken - Alex read it exactly that way before working it out.
+	if len(shown) == 0 && p.forNode {
+		msg := "select a node: this shows what it said and heard"
+		if p.scopedTo != "" {
+			msg = "nothing from or to " + p.scopedTo +
+				" in the recent events - it has not spoken yet"
+		}
+		return layout.Center.Layout(gtx, comp.Text(t, t.Sz.Caption, t.P.Faint, msg))
+	}
 	p.list.ScrollToEnd = p.follow
 	tw, fw, snr, pill := p.colWidths(gtx)
 	return comp.List(t, &p.list, len(shown), func(gtx layout.Context, i int) layout.Dimensions {
