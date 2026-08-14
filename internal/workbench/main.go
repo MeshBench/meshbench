@@ -191,14 +191,20 @@ func Run(args []string) {
 			)
 		}
 	}
-	// One chooser for every dropdown: the shell's overlay is the single way
-	// anything here picks from a list.
-	chooser := func(title string, opts []string, pick func(string)) {
-		sh.Ask.Post(func(ask *shell.Prompt) {
-			ask.Choose(title, "filter", opts, pick)
-		})
+	// One chooser for every dropdown: a prompt overlay is the single way
+	// anything here picks from a list. Which window's overlay depends on
+	// where the panel is right now - a question asked in a popped-out panel
+	// belongs in that window, not behind it in the main one.
+	chooserIn := func(panel string) func(string, []string, func(string)) {
+		return func(title string, opts []string, pick func(string)) {
+			wins.promptFor(panel, &sh.Ask).Post(func(ask *shell.Prompt) {
+				ask.Choose(title, "filter", opts, pick)
+			})
+		}
 	}
-	fleetCtl := &fleetControls{do: do, choose: chooser}
+	// chooser keeps the old shape for panels that never pop out.
+	chooser := chooserIn("")
+	fleetCtl := &fleetControls{do: do, choose: chooserIn("Fleet")}
 	schedCtl := &scheduleControls{do: do}
 	importCtl := &importControls{do: do}
 	boundCtl := &boundaryControls{do: do}
@@ -592,7 +598,7 @@ func Run(args []string) {
 		go func() { _, _ = st.Do(ctx, "run.save", "run") }()
 	}
 	sh.Add(&shell.Panel{Name: "Compare", Windowable: true, Draw: cmpP.Draw})
-	cfg := &configPanel{do: do, choose: chooser}
+	cfg := &configPanel{do: do, choose: chooserIn("Configuration")}
 	if *cfgSection != "" {
 		cfg.Open(*cfgSection)
 	}
@@ -704,7 +710,7 @@ func Run(args []string) {
 		Draw: withControls(schedCtl.Draw, sched.Draw)})
 	sh.Add(&shell.Panel{Name: "Link", Windowable: true, Draw: linkPanel{}.Draw})
 	sh.Add(&shell.Panel{Name: "Console", Windowable: true, Draw: console.Draw})
-	fw := &firmwarePanel{choose: chooser}
+	fw := &firmwarePanel{choose: chooserIn("Firmware")}
 	// The library asks for itself, and asks again after anything that changes
 	// it. A panel that reads the cache directly cannot know when a download
 	// has landed.
@@ -722,26 +728,31 @@ func Run(args []string) {
 	// Importing needs a path and a role, which a button cannot carry: ask for
 	// both through the shell, then refresh so the new build appears.
 	fw.OnImport = func() {
-		sh.Ask.OpenPath("Import a build from", "path to a binary", "",
-			shell.PathAsk{Kind: shell.PathFile}, func(path string) {
-				if strings.TrimSpace(path) == "" {
-					return
-				}
-				sh.Ask.Post(func(ask *shell.Prompt) {
-					ask.Choose("Import it as which role?", "filter", []string{
-						"simple_repeater", "advanced_repeater", "companion_radio",
-						"simple_room_server",
-					}, func(role string) {
-						go func() {
-							if _, err := st.Do(ctx, "firmware.import",
-								map[string]any{"path": path, "role": role}); err != nil {
-								_, _ = st.Do(ctx, "ui.said", "import: "+err.Error())
-							}
-							_, _ = st.Do(ctx, "firmware.library", nil)
-						}()
+		// Both questions go to the Firmware panel's own window: asked from a
+		// pop-out, answered in the pop-out.
+		fwAsk := wins.promptFor("Firmware", &sh.Ask)
+		fwAsk.Post(func(ask *shell.Prompt) {
+			ask.OpenPath("Import a build from", "path to a binary", "",
+				shell.PathAsk{Kind: shell.PathFile}, func(path string) {
+					if strings.TrimSpace(path) == "" {
+						return
+					}
+					fwAsk.Post(func(ask *shell.Prompt) {
+						ask.Choose("Import it as which role?", "filter", []string{
+							"simple_repeater", "advanced_repeater", "companion_radio",
+							"simple_room_server",
+						}, func(role string) {
+							go func() {
+								if _, err := st.Do(ctx, "firmware.import",
+									map[string]any{"path": path, "role": role}); err != nil {
+									_, _ = st.Do(ctx, "ui.said", "import: "+err.Error())
+								}
+								_, _ = st.Do(ctx, "firmware.library", nil)
+							}()
+						})
 					})
 				})
-			})
+		})
 	}
 	runs := &runsPanel{}
 	sh.Add(&shell.Panel{Name: "Firmware", Windowable: true, Draw: fw.Draw})

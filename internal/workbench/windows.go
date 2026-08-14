@@ -20,6 +20,7 @@ import (
 	"gioui.org/unit"
 
 	"github.com/MeshBench/meshbench/internal/gui/comp"
+	"github.com/MeshBench/meshbench/internal/gui/float"
 	"github.com/MeshBench/meshbench/internal/gui/shell"
 	"github.com/MeshBench/meshbench/internal/gui/state"
 	"github.com/MeshBench/meshbench/internal/gui/theme"
@@ -33,9 +34,16 @@ type windows struct {
 	// closing is which windows have been asked to go away, read by each
 	// window's own loop.
 	closing map[string]bool
+	// prompts is each popped-out window's own question overlay. A question
+	// asked from a panel belongs in the window the panel is in - the shared
+	// prompt lives in the main window, and a dialog appearing there while the
+	// person is working in a pop-out is a dialog nobody finds.
+	prompts map[string]*shell.Prompt
 }
 
-func newWindows() *windows { return &windows{open: map[string]bool{}} }
+func newWindows() *windows {
+	return &windows{open: map[string]bool{}, prompts: map[string]*shell.Prompt{}}
+}
 
 // popOut gives a panel its own window.
 //
@@ -61,12 +69,15 @@ func (w *windows) popOut(name string, sh *shell.Shell, newTheme func() *theme.Th
 		return
 	}
 	w.open[name] = true
+	ask := &shell.Prompt{}
+	w.prompts[name] = ask
 	w.mu.Unlock()
 
 	go func() {
 		defer func() {
 			w.mu.Lock()
 			delete(w.open, name)
+			delete(w.prompts, name)
 			w.mu.Unlock()
 		}()
 		th := newTheme()
@@ -88,6 +99,13 @@ func (w *windows) popOut(name string, sh *shell.Shell, newTheme func() *theme.Th
 		var ops op.Ops
 		for {
 			switch e := win.Event().(type) {
+			case app.ViewEvent:
+				// Keep the panel window above the main one, where the
+				// platform lets a client ask (macOS and Windows; under
+				// Wayland only a compositor rule can, and the package
+				// documents that rather than pretending). Re-asked on every
+				// ViewEvent because the native handle can change.
+				float.Keep(e)
 			case app.DestroyEvent:
 				return
 			case app.FrameEvent:
@@ -96,15 +114,43 @@ func (w *windows) popOut(name string, sh *shell.Shell, newTheme func() *theme.Th
 				}
 				gtx := app.NewContext(&ops, e)
 				comp.Fill(gtx, th.P.Ground)
-				layout.UniformInset(th.Sp.M).Layout(gtx,
-					func(gtx layout.Context) layout.Dimensions {
-						return p.Draw(th, gtx, st.Snapshot())
-					})
+				snap := st.Snapshot()
+				layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+						return layout.UniformInset(th.Sp.M).Layout(gtx,
+							func(gtx layout.Context) layout.Dimensions {
+								return p.Draw(th, gtx, snap)
+							})
+					}),
+					// The status line, exactly as the main window shows it.
+					// An action started here says what happened here -
+					// "firmware failed, so the run has not started" used to
+					// appear only in the main window, behind this one.
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return popStatus(th, gtx, snap)
+					}),
+				)
+				// This window's own questions, over everything in it.
+				ask.Layout(th, gtx)
 				e.Frame(gtx.Ops)
 				win.Invalidate()
 			}
 		}
 	}()
+}
+
+// promptFor is where a question from the named panel belongs right now: the
+// panel's own window if it is popped out, otherwise the main window's prompt.
+//
+// The panel name is enough to decide because a panel is drawn in one window
+// at a time - popping out is what removes it from the main layout.
+func (w *windows) promptFor(name string, main *shell.Prompt) *shell.Prompt {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if p, ok := w.prompts[name]; ok && w.open[name] {
+		return p
+	}
+	return main
 }
 
 // has reports whether a panel is currently popped out.
@@ -151,4 +197,33 @@ func (w *windows) wantsClose(name string) bool {
 		return true
 	}
 	return false
+}
+
+// popStatus is the one-line footer a popped-out window shares with the main
+// one: the status string, and whichever job is still running - so a long
+// operation announces itself wherever the person actually is.
+func popStatus(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+	comp.Fill(gtx, t.P.Panel)
+	msg := ""
+	if s != nil {
+		msg = s.Status
+		for i := range s.Jobs {
+			if !s.Jobs[i].Finished {
+				j := &s.Jobs[i]
+				if j.Total > 0 {
+					msg = fmt.Sprintf("%s (%d of %d)", j.What, j.Done, j.Total)
+				} else {
+					msg = j.What
+				}
+				break
+			}
+		}
+	}
+	return layout.Inset{Left: t.Sp.M, Right: t.Sp.M, Top: t.Sp.XS, Bottom: t.Sp.XS}.
+		Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+				layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Dim, msg)),
+				layout.Flexed(1, comp.Spacer),
+			)
+		})
 }
