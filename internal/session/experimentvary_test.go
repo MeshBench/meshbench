@@ -1,6 +1,9 @@
 package session
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // Varying twice used to leave the second parameter's arms and throw the first
 // away, so a matrix of two parameters was unreachable and nothing said so.
@@ -78,6 +81,41 @@ func TestAnArmWritesOnlyWhatItNames(t *testing.T) {
 	}
 	if got.PathHashMode != base.PathHashMode {
 		t.Fatalf("a companion setting moved the repeaters' own to %d", got.PathHashMode)
+	}
+}
+
+// Any firmware setting can be an arm, not only the ones with a field.
+//
+// The AGC reset interval is the case that matters: it is off by default, it is
+// what makes MeshCore 1.17.1's gain fault reachable at all, and nothing in this
+// codebase has or should have a struct field for it.
+func TestAnyFirmwareSettingCanBeAnArm(t *testing.T) {
+	on, seg, err := varied(ExpArm{}, "set:agc.reset.interval", "4")
+	if err != nil {
+		t.Fatalf("varying a plain setting: %v", err)
+	}
+	if on.Set["agc.reset.interval"] != "4" {
+		t.Fatalf("arm carries %v", on.Set)
+	}
+	if seg != "agc.reset.interval 4" {
+		t.Fatalf("label segment is %q", seg)
+	}
+
+	// Crossed onto, the sibling arms must not share one map.
+	off, _, _ := varied(on, "set:radio.rxgain", "off")
+	if _, ok := on.Set["radio.rxgain"]; ok {
+		t.Fatal("crossing wrote back into the arm it was crossed from")
+	}
+	if off.Set["agc.reset.interval"] != "4" || off.Set["radio.rxgain"] != "off" {
+		t.Fatalf("crossed arm carries %v", off.Set)
+	}
+
+	// And it has to reach the node, which means the provisioning script.
+	prov := DefaultProvisioning()
+	off.applyOver(&prov)
+	if !strings.Contains(prov.Extra, "set agc.reset.interval 4") ||
+		!strings.Contains(prov.Extra, "set radio.rxgain off") {
+		t.Fatalf("the arm's settings never reached provisioning: %q", prov.Extra)
 	}
 }
 

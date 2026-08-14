@@ -66,6 +66,15 @@ type ExpArm struct {
 	// SpreadMs staggers this arm's senders across the burst, overriding the
 	// experiment's own.
 	SpreadMs *int `json:"spread_ms,omitempty"`
+
+	// Set is any other firmware setting this arm pins, as the CLI spells it:
+	// "agc.reset.interval" to "4", "radio.rxgain" to "off".
+	//
+	// Open rather than a fixed list, because the interesting question is
+	// usually about a setting nobody thought to enumerate - the AGC reset
+	// interval is the whole reason the 1.17.1 gain fault is reachable at all,
+	// and no version of this had a field for it.
+	Set map[string]string `json:"set,omitempty"`
 }
 
 // applyOver writes only what this arm actually names, over a base.
@@ -87,6 +96,24 @@ func (a ExpArm) applyOver(p *Provisioning) {
 	if a.CAD != "" {
 		p.CadMode = a.CAD
 	}
+	// Anything else goes on the end of the study's own extra lines, which is
+	// where a setting with no field of its own belongs: provisioning sends
+	// them verbatim, so an arm can pin a switch this code has never heard of.
+	if len(a.Set) > 0 {
+		keys := make([]string, 0, len(a.Set))
+		for k := range a.Set {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys) // one arm, one order, so a cell is reproducible
+		var lines []string
+		if p.Extra != "" {
+			lines = append(lines, p.Extra)
+		}
+		for _, k := range keys {
+			lines = append(lines, "set "+k+" "+a.Set[k])
+		}
+		p.Extra = strings.Join(lines, "\n")
+	}
 }
 
 // names reports whether this arm sets anything at all. An arm that names
@@ -95,7 +122,8 @@ func (a ExpArm) applyOver(p *Provisioning) {
 func (a ExpArm) names() bool {
 	return a.RepeaterVersion != "" || a.CompanionVersion != "" ||
 		a.PathHashMode != nil || a.RepPathHash != nil ||
-		a.LoopDetect != "" || a.CAD != "" || a.SpreadMs != nil
+		a.LoopDetect != "" || a.CAD != "" || a.SpreadMs != nil ||
+		len(a.Set) > 0
 }
 
 // VaryParams is every parameter an arm can be crossed on, in the order the
@@ -166,11 +194,34 @@ func varied(base ExpArm, param, v string) (ExpArm, string, error) {
 		}
 		return arm, fmt.Sprintf("over %ds", n), nil
 	}
+	// Any firmware setting, named as the CLI names it: "set:agc.reset.interval".
+	//
+	// The enumerated parameters above are the ones with somewhere structured to
+	// live; this is everything else, and it is what makes a question like "does
+	// the AGC reset interval change anything" askable without a code change.
+	if name, ok := strings.CutPrefix(param, "set:"); ok && name != "" {
+		if arm.Set == nil {
+			arm.Set = map[string]string{}
+		} else {
+			// Copied, or crossing would write through into the arm this one
+			// was crossed from and every sibling would end up sharing a map.
+			cp := make(map[string]string, len(arm.Set))
+			for k, v := range arm.Set {
+				cp[k] = v
+			}
+			arm.Set = cp
+		}
+		arm.Set[name] = v
+		return arm, name + " " + v, nil
+	}
+
 	var have []string
 	for _, p := range VaryParams {
 		have = append(have, p.Name)
 	}
-	return arm, "", fmt.Errorf("cannot vary %q; there is: %s", param, strings.Join(have, ", "))
+	return arm, "", fmt.Errorf(
+		"cannot vary %q; there is: %s, or set:<any firmware setting>",
+		param, strings.Join(have, ", "))
 }
 
 // padTo brings a message up to a stated size, or leaves it alone when the size
@@ -272,8 +323,18 @@ func (s *Sim) experiment() *experiment {
 	return s.exp
 }
 
+// publish puts what is defined into the world, so every panel and every client
+// sees one answer. The panel used to keep its own copy and disagreed with the
+// session the moment anything else defined an arm.
+func (e *experiment) publish(w *state.World) {
+	w.ExperimentArms = e.armLabels()
+	w.ExperimentSenders = append([]string(nil), e.Senders...)
+	w.ExperimentRuns = e.runRows()
+}
+
 func registerExperiment(st *state.Store, s *Sim) {
 	st.Handle("experiment.define", func(w *state.World, p any) (any, error) {
+		defer func() { s.experiment().publish(w) }()
 		e := s.experiment()
 		if m, ok := p.(map[string]any); ok {
 			if xs, ok := m["arms"].([]any); ok && len(xs) > 0 {
@@ -325,6 +386,7 @@ func registerExperiment(st *state.Store, s *Sim) {
 	// experiment.vary is the same gesture an operator makes: choose a
 	// parameter, type the values, get one arm per value.
 	st.Handle("experiment.vary", func(w *state.World, p any) (any, error) {
+		defer func() { s.experiment().publish(w) }()
 		e := s.experiment()
 		param, _ := stringField(p, "parameter")
 		var values []string
@@ -374,6 +436,7 @@ func registerExperiment(st *state.Store, s *Sim) {
 	})
 
 	st.Handle("experiment.seeds", func(w *state.World, p any) (any, error) {
+		defer func() { s.experiment().publish(w) }()
 		e := s.experiment()
 		var seeds []uint64
 		if m, ok := p.(map[string]any); ok {
@@ -393,6 +456,7 @@ func registerExperiment(st *state.Store, s *Sim) {
 	})
 
 	st.Handle("experiment.senders", func(w *state.World, p any) (any, error) {
+		defer func() { s.experiment().publish(w) }()
 		e := s.experiment()
 		if m, ok := p.(map[string]any); ok {
 			if xs, ok := m["senders"].([]any); ok {

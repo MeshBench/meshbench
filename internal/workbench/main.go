@@ -208,6 +208,15 @@ func Run(args []string) {
 			})
 		}
 	}
+	// askerIn is the same, for a value that has to be typed because no list
+	// could hold it - a firmware setting this build has never heard of.
+	askerIn := func(panel string) func(string, string, string, func(string)) {
+		return func(title, hint, initial string, got func(string)) {
+			wins.promptFor(panel, &sh.Ask).Post(func(ask *shell.Prompt) {
+				ask.Open(title, hint, initial, got)
+			})
+		}
+	}
 	// chooser keeps the old shape for panels that never pop out.
 	chooser := chooserIn("")
 	fleetCtl := &fleetControls{do: do, choose: chooserIn("Fleet")}
@@ -218,7 +227,8 @@ func Run(args []string) {
 	planCtl := &planningControls{do: do}
 	benchCtl := &benchControls{do: do}
 	feedCtl := &feedControls{do: do}
-	sweepCtl := &sweepControls{do: do, choose: chooserIn("Sweep")}
+	sweepCtl := &sweepControls{do: do,
+		choose: chooserIn("Sweep"), askText: askerIn("Sweep")}
 	provCtl := &provisioningControls{do: do}
 	// openPacket dissects a clicked transmission and puts the packet view in
 	// its own window, which is where wb1 kept it.

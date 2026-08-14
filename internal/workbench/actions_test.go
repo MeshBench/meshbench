@@ -222,13 +222,13 @@ func TestSweepArmsAndSenderArePicked(t *testing.T) {
 	if len(asked) != 1 || asked[0] != "AngusOutlaw1" {
 		t.Fatalf("offered %v as senders; only a companion can originate", asked)
 	}
-	if len(c.senders) != 1 || c.senders[0] != "AngusOutlaw1" {
-		t.Fatalf("senders are %v after picking", c.senders)
+	// Picking an arm asks the session to cross it in rather than keeping a
+	// copy here: the control socket defines arms too, and two copies disagree.
+	if !r.saw("experiment.vary") {
+		t.Fatalf("picking an arm reached %v, not experiment.vary", r.verbs)
 	}
-	// Adding the same firmware twice is one column drawn twice.
-	c.addArm.OnOpen()
-	if len(c.arms) != 1 {
-		t.Fatalf("arms are %v after picking the same one twice", c.arms)
+	if !r.saw("experiment.senders") {
+		t.Fatalf("picking a sender reached %v, not experiment.senders", r.verbs)
 	}
 }
 
@@ -237,9 +237,13 @@ func TestSweepControlsDefineAndRun(t *testing.T) {
 	c := &sweepControls{do: r.do}
 	h := newPanelHarness(c.Draw, &state.Snapshot{})
 	h.frame()
-	c.arms = []string{"repeater-v1.16.0", "repeater-v1.17.0"}
-	c.senders = []string{"AngusOutlaw1"}
+	// Arms and senders come from the session, so the harness supplies them the
+	// way the store would.
+	h.snap.ExperimentArms = []string{"1.16.0", "1.17.0"}
+	h.snap.ExperimentSenders = []string{"AngusOutlaw1"}
 	c.seeds.Editor.SetText("1 2 3")
+	c.varyName = "repeater_version"
+	c.varyVals.Editor.SetText("repeater-v1.16.0, repeater-v1.17.0")
 	h.frame()
 	// Bottom upwards. The buttons sit below the arm list, and each arm carries
 	// a remove button: pressing downwards would take the arms off before
@@ -249,7 +253,7 @@ func TestSweepControlsDefineAndRun(t *testing.T) {
 	}
 
 	for _, want := range []string{"experiment.vary", "experiment.seeds",
-		"experiment.senders", "experiment.start", "experiment.stop", "experiment.export"} {
+		"experiment.start", "experiment.stop", "experiment.export"} {
 		if !r.saw(want) {
 			t.Errorf("no button reached %s; got %v", want, r.verbs)
 		}

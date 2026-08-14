@@ -123,6 +123,13 @@ type Snapshot struct {
 	// waited on; ExperimentVerdict is what it concluded, once it has.
 	ExperimentRuns    []RunRow
 	ExperimentVerdict string
+	// ExperimentArms and ExperimentSenders are what is defined right now.
+	//
+	// They live here rather than in the panel because the panel is not the only
+	// thing that defines them: the control socket does too, and a panel holding
+	// its own copy showed "no arms yet" over a session with four.
+	ExperimentArms    []string
+	ExperimentSenders []string
 	// Series is the selected node's history, for its graphs.
 	Series NodeSeries
 	// Provisioning is the script for the node last asked about.
@@ -753,6 +760,13 @@ type World struct {
 	// waited on; ExperimentVerdict is what it concluded, once it has.
 	ExperimentRuns    []RunRow
 	ExperimentVerdict string
+	// ExperimentArms and ExperimentSenders are what is defined right now.
+	//
+	// They live here rather than in the panel because the panel is not the only
+	// thing that defines them: the control socket does too, and a panel holding
+	// its own copy showed "no arms yet" over a session with four.
+	ExperimentArms    []string
+	ExperimentSenders []string
 	// Series is the selected node's history, for its graphs.
 	Series NodeSeries
 	// Provisioning is the script for the node last asked about.
@@ -1025,6 +1039,8 @@ func (s *Store) publish() {
 		ExperimentWarning: s.world.ExperimentWarning,
 		ExperimentRuns:    s.world.ExperimentRuns,
 		ExperimentVerdict: s.world.ExperimentVerdict,
+		ExperimentArms:    s.world.ExperimentArms,
+		ExperimentSenders: s.world.ExperimentSenders,
 		Series:            s.world.Series,
 		Provisioning:      s.world.Provisioning,
 		Console:           s.world.Console,
