@@ -23,6 +23,9 @@ func runVerify(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("verify", flag.ExitOnError)
 	store := terrainFlags(fs)
 	junit := fs.String("junit", "", "write a JUnit XML report here")
+	comment := fs.String("comment", "",
+		"write a GitHub PR comment here: divergence expanded, a clean run collapsed to one line")
+	checkName := fs.String("check-name", "", "labels the comment - a MeshCore build ref is the usual choice")
 	quiet := fs.Bool("quiet", false, "only print the summary and failures")
 	if err := parse(fs, args, "run a directory of regression scenarios and check their assertions"); err != nil {
 		return err
@@ -71,6 +74,13 @@ func runVerify(ctx context.Context, args []string) error {
 			return err
 		}
 		fmt.Printf("JUnit written to %s\n", *junit)
+	}
+	if *comment != "" {
+		body := regression.Comment(results, *checkName)
+		if err := os.WriteFile(*comment, []byte(body), 0o644); err != nil {
+			return err
+		}
+		fmt.Printf("PR comment written to %s\n", *comment)
 	}
 	if len(errs) > 0 {
 		return fmt.Errorf("%d regression case(s) could not be run", len(errs))

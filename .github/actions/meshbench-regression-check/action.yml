@@ -1,0 +1,146 @@
+name: 'MeshBench regression check'
+description: >-
+  Build MeshCore at a given ref and run MeshBench's regression set against
+  it on real firmware, commenting on the PR only when something diverges.
+author: 'MeshBench'
+
+inputs:
+  meshcore-path:
+    description: 'Path to a checkout of MeshCore at the ref under test'
+    required: true
+  regression-dir:
+    description: 'Directory of MeshBench regression cases (*.json) - see plan §2.4'
+    required: true
+  meshcore-native-ref:
+    description: 'Ref of MeshBench/meshcore-native to build with'
+    default: 'main'
+  crypto-repo:
+    description: >-
+      arduinolibs checkout providing libraries/Crypto, which meshcore-native
+      links against - see meshcore-native/build.sh's own MESHCORE/CRYPTO note.
+    default: 'rweather/arduinolibs'
+  timeout-minutes:
+    description: 'Wall-clock cap for the whole regression set - bounds cost per the plan''s own risk note'
+    default: '15'
+  github-token:
+    description: 'Token with pull-requests:write, for posting or updating the comment'
+    required: true
+  pr-number:
+    description: 'The pull request to comment on'
+    required: true
+  check-name:
+    description: 'Labels the comment - defaults to the meshcore-path ref if left blank'
+    default: ''
+
+outputs:
+  verdict:
+    description: 'pass, regression, or flagged - the worst outcome across every scenario run'
+    value: ${{ steps.summarize.outputs.verdict }}
+  comment-path:
+    description: 'Where the rendered PR comment body was written'
+    value: ${{ steps.run.outputs.comment-path }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Check out MeshBench
+      uses: actions/checkout@v4
+      with:
+        repository: MeshBench/meshbench
+        path: meshbench
+
+    - name: Check out meshcore-native
+      uses: actions/checkout@v4
+      with:
+        repository: MeshBench/meshcore-native
+        ref: ${{ inputs.meshcore-native-ref }}
+        path: meshcore-native
+
+    - name: Check out the Crypto library
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.crypto-repo }}
+        path: arduinolibs
+
+    - uses: actions/setup-go@v5
+      with:
+        go-version: '1.24'
+        cache: true
+
+    - name: Build meshcoresim
+      shell: bash
+      working-directory: meshbench
+      run: go build -o "$RUNNER_TEMP/meshcoresim" ./cmd/meshcoresim
+
+    # One build per role the regression set actually needs, straight into a
+    # directory MESHCORESIM_NATIVE can point at unmodified: build.sh already
+    # names its output meshcore-<role>-<os>-<arch>, which is exactly the
+    # filename internal/firmware.NativeBinaryName expects.
+    - name: Build the PR's firmware
+      id: build
+      shell: bash
+      env:
+        MESHCORE: ${{ inputs.meshcore-path }}
+        CRYPTO: ${{ github.workspace }}/arduinolibs/libraries/Crypto
+      run: |
+        set -euo pipefail
+        out="$RUNNER_TEMP/native-pinned"
+        mkdir -p "$out"
+        cd meshcore-native
+        for role in simple_repeater companion_radio simple_room_server; do
+          echo "::group::build.sh $role"
+          if ! ./build.sh "$role" "$out"; then
+            echo "::warning::$role did not build for this host; scenarios needing it will report so, not silently pass"
+          fi
+          echo "::endgroup::"
+        done
+        echo "native-dir=$out" >> "$GITHUB_OUTPUT"
+
+    - name: Run the regression set
+      id: run
+      shell: bash
+      timeout-minutes: ${{ fromJSON(inputs.timeout-minutes) }}
+      env:
+        MESHCORESIM_NATIVE: ${{ steps.build.outputs.native-dir }}
+      run: |
+        set +e
+        comment_path="$RUNNER_TEMP/regression-comment.md"
+        check_name="${{ inputs.check-name }}"
+        if [ -z "$check_name" ]; then
+          check_name=$(git -C "${{ inputs.meshcore-path }}" rev-parse --short HEAD)
+        fi
+        "$RUNNER_TEMP/meshcoresim" verify \
+          -comment "$comment_path" \
+          -check-name "$check_name" \
+          -junit "$RUNNER_TEMP/regression.xml" \
+          "${{ inputs.regression-dir }}"
+        code=$?
+        echo "comment-path=$comment_path" >> "$GITHUB_OUTPUT"
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+        exit 0
+
+    - name: Summarize
+      id: summarize
+      shell: bash
+      run: |
+        if grep -q '\*\*regression' "${{ steps.run.outputs.comment-path }}" 2>/dev/null; then
+          verdict=regression
+        elif grep -q 'flagged' "${{ steps.run.outputs.comment-path }}" 2>/dev/null && ! grep -q 'No regression' "${{ steps.run.outputs.comment-path }}"; then
+          verdict=flagged
+        else
+          verdict=pass
+        fi
+        echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+
+    # Update in place, never pile up: found by this action's own marker
+    # comment (regression.Marker), not by author, so it survives a rename
+    # of the bot account.
+    - name: Post or update the PR comment
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+      run: |
+        "${{ github.action_path }}/post-comment.sh" \
+          "${{ github.repository }}" \
+          "${{ inputs.pr-number }}" \
+          "${{ steps.run.outputs.comment-path }}"
