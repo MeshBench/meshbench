@@ -292,6 +292,7 @@ func auditTargets(r *recorder) []target {
 	feed := &feedControls{do: r.do}
 	sweep := &sweepControls{do: r.do}
 	regr := &regressionsPanel{do: r.do}
+	boards := &boardsPanel{do: r.do}
 	sweepRes := &sweepResults{do: r.do}
 	prov := &provisioningControls{do: r.do}
 
@@ -364,6 +365,7 @@ func auditTargets(r *recorder) []target {
 		{"Sweep", sweep, sweep.Draw, nil, nil, nil, nil},
 		{"Sweep results", sweepRes, sweepRes.Draw, nil, nil, nil, nil},
 		{"Regressions", regr, regr.Draw, nil, nil, nil, nil},
+		{"Boards", boards, boards.Draw, nil, nil, nil, nil},
 		{"Provisioning", prov, prov.Draw, nil, nil, nil, nil},
 		// The flat layout, so every section's controls are on screen at once;
 		// the sidebar's own switching is TestConfigurationSectionsSwitch.

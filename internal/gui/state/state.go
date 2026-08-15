@@ -136,6 +136,11 @@ type Snapshot struct {
 	// pointed at, not just an empty table.
 	Regressions    []RegressionResult
 	RegressionsDir string
+	// BoardMatrix is the hardware capability matrix: one row per board,
+	// each capability three-valued - untested, passed or failed with a
+	// reason - never blank, because a blank cell reads as working.
+	BoardMatrix        []BoardRow
+	BoardMatrixVersion string
 	// Series is the selected node's history, for its graphs.
 	Series NodeSeries
 	// Provisioning is the script for the node last asked about.
@@ -458,6 +463,24 @@ type RegressionResult struct {
 	Detail  string
 	Seeds   int
 	TookMs  float64
+}
+
+// BoardCapabilityCell is one board's one capability: "untested", "passed",
+// "failed" or "n/a", with Detail carrying the reason for anything that is
+// not a plain pass.
+type BoardCapabilityCell struct {
+	Capability string
+	State      string
+	Detail     string
+}
+
+// BoardRow is one board's whole line in the capability matrix.
+type BoardRow struct {
+	Board      string
+	Version    string
+	Cells      []BoardCapabilityCell
+	Stale      bool
+	MeasuredAt string
 }
 
 // Build is one firmware image on this machine.
@@ -807,6 +830,11 @@ type World struct {
 	// pointed at, not just an empty table.
 	Regressions    []RegressionResult
 	RegressionsDir string
+	// BoardMatrix is the hardware capability matrix: one row per board,
+	// each capability three-valued - untested, passed or failed with a
+	// reason - never blank, because a blank cell reads as working.
+	BoardMatrix        []BoardRow
+	BoardMatrixVersion string
 	// Series is the selected node's history, for its graphs.
 	Series NodeSeries
 	// Provisioning is the script for the node last asked about.
@@ -1083,6 +1111,8 @@ func (s *Store) publish() {
 		ExperimentNarrowSeeds: s.world.ExperimentNarrowSeeds,
 		Regressions:           append([]RegressionResult(nil), s.world.Regressions...),
 		RegressionsDir:        s.world.RegressionsDir,
+		BoardMatrix:           append([]BoardRow(nil), s.world.BoardMatrix...),
+		BoardMatrixVersion:    s.world.BoardMatrixVersion,
 		Series:                s.world.Series,
 		Provisioning:          s.world.Provisioning,
 		Console:               s.world.Console,

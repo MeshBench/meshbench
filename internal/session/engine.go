@@ -120,6 +120,9 @@ type Sim struct {
 	// regRunning is a regression directory run in flight, so a second one
 	// cannot start into the middle of the first.
 	regRunning bool
+	// boardProbing is a hardware capability probe in flight - one board at a
+	// time, since each is a real emulator boot.
+	boardProbing bool
 }
 
 // terrainStore is the elevation the engine sees.

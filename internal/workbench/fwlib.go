@@ -49,6 +49,7 @@ type firmwarePanel struct {
 	importBtn                              comp.Button
 	refreshBtn                             comp.Button
 	scanBtn                                comp.Button
+	boardsBtn                              comp.Button
 	list                                   widget.List
 	rows                                   map[string]*fwRowW
 	confirm                                string
@@ -60,12 +61,17 @@ type firmwarePanel struct {
 	Refresh  func()
 	OnImport func()
 	choose   func(title string, opts []string, pick func(string))
+	// OnOpenBoards opens the hardware capability matrix - which boards are
+	// wired for emulation, what has actually been measured on them, and
+	// what has not been tried yet.
+	OnOpenBoards func()
 }
 
 func (p *firmwarePanel) build() {
 	p.importBtn.Label, p.importBtn.Kind = "import...", comp.Secondary
 	p.refreshBtn.Label, p.refreshBtn.Kind = "refresh", comp.Secondary
 	p.scanBtn.Label, p.scanBtn.Kind = "scan builds", comp.Primary
+	p.boardsBtn.Label, p.boardsBtn.Kind = "hardware capability matrix", comp.Quiet
 	p.search.Hint = "search builds..."
 	p.search.Editor.SingleLine = true
 	p.rows = map[string]*fwRowW{}
@@ -105,6 +111,9 @@ func (p *firmwarePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 	}
 	if p.importBtn.Click.Clicked(gtx) && p.OnImport != nil {
 		p.OnImport()
+	}
+	if p.boardsBtn.Click.Clicked(gtx) && p.OnOpenBoards != nil {
+		p.OnOpenBoards()
 	}
 	if p.refreshBtn.Click.Clicked(gtx) && p.Refresh != nil {
 		p.Refresh()
@@ -230,7 +239,11 @@ func (p *firmwarePanel) header(t *theme.Theme, gtx layout.Context) layout.Dimens
 					func(gtx layout.Context) layout.Dimensions { return p.refreshBtn.Layout(t, gtx) })
 			}),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return p.scanBtn.Layout(t, gtx)
+				return layout.Inset{Right: t.Sp.S}.Layout(gtx,
+					func(gtx layout.Context) layout.Dimensions { return p.scanBtn.Layout(t, gtx) })
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return p.boardsBtn.Layout(t, gtx)
 			}),
 		)
 	})

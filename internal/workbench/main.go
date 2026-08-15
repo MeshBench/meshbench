@@ -759,6 +759,9 @@ func Run(args []string) {
 	}
 	runs := &runsPanel{}
 	sh.Add(&shell.Panel{Name: "Firmware", Windowable: true, Draw: fw.Draw})
+	boards := &boardsPanel{do: do}
+	sh.Add(&shell.Panel{Name: "Boards", Windowable: true, Draw: boards.Draw})
+	fw.OnOpenBoards = func() { sh.OnMenu("panel.Boards") }
 	sh.Add(&shell.Panel{Name: "Runs", Windowable: true, Draw: runs.Draw})
 	sh.Add(&shell.Panel{Name: "Sweep", Windowable: true,
 		Draw: withControls(sweepCtl.Draw, sweepRes.Draw)})
