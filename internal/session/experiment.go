@@ -54,6 +54,10 @@ type ExpResult struct {
 	// that measured nothing is distinguishable from one that ran.
 	Firmware int    `json:"firmware"`
 	Err      string `json:"err,omitempty"`
+	// WallMs is how long this cell took in real time - firmware is paced to
+	// the wall clock, so this is what "run 4 more seeds, about 6 minutes"
+	// estimates from, not a share of the simulated run length.
+	WallMs float64 `json:"wall_ms"`
 }
 
 // experiment is the matrix and what has come back from it.
@@ -280,6 +284,69 @@ func registerExperiment(st *state.Store, s *Sim) {
 		return map[string]any{"running": true, "runs": e.runsTotal(), "id": id}, nil
 	})
 
+	// experiment.extend runs more seeds without re-running the cells that
+	// already answered: "narrow it" adds new seeds and runs only the new
+	// (arm, seed) cells, appending to the results already in hand.
+	st.Handle("experiment.extend", func(w *state.World, p any) (any, error) {
+		e := s.experiment()
+		e.mu.Lock()
+		if e.running {
+			e.mu.Unlock()
+			return nil, fmt.Errorf("an experiment is already running")
+		}
+		if len(s.nodes) == 0 {
+			e.mu.Unlock()
+			return nil, fmt.Errorf("no network loaded")
+		}
+		if len(e.Senders) == 0 {
+			e.mu.Unlock()
+			return nil, fmt.Errorf("experiment.extend needs at least one sender")
+		}
+		if len(e.results) == 0 {
+			e.mu.Unlock()
+			return nil, fmt.Errorf("nothing has run yet - experiment.start first")
+		}
+		count := 4
+		if v, ok := numField(p, "count"); ok && v > 0 {
+			count = int(v)
+		}
+		existing := map[uint64]bool{}
+		var top uint64
+		for _, sd := range e.Seeds {
+			existing[sd] = true
+			if sd > top {
+				top = sd
+			}
+		}
+		newSeeds := make([]uint64, 0, count)
+		for next := top + 1; len(newSeeds) < count; next++ {
+			if !existing[next] {
+				newSeeds = append(newSeeds, next)
+				existing[next] = true
+			}
+		}
+		e.Seeds = append(e.Seeds, newSeeds...)
+		var cells []expCell
+		for _, arm := range e.Arms {
+			for _, sd := range newSeeds {
+				cells = append(cells, expCell{arm, sd})
+			}
+		}
+		e.running, e.status = true, "extending"
+		ctx, cancel := context.WithCancel(context.Background())
+		e.cancel = cancel
+		nodes := append([]scenario.Node(nil), s.nodes...)
+		e.mu.Unlock()
+
+		id := stampExperimentID(w, s, e)
+		w.Jobs = append(w.Jobs, state.Job{
+			ID: "experiment", What: fmt.Sprintf("extending: %d more seeds", count),
+			Total: len(cells)})
+		go s.runExperimentExtend(ctx, st, e, nodes, cells)
+		return map[string]any{"running": true, "added_seeds": newSeeds,
+			"cells": len(cells), "id": id}, nil
+	})
+
 	st.Handle("experiment.stop", func(w *state.World, _ any) (any, error) {
 		e := s.experiment()
 		e.mu.Lock()
@@ -309,24 +376,38 @@ func registerExperiment(st *state.Store, s *Sim) {
 			})
 		}
 		sums := e.summarise()
-		out := map[string]any{"runs": runs, "arms": sums}
+		baseline := ""
+		if len(e.Arms) > 0 {
+			baseline = e.Arms[0].Label
+		}
+		stats := armStatsFor(e.results, baseline)
+		byArm := map[string]ArmStats{}
+		for _, st := range stats {
+			byArm[st.Arm] = st
+		}
+		out := map[string]any{"runs": runs, "arms": sums, "stats": stats}
 		warn := e.notAResultYet()
 		if warn != "" {
 			out["warning"] = warn
 		}
 		w.Experiment = w.Experiment[:0]
 		for _, m := range sums {
+			arm := m["arm"].(string)
+			st := byArm[arm]
 			w.Experiment = append(w.Experiment, state.ArmSummary{
-				Arm:       m["arm"].(string),
+				Arm:       arm,
 				Runs:      m["runs"].(int),
 				TX:        m["tx"].(float64),
 				RX:        m["rx"].(float64),
 				Delivered: m["delivered"].(float64),
 				Redundant: m["redundant"].(float64),
 				RXSpread:  m["rx_spread"].(float64),
+				RXLo:      st.RXLo, RXHi: st.RXHi, HasCI: st.HasInterval,
+				DeltaPct: st.DeltaPct, HasDelta: st.HasDelta, Verdict: st.Verdict,
 			})
 		}
 		w.ExperimentWarning = warn
+		w.ExperimentNarrow, w.ExperimentNarrowSeeds = narrowCaption(e.results, stats)
 		return out, nil
 	})
 

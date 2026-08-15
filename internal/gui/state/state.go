@@ -125,6 +125,12 @@ type Snapshot struct {
 	// get the same ID.
 	ExperimentID       string
 	ExperimentIdentity ExperimentIdentity
+	// ExperimentNarrow is the caption for the loosest arm's interval - what
+	// it spreads, how many more seeds would tighten it, and about how long
+	// that takes - and ExperimentNarrowSeeds is that seed count, ready to hand
+	// straight to experiment.extend. Empty when nothing has run yet.
+	ExperimentNarrow      string
+	ExperimentNarrowSeeds int
 	// Series is the selected node's history, for its graphs.
 	Series NodeSeries
 	// Provisioning is the script for the node last asked about.
@@ -408,6 +414,17 @@ type ArmSummary struct {
 	// spread - and a difference between arms cannot be called larger than a
 	// noise nobody has measured.
 	RXSpread float64
+	// RXLo and RXHi are the 95% Student's t interval on receptions; HasCI is
+	// false below two seeds, where there is no spread to build one from.
+	RXLo, RXHi float64
+	HasCI      bool
+	// DeltaPct is against the baseline arm, and HasDelta is false for the
+	// baseline arm itself. Verdict is "significant", "not yet", or "" for
+	// the baseline - significant means the intervals do not overlap, nothing
+	// weaker.
+	DeltaPct float64
+	HasDelta bool
+	Verdict  string
 }
 
 // ExperimentIdentity is what the sweep's ID is a hash of, shown so an
@@ -750,6 +767,12 @@ type World struct {
 	// get the same ID.
 	ExperimentID       string
 	ExperimentIdentity ExperimentIdentity
+	// ExperimentNarrow is the caption for the loosest arm's interval - what
+	// it spreads, how many more seeds would tighten it, and about how long
+	// that takes - and ExperimentNarrowSeeds is that seed count, ready to hand
+	// straight to experiment.extend. Empty when nothing has run yet.
+	ExperimentNarrow      string
+	ExperimentNarrowSeeds int
 	// Series is the selected node's history, for its graphs.
 	Series NodeSeries
 	// Provisioning is the script for the node last asked about.
@@ -994,44 +1017,46 @@ func (s *Store) publish() {
 		Shade:    s.world.Shade,
 		// Events and scores are already rebuilt fresh on every tick, so they
 		// are handed over rather than copied again.
-		Events:             s.world.Events,
-		EventTotal:         s.world.EventTotal,
-		Counts:             s.world.Counts,
-		Packet:             s.world.Packet,
-		Scores:             s.world.Scores,
-		Waterfall:          s.world.Waterfall,
-		WaterfallNote:      s.world.WaterfallNote,
-		Budgets:            s.world.Budgets,
-		LinkProfile:        s.world.LinkProfile,
-		Matrix:             s.world.Matrix,
-		Energy:             s.world.Energy,
-		Sends:              s.world.Sends,
-		Assertions:         s.world.Assertions,
-		Endpoints:          s.world.Endpoints,
-		Routes:             s.world.Routes,
-		Import:             s.world.Import,
-		Observed:           s.world.Observed,
-		Residuals:          s.world.Residuals,
-		Stats:              s.world.Stats,
-		Builds:             s.world.Builds,
-		Library:            append([]FirmwareRow(nil), s.world.Library...),
-		GPU:                s.world.GPU,
-		TileCacheGB:        s.world.TileCacheGB,
-		TileCacheDir:       s.world.TileCacheDir,
-		Experiment:         s.world.Experiment,
-		ExperimentWarning:  s.world.ExperimentWarning,
-		ExperimentID:       s.world.ExperimentID,
-		ExperimentIdentity: s.world.ExperimentIdentity,
-		Series:             s.world.Series,
-		Provisioning:       s.world.Provisioning,
-		Console:            s.world.Console,
-		FleetReplies:       append([]FleetReply(nil), s.world.FleetReplies...),
-		FleetCommand:       s.world.FleetCommand,
-		RealFirmware:       s.world.RealFirmware,
-		FirmwareRunning:    s.world.FirmwareRunning,
-		FirmwareStarting:   s.world.FirmwareStarting,
-		ConsoleNode:        s.world.ConsoleNode,
-		ProvisioningNode:   s.world.ProvisioningNode,
+		Events:                s.world.Events,
+		EventTotal:            s.world.EventTotal,
+		Counts:                s.world.Counts,
+		Packet:                s.world.Packet,
+		Scores:                s.world.Scores,
+		Waterfall:             s.world.Waterfall,
+		WaterfallNote:         s.world.WaterfallNote,
+		Budgets:               s.world.Budgets,
+		LinkProfile:           s.world.LinkProfile,
+		Matrix:                s.world.Matrix,
+		Energy:                s.world.Energy,
+		Sends:                 s.world.Sends,
+		Assertions:            s.world.Assertions,
+		Endpoints:             s.world.Endpoints,
+		Routes:                s.world.Routes,
+		Import:                s.world.Import,
+		Observed:              s.world.Observed,
+		Residuals:             s.world.Residuals,
+		Stats:                 s.world.Stats,
+		Builds:                s.world.Builds,
+		Library:               append([]FirmwareRow(nil), s.world.Library...),
+		GPU:                   s.world.GPU,
+		TileCacheGB:           s.world.TileCacheGB,
+		TileCacheDir:          s.world.TileCacheDir,
+		Experiment:            s.world.Experiment,
+		ExperimentWarning:     s.world.ExperimentWarning,
+		ExperimentID:          s.world.ExperimentID,
+		ExperimentIdentity:    s.world.ExperimentIdentity,
+		ExperimentNarrow:      s.world.ExperimentNarrow,
+		ExperimentNarrowSeeds: s.world.ExperimentNarrowSeeds,
+		Series:                s.world.Series,
+		Provisioning:          s.world.Provisioning,
+		Console:               s.world.Console,
+		FleetReplies:          append([]FleetReply(nil), s.world.FleetReplies...),
+		FleetCommand:          s.world.FleetCommand,
+		RealFirmware:          s.world.RealFirmware,
+		FirmwareRunning:       s.world.FirmwareRunning,
+		FirmwareStarting:      s.world.FirmwareStarting,
+		ConsoleNode:           s.world.ConsoleNode,
+		ProvisioningNode:      s.world.ProvisioningNode,
 	})
 }
 

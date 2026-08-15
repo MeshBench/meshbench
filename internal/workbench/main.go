@@ -213,6 +213,7 @@ func Run(args []string) {
 	benchCtl := &benchControls{do: do}
 	feedCtl := &feedControls{do: do}
 	sweepCtl := &sweepControls{do: do}
+	sweepRes := &sweepResults{do: do}
 	provCtl := &provisioningControls{do: do}
 	// openPacket dissects a clicked transmission and puts the packet view in
 	// its own window, which is where wb1 kept it.
@@ -758,7 +759,7 @@ func Run(args []string) {
 	sh.Add(&shell.Panel{Name: "Firmware", Windowable: true, Draw: fw.Draw})
 	sh.Add(&shell.Panel{Name: "Runs", Windowable: true, Draw: runs.Draw})
 	sh.Add(&shell.Panel{Name: "Sweep", Windowable: true,
-		Draw: withControls(sweepCtl.Draw, (&sweepResults{}).Draw)})
+		Draw: withControls(sweepCtl.Draw, sweepRes.Draw)})
 	switch *viewFlag {
 	case "run":
 		sh.View = shell.Run

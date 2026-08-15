@@ -2,6 +2,7 @@ package workbench
 
 import (
 	"fmt"
+	"image/color"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -678,10 +679,12 @@ func (c *sweepControls) identity(t *theme.Theme, gtx layout.Context, s *state.Sn
 
 // sweepResults is what the arms came back with, and whether it is a result.
 type sweepResults struct {
-	tb    comp.Table
-	init  bool
-	seq   uint64
-	shown bool
+	tb     comp.Table
+	init   bool
+	seq    uint64
+	shown  bool
+	narrow comp.Button
+	do     Do
 }
 
 func (p *sweepResults) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
@@ -693,25 +696,50 @@ func (p *sweepResults) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 			{Title: "rx", Width: 90, Right: true, Mono: true, Sortable: true},
 			{Title: "delivered", Width: 100, Right: true, Mono: true},
 			{Title: "redundant", Width: 100, Right: true, Mono: true},
-			{Title: "rx spread", Right: true, Mono: true},
+			{Title: "95% ci", Width: 170, Mono: true},
+			{Title: "vs baseline", Width: 150},
 		}
 		p.tb.SortCol, p.tb.SortDesc = 2, true
+		p.narrow.Label, p.narrow.Kind = "narrow it", comp.Secondary
 		p.init = true
 	}
 	if s == nil {
 		return layout.Dimensions{}
 	}
+	if p.narrow.Click.Clicked(gtx) && p.do != nil {
+		if s.ExperimentNarrowSeeds > 0 {
+			p.do("experiment.extend", map[string]any{"count": s.ExperimentNarrowSeeds})
+		} else {
+			p.do("ui.said", "nothing to narrow: run the sweep first, or every arm is already tight")
+		}
+	}
 	if !p.shown || s.Seq != p.seq {
 		rows := make([]comp.Row, 0, len(s.Experiment))
 		for _, a := range s.Experiment {
+			ci := "—"
+			if a.HasCI {
+				ci = fmt.Sprintf("%.0f … %.0f", a.RXLo, a.RXHi)
+			} else if a.Runs > 0 {
+				ci = "n=1, no interval"
+			}
+			vs := ""
+			switch {
+			case !a.HasDelta:
+				vs = "baseline"
+			case a.Verdict == "significant":
+				vs = fmt.Sprintf("%+.1f%%  significant", a.DeltaPct)
+			default:
+				vs = fmt.Sprintf("%+.1f%%  not yet", a.DeltaPct)
+			}
 			rows = append(rows, comp.Row{
 				Key: a.Arm,
 				Cells: []string{
 					a.Arm, fmt.Sprintf("%d", a.Runs),
 					fmt.Sprintf("%.1f", a.TX), fmt.Sprintf("%.1f", a.RX),
 					fmt.Sprintf("%.1f", a.Delivered), fmt.Sprintf("%.1f", a.Redundant),
-					fmt.Sprintf("%.0f", a.RXSpread),
+					ci, vs,
 				},
+				Tint: verdictTint(t, a),
 			})
 		}
 		p.tb.SetRows(rows)
@@ -727,6 +755,28 @@ func (p *sweepResults) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 			return layout.Inset{Bottom: t.Sp.S}.Layout(gtx,
 				comp.OneLine(t, t.Sz.Body, t.P.Warn, "not a result yet: "+s.ExperimentWarning, false))
 		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			// Drawn even with nothing to narrow yet, rather than hidden: a
+			// button that only lays out once a sweep has run is a button no
+			// pointer can ever find beforehand, and the control audit presses
+			// every one of them.
+			caption, mark := s.ExperimentNarrow, "▲ "
+			if caption == "" {
+				caption, mark = "no sweep has run yet", ""
+			}
+			// The pill and the seed count stay together: a claim resting on
+			// two seeds says so right beside the button that would fix it.
+			return layout.Inset{Bottom: t.Sp.S}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return comp.Text(t, t.Sz.Caption, t.P.Warn, mark)(gtx)
+					}),
+					layout.Flexed(1, comp.OneLine(t, t.Sz.Caption, t.P.Dim, caption, false)),
+					layout.Rigid(layout.Spacer{Width: t.Sp.S}.Layout),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return p.narrow.Layout(t, gtx) }),
+				)
+			})
+		}),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			if len(s.Experiment) == 0 {
 				return layout.Center.Layout(gtx, comp.Text(t, t.Sz.Caption, t.P.Faint,
@@ -735,6 +785,21 @@ func (p *sweepResults) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 			return p.tb.Layout(t, gtx, func(string) {})
 		}),
 	)
+}
+
+// verdictTint colours the row swatch: green for significant, amber for a
+// claim the interval cannot yet support, none for the baseline itself.
+func verdictTint(t *theme.Theme, a state.ArmSummary) [4]uint8 {
+	var c color.NRGBA
+	switch {
+	case !a.HasDelta:
+		return [4]uint8{}
+	case a.Verdict == "significant":
+		c = t.P.Good
+	default:
+		c = t.P.Warn
+	}
+	return [4]uint8{c.R, c.G, c.B, c.A}
 }
 
 // provisioningControls is what every node is told at boot.

@@ -22,8 +22,34 @@ import (
 	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
+// expCell is one arm at one seed - the unit both a fresh sweep and an
+// extension run in.
+type expCell struct {
+	Arm  ExpArm
+	Seed uint64
+}
+
 func (s *Sim) runExperiment(ctx context.Context, st *state.Store, e *experiment,
 	nodes []scenario.Node) {
+	var cells []expCell
+	for _, arm := range e.Arms {
+		for _, seed := range e.Seeds {
+			cells = append(cells, expCell{arm, seed})
+		}
+	}
+	s.runCells(ctx, st, e, nodes, cells, "running arms")
+}
+
+// runExperimentExtend runs only the cells named, appending to whatever
+// results already exist rather than clearing them - "run 4 more seeds"
+// narrows the interval without re-running the cells that already answered.
+func (s *Sim) runExperimentExtend(ctx context.Context, st *state.Store, e *experiment,
+	nodes []scenario.Node, cells []expCell) {
+	s.runCells(ctx, st, e, nodes, cells, "extending")
+}
+
+func (s *Sim) runCells(ctx context.Context, st *state.Store, e *experiment,
+	nodes []scenario.Node, cells []expCell, what string) {
 
 	defer func() {
 		e.mu.Lock()
@@ -33,29 +59,27 @@ func (s *Sim) runExperiment(ctx context.Context, st *state.Store, e *experiment,
 	}()
 
 	done := 0
-	for _, arm := range e.Arms {
-		for _, seed := range e.Seeds {
-			if ctx.Err() != nil {
-				return
-			}
-			e.mu.Lock()
-			e.status = fmt.Sprintf("%s, seed %d", arm.Label, seed)
-			e.logf("running %s at seed %d", arm.Label, seed)
-			e.mu.Unlock()
-
-			r := s.runArm(ctx, e, arm, seed, nodes)
-			e.mu.Lock()
-			e.results = append(e.results, r)
-			e.mu.Unlock()
-
-			done++
-			_, _ = st.Do(context.Background(), "job.progress", state.Job{
-				ID: "experiment", What: "running arms",
-				Done: done, Total: e.runsTotal()})
-			// Publish as it goes: an experiment that shows nothing until the
-			// last cell is one nobody can tell is working.
-			_, _ = st.Do(context.Background(), "experiment.results", nil)
+	for _, c := range cells {
+		if ctx.Err() != nil {
+			return
 		}
+		e.mu.Lock()
+		e.status = fmt.Sprintf("%s, seed %d", c.Arm.Label, c.Seed)
+		e.logf("running %s at seed %d", c.Arm.Label, c.Seed)
+		e.mu.Unlock()
+
+		r := s.runArm(ctx, e, c.Arm, c.Seed, nodes)
+		e.mu.Lock()
+		e.results = append(e.results, r)
+		e.mu.Unlock()
+
+		done++
+		_, _ = st.Do(context.Background(), "job.progress", state.Job{
+			ID: "experiment", What: what,
+			Done: done, Total: len(cells)})
+		// Publish as it goes: an experiment that shows nothing until the
+		// last cell is one nobody can tell is working.
+		_, _ = st.Do(context.Background(), "experiment.results", nil)
 	}
 }
 
@@ -260,6 +284,10 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 		out.Redundant += v.RedundantRelay
 		out.AirtimeMs += float64(v.AirtimeMs)
 	}
+	// Wall time, not simulated time: the seeds-needed estimate has to say how
+	// long more seeds actually take to run, and firmware paced to real time is
+	// real time, not the run's own clock.
+	out.WallMs = float64(time.Since(began).Milliseconds())
 	return out
 }
 
