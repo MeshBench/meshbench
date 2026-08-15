@@ -2,9 +2,12 @@ package workbench
 
 import (
 	"fmt"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"gioui.org/layout"
+	"gioui.org/unit"
 
 	"github.com/MeshBench/meshbench/internal/gui/comp"
 	"github.com/MeshBench/meshbench/internal/gui/state"
@@ -520,6 +523,7 @@ type sweepControls struct {
 	start    comp.Button
 	stop     comp.Button
 	export   comp.Button
+	copyID   comp.Button
 	do       Do
 	built    bool
 }
@@ -537,6 +541,7 @@ func (c *sweepControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 		c.start.Label, c.start.Kind = "run it", comp.Primary
 		c.stop.Label, c.stop.Kind = "stop", comp.Destructive
 		c.export.Label, c.export.Kind = "export", comp.Quiet
+		c.copyID.Label, c.copyID.Kind = "copy id", comp.Quiet
 		c.bar.fields = []*comp.Field{&c.versions, &c.seeds}
 		c.bar.buttons = []*comp.Button{&c.define, &c.start, &c.stop, &c.export}
 		c.bar.note = "a message is originated by a companion, so the sender has to be " +
@@ -592,6 +597,18 @@ func (c *sweepControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 	if c.export.Click.Clicked(gtx) && c.do != nil {
 		c.do("experiment.export", nil)
 	}
+	if c.copyID.Click.Clicked(gtx) && c.do != nil {
+		id := ""
+		if s != nil {
+			id = s.ExperimentID
+		}
+		if id == "" {
+			c.do("ui.said", "no experiment is defined yet: fill in versions or seeds above, or press define")
+		} else {
+			copyText(gtx, id)
+			c.do("ui.said", "experiment ID copied: "+id)
+		}
+	}
 	second := actionBar{
 		fields:  []*comp.Field{&c.sender, &c.runFor},
 		buttons: nil,
@@ -599,7 +616,64 @@ func (c *sweepControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return c.bar.layout(t, gtx) }),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return second.layout(t, gtx) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return c.identity(t, gtx, s) }),
 	)
+}
+
+// identity is the ID strip: what the currently defined sweep hashes to, and
+// what went into that hash - fixture, firmware, geometry, and the build this
+// binary was made from, dirty tree and all. "Can somebody else reproduce
+// this?" is answered by whether their strip reads the same as this one.
+func (c *sweepControls) identity(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+	// Drawn even with nothing defined yet, rather than hidden: a button that
+	// only lays out once something exists to copy is a button no pointer can
+	// ever find beforehand, and the control audit presses every one of them.
+	shownID := "not defined yet"
+	var id state.ExperimentIdentity
+	if s != nil && s.ExperimentID != "" {
+		shownID, id = s.ExperimentID, s.ExperimentIdentity
+	}
+	fixture := "no fixture loaded"
+	if id.Fixture != "" {
+		fixture = filepath.Base(id.Fixture)
+	}
+	firmware := "no firmware pinned"
+	if len(id.Firmware) > 0 {
+		firmware = strings.Join(id.Firmware, ", ")
+	}
+	build := "unknown build"
+	buildColor := t.P.Dim
+	if id.MeshBench != "" {
+		if id.Dirty {
+			build = "meshbench " + id.MeshBench + " (dirty tree)"
+			buildColor = t.P.Warn
+		} else {
+			build = "meshbench " + id.MeshBench + " (clean tree)"
+		}
+	}
+	line := fmt.Sprintf("fixture %s  ·  firmware %s  ·  geometry %s",
+		fixture, firmware, id.GeometryFP)
+	return layout.Inset{Top: t.Sp.S}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle,
+					Spacing: layout.SpaceBetween}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+							layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint, "experiment ")),
+							layout.Rigid(comp.Mono(t, t.Sz.Body, t.P.Ink, shownID)),
+						)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return c.copyID.Layout(t, gtx)
+					}),
+				)
+			}),
+			layout.Rigid(layout.Spacer{Height: unit.Dp(2)}.Layout),
+			layout.Rigid(comp.OneLine(t, t.Sz.Caption, t.P.Dim, line, false)),
+			layout.Rigid(comp.OneLine(t, t.Sz.Caption, buildColor, build, true)),
+		)
+	})
 }
 
 // sweepResults is what the arms came back with, and whether it is a result.

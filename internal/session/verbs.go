@@ -45,6 +45,7 @@ func Register(st *state.Store, s *Sim) {
 	registerRadioReconcile(st, s)
 	registerExperiment(st, s)
 	registerExperimentDone(st, s)
+	registerExperimentID(st, s)
 	registerCoverageCombined(st, s)
 	st.Handle("project.open", func(w *state.World, p any) (any, error) {
 		path := soleString(p)
@@ -55,6 +56,7 @@ func Register(st *state.Store, s *Sim) {
 		w.Nodes, w.Areas, w.MarginKm = f.nodes, f.areas, f.margin
 		w.Sends, w.Assertions = f.sends, f.assertions
 		w.Seed = 9001
+		s.fixturePath = path
 
 		// Build the engine, but do not ask it for margins here.
 		//
