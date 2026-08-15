@@ -53,8 +53,12 @@ func registerPacket(st *state.Store, s *Sim) {
 		w.Packet = pk
 		w.Say(fmt.Sprintf("packet #%d: from %s, heard by %d, missed by %d",
 			id, pk.Origin, pk.Heard, pk.Missed))
+		// Transmissions is how many times the message was put on the air, so a
+		// caller can tell a relayed flood from a single advert without opening
+		// the window and reading the header.
 		return map[string]any{"id": id, "origin": pk.Origin,
-			"heard": pk.Heard, "missed": pk.Missed}, nil
+			"heard": pk.Heard, "missed": pk.Missed,
+			"transmissions": pk.Transmissions, "reached": pk.Reached}, nil
 	})
 
 	st.Handle("packet.close", func(w *state.World, _ any) (any, error) {
