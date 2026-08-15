@@ -43,7 +43,7 @@ func (v View) Purpose() string {
 	case Debug:
 		return "ask why one thing happened: packets, waterfall, consoles, budgets"
 	case Verify:
-		return "check it is still true: baselines, A/B bisect, residuals against reality"
+		return "check it is still true: baselines, A/B bisect, residuals against reality, regression scenarios"
 	case Bench:
 		return "compare configurations: sweep a parameter, repeat it, read what differed"
 	case App:
@@ -62,7 +62,7 @@ func layoutFor(v View) (main string, side []string) {
 	case Debug:
 		return "Packet timeline", []string{"Inspector", "Link"}
 	case Verify:
-		return "Compare", []string{"Validate", "Scoreboard"}
+		return "Compare", []string{"Validate", "Scoreboard", "Regressions"}
 	case Bench:
 		return "Runs", []string{"Sweep", "Matrix"}
 	case App:

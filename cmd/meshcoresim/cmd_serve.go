@@ -10,6 +10,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/engine"
 	"github.com/MeshBench/meshbench/internal/fixture"
+	"github.com/MeshBench/meshbench/internal/regression"
 )
 
 // runServe gives an application developer a mesh and an address, and nothing
@@ -48,7 +49,7 @@ func runServe(ctx context.Context, args []string) error {
 		return err
 	}
 
-	sf, bw, freq := radioOf(fx)
+	sf, bw, freq := regression.RadioOf(fx)
 	e := engine.New(t, engine.Config{
 		FreqMHz: freq, SF: sf, BandwidthHz: bw, CodingRate: 1,
 		NoiseFigDB: 6, StepMs: 10, Seed: fx.Seed,
@@ -63,7 +64,7 @@ func runServe(ctx context.Context, args []string) error {
 	if err := e.AttachNative(ctx, fx.Seed); err != nil {
 		return err
 	}
-	if err := provision(e, fx, true); err != nil {
+	if err := regression.Provision(e, fx); err != nil {
 		return err
 	}
 

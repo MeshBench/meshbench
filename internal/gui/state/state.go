@@ -131,6 +131,11 @@ type Snapshot struct {
 	// straight to experiment.extend. Empty when nothing has run yet.
 	ExperimentNarrow      string
 	ExperimentNarrowSeeds int
+	// Regressions is the last directory run's outcome, and RegressionsDir
+	// is what ran - so an operator opening the panel sees what it was last
+	// pointed at, not just an empty table.
+	Regressions    []RegressionResult
+	RegressionsDir string
 	// Series is the selected node's history, for its graphs.
 	Series NodeSeries
 	// Provisioning is the script for the node last asked about.
@@ -441,6 +446,18 @@ type ExperimentIdentity struct {
 	Firmware   []string
 	MeshBench  string
 	Dirty      bool
+}
+
+// RegressionResult is one regression case's outcome: pass, flag, fail, or
+// error (the case itself could not be loaded or run). Detail is empty for a
+// pass and always populated otherwise - a red row with no reason sends
+// someone back to the log this exists to replace.
+type RegressionResult struct {
+	Name    string
+	Verdict string
+	Detail  string
+	Seeds   int
+	TookMs  float64
 }
 
 // Build is one firmware image on this machine.
@@ -785,6 +802,11 @@ type World struct {
 	// straight to experiment.extend. Empty when nothing has run yet.
 	ExperimentNarrow      string
 	ExperimentNarrowSeeds int
+	// Regressions is the last directory run's outcome, and RegressionsDir
+	// is what ran - so an operator opening the panel sees what it was last
+	// pointed at, not just an empty table.
+	Regressions    []RegressionResult
+	RegressionsDir string
 	// Series is the selected node's history, for its graphs.
 	Series NodeSeries
 	// Provisioning is the script for the node last asked about.
@@ -1059,6 +1081,8 @@ func (s *Store) publish() {
 		ExperimentIdentity:    s.world.ExperimentIdentity,
 		ExperimentNarrow:      s.world.ExperimentNarrow,
 		ExperimentNarrowSeeds: s.world.ExperimentNarrowSeeds,
+		Regressions:           append([]RegressionResult(nil), s.world.Regressions...),
+		RegressionsDir:        s.world.RegressionsDir,
 		Series:                s.world.Series,
 		Provisioning:          s.world.Provisioning,
 		Console:               s.world.Console,

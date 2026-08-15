@@ -46,6 +46,7 @@ func Register(st *state.Store, s *Sim) {
 	registerExperiment(st, s)
 	registerExperimentDone(st, s)
 	registerExperimentID(st, s)
+	registerRegression(st, s)
 	registerCoverageCombined(st, s)
 	st.Handle("project.open", func(w *state.World, p any) (any, error) {
 		path := soleString(p)

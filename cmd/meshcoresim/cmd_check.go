@@ -11,6 +11,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/engine"
 	"github.com/MeshBench/meshbench/internal/fixture"
+	"github.com/MeshBench/meshbench/internal/regression"
 )
 
 // runTest is the regression harness: load a fixture, run it on real firmware,
@@ -61,7 +62,7 @@ func runTest(ctx context.Context, args []string) error {
 	if *seed != 0 {
 		runSeed = *seed
 	}
-	sf, bw, freq := radioOf(fx)
+	sf, bw, freq := regression.RadioOf(fx)
 	e := engine.New(t, engine.Config{
 		FreqMHz: freq, SF: sf, BandwidthHz: bw, CodingRate: 1,
 		NoiseFigDB: 6, StepMs: 10, Seed: runSeed,
@@ -97,8 +98,11 @@ func runTest(ctx context.Context, args []string) error {
 		fmt.Printf("endpoint: %s %s (node %s)\n", link.Kind, link.Addr, link.Node)
 	}
 
-	if err := provision(e, fx, *quiet); err != nil {
+	if err := regression.Provision(e, fx); err != nil {
 		return err
+	}
+	if !*quiet {
+		fmt.Printf("provisioned %d nodes\n", e.FirmwareCount())
 	}
 	sends := fx.Sends
 	if len(sends) == 0 {
@@ -108,9 +112,9 @@ func runTest(ctx context.Context, args []string) error {
 		// loudest of them over 29% duty cycle, which fails a compliance
 		// assertion for a reason that is an artefact of the harness rather
 		// than a property of the network.
-		sends = advertSchedule(fx, 30000)
+		sends = regression.AdvertSchedule(fx, 30000)
 	}
-	if err := runSends(ctx, e, sends, uint32(*forMs), *quiet); err != nil {
+	if err := regression.RunSends(ctx, e, sends, uint32(*forMs)); err != nil {
 		return err
 	}
 
@@ -130,22 +134,6 @@ func runTest(ctx context.Context, args []string) error {
 	return nil
 }
 
-// radioOf takes the radio settings from the fixture's own nodes rather than
-// from flags. A fixture built on the EU narrow preset and run at a default
-// SF10/250 kHz is a different network wearing the same node list.
-func radioOf(fx *fixture.Fixture) (sf int, bwHz, freqMHz float64) {
-	freqMHz = fx.FreqMHz
-	for _, n := range fx.Nodes {
-		if n.Radio.SpreadFactor > 0 && n.Radio.BandwidthHz > 0 {
-			if freqMHz == 0 {
-				freqMHz = n.Radio.CentreHz / 1e6
-			}
-			return n.Radio.SpreadFactor, n.Radio.BandwidthHz, freqMHz
-		}
-	}
-	return 10, 250e3, freqMHz
-}
-
 // serveEndpoint hands one node's companion protocol to a real client, so an
 // application developer can point their app at a whole simulated mesh.
 func serveEndpoint(e *engine.Engine, spec string) (*engine.CompanionLink, error) {
@@ -163,120 +151,6 @@ func serveEndpoint(e *engine.Engine, spec string) (*engine.CompanionLink, error)
 		return e.ServeCompanionSerial(node)
 	}
 	return nil, fmt.Errorf("endpoint %q: kind must be tcp or serial", kind)
-}
-
-// provision tells each node what it is before the run starts.
-//
-// A node that boots unprovisioned advertises the firmware's built-in name, has
-// no position, believes the time is zero, and holds no regions - so it neither
-// relays scoped traffic nor gives anybody a reason to send it any. The first
-// version of this command skipped it and reported zero deliveries on a healthy
-// mesh, which reads as a broken simulator and is a missing step.
-//
-// The region half comes from internal/fixture, the same function the workbench
-// uses, because that is the part with a trap in it. The rest is deliberately
-// the plain subset: a headless gate does not need the operator's provisioning
-// preferences, it needs the fixture to behave as its author saw it behave.
-func provision(e *engine.Engine, fx *fixture.Fixture, quiet bool) error {
-	// One clock for the whole mesh, from the fixture rather than the wall,
-	// because MeshCore judges freshness by timestamps and a run has to be
-	// reproducible. A fixed epoch: 1 January 2026.
-	const epoch = 1767225600
-	lines := 0
-	for _, spec := range fx.Nodes {
-		n, ok := e.NodeByName(spec.Name)
-		if !ok || n.Firmware == nil {
-			continue
-		}
-		cmds := []string{
-			"set name " + spec.Name,
-			fmt.Sprintf("time %d", epoch),
-		}
-		if spec.Kind.Transmits() {
-			cmds = append(cmds,
-				fmt.Sprintf("set lat %.6f", spec.Position.Lat),
-				fmt.Sprintf("set lon %.6f", spec.Position.Lon))
-		}
-		cmds = append(cmds, fixture.RegionCommands(spec)...)
-		for _, c := range cmds {
-			if err := n.Firmware.Bridge.Type([]byte(c + "\r\n")); err != nil {
-				return fmt.Errorf("provisioning %s: %w", spec.Name, err)
-			}
-			lines++
-		}
-	}
-	if !quiet {
-		fmt.Printf("provisioned %d nodes with %d lines\n", e.FirmwareCount(), lines)
-	}
-	return nil
-}
-
-// runSends plays the fixture's traffic schedule and then lets the run finish.
-func runSends(ctx context.Context, e *engine.Engine, sends []fixture.Send, forMs uint32, quiet bool) error {
-	type pending struct {
-		fixture.Send
-		next uint32
-	}
-	var queue []pending
-	for _, s := range sends {
-		queue = append(queue, pending{s, s.AtMs})
-	}
-	for {
-		now := e.NowMs()
-		if now >= forMs {
-			return nil
-		}
-		// The next thing due, or the end of the run - whichever comes first.
-		until := forMs
-		for i := range queue {
-			if queue[i].next > now && queue[i].next < until {
-				until = queue[i].next
-			}
-		}
-		for i := range queue {
-			q := &queue[i]
-			if q.next > now || q.Command == "" {
-				continue
-			}
-			n, ok := e.NodeByName(q.Node)
-			if !ok || n.Firmware == nil {
-				return fmt.Errorf("send at %d ms: %s runs no firmware", q.AtMs, q.Node)
-			}
-			if err := n.Firmware.Bridge.Type([]byte(q.Command + "\r\n")); err != nil {
-				return err
-			}
-			if !quiet {
-				fmt.Printf("  %6.1f s  %s: %s\n", float64(now)/1000, q.Node, q.Command)
-			}
-			if q.EveryMs > 0 {
-				q.next = now + q.EveryMs
-			} else {
-				q.next = forMs + 1
-			}
-		}
-		if err := e.Run(ctx, until); err != nil {
-			return err
-		}
-		if until == forMs {
-			return nil
-		}
-	}
-}
-
-// advertSchedule spreads one advert per transmitting node across a window.
-func advertSchedule(fx *fixture.Fixture, windowMs uint32) []fixture.Send {
-	var tx []string
-	for _, n := range fx.Nodes {
-		if n.Kind.Transmits() {
-			tx = append(tx, n.Name)
-		}
-	}
-	out := make([]fixture.Send, 0, len(tx))
-	for i, name := range tx {
-		out = append(out, fixture.Send{
-			Node: name, AtMs: uint32(i) * windowMs / uint32(len(tx)), Command: "advert"})
-	}
-	return out
 }
 
 func report(results []engine.Result, quiet bool) int {

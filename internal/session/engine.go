@@ -117,6 +117,9 @@ type Sim struct {
 	// geometry fingerprint - a fingerprint says two networks agree, not what
 	// either one is called.
 	fixturePath string
+	// regRunning is a regression directory run in flight, so a second one
+	// cannot start into the middle of the first.
+	regRunning bool
 }
 
 // terrainStore is the elevation the engine sees.

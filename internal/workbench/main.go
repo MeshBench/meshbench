@@ -582,6 +582,8 @@ func Run(args []string) {
 		Draw: withControls(feedCtl.Draw, feed.Draw)})
 	sh.Add(&shell.Panel{Name: "Validate", Windowable: true,
 		Draw: withControls(validCtl.Draw, (&validatePanel{}).Draw)})
+	regr := &regressionsPanel{do: do}
+	sh.Add(&shell.Panel{Name: "Regressions", Windowable: true, Draw: regr.Draw})
 	imp := &importPanel{}
 	imp.OnFetch = func(url string) {
 		go func() { _, _ = st.Do(ctx, "import.describe", url) }()
