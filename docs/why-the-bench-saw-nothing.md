@@ -220,9 +220,22 @@ what each one turned up is noted against it.
    is now recorded in `docs/shortcomings.md` §3.4 rather than implied away: that
    board is nRF52 and needs Renode, so the fault it is named for cannot be
    studied here at all, and no shipping fixture contains a node with a front end.
-5. **Sweep `RxBoostedGainImprovementDB`** and quote the effect as a function of
-   it. Partly answered by step 2's bands, which sidestep the constant entirely
-   for the sensitivity question; still wanted for anything that scales by it.
+5. **Quote the effect as a function of `RxBoostedGainImprovementDB`.** *Done, by
+   measurement rather than by sweeping it.* Step 2's bands report the share of a
+   run's decodes at risk at 1, 2, 3, 6 and 10 dB, so the constant does not have
+   to be believed to read the answer. On Scotland, measured:
+
+   | if the receiver loses | decodes at risk |
+   |---|---|
+   | 1 dB | 5.9 % |
+   | 2 dB | 12.4 % |
+   | 3 dB | 19.3 % |
+   | 6 dB | 36 % |
+   | 10 dB | 57 % |
+
+   About six per cent of decodes per decibel through the range that matters. A
+   sweep of the constant would have cost four times the runs to say the same
+   thing less precisely.
 6. **Port wb1's `investigate` checks**, of which step 1 is the most valuable
    made mandatory.
 

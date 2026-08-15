@@ -261,6 +261,24 @@ A hard failure ends the whole sweep rather than skipping the cell.
 workbench2 has no run queue view: the snapshot carries only arm summaries, so
 the GUI cannot draw per-run rows even though `experiment.results` returns them.
 
+## Where this got to
+
+Done: the two live faults, the nine-field arm and a `vary` that crosses,
+`set:<any firmware setting>`, deltas against a baseline with cost-aware colour,
+the spread-against-between warning and a verdict, `perSecond` and the timeline
+small multiples, the run queue with per-cell state, sender scope, and a bench
+that drives the visible simulation so the clock and map move while it runs.
+
+Still missing, and none of it changes a measurement:
+
+- **Channel by name.** The send is still `SendChannelText(0, ...)`; wb1 resolved
+  the name against the companion's channel list and added the channel first.
+  It has not bitten because the fixtures' senders sit on channel 0 anyway.
+- **Per-sender scope.** wb1 set it per send, so different senders could carry
+  different scopes; this sets one for the run.
+- **Observer node** — absent here, and unread in wb1 too.
+- **Pause and resume** between cells, and a scenario picker in the panel.
+
 ## Suggested order
 
 1. **The two live faults** — assign `Collided`, and make `runArm` provision
