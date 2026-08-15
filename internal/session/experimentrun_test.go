@@ -121,3 +121,19 @@ func TestTheNoiseFloorIsMeasurable(t *testing.T) {
 			"distinguished from this", spread)
 	}
 }
+
+// A region is spelled two ways and both are right: the repeater CLI takes the
+// bare name, the key on the wire is derived from the "#" form. Sending under
+// the bare name matches no repeater, and nothing reports an error at either end.
+func TestAScopeIsCanonicalisedBeforeItsKeyIsDerived(t *testing.T) {
+	for _, in := range []string{"sco", "#sco", "  sco  ", " #sco"} {
+		if got := canonicalScope(in); got != "#sco" {
+			t.Errorf("canonicalScope(%q) = %q, want %q", in, got, "#sco")
+		}
+	}
+	// Empty stays empty: no scope asked for means send unscoped, which is a
+	// choice, and is not the same as sending under "#".
+	if got := canonicalScope("  "); got != "" {
+		t.Errorf("canonicalScope(blank) = %q, want empty", got)
+	}
+}

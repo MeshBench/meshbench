@@ -44,6 +44,12 @@ type Node struct {
 	// standing in for having been powered on earlier than the others.
 	BootOffsetMs uint32
 
+	// The board's own figures, kept because Spec's are overwritten with the
+	// effective ones as the firmware reports how it has configured its radio.
+	// Without a baseline to compute from, every tick would apply the same
+	// correction again to the previous tick's answer.
+	baseTxPowerDBm, baseNoiseFigDB float64
+
 	// Sent and Heard are counters for the scoreboard.
 	Sent           int
 	Heard          int
@@ -153,6 +159,11 @@ type Engine struct {
 	// capture, when a run is being recorded to pcapng.
 	capture *Capture
 
+	// sens counts how close each reception ran to the demodulator's floor, so a
+	// study of receiver sensitivity has something to read that aggregate
+	// delivery counts do not destroy.
+	sens sensitivity
+
 	// StaggerBoot spreads node start times. On by default: started together,
 	// nodes share a timer phase and their adverts collide for ever.
 	StaggerBoot bool
@@ -212,7 +223,12 @@ func New(t coverage.Terrain, c Config) *Engine {
 func (e *Engine) Add(spec scenario.Node, fw *firmware.Node) *Node {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	n := &Node{Spec: spec, Firmware: fw}
+	n := &Node{
+		Spec:           spec,
+		Firmware:       fw,
+		baseTxPowerDBm: spec.TxPowerDBm,
+		baseNoiseFigDB: spec.NoiseFigureDB,
+	}
 	e.nodes = append(e.nodes, n)
 	// Terrain has not changed, but the set of pairs has.
 	e.linkCache = map[[2]int]float64{}
@@ -435,7 +451,7 @@ func (e *Engine) deliver(t transmission, concurrent []transmission) error {
 		if dst.Spec.Kind != scenario.SDRObserver && !txPHY.sameChannel(rxPHY) {
 			continue
 		}
-		noiseDBm := dsp.NoiseFloorDBm(txPHY.bandwidthHz, e.Config.NoiseFigDB)
+		noiseDBm := dsp.NoiseFloorDBm(txPHY.bandwidthHz, e.noiseFigOf(dst.Spec))
 		// The emitter fleet's contribution, through the same terrain. This is
 		// the per-receiver floor: a node beside a paging mast lives on a
 		// different noise floor from one on a quiet hill.
@@ -536,6 +552,11 @@ func (e *Engine) deliver(t transmission, concurrent []transmission) error {
 				Detail: "its own transmitter was keyed; LoRa is half duplex"})
 		case effective < required:
 			rec.Outcome = capture.NotDemodulated
+			// How near it came. Interference is included deliberately: a packet
+			// lost to a stronger neighbour is not one a better receiver saves,
+			// and counting it as nearly-decoded would overstate what sensitivity
+			// buys on exactly the crowded mesh where the question is asked.
+			e.sens.note(effective-required, false)
 			why := fmt.Sprintf("SNR %.1f dB against %.1f dB needed at SF%d", effective, required, e.Config.SF)
 			if !math.IsInf(interferenceDBm, -1) && snr >= required {
 				why = fmt.Sprintf("would have decoded at %.1f dB, lost to a stronger interferer", snr)
@@ -546,6 +567,7 @@ func (e *Engine) deliver(t transmission, concurrent []transmission) error {
 		default:
 			rec.Demod, rec.CRCOK, rec.FirmwareSaw = true, true, true
 			rec.Outcome = capture.Accepted
+			e.sens.note(effective-required, true)
 			dst.Heard++
 
 			// Unique against redundant. A repeater can be busy, legal, and
@@ -668,13 +690,19 @@ func (e *Engine) runFirmware(ctx context.Context, now uint32) error {
 			return fmt.Errorf("engine: %s: %w", n.Spec.Name, err)
 		}
 	}
-	for _, n := range nodes {
+	for i, n := range nodes {
 		if n.Firmware == nil {
 			continue
 		}
 		if err := n.Firmware.Bridge.WaitAdvance(ctx, now+n.BootOffsetMs); err != nil {
 			return fmt.Errorf("engine: %s: %w", n.Spec.Name, err)
 		}
+		// The radio reports how the firmware has configured it in the same
+		// message that acknowledges the tick, so this is where a gain or
+		// transmit-power change becomes the engine's: after the node that made
+		// the change has finished making it, and before the next tick's channel
+		// decisions are computed against it.
+		e.ApplyRadioState(i, n.Firmware.Bridge.Stats())
 	}
 	return nil
 }
@@ -815,7 +843,11 @@ func (e *Engine) pathLoss(a, b int) (float64, bool) {
 	fspl := terrain.FSPLdB(distKm, e.phyOf(from).freqMHz)
 	bestTx := math.Max(from.TxPowerDBm, to.TxPowerDBm)
 	bestRx := bestTx + gain(from) + gain(to) - fspl
-	noise := dsp.NoiseFloorDBm(e.phyOf(from).bandwidthHz, e.Config.NoiseFigDB)
+	// The quieter of the two receivers. This is a cull, so the question is
+	// whether *either* end could hear the other: taking the worse figure would
+	// discard a pair the better receiver can close.
+	noise := dsp.NoiseFloorDBm(e.phyOf(from).bandwidthHz,
+		math.Min(e.noiseFigOf(from), e.noiseFigOf(to)))
 	if bestRx < noise-30 {
 		e.mu.Lock()
 		e.linkCache[k] = fspl // an underestimate, and irrelevant below the floor
@@ -1135,6 +1167,21 @@ func (a phy) sameChannel(b phy) bool {
 		a.bandwidthHz == b.bandwidthHz && a.sf == b.sf
 }
 
+// noiseFigOf resolves a node's receive noise figure, falling back to the
+// scenario's default for nodes imported without one.
+//
+// Per node rather than per run because a repeater with a masthead preamp and a
+// handheld in a pocket do not have the same one. scenario.Node has carried the
+// field since import and the engine simply never read it, so every node in
+// every result so far has been given the run-wide figure regardless of what its
+// board profile said.
+func (e *Engine) noiseFigOf(n scenario.Node) float64 {
+	if n.NoiseFigureDB > 0 {
+		return n.NoiseFigureDB
+	}
+	return e.Config.NoiseFigDB
+}
+
 // phyOf resolves a node's radio, falling back to the scenario's defaults for
 // nodes imported without one.
 func (e *Engine) phyOf(n scenario.Node) phy {
@@ -1271,7 +1318,7 @@ func (e *Engine) channelBusy(now uint32) []bool {
 				continue
 			}
 			rxDBm := src.Spec.TxPowerDBm + gain(src.Spec) - loss + gain(dst.Spec)
-			noiseDBm := dsp.NoiseFloorDBm(txPHY.bandwidthHz, e.Config.NoiseFigDB)
+			noiseDBm := dsp.NoiseFloorDBm(txPHY.bandwidthHz, e.noiseFigOf(dst.Spec))
 			if rxDBm-noiseDBm >= requiredSNRdB(txPHY.sf) {
 				busy[i] = true
 				break
