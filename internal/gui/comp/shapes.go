@@ -130,3 +130,14 @@ func hsv(h, s, v float64) color.NRGBA {
 	}
 	return color.NRGBA{R: uint8(r * 255), G: uint8(g * 255), B: uint8(b * 255), A: 255}
 }
+
+// Segment and Dot are the same primitives for callers outside this package.
+//
+// Exported rather than reimplemented next door: the packet graph draws the
+// same two shapes the map does, and a second copy of the cheap-quad trick
+// above would drift from this one the first time either is touched.
+func Segment(p *clip.Path, a, b f32.Point, width float32) { segment(p, a, b, width) }
+
+// Disc is a filled circle of radius r about c. Not Dot, which is already a
+// chip's status marker.
+func Disc(p *clip.Path, c f32.Point, r float32) { dot(p, c, r) }

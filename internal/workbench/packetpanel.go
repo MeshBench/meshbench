@@ -19,6 +19,14 @@ import (
 
 var packetTabs = []string{"Dissection", "Journey", "Reception ledger", "Where it went"}
 
+// packetOpenOnTab is which tab a freshly built Packet panel shows, set by
+// -packet-tab.
+//
+// The same reason the node window has one: a tab that can only be reached by
+// clicking is a tab no screenshot can capture and no script can drive, and the
+// propagation graph lives on the second of these.
+var packetOpenOnTab int
+
 type packetPanel struct {
 	tabs    [4]widget.Clickable
 	tab     int
@@ -30,12 +38,17 @@ type packetPanel struct {
 	ascii   bool
 	hexBtn  comp.Chip
 	ascBtn  comp.Chip
-	copyBtn comp.Button
-	prev    comp.Button
-	next    comp.Button
-	close   comp.Button
-	built   bool
-	do      Do
+	// graphBtn folds the propagation picture away. Docked in a third of a
+	// window there is not room for both it and the table, and which one you
+	// want depends on whether you are asking "what shape" or "what exactly".
+	graphBtn comp.Chip
+	noGraph  bool
+	copyBtn  comp.Button
+	prev     comp.Button
+	next     comp.Button
+	close    comp.Button
+	built    bool
+	do       Do
 }
 
 func (p *packetPanel) build() {
@@ -51,6 +64,9 @@ func (p *packetPanel) build() {
 	p.close.Label, p.close.Kind = "close", comp.Primary
 	p.whyBtns = map[string]*widget.Clickable{}
 	p.scroll.Axis, p.jList.Axis, p.lList.Axis = layout.Vertical, layout.Vertical, layout.Vertical
+	if packetOpenOnTab > 0 && packetOpenOnTab < len(packetTabs) {
+		p.tab = packetOpenOnTab
+	}
 	p.built = true
 }
 
@@ -85,6 +101,9 @@ func (p *packetPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 	}
 	if p.copyBtn.Click.Clicked(gtx) {
 		copyText(gtx, packetText(pk))
+	}
+	if p.graphBtn.Click.Clicked(gtx) {
+		p.noGraph = !p.noGraph
 	}
 	if p.hexBtn.Click.Clicked(gtx) {
 		p.ascii = false
@@ -354,6 +373,7 @@ func (p *packetPanel) journey(t *theme.Theme, gtx layout.Context, pk *state.Pack
 			return d
 		})
 	}
+	g := buildHopGraph(pk.Origin, pk.Journey)
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return comp.CellGrid(t, gtx, 220, []layout.Widget{
@@ -362,6 +382,30 @@ func (p *packetPanel) journey(t *theme.Theme, gtx layout.Context, pk *state.Pack
 				statBox(t, "missed", fmt.Sprintf("%d", pk.Missed),
 					"decode failures across every relay"),
 			})
+		}),
+		// The propagation, drawn. Above the table rather than instead of it:
+		// the picture answers what shape, the rows answer what exactly, and
+		// somebody chasing a packet wants both within one glance.
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Top: t.Sp.S}.Layout(gtx,
+				func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return p.graphBtn.Layout(t, gtx, "graph", "",
+								!p.noGraph, t.P.Accent)
+						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return layout.Inset{Left: t.Sp.S}.Layout(gtx,
+								comp.Text(t, t.Sz.Caption, t.P.Faint, graphCaption(g)))
+						}),
+					)
+				})
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if p.noGraph || len(g.Nodes) == 0 {
+				return layout.Dimensions{}
+			}
+			return drawHopGraph(t, gtx, g)
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: t.Sp.S, Bottom: t.Sp.XS}.Layout(gtx,
