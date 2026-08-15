@@ -59,6 +59,13 @@ type Provisioning struct {
 	PathHashMode int    `json:"path_hash_mode"`
 	LoopDetect   string `json:"loop_detect"`
 	CadMode      string `json:"cad"`
+
+	// CompPathHashMode is the companion's own, which is a different question
+	// from the repeaters'. What a message carries is stamped by whoever
+	// originated it and honoured at every hop; a repeater's setting only
+	// affects the adverts it originates. A study usually varies this one and
+	// holds the other. Negative leaves it to PathHashMode.
+	CompPathHashMode int `json:"comp_path_hash_mode"`
 	// Extra is whatever this particular study needs, sent after the rest.
 	Extra string `json:"extra"`
 }
@@ -73,8 +80,9 @@ func DefaultProvisioning() Provisioning {
 		// 32 against the firmware's default of 8, matching the old
 		// workbench: the cost is airtime on adverts, which are small and
 		// infrequent; the alternative is unroutable nodes on national runs.
-		FloodMaxAdvert: 32,
-		PathHashMode:   -1,
+		FloodMaxAdvert:   32,
+		PathHashMode:     -1,
+		CompPathHashMode: -1,
 	}
 }
 
@@ -110,6 +118,9 @@ func registerProvisioningSettings(st *state.Store, s *Sim) {
 		}
 		if v, ok := numField(p, "path_hash_mode"); ok {
 			pr.PathHashMode = int(v)
+		}
+		if v, ok := numField(p, "comp_path_hash_mode"); ok {
+			pr.CompPathHashMode = int(v)
 		}
 		if v, ok := stringField(p, "loop_detect"); ok {
 			pr.LoopDetect = v
@@ -169,7 +180,17 @@ func (p Provisioning) describe() map[string]any {
 		"advert_minutes":   p.AdvertMinutes,
 		"flood_max_advert": p.FloodMaxAdvert, "path_hash_mode": p.PathHashMode,
 		"loop_detect": p.LoopDetect, "cad": p.CadMode,
+		"comp_path_hash_mode": p.CompPathHashMode,
 	}
+}
+
+// pathHashFor is the path-hash mode this node should be told, which is not the
+// same question for a companion as for a repeater. Negative means say nothing.
+func (p Provisioning) pathHashFor(n scenario.Node) int {
+	if n.Kind == scenario.Companion && p.CompPathHashMode >= 0 {
+		return p.CompPathHashMode
+	}
+	return p.PathHashMode
 }
 
 // commandsFor is what these settings send to one node, before its regions.
@@ -186,8 +207,8 @@ func (p Provisioning) commandsFor(n scenario.Node) []string {
 		// firmware half a UTF-8 sequence.
 		out = append(out, "set name "+truncateRunes(n.Name, maxNodeNameRunes))
 	}
-	if p.PathHashMode >= 0 {
-		out = append(out, fmt.Sprintf("set path.hash.mode %d", p.PathHashMode))
+	if mode := p.pathHashFor(n); mode >= 0 {
+		out = append(out, fmt.Sprintf("set path.hash.mode %d", mode))
 	}
 	if p.LoopDetect != "" && n.Kind.Transmits() {
 		out = append(out, "set loop.detect "+p.LoopDetect)

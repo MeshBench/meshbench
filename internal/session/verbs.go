@@ -94,14 +94,20 @@ func Register(st *state.Store, s *Sim) {
 		}
 		w.Tick = func(uint32) {
 			w.FirmwareRunning, w.FirmwareStarting = s.firmwareCount(), s.starting.Load()
-			_ = s.eng.Step(context.Background())
+			// A sweep cell paces its own engine against wall time and counts on
+			// that pacing. Stepping it again here would not make the run
+			// faster - it would make its airtime accounting wrong - so while a
+			// cell owns the clock this only reads.
+			if !s.benchOwnsTheClock() {
+				_ = s.eng.Step(context.Background())
+			}
 			// A rebuild anywhere leaves the matrix cold; this is the one
 			// place every run passes through, so it is where the warm is
 			// made certain rather than remembered at nine call sites.
 			if s.cold && len(s.nodes) >= 10 {
 				s.warm(st, len(s.nodes))
 			}
-			w.NowMs = s.eng.NowMs()
+			w.NowMs = s.liveEngine().NowMs()
 			// Every open console gets the clock before the step that will
 			// produce the lines it stamps.
 			for _, buf := range s.consoles {

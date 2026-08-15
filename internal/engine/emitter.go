@@ -93,7 +93,7 @@ func (e *Engine) FloorAt(name string) (thermalDBm, withEmittersDBm float64, ok b
 		return 0, 0, false
 	}
 	spec := e.nodeSpec(idx)
-	thermal := dsp.NoiseFloorDBm(e.phyOf(spec).bandwidthHz, e.Config.NoiseFigDB)
+	thermal := dsp.NoiseFloorDBm(e.phyOf(spec).bandwidthHz, e.noiseFigOf(spec))
 	extra := e.emitterNoiseAt(idx)
 	if math.IsInf(extra, -1) {
 		return thermal, thermal, true
