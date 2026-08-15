@@ -47,7 +47,7 @@ type control struct {
 // find the ones nobody remembered to name: a list written by hand is a list of
 // the controls somebody was already thinking about.
 func controlsOf(v reflect.Value, prefix string, out *[]control) {
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		if v.IsNil() {
 			return
 		}
@@ -186,7 +186,7 @@ func boxesOf(ctrl any) []*comp.Field {
 	var walk func(v reflect.Value)
 	fieldT := reflect.TypeOf(comp.Field{})
 	walk = func(v reflect.Value) {
-		if v.Kind() == reflect.Ptr {
+		if v.Kind() == reflect.Pointer {
 			if v.IsNil() {
 				return
 			}
@@ -290,7 +290,17 @@ func auditTargets(r *recorder) []target {
 	plan := &planningControls{do: r.do}
 	bench := &benchControls{do: r.do}
 	feed := &feedControls{do: r.do}
-	sweep := &sweepControls{do: r.do}
+	// A dropdown's job is to open the chooser, so the audit has to answer one:
+	// without it these three press and reach nothing, which is true of every
+	// dropdown and not a fault in any of them.
+	sweep := &sweepControls{do: r.do,
+		choose: func(_ string, opts []string, pick func(string)) {
+			if len(opts) > 0 {
+				pick(opts[0])
+			}
+		},
+		askText: func(_, _, _ string, got func(string)) { got("rxdelay.base") },
+	}
 	sweepRes := &sweepResults{do: r.do}
 	prov := &provisioningControls{do: r.do}
 
@@ -360,7 +370,11 @@ func auditTargets(r *recorder) []target {
 		{"Planning", plan, plan.Draw, nil, nil, nil, nil},
 		{"Companion bench", bench, bench.Draw, nil, nil, nil, nil},
 		{"Live feed", feed, feed.Draw, nil, nil, nil, nil},
-		{"Sweep", sweep, sweep.Draw, nil, nil, nil, nil},
+		{"Sweep", sweep, sweep.Draw, nil, nil, nil, map[string]string{
+			// Choosing what to vary is not an action; "add arms" is the one
+			// that crosses it, and it is audited.
+			"varyDD.Btn": "picks the parameter; add arms is what applies it",
+		}},
 		{"Sweep results", sweepRes, sweepRes.Draw, nil, nil, nil, nil},
 		{"Provisioning", prov, prov.Draw, nil, nil, nil, nil},
 		// The flat layout, so every section's controls are on screen at once;
