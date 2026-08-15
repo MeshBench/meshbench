@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -45,6 +46,11 @@ type ExpArm struct {
 	// scenario's own positions are used unchanged, exactly as every arm
 	// before this one worked.
 	NeighbourDensity float64 `json:"neighbour_density,omitempty"`
+	// Policy, when set, overrides every transmitting node's forwarding
+	// configuration for this arm alone (plan §9/14) - nil leaves each
+	// node's own fixture-provisioned regions and flood settings alone,
+	// exactly as every arm before this one worked.
+	Policy *FloodPolicy `json:"policy,omitempty"`
 }
 
 // ExpResult is one arm at one seed.
@@ -70,6 +76,17 @@ type ExpResult struct {
 	// the wall clock, so this is what "run 4 more seeds, about 6 minutes"
 	// estimates from, not a share of the simulated run length.
 	WallMs float64 `json:"wall_ms"`
+	// Isolation is this arm's own policy's containment claim, checked
+	// against what actually happened (plan §14): "" when the arm carries no
+	// policy or the policy makes no containment claim, "clean" when nothing
+	// outside the allowed regions ever received the message, and
+	// "leaked to <regions>" otherwise - a named result, not a count.
+	Isolation string `json:"isolation,omitempty"`
+	// PolicyErr is set when a policy's own commandsFor could not be
+	// confirmed by reading it back off a node - the precondition discipline
+	// plan §14 names as its own central risk: a policy that silently failed
+	// to apply must not be allowed to look like a clean result.
+	PolicyErr string `json:"policy_err,omitempty"`
 }
 
 // experiment is the matrix and what has come back from it.
@@ -196,6 +213,56 @@ func registerExperiment(st *state.Store, s *Sim) {
 			e.Arms = append(e.Arms, arm)
 		}
 		stampExperimentID(w, s, e)
+		return e.describe(), nil
+	})
+
+	// experiment.set_policy: a flood policy on every current arm - "like
+	// path hash mode today" (plan §14), an override every arm carries and
+	// the label says which, not a fourth thing experiment.vary produces
+	// values for. Call after arms already exist (experiment.vary or
+	// experiment.define), or there is nothing to carry it.
+	st.Handle("experiment.set_policy", func(w *state.World, p any) (any, error) {
+		e := s.experiment()
+		if len(e.Arms) == 0 {
+			return nil, fmt.Errorf("experiment.set_policy needs arms already defined")
+		}
+		policy := FloodPolicy{}
+		if v, ok := stringField(p, "label"); ok {
+			policy.Label = v
+		}
+		if m, ok := p.(map[string]any); ok {
+			if xs, ok := m["allow_regions"].([]any); ok {
+				for _, x := range xs {
+					if v, ok := x.(string); ok {
+						policy.AllowRegions = append(policy.AllowRegions, v)
+					}
+				}
+			}
+			if xs, ok := m["deny_regions"].([]any); ok {
+				for _, x := range xs {
+					if v, ok := x.(string); ok {
+						policy.DenyRegions = append(policy.DenyRegions, v)
+					}
+				}
+			}
+		}
+		if v, ok := numField(p, "max_hops"); ok {
+			policy.MaxHops = int(v)
+		}
+		if v, ok := boolField(p, "drop_flood_adverts"); ok {
+			policy.DropFloodAdverts = v
+		}
+		if v, ok := boolField(p, "one_byte_path_ids"); ok {
+			policy.OneBytePathIDs = v
+		}
+		for i := range e.Arms {
+			e.Arms[i].Policy = &policy
+			if policy.Label != "" {
+				e.Arms[i].Label = policy.Label + ": " + e.Arms[i].Label
+			}
+		}
+		stampExperimentID(w, s, e)
+		w.Say(fmt.Sprintf("policy set on %d arm(s)", len(e.Arms)))
 		return e.describe(), nil
 	})
 
@@ -424,6 +491,7 @@ func registerExperiment(st *state.Store, s *Sim) {
 				RXSpread:  m["rx_spread"].(float64),
 				RXLo:      st.RXLo, RXHi: st.RXHi, HasCI: st.HasInterval,
 				DeltaPct: st.DeltaPct, HasDelta: st.HasDelta, Verdict: st.Verdict,
+				Isolation:          m["isolation"].(string),
 				PayloadAirtimeMs:   m["payload_airtime_ms"].(float64),
 				OverheadAirtimeMs:  m["overhead_airtime_ms"].(float64),
 				RedundantAirtimeMs: m["redundant_airtime_ms"].(float64),
@@ -577,7 +645,25 @@ func (e *experiment) summarise() []map[string]any {
 			"rx_spread":          spreadOf(rs),
 			"payload_airtime_ms": payAir / n, "overhead_airtime_ms": ovhAir / n,
 			"redundant_airtime_ms": redAir / n,
+			"isolation":            isolationOf(rs),
 		})
+	}
+	return out
+}
+
+// isolationOf is the worst of an arm's own runs: any leak reported at all
+// beats "clean", which beats "" (no run in this arm carried a policy that
+// made a containment claim) - the same "never soften the bad one" reasoning
+// the three-way regression verdict already follows.
+func isolationOf(rs []ExpResult) string {
+	out := ""
+	for _, r := range rs {
+		switch {
+		case strings.HasPrefix(r.Isolation, "leaked"):
+			return r.Isolation
+		case r.Isolation == "clean" && out == "":
+			out = "clean"
+		}
 	}
 	return out
 }

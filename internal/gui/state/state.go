@@ -446,6 +446,11 @@ type ArmSummary struct {
 	PayloadAirtimeMs   float64
 	OverheadAirtimeMs  float64
 	RedundantAirtimeMs float64
+	// Isolation is this arm's own policy's containment claim (plan §14):
+	// "" when no run in the arm carries a policy that makes one, "clean"
+	// when every run's did, and the leak reasons joined otherwise - the
+	// worst of the arm's own runs, never softened into a count.
+	Isolation string
 }
 
 // ExperimentIdentity is what the sweep's ID is a hash of, shown so an

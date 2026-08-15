@@ -610,19 +610,26 @@ func (c *feedControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 
 // sweepControls defines an A/B experiment: arms, seeds, sender, timing.
 type sweepControls struct {
-	bar      actionBar
-	versions comp.Field
-	density  comp.Field
-	seeds    comp.Field
-	sender   comp.Field
-	runFor   comp.Field
-	define   comp.Button
-	start    comp.Button
-	stop     comp.Button
-	export   comp.Button
-	copyID   comp.Button
-	do       Do
-	built    bool
+	bar         actionBar
+	versions    comp.Field
+	density     comp.Field
+	seeds       comp.Field
+	sender      comp.Field
+	runFor      comp.Field
+	define      comp.Button
+	start       comp.Button
+	stop        comp.Button
+	export      comp.Button
+	copyID      comp.Button
+	policyLabel comp.Field
+	allowRegion comp.Field
+	denyRegion  comp.Field
+	maxHops     comp.Field
+	dropAdverts comp.Check
+	oneByteIDs  comp.Check
+	setPolicy   comp.Button
+	do          Do
+	built       bool
 }
 
 func (c *sweepControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
@@ -640,6 +647,17 @@ func (c *sweepControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 		c.stop.Label, c.stop.Kind = "stop", comp.Destructive
 		c.export.Label, c.export.Kind = "export", comp.Quiet
 		c.copyID.Label, c.copyID.Kind = "copy id", comp.Quiet
+		c.policyLabel.Hint = "policy label"
+		c.allowRegion.Hint = "allow region (blank/* = any)"
+		c.denyRegion.Hint = "deny region (e.g. *)"
+		c.maxHops.Hint = "max hops"
+		c.dropAdverts.Label = "drop flood adverts"
+		c.oneByteIDs.Label = "1-byte path IDs"
+		for _, f := range []*comp.Field{&c.versions, &c.density, &c.seeds, &c.sender, &c.runFor,
+			&c.policyLabel, &c.allowRegion, &c.denyRegion, &c.maxHops} {
+			f.Editor.SingleLine = true
+		}
+		c.setPolicy.Label, c.setPolicy.Kind = "set policy on every arm", comp.Secondary
 		c.bar.fields = []*comp.Field{&c.versions, &c.density, &c.seeds}
 		c.bar.buttons = []*comp.Button{&c.define, &c.start, &c.stop, &c.export}
 		c.bar.note = "a message is originated by a companion, so the sender has to be " +
@@ -716,13 +734,39 @@ func (c *sweepControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 			c.do("ui.said", "experiment ID copied: "+id)
 		}
 	}
+	if c.setPolicy.Click.Clicked(gtx) && c.do != nil {
+		p := map[string]any{"label": fieldText(&c.policyLabel)}
+		if r := fieldText(&c.allowRegion); r != "" {
+			p["allow_regions"] = []any{r}
+		}
+		if r := fieldText(&c.denyRegion); r != "" {
+			p["deny_regions"] = []any{r}
+		}
+		if v, ok := num(&c.maxHops); ok {
+			p["max_hops"] = v
+		}
+		p["drop_flood_adverts"] = c.dropAdverts.Bool.Value
+		p["one_byte_path_ids"] = c.oneByteIDs.Bool.Value
+		c.do("experiment.set_policy", p)
+	}
 	second := actionBar{
 		fields:  []*comp.Field{&c.sender, &c.runFor},
 		buttons: nil,
 	}
+	third := actionBar{
+		fields: []*comp.Field{&c.policyLabel, &c.allowRegion, &c.denyRegion, &c.maxHops},
+		extras: []func(*theme.Theme, layout.Context) layout.Dimensions{
+			func(t *theme.Theme, gtx layout.Context) layout.Dimensions { return c.dropAdverts.Layout(t, gtx) },
+			func(t *theme.Theme, gtx layout.Context) layout.Dimensions { return c.oneByteIDs.Layout(t, gtx) },
+		},
+		buttons: []*comp.Button{&c.setPolicy},
+		note: "applied to every current arm, after the fixture's own provisioning - " +
+			"define the arms first, then set a policy on them",
+	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return c.bar.layout(t, gtx) }),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return second.layout(t, gtx) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return third.layout(t, gtx) }),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return c.identity(t, gtx, s) }),
 	)
 }
@@ -807,6 +851,7 @@ func (p *sweepResults) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 			{Title: "redundant s", Width: 100, Right: true, Mono: true, Sortable: true},
 			{Title: "95% ci", Width: 170, Mono: true},
 			{Title: "vs baseline", Width: 150},
+			{Title: "isolation", Width: 160, Sortable: true},
 		}
 		p.tb.SortCol, p.tb.SortDesc = 2, true
 		p.narrow.Label, p.narrow.Kind = "narrow it", comp.Secondary
@@ -849,7 +894,7 @@ func (p *sweepResults) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 					fmt.Sprintf("%.1f", a.PayloadAirtimeMs/1000),
 					fmt.Sprintf("%.1f", a.OverheadAirtimeMs/1000),
 					fmt.Sprintf("%.1f", a.RedundantAirtimeMs/1000),
-					ci, vs,
+					ci, vs, isolationText(a.Isolation),
 				},
 				Tint: verdictTint(t, a),
 			})
@@ -897,6 +942,15 @@ func (p *sweepResults) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 			return p.tb.Layout(t, gtx, func(string) {})
 		}),
 	)
+}
+
+// isolationText is the empty-string case spelled out: an arm carrying no
+// policy is not "clean", it never made a claim to check.
+func isolationText(s string) string {
+	if s == "" {
+		return "no policy"
+	}
+	return s
 }
 
 // verdictTint colours the row swatch: green for significant, amber for a

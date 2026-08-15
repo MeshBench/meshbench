@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"time"
 
@@ -202,6 +203,19 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 		return out
 	}
 
+	// The arm's own flood policy, applied after the fixture's own
+	// provisioning so it overrides rather than competes with it, then read
+	// back off every node it was sent to - plan §14's own named risk is a
+	// policy that silently failed to apply looking like a clean result, so
+	// nothing here is trusted on the strength of having been sent.
+	if arm.Policy != nil {
+		if err := applyFloodPolicy(ctx, eng, nodes, *arm.Policy); err != "" {
+			out.PolicyErr = err
+			out.Err = "policy: " + err
+			return out
+		}
+	}
+
 	// Advert every node before the flood.
 	//
 	// Two reasons, and the second is why every seed of an arm returned
@@ -300,6 +314,18 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 	// long more seeds actually take to run, and firmware paced to real time is
 	// real time, not the run's own clock.
 	out.WallMs = float64(time.Since(began).Milliseconds())
+
+	if arm.Policy != nil && len(arm.Policy.AllowRegions) > 0 {
+		regionsOf := map[string][]string{}
+		for _, n := range nodes {
+			regionsOf[n.Name] = n.Regions
+		}
+		if clean, leaked := checkIsolation(eng.Events(), regionsOf, arm.Policy.AllowRegions); clean {
+			out.Isolation = "clean"
+		} else {
+			out.Isolation = "leaked to " + strings.Join(leaked, ", ")
+		}
+	}
 	return out
 }
 
