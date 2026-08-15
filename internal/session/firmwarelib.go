@@ -299,11 +299,6 @@ func registerFirmwareLibrary(st *state.Store, s *Sim) {
 	})
 }
 
-// downloadBuild fetches one build into the cache.
-func downloadBuild(ctx context.Context, role, version, board string) error {
-	return downloadBuildProgress(ctx, role, version, board, nil)
-}
-
 func downloadBuildProgress(ctx context.Context, role, version, board string,
 	onProgress func(done, total int64),
 ) error {
