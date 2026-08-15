@@ -30,7 +30,7 @@ func TestLookupToolFindsRenodeInItsVersionedDirectory(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Skipf("cannot write beside the test binary: %v", err)
 	}
-	t.Cleanup(func() { os.RemoveAll(dir) })
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	bin := filepath.Join(dir, name)
 	if err := os.WriteFile(bin, []byte("#!/bin/sh\n"), 0o755); err != nil {
 		t.Fatal(err)
