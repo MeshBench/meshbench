@@ -50,10 +50,15 @@ type EmulatedNode struct {
 	// Wiring is where the radio sits on this board. Wrong values do not fail
 	// loudly - they produce a driver that reports no chip, which reads as a
 	// broken emulator.
-	Machine  string
-	SPI      int
-	NSS      int
-	Busy     int
+	Machine string
+	SPI     int
+	NSS     int
+	Busy    int
+
+	// FEM is the GPIO the firmware drives as the front-end module's transmit
+	// enable, or zero on a board with no module. Zero is safe as "none": GPIO 0
+	// is a strapping pin on these parts and no board routes a module to it.
+	FEM      int
 	FlashMB  int
 	NodeName string
 
@@ -195,7 +200,8 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	if err := os.MkdirAll(e.Dir, 0o755); err != nil {
 		return err
 	}
-	// A TCP port on Windows, a Unix socket everywhere else.
+	// A Unix socket for QEMU on Linux and macOS; a TCP port for Renode
+	// anywhere, and for either emulator on Windows.
 	//
 	// Renode has always used a port: it runs on Mono, whose Unix domain
 	// socket support is not worth betting a node on. QEMU used a socket file,
@@ -261,6 +267,12 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	}
 	machine := fmt.Sprintf("%s,radio-path=%s,radio-spi=%d,radio-nss=%d,radio-busy=%d",
 		e.Machine, radioAt, e.SPI, e.NSS, e.Busy)
+	// Only when the board has one. Left off, the machine leaves the line
+	// unwired, which is what a board with no module should look like - as
+	// opposed to one whose module is permanently switched off.
+	if e.FEM != 0 {
+		machine += fmt.Sprintf(",radio-fem=%d", e.FEM)
+	}
 
 	qemuLog, err := os.Create(filepath.Join(e.Dir, "console.log"))
 	if err != nil {
@@ -336,13 +348,38 @@ func lookupTool(env, name string) (string, error) {
 		}
 		return "", fmt.Errorf("firmware: %s points at %s, which is not there", env, p)
 	}
+	// The names a tool might be found under in a directory. Windows names its
+	// executables, and a zip cannot carry the symlink the Linux tarball and
+	// the macOS bundle use - so the emulator's own unpacked layout is
+	// searched too, rather than requiring a link nobody could ship.
+	candidates := []string{name}
+	if runtime.GOOS == "windows" {
+		candidates = append(candidates, name+".exe")
+	}
+	subdirs := []string{"", "qemu/bin", "qemu-meshbench/bin"}
 	if self, err := os.Executable(); err == nil {
-		if p := filepath.Join(filepath.Dir(self), name); fileExists(p) {
-			return p, nil
+		dir := filepath.Dir(self)
+		// Renode unpacks into a directory carrying its version, so the name
+		// changes with every release and cannot be listed above. Globbing for
+		// the shape is what the Linux tarball's symlink step already does;
+		// this is the same rule on the side that has to find it.
+		if matches, err := filepath.Glob(filepath.Join(dir, "renode*-portable")); err == nil {
+			for _, m := range matches {
+				subdirs = append(subdirs, filepath.Base(m))
+			}
+		}
+		for _, sub := range subdirs {
+			for _, cand := range candidates {
+				if p := filepath.Join(dir, sub, cand); fileExists(p) {
+					return p, nil
+				}
+			}
 		}
 	}
-	if p := filepath.Join(ToolsDir(), name); fileExists(p) {
-		return p, nil
+	for _, cand := range candidates {
+		if p := filepath.Join(ToolsDir(), cand); fileExists(p) {
+			return p, nil
+		}
 	}
 	if p, err := exec.LookPath(name); err == nil {
 		return p, nil

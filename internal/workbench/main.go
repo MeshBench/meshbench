@@ -75,7 +75,8 @@ func Run(args []string) {
 	packetTabFlag := flag.Int("packet-tab", 0,
 		"which tab the packet window opens on: 0 dissection, 1 journey "+
 			"(the propagation graph), 2 reception ledger, 3 where it went")
-	nodeTabFlag := flag.Int("node-tab", 0, "which tab a node window opens on: 0 console, 1 companion, 2 settings, 3 stats, 4 activity, 5 connect")
+	nodeTabFlag := flag.Int("node-tab", 0, "which tab a node window opens on: "+
+		"0 console, 1 companion, 2 settings, 3 radio, 4 stats, 5 activity, 6 connect")
 	coverFlag := flag.String("coverage", "",
 		"compute and show coverage from this node at startup")
 	energyFlag := flag.Bool("energy", false, "run the site study for the selected node at startup")
@@ -112,6 +113,12 @@ func Run(args []string) {
 	go func() {
 		_, _ = st.Do(ctx, "terrain.cache", nil)
 		_, _ = st.Do(ctx, "gpu.state", nil)
+		// What firmware is on this machine, before anything asks to choose
+		// from it. The library was filled only by opening the Firmware panel,
+		// so the Bench offered an empty list of arms and said the machine held
+		// no repeater builds while holding several - a listing of one
+		// directory, deferred far past the point it was needed.
+		_, _ = st.Do(ctx, "firmware.installed", nil)
 	}()
 
 	// Opened on a worker, not here. Building the engine for a national
@@ -205,6 +212,15 @@ func Run(args []string) {
 			})
 		}
 	}
+	// askerIn is the same, for a value that has to be typed because no list
+	// could hold it - a firmware setting this build has never heard of.
+	askerIn := func(panel string) func(string, string, string, func(string)) {
+		return func(title, hint, initial string, got func(string)) {
+			wins.promptFor(panel, &sh.Ask).Post(func(ask *shell.Prompt) {
+				ask.Open(title, hint, initial, got)
+			})
+		}
+	}
 	// chooser keeps the old shape for panels that never pop out.
 	chooser := chooserIn("")
 	fleetCtl := &fleetControls{do: do, choose: chooserIn("Fleet")}
@@ -215,7 +231,8 @@ func Run(args []string) {
 	planCtl := &planningControls{do: do}
 	benchCtl := &benchControls{do: do}
 	feedCtl := &feedControls{do: do}
-	sweepCtl := &sweepControls{do: do}
+	sweepCtl := &sweepControls{do: do,
+		choose: chooserIn("Sweep"), askText: askerIn("Sweep")}
 	provCtl := &provisioningControls{do: do}
 	// openPacket dissects a clicked transmission and puts the packet view in
 	// its own window, which is where wb1 kept it.
@@ -761,8 +778,14 @@ func Run(args []string) {
 	runs := &runsPanel{}
 	sh.Add(&shell.Panel{Name: "Firmware", Windowable: true, Draw: fw.Draw})
 	sh.Add(&shell.Panel{Name: "Runs", Windowable: true, Draw: runs.Draw})
-	sh.Add(&shell.Panel{Name: "Sweep", Windowable: true,
-		Draw: withControls(sweepCtl.Draw, (&sweepResults{}).Draw)})
+	// Controls and results are two panels, not one.
+	//
+	// Together in a 340dp rail they made each other useless: the fields were
+	// too narrow to read a version string in, and the table underneath got
+	// whatever was left, which was nothing. The Bench view puts the controls in
+	// a fixed column and gives the table the middle.
+	sh.Add(&shell.Panel{Name: "Sweep", Windowable: true, Draw: sweepCtl.Draw})
+	sh.Add(&shell.Panel{Name: "Results", Windowable: true, Draw: (&sweepResults{}).Draw})
 	switch *viewFlag {
 	case "run":
 		sh.View = shell.Run
