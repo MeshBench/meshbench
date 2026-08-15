@@ -47,7 +47,7 @@ type control struct {
 // find the ones nobody remembered to name: a list written by hand is a list of
 // the controls somebody was already thinking about.
 func controlsOf(v reflect.Value, prefix string, out *[]control) {
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		if v.IsNil() {
 			return
 		}
@@ -186,7 +186,7 @@ func boxesOf(ctrl any) []*comp.Field {
 	var walk func(v reflect.Value)
 	fieldT := reflect.TypeOf(comp.Field{})
 	walk = func(v reflect.Value) {
-		if v.Kind() == reflect.Ptr {
+		if v.Kind() == reflect.Pointer {
 			if v.IsNil() {
 				return
 			}

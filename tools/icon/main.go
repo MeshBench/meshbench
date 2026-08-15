@@ -32,7 +32,6 @@ var (
 	ground = color.NRGBA{0x0d, 0x11, 0x13, 0xff} // Palette.Ground
 	accent = color.NRGBA{0x4a, 0xc4, 0xa8, 0xff} // Palette.Accent
 	dim    = color.NRGBA{0x4a, 0xc4, 0xa8, 0x66} // a link that barely holds
-	faint  = color.NRGBA{0xff, 0xff, 0xff, 0x1e} // the ring around the talker
 )
 
 // Geometry in a 0..1 square, so one description serves every size.
