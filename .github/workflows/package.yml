@@ -126,6 +126,28 @@ jobs:
           for f in *.tar.gz *.tar.xz; do [ -e "$f" ] || continue; tar xf "$f" && rm "$f"; done
           ls -la
 
+      - name: The radio model
+        # Every emulated node looks this up *before* either emulator, so a
+        # bundle without it ships a QEMU and a Renode that nothing can drive.
+        # 0.0.1 through 0.0.3 shipped exactly that: two emulators, no radio,
+        # and a README claiming emulated boards worked.
+        #
+        # Fetched as a release asset, the same as the emulators - radioserver-v1
+        # is meshcore-native#4 built once and published, not rebuilt from source
+        # in every job that needs it. Fatal rather than a warning, for the same
+        # reason the Mac's emulator fetch is: a bundle that cannot emulate is a
+        # broken artifact, and the way this stayed hidden was a green build.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          gh release download radioserver-v1 --repo MeshBench/meshcore-native \
+            --pattern 'radioserver-linux-amd64' --dir dist/meshbench --clobber \
+            || { echo "::error::no radioserver-v1 release for meshcore-native"; exit 1; }
+          mv dist/meshbench/radioserver-linux-amd64 dist/meshbench/radioserver
+          chmod +x dist/meshbench/radioserver
+          dist/meshbench/radioserver 2>&1 | head -1 || true
+
       - name: Fonts and fixtures
         run: |
           set -e
@@ -185,6 +207,11 @@ jobs:
           qemu-system-xtensa is a symlink on purpose. QEMU resolves its own path
           to find its data files, so a bare copy of the binary will not run.
 
+          radioserver is the SX1262 model the emulated firmware clocks over a
+          socket. It is the same chip object a native node uses in process, so
+          an emulated node and a native one are the same radio. Both emulators
+          need it; neither works without it.
+
           Native MeshCore builds and board images are downloaded on first use and
           cached under ~/.cache/meshcoresim. Nothing else is needed.
 
@@ -242,7 +269,12 @@ jobs:
           APP=dist/AppDir
           mkdir -p $APP/usr/bin $APP/usr/share/applications \
                    $APP/usr/share/metainfo $APP/usr/share/meshbench
-          cp dist/meshbench/meshbench $APP/usr/bin/
+          # radioserver too: it is 40 KB, and without it an installed
+          # MeshBench cannot emulate even when the user supplies their own
+          # QEMU. The emulators themselves stay out of the AppImage and the
+          # .deb on size grounds - 110 MB against 26 - so those two are the
+          # application, and the tarball is the batteries-included download.
+          cp dist/meshbench/meshbench dist/meshbench/radioserver $APP/usr/bin/
           cp -r dist/meshbench/fixtures dist/meshbench/fonts \
                 dist/meshbench/LICENCES $APP/usr/share/meshbench/
           cp packaging/meshbench.desktop $APP/usr/share/applications/
@@ -279,7 +311,7 @@ jobs:
             mkdir -p $d
             cp packaging/icons/meshbench-${px}.png $d/io.github.meshbench.meshbench.png
           done
-          cp $APP/usr/bin/meshbench $DEB/usr/bin/
+          cp $APP/usr/bin/meshbench $APP/usr/bin/radioserver $DEB/usr/bin/
           cp -r $APP/usr/share/meshbench/* $DEB/usr/share/meshbench/
           cp packaging/meshbench.desktop $DEB/usr/share/applications/
           cp packaging/io.github.meshbench.meshbench.metainfo.xml $DEB/usr/share/metainfo/
@@ -381,6 +413,19 @@ jobs:
             echo "fetching $url"
             curl -fsSL -O "$url"
           }
+          # meshcore-native's "latest" is whichever per-role MeshCore version
+          # was published most recently, which is not this. radioserver-v1
+          # is a fixed tag of its own, so it is fetched by tag rather than by
+          # riding a /latest that moves out from under it within a day.
+          fetchTag() {
+            url=$(curl -fsSL "https://api.github.com/repos/$1/releases/tags/$2" \
+              | python3 -c "import sys,json,fnmatch; r=json.load(sys.stdin); print(next((a['browser_download_url'] for a in r['assets'] if fnmatch.fnmatch(a['name'], '$3')), ''))")
+            if [ -z "$url" ]; then
+              echo "::error::no asset matching $3 in $1's $2 release"; exit 1
+            fi
+            echo "fetching $url"
+            curl -fsSL -O "$url"
+          }
           APP=dist/macos/MeshBench.app
           mkdir -p "$APP/Contents/Resources/emulators"
           cd "$APP/Contents/Resources/emulators"
@@ -394,6 +439,11 @@ jobs:
             ln -sf ../Resources/emulators/qemu/bin/qemu-system-xtensa "$APP/Contents/MacOS/qemu-system-xtensa"
           [ -f "$APP/Contents/Resources/emulators/Release/osx-arm64/Renode" ] && \
             ln -sf ../Resources/emulators/Release/osx-arm64/Renode "$APP/Contents/MacOS/renode"
+          # The radio model. A real file rather than a link: it is 40 KB and
+          # resolves nothing from its own path.
+          (cd "$APP/Contents/MacOS" && fetchTag MeshBench/meshcore-native radioserver-v1 radioserver-darwin-arm64)
+          mv "$APP/Contents/MacOS/radioserver-darwin-arm64" "$APP/Contents/MacOS/radioserver"
+          chmod +x "$APP/Contents/MacOS/radioserver"
           # Signing has to happen again: the bundle was signed before these
           # arrived, and adding files to a signed bundle invalidates it.
           codesign --force --deep --sign - "$APP"
@@ -485,6 +535,17 @@ jobs:
           for f in *.zip; do [ -e "$f" ] || continue; unzip -q "$f" && rm "$f"; done
           ls -la
           cd ../..
+
+          # The radio model. It takes the TCP transport - the simulator asks
+          # for ":0" on Windows for both emulators, because Windows has no
+          # Unix socket mingw can reach.
+          cd dist/meshbench
+          gh release download radioserver-v1 --repo MeshBench/meshcore-native \
+            --pattern 'radioserver-windows-amd64.exe' --dir . --clobber \
+            || { echo "::error::no radioserver-v1 release for meshcore-native"; exit 1; }
+          mv radioserver-windows-amd64.exe radioserver.exe
+          cd ../..
+          file dist/meshbench/radioserver.exe
           cat > dist/meshbench/README.txt <<'TXT'
           MeshBench for Windows
 
@@ -493,10 +554,17 @@ jobs:
           says which build this is.
 
           Native MeshCore firmware is downloaded on first use and cached.
-          The QEMU and Renode emulators are in this zip, so emulated ESP32
-          and nRF52 boards work out of the box. They are MeshBench builds,
-          not upstream ones - ours carry an SX1262 device and a SEVONPEND
-          fix that published firmware needs.
+
+          The QEMU and Renode emulators are in this zip, with radioserver.exe,
+          the SX1262 model they both clock over a socket. All three are found
+          automatically. The emulators are MeshBench builds and not upstream
+          ones - ours carry an SX1262 device and a SEVONPEND fix that
+          published firmware needs.
+
+          Emulated boards on Windows are newer than the rest of this bundle
+          and have had less time on real hardware than the Linux and macOS
+          ones. If a board will not start, meshbench.exe workbench run from a
+          terminal prints what it could not find.
 
           Licences are in LICENCES\, and in the application under
           Help > Licences & attributions.

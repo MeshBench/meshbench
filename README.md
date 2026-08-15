@@ -34,8 +34,10 @@ sudo apt install ./meshbench_*_amd64.deb
 meshbench workbench          # or find MeshBench in the applications menu
 ```
 
-**Tarball** — the same application plus the QEMU and Renode emulators, for
-emulating real board firmware offline:
+**Tarball** — the same application plus the QEMU and Renode emulators and the
+radio model they clock, for emulating real board firmware offline. The
+AppImage and the `.deb` carry the radio model but not the emulators, which are
+110 MB of the tarball's size:
 
 ```bash
 tar xzf meshbench-linux-x86_64.tar.gz
@@ -80,8 +82,10 @@ Unzip `meshbench-*-windows-x86_64.zip` anywhere and run `meshbench.exe`.
 Windows SmartScreen will warn about an unrecognised publisher for the same
 reason macOS does — the binary is unsigned. Click **More info → Run anyway**.
 
-Emulated ESP32 and nRF52 boards work on Windows, but the emulators are not in
-the zip yet; native firmware, the channel, terrain and planning all are.
+The zip carries the QEMU and Renode emulators and the radio model, so emulated
+ESP32 and nRF52 boards need nothing else installed. That path is newer on
+Windows than on Linux and macOS: if a board will not start, run
+`meshbench.exe workbench` from a terminal and it prints what it could not find.
 
 ### What arrives later, over the network
 
@@ -230,11 +234,15 @@ at all.
 
 ### Setting one up today
 
-Until this is packaged, an emulated node needs binaries that are not on any
-distribution: a QEMU carrying our SX1262 device for the ESP32 boards, a Renode
-carrying the SEVONPEND fix for the nRF52 ones, and the radio model both talk to.
-Put them where the application looks and nothing else is needed — no environment
-variables, no flags.
+**From a release you do not have to do any of this.** The tarball, the dmg and
+the Windows zip carry all three binaries beside the application, where it looks
+for them first.
+
+Building from source is the case below. An emulated node needs binaries that
+are on no distribution: a QEMU carrying our SX1262 device for the ESP32 boards,
+a Renode carrying the SEVONPEND fix for the nRF52 ones, and the radio model
+both talk to. Put them where the application looks and nothing else is needed —
+no environment variables, no flags.
 
 ```bash
 mkdir -p ~/.cache/meshcoresim/tools
@@ -250,7 +258,8 @@ same tools directory.
 
 A symlink is right for QEMU: it finds its own data files by resolving its real
 path, so a bare copy of the binary will not run. `radioserver` builds from
-`meshcore-native` against `VirtualSX1262.cpp` with no other dependencies.
+`meshcore-native` with `./build.sh radioserver out` — it wants neither a
+MeshCore checkout nor Crypto, only the chip model beside it.
 
 Then open the firmware library, download a board image, and set a node's role to
 it. The library only offers boards with verified wiring, so anything it lists

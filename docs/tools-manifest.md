@@ -63,19 +63,28 @@ them dates the installer.
 
 ## What a released bundle ships
 
-Linux only for now, by decision: mac and Windows are skipped matrix rows with
-reasons in the file, not absences.
+All three platforms, as of the packaging work: a Linux tarball, an arm64 dmg
+and a Windows zip.
 
     meshbench                     the application
     qemu-system-xtensa            beside it, or symlinked
+    renode                        beside it, or symlinked
     radioserver                   beside it
 
 A **symlink** is correct for QEMU and wrong for a copy: it resolves its own path
-to find its data files, so a bare copy of the binary will not run.
+to find its data files, so a bare copy of the binary will not run. The Windows
+zip cannot carry a symlink at all, so nothing is linked there and `lookupTool`
+searches the emulators' own unpacked layouts — `qemu/bin/` and the versioned
+`renode_*-portable/` — instead.
 
-Renode is not bundled yet. It is a 60 MB portable package with its own runtime,
-needed only for the nRF52 boards, and the decision on whether that belongs in
-the default download is open.
+**radioserver is the one every emulated node needs**, ESP32 or nRF52, and it is
+looked up before either emulator. Nothing built it until `build.sh` grew a
+`radioserver` target, which is how 0.0.1 through 0.0.3 shipped both emulators
+and no radio.
+
+The AppImage and the `.deb` carry the application and radioserver but not the
+emulators: those are 110 MB against a 26 MB AppImage, and the tarball is the
+batteries-included download for people who want them.
 
 ## What is checked, and when
 

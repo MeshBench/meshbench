@@ -195,7 +195,8 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	if err := os.MkdirAll(e.Dir, 0o755); err != nil {
 		return err
 	}
-	// A TCP port on Windows, a Unix socket everywhere else.
+	// A Unix socket for QEMU on Linux and macOS; a TCP port for Renode
+	// anywhere, and for either emulator on Windows.
 	//
 	// Renode has always used a port: it runs on Mono, whose Unix domain
 	// socket support is not worth betting a node on. QEMU used a socket file,
@@ -347,6 +348,15 @@ func lookupTool(env, name string) (string, error) {
 	subdirs := []string{"", "qemu/bin", "qemu-meshbench/bin"}
 	if self, err := os.Executable(); err == nil {
 		dir := filepath.Dir(self)
+		// Renode unpacks into a directory carrying its version, so the name
+		// changes with every release and cannot be listed above. Globbing for
+		// the shape is what the Linux tarball's symlink step already does;
+		// this is the same rule on the side that has to find it.
+		if matches, err := filepath.Glob(filepath.Join(dir, "renode*-portable")); err == nil {
+			for _, m := range matches {
+				subdirs = append(subdirs, filepath.Base(m))
+			}
+		}
 		for _, sub := range subdirs {
 			for _, cand := range candidates {
 				if p := filepath.Join(dir, sub, cand); fileExists(p) {
