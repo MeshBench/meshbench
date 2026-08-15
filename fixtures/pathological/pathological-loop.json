@@ -1,0 +1,9 @@
+{
+  "format_version": 1,
+  "name": "pathological-loop",
+  "fixture": "fixture-pathological-loop",
+  "seeds": [
+    4003
+  ],
+  "for_ms": 150000
+}

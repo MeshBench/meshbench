@@ -1,0 +1,9 @@
+{
+  "format_version": 1,
+  "name": "pathological-spider",
+  "fixture": "fixture-pathological-spider",
+  "seeds": [
+    4001
+  ],
+  "for_ms": 150000
+}

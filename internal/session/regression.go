@@ -187,6 +187,31 @@ func registerRegression(st *state.Store, s *Sim) {
 		return map[string]any{"running": true, "dir": dir, "total": total}, nil
 	})
 
+	// regression.run_pathological: plan §10's own bundled suite - six shipped
+	// network shapes, always available regardless of what a real install's
+	// working directory happens to be, because the cases are built in Go
+	// against embedded fixtures rather than read off a directory of *.json
+	// files. Reuses the same job and "regression.finished" plumbing as
+	// run_dir, so the panel's own table and pass/flag/fail tinting need no
+	// separate path for it.
+	st.Handle("regression.run_pathological", func(w *state.World, p any) (any, error) {
+		if s.regRunning {
+			return nil, fmt.Errorf("regressions are already running")
+		}
+		cases := regression.PathologicalCases()
+		s.regRunning = true
+		w.Jobs = append(w.Jobs, state.Job{ID: "regressions", What: "running the pathological suite", Total: len(cases)})
+		w.RegressionsDir = "pathological suite (bundled)"
+		ctx := context.Background()
+		terr := s.terrain()
+		go func() {
+			results, errs := regression.RunCases(ctx, terr, cases, "")
+			_, _ = st.Do(context.Background(), "regression.finished",
+				map[string]any{"results": results, "errs": errs})
+		}()
+		return map[string]any{"running": true, "total": len(cases)}, nil
+	})
+
 	st.Handle("regression.finished", func(w *state.World, p any) (any, error) {
 		s.regRunning = false
 		w.Jobs = finishJob(w.Jobs, "regressions")

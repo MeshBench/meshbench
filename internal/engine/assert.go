@@ -54,7 +54,20 @@ func (a Assertion) String() string {
 	case AssertReceives:
 		return fmt.Sprintf("%s receives within %.1f s", a.Node, float64(a.WithinMs)/1000)
 	case AssertDelivered:
-		return fmt.Sprintf("at least %d unique deliveries", a.AtLeast)
+		who := "unique deliveries"
+		if a.Node != "" {
+			who = a.Node + "'s unique deliveries"
+		}
+		// AtLeast unset (zero) picks the AtMost reading, because "at most 0" -
+		// a containment bound, "nothing got out" - is a real claim a leakage
+		// check needs to make, and would otherwise be indistinguishable from
+		// AtMost never having been set at all. "at least 0" is never a claim
+		// worth writing down: it holds trivially, so nothing is lost by
+		// reading a zero AtLeast as "the AtMost field is the one that counts."
+		if a.AtLeast == 0 {
+			return fmt.Sprintf("at most %d %s", a.AtMost, who)
+		}
+		return fmt.Sprintf("at least %d %s", a.AtLeast, who)
 	case AssertDutyBelow:
 		return fmt.Sprintf("no node above %.2f%% duty cycle", a.MaxPct)
 	case AssertRelaysAtMost:
@@ -93,10 +106,25 @@ func (e *Engine) checkOne(a Assertion, events []Event, board []Score) Result {
 	case AssertDelivered:
 		total := 0
 		for _, s := range board {
-			total += s.UniqueDelivery
+			// An empty Node sums the whole board, same as before Node was
+			// consulted here; a named one scopes the claim to that node alone -
+			// the shape a leakage check needs ("did region B get anything at
+			// all"), which AssertReceives already gets for free but this kind
+			// did not.
+			if a.Node == "" || s.Name == a.Node {
+				total += s.UniqueDelivery
+			}
+		}
+		// See String() above for why a zero AtLeast, not a positive AtMost,
+		// is the signal that this assertion means a containment claim rather
+		// than a reachability one - AtMost's own zero value is one this kind
+		// legitimately needs to express.
+		if a.AtLeast == 0 {
+			return Result{a, total <= a.AtMost,
+				fmt.Sprintf("%s: %d unique deliveries, wanted at most %d", nameOrAny(a.Node), total, a.AtMost)}
 		}
 		return Result{a, total >= a.AtLeast,
-			fmt.Sprintf("%d unique deliveries, wanted at least %d", total, a.AtLeast)}
+			fmt.Sprintf("%s: %d unique deliveries, wanted at least %d", nameOrAny(a.Node), total, a.AtLeast)}
 
 	case AssertDutyBelow:
 		worst, who := 0.0, ""

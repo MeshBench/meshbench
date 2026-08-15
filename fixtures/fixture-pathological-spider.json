@@ -1,0 +1,1667 @@
+{
+  "name": "pathological-spider",
+  "saved": "2026-08-15T00:00:00Z",
+  "nodes": [
+    {
+      "Name": "Hub",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "d87c9ca31f373cc5ce5d1d8efc602ef809fefbb9cafd79961260d31ccfd493630",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.0,
+        "Lon": -1.0
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf01",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "7fd37dd52d47f140c3bb723fc8666efc4cf211740428eb9a8afbfcffeacceed50",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.40424002874596,
+        "Lon": -1.0
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf02",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "84b261125e1f3fd21963d1c32b72230bfe35399591431a168e4fbb0e55ef74910",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.39926316319423,
+        "Lon": -0.883891773120932
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf03",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "b03774a1503d4aed53ecb38b4d7c389fd7d49f1a67cfea17fc542c6169cda0bb0",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.38445511348618,
+        "Lon": -0.7706425161287391
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf04",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "b9a51a9354adfa4cbccba9158a7644d54b4cb63ccdc12528ccd5db8782b2ad230",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.36018050295074,
+        "Lon": -0.6630408015833046
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf05",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "d77af205238e9b4bec39208630741b19b3542db6b238b376c2cef7e5a9d4e6a60",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.3270370530621,
+        "Lon": -0.5637361408063535
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf06",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "07010b495a0b33071a31585f8bf5df061d4f4b5876f29d64bcd918be299b367c0",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.28584086555331,
+        "Lon": -0.47517374411948843
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf07",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "1a03e7b8ac9032630f9f47ba06236d8d4a2f3fb46a2945439aebbf538db964d90",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.23760632728316,
+        "Lon": -0.39953431165088316
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf08",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "5e593e74fa3cc1e158d990e7bc493b1112ebc39abc6b15058add5fbc20791c2a0",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.183521132665106,
+        "Lon": -0.33868033726079905
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf09",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "504e0ded97b15ead1c0bb33b8fc7329472d7e60e1785c08d1edcc2ced0a273690",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.12491703868912,
+        "Lon": -0.29411024776148176
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf10",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "4b1a906a0b2f7c9911587183d7b075cd9bdf7dab9c6ca67188a53a9269ad8ce10",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.063237072644725,
+        "Lon": -0.26692150667605075
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf11",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "b84a47efca6c43b40fbe90f6f5c72ff7561a6239a0931962e01e2634b68199680",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.0,
+        "Lon": -0.25778359104428816
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf12",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "47a5221e50c791c40272601e98e4df1ed0a04e467a91c9ccb86f1f14935f82480",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 56.936762927355275,
+        "Lon": -0.26692150667605075
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf13",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "e9d0fdbd59dfe0a65354946a981aef6bfa36c4d02d9052ae1d6a79b96662c8ef0",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 56.87508296131088,
+        "Lon": -0.29411024776148165
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf14",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "2b68813ee310f78c0f38a4fcaedf775ddcb3e9a014a6b99628cdc2efaf77cdbe0",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 56.816478867334894,
+        "Lon": -0.33868033726079894
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf15",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "335d10ef6198f9b7ca640a8ccbbd4f48bfc60567cdf19d3b2f7691bfc5cbf50b0",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 56.76239367271684,
+        "Lon": -0.39953431165088316
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf16",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "304c86306accdf6e0f37cd964d2dbe1dc9368d8c4f71af3903dec3f43b8b61c60",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 56.71415913444669,
+        "Lon": -0.4751737441194883
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf17",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "3329b7b04a03342892a7663b21c5ea35f513e62ca63f13826102d4e21f7f8dfc0",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 56.6729629469379,
+        "Lon": -0.5637361408063534
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf18",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "56f1da1020c1a2eedac38a15d508059c4592c8b712683dba9795f32091b86beb0",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 56.63981949704926,
+        "Lon": -0.6630408015833045
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf19",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "2563e1f91d35db2e0eb92a73a291cd2acfa4fbfa0560e1ab2947bd5fe375a5c20",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 56.61554488651382,
+        "Lon": -0.770642516128739
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf20",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "41b34aa6f2dbd5466fd74018f454aa037416e400f032efc29e9275754e0492380",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 56.60073683680577,
+        "Lon": -0.8838917731209319
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf21",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "984117c9e61658b8ce0312673fe397d534762c08dbe0df20bd3eb4c839b92ae30",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 56.59575997125404,
+        "Lon": -0.9999999999999999
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf22",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "bb21a0c283b87e96da44ff754b4a33b352b6536a5e5123cf2442ae5dc85fc5900",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 56.60073683680577,
+        "Lon": -1.1161082268790679
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf23",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "802d09bba6a6d78bbe67713346719daf3b1b01c9373ed36517c60ce656f7e2c70",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 56.61554488651382,
+        "Lon": -1.2293574838712609
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf24",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "7897090a2bb9cde0ffa36dbb316636fae636dc4e53304a67096fb50421dfe66d0",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 56.63981949704926,
+        "Lon": -1.3369591984166953
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf25",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "76b57023ecbbadb60d0955254485181423b577213b6ca171f2bf540581c04ea80",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 56.6729629469379,
+        "Lon": -1.4362638591936465
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf26",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "b4ebfa8927c3c87a582c123b6267204c58229dea543b88e385f04cb0771d94b00",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 56.71415913444669,
+        "Lon": -1.5248262558805115
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf27",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "ffa86337b75d06d1df51087f0f08ab7b450036dc86db7795533cef9af96907160",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 56.76239367271684,
+        "Lon": -1.6004656883491166
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf28",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "3fe421163472cb854d86c0b6463c7db9870c65034c266463132e4ccddb95c3290",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 56.816478867334894,
+        "Lon": -1.661319662739201
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf29",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "18a524f948c089d696ae00087b0271fae63938c44ae2d0f48dd660dbb8664afb0",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 56.87508296131088,
+        "Lon": -1.7058897522385181
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf30",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "f00b112399c615d542dc8a677ca00dda4b16a8e896477f79f789a7c448e1264a0",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 56.936762927355275,
+        "Lon": -1.7330784933239491
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf31",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "b5c205d76e2ad48b6a32baaf4aa875b91f831d77cc76cbe0686032988a131f5f0",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.0,
+        "Lon": -1.742216408955712
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf32",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "e8d195fa27ff148a6e7e672d4e19ab00c2751a01fd80584b9db1160f2b2673940",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.063237072644725,
+        "Lon": -1.7330784933239491
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf33",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "f83049b4bee71f75515453568a5278f82b89fbc1c87203023138c28b861851120",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.12491703868912,
+        "Lon": -1.7058897522385184
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf34",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "b62af6446c8b4b61f19a6de076f0c773dd732d3d924d85c4cd2521dfb2b3044f0",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.183521132665106,
+        "Lon": -1.661319662739201
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf35",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "1ac87ec31aec38cd89ee416ef991846b1aef73d3df7191416e460d630b740e750",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.23760632728316,
+        "Lon": -1.600465688349117
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf36",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "2c0626040d38801bde09bab1fb6f3503c6d5e5695102c06500467144fa73e7af0",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.28584086555331,
+        "Lon": -1.524826255880512
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf37",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "e5e6f4e1a74f046ac71540cccabc26571e7e95e0bf8df8b5073c4565f9b7d9680",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.3270370530621,
+        "Lon": -1.4362638591936467
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf38",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "bc4f44bf6feab3b1252579842a7869652c3ebaf4e6a5740334ae3d4b35723c5a0",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.36018050295074,
+        "Lon": -1.3369591984166955
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf39",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "2235043e93622fbec1992d58f7d814b4d1b099f158f5acf982a23a647993061e0",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.38445511348618,
+        "Lon": -1.229357483871261
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Leaf40",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "e84b23635d6722635cba19b17d7309cb0d6a3c5f9d2473dc775831ced2217b650",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.39926316319423,
+        "Lon": -1.116108226879068
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    }
+  ],
+  "seed": 4001,
+  "freq_mhz": 869.618,
+  "areas": [],
+  "margin_km": 0,
+  "sends": [
+    {
+      "node": "Hub",
+      "at_ms": 3000,
+      "every_ms": 0,
+      "command": "advert"
+    }
+  ],
+  "assertions": [
+    {
+      "kind": "delivered",
+      "at_least": 40
+    }
+  ],
+  "lat": 57.0,
+  "lon": -1.0,
+  "metres_per_pixel": 30
+}

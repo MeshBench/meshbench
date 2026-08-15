@@ -1,0 +1,217 @@
+{
+  "name": "pathological-loop",
+  "saved": "2026-08-15T00:00:00Z",
+  "nodes": [
+    {
+      "Name": "A",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd0",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.29644268774704,
+        "Lon": -1.5442920332341887
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "B",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "df7e70e5021544f4834bbee64a9e3789febc4be81470df629cad6ddb03320a5c0",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.29644268774704,
+        "Lon": -0.45570796676581127
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "C",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "6b23c0d5f35d1b11f9b683f0b0a617355deb11277d91ae091d399c655b87940d0",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 56.70355731225296,
+        "Lon": -0.45570796676581127
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "D",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "3f39d5c348e5b79d06e842c114e6cc571583bbf44e4b0ebfda1a01ec05745d430",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 56.70355731225296,
+        "Lon": -1.5442920332341887
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    }
+  ],
+  "seed": 4003,
+  "freq_mhz": 869.618,
+  "areas": [],
+  "margin_km": 0,
+  "sends": [
+    {
+      "node": "A",
+      "at_ms": 3000,
+      "every_ms": 0,
+      "command": "advert"
+    },
+    {
+      "node": "A",
+      "at_ms": 11000,
+      "every_ms": 0,
+      "command": "advert"
+    },
+    {
+      "node": "A",
+      "at_ms": 19000,
+      "every_ms": 0,
+      "command": "advert"
+    },
+    {
+      "node": "A",
+      "at_ms": 27000,
+      "every_ms": 0,
+      "command": "advert"
+    },
+    {
+      "node": "A",
+      "at_ms": 35000,
+      "every_ms": 0,
+      "command": "advert"
+    }
+  ],
+  "assertions": [
+    {
+      "kind": "receives",
+      "node": "C",
+      "within_ms": 60000
+    },
+    {
+      "kind": "relays-at-most",
+      "node": "C",
+      "at_most": 6
+    }
+  ],
+  "lat": 57.0,
+  "lon": -1.0,
+  "metres_per_pixel": 30
+}

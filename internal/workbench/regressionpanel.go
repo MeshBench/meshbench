@@ -16,15 +16,16 @@ import (
 )
 
 type regressionsPanel struct {
-	bar    actionBar
-	dir    comp.Field
-	run    comp.Button
-	export comp.Button
-	tb     comp.Table
-	init   bool
-	seq    uint64
-	shown  bool
-	do     Do
+	bar     actionBar
+	dir     comp.Field
+	run     comp.Button
+	export  comp.Button
+	pathSet comp.Button
+	tb      comp.Table
+	init    bool
+	seq     uint64
+	shown   bool
+	do      Do
 }
 
 func (p *regressionsPanel) build() {
@@ -32,8 +33,9 @@ func (p *regressionsPanel) build() {
 	p.dir.Editor.SingleLine = true
 	p.run.Label, p.run.Kind = "run all", comp.Primary
 	p.export.Label, p.export.Kind = "export from sweep", comp.Secondary
+	p.pathSet.Label, p.pathSet.Kind = "run pathological suite", comp.Secondary
 	p.bar.fields = []*comp.Field{&p.dir}
-	p.bar.buttons = []*comp.Button{&p.run, &p.export}
+	p.bar.buttons = []*comp.Button{&p.run, &p.export, &p.pathSet}
 	p.bar.note = "a case run reads real firmware, so 41 scenarios takes about as long as 41 short sweeps"
 	p.tb.Cols = []comp.Column{
 		{Title: "scenario", Width: 190, Sortable: true},
@@ -61,6 +63,9 @@ func (p *regressionsPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Sna
 	}
 	if p.export.Click.Clicked(gtx) && p.do != nil {
 		p.do("regression.export", nil)
+	}
+	if p.pathSet.Click.Clicked(gtx) && p.do != nil {
+		p.do("regression.run_pathological", nil)
 	}
 
 	if !p.shown || s.Seq != p.seq {

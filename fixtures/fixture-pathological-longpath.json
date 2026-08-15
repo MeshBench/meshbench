@@ -1,0 +1,468 @@
+{
+  "name": "pathological-longpath",
+  "saved": "2026-08-15T00:00:00Z",
+  "nodes": [
+    {
+      "Name": "Hop00",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "5cf8c48cdea08a33c4f4721edba2d4a42abd2f0d543b40b11da974e4a31379c00",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.0,
+        "Lon": -1.0
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Hop01",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "a0ae39d57b715f5d6520333e722ce765d48a9cccca112a2eb886e676a4ca414f0",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.0,
+        "Lon": -0.25778359104428816
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Hop02",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "0be178501ca022ffc1f6a4c9e599e5669384420b51315df79a12b1c3565960b30",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.0,
+        "Lon": 0.4844328179114237
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Hop03",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "4a99a45b9055d5bc499f497a0bf1f352fdfbb87cc7d38728e2ffb0e45450595f0",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.0,
+        "Lon": 1.2266492268671354
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Hop04",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "9667db17d7491b86b5076515641c682125504bb8ff47aff6fa1e2d7fd9b547b60",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.0,
+        "Lon": 1.9688656358228473
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Hop05",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "b82d5e9a70c8ea75f2575c3f3f2da68d238caf277db0318de8b07aa19045adf10",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.0,
+        "Lon": 2.7110820447785593
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Hop06",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "3d9573e6344983f4180d922dc2cf30b3600535a402b9865b97d1d2baf31ed2b90",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.0,
+        "Lon": 3.453298453734271
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Hop07",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "2f6620d2f3d8b76825c340ddd0733479e2667dca43950c4f0f417f23e32c56330",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.0,
+        "Lon": 4.195514862689983
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Hop08",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "d001483731b02f1234d8097ed40ccffe6359f25dc34b5762e741e6a949e495460",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.0,
+        "Lon": 4.937731271645695
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Hop09",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "bd111016058ba51c7a5b77311d2a77c48311420da52d33cf5889f67e95a32f840",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.0,
+        "Lon": 5.679947680601407
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Hop10",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "68abce45bca9ce703eccbb6ea53a9fc25b05fe4d48114d6d2a6a8a6f62c6b3690",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.0,
+        "Lon": 6.422164089557119
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    }
+  ],
+  "seed": 4005,
+  "freq_mhz": 869.618,
+  "areas": [],
+  "margin_km": 0,
+  "sends": [
+    {
+      "node": "Hop00",
+      "at_ms": 3000,
+      "every_ms": 0,
+      "command": "advert"
+    }
+  ],
+  "assertions": [
+    {
+      "kind": "receives",
+      "node": "Hop10",
+      "within_ms": 120000
+    }
+  ],
+  "lat": 57.0,
+  "lon": -1.0,
+  "metres_per_pixel": 30
+}

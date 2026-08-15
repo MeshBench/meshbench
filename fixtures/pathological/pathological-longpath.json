@@ -1,0 +1,9 @@
+{
+  "format_version": 1,
+  "name": "pathological-longpath",
+  "fixture": "fixture-pathological-longpath",
+  "seeds": [
+    4005
+  ],
+  "for_ms": 150000
+}

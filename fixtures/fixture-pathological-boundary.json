@@ -1,0 +1,149 @@
+{
+  "name": "pathological-boundary",
+  "saved": "2026-08-15T00:00:00Z",
+  "nodes": [
+    {
+      "Name": "A1",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "16a36e86f6fed5d465ff332511a0ce1a863b55d364b25a7cdaa25db19abf96480",
+      "Regions": [
+        "#sco"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.0,
+        "Lon": -1.0
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "Edge",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "0f82fe727756eb9a80e0e95581f2ef26aeaffb0bf903dcf8106d575878960fb60",
+      "Regions": [
+        "#sco",
+        "#ioi"
+      ],
+      "DefaultScope": "#sco",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.0,
+        "Lon": -0.25778359104428816
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    },
+    {
+      "Name": "B2",
+      "Kind": "simple-repeater",
+      "Board": "RAK4631",
+      "PublicKey": "abdbc2b5cc2c7a519b72bf7a164c58ebf892ab0c2df6468213705cc2f0da85610",
+      "Regions": [
+        "#ioi"
+      ],
+      "DefaultScope": "#ioi",
+      "AllowAnyFlood": true,
+      "EmitterDutyPct": 0,
+      "FloodMaxSeen": 0,
+      "Firmware": {
+        "Role": "simple_repeater",
+        "Version": "repeater-v1.17.0",
+        "Board": ""
+      },
+      "Position": {
+        "Lat": 57.0,
+        "Lon": 0.4844328179114237
+      },
+      "UncertaintyKm": 0,
+      "HeightAGLm": 10,
+      "Antenna": {
+        "pattern": {
+          "type": "collinear",
+          "gain_dbi_peak": 6.15
+        },
+        "polarisation": "vertical",
+        "feedline_db": 0.8
+      },
+      "Radio": {
+        "CentreHz": 869618000,
+        "BandwidthHz": 62500,
+        "SpreadFactor": 8,
+        "CodingRate": 4
+      },
+      "TxPowerDBm": 22,
+      "NoiseFigureDB": 6
+    }
+  ],
+  "seed": 4006,
+  "freq_mhz": 869.618,
+  "areas": [],
+  "margin_km": 0,
+  "sends": [
+    {
+      "node": "A1",
+      "at_ms": 3000,
+      "every_ms": 0,
+      "command": "advert"
+    }
+  ],
+  "assertions": [
+    {
+      "kind": "receives",
+      "node": "B2",
+      "within_ms": 60000
+    }
+  ],
+  "lat": 57.0,
+  "lon": -1.0,
+  "metres_per_pixel": 30
+}

@@ -334,16 +334,30 @@ func RunDir(ctx context.Context, terr coverage.Terrain, dir string) ([]CaseResul
 	}
 	sort.Strings(names)
 
-	var results []CaseResult
+	var cases []Case
 	var errs []error
 	for _, name := range names {
-		path := filepath.Join(dir, name)
-		c, err := LoadCase(path)
+		c, err := LoadCase(filepath.Join(dir, name))
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
-		r, err := RunCase(ctx, terr, c, dir)
+		cases = append(cases, c)
+	}
+	results, runErrs := RunCases(ctx, terr, cases, dir)
+	return results, append(errs, runErrs...)
+}
+
+// RunCases runs an already-loaded list of cases, in order, and returns them
+// alongside any that failed to run - the part RunDir shares with a caller
+// that built its cases in Go rather than reading them off disk (the
+// pathological suite, bundled in the binary rather than on a filesystem a
+// fresh install has no guarantee of).
+func RunCases(ctx context.Context, terr coverage.Terrain, cases []Case, baseDir string) ([]CaseResult, []error) {
+	var results []CaseResult
+	var errs []error
+	for _, c := range cases {
+		r, err := RunCase(ctx, terr, c, baseDir)
 		if err != nil {
 			errs = append(errs, err)
 			continue

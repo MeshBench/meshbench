@@ -1,0 +1,9 @@
+{
+  "format_version": 1,
+  "name": "pathological-trap",
+  "fixture": "fixture-pathological-trap",
+  "seeds": [
+    4004
+  ],
+  "for_ms": 150000
+}
