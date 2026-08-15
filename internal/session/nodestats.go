@@ -99,7 +99,7 @@ func (c *cpuSampler) forget(live map[int]bool) {
 // one pass over it rather than a second log kept per node - and they cannot
 // disagree with the events table, which is the more useful property.
 func (s *Sim) nodeStats(events []state.Event) []state.NodeStat {
-	if s.eng == nil {
+	if s.liveEngine() == nil {
 		return nil
 	}
 	if s.cpu == nil {
@@ -122,7 +122,7 @@ func (s *Sim) nodeStats(events []state.Event) []state.NodeStat {
 		}
 	}
 
-	nodes := s.eng.Nodes()
+	nodes := s.liveEngine().Nodes()
 	out := make([]state.NodeStat, 0, len(nodes))
 	live := map[int]bool{}
 	for i, n := range nodes {
@@ -139,6 +139,15 @@ func (s *Sim) nodeStats(events []state.Event) []state.NodeStat {
 			r := n.Firmware.Bridge.Stats()
 			st.IRQReads, st.BusyReads = r.IRQReads, r.BusyReads
 			st.BusyMs, st.Spurious = r.BusyMs, r.SpuriousUp
+			st.Radio = state.RadioState{
+				Reported: r.Configured, GainReg: r.RxGainReg,
+				Boosted: r.RxBoosted(), TxPowerDBm: r.TxPowerDBm,
+				FemLive: r.FemEnabled, FemAtTx: uint8(r.FemAtTx),
+				Mode: r.Mode, SF: r.SF, CR: r.CR,
+				FreqHz: r.FreqHz, BandwidthHz: r.BandwidthHz,
+				PreambleSyms: r.PreambleSyms,
+				IRQMask:      r.IRQMask, IRQFlags: r.IRQFlags,
+			}
 			if p, ok := n.Firmware.Backend.(interface{ PID() int }); ok {
 				st.PID = p.PID()
 			}

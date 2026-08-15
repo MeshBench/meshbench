@@ -37,6 +37,7 @@ const (
 	// tabs.
 	tabCompanion
 	tabSettings
+	tabRadio
 	tabStats
 	tabActivity
 	tabConnect
@@ -49,6 +50,8 @@ func (n nodeTab) String() string {
 		return "Companion"
 	case tabSettings:
 		return "Settings"
+	case tabRadio:
+		return "Radio"
 	case tabStats:
 		return "Stats"
 	case tabActivity:
@@ -73,7 +76,9 @@ type nodeWindowPanel struct {
 	node string
 	tab  nodeTab
 	tabs [numNodeTabs]widget.Clickable
-	comp companionTab
+	// radioScroll is the Radio tab's own list state.
+	radioScroll widget.List
+	comp        companionTab
 
 	input    comp.Field
 	send     comp.Button
@@ -109,10 +114,10 @@ type nodeWindowPanel struct {
 // visibleTabs is the tab set this node gets.
 func (p *nodeWindowPanel) visibleTabs() []nodeTab {
 	if p.isCompanion() {
-		return []nodeTab{tabConsole, tabCompanion, tabSettings, tabStats,
-			tabActivity, tabConnect}
+		return []nodeTab{tabConsole, tabCompanion, tabSettings, tabRadio,
+			tabStats, tabActivity, tabConnect}
 	}
-	return []nodeTab{tabConsole, tabSettings, tabStats, tabActivity}
+	return []nodeTab{tabConsole, tabSettings, tabRadio, tabStats, tabActivity}
 }
 
 // clicks handles every control, whichever tab is showing - shared with the
@@ -167,6 +172,8 @@ func (p *nodeWindowPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snap
 				return p.stats(t, gtx, s)
 			case tabSettings:
 				return p.settings(t, gtx, s)
+			case tabRadio:
+				return p.radio(t, gtx, s)
 			case tabActivity:
 				return p.activity(t, gtx, s)
 			case tabConnect:
