@@ -39,16 +39,36 @@ With resets on, 1.17.1 receives 3337 against 1.17.0's 3332 - 0.2% apart - and
 both deliver exactly 1182 messages. Enabling resets costs 6.5% of receptions and
 2.9% of deliveries.
 
-## Why the first attempt measured nothing
+## It needs no operator action beyond enabling the reset
 
-`rx_boosted_gain` defaults to 0 (`CommonCLI.h:66`). The fault destroys a runtime
-setting; the first sweep enabled the AGC reset and never enabled boosted gain,
-so the reset fired every four seconds against a register already at its reset
-value. All four arms were identical and the bench said so accurately.
+The struct default in `CommonCLI.h:66` is 0, and that is the figure an earlier
+draft of this study leaned on. It is not what the repeater runs.
+`examples/simple_repeater/MyMesh.cpp` overrides it:
 
-Both preconditions are needed: `set radio.rxgain on` and
-`set agc.reset.interval > 0`. Resets are also off by default
-(`Dispatcher.cpp:133`), so a stock node is unaffected.
+```
+#ifdef SX126X_RX_BOOSTED_GAIN
+  _prefs.rx_boosted_gain = SX126X_RX_BOOSTED_GAIN;
+#else
+  _prefs.rx_boosted_gain = 1; // enabled by default;
+#endif
+```
+
+and applies it a few lines later through `radio_driver.setRxBoostedGainMode`,
+which is not guarded. So on precisely the variants where the restore is compiled
+out, boosted gain is **on from boot with no operator involvement at all** -
+verified: a node on fresh storage reports `get radio.rxgain -> on` and holds
+0x96 before anything has been typed at it.
+
+The only precondition is therefore `agc.reset.interval > 0`, which does default
+to 0 and does guard the reset (`Dispatcher.cpp:133`). An operator who enables
+AGC resets on such a board loses boosted gain permanently, without ever having
+chosen to use it.
+
+**Why the earlier sweep measured nothing is not established.** The explanation
+given at the time - that boosted gain was never on - is wrong. Candidates that
+changed between then and now, none of them confirmed: the sweep had been sending
+unscoped, adverts were not sent before the flood, and the native binaries were
+rebuilt. It is left open rather than replaced with a second guess.
 
 ## What a decibel is worth on this mesh
 

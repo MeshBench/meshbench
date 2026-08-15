@@ -13,22 +13,21 @@ import (
 
 // The 1.17.1 receive-gain fault, provoked on purpose and watched at the register.
 //
-// It took an eight-cell sweep measuring nothing to work out why this never
-// fired. Two preconditions, and only one of them was ever met:
+// The one precondition is agc_reset_interval, which defaults to 0 and guards
+// the reset (Dispatcher.cpp:133). Nothing else has to be asked for, and that is
+// the part worth stating plainly:
 //
-//   - agc_reset_interval defaults to 0 and the reset is guarded on it
-//     (Dispatcher.cpp:133), so AGC resets are off unless asked for. We did ask.
-//   - rx_boosted_gain *also* defaults to 0 (CommonCLI.h:66). The fault destroys
-//     a runtime setting, and we never made one - so the reset fired every four
-//     seconds against a register already at its reset value, and the arms were
-//     identical for a reason that had nothing to do with the firmware.
+// simple_repeater sets rx_boosted_gain from the compile-time macro where there
+// is one, and *to 1 otherwise* - MyMesh.cpp, "enabled by default" - then applies
+// it through the wrapper, which is not guarded. So on a variant without the
+// macro, boosted gain is on from boot with no operator involvement at all.
 //
-// With both set, the mechanism is: MeshCore reimplements RadioLib's AGC reset in
-// SX126xReset.h and re-applies the *compile-time* SX126X_RX_BOOSTED_GAIN macro
-// over whatever the operator set. The host variant does not define that macro,
-// so the re-application is not merely wrong - it is `#ifdef`-ed out entirely and
-// boosted gain is gone until reboot. That is the worse of the fault's two modes,
-// and the native build is the right vehicle for it.
+// The AGC reset then calibrates, which returns 0x08AC to its power-saving
+// default, and re-applies nothing: SX126xReset.h wraps the restore in
+// `#ifdef SX126X_RX_BOOSTED_GAIN`, so on exactly the variants that turned it on
+// by default the restoring line is not compiled. Boosted gain is gone until
+// reboot. 1.17.1 changed the argument that line passes and left it inside the
+// same guard, which is why both versions behave identically below.
 //
 // Throughout, the firmware's own CLI goes on reporting the operator's value.
 // _prefs.rx_boosted_gain is untouched; only the chip has changed. That is what
@@ -54,6 +53,24 @@ func TestAnAGCResetLosesBoostedGain(t *testing.T) {
 // and reports whether the register still holds boosted gain at the end.
 func runAGCFault(t *testing.T, version string) bool {
 	t.Helper()
+
+	// Storage of its own, or this does not replicate anything.
+	//
+	// A node keeps its preferences between runs exactly as hardware does, so a
+	// version sharing storage with one that ran before it boots holding that
+	// run's rx_boosted_gain - a confound sitting on the precise register the
+	// experiment is about. Fresh storage is also what makes the boot value
+	// below evidence rather than an inheritance.
+	fs := t.TempDir()
+	old, had := os.LookupEnv("MESHCORESIM_NODEFS")
+	_ = os.Setenv("MESHCORESIM_NODEFS", fs)
+	defer func() {
+		if had {
+			_ = os.Setenv("MESHCORESIM_NODEFS", old)
+			return
+		}
+		_ = os.Unsetenv("MESHCORESIM_NODEFS")
+	}()
 
 	e := engine.New(flat{100}, engine.Config{
 		FreqMHz: 869.618, SF: 8, BandwidthHz: 62_500, CodingRate: 4,
@@ -100,21 +117,30 @@ func runAGCFault(t *testing.T, version string) bool {
 	if !node.Firmware.Bridge.Stats().Configured {
 		t.Skip("this build does not report radio state; install a current release")
 	}
-	t.Logf("%6d ms  gain=%#02x  (after boot)", at, gain())
+	// Boosted, on fresh storage, with nothing asked of it. This is the half of
+	// the fault that is easy to miss: the chip's own reset default is 0x94, and
+	// the repeater has moved it to 0x96 before anybody has typed anything.
+	booted := gain()
+	t.Logf("%6d ms  gain=%#02x  (fresh storage, nothing configured)", at, booted)
+	if booted != 0x96 {
+		t.Fatalf("booted holding %#02x, wanted 0x96: this variant defines no "+
+			"SX126X_RX_BOOSTED_GAIN, so simple_repeater should have enabled "+
+			"boosted gain by default", booted)
+	}
 
-	// Precondition one. Without this the fault has nothing to destroy, which is
-	// exactly how the first sweep came to measure nothing.
+	// Redundant here, and sent anyway: it is what an operator would do, and it
+	// proves the register is reachable from the CLI as well as from the default.
 	say("set radio.rxgain on")
 	step(3000)
 	before := gain()
 	t.Logf("%6d ms  gain=%#02x  (after `set radio.rxgain on`)", at, before)
 	if before != 0x96 {
-		t.Fatalf("boosted gain never reached the chip: register is %#02x, wanted 0x96 - "+
+		t.Fatalf("boosted gain is not on the chip: register is %#02x, wanted 0x96 - "+
 			"nothing below this line would mean anything", before)
 	}
 
-	// Precondition two. 4 seconds: the CLI stores seconds/4 and the repeater
-	// multiplies by 4000 ms, so this is a reset every four seconds.
+	// The only precondition the fault has. 4 seconds: the CLI stores seconds/4
+	// and the repeater multiplies by 4000 ms, so this is a reset every four.
 	say("set agc.reset.interval 4")
 
 	// Long enough for several resets, sampled so the moment of the drop is

@@ -5,78 +5,69 @@ seeds, eight cells, none failed — returned no difference that can be quoted.
 That was reported honestly and it is still true. What follows is the reason,
 which turns out not to be one reason, and what to do about each part.
 
-Three of the five causes are confirmed from source rather than suspected. Two
-of those mean the sweep **could not** have shown anything, whatever the
-firmware did: the mechanism was never switched on, and the code path was never
-present. Aggregate delivery counts being insensitive to 2 dB — the explanation
-I reached for first — is the least established of the five and comes last here
-for that reason.
+Two of the five have since been withdrawn under measurement, and both
+withdrawals are kept here rather than edited out: the reasoning that produced
+them is the same reasoning that produced the rest, and a document that only
+records the parts that survived is not evidence of anything.
+
+What is left standing: the sweep exercised a code path that no node in it could
+reach, the comparison was observational when a stronger design was available,
+and the metric could not see the effect it was looking for.
 
 ## What we were trying to see
 
 Two faults, each of a different kind.
 
 **Receive gain reverting.** MeshCore reimplements RadioLib's AGC reset in
-`src/helpers/radiolib/SX126xReset.h` and re-applies the compile-time boosted
-gain macro, discarding whatever the operator set at runtime. The chip drops to
-power-saving gain while `_prefs.rx_boosted_gain` and the CLI `get` keep
-reporting the operator's value. Worth roughly 2 dB of receive sensitivity, with
+`src/helpers/radiolib/SX126xReset.h`, and wraps the line that restores boosted
+gain in `#ifdef SX126X_RX_BOOSTED_GAIN`. On a variant that defines the macro the
+restore happens; on one that does not it is not compiled at all — and those are
+exactly the variants where `simple_repeater` turns boosted gain on by default.
+The chip drops to power-saving gain while `_prefs.rx_boosted_gain` and the CLI
+`get` go on reporting it as on. Worth roughly 2 dB of receive sensitivity, with
 nothing in any log to say it happened.
 
 **A transmit-enable line that never went high.** On the Heltec T096 the front
 end stayed switched out, so the PA's output went through the module's isolation
 instead of its gain — a swing of tens of dB at the antenna.
 
-## Cause 1 — the fault was never armed
+## Cause 1 — withdrawn, and replaced by something worse
 
-**Confirmed.** `src/helpers/CommonCLI.h:66`:
+This document originally said the fault was never armed, because
+`rx_boosted_gain` defaults to `0` (`CommonCLI.h:66`) and the sweep enabled the
+AGC reset without enabling boosted gain. **That is wrong, and it was checked
+against the wrong file.**
 
-```cpp
-uint8_t rx_boosted_gain = 0; // power settings
-```
-
-Boosted gain is **off by default**. The bug destroys a *runtime* setting; on a
-node that never made one there is nothing to destroy.
-
-We knew AGC resets were off by default and provisioned `set agc.reset.interval 4`
-to switch them on. We never sent `set radio.rxgain on`. So every node in every
-arm ran the whole sweep in power-saving gain, the reset fired every four seconds
-against a register already at its reset value, and `effectiveRF` correctly
-returned the same noise figure for all 161 nodes in all four arms.
-
-The arms were genuinely identical. The bench reported that accurately.
-
-There is a second half, and it is the sharper one. `SX126xReset.h:28-30`:
+`examples/simple_repeater/MyMesh.cpp` overrides the struct default:
 
 ```cpp
 #ifdef SX126X_RX_BOOSTED_GAIN
-  radio->setRxBoostedGainMode(SX126X_RX_BOOSTED_GAIN);
+  _prefs.rx_boosted_gain = SX126X_RX_BOOSTED_GAIN;
+#else
+  _prefs.rx_boosted_gain = 1; // enabled by default;
 #endif
 ```
 
-The host variant does not define that macro, so on a native build the
-re-application is not merely wrong — **it is not compiled at all**. That is the
-worse of the fault's two modes, the one where boosted gain is gone until
-reboot. The native nodes were the right vehicle for it. They just had nothing
-loaded.
+and applies it through `radio_driver.setRxBoostedGainMode`, which is not
+guarded. So on a variant *without* the macro - the host build, generic-e22 -
+boosted gain is on from boot with nobody asking. A node on fresh storage answers
+`get radio.rxgain -> on` and holds `0x96` before a single command has been
+typed at it.
 
-### What to do
+Which makes the fault worse than reported, not milder: the only precondition is
+`agc.reset.interval > 0`, and an operator who enables AGC resets loses boosted
+gain permanently on a board they never knew was using it.
 
-Send `set radio.rxgain on` alongside `set agc.reset.interval 4`, and then
-**assert the mechanism before measuring its effect**. W1 already carries the
-gain register across the bridge and the Radio tab already draws it; a
-precondition check reads it back off a sample of nodes after provisioning and
-fails the cell loudly if the register is not `0x96` where the arm says it
-should be.
+**So why the first sweep measured nothing is now unexplained.** Three things
+changed between it and the run that did show an effect - the sweep had been
+sending unscoped, adverts were not sent before the flood, and the binaries were
+rebuilt - and none has been isolated. Recorded as open rather than replaced with
+a second confident story, which is what got this section wrong the first time.
 
-This generalises past this bug. It is wb1's `investigate` check — "read the
-setting back off a node" — promoted from a post-hoc explanation of a null
-result to a precondition of running at all. An arm that cannot demonstrate its
-own manipulation should not produce a row.
-
-**We had already built the instrument that would have shown this in one
-glance** — 161 nodes reporting `0x94` in both arms — and never pointed it at
-the running sweep. That is the cheapest lesson in this document.
+The general lesson survives intact, and is the reason this was caught:
+**assert the manipulation is present on the chip before measuring its effect.**
+Had the first sweep read the register back it would have shown `0x96` on every
+node in every arm, and the wrong explanation could never have been written down.
 
 ## Cause 2 — no node in the sweep had a front end
 
@@ -149,8 +140,9 @@ tenth percentile is 4.1 dB and its lowest decoding direction is 0.1 dB above the
 floor: there is a real population living at the edge, and **about one decoding
 direction in sixteen could be flipped by 2 dB**.
 
-So the fixture can express this effect. Causes 1 and 2 already explain the null
-result on their own, and this one does not need to be invoked.
+So the fixture can express this effect, and with cause 1 withdrawn the null
+result has no complete explanation left. That is stated as an open above rather
+than patched with a third guess.
 
 **Fife settles it.** Fife has proportionally *more* near-threshold links than
 Scotland, and it was the fixture where all four arms returned byte-identical
