@@ -193,6 +193,7 @@ func (s *Sim) buildPacket(id uint64) *state.Packet {
 			}
 		case "miss":
 			if i, ok := byPacket[ev.PacketID]; ok {
+				pk.Journey[i].MissWhy = append(pk.Journey[i].MissWhy, ev.Detail)
 				pk.Journey[i].Missed++
 				pk.Journey[i].MissedBy = append(pk.Journey[i].MissedBy, ev.To)
 			}

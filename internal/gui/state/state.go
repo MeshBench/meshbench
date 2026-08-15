@@ -386,6 +386,14 @@ type PacketHop struct {
 	// for callers that only need the number.
 	MissedBy []string
 	Missed   int
+	// MissWhy is the engine's own words for each entry in MissedBy, in the
+	// same order.
+	//
+	// Carried here rather than looked up in Fates because Fates covers one
+	// packet and a journey covers every transmission of the message - the
+	// join by node and time silently missed almost all of them, and every
+	// failed hop was drawn as "other".
+	MissWhy  []string
 	PacketID uint64
 }
 

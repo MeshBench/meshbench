@@ -43,6 +43,13 @@ type packetPanel struct {
 	// want depends on whether you are asking "what shape" or "what exactly".
 	graphBtn comp.Chip
 	noGraph  bool
+	// gview is where the operator has dragged and zoomed the picture, how deep
+	// they asked it to go, and which reasons they are looking at.
+	gview    graphView
+	hopChips [5]comp.Chip
+	keyChips [5]comp.Chip
+	resetBtn comp.Button
+	showKind map[missKind]bool
 	copyBtn  comp.Button
 	prev     comp.Button
 	next     comp.Button
@@ -57,6 +64,11 @@ func (p *packetPanel) build() {
 		{Title: "node", Width: 170, Sortable: true},
 		{Title: "SNR", Width: 64, Right: true, Mono: true},
 		{Title: "outcome"},
+	}
+	p.resetBtn.Label, p.resetBtn.Kind = "fit", comp.Quiet
+	p.showKind = map[missKind]bool{}
+	for _, mk := range missKinds {
+		p.showKind[mk.Kind] = true
 	}
 	p.copyBtn.Label, p.copyBtn.Kind = "copy packet", comp.Secondary
 	p.prev.Label, p.prev.Kind = "prev", comp.Secondary
@@ -104,6 +116,20 @@ func (p *packetPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 	}
 	if p.graphBtn.Click.Clicked(gtx) {
 		p.noGraph = !p.noGraph
+	}
+	if p.resetBtn.Click.Clicked(gtx) {
+		p.gview.reset()
+	}
+	for i, n := range hopLimits {
+		if p.hopChips[i].Click.Clicked(gtx) {
+			p.gview.maxHops = n
+			p.gview.reset()
+		}
+	}
+	for i, mk := range missKinds {
+		if p.keyChips[i].Click.Clicked(gtx) {
+			p.showKind[mk.Kind] = !p.showKind[mk.Kind]
+		}
 	}
 	if p.hexBtn.Click.Clicked(gtx) {
 		p.ascii = false
@@ -373,7 +399,7 @@ func (p *packetPanel) journey(t *theme.Theme, gtx layout.Context, pk *state.Pack
 			return d
 		})
 	}
-	g := buildHopGraph(pk.Origin, pk.Journey)
+	g := buildHopGraph(pk, p.gview.maxHops, p.showKind)
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return comp.CellGrid(t, gtx, 220, []layout.Widget{
@@ -389,23 +415,73 @@ func (p *packetPanel) journey(t *theme.Theme, gtx layout.Context, pk *state.Pack
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: t.Sp.S}.Layout(gtx,
 				func(gtx layout.Context) layout.Dimensions {
-					return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+					kids := []layout.FlexChild{
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							return p.graphBtn.Layout(t, gtx, "graph", "",
 								!p.noGraph, t.P.Accent)
 						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return layout.Inset{Left: t.Sp.S}.Layout(gtx,
-								comp.Text(t, t.Sz.Caption, t.P.Faint, graphCaption(g)))
+							return layout.Inset{Left: t.Sp.S, Right: t.Sp.S}.Layout(gtx,
+								comp.Text(t, t.Sz.Caption, t.P.Faint, "hops"))
 						}),
+					}
+					for i, n := range hopLimits {
+						i, n := i, n
+						kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return p.hopChips[i].Layout(t, gtx, hopLimitLabel(n), "",
+								p.gview.maxHops == n, t.P.Accent)
+						}))
+					}
+					kids = append(kids,
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return layout.Inset{Left: t.Sp.S}.Layout(gtx,
+								func(gtx layout.Context) layout.Dimensions {
+									return p.resetBtn.Layout(t, gtx)
+								})
+						}),
+						layout.Flexed(1, comp.Spacer),
+						layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint, graphCaption(g))),
 					)
+					return layout.Flex{Alignment: layout.Middle}.Layout(gtx, kids...)
 				})
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if p.noGraph || len(g.Nodes) == 0 {
 				return layout.Dimensions{}
 			}
-			return drawHopGraph(t, gtx, g)
+			return drawHopGraph(t, gtx, g, &p.gview)
+		}),
+		// The key. Every colour in the picture means something, and the reason
+		// a hop failed is what an operator would act on - too weak wants an
+		// antenna, lost to a stronger signal wants less traffic, deaf wants
+		// different timing. Each entry is also the filter for its own class.
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if p.noGraph || len(g.Nodes) == 0 {
+				return layout.Dimensions{}
+			}
+			var kids []layout.FlexChild
+			for i, mk := range missKinds {
+				i, mk := i, mk
+				n := g.Total[mk.Kind]
+				if n == 0 {
+					continue
+				}
+				col, _, _ := colourOf(t, mk.Kind)
+				kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Right: t.Sp.XS}.Layout(gtx,
+						func(gtx layout.Context) layout.Dimensions {
+							return p.keyChips[i].Layout(t, gtx, mk.Label,
+								fmt.Sprintf("%d", n), p.showKind[mk.Kind], col)
+						})
+				}))
+			}
+			if len(kids) == 0 {
+				return layout.Dimensions{}
+			}
+			return layout.Inset{Top: t.Sp.XS, Bottom: t.Sp.XS}.Layout(gtx,
+				func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Alignment: layout.Middle}.Layout(gtx, kids...)
+				})
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: t.Sp.S, Bottom: t.Sp.XS}.Layout(gtx,
