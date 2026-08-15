@@ -150,6 +150,11 @@ type Engine struct {
 	// capture, when a run is being recorded to pcapng.
 	capture *Capture
 
+	// sens counts how close each reception ran to the demodulator's floor, so a
+	// study of receiver sensitivity has something to read that aggregate
+	// delivery counts do not destroy.
+	sens sensitivity
+
 	// StaggerBoot spreads node start times. On by default: started together,
 	// nodes share a timer phase and their adverts collide for ever.
 	StaggerBoot bool
@@ -531,6 +536,11 @@ func (e *Engine) deliver(t transmission, concurrent []transmission) error {
 				Detail: "its own transmitter was keyed; LoRa is half duplex"})
 		case effective < required:
 			rec.Outcome = capture.NotDemodulated
+			// How near it came. Interference is included deliberately: a packet
+			// lost to a stronger neighbour is not one a better receiver saves,
+			// and counting it as nearly-decoded would overstate what sensitivity
+			// buys on exactly the crowded mesh where the question is asked.
+			e.sens.note(effective-required, false)
 			why := fmt.Sprintf("SNR %.1f dB against %.1f dB needed at SF%d", effective, required, e.Config.SF)
 			if !math.IsInf(interferenceDBm, -1) && snr >= required {
 				why = fmt.Sprintf("would have decoded at %.1f dB, lost to a stronger interferer", snr)
@@ -541,6 +551,7 @@ func (e *Engine) deliver(t transmission, concurrent []transmission) error {
 		default:
 			rec.Demod, rec.CRCOK, rec.FirmwareSaw = true, true, true
 			rec.Outcome = capture.Accepted
+			e.sens.note(effective-required, true)
 			dst.Heard++
 
 			// Unique against redundant. A repeater can be busy, legal, and

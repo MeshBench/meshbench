@@ -360,6 +360,10 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 	// Where the ledger stood when this cell started, so the counting below is
 	// this run's traffic and not the boot chatter of three hundred nodes.
 	baseline := len(eng.Events())
+	// The margin counters are zeroed here for the same reason: the adverts and
+	// boot chatter above are receptions too, and a cell that inherited them
+	// would report the mesh coming up rather than the flood it measured.
+	eng.ResetSensitivity()
 	burstMs := uint32(0)
 
 	// Sends waiting for their moment, when the senders are staggered.
@@ -471,6 +475,15 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 				out.PerSecond[b]++
 			}
 		}
+	}
+
+	// What this cell's deliveries were worth in decibels. Read from the engine
+	// rather than derived from the rows above, because a total cannot say how
+	// close any of it came.
+	sens := eng.Sensitivity()
+	out.AtRisk = make([]float64, len(engine.MarginEdgesDB))
+	for i := range engine.MarginEdgesDB {
+		out.AtRisk[i] = sens.AtRisk(i)
 	}
 	return out
 }

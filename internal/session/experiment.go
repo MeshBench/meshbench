@@ -275,6 +275,18 @@ type ExpResult struct {
 	// flood, rather than its total: one clean wave and a long tail of retries
 	// deliver the same count and are not the same network.
 	PerSecond []int `json:"per_second,omitempty"`
+
+	// AtRisk is the share of this cell's decodes that would have been lost had
+	// every receiver been 1, 2, 3, 6 and 10 dB less sensitive - the bands in
+	// engine.MarginEdgesDB.
+	//
+	// It is here because delivery totals cannot answer a question about the
+	// receiver. A flood that loses an edge arrives by another, so an effect
+	// real at link level is summed away before it reaches a row, and repeating
+	// the run does not recover it. This is measured on the deliveries the cell
+	// actually made, so it needs no second arm to compare against and no
+	// assumption about what boosted gain is worth.
+	AtRisk []float64 `json:"at_risk,omitempty"`
 }
 
 // experiment is the matrix and what has come back from it.
@@ -866,6 +878,12 @@ func (e *experiment) summarise() []map[string]any {
 	for _, name := range names {
 		rs := by[name]
 		var tx, rx, del, red, coll, air float64
+		// at2 is the share of this arm's decodes that 2 dB of receiver would
+		// have cost. Reported per arm because it is the one figure here that a
+		// flood's redundancy cannot hide: it is counted on the deliveries
+		// themselves rather than summed out of them.
+		var at2 float64
+		var at2n float64
 		for _, r := range rs {
 			tx += float64(r.TX)
 			rx += float64(r.RX)
@@ -873,15 +891,27 @@ func (e *experiment) summarise() []map[string]any {
 			red += float64(r.Redundant)
 			coll += float64(r.Collided)
 			air += r.AirtimeMs
+			if len(r.AtRisk) > 1 {
+				at2 += r.AtRisk[1]
+				at2n++
+			}
 		}
 		n := float64(len(rs))
-		out = append(out, map[string]any{
+		row := map[string]any{
 			"arm": name, "runs": len(rs),
 			"tx": tx / n, "rx": rx / n, "delivered": del / n,
 			"redundant": red / n, "collisions": coll / n,
 			"airtime_ms": air / n,
 			"rx_spread":  spreadOf(rs),
-		})
+		}
+		// Absent rather than zero when no cell reported it: "no cell measured
+		// this" and "no delivery was close" are different answers, and drawing
+		// the second for the first is the kind of quiet lie this whole branch
+		// exists to stop.
+		if at2n > 0 {
+			row["at_risk_2db"] = at2 / at2n
+		}
+		out = append(out, row)
 	}
 	return out
 }
