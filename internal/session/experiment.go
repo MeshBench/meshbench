@@ -307,6 +307,14 @@ type experiment struct {
 	// experiments. Zero sends the label alone.
 	Bytes int `json:"bytes"`
 
+	// Scope is the region every sender originates under. Empty sends unscoped.
+	//
+	// It matters far more than its size here suggests: repeaters carry flood
+	// traffic only for regions they hold, so an unscoped run is carried by a
+	// different set of them and measures a different network. workbench1 set it
+	// per send; this inherited the loop without it.
+	Scope string `json:"scope"`
+
 	running bool
 	paused  bool
 	cancel  context.CancelFunc
@@ -391,6 +399,11 @@ func registerExperiment(st *state.Store, s *Sim) {
 		}
 		if v, ok := numField(p, "bytes"); ok && v >= 0 {
 			e.Bytes = int(v)
+		}
+		if m, ok := p.(map[string]any); ok {
+			if v, ok := m["scope"].(string); ok {
+				e.Scope = v
+			}
 		}
 		return e.describe(), nil
 	})
@@ -674,6 +687,7 @@ func (e *experiment) describe() map[string]any {
 		"arms": len(e.Arms), "seeds": len(e.Seeds), "senders": len(e.Senders),
 		"runs": e.runsTotal(), "run_for_ms": e.RunForMs, "send_at_ms": e.SendAtMs,
 		"spread_ms": e.SpreadMs, "bytes": e.Bytes,
+		"scope":      canonicalScope(e.Scope),
 		"arm_labels": e.armLabels(),
 	}
 }

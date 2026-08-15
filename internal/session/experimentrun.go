@@ -21,6 +21,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/companion/proto"
 	"github.com/MeshBench/meshbench/internal/engine"
 	"github.com/MeshBench/meshbench/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/provider"
 	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
@@ -87,6 +88,21 @@ func companionSetup(n scenario.Node, arm ExpArm, e *experiment) [][]byte {
 	}
 	if n.Name != "" {
 		out = append(out, proto.SetAdvertName(n.Name))
+	}
+	// The scope every message this sender originates goes out under.
+	//
+	// Without it a sweep sends unscoped, which is not a cosmetic difference:
+	// unscoped traffic is carried by a different set of repeaters, so the run
+	// measures a different network from the one that was asked for. workbench1
+	// set this per send and workbench2 inherited the loop without it.
+	//
+	// The name is canonicalised first because a region is spelled two ways and
+	// both are right - the repeater CLI takes `region put sco` while the key on
+	// the wire is derived from "#sco". Send under the bare name and every
+	// repeater receives the packet, computes a different key, and declines to
+	// forward it, with no error at either end.
+	if s := canonicalScope(e.Scope); s != "" {
+		out = append(out, proto.SetDefaultScope(s, provider.RegionKey(s)))
 	}
 	// The arm's own path hash mode, which is a companion setting: what a
 	// message carries is stamped by whoever originated it and honoured at
@@ -516,4 +532,16 @@ func stepFor(ctx context.Context, eng *engine.Engine, d time.Duration) error {
 		time.Sleep(2 * time.Millisecond)
 	}
 	return nil
+}
+
+// canonicalScope is the "#name" form the scope key is derived from.
+//
+// Empty stays empty: no scope asked for means send unscoped, which is a
+// legitimate choice and not the same as sending under "#".
+func canonicalScope(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	return "#" + strings.TrimPrefix(s, "#")
 }
