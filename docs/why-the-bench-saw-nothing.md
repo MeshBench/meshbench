@@ -196,27 +196,39 @@ close it properly.
 
 ## What to do, in order
 
-Reordered once cause 4 was measured rather than assumed.
+Reordered once cause 4 was measured rather than assumed. Steps 1 to 3 are built;
+what each one turned up is noted against it.
 
-1. **Arm the mechanism and assert it landed.** `set radio.rxgain on` in
-   provisioning, plus a precondition check that reads the gain register back
-   and fails the cell if the arm's manipulation is not present on the chip.
-   Cheapest, and nothing below is meaningful without it.
-2. **Add the paired-run mode** — one channel realisation, receiver varied,
-   flipped receptions counted per link. Promoted from third: the margin
-   measurement says the effect is visible at link level and destroyed by
-   aggregation, so the metric is the binding constraint, not the scenario.
-3. **Report the margin distribution in the Bench** as context on what a
-   scenario can be asked. Done as `Engine.LinkMargins`; the display is left.
-4. **A mixed fixture with E22 nodes**, so W3 is exercised at all; record the
-   T096 gap in `docs/shortcomings.md` rather than implying coverage.
+1. **Arm the mechanism and assert it landed.** *Done.* Where an arm pins a
+   setting the chip reports, a sample of radios is read back and the cell fails
+   if they do not hold it. Wiring it in failed every cell in the suite at first,
+   which was itself informative: nodes attach and report nothing because the
+   installed release binaries predate the extended radio payload. So it only
+   speaks when the arm pinned something observable, and that false failure is
+   now its own regression test.
+2. **Count what a decibel was worth.** *Done, and not as planned.* The design
+   called for two runs of one channel realisation with the receiver varied. That
+   is unnecessary: every reception already computes its margin against the
+   demodulator's floor, so a single run can count exactly how many decodes would
+   have been lost had the receiver been worse, and how many misses would have
+   decoded had it been better. Evaluated analytically, it cannot diverge — there
+   is only one run — and it needs no assumption about what boosted gain is worth,
+   because it reports by margin band rather than at one figure.
+3. **Report the margin distribution** as context on what a scenario can be
+   asked. `Engine.LinkMargins` computes it; the Bench display is left.
+4. **A mixed fixture with E22 nodes**, so W3 is exercised at all. The T096 gap
+   is now recorded in `docs/shortcomings.md` §3.4 rather than implied away: that
+   board is nRF52 and needs Renode, so the fault it is named for cannot be
+   studied here at all, and no shipping fixture contains a node with a front end.
 5. **Sweep `RxBoostedGainImprovementDB`** and quote the effect as a function of
-   it.
+   it. Partly answered by step 2's bands, which sidestep the constant entirely
+   for the sensitivity question; still wanted for anything that scales by it.
 6. **Port wb1's `investigate` checks**, of which step 1 is the most valuable
    made mandatory.
 
 Steps 1 and 2 together would have changed the last sweep's outcome from "no
-difference" to a measured count of flipped links, which is an answer either way.
+difference" to a measured count of deliveries that hung on a decibel — an answer
+either way, and one no amount of repeating the old design could have produced.
 
 ## The thing worth keeping
 
