@@ -39,6 +39,14 @@ func (s *Sim) provisionLines(n scenario.Node) []state.ProvisionLine {
 	return provisioningWith(*s.provisioning(), n)
 }
 
+// provisionLinesFor is the script for one cell of an experiment: the session's
+// settings, with whatever this arm names written over them.
+func (s *Sim) provisionLinesFor(n scenario.Node, arm ExpArm) []state.ProvisionLine {
+	prov := *s.provisioning()
+	arm.applyOver(&prov)
+	return provisioningWith(prov, n)
+}
+
 // provisioningWith is the script under a stated set of settings.
 func provisioningWith(prov Provisioning, n scenario.Node) []state.ProvisionLine {
 	var out []state.ProvisionLine
