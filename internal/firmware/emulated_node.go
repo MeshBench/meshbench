@@ -50,10 +50,15 @@ type EmulatedNode struct {
 	// Wiring is where the radio sits on this board. Wrong values do not fail
 	// loudly - they produce a driver that reports no chip, which reads as a
 	// broken emulator.
-	Machine  string
-	SPI      int
-	NSS      int
-	Busy     int
+	Machine string
+	SPI     int
+	NSS     int
+	Busy    int
+
+	// FEM is the GPIO the firmware drives as the front-end module's transmit
+	// enable, or zero on a board with no module. Zero is safe as "none": GPIO 0
+	// is a strapping pin on these parts and no board routes a module to it.
+	FEM      int
 	FlashMB  int
 	NodeName string
 
@@ -262,6 +267,12 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	}
 	machine := fmt.Sprintf("%s,radio-path=%s,radio-spi=%d,radio-nss=%d,radio-busy=%d",
 		e.Machine, radioAt, e.SPI, e.NSS, e.Busy)
+	// Only when the board has one. Left off, the machine leaves the line
+	// unwired, which is what a board with no module should look like - as
+	// opposed to one whose module is permanently switched off.
+	if e.FEM != 0 {
+		machine += fmt.Sprintf(",radio-fem=%d", e.FEM)
+	}
 
 	qemuLog, err := os.Create(filepath.Join(e.Dir, "console.log"))
 	if err != nil {

@@ -136,6 +136,7 @@ func Import(records []provider.NodeRecord, o ImportOptions) (ImportResult, error
 			HeightAGLm:    r.HeightAGLm,
 			Radio:         o.Radio,
 			NoiseFigureDB: board.NoiseFigureDB,
+			FEM:           board.FEM,
 			Antenna: antenna.Mounted{
 				Pattern:      antenna.Collinear{GainDBiPeak: board.AntennaDBi + 4},
 				Polarisation: "vertical",
