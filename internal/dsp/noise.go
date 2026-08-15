@@ -13,7 +13,7 @@ type Philox struct {
 	Seed uint64
 }
 
-func (p Philox) uint64At(counter uint64) uint64 {
+func (p Philox) Uint64At(counter uint64) uint64 {
 	// A small, well-mixed counter hash (splitmix64). Cheap, reproducible, and
 	// trivially portable to WGSL, which matters more here than cryptographic
 	// quality: this is simulation noise, not key material.
@@ -33,8 +33,8 @@ func (p Philox) uint64At(counter uint64) uint64 {
 
 // normalPair returns two independent standard normals via Box-Muller.
 func (p Philox) normalPair(counter uint64) (float64, float64) {
-	a := p.uint64At(counter * 2)
-	b := p.uint64At(counter*2 + 1)
+	a := p.Uint64At(counter * 2)
+	b := p.Uint64At(counter*2 + 1)
 	// Convert to (0,1); avoid exactly zero, which would make Log infinite.
 	u1 := (float64(bits.RotateLeft64(a, 17)>>11) + 0.5) / float64(uint64(1)<<53)
 	u2 := (float64(b>>11) + 0.5) / float64(uint64(1)<<53)

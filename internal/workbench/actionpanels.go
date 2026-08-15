@@ -517,6 +517,7 @@ func (c *feedControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 type sweepControls struct {
 	bar      actionBar
 	versions comp.Field
+	density  comp.Field
 	seeds    comp.Field
 	sender   comp.Field
 	runFor   comp.Field
@@ -532,10 +533,11 @@ type sweepControls struct {
 func (c *sweepControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
 	if !c.built {
 		c.versions.Hint = "repeater versions, space separated"
+		c.density.Hint = "or: neighbour density, e.g. 5 10 20 50 100"
 		c.seeds.Hint = "seeds, e.g. 1 2 3 4"
 		c.sender.Hint = "sender: a companion"
 		c.runFor.Hint = "run for, seconds"
-		for _, f := range []*comp.Field{&c.versions, &c.seeds, &c.sender, &c.runFor} {
+		for _, f := range []*comp.Field{&c.versions, &c.density, &c.seeds, &c.sender, &c.runFor} {
 			f.Editor.SingleLine = true
 		}
 		c.define.Label, c.define.Kind = "define", comp.Secondary
@@ -543,7 +545,7 @@ func (c *sweepControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 		c.stop.Label, c.stop.Kind = "stop", comp.Destructive
 		c.export.Label, c.export.Kind = "export", comp.Quiet
 		c.copyID.Label, c.copyID.Kind = "copy id", comp.Quiet
-		c.bar.fields = []*comp.Field{&c.versions, &c.seeds}
+		c.bar.fields = []*comp.Field{&c.versions, &c.density, &c.seeds}
 		c.bar.buttons = []*comp.Button{&c.define, &c.start, &c.stop, &c.export}
 		c.bar.note = "a message is originated by a companion, so the sender has to be " +
 			"one; two seeds that agree exactly are one draw repeated, not a spread"
@@ -565,6 +567,15 @@ func (c *sweepControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 			asked++
 			c.do("experiment.vary", map[string]any{
 				"parameter": "repeater_version", "values": vs})
+		}
+		var ds []any
+		for _, v := range splitFields(fieldText(&c.density)) {
+			ds = append(ds, v)
+		}
+		if len(ds) > 0 {
+			asked++
+			c.do("experiment.vary", map[string]any{
+				"parameter": "neighbour_density", "values": ds})
 		}
 		var ss []any
 		for _, v := range splitFields(fieldText(&c.seeds)) {

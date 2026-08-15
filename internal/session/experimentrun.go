@@ -90,6 +90,15 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 	out := ExpResult{Arm: arm.Label, Seed: seed}
 	began := time.Now()
 
+	// Density varies the layout, not the firmware: same node count, same
+	// radio settings, same deployment area as every other arm - see
+	// PlaceForDensity's own note on how it holds those while the mean
+	// neighbour count moves. Arm and seed together pick the layout, so this
+	// arm at this seed always places the same way.
+	if arm.NeighbourDensity > 0 {
+		nodes = PlaceForDensity(nodes, arm.NeighbourDensity, seed)
+	}
+
 	// Storage of its own, named for the arm and the seed.
 	root, err := os.MkdirTemp("", "meshbench-arm-")
 	if err != nil {

@@ -41,7 +41,7 @@ func SymbolErrorRate(sf int, snrDB float64, trials int, seed uint64) float64 {
 
 	errors := 0
 	for t := 0; t < trials; t++ {
-		want := int(rng.uint64At(uint64(t)) % uint64(n))
+		want := int(rng.Uint64At(uint64(t)) % uint64(n))
 		rx := m.ModulateSymbol(want)
 		rng.AddAWGN(rx, noisePower, uint64(t)*uint64(n)+1<<40)
 		got, _ := d.DemodulateSymbol(rx)
@@ -101,7 +101,7 @@ func PacketErrorRate(sf int, snrDB float64, symbolsPerPacket, packets int, seed 
 			for p := w; p < packets; p += workers {
 				for sym := 0; sym < symbolsPerPacket; sym++ {
 					ctr := uint64(p*symbolsPerPacket + sym)
-					want := int(rng.uint64At(ctr) % uint64(n))
+					want := int(rng.Uint64At(ctr) % uint64(n))
 					mod.ModulateSymbolInto(rx, want)
 					rng.AddAWGN(rx, noisePower, ctr*uint64(n)+1<<40)
 					if got, _ := d.DemodulateSymbolInto(scratch, rx); got != want {

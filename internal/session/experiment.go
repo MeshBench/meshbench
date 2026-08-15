@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -38,6 +39,12 @@ type ExpArm struct {
 	Label            string `json:"label"`
 	RepeaterVersion  string `json:"repeater_version"`
 	CompanionVersion string `json:"companion_version"`
+	// NeighbourDensity, when set, is this arm's target mean neighbour count
+	// (plan §11/§6) - the loaded scenario's nodes are repositioned for the
+	// run rather than used as loaded. Zero means "not varying density": the
+	// scenario's own positions are used unchanged, exactly as every arm
+	// before this one worked.
+	NeighbourDensity float64 `json:"neighbour_density,omitempty"`
 }
 
 // ExpResult is one arm at one seed.
@@ -161,9 +168,9 @@ func registerExperiment(st *state.Store, s *Sim) {
 				}
 			}
 		}
-		if param != "repeater_version" && param != "companion_version" {
+		if param != "repeater_version" && param != "companion_version" && param != "neighbour_density" {
 			return nil, fmt.Errorf(
-				"this build varies repeater_version and companion_version; %q needs the study engine", param)
+				"this build varies repeater_version, companion_version and neighbour_density; %q needs the study engine", param)
 		}
 		if len(values) == 0 {
 			return nil, fmt.Errorf("experiment.vary needs values")
@@ -173,10 +180,18 @@ func registerExperiment(st *state.Store, s *Sim) {
 		e.Arms = e.Arms[:0]
 		for _, v := range values {
 			arm := ExpArm{Label: v}
-			if param == "repeater_version" {
+			switch param {
+			case "repeater_version":
 				arm.RepeaterVersion = v
-			} else {
+			case "companion_version":
 				arm.CompanionVersion = v
+			case "neighbour_density":
+				d, err := strconv.ParseFloat(v, 64)
+				if err != nil || d <= 0 {
+					return nil, fmt.Errorf("neighbour_density %q: needs a positive number", v)
+				}
+				arm.NeighbourDensity = d
+				arm.Label = fmt.Sprintf("%g neighbours", d)
 			}
 			e.Arms = append(e.Arms, arm)
 		}
