@@ -117,8 +117,11 @@ func candidates(name string) []string {
 func Embedded() []string {
 	var out []string
 	_ = fs.WalkDir(embedded.FS, ".", func(p string, d fs.DirEntry, err error) error {
+		// A per-entry err here means this one entry could not be read, not
+		// that the walk should stop - skipping it and continuing is the
+		// correct response, not an error being dropped on the floor.
 		if err != nil || d.IsDir() || !strings.HasSuffix(p, ".json") {
-			return nil
+			return nil //nolint:nilerr
 		}
 		n := strings.TrimSuffix(strings.TrimPrefix(p, "fixture-"), ".json")
 		out = append(out, n)

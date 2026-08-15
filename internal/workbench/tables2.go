@@ -41,6 +41,11 @@ type runsPanel struct {
 	init   bool
 	loaded bool
 	rows   []comp.Row
+	// The live sweep's queue keeps its own table: the two have different
+	// columns, and one table told to change its shape mid-frame loses its
+	// sort and its scroll.
+	qtb   comp.Table
+	qinit bool
 }
 
 func (p *runsPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
@@ -54,6 +59,16 @@ func (p *runsPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 		}
 		p.tb.SortCol, p.tb.SortDesc, p.init = 0, true, true
 	}
+	// A sweep in hand takes precedence over the archive.
+	//
+	// This panel used to show only what the CLI had saved, which is a history
+	// of finished work - useful, and not what somebody watching a sweep wants.
+	// An arm summary says nothing until every seed of it has finished, so
+	// without the queue a twelve-cell run looks identical to a hung one for
+	// several minutes at a time.
+	if s != nil && len(s.ExperimentRuns) > 0 {
+		return p.queue(t, gtx, s)
+	}
 	if !p.loaded {
 		p.loaded = true
 		p.rows = runRows()
@@ -64,6 +79,46 @@ func (p *runsPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 			"no runs recorded yet - a run appears here once one has been saved"))
 	}
 	return p.tb.Layout(t, gtx, nil)
+}
+
+// queue is every cell of the sweep and where it has got to.
+func (p *runsPanel) queue(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+	if !p.qinit {
+		p.qtb.Cols = []comp.Column{
+			{Title: "arm", Width: 200},
+			{Title: "seed", Width: 80, Right: true, Mono: true},
+			{Title: "state", Width: 90},
+			{Title: "result", Mono: true},
+		}
+		p.qinit = true
+	}
+	rows := make([]comp.Row, 0, len(s.ExperimentRuns))
+	done, running := 0, ""
+	for i, r := range s.ExperimentRuns {
+		if r.State == "done" {
+			done++
+		}
+		if r.State == "running" {
+			running = r.Arm
+		}
+		rows = append(rows, comp.Row{
+			Key:   fmt.Sprintf("%d", i),
+			Cells: []string{r.Arm, fmt.Sprintf("%d", r.Seed), r.State, r.Result},
+		})
+	}
+	p.qtb.SetRows(rows)
+
+	head := fmt.Sprintf("%d of %d cells done", done, len(s.ExperimentRuns))
+	if running != "" {
+		head += " — running " + running
+	}
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(comp.OneLine(t, t.Sz.Caption, t.P.Dim, head, false)),
+		layout.Rigid(layout.Spacer{Height: t.Sp.XS}.Layout),
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			return p.qtb.Layout(t, gtx, nil)
+		}),
+	)
 }
 
 // runRows reads the run records the CLI writes.

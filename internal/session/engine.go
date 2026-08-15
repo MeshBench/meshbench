@@ -44,6 +44,10 @@ type Sim struct {
 	// and a different one on a continent.
 	gpuWarm bool
 	gpuMu   sync.Mutex
+
+	// bench is the engine a running sweep cell owns, so the operator can watch
+	// the run they started rather than a still clock. See benchlive.go.
+	bench benchLive
 	// gpuProbe is what asking this machine for a GPU answered, kept because
 	// asking twice opens a device twice.
 	gpuProbe *gpuProbe
@@ -377,11 +381,11 @@ func (s *Sim) warm(st *state.Store, nodes int) {
 // A tx nobody received still gets a trail, with To of -1, because a repeater
 // shouting into an empty valley is exactly the thing somebody is looking for.
 func (s *Sim) trailsSince(fromMs uint32, index map[string]int) []state.Trail {
-	if s.eng == nil {
+	if s.liveEngine() == nil {
 		return nil
 	}
 	var out []state.Trail
-	for _, e := range s.eng.EventsSince(fromMs) {
+	for _, e := range s.liveEngine().EventsSince(fromMs) {
 		from, ok := index[e.From]
 		if !ok {
 			continue
@@ -403,10 +407,10 @@ func (s *Sim) trailsSince(fromMs uint32, index map[string]int) []state.Trail {
 
 // eventTail is the most recent n events, oldest first, and the total.
 func (s *Sim) eventTail(n int) ([]state.Event, int) {
-	if s.eng == nil {
+	if s.liveEngine() == nil {
 		return nil, 0
 	}
-	all, total := s.eng.EventsTail(n)
+	all, total := s.liveEngine().EventsTail(n)
 	out := make([]state.Event, 0, len(all))
 	for _, e := range all {
 		out = append(out, state.Event{
@@ -421,10 +425,10 @@ func (s *Sim) eventTail(n int) ([]state.Event, int) {
 
 // eventCounts is the whole run's events by class, in the snapshot's shape.
 func (s *Sim) eventCounts() state.EventCounts {
-	if s.eng == nil {
+	if s.liveEngine() == nil {
 		return state.EventCounts{}
 	}
-	c := s.eng.EventCounts()
+	c := s.liveEngine().EventCounts()
 	return state.EventCounts{
 		Sent: c["sent"], Received: c["received"], HalfDuplex: c["half-duplex"],
 		Interference: c["interference"], Floor: c["floor"],
@@ -433,10 +437,10 @@ func (s *Sim) eventCounts() state.EventCounts {
 
 // scores is the engine's own scoreboard, projected.
 func (s *Sim) scores() []state.Score {
-	if s.eng == nil {
+	if s.liveEngine() == nil {
 		return nil
 	}
-	sb := s.eng.Scoreboard()
+	sb := s.liveEngine().Scoreboard()
 	out := make([]state.Score, 0, len(sb))
 	for _, v := range sb {
 		out = append(out, state.Score{
@@ -651,6 +655,11 @@ func geometryFingerprint(nodes []scenario.Node, freqMHz, excess float64) uint64 
 		put(n.Position.Lon)
 		put(n.HeightAGLm)
 		put(n.TxPowerDBm)
+		// Noise figure is in here because the engine's path-loss cull decides
+		// against the noise floor, so a node that got quieter can bring a pair
+		// back that a previous run discarded. Leaving it out meant a stale
+		// matrix loaded from disk and looked authoritative.
+		put(n.NoiseFigureDB)
 	}
 	return h.Sum64()
 }

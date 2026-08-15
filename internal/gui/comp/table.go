@@ -78,6 +78,16 @@ type Table struct {
 	// and a filter change.
 	Selected string
 
+	// widths are per-column overrides in dp: what the operator has dragged a
+	// column to, or what the content asked for. Empty means the declared
+	// width, so a table nobody has touched looks as its panel declared it.
+	widths []unit.Dp
+	// grips are the drag handles between headers, pooled by column.
+	grips []Splitter
+	// fitted records that the content has been measured once. Re-measuring on
+	// every SetRows would fight an operator mid-drag.
+	fitted bool
+
 	headers []widget.Clickable
 	// all is every row last handed over, before filtering.
 	all []Row
@@ -155,6 +165,13 @@ func (tb *Table) Layout(t *theme.Theme, gtx layout.Context, onSelect func(key st
 	for len(tb.headers) < len(tb.Cols) {
 		tb.headers = append(tb.headers, widget.Clickable{})
 	}
+	for len(tb.grips) < len(tb.Cols) {
+		tb.grips = append(tb.grips, Splitter{Vertical: true})
+	}
+	for len(tb.widths) < len(tb.Cols) {
+		tb.widths = append(tb.widths, 0)
+	}
+	tb.autoFit(t)
 	for i := range tb.headers {
 		if tb.headers[i].Clicked(gtx) && tb.Cols[i].Sortable {
 			if tb.SortCol == i {
@@ -195,6 +212,63 @@ func (tb *Table) Layout(t *theme.Theme, gtx layout.Context, onSelect func(key st
 	)
 }
 
+// widthOf is what a column is actually drawn at: what it has been dragged or
+// fitted to, else what the panel declared. Zero still means "take the rest".
+func (tb *Table) widthOf(i int) unit.Dp {
+	if i < len(tb.widths) && tb.widths[i] > 0 {
+		return tb.widths[i]
+	}
+	return tb.Cols[i].Width
+}
+
+// autoFit sizes every fixed column to its widest cell, once.
+//
+// The alternative is a number somebody chose when the table was written, which
+// is right for the data they had in front of them: the Runs table clipped
+// "1.17.0 · agc.reset.interval 0" to "1.17.0 · agc.re" because 200dp was
+// generous for a version string and nothing else.
+//
+// Measured in characters rather than shaped, deliberately. Shaping every cell
+// of a twenty-thousand row ledger to pick a column width costs more than the
+// clipping does, and an over-estimate only wastes space while an under-estimate
+// hides data.
+func (tb *Table) autoFit(t *theme.Theme) {
+	if tb.fitted || len(tb.rows2()) == 0 {
+		return
+	}
+	tb.fitted = true
+	for len(tb.widths) < len(tb.Cols) {
+		tb.widths = append(tb.widths, 0)
+	}
+	for i := range tb.Cols {
+		if tb.Cols[i].Width == 0 {
+			continue // the flexed column takes what is left
+		}
+		widest := len(tb.Cols[i].Title)
+		for _, r := range tb.rows2() {
+			if i < len(r.Cells) && len(r.Cells[i]) > widest {
+				widest = len(r.Cells[i])
+			}
+		}
+		// Per character, plus the cell's own padding. Mono is near enough
+		// exact; proportional over-estimates, which errs towards space.
+		per := t.Sz.Body * 6 / 10
+		want := unit.Dp(float32(widest)*float32(per)/10) + 2*t.Sp.S
+		switch {
+		case want < 48:
+			want = 48
+		case want > 420:
+			want = 420 // past this a column is a paragraph; drag it wider
+		}
+		if want > tb.Cols[i].Width {
+			tb.widths[i] = want
+		}
+	}
+}
+
+// rows2 is every row the table holds, filtered or not.
+func (tb *Table) rows2() []Row { return tb.shown }
+
 func (tb *Table) header(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 	children := make([]layout.FlexChild, 0, len(tb.Cols))
 	for i := range tb.Cols {
@@ -223,13 +297,32 @@ func (tb *Table) header(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 		}
 		if c.Width == 0 {
 			children = append(children, layout.Flexed(1, w))
-		} else {
-			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				gtx.Constraints.Min.X = gtx.Dp(c.Width)
-				gtx.Constraints.Max.X = gtx.Dp(c.Width)
-				return w(gtx)
-			}))
+			continue
 		}
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			px := gtx.Dp(tb.widthOf(i))
+			gtx.Constraints.Min.X, gtx.Constraints.Max.X = px, px
+			return w(gtx)
+		}))
+		// A grip on the column's trailing edge. Dragging right widens it.
+		//
+		// Bounded to the header's own height. A splitter takes the height it is
+		// offered, and inside a horizontal flex that is the whole panel - so an
+		// unbounded grip claimed every click in its column all the way down the
+		// table, and rows stopped selecting.
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			gtx.Constraints.Max.Y = gtx.Dp(t.RowHeight())
+			d := tb.grips[i].Layout(t, gtx)
+			if tb.grips[i].Delta != 0 {
+				next := tb.widthOf(i) +
+					unit.Dp(tb.grips[i].Delta/gtx.Metric.PxPerDp)
+				if next < 40 {
+					next = 40
+				}
+				tb.widths[i] = next
+			}
+			return d
+		}))
 	}
 	return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, children...)
 }
@@ -300,13 +393,20 @@ func (tb *Table) row(t *theme.Theme, gtx layout.Context, idx int) layout.Dimensi
 			}
 			if c.Width == 0 {
 				children = append(children, layout.Flexed(1, w))
-			} else {
-				children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					gtx.Constraints.Min.X = gtx.Dp(c.Width)
-					gtx.Constraints.Max.X = gtx.Dp(c.Width)
-					return w(gtx)
-				}))
+				continue
 			}
+			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				px := gtx.Dp(tb.widthOf(i))
+				gtx.Constraints.Min.X, gtx.Constraints.Max.X = px, px
+				return w(gtx)
+			}))
+			// The width of the header's grip, so a cell sits under its own
+			// title. Without it every column after the first slides left by a
+			// handle's width per column, which reads as a table that cannot
+			// count.
+			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Dimensions{Size: image.Pt(2*grab+1, 0)}
+			}))
 		}
 		gtx.Constraints.Min.Y = h
 		gtx.Constraints.Max.Y = h

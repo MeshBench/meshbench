@@ -222,12 +222,27 @@ powering up with its FPU disabled. A native node cannot express that bug. This
 is the whole reason both backends exist, and it is why native being ~3300×
 faster is not a reason to delete the emulated one.
 
-### 3.4 Only one board family actually runs
+### 3.4 Two board families run, and the boards with front ends are not among them
 
-nRF52840 under Renode. The ESP32 path boots under Espressif's QEMU fork but hits
-the same wall — `radio_init()` drives an SX1262 that QEMU does not model, and no
-ESP32-side peripheral exists yet. Board profiles (MSIM-18) are specified, not
-implemented.
+nRF52840 under Renode and ESP32 under our QEMU fork, which now does model the
+SX1262 — `hw/ssi/sx1262` forwards SPI to the same `VirtualSX1262` a native node
+clocks, so an emulated node and a native one are the same radio. The wall this
+section used to describe is gone.
+
+What is still missing is the boards where a front-end module decides how much
+power reaches the antenna. The enable line crosses into the model as a GPIO
+(`radio-fem`), and `Generic_E22_sx1262` can exercise it under QEMU today, but
+**the Heltec T096 cannot be run at all**: it is nRF52840, so it needs Renode
+rather than QEMU, and of the boards shipping `.uf2` images only T-Beam Supreme S3
+is ESP32-S3.
+
+That matters more than a missing board usually would, because the T096 is the
+board of the transmit fault MeshCore 1.17.1 fixed — firmware that never raised
+the enable line, so the PA's output went through the module's isolation instead
+of its gain. **A study of that class of fault cannot presently be run here.** No
+fixture shipping today contains a node with a front end at all: every node in
+the Scotland and Fife fixtures is a RAK4631, which has none, so the front-end
+path is unexercised rather than merely untested.
 
 ### 3.5 Forwarding policy is ours, not the repeater application's
 

@@ -53,22 +53,78 @@ func (v View) Purpose() string {
 	}
 }
 
-// layoutFor is the declared arrangement of each view: which panels, and how
-// the space is divided. Changing a view's shape is changing this table.
-func layoutFor(v View) (main string, side []string) {
+// Arrangement is how a view divides the window.
+//
+// This replaced one main panel and a rail of side panels. That shape is right
+// for a map with two readouts beside it and wrong for anything that compares:
+// the Bench got a run list filling the window and its controls squeezed into a
+// 340dp strip, because a strip was the only other place available. A view that
+// reads a table against its controls needs columns, and nothing here could say
+// so.
+type Arrangement struct {
+	// Rail is a fixed-width column down the right, drawn full height. Empty
+	// for a view that wants none.
+	Rail   []string
+	RailDp int
+
+	// Rows divide everything left of the rail, top to bottom.
+	Rows []Row
+}
+
+// Row is a horizontal band of one or more panels side by side.
+type Row struct {
+	// Weight is this row's share of the height, against the other rows.
+	Weight int
+	Cols   []Col
+}
+
+// Col is one panel in a row. WidthDp fixes it; zero takes what the fixed
+// columns leave.
+//
+// Fixed is for a column of controls, whose fields have a width below which
+// they stop being usable. Flexed is for the thing being read.
+type Col struct {
+	Name    string
+	WidthDp int
+}
+
+// arrangementFor is the declared shape of each view. Changing a view's shape is
+// changing this table.
+func arrangementFor(v View) Arrangement {
 	switch v {
 	case Run:
-		return "Map", []string{"Schedule", "Scoreboard"}
+		return withRail("Map", 340, "Schedule", "Scoreboard")
 	case Debug:
-		return "Packet timeline", []string{"Inspector", "Link"}
+		return withRail("Packet timeline", 340, "Inspector", "Link")
 	case Verify:
-		return "Compare", []string{"Validate", "Scoreboard"}
+		return withRail("Compare", 340, "Validate", "Scoreboard")
 	case Bench:
-		return "Runs", []string{"Sweep", "Matrix"}
+		// Three columns and a strip, because comparing arms means reading a
+		// table against the controls that produced it while the runs tick over
+		// beside both. Sweep is fixed at a width its fields stay usable at;
+		// Results takes the rest, being the thing actually read; Timelines gets
+		// the full width under them because a burst is long and thin.
+		return Arrangement{
+			Rail:   []string{"Runs", "Experiment log", "Matrix"},
+			RailDp: 460,
+			Rows: []Row{
+				{Weight: 3, Cols: []Col{{Name: "Sweep", WidthDp: 440}, {Name: "Results"}}},
+				{Weight: 2, Cols: []Col{{Name: "Timelines"}}},
+			},
+		}
 	case App:
-		return "Companion bench", []string{"Events", "Console"}
+		return withRail("Companion bench", 340, "Events", "Console")
 	default:
-		return "Map", []string{"Nodes", "Inspector"}
+		return withRail("Map", 340, "Nodes", "Inspector")
+	}
+}
+
+// withRail is the older shape, kept because most views want it: one panel with
+// a fixed rail of readouts beside it.
+func withRail(main string, railDp int, rail ...string) Arrangement {
+	return Arrangement{
+		Rail: rail, RailDp: railDp,
+		Rows: []Row{{Weight: 1, Cols: []Col{{Name: main}}}},
 	}
 }
 
@@ -79,10 +135,14 @@ const NumViews = numViews
 // PanelsIn is every panel a view shows, for anything outside this package that
 // needs to know where a panel lives - showing one means showing its view.
 func PanelsIn(v View) []string {
-	main, side := layoutFor(v)
-	out := make([]string, 0, len(side)+1)
-	if main != "" {
-		out = append(out, main)
+	a := arrangementFor(v)
+	var out []string
+	for _, r := range a.Rows {
+		for _, c := range r.Cols {
+			if c.Name != "" {
+				out = append(out, c.Name)
+			}
+		}
 	}
-	return append(out, side...)
+	return append(out, a.Rail...)
 }

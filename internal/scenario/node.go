@@ -184,6 +184,11 @@ type Node struct {
 	// because a repeater with a masthead preamp and a handheld in a pocket do
 	// not have the same one.
 	NoiseFigureDB float64
+
+	// FEM is the front-end module this node's board carries, where it has one.
+	// Nil means the radio drives the antenna directly, and then whether the
+	// firmware drives a transmit-enable line is not a question worth asking.
+	FEM *FEM `json:",omitempty"`
 }
 
 // RadioConfig is the modem setup.
