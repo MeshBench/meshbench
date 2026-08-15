@@ -18,10 +18,11 @@ import (
 // it has to be true for the run to have passed. Separating them is how a
 // scenario ends up with sends nothing asserts on.
 type schedulePanel struct {
-	sends  comp.Table
-	claims comp.Table
-	faults comp.Table
-	init   bool
+	sends        comp.Table
+	claims       comp.Table
+	faults       comp.Table
+	connectivity comp.Table
+	init         bool
 }
 
 func (p *schedulePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
@@ -46,6 +47,12 @@ func (p *schedulePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 			{Title: "reach after", Width: 110, Right: true, Mono: true},
 			{Title: "recovery", Mono: true},
 		}
+		p.connectivity.Cols = []comp.Column{
+			{Title: "node", Width: 170, Sortable: true},
+			{Title: "samples", Width: 84, Right: true, Mono: true},
+			{Title: "min neighbours", Width: 110, Right: true, Mono: true, Sortable: true},
+			{Title: "longest gap", Mono: true},
+		}
 		p.init = true
 	}
 	if s == nil {
@@ -59,7 +66,11 @@ func (p *schedulePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 			every = fmt.Sprintf("%.1fs", float64(snd.EveryMs)/1000)
 		}
 		command := snd.Command
-		if snd.Fault != "" {
+		switch {
+		case snd.Fault == "move":
+			command = fmt.Sprintf("[move to %.4f,%.4f over %.1fs]", snd.ToLat, snd.ToLon,
+				float64(snd.DurationMs)/1000)
+		case snd.Fault != "":
 			// A mutation, not a command - shown in the same table rather
 			// than a second one, because "what happens to this scenario and
 			// when" is one timeline, not two.
@@ -87,7 +98,7 @@ func (p *schedulePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 	faultRows := make([]comp.Row, 0, len(s.FaultLog))
 	for i, ev := range s.FaultLog {
 		recovery := "watching"
-		if ev.Kind != "node-down" {
+		if ev.Kind != "node-down" && ev.Kind != "depart" {
 			recovery = ""
 		} else if ev.Recovered {
 			recovery = fmt.Sprintf("recovered by %.1fs (%.1fs after) - %d undelivered",
@@ -110,9 +121,24 @@ func (p *schedulePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 		})
 	}
 
+	connRows := make([]comp.Row, 0, len(s.Connectivity))
+	for _, c := range s.Connectivity {
+		gap := "none yet"
+		if c.LongestGapMs > 0 {
+			gap = fmt.Sprintf("%.1fs at %.1fs", float64(c.LongestGapMs)/1000, float64(c.LongestGapAtMs)/1000)
+		}
+		connRows = append(connRows, comp.Row{
+			Key: c.Node,
+			Cells: []string{
+				c.Node, fmt.Sprintf("%d", c.Samples), fmt.Sprintf("%d", c.MinNeighbours), gap,
+			},
+		})
+	}
+
 	p.sends.SetRows(sendRows)
 	p.claims.SetRows(claimRows)
 	p.faults.SetRows(faultRows)
+	p.connectivity.SetRows(connRows)
 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(comp.SectionTitle(t, fmt.Sprintf("%d sends", len(sendRows)))),
@@ -128,6 +154,11 @@ func (p *schedulePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 			fmt.Sprintf("%d faults fired", len(faultRows)))),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			return p.faults.Layout(t, gtx, nil)
+		}),
+		layout.Rigid(comp.SectionTitle(t,
+			fmt.Sprintf("%d nodes tracked", len(connRows)))),
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			return p.connectivity.Layout(t, gtx, nil)
 		}),
 	)
 }

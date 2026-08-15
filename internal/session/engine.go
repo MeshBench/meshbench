@@ -136,6 +136,15 @@ type Sim struct {
 	// into w.FaultLog - cleared once reachability returns to its pre-fault
 	// value, or never, which is itself the answer for a permanent partition.
 	watching []int
+	// moves is every node track currently in flight (plan §13).
+	moves []activeMove
+	// trackedNodes is which nodes' connectivity a run bothers to sample -
+	// opt in, node.track, because a sample nobody asked for is a cost nobody
+	// asked to pay.
+	trackedNodes     map[string]bool
+	neighbourHistory map[string][]connSample
+	sampledOnce      bool
+	lastSampleAt     uint32
 }
 
 // terrainStore is the elevation the engine sees.

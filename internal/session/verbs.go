@@ -37,6 +37,7 @@ func Register(st *state.Store, s *Sim) {
 	registerPlanningVerbs(st, s)
 	registerSchedule(st, s)
 	registerFault(st, s)
+	registerMovement(st, s)
 	registerValidate(st, s)
 	registerUIVerbs(st, s)
 	registerCapture(st, s)
@@ -131,6 +132,7 @@ func Register(st *state.Store, s *Sim) {
 			// and Links already carries the pair-wise margins reachCounts
 			// walks - built once at open, not per tick.
 			s.stepFaults(context.Background(), w)
+			s.stepMoves(context.Background(), w)
 			w.Counts = s.eventCounts()
 			w.Scores = s.scores()
 			w.Stats = s.nodeStats(w.Events)

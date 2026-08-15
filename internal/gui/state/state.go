@@ -95,6 +95,10 @@ type Snapshot struct {
 	Assertions []Assertion
 	// FaultLog is every scheduled mutation that has fired, in order.
 	FaultLog []FaultEvent
+	// Connectivity is one summary per tracked node - min neighbours and the
+	// longest zero-neighbour gap seen so far, plan §13's own headline
+	// number, updated as the run plays rather than only once at the end.
+	Connectivity []ConnectivitySummary
 	// Endpoints are the companions currently served.
 	Endpoints []Endpoint
 	// Routes are the planner's last answer.
@@ -577,6 +581,12 @@ type Send struct {
 	EveryMs uint32
 	Command string
 	Fault   string
+	// ToLat, ToLon and DurationMs are Fault "move"'s own parameters: the
+	// node's position is interpolated from wherever it is when the move
+	// fires to (ToLat, ToLon), over DurationMs of simulated time - plan
+	// §13's "movement interpolated per tick", not a jump.
+	ToLat, ToLon float64
+	DurationMs   uint32
 }
 
 // FaultEvent is one scheduled mutation that has fired, with what it did to
@@ -602,6 +612,18 @@ type FaultEvent struct {
 	// show up as received anywhere in the log by the time recovery (or the
 	// run's end, for one that never recovers) is checked.
 	UndeliveredCost int
+}
+
+// ConnectivitySummary is one tracked node's neighbour-count history,
+// boiled down to the number the plan asks for: a duration, not a mean. An
+// average of "6 6 5 3 2 0 0 1 3 5 7 6" hides the four minutes with no path
+// home entirely; the gap is the answer.
+type ConnectivitySummary struct {
+	Node           string
+	Samples        int
+	MinNeighbours  int
+	LongestGapMs   uint32
+	LongestGapAtMs uint32
 }
 
 // Assertion is one claim the fixture makes about a run.
@@ -822,6 +844,10 @@ type World struct {
 	Assertions []Assertion
 	// FaultLog is every scheduled mutation that has fired, in order.
 	FaultLog []FaultEvent
+	// Connectivity is one summary per tracked node - min neighbours and the
+	// longest zero-neighbour gap seen so far, plan §13's own headline
+	// number, updated as the run plays rather than only once at the end.
+	Connectivity []ConnectivitySummary
 	// Endpoints are the companions currently served.
 	Endpoints []Endpoint
 	// Routes are the planner's last answer.
@@ -1128,6 +1154,7 @@ func (s *Store) publish() {
 		Sends:                 s.world.Sends,
 		Assertions:            s.world.Assertions,
 		FaultLog:              s.world.FaultLog,
+		Connectivity:          s.world.Connectivity,
 		Endpoints:             s.world.Endpoints,
 		Routes:                s.world.Routes,
 		Import:                s.world.Import,

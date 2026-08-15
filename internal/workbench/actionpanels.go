@@ -160,6 +160,13 @@ type scheduleControls struct {
 	faultAt   comp.Field
 	faultKind comp.Field
 	addFault  comp.Button
+	moveNode  comp.Field
+	moveAt    comp.Field
+	moveTo    comp.Field
+	moveOver  comp.Field
+	addMove   comp.Button
+	trackNode comp.Field
+	track     comp.Button
 	do        Do
 	built     bool
 }
@@ -173,9 +180,15 @@ func (c *scheduleControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Sna
 		c.atLeast.Hint = "at least"
 		c.faultNode.Hint = "node to fail"
 		c.faultAt.Hint = "at, seconds"
-		c.faultKind.Hint = "node-down or node-up"
+		c.faultKind.Hint = "node-down, node-up, arrive or depart"
+		c.moveNode.Hint = "node to move"
+		c.moveAt.Hint = "starting at, seconds"
+		c.moveTo.Hint = "to: lat,lon"
+		c.moveOver.Hint = "over, seconds"
+		c.trackNode.Hint = "node to track"
 		for _, f := range []*comp.Field{&c.node, &c.at, &c.every, &c.kind, &c.atLeast,
-			&c.faultNode, &c.faultAt, &c.faultKind} {
+			&c.faultNode, &c.faultAt, &c.faultKind,
+			&c.moveNode, &c.moveAt, &c.moveTo, &c.moveOver, &c.trackNode} {
 			f.Editor.SingleLine = true
 		}
 		c.add.Label, c.add.Kind = "add send", comp.Primary
@@ -183,6 +196,8 @@ func (c *scheduleControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Sna
 		c.addAss.Label, c.addAss.Kind = "add assertion", comp.Secondary
 		c.check.Label, c.check.Kind = "check now", comp.Primary
 		c.addFault.Label, c.addFault.Kind = "add fault", comp.Secondary
+		c.addMove.Label, c.addMove.Kind = "add move", comp.Secondary
+		c.track.Label, c.track.Kind = "track neighbours", comp.Secondary
 		c.bar.fields = []*comp.Field{&c.node, &c.at, &c.every}
 		c.bar.buttons = []*comp.Button{&c.add, &c.clear}
 		c.built = true
@@ -225,6 +240,31 @@ func (c *scheduleControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Sna
 		}
 		c.do("schedule.add_fault", p)
 	}
+	if c.addMove.Click.Clicked(gtx) && c.do != nil {
+		if lat, lon, ok := parseLatLon(fieldText(&c.moveTo)); !ok {
+			c.do("ui.said", "add move: \"to\" needs lat,lon")
+		} else {
+			node := fieldText(&c.moveNode)
+			if node == "" {
+				node = selectedNodeName(s)
+			}
+			p := map[string]any{"node": node, "to_lat": lat, "to_lon": lon}
+			if v, ok := num(&c.moveAt); ok {
+				p["at_ms"] = v * 1000
+			}
+			if v, ok := num(&c.moveOver); ok {
+				p["duration_ms"] = v * 1000
+			}
+			c.do("schedule.add_move", p)
+		}
+	}
+	if c.track.Click.Clicked(gtx) && c.do != nil {
+		node := fieldText(&c.trackNode)
+		if node == "" {
+			node = selectedNodeName(s)
+		}
+		c.do("node.track", node)
+	}
 	second := actionBar{
 		fields:  []*comp.Field{&c.kind, &c.atLeast},
 		buttons: []*comp.Button{&c.addAss, &c.check},
@@ -236,10 +276,22 @@ func (c *scheduleControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Sna
 		note: "node-down stops that node's firmware at the chosen instant, node-up restarts it - " +
 			"reachability is measured the moment each fires, in both directions",
 	}
+	fourth := actionBar{
+		fields:  []*comp.Field{&c.moveNode, &c.moveAt, &c.moveTo, &c.moveOver},
+		buttons: []*comp.Button{&c.addMove},
+		note:    "position is interpolated every tick from wherever the node is when the move starts, not jumped",
+	}
+	fifth := actionBar{
+		fields:  []*comp.Field{&c.trackNode},
+		buttons: []*comp.Button{&c.track},
+		note:    "sampled once a second once tracked; see the connectivity table below for the longest gap",
+	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return c.bar.layout(t, gtx) }),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return second.layout(t, gtx) }),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return third.layout(t, gtx) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return fourth.layout(t, gtx) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return fifth.layout(t, gtx) }),
 	)
 }
 
@@ -405,6 +457,22 @@ func (c *planningControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Sna
 		}
 	}
 	return c.bar.layout(t, gtx)
+}
+
+// parseLatLon reads "lat,lon" (or "lat lon") from a single field - one box
+// rather than two, since a destination is one thing to type, not a pair of
+// unrelated numbers.
+func parseLatLon(s string) (lat, lon float64, ok bool) {
+	parts := splitFields(s)
+	if len(parts) != 2 {
+		return 0, 0, false
+	}
+	latV, err1 := strconv.ParseFloat(parts[0], 64)
+	lonV, err2 := strconv.ParseFloat(parts[1], 64)
+	if err1 != nil || err2 != nil {
+		return 0, 0, false
+	}
+	return latV, lonV, true
 }
 
 func splitFields(s string) []string {

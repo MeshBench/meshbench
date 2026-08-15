@@ -29,9 +29,11 @@ func registerFault(st *state.Store, s *Sim) {
 			return nil, fmt.Errorf("schedule.add_fault needs a node")
 		}
 		kind, _ := stringField(p, "kind")
-		if kind != "node-down" && kind != "node-up" {
+		switch kind {
+		case "node-down", "node-up", "arrive", "depart":
+		default:
 			return nil, fmt.Errorf(
-				"this build injects node-down and node-up; %q needs a fault kind not yet built", kind)
+				"this build injects node-down, node-up, arrive and depart; %q needs a fault kind not yet built", kind)
 		}
 		if _, ok := findNode(w.Nodes, node); !ok {
 			return nil, fmt.Errorf("no node named %q", node)
@@ -59,8 +61,8 @@ func (s *Sim) stepFaults(ctx context.Context, w *state.World) {
 	}
 	for i := range w.Sends {
 		snd := w.Sends[i]
-		if snd.Fault == "" || s.firedFaults[i] || snd.AtMs > w.NowMs {
-			continue
+		if snd.Fault == "" || snd.Fault == "move" || s.firedFaults[i] || snd.AtMs > w.NowMs {
+			continue // "move" is stepMoves's own entry to fire, not this one's
 		}
 		s.firedFaults[i] = true
 		s.fireFault(ctx, w, snd)
@@ -81,14 +83,19 @@ func (s *Sim) fireFault(ctx context.Context, w *state.World, snd state.Send) {
 	}
 	outBefore, inBefore := reachCounts(w.Links, idx, down)
 
+	// arrive/depart are node-up/node-down under a name that reads right for
+	// a node joining or leaving rather than one merely failing - same
+	// mechanism, since this simulator has no notion of a node that was never
+	// in the scenario at all: "arrives" means its firmware was never started
+	// at play, and this is the schedule entry that starts it.
 	var err error
 	switch snd.Fault {
-	case "node-down":
+	case "node-down", "depart":
 		err = s.stopNode(snd.Node)
 		if err == nil {
 			s.downNodes[snd.Node] = true
 		}
-	case "node-up":
+	case "node-up", "arrive":
 		err = s.startNode(ctx, snd.Node, w.Seed)
 		if err == nil {
 			delete(s.downNodes, snd.Node)
@@ -99,11 +106,12 @@ func (s *Sim) fireFault(ctx context.Context, w *state.World, snd state.Send) {
 		return
 	}
 
+	goesDown := snd.Fault == "node-down" || snd.Fault == "depart"
 	down2 := make(map[int]bool, len(down))
 	for k, v := range down {
 		down2[k] = v
 	}
-	if snd.Fault == "node-down" {
+	if goesDown {
 		down2[idx] = true
 	} else {
 		delete(down2, idx)
@@ -119,7 +127,7 @@ func (s *Sim) fireFault(ctx context.Context, w *state.World, snd state.Send) {
 	w.Say(fmt.Sprintf("%s: %s at %.1f s - reach %d/%d -> %d/%d",
 		snd.Node, snd.Fault, float64(w.NowMs)/1000, outBefore, inBefore, outAfter, inAfter))
 	w.FaultLog = append(w.FaultLog, ev)
-	if snd.Fault == "node-down" {
+	if goesDown {
 		s.watching = append(s.watching, len(w.FaultLog)-1)
 	}
 }

@@ -986,8 +986,51 @@ func (e *Engine) InvalidateLinks() {
 	e.mu.Unlock()
 }
 
+// SetPosition moves one node and invalidates only the cache entries that
+// name it - the narrow invalidation plan §13 asks for, as opposed to
+// InvalidateLinks's whole-cache drop.
+//
+// A move only ever changes the paths this one node is part of; the other
+// n-1 choose 2 cached losses are still exactly correct, and on a
+// country-sized scenario recomputing all of them for a single moving node
+// is the difference between a run that finishes and one that does not -
+// the engine's own comment on InvalidateLinks says as much for the
+// all-at-once case, and it is more true, not less, of a run with a
+// moving node in it that recomputes on every tick.
+func (e *Engine) SetPosition(name string, lat, lon float64) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	idx := -1
+	for i, n := range e.nodes {
+		if n.Spec.Name == name {
+			idx = i
+			n.Spec.Position.Lat, n.Spec.Position.Lon = lat, lon
+			break
+		}
+	}
+	if idx < 0 {
+		return false
+	}
+	for k := range e.linkCache {
+		if k[0] == idx || k[1] == idx {
+			delete(e.linkCache, k)
+		}
+	}
+	delete(e.emitterNoise, idx)
+	return true
+}
+
 // PathLossForTest exposes the cached link for measurements and tests.
 func (e *Engine) PathLossForTest(a, b int) (float64, bool) { return e.pathLoss(a, b) }
+
+// LinkCacheSizeForTest is how many pairs are cached right now - the only way
+// from outside the package to tell a narrow invalidation from a full one,
+// since both leave PathLossForTest answering correctly either way.
+func (e *Engine) LinkCacheSizeForTest() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return len(e.linkCache)
+}
 
 func (e *Engine) record(ev Event) {
 	e.mu.Lock()
