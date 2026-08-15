@@ -322,6 +322,16 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 		return out
 	}
 
+	// The arm has to be able to show its own manipulation before anything is
+	// measured. A cell that runs to completion having changed nothing is the
+	// most expensive result this apparatus can produce, because it looks
+	// exactly like a real null.
+	if bad := armDidNotReachTheChip(arm, eng, nodes); len(bad) > 0 {
+		e.stage(arm, seed, "arm did not reach the chip")
+		out.Err = "the arm's settings are not on the radios: " + strings.Join(bad, "; ")
+		return out
+	}
+
 	// Advert every node before the flood.
 	//
 	// Two reasons, and the second is why every seed of an arm returned
