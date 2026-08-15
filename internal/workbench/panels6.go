@@ -20,6 +20,7 @@ import (
 type schedulePanel struct {
 	sends  comp.Table
 	claims comp.Table
+	faults comp.Table
 	init   bool
 }
 
@@ -37,6 +38,14 @@ func (p *schedulePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 			{Title: "within", Width: 84, Right: true, Mono: true},
 			{Title: "bounds", Mono: true},
 		}
+		p.faults.Cols = []comp.Column{
+			{Title: "at", Width: 76, Right: true, Mono: true, Sortable: true},
+			{Title: "event", Width: 90, Sortable: true},
+			{Title: "node", Width: 170, Sortable: true},
+			{Title: "reach before", Width: 110, Right: true, Mono: true},
+			{Title: "reach after", Width: 110, Right: true, Mono: true},
+			{Title: "recovery", Mono: true},
+		}
 		p.init = true
 	}
 	if s == nil {
@@ -49,11 +58,18 @@ func (p *schedulePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 		if snd.EveryMs > 0 {
 			every = fmt.Sprintf("%.1fs", float64(snd.EveryMs)/1000)
 		}
+		command := snd.Command
+		if snd.Fault != "" {
+			// A mutation, not a command - shown in the same table rather
+			// than a second one, because "what happens to this scenario and
+			// when" is one timeline, not two.
+			command = "[fault: " + snd.Fault + "]"
+		}
 		sendRows = append(sendRows, comp.Row{
 			Key: fmt.Sprintf("%d/%s", i, snd.Node),
 			Cells: []string{
 				fmt.Sprintf("%.1fs", float64(snd.AtMs)/1000),
-				every, snd.Node, snd.Command,
+				every, snd.Node, command,
 			},
 		})
 	}
@@ -68,8 +84,35 @@ func (p *schedulePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 			Cells: []string{a.Kind, a.Node, within, boundsOf(a)},
 		})
 	}
+	faultRows := make([]comp.Row, 0, len(s.FaultLog))
+	for i, ev := range s.FaultLog {
+		recovery := "watching"
+		if ev.Kind != "node-down" {
+			recovery = ""
+		} else if ev.Recovered {
+			recovery = fmt.Sprintf("recovered by %.1fs (%.1fs after) - %d undelivered",
+				float64(ev.RecoveredAtMs)/1000,
+				float64(ev.RecoveredAtMs-ev.AtMs)/1000, ev.UndeliveredCost)
+		} else {
+			// Not a blank: a permanent partition has to say so, not look
+			// like a recovery nobody has checked on yet.
+			recovery = "not recovered"
+		}
+		faultRows = append(faultRows, comp.Row{
+			Key: fmt.Sprintf("%d/%s", i, ev.Node),
+			Cells: []string{
+				fmt.Sprintf("%.1fs", float64(ev.AtMs)/1000),
+				ev.Kind, ev.Node,
+				fmt.Sprintf("%d/%d out, %d/%d in", ev.OutBefore, ev.Total, ev.InBefore, ev.Total),
+				fmt.Sprintf("%d/%d out, %d/%d in", ev.OutAfter, ev.Total, ev.InAfter, ev.Total),
+				recovery,
+			},
+		})
+	}
+
 	p.sends.SetRows(sendRows)
 	p.claims.SetRows(claimRows)
+	p.faults.SetRows(faultRows)
 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(comp.SectionTitle(t, fmt.Sprintf("%d sends", len(sendRows)))),
@@ -80,6 +123,11 @@ func (p *schedulePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 			fmt.Sprintf("%d assertions", len(claimRows)))),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			return p.claims.Layout(t, gtx, nil)
+		}),
+		layout.Rigid(comp.SectionTitle(t,
+			fmt.Sprintf("%d faults fired", len(faultRows)))),
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			return p.faults.Layout(t, gtx, nil)
 		}),
 	)
 }

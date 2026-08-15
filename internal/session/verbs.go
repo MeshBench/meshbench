@@ -36,6 +36,7 @@ func Register(st *state.Store, s *Sim) {
 	registerBoundary(st, s)
 	registerPlanningVerbs(st, s)
 	registerSchedule(st, s)
+	registerFault(st, s)
 	registerValidate(st, s)
 	registerUIVerbs(st, s)
 	registerCapture(st, s)
@@ -126,6 +127,10 @@ func Register(st *state.Store, s *Sim) {
 			}
 			w.Trails = s.trailsSince(from, index)
 			w.Events, w.EventTotal = s.eventTail(eventTail)
+			// After Events, which a fault's own undelivered-cost count reads,
+			// and Links already carries the pair-wise margins reachCounts
+			// walks - built once at open, not per tick.
+			s.stepFaults(context.Background(), w)
 			w.Counts = s.eventCounts()
 			w.Scores = s.scores()
 			w.Stats = s.nodeStats(w.Events)

@@ -146,18 +146,22 @@ func (c *fleetControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 
 // scheduleControls adds sends and assertions to a scenario.
 type scheduleControls struct {
-	bar     actionBar
-	node    comp.Field
-	at      comp.Field
-	every   comp.Field
-	add     comp.Button
-	clear   comp.Button
-	kind    comp.Field
-	atLeast comp.Field
-	addAss  comp.Button
-	check   comp.Button
-	do      Do
-	built   bool
+	bar       actionBar
+	node      comp.Field
+	at        comp.Field
+	every     comp.Field
+	add       comp.Button
+	clear     comp.Button
+	kind      comp.Field
+	atLeast   comp.Field
+	addAss    comp.Button
+	check     comp.Button
+	faultNode comp.Field
+	faultAt   comp.Field
+	faultKind comp.Field
+	addFault  comp.Button
+	do        Do
+	built     bool
 }
 
 func (c *scheduleControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
@@ -167,13 +171,18 @@ func (c *scheduleControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Sna
 		c.every.Hint = "every, seconds (blank: once)"
 		c.kind.Hint = "assert: delivered, sent"
 		c.atLeast.Hint = "at least"
-		for _, f := range []*comp.Field{&c.node, &c.at, &c.every, &c.kind, &c.atLeast} {
+		c.faultNode.Hint = "node to fail"
+		c.faultAt.Hint = "at, seconds"
+		c.faultKind.Hint = "node-down or node-up"
+		for _, f := range []*comp.Field{&c.node, &c.at, &c.every, &c.kind, &c.atLeast,
+			&c.faultNode, &c.faultAt, &c.faultKind} {
 			f.Editor.SingleLine = true
 		}
 		c.add.Label, c.add.Kind = "add send", comp.Primary
 		c.clear.Label, c.clear.Kind = "clear sends", comp.Quiet
 		c.addAss.Label, c.addAss.Kind = "add assertion", comp.Secondary
 		c.check.Label, c.check.Kind = "check now", comp.Primary
+		c.addFault.Label, c.addFault.Kind = "add fault", comp.Secondary
 		c.bar.fields = []*comp.Field{&c.node, &c.at, &c.every}
 		c.bar.buttons = []*comp.Button{&c.add, &c.clear}
 		c.built = true
@@ -205,14 +214,32 @@ func (c *scheduleControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Sna
 	if c.check.Click.Clicked(gtx) && c.do != nil {
 		c.do("assert.check", nil)
 	}
+	if c.addFault.Click.Clicked(gtx) && c.do != nil {
+		node := fieldText(&c.faultNode)
+		if node == "" {
+			node = selectedNodeName(s)
+		}
+		p := map[string]any{"node": node, "kind": fieldText(&c.faultKind)}
+		if v, ok := num(&c.faultAt); ok {
+			p["at_ms"] = v * 1000
+		}
+		c.do("schedule.add_fault", p)
+	}
 	second := actionBar{
 		fields:  []*comp.Field{&c.kind, &c.atLeast},
 		buttons: []*comp.Button{&c.addAss, &c.check},
 		note:    "an assertion whose kind this build does not understand fails rather than passing quietly",
 	}
+	third := actionBar{
+		fields:  []*comp.Field{&c.faultNode, &c.faultAt, &c.faultKind},
+		buttons: []*comp.Button{&c.addFault},
+		note: "node-down stops that node's firmware at the chosen instant, node-up restarts it - " +
+			"reachability is measured the moment each fires, in both directions",
+	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return c.bar.layout(t, gtx) }),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return second.layout(t, gtx) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return third.layout(t, gtx) }),
 	)
 }
 

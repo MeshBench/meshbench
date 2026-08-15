@@ -93,6 +93,8 @@ type Snapshot struct {
 	// Sends and Assertions are the fixture's schedule and its claims.
 	Sends      []Send
 	Assertions []Assertion
+	// FaultLog is every scheduled mutation that has fired, in order.
+	FaultLog []FaultEvent
 	// Endpoints are the companions currently served.
 	Endpoints []Endpoint
 	// Routes are the planner's last answer.
@@ -564,11 +566,42 @@ type Energy struct {
 }
 
 // Send is one scheduled line at a node, from the fixture.
+//
+// Fault, when set, names a scenario mutation ("node-down", "node-up")
+// instead of a console command - the schedule generalised (plan §10/12) to
+// change a node rather than only ever send from one. Command and Fault are
+// never both set on one entry.
 type Send struct {
 	Node    string
 	AtMs    uint32
 	EveryMs uint32
 	Command string
+	Fault   string
+}
+
+// FaultEvent is one scheduled mutation that has fired, with what it did to
+// reachability - the plan §12 ledger entry a fault kind must be
+// distinguishable in.
+//
+// Reachability is asymmetric (CLAUDE.md), so a fault carries both
+// directions rather than the one that is easiest to show: Out is how many
+// other nodes the fault's own node can flood-reach, In is how many can
+// reach it. Before and After are each measured the instant the fault fires.
+type FaultEvent struct {
+	Kind string // "node-down", "node-up"
+	Node string
+	AtMs uint32
+	// Total is how many other nodes exist to be reachable at all - the
+	// denominator "148 of 159" needs.
+	Total               int
+	OutBefore, InBefore int
+	OutAfter, InAfter   int
+	Recovered           bool
+	RecoveredAtMs       uint32
+	// UndeliveredCost is messages transmitted during the outage that never
+	// show up as received anywhere in the log by the time recovery (or the
+	// run's end, for one that never recovers) is checked.
+	UndeliveredCost int
 }
 
 // Assertion is one claim the fixture makes about a run.
@@ -787,6 +820,8 @@ type World struct {
 	// Sends and Assertions are the fixture's schedule and its claims.
 	Sends      []Send
 	Assertions []Assertion
+	// FaultLog is every scheduled mutation that has fired, in order.
+	FaultLog []FaultEvent
 	// Endpoints are the companions currently served.
 	Endpoints []Endpoint
 	// Routes are the planner's last answer.
@@ -1092,6 +1127,7 @@ func (s *Store) publish() {
 		Energy:                s.world.Energy,
 		Sends:                 s.world.Sends,
 		Assertions:            s.world.Assertions,
+		FaultLog:              s.world.FaultLog,
 		Endpoints:             s.world.Endpoints,
 		Routes:                s.world.Routes,
 		Import:                s.world.Import,

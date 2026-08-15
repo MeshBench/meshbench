@@ -123,6 +123,19 @@ type Sim struct {
 	// boardProbing is a hardware capability probe in flight - one board at a
 	// time, since each is a real emulator boot.
 	boardProbing bool
+	// firedFaults marks which entries of w.Sends carrying a Fault have
+	// already fired, indexed the same way - a scheduled mutation happens
+	// once when its AtMs is crossed, never once per tick after.
+	firedFaults map[int]bool
+	// downNodes is which nodes a fault has stopped, by name - the live down
+	// set reachCounts needs, kept here because a node's firmware being nil
+	// briefly during a restart is not the same question as "is this node
+	// meant to be down for this fault".
+	downNodes map[string]bool
+	// watching is one open recovery check per fired node-down fault, index
+	// into w.FaultLog - cleared once reachability returns to its pre-fault
+	// value, or never, which is itself the answer for a permanent partition.
+	watching []int
 }
 
 // terrainStore is the elevation the engine sees.
