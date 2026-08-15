@@ -542,6 +542,18 @@ type sweepControls struct {
 	spreadFld comp.Field
 	bytesFld  comp.Field
 
+	// scopeFld is the region every sender originates under.
+	//
+	// A box rather than a dropdown, because the regions a scenario's repeaters
+	// hold are theirs and not a list this panel knows: they are inferred from
+	// captured traffic, and a menu of the ones we happen to have seen would be
+	// wrong the first time somebody imports a mesh we have not.
+	//
+	// It has to be here at all because a sweep that sends unscoped is carried
+	// by a different set of repeaters and measures a different network, with
+	// nothing at either end reporting it.
+	scopeFld comp.Field
+
 	// vary crosses a parameter across the arms already defined. This is the
 	// gesture the whole panel exists for: three path hash sizes by two
 	// firmware versions is six arms, and without it the matrix can only ever
@@ -658,8 +670,10 @@ func (c *sweepControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 		c.noneSend.Label, c.noneSend.Kind = "none", comp.Quiet
 		c.spreadFld.Hint = "fired N s apart (0 = together)"
 		c.bytesFld.Hint = "message size, bytes (0 = a short label)"
+		c.scopeFld.Hint = "scope, e.g. sco (blank = unscoped)"
 		c.spreadFld.Editor.SingleLine = true
 		c.bytesFld.Editor.SingleLine = true
+		c.scopeFld.Editor.SingleLine = true
 		c.varyDD.Label, c.varyDD.Value = "vary a parameter across arms", "choose a parameter..."
 		c.varyVals.Hint = "values, comma separated"
 		c.varyVals.Editor.SingleLine = true
@@ -795,6 +809,11 @@ func (c *sweepControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 			asked++
 			c.do("experiment.define", map[string]any{"bytes": v})
 		}
+		// Sent even when blank, because clearing it is a real instruction:
+		// "send unscoped" has to be reachable once a scope has been set.
+		asked++
+		c.do("experiment.define", map[string]any{
+			"scope": strings.TrimSpace(fieldText(&c.scopeFld))})
 		if v, ok := num(&c.runFor); ok {
 			asked++
 			c.do("experiment.base", map[string]any{"run_for_ms": v * 1000})
@@ -880,7 +899,7 @@ func (c *sweepControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 	}
 
 	bar := actionBar{
-		fields:  []*comp.Field{&c.seeds, &c.runFor, &c.spreadFld, &c.bytesFld},
+		fields:  []*comp.Field{&c.seeds, &c.runFor, &c.spreadFld, &c.bytesFld, &c.scopeFld},
 		buttons: []*comp.Button{&c.define, &c.start, &c.stop, &c.export},
 		note: "a message is originated by a companion, so the sender has to be " +
 			"one; two seeds that agree exactly are one draw repeated, not a spread",

@@ -99,7 +99,7 @@ func (c *cpuSampler) forget(live map[int]bool) {
 // one pass over it rather than a second log kept per node - and they cannot
 // disagree with the events table, which is the more useful property.
 func (s *Sim) nodeStats(events []state.Event) []state.NodeStat {
-	if s.eng == nil {
+	if s.liveEngine() == nil {
 		return nil
 	}
 	if s.cpu == nil {
@@ -122,7 +122,7 @@ func (s *Sim) nodeStats(events []state.Event) []state.NodeStat {
 		}
 	}
 
-	nodes := s.eng.Nodes()
+	nodes := s.liveEngine().Nodes()
 	out := make([]state.NodeStat, 0, len(nodes))
 	live := map[int]bool{}
 	for i, n := range nodes {

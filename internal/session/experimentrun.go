@@ -28,10 +28,16 @@ import (
 func (s *Sim) runExperiment(ctx context.Context, st *state.Store, e *experiment,
 	nodes []scenario.Node) {
 
+	// The store only ticks - and so only redraws the simulation - while it
+	// believes something is playing. A sweep is the longest thing this
+	// application does, and it used to run with the clock at zero and the map
+	// still, which is indistinguishable from a hung one.
+	_, _ = st.Do(context.Background(), "sim.play", nil)
 	defer func() {
 		e.mu.Lock()
 		e.running = false
 		e.mu.Unlock()
+		_, _ = st.Do(context.Background(), "sim.pause", nil)
 		_, _ = st.Do(context.Background(), "experiment.finished", nil)
 	}()
 
@@ -155,6 +161,12 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 		NoiseFigDB: 6, StepMs: 10, Seed: seed,
 		ExcessPathLossDB: s.excessLossDB,
 	})
+	// Published while this cell runs, so the workbench draws the run somebody
+	// started: the clock advances, the map shows traffic, the tables fill. It
+	// is still this cell's own engine with its own storage - the isolation that
+	// keeps one arm from inheriting the previous arm's settings is untouched.
+	s.bench.take(eng)
+	defer s.bench.take(nil)
 	defer func() { _ = eng.Close() }()
 
 	senders := map[string]bool{}
