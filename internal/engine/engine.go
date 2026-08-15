@@ -50,6 +50,15 @@ type Node struct {
 	UniqueDelivery int
 	RedundantRelay int
 	AirtimeMs      float64
+	// AirtimePayloadMs, AirtimeOverheadMs and AirtimeRedundantMs split
+	// AirtimeMs three ways: bytes of an application payload that reached
+	// somewhere new, protocol bytes (adverts, acks, control frames, and the
+	// path-hash portion of every flooded frame) that were never going to
+	// deliver anything, and payload bytes relayed to receivers who already
+	// had the message. The three always sum to AirtimeMs.
+	AirtimePayloadMs   float64
+	AirtimeOverheadMs  float64
+	AirtimeRedundantMs float64
 }
 
 // Event is one thing that happened, in simulated time.
@@ -399,6 +408,13 @@ func (e *Engine) deliver(t transmission, concurrent []transmission) error {
 	// that lets a UK Narrow repeater decode an Australian one.
 	txPHY := e.phyOf(src.Spec)
 
+	// anyUnique tracks whether this transmission delivered to at least one
+	// receiver who did not already have it - decided once, after every
+	// receiver's outcome is known, because airtime is spent once per
+	// transmission and a mixed outcome (some receivers new, some duplicate)
+	// is still one waveform to charge.
+	anyUnique := false
+
 	for i, dst := range nodes {
 		if i == t.from {
 			continue
@@ -543,6 +559,7 @@ func (e *Engine) deliver(t transmission, concurrent []transmission) error {
 			e.seen[dst.Spec.Name][t.payload] = true
 			if first {
 				src.UniqueDelivery++
+				anyUnique = true
 			} else {
 				src.RedundantRelay++
 			}
@@ -578,7 +595,52 @@ func (e *Engine) deliver(t transmission, concurrent []transmission) error {
 				rec.RSSIdBm, rec.SNRdB, rec.Outcome, rec.CRCOK, t.frame)
 		}
 	}
+	e.classifyAirtime(src, t, anyUnique)
 	return nil
+}
+
+// classifyAirtime attributes one transmission's airtime to payload, protocol
+// overhead, or a redundant relay - split by where the frame's own bytes end,
+// not guessed at.
+//
+// The path-hash portion of every flooded frame is overhead no matter what it
+// carries, so the split is proportional to bytes: whatever the dissector
+// draws the payload boundary at is what the application actually pays for,
+// and the rest - header, route, accumulated path - never delivers a message
+// on its own. An advert, ack or control frame has no application payload to
+// be useful or redundant about, so its whole airtime is overhead. Otherwise
+// the payload's share goes to "payload" if anyUnique reached somewhere new,
+// or "redundant" if every receiver already had it - including nobody
+// receiving it at all, which is the least useful relay of all.
+func (e *Engine) classifyAirtime(src *Node, t transmission, anyUnique bool) {
+	total := float64(t.endMs - t.startMs)
+	if total <= 0 || len(t.frame) == 0 {
+		return
+	}
+	d := capture.Dissect(t.frame)
+	overheadLen := len(t.frame) - len(d.Payload)
+	if overheadLen < 0 {
+		overheadLen = 0
+	}
+	if overheadLen > len(t.frame) {
+		overheadLen = len(t.frame)
+	}
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	src.AirtimeMs += total
+	if capture.IsOverheadPayload(d.PayloadType) {
+		src.AirtimeOverheadMs += total
+		return
+	}
+	overheadMs := total * float64(overheadLen) / float64(len(t.frame))
+	rest := total - overheadMs
+	src.AirtimeOverheadMs += overheadMs
+	if anyUnique {
+		src.AirtimePayloadMs += rest
+	} else {
+		src.AirtimeRedundantMs += rest
+	}
 }
 
 // runFirmware advances every node's firmware to the current instant.
@@ -708,7 +770,11 @@ func (e *Engine) startTransmission(from int, frame []byte, now uint32) {
 	}
 	e.inFlight = append(e.inFlight, t)
 	e.nodes[from].Sent++
-	e.nodes[from].AirtimeMs += airtime
+	// AirtimeMs is charged in classifyAirtime, not here, and by the same call
+	// that splits it - the two must never be able to drift apart. A run that
+	// stops mid-transmission leaves that last waveform uncounted in both,
+	// consistently, rather than counted in the total and missing from the
+	// split.
 	name := e.nodes[from].Spec.Name
 	e.mu.Unlock()
 
@@ -987,6 +1053,11 @@ type Score struct {
 	DutyCyclePct   float64
 	UniqueDelivery int
 	RedundantRelay int
+	// AirtimePayloadMs, AirtimeOverheadMs and AirtimeRedundantMs are
+	// AirtimeMs split three ways - see Node's own fields for what each means.
+	AirtimePayloadMs   float64
+	AirtimeOverheadMs  float64
+	AirtimeRedundantMs float64
 }
 
 func (e *Engine) Scoreboard() []Score {
@@ -997,8 +1068,11 @@ func (e *Engine) Scoreboard() []Score {
 	for _, n := range e.nodes {
 		s := Score{
 			Name: n.Spec.Name, Sent: n.Sent, Heard: n.Heard,
-			AirtimeMs:      n.AirtimeMs,
-			UniqueDelivery: n.UniqueDelivery, RedundantRelay: n.RedundantRelay,
+			AirtimeMs:          n.AirtimeMs,
+			AirtimePayloadMs:   n.AirtimePayloadMs,
+			AirtimeOverheadMs:  n.AirtimeOverheadMs,
+			AirtimeRedundantMs: n.AirtimeRedundantMs,
+			UniqueDelivery:     n.UniqueDelivery, RedundantRelay: n.RedundantRelay,
 		}
 		if e.nowMs > 0 {
 			s.DutyCyclePct = 100 * n.AirtimeMs / float64(e.nowMs)

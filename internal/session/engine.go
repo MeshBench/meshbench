@@ -443,6 +443,9 @@ func (s *Sim) scores() []state.Score {
 			Name: v.Name, Sent: v.Sent, Heard: v.Heard,
 			AirtimeMs: v.AirtimeMs, DutyCyclePct: v.DutyCyclePct,
 			UniqueDelivery: v.UniqueDelivery, RedundantRelay: v.RedundantRelay,
+			AirtimePayloadMs:   v.AirtimePayloadMs,
+			AirtimeOverheadMs:  v.AirtimeOverheadMs,
+			AirtimeRedundantMs: v.AirtimeRedundantMs,
 		})
 	}
 	return out

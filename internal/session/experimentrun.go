@@ -283,6 +283,9 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 		out.Delivered += v.UniqueDelivery
 		out.Redundant += v.RedundantRelay
 		out.AirtimeMs += float64(v.AirtimeMs)
+		out.PayloadAirtimeMs += v.AirtimePayloadMs
+		out.OverheadAirtimeMs += v.AirtimeOverheadMs
+		out.RedundantAirtimeMs += v.AirtimeRedundantMs
 	}
 	// Wall time, not simulated time: the seeds-needed estimate has to say how
 	// long more seeds actually take to run, and firmware paced to real time is

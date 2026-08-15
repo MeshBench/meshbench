@@ -66,5 +66,66 @@ func (p *scorePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot)
 		})
 	}
 	p.tb.SetRows(rows)
-	return p.tb.Layout(t, gtx, nil)
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Bottom: t.Sp.M}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return airtimeBreakdown(t, gtx, s.Scores)
+			})
+		}),
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			return p.tb.Layout(t, gtx, nil)
+		}),
+	)
+}
+
+// airtimeBreakdown is the network-wide "where is the air going" summary:
+// cards for the totals, and a bar so two runs with equal totals and
+// different redundancy look different at a glance rather than only on
+// careful reading.
+//
+// A message reaching a node that already had it costs exactly as much air
+// as one that does not - the number this exists to make visible.
+func airtimeBreakdown(t *theme.Theme, gtx layout.Context, scores []state.Score) layout.Dimensions {
+	var total, payload, overhead, redundant float64
+	var nowMs float64
+	for _, v := range scores {
+		total += v.AirtimeMs
+		payload += v.AirtimePayloadMs
+		overhead += v.AirtimeOverheadMs
+		redundant += v.AirtimeRedundantMs
+		if v.DutyCyclePct > 0 {
+			// Back out the run length from any one node's own duty cycle,
+			// rather than threading NowMs through another layer - they all
+			// measured the same clock.
+			nowMs = 100 * v.AirtimeMs / v.DutyCyclePct
+		}
+	}
+	if total <= 0 {
+		return comp.Text(t, t.Sz.Caption, t.P.Faint,
+			"nothing has transmitted yet")(gtx)
+	}
+	pct := func(v float64) float64 { return 100 * v / total }
+	busy := ""
+	if nowMs > 0 {
+		busy = fmt.Sprintf("channel busy %.1f%%", 100*total/nowMs)
+	}
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return comp.CellGrid(t, gtx, 160, []layout.Widget{
+				comp.StatCell(t, "on air", fmt.Sprintf("%.0f s", total/1000), busy),
+				comp.StatCell(t, "payload", fmt.Sprintf("%.0f%%  %.0f s", pct(payload), payload/1000),
+					"reached somewhere new"),
+				comp.StatCell(t, "overhead", fmt.Sprintf("%.0f%%  %.0f s", pct(overhead), overhead/1000),
+					"adverts, acks, path bytes"),
+				comp.StatCell(t, "redundant", fmt.Sprintf("%.0f%%  %.0f s", pct(redundant), redundant/1000),
+					"relayed to receivers who already had it"),
+			})
+		}),
+		layout.Rigid(layout.Spacer{Height: t.Sp.S}.Layout),
+		layout.Rigid(comp.ProportionBar(6, []comp.BarSegment{
+			{Frac: payload / total, Color: t.P.Accent},
+			{Frac: overhead / total, Color: t.P.Faint},
+			{Frac: redundant / total, Color: t.P.Warn},
+		})),
+	)
 }

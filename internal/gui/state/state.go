@@ -425,6 +425,11 @@ type ArmSummary struct {
 	DeltaPct float64
 	HasDelta bool
 	Verdict  string
+	// PayloadAirtimeMs, OverheadAirtimeMs and RedundantAirtimeMs split the
+	// arm's average airtime three ways - see engine.Node for what each means.
+	PayloadAirtimeMs   float64
+	OverheadAirtimeMs  float64
+	RedundantAirtimeMs float64
 }
 
 // ExperimentIdentity is what the sweep's ID is a hash of, shown so an
@@ -461,6 +466,13 @@ type Score struct {
 	DutyCyclePct   float64
 	UniqueDelivery int
 	RedundantRelay int
+	// AirtimePayloadMs, AirtimeOverheadMs and AirtimeRedundantMs split
+	// AirtimeMs three ways - payload that reached somewhere new, protocol
+	// bytes that were never going to deliver a message, and payload relayed
+	// to receivers who already had it. The three always sum to AirtimeMs.
+	AirtimePayloadMs   float64
+	AirtimeOverheadMs  float64
+	AirtimeRedundantMs float64
 }
 
 // BudgetTerm is one line of a link budget: a named quantity in decibels and

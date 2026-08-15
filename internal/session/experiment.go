@@ -50,6 +50,11 @@ type ExpResult struct {
 	Redundant int     `json:"redundant"`
 	Collided  int     `json:"collisions"`
 	AirtimeMs float64 `json:"airtime_ms"`
+	// PayloadAirtimeMs, OverheadAirtimeMs and RedundantAirtimeMs split
+	// AirtimeMs three ways - see engine.Node for what each means.
+	PayloadAirtimeMs   float64 `json:"payload_airtime_ms"`
+	OverheadAirtimeMs  float64 `json:"overhead_airtime_ms"`
+	RedundantAirtimeMs float64 `json:"redundant_airtime_ms"`
 	// Firmware is how many processes this cell actually started, so a cell
 	// that measured nothing is distinguishable from one that ran.
 	Firmware int    `json:"firmware"`
@@ -404,6 +409,9 @@ func registerExperiment(st *state.Store, s *Sim) {
 				RXSpread:  m["rx_spread"].(float64),
 				RXLo:      st.RXLo, RXHi: st.RXHi, HasCI: st.HasInterval,
 				DeltaPct: st.DeltaPct, HasDelta: st.HasDelta, Verdict: st.Verdict,
+				PayloadAirtimeMs:   m["payload_airtime_ms"].(float64),
+				OverheadAirtimeMs:  m["overhead_airtime_ms"].(float64),
+				RedundantAirtimeMs: m["redundant_airtime_ms"].(float64),
 			})
 		}
 		w.ExperimentWarning = warn
@@ -533,7 +541,7 @@ func (e *experiment) summarise() []map[string]any {
 	out := make([]map[string]any, 0, len(names))
 	for _, name := range names {
 		rs := by[name]
-		var tx, rx, del, red, coll, air float64
+		var tx, rx, del, red, coll, air, payAir, ovhAir, redAir float64
 		for _, r := range rs {
 			tx += float64(r.TX)
 			rx += float64(r.RX)
@@ -541,14 +549,19 @@ func (e *experiment) summarise() []map[string]any {
 			red += float64(r.Redundant)
 			coll += float64(r.Collided)
 			air += r.AirtimeMs
+			payAir += r.PayloadAirtimeMs
+			ovhAir += r.OverheadAirtimeMs
+			redAir += r.RedundantAirtimeMs
 		}
 		n := float64(len(rs))
 		out = append(out, map[string]any{
 			"arm": name, "runs": len(rs),
 			"tx": tx / n, "rx": rx / n, "delivered": del / n,
 			"redundant": red / n, "collisions": coll / n,
-			"airtime_ms": air / n,
-			"rx_spread":  spreadOf(rs),
+			"airtime_ms":         air / n,
+			"rx_spread":          spreadOf(rs),
+			"payload_airtime_ms": payAir / n, "overhead_airtime_ms": ovhAir / n,
+			"redundant_airtime_ms": redAir / n,
 		})
 	}
 	return out

@@ -59,20 +59,53 @@ var routeNames = map[uint8]string{
 	0x03: "transport direct",
 }
 
+// Payload type codes, worth testing against by name rather than as a magic
+// number at each call site. Values are wire format, from MeshCore's
+// Packet.h.
+const (
+	PayloadRequest       = 0x00
+	PayloadResponse      = 0x01
+	PayloadTxtMsg        = 0x02
+	PayloadAck           = 0x03
+	PayloadAdvert        = 0x04
+	PayloadGroupText     = 0x05
+	PayloadGroupDatagram = 0x06
+	PayloadAnonRequest   = 0x07
+	PayloadPath          = 0x08
+	PayloadTrace         = 0x09
+	PayloadMultipart     = 0x0A
+	PayloadControl       = 0x0B
+	PayloadRawCustom     = 0x0F
+)
+
 var payloadNames = map[uint8]string{
-	0x00: "request",
-	0x01: "response",
-	0x02: "text message",
-	0x03: "ack",
-	0x04: "advert",
-	0x05: "group text",
-	0x06: "group datagram",
-	0x07: "anonymous request",
-	0x08: "returned path",
-	0x09: "trace",
-	0x0A: "multipart",
-	0x0B: "control",
-	0x0F: "raw custom",
+	PayloadRequest:       "request",
+	PayloadResponse:      "response",
+	PayloadTxtMsg:        "text message",
+	PayloadAck:           "ack",
+	PayloadAdvert:        "advert",
+	PayloadGroupText:     "group text",
+	PayloadGroupDatagram: "group datagram",
+	PayloadAnonRequest:   "anonymous request",
+	PayloadPath:          "returned path",
+	PayloadTrace:         "trace",
+	PayloadMultipart:     "multipart",
+	PayloadControl:       "control",
+	PayloadRawCustom:     "raw custom",
+}
+
+// IsOverheadPayload reports whether a payload type never carries an
+// application message of its own - an advert, an ack, or a control frame.
+// Every flood frame also carries the path bytes it has accumulated as
+// overhead regardless of payload type; this only answers for the payload
+// itself.
+func IsOverheadPayload(t uint8) bool {
+	switch t {
+	case PayloadAck, PayloadAdvert, PayloadControl:
+		return true
+	default:
+		return false
+	}
 }
 
 // PayloadTypeName is the human name for a payload type, for filters and tables.
