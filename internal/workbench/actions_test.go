@@ -184,19 +184,76 @@ func TestBenchControlsReachTheirVerbs(t *testing.T) {
 	}
 }
 
+// The arms come from the firmware library and the sender from the scenario, so
+// both are chosen rather than typed. This drives the chooser the way the shell
+// does: open the dropdown, and answer it.
+func TestSweepArmsAndSenderArePicked(t *testing.T) {
+	r := &recorder{}
+	var asked []string
+	c := &sweepControls{do: r.do}
+	c.choose = func(_ string, opts []string, pick func(string)) {
+		asked = opts
+		if len(opts) > 0 {
+			pick(opts[0])
+		}
+	}
+	snap := &state.Snapshot{
+		Builds: []state.Build{
+			{Role: "simple_repeater", Version: "repeater-v1.17.0", Native: true},
+			{Role: "simple_repeater", Version: "repeater-v1.17.1", Native: true},
+			// Neither of these is an arm: one is a board image, the other a
+			// different application entirely.
+			{Role: "simple_repeater", Version: "v1.17.0", Board: "Generic_E22_sx1262"},
+			{Role: "companion_radio", Version: "companion-v1.17.0", Native: true},
+		},
+		Nodes: []state.Node{
+			{Name: "AngusOutlaw1", Kind: "companion"},
+			{Name: "Lathenn Repeater", Kind: "repeater"},
+		},
+	}
+	h := newPanelHarness(c.Draw, snap)
+	h.frame()
+
+	c.addArm.OnOpen()
+	if len(asked) != 2 {
+		t.Fatalf("offered %v as arms; want the two native repeater builds", asked)
+	}
+	c.sender.OnOpen()
+	if len(asked) != 1 || asked[0] != "AngusOutlaw1" {
+		t.Fatalf("offered %v as senders; only a companion can originate", asked)
+	}
+	// Picking an arm asks the session to cross it in rather than keeping a
+	// copy here: the control socket defines arms too, and two copies disagree.
+	if !r.saw("experiment.vary") {
+		t.Fatalf("picking an arm reached %v, not experiment.vary", r.verbs)
+	}
+	if !r.saw("experiment.senders") {
+		t.Fatalf("picking a sender reached %v, not experiment.senders", r.verbs)
+	}
+}
+
 func TestSweepControlsDefineAndRun(t *testing.T) {
 	r := &recorder{}
 	c := &sweepControls{do: r.do}
 	h := newPanelHarness(c.Draw, &state.Snapshot{})
 	h.frame()
-	c.versions.Editor.SetText("repeater-v1.16.0 repeater-v1.17.0")
+	// Arms and senders come from the session, so the harness supplies them the
+	// way the store would.
+	h.snap.ExperimentArms = []string{"1.16.0", "1.17.0"}
+	h.snap.ExperimentSenders = []string{"AngusOutlaw1"}
 	c.seeds.Editor.SetText("1 2 3")
-	c.sender.Editor.SetText("AngusOutlaw1")
+	c.varyName = "repeater_version"
+	c.varyVals.Editor.SetText("repeater-v1.16.0, repeater-v1.17.0")
 	h.frame()
-	h.pressAlong(22)
+	// Bottom upwards. The buttons sit below the arm list, and each arm carries
+	// a remove button: pressing downwards would take the arms off before
+	// reaching the button that reads them.
+	for y := float32(600); y >= 8; y -= 8 {
+		h.pressAlong(y)
+	}
 
 	for _, want := range []string{"experiment.vary", "experiment.seeds",
-		"experiment.senders", "experiment.start", "experiment.stop", "experiment.export"} {
+		"experiment.start", "experiment.stop", "experiment.export"} {
 		if !r.saw(want) {
 			t.Errorf("no button reached %s; got %v", want, r.verbs)
 		}
@@ -208,7 +265,7 @@ func TestSweepControlsDefineAndRun(t *testing.T) {
 		m, _ := r.params[i].(map[string]any)
 		vs, _ := m["values"].([]any)
 		if len(vs) != 2 {
-			t.Errorf("vary carried %v, want the two versions typed", vs)
+			t.Errorf("vary carried %v, want the two arms chosen", vs)
 		}
 	}
 	for i, v := range r.verbs {

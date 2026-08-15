@@ -119,6 +119,17 @@ type Snapshot struct {
 	// is not yet a result.
 	Experiment        []ArmSummary
 	ExperimentWarning string
+	// ExperimentRuns is every cell, so a sweep can be watched rather than
+	// waited on; ExperimentVerdict is what it concluded, once it has.
+	ExperimentRuns    []RunRow
+	ExperimentVerdict string
+	// ExperimentArms and ExperimentSenders are what is defined right now.
+	//
+	// They live here rather than in the panel because the panel is not the only
+	// thing that defines them: the control socket does too, and a panel holding
+	// its own copy showed "no arms yet" over a session with four.
+	ExperimentArms    []string
+	ExperimentSenders []string
 	// Series is the selected node's history, for its graphs.
 	Series NodeSeries
 	// Provisioning is the script for the node last asked about.
@@ -397,11 +408,59 @@ type ArmSummary struct {
 	RX        float64
 	Delivered float64
 	Redundant float64
-	// RXSpread is the range of receptions across seeds. Zero means every seed
+	Collided  float64
+	AirtimeMs float64
+	// RXSpread is how much the seeds of this arm disagree, as a fraction of
+	// its own mean: half the range, so it reads as a ±. Zero means every seed
 	// returned the same number, which is one draw repeated rather than a
 	// spread - and a difference between arms cannot be called larger than a
 	// noise nobody has measured.
 	RXSpread float64
+	// PerSecond is receptions in each second after the burst, summed over this
+	// arm's seeds. The shape of the flood rather than its total.
+	PerSecond []int
+}
+
+// RadioState is a node's chip as the firmware has set it up.
+//
+// Reported raw, and rendered raw: a register is worth showing as a register,
+// because the question this answers is "is this node set to what I think it is",
+// and a value translated on the way loses the ability to answer it.
+type RadioState struct {
+	// Reported says the node's radio has said anything at all. A node that has
+	// not come up must not read as one configured to zero.
+	Reported bool
+	// GainReg is 0x08AC: 0x96 boosted, 0x94 power saving.
+	GainReg    uint8
+	Boosted    bool
+	TxPowerDBm int8
+	// FemLive is the front-end module's enable line now; FemAtTx is where it
+	// stood when this node last began transmitting, which is the one that
+	// decides how much power left the board.
+	FemLive bool
+	FemAtTx uint8
+	// Mode is 0 standby, 1 rx, 2 tx, 3 cad.
+	Mode         uint8
+	SF, CR       uint8
+	FreqHz       uint32
+	BandwidthHz  uint32
+	PreambleSyms uint16
+	// IRQMask is what the firmware allowed to raise DIO1; IRQFlags is what is
+	// raised now. The pair tells a node stuck on a flag from one with nothing
+	// to say.
+	IRQMask, IRQFlags uint16
+}
+
+// RunRow is one cell of the matrix: an arm at a seed, and where it has got to.
+//
+// Per run rather than per arm because a sweep is watched while it runs, and an
+// arm summary says nothing until every seed of it has finished.
+type RunRow struct {
+	Arm   string
+	Seed  uint64
+	State string // queued, running, done, failed
+	// Result is what came back, or why nothing did.
+	Result string
 }
 
 // Build is one firmware image on this machine.
@@ -562,6 +621,12 @@ type NodeStat struct {
 	// "changing firmware", and a row that goes blank while it happens looks
 	// like a node that has died.
 	State string
+	// Radio is what this node's chip has actually been configured to be, as
+	// the firmware left it. Not what the board profile claims it can do: the
+	// two diverge whenever the firmware has a fault, and until this reached
+	// here there was nowhere to see that they had.
+	Radio RadioState
+
 	// PID, and what the process is costing. RSSBytes is resident memory;
 	// CPUPct is a share of one core since the last sample.
 	PID      int
@@ -727,6 +792,17 @@ type World struct {
 	// is not yet a result.
 	Experiment        []ArmSummary
 	ExperimentWarning string
+	// ExperimentRuns is every cell, so a sweep can be watched rather than
+	// waited on; ExperimentVerdict is what it concluded, once it has.
+	ExperimentRuns    []RunRow
+	ExperimentVerdict string
+	// ExperimentArms and ExperimentSenders are what is defined right now.
+	//
+	// They live here rather than in the panel because the panel is not the only
+	// thing that defines them: the control socket does too, and a panel holding
+	// its own copy showed "no arms yet" over a session with four.
+	ExperimentArms    []string
+	ExperimentSenders []string
 	// Series is the selected node's history, for its graphs.
 	Series NodeSeries
 	// Provisioning is the script for the node last asked about.
@@ -997,6 +1073,10 @@ func (s *Store) publish() {
 		TileCacheDir:      s.world.TileCacheDir,
 		Experiment:        s.world.Experiment,
 		ExperimentWarning: s.world.ExperimentWarning,
+		ExperimentRuns:    s.world.ExperimentRuns,
+		ExperimentVerdict: s.world.ExperimentVerdict,
+		ExperimentArms:    s.world.ExperimentArms,
+		ExperimentSenders: s.world.ExperimentSenders,
 		Series:            s.world.Series,
 		Provisioning:      s.world.Provisioning,
 		Console:           s.world.Console,
