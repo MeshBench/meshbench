@@ -316,7 +316,6 @@ type experiment struct {
 	Scope string `json:"scope"`
 
 	running bool
-	paused  bool
 	cancel  context.CancelFunc
 	results []ExpResult
 	log     []string

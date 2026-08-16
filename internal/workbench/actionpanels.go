@@ -531,11 +531,7 @@ type sweepControls struct {
 	// each frame is a widget that never registers a press.
 	armRm map[string]*comp.Button
 
-	// senders are the companions that will originate. A list, not one name:
-	// a single originator makes every seed of an arm return the same numbers,
-	// so the seed cannot bound the noise and no difference between arms has
-	// anything to be called larger than.
-	senders   []string
+	// senderRm is one remove button per sender, pooled the same way as armRm.
 	senderRm  map[string]*comp.Button
 	allSend   comp.Button
 	noneSend  comp.Button
@@ -1124,12 +1120,7 @@ var armCols = []armCol{
 }
 
 // sweepResults is what the arms came back with, and whether it is a result.
-type sweepResults struct {
-	tb    comp.Table
-	init  bool
-	seq   uint64
-	shown bool
-}
+type sweepResults struct{}
 
 func (p *sweepResults) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
 	if s == nil {
