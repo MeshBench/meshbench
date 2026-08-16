@@ -50,9 +50,12 @@ type Snapshot struct {
 	// offer to cancel rather than appearing to have hung.
 	Jobs []Job
 	// Status is the most recent line for the status bar, and Log keeps the
-	// last few so a message cannot scroll away before it is read.
-	Status string
-	Log    []string
+	// last few so a message cannot scroll away before it is read. FullLog is
+	// the same lines, kept much further back, for a panel that exists to be
+	// scrolled rather than glanced at.
+	Status  string
+	Log     []string
+	FullLog []string
 	// Areas are the study boundaries, and MarginKm the band outside them
 	// within which external nodes still matter.
 	Areas    []Area
@@ -736,10 +739,13 @@ type World struct {
 	Jobs       []Job
 	Status     string
 	Log        []string
+	// FullLog is Log kept much further back - a few thousand lines rather
+	// than twenty - for a panel built to be scrolled and searched, not just
+	// glanced at.
+	FullLog []string
 	// logWriter, when set, gets every status line too - timestamped and
-	// unbounded, unlike Log, which is the last twenty for the strip that
-	// draws it. Set once before Run starts; nothing else touches World
-	// before then.
+	// unbounded, unlike either Log or FullLog. Set once before Run starts;
+	// nothing else touches World before then.
 	logWriter io.Writer
 	// Areas are the study boundaries, and MarginKm the band outside them
 	// within which external nodes still matter.
@@ -1032,6 +1038,8 @@ func (s *Store) publish() {
 	copy(jobs, s.world.Jobs)
 	log := make([]string, len(s.world.Log))
 	copy(log, s.world.Log)
+	fullLog := make([]string, len(s.world.FullLog))
+	copy(fullLog, s.world.FullLog)
 	// Links and areas are copied too. A snapshot the renderer may hold for
 	// several frames must not alias a slice the store can still append to.
 	links := make([]Link, len(s.world.Links))
@@ -1053,6 +1061,7 @@ func (s *Store) publish() {
 		Jobs:     jobs,
 		Status:   s.world.Status,
 		Log:      log,
+		FullLog:  fullLog,
 		Areas:    areas,
 		MarginKm: s.world.MarginKm,
 		Links:    links,
@@ -1105,15 +1114,25 @@ func (s *Store) publish() {
 }
 
 // Say records a status line. Called from a handler.
+// maxFullLog is how much of the run's own talk a session keeps in memory for
+// the Logs panel - far more than the twenty-line strip, short of holding an
+// unbounded run's entire history hostage in RAM.
+const maxFullLog = 5000
+
 func (w *World) Say(msg string) {
 	w.Status = msg
 	w.Log = append(w.Log, msg)
 	if len(w.Log) > 20 {
 		w.Log = w.Log[len(w.Log)-20:]
 	}
+	line := fmt.Sprintf("%s  t=%8.3fs  %s",
+		time.Now().Format("15:04:05.000"), float64(w.NowMs)/1000, msg)
+	w.FullLog = append(w.FullLog, line)
+	if len(w.FullLog) > maxFullLog {
+		w.FullLog = w.FullLog[len(w.FullLog)-maxFullLog:]
+	}
 	if w.logWriter != nil {
-		_, _ = fmt.Fprintf(w.logWriter, "%s  t=%8.3fs  %s\n",
-			time.Now().Format("15:04:05.000"), float64(w.NowMs)/1000, msg)
+		_, _ = fmt.Fprintln(w.logWriter, line)
 	}
 }
 

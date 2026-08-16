@@ -23,6 +23,7 @@ func Register(st *state.Store, s *Sim) {
 	registerMapCamera(st, s)
 	registerExcessLoss(st, s)
 	registerConsole(st, s)
+	registerLogs(st, s)
 	registerRunKind(st, s)
 	registerNodeWindow(st, s)
 	registerFirmwareLibrary(st, s)

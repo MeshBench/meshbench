@@ -581,6 +581,8 @@ func Run(args []string) {
 	scores := &scorePanel{}
 	sh.Add(&shell.Panel{Name: "Events", Windowable: true, Draw: events.Draw})
 	sh.Add(&shell.Panel{Name: "Scoreboard", Windowable: true, Draw: scores.Draw})
+	logs := &logsPanel{do: do}
+	sh.Add(&shell.Panel{Name: "Logs", Windowable: true, Draw: logs.Draw})
 	tl := &comp.Timeline{}
 	sh.Add(&shell.Panel{Name: "Packet timeline", Windowable: true,
 		Draw: func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {

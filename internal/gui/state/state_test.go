@@ -222,3 +222,33 @@ func TestSayWritesToTheLogWriter(t *testing.T) {
 		t.Fatalf("log writer never saw the status line, got %q", got)
 	}
 }
+
+// FullLog is what the Logs panel reads; it must actually receive what Say
+// says, not just Log's twenty-line strip.
+func TestSayWritesToFullLog(t *testing.T) {
+	s := state.New(10)
+	s.Handle("test.say", func(w *state.World, p any) (any, error) {
+		w.Say("hello from FullLog")
+		return nil, nil
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go s.Run(ctx)
+
+	if _, err := s.Do(ctx, "test.say", nil); err != nil {
+		t.Fatalf("test.say: %v", err)
+	}
+	snap := s.Snapshot()
+	if len(snap.FullLog) == 0 {
+		t.Fatal("Snapshot().FullLog is empty after Say")
+	}
+	found := false
+	for _, l := range snap.FullLog {
+		if strings.Contains(l, "hello from FullLog") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("FullLog %v did not contain the line Say just said", snap.FullLog)
+	}
+}
