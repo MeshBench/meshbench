@@ -127,6 +127,55 @@ func TestAnUnswitchedAntennaPathLosesFarMoreThanGain(t *testing.T) {
 	}
 }
 
+// The frozen-transmission regression: a node's own radio change must not
+// evict every other pair's cached path loss.
+//
+// pathLoss's cache exists because profiling a pair against terrain is the
+// expensive part of this engine - "the lazy cache fill walked forty-five
+// thousand pairs of DEM samples on the frame thread" is its own comment about
+// what skipping it costs. ApplyRadioState used to drop the whole cache on any
+// change, and FemAtTx/the AGC-boost register change right after a node
+// transmits, so on a many-node scenario that turned every transmission into
+// that same frozen walk. Only pairs the changed node is party to may be
+// dropped.
+func TestApplyRadioStateOnlyInvalidatesThisNodesPairs(t *testing.T) {
+	e := New(flatEarth{}, Config{StepMs: 10})
+	defer func() { _ = e.Close() }()
+	e.Add(scenario.Node{Name: "a", TxPowerDBm: 22, NoiseFigureDB: 6}, nil)
+	e.Add(scenario.Node{Name: "b", TxPowerDBm: 22, NoiseFigureDB: 6}, nil)
+	e.Add(scenario.Node{Name: "c", TxPowerDBm: 22, NoiseFigureDB: 6}, nil)
+
+	e.linkCache[[2]int{0, 1}] = 111
+	e.linkCache[[2]int{0, 2}] = 222
+	e.linkCache[[2]int{1, 2}] = 333
+	e.emitterNoise[0] = -50
+	e.emitterNoise[1] = -60
+	e.emitterNoise[2] = -70
+
+	// Boosted gain moves node 0's effective noise figure off its board value,
+	// which is what makes ApplyRadioState take the invalidating branch at all.
+	e.ApplyRadioState(0, configured(firmware.RxGainBoosted, 22, firmware.FemUnknown))
+
+	if _, ok := e.linkCache[[2]int{1, 2}]; !ok {
+		t.Fatal("a pair not touching the changed node was evicted")
+	}
+	if _, ok := e.linkCache[[2]int{0, 1}]; ok {
+		t.Fatal("a pair touching the changed node survived")
+	}
+	if _, ok := e.linkCache[[2]int{0, 2}]; ok {
+		t.Fatal("a pair touching the changed node survived")
+	}
+	if _, ok := e.emitterNoise[1]; !ok {
+		t.Fatal("another node's emitter-noise figure was evicted")
+	}
+	if _, ok := e.emitterNoise[2]; !ok {
+		t.Fatal("another node's emitter-noise figure was evicted")
+	}
+	if _, ok := e.emitterNoise[0]; ok {
+		t.Fatal("the changed node's own emitter-noise figure survived")
+	}
+}
+
 // 0 dBm is a level a radio can be set to, so it cannot also mean "has not said".
 // A chip that has not been given SetTxParams yet must fall back to the board.
 func TestATransmitPowerNobodySetFallsBackToTheBoard(t *testing.T) {
