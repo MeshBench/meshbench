@@ -14,6 +14,33 @@ import (
 	"gioui.org/layout"
 )
 
+// forceSignature fingerprints which nodes the graph holds, not how many.
+//
+// Counting was not enough. A live packet's graph is rebuilt as the flood
+// spreads, and the per-layer cap can swap one node for another while the
+// totals stay put - at which point the settled positions were kept, and the
+// new node, having no entry in them, was silently not drawn at all, along
+// with every edge touching it. The node it replaced kept its stale position
+// and stayed clickable: clicking bare canvas focused a node that was no
+// longer in the graph, and the whole picture dimmed with nothing to undim it.
+//
+// FNV-1a over the names, order-sensitive - buildHopGraph emits them in a
+// settled order, so a reordering is a real change to the picture too.
+func forceSignature(g hopGraph) uint64 {
+	const (
+		offset = 1469598103934665603
+		prime  = 1099511628211
+	)
+	h := uint64(offset)
+	for _, n := range g.Nodes {
+		for i := 0; i < len(n.Name); i++ {
+			h = (h ^ uint64(n.Name[i])) * prime
+		}
+		h = (h ^ '\n') * prime
+	}
+	return h*prime + uint64(len(g.Edges))
+}
+
 // positionsFor dispatches to the view's chosen layout. Radial and columns are
 // cheap enough to recompute from scratch every frame. Free-form is a standing
 // physics simulation instead - reseeded with a full settle only when the
@@ -26,10 +53,9 @@ func positionsFor(gtx layout.Context, v *graphView, g hopGraph, w, h int) map[st
 	case modeRadial:
 		return layoutRadial(gtx, g, w, h)
 	case modeForce:
-		sig := len(g.Nodes)*100003 + len(g.Edges)
-		if v.forcePos == nil || v.forceSig != sig {
+		if v.forcePos == nil || v.forceSig != forceSignature(g) {
 			v.forcePos, v.forceVel = seedForce(g, w, h)
-			v.forceSig = sig
+			v.forceSig = forceSignature(g)
 		}
 		stepForce(g, v.forcePos, v.forceVel, w, h, v.dragNode, forceWiggle)
 		return v.forcePos

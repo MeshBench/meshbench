@@ -149,3 +149,41 @@ func TestLayoutForceSeparatesUnconnectedNodes(t *testing.T) {
 		}
 	}
 }
+
+// The free-form layout caches settled positions and reuses them until the
+// graph changes. Fingerprinting the *counts* was not enough: a live packet's
+// graph is rebuilt as the flood spreads, and the per-layer cap can swap one
+// node for another while the totals stay identical. The stale positions were
+// then kept, leaving the new node unplaced - and therefore undrawn, along
+// with every edge touching it - while the departed node stayed clickable.
+func TestForceSignatureNoticesASwappedNode(t *testing.T) {
+	before := all("orig",
+		hopAt("orig", 0, 0, []string{"a", "b"}, nil),
+	)
+	after := all("orig",
+		hopAt("orig", 0, 0, []string{"a", "c"}, nil),
+	)
+	if len(before.Nodes) != len(after.Nodes) || len(before.Edges) != len(after.Edges) {
+		t.Fatalf("the fixture must keep the counts equal: %d/%d nodes, %d/%d edges",
+			len(before.Nodes), len(after.Nodes), len(before.Edges), len(after.Edges))
+	}
+	if forceSignature(before) == forceSignature(after) {
+		t.Error("a swapped node did not change the signature, so the layout would keep stale positions")
+	}
+}
+
+// The same graph twice must reuse its layout, or the picture reseeds and
+// visibly jumps on every rebuild.
+func TestForceSignatureIsStableForTheSameGraph(t *testing.T) {
+	g := all("orig",
+		hopAt("orig", 0, 0, []string{"a", "b"}, nil),
+		hopAt("a", 100, 1, []string{"c"}, nil),
+	)
+	again := all("orig",
+		hopAt("orig", 0, 0, []string{"a", "b"}, nil),
+		hopAt("a", 100, 1, []string{"c"}, nil),
+	)
+	if forceSignature(g) != forceSignature(again) {
+		t.Error("an unchanged graph reseeded its layout, which makes it jump every rebuild")
+	}
+}

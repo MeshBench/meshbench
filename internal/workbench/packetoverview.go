@@ -13,10 +13,12 @@ package workbench
 
 import (
 	"fmt"
+	"image"
 	"strings"
 
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/unit"
 
 	"github.com/MeshBench/meshbench/internal/gui/comp"
 	"github.com/MeshBench/meshbench/internal/gui/state"
@@ -47,38 +49,94 @@ func (p *packetPanel) overview(t *theme.Theme, gtx layout.Context, pk *state.Pac
 // letting it wrap put version alone on a second row looking like an
 // afterthought.
 func chipRow(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
-	dest := "broadcast"
-	if n := len(pk.Path); n > 0 {
-		dest = pk.Path[n-1]
-	}
 	sc := pk.Scope
 	chips := []chip{
 		{"from", pk.Origin, fmt.Sprintf("%.2f s", float64(pk.AtMs)/1000), false, ""},
-		{"to", dest, pk.RouteType, false, ""},
+		{"to", destOf(pk), destSub(pk), false, ""},
 		{"type", pk.PayloadType, pk.Readable, false, ""},
 		// The one chip that carries a claim rather than a reading, so it is
 		// the one the eye is sent to first - and the pill says how strong the
 		// claim is, because "confirmed" and "unmatched" are different facts.
 		{"scope", scopeHeadline(sc), scopeSub(sc), sc.Scoped && sc.Name != "", scopePill(sc)},
-		{"hops", fmt.Sprintf("%d", len(pk.Path)),
+		{"hops", fmt.Sprintf("%d", pk.Hops),
 			fmt.Sprintf("%d transmissions", pk.Transmissions), false, ""},
 		{"version", pk.Version, versionSub(pk), false, ""},
 	}
-	var kids []layout.FlexChild
-	for i := range chips {
-		c := chips[i]
-		last := i == len(chips)-1
-		kids = append(kids, layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			ins := layout.Inset{Right: t.Sp.XS}
-			if last {
-				ins = layout.Inset{}
-			}
-			return ins.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return c.layout(t, gtx)
-			})
-		}))
+	return equalRow(gtx, t.Sp.XS, len(chips), func(gtx layout.Context, i int) layout.Dimensions {
+		return chips[i].layout(t, gtx)
+	})
+}
+
+// equalRow lays n cells across the full width, all the same width and all as
+// tall as the tallest.
+//
+// Gio's Flex has no stretch on the cross axis, so a row of cards whose text
+// wraps to different depths comes out ragged along the bottom - which is what
+// the chips did the moment one of them needed a second line. Measuring first
+// costs a second layout pass over six small widgets and is the only way to
+// know the height before committing to it.
+func equalRow(gtx layout.Context, gap unit.Dp, n int, cell func(layout.Context, int) layout.Dimensions) layout.Dimensions {
+	if n <= 0 {
+		return layout.Dimensions{}
 	}
-	return layout.Flex{}.Layout(gtx, kids...)
+	g := gtx.Dp(gap)
+	w := (gtx.Constraints.Max.X - g*(n-1)) / n
+	if w < 1 {
+		w = 1
+	}
+	fixedW := gtx
+	fixedW.Constraints.Min.X, fixedW.Constraints.Max.X = w, w
+
+	tallest := 0
+	for i := 0; i < n; i++ {
+		measure := fixedW
+		measure.Ops = new(op.Ops)
+		if h := cell(measure, i).Size.Y; h > tallest {
+			tallest = h
+		}
+	}
+
+	at := 0
+	for i := 0; i < n; i++ {
+		cgtx := fixedW
+		cgtx.Constraints.Min.Y, cgtx.Constraints.Max.Y = tallest, tallest
+		off := op.Offset(image.Pt(at, 0)).Push(gtx.Ops)
+		cell(cgtx, i)
+		off.Pop()
+		at += w + g
+	}
+	return layout.Dimensions{Size: image.Pt(gtx.Constraints.Max.X, tallest)}
+}
+
+// destOf is who the packet is addressed to.
+//
+// Not "the last entry in the path" - that is the last node to *relay* it,
+// which is a different thing and is not a destination at all on a flood. The
+// addressed types carry a destination hash in the payload; everything else is
+// broadcast, and a hash is a first byte of a public key, so it is shown as
+// the hash it is rather than resolved to a name it only probably belongs to.
+func destOf(pk *state.Packet) string {
+	for _, f := range pk.PayloadFields {
+		if f.Name == "destination hash" {
+			return f.Value
+		}
+	}
+	if strings.Contains(pk.PayloadType, "group") {
+		return "channel"
+	}
+	return "broadcast"
+}
+
+func destSub(pk *state.Packet) string {
+	for _, f := range pk.PayloadFields {
+		if f.Name == "destination hash" {
+			return "one byte of a public key"
+		}
+		if f.Name == "channel hash" {
+			return "channel " + f.Value
+		}
+	}
+	return pk.RouteType
 }
 
 // chip is one labelled fact.
@@ -163,18 +221,40 @@ func scopePill(sc state.PacketScope) string {
 	return "unmatched"
 }
 
-// payloadAndStructure puts what the packet says beside where it sits.
+// payloadAndStructure puts what the packet says beside where it sits, both
+// panels the same height whichever has more in it.
 func payloadAndStructure(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
-	return layout.Flex{}.Layout(gtx,
-		layout.Flexed(1.55, func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Right: t.Sp.XS}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return payloadPanel(t, gtx, pk)
-			})
-		}),
-		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			return structurePanel(t, gtx, pk)
-		}),
-	)
+	const payloadShare = 1.55
+	g := gtx.Dp(t.Sp.XS)
+	avail := gtx.Constraints.Max.X - g
+	left := int(float64(avail) * payloadShare / (payloadShare + 1))
+	panel := func(gtx layout.Context, i int) layout.Dimensions {
+		if i == 0 {
+			return payloadPanel(t, gtx, pk)
+		}
+		return structurePanel(t, gtx, pk)
+	}
+	widths := [2]int{left, avail - left}
+	tallest := 0
+	for i, w := range widths {
+		measure := gtx
+		measure.Ops = new(op.Ops)
+		measure.Constraints.Min.X, measure.Constraints.Max.X = w, w
+		if h := panel(measure, i).Size.Y; h > tallest {
+			tallest = h
+		}
+	}
+	at := 0
+	for i, w := range widths {
+		cgtx := gtx
+		cgtx.Constraints.Min.X, cgtx.Constraints.Max.X = w, w
+		cgtx.Constraints.Min.Y, cgtx.Constraints.Max.Y = tallest, tallest
+		off := op.Offset(image.Pt(at, 0)).Push(gtx.Ops)
+		panel(cgtx, i)
+		off.Pop()
+		at += w + g
+	}
+	return layout.Dimensions{Size: image.Pt(gtx.Constraints.Max.X, tallest)}
 }
 
 // payloadPanel is the readable summary - the fields worth seeing without
@@ -332,6 +412,10 @@ func spanSize(s state.PacketSpan) string {
 func titledPanel(t *theme.Theme, gtx layout.Context, title, detail string, content layout.Widget) layout.Dimensions {
 	macro := op.Record(gtx.Ops)
 	dims := layout.UniformInset(t.Sp.M).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		// A vertical Flex already returns at least Constraints.Min.Y, so a
+		// caller pairing two panels sets that and both come out level. Reading
+		// Max.Y instead would make a panel laid out on its own fill the whole
+		// viewport, which is the shape of the list this sits in.
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layout.Inset{Bottom: t.Sp.S}.Layout(gtx,
@@ -353,69 +437,6 @@ func titledPanel(t *theme.Theme, gtx layout.Context, title, detail string, conte
 	return dims
 }
 
-// rawWithHighlight is the frame's bytes with the payload picked out.
-//
-// Drawn from the frame rather than from the pre-formatted dump lines: a
-// finished string cannot be coloured from the middle, and the whole point of
-// carrying every field's offset is that a span of bytes can be pointed at.
-func rawWithHighlight(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
-	start := len(pk.Raw)
-	for _, s := range pk.Spans {
-		if strings.HasPrefix(s.Name, "payload") {
-			start = s.Offset
-		}
-	}
-	return titledPanel(t, gtx, fmt.Sprintf("Raw — %d bytes", len(pk.Raw)),
-		"the payload is picked out", func(gtx layout.Context) layout.Dimensions {
-			var lines []layout.FlexChild
-			for off := 0; off < len(pk.Raw); off += 16 {
-				end := off + 16
-				if end > len(pk.Raw) {
-					end = len(pk.Raw)
-				}
-				row := pk.Raw[off:end]
-				at := off
-				lines = append(lines, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return hexLine(t, gtx, at, row, start)
-				}))
-			}
-			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, lines...)
-		})
-}
-
-// hexLine is one 16-byte row: offset, the bytes in two colours either side of
-// where the payload starts, then the printable ASCII.
-func hexLine(t *theme.Theme, gtx layout.Context, at int, row []byte, payloadAt int) layout.Dimensions {
-	var pre, hit strings.Builder
-	var ascii strings.Builder
-	for i, b := range row {
-		if at+i < payloadAt {
-			fmt.Fprintf(&pre, "%02X ", b)
-		} else {
-			fmt.Fprintf(&hit, "%02X ", b)
-		}
-		if b >= 0x20 && b < 0x7F {
-			ascii.WriteByte(b)
-		} else {
-			ascii.WriteByte('.')
-		}
-	}
-	return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-		fixed(gtx, 46, comp.Mono(t, t.Sz.Caption, t.P.Faint, fmt.Sprintf("%04X", at))),
-		layout.Rigid(comp.Mono(t, t.Sz.Caption, t.P.Dim, pre.String())),
-		layout.Rigid(comp.Mono(t, t.Sz.Caption, t.P.Accent, hit.String())),
-		layout.Flexed(1, comp.Spacer),
-		layout.Rigid(comp.Mono(t, t.Sz.Caption, t.P.Faint, ascii.String())),
-	)
-}
-
-// scopeCard explains a scope the chip cannot say in three words.
-//
-// Only shown when there is something to explain. A confirmed scope needs no
-// paragraph - the chip names it and the pill says it was confirmed. The cases
-// that do need one are the ambiguous ones, where an operator who cannot see
-// what was checked would read "not scoped to anything" and "scoped to
-// something we could not name" as the same result. They are not, and they
 // want different actions.
 func scopeCard(t *theme.Theme, pk *state.Packet) layout.Widget {
 	return comp.Card(t, "Region scope", func(gtx layout.Context) layout.Dimensions {

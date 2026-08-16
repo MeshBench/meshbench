@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"gioui.org/layout"
+	"gioui.org/op"
 	"gioui.org/widget"
 
 	"github.com/MeshBench/meshbench/internal/gui/comp"
@@ -63,10 +64,21 @@ func versionSub(pk *state.Packet) string {
 // dissection is the byte-level view: the frame's shape, every field that
 // could be read, and the raw bytes.
 func (p *packetPanel) dissection(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
+	fields := dissectedFields(pk)
+	// The selected field's own bytes, so the hex below picks out exactly what
+	// the highlighted row was read from. This is what carrying every field's
+	// offset and size through from the dissector was for.
+	from, to := 0, 0
+	if p.selField >= 0 && p.selField < len(fields) {
+		f := fields[p.selField]
+		from, to = f.Offset, f.Offset+f.Size
+	}
 	rows := []layout.Widget{
 		p.spansCard(t, pk),
 		p.fieldsCard(t, pk),
-		p.rawCard(t, pk),
+		func(gtx layout.Context) layout.Dimensions {
+			return hexPanel(t, gtx, pk, from, to, selectionNote(p.selField, fields))
+		},
 	}
 	return comp.List(t, &p.scroll, len(rows), func(gtx layout.Context, i int) layout.Dimensions {
 		return layout.Inset{Bottom: t.Sp.S}.Layout(gtx, rows[i])
@@ -104,8 +116,24 @@ func (p *packetPanel) spansCard(t *theme.Theme, pk *state.Packet) layout.Widget 
 // fieldsCard is every field the dissector could name, with the offset and
 // size it was read from - the columns that turn "here is a value" into "here
 // is where that value is in the bytes below".
+// dissectedFields is every named field in one order - the order the table
+// lists them and the order selField indexes into. Both read it, so a row
+// cannot come to mean a different field to the table than to the hex.
+func dissectedFields(pk *state.Packet) []state.PacketField {
+	return append(append([]state.PacketField{}, pk.PathFields...), pk.PayloadFields...)
+}
+
+// selectionNote is the hint above the hex: what is picked out, or how to.
+func selectionNote(sel int, fields []state.PacketField) string {
+	if sel >= 0 && sel < len(fields) {
+		f := fields[sel]
+		return fmt.Sprintf("%s — %d bytes at %04X", f.Name, f.Size, f.Offset)
+	}
+	return "click a field to pick out its bytes"
+}
+
 func (p *packetPanel) fieldsCard(t *theme.Theme, pk *state.Packet) layout.Widget {
-	fields := append(append([]state.PacketField{}, pk.PathFields...), pk.PayloadFields...)
+	fields := dissectedFields(pk)
 	return comp.Card(t, fmt.Sprintf("Fields - %d read", len(fields)),
 		func(gtx layout.Context) layout.Dimensions {
 			if len(fields) == 0 {
@@ -127,17 +155,36 @@ func (p *packetPanel) fieldsCard(t *theme.Theme, pk *state.Packet) layout.Widget
 			}))
 			for i := range fields {
 				f := fields[i]
-				key := fmt.Sprintf("field:%d", i)
-				ck, ok := p.whyBtns[key]
+				copyKey := fmt.Sprintf("field:%d", i)
+				ck, ok := p.whyBtns[copyKey]
 				if !ok {
 					ck = &widget.Clickable{}
-					p.whyBtns[key] = ck
+					p.whyBtns[copyKey] = ck
 				}
 				if ck.Clicked(gtx) {
 					copyText(gtx, f.Value)
 				}
+				// The row itself selects the field's bytes. Clicking twice
+				// clears it, so the hex can be read whole again without
+				// having to find some empty patch to click.
+				rowKey := fmt.Sprintf("fieldrow:%d", i)
+				rk, ok := p.whyBtns[rowKey]
+				if !ok {
+					rk = &widget.Clickable{}
+					p.whyBtns[rowKey] = rk
+				}
+				if rk.Clicked(gtx) {
+					if p.selField == i {
+						p.selField = -1
+					} else {
+						p.selField = i
+					}
+				}
+				sel := p.selField == i
 				kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return fieldRow(t, gtx, f, ck)
+					return rk.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return fieldRow(t, gtx, f, ck, sel)
+					})
 				}))
 			}
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, kids...)
@@ -147,7 +194,7 @@ func (p *packetPanel) fieldsCard(t *theme.Theme, pk *state.Packet) layout.Widget
 // fieldRow is one dissected field. The decoded reading sits beside the raw
 // value rather than replacing it: the reading is the answer, and the raw
 // value is what lets somebody check it against the hex.
-func fieldRow(t *theme.Theme, gtx layout.Context, f state.PacketField, ck *widget.Clickable) layout.Dimensions {
+func fieldRow(t *theme.Theme, gtx layout.Context, f state.PacketField, ck *widget.Clickable, sel bool) layout.Dimensions {
 	meaning := f.Description
 	if f.Decoded != "" {
 		meaning = f.Decoded
@@ -161,7 +208,11 @@ func fieldRow(t *theme.Theme, gtx layout.Context, f state.PacketField, ck *widge
 	if f.Name == "encrypted" {
 		valueInk = t.P.Faint
 	}
-	return layout.Inset{Top: t.Sp.XXS, Bottom: t.Sp.XXS}.Layout(gtx,
+	if sel {
+		valueInk = t.P.Accent
+	}
+	macro := op.Record(gtx.Ops)
+	dims := layout.Inset{Top: t.Sp.XXS, Bottom: t.Sp.XXS}.Layout(gtx,
 		func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 				fixed(gtx, 46, comp.Mono(t, t.Sz.Caption, t.P.Faint,
@@ -176,6 +227,12 @@ func fieldRow(t *theme.Theme, gtx layout.Context, f state.PacketField, ck *widge
 				}),
 			)
 		})
+	call := macro.Stop()
+	if sel {
+		comp.RoundRect(gtx, dims.Size, 4, theme.Alpha(t.P.Accent, 0.12))
+	}
+	call.Add(gtx.Ops)
+	return dims
 }
 
 // fixed pins a cell to a width in dp, so the columns of a hand-built table

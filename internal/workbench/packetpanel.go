@@ -34,10 +34,17 @@ type packetPanel struct {
 	// overviewList scrolls the Overview tab, separately from Dissection: two
 	// tabs sharing one scroll position jump when you switch between them.
 	overviewList widget.List
-	jList        widget.List
-	lList        widget.List
-	fates        comp.Table
-	whyBtns      map[string]*widget.Clickable
+	// selField is the Dissection row whose bytes are picked out in the hex
+	// below it, or -1 for none. An index into the same order the table is
+	// built in, reset whenever the packet changes - a row number means
+	// nothing once a different frame is being read.
+	selField int
+	// selFor is the packet selField belongs to.
+	selFor  uint64
+	jList   widget.List
+	lList   widget.List
+	fates   comp.Table
+	whyBtns map[string]*widget.Clickable
 	// whyOpen is the node the "why?" modal is answering for; empty is closed.
 	// A name rather than an index because the row it was clicked from can
 	// move or vanish under it - the packet view stays live while its message
@@ -45,9 +52,6 @@ type packetPanel struct {
 	whyOpen  string
 	whyClose comp.Button
 	whyList  widget.List
-	ascii    bool
-	hexBtn   comp.Chip
-	ascBtn   comp.Chip
 	// graphBtn folds the propagation picture away. Docked in a third of a
 	// window there is not room for both it and the table, and which one you
 	// want depends on whether you are asking "what shape" or "what exactly".
@@ -96,6 +100,7 @@ func (p *packetPanel) build() {
 	p.whyList.Axis = layout.Vertical
 	p.scroll.Axis, p.jList.Axis, p.lList.Axis = layout.Vertical, layout.Vertical, layout.Vertical
 	p.overviewList.Axis = layout.Vertical
+	p.selField = -1
 	if packetOpenOnTab > 0 && packetOpenOnTab < len(packetTabs) {
 		p.tab = packetOpenOnTab
 	}
@@ -118,6 +123,9 @@ func (p *packetPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 	}
 	pk := s.Packet
 	p.winH = gtx.Constraints.Max.Y
+	if p.selFor != pk.ID {
+		p.selFor, p.selField = pk.ID, -1
+	}
 	for i := range p.tabs {
 		if p.tabs[i].Clicked(gtx) {
 			p.tab = i
@@ -158,13 +166,6 @@ func (p *packetPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 			p.showKind[mk.Kind] = !p.showKind[mk.Kind]
 		}
 	}
-	if p.hexBtn.Click.Clicked(gtx) {
-		p.ascii = false
-	}
-	if p.ascBtn.Click.Clicked(gtx) {
-		p.ascii = true
-	}
-
 	return layout.Stack{}.Layout(gtx,
 		layout.Expanded(func(gtx layout.Context) layout.Dimensions {
 			return p.layoutBody(t, gtx, pk)
@@ -283,45 +284,6 @@ func statBox(t *theme.Theme, label, value, sub string) layout.Widget {
 					return layout.Dimensions{}
 				}
 				return comp.Text(t, t.Sz.Caption, t.P.Faint, sub)(gtx)
-			}),
-		)
-	})
-}
-
-// rawCard: the bytes, as hex or as the printable ASCII alone.
-func (p *packetPanel) rawCard(t *theme.Theme, pk *state.Packet) layout.Widget {
-	return comp.Card(t, "", func(gtx layout.Context) layout.Dimensions {
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-					layout.Rigid(comp.Text(t, t.Sz.Section, t.P.Ink,
-						fmt.Sprintf("Raw - %d lines", len(pk.RawLines)))),
-					layout.Flexed(1, comp.Spacer),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return layout.Inset{Right: t.Sp.XS}.Layout(gtx,
-							func(gtx layout.Context) layout.Dimensions {
-								return p.hexBtn.Layout(t, gtx, "Hex", "", !p.ascii, t.P.Accent)
-							})
-					}),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return p.ascBtn.Layout(t, gtx, "ASCII", "", p.ascii, t.P.Accent)
-					}),
-				)
-			}),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				var kids []layout.FlexChild
-				for _, l := range pk.RawLines {
-					line := l
-					if p.ascii {
-						// The dump's tail: offset and the printable column.
-						if len(line) > 54 {
-							line = line[:6] + line[54:]
-						}
-					}
-					kids = append(kids, layout.Rigid(
-						comp.Mono(t, t.Sz.Caption, t.P.Dim, line)))
-				}
-				return layout.Flex{Axis: layout.Vertical}.Layout(gtx, kids...)
 			}),
 		)
 	})

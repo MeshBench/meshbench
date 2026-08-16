@@ -119,6 +119,9 @@ func drawHopGraph(t *theme.Theme, gtx layout.Context, g hopGraph, v *graphView, 
 		if v.focus != "" {
 			return !focusSet[a] || !focusSet[b]
 		}
+		if v.pinFrom != "" {
+			return a != v.pinFrom || b != v.pinTo
+		}
 		if v.hoverFrom != "" {
 			return a != v.hoverFrom || b != v.hoverTo
 		}
@@ -269,6 +272,11 @@ func drawGraphLabels(t *theme.Theme, gtx layout.Context, g hopGraph, v *graphVie
 		order = append(order, name)
 	}
 	add(g.Origin)
+	// Whatever the pointer is on, and whichever edge is pinned, before the
+	// rest - a name asked for by pointing is the one name somebody wants.
+	add(v.hoverNode)
+	add(v.pinFrom)
+	add(v.pinTo)
 	if v.focus != "" {
 		for _, n := range g.Nodes {
 			if focusSet[n.Name] {
@@ -281,6 +289,7 @@ func drawGraphLabels(t *theme.Theme, gtx layout.Context, g hopGraph, v *graphVie
 		}
 	}
 
+	placedName := map[string]bool{}
 	type box struct{ x0, y0, x1, y1 float32 }
 	overlaps := func(a, b box) bool {
 		return a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0
@@ -308,17 +317,44 @@ func drawGraphLabels(t *theme.Theme, gtx layout.Context, g hopGraph, v *graphVie
 			continue
 		}
 		placed = append(placed, b)
+		placedName[name] = true
 
-		off := op.Offset(image.Pt(int(p.X)+gtx.Dp(7), int(p.Y)-gtx.Dp(6))).Push(gtx.Ops)
-		gtx2 := gtx
-		gtx2.Constraints.Max.X = gtx.Dp(labelWidth)
-		ink := t.P.Dim
-		if name == g.Origin {
-			ink = t.P.Bad
-		}
-		comp.OneLine(t, t.Sz.Caption, ink, shortName(name), false)(gtx2)
-		off.Pop()
+		drawOneLabel(t, gtx, name, p, g.Origin)
 	}
+
+	// The hovered node's label is drawn whatever the crowd, on top of
+	// everything and over its own plate so it is readable against the lines
+	// it necessarily overlaps. Without this a dense layer answers "what is
+	// that node" with silence, and the only way through was to zoom.
+	if v.hoverNode != "" && !placedName[v.hoverNode] {
+		if p, ok := pos(v.hoverNode); ok {
+			drawLabelPlate(t, gtx, v.hoverNode, p)
+			drawOneLabel(t, gtx, v.hoverNode, p, g.Origin)
+		}
+	}
+}
+
+// drawOneLabel puts a name beside its node.
+func drawOneLabel(t *theme.Theme, gtx layout.Context, name string, p f32.Point, origin string) {
+	off := op.Offset(image.Pt(int(p.X)+gtx.Dp(7), int(p.Y)-gtx.Dp(6))).Push(gtx.Ops)
+	gtx2 := gtx
+	gtx2.Constraints.Max.X = gtx.Dp(labelWidth)
+	ink := t.P.Dim
+	if name == origin {
+		ink = t.P.Bad
+	}
+	comp.OneLine(t, t.Sz.Caption, ink, shortName(name), false)(gtx2)
+	off.Pop()
+}
+
+// drawLabelPlate is the backing a forced label sits on, so it reads against
+// whatever it has landed over.
+func drawLabelPlate(t *theme.Theme, gtx layout.Context, name string, p f32.Point) {
+	w := gtx.Dp(unitDp(len(shortName(name))*7 + 8))
+	h := gtx.Dp(18)
+	off := op.Offset(image.Pt(int(p.X)+gtx.Dp(4), int(p.Y)-gtx.Dp(9))).Push(gtx.Ops)
+	comp.RoundRect(gtx, image.Pt(w, h), 4, theme.Alpha(t.P.Ground, 0.92))
+	off.Pop()
 }
 
 // lerp is a point a fraction of the way along a line.

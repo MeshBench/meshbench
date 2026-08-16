@@ -74,17 +74,25 @@ type graphView struct {
 	// that" is a question worth answering without spending the click that
 	// focus already owns.
 	hoverFrom, hoverTo string
+	// pinFrom/pinTo are an edge a click asked to keep highlighted, so it
+	// survives the pointer moving away - a hover answers "which line is
+	// that", a click answers "keep that one while I read the table".
+	pinFrom, pinTo string
+	// hoverNode is the node under the pointer. A crowded layer has room for
+	// far fewer labels than nodes, so most names are dropped; this is how you
+	// get one back without zooming - it is drawn on top, overlap and all.
+	hoverNode string
 	// forcePos and forceVel are the free-form layout's own standing physics
 	// simulation - positions and velocities, both persisted here rather than
 	// recomputed, so stepForce can nudge them one small step further every
-	// frame instead of re-settling from scratch. forceSig is a cheap
-	// fingerprint of the graph's shape, not a hash of its content: a false
-	// match only means a stale layout survives one extra frame, never a wrong
-	// one that sticks. Reseeded (a full settle again) whenever the shape
-	// changes - a new packet, a hop-depth filter, an outcome toggle.
+	// frame instead of re-settling from scratch. forceSig fingerprints which
+	// nodes the graph holds, so a rebuild that swaps one node for another is
+	// reseeded rather than leaving the newcomer unplaced and the departed
+	// one clickable. Reseeded on a new packet, a hop-depth filter, an
+	// outcome toggle - anything that changes who is in the picture.
 	forcePos map[string]f32.Point
 	forceVel map[string]f32.Point
-	forceSig int
+	forceSig uint64
 	// dragNode is the node a drag is currently repositioning, in free-form
 	// mode; empty means the drag is panning the view instead, same as every
 	// other mode.
@@ -125,10 +133,16 @@ func (v *graphView) handle(gtx layout.Context, sz image.Point, g hopGraph, posit
 		switch e.Kind {
 		case pointer.Move:
 			if !v.dragging {
-				v.hoverFrom, v.hoverTo = hitEdge(g, positions, v, sz, e.Position)
+				// The node wins: it is the smaller target, and an edge always
+				// passes under the dot it ends at.
+				v.hoverNode = hitNode(g, positions, v, e.Position)
+				v.hoverFrom, v.hoverTo = "", ""
+				if v.hoverNode == "" {
+					v.hoverFrom, v.hoverTo = hitEdge(g, positions, v, sz, e.Position)
+				}
 			}
 		case pointer.Leave, pointer.Cancel:
-			v.hoverFrom, v.hoverTo = "", ""
+			v.hoverFrom, v.hoverTo, v.hoverNode = "", "", ""
 		case pointer.Scroll:
 			// Zoom about the pointer, not the centre: the node under it is
 			// the one being looked at and should stay where it is.
@@ -141,13 +155,13 @@ func (v *graphView) handle(gtx layout.Context, sz image.Point, g hopGraph, posit
 			}
 		case pointer.Press:
 			v.dragging, v.last, v.pressAt = true, e.Position, e.Position
-			v.hoverFrom, v.hoverTo = "", ""
+			v.hoverFrom, v.hoverTo, v.hoverNode = "", "", ""
 			// Free-form only: everywhere else a node's position is what its
 			// hop says it has to be, so there is nothing dragging it could
 			// mean. A hand that starts on a node moves the node; a hand that
 			// starts on empty canvas pans the view, same as every mode.
 			if v.mode == modeForce {
-				v.dragNode = hitNode(positions, v, e.Position)
+				v.dragNode = hitNode(g, positions, v, e.Position)
 			}
 		case pointer.Drag:
 			if v.dragNode != "" {
@@ -174,11 +188,25 @@ func (v *graphView) handle(gtx layout.Context, sz image.Point, g hopGraph, posit
 			// obviously aimed at.
 			const clickSlop = 6
 			if hyp(e.Position.X-v.pressAt.X, e.Position.Y-v.pressAt.Y) <= clickSlop {
-				hit := hitNode(positions, v, e.Position)
-				if hit != "" && hit == v.focus {
-					v.focus = ""
-				} else {
-					v.focus = hit
+				if hit := hitNode(g, positions, v, e.Position); hit != "" {
+					v.pinFrom, v.pinTo = "", ""
+					if hit == v.focus {
+						v.focus = ""
+					} else {
+						v.focus = hit
+					}
+					break
+				}
+				// Nothing under the pointer at node range: an edge, then, and
+				// failing that a click on empty canvas, which clears both.
+				from, to := hitEdge(g, positions, v, sz, e.Position)
+				switch {
+				case from == "":
+					v.focus, v.pinFrom, v.pinTo = "", "", ""
+				case from == v.pinFrom && to == v.pinTo:
+					v.pinFrom, v.pinTo = "", ""
+				default:
+					v.focus, v.pinFrom, v.pinTo = "", from, to
 				}
 			}
 		}
@@ -188,10 +216,15 @@ func (v *graphView) handle(gtx layout.Context, sz image.Point, g hopGraph, posit
 // hitNode is which node, if any, a screen point landed on - checked against
 // this frame's positions transformed by the view's own pan and zoom, so a
 // click is tested against exactly what is on screen right now.
-func hitNode(positions map[string]f32.Point, v *graphView, at f32.Point) string {
+func hitNode(g hopGraph, positions map[string]f32.Point, v *graphView, at f32.Point) string {
 	const radius = 11.0
 	best, bestD2 := "", float32(radius*radius)
-	for name, p := range positions {
+	for _, n := range g.Nodes {
+		name := n.Name
+		p, ok := positions[name]
+		if !ok {
+			continue
+		}
 		sx, sy := p.X*v.zoom+v.pan.X, p.Y*v.zoom+v.pan.Y
 		dx, dy := sx-at.X, sy-at.Y
 		d2 := dx*dx + dy*dy
