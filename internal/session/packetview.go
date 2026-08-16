@@ -74,22 +74,54 @@ func registerPacket(st *state.Store, s *Sim) {
 // the moment it was clicked - the whole point of opening one mid-flood is
 // watching the Journey and the reception ledger keep growing under it.
 //
-// EventCount is length-only (no copy of the log), so a tick where nothing
-// happened anywhere - the common case - skips the rebuild rather than
-// rescanning every event this run has ever produced.
+// Two gates before the rebuild, because the rebuild is expensive: it copies
+// the whole event log, walks it several times and dissects every transmission
+// in the run. Doing that per tick is the quadratic cost EventsTail was
+// introduced to remove, and "a packet window is open" is the state anybody
+// watching a flood is permanently in.
+//
+//   - EventCount is length-only, so a tick where nothing happened anywhere
+//     costs nothing.
+//   - When something did happen, only the events that are actually new are
+//     copied, and the rebuild is skipped unless one of them belongs to the
+//     message being followed. On a busy mesh almost all traffic belongs to
+//     some other message, so almost every tick stops here.
 func (s *Sim) refreshOpenPacket(w *state.World) {
 	if w.Packet == nil {
 		return
 	}
-	if n := s.eng.EventCount(); n != s.lastPacketEvents {
-		s.lastPacketEvents = n
-		// A rebuild that finds nothing (the frame has aged out of the event
-		// log) leaves the last good view in place rather than blanking the
-		// window out from under whoever is looking at it.
-		if pk := s.buildPacket(w.Packet.ID); pk != nil {
-			w.Packet = pk
+	n := s.eng.EventCount()
+	if n == s.lastPacketEvents {
+		return
+	}
+	arrived := n - s.lastPacketEvents
+	s.lastPacketEvents = n
+	if arrived > 0 && !s.touchesPacket(w.Packet, arrived) {
+		return
+	}
+	// A rebuild that finds nothing (the frame has aged out of the event
+	// log) leaves the last good view in place rather than blanking the
+	// window out from under whoever is looking at it.
+	if pk := s.buildPacket(w.Packet.ID); pk != nil {
+		w.Packet = pk
+	}
+}
+
+// touchesPacket reports whether any of the last n events belongs to the
+// message this view is following - by message where the frame carried one,
+// and by packet id otherwise, so a view opened on a frame the engine never
+// gave a message id still refreshes.
+func (s *Sim) touchesPacket(pk *state.Packet, n int) bool {
+	tail, _ := s.eng.EventsTail(n)
+	for _, ev := range tail {
+		if ev.PacketID == pk.ID {
+			return true
+		}
+		if pk.MessageID != 0 && ev.MessageID == pk.MessageID {
+			return true
 		}
 	}
+	return false
 }
 
 // buildPacket gathers everything the run knows about one transmission.
@@ -164,13 +196,29 @@ func (s *Sim) buildPacket(id uint64) *state.Packet {
 			hashNames[td.PathHashes[n-1]] = ev.From
 		}
 	}
-	for _, h := range d.PathHashes {
-		if name, ok := hashNames[h]; ok {
-			pk.Path = append(pk.Path, fmt.Sprintf("%s (%02X)", name, h))
-		} else {
-			pk.Path = append(pk.Path, fmt.Sprintf("%02X", h))
+	// One entry per hop, not per byte. MeshCore's hash size is variable and
+	// encoded in the path-length byte, so iterating the bytes reported six
+	// hops for a two-hop path of three-byte hashes - and the Structure panel
+	// beside it, reading the same frame, correctly said two.
+	//
+	// A trace is skipped entirely: its path area carries the SNR each hop
+	// measured, not hashes, so there are no relay names in there to resolve.
+	if d.PayloadType != 0x09 {
+		for i := 0; i < d.HopCount(); i++ {
+			h := d.Hop(i)
+			if len(h) == 0 {
+				continue
+			}
+			// Named on the hash's last byte, which is what the transmit scan
+			// above keys on.
+			if name, ok := hashNames[h[len(h)-1]]; ok {
+				pk.Path = append(pk.Path, fmt.Sprintf("%s (%X)", name, h))
+			} else {
+				pk.Path = append(pk.Path, fmt.Sprintf("%X", h))
+			}
 		}
 	}
+	pk.Hops = d.HopCount()
 	pk.PayloadFields = asPacketFields(d.PayloadFields)
 	pk.PathFields = asPacketFields(d.PathFields)
 	for _, sp := range d.Spans {

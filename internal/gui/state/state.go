@@ -352,8 +352,13 @@ type Packet struct {
 	Version     string
 	Transport   string
 	// Path is the hop hashes, resolved to node names where the run knows
-	// them - approximate by construction and labelled where it fails.
+	// them - approximate by construction and labelled where it fails. One
+	// entry per hop; a trace has none, because its path area carries SNR.
 	Path []string
+	// Hops is the frame's own hop count, off the path-length byte. Not
+	// len(Path): the hash size is variable, and a trace has a hop count with
+	// no hashes to name.
+	Hops int
 	// PayloadFields are what the payload carries in clear; PayloadNote is
 	// what to say when it carries nothing readable.
 	PayloadFields []PacketField
