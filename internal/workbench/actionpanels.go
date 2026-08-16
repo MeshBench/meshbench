@@ -559,11 +559,11 @@ type sweepControls struct {
 	// each frame is a widget that never registers a press.
 	armRm map[string]*comp.Button
 
-	// senders are the companions that will originate. A list, not one name:
-	// a single originator makes every seed of an arm return the same numbers,
-	// so the seed cannot bound the noise and no difference between arms has
-	// anything to be called larger than.
-	senders   []string
+	// The companions that will originate - sendersNow() below, off the live
+	// snapshot, not cached here. A list, not one name: a single originator
+	// makes every seed of an arm return the same numbers, so the seed cannot
+	// bound the noise and no difference between arms has anything to be
+	// called larger than.
 	senderRm  map[string]*comp.Button
 	allSend   comp.Button
 	noneSend  comp.Button
