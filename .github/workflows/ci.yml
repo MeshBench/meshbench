@@ -71,12 +71,33 @@ jobs:
       # The 500-line hard limit from CLAUDE.md. Applied to shaders and the
       # dissector too, not just Go: hamreach enforced Go only and its largest
       # file reached 746 lines before anyone noticed.
+      #
+      # Three outcomes, not two. A file under the limit passes. A file that
+      # carries lint:file-length-exempt passes and says why in its own header.
+      # Everything else is checked against the grandfathered list, which
+      # records what each already-oversized file measured when the check began
+      # to be enforced - twenty of them, enough that the step failed on every
+      # branch including main, and a gate that is always red is one people
+      # learn to scroll past.
+      #
+      # The list is not an amnesty: a file on it may not grow, and one that is
+      # split back under the limit has to come off it. So the debt is visible
+      # in one place, cannot get worse, and shrinks as it is paid.
       - name: file length
         run: |
           fail=0
+          ledger=.github/file-length-grandfathered
           while IFS= read -r f; do
             n=$(wc -l < "$f")
-            if [ "$n" -gt 500 ] && ! grep -q "lint:file-length-exempt" "$f"; then
+            grep -q "lint:file-length-exempt" "$f" && continue
+            was=$(awk -v p="$f" '$1==p {print $2}' "$ledger")
+            if [ -n "$was" ]; then
+              if [ "$n" -le 500 ]; then
+                echo "$f is $n lines, back within the limit - remove it from $ledger"; fail=1
+              elif [ "$n" -gt "$was" ]; then
+                echo "$f grew from $was to $n lines; it is over the limit and may not get longer"; fail=1
+              fi
+            elif [ "$n" -gt 500 ]; then
               echo "$f is $n lines (limit 500, no exemption)"; fail=1
             fi
           done < <(find . \( -name '*.go' -o -name '*.wgsl' -o -name '*.lua' \) -not -path './vendor/*')

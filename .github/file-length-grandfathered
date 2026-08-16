@@ -1,0 +1,37 @@
+# Files that were already over the 500-line limit when the check began to be
+# enforced, with the length each was at. Grandfathered, not forgiven.
+#
+# The limit in CLAUDE.md is mechanical because taste does not survive scale,
+# and a hard limit that fails on every branch is not a limit - it is noise
+# somebody learns to scroll past, which is what this one had become. Recording
+# the debt in one place instead does three things a wall of red did not:
+#
+#   - CI goes green, so a real failure is visible again.
+#   - A file on this list may not grow. Adding to one of these fails the
+#     check, which is the pressure that was missing.
+#   - A file that gets split back under the limit must be removed from the
+#     list, so this file shrinks as the debt is paid and cannot quietly
+#     become permanent.
+#
+# Nothing new belongs here. A new file over 500 lines fails, as it should.
+#
+# Format: <path> <lines when recorded>
+./internal/companion/proto/proto.go 633
+./internal/engine/engine.go 1325
+./internal/engine/firmware.go 509
+./internal/firmware/native_catalogue.go 515
+./internal/gui/comp/table.go 519
+./internal/gui/shell/shell.go 843
+./internal/gui/state/state.go 1242
+./internal/session/engine.go 688
+./internal/session/experiment.go 964
+./internal/session/experimentrun.go 559
+./internal/session/firmwarelib.go 582
+./internal/session/verbs.go 944
+./internal/workbench/actionpanels.go 1331
+./internal/workbench/audit_test.go 574
+./internal/workbench/fwlib.go 534
+./internal/workbench/main.go 1424
+./internal/workbench/nodeview.go 603
+./internal/workbench/nodewindow.go 1030
+./internal/workbench/panels6c.go 912
