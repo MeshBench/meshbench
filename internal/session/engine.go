@@ -306,6 +306,18 @@ func (s *Sim) links() []state.Link {
 	return out
 }
 
+// snapshotNodes copies the nodes themselves, so a worker reading them cannot
+// be racing a verb that writes them.
+//
+// Element-wise, which is what the reported race needed: the fields written
+// while a warm is in flight are scalars and strings on the node itself. A
+// node's Regions slice is still shared with the original, and deliberately -
+// every writer replaces that slice wholesale rather than editing it in place,
+// so the copy keeps whichever one it was given.
+func snapshotNodes(in []scenario.Node) []scenario.Node {
+	return append([]scenario.Node(nil), in...)
+}
+
 // warm computes the link margins on a worker and hands them to the store.
 //
 // One at a time: a second warm while the first is running would compute the
@@ -333,7 +345,13 @@ func (s *Sim) warm(st *state.Store, nodes int) {
 	// The network this warm is for, taken now. Everything below runs after
 	// the verb that started it has returned, and s.eng/s.nodes belong to
 	// whatever has been opened since.
-	eng, warmNodes, freqMHz := s.eng, s.nodes, s.freqMHz
+	//
+	// A copy of the nodes, not of the slice header. That distinction was the
+	// whole of a data race: assigning s.nodes shares the backing array, so a
+	// warm reading a node's fields on its worker and a verb writing them on
+	// the store goroutine - setFirmware, say - are touching the same memory.
+	// The intent here was always a snapshot; this is what makes it one.
+	eng, warmNodes, freqMHz := s.eng, snapshotNodes(s.nodes), s.freqMHz
 	go func() {
 		defer cancel()
 		total := nodes * (nodes - 1) / 2
