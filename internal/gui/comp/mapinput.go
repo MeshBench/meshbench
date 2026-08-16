@@ -70,7 +70,7 @@ func (m *MapView) handle(gtx layout.Context, sz image.Point, pts []projected) {
 		case pointer.Scroll:
 			// Zoom to the cursor, not to the centre: the thing under the
 			// pointer is the thing being looked at, and it should stay put.
-			m.zoomAt(e.Position, math.Pow(1.1, float64(-e.Scroll.Y)), sz)
+			m.zoomAt(e.Position, math.Pow(zoomStep, float64(-e.Scroll.Y)), sz)
 		case pointer.Move:
 			m.cam.hover = nearestWithin(pts, e.Position, 10)
 		case pointer.Leave:
@@ -254,6 +254,15 @@ func (m *MapView) pan(d f32.Point, sz image.Point) {
 	m.CentreLat += float64(d.Y) / m.Zoom
 	m.clampCentre()
 }
+
+// zoomStep is the multiplier one unit of scroll applies.
+//
+// 1.1 read as a jump rather than a zoom: a fast wheel spin or a trackpad
+// gesture can hand a single event a Scroll.Y in the twenties, and 1.1^20 is
+// nearly 7x in one event. This is the same feel a per-unit multiplier this
+// close to 1 gives everywhere else - the map just moves in smaller, more
+// controllable steps.
+const zoomStep = 1.03
 
 // zoomAt scales about a screen point, keeping whatever is under it there.
 func (m *MapView) zoomAt(at f32.Point, factor float64, sz image.Point) {
