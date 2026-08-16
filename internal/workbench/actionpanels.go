@@ -531,7 +531,11 @@ type sweepControls struct {
 	// each frame is a widget that never registers a press.
 	armRm map[string]*comp.Button
 
-	// senderRm is one remove button per sender, pooled the same way as armRm.
+	// The companions that will originate - sendersNow() below, off the live
+	// snapshot, not cached here. A list, not one name: a single originator
+	// makes every seed of an arm return the same numbers, so the seed cannot
+	// bound the noise and no difference between arms has anything to be
+	// called larger than.
 	senderRm  map[string]*comp.Button
 	allSend   comp.Button
 	noneSend  comp.Button
@@ -1120,6 +1124,10 @@ var armCols = []armCol{
 }
 
 // sweepResults is what the arms came back with, and whether it is a result.
+//
+// Stateless on purpose: Draw recomputes everything from the *state.Snapshot
+// it is handed each frame, so there is nothing here for a receiver to cache
+// between calls.
 type sweepResults struct{}
 
 func (p *sweepResults) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
