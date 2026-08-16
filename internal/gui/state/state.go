@@ -123,6 +123,12 @@ type Snapshot struct {
 	// is not yet a result.
 	Experiment        []ArmSummary
 	ExperimentWarning string
+	// ExperimentID is what the currently defined sweep hashes to, and
+	// ExperimentIdentity is what went into that hash - so an operator can see,
+	// before pressing run, exactly what two people would need to agree on to
+	// get the same ID.
+	ExperimentID       string
+	ExperimentIdentity ExperimentIdentity
 	// ExperimentRuns is every cell, so a sweep can be watched rather than
 	// waited on; ExperimentVerdict is what it concluded, once it has.
 	ExperimentRuns    []RunRow
@@ -555,6 +561,17 @@ type RunRow struct {
 	Result string
 }
 
+// ExperimentIdentity is what the sweep's ID is a hash of, shown so an
+// operator can see what two people would need to agree on before comparing
+// their IDs - and what changed, when a replayed ID no longer matches.
+type ExperimentIdentity struct {
+	Fixture    string
+	GeometryFP string
+	Firmware   []string
+	MeshBench  string
+	Dirty      bool
+}
+
 // Build is one firmware image on this machine.
 //
 // What is in the cache is the only thing that decides what a node can run: a
@@ -892,6 +909,12 @@ type World struct {
 	// is not yet a result.
 	Experiment        []ArmSummary
 	ExperimentWarning string
+	// ExperimentID is what the currently defined sweep hashes to, and
+	// ExperimentIdentity is what went into that hash - so an operator can see,
+	// before pressing run, exactly what two people would need to agree on to
+	// get the same ID.
+	ExperimentID       string
+	ExperimentIdentity ExperimentIdentity
 	// ExperimentRuns is every cell, so a sweep can be watched rather than
 	// waited on; ExperimentVerdict is what it concluded, once it has.
 	ExperimentRuns    []RunRow
@@ -1150,46 +1173,48 @@ func (s *Store) publish() {
 		Shade:    s.world.Shade,
 		// Events and scores are already rebuilt fresh on every tick, so they
 		// are handed over rather than copied again.
-		Events:            s.world.Events,
-		EventTotal:        s.world.EventTotal,
-		Counts:            s.world.Counts,
-		Packet:            s.world.Packet,
-		Scores:            s.world.Scores,
-		Waterfall:         s.world.Waterfall,
-		WaterfallNote:     s.world.WaterfallNote,
-		Budgets:           s.world.Budgets,
-		LinkProfile:       s.world.LinkProfile,
-		Matrix:            s.world.Matrix,
-		Energy:            s.world.Energy,
-		Sends:             s.world.Sends,
-		Assertions:        s.world.Assertions,
-		Endpoints:         s.world.Endpoints,
-		Routes:            s.world.Routes,
-		Import:            s.world.Import,
-		Observed:          s.world.Observed,
-		Residuals:         s.world.Residuals,
-		Stats:             s.world.Stats,
-		Builds:            s.world.Builds,
-		Library:           append([]FirmwareRow(nil), s.world.Library...),
-		GPU:               s.world.GPU,
-		TileCacheGB:       s.world.TileCacheGB,
-		TileCacheDir:      s.world.TileCacheDir,
-		Experiment:        s.world.Experiment,
-		ExperimentWarning: s.world.ExperimentWarning,
-		ExperimentRuns:    s.world.ExperimentRuns,
-		ExperimentVerdict: s.world.ExperimentVerdict,
-		ExperimentArms:    s.world.ExperimentArms,
-		ExperimentSenders: s.world.ExperimentSenders,
-		Series:            s.world.Series,
-		Provisioning:      s.world.Provisioning,
-		Console:           s.world.Console,
-		FleetReplies:      append([]FleetReply(nil), s.world.FleetReplies...),
-		FleetCommand:      s.world.FleetCommand,
-		RealFirmware:      s.world.RealFirmware,
-		FirmwareRunning:   s.world.FirmwareRunning,
-		FirmwareStarting:  s.world.FirmwareStarting,
-		ConsoleNode:       s.world.ConsoleNode,
-		ProvisioningNode:  s.world.ProvisioningNode,
+		Events:             s.world.Events,
+		EventTotal:         s.world.EventTotal,
+		Counts:             s.world.Counts,
+		Packet:             s.world.Packet,
+		Scores:             s.world.Scores,
+		Waterfall:          s.world.Waterfall,
+		WaterfallNote:      s.world.WaterfallNote,
+		Budgets:            s.world.Budgets,
+		LinkProfile:        s.world.LinkProfile,
+		Matrix:             s.world.Matrix,
+		Energy:             s.world.Energy,
+		Sends:              s.world.Sends,
+		Assertions:         s.world.Assertions,
+		Endpoints:          s.world.Endpoints,
+		Routes:             s.world.Routes,
+		Import:             s.world.Import,
+		Observed:           s.world.Observed,
+		Residuals:          s.world.Residuals,
+		Stats:              s.world.Stats,
+		Builds:             s.world.Builds,
+		Library:            append([]FirmwareRow(nil), s.world.Library...),
+		GPU:                s.world.GPU,
+		TileCacheGB:        s.world.TileCacheGB,
+		TileCacheDir:       s.world.TileCacheDir,
+		Experiment:         s.world.Experiment,
+		ExperimentWarning:  s.world.ExperimentWarning,
+		ExperimentID:       s.world.ExperimentID,
+		ExperimentIdentity: s.world.ExperimentIdentity,
+		ExperimentRuns:     s.world.ExperimentRuns,
+		ExperimentVerdict:  s.world.ExperimentVerdict,
+		ExperimentArms:     s.world.ExperimentArms,
+		ExperimentSenders:  s.world.ExperimentSenders,
+		Series:             s.world.Series,
+		Provisioning:       s.world.Provisioning,
+		Console:            s.world.Console,
+		FleetReplies:       append([]FleetReply(nil), s.world.FleetReplies...),
+		FleetCommand:       s.world.FleetCommand,
+		RealFirmware:       s.world.RealFirmware,
+		FirmwareRunning:    s.world.FirmwareRunning,
+		FirmwareStarting:   s.world.FirmwareStarting,
+		ConsoleNode:        s.world.ConsoleNode,
+		ProvisioningNode:   s.world.ProvisioningNode,
 	})
 }
 

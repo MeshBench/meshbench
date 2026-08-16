@@ -135,6 +135,11 @@ type Sim struct {
 	history  *nodeHistory
 	states   map[string]string
 	served   map[string]*engine.CompanionLink
+	// fixturePath is what project.open last loaded, so an experiment manifest
+	// can name the network it was defined against rather than just its
+	// geometry fingerprint - a fingerprint says two networks agree, not what
+	// either one is called.
+	fixturePath string
 }
 
 // terrainStore is the elevation the engine sees.

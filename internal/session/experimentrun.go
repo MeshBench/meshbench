@@ -524,12 +524,19 @@ func registerExperimentDone(st *state.Store, s *Sim) {
 		warn := e.notAResultYet()
 		e.mu.Unlock()
 		w.Jobs = finishJob(w.Jobs, "experiment")
-		if warn != "" {
-			w.Say(fmt.Sprintf("experiment finished, %d runs - %s", n, warn))
-		} else {
-			w.Say(fmt.Sprintf("experiment finished: %d runs", n))
+		// Same ID as the one stamped at start: the inputs have not changed, so
+		// the manifest an operator copied before the run still names this file,
+		// now with the results it was missing.
+		id := stampExperimentID(w, s, e)
+		if _, err := e.saveManifest(s); err != nil {
+			w.Say("experiment: could not write its manifest: " + err.Error())
 		}
-		return map[string]any{"runs": n, "warning": warn}, nil
+		if warn != "" {
+			w.Say(fmt.Sprintf("experiment %s finished, %d runs - %s", id, n, warn))
+		} else {
+			w.Say(fmt.Sprintf("experiment %s finished: %d runs", id, n))
+		}
+		return map[string]any{"runs": n, "warning": warn, "id": id}, nil
 	})
 }
 

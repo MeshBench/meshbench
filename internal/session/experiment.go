@@ -404,6 +404,7 @@ func registerExperiment(st *state.Store, s *Sim) {
 				e.Scope = v
 			}
 		}
+		stampExperimentID(w, s, e)
 		return e.describe(), nil
 	})
 
@@ -456,6 +457,7 @@ func registerExperiment(st *state.Store, s *Sim) {
 			return nil, fmt.Errorf("experiment.vary produced no arms from %v", values)
 		}
 		e.Arms = out
+		stampExperimentID(w, s, e)
 		return e.describe(), nil
 	})
 
@@ -476,6 +478,7 @@ func registerExperiment(st *state.Store, s *Sim) {
 			return nil, fmt.Errorf("experiment.seeds needs seeds")
 		}
 		e.Seeds = seeds
+		stampExperimentID(w, s, e)
 		return e.describe(), nil
 	})
 
@@ -492,6 +495,7 @@ func registerExperiment(st *state.Store, s *Sim) {
 				}
 			}
 		}
+		stampExperimentID(w, s, e)
 		return e.describe(), nil
 	})
 
@@ -510,11 +514,13 @@ func registerExperiment(st *state.Store, s *Sim) {
 		if v, ok := numField(p, "send_at_ms"); ok && v > 0 {
 			e.SendAtMs = uint32(v)
 		}
+		stampExperimentID(w, s, e)
 		return e.describe(), nil
 	})
 
 	st.Handle("experiment.state", func(w *state.World, _ any) (any, error) {
 		e := s.experiment()
+		stampExperimentID(w, s, e)
 		e.mu.Lock()
 		defer e.mu.Unlock()
 		out := e.describe()
@@ -548,10 +554,18 @@ func registerExperiment(st *state.Store, s *Sim) {
 		nodes := append([]scenario.Node(nil), s.nodes...)
 		e.mu.Unlock()
 
+		// Written now rather than only at the end: a manifest handed out mid-run
+		// is the same file a finished one is, with Results filled in later - the
+		// ID an operator copies at minute one still resolves at minute ten.
+		id := stampExperimentID(w, s, e)
+		if _, err := e.saveManifest(s); err != nil {
+			w.Say("experiment: could not write its manifest: " + err.Error())
+		}
+
 		w.Jobs = append(w.Jobs, state.Job{
 			ID: "experiment", What: "running arms", Total: e.runsTotal()})
 		go s.runExperiment(ctx, st, e, nodes)
-		return map[string]any{"running": true, "runs": e.runsTotal()}, nil
+		return map[string]any{"running": true, "runs": e.runsTotal(), "id": id}, nil
 	})
 
 	st.Handle("experiment.stop", func(w *state.World, _ any) (any, error) {
@@ -653,9 +667,15 @@ func registerExperiment(st *state.Store, s *Sim) {
 		if path == "" {
 			path = filepath.Join(os.TempDir(), "meshbench-experiment.json")
 		}
+		// Stamped on the way out: an export without the ID that reproduces it
+		// is a set of numbers with no way back to what produced them.
+		id := stampExperimentID(w, s, e)
+		if _, err := e.saveManifest(s); err != nil {
+			w.Say("experiment: could not write its manifest: " + err.Error())
+		}
 		e.mu.Lock()
 		b, err := json.MarshalIndent(map[string]any{
-			"arms": e.Arms, "seeds": e.Seeds, "senders": e.Senders,
+			"id": id, "arms": e.Arms, "seeds": e.Seeds, "senders": e.Senders,
 			"run_for_ms": e.RunForMs, "send_at_ms": e.SendAtMs,
 			"results": e.results, "summary": e.summarise(),
 		}, "", "  ")
@@ -667,7 +687,7 @@ func registerExperiment(st *state.Store, s *Sim) {
 			return nil, err
 		}
 		w.Say("exported to " + path)
-		return map[string]any{"path": path, "bytes": len(b)}, nil
+		return map[string]any{"path": path, "bytes": len(b), "id": id}, nil
 	})
 }
 

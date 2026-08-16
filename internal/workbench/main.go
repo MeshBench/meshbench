@@ -1176,6 +1176,12 @@ var menuAsks = map[string]struct {
 			return "network-" + time.Now().Format("20060102-1504")
 		},
 	},
+	"experiment.replay": {
+		title:   "Open experiment",
+		hint:    "the experiment ID, e.g. 8f91c21a4b02e1a9",
+		field:   "id",
+		initial: func() string { return "" },
+	},
 }
 
 // selectedNames is who is selected right now.
@@ -1341,6 +1347,8 @@ func workbenchMenus() []menu {
 				Section: "Open & Save", Icon: "save", Shortcut: "Ctrl+S"},
 			{Label: "Save this run", Action: "run.save",
 				Section: "Open & Save", Icon: "save", Shortcut: "Ctrl+Shift+S"},
+			{Label: "Open experiment...", Action: "experiment.replay",
+				Section: "Open & Save", Icon: "folder"},
 			{Label: "Firmware library", Action: "panel.Firmware",
 				Section: "Import & Export", Icon: "chip"},
 			{Label: "Import a live network", Action: "panel.Import",
