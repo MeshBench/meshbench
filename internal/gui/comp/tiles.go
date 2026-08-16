@@ -5,6 +5,7 @@ import (
 	"image"
 	"math"
 	"sync"
+	"time"
 
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -28,7 +29,12 @@ type Tiles struct {
 
 	mu      sync.Mutex
 	fetched map[string]bool
-	ops     map[string]uploaded
+	// retryAfter is when a tile whose download failed may be asked for again.
+	// Without it a failure is permanent: fetched is set before the request and
+	// used as the "already asked" mark, so a tile that failed once would never
+	// be requested again for the rest of the session and stayed blank.
+	retryAfter map[string]time.Time
+	ops        map[string]uploaded
 	// decoding is the set of tiles being read off disk on a worker. Decoding
 	// a PNG is tens of microseconds; a screenful of new ones is tens of
 	// milliseconds, and doing that inside a frame is the stutter somebody
@@ -49,7 +55,8 @@ type uploaded struct {
 // which is what an offline first run looks like.
 func NewTiles(cacheDir, layerID string) *Tiles {
 	t := &Tiles{fetched: map[string]bool{}, ops: map[string]uploaded{},
-		decoding: map[string]bool{}, ready: map[string]*image.RGBA{}}
+		decoding: map[string]bool{}, ready: map[string]*image.RGBA{},
+		retryAfter: map[string]time.Time{}}
 	if l, ok := basemap.ByID(layerID); ok {
 		t.Layer = l
 	}
@@ -164,17 +171,51 @@ func (t *Tiles) putOp(z, x, y int, img *image.RGBA) (paint.ImageOp, image.Point)
 	return c.op, c.size
 }
 
-// fetchOnce asks for a missing tile exactly once per session.
+// tileRetryDelay is how long a tile whose download failed waits before it may
+// be asked for again. Long enough that a burst of failures - which is what a
+// zoom into uncached country produces, a hundred requests at once against a
+// server with its own opinion about that - does not turn into a retry storm,
+// short enough that the map fills in while somebody is still looking at it.
+const tileRetryDelay = 3 * time.Second
+
+// fetchOnce asks for a missing tile, once at a time and not forever.
+//
+// The mark goes on before the request, so a tile is not requested twice
+// concurrently. It used to stay on regardless of how the request went, with
+// the error discarded - so a single failure, and a burst of them is the normal
+// shape of a zoom, left that tile blank for the rest of the session with
+// nothing retrying it. A failure now clears the mark and holds the tile back
+// for tileRetryDelay instead.
 func (t *Tiles) fetchOnce(z, x, y int) {
 	k := tileKey(t.Layer.ID, z, x, y)
 	t.mu.Lock()
-	if t.fetched[k] {
+	if !t.mayFetch(k, time.Now()) {
 		t.mu.Unlock()
 		return
 	}
 	t.fetched[k] = true
 	t.mu.Unlock()
-	go func() { _ = t.Store.Fetch(context.Background(), t.Layer, z, x, y) }()
+	go func() {
+		if err := t.Store.Fetch(context.Background(), t.Layer, z, x, y); err != nil {
+			t.mu.Lock()
+			delete(t.fetched, k)
+			t.retryAfter[k] = time.Now().Add(tileRetryDelay)
+			t.mu.Unlock()
+		}
+	}()
+}
+
+// mayFetch reports whether this tile may be asked for now: not already in
+// flight or done, and not inside the wait a previous failure earned it.
+// Caller holds mu.
+func (t *Tiles) mayFetch(k string, now time.Time) bool {
+	if t.fetched[k] {
+		return false
+	}
+	if until, waiting := t.retryAfter[k]; waiting && now.Before(until) {
+		return false
+	}
+	return true
 }
 
 // decodeOnce reads and decodes a tile on a worker, or starts the download if
