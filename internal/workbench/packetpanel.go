@@ -17,7 +17,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/gui/theme"
 )
 
-var packetTabs = []string{"Dissection", "Journey", "Reception ledger", "Where it went"}
+var packetTabs = []string{"Overview", "Dissection", "Journey", "Reception ledger", "Where it went"}
 
 // packetOpenOnTab is which tab a freshly built Packet panel shows, set by
 // -packet-tab.
@@ -28,16 +28,26 @@ var packetTabs = []string{"Dissection", "Journey", "Reception ledger", "Where it
 var packetOpenOnTab int
 
 type packetPanel struct {
-	tabs    [4]widget.Clickable
-	tab     int
-	scroll  widget.List
-	jList   widget.List
-	lList   widget.List
-	fates   comp.Table
-	whyBtns map[string]*widget.Clickable
-	ascii   bool
-	hexBtn  comp.Chip
-	ascBtn  comp.Chip
+	tabs   [5]widget.Clickable
+	tab    int
+	scroll widget.List
+	// overviewList scrolls the Overview tab, separately from Dissection: two
+	// tabs sharing one scroll position jump when you switch between them.
+	overviewList widget.List
+	jList        widget.List
+	lList        widget.List
+	fates        comp.Table
+	whyBtns      map[string]*widget.Clickable
+	// whyOpen is the node the "why?" modal is answering for; empty is closed.
+	// A name rather than an index because the row it was clicked from can
+	// move or vanish under it - the packet view stays live while its message
+	// keeps propagating.
+	whyOpen  string
+	whyClose comp.Button
+	whyList  widget.List
+	ascii    bool
+	hexBtn   comp.Chip
+	ascBtn   comp.Chip
 	// graphBtn folds the propagation picture away. Docked in a third of a
 	// window there is not room for both it and the table, and which one you
 	// want depends on whether you are asking "what shape" or "what exactly".
@@ -45,17 +55,24 @@ type packetPanel struct {
 	noGraph  bool
 	// gview is where the operator has dragged and zoomed the picture, how deep
 	// they asked it to go, and which reasons they are looking at.
-	gview    graphView
+	gview graphView
+	// winH is the Packet window's own height this frame, in pixels - captured
+	// once at the top of Draw so the graph can size itself off the window
+	// rather than off whatever its rigid siblings left over.
+	winH     int
 	hopChips [5]comp.Chip
-	keyChips [5]comp.Chip
-	resetBtn comp.Button
-	showKind map[missKind]bool
-	copyBtn  comp.Button
-	prev     comp.Button
-	next     comp.Button
-	close    comp.Button
-	built    bool
-	do       Do
+	// modeChips picks which of the three layouts is drawing the graph -
+	// columns, radial or free-form - in the order graphModes lists them.
+	modeChips [3]comp.Chip
+	keyChips  [5]comp.Chip
+	resetBtn  comp.Button
+	showKind  map[missKind]bool
+	copyBtn   comp.Button
+	prev      comp.Button
+	next      comp.Button
+	close     comp.Button
+	built     bool
+	do        Do
 }
 
 func (p *packetPanel) build() {
@@ -75,7 +92,10 @@ func (p *packetPanel) build() {
 	p.next.Label, p.next.Kind = "next", comp.Secondary
 	p.close.Label, p.close.Kind = "close", comp.Primary
 	p.whyBtns = map[string]*widget.Clickable{}
+	p.whyClose.Label, p.whyClose.Kind = "close", comp.Quiet
+	p.whyList.Axis = layout.Vertical
 	p.scroll.Axis, p.jList.Axis, p.lList.Axis = layout.Vertical, layout.Vertical, layout.Vertical
+	p.overviewList.Axis = layout.Vertical
 	if packetOpenOnTab > 0 && packetOpenOnTab < len(packetTabs) {
 		p.tab = packetOpenOnTab
 	}
@@ -97,6 +117,7 @@ func (p *packetPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 			"click an event to open its packet here"))
 	}
 	pk := s.Packet
+	p.winH = gtx.Constraints.Max.Y
 	for i := range p.tabs {
 		if p.tabs[i].Clicked(gtx) {
 			p.tab = i
@@ -126,6 +147,12 @@ func (p *packetPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 			p.gview.reset()
 		}
 	}
+	for i, gm := range graphModes {
+		if p.modeChips[i].Click.Clicked(gtx) {
+			p.gview.mode = gm.Mode
+			p.gview.reset()
+		}
+	}
 	for i, mk := range missKinds {
 		if p.keyChips[i].Click.Clicked(gtx) {
 			p.showKind[mk.Kind] = !p.showKind[mk.Kind]
@@ -138,6 +165,17 @@ func (p *packetPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 		p.ascii = true
 	}
 
+	return layout.Stack{}.Layout(gtx,
+		layout.Expanded(func(gtx layout.Context) layout.Dimensions {
+			return p.layoutBody(t, gtx, pk)
+		}),
+		layout.Expanded(func(gtx layout.Context) layout.Dimensions {
+			return p.whyModal(t, gtx, pk)
+		}),
+	)
+}
+
+func (p *packetPanel) layoutBody(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return p.header(t, gtx, pk)
@@ -151,13 +189,15 @@ func (p *packetPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 				func(gtx layout.Context) layout.Dimensions {
 					switch p.tab {
 					case 1:
-						return p.journey(t, gtx, pk)
+						return p.dissection(t, gtx, pk)
 					case 2:
-						return p.ledger(t, gtx, pk)
+						return p.journey(t, gtx, pk)
 					case 3:
+						return p.ledger(t, gtx, pk)
+					case 4:
 						return p.whereItWent(t, gtx, pk)
 					}
-					return p.dissection(t, gtx, pk)
+					return p.overview(t, gtx, pk)
 				})
 		}),
 		layout.Rigid(comp.HRule(t)),
@@ -202,7 +242,7 @@ func (p *packetPanel) tabStrip(t *theme.Theme, gtx layout.Context, pk *state.Pac
 	for i := range p.tabs {
 		i := i
 		label := packetTabs[i]
-		if i == 3 {
+		if i == 4 {
 			label = fmt.Sprintf("%s (%d)", label, len(pk.Fates))
 		}
 		kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -248,89 +288,6 @@ func statBox(t *theme.Theme, label, value, sub string) layout.Widget {
 	})
 }
 
-// dissection: the header as cards, the payload with its copy buttons, and the
-// raw bytes with a hex/ascii toggle.
-func (p *packetPanel) dissection(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
-	dest, via := "broadcast", ""
-	if n := len(pk.Path); n > 0 {
-		dest = pk.Path[n-1]
-		via = "via " + strings.Join(pk.Path, " -> ")
-	}
-	size := ""
-	if n := len(pk.RawLines); n > 0 {
-		// The last line's offset plus its bytes; simpler to carry the count.
-		size = fmt.Sprintf("%d lines", n)
-	}
-	_ = size
-	rows := []layout.Widget{
-		func(gtx layout.Context) layout.Dimensions {
-			return comp.CellGrid(t, gtx, 170, []layout.Widget{
-				statBox(t, "route", pk.Origin, fmt.Sprintf("%.2f s", float64(pk.AtMs)/1000)),
-				statBox(t, "destination", dest, via),
-				statBox(t, "route type", pk.RouteType, "payload  "+pk.PayloadType),
-				statBox(t, "version", pk.Version, transportSub(pk)),
-				statBox(t, "hops", fmt.Sprintf("%d", len(pk.Path)),
-					fmt.Sprintf("%d transmissions of the message", pk.Transmissions)),
-			})
-		},
-		p.payloadCard(t, pk),
-		p.rawCard(t, pk),
-	}
-	return comp.List(t, &p.scroll, len(rows), func(gtx layout.Context, i int) layout.Dimensions {
-		return layout.Inset{Bottom: t.Sp.S}.Layout(gtx, rows[i])
-	})(gtx)
-}
-
-func transportSub(pk *state.Packet) string {
-	if pk.Transport == "" {
-		return ""
-	}
-	return "transport  " + pk.Transport
-}
-
-// payloadCard: what the payload carries in clear, each long value with its
-// own copy button.
-func (p *packetPanel) payloadCard(t *theme.Theme, pk *state.Packet) layout.Widget {
-	return comp.Card(t, "Payload", func(gtx layout.Context) layout.Dimensions {
-		if len(pk.PayloadFields) == 0 {
-			return comp.Text(t, t.Sz.Caption, t.P.Faint, pk.PayloadNote)(gtx)
-		}
-		var kids []layout.FlexChild
-		for i := range pk.PayloadFields {
-			f := pk.PayloadFields[i]
-			key := "pay/" + f.Name
-			ck, ok := p.whyBtns[key]
-			if !ok {
-				ck = &widget.Clickable{}
-				p.whyBtns[key] = ck
-			}
-			if ck.Clicked(gtx) {
-				copyText(gtx, f.Value)
-			}
-			kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx,
-					func(gtx layout.Context) layout.Dimensions {
-						return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								w := gtx.Dp(110)
-								gtx.Constraints.Min.X, gtx.Constraints.Max.X = w, w
-								d := comp.Text(t, t.Sz.Caption, t.P.Faint,
-									strings.ToUpper(f.Name))(gtx)
-								d.Size.X = w
-								return d
-							}),
-							layout.Flexed(1, comp.OneLine(t, t.Sz.Caption, t.P.Ink, f.Value, true)),
-							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								return borderedAction(t, gtx, ck, "copy", t.P.Rule, t.P.Dim)
-							}),
-						)
-					})
-			}))
-		}
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, kids...)
-	})
-}
-
 // rawCard: the bytes, as hex or as the printable ASCII alone.
 func (p *packetPanel) rawCard(t *theme.Theme, pk *state.Packet) layout.Widget {
 	return comp.Card(t, "", func(gtx layout.Context) layout.Dimensions {
@@ -368,297 +325,6 @@ func (p *packetPanel) rawCard(t *theme.Theme, pk *state.Packet) layout.Widget {
 			}),
 		)
 	})
-}
-
-// journey: the message across every relay - heard and missed, named.
-func (p *packetPanel) journey(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
-	type jRow struct {
-		at    uint32
-		hop   int
-		names string
-		heard bool
-	}
-	var rows []jRow
-	for _, h := range pk.Journey {
-		if len(h.Heard) > 0 {
-			rows = append(rows, jRow{h.AtMs, h.Hops, nameList(h.Heard, 4), true})
-		}
-		if len(h.MissedBy) > 0 {
-			rows = append(rows, jRow{h.AtMs, h.Hops, nameList(h.MissedBy, 4), false})
-		}
-		if len(h.Heard) == 0 && len(h.MissedBy) == 0 {
-			rows = append(rows, jRow{h.AtMs, h.Hops, "nobody in range", false})
-		}
-	}
-	head := func(w int, s string) layout.FlexChild {
-		return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			px := gtx.Dp(unitDp(w))
-			gtx.Constraints.Min.X, gtx.Constraints.Max.X = px, px
-			d := comp.Text(t, t.Sz.Caption, t.P.Faint, s)(gtx)
-			d.Size.X = px
-			return d
-		})
-	}
-	g := buildHopGraph(pk, p.gview.maxHops, p.showKind)
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return comp.CellGrid(t, gtx, 220, []layout.Widget{
-				statBox(t, "heard", fmt.Sprintf("%d", pk.Heard),
-					fmt.Sprintf("%d distinct nodes over the whole journey", pk.Reached)),
-				statBox(t, "missed", fmt.Sprintf("%d", pk.Missed),
-					"decode failures across every relay"),
-			})
-		}),
-		// The propagation, drawn. Above the table rather than instead of it:
-		// the picture answers what shape, the rows answer what exactly, and
-		// somebody chasing a packet wants both within one glance.
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Top: t.Sp.S}.Layout(gtx,
-				func(gtx layout.Context) layout.Dimensions {
-					kids := []layout.FlexChild{
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return p.graphBtn.Layout(t, gtx, "graph", "",
-								!p.noGraph, t.P.Accent)
-						}),
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return layout.Inset{Left: t.Sp.S, Right: t.Sp.S}.Layout(gtx,
-								comp.Text(t, t.Sz.Caption, t.P.Faint, "hops"))
-						}),
-					}
-					for i, n := range hopLimits {
-						i, n := i, n
-						kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return p.hopChips[i].Layout(t, gtx, hopLimitLabel(n), "",
-								p.gview.maxHops == n, t.P.Accent)
-						}))
-					}
-					kids = append(kids,
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return layout.Inset{Left: t.Sp.S}.Layout(gtx,
-								func(gtx layout.Context) layout.Dimensions {
-									return p.resetBtn.Layout(t, gtx)
-								})
-						}),
-						layout.Flexed(1, comp.Spacer),
-						layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint, graphCaption(g))),
-					)
-					return layout.Flex{Alignment: layout.Middle}.Layout(gtx, kids...)
-				})
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			if p.noGraph || len(g.Nodes) == 0 {
-				return layout.Dimensions{}
-			}
-			return drawHopGraph(t, gtx, g, &p.gview)
-		}),
-		// The key. Every colour in the picture means something, and the reason
-		// a hop failed is what an operator would act on - too weak wants an
-		// antenna, lost to a stronger signal wants less traffic, deaf wants
-		// different timing. Each entry is also the filter for its own class.
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			if p.noGraph || len(g.Nodes) == 0 {
-				return layout.Dimensions{}
-			}
-			var kids []layout.FlexChild
-			for i, mk := range missKinds {
-				i, mk := i, mk
-				n := g.Total[mk.Kind]
-				if n == 0 {
-					continue
-				}
-				col, _, _ := colourOf(t, mk.Kind)
-				kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return layout.Inset{Right: t.Sp.XS}.Layout(gtx,
-						func(gtx layout.Context) layout.Dimensions {
-							return p.keyChips[i].Layout(t, gtx, mk.Label,
-								fmt.Sprintf("%d", n), p.showKind[mk.Kind], col)
-						})
-				}))
-			}
-			if len(kids) == 0 {
-				return layout.Dimensions{}
-			}
-			return layout.Inset{Top: t.Sp.XS, Bottom: t.Sp.XS}.Layout(gtx,
-				func(gtx layout.Context) layout.Dimensions {
-					return layout.Flex{Alignment: layout.Middle}.Layout(gtx, kids...)
-				})
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Top: t.Sp.S, Bottom: t.Sp.XS}.Layout(gtx,
-				func(gtx layout.Context) layout.Dimensions {
-					return layout.Flex{}.Layout(gtx,
-						head(70, "Time"), head(50, "Hop"),
-						layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint, "Heard by / Missed by")),
-						layout.Flexed(1, comp.Spacer),
-						layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint, "Result")),
-					)
-				})
-		}),
-		layout.Rigid(comp.HRule(t)),
-		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			return comp.List(t, &p.jList, len(rows), func(gtx layout.Context, i int) layout.Dimensions {
-				r := rows[i]
-				word, col := "missed", t.P.Bad
-				if r.heard {
-					word, col = "heard", t.P.Good
-				}
-				return layout.Inset{Top: t.Sp.XS, Bottom: t.Sp.XS}.Layout(gtx,
-					func(gtx layout.Context) layout.Dimensions {
-						return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								px := gtx.Dp(70)
-								gtx.Constraints.Min.X, gtx.Constraints.Max.X = px, px
-								d := comp.Mono(t, t.Sz.Caption, t.P.Dim,
-									fmt.Sprintf("%.2f s", float64(r.at)/1000))(gtx)
-								d.Size.X = px
-								return d
-							}),
-							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								px := gtx.Dp(50)
-								gtx.Constraints.Min.X, gtx.Constraints.Max.X = px, px
-								d := comp.Mono(t, t.Sz.Caption, t.P.Dim,
-									fmt.Sprintf("%d", r.hop))(gtx)
-								d.Size.X = px
-								return d
-							}),
-							layout.Flexed(1, comp.OneLine(t, t.Sz.Caption, t.P.Ink, r.names, false)),
-							layout.Rigid(comp.Text(t, t.Sz.Caption, col, word)),
-						)
-					})
-			})(gtx)
-		}),
-		layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint, fmt.Sprintf(
-			"%d transmissions, sorted by time - one message, followed by its "+
-				"payload; the bytes differ at every hop", pk.Transmissions))),
-	)
-}
-
-// nameList joins the first few names and counts the rest.
-func nameList(names []string, keep int) string {
-	if len(names) <= keep {
-		return strings.Join(names, ", ")
-	}
-	return strings.Join(names[:keep], ", ") + fmt.Sprintf(", +%d more", len(names)-keep)
-}
-
-// ledger: the radio-level truth per receiver, yes and no in their colours,
-// with the way into the link that explains each row.
-func (p *packetPanel) ledger(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
-	cols := []struct {
-		label string
-		width int
-	}{
-		{"Node", 180}, {"Offered", 70}, {"RSSI", 76}, {"SNR", 70},
-		{"Demod", 64}, {"CRC", 56}, {"Firmware", 110}, {"", 60},
-	}
-	cell := func(w int, wgt layout.Widget) layout.FlexChild {
-		return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			px := gtx.Dp(unitDp(w))
-			gtx.Constraints.Min.X, gtx.Constraints.Max.X = px, px
-			d := wgt(gtx)
-			d.Size.X = px
-			return d
-		})
-	}
-	ynText := func(b, applicable bool) layout.Widget {
-		if !applicable {
-			// A dash, not a cross: "did not apply" and "failed" are different
-			// facts, and conflating them is why people read logs instead.
-			return comp.Text(t, t.Sz.Caption, t.P.Faint, "-")
-		}
-		if b {
-			return comp.Text(t, t.Sz.Caption, t.P.Good, "yes")
-		}
-		return comp.Text(t, t.Sz.Caption, t.P.Bad, "no")
-	}
-	reached, decoded := 0, 0
-	for _, r := range pk.Ledger {
-		if r.Offered {
-			reached++
-		}
-		if r.Demod && r.CRCOK {
-			decoded++
-		}
-	}
-	var heads []layout.FlexChild
-	for _, c := range cols {
-		c := c
-		heads = append(heads, cell(c.width, comp.Text(t, t.Sz.Caption, t.P.Faint, c.label)))
-	}
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Dim, fmt.Sprintf(
-			"offered to %d . decoded at %d - rows exist for every receiver, including "+
-				"nodes whose firmware never knew a frame arrived", reached, decoded))),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Top: t.Sp.S, Bottom: t.Sp.XS}.Layout(gtx,
-				func(gtx layout.Context) layout.Dimensions {
-					return layout.Flex{}.Layout(gtx, heads...)
-				})
-		}),
-		layout.Rigid(comp.HRule(t)),
-		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			return comp.List(t, &p.lList, len(pk.Ledger), func(gtx layout.Context, i int) layout.Dimensions {
-				r := pk.Ledger[i]
-				ck, ok := p.whyBtns[r.Node]
-				if !ok {
-					ck = &widget.Clickable{}
-					p.whyBtns[r.Node] = ck
-				}
-				if ck.Clicked(gtx) && p.do != nil {
-					// Why?: select the pair, so Link and Budget answer about
-					// exactly this path.
-					p.do("nodes.select_many", []string{r.From, r.Node})
-					p.do("budget.for_selection", nil)
-				}
-				rssi, snr := "-", "-"
-				if r.Offered {
-					rssi, snr = fmt.Sprintf("%.1f", r.RSSIdBm), fmt.Sprintf("%+.1f", r.SNRdB)
-				}
-				fwInk := t.P.Faint
-				switch r.Firmware {
-				case "accepted":
-					fwInk = t.P.Good
-				case "dropped":
-					fwInk = t.P.Warn
-				}
-				return layout.Inset{Top: t.Sp.XS, Bottom: t.Sp.XS}.Layout(gtx,
-					func(gtx layout.Context) layout.Dimensions {
-						return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-							cell(cols[0].width, comp.OneLine(t, t.Sz.Caption, t.P.Ink, r.Node, false)),
-							cell(cols[1].width, ynText(r.Offered, true)),
-							cell(cols[2].width, comp.Mono(t, t.Sz.Caption, t.P.Dim, rssi)),
-							cell(cols[3].width, comp.Mono(t, t.Sz.Caption, t.P.Dim, snr)),
-							cell(cols[4].width, ynText(r.Demod, r.Offered)),
-							cell(cols[5].width, ynText(r.CRCOK, r.Demod)),
-							cell(cols[6].width, comp.Text(t, t.Sz.Caption, fwInk, r.Firmware)),
-							cell(cols[7].width, func(gtx layout.Context) layout.Dimensions {
-								return borderedAction(t, gtx, ck, "why?", t.P.Rule, t.P.Dim)
-							}),
-						)
-					})
-			})(gtx)
-		}),
-	)
-}
-
-// whereItWent: every node's outcome for this one transmission.
-func (p *packetPanel) whereItWent(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
-	rows := make([]comp.Row, 0, len(pk.Fates))
-	for i, f := range pk.Fates {
-		c := comp.ClassColour(t, f.Kind)
-		snr := ""
-		if f.Kind != "tx" {
-			snr = fmt.Sprintf("%+.1f", f.SNRdB)
-		}
-		rows = append(rows, comp.Row{
-			Key: fmt.Sprintf("%s/%d", f.Node, i),
-			Cells: []string{fmt.Sprintf("%.2f", float64(f.AtMs)/1000),
-				f.Node, snr, f.What},
-			Tint: [4]uint8{c.R, c.G, c.B, 255},
-		})
-	}
-	p.fates.SetRows(rows)
-	return p.fates.Layout(t, gtx, nil)
 }
 
 // footer: where you are among the packets, and the two actions.

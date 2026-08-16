@@ -2,21 +2,11 @@ package workbench
 
 import (
 	"fmt"
-	"image"
 	"sort"
 
 	"image/color"
 	"strings"
 
-	"gioui.org/f32"
-	"gioui.org/io/event"
-	"gioui.org/io/pointer"
-	"gioui.org/layout"
-	"gioui.org/op"
-	"gioui.org/op/clip"
-	"gioui.org/op/paint"
-
-	"github.com/MeshBench/meshbench/internal/gui/comp"
 	"github.com/MeshBench/meshbench/internal/gui/state"
 	"github.com/MeshBench/meshbench/internal/gui/theme"
 )
@@ -123,6 +113,13 @@ type hopGraph struct {
 	// layer. Deepest is how far the packet actually travelled, which is not
 	// the same thing once a hop limit is applied.
 	Layers, Wide, Deepest int
+	// Origin is the node that sent the shallowest-hop transmission in the
+	// journey - the packet's true first hop, not necessarily whichever relay
+	// the clicked frame instance happens to be. Drawn inside the graph at its
+	// own layer rather than as a decoration off to the side, and marked out
+	// by colour rather than position: a flood's origin is not always alone at
+	// the left of the picture once several relays share a layer.
+	Origin string
 	// Dropped is edges left out to keep the drawing legible, Hidden is nodes,
 	// and Beyond is what a hop limit excluded. All three are displayed: a
 	// truncated graph that looks complete is worse than a small one that
@@ -159,7 +156,7 @@ func buildHopGraph(pk *state.Packet, maxHops int, show map[missKind]bool) hopGra
 	if pk == nil {
 		return g
 	}
-	origin, hops := pk.Origin, pk.Journey
+	hops := pk.Journey
 
 	drawn := func(k missKind) bool { return show == nil || show[k] }
 
@@ -174,6 +171,7 @@ func buildHopGraph(pk *state.Packet, maxHops int, show map[missKind]bool) hopGra
 			layer[name] = at
 		}
 	}
+	minHop := -1
 	for _, h := range hops {
 		place(h.By, h.Hops)
 		for _, n := range h.Heard {
@@ -185,18 +183,27 @@ func buildHopGraph(pk *state.Packet, maxHops int, show map[missKind]bool) hopGra
 		if h.Hops > g.Deepest {
 			g.Deepest = h.Hops
 		}
+		// The journey's true first hop, not whichever relay the clicked frame
+		// instance happens to be: those are the same node only when the
+		// packet clicked into this view is the original transmission itself.
+		if minHop == -1 || h.Hops < minHop {
+			minHop, g.Origin = h.Hops, h.By
+		}
 	}
 	if len(layer) == 0 {
 		return g
-	}
-	// The origin anchors the left edge even when its own frame says otherwise.
-	if _, ok := layer[origin]; ok {
-		layer[origin] = 0
 	}
 
 	within := func(name string) bool {
 		return maxHops <= 0 || layer[name] <= maxHops
 	}
+	// Uncapped here on purpose: the cap has to see the same edges collapsing
+	// is about to reduce to one per receiver, not a raw per-attempt count a
+	// busy flood can run into the hundreds - capping first could drop the one
+	// edge that would have survived collapsing and leave a node's true first
+	// acceptance invisible in favour of an earlier miss that happened to be
+	// counted first.
+	var raw []hopEdge
 	add := func(from, to string, at uint32, hop int, k missKind) {
 		if from == "" || to == "" || from == to {
 			return
@@ -209,11 +216,7 @@ func buildHopGraph(pk *state.Packet, maxHops int, show map[missKind]bool) hopGra
 		if !drawn(k) {
 			return
 		}
-		if len(g.Edges) >= maxGraphEdges {
-			g.Dropped++
-			return
-		}
-		g.Edges = append(g.Edges, hopEdge{From: from, To: to, AtMs: at, Hop: hop, Why: k})
+		raw = append(raw, hopEdge{From: from, To: to, AtMs: at, Hop: hop, Why: k})
 	}
 	for _, h := range hops {
 		for _, n := range h.Heard {
@@ -231,8 +234,41 @@ func buildHopGraph(pk *state.Packet, maxHops int, show map[missKind]bool) hopGra
 		}
 	}
 
-	// Rows within a layer, in first-seen order so the picture is stable
-	// between frames and between runs.
+	// One edge per receiver: whichever attempt answers "did this node ever
+	// get the message" - its first success if it ever had one, or else its
+	// first reason for missing it. A node offered the same flood on every
+	// hop otherwise draws one edge per attempt, and a five-hop flood across a
+	// real mesh turns into exactly the tangle of crossing, mostly-redundant
+	// lines this picture exists to avoid. Not counted toward g.Dropped: a
+	// collapsed duplicate is not lost information, since the reception ledger
+	// still has the whole history for whoever wants it - only cap overflow
+	// belongs in that count.
+	g.Edges = collapseEdgesPerReceiver(raw)
+	if len(g.Edges) > maxGraphEdges {
+		g.Dropped += len(g.Edges) - maxGraphEdges
+		g.Edges = g.Edges[:maxGraphEdges]
+	}
+
+	// A node's layer has to agree with the one edge actually drawn to it, or
+	// the picture skips or backtracks a column - or a ring, in the radial
+	// layout - for no reason a viewer can see. layer above is each node's
+	// minimum hop across every attempt it was ever part of; collapsing can
+	// keep a *different* attempt's edge than the one that set that minimum,
+	// and the two disagreeing is exactly the bug this fixes: a node placed
+	// two columns out with its only drawn edge arriving from the origin
+	// directly. Walking the collapsed edges outward from the origin cannot
+	// disagree with itself by construction. layer is left as a fallback for
+	// whatever this walk does not reach - a transmitter the collapsed set
+	// somehow has no path back to the origin through, which well-formed
+	// flood data should not produce.
+	refineLayersFromOrigin(g.Origin, g.Edges, layer)
+
+	// Rows within a layer. First-seen order seeds it - deterministic, and a
+	// sane fallback for a node with nothing to average against - and then
+	// barycenterOrder pulls each layer toward the nodes it actually connects
+	// to, which is what a hand-drawn diagram would do and "first seen"
+	// never did. Left at first-seen order alone, two branches that never
+	// interact still cross whenever the log happened to interleave them.
 	order := map[string]int{}
 	seq := 0
 	note := func(n string) {
@@ -254,25 +290,46 @@ func buildHopGraph(pk *state.Packet, maxHops int, show map[missKind]bool) hopGra
 		}
 	}
 
+	// Which node a surviving edge actually touches. A node is placed in
+	// layer above purely for being named in some hop's Heard or MissedBy -
+	// before the edge cap and the outcome filters have had their say - so
+	// without this check a node whose only edge got dropped by the cap, or
+	// filtered out by an unchecked outcome, still draws as a dot with
+	// nothing connecting to it: a node on the ring with no story.
+	connected := map[string]bool{}
+	for _, e := range g.Edges {
+		connected[e.From] = true
+		connected[e.To] = true
+	}
 	names := make([]string, 0, len(layer))
 	for n := range layer {
-		if within(n) {
-			names = append(names, n)
+		if !within(n) {
+			continue
 		}
+		// The origin is the one node the picture always keeps even with
+		// zero edges: a transmission nobody heard is still a transmission.
+		if n != g.Origin && !connected[n] {
+			g.Hidden++
+			continue
+		}
+		names = append(names, n)
 	}
+	pos := barycenterOrder(names, layer, order, g.Edges)
 	sort.Slice(names, func(i, j int) bool {
 		if layer[names[i]] != layer[names[j]] {
 			return layer[names[i]] < layer[names[j]]
 		}
-		return order[names[i]] < order[names[j]]
+		return pos[names[i]] < pos[names[j]]
 	})
+	kept, surviving, hidden := drawableSet(names, layer, pos, g.Edges, g.Origin)
+	g.Edges, g.Hidden = surviving, g.Hidden+hidden
+
 	rows := map[int]int{}
 	for _, n := range names {
-		l := layer[n]
-		if rows[l] >= maxRowsPerLayer {
-			g.Hidden++
+		if !kept[n] {
 			continue
 		}
+		l := layer[n]
 		g.Nodes = append(g.Nodes, hopNode{Name: n, Layer: l, Row: rows[l]})
 		rows[l]++
 		if rows[l] > g.Wide {
@@ -307,242 +364,6 @@ func (g hopGraph) counts() (ok, failed int) {
 		}
 	}
 	return ok, failed
-}
-
-// graphView is where the operator has moved and scaled the picture.
-//
-// A flood five hops deep does not fit a panel at a readable size, and the
-// alternative to panning is shrinking it until the labels are gone. Kept on
-// the panel rather than in the world: it is where somebody is looking, not
-// what is true of the run.
-type graphView struct {
-	pan      f32.Point
-	zoom     float32
-	dragging bool
-	last     f32.Point
-	// maxHops is how deep to draw; zero is all of it.
-	maxHops int
-}
-
-const (
-	minGraphZoom = 0.35
-	maxGraphZoom = 6
-)
-
-// handle takes the frame's pointer events: drag to pan, wheel to zoom.
-func (v *graphView) handle(gtx layout.Context, sz image.Point) {
-	if v.zoom == 0 {
-		v.zoom = 1
-	}
-	defer clip.Rect{Max: sz}.Push(gtx.Ops).Pop()
-	event.Op(gtx.Ops, v)
-	for {
-		ev, ok := gtx.Event(pointer.Filter{
-			Target:  v,
-			Kinds:   pointer.Press | pointer.Drag | pointer.Release | pointer.Scroll,
-			ScrollY: pointer.ScrollRange{Min: -20, Max: 20},
-		})
-		if !ok {
-			return
-		}
-		e, ok := ev.(pointer.Event)
-		if !ok {
-			continue
-		}
-		switch e.Kind {
-		case pointer.Scroll:
-			// Zoom about the pointer, not the centre: the node under it is
-			// the one being looked at and should stay where it is.
-			old := v.zoom
-			v.zoom = clampF(v.zoom*pow11(-e.Scroll.Y), minGraphZoom, maxGraphZoom)
-			if v.zoom != old {
-				k := v.zoom / old
-				v.pan.X = e.Position.X - k*(e.Position.X-v.pan.X)
-				v.pan.Y = e.Position.Y - k*(e.Position.Y-v.pan.Y)
-			}
-		case pointer.Press:
-			v.dragging, v.last = true, e.Position
-		case pointer.Drag:
-			if v.dragging {
-				v.pan.X += e.Position.X - v.last.X
-				v.pan.Y += e.Position.Y - v.last.Y
-				v.last = e.Position
-			}
-		case pointer.Release:
-			v.dragging = false
-		}
-	}
-}
-
-// reset puts the picture back where it started.
-func (v *graphView) reset() { v.pan, v.zoom = f32.Point{}, 1 }
-
-func clampF(v, lo, hi float32) float32 {
-	if v < lo {
-		return lo
-	}
-	if v > hi {
-		return hi
-	}
-	return v
-}
-
-// pow11 is 1.1^n without importing math for one call.
-func pow11(n float32) float32 {
-	p := float32(1)
-	for i := 0; i < 8 && n > 0; i++ {
-		p *= 1.1
-		n--
-	}
-	for i := 0; i < 8 && n < 0; i++ {
-		p /= 1.1
-		n++
-	}
-	return p
-}
-
-// drawHopGraph paints the graph into the space it is given.
-//
-// Fixed height rather than flexed: this sits above the journey table, and a
-// graph that grows until the table is off the bottom of a docked panel is
-// worse than a small graph you can drag.
-func drawHopGraph(t *theme.Theme, gtx layout.Context, g hopGraph, v *graphView) layout.Dimensions {
-	h := gtx.Dp(graphHeight)
-	w := gtx.Constraints.Max.X
-	sz := image.Pt(w, h)
-	if len(g.Nodes) == 0 || w <= 0 {
-		return layout.Dimensions{Size: image.Pt(w, 0)}
-	}
-	v.handle(gtx, sz)
-	if v.zoom == 0 {
-		v.zoom = 1
-	}
-	defer clip.Rect{Max: sz}.Push(gtx.Ops).Pop()
-
-	// Asymmetric on purpose. Labels are drawn to the right of their node, so
-	// the last layer needs a label's width of room or its names run off the
-	// panel.
-	padL, padY := float32(gtx.Dp(16)), float32(gtx.Dp(18))
-	padR := float32(gtx.Dp(labelWidth + 12))
-	stepX := float32(gtx.Dp(120))
-	if g.Layers > 1 {
-		// Fit by default, but never squeeze layers closer than a label needs;
-		// past that the operator drags instead.
-		fit := (float32(w) - padL - padR) / float32(g.Layers-1)
-		if fit > stepX {
-			stepX = fit
-		}
-	}
-	stepY := float32(gtx.Dp(22))
-	if g.Wide > 1 {
-		fit := (float32(h) - 2*padY) / float32(g.Wide-1)
-		if fit < stepY {
-			stepY = fit
-		}
-	}
-	rowsIn := map[int]int{}
-	for _, n := range g.Nodes {
-		rowsIn[n.Layer]++
-	}
-	pos := func(n hopNode) f32.Point {
-		x := padL + float32(n.Layer)*stepX
-		off := (float32(g.Wide-rowsIn[n.Layer]) / 2) * stepY
-		y := padY + off + float32(n.Row)*stepY
-		if g.Wide == 1 {
-			y = float32(h) / 2
-		}
-		return f32.Pt(x*v.zoom+v.pan.X, y*v.zoom+v.pan.Y)
-	}
-
-	// Edges first, so nodes sit on top of them, and one path per reason so
-	// each gets its own colour.
-	//
-	// One clip.Path at a time: Gio allows only a single one open on an Ops, and
-	// beginning a second before the first ends panics with "cannot mix multi
-	// ops with single ones" — a crash on screen and nothing at all in a unit
-	// test.
-	//
-	// Reversed, so the successes are painted last and sit on top of the misses.
-	for i := len(missKinds) - 1; i >= 0; i-- {
-		mk := missKinds[i]
-		col, width, dashed := colourOf(t, mk.Kind)
-		var p clip.Path
-		p.Begin(gtx.Ops)
-		drawn := 0
-		for _, e := range g.Edges {
-			if e.Why != mk.Kind {
-				continue
-			}
-			from, fok := g.at(e.From)
-			to, tok := g.at(e.To)
-			if !fok || !tok {
-				continue
-			}
-			pa, pb := pos(from), pos(to)
-			if dashed {
-				const dashes = 6
-				for d := 0; d < dashes; d++ {
-					f0 := float32(d) / dashes
-					f1 := (float32(d) + 0.5) / dashes
-					comp.Segment(&p, lerp(pa, pb, f0), lerp(pa, pb, f1), width*v.zoom)
-				}
-			} else {
-				comp.Segment(&p, pa, pb, width*v.zoom)
-			}
-			drawn++
-		}
-		spec := p.End()
-		if drawn > 0 {
-			paint.FillShape(gtx.Ops, col, clip.Outline{Path: spec}.Op())
-		}
-	}
-
-	var dots clip.Path
-	dots.Begin(gtx.Ops)
-	r := float32(gtx.Dp(4)) * clampF(v.zoom, 0.6, 1.6)
-	for _, n := range g.Nodes {
-		comp.Disc(&dots, pos(n), r)
-	}
-	paint.FillShape(gtx.Ops, t.P.Ink, clip.Outline{Path: dots.End()}.Op())
-
-	// Labels, only where there is room. A layer packed with twenty nodes gets
-	// dots and no names rather than a smear of overlapping text.
-	if stepY*v.zoom >= float32(gtx.Dp(16)) || g.Wide == 1 {
-		for _, n := range g.Nodes {
-			p := pos(n)
-			if p.X < -20 || p.X > float32(w) || p.Y < -10 || p.Y > float32(h) {
-				continue
-			}
-			off := op.Offset(image.Pt(int(p.X)+gtx.Dp(7), int(p.Y)-gtx.Dp(6))).Push(gtx.Ops)
-			gtx2 := gtx
-			gtx2.Constraints.Max.X = gtx.Dp(labelWidth)
-			comp.OneLine(t, t.Sz.Caption, t.P.Dim, shortName(n.Name), false)(gtx2)
-			off.Pop()
-		}
-	}
-	return layout.Dimensions{Size: sz}
-}
-
-// lerp is a point a fraction of the way along a line.
-func lerp(a, b f32.Point, f float32) f32.Point {
-	return f32.Pt(a.X+(b.X-a.X)*f, a.Y+(b.Y-a.Y)*f)
-}
-
-// labelWidth is how much room a node's name gets, and therefore how much
-// space the drawing reserves on its right.
-const labelWidth = 104
-
-// graphHeight is the space the picture gets. Enough to be read, small enough
-// that the table under it stays on screen in a docked panel.
-const graphHeight = 210
-
-// shortName keeps a label from swallowing its neighbours.
-func shortName(s string) string {
-	const max = 16
-	if len(s) <= max {
-		return s
-	}
-	return s[:max-1] + "…"
 }
 
 // graphCaption says what the picture contains, including what it left out.

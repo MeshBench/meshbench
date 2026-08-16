@@ -1,0 +1,467 @@
+// The Overview tab: what this packet is, in one screen.
+//
+// Built to the design rather than to whatever the existing helpers made easy,
+// which is how the first attempt ended up with the chips wrapped onto two
+// rows and the structure missing entirely. The differences that matter are
+// all about not making the reader scroll or switch tabs to answer an obvious
+// question: six chips on one row because six is how many there are, the scope
+// chip picked out because it is the one that is a claim rather than a
+// reading, and the payload and the frame's shape side by side because the
+// question "what does it say" and the question "where does it sit" are asked
+// together.
+package workbench
+
+import (
+	"fmt"
+	"strings"
+
+	"gioui.org/layout"
+	"gioui.org/op"
+
+	"github.com/MeshBench/meshbench/internal/gui/comp"
+	"github.com/MeshBench/meshbench/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/gui/theme"
+)
+
+func (p *packetPanel) overview(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
+	rows := []layout.Widget{
+		func(gtx layout.Context) layout.Dimensions { return chipRow(t, gtx, pk) },
+		func(gtx layout.Context) layout.Dimensions { return payloadAndStructure(t, gtx, pk) },
+	}
+	// Between the summary and the bytes, and only when the chip left a
+	// question open.
+	if scopeNeedsExplaining(pk.Scope) {
+		rows = append(rows, scopeCard(t, pk))
+	}
+	rows = append(rows, func(gtx layout.Context) layout.Dimensions {
+		return rawWithHighlight(t, gtx, pk)
+	})
+	return comp.List(t, &p.overviewList, len(rows), func(gtx layout.Context, i int) layout.Dimensions {
+		return layout.Inset{Bottom: t.Sp.S}.Layout(gtx, rows[i])
+	})(gtx)
+}
+
+// chipRow is the six facts every packet is asked for, on one row.
+//
+// Flexed rather than a wrapping grid: six is not a number that varies, and
+// letting it wrap put version alone on a second row looking like an
+// afterthought.
+func chipRow(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
+	dest := "broadcast"
+	if n := len(pk.Path); n > 0 {
+		dest = pk.Path[n-1]
+	}
+	sc := pk.Scope
+	chips := []chip{
+		{"from", pk.Origin, fmt.Sprintf("%.2f s", float64(pk.AtMs)/1000), false, ""},
+		{"to", dest, pk.RouteType, false, ""},
+		{"type", pk.PayloadType, pk.Readable, false, ""},
+		// The one chip that carries a claim rather than a reading, so it is
+		// the one the eye is sent to first - and the pill says how strong the
+		// claim is, because "confirmed" and "unmatched" are different facts.
+		{"scope", scopeHeadline(sc), scopeSub(sc), sc.Scoped && sc.Name != "", scopePill(sc)},
+		{"hops", fmt.Sprintf("%d", len(pk.Path)),
+			fmt.Sprintf("%d transmissions", pk.Transmissions), false, ""},
+		{"version", pk.Version, versionSub(pk), false, ""},
+	}
+	var kids []layout.FlexChild
+	for i := range chips {
+		c := chips[i]
+		last := i == len(chips)-1
+		kids = append(kids, layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			ins := layout.Inset{Right: t.Sp.XS}
+			if last {
+				ins = layout.Inset{}
+			}
+			return ins.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return c.layout(t, gtx)
+			})
+		}))
+	}
+	return layout.Flex{}.Layout(gtx, kids...)
+}
+
+// chip is one labelled fact.
+type chip struct {
+	label, value, sub string
+	// lit marks the chip as carrying a positive answer, drawn in the accent
+	// so it reads before the five beside it.
+	lit  bool
+	pill string
+}
+
+func (c chip) layout(t *theme.Theme, gtx layout.Context) layout.Dimensions {
+	macro := op.Record(gtx.Ops)
+	dims := layout.UniformInset(t.Sp.S).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		valueInk := t.P.Ink
+		if c.lit {
+			valueInk = t.P.Accent
+		}
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint, strings.ToUpper(c.label))),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Top: t.Sp.XXS}.Layout(gtx,
+					comp.OneLine(t, t.Sz.Body, valueInk, c.value, true))
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				if c.sub == "" {
+					return layout.Dimensions{}
+				}
+				return layout.Inset{Top: t.Sp.XXS}.Layout(gtx,
+					comp.Text(t, t.Sz.Caption, t.P.Faint, c.sub))
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				if c.pill == "" {
+					return layout.Dimensions{}
+				}
+				return layout.Inset{Top: t.Sp.XXS}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return pillBadge(t, gtx, c.pill, c.lit)
+				})
+			}),
+		)
+	})
+	call := macro.Stop()
+	bg, edge := t.P.Panel, t.P.Rule
+	if c.lit {
+		bg, edge = theme.Alpha(t.P.Accent, 0.10), t.P.Accent
+	}
+	comp.RoundRect(gtx, dims.Size, 8, bg)
+	comp.Border(gtx, dims.Size, 8, 1, edge)
+	call.Add(gtx.Ops)
+	return dims
+}
+
+// pillBadge is the small outlined word a chip carries when its value needs a
+// qualifier - confirmed, or unmatched.
+func pillBadge(t *theme.Theme, gtx layout.Context, s string, lit bool) layout.Dimensions {
+	ink := t.P.Faint
+	if lit {
+		ink = t.P.Accent
+	}
+	macro := op.Record(gtx.Ops)
+	dims := layout.Inset{
+		Left: t.Sp.XS, Right: t.Sp.XS, Top: t.Sp.XXS, Bottom: t.Sp.XXS,
+	}.Layout(gtx, comp.Text(t, t.Sz.Caption, ink, s))
+	call := macro.Stop()
+	comp.Border(gtx, dims.Size, 999, 1, theme.Alpha(ink, 0.6))
+	call.Add(gtx.Ops)
+	return dims
+}
+
+// scopePill is the qualifier on the scope chip. A scope is only ever
+// confirmed against a candidate name, so the word has to say which of the
+// three states this is rather than implying a decode.
+func scopePill(sc state.PacketScope) string {
+	switch {
+	case !sc.Scoped, sc.Note != "":
+		return ""
+	case sc.Name != "":
+		return "confirmed"
+	case sc.Candidates == 0:
+		return "no candidates"
+	}
+	return "unmatched"
+}
+
+// payloadAndStructure puts what the packet says beside where it sits.
+func payloadAndStructure(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
+	return layout.Flex{}.Layout(gtx,
+		layout.Flexed(1.55, func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Right: t.Sp.XS}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return payloadPanel(t, gtx, pk)
+			})
+		}),
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			return structurePanel(t, gtx, pk)
+		}),
+	)
+}
+
+// payloadPanel is the readable summary - the fields worth seeing without
+// counting offsets, which is what Dissection is for.
+func payloadPanel(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
+	rows := payloadSummary(pk)
+	title := "Payload"
+	if n := strings.SplitN(pk.PayloadType, " (", 2); len(n) > 0 && n[0] != "" {
+		title = "Payload — " + n[0]
+	}
+	return titledPanel(t, gtx, title, payloadDetail(pk), func(gtx layout.Context) layout.Dimensions {
+		if len(rows) == 0 {
+			return comp.Text(t, t.Sz.Caption, t.P.Faint, pk.PayloadNote)(gtx)
+		}
+		var kids []layout.FlexChild
+		for i := range rows {
+			r := rows[i]
+			kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				ink := t.P.Ink
+				if r.muted {
+					ink = t.P.Faint
+				}
+				return layout.Inset{Bottom: t.Sp.XXS}.Layout(gtx,
+					func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+							fixed(gtx, 104, comp.Text(t, t.Sz.Caption, t.P.Faint,
+								strings.ToUpper(r.label))),
+							layout.Flexed(1, comp.OneLine(t, t.Sz.Caption, ink, r.value, true)),
+							fixed(gtx, 148, comp.OneLine(t, t.Sz.Caption, t.P.Dim, r.detail, false)),
+						)
+					})
+			}))
+		}
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, kids...)
+	})
+}
+
+// payloadDetail is the size and readability, on the panel's own title line.
+func payloadDetail(pk *state.Packet) string {
+	for _, s := range pk.Spans {
+		if strings.HasPrefix(s.Name, "payload") {
+			return fmt.Sprintf("%d B, %s", s.Size, s.Detail)
+		}
+	}
+	return ""
+}
+
+// sumRow is one line of the payload summary.
+type sumRow struct {
+	label, value, detail string
+	// muted marks a value that is not readable - ciphertext, mostly - so it
+	// reads as a fact rather than as a field that failed to load.
+	muted bool
+}
+
+// payloadSummary turns the dissector's per-field truth into the handful of
+// lines a reader wants first.
+//
+// Presentation only, and only here: the Dissection tab keeps every field
+// exactly as it sits in the bytes. Latitude and longitude are one position, a
+// flags byte is the node type it encodes - both are two rows of arithmetic in
+// the byte view and one fact to a person.
+func payloadSummary(pk *state.Packet) []sumRow {
+	var out []sumRow
+	var lat, lon string
+	for _, f := range pk.PayloadFields {
+		switch f.Name {
+		case "latitude":
+			lat = f.Decoded
+		case "longitude":
+			lon = f.Decoded
+		case "flags":
+			out = append(out, sumRow{"node type", f.Decoded, "from flags " + f.Value, false})
+		case "encrypted":
+			out = append(out, sumRow{f.Name, f.Value, f.Description, true})
+		default:
+			detail := f.Decoded
+			if detail == "" {
+				detail = fmt.Sprintf("%d B", f.Size)
+			}
+			out = append(out, sumRow{f.Name, f.Value, detail, false})
+		}
+	}
+	if lat != "" && lon != "" {
+		out = append(out, sumRow{"position",
+			strings.TrimSuffix(lat, "°") + ", " + strings.TrimSuffix(lon, "°"),
+			"decoded from 8 bytes", false})
+	}
+	return out
+}
+
+// structurePanel is the frame's shape: four spans that always exist, each
+// with what it cost in bytes, and the payload picked out as the one the rest
+// of this tab is about.
+func structurePanel(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
+	return titledPanel(t, gtx, "Structure", "", func(gtx layout.Context) layout.Dimensions {
+		if len(pk.Spans) == 0 {
+			return comp.Text(t, t.Sz.Caption, t.P.Faint, "the frame did not parse")(gtx)
+		}
+		var kids []layout.FlexChild
+		for i := range pk.Spans {
+			s := pk.Spans[i]
+			lit := strings.HasPrefix(s.Name, "payload")
+			kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Bottom: t.Sp.XXS}.Layout(gtx,
+					func(gtx layout.Context) layout.Dimensions {
+						return spanRow(t, gtx, s, lit)
+					})
+			}))
+		}
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, kids...)
+	})
+}
+
+// spanRow is one structural region, boxed so the four read as a stack of
+// parts rather than as a list of words.
+func spanRow(t *theme.Theme, gtx layout.Context, s state.PacketSpan, lit bool) layout.Dimensions {
+	macro := op.Record(gtx.Ops)
+	dims := layout.Inset{
+		Left: t.Sp.S, Right: t.Sp.S, Top: t.Sp.XS, Bottom: t.Sp.XS,
+	}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		ink := t.P.Dim
+		if lit {
+			ink = t.P.Accent
+		}
+		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+			layout.Flexed(1, comp.OneLine(t, t.Sz.Caption, ink, s.Name, false)),
+			layout.Rigid(comp.Mono(t, t.Sz.Caption, t.P.Faint, spanSize(s))),
+		)
+	})
+	call := macro.Stop()
+	bg, edge := t.P.Sunk, t.P.Rule
+	if lit {
+		bg, edge = theme.Alpha(t.P.Accent, 0.10), t.P.Accent
+	}
+	comp.RoundRect(gtx, dims.Size, 6, bg)
+	comp.Border(gtx, dims.Size, 6, 1, edge)
+	call.Add(gtx.Ops)
+	return dims
+}
+
+// spanSize prefers hops to bytes for the path, because hops is what the path
+// is counted in everywhere else in this window.
+func spanSize(s state.PacketSpan) string {
+	if s.Name == "path" || s.Name == "path length" {
+		if n := strings.Fields(s.Detail); len(n) > 1 && n[1] == "hops" {
+			return n[0] + " hops"
+		}
+	}
+	return fmt.Sprintf("%d B", s.Size)
+}
+
+// titledPanel is a card whose title line carries a right-aligned detail -
+// the size, the readability, the hint - which comp.Card has no room for.
+func titledPanel(t *theme.Theme, gtx layout.Context, title, detail string, content layout.Widget) layout.Dimensions {
+	macro := op.Record(gtx.Ops)
+	dims := layout.UniformInset(t.Sp.M).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Bottom: t.Sp.S}.Layout(gtx,
+					func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+							layout.Rigid(comp.Text(t, t.Sz.Section, t.P.Ink, title)),
+							layout.Flexed(1, comp.Spacer),
+							layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint, detail)),
+						)
+					})
+			}),
+			layout.Rigid(content),
+		)
+	})
+	call := macro.Stop()
+	comp.RoundRect(gtx, dims.Size, 8, t.P.Panel)
+	comp.Border(gtx, dims.Size, 8, 1, t.P.Rule)
+	call.Add(gtx.Ops)
+	return dims
+}
+
+// rawWithHighlight is the frame's bytes with the payload picked out.
+//
+// Drawn from the frame rather than from the pre-formatted dump lines: a
+// finished string cannot be coloured from the middle, and the whole point of
+// carrying every field's offset is that a span of bytes can be pointed at.
+func rawWithHighlight(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
+	start := len(pk.Raw)
+	for _, s := range pk.Spans {
+		if strings.HasPrefix(s.Name, "payload") {
+			start = s.Offset
+		}
+	}
+	return titledPanel(t, gtx, fmt.Sprintf("Raw — %d bytes", len(pk.Raw)),
+		"the payload is picked out", func(gtx layout.Context) layout.Dimensions {
+			var lines []layout.FlexChild
+			for off := 0; off < len(pk.Raw); off += 16 {
+				end := off + 16
+				if end > len(pk.Raw) {
+					end = len(pk.Raw)
+				}
+				row := pk.Raw[off:end]
+				at := off
+				lines = append(lines, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return hexLine(t, gtx, at, row, start)
+				}))
+			}
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, lines...)
+		})
+}
+
+// hexLine is one 16-byte row: offset, the bytes in two colours either side of
+// where the payload starts, then the printable ASCII.
+func hexLine(t *theme.Theme, gtx layout.Context, at int, row []byte, payloadAt int) layout.Dimensions {
+	var pre, hit strings.Builder
+	var ascii strings.Builder
+	for i, b := range row {
+		if at+i < payloadAt {
+			fmt.Fprintf(&pre, "%02X ", b)
+		} else {
+			fmt.Fprintf(&hit, "%02X ", b)
+		}
+		if b >= 0x20 && b < 0x7F {
+			ascii.WriteByte(b)
+		} else {
+			ascii.WriteByte('.')
+		}
+	}
+	return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+		fixed(gtx, 46, comp.Mono(t, t.Sz.Caption, t.P.Faint, fmt.Sprintf("%04X", at))),
+		layout.Rigid(comp.Mono(t, t.Sz.Caption, t.P.Dim, pre.String())),
+		layout.Rigid(comp.Mono(t, t.Sz.Caption, t.P.Accent, hit.String())),
+		layout.Flexed(1, comp.Spacer),
+		layout.Rigid(comp.Mono(t, t.Sz.Caption, t.P.Faint, ascii.String())),
+	)
+}
+
+// scopeCard explains a scope the chip cannot say in three words.
+//
+// Only shown when there is something to explain. A confirmed scope needs no
+// paragraph - the chip names it and the pill says it was confirmed. The cases
+// that do need one are the ambiguous ones, where an operator who cannot see
+// what was checked would read "not scoped to anything" and "scoped to
+// something we could not name" as the same result. They are not, and they
+// want different actions.
+func scopeCard(t *theme.Theme, pk *state.Packet) layout.Widget {
+	return comp.Card(t, "Region scope", func(gtx layout.Context) layout.Dimensions {
+		sc := pk.Scope
+		var lines []string
+		switch {
+		case !sc.Scoped:
+			lines = []string{
+				"This packet carries no transport code, so it is not scoped to a region.",
+				"Only the transport route types carry one.",
+			}
+		case sc.Note != "":
+			lines = []string{
+				"The transport codes are 0000 0000, which MeshCore treats as addressed to no region.",
+			}
+		case sc.Name != "":
+			lines = []string{
+				"Confirmed as " + sc.Name + ".",
+				"The region key is not in the packet - this is the one candidate name whose key " +
+					"reproduces the code on the wire, which is confirmation rather than a decode.",
+			}
+		case sc.Candidates == 0:
+			lines = []string{
+				"Scoped, but this run holds no region names to check the code against.",
+				"Import or infer regions and the same packet will name its scope.",
+			}
+		default:
+			lines = []string{
+				fmt.Sprintf("Scoped, but none of the %d region names this run holds produce code %s.",
+					sc.Candidates, sc.Code),
+				"That means the name is not one we have - not that the packet is unscoped.",
+			}
+		}
+		var kids []layout.FlexChild
+		for _, l := range lines {
+			kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Bottom: t.Sp.XXS}.Layout(gtx,
+					comp.Text(t, t.Sz.Caption, t.P.Dim, l))
+			}))
+		}
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, kids...)
+	})
+}
+
+// scopeNeedsExplaining is whether the chip alone leaves a question open. A
+// confirmed name does not; every other scoped state does.
+func scopeNeedsExplaining(sc state.PacketScope) bool {
+	return sc.Scoped && sc.Name == ""
+}

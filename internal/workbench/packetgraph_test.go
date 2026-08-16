@@ -130,6 +130,28 @@ func TestAnUnknownOriginFallsBackToTheFirstTransmitter(t *testing.T) {
 	}
 }
 
+// The clicked packet is one specific frame instance, which can be any relay
+// along a flood - pk.Origin names whoever sent *that* frame, not necessarily
+// the message's true first hop. The graph's origin has to be the journey's
+// shallowest transmission regardless of which frame was clicked, or a relay
+// clicked mid-flood draws as a node disconnected from its own edges.
+func TestOriginIsTheJourneysTrueFirstHopNotTheClickedFrame(t *testing.T) {
+	hops := []state.PacketHop{
+		hopAt("orig", 0, 0, []string{"a"}, nil),
+		hopAt("a", 100, 1, []string{"b"}, nil),
+		hopAt("b", 200, 2, []string{"c"}, nil),
+	}
+	// pk.Origin says "b" - who sent the specific frame that was clicked into
+	// this view - not "orig", who actually started the message.
+	g := buildHopGraph(pkt("b", hops), 0, nil)
+	if g.Origin != "orig" {
+		t.Fatalf("Origin = %q, want %q", g.Origin, "orig")
+	}
+	if n, ok := g.at("orig"); !ok || n.Layer != 0 {
+		t.Fatalf("expected 'orig' at layer 0, got %+v (present=%v)", n, ok)
+	}
+}
+
 func TestAnEmptyJourneyDrawsNothing(t *testing.T) {
 	g := buildHopGraph(pkt("orig", nil), 0, nil)
 	if len(g.Nodes) != 0 || len(g.Edges) != 0 {
@@ -198,6 +220,28 @@ func TestDepthComesFromTheFramesHopCountNotTheGraph(t *testing.T) {
 	// heard again.
 	if n, _ := g.at("far"); n.Layer != 1 {
 		t.Errorf("far at layer %d, want 1", n.Layer)
+	}
+}
+
+// A row order taken straight from "first seen in the log" crosses whenever
+// the log happens to interleave two branches that never interact - the bug
+// the barycenter sweep replaced. Here the log sees b's branch (y) before
+// a's (x), so first-seen order alone would put x's row after y's even
+// though x's only parent is a and y's only parent is b - a crossing that
+// has nothing to do with the mesh and everything to do with log order.
+func TestRowOrderTracksParentsNotLogOrder(t *testing.T) {
+	g := all("orig",
+		hopAt("orig", 0, 0, []string{"a", "b"}, nil),
+		hopAt("b", 100, 1, []string{"y"}, nil),
+		hopAt("a", 101, 1, []string{"x"}, nil),
+	)
+	a, _ := g.at("a")
+	b, _ := g.at("b")
+	x, _ := g.at("x")
+	y, _ := g.at("y")
+	if (x.Row < y.Row) != (a.Row < b.Row) {
+		t.Errorf("x/y did not settle to their parents' order: a.Row=%d b.Row=%d x.Row=%d y.Row=%d",
+			a.Row, b.Row, x.Row, y.Row)
 	}
 }
 
@@ -286,5 +330,123 @@ func TestEveryFailedHopOfALongFloodKeepsItsReason(t *testing.T) {
 	}
 	if g.Total[missWeak] != 6 {
 		t.Errorf("Total[missWeak] = %d, want 6", g.Total[missWeak])
+	}
+}
+
+// A node offered the same message on more than one hop draws only one edge:
+// whichever attempt answers "did this node ever get the message" - its first
+// success if it had one, never an earlier miss standing in for it. This is
+// the bug that prompted the collapse: a node that missed an early hop and
+// was accepted on a later one must not end up looking like it never got the
+// message just because a miss was recorded first.
+func TestANodeAcceptedOnAnyHopDrawsItsAcceptedEdgeNotAnEarlierMiss(t *testing.T) {
+	missed := hopAt("relay1", 100, 1, nil, []string{"target"})
+	missed.MissWhy = []string{"its own transmitter was keyed; LoRa is half duplex"}
+	heard := hopAt("relay2", 200, 2, []string{"target"}, nil)
+	g := all("orig",
+		hopAt("orig", 0, 0, []string{"relay1", "relay2"}, nil),
+		missed,
+		heard,
+	)
+	var toTarget []hopEdge
+	for _, e := range g.Edges {
+		if e.To == "target" {
+			toTarget = append(toTarget, e)
+		}
+	}
+	if len(toTarget) != 1 {
+		t.Fatalf("target has %d edges, want exactly 1: %+v", len(toTarget), toTarget)
+	}
+	if !toTarget[0].OK() {
+		t.Errorf("target's one edge is a miss (%v), want the accepted one from relay2", toTarget[0].Why)
+	}
+}
+
+// The columns view's own bug report: a node was placed at its shallowest
+// ever-seen hop across every attempt, but collapsing can keep a *different*
+// attempt's edge than the one that set that minimum - here, a miss straight
+// from the origin sets the shallow placement, while the node's only surviving
+// edge is a much later accept relayed through two hops. The node's layer has
+// to follow the edge that is actually drawn, not the shallowest mention that
+// lost out to it, or the picture draws a line that skips or runs backward
+// across columns for no reason a viewer can see.
+func TestANodesLayerAgreesWithItsOneDrawnEdge(t *testing.T) {
+	origTx := hopAt("orig", 0, 0, []string{"relay1"}, []string{"target"})
+	origTx.MissWhy = []string{"its own transmitter was keyed; LoRa is half duplex"}
+	relay1Tx := hopAt("relay1", 100, 1, []string{"relay2"}, nil)
+	relay2Tx := hopAt("relay2", 200, 2, []string{"target"}, nil)
+	g := all("orig", origTx, relay1Tx, relay2Tx)
+
+	n, ok := g.at("target")
+	if !ok {
+		t.Fatal("target is not on the graph")
+	}
+	if n.Layer != 3 {
+		t.Errorf("target at layer %d, want 3 - one hop past relay2 (layer 2), matching its drawn edge", n.Layer)
+	}
+	for _, e := range g.Edges {
+		if e.To == "target" && e.From != "relay2" {
+			t.Errorf("target's edge is from %q, want relay2 - who it actually accepted the message from", e.From)
+		}
+	}
+}
+
+// The opposite case: a node that was never accepted still gets exactly one
+// edge, carrying a reason rather than silently vanishing.
+func TestANodeNeverAcceptedDrawsOneEdgeWithAReason(t *testing.T) {
+	first := hopAt("relay1", 100, 1, nil, []string{"target"})
+	first.MissWhy = []string{"its own transmitter was keyed; LoRa is half duplex"}
+	second := hopAt("relay2", 200, 2, nil, []string{"target"})
+	second.MissWhy = []string{"would have decoded at 3.1 dB, lost to a stronger interferer"}
+	g := all("orig",
+		hopAt("orig", 0, 0, []string{"relay1", "relay2"}, nil),
+		first,
+		second,
+	)
+	var toTarget []hopEdge
+	for _, e := range g.Edges {
+		if e.To == "target" {
+			toTarget = append(toTarget, e)
+		}
+	}
+	if len(toTarget) != 1 {
+		t.Fatalf("target has %d edges, want exactly 1: %+v", len(toTarget), toTarget)
+	}
+	if toTarget[0].OK() || toTarget[0].Why != missDeaf {
+		t.Errorf("target's one edge is %v, want the first miss (deaf, from relay1)", toTarget[0].Why)
+	}
+}
+
+// A layer wider than maxRowsPerLayer has to lose nodes, and *which* ones it
+// loses decides whether the rest of the picture still parses. Drop a node
+// that relayed onward and everything it fed turns up in the next column with
+// nothing arriving at it - the parentless column this was reported as. The
+// invariant that catches it: every drawn edge has two drawn endpoints, and
+// every drawn node except the origin sits on at least one drawn edge.
+func TestACappedLayerNeverOrphansTheNextColumn(t *testing.T) {
+	var heard []string
+	for i := 0; i < 20; i++ {
+		heard = append(heard, fmt.Sprintf("n%02d", i))
+	}
+	hops := []state.PacketHop{hopAt("orig", 0, 0, heard, nil)}
+	// A relay late in first-seen order, so a naive "first N rows" cap drops it.
+	hops = append(hops, hopAt("n19", 100, 1, []string{"far"}, nil))
+	g := buildHopGraph(pkt("orig", hops), 0, nil)
+
+	drawn := map[string]bool{}
+	for _, n := range g.Nodes {
+		drawn[n.Name] = true
+	}
+	touched := map[string]bool{}
+	for _, e := range g.Edges {
+		if !drawn[e.From] || !drawn[e.To] {
+			t.Errorf("edge %s->%s has an endpoint that is not drawn", e.From, e.To)
+		}
+		touched[e.From], touched[e.To] = true, true
+	}
+	for _, n := range g.Nodes {
+		if n.Name != g.Origin && !touched[n.Name] {
+			t.Errorf("%s is drawn with no edge at all - a node floating in a column", n.Name)
+		}
 	}
 }
