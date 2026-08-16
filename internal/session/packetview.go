@@ -9,11 +9,13 @@ package session
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/MeshBench/meshbench/internal/capture"
 	"github.com/MeshBench/meshbench/internal/engine"
 	"github.com/MeshBench/meshbench/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/provider"
 )
 
 func registerPacket(st *state.Store, s *Sim) {
@@ -65,6 +67,29 @@ func registerPacket(st *state.Store, s *Sim) {
 		w.Packet = nil
 		return nil, nil
 	})
+}
+
+// refreshOpenPacket keeps an open packet view live while its message is
+// still propagating, instead of freezing it at whatever the run looked like
+// the moment it was clicked - the whole point of opening one mid-flood is
+// watching the Journey and the reception ledger keep growing under it.
+//
+// EventCount is length-only (no copy of the log), so a tick where nothing
+// happened anywhere - the common case - skips the rebuild rather than
+// rescanning every event this run has ever produced.
+func (s *Sim) refreshOpenPacket(w *state.World) {
+	if w.Packet == nil {
+		return
+	}
+	if n := s.eng.EventCount(); n != s.lastPacketEvents {
+		s.lastPacketEvents = n
+		// A rebuild that finds nothing (the frame has aged out of the event
+		// log) leaves the last good view in place rather than blanking the
+		// window out from under whoever is looking at it.
+		if pk := s.buildPacket(w.Packet.ID); pk != nil {
+			w.Packet = pk
+		}
+	}
 }
 
 // buildPacket gathers everything the run knows about one transmission.
@@ -146,31 +171,22 @@ func (s *Sim) buildPacket(id uint64) *state.Packet {
 			pk.Path = append(pk.Path, fmt.Sprintf("%02X", h))
 		}
 	}
-	for _, f := range d.PayloadFields {
-		pk.PayloadFields = append(pk.PayloadFields, state.PacketField{
-			Name: f.Name, Value: f.Value})
+	pk.PayloadFields = asPacketFields(d.PayloadFields)
+	pk.PathFields = asPacketFields(d.PathFields)
+	for _, sp := range d.Spans {
+		pk.Spans = append(pk.Spans, state.PacketSpan{
+			Name: sp.Name, Offset: sp.Offset, Size: sp.Length, Detail: sp.Detail})
+		if strings.HasPrefix(sp.Name, "payload") {
+			pk.Readable = sp.Detail
+		}
 	}
 	if len(d.PayloadFields) == 0 {
 		pk.PayloadNote = fmt.Sprintf(
 			"%d bytes, encrypted or of a type with nothing in clear", len(d.Payload))
 	}
+	pk.Scope = s.scopeOf(frame, d)
 	pk.RawLines = hexDump(frame)
-
-	// The radio-level truth, per receiver.
-	for _, r := range s.eng.Ledger.ForPacket(id) {
-		fw := "never saw it"
-		switch {
-		case r.Demod && r.CRCOK && r.FirmwareSaw:
-			fw = "accepted"
-		case r.Demod && r.CRCOK:
-			fw = "dropped"
-		}
-		pk.Ledger = append(pk.Ledger, state.PacketReception{
-			Node: r.ToNode, From: r.FromNode, Offered: r.Offered,
-			RSSIdBm: r.RSSIdBm, SNRdB: r.SNRdB,
-			Demod: r.Demod, CRCOK: r.CRCOK, Firmware: fw,
-		})
-	}
+	pk.Raw = frame
 
 	// The journey: one row per transmission of the message, in time order,
 	// with who heard that particular relay. Possible only because identity
@@ -206,7 +222,213 @@ func (s *Sim) buildPacket(id uint64) *state.Packet {
 		}
 	}
 	pk.Transmissions, pk.Reached = len(pk.Journey), len(reached)
+
+	// The radio-level truth, per receiver, for every transmission of the
+	// message - a journey spans every hop, and the clicked packet is only
+	// one of them. ForPacket(id) alone told the ledger about a single frame
+	// instance and left every other hop's receptions out of it.
+	pk.LedgerFull = ledgerAcrossJourney(s.eng.Ledger, pk.Journey)
+	pk.Ledger = collapseLedger(pk.LedgerFull)
 	return pk
+}
+
+// asPacketFields carries the dissector's fields across to the view, offsets
+// and all - they are what lets a selected field highlight its own bytes.
+func asPacketFields(in []capture.Field) []state.PacketField {
+	out := make([]state.PacketField, 0, len(in))
+	for _, f := range in {
+		out = append(out, state.PacketField{
+			Name: f.Name, Value: f.Value, Decoded: f.Decoded,
+			Description: f.Description, Offset: f.Offset, Size: f.Length,
+		})
+	}
+	return out
+}
+
+// scopeOf confirms which region a packet was sent to, if any.
+//
+// Confirmation, never decoding: the region key is not in the packet, so all
+// this can do is compute each candidate's code over the same payload and see
+// which one reproduces the code on the wire (provider.NamedRegions, which has
+// been written and tested for exactly this and until now was wired to
+// nothing). A packet whose scope matches nothing we hold is reported as such
+// rather than as unscoped - the two look identical on the wire and mean
+// entirely different things.
+func (s *Sim) scopeOf(frame []byte, d capture.Dissection) state.PacketScope {
+	if !d.HasTransport || len(d.TransportCodes) < 2 {
+		return state.PacketScope{}
+	}
+	sc := state.PacketScope{
+		Scoped: true,
+		Code:   fmt.Sprintf("%04X", d.TransportCodes[0]),
+	}
+	if d.TransportCodes[0] == 0 && d.TransportCodes[1] == 0 {
+		sc.Note = "addressed to no region"
+		return sc
+	}
+	names := s.regionCandidates()
+	sc.Candidates = len(names)
+	if len(names) == 0 {
+		return sc
+	}
+	if m := provider.NewNamedRegions(names).Match(frame, d.TransportCodes); len(m) > 0 {
+		sc.Name = strings.Join(m, ", ")
+	}
+	return sc
+}
+
+// regionCandidates is every region name the run knows of.
+//
+// The candidates are the whole limit on what scope matching can identify, so
+// they come from the scenario itself - the regions its nodes were configured
+// or inferred into - rather than from a hardcoded list that would quietly
+// stop recognising a mesh the moment it grew a new one.
+func (s *Sim) regionCandidates() []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, n := range s.nodes {
+		for _, r := range n.Regions {
+			if r != "" && !seen[r] {
+				seen[r] = true
+				out = append(out, r)
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// collapseLedger reduces the whole journey's reception history to one row
+// per node: whichever attempt answers "did this node ever get the message,
+// and if not, why not" - not a list of every attempt, which is what turned
+// the reception ledger into a wall of near-duplicate rows for a node offered
+// the same flood on every hop, and which is also why the table could show
+// "never saw it" for a node the "why?" modal - reading the same history -
+// could show as accepted: the row that survived to be drawn was whichever
+// attempt happened to come first, not the one that mattered most.
+//
+// Preference order, first match wins, first occurrence (rows arrive already
+// in the journey's own chronological order) within that match:
+//  1. accepted, or decoded and dropped by the firmware (deliberately, e.g.
+//     dedup) - either way the radio genuinely received it, which is the
+//     fact this row exists to answer.
+//  2. offered and failed with a reason the engine can give.
+//  3. never offered at all, on any hop.
+//
+// full's own order is preserved for the modal, which still wants every
+// attempt; this only decides what the one summary row says.
+func collapseLedger(full []state.PacketReception) []state.PacketReception {
+	type best struct {
+		heard, miss, never          state.PacketReception
+		hasHeard, hasMiss, hasNever bool
+	}
+	byNode := map[string]*best{}
+	var order []string
+	for _, r := range full {
+		b, ok := byNode[r.Node]
+		if !ok {
+			b = &best{}
+			byNode[r.Node] = b
+			order = append(order, r.Node)
+		}
+		switch {
+		case r.Demod && r.CRCOK:
+			if !b.hasHeard {
+				b.heard, b.hasHeard = r, true
+			}
+		case r.Why != "":
+			if !b.hasMiss {
+				b.miss, b.hasMiss = r, true
+			}
+		default:
+			if !b.hasNever {
+				b.never, b.hasNever = r, true
+			}
+		}
+	}
+	out := make([]state.PacketReception, 0, len(order))
+	for _, n := range order {
+		b := byNode[n]
+		switch {
+		case b.hasHeard:
+			out = append(out, b.heard)
+		case b.hasMiss:
+			out = append(out, b.miss)
+		default:
+			out = append(out, b.never)
+		}
+	}
+	return out
+}
+
+// ledgerAcrossJourney merges the radio ledger's view of every transmission a
+// message made into one reception per node.
+//
+// ForPacket already returns one row per node in the whole scenario for a
+// single transmission - that is the ledger's own design, so a node clean out
+// of range still gets a row saying so. Doing that once per hop and appending
+// would repeat that same full census once per transmission: a two-hop
+// journey across 360 nodes would offer 732 rows for 360 receivers, nearly
+// all of them the same "never saw it" fact said twice. So every row where
+// something measurable happened is kept - a node can legitimately be
+// offered on more than one hop, and that is real information - but a node
+// offered on no hop at all gets exactly one row for the whole journey, not
+// one per transmission it missed entirely.
+func ledgerAcrossJourney(ledger capture.Ledger, hops []state.PacketHop) []state.PacketReception {
+	// The engine's own words for a failed reception live on the hop that
+	// failed it (MissedBy/MissWhy, parallel arrays), not on the ledger row -
+	// keyed by transmission and receiver so a row can find its own reason
+	// rather than a stranger's.
+	type failure struct {
+		packet uint64
+		node   string
+	}
+	why := map[failure]string{}
+	hopOf := map[uint64]int{}
+	for _, h := range hops {
+		hopOf[h.PacketID] = h.Hops
+		for i, n := range h.MissedBy {
+			if i < len(h.MissWhy) {
+				why[failure{h.PacketID, n}] = h.MissWhy[i]
+			}
+		}
+	}
+
+	var out []state.PacketReception
+	seen := map[string]bool{}
+	addRow := func(r capture.Reception) {
+		fw := "never saw it"
+		switch {
+		case r.Demod && r.CRCOK && r.FirmwareSaw:
+			fw = "accepted"
+		case r.Demod && r.CRCOK:
+			fw = "dropped"
+		}
+		out = append(out, state.PacketReception{
+			Node: r.ToNode, From: r.FromNode, Offered: r.Offered,
+			RSSIdBm: r.RSSIdBm, SNRdB: r.SNRdB,
+			Demod: r.Demod, CRCOK: r.CRCOK, Firmware: fw,
+			Why: why[failure{r.PacketID, r.ToNode}],
+			Hop: hopOf[r.PacketID],
+		})
+	}
+	for _, h := range hops {
+		for _, r := range ledger.ForPacket(h.PacketID) {
+			if r.Offered {
+				addRow(r)
+				seen[r.ToNode] = true
+			}
+		}
+	}
+	for _, h := range hops {
+		for _, r := range ledger.ForPacket(h.PacketID) {
+			if !r.Offered && !seen[r.ToNode] {
+				seen[r.ToNode] = true
+				addRow(r)
+			}
+		}
+	}
+	return out
 }
 
 // hexDump is the frame as the eye expects it: offset, sixteen hex bytes, the

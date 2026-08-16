@@ -47,6 +47,11 @@ type Sim struct {
 	// diagnosis for a pause that is not the warming chip: some pair the last
 	// warm measured is not the pair delivery just needed.
 	lastLiveProfiles int64
+	// lastPacketEvents is the engine's event count as of the last time an
+	// open packet view was rebuilt, so the tick can skip the rebuild - a full
+	// rescan of every event ever recorded - on a tick where nothing new
+	// happened at all.
+	lastPacketEvents int
 	// gpuWarm is whether the link matrix is measured on the GPU when one can
 	// answer to the same accuracy. Off by default: it reads a rasterised
 	// height grid rather than the DEM, which is the same answer on a county
