@@ -70,7 +70,14 @@ func (m *MapView) handle(gtx layout.Context, sz image.Point, pts []projected) {
 		case pointer.Scroll:
 			// Zoom to the cursor, not to the centre: the thing under the
 			// pointer is the thing being looked at, and it should stay put.
-			m.zoomAt(e.Position, math.Pow(zoomStep, float64(-e.Scroll.Y)), sz)
+			//
+			// The wheel moves a *target*, not the camera. A wheel reports in
+			// notches, so applying each one on arrival moved the map in the
+			// size of a notch however small the multiplier was - the steps
+			// were the input's, not the zoom's, and no per-unit constant was
+			// ever going to smooth them out. The camera chases this between
+			// frames instead.
+			m.aimZoom(math.Pow(zoomStep, float64(-e.Scroll.Y)), e.Position, sz)
 		case pointer.Move:
 			m.cam.hover = nearestWithin(pts, e.Position, 10)
 		case pointer.Leave:
@@ -264,18 +271,91 @@ func (m *MapView) pan(d f32.Point, sz image.Point) {
 // controllable steps.
 const zoomStep = 1.03
 
-// zoomAt scales about a screen point, keeping whatever is under it there.
-func (m *MapView) zoomAt(at f32.Point, factor float64, sz image.Point) {
-	lat, lon := m.unproject(at, sz)
-	m.Zoom *= factor
-	// A floor and a ceiling, because a zoom of zero divides by zero and a very
-	// large one overflows the tile arithmetic.
-	m.Zoom = math.Max(2, math.Min(4_000_000, m.Zoom))
-	// Put the same place back under the cursor.
-	lat2, lon2 := m.unproject(at, sz)
-	m.CentreLat += lat - lat2
-	m.CentreLon += lon - lon2
+// aimZoom points the zoom somewhere without going there yet.
+//
+// Multiplying the target rather than the camera is what makes a fast spin add
+// up: three notches in quick succession compose into one longer glide instead
+// of three separate jumps.
+func (m *MapView) aimZoom(factor float64, at f32.Point, sz image.Point) {
+	if m.zoomTarget == 0 || !m.zooming {
+		m.zoomTarget = m.Zoom
+	}
+	m.zoomTarget = clampZoom(m.zoomTarget * factor)
+	// The ground under the pointer, taken now and held for the whole glide.
+	// Every frame then places *this* position back under the cursor, which is
+	// exact. Nudging the centre by the difference each frame instead drifts:
+	// the longitude scale depends on the latitude being corrected, so the
+	// correction changes its own units as it goes.
+	m.zoomAnchor = at
+	m.anchorLat, m.anchorLon = m.unproject(at, sz)
+	m.zooming = true
+}
+
+// stepZoom moves the camera part of the way to the target, and reports
+// whether it is still going.
+//
+// Exponential easing - a fixed fraction of what is left, per second - so it
+// starts quickly and settles rather than arriving at a hard stop. Scaled by
+// the frame's own elapsed time, so it takes the same wall-clock time to get
+// there whether the window is managing 120 frames a second or 30.
+func (m *MapView) stepZoom(dt float64, sz image.Point) bool {
+	if !m.zooming {
+		return false
+	}
+	if m.zoomTarget == 0 {
+		m.zoomTarget = m.Zoom
+	}
+	// Close enough that another frame would not be visible: a fraction of a
+	// percent of the current zoom, rather than an absolute figure that would
+	// be far too fine at 4,000,000 and far too coarse at 2.
+	if math.Abs(m.zoomTarget-m.Zoom) <= m.Zoom*0.0005 {
+		m.holdAnchor(m.zoomTarget, sz)
+		m.zooming = false
+		return false
+	}
+	if dt <= 0 || dt > 0.25 {
+		// A first frame has no previous timestamp, and a window that was
+		// asleep hands back an enormous one. Neither should teleport the
+		// camera, so they take a nominal step instead.
+		dt = 1.0 / 60
+	}
+	k := 1 - math.Exp(-zoomChaseRate*dt)
+	m.holdAnchor(m.Zoom+(m.zoomTarget-m.Zoom)*k, sz)
+	return true
+}
+
+// holdAnchor sets the zoom and moves the centre so the anchored position sits
+// exactly under the anchored screen point.
+//
+// Solved rather than nudged. unproject reads
+//
+//	lat = CentreLat - (y - h/2)/Zoom
+//	lon = CentreLon + (x - w/2)/(Zoom*cos(CentreLat))
+//
+// so the centre that puts a known lat/lon at a known point is those two lines
+// rearranged - latitude first, because longitude's scale depends on it.
+func (m *MapView) holdAnchor(z float64, sz image.Point) {
+	m.Zoom = clampZoom(z)
+	m.CentreLat = m.anchorLat + (float64(m.zoomAnchor.Y)-float64(sz.Y)/2)/m.Zoom
+	m.CentreLat = math.Max(-85, math.Min(85, m.CentreLat))
+	cos := math.Cos(m.CentreLat * math.Pi / 180)
+	if cos < 0.01 {
+		cos = 0.01
+	}
+	m.CentreLon = m.anchorLon - (float64(m.zoomAnchor.X)-float64(sz.X)/2)/(m.Zoom*cos)
 	m.clampCentre()
+}
+
+// zoomChaseRate is how fast the camera closes on the target, per second, as
+// the exponent of the easing. Around 18 lands in roughly a fifth of a second:
+// slow enough to read as movement rather than a cut, fast enough that the map
+// is never lagging behind the hand on the wheel.
+const zoomChaseRate = 18.0
+
+// clampZoom is the floor and ceiling, because a zoom of zero divides by zero
+// and a very large one overflows the tile arithmetic.
+func clampZoom(z float64) float64 {
+	return math.Max(2, math.Min(4_000_000, z))
 }
 
 // clampCentre keeps the camera on the planet.
