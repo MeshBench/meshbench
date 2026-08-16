@@ -2,6 +2,7 @@ package capture_test
 
 import (
 	"encoding/binary"
+	"fmt"
 	"testing"
 
 	"github.com/MeshBench/meshbench/internal/capture"
@@ -230,3 +231,57 @@ func TestTransportCodesAreDescribedAsScopeNotAddresses(t *testing.T) {
 		t.Errorf("all-zero codes described as %q", detail)
 	}
 }
+
+// A payload that ends before its type's fields do must say so, not carry on
+// reading from an un-advanced cursor.
+//
+// rd.field declines to read past the end and leaves the cursor where it was,
+// so a caller that ignores that resumes at the wrong offset. On a short
+// advert that meant reading the flags, position and name out of *signature
+// bytes* and reporting them as fact - a node type, a claimed position and a
+// name, none of which were in the packet, with nothing marked truncated.
+func TestATruncatedAdvertDoesNotInventFieldsFromTheSignature(t *testing.T) {
+	// Long enough for the key and timestamp, far too short for the signature.
+	short := []byte{0x01 | (0x04 << 2), 0x00}
+	body := make([]byte, 40)
+	body[36] = 0x92 // would read as "repeater, with position, name"
+	body[37], body[38], body[39] = 'A', 'B', 'C'
+	short = append(short, body...)
+
+	d := capture.Dissect(short)
+	for _, f := range d.PayloadFields {
+		switch f.Name {
+		case "flags", "latitude", "longitude", "name", "node type":
+			t.Errorf("read %q out of a payload too short to contain it: %q / %q",
+				f.Name, f.Value, f.Decoded)
+		}
+	}
+	if _, err := lastNamed(d.PayloadFields, "truncated"); err != nil {
+		t.Errorf("a short payload was read as a whole one: %v", names(d.PayloadFields))
+	}
+}
+
+// The same guard on an addressed type, whose prefix is version-dependent.
+func TestATruncatedAddressedPayloadSaysSoRatherThanMislabelling(t *testing.T) {
+	// Claims a text message, carries one byte of the three-byte prefix.
+	d := capture.Dissect([]byte{0x01 | (0x02 << 2), 0x00, 0xAA})
+	for _, f := range d.PayloadFields {
+		if f.Name == "MAC" {
+			t.Error("labelled a MAC in a payload with no room for one")
+		}
+	}
+	if _, err := lastNamed(d.PayloadFields, "truncated"); err != nil {
+		t.Errorf("a short addressed payload was read as whole: %v", names(d.PayloadFields))
+	}
+}
+
+func lastNamed(fs []capture.Field, name string) (capture.Field, error) {
+	for _, f := range fs {
+		if f.Name == name {
+			return f, nil
+		}
+	}
+	return capture.Field{}, errNotFound
+}
+
+var errNotFound = fmt.Errorf("not found")

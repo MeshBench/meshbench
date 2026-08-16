@@ -78,6 +78,21 @@ func (r *rd) field(n int, name, desc string, render func([]byte) (string, string
 	return true
 }
 
+// short records that the payload ran out before the type's fields did.
+//
+// The alternative - stopping quietly - leaves a half-read payload looking
+// like a whole one, which is the same failure as inventing fields: the reader
+// cannot tell the difference between "this advert carries no position" and
+// "this advert was cut off before its position".
+func (r *rd) short() {
+	r.out = append(r.out, Field{
+		Name:        "truncated",
+		Value:       fmt.Sprintf("%d bytes left", r.left()),
+		Description: "the payload ends before this type's fields do; nothing further is read",
+		Offset:      r.base + r.at, Length: r.left(),
+	})
+}
+
 // rest names everything left, if anything is.
 func (r *rd) rest(name, desc string, render func([]byte) (string, string)) {
 	if r.left() <= 0 {
@@ -169,9 +184,17 @@ func dissectPayload(t uint8, version uint8, p []byte, base int) []Field {
 // identity, when it said so, a signature over both, and the app data that
 // carries what the node is, where it is and what it calls itself.
 func readAdvert(r *rd) {
-	r.field(32, "public key", "the node's identity - Ed25519", asHexAbbrev)
-	r.field(4, "timestamp", "when the advert was emitted", asEpochLE)
-	r.field(64, "signature", "Ed25519 over public key, timestamp and app data", asHexAbbrev)
+	// Each step only happens if the one before it fitted. field declines to
+	// read past the end and leaves the cursor alone, so carrying on regardless
+	// resumes at the wrong offset: a frame cut short before its signature
+	// would read the flags, position and name of an advert out of signature
+	// bytes and report them as fact, with nothing marked truncated.
+	if !r.field(32, "public key", "the node's identity - Ed25519", asHexAbbrev) ||
+		!r.field(4, "timestamp", "when the advert was emitted", asEpochLE) ||
+		!r.field(64, "signature", "Ed25519 over public key, timestamp and app data", asHexAbbrev) {
+		r.short()
+		return
+	}
 	readAdvertAppData(r)
 }
 
@@ -190,14 +213,23 @@ func readAdvertAppData(r *rd) {
 		return fmt.Sprintf("0x%02X", b[0]), describeAdvertFlags(b[0])
 	})
 	if flags&advLatLonMask != 0 {
-		r.field(4, "latitude", "degrees × 1e6", asLatLon)
-		r.field(4, "longitude", "degrees × 1e6", asLatLon)
+		if !r.field(4, "latitude", "degrees × 1e6", asLatLon) ||
+			!r.field(4, "longitude", "degrees × 1e6", asLatLon) {
+			r.short()
+			return
+		}
 	}
 	if flags&advFeat1Mask != 0 {
-		r.field(2, "feature 1", "reserved by MeshCore for future use", asU16LE)
+		if !r.field(2, "feature 1", "reserved by MeshCore for future use", asU16LE) {
+			r.short()
+			return
+		}
 	}
 	if flags&advFeat2Mask != 0 {
-		r.field(2, "feature 2", "reserved by MeshCore for future use", asU16LE)
+		if !r.field(2, "feature 2", "reserved by MeshCore for future use", asU16LE) {
+			r.short()
+			return
+		}
 	}
 	if flags&advNameMask != 0 {
 		r.rest("name", "UTF-8, to the end of the advert - not NUL-terminated", asAdvertName)
@@ -245,7 +277,9 @@ func describeAdvertFlags(f uint8) string {
 
 // readAck: the whole payload is a checksum, in clear.
 func readAck(r *rd) {
-	r.field(4, "ack checksum", "identifies the message being acknowledged", asU32HexLE)
+	if !r.field(4, "ack checksum", "identifies the message being acknowledged", asU32HexLE) {
+		r.short()
+	}
 }
 
 // readTrace reads a path trace.
@@ -281,9 +315,12 @@ func readAnonRequest(r *rd, version uint8) {
 	if !ver1(r, version) {
 		return
 	}
-	r.field(ver1HashSize, "destination hash", "first byte of the recipient's public key", asByteHex)
-	r.field(32, "sender public key", "the requester's identity, in clear", asHexAbbrev)
-	r.field(ver1MACSize, "MAC", "authenticates the encrypted body", asHex)
+	if !r.field(ver1HashSize, "destination hash", "first byte of the recipient's public key", asByteHex) ||
+		!r.field(32, "sender public key", "the requester's identity, in clear", asHexAbbrev) ||
+		!r.field(ver1MACSize, "MAC", "authenticates the encrypted body", asHex) {
+		r.short()
+		return
+	}
 	r.ciphertext("the request body")
 }
 
@@ -292,8 +329,11 @@ func readGroup(r *rd, t uint8, version uint8) {
 	if !ver1(r, version) {
 		return
 	}
-	r.field(ver1HashSize, "channel hash", "which channel's key this was encrypted to", asByteHex)
-	r.field(ver1MACSize, "MAC", "authenticates the encrypted body", asHex)
+	if !r.field(ver1HashSize, "channel hash", "which channel's key this was encrypted to", asByteHex) ||
+		!r.field(ver1MACSize, "MAC", "authenticates the encrypted body", asHex) {
+		r.short()
+		return
+	}
 	if t == 0x05 {
 		r.ciphertext("a timestamp and the message text")
 	} else {
@@ -306,9 +346,12 @@ func readAddressed(r *rd, t uint8, version uint8) {
 	if !ver1(r, version) {
 		return
 	}
-	r.field(ver1HashSize, "destination hash", "first byte of the recipient's public key", asByteHex)
-	r.field(ver1HashSize, "source hash", "first byte of the sender's public key", asByteHex)
-	r.field(ver1MACSize, "MAC", "authenticates the encrypted body", asHex)
+	if !r.field(ver1HashSize, "destination hash", "first byte of the recipient's public key", asByteHex) ||
+		!r.field(ver1HashSize, "source hash", "first byte of the sender's public key", asByteHex) ||
+		!r.field(ver1MACSize, "MAC", "authenticates the encrypted body", asHex) {
+		r.short()
+		return
+	}
 	switch t {
 	case 0x02:
 		r.ciphertext("a timestamp and the message text")
