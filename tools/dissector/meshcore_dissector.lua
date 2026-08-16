@@ -2,6 +2,16 @@
 -- Copyright (C) 2025 Aaron Brown
 -- SPDX-License-Identifier: GPL-2.0-only
 --
+-- lint:file-length-exempt
+--
+-- Over the 500-line limit deliberately, and not a candidate for splitting.
+-- Wireshark loads a dissector as one plugin file, which registers its fields,
+-- its protocol and its handlers as a single unit; splitting it means a loader
+-- shim and a require path that has to work inside Wireshark's own Lua
+-- sandbox, and that trades a long file for a fragile one. Most of the length
+-- is field declarations mirroring the wire format, so it is the format's size
+-- rather than the code's, and it grows when MeshCore grows.
+--
 -- Drop this file into ~/.local/lib/wireshark/plugins/ to auto-load.
 --
 -- Two protocol layers (like 802.11 Radiotap + 802.11):
