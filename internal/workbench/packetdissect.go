@@ -9,6 +9,7 @@ package workbench
 
 import (
 	"fmt"
+	"strings"
 
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -65,19 +66,16 @@ func versionSub(pk *state.Packet) string {
 // could be read, and the raw bytes.
 func (p *packetPanel) dissection(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
 	fields := dissectedFields(pk)
-	// The selected field's own bytes, so the hex below picks out exactly what
-	// the highlighted row was read from. This is what carrying every field's
-	// offset and size through from the dissector was for.
-	from, to := 0, 0
-	if p.selField >= 0 && p.selField < len(fields) {
-		f := fields[p.selField]
-		from, to = f.Offset, f.Offset+f.Size
-	}
+	// Clicks are taken here, before anything reads the selection. Handling
+	// them inside the cards below meant the hex was drawn from the previous
+	// frame's answer and a click appeared to do nothing until the next one.
+	p.takeSelectionClicks(gtx, pk, fields)
+	from, to := p.selectedBytes(pk, fields)
 	rows := []layout.Widget{
-		p.spansCard(t, pk),
+		func(gtx layout.Context) layout.Dimensions { return structurePanel(t, gtx, pk, p) },
 		p.fieldsCard(t, pk),
 		func(gtx layout.Context) layout.Dimensions {
-			return hexPanel(t, gtx, pk, from, to, selectionNote(p.selField, fields))
+			return hexPanel(t, gtx, pk, from, to, p.selectionNote(pk, fields))
 		},
 	}
 	return comp.List(t, &p.scroll, len(rows), func(gtx layout.Context, i int) layout.Dimensions {
@@ -85,37 +83,62 @@ func (p *packetPanel) dissection(t *theme.Theme, gtx layout.Context, pk *state.P
 	})(gtx)
 }
 
-// spansCard is the frame's shape - which bytes are header, transport codes,
-// path and payload, in order and to scale in bytes.
-func (p *packetPanel) spansCard(t *theme.Theme, pk *state.Packet) layout.Widget {
-	return comp.Card(t, "Structure", func(gtx layout.Context) layout.Dimensions {
-		if len(pk.Spans) == 0 {
-			return comp.Text(t, t.Sz.Caption, t.P.Faint, "the frame did not parse")(gtx)
+// takeSelectionClicks reads this frame's clicks on both tables. A field and a
+// span are the same kind of answer - a range of bytes - so they share one
+// selection and each clears the other.
+func (p *packetPanel) takeSelectionClicks(gtx layout.Context, pk *state.Packet, fields []state.PacketField) {
+	for i := range fields {
+		ck := p.click(fmt.Sprintf("fieldrow:%d", i))
+		if ck.Clicked(gtx) {
+			if p.selField == i && p.selSpan < 0 {
+				p.selField = -1
+			} else {
+				p.selField, p.selSpan = i, -1
+			}
 		}
-		var kids []layout.FlexChild
-		for i := range pk.Spans {
-			s := pk.Spans[i]
-			kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return layout.Inset{Bottom: t.Sp.XXS}.Layout(gtx,
-					func(gtx layout.Context) layout.Dimensions {
-						return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-							fixed(gtx, 46, comp.Mono(t, t.Sz.Caption, t.P.Faint,
-								fmt.Sprintf("%04X", s.Offset))),
-							fixed(gtx, 150, comp.OneLine(t, t.Sz.Caption, t.P.Ink, s.Name, false)),
-							fixed(gtx, 56, comp.Mono(t, t.Sz.Caption, t.P.Dim,
-								fmt.Sprintf("%d B", s.Size))),
-							layout.Flexed(1, comp.OneLine(t, t.Sz.Caption, t.P.Dim, s.Detail, false)),
-						)
-					})
-			}))
+	}
+	for i := range pk.Spans {
+		ck := p.click(fmt.Sprintf("spanrow:%d", i))
+		if ck.Clicked(gtx) {
+			if p.selSpan == i {
+				p.selSpan = -1
+			} else {
+				p.selSpan, p.selField = i, -1
+			}
 		}
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, kids...)
-	})
+	}
 }
 
-// fieldsCard is every field the dissector could name, with the offset and
-// size it was read from - the columns that turn "here is a value" into "here
-// is where that value is in the bytes below".
+// click is one named clickable, made on first use.
+func (p *packetPanel) click(key string) *widget.Clickable {
+	ck, ok := p.whyBtns[key]
+	if !ok {
+		ck = &widget.Clickable{}
+		p.whyBtns[key] = ck
+	}
+	return ck
+}
+
+// selectedBytes is the range the hex picks out: a chosen field, a chosen
+// structural span, or - with nothing chosen - the payload, so the view always
+// says something rather than opening blank.
+func (p *packetPanel) selectedBytes(pk *state.Packet, fields []state.PacketField) (int, int) {
+	if p.selField >= 0 && p.selField < len(fields) {
+		f := fields[p.selField]
+		return f.Offset, f.Offset + f.Size
+	}
+	if p.selSpan >= 0 && p.selSpan < len(pk.Spans) {
+		s := pk.Spans[p.selSpan]
+		return s.Offset, s.Offset + s.Size
+	}
+	for _, s := range pk.Spans {
+		if strings.HasPrefix(s.Name, "payload") {
+			return s.Offset, s.Offset + s.Size
+		}
+	}
+	return 0, 0
+}
+
 // dissectedFields is every named field in one order - the order the table
 // lists them and the order selField indexes into. Both read it, so a row
 // cannot come to mean a different field to the table than to the hex.
@@ -123,13 +146,17 @@ func dissectedFields(pk *state.Packet) []state.PacketField {
 	return append(append([]state.PacketField{}, pk.PathFields...), pk.PayloadFields...)
 }
 
-// selectionNote is the hint above the hex: what is picked out, or how to.
-func selectionNote(sel int, fields []state.PacketField) string {
-	if sel >= 0 && sel < len(fields) {
-		f := fields[sel]
+// selectionNote says what is picked out, and how to pick something else.
+func (p *packetPanel) selectionNote(pk *state.Packet, fields []state.PacketField) string {
+	if p.selField >= 0 && p.selField < len(fields) {
+		f := fields[p.selField]
 		return fmt.Sprintf("%s — %d bytes at %04X", f.Name, f.Size, f.Offset)
 	}
-	return "click a field to pick out its bytes"
+	if p.selSpan >= 0 && p.selSpan < len(pk.Spans) {
+		s := pk.Spans[p.selSpan]
+		return fmt.Sprintf("%s — %d bytes at %04X", s.Name, s.Size, s.Offset)
+	}
+	return "the payload — click any row above to pick out its bytes"
 }
 
 func (p *packetPanel) fieldsCard(t *theme.Theme, pk *state.Packet) layout.Widget {
@@ -164,22 +191,7 @@ func (p *packetPanel) fieldsCard(t *theme.Theme, pk *state.Packet) layout.Widget
 				if ck.Clicked(gtx) {
 					copyText(gtx, f.Value)
 				}
-				// The row itself selects the field's bytes. Clicking twice
-				// clears it, so the hex can be read whole again without
-				// having to find some empty patch to click.
-				rowKey := fmt.Sprintf("fieldrow:%d", i)
-				rk, ok := p.whyBtns[rowKey]
-				if !ok {
-					rk = &widget.Clickable{}
-					p.whyBtns[rowKey] = rk
-				}
-				if rk.Clicked(gtx) {
-					if p.selField == i {
-						p.selField = -1
-					} else {
-						p.selField = i
-					}
-				}
+				rk := p.click(fmt.Sprintf("fieldrow:%d", i))
 				sel := p.selField == i
 				kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return rk.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -245,4 +257,74 @@ func fixed(gtx layout.Context, w int, wgt layout.Widget) layout.FlexChild {
 		d.Size.X = px
 		return d
 	})
+}
+
+// structurePanel is the frame's shape: four spans that always exist, each
+// with what it cost in bytes, and the payload picked out as the one the rest
+// of this tab is about.
+func structurePanel(t *theme.Theme, gtx layout.Context, pk *state.Packet, p *packetPanel) layout.Dimensions {
+	return titledPanel(t, gtx, "Structure", "", func(gtx layout.Context) layout.Dimensions {
+		if len(pk.Spans) == 0 {
+			return comp.Text(t, t.Sz.Caption, t.P.Faint, "the frame did not parse")(gtx)
+		}
+		var kids []layout.FlexChild
+		for i := range pk.Spans {
+			s := pk.Spans[i]
+			// Lit when chosen, or - with nothing chosen - the payload, which
+			// is what the hex picks out by default.
+			lit := p.selSpan == i ||
+				(p.selSpan < 0 && p.selField < 0 && strings.HasPrefix(s.Name, "payload"))
+			ck := p.click(fmt.Sprintf("spanrow:%d", i))
+			kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Bottom: t.Sp.XXS}.Layout(gtx,
+					func(gtx layout.Context) layout.Dimensions {
+						return ck.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return spanRow(t, gtx, s, lit)
+						})
+					})
+			}))
+		}
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, kids...)
+	})
+}
+
+// spanRow is one structural region, boxed so the four read as a stack of
+// parts rather than as a list of words.
+func spanRow(t *theme.Theme, gtx layout.Context, s state.PacketSpan, lit bool) layout.Dimensions {
+	macro := op.Record(gtx.Ops)
+	dims := layout.Inset{
+		Left: t.Sp.S, Right: t.Sp.S, Top: t.Sp.XS, Bottom: t.Sp.XS,
+	}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		ink := t.P.Dim
+		if lit {
+			ink = t.P.Accent
+		}
+		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+			fixed(gtx, 46, comp.Mono(t, t.Sz.Caption, t.P.Faint,
+				fmt.Sprintf("%04X", s.Offset))),
+			fixed(gtx, 170, comp.OneLine(t, t.Sz.Caption, ink, s.Name, false)),
+			layout.Flexed(1, comp.OneLine(t, t.Sz.Caption, t.P.Dim, s.Detail, false)),
+			fixed(gtx, 64, comp.Mono(t, t.Sz.Caption, t.P.Faint, spanSize(s))),
+		)
+	})
+	call := macro.Stop()
+	bg, edge := t.P.Sunk, t.P.Rule
+	if lit {
+		bg, edge = theme.Alpha(t.P.Accent, 0.10), t.P.Accent
+	}
+	comp.RoundRect(gtx, dims.Size, 6, bg)
+	comp.Border(gtx, dims.Size, 6, 1, edge)
+	call.Add(gtx.Ops)
+	return dims
+}
+
+// spanSize prefers hops to bytes for the path, because hops is what the path
+// is counted in everywhere else in this window.
+func spanSize(s state.PacketSpan) string {
+	if s.Name == "path" || s.Name == "path length" {
+		if n := strings.Fields(s.Detail); len(n) > 1 && n[1] == "hops" {
+			return n[0] + " hops"
+		}
+	}
+	return fmt.Sprintf("%d B", s.Size)
 }

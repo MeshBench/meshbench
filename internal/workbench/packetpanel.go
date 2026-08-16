@@ -39,6 +39,9 @@ type packetPanel struct {
 	// built in, reset whenever the packet changes - a row number means
 	// nothing once a different frame is being read.
 	selField int
+	// selSpan is the chosen structural region, or -1. A span and a field are
+	// the same kind of answer - a range of bytes - so only one is ever set.
+	selSpan int
 	// selFor is the packet selField belongs to.
 	selFor  uint64
 	jList   widget.List
@@ -100,7 +103,7 @@ func (p *packetPanel) build() {
 	p.whyList.Axis = layout.Vertical
 	p.scroll.Axis, p.jList.Axis, p.lList.Axis = layout.Vertical, layout.Vertical, layout.Vertical
 	p.overviewList.Axis = layout.Vertical
-	p.selField = -1
+	p.selField, p.selSpan = -1, -1
 	if packetOpenOnTab > 0 && packetOpenOnTab < len(packetTabs) {
 		p.tab = packetOpenOnTab
 	}
@@ -124,7 +127,7 @@ func (p *packetPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 	pk := s.Packet
 	p.winH = gtx.Constraints.Max.Y
 	if p.selFor != pk.ID {
-		p.selFor, p.selField = pk.ID, -1
+		p.selFor, p.selField, p.selSpan = pk.ID, -1, -1
 	}
 	for i := range p.tabs {
 		if p.tabs[i].Clicked(gtx) {

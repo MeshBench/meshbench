@@ -17,21 +17,6 @@ import (
 	"github.com/MeshBench/meshbench/internal/gui/theme"
 )
 
-// rawWithHighlight is the frame's bytes with the payload picked out.
-//
-// Drawn from the frame rather than from the pre-formatted dump lines: a
-// finished string cannot be coloured from the middle, and the whole point of
-// carrying every field's offset is that a span of bytes can be pointed at.
-func rawWithHighlight(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
-	from, to := len(pk.Raw), len(pk.Raw)
-	for _, s := range pk.Spans {
-		if strings.HasPrefix(s.Name, "payload") {
-			from, to = s.Offset, s.Offset+s.Size
-		}
-	}
-	return hexPanel(t, gtx, pk, from, to, "the payload is picked out")
-}
-
 // hexPanel is the frame's bytes with one range picked out - the payload on
 // Overview, the selected field on Dissection.
 func hexPanel(t *theme.Theme, gtx layout.Context, pk *state.Packet, from, to int, note string) layout.Dimensions {

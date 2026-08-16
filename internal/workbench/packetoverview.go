@@ -1,14 +1,11 @@
 // The Overview tab: what this packet is, in one screen.
 //
-// Built to the design rather than to whatever the existing helpers made easy,
-// which is how the first attempt ended up with the chips wrapped onto two
-// rows and the structure missing entirely. The differences that matter are
-// all about not making the reader scroll or switch tabs to answer an obvious
-// question: six chips on one row because six is how many there are, the scope
-// chip picked out because it is the one that is a claim rather than a
-// reading, and the payload and the frame's shape side by side because the
-// question "what does it say" and the question "where does it sit" are asked
-// together.
+// It interprets, and Dissection next door evidences - a latitude and a
+// longitude are one position here and two fields at two offsets there. The
+// two tabs deliberately share nothing: an earlier cut put the frame's
+// structure and the raw bytes on both, and the result was two screens that
+// read as the same screen twice, which is a fair thing to be asked about.
+// Anything that wants a byte offset belongs on the other tab.
 package workbench
 
 import (
@@ -28,16 +25,13 @@ import (
 func (p *packetPanel) overview(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
 	rows := []layout.Widget{
 		func(gtx layout.Context) layout.Dimensions { return chipRow(t, gtx, pk) },
-		func(gtx layout.Context) layout.Dimensions { return payloadAndStructure(t, gtx, pk) },
+		func(gtx layout.Context) layout.Dimensions { return payloadPanel(t, gtx, pk) },
 	}
-	// Between the summary and the bytes, and only when the chip left a
-	// question open.
+	// Only when the chip left a question open; a confirmed scope needs no
+	// paragraph.
 	if scopeNeedsExplaining(pk.Scope) {
 		rows = append(rows, scopeCard(t, pk))
 	}
-	rows = append(rows, func(gtx layout.Context) layout.Dimensions {
-		return rawWithHighlight(t, gtx, pk)
-	})
 	return comp.List(t, &p.overviewList, len(rows), func(gtx layout.Context, i int) layout.Dimensions {
 		return layout.Inset{Bottom: t.Sp.S}.Layout(gtx, rows[i])
 	})(gtx)
@@ -221,42 +215,6 @@ func scopePill(sc state.PacketScope) string {
 	return "unmatched"
 }
 
-// payloadAndStructure puts what the packet says beside where it sits, both
-// panels the same height whichever has more in it.
-func payloadAndStructure(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
-	const payloadShare = 1.55
-	g := gtx.Dp(t.Sp.XS)
-	avail := gtx.Constraints.Max.X - g
-	left := int(float64(avail) * payloadShare / (payloadShare + 1))
-	panel := func(gtx layout.Context, i int) layout.Dimensions {
-		if i == 0 {
-			return payloadPanel(t, gtx, pk)
-		}
-		return structurePanel(t, gtx, pk)
-	}
-	widths := [2]int{left, avail - left}
-	tallest := 0
-	for i, w := range widths {
-		measure := gtx
-		measure.Ops = new(op.Ops)
-		measure.Constraints.Min.X, measure.Constraints.Max.X = w, w
-		if h := panel(measure, i).Size.Y; h > tallest {
-			tallest = h
-		}
-	}
-	at := 0
-	for i, w := range widths {
-		cgtx := gtx
-		cgtx.Constraints.Min.X, cgtx.Constraints.Max.X = w, w
-		cgtx.Constraints.Min.Y, cgtx.Constraints.Max.Y = tallest, tallest
-		off := op.Offset(image.Pt(at, 0)).Push(gtx.Ops)
-		panel(cgtx, i)
-		off.Pop()
-		at += w + g
-	}
-	return layout.Dimensions{Size: image.Pt(gtx.Constraints.Max.X, tallest)}
-}
-
 // payloadPanel is the readable summary - the fields worth seeing without
 // counting offsets, which is what Dissection is for.
 func payloadPanel(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
@@ -344,67 +302,6 @@ func payloadSummary(pk *state.Packet) []sumRow {
 			"decoded from 8 bytes", false})
 	}
 	return out
-}
-
-// structurePanel is the frame's shape: four spans that always exist, each
-// with what it cost in bytes, and the payload picked out as the one the rest
-// of this tab is about.
-func structurePanel(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
-	return titledPanel(t, gtx, "Structure", "", func(gtx layout.Context) layout.Dimensions {
-		if len(pk.Spans) == 0 {
-			return comp.Text(t, t.Sz.Caption, t.P.Faint, "the frame did not parse")(gtx)
-		}
-		var kids []layout.FlexChild
-		for i := range pk.Spans {
-			s := pk.Spans[i]
-			lit := strings.HasPrefix(s.Name, "payload")
-			kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return layout.Inset{Bottom: t.Sp.XXS}.Layout(gtx,
-					func(gtx layout.Context) layout.Dimensions {
-						return spanRow(t, gtx, s, lit)
-					})
-			}))
-		}
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, kids...)
-	})
-}
-
-// spanRow is one structural region, boxed so the four read as a stack of
-// parts rather than as a list of words.
-func spanRow(t *theme.Theme, gtx layout.Context, s state.PacketSpan, lit bool) layout.Dimensions {
-	macro := op.Record(gtx.Ops)
-	dims := layout.Inset{
-		Left: t.Sp.S, Right: t.Sp.S, Top: t.Sp.XS, Bottom: t.Sp.XS,
-	}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		ink := t.P.Dim
-		if lit {
-			ink = t.P.Accent
-		}
-		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-			layout.Flexed(1, comp.OneLine(t, t.Sz.Caption, ink, s.Name, false)),
-			layout.Rigid(comp.Mono(t, t.Sz.Caption, t.P.Faint, spanSize(s))),
-		)
-	})
-	call := macro.Stop()
-	bg, edge := t.P.Sunk, t.P.Rule
-	if lit {
-		bg, edge = theme.Alpha(t.P.Accent, 0.10), t.P.Accent
-	}
-	comp.RoundRect(gtx, dims.Size, 6, bg)
-	comp.Border(gtx, dims.Size, 6, 1, edge)
-	call.Add(gtx.Ops)
-	return dims
-}
-
-// spanSize prefers hops to bytes for the path, because hops is what the path
-// is counted in everywhere else in this window.
-func spanSize(s state.PacketSpan) string {
-	if s.Name == "path" || s.Name == "path length" {
-		if n := strings.Fields(s.Detail); len(n) > 1 && n[1] == "hops" {
-			return n[0] + " hops"
-		}
-	}
-	return fmt.Sprintf("%d B", s.Size)
 }
 
 // titledPanel is a card whose title line carries a right-aligned detail -
