@@ -97,6 +97,17 @@ func registerSimControl(st *state.Store, s *Sim) {
 		return map[string]any{"seed": w.Seed, "now_ms": w.NowMs}, nil
 	})
 
+	// log.path: where this run's full status log is, for a script or a menu
+	// action to find without knowing the naming scheme - one file per
+	// launch, timestamped, everything Say has said rather than only the
+	// last twenty lines the status strip keeps.
+	st.Handle("log.path", func(_ *state.World, _ any) (any, error) {
+		if s.logPath == "" {
+			return map[string]any{"path": ""}, fmt.Errorf("no session log is open")
+		}
+		return map[string]any{"path": s.logPath}, nil
+	})
+
 	// study.margin: how far outside the boundary a node still matters. It was
 	// readable everywhere and settable nowhere but the fixture file.
 	st.Handle("study.margin", func(w *state.World, p any) (any, error) {

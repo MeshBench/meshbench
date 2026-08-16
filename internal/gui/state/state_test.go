@@ -1,7 +1,10 @@
 package state_test
 
 import (
+	"bytes"
 	"context"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -173,5 +176,49 @@ func TestConcurrentVerbsAreSerialised(t *testing.T) {
 	}
 	if got := s.Snapshot().Seed; got != n {
 		t.Errorf("expected %d increments to land, got %d - state was raced", n, got)
+	}
+}
+
+// syncBuffer is safe for Say to write to from the store's goroutine while a
+// test reads it from its own.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
+// Every status line goes to the log writer too, not just the twenty-line
+// strip Log keeps for the UI - the difference between "what just happened"
+// and "what happened three sessions ago and nobody was watching for it".
+func TestSayWritesToTheLogWriter(t *testing.T) {
+	s := state.New(10)
+	var buf syncBuffer
+	// Set before Run starts, as SetLogWriter documents it must be - World is
+	// only safe to touch from the store's own goroutine once Run is running.
+	s.SetLogWriter(&buf)
+	s.Handle("test.say", func(w *state.World, _ any) (any, error) {
+		w.Say("hello world")
+		return nil, nil
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go s.Run(ctx)
+
+	if _, err := s.Do(ctx, "test.say", nil); err != nil {
+		t.Fatalf("test.say: %v", err)
+	}
+	if got := buf.String(); !strings.Contains(got, "hello world") {
+		t.Fatalf("log writer never saw the status line, got %q", got)
 	}
 }

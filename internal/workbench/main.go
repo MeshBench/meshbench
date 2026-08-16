@@ -105,6 +105,16 @@ func Run(args []string) {
 	// session never depends on this machine's own file.
 	sm.LoadPrefs()
 	session.Register(st, sm)
+	// Every status line, timestamped and kept in full - not just the last
+	// twenty the strip at the bottom shows. Set before Run starts: nothing
+	// else touches World before then, so there is nothing to race. A run
+	// that goes quiet for reasons nobody was watching for is the thing this
+	// is for, so it has to already be running before anything goes wrong.
+	if logPath, err := openSessionLog(st, sm); err != nil {
+		fmt.Fprintln(os.Stderr, "session log:", err)
+	} else if logPath != "" {
+		fmt.Fprintln(os.Stderr, "session log:", logPath)
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go st.Run(ctx)

@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"io"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -735,6 +736,11 @@ type World struct {
 	Jobs       []Job
 	Status     string
 	Log        []string
+	// logWriter, when set, gets every status line too - timestamped and
+	// unbounded, unlike Log, which is the last twenty for the strip that
+	// draws it. Set once before Run starts; nothing else touches World
+	// before then.
+	logWriter io.Writer
 	// Areas are the study boundaries, and MarginKm the band outside them
 	// within which external nodes still matter.
 	Areas    []Area
@@ -1105,6 +1111,18 @@ func (w *World) Say(msg string) {
 	if len(w.Log) > 20 {
 		w.Log = w.Log[len(w.Log)-20:]
 	}
+	if w.logWriter != nil {
+		_, _ = fmt.Fprintf(w.logWriter, "%s  t=%8.3fs  %s\n",
+			time.Now().Format("15:04:05.000"), float64(w.NowMs)/1000, msg)
+	}
+}
+
+// SetLogWriter is where every status line also goes, timestamped and kept in
+// full - unlike Log, which is only ever the last twenty, for the strip that
+// draws it. Set once, before Run starts: nothing else touches World before
+// then, so there is nothing here to race.
+func (s *Store) SetLogWriter(w io.Writer) {
+	s.world.logWriter = w
 }
 
 // SetStepMs changes how much simulated time one tick advances.

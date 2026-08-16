@@ -63,7 +63,11 @@ func TestACarriedMatrixDoesNotSkipTheRealWarm(t *testing.T) {
 // start, no warm actually running to finish it. Only a restart cleared it.
 func TestSimResetActuallyRewarms(t *testing.T) {
 	st := state.New(10)
-	s := &Sim{}
+	// gpuDefault probes real hardware on its first call; this test is about
+	// warm's own bookkeeping; not that. Marking it already-asked keeps a
+	// probe of the machine's actual GPU out of a path that has nothing to
+	// do with it.
+	s := &Sim{gpuAsked: true}
 	Register(st, s)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

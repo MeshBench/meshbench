@@ -32,6 +32,10 @@ type Sim struct {
 	ui UI
 	// consoles is one scrollback per node, keyed by name.
 	consoles map[string]*console.Buf
+	// logPath is where this run's full status log is being written, if
+	// anywhere - set by whoever opened it, read by log.path so a script or a
+	// menu action can find the file without knowing the naming scheme.
+	logPath string
 	// cold reports that the engine has been rebuilt and its link cache is
 	// empty, so the next thing that can warm it should.
 	cold bool
@@ -192,6 +196,10 @@ const DefaultExcessLossDB = 20
 // simulator whose default run differs every time cannot be used to show
 // anybody a result.
 const defaultSeed = 9001
+
+// SetLogPath records where this run's full status log is being written, for
+// log.path to report.
+func (s *Sim) SetLogPath(path string) { s.logPath = path }
 
 // buildSeeded is build, with the draw stated.
 func (s *Sim) buildSeeded(nodes []scenario.Node, freqMHz float64, seed uint64) {
