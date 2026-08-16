@@ -146,7 +146,24 @@ func (b *Bridge) read(c net.Conn) {
 		if b.conn == c {
 			b.conn = nil
 		}
+		// The one connection this bridge will ever have has just ended,
+		// unasked - Close would already have set closed, so this only fires
+		// when the node's process crashed or was killed outside the
+		// graceful path. WaitAdvance blocks on b.done, and until now only
+		// Close ever signalled it: a node that died mid-run left every
+		// caller waiting on it blocked forever, and every node runFirmware
+		// had not reached yet in that same tick frozen behind it, on every
+		// tick after, silently. Treating a dropped connection as done here
+		// is the same fact Close already expresses, just noticed the other
+		// way round.
+		wasOpen := !b.closed
+		if wasOpen {
+			b.closed = true
+		}
 		b.mu.Unlock()
+		if wasOpen {
+			close(b.done)
+		}
 		_ = c.Close()
 	}()
 	var hdr [3]byte

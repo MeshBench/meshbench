@@ -7,6 +7,7 @@ package session
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/gui/state"
@@ -116,6 +117,21 @@ func Register(st *state.Store, s *Sim) {
 								"configuration changed since the last warm; "+
 								"\"rewarm links\" clears it", delta))
 					}
+				}
+				// A crashed node used to freeze silently - runFirmware
+				// returned on the first Bridge call that failed, so nothing
+				// after it in node order ever ticked again, and nobody was
+				// told. It is skipped now instead; this is where that gets
+				// said, so "why has it gone quiet" has an answer.
+				if down := eng.FirmwareFailures(); len(down) > 0 {
+					has := "has"
+					if len(down) > 1 {
+						has = "have"
+					}
+					w.Say(fmt.Sprintf(
+						"%s stopped answering and %s been dropped from this run - "+
+							"its firmware process is gone; the rest of the mesh keeps going",
+						strings.Join(down, ", "), has))
 				}
 			}
 			w.NowMs = s.liveEngine().NowMs()
