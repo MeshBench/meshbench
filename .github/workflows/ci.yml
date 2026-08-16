@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  # The race job below runs on request only, so asking for it is how it runs.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -66,16 +68,6 @@ jobs:
           # than the targeted Go version". v2.12.2 is built with go1.25.0.
           version: v2.12.2
 
-      # CI has no GPU (and neither does the dev VM), so this exercises the CPU
-      # reference path only — which is exactly why ADR-0004 requires one.
-      - name: test
-        # -timeout, because the default is ten minutes per package and the
-        # workbench's own package spends most of that rendering frames for
-        # the control audit. It takes ~85s on a developer machine and blows
-        # the default on a two-core runner under -race, which reads as a hang
-        # and is a budget.
-        run: go test -race -count=1 -timeout 30m ./...
-
       # The 500-line hard limit from CLAUDE.md. Applied to shaders and the
       # dissector too, not just Go: hamreach enforced Go only and its largest
       # file reached 746 lines before anyone noticed.
@@ -89,3 +81,106 @@ jobs:
             fi
           done < <(find . \( -name '*.go' -o -name '*.wgsl' -o -name '*.lua' \) -not -path './vendor/*')
           exit $fail
+
+  # The suite, split across runners.
+  #
+  # It used to be one step at the end of `check`, which meant the whole run
+  # was as long as the slowest package plus everything before it, and a
+  # gofmt complaint waited behind ten minutes of RF tests to be told.
+  #
+  # Three packages carry almost all of the time - session is two statistical
+  # tests, workbench is the control audit rendering frames, dsp is the
+  # sensitivity and ceiling checks - and `go test` only runs as many packages
+  # at once as the runner has cores, which is two. Giving each of the three a
+  # runner of its own makes the wall clock the slowest single package rather
+  # than the sum.
+  #
+  # No -race here. It multiplies an already slow suite by enough to make the
+  # wait the thing people notice about the pipeline, and a check nobody waits
+  # for is a check that gets bypassed. The detector still runs, on main, after
+  # the merge - see the race job below.
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      # One shard failing should not hide the others - a red session shard
+      # and a red dsp shard are usually two different problems.
+      fail-fast: false
+      matrix:
+        include:
+          - name: session
+            packages: ./internal/session/...
+          - name: workbench
+            packages: ./internal/workbench/...
+          - name: dsp
+            packages: ./internal/dsp/...
+          - name: rest
+            packages: ""
+    name: test (${{ matrix.name }})
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - name: Headers cgo needs
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            gcc pkg-config libgl1-mesa-dev xorg-dev \
+            libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev \
+            libx11-xcb-dev libegl1-mesa-dev libvulkan-dev libffi-dev
+
+      # CI has no GPU (and neither does the dev VM), so this exercises the CPU
+      # reference path only — which is exactly why ADR-0004 requires one.
+      #
+      # The "rest" shard is everything the named shards did not take, worked
+      # out here rather than listed, so a new package joins it automatically
+      # instead of silently going untested.
+      - name: test
+        run: |
+          if [ -n "${{ matrix.packages }}" ]; then
+            pkgs="${{ matrix.packages }}"
+          else
+            pkgs=$(go list ./... | grep -vE '/internal/(session|workbench|dsp)(/|$)')
+          fi
+          echo "$pkgs" | tr ' ' '\n'
+          go test -count=1 -timeout 20m $pkgs
+
+  # The race detector, on request.
+  #
+  # It has earned its keep here - a GPU-probe race crashed every startup, and
+  # nothing but the detector was going to find that - but it multiplies an
+  # already slow suite by enough that running it on every push made the
+  # pipeline the thing people noticed, and a check nobody waits for is a check
+  # that gets worked around. Runner minutes are finite and this one is the
+  # most expensive thing in the file, so it costs nothing until it is asked
+  # for: run it from the Actions tab before a release, or locally with
+  # `go test -race ./...` while chasing something.
+  race:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - name: Headers cgo needs
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            gcc pkg-config libgl1-mesa-dev xorg-dev \
+            libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev \
+            libx11-xcb-dev libegl1-mesa-dev libvulkan-dev libffi-dev
+
+      # -timeout, because the default is ten minutes per package and the
+      # workbench's own package spends most of that rendering frames for the
+      # control audit. It takes ~85s on a developer machine and blows the
+      # default on a two-core runner under -race, which reads as a hang and
+      # is a budget.
+      - name: test -race
+        run: go test -race -count=1 -timeout 30m ./...
