@@ -98,8 +98,18 @@ func (e *Engine) ApplyRadioState(i int, st firmware.RadioStats) {
 	}
 	n.Spec.TxPowerDBm = txDBm
 	n.Spec.NoiseFigureDB = nfDB
-	// Both figures feed the path-loss cull, so the link cache cannot outlive
-	// them. Inline rather than calling InvalidateLinks, which takes this lock.
-	e.linkCache = map[[2]int]float64{}
-	e.emitterNoise = map[int]float64{}
+	// Both figures feed the path-loss cull, so a cached pair cannot outlive
+	// them - but only pairs this node is party to are affected, not the whole
+	// mesh. Wiping the entire cache here was the bug: the FEM-at-TX and
+	// AGC-boost fields this reads change right after a node transmits, so a
+	// blanket e.linkCache = map[[2]int]float64{} turned every transmission on
+	// a many-node scenario into the frozen-minute DEM walk pathLoss's own
+	// comment describes, instead of the once-per-import cost it was meant to
+	// be. Scoped deletion keeps every other pair's cached figure intact.
+	for k := range e.linkCache {
+		if k[0] == i || k[1] == i {
+			delete(e.linkCache, k)
+		}
+	}
+	delete(e.emitterNoise, i)
 }
