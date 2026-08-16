@@ -208,7 +208,8 @@ func registerFleet(st *state.Store, s *Sim) {
 			}
 		}
 		w.Nodes = out
-		w.Links = s.links()
+		w.Links = nil
+		s.warm(st, len(kept))
 		w.Say("deleted " + name)
 		return map[string]any{"deleted": name, "nodes": len(kept)}, nil
 	})

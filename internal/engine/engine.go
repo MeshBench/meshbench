@@ -143,6 +143,11 @@ type Engine struct {
 	// during a run, and recomputing a profile per packet per pair is the
 	// difference between a run that takes seconds and one that takes hours.
 	linkCache map[[2]int]float64
+	// liveProfiles counts pathLoss calls that missed the cache and paid for a
+	// terrain profile during play rather than during a warm. A caller reads
+	// this to say why a tick just took a while, rather than leaving it looking
+	// like nothing happened.
+	liveProfiles atomic.Int64
 	// classCounts is events by class, kept as they are recorded so the cards
 	// that show them never walk the log.
 	classCounts map[string]int
@@ -789,6 +794,12 @@ func (e *Engine) pathLoss(a, b int) (float64, bool) {
 		return fspl, true
 	}
 
+	// The expensive branch, counted so a caller mid-run can say why it just
+	// paused: this is what a warm exists to do off the delivery path, so
+	// landing here during play means some pair the last warm measured is not
+	// the pair this tick needs - most often a node's radio reporting a real
+	// configuration the warm ran before it had.
+	e.liveProfiles.Add(1)
 	profile, ok := e.profile(from, to, distKm)
 	loss := math.Inf(1)
 	if ok {
@@ -826,6 +837,13 @@ func (e *Engine) profile(from, to scenario.Node, distKm float64) ([]terrain.Poin
 		out[i] = terrain.Point{DistM: f * distKm * 1000, HeightM: h}
 	}
 	return out, true
+}
+
+// LiveProfiles is how many pairs have been profiled outside a warm, this
+// engine's whole lifetime. Cumulative rather than reset per tick, because the
+// caller only wants to know it moved since it last looked.
+func (e *Engine) LiveProfiles() int64 {
+	return e.liveProfiles.Load()
 }
 
 // LinkCacheSnapshot copies the measured matrix out, so a rebuild that changes

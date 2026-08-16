@@ -60,6 +60,8 @@ func registerSimControl(st *state.Store, s *Sim) {
 			if err := s.rebuild(w); err != nil {
 				return nil, err
 			}
+			w.Links = nil
+			s.warm(st, len(s.nodes))
 		}
 		return map[string]any{"seed": w.Seed}, nil
 	})
@@ -89,6 +91,8 @@ func registerSimControl(st *state.Store, s *Sim) {
 		if err := s.rebuild(w); err != nil {
 			return nil, err
 		}
+		w.Links = nil
+		s.warm(st, len(s.nodes))
 		w.Say("reset")
 		return map[string]any{"seed": w.Seed, "now_ms": w.NowMs}, nil
 	})

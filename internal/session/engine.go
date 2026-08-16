@@ -38,6 +38,11 @@ type Sim struct {
 	// warmed reports that the matrix has been measured for the engine as it
 	// stands. Cleared by a rebuild, set when a warm finishes uncancelled.
 	warmed bool
+	// lastLiveProfiles is the engine's LiveProfiles() as of the last tick, so
+	// the next tick can say how many pairs have been profiled since - the
+	// diagnosis for a pause that is not the warming chip: some pair the last
+	// warm measured is not the pair delivery just needed.
+	lastLiveProfiles int64
 	// gpuWarm is whether the link matrix is measured on the GPU when one can
 	// answer to the same accuracy. Off by default: it reads a rasterised
 	// height grid rather than the DEM, which is the same answer on a county
@@ -218,8 +223,16 @@ func (s *Sim) buildSeeded(nodes []scenario.Node, freqMHz float64, seed uint64) {
 	s.geomFP = fp
 	defer func() {
 		if carried != nil && s.eng != nil {
+			// Primes the cache; does not claim the matrix is complete. A
+			// carried map can be a partial in-process snapshot - radio-state
+			// changes evict entries live once firmware reports, and a disk
+			// matrix was only ever complete against the baseline import
+			// figures a firmware node's real configuration can diverge from.
+			// s.cold and s.warmed are left as set above, so the warm every
+			// call site already runs still happens - cheap now, since most
+			// of it lands on this primed cache, but the thing that gets to
+			// say every pair has actually been measured.
 			s.eng.RestoreLinkCache(carried)
-			s.cold, s.warmed = false, true
 		}
 	}()
 	if s.eng != nil {
