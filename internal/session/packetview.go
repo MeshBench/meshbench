@@ -53,14 +53,73 @@ func registerPacket(st *state.Store, s *Sim) {
 		w.Packet = pk
 		w.Say(fmt.Sprintf("packet #%d: from %s, heard by %d, missed by %d",
 			id, pk.Origin, pk.Heard, pk.Missed))
+		// Transmissions is how many times the message was put on the air, so a
+		// caller can tell a relayed flood from a single advert without opening
+		// the window and reading the header.
 		return map[string]any{"id": id, "origin": pk.Origin,
-			"heard": pk.Heard, "missed": pk.Missed}, nil
+			"heard": pk.Heard, "missed": pk.Missed,
+			"transmissions": pk.Transmissions, "reached": pk.Reached}, nil
 	})
 
 	st.Handle("packet.close", func(w *state.World, _ any) (any, error) {
 		w.Packet = nil
 		return nil, nil
 	})
+}
+
+// refreshOpenPacket keeps an open packet view live while its message is
+// still propagating, instead of freezing it at whatever the run looked like
+// the moment it was clicked - the whole point of opening one mid-flood is
+// watching the Journey and the reception ledger keep growing under it.
+//
+// Two gates before the rebuild, because the rebuild is expensive: it copies
+// the whole event log, walks it several times and dissects every transmission
+// in the run. Doing that per tick is the quadratic cost EventsTail was
+// introduced to remove, and "a packet window is open" is the state anybody
+// watching a flood is permanently in.
+//
+//   - EventCount is length-only, so a tick where nothing happened anywhere
+//     costs nothing.
+//   - When something did happen, only the events that are actually new are
+//     copied, and the rebuild is skipped unless one of them belongs to the
+//     message being followed. On a busy mesh almost all traffic belongs to
+//     some other message, so almost every tick stops here.
+func (s *Sim) refreshOpenPacket(w *state.World) {
+	if w.Packet == nil {
+		return
+	}
+	n := s.eng.EventCount()
+	if n == s.lastPacketEvents {
+		return
+	}
+	arrived := n - s.lastPacketEvents
+	s.lastPacketEvents = n
+	if arrived > 0 && !s.touchesPacket(w.Packet, arrived) {
+		return
+	}
+	// A rebuild that finds nothing (the frame has aged out of the event
+	// log) leaves the last good view in place rather than blanking the
+	// window out from under whoever is looking at it.
+	if pk := s.buildPacket(w.Packet.ID); pk != nil {
+		w.Packet = pk
+	}
+}
+
+// touchesPacket reports whether any of the last n events belongs to the
+// message this view is following - by message where the frame carried one,
+// and by packet id otherwise, so a view opened on a frame the engine never
+// gave a message id still refreshes.
+func (s *Sim) touchesPacket(pk *state.Packet, n int) bool {
+	tail, _ := s.eng.EventsTail(n)
+	for _, ev := range tail {
+		if ev.PacketID == pk.ID {
+			return true
+		}
+		if pk.MessageID != 0 && ev.MessageID == pk.MessageID {
+			return true
+		}
+	}
+	return false
 }
 
 // buildPacket gathers everything the run knows about one transmission.
@@ -135,38 +194,45 @@ func (s *Sim) buildPacket(id uint64) *state.Packet {
 			hashNames[td.PathHashes[n-1]] = ev.From
 		}
 	}
-	for _, h := range d.PathHashes {
-		if name, ok := hashNames[h]; ok {
-			pk.Path = append(pk.Path, fmt.Sprintf("%s (%02X)", name, h))
-		} else {
-			pk.Path = append(pk.Path, fmt.Sprintf("%02X", h))
+	// One entry per hop, not per byte. MeshCore's hash size is variable and
+	// encoded in the path-length byte, so iterating the bytes reported six
+	// hops for a two-hop path of three-byte hashes - and the Structure panel
+	// beside it, reading the same frame, correctly said two.
+	//
+	// A trace is skipped entirely: its path area carries the SNR each hop
+	// measured, not hashes, so there are no relay names in there to resolve.
+	if d.PayloadType != 0x09 {
+		for i := 0; i < d.HopCount(); i++ {
+			h := d.Hop(i)
+			if len(h) == 0 {
+				continue
+			}
+			// Named on the hash's last byte, which is what the transmit scan
+			// above keys on.
+			if name, ok := hashNames[h[len(h)-1]]; ok {
+				pk.Path = append(pk.Path, fmt.Sprintf("%s (%X)", name, h))
+			} else {
+				pk.Path = append(pk.Path, fmt.Sprintf("%X", h))
+			}
 		}
 	}
-	for _, f := range d.PayloadFields {
-		pk.PayloadFields = append(pk.PayloadFields, state.PacketField{
-			Name: f.Name, Value: f.Value})
+	pk.Hops = d.HopCount()
+	pk.PayloadFields = asPacketFields(d.PayloadFields)
+	pk.PathFields = asPacketFields(d.PathFields)
+	for _, sp := range d.Spans {
+		pk.Spans = append(pk.Spans, state.PacketSpan{
+			Name: sp.Name, Offset: sp.Offset, Size: sp.Length, Detail: sp.Detail})
+		if strings.HasPrefix(sp.Name, "payload") {
+			pk.Readable = sp.Detail
+		}
 	}
 	if len(d.PayloadFields) == 0 {
 		pk.PayloadNote = fmt.Sprintf(
 			"%d bytes, encrypted or of a type with nothing in clear", len(d.Payload))
 	}
+	pk.Scope = s.scopeOf(frame, d)
 	pk.RawLines = hexDump(frame)
-
-	// The radio-level truth, per receiver.
-	for _, r := range s.eng.Ledger.ForPacket(id) {
-		fw := "never saw it"
-		switch {
-		case r.Demod && r.CRCOK && r.FirmwareSaw:
-			fw = "accepted"
-		case r.Demod && r.CRCOK:
-			fw = "dropped"
-		}
-		pk.Ledger = append(pk.Ledger, state.PacketReception{
-			Node: r.ToNode, From: r.FromNode, Offered: r.Offered,
-			RSSIdBm: r.RSSIdBm, SNRdB: r.SNRdB,
-			Demod: r.Demod, CRCOK: r.CRCOK, Firmware: fw,
-		})
-	}
+	pk.Raw = frame
 
 	// The journey: one row per transmission of the message, in time order,
 	// with who heard that particular relay. Possible only because identity
@@ -189,6 +255,7 @@ func (s *Sim) buildPacket(id uint64) *state.Packet {
 			}
 		case "miss":
 			if i, ok := byPacket[ev.PacketID]; ok {
+				pk.Journey[i].MissWhy = append(pk.Journey[i].MissWhy, ev.Detail)
 				pk.Journey[i].Missed++
 				pk.Journey[i].MissedBy = append(pk.Journey[i].MissedBy, ev.To)
 			}
@@ -201,7 +268,27 @@ func (s *Sim) buildPacket(id uint64) *state.Packet {
 		}
 	}
 	pk.Transmissions, pk.Reached = len(pk.Journey), len(reached)
+
+	// The radio-level truth, per receiver, for every transmission of the
+	// message - a journey spans every hop, and the clicked packet is only
+	// one of them. ForPacket(id) alone told the ledger about a single frame
+	// instance and left every other hop's receptions out of it.
+	pk.LedgerFull = ledgerAcrossJourney(s.eng.Ledger, pk.Journey)
+	pk.Ledger = collapseLedger(pk.LedgerFull)
 	return pk
+}
+
+// asPacketFields carries the dissector's fields across to the view, offsets
+// and all - they are what lets a selected field highlight its own bytes.
+func asPacketFields(in []capture.Field) []state.PacketField {
+	out := make([]state.PacketField, 0, len(in))
+	for _, f := range in {
+		out = append(out, state.PacketField{
+			Name: f.Name, Value: f.Value, Decoded: f.Decoded,
+			Description: f.Description, Offset: f.Offset, Size: f.Length,
+		})
+	}
+	return out
 }
 
 // hexDump is the frame as the eye expects it: offset, sixteen hex bytes, the

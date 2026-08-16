@@ -7,6 +7,7 @@ package session
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/gui/state"
@@ -22,6 +23,7 @@ func Register(st *state.Store, s *Sim) {
 	registerMapCamera(st, s)
 	registerExcessLoss(st, s)
 	registerConsole(st, s)
+	registerLogs(st, s)
 	registerRunKind(st, s)
 	registerNodeWindow(st, s)
 	registerFirmwareLibrary(st, s)
@@ -66,16 +68,15 @@ func Register(st *state.Store, s *Sim) {
 		// proximity links until the real ones arrive.
 		s.build(f.scene, 869.618)
 		w.Links = nil
-		if s.warmed {
-			// The matrix arrived with the engine - carried in-process or read
-			// from disk under this geometry's fingerprint - so the links are
-			// forty-eight thousand cache reads, not a warm.
-			w.Links = s.links()
-			w.Say(fmt.Sprintf("this network was measured before: %d links, from disk",
-				len(w.Links)))
-		} else {
-			s.warm(st, len(f.scene))
-		}
+		// Always through warm, never a shortcut off a carried matrix: a
+		// carry-in - in-process or from disk under this geometry's
+		// fingerprint - primes the cache but is not proof every pair is
+		// still good, since a firmware node's real radio configuration can
+		// diverge from the baseline figures the matrix was measured
+		// against. warm is fast when the carry-in already covers most of
+		// it - pathLoss checks the cache first - and it is the only thing
+		// that gets to say the matrix is complete.
+		s.warm(st, len(f.scene))
 		// One engine step per tick. Step is the engine's own unit of time
 		// and takes its size from the config, so the store paces it rather
 		// than redefining it.
@@ -102,6 +103,38 @@ func Register(st *state.Store, s *Sim) {
 			if s.cold && len(s.nodes) >= 10 {
 				s.warm(st, len(s.nodes))
 			}
+			// A pair profiled outside a warm is a tick that just paid a
+			// terrain walk it was not expecting to - the stall that once
+			// read as the run having simply stopped. Said only once the
+			// pairs are no longer moving because a warm is expected to be
+			// mid-flight; the warming chip already covers that case.
+			if eng := s.liveEngine(); eng != nil {
+				if lp := eng.LiveProfiles(); lp > s.lastLiveProfiles {
+					delta := lp - s.lastLiveProfiles
+					s.lastLiveProfiles = lp
+					if !s.warming() {
+						w.Say(fmt.Sprintf(
+							"recomputed %d link(s) live, mid-run - a node's radio "+
+								"configuration changed since the last warm; "+
+								"\"rewarm links\" clears it", delta))
+					}
+				}
+				// A crashed node used to freeze silently - runFirmware
+				// returned on the first Bridge call that failed, so nothing
+				// after it in node order ever ticked again, and nobody was
+				// told. It is skipped now instead; this is where that gets
+				// said, so "why has it gone quiet" has an answer.
+				if down := eng.FirmwareFailures(); len(down) > 0 {
+					has := "has"
+					if len(down) > 1 {
+						has = "have"
+					}
+					w.Say(fmt.Sprintf(
+						"%s stopped answering and %s been dropped from this run - "+
+							"its firmware process is gone; the rest of the mesh keeps going",
+						strings.Join(down, ", "), has))
+				}
+			}
 			w.NowMs = s.liveEngine().NowMs()
 			// Every open console gets the clock before the step that will
 			// produce the lines it stamps.
@@ -127,6 +160,7 @@ func Register(st *state.Store, s *Sim) {
 				from = w.NowMs - trailWindowMs
 			}
 			w.Trails = s.trailsSince(from, index)
+			s.refreshOpenPacket(w)
 			w.Events, w.EventTotal = s.eventTail(eventTail)
 			w.Counts = s.eventCounts()
 			w.Scores = s.scores()

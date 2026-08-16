@@ -72,6 +72,9 @@ func Run(args []string) {
 		"scope the Licences panel to one section: forks, bundled, golibs, runtime, data")
 	dropFlag := flag.String("drop-menu", "", "open this menu's dropdown at startup, so it can be captured")
 	layersFlag := flag.String("layers", "", "switch these map layers on at startup, comma separated")
+	packetTabFlag := flag.Int("packet-tab", 0,
+		"which tab the packet window opens on: 0 dissection, 1 journey "+
+			"(the propagation graph), 2 reception ledger, 3 where it went")
 	nodeTabFlag := flag.Int("node-tab", 0, "which tab a node window opens on: "+
 		"0 console, 1 companion, 2 settings, 3 radio, 4 stats, 5 activity, 6 connect")
 	coverFlag := flag.String("coverage", "",
@@ -102,6 +105,16 @@ func Run(args []string) {
 	// session never depends on this machine's own file.
 	sm.LoadPrefs()
 	session.Register(st, sm)
+	// Every status line, timestamped and kept in full - not just the last
+	// twenty the strip at the bottom shows. Set before Run starts: nothing
+	// else touches World before then, so there is nothing to race. A run
+	// that goes quiet for reasons nobody was watching for is the thing this
+	// is for, so it has to already be running before anything goes wrong.
+	if logPath, err := openSessionLog(st, sm); err != nil {
+		fmt.Fprintln(os.Stderr, "session log:", err)
+	} else if logPath != "" {
+		fmt.Fprintln(os.Stderr, "session log:", logPath)
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go st.Run(ctx)
@@ -568,6 +581,8 @@ func Run(args []string) {
 	scores := &scorePanel{}
 	sh.Add(&shell.Panel{Name: "Events", Windowable: true, Draw: events.Draw})
 	sh.Add(&shell.Panel{Name: "Scoreboard", Windowable: true, Draw: scores.Draw})
+	logs := &logsPanel{do: do}
+	sh.Add(&shell.Panel{Name: "Logs", Windowable: true, Draw: logs.Draw})
 	tl := &comp.Timeline{}
 	sh.Add(&shell.Panel{Name: "Packet timeline", Windowable: true,
 		Draw: func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
@@ -650,6 +665,7 @@ func Run(args []string) {
 		nv.SetFilter(*filterFlag)
 	}
 	openOnTab = nodeTab(*nodeTabFlag)
+	packetOpenOnTab = *packetTabFlag
 	if *nodeWinFlag != "" {
 		go func() {
 			time.Sleep(4 * time.Second)

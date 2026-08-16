@@ -227,11 +227,20 @@ func haversineKmSession(lat1, lon1, lat2, lon2 float64) float64 {
 // carries on exactly as before, which is the promise the project makes about
 // every GPU path.
 func (s *Sim) gpuDefault() {
+	// probeGPU blocks until the probe it starts - or one already running on
+	// another goroutine - has actually finished, not just started. Ask and
+	// answered used to be one unguarded flag: warm's own goroutine and the
+	// startup gpu.state call both reach this on a fresh session, and the
+	// second one past the old `if s.gpuAsked` check returned before the
+	// first's probe had set gpuProbe at all, handing its caller a nil
+	// pointer the moment it read gpuProbe.present.
+	s.probeGPU()
+	s.gpuMu.Lock()
+	defer s.gpuMu.Unlock()
 	if s.gpuAsked {
 		return
 	}
 	s.gpuAsked = true
-	s.probeGPU()
 	s.gpuWarm = s.gpuProbe.present
 }
 
@@ -341,8 +350,10 @@ func registerGPU(st *state.Store, s *Sim) {
 		if v, ok := boolField(p, "on"); ok {
 			// Chosen beats decided: once somebody has said, the default does
 			// not get another go at it - and the choice survives a restart.
+			s.gpuMu.Lock()
 			s.gpuAsked = true
 			s.gpuWarm = v
+			s.gpuMu.Unlock()
 			s.prefs.GPU = &v
 			s.savePrefs()
 			if v {
@@ -367,18 +378,18 @@ func registerGPU(st *state.Store, s *Sim) {
 // actually did - because "GPU acceleration: on" over a run that quietly fell
 // back to the cores is the kind of claim this project does not make.
 func (s *Sim) gpuState() map[string]any {
+	s.probeGPU()
 	s.gpuMu.Lock()
-	last := s.lastGPU
+	last, enabled, probe := s.lastGPU, s.gpuWarm, s.gpuProbe
 	s.gpuMu.Unlock()
 
-	out := map[string]any{"enabled": s.gpuWarm}
-	s.probeGPU()
-	out["present"] = s.gpuProbe.present
-	if s.gpuProbe.present {
-		out["device"] = s.gpuProbe.name
-		out["backend"] = s.gpuProbe.backend
+	out := map[string]any{"enabled": enabled}
+	out["present"] = probe.present
+	if probe.present {
+		out["device"] = probe.name
+		out["backend"] = probe.backend
 	} else {
-		out["why"] = s.gpuProbe.why
+		out["why"] = probe.why
 	}
 	if last.Device != "" || last.Why != "" {
 		lastOut := map[string]any{"used": last.Used, "pairs": last.Pairs}
@@ -406,31 +417,35 @@ type gpuProbe struct {
 	why     string
 }
 
-// probeGPU asks the machine what it has, once.
+// probeGPU asks the machine what it has, exactly once - through gpuOnce,
+// not a plain nil check on gpuProbe. Two goroutines can both reach this
+// before either has set gpuProbe; a nil check races, sync.Once blocks the
+// second until the first's answer actually exists.
 func (s *Sim) probeGPU() {
-	if s.gpuProbe != nil {
-		return
-	}
-	p := &gpuProbe{}
-	if d, err := gpu.Open(); err == nil {
-		p.name, p.backend = d.Name, d.Backend
-		// Opening is not the same as being right. A d3d12 adapter opened
-		// cleanly, compiled the shaders, ran them, and returned coverage
-		// cells nearly ten decibels away from the processor's - a wrong
-		// answer with nothing to see. So the device proves itself against
-		// the CPU twin on a small problem before it is trusted with the
-		// network, and a device that fails says why rather than quietly
-		// producing plausible numbers.
-		if err := d.SelfCheck(); err != nil {
-			p.present, p.why = false, err.Error()
+	s.gpuOnce.Do(func() {
+		p := &gpuProbe{}
+		if d, err := gpu.Open(); err == nil {
+			p.name, p.backend = d.Name, d.Backend
+			// Opening is not the same as being right. A d3d12 adapter opened
+			// cleanly, compiled the shaders, ran them, and returned coverage
+			// cells nearly ten decibels away from the processor's - a wrong
+			// answer with nothing to see. So the device proves itself against
+			// the CPU twin on a small problem before it is trusted with the
+			// network, and a device that fails says why rather than quietly
+			// producing plausible numbers.
+			if err := d.SelfCheck(); err != nil {
+				p.present, p.why = false, err.Error()
+			} else {
+				p.present = true
+			}
+			d.Close()
 		} else {
-			p.present = true
+			p.why = err.Error()
 		}
-		d.Close()
-	} else {
-		p.why = err.Error()
-	}
-	s.gpuProbe = p
+		s.gpuMu.Lock()
+		s.gpuProbe = p
+		s.gpuMu.Unlock()
+	})
 }
 
 // gpuWorldState is the same answer as gpuState, in the shape the interface
@@ -438,14 +453,14 @@ func (s *Sim) probeGPU() {
 func (s *Sim) gpuWorldState() state.GPUState {
 	s.gpuDefault()
 	s.gpuMu.Lock()
-	last := s.lastGPU
+	last, enabled, probe := s.lastGPU, s.gpuWarm, s.gpuProbe
 	s.gpuMu.Unlock()
 	out := state.GPUState{
-		Enabled: s.gpuWarm,
-		Present: s.gpuProbe.present,
-		Device:  s.gpuProbe.name,
-		Backend: s.gpuProbe.backend,
-		Why:     s.gpuProbe.why,
+		Enabled: enabled,
+		Present: probe.present,
+		Device:  probe.name,
+		Backend: probe.backend,
+		Why:     probe.why,
 		Used:    last.Used,
 		Pairs:   last.Pairs,
 		CellM:   last.CellM,

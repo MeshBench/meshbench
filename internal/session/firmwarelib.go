@@ -432,7 +432,7 @@ func (s *Sim) fillLibrary(w *state.World) {
 	// today, and what a delete has to act on.
 	for _, in := range firmware.ListInstalled(firmware.DefaultCacheDir()) {
 		r := add(in.Role, in.Version, in.Board)
-		r.OnDisk, r.Bytes = true, in.Bytes
+		r.OnDisk, r.Bytes, r.Path = true, in.Bytes, in.Path
 	}
 	// What is published for this machine, from the cache rather than the
 	// network: a library that can only be read online is no use to

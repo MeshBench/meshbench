@@ -26,6 +26,13 @@ import (
 type transport struct {
 	play, step, slow, fast widget.Clickable
 	restart, real          widget.Clickable
+	// rewarm forces a fresh link measurement without waiting for a run to
+	// hit a gap on its own. The identical control already lived in
+	// Configuration, buried where nobody thinks to look mid-run - which
+	// matters because a carried matrix is a head start, not a guarantee:
+	// it can predate what a firmware node's real radio configuration turns
+	// out to be, and this is the manual way back once that has happened.
+	rewarm widget.Clickable
 	// confirmRestart makes the second press the destructive one. A run is
 	// cheap to lose and expensive to notice you have lost.
 	confirmRestart bool
@@ -64,6 +71,9 @@ func (sh *Shell) transportBar(t *theme.Theme, gtx layout.Context, s *state.Snaps
 	}
 	if sh.tr.fast.Clicked(gtx) {
 		fire("sim.faster")
+	}
+	if sh.tr.rewarm.Clicked(gtx) {
+		fire("links.recompute")
 	}
 
 	side := gtx.Dp(t.RowHeight())
@@ -118,6 +128,7 @@ func (sh *Shell) transportBar(t *theme.Theme, gtx layout.Context, s *state.Snaps
 	} else {
 		children = append(children, layout.Rigid(speedChip(t, s)))
 		children = append(children, layout.Rigid(realFirmware(t, &sh.tr.real, s)))
+		children = append(children, layout.Rigid(rewarmButton(t, &sh.tr.rewarm)))
 	}
 	return layout.Flex{Alignment: layout.Middle}.Layout(gtx, children...)
 }
@@ -177,6 +188,26 @@ func realFirmware(t *theme.Theme, c *widget.Clickable, s *state.Snapshot) layout
 				func(gtx layout.Context) layout.Dimensions {
 					return layout.Center.Layout(gtx,
 						comp.Text(t, t.Sz.Caption, fg, "real firmware "+mark))
+				})
+		})
+	}
+}
+
+// rewarmButton fires links.recompute: the same "measure every link again"
+// control Configuration has always had, placed beside the transport too -
+// where an operator actually looks once a run has gone quiet - rather than
+// only in a settings page nobody opens mid-run.
+func rewarmButton(t *theme.Theme, c *widget.Clickable) layout.Widget {
+	return func(gtx layout.Context) layout.Dimensions {
+		return c.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			fg := t.P.Faint
+			if c.Hovered() {
+				fg = t.P.Ink
+			}
+			return layout.Inset{Left: t.Sp.S, Right: t.Sp.S}.Layout(gtx,
+				func(gtx layout.Context) layout.Dimensions {
+					return layout.Center.Layout(gtx,
+						comp.Text(t, t.Sz.Caption, fg, "rewarm links"))
 				})
 		})
 	}

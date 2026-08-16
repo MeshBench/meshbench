@@ -322,6 +322,7 @@ func (p *firmwarePanel) row(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 			if p.OnAction != nil {
 				p.OnAction("firmware.delete", map[string]any{
 					"role": r.Role, "version": r.Version, "board": r.Board,
+					"path": r.Path,
 				})
 			}
 		}

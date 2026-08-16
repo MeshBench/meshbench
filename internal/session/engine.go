@@ -32,27 +32,46 @@ type Sim struct {
 	ui UI
 	// consoles is one scrollback per node, keyed by name.
 	consoles map[string]*console.Buf
+	// logPath is where this run's full status log is being written, if
+	// anywhere - set by whoever opened it, read by log.path so a script or a
+	// menu action can find the file without knowing the naming scheme.
+	logPath string
 	// cold reports that the engine has been rebuilt and its link cache is
 	// empty, so the next thing that can warm it should.
 	cold bool
 	// warmed reports that the matrix has been measured for the engine as it
 	// stands. Cleared by a rebuild, set when a warm finishes uncancelled.
 	warmed bool
+	// lastLiveProfiles is the engine's LiveProfiles() as of the last tick, so
+	// the next tick can say how many pairs have been profiled since - the
+	// diagnosis for a pause that is not the warming chip: some pair the last
+	// warm measured is not the pair delivery just needed.
+	lastLiveProfiles int64
+	// lastPacketEvents is the engine's event count as of the last time an
+	// open packet view was rebuilt, so the tick can skip the rebuild - a full
+	// rescan of every event ever recorded - on a tick where nothing new
+	// happened at all.
+	lastPacketEvents int
 	// gpuWarm is whether the link matrix is measured on the GPU when one can
 	// answer to the same accuracy. Off by default: it reads a rasterised
 	// height grid rather than the DEM, which is the same answer on a county
 	// and a different one on a continent.
 	gpuWarm bool
 	gpuMu   sync.Mutex
+	// gpuOnce runs the probe itself exactly once. warm's own goroutine and
+	// the startup gpu.state call can both reach for it on a fresh session;
+	// this is what makes the second one wait for the first's answer instead
+	// of reading gpuProbe before it exists.
+	gpuOnce sync.Once
 
 	// bench is the engine a running sweep cell owns, so the operator can watch
 	// the run they started rather than a still clock. See benchlive.go.
 	bench benchLive
 	// gpuProbe is what asking this machine for a GPU answered, kept because
-	// asking twice opens a device twice.
+	// asking twice opens a device twice. Behind gpuMu once gpuOnce has run.
 	gpuProbe *gpuProbe
 	// gpuAsked records that the machine has been asked whether it has a GPU,
-	// so the answer is not re-opened on every warm.
+	// so the answer is not re-opened on every warm. Behind gpuMu.
 	gpuAsked bool
 	// tileCacheTiles overrides the tile cache bound, chosen in Configuration.
 	tileCacheTiles int
@@ -188,6 +207,10 @@ const DefaultExcessLossDB = 20
 // anybody a result.
 const defaultSeed = 9001
 
+// SetLogPath records where this run's full status log is being written, for
+// log.path to report.
+func (s *Sim) SetLogPath(path string) { s.logPath = path }
+
 // buildSeeded is build, with the draw stated.
 func (s *Sim) buildSeeded(nodes []scenario.Node, freqMHz float64, seed uint64) {
 	// A rebuild that changes nothing geometric keeps the measured matrix.
@@ -218,8 +241,16 @@ func (s *Sim) buildSeeded(nodes []scenario.Node, freqMHz float64, seed uint64) {
 	s.geomFP = fp
 	defer func() {
 		if carried != nil && s.eng != nil {
+			// Primes the cache; does not claim the matrix is complete. A
+			// carried map can be a partial in-process snapshot - radio-state
+			// changes evict entries live once firmware reports, and a disk
+			// matrix was only ever complete against the baseline import
+			// figures a firmware node's real configuration can diverge from.
+			// s.cold and s.warmed are left as set above, so the warm every
+			// call site already runs still happens - cheap now, since most
+			// of it lands on this primed cache, but the thing that gets to
+			// say every pair has actually been measured.
 			s.eng.RestoreLinkCache(carried)
-			s.cold, s.warmed = false, true
 		}
 	}()
 	if s.eng != nil {

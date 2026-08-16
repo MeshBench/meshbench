@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"io"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -49,9 +50,12 @@ type Snapshot struct {
 	// offer to cancel rather than appearing to have hung.
 	Jobs []Job
 	// Status is the most recent line for the status bar, and Log keeps the
-	// last few so a message cannot scroll away before it is read.
-	Status string
-	Log    []string
+	// last few so a message cannot scroll away before it is read. FullLog is
+	// the same lines, kept much further back, for a panel that exists to be
+	// scrolled rather than glanced at.
+	Status  string
+	Log     []string
+	FullLog []string
 	// Areas are the study boundaries, and MarginKm the band outside them
 	// within which external nodes still matter.
 	Areas    []Area
@@ -254,6 +258,10 @@ type FirmwareRow struct {
 	Board  string
 	Bytes  int64
 	OnDisk bool
+	// Path is where this build sits on disk, empty when OnDisk is false. A
+	// delete acts on this, not on role/version/board - those name the build,
+	// this is where it actually lives.
+	Path string
 	// InUse is how many nodes in this scenario run it, so a delete can say
 	// what it would break.
 	InUse int
@@ -344,26 +352,93 @@ type Packet struct {
 	Version     string
 	Transport   string
 	// Path is the hop hashes, resolved to node names where the run knows
-	// them - approximate by construction and labelled where it fails.
+	// them - approximate by construction and labelled where it fails. One
+	// entry per hop; a trace has none, because its path area carries SNR.
 	Path []string
+	// Hops is the frame's own hop count, off the path-length byte. Not
+	// len(Path): the hash size is variable, and a trace has a hop count with
+	// no hashes to name.
+	Hops int
 	// PayloadFields are what the payload carries in clear; PayloadNote is
 	// what to say when it carries nothing readable.
 	PayloadFields []PacketField
 	PayloadNote   string
+	// PathFields names the path area entry by entry - relay hashes, or, for a
+	// trace, the SNR each hop measured as it passed.
+	PathFields []PacketField
+	// Spans is the frame's shape, in order, tiling every byte of it.
+	Spans []PacketSpan
+	// Readable says how much of this payload type can be read at all, so
+	// nobody hunts through ciphertext for a message body.
+	Readable string
+	// Scope is the region this packet was sent to, as far as it can be
+	// confirmed.
+	Scope PacketScope
 	// RawLines is the frame as a formatted hex dump, one line per 16 bytes.
 	RawLines []string
+	// Raw is the frame itself, so the hex view can colour a span of bytes
+	// rather than only print them - a pre-formatted line cannot be
+	// highlighted from the middle.
+	Raw []byte
 	// Fates is what happened at every node that logged an event for this
-	// packet; Ledger is the radio-level truth for every receiver.
-	Fates  []PacketFate
-	Ledger []PacketReception
+	// packet. Ledger is the radio-level truth for every receiver, collapsed
+	// to the one answer that matters - did it ever get the message, and if
+	// not, why not - across the whole journey; LedgerFull keeps every
+	// attempt uncollapsed, for the "why?" modal's exhaustive per-hop history.
+	Fates      []PacketFate
+	Ledger     []PacketReception
+	LedgerFull []PacketReception
 	// Journey follows the message this packet carried across every relay.
 	Journey       []PacketHop
 	Transmissions int
 	Reached       int
 }
 
-// PacketField is one dissected name and value.
-type PacketField struct{ Name, Value string }
+// PacketField is one dissected field: what it is called, what is on the wire,
+// what that means, and which bytes it came from.
+//
+// Offset and Size are carried rather than dropped so the hex view can
+// highlight the bytes a field was read from - the dissector has computed them
+// all along and this type used to throw them away on the way to the UI.
+type PacketField struct {
+	Name, Value string
+	// Decoded is the value as a person reads it; empty when the raw value is
+	// already the readable one.
+	Decoded string
+	// Description is what the field is for, in a few words.
+	Description  string
+	Offset, Size int
+}
+
+// PacketSpan is one structural region of the frame - header, transport codes,
+// path, payload - so the panel can show the shape before the detail.
+type PacketSpan struct {
+	Name         string
+	Offset, Size int
+	Detail       string
+}
+
+// PacketScope is what can be said about the region a packet was sent to.
+//
+// Three states, and the difference between the last two matters: a region key
+// is never in the packet, so a scope code can only be *confirmed* against a
+// candidate name. Not matching means we did not hold the name, which is not
+// the same as the packet having no scope, and saying so is the difference
+// between a result and a guess.
+type PacketScope struct {
+	// Scoped is whether the frame carries a scope code at all.
+	Scoped bool
+	// Name is the candidate whose key reproduces the code, when one did.
+	Name string
+	// Code is the scope code itself, always shown when Scoped.
+	Code string
+	// Candidates is how many names were checked, so a non-match reads as
+	// "none of the N we hold" rather than as an absence of scope.
+	Candidates int
+	// Note carries the one case with its own meaning: codes {0,0}, which the
+	// firmware treats as addressed to nowhere.
+	Note string
+}
 
 // PacketFate is one node's outcome for one packet.
 type PacketFate struct {
@@ -385,6 +460,15 @@ type PacketReception struct {
 	Demod    bool
 	CRCOK    bool
 	Firmware string // accepted, dropped, never saw it
+	// Why is the engine's own words for this specific reception when it was
+	// offered and still failed - empty when it succeeded outright, and empty
+	// when Offered is false, because nothing measurable arrived to have a
+	// reason at all.
+	Why string
+	// Hop is which transmission of the journey this reception answers for -
+	// a node offered on more than one hop has more than one row, and this is
+	// what tells them apart.
+	Hop int
 }
 
 // PacketHop is one transmission of the followed message.
@@ -397,6 +481,14 @@ type PacketHop struct {
 	// for callers that only need the number.
 	MissedBy []string
 	Missed   int
+	// MissWhy is the engine's own words for each entry in MissedBy, in the
+	// same order.
+	//
+	// Carried here rather than looked up in Fates because Fates covers one
+	// packet and a journey covers every transmission of the message - the
+	// join by node and time silently missed almost all of them, and every
+	// failed hop was drawn as "other".
+	MissWhy  []string
 	PacketID uint64
 }
 
@@ -727,6 +819,14 @@ type World struct {
 	Jobs       []Job
 	Status     string
 	Log        []string
+	// FullLog is Log kept much further back - a few thousand lines rather
+	// than twenty - for a panel built to be scrolled and searched, not just
+	// glanced at.
+	FullLog []string
+	// logWriter, when set, gets every status line too - timestamped and
+	// unbounded, unlike either Log or FullLog. Set once before Run starts;
+	// nothing else touches World before then.
+	logWriter io.Writer
 	// Areas are the study boundaries, and MarginKm the band outside them
 	// within which external nodes still matter.
 	Areas    []Area
@@ -1018,6 +1118,8 @@ func (s *Store) publish() {
 	copy(jobs, s.world.Jobs)
 	log := make([]string, len(s.world.Log))
 	copy(log, s.world.Log)
+	fullLog := make([]string, len(s.world.FullLog))
+	copy(fullLog, s.world.FullLog)
 	// Links and areas are copied too. A snapshot the renderer may hold for
 	// several frames must not alias a slice the store can still append to.
 	links := make([]Link, len(s.world.Links))
@@ -1039,6 +1141,7 @@ func (s *Store) publish() {
 		Jobs:     jobs,
 		Status:   s.world.Status,
 		Log:      log,
+		FullLog:  fullLog,
 		Areas:    areas,
 		MarginKm: s.world.MarginKm,
 		Links:    links,
@@ -1091,12 +1194,34 @@ func (s *Store) publish() {
 }
 
 // Say records a status line. Called from a handler.
+// maxFullLog is how much of the run's own talk a session keeps in memory for
+// the Logs panel - far more than the twenty-line strip, short of holding an
+// unbounded run's entire history hostage in RAM.
+const maxFullLog = 5000
+
 func (w *World) Say(msg string) {
 	w.Status = msg
 	w.Log = append(w.Log, msg)
 	if len(w.Log) > 20 {
 		w.Log = w.Log[len(w.Log)-20:]
 	}
+	line := fmt.Sprintf("%s  t=%8.3fs  %s",
+		time.Now().Format("15:04:05.000"), float64(w.NowMs)/1000, msg)
+	w.FullLog = append(w.FullLog, line)
+	if len(w.FullLog) > maxFullLog {
+		w.FullLog = w.FullLog[len(w.FullLog)-maxFullLog:]
+	}
+	if w.logWriter != nil {
+		_, _ = fmt.Fprintln(w.logWriter, line)
+	}
+}
+
+// SetLogWriter is where every status line also goes, timestamped and kept in
+// full - unlike Log, which is only ever the last twenty, for the strip that
+// draws it. Set once, before Run starts: nothing else touches World before
+// then, so there is nothing here to race.
+func (s *Store) SetLogWriter(w io.Writer) {
+	s.world.logWriter = w
 }
 
 // SetStepMs changes how much simulated time one tick advances.

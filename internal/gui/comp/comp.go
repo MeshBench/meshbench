@@ -38,16 +38,41 @@ func FillRect(gtx layout.Context, sz image.Point, c color.NRGBA) layout.Dimensio
 
 // RoundRect paints a rounded rectangle, for surfaces and buttons.
 func RoundRect(gtx layout.Context, sz image.Point, r unit.Dp, c color.NRGBA) {
-	rr := gtx.Dp(r)
+	rr := cornerRadius(gtx, sz, r)
 	defer clip.RRect{Rect: image.Rectangle{Max: sz}, NE: rr, NW: rr, SE: rr, SW: rr}.
 		Push(gtx.Ops).Pop()
 	paint.ColorOp{Color: c}.Add(gtx.Ops)
 	paint.PaintOp{}.Add(gtx.Ops)
 }
 
+// cornerRadius clamps a corner to what the box can actually hold.
+//
+// A radius larger than half the shorter side has no valid rounded rectangle
+// to describe, and Gio does not reject it: the arcs overrun each other and
+// the resulting path sprays stray strokes across the whole panel, nowhere
+// near the widget that asked for them. Clamping here rather than at each call
+// site because "round this completely" is a reasonable thing to ask for - a
+// pill is a rectangle with a huge radius - and every caller getting it right
+// individually is not something that survives.
+func cornerRadius(gtx layout.Context, sz image.Point, r unit.Dp) int {
+	rr := gtx.Dp(r)
+	half := sz.X
+	if sz.Y < half {
+		half = sz.Y
+	}
+	half /= 2
+	if rr > half {
+		rr = half
+	}
+	if rr < 0 {
+		rr = 0
+	}
+	return rr
+}
+
 // Border strokes a rounded outline without filling it.
 func Border(gtx layout.Context, sz image.Point, r unit.Dp, w unit.Dp, c color.NRGBA) {
-	rr := gtx.Dp(r)
+	rr := cornerRadius(gtx, sz, r)
 	shape := clip.RRect{Rect: image.Rectangle{Max: sz}, NE: rr, NW: rr, SE: rr, SW: rr}
 	paint.FillShape(gtx.Ops, c,
 		clip.Stroke{Path: shape.Path(gtx.Ops), Width: float32(gtx.Dp(w))}.Op())

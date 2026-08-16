@@ -191,6 +191,10 @@ type Native struct {
 
 	mu  sync.Mutex
 	cmd *exec.Cmd
+	// exited closes once cmd.Wait has returned, whichever of Stop or a crash
+	// caused it - the one signal both need, so Wait is only ever called
+	// once. cmd.Wait called a second time is undefined.
+	exited chan struct{}
 }
 
 func (n *Native) Kind() string { return "native" }
@@ -247,12 +251,21 @@ func (n *Native) Start(ctx context.Context, bridgeAddr string) error {
 		return fmt.Errorf("firmware: launch %s: %w", path, err)
 	}
 	n.cmd = cmd
+	// Waited on from here, not from Stop - a crash needs reaping exactly as
+	// much as a graceful exit does, and does not wait for anyone to ask.
+	// Left to Stop alone, a process that died on its own during a run stayed
+	// a zombie until the engine closed, which on a scenario nobody stops for
+	// a while is indistinguishable from a leak - and cmd.Wait must only be
+	// called once per process, so this is the only place that ever does.
+	exited := make(chan struct{})
+	n.exited = exited
+	go func() { _ = cmd.Wait(); close(exited) }()
 	return nil
 }
 
 func (n *Native) Stop() error {
 	n.mu.Lock()
-	cmd := n.cmd
+	cmd, exited := n.cmd, n.exited
 	n.cmd = nil
 	n.mu.Unlock()
 	if cmd == nil || cmd.Process == nil {
@@ -260,16 +273,12 @@ func (n *Native) Stop() error {
 	}
 	// The bridge has already been closed, so the node should be on its way out
 	// under its own steam; give it long enough to write its closing line before
-	// taking that away from it. The wait itself is not optional either — without
-	// it the child stays a zombie, and a scenario that cycles nodes leaks one
-	// per node.
-	done := make(chan struct{})
-	go func() { _ = cmd.Wait(); close(done) }()
+	// taking that away from it.
 	select {
-	case <-done:
+	case <-exited:
 	case <-time.After(gracePeriod):
 		_ = cmd.Process.Kill()
-		<-done
+		<-exited
 	}
 	return nil
 }
