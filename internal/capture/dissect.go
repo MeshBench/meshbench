@@ -36,6 +36,14 @@ type Dissection struct {
 	Payload       []byte
 	PayloadFields []Field
 
+	// PathFields names the path area entry by entry - relay hashes, or, for a
+	// trace, the SNR each hop measured.
+	PathFields []Field
+
+	// Spans is the frame's shape: which bytes are header, transport codes,
+	// path and payload.
+	Spans []Span
+
 	// Truncated marks a frame shorter than its own header implies. Reported
 	// rather than guessed at: a frame this dissector cannot parse is evidence
 	// about the frame, not a reason to invent fields.
@@ -45,10 +53,30 @@ type Dissection struct {
 
 // Field is one named value in a dissection.
 type Field struct {
-	Name  string
+	Name string
+	// Value is what is on the wire, kept as the evidence.
 	Value string
+	// Decoded is that same value in the form a person reads - a timestamp as
+	// a date, a flags byte as the things it switches on, a fixed-point
+	// coordinate as degrees. Empty when the raw value is already readable.
+	//
+	// Both, never one: the decoded reading is the answer, and the raw value
+	// is what lets somebody check it against the hex beside it.
+	Decoded string
+	// Description says what the field is for, in a few words.
+	Description string
 	// Raw is the bytes this field came from, so the hex view can highlight.
 	Offset, Length int
+}
+
+// Span is one structural region of a frame - the header, the transport codes,
+// the path, the payload. Enough to show the shape of a frame before any of
+// its detail, and to say how many bytes each part cost.
+type Span struct {
+	Name           string
+	Offset, Length int
+	// Detail is what to say about this span beside its size.
+	Detail string
 }
 
 // Route and payload names, from MeshCore's Packet.h. Values are wire format.
@@ -111,6 +139,10 @@ func Dissect(frame []byte) Dissection {
 	d.RouteName = RouteTypeName(d.RouteType)
 	d.PayloadName = PayloadTypeName(d.PayloadType)
 	d.HasTransport = d.RouteType == 0x00 || d.RouteType == 0x03
+	d.Spans = append(d.Spans, Span{
+		Name: "header", Offset: 0, Length: 1,
+		Detail: fmt.Sprintf("%s, %s, version %d", d.RouteName, d.PayloadName, d.Version),
+	})
 
 	i := 1
 	if d.HasTransport {
@@ -123,6 +155,14 @@ func Dissect(frame []byte) Dissection {
 			binary.LittleEndian.Uint16(frame[i : i+2]),
 			binary.LittleEndian.Uint16(frame[i+2 : i+4]),
 		}
+		// Four bytes, and the path length byte after them is not one of them.
+		// Only code [0] is ever matched against a region (RegionMap::findMatch);
+		// [1] is carried and reserved. Naming them as anything else - a next
+		// hop, an address - would be a confident invention.
+		d.Spans = append(d.Spans, Span{
+			Name: "transport codes", Offset: i, Length: 4,
+			Detail: scopeCodeDetail(d.TransportCodes),
+		})
 		i += 4
 	}
 
@@ -142,6 +182,10 @@ func Dissect(frame []byte) Dissection {
 	d.PathHashSize = int(frame[i]>>6) + 1
 	hops := int(frame[i] & 63)
 	pathLen := hops * d.PathHashSize
+	d.Spans = append(d.Spans, Span{
+		Name: "path length", Offset: i, Length: 1,
+		Detail: fmt.Sprintf("%d hops of %d bytes", hops, d.PathHashSize),
+	})
 	i++
 	if len(frame) < i+pathLen {
 		d.Truncated, d.Problem = true, fmt.Sprintf(
@@ -150,66 +194,61 @@ func Dissect(frame []byte) Dissection {
 		return d
 	}
 	d.PathHashes = frame[i : i+pathLen]
+	if pathLen > 0 {
+		d.Spans = append(d.Spans, Span{
+			Name: "path", Offset: i, Length: pathLen, Detail: pathSpanDetail(d),
+		})
+	}
+	d.PathFields = pathEntries(d, i)
 	i += pathLen
 
 	d.Payload = frame[i:]
-	d.PayloadFields = dissectPayload(d.PayloadType, d.Payload, i)
+	d.PayloadFields = dissectPayload(d.PayloadType, d.Version, d.Payload, i)
+	if len(d.Payload) > 0 {
+		d.Spans = append(d.Spans, Span{
+			Name: "payload — " + d.PayloadName, Offset: i, Length: len(d.Payload),
+			Detail: payloadSpanDetail(d.PayloadType),
+		})
+	}
 	return d
 }
 
-// dissectPayload names the leading fields each payload type puts in clear.
-func dissectPayload(t uint8, p []byte, base int) []Field {
-	var out []Field
-	add := func(name, value string, off, length int) {
-		out = append(out, Field{Name: name, Value: value, Offset: base + off, Length: length})
+// scopeCodeDetail says what the two transport codes are without overstating
+// what can be known from them. The region key is not in the packet, so a code
+// can only ever be checked against a candidate name - never turned back into
+// one - and that is the caller's job, not the dissector's.
+func scopeCodeDetail(codes []uint16) string {
+	if len(codes) < 2 {
+		return ""
 	}
+	if codes[0] == 0 && codes[1] == 0 {
+		return "0000 0000 — addressed to no region"
+	}
+	return fmt.Sprintf("scope code %04X, reserved %04X", codes[0], codes[1])
+}
+
+// pathSpanDetail names the path area for what it holds, which is not always
+// hashes: a trace collects one signed SNR byte per hop here instead.
+func pathSpanDetail(d Dissection) string {
+	if d.PayloadType == 0x09 {
+		return fmt.Sprintf("%d SNR readings collected by the trace", len(d.PathHashes))
+	}
+	return fmt.Sprintf("%d relays, %d bytes each", d.HopCount(), d.PathHashSize)
+}
+
+// payloadSpanDetail says up front whether there is anything to read, so
+// nobody goes hunting through a payload for a message body that was only ever
+// going to be ciphertext.
+func payloadSpanDetail(t uint8) string {
 	switch t {
-	case 0x04: // advert: public key, timestamp, signature, then app data
-		if len(p) >= 32 {
-			add("public key", fmt.Sprintf("%X", p[:32]), 0, 32)
-		}
-		if len(p) >= 36 {
-			add("timestamp", fmt.Sprint(binary.LittleEndian.Uint32(p[32:36])), 32, 4)
-		}
-		if len(p) >= 100 {
-			add("signature", fmt.Sprintf("%X…", p[36:44]), 36, 64)
-		}
-	case 0x05, 0x06: // group text / datagram: channel hash, MAC, ciphertext
-		if len(p) >= 1 {
-			add("channel hash", fmt.Sprintf("%02X", p[0]), 0, 1)
-		}
-		if len(p) >= 3 {
-			add("MAC", fmt.Sprintf("%02X%02X", p[1], p[2]), 1, 2)
-		}
-		if len(p) > 3 {
-			add("ciphertext", fmt.Sprintf("%d bytes", len(p)-3), 3, len(p)-3)
-		}
-	case 0x00, 0x01, 0x02, 0x08: // dest hash, src hash, MAC, ciphertext
-		if len(p) >= 1 {
-			add("destination hash", fmt.Sprintf("%02X", p[0]), 0, 1)
-		}
-		if len(p) >= 2 {
-			add("source hash", fmt.Sprintf("%02X", p[1]), 1, 1)
-		}
-		if len(p) >= 4 {
-			add("MAC", fmt.Sprintf("%02X%02X", p[2], p[3]), 2, 2)
-		}
-		if len(p) > 4 {
-			add("ciphertext", fmt.Sprintf("%d bytes", len(p)-4), 4, len(p)-4)
-		}
-	case 0x03: // ack: a 4-byte checksum, in clear
-		if len(p) >= 4 {
-			add("ack checksum", fmt.Sprintf("%08X", binary.LittleEndian.Uint32(p[:4])), 0, 4)
-		}
-	case 0x09: // trace: tag, auth, flags, then SNR per hop
-		if len(p) >= 4 {
-			add("trace tag", fmt.Sprintf("%08X", binary.LittleEndian.Uint32(p[:4])), 0, 4)
-		}
-		if len(p) >= 9 {
-			add("flags", fmt.Sprintf("%02X", p[8]), 8, 1)
-		}
+	case 0x03, 0x04, 0x09:
+		return "in clear"
+	case 0x0B, 0x0A:
+		return "partly in clear"
+	case 0x0F:
+		return "application-defined"
 	}
-	return out
+	return "prefix in clear, body encrypted"
 }
 
 // HopCount is how many nodes have relayed this frame — the number an operator
