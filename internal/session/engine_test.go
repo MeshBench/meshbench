@@ -93,7 +93,10 @@ func waitWarmed(t *testing.T, s *Sim, what string) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		if s.warmed {
+		s.warmMu.Lock()
+		warmed := s.warmed
+		s.warmMu.Unlock()
+		if warmed {
 			return
 		}
 		time.Sleep(10 * time.Millisecond)
