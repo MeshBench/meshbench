@@ -1,11 +1,13 @@
 // The companion tab of a node window: three ways into one radio.
 //
-// Client is the workbench's own client, drawing decoded state. CLI is the
-// meshcore-cli command line over the same session - the two share one claim,
-// so switching between them is free and neither can disagree with the other
-// about what the node holds. TCP is the third: the port handed out over a
-// socket or a pty, so a real client can have it, which necessarily means the
-// workbench lets go of it.
+// Client is the workbench's own client, drawing decoded state. Radio is what
+// that client can change about the node - the settings a phone app offers,
+// including the path hash size nothing else exposes. CLI is the meshcore-cli
+// command line over the same session; all three share one claim, so moving
+// between them is free and none can disagree with the others about what the
+// node holds. TCP is the fourth: the port handed out over a socket or a pty,
+// so a real client can have it, which necessarily means the workbench lets go
+// of it.
 //
 // The claim is exclusive at the bridge, and that is the rule the whole tab is
 // arranged around: one holder at a time, and it always says who.
@@ -29,6 +31,7 @@ type companionMode int
 
 const (
 	modeClient companionMode = iota
+	modeRadio
 	modeCLI
 	modeTCP
 )
@@ -39,6 +42,7 @@ var companionModes = []struct {
 	Label string
 }{
 	{modeClient, "Client"},
+	{modeRadio, "Radio"},
 	{modeCLI, "CLI"},
 	{modeTCP, "TCP"},
 }
@@ -63,6 +67,18 @@ type companionTab struct {
 	sentRead   uint8
 	readOnce   bool
 
+	// The settings form's own: a box per field, and the size selector that
+	// the composer shares.
+	setName, setFreq, setBW comp.Field
+	setSF, setCR, setTx     comp.Field
+	applyRadio              comp.Button
+	radioList               widget.List
+	radioSubmitted          bool
+	// pathHash is the size the operator has chosen, in bytes, or zero for
+	// "whatever the node holds". Zero rather than a default, so an untouched
+	// control cannot quietly rewrite a preference.
+	pathHash int
+
 	// The command line's own.
 	cmd     comp.Field
 	runCmd  comp.Button
@@ -81,7 +97,7 @@ type companionTab struct {
 	serveKind    string
 
 	mode      companionMode
-	modeChips [3]widget.Clickable
+	modeChips [4]widget.Clickable
 	clicks_   map[string]*widget.Clickable
 	built     bool
 
@@ -115,6 +131,7 @@ func (c *companionTab) build() {
 	c.stopServeBtn.Label, c.stopServeBtn.Kind = "Stop serving", comp.Secondary
 	c.dropBtn.Label, c.dropBtn.Kind = "Drop client", comp.Secondary
 	c.railList.Axis, c.convoList.Axis, c.cliList.Axis = layout.Vertical, layout.Vertical, layout.Vertical
+	c.buildRadio()
 	c.clicks_ = map[string]*widget.Clickable{}
 	c.built = true
 }
@@ -150,6 +167,15 @@ func (c *companionTab) clicks(gtx layout.Context, cs state.Companion) {
 	runLine := submitted(gtx, &c.cmd)
 	setScope := submitted(gtx, &c.scope)
 	addChan := submitted(gtx, &c.newChan)
+	// Every settings box drains its events whether or not it is on show, and
+	// Enter in any of them is Apply - the form is one act, not six.
+	c.radioSubmitted = false
+	for _, f := range c.radioFields() {
+		if submitted(gtx, f) {
+			c.radioSubmitted = true
+		}
+	}
+	c.radioClicks(gtx, cs)
 	for i := range c.modeChips {
 		if c.modeChips[i].Clicked(gtx) {
 			c.setMode(companionModes[i].Mode)
@@ -163,8 +189,15 @@ func (c *companionTab) clicks(gtx layout.Context, cs state.Companion) {
 	}
 	if c.sendMsg.Click.Clicked(gtx) || sendMsg {
 		if m := fieldText(&c.msg); m != "" {
-			c.do("companion.send", map[string]any{
-				"text": m, "channel": float64(c.channelIdx)})
+			params := map[string]any{"text": m, "channel": float64(c.channelIdx)}
+			// Only when it differs from what the node already holds: the
+			// firmware saves prefs on every set, and rewriting flash before
+			// each message to store the value already there is a real cost
+			// for no change.
+			if c.pathHash != 0 && c.pathHash != cs.PathHashBytes {
+				params["path_hash"] = float64(c.pathHash)
+			}
+			c.do("companion.send", params)
 			c.msg.Editor.SetText("")
 		}
 	}
@@ -250,6 +283,8 @@ func (c *companionTab) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 		layout.Rigid(comp.HRule(t)),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			switch c.mode {
+			case modeRadio:
+				return c.radioPane(t, gtx, cs)
 			case modeCLI:
 				return c.cliPane(t, gtx, s, cs)
 			case modeTCP:
@@ -396,53 +431,6 @@ func identityLine(cs state.Companion) string {
 	return b.String()
 }
 
-// cliPane is the command line, over the same session the client uses.
-func (c *companionTab) cliPane(t *theme.Theme, gtx layout.Context, s *state.Snapshot, cs state.Companion) layout.Dimensions {
-	lines := []string(nil)
-	if s != nil && s.ConsoleNode == c.node {
-		lines = s.Console
-	}
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			if len(lines) == 0 {
-				return centreNote(t, gtx,
-					"no output yet.\nType a command, or ? for the list.")
-			}
-			c.cliList.ScrollToEnd = true
-			return comp.List(t, &c.cliList, len(lines), func(gtx layout.Context, i int) layout.Dimensions {
-				return comp.Mono(t, t.Sz.Data, cliInk(t, lines[i]), lines[i])(gtx)
-			})(gtx)
-		}),
-		layout.Rigid(comp.HRule(t)),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.UniformInset(t.Sp.S).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-						return c.cmd.Layout(t, gtx)
-					}),
-					layout.Rigid(layout.Spacer{Width: t.Sp.S}.Layout),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return c.runCmd.Layout(t, gtx)
-					}),
-				)
-			})
-		}),
-	)
-}
-
-// cliInk picks out the echo and the failures, so a transcript can be read at
-// a glance rather than word by word.
-func cliInk(t *theme.Theme, line string) colorNRGBA {
-	switch {
-	case strings.HasPrefix(line, "> "):
-		return t.P.Ink
-	case strings.HasPrefix(line, "error:"), strings.HasPrefix(line, "no command"),
-		strings.HasPrefix(line, "meshcore-cli has"):
-		return t.P.Bad
-	}
-	return t.P.Dim
-}
-
 // auditDraw is every control at once, flat, for the audit - the modes hide
 // controls from a pointer, and the audit's whole point is pressing them all.
 func (c *companionTab) auditDraw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
@@ -451,12 +439,13 @@ func (c *companionTab) auditDraw(t *theme.Theme, gtx layout.Context, s *state.Sn
 	}
 	cs := companionState(s, c.node)
 	c.clicks(gtx, cs)
-	fields := []*comp.Field{&c.msg, &c.scope, &c.cmd, &c.newChan}
-	buttons := []*comp.Button{
+	radioFields, radioButtons := c.radioWidgets()
+	fields := append([]*comp.Field{&c.msg, &c.scope, &c.cmd, &c.newChan}, radioFields...)
+	buttons := append([]*comp.Button{
 		&c.connectBtn, &c.release, &c.sendMsg, &c.applyScope, &c.advertBtn,
 		&c.refreshBtn, &c.runCmd, &c.serveBtn, &c.stopServeBtn, &c.dropBtn,
 		&c.addChan,
-	}
+	}, radioButtons...)
 	bar := actionBar{fields: fields, buttons: buttons}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return bar.layout(t, gtx) }),

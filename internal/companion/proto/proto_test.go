@@ -191,3 +191,42 @@ func TestDecodeContactName(t *testing.T) {
 		t.Fatalf("contact = %+v", c)
 	}
 }
+
+// The device query is the only frame that says what path hash size a node
+// will actually use, so a client that does not decode it can only show what
+// it last asked for.
+func TestDeviceInfoCarriesThePathHashMode(t *testing.T) {
+	body := make([]byte, 82)
+	body[0] = 10 // firmware version code
+	copy(body[60:80], "v1.17.0")
+	body[80] = 0 // repeat disabled
+	body[81] = 2 // three-byte hashes
+	f, err := proto.Decode(append([]byte{byte(proto.RespDeviceInfo)}, body...))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.Device == nil {
+		t.Fatal("the device query's reply was not decoded")
+	}
+	if !f.Device.ModeKnown || f.Device.PathHashMode != 2 {
+		t.Errorf("mode %d known=%v, wanted 2 and true", f.Device.PathHashMode, f.Device.ModeKnown)
+	}
+	if proto.PathHashBytes(f.Device.PathHashMode) != 3 {
+		t.Errorf("mode 2 is %d bytes, wanted 3", proto.PathHashBytes(f.Device.PathHashMode))
+	}
+	if f.Device.Version != "v1.17.0" {
+		t.Errorf("version %q", f.Device.Version)
+	}
+}
+
+// Firmware older than v10 stops before the mode, and a short frame is an old
+// node rather than a broken one.
+func TestOlderFirmwareSaysNothingAboutTheMode(t *testing.T) {
+	f, err := proto.Decode(append([]byte{byte(proto.RespDeviceInfo)}, make([]byte, 81)...))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.Device == nil || f.Device.ModeKnown {
+		t.Errorf("a frame that stops before the mode must not claim to know it")
+	}
+}

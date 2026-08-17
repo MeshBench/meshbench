@@ -29,6 +29,7 @@ type compSession struct {
 
 	mu       sync.Mutex
 	self     *proto.SelfInfo
+	device   *proto.DeviceInfo
 	contacts []proto.Contact
 	messages []proto.Message
 	channels map[uint8]proto.ChannelInfo
@@ -109,6 +110,12 @@ func (c *compSession) apply(f proto.Frame) {
 	case f.SelfInfo != nil:
 		c.self = f.SelfInfo
 		c.note("self: " + f.SelfInfo.Name)
+	case f.Device != nil:
+		c.device = f.Device
+		if f.Device.ModeKnown {
+			c.note(fmt.Sprintf("path hashes: %d byte(s)",
+				proto.PathHashBytes(f.Device.PathHashMode)))
+		}
 	case f.Channel != nil:
 		if c.channels == nil {
 			c.channels = map[uint8]proto.ChannelInfo{}
@@ -245,6 +252,18 @@ func registerCompanion(st *state.Store, s *Sim) {
 		if v, ok := numField(p, "channel"); ok {
 			idx = uint8(v)
 		}
+		// The path hash size ahead of the message, when one was chosen.
+		//
+		// It is a node preference, not a field on the packet - the firmware
+		// reads _prefs.path_hash_mode at send time - so "send this message
+		// with two-byte hashes" is necessarily two commands in order. Doing
+		// it here rather than in the client keeps the order on the wire,
+		// which a UI that fires two verbs cannot promise.
+		if n, ok := numField(p, "path_hash"); ok {
+			if err := setPathHash(en, uint8(n)); err != nil {
+				return nil, err
+			}
+		}
 		at := time.Now()
 		if err := en.Firmware.Bridge.Type(compFrame(proto.SendChannelText(idx, at, text))); err != nil {
 			return nil, err
@@ -297,38 +316,7 @@ func registerCompanion(st *state.Store, s *Sim) {
 		return map[string]any{"asked_for_channel": idx}, nil
 	})
 
-	st.Handle("companion.configure", func(w *state.World, p any) (any, error) {
-		node, _ := stringField(p, "node")
-		c, en, err := s.companionFor(node)
-		if err != nil {
-			return nil, err
-		}
-		done := []string{}
-		if name, ok := stringField(p, "name"); ok && name != "" {
-			if err := en.Firmware.Bridge.Type(compFrame(proto.SetAdvertName(name))); err != nil {
-				return nil, err
-			}
-			done = append(done, "name")
-		}
-		if lat, ok := numField(p, "lat"); ok {
-			lon, _ := numField(p, "lon")
-			if err := en.Firmware.Bridge.Type(compFrame(proto.SetAdvertLatLon(lat, lon))); err != nil {
-				return nil, err
-			}
-			done = append(done, "position")
-		}
-		if dbm, ok := numField(p, "tx_dbm"); ok {
-			if err := en.Firmware.Bridge.Type(compFrame(proto.SetTxPower(uint8(dbm)))); err != nil {
-				return nil, err
-			}
-			done = append(done, "tx power")
-		}
-		if len(done) == 0 {
-			return nil, fmt.Errorf("companion.configure needs a name, a position or a tx_dbm")
-		}
-		c.note("configured: " + strings.Join(done, ", "))
-		return map[string]any{"set": done}, nil
-	})
+	registerCompanionConfig(st, s)
 
 	// companion.raw: whatever bytes the caller wants, for when the decode is
 	// the thing in question.

@@ -100,6 +100,10 @@ func auditTargets(r *recorder) []target {
 				"comp.dropBtn": "companion only", "comp.tcpChip": "companion only",
 				"comp.newChan": "companion only", "comp.addChan": "companion only",
 				"comp.ptyChip": "companion only",
+				"comp.setName": "companion only", "comp.setFreq": "companion only",
+				"comp.setBW": "companion only", "comp.setSF": "companion only",
+				"comp.setCR": "companion only", "comp.setTx": "companion only",
+				"comp.applyRadio": "companion only",
 				// The node is running, so the head offers stop and not start.
 				"start": "drawn only when the node is stopped",
 			}},

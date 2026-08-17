@@ -274,12 +274,19 @@ func clockOf(at time.Time) string {
 	return at.Format("15:04")
 }
 
-// composer is the scope, the message box and Send.
+// composer is the scope, the path hash size, the message box and Send.
 //
 // Scope sits here rather than in the radio settings because it is a property
 // of the message being sent, not of the application - and because a companion
 // has no command line to set it from, which an earlier version learned the
 // hard way by setting it with a repeater command that went nowhere.
+//
+// The hash size is here for a different reason, and the interface should not
+// pretend otherwise: it is a node preference the firmware reads at send time,
+// not a field on the packet. Choosing it beside the message is how it is
+// used - "send this one with three-byte hashes and watch what comes back" -
+// so the session sets the preference and sends in that order, and the note
+// beside the control says the setting stays.
 func (c *companionTab) composer(t *theme.Theme, gtx layout.Context, cs state.Companion) layout.Dimensions {
 	return layout.UniformInset(t.Sp.S).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
@@ -301,6 +308,18 @@ func (c *companionTab) composer(t *theme.Theme, gtx layout.Context, cs state.Com
 			layout.Rigid(layout.Spacer{Height: t.Sp.XS}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+					layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint, "path hash ")),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return c.hashPicker(t, gtx, cs.PathHashBytes)
+					}),
+					layout.Rigid(layout.Spacer{Width: t.Sp.S}.Layout),
+					layout.Flexed(1, comp.OneLine(t, t.Sz.Caption, t.P.Faint,
+						hashComposerNote(c.pathHash, cs.PathHashBytes), false)),
+				)
+			}),
+			layout.Rigid(layout.Spacer{Height: t.Sp.XS}.Layout),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 						return c.msg.Layout(t, gtx)
 					}),
@@ -312,6 +331,19 @@ func (c *companionTab) composer(t *theme.Theme, gtx layout.Context, cs state.Com
 			}),
 		)
 	})
+}
+
+// hashComposerNote says whether the choice differs from the node's, and that
+// choosing one changes the node rather than only this message.
+func hashComposerNote(chosen, atNode int) string {
+	switch {
+	case atNode == 0 && chosen == 0:
+		return "bytes of hash each hop adds - the node has not said which it uses"
+	case chosen == 0 || chosen == atNode:
+		return "bytes of hash each hop adds"
+	}
+	return fmt.Sprintf("the node is set to %d - sending will change it to %d, and it stays",
+		atNode, chosen)
 }
 
 // scopeNote says what the node holds, which is not always what was typed into

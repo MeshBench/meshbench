@@ -25,6 +25,14 @@ type Companion struct {
 	BWKHz   uint32
 	SF, CR  uint8
 	TxDBm   uint8
+	// MaxTxDBm is the ceiling the radio reports, so the settings pane can
+	// refuse a number the firmware would only reject.
+	MaxTxDBm uint8
+	// PathHashBytes is how many bytes of hash each hop adds to a path when
+	// this node sends: 1, 2 or 3. Zero means the node has not said - firmware
+	// older than v10 does not report it, and guessing 1 there would show a
+	// confident wrong answer.
+	PathHashBytes int
 	// Scope is the region the node sends under, read back from it. Empty
 	// means unscoped, which is a different thing from unknown - see Scoped.
 	Scope  string

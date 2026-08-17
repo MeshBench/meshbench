@@ -57,6 +57,13 @@ func (c *compSession) view() state.Companion {
 		v.Key = shortKey(c.self.PublicKey)
 		v.FreqKHz, v.BWKHz = c.self.FreqKHz, c.self.BWKHz
 		v.SF, v.CR, v.TxDBm = c.self.SF, c.self.CR, c.self.TxPowerDBm
+		v.MaxTxDBm = c.self.MaxTxPowerDBm
+	}
+	// Left at zero against firmware that does not report it, so the settings
+	// pane can say "the node has not said" rather than show a default as a
+	// fact.
+	if c.device != nil && c.device.ModeKnown {
+		v.PathHashBytes = proto.PathHashBytes(c.device.PathHashMode)
 	}
 	v.Scope, v.Scoped = c.scope, c.scopeKnown
 
