@@ -98,6 +98,10 @@ type Sim struct {
 	imp *importState
 	// capturePath is where frames are being written, if anywhere.
 	capturePath string
+	// captureLive is the address frames are being streamed to for Wireshark,
+	// if anywhere. Kept so the interface can say a live capture is running and
+	// offer to stop it, rather than the operator having to remember.
+	captureLive string
 	// comps is one session per connected companion.
 	comps map[string]*compSession
 	// exp is the A/B matrix and what has come back from it.
