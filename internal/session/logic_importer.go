@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"fmt"
+
 	"github.com/MeshBench/meshbench/internal/gui/state"
 	"github.com/MeshBench/meshbench/internal/provider"
 	"github.com/MeshBench/meshbench/internal/scenario"

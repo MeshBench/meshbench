@@ -10,8 +10,9 @@ package session
 
 import (
 	"fmt"
-	"github.com/MeshBench/meshbench/internal/gui/state"
 	"strings"
+
+	"github.com/MeshBench/meshbench/internal/gui/state"
 )
 
 func registerRunKind(st *state.Store, s *Sim) {
