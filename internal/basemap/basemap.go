@@ -372,33 +372,6 @@ func (s *Store) PixelAt(l Layer, lat, lon float64, zoom int) (r, g, b, a uint8, 
 	return img.Pix[i], img.Pix[i+1], img.Pix[i+2], img.Pix[i+3], true
 }
 
-// TilesFor lists the tiles a bounding box needs at a zoom.
-func TilesFor(south, north, west, east float64, zoom int) [][2]int {
-	x0, y0 := tileXY(north, west, zoom)
-	x1, y1 := tileXY(south, east, zoom)
-	if x1 < x0 {
-		x0, x1 = x1, x0
-	}
-	if y1 < y0 {
-		y0, y1 = y1, y0
-	}
-	var out [][2]int
-	for x := x0; x <= x1; x++ {
-		for y := y0; y <= y1; y++ {
-			out = append(out, [2]int{x, y})
-		}
-	}
-	return out
-}
-
-func tileXY(lat, lon float64, zoom int) (int, int) {
-	n := math.Exp2(float64(zoom))
-	x := int(math.Floor((lon + 180) / 360 * n))
-	latRad := lat * math.Pi / 180
-	y := int(math.Floor((1 - math.Log(math.Tan(latRad)+1/math.Cos(latRad))/math.Pi) / 2 * n))
-	return x, y
-}
-
 // Estimate is the cost of covering a box, before it is paid. ADR-0019 requires
 // this before anything is fetched, and the reason is the same here: a pan over
 // a county at full zoom is thousands of tiles.

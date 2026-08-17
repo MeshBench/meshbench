@@ -65,3 +65,63 @@ not retractable, and is the point.
    it arrives under a CLA. Decide that before merging one, not after.
 4. **Nothing changes for the forks.** They keep their own upstream licences;
    `docs/repositories.md` and the licence window remain the inventory.
+
+## The Nordic SoftDevice: emulation is not a licence problem
+
+**Confirmed 17 August 2026, Nordic DevZone case 362437** (opened 14 August).
+This is not the decision above - it is a different licence, a third party's,
+governing something MeshBench does not ship. Recorded here because it is the
+same kind of question and the answer should live where the next one like it
+will be looked for.
+
+### The question
+
+Published nRF52 firmware (`docs/packaging-emulation.md`) boots as MBR →
+SoftDevice S140 6.1.1 → the MeshCore application. Nordic's 5-Clause Licence for
+the SoftDevice restricts its use to "a Nordic Semiconductor ASA integrated
+circuit" - clause 4. An emulated nRF52840, under Renode or QEMU, is not one.
+Whether *running* an unmodified, user-supplied SoftDevice inside an emulator for
+firmware testing falls foul of that clause was genuinely unclear, and MeshBench
+does nothing with the SoftDevice that clause 4 obviously anticipates: no
+reverse engineering, no modification, no extraction beyond filling unprogrammed
+flash with `0xFF` so emulated memory starts erased the way real flash does.
+
+Asked directly rather than assumed, with the specifics: what MeshBench does
+with the binary, the three ways it could be unblocked in order of preference,
+and an offer to accept whatever conditions helped.
+
+### The answer
+
+Nordic's Product Management Team, via DevZone: **"We don't object this... as
+long as the end customer will use Nordic hardware in their end products, and no
+reverse engineering / modification is done on the binary, we don't see a
+problem."** They pointed at how Zephyr's Babblesim project - which simulates
+Nordic's nRF5x hardware the same way MeshBench emulates it - handles the same
+shape of question as a reference: MeshBench is being treated under the same
+terms Nordic already applies there, not a bespoke exception.
+
+### What this settles
+
+**Emulating the SoftDevice for firmware testing is not a licensing problem.**
+The RAK4631 path that already works under Renode, and the ~40 other nRF52
+boards that do not yet have verified emulation wiring, were never blocked on
+anything Nordic objects to - only on the open legal question above, now closed.
+The remaining gap for those boards is entirely the engineering work of wiring
+and verifying each one (`internal/scenario/boards.go`'s `EmulationVerified`);
+nothing about it waits on Nordic's terms any more.
+
+**Getting a copy is also settled, provided MeshBench fetches it rather than
+ships it.** "This requires no redistribution by us at all" was the first of
+the three options put to Nordic, and it is the one to build: MeshBench should
+download the SoftDevice from Nordic's own site at runtime and cache it, the
+same way firmware images are already fetched from GitHub releases rather than
+bundled (`docs/packaging-emulation.md`, whose own checklist has the fetcher as
+not-yet-built work). Nordic hosts it themselves for anyone to fetch; nothing in
+their answer, or in the SoftDevice's own licence, turns *pointing MeshBench at
+that download* into MeshBench distributing it - the file never touches our
+infrastructure or our release archive.
+
+Hosting a copy of the SoftDevice in MeshBench's own release archive - rather
+than fetching it from Nordic at runtime - is a different act, was not put to
+Nordic, and nothing here answers it. A runtime fetch does not need it answered,
+because MeshBench is never the one distributing the file.
