@@ -320,10 +320,13 @@ stock Renode does not model either.
 With those, a RAK4631 boots MBR → SoftDevice → MeshCore, configures its radio,
 and puts a 127-byte advert on the channel.
 
-**The SoftDevice still cannot be redistributed.** Nordic licenses it, so anyone
-running a published nRF52 image supplies their own copy — which is why
-`tools/armfw/` stays: a SoftDevice-free build of the same MeshCore source is
-what we can actually hand to someone. It is not the flashed bytes and is not
+**The SoftDevice is fetched from Nordic's own site at runtime, not shipped by
+us.** Nordic has confirmed in writing that emulating it for firmware testing is
+not a licensing problem, provided the end product runs on real Nordic hardware
+and the binary is neither reverse-engineered nor modified — `docs/licence.md`
+has the full record. `tools/armfw/` stays regardless: a SoftDevice-free build
+of the same MeshCore source is what we can hand to someone who would rather not
+fetch anything from Nordic at all. It is not the flashed bytes and is not
 described as if it were, and its radio is a stub, so it proves the mesh stack
 compiles and runs on Cortex-M4 rather than that a node works.
 
