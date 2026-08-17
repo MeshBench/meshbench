@@ -1,0 +1,470 @@
+// The Configuration page's own cards: what this run assumes, section by
+// section, so an operator can see the model rather than trust it.
+package workbench
+
+import (
+	"fmt"
+
+	"gioui.org/layout"
+	"github.com/MeshBench/meshbench/internal/gui/comp"
+	"github.com/MeshBench/meshbench/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/gui/theme"
+)
+
+func (p *configPanel) overview(t *theme.Theme, s *state.Snapshot) []layout.Widget {
+	grid := func(cells ...layout.Widget) layout.Widget {
+		return func(gtx layout.Context) layout.Dimensions {
+			return comp.CellGrid(t, gtx, 190, cells)
+		}
+	}
+	lastWarm := "not yet"
+	warmCap := "nothing has been measured on it"
+	if s.GPU.Pairs > 0 {
+		lastWarm = fmt.Sprintf("%d pairs in %d ms", s.GPU.Pairs, s.GPU.Ms)
+		warmCap = "what the last warm actually did"
+	}
+	return []layout.Widget{
+		comp.Card(t, "", func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+						layout.Rigid(comp.Text(t, t.Sz.Section, t.P.Ink, "Run profile")),
+						layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Warn,
+							"optimised for the cleanest possible channel: no multipath, bare earth, ideal demodulator")),
+					)
+				}),
+				layout.Rigid(runPill(t, s)),
+			)
+		}),
+		comp.Card(t, "Simulation scope", grid(
+			comp.StatCell(t, "Study areas", itoa(len(s.Areas)), "what bounds the study"),
+			comp.StatCell(t, "Study margin", fmt.Sprintf("%g km", s.MarginKm),
+				"how far outside the boundary a node still matters"),
+			comp.StatCell(t, "Nodes", itoa(len(s.Nodes)),
+				"every one is simulated; none are sampled"),
+		)),
+		comp.Card(t, "Links & measurement", func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(grid(
+					comp.StatCell(t, "Links measured", itoa(len(s.Links)),
+						"pairs with a path loss from the engine"),
+					comp.StatCell(t, "Last warm on the GPU", lastWarm, warmCap),
+					comp.StatCell(t, "Running", yesNo(s.Playing),
+						"the engine advances on its own ticker"),
+					comp.StatCell(t, "Simulated time",
+						fmt.Sprintf("%.2f s", float64(s.NowMs)/1000),
+						"not wall time, and never has been"),
+				)),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Top: t.Sp.S}.Layout(gtx,
+						func(gtx layout.Context) layout.Dimensions {
+							return p.gpu.LayoutSwitch(t, gtx)
+						})
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Top: t.Sp.XS}.Layout(gtx,
+						comp.Text(t, t.Sz.Caption, t.P.Faint, gpuNote(s.GPU)))
+				}),
+			)
+		}),
+		comp.Card(t, "Randomness & variance", grid(
+			comp.StatCell(t, "Seed", fmt.Sprintf("%d", s.Seed),
+				"two runs with one seed are identical"),
+			comp.StatCell(t, "Events", itoa(s.EventTotal),
+				"the whole log; tables show the tail of it"),
+		)),
+		comp.Card(t, "Graphics & performance", func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Start}.Layout(gtx,
+				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Right: t.Sp.M}.Layout(gtx,
+						func(gtx layout.Context) layout.Dimensions {
+							return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									return p.device.Layout(t, gtx)
+								}),
+								layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint,
+									"every GPU path has a processor twin")),
+							)
+						})
+				}),
+				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return p.cacheDD.Layout(t, gtx)
+						}),
+						layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint,
+							"decoded terrain tiles held in memory")),
+					)
+				}),
+			)
+		}),
+		comp.Card(t, "About the tile cache", comp.Text(t, t.Sz.Caption, t.P.Faint,
+			fmt.Sprintf("a smaller cache uses less memory but may re-read tiles "+
+				"from disk constantly - current cache %.3g GB at %s",
+				cacheGB(s), orUnset(s.TileCacheDir)))),
+	}
+}
+
+func (p *configPanel) general(t *theme.Theme, s *state.Snapshot) []layout.Widget {
+	return []layout.Widget{
+		comp.Card(t, "Run kind", func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return p.realFW.LayoutSwitch(t, gtx)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Top: t.Sp.XS}.Layout(gtx,
+						comp.Text(t, t.Sz.Caption, t.P.Faint,
+							"on, play starts MeshCore on every node and each relay decision "+
+								"is the firmware's own; off, the channel is real but nothing relays"))
+				}),
+			)
+		}),
+		comp.Card(t, "Speed", p.fieldRow(t, &p.speed, &p.setSpeed,
+			fmt.Sprintf("simulated milliseconds per tick - now %d ms; independent "+
+				"of the frame rate by design", s.StepMs))),
+		comp.Card(t, "Study margin", p.fieldRow(t, &p.margin, &p.setMargin,
+			fmt.Sprintf("now %g km - how far outside the boundary a node still matters", s.MarginKm))),
+	}
+}
+
+func (p *configPanel) nodesCards(t *theme.Theme, s *state.Snapshot) []layout.Widget {
+	kinds := map[string]int{}
+	running := 0
+	for i := range s.Nodes {
+		kinds[s.Nodes[i].Kind]++
+	}
+	running = s.FirmwareRunning
+	cells := []layout.Widget{
+		comp.StatCell(t, "Nodes", itoa(len(s.Nodes)), "every one is simulated"),
+		comp.StatCell(t, "Running firmware", itoa(running),
+			"processes up right now"),
+	}
+	for _, k := range []string{"simple-repeater", "advanced-repeater", "companion",
+		"room-server", "sdr-observer", "emitter"} {
+		if kinds[k] > 0 {
+			cells = append(cells, comp.StatCell(t, shortKind(k), itoa(kinds[k]), ""))
+		}
+	}
+	return []layout.Widget{
+		comp.Card(t, "The network", func(gtx layout.Context) layout.Dimensions {
+			return comp.CellGrid(t, gtx, 170, cells)
+		}),
+	}
+}
+
+func (p *configPanel) linksCards(t *theme.Theme, s *state.Snapshot) []layout.Widget {
+	return []layout.Widget{
+		comp.Card(t, "The link matrix", func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return comp.CellGrid(t, gtx, 190, []layout.Widget{
+						comp.StatCell(t, "Links measured", itoa(len(s.Links)),
+							"pairs with a path loss from the engine, weighted by the weaker direction"),
+						comp.StatCell(t, "Measured on", gpuOrCPU(s.GPU),
+							"where the last warm ran"),
+					})
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Top: t.Sp.S}.Layout(gtx,
+						func(gtx layout.Context) layout.Dimensions {
+							return p.recomp.Layout(t, gtx)
+						})
+				}),
+			)
+		}),
+	}
+}
+
+func (p *configPanel) environment(t *theme.Theme, s *state.Snapshot) []layout.Widget {
+	return []layout.Widget{
+		comp.Card(t, "Excess path loss", p.fieldRow(t, &p.excess, &p.setExcess,
+			"everything the bare-earth model does not contain: vegetation, buildings, "+
+				"the ground not being a knife edge - fitted at 20 dB against 118 real "+
+				"receptions; setting it rebuilds and re-measures")),
+		comp.Card(t, "Elevation", comp.Text(t, t.Sz.Caption, t.P.Faint,
+			"terrarium tiles at zoom 12, about 30 m per pixel at UK latitudes - "+
+				"missing tiles answer \"no data\", which is bare earth for that "+
+				"profile and says so")),
+	}
+}
+
+func (p *configPanel) timeCards(t *theme.Theme, s *state.Snapshot) []layout.Widget {
+	return []layout.Widget{
+		comp.Card(t, "The clock", func(gtx layout.Context) layout.Dimensions {
+			return comp.CellGrid(t, gtx, 190, []layout.Widget{
+				comp.StatCell(t, "Simulated time",
+					fmt.Sprintf("%.2f s", float64(s.NowMs)/1000),
+					"not wall time, and never has been"),
+				comp.StatCell(t, "Speed", fmt.Sprintf("%d ms/tick", s.StepMs),
+					"how much simulated time one tick advances"),
+			})
+		}),
+		comp.Card(t, "Speed", p.fieldRow(t, &p.speed, &p.setSpeed,
+			"independent of the frame rate: the run must not go faster on a "+
+				"better graphics card")),
+	}
+}
+
+func (p *configPanel) seedCards(t *theme.Theme, s *state.Snapshot) []layout.Widget {
+	return []layout.Widget{
+		comp.Card(t, "Seed", p.fieldRow(t, &p.seed, &p.setSeed,
+			fmt.Sprintf("now %d - two runs with one seed are identical by design; "+
+				"setting it rebuilds the engine, and the measured matrix carries "+
+				"over when the geometry has not changed", s.Seed))),
+	}
+}
+
+func (p *configPanel) graphics(t *theme.Theme, s *state.Snapshot) []layout.Widget {
+	g := s.GPU
+	present := "none found"
+	if g.Present {
+		present = g.Device + " (" + g.Backend + ")"
+	}
+	cells := []layout.Widget{
+		comp.StatCell(t, "Graphics device", present,
+			"every GPU path has a processor twin that answers the same, more slowly"),
+		comp.StatCell(t, "Links measured on the GPU", yesNo(g.Enabled),
+			"forty-eight thousand independent profiles is the shape a compute shader is for"),
+	}
+	if g.Pairs > 0 {
+		cells = append(cells, comp.StatCell(t, "Last warm",
+			fmt.Sprintf("%d pairs in %d ms", g.Pairs, g.Ms),
+			"what the last warm actually did"))
+	}
+	return []layout.Widget{
+		comp.Card(t, "The graphics path", func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return comp.CellGrid(t, gtx, 210, cells)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Top: t.Sp.S}.Layout(gtx,
+						func(gtx layout.Context) layout.Dimensions {
+							return p.gpu.LayoutSwitch(t, gtx)
+						})
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Top: t.Sp.XS}.Layout(gtx,
+						comp.Text(t, t.Sz.Caption, t.P.Faint, gpuNote(s.GPU)))
+				}),
+			)
+		}),
+	}
+}
+
+func (p *configPanel) eventsCards(t *theme.Theme, s *state.Snapshot) []layout.Widget {
+	return []layout.Widget{
+		comp.Card(t, "The event log", func(gtx layout.Context) layout.Dimensions {
+			return comp.CellGrid(t, gtx, 190, []layout.Widget{
+				comp.StatCell(t, "Events", itoa(s.EventTotal),
+					"everything the engine did; the tables show the most recent"),
+				comp.StatCell(t, "In the tables", itoa(len(s.Events)),
+					"the tail, oldest first"),
+			})
+		}),
+		comp.Card(t, "", comp.Text(t, t.Sz.Caption, t.P.Faint,
+			"export the whole log from File > Export the event log; capture a "+
+				"pcapng from Simulation > Capture to a pcapng file")),
+	}
+}
+
+func (p *configPanel) system(t *theme.Theme, s *state.Snapshot) []layout.Widget {
+	return []layout.Widget{
+		comp.Card(t, "Tile cache size", p.fieldRow(t, &p.cacheGBf, &p.setCache,
+			fmt.Sprintf("decoded terrain tiles held in memory - now %.3g GB; a cache "+
+				"smaller than the study area re-reads tiles from disk constantly",
+				cacheGB(s)))),
+		comp.Card(t, "Tile cache location", func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Dim,
+					"now at "+orUnset(s.TileCacheDir))),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Top: t.Sp.S}.Layout(gtx,
+						p.fieldRow(t, &p.cacheDir, &p.moveCache,
+							"moved as a visible job - renamed on the same filesystem, "+
+								"copied then deleted across; nothing re-downloads"))
+				}),
+			)
+		}),
+		comp.Card(t, "Saved settings", comp.Text(t, t.Sz.Caption, t.P.Faint,
+			"the GPU choice, the cache size and the cache location survive a "+
+				"restart, in ~/.config/meshcoresim/workbench2.json; the scenario "+
+				"itself deliberately stays in the fixture")),
+	}
+}
+
+// interfaceCards is the interface's own settings: theme, density, scale.
+// Applied live, in every window - a theme somebody cannot see the effect of
+// until they restart is a theme they set by trial and error.
+func (p *configPanel) interfaceCards(t *theme.Theme, s *state.Snapshot) []layout.Widget {
+	if p.sets == nil {
+		return []layout.Widget{comp.Card(t, "Interface",
+			comp.Text(t, t.Sz.Caption, t.P.Faint, "no interface settings here"))}
+	}
+	mode, density, _ := p.sets.get()
+	p.themeDD.Value = "Dark"
+	if mode == theme.Light {
+		p.themeDD.Value = "Light"
+	}
+	p.themeDD.OnOpen = func() {
+		if p.choose == nil {
+			return
+		}
+		p.choose("Theme", []string{"Dark", "Light"}, func(picked string) {
+			m := theme.Dark
+			if picked == "Light" {
+				m = theme.Light
+			}
+			p.sets.setMode(m)
+		})
+	}
+	switch density {
+	case theme.Comfortable:
+		p.densityDD.Value = "Comfortable"
+	case theme.Compact:
+		p.densityDD.Value = "Compact"
+	default:
+		p.densityDD.Value = "Standard"
+	}
+	p.densityDD.OnOpen = func() {
+		if p.choose == nil {
+			return
+		}
+		p.choose("Density", []string{"Comfortable", "Standard", "Compact"},
+			func(picked string) {
+				switch picked {
+				case "Comfortable":
+					p.sets.setDensity(theme.Comfortable)
+				case "Compact":
+					p.sets.setDensity(theme.Compact)
+				default:
+					p.sets.setDensity(theme.Default)
+				}
+			})
+	}
+	return []layout.Widget{
+		comp.Card(t, "Appearance", func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{}.Layout(gtx,
+						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+							return layout.Inset{Right: t.Sp.M}.Layout(gtx,
+								func(gtx layout.Context) layout.Dimensions {
+									return p.themeDD.Layout(t, gtx)
+								})
+						}),
+						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+							return p.densityDD.Layout(t, gtx)
+						}),
+					)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Top: t.Sp.XS}.Layout(gtx,
+						comp.Text(t, t.Sz.Caption, t.P.Faint,
+							"light is a design of its own, not the dark one inverted; "+
+								"density trades what fits on screen against how big a "+
+								"thing is to click - changes apply immediately, in every window"))
+				}),
+			)
+		}),
+		comp.Card(t, "Scale", p.fieldRow(t, &p.scale, &p.setScale,
+			"the whole interface's size; for a screen whose pixels and viewing "+
+				"distance disagree with the platform's guess")),
+	}
+}
+
+// fieldRow is a field, its button and the reason underneath - the shape every
+// settable value here takes.
+func (p *configPanel) fieldRow(t *theme.Theme, f *comp.Field, b *comp.Button, why string) layout.Widget {
+	return func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.End}.Layout(gtx,
+					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+						gtx.Constraints.Max.X = min(gtx.Constraints.Max.X, gtx.Dp(280))
+						return f.Layout(t, gtx)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						// Only the field that wants a directory gets a browse
+						// button; the others take numbers.
+						if f != &p.cacheDir {
+							return layout.Dimensions{}
+						}
+						return layout.Inset{Left: t.Sp.S, Bottom: t.Sp.XXS}.Layout(gtx,
+							func(gtx layout.Context) layout.Dimensions {
+								return p.browseCache.Layout(t, gtx)
+							})
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return layout.Inset{Left: t.Sp.S, Bottom: t.Sp.XXS}.Layout(gtx,
+							func(gtx layout.Context) layout.Dimensions {
+								return b.Layout(t, gtx)
+							})
+					}),
+				)
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Top: t.Sp.XS}.Layout(gtx,
+					comp.Text(t, t.Sz.Caption, t.P.Faint, why))
+			}),
+		)
+	}
+}
+
+// gpuNote is why the last warm did not use the GPU, when it did not.
+func gpuNote(g state.GPUState) string {
+	switch {
+	case !g.Present:
+		return "no graphics device: " + g.Why
+	case g.Enabled && g.Why != "":
+		return "the last warm used the processor: " + g.Why
+	case g.Enabled:
+		return "the kernel is held to its processor twin by an equivalence " +
+			"test, and refuses a grid too coarse to be the same answer"
+	}
+	return "off: every link is measured on the processor, across every core"
+}
+
+func gpuOrCPU(g state.GPUState) string {
+	if g.Used {
+		return "the GPU"
+	}
+	return "the processor"
+}
+
+func yesNo(b bool) string {
+	if b {
+		return "yes"
+	}
+	return "no"
+}
+
+func orUnset(s string) string {
+	if s == "" {
+		return "the default cache directory"
+	}
+	return s
+}
+
+func trim0(f float64) string {
+	if f == float64(int(f)) {
+		return fmt.Sprintf("%d", int(f))
+	}
+	return fmt.Sprintf("%g", f)
+}
+
+// cacheGB is the bound as the session reports it, or the default before it
+// has said anything.
+func cacheGB(s *state.Snapshot) float64 {
+	if s != nil && s.TileCacheGB > 0 {
+		return s.TileCacheGB
+	}
+	return 10
+}
+
+// pickResult is a browse answer on its way back to the frame loop.
+type pickResult struct {
+	path string
+	err  error
+}

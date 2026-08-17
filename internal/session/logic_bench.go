@@ -2,9 +2,10 @@ package session
 
 import (
 	"fmt"
+	"sort"
+
 	"github.com/MeshBench/meshbench/internal/engine"
 	"github.com/MeshBench/meshbench/internal/gui/state"
-	"sort"
 )
 
 // serve opens an endpoint for one companion.

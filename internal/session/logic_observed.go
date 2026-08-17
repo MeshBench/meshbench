@@ -3,11 +3,12 @@ package session
 import (
 	"context"
 	"fmt"
-	"github.com/MeshBench/meshbench/internal/gui/state"
-	"github.com/MeshBench/meshbench/internal/provider"
 	"math"
 	"sort"
 	"time"
+
+	"github.com/MeshBench/meshbench/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/provider"
 )
 
 // PullObserved fetches recent receptions from a deployment.

@@ -4,10 +4,11 @@ import (
 	"sync"
 
 	"fmt"
-	"github.com/MeshBench/meshbench/internal/gui/comp"
 	"sort"
 	"strings"
 	"sync/atomic"
+
+	"github.com/MeshBench/meshbench/internal/gui/comp"
 
 	"github.com/MeshBench/meshbench/internal/gui/shell"
 	"github.com/MeshBench/meshbench/internal/gui/state"

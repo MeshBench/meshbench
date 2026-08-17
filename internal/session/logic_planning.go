@@ -2,6 +2,7 @@ package session
 
 import (
 	"fmt"
+
 	"github.com/MeshBench/meshbench/internal/coverage"
 	"github.com/MeshBench/meshbench/internal/gui/state"
 	"github.com/MeshBench/meshbench/internal/linkbudget"
