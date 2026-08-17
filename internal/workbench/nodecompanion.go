@@ -439,16 +439,24 @@ func (c *companionTab) auditDraw(t *theme.Theme, gtx layout.Context, s *state.Sn
 	}
 	cs := companionState(s, c.node)
 	c.clicks(gtx, cs)
+	// Two bars, not one. An action bar flexes its boxes evenly across the
+	// width, so ten of them in a row are each too narrow to take a keystroke -
+	// which the audit reports as a box that does not accept typing, and it is
+	// right to. The settings form has its own row here because it has its own
+	// row on screen.
 	radioFields, radioButtons := c.radioWidgets()
-	fields := append([]*comp.Field{&c.msg, &c.scope, &c.cmd, &c.newChan}, radioFields...)
-	buttons := append([]*comp.Button{
-		&c.connectBtn, &c.release, &c.sendMsg, &c.applyScope, &c.advertBtn,
-		&c.refreshBtn, &c.runCmd, &c.serveBtn, &c.stopServeBtn, &c.dropBtn,
-		&c.addChan,
-	}, radioButtons...)
-	bar := actionBar{fields: fields, buttons: buttons}
+	bar := actionBar{
+		fields: []*comp.Field{&c.msg, &c.scope, &c.cmd, &c.newChan},
+		buttons: []*comp.Button{
+			&c.connectBtn, &c.release, &c.sendMsg, &c.applyScope, &c.advertBtn,
+			&c.refreshBtn, &c.runCmd, &c.serveBtn, &c.stopServeBtn, &c.dropBtn,
+			&c.addChan,
+		},
+	}
+	radioBar := actionBar{fields: radioFields, buttons: radioButtons}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return bar.layout(t, gtx) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return radioBar.layout(t, gtx) }),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
