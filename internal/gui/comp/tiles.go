@@ -82,23 +82,13 @@ func (t *Tiles) Draw(gtx layout.Context, sz image.Point, centreLat, centreLon, z
 	if t.Store == nil || t.Layer.ID == "" {
 		return 0, 0
 	}
-	// Metres per pixel at this latitude, from the pixels-per-degree the map is
-	// using, so the tile zoom matches what is on screen rather than a guess.
-	metresPerDeg := 111320 * math.Cos(centreLat*math.Pi/180)
-	if metresPerDeg < 1 {
-		metresPerDeg = 1
-	}
-	mpp := metresPerDeg / zoomPxPerDeg
-	z := basemap.ZoomFor(mpp, centreLat, t.Layer)
+	z := basemap.ZoomFor(metresPerPixel(zoomPxPerDeg), centreLat, t.Layer)
 
-	halfLat := float64(sz.Y) / 2 / zoomPxPerDeg
 	cos := math.Cos(centreLat * math.Pi / 180)
 	if cos < 0.01 {
 		cos = 0.01
 	}
-	halfLon := float64(sz.X) / 2 / (zoomPxPerDeg * cos)
-	south, north := centreLat-halfLat, centreLat+halfLat
-	west, east := centreLon-halfLon, centreLon+halfLon
+	south, north, west, east := viewportBounds(sz, centreLat, centreLon, zoomPxPerDeg)
 
 	for _, xy := range basemap.TilesFor(south, north, west, east, z) {
 		want++
@@ -148,6 +138,49 @@ func (t *Tiles) Draw(gtx layout.Context, sz image.Point, centreLat, centreLon, z
 		drawn++
 	}
 	return drawn, want
+}
+
+// metresPerPixel is the map's scale, which does not depend on latitude.
+//
+// It looks as though it should. The projection scales longitude by the cosine
+// of the centre latitude, so a degree of longitude is fewer pixels up north -
+// but a degree of longitude is fewer metres up north by exactly the same
+// factor, and the two cancel. The map is locally isotropic: 111320/Zoom metres
+// to a pixel, across and down, everywhere.
+//
+// This used to fold the cosine in once, which made the scale look finer than
+// it was and sent ZoomFor log2(1/cos) levels too deep - one extra level in
+// Scotland, three at latitude 84. Every one of those is four times the tiles,
+// fetched and decoded and drawn, for a picture no sharper than the screen can
+// show.
+func metresPerPixel(zoomPxPerDeg float64) float64 {
+	if zoomPxPerDeg <= 0 {
+		return math.Inf(1)
+	}
+	// Metres in a degree of latitude, which is the axis the zoom is in.
+	const metresPerDegLat = 111320
+	return metresPerDegLat / zoomPxPerDeg
+}
+
+// viewportBounds is the box on the ground the viewport covers.
+//
+// Zoomed out, this is much larger than the planet - hundreds of degrees of
+// latitude at the minimum zoom - and that is not a mistake to correct here.
+// It is what the viewport covers, and clamping it to the world is the tile
+// grid's business, where the world is what the grid is made of. Correcting it
+// here as well would mean two places that both half-know the rule.
+func viewportBounds(sz image.Point, centreLat, centreLon, zoomPxPerDeg float64) (south, north, west, east float64) {
+	if zoomPxPerDeg <= 0 {
+		return centreLat, centreLat, centreLon, centreLon
+	}
+	cos := math.Cos(centreLat * math.Pi / 180)
+	if cos < 0.01 {
+		cos = 0.01
+	}
+	halfLat := float64(sz.Y) / 2 / zoomPxPerDeg
+	halfLon := float64(sz.X) / 2 / (zoomPxPerDeg * cos)
+	return centreLat - halfLat, centreLat + halfLat,
+		centreLon - halfLon, centreLon + halfLon
 }
 
 // cachedOp returns an already-uploaded tile, and whether there was one.
