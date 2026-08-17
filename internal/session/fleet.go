@@ -82,10 +82,17 @@ func registerFleet(st *state.Store, s *Sim) {
 		// The old workbench steps a second of simulated time between sending
 		// and reading; this cannot do that here, because stepping is the
 		// store's own work and this is the store's own goroutine.
-		s.fleetPending = &fleetPending{cmd: cmd, marks: marks}
+		// Carried directly to the goroutine that will finish the job, rather
+		// than stashed on the Sim for fleet.replies to pick back up later - a
+		// second fleet.send before the first had been answered used to
+		// overwrite this same field, so the first command's own collector
+		// read the second command's marks, and the second command's
+		// collector then found nothing left to read at all. That is what
+		// "fleet commands give no response" was.
+		pend := &fleetPending{cmd: cmd, marks: marks}
 		w.FleetCommand, w.FleetReplies = cmd, nil
 		w.Say(fmt.Sprintf("sent %q to %d nodes; waiting for their replies", cmd, len(targets)))
-		go s.collectFleet(st, w.Playing)
+		go collectFleet(st, w.Playing, pend)
 		out := map[string]any{
 			"command": cmd, "sent_to": len(targets), "replies": replies,
 		}
@@ -96,13 +103,15 @@ func registerFleet(st *state.Store, s *Sim) {
 	})
 
 	// fleet.replies: what came back, once the engine has run far enough for
-	// the nodes to have answered.
-	st.Handle("fleet.replies", func(w *state.World, _ any) (any, error) {
-		pend := s.fleetPending
-		if pend == nil {
+	// the nodes to have answered. Called only from collectFleet, always with
+	// the pending object that particular send produced - never read back off
+	// shared state, so two fleet.send calls in flight cannot corrupt one
+	// another's replies.
+	st.Handle("fleet.replies", func(w *state.World, p any) (any, error) {
+		pend, ok := p.(*fleetPending)
+		if !ok || pend == nil {
 			return map[string]any{"replies": 0}, nil
 		}
-		s.fleetPending = nil
 		out := make([]state.FleetReply, 0, len(pend.marks))
 		for name, mark := range pend.marks {
 			buf, err := s.consoleFor(name)
@@ -244,7 +253,7 @@ type fleetPending struct {
 // is already playing the store's ticker provides that time, so this only waits
 // for it; when it is paused nothing would ever step, so the steps are asked
 // for one at a time through the store rather than taken from under it.
-func (s *Sim) collectFleet(st *state.Store, playing bool) {
+func collectFleet(st *state.Store, playing bool, pend *fleetPending) {
 	ctx := context.Background()
 	if playing {
 		// Two seconds of the mesh's own time, not the wall's.
@@ -275,7 +284,7 @@ func (s *Sim) collectFleet(st *state.Store, playing bool) {
 			}
 		}
 	}
-	_, _ = st.Do(ctx, "fleet.replies", nil)
+	_, _ = st.Do(ctx, "fleet.replies", pend)
 }
 
 // cmdOf is the command a pending fleet send was about.
