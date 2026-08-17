@@ -252,10 +252,13 @@ var _ = fmt.Sprintf
 // places. One without its position advertises none, and a client draws it at
 // null island. One whose clock disagrees rejects messages as replays, which
 // reads as a radio fault.
+// provisioningControls is the base: what every node gets unless a rule below
+// says otherwise. Its own settings resolve as rule zero - see
+// session.legacyAsRule - so there is nothing special about this bar except
+// that it has no conditions and is always first; the rules panel underneath
+// is the same mechanism, written out.
 type provisioningControls struct {
 	name, pos, clock comp.Check
-	region, scope    comp.Check
-	hops, stagger    comp.Field
 	extra            comp.Field
 	apply            comp.Button
 	toRunning        comp.Button
@@ -268,30 +271,16 @@ func (c *provisioningControls) Draw(t *theme.Theme, gtx layout.Context, s *state
 		c.name.Label, c.name.Bool.Value = "set each node's name", true
 		c.pos.Label, c.pos.Bool.Value = "tell it where it is", true
 		c.clock.Label, c.clock.Bool.Value = "give them all one clock", true
-		c.region.Label = "define a region from the study area"
-		c.scope.Label = "and make it the default scope"
-		c.hops.Hint = "cap advert hops (blank: leave alone)"
-		c.stagger.Hint = "stagger starts, ms"
-		c.extra.Hint = "anything else this study needs, one command per line"
-		c.hops.Editor.SingleLine = true
-		c.stagger.Editor.SingleLine = true
+		c.extra.Hint = "anything else every node needs, one command per line"
 		c.apply.Label, c.apply.Kind = "use for the next start", comp.Primary
 		c.toRunning.Label, c.toRunning.Kind = "send to nodes already running", comp.Secondary
 		c.built = true
 	}
 	settings := func() map[string]any {
-		p := map[string]any{
+		return map[string]any{
 			"set_name": c.name.Bool.Value, "set_position": c.pos.Bool.Value,
-			"set_clock": c.clock.Bool.Value, "region_from_area": c.region.Bool.Value,
-			"default_scope": c.scope.Bool.Value, "extra": fieldText(&c.extra),
+			"set_clock": c.clock.Bool.Value, "extra": fieldText(&c.extra),
 		}
-		if v, ok := num(&c.hops); ok {
-			p["advert_hops"] = v
-		}
-		if v, ok := num(&c.stagger); ok {
-			p["stagger_ms"] = v
-		}
-		return p
 	}
 	if c.apply.Click.Clicked(gtx) && c.do != nil {
 		c.do("provisioning.set", settings())
@@ -301,7 +290,7 @@ func (c *provisioningControls) Draw(t *theme.Theme, gtx layout.Context, s *state
 		c.do("provisioning.apply", nil)
 	}
 
-	checks := []*comp.Check{&c.name, &c.pos, &c.clock, &c.region, &c.scope}
+	checks := []*comp.Check{&c.name, &c.pos, &c.clock}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			var kids []layout.FlexChild
@@ -318,10 +307,9 @@ func (c *provisioningControls) Draw(t *theme.Theme, gtx layout.Context, s *state
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			bar := actionBar{
-				fields:  []*comp.Field{&c.hops, &c.stagger},
 				buttons: []*comp.Button{&c.apply, &c.toRunning},
-				note: "these are the lines the node panel shows under \"is told, at boot\", " +
-					"so what you read there and what a node is sent cannot drift apart",
+				note: "the base every node gets - path hash size, loop detection, " +
+					"regions and everything else live in the rules below",
 			}
 			return bar.layout(t, gtx)
 		}),

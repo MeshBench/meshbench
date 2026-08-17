@@ -197,6 +197,7 @@ func (p *nodeViewPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 		}),
 		layout.Rigid(p.contextMenu(t)),
 		layout.Rigid(provisioningScript(t, s)),
+		layout.Rigid(resolvedProvisioningScript(t, s)),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			// The graphs give up their space while a menu is open.
 			//

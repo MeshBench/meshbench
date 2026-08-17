@@ -234,7 +234,7 @@ func registerMeshCLI(st *state.Store, s *Sim) {
 			if c := s.comps[node]; c != nil {
 				c.note("> " + line)
 				c.note(out)
-				w.Console, w.ConsoleNode = c.Lines(), node
+				setConsole(w, node, c.Lines())
 			}
 			return map[string]any{"node": node, "reply": out}, nil
 		}

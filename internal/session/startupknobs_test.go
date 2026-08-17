@@ -15,7 +15,9 @@ func repeaterNode(name string) scenario.Node {
 	}
 }
 
-// The default provisioning sends what the old workbench sends at attach.
+// The default provisioning sends what the old workbench sends at attach, plus
+// the two knobs that changed: 3-byte path hashes and minimal loop detection,
+// both off in the bare firmware.
 func TestDefaultProvisioningMatchesOldWorkbench(t *testing.T) {
 	cmds := DefaultProvisioning().commandsFor(repeaterNode("Abernethy Repeater"))
 	joined := strings.Join(cmds, "\n")
@@ -25,17 +27,17 @@ func TestDefaultProvisioningMatchesOldWorkbench(t *testing.T) {
 		"set lon -3.200000",
 		"time 1788220800",
 		"set flood.max.advert 32",
+		"set path.hash.mode 2",
+		"set loop.detect minimal",
 	} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("default provisioning is missing %q:\n%s", want, joined)
 		}
 	}
-	// The pass-through knobs stay silent until somebody sets them: -1 and
-	// empty mean the firmware's own defaults, not zero.
-	for _, absent := range []string{"path.hash.mode", "loop.detect", "set cad"} {
-		if strings.Contains(joined, absent) {
-			t.Errorf("default provisioning sends %q without being asked:\n%s", absent, joined)
-		}
+	// CAD stays silent until somebody sets it - empty means the firmware's
+	// own default, not off.
+	if strings.Contains(joined, "set cad") {
+		t.Errorf("default provisioning sends cad without being asked:\n%s", joined)
 	}
 }
 

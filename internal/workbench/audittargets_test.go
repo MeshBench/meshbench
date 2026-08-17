@@ -48,6 +48,21 @@ func auditTargets(r *recorder) []target {
 		askText: func(_, _, _ string, got func(string)) { got("rxdelay.base") },
 	}
 	prov := &provisioningControls{do: r.do}
+	provRules := &provisioningRulesPanel{do: r.do,
+		choose: func(_ string, opts []string, pick func(string)) {
+			if len(opts) > 0 {
+				pick(opts[0])
+			}
+		}}
+	// The per-rule controls do not exist until a rule has been added - the
+	// same reason nv.pickFor exists above: auditing a control shut only
+	// proves it is shut, not that pressing it does anything.
+	resetProvRules := func() {
+		provRules.editors = nil
+		e := &ruleEditor{}
+		e.build(provRules)
+		provRules.editors = append(provRules.editors, e)
+	}
 
 	nodes := &nodesPanel{}
 	nodes.OnSelect = func(string) { r.do("nodes.select", nil) }
@@ -59,8 +74,9 @@ func auditTargets(r *recorder) []target {
 	nv.OnFirmware = func(n, v string) { r.do("node.set_firmware", v) }
 	nw := &nodeWindowPanel{node: "Abernethy Repeater"}
 	snapWithConsole := auditSnapshot()
-	snapWithConsole.ConsoleNode = "Abernethy Repeater"
-	snapWithConsole.Console = []string{"   0.000  > advert"}
+	snapWithConsole.Consoles = map[string][]string{
+		"Abernethy Repeater": {"   0.000  > advert"},
+	}
 	nw.OnCommand = func(n, l string) { r.do("console.type", l) }
 	nw.OnAction = func(a, n string) { r.do(a, n) }
 	nw.OnServe = func(node, kind string) { r.do("bench.serve", kind) }
@@ -121,6 +137,7 @@ func auditTargets(r *recorder) []target {
 			"varyDD.Btn": "picks the parameter; add arms is what applies it",
 		}},
 		{"Provisioning", prov, prov.Draw, nil, nil, nil, nil},
+		{"Provisioning rules", provRules, provRules.Draw, nil, resetProvRules, nil, nil},
 		// The flat layout, so every section's controls are on screen at once;
 		// the sidebar's own switching is TestConfigurationSectionsSwitch.
 		// Fired counts the settings generation too: the Interface controls

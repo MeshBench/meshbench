@@ -117,8 +117,6 @@ func whyProvision(cmd string) string {
 	case strings.HasPrefix(cmd, "time"):
 		return "a node whose clock disagrees rejects messages as replays, which " +
 			"reads as a radio fault"
-	case strings.HasPrefix(cmd, "set advert.hops"):
-		return "caps how far an advert floods"
 	case strings.HasPrefix(cmd, "set flood.max.advert"):
 		return "how far an advert is relayed - the firmware ships with 8, " +
 			"short on a national mesh, and a node whose advert never arrives " +

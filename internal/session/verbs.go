@@ -43,6 +43,11 @@ func Register(st *state.Store, s *Sim) {
 	registerCompanion(st, s)
 	registerMeshCLI(st, s)
 	registerProvisioningSettings(st, s)
+	registerProvisioningRules(st, s)
+	registerProvisioningKeys(st, s)
+	registerProvisioningContext(st, s)
+	registerProvisioningPreview(st, s)
+	registerBoundaryGeoJSON(st, s)
 	registerRadioReconcile(st, s)
 	registerExperiment(st, s)
 	registerExperimentDone(st, s)
@@ -144,9 +149,12 @@ func Register(st *state.Store, s *Sim) {
 			// in the buffer when the firmware's loop runs, which is now -
 			// published only on the next console.type, every answer appeared
 			// one command late, which reads as a console that does not answer.
-			if w.ConsoleNode != "" {
-				if buf, ok := s.consoles[w.ConsoleNode]; ok {
-					w.Console = buf.Snapshot()
+			// Every watched console gets re-read after the step that will have
+			// produced the lines it stamps - not only whichever one was most
+			// recently typed into, so two open node windows both stay live.
+			for name := range w.Consoles {
+				if buf, ok := s.consoles[name]; ok {
+					setConsole(w, name, buf.Snapshot())
 				}
 			}
 			// Trails from the last few seconds of simulated time. Recomputed

@@ -108,12 +108,35 @@ type World struct {
 	ExperimentSenders []string
 	// Series is the selected node's history, for its graphs.
 	Series NodeSeries
-	// Provisioning is the script for the node last asked about.
+	// Provisioning is the script for the node last asked about - the flat
+	// preview from a session's simple settings, kept for the panels that
+	// still read it.
 	Provisioning     []ProvisionLine
 	ProvisioningNode string
-	// Console is one node's firmware scrollback.
-	Console     []string
-	ConsoleNode string
+	// ProvisioningRules is the current rule list: a base with no conditions
+	// plus whatever overrides a study has added.
+	ProvisioningRules []ProvisionRule
+	// ProvisioningKeys is the firmware's own command table, for the panel to
+	// build choosers from rather than hand-writing which keys exist.
+	ProvisioningKeys []ProvisionKey
+	// ProvisioningMatch is how many nodes matched each rule, as of the last
+	// readback - by rule name, so a rule matching zero nodes is visible
+	// while it is being written rather than only after a run.
+	ProvisioningMatch map[string]int
+	// ProvisioningReadAt says whether the match counts and the resolved
+	// preview reflect an actual readback or nothing has been read yet.
+	ProvisioningReadAt uint32
+	ProvisioningRead   bool
+	// ProvisioningPreviewNode is the node the resolved script is shown for,
+	// and ProvisioningPreview is that script - what will actually be sent,
+	// annotated with which rule asked for each line.
+	ProvisioningPreviewNode string
+	ProvisioningPreview     []ProvisionResolvedLine
+	// ProvisioningResults is what the last run's nodes said back.
+	ProvisioningResults []ProvisionResult
+	// Consoles is scrollback for every node currently being watched - see
+	// Snapshot's own field of the same name for why this is a map.
+	Consoles map[string][]string
 	// FleetReplies is what each node said to the last fleet command. A
 	// command sent to forty nodes with no reply shown is indistinguishable
 	// from one that went nowhere.

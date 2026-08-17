@@ -15,6 +15,7 @@
 package session
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -28,13 +29,6 @@ type Provisioning struct {
 	SetName     bool `json:"set_name"`
 	SetPosition bool `json:"set_position"`
 	SetClock    bool `json:"set_clock"`
-	// RegionFromArea defines a transport region named after the study area on
-	// every node, and DefaultScope makes it the one they originate under.
-	RegionFromArea bool `json:"region_from_area"`
-	DefaultScope   bool `json:"default_scope"`
-	// AdvertHops caps how far an advert floods. Zero leaves the firmware's
-	// own setting alone.
-	AdvertHops int `json:"advert_hops"`
 	// AdvertMinutes is how often a node says it is there, zero-hop.
 	//
 	// Zero, which is MeshCore's own default, and means never. Worth knowing
@@ -45,9 +39,6 @@ type Provisioning struct {
 	// asking it to, which is what the fleet's advert command is for.
 	AdvertMinutes int `json:"advert_minutes"`
 
-	// StaggerMs spreads node starts, because bringing several hundred up in
-	// the same millisecond is a burst no real network ever sees.
-	StaggerMs int `json:"stagger_ms"`
 	// FloodMaxAdvert caps how far an advert is relayed. The firmware ships
 	// with 8, which is generous on a town and short on a country: a node
 	// whose advert never arrives is a node nobody can route to. Zero leaves
@@ -76,12 +67,17 @@ type Provisioning struct {
 func DefaultProvisioning() Provisioning {
 	return Provisioning{
 		SetName: true, SetPosition: true, SetClock: true,
-		StaggerMs: 250,
 		// 32 against the firmware's default of 8, matching the old
 		// workbench: the cost is airtime on adverts, which are small and
 		// infrequent; the alternative is unroutable nodes on national runs.
-		FloodMaxAdvert:   32,
-		PathHashMode:     -1,
+		FloodMaxAdvert: 32,
+		// 3-byte path hashes (wire value 2: the CLI counts from zero, this
+		// field does too) and minimal loop detection - both off in the bare
+		// firmware. At 3 bytes the three non-off loop.detect levels are
+		// indistinguishable by construction, which is worth knowing rather
+		// than tuning strict against a knob that cannot tell the difference.
+		PathHashMode:     2,
+		LoopDetect:       "minimal",
 		CompPathHashMode: -1,
 	}
 }
@@ -94,24 +90,16 @@ func registerProvisioningSettings(st *state.Store, s *Sim) {
 	st.Handle("provisioning.set", func(w *state.World, p any) (any, error) {
 		pr := s.provisioning()
 		for name, set := range map[string]func(bool){
-			"set_name":         func(v bool) { pr.SetName = v },
-			"set_position":     func(v bool) { pr.SetPosition = v },
-			"set_clock":        func(v bool) { pr.SetClock = v },
-			"region_from_area": func(v bool) { pr.RegionFromArea = v },
-			"default_scope":    func(v bool) { pr.DefaultScope = v },
+			"set_name":     func(v bool) { pr.SetName = v },
+			"set_position": func(v bool) { pr.SetPosition = v },
+			"set_clock":    func(v bool) { pr.SetClock = v },
 		} {
 			if v, ok := boolField(p, name); ok {
 				set(v)
 			}
 		}
-		if v, ok := numField(p, "advert_hops"); ok {
-			pr.AdvertHops = int(v)
-		}
 		if v, ok := numField(p, "advert_minutes"); ok {
 			pr.AdvertMinutes = int(v)
-		}
-		if v, ok := numField(p, "stagger_ms"); ok {
-			pr.StaggerMs = int(v)
 		}
 		if v, ok := numField(p, "flood_max_advert"); ok {
 			pr.FloodMaxAdvert = int(v)
@@ -139,27 +127,29 @@ func registerProvisioningSettings(st *state.Store, s *Sim) {
 
 	// provisioning.apply sends the current settings to nodes already running,
 	// which is the difference between changing what a future run does and
-	// changing what this one is doing.
-	st.Handle("provisioning.apply", func(w *state.World, _ any) (any, error) {
+	// changing what this one is doing. It goes through the same
+	// read/decide/write/verify pipeline a start uses - the old version sent
+	// the settings' own commandsFor alone and silently left every region
+	// command out, so "send to nodes already running" was never actually the
+	// same script as a start.
+	st.Handle("provisioning.apply", func(w *state.World, p any) (any, error) {
 		if s.eng == nil {
 			return nil, fmt.Errorf("no network loaded")
 		}
-		pr := s.provisioning()
-		sent := 0
-		for _, n := range s.nodes {
-			en, ok := s.eng.NodeByName(n.Name)
-			if !ok || en.Firmware == nil {
-				continue
+		var only []string
+		if set := stringSetField(p, "nodes"); set != nil {
+			for n := range set {
+				only = append(only, n)
 			}
-			for _, line := range pr.commandsFor(n) {
-				if err := en.Firmware.Bridge.Type([]byte(line + "\r\n")); err != nil {
-					return nil, fmt.Errorf("%s: %w", n.Name, err)
-				}
-			}
-			sent++
 		}
-		w.Say(fmt.Sprintf("re-provisioned %d running nodes", sent))
-		return map[string]any{"nodes": sent}, nil
+		if s.starting.Swap(true) {
+			return nil, fmt.Errorf("firmware is already starting or provisioning")
+		}
+		go func() {
+			defer s.starting.Store(false)
+			s.runProvisioning(context.Background(), st, only)
+		}()
+		return map[string]any{"started": true}, nil
 	})
 }
 
@@ -174,9 +164,7 @@ func (s *Sim) provisioning() *Provisioning {
 func (p Provisioning) describe() map[string]any {
 	return map[string]any{
 		"set_name": p.SetName, "set_position": p.SetPosition,
-		"set_clock": p.SetClock, "region_from_area": p.RegionFromArea,
-		"default_scope": p.DefaultScope, "advert_hops": p.AdvertHops,
-		"stagger_ms": p.StaggerMs, "extra": p.Extra,
+		"set_clock": p.SetClock, "extra": p.Extra,
 		"advert_minutes":   p.AdvertMinutes,
 		"flood_max_advert": p.FloodMaxAdvert, "path_hash_mode": p.PathHashMode,
 		"loop_detect": p.LoopDetect, "cad": p.CadMode,
@@ -242,9 +230,6 @@ func (p Provisioning) commandsFor(n scenario.Node) []string {
 			mins = 240
 		}
 		out = append(out, fmt.Sprintf("set advert.interval %d", mins))
-	}
-	if p.AdvertHops > 0 {
-		out = append(out, fmt.Sprintf("set advert.hops %d", p.AdvertHops))
 	}
 	if p.FloodMaxAdvert > 0 && n.Kind.Transmits() {
 		out = append(out, fmt.Sprintf("set flood.max.advert %d", p.FloodMaxAdvert))

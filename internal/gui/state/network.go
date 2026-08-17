@@ -122,6 +122,11 @@ type Area struct {
 	Name  string
 	Rings [][]Point
 	Holes [][]Point
+	// Source says where the geometry came from: "nominatim" for a searched
+	// place, "geojson" for an imported file. An area smaller than a country
+	// generally has nothing to search for, so an imported one is the normal
+	// case for a fine-grained study, not a fallback.
+	Source string
 }
 
 // Point is a position, and the only geometry the snapshot carries.

@@ -205,9 +205,9 @@ func (c *companionTab) statusStrip(t *theme.Theme, gtx layout.Context) layout.Di
 
 // replies is the conversation with the firmware, shared by every sub-tab.
 func (c *companionTab) replies(t *theme.Theme, gtx layout.Context, s *state.Snapshot, empty string) layout.Dimensions {
-	lines := []string(nil)
-	if s != nil && s.ConsoleNode == c.node {
-		lines = s.Console
+	var lines []string
+	if s != nil {
+		lines = s.Consoles[c.node]
 	}
 	if len(lines) == 0 {
 		return layout.Center.Layout(gtx, comp.Text(t, t.Sz.Caption, t.P.Faint, empty))
