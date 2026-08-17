@@ -7,79 +7,84 @@ import (
 	"testing"
 )
 
-// The port is the whole reason this was broken, so it is worth a test that
-// fails loudly if somebody "tidies" it back to an arbitrary one.
-func TestWeStreamWhereUdpdumpListens(t *testing.T) {
-	if !strings.HasSuffix(udpdumpAddr, ":5555") {
-		t.Fatalf("streaming to %s, which is not where udpdump listens", udpdumpAddr)
+// The port is not a free choice - it is meshcoresim.lua's own MSIM_UDP_PORT -
+// so this fails loudly if somebody "tidies" it back to an arbitrary value.
+func TestWeStreamWhereMeshbenchLuaListens(t *testing.T) {
+	if !strings.HasSuffix(captureUDPAddr, ":5555") {
+		t.Fatalf("streaming to %s, which is not where meshcoresim.lua registers", captureUDPAddr)
 	}
 }
 
-func TestTheHintMatchesThePort(t *testing.T) {
-	if got := wiresharkHint(udpdumpAddr); got != "wireshark -k -i udpdump" {
-		t.Errorf("on the default port the hint should need no configuring, got %q", got)
+// The whole bug this file exists to fix: udpdump and a bare UDP stream are
+// two different protocols that happen to share a default port number.
+// Whatever capture.wireshark launches has to point Wireshark at a real
+// interface with a display filter, never at the extcap.
+func TestLaunchNeverUsesTheUdpdumpExtcap(t *testing.T) {
+	// There is no live wireshark binary to launch in a test, so this checks
+	// the hint - the same words a human would be told to run by hand - which
+	// launchWireshark's own exec.Command is built from the same way.
+	got := wiresharkHint("", "")
+	if strings.Contains(got, "udpdump") {
+		t.Fatalf("the hint still mentions udpdump: %q", got)
 	}
-	if got := wiresharkHint("127.0.0.1:19000"); !strings.Contains(got, "19000") {
-		t.Errorf("off the default port the hint must say which port, got %q", got)
+	if !strings.Contains(got, "-i lo") {
+		t.Fatalf("wanted a real interface with a display filter, got %q", got)
 	}
-}
-
-func TestInstallingTheDissectorOverwritesAnOlderCopy(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("APPDATA", home)
-
-	src := filepath.Join(t.TempDir(), "meshcore_dissector.lua")
-	if err := os.WriteFile(src, []byte("-- new"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	dir, err := dissectorPluginDir()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	stale := filepath.Join(dir, "meshcore_dissector.lua")
-	if err := os.WriteFile(stale, []byte("-- old"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	dest, err := installDissector(src)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if dest != stale {
-		t.Errorf("installed to %s, wanted %s", dest, stale)
-	}
-	body, err := os.ReadFile(dest)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(body) != "-- new" {
-		t.Errorf("an older copy shadowed the new one: %q", body)
+	if !strings.Contains(got, "udp port "+captureUDPPort) {
+		t.Fatalf("wanted the capture filtered to the port meshcoresim.lua listens on, got %q", got)
 	}
 }
 
-func TestAMissingDissectorIsReportedNotFatal(t *testing.T) {
-	if _, err := installDissector(filepath.Join(t.TempDir(), "absent.lua")); err == nil {
-		t.Fatal("installing a dissector that is not there should say so")
+func TestTheHintCarriesBothDissectorsInLoadOrder(t *testing.T) {
+	got := wiresharkHint("/path/meshcore_dissector.lua", "/path/meshcoresim.lua")
+	meshcoreAt := strings.Index(got, "meshcore_dissector.lua")
+	meshbenchAt := strings.Index(got, "meshcoresim.lua")
+	if meshcoreAt < 0 || meshbenchAt < 0 {
+		t.Fatalf("both dissectors should appear, got %q", got)
+	}
+	if meshcoreAt > meshbenchAt {
+		t.Fatalf("meshcore_dissector.lua must load before meshcoresim.lua - its "+
+			"DLT_USER0 registration has to be the one that stands - got: %q", got)
 	}
 }
 
-// The checkout copy has to be findable, or a developer run gets raw bytes.
-func TestTheCheckoutDissectorIsFound(t *testing.T) {
+func TestTheHintOmitsAMissingDissectorRatherThanAnEmptyFlag(t *testing.T) {
+	got := wiresharkHint("", "/path/meshcoresim.lua")
+	if strings.Contains(got, "lua_script:  ") || strings.Contains(got, "lua_script:-X") {
+		t.Errorf("a missing path should not leave a bare -X, got %q", got)
+	}
+	if !strings.Contains(got, "meshcoresim.lua") {
+		t.Errorf("the one that was found should still be there, got %q", got)
+	}
+}
+
+// dissectorFiles has to look in the same places for both scripts and keep
+// them paired - a mismatched pair (one found beside the binary, one only in
+// a checkout) is exactly the kind of thing that looks like it works and
+// silently does not.
+func TestDissectorFilesFindsBothInACheckout(t *testing.T) {
 	wd, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
 	}
 	root := filepath.Dir(filepath.Dir(wd))
-	if _, err := os.Stat(filepath.Join(root, "tools", "dissector", "meshcore_dissector.lua")); err != nil {
+	if _, err := os.Stat(filepath.Join(root, "tools", "dissector", "meshcoresim.lua")); err != nil {
 		t.Skip("not running from a checkout")
 	}
 	t.Chdir(root)
-	if got := dissectorSource(); got == "" {
-		t.Error("the dissector in the tree was not found")
+	meshcore, meshbench := dissectorFiles()
+	if meshcore == "" {
+		t.Error("meshcore_dissector.lua was not found in the checkout")
+	}
+	if meshbench == "" {
+		t.Error("meshcoresim.lua was not found in the checkout")
+	}
+}
+
+func TestDissectorFilesReturnsEmptyRatherThanGuessing(t *testing.T) {
+	t.Chdir(t.TempDir())
+	meshcore, meshbench := dissectorFiles()
+	if meshcore != "" || meshbench != "" {
+		t.Errorf("nowhere to find them, wanted empty paths, got %q %q", meshcore, meshbench)
 	}
 }

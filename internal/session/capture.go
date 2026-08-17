@@ -38,51 +38,52 @@ func registerCapture(st *state.Store, s *Sim) {
 	// capture.wireshark: the same frames, streamed, with Wireshark opened on
 	// them.
 	//
-	// All three parts, because any one alone is the feature not working: the
-	// stream on the port Wireshark's own extcap reads, the dissector where
-	// Wireshark looks for plugins, and Wireshark started. It streams even when
-	// the last two fail, and says which of them did - a capture running with
-	// no window is recoverable by hand, and knowing that is the difference
-	// between a hint and a dead end.
+	// Loopback, not the udpdump extcap - see wireshark.go's own doc for why
+	// those are not interchangeable, however alike "port 5555" makes them
+	// look. All three parts, because any one missing is the feature not
+	// working: the stream Wireshark is actually capturing, both dissectors in
+	// the order that makes them agree with each other, and Wireshark started.
+	// It streams even when the last two fail, and says which of them did - a
+	// capture running with no window is recoverable by hand, and knowing that
+	// is the difference between a hint and a dead end.
 	st.Handle("capture.wireshark", func(w *state.World, p any) (any, error) {
 		if s.eng == nil {
 			return nil, fmt.Errorf("no network loaded")
 		}
-		addr, _ := stringField(p, "addr")
-		if addr == "" {
-			addr = udpdumpAddr
-		}
-		if err := s.eng.StartCaptureUDP(addr); err != nil {
+		if err := s.eng.StartCaptureUDP(captureUDPAddr); err != nil {
 			return nil, err
 		}
-		out := map[string]any{"addr": addr, "how": wiresharkHint(addr)}
-
-		if src := dissectorSource(); src != "" {
-			if dest, err := installDissector(src); err == nil {
-				out["dissector"] = dest
-			} else {
-				out["dissector_error"] = err.Error()
-			}
-		} else {
-			out["dissector_error"] = "the Lua dissector was not found beside the binary"
+		meshcoreLua, meshbenchLua := dissectorFiles()
+		out := map[string]any{
+			"addr": captureUDPAddr, "how": wiresharkHint(meshcoreLua, meshbenchLua),
+		}
+		switch {
+		case meshbenchLua == "":
+			// meshcoresim.lua is the one that registers on this port at all;
+			// without it Wireshark shows raw UDP payload, not a missing
+			// field here and there.
+			out["dissector_error"] = "tools/dissector/meshcoresim.lua was not found beside the binary"
+		case meshcoreLua == "":
+			out["dissector_warning"] = "tools/dissector/meshcore_dissector.lua was not found - " +
+				"MeshBench's own metadata will show, the MeshCore frame inside it will not"
 		}
 
 		bin := wiresharkBinary()
 		if bin == "" {
-			w.Say("streaming frames to " + addr + " - Wireshark is not installed, so run: " +
-				wiresharkHint(addr))
+			w.Say("streaming frames to " + captureUDPAddr + " - Wireshark is not installed, so run: " +
+				wiresharkHint(meshcoreLua, meshbenchLua))
 			out["launched"] = false
 			return out, nil
 		}
-		if why := launchWireshark(bin); why != "" {
-			w.Say("streaming to " + addr + ", but Wireshark would not start: " + why)
+		if why := launchWireshark(bin, meshcoreLua, meshbenchLua); why != "" {
+			w.Say("streaming to " + captureUDPAddr + ", but Wireshark would not start: " + why)
 			out["launched"] = false
 			out["launch_error"] = why
 			return out, nil
 		}
 		out["launched"] = true
-		s.captureLive = addr
-		w.Say("Wireshark is opening on " + addr)
+		s.captureLive = captureUDPAddr
+		w.Say("Wireshark is opening on " + captureUDPAddr)
 		return out, nil
 	})
 
