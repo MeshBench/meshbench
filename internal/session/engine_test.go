@@ -89,9 +89,16 @@ func TestSimResetActuallyRewarms(t *testing.T) {
 // waitWarmed polls rather than sleeping a fixed amount: warm runs on its own
 // goroutine, and a fixed sleep either wastes time on a fast machine or is
 // exactly the flake this avoids on a slow one.
+//
+// The deadline is generous on purpose. What this asserts is that a warm
+// finishes at all - a stuck one never does, and no budget makes that pass -
+// so the only thing a tight limit buys is a false failure on a busy machine.
+// Five seconds was enough on a developer's box, where this takes 70ms, and
+// not on a two-core runner with three other test shards beside it: it failed
+// there on branches that touch no session code whatsoever.
 func waitWarmed(t *testing.T, s *Sim, what string) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(60 * time.Second)
 	for time.Now().Before(deadline) {
 		s.warmMu.Lock()
 		warmed := s.warmed
