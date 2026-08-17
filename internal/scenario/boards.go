@@ -383,9 +383,10 @@ var rak4631Board = Board{
 		IrqPin:   15,
 	},
 
-	Notes: "Published .uf2 images are linked above a Nordic SoftDevice, which " +
-		"cannot be redistributed - anyone running one supplies their own copy. " +
-		"The radio is on SPIM3, which stock Renode does not model.",
+	Notes: "Published .uf2 images are linked above a Nordic SoftDevice, fetched " +
+		"from Nordic's own site rather than bundled - Nordic has confirmed " +
+		"emulating it for firmware testing is not a licensing problem " +
+		"(docs/licence.md). The radio is on SPIM3, which stock Renode does not model.",
 }
 
 // EmulationVerified lists the boards whose firmware has actually been booted
@@ -444,7 +445,11 @@ func EmulatableBoards() (ok []Board, blocked map[string]string) {
 		case b.MCU == "ESP32-S3" || b.MCU == "ESP32-C3" || b.MCU == "ESP32-C6":
 			blocked[b.Name] = b.MCU + " has no general-purpose SPI in QEMU"
 		case strings.HasPrefix(b.MCU, "nRF52"):
-			blocked[b.Name] = "published nRF52 images need a Nordic SoftDevice"
+			// Not a licensing block - see docs/licence.md, DevZone case 362437.
+			// Every other nRF52 board still needs the same Renode wiring
+			// RAK4631 got: watched booting under its own published image
+			// before it can join EmulationVerified.
+			blocked[b.Name] = "nRF52 emulation wiring not yet verified for this board"
 		default:
 			blocked[b.Name] = "no emulation wiring established"
 		}

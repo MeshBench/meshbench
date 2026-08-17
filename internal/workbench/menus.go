@@ -72,6 +72,14 @@ func workbenchMenus() []menu {
 				Section: "Tools", Icon: "waterfall"},
 			{Label: "Capture to a pcapng file", Action: "capture.file",
 				Section: "Tools", Icon: "pcap"},
+			// Live, and one item rather than three: streaming, installing the
+			// dissector and opening Wireshark are one thing to an operator,
+			// and asking them to do the other two by hand is how this stopped
+			// being usable in the first place.
+			{Label: "Watch it live in Wireshark", Action: "capture.wireshark",
+				Section: "Tools", Icon: "pcap"},
+			{Label: "Stop capturing", Action: "capture.stop",
+				Section: "Tools", Icon: "pcap"},
 		}},
 		{"Repeaters", []shell.MenuItem{
 			{Label: "Send a command to the fleet", Action: "panel.Fleet",
