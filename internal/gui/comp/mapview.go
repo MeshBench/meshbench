@@ -31,6 +31,18 @@ type MapView struct {
 	// Zoom and Centre are the camera. Kept here rather than in state because
 	// where somebody is looking is a property of the view, not of the world.
 	Zoom float64
+	// zoomTarget is where the wheel has asked the zoom to end up, and
+	// zoomAnchor the screen point it is scaling about. The camera closes on
+	// the target over a few frames rather than arriving at once, which is
+	// what stops a wheel notch reading as a jump.
+	zoomTarget float64
+	zoomAnchor f32.Point
+	// anchorLat/anchorLon are the ground position under zoomAnchor when the
+	// gesture began, held for the whole glide so every frame can put it back
+	// exactly rather than nudging toward it.
+	anchorLat, anchorLon float64
+	zooming              bool
+	lastFrameAt          time.Time
 	// FitNext asks the next frame to frame every node. Set from anywhere;
 	// cleared here once honoured.
 	FitNext bool
@@ -129,6 +141,22 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 	// redraw that waits on the network is a window that stops painting.
 	pts := m.project(s, sz)
 	m.handle(gtx, sz, pts)
+
+	// Advance the zoom glide, and ask for another frame while it is still
+	// moving. Gio does not redraw on its own, so without this the camera
+	// would stop wherever the last pointer event left it and the smoothing
+	// would only be visible while the wheel was actually turning.
+	dt := 0.0
+	if !m.lastFrameAt.IsZero() {
+		dt = gtx.Now.Sub(m.lastFrameAt).Seconds()
+	}
+	m.lastFrameAt = gtx.Now
+	if m.stepZoom(dt, sz) {
+		gtx.Execute(op.InvalidateCmd{})
+		// The camera moved after project ran, so redo it rather than drawing
+		// this frame's nodes at last frame's zoom.
+		pts = m.project(s, sz)
+	}
 	// The camera may have moved, so where things are on screen is recomputed
 	// rather than reused: a frame that draws the old positions is a frame of
 	// visible lag on every pan.
