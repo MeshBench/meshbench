@@ -4,6 +4,7 @@ package workbench
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"gioui.org/layout"
@@ -347,4 +348,14 @@ func (p *nodeWindowPanel) statFor(s *state.Snapshot) *state.NodeStat {
 // isCompanion decides which command line and which tabs this node gets.
 func (p *nodeWindowPanel) isCompanion() bool {
 	return strings.Contains(strings.ToLower(p.Kind), "companion")
+}
+
+// atof reads a number a person typed, and treats anything unreadable as zero
+// rather than refusing the whole form.
+func atof(s string) float64 {
+	v, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
+	if err != nil {
+		return 0
+	}
+	return v
 }

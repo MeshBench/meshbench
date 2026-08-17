@@ -236,10 +236,20 @@ type Frame struct {
 	Channel  *ChannelInfo
 	Message  *Message
 	Contact  *Contact
+	Scope    *ScopeInfo
 	Err      string
 	// Raw is the whole frame, kept so anything this package does not decode
 	// is still inspectable rather than lost.
 	Raw []byte
+}
+
+// ScopeInfo is the region a node sends under, as it reports it.
+//
+// An empty Name is unscoped, and that is a real answer rather than a missing
+// one - the firmware signals it by sending the response code alone.
+type ScopeInfo struct {
+	Name string
+	Key  [16]byte
 }
 
 // Contact is one entry of the contact list.

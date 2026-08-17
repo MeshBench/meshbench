@@ -52,6 +52,9 @@ type Sim struct {
 	// rescan of every event ever recorded - on a tick where nothing new
 	// happened at all.
 	lastPacketEvents int
+	// compRev is the companion frame count as of the last time the view was
+	// published, so a tick where nothing arrived skips the rebuild.
+	compRev uint64
 	// gpuWarm is whether the link matrix is measured on the GPU when one can
 	// answer to the same accuracy. Off by default: it reads a rasterised
 	// height grid rather than the DEM, which is the same answer on a county

@@ -102,6 +102,10 @@ type nodeWindowPanel struct {
 	OnCLI func(node, line string)
 	// OnAction is given a verb and this node's name.
 	OnAction func(action, node string)
+	// OnDo runs a verb with parameters. The companion client needs more than
+	// a node name - a channel, a scope, a transport - so it cannot go through
+	// OnAction, which only ever carries the one.
+	OnDo func(verb string, params any)
 	// OnServe serves this companion to a real client, over tcp or serial.
 	OnServe func(node, kind string)
 	// OnOpenPacket opens the packet view for an activity row.
@@ -178,7 +182,7 @@ func (p *nodeWindowPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snap
 			case tabConnect:
 				return p.connect(t, gtx, s)
 			case tabCompanion:
-				p.comp.node, p.comp.OnCLI = p.node, p.OnCLI
+				p.comp.node, p.comp.OnCLI, p.comp.OnDo = p.node, p.OnCLI, p.OnDo
 				return p.comp.Draw(t, gtx, s)
 			}
 			return p.console(t, gtx, s)
@@ -295,10 +299,22 @@ type nodeWindows struct {
 
 func newNodeWindows() *nodeWindows { return &nodeWindows{open: map[string]bool{}} }
 
+// nodeWindowHooks is how a node window reaches the rest of the application.
+//
+// A struct rather than a seventh positional callback: six was already a list
+// nobody could read at the call site, and the companion client needs one more
+// that carries parameters rather than only a node name.
+type nodeWindowHooks struct {
+	onCommand    func(node, line string)
+	onAction     func(action, node string)
+	onCLI        func(node, line string)
+	onServe      func(node, kind string)
+	onOpenPacket func(id uint64)
+	onDo         func(verb string, params any)
+}
+
 func (w *nodeWindows) openFor(node string, newTheme func() *theme.Theme,
-	st *state.Store, onCommand func(node, line string), onAction func(action, node string),
-	onCLI func(node, line string), onServe func(node, kind string),
-	onOpenPacket func(id uint64)) {
+	st *state.Store, h nodeWindowHooks) {
 	w.mu.Lock()
 	if w.open[node] {
 		w.mu.Unlock()
@@ -314,9 +330,9 @@ func (w *nodeWindows) openFor(node string, newTheme func() *theme.Theme,
 			w.mu.Unlock()
 		}()
 		th := newTheme()
-		p := &nodeWindowPanel{node: node, OnCommand: onCommand, OnAction: onAction,
-			OnCLI: onCLI, OnServe: onServe, OnOpenPacket: onOpenPacket,
-			Kind: kindOfNode(st, node)}
+		p := &nodeWindowPanel{node: node, OnCommand: h.onCommand, OnAction: h.onAction,
+			OnCLI: h.onCLI, OnServe: h.onServe, OnOpenPacket: h.onOpenPacket,
+			OnDo: h.onDo, Kind: kindOfNode(st, node)}
 		p.tab = openOnTab
 		win := new(app.Window)
 		win.Option(app.Title("MeshBench - "+node), app.Size(unit.Dp(820), unit.Dp(620)))
@@ -357,12 +373,6 @@ func kindOfNode(st *state.Store, node string) string {
 	}
 	return ""
 }
-
-const (
-	subMessages companionSubTab = iota
-	subContacts
-	subRadio
-)
 
 // openOnTab is which tab a node window opens on. Console, except when a
 // capture is being taken of one of the others - a tab cannot be reached from

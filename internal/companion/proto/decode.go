@@ -29,6 +29,15 @@ func Decode(frame []byte) (Frame, error) {
 	switch f.Code {
 	case RespErr:
 		f.Err = ErrText(firstOr(body, 0))
+	case RespDefaultFloodScope:
+		// Decoded from the whole frame, not the body: DecodeDefaultScope
+		// expects the response code in front of the name, which is how the
+		// firmware lays it out.
+		name, key, ok := DecodeDefaultScope(frame)
+		if !ok {
+			return f, fmt.Errorf("proto: default scope reply too short")
+		}
+		f.Scope = &ScopeInfo{Name: name, Key: key}
 	case RespSelfInfo:
 		si, err := decodeSelfInfo(body)
 		if err != nil {

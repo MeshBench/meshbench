@@ -114,6 +114,8 @@ type World struct {
 	// Console is one node's firmware scrollback.
 	Console     []string
 	ConsoleNode string
+	// Companions is every companion session, decoded.
+	Companions []Companion
 	// FleetReplies is what each node said to the last fleet command. A
 	// command sent to forty nodes with no reply shown is indistinguishable
 	// from one that went nowhere.

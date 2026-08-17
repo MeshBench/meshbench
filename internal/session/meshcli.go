@@ -223,19 +223,37 @@ func registerMeshCLI(st *state.Store, s *Sim) {
 				return nil, err
 			}
 		}
+		// The echo goes in before the command runs, not after it succeeds.
+		// Echoing on the way out meant a failing command left no trace of
+		// itself at all: no echo, no error, and an empty console where it was
+		// typed.
+		sess := s.comps[node]
+		say := func(lines ...string) {
+			if sess == nil {
+				return
+			}
+			for _, l := range lines {
+				sess.note(l)
+			}
+			w.Console, w.ConsoleNode = sess.Lines(), node
+		}
+		say("> " + line)
+
 		for _, c := range meshcliCommands {
 			if head != c.name && (c.short == "" || head != c.short) {
 				continue
 			}
 			out, err := c.run(s, node, args)
 			if err != nil {
-				return nil, err
+				// Reported, not returned. A command that ran and answered
+				// "no" is not a verb that failed, and returning an error
+				// sends the explanation to the status bar and the session log
+				// - which is not where anybody typing into a console is
+				// looking.
+				say(err.Error())
+				return map[string]any{"node": node, "reply": err.Error(), "failed": true}, nil
 			}
-			if c := s.comps[node]; c != nil {
-				c.note("> " + line)
-				c.note(out)
-				w.Console, w.ConsoleNode = c.Lines(), node
-			}
+			say(out)
 			return map[string]any{"node": node, "reply": out}, nil
 		}
 		var have []string
@@ -243,13 +261,15 @@ func registerMeshCLI(st *state.Store, s *Sim) {
 			have = append(have, c.name)
 		}
 		sort.Strings(have)
+		unknown := fmt.Sprintf("no command %q. This answers: %s",
+			head, strings.Join(have, ", "))
 		if meshcliKnows(head) {
-			return nil, fmt.Errorf(
+			unknown = fmt.Sprintf(
 				"meshcore-cli has %q and this simulator does not. It answers: %s",
 				head, strings.Join(have, ", "))
 		}
-		return nil, fmt.Errorf("no command %q. This answers: %s",
-			head, strings.Join(have, ", "))
+		say(unknown)
+		return map[string]any{"node": node, "reply": unknown, "failed": true}, nil
 	})
 }
 
