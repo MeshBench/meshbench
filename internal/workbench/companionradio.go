@@ -1,8 +1,11 @@
-// The companion's settings, as its own way into the node.
+// The companion's settings, as a view inside Client.
 //
-// This is the sub-tab the rewrite lost. Everything here was reachable only
-// from the command line afterwards, and path hash size was not reachable at
-// all - the protocol had SetPathHashMode and nothing sent it.
+// This is the pane the rewrite lost. Everything here was reachable only from
+// the command line afterwards, and path hash size was not reachable at all -
+// the protocol had SetPathHashMode and nothing sent it. It lives inside
+// Client rather than as a mode of its own: CLI and TCP hand the radio to
+// whatever is on the other end of them, and a settings form only one of the
+// three ways in can use does not need a tab all three share the row with.
 //
 // Two rules the layout is built around. Every box shows what the node said,
 // not what was typed into it last session, so a field is a proposal and the
@@ -126,7 +129,7 @@ func (c *companionTab) pathHashRow(t *theme.Theme, gtx layout.Context, cs state.
 			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 				fixed(gtx, 132, comp.Text(t, t.Sz.Caption, t.P.Dim, "Hash size")),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return c.hashPicker(t, gtx, cs.PathHashBytes)
+					return c.hashPicker(t, gtx)
 				}),
 				layout.Rigid(layout.Spacer{Width: t.Sp.S}.Layout),
 				layout.Flexed(1, comp.OneLine(t, t.Sz.Caption, t.P.Faint,
@@ -138,15 +141,15 @@ func (c *companionTab) pathHashRow(t *theme.Theme, gtx layout.Context, cs state.
 // hashPicker is the 1 / 2 / 3 segmented control, drawn wherever it is needed -
 // the settings form and the composer both use it, and two controls for one
 // preference that disagreed on screen would be worse than none.
-func (c *companionTab) hashPicker(t *theme.Theme, gtx layout.Context, atNode int) layout.Dimensions {
+func (c *companionTab) hashPicker(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 	var kids []layout.FlexChild
 	for _, n := range pathHashChoices {
 		n := n
 		ck := c.click(fmt.Sprintf("hash:%d", n))
-		// The node's own value is the selected one until the operator picks
-		// something else, so an untouched control never disagrees with the
-		// radio it is describing.
-		on := c.pathHash == n || (c.pathHash == 0 && atNode == n)
+		// Always the operator's own choice, defaulted to three: a control
+		// that only sometimes shows a selection is the ambiguity, not the
+		// fix for one.
+		on := c.pathHash == n
 		kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Right: t.Sp.XXS}.Layout(gtx,
 				func(gtx layout.Context) layout.Dimensions {
@@ -245,9 +248,9 @@ func (c *companionTab) radioClicks(gtx layout.Context, cs state.Companion) {
 			params[f.key] = v
 		}
 	}
-	// Only when the operator moved it. Sending the node's own value back is
-	// a write to flash for no change.
-	if c.pathHash != 0 && c.pathHash != cs.PathHashBytes {
+	// Only when it differs from what the node holds. Sending the node's own
+	// value back is a write to flash for no change.
+	if c.pathHash != cs.PathHashBytes {
 		params["path_hash"] = float64(c.pathHash)
 	}
 	if len(params) == 0 {

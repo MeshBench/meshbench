@@ -1,13 +1,15 @@
 // The companion tab of a node window: three ways into one radio.
 //
-// Client is the workbench's own client, drawing decoded state. Radio is what
-// that client can change about the node - the settings a phone app offers,
-// including the path hash size nothing else exposes. CLI is the meshcore-cli
-// command line over the same session; all three share one claim, so moving
-// between them is free and none can disagree with the others about what the
-// node holds. TCP is the fourth: the port handed out over a socket or a pty,
-// so a real client can have it, which necessarily means the workbench lets go
-// of it.
+// Client is the workbench's own client, drawing decoded state, and its
+// Settings view is what a phone app's radio screen offers - including the
+// path hash size nothing else exposes. It is not a mode of its own: CLI and
+// TCP hand the radio to whatever is on the other end of them, so a settings
+// form only Client can use belongs inside Client. CLI is the meshcore-cli
+// command line over the same session; it shares one claim with Client, so
+// moving between them is free and neither can disagree with the other about
+// what the node holds. TCP is the third: the port handed out over a socket or
+// a pty, so a real client can have it, which necessarily means the workbench
+// lets go of it.
 //
 // The claim is exclusive at the bridge, and that is the rule the whole tab is
 // arranged around: one holder at a time, and it always says who.
@@ -31,7 +33,6 @@ type companionMode int
 
 const (
 	modeClient companionMode = iota
-	modeRadio
 	modeCLI
 	modeTCP
 )
@@ -42,7 +43,6 @@ var companionModes = []struct {
 	Label string
 }{
 	{modeClient, "Client"},
-	{modeRadio, "Radio"},
 	{modeCLI, "CLI"},
 	{modeTCP, "TCP"},
 }
@@ -66,6 +66,11 @@ type companionTab struct {
 	channelIdx uint8
 	sentRead   uint8
 	readOnce   bool
+	// clientSettings shows the radio settings in place of the conversation.
+	// A toggle inside Client rather than a mode of its own: CLI and TCP hand
+	// the radio to whatever is on the other end of them, so nothing outside
+	// Client can want this pane.
+	clientSettings bool
 
 	// The settings form's own: a box per field, and the size selector that
 	// the composer shares.
@@ -74,9 +79,11 @@ type companionTab struct {
 	applyRadio              comp.Button
 	radioList               widget.List
 	radioSubmitted          bool
-	// pathHash is the size the operator has chosen, in bytes, or zero for
-	// "whatever the node holds". Zero rather than a default, so an untouched
-	// control cannot quietly rewrite a preference.
+	// pathHash is the size the operator has chosen, in bytes. Defaults to
+	// three - the largest the firmware accepts, and the one setting that
+	// makes minimal, moderate and strict loop detection all mean the same
+	// thing - so an untouched control is a decided preference, not an
+	// ambiguous one the node's own report has to fill in.
 	pathHash int
 
 	// The command line's own.
@@ -97,7 +104,7 @@ type companionTab struct {
 	serveKind    string
 
 	mode      companionMode
-	modeChips [4]widget.Clickable
+	modeChips [3]widget.Clickable
 	clicks_   map[string]*widget.Clickable
 	built     bool
 
@@ -132,6 +139,7 @@ func (c *companionTab) build() {
 	c.dropBtn.Label, c.dropBtn.Kind = "Drop client", comp.Secondary
 	c.railList.Axis, c.convoList.Axis, c.cliList.Axis = layout.Vertical, layout.Vertical, layout.Vertical
 	c.buildRadio()
+	c.pathHash = 3
 	c.clicks_ = map[string]*widget.Clickable{}
 	c.built = true
 }
@@ -181,6 +189,12 @@ func (c *companionTab) clicks(gtx layout.Context, cs state.Companion) {
 			c.setMode(companionModes[i].Mode)
 		}
 	}
+	if c.click("client:messages").Clicked(gtx) {
+		c.clientSettings = false
+	}
+	if c.click("client:settings").Clicked(gtx) {
+		c.clientSettings = true
+	}
 	if c.connectBtn.Click.Clicked(gtx) {
 		c.do("companion.connect", nil)
 	}
@@ -194,7 +208,7 @@ func (c *companionTab) clicks(gtx layout.Context, cs state.Companion) {
 			// firmware saves prefs on every set, and rewriting flash before
 			// each message to store the value already there is a real cost
 			// for no change.
-			if c.pathHash != 0 && c.pathHash != cs.PathHashBytes {
+			if c.pathHash != cs.PathHashBytes {
 				params["path_hash"] = float64(c.pathHash)
 			}
 			c.do("companion.send", params)
@@ -283,8 +297,6 @@ func (c *companionTab) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 		layout.Rigid(comp.HRule(t)),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			switch c.mode {
-			case modeRadio:
-				return c.radioPane(t, gtx, cs)
 			case modeCLI:
 				return c.cliPane(t, gtx, s, cs)
 			case modeTCP:
@@ -447,6 +459,11 @@ func (c *companionTab) auditDraw(t *theme.Theme, gtx layout.Context, s *state.Sn
 	radioFields, radioButtons := c.radioWidgets()
 	bar := actionBar{
 		fields: []*comp.Field{&c.msg, &c.scope, &c.cmd, &c.newChan},
+		extras: []func(t *theme.Theme, gtx layout.Context) layout.Dimensions{
+			func(t *theme.Theme, gtx layout.Context) layout.Dimensions {
+				return c.clientToggle(t, gtx)
+			},
+		},
 		buttons: []*comp.Button{
 			&c.connectBtn, &c.release, &c.sendMsg, &c.applyScope, &c.advertBtn,
 			&c.refreshBtn, &c.runCmd, &c.serveBtn, &c.stopServeBtn, &c.dropBtn,

@@ -22,6 +22,10 @@ import (
 )
 
 // clientPane draws the client, or says why it cannot.
+//
+// Settings replaces the whole of this, rail included: it is the node's radio
+// form, not a conversation, and a channel list beside it would only invite
+// picking a channel that Apply then has nothing to do with.
 func (c *companionTab) clientPane(t *theme.Theme, gtx layout.Context, cs state.Companion, connected bool) layout.Dimensions {
 	if !connected {
 		return centreNote(t, gtx,
@@ -29,7 +33,14 @@ func (c *companionTab) clientPane(t *theme.Theme, gtx layout.Context, cs state.C
 				"Connect to claim it, or serve it over TCP for your own client.")
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return c.clientToggle(t, gtx)
+		}),
+		layout.Rigid(comp.HRule(t)),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			if c.clientSettings {
+				return c.radioPane(t, gtx, cs)
+			}
 			return layout.Flex{}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					gtx.Constraints.Min.X = gtx.Dp(186)
@@ -45,11 +56,40 @@ func (c *companionTab) clientPane(t *theme.Theme, gtx layout.Context, cs state.C
 				}),
 			)
 		}),
-		layout.Rigid(comp.HRule(t)),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return c.composer(t, gtx, cs)
+			if c.clientSettings {
+				return layout.Dimensions{}
+			}
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(comp.HRule(t)),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return c.composer(t, gtx, cs)
+				}),
+			)
 		}),
 	)
+}
+
+// clientToggle switches Client between the conversation and the node's radio
+// settings - the one thing a phone app also has a screen for, so it does not
+// need a mode of its own beside the one that already speaks for the radio.
+func (c *companionTab) clientToggle(t *theme.Theme, gtx layout.Context) layout.Dimensions {
+	return layout.Inset{Left: t.Sp.S, Right: t.Sp.S, Top: t.Sp.XXS, Bottom: t.Sp.XXS}.
+		Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return c.click("client:messages").Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return modeChip(t, gtx, "Messages", !c.clientSettings)
+					})
+				}),
+				layout.Rigid(layout.Spacer{Width: t.Sp.XXS}.Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return c.click("client:settings").Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return modeChip(t, gtx, "Settings", c.clientSettings)
+					})
+				}),
+			)
+		})
 }
 
 // rail is the channel list and the contact list.
@@ -310,7 +350,7 @@ func (c *companionTab) composer(t *theme.Theme, gtx layout.Context, cs state.Com
 				return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 					layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint, "path hash ")),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return c.hashPicker(t, gtx, cs.PathHashBytes)
+						return c.hashPicker(t, gtx)
 					}),
 					layout.Rigid(layout.Spacer{Width: t.Sp.S}.Layout),
 					layout.Flexed(1, comp.OneLine(t, t.Sz.Caption, t.P.Faint,
@@ -337,10 +377,10 @@ func (c *companionTab) composer(t *theme.Theme, gtx layout.Context, cs state.Com
 // choosing one changes the node rather than only this message.
 func hashComposerNote(chosen, atNode int) string {
 	switch {
-	case atNode == 0 && chosen == 0:
-		return "bytes of hash each hop adds - the node has not said which it uses"
-	case chosen == 0 || chosen == atNode:
+	case chosen == atNode:
 		return "bytes of hash each hop adds"
+	case atNode == 0:
+		return fmt.Sprintf("the node has not said which it uses - sending will set it to %d, and it stays", chosen)
 	}
 	return fmt.Sprintf("the node is set to %d - sending will change it to %d, and it stays",
 		atNode, chosen)

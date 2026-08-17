@@ -159,6 +159,23 @@ func TestV3DirectMessageHasNoPath(t *testing.T) {
 	}
 }
 
+// Packet::path_len is not a bare hop count: the top two bits are the path
+// hash size minus one and only the bottom six are hops (Packet.h,
+// getPathHashCount()). 0x83 is three hops with a three-byte hash, and reading
+// the whole byte showed a received message as 131 hops.
+func TestDecodeChannelMessagePathLenIsPacked(t *testing.T) {
+	b := []byte{8, 0, 0x83, 0}
+	b = binary.LittleEndian.AppendUint32(b, uint32(time.Now().Unix()))
+	b = append(b, "x: y"...)
+	f, err := proto.Decode(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.Message.PathLen != 3 {
+		t.Fatalf("path = %d, want 3 hops out of a 0x83 path_len byte", f.Message.PathLen)
+	}
+}
+
 // The contact record carries a 64-byte out_path between the path length and
 // the name. Reading the name straight after the length lands in the middle of
 // the path, and every contact comes back nameless.

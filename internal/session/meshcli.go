@@ -13,6 +13,7 @@
 package session
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strconv"
@@ -252,6 +253,19 @@ func registerMeshCLI(st *state.Store, s *Sim) {
 				// looking.
 				say(err.Error())
 				return map[string]any{"node": node, "reply": err.Error(), "failed": true}, nil
+			}
+			// The reply arrives when the engine next steps, same as a
+			// repeater's console. Playing, the ticker does that within
+			// milliseconds; paused, nothing ever would - so a command typed
+			// while the client mode had just been used (which needs no step,
+			// since it draws its own decoded state) got no answer until play
+			// was pressed, and read as the command line having stopped
+			// working rather than the clock having stopped.
+			if !w.Playing {
+				for i := 0; i < 60; i++ {
+					_ = s.eng.Step(context.Background())
+				}
+				w.NowMs = s.eng.NowMs()
 			}
 			say(out)
 			return map[string]any{"node": node, "reply": out}, nil

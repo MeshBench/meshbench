@@ -188,6 +188,21 @@ func registerCompanion(st *state.Store, s *Sim) {
 		if err := en.Firmware.Bridge.Type(compFrame(proto.AppStart("meshbench"))); err != nil {
 			return nil, err
 		}
+		// A companion build's own name starts blank - nothing on a phone's
+		// onboarding path has run for it - so left alone every one of them
+		// showed as nameless, which read as the client not knowing who it had
+		// connected to rather than as a node with nothing set. The scenario's
+		// name is the one honest answer to send.
+		//
+		// CMD_SET_ADVERT_NAME answers with a bare OK, not a fresh self info -
+		// RESP_CODE_SELF_INFO only ever comes back from CMD_APP_START, so the
+		// only way to see the rename take is to ask again the same way the
+		// name is asked for in the first place, rather than assume the write
+		// landed and show the operator our own guess as the node's answer.
+		_ = en.Firmware.Bridge.Type(compFrame(proto.SetAdvertName(node)))
+		if err := en.Firmware.Bridge.Type(compFrame(proto.AppStart("meshbench"))); err != nil {
+			return nil, err
+		}
 		_ = en.Firmware.Bridge.Type(compFrame(proto.DeviceQuery()))
 		// And what it holds, rather than what the scenario believes: the
 		// scope it actually sends under, and the channel slots it has. Asked
@@ -492,5 +507,11 @@ func (s *Sim) connectCompanion(node string) error {
 	c := &compSession{node: node}
 	c.release = en.Firmware.Bridge.Claim(c)
 	s.comps[node] = c
+	if err := en.Firmware.Bridge.Type(compFrame(proto.AppStart("meshbench"))); err != nil {
+		return err
+	}
+	// Named here too: the CLI can be the first thing to connect, not only
+	// the client, and a companion is nameless until something sets it.
+	_ = en.Firmware.Bridge.Type(compFrame(proto.SetAdvertName(node)))
 	return en.Firmware.Bridge.Type(compFrame(proto.AppStart("meshbench")))
 }

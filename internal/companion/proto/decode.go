@@ -234,9 +234,13 @@ func decodeMessage(channel, v3 bool, b []byte) (*Message, error) {
 		i += 6
 	}
 	if len(b) > i {
-		// 0xFF is "did not arrive by flood", not a 255-hop path.
+		// 0xFF is "did not arrive by flood", not a 255-hop path. Otherwise
+		// this is Packet::path_len itself, not a bare count: the top two bits
+		// are the path hash size minus one and the bottom six are the hop
+		// count (Packet.h, getPathHashCount()). Keeping the whole byte read a
+		// three-hop, three-byte-hash path as 131 hops.
 		if b[i] != 0xFF {
-			m.PathLen = int(b[i])
+			m.PathLen = int(b[i]) & 0x3F
 		}
 		i++
 	}
