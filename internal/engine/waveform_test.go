@@ -422,3 +422,50 @@ func TestBuildingsPriceThePath(t *testing.T) {
 		t.Fatal("a 60 m concrete slab across the path cost nothing")
 	}
 }
+
+// oneBuilding stands a single building on the ground, unconditionally: the
+// path-crossing test is ObstructionsOnPath's job, not the provider's.
+type oneBuilding struct{ b environ.Building }
+
+func (o oneBuilding) Buildings(_, _, _, _ float64) []environ.Building {
+	return []environ.Building{o.b}
+}
+
+// Buildings must be paid by the waveform chain itself, not only by the
+// calculated model - the doc's claim is "buildings change GainDB, never
+// verdicts", and this is the test that keeps waveform mode honest about it.
+func TestBuildingsDeafenTheWaveform(t *testing.T) {
+	run := func(env environ.Provider) string {
+		e := engine.New(flat{100}, engine.Config{
+			StepMs: 10, Seed: 13, RFMode: engine.RFWaveform,
+		})
+		e.Env = env
+		// The same thin-margin geometry as the implementation-loss test:
+		// clean on bare earth, with nothing to spare.
+		e.Add(wfNode("a", 0, 22), nil)
+		e.Add(wfNode("b", 0.80, 22), nil)
+		_ = e.Run(context.Background(), 10)
+		e.InjectFrame(0, []byte("no concrete between us"))
+		_ = e.Run(context.Background(), 8000)
+		for _, ev := range e.Events() {
+			if ev.From == "a" && ev.To == "b" {
+				return ev.Kind
+			}
+		}
+		return "nothing"
+	}
+	if got := run(nil); got != "rx" {
+		t.Skipf("the thin-margin link did not decode clean (%s); geometry needs retuning", got)
+	}
+	// A 40 m concrete slab squarely across the path: a rooftop knife edge
+	// 30 m above the antennas, plus a wall.
+	tower := oneBuilding{environ.Building{
+		Footprint: [][2]float64{
+			{56.690, -3.51}, {56.710, -3.51}, {56.710, -3.49}, {56.690, -3.49},
+		},
+		HeightM: 40, Material: environ.MatConcrete,
+	}}
+	if got := run(tower); got == "rx" {
+		t.Fatal("a 40 m concrete building across the path cost the waveform nothing")
+	}
+}

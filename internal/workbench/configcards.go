@@ -173,7 +173,20 @@ func (p *configPanel) linksCards(t *theme.Theme, s *state.Snapshot) []layout.Wid
 				}),
 			)
 		}),
+		p.coverageResCard(t, s),
 	}
+}
+
+// coverageResCard is the raster sharpness: one number, honest about cost.
+func (p *configPanel) coverageResCard(t *theme.Theme, s *state.Snapshot) layout.Widget {
+	now := 240
+	if s.CoverageCells > 0 {
+		now = s.CoverageCells
+	}
+	return comp.Card(t, "Coverage rasters", p.fieldRow(t, &p.covRes, &p.setCovRes,
+		fmt.Sprintf("now %d cells on the long edge - the shared grid behind the "+
+			"whole-map raster and the network-wide coverage questions. Cost "+
+			"scales with the square, times the node count", now)))
 }
 
 func (p *configPanel) environment(t *theme.Theme, s *state.Snapshot) []layout.Widget {

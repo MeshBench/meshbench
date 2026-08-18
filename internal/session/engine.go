@@ -62,6 +62,9 @@ type Sim struct {
 	// sdrServers is every node currently exposed as an rtl_tcp source,
 	// with the sample rate its stream was attached at.
 	sdrServers map[string]*sdrServer
+	// covCells is the operator's coverage-raster resolution - the long
+	// edge, in cells - or zero for the default.
+	covCells int
 	// realism is the RF Simulation imperfection switches. See rfmode.go.
 	realism state.RFRealism
 	// envDir is where the environment tiles live, or "" for bare earth.

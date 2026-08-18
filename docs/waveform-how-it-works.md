@@ -107,6 +107,9 @@ verb `coverage.map`, in the Simulation menu): every repeater and room server
 rasterised over one shared grid - the network's box plus margin, pixels
 matched to the ground's aspect - combined per cell into the best two-way
 link anyone offers, painted by the same painter as a single node's raster.
+The grid's long edge is the operator's to set (Configuration > Links,
+verb `coverage.resolution`, 64-1024 cells, persisted) - the caption says
+plainly that cost scales with the square, times the node count.
 The shared grid also fixed `coverage.start`: per-node boxes never shared
 ground, so `Combine` rightly refused them and the network-wide questions
 could not finish on a spread-out network.
@@ -153,7 +156,11 @@ counted, never mistaken for empty ground*. `buildingLossDB` (`links.go`)
 prices them at the run's frequency: each crossed building is a P.526 knife
 edge at its rooftop, plus one wall of material loss when the direct ray
 passes through. Both modes pay it, because buildings change `GainDB`, never
-verdicts. Verb `rf.environment`; loading or dropping the environment
+verdicts - and `TestBuildingsDeafenTheWaveform` holds the waveform chain to
+that: a thin-margin link that decodes clean on bare earth must fail with a
+concrete building across the path. Verdicts, CAD and the SDR observer all
+price through the same `rxTransmission`, so a loaded environment reaches
+all three. Verb `rf.environment`; loading or dropping the environment
 forgets the link cache, because two physics must not share one matrix.
 
 Footprints can also be pulled at runtime (`internal/session/environfetch.go`,

@@ -19,8 +19,8 @@ func poly(lon, lat, size float64, props string) string {
 // both survive.
 func TestMergeExplicitOverridesInferred(t *testing.T) {
 	primary := strings.Join([]string{
-		poly(-3.0000, 56.0000, 0.0004, `"height":9.5`),  // has an OSM twin
-		poly(-3.0100, 56.0100, 0.0004, `"height":4.0`),  // detection only
+		poly(-3.0000, 56.0000, 0.0004, `"height":9.5`), // has an OSM twin
+		poly(-3.0100, 56.0100, 0.0004, `"height":4.0`), // detection only
 	}, "\n")
 	enrich := strings.Join([]string{
 		poly(-3.0001, 56.0001, 0.0003, `"building":"church","building:levels":"1"`),

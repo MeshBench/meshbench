@@ -173,6 +173,7 @@ func Register(st *state.Store, s *Sim) {
 			w.RFMode = string(rfModeOf(s.rfMode))
 			w.RFRealism = s.realism
 			w.RFEnvironment = s.envDir
+			w.CoverageCells = s.covCells
 			w.Events, w.EventTotal = s.eventTail(eventTail)
 			w.Counts = s.eventCounts()
 			w.Scores = s.scores()

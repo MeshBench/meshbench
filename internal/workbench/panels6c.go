@@ -48,6 +48,8 @@ type configPanel struct {
 	setMargin   comp.Button
 	excess      comp.Field
 	setExcess   comp.Button
+	covRes      comp.Field
+	setCovRes   comp.Button
 	rfModeDD    comp.Dropdown
 	oscPPM      comp.Field
 	multipathDB comp.Field
@@ -101,6 +103,9 @@ func (p *configPanel) build() {
 	p.setMargin.Label, p.setMargin.Kind = "set margin", comp.Secondary
 	p.excess.Hint, p.excess.Label, p.excess.Suffix = "dB", "Excess path loss", "dB"
 	p.setExcess.Label, p.setExcess.Kind = "set loss", comp.Secondary
+	p.covRes.Hint, p.covRes.Label, p.covRes.Suffix = "64 to 1024", "Coverage resolution", "cells"
+	p.covRes.Editor.SingleLine = true
+	p.setCovRes.Label, p.setCovRes.Kind = "set resolution", comp.Secondary
 	p.rfModeDD.Label = "RF mode"
 	p.oscPPM.Hint, p.oscPPM.Label, p.oscPPM.Suffix = "0 is perfect", "Oscillator error", "ppm"
 	p.multipathDB.Hint, p.multipathDB.Label, p.multipathDB.Suffix = "0 is off", "Multipath echo", "dB down"
@@ -196,6 +201,7 @@ func (p *configPanel) update(gtx layout.Context, s *state.Snapshot) {
 		{&p.setSpeed, &p.speed, "sim.speed", "step_ms", 1},
 		{&p.setMargin, &p.margin, "study.margin", "km", 0},
 		{&p.setExcess, &p.excess, "rf.excess_loss", "db", 0},
+		{&p.setCovRes, &p.covRes, "coverage.resolution", "cells", 64},
 		{&p.setCache, &p.cacheGBf, "terrain.cache", "gb", 0.25},
 	}
 	for _, n := range numeric {
@@ -492,6 +498,7 @@ func (p *configPanel) auditDraw(t *theme.Theme, gtx layout.Context, s *state.Sna
 		func(gtx layout.Context) layout.Dimensions { return p.dropEnv.Layout(t, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.envSrcDD.Layout(t, gtx) },
 		p.fieldRow(t, &p.cacheGBf, &p.setCache, ""),
+		p.fieldRow(t, &p.covRes, &p.setCovRes, ""),
 		p.fieldRow(t, &p.cacheDir, &p.moveCache, ""),
 		func(gtx layout.Context) layout.Dimensions { return p.recomp.Layout(t, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.gpu.LayoutSwitch(t, gtx) },

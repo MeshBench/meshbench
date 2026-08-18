@@ -43,6 +43,8 @@ type Prefs struct {
 	SaturationDBm float64 `json:"saturation_dbm,omitempty"`
 	// EnvironmentDir is where the building tiles live; empty is bare earth.
 	EnvironmentDir string `json:"environment_dir,omitempty"`
+	// CoverageCells is the coverage raster's long edge; zero is the default.
+	CoverageCells int `json:"coverage_cells,omitempty"`
 }
 
 // prefsPath is ~/.config/meshcoresim/workbench2.json, or empty when the
@@ -88,6 +90,7 @@ func (s *Sim) LoadPrefs() {
 		s.rfMode = "waveform"
 	}
 	s.envDir = p.EnvironmentDir
+	s.covCells = p.CoverageCells
 	s.realism = state.RFRealism{
 		OscPPM: p.OscPPM, MultipathDB: p.MultipathDB, FadingHz: p.FadingHz,
 		ImplLossDB: p.ImplLossDB, SaturationDBm: p.SaturationDBm,

@@ -50,7 +50,7 @@ func registerPlanningVerbs(st *state.Store, s *Sim) {
 		// One shared grid for every node: rasters over per-node boxes do not
 		// share ground, and Combine rightly refuses them - which is why this
 		// job could never finish on a spread-out network before.
-		south, north, west, east, gw, gh, boxErr := mapBox(s.nodes)
+		south, north, west, east, gw, gh, boxErr := mapBox(s.nodes, s.coverageCells())
 		if boxErr != nil {
 			return nil, boxErr
 		}

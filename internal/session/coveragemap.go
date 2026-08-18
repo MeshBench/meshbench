@@ -17,10 +17,26 @@ import (
 	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
-// mapGridMax is the whole-map raster's longest edge. Finer than the
-// per-node grid would cost every node's rasterisation again; this keeps the
-// full job at roughly per-node cost times the node count.
-const mapGridMax = 240
+// mapGridDefault is the whole-map raster's longest edge when the operator
+// has not chosen one. Finer costs every node's rasterisation again: the
+// price scales with the square of this number times the node count.
+const mapGridDefault = 240
+
+// mapGridMin and mapGridMax bound the operator's choice: below the floor a
+// raster is a rumour, above the ceiling a single pull is minutes of terrain
+// profiles nobody sat down for.
+const (
+	mapGridMin = 64
+	mapGridMax = 1024
+)
+
+// coverageCells is the long edge the operator chose, or the default.
+func (s *Sim) coverageCells() int {
+	if s.covCells >= mapGridMin && s.covCells <= mapGridMax {
+		return s.covCells
+	}
+	return mapGridDefault
+}
 
 // mapMarginKm is how far past the outermost node the raster looks - coverage
 // does not stop at the last mast, and a box cropped to the nodes says it does.
@@ -29,7 +45,7 @@ const mapMarginKm = 15
 // mapBox is the shared grid every node answers over: the network's bounding
 // box plus margin, with the pixel grid matched to its aspect so cells stay
 // square-ish rather than stretched.
-func mapBox(nodes []scenario.Node) (south, north, west, east float64, w, h int, err error) {
+func mapBox(nodes []scenario.Node, maxEdge int) (south, north, west, east float64, w, h int, err error) {
 	if len(nodes) == 0 {
 		return 0, 0, 0, 0, 0, 0, fmt.Errorf("no nodes to cover")
 	}
@@ -50,12 +66,13 @@ func mapBox(nodes []scenario.Node) (south, north, west, east float64, w, h int, 
 	// latitude, and a grid set by degrees draws Scotland twice as wide.
 	spanNS := (north - south) * 111.32
 	spanEW := (east - west) * 111.32 * math.Cos(midLat*math.Pi/180)
+	edge := float64(maxEdge)
 	if spanNS >= spanEW {
-		h = mapGridMax
-		w = int(math.Max(16, math.Round(mapGridMax*spanEW/spanNS)))
+		h = maxEdge
+		w = int(math.Max(16, math.Round(edge*spanEW/spanNS)))
 	} else {
-		w = mapGridMax
-		h = int(math.Max(16, math.Round(mapGridMax*spanNS/spanEW)))
+		w = maxEdge
+		h = int(math.Max(16, math.Round(edge*spanNS/spanEW)))
 	}
 	return south, north, west, east, w, h, nil
 }
@@ -75,12 +92,31 @@ func infrastructure(nodes []scenario.Node) []scenario.Node {
 }
 
 func registerCoverageMap(st *state.Store, s *Sim) {
+	// coverage.resolution: how sharp the shared-grid rasters are. Persisted,
+	// because a resolution is a machine-and-patience choice, not a scenario's.
+	st.Handle("coverage.resolution", func(w *state.World, p any) (any, error) {
+		if v, ok := numField(p, "cells"); ok {
+			cells := int(v)
+			if cells < mapGridMin || cells > mapGridMax {
+				return nil, fmt.Errorf("coverage resolution is %d to %d cells on the long edge",
+					mapGridMin, mapGridMax)
+			}
+			s.covCells = cells
+			w.CoverageCells = cells
+			s.prefs.CoverageCells = cells
+			s.savePrefs()
+			w.Say(fmt.Sprintf("coverage rasters at %d cells on the long edge - "+
+				"cost scales with the square", cells))
+		}
+		return map[string]any{"cells": s.coverageCells()}, nil
+	})
+
 	st.Handle("coverage.map", func(w *state.World, _ any) (any, error) {
 		infra := infrastructure(s.nodes)
 		if len(infra) == 0 {
 			return nil, fmt.Errorf("no repeaters or room servers to cover the map with")
 		}
-		south, north, west, east, gw, gh, err := mapBox(s.nodes)
+		south, north, west, east, gw, gh, err := mapBox(s.nodes, s.coverageCells())
 		if err != nil {
 			return nil, err
 		}

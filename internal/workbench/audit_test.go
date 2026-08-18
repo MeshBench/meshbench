@@ -214,6 +214,10 @@ func boxesOf(ctrl any) []*comp.Field {
 func fieldGuess(hint string) string {
 	h := strings.ToLower(hint)
 	switch {
+	// The coverage resolution refuses anything under its floor, so the
+	// generic numeric guess of 2 would read as a dead button.
+	case strings.Contains(h, "1024"):
+		return "240"
 	case strings.Contains(h, "seed"), strings.Contains(h, "how many"),
 		strings.Contains(h, "seconds"), strings.Contains(h, "ms"),
 		strings.Contains(h, "db"), strings.Contains(h, "hours"),

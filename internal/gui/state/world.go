@@ -73,6 +73,8 @@ type World struct {
 	Endpoints []Endpoint
 	// SDRSources are the observers currently served as rtl_tcp sources.
 	SDRSources []SDRSource
+	// CoverageCells is the coverage raster's long edge; zero means default.
+	CoverageCells int
 	// Routes are the planner's last answer.
 	Routes []Route
 	// Import is the last fetch's description, or nil.
