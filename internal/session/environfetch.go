@@ -42,8 +42,10 @@ const overpassMaxKm2 = 8000
 // overpassChunk is how many patches one Overpass request carries.
 const overpassChunk = 10
 
-// microsoftMaxFiles caps how many quadkey files one pull will download.
-const microsoftMaxFiles = 16
+// microsoftMaxBytes caps a Microsoft pull by what the index says the files
+// weigh. Disk is bounded separately - one file lives at a time - so this is
+// about bandwidth and patience, and the failure message prices both.
+const microsoftMaxBytes = 8e9
 
 var environClient = &http.Client{Timeout: 15 * time.Minute}
 
@@ -260,11 +262,12 @@ func (s *Sim) fetchEnviron(source string, patches []llBox,
 			err = fmt.Errorf("OpenStreetMap has no building ways in this map's area")
 		}
 	case "microsoft":
-		urls, uerr := microsoftURLs(patches)
+		files, uerr := microsoftFiles(patches)
 		if uerr != nil {
 			return "", environ.IngestStats{}, uerr
 		}
-		rd, done, err = microsoftNDJSON(urls, func(d int) { progress(d, len(urls)+1) })
+		rd, done, err = microsoftNDJSON(files, patches,
+			func(d int) { progress(d, len(files)+1) })
 	case "merged":
 		// The environment plan's actual shape: Microsoft for existence and
 		// height, OSM tags for what it explicitly knows, explicit over
@@ -275,17 +278,18 @@ func (s *Sim) fetchEnviron(source string, patches []llBox,
 					"Overpass pull is fair for; prepare the region offline with tools/envgen",
 				a, float64(overpassMaxKm2))
 		}
-		urls, uerr := microsoftURLs(patches)
+		files, uerr := microsoftFiles(patches)
 		if uerr != nil {
 			return "", environ.IngestStats{}, uerr
 		}
-		ms, msDone, merr := microsoftNDJSON(urls, func(d int) { progress(d, len(urls)+2) })
+		ms, msDone, merr := microsoftNDJSON(files, patches,
+			func(d int) { progress(d, len(files)+2) })
 		if merr != nil {
 			return "", environ.IngestStats{}, merr
 		}
 		defer msDone()
 		osm, _, oerr := overpassNDJSON(patches, func(done, total int) {
-			progress(len(urls)+done, len(urls)+total)
+			progress(len(files)+done, len(files)+total)
 		})
 		if oerr != nil {
 			return "", environ.IngestStats{}, oerr

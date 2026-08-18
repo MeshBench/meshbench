@@ -5,14 +5,17 @@
 package session
 
 import (
+	"bufio"
 	"compress/gzip"
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -69,8 +72,17 @@ func quadkeysFor(south, north, west, east float64) []string {
 // a fixture instead of the real blob store.
 var microsoftLinksURL = "https://minedbuildings.z5.web.core.windows.net/global-buildings/dataset-links.csv"
 
-// microsoftURLs resolves the patches to the dataset files that cover them.
-func microsoftURLs(patches []llBox) ([]string, error) {
+// msFile is one dataset file worth downloading, with the size the index
+// promises so the pull can be priced before a byte moves.
+type msFile struct {
+	url   string
+	bytes int64
+}
+
+// microsoftFiles resolves the patches to the dataset files that cover them,
+// priced by the index's own size column. Refusal is by gigabytes, not file
+// count: ninety small files are fine and three enormous ones are not.
+func microsoftFiles(patches []llBox) ([]msFile, error) {
 	want := map[string]bool{}
 	for _, b := range patches {
 		for _, k := range quadkeysFor(b.South, b.North, b.West, b.East) {
@@ -87,7 +99,9 @@ func microsoftURLs(patches []llBox) ([]string, error) {
 	}
 	rd := csv.NewReader(resp.Body)
 	rd.FieldsPerRecord = -1
-	var urls []string
+	seen := map[string]bool{}
+	var files []msFile
+	var total int64
 	for {
 		rec, err := rd.Read()
 		if err == io.EOF {
@@ -96,61 +110,154 @@ func microsoftURLs(patches []llBox) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		if len(rec) >= 3 && want[rec[1]] {
-			urls = append(urls, rec[2])
+		if len(rec) < 3 || !want[rec[1]] || seen[rec[2]] {
+			continue
 		}
+		seen[rec[2]] = true
+		f := msFile{url: rec[2]}
+		if len(rec) >= 4 {
+			f.bytes, _ = strconv.ParseInt(strings.TrimSpace(rec[3]), 10, 64)
+		}
+		files = append(files, f)
+		total += f.bytes
 	}
-	if len(urls) == 0 {
+	if len(files) == 0 {
 		return nil, fmt.Errorf("the dataset has no footprints for this map's area")
 	}
-	if len(urls) > microsoftMaxFiles {
+	if total > microsoftMaxBytes {
 		return nil, fmt.Errorf(
-			"this map spans %d dataset files (limit %d); prepare the region "+
-				"offline with tools/envgen instead", len(urls), microsoftMaxFiles)
+			"this map's dataset files total %.1f GB (limit %.0f GB); prepare "+
+				"the region offline with tools/envgen instead",
+			float64(total)/1e9, float64(microsoftMaxBytes)/1e9)
 	}
-	return urls, nil
+	return files, nil
 }
 
-// microsoftNDJSON downloads and concatenates the files as one stream. The
-// closer owns the temp files, so a caller that stops reading leaks nothing.
-func microsoftNDJSON(urls []string, progress func(done int)) (io.Reader, func(), error) {
+// patchIndex answers "is this point in any patch" in constant time - the
+// filter runs once per building in files that mostly cover ground nobody
+// asked about, so a linear scan over patches would turn minutes into hours.
+type patchIndex struct {
+	buckets map[[2]int][]llBox
+}
+
+const patchBucketDeg = 0.05
+
+func newPatchIndex(patches []llBox) *patchIndex {
+	idx := &patchIndex{buckets: map[[2]int][]llBox{}}
+	for _, b := range patches {
+		x0, x1 := int(math.Floor(b.West/patchBucketDeg)), int(math.Floor(b.East/patchBucketDeg))
+		y0, y1 := int(math.Floor(b.South/patchBucketDeg)), int(math.Floor(b.North/patchBucketDeg))
+		for y := y0; y <= y1; y++ {
+			for x := x0; x <= x1; x++ {
+				idx.buckets[[2]int{x, y}] = append(idx.buckets[[2]int{x, y}], b)
+			}
+		}
+	}
+	return idx
+}
+
+func (idx *patchIndex) contains(lat, lon float64) bool {
+	k := [2]int{int(math.Floor(lon / patchBucketDeg)), int(math.Floor(lat / patchBucketDeg))}
+	for _, b := range idx.buckets[k] {
+		if lat >= b.South && lat <= b.North && lon >= b.West && lon <= b.East {
+			return true
+		}
+	}
+	return false
+}
+
+// filterNDJSON keeps only the features whose first vertex lands in a patch,
+// writing kept lines verbatim. Split from the download so the filter is
+// testable without a network.
+func filterNDJSON(r io.Reader, idx *patchIndex, out io.Writer) (kept int, err error) {
+	sc := bufio.NewScanner(r)
+	sc.Buffer(make([]byte, 1<<20), 1<<24)
+	for sc.Scan() {
+		line := sc.Bytes()
+		if len(line) < 2 {
+			continue
+		}
+		var ft struct {
+			Geometry struct {
+				Coordinates [][][2]float64 `json:"coordinates"`
+			} `json:"geometry"`
+		}
+		if json.Unmarshal(line, &ft) != nil ||
+			len(ft.Geometry.Coordinates) == 0 || len(ft.Geometry.Coordinates[0]) == 0 {
+			continue
+		}
+		v := ft.Geometry.Coordinates[0][0] // lon, lat as GeoJSON carries them
+		if !idx.contains(v[1], v[0]) {
+			continue
+		}
+		if _, err := out.Write(line); err != nil {
+			return kept, err
+		}
+		if _, err := out.Write([]byte("\n")); err != nil {
+			return kept, err
+		}
+		kept++
+	}
+	return kept, sc.Err()
+}
+
+// microsoftNDJSON downloads the files one at a time, keeps only what falls
+// in the patches, and hands back the filtered stream. Each file is deleted
+// as soon as it is filtered, so disk holds one dataset file at a time no
+// matter how many the map spans.
+func microsoftNDJSON(files []msFile, patches []llBox,
+	progress func(done int)) (io.Reader, func(), error) {
 	tmp, err := os.MkdirTemp("", "msim-environ-*")
 	if err != nil {
 		return nil, nil, err
 	}
 	cleanup := func() { _ = os.RemoveAll(tmp) }
-	var readers []io.Reader
-	var open []io.Closer
-	for i, u := range urls {
-		path := filepath.Join(tmp, fmt.Sprintf("part-%d.gz", i))
-		if err := downloadTo(u, path); err != nil {
-			cleanup()
-			return nil, nil, err
+	outPath := filepath.Join(tmp, "filtered.jsonl")
+	out, err := os.Create(outPath)
+	if err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+	idx := newPatchIndex(patches)
+	fail := func(e error) (io.Reader, func(), error) {
+		_ = out.Close()
+		cleanup()
+		return nil, nil, e
+	}
+	for i, f := range files {
+		path := filepath.Join(tmp, "part.gz")
+		if err := downloadTo(f.url, path); err != nil {
+			return fail(err)
 		}
-		f, err := os.Open(path)
+		gzf, err := os.Open(path)
 		if err != nil {
-			cleanup()
-			return nil, nil, err
+			return fail(err)
 		}
-		gz, err := gzip.NewReader(f)
+		gz, err := gzip.NewReader(gzf)
 		if err != nil {
-			_ = f.Close()
-			cleanup()
-			return nil, nil, fmt.Errorf("%s is not gzip: %w", u, err)
+			_ = gzf.Close()
+			return fail(fmt.Errorf("%s is not gzip: %w", f.url, err))
 		}
-		readers = append(readers, gz, strings.NewReader("\n"))
-		open = append(open, gz, f)
+		_, err = filterNDJSON(gz, idx, out)
+		_ = gz.Close()
+		_ = gzf.Close()
+		_ = os.Remove(path)
+		if err != nil {
+			return fail(err)
+		}
 		if progress != nil {
 			progress(i + 1)
 		}
 	}
-	closeAll := func() {
-		for _, c := range open {
-			_ = c.Close()
-		}
-		cleanup()
+	if err := out.Close(); err != nil {
+		return fail(err)
 	}
-	return io.MultiReader(readers...), closeAll, nil
+	rd, err := os.Open(outPath)
+	if err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+	return rd, func() { _ = rd.Close(); cleanup() }, nil
 }
 
 func downloadTo(url, path string) error {

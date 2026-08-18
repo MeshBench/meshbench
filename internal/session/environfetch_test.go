@@ -155,3 +155,43 @@ func TestOverpassDedupesAcrossChunks(t *testing.T) {
 		t.Fatalf("second chunk: n=%d err=%v, want the duplicate dropped", n, err)
 	}
 }
+
+// The filter is what makes a 92-file national pull affordable: everything
+// outside the patches is dropped on the way past, and what is kept arrives
+// byte-for-byte intact for the ingester.
+func TestFilterNDJSONKeepsOnlyThePatches(t *testing.T) {
+	idx := newPatchIndex([]llBox{{South: 56.0, North: 56.1, West: -3.1, East: -3.0}})
+	in := `{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-3.05,56.05],[-3.05,56.051],[-3.051,56.05],[-3.05,56.05]]]},"properties":{"height":7.5}}
+{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-6.0,52.0],[-6.0,52.001],[-6.001,52.0],[-6.0,52.0]]]},"properties":{"height":3.0}}
+not json at all
+`
+	var out strings.Builder
+	kept, err := filterNDJSON(strings.NewReader(in), idx, &out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if kept != 1 {
+		t.Fatalf("kept %d features, want only the one inside the patch", kept)
+	}
+	if !strings.Contains(out.String(), `"height":7.5`) || strings.Contains(out.String(), `"height":3.0`) {
+		t.Fatalf("filter kept the wrong feature: %s", out.String())
+	}
+}
+
+func TestPatchIndexAgreesWithTheBoxes(t *testing.T) {
+	idx := newPatchIndex([]llBox{
+		{South: 56.0, North: 56.1, West: -3.1, East: -3.0},
+		{South: -1.0, North: 1.0, West: -1.0, East: 1.0}, // straddles the origin
+	})
+	for _, c := range []struct {
+		lat, lon float64
+		want     bool
+	}{
+		{56.05, -3.05, true}, {56.05, -2.95, false}, {55.95, -3.05, false},
+		{0, 0, true}, {-0.9, 0.9, true}, {1.1, 0, false},
+	} {
+		if got := idx.contains(c.lat, c.lon); got != c.want {
+			t.Fatalf("contains(%f,%f) = %v, want %v", c.lat, c.lon, got, c.want)
+		}
+	}
+}
