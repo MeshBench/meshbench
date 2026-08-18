@@ -61,6 +61,7 @@ type configPanel struct {
 	loadEnv     comp.Button
 	dropEnv     comp.Button
 	envSrcDD    comp.Dropdown
+	envUseDD    comp.Dropdown
 	device      comp.Dropdown
 	cacheDD     comp.Dropdown
 	themeDD     comp.Dropdown
@@ -497,6 +498,7 @@ func (p *configPanel) auditDraw(t *theme.Theme, gtx layout.Context, s *state.Sna
 		p.fieldRow(t, &p.envDir, &p.loadEnv, ""),
 		func(gtx layout.Context) layout.Dimensions { return p.dropEnv.Layout(t, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.envSrcDD.Layout(t, gtx) },
+		func(gtx layout.Context) layout.Dimensions { return p.envUseDD.Layout(t, gtx) },
 		p.fieldRow(t, &p.cacheGBf, &p.setCache, ""),
 		p.fieldRow(t, &p.covRes, &p.setCovRes, ""),
 		p.fieldRow(t, &p.cacheDir, &p.moveCache, ""),

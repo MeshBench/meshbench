@@ -4,6 +4,8 @@
 package workbench
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 
 	"gioui.org/layout"
@@ -14,7 +16,39 @@ import (
 
 // wireEnvironSources arms the database dropdown. Picking a database is the
 // action: it pulls for the current map and switches buildings on.
+// wireEnvironLoaded arms the downloaded-environments dropdown: what is on
+// disk from past pulls, switchable without a download, plus bare earth.
+func (p *configPanel) wireEnvironLoaded() {
+	p.envUseDD.Label = "Loaded environment"
+	p.envUseDD.OnOpen = func() {
+		if p.choose == nil || p.do == nil {
+			return
+		}
+		// Straight off the disk, like a file dialog: the pulls live in one
+		// well-known directory, and a listing needs no verb round-trip.
+		opts := []string{"bare earth - no buildings"}
+		if cache, err := os.UserCacheDir(); err == nil {
+			root := filepath.Join(cache, "meshcoresim", "environment")
+			if entries, err := os.ReadDir(root); err == nil {
+				for _, e := range entries {
+					if e.IsDir() {
+						opts = append(opts, filepath.Join(root, e.Name()))
+					}
+				}
+			}
+		}
+		p.choose("Use which environment?", opts, func(picked string) {
+			if picked == "bare earth - no buildings" {
+				p.do("rf.environment", map[string]any{"on": false})
+				return
+			}
+			p.do("rf.environment", map[string]any{"dir": picked})
+		})
+	}
+}
+
 func (p *configPanel) wireEnvironSources() {
+	p.wireEnvironLoaded()
 	p.envDir.Hint, p.envDir.Label = "a tile directory from tools/envgen", "Environment tiles"
 	p.envDir.Editor.SingleLine = true
 	p.loadEnv.Label, p.loadEnv.Kind = "load buildings", comp.Secondary
@@ -49,10 +83,16 @@ func (p *configPanel) wireEnvironSources() {
 func (p *configPanel) buildingsCard(t *theme.Theme, s *state.Snapshot) layout.Widget {
 	return comp.Card(t, "Buildings", func(gtx layout.Context) layout.Dimensions {
 		now := "bare earth - no environment loaded"
+		p.envUseDD.Value = "bare earth"
 		if s.RFEnvironment != "" {
 			now = "pricing buildings from " + s.RFEnvironment
+			p.envUseDD.Value = filepath.Base(s.RFEnvironment)
 		}
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return p.envUseDD.Layout(t, gtx)
+			}),
+			layout.Rigid(layout.Spacer{Height: t.Sp.XS}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return p.envSrcDD.Layout(t, gtx)
 			}),

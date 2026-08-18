@@ -37,6 +37,32 @@ the list, what we already have, and the order to close the rest.
   single-zoom assumption; it is its own piece of work, recorded, not
   smuggled in here.
 
+## Why a "small" viewport raster is slow, and the GPU plan
+
+A viewport is smaller in area, not in cells: the same box at 1024 cells
+is ~960k cells against 45k for the national run at 240 - twenty-one
+times the work, paid per station. The resolution knob is the bill.
+
+What the buildings-priced viewport run taught, each step verified live:
+the obstruction query's bounding box froze it outright (fixed:
+corridor, then a job-level bucket index); the same town was re-tested
+per cell (fixed: per-station azimuth sectors, equivalence-tested);
+mid-path roofs price at a decibel across tens of km (bounded: near-end
+pricing, exact where it prices); free space cannot cull LoRa stations
+(fixed: the horizon bulge itself is the knife edge - ~330 m at 150 km -
+so range culling is physics, not a config number); and the per-station
+CPU margin pass was single-threaded (fixed: parallel rows).
+
+**The next real step is finishing the fold on the GPU.** Today the
+kernel prices losses and everything after - margins, buildings, fold -
+is CPU per station, with a readback per station. The plan: the kernel
+takes the station's budget terms and writes min-margin per cell; a
+second small kernel folds it into a persistent best/serving buffer on
+the device; buildings stay CPU but apply only to fold survivors near
+towns; one readback at the end instead of hundreds. That removes the
+per-station CPU passes entirely and should put a 1M-cell viewport
+under a minute.
+
 ## Order of work
 
 1. P0 visual set: opacity slider, continuous ramp, nearest filtering,

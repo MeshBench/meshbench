@@ -147,7 +147,18 @@ func Layers() []Layer {
 			RequiresReview: true,
 		},
 		{
-			ID: "esri-labels", Name: "Places and roads", Kind: Overlay, MaxZoom: 19,
+			// MaxZoom is what the service actually draws, not what it
+			// answers: past 17 it returns 200s full of transparent
+			// nothing, which cached as roads that vanish when zoomed in.
+			ID: "esri-roads", Name: "Roads (overlay)", Kind: Overlay, MaxZoom: 17,
+			URL: "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/" +
+				"World_Transportation/MapServer/tile/{z}/{y}/{x}",
+			Attribution:    "(c) Esri, contributors",
+			Terms:          "As Esri imagery above.",
+			RequiresReview: true,
+		},
+		{
+			ID: "esri-labels", Name: "Places and roads", Kind: Overlay, MaxZoom: 17,
 			URL: "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/" +
 				"World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
 			Attribution:    "(c) Esri, contributors",
@@ -157,19 +168,24 @@ func Layers() []Layer {
 	}
 }
 
-// LabelsFor is the label-only overlay that belongs above a base layer, so
-// a raster can sit between the ground and its place names. Bases whose
-// labels are baked in and have no separate layer answer false.
-func LabelsFor(baseID string) (Layer, bool) {
-	switch baseID {
-	case "carto-dark":
-		return ByID("carto-dark-labels")
-	case "carto-light":
-		return ByID("carto-light-labels")
-	case "esri-imagery", "esri-topo":
-		return ByID("esri-labels")
+// OverlaysFor is what belongs above a coverage raster for a given base:
+// roads first, then labels, so the ground's structure and its names both
+// come through the picture instead of drowning under it. Bases with
+// everything baked in and no separate layers answer empty.
+func OverlaysFor(baseID string) []Layer {
+	ids := map[string][]string{
+		"carto-dark":   {"esri-roads", "carto-dark-labels"},
+		"carto-light":  {"esri-roads", "carto-light-labels"},
+		"esri-imagery": {"esri-roads", "esri-labels"},
+		"esri-topo":    {"esri-labels"},
+	}[baseID]
+	var out []Layer
+	for _, id := range ids {
+		if l, ok := ByID(id); ok {
+			out = append(out, l)
+		}
 	}
-	return Layer{}, false
+	return out
 }
 
 // ByID finds a layer.

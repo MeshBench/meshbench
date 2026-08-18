@@ -404,6 +404,26 @@ func registerEnvironFetch(st *state.Store, s *Sim) {
 		return map[string]any{"source": source, "started": true}, nil
 	})
 
+	// environ.list: every pull already on disk, so switching environments
+	// is a dropdown, not a re-download.
+	st.Handle("environ.list", func(_ *state.World, _ any) (any, error) {
+		// No cache directory and no pulls yet are both an empty list, not
+		// an error: the dropdown's honest answer is "nothing downloaded".
+		var root string
+		if cache, err := os.UserCacheDir(); err == nil {
+			root = filepath.Join(cache, "meshcoresim", "environment")
+		}
+		entries, _ := os.ReadDir(root)
+		var dirs []string
+		for _, e := range entries {
+			if e.IsDir() {
+				dirs = append(dirs, filepath.Join(root, e.Name()))
+			}
+		}
+		sort.Strings(dirs)
+		return map[string]any{"dirs": dirs, "current": s.envDir}, nil
+	})
+
 	st.Handle("environ.fetched", func(w *state.World, p any) (any, error) {
 		w.Jobs = finishJob(w.Jobs, "environ-fetch")
 		w.Say("footprints ready: " + soleString(p))

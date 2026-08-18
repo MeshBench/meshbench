@@ -29,10 +29,11 @@ type MapView struct {
 	// Tiles is the basemap. Nil draws no basemap, which is what an offline
 	// first run looks like, and the map still works.
 	Tiles *Tiles
-	// LabelTiles is the base layer's label-only twin, drawn above the
-	// coverage raster so place names bleed through it instead of drowning
-	// under it. Nil where the base has no separate labels.
-	LabelTiles *Tiles
+	// OverlayTiles are the layers drawn above the coverage raster - roads,
+	// then labels - so the ground's structure and its names come through
+	// the picture instead of drowning under it. Empty where the base has
+	// everything baked in.
+	OverlayTiles []*Tiles
 	// Zoom and Centre are the camera. Kept here rather than in state because
 	// where somebody is looking is a property of the view, not of the world.
 	Zoom float64
@@ -213,10 +214,12 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 		m.drawBuildings(t, gtx, sz)
 	}
 
-	// The place names, back on top: a raster that buries the map's words
-	// explains coverage of an anonymous landscape.
-	if m.LabelTiles != nil && m.Layers.Basemap && m.Layers.Coverage {
-		m.LabelTiles.Draw(gtx, sz, m.CentreLat, m.CentreLon, m.Zoom)
+	// Roads and place names, back on top: a raster that buries the map's
+	// structure explains coverage of an anonymous landscape.
+	if m.Layers.Basemap && m.Layers.Coverage {
+		for _, ov := range m.OverlayTiles {
+			ov.Draw(gtx, sz, m.CentreLat, m.CentreLon, m.Zoom)
+		}
 	}
 
 	// The study boundaries, under the network.

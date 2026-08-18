@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"github.com/MeshBench/meshbench/internal/terrain"
 	"math"
+	"runtime"
+	"sync"
 
 	"github.com/MeshBench/meshbench/internal/coverage"
 	"github.com/MeshBench/meshbench/internal/gpu"
@@ -30,6 +32,17 @@ func (s *Sim) coverageMapGPU(grid coverage.HeightGrid, stations []coverage.Endpo
 		return nil, "", false
 	}
 	defer dev.Close()
+	// The seam tick: the bar sat silent between the last terrain row and
+	// the first station while the device opened, compiled and uploaded -
+	// long enough to be reported as a stall.
+	if progress != nil {
+		progress(0, len(stations))
+	}
+	cg, err := dev.UploadGrid(grid)
+	if err != nil {
+		return nil, "", false
+	}
+	defer cg.Release()
 
 	fold := coverage.NewFold(r.South, r.North, r.West, r.East, r.Width, r.Height, r.FreqMHz)
 	for i, st := range stations {
@@ -46,7 +59,7 @@ func (s *Sim) coverageMapGPU(grid coverage.HeightGrid, stations []coverage.Endpo
 			}
 			continue
 		}
-		losses, err := dev.CoverageGridLoss(grid, coverage.GridLossParams{
+		losses, err := cg.Loss(coverage.GridLossParams{
 			StLat: st.Lat, StLon: st.Lon, StAltM: ground + st.HeightAGLm,
 			RasterW: r.Width, RasterH: r.Height,
 			South: r.South, North: r.North, West: r.West, East: r.East,
@@ -84,10 +97,24 @@ func stationReaches(st coverage.Endpoint, r *coverage.Raster, o coverage.Options
 	if distKm <= 0 {
 		return true
 	}
-	fspl := terrain.FSPLdB(distKm, r.FreqMHz)
+	// Free space alone barely culls: a LoRa budget reaches a thousand
+	// kilometres of vacuum, so every station on two islands "reached"
+	// every viewport and the raster paid for all of them. The earth is
+	// not a vacuum: at range, the horizon bulge itself is a knife edge no
+	// antenna height on this network clears - ~330 m of it at 150 km -
+	// and pricing that bulge culls honestly, with no configured range.
+	d := distKm * 1000
+	bulge := d * d / (8 * 4.0 / 3.0 * 6371000)
+	clear := st.HeightAGLm + o.RemoteHeightAGLm + 100 // terrain grace
+	loss := terrain.FSPLdB(distKm, r.FreqMHz)
+	if bulge > clear {
+		d1 := d / 2
+		v := terrain.FresnelParameter(bulge-clear, d1, d1, r.FreqMHz)
+		loss += terrain.KnifeEdgeDB(v)
+	}
 	const slack = 8
-	out := st.TxPowerDBm + slack + o.RemoteGainDBi - fspl - o.RemoteSensitivityDBm
-	in := o.RemoteTxPowerDBm + o.RemoteGainDBi + slack - fspl - st.SensitivityDBm
+	out := st.TxPowerDBm + slack + o.RemoteGainDBi - loss - o.RemoteSensitivityDBm
+	in := o.RemoteTxPowerDBm + o.RemoteGainDBi + slack - loss - st.SensitivityDBm
 	return math.Min(out, in) >= -1
 }
 
@@ -104,33 +131,48 @@ func (s *Sim) priceBuildingsInto(sr *coverage.Raster, grid coverage.HeightGrid,
 	if !ok {
 		return
 	}
-	for y := 0; y < sr.Height; y++ {
-		for x := 0; x < sr.Width; x++ {
-			i := y*sr.Width + x
-			c := sr.Cells[i]
-			if c.NoData {
-				continue
+	// Across every core: the corridor query made one cell cheap, and a
+	// raster is a hundred thousand of them per station.
+	var wg sync.WaitGroup
+	rows := make(chan int)
+	for w := 0; w < runtime.NumCPU(); w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for y := range rows {
+				for x := 0; x < sr.Width; x++ {
+					i := y*sr.Width + x
+					c := sr.Cells[i]
+					if c.NoData {
+						continue
+					}
+					// 12 dB of grace over the floor: a building can only
+					// subtract, so a cell this far gone cannot come back.
+					if c.OutboundMarginDB < -12 && c.InboundMarginDB < -12 {
+						continue
+					}
+					lat, lon := sr.LatLonAt(x, y)
+					ground, ok := grid.At(lat, lon)
+					if !ok {
+						continue
+					}
+					distM := haversineKmSession(st.Lat, st.Lon, lat, lon) * 1000
+					e := extra(station, lat, lon, stGround+st.HeightAGLm,
+						ground+o.RemoteHeightAGLm, distM)
+					if e <= 0 {
+						continue
+					}
+					c.OutboundMarginDB -= e
+					c.InboundMarginDB -= e
+					c.PathLossDB += e
+					sr.Cells[i] = c
+				}
 			}
-			// 12 dB of grace over the floor: a building can only subtract,
-			// so a cell this far gone cannot come back.
-			if c.OutboundMarginDB < -12 && c.InboundMarginDB < -12 {
-				continue
-			}
-			lat, lon := sr.LatLonAt(x, y)
-			ground, ok := grid.At(lat, lon)
-			if !ok {
-				continue
-			}
-			distM := haversineKmSession(st.Lat, st.Lon, lat, lon) * 1000
-			e := extra(station, lat, lon, stGround+st.HeightAGLm,
-				ground+o.RemoteHeightAGLm, distM)
-			if e <= 0 {
-				continue
-			}
-			c.OutboundMarginDB -= e
-			c.InboundMarginDB -= e
-			c.PathLossDB += e
-			sr.Cells[i] = c
-		}
+		}()
 	}
+	for y := 0; y < sr.Height; y++ {
+		rows <- y
+	}
+	close(rows)
+	wg.Wait()
 }

@@ -65,14 +65,19 @@ type Ground interface {
 
 // ObstructionsOnPath is every building the straight path from a to b passes
 // through, with entry and exit as fractions of the path.
+//
+// Candidates come from a corridor walked ALONG the path, one tile-sized
+// step at a time, not from the path's bounding box: a 50 km diagonal's box
+// is a rectangle holding whole towns, and a coverage raster asking for a
+// hundred thousand paths against every building in that rectangle froze a
+// run solid. The corridor holds a few hundred candidates where the box
+// held tens of thousands, and the same buildings cross either way.
 func ObstructionsOnPath(p Provider, g Ground, aLat, aLon, bLat, bLon float64) []Obstruction {
 	if p == nil {
 		return nil
 	}
-	minLat, maxLat := math.Min(aLat, bLat), math.Max(aLat, bLat)
-	minLon, maxLon := math.Min(aLon, bLon), math.Max(aLon, bLon)
 	var out []Obstruction
-	for _, bl := range p.Buildings(minLat, minLon, maxLat, maxLon) {
+	for _, bl := range corridorBuildings(p, aLat, aLon, bLat, bLon) {
 		enter, exit, crosses := segmentPolygon(aLat, aLon, bLat, bLon, bl.Footprint)
 		if !crosses {
 			continue
@@ -90,6 +95,39 @@ func ObstructionsOnPath(p Provider, g Ground, aLat, aLon, bLat, bLon float64) []
 			TopM:     ground + bl.HeightM,
 			Material: bl.Material, MaterialConfidence: bl.MaterialConfidence,
 		})
+	}
+	return out
+}
+
+// corridorStepDeg is the corridor's sampling step and half-width, a shade
+// over one z14 tile so no building beside the line is missed.
+const corridorStepDeg = 0.012
+
+// corridorBuildings collects the candidates along the path, deduplicated -
+// neighbouring steps share tiles, and a building must cross once, not once
+// per step that saw it.
+func corridorBuildings(p Provider, aLat, aLon, bLat, bLon float64) []Building {
+	dLat, dLon := bLat-aLat, bLon-aLon
+	span := math.Max(math.Abs(dLat), math.Abs(dLon))
+	steps := int(span/corridorStepDeg) + 1
+	seen := map[[2]float64]bool{}
+	var out []Building
+	for i := 0; i <= steps; i++ {
+		f := float64(i) / float64(steps)
+		lat := aLat + dLat*f
+		lon := aLon + dLon*f
+		for _, bl := range p.Buildings(lat-corridorStepDeg, lon-corridorStepDeg,
+			lat+corridorStepDeg, lon+corridorStepDeg) {
+			if len(bl.Footprint) == 0 {
+				continue
+			}
+			k := bl.Footprint[0]
+			if seen[k] {
+				continue
+			}
+			seen[k] = true
+			out = append(out, bl)
+		}
 	}
 	return out
 }

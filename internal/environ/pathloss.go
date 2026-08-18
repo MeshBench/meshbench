@@ -20,6 +20,11 @@ func PathBuildingLossDB(p Provider, g Ground,
 		return 0
 	}
 	obs := ObstructionsOnPath(p, g, aLat, aLon, bLat, bLon)
+	return priceObstructions(obs, txAslM, rxAslM, totalM, freqMHz)
+}
+
+// priceObstructions is the one place a crossed building becomes decibels.
+func priceObstructions(obs []Obstruction, txAslM, rxAslM, totalM, freqMHz float64) float64 {
 	if len(obs) == 0 {
 		return 0
 	}

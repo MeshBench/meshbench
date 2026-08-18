@@ -10,6 +10,8 @@ package coverage
 import (
 	"fmt"
 	"math"
+	"runtime"
+	"sync"
 
 	"github.com/MeshBench/meshbench/internal/terrain"
 )
@@ -199,28 +201,44 @@ func ComputeFromLosses(fixed Endpoint, g HeightGrid, losses []float32, r *Raster
 		return fmt.Errorf("coverage: no terrain at %s (%.5f, %.5f)", fixed.Name, fixed.Lat, fixed.Lon)
 	}
 	r.Cells = make([]Cell, r.Width*r.Height)
-	for y := 0; y < r.Height; y++ {
-		for x := 0; x < r.Width; x++ {
-			i := y*r.Width + x
-			loss := float64(losses[i])
-			if loss > 1e30 {
-				r.Cells[i] = Cell{NoData: true}
-				continue
+	// Rows across every core: a million cells of haversines and bearings
+	// per station, times hundreds of stations, was the station loop's
+	// biggest serial cost. Each row writes only its own span.
+	var wg sync.WaitGroup
+	rows := make(chan int)
+	for w := 0; w < runtime.NumCPU(); w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for y := range rows {
+				for x := 0; x < r.Width; x++ {
+					i := y*r.Width + x
+					loss := float64(losses[i])
+					if loss > 1e30 {
+						r.Cells[i] = Cell{NoData: true}
+						continue
+					}
+					lat, lon := r.LatLonAt(x, y)
+					distKm := haversineKm(fixed.Lat, fixed.Lon, lat, lon)
+					if distKm <= 0 {
+						r.Cells[i] = Cell{}
+						continue
+					}
+					remoteGround, ok := g.At(lat, lon)
+					if !ok {
+						r.Cells[i] = Cell{NoData: true}
+						continue
+					}
+					r.Cells[i] = cellFromLoss(fixed, fixedGround, remoteGround, lat, lon, distKm, loss, o)
+				}
 			}
-			lat, lon := r.LatLonAt(x, y)
-			distKm := haversineKm(fixed.Lat, fixed.Lon, lat, lon)
-			if distKm <= 0 {
-				r.Cells[i] = Cell{}
-				continue
-			}
-			remoteGround, ok := g.At(lat, lon)
-			if !ok {
-				r.Cells[i] = Cell{NoData: true}
-				continue
-			}
-			r.Cells[i] = cellFromLoss(fixed, fixedGround, remoteGround, lat, lon, distKm, loss, o)
-		}
+		}()
 	}
+	for y := 0; y < r.Height; y++ {
+		rows <- y
+	}
+	close(rows)
+	wg.Wait()
 	return nil
 }
 

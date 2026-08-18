@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"sync"
 
 	"github.com/MeshBench/meshbench/internal/coverage"
 	"github.com/MeshBench/meshbench/internal/environ"
@@ -198,10 +199,38 @@ func registerCoverageMap(st *state.Store, s *Sim) {
 				Width: gw, Height: gh, FreqMHz: freq}
 			var extra func(int, float64, float64, float64, float64, float64) float64
 			if env != nil {
-				extra = func(sti int, cellLat, cellLon, txAsl, rxAsl, distM float64) float64 {
-					st := stations[sti]
-					return environ.PathBuildingLossDB(env, ground,
-						st.Lat, st.Lon, txAsl, cellLat, cellLon, rxAsl, distM, freq)
+				// One spatial index for the whole job. Per-path store
+				// queries - even corridor-shaped - ground twelve workers
+				// against one mutex for minutes; the index pays one query
+				// and answers every path lock-free.
+				iSouth, iNorth, iWest, iEast := south, north, west, east
+				for _, sta := range stations {
+					iSouth = math.Min(iSouth, sta.Lat)
+					iNorth = math.Max(iNorth, sta.Lat)
+					iWest = math.Min(iWest, sta.Lon)
+					iEast = math.Max(iEast, sta.Lon)
+				}
+				ix := environ.NewPathIndex(env, ground,
+					iSouth-0.05, iWest-0.05, iNorth+0.05, iEast+0.05)
+				if ix.Buildings() > 0 {
+					// Each station's near-set once, up front: the raster
+					// asks about the same town a hundred thousand times,
+					// and the sector index answers with the handful of
+					// footprints the ray could actually cross.
+					shadows := make([]*environ.StationPaths, len(stations))
+					for i, sta := range stations {
+						shadows[i] = ix.Station(sta.Lat, sta.Lon)
+					}
+					nearMask := ix.NearMask(south, north, west, east, gw, gh, 3)
+					var pool = sync.Pool{New: func() any { return &environ.PathScratch{} }}
+					extra = func(sti int, cellLat, cellLon, txAsl, rxAsl, distM float64) float64 {
+						cx := int((cellLon - west) / (east - west) * float64(gw))
+						cy := int((north - cellLat) / (north - south) * float64(gh))
+						near := cx >= 0 && cx < gw && cy >= 0 && cy < gh && nearMask[cy*gw+cx]
+						sc := pool.Get().(*environ.PathScratch)
+						defer pool.Put(sc)
+						return shadows[sti].LossDB(sc, near, txAsl, cellLat, cellLon, rxAsl, distM, freq)
+					}
 				}
 			}
 			// The profile step follows the height grid: sampling terrain
