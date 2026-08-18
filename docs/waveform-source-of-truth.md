@@ -341,8 +341,8 @@ what it does to a signal.
 - [x] buildings and the material model get their switches in the RF
       Simulation section - environment on/off, regional material profile -
       with the same honest-default rule as everything else there
-- [ ] land cover / vegetation / weather recorded as follow-up rungs, not
-      promised here
+- [x] land cover / vegetation / weather recorded as follow-up rungs, not
+      promised here (recorded in this plan and in the as-built decision log)
 
 **Gate:** a known urban link the bare-earth model gets wrong flips to the
 observed outcome, and the re-fitted excess loss is smaller and documented.
