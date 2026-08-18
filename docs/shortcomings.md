@@ -35,12 +35,15 @@ full receive chain - demodulation, Gray, the diagonal deinterleaver, Hamming
 FEC, dewhitening, the explicit header and the payload CRC (internal/lora).
 What reaches MeshCore is the decoded bytes. Capture, partial overlap and
 interference alignment are emergent; a grazing collision that FEC can repair
-is repaired, and the ledger says how many codewords it cost. Two remaining
-caveats: preamble sync is granted rather than modelled (plan W3), and the
-bit-level conventions - whitening phase, header checksum, symbol offset -
-are implemented from the reverse-engineering literature and self-consistent,
-but have not yet been vector-checked against gr-lora_sdr or a real SX1262
-(the plan's golden-vector item). Packet sensitivity brackets Semtech's
+is repaired, and the ledger says how many codewords it cost. One remaining
+caveat: the receiver front end models ideal sync (plan W3 grants exact
+timing inside the engine). The bit-level conventions - sync word, Hamming
+parity matrix, whitening, header checksum, payload CRC - have been verified
+against a real SX1262 over the air (tools/goldencap, 2026-08-18): the
+sync-word chirps, the chip's four-XOR parity equations and the CRC's
+last-two-bytes quirk were all solved from captured frames and corrected in
+internal/lora, and two captured frames are checked in as golden vectors that
+the test suite holds the encoder to. Packet sensitivity brackets Semtech's
 published floors in test.
 
 ---

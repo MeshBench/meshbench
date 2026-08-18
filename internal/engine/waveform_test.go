@@ -323,9 +323,11 @@ func TestImplementationLossDeafens(t *testing.T) {
 			StepMs: 10, Seed: 13, RFMode: engine.RFWaveform,
 			Realism: engine.Realism{ImplementationLossDB: lossDB},
 		})
-		// Far enough that the margin is thin: ~34 km at 22 dBm free space.
+		// Far enough that the margin is thin - tuned empirically, and
+		// re-tuned when the coding chain took silicon's own parity matrix,
+		// which decodes a shade deeper than the textbook one it replaced.
 		e.Add(wfNode("a", 0, 22), nil)
-		e.Add(wfNode("b", 0.55, 22), nil)
+		e.Add(wfNode("b", 0.80, 22), nil)
 		_ = e.Run(context.Background(), 10)
 		e.InjectFrame(0, []byte("margin is thin out here"))
 		_ = e.Run(context.Background(), 8000)

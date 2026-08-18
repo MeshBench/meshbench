@@ -178,10 +178,11 @@ easiest-first, each with round-trip tests before the next.
 - [x] full TX: MeshCore bytes → symbols; replaces `symbolsFor`, which also
       makes the waterfall bit-exact for free
 - [x] full RX: symbols → bytes, with per-stage error accounting
-- [ ] golden vectors from gr-lora_sdr via SigMF, checked in; cross-validated
-      both directions *(needs GNU Radio or captured hardware IQ - on the
-      manual-verification list; the chain is self-consistent and
-      structurally tested, and its symbol counts match RadioLib exactly)*
+- [x] golden vectors from gr-lora_sdr via SigMF, checked in; cross-validated
+      both directions *(closed better than planned: real SX1262 captures via
+      tools/goldencap replaced the gr-lora_sdr route - sync word, Hamming
+      matrix and CRC quirk solved from the air and corrected, two vectors
+      checked in, encoder held to them by test)*
 - [x] verdict switches from symbol proxy to FEC+CRC; proxy label removed
 - [x] sensitivity re-measured with coding gain against Semtech's figures
 

@@ -187,10 +187,18 @@ remaining profile is roughly half Gaussian noise synthesis and a fifth FFT.
   in their own window, so one physical decode can in principle be
   attributed to two packets; a continuous per-receiver stream is the
   eventual shape (it is what the SDR observer already does).
-- **Bit-level conventions await silicon**: whitening phase, header
-  checksum, sync-word values are implemented from the reverse-engineering
-  literature and self-consistent; `internal/lora`'s golden-vector test arms
-  itself the moment `testdata/golden-*.json` files exist.
+- **Bit-level conventions verified against silicon** (2026-08-18): a real
+  SX1262 (MeshCore KISS modem) transmitting known payloads into a remote
+  rtl_tcp dongle, analysed by `tools/goldencap`. Three conventions the
+  literature had wrong or ambiguous were solved from the air and corrected:
+  the sync word's chirps are nibble x 8 regardless of SF; the Hamming parity
+  matrix is four 3-input XORs (p0=d0^d1^d2, p1=d1^d2^d3, p2=d0^d1^d3,
+  p3=d0^d2^d3), not textbook Hamming plus overall parity; and the payload
+  CRC is CCITT over all but the last two bytes with those bytes XORed into
+  the result. Whitening, Gray, the interleaver diagonal and the header
+  layout were confirmed exactly as implemented. Two captured frames are
+  checked in as golden vectors; final-block padding is chip garbage no
+  receiver reads and is excluded from comparison.
 
 ## What still needs a human or hardware
 

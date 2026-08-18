@@ -24,9 +24,11 @@ type FrameLayout struct {
 	SyncB    int
 }
 
-// StandardSync is the private-network sync word 0x12 as two symbol values.
+// StandardSync is the private-network sync word 0x12 as two symbol values:
+// each nibble times eight, independent of SF - measured off the air from a
+// real SX126x (goldencap capture, 2026-08-18), not taken from any document.
 func StandardSync(sf int) (int, int) {
-	return 1 << (sf - 4), 2 << (sf - 4)
+	return 1 * 8, 2 * 8
 }
 
 // sfdSamples is the SFD's length in samples: 2.25 downchirp symbols.
@@ -126,15 +128,27 @@ func Detect(iq []complex128, layout FrameLayout) (Sync, bool) {
 	sfdStart := -1
 	binUp := runBin
 	var binDown int
-	for at := foundAt + need*n; at+n <= len(iq) && at < foundAt+(layout.Preamble+4)*n; at += n {
+	for at := foundAt + need*n; at+n <= len(iq) && at < foundAt+(layout.Preamble+6)*n; at += n {
 		// A window is a downchirp when conjugate-dechirping (multiplying by
-		// the base chirp itself) concentrates its energy.
+		// the base chirp itself) concentrates its energy - and, decisively,
+		// when it concentrates MORE that way than as an upchirp. A strong
+		// noisy preamble can pass a bare peak-over-mean test in the down
+		// view; a real capture proved it, so the ratio is the judge now.
+		_, upConfHere := (Demodulator{SF: sf}).DemodulateSymbolInto(scratch, iq[at:at+n])
+		var upPeak float64
+		for _, v := range scratch {
+			p := real(v)*real(v) + imag(v)*imag(v)
+			if p > upPeak {
+				upPeak = p
+			}
+		}
+		_ = upConfHere
 		for i := 0; i < n; i++ {
 			scratch[i] = iq[at+i] * up[i]
 		}
 		FFT(scratch)
 		peak, mean := peakAndMean(scratch)
-		if peak > 6*mean {
+		if peak > 6*mean && peak > 2.5*upPeak {
 			binDown = argmax(scratch)
 			sfdStart = at
 			break

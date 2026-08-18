@@ -35,18 +35,23 @@ func Whiten(b []byte) {
 
 // hammingEncode expands a nibble to a 4+cr bit codeword.
 //
-// CR 4/7 and 4/8 are Hamming codes that correct one bit; 4/6 detects up to
-// two and 4/5 one, correcting nothing - exactly the split the real chip has,
-// and the reason 4/5 traffic dies where 4/8 traffic survives.
+// The parity equations are the real SX126x's, solved from a captured frame
+// (goldencap, 2026-08-18) rather than taken from any paper: seventy
+// codewords off the air pinned all four as three-input XORs -
+//
+//	p0 = d0^d1^d2   p1 = d1^d2^d3   p2 = d0^d1^d3   p3 = d0^d2^d3
+//
+// CR 4/7 and 4/8 correct one bit; 4/6 detects; 4/5 is a bare checksum -
+// the chip's split, and the reason 4/5 traffic dies where 4/8 survives.
 func hammingEncode(nibble byte, cr int) int {
 	d0 := int(nibble) & 1
 	d1 := int(nibble) >> 1 & 1
 	d2 := int(nibble) >> 2 & 1
 	d3 := int(nibble) >> 3 & 1
-	p0 := d0 ^ d1 ^ d3 // the Hamming(7,4) parity triple
-	p1 := d0 ^ d2 ^ d3
-	p2 := d1 ^ d2 ^ d3
-	p3 := d0 ^ d1 ^ d2 ^ d3 ^ p0 ^ p1 ^ p2 // overall parity, for 4/8's SECDED
+	p0 := d0 ^ d1 ^ d2
+	p1 := d1 ^ d2 ^ d3
+	p2 := d0 ^ d1 ^ d3
+	p3 := d0 ^ d2 ^ d3
 	cw := int(nibble)
 	switch cr {
 	case 1:
@@ -61,6 +66,15 @@ func hammingEncode(nibble byte, cr int) int {
 	return cw
 }
 
+// hammingSyndromeFlip maps a syndrome to the single bit it convicts, for the
+// measured parity matrix. Data-bit columns carry three checks each, parity
+// bits one; every column is distinct, which is what makes one error
+// correctable and the rest honestly uncorrectable.
+var hammingSyndromeFlip = map[int]int{
+	0b1101: 0, 0b0111: 1, 0b1011: 2, 0b1110: 3, // data bits d0..d3
+	0b0001: 4, 0b0010: 5, 0b0100: 6, 0b1000: 7, // parity bits p0..p3
+}
+
 // hammingDecode recovers the nibble. corrected reports a repaired single-bit
 // error; bad reports damage this rate can only detect, which fails the frame.
 func hammingDecode(cw, cr int) (nibble byte, corrected, bad bool) {
@@ -72,42 +86,33 @@ func hammingDecode(cw, cr int) (nibble byte, corrected, bad bool) {
 		}
 		return d, false, false
 	}
-	syndrome := func(cw int) int {
-		d0, d1, d2, d3 := cw&1, cw>>1&1, cw>>2&1, cw>>3&1
-		s0 := d0 ^ d1 ^ d3 ^ (cw >> 4 & 1)
-		s1 := d0 ^ d2 ^ d3 ^ (cw >> 5 & 1)
-		s2 := d1 ^ d2 ^ d3 ^ (cw >> 6 & 1)
-		return s0 | s1<<1 | s2<<2
+	d0, d1, d2, d3 := cw&1, cw>>1&1, cw>>2&1, cw>>3&1
+	s := (d0 ^ d1 ^ d2 ^ (cw >> 4 & 1)) |
+		(d1^d2^d3^(cw>>5&1))<<1 |
+		(d0^d1^d3^(cw>>6&1))<<2
+	if cr == 4 {
+		s |= (d0 ^ d2 ^ d3 ^ (cw >> 7 & 1)) << 3
 	}
-	s := syndrome(cw)
 	if s == 0 {
-		if cr == 4 {
-			// Overall parity: a mismatch with a clean syndrome is a double
-			// error - detectable, not repairable.
-			if popcount(cw&0xFF)%2 != 0 {
-				return d, false, true
-			}
-		}
 		return d, false, false
 	}
-	// One bit is wrong; the syndrome says which of the seven it is.
-	flip := map[int]int{
-		0b011: 0, 0b101: 1, 0b110: 2, 0b111: 3, // data bits
-		0b001: 4, 0b010: 5, 0b100: 6, // parity bits
-	}[s]
+	// The syndrome table depends on how many checks this rate carries: the
+	// full four at 4/8, their three-bit projections at 4/7.
+	var flip int
+	var ok bool
+	if cr == 4 {
+		flip, ok = hammingSyndromeFlip[s]
+	} else {
+		flip, ok = map[int]int{
+			0b101: 0, 0b111: 1, 0b011: 2, 0b110: 3,
+			0b001: 4, 0b010: 5, 0b100: 6,
+		}[s]
+	}
+	if !ok {
+		return d, false, true // not a single-bit pattern: uncorrectable
+	}
 	cw ^= 1 << flip
-	if cr == 4 && popcount(cw&0xFF)%2 != 0 {
-		return byte(cw & 0xF), false, true // correction left parity wrong: double error
-	}
 	return byte(cw & 0xF), true, false
-}
-
-func popcount(v int) int {
-	n := 0
-	for ; v != 0; v &= v - 1 {
-		n++
-	}
-	return n
 }
 
 // encodeBlock turns ppm nibbles into cr+4 symbols of ppm bits: Hamming, then
@@ -203,11 +208,20 @@ func headerChecksum(n0, n1, n2 byte) byte {
 	return c4<<4 | c3<<3 | c2<<2 | c1<<1 | c0
 }
 
-// CRC16 is the payload CRC: CCITT polynomial 0x1021, zero initial value,
-// computed over the unwhitened payload.
+// CRC16 is the payload CRC as the real chip computes it - solved from a
+// captured frame's own CRC (goldencap, 2026-08-18), matching the quirk the
+// reverse-engineering literature reports: CCITT polynomial 0x1021 from a
+// zero seed over all but the last two bytes, then those two bytes XORed
+// straight into the result, low byte from the last, high from the
+// second-to-last.
 func CRC16(b []byte) uint16 {
+	n := len(b)
+	split := n - 2
+	if split < 0 {
+		split = 0
+	}
 	var crc uint16
-	for _, v := range b {
+	for _, v := range b[:split] {
 		crc ^= uint16(v) << 8
 		for i := 0; i < 8; i++ {
 			if crc&0x8000 != 0 {
@@ -217,5 +231,48 @@ func CRC16(b []byte) uint16 {
 			}
 		}
 	}
+	if n >= 1 {
+		crc ^= uint16(b[n-1])
+	}
+	if n >= 2 {
+		crc ^= uint16(b[n-2]) << 8
+	}
 	return crc
+}
+
+// RawCodewords is the receive side stopped before Hamming: Gray and the
+// deinterleaver only, exposing each block's codewords as the air carried
+// them. A calibration tool uses this to solve a real chip's parity equations
+// from captured frames; it is of no use to a normal receiver.
+func RawCodewords(p Params, shifts []int) [][]int {
+	if p.check() != nil || len(shifts) < 8 {
+		return nil
+	}
+	hn, dn := p.headerPPM(), p.dataPPM()
+	var blocks [][]int
+	take := func(raw []int, ppm int, cr int) {
+		cws := make([]int, ppm)
+		for c := 0; c < len(raw); c++ {
+			v := Gray(raw[c])
+			for r := 0; r < ppm; r++ {
+				cws[(r+c)%ppm] |= (v >> r & 1) << c
+			}
+		}
+		blocks = append(blocks, cws)
+	}
+	hdr := make([]int, 8)
+	for i := 0; i < 8; i++ {
+		hdr[i] = shifts[i] >> (p.SF - hn)
+	}
+	take(hdr, hn, 4)
+	at := 8
+	for at+p.CR+4 <= len(shifts) {
+		raw := make([]int, p.CR+4)
+		for i := range raw {
+			raw[i] = shifts[at+i] >> (p.SF - dn)
+		}
+		take(raw, dn, p.CR)
+		at += p.CR + 4
+	}
+	return blocks
 }
