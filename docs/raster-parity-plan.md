@@ -53,15 +53,15 @@ pricing, exact where it prices); free space cannot cull LoRa stations
 so range culling is physics, not a config number); and the per-station
 CPU margin pass was single-threaded (fixed: parallel rows).
 
-**The next real step is finishing the fold on the GPU.** Today the
-kernel prices losses and everything after - margins, buildings, fold -
-is CPU per station, with a readback per station. The plan: the kernel
-takes the station's budget terms and writes min-margin per cell; a
-second small kernel folds it into a persistent best/serving buffer on
-the device; buildings stay CPU but apply only to fold survivors near
-towns; one readback at the end instead of hundreds. That removes the
-per-station CPU passes entirely and should put a 1M-cell viewport
-under a minute.
+**Done: the fold lives on the GPU.** The kernel's second entry point
+finishes margins (antenna gain from a sampled table) and folds each
+station into persistent best and second-best slots on the device; one
+readback at the end however many stations price it, then buildings once
+on the surviving cells with the runner-up re-judged where a shadow could
+flip the winner. CPU twin: `coverage.FoldStationCPU`, equivalence-tested
+with a beamed antenna. Measured on the 473k-cell viewport: the station
+loop went from ~10 minutes to 0.12 s + 8.1 s of buildings; the job is
+67 s end to end, 59 s of which is now terrain sampling - the next wall.
 
 ## Order of work
 
