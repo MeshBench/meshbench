@@ -6,14 +6,14 @@
 // the console back.
 //
 // This exists so an application developer can point a client at a simulated
-// mesh, and so the workbench can show what the client would see.
+// mesh, and so the workbench can show what the client would see. The verbs
+// live here; the session they act on - the claim, the frame reassembly, the
+// decoded state - is compSession, in companionsession.go.
 package session
 
 import (
-	"encoding/binary"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/companion/proto"
@@ -21,144 +21,6 @@ import (
 	"github.com/MeshBench/meshbench/internal/gui/state"
 	"github.com/MeshBench/meshbench/internal/provider"
 )
-
-// compSession is one connected companion.
-type compSession struct {
-	node    string
-	release func()
-
-	mu       sync.Mutex
-	self     *proto.SelfInfo
-	device   *proto.DeviceInfo
-	contacts []proto.Contact
-	messages []proto.Message
-	channels map[uint8]proto.ChannelInfo
-	last     []string
-	partial  []byte
-	// scope is the region the node says it sends under, and scopeKnown
-	// whether it has been asked. Empty-and-known is unscoped; empty-and-not
-	// is simply not read yet, and the two must not look the same.
-	scope      string
-	scopeKnown bool
-	// unread counts what has arrived on each channel since it was last
-	// looked at. The channel list exists to show it.
-	unread map[uint8]int
-	// seen is the channel the client is currently reading, so arrivals on it
-	// are not counted as unread.
-	seen uint8
-	// waiting is set when the node says a message is ready to collect, and
-	// cleared once the sync command has been sent for it.
-	waiting bool
-	// rev counts decoded frames. Frames arrive on the bridge's goroutine and
-	// the world is only written on the store's, so the tick needs some way to
-	// ask "has anything happened" that is cheaper than rebuilding the view
-	// and comparing it.
-	rev uint64
-}
-
-// Write receives whatever the node sends while the claim is held.
-//
-// The protocol is length-framed, so a partial frame is kept rather than
-// decoded: a serial read boundary is not a message boundary, and treating it
-// as one produces a stream of decode errors that look like a broken node.
-func (c *compSession) Write(b []byte) (int, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.partial = append(c.partial, b...)
-	// MeshCore's own framing: '>' from the device, then a little-endian
-	// length, then that many bytes. Anything else in the stream is the
-	// firmware's console output and is skipped rather than guessed at - the
-	// first version of this read the length from wherever the buffer happened
-	// to start and decoded rubbish.
-	for {
-		i := 0
-		for i < len(c.partial) && c.partial[i] != '>' {
-			i++
-		}
-		if i > 0 {
-			c.partial = c.partial[i:]
-		}
-		if len(c.partial) < 3 {
-			break
-		}
-		n := int(binary.LittleEndian.Uint16(c.partial[1:3]))
-		if len(c.partial) < 3+n {
-			break
-		}
-		frame := append([]byte(nil), c.partial[3:3+n]...)
-		c.partial = c.partial[3+n:]
-		f, err := proto.Decode(frame)
-		if err != nil {
-			c.note("undecoded frame: " + err.Error())
-			continue
-		}
-		c.apply(f)
-	}
-	return len(b), nil
-}
-
-func (c *compSession) apply(f proto.Frame) {
-	c.rev++
-	// A message is not pushed to us, only the news that one exists. Asking
-	// for it is a command, so it cannot be sent from here - this runs on the
-	// bridge's own goroutine, and typing into the bridge from inside its read
-	// path deadlocks. The flag is picked up by the next tick instead.
-	if f.Push == proto.PushMsgWaiting {
-		c.waiting = true
-	}
-	switch {
-	case f.SelfInfo != nil:
-		c.self = f.SelfInfo
-		c.note("self: " + f.SelfInfo.Name)
-	case f.Device != nil:
-		c.device = f.Device
-		if f.Device.ModeKnown {
-			c.note(fmt.Sprintf("path hashes: %d byte(s)",
-				proto.PathHashBytes(f.Device.PathHashMode)))
-		}
-	case f.Channel != nil:
-		if c.channels == nil {
-			c.channels = map[uint8]proto.ChannelInfo{}
-		}
-		c.channels[f.Channel.Index] = *f.Channel
-		c.note(fmt.Sprintf("channel %d: %s", f.Channel.Index, f.Channel.Name))
-	case f.Contact != nil:
-		c.contacts = append(c.contacts, *f.Contact)
-		c.note("contact: " + f.Contact.Name)
-	case f.Message != nil:
-		c.messages = append(c.messages, *f.Message)
-		// Not counted against the channel being read, and never against our
-		// own sends - an unread badge on the conversation you are looking at
-		// is noise, and one for a message you just typed is wrong.
-		if f.Message.Channel && !f.Message.Mine && f.Message.ChannelIdx != c.seen {
-			if c.unread == nil {
-				c.unread = map[uint8]int{}
-			}
-			c.unread[f.Message.ChannelIdx]++
-		}
-		c.note("message: " + f.Message.Text)
-	case f.Scope != nil:
-		c.scope, c.scopeKnown = f.Scope.Name, true
-		if f.Scope.Name == "" {
-			c.note("scope: unscoped")
-		} else {
-			c.note("scope: " + f.Scope.Name)
-		}
-	case f.Err != "":
-		c.note("error: " + f.Err)
-	default:
-		c.note(fmt.Sprintf("frame %v", f.Code))
-	}
-}
-
-// note keeps a short tail, so a caller can see what happened without holding
-// every frame of a long session.
-func (c *compSession) note(s string) {
-	c.last = append(c.last, s)
-	if len(c.last) > 200 {
-		c.last = c.last[len(c.last)-200:]
-	}
-}
 
 func registerCompanion(st *state.Store, s *Sim) {
 	// companion.connect: claim the port and introduce ourselves.
@@ -511,26 +373,6 @@ func (s *Sim) companionFor(node string) (*compSession, *engine.Node, error) {
 		return nil, nil, fmt.Errorf("%s runs no firmware", node)
 	}
 	return c, en, nil
-}
-
-// compFrame wraps a payload the way the device expects it.
-//
-// '<' towards the node, a little-endian length, then the payload. Sending the
-// payload bare is not a malformed frame, it is console text: the firmware
-// reads it as somebody typing and answers nothing, which is what an
-// experiment measuring zero transmissions looked like.
-func compFrame(payload []byte) []byte {
-	out := make([]byte, 0, 3+len(payload))
-	out = append(out, '<')
-	out = binary.LittleEndian.AppendUint16(out, uint16(len(payload)))
-	return append(out, payload...)
-}
-
-// Lines is the session's recent traffic, for a console to draw.
-func (c *compSession) Lines() []string {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return append([]string(nil), c.last...)
 }
 
 // connectCompanion claims a node's port for the companion protocol.
