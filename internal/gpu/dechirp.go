@@ -24,6 +24,7 @@ type Device struct {
 	device   *wgpu.Device
 	queue    *wgpu.Queue
 	dechirp  *wgpu.ComputePipeline
+	demod    *wgpu.ComputePipeline
 	coverage *wgpu.ComputePipeline
 	pairs    *wgpu.ComputePipeline
 	Name     string
@@ -97,6 +98,9 @@ func Open() (*Device, error) {
 	if err := d.compilePairs(); err != nil {
 		return nil, err
 	}
+	if err := d.compileDemod(); err != nil {
+		return nil, err
+	}
 	return d, nil
 }
 
@@ -106,6 +110,9 @@ func (d *Device) Close() {
 	}
 	if d.dechirp != nil {
 		d.dechirp.Release()
+	}
+	if d.demod != nil {
+		d.demod.Release()
 	}
 	if d.device != nil {
 		d.device.Release()
