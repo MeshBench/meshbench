@@ -13,6 +13,34 @@ strength of a simulation.
 
 ---
 
+## 0. Two RF modes, two error budgets
+
+Since the waveform work (docs/waveform-source-of-truth.md) MeshBench has two
+reception models, chosen in Configuration under **RF Simulation** and stamped
+into every result:
+
+**Calculated** (the default): reception is a link-budget SNR against the
+demodulator floor, with concurrent transmissions summed into the noise in
+dBm. Fast, and the mode every large scenario should use. Two known biases:
+any overlap counts as full-length interference however briefly it clipped
+the packet (pessimistic under partial collisions), and there is no capture -
+a strong signal is destroyed by a weak overlap the real chip would ignore
+(measured against waveform mode: on a dense 60-node, 6-simultaneous-sender
+burst, roughly half the collision-affected pairs decode under the waveform
+that calculated calls lost).
+
+**Waveform**: the channel synthesises IQ, every concurrent transmission
+lands in the receiver's window at its true offset, and the demodulator's
+answer is the verdict. Capture, partial overlap and interference alignment
+are emergent. Its current honesty caveat: until the LoRa coding chain lands
+(plan W2), the verdict is a symbol proxy - every payload symbol must decode,
+with no FEC - so a clipped tail that real coding would repair counts as a
+loss. Direction of error: pessimistic under grazing collisions, faithful
+under clean air and deep collisions. Preamble sync is granted, not modelled,
+until plan W3.
+
+---
+
 ## 1. Physics that is absent
 
 ### 1.1 No multipath — the biggest single gap

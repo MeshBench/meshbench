@@ -30,6 +30,10 @@ type Prefs struct {
 	// Basemap is the chosen map layer's ID - carto-dark, carto-light,
 	// esri-topo. Empty means the default.
 	Basemap string `json:"basemap,omitempty"`
+	// RFMode is which physics decides reception - "calculated" (default) or
+	// "waveform". A machine-level choice like the GPU switch: the operator
+	// picked a physics, and the pick survives a restart.
+	RFMode string `json:"rf_mode,omitempty"`
 }
 
 // prefsPath is ~/.config/meshcoresim/workbench2.json, or empty when the
@@ -70,6 +74,9 @@ func (s *Sim) LoadPrefs() {
 		// another go at it.
 		s.gpuAsked = true
 		s.gpuWarm = *p.GPU
+	}
+	if p.RFMode == "waveform" {
+		s.rfMode = "waveform"
 	}
 }
 

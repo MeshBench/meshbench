@@ -122,6 +122,8 @@ type World struct {
 	FleetReplies []FleetReply
 	// FleetCommand is the command they are replies to.
 	FleetCommand string
+	// RFMode is which physics decides reception: "calculated" or "waveform".
+	RFMode string
 	// RealFirmware is what kind of run this is: on, play starts one MeshCore
 	// process per node and every relay decision is the firmware's own. Off,
 	// the channel and the collisions are still real but nothing decides to

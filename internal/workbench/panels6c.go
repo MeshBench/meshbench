@@ -48,6 +48,7 @@ type configPanel struct {
 	setMargin   comp.Button
 	excess      comp.Field
 	setExcess   comp.Button
+	rfModeDD    comp.Dropdown
 	device      comp.Dropdown
 	cacheDD     comp.Dropdown
 	themeDD     comp.Dropdown
@@ -71,12 +72,12 @@ type configPanel struct {
 // configSections is the sidebar, in the mock's order. Overview first, then
 // the simulation's own terms, then the machine's.
 var configSections = []string{
-	"Overview", "General", "Nodes", "Links", "Environment", "Time", "Seed",
-	"Graphics", "Events", "System", "Interface",
+	"Overview", "General", "Nodes", "Links", "Environment", "RF Simulation",
+	"Time", "Seed", "Graphics", "Events", "System", "Interface",
 }
 
 // configHeads is which sidebar rows get a heading above them.
-var configHeads = map[int]string{1: "simulation", 7: "advanced"}
+var configHeads = map[int]string{1: "simulation", 8: "advanced"}
 
 func (p *configPanel) build() {
 	p.secRows = make([]widget.Clickable, len(configSections))
@@ -90,6 +91,7 @@ func (p *configPanel) build() {
 	p.setMargin.Label, p.setMargin.Kind = "set margin", comp.Secondary
 	p.excess.Hint, p.excess.Label, p.excess.Suffix = "dB", "Excess path loss", "dB"
 	p.setExcess.Label, p.setExcess.Kind = "set loss", comp.Secondary
+	p.rfModeDD.Label = "RF mode"
 	p.device.Label = "Graphics device"
 	p.cacheDD.Label = "Tile cache"
 	p.themeDD.Label = "Theme"
@@ -239,6 +241,29 @@ func (p *configPanel) update(gtx layout.Context, s *state.Snapshot) {
 	} else {
 		p.device.Value = "processor only"
 	}
+	if s.RFMode == "waveform" {
+		p.rfModeDD.Value = "waveform - demodulator verdicts"
+	} else {
+		p.rfModeDD.Value = "calculated - link-budget verdicts"
+	}
+	p.rfModeDD.OnOpen = func() {
+		if p.choose == nil {
+			return
+		}
+		p.choose("Reception is decided by", []string{
+			"calculated - fast link budgets, scales to thousands of nodes",
+			"waveform - IQ through the channel, verdict by the demodulator",
+		}, func(picked string) {
+			if p.do == nil {
+				return
+			}
+			mode := "calculated"
+			if strings.HasPrefix(picked, "waveform") {
+				mode = "waveform"
+			}
+			p.do("rf.mode", map[string]any{"mode": mode})
+		})
+	}
 	p.device.OnOpen = func() {
 		if p.choose == nil || !s.GPU.Present {
 			return
@@ -330,6 +355,8 @@ func (p *configPanel) section(t *theme.Theme, gtx layout.Context, s *state.Snaps
 		cards = p.linksCards(t, s)
 	case "Environment":
 		cards = p.environment(t, s)
+	case "RF Simulation":
+		cards = p.rfSimulation(t, s)
 	case "Time":
 		cards = p.timeCards(t, s)
 	case "Seed":
@@ -411,6 +438,7 @@ func (p *configPanel) auditDraw(t *theme.Theme, gtx layout.Context, s *state.Sna
 		func(gtx layout.Context) layout.Dimensions { return p.gpu.LayoutSwitch(t, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.realFW.LayoutSwitch(t, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.device.Layout(t, gtx) },
+		func(gtx layout.Context) layout.Dimensions { return p.rfModeDD.Layout(t, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.cacheDD.Layout(t, gtx) },
 		p.fieldRow(t, &p.scale, &p.setScale, ""),
 		func(gtx layout.Context) layout.Dimensions { return p.themeDD.Layout(t, gtx) },

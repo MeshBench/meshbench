@@ -252,8 +252,15 @@ func (sh *Shell) counts(s *state.Snapshot) string {
 	if s == nil {
 		return ""
 	}
-	return itoa(len(s.Nodes)) + " nodes   seed " + itoa64(s.Seed) +
+	out := itoa(len(s.Nodes)) + " nodes   seed " + itoa64(s.Seed) +
 		"   t = " + msToS(s.NowMs)
+	// Which physics is deciding reception, whenever it is not the default:
+	// a run whose results came from the waveform must say so everywhere the
+	// operator is already looking.
+	if s.RFMode == "waveform" {
+		out += "   waveform RF"
+	}
+	return out
 }
 
 func (sh *Shell) statusBar(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {

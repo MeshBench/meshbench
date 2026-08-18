@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"github.com/MeshBench/meshbench/internal/dsp"
 	"github.com/MeshBench/meshbench/internal/rf"
 )
 
@@ -41,27 +40,46 @@ func (e *Engine) InFlightTransmissions(rxIndex int) []rf.Transmission {
 	rxPHY := e.phyOf(nodes[rxIndex].Spec)
 
 	var out []rf.Transmission
+	cache := modCache{}
 	for _, t := range inFlight {
-		src := nodes[t.from]
-		txPHY := e.phyOf(src.Spec)
 		// Only what this receiver could actually see. A transmission on another
 		// channel is not in this waterfall, for the same reason it is not in
 		// this receiver's ledger.
-		if !txPHY.sameChannel(rxPHY) {
+		if !e.phyOf(nodes[t.from].Spec).sameChannel(rxPHY) {
 			continue
 		}
-		loss, ok := e.pathLoss(t.from, rxIndex)
+		tx, ok := e.rxTransmission(t, rxIndex, t.startMs, nodes, cache)
 		if !ok {
 			continue
 		}
-		mod := dsp.Modulator{SF: txPHY.sf}
-		out = append(out, rf.Transmission{
-			Node:    src.Spec.Name,
-			Samples: mod.Modulate(symbolsFor(t.frame, txPHY.sf)),
-			GainDB:  src.Spec.TxPowerDBm + gain(src.Spec) - loss + gain(nodes[rxIndex].Spec),
-		})
+		tx.StartSample = 0 // the waterfall window is "now", not t's own start
+		out = append(out, tx)
 	}
 	return out
+}
+
+// rxTransmission is one transmission as one receiver gets it: the shared
+// synthesis the verdict, the waterfall and (in time) the SDR observers all
+// render from. If these ever rendered from different signals, the picture
+// would lie about the physics.
+//
+// anchorMs is the start of the observation window; StartSample lands the
+// transmission at its true offset within it, at the channel's baseband rate.
+func (e *Engine) rxTransmission(t transmission, rxIdx int, anchorMs uint32,
+	nodes []*Node, cache modCache) (rf.Transmission, bool) {
+	src := nodes[t.from]
+	txPHY := e.phyOf(src.Spec)
+	loss, ok := e.pathLoss(t.from, rxIdx)
+	if !ok {
+		return rf.Transmission{}, false
+	}
+	spms := txPHY.bandwidthHz / 1000
+	return rf.Transmission{
+		Node:        src.Spec.Name,
+		Samples:     e.modulated(cache, t, txPHY.sf),
+		GainDB:      src.Spec.TxPowerDBm + gain(src.Spec) - loss + gain(nodes[rxIdx].Spec),
+		StartSample: int(float64(int64(t.startMs)-int64(anchorMs)) * spms),
+	}, true
 }
 
 // symbolsFor turns a frame into LoRa symbols.

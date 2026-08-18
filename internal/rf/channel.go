@@ -52,17 +52,25 @@ func Observe(txs []Transmission, rx Receiver, windowSamples int) []complex128 {
 		amp := math.Pow(10, tx.GainDB/20) // dB is power; amplitude is the half-power
 		intDelay := int(math.Floor(tx.DelaySamples))
 		frac := tx.DelaySamples - float64(intDelay)
+		// Sub-sample delay as a phase rotation. At 125 kHz one sample is
+		// 2.4 km, so mesh delays are almost always fractional — and phase is
+		// exactly how two arrivals decide whether they reinforce or cancel.
+		// One rotation per transmission, folded into the amplitude: computing
+		// a transcendental per sample was 50% of a waveform run's CPU.
+		rot := cmplx.Exp(complex(0, -2*math.Pi*frac)) * complex(amp, 0)
 
-		for i, s := range tx.Samples {
-			pos := tx.StartSample + i + intDelay
-			if pos < 0 || pos >= windowSamples {
-				continue
-			}
-			// Sub-sample delay as a phase rotation. At 125 kHz one sample is
-			// 2.4 km, so mesh delays are almost always fractional — and phase is
-			// exactly how two arrivals decide whether they reinforce or cancel.
-			v := s * cmplx.Exp(complex(0, -2*math.Pi*frac))
-			out[pos] += v * complex(amp, 0)
+		// The overlap of this transmission with the window, so the hot loop
+		// carries no bounds branch.
+		off := tx.StartSample + intDelay
+		lo, hi := 0, len(tx.Samples)
+		if off < 0 {
+			lo = -off
+		}
+		if off+hi > windowSamples {
+			hi = windowSamples - off
+		}
+		for i := lo; i < hi; i++ {
+			out[off+i] += tx.Samples[i] * rot
 		}
 	}
 

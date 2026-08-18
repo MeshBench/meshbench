@@ -29,7 +29,30 @@ func (e *Engine) completeTransmissions(now uint32) error {
 		}
 	}
 	e.inFlight = still
+	// Everything that could have shared the air with a transmission ending
+	// now: what is still up, what ended this tick, and what ended earlier
+	// but overlapped something still running. Missing that last set made a
+	// short interferer invisible the moment it stopped.
 	concurrent := append(append([]transmission{}, still...), done...)
+	concurrent = append(concurrent, e.recent...)
+	e.recent = append(e.recent, done...)
+	if len(still) == 0 {
+		e.recent = e.recent[:0]
+	} else {
+		minStart := still[0].startMs
+		for _, s := range still[1:] {
+			if s.startMs < minStart {
+				minStart = s.startMs
+			}
+		}
+		kept := e.recent[:0]
+		for _, r := range e.recent {
+			if r.endMs > minStart {
+				kept = append(kept, r)
+			}
+		}
+		e.recent = kept
+	}
 	senders := make([]*Node, len(done))
 	for i, t := range done {
 		senders[i] = e.nodes[t.from]
@@ -43,11 +66,26 @@ func (e *Engine) completeTransmissions(now uint32) error {
 	// completion nobody was going to send, so each node transmitted exactly
 	// once in its life and then went permanently silent. A 300-node flood
 	// looked like a single hop, because that is what it was.
+	// One modulation cache per batch: in waveform mode every receiver of
+	// every finished transmission shares the same synthesised baseband.
+	e.mu.Lock()
+	mode := e.Config.rfMode()
+	e.mu.Unlock()
+	var cache modCache
+	if mode == RFWaveform {
+		cache = modCache{}
+	}
 	for i, t := range done {
 		if fw := senders[i].Firmware; fw != nil {
 			if err := fw.Bridge.TransmitFinished(); err != nil {
 				return fmt.Errorf("engine: tx done for %s: %w", senders[i].Spec.Name, err)
 			}
+		}
+		if mode == RFWaveform {
+			if err := e.deliverWaveform(t, concurrent, cache); err != nil {
+				return err
+			}
+			continue
 		}
 		if err := e.deliver(t, concurrent); err != nil {
 			return err

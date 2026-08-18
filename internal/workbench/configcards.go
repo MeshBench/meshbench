@@ -189,6 +189,37 @@ func (p *configPanel) environment(t *theme.Theme, s *state.Snapshot) []layout.Wi
 	}
 }
 
+// rfSimulation is the physics section: which model decides reception, and -
+// as the waveform plan lands its later phases - every realism and
+// environment switch, each defaulting to the honest baseline.
+func (p *configPanel) rfSimulation(t *theme.Theme, s *state.Snapshot) []layout.Widget {
+	verdictNote := "calculated: the link budget and the demodulator floor decide - " +
+		"fast, and the mode every large scenario should use"
+	if s.RFMode == "waveform" {
+		verdictNote = "waveform: the channel produces IQ and the demodulator decides - " +
+			"capture, partial overlap and interference alignment are emergent. " +
+			"Until the LoRa coding chain lands, the verdict is symbol-accurate " +
+			"(every payload symbol must decode; no FEC yet), which is harsher " +
+			"than real hardware under a clipped tail"
+	}
+	return []layout.Widget{
+		comp.Card(t, "RF mode", func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return p.rfModeDD.Layout(t, gtx)
+				}),
+				layout.Rigid(layout.Spacer{Height: t.Sp.XS}.Layout),
+				layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint, verdictNote)),
+			)
+		}),
+		comp.Card(t, "Shared physics", comp.Text(t, t.Sz.Caption, t.P.Faint,
+			"both modes price the path identically - terrain, budgets, antennas, "+
+				"timing, seed - so the same scenario runs under either, and the "+
+				"difference between their ledgers measures where the fast model "+
+				"diverges from the waveform")),
+	}
+}
+
 func (p *configPanel) timeCards(t *theme.Theme, s *state.Snapshot) []layout.Widget {
 	return []layout.Widget{
 		comp.Card(t, "The clock", func(gtx layout.Context) layout.Dimensions {

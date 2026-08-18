@@ -73,6 +73,11 @@ type Config struct {
 	// uncalibrated. Always displayed when set — a silent fudge factor is the
 	// thing the validation chain exists to prevent.
 	ExcessPathLossDB float64
+
+	// RFMode selects which physics decides reception: RFCalculated (the
+	// zero value - link budgets and demodulator floors) or RFWaveform (IQ
+	// through the channel, verdict by the demodulator). See waveform.go.
+	RFMode RFMode
 }
 
 // Engine owns the run.
@@ -98,6 +103,11 @@ type Engine struct {
 	// the channel for its own airtime, and anything else transmitting during
 	// that window is a collision rather than a separate event.
 	inFlight []transmission
+	// recent holds transmissions that have already ended but overlapped
+	// something still in flight. Without it a short interferer that finished
+	// before the wanted packet did was invisible to interference in both RF
+	// modes - the collision happened on the air and nowhere else.
+	recent []transmission
 
 	// emitterNoise caches each receiver's extra floor from the emitter fleet,
 	// invalidated with the link cache — emitters move exactly as often as

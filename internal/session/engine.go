@@ -55,6 +55,9 @@ type Sim struct {
 	// compRev is the companion frame count as of the last time the view was
 	// published, so a tick where nothing arrived skips the rebuild.
 	compRev uint64
+	// rfMode is which physics decides reception - "" or "calculated" for the
+	// fast model, "waveform" for demodulator verdicts. See rfmode.go.
+	rfMode string
 	// gpuWarm is whether the link matrix is measured on the GPU when one can
 	// answer to the same accuracy. Off by default: it reads a rasterised
 	// height grid rather than the DEM, which is the same answer on a county
@@ -270,6 +273,7 @@ func (s *Sim) buildSeeded(nodes []scenario.Node, freqMHz float64, seed uint64) {
 		FreqMHz: freqMHz, SF: 10, BandwidthHz: 250e3, CodingRate: 1,
 		NoiseFigDB: 6, StepMs: 10, Seed: seed,
 		ExcessPathLossDB: s.excessLossDB,
+		RFMode:           rfModeOf(s.rfMode),
 	})
 	for _, n := range nodes {
 		s.eng.Add(n, nil)

@@ -100,45 +100,64 @@ gate must pass before the next phase starts.
 Landed together with W1, so the switch never offers a mode that does not
 exist yet.
 
-- [ ] `RFMode` on `engine.Config`: `calculated` | `waveform`, zero value
+- [x] `RFMode` on `engine.Config`: `calculated` | `waveform`, zero value
       `calculated` so every existing scenario is untouched
-- [ ] Configuration grows an **RF Simulation** section; the mode choice is
+- [x] Configuration grows an **RF Simulation** section; the mode choice is
       its first control - two modes as a radio choice, each with one honest
       sentence about what it is for and what it costs
-- [ ] mode persisted in session preferences and restored on launch
-- [ ] mode stamped into run results, exports and `run.save`, and shown in
+- [x] mode persisted in session preferences and restored on launch
+- [x] mode stamped into run results, exports and `run.save`, and shown in
       the chrome during a run
-- [ ] `docs/shortcomings.md` updated: what each mode does and does not model
+- [x] `docs/shortcomings.md` updated: what each mode does and does not model
 
 **Gate:** the same scenario runs in both modes with nothing else changed.
 
 ### W1 — waveform verdicts (the pivot)
 
-- [ ] extract the window synthesis from `InFlightTransmissions` into one
+- [x] extract the window synthesis from `InFlightTransmissions` into one
       shared helper — the verdict and the waterfall must render from the
       same signal, or the picture lies about the physics
-- [ ] `deliver()` waveform path: per candidate receiver (gated by the
+- [x] `deliver()` waveform path: per candidate receiver (gated by the
       existing `Offered` and `sameChannel` checks, which is the plan's
       "active transmissions only" economy), build the window with every
       concurrent same-channel transmission at its true `StartSample`,
       `Observe()`, demodulate, verdict = symbols decoded == symbols sent
-- [ ] interference enters as waveforms in the window — the dBm-summed
+- [x] interference enters as waveforms in the window — the dBm-summed
       `interferenceDBm` path is not consulted in waveform mode
-- [ ] half-duplex deafness unchanged; SNR and RSSI remain in the ledger as
+- [x] half-duplex deafness unchanged; SNR and RSSI remain in the ledger as
       telemetry, never as the reason
-- [ ] ledger and packet views label the verdict source, including the
+- [x] ledger and packet views label the verdict source, including the
       symbol-proxy caveat until W2 replaces it
-- [ ] acceptance test (the plan's MS1 gate): two packets with identical
+- [x] acceptance test (the plan's MS1 gate): two packets with identical
       RSSI and average SNR but different interference alignment produce
       different outcomes; changing `RequiredSNRdB` changes nothing in
       waveform mode
-- [ ] determinism test: same seed, same scenario → byte-identical ledger
-- [ ] benchmark: flood on the 311-node fixture, calculated vs waveform wall
+- [x] determinism test: same seed, same scenario → byte-identical ledger
+- [x] benchmark: flood on the 311-node fixture, calculated vs waveform wall
       time, recorded in the doc — the budget for everything that follows
-- [ ] divergence harness: same scenario both modes, diff the ledgers — the
+- [x] divergence harness: same scenario both modes, diff the ledgers — the
       measurement of where the fast model lies, kept as a tool
 
 **Gate:** the MS1 acceptance test passes; benchmark numbers are written down.
+
+Measured on elite (Ryzen 5 3600XT, 12 threads), `BenchmarkBurst*` in
+`internal/engine/waveform_bench_test.go`, a flood burst covering ~5 s of
+simulated time, after hoisting rf.Observe's per-sample phase rotation
+(which alone was half of all CPU):
+
+| mesh | calculated | waveform | ratio |
+|---|---|---|---|
+| 100 nodes, 10 senders | 4.4 ms | 152 ms | ~35x |
+| 300 nodes, 5 senders | 6.4 ms | 213 ms | ~33x |
+| 300 nodes, 20 senders | 46.8 ms | 1.04 s | ~22x |
+
+Waveform mode runs
+the 300-node, 20-sender burst ~5x faster than real time; the remaining
+profile is roughly half Gaussian noise synthesis (Philox Box-Muller) and a
+fifth FFT - the two candidates for W6's GPU twins. The divergence harness's
+first finding: on that dense burst, calculated mode's no-capture
+interference model calls roughly half the collision-affected pairs lost
+that the demodulator actually captures.
 
 ### W2 — the real LoRa coding chain
 
