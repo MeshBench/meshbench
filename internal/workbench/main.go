@@ -254,6 +254,15 @@ func Run(args []string) {
 	// The buildings layer reads straight from the loaded environment: a
 	// city of polygons has no business in the world snapshot.
 	mv.BuildingsIn = sm.BuildingsIn
+	mv.OnRasterView = func(south, west, north, east float64) {
+		go func() {
+			if _, err := st.Do(ctx, "coverage.map", map[string]any{
+				"south": south, "west": west, "north": north, "east": east,
+			}); err != nil {
+				_, _ = st.Do(ctx, "ui.said", err.Error())
+			}
+		}()
+	}
 	wbUI := &workbenchUI{sh: sh, sim: sm, mv: mv, nodes: newNodeWindows(), store: st}
 	callbacks{
 		wbUI: wbUI, mv: mv, st: st, ctx: ctx, sm: sm, openPacket: openPacket,

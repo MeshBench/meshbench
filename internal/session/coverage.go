@@ -105,9 +105,9 @@ func paintCoverage(r *coverage.Raster, name string) *state.Coverage {
 			case c.Workable():
 				col = rampFor(math.Min(c.OutboundMarginDB, c.InboundMarginDB))
 			case c.OneWay():
-				// Heard but cannot answer. Hatched by alpha rather than by a
-				// pattern, which does not survive being scaled on a map.
-				col = color.RGBA{R: 200, G: 120, B: 40, A: 90}
+				// Heard but cannot answer. Its own amber, apart from the
+				// ramp: asymmetry is a different fact, not a weaker margin.
+				col = color.RGBA{R: 210, G: 120, B: 40, A: 150}
 			default:
 				col = color.RGBA{}
 			}
@@ -122,16 +122,23 @@ func paintCoverage(r *coverage.Raster, name string) *state.Coverage {
 	}
 }
 
-// rampFor is the legend: green comfortable, amber marginal, and nothing above
-// 30 dB because more margin than that is not a distinction anybody acts on.
+// rampFor is the legend: a continuous run from orange at the floor to
+// green at 20 dB, HopReach's readability decision adopted whole - bands
+// made a smooth physical quantity look like four verdicts, and the eye
+// reads a gradient's shape where it only counts a band's edges. Above
+// 20 dB stays the same green: more margin than that is not a distinction
+// anybody acts on. The alpha is constant; the operator's opacity slider
+// owns visibility now.
 func rampFor(marginDB float64) color.RGBA {
-	switch {
-	case marginDB >= 20:
-		return color.RGBA{R: 40, G: 170, B: 120, A: 120}
-	case marginDB >= 10:
-		return color.RGBA{R: 90, G: 180, B: 100, A: 110}
-	case marginDB >= 3:
-		return color.RGBA{R: 200, G: 180, B: 70, A: 105}
+	t := marginDB / 20
+	if t < 0 {
+		t = 0
 	}
-	return color.RGBA{R: 210, G: 130, B: 60, A: 100}
+	if t > 1 {
+		t = 1
+	}
+	lerp := func(a, b float64) uint8 { return uint8(a + t*(b-a)) }
+	return color.RGBA{
+		R: lerp(230, 40), G: lerp(140, 190), B: lerp(50, 120), A: 150,
+	}
 }

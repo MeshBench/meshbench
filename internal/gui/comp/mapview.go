@@ -13,6 +13,7 @@ import (
 	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
+	"gioui.org/widget"
 
 	"github.com/MeshBench/meshbench/internal/gui/state"
 	"github.com/MeshBench/meshbench/internal/gui/theme"
@@ -83,6 +84,13 @@ type MapView struct {
 	// stays data-blind.
 	BuildingsIn func(south, west, north, east float64) []state.BuildingPoly
 	bldCache    buildingsCache
+	// CoverageOpacity is the raster's draw-time opacity, the slider beside
+	// the layer panel. Zero means "not set yet" and draws as 1.
+	CoverageOpacity widget.Float
+	// OnRasterView asks the session to raster exactly this viewport - the
+	// borders someone is looking at, not the network's or the boundary's.
+	OnRasterView  func(south, west, north, east float64)
+	rasterViewBtn widget.Clickable
 
 	// OnSelect is called when the pointer changes the selection. Additive is
 	// a shift-click or a shift-drag, which adds rather than replaces.
@@ -184,7 +192,13 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 	// Coverage under everything but the basemap: it is the ground a network
 	// sits on, and drawn over the links it would hide what it explains.
 	if m.Layers.Coverage {
+		alpha := m.CoverageOpacity.Value
+		if alpha <= 0 {
+			alpha = 1
+		}
+		ol := paint.PushOpacity(gtx.Ops, alpha)
 		m.drawCoverage(t, gtx, sz, s)
+		ol.Pop()
 	}
 	if m.Layers.Buildings {
 		m.drawBuildings(t, gtx, sz)

@@ -2,6 +2,7 @@ package comp
 
 import (
 	"fmt"
+	"gioui.org/widget/material"
 	"image"
 	"image/color"
 	"math"
@@ -228,6 +229,39 @@ func (m *MapView) layerPanel(t *theme.Theme, gtx layout.Context, sz image.Point,
 		kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return m.Layers.toggles[i].Layout(t, gtx)
 		}))
+	}
+	// Coverage's own controls, right under its switch: the opacity slider
+	// and the raster-this-view button only exist while the layer does.
+	if m.Layers.Coverage {
+		kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			gtx.Constraints.Min.X = gtx.Dp(130)
+			gtx.Constraints.Max.X = gtx.Dp(130)
+			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+				layout.Rigid(Text(t, t.Sz.Caption, t.P.Faint, "opacity ")),
+				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+					if m.CoverageOpacity.Value == 0 {
+						m.CoverageOpacity.Value = 1
+					}
+					return material.Slider(t.M, &m.CoverageOpacity).Layout(gtx)
+				}),
+			)
+		}))
+		if m.OnRasterView != nil {
+			if m.rasterViewBtn.Clicked(gtx) {
+				south, west := m.unproject(f32.Pt(0, float32(sz.Y)), sz)
+				north, east := m.unproject(f32.Pt(float32(sz.X), 0), sz)
+				m.OnRasterView(south, west, north, east)
+			}
+			kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return m.rasterViewBtn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					ink := t.P.Accent
+					if m.rasterViewBtn.Hovered() {
+						ink = t.P.Ink
+					}
+					return Text(t, t.Sz.Caption, ink, "raster this view")(gtx)
+				})
+			}))
+		}
 	}
 	kids = append(kids, m.keyRows(t, inner, s)...)
 	for _, row := range m.buildingKeyRows(t) {

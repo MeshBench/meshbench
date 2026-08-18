@@ -29,7 +29,7 @@ const mapGridDefault = 240
 // profiles nobody sat down for.
 const (
 	mapGridMin = 64
-	mapGridMax = 1024
+	mapGridMax = 4096
 )
 
 // coverageCells is the long edge the operator chose, or the default.
@@ -113,20 +113,30 @@ func registerCoverageMap(st *state.Store, s *Sim) {
 		return map[string]any{"cells": s.coverageCells()}, nil
 	})
 
-	st.Handle("coverage.map", func(w *state.World, _ any) (any, error) {
+	st.Handle("coverage.map", func(w *state.World, p any) (any, error) {
 		infra := infrastructure(s.nodes)
 		if len(infra) == 0 {
 			return nil, fmt.Errorf("no repeaters or room servers to cover the map with")
 		}
-		// The study boundary when there is one - "cover the map" means the
-		// map somebody drew - and the network's own box when there is not.
-		south, north, west, east, ok := areasBox(w.Areas)
-		if !ok {
-			var err error
-			south, north, west, east, _, _, err = mapBox(s.nodes, s.coverageCells())
-			if err != nil {
-				return nil, err
+		// An explicit box wins - the raster-this-view button sends the
+		// borders somebody is actually looking at. Then the study boundary,
+		// then the network's own box.
+		south, sOK := numField(p, "south")
+		north, nOK := numField(p, "north")
+		west, wOK := numField(p, "west")
+		east, eOK := numField(p, "east")
+		if !sOK || !nOK || !wOK || !eOK {
+			var ok bool
+			south, north, west, east, ok = areasBox(w.Areas)
+			if !ok {
+				var err error
+				south, north, west, east, _, _, err = mapBox(s.nodes, s.coverageCells())
+				if err != nil {
+					return nil, err
+				}
 			}
+		} else if south >= north || west >= east {
+			return nil, fmt.Errorf("that viewport is inside out")
 		}
 		gw, gh := gridFor(south, north, west, east, s.coverageCells())
 		stations := make([]coverage.Endpoint, 0, len(infra))
@@ -159,8 +169,8 @@ func registerCoverageMap(st *state.Store, s *Sim) {
 		// Height rows count as the first half so the bar moves from the
 		// first second - a long job with nothing on screen reads as a hang.
 		hw, hh := gw*2, gh*2
-		if hw > 640 {
-			hw, hh = 640, int(640*float64(gh)/float64(gw))
+		if hw > 4096 {
+			hw, hh = 4096, int(4096*float64(gh)/float64(gw))
 		}
 		total := hh + gh
 		w.Jobs = append(w.Jobs, state.Job{

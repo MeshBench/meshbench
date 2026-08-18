@@ -10,6 +10,8 @@ package session
 
 import (
 	"fmt"
+	"github.com/MeshBench/meshbench/internal/terrain"
+	"math"
 
 	"github.com/MeshBench/meshbench/internal/coverage"
 	"github.com/MeshBench/meshbench/internal/gpu"
@@ -33,6 +35,15 @@ func (s *Sim) coverageMapGPU(grid coverage.HeightGrid, stations []coverage.Endpo
 	for i, st := range stations {
 		ground, ok := grid.At(st.Lat, st.Lon)
 		if !ok {
+			continue
+		}
+		// A station that cannot reach any corner of the box has nothing to
+		// contribute to it - HopReach's max-range cull, priced by free
+		// space rather than by a config number.
+		if !stationReaches(st, r, o) {
+			if progress != nil {
+				progress(i+1, len(stations))
+			}
 			continue
 		}
 		losses, err := dev.CoverageGridLoss(grid, coverage.GridLossParams{
@@ -60,6 +71,24 @@ func (s *Sim) coverageMapGPU(grid coverage.HeightGrid, stations []coverage.Endpo
 	c := fold.Done()
 	r.Cells = c.Cells
 	return c, fmt.Sprintf("%s (%s)", dev.Name, dev.Backend), true
+}
+
+// stationReaches is the box-level cull: the nearest point of the box to
+// the station, priced at free space with generous antenna slack. Terrain
+// and buildings only ever add loss, so a station that fails here fails
+// everywhere inside the box.
+func stationReaches(st coverage.Endpoint, r *coverage.Raster, o coverage.Options) bool {
+	lat := math.Min(math.Max(st.Lat, r.South), r.North)
+	lon := math.Min(math.Max(st.Lon, r.West), r.East)
+	distKm := haversineKmSession(st.Lat, st.Lon, lat, lon)
+	if distKm <= 0 {
+		return true
+	}
+	fspl := terrain.FSPLdB(distKm, r.FreqMHz)
+	const slack = 8
+	out := st.TxPowerDBm + slack + o.RemoteGainDBi - fspl - o.RemoteSensitivityDBm
+	in := o.RemoteTxPowerDBm + o.RemoteGainDBi + slack - fspl - st.SensitivityDBm
+	return math.Min(out, in) >= -1
 }
 
 // priceBuildingsInto adds the environment's cost to the cells where it
