@@ -149,9 +149,9 @@ func (s *Sim) refreshCompanions(w *state.World) {
 		// bridge's goroutine long after the command that caused them
 		// returned, so a console only written by console.cli shows the echo
 		// and never the answer - which reads as a command line that ignores
-		// you.
-		if c, ok := s.comps[w.ConsoleNode]; ok {
-			w.Console = c.Lines()
+		// you. Every session's, since consoles are per node.
+		for node, c := range s.comps {
+			setConsole(w, node, c.Lines())
 		}
 	}
 }

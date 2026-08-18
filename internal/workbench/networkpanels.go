@@ -52,30 +52,44 @@ func (c *importControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snaps
 }
 
 // boundaryControls chooses the study area.
+//
+// Two ways in, because Nominatim only covers what somebody has published a
+// boundary for - a country, a council, a national park - and most of what a
+// study needs to target is smaller than that. geojsonPath is the other one:
+// a file drawn anywhere (geojson.io, QGIS, a council's open-data portal)
+// becomes an area the same way an accepted search result does, through
+// scenario.ParseGeoJSON either way.
 type boundaryControls struct {
-	bar    actionBar
-	place  comp.Field
-	margin comp.Field
-	search comp.Button
-	accept comp.Button
-	prune  comp.Button
-	do     Do
-	built  bool
+	bar         actionBar
+	place       comp.Field
+	margin      comp.Field
+	geojsonPath comp.Field
+	search      comp.Button
+	accept      comp.Button
+	prune       comp.Button
+	importGeo   comp.Button
+	do          Do
+	built       bool
 }
 
 func (c *boundaryControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
 	if !c.built {
 		c.place.Hint = "a place: Fife, Scotland, Perth and Kinross"
 		c.margin.Hint = "margin km"
+		c.geojsonPath.Hint = "path to a .geojson file - for areas too small to search for"
 		c.place.Editor.SingleLine = true
 		c.margin.Editor.SingleLine = true
+		c.geojsonPath.Editor.SingleLine = true
 		c.search.Label, c.search.Kind = "search", comp.Primary
 		c.accept.Label, c.accept.Kind = "accept it", comp.Secondary
 		c.prune.Label, c.prune.Kind = "delete what is outside", comp.Destructive
-		c.bar.fields = []*comp.Field{&c.place, &c.margin}
-		c.bar.buttons = []*comp.Button{&c.search, &c.accept, &c.prune}
+		c.importGeo.Label, c.importGeo.Kind = "import it", comp.Secondary
+		c.bar.fields = []*comp.Field{&c.place, &c.margin, &c.geojsonPath}
+		c.bar.buttons = []*comp.Button{&c.search, &c.accept, &c.prune, &c.importGeo}
 		c.bar.note = "the study area decides which nodes are measured, not which " +
-			"packets are forwarded - the margin keeps what interferes from outside it"
+			"packets are forwarded - the margin keeps what interferes from outside it. " +
+			"Nominatim only knows places somebody has published a boundary for; " +
+			"anything smaller is a GeoJSON file"
 		c.built = true
 	}
 	if c.search.Click.Clicked(gtx) && c.do != nil {
@@ -90,6 +104,9 @@ func (c *boundaryControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Sna
 			p["margin_km"] = v
 		}
 		c.do("boundary.prune", p)
+	}
+	if c.importGeo.Click.Clicked(gtx) && c.do != nil {
+		c.do("boundary.import", map[string]any{"path": fieldText(&c.geojsonPath)})
 	}
 	return c.bar.layout(t, gtx)
 }

@@ -143,6 +143,14 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 				cmds = append(cmds, l.Command)
 			}
 		}
+		// The rule-resolved preview too, so opening this one menu item shows
+		// both what the flat settings alone would send and, once a readback
+		// has run, what the active rules actually will - without a second
+		// click to find out the second one exists.
+		if ns, ok := s.readback[name]; ok {
+			resolved := s.previewFor(ns)
+			w.ProvisioningPreviewNode, w.ProvisioningPreview = name, resolved
+		}
 		return map[string]any{"node": name, "commands": cmds}, nil
 	})
 }

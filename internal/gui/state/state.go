@@ -125,12 +125,25 @@ type Snapshot struct {
 	ExperimentSenders []string
 	// Series is the selected node's history, for its graphs.
 	Series NodeSeries
-	// Provisioning is the script for the node last asked about.
-	Provisioning     []ProvisionLine
-	ProvisioningNode string
-	// Console is one node's firmware scrollback.
-	Console     []string
-	ConsoleNode string
+	// Provisioning is the script for the node last asked about - see World's
+	// own field of the same name, and its neighbours, for the rest of the
+	// provisioning rule engine's state.
+	Provisioning            []ProvisionLine
+	ProvisioningNode        string
+	ProvisioningRules       []ProvisionRule
+	ProvisioningKeys        []ProvisionKey
+	ProvisioningMatch       map[string]int
+	ProvisioningReadAt      uint32
+	ProvisioningRead        bool
+	ProvisioningPreviewNode string
+	ProvisioningPreview     []ProvisionResolvedLine
+	ProvisioningResults     []ProvisionResult
+	// Consoles is scrollback for every node currently being watched - opened
+	// in a window, typed into, or just provisioned. Per node rather than a
+	// single slot: a single slot meant a second node window opened while the
+	// first was still up showed nothing, because only the most recently
+	// touched node's buffer was ever published.
+	Consoles map[string][]string
 	// Companions are the companion sessions the workbench currently holds,
 	// decoded rather than flattened to console text, so the client can draw a
 	// channel list and a conversation instead of a terminal.

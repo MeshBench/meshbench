@@ -53,10 +53,10 @@ func TestAFailedCommandAnswersInTheConsole(t *testing.T) {
 	}
 
 	snap := st.Snapshot()
-	if snap.ConsoleNode != "Alpha" {
-		t.Fatalf("console is showing %q, want Alpha", snap.ConsoleNode)
+	if len(snap.Consoles["Alpha"]) == 0 {
+		t.Fatal("Alpha's console got nothing")
 	}
-	joined := strings.Join(snap.Console, "\n")
+	joined := strings.Join(snap.Consoles["Alpha"], "\n")
 	if !strings.Contains(joined, "> region default #sco") {
 		t.Errorf("the command was not echoed into the console:\n%s", joined)
 	}
@@ -75,7 +75,7 @@ func TestAnUnimplementedCommandSaysWhichItIs(t *testing.T) {
 		map[string]any{"node": "Alpha", "command": "reboot"}); err != nil {
 		t.Fatalf("console.cli: %v", err)
 	}
-	joined := strings.Join(st.Snapshot().Console, "\n")
+	joined := strings.Join(st.Snapshot().Consoles["Alpha"], "\n")
 	if !strings.Contains(joined, "meshcore-cli has") {
 		t.Errorf("a real meshcore-cli command was not distinguished from a typo:\n%s", joined)
 	}
@@ -90,7 +90,7 @@ func TestTheEchoPrecedesTheAnswer(t *testing.T) {
 		map[string]any{"node": "Alpha", "command": "nonsense"}); err != nil {
 		t.Fatalf("console.cli: %v", err)
 	}
-	lines := st.Snapshot().Console
+	lines := st.Snapshot().Consoles["Alpha"]
 	echo, answer := -1, -1
 	for i, l := range lines {
 		if strings.HasPrefix(l, "> nonsense") {
@@ -131,7 +131,7 @@ func TestTheCLIRefusesAServedPort(t *testing.T) {
 	if _, connected := s.comps["Alpha"]; connected {
 		t.Fatal("the refused command claimed the port anyway")
 	}
-	if !strings.Contains(strings.Join(st.Snapshot().Console, "\n"), "served") {
+	if !strings.Contains(strings.Join(st.Snapshot().Consoles["Alpha"], "\n"), "served") {
 		t.Errorf("the refusal should say the port is served, in the console")
 	}
 }
@@ -152,10 +152,10 @@ func TestHelpAnswersInTheConsole(t *testing.T) {
 		t.Fatalf("console.cli ?: %v", err)
 	}
 	snap := st.Snapshot()
-	if snap.ConsoleNode != "Alpha" {
-		t.Fatalf("console is showing %q, want Alpha", snap.ConsoleNode)
+	if len(snap.Consoles["Alpha"]) == 0 {
+		t.Fatal("Alpha's console got nothing")
 	}
-	joined := strings.Join(snap.Console, "\n")
+	joined := strings.Join(snap.Consoles["Alpha"], "\n")
 	if !strings.Contains(joined, "> ?") {
 		t.Errorf("? was not echoed:\n%s", joined)
 	}
@@ -182,7 +182,7 @@ func TestAFailedConnectAnswersInTheConsole(t *testing.T) {
 	if m["failed"] != true {
 		t.Errorf("the reply does not mark the command as failed: %+v", m)
 	}
-	joined := strings.Join(st.Snapshot().Console, "\n")
+	joined := strings.Join(st.Snapshot().Consoles["Alpha"], "\n")
 	if !strings.Contains(joined, "> infos") {
 		t.Errorf("the command was not echoed:\n%s", joined)
 	}

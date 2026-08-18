@@ -281,9 +281,9 @@ func (p *nodeWindowPanel) activity(t *theme.Theme, gtx layout.Context, s *state.
 
 // console is the scrollback and the box to type into.
 func (p *nodeWindowPanel) console(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
-	lines := []string(nil)
-	if s != nil && s.ConsoleNode == p.node {
-		lines = s.Console
+	var lines []string
+	if s != nil {
+		lines = s.Consoles[p.node]
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {

@@ -46,16 +46,17 @@ type panelDeps struct {
 	chooserIn    func(panel string) func(string, []string, func(string))
 	openPacket   func(id uint64)
 	// The action bars, one per panel that has one.
-	fleetCtl  *fleetControls
-	schedCtl  *scheduleControls
-	importCtl *importControls
-	boundCtl  *boundaryControls
-	validCtl  *validateControls
-	planCtl   *planningControls
-	benchCtl  *benchControls
-	feedCtl   *feedControls
-	sweepCtl  *sweepControls
-	provCtl   *provisioningControls
+	fleetCtl     *fleetControls
+	schedCtl     *scheduleControls
+	importCtl    *importControls
+	boundCtl     *boundaryControls
+	validCtl     *validateControls
+	planCtl      *planningControls
+	benchCtl     *benchControls
+	feedCtl      *feedControls
+	sweepCtl     *sweepControls
+	provCtl      *provisioningControls
+	provRulesCtl *provisioningRulesPanel
 	// The flags that ask for a panel to be open, or open on something, at
 	// startup - so a screenshot can be driven rather than clicked.
 	cfgSection, licSection            *string
@@ -148,8 +149,7 @@ func addPanels(d panelDeps) *configPanel {
 	}
 	logp := &logPanel{}
 	d.sh.Add(&shell.Panel{Name: "Provisioning", Windowable: true,
-		Draw: d.withControls(d.provCtl.Draw, shell.EmptyPanel("Provisioning",
-			"what every node is told when it starts").Draw)})
+		Draw: d.withControls(d.provCtl.Draw, d.provRulesCtl.Draw)})
 	d.sh.Add(&shell.Panel{Name: "Configuration", Windowable: true, Draw: cfg.Draw})
 	d.sh.Add(&shell.Panel{Name: "Experiment log", Windowable: true, Draw: logp.Draw})
 	lic := &licPanel{}

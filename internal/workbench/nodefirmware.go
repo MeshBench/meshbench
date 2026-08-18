@@ -171,6 +171,42 @@ func provisioningScript(t *theme.Theme, s *state.Snapshot) layout.Widget {
 	}
 }
 
+// resolvedProvisioningScript shows what a node's active rules actually
+// resolve to, once a readback has run - which, with more than one rule in
+// play, is no longer something that can be worked out by reading the panel.
+// Below provisioningScript's own flat preview rather than in place of it: the
+// flat one still answers before any readback has ever happened, and this one
+// answers once it has, so the two together cover both states rather than one
+// going blank the moment the other would show something.
+func resolvedProvisioningScript(t *theme.Theme, s *state.Snapshot) layout.Widget {
+	return func(gtx layout.Context) layout.Dimensions {
+		if s == nil || len(s.ProvisioningPreview) == 0 {
+			return layout.Dimensions{}
+		}
+		kids := []layout.FlexChild{
+			layout.Rigid(comp.SectionTitle(t, s.ProvisioningPreviewNode+" resolves to, right now:")),
+		}
+		for _, l := range s.ProvisioningPreview {
+			l := l
+			who := l.RuleName
+			if who == "" {
+				who = "structural"
+			}
+			kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						gtx.Constraints.Min.X = gtx.Dp(230)
+						gtx.Constraints.Max.X = gtx.Dp(230)
+						return comp.Mono(t, t.Sz.Data, t.P.Ink, l.Command)(gtx)
+					}),
+					layout.Flexed(1, comp.OneLine(t, t.Sz.Caption, t.P.Dim, who, false)),
+				)
+			}))
+		}
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, kids...)
+	}
+}
+
 // firmwareOverlay draws the build list over the panel, centred.
 func (p *nodeViewPanel) firmwareOverlay(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 	comp.FillRect(gtx, gtx.Constraints.Max, theme.Alpha(t.P.Ground, 0.86))

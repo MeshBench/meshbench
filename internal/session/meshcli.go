@@ -198,23 +198,20 @@ func registerMeshCLI(st *state.Store, s *Sim) {
 			return nil, fmt.Errorf("console.cli needs a node and a command")
 		}
 		// The transcript this console draws. Through the session's rolling
-		// note buffer when one exists; straight into the world when none does
-		// yet, because help and a failed connect must still show up where
-		// they were typed - the box says "? for the list", and a ? that
-		// prints nothing reads as a command line that is broken.
+		// note buffer when one exists; straight into the node's own console
+		// slot when none does yet, because help and a failed connect must
+		// still show up where they were typed - the box says "? for the
+		// list", and a ? that prints nothing reads as a command line that
+		// is broken.
 		say := func(lines ...string) {
 			if sess := s.comps[node]; sess != nil {
 				for _, l := range lines {
 					sess.note(l)
 				}
-				w.Console, w.ConsoleNode = sess.Lines(), node
+				setConsole(w, node, sess.Lines())
 				return
 			}
-			if w.ConsoleNode != node {
-				w.Console = nil
-			}
-			w.Console = append(w.Console, lines...)
-			w.ConsoleNode = node
+			setConsole(w, node, append(w.Consoles[node], lines...))
 		}
 		// Help is local knowledge, so it answers whether or not anything is
 		// connected - asking what the commands are must not boot a node.

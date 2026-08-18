@@ -22,6 +22,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/engine"
 	"github.com/MeshBench/meshbench/internal/gui/state"
 	"github.com/MeshBench/meshbench/internal/linkbudget"
+	"github.com/MeshBench/meshbench/internal/provision"
 	"github.com/MeshBench/meshbench/internal/scenario"
 	"github.com/MeshBench/meshbench/internal/terrain"
 )
@@ -110,10 +111,21 @@ type Sim struct {
 	feeding atomic.Bool
 	// warmCancel stops the measurement in flight when the network changes
 	// under it, guarded by warmMu.
-	// prov is what every node is told at boot.
-	prov       *Provisioning
-	warmMu     sync.Mutex
-	warmCancel context.CancelFunc
+	// prov is what every node is told at boot, under the old flat settings -
+	// kept as rule zero (see legacyAsRule) so an existing session's Provisioning
+	// panel state still means something once rules exist alongside it.
+	prov *Provisioning
+	// rules is the study's own overrides, applied after the base. See
+	// provisioningrules.go.
+	rules []provision.Rule
+	// readback is what the last readback pass found each node actually
+	// holds, keyed by name - the source of truth conditions and diffing are
+	// evaluated against, never the import. Nil until a readback has run.
+	readback     map[string]provision.NodeState
+	readbackAtMs uint32
+	readbackDone bool
+	warmMu       sync.Mutex
+	warmCancel   context.CancelFunc
 	// areas is the accepted study area, as boundaries.
 	areas []scenario.Boundary
 	// foundAreas is the last search's matches, awaiting a choice.

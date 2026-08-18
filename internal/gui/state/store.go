@@ -234,47 +234,54 @@ func (s *Store) publish() {
 		Shade:    s.world.Shade,
 		// Events and scores are already rebuilt fresh on every tick, so they
 		// are handed over rather than copied again.
-		Events:            s.world.Events,
-		EventTotal:        s.world.EventTotal,
-		Counts:            s.world.Counts,
-		Packet:            s.world.Packet,
-		Scores:            s.world.Scores,
-		Waterfall:         s.world.Waterfall,
-		WaterfallNote:     s.world.WaterfallNote,
-		Budgets:           s.world.Budgets,
-		LinkProfile:       s.world.LinkProfile,
-		Matrix:            s.world.Matrix,
-		Energy:            s.world.Energy,
-		Sends:             s.world.Sends,
-		Assertions:        s.world.Assertions,
-		Endpoints:         s.world.Endpoints,
-		Routes:            s.world.Routes,
-		Import:            s.world.Import,
-		Observed:          s.world.Observed,
-		Residuals:         s.world.Residuals,
-		Stats:             s.world.Stats,
-		Builds:            s.world.Builds,
-		Library:           append([]FirmwareRow(nil), s.world.Library...),
-		GPU:               s.world.GPU,
-		TileCacheGB:       s.world.TileCacheGB,
-		TileCacheDir:      s.world.TileCacheDir,
-		Experiment:        s.world.Experiment,
-		ExperimentWarning: s.world.ExperimentWarning,
-		ExperimentRuns:    s.world.ExperimentRuns,
-		ExperimentVerdict: s.world.ExperimentVerdict,
-		ExperimentArms:    s.world.ExperimentArms,
-		ExperimentSenders: s.world.ExperimentSenders,
-		Series:            s.world.Series,
-		Provisioning:      s.world.Provisioning,
-		Console:           s.world.Console,
-		Companions:        s.world.Companions,
-		FleetReplies:      append([]FleetReply(nil), s.world.FleetReplies...),
-		FleetCommand:      s.world.FleetCommand,
-		RealFirmware:      s.world.RealFirmware,
-		FirmwareRunning:   s.world.FirmwareRunning,
-		FirmwareStarting:  s.world.FirmwareStarting,
-		ConsoleNode:       s.world.ConsoleNode,
-		ProvisioningNode:  s.world.ProvisioningNode,
+		Events:                  s.world.Events,
+		EventTotal:              s.world.EventTotal,
+		Counts:                  s.world.Counts,
+		Packet:                  s.world.Packet,
+		Scores:                  s.world.Scores,
+		Waterfall:               s.world.Waterfall,
+		WaterfallNote:           s.world.WaterfallNote,
+		Budgets:                 s.world.Budgets,
+		LinkProfile:             s.world.LinkProfile,
+		Matrix:                  s.world.Matrix,
+		Energy:                  s.world.Energy,
+		Sends:                   s.world.Sends,
+		Assertions:              s.world.Assertions,
+		Endpoints:               s.world.Endpoints,
+		Routes:                  s.world.Routes,
+		Import:                  s.world.Import,
+		Observed:                s.world.Observed,
+		Residuals:               s.world.Residuals,
+		Stats:                   s.world.Stats,
+		Builds:                  s.world.Builds,
+		Library:                 append([]FirmwareRow(nil), s.world.Library...),
+		GPU:                     s.world.GPU,
+		TileCacheGB:             s.world.TileCacheGB,
+		TileCacheDir:            s.world.TileCacheDir,
+		Experiment:              s.world.Experiment,
+		ExperimentWarning:       s.world.ExperimentWarning,
+		ExperimentRuns:          s.world.ExperimentRuns,
+		ExperimentVerdict:       s.world.ExperimentVerdict,
+		ExperimentArms:          s.world.ExperimentArms,
+		ExperimentSenders:       s.world.ExperimentSenders,
+		Series:                  s.world.Series,
+		Provisioning:            s.world.Provisioning,
+		ProvisioningRules:       s.world.ProvisioningRules,
+		ProvisioningKeys:        s.world.ProvisioningKeys,
+		ProvisioningMatch:       s.world.ProvisioningMatch,
+		ProvisioningReadAt:      s.world.ProvisioningReadAt,
+		ProvisioningRead:        s.world.ProvisioningRead,
+		ProvisioningPreviewNode: s.world.ProvisioningPreviewNode,
+		ProvisioningPreview:     s.world.ProvisioningPreview,
+		ProvisioningResults:     s.world.ProvisioningResults,
+		Consoles:                copyConsoles(s.world.Consoles),
+		Companions:              s.world.Companions,
+		FleetReplies:            append([]FleetReply(nil), s.world.FleetReplies...),
+		FleetCommand:            s.world.FleetCommand,
+		RealFirmware:            s.world.RealFirmware,
+		FirmwareRunning:         s.world.FirmwareRunning,
+		FirmwareStarting:        s.world.FirmwareStarting,
+		ProvisioningNode:        s.world.ProvisioningNode,
 	})
 }
 
@@ -308,3 +315,18 @@ func (s *Store) SetStepMs(ms uint32) {
 
 // StepMs is the current tick size.
 func (s *Store) StepMs() uint32 { return s.stepMs }
+
+// copyConsoles makes a snapshot's map its own. The individual []string
+// values are already frozen at the point they were set - console.Buf.Snapshot
+// returns a fresh slice every time - so only the map header itself needs
+// copying, not every line in it.
+func copyConsoles(m map[string][]string) map[string][]string {
+	if m == nil {
+		return nil
+	}
+	out := make(map[string][]string, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
+}

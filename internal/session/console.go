@@ -86,7 +86,7 @@ func registerConsole(st *state.Store, s *Sim) {
 			}
 			w.NowMs = s.eng.NowMs()
 		}
-		w.Console, w.ConsoleNode = buf.Snapshot(), name
+		setConsole(w, name, buf.Snapshot())
 		_ = mark
 		return map[string]any{
 			"node": name, "sent": cmd,
@@ -104,19 +104,33 @@ func registerConsole(st *state.Store, s *Sim) {
 		if err != nil {
 			return nil, err
 		}
-		w.Console, w.ConsoleNode = buf.Snapshot(), name
+		lines := buf.Snapshot()
+		setConsole(w, name, lines)
 		// The scrollback itself, not a count of it.
 		//
 		// It reported only how many lines there were, which is exactly the
 		// thing a caller already knows it does not know. The tail rather than
 		// all of it: a node that has been running for an hour has thousands,
 		// and nobody reads the first one.
-		tail := w.Console
+		tail := lines
 		if n := 200; len(tail) > n {
 			tail = tail[len(tail)-n:]
 		}
 		return map[string]any{
-			"node": name, "lines": len(w.Console), "tail": tail,
+			"node": name, "lines": len(lines), "tail": tail,
 		}, nil
 	})
+}
+
+// setConsole publishes one node's scrollback, watching it - see World.Consoles.
+//
+// The map, not a single slot: a single "which node is being looked at" field
+// meant that opening a second node window went dark the moment a third verb
+// touched any other node's console, because only the most recently touched
+// node was ever kept live.
+func setConsole(w *state.World, name string, lines []string) {
+	if w.Consoles == nil {
+		w.Consoles = map[string][]string{}
+	}
+	w.Consoles[name] = lines
 }

@@ -238,6 +238,7 @@ func Run(args []string) {
 	sweepCtl := &sweepControls{do: do,
 		choose: chooserIn("Sweep"), askText: askerIn("Sweep")}
 	provCtl := &provisioningControls{do: do}
+	provRulesCtl := &provisioningRulesPanel{do: do, choose: chooserIn("Provisioning")}
 	// openPacket dissects a clicked transmission and puts the packet view in
 	// its own window, which is where wb1 kept it.
 	openPacket := func(id uint64) {
@@ -315,7 +316,7 @@ func Run(args []string) {
 		do: do, withControls: withControls, chooserIn: chooserIn, openPacket: openPacket,
 		fleetCtl: fleetCtl, schedCtl: schedCtl, importCtl: importCtl, boundCtl: boundCtl,
 		validCtl: validCtl, planCtl: planCtl, benchCtl: benchCtl, feedCtl: feedCtl,
-		sweepCtl: sweepCtl, provCtl: provCtl,
+		sweepCtl: sweepCtl, provCtl: provCtl, provRulesCtl: provRulesCtl,
 		cfgSection: cfgSection, licSection: licSection, filterFlag: filterFlag,
 		importFlag: importFlag, nodeWinFlag: nodeWinFlag, provFlag: provFlag,
 		openFwFlag: openFwFlag, openMenuFlag: openMenuFlag,

@@ -55,13 +55,20 @@ func (c *Buf) Write(p []byte) (int, error) {
 		// consoles is reading them at one instant, which is impossible with
 		// four terminal windows and impossible here without this.
 		line := strings.TrimRight(c.partial[:i], "\r")
-		c.lines = append(c.lines, fmt.Sprintf("%8.3f  %s", float64(c.nowMs)/1000, line))
+		c.append(fmt.Sprintf("%8.3f  %s", float64(c.nowMs)/1000, line))
 		c.partial = c.partial[i+1:]
 	}
+	return len(p), nil
+}
+
+// append adds a line and enforces MaxLines, under the caller's lock. Every
+// path that grows c.lines goes through this - Write, Echo, Stamp, Section -
+// so none of them can be the one that was forgotten when the bound was added.
+func (c *Buf) append(line string) {
+	c.lines = append(c.lines, line)
 	if n := len(c.lines) - MaxLines; n > 0 {
 		c.lines = append(c.lines[:0], c.lines[n:]...)
 	}
-	return len(p), nil
 }
 
 // snapshot returns the scrollback plus whatever has arrived since the last
@@ -98,7 +105,26 @@ func (c *Buf) LinesSince(mark int) []string {
 
 func (c *Buf) Echo(line string) {
 	c.mu.Lock()
-	c.lines = append(c.lines, fmt.Sprintf("%8.3f  > %s", float64(c.nowMs)/1000, line))
+	c.append(fmt.Sprintf("%8.3f  > %s", float64(c.nowMs)/1000, line))
+	c.mu.Unlock()
+}
+
+// Stamp appends a line as though the firmware had printed it, timestamped the
+// same way Write's own lines are. For synthetic lines that still belong in
+// the transcript - a provisioning comment, say - but did not come from the
+// serial port.
+func (c *Buf) Stamp(line string) {
+	c.mu.Lock()
+	c.append(fmt.Sprintf("%8.3f  %s", float64(c.nowMs)/1000, line))
+	c.mu.Unlock()
+}
+
+// Section appends a line with no timestamp at all - a divider, not an event.
+// Provisioning uses it to mark where a run's transcript starts and how it
+// concluded, visually distinct from anything the firmware actually said.
+func (c *Buf) Section(line string) {
+	c.mu.Lock()
+	c.append(line)
 	c.mu.Unlock()
 }
 

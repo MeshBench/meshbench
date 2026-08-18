@@ -445,8 +445,6 @@ func TestProvisioningControlsReachTheirVerbs(t *testing.T) {
 	c := &provisioningControls{do: r.do}
 	h := newPanelHarness(c.Draw, &state.Snapshot{})
 	h.frame()
-	c.hops.Editor.SetText("3")
-	c.stagger.Editor.SetText("250")
 	c.extra.Editor.SetText("set tx 22")
 	h.frame()
 	for y := float32(14); y < 220; y += 14 {
@@ -467,9 +465,6 @@ func TestProvisioningControlsReachTheirVerbs(t *testing.T) {
 		m, _ := r.params[i].(map[string]any)
 		if on, _ := m["set_name"].(bool); !on {
 			t.Error("set_name did not travel with the settings")
-		}
-		if hops, _ := m["advert_hops"].(float64); hops != 3 {
-			t.Errorf("advert_hops carried %v, not the typed 3", m["advert_hops"])
 		}
 		if x, _ := m["extra"].(string); x != "set tx 22" {
 			t.Errorf("extra carried %q", x)
