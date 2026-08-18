@@ -381,6 +381,18 @@ func (m *MapView) unproject(at f32.Point, sz image.Point) (lat, lon float64) {
 }
 
 // CentreOn puts a position in the middle of the view without changing zoom.
+// ViewportBox is the ground the map currently shows, for the callers that
+// cannot reach into a frame. Before the first frame there is no viewport,
+// and it says so.
+func (m *MapView) ViewportBox() (south, west, north, east float64, ok bool) {
+	if m.lastSize.X == 0 || m.lastSize.Y == 0 {
+		return 0, 0, 0, 0, false
+	}
+	south, west = m.unproject(f32.Pt(0, float32(m.lastSize.Y)), m.lastSize)
+	north, east = m.unproject(f32.Pt(float32(m.lastSize.X), 0), m.lastSize)
+	return south, west, north, east, true
+}
+
 // StartAt pins the camera before the first frame - the capture flags' way
 // in, since the first frame otherwise fits the whole network over whatever
 // the flags asked for.

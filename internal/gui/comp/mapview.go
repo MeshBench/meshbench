@@ -91,6 +91,7 @@ type MapView struct {
 	// borders someone is looking at, not the network's or the boundary's.
 	OnRasterView  func(south, west, north, east float64)
 	rasterViewBtn widget.Clickable
+	lastSize      image.Point
 
 	// OnSelect is called when the pointer changes the selection. Additive is
 	// a shift-click or a shift-drag, which adds rather than replaces.
@@ -142,6 +143,10 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 		return layout.Center.Layout(gtx,
 			Text(t, t.Sz.Caption, t.P.Faint, "no network loaded"))
 	}
+	// Remembered for the callers outside the frame loop - the menu's
+	// raster-this-view needs the viewport, and the viewport only exists
+	// where the widget has a size.
+	m.lastSize = sz
 	if !m.initialised || m.FitNext {
 		// FitNext is how something outside the frame loop asks for a fit:
 		// framing needs the widget's size, which only exists here.

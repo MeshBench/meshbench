@@ -24,7 +24,7 @@ type menuDeps struct {
 	nodes    *nodesPanel
 	chooser  func(string, []string, func(string))
 	menuFlag *string
-	onShown  func(action string)
+	onShown  func(action string) bool
 }
 
 // onMenu is what every menu item does.
@@ -148,8 +148,8 @@ func (w menuDeps) onMenu(action string) {
 		}()
 		return
 	}
-	if w.onShown != nil {
-		w.onShown(action)
+	if w.onShown != nil && w.onShown(action) {
+		return
 	}
 	// The error reaches the status bar. Dropping it made a refusal look
 	// like a dead button: sim.start declining to run half a mesh - two

@@ -70,6 +70,8 @@ func workbenchMenus() []menu {
 				Section: "Tools", Icon: "packet"},
 			{Label: "Coverage raster of the whole map", Action: "coverage.map",
 				Section: "Tools", Icon: "coverage"},
+			{Label: "Coverage raster of this view", Action: "coverage.viewport",
+				Section: "Tools", Icon: "coverage"},
 			{Label: "Capture the waterfall", Action: "waterfall.capture",
 				Section: "Tools", Icon: "waterfall"},
 			{Label: "Capture to a pcapng file", Action: "capture.file",

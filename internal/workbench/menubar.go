@@ -20,10 +20,11 @@ type menuBar struct {
 	nodes    *nodesPanel
 	chooser  func(string, []string, func(string))
 	menuFlag *string
-	// onShown flips a map layer on for the menu entries whose whole point
-	// is something appearing on the map - a raster computed behind a layer
-	// that is off is the click that "did nothing".
-	onShown func(action string)
+	// onShown handles the menu entries whose whole point is the map: it
+	// flips layers on, and for the actions that need the viewport it
+	// dispatches itself and returns true - a raster computed behind a
+	// layer that is off is the click that "did nothing".
+	onShown func(action string) bool
 }
 
 // build fills the menu bar in.

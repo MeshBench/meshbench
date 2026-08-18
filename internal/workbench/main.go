@@ -396,12 +396,28 @@ func Run(args []string) {
 	menuBar{sh: sh, sets: sets, cfg: cfg, dropFlag: dropFlag,
 		st: st, ctx: ctx, nodes: nodes,
 		chooser: chooser, menuFlag: menuFlag,
-		onShown: func(action string) {
-			// The whole-map raster exists to be looked at; computing it
-			// behind a switched-off layer was a click that did nothing.
-			if action == "coverage.map" {
+		onShown: func(action string) bool {
+			// The rasters exist to be looked at; computing one behind a
+			// switched-off layer was a click that did nothing.
+			switch action {
+			case "coverage.map":
 				mv.Layers.Coverage = true
+			case "coverage.viewport":
+				mv.Layers.Coverage = true
+				south, west, north, east, ok := mv.ViewportBox()
+				if !ok {
+					return true
+				}
+				go func() {
+					if _, err := st.Do(ctx, "coverage.map", map[string]any{
+						"south": south, "west": west, "north": north, "east": east,
+					}); err != nil {
+						_, _ = st.Do(ctx, "ui.said", err.Error())
+					}
+				}()
+				return true
 			}
+			return false
 		}}.build()
 
 	// -menu fires one at startup, so what it opens can be captured.
