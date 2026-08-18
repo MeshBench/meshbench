@@ -62,6 +62,7 @@ func (e *Engine) pathLoss(a, b int) (float64, bool) {
 	if bestRx < noise-30 {
 		e.mu.Lock()
 		e.linkCache[k] = fspl // an underestimate, and irrelevant below the floor
+		e.culled[k] = true
 		e.mu.Unlock()
 		return fspl, true
 	}
@@ -71,7 +72,6 @@ func (e *Engine) pathLoss(a, b int) (float64, bool) {
 	// landing here during play means some pair the last warm measured is not
 	// the pair this tick needs - most often a node's radio reporting a real
 	// configuration the warm ran before it had.
-	e.liveProfiles.Add(1)
 	profile, ok := e.profileCached(k, from, to, distKm)
 	loss := math.Inf(1)
 	if ok {
@@ -83,6 +83,7 @@ func (e *Engine) pathLoss(a, b int) (float64, bool) {
 
 	e.mu.Lock()
 	e.linkCache[k] = loss
+	delete(e.culled, k)
 	e.mu.Unlock()
 	if !ok {
 		return 0, false
@@ -123,6 +124,9 @@ func (e *Engine) profileCached(k [2]int, from, to scenario.Node, distKm float64)
 }
 
 func (e *Engine) profile(from, to scenario.Node, distKm float64) ([]terrain.Point, bool) {
+	// The expensive branch, counted here - on the walk, not on a cache hit -
+	// so "recomputed N links live" means DEM lookups actually happened.
+	e.liveProfiles.Add(1)
 	n := int(distKm * 1000 / e.Config.ProfileStepM)
 	if n < 2 {
 		n = 2
@@ -329,4 +333,5 @@ func (e *Engine) DropLinkCache() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.linkCache = map[[2]int]float64{}
+	e.culled = map[[2]int]bool{}
 }

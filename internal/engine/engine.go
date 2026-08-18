@@ -147,6 +147,11 @@ type Engine struct {
 	// during a run, and recomputing a profile per packet per pair is the
 	// difference between a run that takes seconds and one that takes hours.
 	linkCache map[[2]int]float64
+	// culled marks the linkCache entries that are below-floor underestimates
+	// rather than full losses. Only these read the nodes' effective RF
+	// figures, so only these fall when a radio report changes them - a full
+	// loss is propagation, and propagation does not care about a FEM bit.
+	culled map[[2]int]bool
 	// liveProfiles counts pathLoss calls that missed the cache and paid for a
 	// terrain profile during play rather than during a warm. A caller reads
 	// this to say why a tick just took a while, rather than leaving it looking
@@ -219,6 +224,7 @@ func New(t coverage.Terrain, c Config) *Engine {
 	return &Engine{
 		Terrain: t, Config: c,
 		linkCache:    map[[2]int]float64{},
+		culled:       map[[2]int]bool{},
 		profCache:    map[[2]int][]terrain.Point{},
 		emitterNoise: map[int]float64{},
 		StaggerBoot:  true,
@@ -241,6 +247,7 @@ func (e *Engine) Add(spec scenario.Node, fw *firmware.Node) *Node {
 	// they are keyed by pair index, and existing indices still mean the
 	// same ground.
 	e.linkCache = map[[2]int]float64{}
+	e.culled = map[[2]int]bool{}
 	e.emitterNoise = map[int]float64{}
 	return n
 }

@@ -145,8 +145,13 @@ func TestApplyRadioStateOnlyInvalidatesThisNodesPairs(t *testing.T) {
 	e.Add(scenario.Node{Name: "b", TxPowerDBm: 22, NoiseFigureDB: 6}, nil)
 	e.Add(scenario.Node{Name: "c", TxPowerDBm: 22, NoiseFigureDB: 6}, nil)
 
+	// A full loss and a culled underestimate for node 0, and an untouched
+	// pair elsewhere: a radio report may only re-price what read its
+	// figures, which is the culled entry alone. Dropping full losses too is
+	// how 310 booting nodes stuttered the first minute of every run.
 	e.linkCache[[2]int{0, 1}] = 111
 	e.linkCache[[2]int{0, 2}] = 222
+	e.culled[[2]int{0, 2}] = true
 	e.linkCache[[2]int{1, 2}] = 333
 	e.emitterNoise[0] = -50
 	e.emitterNoise[1] = -60
@@ -159,11 +164,11 @@ func TestApplyRadioStateOnlyInvalidatesThisNodesPairs(t *testing.T) {
 	if _, ok := e.linkCache[[2]int{1, 2}]; !ok {
 		t.Fatal("a pair not touching the changed node was evicted")
 	}
-	if _, ok := e.linkCache[[2]int{0, 1}]; ok {
-		t.Fatal("a pair touching the changed node survived")
+	if _, ok := e.linkCache[[2]int{0, 1}]; !ok {
+		t.Fatal("the changed node's full loss was evicted; propagation does not read a FEM bit")
 	}
 	if _, ok := e.linkCache[[2]int{0, 2}]; ok {
-		t.Fatal("a pair touching the changed node survived")
+		t.Fatal("the changed node's culled pair survived; its verdict reads the figures")
 	}
 	if _, ok := e.emitterNoise[1]; !ok {
 		t.Fatal("another node's emitter-noise figure was evicted")

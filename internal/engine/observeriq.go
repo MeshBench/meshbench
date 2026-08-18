@@ -30,6 +30,7 @@ func (e *Engine) SetNodePosition(idx int, lat, lon float64) {
 	for k := range e.linkCache {
 		if k[0] == idx || k[1] == idx {
 			delete(e.linkCache, k)
+			delete(e.culled, k)
 		}
 	}
 	// The ground between the pairs changed, so the profiles go with the

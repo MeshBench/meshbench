@@ -39,7 +39,11 @@ func (c callbacks) wire() {
 		}()
 	}
 	c.wbUI.onAction = func(action, node string) {
-		go func() { _, _ = c.st.Do(c.ctx, action, node) }()
+		go func() {
+			if _, err := c.st.Do(c.ctx, action, node); err != nil {
+				_, _ = c.st.Do(c.ctx, "ui.said", err.Error())
+			}
+		}()
 	}
 	c.wbUI.onCLI = func(node, line string) {
 		go func() {

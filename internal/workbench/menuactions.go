@@ -122,7 +122,9 @@ func (w menuDeps) onMenu(action string) {
 				return
 			}
 			go func() {
-				_, _ = w.st.Do(w.ctx, action, map[string]any{ask.field: answer})
+				if _, err := w.st.Do(w.ctx, action, map[string]any{ask.field: answer}); err != nil {
+					_, _ = w.st.Do(w.ctx, "ui.said", err.Error())
+				}
 			}()
 		})
 		return
@@ -145,5 +147,13 @@ func (w menuDeps) onMenu(action string) {
 		}()
 		return
 	}
-	go func() { _, _ = w.st.Do(w.ctx, action, nil) }()
+	// The error reaches the status bar. Dropping it made a refusal look
+	// like a dead button: sim.start declining to run half a mesh - two
+	// placed repeaters with no firmware pinned - answered a play press
+	// with absolute silence.
+	go func() {
+		if _, err := w.st.Do(w.ctx, action, nil); err != nil {
+			_, _ = w.st.Do(w.ctx, "ui.said", err.Error())
+		}
+	}()
 }
