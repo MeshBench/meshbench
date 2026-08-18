@@ -199,14 +199,33 @@ func registerCoverageMap(st *state.Store, s *Sim) {
 			// for in minutes.
 			cellM := (east - west) * 111320 * math.Cos((south+north)/2*math.Pi/180) / float64(hw)
 			stepM := math.Max(150, cellM)
-			combined := coverage.BestServer(grid, stations, r, coverage.Options{
+			opts := coverage.Options{
 				RemoteHeightAGLm: 1.5, RemoteTxPowerDBm: 20,
 				RemoteSensitivityDBm: -124, ProfileStepM: stepM,
-			}, extra, func(row, _ int) {
-				_, _ = st.Do(ctx, "job.progress", state.Job{
-					ID: id, What: "coverage: judging every cell",
-					Done: hh + row, Total: total})
-			})
+			}
+			var combined *coverage.Combined
+			if s.gpuWarm {
+				// The operator's one GPU switch, the warm's own rule: the
+				// device prices each station's whole grid at once, and a
+				// missing or dying device hands the job to the CPU twin.
+				if c, name, ok := s.coverageMapGPU(grid, stations, r, opts, extra,
+					func(done, totalSt int) {
+						_, _ = st.Do(ctx, "job.progress", state.Job{
+							ID: id, What: "coverage: judging every station on the GPU",
+							Done: hh + done*gh/totalSt, Total: total})
+					}); ok {
+					combined = c
+					_, _ = st.Do(ctx, "ui.said", "coverage priced on "+name)
+				}
+			}
+			if combined == nil {
+				combined = coverage.BestServer(grid, stations, r, opts,
+					extra, func(row, _ int) {
+						_, _ = st.Do(ctx, "job.progress", state.Job{
+							ID: id, What: "coverage: judging every cell",
+							Done: hh + row, Total: total})
+					})
+			}
 			cov := paintCoverage(r, "the whole network")
 			_, _ = st.Do(ctx, "coverage.set", cov)
 			_, _ = st.Do(ctx, "coverage.combined",

@@ -116,6 +116,16 @@ verdict-path synthesis must stay bit-identical CPU (GPU on/off must not
 change an outcome), so P2's honest scope is the presentation surfaces
 plus accelerator-with-fallback patterns like the demod's.
 
+- **The whole-map raster on the GPU** (2026-08-18, later): behind the
+  same switch as the warm, per-station grid kernel, CPU fold; the CPU
+  BestServer stays the fallback twin. Scotland-Ireland, 274 stations,
+  44,880 cells, buildings priced: 6m47s CPU -> 48s GPU end to end, the
+  station phase itself ~6min -> ~12s. Wiring it found the kernel and its
+  CPU twin agreeing with each other south-up while every raster consumer
+  reads north-up - the equivalence test passed and the picture was upside
+  down. Both twins now count from the north, and an orientation test pins
+  row zero to physics rather than to the twin.
+
 ## Non-goals
 
 Approximations that change verdicts (the demodulator stays exact), mode

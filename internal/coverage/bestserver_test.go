@@ -102,3 +102,25 @@ func TestBestServerPricesTheExtraLoss(t *testing.T) {
 		t.Fatal("40 dB of building cost no cell anything")
 	}
 }
+
+// Row zero of a loss grid is the NORTH edge - Raster.LatLonAt's convention.
+// The kernel and its CPU twin once agreed with each other south-up, passed
+// their equivalence test, and painted every raster upside down for the
+// first consumer that trusted them. A station at the south edge must see
+// its loss GROW toward row zero.
+func TestGridLossRowZeroIsNorth(t *testing.T) {
+	g := flatGrid(56.0, 56.5, -3.6, -3.0, 32, 32)
+	p := GridLossParams{
+		StLat: 56.01, StLon: -3.3, StAltM: 120,
+		RasterW: 16, RasterH: 16,
+		South: 56.0, North: 56.5, West: -3.6, East: -3.0,
+		RemoteHeightM: 1.5, FreqMHz: 869.618, Steps: 64,
+	}
+	losses := GridLossCPU(g, p)
+	north := losses[0*16+8]
+	south := losses[15*16+8]
+	if !(north > south) {
+		t.Fatalf("station at the south edge: north row loss %.1f, south row %.1f - "+
+			"the grid is upside down", north, south)
+	}
+}

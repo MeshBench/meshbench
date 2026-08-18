@@ -135,3 +135,59 @@ func (c *Combined) Redundancy() float64 {
 	}
 	return sum / count
 }
+
+// Fold accumulates stations into a Combined one raster at a time - the
+// whole-map GPU path prices hundreds of stations, and holding every raster
+// to Combine them at the end is half a gigabyte that never needed to exist.
+type Fold struct {
+	c    *Combined
+	seen []bool
+}
+
+// NewFold starts an accumulation over one grid geometry.
+func NewFold(south, north, west, east float64, w, h int, freqMHz float64) *Fold {
+	n := w * h
+	c := &Combined{
+		Raster: Raster{South: south, North: north, West: west, East: east,
+			Width: w, Height: h, FreqMHz: freqMHz, Cells: make([]Cell, n)},
+		BestMarginDB: make([]float64, n),
+		BestNode:     make([]int, n),
+		ServingCount: make([]int, n),
+	}
+	for i := 0; i < n; i++ {
+		c.BestMarginDB[i] = math.Inf(-1)
+		c.BestNode[i] = -1
+	}
+	return &Fold{c: c, seen: make([]bool, n)}
+}
+
+// Add folds one station's raster in, with the same rules Combine applies.
+func (f *Fold) Add(r *Raster, station int) {
+	for i, cell := range r.Cells {
+		if cell.NoData {
+			continue
+		}
+		f.seen[i] = true
+		if cell.Workable() {
+			f.c.ServingCount[i]++
+		}
+		m := math.Min(cell.OutboundMarginDB, cell.InboundMarginDB)
+		if m > f.c.BestMarginDB[i] {
+			f.c.BestMarginDB[i] = m
+			f.c.BestNode[i] = station
+			f.c.Cells[i] = cell
+		}
+	}
+}
+
+// Done finishes: cells no station had data for are NoData, exactly as
+// Combine marks them.
+func (f *Fold) Done() *Combined {
+	for i := range f.seen {
+		if !f.seen[i] {
+			f.c.Cells[i] = Cell{NoData: true}
+			f.c.BestMarginDB[i] = math.NaN()
+		}
+	}
+	return f.c
+}

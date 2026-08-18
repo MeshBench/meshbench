@@ -82,7 +82,9 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   }
   let x = idx % p.raster_w;
   let y = idx / p.raster_w;
-  let lat = p.r_south + (p.r_north - p.r_south) * (f32(y) + 0.5) / f32(p.raster_h);
+  // Row zero is the NORTH edge - the raster convention. Its CPU twin
+  // counts the same way; change one, change both.
+  let lat = p.r_north - (p.r_north - p.r_south) * (f32(y) + 0.5) / f32(p.raster_h);
   let lon = p.r_west + (p.r_east - p.r_west) * (f32(x) + 0.5) / f32(p.raster_w);
 
   let dist_km = haversine_km(p.st_lat, p.st_lon, lat, lon);
