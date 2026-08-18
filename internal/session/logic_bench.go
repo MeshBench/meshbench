@@ -9,9 +9,26 @@ import (
 )
 
 // serve opens an endpoint for one companion.
+//
+// It takes the port from the workbench itself: one holder at a time, and
+// serving means letting go. Done here rather than by the UI firing a
+// disconnect first, because two verbs dispatched separately arrive in
+// whichever order the scheduler picks - and serve landing before disconnect
+// released the port out from under the client that had just taken it.
 func (s *Sim) serve(name, kind string) (state.Endpoint, error) {
 	if s.eng == nil {
 		return state.Endpoint{}, fmt.Errorf("no simulation")
+	}
+	if c, ok := s.comps[name]; ok {
+		if c.release != nil {
+			c.release()
+		}
+		delete(s.comps, name)
+	}
+	// A second Serve replaces the first listener rather than leaking it.
+	if old, ok := s.served[name]; ok {
+		_ = old.Close()
+		delete(s.served, name)
 	}
 	var (
 		link *engine.CompanionLink
@@ -45,6 +62,18 @@ func (s *Sim) endpoints() []state.Endpoint {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Node < out[j].Node })
 	return out
+}
+
+// stopServing closes one node's endpoint whether or not a client has
+// attached, and reports how many links went.
+func (s *Sim) stopServing(name string) int {
+	l, ok := s.served[name]
+	if !ok {
+		return 0
+	}
+	_ = l.Close()
+	delete(s.served, name)
+	return 1
 }
 
 // dropClients unplugs every attached client.

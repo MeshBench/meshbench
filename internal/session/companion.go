@@ -6,108 +6,21 @@
 // the console back.
 //
 // This exists so an application developer can point a client at a simulated
-// mesh, and so the workbench can show what the client would see.
+// mesh, and so the workbench can show what the client would see. The verbs
+// live here; the session they act on - the claim, the frame reassembly, the
+// decoded state - is compSession, in companionsession.go.
 package session
 
 import (
-	"encoding/binary"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/companion/proto"
 	"github.com/MeshBench/meshbench/internal/engine"
 	"github.com/MeshBench/meshbench/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/provider"
 )
-
-// compSession is one connected companion.
-type compSession struct {
-	node    string
-	release func()
-
-	mu       sync.Mutex
-	self     *proto.SelfInfo
-	contacts []proto.Contact
-	messages []proto.Message
-	channels map[uint8]proto.ChannelInfo
-	last     []string
-	partial  []byte
-}
-
-// Write receives whatever the node sends while the claim is held.
-//
-// The protocol is length-framed, so a partial frame is kept rather than
-// decoded: a serial read boundary is not a message boundary, and treating it
-// as one produces a stream of decode errors that look like a broken node.
-func (c *compSession) Write(b []byte) (int, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.partial = append(c.partial, b...)
-	// MeshCore's own framing: '>' from the device, then a little-endian
-	// length, then that many bytes. Anything else in the stream is the
-	// firmware's console output and is skipped rather than guessed at - the
-	// first version of this read the length from wherever the buffer happened
-	// to start and decoded rubbish.
-	for {
-		i := 0
-		for i < len(c.partial) && c.partial[i] != '>' {
-			i++
-		}
-		if i > 0 {
-			c.partial = c.partial[i:]
-		}
-		if len(c.partial) < 3 {
-			break
-		}
-		n := int(binary.LittleEndian.Uint16(c.partial[1:3]))
-		if len(c.partial) < 3+n {
-			break
-		}
-		frame := append([]byte(nil), c.partial[3:3+n]...)
-		c.partial = c.partial[3+n:]
-		f, err := proto.Decode(frame)
-		if err != nil {
-			c.note("undecoded frame: " + err.Error())
-			continue
-		}
-		c.apply(f)
-	}
-	return len(b), nil
-}
-
-func (c *compSession) apply(f proto.Frame) {
-	switch {
-	case f.SelfInfo != nil:
-		c.self = f.SelfInfo
-		c.note("self: " + f.SelfInfo.Name)
-	case f.Channel != nil:
-		if c.channels == nil {
-			c.channels = map[uint8]proto.ChannelInfo{}
-		}
-		c.channels[f.Channel.Index] = *f.Channel
-		c.note(fmt.Sprintf("channel %d: %s", f.Channel.Index, f.Channel.Name))
-	case f.Contact != nil:
-		c.contacts = append(c.contacts, *f.Contact)
-		c.note("contact: " + f.Contact.Name)
-	case f.Message != nil:
-		c.messages = append(c.messages, *f.Message)
-		c.note("message: " + f.Message.Text)
-	case f.Err != "":
-		c.note("error: " + f.Err)
-	default:
-		c.note(fmt.Sprintf("frame %v", f.Code))
-	}
-}
-
-// note keeps a short tail, so a caller can see what happened without holding
-// every frame of a long session.
-func (c *compSession) note(s string) {
-	c.last = append(c.last, s)
-	if len(c.last) > 200 {
-		c.last = c.last[len(c.last)-200:]
-	}
-}
 
 func registerCompanion(st *state.Store, s *Sim) {
 	// companion.connect: claim the port and introduce ourselves.
@@ -129,6 +42,12 @@ func registerCompanion(st *state.Store, s *Sim) {
 		if _, already := s.comps[node]; already {
 			return nil, fmt.Errorf("%s is already connected", node)
 		}
+		// One holder at a time, and an outside client outranks us: connecting
+		// over a served port would steal it from whatever is attached, with
+		// nothing said at either end.
+		if _, serving := s.served[node]; serving {
+			return nil, fmt.Errorf("%s is being served to an outside client; stop serving first", node)
+		}
 		c := &compSession{node: node}
 		c.release = en.Firmware.Bridge.Claim(c)
 		s.comps[node] = c
@@ -137,7 +56,34 @@ func registerCompanion(st *state.Store, s *Sim) {
 		if err := en.Firmware.Bridge.Type(compFrame(proto.AppStart("meshbench"))); err != nil {
 			return nil, err
 		}
+		for _, f := range companionBootFrames(en, s.eng.NowMs()) {
+			_ = en.Firmware.Bridge.Type(compFrame(f))
+		}
+		// A companion build's own name starts blank - nothing on a phone's
+		// onboarding path has run for it - so left alone every one of them
+		// showed as nameless, which read as the client not knowing who it had
+		// connected to rather than as a node with nothing set. The scenario's
+		// name is the one honest answer to send.
+		//
+		// CMD_SET_ADVERT_NAME answers with a bare OK, not a fresh self info -
+		// RESP_CODE_SELF_INFO only ever comes back from CMD_APP_START, so the
+		// only way to see the rename take is to ask again the same way the
+		// name is asked for in the first place, rather than assume the write
+		// landed and show the operator our own guess as the node's answer.
+		_ = en.Firmware.Bridge.Type(compFrame(proto.SetAdvertName(node)))
+		if err := en.Firmware.Bridge.Type(compFrame(proto.AppStart("meshbench"))); err != nil {
+			return nil, err
+		}
 		_ = en.Firmware.Bridge.Type(compFrame(proto.DeviceQuery()))
+		// And what it holds, rather than what the scenario believes: the
+		// scope it actually sends under, and the channel slots it has. Asked
+		// on connect because the client draws both, and a list that fills in
+		// only after somebody presses a button is a list that looks empty.
+		_ = en.Firmware.Bridge.Type(compFrame(proto.GetDefaultScope()))
+		for i := uint8(0); i < companionChannelSlots; i++ {
+			_ = en.Firmware.Bridge.Type(compFrame(proto.GetChannel(i)))
+		}
+		s.publishCompanions(w)
 		w.Say("connected to " + node + " as a companion")
 		return map[string]any{"connected": node}, nil
 	})
@@ -152,6 +98,7 @@ func registerCompanion(st *state.Store, s *Sim) {
 			c.release()
 		}
 		delete(s.comps, node)
+		s.publishCompanions(w)
 		w.Say("released " + node + "; the console has it back")
 		return map[string]any{"disconnected": node}, nil
 	})
@@ -191,10 +138,39 @@ func registerCompanion(st *state.Store, s *Sim) {
 		if v, ok := numField(p, "channel"); ok {
 			idx = uint8(v)
 		}
-		if err := en.Firmware.Bridge.Type(compFrame(proto.SendChannelText(idx, time.Now(), text))); err != nil {
+		// The path hash size ahead of the message, when one was chosen.
+		//
+		// It is a node preference, not a field on the packet - the firmware
+		// reads _prefs.path_hash_mode at send time - so "send this message
+		// with two-byte hashes" is necessarily two commands in order. Doing
+		// it here rather than in the client keeps the order on the wire,
+		// which a UI that fires two verbs cannot promise.
+		if n, ok := numField(p, "path_hash"); ok {
+			if err := setPathHash(en, uint8(n)); err != nil {
+				return nil, err
+			}
+			// Re-read what the node now holds, as companion.configure does.
+			// Without this the published PathHashBytes stays at its old value,
+			// the composer's only-when-it-differs guard keeps firing, and
+			// every subsequent message rewrites flash with the value already
+			// there - the exact cost the guard exists to avoid.
+			_ = en.Firmware.Bridge.Type(compFrame(proto.DeviceQuery()))
+		}
+		at := time.Now()
+		if err := en.Firmware.Bridge.Type(compFrame(proto.SendChannelText(idx, at, text))); err != nil {
 			return nil, err
 		}
+		// Kept, because nothing comes back to echo it. The node transmits and
+		// says nothing about having done so, so a client that only shows what
+		// arrives shows an empty conversation however much you send into it.
+		c.mu.Lock()
+		c.messages = append(c.messages, proto.Message{
+			Channel: true, ChannelIdx: idx, Text: text, At: at, Mine: true,
+		})
+		c.rev++
+		c.mu.Unlock()
 		c.note("sent: " + text)
+		s.publishCompanions(w)
 		w.Say(node + " sent a message")
 		return map[string]any{"sent": text, "channel": idx}, nil
 	})
@@ -232,38 +208,7 @@ func registerCompanion(st *state.Store, s *Sim) {
 		return map[string]any{"asked_for_channel": idx}, nil
 	})
 
-	st.Handle("companion.configure", func(w *state.World, p any) (any, error) {
-		node, _ := stringField(p, "node")
-		c, en, err := s.companionFor(node)
-		if err != nil {
-			return nil, err
-		}
-		done := []string{}
-		if name, ok := stringField(p, "name"); ok && name != "" {
-			if err := en.Firmware.Bridge.Type(compFrame(proto.SetAdvertName(name))); err != nil {
-				return nil, err
-			}
-			done = append(done, "name")
-		}
-		if lat, ok := numField(p, "lat"); ok {
-			lon, _ := numField(p, "lon")
-			if err := en.Firmware.Bridge.Type(compFrame(proto.SetAdvertLatLon(lat, lon))); err != nil {
-				return nil, err
-			}
-			done = append(done, "position")
-		}
-		if dbm, ok := numField(p, "tx_dbm"); ok {
-			if err := en.Firmware.Bridge.Type(compFrame(proto.SetTxPower(uint8(dbm)))); err != nil {
-				return nil, err
-			}
-			done = append(done, "tx power")
-		}
-		if len(done) == 0 {
-			return nil, fmt.Errorf("companion.configure needs a name, a position or a tx_dbm")
-		}
-		c.note("configured: " + strings.Join(done, ", "))
-		return map[string]any{"set": done}, nil
-	})
+	registerCompanionConfig(st, s)
 
 	// companion.raw: whatever bytes the caller wants, for when the decode is
 	// the thing in question.
@@ -292,6 +237,130 @@ func registerCompanion(st *state.Store, s *Sim) {
 		c.note(fmt.Sprintf("raw: %d bytes", len(b)))
 		return map[string]any{"sent_bytes": len(b)}, nil
 	})
+
+	// companion.read marks a channel as the one being looked at.
+	//
+	// Unread counts are the channel list's whole job, and a count that does
+	// not clear when you read the conversation is a count nobody trusts. The
+	// client sends this when the selection changes; nothing goes on the wire.
+	st.Handle("companion.read", func(w *state.World, p any) (any, error) {
+		node, _ := stringField(p, "node")
+		c, ok := s.comps[node]
+		if !ok {
+			return nil, fmt.Errorf("%s is not connected", node)
+		}
+		idx := 0
+		if v, ok := numField(p, "channel"); ok {
+			idx = int(v)
+		}
+		c.mu.Lock()
+		c.seen = uint8(idx)
+		if c.unread != nil {
+			delete(c.unread, uint8(idx))
+		}
+		c.mu.Unlock()
+		s.publishCompanions(w)
+		return map[string]any{"node": node, "channel": idx}, nil
+	})
+
+	// companion.scope sets the region this node sends under, and reads it
+	// back rather than assuming it landed.
+	//
+	// A companion build has no command line - only a serial rescue mode - so
+	// the repeater's "region default" goes nowhere on one. An earlier version
+	// set scope that way and every message went out unscoped while the
+	// interface reported the scope applied, which on a mesh that is entirely
+	// transport-scoped measures a different network from the one asked for.
+	st.Handle("companion.scope", func(w *state.World, p any) (any, error) {
+		node, _ := stringField(p, "node")
+		name, _ := stringField(p, "scope")
+		c, en, err := s.companionFor(node)
+		if err != nil {
+			return nil, err
+		}
+		name = canonicalScope(strings.TrimSpace(name))
+		frame := proto.ClearDefaultScope()
+		if name != "" {
+			// The key with the name, always: the firmware stores both and
+			// matches on the key, so a name sent alone scopes nothing. It is
+			// derived the way every other scope in this codebase is,
+			// sha256 of the "#"-prefixed name.
+			frame = proto.SetDefaultScope(name, provider.RegionKey(name))
+		}
+		if err := en.Firmware.Bridge.Type(compFrame(frame)); err != nil {
+			return nil, err
+		}
+		// Ask, rather than record what we meant. Both name and key are stored
+		// by the firmware and it matches on the key, so a name that was
+		// accepted is the only proof the scope is real.
+		_ = en.Firmware.Bridge.Type(compFrame(proto.GetDefaultScope()))
+		c.note("scope set to " + orUnscoped(name))
+		s.publishCompanions(w)
+		w.Say(node + " sends under " + orUnscoped(name))
+		return map[string]any{"node": node, "scope": name}, nil
+	})
+
+	// companion.refresh asks the node for what the client draws: its own
+	// details, the channel slots and the contact list.
+	st.Handle("companion.refresh", func(w *state.World, p any) (any, error) {
+		node, _ := stringField(p, "node")
+		c, en, err := s.companionFor(node)
+		if err != nil {
+			return nil, err
+		}
+		c.mu.Lock()
+		c.contacts = nil
+		c.mu.Unlock()
+		_ = en.Firmware.Bridge.Type(compFrame(proto.DeviceQuery()))
+		_ = en.Firmware.Bridge.Type(compFrame(proto.GetDefaultScope()))
+		_ = en.Firmware.Bridge.Type(compFrame(proto.GetContacts(time.Unix(0, 0))))
+		for i := uint8(0); i < companionChannelSlots; i++ {
+			_ = en.Firmware.Bridge.Type(compFrame(proto.GetChannel(i)))
+		}
+		s.publishCompanions(w)
+		return map[string]any{"node": node}, nil
+	})
+}
+
+// companionBootFrames is the clock and the modem, queued before anything
+// else a fresh companion is told.
+//
+// The same two a sweep's own companion sender needs before it can originate
+// (companionSetup in experimentrun.go), and for the same reason: neither
+// reaches a companion build through the text console the rest of
+// provisioning uses - a companion has no command line, only this protocol -
+// so left unset a companion boots on its firmware's own factory defaults,
+// the deprecated wide preset and a clock nothing else in the run agrees
+// with, rather than the scenario it was told to be. Untreated that read as a
+// radio that had stopped receiving rather than one still on its factory
+// settings.
+//
+// The clock is the run's own epoch plus however much simulated time has
+// already passed, not the bare epoch: a companion connected after other
+// nodes have been running would otherwise set its clock behind theirs and
+// see every reply since as a replay.
+func companionBootFrames(en *engine.Node, nowMs uint32) [][]byte {
+	out := [][]byte{proto.SetDeviceTime(uint32(scenarioEpoch) + nowMs/1000)}
+	// Only what the scenario actually states. A zeroed radio sent anyway is
+	// ERR_CODE_ILLEGAL_ARG at best, and a zeroed TX power is worse: 0 dBm is
+	// a legal setting, so the firmware would take it and go quiet.
+	if r := en.Spec.Radio; r.CentreHz > 0 {
+		out = append(out, proto.SetRadioParams(uint32(r.CentreHz/1000),
+			uint32(r.BandwidthHz), uint8(r.SpreadFactor), uint8(r.CodingRate+4)))
+	}
+	if en.Spec.TxPowerDBm > 0 {
+		out = append(out, proto.SetTxPower(uint8(en.Spec.TxPowerDBm)))
+	}
+	return out
+}
+
+// orUnscoped names the empty scope, because "" in a status line reads as a
+// missing value rather than as an answer.
+func orUnscoped(s string) string {
+	if s == "" {
+		return "no scope"
+	}
+	return s
 }
 
 func (s *Sim) companionFor(node string) (*compSession, *engine.Node, error) {
@@ -306,26 +375,6 @@ func (s *Sim) companionFor(node string) (*compSession, *engine.Node, error) {
 	return c, en, nil
 }
 
-// compFrame wraps a payload the way the device expects it.
-//
-// '<' towards the node, a little-endian length, then the payload. Sending the
-// payload bare is not a malformed frame, it is console text: the firmware
-// reads it as somebody typing and answers nothing, which is what an
-// experiment measuring zero transmissions looked like.
-func compFrame(payload []byte) []byte {
-	out := make([]byte, 0, 3+len(payload))
-	out = append(out, '<')
-	out = binary.LittleEndian.AppendUint16(out, uint16(len(payload)))
-	return append(out, payload...)
-}
-
-// Lines is the session's recent traffic, for a console to draw.
-func (c *compSession) Lines() []string {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return append([]string(nil), c.last...)
-}
-
 // connectCompanion claims a node's port for the companion protocol.
 //
 // Called from inside a handler, so it does not go through the store: asking
@@ -337,6 +386,11 @@ func (s *Sim) connectCompanion(node string) error {
 	if _, already := s.comps[node]; already {
 		return nil
 	}
+	// The same refusal companion.connect makes: typing a CLI line must not
+	// quietly take the port from an attached outside client.
+	if _, serving := s.served[node]; serving {
+		return fmt.Errorf("%s is being served to an outside client; stop serving first", node)
+	}
 	if s.eng == nil {
 		return fmt.Errorf("no network loaded")
 	}
@@ -347,5 +401,14 @@ func (s *Sim) connectCompanion(node string) error {
 	c := &compSession{node: node}
 	c.release = en.Firmware.Bridge.Claim(c)
 	s.comps[node] = c
+	if err := en.Firmware.Bridge.Type(compFrame(proto.AppStart("meshbench"))); err != nil {
+		return err
+	}
+	for _, f := range companionBootFrames(en, s.eng.NowMs()) {
+		_ = en.Firmware.Bridge.Type(compFrame(f))
+	}
+	// Named here too: the CLI can be the first thing to connect, not only
+	// the client, and a companion is nameless until something sets it.
+	_ = en.Firmware.Bridge.Type(compFrame(proto.SetAdvertName(node)))
 	return en.Firmware.Bridge.Type(compFrame(proto.AppStart("meshbench")))
 }

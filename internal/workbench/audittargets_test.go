@@ -65,6 +65,8 @@ func auditTargets(r *recorder) []target {
 	nw.OnAction = func(a, n string) { r.do(a, n) }
 	nw.OnServe = func(node, kind string) { r.do("bench.serve", kind) }
 	nw.comp.OnCLI = func(n, l string) { r.do("console.cli", l) }
+	nw.comp.OnDo = func(verb string, _ any) { r.do(verb, "") }
+	nw.OnDo = nw.comp.OnDo
 	cfgSets := &settings{}
 	cfg := &configPanel{do: r.do, sets: cfgSets}
 	// Choosing is the shell's overlay; what the audit can ask is whether
@@ -89,15 +91,19 @@ func auditTargets(r *recorder) []target {
 			func() { nw.tab = 0 }, nil, map[string]string{
 				// The companion tab belongs to a companion, and this node is a
 				// repeater. Its controls are audited on their own below.
-				"comp.applyRadio": "companion only", "comp.applyName": "companion only",
-				"comp.getChans": "companion only", "comp.syncMsgs": "companion only",
-				"comp.contacts": "companion only", "comp.takeOver": "companion only",
-				"comp.sendMsg": "companion only",
-				"comp.freq":    "companion only", "comp.bw": "companion only",
-				"comp.sf": "companion only", "comp.cr": "companion only",
-				"comp.txdbm": "companion only", "comp.name": "companion only",
-				"comp.channel": "companion only", "comp.msg": "companion only",
-				"comp.release": "companion only",
+				"comp.msg": "companion only", "comp.scope": "companion only",
+				"comp.cmd": "companion only", "comp.sendMsg": "companion only",
+				"comp.applyScope": "companion only", "comp.advertBtn": "companion only",
+				"comp.refreshBtn": "companion only", "comp.runCmd": "companion only",
+				"comp.connectBtn": "companion only", "comp.release": "companion only",
+				"comp.serveBtn": "companion only", "comp.stopServeBtn": "companion only",
+				"comp.dropBtn": "companion only", "comp.tcpChip": "companion only",
+				"comp.newChan": "companion only", "comp.addChan": "companion only",
+				"comp.ptyChip": "companion only",
+				"comp.setName": "companion only", "comp.setFreq": "companion only",
+				"comp.setBW": "companion only", "comp.setSF": "companion only",
+				"comp.setCR": "companion only", "comp.setTx": "companion only",
+				"comp.applyRadio": "companion only",
 				// The node is running, so the head offers stop and not start.
 				"start": "drawn only when the node is stopped",
 			}},

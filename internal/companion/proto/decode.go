@@ -29,6 +29,17 @@ func Decode(frame []byte) (Frame, error) {
 	switch f.Code {
 	case RespErr:
 		f.Err = ErrText(firstOr(body, 0))
+	case RespDefaultFloodScope:
+		// Decoded from the whole frame, not the body: DecodeDefaultScope
+		// expects the response code in front of the name, which is how the
+		// firmware lays it out.
+		name, key, ok := DecodeDefaultScope(frame)
+		if !ok {
+			return f, fmt.Errorf("proto: default scope reply too short")
+		}
+		f.Scope = &ScopeInfo{Name: name, Key: key}
+	case RespDeviceInfo:
+		f.Device = decodeDeviceInfo(body)
 	case RespSelfInfo:
 		si, err := decodeSelfInfo(body)
 		if err != nil {
@@ -64,6 +75,36 @@ func Decode(frame []byte) (Frame, error) {
 		f.Message = m
 	}
 	return f, nil
+}
+
+// decodeDeviceInfo reads the device query's reply.
+//
+// The firmware's own write order (MyMesh.cpp, RESP_CODE_DEVICE_INFO): version
+// code, max contacts, max channels, a four-byte BLE pin, a twelve-byte build
+// date, forty bytes of manufacturer, twenty of firmware version, the repeat
+// flag, then the path hash mode. Every field is optional here because this
+// has to keep working against a firmware that stops before it - a short frame
+// is an older node, not a broken one.
+func decodeDeviceInfo(b []byte) *DeviceInfo {
+	d := &DeviceInfo{}
+	if len(b) > 0 {
+		d.FirmwareVer = b[0]
+	}
+	if len(b) >= 20 {
+		d.BuildDate = trimNUL(b[8:20])
+	}
+	if len(b) >= 60 {
+		d.Manufacturer = trimNUL(b[20:60])
+	}
+	if len(b) >= 80 {
+		d.Version = trimNUL(b[60:80])
+	}
+	// 80 is the repeat flag; 81 is the mode, and only firmware v10 and up
+	// sends it.
+	if len(b) >= 82 {
+		d.PathHashMode, d.ModeKnown = b[81], true
+	}
+	return d
 }
 
 func decodeSelfInfo(b []byte) (*SelfInfo, error) {
@@ -193,9 +234,13 @@ func decodeMessage(channel, v3 bool, b []byte) (*Message, error) {
 		i += 6
 	}
 	if len(b) > i {
-		// 0xFF is "did not arrive by flood", not a 255-hop path.
+		// 0xFF is "did not arrive by flood", not a 255-hop path. Otherwise
+		// this is Packet::path_len itself, not a bare count: the top two bits
+		// are the path hash size minus one and the bottom six are the hop
+		// count (Packet.h, getPathHashCount()). Keeping the whole byte read a
+		// three-hop, three-byte-hash path as 131 hops.
 		if b[i] != 0xFF {
-			m.PathLen = int(b[i])
+			m.PathLen = int(b[i]) & 0x3F
 		}
 		i++
 	}

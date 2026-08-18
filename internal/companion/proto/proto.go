@@ -236,10 +236,21 @@ type Frame struct {
 	Channel  *ChannelInfo
 	Message  *Message
 	Contact  *Contact
+	Scope    *ScopeInfo
+	Device   *DeviceInfo
 	Err      string
 	// Raw is the whole frame, kept so anything this package does not decode
 	// is still inspectable rather than lost.
 	Raw []byte
+}
+
+// ScopeInfo is the region a node sends under, as it reports it.
+//
+// An empty Name is unscoped, and that is a real answer rather than a missing
+// one - the firmware signals it by sending the response code alone.
+type ScopeInfo struct {
+	Name string
+	Key  [16]byte
 }
 
 // Contact is one entry of the contact list.
@@ -334,6 +345,33 @@ func SetDeviceTime(epoch uint32) []byte {
 
 // CmdSetPathHashMode sets how many bytes of hash each hop adds to a path.
 const CmdSetPathHashMode Command = 61
+
+// DeviceInfo is the reply to DeviceQuery: what the firmware is, and the one
+// preference that is not in SelfInfo.
+//
+// PathHashMode is here rather than there because that is where the firmware
+// puts it, and it is the only way to read back what a node will actually use
+// when it sends. Setting it and never reading it means an interface that
+// shows what it last asked for rather than what is true, which is the same
+// class of bug as trusting the scenario over the node.
+type DeviceInfo struct {
+	FirmwareVer  uint8
+	Version      string
+	Manufacturer string
+	BuildDate    string
+	// PathHashMode is 0, 1 or 2. PathHashBytes turns it into what it means.
+	PathHashMode uint8
+	// ModeKnown is false against firmware old enough not to report it, so
+	// "1 byte" and "not said" do not look the same.
+	ModeKnown bool
+}
+
+// PathHashBytes is how many bytes of hash each hop adds, from the mode.
+//
+// The firmware sends with path_hash_mode + 1 bytes and rejects any mode above
+// 2, so the answer is 1, 2 or 3 - never 4, however tempting the two-bit field
+// in the path-length byte makes it look.
+func PathHashBytes(mode uint8) int { return int(mode) + 1 }
 
 // SetPathHashMode sets the path hash size: mode 0, 1, 2 give 1, 2 and 3 bytes
 // per hop.

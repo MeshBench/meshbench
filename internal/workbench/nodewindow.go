@@ -29,6 +29,10 @@ import (
 type nodeTab int
 
 const (
+	// tabConsole is the firmware's text console, which only a repeater has.
+	// A companion speaks the framed protocol instead, and its command line -
+	// meshcore-cli's vocabulary - lives inside the Companion tab; a second
+	// tab for the same thing taught people the two might differ.
 	tabConsole nodeTab = iota
 	// tabCompanion and tabConnect only exist for a node that speaks the
 	// companion protocol. A repeater has no channels and no contacts, and a
@@ -59,14 +63,6 @@ func (n nodeTab) String() string {
 		return "Connect"
 	}
 	return "Console"
-}
-
-// tabTitle is the console tab's name, which says which console it is.
-func (p *nodeWindowPanel) tabTitle(n nodeTab) string {
-	if n == tabConsole && p.isCompanion() {
-		return "meshcore-cli"
-	}
-	return n.String()
 }
 
 // nodeWindowPanel is the body. Kept separate from the window so it can be
@@ -102,6 +98,10 @@ type nodeWindowPanel struct {
 	OnCLI func(node, line string)
 	// OnAction is given a verb and this node's name.
 	OnAction func(action, node string)
+	// OnDo runs a verb with parameters. The companion client needs more than
+	// a node name - a channel, a scope, a transport - so it cannot go through
+	// OnAction, which only ever carries the one.
+	OnDo func(verb string, params any)
 	// OnServe serves this companion to a real client, over tcp or serial.
 	OnServe func(node, kind string)
 	// OnOpenPacket opens the packet view for an activity row.
@@ -113,7 +113,7 @@ type nodeWindowPanel struct {
 // visibleTabs is the tab set this node gets.
 func (p *nodeWindowPanel) visibleTabs() []nodeTab {
 	if p.isCompanion() {
-		return []nodeTab{tabConsole, tabCompanion, tabSettings, tabRadio,
+		return []nodeTab{tabCompanion, tabSettings, tabRadio,
 			tabStats, tabActivity, tabConnect}
 	}
 	return []nodeTab{tabConsole, tabSettings, tabRadio, tabStats, tabActivity}
@@ -147,20 +147,20 @@ func (p *nodeWindowPanel) clicks(gtx layout.Context) {
 		}
 	}
 	if p.send.Click.Clicked(gtx) || submitted {
-		if line := strings.TrimSpace(p.input.Editor.Text()); line != "" {
-			// A companion has no text console: it speaks the framed protocol
-			// a phone speaks, so it gets meshcore-cli's vocabulary.
-			if p.isCompanion() && p.OnCLI != nil {
-				p.OnCLI(p.node, line)
-			} else if p.OnCommand != nil {
-				p.OnCommand(p.node, line)
-			}
+		if line := strings.TrimSpace(p.input.Editor.Text()); line != "" && p.OnCommand != nil {
+			p.OnCommand(p.node, line)
 			p.input.Editor.SetText("")
 		}
 	}
 }
 
 func (p *nodeWindowPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+	// A companion has no console tab, and tabConsole is the zero value every
+	// window opens on - left alone it would draw a pane its own strip does
+	// not offer.
+	if p.isCompanion() && p.tab == tabConsole {
+		p.tab = tabCompanion
+	}
 	p.clicks(gtx)
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(p.head(t, s)),
@@ -178,7 +178,7 @@ func (p *nodeWindowPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snap
 			case tabConnect:
 				return p.connect(t, gtx, s)
 			case tabCompanion:
-				p.comp.node, p.comp.OnCLI = p.node, p.OnCLI
+				p.comp.node, p.comp.OnCLI, p.comp.OnDo = p.node, p.OnCLI, p.OnDo
 				return p.comp.Draw(t, gtx, s)
 			}
 			return p.console(t, gtx, s)
@@ -240,7 +240,7 @@ func (p *nodeWindowPanel) head(t *theme.Theme, s *state.Snapshot) layout.Widget 
 									macro := op.Record(gtx.Ops)
 									dims := layout.Inset{Top: t.Sp.XS, Bottom: t.Sp.XS,
 										Left: t.Sp.S, Right: t.Sp.S}.Layout(gtx,
-										comp.Text(t, t.Sz.Body, ink, p.tabTitle(tb)))
+										comp.Text(t, t.Sz.Body, ink, tb.String()))
 									call := macro.Stop()
 									comp.RoundRect(gtx, dims.Size, 5, theme.Alpha(t.P.Sunk, 0.6))
 									comp.Border(gtx, dims.Size, 5, 1, line)
@@ -295,10 +295,22 @@ type nodeWindows struct {
 
 func newNodeWindows() *nodeWindows { return &nodeWindows{open: map[string]bool{}} }
 
+// nodeWindowHooks is how a node window reaches the rest of the application.
+//
+// A struct rather than a seventh positional callback: six was already a list
+// nobody could read at the call site, and the companion client needs one more
+// that carries parameters rather than only a node name.
+type nodeWindowHooks struct {
+	onCommand    func(node, line string)
+	onAction     func(action, node string)
+	onCLI        func(node, line string)
+	onServe      func(node, kind string)
+	onOpenPacket func(id uint64)
+	onDo         func(verb string, params any)
+}
+
 func (w *nodeWindows) openFor(node string, newTheme func() *theme.Theme,
-	st *state.Store, onCommand func(node, line string), onAction func(action, node string),
-	onCLI func(node, line string), onServe func(node, kind string),
-	onOpenPacket func(id uint64)) {
+	st *state.Store, h nodeWindowHooks) {
 	w.mu.Lock()
 	if w.open[node] {
 		w.mu.Unlock()
@@ -314,9 +326,9 @@ func (w *nodeWindows) openFor(node string, newTheme func() *theme.Theme,
 			w.mu.Unlock()
 		}()
 		th := newTheme()
-		p := &nodeWindowPanel{node: node, OnCommand: onCommand, OnAction: onAction,
-			OnCLI: onCLI, OnServe: onServe, OnOpenPacket: onOpenPacket,
-			Kind: kindOfNode(st, node)}
+		p := &nodeWindowPanel{node: node, OnCommand: h.onCommand, OnAction: h.onAction,
+			OnCLI: h.onCLI, OnServe: h.onServe, OnOpenPacket: h.onOpenPacket,
+			OnDo: h.onDo, Kind: kindOfNode(st, node)}
 		p.tab = openOnTab
 		win := new(app.Window)
 		win.Option(app.Title("MeshBench - "+node), app.Size(unit.Dp(820), unit.Dp(620)))
@@ -357,12 +369,6 @@ func kindOfNode(st *state.Store, node string) string {
 	}
 	return ""
 }
-
-const (
-	subMessages companionSubTab = iota
-	subContacts
-	subRadio
-)
 
 // openOnTab is which tab a node window opens on. Console, except when a
 // capture is being taken of one of the others - a tab cannot be reached from

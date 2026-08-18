@@ -159,6 +159,23 @@ func TestV3DirectMessageHasNoPath(t *testing.T) {
 	}
 }
 
+// Packet::path_len is not a bare hop count: the top two bits are the path
+// hash size minus one and only the bottom six are hops (Packet.h,
+// getPathHashCount()). 0x83 is three hops with a three-byte hash, and reading
+// the whole byte showed a received message as 131 hops.
+func TestDecodeChannelMessagePathLenIsPacked(t *testing.T) {
+	b := []byte{8, 0, 0x83, 0}
+	b = binary.LittleEndian.AppendUint32(b, uint32(time.Now().Unix()))
+	b = append(b, "x: y"...)
+	f, err := proto.Decode(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.Message.PathLen != 3 {
+		t.Fatalf("path = %d, want 3 hops out of a 0x83 path_len byte", f.Message.PathLen)
+	}
+}
+
 // The contact record carries a 64-byte out_path between the path length and
 // the name. Reading the name straight after the length lands in the middle of
 // the path, and every contact comes back nameless.
@@ -189,5 +206,44 @@ func TestDecodeContactName(t *testing.T) {
 	}
 	if c.OutPathLen != 3 || int(c.Lat*1000) != 56747 {
 		t.Fatalf("contact = %+v", c)
+	}
+}
+
+// The device query is the only frame that says what path hash size a node
+// will actually use, so a client that does not decode it can only show what
+// it last asked for.
+func TestDeviceInfoCarriesThePathHashMode(t *testing.T) {
+	body := make([]byte, 82)
+	body[0] = 10 // firmware version code
+	copy(body[60:80], "v1.17.0")
+	body[80] = 0 // repeat disabled
+	body[81] = 2 // three-byte hashes
+	f, err := proto.Decode(append([]byte{byte(proto.RespDeviceInfo)}, body...))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.Device == nil {
+		t.Fatal("the device query's reply was not decoded")
+	}
+	if !f.Device.ModeKnown || f.Device.PathHashMode != 2 {
+		t.Errorf("mode %d known=%v, wanted 2 and true", f.Device.PathHashMode, f.Device.ModeKnown)
+	}
+	if proto.PathHashBytes(f.Device.PathHashMode) != 3 {
+		t.Errorf("mode 2 is %d bytes, wanted 3", proto.PathHashBytes(f.Device.PathHashMode))
+	}
+	if f.Device.Version != "v1.17.0" {
+		t.Errorf("version %q", f.Device.Version)
+	}
+}
+
+// Firmware older than v10 stops before the mode, and a short frame is an old
+// node rather than a broken one.
+func TestOlderFirmwareSaysNothingAboutTheMode(t *testing.T) {
+	f, err := proto.Decode(append([]byte{byte(proto.RespDeviceInfo)}, make([]byte, 81)...))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.Device == nil || f.Device.ModeKnown {
+		t.Errorf("a frame that stops before the mode must not claim to know it")
 	}
 }

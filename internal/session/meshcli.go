@@ -13,6 +13,7 @@
 package session
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strconv"
@@ -196,7 +197,30 @@ func registerMeshCLI(st *state.Store, s *Sim) {
 		if node == "" || line == "" {
 			return nil, fmt.Errorf("console.cli needs a node and a command")
 		}
+		// The transcript this console draws. Through the session's rolling
+		// note buffer when one exists; straight into the world when none does
+		// yet, because help and a failed connect must still show up where
+		// they were typed - the box says "? for the list", and a ? that
+		// prints nothing reads as a command line that is broken.
+		say := func(lines ...string) {
+			if sess := s.comps[node]; sess != nil {
+				for _, l := range lines {
+					sess.note(l)
+				}
+				w.Console, w.ConsoleNode = sess.Lines(), node
+				return
+			}
+			if w.ConsoleNode != node {
+				w.Console = nil
+			}
+			w.Console = append(w.Console, lines...)
+			w.ConsoleNode = node
+		}
+		// Help is local knowledge, so it answers whether or not anything is
+		// connected - asking what the commands are must not boot a node.
 		if line == "?" || line == "help" {
+			say("> " + line)
+			say(strings.Split(meshcliHelp(), "\n")...)
 			return map[string]any{"node": node, "reply": meshcliHelp()}, nil
 		}
 		// Giving the port back is not a meshcore-cli command - a real client
@@ -217,25 +241,50 @@ func registerMeshCLI(st *state.Store, s *Sim) {
 		head, args := fields[0], fields[1:]
 
 		// Connect on first use: a command line that makes you connect first
-		// is one more step than the tool it is imitating has.
+		// is one more step than the tool it is imitating has. A connect that
+		// fails answers in the console like everything else - it used to be
+		// returned as an error, which went to the status bar and left the
+		// console with no echo and no explanation at all.
 		if _, ok := s.comps[node]; !ok {
 			if err := s.connectCompanion(node); err != nil {
-				return nil, err
+				say("> "+line, err.Error())
+				return map[string]any{"node": node, "reply": err.Error(), "failed": true}, nil
 			}
 		}
+		// The echo goes in before the command runs, not after it succeeds.
+		// Echoing on the way out meant a failing command left no trace of
+		// itself at all: no echo, no error, and an empty console where it was
+		// typed.
+		say("> " + line)
+
 		for _, c := range meshcliCommands {
 			if head != c.name && (c.short == "" || head != c.short) {
 				continue
 			}
 			out, err := c.run(s, node, args)
 			if err != nil {
-				return nil, err
+				// Reported, not returned. A command that ran and answered
+				// "no" is not a verb that failed, and returning an error
+				// sends the explanation to the status bar and the session log
+				// - which is not where anybody typing into a console is
+				// looking.
+				say(err.Error())
+				return map[string]any{"node": node, "reply": err.Error(), "failed": true}, nil
 			}
-			if c := s.comps[node]; c != nil {
-				c.note("> " + line)
-				c.note(out)
-				w.Console, w.ConsoleNode = c.Lines(), node
+			// The reply arrives when the engine next steps, same as a
+			// repeater's console. Playing, the ticker does that within
+			// milliseconds; paused, nothing ever would - so a command typed
+			// while the client mode had just been used (which needs no step,
+			// since it draws its own decoded state) got no answer until play
+			// was pressed, and read as the command line having stopped
+			// working rather than the clock having stopped.
+			if !w.Playing {
+				for i := 0; i < 60; i++ {
+					_ = s.eng.Step(context.Background())
+				}
+				w.NowMs = s.eng.NowMs()
 			}
+			say(out)
 			return map[string]any{"node": node, "reply": out}, nil
 		}
 		var have []string
@@ -243,13 +292,15 @@ func registerMeshCLI(st *state.Store, s *Sim) {
 			have = append(have, c.name)
 		}
 		sort.Strings(have)
+		unknown := fmt.Sprintf("no command %q. This answers: %s",
+			head, strings.Join(have, ", "))
 		if meshcliKnows(head) {
-			return nil, fmt.Errorf(
+			unknown = fmt.Sprintf(
 				"meshcore-cli has %q and this simulator does not. It answers: %s",
 				head, strings.Join(have, ", "))
 		}
-		return nil, fmt.Errorf("no command %q. This answers: %s",
-			head, strings.Join(have, ", "))
+		say(unknown)
+		return map[string]any{"node": node, "reply": unknown, "failed": true}, nil
 	})
 }
 

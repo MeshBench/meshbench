@@ -149,3 +149,41 @@ func TestSecondEmulatorIsRefused(t *testing.T) {
 	case <-time.After(300 * time.Millisecond):
 	}
 }
+
+// A stale release must not clear whoever claimed since.
+//
+// The workbench's disconnect and its serve race on separate goroutines, and
+// when serve won, the disconnect's release unplugged the client that had just
+// taken the port - a client that connected and then received nothing.
+func TestAStaleReleaseKeepsTheNewClaim(t *testing.T) {
+	b, err := Listen("127.0.0.1:0", "GB7XYZ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = b.Close() }()
+
+	first := &struct{ io.Writer }{io.Discard}
+	second := &struct{ io.Writer }{io.Discard}
+	release1 := b.Claim(first)
+	release2 := b.Claim(second)
+	release1()
+	if !b.Claimed() {
+		t.Fatal("releasing a stale claim unplugged the current holder")
+	}
+	release2()
+	if b.Claimed() {
+		t.Fatal("the current holder's own release did not release")
+	}
+	// And a release must stay inert once its claim is gone, however many
+	// times it is called.
+	release3 := b.Claim(first)
+	release1()
+	release2()
+	if !b.Claimed() {
+		t.Fatal("an old release cleared an unrelated later claim")
+	}
+	release3()
+	if b.Claimed() {
+		t.Fatal("the final release did not release")
+	}
+}

@@ -49,6 +49,14 @@ func (c callbacks) wire() {
 			}
 		}()
 	}
+	// The companion client's actions, which carry more than a node name.
+	c.wbUI.onDo = func(verb string, params any) {
+		go func() {
+			if _, err := c.st.Do(c.ctx, verb, params); err != nil {
+				_, _ = c.st.Do(c.ctx, "ui.said", verb+": "+err.Error())
+			}
+		}()
+	}
 	c.wbUI.onServe = func(node, kind string) {
 		go func() {
 			if _, err := c.st.Do(c.ctx, "bench.serve",
