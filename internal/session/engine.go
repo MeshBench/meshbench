@@ -15,6 +15,7 @@ import (
 	"math"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/MeshBench/meshbench/internal/boundary"
 	"github.com/MeshBench/meshbench/internal/console"
@@ -65,6 +66,10 @@ type Sim struct {
 	// covCells is the operator's coverage-raster resolution - the long
 	// edge, in cells - or zero for the default.
 	covCells int
+
+	// lastReadout throttles the interface readouts to human rate while the
+	// run plays; the tick that paces the engine must not pay for tables.
+	lastReadout time.Time
 	// realism is the RF Simulation imperfection switches. See rfmode.go.
 	realism state.RFRealism
 	// envDir is where the environment tiles live, or "" for bare earth.

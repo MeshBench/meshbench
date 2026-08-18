@@ -1,492 +1,360 @@
-# Layout plan: making the tree navigable again
+# Layout plan: seven layers, and the two packages in the way
 
 The code is fine. The *map* is not. This plan is about where things live and
 what they are called, not about what they do.
 
-Written against `7eb0a23` on `msim-waveform-truth`. Nothing here has been
-applied.
+Measured against `34bad7e`. Nothing here has been applied. Interactive version:
+the Layout Explorer artifact, which walks the proposed tree and the import graph.
+
+> **Earlier draft.** The first version of this document proposed renames and a
+> few extractions inside `internal/session` and `internal/workbench`. That was
+> too small to matter: it left `internal/` a flat listing of 38 sibling
+> packages, which is the same complaint one level up. This version replaces it.
 
 ---
 
-## 1. What is actually wrong
+## 1. The actual problem
 
-The complaint is "too flat", and the measurement agrees, but the flatness is
-concentrated in three places rather than spread evenly. Source files only —
-`_test.go` excluded, because tests must live beside their package and inflate
-the counts misleadingly:
+`internal/` has **38 packages as flat siblings**. Nothing in the listing says
+which are physics, which are MeshCore, which are the application, which are
+Gio. You cannot form a mental model from `ls`, so every navigation starts from
+grep.
+
+The oversized packages are real but secondary — source files only, since tests
+must live beside their package and inflate the counts misleadingly:
 
 | Package | Source files | Lines | Diagnosis |
 |---|---:|---:|---|
-| `internal/session` | 69 | 16,374 | one god struct, 33 files of methods on it |
+| `internal/session` | 69 | 16,374 | `Sim` has 79 methods across 33 files |
 | `internal/workbench` | 68 | 17,747 | already cohesive, just undivided |
+| `internal/engine` | 24 | 8,234 | `Engine` has 89 methods across 21 files |
 | `internal/gui/comp` | 24 | 5,618 | two packages wearing one coat |
-| `internal/engine` | 24 | 8,234 | **fine** — 28 of its 52 files are tests |
-| `internal/firmware` | 15 | 4,938 | fine |
 
-`internal/engine` looked like the third-worst offender at 52 files and is not a
-problem at all: 13 of those are `_live_test.go` in `package engine_test`. Worth
-saying out loud so effort does not go there.
-
-Beyond size, five separate defects make the tree harder to read than its size
-alone would explain.
-
-### 1.1 Filenames encode plan milestones, not content
-
-This is the worst of them, because it defeats every navigation method at once —
-you cannot guess the name, `grep` it, or learn it.
-
-```
-internal/workbench/panels6.go     "Three of P6's panels"
-internal/workbench/panels6b.go    "Three more of P6's panels"
-internal/workbench/panels6c.go    "Configuration and the experiment log (6.17, 6.14)"
-internal/workbench/tables.go      "The tables of P4, on the virtualised component from P1"
-internal/workbench/tables2.go     "The other two tables of P4"
-internal/workbench/events2.go     "The events panel, redesigned"
-```
-
-`P6` and `P4` are phases of a planning document. Six months from now nobody will
-know what P6 was, and the file will still be called `panels6b.go`. The `2`/`b`/`c`
-suffixes mean "written later", which is the one fact git already records.
-
-The underlying shape is admirably regular — **one type per panel, each with
-`Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot)`** — so the fix is
-mechanical. `panels6b.go` holds exactly `fleetPanel`, `boundaryPanel` and
-`timelinesPanel`. Three types, three obvious names.
-
-### 1.2 `internal/gui/state` is not GUI
-
-It is the single-writer store and the immutable `Snapshot` — the application's
-data model. It imports no toolkit, and there is a boundary test in
-`internal/session/boundary_test.go` enforcing that it never will.
-
-That test's own comment gives the game away:
-
-> `internal/gui/state` is allowed, and is the one that would surprise somebody.
-
-A path that needs a test comment to explain why it is permissible is misfiled.
-**61 of the 69 `internal/session` source files import it** — it is the most
-depended-on package in the repository, and it is filed under the one directory
-the session package's own doc comment forbids it from touching.
-
-### 1.3 Two directories inside `internal/` contain no code
-
-```
-internal/ux/       9 PNGs + README   — byte-identical to docs/ux/
-internal/output/   4 PNGs + a WAV    — byte-identical to docs/output/
-```
-
-Both are tracked. `diff -rq` reports no differences against their `docs/`
-counterparts. Almost certainly a screenshot tool run with `--output internal/ux`
-from the wrong working directory. They inflate `internal/` from 38 packages to
-40 and appear in every `find` and directory listing.
-
-### 1.4 `shaders/` is a dead duplicate that CLAUDE.md points at
-
-```
-shaders/coverage.wgsl   identical to   internal/gpu/coverage.wgsl
-shaders/dechirp.wgsl    identical to   internal/gpu/dechirp.wgsl
-shaders/pairs.wgsl      identical to   internal/gpu/pairs.wgsl
-```
-
-The `internal/gpu` copies are the live ones — `//go:embed` cannot reach outside
-its own package directory, so `shaders/` can never become the source of truth
-without moving the Go code to it. Meanwhile `internal/gpu/demod.wgsl` exists in
-only one place, so the duplication is not even consistent.
-
-CLAUDE.md's layout section lists `shaders/` as *the* home for WGSL. The map
-directs you to the dead copy.
-
-### 1.5 Build artifacts are committed at the repo root
-
-```
-engine.test   envgen   goldencap     (tracked)
-workbench2                           (untracked, gitignored)
-```
-
-`envgen` and `goldencap` shadow the names of the real packages at
-`tools/envgen/` and `tools/goldencap/`, so tab-completing `goldencap` at the
-root gets you a binary.
-
-### 1.6 Smaller irritations
-
-- **`fixtures/` (root) vs `internal/fixture/`** — near-identical names, entirely
-  different things. Root `fixtures` is the embedded example networks; `internal/fixture`
-  is the on-disk project-file format. The root one genuinely must stay at the
-  root (`//go:embed` scope, and packaging installs it to `/usr/share/meshbench/fixtures`).
-- **`internal/mockup/`** is a drawing library used *only* by `tools/mockup` and
-  `tools/render`. It is not part of the application but sits next to packages that are.
-- **`docs/` is 49 flat `.md` files** — the same disease, one level up.
-- **Two files breach the 500-line hard limit**: `internal/workbench/panels6c.go`
-  (563) and `internal/workbench/configcards.go` (558). Both are on the list to
-  split anyway.
-- **CLAUDE.md's layout table describes ~13 packages; there are 38.** Undocumented:
-  `session`, `engine`, `provider`, `environ`, `planning`, `coverage`, `energy`,
-  `basemap`, `boundary`, `control`, `console`, `mcp`, `mqttclient`, `pathview`,
-  `replay`, `validate`, `linkbudget`, `lora`, `gpu`, `fixture`, `gui/*`.
-  `internal/session` — the second-largest package in the tree — is not on the map at all.
+Both `session` and `engine` are god-object packages: a method must live in its
+receiver's package, so **neither can be split by moving files**. That is a
+constraint on the plan, not a target of it.
 
 ---
 
-## 2. Constraints any plan must respect
+## 2. Seven layers
 
-These are load-bearing. Two of them shape the whole design.
-
-**CI shards tests by package path** — `.github/workflows/ci.yml:116-151`:
-
-```yaml
-packages: ./internal/session/...
-packages: ./internal/workbench/...
-packages: ./internal/dsp/...
-# and the rest:
-pkgs=$(go list ./... | grep -vE '/internal/(session|workbench|dsp)(/|$)')
-```
-
-The `/...` suffix and the `(/|$)` regex both already include subpackages. **New
-packages nested *under* `session/` and `workbench/` need no CI change; packages
-moved out to be siblings silently relocate into the catch-all shard.** This is
-why the plan below nests rather than flattens — it is not aesthetic preference.
-
-**Release ldflags pin an import path** — `.github/workflows/package.yml:100,518`:
+Group by domain, and make the group order a strict dependency order:
 
 ```
--X github.com/MeshBench/meshbench/internal/workbench.Version=$VERSION
+rf  →  mesh  →  world  →  sim  →  study  →  app  →  ui
 ```
 
-`internal/workbench` must keep a package at exactly that path with a `Version`
-var. `version.go` (8 lines) stays put. A `workbench` reduced to nothing but a
-shell package would still satisfy this, but the constraint must not be
-discovered during a release.
-
-**`package.yml:68`** checks `internal/workbench/licences/licences.json` for drift
-— that path is pinned too.
-
-**`//go:embed` cannot escape its package directory.** Fixes `shaders/`'s fate,
-and keeps root `fixtures/` where it is.
-
-**A Go method must live in its receiver's package.** This is the entire
-difficulty of `internal/session`, and section 4.3 is about nothing else.
-
-**Another agent is working this branch** (`internal/sdr`, `internal/session`,
-`internal/engine` are dirty). Stage 0 and Stage 1 avoid all three; the session
-work in Stage 3 must wait for their branch to land.
-
----
-
-## 3. The principles to apply
-
-Four rules. The first two would have prevented every defect in section 1.
-
-1. **A file is named for what it holds, never for when it was written.**
-   No `2`, `b`, `c` suffixes; no plan-phase numbers. If two names collide, the
-   names are not specific enough.
-2. **One panel type per file, named after the type.** `configPanel` →
-   `configpanel.go`. This is already how the code is *shaped*; only the
-   filenames disagree.
-3. **A directory is a boundary, not a bucket.** A subdirectory earns its place
-   by having an import edge that points one way. `gui/mapview` may import
-   `gui/comp`; the reverse is a design error and should be visible as one.
-4. **Split at the type, not at the line count.** A package with 24 cohesive
-   files is healthier than three packages sharing a `common.go`.
-
----
-
-## 4. The target tree
-
-### 4.1 Root and `internal/` top level
+A package may import its own layer and everything beneath it, never anything
+above. So `ui` can reach the physics; the physics cannot reach a widget.
 
 ```
-cmd/                      unchanged
-fixtures/                 unchanged — embed root, installed to /usr/share (document why)
-docs/                     subdivided (§4.5)
-packaging/                unchanged
-tools/                    + tools/internal/mockup   (moved from internal/mockup)
-shaders/                  DELETED — dead duplicate of internal/gpu/*.wgsl
-
 internal/
-  state/                  MOVED from internal/gui/state — the data model, toolkit-free
-  gui/
-    theme/  comp/  shell/  desktop/  float/  pick/    unchanged paths
-    mapview/              NEW — split out of gui/comp
-  session/                subdivided (§4.3)
-  workbench/              subdivided (§4.4)
-  engine/ firmware/ rf/ dsp/ lora/ antenna/ terrain/ environ/ gpu/
-  scenario/ capture/ sdr/ companion/ coverage/ energy/ planning/
-  provider/ basemap/ boundary/ console/ control/ mcp/ mqttclient/
-  pathview/ replay/ validate/ linkbudget/ fixture/
-                          all unchanged
-  ux/                     DELETED — duplicate of docs/ux
-  output/                 DELETED — duplicate of docs/output
+  rf/           Radio physics. Knows nothing of nodes, networks or the app —
+                you could compute a link budget with it and never say "MeshCore".
+    channel/        ← internal/rf            sums waveforms, adds noise, decides nothing
+    dsp/            ← internal/dsp
+    gpu/            ← internal/gpu           + the .wgsl files, which must live here
+    lora/           ← internal/lora
+    antenna/        ← internal/antenna
+    terrain/        ← internal/terrain
+    environ/        ← internal/environ
+    propagation/    ← internal/coverage {grid.go, pairs_cpu.go} + the Terrain interface
+
+  mesh/         MeshCore itself: what a node is and what it says.
+    firmware/       ← internal/firmware
+    shim/           ← internal/firmware/shim
+    companion/      ← internal/companion
+    proto/          ← internal/companion/proto
+    packet/         ← internal/capture {dissect.go, payload.go}
+    console/        ← internal/console
+    energy/         ← internal/energy
+
+  world/        What is being simulated, and where it came from.
+    scenario/       ← internal/scenario
+    provider/       ← internal/provider
+    mqtt/           ← internal/mqttclient
+    boundary/       ← internal/boundary
+    basemap/        ← internal/basemap
+    sdr/            ← internal/sdr
+
+  sim/          Running it, and recording what happened.
+    engine/         ← internal/engine
+    capture/        ← internal/capture {ledger.go, pcapng.go}
+    replay/         ← internal/replay
+
+  study/        The questions asked of a simulation.
+    coverage/       ← internal/coverage {raster.go, combine.go}
+    linkbudget/     ← internal/linkbudget
+    planning/       ← internal/planning
+    pathview/       ← internal/pathview
+    validate/       ← internal/validate
+
+  app/          Orchestration, no toolkit.
+    state/          ← internal/gui/state
+    session/        ← internal/session  (+ 7 subpackages, §5)
+    fixture/        ← internal/fixture
+    control/        ← internal/control
+    mcp/            ← internal/mcp
+
+  ui/           Gio. The only layer permitted a toolkit.
+    theme/ comp/ shell/ desktop/ float/ pick/   ← internal/gui/*
+    mapview/        ← internal/gui/comp {map*, tiles*, affine}
+    workbench/      ← internal/workbench  (+ 6 subpackages, §5)
 ```
 
-Deletions and the `state` move are the highest value-per-unit-risk changes in
-the document.
+**`internal/` goes from 38 entries to 7.** That is the navigability win;
+everything else in this document is detail.
 
-### 4.2 `internal/gui/comp` → `comp` + `mapview`
+---
 
-13 of 24 source files are map rendering; the other 11 are generic widgets. They
-share nothing but the package clause.
+## 3. It verifies — after two edits
 
-```
-internal/gui/comp/        cards chips table tablerows list menurow splitter
-                          shapes timeline waterfall budget energy links matrix
-                          comp.go
-                          (11 files, ~2,100 lines)
-
-internal/gui/mapview/     mapview mapworld mapchrome mapinput mapfocus
-                          maplabels mapmenu mapzoom tiles affine
-                          (13 files, ~3,500 lines)
-```
-
-`mapview` imports `comp`, `state`, `theme`, `basemap`. One direction, no cycle.
-`internal/workbench` and `internal/session` both already import `gui/comp` and
-will import both after the split — a mechanical import-line change.
-
-### 4.3 `internal/session` — the hard one
-
-**Why file-moving does not work here.** `Sim` has 79 methods spread across 33
-files. A method must live in its receiver's package, so moving `gpuwarm.go` to
-`internal/session/gpuwarm/` does not compile — every `func (s *Sim) …` in it
-breaks. Splitting this package is a refactor, not a `git mv`.
-
-There are two patterns for doing it, and they cost very different amounts.
-
-**Pattern A — extract a component.** The subpackage owns a type; `Sim` holds a
-pointer; the methods move to the new type. `Sim`'s own field list already names
-the candidates: `sdrServers`, `bench benchLive`, `gpuProbe`, `prefs`, `consoles`.
-Real work, real payoff.
-
-**Pattern B — extract a pure function.** The subpackage exposes
-`func Something(ctx, w *state.World, …) (…, error)`, and `Sim`'s method shrinks
-to a three-line call. Works wherever the method is a computation over the World
-rather than a mutation of `Sim`. Cheap.
-
-Proposed decomposition, ordered by value ÷ risk:
-
-| New package | Files | Lines | Pattern | Notes |
-|---|---:|---:|---|---|
-| `session/analysis` | coverage, coveragemap, linkprofile, excessloss, nodestats, validate, energy, inventory | ~1,180 | **B** | mostly reads `World`; start here |
-| `session/environ` | environfetch, environmicrosoft, terrainprefetch, hillshade, boundary | ~1,010 | B/A | self-contained tile + building pulls |
-| `session/warm` | gpuwarm, matrixdisk | ~580 | **A** | `gpuProbe`/`gpuOnce`/`gpuMu` move wholesale — deletes 5 `Sim` fields |
-| `session/experiment` | experiment, experimentarm, experimentarms, experimentreport, experimentrun, sweep, benchlive | ~2,050 | **A** | already owns `experiment`, `ExpArm`, `ExpResult`, `SweepPlan` |
-| `session/companionbench` | companion, companionconfig, companionsession, companionview, meshcli | ~1,290 | **A** | owns `compSession` |
-| `session/provision` | provisioning, provisioning_settings, radioreconcile, firmwarecatalogue, firmwarelib | ~1,320 | A | owns `Provisioning` |
-| `session/traffic` | capture, packetledger, packetview, wireshark, waterfall, sdrserve | ~1,315 | A | owns `sdrServer`; **currently dirty — wait** |
-
-What deliberately stays in `internal/session`: `session.go`, `engine.go`,
-`enginefirmware.go`, `enginereadout.go`, `ui.go`, `prefs.go`, `runs.go`,
-`runkind.go`, `logs.go`, `socket.go`, `simctl.go`, `fleet.go`, `importcommit.go`,
-`fixture.go`, `schedule.go`, `console.go`, `rfmode.go`, `manipulation.go` — the
-`Sim` lifecycle and the store wiring. Roughly 18 files. Navigable.
-
-**The verbs are the open question.** Thirteen files (`verbs*.go`, `logic_*.go`,
-`planningverbs.go`) register store handlers, and every one takes `s *Sim`.
-Moving them to `session/verbs/` requires exporting ~40 `Sim` methods purely to
-cross a package boundary — a large API surface created for a directory listing.
-
-**Recommendation: do not extract the verbs. Rename them instead.** A `verb_`
-prefix clusters all thirteen in the listing and costs nothing:
+Checked mechanically against `go list` output for all 40 packages:
 
 ```
-verbs.go          → verb_registry.go     (the Register fan-out)
-verbsbench.go     → verb_bench.go
-verbsbudget.go    → verb_budget.go
-verbsclock.go     → verb_clock.go
-verbscoverage.go  → verb_coverage.go
-verbsimport.go    → verb_import.go
-verbsnodes.go     → verb_nodes.go
-verbssweep.go     → verb_sweep.go
-planningverbs.go  → verb_planning.go
-logic_bench.go    → verb_benchlogic.go
-logic_importer.go → verb_importlogic.go
-logic_observed.go → verb_observed.go
-logic_planning.go → verb_planninglogic.go
+UPWARD IMPORTS (violations of rf < mesh < world < sim < study < app < ui):
+  rf     internal/gpu       ->  study  internal/coverage
+  sim    internal/engine    ->  study  internal/coverage
+  world  internal/provider  ->  sim    internal/capture
+total violations: 3
 ```
 
-That gets most of the navigation benefit for none of the API cost. Revisit only
-if a second front end ever needs the verbs independently — the "write the
-interface at the second implementation" rule applies.
+Three violations, no others — and all three come from **two packages that are
+each doing two unrelated jobs**. That fusion is precisely why the flat layout
+resisted grouping.
 
-Reassess after `session/analysis`. If Pattern B lands cleanly, the rest follows;
-if it fights, stop after the extractions and take the renames as the win.
+### 3.1 `internal/coverage` is propagation maths *and* a study product
 
-### 4.4 `internal/workbench` — the easy one
+`internal/gpu` imports it for `HeightGrid`, `GridLossParams`, `GridLossCPU`,
+`PairProfiles`, `ProfilePairLossCPU`, `NoDataLoss` — **the CPU twins of the GPU
+kernels**, which CLAUDE.md requires to exist and be tested against each other.
+That is physics. `internal/engine` imports it for exactly one symbol:
+`coverage.Terrain`, a five-line interface.
 
-Unlike `session`, this package is *already* decomposed into types
-(`configPanel`, `packetPanel`, `nodeWindowPanel`, `companionTab`, …), each with
-its own methods. The directory just does not reflect it.
+Meanwhile `Raster`, `Compute`, `Cell`, `Options`, `Combine` are the coverage
+*map* — an answer to a question, not a computation of physics.
 
-**The enabling move:** `panelDeps`, `Do`, `callbacks` and `menuDeps` are the
-shared plumbing every panel needs. They become a small exported
-`internal/workbench/panel` package. Six-plus panel families already exist, so
-this satisfies the "interface at the second implementation" rule several times
-over — it is overdue, not speculative.
+Split along the existing file boundary:
+
+| To | Files | Symbols |
+|---|---|---|
+| `rf/propagation` | `grid.go`, `pairs_cpu.go` | `HeightGrid`, `GridLossParams`, `GridLossCPU`, `PairProfiles`, `ProfilePairLossCPU`, `NoDataLoss`, `NoDataHeight`, `RasteriseHeights` |
+| `study/coverage` | `raster.go`, `combine.go` | `Raster`, `Compute`, `Cell`, `Options`, `Endpoint`, `Combine`, `LossBetween` |
+
+The `Terrain` interface is currently declared in `raster.go:19` and must move
+**down** into `rf/propagation` — `grid.go` already takes it as a parameter, and
+it is the only thing `sim/engine` needs. Leaving it in the study layer is what
+makes the engine import upward.
+
+### 3.2 `internal/capture` is packet dissection *and* recording
+
+`internal/provider` imports it for exactly one symbol: `capture.Dissect`.
+
+The two halves **share not one symbol** — verified: nothing in `ledger.go` or
+`pcapng.go` references `Dissect`, `Field` or `Dissection`, and nothing in
+`dissect.go` or `payload.go` references `Reception`, `Ledger`, `Outcome` or
+`Pcapng`. It is two packages in one directory.
+
+| To | Files | Symbols |
+|---|---|---|
+| `mesh/packet` | `dissect.go`, `payload.go` | `Dissect`, `Dissection`, `Field`, `PseudoHeader`, `RewritePath` |
+| `sim/capture` | `ledger.go`, `pcapng.go` | `Reception`, `Ledger`, `Outcome`, `OutOfRange`, `NotDemodulated`, `Accepted`, `PcapngWriter` |
+
+`sim/engine` needs both halves; both are then downward. `world/provider` needs
+only `mesh/packet`, and the violation dissolves.
+
+### 3.3 Result
+
+With those two splits modelled, re-run:
 
 ```
-internal/workbench/            shell and wiring — main, ui, uiverbs, windows,
-                               wiring, menus, menubar, menuactions, panellist,
-                               prompts, settings, shutdown, startupflags, fps,
-                               sessionlog, version.go  ← Version stays here
-  panel/                       panelDeps, Do, callbacks, menuDeps  (NEW)
-  packetview/                  12 files, ~3,450 lines  ← biggest, cleanest seam
-  nodeview/                    8 files,  ~2,350 lines
-  companionpanel/              4 files,    ~890 lines
-  experiment/                  sweeparms sweeppanel sweepresults compare bench
-  library/                     fwlib fwlibrow licencepanel + licences/
-  licences/                    unchanged — pinned by package.yml:68
+total violations: 0
 ```
 
-**Renames, applied whether or not the split happens** (rule 2 — one panel per
-file, named for the type):
+The seven-layer order holds across all 40 packages with **no other change** —
+no interface extraction, no dependency inversion, no shuffling to make it fit.
+The architecture was already there; it just had no directory to live in.
+
+---
+
+## 4. What keeps it this way
+
+A layout that is not enforced decays back. The repository already has the
+mechanism — `internal/session/boundary_test.go` fails the build if the session
+imports a toolkit. Generalise it: one table of the seven layer names in order,
+one test that walks `go list` and fails on any import pointing upward.
+
+That converts the architecture from a description into a check, so the next
+package lands in the right layer because the wrong one does not compile. It is
+about forty lines, and it is the same idea as Chromium's `DEPS` files, Android's
+no-upward-dependency rule, or the layering that hexagonal architecture describes
+but rarely enforces.
+
+The grouping itself is Go's own convention: the standard library is domain-first
+and two levels deep — `net/http`, `crypto/tls`, `encoding/json` — not forty
+packages in a row.
+
+---
+
+## 5. The two packages that are still hard
+
+Layering fixes the top of the tree. Two packages are large for a different
+reason and need their own work.
+
+### `app/session` — 69 source files, `Sim` with 79 methods across 33 of them
+
+Cannot be split by moving files. Two patterns, at very different prices:
+
+- **Pattern A — extract a component.** The subpackage owns a type, `Sim` holds
+  a pointer, methods move. `Sim`'s own field list names the candidates:
+  `sdrServers`, `bench`, `gpuProbe`, `prefs`, `consoles`.
+- **Pattern B — extract a pure function.** The subpackage exposes
+  `func Something(ctx, w *state.World, …)`, and `Sim`'s method shrinks to a
+  three-line call.
+
+| Subpackage | Lines | Pattern | Notes |
+|---|---:|---|---|
+| `session/analysis` | ~1,180 | **B** | mostly reads `World` — **start here** |
+| `session/environ` | ~1,010 | B/A | tile and building pulls |
+| `session/warm` | ~580 | **A** | deletes 5 `Sim` fields wholesale |
+| `session/experiment` | ~2,050 | **A** | already owns `ExpArm`, `ExpResult`, `SweepPlan` |
+| `session/companionbench` | ~1,290 | A | owns `compSession` |
+| `session/provision` | ~1,320 | A | owns `Provisioning` |
+| `session/traffic` | ~1,315 | A | owns `sdrServer` |
+
+**Do not extract the verbs.** The thirteen `verbs*.go` / `logic_*.go` files all
+take `s *Sim`; moving them would mean exporting ~40 methods purely to cross a
+package boundary. Rename them instead — a `verb_` prefix clusters all thirteen
+in the listing for free, and the "write the interface at the *second*
+implementation" rule says wait for a second front end.
+
+### `ui/workbench` — 68 source files, already decomposed into types
+
+This one is easy: `configPanel`, `packetPanel`, `nodeWindowPanel`,
+`companionTab` each already own their methods. The enabling move is
+`ui/workbench/panel` — `panelDeps`, `Do`, `callbacks`, `menuDeps` exported once
+so the families can leave. Six-plus families exist, so it is overdue rather than
+speculative.
+
+Then: `packetview` (12 files, ~3,450 lines — the pilot), `nodeview`,
+`companionpanel`, `experiment`, `library`.
+
+Filenames are renamed regardless of whether the split happens, because they
+currently encode plan milestones rather than content:
 
 ```
 panels.go        → nodespanel.go
 panels6.go       → schedulepanel.go, consolepanel.go
 panels6b.go      → fleetpanel.go, boundarypanel.go, timelinespanel.go
-panels6c.go      → configpanel.go, logpanel.go          (also clears 563 > 500)
+panels6c.go      → configpanel.go, logpanel.go          (563 lines, clears the 500 limit)
 events2.go       → eventspanel.go
-tables.go        → scorepanel.go                          (holds only scorePanel)
-tables2.go       → runspanel.go                           (holds only runsPanel)
+tables.go        → scorepanel.go                        (holds only scorePanel)
+tables2.go       → runspanel.go                         (holds only runsPanel)
 actionpanels.go  → fleetcontrols.go, schedulecontrols.go,
                    planningcontrols.go, provisioningcontrols.go
-                   (`Do` moves to panel/)
 livepanels.go    → benchcontrols.go, feedcontrols.go
 networkpanels.go → importcontrols.go, boundarycontrols.go, validatecontrols.go
-configcards.go   → split by card family                  (also clears 558 > 500)
+configcards.go   → configcards_{model,run,system}.go    (558 lines, clears the limit)
 ```
 
-Note that `tables.go` and `tables2.go` each hold exactly one type already, so
-they are straight renames — but both carry a stale doc comment (`tables.go` says
-"the tables of P4" and holds a single `scorePanel`; `tables2.go` says "installed
-firmware, and past runs" and holds only `runsPanel`). Fix the comment in the
-same commit as the rename, or the misdirection just moves to a new filename.
+`P6` and `P4` are phases of a planning document; the `2`/`b`/`c` suffixes mean
+"written later", which is the one fact git already records. Both `tables.go` and
+`tables2.go` also carry doc comments describing contents they no longer have —
+fix those in the same commit, or the misdirection just moves to a new filename.
 
-These renames are worth doing **first and on their own**. They are pure `git mv`
-plus splitting a file at type boundaries — no import changes, no API changes, no
-CI changes — and they remove the single most disorienting thing in the tree.
+### `sim/engine` stays whole
 
-### 4.5 `docs/`
-
-49 flat `.md` files, mixing ADRs, plans, study reports, design notes and user
-guides.
-
-```
-docs/
-  adr/          adr-0019-headless.md, adr-gap-review.md
-  plans/        master-plan*.md, plan-2026-08.md, distribution-plan.md,
-                release-packaging-plan.md, firmware-bug-detection-plan.md,
-                extracting-the-study-engine.md, overnight-2026-08-12.md
-  design/       architecture.md, rf-chain.md, gio-workbench.md,
-                lower-radio-shim.md, radio-state*.md, mini-companion.md,
-                firmware-integration.md, packaging-emulation.md,
-                emulated-published-firmware.md, driving-the-workbench.md
-  studies/      study-report-*.md, study-protocol-ideas.md, bench-parity.md
-                (existing docs/studies/ merges in)
-  reference/    licence.md, licences/, licences.json, shortcomings.md,
-                repositories.md, fixtures.md, experiments.md
-  bugs/         bugs-0.0.1.md, bugs-0.0.3.md
-  user/         unchanged
-  images/ ux/ output/   unchanged
-docs/README.md  stays at top level — the index
-```
-
-`docs/shortcomings.md` is named in CLAUDE.md's domain rules; if it moves to
-`reference/`, CLAUDE.md must move with it in the same commit.
+`Engine` has 89 methods across 21 of its 24 source files — the same shape as
+`Sim`, and more concentrated. At 24 files it is not what makes the tree hard to
+walk. Leave it; revisit only if it grows.
 
 ---
 
-## 5. Sequencing
+## 6. Deletions
 
-Ordered so that each stage is independently revertible and the risky work
-happens last. **Stages 0–2 touch none of the files the other agent has open.**
+Verified byte-identical duplicates and tracked artifacts. None is referenced by
+any Go file, so removing them should be a build no-op:
 
-### Stage 0 — deletions and hygiene *(no Go code changes; minutes)*
+- `internal/ux/` — 9 PNGs and a README, identical to `docs/ux/`. **No code.**
+- `internal/output/` — 4 PNGs and a WAV, identical to `docs/output/`. **No code.**
+- `shaders/` — identical to `internal/gpu/*.wgsl`. `//go:embed` cannot reach
+  outside its own package directory, so this copy can never be the live one —
+  and CLAUDE.md's layout section points at it.
+- `engine.test`, `envgen`, `goldencap` — tracked binaries at the repo root.
+  `envgen` and `goldencap` shadow the real packages at `tools/envgen` and
+  `tools/goldencap`.
 
-- `git rm -r internal/ux internal/output` — verified byte-identical to `docs/`.
-- `git rm -r shaders/` — verified byte-identical to `internal/gpu/*.wgsl`.
-- `git rm --cached engine.test envgen goldencap`; add to `.gitignore` alongside
-  the existing `/workbench2` entry.
-- Update CLAUDE.md's layout table: drop `shaders/`, add the ~25 missing packages,
-  note where WGSL actually lives.
-
-Verify: `go build ./... && go test ./...`. Nothing above is referenced by any
-Go file, so this should be a no-op to the build — which is the point.
-
-### Stage 1 — workbench renames *(pure `git mv` + file splits)*
-
-Section 4.4's rename table. No import changes, no API changes, no CI changes.
-Split the two >500-line files at their type boundaries while renaming, which
-clears both hard-limit breaches as a side effect.
-
-Verify: `gofmt -l .` empty, `go vet ./...`, `golangci-lint run`, `go test ./...`.
-
-### Stage 2 — `internal/gui/state` → `internal/state` *(mechanical, wide)*
-
-```bash
-git mv internal/gui/state internal/state
-grep -rl 'internal/gui/state' --include='*.go' . \
-  | xargs sed -i 's|internal/gui/state|internal/state|g'
-gofmt -w .
-```
-
-Touches ~100 files but only import lines. **Also update the allow-list in
-`internal/session/boundary_test.go`** (the `internal/gui/state` entry and the
-comment explaining it — the comment can simply go).
-
-Do this in its own commit. A wide, boring diff is easy to review; mixed with
-logic changes it is not.
-
-### Stage 3 — `gui/comp` → `comp` + `mapview` *(one real package split)*
-
-Section 4.2. Some currently-unexported helpers shared across the seam will need
-exporting; keep that list short and note each one in the PR. If it grows past a
-handful, the seam is in the wrong place — move it rather than exporting more.
-
-### Stage 4 — workbench subpackages *(needs the `panel` package first)*
-
-`internal/workbench/panel` first, then `packetview` as the pilot — it is the
-biggest and cleanest. Judge the remaining families on how that one goes.
-Confirm `Version` still resolves at `internal/workbench.Version` before merging;
-a broken release ldflag will not show up in `go test`.
-
-### Stage 5 — session decomposition *(after the other agent's branch lands)*
-
-Verb renames first (free, immediate). Then `session/analysis` as the Pattern B
-pilot. Then reassess.
-
-**This stage wants an ADR.** It changes the shape of `Sim`, and CLAUDE.md points
-ADRs at the Plane project's Pages under MSIM.
+Also: `internal/mockup` is used only by `tools/mockup` and `tools/render`, never
+by the application → `tools/internal/mockup`, where the path says so.
 
 ---
 
-## 6. Rules to add to CLAUDE.md
+## 7. Constraints
 
-The layout rules did not prevent any of section 1's defects, because they are
-about size and none of these are size problems. Proposed additions to the
-**Limits** table:
+Load-bearing. Two of them shape the plan.
+
+**Release ldflags pin an import path.** `package.yml:100,518` set
+`-X github.com/MeshBench/meshbench/internal/workbench.Version`. Moving the
+package to `internal/ui/workbench` **requires updating both call sites in the
+same commit**. A broken ldflag does not show up in `go test`.
+`package.yml:68` pins `internal/workbench/licences/licences.json` too.
+
+**CI shards tests by package path.** `ci.yml:116-151` shards
+`./internal/session/...`, `./internal/workbench/...`, `./internal/dsp/...` and
+excludes those three from the catch-all with `/internal/(session|workbench|dsp)(/|$)`.
+All three move under this plan, so **the shard paths and the exclusion regex
+must change with them** or the sharding silently collapses into one job.
+
+**`//go:embed` cannot escape its package directory.** Settles `shaders/`, keeps
+root `fixtures/` at the root, and keeps the `.wgsl` files inside `rf/gpu`.
+
+**A method must live in its receiver's package.** The whole of §5.
+
+**Work is in flight on this branch.** `internal/session` and `internal/engine`
+are being actively edited. Anything touching them waits.
+
+---
+
+## 8. Sequencing
+
+Ordered so each step is independently revertible, and so the wide mechanical
+moves happen before the refactors that need thought.
+
+| # | Step | Effort | Risk |
+|---|---|---|---|
+| 0 | Deletions and hygiene (§6) | minutes | none |
+| 1 | Workbench filename renames (§5) | hours | none |
+| 2 | Split `coverage` → `rf/propagation` + `study/coverage`; move `Terrain` down | half a day | low — file-aligned |
+| 3 | Split `capture` → `mesh/packet` + `sim/capture` | half a day | low — zero shared symbols |
+| 4 | Move all packages into the seven layers; update ldflags and CI shards | 1 day | low, very wide diff |
+| 5 | Add the layer-enforcement test (§4) | hours | none — locks in 0–4 |
+| 6 | `gui/comp` → `ui/comp` + `ui/mapview` | half a day | low |
+| 7 | `ui/workbench/panel`, then `packetview` as pilot | 2–3 days | medium |
+| 8 | `app/session` decomposition, starting with `analysis` | week+ | high — wants an ADR |
+
+Steps 2–5 are the spine: they are what makes the tree navigable *and* keep it
+that way. Do 0 and 1 first because they are free, then 2 and 3 because
+everything else depends on them.
+
+Step 4 is a very large diff touching almost every import line. Keep it in its
+own commit with no logic changes — a wide boring diff reviews easily; mixed with
+edits it does not.
+
+---
+
+## 9. Rules to add to CLAUDE.md
+
+The existing rules are all about size, and none of these were size problems.
 
 | Rule | Limit |
 |---|---|
+| Layer | every package sits in one of the seven, and imports only downward |
 | Filename | says what the file holds — never a plan phase, never a `2`/`b`/`c` suffix |
-| Panel/widget files | one type per file, named after the type |
+| Panel & widget files | one type per file, named after the type |
+| Package scope | one job — if two halves share no symbol, they are two packages |
 | Duplicated asset | none — one copy, and the code points at it |
 | Build artifacts | never tracked |
 
-And a line under **Layout**: *the table is the map; a new package updates it in
-the same commit.* The reason `internal/session` grew to 69 files partly unnoticed
-is that it was never on the map to begin with.
-
----
-
-## 7. What this is worth
-
-| Stage | Effort | Risk | Payoff |
-|---|---|---|---|
-| 0 — deletions | minutes | none | 2 phantom packages and a misleading `shaders/` gone |
-| 1 — renames | hours | none | the worst navigation defect, fixed outright |
-| 2 — `state` move | ~1 hour | low, wide | the most-imported package stops lying about what it is |
-| 3 — `mapview` | half a day | low | 5,600 lines → two honest packages |
-| 4 — workbench | 2–3 days | medium | 68 files → ~20 + six named families |
-| 5 — session | week+ | high | 69 files → ~18 + six components; needs an ADR |
-
-Stages 0–2 are most of the benefit for almost none of the risk, and none of
-them collide with work in flight. If only one thing gets done, do Stage 1.
+And replace the Layout section's table with the seven layers, noting that a new
+package updates it in the same commit. `internal/session` grew to 69 files
+partly unnoticed because it was never on the map at all.

@@ -80,10 +80,24 @@ assembly or cgo SIMD is the last resort, not the second step.
   report (test: a report costs arithmetic, zero DEM lookups) and dies
   only when a node actually moves.
 
-Bench movement (engine-only, flat earth, so the profile cache does not
-show here): 8 talkers 199 -> 152 ms, 3 talkers 113 -> 55 ms per 5 s
-simulated. Remaining profile: Observe accumulation 30%, FFT 24%, noise
-27% - the P2 GPU synthesis targets.
+- **P1** - the store's readouts run at ten hertz, not per step: the tick
+  paces the engine's clock, and the 2000-event tail conversion, per-node
+  bridge stats and trail scan were re-describing tables nobody could
+  re-read yet. A paused or hand-stepped run still refreshes every tick,
+  because a person stepping once is looking straight at it.
+- **Batch judgement**: every transmission finishing on a tick is judged
+  in one parallel pool over all (transmission, receiver) pairs, then
+  settled in the ledger's fixed order - several finishing together is
+  exactly the busy case, and one-at-a-time left the machine idle on each
+  one's small candidate set.
+
+Bench movement (engine-only, flat earth, so the profile cache and the
+readout throttle do not show here): 8 talkers 199 -> 134 ms, 3 talkers
+113 -> 50 ms per 5 s simulated. Remaining profile: Observe accumulation,
+FFT, noise - the P2 GPU synthesis targets, with the caveat that
+verdict-path synthesis must stay bit-identical CPU (GPU on/off must not
+change an outcome), so P2's honest scope is the presentation surfaces
+plus accelerator-with-fallback patterns like the demod's.
 
 ## Non-goals
 

@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/MeshBench/meshbench/internal/gui/state"
 )
@@ -83,10 +84,6 @@ func Register(st *state.Store, s *Sim) {
 		// One engine step per tick. Step is the engine's own unit of time
 		// and takes its size from the config, so the store paces it rather
 		// than redefining it.
-		// eventTail is how many of the most recent events the tables show. A
-		// run of an hour has millions, and a table nobody can scroll to the
-		// end of is not more honest than one that says how many there were.
-		const eventTail = 2000
 		index := map[string]int{}
 		for i, n := range f.nodes {
 			index[n.Name] = i
@@ -158,35 +155,20 @@ func Register(st *state.Store, s *Sim) {
 					w.Console = buf.Snapshot()
 				}
 			}
-			// Trails from the last few seconds of simulated time. Recomputed
-			// from the event log rather than accumulated, so a seek backwards
-			// or a rebuilt engine cannot leave a trail on the map for a
-			// transmission that is no longer in the run.
-			const trailWindowMs = 4000
-			from := uint32(0)
-			if w.NowMs > trailWindowMs {
-				from = w.NowMs - trailWindowMs
-			}
-			w.Trails = s.trailsSince(from, index)
-			s.refreshOpenPacket(w)
-			s.refreshCompanions(w)
 			w.RFMode = string(rfModeOf(s.rfMode))
 			w.RFRealism = s.realism
 			w.RFEnvironment = s.envDir
 			w.CoverageCells = s.covCells
-			w.Events, w.EventTotal = s.eventTail(eventTail)
-			w.Counts = s.eventCounts()
-			w.Scores = s.scores()
-			w.Stats = s.nodeStats(w.Events)
-			if s.history == nil {
-				s.history = newNodeHistory()
-			}
-			s.history.record(w.Stats)
-			for i := range w.Nodes {
-				if w.Nodes[i].Selected {
-					w.Series = s.history.seriesFor(w.Nodes[i].Name)
-					break
-				}
+			// The readouts - tail conversion, per-node bridge stats, trail
+			// scan - are for human eyes, and eyes read at ten hertz. Doing
+			// them on every 10 ms step was a tenth of the tick spent
+			// re-describing a table nobody could have re-read yet - and the
+			// tick paces the engine's clock, so readout cost was simulation
+			// slowness. A paused or hand-stepped run refreshes every tick,
+			// because a person stepping once is looking straight at it.
+			if !w.Playing || time.Since(s.lastReadout) >= 100*time.Millisecond {
+				s.lastReadout = time.Now()
+				s.refreshReadouts(w, index)
 			}
 		}
 

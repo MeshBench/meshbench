@@ -72,18 +72,20 @@ func (e *Engine) completeTransmissions(now uint32) error {
 	mode := e.Config.rfMode()
 	e.mu.Unlock()
 	cache := modCache{}
-	for i, t := range done {
+	for i := range done {
 		if fw := senders[i].Firmware; fw != nil {
 			if err := fw.Bridge.TransmitFinished(); err != nil {
 				return fmt.Errorf("engine: tx done for %s: %w", senders[i].Spec.Name, err)
 			}
 		}
-		if mode == RFWaveform {
-			if err := e.deliverWaveform(t, concurrent, cache); err != nil {
-				return err
-			}
-			continue
-		}
+	}
+	if mode == RFWaveform {
+		// All of this tick's finishers judged as one batch, so several
+		// transmissions ending together fill the machine instead of
+		// queueing behind each other's small candidate sets.
+		return e.deliverWaveformBatch(done, concurrent, cache)
+	}
+	for _, t := range done {
 		if err := e.deliver(t, concurrent, cache); err != nil {
 			return err
 		}

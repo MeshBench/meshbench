@@ -95,54 +95,89 @@ type wfResult struct {
 // deliverWaveform is deliver's waveform-mode twin: same gates, same ledger,
 // different judge. The DSP runs in parallel across receivers; the bookkeeping
 // stays serial, in node order, so the ledger and event log are deterministic.
-func (e *Engine) deliverWaveform(t transmission, concurrent []transmission, cache modCache) error {
+// wfDelivery is one finished transmission prepared for judgement: its
+// synthesis, its candidates, and - after the batch pool runs - its results.
+type wfDelivery struct {
+	t         transmission
+	src       *Node
+	txPHY     phy
+	txSamples []complex128
+	cands     []wfCandidate
+	deaf      map[int]capture.Reception
+	results   map[int]wfResult
+}
+
+// prepareWaveform is the serial half: synthesis into the shared cache (a
+// lazily-filled map under parallel judges would be a data race) and the
+// cheap candidate gates.
+func (e *Engine) prepareWaveform(t transmission, concurrent []transmission,
+	nodes []*Node, cache modCache) *wfDelivery {
+	src := nodes[t.from]
+	txPHY := e.phyOf(src.Spec)
+	d := &wfDelivery{
+		t: t, src: src, txPHY: txPHY,
+		txSamples: e.modulated(cache, t, txPHY),
+	}
+	for _, other := range concurrent {
+		if other.packetID != t.packetID {
+			e.modulated(cache, other, e.phyOf(nodes[other.from].Spec))
+		}
+	}
+	d.cands, d.deaf = e.waveformCandidates(t, concurrent, nodes, txPHY)
+	d.results = make(map[int]wfResult, len(d.cands))
+	return d
+}
+
+// deliverWaveformBatch judges every finished transmission's every candidate
+// in one pool, then settles in transmission order. One pool rather than one
+// per transmission because several finishing on the same tick is exactly
+// the busy case: judged one at a time, a batch of small candidate sets
+// leaves most of the machine idle while the clock stalls.
+func (e *Engine) deliverWaveformBatch(done []transmission,
+	concurrent []transmission, cache modCache) error {
 	e.mu.Lock()
 	nodes := make([]*Node, len(e.nodes))
 	copy(nodes, e.nodes)
 	seed := e.Config.Seed
 	e.mu.Unlock()
 
-	src := nodes[t.from]
-	txPHY := e.phyOf(src.Spec)
-	txSamples := e.modulated(cache, t, txPHY)
-	// Every concurrent transmission's baseband, synthesised now, serially:
-	// the judges run in parallel and a lazily-filled map under them would be
-	// a data race.
-	for _, other := range concurrent {
-		if other.packetID != t.packetID {
-			e.modulated(cache, other, e.phyOf(nodes[other.from].Spec))
-		}
+	deliveries := make([]*wfDelivery, len(done))
+	for i, t := range done {
+		deliveries[i] = e.prepareWaveform(t, concurrent, nodes, cache)
 	}
 
-	cands, deaf := e.waveformCandidates(t, concurrent, nodes, txPHY)
-
-	results := make(map[int]wfResult, len(cands))
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, runtime.NumCPU())
-	for _, c := range cands {
-		c := c
-		wg.Add(1)
-		sem <- struct{}{}
-		go func() {
-			defer wg.Done()
-			defer func() { <-sem }()
-			r := e.judgeWaveform(t, c, concurrent, nodes, txPHY, txSamples, cache, seed)
-			mu.Lock()
-			results[c.i] = r
-			mu.Unlock()
-		}()
+	for _, d := range deliveries {
+		for _, c := range d.cands {
+			d, c := d, c
+			wg.Add(1)
+			sem <- struct{}{}
+			go func() {
+				defer wg.Done()
+				defer func() { <-sem }()
+				r := e.judgeWaveform(d.t, c, concurrent, nodes, d.txPHY,
+					d.txSamples, cache, seed)
+				mu.Lock()
+				d.results[c.i] = r
+				mu.Unlock()
+			}()
+		}
 	}
 	wg.Wait()
 
-	for _, c := range cands {
-		e.settleWaveform(t, src, nodes[c.i], c, results[c.i], txPHY)
-	}
-	// In node order, not map order: the event log is part of the result, and
-	// a result must not depend on map iteration.
-	for i := range nodes {
-		if rec, ok := deaf[i]; ok {
-			e.recordDeaf(t, src, nodes[i], rec, txPHY)
+	// Settlement is the ledger, and the ledger's order is part of the
+	// result: transmission order, then candidate order, then node order for
+	// the deaf - exactly the sequence the one-at-a-time loop produced.
+	for _, d := range deliveries {
+		for _, c := range d.cands {
+			e.settleWaveform(d.t, d.src, nodes[c.i], c, d.results[c.i], d.txPHY)
+		}
+		for i := range nodes {
+			if rec, ok := d.deaf[i]; ok {
+				e.recordDeaf(d.t, d.src, nodes[i], rec, d.txPHY)
+			}
 		}
 	}
 	return nil
