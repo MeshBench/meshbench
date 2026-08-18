@@ -30,14 +30,18 @@ burst, roughly half the collision-affected pairs decode under the waveform
 that calculated calls lost).
 
 **Waveform**: the channel synthesises IQ, every concurrent transmission
-lands in the receiver's window at its true offset, and the demodulator's
-answer is the verdict. Capture, partial overlap and interference alignment
-are emergent. Its current honesty caveat: until the LoRa coding chain lands
-(plan W2), the verdict is a symbol proxy - every payload symbol must decode,
-with no FEC - so a clipped tail that real coding would repair counts as a
-loss. Direction of error: pessimistic under grazing collisions, faithful
-under clean air and deep collisions. Preamble sync is granted, not modelled,
-until plan W3.
+lands in the receiver's window at its true offset, and the verdict is the
+full receive chain - demodulation, Gray, the diagonal deinterleaver, Hamming
+FEC, dewhitening, the explicit header and the payload CRC (internal/lora).
+What reaches MeshCore is the decoded bytes. Capture, partial overlap and
+interference alignment are emergent; a grazing collision that FEC can repair
+is repaired, and the ledger says how many codewords it cost. Two remaining
+caveats: preamble sync is granted rather than modelled (plan W3), and the
+bit-level conventions - whitening phase, header checksum, symbol offset -
+are implemented from the reverse-engineering literature and self-consistent,
+but have not yet been vector-checked against gr-lora_sdr or a real SX1262
+(the plan's golden-vector item). Packet sensitivity brackets Semtech's
+published floors in test.
 
 ---
 

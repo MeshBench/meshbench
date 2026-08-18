@@ -196,11 +196,11 @@ func (p *configPanel) rfSimulation(t *theme.Theme, s *state.Snapshot) []layout.W
 	verdictNote := "calculated: the link budget and the demodulator floor decide - " +
 		"fast, and the mode every large scenario should use"
 	if s.RFMode == "waveform" {
-		verdictNote = "waveform: the channel produces IQ and the demodulator decides - " +
-			"capture, partial overlap and interference alignment are emergent. " +
-			"Until the LoRa coding chain lands, the verdict is symbol-accurate " +
-			"(every payload symbol must decode; no FEC yet), which is harsher " +
-			"than real hardware under a clipped tail"
+		verdictNote = "waveform: the channel produces IQ and the full receive " +
+			"chain decides - Gray, deinterleave, Hamming FEC, dewhiten, header, " +
+			"CRC. Capture, partial overlap and interference alignment are " +
+			"emergent; what reaches MeshCore is the decoded bytes. Preamble " +
+			"sync is granted, not modelled, until the receiver front end lands"
 	}
 	return []layout.Widget{
 		comp.Card(t, "RF mode", func(gtx layout.Context) layout.Dimensions {

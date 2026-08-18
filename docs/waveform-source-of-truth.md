@@ -151,7 +151,10 @@ simulated time, after hoisting rf.Observe's per-sample phase rotation
 | 300 nodes, 5 senders | 6.4 ms | 213 ms | ~33x |
 | 300 nodes, 20 senders | 46.8 ms | 1.04 s | ~22x |
 
-Waveform mode runs
+With the full W2 coding chain (real coding expansion, MeshCore's own 32/16
+preamble lengths, FEC+CRC decode per receiver) the same bursts cost:
+100n/10s 258 ms, 300n/20s 1.89 s - about 2.6x faster than real time on the
+heaviest burst. Waveform mode before the chain ran
 the 300-node, 20-sender burst ~5x faster than real time; the remaining
 profile is roughly half Gaussian noise synthesis (Philox Box-Muller) and a
 fifth FFT - the two candidates for W6's GPU twins. The divergence harness's
@@ -164,19 +167,21 @@ that the demodulator actually captures.
 `internal/lora`: stdlib-only imports, extractable. The order below is
 easiest-first, each with round-trip tests before the next.
 
-- [ ] Gray mapping / demapping
-- [ ] whitening LFSR
-- [ ] Hamming CR 4/5–4/8 encode / decode
-- [ ] diagonal interleaver / deinterleaver, including LDRO
-- [ ] explicit header build / parse, with header CRC
-- [ ] payload CRC16
-- [ ] full TX: MeshCore bytes → symbols; replaces `symbolsFor`, which also
+- [x] Gray mapping / demapping
+- [x] whitening LFSR
+- [x] Hamming CR 4/5–4/8 encode / decode
+- [x] diagonal interleaver / deinterleaver, including LDRO
+- [x] explicit header build / parse, with header CRC
+- [x] payload CRC16
+- [x] full TX: MeshCore bytes → symbols; replaces `symbolsFor`, which also
       makes the waterfall bit-exact for free
-- [ ] full RX: symbols → bytes, with per-stage error accounting
+- [x] full RX: symbols → bytes, with per-stage error accounting
 - [ ] golden vectors from gr-lora_sdr via SigMF, checked in; cross-validated
-      both directions
-- [ ] verdict switches from symbol proxy to FEC+CRC; proxy label removed
-- [ ] sensitivity re-measured with coding gain against Semtech's figures
+      both directions *(needs GNU Radio or captured hardware IQ - on the
+      manual-verification list; the chain is self-consistent and
+      structurally tested, and its symbol counts match RadioLib exactly)*
+- [x] verdict switches from symbol proxy to FEC+CRC; proxy label removed
+- [x] sensitivity re-measured with coding gain against Semtech's figures
 
 **Gate (MS1/MS2 from the source plan):** thousands of clean and noisy
 round trips; a packet cannot enter MeshCore without a valid CRC.

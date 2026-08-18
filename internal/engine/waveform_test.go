@@ -54,34 +54,37 @@ func runCollision(t *testing.T, mode engine.RFMode, interfererStartMs uint32) st
 	return "nothing"
 }
 
-// The MS1 gate: an equal-power collision that dBm arithmetic waves through
-// identically in both alignments, and only the demodulator tells apart.
+// The MS1 gate: two equal-power collisions with identical RSSI and identical
+// overlap - the dBm arithmetic cannot tell them apart - where only the
+// alignment differs, and the demodulator's verdict differs with it.
 //
-// The interferer either overlaps the wanted packet or has already finished.
-// The calculated model treats any overlap as full-strength interference and
-// no overlap as none - and at these powers its verdict is the same either
-// way. The waveform verdict differs, because alignment is real there.
+// Sample-aligned, the interferer's chirps land whole in the FFT and its bin
+// fights the wanted bin at even odds: the packet dies. Offset by a fraction
+// of a symbol, the same energy smears across bins while the wanted signal
+// stays coherent - LoRa's processing gain against unaligned interference -
+// and the packet survives. The calculated model adds the same interferer
+// power in both cases and must call them identically.
 func TestWaveformInterferenceAlignmentDecides(t *testing.T) {
-	const overlapping, clear = 20, 4000 // interferer start, ms
+	const aligned, offset = 10, 20 // interferer start, ms; wanted starts at 10
 
-	calcSame := runCollision(t, engine.RFCalculated, overlapping)
-	calcClear := runCollision(t, engine.RFCalculated, clear)
-	if calcSame != calcClear {
+	calcA := runCollision(t, engine.RFCalculated, aligned)
+	calcO := runCollision(t, engine.RFCalculated, offset)
+	if calcA != calcO {
 		t.Fatalf("calculated mode distinguished the alignments (%q vs %q); "+
-			"the test needs a collision it waves through", calcSame, calcClear)
+			"the test needs a collision it waves through identically", calcA, calcO)
 	}
 
-	wfSame := runCollision(t, engine.RFWaveform, overlapping)
-	wfClear := runCollision(t, engine.RFWaveform, clear)
-	if wfSame == wfClear {
-		t.Fatalf("waveform mode did not distinguish overlap (%q) from clear air (%q)",
-			wfSame, wfClear)
+	wfA := runCollision(t, engine.RFWaveform, aligned)
+	wfO := runCollision(t, engine.RFWaveform, offset)
+	if wfA == wfO {
+		t.Fatalf("waveform mode did not distinguish aligned (%q) from offset (%q)",
+			wfA, wfO)
 	}
-	if wfClear != "rx" {
-		t.Fatalf("clear air should decode, got %q", wfClear)
+	if wfA != "miss" {
+		t.Fatalf("a sample-aligned equal-power collision should not decode, got %q", wfA)
 	}
-	if wfSame != "miss" {
-		t.Fatalf("an equal-power full collision should not decode, got %q", wfSame)
+	if wfO != "rx" {
+		t.Fatalf("the offset collision should smear and decode, got %q", wfO)
 	}
 }
 

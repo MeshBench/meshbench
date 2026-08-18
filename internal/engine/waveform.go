@@ -6,10 +6,11 @@
 // summed IQ and an FFT, or they do not happen at all. SNR is still measured
 // and recorded, but as telemetry: it is never the reason.
 //
-// Until the coding chain lands (plan W2), the verdict is a symbol proxy: the
-// receiver decodes and every payload symbol must match what was sent. That is
-// exactly as honest as the modulation is - and harsher than real FEC under a
-// clipped tail, which the ledger says out loud rather than hiding.
+// The verdict is the full receive chain: demodulated symbols through Gray,
+// the diagonal deinterleaver, Hamming FEC, dewhitening, the explicit header
+// and the payload CRC (internal/lora). What a receiver hands MeshCore is the
+// decoded bytes - not the transmitted frame - so a repair is a repair and a
+// CRC failure is a loss, exactly as on the chip.
 package engine
 
 import (
@@ -20,6 +21,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/capture"
 	"github.com/MeshBench/meshbench/internal/dsp"
+	"github.com/MeshBench/meshbench/internal/lora"
 	"github.com/MeshBench/meshbench/internal/rf"
 	"github.com/MeshBench/meshbench/internal/scenario"
 )
@@ -65,11 +67,11 @@ func (e *Engine) SetRFMode(m RFMode) {
 // pair, which on a flood is the difference between fast and quadratic.
 type modCache map[uint64][]complex128
 
-func (e *Engine) modulated(c modCache, t transmission, sf int) []complex128 {
+func (e *Engine) modulated(c modCache, t transmission, p phy) []complex128 {
 	if s, ok := c[t.packetID]; ok {
 		return s
 	}
-	s := dsp.Modulator{SF: sf}.Modulate(symbolsFor(t.frame, sf))
+	s := dsp.Modulator{SF: p.sf}.Modulate(symbolsFor(t.frame, p))
 	c[t.packetID] = s
 	return s
 }
@@ -81,17 +83,13 @@ type wfCandidate struct {
 	noiseDBm float64
 }
 
-// wfResult is what the demodulator said for one candidate.
+// wfResult is what the receive chain said for one candidate.
 type wfResult struct {
-	decoded  bool
-	bad      int // payload symbols wrong
-	total    int // payload symbols sent
-	snrdB    float64
-	preamble bool // preamble region survived, for the ledger's Demod flag
+	decoded bool
+	payload []byte // what MeshCore actually gets - the decode, not the send
+	stats   lora.DecodeStats
+	snrdB   float64
 }
-
-// waveformPreambleSyms matches symbolsFor's preamble length.
-const waveformPreambleSyms = 8
 
 // deliverWaveform is deliver's waveform-mode twin: same gates, same ledger,
 // different judge. The DSP runs in parallel across receivers; the bookkeeping
@@ -105,14 +103,13 @@ func (e *Engine) deliverWaveform(t transmission, concurrent []transmission, cach
 
 	src := nodes[t.from]
 	txPHY := e.phyOf(src.Spec)
-	txSamples := e.modulated(cache, t, txPHY.sf)
-	sentSyms := symbolsFor(t.frame, txPHY.sf)
+	txSamples := e.modulated(cache, t, txPHY)
 	// Every concurrent transmission's baseband, synthesised now, serially:
 	// the judges run in parallel and a lazily-filled map under them would be
 	// a data race.
 	for _, other := range concurrent {
 		if other.packetID != t.packetID {
-			e.modulated(cache, other, e.phyOf(nodes[other.from].Spec).sf)
+			e.modulated(cache, other, e.phyOf(nodes[other.from].Spec))
 		}
 	}
 
@@ -129,7 +126,7 @@ func (e *Engine) deliverWaveform(t transmission, concurrent []transmission, cach
 		go func() {
 			defer wg.Done()
 			defer func() { <-sem }()
-			r := e.judgeWaveform(t, c, concurrent, nodes, txPHY, txSamples, sentSyms, cache, seed)
+			r := e.judgeWaveform(t, c, concurrent, nodes, txPHY, txSamples, cache, seed)
 			mu.Lock()
 			results[c.i] = r
 			mu.Unlock()
@@ -216,7 +213,7 @@ func (e *Engine) waveformCandidates(t transmission, concurrent []transmission,
 // never as a dBm sum. Alignment therefore matters, which is the acceptance
 // test for this whole mode.
 func (e *Engine) judgeWaveform(t transmission, c wfCandidate, concurrent []transmission,
-	nodes []*Node, txPHY phy, txSamples []complex128, sentSyms []int,
+	nodes []*Node, txPHY phy, txSamples []complex128,
 	cache modCache, seed uint64) wfResult {
 
 	window := len(txSamples)
@@ -250,28 +247,17 @@ func (e *Engine) judgeWaveform(t transmission, c wfCandidate, concurrent []trans
 	d := dsp.Demodulator{SF: txPHY.sf}
 	n := dsp.SamplesPerSymbol(txPHY.sf)
 	scratch := make([]complex128, n)
-	res := wfResult{snrdB: rf.SNRdB(observed, noiseLinear), preamble: true}
-	for s := 0; s < len(sentSyms); s++ {
-		lo := s * n
-		if lo+n > len(observed) {
-			break
-		}
-		got, _ := d.DemodulateSymbolInto(scratch, observed[lo:lo+n])
-		if s < waveformPreambleSyms {
-			// Sync is granted, not modelled, until W3 - the engine knows the
-			// timing exactly. A corrupted preamble is still worth noticing
-			// for the ledger's Demod flag.
-			if got != sentSyms[s] {
-				res.preamble = false
-			}
-			continue
-		}
-		res.total++
-		if got != sentSyms[s] {
-			res.bad++
-		}
+	res := wfResult{snrdB: rf.SNRdB(observed, noiseLinear)}
+	// Sync is granted, not modelled, until W3: the engine knows the timing
+	// exactly, so the preamble region is skipped and the data symbols are
+	// demodulated at their true boundaries.
+	pre := dsp.PreambleSymbols(txPHY.sf)
+	var shifts []int
+	for s := pre; s*n+n <= len(observed); s++ {
+		got, _ := d.DemodulateSymbolInto(scratch, observed[s*n:s*n+n])
+		shifts = append(shifts, got)
 	}
-	res.decoded = res.total > 0 && res.bad == 0
+	res.payload, res.decoded, res.stats = lora.Decode(loraParams(txPHY), shifts)
 	return res
 }
 
@@ -283,15 +269,20 @@ func (e *Engine) settleWaveform(t transmission, src, dst *Node, c wfCandidate,
 	rec := capture.Reception{
 		PacketID: t.packetID, FromNode: src.Spec.Name, ToNode: dst.Spec.Name,
 		RSSIdBm: c.rxDBm, SNRdB: r.snrdB, Offered: true,
-		Demod: r.preamble && r.bad < r.total, CRCOK: r.decoded,
+		Demod: r.stats.HeaderOK, CRCOK: r.decoded && r.stats.CRCOK,
 	}
 	if !r.decoded {
 		rec.Outcome = capture.NotDemodulated
+		why := fmt.Sprintf(
+			"waveform: header unreadable at %.1f dB measured SNR", r.snrdB)
+		if r.stats.HeaderOK {
+			why = fmt.Sprintf(
+				"waveform: %d codeword(s) beyond repair, %d repaired, CRC %v, at %.1f dB",
+				r.stats.Failed, r.stats.Corrected, r.stats.CRCOK, r.snrdB)
+		}
 		e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.Spec.Name, To: dst.Spec.Name,
 			PacketID: t.packetID, MessageID: t.payload, Outcome: rec.Outcome,
-			SNRdB: r.snrdB, Frame: t.frame,
-			Detail: fmt.Sprintf("waveform: %d of %d symbols wrong at %.1f dB measured SNR",
-				r.bad, r.total, r.snrdB)})
+			SNRdB: r.snrdB, Frame: t.frame, Detail: why})
 		e.Ledger.Record(rec)
 		e.captureWrite(t, src, dst, txPHY, rec)
 		return
@@ -310,15 +301,23 @@ func (e *Engine) settleWaveform(t transmission, src, dst *Node, c wfCandidate,
 		src.RedundantRelay++
 	}
 	e.mu.Unlock()
-	detail := "waveform: every symbol decoded; first time this node heard the message"
+	detail := "waveform: decoded, CRC valid; first time this node heard the message"
+	if r.stats.Corrected > 0 {
+		detail = fmt.Sprintf(
+			"waveform: decoded with %d codeword(s) repaired by FEC, CRC valid", r.stats.Corrected)
+	}
 	if !first {
-		detail = "waveform: every symbol decoded; already had this message"
+		detail += "; already had this message"
 	}
 	e.record(Event{AtMs: t.endMs, Kind: "rx", From: src.Spec.Name, To: dst.Spec.Name,
 		Frame: t.frame, PacketID: t.packetID, MessageID: t.payload,
 		Outcome: rec.Outcome, SNRdB: r.snrdB, Detail: detail})
 	if dst.Firmware != nil {
-		_ = dst.Firmware.Bridge.Deliver(t.frame)
+		// The decode, not the transmitted frame: what arrives at MeshCore is
+		// whatever the receive chain produced. With a valid CRC they are the
+		// same bytes - and on the day they are not, that is the chip's
+		// behaviour too.
+		_ = dst.Firmware.Bridge.Deliver(r.payload)
 	}
 	e.Ledger.Record(rec)
 	e.captureWrite(t, src, dst, txPHY, rec)

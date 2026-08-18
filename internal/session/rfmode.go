@@ -42,8 +42,8 @@ func registerRFMode(st *state.Store, s *Sim) {
 		s.prefs.RFMode = mode
 		s.savePrefs()
 		if mode == "waveform" {
-			w.Say("waveform RF: reception is decided by the demodulator " +
-				"(symbol-accurate until the coding chain lands)")
+			w.Say("waveform RF: reception is decided by the full receive " +
+				"chain - demodulation, FEC and CRC")
 		} else {
 			w.Say("calculated RF: reception is decided by link budgets and " +
 				"demodulator floors - the fast model")

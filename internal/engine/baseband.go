@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"github.com/MeshBench/meshbench/internal/dsp"
+	"github.com/MeshBench/meshbench/internal/lora"
 	"github.com/MeshBench/meshbench/internal/rf"
 )
 
@@ -76,28 +78,38 @@ func (e *Engine) rxTransmission(t transmission, rxIdx int, anchorMs uint32,
 	spms := txPHY.bandwidthHz / 1000
 	return rf.Transmission{
 		Node:        src.Spec.Name,
-		Samples:     e.modulated(cache, t, txPHY.sf),
+		Samples:     e.modulated(cache, t, txPHY),
 		GainDB:      src.Spec.TxPowerDBm + gain(src.Spec) - loss + gain(nodes[rxIdx].Spec),
 		StartSample: int(float64(int64(t.startMs)-int64(anchorMs)) * spms),
 	}, true
 }
 
-// symbolsFor turns a frame into LoRa symbols.
-//
-// A faithful preamble and a real interleaver are not needed for a waterfall —
-// what a chirp looks like on a spectrogram is decided by the spreading factor
-// and the symbol values, and the values only have to come from the frame rather
-// than from a random number generator. A collision between two real frames
-// looks like a collision between two real frames.
-func symbolsFor(frame []byte, sf int) []int {
-	n := 1 << sf
-	// Eight upchirps of preamble, as MeshCore's radio sends.
-	syms := make([]int, 0, len(frame)+8)
-	for i := 0; i < 8; i++ {
+// loraParams is the coding configuration a transmitter's modem implies:
+// explicit header, hardware CRC, and LDRO by the chip's own 16 ms rule -
+// exactly the terms RadioLib's airtime formula uses, which is what keeps
+// the waveform's length and the firmware's CSMA arithmetic identical.
+func loraParams(p phy) lora.Params {
+	symbolMs := float64(uint64(1)<<uint(p.sf)) / (p.bandwidthHz / 1000)
+	return lora.Params{SF: p.sf, CR: p.codingRate, LDRO: symbolMs >= 16, CRC: true}
+}
+
+// symbolsFor turns a frame into the chirp-shift symbols a real SX126x would
+// send: preamble upchirps at MeshCore's own configured length, then the full
+// coding chain - header, whitening, Hamming, interleaving, Gray. The
+// waterfall, the verdict and the SDR observers all render from this one
+// stream, and it is bit-faithful rather than a sketch.
+func symbolsFor(frame []byte, p phy) []int {
+	pre := dsp.PreambleSymbols(p.sf)
+	data, err := lora.Encode(loraParams(p), frame)
+	if err != nil {
+		// An unencodable frame (SF outside 7..12, >255 bytes) still needs a
+		// waveform for the ledger to reason about; a bare preamble is honest
+		// about carrying nothing.
+		data = nil
+	}
+	syms := make([]int, 0, pre+len(data))
+	for i := 0; i < pre; i++ {
 		syms = append(syms, 0)
 	}
-	for _, b := range frame {
-		syms = append(syms, int(b)%n)
-	}
-	return syms
+	return append(syms, data...)
 }
