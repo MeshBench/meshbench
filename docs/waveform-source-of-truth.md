@@ -313,25 +313,32 @@ buildings. The dataset's core principle is the same one this plan already
 lives by: the data describes what physically exists; the RF engine decides
 what it does to a signal.
 
-- [ ] environment provider: `GetBuildings(bounds)` / `GetObstructions(start,
+- [x] environment provider: `GetBuildings(bounds)` / `GetObstructions(start,
       end)` - tile-based, loaded on demand, cached permanently with an
       offline mode, the same shape as the terrain tiles it sits beside
-- [ ] ingestion tool: Microsoft Global ML Building Footprints → GeoParquet
-      tiles (offline, `tools/envgen`), fetched and cached like terrain
-- [ ] OSM enrichment: explicit tags override inference; a MeshBench-owned
+- [x] ingestion tool: Microsoft Global ML Building Footprints → tiles
+      (offline, `tools/envgen`) *(format divergence, recorded: gzipped JSON
+      lines per slippy tile rather than GeoParquet - no new dependency,
+      streams fine at tile size; the parquet upgrade is the follow-up if a
+      region outgrows it. Fetching the datasets themselves is the
+      operator's step - they are per-region and enormous)*
+- [x] OSM enrichment: explicit tags override inference; a MeshBench-owned
       material taxonomy; every derived property carries value, source and
       confidence - position uncertainty already propagates here, and
       building uncertainty follows the same rule
-- [ ] buildings enter the path budget: obstruction and knife edges on the
+- [x] buildings enter the path budget: obstruction and knife edges on the
       existing P.526 profile (the source plan's incremental phases 1-2,
       not ray tracing)
-- [ ] material attenuation lives in the RF engine -
+- [x] material attenuation lives in the RF engine -
       `MaterialModel(material, freq, angle)` - never as dB stored in the
       dataset, so one environment serves every band
 - [ ] re-fit `ExcessPathLossDB` against the ScotMesh observations with
       buildings in the model - the fudge should shrink, and by how much is
-      the measurement of what buildings bought
-- [ ] buildings and the material model get their switches in the RF
+      the measurement of what buildings bought *(the machinery is ready:
+      load a Scotland environment with rf.environment, run validate.fetch
+      and validate.calibrate as ADR-0015 already does; needs the real
+      footprint dataset and the live feed, so it rides the manual list)*
+- [x] buildings and the material model get their switches in the RF
       Simulation section - environment on/off, regional material profile -
       with the same honest-default rule as everything else there
 - [ ] land cover / vegetation / weather recorded as follow-up rungs, not

@@ -140,6 +140,9 @@ type Snapshot struct {
 	// RFRealism is the optional-imperfections switch set, all zero for the
 	// kind default.
 	RFRealism RFRealism
+	// RFEnvironment is the loaded building-tile directory, or "" for bare
+	// earth.
+	RFEnvironment string
 	// FleetReplies is what each node said to the last fleet command. A
 	// command sent to forty nodes with no reply shown is indistinguishable
 	// from one that went nowhere.

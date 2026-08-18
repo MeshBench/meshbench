@@ -41,6 +41,8 @@ type Prefs struct {
 	FadingHz      float64 `json:"fading_hz,omitempty"`
 	ImplLossDB    float64 `json:"impl_loss_db,omitempty"`
 	SaturationDBm float64 `json:"saturation_dbm,omitempty"`
+	// EnvironmentDir is where the building tiles live; empty is bare earth.
+	EnvironmentDir string `json:"environment_dir,omitempty"`
 }
 
 // prefsPath is ~/.config/meshcoresim/workbench2.json, or empty when the
@@ -85,6 +87,7 @@ func (s *Sim) LoadPrefs() {
 	if p.RFMode == "waveform" {
 		s.rfMode = "waveform"
 	}
+	s.envDir = p.EnvironmentDir
 	s.realism = state.RFRealism{
 		OscPPM: p.OscPPM, MultipathDB: p.MultipathDB, FadingHz: p.FadingHz,
 		ImplLossDB: p.ImplLossDB, SaturationDBm: p.SaturationDBm,

@@ -20,6 +20,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/console"
 	"github.com/MeshBench/meshbench/internal/coverage"
 	"github.com/MeshBench/meshbench/internal/engine"
+	"github.com/MeshBench/meshbench/internal/environ"
 	"github.com/MeshBench/meshbench/internal/gui/state"
 	"github.com/MeshBench/meshbench/internal/linkbudget"
 	"github.com/MeshBench/meshbench/internal/scenario"
@@ -63,6 +64,8 @@ type Sim struct {
 	sdrServers map[string]*sdr.RTLTCP
 	// realism is the RF Simulation imperfection switches. See rfmode.go.
 	realism state.RFRealism
+	// envDir is where the environment tiles live, or "" for bare earth.
+	envDir string
 	// gpuWarm is whether the link matrix is measured on the GPU when one can
 	// answer to the same accuracy. Off by default: it reads a rasterised
 	// height grid rather than the DEM, which is the same answer on a county
@@ -283,6 +286,9 @@ func (s *Sim) buildSeeded(nodes []scenario.Node, freqMHz float64, seed uint64) {
 	})
 	for _, n := range nodes {
 		s.eng.Add(n, nil)
+	}
+	if s.envDir != "" {
+		s.eng.Env = environ.OpenTiles(s.envDir)
 	}
 }
 

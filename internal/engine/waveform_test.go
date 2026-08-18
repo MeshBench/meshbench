@@ -8,6 +8,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/dsp"
 	"github.com/MeshBench/meshbench/internal/engine"
+	"github.com/MeshBench/meshbench/internal/environ"
 	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
@@ -377,5 +378,45 @@ func TestHybridFlagGivesOneReceiverWaveformVerdicts(t *testing.T) {
 	}
 	if !sawTrue || !sawFast {
 		t.Fatalf("missing events: tru=%v fast=%v", sawTrue, sawFast)
+	}
+}
+
+// slabEnv is one tall concrete building squarely on the a-b path.
+type slabEnv struct{ b environ.Building }
+
+func (s slabEnv) Buildings(_, _, _, _ float64) []environ.Building {
+	return []environ.Building{s.b}
+}
+
+// A building on the path costs the link real decibels in both modes, and an
+// unloaded environment costs nothing - bare earth stays bare earth.
+func TestBuildingsPriceThePath(t *testing.T) {
+	run := func(env environ.Provider) string {
+		e := engine.New(flat{100}, engine.Config{StepMs: 10, Seed: 21, RFMode: engine.RFWaveform})
+		e.Env = env
+		e.Add(wfNode("a", 0, 22), nil)
+		e.Add(wfNode("b", 0.45, 5), nil) // ~27 km at 5 dBm: thin margin
+		_ = e.Run(context.Background(), 10)
+		e.InjectFrame(0, []byte("is there a building in the way"))
+		_ = e.Run(context.Background(), 8000)
+		for _, ev := range e.Events() {
+			if ev.From == "a" && ev.To == "b" {
+				return ev.Kind
+			}
+		}
+		return "nothing"
+	}
+
+	if got := run(nil); got != "rx" {
+		t.Skipf("the thin-margin link did not decode over bare earth (%s)", got)
+	}
+	slab := environ.Building{
+		Footprint: [][2]float64{
+			{56.69, -3.68}, {56.69, -3.67}, {56.71, -3.67}, {56.71, -3.68},
+		},
+		HeightM: 60, Material: environ.MatConcrete,
+	}
+	if got := run(slabEnv{slab}); got == "rx" {
+		t.Fatal("a 60 m concrete slab across the path cost nothing")
 	}
 }

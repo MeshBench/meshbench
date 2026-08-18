@@ -16,6 +16,7 @@ import (
 	"sync/atomic"
 
 	"github.com/MeshBench/meshbench/internal/dsp"
+	"github.com/MeshBench/meshbench/internal/environ"
 	"github.com/MeshBench/meshbench/internal/scenario"
 	"github.com/MeshBench/meshbench/internal/terrain"
 )
@@ -76,6 +77,7 @@ func (e *Engine) pathLoss(a, b int) (float64, bool) {
 	if ok {
 		loss = fspl +
 			terrain.MultiEdgeLossDB(profile, from.HeightAGLm, to.HeightAGLm, e.phyOf(from).freqMHz) +
+			e.buildingLossDB(from, to, profile) +
 			e.Config.ExcessPathLossDB
 	}
 
@@ -243,3 +245,56 @@ func (e *Engine) InvalidateLinks() {
 
 // PathLossForTest exposes the cached link for measurements and tests.
 func (e *Engine) PathLossForTest(a, b int) (float64, bool) { return e.pathLoss(a, b) }
+
+// buildingLossDB is what the buildings along a path cost it, when an
+// environment is loaded: knife-edge diffraction over each rooftop the
+// profile now has to clear, plus one wall's worth of material loss per
+// building the direct ray actually passes through. The dataset supplied
+// what stands there; the pricing happens here, at this run's frequency -
+// the environment plan's core rule, kept.
+func (e *Engine) buildingLossDB(from, to scenario.Node, profile []terrain.Point) float64 {
+	if e.Env == nil || len(profile) < 2 {
+		return 0
+	}
+	obs := environ.ObstructionsOnPath(e.Env, e.Terrain,
+		from.Position.Lat, from.Position.Lon, to.Position.Lat, to.Position.Lon)
+	if len(obs) == 0 {
+		return 0
+	}
+	total := profile[len(profile)-1].DistM
+	// The antenna heights the direct ray runs between, above sea level.
+	txM := profile[0].HeightM + from.HeightAGLm
+	rxM := profile[len(profile)-1].HeightM + to.HeightAGLm
+
+	loss := 0.0
+	freq := e.phyOf(from).freqMHz
+	for _, o := range obs {
+		midFrac := (o.EnterFrac + o.ExitFrac) / 2
+		rayM := txM + (rxM-txM)*midFrac
+		// The rooftop as a knife edge at its position along the path - the
+		// same ITU-R P.526 arithmetic terrain uses, so a building and a
+		// ridge of equal height cost the same, as they should.
+		d1 := total * midFrac
+		d2 := total - d1
+		if d1 <= 0 || d2 <= 0 {
+			continue
+		}
+		h := o.TopM - (txM + (rxM-txM)*midFrac)
+		v := terrain.FresnelParameter(h, d1, d2, freq)
+		loss += terrain.KnifeEdgeDB(v)
+		// And the walls, when the ray goes through rather than over.
+		if o.TopM > rayM {
+			loss += environ.MaterialLossDB(o.Material, freq)
+		}
+	}
+	return loss
+}
+
+// DropLinkCache forgets every measured path, for when the physics that
+// priced them changed - an environment loading, most of all. The next warm
+// or delivery re-measures under the new rules.
+func (e *Engine) DropLinkCache() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.linkCache = map[[2]int]float64{}
+}

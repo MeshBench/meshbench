@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"github.com/MeshBench/meshbench/internal/engine"
+	"github.com/MeshBench/meshbench/internal/environ"
 	"github.com/MeshBench/meshbench/internal/gui/state"
 )
 
@@ -125,5 +126,43 @@ func registerRFRealism(st *state.Store, s *Sim) {
 			w.Say(name + " is back on the run's own RF mode")
 		}
 		return map[string]any{"node": name, "true_rf": on}, nil
+	})
+}
+
+// registerRFEnvironment wires the buildings switch: point the session at an
+// environment tile directory (built by tools/envgen) and both RF modes start
+// pricing buildings into the path budget. Off is bare earth, exactly as
+// before.
+func registerRFEnvironment(st *state.Store, s *Sim) {
+	st.Handle("rf.environment", func(w *state.World, p any) (any, error) {
+		dir, _ := stringField(p, "dir")
+		if on, ok := boolField(p, "on"); ok && !on {
+			s.envDir = ""
+			if s.eng != nil {
+				s.eng.Env = nil
+				s.eng.DropLinkCache()
+			}
+			w.RFEnvironment = ""
+			s.prefs.EnvironmentDir = ""
+			s.savePrefs()
+			w.Say("environment off - the model is bare earth again, and says so")
+			return map[string]any{"environment": ""}, nil
+		}
+		if dir == "" {
+			return nil, fmt.Errorf("rf.environment needs a dir (tiles from tools/envgen) or on:false")
+		}
+		s.envDir = dir
+		store := environ.OpenTiles(dir)
+		if s.eng != nil {
+			s.eng.Env = store
+			// Every cached loss was priced without buildings; keeping any
+			// would mix two physics in one matrix.
+			s.eng.DropLinkCache()
+		}
+		w.RFEnvironment = dir
+		s.prefs.EnvironmentDir = dir
+		s.savePrefs()
+		w.Say("environment loaded from " + dir + " - buildings now price the path in both modes")
+		return map[string]any{"environment": dir}, nil
 	})
 }

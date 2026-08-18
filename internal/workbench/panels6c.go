@@ -55,6 +55,9 @@ type configPanel struct {
 	implLoss    comp.Field
 	satDBm      comp.Field
 	setRealism  comp.Button
+	envDir      comp.Field
+	loadEnv     comp.Button
+	dropEnv     comp.Button
 	device      comp.Dropdown
 	cacheDD     comp.Dropdown
 	themeDD     comp.Dropdown
@@ -107,6 +110,10 @@ func (p *configPanel) build() {
 		f.Editor.SingleLine = true
 	}
 	p.setRealism.Label, p.setRealism.Kind = "apply realism", comp.Secondary
+	p.envDir.Hint, p.envDir.Label = "a tile directory from tools/envgen", "Environment tiles"
+	p.envDir.Editor.SingleLine = true
+	p.loadEnv.Label, p.loadEnv.Kind = "load buildings", comp.Secondary
+	p.dropEnv.Label, p.dropEnv.Kind = "bare earth", comp.Quiet
 	p.device.Label = "Graphics device"
 	p.cacheDD.Label = "Tile cache"
 	p.themeDD.Label = "Theme"
@@ -226,6 +233,16 @@ func (p *configPanel) update(gtx layout.Context, s *state.Snapshot) {
 		// a no-op at the session, and a button that sometimes reaches no
 		// verb is what the control audit exists to refuse.
 		p.do("rf.realism", params)
+	}
+	if p.loadEnv.Click.Clicked(gtx) && p.do != nil {
+		if dir := strings.TrimSpace(fieldText(&p.envDir)); dir != "" {
+			p.do("rf.environment", map[string]any{"dir": dir})
+		} else {
+			p.do("rf.environment", map[string]any{"on": false})
+		}
+	}
+	if p.dropEnv.Click.Clicked(gtx) && p.do != nil {
+		p.do("rf.environment", map[string]any{"on": false})
 	}
 	// A directory is a thing to point at, not a path to remember and type.
 	if p.browseCache.Click.Clicked(gtx) && shell.Browse != nil {
@@ -473,6 +490,8 @@ func (p *configPanel) auditDraw(t *theme.Theme, gtx layout.Context, s *state.Sna
 		p.fieldRow(t, &p.fadingHz, nil, ""),
 		p.fieldRow(t, &p.implLoss, nil, ""),
 		p.fieldRow(t, &p.satDBm, nil, ""),
+		p.fieldRow(t, &p.envDir, &p.loadEnv, ""),
+		func(gtx layout.Context) layout.Dimensions { return p.dropEnv.Layout(t, gtx) },
 		p.fieldRow(t, &p.cacheGBf, &p.setCache, ""),
 		p.fieldRow(t, &p.cacheDir, &p.moveCache, ""),
 		func(gtx layout.Context) layout.Dimensions { return p.recomp.Layout(t, gtx) },

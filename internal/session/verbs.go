@@ -45,6 +45,7 @@ func Register(st *state.Store, s *Sim) {
 	registerRFMode(st, s)
 	registerSDRServe(st, s)
 	registerRFRealism(st, s)
+	registerRFEnvironment(st, s)
 	registerProvisioningSettings(st, s)
 	registerRadioReconcile(st, s)
 	registerExperiment(st, s)
@@ -166,6 +167,7 @@ func Register(st *state.Store, s *Sim) {
 			s.refreshCompanions(w)
 			w.RFMode = string(rfModeOf(s.rfMode))
 			w.RFRealism = s.realism
+			w.RFEnvironment = s.envDir
 			w.Events, w.EventTotal = s.eventTail(eventTail)
 			w.Counts = s.eventCounts()
 			w.Scores = s.scores()

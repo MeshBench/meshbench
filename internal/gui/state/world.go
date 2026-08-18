@@ -126,6 +126,9 @@ type World struct {
 	RFMode string
 	// RFRealism is the optional-imperfections switch set.
 	RFRealism RFRealism
+	// RFEnvironment is the loaded building-tile directory, or "" for bare
+	// earth.
+	RFEnvironment string
 	// RealFirmware is what kind of run this is: on, play starts one MeshCore
 	// process per node and every relay decision is the firmware's own. Off,
 	// the channel and the collisions are still real but nothing decides to

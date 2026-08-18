@@ -21,6 +21,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/capture"
 	"github.com/MeshBench/meshbench/internal/coverage"
+	"github.com/MeshBench/meshbench/internal/environ"
 	"github.com/MeshBench/meshbench/internal/firmware"
 	"github.com/MeshBench/meshbench/internal/scenario"
 )
@@ -90,6 +91,11 @@ type Engine struct {
 	Terrain coverage.Terrain
 	Config  Config
 	Ledger  capture.Ledger
+	// Env is what physically stands on the ground - buildings, from the
+	// environment tiles. Nil means bare earth, exactly as before; setting it
+	// changes path budgets in both RF modes, because buildings price GainDB
+	// rather than verdicts.
+	Env environ.Provider
 
 	mu    sync.Mutex
 	nodes []*Node

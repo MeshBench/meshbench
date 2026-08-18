@@ -270,6 +270,7 @@ func (s *Store) publish() {
 		Companions:        s.world.Companions,
 		RFMode:            s.world.RFMode,
 		RFRealism:         s.world.RFRealism,
+		RFEnvironment:     s.world.RFEnvironment,
 		FleetReplies:      append([]FleetReply(nil), s.world.FleetReplies...),
 		FleetCommand:      s.world.FleetCommand,
 		RealFirmware:      s.world.RealFirmware,
