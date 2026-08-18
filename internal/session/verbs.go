@@ -172,6 +172,14 @@ func Register(st *state.Store, s *Sim) {
 			}
 		}
 
+		// The RF facts are published on ticks, and ticks wait for play - but
+		// the chrome's mode chip and caveat line are read the moment the
+		// window opens, and a waveform preference wearing a calculated label
+		// is a lie about what the next run will do.
+		w.RFMode = string(rfModeOf(s.rfMode))
+		w.RFRealism = s.realism
+		w.RFEnvironment = s.envDir
+		w.CoverageCells = s.covCells
 		w.Say(fmt.Sprintf("opened %s: %d nodes, %d links, %d areas",
 			path, len(f.nodes), len(w.Links), len(f.areas)))
 		return map[string]any{

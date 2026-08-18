@@ -45,7 +45,9 @@ type Shell struct {
 	// menu, and a zero value that means "File is open" opens it on launch.
 	openMenu int
 	tr       transport
-	snap     *state.Snapshot
+	// rfChip is the counts line's physics toggle.
+	rfChip widget.Clickable
+	snap   *state.Snapshot
 	// PoppedOut reports whether a panel is currently living in its own window.
 	//
 	// A panel that has moved out must not also be drawn here. Two frame loops

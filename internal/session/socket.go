@@ -124,6 +124,7 @@ func snapshotSummary(s *state.Snapshot) map[string]any {
 		"nodes": len(s.Nodes), "links": len(s.Links), "areas": len(s.Areas),
 		"events": s.EventTotal, "scores": len(s.Scores),
 		"selected": selected, "status": s.Status,
+		"rf_mode": s.RFMode, "realtime_x": s.RealtimeX,
 	}
 
 	// Then the state itself.

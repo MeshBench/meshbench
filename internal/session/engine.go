@@ -70,6 +70,9 @@ type Sim struct {
 	// lastReadout throttles the interface readouts to human rate while the
 	// run plays; the tick that paces the engine must not pay for tables.
 	lastReadout time.Time
+	// pace is the recent (wall, simulated) samples behind the transport's
+	// x-realtime figure.
+	pace []paceSample
 	// realism is the RF Simulation imperfection switches. See rfmode.go.
 	realism state.RFRealism
 	// envDir is where the environment tiles live, or "" for bare earth.

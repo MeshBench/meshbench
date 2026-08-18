@@ -5,10 +5,12 @@ package shell
 import (
 	"fmt"
 	"gioui.org/layout"
+	"gioui.org/op"
 	"gioui.org/unit"
 	"github.com/MeshBench/meshbench/internal/gui/comp"
 	"github.com/MeshBench/meshbench/internal/gui/state"
 	"github.com/MeshBench/meshbench/internal/gui/theme"
+	"image"
 )
 
 func (sh *Shell) body(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
@@ -243,6 +245,50 @@ func (sh *Shell) viewBar(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 	children = append(children, layout.Flexed(1, comp.Spacer))
 	children = append(children, layout.Rigid(
 		comp.Mono(t, t.Sz.Caption, t.P.Dim, sh.counts(s))))
+	// The physics, as a control rather than a caption: one click flips
+	// between the two RF modes, and the label always says which one is
+	// deciding reception right now.
+	if sh.rfChip.Clicked(gtx) && sh.OnMenu != nil {
+		sh.OnMenu("rf.toggle")
+	}
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		// A filled pill in the mode's own colour, so it reads as the
+		// control it is: accent for the waveform physics, the muted panel
+		// tone for calculated, and a press flips it.
+		label, fill, fg := "calculated RF", t.P.Sunk, t.P.Ink
+		if s != nil && s.RFMode == "waveform" {
+			label, fill, fg = "waveform RF", t.P.Accent, t.P.Ground
+		}
+		if sh.rfChip.Hovered() {
+			fill = theme.Alpha(fill, 0.85)
+		}
+		return layout.Inset{Left: t.Sp.S}.Layout(gtx,
+			func(gtx layout.Context) layout.Dimensions {
+				return sh.rfChip.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					// Centred by arithmetic, not by insets: the label is
+					// measured, the pill is sized around it, and the label
+					// is placed at the exact middle - an inset pair leaves
+					// the text riding the line box's own slack, which reads
+					// as a button somebody nudged.
+					macro := op.Record(gtx.Ops)
+					lbl := comp.Mono(t, t.Sz.Caption, fg, label)(gtx)
+					call := macro.Stop()
+					pad := gtx.Dp(t.Sp.S)
+					size := image.Pt(lbl.Size.X+2*pad, lbl.Size.Y+gtx.Dp(4))
+					r := unit.Dp(float32(size.Y) / gtx.Metric.PxPerDp / 2)
+					comp.RoundRect(gtx, size, r, fill)
+					comp.Border(gtx, size, r, 1, theme.Alpha(fg, 0.35))
+					// Optically centred: the label's line box carries its
+					// slack above the glyphs, so true-centre reads low. A
+					// pixel of lift puts the glyphs, not the box, in the
+					// middle - checked against a screenshot, not a formula.
+					off := op.Offset(image.Pt((size.X-lbl.Size.X)/2, (size.Y-lbl.Size.Y)/2-gtx.Dp(1))).Push(gtx.Ops)
+					call.Add(gtx.Ops)
+					off.Pop()
+					return layout.Dimensions{Size: size}
+				})
+			})
+	}))
 	return layout.Inset{Left: t.Sp.XS, Right: t.Sp.M}.Layout(gtx,
 		func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, children...)
@@ -255,11 +301,11 @@ func (sh *Shell) counts(s *state.Snapshot) string {
 	}
 	out := itoa(len(s.Nodes)) + " nodes   seed " + itoa64(s.Seed) +
 		"   t = " + msToS(s.NowMs)
-	// Which physics is deciding reception, whenever it is not the default:
-	// a run whose results came from the waveform must say so everywhere the
-	// operator is already looking.
-	if s.RFMode == "waveform" {
-		out += "   waveform RF"
+	// How fast against the wall, measured rather than assumed: 1.00x is a
+	// run keeping up, and the number sliding under it is the earliest
+	// honest sign of a machine that is not.
+	if s.Playing && s.RealtimeX > 0 {
+		out += fmt.Sprintf("   %.2fx realtime", s.RealtimeX)
 	}
 	return out
 }

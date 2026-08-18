@@ -75,6 +75,9 @@ type World struct {
 	SDRSources []SDRSource
 	// CoverageCells is the coverage raster's long edge; zero means default.
 	CoverageCells int
+	// RealtimeX is how fast the run is moving against the wall clock: 1 is
+	// realtime, 0 means not playing or not yet measured.
+	RealtimeX float64
 	// Routes are the planner's last answer.
 	Routes []Route
 	// Import is the last fetch's description, or nil.

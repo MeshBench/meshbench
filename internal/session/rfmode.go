@@ -30,27 +30,45 @@ func registerRFMode(st *state.Store, s *Sim) {
 	// built after.
 	st.Handle("rf.mode", func(w *state.World, p any) (any, error) {
 		mode, _ := stringField(p, "mode")
-		switch mode {
-		case "calculated", "waveform":
-		default:
-			return nil, fmt.Errorf("rf.mode is calculated or waveform, not %q", mode)
-		}
-		s.rfMode = mode
-		if s.eng != nil {
-			s.eng.SetRFMode(rfModeOf(mode))
-		}
-		w.RFMode = mode
-		s.prefs.RFMode = mode
-		s.savePrefs()
-		if mode == "waveform" {
-			w.Say("waveform RF: reception is decided by the full receive " +
-				"chain - demodulation, FEC and CRC")
-		} else {
-			w.Say("calculated RF: reception is decided by link budgets and " +
-				"demodulator floors - the fast model")
-		}
-		return map[string]any{"mode": mode}, nil
+		return setRFMode(w, s, mode)
 	})
+
+	// rf.toggle: the chrome's one-click flip between the two physics.
+	// Shared logic called directly, never st.Do from inside a handler -
+	// this goroutine IS the store, and asking it to do something is a wait
+	// for yourself.
+	st.Handle("rf.toggle", func(w *state.World, _ any) (any, error) {
+		next := "waveform"
+		if s.rfMode == "waveform" {
+			next = "calculated"
+		}
+		return setRFMode(w, s, next)
+	})
+}
+
+// setRFMode is the one place the physics flips: validation, the engine, the
+// prefs, and the announcement.
+func setRFMode(w *state.World, s *Sim, mode string) (any, error) {
+	switch mode {
+	case "calculated", "waveform":
+	default:
+		return nil, fmt.Errorf("rf.mode is calculated or waveform, not %q", mode)
+	}
+	s.rfMode = mode
+	if s.eng != nil {
+		s.eng.SetRFMode(rfModeOf(mode))
+	}
+	w.RFMode = mode
+	s.prefs.RFMode = mode
+	s.savePrefs()
+	if mode == "waveform" {
+		w.Say("waveform RF: reception is decided by the full receive " +
+			"chain - demodulation, FEC and CRC")
+	} else {
+		w.Say("calculated RF: reception is decided by link budgets and " +
+			"demodulator floors - the fast model")
+	}
+	return map[string]any{"mode": mode}, nil
 }
 
 // engineRealism translates the panel's switch set to the engine's.

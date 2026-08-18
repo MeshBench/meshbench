@@ -250,6 +250,7 @@ func (s *Store) publish() {
 		Endpoints:         s.world.Endpoints,
 		SDRSources:        s.world.SDRSources,
 		CoverageCells:     s.world.CoverageCells,
+		RealtimeX:         s.world.RealtimeX,
 		Routes:            s.world.Routes,
 		Import:            s.world.Import,
 		Observed:          s.world.Observed,
