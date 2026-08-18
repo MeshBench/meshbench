@@ -155,9 +155,15 @@ achieves.
 The stream is also resampled to whatever rate the client asks for - no SDR
 client offers the observer's native rate in its menu - by windowed-sinc
 interpolation, which keeps a transmission exactly as wide as its bandwidth
-(images sit ~60 dB down, below the 8-bit format's own floor). The span
-beyond the observer's bandwidth is honestly silent: the observer hears one
-channel, and the resampler does not invent air either side of it.
+(images sit ~60 dB down, below the 8-bit format's own floor). The floor
+across the rest of the span is the server's own addition at the receiver's
+noise density - a real dongle's front end fills its span, and a silent
+shoulder looked synthetic - but only the in-band portion is what the
+verdicts hear; signals from adjacent channels still do not exist. A level
+control anchored to that floor keeps strong bursts from clipping into
+broadband splatter; a burst more than ~33 dB over the floor briefly
+presses the floor down instead, which is the trade a real front end makes
+with its gain.
 
 ### 1.7 Antenna patterns are analytic, not measured
 

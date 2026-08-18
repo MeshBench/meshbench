@@ -12,6 +12,7 @@ package sdr
 import (
 	"encoding/binary"
 	"io"
+	"math"
 	"net"
 	"sync"
 	"time"
@@ -23,6 +24,12 @@ import (
 type SampleSource interface {
 	NextSamples(n int) []complex128
 	SampleRateHz() float64
+	// NoisePSD is the receiver's noise density in linear watts per hertz.
+	// The server paints the front-end floor across the whole client span at
+	// this level - a real dongle's floor fills its span - so the source
+	// hands over signal-only samples. Zero means the source carries its own
+	// noise and the server adds none.
+	NoisePSD() float64
 }
 
 // RTLTCP is one serving observer: a listener, one client at a time, exactly
@@ -129,6 +136,10 @@ func (s *RTLTCP) serveClient(conn net.Conn, source SampleSource) {
 	start := time.Now()
 	var sent int64
 	var pacedHz float64
+	lvl := newLevelControl()
+	// The front-end floor's own RNG: local to this client, deterministic
+	// from connect, never shared across goroutines.
+	floor := newFloorNoise(source.NoisePSD())
 	for range ticker.C {
 		s.mu.Lock()
 		stopped, clientHz := s.stopped, float64(s.rateHz)
@@ -159,10 +170,11 @@ func (s *RTLTCP) serveClient(conn net.Conn, source SampleSource) {
 		chunk := int(owed)
 		iq := make([]complex128, chunk)
 		rs.next(iq)
+		floor.add(iq, outHz)
 		if len(buf) != chunk*2 {
 			buf = make([]byte, chunk*2)
 		}
-		toU8(iq, buf)
+		lvl.apply(iq, buf, floor.sigma(outHz))
 		if _, err := conn.Write(buf); err != nil {
 			return
 		}
@@ -197,11 +209,58 @@ func (s *RTLTCP) readCommands(conn net.Conn) {
 // IQ. The scale is fixed so the noise floor sits a few counts above zero and
 // a strong nearby transmitter approaches full scale - the same dynamic-range
 // compromise a real dongle's ADC makes.
-func toU8(iq []complex128, out []byte) {
-	const scale = 2.0e6 // amplitude counts per unit; signals arrive ~1e-5..1e-7
+// agcMaxScale bounds the level control when a source states no floor of
+// its own - the old fixed scale, kept as the ceiling.
+const agcMaxScale = 8e6
+
+// floorCounts is where the front-end floor sits in the 8-bit format: a few
+// counts per component, the way a real dongle at working gain shows its
+// own noise just above the quantiser.
+const floorCounts = 2.5
+
+// levelControl is the anti-clip stage in front of the 8-bit format. A fixed
+// scale cannot hold both a thermal floor and a transmitter a kilometre away
+// inside 48 dB - the strong burst clipped rail-to-rail, and a clipped chirp
+// is broadband splatter painted across the client's whole span, which is
+// exactly what SDR++ showed. The scale anchors the floor at a fixed count,
+// drops instantly when a burst would clip, and recovers slowly so the
+// floor glides back instead of pumping.
+type levelControl struct{ scale float64 }
+
+func newLevelControl() *levelControl { return &levelControl{} }
+
+func (l *levelControl) apply(iq []complex128, out []byte, floorSigma float64) {
+	anchor := agcMaxScale
+	if floorSigma > 0 {
+		anchor = floorCounts / floorSigma
+	}
+	if l.scale == 0 {
+		l.scale = anchor
+	}
+	peak := 0.0
+	for _, v := range iq {
+		if a := math.Abs(real(v)); a > peak {
+			peak = a
+		}
+		if a := math.Abs(imag(v)); a > peak {
+			peak = a
+		}
+	}
+	if peak > 0 && peak*l.scale > 120 {
+		l.scale = 120 / peak
+	} else {
+		l.scale = math.Min(l.scale*1.05, anchor)
+	}
+	toU8(iq, out, l.scale)
+}
+
+func toU8(iq []complex128, out []byte, scale float64) {
+	// +128 with truncation is round-to-nearest about 127.5, the format's
+	// true centre; +127.5 truncated pulled everything half a count low,
+	// which is a manufactured DC spike.
 	for i, v := range iq {
-		out[i*2] = clampU8(real(v)*scale + 127.5)
-		out[i*2+1] = clampU8(imag(v)*scale + 127.5)
+		out[i*2] = clampU8(real(v)*scale + 128)
+		out[i*2+1] = clampU8(imag(v)*scale + 128)
 	}
 	for i := len(iq) * 2; i < len(out); i += 2 {
 		out[i], out[i+1] = 127, 127

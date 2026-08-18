@@ -10,6 +10,7 @@ import (
 type ramp struct{ at, rate float64 }
 
 func (r *ramp) SampleRateHz() float64 { return r.rate }
+func (r *ramp) NoisePSD() float64     { return 0 }
 func (r *ramp) NextSamples(n int) []complex128 {
 	out := make([]complex128, n)
 	for i := range out {
@@ -93,6 +94,7 @@ func TestResamplerSuppressesImages(t *testing.T) {
 type tone struct{ rate, hz, at float64 }
 
 func (s *tone) SampleRateHz() float64 { return s.rate }
+func (s *tone) NoisePSD() float64     { return 0 }
 func (s *tone) NextSamples(n int) []complex128 {
 	out := make([]complex128, n)
 	for i := range out {

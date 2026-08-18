@@ -131,16 +131,19 @@ antenna over a span of simulated time from the same synthesis - never from
 packet events. `sdr.ServeRTLTCP` (`internal/sdr/rtltcp.go`) speaks rtl-sdr's
 own network protocol, so SDR++'s stock client connects: RTL0 header,
 five-byte tuning commands, unsigned 8-bit interleaved IQ (the format's
-~48 dB ceiling is owned in shortcomings). The stream follows the client's
-own sample-rate menu - windowed-sinc resampling from the native rate, since
-no client menu offers 62,500 S/s, and band-limited because linear
-interpolation imaged every strong burst across the client's whole span -
-delivered by wall-clock deficit so scheduling hiccups are made up rather
-than lost, from a stream position that runs a quarter second behind the
-simulation so engine stepping jitter never reaches the client. The
-observers' modulated frames are cached across windows, without which the
-stream fell behind its own ticker the moment anything transmitted and a
-starved SDR++ drew garbage. Verbs `sdr.serve` / `sdr.stop`;
+~48 dB ceiling is owned in shortcomings). The stream is built to look like
+a dongle because it is judged next to one: a producer goroutine renders
+signal-only IQ (`ObserveSpanSignal`) a quarter second behind the engine's
+clock into a ring, so the delivery path never touches the engine and a
+heavy judgement cannot choke the stream; delivery is wall-clock deficit
+pacing served from the ring; windowed-sinc resampling follows the client's
+own rate menu and keeps a burst exactly as wide as its bandwidth; the
+front-end floor is painted server-side across the whole client span at the
+receiver's own noise density (`ObserverNoisePSD`), which is also what a
+paused run streams; and a level control anchored to that floor drops
+instantly rather than let a strong burst clip - a clipped chirp is
+broadband splatter painted across the span. The observers' modulated
+frames are cached across windows (`obsCache`), pruned to the air. Verbs `sdr.serve` / `sdr.stop`;
 one client at a time, like the real server. `Engine.SetNodePosition` moves
 a node live and forgets its cached losses, so dragging an observer on the
 map (`nodes.move`) changes what an attached client hears on the next

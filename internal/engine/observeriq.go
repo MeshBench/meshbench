@@ -41,6 +41,34 @@ func (e *Engine) SetNodePosition(idx int, lat, lon float64) {
 // Deterministic like everything else: the noise stream is keyed by the span
 // and the receiver, so replaying a stretch of time replays its samples.
 func (e *Engine) ObserveSpan(rxIdx int, fromMs uint32, n int) []complex128 {
+	return e.observeSpan(rxIdx, fromMs, n, true)
+}
+
+// ObserveSpanSignal is ObserveSpan without the receiver's noise: what an
+// external presentation layer uses when it supplies the front-end floor
+// itself, across its own wider span. The verdicts never use this - a
+// receiver without noise is not a receiver.
+func (e *Engine) ObserveSpanSignal(rxIdx int, fromMs uint32, n int) []complex128 {
+	return e.observeSpan(rxIdx, fromMs, n, false)
+}
+
+// ObserverNoisePSD is the receiver's noise density in linear watts per
+// hertz - the level a presentation layer paints its own wideband floor at,
+// so the floor it shows and the floor the verdicts hear are the same claim.
+func (e *Engine) ObserverNoisePSD(rxIdx int) float64 {
+	e.mu.Lock()
+	if rxIdx < 0 || rxIdx >= len(e.nodes) {
+		e.mu.Unlock()
+		return 0
+	}
+	spec := e.nodes[rxIdx].Spec
+	e.mu.Unlock()
+	rxPHY := e.phyOf(spec)
+	noiseDBm := dsp.NoiseFloorDBm(rxPHY.bandwidthHz, e.noiseFigOf(spec))
+	return math.Pow(10, noiseDBm/10) / rxPHY.bandwidthHz
+}
+
+func (e *Engine) observeSpan(rxIdx int, fromMs uint32, n int, withNoise bool) []complex128 {
 	e.mu.Lock()
 	nodes := make([]*Node, len(e.nodes))
 	copy(nodes, e.nodes)
@@ -90,32 +118,14 @@ func (e *Engine) ObserveSpan(rxIdx int, fromMs uint32, n int) []complex128 {
 			txs = append(txs, tx)
 		}
 	}
-	noiseDBm := dsp.NoiseFloorDBm(rxPHY.bandwidthHz, e.noiseFigOf(nodes[rxIdx].Spec))
+	noisePower := 0.0
+	if withNoise {
+		noiseDBm := dsp.NoiseFloorDBm(rxPHY.bandwidthHz, e.noiseFigOf(nodes[rxIdx].Spec))
+		noisePower = math.Pow(10, noiseDBm/10)
+	}
 	return rf.Observe(txs, rf.Receiver{
-		NoisePowerLinear: math.Pow(10, noiseDBm/10),
+		NoisePowerLinear: noisePower,
 		Seed:             seed,
 		Offset:           uint64(fromMs)*0xA24BAED4963EE407 + uint64(rxIdx)<<44,
-	}, n)
-}
-
-// ObserveNoise is a window of the receiver's own noise floor and nothing
-// else - what a paused observer streams, keyed by tick so consecutive
-// windows differ. Frozen time cannot honestly produce signal, and a client
-// fed the same block twice draws stripes.
-func (e *Engine) ObserveNoise(rxIdx int, tick uint64, n int) []complex128 {
-	e.mu.Lock()
-	if rxIdx < 0 || rxIdx >= len(e.nodes) {
-		e.mu.Unlock()
-		return make([]complex128, n)
-	}
-	spec := e.nodes[rxIdx].Spec
-	seed := e.Config.Seed
-	e.mu.Unlock()
-	rxPHY := e.phyOf(spec)
-	noiseDBm := dsp.NoiseFloorDBm(rxPHY.bandwidthHz, e.noiseFigOf(spec))
-	return rf.Observe(nil, rf.Receiver{
-		NoisePowerLinear: math.Pow(10, noiseDBm/10),
-		Seed:             seed,
-		Offset:           tick*0x9E3779B97F4A7C15 + uint64(rxIdx)<<52,
 	}, n)
 }

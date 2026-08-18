@@ -15,6 +15,7 @@ import (
 type toneSource struct{}
 
 func (toneSource) SampleRateHz() float64 { return 62500 }
+func (toneSource) NoisePSD() float64     { return 0 }
 func (toneSource) NextSamples(n int) []complex128 {
 	out := make([]complex128, n)
 	for i := range out {
