@@ -91,8 +91,8 @@ func (p *nodeWindowPanel) sdrTab(t *theme.Theme, gtx layout.Context,
 				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 					layout.Rigid(comp.Mono(t, t.Sz.Section, t.P.Ink, src.Addr)),
 					layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Dim, fmt.Sprintf(
-						"sample rate %.0f Hz - set the client to exactly this rate",
-						src.RateHz))),
+						"any client sample rate works - the stream follows the "+
+							"client's own rate menu (native %.0f Hz)", src.RateHz))),
 					layout.Rigid(layout.Spacer{Height: t.Sp.XS}.Layout),
 					layout.Rigid(comp.Text(t, t.Sz.Caption, col, attached)),
 				)

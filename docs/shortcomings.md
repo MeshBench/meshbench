@@ -152,6 +152,13 @@ The receive filter in `Listen` is also a brick wall in the frequency domain. No
 real receiver has one, so adjacent-signal rejection is better than any hardware
 achieves.
 
+The stream is also resampled to whatever rate the client asks for - no SDR
+client offers the observer's native rate in its menu - by windowed-sinc
+interpolation, which keeps a transmission exactly as wide as its bandwidth
+(images sit ~60 dB down, below the 8-bit format's own floor). The span
+beyond the observer's bandwidth is honestly silent: the observer hears one
+channel, and the resampler does not invent air either side of it.
+
 ### 1.7 Antenna patterns are analytic, not measured
 
 Isotropic, dipole, collinear and Yagi from closed-form expressions. No measured

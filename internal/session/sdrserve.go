@@ -8,8 +8,10 @@ package session
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/MeshBench/meshbench/internal/gui/state"
 	"github.com/MeshBench/meshbench/internal/sdr"
@@ -28,7 +30,23 @@ type engineSource struct {
 	mu     sync.Mutex
 	atMs   float64
 	primed bool
+	// pauseTick keys the noise served while the simulation is not advancing,
+	// so a paused stream is fresh noise rather than one block repeated -
+	// repeated IQ is exactly the striped garbage a client draws.
+	pauseTick uint64
+	// lastNow and stalled remember a fallback: while the clock has not moved
+	// since, the next window is noise immediately rather than after another
+	// full wait - a paused stream must still flow at rate.
+	lastNow float64
+	stalled bool
 }
+
+// observerLagMs is how far behind the simulation the stream deliberately
+// runs. The engine advances in step-sized quanta on a scheduler with moods;
+// serving right at the edge of simulated time turned every hiccup into a
+// starved client and a streaked waterfall. A quarter second of cushion
+// absorbs the jitter, and nobody watches a waterfall for currency.
+const observerLagMs = 250
 
 func (g *engineSource) SampleRateHz() float64 { return g.rate }
 
@@ -38,18 +56,39 @@ func (g *engineSource) NextSamples(n int) []complex128 {
 	if g.s.eng == nil {
 		return make([]complex128, n)
 	}
-	now := float64(g.s.eng.NowMs())
-	if !g.primed {
-		g.atMs, g.primed = now, true
-	}
 	spanMs := float64(n) / (g.rate / 1000)
-	// Chase the clock without outrunning it; a paused engine holds the
-	// stream at the pause point rather than inventing future air.
-	if g.atMs+spanMs > now {
-		g.atMs = now - spanMs
-		if g.atMs < 0 {
-			g.atMs = 0
+	if !g.primed {
+		g.atMs = math.Max(0, float64(g.s.eng.NowMs())-observerLagMs-spanMs)
+		g.primed = true
+	}
+	// The stream position only ever moves forward. Rewinding to chase the
+	// clock re-served overlapping windows - repeated IQ - which is what a
+	// waveform judgement running slower than the wall turned into striped
+	// garbage on every transmission.
+	//
+	// Not yet simulated: wait for the engine, patiently - the lag cushion
+	// means landing here at all is already the unusual case. A clock that
+	// stopped moving is a pause: serve fresh noise at rate, immediately on
+	// every window after the first, until it moves again.
+	for wait := 0; g.atMs+spanMs > float64(g.s.eng.NowMs()); wait++ {
+		now := float64(g.s.eng.NowMs())
+		if (g.stalled && now == g.lastNow) || wait >= 120 {
+			g.pauseTick++
+			g.stalled, g.lastNow = true, now
+			return g.s.eng.ObserveNoise(g.idx, g.pauseTick, n)
 		}
+		g.mu.Unlock()
+		time.Sleep(5 * time.Millisecond)
+		g.mu.Lock()
+		if g.s.eng == nil {
+			return make([]complex128, n)
+		}
+	}
+	g.stalled = false
+	// Far behind a fast simulation: jump back to the cushion rather than
+	// stream minutes late. A real dongle drops samples on overflow too.
+	if now := float64(g.s.eng.NowMs()); g.atMs+spanMs < now-observerLagMs-2000 {
+		g.atMs = now - observerLagMs - spanMs
 	}
 	out := g.s.eng.ObserveSpan(g.idx, uint32(g.atMs), n)
 	g.atMs += spanMs
@@ -114,8 +153,8 @@ func registerSDRServe(st *state.Store, s *Sim) {
 		}
 		s.sdrServers[name] = &sdrServer{srv: srv, rateHz: rate}
 		w.SDRSources = s.sdrSources()
-		w.Say(fmt.Sprintf("%s is an rtl_tcp source at %s - set the client's "+
-			"sample rate to %.0f Hz", name, srv.Addr(), rate))
+		w.Say(fmt.Sprintf("%s is an rtl_tcp source at %s - the stream follows "+
+			"the client's own rate setting (native %.0f Hz)", name, srv.Addr(), rate))
 		return map[string]any{"node": name, "addr": srv.Addr(), "rate_hz": rate}, nil
 	})
 

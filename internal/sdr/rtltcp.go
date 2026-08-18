@@ -113,26 +113,60 @@ func (s *RTLTCP) serveClient(conn net.Conn, source SampleSource) {
 	// stall waiting on a read.
 	go s.readCommands(conn)
 
-	rate := source.SampleRateHz()
-	chunk := int(rate / 20) // 50 ms of samples per write
-	if chunk < 256 {
-		chunk = 256
-	}
-	buf := make([]byte, chunk*2)
+	// The stream runs at whatever rate the client last asked for - a real
+	// rtl_tcp reconfigures the dongle, this one resamples the synthesis -
+	// so SDR++'s stock rate menu just works. Until the client asks, the
+	// native rate stands.
+	rs := newResampler(source)
 	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
+	var buf []byte
+	// Deficit pacing: deliver exactly what wall time owes at the client's
+	// rate, not one fixed chunk per tick. A ticker coalesces missed ticks,
+	// so fixed chunks turned every scheduling hiccup into samples the
+	// client never got - an audible pop, a streaked line - where a deficit
+	// is simply made up on the next tick.
+	start := time.Now()
+	var sent int64
+	var pacedHz float64
 	for range ticker.C {
 		s.mu.Lock()
-		stopped := s.stopped
+		stopped, clientHz := s.stopped, float64(s.rateHz)
 		s.mu.Unlock()
 		if stopped {
 			return
 		}
-		iq := source.NextSamples(chunk)
+		rs.setRate(clientHz)
+		outHz := clientHz
+		if outHz <= 0 {
+			outHz = source.SampleRateHz()
+		}
+		if outHz != pacedHz {
+			// A new rate is a new stream pace; owing samples at the old
+			// rate would burst or starve the first seconds of the new one.
+			pacedHz, start, sent = outHz, time.Now(), 0
+		}
+		owed := int64(time.Since(start).Seconds()*outHz) - sent
+		if owed < 256 {
+			continue
+		}
+		// Bound a catch-up burst to half a second of stream: past that the
+		// client is better served by losing time than by a flood.
+		if max := int64(outHz / 2); owed > max {
+			sent += owed - max
+			owed = max
+		}
+		chunk := int(owed)
+		iq := make([]complex128, chunk)
+		rs.next(iq)
+		if len(buf) != chunk*2 {
+			buf = make([]byte, chunk*2)
+		}
 		toU8(iq, buf)
 		if _, err := conn.Write(buf); err != nil {
 			return
 		}
+		sent += int64(chunk)
 	}
 }
 

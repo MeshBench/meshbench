@@ -122,6 +122,11 @@ type Engine struct {
 	// wfCAD caches in-flight transmissions' synthesised baseband for the
 	// waveform CAD path, which asks every tick. See cadCache.
 	wfCAD modCache
+	// obsCache is the observers' modulated baseband, pruned to what is on
+	// the air. Guarded by obsMu, not mu: ObserveSpan runs on rtl_tcp client
+	// goroutines while the step loop holds the engine's own lock.
+	obsMu    sync.Mutex
+	obsCache modCache
 
 	// emitterNoise caches each receiver's extra floor from the emitter fleet,
 	// invalidated with the link cache — emitters move exactly as often as

@@ -469,3 +469,21 @@ func TestBuildingsDeafenTheWaveform(t *testing.T) {
 		t.Fatal("a 40 m concrete building across the path cost the waveform nothing")
 	}
 }
+
+// The observer must keep up with its own ticker while frames are on the air:
+// 50 ms of stream may not cost anything like 50 ms to render twenty times a
+// second, which is what re-modulating every frame per window did.
+func BenchmarkObserveSpanDuringTransmission(b *testing.B) {
+	e := engine.New(flat{100}, engine.Config{StepMs: 10, Seed: 7, RFMode: engine.RFWaveform})
+	e.Add(wfNode("a", 0, 22), nil)
+	e.Add(wfNode("b", 0.010, 22), nil)
+	_ = e.Run(context.Background(), 10)
+	e.InjectFrame(0, []byte("a frame long enough to cost real synthesis time on the air"))
+	_ = e.Run(context.Background(), 20)
+	const chunk = 3125 // 50 ms at 62.5 kHz
+	at := uint32(20)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = e.ObserveSpan(1, at, chunk)
+	}
+}
