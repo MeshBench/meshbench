@@ -103,16 +103,24 @@ actual RF with no engine rule in between.
 ## Calculated mode, and the hybrid
 
 The whole map has one more coverage answer (`internal/session/coveragemap.go`,
-verb `coverage.map`, in the Simulation menu): every repeater and room server
-rasterised over one shared grid - the network's box plus margin, pixels
-matched to the ground's aspect - combined per cell into the best two-way
-link anyone offers, painted by the same painter as a single node's raster.
-The grid's long edge is the operator's to set (Configuration > Links,
-verb `coverage.resolution`, 64-1024 cells, persisted) - the caption says
-plainly that cost scales with the square, times the node count.
-The shared grid also fixed `coverage.start`: per-node boxes never shared
-ground, so `Combine` rightly refused them and the network-wide questions
-could not finish on a spread-out network.
+verb `coverage.map`, in the Simulation menu, which also switches the
+Coverage layer on - a raster computed behind an off layer was the click
+that "did nothing"): a direct best-server pass (`coverage.BestServer`) over
+one shared grid scoped to the study boundary when one exists. Cells outer,
+each cell's nearest stations first, stopped by free-space arithmetic the
+moment nobody farther could serve the cell or beat its best - the
+N-full-rasters construction it replaced was hours on a national network,
+and an equivalence test holds the direct pass to it cell for cell. Terrain
+is sampled once into a height grid, cache-only - the sea between the
+islands is an honest gap, not a tile download stall - profiles walk at the
+grid's own resolution, and buildings are priced by the same
+`environ.PathBuildingLossDB` the packet path pays, so a loaded environment
+moves the map. Both phases report rows to the job bar. The grid's long
+edge is the operator's to set (Configuration > Links, `coverage.resolution`,
+persisted). The shared grid also fixed `coverage.start`: per-node boxes
+never shared ground, so `Combine` rightly refused them. The recorded next
+lever is the GPU per-station grid kernel that already exists, behind the
+same switch as demod.
 
 `deliver` (`transmissions.go`) is the fast model, unchanged in spirit: link
 budget, dBm-summed interference, verdict against the demodulator floor.
@@ -177,6 +185,13 @@ concrete building across the path. Verdicts, CAD and the SDR observer all
 price through the same `rxTransmission`, so a loaded environment reaches
 all three. Verb `rf.environment`; loading or dropping the environment
 forgets the link cache, because two physics must not share one matrix.
+What is loaded also draws: the map's Buildings layer renders the
+footprints inside the viewport - close enough to see them, capped and
+saying so past the cap - coloured by material with a click-to-hide key,
+read straight from the tile store (a city of polygons has no business in
+the world snapshot). The store indexes which tiles exist once at open;
+before that, a national coverage query stat-ed millions of absent tiles
+under one mutex, which presented as the raster never finishing.
 
 Footprints can also be pulled at runtime (`internal/session/environfetch.go`,
 verb `environ.fetch`, the Buildings card's database dropdown): OpenStreetMap

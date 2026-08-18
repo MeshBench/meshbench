@@ -33,6 +33,7 @@ type Layers struct {
 	Traffic    bool
 	Coverage   bool
 	Terrain    bool
+	Buildings  bool
 	Regions    bool
 	Pattern    bool
 	// Measure puts the map in measuring mode, where a drag reports a distance
@@ -44,9 +45,13 @@ type Layers struct {
 	// they reach to stop drawing it.
 	HideKind [6]bool
 
+	// HideMaterial switches one building material off, from the key.
+	HideMaterial [8]bool
+
 	set     bool
 	toggles [12]Check
 	keys    [6]widget.Clickable
+	matKeys [8]widget.Clickable
 	// baseRow is the basemap picker at the top of the panel.
 	baseRow widget.Clickable
 }
@@ -81,6 +86,7 @@ func (l *Layers) rows() []layerRow {
 		{"Traffic", &l.Traffic},
 		{"Coverage", &l.Coverage},
 		{"Terrain", &l.Terrain},
+		{"Buildings", &l.Buildings},
 		{"Regions", &l.Regions},
 		{"Antenna", &l.Pattern},
 		{"Measure", &l.Measure},
@@ -224,6 +230,10 @@ func (m *MapView) layerPanel(t *theme.Theme, gtx layout.Context, sz image.Point,
 		}))
 	}
 	kids = append(kids, m.keyRows(t, inner, s)...)
+	for _, row := range m.buildingKeyRows(t) {
+		row := row
+		kids = append(kids, layout.Rigid(row))
+	}
 	kids = append(kids, m.regionKeyRows(t, inner, s)...)
 	dims := layout.Flex{Axis: layout.Vertical}.Layout(inner, kids...)
 	content := rec.Stop()

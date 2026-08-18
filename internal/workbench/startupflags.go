@@ -13,6 +13,7 @@ package workbench
 import (
 	"context"
 	"image"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -31,6 +32,7 @@ type startupActions struct {
 
 	saveRunFlag, importFlag, planFlag  *string
 	captureFlag, coverFlag, layersFlag *string
+	lookFlag                           *string
 	energyFlag, sweepFlag, shadeFlag   *bool
 }
 
@@ -94,6 +96,19 @@ func (a startupActions) run() {
 			}
 		}()
 	}
+	if *a.lookFlag != "" {
+		// lat,lon,zoom: a capture cannot drag the map to the place it is
+		// meant to be capturing.
+		parts := strings.Split(*a.lookFlag, ",")
+		if len(parts) == 3 {
+			lat, e1 := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
+			lon, e2 := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
+			zoom, e3 := strconv.ParseFloat(strings.TrimSpace(parts[2]), 64)
+			if e1 == nil && e2 == nil && e3 == nil {
+				a.mv.StartAt(lat, lon, zoom)
+			}
+		}
+	}
 	if *a.coverFlag != "" {
 		a.mv.Layers.Coverage = true
 		go func() { _, _ = a.st.Do(a.ctx, "coverage.compute", *a.coverFlag) }()
@@ -109,6 +124,8 @@ func (a startupActions) run() {
 			a.mv.Layers.Coverage = true
 		case "terrain":
 			a.mv.Layers.Terrain = true
+		case "buildings":
+			a.mv.Layers.Buildings = true
 		case "antenna":
 			a.mv.Layers.Pattern = true
 		}

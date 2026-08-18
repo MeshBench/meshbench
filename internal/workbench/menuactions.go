@@ -24,6 +24,7 @@ type menuDeps struct {
 	nodes    *nodesPanel
 	chooser  func(string, []string, func(string))
 	menuFlag *string
+	onShown  func(action string)
 }
 
 // onMenu is what every menu item does.
@@ -146,6 +147,9 @@ func (w menuDeps) onMenu(action string) {
 			_, _ = w.st.Do(w.ctx, "sim.kind", map[string]any{"real": !real})
 		}()
 		return
+	}
+	if w.onShown != nil {
+		w.onShown(action)
 	}
 	// The error reaches the status bar. Dropping it made a refusal look
 	// like a dead button: sim.start declining to run half a mesh - two

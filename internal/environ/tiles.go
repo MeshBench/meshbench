@@ -9,6 +9,8 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -26,6 +28,15 @@ type TileStore struct {
 	mu      sync.Mutex
 	tiles   map[[2]int][]Building
 	missing map[[2]int]bool
+	// present is which tiles exist on disk, read once. A national coverage
+	// query spans millions of z14 tile keys; without the index every one
+	// was a map entry and a stat, per query, under one mutex - a hang that
+	// read as the raster never finishing. With it, a query clips to the
+	// dataset's own bounds and touches only what exists.
+	indexed  bool
+	present  map[[2]int]bool
+	px0, px1 int
+	py0, py1 int
 }
 
 // OpenTiles points a store at a directory. The directory not existing is not
@@ -58,13 +69,94 @@ func (s *TileStore) Buildings(minLat, minLon, maxLat, maxLon float64) []Building
 	if y1 < y0 {
 		y0, y1 = y1, y0
 	}
-	var out []Building
+	s.ensureIndex()
+	// Clip to where the dataset has anything at all: the ground outside its
+	// bounds is not missing data, it is ground the dataset never claimed.
+	// Absent tiles inside the bounds are the honest gaps, and they are
+	// counted.
+	s.mu.Lock()
+	if len(s.present) == 0 {
+		// No dataset at all is not full coverage - it is one honest gap
+		// per query, which is what keeps the offline counter loud without
+		// minting a map entry for every tile of an empty ocean.
+		s.missing[[2]int{x0, y0}] = true
+		s.mu.Unlock()
+		return nil
+	}
+	if x0 < s.px0 {
+		x0 = s.px0
+	}
+	if x1 > s.px1 {
+		x1 = s.px1
+	}
+	if y0 < s.py0 {
+		y0 = s.py0
+	}
+	if y1 > s.py1 {
+		y1 = s.py1
+	}
+	var absent, load [][2]int
 	for x := x0; x <= x1; x++ {
 		for y := y0; y <= y1; y++ {
-			out = append(out, s.tile(x, y)...)
+			k := [2]int{x, y}
+			if s.present[k] {
+				load = append(load, k)
+			} else {
+				absent = append(absent, k)
+			}
 		}
 	}
+	for _, k := range absent {
+		s.missing[k] = true
+	}
+	s.mu.Unlock()
+	var out []Building
+	for _, k := range load {
+		out = append(out, s.tile(k[0], k[1])...)
+	}
 	return out
+}
+
+// ensureIndex reads the tile directory once: which tiles exist, and the box
+// they span.
+func (s *TileStore) ensureIndex() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.indexed {
+		return
+	}
+	s.indexed = true
+	s.present = map[[2]int]bool{}
+	s.px0, s.py0 = 1<<30, 1<<30
+	s.px1, s.py1 = -(1 << 30), -(1 << 30)
+	zdir := filepath.Join(s.Dir, fmt.Sprintf("z%d", TileZoom))
+	xs, err := os.ReadDir(zdir)
+	if err != nil {
+		return
+	}
+	for _, xd := range xs {
+		x, err := strconv.Atoi(xd.Name())
+		if err != nil {
+			continue
+		}
+		ys, err := os.ReadDir(filepath.Join(zdir, xd.Name()))
+		if err != nil {
+			continue
+		}
+		for _, yf := range ys {
+			name, ok := strings.CutSuffix(yf.Name(), ".jsonl.gz")
+			if !ok {
+				continue
+			}
+			y, err := strconv.Atoi(name)
+			if err != nil {
+				continue
+			}
+			s.present[[2]int{x, y}] = true
+			s.px0, s.px1 = min(s.px0, x), max(s.px1, x)
+			s.py0, s.py1 = min(s.py0, y), max(s.py1, y)
+		}
+	}
 }
 
 // Missing is how many distinct tiles have been asked for and not found - the

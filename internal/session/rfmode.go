@@ -156,6 +156,7 @@ func registerRFEnvironment(st *state.Store, s *Sim) {
 		dir, _ := stringField(p, "dir")
 		if on, ok := boolField(p, "on"); ok && !on {
 			s.envDir = ""
+			s.envView = nil
 			if s.eng != nil {
 				s.eng.Env = nil
 				s.eng.DropLinkCache()
@@ -170,6 +171,7 @@ func registerRFEnvironment(st *state.Store, s *Sim) {
 			return nil, fmt.Errorf("rf.environment needs a dir (tiles from tools/envgen) or on:false")
 		}
 		s.envDir = dir
+		s.envView = nil
 		store := environ.OpenTiles(dir)
 		if s.eng != nil {
 			s.eng.Env = store

@@ -77,6 +77,9 @@ type Sim struct {
 	realism state.RFRealism
 	// envDir is where the environment tiles live, or "" for bare earth.
 	envDir string
+	// envView is the store the map reads footprints from when no engine is
+	// holding one open.
+	envView environ.Provider
 	// gpuWarm is whether the link matrix is measured on the GPU when one can
 	// answer to the same accuracy. Off by default: it reads a rasterised
 	// height grid rather than the DEM, which is the same answer on a county
@@ -169,6 +172,23 @@ type Sim struct {
 // computed while a tile downloads is a path loss nobody asked for at a moment
 // nobody chose. Missing tiles answer "no data", which the engine already
 // handles - it is bare earth for that profile and says so.
+// terrainCached is terrain that answers only from the tile cache - for the
+// callers that must not block on a download, where a missing tile is an
+// honest gap rather than a wait.
+func (s *Sim) terrainCached() coverage.Terrain {
+	t := s.terrain()
+	if ts, ok := t.(*terrain.TileStore); ok {
+		return cachedOnly{ts}
+	}
+	return t
+}
+
+type cachedOnly struct{ ts *terrain.TileStore }
+
+func (c cachedOnly) ElevationM(lat, lon float64) (float64, bool) {
+	return c.ts.ElevationCachedM(lat, lon)
+}
+
 func (s *Sim) terrain() coverage.Terrain {
 	if s.terr != nil {
 		return s.terr

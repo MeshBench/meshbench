@@ -239,34 +239,165 @@ speculative.
 Then: `packetview` (12 files, ~3,450 lines — the pilot), `nodeview`,
 `companionpanel`, `experiment`, `library`.
 
-Filenames are renamed regardless of whether the split happens, because they
-currently encode plan milestones rather than content:
+### Filenames, audited against contents
+
+Every file's declarations were extracted and compared to its name. **33 files
+carry a name that does not describe what they hold.** Three kinds:
+
+**The package's central type, hidden in a file named for something else.**
 
 ```
-panels.go        → nodespanel.go
+session/engine.go   → sim.go + engine.go   502 lines, over the hard limit, and it
+                                           declares type Sim — 79 methods, the whole
+                                           point of the package. session.go is 13
+                                           lines of package doc. A reader looking
+                                           for Sim finds neither.
+gpu/dechirp.go      → device.go + dechirp.go
+                                           declares type Device, the package's
+                                           central type, inside a file named for one
+                                           of its four kernels.
+```
+
+**`logic_` is a layering prefix, not a topic — and all four files are undocumented.**
+An earlier draft of this plan proposed renaming these to `verb_*`. That was wrong:
+they are not verbs, they are the implementations the verbs call.
+
+```
+session/logic_bench.go     → benchserve.go    Sim.serve/endpoints/stopServing/dropClients
+session/logic_importer.go  → importfetch.go   one function, ImportFrom
+session/logic_observed.go  → observedpull.go  PullObserved + residualsOf
+session/logic_planning.go  → routes.go        budgetChecker + routesBetween
+session/manipulation.go    → armcomplaints.go armDidNotReachTheChip, armComplaints —
+                                              experiment-arm diagnostics. The name
+                                              suggests something is being changed.
+```
+
+Verb files take the **topic-first** form `planningverbs.go` already uses, so each
+sorts beside the implementation it calls rather than beside unrelated verbs:
+
+```
+verbs.go → verbregistry.go   verbsbench.go → benchverbs.go   verbsclock.go → clockverbs.go
+verbsbudget.go → budgetverbs.go   verbscoverage.go → coverageverbs.go
+verbsimport.go → importverbs.go   verbsnodes.go → nodeverbs.go
+verbssweep.go → sweepverbs.go     firmwarelib.go → firmwarelibrary.go
+```
+
+**One panel type per file, named after the type.** The workbench is regular —
+each panel owns its methods — but the filenames do not say so:
+
+```
+panels.go        → nodespanel.go                    declares nodesPanel
 panels6.go       → schedulepanel.go, consolepanel.go
 panels6b.go      → fleetpanel.go, boundarypanel.go, timelinespanel.go
-panels6c.go      → configpanel.go, logpanel.go          (563 lines, clears the 500 limit)
+panels6c.go      → configpanel.go, logpanel.go      564 lines, over the limit
 events2.go       → eventspanel.go
-tables.go        → scorepanel.go                        (holds only scorePanel)
-tables2.go       → runspanel.go                         (holds only runsPanel)
+tables.go        → scorepanel.go                    doc says "the tables of P4";
+                                                    the file holds one scorePanel
+tables2.go       → runspanel.go                     doc says "installed firmware and
+                                                    past runs"; holds only runsPanel
+observed.go      → feedpanel.go                     declares feedPanel
+planning.go      → planpanel.go                     declares planPanel
+importer.go      → importpanel.go                   declares importPanel
+bench.go         → benchpanel.go                    declares benchPanel
+fwlib.go         → firmwarepanel.go                 declares firmwarePanel
+fwlibrow.go      → firmwarerow.go
 actionpanels.go  → fleetcontrols.go, schedulecontrols.go,
                    planningcontrols.go, provisioningcontrols.go
 livepanels.go    → benchcontrols.go, feedcontrols.go
 networkpanels.go → importcontrols.go, boundarycontrols.go, validatecontrols.go
-configcards.go   → configcards_{model,run,system}.go    (558 lines, clears the limit)
+configcards.go   → configcards_{model,run,system}.go   559 lines, over the limit
 ```
 
-`P6` and `P4` are phases of a planning document; the `2`/`b`/`c` suffixes mean
-"written later", which is the one fact git already records. Both `tables.go` and
-`tables2.go` also carry doc comments describing contents they no longer have —
-fix those in the same commit, or the misdirection just moves to a new filename.
+And the `node*` prefix hides which of three panels a file serves:
+
+```
+nodecompanion.go → companiontab.go        488 lines declaring companionTab, the
+                                          package's most-implemented type at 25
+                                          methods — while companionclient.go,
+                                          companionradio.go and companiontcp.go
+                                          already hold its methods under the right
+                                          prefix. Only the file declaring the type
+                                          breaks the pattern.
+nodefirmware.go  → nodeviewfirmware.go    nodeViewPanel
+nodeobserver.go  → nodewindowobserver.go  nodeWindowPanel
+noderadio.go     → nodewindowradio.go     nodeWindowPanel
+```
+
+Also `tools/mockup/panels2.go` → `panelsnetwork.go` and `panels3.go` →
+`panelsstudy.go` — the same digit-suffix habit outside `internal/`.
+
+> **Underscore caution.** Go treats `name_GOOS.go` and `name_GOARCH.go` as build
+> constraints. None of the suffixes above (`model`, `run`, `system`, `test`) is a
+> GOOS or GOARCH value, so all are safe — but check any future one against that
+> list before adding it.
 
 ### `sim/engine` stays whole
 
 `Engine` has 89 methods across 21 of its 24 source files — the same shape as
 `Sim`, and more concentrated. At 24 files it is not what makes the tree hard to
 walk. Leave it; revisit only if it grows.
+
+---
+
+## 5b. What reading the files turned up
+
+The renames above came from an audit rather than from the directory listing.
+Three other things came out of it, and two of them are more serious than any
+filename.
+
+### Four files over the 500-line hard limit
+
+| File | Lines | |
+|---|---:|---|
+| `workbench/panels6c.go` | 564 | split by the renames above |
+| `workbench/configcards.go` | 559 | split by the renames above |
+| `engine/waveform.go` | 522 | **being edited on this branch** — flagged, not planned |
+| `session/engine.go` | 502 | split into `sim.go` + `engine.go` |
+
+### Three packages are built and imported by nothing
+
+Not by the application, not by tools, not by another package's tests.
+
+| Package | Lines | |
+|---|---:|---|
+| `internal/replay` | 754 | turns observed traffic back into transmissions |
+| `internal/validate` | 532 | compares predicted against heard |
+| `internal/mqttclient` | 57 | the paho implementation of `provider.Subscriber` |
+
+`mqttclient` is a deliberate plug point — `provider` declares the interface and
+stays dependency-free — but nothing ever plugs it in. CLAUDE.md lists MQTT as one
+of the optional feeds; today it is optional in the sense of absent.
+
+Worse, **`internal/validate` and `internal/replay/validate.go` are parallel
+implementations of the same thing.** Both declare `type Report`; both declare
+`Compare(rx []provider.Reception, …)`. And the residual computation the workbench
+actually runs is a *third* one — `session/validate.go` plus `residualsOf` in what
+is currently `logic_observed.go`, neither of which imports either package.
+
+That matters more than layout. `internal/validate`'s own doc comment says it is
+"the only thing in the project that can tell you whether any of it is true", and
+CLAUDE.md's honesty rules lean on exactly that. Three implementations means at
+most one is being maintained.
+
+**Decide per package: wire it up, or delete it.** CLAUDE.md already says dead code
+is not kept — git remembers. What must not continue is all three sitting in the
+tree looking like architecture.
+
+### Comments written against a document nobody has
+
+**29 files cite a plan milestone in their doc comment** — `P4`, `P6`, `(6.19)`,
+`10.7`, `12.9`, `(6.25)`. Renaming `panels6c.go` does not help if its replacement
+still opens with "Configuration and the experiment log (6.17, 6.14)". A milestone
+reference is worse than no reference, because it looks like one.
+
+**54 files of 150 lines or more open with no doc comment at all**, including
+`gui/comp/mapchrome.go` (481), `session/gpuwarm.go` (474), `scenario/boards.go`
+(459) and `mcp/tools.go` (457). CLAUDE.md asks comments to explain *why*; these
+say nothing.
+
+Neither is a layout problem, and neither blocks the moves. Both are exactly the
+sort of thing that never gets its own ticket, so fold them into the rename
+commits: when a file is touched, fix its comment.
 
 ---
 
@@ -323,18 +454,23 @@ moves happen before the refactors that need thought.
 | # | Step | Effort | Risk |
 |---|---|---|---|
 | 0 | Deletions and hygiene (§6) | minutes | none |
-| 1 | Workbench filename renames (§5) | hours | none |
+| 1 | The 33 renames (§5), fixing each file's doc comment as it is touched | 1 day | none — `git mv` plus splits at type boundaries |
 | 2 | Split `coverage` → `rf/propagation` + `study/coverage`; move `Terrain` down | half a day | low — file-aligned |
 | 3 | Split `capture` → `mesh/packet` + `sim/capture` | half a day | low — zero shared symbols |
 | 4 | Move all packages into the seven layers; update ldflags and CI shards | 1 day | low, very wide diff |
 | 5 | Add the layer-enforcement test (§4) | hours | none — locks in 0–4 |
-| 6 | `gui/comp` → `ui/comp` + `ui/mapview` | half a day | low |
-| 7 | `ui/workbench/panel`, then `packetview` as pilot | 2–3 days | medium |
-| 8 | `app/session` decomposition, starting with `analysis` | week+ | high — wants an ADR |
+| 6 | Decide `replay` / `validate` / `mqttclient`: wire or delete (§5b) | half a day | **needs a decision, not a refactor** |
+| 7 | `gui/comp` → `ui/comp` + `ui/mapview` | half a day | low |
+| 8 | `ui/workbench/panel`, then `packetview` as pilot | 2–3 days | medium |
+| 9 | `app/session` decomposition, starting with `analysis` | week+ | high — wants an ADR |
 
 Steps 2–5 are the spine: they are what makes the tree navigable *and* keep it
 that way. Do 0 and 1 first because they are free, then 2 and 3 because
 everything else depends on them.
+
+Step 6 is the only one that is not mine to decide. Three packages and 1,343
+lines are either load-bearing or dead, and nobody can tell which by looking —
+which is why it belongs in a layout plan at all.
 
 Step 4 is a very large diff touching almost every import line. Keep it in its
 own commit with no logic changes — a wide boring diff reviews easily; mixed with
@@ -352,6 +488,8 @@ The existing rules are all about size, and none of these were size problems.
 | Filename | says what the file holds — never a plan phase, never a `2`/`b`/`c` suffix |
 | Panel & widget files | one type per file, named after the type |
 | Package scope | one job — if two halves share no symbol, they are two packages |
+| Doc comment | required above 150 lines, and never cites a plan phase or ticket number |
+| Unreferenced package | wire it or delete it — never leave it looking like architecture |
 | Duplicated asset | none — one copy, and the code points at it |
 | Build artifacts | never tracked |
 

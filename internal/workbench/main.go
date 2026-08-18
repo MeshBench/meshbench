@@ -66,6 +66,7 @@ func Run(args []string) {
 		"scope the Licences panel to one section: forks, bundled, golibs, runtime, data")
 	dropFlag := flag.String("drop-menu", "", "open this menu's dropdown at startup, so it can be captured")
 	layersFlag := flag.String("layers", "", "switch these map layers on at startup, comma separated")
+	lookFlag := flag.String("look", "", "start the camera at lat,lon,zoom - a capture cannot drag the map")
 	packetTabFlag := flag.Int("packet-tab", 0,
 		"which tab the packet window opens on: 0 dissection, 1 journey "+
 			"(the propagation graph), 2 reception ledger, 3 where it went")
@@ -250,6 +251,9 @@ func Run(args []string) {
 	}
 
 	mv := &comp.MapView{}
+	// The buildings layer reads straight from the loaded environment: a
+	// city of polygons has no business in the world snapshot.
+	mv.BuildingsIn = sm.BuildingsIn
 	wbUI := &workbenchUI{sh: sh, sim: sm, mv: mv, nodes: newNodeWindows(), store: st}
 	callbacks{
 		wbUI: wbUI, mv: mv, st: st, ctx: ctx, sm: sm, openPacket: openPacket,
@@ -260,7 +264,7 @@ func Run(args []string) {
 		st: st, ctx: ctx, mv: mv, sh: sh,
 		energyFlag: energyFlag, saveRunFlag: saveRunFlag, importFlag: importFlag,
 		planFlag: planFlag, captureFlag: captureFlag, coverFlag: coverFlag,
-		layersFlag: layersFlag, sweepFlag: sweepFlag, shadeFlag: shadeFlag,
+		layersFlag: layersFlag, lookFlag: lookFlag, sweepFlag: sweepFlag, shadeFlag: shadeFlag,
 	}.run()
 
 	nodes := &nodesPanel{}
@@ -382,7 +386,14 @@ func Run(args []string) {
 
 	menuBar{sh: sh, sets: sets, cfg: cfg, dropFlag: dropFlag,
 		st: st, ctx: ctx, nodes: nodes,
-		chooser: chooser, menuFlag: menuFlag}.build()
+		chooser: chooser, menuFlag: menuFlag,
+		onShown: func(action string) {
+			// The whole-map raster exists to be looked at; computing it
+			// behind a switched-off layer was a click that did nothing.
+			if action == "coverage.map" {
+				mv.Layers.Coverage = true
+			}
+		}}.build()
 
 	// -menu fires one at startup, so what it opens can be captured.
 	if *menuFlag != "" {

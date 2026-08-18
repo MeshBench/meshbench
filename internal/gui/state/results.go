@@ -99,6 +99,15 @@ type SDRSource struct {
 	Attached bool
 }
 
+// BuildingPoly is one footprint the map can draw: the outer ring in
+// lat/lon and the material that decides its colour. Data only - the
+// session produces it, the toolkit consumes it, and neither imports the
+// other's world.
+type BuildingPoly struct {
+	Ring     [][2]float64
+	Material string
+}
+
 // Route is one way to connect two points, from the planner.
 type Route struct {
 	NewSites     int

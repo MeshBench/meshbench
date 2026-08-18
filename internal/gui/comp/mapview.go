@@ -78,6 +78,11 @@ type MapView struct {
 	// Layers is what is drawn. Exported so a window, a menu or a script can
 	// set it without reaching through the map.
 	Layers Layers
+	// BuildingsIn returns the footprints inside a lat/lon box, or nil when
+	// no environment is loaded. Wired by the workbench so the map itself
+	// stays data-blind.
+	BuildingsIn func(south, west, north, east float64) []state.BuildingPoly
+	bldCache    buildingsCache
 
 	// OnSelect is called when the pointer changes the selection. Additive is
 	// a shift-click or a shift-drag, which adds rather than replaces.
@@ -180,6 +185,9 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 	// sits on, and drawn over the links it would hide what it explains.
 	if m.Layers.Coverage {
 		m.drawCoverage(t, gtx, sz, s)
+	}
+	if m.Layers.Buildings {
+		m.drawBuildings(t, gtx, sz)
 	}
 
 	// The study boundaries, under the network.

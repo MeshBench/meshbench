@@ -381,6 +381,15 @@ func (m *MapView) unproject(at f32.Point, sz image.Point) (lat, lon float64) {
 }
 
 // CentreOn puts a position in the middle of the view without changing zoom.
+// StartAt pins the camera before the first frame - the capture flags' way
+// in, since the first frame otherwise fits the whole network over whatever
+// the flags asked for.
+func (m *MapView) StartAt(lat, lon, zoom float64) {
+	m.CentreLat, m.CentreLon = lat, lon
+	m.Zoom, m.zoomTarget = zoom, zoom
+	m.initialised, m.FitNext = true, false
+}
+
 func (m *MapView) CentreOn(lat, lon float64) {
 	m.CentreLat, m.CentreLon = lat, lon
 	m.clampCentre()
