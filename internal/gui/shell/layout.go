@@ -274,15 +274,21 @@ func (sh *Shell) viewBar(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 					lbl := comp.Mono(t, t.Sz.Caption, fg, label)(gtx)
 					call := macro.Stop()
 					pad := gtx.Dp(t.Sp.S)
-					size := image.Pt(lbl.Size.X+2*pad, lbl.Size.Y+gtx.Dp(4))
+					// The pill hugs the glyphs, not the line box: the box
+					// carries its slack under the baseline, and sizing or
+					// centring by it hung the text high in a too-tall pill.
+					// Capital height is ~0.72 of the point size; the pill is
+					// that plus padding, and the label is placed so its
+					// baseline - the one measurement the text reports - sits
+					// where the glyphs come out visually centred.
+					capPx := int(0.72 * float32(gtx.Sp(t.Sz.Caption)))
+					size := image.Pt(lbl.Size.X+2*pad, capPx+2*gtx.Dp(4))
 					r := unit.Dp(float32(size.Y) / gtx.Metric.PxPerDp / 2)
 					comp.RoundRect(gtx, size, r, fill)
 					comp.Border(gtx, size, r, 1, theme.Alpha(fg, 0.35))
-					// Optically centred: the label's line box carries its
-					// slack above the glyphs, so true-centre reads low. A
-					// pixel of lift puts the glyphs, not the box, in the
-					// middle - checked against a screenshot, not a formula.
-					off := op.Offset(image.Pt((size.X-lbl.Size.X)/2, (size.Y-lbl.Size.Y)/2-gtx.Dp(1))).Push(gtx.Ops)
+					baseInBox := lbl.Size.Y - lbl.Baseline
+					offY := size.Y/2 + capPx/2 - baseInBox
+					off := op.Offset(image.Pt((size.X-lbl.Size.X)/2, offY)).Push(gtx.Ops)
 					call.Add(gtx.Ops)
 					off.Pop()
 					return layout.Dimensions{Size: size}
