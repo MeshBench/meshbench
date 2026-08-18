@@ -219,3 +219,39 @@ func TestWaveformCADTracksTheAir(t *testing.T) {
 		t.Fatal("the channel stayed busy after the air cleared")
 	}
 }
+
+// An observer's stream is the RF world, not the event log: it carries signal
+// while a transmission overlaps its span, noise otherwise - and moving the
+// observer changes what it hears, because position prices the path.
+func TestObserverSpanHearsTheAirAndMovesWithTheNode(t *testing.T) {
+	e := engine.New(flat{100}, engine.Config{StepMs: 10, Seed: 3, RFMode: engine.RFWaveform})
+	e.Add(wfNode("tx", 0, 22), nil)
+	obs := wfNode("obs", 0.010, 22)
+	obs.Kind = scenario.SDRObserver
+	e.Add(obs, nil)
+	if err := e.Run(context.Background(), 10); err != nil {
+		t.Fatal(err)
+	}
+
+	power := func(iq []complex128) float64 {
+		var p float64
+		for _, v := range iq {
+			p += real(v)*real(v) + imag(v)*imag(v)
+		}
+		return p / float64(len(iq))
+	}
+
+	quiet := power(e.ObserveSpan(1, 10, 8192))
+	e.InjectFrame(0, make([]byte, 80))
+	loud := power(e.ObserveSpan(1, 60, 8192))
+	if loud < quiet*10 {
+		t.Fatalf("a transmission in the span did not raise the stream's power: quiet %g loud %g", quiet, loud)
+	}
+
+	// Walk the observer 60 km away mid-stream: the same span must go quiet.
+	e.SetNodePosition(1, 56.7, -3.9+1.0)
+	far := power(e.ObserveSpan(1, 60, 8192))
+	if far > loud/1000 {
+		t.Fatalf("moving the observer away did not change what it hears: near %g far %g", loud, far)
+	}
+}

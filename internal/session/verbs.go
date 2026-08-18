@@ -43,6 +43,7 @@ func Register(st *state.Store, s *Sim) {
 	registerCompanion(st, s)
 	registerMeshCLI(st, s)
 	registerRFMode(st, s)
+	registerSDRServe(st, s)
 	registerProvisioningSettings(st, s)
 	registerRadioReconcile(st, s)
 	registerExperiment(st, s)
@@ -288,6 +289,12 @@ func Register(st *state.Store, s *Sim) {
 		for i := range w.Nodes {
 			if w.Nodes[i].Name == name {
 				w.Nodes[i].Lat, w.Nodes[i].Lon = lat, lon
+				// The physics moves with the marker: cached losses for this
+				// node are forgotten, so an attached SDR client hears the
+				// new position on the next window.
+				if s.eng != nil {
+					s.eng.SetNodePosition(i, lat, lon)
+				}
 				return map[string]any{"name": name, "lat": lat, "lon": lon}, nil
 			}
 		}

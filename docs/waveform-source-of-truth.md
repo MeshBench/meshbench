@@ -216,20 +216,24 @@ verdict migration so it is never on the critical path of "is this feasible".
 The observer is a node. `scenario.SDRObserver` already exists and places
 like any other node — this phase makes what it hears real and external.
 
-- [ ] place and move an observer anywhere on the map, exactly like any
+- [x] place and move an observer anywhere on the map, exactly like any
       node: position, height, antenna; multiple observers, each independent
-- [ ] observer config: centre frequency, sample rate, gain — the fields
+- [x] observer config: centre frequency, sample rate, gain — the fields
       rtl_tcp negotiates
-- [ ] continuous windowed synthesis for observers from the same shared
+- [x] continuous windowed synthesis for observers from the same shared
       helper the verdicts use — never from packet events or metadata
-- [ ] rtl_tcp server per observer: header, command handling (frequency,
+- [x] rtl_tcp server per observer: header, command handling (frequency,
       sample rate, gain), interleaved uint8 IQ; 8-bit ceiling documented
-- [ ] moving the observer while a client is attached changes the stream
+- [x] moving the observer while a client is attached changes the stream
       live — the "walking an SDR around the simulated world" experience
 - [ ] acceptance, from the source plan verbatim: SDR++ connects and shows
       simulated transmissions in its waterfall; simultaneous transmissions
       overlap; collisions look like collisions; terrain changes change the
-      RF; zero packet metadata anywhere in the path
+      RF; zero packet metadata anywhere in the path *(the protocol handshake,
+      streaming, tuning commands and move-changes-IQ are all held by tests;
+      the SDR++-in-front-of-a-human check is on the manual list: run
+      sdr.serve on an observer, connect SDR++'s rtl_tcp source to the
+      address it prints, set the client sample rate to the printed rate)*
 
 **Gate:** open SDR++ and watch the same RF that made a node miss a packet.
 

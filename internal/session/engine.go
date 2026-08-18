@@ -23,6 +23,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/gui/state"
 	"github.com/MeshBench/meshbench/internal/linkbudget"
 	"github.com/MeshBench/meshbench/internal/scenario"
+	"github.com/MeshBench/meshbench/internal/sdr"
 	"github.com/MeshBench/meshbench/internal/terrain"
 )
 
@@ -58,6 +59,8 @@ type Sim struct {
 	// rfMode is which physics decides reception - "" or "calculated" for the
 	// fast model, "waveform" for demodulator verdicts. See rfmode.go.
 	rfMode string
+	// sdrServers is every node currently exposed as an rtl_tcp source.
+	sdrServers map[string]*sdr.RTLTCP
 	// gpuWarm is whether the link matrix is measured on the GPU when one can
 	// answer to the same accuracy. Off by default: it reads a rasterised
 	// height grid rather than the DEM, which is the same answer on a county
