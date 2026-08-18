@@ -197,7 +197,30 @@ func registerMeshCLI(st *state.Store, s *Sim) {
 		if node == "" || line == "" {
 			return nil, fmt.Errorf("console.cli needs a node and a command")
 		}
+		// The transcript this console draws. Through the session's rolling
+		// note buffer when one exists; straight into the world when none does
+		// yet, because help and a failed connect must still show up where
+		// they were typed - the box says "? for the list", and a ? that
+		// prints nothing reads as a command line that is broken.
+		say := func(lines ...string) {
+			if sess := s.comps[node]; sess != nil {
+				for _, l := range lines {
+					sess.note(l)
+				}
+				w.Console, w.ConsoleNode = sess.Lines(), node
+				return
+			}
+			if w.ConsoleNode != node {
+				w.Console = nil
+			}
+			w.Console = append(w.Console, lines...)
+			w.ConsoleNode = node
+		}
+		// Help is local knowledge, so it answers whether or not anything is
+		// connected - asking what the commands are must not boot a node.
 		if line == "?" || line == "help" {
+			say("> " + line)
+			say(strings.Split(meshcliHelp(), "\n")...)
 			return map[string]any{"node": node, "reply": meshcliHelp()}, nil
 		}
 		// Giving the port back is not a meshcore-cli command - a real client
@@ -218,26 +241,20 @@ func registerMeshCLI(st *state.Store, s *Sim) {
 		head, args := fields[0], fields[1:]
 
 		// Connect on first use: a command line that makes you connect first
-		// is one more step than the tool it is imitating has.
+		// is one more step than the tool it is imitating has. A connect that
+		// fails answers in the console like everything else - it used to be
+		// returned as an error, which went to the status bar and left the
+		// console with no echo and no explanation at all.
 		if _, ok := s.comps[node]; !ok {
 			if err := s.connectCompanion(node); err != nil {
-				return nil, err
+				say("> "+line, err.Error())
+				return map[string]any{"node": node, "reply": err.Error(), "failed": true}, nil
 			}
 		}
 		// The echo goes in before the command runs, not after it succeeds.
 		// Echoing on the way out meant a failing command left no trace of
 		// itself at all: no echo, no error, and an empty console where it was
 		// typed.
-		sess := s.comps[node]
-		say := func(lines ...string) {
-			if sess == nil {
-				return
-			}
-			for _, l := range lines {
-				sess.note(l)
-			}
-			w.Console, w.ConsoleNode = sess.Lines(), node
-		}
 		say("> " + line)
 
 		for _, c := range meshcliCommands {

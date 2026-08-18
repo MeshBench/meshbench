@@ -119,12 +119,74 @@ func TestTheCLIRefusesAServedPort(t *testing.T) {
 
 	delete(s.comps, "Alpha")
 	s.served = map[string]*engine.CompanionLink{"Alpha": {Node: "Alpha", Kind: "tcp", Addr: "127.0.0.1:1"}}
-	_, err := st.Do(ctx, "console.cli",
+	res, err := st.Do(ctx, "console.cli",
 		map[string]any{"node": "Alpha", "command": "infos"})
-	if err == nil {
+	if err != nil {
+		t.Fatalf("a refusal must answer in the console, not fail the verb: %v", err)
+	}
+	m, _ := res.(map[string]any)
+	if m["failed"] != true {
 		t.Fatal("a CLI command took a served port instead of being refused")
 	}
-	if !strings.Contains(err.Error(), "served") {
-		t.Errorf("the refusal should say the port is served, got %q", err)
+	if _, connected := s.comps["Alpha"]; connected {
+		t.Fatal("the refused command claimed the port anyway")
+	}
+	if !strings.Contains(strings.Join(st.Snapshot().Console, "\n"), "served") {
+		t.Errorf("the refusal should say the port is served, in the console")
+	}
+}
+
+// The box says "? for the list", so ? must print the list - in the console,
+// connected or not. It used to return the help only in the verb result,
+// which the GUI discards: the advertised command produced nothing at all,
+// not even its own echo.
+func TestHelpAnswersInTheConsole(t *testing.T) {
+	st, s, ctx, cancel := cliSim(t)
+	defer cancel()
+
+	// The stronger case: nothing connected yet. Help is local knowledge and
+	// must not need a session to show up.
+	delete(s.comps, "Alpha")
+	if _, err := st.Do(ctx, "console.cli",
+		map[string]any{"node": "Alpha", "command": "?"}); err != nil {
+		t.Fatalf("console.cli ?: %v", err)
+	}
+	snap := st.Snapshot()
+	if snap.ConsoleNode != "Alpha" {
+		t.Fatalf("console is showing %q, want Alpha", snap.ConsoleNode)
+	}
+	joined := strings.Join(snap.Console, "\n")
+	if !strings.Contains(joined, "> ?") {
+		t.Errorf("? was not echoed:\n%s", joined)
+	}
+	if !strings.Contains(joined, "infos") || !strings.Contains(joined, "sync_msgs") {
+		t.Errorf("the command list did not reach the console:\n%s", joined)
+	}
+}
+
+// A connect that fails on first use must say so in the console it was typed
+// into. It used to be returned as a verb error, which went to the status bar
+// and left the console with no echo and no explanation.
+func TestAFailedConnectAnswersInTheConsole(t *testing.T) {
+	st, s, ctx, cancel := cliSim(t)
+	defer cancel()
+
+	// No session and no firmware attached, so connect-on-first-use fails.
+	delete(s.comps, "Alpha")
+	res, err := st.Do(ctx, "console.cli",
+		map[string]any{"node": "Alpha", "command": "infos"})
+	if err != nil {
+		t.Fatalf("a failing connect must not fail the verb: %v", err)
+	}
+	m, _ := res.(map[string]any)
+	if m["failed"] != true {
+		t.Errorf("the reply does not mark the command as failed: %+v", m)
+	}
+	joined := strings.Join(st.Snapshot().Console, "\n")
+	if !strings.Contains(joined, "> infos") {
+		t.Errorf("the command was not echoed:\n%s", joined)
+	}
+	if !strings.Contains(joined, "no firmware") {
+		t.Errorf("the failure's reason is not in the console:\n%s", joined)
 	}
 }
