@@ -61,6 +61,8 @@ type Sim struct {
 	rfMode string
 	// sdrServers is every node currently exposed as an rtl_tcp source.
 	sdrServers map[string]*sdr.RTLTCP
+	// realism is the RF Simulation imperfection switches. See rfmode.go.
+	realism state.RFRealism
 	// gpuWarm is whether the link matrix is measured on the GPU when one can
 	// answer to the same accuracy. Off by default: it reads a rasterised
 	// height grid rather than the DEM, which is the same answer on a county
@@ -277,6 +279,7 @@ func (s *Sim) buildSeeded(nodes []scenario.Node, freqMHz float64, seed uint64) {
 		NoiseFigDB: 6, StepMs: 10, Seed: seed,
 		ExcessPathLossDB: s.excessLossDB,
 		RFMode:           rfModeOf(s.rfMode),
+		Realism:          engineRealism(s.realism),
 	})
 	for _, n := range nodes {
 		s.eng.Add(n, nil)

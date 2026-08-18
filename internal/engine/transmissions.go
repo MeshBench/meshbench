@@ -71,10 +71,7 @@ func (e *Engine) completeTransmissions(now uint32) error {
 	e.mu.Lock()
 	mode := e.Config.rfMode()
 	e.mu.Unlock()
-	var cache modCache
-	if mode == RFWaveform {
-		cache = modCache{}
-	}
+	cache := modCache{}
 	for i, t := range done {
 		if fw := senders[i].Firmware; fw != nil {
 			if err := fw.Bridge.TransmitFinished(); err != nil {
@@ -87,7 +84,7 @@ func (e *Engine) completeTransmissions(now uint32) error {
 			}
 			continue
 		}
-		if err := e.deliver(t, concurrent); err != nil {
+		if err := e.deliver(t, concurrent, cache); err != nil {
 			return err
 		}
 	}
@@ -96,7 +93,7 @@ func (e *Engine) completeTransmissions(now uint32) error {
 
 // deliver works out who heard a finished transmission, and records why not for
 // everyone who did not.
-func (e *Engine) deliver(t transmission, concurrent []transmission) error {
+func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCache) error {
 	e.mu.Lock()
 	nodes := make([]*Node, len(e.nodes))
 	copy(nodes, e.nodes)
@@ -127,6 +124,14 @@ func (e *Engine) deliver(t transmission, concurrent []transmission) error {
 		rxPHY := e.phyOf(dst.Spec)
 		if dst.Spec.Kind != scenario.SDRObserver && !txPHY.sameChannel(rxPHY) {
 			continue
+		}
+		// The hybrid: a receiver flagged TrueRF gets the waveform judge even
+		// in a calculated run - a big mesh priced fast, full fidelity where
+		// somebody asked for it. Same gates first, same ledger after.
+		if dst.Spec.TrueRF {
+			if e.judgeHybrid(t, i, concurrent, nodes, txPHY, cache) {
+				continue
+			}
 		}
 		noiseDBm := dsp.NoiseFloorDBm(txPHY.bandwidthHz, e.noiseFigOf(dst.Spec))
 		// The emitter fleet's contribution, through the same terrain. This is

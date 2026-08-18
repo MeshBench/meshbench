@@ -44,6 +44,7 @@ func Register(st *state.Store, s *Sim) {
 	registerMeshCLI(st, s)
 	registerRFMode(st, s)
 	registerSDRServe(st, s)
+	registerRFRealism(st, s)
 	registerProvisioningSettings(st, s)
 	registerRadioReconcile(st, s)
 	registerExperiment(st, s)
@@ -164,6 +165,7 @@ func Register(st *state.Store, s *Sim) {
 			s.refreshOpenPacket(w)
 			s.refreshCompanions(w)
 			w.RFMode = string(rfModeOf(s.rfMode))
+			w.RFRealism = s.realism
 			w.Events, w.EventTotal = s.eventTail(eventTail)
 			w.Counts = s.eventCounts()
 			w.Scores = s.scores()

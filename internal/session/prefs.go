@@ -34,6 +34,13 @@ type Prefs struct {
 	// "waveform". A machine-level choice like the GPU switch: the operator
 	// picked a physics, and the pick survives a restart.
 	RFMode string `json:"rf_mode,omitempty"`
+	// Realism is the RF Simulation section's imperfection switches, kept
+	// with the mode for the same reason.
+	OscPPM        float64 `json:"osc_ppm,omitempty"`
+	MultipathDB   float64 `json:"multipath_db,omitempty"`
+	FadingHz      float64 `json:"fading_hz,omitempty"`
+	ImplLossDB    float64 `json:"impl_loss_db,omitempty"`
+	SaturationDBm float64 `json:"saturation_dbm,omitempty"`
 }
 
 // prefsPath is ~/.config/meshcoresim/workbench2.json, or empty when the
@@ -77,6 +84,10 @@ func (s *Sim) LoadPrefs() {
 	}
 	if p.RFMode == "waveform" {
 		s.rfMode = "waveform"
+	}
+	s.realism = state.RFRealism{
+		OscPPM: p.OscPPM, MultipathDB: p.MultipathDB, FadingHz: p.FadingHz,
+		ImplLossDB: p.ImplLossDB, SaturationDBm: p.SaturationDBm,
 	}
 }
 

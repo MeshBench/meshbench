@@ -212,6 +212,44 @@ func (p *configPanel) rfSimulation(t *theme.Theme, s *state.Snapshot) []layout.W
 				layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint, verdictNote)),
 			)
 		}),
+		comp.Card(t, "Imperfections", func(gtx layout.Context) layout.Dimensions {
+			r := s.RFRealism
+			rows := []layout.Widget{
+				p.fieldRow(t, &p.oscPPM, nil, fmt.Sprintf(
+					"now %s ppm - each node gets a deterministic crystal error in "+
+						"that range, and the receiver's CFO estimator has to earn it",
+					trim0(r.OscPPM))),
+				p.fieldRow(t, &p.multipathDB, nil, fmt.Sprintf(
+					"now %s dB - one geometric echo per path; fading emerges from "+
+						"its phase, not from a dice roll", trim0(r.MultipathDB))),
+				p.fieldRow(t, &p.fadingHz, nil, fmt.Sprintf(
+					"now %s Hz - how fast the cancellation pattern breathes",
+					trim0(r.FadingHz))),
+				p.fieldRow(t, &p.implLoss, nil, fmt.Sprintf(
+					"now %s dB - the receiver's shortfall from theory, as extra noise",
+					trim0(r.ImplLossDB))),
+				p.fieldRow(t, &p.satDBm, nil, fmt.Sprintf(
+					"now %s dBm - the front end clips above this", trim0(r.SaturationDBm))),
+				func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{}.Layout(gtx,
+						layout.Flexed(1, comp.Text(t, t.Sz.Caption, t.P.Faint,
+							"all zero is the kind default; every value here is stamped "+
+								"into results. Empty boxes leave a knob where it is.")),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return p.setRealism.Layout(t, gtx)
+						}),
+					)
+				},
+			}
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				func() []layout.FlexChild {
+					kids := make([]layout.FlexChild, len(rows))
+					for i, r := range rows {
+						kids[i] = layout.Rigid(r)
+					}
+					return kids
+				}()...)
+		}),
 		comp.Card(t, "Shared physics", comp.Text(t, t.Sz.Caption, t.P.Faint,
 			"both modes price the path identically - terrain, budgets, antennas, "+
 				"timing, seed - so the same scenario runs under either, and the "+
@@ -428,6 +466,11 @@ func (p *configPanel) fieldRow(t *theme.Theme, f *comp.Field, b *comp.Button, wh
 							})
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						// Nil means the row shares a button with its
+						// neighbours - the realism knobs apply as one.
+						if b == nil {
+							return layout.Dimensions{}
+						}
 						return layout.Inset{Left: t.Sp.S, Bottom: t.Sp.XXS}.Layout(gtx,
 							func(gtx layout.Context) layout.Dimensions {
 								return b.Layout(t, gtx)

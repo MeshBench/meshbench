@@ -49,6 +49,12 @@ type configPanel struct {
 	excess      comp.Field
 	setExcess   comp.Button
 	rfModeDD    comp.Dropdown
+	oscPPM      comp.Field
+	multipathDB comp.Field
+	fadingHz    comp.Field
+	implLoss    comp.Field
+	satDBm      comp.Field
+	setRealism  comp.Button
 	device      comp.Dropdown
 	cacheDD     comp.Dropdown
 	themeDD     comp.Dropdown
@@ -92,6 +98,15 @@ func (p *configPanel) build() {
 	p.excess.Hint, p.excess.Label, p.excess.Suffix = "dB", "Excess path loss", "dB"
 	p.setExcess.Label, p.setExcess.Kind = "set loss", comp.Secondary
 	p.rfModeDD.Label = "RF mode"
+	p.oscPPM.Hint, p.oscPPM.Label, p.oscPPM.Suffix = "0 is perfect", "Oscillator error", "ppm"
+	p.multipathDB.Hint, p.multipathDB.Label, p.multipathDB.Suffix = "0 is off", "Multipath echo", "dB down"
+	p.fadingHz.Hint, p.fadingHz.Label, p.fadingHz.Suffix = "0 is static", "Fading rate", "Hz"
+	p.implLoss.Hint, p.implLoss.Label, p.implLoss.Suffix = "0 is ideal", "Implementation loss", "dB"
+	p.satDBm.Hint, p.satDBm.Label, p.satDBm.Suffix = "0 is unmodelled", "Front-end saturation", "dBm"
+	for _, f := range []*comp.Field{&p.oscPPM, &p.multipathDB, &p.fadingHz, &p.implLoss, &p.satDBm} {
+		f.Editor.SingleLine = true
+	}
+	p.setRealism.Label, p.setRealism.Kind = "apply realism", comp.Secondary
 	p.device.Label = "Graphics device"
 	p.cacheDD.Label = "Tile cache"
 	p.themeDD.Label = "Theme"
@@ -190,6 +205,27 @@ func (p *configPanel) update(gtx layout.Context, s *state.Snapshot) {
 		}
 		n.field.Error = ""
 		p.do(n.verb, map[string]any{n.key: v})
+	}
+	// The realism switches travel as one apply: empty boxes leave a knob
+	// where it is, so one change does not restate the rest.
+	if p.setRealism.Click.Clicked(gtx) && p.do != nil {
+		params := map[string]any{}
+		for _, f := range []struct {
+			field *comp.Field
+			key   string
+		}{
+			{&p.oscPPM, "osc_ppm"}, {&p.multipathDB, "multipath_db"},
+			{&p.fadingHz, "fading_hz"}, {&p.implLoss, "impl_loss_db"},
+			{&p.satDBm, "saturation_dbm"},
+		} {
+			if v, err := strconv.ParseFloat(strings.TrimSpace(fieldText(f.field)), 64); err == nil {
+				params[f.key] = v
+			}
+		}
+		// Fired even with every box empty: an apply that changes nothing is
+		// a no-op at the session, and a button that sometimes reaches no
+		// verb is what the control audit exists to refuse.
+		p.do("rf.realism", params)
 	}
 	// A directory is a thing to point at, not a path to remember and type.
 	if p.browseCache.Click.Clicked(gtx) && shell.Browse != nil {
@@ -432,6 +468,11 @@ func (p *configPanel) auditDraw(t *theme.Theme, gtx layout.Context, s *state.Sna
 		p.fieldRow(t, &p.speed, &p.setSpeed, ""),
 		p.fieldRow(t, &p.margin, &p.setMargin, ""),
 		p.fieldRow(t, &p.excess, &p.setExcess, ""),
+		p.fieldRow(t, &p.oscPPM, &p.setRealism, ""),
+		p.fieldRow(t, &p.multipathDB, nil, ""),
+		p.fieldRow(t, &p.fadingHz, nil, ""),
+		p.fieldRow(t, &p.implLoss, nil, ""),
+		p.fieldRow(t, &p.satDBm, nil, ""),
 		p.fieldRow(t, &p.cacheGBf, &p.setCache, ""),
 		p.fieldRow(t, &p.cacheDir, &p.moveCache, ""),
 		func(gtx layout.Context) layout.Dimensions { return p.recomp.Layout(t, gtx) },
@@ -444,14 +485,29 @@ func (p *configPanel) auditDraw(t *theme.Theme, gtx layout.Context, s *state.Sna
 		func(gtx layout.Context) layout.Dimensions { return p.themeDD.Layout(t, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.densityDD.Layout(t, gtx) },
 	}
-	var kids []layout.FlexChild
-	for _, r := range rows {
-		r := r
-		kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx, r)
-		}))
+	// Two columns, because the flat list has outgrown the audit's reach: a
+	// control below the pointer sweep reads as unreachable, and it would be
+	// the audit that was wrong.
+	col := func(rows []layout.Widget) layout.Widget {
+		return func(gtx layout.Context) layout.Dimensions {
+			var kids []layout.FlexChild
+			for _, r := range rows {
+				r := r
+				kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx, r)
+				}))
+			}
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, kids...)
+		}
 	}
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, kids...)
+	half := (len(rows) + 1) / 2
+	left, right := col(rows[:half]), col(rows[half:])
+	return layout.Flex{}.Layout(gtx,
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Right: t.Sp.M}.Layout(gtx, left)
+		}),
+		layout.Flexed(1, right),
+	)
 }
 
 // logPanel is what has happened in this session, newest last (6.14).

@@ -137,6 +137,9 @@ type Snapshot struct {
 	Companions []Companion
 	// RFMode is which physics decides reception: "calculated" or "waveform".
 	RFMode string
+	// RFRealism is the optional-imperfections switch set, all zero for the
+	// kind default.
+	RFRealism RFRealism
 	// FleetReplies is what each node said to the last fleet command. A
 	// command sent to forty nodes with no reply shown is indistinguishable
 	// from one that went nowhere.
@@ -181,4 +184,14 @@ type EventCounts struct {
 // Total is every event the run has produced.
 func (c EventCounts) Total() int {
 	return c.Sent + c.Received + c.HalfDuplex + c.Interference + c.Floor
+}
+
+// RFRealism mirrors the engine's realism switches for the RF Simulation
+// panel: every field zero means the kind simulator the docs describe.
+type RFRealism struct {
+	OscPPM        float64
+	MultipathDB   float64
+	FadingHz      float64
+	ImplLossDB    float64
+	SaturationDBm float64
 }

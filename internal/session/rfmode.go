@@ -51,3 +51,79 @@ func registerRFMode(st *state.Store, s *Sim) {
 		return map[string]any{"mode": mode}, nil
 	})
 }
+
+// engineRealism translates the panel's switch set to the engine's.
+func engineRealism(r state.RFRealism) engine.Realism {
+	return engine.Realism{
+		OscillatorPPM: r.OscPPM, MultipathEchoDB: r.MultipathDB,
+		FadingHz: r.FadingHz, ImplementationLossDB: r.ImplLossDB,
+		SaturationDBm: r.SaturationDBm,
+	}
+}
+
+func registerRFRealism(st *state.Store, s *Sim) {
+	// rf.realism: the imperfection switches, applied live and persisted.
+	// Absent fields are left alone, so one knob can move without restating
+	// the rest.
+	st.Handle("rf.realism", func(w *state.World, p any) (any, error) {
+		r := s.realism
+		if v, ok := numField(p, "osc_ppm"); ok {
+			r.OscPPM = v
+		}
+		if v, ok := numField(p, "multipath_db"); ok {
+			r.MultipathDB = v
+		}
+		if v, ok := numField(p, "fading_hz"); ok {
+			r.FadingHz = v
+		}
+		if v, ok := numField(p, "impl_loss_db"); ok {
+			r.ImplLossDB = v
+		}
+		if v, ok := numField(p, "saturation_dbm"); ok {
+			r.SaturationDBm = v
+		}
+		s.realism = r
+		if s.eng != nil {
+			s.eng.SetRealism(engineRealism(r))
+		}
+		w.RFRealism = r
+		s.prefs.OscPPM, s.prefs.MultipathDB, s.prefs.FadingHz = r.OscPPM, r.MultipathDB, r.FadingHz
+		s.prefs.ImplLossDB, s.prefs.SaturationDBm = r.ImplLossDB, r.SaturationDBm
+		s.savePrefs()
+		w.Say("RF realism updated - the switches are stamped into every result")
+		return map[string]any{"realism": r}, nil
+	})
+
+	// node.truerf: the hybrid flag - waveform verdicts at one receiver
+	// inside a calculated run.
+	st.Handle("node.truerf", func(w *state.World, p any) (any, error) {
+		name, _ := stringField(p, "node")
+		on, _ := boolField(p, "on")
+		found := false
+		for i := range s.nodes {
+			if s.nodes[i].Name == name {
+				s.nodes[i].TrueRF = on
+				found = true
+			}
+		}
+		if !found {
+			return nil, fmt.Errorf("no node named %q", name)
+		}
+		if s.eng != nil {
+			if en, ok := s.eng.NodeByName(name); ok {
+				en.Spec.TrueRF = on
+			}
+		}
+		for i := range w.Nodes {
+			if w.Nodes[i].Name == name {
+				w.Nodes[i].TrueRF = on
+			}
+		}
+		if on {
+			w.Say(name + " now takes waveform verdicts, whatever the run mode")
+		} else {
+			w.Say(name + " is back on the run's own RF mode")
+		}
+		return map[string]any{"node": name, "true_rf": on}, nil
+	})
+}

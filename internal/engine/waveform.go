@@ -218,9 +218,15 @@ func (e *Engine) judgeWaveform(t transmission, c wfCandidate, concurrent []trans
 	cache modCache, seed uint64) wfResult {
 
 	window := len(txSamples)
-	txs := []rf.Transmission{{
+	wanted := rf.Transmission{
 		Node: nodes[t.from].Spec.Name, Samples: txSamples, GainDB: c.rxDBm,
-	}}
+		PhaseStepRad: e.phaseStepFor(nodes[t.from], nodes[c.i], txPHY),
+	}
+	txs := []rf.Transmission{wanted}
+	if echo, has := e.echoFor(wanted, nodes[t.from].Spec.Name,
+		nodes[c.i].Spec.Name, txPHY, t.startMs); has {
+		txs = append(txs, echo)
+	}
 	for _, other := range concurrent {
 		if other.packetID == t.packetID || other.from == c.i {
 			continue
@@ -231,12 +237,10 @@ func (e *Engine) judgeWaveform(t transmission, c wfCandidate, concurrent []trans
 		if !e.phyOf(nodes[other.from].Spec).sameChannel(txPHY) {
 			continue
 		}
-		if tx, ok := e.rxTransmission(other, c.i, t.startMs, nodes, cache); ok {
-			txs = append(txs, tx)
-		}
+		txs = append(txs, e.rxTransmissions(other, c.i, t.startMs, nodes, cache)...)
 	}
 
-	noiseLinear := math.Pow(10, c.noiseDBm/10)
+	noiseLinear := math.Pow(10, e.applyImplementationLoss(c.noiseDBm)/10)
 	observed := rf.Observe(txs, rf.Receiver{
 		NoisePowerLinear: noiseLinear,
 		Seed:             seed,
@@ -245,6 +249,7 @@ func (e *Engine) judgeWaveform(t transmission, c wfCandidate, concurrent []trans
 		Offset: t.packetID*0x9E3779B97F4A7C15 + uint64(c.i)<<32,
 	}, window)
 
+	e.saturate(observed)
 	res := wfResult{snrdB: rf.SNRdB(observed, noiseLinear)}
 	// The receiver front end is real: no lock, no packet. Detection, sync
 	// word timing and the SFD's STO/CFO split all run against the observed
@@ -426,3 +431,37 @@ func (e *Engine) cadCache(air []transmission) modCache {
 // ChannelBusyForTest exposes the carrier-sense vector, so a test can hold
 // the CAD path to the physics without a firmware process in the loop.
 func (e *Engine) ChannelBusyForTest(now uint32) []bool { return e.channelBusy(now) }
+
+// judgeHybrid runs the full waveform reception for one receiver inside a
+// calculated-mode delivery - the per-node True RF flag. Reports whether it
+// handled the receiver; the cheap gates that would have skipped it entirely
+// (terrain, deafness) fall through to the calculated path's own handling.
+func (e *Engine) judgeHybrid(t transmission, rxIdx int, concurrent []transmission,
+	nodes []*Node, txPHY phy, cache modCache) bool {
+	loss, ok := e.pathLoss(t.from, rxIdx)
+	if !ok {
+		return false
+	}
+	for _, other := range concurrent {
+		if other.from == rxIdx && other.startMs < t.endMs && other.endMs > t.startMs {
+			return false // deaf: the calculated path's report is already right
+		}
+	}
+	src := nodes[t.from]
+	rxDBm := src.Spec.TxPowerDBm + gain(src.Spec) - loss + gain(nodes[rxIdx].Spec)
+	noiseDBm := dsp.NoiseFloorDBm(txPHY.bandwidthHz, e.noiseFigOf(nodes[rxIdx].Spec))
+	if extra := e.emitterNoiseAt(rxIdx); !math.IsInf(extra, -1) {
+		noiseDBm = addDBm(noiseDBm, extra)
+	}
+	if rxDBm <= noiseDBm-30 {
+		return false // nothing recoverable; let the calculated path narrate
+	}
+	e.mu.Lock()
+	seed := e.Config.Seed
+	e.mu.Unlock()
+	txSamples := e.modulated(cache, t, txPHY)
+	c := wfCandidate{i: rxIdx, rxDBm: rxDBm, noiseDBm: noiseDBm}
+	r := e.judgeWaveform(t, c, concurrent, nodes, txPHY, txSamples, cache, seed)
+	e.settleWaveform(t, src, nodes[rxIdx], c, r, txPHY)
+	return true
+}

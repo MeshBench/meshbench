@@ -31,6 +31,10 @@ type Transmission struct {
 	// StartSample is when this transmission begins at the receiver, relative to
 	// the observation window. Non-zero is what makes collisions partial.
 	StartSample int
+	// PhaseStepRad rotates the signal by this much per sample: a carrier
+	// frequency offset as baseband sees it. An oscillator's ppm error, a
+	// Doppler shift, an adjacent channel - all of them are exactly this.
+	PhaseStepRad float64
 }
 
 // Receiver observes the channel over a window of samples.
@@ -69,8 +73,22 @@ func Observe(txs []Transmission, rx Receiver, windowSamples int) []complex128 {
 		if off+hi > windowSamples {
 			hi = windowSamples - off
 		}
+		if tx.PhaseStepRad == 0 {
+			for i := lo; i < hi; i++ {
+				out[off+i] += tx.Samples[i] * rot
+			}
+			continue
+		}
+		// A frequency offset is a rotation that never stops. Advanced from
+		// the transmission's own first sample so a window that catches the
+		// middle of a frame sees the phase the frame actually has there.
+		s, c := math.Sincos(tx.PhaseStepRad * float64(lo))
+		w := rot * complex(c, s)
+		sStep, cStep := math.Sincos(tx.PhaseStepRad)
+		step := complex(cStep, sStep)
 		for i := lo; i < hi; i++ {
-			out[off+i] += tx.Samples[i] * rot
+			out[off+i] += tx.Samples[i] * w
+			w *= step
 		}
 	}
 

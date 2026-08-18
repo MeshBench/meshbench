@@ -76,12 +76,31 @@ func (e *Engine) rxTransmission(t transmission, rxIdx int, anchorMs uint32,
 		return rf.Transmission{}, false
 	}
 	spms := txPHY.bandwidthHz / 1000
-	return rf.Transmission{
-		Node:        src.Spec.Name,
-		Samples:     e.modulated(cache, t, txPHY),
-		GainDB:      src.Spec.TxPowerDBm + gain(src.Spec) - loss + gain(nodes[rxIdx].Spec),
-		StartSample: int(float64(int64(t.startMs)-int64(anchorMs)) * spms),
-	}, true
+	tx := rf.Transmission{
+		Node:         src.Spec.Name,
+		Samples:      e.modulated(cache, t, txPHY),
+		GainDB:       src.Spec.TxPowerDBm + gain(src.Spec) - loss + gain(nodes[rxIdx].Spec),
+		StartSample:  int(float64(int64(t.startMs)-int64(anchorMs)) * spms),
+		PhaseStepRad: e.phaseStepFor(src, nodes[rxIdx], txPHY),
+	}
+	return tx, true
+}
+
+// rxTransmissions is rxTransmission plus whatever realism adds to the path -
+// today one multipath echo when that switch is on. Every synthesis consumer
+// takes this, so an echo the verdict hears is an echo the waterfall shows.
+func (e *Engine) rxTransmissions(t transmission, rxIdx int, anchorMs uint32,
+	nodes []*Node, cache modCache) []rf.Transmission {
+	direct, ok := e.rxTransmission(t, rxIdx, anchorMs, nodes, cache)
+	if !ok {
+		return nil
+	}
+	out := []rf.Transmission{direct}
+	if echo, has := e.echoFor(direct, nodes[t.from].Spec.Name,
+		nodes[rxIdx].Spec.Name, e.phyOf(nodes[t.from].Spec), t.startMs); has {
+		out = append(out, echo)
+	}
+	return out
 }
 
 // loraParams is the coding configuration a transmitter's modem implies:

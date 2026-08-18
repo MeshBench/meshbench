@@ -239,22 +239,28 @@ like any other node — this phase makes what it hears real and external.
 
 ### W5 — hybrid mode and realism
 
-- [ ] per-node True RF flag: a big scenario runs calculated while chosen
+- [x] per-node True RF flag: a big scenario runs calculated while chosen
       receivers run the full chain (scenario field + node window toggle)
-- [ ] per-node oscillator offset in ppm — one phase ramp in synthesis, and
+- [x] per-node oscillator offset in ppm — one phase ramp in synthesis, and
       the receiver genuinely has to tolerate it
-- [ ] multipath as additional `rf.Transmission` entries per path — the
+- [x] multipath as additional `rf.Transmission` entries per path — the
       struct already models exactly this
-- [ ] fading over time
-- [ ] receiver imperfections: implementation loss, preamble threshold,
-      saturation, adjacent-channel behaviour
-- [ ] every realism effect ships with its own switch in the RF Simulation
+- [x] fading over time
+- [x] receiver imperfections: implementation loss, preamble threshold,
+      saturation, adjacent-channel behaviour *(implementation loss,
+      saturation clipping and the detection thresholds are in; adjacent-
+      channel rejection needs frequency-domain modelling beyond the
+      one-channel baseband and stays a recorded follow-up)*
+- [x] every realism effect ships with its own switch in the RF Simulation
       section - oscillator ppm, multipath, fading, imperfections - each
       defaulting off, so a run's physics is always something the operator
       chose and the result records
 - [ ] the golden RF suite against real SX1262 hardware: sensitivity ladder,
       CFO ladder, capture ladder, partial-collision timing sweep,
       adjacent-channel — tolerances recorded, `docs/shortcomings.md` updated
+      *(the harness exists - internal/lora's golden-vector test arms itself
+      when testdata/golden-*.json files appear - but the ladders need the
+      real chip: on the manual list)*
 
 **Gate (MS5):** MeshBench matches the real chip within stated tolerances.
 

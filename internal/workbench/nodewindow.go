@@ -76,6 +76,8 @@ type nodeWindowPanel struct {
 	comp        companionTab
 
 	input    comp.Field
+	trueRF   comp.Check
+	wasTrue  bool
 	send     comp.Button
 	start    comp.Button
 	stop     comp.Button
@@ -277,6 +279,17 @@ func (p *nodeWindowPanel) auditDraw(t *theme.Theme, gtx layout.Context, s *state
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx,
 				func(gtx layout.Context) layout.Dimensions { return p.connect(t, gtx, s) })
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			// The True RF switch alone, not the whole Radio tab: the tab
+			// bails out early for a node whose chip has not reported, and
+			// the audit needs the control on screen regardless.
+			gtx.Constraints.Max.Y = gtx.Dp(40)
+			return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx,
+				func(gtx layout.Context) layout.Dimensions {
+					p.wireTrueRF(gtx, s)
+					return p.trueRF.LayoutSwitch(t, gtx)
+				})
 		}),
 		// The console last, with whatever height remains: its own input row
 		// sits at its bottom edge and stays on screen.

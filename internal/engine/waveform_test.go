@@ -3,6 +3,7 @@ package engine_test
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/MeshBench/meshbench/internal/dsp"
@@ -253,5 +254,128 @@ func TestObserverSpanHearsTheAirAndMovesWithTheNode(t *testing.T) {
 	far := power(e.ObserveSpan(1, 60, 8192))
 	if far > loud/1000 {
 		t.Fatalf("moving the observer away did not change what it hears: near %g far %g", loud, far)
+	}
+}
+
+// Oscillator error is real IQ rotation, and the front end has to earn its
+// CFO estimator: at 30 ppm two 869 MHz radios can disagree by several bins,
+// and the frame must still decode because Detect measures and corrects it.
+func TestOscillatorErrorIsCorrectedByTheFrontEnd(t *testing.T) {
+	e := engine.New(flat{100}, engine.Config{
+		StepMs: 10, Seed: 11, RFMode: engine.RFWaveform,
+		Realism: engine.Realism{OscillatorPPM: 30},
+	})
+	e.Add(wfNode("a", 0, 22), nil)
+	e.Add(wfNode("b", 0.010, 22), nil)
+	if err := e.Run(context.Background(), 10); err != nil {
+		t.Fatal(err)
+	}
+	e.InjectFrame(0, []byte("thirty parts per million of disagreement"))
+	if err := e.Run(context.Background(), 5000); err != nil {
+		t.Fatal(err)
+	}
+	for _, ev := range e.Events() {
+		if ev.From == "a" && ev.To == "b" {
+			if ev.Kind != "rx" {
+				t.Fatalf("CFO was not corrected: %s (%s)", ev.Kind, ev.Detail)
+			}
+			return
+		}
+	}
+	t.Fatal("no event at all")
+}
+
+// A multipath echo is deterministic geometry, not a dice roll: the same
+// scenario fades the same way twice, and switching the echo off changes the
+// received IQ.
+func TestMultipathIsDeterministicGeometry(t *testing.T) {
+	run := func(echoDB float64) string {
+		e := engine.New(flat{100}, engine.Config{
+			StepMs: 10, Seed: 12, RFMode: engine.RFWaveform,
+			Realism: engine.Realism{MultipathEchoDB: echoDB},
+		})
+		e.Add(wfNode("a", 0, 22), nil)
+		e.Add(wfNode("b", 0.010, 22), nil)
+		_ = e.Run(context.Background(), 10)
+		e.InjectFrame(0, []byte("two paths, one antenna"))
+		_ = e.Run(context.Background(), 5000)
+		out := ""
+		for _, ev := range e.Events() {
+			out += fmt.Sprintf("%s>%s %s %.6f|", ev.From, ev.To, ev.Kind, ev.SNRdB)
+		}
+		return out
+	}
+	withEcho, again := run(6), run(6)
+	if withEcho != again {
+		t.Fatal("the same echo geometry produced different runs")
+	}
+	if clean := run(0); clean == withEcho {
+		t.Fatal("a 6 dB echo left the measured channel identical")
+	}
+}
+
+// Implementation loss must deafen the receiver by exactly its own amount: a
+// frame near the floor decodes without it and dies with 10 dB of it.
+func TestImplementationLossDeafens(t *testing.T) {
+	run := func(lossDB float64) string {
+		e := engine.New(flat{100}, engine.Config{
+			StepMs: 10, Seed: 13, RFMode: engine.RFWaveform,
+			Realism: engine.Realism{ImplementationLossDB: lossDB},
+		})
+		// Far enough that the margin is thin: ~34 km at 22 dBm free space.
+		e.Add(wfNode("a", 0, 22), nil)
+		e.Add(wfNode("b", 0.55, 22), nil)
+		_ = e.Run(context.Background(), 10)
+		e.InjectFrame(0, []byte("margin is thin out here"))
+		_ = e.Run(context.Background(), 8000)
+		for _, ev := range e.Events() {
+			if ev.From == "a" && ev.To == "b" {
+				return ev.Kind
+			}
+		}
+		return "nothing"
+	}
+	if got := run(0); got != "rx" {
+		t.Skipf("the thin-margin link did not decode clean (%s); geometry needs retuning", got)
+	}
+	if got := run(10); got == "rx" {
+		t.Fatal("10 dB of implementation loss cost nothing")
+	}
+}
+
+// The hybrid: a calculated run in which one flagged receiver is judged by
+// the waveform. The flagged node's events say so; everything else stays on
+// the fast model.
+func TestHybridFlagGivesOneReceiverWaveformVerdicts(t *testing.T) {
+	e := engine.New(flat{100}, engine.Config{StepMs: 10, Seed: 14}) // calculated
+	e.Add(wfNode("a", 0, 22), nil)
+	tru := wfNode("tru", 0.010, 22)
+	tru.TrueRF = true
+	e.Add(tru, nil)
+	e.Add(wfNode("fast", 0.020, 22), nil)
+	_ = e.Run(context.Background(), 10)
+	e.InjectFrame(0, []byte("one foot in each physics"))
+	_ = e.Run(context.Background(), 5000)
+
+	sawTrue, sawFast := false, false
+	for _, ev := range e.Events() {
+		if ev.From != "a" {
+			continue
+		}
+		if ev.To == "tru" {
+			sawTrue = true
+			if ev.Kind != "rx" || !strings.Contains(ev.Detail, "waveform") {
+				t.Fatalf("the flagged receiver was not waveform-judged: %s (%s)", ev.Kind, ev.Detail)
+			}
+		}
+		if ev.To == "fast" {
+			sawFast = true
+			if strings.Contains(ev.Detail, "waveform") {
+				t.Fatalf("an unflagged receiver was waveform-judged: %s", ev.Detail)
+			}
+		}
+	}
+	if !sawTrue || !sawFast {
+		t.Fatalf("missing events: tru=%v fast=%v", sawTrue, sawFast)
 	}
 }

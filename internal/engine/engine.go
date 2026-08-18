@@ -78,6 +78,11 @@ type Config struct {
 	// zero value - link budgets and demodulator floors) or RFWaveform (IQ
 	// through the channel, verdict by the demodulator). See waveform.go.
 	RFMode RFMode
+
+	// Realism is the optional-imperfections switch set - oscillator error,
+	// multipath, fading, implementation loss, saturation. All zero by
+	// default: the kind simulator, with its kindness now optional.
+	Realism Realism
 }
 
 // Engine owns the run.
