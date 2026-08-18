@@ -58,10 +58,11 @@ func (p *configPanel) buildingsCard(t *theme.Theme, s *state.Snapshot) layout.Wi
 			}),
 			layout.Rigid(layout.Spacer{Height: t.Sp.XS}.Layout),
 			layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint,
-				"picking a database pulls footprints for the loaded map's "+
-					"area, caches them like terrain, and switches buildings "+
-					"on; a pull too large for a live download says so and "+
-					"points at tools/envgen")),
+				"picking a database pulls footprints in patches around each "+
+					"node - not the whole bounding box, which for a national "+
+					"network is mostly empty ground - caches them like "+
+					"terrain, and switches buildings on; a pull still too "+
+					"large says so and points at tools/envgen")),
 			layout.Rigid(layout.Spacer{Height: t.Sp.S}.Layout),
 			layout.Rigid(p.fieldRow(t, &p.envDir, &p.loadEnv, now+". Tiles come "+
 				"from tools/envgen over Microsoft/OSM footprints; buildings add "+

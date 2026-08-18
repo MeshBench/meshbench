@@ -37,18 +37,32 @@ func TestQuadkeysForCoverTheBox(t *testing.T) {
 	}
 }
 
-func TestEnvironBoxNeedsNodes(t *testing.T) {
-	if _, _, _, _, err := environBox(nil); err == nil {
-		t.Fatal("an empty network produced a box")
+// Patches are the pull's whole point: two nodes in the same town share one,
+// two towns get one each, and a national network's empty middle is never
+// asked for.
+func TestEnvironPatchesMergeTownsAndSkipTheEmptyMiddle(t *testing.T) {
+	if _, err := environPatches(nil); err == nil {
+		t.Fatal("an empty network produced patches")
 	}
-	n := scenario.Node{Name: "a", Kind: scenario.SimpleRepeater}
-	n.Position.Lat, n.Position.Lon = 56, -3
-	s, no, w, e, err := environBox([]scenario.Node{n})
+	mk := func(name string, lat, lon float64) scenario.Node {
+		n := scenario.Node{Name: name, Kind: scenario.SimpleRepeater}
+		n.Position.Lat, n.Position.Lon = lat, lon
+		return n
+	}
+	patches, err := environPatches([]scenario.Node{
+		mk("a", 56.000, -3.000), mk("b", 56.010, -3.010), // one town
+		mk("c", 57.500, -5.500), // another, far away
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s >= 56 || no <= 56 || w >= -3 || e <= -3 {
-		t.Fatalf("box [%f %f %f %f] has no margin", s, no, w, e)
+	if len(patches) != 2 {
+		t.Fatalf("got %d patches, want the town merged into 1 plus 1 remote", len(patches))
+	}
+	// A country-spanning pair must not cost a country: the patches together
+	// stay near 2 nodes' worth of ground, not the bounding box between them.
+	if a := patchesAreaKm2(patches); a > 100 {
+		t.Fatalf("3 nodes priced at %.0f km2; patches are meant to be local", a)
 	}
 }
 
@@ -62,7 +76,7 @@ func TestOverpassRewriteKeepsTagsAndDropsPoints(t *testing.T) {
 	 {"type":"node","tags":{"building":"yes"}},
 	 {"type":"way","geometry":[{"lat":1,"lon":1}],"tags":{"building":"yes"}}
 	]}`
-	rd, n, err := overpassToNDJSON(strings.NewReader(in))
+	rd, n, err := overpassToNDJSON(strings.NewReader(in), map[int64]bool{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,19 +94,24 @@ func TestOverpassRewriteKeepsTagsAndDropsPoints(t *testing.T) {
 
 func TestOverpassAreaCapFailsLoudly(t *testing.T) {
 	// Roughly the whole of Scotland: far past what a live pull is fair for.
-	if a := boxAreaKm2(54.6, 58.7, -7.5, -1.9); a <= overpassMaxKm2 {
+	if a := patchesAreaKm2(scotland()); a <= overpassMaxKm2 {
 		t.Fatalf("Scotland measures %.0f km2, which should exceed the cap", a)
 	}
 	var s Sim
-	_, _, err := s.fetchEnviron("osm", 54.6, 58.7, -7.5, -1.9, func(int, int) {})
+	_, _, err := s.fetchEnviron("osm", scotland(), func(int, int) {})
 	if err == nil || !strings.Contains(err.Error(), "envgen") {
 		t.Fatalf("an oversized pull must refuse and point at envgen, got %v", err)
 	}
 }
 
+// scotland is an oversized patch set - one box the size of the country.
+func scotland() []llBox {
+	return []llBox{{South: 54.6, North: 58.7, West: -7.5, East: -1.9}}
+}
+
 func TestFetchEnvironRefusesUnknownSource(t *testing.T) {
 	var s Sim
-	if _, _, err := s.fetchEnviron("zillow", 56, 56.1, -3.1, -3, func(int, int) {}); err == nil {
+	if _, _, err := s.fetchEnviron("zillow", []llBox{{South: 56, North: 56.1, West: -3.1, East: -3}}, func(int, int) {}); err == nil {
 		t.Fatal("an unknown source must refuse")
 	}
 }
@@ -117,8 +136,22 @@ func TestHasTilesMatchesIngestLayout(t *testing.T) {
 
 func TestMergedSourceHonoursTheOverpassCap(t *testing.T) {
 	var s Sim
-	_, _, err := s.fetchEnviron("merged", 54.6, 58.7, -7.5, -1.9, func(int, int) {})
+	_, _, err := s.fetchEnviron("merged", scotland(), func(int, int) {})
 	if err == nil || !strings.Contains(err.Error(), "envgen") {
 		t.Fatalf("an oversized merged pull must refuse and point at envgen, got %v", err)
+	}
+}
+
+// A way arriving in two chunks is one building, not two walls to pay for.
+func TestOverpassDedupesAcrossChunks(t *testing.T) {
+	way := `{"elements":[{"type":"way","id":42,"geometry":[{"lat":56.0,"lon":-3.0},
+	 {"lat":56.001,"lon":-3.0},{"lat":56.001,"lon":-3.001},{"lat":56.0,"lon":-3.0}],
+	 "tags":{"building":"yes"}}]}`
+	seen := map[int64]bool{}
+	if _, n, err := overpassToNDJSON(strings.NewReader(way), seen); err != nil || n != 1 {
+		t.Fatalf("first chunk: n=%d err=%v, want the way kept", n, err)
+	}
+	if _, n, err := overpassToNDJSON(strings.NewReader(way), seen); err != nil || n != 0 {
+		t.Fatalf("second chunk: n=%d err=%v, want the duplicate dropped", n, err)
 	}
 }

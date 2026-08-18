@@ -170,11 +170,14 @@ default, and the environment plan's actual shape - the two merged
 (`environ.MergeGeoJSON`): Microsoft provides existence and height, the OSM
 building whose centroid falls inside a detected footprint contributes its
 explicit type, levels and materials, explicit overriding inferred, and
-OSM-only buildings survive on their own. Every pull is scoped to the loaded
-map plus a margin, ingested through the same tested `IngestGeoJSON`, cached
-permanently like terrain, and switched on through the same `rf.environment`
-the manual path uses. A pull too large for a live download refuses and
-points at `tools/envgen`.
+OSM-only buildings survive on their own. Every pull is scoped to patches
+around the nodes - merged where they overlap, so a town is asked for once
+and a national network's empty middle is never asked for at all - ingested
+through the same tested `IngestGeoJSON`, cached permanently like terrain,
+and switched on through the same `rf.environment` the manual path uses. A
+pull still too large refuses and points at `tools/envgen`. Long jobs -
+rasters, warms, pulls - show their percentage in the status bar while they
+run.
 
 ## Determinism
 

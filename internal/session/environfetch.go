@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -25,52 +26,98 @@ import (
 	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
-// environMarginKm is how far past the outermost node footprints are pulled.
-// Buildings only matter where paths run, and paths run between nodes.
-const environMarginKm = 5
+// environPatchKm is how far around each node footprints are pulled. A
+// building changes a path where the path is low and close - at its ends -
+// so the pull is node-centred patches, not the network's bounding box: a
+// national network's box is mostly sea and empty country, and pulling it
+// would be refused for size while every town that matters went unserved.
+const environPatchKm = 2.5
 
-// overpassMaxKm2 caps a live Overpass pull. Beyond this the polite answer is
-// tools/envgen over a regional extract, and the error says so.
-const overpassMaxKm2 = 4000
+// overpassMaxKm2 caps a live Overpass pull, summed over the patches. Beyond
+// this the polite answer is tools/envgen over a regional extract, and the
+// error says so. The pull goes to the server one small chunk at a time, so
+// the cap is about total volume, not any single request.
+const overpassMaxKm2 = 8000
+
+// overpassChunk is how many patches one Overpass request carries.
+const overpassChunk = 10
 
 // microsoftMaxFiles caps how many quadkey files one pull will download.
 const microsoftMaxFiles = 16
 
 var environClient = &http.Client{Timeout: 15 * time.Minute}
 
-// environBox is the pull's footprint: the network's bounding box plus margin.
-func environBox(nodes []scenario.Node) (south, north, west, east float64, err error) {
+// llBox is one patch of ground, in degrees.
+type llBox struct{ South, North, West, East float64 }
+
+// environPatches is the pull's footprint: a patch around every node, with
+// overlapping patches merged so a town of nodes is asked for once.
+func environPatches(nodes []scenario.Node) ([]llBox, error) {
 	if len(nodes) == 0 {
-		return 0, 0, 0, 0, fmt.Errorf("no nodes loaded; a pull needs a map to cover")
+		return nil, fmt.Errorf("no nodes loaded; a pull needs a map to cover")
 	}
-	south, north = math.Inf(1), math.Inf(-1)
-	west, east = math.Inf(1), math.Inf(-1)
+	boxes := make([]llBox, 0, len(nodes))
 	for _, n := range nodes {
-		south = math.Min(south, n.Position.Lat)
-		north = math.Max(north, n.Position.Lat)
-		west = math.Min(west, n.Position.Lon)
-		east = math.Max(east, n.Position.Lon)
+		dLat := environPatchKm / 111.32
+		dLon := environPatchKm / (111.32 * math.Cos(n.Position.Lat*math.Pi/180))
+		boxes = append(boxes, llBox{
+			South: n.Position.Lat - dLat, North: n.Position.Lat + dLat,
+			West: n.Position.Lon - dLon, East: n.Position.Lon + dLon,
+		})
 	}
-	midLat := (south + north) / 2
-	dLat := environMarginKm / 111.32
-	dLon := environMarginKm / (111.32 * math.Cos(midLat*math.Pi/180))
-	return south - dLat, north + dLat, west - dLon, east + dLon, nil
+	// Merge until stable. A merged box can newly overlap a third, so one
+	// pass is not enough; the count only ever shrinks, so it ends.
+	for merged := true; merged; {
+		merged = false
+		for i := 0; i < len(boxes); i++ {
+			for j := i + 1; j < len(boxes); j++ {
+				if boxes[i].East < boxes[j].West || boxes[j].East < boxes[i].West ||
+					boxes[i].North < boxes[j].South || boxes[j].North < boxes[i].South {
+					continue
+				}
+				boxes[i] = llBox{
+					South: math.Min(boxes[i].South, boxes[j].South),
+					North: math.Max(boxes[i].North, boxes[j].North),
+					West:  math.Min(boxes[i].West, boxes[j].West),
+					East:  math.Max(boxes[i].East, boxes[j].East),
+				}
+				boxes = append(boxes[:j], boxes[j+1:]...)
+				merged = true
+				j--
+			}
+		}
+	}
+	return boxes, nil
 }
 
-func boxAreaKm2(south, north, west, east float64) float64 {
-	midLat := (south + north) / 2
-	return (north - south) * 111.32 * (east - west) * 111.32 * math.Cos(midLat*math.Pi/180)
+func boxAreaKm2(b llBox) float64 {
+	midLat := (b.South + b.North) / 2
+	return (b.North - b.South) * 111.32 * (b.East - b.West) * 111.32 *
+		math.Cos(midLat*math.Pi/180)
 }
 
-// environCacheDir is where one pull's tiles live: keyed by source and box, so
-// moving the network pulls fresh ground and reopening the same network reuses
-// the cache without asking.
-func environCacheDir(source string, south, north, west, east float64) (string, error) {
+func patchesAreaKm2(patches []llBox) float64 {
+	var a float64
+	for _, b := range patches {
+		a += boxAreaKm2(b)
+	}
+	return a
+}
+
+// environCacheDir is where one pull's tiles live: keyed by source and the
+// patch set, so moving the network pulls fresh ground and reopening the same
+// network reuses the cache without asking.
+func environCacheDir(source string, patches []llBox) (string, error) {
 	cache, err := os.UserCacheDir()
 	if err != nil {
 		return "", err
 	}
-	sum := sha256.Sum256(fmt.Appendf(nil, "%.4f/%.4f/%.4f/%.4f", south, north, west, east))
+	keys := make([]string, 0, len(patches))
+	for _, b := range patches {
+		keys = append(keys, fmt.Sprintf("%.4f/%.4f/%.4f/%.4f", b.South, b.North, b.West, b.East))
+	}
+	sort.Strings(keys)
+	sum := sha256.Sum256([]byte(strings.Join(keys, "|")))
 	return filepath.Join(cache, "meshcoresim", "environment",
 		fmt.Sprintf("%s-%x", source, sum[:4])), nil
 }
@@ -83,32 +130,61 @@ func hasTiles(dir string) bool {
 	return err == nil && len(entries) > 0
 }
 
-// overpassNDJSON pulls OSM building ways in the box and rewrites them as the
-// newline-delimited GeoJSON the ingester reads. Relations (multipolygons) are
-// left to envgen: their outer rings need assembly this path does not attempt,
-// and silently mangling them would be worse than saying so.
-func overpassNDJSON(south, north, west, east float64) (io.Reader, int, error) {
-	q := fmt.Sprintf(`[out:json][timeout:180];way["building"](%f,%f,%f,%f);out geom;`,
-		south, west, north, east)
-	resp, err := environClient.PostForm("https://overpass-api.de/api/interpreter",
-		map[string][]string{"data": {q}})
-	if err != nil {
-		return nil, 0, err
+// overpassNDJSON pulls OSM building ways in every patch, a chunk of patches
+// per request so a national network is many small queries with progress
+// rather than one enormous one. A way straddling two chunks would arrive
+// twice - a building priced twice is a wall paid twice - so ways are
+// deduplicated by id across the whole pull. Relations (multipolygons) are
+// left to envgen: their outer rings need assembly this path does not
+// attempt, and silently mangling them would be worse than saying so.
+func overpassNDJSON(patches []llBox, progress func(done, total int)) (io.Reader, int, error) {
+	chunks := (len(patches) + overpassChunk - 1) / overpassChunk
+	seen := map[int64]bool{}
+	var all strings.Builder
+	total := 0
+	for c := 0; c < chunks; c++ {
+		hi := (c + 1) * overpassChunk
+		if hi > len(patches) {
+			hi = len(patches)
+		}
+		var union strings.Builder
+		for _, b := range patches[c*overpassChunk : hi] {
+			fmt.Fprintf(&union, `way["building"](%f,%f,%f,%f);`, b.South, b.West, b.North, b.East)
+		}
+		q := fmt.Sprintf(`[out:json][timeout:180];(%s);out geom;`, union.String())
+		resp, err := environClient.PostForm("https://overpass-api.de/api/interpreter",
+			map[string][]string{"data": {q}})
+		if err != nil {
+			return nil, 0, err
+		}
+		if resp.StatusCode != http.StatusOK {
+			_ = resp.Body.Close()
+			return nil, 0, fmt.Errorf("overpass answered %s", resp.Status)
+		}
+		part, n, err := overpassToNDJSON(resp.Body, seen)
+		_ = resp.Body.Close()
+		if err != nil {
+			return nil, 0, err
+		}
+		if _, err := io.Copy(&all, part); err != nil {
+			return nil, 0, err
+		}
+		total += n
+		if progress != nil {
+			progress(c+1, chunks)
+		}
 	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		return nil, 0, fmt.Errorf("overpass answered %s", resp.Status)
-	}
-	return overpassToNDJSON(resp.Body)
+	return strings.NewReader(all.String()), total, nil
 }
 
 // overpassToNDJSON rewrites an Overpass answer as the newline-delimited
 // GeoJSON the ingester reads. Split from the request so the rewrite is
 // testable without a network.
-func overpassToNDJSON(body io.Reader) (io.Reader, int, error) {
+func overpassToNDJSON(body io.Reader, seen map[int64]bool) (io.Reader, int, error) {
 	var parsed struct {
 		Elements []struct {
 			Type     string `json:"type"`
+			ID       int64  `json:"id"`
 			Geometry []struct {
 				Lat float64 `json:"lat"`
 				Lon float64 `json:"lon"`
@@ -124,6 +200,12 @@ func overpassToNDJSON(body io.Reader) (io.Reader, int, error) {
 	for _, el := range parsed.Elements {
 		if el.Type != "way" || len(el.Geometry) < 3 {
 			continue
+		}
+		if seen != nil {
+			if seen[el.ID] {
+				continue
+			}
+			seen[el.ID] = true
 		}
 		ring := make([][2]float64, 0, len(el.Geometry))
 		for _, pt := range el.Geometry {
@@ -153,9 +235,9 @@ func overpassToNDJSON(body io.Reader) (io.Reader, int, error) {
 // fetchEnviron is the pull, run off the store's goroutine: resolve, download,
 // ingest into the cache, then hand the directory to rf.environment exactly as
 // if the operator had typed it.
-func (s *Sim) fetchEnviron(source string, south, north, west, east float64,
+func (s *Sim) fetchEnviron(source string, patches []llBox,
 	progress func(done, total int)) (string, environ.IngestStats, error) {
-	dir, err := environCacheDir(source, south, north, west, east)
+	dir, err := environCacheDir(source, patches)
 	if err != nil {
 		return "", environ.IngestStats{}, err
 	}
@@ -166,20 +248,19 @@ func (s *Sim) fetchEnviron(source string, south, north, west, east float64,
 	var done func()
 	switch source {
 	case "osm":
-		if a := boxAreaKm2(south, north, west, east); a > overpassMaxKm2 {
+		if a := patchesAreaKm2(patches); a > overpassMaxKm2 {
 			return "", environ.IngestStats{}, fmt.Errorf(
-				"this map covers %.0f km2, past the %.0f km2 a live Overpass "+
-					"pull is fair for; prepare the region offline with tools/envgen",
+				"the node patches sum to %.0f km2, past the %.0f km2 a live "+
+					"Overpass pull is fair for; prepare the region offline with tools/envgen",
 				a, float64(overpassMaxKm2))
 		}
 		var n int
-		rd, n, err = overpassNDJSON(south, north, west, east)
+		rd, n, err = overpassNDJSON(patches, progress)
 		if err == nil && n == 0 {
 			err = fmt.Errorf("OpenStreetMap has no building ways in this map's area")
 		}
-		progress(1, 2)
 	case "microsoft":
-		urls, uerr := microsoftURLs(south, north, west, east)
+		urls, uerr := microsoftURLs(patches)
 		if uerr != nil {
 			return "", environ.IngestStats{}, uerr
 		}
@@ -188,13 +269,13 @@ func (s *Sim) fetchEnviron(source string, south, north, west, east float64,
 		// The environment plan's actual shape: Microsoft for existence and
 		// height, OSM tags for what it explicitly knows, explicit over
 		// inferred. Both halves' caps apply, because both halves are pulled.
-		if a := boxAreaKm2(south, north, west, east); a > overpassMaxKm2 {
+		if a := patchesAreaKm2(patches); a > overpassMaxKm2 {
 			return "", environ.IngestStats{}, fmt.Errorf(
-				"this map covers %.0f km2, past the %.0f km2 a live Overpass "+
-					"pull is fair for; prepare the region offline with tools/envgen",
+				"the node patches sum to %.0f km2, past the %.0f km2 a live "+
+					"Overpass pull is fair for; prepare the region offline with tools/envgen",
 				a, float64(overpassMaxKm2))
 		}
-		urls, uerr := microsoftURLs(south, north, west, east)
+		urls, uerr := microsoftURLs(patches)
 		if uerr != nil {
 			return "", environ.IngestStats{}, uerr
 		}
@@ -203,11 +284,12 @@ func (s *Sim) fetchEnviron(source string, south, north, west, east float64,
 			return "", environ.IngestStats{}, merr
 		}
 		defer msDone()
-		osm, _, oerr := overpassNDJSON(south, north, west, east)
+		osm, _, oerr := overpassNDJSON(patches, func(done, total int) {
+			progress(len(urls)+done, len(urls)+total)
+		})
 		if oerr != nil {
 			return "", environ.IngestStats{}, oerr
 		}
-		progress(len(urls)+1, len(urls)+2)
 		var mstats environ.MergeStats
 		rd, mstats, err = environ.MergeGeoJSON(ms, osm)
 		if err == nil && mstats.Primary+mstats.Enrich == 0 {
@@ -239,17 +321,18 @@ func registerEnvironFetch(st *state.Store, s *Sim) {
 		if source == "" {
 			source = "osm"
 		}
-		south, north, west, east, err := environBox(s.nodes)
+		patches, err := environPatches(s.nodes)
 		if err != nil {
 			return nil, err
 		}
 		const id = "environ-fetch"
 		what := "buildings: " + source
 		w.Jobs = append(w.Jobs, state.Job{ID: id, What: what, Total: 1})
-		w.Say(fmt.Sprintf("pulling %s footprints for the map's area", source))
+		w.Say(fmt.Sprintf("pulling %s footprints: %d patch(es) around the "+
+			"nodes, %.0f km2", source, len(patches), patchesAreaKm2(patches)))
 		go func() {
 			ctx := context.Background()
-			dir, stats, err := s.fetchEnviron(source, south, north, west, east,
+			dir, stats, err := s.fetchEnviron(source, patches,
 				func(done, total int) {
 					_, _ = st.Do(ctx, "job.progress", state.Job{
 						ID: id, What: what, Done: done, Total: total})

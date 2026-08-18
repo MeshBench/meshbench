@@ -69,11 +69,13 @@ func quadkeysFor(south, north, west, east float64) []string {
 // a fixture instead of the real blob store.
 var microsoftLinksURL = "https://minedbuildings.z5.web.core.windows.net/global-buildings/dataset-links.csv"
 
-// microsoftURLs resolves the box to the dataset files that cover it.
-func microsoftURLs(south, north, west, east float64) ([]string, error) {
+// microsoftURLs resolves the patches to the dataset files that cover them.
+func microsoftURLs(patches []llBox) ([]string, error) {
 	want := map[string]bool{}
-	for _, k := range quadkeysFor(south, north, west, east) {
-		want[k] = true
+	for _, b := range patches {
+		for _, k := range quadkeysFor(b.South, b.North, b.West, b.East) {
+			want[k] = true
+		}
 	}
 	resp, err := environClient.Get(microsoftLinksURL)
 	if err != nil {

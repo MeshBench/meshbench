@@ -3,6 +3,7 @@
 package shell
 
 import (
+	"fmt"
 	"gioui.org/layout"
 	"gioui.org/unit"
 	"github.com/MeshBench/meshbench/internal/gui/comp"
@@ -268,6 +269,24 @@ func (sh *Shell) statusBar(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 	msg := sh.View.Purpose()
 	if s != nil && s.Status != "" {
 		msg = s.Status
+	}
+	// A running job owns the line: a long raster or pull that says nothing
+	// reads as a hang, and the percentage is the difference between "wait"
+	// and "force-quit".
+	if s != nil {
+		for i := range s.Jobs {
+			if s.Jobs[i].Finished {
+				continue
+			}
+			j := &s.Jobs[i]
+			if j.Total > 0 {
+				msg = fmt.Sprintf("%s - %d%% (%d of %d)",
+					j.What, j.Done*100/j.Total, j.Done, j.Total)
+			} else {
+				msg = j.What + " - working"
+			}
+			break
+		}
 	}
 	return layout.Inset{Left: t.Sp.M, Right: t.Sp.M, Top: t.Sp.XS, Bottom: t.Sp.XS}.
 		Layout(gtx, func(gtx layout.Context) layout.Dimensions {
