@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"math"
 
 	"gioui.org/f32"
 	"gioui.org/layout"
@@ -28,9 +29,17 @@ import (
 // map would pay for thousands of invisible polygons.
 const buildingSpanMaxDeg = 0.35
 
-// buildingDrawCap bounds one frame's polygons; the key says when the
-// viewport holds more than it draws.
-const buildingDrawCap = 6000
+// buildingDrawCap is the absolute ceiling on one frame's footprints - far
+// beyond it the view is a city seen from orbit and a raster is the right
+// tool anyway. Below it nothing is skipped: small footprints degrade to
+// single rectangles instead, because drawing the first N in tile order
+// rendered whole tiles beside empty neighbours - "patchy" was the exact
+// word - and a building the size of a pixel does not need a path.
+const buildingDrawCap = 60000
+
+// buildingPathPx is the footprint size, in pixels, above which the true
+// outline is drawn rather than a rectangle.
+const buildingPathPx = 4
 
 // buildingMaterials is the taxonomy, in key order.
 var buildingMaterials = []string{
@@ -88,16 +97,52 @@ func (m *MapView) drawBuildings(t *theme.Theme, gtx layout.Context, sz image.Poi
 		if len(b.Ring) < 3 || m.Layers.hiddenMaterial(b.Material) {
 			continue
 		}
+		// The footprint's projected box decides its treatment: a real
+		// outline where it can be seen, one rectangle where it cannot.
+		minX, minY := float32(math.MaxFloat32), float32(math.MaxFloat32)
+		maxX, maxY := float32(-math.MaxFloat32), float32(-math.MaxFloat32)
+		for _, v := range b.Ring {
+			pt := m.projectPoint(state.Point{Lat: v[0], Lon: v[1]}, sz)
+			if pt.X < minX {
+				minX = pt.X
+			}
+			if pt.X > maxX {
+				maxX = pt.X
+			}
+			if pt.Y < minY {
+				minY = pt.Y
+			}
+			if pt.Y > maxY {
+				maxY = pt.Y
+			}
+		}
+		if maxX < 0 || maxY < 0 || minX > float32(sz.X) || minY > float32(sz.Y) {
+			continue
+		}
+		col := materialColour(b.Material)
+		if maxX-minX < buildingPathPx && maxY-minY < buildingPathPx {
+			w := maxX - minX
+			h := maxY - minY
+			if w < 1 {
+				w = 1
+			}
+			if h < 1 {
+				h = 1
+			}
+			paint.FillShape(gtx.Ops, col, clip.Rect{
+				Min: image.Pt(int(minX), int(minY)),
+				Max: image.Pt(int(minX+w), int(minY+h)),
+			}.Op())
+			continue
+		}
 		var p clip.Path
 		p.Begin(gtx.Ops)
-		first := m.projectPoint(state.Point{Lat: b.Ring[0][0], Lon: b.Ring[0][1]}, sz)
-		p.MoveTo(first)
+		p.MoveTo(m.projectPoint(state.Point{Lat: b.Ring[0][0], Lon: b.Ring[0][1]}, sz))
 		for _, v := range b.Ring[1:] {
 			p.LineTo(m.projectPoint(state.Point{Lat: v[0], Lon: v[1]}, sz))
 		}
 		p.Close()
-		paint.FillShape(gtx.Ops, materialColour(b.Material),
-			clip.Outline{Path: p.End()}.Op())
+		paint.FillShape(gtx.Ops, col, clip.Outline{Path: p.End()}.Op())
 	}
 }
 
@@ -148,9 +193,12 @@ func (m *MapView) buildingKeyRows(t *theme.Theme) []layout.Widget {
 			})
 		})
 	}
-	if m.bldCache.total > buildingDrawCap {
-		rows = append(rows, Text(t, t.Sz.Caption, t.P.Faint,
-			fmt.Sprintf("%d in view, drawing %d - zoom in", m.bldCache.total, buildingDrawCap)))
+	if m.bldCache.total > 0 {
+		line := fmt.Sprintf("%d in view", m.bldCache.total)
+		if m.bldCache.total > buildingDrawCap {
+			line = fmt.Sprintf("%d in view, drawing %d - zoom in", m.bldCache.total, buildingDrawCap)
+		}
+		rows = append(rows, Text(t, t.Sz.Caption, t.P.Faint, line))
 	}
 	return rows
 }

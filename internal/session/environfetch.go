@@ -15,6 +15,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	neturl "net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -48,6 +49,48 @@ const overpassChunk = 10
 const microsoftMaxBytes = 8e9
 
 var environClient = &http.Client{Timeout: 15 * time.Minute}
+
+// environUserAgent identifies these requests. Not a courtesy: Overpass's
+// operators block Go's default agent outright - 406 Not Acceptable in a
+// fifth of a second - which is exactly how every building pull failed
+// while looking like a download that never started.
+const environUserAgent = "MeshBench/1.0 (RF mesh simulator; building-footprint fetch)"
+
+// environGet is Get with the identity, and a polite retry on the
+// throttling answers.
+func environGet(url string) (*http.Response, error) {
+	return environDo("GET", url, "", "")
+}
+
+func environDo(method, url, contentType, body string) (*http.Response, error) {
+	for attempt := 0; ; attempt++ {
+		var rd io.Reader
+		if body != "" {
+			rd = strings.NewReader(body)
+		}
+		req, err := http.NewRequest(method, url, rd)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("User-Agent", environUserAgent)
+		if contentType != "" {
+			req.Header.Set("Content-Type", contentType)
+		}
+		resp, err := environClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		// 429 and 504 are Overpass saying "not right now": wait and ask
+		// again, twice, before giving up loudly.
+		if (resp.StatusCode == http.StatusTooManyRequests ||
+			resp.StatusCode == http.StatusGatewayTimeout) && attempt < 2 {
+			_ = resp.Body.Close()
+			time.Sleep(time.Duration(20*(attempt+1)) * time.Second)
+			continue
+		}
+		return resp, nil
+	}
+}
 
 // llBox is one patch of ground, in degrees.
 type llBox struct{ South, North, West, East float64 }
@@ -154,8 +197,8 @@ func overpassNDJSON(patches []llBox, progress func(done, total int)) (io.Reader,
 			fmt.Fprintf(&union, `way["building"](%f,%f,%f,%f);`, b.South, b.West, b.North, b.East)
 		}
 		q := fmt.Sprintf(`[out:json][timeout:180];(%s);out geom;`, union.String())
-		resp, err := environClient.PostForm("https://overpass-api.de/api/interpreter",
-			map[string][]string{"data": {q}})
+		resp, err := environDo("POST", "https://overpass-api.de/api/interpreter",
+			"application/x-www-form-urlencoded", "data="+neturl.QueryEscape(q))
 		if err != nil {
 			return nil, 0, err
 		}
@@ -278,22 +321,25 @@ func (s *Sim) fetchEnviron(source string, patches []llBox,
 					"Overpass pull is fair for; prepare the region offline with tools/envgen",
 				a, float64(overpassMaxKm2))
 		}
+		// Overpass first: it refuses fast when it refuses at all, and a
+		// refusal after gigabytes of footprint downloads is a pull that
+		// wasted an evening's bandwidth to fail.
+		osm, _, oerr := overpassNDJSON(patches, func(done, total int) {
+			progress(done, total+1)
+		})
+		if oerr != nil {
+			return "", environ.IngestStats{}, oerr
+		}
 		files, uerr := microsoftFiles(patches)
 		if uerr != nil {
 			return "", environ.IngestStats{}, uerr
 		}
 		ms, msDone, merr := microsoftNDJSON(files, patches,
-			func(d int) { progress(d, len(files)+2) })
+			func(d int) { progress(d, len(files)+1) })
 		if merr != nil {
 			return "", environ.IngestStats{}, merr
 		}
 		defer msDone()
-		osm, _, oerr := overpassNDJSON(patches, func(done, total int) {
-			progress(len(files)+done, len(files)+total)
-		})
-		if oerr != nil {
-			return "", environ.IngestStats{}, oerr
-		}
 		var mstats environ.MergeStats
 		rd, mstats, err = environ.MergeGeoJSON(ms, osm)
 		if err == nil && mstats.Primary+mstats.Enrich == 0 {

@@ -80,6 +80,9 @@ func (c callbacks) wire() {
 			layerID = id
 		}
 		c.mv.Tiles = comp.NewTiles(filepath.Join(cache, "meshcoresim", "tiles"), layerID)
+		if lbl, ok := basemap.LabelsFor(layerID); ok {
+			c.mv.LabelTiles = comp.NewTiles(filepath.Join(cache, "meshcoresim", "tiles"), lbl.ID)
+		}
 	}
 	// The basemap picker at the top of the map's layer panel: base layers
 	// only - overlays are not a map - chosen through the shell's chooser and
@@ -95,6 +98,19 @@ func (c callbacks) wire() {
 			for _, l := range basemap.Layers() {
 				if l.Name == picked && c.mv.Tiles != nil {
 					c.mv.Tiles.SetLayer(l.ID)
+					// The labels follow their base, or leave with it.
+					if lbl, ok := basemap.LabelsFor(l.ID); ok {
+						if c.mv.LabelTiles == nil {
+							if cache, err := os.UserCacheDir(); err == nil {
+								c.mv.LabelTiles = comp.NewTiles(
+									filepath.Join(cache, "meshcoresim", "tiles"), lbl.ID)
+							}
+						} else {
+							c.mv.LabelTiles.SetLayer(lbl.ID)
+						}
+					} else {
+						c.mv.LabelTiles = nil
+					}
 					c.do("map.basemap", map[string]any{"id": l.ID})
 				}
 			}

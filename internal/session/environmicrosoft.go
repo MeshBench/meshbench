@@ -89,7 +89,7 @@ func microsoftFiles(patches []llBox) ([]msFile, error) {
 			want[k] = true
 		}
 	}
-	resp, err := environClient.Get(microsoftLinksURL)
+	resp, err := environGet(microsoftLinksURL)
 	if err != nil {
 		return nil, err
 	}
@@ -261,7 +261,7 @@ func microsoftNDJSON(files []msFile, patches []llBox,
 }
 
 func downloadTo(url, path string) error {
-	resp, err := environClient.Get(url)
+	resp, err := environGet(url)
 	if err != nil {
 		return err
 	}

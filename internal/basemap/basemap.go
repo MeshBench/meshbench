@@ -130,6 +130,23 @@ func Layers() []Layer {
 			RequiresReview: true,
 		},
 		{
+			// CARTO publishes its labels as their own transparent layer,
+			// which is what lets place names ride ABOVE a coverage raster
+			// instead of drowning under it.
+			ID: "carto-dark-labels", Name: "Labels (dark)", Kind: Overlay, Dark: true, MaxZoom: 20,
+			URL:            "https://basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}.png",
+			Attribution:    "(c) OpenStreetMap contributors, (c) CARTO",
+			Terms:          "As CARTO light above.",
+			RequiresReview: true,
+		},
+		{
+			ID: "carto-light-labels", Name: "Labels (light)", Kind: Overlay, MaxZoom: 20,
+			URL:            "https://basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png",
+			Attribution:    "(c) OpenStreetMap contributors, (c) CARTO",
+			Terms:          "As CARTO light above.",
+			RequiresReview: true,
+		},
+		{
 			ID: "esri-labels", Name: "Places and roads", Kind: Overlay, MaxZoom: 19,
 			URL: "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/" +
 				"World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
@@ -138,6 +155,21 @@ func Layers() []Layer {
 			RequiresReview: true,
 		},
 	}
+}
+
+// LabelsFor is the label-only overlay that belongs above a base layer, so
+// a raster can sit between the ground and its place names. Bases whose
+// labels are baked in and have no separate layer answer false.
+func LabelsFor(baseID string) (Layer, bool) {
+	switch baseID {
+	case "carto-dark":
+		return ByID("carto-dark-labels")
+	case "carto-light":
+		return ByID("carto-light-labels")
+	case "esri-imagery", "esri-topo":
+		return ByID("esri-labels")
+	}
+	return Layer{}, false
 }
 
 // ByID finds a layer.
