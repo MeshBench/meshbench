@@ -34,11 +34,19 @@ func registerCoverageVerbs(st *state.Store, s *Sim) {
 		}
 		n := s.nodes[at]
 		w.Say("computing coverage from " + n.Name)
+		const id = "coverage-node"
+		w.Jobs = append(w.Jobs, state.Job{
+			ID: id, What: "coverage from " + n.Name, Total: 1})
 		// On a worker: 25,600 terrain profiles is not a thing to do on the
 		// goroutine that owns the world.
 		go func() {
 			ctx := context.Background()
-			cov, err := s.coverageFor(ctx, n, 60)
+			cov, err := s.coverageFor(ctx, n, 60, func(done, total int) {
+				_, _ = st.Do(ctx, "job.progress", state.Job{
+					ID: id, What: "coverage from " + n.Name,
+					Done: done, Total: total})
+			})
+			_, _ = st.Do(ctx, "job.done", id)
 			if err != nil {
 				_, _ = st.Do(ctx, "coverage.failed", err.Error())
 				return

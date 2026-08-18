@@ -252,7 +252,7 @@ func (m *MapView) layerPanel(t *theme.Theme, gtx layout.Context, sz image.Point,
 			if m.rasterViewBtn.Clicked(gtx) {
 				south, west := m.unproject(f32.Pt(0, float32(sz.Y)), sz)
 				north, east := m.unproject(f32.Pt(float32(sz.X), 0), sz)
-				m.OnRasterView(south, west, north, east)
+				m.OnRasterView(south, west, north, east, m.viewportCells(sz.X))
 			}
 			kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return m.rasterViewBtn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {

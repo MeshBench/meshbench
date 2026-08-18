@@ -94,7 +94,7 @@ type MapView struct {
 	CoverageOpacity widget.Float
 	// OnRasterView asks the session to raster exactly this viewport - the
 	// borders someone is looking at, not the network's or the boundary's.
-	OnRasterView  func(south, west, north, east float64)
+	OnRasterView  func(south, west, north, east float64, cells int)
 	rasterViewBtn widget.Clickable
 	lastSize      image.Point
 
@@ -209,6 +209,16 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 		ol := paint.PushOpacity(gtx.Ops, alpha)
 		m.drawCoverage(t, gtx, sz, s)
 		ol.Pop()
+		// The ground itself, ghosted back over the raster: every street at
+		// every zoom, from the base already on screen - a roads-only source
+		// thins out exactly where somebody zooms in to look. Scaled by the
+		// raster's own opacity, so backing the raster off does not double
+		// up the ground.
+		if m.Tiles != nil && m.Layers.Basemap && s.Coverage != nil {
+			gl := paint.PushOpacity(gtx.Ops, 0.4*alpha)
+			m.Tiles.Draw(gtx, sz, m.CentreLat, m.CentreLon, m.Zoom)
+			gl.Pop()
+		}
 	}
 	if m.Layers.Buildings {
 		m.drawBuildings(t, gtx, sz)

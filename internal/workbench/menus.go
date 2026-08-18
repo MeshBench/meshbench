@@ -92,6 +92,8 @@ func workbenchMenus() []menu {
 				Section: "Boot", Icon: "boot"},
 			{Label: "Coverage from the selection", Action: "coverage.compute",
 				Section: "Analysis", Icon: "coverage"},
+			{Label: "Coverage from the selection, this view", Action: "coverage.selection.viewport",
+				Section: "Analysis", Icon: "coverage"},
 		}},
 		// Import is under File, with opening and saving, and not here as
 		// well: one entry in two menus is two entries to keep in step and one

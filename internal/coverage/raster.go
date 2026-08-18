@@ -10,8 +10,6 @@ package coverage
 import (
 	"fmt"
 	"math"
-	"runtime"
-	"sync"
 
 	"github.com/MeshBench/meshbench/internal/terrain"
 )
@@ -105,6 +103,10 @@ type Options struct {
 	// ProfileStepM is the terrain sampling interval along each path. Too coarse
 	// and a ridge is stepped over entirely; 30 m matches the usual DEM.
 	ProfileStepM float64
+
+	// Progress, when set, hears each finished row. A raster is a long quiet
+	// loop; the difference between "wait" and "force-quit" is a percentage.
+	Progress func(done, total int)
 }
 
 // Compute evaluates a raster.
@@ -129,6 +131,9 @@ func Compute(fixed Endpoint, t Terrain, r *Raster, o Options) error {
 		for x := 0; x < r.Width; x++ {
 			lat, lon := r.LatLonAt(x, y)
 			r.Cells[y*r.Width+x] = evaluate(fixed, fixedGround, lat, lon, t, r.FreqMHz, o)
+		}
+		if o.Progress != nil {
+			o.Progress(y+1, r.Height)
 		}
 	}
 	return nil
@@ -187,59 +192,6 @@ func cellFromLoss(fixed Endpoint, fixedGround, remoteGround, lat, lon, distKm, l
 		InboundMarginDB:  inboundRx - fixed.SensitivityDBm,
 		PathLossDB:       loss,
 	}
-}
-
-// ComputeFromLosses fills a raster from a precomputed loss field — the GPU
-// path. The losses come from CoverageGridLoss (or its CPU twin); this applies
-// the same gains and margins the tile path applies.
-func ComputeFromLosses(fixed Endpoint, g HeightGrid, losses []float32, r *Raster, o Options) error {
-	if len(losses) != r.Width*r.Height {
-		return fmt.Errorf("coverage: %d losses for a %dx%d raster", len(losses), r.Width, r.Height)
-	}
-	fixedGround, ok := g.At(fixed.Lat, fixed.Lon)
-	if !ok {
-		return fmt.Errorf("coverage: no terrain at %s (%.5f, %.5f)", fixed.Name, fixed.Lat, fixed.Lon)
-	}
-	r.Cells = make([]Cell, r.Width*r.Height)
-	// Rows across every core: a million cells of haversines and bearings
-	// per station, times hundreds of stations, was the station loop's
-	// biggest serial cost. Each row writes only its own span.
-	var wg sync.WaitGroup
-	rows := make(chan int)
-	for w := 0; w < runtime.NumCPU(); w++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for y := range rows {
-				for x := 0; x < r.Width; x++ {
-					i := y*r.Width + x
-					loss := float64(losses[i])
-					if loss > 1e30 {
-						r.Cells[i] = Cell{NoData: true}
-						continue
-					}
-					lat, lon := r.LatLonAt(x, y)
-					distKm := haversineKm(fixed.Lat, fixed.Lon, lat, lon)
-					if distKm <= 0 {
-						r.Cells[i] = Cell{}
-						continue
-					}
-					remoteGround, ok := g.At(lat, lon)
-					if !ok {
-						r.Cells[i] = Cell{NoData: true}
-						continue
-					}
-					r.Cells[i] = cellFromLoss(fixed, fixedGround, remoteGround, lat, lon, distKm, loss, o)
-				}
-			}
-		}()
-	}
-	for y := 0; y < r.Height; y++ {
-		rows <- y
-	}
-	close(rows)
-	wg.Wait()
-	return nil
 }
 
 // sampleProfile walks the great circle between two points.

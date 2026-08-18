@@ -66,7 +66,7 @@ func registerPlanningVerbs(st *state.Store, s *Sim) {
 					continue
 				}
 				r, err := s.rasterOnBox(context.Background(), s.nodes[ni],
-					south, north, west, east, gw, gh)
+					south, north, west, east, gw, gh, nil)
 				if err == nil && r != nil {
 					rasters = append(rasters, r)
 				}

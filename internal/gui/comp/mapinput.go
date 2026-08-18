@@ -393,6 +393,27 @@ func (m *MapView) ViewportBox() (south, west, north, east float64, ok bool) {
 	return south, west, north, east, true
 }
 
+// viewportCells is the raster resolution that looks right on THIS screen:
+// about two and a half pixels per cell - sharp without pretending to more
+// than the display can show - which also means a zoomed-out viewport costs
+// the same as a zoomed-in one, with the metres per cell doing the scaling.
+func (m *MapView) viewportCells(screenPx int) int {
+	cells := int(float64(screenPx) / 2.5)
+	if cells < 64 {
+		cells = 64
+	}
+	if cells > 2048 {
+		cells = 2048
+	}
+	return cells
+}
+
+// ViewportCells is viewportCells for the window the map last drew into,
+// for callers outside the frame (the menu bar).
+func (m *MapView) ViewportCells() int {
+	return m.viewportCells(m.lastSize.X)
+}
+
 // StartAt pins the camera before the first frame - the capture flags' way
 // in, since the first frame otherwise fits the whole network over whatever
 // the flags asked for.

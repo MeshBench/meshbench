@@ -74,28 +74,18 @@ fn log10f(x: f32) -> f32 {
   return log(x) / log(10.0);
 }
 
-@compute @workgroup_size(64)
-fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
-  let idx = gid.x;
-  if (idx >= p.raster_w * p.raster_h) {
-    return;
-  }
-  let x = idx % p.raster_w;
-  let y = idx / p.raster_w;
-  // Row zero is the NORTH edge - the raster convention. Its CPU twin
-  // counts the same way; change one, change both.
-  let lat = p.r_north - (p.r_north - p.r_south) * (f32(y) + 0.5) / f32(p.raster_h);
-  let lon = p.r_west + (p.r_east - p.r_west) * (f32(x) + 0.5) / f32(p.raster_w);
-
+// loss_at is the shared arithmetic of both entry points: FSPL plus
+// Bullington diffraction for one cell. Returns 0 for the station's own
+// cell and NO_DATA_LOSS where the ground is unknown, exactly as the CPU
+// twin does.
+fn loss_at(lat: f32, lon: f32) -> f32 {
   let dist_km = haversine_km(p.st_lat, p.st_lon, lat, lon);
   if (dist_km <= 0.0) {
-    out[idx] = 0.0;
-    return;
+    return 0.0;
   }
   let rg = height_at(lat, lon);
   if (rg.y == 0.0) {
-    out[idx] = NO_DATA_LOSS;
-    return;
+    return NO_DATA_LOSS;
   }
   let d = dist_km * 1000.0;
   let lambda = 299.792458 / p.freq_mhz;
@@ -111,8 +101,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let f = f32(i) / f32(p.steps);
     let h = height_at(p.st_lat + (lat - p.st_lat) * f, p.st_lon + (lon - p.st_lon) * f);
     if (h.y == 0.0) {
-      out[idx] = NO_DATA_LOSS;
-      return;
+      return NO_DATA_LOSS;
     }
     let d1 = d * f;
     let d2 = d - d1;
@@ -134,8 +123,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   }
   let fspl = 32.44 + 20.0 * log10f(dist_km) + 20.0 * log10f(p.freq_mhz);
   if (!seen) {
-    out[idx] = fspl;
-    return;
+    return fspl;
   }
 
   var v: f32;
@@ -144,8 +132,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   } else {
     let db = (rx_alt - tx_alt + max_from_rx * d) / (max_from_tx + max_from_rx);
     if (db <= 0.0 || db >= d) {
-      out[idx] = fspl;
-      return;
+      return fspl;
     }
     let h = tx_alt + max_from_tx * db - (tx_alt + slope * db);
     v = h * sqrt(2.0 * d / (lambda * db * (d - db)));
@@ -157,5 +144,130 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   if (loss > 0.0) {
     loss = loss + (1.0 - exp(-loss / 6.0)) * (10.0 + 0.02 * d / 1000.0);
   }
-  out[idx] = fspl + loss;
+  return fspl + loss;
+}
+
+fn cell_latlon(idx: u32) -> vec2<f32> {
+  let x = idx % p.raster_w;
+  let y = idx / p.raster_w;
+  // Row zero is the NORTH edge - the raster convention. Its CPU twin
+  // counts the same way; change one, change both.
+  let lat = p.r_north - (p.r_north - p.r_south) * (f32(y) + 0.5) / f32(p.raster_h);
+  let lon = p.r_west + (p.r_east - p.r_west) * (f32(x) + 0.5) / f32(p.raster_w);
+  return vec2<f32>(lat, lon);
+}
+
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+  let idx = gid.x;
+  if (idx >= p.raster_w * p.raster_h) {
+    return;
+  }
+  let ll = cell_latlon(idx);
+  out[idx] = loss_at(ll.x, ll.y);
+}
+
+// The fold entry point: the same loss, finished into margins on the spot -
+// antenna gain from a sampled table, both directions' budgets - and folded
+// into a persistent best/second-best slot per cell, so a whole station
+// costs no readback at all. CPU twin: coverage.FoldStationCPU (ADR-0004);
+// change one, change both.
+
+struct Budget {
+  st_tx: f32,
+  st_sens: f32,
+  rem_tx: f32,
+  rem_gain: f32,
+  rem_sens: f32,
+  station: u32,
+  az_n: u32,
+  el_n: u32,
+  el_min: f32,
+  el_step: f32,
+  pad2: u32,
+  pad3: u32,
+}
+
+struct Slot {
+  m: f32,
+  outm: f32,
+  inm: f32,
+  st: u32,
+}
+
+@group(0) @binding(3) var<uniform> b: Budget;
+@group(0) @binding(4) var<storage, read> gains: array<f32>;
+@group(0) @binding(5) var<storage, read_write> best: array<Slot>;
+@group(0) @binding(6) var<storage, read_write> second: array<Slot>;
+@group(0) @binding(7) var<storage, read_write> served: array<u32>;
+
+fn gain_db(bearing: f32, elev: f32) -> f32 {
+  // Bilinear in the sampled pattern, azimuth wrapping, elevation clamped
+  // to the sampled band. The CPU twin interpolates identically.
+  let az = bearing - 360.0 * floor(bearing / 360.0);
+  let fa = az / 360.0 * f32(b.az_n);
+  let ia = u32(floor(fa)) % b.az_n;
+  let ia1 = (ia + 1u) % b.az_n;
+  let ta = fa - floor(fa);
+  var fe = (elev - b.el_min) / b.el_step;
+  fe = clamp(fe, 0.0, f32(b.el_n - 1u));
+  let ie = u32(floor(fe));
+  let ie1 = min(ie + 1u, b.el_n - 1u);
+  let te = fe - f32(ie);
+  let g0 = gains[ie * b.az_n + ia] * (1.0 - ta) + gains[ie * b.az_n + ia1] * ta;
+  let g1 = gains[ie1 * b.az_n + ia] * (1.0 - ta) + gains[ie1 * b.az_n + ia1] * ta;
+  return g0 * (1.0 - te) + g1 * te;
+}
+
+fn bearing_deg(lat1: f32, lon1: f32, lat2: f32, lon2: f32) -> f32 {
+  let rad = PI / 180.0;
+  let y = sin((lon2 - lon1) * rad) * cos(lat2 * rad);
+  let x = cos(lat1 * rad) * sin(lat2 * rad) -
+    sin(lat1 * rad) * cos(lat2 * rad) * cos((lon2 - lon1) * rad);
+  var bg = atan2(y, x) / rad;
+  if (bg < 0.0) {
+    bg += 360.0;
+  }
+  return bg;
+}
+
+@compute @workgroup_size(64)
+fn fold(@builtin(global_invocation_id) gid: vec3<u32>) {
+  let idx = gid.x;
+  if (idx >= p.raster_w * p.raster_h) {
+    return;
+  }
+  let ll = cell_latlon(idx);
+  let loss = loss_at(ll.x, ll.y);
+  if (loss >= NO_DATA_LOSS / 2.0) {
+    return;
+  }
+  var m_out: f32;
+  var m_in: f32;
+  let dist_km = haversine_km(p.st_lat, p.st_lon, ll.x, ll.y);
+  if (dist_km <= 0.0) {
+    // The station's own cell: margins of zero by convention, so no bright
+    // spot appears regardless of reach - the CPU rule, mirrored.
+    m_out = 0.0;
+    m_in = 0.0;
+  } else {
+    let rg = height_at(ll.x, ll.y);
+    let rx_alt = rg.x + p.remote_h;
+    let bearing = bearing_deg(p.st_lat, p.st_lon, ll.x, ll.y);
+    let elev = atan2(rx_alt - p.st_alt, dist_km * 1000.0) * 180.0 / PI;
+    let g = gain_db(bearing, elev);
+    m_out = b.st_tx + g - loss + b.rem_gain - b.rem_sens;
+    m_in = b.rem_tx + b.rem_gain - loss + g - b.st_sens;
+  }
+  if (m_out >= 0.0 && m_in >= 0.0) {
+    served[idx] = served[idx] + 1u;
+  }
+  let m = min(m_out, m_in);
+  let cand = Slot(m, m_out, m_in, b.station);
+  if (m > best[idx].m) {
+    second[idx] = best[idx];
+    best[idx] = cand;
+  } else if (m > second[idx].m) {
+    second[idx] = cand;
+  }
 }

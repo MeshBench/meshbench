@@ -115,7 +115,26 @@ func registerCoverageMap(st *state.Store, s *Sim) {
 	})
 
 	st.Handle("coverage.map", func(w *state.World, p any) (any, error) {
+		// One station or the whole network: "coverage from this node over
+		// what I am looking at" is the same computation with a shorter
+		// station list, so it must be the same code - two paths would
+		// disagree about buildings within a week.
+		painted := "the whole network"
 		infra := infrastructure(s.nodes)
+		if name, _ := stringField(p, "station"); name != "" {
+			infra = infra[:0]
+			for i := range s.nodes {
+				if s.nodes[i].Name == name ||
+					(name == "selected" && i < len(w.Nodes) && w.Nodes[i].Selected) {
+					infra = append(infra[:0], s.nodes[i])
+					painted = s.nodes[i].Name
+					break
+				}
+			}
+			if len(infra) == 0 {
+				return nil, fmt.Errorf("no node selected to compute coverage from")
+			}
+		}
 		if len(infra) == 0 {
 			return nil, fmt.Errorf("no repeaters or room servers to cover the map with")
 		}
@@ -139,7 +158,16 @@ func registerCoverageMap(st *state.Store, s *Sim) {
 		} else if south >= north || west >= east {
 			return nil, fmt.Errorf("that viewport is inside out")
 		}
-		gw, gh := gridFor(south, north, west, east, s.coverageCells())
+		// A per-run resolution rides along with a viewport box - the map
+		// picks what looks sharp on the screen asking - without touching
+		// the saved knob.
+		edge := s.coverageCells()
+		if v, ok := numField(p, "cells"); ok && p != nil {
+			if c := int(v); c >= mapGridMin && c <= mapGridMax {
+				edge = c
+			}
+		}
+		gw, gh := gridFor(south, north, west, east, edge)
 		stations := make([]coverage.Endpoint, 0, len(infra))
 		for _, n := range infra {
 			n := n
@@ -184,6 +212,9 @@ func registerCoverageMap(st *state.Store, s *Sim) {
 			len(stations), gw, gh, with))
 		go func() {
 			ctx := context.Background()
+			// However it ends, the bar comes down: a finished job that
+			// keeps owning the status line reads as a hang after the fact.
+			defer func() { _, _ = st.Do(ctx, "job.done", id) }()
 			grid, frac := coverage.RasteriseHeightsProgress(ground,
 				south, north, west, east, hw, hh, func(row, _ int) {
 					_, _ = st.Do(ctx, "job.progress", state.Job{
@@ -248,10 +279,13 @@ func registerCoverageMap(st *state.Store, s *Sim) {
 				// device prices each station's whole grid at once, and a
 				// missing or dying device hands the job to the CPU twin.
 				if c, name, ok := s.coverageMapGPU(grid, stations, r, opts, extra,
-					func(done, totalSt int) {
+					func(what string, done, totalWork int) {
+						if totalWork < 1 {
+							totalWork = 1
+						}
 						_, _ = st.Do(ctx, "job.progress", state.Job{
-							ID: id, What: "coverage: judging every station on the GPU",
-							Done: hh + done*gh/totalSt, Total: total})
+							ID: id, What: what,
+							Done: hh + done*gh/totalWork, Total: total})
 					}); ok {
 					combined = c
 					_, _ = st.Do(ctx, "ui.said", "coverage priced on "+name)
@@ -265,7 +299,7 @@ func registerCoverageMap(st *state.Store, s *Sim) {
 							Done: hh + row, Total: total})
 					})
 			}
-			cov := paintCoverage(r, "the whole network")
+			cov := paintCoverage(r, painted)
 			_, _ = st.Do(ctx, "coverage.set", cov)
 			_, _ = st.Do(ctx, "coverage.combined",
 				map[string]any{"mode": "map", "combined": combined})

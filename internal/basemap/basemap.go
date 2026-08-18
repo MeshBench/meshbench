@@ -173,12 +173,14 @@ func Layers() []Layer {
 // come through the picture instead of drowning under it. Bases with
 // everything baked in and no separate layers answer empty.
 func OverlaysFor(baseID string) []Layer {
-	// One family per stack: the transportation layer draws its own street
-	// names, so pairing it with CARTO's label layer wrote every road name
-	// twice, slightly offset. Esri roads with Esri places double nothing.
+	// The streets come through the raster as a ghost of the base itself -
+	// every road at every zoom, no second source, no doubled names - so
+	// the overlay stack is labels only, from the base's own family. The
+	// exceptions carry Esri layers because their base has nothing baked
+	// to ghost (imagery) or no separate labels of its own.
 	ids := map[string][]string{
-		"carto-dark":   {"esri-roads", "esri-labels"},
-		"carto-light":  {"esri-roads", "esri-labels"},
+		"carto-dark":   {"carto-dark-labels"},
+		"carto-light":  {"carto-light-labels"},
 		"esri-imagery": {"esri-roads", "esri-labels"},
 		"esri-topo":    {"esri-labels"},
 	}[baseID]

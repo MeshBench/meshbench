@@ -254,10 +254,11 @@ func Run(args []string) {
 	// The buildings layer reads straight from the loaded environment: a
 	// city of polygons has no business in the world snapshot.
 	mv.BuildingsIn = sm.BuildingsIn
-	mv.OnRasterView = func(south, west, north, east float64) {
+	mv.OnRasterView = func(south, west, north, east float64, cells int) {
 		go func() {
 			if _, err := st.Do(ctx, "coverage.map", map[string]any{
 				"south": south, "west": west, "north": north, "east": east,
+				"cells": float64(cells),
 			}); err != nil {
 				_, _ = st.Do(ctx, "ui.said", err.Error())
 			}
@@ -402,16 +403,21 @@ func Run(args []string) {
 			switch action {
 			case "coverage.map":
 				mv.Layers.Coverage = true
-			case "coverage.viewport":
+			case "coverage.viewport", "coverage.selection.viewport":
 				mv.Layers.Coverage = true
 				south, west, north, east, ok := mv.ViewportBox()
 				if !ok {
 					return true
 				}
+				params := map[string]any{
+					"south": south, "west": west, "north": north, "east": east,
+					"cells": float64(mv.ViewportCells()),
+				}
+				if action == "coverage.selection.viewport" {
+					params["station"] = "selected"
+				}
 				go func() {
-					if _, err := st.Do(ctx, "coverage.map", map[string]any{
-						"south": south, "west": west, "north": north, "east": east,
-					}); err != nil {
+					if _, err := st.Do(ctx, "coverage.map", params); err != nil {
 						_, _ = st.Do(ctx, "ui.said", err.Error())
 					}
 				}()
