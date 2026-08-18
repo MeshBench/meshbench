@@ -235,6 +235,43 @@ describing the thing that was built rather than the thing that was planned.
 **Gate:** someone new can explain a waveform verdict end-to-end from the
 document alone, without reading the source.
 
+### W8 — buildings, and the environment that prices the path
+
+From the global RF environment plan (meshcore-ideas/meshbench plans/
+uncurated/global-rf). Deliberately a separate branch and its own PRs, and
+deliberately not gated behind W7: buildings price the link budget - GainDB
+into the same `rf.Transmission` both modes consume - so this improves
+calculated and waveform runs alike and can proceed in parallel from W1
+onward. It is also the principled replacement for part of ADR-0015's fitted
++20 dB excess loss, which exists exactly because the bare-earth model has no
+buildings. The dataset's core principle is the same one this plan already
+lives by: the data describes what physically exists; the RF engine decides
+what it does to a signal.
+
+- [ ] environment provider: `GetBuildings(bounds)` / `GetObstructions(start,
+      end)` - tile-based, loaded on demand, cached permanently with an
+      offline mode, the same shape as the terrain tiles it sits beside
+- [ ] ingestion tool: Microsoft Global ML Building Footprints → GeoParquet
+      tiles (offline, `tools/envgen`), fetched and cached like terrain
+- [ ] OSM enrichment: explicit tags override inference; a MeshBench-owned
+      material taxonomy; every derived property carries value, source and
+      confidence - position uncertainty already propagates here, and
+      building uncertainty follows the same rule
+- [ ] buildings enter the path budget: obstruction and knife edges on the
+      existing P.526 profile (the source plan's incremental phases 1-2,
+      not ray tracing)
+- [ ] material attenuation lives in the RF engine -
+      `MaterialModel(material, freq, angle)` - never as dB stored in the
+      dataset, so one environment serves every band
+- [ ] re-fit `ExcessPathLossDB` against the ScotMesh observations with
+      buildings in the model - the fudge should shrink, and by how much is
+      the measurement of what buildings bought
+- [ ] land cover / vegetation / weather recorded as follow-up rungs, not
+      promised here
+
+**Gate:** a known urban link the bare-earth model gets wrong flips to the
+observed outcome, and the re-fitted excess loss is smaller and documented.
+
 ## Risks, named
 
 - **Sync is where PHY projects die.** Which is why nothing before W3 needs
