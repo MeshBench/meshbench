@@ -67,13 +67,19 @@ still being built. The proxy is labelled as such in the UI and replaced by
 real FEC+CRC in W2. This is what makes the plan incremental instead of a
 six-month dark period.
 
-**D3 — the switch lives in the engine's config and the Configuration
-panel.** `engine.Config.RFMode`, values `calculated` (default) and
-`waveform`. Chosen in the Configuration panel, persisted with the session's
-preferences, stamped into every run result and export, and visible in the
-chrome while a run is playing — a result that does not say which physics
-produced it is not a result. The two modes share everything: terrain, link
-budgets, antennas, timing, seeds. Same scenario, same seed, either mode.
+**D3 — one home for every knob: an RF Simulation section in
+Configuration.** `engine.Config.RFMode`, values `calculated` (default) and
+`waveform`, chosen in a dedicated **RF Simulation** section of the
+Configuration panel — and every knob this plan adds afterwards lands in the
+same section: the mode, and in time the realism switches (oscillator error,
+multipath, fading, receiver imperfections) and the environment switches
+(buildings, material model). Each control defaults to the honest baseline,
+carries one sentence about what it costs, and is persisted with the
+session's preferences. The active settings are stamped into every run
+result and export and visible in the chrome while a run plays — a result
+that does not say which physics produced it is not a result. The two modes
+share everything: terrain, link budgets, antennas, timing, seeds. Same
+scenario, same seed, either mode.
 
 **D4 — the SDR observer speaks rtl_tcp.** SDR++ has a native rtl_tcp
 client and the protocol is a page of code. Its 8-bit samples cap dynamic
@@ -96,8 +102,9 @@ exist yet.
 
 - [ ] `RFMode` on `engine.Config`: `calculated` | `waveform`, zero value
       `calculated` so every existing scenario is untouched
-- [ ] Configuration panel card: the two modes as a radio choice, each with
-      one honest sentence about what it is for and what it costs
+- [ ] Configuration grows an **RF Simulation** section; the mode choice is
+      its first control - two modes as a radio choice, each with one honest
+      sentence about what it is for and what it costs
 - [ ] mode persisted in session preferences and restored on launch
 - [ ] mode stamped into run results, exports and `run.save`, and shown in
       the chrome during a run
@@ -205,6 +212,10 @@ like any other node — this phase makes what it hears real and external.
 - [ ] fading over time
 - [ ] receiver imperfections: implementation loss, preamble threshold,
       saturation, adjacent-channel behaviour
+- [ ] every realism effect ships with its own switch in the RF Simulation
+      section - oscillator ppm, multipath, fading, imperfections - each
+      defaulting off, so a run's physics is always something the operator
+      chose and the result records
 - [ ] the golden RF suite against real SX1262 hardware: sensitivity ladder,
       CFO ladder, capture ladder, partial-collision timing sweep,
       adjacent-channel — tolerances recorded, `docs/shortcomings.md` updated
@@ -266,6 +277,9 @@ what it does to a signal.
 - [ ] re-fit `ExcessPathLossDB` against the ScotMesh observations with
       buildings in the model - the fudge should shrink, and by how much is
       the measurement of what buildings bought
+- [ ] buildings and the material model get their switches in the RF
+      Simulation section - environment on/off, regional material profile -
+      with the same honest-default rule as everything else there
 - [ ] land cover / vegetation / weather recorded as follow-up rungs, not
       promised here
 
