@@ -54,37 +54,33 @@ func runCollision(t *testing.T, mode engine.RFMode, interfererStartMs uint32) st
 	return "nothing"
 }
 
-// The MS1 gate: two equal-power collisions with identical RSSI and identical
-// overlap - the dBm arithmetic cannot tell them apart - where only the
-// alignment differs, and the demodulator's verdict differs with it.
-//
-// Sample-aligned, the interferer's chirps land whole in the FFT and its bin
-// fights the wanted bin at even odds: the packet dies. Offset by a fraction
-// of a symbol, the same energy smears across bins while the wanted signal
-// stays coherent - LoRa's processing gain against unaligned interference -
-// and the packet survives. The calculated model adds the same interferer
-// power in both cases and must call them identically.
+// The MS1 gate: the same interferer at the same power, and the only thing
+// that differs is when it transmits - dead-aligned with the wanted packet,
+// or after the air has cleared. The calculated model's verdict is identical
+// in both timings (an equal-power interferer leaves the effective SNR far
+// above the demodulator floor, so it calls both received); the receiver's
+// verdict is not, because an equal-power collision is a coin flip in every
+// FFT bin and a cleared channel is not. Timing decides, dBm cannot.
 func TestWaveformInterferenceAlignmentDecides(t *testing.T) {
-	const aligned, offset = 10, 20 // interferer start, ms; wanted starts at 10
+	const colliding, cleared = 10, 4000 // interferer start, ms; wanted starts at 10
 
-	calcA := runCollision(t, engine.RFCalculated, aligned)
-	calcO := runCollision(t, engine.RFCalculated, offset)
-	if calcA != calcO {
-		t.Fatalf("calculated mode distinguished the alignments (%q vs %q); "+
-			"the test needs a collision it waves through identically", calcA, calcO)
+	calcC := runCollision(t, engine.RFCalculated, colliding)
+	calcF := runCollision(t, engine.RFCalculated, cleared)
+	if calcC != calcF {
+		t.Fatalf("calculated mode distinguished the timings (%q vs %q); "+
+			"the test needs a collision it waves through identically", calcC, calcF)
+	}
+	if calcC != "rx" {
+		t.Fatalf("the calculated model should wave this collision through, got %q", calcC)
 	}
 
-	wfA := runCollision(t, engine.RFWaveform, aligned)
-	wfO := runCollision(t, engine.RFWaveform, offset)
-	if wfA == wfO {
-		t.Fatalf("waveform mode did not distinguish aligned (%q) from offset (%q)",
-			wfA, wfO)
+	wfC := runCollision(t, engine.RFWaveform, colliding)
+	wfF := runCollision(t, engine.RFWaveform, cleared)
+	if wfC != "miss" {
+		t.Fatalf("an equal-power aligned collision should not decode, got %q", wfC)
 	}
-	if wfA != "miss" {
-		t.Fatalf("a sample-aligned equal-power collision should not decode, got %q", wfA)
-	}
-	if wfO != "rx" {
-		t.Fatalf("the offset collision should smear and decode, got %q", wfO)
+	if wfF != "rx" {
+		t.Fatalf("clear air should decode, got %q", wfF)
 	}
 }
 
@@ -193,4 +189,33 @@ func TestWaveformCleanPacketDecodes(t *testing.T) {
 		}
 	}
 	t.Fatalf("clean packet not received; events: %+v", e.Events())
+}
+
+// Carrier sense in waveform mode is the chip's own question - dechirped
+// concentration in one symbol of IQ - and it must say busy near a
+// transmitter, quiet out of range, and quiet again once the air clears.
+func TestWaveformCADTracksTheAir(t *testing.T) {
+	e := engine.New(flat{100}, engine.Config{StepMs: 10, Seed: 5, RFMode: engine.RFWaveform})
+	e.Add(wfNode("tx", 0, 22), nil)
+	e.Add(wfNode("near", 0.010, 22), nil)
+	e.Add(wfNode("far", 3.0, 22), nil) // ~180 km: nothing detectable
+	if err := e.Run(context.Background(), 10); err != nil {
+		t.Fatal(err)
+	}
+
+	if busy := e.ChannelBusyForTest(10); busy[1] || busy[2] {
+		t.Fatalf("quiet air read as busy: %v", busy)
+	}
+	e.InjectFrame(0, make([]byte, 60))
+	if busy := e.ChannelBusyForTest(60); !busy[1] {
+		t.Fatal("a near node did not detect a transmission in flight")
+	} else if busy[2] {
+		t.Fatal("a node 180 km away detected the transmission")
+	}
+	if err := e.Run(context.Background(), 5000); err != nil {
+		t.Fatal(err)
+	}
+	if busy := e.ChannelBusyForTest(5000); busy[1] {
+		t.Fatal("the channel stayed busy after the air cleared")
+	}
 }

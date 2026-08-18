@@ -93,13 +93,18 @@ func loraParams(p phy) lora.Params {
 	return lora.Params{SF: p.sf, CR: p.codingRate, LDRO: symbolMs >= 16, CRC: true}
 }
 
-// symbolsFor turns a frame into the chirp-shift symbols a real SX126x would
-// send: preamble upchirps at MeshCore's own configured length, then the full
-// coding chain - header, whitening, Hamming, interleaving, Gray. The
-// waterfall, the verdict and the SDR observers all render from this one
-// stream, and it is bit-faithful rather than a sketch.
-func symbolsFor(frame []byte, p phy) []int {
-	pre := dsp.PreambleSymbols(p.sf)
+// frameLayout is the on-air arrangement a transmitter's modem implies:
+// MeshCore's own preamble length, the standard private sync word, the SFD.
+func frameLayout(p phy) dsp.FrameLayout {
+	a, b := dsp.StandardSync(p.sf)
+	return dsp.FrameLayout{SF: p.sf, Preamble: dsp.PreambleSymbols(p.sf), SyncA: a, SyncB: b}
+}
+
+// frameSamples renders a frame as a real SX126x would send it: preamble,
+// sync word, SFD downchirps, then the fully coded data symbols - header,
+// whitening, Hamming, interleaving, Gray. The waterfall, the verdict and the
+// SDR observers all render from this one stream, bit-faithful.
+func frameSamples(frame []byte, p phy) []complex128 {
 	data, err := lora.Encode(loraParams(p), frame)
 	if err != nil {
 		// An unencodable frame (SF outside 7..12, >255 bytes) still needs a
@@ -107,9 +112,5 @@ func symbolsFor(frame []byte, p phy) []int {
 		// about carrying nothing.
 		data = nil
 	}
-	syms := make([]int, 0, pre+len(data))
-	for i := 0; i < pre; i++ {
-		syms = append(syms, 0)
-	}
-	return append(syms, data...)
+	return frameLayout(p).FrameSamples(data)
 }

@@ -71,7 +71,7 @@ func (e *Engine) modulated(c modCache, t transmission, p phy) []complex128 {
 	if s, ok := c[t.packetID]; ok {
 		return s
 	}
-	s := dsp.Modulator{SF: p.sf}.Modulate(symbolsFor(t.frame, p))
+	s := frameSamples(t.frame, p)
 	c[t.packetID] = s
 	return s
 }
@@ -86,6 +86,7 @@ type wfCandidate struct {
 // wfResult is what the receive chain said for one candidate.
 type wfResult struct {
 	decoded bool
+	synced  bool   // the front end found and locked the preamble
 	payload []byte // what MeshCore actually gets - the decode, not the send
 	stats   lora.DecodeStats
 	snrdB   float64
@@ -244,17 +245,25 @@ func (e *Engine) judgeWaveform(t transmission, c wfCandidate, concurrent []trans
 		Offset: t.packetID*0x9E3779B97F4A7C15 + uint64(c.i)<<32,
 	}, window)
 
+	res := wfResult{snrdB: rf.SNRdB(observed, noiseLinear)}
+	// The receiver front end is real: no lock, no packet. Detection, sync
+	// word timing and the SFD's STO/CFO split all run against the observed
+	// IQ - a preamble buried in interference fails here exactly as it does
+	// on the chip, and that failure is its own ledger entry.
+	sync, locked := dsp.Detect(observed, frameLayout(txPHY))
+	if !locked {
+		return res
+	}
+	res.synced = true
+	if sync.CFOBins != 0 {
+		dsp.CorrectCFO(observed, txPHY.sf, sync.CFOBins)
+	}
 	d := dsp.Demodulator{SF: txPHY.sf}
 	n := dsp.SamplesPerSymbol(txPHY.sf)
 	scratch := make([]complex128, n)
-	res := wfResult{snrdB: rf.SNRdB(observed, noiseLinear)}
-	// Sync is granted, not modelled, until W3: the engine knows the timing
-	// exactly, so the preamble region is skipped and the data symbols are
-	// demodulated at their true boundaries.
-	pre := dsp.PreambleSymbols(txPHY.sf)
 	var shifts []int
-	for s := pre; s*n+n <= len(observed); s++ {
-		got, _ := d.DemodulateSymbolInto(scratch, observed[s*n:s*n+n])
+	for at := sync.DataStart; at+n <= len(observed); at += n {
+		got, _ := d.DemodulateSymbolInto(scratch, observed[at:at+n])
 		shifts = append(shifts, got)
 	}
 	res.payload, res.decoded, res.stats = lora.Decode(loraParams(txPHY), shifts)
@@ -275,6 +284,10 @@ func (e *Engine) settleWaveform(t transmission, src, dst *Node, c wfCandidate,
 		rec.Outcome = capture.NotDemodulated
 		why := fmt.Sprintf(
 			"waveform: header unreadable at %.1f dB measured SNR", r.snrdB)
+		if !r.synced {
+			why = fmt.Sprintf(
+				"waveform: no preamble lock at %.1f dB measured SNR", r.snrdB)
+		}
 		if r.stats.HeaderOK {
 			why = fmt.Sprintf(
 				"waveform: %d codeword(s) beyond repair, %d repaired, CRC %v, at %.1f dB",
@@ -345,3 +358,71 @@ func (e *Engine) captureWrite(t transmission, src, dst *Node, txPHY phy, rec cap
 			rec.RSSIdBm, rec.SNRdB, rec.Outcome, rec.CRCOK, t.frame)
 	}
 }
+
+// waveformBusy is channelBusy's waveform-mode twin: MeshCore's own
+// listen-before-talk fed by the chip's actual question - does one symbol of
+// dechirped IQ concentrate the way a chirp's does - instead of by an SNR
+// comparison. This is what makes the firmware's CSMA and backoff emergent:
+// change the RF and the MAC changes, with no engine rule in between.
+func (e *Engine) waveformBusy(now uint32, nodes []*Node, air []transmission) []bool {
+	busy := make([]bool, len(nodes))
+	cache := e.cadCache(air)
+	for i, dst := range nodes {
+		// By kind, not by attached process: what can listen is a property of
+		// the node, and the physics must not change because a test runs the
+		// channel without processes on it.
+		if !dst.Spec.Kind.RunsFirmware() {
+			continue
+		}
+		rxPHY := e.phyOf(dst.Spec)
+		var txs []rf.Transmission
+		for _, t := range air {
+			if t.from == i {
+				continue
+			}
+			if !e.phyOf(nodes[t.from].Spec).sameChannel(rxPHY) {
+				continue
+			}
+			if tx, ok := e.rxTransmission(t, i, now, nodes, cache); ok {
+				txs = append(txs, tx)
+			}
+		}
+		if len(txs) == 0 {
+			continue
+		}
+		n := dsp.SamplesPerSymbol(rxPHY.sf)
+		noiseDBm := dsp.NoiseFloorDBm(rxPHY.bandwidthHz, e.noiseFigOf(dst.Spec))
+		window := rf.Observe(txs, rf.Receiver{
+			NoisePowerLinear: math.Pow(10, noiseDBm/10),
+			Seed:             e.Config.Seed,
+			Offset:           uint64(now)*0xD1B54A32D192ED03 + uint64(i)<<40,
+		}, n)
+		busy[i] = dsp.CADBusy(window, rxPHY.sf)
+	}
+	return busy
+}
+
+// cadCache keeps in-flight transmissions' baseband across ticks: CAD asks
+// every tick, and re-synthesising whole frames each time would cost more
+// than the FFTs it feeds. Entries leave when their transmission does.
+func (e *Engine) cadCache(air []transmission) modCache {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.wfCAD == nil {
+		e.wfCAD = modCache{}
+	}
+	alive := map[uint64]bool{}
+	for _, t := range air {
+		alive[t.packetID] = true
+	}
+	for id := range e.wfCAD {
+		if !alive[id] {
+			delete(e.wfCAD, id)
+		}
+	}
+	return e.wfCAD
+}
+
+// ChannelBusyForTest exposes the carrier-sense vector, so a test can hold
+// the CAD path to the physics without a firmware process in the loop.
+func (e *Engine) ChannelBusyForTest(now uint32) []bool { return e.channelBusy(now) }

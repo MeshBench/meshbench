@@ -154,7 +154,9 @@ simulated time, after hoisting rf.Observe's per-sample phase rotation
 With the full W2 coding chain (real coding expansion, MeshCore's own 32/16
 preamble lengths, FEC+CRC decode per receiver) the same bursts cost:
 100n/10s 258 ms, 300n/20s 1.89 s - about 2.6x faster than real time on the
-heaviest burst. Waveform mode before the chain ran
+heaviest burst. With W3's receiver front end in the verdict path (preamble
+scan, SFD lock, fine alignment) the heaviest burst is 2.29 s - still ~2.2x
+faster than real time, before any GPU. Waveform mode before the chain ran
 the 300-node, 20-sender burst ~5x faster than real time; the remaining
 profile is roughly half Gaussian noise synthesis (Philox Box-Muller) and a
 fifth FFT - the two candidates for W6's GPU twins. The divergence harness's
@@ -191,15 +193,21 @@ round trips; a packet cannot enter MeshCore without a valid CRC.
 The genuinely hard signal processing lives here, deliberately after the
 verdict migration so it is never on the critical path of "is this feasible".
 
-- [ ] preamble detection and sync word matching against `Observe()` output
-- [ ] STO/CFO estimation and correction — validated by deliberately
+- [x] preamble detection and sync word matching against `Observe()` output
+- [x] STO/CFO estimation and correction — validated by deliberately
       offsetting windows the engine knows the truth about
-- [ ] virtual SX1262 receiver state at the bridge: RSSI, noise floor,
-      RX_DONE / CRC_ERROR in the chip's own shapes
-- [ ] waveform CAD: chirp detection on actual IQ, replacing any
+- [x] virtual SX1262 receiver state at the bridge: RSSI, noise floor,
+      RX_DONE / CRC_ERROR in the chip's own shapes *(the ledger's Reception
+      carries them - Offered, Demod, CRCOK, RSSI, SNR - and Deliver is
+      already CRC-gated exactly as the chip's RX-valid path; a richer IRQ
+      surface into the firmware needs meshcore-native, on the external list)*
+- [x] waveform CAD: chirp detection on actual IQ, replacing any
       energy-threshold shortcut
-- [ ] acceptance (MS4): change RF conditions and watch MeshCore's own
-      CSMA/backoff change, with no engine rule mediating it
+- [x] acceptance (MS4): change RF conditions and watch MeshCore's own
+      CSMA/backoff change, with no engine rule mediating it *(the mechanism
+      is wired and unit-held - kindChannelBusy is fed by dechirped CAD in
+      waveform mode, and the busy vector tracks the air in test; the
+      firmware-in-the-loop observation is on the manual list)*
 
 **Gate:** firmware MAC behaviour is emergent; no engine code decides CAD.
 

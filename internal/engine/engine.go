@@ -108,6 +108,9 @@ type Engine struct {
 	// before the wanted packet did was invisible to interference in both RF
 	// modes - the collision happened on the air and nowhere else.
 	recent []transmission
+	// wfCAD caches in-flight transmissions' synthesised baseband for the
+	// waveform CAD path, which asks every tick. See cadCache.
+	wfCAD modCache
 
 	// emitterNoise caches each receiver's extra floor from the emitter fleet,
 	// invalidated with the link cache — emitters move exactly as often as

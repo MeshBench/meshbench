@@ -377,6 +377,12 @@ func (e *Engine) channelBusy(now uint32) []bool {
 	if len(air) == 0 {
 		return busy
 	}
+	e.mu.Lock()
+	mode := e.Config.rfMode()
+	e.mu.Unlock()
+	if mode == RFWaveform {
+		return e.waveformBusy(now, nodes, air)
+	}
 	for i, dst := range nodes {
 		if dst.Firmware == nil {
 			continue

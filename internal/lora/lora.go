@@ -157,9 +157,16 @@ func Decode(p Params, shifts []int) (payload []byte, ok bool, stats DecodeStats)
 	}
 	stats.Length = length
 
+	// Consume only the frame the header declares: a streaming receiver
+	// hands this decoder a window, and whatever trails the frame is the
+	// channel's business, not damage to this packet.
+	target := length * 2
+	if hasCRC {
+		target += 4
+	}
 	nibbles := append([]byte(nil), hdrNibbles[headerNibbleCount:]...)
 	at := 8
-	for at+cr+4 <= len(shifts) {
+	for at+cr+4 <= len(shifts) && len(nibbles) < target {
 		raw := make([]int, cr+4)
 		for i := range raw {
 			raw[i] = shifts[at+i] >> (p.SF - dn)
