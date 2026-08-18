@@ -16,6 +16,7 @@ package engine
 
 import (
 	"context"
+	"github.com/MeshBench/meshbench/internal/terrain"
 	"sync"
 	"sync/atomic"
 
@@ -133,6 +134,15 @@ type Engine struct {
 	// nodes do.
 	emitterNoise map[int]float64
 
+	// profCache holds terrain profiles between node pairs - the DEM walk
+	// that dominates a cold pathLoss. Kept apart from linkCache because
+	// their lifetimes differ: a radio report invalidates the loss, but only
+	// the ground moving invalidates the profile, and re-walking the DEM
+	// because a node reported its FEM state is how a busy network stuttered
+	// to a stop. Bounded FIFO: the pairs actually talking are few.
+	profCache map[[2]int][]terrain.Point
+	profOrder [][2]int
+
 	// linkCache holds path loss between node pairs. Terrain does not move
 	// during a run, and recomputing a profile per packet per pair is the
 	// difference between a run that takes seconds and one that takes hours.
@@ -209,6 +219,7 @@ func New(t coverage.Terrain, c Config) *Engine {
 	return &Engine{
 		Terrain: t, Config: c,
 		linkCache:    map[[2]int]float64{},
+		profCache:    map[[2]int][]terrain.Point{},
 		emitterNoise: map[int]float64{},
 		StaggerBoot:  true,
 		seen:         map[string]map[uint64]bool{},
@@ -226,7 +237,9 @@ func (e *Engine) Add(spec scenario.Node, fw *firmware.Node) *Node {
 		baseNoiseFigDB: spec.NoiseFigureDB,
 	}
 	e.nodes = append(e.nodes, n)
-	// Terrain has not changed, but the set of pairs has.
+	// Terrain has not changed, but the set of pairs has. The profiles keep:
+	// they are keyed by pair index, and existing indices still mean the
+	// same ground.
 	e.linkCache = map[[2]int]float64{}
 	e.emitterNoise = map[int]float64{}
 	return n

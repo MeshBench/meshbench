@@ -72,7 +72,7 @@ func (e *Engine) pathLoss(a, b int) (float64, bool) {
 	// the pair this tick needs - most often a node's radio reporting a real
 	// configuration the warm ran before it had.
 	e.liveProfiles.Add(1)
-	profile, ok := e.profile(from, to, distKm)
+	profile, ok := e.profileCached(k, from, to, distKm)
 	loss := math.Inf(1)
 	if ok {
 		loss = fspl +
@@ -88,6 +88,38 @@ func (e *Engine) pathLoss(a, b int) (float64, bool) {
 		return 0, false
 	}
 	return loss, true
+}
+
+// profileCached is profile behind the geometry-keyed cache. The profile is
+// the expensive half of a path loss - up to 257 DEM lookups - and depends
+// on nothing but where the two nodes stand, so it outlives every radio
+// report that invalidates the loss built on it.
+func (e *Engine) profileCached(k [2]int, from, to scenario.Node, distKm float64) ([]terrain.Point, bool) {
+	e.mu.Lock()
+	if p, ok := e.profCache[k]; ok {
+		e.mu.Unlock()
+		return p, p != nil
+	}
+	e.mu.Unlock()
+	p, ok := e.profile(from, to, distKm)
+	e.mu.Lock()
+	if _, dup := e.profCache[k]; !dup {
+		if !ok {
+			p = nil // a hole in the DEM is a fact worth caching too
+		}
+		e.profCache[k] = p
+		e.profOrder = append(e.profOrder, k)
+		// A few thousand profiles is a few dozen megabytes; the pairs that
+		// actually talk are far fewer. FIFO is enough - eviction only costs
+		// a rewalk, never a wrong answer.
+		if len(e.profOrder) > 4096 {
+			old := e.profOrder[0]
+			e.profOrder = e.profOrder[1:]
+			delete(e.profCache, old)
+		}
+	}
+	e.mu.Unlock()
+	return p, ok
 }
 
 func (e *Engine) profile(from, to scenario.Node, distKm float64) ([]terrain.Point, bool) {

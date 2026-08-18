@@ -4,6 +4,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/dsp"
 	"github.com/MeshBench/meshbench/internal/lora"
 	"github.com/MeshBench/meshbench/internal/rf"
+	"math"
 )
 
 // captureThresholdDB is how much stronger one signal must be for a receiver to
@@ -50,7 +51,7 @@ func (e *Engine) InFlightTransmissions(rxIndex int) []rf.Transmission {
 		if !e.phyOf(nodes[t.from].Spec).sameChannel(rxPHY) {
 			continue
 		}
-		tx, ok := e.rxTransmission(t, rxIndex, t.startMs, nodes, cache)
+		tx, ok := e.rxTransmission(t, rxIndex, float64(t.startMs), nodes, cache)
 		if !ok {
 			continue
 		}
@@ -67,7 +68,12 @@ func (e *Engine) InFlightTransmissions(rxIndex int) []rf.Transmission {
 //
 // anchorMs is the start of the observation window; StartSample lands the
 // transmission at its true offset within it, at the channel's baseband rate.
-func (e *Engine) rxTransmission(t transmission, rxIdx int, anchorMs uint32,
+// The anchor is fractional milliseconds because the observers walk a sample
+// clock: a millisecond is 62.5 samples at 62.5 kHz, and truncating the half
+// tore the stream's phase at every window seam - forty broadband clicks a
+// second, drawn as a burst filling the whole span. The sub-sample remainder
+// rides on DelaySamples, which rf.Observe turns into the phase it is.
+func (e *Engine) rxTransmission(t transmission, rxIdx int, anchorMs float64,
 	nodes []*Node, cache modCache) (rf.Transmission, bool) {
 	src := nodes[t.from]
 	txPHY := e.phyOf(src.Spec)
@@ -76,11 +82,14 @@ func (e *Engine) rxTransmission(t transmission, rxIdx int, anchorMs uint32,
 		return rf.Transmission{}, false
 	}
 	spms := txPHY.bandwidthHz / 1000
+	rel := (float64(t.startMs) - anchorMs) * spms
+	start := math.Floor(rel)
 	tx := rf.Transmission{
 		Node:         src.Spec.Name,
 		Samples:      e.modulated(cache, t, txPHY),
 		GainDB:       src.Spec.TxPowerDBm + gain(src.Spec) - loss + gain(nodes[rxIdx].Spec),
-		StartSample:  int(float64(int64(t.startMs)-int64(anchorMs)) * spms),
+		StartSample:  int(start),
+		DelaySamples: rel - start,
 		PhaseStepRad: e.phaseStepFor(src, nodes[rxIdx], txPHY),
 	}
 	return tx, true
@@ -89,7 +98,7 @@ func (e *Engine) rxTransmission(t transmission, rxIdx int, anchorMs uint32,
 // rxTransmissions is rxTransmission plus whatever realism adds to the path -
 // today one multipath echo when that switch is on. Every synthesis consumer
 // takes this, so an echo the verdict hears is an echo the waterfall shows.
-func (e *Engine) rxTransmissions(t transmission, rxIdx int, anchorMs uint32,
+func (e *Engine) rxTransmissions(t transmission, rxIdx int, anchorMs float64,
 	nodes []*Node, cache modCache) []rf.Transmission {
 	direct, ok := e.rxTransmission(t, rxIdx, anchorMs, nodes, cache)
 	if !ok {

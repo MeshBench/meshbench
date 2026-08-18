@@ -12,6 +12,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/dsp"
 	"github.com/MeshBench/meshbench/internal/rf"
+	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
 // SetNodePosition moves a node live, physics included: the position changes
@@ -31,6 +32,13 @@ func (e *Engine) SetNodePosition(idx int, lat, lon float64) {
 			delete(e.linkCache, k)
 		}
 	}
+	// The ground between the pairs changed, so the profiles go with the
+	// losses - this is the one invalidation that reaches them.
+	for k := range e.profCache {
+		if k[0] == idx || k[1] == idx {
+			delete(e.profCache, k)
+		}
+	}
 }
 
 // ObserveSpan renders what one receiver's antenna carried over a span of
@@ -41,15 +49,29 @@ func (e *Engine) SetNodePosition(idx int, lat, lon float64) {
 // Deterministic like everything else: the noise stream is keyed by the span
 // and the receiver, so replaying a stretch of time replays its samples.
 func (e *Engine) ObserveSpan(rxIdx int, fromMs uint32, n int) []complex128 {
-	return e.observeSpan(rxIdx, fromMs, n, true)
+	return e.observeSpan(rxIdx, float64(fromMs), n, true)
 }
 
-// ObserveSpanSignal is ObserveSpan without the receiver's noise: what an
-// external presentation layer uses when it supplies the front-end floor
-// itself, across its own wider span. The verdicts never use this - a
-// receiver without noise is not a receiver.
-func (e *Engine) ObserveSpanSignal(rxIdx int, fromMs uint32, n int) []complex128 {
-	return e.observeSpan(rxIdx, fromMs, n, false)
+// ObserveSignalAt is the observers' entry: signal only - the presentation
+// layer supplies the front-end floor itself - and addressed by an absolute
+// sample index rather than milliseconds, because a continuous stream lives
+// on a sample clock. A millisecond is not a whole number of samples at
+// every bandwidth, and rounding the difference tore the stream's phase at
+// every window seam. The verdicts never use this - a receiver without
+// noise is not a receiver.
+func (e *Engine) ObserveSignalAt(rxIdx int, fromSample uint64, n int) []complex128 {
+	e.mu.Lock()
+	ok := rxIdx >= 0 && rxIdx < len(e.nodes)
+	var spec scenario.Node
+	if ok {
+		spec = e.nodes[rxIdx].Spec
+	}
+	e.mu.Unlock()
+	if !ok {
+		return make([]complex128, n)
+	}
+	spms := e.phyOf(spec).bandwidthHz / 1000
+	return e.observeSpan(rxIdx, float64(fromSample)/spms, n, false)
 }
 
 // ObserverNoisePSD is the receiver's noise density in linear watts per
@@ -68,7 +90,7 @@ func (e *Engine) ObserverNoisePSD(rxIdx int) float64 {
 	return math.Pow(10, noiseDBm/10) / rxPHY.bandwidthHz
 }
 
-func (e *Engine) observeSpan(rxIdx int, fromMs uint32, n int, withNoise bool) []complex128 {
+func (e *Engine) observeSpan(rxIdx int, fromMs float64, n int, withNoise bool) []complex128 {
 	e.mu.Lock()
 	nodes := make([]*Node, len(e.nodes))
 	copy(nodes, e.nodes)
@@ -105,7 +127,7 @@ func (e *Engine) observeSpan(rxIdx int, fromMs uint32, n int, withNoise bool) []
 	cache := e.obsCache
 	var txs []rf.Transmission
 	for _, t := range air {
-		if float64(t.endMs) <= float64(fromMs) || float64(t.startMs) >= float64(fromMs)+spanMs {
+		if float64(t.endMs) <= fromMs || float64(t.startMs) >= fromMs+spanMs {
 			continue
 		}
 		if t.from == rxIdx {
@@ -126,6 +148,6 @@ func (e *Engine) observeSpan(rxIdx int, fromMs uint32, n int, withNoise bool) []
 	return rf.Observe(txs, rf.Receiver{
 		NoisePowerLinear: noisePower,
 		Seed:             seed,
-		Offset:           uint64(fromMs)*0xA24BAED4963EE407 + uint64(rxIdx)<<44,
+		Offset:           uint64(fromMs*64)*0xA24BAED4963EE407 + uint64(rxIdx)<<44,
 	}, n)
 }

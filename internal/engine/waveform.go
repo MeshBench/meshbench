@@ -237,7 +237,7 @@ func (e *Engine) judgeWaveform(t transmission, c wfCandidate, concurrent []trans
 		if !e.phyOf(nodes[other.from].Spec).sameChannel(txPHY) {
 			continue
 		}
-		txs = append(txs, e.rxTransmissions(other, c.i, t.startMs, nodes, cache)...)
+		txs = append(txs, e.rxTransmissions(other, c.i, float64(t.startMs), nodes, cache)...)
 	}
 
 	noiseLinear := math.Pow(10, e.applyImplementationLoss(c.noiseDBm)/10)
@@ -388,7 +388,7 @@ func (e *Engine) waveformBusy(now uint32, nodes []*Node, air []transmission) []b
 			if !e.phyOf(nodes[t.from].Spec).sameChannel(rxPHY) {
 				continue
 			}
-			if tx, ok := e.rxTransmission(t, i, now, nodes, cache); ok {
+			if tx, ok := e.rxTransmission(t, i, float64(now), nodes, cache); ok {
 				txs = append(txs, tx)
 			}
 		}

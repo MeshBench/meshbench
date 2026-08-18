@@ -50,12 +50,15 @@ type engineSource struct {
 	// floor it paints and the floor the verdicts hear are the same claim.
 	psd float64
 
-	mu     sync.Mutex
-	buf    []complex128
-	atMs   float64
-	primed bool
-	stop   chan struct{}
-	closed bool
+	mu  sync.Mutex
+	buf []complex128
+	// atSample is the stream position on the receiver's own sample clock.
+	// Milliseconds are not whole samples at every bandwidth, and walking
+	// the stream in ms tore its phase at every span seam.
+	atSample uint64
+	primed   bool
+	stop     chan struct{}
+	closed   bool
 
 	// lastNow and lastMove watch the engine's clock, so a stopped clock is
 	// recognised as a pause rather than waited on forever.
@@ -85,6 +88,8 @@ func (g *engineSource) close() {
 // pump renders the stream ahead of the client, one small span at a time.
 func (g *engineSource) pump() {
 	n := int(pumpSpanMs * g.rate / 1000)
+	spms := g.rate / 1000 // samples per simulated millisecond
+	spanMs := float64(n) / spms
 	for {
 		select {
 		case <-g.stop:
@@ -108,22 +113,23 @@ func (g *engineSource) pump() {
 		}
 		g.mu.Lock()
 		if !g.primed {
-			g.atMs = math.Max(0, now-observerLagMs-pumpSpanMs)
+			g.atSample = uint64(math.Max(0, now-observerLagMs-spanMs) * spms)
 			g.primed = true
 		}
-		at := g.atMs
+		at := g.atSample
 		g.mu.Unlock()
+		atMs := float64(at) / spms
 		switch {
-		case at+pumpSpanMs <= now:
+		case atMs+spanMs <= now:
 			// Far behind a fast simulation: jump back to the cushion rather
 			// than stream minutes late; a real dongle drops on overflow too.
-			if at+pumpSpanMs < now-observerLagMs-2000 {
-				at = now - observerLagMs - pumpSpanMs
+			if atMs+spanMs < now-observerLagMs-2000 {
+				at = uint64((now - observerLagMs - spanMs) * spms)
 			}
-			out := g.s.eng.ObserveSpanSignal(g.idx, uint32(at), n)
+			out := g.s.eng.ObserveSignalAt(g.idx, at, n)
 			g.mu.Lock()
 			g.buf = append(g.buf, out...)
-			g.atMs = at + pumpSpanMs
+			g.atSample = at + uint64(n)
 			g.mu.Unlock()
 		case time.Since(g.lastMove) > 400*time.Millisecond:
 			// The clock has stopped: a pause. The stream stays alive on the
