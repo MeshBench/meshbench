@@ -188,6 +188,9 @@ func registerCompanion(st *state.Store, s *Sim) {
 		if err := en.Firmware.Bridge.Type(compFrame(proto.AppStart("meshbench"))); err != nil {
 			return nil, err
 		}
+		for _, f := range companionBootFrames(en, s.eng.NowMs()) {
+			_ = en.Firmware.Bridge.Type(compFrame(f))
+		}
 		// A companion build's own name starts blank - nothing on a phone's
 		// onboarding path has run for it - so left alone every one of them
 		// showed as nameless, which read as the client not knowing who it had
@@ -445,6 +448,33 @@ func registerCompanion(st *state.Store, s *Sim) {
 	})
 }
 
+// companionBootFrames is the clock and the modem, queued before anything
+// else a fresh companion is told.
+//
+// The same two a sweep's own companion sender needs before it can originate
+// (companionSetup in experimentrun.go), and for the same reason: neither
+// reaches a companion build through the text console the rest of
+// provisioning uses - a companion has no command line, only this protocol -
+// so left unset a companion boots on its firmware's own factory defaults,
+// the deprecated wide preset and a clock nothing else in the run agrees
+// with, rather than the scenario it was told to be. Untreated that read as a
+// radio that had stopped receiving rather than one still on its factory
+// settings.
+//
+// The clock is the run's own epoch plus however much simulated time has
+// already passed, not the bare epoch: a companion connected after other
+// nodes have been running would otherwise set its clock behind theirs and
+// see every reply since as a replay.
+func companionBootFrames(en *engine.Node, nowMs uint32) [][]byte {
+	r := en.Spec.Radio
+	return [][]byte{
+		proto.SetDeviceTime(uint32(scenarioEpoch) + nowMs/1000),
+		proto.SetRadioParams(uint32(r.CentreHz/1000), uint32(r.BandwidthHz),
+			uint8(r.SpreadFactor), uint8(r.CodingRate+4)),
+		proto.SetTxPower(uint8(en.Spec.TxPowerDBm)),
+	}
+}
+
 // orUnscoped names the empty scope, because "" in a status line reads as a
 // missing value rather than as an answer.
 func orUnscoped(s string) string {
@@ -509,6 +539,9 @@ func (s *Sim) connectCompanion(node string) error {
 	s.comps[node] = c
 	if err := en.Firmware.Bridge.Type(compFrame(proto.AppStart("meshbench"))); err != nil {
 		return err
+	}
+	for _, f := range companionBootFrames(en, s.eng.NowMs()) {
+		_ = en.Firmware.Bridge.Type(compFrame(f))
 	}
 	// Named here too: the CLI can be the first thing to connect, not only
 	// the client, and a companion is nameless until something sets it.
