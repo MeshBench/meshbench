@@ -47,7 +47,41 @@ func (p Philox) normalPair(counter uint64) (float64, float64) {
 	b := p.uint64At(counter*2 + 1)
 	u1 := (float64(bits.RotateLeft64(a, 17)>>11) + 0.5) / float64(uint64(1)<<53)
 	u2 := (float64(b>>11) + 0.5) / float64(uint64(1)<<53)
-	return invNormalCDF(u1), invNormalCDF(u2)
+	return quantile(u1), quantile(u2)
+}
+
+// quantileTable is the inverse CDF sampled uniformly across the central
+// region, linearly interpolated: two loads and a lerp instead of a
+// polynomial ratio per sample. 8192 cells keep the interpolation error
+// near 1e-7 sigma - far beneath the quantisation any consumer applies -
+// and the tails, where the curve bends too hard for a table and the FEC
+// threshold actually lives, still go through the exact polynomial.
+const (
+	quantLow   = 0.02425
+	quantHigh  = 1 - quantLow
+	quantCells = 8192
+)
+
+var quantTable = func() [quantCells + 2]float64 {
+	var t [quantCells + 2]float64
+	for i := range t {
+		u := quantLow + (quantHigh-quantLow)*float64(i)/quantCells
+		if u > quantHigh {
+			u = quantHigh
+		}
+		t[i] = invNormalCDF(u)
+	}
+	return t
+}()
+
+func quantile(u float64) float64 {
+	if u < quantLow || u > quantHigh {
+		return invNormalCDF(u)
+	}
+	f := (u - quantLow) * (quantCells / (quantHigh - quantLow))
+	i := int(f)
+	frac := f - float64(i)
+	return quantTable[i] + (quantTable[i+1]-quantTable[i])*frac
 }
 
 // invNormalCDF is Acklam's rational approximation to the standard normal

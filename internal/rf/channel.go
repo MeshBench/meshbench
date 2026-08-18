@@ -74,8 +74,16 @@ func Observe(txs []Transmission, rx Receiver, windowSamples int) []complex128 {
 			hi = windowSamples - off
 		}
 		if tx.PhaseStepRad == 0 {
-			for i := lo; i < hi; i++ {
-				out[off+i] += tx.Samples[i] * rot
+			// Decomposed by hand: Go's complex multiply is exactly
+			// (ac-bd, ad+bc), reproduced term for term so the sum stays
+			// bit-identical - but on scalar registers with the bounds
+			// checks hoisted, which the complex form does not get.
+			rr, ri := real(rot), imag(rot)
+			dst := out[off+lo : off+hi]
+			src := tx.Samples[lo:hi]
+			for i := range src {
+				sr, si := real(src[i]), imag(src[i])
+				dst[i] += complex(sr*rr-si*ri, sr*ri+si*rr)
 			}
 			continue
 		}
@@ -86,9 +94,14 @@ func Observe(txs []Transmission, rx Receiver, windowSamples int) []complex128 {
 		w := rot * complex(c, s)
 		sStep, cStep := math.Sincos(tx.PhaseStepRad)
 		step := complex(cStep, sStep)
-		for i := lo; i < hi; i++ {
-			out[off+i] += tx.Samples[i] * w
-			w *= step
+		wr, wi := real(w), imag(w)
+		tr, ti := real(step), imag(step)
+		dst := out[off+lo : off+hi]
+		src := tx.Samples[lo:hi]
+		for i := range src {
+			sr, si := real(src[i]), imag(src[i])
+			dst[i] += complex(sr*wr-si*wi, sr*wi+si*wr)
+			wr, wi = wr*tr-wi*ti, wr*ti+wi*tr
 		}
 	}
 

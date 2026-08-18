@@ -96,9 +96,21 @@ assembly or cgo SIMD is the last resort, not the second step.
   fanned out across cores, cache pre-filled serially, each answer an
   independent write to its own index.
 
+- **Noise finished off**: the central region of the quantile through an
+  8192-cell interpolated table (error ~1e-7 sigma), tails still exact
+  polynomial. 43.0 ns a pair under Box-Muller, 13.8 now.
+- **Observe's accumulate loops decomposed to scalars**, term-for-term
+  identical to Go's complex multiply so the sums stay bit-exact, with
+  the bounds checks hoisted.
+
 Bench movement (engine-only, flat earth, so the profile cache and the
-readout throttle do not show here): 8 talkers 199 -> 88 ms, 3 talkers
-113 -> 39 ms per 5 s simulated - 2.3-2.9x, race-detector clean. Remaining profile: Observe accumulation,
+readout throttle do not show here): 8 talkers 199 -> 73 ms, 3 talkers
+113 -> 34 ms per 5 s simulated - 2.7-3.3x, race-detector clean. The
+observer window is 326 -> 66 us. GPU demod was assessed for the judge
+path and deliberately left out: at saturation, twelve parallel CPU
+judges out-run the one serialized GPU batch queue (0.38 ms effective vs
+1.11 ms per SF9 batch) - it wins latency, not throughput, and the judge
+path is a throughput problem. Radix-4 FFT remains the next CPU lever. Remaining profile: Observe accumulation,
 FFT, noise - the P2 GPU synthesis targets, with the caveat that
 verdict-path synthesis must stay bit-identical CPU (GPU on/off must not
 change an outcome), so P2's honest scope is the presentation surfaces
