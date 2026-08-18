@@ -100,7 +100,9 @@ pull from OpenStreetMap or Microsoft's ML footprints, or tiles prepared with
 knife edge plus one wall of material loss. It is still not clutter, trees or
 body loss, and a pulled database inherits that database's gaps - ML
 footprints carry no materials, so those buildings fall back to a regional
-default with the low confidence that implies.
+default with the low confidence that implies. The merged pull narrows that
+where OSM has surveyed the building - explicit type and material override
+the inference - but only there; the unsurveyed majority keeps the default.
 
 ### 1.4 Diffraction is knife-edge, and single-mechanism
 

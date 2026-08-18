@@ -184,8 +184,38 @@ func (s *Sim) fetchEnviron(source string, south, north, west, east float64,
 			return "", environ.IngestStats{}, uerr
 		}
 		rd, done, err = microsoftNDJSON(urls, func(d int) { progress(d, len(urls)+1) })
+	case "merged":
+		// The environment plan's actual shape: Microsoft for existence and
+		// height, OSM tags for what it explicitly knows, explicit over
+		// inferred. Both halves' caps apply, because both halves are pulled.
+		if a := boxAreaKm2(south, north, west, east); a > overpassMaxKm2 {
+			return "", environ.IngestStats{}, fmt.Errorf(
+				"this map covers %.0f km2, past the %.0f km2 a live Overpass "+
+					"pull is fair for; prepare the region offline with tools/envgen",
+				a, float64(overpassMaxKm2))
+		}
+		urls, uerr := microsoftURLs(south, north, west, east)
+		if uerr != nil {
+			return "", environ.IngestStats{}, uerr
+		}
+		ms, msDone, merr := microsoftNDJSON(urls, func(d int) { progress(d, len(urls)+2) })
+		if merr != nil {
+			return "", environ.IngestStats{}, merr
+		}
+		defer msDone()
+		osm, _, oerr := overpassNDJSON(south, north, west, east)
+		if oerr != nil {
+			return "", environ.IngestStats{}, oerr
+		}
+		progress(len(urls)+1, len(urls)+2)
+		var mstats environ.MergeStats
+		rd, mstats, err = environ.MergeGeoJSON(ms, osm)
+		if err == nil && mstats.Primary+mstats.Enrich == 0 {
+			err = fmt.Errorf("neither source has buildings in this map's area")
+		}
 	default:
-		return "", environ.IngestStats{}, fmt.Errorf("no building database %q; there is osm and microsoft", source)
+		return "", environ.IngestStats{}, fmt.Errorf(
+			"no building database %q; there is merged, osm and microsoft", source)
 	}
 	if err != nil {
 		return "", environ.IngestStats{}, err

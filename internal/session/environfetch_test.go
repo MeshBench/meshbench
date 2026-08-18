@@ -114,3 +114,11 @@ func TestHasTilesMatchesIngestLayout(t *testing.T) {
 		t.Fatal("hasTiles cannot see what IngestGeoJSON wrote")
 	}
 }
+
+func TestMergedSourceHonoursTheOverpassCap(t *testing.T) {
+	var s Sim
+	_, _, err := s.fetchEnviron("merged", 54.6, 58.7, -7.5, -1.9, func(int, int) {})
+	if err == nil || !strings.Contains(err.Error(), "envgen") {
+		t.Fatalf("an oversized merged pull must refuse and point at envgen, got %v", err)
+	}
+}

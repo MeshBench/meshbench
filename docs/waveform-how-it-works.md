@@ -158,11 +158,16 @@ forgets the link cache, because two physics must not share one matrix.
 
 Footprints can also be pulled at runtime (`internal/session/environfetch.go`,
 verb `environ.fetch`, the Buildings card's database dropdown): OpenStreetMap
-over Overpass or Microsoft's Global ML footprints by level-9 quadkey, scoped
-to the loaded map plus a margin, ingested through the same tested
-`IngestGeoJSON`, cached permanently like terrain, and switched on through
-the same `rf.environment` the manual path uses. A pull too large for a live
-download refuses and points at `tools/envgen`.
+over Overpass, Microsoft's Global ML footprints by level-9 quadkey, or - the
+default, and the environment plan's actual shape - the two merged
+(`environ.MergeGeoJSON`): Microsoft provides existence and height, the OSM
+building whose centroid falls inside a detected footprint contributes its
+explicit type, levels and materials, explicit overriding inferred, and
+OSM-only buildings survive on their own. Every pull is scoped to the loaded
+map plus a margin, ingested through the same tested `IngestGeoJSON`, cached
+permanently like terrain, and switched on through the same `rf.environment`
+the manual path uses. A pull too large for a live download refuses and
+points at `tools/envgen`.
 
 ## Determinism
 

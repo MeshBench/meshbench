@@ -26,14 +26,19 @@ func (p *configPanel) wireEnvironSources() {
 			return
 		}
 		p.choose("Pull building footprints from", []string{
-			"OpenStreetMap - live Overpass pull, tags carry heights and materials",
-			"Microsoft Global ML footprints - worldwide, heights from imagery",
+			"Microsoft + OSM merged - footprints everywhere, OSM types and " +
+				"materials override (the plan's shape)",
+			"OpenStreetMap alone - live Overpass pull, tags carry heights and materials",
+			"Microsoft alone - worldwide ML footprints, heights from imagery, no types",
 		}, func(picked string) {
 			if p.do == nil {
 				return
 			}
-			source := "osm"
-			if strings.HasPrefix(picked, "Microsoft") {
+			source := "merged"
+			switch {
+			case strings.HasPrefix(picked, "OpenStreetMap"):
+				source = "osm"
+			case strings.HasPrefix(picked, "Microsoft alone"):
 				source = "microsoft"
 			}
 			p.do("environ.fetch", map[string]any{"source": source})
