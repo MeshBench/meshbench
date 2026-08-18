@@ -180,6 +180,12 @@ func registerCompanion(st *state.Store, s *Sim) {
 		if _, already := s.comps[node]; already {
 			return nil, fmt.Errorf("%s is already connected", node)
 		}
+		// One holder at a time, and an outside client outranks us: connecting
+		// over a served port would steal it from whatever is attached, with
+		// nothing said at either end.
+		if _, serving := s.served[node]; serving {
+			return nil, fmt.Errorf("%s is being served to an outside client; stop serving first", node)
+		}
 		c := &compSession{node: node}
 		c.release = en.Firmware.Bridge.Claim(c)
 		s.comps[node] = c
@@ -281,6 +287,12 @@ func registerCompanion(st *state.Store, s *Sim) {
 			if err := setPathHash(en, uint8(n)); err != nil {
 				return nil, err
 			}
+			// Re-read what the node now holds, as companion.configure does.
+			// Without this the published PathHashBytes stays at its old value,
+			// the composer's only-when-it-differs guard keeps firing, and
+			// every subsequent message rewrites flash with the value already
+			// there - the exact cost the guard exists to avoid.
+			_ = en.Firmware.Bridge.Type(compFrame(proto.DeviceQuery()))
 		}
 		at := time.Now()
 		if err := en.Firmware.Bridge.Type(compFrame(proto.SendChannelText(idx, at, text))); err != nil {
@@ -466,13 +478,18 @@ func registerCompanion(st *state.Store, s *Sim) {
 // nodes have been running would otherwise set its clock behind theirs and
 // see every reply since as a replay.
 func companionBootFrames(en *engine.Node, nowMs uint32) [][]byte {
-	r := en.Spec.Radio
-	return [][]byte{
-		proto.SetDeviceTime(uint32(scenarioEpoch) + nowMs/1000),
-		proto.SetRadioParams(uint32(r.CentreHz/1000), uint32(r.BandwidthHz),
-			uint8(r.SpreadFactor), uint8(r.CodingRate+4)),
-		proto.SetTxPower(uint8(en.Spec.TxPowerDBm)),
+	out := [][]byte{proto.SetDeviceTime(uint32(scenarioEpoch) + nowMs/1000)}
+	// Only what the scenario actually states. A zeroed radio sent anyway is
+	// ERR_CODE_ILLEGAL_ARG at best, and a zeroed TX power is worse: 0 dBm is
+	// a legal setting, so the firmware would take it and go quiet.
+	if r := en.Spec.Radio; r.CentreHz > 0 {
+		out = append(out, proto.SetRadioParams(uint32(r.CentreHz/1000),
+			uint32(r.BandwidthHz), uint8(r.SpreadFactor), uint8(r.CodingRate+4)))
 	}
+	if en.Spec.TxPowerDBm > 0 {
+		out = append(out, proto.SetTxPower(uint8(en.Spec.TxPowerDBm)))
+	}
+	return out
 }
 
 // orUnscoped names the empty scope, because "" in a status line reads as a
@@ -526,6 +543,11 @@ func (s *Sim) connectCompanion(node string) error {
 	}
 	if _, already := s.comps[node]; already {
 		return nil
+	}
+	// The same refusal companion.connect makes: typing a CLI line must not
+	// quietly take the port from an attached outside client.
+	if _, serving := s.served[node]; serving {
+		return fmt.Errorf("%s is being served to an outside client; stop serving first", node)
 	}
 	if s.eng == nil {
 		return fmt.Errorf("no network loaded")

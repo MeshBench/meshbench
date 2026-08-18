@@ -29,6 +29,10 @@ import (
 type nodeTab int
 
 const (
+	// tabConsole is the firmware's text console, which only a repeater has.
+	// A companion speaks the framed protocol instead, and its command line -
+	// meshcore-cli's vocabulary - lives inside the Companion tab; a second
+	// tab for the same thing taught people the two might differ.
 	tabConsole nodeTab = iota
 	// tabCompanion and tabConnect only exist for a node that speaks the
 	// companion protocol. A repeater has no channels and no contacts, and a
@@ -59,14 +63,6 @@ func (n nodeTab) String() string {
 		return "Connect"
 	}
 	return "Console"
-}
-
-// tabTitle is the console tab's name, which says which console it is.
-func (p *nodeWindowPanel) tabTitle(n nodeTab) string {
-	if n == tabConsole && p.isCompanion() {
-		return "meshcore-cli"
-	}
-	return n.String()
 }
 
 // nodeWindowPanel is the body. Kept separate from the window so it can be
@@ -117,7 +113,7 @@ type nodeWindowPanel struct {
 // visibleTabs is the tab set this node gets.
 func (p *nodeWindowPanel) visibleTabs() []nodeTab {
 	if p.isCompanion() {
-		return []nodeTab{tabConsole, tabCompanion, tabSettings, tabRadio,
+		return []nodeTab{tabCompanion, tabSettings, tabRadio,
 			tabStats, tabActivity, tabConnect}
 	}
 	return []nodeTab{tabConsole, tabSettings, tabRadio, tabStats, tabActivity}
@@ -151,20 +147,20 @@ func (p *nodeWindowPanel) clicks(gtx layout.Context) {
 		}
 	}
 	if p.send.Click.Clicked(gtx) || submitted {
-		if line := strings.TrimSpace(p.input.Editor.Text()); line != "" {
-			// A companion has no text console: it speaks the framed protocol
-			// a phone speaks, so it gets meshcore-cli's vocabulary.
-			if p.isCompanion() && p.OnCLI != nil {
-				p.OnCLI(p.node, line)
-			} else if p.OnCommand != nil {
-				p.OnCommand(p.node, line)
-			}
+		if line := strings.TrimSpace(p.input.Editor.Text()); line != "" && p.OnCommand != nil {
+			p.OnCommand(p.node, line)
 			p.input.Editor.SetText("")
 		}
 	}
 }
 
 func (p *nodeWindowPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+	// A companion has no console tab, and tabConsole is the zero value every
+	// window opens on - left alone it would draw a pane its own strip does
+	// not offer.
+	if p.isCompanion() && p.tab == tabConsole {
+		p.tab = tabCompanion
+	}
 	p.clicks(gtx)
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(p.head(t, s)),
@@ -244,7 +240,7 @@ func (p *nodeWindowPanel) head(t *theme.Theme, s *state.Snapshot) layout.Widget 
 									macro := op.Record(gtx.Ops)
 									dims := layout.Inset{Top: t.Sp.XS, Bottom: t.Sp.XS,
 										Left: t.Sp.S, Right: t.Sp.S}.Layout(gtx,
-										comp.Text(t, t.Sz.Body, ink, p.tabTitle(tb)))
+										comp.Text(t, t.Sz.Body, ink, tb.String()))
 									call := macro.Stop()
 									comp.RoundRect(gtx, dims.Size, 5, theme.Alpha(t.P.Sunk, 0.6))
 									comp.Border(gtx, dims.Size, 5, 1, line)

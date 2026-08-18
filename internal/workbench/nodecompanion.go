@@ -249,11 +249,10 @@ func (c *companionTab) clicks(gtx layout.Context, cs state.Companion) {
 		c.serveKind = "serial"
 	}
 	if c.serveBtn.Click.Clicked(gtx) {
-		// Serving means letting go: the port takes one holder, and an
-		// external client cannot have it while we do.
-		if cs.Connected {
-			c.do("companion.disconnect", nil)
-		}
+		// Serving means letting go: the port takes one holder, and the serve
+		// verb releases ours itself. Firing a disconnect first from here sent
+		// two verbs on two goroutines, and when serve arrived first the
+		// disconnect released the port out from under the new client.
 		c.do("bench.serve", map[string]any{"kind": c.serveKind})
 	}
 	if c.stopServeBtn.Click.Clicked(gtx) {

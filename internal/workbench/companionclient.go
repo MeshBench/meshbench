@@ -301,7 +301,9 @@ func receiptOf(m state.CompanionMessage) string {
 	if m.Receipt != "" {
 		return "↳ " + m.Receipt
 	}
-	if m.Mine || m.Hops == 0 {
+	// Hops below zero is "did not arrive by flood" - the count is unknown,
+	// not negative - and zero is a message with nothing to explain.
+	if m.Mine || m.Hops <= 0 {
 		return ""
 	}
 	return fmt.Sprintf("↳ %d hops  ·  %+.1f dB", m.Hops, m.SNRdB)

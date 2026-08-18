@@ -66,8 +66,10 @@ var ErrClosed = errors.New("firmware: bridge closed")
 // gives no message boundaries, and a radio frame is a message.
 type Bridge struct {
 	console io.Writer
-	// claimed marks the port as owned by a companion link.
-	claimed bool
+	// claimed marks the port as owned by a companion link, and claimGen
+	// counts claims so a release can tell whether its own is still current.
+	claimed  bool
+	claimGen uint64
 
 	ln   net.Listener
 	node string
@@ -272,13 +274,25 @@ func (b *Bridge) Console(w io.Writer) {
 //
 // Returns a release function. While a claim is held, Console is ignored: two
 // protocols interleaved on one UART is neither of them.
+//
+// The release only releases its own claim, once. An unconditional release
+// let a stale holder clear whoever had claimed since - disconnect racing
+// serve unplugged the TCP client that had just taken the port, which read as
+// a client that connected and then received nothing. A generation number
+// rather than comparing writers, because the same writer claiming again
+// would make its old release match again.
 func (b *Bridge) Claim(w io.Writer) func() {
 	b.mu.Lock()
+	b.claimGen++
+	gen := b.claimGen
 	b.console, b.claimed = w, true
 	b.mu.Unlock()
 	return func() {
 		b.mu.Lock()
-		b.console, b.claimed = nil, false
+		if b.claimGen == gen {
+			b.claimGen++
+			b.console, b.claimed = nil, false
+		}
 		b.mu.Unlock()
 	}
 }

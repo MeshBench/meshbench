@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/MeshBench/meshbench/internal/engine"
 	"github.com/MeshBench/meshbench/internal/gui/state"
 	"github.com/MeshBench/meshbench/internal/scenario"
 )
@@ -104,5 +105,26 @@ func TestTheEchoPrecedesTheAnswer(t *testing.T) {
 	}
 	if echo > answer {
 		t.Errorf("the answer came before the command that caused it: %v", lines)
+	}
+}
+
+// A CLI line must not steal the port from an attached outside client.
+//
+// The command line connects on first use, and connecting claims the UART -
+// which, over a served port, unplugged whatever real client was on the other
+// end without a word at either side.
+func TestTheCLIRefusesAServedPort(t *testing.T) {
+	st, s, ctx, cancel := cliSim(t)
+	defer cancel()
+
+	delete(s.comps, "Alpha")
+	s.served = map[string]*engine.CompanionLink{"Alpha": {Node: "Alpha", Kind: "tcp", Addr: "127.0.0.1:1"}}
+	_, err := st.Do(ctx, "console.cli",
+		map[string]any{"node": "Alpha", "command": "infos"})
+	if err == nil {
+		t.Fatal("a CLI command took a served port instead of being refused")
+	}
+	if !strings.Contains(err.Error(), "served") {
+		t.Errorf("the refusal should say the port is served, got %q", err)
 	}
 }

@@ -288,12 +288,8 @@ func (p *nodeWindowPanel) console(t *theme.Theme, gtx layout.Context, s *state.S
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			if len(lines) == 0 {
-				hint := "nothing printed yet - start the node, or type a command"
-				if p.isCompanion() {
-					hint = "a simulated companion. Type ? for what meshcore-cli " +
-						"commands this build answers."
-				}
-				return layout.Center.Layout(gtx, comp.Text(t, t.Sz.Caption, t.P.Faint, hint))
+				return layout.Center.Layout(gtx, comp.Text(t, t.Sz.Caption, t.P.Faint,
+					"nothing printed yet - start the node, or type a command"))
 			}
 			p.list.Axis = layout.Vertical
 			// Anchored at the end: a console is read from the bottom.
@@ -307,9 +303,6 @@ func (p *nodeWindowPanel) console(t *theme.Theme, gtx layout.Context, s *state.S
 			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 					p.input.Hint = "a MeshCore command, then Enter"
-					if p.isCompanion() {
-						p.input.Hint = "a meshcore-cli command, then Enter - ? for the list"
-					}
 					p.input.Editor.SingleLine = true
 					p.input.Editor.Submit = true
 					return p.input.Layout(t, gtx)
@@ -322,13 +315,9 @@ func (p *nodeWindowPanel) console(t *theme.Theme, gtx layout.Context, s *state.S
 			)
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			note := "replies do not arrive while a sweep owns the clock: the " +
-				"firmware only speaks when the engine steps it"
-			if p.isCompanion() {
-				note = "meshcore-cli, against a simulated companion. Commands it " +
-					"has and this does not are refused by name rather than ignored."
-			}
-			return comp.OneLine(t, t.Sz.Caption, t.P.Faint, note, false)(gtx)
+			return comp.OneLine(t, t.Sz.Caption, t.P.Faint,
+				"replies do not arrive while a sweep owns the clock: the "+
+					"firmware only speaks when the engine steps it", false)(gtx)
 		}),
 	)
 }
