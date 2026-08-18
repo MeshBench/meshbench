@@ -29,13 +29,34 @@ func registerBenchVerbs(st *state.Store, s *Sim) {
 			return nil, err
 		}
 		w.Endpoints = s.endpoints()
+		// serve released any claim the workbench held on this node, so the
+		// panel has to stop saying "connected".
+		s.publishCompanions(w)
 		w.Say(ep.Node + " is at " + ep.Addr)
 		return map[string]any{"node": ep.Node, "addr": ep.Addr}, nil
 	})
 
-	st.Handle("bench.drop", func(w *state.World, _ any) (any, error) {
+	st.Handle("bench.drop", func(w *state.World, p any) (any, error) {
+		// With a node: stop serving that node, attached or not. A listener
+		// still waiting for its first client is exactly what "stop serving"
+		// is pressed at, and closing only attached links made that press a
+		// silent nothing - the port stayed served and Connect stayed refused.
+		if m, ok := p.(map[string]any); ok {
+			if name, _ := m["node"].(string); name != "" {
+				n := s.stopServing(name)
+				w.Endpoints = s.endpoints()
+				s.publishCompanions(w)
+				if n == 0 {
+					w.Say(name + " was not being served")
+				} else {
+					w.Say("stopped serving " + name)
+				}
+				return map[string]any{"dropped": n}, nil
+			}
+		}
 		n := s.dropClients()
 		w.Endpoints = s.endpoints()
+		s.publishCompanions(w)
 		w.Say(fmt.Sprintf("dropped %d client connection(s)", n))
 		return map[string]any{"dropped": n}, nil
 	})

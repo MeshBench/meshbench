@@ -359,42 +359,84 @@ func TestInspectorIsTheLightEventsView(t *testing.T) {
 		t.Errorf("clicking the row opened packet %d, want 7", opened)
 	}
 }
-func TestCompanionTabSpeaksMeshcoreCLI(t *testing.T) {
+
+// The client acts through verbs, not through command-line strings.
+//
+// Every button used to format a meshcore-cli line, which is why the panes
+// could only ever show a terminal: the answer came back as text meant for
+// one. Sending, scope, adverts and refresh are verbs now, and the CLI is a
+// mode beside them rather than the thing underneath them.
+func TestTheCompanionClientActsThroughVerbs(t *testing.T) {
+	var verbs []string
 	var lines []string
-	c := &companionTab{node: "AngusOutlaw1", OnCLI: func(_, line string) {
-		lines = append(lines, line)
-	}}
-	// The flat layout: the real one hides most controls behind sub-tabs.
+	c := &companionTab{
+		node:  "AngusOutlaw1",
+		OnCLI: func(_, line string) { lines = append(lines, line) },
+		OnDo:  func(verb string, _ any) { verbs = append(verbs, verb) },
+	}
+	// The flat layout: the real one hides most controls behind the modes.
 	h := newPanelHarness(
 		func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
 			return c.auditDraw(t, gtx, s)
 		}, &state.Snapshot{})
 	h.frame()
-	c.freq.Editor.SetText("869618")
-	c.bw.Editor.SetText("62500")
-	c.sf.Editor.SetText("8")
-	c.cr.Editor.SetText("8")
-	c.name.Editor.SetText("Angus")
-	c.txdbm.Editor.SetText("22")
+	c.msg.Editor.SetText("hello fife")
+	c.scope.Editor.SetText("#sco")
+	c.cmd.Editor.SetText("infos")
 	h.frame()
-	// A grid rather than four guessed rows: these bars carry notes, so their
-	// heights differ and a row written down in advance is a test of the
-	// layout rather than of the controls.
 	for y := float32(6); y < 340; y += 10 {
 		h.pressAlong(y)
 	}
-	// The strip swaps connect for disconnect once claimed, so it gets a
-	// second pass.
-	for y := float32(6); y < 40; y += 8 {
+
+	joined := strings.Join(verbs, " | ")
+	for _, want := range []string{
+		"companion.connect", "companion.send", "companion.scope",
+		"companion.advert", "companion.refresh", "bench.serve", "bench.drop",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("no control reached %q; got: %s", want, joined)
+		}
+	}
+	// And the command line still goes out as a command line.
+	if !strings.Contains(strings.Join(lines, " | "), "infos") {
+		t.Errorf("the CLI box did not send its line; got: %v", lines)
+	}
+}
+
+// Serving hands the port to somebody else, so it has to let go of it first.
+// Two holders of one claim is the thing the whole tab is arranged to prevent.
+func TestServingDisconnectsFirst(t *testing.T) {
+	var verbs []string
+	c := &companionTab{
+		node: "AngusOutlaw1",
+		OnDo: func(verb string, _ any) { verbs = append(verbs, verb) },
+	}
+	c.build()
+	snap := &state.Snapshot{Companions: []state.Companion{
+		{Node: "AngusOutlaw1", Connected: true},
+	}}
+	h := newPanelHarness(
+		func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+			return c.auditDraw(t, gtx, s)
+		}, snap)
+	h.frame()
+	for y := float32(6); y < 340; y += 10 {
 		h.pressAlong(y)
 	}
-
-	joined := strings.Join(lines, " | ")
-	for _, want := range []string{"set radio 869618 62500 8 8", "set name Angus",
-		"set tx 22", "get_channel", "sync_msgs", "contacts", "__disconnect"} {
-		if !strings.Contains(joined, want) {
-			t.Errorf("no control produced %q; got: %s", want, joined)
+	var disconnectAt, serveAt = -1, -1
+	for i, v := range verbs {
+		if v == "companion.disconnect" && disconnectAt < 0 {
+			disconnectAt = i
 		}
+		if v == "bench.serve" && serveAt < 0 {
+			serveAt = i
+		}
+	}
+	if serveAt < 0 {
+		t.Fatalf("Serve reached nothing: %v", verbs)
+	}
+	if disconnectAt < 0 || disconnectAt > serveAt {
+		t.Errorf("served without releasing the claim first: %v", verbs)
 	}
 }
 

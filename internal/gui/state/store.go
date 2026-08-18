@@ -275,6 +275,7 @@ func (s *Store) publish() {
 		ProvisioningPreview:     s.world.ProvisioningPreview,
 		ProvisioningResults:     s.world.ProvisioningResults,
 		Consoles:                copyConsoles(s.world.Consoles),
+		Companions:              s.world.Companions,
 		FleetReplies:            append([]FleetReply(nil), s.world.FleetReplies...),
 		FleetCommand:            s.world.FleetCommand,
 		RealFirmware:            s.world.RealFirmware,

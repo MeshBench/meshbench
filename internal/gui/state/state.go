@@ -144,6 +144,10 @@ type Snapshot struct {
 	// first was still up showed nothing, because only the most recently
 	// touched node's buffer was ever published.
 	Consoles map[string][]string
+	// Companions are the companion sessions the workbench currently holds,
+	// decoded rather than flattened to console text, so the client can draw a
+	// channel list and a conversation instead of a terminal.
+	Companions []Companion
 	// FleetReplies is what each node said to the last fleet command. A
 	// command sent to forty nodes with no reply shown is indistinguishable
 	// from one that went nowhere.

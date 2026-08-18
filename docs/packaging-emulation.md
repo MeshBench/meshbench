@@ -37,7 +37,7 @@ Four things have to be present. Only two can be shipped.
 | QEMU with our SX1262 | `MeshBench/qemu`, branch `meshbench-sx1262` | yes | ~69 MB |
 | `radioserver` | `MeshBench/meshcore-native`, `bridge/radioserver.cpp` | yes | ~40 KB |
 | Renode with our SEVONPEND fix | `MeshBench/renode`, branch `meshbench` | yes | ~60 MB packed |
-| Nordic SoftDevice | Nordic, per-user | **no — licence** | 155 KB |
+| Nordic SoftDevice | Nordic's own site, fetched at runtime | **no — fetched, not bundled** | 155 KB |
 
 Board images and native builds are *not* in this list. They are downloaded on
 demand from GitHub releases and cached, which already works and should stay that
@@ -98,15 +98,24 @@ patches live.
 
 ### The SoftDevice
 
-**Cannot be shipped, at all.** Nordic licenses it and does not permit
-redistribution. Anyone running published nRF52 firmware supplies their own copy
-— which they have, because it is on the board they bought, but extracting it is
-not a step a casual user will complete.
+**Decided: not bundled - fetched from Nordic's own site at runtime, and
+cached. Not yet built.** Two separate questions used to sit behind this row,
+and both are answered now (`docs/licence.md` has the full record, DevZone case
+362437): whether *emulating* the SoftDevice for firmware testing is even
+permitted at all - confirmed, it is, provided the end product runs on real
+Nordic hardware and nothing about the binary is reverse-engineered or modified
+- and *how a copy reaches the machine running MeshBench* without MeshBench
+itself redistributing it. The answer to the second is the same shape as
+everything else in this document: download it from the source at runtime and
+cache it, the same way board images and native builds are already fetched two
+rows up, rather than carry a copy in our own release archive. Nordic hosts it
+themselves for anyone to fetch; MeshBench never becomes the one distributing
+the file. The fetcher itself is not written yet - see the checklist below.
 
-This is the strongest argument for keeping `tools/armfw/` alive: a
-SoftDevice-free build of the same MeshCore source is something we *can* hand
-people, and it still catches compiler, word-size and ARM codegen differences the
-host build cannot.
+This does not replace `tools/armfw/`. A SoftDevice-free build of the same
+MeshCore source still catches compiler, word-size and ARM codegen differences a
+SoftDevice-linked image cannot isolate, and stays the thing to hand someone who
+would rather not fetch anything from Nordic at all.
 
 ## How the application finds them
 
@@ -141,6 +150,10 @@ In rough order of value:
    the catalogue already fetches and caches them.
 4. **Leave Renode to the user for now,** and treat ARM as opt-in until a
    published nRF52 image actually runs.
+5. **Fetch the SoftDevice from Nordic's own site and cache it,** the way board
+   images already are. Licensing is settled (`docs/licence.md`); this is the
+   piece of work that turns "extracting it is not a step a casual user will
+   complete" into a download the firmware library does for them.
 
 ## What to tell people about cost
 

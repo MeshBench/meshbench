@@ -168,6 +168,7 @@ func Register(st *state.Store, s *Sim) {
 			}
 			w.Trails = s.trailsSince(from, index)
 			s.refreshOpenPacket(w)
+			s.refreshCompanions(w)
 			w.Events, w.EventTotal = s.eventTail(eventTail)
 			w.Counts = s.eventCounts()
 			w.Scores = s.scores()

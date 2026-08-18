@@ -36,6 +36,9 @@ type workbenchUI struct {
 	onCommand func(node, line string)
 	onAction  func(action, node string)
 	onCLI     func(node, line string)
+	// onDo runs a verb with parameters, for the controls that need more than
+	// a node name to say what they mean.
+	onDo func(verb string, params any)
 	// onServe serves a companion to a real client; onOpenPacket opens the
 	// packet view from an activity row.
 	onServe      func(node, kind string)
@@ -134,6 +137,8 @@ func (u *workbenchUI) OpenNodeWindow(node string) {
 	if u.nodes == nil || u.newTheme == nil {
 		return
 	}
-	u.nodes.openFor(node, u.newTheme, u.store, u.onCommand, u.onAction, u.onCLI,
-		u.onServe, u.onOpenPacket)
+	u.nodes.openFor(node, u.newTheme, u.store, nodeWindowHooks{
+		onCommand: u.onCommand, onAction: u.onAction, onCLI: u.onCLI,
+		onServe: u.onServe, onOpenPacket: u.onOpenPacket, onDo: u.onDo,
+	})
 }

@@ -137,6 +137,8 @@ type World struct {
 	// Consoles is scrollback for every node currently being watched - see
 	// Snapshot's own field of the same name for why this is a map.
 	Consoles map[string][]string
+	// Companions is every companion session, decoded.
+	Companions []Companion
 	// FleetReplies is what each node said to the last fleet command. A
 	// command sent to forty nodes with no reply shown is indistinguishable
 	// from one that went nowhere.
