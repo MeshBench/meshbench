@@ -91,9 +91,14 @@ assembly or cgo SIMD is the last resort, not the second step.
   exactly the busy case, and one-at-a-time left the machine idle on each
   one's small candidate set.
 
+- **Parallel CAD**: the carrier-sense vector - every listening node
+  dechirping a symbol, every tick, on the tick that paces the clock -
+  fanned out across cores, cache pre-filled serially, each answer an
+  independent write to its own index.
+
 Bench movement (engine-only, flat earth, so the profile cache and the
-readout throttle do not show here): 8 talkers 199 -> 134 ms, 3 talkers
-113 -> 50 ms per 5 s simulated. Remaining profile: Observe accumulation,
+readout throttle do not show here): 8 talkers 199 -> 88 ms, 3 talkers
+113 -> 39 ms per 5 s simulated - 2.3-2.9x, race-detector clean. Remaining profile: Observe accumulation,
 FFT, noise - the P2 GPU synthesis targets, with the caveat that
 verdict-path synthesis must stay bit-identical CPU (GPU on/off must not
 change an outcome), so P2's honest scope is the presentation surfaces

@@ -407,6 +407,17 @@ func (e *Engine) captureWrite(t transmission, src, dst *Node, txPHY phy, rec cap
 func (e *Engine) waveformBusy(now uint32, nodes []*Node, air []transmission) []bool {
 	busy := make([]bool, len(nodes))
 	cache := e.cadCache(air)
+	// Fill the cache serially before the listeners fan out: the workers
+	// only read it, and a lazily-filled map under them would be a race.
+	for _, t := range air {
+		e.modulated(cache, t, e.phyOf(nodes[t.from].Spec))
+	}
+	// Every listener in parallel. Three hundred nodes each dechirping a
+	// symbol every tick is real work, it lands on the tick that paces the
+	// engine's clock, and each answer is an independent write to its own
+	// index - the cheapest kind of parallelism there is.
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, runtime.NumCPU())
 	for i, dst := range nodes {
 		// By kind, not by attached process: what can listen is a property of
 		// the node, and the physics must not change because a test runs the
@@ -414,31 +425,39 @@ func (e *Engine) waveformBusy(now uint32, nodes []*Node, air []transmission) []b
 		if !dst.Spec.Kind.RunsFirmware() {
 			continue
 		}
-		rxPHY := e.phyOf(dst.Spec)
-		var txs []rf.Transmission
-		for _, t := range air {
-			if t.from == i {
-				continue
+		i, dst := i, dst
+		wg.Add(1)
+		sem <- struct{}{}
+		go func() {
+			defer wg.Done()
+			defer func() { <-sem }()
+			rxPHY := e.phyOf(dst.Spec)
+			var txs []rf.Transmission
+			for _, t := range air {
+				if t.from == i {
+					continue
+				}
+				if !e.phyOf(nodes[t.from].Spec).sameChannel(rxPHY) {
+					continue
+				}
+				if tx, ok := e.rxTransmission(t, i, float64(now), nodes, cache); ok {
+					txs = append(txs, tx)
+				}
 			}
-			if !e.phyOf(nodes[t.from].Spec).sameChannel(rxPHY) {
-				continue
+			if len(txs) == 0 {
+				return
 			}
-			if tx, ok := e.rxTransmission(t, i, float64(now), nodes, cache); ok {
-				txs = append(txs, tx)
-			}
-		}
-		if len(txs) == 0 {
-			continue
-		}
-		n := dsp.SamplesPerSymbol(rxPHY.sf)
-		noiseDBm := dsp.NoiseFloorDBm(rxPHY.bandwidthHz, e.noiseFigOf(dst.Spec))
-		window := rf.Observe(txs, rf.Receiver{
-			NoisePowerLinear: math.Pow(10, noiseDBm/10),
-			Seed:             e.Config.Seed,
-			Offset:           uint64(now)*0xD1B54A32D192ED03 + uint64(i)<<40,
-		}, n)
-		busy[i] = dsp.CADBusy(window, rxPHY.sf)
+			n := dsp.SamplesPerSymbol(rxPHY.sf)
+			noiseDBm := dsp.NoiseFloorDBm(rxPHY.bandwidthHz, e.noiseFigOf(dst.Spec))
+			window := rf.Observe(txs, rf.Receiver{
+				NoisePowerLinear: math.Pow(10, noiseDBm/10),
+				Seed:             e.Config.Seed,
+				Offset:           uint64(now)*0xD1B54A32D192ED03 + uint64(i)<<40,
+			}, n)
+			busy[i] = dsp.CADBusy(window, rxPHY.sf)
+		}()
 	}
+	wg.Wait()
 	return busy
 }
 
