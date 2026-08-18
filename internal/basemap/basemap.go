@@ -173,9 +173,12 @@ func Layers() []Layer {
 // come through the picture instead of drowning under it. Bases with
 // everything baked in and no separate layers answer empty.
 func OverlaysFor(baseID string) []Layer {
+	// One family per stack: the transportation layer draws its own street
+	// names, so pairing it with CARTO's label layer wrote every road name
+	// twice, slightly offset. Esri roads with Esri places double nothing.
 	ids := map[string][]string{
-		"carto-dark":   {"esri-roads", "carto-dark-labels"},
-		"carto-light":  {"esri-roads", "carto-light-labels"},
+		"carto-dark":   {"esri-roads", "esri-labels"},
+		"carto-light":  {"esri-roads", "esri-labels"},
 		"esri-imagery": {"esri-roads", "esri-labels"},
 		"esri-topo":    {"esri-labels"},
 	}[baseID]
