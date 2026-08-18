@@ -102,6 +102,15 @@ actual RF with no engine rule in between.
 
 ## Calculated mode, and the hybrid
 
+The whole map has one more coverage answer (`internal/session/coveragemap.go`,
+verb `coverage.map`, in the Simulation menu): every repeater and room server
+rasterised over one shared grid - the network's box plus margin, pixels
+matched to the ground's aspect - combined per cell into the best two-way
+link anyone offers, painted by the same painter as a single node's raster.
+The shared grid also fixed `coverage.start`: per-node boxes never shared
+ground, so `Combine` rightly refused them and the network-wide questions
+could not finish on a spread-out network.
+
 `deliver` (`transmissions.go`) is the fast model, unchanged in spirit: link
 budget, dBm-summed interference, verdict against the demodulator floor.
 A node with `scenario.Node.TrueRF` set (the Radio tab's switch, verb
@@ -126,6 +135,13 @@ map (`nodes.move`) changes what an attached client hears on the next
 window. A paused engine holds the stream at the pause point rather than
 inventing future air.
 
+An observer has its own node window (`internal/workbench/nodeobserver.go`):
+no console, no Radio tab - it runs no firmware and has no chip - but an SDR
+pane that serves the antenna, shows the address and the exact client sample
+rate, and says whether a client is on the line. The serving state lives in
+the snapshot (`state.SDRSource`), re-read every tick because a client
+attaching is not a verb.
+
 ## Buildings
 
 `internal/environ` holds what physically stands there: footprints, heights,
@@ -139,6 +155,14 @@ edge at its rooftop, plus one wall of material loss when the direct ray
 passes through. Both modes pay it, because buildings change `GainDB`, never
 verdicts. Verb `rf.environment`; loading or dropping the environment
 forgets the link cache, because two physics must not share one matrix.
+
+Footprints can also be pulled at runtime (`internal/session/environfetch.go`,
+verb `environ.fetch`, the Buildings card's database dropdown): OpenStreetMap
+over Overpass or Microsoft's Global ML footprints by level-9 quadkey, scoped
+to the loaded map plus a margin, ingested through the same tested
+`IngestGeoJSON`, cached permanently like terrain, and switched on through
+the same `rf.environment` the manual path uses. A pull too large for a live
+download refuses and points at `tools/envgen`.
 
 ## Determinism
 

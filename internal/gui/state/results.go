@@ -91,6 +91,14 @@ type Endpoint struct {
 	Attached bool
 }
 
+// SDRSource is one observer currently served as an rtl_tcp source.
+type SDRSource struct {
+	Node     string
+	Addr     string
+	RateHz   float64
+	Attached bool
+}
+
 // Route is one way to connect two points, from the planner.
 type Route struct {
 	NewSites     int

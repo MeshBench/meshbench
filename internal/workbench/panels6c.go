@@ -58,6 +58,7 @@ type configPanel struct {
 	envDir      comp.Field
 	loadEnv     comp.Button
 	dropEnv     comp.Button
+	envSrcDD    comp.Dropdown
 	device      comp.Dropdown
 	cacheDD     comp.Dropdown
 	themeDD     comp.Dropdown
@@ -110,10 +111,6 @@ func (p *configPanel) build() {
 		f.Editor.SingleLine = true
 	}
 	p.setRealism.Label, p.setRealism.Kind = "apply realism", comp.Secondary
-	p.envDir.Hint, p.envDir.Label = "a tile directory from tools/envgen", "Environment tiles"
-	p.envDir.Editor.SingleLine = true
-	p.loadEnv.Label, p.loadEnv.Kind = "load buildings", comp.Secondary
-	p.dropEnv.Label, p.dropEnv.Kind = "bare earth", comp.Quiet
 	p.device.Label = "Graphics device"
 	p.cacheDD.Label = "Tile cache"
 	p.themeDD.Label = "Theme"
@@ -299,6 +296,7 @@ func (p *configPanel) update(gtx layout.Context, s *state.Snapshot) {
 	} else {
 		p.rfModeDD.Value = "calculated - link-budget verdicts"
 	}
+	p.wireEnvironSources()
 	p.rfModeDD.OnOpen = func() {
 		if p.choose == nil {
 			return
@@ -492,6 +490,7 @@ func (p *configPanel) auditDraw(t *theme.Theme, gtx layout.Context, s *state.Sna
 		p.fieldRow(t, &p.satDBm, nil, ""),
 		p.fieldRow(t, &p.envDir, &p.loadEnv, ""),
 		func(gtx layout.Context) layout.Dimensions { return p.dropEnv.Layout(t, gtx) },
+		func(gtx layout.Context) layout.Dimensions { return p.envSrcDD.Layout(t, gtx) },
 		p.fieldRow(t, &p.cacheGBf, &p.setCache, ""),
 		p.fieldRow(t, &p.cacheDir, &p.moveCache, ""),
 		func(gtx layout.Context) layout.Dimensions { return p.recomp.Layout(t, gtx) },

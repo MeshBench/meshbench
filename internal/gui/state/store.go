@@ -248,6 +248,7 @@ func (s *Store) publish() {
 		Sends:             s.world.Sends,
 		Assertions:        s.world.Assertions,
 		Endpoints:         s.world.Endpoints,
+		SDRSources:        s.world.SDRSources,
 		Routes:            s.world.Routes,
 		Import:            s.world.Import,
 		Observed:          s.world.Observed,

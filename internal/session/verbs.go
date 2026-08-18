@@ -139,6 +139,11 @@ func Register(st *state.Store, s *Sim) {
 				}
 			}
 			w.NowMs = s.liveEngine().NowMs()
+			// A client attaching to a served observer is not a verb, so the
+			// fact is re-read here rather than trusted from the last one.
+			if len(s.sdrServers) > 0 || len(w.SDRSources) > 0 {
+				w.SDRSources = s.sdrSources()
+			}
 			// Every open console gets the clock before the step that will
 			// produce the lines it stamps.
 			for _, buf := range s.consoles {
@@ -332,6 +337,8 @@ func Register(st *state.Store, s *Sim) {
 		return map[string]any{"at": w.Nodes[at].Name}, nil
 	})
 	registerCoverageVerbs(st, s)
+	registerCoverageMap(st, s)
+	registerEnvironFetch(st, s)
 	registerBudgetVerbs(st, s)
 
 	registerBenchVerbs(st, s)

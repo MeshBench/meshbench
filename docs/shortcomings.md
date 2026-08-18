@@ -94,6 +94,14 @@ a handheld in a town is the case it models worst.
 **Direction of error: strongly optimistic wherever anything is in the way that
 is not a hill.**
 
+Loading a building environment (Configuration's Buildings card - a runtime
+pull from OpenStreetMap or Microsoft's ML footprints, or tiles prepared with
+`tools/envgen`) closes part of this: each crossed building becomes a rooftop
+knife edge plus one wall of material loss. It is still not clutter, trees or
+body loss, and a pulled database inherits that database's gaps - ML
+footprints carry no materials, so those buildings fall back to a regional
+default with the low confidence that implies.
+
 ### 1.4 Diffraction is knife-edge, and single-mechanism
 
 Bullington construction with the ITU-R P.526 correction — the method P.1812 and

@@ -250,21 +250,7 @@ func (p *configPanel) rfSimulation(t *theme.Theme, s *state.Snapshot) []layout.W
 					return kids
 				}()...)
 		}),
-		comp.Card(t, "Buildings", func(gtx layout.Context) layout.Dimensions {
-			now := "bare earth - no environment loaded"
-			if s.RFEnvironment != "" {
-				now = "pricing buildings from " + s.RFEnvironment
-			}
-			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-				layout.Rigid(p.fieldRow(t, &p.envDir, &p.loadEnv, now+". Tiles come "+
-					"from tools/envgen over Microsoft/OSM footprints; buildings add "+
-					"knife edges and wall loss to the path budget in both RF modes, "+
-					"and missing tiles are counted, never mistaken for empty ground")),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return p.dropEnv.Layout(t, gtx)
-				}),
-			)
-		}),
+		p.buildingsCard(t, s),
 		comp.Card(t, "Shared physics", comp.Text(t, t.Sz.Caption, t.P.Faint,
 			"both modes price the path identically - terrain, budgets, antennas, "+
 				"timing, seed - so the same scenario runs under either, and the "+

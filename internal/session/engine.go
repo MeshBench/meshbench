@@ -24,7 +24,6 @@ import (
 	"github.com/MeshBench/meshbench/internal/gui/state"
 	"github.com/MeshBench/meshbench/internal/linkbudget"
 	"github.com/MeshBench/meshbench/internal/scenario"
-	"github.com/MeshBench/meshbench/internal/sdr"
 	"github.com/MeshBench/meshbench/internal/terrain"
 )
 
@@ -60,8 +59,9 @@ type Sim struct {
 	// rfMode is which physics decides reception - "" or "calculated" for the
 	// fast model, "waveform" for demodulator verdicts. See rfmode.go.
 	rfMode string
-	// sdrServers is every node currently exposed as an rtl_tcp source.
-	sdrServers map[string]*sdr.RTLTCP
+	// sdrServers is every node currently exposed as an rtl_tcp source,
+	// with the sample rate its stream was attached at.
+	sdrServers map[string]*sdrServer
 	// realism is the RF Simulation imperfection switches. See rfmode.go.
 	realism state.RFRealism
 	// envDir is where the environment tiles live, or "" for bare earth.

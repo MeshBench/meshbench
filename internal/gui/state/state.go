@@ -88,6 +88,8 @@ type Snapshot struct {
 	Assertions []Assertion
 	// Endpoints are the companions currently served.
 	Endpoints []Endpoint
+	// SDRSources are the observers currently served as rtl_tcp sources.
+	SDRSources []SDRSource
 	// Routes are the planner's last answer.
 	Routes []Route
 	// Import is the last fetch's description, or nil.

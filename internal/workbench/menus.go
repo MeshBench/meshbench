@@ -68,6 +68,8 @@ func workbenchMenus() []menu {
 				Section: "Nodes", Icon: "wipe"},
 			{Label: "Originate a packet", Action: "sim.inject",
 				Section: "Tools", Icon: "packet"},
+			{Label: "Coverage raster of the whole map", Action: "coverage.map",
+				Section: "Tools", Icon: "coverage"},
 			{Label: "Capture the waterfall", Action: "waterfall.capture",
 				Section: "Tools", Icon: "waterfall"},
 			{Label: "Capture to a pcapng file", Action: "capture.file",

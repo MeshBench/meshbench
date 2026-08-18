@@ -7,7 +7,6 @@ package session
 
 import (
 	"context"
-	"fmt"
 	"image"
 	"image/color"
 	"math"
@@ -29,20 +28,6 @@ const covGrid = 160
 // the renderer, and a renderer that has to know what a decibel is in order to
 // draw a picture is a renderer that will eventually disagree with the panel
 // that prints the number.
-// coverageRasterFor is the raster before it is painted, which is what the
-// network-wide questions combine.
-func (s *Sim) coverageRasterFor(ctx context.Context, name string, spanKm float64) (
-	*coverage.Raster, error) {
-	for _, n := range s.nodes {
-		if n.Name != name {
-			continue
-		}
-		_, r, err := s.coverageWithRaster(ctx, n, spanKm)
-		return r, err
-	}
-	return nil, fmt.Errorf("no node named %q", name)
-}
-
 func (s *Sim) coverageFor(ctx context.Context, n scenario.Node, spanKm float64) (
 	*state.Coverage, error) {
 	c, _, err := s.coverageWithRaster(ctx, n, spanKm)
@@ -55,11 +40,24 @@ func (s *Sim) coverageWithRaster(ctx context.Context, n scenario.Node, spanKm fl
 	// A square of spanKm each way, in degrees.
 	dLat := spanKm / 111.32
 	dLon := spanKm / (111.32 * math.Cos(n.Position.Lat*math.Pi/180))
+	r, err := s.rasterOnBox(ctx, n,
+		n.Position.Lat-dLat, n.Position.Lat+dLat,
+		n.Position.Lon-dLon, n.Position.Lon+dLon, covGrid, covGrid)
+	if err != nil {
+		return nil, nil, err
+	}
+	return paintCoverage(r, n.Name), r, nil
+}
+
+// rasterOnBox is one node's raster over a caller-chosen box and grid - the
+// shape the network-wide questions need, because rasters can only be combined
+// when every node answered over the same ground.
+func (s *Sim) rasterOnBox(_ context.Context, n scenario.Node,
+	south, north, west, east float64, w, h int) (*coverage.Raster, error) {
 	r := &coverage.Raster{
-		South: n.Position.Lat - dLat, North: n.Position.Lat + dLat,
-		West: n.Position.Lon - dLon, East: n.Position.Lon + dLon,
-		Width: covGrid, Height: covGrid,
-		Cells:   make([]coverage.Cell, covGrid*covGrid),
+		South: south, North: north, West: west, East: east,
+		Width: w, Height: h,
+		Cells:   make([]coverage.Cell, w*h),
 		FreqMHz: freqOf(n),
 	}
 	fixed := coverage.Endpoint{
@@ -76,9 +74,9 @@ func (s *Sim) coverageWithRaster(ctx context.Context, n scenario.Node, spanKm fl
 		RemoteSensitivityDBm: linkbudget.SensitivityDBm(n), ProfileStepM: 120,
 	}
 	if err := coverage.Compute(fixed, s.terrain(), r, opts); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return paintCoverage(r, n), r, nil
+	return r, nil
 }
 
 func freqOf(n scenario.Node) float64 {
@@ -93,7 +91,7 @@ func freqOf(n scenario.Node) float64 {
 // Two-way first: a cell where the far end can be heard but cannot answer is
 // drawn differently from one that works, because that asymmetry is the whole
 // reason coverage is computed as a pair of margins rather than one.
-func paintCoverage(r *coverage.Raster, n scenario.Node) *state.Coverage {
+func paintCoverage(r *coverage.Raster, name string) *state.Coverage {
 	img := image.NewRGBA(image.Rect(0, 0, r.Width, r.Height))
 	noData := 0
 	for y := 0; y < r.Height; y++ {
@@ -117,7 +115,7 @@ func paintCoverage(r *coverage.Raster, n scenario.Node) *state.Coverage {
 		}
 	}
 	return &state.Coverage{
-		Node:  n.Name,
+		Node:  name,
 		Image: img,
 		South: r.South, North: r.North, West: r.West, East: r.East,
 		NoDataCells: noData, Cells: r.Width * r.Height,

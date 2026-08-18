@@ -30,11 +30,12 @@ type SampleSource interface {
 type RTLTCP struct {
 	ln net.Listener
 
-	mu      sync.Mutex
-	freqHz  uint32
-	rateHz  uint32
-	gainDB  uint32
-	stopped bool
+	mu       sync.Mutex
+	freqHz   uint32
+	rateHz   uint32
+	gainDB   uint32
+	stopped  bool
+	attached bool
 }
 
 // ServeRTLTCP starts serving source at addr ("127.0.0.1:0" for an OS-picked
@@ -51,6 +52,14 @@ func ServeRTLTCP(addr string, source SampleSource) (*RTLTCP, error) {
 
 // Addr is where a client should point.
 func (s *RTLTCP) Addr() string { return s.ln.Addr().String() }
+
+// Attached reports whether a client is currently connected - the fact the
+// observer's window shows, so "is SDR++ actually hearing this" has an answer.
+func (s *RTLTCP) Attached() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.attached
+}
 
 // Tuned reports the client's last frequency and sample-rate commands - what
 // SDR++ asked for, for the UI to show beside what the observer provides.
@@ -80,7 +89,15 @@ func (s *RTLTCP) acceptLoop(source SampleSource) {
 }
 
 func (s *RTLTCP) serveClient(conn net.Conn, source SampleSource) {
-	defer func() { _ = conn.Close() }()
+	s.mu.Lock()
+	s.attached = true
+	s.mu.Unlock()
+	defer func() {
+		s.mu.Lock()
+		s.attached = false
+		s.mu.Unlock()
+		_ = conn.Close()
+	}()
 
 	// The dongle header: magic, tuner type (R820T, the common answer), and
 	// a gain count the client uses to build its gain menu.

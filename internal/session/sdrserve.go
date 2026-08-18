@@ -8,6 +8,7 @@ package session
 
 import (
 	"fmt"
+	"sort"
 	"sync"
 
 	"github.com/MeshBench/meshbench/internal/gui/state"
@@ -55,6 +56,26 @@ func (g *engineSource) NextSamples(n int) []complex128 {
 	return out
 }
 
+// sdrServer is one serving observer and the rate its source was fixed at.
+type sdrServer struct {
+	srv    *sdr.RTLTCP
+	rateHz float64
+}
+
+// sdrSources is what is currently served, for the observer windows: address,
+// rate, and whether a client is on the line right now.
+func (s *Sim) sdrSources() []state.SDRSource {
+	out := make([]state.SDRSource, 0, len(s.sdrServers))
+	for name, e := range s.sdrServers {
+		out = append(out, state.SDRSource{
+			Node: name, Addr: e.srv.Addr(), RateHz: e.rateHz,
+			Attached: e.srv.Attached(),
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Node < out[j].Node })
+	return out
+}
+
 func registerSDRServe(st *state.Store, s *Sim) {
 	// sdr.serve: expose one node's antenna as an rtl_tcp source.
 	st.Handle("sdr.serve", func(w *state.World, p any) (any, error) {
@@ -72,10 +93,10 @@ func registerSDRServe(st *state.Store, s *Sim) {
 			return nil, fmt.Errorf("no node named %q", name)
 		}
 		if s.sdrServers == nil {
-			s.sdrServers = map[string]*sdr.RTLTCP{}
+			s.sdrServers = map[string]*sdrServer{}
 		}
 		if old, ok := s.sdrServers[name]; ok {
-			_ = old.Close()
+			_ = old.srv.Close()
 			delete(s.sdrServers, name)
 		}
 		en, ok := s.eng.NodeByName(name)
@@ -91,7 +112,8 @@ func registerSDRServe(st *state.Store, s *Sim) {
 		if err != nil {
 			return nil, err
 		}
-		s.sdrServers[name] = srv
+		s.sdrServers[name] = &sdrServer{srv: srv, rateHz: rate}
+		w.SDRSources = s.sdrSources()
 		w.Say(fmt.Sprintf("%s is an rtl_tcp source at %s - set the client's "+
 			"sample rate to %.0f Hz", name, srv.Addr(), rate))
 		return map[string]any{"node": name, "addr": srv.Addr(), "rate_hz": rate}, nil
@@ -99,12 +121,13 @@ func registerSDRServe(st *state.Store, s *Sim) {
 
 	st.Handle("sdr.stop", func(w *state.World, p any) (any, error) {
 		name, _ := stringField(p, "node")
-		srv, ok := s.sdrServers[name]
+		e, ok := s.sdrServers[name]
 		if !ok {
 			return nil, fmt.Errorf("%s is not being served", name)
 		}
-		_ = srv.Close()
+		_ = e.srv.Close()
 		delete(s.sdrServers, name)
+		w.SDRSources = s.sdrSources()
 		w.Say("stopped serving " + name)
 		return map[string]any{"stopped": name}, nil
 	})
