@@ -266,11 +266,23 @@ like any other node — this phase makes what it hears real and external.
 
 ### W6 — GPU twins
 
-- [ ] WGSL demodulation path for the receivers that dominate the profile
-- [ ] CPU-agreement tests, same shape as the existing FFT twins
-- [ ] benchmark against the W1 numbers
+- [x] WGSL demodulation path for the receivers that dominate the profile
+      *(one workgroup per symbol: dechirp, shared-memory radix-2 FFT,
+      argmax with confidence; SF12 refuses loudly - a 4096-sample symbol
+      does not fit the guaranteed 16 KiB of workgroup memory)*
+- [x] CPU-agreement tests, same shape as the existing FFT twins - on real
+      modulated symbols with real noise; only genuine near-ties may split
+      between f32 and the f64 oracle, and a test enforces that
+- [x] benchmark against the W1 numbers: SF9, 512-symbol batch - CPU
+      4.53 ms, GPU 1.11 ms (4.1x) on the dev machine's RDNA2 card
 
-**Gate:** GPU on/off changes wall time, never an outcome.
+**Gate:** GPU on/off changes wall time, never an outcome. Which is exactly
+why the kernel ships as an accelerator and not as the default judge: f32
+can split a decision the noise made a near-tie, and a verdict that changes
+with the graphics card would violate this gate's own rule. The recorded
+follow-up is confidence-gated hybrid demodulation - GPU for the clear
+symbols, CPU re-judgement for the marginal ones - preserving both the
+speed and the oracle.
 
 ### W7 — the record
 

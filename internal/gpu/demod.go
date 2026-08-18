@@ -129,8 +129,12 @@ func (d *Device) DemodBatch(rx []complex64, sf int) (bins []int, conf []float64,
 	pass.SetPipeline(d.demod)
 	pass.SetBindGroup(0, bind, nil)
 	pass.DispatchWorkgroups(uint32(symbols), 1, 1)
-	pass.End()
-	enc.CopyBufferToBuffer(out, 0, read, 0, outLen)
+	if err := pass.End(); err != nil {
+		return nil, nil, err
+	}
+	if err := enc.CopyBufferToBuffer(out, 0, read, 0, outLen); err != nil {
+		return nil, nil, err
+	}
 	cmd, err := enc.Finish(nil)
 	if err != nil {
 		return nil, nil, err
@@ -155,6 +159,8 @@ func (d *Device) DemodBatch(rx []complex64, sf int) (bins []int, conf []float64,
 		bins[i] = int(pairs[i*2])
 		conf[i] = float64(pairs[i*2+1]) / 1000
 	}
-	read.Unmap()
+	if err := read.Unmap(); err != nil {
+		return nil, nil, err
+	}
 	return bins, conf, nil
 }
