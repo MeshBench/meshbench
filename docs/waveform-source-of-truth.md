@@ -219,6 +219,22 @@ like any other node — this phase makes what it hears real and external.
 
 **Gate:** GPU on/off changes wall time, never an outcome.
 
+### W7 — the record
+
+Written at the end, from the code, so the documentation that follows is
+describing the thing that was built rather than the thing that was planned.
+
+- [ ] `docs/waveform-how-it-works.md`: the as-built chain, stage by stage,
+      with the file and function map — what actually happens to a packet
+      from MeshCore's bytes to the verdict, in both modes
+- [ ] the measured numbers moved in: W1's benchmarks, W2's sensitivity with
+      coding gain, W5's tolerances against the real chip
+- [ ] the decision log: where the build diverged from this plan, and why
+- [ ] `docs/shortcomings.md` reconciled one final time against both modes
+
+**Gate:** someone new can explain a waveform verdict end-to-end from the
+document alone, without reading the source.
+
 ## Risks, named
 
 - **Sync is where PHY projects die.** Which is why nothing before W3 needs
