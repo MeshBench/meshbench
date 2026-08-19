@@ -90,7 +90,7 @@ func (w menuDeps) onMenu(action string) {
 	// the operator to go and pin them, which is not a thing anybody does one
 	// node at a time. Ask by role instead, which is how firmware is chosen
 	// anyway: one answer covers every repeater.
-	if action == "siw.start" {
+	if action == "sim.start" {
 		go func() {
 			res, err := w.st.Do(w.ctx, "firmware.needed", nil)
 			if err == nil {
@@ -99,7 +99,9 @@ func (w menuDeps) onMenu(action string) {
 					return
 				}
 			}
-			_, _ = w.st.Do(w.ctx, "siw.start", nil)
+			if _, err := w.st.Do(w.ctx, "sim.start", nil); err != nil {
+				_, _ = w.st.Do(w.ctx, "ui.said", err.Error())
+			}
 		}()
 		return
 	}
