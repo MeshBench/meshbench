@@ -130,7 +130,35 @@ func Layers() []Layer {
 			RequiresReview: true,
 		},
 		{
-			ID: "esri-labels", Name: "Places and roads", Kind: Overlay, MaxZoom: 19,
+			// CARTO publishes its labels as their own transparent layer,
+			// which is what lets place names ride ABOVE a coverage raster
+			// instead of drowning under it.
+			ID: "carto-dark-labels", Name: "Labels (dark)", Kind: Overlay, Dark: true, MaxZoom: 20,
+			URL:            "https://basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}.png",
+			Attribution:    "(c) OpenStreetMap contributors, (c) CARTO",
+			Terms:          "As CARTO light above.",
+			RequiresReview: true,
+		},
+		{
+			ID: "carto-light-labels", Name: "Labels (light)", Kind: Overlay, MaxZoom: 20,
+			URL:            "https://basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png",
+			Attribution:    "(c) OpenStreetMap contributors, (c) CARTO",
+			Terms:          "As CARTO light above.",
+			RequiresReview: true,
+		},
+		{
+			// MaxZoom is what the service actually draws, not what it
+			// answers: past 17 it returns 200s full of transparent
+			// nothing, which cached as roads that vanish when zoomed in.
+			ID: "esri-roads", Name: "Roads (overlay)", Kind: Overlay, MaxZoom: 17,
+			URL: "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/" +
+				"World_Transportation/MapServer/tile/{z}/{y}/{x}",
+			Attribution:    "(c) Esri, contributors",
+			Terms:          "As Esri imagery above.",
+			RequiresReview: true,
+		},
+		{
+			ID: "esri-labels", Name: "Places and roads", Kind: Overlay, MaxZoom: 17,
 			URL: "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/" +
 				"World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
 			Attribution:    "(c) Esri, contributors",
@@ -138,6 +166,31 @@ func Layers() []Layer {
 			RequiresReview: true,
 		},
 	}
+}
+
+// OverlaysFor is what belongs above a coverage raster for a given base:
+// roads first, then labels, so the ground's structure and its names both
+// come through the picture instead of drowning under it. Bases with
+// everything baked in and no separate layers answer empty.
+func OverlaysFor(baseID string) []Layer {
+	// The streets come through the raster as a ghost of the base itself -
+	// every road at every zoom, no second source, no doubled names - so
+	// the overlay stack is labels only, from the base's own family. The
+	// exceptions carry Esri layers because their base has nothing baked
+	// to ghost (imagery) or no separate labels of its own.
+	ids := map[string][]string{
+		"carto-dark":   {"carto-dark-labels"},
+		"carto-light":  {"carto-light-labels"},
+		"esri-imagery": {"esri-roads", "esri-labels"},
+		"esri-topo":    {"esri-labels"},
+	}[baseID]
+	var out []Layer
+	for _, id := range ids {
+		if l, ok := ByID(id); ok {
+			out = append(out, l)
+		}
+	}
+	return out
 }
 
 // ByID finds a layer.

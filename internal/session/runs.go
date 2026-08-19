@@ -20,11 +20,14 @@ import (
 // RunRecord is what lands on disk. Field names are the file format, so they
 // are spelled for somebody reading the JSON rather than for Go.
 type RunRecord struct {
-	Name    string             `json:"name"`
-	At      string             `json:"at"`
-	Seed    uint64             `json:"seed"`
-	Build   string             `json:"build"`
-	Outcome string             `json:"outcome"`
+	Name    string `json:"name"`
+	At      string `json:"at"`
+	Seed    uint64 `json:"seed"`
+	Build   string `json:"build"`
+	Outcome string `json:"outcome"`
+	// RFMode records which physics produced the result - a saved run that
+	// does not say is not comparable with anything.
+	RFMode  string             `json:"rf_mode,omitempty"`
 	Metrics map[string]float64 `json:"metrics"`
 }
 
@@ -52,7 +55,7 @@ func SaveRun(name string, s *state.Snapshot, build string) (string, error) {
 	}
 	rec := RunRecord{
 		Name: name, At: time.Now().UTC().Format(time.RFC3339),
-		Seed: s.Seed, Build: build, Outcome: "saved",
+		Seed: s.Seed, Build: build, Outcome: "saved", RFMode: s.RFMode,
 		Metrics: map[string]float64{
 			"transmissions": float64(sent),
 			"receptions":    float64(heard),

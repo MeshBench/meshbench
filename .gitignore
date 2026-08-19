@@ -29,3 +29,6 @@ tools/armfw/build/
 spikes/electron/node_modules/
 spikes/electron/package-lock.json
 /workbench2
+
+# built test binaries
+*.test

@@ -2,7 +2,9 @@ package engine
 
 import (
 	"github.com/MeshBench/meshbench/internal/dsp"
+	"github.com/MeshBench/meshbench/internal/lora"
 	"github.com/MeshBench/meshbench/internal/rf"
+	"math"
 )
 
 // captureThresholdDB is how much stronger one signal must be for a receiver to
@@ -41,45 +43,102 @@ func (e *Engine) InFlightTransmissions(rxIndex int) []rf.Transmission {
 	rxPHY := e.phyOf(nodes[rxIndex].Spec)
 
 	var out []rf.Transmission
+	cache := modCache{}
 	for _, t := range inFlight {
-		src := nodes[t.from]
-		txPHY := e.phyOf(src.Spec)
 		// Only what this receiver could actually see. A transmission on another
 		// channel is not in this waterfall, for the same reason it is not in
 		// this receiver's ledger.
-		if !txPHY.sameChannel(rxPHY) {
+		if !e.phyOf(nodes[t.from].Spec).sameChannel(rxPHY) {
 			continue
 		}
-		loss, ok := e.pathLoss(t.from, rxIndex)
+		tx, ok := e.rxTransmission(t, rxIndex, float64(t.startMs), nodes, cache)
 		if !ok {
 			continue
 		}
-		mod := dsp.Modulator{SF: txPHY.sf}
-		out = append(out, rf.Transmission{
-			Node:    src.Spec.Name,
-			Samples: mod.Modulate(symbolsFor(t.frame, txPHY.sf)),
-			GainDB:  src.Spec.TxPowerDBm + gain(src.Spec) - loss + gain(nodes[rxIndex].Spec),
-		})
+		tx.StartSample = 0 // the waterfall window is "now", not t's own start
+		out = append(out, tx)
 	}
 	return out
 }
 
-// symbolsFor turns a frame into LoRa symbols.
+// rxTransmission is one transmission as one receiver gets it: the shared
+// synthesis the verdict, the waterfall and (in time) the SDR observers all
+// render from. If these ever rendered from different signals, the picture
+// would lie about the physics.
 //
-// A faithful preamble and a real interleaver are not needed for a waterfall —
-// what a chirp looks like on a spectrogram is decided by the spreading factor
-// and the symbol values, and the values only have to come from the frame rather
-// than from a random number generator. A collision between two real frames
-// looks like a collision between two real frames.
-func symbolsFor(frame []byte, sf int) []int {
-	n := 1 << sf
-	// Eight upchirps of preamble, as MeshCore's radio sends.
-	syms := make([]int, 0, len(frame)+8)
-	for i := 0; i < 8; i++ {
-		syms = append(syms, 0)
+// anchorMs is the start of the observation window; StartSample lands the
+// transmission at its true offset within it, at the channel's baseband rate.
+// The anchor is fractional milliseconds because the observers walk a sample
+// clock: a millisecond is 62.5 samples at 62.5 kHz, and truncating the half
+// tore the stream's phase at every window seam - forty broadband clicks a
+// second, drawn as a burst filling the whole span. The sub-sample remainder
+// rides on DelaySamples, which rf.Observe turns into the phase it is.
+func (e *Engine) rxTransmission(t transmission, rxIdx int, anchorMs float64,
+	nodes []*Node, cache modCache) (rf.Transmission, bool) {
+	src := nodes[t.from]
+	txPHY := e.phyOf(src.Spec)
+	loss, ok := e.pathLoss(t.from, rxIdx)
+	if !ok {
+		return rf.Transmission{}, false
 	}
-	for _, b := range frame {
-		syms = append(syms, int(b)%n)
+	spms := txPHY.bandwidthHz / 1000
+	rel := (float64(t.startMs) - anchorMs) * spms
+	start := math.Floor(rel)
+	tx := rf.Transmission{
+		Node:         src.Spec.Name,
+		Samples:      e.modulated(cache, t, txPHY),
+		GainDB:       src.Spec.TxPowerDBm + gain(src.Spec) - loss + gain(nodes[rxIdx].Spec),
+		StartSample:  int(start),
+		DelaySamples: rel - start,
+		PhaseStepRad: e.phaseStepFor(src, nodes[rxIdx], txPHY),
 	}
-	return syms
+	return tx, true
+}
+
+// rxTransmissions is rxTransmission plus whatever realism adds to the path -
+// today one multipath echo when that switch is on. Every synthesis consumer
+// takes this, so an echo the verdict hears is an echo the waterfall shows.
+func (e *Engine) rxTransmissions(t transmission, rxIdx int, anchorMs float64,
+	nodes []*Node, cache modCache) []rf.Transmission {
+	direct, ok := e.rxTransmission(t, rxIdx, anchorMs, nodes, cache)
+	if !ok {
+		return nil
+	}
+	out := []rf.Transmission{direct}
+	if echo, has := e.echoFor(direct, nodes[t.from].Spec.Name,
+		nodes[rxIdx].Spec.Name, e.phyOf(nodes[t.from].Spec), t.startMs); has {
+		out = append(out, echo)
+	}
+	return out
+}
+
+// loraParams is the coding configuration a transmitter's modem implies:
+// explicit header, hardware CRC, and LDRO by the chip's own 16 ms rule -
+// exactly the terms RadioLib's airtime formula uses, which is what keeps
+// the waveform's length and the firmware's CSMA arithmetic identical.
+func loraParams(p phy) lora.Params {
+	symbolMs := float64(uint64(1)<<uint(p.sf)) / (p.bandwidthHz / 1000)
+	return lora.Params{SF: p.sf, CR: p.codingRate, LDRO: symbolMs >= 16, CRC: true}
+}
+
+// frameLayout is the on-air arrangement a transmitter's modem implies:
+// MeshCore's own preamble length, the standard private sync word, the SFD.
+func frameLayout(p phy) dsp.FrameLayout {
+	a, b := dsp.StandardSync(p.sf)
+	return dsp.FrameLayout{SF: p.sf, Preamble: dsp.PreambleSymbols(p.sf), SyncA: a, SyncB: b}
+}
+
+// frameSamples renders a frame as a real SX126x would send it: preamble,
+// sync word, SFD downchirps, then the fully coded data symbols - header,
+// whitening, Hamming, interleaving, Gray. The waterfall, the verdict and the
+// SDR observers all render from this one stream, bit-faithful.
+func frameSamples(frame []byte, p phy) []complex128 {
+	data, err := lora.Encode(loraParams(p), frame)
+	if err != nil {
+		// An unencodable frame (SF outside 7..12, >255 bytes) still needs a
+		// waveform for the ledger to reason about; a bare preamble is honest
+		// about carrying nothing.
+		data = nil
+	}
+	return frameLayout(p).FrameSamples(data)
 }

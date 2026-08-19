@@ -2,9 +2,7 @@
 package workbench
 
 import (
-	"fmt"
 	"image"
-	"strconv"
 	"strings"
 	"sync/atomic"
 
@@ -13,7 +11,6 @@ import (
 	"gioui.org/widget"
 
 	"github.com/MeshBench/meshbench/internal/gui/comp"
-	"github.com/MeshBench/meshbench/internal/gui/shell"
 	"github.com/MeshBench/meshbench/internal/gui/state"
 	"github.com/MeshBench/meshbench/internal/gui/theme"
 )
@@ -48,6 +45,20 @@ type configPanel struct {
 	setMargin   comp.Button
 	excess      comp.Field
 	setExcess   comp.Button
+	covRes      comp.Field
+	setCovRes   comp.Button
+	rfModeDD    comp.Dropdown
+	oscPPM      comp.Field
+	multipathDB comp.Field
+	fadingHz    comp.Field
+	implLoss    comp.Field
+	satDBm      comp.Field
+	setRealism  comp.Button
+	envDir      comp.Field
+	loadEnv     comp.Button
+	dropEnv     comp.Button
+	envSrcDD    comp.Dropdown
+	envUseDD    comp.Dropdown
 	device      comp.Dropdown
 	cacheDD     comp.Dropdown
 	themeDD     comp.Dropdown
@@ -71,12 +82,12 @@ type configPanel struct {
 // configSections is the sidebar, in the mock's order. Overview first, then
 // the simulation's own terms, then the machine's.
 var configSections = []string{
-	"Overview", "General", "Nodes", "Links", "Environment", "Time", "Seed",
-	"Graphics", "Events", "System", "Interface",
+	"Overview", "General", "Nodes", "Links", "Environment", "RF Simulation",
+	"Time", "Seed", "Graphics", "Events", "System", "Interface",
 }
 
 // configHeads is which sidebar rows get a heading above them.
-var configHeads = map[int]string{1: "simulation", 7: "advanced"}
+var configHeads = map[int]string{1: "simulation", 8: "advanced"}
 
 func (p *configPanel) build() {
 	p.secRows = make([]widget.Clickable, len(configSections))
@@ -90,6 +101,19 @@ func (p *configPanel) build() {
 	p.setMargin.Label, p.setMargin.Kind = "set margin", comp.Secondary
 	p.excess.Hint, p.excess.Label, p.excess.Suffix = "dB", "Excess path loss", "dB"
 	p.setExcess.Label, p.setExcess.Kind = "set loss", comp.Secondary
+	p.covRes.Hint, p.covRes.Label, p.covRes.Suffix = "64 to 1024", "Coverage resolution", "cells"
+	p.covRes.Editor.SingleLine = true
+	p.setCovRes.Label, p.setCovRes.Kind = "set resolution", comp.Secondary
+	p.rfModeDD.Label = "RF mode"
+	p.oscPPM.Hint, p.oscPPM.Label, p.oscPPM.Suffix = "0 is perfect", "Oscillator error", "ppm"
+	p.multipathDB.Hint, p.multipathDB.Label, p.multipathDB.Suffix = "0 is off", "Multipath echo", "dB down"
+	p.fadingHz.Hint, p.fadingHz.Label, p.fadingHz.Suffix = "0 is static", "Fading rate", "Hz"
+	p.implLoss.Hint, p.implLoss.Label, p.implLoss.Suffix = "0 is ideal", "Implementation loss", "dB"
+	p.satDBm.Hint, p.satDBm.Label, p.satDBm.Suffix = "0 is unmodelled", "Front-end saturation", "dBm"
+	for _, f := range []*comp.Field{&p.oscPPM, &p.multipathDB, &p.fadingHz, &p.implLoss, &p.satDBm} {
+		f.Editor.SingleLine = true
+	}
+	p.setRealism.Label, p.setRealism.Kind = "apply realism", comp.Secondary
 	p.device.Label = "Graphics device"
 	p.cacheDD.Label = "Tile cache"
 	p.themeDD.Label = "Theme"
@@ -138,131 +162,6 @@ func (p *configPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 				})
 		}),
 	)
-}
-
-// update reconciles the switches with the store and fires the controls.
-func (p *configPanel) update(gtx layout.Context, s *state.Snapshot) {
-	// A switch follows the session unless somebody has just moved it, so a
-	// run that turned the GPU off is not fought by a control that thinks it
-	// is on.
-	if p.gpu.Bool.Update(gtx) {
-		p.wasGPU = p.gpu.Bool.Value
-		if p.do != nil {
-			p.do("gpu.set", map[string]any{"on": p.gpu.Bool.Value})
-		}
-	} else if s.GPU.Enabled != p.wasGPU {
-		p.wasGPU = s.GPU.Enabled
-		p.gpu.Bool.Value = s.GPU.Enabled
-	}
-	if p.realFW.Bool.Update(gtx) {
-		p.wasReal = p.realFW.Bool.Value
-		if p.do != nil {
-			p.do("sim.kind", map[string]any{"real": p.realFW.Bool.Value})
-		}
-	} else if s.RealFirmware != p.wasReal {
-		p.wasReal = s.RealFirmware
-		p.realFW.Bool.Value = s.RealFirmware
-	}
-
-	numeric := []struct {
-		btn   *comp.Button
-		field *comp.Field
-		verb  string
-		key   string
-		min   float64
-	}{
-		{&p.setSeed, &p.seed, "sim.seed", "seed", 1},
-		{&p.setSpeed, &p.speed, "sim.speed", "step_ms", 1},
-		{&p.setMargin, &p.margin, "study.margin", "km", 0},
-		{&p.setExcess, &p.excess, "rf.excess_loss", "db", 0},
-		{&p.setCache, &p.cacheGBf, "terrain.cache", "gb", 0.25},
-	}
-	for _, n := range numeric {
-		if !n.btn.Click.Clicked(gtx) || p.do == nil {
-			continue
-		}
-		v, err := strconv.ParseFloat(strings.TrimSpace(fieldText(n.field)), 64)
-		if err != nil || v < n.min {
-			n.field.Error = "a number, at least " + trim0(n.min)
-			continue
-		}
-		n.field.Error = ""
-		p.do(n.verb, map[string]any{n.key: v})
-	}
-	// A directory is a thing to point at, not a path to remember and type.
-	if p.browseCache.Click.Clicked(gtx) && shell.Browse != nil {
-		start := strings.TrimSpace(fieldText(&p.cacheDir))
-		go func() {
-			got, err := shell.Browse("Where should the tiles live?", start,
-				shell.PathAsk{Kind: shell.PathDirectory})
-			p.pickedCache.Store(&pickResult{path: got, err: err})
-		}()
-	}
-	if r, _ := p.pickedCache.Swap((*pickResult)(nil)).(*pickResult); r != nil {
-		switch {
-		case r.err != nil:
-			p.cacheDir.Error = "could not open a file dialog: " + r.err.Error()
-		case r.path != "":
-			p.cacheDir.Editor.SetText(r.path)
-			p.cacheDir.Error = ""
-		}
-	}
-	if p.moveCache.Click.Clicked(gtx) && p.do != nil {
-		dir := strings.TrimSpace(fieldText(&p.cacheDir))
-		if dir == "" {
-			p.cacheDir.Error = "where should the tiles live?"
-		} else {
-			p.cacheDir.Error = ""
-			p.do("terrain.cache_dir", map[string]any{"path": dir})
-		}
-	}
-	if p.recomp.Click.Clicked(gtx) && p.do != nil {
-		p.do("links.recompute", nil)
-	}
-	if p.setScale.Click.Clicked(gtx) && p.sets != nil {
-		if v, err := strconv.ParseFloat(strings.TrimSpace(fieldText(&p.scale)), 64); err == nil && v >= 0.5 && v <= 3 {
-			p.scale.Error = ""
-			p.sets.setScale(v)
-		} else {
-			p.scale.Error = "between 0.5 and 3"
-		}
-	}
-
-	// The dropdowns: current value from the snapshot, choosing through the
-	// shell's chooser.
-	if s.GPU.Present {
-		if s.GPU.Enabled {
-			p.device.Value = s.GPU.Device + " (" + s.GPU.Backend + ")"
-		} else {
-			p.device.Value = "processor only - " + s.GPU.Device + " idle"
-		}
-	} else {
-		p.device.Value = "processor only"
-	}
-	p.device.OnOpen = func() {
-		if p.choose == nil || !s.GPU.Present {
-			return
-		}
-		gpuOpt := s.GPU.Device + " (" + s.GPU.Backend + ")"
-		p.choose("Measure links on", []string{gpuOpt, "processor only"},
-			func(picked string) {
-				if p.do != nil {
-					p.do("gpu.set", map[string]any{"on": picked == gpuOpt})
-				}
-			})
-	}
-	p.cacheDD.Value = fmt.Sprintf("%.3g GB", cacheGB(s))
-	p.cacheDD.OnOpen = func() {
-		if p.choose == nil {
-			return
-		}
-		p.choose("Tile cache size", []string{"2 GB", "5 GB", "10 GB", "20 GB"},
-			func(picked string) {
-				if v, err := strconv.ParseFloat(strings.Fields(picked)[0], 64); err == nil && p.do != nil {
-					p.do("terrain.cache", map[string]any{"gb": v})
-				}
-			})
-	}
 }
 
 // sidebar is the section list, with the standing honesty note at the bottom.
@@ -330,6 +229,8 @@ func (p *configPanel) section(t *theme.Theme, gtx layout.Context, s *state.Snaps
 		cards = p.linksCards(t, s)
 	case "Environment":
 		cards = p.environment(t, s)
+	case "RF Simulation":
+		cards = p.rfSimulation(t, s)
 	case "Time":
 		cards = p.timeCards(t, s)
 	case "Seed":
@@ -405,25 +306,51 @@ func (p *configPanel) auditDraw(t *theme.Theme, gtx layout.Context, s *state.Sna
 		p.fieldRow(t, &p.speed, &p.setSpeed, ""),
 		p.fieldRow(t, &p.margin, &p.setMargin, ""),
 		p.fieldRow(t, &p.excess, &p.setExcess, ""),
+		p.fieldRow(t, &p.oscPPM, &p.setRealism, ""),
+		p.fieldRow(t, &p.multipathDB, nil, ""),
+		p.fieldRow(t, &p.fadingHz, nil, ""),
+		p.fieldRow(t, &p.implLoss, nil, ""),
+		p.fieldRow(t, &p.satDBm, nil, ""),
+		p.fieldRow(t, &p.envDir, &p.loadEnv, ""),
+		func(gtx layout.Context) layout.Dimensions { return p.dropEnv.Layout(t, gtx) },
+		func(gtx layout.Context) layout.Dimensions { return p.envSrcDD.Layout(t, gtx) },
+		func(gtx layout.Context) layout.Dimensions { return p.envUseDD.Layout(t, gtx) },
 		p.fieldRow(t, &p.cacheGBf, &p.setCache, ""),
+		p.fieldRow(t, &p.covRes, &p.setCovRes, ""),
 		p.fieldRow(t, &p.cacheDir, &p.moveCache, ""),
 		func(gtx layout.Context) layout.Dimensions { return p.recomp.Layout(t, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.gpu.LayoutSwitch(t, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.realFW.LayoutSwitch(t, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.device.Layout(t, gtx) },
+		func(gtx layout.Context) layout.Dimensions { return p.rfModeDD.Layout(t, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.cacheDD.Layout(t, gtx) },
 		p.fieldRow(t, &p.scale, &p.setScale, ""),
 		func(gtx layout.Context) layout.Dimensions { return p.themeDD.Layout(t, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.densityDD.Layout(t, gtx) },
 	}
-	var kids []layout.FlexChild
-	for _, r := range rows {
-		r := r
-		kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx, r)
-		}))
+	// Two columns, because the flat list has outgrown the audit's reach: a
+	// control below the pointer sweep reads as unreachable, and it would be
+	// the audit that was wrong.
+	col := func(rows []layout.Widget) layout.Widget {
+		return func(gtx layout.Context) layout.Dimensions {
+			var kids []layout.FlexChild
+			for _, r := range rows {
+				r := r
+				kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx, r)
+				}))
+			}
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, kids...)
+		}
 	}
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, kids...)
+	half := (len(rows) + 1) / 2
+	left, right := col(rows[:half]), col(rows[half:])
+	return layout.Flex{}.Layout(gtx,
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Right: t.Sp.M}.Layout(gtx, left)
+		}),
+		layout.Flexed(1, right),
+	)
 }
 
 // logPanel is what has happened in this session, newest last (6.14).

@@ -1,0 +1,257 @@
+// Serving a placed observer's antenna to real SDR software.
+//
+// The workflow the plan asks for: place an observer on the map, start it,
+// point SDR++ at the address, watch the simulated spectrum. The IQ comes
+// from the same shared synthesis the verdicts render from - never from
+// packet events, which is the whole point.
+package session
+
+import (
+	"fmt"
+	"math"
+	"sort"
+	"sync"
+	"time"
+
+	"github.com/MeshBench/meshbench/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/sdr"
+)
+
+// observerLagMs is how far behind the simulation the stream deliberately
+// runs. The engine advances in step-sized quanta on a scheduler with moods;
+// rendering right at the edge of simulated time turned every hiccup into a
+// starved client. Nobody watches a waterfall for currency.
+const observerLagMs = 250
+
+// pumpSpanMs is the producer's render quantum, and ringTargetMs how much
+// finished stream it keeps ahead of the client. The ring is what lets a
+// delivery burst after a scheduling hiccup be served instantly instead of
+// blocking against the engine - the blocking is what oscillated: a stall
+// grew the deficit, the deficit demanded future air, waiting for it grew
+// the next stall, and the stream stayed choppy until a pause reset it.
+const (
+	pumpSpanMs   = 25
+	ringTargetMs = 1500
+)
+
+// engineSource streams a receiver's signal-only IQ in simulated time. A
+// producer goroutine renders ahead of the client as far as the engine's
+// clock allows; the client-facing side only ever drains the ring, so the
+// delivery path never calls into the engine at all. The front-end noise
+// floor is the server's to add, at this source's stated density - which is
+// what lets a paused simulation stream an honest bare floor: the producer
+// parks and feeds the ring silence.
+type engineSource struct {
+	s   *Sim
+	idx int
+	// rate is fixed at attach: the receiver's bandwidth, one sample per Hz.
+	rate float64
+	// psd is the receiver's noise density, handed to the server so the
+	// floor it paints and the floor the verdicts hear are the same claim.
+	psd float64
+
+	mu  sync.Mutex
+	buf []complex128
+	// atSample is the stream position on the receiver's own sample clock.
+	// Milliseconds are not whole samples at every bandwidth, and walking
+	// the stream in ms tore its phase at every span seam.
+	atSample uint64
+	primed   bool
+	stop     chan struct{}
+	closed   bool
+
+	// lastNow and lastMove watch the engine's clock, so a stopped clock is
+	// recognised as a pause rather than waited on forever.
+	lastNow  float64
+	lastMove time.Time
+}
+
+func newEngineSource(s *Sim, idx int, rate, psd float64) *engineSource {
+	g := &engineSource{s: s, idx: idx, rate: rate, psd: psd,
+		stop: make(chan struct{}), lastMove: time.Now()}
+	go g.pump()
+	return g
+}
+
+func (g *engineSource) SampleRateHz() float64 { return g.rate }
+func (g *engineSource) NoisePSD() float64     { return g.psd }
+
+func (g *engineSource) close() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if !g.closed {
+		g.closed = true
+		close(g.stop)
+	}
+}
+
+// pump renders the stream ahead of the client, one small span at a time.
+func (g *engineSource) pump() {
+	n := int(pumpSpanMs * g.rate / 1000)
+	spms := g.rate / 1000 // samples per simulated millisecond
+	spanMs := float64(n) / spms
+	for {
+		select {
+		case <-g.stop:
+			return
+		default:
+		}
+		if g.s.eng == nil {
+			time.Sleep(50 * time.Millisecond)
+			continue
+		}
+		g.mu.Lock()
+		buffered := float64(len(g.buf)) / g.rate * 1000
+		g.mu.Unlock()
+		if buffered >= ringTargetMs {
+			time.Sleep(10 * time.Millisecond)
+			continue
+		}
+		now := float64(g.s.eng.NowMs())
+		if now != g.lastNow {
+			g.lastNow, g.lastMove = now, time.Now()
+		}
+		g.mu.Lock()
+		if !g.primed {
+			g.atSample = uint64(math.Max(0, now-observerLagMs-spanMs) * spms)
+			g.primed = true
+		}
+		at := g.atSample
+		g.mu.Unlock()
+		atMs := float64(at) / spms
+		switch {
+		case atMs+spanMs <= now:
+			// Far behind a fast simulation: jump back to the cushion rather
+			// than stream minutes late; a real dongle drops on overflow too.
+			if atMs+spanMs < now-observerLagMs-2000 {
+				at = uint64((now - observerLagMs - spanMs) * spms)
+			}
+			out := g.s.eng.ObserveSignalAt(g.idx, at, n)
+			g.mu.Lock()
+			g.buf = append(g.buf, out...)
+			g.atSample = at + uint64(n)
+			g.mu.Unlock()
+		case time.Since(g.lastMove) > 400*time.Millisecond:
+			// The clock has stopped: a pause. The stream stays alive on the
+			// front-end floor alone - silence here, noise at the server -
+			// and the position holds, so play resumes exactly where the air
+			// left off.
+			g.mu.Lock()
+			g.buf = append(g.buf, make([]complex128, n)...)
+			g.mu.Unlock()
+		default:
+			// Simulated time is close behind; give the engine a moment.
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+}
+
+// NextSamples drains the ring, waiting when it runs dry - which means the
+// simulation itself is running slower than the wall, and a late stream is
+// the honest one.
+func (g *engineSource) NextSamples(n int) []complex128 {
+	for {
+		g.mu.Lock()
+		if len(g.buf) >= n {
+			out := make([]complex128, n)
+			copy(out, g.buf[:n])
+			g.buf = append(g.buf[:0], g.buf[n:]...)
+			g.mu.Unlock()
+			return out
+		}
+		closed := g.closed
+		g.mu.Unlock()
+		if closed {
+			return make([]complex128, n)
+		}
+		select {
+		case <-g.stop:
+			return make([]complex128, n)
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+}
+
+// sdrServer is one serving observer: the listener and its producer.
+type sdrServer struct {
+	srv    *sdr.RTLTCP
+	src    *engineSource
+	rateHz float64
+}
+
+func (e *sdrServer) shutdown() {
+	_ = e.srv.Close()
+	e.src.close()
+}
+
+// sdrSources is what is currently served, for the observer windows: address,
+// rate, and whether a client is on the line right now.
+func (s *Sim) sdrSources() []state.SDRSource {
+	out := make([]state.SDRSource, 0, len(s.sdrServers))
+	for name, e := range s.sdrServers {
+		out = append(out, state.SDRSource{
+			Node: name, Addr: e.srv.Addr(), RateHz: e.rateHz,
+			Attached: e.srv.Attached(),
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Node < out[j].Node })
+	return out
+}
+
+func registerSDRServe(st *state.Store, s *Sim) {
+	// sdr.serve: expose one node's antenna as an rtl_tcp source.
+	st.Handle("sdr.serve", func(w *state.World, p any) (any, error) {
+		if s.eng == nil {
+			return nil, fmt.Errorf("no simulation")
+		}
+		name, _ := stringField(p, "node")
+		idx := -1
+		for i := range w.Nodes {
+			if w.Nodes[i].Name == name {
+				idx = i
+			}
+		}
+		if idx < 0 {
+			return nil, fmt.Errorf("no node named %q", name)
+		}
+		if s.sdrServers == nil {
+			s.sdrServers = map[string]*sdrServer{}
+		}
+		if old, ok := s.sdrServers[name]; ok {
+			old.shutdown()
+			delete(s.sdrServers, name)
+		}
+		en, ok := s.eng.NodeByName(name)
+		if !ok {
+			return nil, fmt.Errorf("%s is not in the engine", name)
+		}
+		rate := en.Spec.Radio.BandwidthHz
+		if rate <= 0 {
+			rate = 250e3
+		}
+		src := newEngineSource(s, idx, rate, s.eng.ObserverNoisePSD(idx))
+		srv, err := sdr.ServeRTLTCP("127.0.0.1:0", src)
+		if err != nil {
+			src.close()
+			return nil, err
+		}
+		s.sdrServers[name] = &sdrServer{srv: srv, src: src, rateHz: rate}
+		w.SDRSources = s.sdrSources()
+		w.Say(fmt.Sprintf("%s is an rtl_tcp source at %s - the stream follows "+
+			"the client's own rate setting (native %.0f Hz)", name, srv.Addr(), rate))
+		return map[string]any{"node": name, "addr": srv.Addr(), "rate_hz": rate}, nil
+	})
+
+	st.Handle("sdr.stop", func(w *state.World, p any) (any, error) {
+		name, _ := stringField(p, "node")
+		e, ok := s.sdrServers[name]
+		if !ok {
+			return nil, fmt.Errorf("%s is not being served", name)
+		}
+		e.shutdown()
+		delete(s.sdrServers, name)
+		w.SDRSources = s.sdrSources()
+		w.Say("stopped serving " + name)
+		return map[string]any{"stopped": name}, nil
+	})
+}

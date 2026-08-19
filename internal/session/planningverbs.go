@@ -47,10 +47,26 @@ func registerPlanningVerbs(st *state.Store, s *Sim) {
 		for _, n := range w.Nodes {
 			names = append(names, n.Name)
 		}
+		// One shared grid for every node: rasters over per-node boxes do not
+		// share ground, and Combine rightly refuses them - which is why this
+		// job could never finish on a spread-out network before.
+		south, north, west, east, gw, gh, boxErr := mapBox(s.nodes, s.coverageCells())
+		if boxErr != nil {
+			return nil, boxErr
+		}
+		byName := make(map[string]int, len(s.nodes))
+		for i := range s.nodes {
+			byName[s.nodes[i].Name] = i
+		}
 		go func() {
 			rasters := make([]*coverage.Raster, 0, len(names))
 			for i, name := range names {
-				r, err := s.coverageRasterFor(context.Background(), name, 30)
+				ni, ok := byName[name]
+				if !ok {
+					continue
+				}
+				r, err := s.rasterOnBox(context.Background(), s.nodes[ni],
+					south, north, west, east, gw, gh)
 				if err == nil && r != nil {
 					rasters = append(rasters, r)
 				}

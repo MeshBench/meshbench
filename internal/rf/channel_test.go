@@ -112,3 +112,19 @@ func TestChannelDeterminism(t *testing.T) {
 		}
 	}
 }
+
+func BenchmarkObserveAccumulate(b *testing.B) {
+	samples := make([]complex128, 1<<15)
+	for i := range samples {
+		samples[i] = complex(float64(i%7)/7, float64(i%5)/5)
+	}
+	txs := []Transmission{
+		{Samples: samples, GainDB: -80, DelaySamples: 0.3},
+		{Samples: samples, GainDB: -85, DelaySamples: 0.7, PhaseStepRad: 1e-4},
+		{Samples: samples, GainDB: -90, DelaySamples: 0.1},
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = Observe(txs, Receiver{NoisePowerLinear: 1e-12, Seed: 1}, 1<<15)
+	}
+}

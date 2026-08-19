@@ -16,9 +16,12 @@ type Node struct {
 	// draws as the innermost ring.
 	DefaultScope string
 	Firmware     string
-	Sent         int
-	Heard        int
-	Selected     bool
+	// TrueRF marks a receiver that takes waveform verdicts whatever the
+	// run's RF mode - the hybrid flag.
+	TrueRF   bool
+	Sent     int
+	Heard    int
+	Selected bool
 	// Pattern is the antenna's gain in dBi at every 10 degrees of compass
 	// bearing, feedline loss already deducted, starting at north.
 	//

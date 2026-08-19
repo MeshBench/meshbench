@@ -106,9 +106,15 @@ func (e *Engine) ApplyRadioState(i int, st firmware.RadioStats) {
 	// a many-node scenario into the frozen-minute DEM walk pathLoss's own
 	// comment describes, instead of the once-per-import cost it was meant to
 	// be. Scoped deletion keeps every other pair's cached figure intact.
-	for k := range e.linkCache {
+	// Only the culled entries read these figures: a below-floor verdict can
+	// flip when power rises, but a full loss is propagation and survives.
+	// Dropping every pair here re-priced ~140 links around every single
+	// transmission - the FEM bit flips at TX and back - which was a steady
+	// stampede of live recomputes on any network that was actually talking.
+	for k := range e.culled {
 		if k[0] == i || k[1] == i {
 			delete(e.linkCache, k)
+			delete(e.culled, k)
 		}
 	}
 	delete(e.emitterNoise, i)

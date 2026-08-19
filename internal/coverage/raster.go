@@ -187,43 +187,6 @@ func cellFromLoss(fixed Endpoint, fixedGround, remoteGround, lat, lon, distKm, l
 	}
 }
 
-// ComputeFromLosses fills a raster from a precomputed loss field — the GPU
-// path. The losses come from CoverageGridLoss (or its CPU twin); this applies
-// the same gains and margins the tile path applies.
-func ComputeFromLosses(fixed Endpoint, g HeightGrid, losses []float32, r *Raster, o Options) error {
-	if len(losses) != r.Width*r.Height {
-		return fmt.Errorf("coverage: %d losses for a %dx%d raster", len(losses), r.Width, r.Height)
-	}
-	fixedGround, ok := g.At(fixed.Lat, fixed.Lon)
-	if !ok {
-		return fmt.Errorf("coverage: no terrain at %s (%.5f, %.5f)", fixed.Name, fixed.Lat, fixed.Lon)
-	}
-	r.Cells = make([]Cell, r.Width*r.Height)
-	for y := 0; y < r.Height; y++ {
-		for x := 0; x < r.Width; x++ {
-			i := y*r.Width + x
-			loss := float64(losses[i])
-			if loss > 1e30 {
-				r.Cells[i] = Cell{NoData: true}
-				continue
-			}
-			lat, lon := r.LatLonAt(x, y)
-			distKm := haversineKm(fixed.Lat, fixed.Lon, lat, lon)
-			if distKm <= 0 {
-				r.Cells[i] = Cell{}
-				continue
-			}
-			remoteGround, ok := g.At(lat, lon)
-			if !ok {
-				r.Cells[i] = Cell{NoData: true}
-				continue
-			}
-			r.Cells[i] = cellFromLoss(fixed, fixedGround, remoteGround, lat, lon, distKm, loss, o)
-		}
-	}
-	return nil
-}
-
 // sampleProfile walks the great circle between two points.
 func sampleProfile(t Terrain, lat1, lon1, lat2, lon2, distKm, stepM float64) ([]terrain.Point, bool) {
 	n := int(distKm * 1000 / stepM)

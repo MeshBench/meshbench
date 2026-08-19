@@ -5,6 +5,7 @@ package shell
 import (
 	"image"
 	"sort"
+	"strings"
 
 	"gioui.org/io/event"
 	"gioui.org/io/key"
@@ -14,6 +15,7 @@ import (
 	"gioui.org/op/paint"
 	"gioui.org/widget"
 	"github.com/MeshBench/meshbench/internal/gui/comp"
+	"github.com/MeshBench/meshbench/internal/gui/state"
 	"github.com/MeshBench/meshbench/internal/gui/theme"
 )
 
@@ -149,14 +151,34 @@ func (sh *Shell) menuBar(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 		return sh.transportBar(t, gtx, sh.snap)
 	}))
 	children = append(children, layout.Flexed(1, comp.Spacer))
-	// The honesty line, in the chrome, where it cannot be missed.
+	// The honesty line, in the chrome, where it cannot be missed - and
+	// telling the truth about the switches actually on, because "ideal
+	// demodulator" over a run the waveform decided is a wrong caveat.
 	children = append(children, layout.Rigid(
-		comp.Text(t, t.Sz.Caption, t.P.Warn,
-			"results are a best case: no multipath, bare earth, ideal demodulator")))
+		comp.Text(t, t.Sz.Caption, t.P.Warn, bestCaseLine(sh.snap))))
 	return layout.Inset{Left: t.Sp.XS, Right: t.Sp.M, Top: t.Sp.XXS, Bottom: t.Sp.XXS}.
 		Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, children...)
 		})
+}
+
+// bestCaseLine is the chrome's honesty caveat, built from what is actually
+// switched on: each clause disappears when the model stops being kind about
+// that thing.
+func bestCaseLine(s *state.Snapshot) string {
+	caveats := []string{}
+	if s == nil || s.RFRealism.MultipathDB == 0 {
+		caveats = append(caveats, "no multipath")
+	}
+	if s == nil || s.RFEnvironment == "" {
+		caveats = append(caveats, "bare earth")
+	}
+	if s == nil || s.RFMode != "waveform" {
+		caveats = append(caveats, "ideal demodulator")
+	} else {
+		caveats = append(caveats, "real coding chain")
+	}
+	return "results are a best case: " + strings.Join(caveats, ", ")
 }
 
 // menuDrop draws the open menu's entries over the frame.

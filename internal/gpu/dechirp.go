@@ -19,15 +19,17 @@ var dechirpWGSL string
 
 // Device is an acquired GPU with the pipelines compiled.
 type Device struct {
-	instance *wgpu.Instance
-	adapter  *wgpu.Adapter
-	device   *wgpu.Device
-	queue    *wgpu.Queue
-	dechirp  *wgpu.ComputePipeline
-	coverage *wgpu.ComputePipeline
-	pairs    *wgpu.ComputePipeline
-	Name     string
-	Backend  string
+	instance     *wgpu.Instance
+	adapter      *wgpu.Adapter
+	device       *wgpu.Device
+	queue        *wgpu.Queue
+	dechirp      *wgpu.ComputePipeline
+	demod        *wgpu.ComputePipeline
+	coverage     *wgpu.ComputePipeline
+	coverageFold *wgpu.ComputePipeline
+	pairs        *wgpu.ComputePipeline
+	Name         string
+	Backend      string
 	// MaxStorageMB is the largest storage buffer this device will bind, so a
 	// caller sizing a grid can ask first rather than fail after.
 	MaxStorageMB uint64
@@ -94,7 +96,13 @@ func Open() (*Device, error) {
 	if err := d.compileCoverage(); err != nil {
 		return nil, err
 	}
+	if err := d.compileCoverageFold(); err != nil {
+		return nil, err
+	}
 	if err := d.compilePairs(); err != nil {
+		return nil, err
+	}
+	if err := d.compileDemod(); err != nil {
 		return nil, err
 	}
 	return d, nil
@@ -106,6 +114,9 @@ func (d *Device) Close() {
 	}
 	if d.dechirp != nil {
 		d.dechirp.Release()
+	}
+	if d.demod != nil {
+		d.demod.Release()
 	}
 	if d.device != nil {
 		d.device.Release()

@@ -106,6 +106,9 @@ func auditTargets(r *recorder) []target {
 				"comp.applyRadio": "companion only",
 				// The node is running, so the head offers stop and not start.
 				"start": "drawn only when the node is stopped",
+				// Nothing is served in the audit snapshot, so the SDR pane
+				// offers serve and not stop.
+				"sdrStop": "drawn only while an observer is being served",
 			}},
 		{"Node window: companion", &nw.comp, nw.comp.auditDraw, nil, nil, nil, nil},
 		{"Compare", cmpP, cmpP.Draw, nil, nil, nil, nil},
@@ -159,17 +162,19 @@ func auditSnapshot() *state.Snapshot {
 
 // buildSkips names what the sweep is not expected to land on in the build list.
 //
-// Twenty-five builds do not fit in the overlay, and a list you have to scroll
+// Only the first few builds fit in the overlay, and a list you have to scroll
 // is not a list that is broken. The ones below the fold are reached by typing
 // into the filter above them, which TestAnyBuildIsReachableByFiltering walks
-// rather than assumes.
+// rather than assumes. The fold is counted from the machine's actual library,
+// because the audit reads the real one and a machine with a few extra builds
+// is not a fault in the panel.
 func buildSkips() map[string]string {
 	skip := map[string]string{
 		// Cancel closes the list. That is the whole of its job, so it reaches
 		// no verb by design.
 		"closePick": "closes the list rather than reaching a verb",
 	}
-	for i := 11; i < 25; i++ {
+	for i := 11; i <= len(installedBuilds()); i++ {
 		skip[fmt.Sprintf("buildBtns[%d]", i)] = "below the fold; reached by filtering"
 	}
 	return skip

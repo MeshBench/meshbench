@@ -68,6 +68,10 @@ func (s *Sim) Close() {
 		_ = l.Close()
 		delete(s.served, name)
 	}
+	for name, e := range s.sdrServers {
+		e.shutdown()
+		delete(s.sdrServers, name)
+	}
 	_ = s.eng.Close()
 	s.eng = nil
 }

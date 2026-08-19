@@ -39,7 +39,11 @@ func (c callbacks) wire() {
 		}()
 	}
 	c.wbUI.onAction = func(action, node string) {
-		go func() { _, _ = c.st.Do(c.ctx, action, node) }()
+		go func() {
+			if _, err := c.st.Do(c.ctx, action, node); err != nil {
+				_, _ = c.st.Do(c.ctx, "ui.said", err.Error())
+			}
+		}()
 	}
 	c.wbUI.onCLI = func(node, line string) {
 		go func() {
@@ -76,6 +80,11 @@ func (c callbacks) wire() {
 			layerID = id
 		}
 		c.mv.Tiles = comp.NewTiles(filepath.Join(cache, "meshcoresim", "tiles"), layerID)
+		c.mv.OverlayTiles = nil
+		for _, ov := range basemap.OverlaysFor(layerID) {
+			c.mv.OverlayTiles = append(c.mv.OverlayTiles,
+				comp.NewTiles(filepath.Join(cache, "meshcoresim", "tiles"), ov.ID))
+		}
 	}
 	// The basemap picker at the top of the map's layer panel: base layers
 	// only - overlays are not a map - chosen through the shell's chooser and
@@ -91,6 +100,14 @@ func (c callbacks) wire() {
 			for _, l := range basemap.Layers() {
 				if l.Name == picked && c.mv.Tiles != nil {
 					c.mv.Tiles.SetLayer(l.ID)
+					// The overlays follow their base, or leave with it.
+					c.mv.OverlayTiles = nil
+					if cache, err := os.UserCacheDir(); err == nil {
+						for _, ov := range basemap.OverlaysFor(l.ID) {
+							c.mv.OverlayTiles = append(c.mv.OverlayTiles,
+								comp.NewTiles(filepath.Join(cache, "meshcoresim", "tiles"), ov.ID))
+						}
+					}
 					c.do("map.basemap", map[string]any{"id": l.ID})
 				}
 			}

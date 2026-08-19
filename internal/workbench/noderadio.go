@@ -121,7 +121,17 @@ func (p *nodeWindowPanel) radio(t *theme.Theme, gtx layout.Context, s *state.Sna
 	// across the window, which put the whole tab on one line.
 	p.radioScroll.Axis = layout.Vertical
 
+	// The hybrid flag lives with the radio because it changes what this
+	// receiver's radio *is*: waveform verdicts here, whatever the run mode.
+	p.wireTrueRF(gtx, s)
+
 	lines := []layout.Widget{
+		func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Bottom: t.Sp.S}.Layout(gtx,
+				func(gtx layout.Context) layout.Dimensions {
+					return p.trueRF.LayoutSwitch(t, gtx)
+				})
+		},
 		func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Bottom: t.Sp.S}.Layout(gtx,
 				comp.OneLine(t, t.Sz.Caption, t.P.Dim,
@@ -182,4 +192,30 @@ func radioMode(m uint8) string {
 		return "3  channel activity detection"
 	}
 	return "0  standby"
+}
+
+// wireTrueRF reconciles the hybrid switch with the session and fires the
+// verb on a change - shared by the Radio tab and the audit's flat draw, so
+// the control cannot be wired in one and dead in the other.
+func (p *nodeWindowPanel) wireTrueRF(gtx layout.Context, s *state.Snapshot) {
+	if p.trueRF.Label == "" {
+		p.trueRF.Label = "True RF at this receiver - waveform verdicts even in a calculated run"
+	}
+	nodeTrue := false
+	if s != nil {
+		for i := range s.Nodes {
+			if s.Nodes[i].Name == p.node {
+				nodeTrue = s.Nodes[i].TrueRF
+			}
+		}
+	}
+	if p.trueRF.Bool.Update(gtx) {
+		p.wasTrue = p.trueRF.Bool.Value
+		if p.OnDo != nil {
+			p.OnDo("node.truerf", map[string]any{"node": p.node, "on": p.trueRF.Bool.Value})
+		}
+	} else if nodeTrue != p.wasTrue {
+		p.wasTrue = nodeTrue
+		p.trueRF.Bool.Value = nodeTrue
+	}
 }

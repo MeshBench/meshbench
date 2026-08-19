@@ -29,7 +29,30 @@ func (e *Engine) completeTransmissions(now uint32) error {
 		}
 	}
 	e.inFlight = still
+	// Everything that could have shared the air with a transmission ending
+	// now: what is still up, what ended this tick, and what ended earlier
+	// but overlapped something still running. Missing that last set made a
+	// short interferer invisible the moment it stopped.
 	concurrent := append(append([]transmission{}, still...), done...)
+	concurrent = append(concurrent, e.recent...)
+	e.recent = append(e.recent, done...)
+	if len(still) == 0 {
+		e.recent = e.recent[:0]
+	} else {
+		minStart := still[0].startMs
+		for _, s := range still[1:] {
+			if s.startMs < minStart {
+				minStart = s.startMs
+			}
+		}
+		kept := e.recent[:0]
+		for _, r := range e.recent {
+			if r.endMs > minStart {
+				kept = append(kept, r)
+			}
+		}
+		e.recent = kept
+	}
 	senders := make([]*Node, len(done))
 	for i, t := range done {
 		senders[i] = e.nodes[t.from]
@@ -43,13 +66,27 @@ func (e *Engine) completeTransmissions(now uint32) error {
 	// completion nobody was going to send, so each node transmitted exactly
 	// once in its life and then went permanently silent. A 300-node flood
 	// looked like a single hop, because that is what it was.
-	for i, t := range done {
+	// One modulation cache per batch: in waveform mode every receiver of
+	// every finished transmission shares the same synthesised baseband.
+	e.mu.Lock()
+	mode := e.Config.rfMode()
+	e.mu.Unlock()
+	cache := modCache{}
+	for i := range done {
 		if fw := senders[i].Firmware; fw != nil {
 			if err := fw.Bridge.TransmitFinished(); err != nil {
 				return fmt.Errorf("engine: tx done for %s: %w", senders[i].Spec.Name, err)
 			}
 		}
-		if err := e.deliver(t, concurrent); err != nil {
+	}
+	if mode == RFWaveform {
+		// All of this tick's finishers judged as one batch, so several
+		// transmissions ending together fill the machine instead of
+		// queueing behind each other's small candidate sets.
+		return e.deliverWaveformBatch(done, concurrent, cache)
+	}
+	for _, t := range done {
+		if err := e.deliver(t, concurrent, cache); err != nil {
 			return err
 		}
 	}
@@ -58,7 +95,7 @@ func (e *Engine) completeTransmissions(now uint32) error {
 
 // deliver works out who heard a finished transmission, and records why not for
 // everyone who did not.
-func (e *Engine) deliver(t transmission, concurrent []transmission) error {
+func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCache) error {
 	e.mu.Lock()
 	nodes := make([]*Node, len(e.nodes))
 	copy(nodes, e.nodes)
@@ -89,6 +126,14 @@ func (e *Engine) deliver(t transmission, concurrent []transmission) error {
 		rxPHY := e.phyOf(dst.Spec)
 		if dst.Spec.Kind != scenario.SDRObserver && !txPHY.sameChannel(rxPHY) {
 			continue
+		}
+		// The hybrid: a receiver flagged TrueRF gets the waveform judge even
+		// in a calculated run - a big mesh priced fast, full fidelity where
+		// somebody asked for it. Same gates first, same ledger after.
+		if dst.Spec.TrueRF {
+			if e.judgeHybrid(t, i, concurrent, nodes, txPHY, cache) {
+				continue
+			}
 		}
 		noiseDBm := dsp.NoiseFloorDBm(txPHY.bandwidthHz, e.noiseFigOf(dst.Spec))
 		// The emitter fleet's contribution, through the same terrain. This is
@@ -338,6 +383,12 @@ func (e *Engine) channelBusy(now uint32) []bool {
 	busy := make([]bool, len(nodes))
 	if len(air) == 0 {
 		return busy
+	}
+	e.mu.Lock()
+	mode := e.Config.rfMode()
+	e.mu.Unlock()
+	if mode == RFWaveform {
+		return e.waveformBusy(now, nodes, air)
 	}
 	for i, dst := range nodes {
 		if dst.Firmware == nil {

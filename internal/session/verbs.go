@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/MeshBench/meshbench/internal/gui/state"
 )
@@ -42,6 +43,10 @@ func Register(st *state.Store, s *Sim) {
 	registerCapture(st, s)
 	registerCompanion(st, s)
 	registerMeshCLI(st, s)
+	registerRFMode(st, s)
+	registerSDRServe(st, s)
+	registerRFRealism(st, s)
+	registerRFEnvironment(st, s)
 	registerProvisioningSettings(st, s)
 	registerRadioReconcile(st, s)
 	registerExperiment(st, s)
@@ -79,10 +84,6 @@ func Register(st *state.Store, s *Sim) {
 		// One engine step per tick. Step is the engine's own unit of time
 		// and takes its size from the config, so the store paces it rather
 		// than redefining it.
-		// eventTail is how many of the most recent events the tables show. A
-		// run of an hour has millions, and a table nobody can scroll to the
-		// end of is not more honest than one that says how many there were.
-		const eventTail = 2000
 		index := map[string]int{}
 		for i, n := range f.nodes {
 			index[n.Name] = i
@@ -135,6 +136,11 @@ func Register(st *state.Store, s *Sim) {
 				}
 			}
 			w.NowMs = s.liveEngine().NowMs()
+			// A client attaching to a served observer is not a verb, so the
+			// fact is re-read here rather than trusted from the last one.
+			if len(s.sdrServers) > 0 || len(w.SDRSources) > 0 {
+				w.SDRSources = s.sdrSources()
+			}
 			// Every open console gets the clock before the step that will
 			// produce the lines it stamps.
 			for _, buf := range s.consoles {
@@ -149,34 +155,31 @@ func Register(st *state.Store, s *Sim) {
 					w.Console = buf.Snapshot()
 				}
 			}
-			// Trails from the last few seconds of simulated time. Recomputed
-			// from the event log rather than accumulated, so a seek backwards
-			// or a rebuilt engine cannot leave a trail on the map for a
-			// transmission that is no longer in the run.
-			const trailWindowMs = 4000
-			from := uint32(0)
-			if w.NowMs > trailWindowMs {
-				from = w.NowMs - trailWindowMs
-			}
-			w.Trails = s.trailsSince(from, index)
-			s.refreshOpenPacket(w)
-			s.refreshCompanions(w)
-			w.Events, w.EventTotal = s.eventTail(eventTail)
-			w.Counts = s.eventCounts()
-			w.Scores = s.scores()
-			w.Stats = s.nodeStats(w.Events)
-			if s.history == nil {
-				s.history = newNodeHistory()
-			}
-			s.history.record(w.Stats)
-			for i := range w.Nodes {
-				if w.Nodes[i].Selected {
-					w.Series = s.history.seriesFor(w.Nodes[i].Name)
-					break
-				}
+			w.RFMode = string(rfModeOf(s.rfMode))
+			w.RFRealism = s.realism
+			w.RFEnvironment = s.envDir
+			w.CoverageCells = s.covCells
+			// The readouts - tail conversion, per-node bridge stats, trail
+			// scan - are for human eyes, and eyes read at ten hertz. Doing
+			// them on every 10 ms step was a tenth of the tick spent
+			// re-describing a table nobody could have re-read yet - and the
+			// tick paces the engine's clock, so readout cost was simulation
+			// slowness. A paused or hand-stepped run refreshes every tick,
+			// because a person stepping once is looking straight at it.
+			if !w.Playing || time.Since(s.lastReadout) >= 100*time.Millisecond {
+				s.lastReadout = time.Now()
+				s.refreshReadouts(w, index)
 			}
 		}
 
+		// The RF facts are published on ticks, and ticks wait for play - but
+		// the chrome's mode chip and caveat line are read the moment the
+		// window opens, and a waveform preference wearing a calculated label
+		// is a lie about what the next run will do.
+		w.RFMode = string(rfModeOf(s.rfMode))
+		w.RFRealism = s.realism
+		w.RFEnvironment = s.envDir
+		w.CoverageCells = s.covCells
 		w.Say(fmt.Sprintf("opened %s: %d nodes, %d links, %d areas",
 			path, len(f.nodes), len(w.Links), len(f.areas)))
 		return map[string]any{
@@ -286,6 +289,12 @@ func Register(st *state.Store, s *Sim) {
 		for i := range w.Nodes {
 			if w.Nodes[i].Name == name {
 				w.Nodes[i].Lat, w.Nodes[i].Lon = lat, lon
+				// The physics moves with the marker: cached losses for this
+				// node are forgotten, so an attached SDR client hears the
+				// new position on the next window.
+				if s.eng != nil {
+					s.eng.SetNodePosition(i, lat, lon)
+				}
 				return map[string]any{"name": name, "lat": lat, "lon": lon}, nil
 			}
 		}
@@ -319,6 +328,8 @@ func Register(st *state.Store, s *Sim) {
 		return map[string]any{"at": w.Nodes[at].Name}, nil
 	})
 	registerCoverageVerbs(st, s)
+	registerCoverageMap(st, s)
+	registerEnvironFetch(st, s)
 	registerBudgetVerbs(st, s)
 
 	registerBenchVerbs(st, s)

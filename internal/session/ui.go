@@ -220,10 +220,15 @@ func registerUIVerbs(st *state.Store, s *Sim) {
 		if w.PendingPlay {
 			out["status"] = "waiting for firmware before the run starts"
 		}
-		if len(w.Jobs) > 0 {
-			j := w.Jobs[len(w.Jobs)-1]
-			out["job"] = map[string]any{
-				"what": j.What, "done": j.Done, "total": j.Total,
+		// The newest job still running, not merely the newest: a bar that
+		// finished an hour ago reported as "the job" made every script that
+		// polls for completion wait forever.
+		for i := len(w.Jobs) - 1; i >= 0; i-- {
+			if j := w.Jobs[i]; !j.Finished {
+				out["job"] = map[string]any{
+					"what": j.What, "done": j.Done, "total": j.Total,
+				}
+				break
 			}
 		}
 		return out, nil

@@ -13,6 +13,41 @@ strength of a simulation.
 
 ---
 
+## 0. Two RF modes, two error budgets
+
+Since the waveform work (docs/waveform-source-of-truth.md) MeshBench has two
+reception models, chosen in Configuration under **RF Simulation** and stamped
+into every result:
+
+**Calculated** (the default): reception is a link-budget SNR against the
+demodulator floor, with concurrent transmissions summed into the noise in
+dBm. Fast, and the mode every large scenario should use. Two known biases:
+any overlap counts as full-length interference however briefly it clipped
+the packet (pessimistic under partial collisions), and there is no capture -
+a strong signal is destroyed by a weak overlap the real chip would ignore
+(measured against waveform mode: on a dense 60-node, 6-simultaneous-sender
+burst, roughly half the collision-affected pairs decode under the waveform
+that calculated calls lost).
+
+**Waveform**: the channel synthesises IQ, every concurrent transmission
+lands in the receiver's window at its true offset, and the verdict is the
+full receive chain - demodulation, Gray, the diagonal deinterleaver, Hamming
+FEC, dewhitening, the explicit header and the payload CRC (internal/lora).
+What reaches MeshCore is the decoded bytes. Capture, partial overlap and
+interference alignment are emergent; a grazing collision that FEC can repair
+is repaired, and the ledger says how many codewords it cost. One remaining
+caveat: the receiver front end models ideal sync (plan W3 grants exact
+timing inside the engine). The bit-level conventions - sync word, Hamming
+parity matrix, whitening, header checksum, payload CRC - have been verified
+against a real SX1262 over the air (tools/goldencap, 2026-08-18): the
+sync-word chirps, the chip's four-XOR parity equations and the CRC's
+last-two-bytes quirk were all solved from captured frames and corrected in
+internal/lora, and two captured frames are checked in as golden vectors that
+the test suite holds the encoder to. Packet sensitivity brackets Semtech's
+published floors in test.
+
+---
+
 ## 1. Physics that is absent
 
 ### 1.1 No multipath — the biggest single gap
@@ -58,6 +93,16 @@ a handheld in a town is the case it models worst.
 
 **Direction of error: strongly optimistic wherever anything is in the way that
 is not a hill.**
+
+Loading a building environment (Configuration's Buildings card - a runtime
+pull from OpenStreetMap or Microsoft's ML footprints, or tiles prepared with
+`tools/envgen`) closes part of this: each crossed building becomes a rooftop
+knife edge plus one wall of material loss. It is still not clutter, trees or
+body loss, and a pulled database inherits that database's gaps - ML
+footprints carry no materials, so those buildings fall back to a regional
+default with the low confidence that implies. The merged pull narrows that
+where OSM has surveyed the building - explicit type and material override
+the inference - but only there; the unsurveyed majority keeps the default.
 
 ### 1.4 Diffraction is knife-edge, and single-mechanism
 
@@ -106,6 +151,19 @@ harmonic, because none exists to show.
 The receive filter in `Listen` is also a brick wall in the frequency domain. No
 real receiver has one, so adjacent-signal rejection is better than any hardware
 achieves.
+
+The stream is also resampled to whatever rate the client asks for - no SDR
+client offers the observer's native rate in its menu - by windowed-sinc
+interpolation, which keeps a transmission exactly as wide as its bandwidth
+(images sit ~60 dB down, below the 8-bit format's own floor). The floor
+across the rest of the span is the server's own addition at the receiver's
+noise density - a real dongle's front end fills its span, and a silent
+shoulder looked synthetic - but only the in-band portion is what the
+verdicts hear; signals from adjacent channels still do not exist. A level
+control anchored to that floor keeps strong bursts from clipping into
+broadband splatter; a burst more than ~33 dB over the floor briefly
+presses the floor down instead, which is the trade a real front end makes
+with its gain.
 
 ### 1.7 Antenna patterns are analytic, not measured
 

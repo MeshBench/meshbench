@@ -30,6 +30,21 @@ type Prefs struct {
 	// Basemap is the chosen map layer's ID - carto-dark, carto-light,
 	// esri-topo. Empty means the default.
 	Basemap string `json:"basemap,omitempty"`
+	// RFMode is which physics decides reception - "calculated" (default) or
+	// "waveform". A machine-level choice like the GPU switch: the operator
+	// picked a physics, and the pick survives a restart.
+	RFMode string `json:"rf_mode,omitempty"`
+	// Realism is the RF Simulation section's imperfection switches, kept
+	// with the mode for the same reason.
+	OscPPM        float64 `json:"osc_ppm,omitempty"`
+	MultipathDB   float64 `json:"multipath_db,omitempty"`
+	FadingHz      float64 `json:"fading_hz,omitempty"`
+	ImplLossDB    float64 `json:"impl_loss_db,omitempty"`
+	SaturationDBm float64 `json:"saturation_dbm,omitempty"`
+	// EnvironmentDir is where the building tiles live; empty is bare earth.
+	EnvironmentDir string `json:"environment_dir,omitempty"`
+	// CoverageCells is the coverage raster's long edge; zero is the default.
+	CoverageCells int `json:"coverage_cells,omitempty"`
 }
 
 // prefsPath is ~/.config/meshcoresim/workbench2.json, or empty when the
@@ -70,6 +85,15 @@ func (s *Sim) LoadPrefs() {
 		// another go at it.
 		s.gpuAsked = true
 		s.gpuWarm = *p.GPU
+	}
+	if p.RFMode == "waveform" {
+		s.rfMode = "waveform"
+	}
+	s.envDir = p.EnvironmentDir
+	s.covCells = p.CoverageCells
+	s.realism = state.RFRealism{
+		OscPPM: p.OscPPM, MultipathDB: p.MultipathDB, FadingHz: p.FadingHz,
+		ImplLossDB: p.ImplLossDB, SaturationDBm: p.SaturationDBm,
 	}
 }
 

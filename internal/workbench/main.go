@@ -20,7 +20,6 @@ import (
 	"gioui.org/op"
 	"gioui.org/text"
 	"gioui.org/unit"
-	"gioui.org/widget"
 
 	fixturelib "github.com/MeshBench/meshbench/internal/fixture"
 	"github.com/MeshBench/meshbench/internal/gui/comp"
@@ -66,6 +65,7 @@ func Run(args []string) {
 		"scope the Licences panel to one section: forks, bundled, golibs, runtime, data")
 	dropFlag := flag.String("drop-menu", "", "open this menu's dropdown at startup, so it can be captured")
 	layersFlag := flag.String("layers", "", "switch these map layers on at startup, comma separated")
+	lookFlag := flag.String("look", "", "start the camera at lat,lon,zoom - a capture cannot drag the map")
 	packetTabFlag := flag.Int("packet-tab", 0,
 		"which tab the packet window opens on: 0 dissection, 1 journey "+
 			"(the propagation graph), 2 reception ledger, 3 where it went")
@@ -250,6 +250,9 @@ func Run(args []string) {
 	}
 
 	mv := &comp.MapView{}
+	// The buildings layer reads straight from the loaded environment: a
+	// city of polygons has no business in the world snapshot.
+	mv.BuildingsIn = sm.BuildingsIn
 	wbUI := &workbenchUI{sh: sh, sim: sm, mv: mv, nodes: newNodeWindows(), store: st}
 	callbacks{
 		wbUI: wbUI, mv: mv, st: st, ctx: ctx, sm: sm, openPacket: openPacket,
@@ -260,7 +263,7 @@ func Run(args []string) {
 		st: st, ctx: ctx, mv: mv, sh: sh,
 		energyFlag: energyFlag, saveRunFlag: saveRunFlag, importFlag: importFlag,
 		planFlag: planFlag, captureFlag: captureFlag, coverFlag: coverFlag,
-		layersFlag: layersFlag, sweepFlag: sweepFlag, shadeFlag: shadeFlag,
+		layersFlag: layersFlag, lookFlag: lookFlag, sweepFlag: sweepFlag, shadeFlag: shadeFlag,
 	}.run()
 
 	nodes := &nodesPanel{}
@@ -268,48 +271,7 @@ func Run(args []string) {
 		go func() { _, _ = st.Do(ctx, "nodes.select", name) }()
 	}
 	mapTop := &mapTools{mv: mv}
-	// A double-click on a node is "show me this one".
-	mv.OnNodeOpen = func(name string) {
-		go func() { _, _ = st.Do(ctx, "node.window", name) }()
-	}
-	// The place tool puts a node where it was clicked.
-	//
-	// The kind comes from the toolbar rather than from the map: what a place
-	// tool places is a decision about the network, and the map's business is
-	// where. Named from the kind and a count, because a node with no name is
-	// a node no command can be aimed at.
-	mv.OnPlace = func(lat, lon float64) {
-		kind, name := mapTop.placeKind, ""
-		if kind == "" {
-			kind = "simple-repeater"
-		}
-		if s := st.Snapshot(); s != nil {
-			name = nextPlacedName(kind, s)
-		}
-		go func() {
-			if _, err := st.Do(ctx, "nodes.place", map[string]any{
-				"name": name, "kind": kind, "lat": lat, "lon": lon,
-			}); err != nil {
-				_, _ = st.Do(ctx, "ui.said", "place: "+err.Error())
-				return
-			}
-			_, _ = st.Do(ctx, "ui.said", "placed "+name+" - drag it with the move tool")
-		}()
-	}
-	// The link tool asks the question the Inspector asks: what does this link
-	// cost, in both directions.
-	mv.OnLinkPair = func(a, b string) {
-		go func() {
-			if _, err := st.Do(ctx, "nodes.select_many", []string{a, b}); err != nil {
-				return
-			}
-			if _, err := st.Do(ctx, "budget.for_selection", nil); err != nil {
-				_, _ = st.Do(ctx, "ui.said", "link: "+err.Error())
-				return
-			}
-			_, _ = st.Do(ctx, "ui.said", a+" to "+b+": the budget is in the Link panel")
-		}()
-	}
+	wireMapTools(mv, mapTop, st, ctx)
 	cfg := addPanels(panelDeps{
 		sh: sh, st: st, ctx: ctx, mv: mv, wbUI: wbUI, wins: wins, mapTop: mapTop, nodes: nodes,
 		do: do, withControls: withControls, chooserIn: chooserIn, openPacket: openPacket,
@@ -382,7 +344,8 @@ func Run(args []string) {
 
 	menuBar{sh: sh, sets: sets, cfg: cfg, dropFlag: dropFlag,
 		st: st, ctx: ctx, nodes: nodes,
-		chooser: chooser, menuFlag: menuFlag}.build()
+		chooser: chooser, menuFlag: menuFlag,
+		onShown: rasterMenuIntercept(mv, st, ctx)}.build()
 
 	// -menu fires one at startup, so what it opens can be captured.
 	if *menuFlag != "" {
@@ -481,6 +444,3 @@ func Run(args []string) {
 	}()
 	app.Main()
 }
-
-var _ = widget.Clickable{}
-var _ = time.Now

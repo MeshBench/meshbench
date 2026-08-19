@@ -158,7 +158,11 @@ func GridLossCPU(g HeightGrid, p GridLossParams) []float32 {
 	out := make([]float32, p.RasterW*p.RasterH)
 	for y := 0; y < p.RasterH; y++ {
 		for x := 0; x < p.RasterW; x++ {
-			lat := p.South + (p.North-p.South)*(float64(y)+0.5)/float64(p.RasterH)
+			// Row zero is the NORTH edge - Raster.LatLonAt's convention,
+			// which ComputeFromLosses reads by. The twins used to count
+			// from the south, agreed with each other perfectly, and painted
+			// every raster upside down the first time they met a consumer.
+			lat := p.North - (p.North-p.South)*(float64(y)+0.5)/float64(p.RasterH)
 			lon := p.West + (p.East-p.West)*(float64(x)+0.5)/float64(p.RasterW)
 			out[y*p.RasterW+x] = gridLossOne(g, p, lat, lon)
 		}

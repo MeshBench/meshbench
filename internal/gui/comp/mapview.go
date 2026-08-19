@@ -13,6 +13,7 @@ import (
 	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
+	"gioui.org/widget"
 
 	"github.com/MeshBench/meshbench/internal/gui/state"
 	"github.com/MeshBench/meshbench/internal/gui/theme"
@@ -28,6 +29,11 @@ type MapView struct {
 	// Tiles is the basemap. Nil draws no basemap, which is what an offline
 	// first run looks like, and the map still works.
 	Tiles *Tiles
+	// OverlayTiles are the layers drawn above the coverage raster - roads,
+	// then labels - so the ground's structure and its names come through
+	// the picture instead of drowning under it. Empty where the base has
+	// everything baked in.
+	OverlayTiles []*Tiles
 	// Zoom and Centre are the camera. Kept here rather than in state because
 	// where somebody is looking is a property of the view, not of the world.
 	Zoom float64
@@ -78,6 +84,19 @@ type MapView struct {
 	// Layers is what is drawn. Exported so a window, a menu or a script can
 	// set it without reaching through the map.
 	Layers Layers
+	// BuildingsIn returns the footprints inside a lat/lon box, or nil when
+	// no environment is loaded. Wired by the workbench so the map itself
+	// stays data-blind.
+	BuildingsIn func(south, west, north, east float64) []state.BuildingPoly
+	bldCache    buildingsCache
+	// CoverageOpacity is the raster's draw-time opacity, the slider beside
+	// the layer panel. Zero means "not set yet" and draws as 1.
+	CoverageOpacity widget.Float
+	// OnRasterView asks the session to raster exactly this viewport - the
+	// borders someone is looking at, not the network's or the boundary's.
+	OnRasterView  func(south, west, north, east float64, cells int)
+	rasterViewBtn widget.Clickable
+	lastSize      image.Point
 
 	// OnSelect is called when the pointer changes the selection. Additive is
 	// a shift-click or a shift-drag, which adds rather than replaces.
@@ -129,6 +148,10 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 		return layout.Center.Layout(gtx,
 			Text(t, t.Sz.Caption, t.P.Faint, "no network loaded"))
 	}
+	// Remembered for the callers outside the frame loop - the menu's
+	// raster-this-view needs the viewport, and the viewport only exists
+	// where the widget has a size.
+	m.lastSize = sz
 	if !m.initialised || m.FitNext {
 		// FitNext is how something outside the frame loop asks for a fit:
 		// framing needs the widget's size, which only exists here.
@@ -179,7 +202,34 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 	// Coverage under everything but the basemap: it is the ground a network
 	// sits on, and drawn over the links it would hide what it explains.
 	if m.Layers.Coverage {
+		alpha := m.CoverageOpacity.Value
+		if alpha <= 0 {
+			alpha = 0.75 // the slider's own default: the ground bleeds through
+		}
+		ol := paint.PushOpacity(gtx.Ops, alpha)
 		m.drawCoverage(t, gtx, sz, s)
+		ol.Pop()
+		// The ground itself, ghosted back over the raster: every street at
+		// every zoom, from the base already on screen - a roads-only source
+		// thins out exactly where somebody zooms in to look. Scaled by the
+		// raster's own opacity, so backing the raster off does not double
+		// up the ground.
+		if m.Tiles != nil && m.Layers.Basemap && s.Coverage != nil {
+			gl := paint.PushOpacity(gtx.Ops, 0.4*alpha)
+			m.Tiles.Draw(gtx, sz, m.CentreLat, m.CentreLon, m.Zoom)
+			gl.Pop()
+		}
+	}
+	if m.Layers.Buildings {
+		m.drawBuildings(t, gtx, sz)
+	}
+
+	// Roads and place names, back on top: a raster that buries the map's
+	// structure explains coverage of an anonymous landscape.
+	if m.Layers.Basemap && m.Layers.Coverage {
+		for _, ov := range m.OverlayTiles {
+			ov.Draw(gtx, sz, m.CentreLat, m.CentreLon, m.Zoom)
+		}
 	}
 
 	// The study boundaries, under the network.

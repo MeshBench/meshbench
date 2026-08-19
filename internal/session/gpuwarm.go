@@ -77,11 +77,7 @@ func (s *Sim) warmOnGPU(eng *engine.Engine, nodes []scenario.Node, freqMHz float
 	// their free-space figure, which is what the engine itself caches for
 	// them.
 	noise := dsp.NoiseFloorDBm(250e3, 6)
-	type job struct {
-		a, b   int
-		distKm float64
-	}
-	var jobs []job
+	var jobs []warmJob
 	loss := make([]float32, n*n)
 	for i := range loss {
 		loss[i] = coverage.NoDataLoss
@@ -104,21 +100,14 @@ func (s *Sim) warmOnGPU(eng *engine.Engine, nodes []scenario.Node, freqMHz float
 				culled++
 				continue
 			}
-			jobs = append(jobs, job{a: a, b: b, distKm: distKm})
+			jobs = append(jobs, warmJob{a: a, b: b, distKm: distKm})
 		}
 	}
 
 	// Profiles, every core, from the tile cache. The same sampling as the
 	// engine's own profile: a point per 60 m, at least two, at most 256.
 	terr := s.terrain()
-	type packed struct {
-		idx     int
-		heights []float32
-		distM   float64
-		aglA    float64
-		aglB    float64
-	}
-	results := make([]packed, len(jobs))
+	results := make([]warmPath, len(jobs))
 	var done64 sync.WaitGroup
 	workers := runtime.NumCPU()
 	var counter int64
@@ -159,7 +148,7 @@ func (s *Sim) warmOnGPU(eng *engine.Engine, nodes []scenario.Node, freqMHz float
 					hs[k] = float32(h)
 				}
 				if ok {
-					results[i] = packed{idx: i, heights: hs, distM: j.distKm * 1000,
+					results[i] = warmPath{idx: i, heights: hs, distM: j.distKm * 1000,
 						aglA: na.HeightAGLm, aglB: nb.HeightAGLm}
 				}
 				mu.Lock()
@@ -192,6 +181,14 @@ func (s *Sim) warmOnGPU(eng *engine.Engine, nodes []scenario.Node, freqMHz float
 		if err != nil {
 			out.Why = err.Error()
 			return out
+		}
+		// The environment's share, CPU, in parallel: the kernel knows
+		// terrain, and a warm that skipped the roofs would disagree with
+		// the engine's own lazy fill about the same pair - the exact
+		// two-paths drift the shared environ call exists to prevent.
+		if env := eng.Env; env != nil {
+			priceBuildingsIntoWarm(env, terr, nodes, jobs, results, packedIdx,
+				res, freqMHz, workers, progress)
 		}
 		for k, li := range packedIdx {
 			j := jobs[li]

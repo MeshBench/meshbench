@@ -1,0 +1,286 @@
+# How the waveform simulator actually works
+
+The as-built record for docs/waveform-source-of-truth.md, written from the
+code after the build rather than from the plan before it. This is the source
+material for user documentation: every stage names its file, and every
+number here was measured, not estimated.
+
+The rule the whole thing serves:
+
+> The RF channel produces signals, never verdicts. The receiver produces
+> observations, never packets. The demodulator produces packets, and only a
+> valid PHY decode may enter MeshCore.
+
+## The switch
+
+`engine.Config.RFMode` (`internal/engine/waveform.go`) selects the physics:
+`calculated` - the zero value, so every pre-existing scenario is untouched -
+or `waveform`. It is chosen in Configuration's **RF Simulation** section
+(`internal/workbench/configcards.go, panels6c.go`), applied live on a
+whole-transmission boundary (`Engine.SetRFMode`), persisted in the prefs
+file (`internal/session/prefs.go`), stamped into saved runs
+(`RunRecord.RFMode`, `internal/session/runs.go`) and shown in the shell
+chrome while a run plays (`internal/gui/shell/layout.go`, the counts line).
+The verb is `rf.mode`; everything the panel does goes through it.
+
+## A packet's life in waveform mode
+
+**Transmit.** MeshCore firmware writes a frame to its virtual radio; the
+bridge surfaces it (`firmware.Bridge.Transmitted`) and
+`Engine.startTransmission` prices its airtime with `dsp.AirtimeMillis` -
+RadioLib's own `getTimeOnAir`, which MeshCore's CSMA is built on. When the
+airtime elapses, `completeTransmissions` (`internal/engine/transmissions.go`)
+collects it for delivery, together with everything that shared the air:
+still-in-flight transmissions, others that ended this tick, and - the fix
+the MS1 test forced - transmissions that ended earlier but overlapped
+something still up (`Engine.recent`). Before that fix a short interferer
+became invisible the moment it stopped, in both modes.
+
+**Synthesis.** `frameSamples` (`internal/engine/baseband.go`) renders the
+frame exactly as an SX126x would send it: `lora.Encode`
+(`internal/lora`) runs the coding chain - explicit header (with its
+checksum), payload whitening (LFSR x⁸+x⁶+x⁵+x⁴+1), CRC16, Hamming at the
+frame's coding rate, the diagonal interleaver (header block always at SF-2,
+data blocks at SF-2 under LDRO), Gray mapping - and
+`dsp.FrameLayout.FrameSamples` (`internal/dsp/sync.go`) wraps the data
+symbols in MeshCore's own preamble length (32 upchirps at SF≤8, 16 above),
+the 0x12 sync word, and the 2.25-symbol downchirp SFD. That 2.25 is
+RadioLib's `sfCoeff1 = 4.25` made flesh: the sample stream and the airtime
+formula describe the same frame, held equal by test
+(`TestSymbolCountMatchesRadioLib`).
+
+Samples are synthesised once per packet per delivery batch (`modCache`) and
+shared by every receiver, because unit-amplitude baseband does not depend on
+who is listening.
+
+**The channel.** `rxTransmission` (`baseband.go`) prices one transmission
+for one receiver: TX power, antenna gains in the true directions, path loss
+(free space + ITU-R P.526 terrain diffraction + buildings + the ADR-0015
+excess term - `internal/engine/links.go`), the timing offset into the
+window, and the oscillator disagreement as a per-sample phase ramp
+(`rf.Transmission.PhaseStepRad`). When multipath is switched on, `echoFor`
+(`internal/engine/realism.go`) adds one geometric echo per path -
+deterministic excess delay and carrier phase, drifted by the fading rate.
+`rf.Observe` (`internal/rf/channel.go`) sums everything coherently -
+fractional delay carried as phase - and adds Philox counter-based AWGN at
+the receiver's own noise floor (plus implementation loss when configured).
+The same synthesis feeds the verdicts, the waterfall
+(`InFlightTransmissions`), CAD, and the SDR observers; if they rendered from
+different signals the pictures would lie about the physics.
+
+**Receive.** `judgeWaveform` (`internal/engine/waveform.go`), in parallel
+across candidate receivers with serial bookkeeping so ledgers stay
+byte-deterministic: saturate the front end if configured; measure SNR from
+the window as telemetry; then `dsp.Detect` runs the real front end - the
+preamble found by dechirped bins holding still, the boundary from the SFD
+(calibrated relations: bin_up = cfo − sto, bin_down = cfo + sto), a
+three-candidate contest to resolve whole-symbol aliasing (judged by the
+window *before* each candidate: the true start is preceded by SFD mush, a
+late one by a pristine symbol), and a ±2-sample fine stage, because a
+one-sample slip shifts every bin. No lock, no packet - "no preamble lock" is
+its own ledger entry. Then `CorrectCFO`, per-symbol FFT demodulation, and
+`lora.Decode`: Gray, deinterleave, Hamming (4/7 and 4/8 correct one bit per
+codeword, 4/5 and 4/6 detect only - the chip's split), dewhiten, header
+parse, CRC. The decoder consumes only the frame its header declares, so a
+streaming window's tail is the channel's business, not damage.
+
+**The verdict.** `settleWaveform` records the outcome. What reaches MeshCore
+is `Bridge.Deliver(r.payload)` - **the decoded bytes, not the transmitted
+frame**. With a valid CRC they are the same bytes; on the day a corrupted
+frame passes CRC by chance, that is the chip's behaviour too. Misses say
+why: no preamble lock, header unreadable, or N codewords beyond repair with
+the FEC repair count alongside. SNR and RSSI ride in the ledger as
+telemetry; nothing reads them to decide.
+
+**Carrier sense.** In waveform mode `channelBusy` defers to `waveformBusy`
+(`waveform.go`): one symbol of summed IQ per listening node per tick,
+dechirped, peak-against-mean (`dsp.CADBusy`) - the chip's own detector,
+which fires below the decode floor, which is why listen-before-talk works.
+The busy verdict feeds the firmware over `kindChannelBusy`
+(`internal/firmware/bridge.go`), so MeshCore's CSMA and backoff respond to
+actual RF with no engine rule in between.
+
+## Calculated mode, and the hybrid
+
+The whole map has one more coverage answer (`internal/session/coveragemap.go`,
+verb `coverage.map`, in the Simulation menu, which also switches the
+Coverage layer on - a raster computed behind an off layer was the click
+that "did nothing"): a direct best-server pass (`coverage.BestServer`) over
+one shared grid scoped to the study boundary when one exists. Cells outer,
+each cell's nearest stations first, stopped by free-space arithmetic the
+moment nobody farther could serve the cell or beat its best - the
+N-full-rasters construction it replaced was hours on a national network,
+and an equivalence test holds the direct pass to it cell for cell. Terrain
+is sampled once into a height grid, cache-only - the sea between the
+islands is an honest gap, not a tile download stall - profiles walk at the
+grid's own resolution, and buildings are priced by the same
+`environ.PathBuildingLossDB` the packet path pays, so a loaded environment
+moves the map. Both phases report rows to the job bar. The grid's long
+edge is the operator's to set (Configuration > Links, `coverage.resolution`,
+persisted). The shared grid also fixed `coverage.start`: per-node boxes
+never shared ground, so `Combine` rightly refused them. The recorded next
+lever is the GPU per-station grid kernel that already exists, behind the
+same switch as demod.
+
+`deliver` (`transmissions.go`) is the fast model, unchanged in spirit: link
+budget, dBm-summed interference, verdict against the demodulator floor.
+A node with `scenario.Node.TrueRF` set (the Radio tab's switch, verb
+`node.truerf`) is handed to `judgeHybrid` instead - the full waveform
+reception inside a calculated run. The divergence harness
+(`TestModeDivergence`, run with `-v` for the report) diffs the two modes
+over one scenario; its first finding: on a dense six-sender burst,
+calculated's no-capture interference model calls roughly half the
+collision-affected pairs lost that the demodulator actually captures.
+
+## The SDR observer
+
+`Engine.ObserveSpan` (`internal/engine/observeriq.go`) renders any node's
+antenna over a span of simulated time from the same synthesis - never from
+packet events. `sdr.ServeRTLTCP` (`internal/sdr/rtltcp.go`) speaks rtl-sdr's
+own network protocol, so SDR++'s stock client connects: RTL0 header,
+five-byte tuning commands, unsigned 8-bit interleaved IQ (the format's
+~48 dB ceiling is owned in shortcomings). The stream is built to look like
+a dongle because it is judged next to one: a producer goroutine renders
+signal-only IQ (`ObserveSpanSignal`) a quarter second behind the engine's
+clock into a ring, so the delivery path never touches the engine and a
+heavy judgement cannot choke the stream; delivery is wall-clock deficit
+pacing served from the ring; windowed-sinc resampling follows the client's
+own rate menu and keeps a burst exactly as wide as its bandwidth; the
+front-end floor is painted server-side across the whole client span at the
+receiver's own noise density (`ObserverNoisePSD`), which is also what a
+paused run streams; and a level control anchored to that floor drops
+instantly rather than let a strong burst clip - a clipped chirp is
+broadband splatter painted across the span. The observers' modulated
+frames are cached across windows (`obsCache`), pruned to the air. Verbs `sdr.serve` / `sdr.stop`;
+one client at a time, like the real server. `Engine.SetNodePosition` moves
+a node live and forgets its cached losses, so dragging an observer on the
+map (`nodes.move`) changes what an attached client hears on the next
+window. A paused engine holds the stream at the pause point,
+serving fresh noise-floor windows rather than inventing future air or -
+worse - replaying one block on repeat; the stream position itself only
+ever moves forward, because rewinding to chase a slow simulation re-served
+overlapping windows and striped every client's waterfall.
+
+An observer has its own node window (`internal/workbench/nodeobserver.go`):
+no console, no Radio tab - it runs no firmware and has no chip - but an SDR
+pane that serves the antenna, shows the address and the exact client sample
+rate, and says whether a client is on the line. The serving state lives in
+the snapshot (`state.SDRSource`), re-read every tick because a client
+attaching is not a verb.
+
+## Buildings
+
+`internal/environ` holds what physically stands there: footprints, heights,
+and a MeshBench-owned material taxonomy, every derived value carrying its
+source and confidence. Tiles (gzipped JSON lines per zoom-14 slippy tile)
+are produced offline by `tools/envgen` from Microsoft Global ML Building
+Footprints or OSM GeoJSON, loaded on demand, cached, and *missing tiles are
+counted, never mistaken for empty ground*. `buildingLossDB` (`links.go`)
+prices them at the run's frequency: each crossed building is a P.526 knife
+edge at its rooftop, plus one wall of material loss when the direct ray
+passes through. Both modes pay it, because buildings change `GainDB`, never
+verdicts - and `TestBuildingsDeafenTheWaveform` holds the waveform chain to
+that: a thin-margin link that decodes clean on bare earth must fail with a
+concrete building across the path. Verdicts, CAD and the SDR observer all
+price through the same `rxTransmission`, so a loaded environment reaches
+all three. Verb `rf.environment`; loading or dropping the environment
+forgets the link cache, because two physics must not share one matrix.
+What is loaded also draws: the map's Buildings layer renders the
+footprints inside the viewport - close enough to see them, capped and
+saying so past the cap - coloured by material with a click-to-hide key,
+read straight from the tile store (a city of polygons has no business in
+the world snapshot). The store indexes which tiles exist once at open;
+before that, a national coverage query stat-ed millions of absent tiles
+under one mutex, which presented as the raster never finishing.
+
+Footprints can also be pulled at runtime (`internal/session/environfetch.go`,
+verb `environ.fetch`, the Buildings card's database dropdown): OpenStreetMap
+over Overpass, Microsoft's Global ML footprints by level-9 quadkey, or - the
+default, and the environment plan's actual shape - the two merged
+(`environ.MergeGeoJSON`): Microsoft provides existence and height, the OSM
+building whose centroid falls inside a detected footprint contributes its
+explicit type, levels and materials, explicit overriding inferred, and
+OSM-only buildings survive on their own. Every pull is scoped to patches
+around the nodes - merged where they overlap, so a town is asked for once
+and a national network's empty middle is never asked for at all - ingested
+through the same tested `IngestGeoJSON`, cached permanently like terrain,
+and switched on through the same `rf.environment` the manual path uses. A
+pull still too large refuses and points at `tools/envgen`. Long jobs -
+rasters, warms, pulls - show their percentage in the status bar while they
+run.
+
+## Determinism
+
+Same seed, same scenario, same ledger, in every mode - pinned by
+`TestWaveformModeIsDeterministic` and `TestMultipathIsDeterministicGeometry`.
+The pieces that make it true: Philox counter noise keyed by packet and
+receiver, crystal offsets and echo geometry derived from names by hash,
+parallel DSP with serial bookkeeping, and deaf-map iteration in node order.
+The known exception remains emulated firmware, which runs on wall time.
+
+## Measured numbers
+
+Dev machine: Ryzen 5 3600XT (12 threads), RDNA2 GPU, Vulkan.
+
+| what | figure |
+|---|---|
+| 300-node, 20-sender flood burst (~5 s simulated), calculated | 46 ms |
+| same burst, waveform, symbol-level verdicts (W1) | 1.04 s |
+| same burst, full coding chain (W2) | 1.89 s |
+| same burst, with receiver front end in path (W3) | 2.29 s |
+| `rf.Observe` phase-rotation hoist (the W1 snag) | 5.07 s → 1.04 s |
+| packet sensitivity vs Semtech floors (full chain) | brackets, by test |
+| GPU demod, SF9 × 512 symbols | CPU 4.53 ms, GPU 1.11 ms (4.1×) |
+
+The heaviest burst runs ~2.2× faster than real time on the CPU alone. The
+remaining profile is roughly half Gaussian noise synthesis and a fifth FFT.
+
+## Where the build diverged from the plan
+
+- **Tile format**: gzipped JSON lines per tile, not GeoParquet - no new
+  dependency; upgrade recorded if a region outgrows it.
+- **GPU is an accelerator, not the judge**: f32 can split a decision the
+  noise made a near-tie, and the W6 gate itself says GPU on/off must never
+  change an outcome. Confidence-gated hybrid demodulation is the recorded
+  follow-up.
+- **The MS1 test sharpened twice**: with real FEC a grazing 0 dB collision
+  is honestly marginal (coding repairs what alignment smears), so the gate
+  contrast became superimposed-preambles versus cleared air - which the
+  calculated model waves through identically.
+- **Two pre-existing engine bugs fixed on the way**: the per-sample
+  `cmplx.Exp` in `rf.Observe` (half of all waveform CPU), and ended
+  transmissions vanishing from the interference set in both modes.
+- **Adjacent-channel rejection deferred**: it needs frequency-domain
+  modelling the one-channel baseband cannot express.
+- **Per-transmission receive windows**: overlapping packets are each judged
+  in their own window, so one physical decode can in principle be
+  attributed to two packets; a continuous per-receiver stream is the
+  eventual shape (it is what the SDR observer already does).
+- **Bit-level conventions verified against silicon** (2026-08-18): a real
+  SX1262 (MeshCore KISS modem) transmitting known payloads into a remote
+  rtl_tcp dongle, analysed by `tools/goldencap`. Three conventions the
+  literature had wrong or ambiguous were solved from the air and corrected:
+  the sync word's chirps are nibble x 8 regardless of SF; the Hamming parity
+  matrix is four 3-input XORs (p0=d0^d1^d2, p1=d1^d2^d3, p2=d0^d1^d3,
+  p3=d0^d2^d3), not textbook Hamming plus overall parity; and the payload
+  CRC is CCITT over all but the last two bytes with those bytes XORed into
+  the result. Whitening, Gray, the interleaver diagonal and the header
+  layout were confirmed exactly as implemented. Two captured frames are
+  checked in as golden vectors; final-block padding is chip garbage no
+  receiver reads and is excluded from comparison.
+
+## What still needs a human or hardware
+
+1. **SDR++ eyes-on**: `sdr.serve` an observer, connect SDR++'s rtl_tcp
+   source to the printed address, set the client sample rate to the printed
+   rate; watch transmissions, collisions, and the effect of dragging the
+   observer.
+2. **Golden vectors**: run gr-lora_sdr (GNU Radio) or demodulate a real
+   SX1262 capture offline; write `internal/lora/testdata/golden-*.json`.
+3. **MS4 with firmware in the loop**: a live-firmware run in waveform mode
+   showing CSMA deferral change as RF conditions change.
+4. **The SX1262 ladders** (W5): sensitivity, CFO, capture, collision-timing
+   sweeps against the real chip; tolerances into shortcomings.
+5. **The excess-loss re-fit** (W8): envgen over a real Scotland footprint
+   extract, `rf.environment`, then `validate.fetch` / `validate.calibrate`;
+   the +20 dB fudge should shrink measurably.

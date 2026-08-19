@@ -177,6 +177,11 @@ func registerCapture(st *state.Store, s *Sim) {
 		// holding a region its neighbours do not is as silent as one holding
 		// none.
 		node.Regions = regionsOfNeighbours(s.nodes, lat, lon)
+		// And it runs what its mesh runs. A placed repeater with no build
+		// pinned refused the whole real-firmware run - correctly, but the
+		// operator who just dropped a node on the map was not choosing a
+		// firmware strategy, they were adding a repeater to this network.
+		node.Firmware = firmwareOfNeighbours(s.nodes, node.Kind)
 		nodes := append(append([]scenario.Node(nil), s.nodes...), node)
 		s.buildSeeded(nodes, s.freqMHz, s.seed)
 		w.Nodes = stateNodes(nodes)
@@ -191,6 +196,37 @@ func registerCapture(st *state.Store, s *Sim) {
 			"nodes": len(nodes),
 		}, nil
 	})
+}
+
+// firmwareOfNeighbours is the build most nodes of the same application
+// already run - a placed node joins this mesh, not an abstract one. A mesh
+// with no such nodes leaves the ref empty, and sim.start's own message
+// says what to pin.
+func firmwareOfNeighbours(nodes []scenario.Node, kind scenario.Kind) scenario.FirmwareRef {
+	app := kind.Application()
+	if app == "" {
+		return scenario.FirmwareRef{}
+	}
+	counts := map[scenario.FirmwareRef]int{}
+	for _, n := range nodes {
+		if n.Kind.Application() != app || n.Firmware.Version == "" {
+			continue
+		}
+		ref := n.Firmware
+		ref.Board = "" // the host build; the operator can emulate later
+		counts[ref]++
+	}
+	var best scenario.FirmwareRef
+	bestN := 0
+	for ref, n := range counts {
+		// Deterministic tie-break by version then role, because map order
+		// must never pick a node's firmware.
+		if n > bestN || (n == bestN && (ref.Version > best.Version ||
+			(ref.Version == best.Version && ref.Role > best.Role))) {
+			best, bestN = ref, n
+		}
+	}
+	return best
 }
 
 // regionsOfNeighbours is what a majority of the ten nearest nodes hold.

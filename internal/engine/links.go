@@ -16,6 +16,7 @@ import (
 	"sync/atomic"
 
 	"github.com/MeshBench/meshbench/internal/dsp"
+	"github.com/MeshBench/meshbench/internal/environ"
 	"github.com/MeshBench/meshbench/internal/scenario"
 	"github.com/MeshBench/meshbench/internal/terrain"
 )
@@ -61,6 +62,7 @@ func (e *Engine) pathLoss(a, b int) (float64, bool) {
 	if bestRx < noise-30 {
 		e.mu.Lock()
 		e.linkCache[k] = fspl // an underestimate, and irrelevant below the floor
+		e.culled[k] = true
 		e.mu.Unlock()
 		return fspl, true
 	}
@@ -70,17 +72,18 @@ func (e *Engine) pathLoss(a, b int) (float64, bool) {
 	// landing here during play means some pair the last warm measured is not
 	// the pair this tick needs - most often a node's radio reporting a real
 	// configuration the warm ran before it had.
-	e.liveProfiles.Add(1)
-	profile, ok := e.profile(from, to, distKm)
+	profile, ok := e.profileCached(k, from, to, distKm)
 	loss := math.Inf(1)
 	if ok {
 		loss = fspl +
 			terrain.MultiEdgeLossDB(profile, from.HeightAGLm, to.HeightAGLm, e.phyOf(from).freqMHz) +
+			e.buildingLossDB(from, to, profile) +
 			e.Config.ExcessPathLossDB
 	}
 
 	e.mu.Lock()
 	e.linkCache[k] = loss
+	delete(e.culled, k)
 	e.mu.Unlock()
 	if !ok {
 		return 0, false
@@ -88,7 +91,42 @@ func (e *Engine) pathLoss(a, b int) (float64, bool) {
 	return loss, true
 }
 
+// profileCached is profile behind the geometry-keyed cache. The profile is
+// the expensive half of a path loss - up to 257 DEM lookups - and depends
+// on nothing but where the two nodes stand, so it outlives every radio
+// report that invalidates the loss built on it.
+func (e *Engine) profileCached(k [2]int, from, to scenario.Node, distKm float64) ([]terrain.Point, bool) {
+	e.mu.Lock()
+	if p, ok := e.profCache[k]; ok {
+		e.mu.Unlock()
+		return p, p != nil
+	}
+	e.mu.Unlock()
+	p, ok := e.profile(from, to, distKm)
+	e.mu.Lock()
+	if _, dup := e.profCache[k]; !dup {
+		if !ok {
+			p = nil // a hole in the DEM is a fact worth caching too
+		}
+		e.profCache[k] = p
+		e.profOrder = append(e.profOrder, k)
+		// A few thousand profiles is a few dozen megabytes; the pairs that
+		// actually talk are far fewer. FIFO is enough - eviction only costs
+		// a rewalk, never a wrong answer.
+		if len(e.profOrder) > 4096 {
+			old := e.profOrder[0]
+			e.profOrder = e.profOrder[1:]
+			delete(e.profCache, old)
+		}
+	}
+	e.mu.Unlock()
+	return p, ok
+}
+
 func (e *Engine) profile(from, to scenario.Node, distKm float64) ([]terrain.Point, bool) {
+	// The expensive branch, counted here - on the walk, not on a cache hit -
+	// so "recomputed N links live" means DEM lookups actually happened.
+	e.liveProfiles.Add(1)
 	n := int(distKm * 1000 / e.Config.ProfileStepM)
 	if n < 2 {
 		n = 2
@@ -243,3 +281,29 @@ func (e *Engine) InvalidateLinks() {
 
 // PathLossForTest exposes the cached link for measurements and tests.
 func (e *Engine) PathLossForTest(a, b int) (float64, bool) { return e.pathLoss(a, b) }
+
+// buildingLossDB is what the buildings along a path cost it, when an
+// environment is loaded. The arithmetic lives in environ.PathBuildingLossDB
+// so the coverage rasters price a roof exactly as a packet pays for it.
+func (e *Engine) buildingLossDB(from, to scenario.Node, profile []terrain.Point) float64 {
+	if e.Env == nil || len(profile) < 2 {
+		return 0
+	}
+	total := profile[len(profile)-1].DistM
+	txM := profile[0].HeightM + from.HeightAGLm
+	rxM := profile[len(profile)-1].HeightM + to.HeightAGLm
+	return environ.PathBuildingLossDB(e.Env, e.Terrain,
+		from.Position.Lat, from.Position.Lon, txM,
+		to.Position.Lat, to.Position.Lon, rxM,
+		total, e.phyOf(from).freqMHz)
+}
+
+// DropLinkCache forgets every measured path, for when the physics that
+// priced them changed - an environment loading, most of all. The next warm
+// or delivery re-measures under the new rules.
+func (e *Engine) DropLinkCache() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.linkCache = map[[2]int]float64{}
+	e.culled = map[[2]int]bool{}
+}

@@ -39,6 +39,9 @@ const (
 	// tab that is always there and always empty teaches people to ignore
 	// tabs.
 	tabCompanion
+	// tabSDR is the observer's front pane - serve the antenna, read the
+	// address - and only an observer's window grows it.
+	tabSDR
 	tabSettings
 	tabRadio
 	tabStats
@@ -51,6 +54,8 @@ func (n nodeTab) String() string {
 	switch n {
 	case tabCompanion:
 		return "Companion"
+	case tabSDR:
+		return "SDR"
 	case tabSettings:
 		return "Settings"
 	case tabRadio:
@@ -76,6 +81,8 @@ type nodeWindowPanel struct {
 	comp        companionTab
 
 	input    comp.Field
+	trueRF   comp.Check
+	wasTrue  bool
 	send     comp.Button
 	start    comp.Button
 	stop     comp.Button
@@ -83,6 +90,8 @@ type nodeWindowPanel struct {
 	tcpBtn   comp.Button
 	serBtn   comp.Button
 	dropBtn  comp.Button
+	sdrServe comp.Button
+	sdrStop  comp.Button
 	list     layout.List
 	statList widget.List
 	setList  widget.List
@@ -116,6 +125,12 @@ func (p *nodeWindowPanel) visibleTabs() []nodeTab {
 		return []nodeTab{tabCompanion, tabSettings, tabRadio,
 			tabStats, tabActivity, tabConnect}
 	}
+	if p.isObserver() {
+		// No console and no Radio tab: an observer runs no firmware and has
+		// no chip to read back, and a tab that is always empty teaches
+		// people to ignore tabs.
+		return []nodeTab{tabSDR, tabSettings, tabStats, tabActivity}
+	}
 	return []nodeTab{tabConsole, tabSettings, tabRadio, tabStats, tabActivity}
 }
 
@@ -133,6 +148,12 @@ func (p *nodeWindowPanel) clicks(gtx layout.Context) {
 	}
 	if p.stop.Click.Clicked(gtx) && p.OnAction != nil {
 		p.OnAction("node.stop", p.node)
+	}
+	if p.sdrServe.Click.Clicked(gtx) && p.OnAction != nil {
+		p.OnAction("sdr.serve", p.node)
+	}
+	if p.sdrStop.Click.Clicked(gtx) && p.OnAction != nil {
+		p.OnAction("sdr.stop", p.node)
 	}
 	// Enter sends, because a console with a send button and no Enter is a
 	// console nobody will use twice.
@@ -161,6 +182,14 @@ func (p *nodeWindowPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snap
 	if p.isCompanion() && p.tab == tabConsole {
 		p.tab = tabCompanion
 	}
+	// An observer's window opens on its SDR pane, and never lands on a tab
+	// its strip does not offer.
+	if p.isObserver() {
+		switch p.tab {
+		case tabConsole, tabCompanion, tabRadio, tabConnect:
+			p.tab = tabSDR
+		}
+	}
 	p.clicks(gtx)
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(p.head(t, s)),
@@ -180,6 +209,8 @@ func (p *nodeWindowPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snap
 			case tabCompanion:
 				p.comp.node, p.comp.OnCLI, p.comp.OnDo = p.node, p.OnCLI, p.OnDo
 				return p.comp.Draw(t, gtx, s)
+			case tabSDR:
+				return p.sdrTab(t, gtx, s)
 			}
 			return p.console(t, gtx, s)
 		}),
@@ -197,6 +228,9 @@ func (p *nodeWindowPanel) head(t *theme.Theme, s *state.Snapshot) layout.Widget 
 					layout.Rigid(comp.Text(t, t.Sz.Title, t.P.Ink, p.node)),
 					layout.Rigid(layout.Spacer{Width: t.Sp.M}.Layout),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						if p.isObserver() {
+							return p.observerStatus(t, s)(gtx)
+						}
 						col, what := t.P.Faint, "stopped"
 						if running {
 							col, what = t.P.Good, "running"
@@ -205,6 +239,12 @@ func (p *nodeWindowPanel) head(t *theme.Theme, s *state.Snapshot) layout.Widget 
 					}),
 					layout.Flexed(1, comp.Spacer),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						if p.isObserver() {
+							// Start and stop belong to firmware, which an
+							// observer does not run; its head action is the
+							// antenna going on and off the wire.
+							return p.observerServeButton(t, gtx, s)
+						}
 						if running {
 							p.stop.Label, p.stop.Kind = "stop it", comp.Destructive
 							return p.stop.Layout(t, gtx)
@@ -277,6 +317,21 @@ func (p *nodeWindowPanel) auditDraw(t *theme.Theme, gtx layout.Context, s *state
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx,
 				func(gtx layout.Context) layout.Dimensions { return p.connect(t, gtx, s) })
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx,
+				func(gtx layout.Context) layout.Dimensions { return p.sdrTab(t, gtx, s) })
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			// The True RF switch alone, not the whole Radio tab: the tab
+			// bails out early for a node whose chip has not reported, and
+			// the audit needs the control on screen regardless.
+			gtx.Constraints.Max.Y = gtx.Dp(40)
+			return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx,
+				func(gtx layout.Context) layout.Dimensions {
+					p.wireTrueRF(gtx, s)
+					return p.trueRF.LayoutSwitch(t, gtx)
+				})
 		}),
 		// The console last, with whatever height remains: its own input row
 		// sits at its bottom edge and stays on screen.

@@ -1,0 +1,278 @@
+// An rtl_tcp server, so SDR++ can point at a simulated antenna.
+//
+// The protocol is rtl-sdr's own network format, chosen because SDR++ (and
+// most SDR software) carries a native client for it and inventing a
+// MeshBench protocol would help nobody (plan decision D4). Twelve bytes of
+// header - "RTL0", a tuner id, a gain count - then a one-way stream of
+// unsigned 8-bit IQ pairs, with five-byte commands coming back the other
+// way. Eight bits is the format's ceiling: about 48 dB of dynamic range,
+// which docs/shortcomings.md owns up to.
+package sdr
+
+import (
+	"encoding/binary"
+	"io"
+	"math"
+	"net"
+	"sync"
+	"time"
+)
+
+// SampleSource produces the stream: n complex baseband samples for the next
+// span, at the source's own rate. Implementations decide what time means -
+// the engine serves simulated time as it plays.
+type SampleSource interface {
+	NextSamples(n int) []complex128
+	SampleRateHz() float64
+	// NoisePSD is the receiver's noise density in linear watts per hertz.
+	// The server paints the front-end floor across the whole client span at
+	// this level - a real dongle's floor fills its span - so the source
+	// hands over signal-only samples. Zero means the source carries its own
+	// noise and the server adds none.
+	NoisePSD() float64
+}
+
+// RTLTCP is one serving observer: a listener, one client at a time, exactly
+// as rtl_tcp itself behaves.
+type RTLTCP struct {
+	ln net.Listener
+
+	mu       sync.Mutex
+	freqHz   uint32
+	rateHz   uint32
+	gainDB   uint32
+	stopped  bool
+	attached bool
+}
+
+// ServeRTLTCP starts serving source at addr ("127.0.0.1:0" for an OS-picked
+// port). It returns immediately; the listener runs until Close.
+func ServeRTLTCP(addr string, source SampleSource) (*RTLTCP, error) {
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return nil, err
+	}
+	s := &RTLTCP{ln: ln}
+	go s.acceptLoop(source)
+	return s, nil
+}
+
+// Addr is where a client should point.
+func (s *RTLTCP) Addr() string { return s.ln.Addr().String() }
+
+// Attached reports whether a client is currently connected - the fact the
+// observer's window shows, so "is SDR++ actually hearing this" has an answer.
+func (s *RTLTCP) Attached() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.attached
+}
+
+// Tuned reports the client's last frequency and sample-rate commands - what
+// SDR++ asked for, for the UI to show beside what the observer provides.
+func (s *RTLTCP) Tuned() (freqHz, rateHz uint32) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.freqHz, s.rateHz
+}
+
+func (s *RTLTCP) Close() error {
+	s.mu.Lock()
+	s.stopped = true
+	s.mu.Unlock()
+	return s.ln.Close()
+}
+
+func (s *RTLTCP) acceptLoop(source SampleSource) {
+	for {
+		conn, err := s.ln.Accept()
+		if err != nil {
+			return
+		}
+		// One client at a time, like the real server: a second dongle user
+		// gets the port refused rather than interleaved samples.
+		s.serveClient(conn, source)
+	}
+}
+
+func (s *RTLTCP) serveClient(conn net.Conn, source SampleSource) {
+	s.mu.Lock()
+	s.attached = true
+	s.mu.Unlock()
+	defer func() {
+		s.mu.Lock()
+		s.attached = false
+		s.mu.Unlock()
+		_ = conn.Close()
+	}()
+
+	// The dongle header: magic, tuner type (R820T, the common answer), and
+	// a gain count the client uses to build its gain menu.
+	hdr := make([]byte, 12)
+	copy(hdr, "RTL0")
+	binary.BigEndian.PutUint32(hdr[4:], 5)  // RTLSDR_TUNER_R820T
+	binary.BigEndian.PutUint32(hdr[8:], 29) // gain steps
+	if _, err := conn.Write(hdr); err != nil {
+		return
+	}
+
+	// Commands arrive on their own goroutine; the sample stream must not
+	// stall waiting on a read.
+	go s.readCommands(conn)
+
+	// The stream runs at whatever rate the client last asked for - a real
+	// rtl_tcp reconfigures the dongle, this one resamples the synthesis -
+	// so SDR++'s stock rate menu just works. Until the client asks, the
+	// native rate stands.
+	rs := newResampler(source)
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+	var buf []byte
+	// Deficit pacing: deliver exactly what wall time owes at the client's
+	// rate, not one fixed chunk per tick. A ticker coalesces missed ticks,
+	// so fixed chunks turned every scheduling hiccup into samples the
+	// client never got - an audible pop, a streaked line - where a deficit
+	// is simply made up on the next tick.
+	start := time.Now()
+	var sent int64
+	var pacedHz float64
+	lvl := newLevelControl()
+	// The front-end floor's own RNG: local to this client, deterministic
+	// from connect, never shared across goroutines.
+	floor := newFloorNoise(source.NoisePSD())
+	for range ticker.C {
+		s.mu.Lock()
+		stopped, clientHz := s.stopped, float64(s.rateHz)
+		s.mu.Unlock()
+		if stopped {
+			return
+		}
+		rs.setRate(clientHz)
+		outHz := clientHz
+		if outHz <= 0 {
+			outHz = source.SampleRateHz()
+		}
+		if outHz != pacedHz {
+			// A new rate is a new stream pace; owing samples at the old
+			// rate would burst or starve the first seconds of the new one.
+			pacedHz, start, sent = outHz, time.Now(), 0
+		}
+		owed := int64(time.Since(start).Seconds()*outHz) - sent
+		if owed < 256 {
+			continue
+		}
+		// Bound a catch-up burst to half a second of stream: past that the
+		// client is better served by losing time than by a flood.
+		if max := int64(outHz / 2); owed > max {
+			sent += owed - max
+			owed = max
+		}
+		chunk := int(owed)
+		iq := make([]complex128, chunk)
+		rs.next(iq)
+		floor.add(iq, outHz)
+		if len(buf) != chunk*2 {
+			buf = make([]byte, chunk*2)
+		}
+		lvl.apply(iq, buf, floor.sigma(outHz))
+		if _, err := conn.Write(buf); err != nil {
+			return
+		}
+		sent += int64(chunk)
+	}
+}
+
+// readCommands consumes the client's five-byte commands. Frequency and rate
+// are recorded for the UI; gain is accepted and ignored, because a simulated
+// front end has nothing to saturate yet.
+func (s *RTLTCP) readCommands(conn net.Conn) {
+	cmd := make([]byte, 5)
+	for {
+		if _, err := io.ReadFull(conn, cmd); err != nil {
+			return
+		}
+		val := binary.BigEndian.Uint32(cmd[1:])
+		s.mu.Lock()
+		switch cmd[0] {
+		case 0x01:
+			s.freqHz = val
+		case 0x02:
+			s.rateHz = val
+		case 0x04:
+			s.gainDB = val
+		}
+		s.mu.Unlock()
+	}
+}
+
+// toU8 converts complex baseband to rtl_tcp's unsigned 8-bit interleaved
+// IQ. The scale is fixed so the noise floor sits a few counts above zero and
+// a strong nearby transmitter approaches full scale - the same dynamic-range
+// compromise a real dongle's ADC makes.
+// agcMaxScale bounds the level control when a source states no floor of
+// its own - the old fixed scale, kept as the ceiling.
+const agcMaxScale = 8e6
+
+// floorCounts is where the front-end floor sits in the 8-bit format: a few
+// counts per component, the way a real dongle at working gain shows its
+// own noise just above the quantiser.
+const floorCounts = 2.5
+
+// levelControl is the anti-clip stage in front of the 8-bit format. A fixed
+// scale cannot hold both a thermal floor and a transmitter a kilometre away
+// inside 48 dB - the strong burst clipped rail-to-rail, and a clipped chirp
+// is broadband splatter painted across the client's whole span, which is
+// exactly what SDR++ showed. The scale anchors the floor at a fixed count,
+// drops instantly when a burst would clip, and recovers slowly so the
+// floor glides back instead of pumping.
+type levelControl struct{ scale float64 }
+
+func newLevelControl() *levelControl { return &levelControl{} }
+
+func (l *levelControl) apply(iq []complex128, out []byte, floorSigma float64) {
+	anchor := agcMaxScale
+	if floorSigma > 0 {
+		anchor = floorCounts / floorSigma
+	}
+	if l.scale == 0 {
+		l.scale = anchor
+	}
+	peak := 0.0
+	for _, v := range iq {
+		if a := math.Abs(real(v)); a > peak {
+			peak = a
+		}
+		if a := math.Abs(imag(v)); a > peak {
+			peak = a
+		}
+	}
+	if peak > 0 && peak*l.scale > 120 {
+		l.scale = 120 / peak
+	} else {
+		l.scale = math.Min(l.scale*1.05, anchor)
+	}
+	toU8(iq, out, l.scale)
+}
+
+func toU8(iq []complex128, out []byte, scale float64) {
+	// +128 with truncation is round-to-nearest about 127.5, the format's
+	// true centre; +127.5 truncated pulled everything half a count low,
+	// which is a manufactured DC spike.
+	for i, v := range iq {
+		out[i*2] = clampU8(real(v)*scale + 128)
+		out[i*2+1] = clampU8(imag(v)*scale + 128)
+	}
+	for i := len(iq) * 2; i < len(out); i += 2 {
+		out[i], out[i+1] = 127, 127
+	}
+}
+
+func clampU8(v float64) byte {
+	if v < 0 {
+		return 0
+	}
+	if v > 255 {
+		return 255
+	}
+	return byte(v)
+}

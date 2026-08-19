@@ -184,6 +184,10 @@ type Node struct {
 	// because a repeater with a masthead preamp and a handheld in a pocket do
 	// not have the same one.
 	NoiseFigureDB float64
+	// TrueRF asks for waveform verdicts at this receiver even when the run
+	// is in calculated mode - the hybrid the waveform plan describes: a big
+	// mesh priced fast, with full-fidelity reception where it matters.
+	TrueRF bool `json:"true_rf,omitempty"`
 
 	// FEM is the front-end module this node's board carries, where it has one.
 	// Nil means the radio drives the antenna directly, and then whether the

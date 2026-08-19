@@ -9,17 +9,15 @@ package session
 
 import (
 	"context"
-	"encoding/binary"
-	"fmt"
-	"hash/fnv"
-	"math"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/MeshBench/meshbench/internal/boundary"
 	"github.com/MeshBench/meshbench/internal/console"
 	"github.com/MeshBench/meshbench/internal/coverage"
 	"github.com/MeshBench/meshbench/internal/engine"
+	"github.com/MeshBench/meshbench/internal/environ"
 	"github.com/MeshBench/meshbench/internal/gui/state"
 	"github.com/MeshBench/meshbench/internal/linkbudget"
 	"github.com/MeshBench/meshbench/internal/scenario"
@@ -55,6 +53,29 @@ type Sim struct {
 	// compRev is the companion frame count as of the last time the view was
 	// published, so a tick where nothing arrived skips the rebuild.
 	compRev uint64
+	// rfMode is which physics decides reception - "" or "calculated" for the
+	// fast model, "waveform" for demodulator verdicts. See rfmode.go.
+	rfMode string
+	// sdrServers is every node currently exposed as an rtl_tcp source,
+	// with the sample rate its stream was attached at.
+	sdrServers map[string]*sdrServer
+	// covCells is the operator's coverage-raster resolution - the long
+	// edge, in cells - or zero for the default.
+	covCells int
+
+	// lastReadout throttles the interface readouts to human rate while the
+	// run plays; the tick that paces the engine must not pay for tables.
+	lastReadout time.Time
+	// pace is the recent (wall, simulated) samples behind the transport's
+	// x-realtime figure.
+	pace []paceSample
+	// realism is the RF Simulation imperfection switches. See rfmode.go.
+	realism state.RFRealism
+	// envDir is where the environment tiles live, or "" for bare earth.
+	envDir string
+	// envView is the store the map reads footprints from when no engine is
+	// holding one open.
+	envView environ.Provider
 	// gpuWarm is whether the link matrix is measured on the GPU when one can
 	// answer to the same accuracy. Off by default: it reads a rasterised
 	// height grid rather than the DEM, which is the same answer on a county
@@ -147,6 +168,23 @@ type Sim struct {
 // computed while a tile downloads is a path loss nobody asked for at a moment
 // nobody chose. Missing tiles answer "no data", which the engine already
 // handles - it is bare earth for that profile and says so.
+// terrainCached is terrain that answers only from the tile cache - for the
+// callers that must not block on a download, where a missing tile is an
+// honest gap rather than a wait.
+func (s *Sim) terrainCached() coverage.Terrain {
+	t := s.terrain()
+	if ts, ok := t.(*terrain.TileStore); ok {
+		return cachedOnly{ts}
+	}
+	return t
+}
+
+type cachedOnly struct{ ts *terrain.TileStore }
+
+func (c cachedOnly) ElevationM(lat, lon float64) (float64, bool) {
+	return c.ts.ElevationCachedM(lat, lon)
+}
+
 func (s *Sim) terrain() coverage.Terrain {
 	if s.terr != nil {
 		return s.terr
@@ -270,9 +308,14 @@ func (s *Sim) buildSeeded(nodes []scenario.Node, freqMHz float64, seed uint64) {
 		FreqMHz: freqMHz, SF: 10, BandwidthHz: 250e3, CodingRate: 1,
 		NoiseFigDB: 6, StepMs: 10, Seed: seed,
 		ExcessPathLossDB: s.excessLossDB,
+		RFMode:           rfModeOf(s.rfMode),
+		Realism:          engineRealism(s.realism),
 	})
 	for _, n := range nodes {
 		s.eng.Add(n, nil)
+	}
+	if s.envDir != "" {
+		s.eng.Env = environ.OpenTiles(s.envDir)
 	}
 }
 
@@ -308,170 +351,4 @@ func (s *Sim) links() []state.Link {
 		}
 	}
 	return out
-}
-
-// snapshotNodes copies the nodes themselves, so a worker reading them cannot
-// be racing a verb that writes them.
-//
-// Element-wise, which is what the reported race needed: the fields written
-// while a warm is in flight are scalars and strings on the node itself. A
-// node's Regions slice is still shared with the original, and deliberately -
-// every writer replaces that slice wholesale rather than editing it in place,
-// so the copy keeps whichever one it was given.
-func snapshotNodes(in []scenario.Node) []scenario.Node {
-	return append([]scenario.Node(nil), in...)
-}
-
-// warm computes the link margins on a worker and hands them to the store.
-//
-// One at a time: a second warm while the first is running would compute the
-// same thing twice and race to publish it.
-func (s *Sim) warm(st *state.Store, nodes int) {
-	if s.eng == nil {
-		return
-	}
-	// Cancel whatever is running and start again.
-	//
-	// Marking it stale and repeating afterwards was not enough: a warm holds
-	// no copy of the engine, so one started for a 58-node fixture carried on
-	// against the 676-node import that replaced it - 228,000 terrain profiles
-	// for a network nobody is looking at, while the 44 nodes that were
-	// actually on screen showed no links at all and nothing said why.
-	s.warmMu.Lock()
-	if s.warmCancel != nil {
-		s.warmCancel()
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	s.warmCancel = cancel
-	s.warmMu.Unlock()
-
-	s.cold = false
-	// The network this warm is for, taken now. Everything below runs after
-	// the verb that started it has returned, and s.eng/s.nodes belong to
-	// whatever has been opened since.
-	//
-	// A copy of the nodes, not of the slice header. That distinction was the
-	// whole of a data race: assigning s.nodes shares the backing array, so a
-	// warm reading a node's fields on its worker and a verb writing them on
-	// the store goroutine - setFirmware, say - are touching the same memory.
-	// The intent here was always a snapshot; this is what makes it one.
-	eng, warmNodes, freqMHz := s.eng, snapshotNodes(s.nodes), s.freqMHz
-	go func() {
-		defer cancel()
-		total := nodes * (nodes - 1) / 2
-		_, _ = st.Do(ctx, "job.progress", state.Job{
-			ID: "links", What: "measuring every link", Total: total})
-
-		// On by default where there is hardware for it, decided once.
-		s.gpuDefault()
-		// The GPU first, if it is switched on and can answer honestly. What
-		// it fills, the cores below no longer have to: WarmLinks asks the
-		// cache before it measures anything.
-		if s.gpuWarm {
-			res := s.warmOnGPU(eng, warmNodes, freqMHz, func(what string, done, total int) {
-				_, _ = st.Do(ctx, "job.progress", state.Job{
-					ID: "links", What: what, Done: done, Total: total})
-			})
-			s.gpuMu.Lock()
-			s.lastGPU = res
-			s.gpuMu.Unlock()
-			if res.Used {
-				_, _ = st.Do(ctx, "job.progress", state.Job{
-					ID: "links", What: "measuring every link on the GPU",
-					Done: res.Pairs, Total: total})
-			} else if res.Why != "" {
-				// Said aloud. A silent fall back is a status frozen on the
-				// last phase while every core spikes, which reads as a hang.
-				_, _ = st.Do(ctx, "ui.said",
-					"the GPU declined this one - "+res.Why+" - measuring on the processor")
-			}
-			_, _ = st.Do(ctx, "gpu.state", nil)
-		}
-
-		eng.WarmLinks(ctx, func(done, of int) {
-			// No second throttle here: the engine already reports every 512th
-			// pair, and a filter stacked on a filter only let through their
-			// common multiples - the first status update came at pair 32,000,
-			// which on the processor is most of the warm spent looking hung.
-			_, _ = st.Do(ctx, "job.progress", state.Job{
-				ID: "links", What: "measuring every link on the processor",
-				Done: done, Total: of})
-		})
-
-		if ctx.Err() != nil {
-			// Superseded: what this measured is about a network that has been
-			// replaced, and publishing it would put another network's links
-			// on the map.
-			return
-		}
-		links := s.links()
-		if ctx.Err() != nil {
-			return
-		}
-		s.warmMu.Lock()
-		s.warmed = true
-		s.warmMu.Unlock()
-		// What was measured survives the process, keyed by the geometry it
-		// is about. On its own goroutine already, and after the staleness
-		// checks, so what lands on disk is a matrix somebody saw.
-		saveMatrix(s.matrixDir(), s.geomFP, s.eng.LinkCacheSnapshot())
-		_, _ = st.Do(context.Background(), "links.set", links)
-		_, _ = st.Do(context.Background(), "job.progress", state.Job{
-			ID: "links", What: "measuring every link",
-			Done: total, Total: total, Finished: true})
-	}()
-}
-
-// rebuild starts the same network again from the world's seed.
-//
-// The engine is remade rather than rewound: an engine carries queued packets,
-// per-node radio state and the firmware processes' own memory, and there is no
-// honest way to unwind those to zero. Firmware is left alone, because
-// restarting several hundred processes to change a seed is a different and
-// much slower operation than the caller asked for.
-func (s *Sim) rebuild(w *state.World) error {
-	if len(s.nodes) == 0 {
-		return fmt.Errorf("no network loaded")
-	}
-	seed := w.Seed
-	if seed == 0 {
-		seed = defaultSeed
-	}
-	s.buildSeeded(s.nodes, s.freqMHz, seed)
-	w.NowMs, w.Seed = 0, seed
-	w.Events, w.EventTotal = nil, 0
-	return nil
-}
-
-// warming reports whether the link matrix is still being measured, which is
-// the one thing a run must not start in front of.
-func (s *Sim) warming() bool {
-	s.warmMu.Lock()
-	defer s.warmMu.Unlock()
-	return s.warmCancel != nil && !s.warmed
-}
-
-// geometryFingerprint hashes everything a path loss depends on.
-func geometryFingerprint(nodes []scenario.Node, freqMHz, excess float64) uint64 {
-	h := fnv.New64a()
-	b := make([]byte, 8)
-	put := func(f float64) {
-		binary.LittleEndian.PutUint64(b, math.Float64bits(f))
-		_, _ = h.Write(b)
-	}
-	put(freqMHz)
-	put(excess)
-	for _, n := range nodes {
-		_, _ = h.Write([]byte(n.Name))
-		put(n.Position.Lat)
-		put(n.Position.Lon)
-		put(n.HeightAGLm)
-		put(n.TxPowerDBm)
-		// Noise figure is in here because the engine's path-loss cull decides
-		// against the noise floor, so a node that got quieter can bring a pair
-		// back that a previous run discarded. Leaving it out meant a stale
-		// matrix loaded from disk and looked authoritative.
-		put(n.NoiseFigureDB)
-	}
-	return h.Sum64()
 }

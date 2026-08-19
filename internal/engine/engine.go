@@ -16,11 +16,13 @@ package engine
 
 import (
 	"context"
+	"github.com/MeshBench/meshbench/internal/terrain"
 	"sync"
 	"sync/atomic"
 
 	"github.com/MeshBench/meshbench/internal/capture"
 	"github.com/MeshBench/meshbench/internal/coverage"
+	"github.com/MeshBench/meshbench/internal/environ"
 	"github.com/MeshBench/meshbench/internal/firmware"
 	"github.com/MeshBench/meshbench/internal/scenario"
 )
@@ -73,6 +75,16 @@ type Config struct {
 	// uncalibrated. Always displayed when set — a silent fudge factor is the
 	// thing the validation chain exists to prevent.
 	ExcessPathLossDB float64
+
+	// RFMode selects which physics decides reception: RFCalculated (the
+	// zero value - link budgets and demodulator floors) or RFWaveform (IQ
+	// through the channel, verdict by the demodulator). See waveform.go.
+	RFMode RFMode
+
+	// Realism is the optional-imperfections switch set - oscillator error,
+	// multipath, fading, implementation loss, saturation. All zero by
+	// default: the kind simulator, with its kindness now optional.
+	Realism Realism
 }
 
 // Engine owns the run.
@@ -80,6 +92,11 @@ type Engine struct {
 	Terrain coverage.Terrain
 	Config  Config
 	Ledger  capture.Ledger
+	// Env is what physically stands on the ground - buildings, from the
+	// environment tiles. Nil means bare earth, exactly as before; setting it
+	// changes path budgets in both RF modes, because buildings price GainDB
+	// rather than verdicts.
+	Env environ.Provider
 
 	mu    sync.Mutex
 	nodes []*Node
@@ -98,16 +115,43 @@ type Engine struct {
 	// the channel for its own airtime, and anything else transmitting during
 	// that window is a collision rather than a separate event.
 	inFlight []transmission
+	// recent holds transmissions that have already ended but overlapped
+	// something still in flight. Without it a short interferer that finished
+	// before the wanted packet did was invisible to interference in both RF
+	// modes - the collision happened on the air and nowhere else.
+	recent []transmission
+	// wfCAD caches in-flight transmissions' synthesised baseband for the
+	// waveform CAD path, which asks every tick. See cadCache.
+	wfCAD modCache
+	// obsCache is the observers' modulated baseband, pruned to what is on
+	// the air. Guarded by obsMu, not mu: ObserveSpan runs on rtl_tcp client
+	// goroutines while the step loop holds the engine's own lock.
+	obsMu    sync.Mutex
+	obsCache modCache
 
 	// emitterNoise caches each receiver's extra floor from the emitter fleet,
 	// invalidated with the link cache — emitters move exactly as often as
 	// nodes do.
 	emitterNoise map[int]float64
 
+	// profCache holds terrain profiles between node pairs - the DEM walk
+	// that dominates a cold pathLoss. Kept apart from linkCache because
+	// their lifetimes differ: a radio report invalidates the loss, but only
+	// the ground moving invalidates the profile, and re-walking the DEM
+	// because a node reported its FEM state is how a busy network stuttered
+	// to a stop. Bounded FIFO: the pairs actually talking are few.
+	profCache map[[2]int][]terrain.Point
+	profOrder [][2]int
+
 	// linkCache holds path loss between node pairs. Terrain does not move
 	// during a run, and recomputing a profile per packet per pair is the
 	// difference between a run that takes seconds and one that takes hours.
 	linkCache map[[2]int]float64
+	// culled marks the linkCache entries that are below-floor underestimates
+	// rather than full losses. Only these read the nodes' effective RF
+	// figures, so only these fall when a radio report changes them - a full
+	// loss is propagation, and propagation does not care about a FEM bit.
+	culled map[[2]int]bool
 	// liveProfiles counts pathLoss calls that missed the cache and paid for a
 	// terrain profile during play rather than during a warm. A caller reads
 	// this to say why a tick just took a while, rather than leaving it looking
@@ -180,6 +224,8 @@ func New(t coverage.Terrain, c Config) *Engine {
 	return &Engine{
 		Terrain: t, Config: c,
 		linkCache:    map[[2]int]float64{},
+		culled:       map[[2]int]bool{},
+		profCache:    map[[2]int][]terrain.Point{},
 		emitterNoise: map[int]float64{},
 		StaggerBoot:  true,
 		seen:         map[string]map[uint64]bool{},
@@ -197,8 +243,11 @@ func (e *Engine) Add(spec scenario.Node, fw *firmware.Node) *Node {
 		baseNoiseFigDB: spec.NoiseFigureDB,
 	}
 	e.nodes = append(e.nodes, n)
-	// Terrain has not changed, but the set of pairs has.
+	// Terrain has not changed, but the set of pairs has. The profiles keep:
+	// they are keyed by pair index, and existing indices still mean the
+	// same ground.
 	e.linkCache = map[[2]int]float64{}
+	e.culled = map[[2]int]bool{}
 	e.emitterNoise = map[int]float64{}
 	return n
 }

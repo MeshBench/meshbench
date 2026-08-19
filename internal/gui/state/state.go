@@ -88,6 +88,13 @@ type Snapshot struct {
 	Assertions []Assertion
 	// Endpoints are the companions currently served.
 	Endpoints []Endpoint
+	// SDRSources are the observers currently served as rtl_tcp sources.
+	SDRSources []SDRSource
+	// CoverageCells is the coverage raster's long edge; zero means default.
+	CoverageCells int
+	// RealtimeX is how fast the run is moving against the wall clock: 1 is
+	// realtime, 0 means not playing or not yet measured.
+	RealtimeX float64
 	// Routes are the planner's last answer.
 	Routes []Route
 	// Import is the last fetch's description, or nil.
@@ -135,6 +142,14 @@ type Snapshot struct {
 	// decoded rather than flattened to console text, so the client can draw a
 	// channel list and a conversation instead of a terminal.
 	Companions []Companion
+	// RFMode is which physics decides reception: "calculated" or "waveform".
+	RFMode string
+	// RFRealism is the optional-imperfections switch set, all zero for the
+	// kind default.
+	RFRealism RFRealism
+	// RFEnvironment is the loaded building-tile directory, or "" for bare
+	// earth.
+	RFEnvironment string
 	// FleetReplies is what each node said to the last fleet command. A
 	// command sent to forty nodes with no reply shown is indistinguishable
 	// from one that went nowhere.
@@ -179,4 +194,14 @@ type EventCounts struct {
 // Total is every event the run has produced.
 func (c EventCounts) Total() int {
 	return c.Sent + c.Received + c.HalfDuplex + c.Interference + c.Floor
+}
+
+// RFRealism mirrors the engine's realism switches for the RF Simulation
+// panel: every field zero means the kind simulator the docs describe.
+type RFRealism struct {
+	OscPPM        float64
+	MultipathDB   float64
+	FadingHz      float64
+	ImplLossDB    float64
+	SaturationDBm float64
 }

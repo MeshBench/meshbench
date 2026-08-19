@@ -37,20 +37,46 @@ func (d *Device) compileCoverage() error {
 // CoverageGridLoss runs the coverage kernel: one station's path loss to every
 // raster cell, over a rasterised height grid. The CPU twin is
 // coverage.GridLossCPU, and the equivalence test holds the two together.
-func (d *Device) CoverageGridLoss(g coverage.HeightGrid, p coverage.GridLossParams) ([]float32, error) {
+// CoverageGrid is a height grid resident on the device, uploaded once and
+// shared by every station's dispatch - re-uploading fifteen megabytes per
+// station was most of a national job's transfer.
+type CoverageGrid struct {
+	d   *Device
+	g   coverage.HeightGrid
+	buf *wgpu.Buffer
+}
+
+// UploadGrid puts the heights on the device.
+func (d *Device) UploadGrid(g coverage.HeightGrid) (*CoverageGrid, error) {
 	if d.coverage == nil {
 		return nil, fmt.Errorf("gpu: coverage pipeline not compiled")
 	}
-	cells := p.RasterW * p.RasterH
-	outLen := uint64(cells * 4)
-
 	hb, err := d.device.CreateBufferInit(&wgpu.BufferInitDescriptor{
 		Label: "heights", Contents: wgpu.ToBytes(g.Heights), Usage: wgpu.BufferUsageStorage,
 	})
 	if err != nil {
 		return nil, err
 	}
-	defer hb.Release()
+	return &CoverageGrid{d: d, g: g, buf: hb}, nil
+}
+
+// Release frees the device copy.
+func (cg *CoverageGrid) Release() { cg.buf.Release() }
+
+func (d *Device) CoverageGridLoss(g coverage.HeightGrid, p coverage.GridLossParams) ([]float32, error) {
+	cg, err := d.UploadGrid(g)
+	if err != nil {
+		return nil, err
+	}
+	defer cg.Release()
+	return cg.Loss(p)
+}
+
+// Loss prices one station over the resident grid.
+func (cg *CoverageGrid) Loss(p coverage.GridLossParams) ([]float32, error) {
+	d, g, hb := cg.d, cg.g, cg.buf
+	cells := p.RasterW * p.RasterH
+	outLen := uint64(cells * 4)
 
 	out, err := d.device.CreateBuffer(&wgpu.BufferDescriptor{
 		Label: "loss", Size: outLen,

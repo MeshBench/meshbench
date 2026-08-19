@@ -211,7 +211,8 @@ func popStatus(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dim
 			if !s.Jobs[i].Finished {
 				j := &s.Jobs[i]
 				if j.Total > 0 {
-					msg = fmt.Sprintf("%s (%d of %d)", j.What, j.Done, j.Total)
+					msg = fmt.Sprintf("%s - %d%% (%d of %d)",
+						j.What, j.Done*100/j.Total, j.Done, j.Total)
 				} else {
 					msg = j.What
 				}
