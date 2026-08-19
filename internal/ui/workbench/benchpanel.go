@@ -17,12 +17,46 @@ import (
 )
 
 // benchPanel lists the companions and what each is served on.
+//
+// It is also the App view's only way of saying which companion is being
+// talked about. The view carries neither the map nor the node list, and
+// those were the only two things that ever selected anything - so every verb
+// needing a node refused, and the console beside this panel said "select a
+// node" with nothing on screen able to.
 type benchPanel struct {
 	tb   comp.Table
 	init bool
 	// OnAction is how the panel asks the store to do something. A panel does
 	// not open sockets.
 	OnAction func(action, node string)
+	// OnSelect says which companion the rest of the view is about.
+	OnSelect func(node string)
+	// rows are the per-row buttons, pooled by companion name: a widget
+	// rebuilt each frame never sees the release that completes its press.
+	rows map[string]*benchRow
+}
+
+// benchRow is one companion's buttons.
+type benchRow struct {
+	serve comp.Button
+	// client opens the node's own window, which for a companion opens on
+	// its client tab - the three-mode client that already exists rather
+	// than a second one drawn here.
+	client comp.Button
+}
+
+func (p *benchPanel) row(name string) *benchRow {
+	if p.rows == nil {
+		p.rows = map[string]*benchRow{}
+	}
+	r := p.rows[name]
+	if r == nil {
+		r = &benchRow{}
+		r.serve.Label, r.serve.Kind = "serve TCP", comp.Secondary
+		r.client.Label, r.client.Kind = "open client", comp.Quiet
+		p.rows[name] = r
+	}
+	return r
 }
 
 func (p *benchPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
@@ -30,7 +64,7 @@ func (p *benchPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot)
 		p.tb.Cols = []comp.Column{
 			{Title: "companion", Width: 190, Sortable: true},
 			{Title: "transport", Width: 96},
-			{Title: "address", Width: 200, Mono: true},
+			{Title: "address", Width: 220, Mono: true},
 			{Title: "client"},
 		}
 		p.init = true
@@ -50,6 +84,22 @@ func (p *benchPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot)
 		return layout.Center.Layout(gtx, comp.Text(t, t.Sz.Body, t.P.Dim,
 			"no companion in this network - every shipped fixture carries several"))
 	}
+	// The selection is the world's, not the table's: clicking a row fires the
+	// same verb the map fires, so every panel in the view follows it.
+	//
+	// Only a companion counts as this panel's subject. The selection is the
+	// whole application's, and a repeater picked on the map must not leave
+	// this panel offering to serve a client to something that has no
+	// companion protocol at all.
+	p.tb.Selected = ""
+	if n := selectedNodeName(s); n != "" {
+		for _, c := range comps {
+			if c == n {
+				p.tb.Selected = n
+				break
+			}
+		}
+	}
 
 	served := map[string]state.Endpoint{}
 	for _, e := range s.Endpoints {
@@ -58,6 +108,9 @@ func (p *benchPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot)
 	rows := make([]comp.Row, 0, len(comps))
 	for _, name := range comps {
 		e, ok := served[name]
+		// A dash for what has not happened, never a zero or an empty cell:
+		// "not served" is a state this panel exists to change, and it reads
+		// as one rather than as missing data.
 		kind, addr, client := "-", "not served", "-"
 		if ok {
 			kind, addr = e.Kind, e.Addr
@@ -71,15 +124,69 @@ func (p *benchPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot)
 	}
 	p.tb.SetRows(rows)
 
-	// Buttons in a row, sized to their labels. Laid out as rigid children of
-	// a vertical flex they stretched the full width of the panel, which made
-	// every one of them look like the main action.
+	sel := p.tb.Selected
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(comp.SectionTitle(t, "a mesh and an endpoint")),
 		layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Dim,
-			"both transports carry the firmware's own serial protocol, byte for byte")),
+			"pick a companion: the console, the events and everything sent "+
+				"are about whichever is selected")),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			return p.tb.Layout(t, gtx, nil)
+			return p.tb.Layout(t, gtx, func(key string) {
+				if p.OnSelect != nil {
+					p.OnSelect(key)
+				}
+			})
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return p.actions(t, gtx, sel, served)
 		}),
 	)
+}
+
+// actions is what can be done to the selected companion, said in its own
+// name rather than as a row of verbs about nothing.
+func (p *benchPanel) actions(t *theme.Theme, gtx layout.Context, sel string,
+	served map[string]state.Endpoint) layout.Dimensions {
+	if sel == "" {
+		return layout.Inset{Top: t.Sp.S}.Layout(gtx,
+			comp.Text(t, t.Sz.Caption, t.P.Faint,
+				"no companion selected - click a row above"))
+	}
+	r := p.row(sel)
+	e, isServed := served[sel]
+	r.serve.Label = "serve TCP"
+	if isServed {
+		r.serve.Label = "drop clients"
+	}
+	if r.serve.Click.Clicked(gtx) && p.OnAction != nil {
+		if isServed {
+			p.OnAction("bench.drop", sel)
+		} else {
+			p.OnAction("serve.tcp", sel)
+		}
+	}
+	if r.client.Click.Clicked(gtx) && p.OnAction != nil {
+		p.OnAction("node.window", sel)
+	}
+	note := sel + " is not served yet"
+	if isServed {
+		note = sel + " is on " + e.Addr + " - point a client at it"
+	}
+	return layout.Inset{Top: t.Sp.S}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Right: t.Sp.S}.Layout(gtx,
+					func(gtx layout.Context) layout.Dimensions {
+						return r.serve.Layout(t, gtx)
+					})
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Right: t.Sp.M}.Layout(gtx,
+					func(gtx layout.Context) layout.Dimensions {
+						return r.client.Layout(t, gtx)
+					})
+			}),
+			layout.Flexed(1, comp.OneLine(t, t.Sz.Caption, t.P.Dim, note, false)),
+		)
+	})
 }
