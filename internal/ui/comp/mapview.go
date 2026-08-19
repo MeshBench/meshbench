@@ -141,19 +141,6 @@ type MapView struct {
 	OnLinkCancel func()
 }
 
-// LinkEnd is one end of a link being asked about: a node by name, or a bare
-// place on the ground. A node end carries its position too, so a consumer
-// can draw it without a lookup.
-type LinkEnd struct {
-	Node     string
-	Lat, Lon float64
-}
-
-type projected struct {
-	x, y float32
-	n    *state.Node
-}
-
 // Layout draws the map for one snapshot.
 func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
 	sz := gtx.Constraints.Max
@@ -404,26 +391,6 @@ func (m *MapView) fit(s *state.Snapshot, sz image.Point) {
 	m.Zoom = math.Min(float64(sz.X-80)/spanX, float64(sz.Y-80)/spanY)
 }
 
-func (m *MapView) project(s *state.Snapshot, sz image.Point) []projected {
-	cos := math.Cos(m.CentreLat * math.Pi / 180)
-	out := make([]projected, 0, len(s.Nodes))
-	for i := range s.Nodes {
-		n := &s.Nodes[i]
-		if n.Lat == 0 && n.Lon == 0 {
-			continue
-		}
-		x := float64(sz.X)/2 + (n.Lon-m.CentreLon)*cos*m.Zoom
-		y := float64(sz.Y)/2 - (n.Lat-m.CentreLat)*m.Zoom
-		out = append(out, projected{x: float32(x), y: float32(y), n: n})
-	}
-	return out
-}
-
-func offscreen(p projected, sz image.Point) bool {
-	const m = 40
-	return p.x < -m || p.y < -m || p.x > float32(sz.X)+m || p.y > float32(sz.Y)+m
-}
-
 func kindOf(k string) theme.NodeKind {
 	switch k {
 	case "companion":
@@ -453,15 +420,7 @@ func (m *MapView) rings(t *theme.Theme, gtx layout.Context, pts []projected, sz 
 		func(i int, p projected) bool { return i == m.cam.hover })
 	m.ringPass(gtx, pts, sz, t.P.Selected, 7, 1.5,
 		func(i int, p projected) bool { return p.n.Selected })
-	// The link tool's armed first end, on a node or on bare ground: a
-	// half-made pick that draws nothing reads as a click that did nothing.
-	if m.linkFrom != nil {
-		at := m.projectPoint(state.Point{Lat: m.linkFrom.Lat, Lon: m.linkFrom.Lon}, sz)
-		var path clip.Path
-		path.Begin(gtx.Ops)
-		ring(&path, at, 11, 2)
-		paint.FillShape(gtx.Ops, t.P.Accent, clip.Outline{Path: path.End()}.Op())
-	}
+	m.linkMark(t, gtx, sz)
 }
 
 // ringPass draws one ring around every node the predicate accepts, as a single
