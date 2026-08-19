@@ -33,7 +33,7 @@ type goldenVector struct {
 func TestGoldenVectors(t *testing.T) {
 	files, _ := filepath.Glob(filepath.Join("testdata", "golden-*.json"))
 	if len(files) == 0 {
-		t.Skip("no golden vectors present - see docs/waveform-source-of-truth.md " +
+		t.Skip("no golden vectors present - see docs/shortcomings.md " +
 			"(W2, golden vectors) for how to produce them with gr-lora_sdr")
 	}
 	for _, f := range files {

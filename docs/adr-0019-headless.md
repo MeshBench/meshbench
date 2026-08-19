@@ -1,7 +1,7 @@
 # ADR-0019: a headless mode, rather than a virtual display
 
 **Status:** accepted, 12 August 2026
-**Context:** Wave 1A of `docs/plan-2026-08.md`
+**Context:**
 
 ## The question
 
