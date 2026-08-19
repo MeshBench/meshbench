@@ -54,6 +54,16 @@ type Prompt struct {
 	shown   []int
 	list    widget.List
 	btns    []comp.Button
+	// hi is which of the shown choices the arrow keys have highlighted, and
+	// what Enter answers with. Typing filters; it never answers - the filter
+	// text "carto" is not the choice "carto-dark".
+	hi       int
+	lastWant string
+	// grab asks the next frame to focus the field, so a freshly opened
+	// question can be typed at without clicking the box first. follow asks
+	// the list to scroll the highlight into view after a key moved it.
+	grab   bool
+	follow bool
 
 	// queued are questions raised from somewhere other than the frame loop -
 	// a verb's reply, which arrives on a goroutine of its own. Opening one
@@ -90,6 +100,8 @@ func (p *Prompt) Open(title, hint, initial string, ask func(string)) {
 	p.field.Editor.SetText(initial)
 	p.field.Editor.SingleLine = true
 	p.field.Editor.Submit = true
+	p.hi, p.lastWant = 0, ""
+	p.grab = true
 	p.open = true
 }
 
@@ -179,6 +191,35 @@ func (p *Prompt) Layout(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 	}
 	p.field.Hint = p.Hint
 
+	// A freshly opened question owns the keyboard: the field is focused
+	// without a click, because the next thing anybody does is type.
+	if p.grab {
+		gtx.Execute(key.FocusCmd{Tag: &p.field.Editor})
+		p.grab = false
+	}
+	// The arrow keys move the highlight. Taken before the editor updates, so
+	// it cannot spend them on caret moves; focus-scoped, so they only arrive
+	// while the question is the thing being typed at.
+	if p.choices != nil {
+		for {
+			ev, ok := gtx.Event(
+				key.Filter{Focus: &p.field.Editor, Name: key.NameUpArrow},
+				key.Filter{Focus: &p.field.Editor, Name: key.NameDownArrow},
+			)
+			if !ok {
+				break
+			}
+			if ke, ok := ev.(key.Event); ok && ke.State == key.Press {
+				if ke.Name == key.NameDownArrow {
+					p.hi++
+				} else {
+					p.hi--
+				}
+				p.follow = true
+			}
+		}
+	}
+
 	submitted := false
 	for {
 		ev, ok := p.field.Editor.Update(gtx)
@@ -216,12 +257,26 @@ func (p *Prompt) Layout(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 		}
 	}
 	if p.ok.Click.Clicked(gtx) || submitted {
-		answer := p.field.Editor.Text()
-		p.open = false
-		if p.Ask != nil {
-			p.Ask(answer)
+		if p.choices == nil {
+			answer := p.field.Editor.Text()
+			p.open = false
+			if p.Ask != nil {
+				p.Ask(answer)
+			}
+			return layout.Dimensions{Size: gtx.Constraints.Max}
 		}
-		return layout.Dimensions{Size: gtx.Constraints.Max}
+		// Enter answers with the highlighted choice, never the filter text:
+		// "carto" typed into a chooser is a way of finding "carto-dark", not
+		// an answer in its own right. With nothing matching there is nothing
+		// to pick, and the list is already saying so.
+		if p.filterChoices(); len(p.shown) > 0 {
+			answer := p.choices[p.shown[p.hi]]
+			p.open = false
+			if p.Ask != nil {
+				p.Ask(answer)
+			}
+			return layout.Dimensions{Size: gtx.Constraints.Max}
+		}
 	}
 
 	// Dim what is behind it, so it reads as one question rather than as a
@@ -301,6 +356,29 @@ func (p *Prompt) Layout(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 	})
 }
 
+// filterChoices rebuilds the shown set from the filter text and keeps the
+// highlight inside it. A change of text puts the highlight back at the top -
+// the old one pointed into a list that no longer exists.
+func (p *Prompt) filterChoices() {
+	want := strings.ToLower(strings.TrimSpace(p.field.Editor.Text()))
+	if want != p.lastWant {
+		p.hi, p.lastWant = 0, want
+	}
+	shown := p.shown[:0]
+	for i := range p.choices {
+		if want == "" || strings.Contains(strings.ToLower(p.choices[i]), want) {
+			shown = append(shown, i)
+		}
+	}
+	p.shown = shown
+	if p.hi >= len(shown) {
+		p.hi = len(shown) - 1
+	}
+	if p.hi < 0 {
+		p.hi = 0
+	}
+}
+
 // chooser draws the answers, filtered by whatever is in the field.
 //
 // The field earns its keep either way: with choices it narrows them, without
@@ -312,23 +390,33 @@ func (p *Prompt) chooser(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 	if len(p.choices) == 0 {
 		return comp.Text(t, t.Sz.Caption, t.P.Faint, "there are none saved yet")(gtx)
 	}
-	want := strings.ToLower(strings.TrimSpace(p.field.Editor.Text()))
-	shown := p.shown[:0]
-	for i := range p.choices {
-		if want == "" || strings.Contains(strings.ToLower(p.choices[i]), want) {
-			shown = append(shown, i)
-		}
-	}
-	p.shown = shown
-	if len(shown) == 0 {
+	p.filterChoices()
+	if len(p.shown) == 0 {
 		return comp.Text(t, t.Sz.Caption, t.P.Faint, "nothing matches that")(gtx)
 	}
+	// The highlight is the row Enter would pick, so it is drawn as the
+	// primary thing on screen; a key that moved it also scrolls it into view.
+	for i := range p.shown {
+		kind := comp.Secondary
+		if i == p.hi {
+			kind = comp.Primary
+		}
+		p.btns[p.shown[i]].Kind = kind
+	}
+	if p.follow {
+		first := p.hi - 3
+		if first < 0 {
+			first = 0
+		}
+		p.list.Position.First, p.list.Position.Offset = first, 0
+		p.follow = false
+	}
 	gtx.Constraints.Max.Y = gtx.Dp(320)
-	return comp.List(t, &p.list, len(shown),
+	return comp.List(t, &p.list, len(p.shown),
 		func(gtx layout.Context, i int) layout.Dimensions {
 			return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx,
 				func(gtx layout.Context) layout.Dimensions {
-					return p.btns[shown[i]].Layout(t, gtx)
+					return p.btns[p.shown[i]].Layout(t, gtx)
 				})
 		})(gtx)
 }
