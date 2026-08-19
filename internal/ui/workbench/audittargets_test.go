@@ -31,6 +31,9 @@ func auditTargets(r *recorder) []target {
 	fleet.choose = func(title string, _ []string, _ func(string)) { r.do("ui.choose", title) }
 	sched := &scheduleControls{do: r.do}
 	imp := &importControls{do: r.do}
+	// Adding an area searches and then offers what it found, so it goes
+	// through its own callback rather than straight to a verb.
+	imp.OnArea = func(q string) { r.do("boundary.set", q) }
 	bound := &boundaryControls{do: r.do}
 	valid := &validateControls{do: r.do}
 	plan := &planningControls{do: r.do}
@@ -77,7 +80,8 @@ func auditTargets(r *recorder) []target {
 		Device: "Audit Graphics 3000", Backend: "vulkan"}
 	cmpP := &comparePanel{OnSave: func() { r.do("run.save", nil) }}
 	planP := &planPanel{OnRun: func() { r.do("plan.routes", nil) }}
-	impP := &importPanel{OnFetch: func(u string) { r.do("import.describe", u) }}
+	// The URL is asked for in the action bar, so this panel owns no controls.
+	impP := &importPanel{}
 	feedP := &feedPanel{OnPull: func() { r.do("feed.pull", nil) }}
 	benchP := &benchPanel{OnAction: func(a, n string) { r.do(a, n) }}
 

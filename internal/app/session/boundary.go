@@ -87,10 +87,63 @@ func registerBoundary(st *state.Store, s *Sim) {
 				area.Rings = append(area.Rings, ring)
 			}
 		}
+		// Once each. Accepting the same place twice used to stack it, and a
+		// study area listed as "Fife, Fife, Fife" says nothing three times.
+		for _, a := range w.Areas {
+			if strings.EqualFold(a.Name, name) {
+				w.Say(name + " is already in the study area")
+				return map[string]any{"accepted": name, "areas": len(w.Areas)}, nil
+			}
+		}
 		w.Areas = append(w.Areas, area)
 		s.areas = append(s.areas, chosen...)
-		w.Say("study area now includes " + name)
+		w.Say(fmt.Sprintf("study area now includes %s - %d in all", name, len(w.Areas)))
 		return map[string]any{"accepted": name, "areas": len(w.Areas)}, nil
+	})
+
+	// boundary.remove: take one area back out of the study.
+	//
+	// A study area is built up from several places - Scotland and Ireland, or
+	// four council areas - so there has to be a way to take one out again
+	// without starting over. It changes what is measured, never what is
+	// loaded: the nodes stay until something prunes them.
+	st.Handle("boundary.remove", func(w *state.World, p any) (any, error) {
+		name, _ := stringField(p, "name")
+		if name == "" {
+			return nil, fmt.Errorf("boundary.remove needs the name of an area")
+		}
+		kept := w.Areas[:0]
+		found := false
+		for _, a := range w.Areas {
+			if strings.EqualFold(a.Name, name) {
+				found, name = true, a.Name
+				continue
+			}
+			kept = append(kept, a)
+		}
+		if !found {
+			var have []string
+			for _, a := range w.Areas {
+				have = append(have, a.Name)
+			}
+			if len(have) == 0 {
+				return nil, fmt.Errorf("the study area is empty")
+			}
+			return nil, fmt.Errorf("no area called %q; there is %s",
+				name, strings.Join(have, ", "))
+		}
+		w.Areas = kept
+		// The geometry follows the list it is drawn from, by the name each
+		// boundary carries, or the two would disagree about the study.
+		bounds := s.areas[:0]
+		for _, b := range s.areas {
+			if !strings.EqualFold(b.Name, name) {
+				bounds = append(bounds, b)
+			}
+		}
+		s.areas = bounds
+		w.Say(fmt.Sprintf("%s is no longer in the study area - %d left", name, len(w.Areas)))
+		return map[string]any{"removed": name, "areas": len(w.Areas)}, nil
 	})
 
 	// boundary.prune: remove what is outside, with the margin kept, because a

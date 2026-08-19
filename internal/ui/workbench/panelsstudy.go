@@ -10,8 +10,31 @@ func addStudyPanels(d panelDeps) {
 	d.sh.Add(homed(&shell.Panel{Name: "Validate", Windowable: true,
 		Draw: d.withControls(d.validCtl.Draw, (&validatePanel{}).Draw)}))
 	imp := &importPanel{}
-	imp.OnFetch = func(url string) {
-		go func() { _, _ = d.st.Do(d.ctx, "import.describe", url) }()
+	// The study area is chosen in Import, where it decides what is fetched.
+	imp.OnRemove = func(name string) {
+		d.do("boundary.remove", map[string]any{"name": name})
+	}
+	// Search, then offer what came back: a search for "Fife" returns two, and
+	// adding by the typed text picks whichever matched first. The chooser is
+	// how everything else in this application picks from a list.
+	d.importCtl.OnArea = func(query string) {
+		ask := d.chooserIn("Import")
+		go func() {
+			res, err := d.st.Do(d.ctx, "boundary.set", map[string]any{"query": query})
+			if err != nil {
+				d.do("ui.said", "boundary: "+err.Error())
+				return
+			}
+			m, _ := res.(map[string]any)
+			names, _ := m["names"].([]string)
+			if len(names) == 0 {
+				d.do("ui.said", "nothing matches "+query)
+				return
+			}
+			ask("Add which area to the study?", names, func(name string) {
+				d.do("boundary.accept", map[string]any{"name": name})
+			})
+		}()
 	}
 	d.sh.Add(homed(&shell.Panel{Name: "Import", Windowable: true,
 		Draw: d.withControls(d.importCtl.Draw, imp.Draw)}))

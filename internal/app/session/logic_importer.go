@@ -14,7 +14,12 @@ import (
 // Describes rather than commits. Replacing the loaded network with a fetched
 // one is a destructive act on somebody's work, and the useful half of an
 // import panel is the part that tells you what you are about to get.
-func ImportFrom(ctx context.Context, url string) (*state.Import, error) {
+// ImportFrom describes what importing a deployment would do.
+//
+// region narrows it to a study area, as the commit path does: a description
+// that counted the whole feed while the commit would keep a county is a
+// description of a different import.
+func ImportFrom(ctx context.Context, url string, region *scenario.Region) (*state.Import, error) {
 	if url == "" {
 		return nil, fmt.Errorf("no deployment URL")
 	}
@@ -24,6 +29,7 @@ func ImportFrom(ctx context.Context, url string) (*state.Import, error) {
 		return nil, err
 	}
 	res, err := scenario.Import(records, scenario.ImportOptions{
+		Region:       region,
 		DefaultBoard: "RAK4631",
 		// The band this project works in. Stated rather than defaulted,
 		// because no source publishes a modem configuration and a wrong one
