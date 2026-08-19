@@ -349,12 +349,17 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: meshbench-linux
-          # Days, not the default ninety. These bundles are 30-110 MB each and
-          # a tagged release keeps its own copy for ever as a release asset -
-          # so a long retention here buys nothing and quietly fills the
-          # account's Actions storage, which is metered separately from
-          # minutes and fails the billing check on its own.
-          retention-days: 5
+          # These bundles are 30-110 MB each and three platforms upload one
+          # per run, so a run costs about 440 MB of Actions storage - which is
+          # metered separately from minutes and fails the billing check on its
+          # own. Four runs filled the account.
+          #
+          # On a release run they are only the parcel the release job unwraps:
+          # it republishes them as release assets, which is the copy that
+          # lasts, and then deletes them. A day is a fallback for a release
+          # job that never got there. A test build has no release to keep it,
+          # so it gets three days to be downloaded in.
+          retention-days: ${{ inputs.release && 1 || 3 }}
           path: |
             dist/*.tar.gz
             dist/*.AppImage
@@ -481,7 +486,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: meshbench-macos
-          retention-days: 5
+          # As the Linux upload above: the release job deletes these once it
+          # has republished them as release assets.
+          retention-days: ${{ inputs.release && 1 || 3 }}
           path: dist/*.dmg
   windows:
     # Cross-compiled from Linux with mingw rather than built on a Windows
@@ -597,7 +604,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: meshbench-windows
-          retention-days: 5
+          # As the Linux upload above.
+          retention-days: ${{ inputs.release && 1 || 3 }}
           path: dist/*.zip
 
   release:
@@ -619,6 +627,9 @@ jobs:
     runs-on: [self-hosted, linux, x64, lab-2204]
     permissions:
       contents: write
+      # actions: write is for the tidy step at the end, which deletes the
+      # build artifacts once they are release assets.
+      actions: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -691,3 +702,25 @@ jobs:
           gh release create "$TAG" dist/* --target "${GITHUB_SHA}" \
             --title "MeshBench $VERSION" --notes-file /tmp/notes.md \
             || gh release upload "$TAG" dist/* --clobber
+
+      - name: Put the parcels out
+        # The bundles are release assets now, and that is the copy that
+        # lasts. Leaving the same 440 MB in Actions storage as well is a
+        # duplicate that bills: storage is metered separately from minutes
+        # and fails the billing check on its own, which is what four release
+        # runs did to this account.
+        #
+        # After the publish, and only when it worked - a release job that
+        # failed is one somebody re-runs, and re-running it needs the
+        # artifacts to still be there.
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          freed=0
+          for id in $(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts" \
+                        --jq '.artifacts[].id'); do
+            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/actions/artifacts/$id" && freed=$((freed+1))
+          done
+          echo "deleted $freed build artifacts; the release page keeps the copies that matter"
