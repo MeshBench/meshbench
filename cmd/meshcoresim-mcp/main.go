@@ -14,10 +14,9 @@ import (
 	"syscall"
 
 	"github.com/MeshBench/meshbench/internal/app/mcp"
+	"github.com/MeshBench/meshbench/internal/app/version"
 	"github.com/MeshBench/meshbench/internal/rf/terrain"
 )
-
-const version = "0.1.0"
 
 func main() {
 	defaultCache, _ := os.UserCacheDir()
@@ -35,7 +34,7 @@ func main() {
 	// The operator decides whether tiles may be downloaded, not the assistant.
 	store.Offline = *offline
 
-	s := mcp.NewServer("meshcoresim", version)
+	s := mcp.NewServer("meshcoresim", version.String())
 	if err := mcp.RegisterEngineTools(s, store); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -54,7 +53,7 @@ func main() {
 
 	// Diagnostics go to stderr: stdout is the protocol, and one stray line on
 	// it desynchronises the client for the rest of the session.
-	fmt.Fprintf(os.Stderr, "meshcoresim-mcp %s, terrain cache %s (offline=%v)\n", version, *cacheDir, *offline)
+	fmt.Fprintf(os.Stderr, "meshcoresim-mcp %s, terrain cache %s (offline=%v)\n", version.String(), *cacheDir, *offline)
 
 	if err := s.Serve(ctx, os.Stdin, os.Stdout); err != nil && ctx.Err() == nil {
 		fmt.Fprintln(os.Stderr, err)

@@ -20,10 +20,9 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/MeshBench/meshbench/internal/app/version"
 	"github.com/MeshBench/meshbench/internal/rf/terrain"
 )
-
-const version = "0.1.0"
 
 type command struct {
 	name    string
@@ -64,8 +63,11 @@ func main() {
 		usage()
 		return
 	}
-	if name == "-version" || name == "--version" {
-		fmt.Println("meshcoresim", version)
+	// Bare "version" as well as the flags, because "help" is accepted
+	// that way one line above and a tool that takes one and not the other
+	// is the kind of thing people report.
+	if name == "version" || name == "-version" || name == "--version" {
+		fmt.Println("meshcoresim", version.Detail())
 		return
 	}
 
@@ -84,7 +86,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintf(os.Stderr, "meshcoresim %s — MeshCore network simulator\n\n", version)
+	fmt.Fprintf(os.Stderr, "meshcoresim %s — MeshCore network simulator\n\n", version.String())
 	fmt.Fprintln(os.Stderr, "Usage: meshcoresim <command> [flags]")
 	fmt.Fprintln(os.Stderr)
 	cs := commands()
