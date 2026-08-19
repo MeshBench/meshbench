@@ -10,6 +10,7 @@ import (
 	"gioui.org/op"
 	"gioui.org/unit"
 	"github.com/MeshBench/meshbench/internal/app/state"
+	"github.com/MeshBench/meshbench/internal/app/version"
 	"github.com/MeshBench/meshbench/internal/ui/comp"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 )
@@ -346,7 +347,11 @@ func (sh *Shell) statusBar(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 				layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Dim, msg)),
 				layout.Flexed(1, comp.Spacer),
-				layout.Rigid(comp.Mono(t, t.Sz.Caption, t.P.Faint, "Gio")),
+				// What this build is, in the corner a build identifier lives
+				// in. Mono because a version is compared by eye against
+				// another one, and faint because it is only ever wanted when
+				// something has gone wrong.
+				layout.Rigid(comp.Mono(t, t.Sz.Caption, t.P.Faint, version.String()+" · Gio")),
 			)
 		})
 }

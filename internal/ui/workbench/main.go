@@ -24,6 +24,7 @@ import (
 	fixturelib "github.com/MeshBench/meshbench/internal/app/fixture"
 	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
+	"github.com/MeshBench/meshbench/internal/app/version"
 	"github.com/MeshBench/meshbench/internal/ui/comp"
 	"github.com/MeshBench/meshbench/internal/ui/desktop"
 	"github.com/MeshBench/meshbench/internal/ui/pick"
@@ -82,7 +83,7 @@ func Run(args []string) {
 	versionFlag := flag.Bool("version", false, "print the version and exit")
 	_ = flag.CommandLine.Parse(args)
 	if *versionFlag {
-		fmt.Println("MeshBench", Version)
+		fmt.Println("MeshBench", version.Detail())
 		return
 	}
 	if *listFixtures {

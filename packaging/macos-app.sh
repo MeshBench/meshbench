@@ -29,7 +29,7 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 echo "--- binary"
 go build -trimpath \
   -ldflags "-X gioui.org/app.ID=io.github.meshbench.meshbench \
-            -X github.com/MeshBench/meshbench/internal/workbench.Version=v$VER" \
+            -X github.com/MeshBench/meshbench/internal/app/version.Version=v$VER" \
   -o "$APP/Contents/MacOS/meshbench-bin" ./cmd/meshcoresim
 
 echo "--- icon"

@@ -81,6 +81,7 @@ internal/study/     the questions asked of a simulation
   validate/           predicted against actually heard
 
 internal/app/       orchestration, no toolkit
+  version/            what this build is, stamped by the release pipeline
   state/              the store, and the snapshots the renderer reads
   session/            the workbench without a user interface
   fixture/            the on-disk form of a whole setup

@@ -15,6 +15,7 @@ import (
 	"gioui.org/widget"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
+	"github.com/MeshBench/meshbench/internal/app/version"
 	"github.com/MeshBench/meshbench/internal/ui/comp"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 	"github.com/MeshBench/meshbench/internal/ui/workbench/licences"
@@ -108,7 +109,7 @@ func (p *licPanel) header(t *theme.Theme) layout.Widget {
 	}
 	return comp.Card(t, "", func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-			layout.Rigid(comp.Text(t, t.Sz.Title, t.P.Ink, "MeshBench "+Version)),
+			layout.Rigid(comp.Text(t, t.Sz.Title, t.P.Ink, "MeshBench "+version.String())),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layout.Inset{Top: t.Sp.XS}.Layout(gtx,
 					comp.Text(t, t.Sz.Body, licInk, "licence: "+proj.Licence))
