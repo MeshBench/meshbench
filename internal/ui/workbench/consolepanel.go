@@ -28,7 +28,7 @@ type consolePanel struct {
 func (p *consolePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
 	if !p.init {
 		p.tb.Cols = []comp.Column{
-			{Title: "at", Width: 76, Right: true, Mono: true, Sortable: true},
+			{Title: "at", Width: 76, Right: true, Mono: true, Sortable: true, Numeric: true},
 			{Title: "", Width: 46},
 			{Title: "with", Width: 170},
 			{Title: "detail"},

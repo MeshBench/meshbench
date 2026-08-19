@@ -39,12 +39,12 @@ func (p *scorePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot)
 	if !p.init {
 		p.tb.Cols = []comp.Column{
 			{Title: "node", Width: 190, Sortable: true},
-			{Title: "sent", Width: 66, Right: true, Mono: true, Sortable: true},
-			{Title: "heard", Width: 70, Right: true, Mono: true, Sortable: true},
-			{Title: "airtime s", Width: 88, Right: true, Mono: true, Sortable: true},
-			{Title: "duty %", Width: 74, Right: true, Mono: true, Sortable: true},
-			{Title: "delivered", Width: 92, Right: true, Mono: true, Sortable: true},
-			{Title: "redundant", Right: true, Mono: true, Sortable: true},
+			{Title: "sent", Width: 66, Right: true, Mono: true, Sortable: true, Numeric: true},
+			{Title: "heard", Width: 70, Right: true, Mono: true, Sortable: true, Numeric: true},
+			{Title: "airtime s", Width: 88, Right: true, Mono: true, Sortable: true, Numeric: true},
+			{Title: "duty %", Width: 74, Right: true, Mono: true, Sortable: true, Numeric: true},
+			{Title: "delivered", Width: 92, Right: true, Mono: true, Sortable: true, Numeric: true},
+			{Title: "redundant", Right: true, Mono: true, Sortable: true, Numeric: true},
 		}
 		p.tb.SortCol, p.tb.SortDesc, p.init = 1, true, true
 	}

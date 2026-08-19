@@ -4,7 +4,9 @@ package comp
 
 import (
 	"image"
+	"math"
 	"sort"
+	"strconv"
 	"strings"
 
 	"gioui.org/io/event"
@@ -218,6 +220,46 @@ func cellAt(r Row, i int) string {
 	return r.Cells[i]
 }
 
+// numericValue is the number a Numeric column's cell shows.
+//
+// Cells are formatted strings, so the value is read back out of the format: a
+// leading signed decimal, scaled by the SI magnitude prefix of whatever unit
+// follows it, so "512 kB" and "4.2 MB" compare as bytes rather than as
+// digits. NaN means the cell shows no number at all.
+func numericValue(s string) float64 {
+	s = strings.TrimSpace(s)
+	end := 0
+	for end < len(s) {
+		c := s[end]
+		if c >= '0' && c <= '9' || c == '.' || (end == 0 && (c == '-' || c == '+')) {
+			end++
+			continue
+		}
+		break
+	}
+	v, err := strconv.ParseFloat(s[:end], 64)
+	if err != nil {
+		return math.NaN()
+	}
+	// A magnitude prefix only counts with a unit behind it - the k in "kB"
+	// and "km", never a lone letter, and never the s in "s" or the % in "%".
+	if unit := strings.TrimSpace(s[end:]); len(unit) >= 2 {
+		switch unit[0] {
+		case 'k':
+			v *= 1e3
+		case 'M':
+			v *= 1e6
+		case 'G':
+			v *= 1e9
+		case 'T':
+			v *= 1e12
+		case 'P':
+			v *= 1e15
+		}
+	}
+	return v
+}
+
 // search is the filter box above the header.
 //
 // Its hint says what it matches on rather than "search", because a box that
@@ -259,11 +301,32 @@ func (tb *Table) applyFilter() {
 	}
 	col := tb.SortCol
 	if col >= 0 && col < len(tb.Cols) {
+		numeric := tb.Cols[col].Numeric
 		// A total order: the sort key first, then the row's own key. Without
 		// the second term, rows with equal values are free to swap places on
 		// every sort, which is what made the old table shimmer.
 		sort.SliceStable(tb.shown, func(i, j int) bool {
 			a, b := cellAt(tb.shown[i], col), cellAt(tb.shown[j], col)
+			if numeric {
+				av, bv := numericValue(a), numericValue(b)
+				// A dash sorts after every number in either direction:
+				// "no data" is an absence, not a value below zero.
+				switch {
+				case math.IsNaN(av) && math.IsNaN(bv):
+					return tb.shown[i].Key < tb.shown[j].Key
+				case math.IsNaN(av):
+					return false
+				case math.IsNaN(bv):
+					return true
+				}
+				if av == bv {
+					return tb.shown[i].Key < tb.shown[j].Key
+				}
+				if tb.SortDesc {
+					return av > bv
+				}
+				return av < bv
+			}
 			if a == b {
 				return tb.shown[i].Key < tb.shown[j].Key
 			}

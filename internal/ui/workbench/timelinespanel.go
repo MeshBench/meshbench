@@ -114,8 +114,8 @@ func (p *timelinesPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snaps
 	if !p.init {
 		p.tb.Cols = []comp.Column{
 			{Title: "node", Width: 190, Sortable: true},
-			{Title: "sent", Width: 70, Right: true, Mono: true, Sortable: true},
-			{Title: "heard", Width: 70, Right: true, Mono: true, Sortable: true},
+			{Title: "sent", Width: 70, Right: true, Mono: true, Sortable: true, Numeric: true},
+			{Title: "heard", Width: 70, Right: true, Mono: true, Sortable: true, Numeric: true},
 			{Title: "relative", Mono: true},
 		}
 		p.tb.SortCol, p.tb.SortDesc, p.init = 1, true, true

@@ -26,6 +26,12 @@ type Column struct {
 	Mono bool
 	// Sortable columns get a header that responds to a click.
 	Sortable bool
+	// Numeric sorts this column by the number its cells show rather than by
+	// the string. "512 kB" sorts below "4.2 MB", "9" below "100", and a "-"
+	// sorts after every number in either direction - no data is not a small
+	// value. Without it a numeric column sorts as text, which puts the
+	// biggest consumer anywhere but the top.
+	Numeric bool
 	// Menu makes this column's cells clickable, for a value that is chosen
 	// rather than read. The table reports the click; what to show is the
 	// caller's business, because the table does not know what the values are.
