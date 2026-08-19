@@ -390,15 +390,15 @@ func nodeColumns() []comp.Column {
 		{Title: "state", Width: 86, Sortable: true},
 		{Title: "backend", Width: 90, Sortable: true},
 		{Title: "firmware", Width: 200, Mono: true, Sortable: true, Menu: true},
-		{Title: "memory", Width: 96, Right: true, Mono: true, Sortable: true},
-		{Title: "cpu time", Width: 88, Right: true, Mono: true, Sortable: true},
-		{Title: "cpu now", Width: 78, Right: true, Mono: true, Sortable: true},
-		{Title: "tx", Width: 60, Right: true, Mono: true, Sortable: true},
-		{Title: "rx", Width: 60, Right: true, Mono: true, Sortable: true},
+		{Title: "memory", Width: 96, Right: true, Mono: true, Sortable: true, Numeric: true},
+		{Title: "cpu time", Width: 88, Right: true, Mono: true, Sortable: true, Numeric: true},
+		{Title: "cpu now", Width: 78, Right: true, Mono: true, Sortable: true, Numeric: true},
+		{Title: "tx", Width: 60, Right: true, Mono: true, Sortable: true, Numeric: true},
+		{Title: "rx", Width: 60, Right: true, Mono: true, Sortable: true, Numeric: true},
 		{Title: "last sent", Width: 150, Sortable: true},
 		{Title: "last heard", Width: 150, Sortable: true},
-		{Title: "busy", Width: 74, Right: true, Mono: true, Sortable: true},
-		{Title: "spurious", Right: true, Mono: true, Sortable: true},
+		{Title: "busy", Width: 74, Right: true, Mono: true, Sortable: true, Numeric: true},
+		{Title: "spurious", Right: true, Mono: true, Sortable: true, Numeric: true},
 	}
 }
 
