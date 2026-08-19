@@ -100,6 +100,17 @@ func (sh *Shell) tabStrip(t *theme.Theme, gtx layout.Context, ref regionRef) lay
 			}
 			switch e.Kind {
 			case pointer.Press:
+				// A right-click sends this tab's panel out to a window of
+				// its own. The pane glyph does the same for whichever tab is
+				// showing; this reaches any of them without making it the
+				// showing one first, and starts no drag - a secondary press
+				// is a question about the thing under it, never a gesture.
+				if e.Buttons.Contain(pointer.ButtonSecondary) {
+					if sh.OnPopOut != nil {
+						sh.OnPopOut(name)
+					}
+					continue
+				}
 				h.pressed = true
 				sh.startTabDrag(name, ref, toWindow(e.Position))
 			case pointer.Drag:

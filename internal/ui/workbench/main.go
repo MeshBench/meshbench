@@ -363,6 +363,7 @@ func Run(args []string) {
 	wbUI.setScale = sets.setScale
 	sh.PoppedOut = wins.has
 	sh.OnPopOut = func(name string) {
+		already := wins.has(name)
 		wins.popOut(name, sh, func() *theme.Theme {
 			// A shaper of its own, per window, and the current settings so a
 			// window opened after a theme change does not open in the old one.
@@ -370,6 +371,14 @@ func Run(args []string) {
 			return theme.New(m, d,
 				text.NewShaper(text.WithCollection(withEmoji(gofont.Collection()))))
 		}, st)
+		// Said, with the way back in it. A window that opens behind this one
+		// is a panel that has apparently vanished, and right-clicking a tab
+		// to send it out is a gesture nothing on screen advertises.
+		line := name + " is in its own window - Window, then dock every window back"
+		if already {
+			line = name + " is already in its own window; raised it"
+		}
+		do("ui.said", line)
 	}
 	if *popFlag != "" {
 		// Scriptable, so that a window which only opens on a click is a

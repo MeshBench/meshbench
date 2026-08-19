@@ -186,3 +186,44 @@ func TestTheCrossOnATabStillCloses(t *testing.T) {
 		t.Fatal("no press along the tab strip reached the cross")
 	}
 }
+
+// A right-click on a tab sends that panel to a window of its own, whichever
+// tab is showing, and picks nothing up on the way.
+func TestRightClickingATabSendsItToItsOwnWindow(t *testing.T) {
+	h := newDragHarness()
+	var popped []string
+	h.sh.OnPopOut = func(name string) { popped = append(popped, name) }
+	h.frame()
+	h.frame()
+	h.sh.Dock("Waterfall") // a second tab, so the one right-clicked is not the shown one
+	h.frame()
+	h.frame()
+
+	ref := h.where("Map")
+	c := h.sh.regionAt(h.sh.View, ref)
+	if c == nil || len(c.Tabs) < 2 || c.Tabs[0] != "Map" {
+		t.Fatalf("expected Map first in a region of two tabs, got %v", c)
+	}
+	c.Active = 1
+	h.frame()
+
+	r := h.sh.regionRect[ref]
+	at := f32.Pt(float32(r.Min.X+20), float32(r.Min.Y+10))
+	h.r.Queue(
+		pointer.Event{Kind: pointer.Press, Position: at,
+			Buttons: pointer.ButtonSecondary, Source: pointer.Mouse},
+		pointer.Event{Kind: pointer.Release, Position: at,
+			Buttons: pointer.ButtonSecondary, Source: pointer.Mouse},
+	)
+	h.frame()
+
+	if len(popped) != 1 || popped[0] != "Map" {
+		t.Fatalf("a right-click on the Map tab popped out %v, want just Map", popped)
+	}
+	if h.sh.drag != nil {
+		t.Fatal("a right-click picked the tab up; a secondary press is not a gesture")
+	}
+	if c.Active != 1 {
+		t.Fatalf("a right-click changed which tab is showing, to %d", c.Active)
+	}
+}
