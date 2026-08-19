@@ -1,16 +1,16 @@
-package capture_test
+package packet_test
 
 import (
 	"encoding/binary"
 	"fmt"
 	"testing"
 
-	"github.com/MeshBench/meshbench/internal/capture"
+	"github.com/MeshBench/meshbench/internal/packet"
 )
 
 // field finds a named field, so a test says what it means rather than
 // indexing into a slice whose order is not the point.
-func field(t *testing.T, fs []capture.Field, name string) capture.Field {
+func field(t *testing.T, fs []packet.Field, name string) packet.Field {
 	t.Helper()
 	for _, f := range fs {
 		if f.Name == name {
@@ -18,10 +18,10 @@ func field(t *testing.T, fs []capture.Field, name string) capture.Field {
 		}
 	}
 	t.Fatalf("no field named %q in %v", name, names(fs))
-	return capture.Field{}
+	return packet.Field{}
 }
 
-func names(fs []capture.Field) []string {
+func names(fs []packet.Field) []string {
 	out := make([]string, 0, len(fs))
 	for _, f := range fs {
 		out = append(out, f.Name)
@@ -59,7 +59,7 @@ func TestAdvertAppDataIsRead(t *testing.T) {
 	app = append(app, lon...)
 	app = append(app, []byte("West Lomond")...)
 
-	d := capture.Dissect(advertWith(app))
+	d := packet.Dissect(advertWith(app))
 	if d.Truncated {
 		t.Fatalf("a well-formed advert was called malformed: %s", d.Problem)
 	}
@@ -88,7 +88,7 @@ func TestAdvertAppDataIsRead(t *testing.T) {
 // adverts without a position.
 func TestAdvertWithoutLocationDoesNotInventOne(t *testing.T) {
 	app := append([]byte{0x01 | 0x80}, []byte("Jazzy")...) // chat, name, no lat/lon
-	d := capture.Dissect(advertWith(app))
+	d := packet.Dissect(advertWith(app))
 	for _, f := range d.PayloadFields {
 		if f.Name == "latitude" || f.Name == "longitude" {
 			t.Errorf("read a %s from an advert that carries no position", f.Name)
@@ -110,7 +110,7 @@ func TestATracesPathAreaIsSNRNotHashes(t *testing.T) {
 	f = append(f, 0, 0, 0, 0) // auth
 	f = append(f, 0x00)       // flags: 1-byte path hashes
 
-	d := capture.Dissect(f)
+	d := packet.Dissect(f)
 	if len(d.PathFields) != 2 {
 		t.Fatalf("got %d path entries, want 2: %v", len(d.PathFields), names(d.PathFields))
 	}
@@ -124,7 +124,7 @@ func TestATracesPathAreaIsSNRNotHashes(t *testing.T) {
 
 // Every other type reads the path area as relay hashes, as before.
 func TestANonTracePathAreaIsStillHashes(t *testing.T) {
-	d := capture.Dissect([]byte{0x01 | (0x04 << 2), 0x02, 0xAB, 0xCD})
+	d := packet.Dissect([]byte{0x01 | (0x04 << 2), 0x02, 0xAB, 0xCD})
 	if len(d.PathFields) != 2 {
 		t.Fatalf("got %d path entries, want 2", len(d.PathFields))
 	}
@@ -145,7 +145,7 @@ func TestAnonymousRequestNamesItsSenderKey(t *testing.T) {
 	f = append(f, 0xDE, 0xAD)       // MAC
 	f = append(f, 1, 2, 3, 4, 5, 6) // ciphertext
 
-	d := capture.Dissect(f)
+	d := packet.Dissect(f)
 	key := field(t, d.PayloadFields, "sender public key")
 	if key.Length != 32 {
 		t.Errorf("sender key is %d bytes, want 32", key.Length)
@@ -162,7 +162,7 @@ func TestAnonymousRequestNamesItsSenderKey(t *testing.T) {
 func TestAnUndefinedPayloadVersionIsNotParsed(t *testing.T) {
 	// Version 1 in the top two bits: defined nowhere in v1.17.0.
 	f := []byte{0x01 | (0x02 << 2) | (0x01 << 6), 0x00, 0xAA, 0xBB, 0xCC, 0xDD}
-	d := capture.Dissect(f)
+	d := packet.Dissect(f)
 	if d.Version != 1 {
 		t.Fatalf("version = %d, want 1", d.Version)
 	}
@@ -181,7 +181,7 @@ func TestAnUndefinedPayloadVersionIsNotParsed(t *testing.T) {
 func TestMultipartNamesWhatItCarries(t *testing.T) {
 	// remaining=3 in the high nibble, ack (0x03) in the low.
 	f := []byte{0x01 | (0x0A << 2), 0x00, (3 << 4) | 0x03, 0x11, 0x22}
-	d := capture.Dissect(f)
+	d := packet.Dissect(f)
 	got := field(t, d.PayloadFields, "part header").Decoded
 	if got != "3 more to come, carrying ack" {
 		t.Errorf("part header decoded as %q", got)
@@ -193,7 +193,7 @@ func TestMultipartNamesWhatItCarries(t *testing.T) {
 // puts every offset after it one byte out.
 func TestSpansCoverTheFrameInOrder(t *testing.T) {
 	f := []byte{0x00 | (0x04 << 2), 0x11, 0x22, 0x33, 0x44, 0x01, 0xAB, 0x05}
-	d := capture.Dissect(f)
+	d := packet.Dissect(f)
 	var got []string
 	at := 0
 	for _, s := range d.Spans {
@@ -220,7 +220,7 @@ func TestSpansCoverTheFrameInOrder(t *testing.T) {
 // The two transport codes are a region scope code and a reserved word. The
 // pair {0,0} has its own meaning in the firmware and must not read as a scope.
 func TestTransportCodesAreDescribedAsScopeNotAddresses(t *testing.T) {
-	zero := capture.Dissect([]byte{0x00 | (0x04 << 2), 0, 0, 0, 0, 0x00})
+	zero := packet.Dissect([]byte{0x00 | (0x04 << 2), 0, 0, 0, 0, 0x00})
 	var detail string
 	for _, s := range zero.Spans {
 		if s.Name == "transport codes" {
@@ -248,7 +248,7 @@ func TestATruncatedAdvertDoesNotInventFieldsFromTheSignature(t *testing.T) {
 	body[37], body[38], body[39] = 'A', 'B', 'C'
 	short = append(short, body...)
 
-	d := capture.Dissect(short)
+	d := packet.Dissect(short)
 	for _, f := range d.PayloadFields {
 		switch f.Name {
 		case "flags", "latitude", "longitude", "name", "node type":
@@ -264,7 +264,7 @@ func TestATruncatedAdvertDoesNotInventFieldsFromTheSignature(t *testing.T) {
 // The same guard on an addressed type, whose prefix is version-dependent.
 func TestATruncatedAddressedPayloadSaysSoRatherThanMislabelling(t *testing.T) {
 	// Claims a text message, carries one byte of the three-byte prefix.
-	d := capture.Dissect([]byte{0x01 | (0x02 << 2), 0x00, 0xAA})
+	d := packet.Dissect([]byte{0x01 | (0x02 << 2), 0x00, 0xAA})
 	for _, f := range d.PayloadFields {
 		if f.Name == "MAC" {
 			t.Error("labelled a MAC in a payload with no room for one")
@@ -275,13 +275,13 @@ func TestATruncatedAddressedPayloadSaysSoRatherThanMislabelling(t *testing.T) {
 	}
 }
 
-func lastNamed(fs []capture.Field, name string) (capture.Field, error) {
+func lastNamed(fs []packet.Field, name string) (packet.Field, error) {
 	for _, f := range fs {
 		if f.Name == name {
 			return f, nil
 		}
 	}
-	return capture.Field{}, errNotFound
+	return packet.Field{}, errNotFound
 }
 
 var errNotFound = fmt.Errorf("not found")

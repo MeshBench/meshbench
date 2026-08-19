@@ -12,18 +12,9 @@ import (
 	"math"
 
 	"github.com/MeshBench/meshbench/internal/geo"
+	"github.com/MeshBench/meshbench/internal/propagation"
 	"github.com/MeshBench/meshbench/internal/terrain"
 )
-
-// Terrain supplies ground elevation. An interface because the raster does not
-// care whether the heights came from a downloaded tile, a cache or a test.
-type Terrain interface {
-	// ElevationM returns metres above sea level, and whether the point is
-	// covered by data at all. A raster over a coastline asks for points that no
-	// tile covers, and inventing zero for them would draw sea-level coverage
-	// across the Atlantic.
-	ElevationM(lat, lon float64) (float64, bool)
-}
 
 // Endpoint is one end of a link.
 type Endpoint struct {
@@ -111,7 +102,7 @@ type Options struct {
 // One profile per cell, both directions from the same profile — the terrain
 // between two points is the same whichever way the signal travels, so the
 // expensive part is shared and only the budgets differ.
-func Compute(fixed Endpoint, t Terrain, r *Raster, o Options) error {
+func Compute(fixed Endpoint, t propagation.Terrain, r *Raster, o Options) error {
 	if r.Width <= 0 || r.Height <= 0 {
 		return fmt.Errorf("coverage: raster is %dx%d", r.Width, r.Height)
 	}
@@ -133,7 +124,7 @@ func Compute(fixed Endpoint, t Terrain, r *Raster, o Options) error {
 	return nil
 }
 
-func evaluate(fixed Endpoint, fixedGround, lat, lon float64, t Terrain, freqMHz float64, o Options) Cell {
+func evaluate(fixed Endpoint, fixedGround, lat, lon float64, t propagation.Terrain, freqMHz float64, o Options) Cell {
 	remoteGround, ok := t.ElevationM(lat, lon)
 	if !ok {
 		return Cell{NoData: true}
@@ -189,7 +180,7 @@ func cellFromLoss(fixed Endpoint, fixedGround, remoteGround, lat, lon, distKm, l
 }
 
 // sampleProfile walks the great circle between two points.
-func sampleProfile(t Terrain, lat1, lon1, lat2, lon2, distKm, stepM float64) ([]terrain.Point, bool) {
+func sampleProfile(t propagation.Terrain, lat1, lon1, lat2, lon2, distKm, stepM float64) ([]terrain.Point, bool) {
 	n := int(distKm * 1000 / stepM)
 	if n < 2 {
 		n = 2
@@ -228,7 +219,7 @@ func sampleProfile(t Terrain, lat1, lon1, lat2, lon2, distKm, stepM float64) ([]
 //
 // Reports false where the terrain has no data, which is not the same as a
 // large loss: one is ignorance and the other is a result.
-func LossBetween(t Terrain, aLat, aLon, aHeightAGLm, bLat, bLon, bHeightAGLm,
+func LossBetween(t propagation.Terrain, aLat, aLon, aHeightAGLm, bLat, bLon, bHeightAGLm,
 	freqMHz, profileStepM float64) (float64, bool) {
 
 	if _, ok := t.ElevationM(aLat, aLon); !ok {

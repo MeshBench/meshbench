@@ -11,9 +11,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/MeshBench/meshbench/internal/capture"
 	"github.com/MeshBench/meshbench/internal/engine"
 	"github.com/MeshBench/meshbench/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/packet"
 )
 
 func registerPacket(st *state.Store, s *Sim) {
@@ -170,7 +170,7 @@ func (s *Sim) buildPacket(id uint64) *state.Packet {
 	}
 
 	// The dissection, in the plugin's own field set.
-	d := capture.Dissect(frame)
+	d := packet.Dissect(frame)
 	if d.Truncated {
 		pk.Malformed = d.Problem
 	}
@@ -189,7 +189,7 @@ func (s *Sim) buildPacket(id uint64) *state.Packet {
 		if ev.Kind != "tx" || ev.Frame == nil {
 			continue
 		}
-		td := capture.Dissect(ev.Frame)
+		td := packet.Dissect(ev.Frame)
 		if n := len(td.PathHashes); n > 0 {
 			hashNames[td.PathHashes[n-1]] = ev.From
 		}
@@ -244,7 +244,7 @@ func (s *Sim) buildPacket(id uint64) *state.Packet {
 		case "tx":
 			hops := 0
 			if ev.Frame != nil {
-				hops = capture.Dissect(ev.Frame).HopCount()
+				hops = packet.Dissect(ev.Frame).HopCount()
 			}
 			byPacket[ev.PacketID] = len(pk.Journey)
 			pk.Journey = append(pk.Journey, state.PacketHop{
@@ -280,7 +280,7 @@ func (s *Sim) buildPacket(id uint64) *state.Packet {
 
 // asPacketFields carries the dissector's fields across to the view, offsets
 // and all - they are what lets a selected field highlight its own bytes.
-func asPacketFields(in []capture.Field) []state.PacketField {
+func asPacketFields(in []packet.Field) []state.PacketField {
 	out := make([]state.PacketField, 0, len(in))
 	for _, f := range in {
 		out = append(out, state.PacketField{

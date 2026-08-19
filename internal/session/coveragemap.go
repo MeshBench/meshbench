@@ -17,6 +17,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/environ"
 	"github.com/MeshBench/meshbench/internal/gui/state"
 	"github.com/MeshBench/meshbench/internal/linkbudget"
+	"github.com/MeshBench/meshbench/internal/propagation"
 	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
@@ -227,7 +228,7 @@ func (s *Sim) startCoverageMap(st *state.Store, w *state.World, p any) (any, err
 		// However it ends, the bar comes down: a finished job that
 		// keeps owning the status line reads as a hang after the fact.
 		defer func() { _, _ = st.Do(ctx, "job.done", id) }()
-		grid, frac := coverage.RasteriseHeightsProgress(ground,
+		grid, frac := propagation.RasteriseHeightsProgress(ground,
 			south, north, west, east, hw, hh, func(row, _ int) {
 				_, _ = st.Do(ctx, "job.progress", state.Job{
 					ID: id, What: "coverage: sampling terrain",

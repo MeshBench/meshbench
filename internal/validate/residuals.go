@@ -25,9 +25,9 @@ import (
 	"math"
 	"sort"
 
-	"github.com/MeshBench/meshbench/internal/coverage"
 	"github.com/MeshBench/meshbench/internal/dsp"
 	"github.com/MeshBench/meshbench/internal/geo"
+	"github.com/MeshBench/meshbench/internal/propagation"
 	"github.com/MeshBench/meshbench/internal/provider"
 	"github.com/MeshBench/meshbench/internal/terrain"
 )
@@ -108,7 +108,7 @@ type Report struct {
 //
 // Receptions are grouped by packet: every reception of one packet shares an
 // origin, so each becomes one origin-to-receiver residual.
-func Compare(rx []provider.Reception, stations map[string]Station, t coverage.Terrain, p Params) (Report, error) {
+func Compare(rx []provider.Reception, stations map[string]Station, t propagation.Terrain, p Params) (Report, error) {
 	if p.FreqMHz <= 0 {
 		return Report{}, fmt.Errorf("validate: no frequency given")
 	}
@@ -196,7 +196,7 @@ func originOf(group []provider.Reception) string {
 	return ""
 }
 
-func residual(src, dst Station, r provider.Reception, t coverage.Terrain, p Params) (Residual, bool) {
+func residual(src, dst Station, r provider.Reception, t propagation.Terrain, p Params) (Residual, bool) {
 	if _, ok := t.ElevationM(src.Lat, src.Lon); !ok {
 		return Residual{}, false
 	}
@@ -230,7 +230,7 @@ func residual(src, dst Station, r provider.Reception, t coverage.Terrain, p Para
 	}, true
 }
 
-func sampleProfile(t coverage.Terrain, src, dst Station, distKm, stepM float64) ([]terrain.Point, bool) {
+func sampleProfile(t propagation.Terrain, src, dst Station, distKm, stepM float64) ([]terrain.Point, bool) {
 	n := int(distKm * 1000 / stepM)
 	if n < 2 {
 		n = 2

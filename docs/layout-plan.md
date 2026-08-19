@@ -5,9 +5,13 @@ what they are called, not about what they do.
 
 Measured against `31d1330`.
 
-> **Status.** Steps 0 and 1 have landed — the filename renames, the duplicated
-> assets, and the tracked tool binaries. Everything from step 2 on is still a
-> proposal.
+> **Status.** Steps 0–3 have landed, plus `internal/geo`. The filename renames,
+> the duplicated assets, the tracked binaries, one great-circle implementation,
+> and both package splits.
+>
+> **The seven-layer order now verifies against the real import graph with zero
+> upward imports** — not modelled, measured. The packages have not moved into
+> the layer directories yet; that is step 4, and it is now a pure rename.
 >
 > **Earlier drafts.** The first version proposed renames and a few extractions
 > and nothing else, which left `internal/` a flat listing of 38 sibling packages
@@ -202,15 +206,18 @@ only `mesh/packet`, and the violation dissolves.
 
 ### 3.3 Result
 
-With those two splits modelled, re-run:
+Both splits have since landed, so this is measured rather than modelled:
 
 ```
-total violations: 0
+UPWARD IMPORTS: 0
 ```
 
-The seven-layer order holds across all 40 packages with **no other change** —
+The seven-layer order holds across all 43 packages with **no other change** —
 no interface extraction, no dependency inversion, no shuffling to make it fit.
 The architecture was already there; it just had no directory to live in.
+
+What it cost, in the end: `Terrain` moved down one package, `internal/geo`
+absorbed thirteen copies of the haversine, and two directories became four.
 
 ---
 
@@ -496,8 +503,8 @@ moves happen before the refactors that need thought.
 | 0 | ✅ **Done.** Deletions and hygiene (§6) | minutes | none |
 | 1 | ✅ **Done.** The workbench renames (§5), doc comments fixed as each file was touched | 1 day | none — `git mv` plus splits at type boundaries |
 | 2a | ✅ **Done.** `internal/geo` — one great-circle implementation, not thirteen (PR #102) | half a day | none — prerequisite found while cutting the seam |
-| 2 | Split `coverage` → `rf/propagation` + `study/coverage`; move `Terrain` down | half a day | low — file-aligned |
-| 3 | Split `capture` → `mesh/packet` + `sim/capture` | half a day | low — zero shared symbols |
+| 2 | ✅ **Done.** Split `coverage` → `propagation` + `coverage`; `Terrain` moved down | half a day | low — file-aligned |
+| 3 | ✅ **Done.** Split `capture` → `packet` + `capture` | half a day | low — zero shared symbols |
 | 4 | Move all packages into the seven layers; update ldflags and CI shards | 1 day | low, very wide diff |
 | 5 | Add the layer-enforcement test (§4) | hours | none — locks in 0–4 |
 | 6 | Decide `replay` / `validate` / `mqttclient`: wire or delete (§5b) | half a day | **needs a decision, not a refactor** |

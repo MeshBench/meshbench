@@ -1,8 +1,9 @@
 package comp
 
 import (
-	"gioui.org/widget/material"
 	"image"
+
+	"gioui.org/widget/material"
 
 	"gioui.org/f32"
 

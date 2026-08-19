@@ -35,6 +35,7 @@ go test ./...
 
 ```
 cmd/meshcoresim/   the binary
+internal/geo/      great-circle distance and bearing, once
 internal/rf/       channel: sum, delay, noise
 internal/dsp/      modulation, demodulation, FFT — CPU reference
 internal/gpu/      the GPU twins, and the .wgsl they embed
@@ -42,7 +43,8 @@ internal/lora/     the coding chain: payload bytes to chirp symbols
 internal/antenna/  patterns, orientation, polarisation
 internal/terrain/  DEM tiles, profiles, diffraction
 internal/environ/  buildings, heights, materials
-internal/coverage/ link budgets into rasters, and the CPU twins of the kernels
+internal/propagation/ path loss: heights in, decibels out, and the CPU twins
+internal/coverage/ link budgets into rasters, combined and searched
 internal/linkbudget/ path loss into a margin
 internal/pathview/ why a link missed
 internal/planning/ where the next node should go
@@ -56,7 +58,8 @@ internal/boundary/ named administrative areas
 internal/basemap/  hillshaded terrain under the simulation
 internal/sdr/      IQ export, SigMF, streaming
 internal/engine/   the simulation: firmware nodes over the channel
-internal/capture/  pcapng, event log, packet dissection
+internal/packet/   the MeshCore frame: what the bytes on the air mean
+internal/capture/  pcapng, event log, the reception ledger
 internal/fixture/  the on-disk form of a whole setup
 internal/session/  the workbench without a user interface
 internal/control/  the unix socket another process drives it by

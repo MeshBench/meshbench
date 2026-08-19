@@ -6,15 +6,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MeshBench/meshbench/internal/coverage"
+	"github.com/MeshBench/meshbench/internal/propagation"
 )
 
 // syntheticProfiles packs pairs with real relief in them: hills between the
 // endpoints, because a flat profile would pass with the diffraction term
 // deleted.
-func syntheticProfiles(nPairs int, seed int64) coverage.PairProfiles {
+func syntheticProfiles(nPairs int, seed int64) propagation.PairProfiles {
 	rng := rand.New(rand.NewSource(seed))
-	var p coverage.PairProfiles
+	var p propagation.PairProfiles
 	for i := 0; i < nPairs; i++ {
 		distM := 2000 + rng.Float64()*60000
 		steps := int(distM / 60)
@@ -47,7 +47,7 @@ func TestPairLossMatchesCPU(t *testing.T) {
 	if err != nil {
 		t.Fatalf("pair loss on the GPU: %v", err)
 	}
-	want := coverage.ProfilePairLossCPU(p, 869.618)
+	want := propagation.ProfilePairLossCPU(p, 869.618)
 
 	worst, at := 0.0, -1
 	for i := range want {
@@ -83,7 +83,7 @@ func TestPairLossIsWorthIt(t *testing.T) {
 		t.Fatalf("pair loss on the GPU: %v", err)
 	}
 	start = time.Now()
-	want := coverage.ProfilePairLossCPU(p, 869.618)
+	want := propagation.ProfilePairLossCPU(p, 869.618)
 	onCPU := time.Since(start)
 
 	worst := 0.0

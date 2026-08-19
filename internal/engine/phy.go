@@ -9,8 +9,8 @@ package engine
 import (
 	"math"
 
-	"github.com/MeshBench/meshbench/internal/capture"
 	"github.com/MeshBench/meshbench/internal/dsp"
+	"github.com/MeshBench/meshbench/internal/packet"
 	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
@@ -112,7 +112,7 @@ func requiredSNRdB(sf int) float64 {
 // re-route a packet it forwards, and a message that changed identity when it
 // switched from flood to direct would break at exactly the interesting moment.
 func payloadID(frame []byte) uint64 {
-	d := capture.Dissect(frame)
+	d := packet.Dissect(frame)
 	h := uint64(14695981039346656037)
 	mix := func(b byte) {
 		h ^= uint64(b)

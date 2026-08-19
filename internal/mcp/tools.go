@@ -12,13 +12,14 @@ import (
 	"github.com/MeshBench/meshbench/internal/energy"
 	"github.com/MeshBench/meshbench/internal/geo"
 	"github.com/MeshBench/meshbench/internal/planning"
+	"github.com/MeshBench/meshbench/internal/propagation"
 	"github.com/MeshBench/meshbench/internal/terrain"
 )
 
 // Terrain is the elevation source the tools need. Aliased from the coverage
 // package so a caller wiring up an MCP server does not have to import two
 // packages to name one thing.
-type Terrain = coverage.Terrain
+type Terrain = propagation.Terrain
 
 // RegisterEngineTools adds the simulator's own tools to a server.
 //

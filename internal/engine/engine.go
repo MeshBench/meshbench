@@ -16,12 +16,13 @@ package engine
 
 import (
 	"context"
-	"github.com/MeshBench/meshbench/internal/terrain"
 	"sync"
 	"sync/atomic"
 
+	"github.com/MeshBench/meshbench/internal/propagation"
+	"github.com/MeshBench/meshbench/internal/terrain"
+
 	"github.com/MeshBench/meshbench/internal/capture"
-	"github.com/MeshBench/meshbench/internal/coverage"
 	"github.com/MeshBench/meshbench/internal/environ"
 	"github.com/MeshBench/meshbench/internal/firmware"
 	"github.com/MeshBench/meshbench/internal/scenario"
@@ -89,7 +90,7 @@ type Config struct {
 
 // Engine owns the run.
 type Engine struct {
-	Terrain coverage.Terrain
+	Terrain propagation.Terrain
 	Config  Config
 	Ledger  capture.Ledger
 	// Env is what physically stands on the ground - buildings, from the
@@ -199,7 +200,7 @@ type transmission struct {
 }
 
 // New prepares an engine.
-func New(t coverage.Terrain, c Config) *Engine {
+func New(t propagation.Terrain, c Config) *Engine {
 	if c.StepMs == 0 {
 		c.StepMs = 10
 	}

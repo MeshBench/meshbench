@@ -6,9 +6,8 @@ import (
 	"math"
 	"unsafe"
 
+	"github.com/MeshBench/meshbench/internal/propagation"
 	"github.com/cogentcore/webgpu/wgpu"
-
-	"github.com/MeshBench/meshbench/internal/coverage"
 )
 
 //go:embed coverage.wgsl
@@ -36,18 +35,18 @@ func (d *Device) compileCoverage() error {
 
 // CoverageGridLoss runs the coverage kernel: one station's path loss to every
 // raster cell, over a rasterised height grid. The CPU twin is
-// coverage.GridLossCPU, and the equivalence test holds the two together.
+// propagation.GridLossCPU, and the equivalence test holds the two together.
 // CoverageGrid is a height grid resident on the device, uploaded once and
 // shared by every station's dispatch - re-uploading fifteen megabytes per
 // station was most of a national job's transfer.
 type CoverageGrid struct {
 	d   *Device
-	g   coverage.HeightGrid
+	g   propagation.HeightGrid
 	buf *wgpu.Buffer
 }
 
 // UploadGrid puts the heights on the device.
-func (d *Device) UploadGrid(g coverage.HeightGrid) (*CoverageGrid, error) {
+func (d *Device) UploadGrid(g propagation.HeightGrid) (*CoverageGrid, error) {
 	if d.coverage == nil {
 		return nil, fmt.Errorf("gpu: coverage pipeline not compiled")
 	}
@@ -63,7 +62,7 @@ func (d *Device) UploadGrid(g coverage.HeightGrid) (*CoverageGrid, error) {
 // Release frees the device copy.
 func (cg *CoverageGrid) Release() { cg.buf.Release() }
 
-func (d *Device) CoverageGridLoss(g coverage.HeightGrid, p coverage.GridLossParams) ([]float32, error) {
+func (d *Device) CoverageGridLoss(g propagation.HeightGrid, p propagation.GridLossParams) ([]float32, error) {
 	cg, err := d.UploadGrid(g)
 	if err != nil {
 		return nil, err
@@ -73,7 +72,7 @@ func (d *Device) CoverageGridLoss(g coverage.HeightGrid, p coverage.GridLossPara
 }
 
 // Loss prices one station over the resident grid.
-func (cg *CoverageGrid) Loss(p coverage.GridLossParams) ([]float32, error) {
+func (cg *CoverageGrid) Loss(p propagation.GridLossParams) ([]float32, error) {
 	d, g, hb := cg.d, cg.g, cg.buf
 	cells := p.RasterW * p.RasterH
 	outLen := uint64(cells * 4)

@@ -14,6 +14,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/capture"
 	"github.com/MeshBench/meshbench/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/packet"
 	"github.com/MeshBench/meshbench/internal/provider"
 )
 
@@ -26,7 +27,7 @@ import (
 // nothing). A packet whose scope matches nothing we hold is reported as such
 // rather than as unscoped - the two look identical on the wire and mean
 // entirely different things.
-func (s *Sim) scopeOf(frame []byte, d capture.Dissection) state.PacketScope {
+func (s *Sim) scopeOf(frame []byte, d packet.Dissection) state.PacketScope {
 	if !d.HasTransport || len(d.TransportCodes) < 2 {
 		return state.PacketScope{}
 	}

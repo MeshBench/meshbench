@@ -8,12 +8,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/MeshBench/meshbench/internal/coverage"
 	"github.com/MeshBench/meshbench/internal/dsp"
 	"github.com/MeshBench/meshbench/internal/engine"
 	"github.com/MeshBench/meshbench/internal/geo"
 	"github.com/MeshBench/meshbench/internal/gpu"
 	"github.com/MeshBench/meshbench/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/propagation"
 	"github.com/MeshBench/meshbench/internal/scenario"
 	"github.com/MeshBench/meshbench/internal/terrain"
 )
@@ -81,7 +81,7 @@ func (s *Sim) warmOnGPU(eng *engine.Engine, nodes []scenario.Node, freqMHz float
 	var jobs []warmJob
 	loss := make([]float32, n*n)
 	for i := range loss {
-		loss[i] = coverage.NoDataLoss
+		loss[i] = propagation.NoDataLoss
 	}
 	culled := 0
 	for a := 0; a < n; a++ {
@@ -165,7 +165,7 @@ func (s *Sim) warmOnGPU(eng *engine.Engine, nodes []scenario.Node, freqMHz float
 	done64.Wait()
 
 	// Pack and dispatch.
-	var prof coverage.PairProfiles
+	var prof propagation.PairProfiles
 	packedIdx := make([]int, 0, len(jobs))
 	for i, r := range results {
 		if r.heights == nil {
@@ -197,7 +197,7 @@ func (s *Sim) warmOnGPU(eng *engine.Engine, nodes []scenario.Node, freqMHz float
 		}
 	}
 
-	out.Pairs = eng.PrimeLinks(n, loss, coverage.NoDataLoss)
+	out.Pairs = eng.PrimeLinks(n, loss, propagation.NoDataLoss)
 	out.Duration = time.Since(started)
 	out.Used = out.Pairs > 0
 	if !out.Used {

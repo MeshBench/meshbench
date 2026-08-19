@@ -15,12 +15,13 @@ import (
 	"sync/atomic"
 
 	"github.com/MeshBench/meshbench/internal/geo"
+	"github.com/MeshBench/meshbench/internal/propagation"
 	"github.com/MeshBench/meshbench/internal/terrain"
 )
 
 // gridTerrain lets the sampled height grid stand in for the tile store, so
 // a profile walk costs bilinear reads instead of tile lookups.
-type gridTerrain struct{ g HeightGrid }
+type gridTerrain struct{ g propagation.HeightGrid }
 
 func (t gridTerrain) ElevationM(lat, lon float64) (float64, bool) { return t.g.At(lat, lon) }
 
@@ -34,7 +35,7 @@ const gainSlackDBi = 8
 // not nil, prices whatever else stands on the path - buildings - and is
 // called only for the paths that survive the free-space cull. progress is
 // called per finished row.
-func BestServer(g HeightGrid, stations []Endpoint, r *Raster, o Options,
+func BestServer(g propagation.HeightGrid, stations []Endpoint, r *Raster, o Options,
 	extraLossDB func(station int, cellLat, cellLon, txAslM, rxAslM, distM float64) float64,
 	progress func(done, total int)) *Combined {
 	if o.ProfileStepM <= 0 {
