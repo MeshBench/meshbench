@@ -84,3 +84,34 @@ func TestEveryMapToolReachesTheMap(t *testing.T) {
 	}
 	t.Logf("%d tools, zoom, fit and the filter all reach the map", len(toolNames))
 }
+
+// The map.filter verb and the toolbar box must not fight. The toolbar used to
+// write the box's text into the map every frame, so a filter set by the verb
+// survived exactly one frame and the verb looked broken.
+func TestMapFilterVerbSurvivesTheToolbar(t *testing.T) {
+	mv := &comp.MapView{Zoom: 1000}
+	m := &mapTools{mv: mv}
+	h := newPanelHarness(func(th *theme.Theme, gtx layout.Context,
+		_ *state.Snapshot) layout.Dimensions {
+		return m.Draw(th, gtx)
+	}, nil)
+	h.frame()
+
+	// What the map.filter verb does, from its own goroutine.
+	mv.Filter = "bishop"
+	h.frame()
+	h.frame()
+	if mv.Filter != "bishop" {
+		t.Fatalf("the toolbar overwrote the verb's filter with %q", mv.Filter)
+	}
+	if got := m.filter.Editor.Text(); got != "bishop" {
+		t.Fatalf("the box shows %q; it must follow the map so there is one truth", got)
+	}
+
+	// And typing still drives the map, which is the box's whole job.
+	m.filter.Editor.SetText("abernethy")
+	h.frame()
+	if mv.Filter != "abernethy" {
+		t.Fatalf("after typing, the map filters on %q, want the typed text", mv.Filter)
+	}
+}
