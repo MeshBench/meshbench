@@ -92,3 +92,97 @@ func TestSequentialTrafficIsAllHeard(t *testing.T) {
 		}
 	}
 }
+
+// Two transmissions that start together and end together: exactly one of them
+// gets the demodulator.
+//
+// The soak found a receiver decoding both halves of precisely this - two
+// relays keyed on the same millisecond, both 541 ms long, both landing at
+// within two thousandths of a decibel of each other. Whichever is stronger
+// wins; the other must be told who took it. Symmetry is not an excuse for
+// two answers.
+func TestSimultaneousArrivalsLeaveOneWinner(t *testing.T) {
+	e, p := lockBench(t)
+	nodes := e.nodes
+
+	a := transmission{from: 1, packetID: 10, startMs: 51720, endMs: 52261}
+	b := transmission{from: 2, packetID: 11, startMs: 51720, endMs: 52261}
+	concurrent := []transmission{a, b}
+
+	heldA := e.demodulatorHeldBy(0, a, concurrent, nodes, p)
+	heldB := e.demodulatorHeldBy(0, b, concurrent, nodes, p)
+	if (heldA == "") == (heldB == "") {
+		t.Fatalf("both packets got the same answer (a:%q b:%q); one demodulator "+
+			"means exactly one winner", heldA, heldB)
+	}
+	// And the winner is the stronger of the two: `near` beats `far`.
+	if heldA != "" {
+		t.Fatalf("the stronger arrival was blocked by %q", heldA)
+	}
+	if heldB != "near" {
+		t.Fatalf("the weaker arrival was blocked by %q, want near", heldB)
+	}
+}
+
+// An SDR observer is wideband, and wideband is not the same as unlimited.
+//
+// The soak caught one decoding two fully-overlapping same-channel relays -
+// 541 ms each, keyed on the same millisecond. Whatever exemptions an
+// observer earns for watching channels its own mesh is not on, one receive
+// chain still demodulates one packet at a time on one channel.
+func TestAnSDRObserverStillHasOneDemodulator(t *testing.T) {
+	e, p := lockBench(t)
+	obs := scenario.Node{Name: "watcher", Kind: scenario.SDRObserver}
+	obs.Position.Lat, obs.Position.Lon = 56.2, -3.16
+	obs.TxPowerDBm, obs.HeightAGLm = 22, 8
+	obs.Radio.SpreadFactor, obs.Radio.BandwidthHz, obs.Radio.CodingRate = 8, 62.5e3, 4
+	e.Add(obs, nil)
+	nodes := e.nodes
+	rx := len(nodes) - 1
+
+	a := transmission{from: 1, packetID: 10, startMs: 51720, endMs: 52261}
+	b := transmission{from: 2, packetID: 11, startMs: 51720, endMs: 52261}
+	concurrent := []transmission{a, b}
+
+	heldA := e.demodulatorHeldBy(rx, a, concurrent, nodes, p)
+	heldB := e.demodulatorHeldBy(rx, b, concurrent, nodes, p)
+	if (heldA == "") == (heldB == "") {
+		t.Fatalf("the observer gave both packets the same answer (a:%q b:%q)",
+			heldA, heldB)
+	}
+}
+
+// The soak's own case, at its own coordinates.
+//
+// Two Fife repeaters relayed on the same millisecond, 541 ms each, and the
+// Kirkcaldy observer twenty-odd kilometres from both decoded them both -
+// their received powers differing by under two thousandths of a decibel.
+// Near-equal is where a contest resolved by comparison is most fragile, so
+// this pins the real geometry rather than a convenient one.
+func TestTheSoaksOwnDoubleDecode(t *testing.T) {
+	e := New(flatEarth{}, Config{StepMs: 10, Seed: 4417})
+	mk := func(name string, kind scenario.Kind, lat, lon, agl, tx float64) scenario.Node {
+		n := scenario.Node{Name: name, Kind: kind}
+		n.Position.Lat, n.Position.Lon = lat, lon
+		n.HeightAGLm, n.TxPowerDBm, n.NoiseFigureDB = agl, tx, 6
+		n.Radio.SpreadFactor, n.Radio.BandwidthHz, n.Radio.CodingRate = 8, 62.5e3, 4
+		n.Radio.CentreHz = 869618000
+		return n
+	}
+	e.Add(mk("Kirkcaldy SDR Observer", scenario.SDRObserver, 56.1128, -3.158, 12, 0), nil)
+	e.Add(mk("Drumcarrow Craig NWR", scenario.SimpleRepeater, 56.308243, -2.874867, 10, 22), nil)
+	e.Add(mk("sco-fif-montrave", scenario.SimpleRepeater, 56.246614, -3.03611, 10, 22), nil)
+	nodes := e.nodes
+	p := e.phyOf(nodes[1].Spec)
+
+	a := transmission{from: 1, packetID: 1253, startMs: 51720, endMs: 52261}
+	b := transmission{from: 2, packetID: 1256, startMs: 51720, endMs: 52261}
+	concurrent := []transmission{a, b}
+
+	heldA := e.demodulatorHeldBy(0, a, concurrent, nodes, p)
+	heldB := e.demodulatorHeldBy(0, b, concurrent, nodes, p)
+	if (heldA == "") == (heldB == "") {
+		t.Fatalf("the observer answered both the same (a:%q b:%q); two "+
+			"simultaneous relays cannot both have the demodulator", heldA, heldB)
+	}
+}
