@@ -1,7 +1,11 @@
 // Package scenario holds the things a study is defined by: nodes, region, seed.
 package scenario
 
-import "math"
+import (
+	"math"
+
+	"github.com/MeshBench/meshbench/internal/geo"
+)
 
 // LatLon is a WGS84 position.
 type LatLon struct{ Lat, Lon float64 }
@@ -144,11 +148,7 @@ func (ring Ring) withinKm(p LatLon, d float64) bool {
 	return false
 }
 
+// haversineKm is geo.DistanceKm over this package's own point type.
 func haversineKm(a, b LatLon) float64 {
-	const R = 6371.0
-	la1, la2 := a.Lat*math.Pi/180, b.Lat*math.Pi/180
-	dLa := (b.Lat - a.Lat) * math.Pi / 180
-	dLo := (b.Lon - a.Lon) * math.Pi / 180
-	h := math.Sin(dLa/2)*math.Sin(dLa/2) + math.Cos(la1)*math.Cos(la2)*math.Sin(dLo/2)*math.Sin(dLo/2)
-	return 2 * R * math.Asin(math.Sqrt(h))
+	return geo.DistanceKm(a.Lat, a.Lon, b.Lat, b.Lon)
 }

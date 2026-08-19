@@ -5,7 +5,11 @@
 // equivalence test can hold them together.
 package coverage
 
-import "math"
+import (
+	"math"
+
+	"github.com/MeshBench/meshbench/internal/geo"
+)
 
 // GainTable is an antenna pattern sampled onto an azimuth-elevation grid,
 // az-major per elevation row. Azimuth covers the full circle and wraps;
@@ -94,13 +98,13 @@ func FoldStationCPU(losses []float32, g HeightGrid, p GridLossParams,
 			}
 			lon := p.West + (p.East-p.West)*(float64(x)+0.5)/float64(p.RasterW)
 			var mOut, mIn float64
-			distKm := haversineKm(p.StLat, p.StLon, lat, lon)
+			distKm := geo.DistanceKm(p.StLat, p.StLon, lat, lon)
 			if distKm <= 0 {
 				mOut, mIn = 0, 0
 			} else {
 				ground, _ := g.At(lat, lon)
 				rxAlt := ground + p.RemoteHeightM
-				bearing := bearingDeg(p.StLat, p.StLon, lat, lon)
+				bearing := geo.BearingDeg(p.StLat, p.StLon, lat, lon)
 				elev := math.Atan2(rxAlt-p.StAltM, distKm*1000) * 180 / math.Pi
 				gain := gt.Sample(bearing, elev)
 				mOut = b.TxPowerDBm + gain - loss + b.RemoteGainDBi - b.RemoteSensitivityDBm

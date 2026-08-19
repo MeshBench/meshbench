@@ -3,11 +3,11 @@ package session
 import (
 	"context"
 	"fmt"
-	"math"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/MeshBench/meshbench/internal/geo"
 	"github.com/MeshBench/meshbench/internal/gui/state"
 	"github.com/MeshBench/meshbench/internal/terrain"
 )
@@ -135,7 +135,7 @@ func TestTheEngineChargesForTheRidge(t *testing.T) {
 		}
 		loss, ok := sim.eng.PathLossForTest(a, b)
 		na, nb := sim.nodes[a], sim.nodes[b]
-		km := haversineKmTest(na.Position.Lat, na.Position.Lon, nb.Position.Lat, nb.Position.Lon)
+		km := geo.DistanceKm(na.Position.Lat, na.Position.Lon, nb.Position.Lat, nb.Position.Lon)
 		fspl := terrain.FSPLdB(km, 869.618)
 		t.Logf("%-12s %5.1f km | free space %6.1f dB | actual %6.1f dB | terrain charges %+6.1f dB (usable=%v)",
 			prefix, km, fspl, loss, loss-fspl, ok)
@@ -157,14 +157,6 @@ func TestTheEngineChargesForTheRidge(t *testing.T) {
 		margin, got := drawn[[2]int{a, b}]
 		t.Logf("  %-12s drawn from The Mysterons: %v (margin %+.1f dB)", prefix, got, margin)
 	}
-}
-
-func haversineKmTest(lat1, lon1, lat2, lon2 float64) float64 {
-	const r = 6371.0
-	p := math.Pi / 180
-	a := 0.5 - math.Cos((lat2-lat1)*p)/2 +
-		math.Cos(lat1*p)*math.Cos(lat2*p)*(1-math.Cos((lon2-lon1)*p))/2
-	return 2 * r * math.Asin(math.Sqrt(a))
 }
 
 // What excess loss does to the paths that should not close.

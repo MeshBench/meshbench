@@ -14,6 +14,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/MeshBench/meshbench/internal/geo"
 	"github.com/MeshBench/meshbench/internal/terrain"
 )
 
@@ -87,7 +88,7 @@ func BestServer(g HeightGrid, stations []Endpoint, r *Raster, o Options,
 						if !groundOK[i] {
 							continue
 						}
-						cands = append(cands, cand{i, haversineKm(st.Lat, st.Lon, lat, lon)})
+						cands = append(cands, cand{i, geo.DistanceKm(st.Lat, st.Lon, lat, lon)})
 					}
 					// Nearest first; insertion sort - the list is small and
 					// mostly the same order cell to cell.

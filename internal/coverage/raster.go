@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/MeshBench/meshbench/internal/geo"
 	"github.com/MeshBench/meshbench/internal/terrain"
 )
 
@@ -138,7 +139,7 @@ func evaluate(fixed Endpoint, fixedGround, lat, lon float64, t Terrain, freqMHz 
 		return Cell{NoData: true}
 	}
 
-	distKm := haversineKm(fixed.Lat, fixed.Lon, lat, lon)
+	distKm := geo.DistanceKm(fixed.Lat, fixed.Lon, lat, lon)
 	if distKm <= 0 {
 		// The cell containing the station itself. Zero distance has no defined
 		// path loss, and reporting a huge margin there would put a bright spot
@@ -167,7 +168,7 @@ func evaluate(fixed Endpoint, fixedGround, lat, lon float64, t Terrain, freqMHz 
 func cellFromLoss(fixed Endpoint, fixedGround, remoteGround, lat, lon, distKm, loss float64, o Options) Cell {
 	txAlt := fixedGround + fixed.HeightAGLm
 	rxAlt := remoteGround + o.RemoteHeightAGLm
-	bearing := bearingDeg(fixed.Lat, fixed.Lon, lat, lon)
+	bearing := geo.BearingDeg(fixed.Lat, fixed.Lon, lat, lon)
 	elevation := math.Atan2(rxAlt-txAlt, distKm*1000) * 180 / math.Pi
 
 	fixedGain := 0.0
@@ -216,28 +217,6 @@ func sampleProfile(t Terrain, lat1, lon1, lat2, lon2, distKm, stepM float64) ([]
 	return profile, true
 }
 
-func haversineKm(lat1, lon1, lat2, lon2 float64) float64 {
-	const r = 6371.0
-	rad := math.Pi / 180
-	dLat := (lat2 - lat1) * rad
-	dLon := (lon2 - lon1) * rad
-	a := math.Sin(dLat/2)*math.Sin(dLat/2) +
-		math.Cos(lat1*rad)*math.Cos(lat2*rad)*math.Sin(dLon/2)*math.Sin(dLon/2)
-	return 2 * r * math.Asin(math.Min(1, math.Sqrt(a)))
-}
-
-func bearingDeg(lat1, lon1, lat2, lon2 float64) float64 {
-	rad := math.Pi / 180
-	y := math.Sin((lon2-lon1)*rad) * math.Cos(lat2*rad)
-	x := math.Cos(lat1*rad)*math.Sin(lat2*rad) -
-		math.Sin(lat1*rad)*math.Cos(lat2*rad)*math.Cos((lon2-lon1)*rad)
-	b := math.Atan2(y, x) / rad
-	if b < 0 {
-		b += 360
-	}
-	return b
-}
-
 // LossBetween is the path loss between two points, over the terrain profile
 // between them.
 //
@@ -258,7 +237,7 @@ func LossBetween(t Terrain, aLat, aLon, aHeightAGLm, bLat, bLon, bHeightAGLm,
 	if _, ok := t.ElevationM(bLat, bLon); !ok {
 		return 0, false
 	}
-	distKm := haversineKm(aLat, aLon, bLat, bLon)
+	distKm := geo.DistanceKm(aLat, aLon, bLat, bLon)
 	if distKm <= 0 {
 		return 0, false
 	}

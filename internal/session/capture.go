@@ -5,10 +5,10 @@ package session
 
 import (
 	"fmt"
-	"math"
 	"os"
 	"path/filepath"
 
+	"github.com/MeshBench/meshbench/internal/geo"
 	"github.com/MeshBench/meshbench/internal/gui/state"
 	"github.com/MeshBench/meshbench/internal/scenario"
 )
@@ -237,7 +237,7 @@ func regionsOfNeighbours(nodes []scenario.Node, lat, lon float64) []string {
 	}
 	var all []near
 	for _, n := range nodes {
-		all = append(all, near{kmBetween(lat, lon, n.Position.Lat, n.Position.Lon), n})
+		all = append(all, near{geo.DistanceKm(lat, lon, n.Position.Lat, n.Position.Lon), n})
 	}
 	for i := 1; i < len(all); i++ {
 		for j := i; j > 0 && all[j].d < all[j-1].d; j-- {
@@ -260,13 +260,4 @@ func regionsOfNeighbours(nodes []scenario.Node, lat, lon float64) []string {
 		}
 	}
 	return out
-}
-
-// kmBetween is the great-circle distance, for choosing neighbours.
-func kmBetween(lat1, lon1, lat2, lon2 float64) float64 {
-	const r = 6371.0
-	p := math.Pi / 180
-	a := 0.5 - math.Cos((lat2-lat1)*p)/2 +
-		math.Cos(lat1*p)*math.Cos(lat2*p)*(1-math.Cos((lon2-lon1)*p))/2
-	return 2 * r * math.Asin(math.Sqrt(a))
 }

@@ -3,6 +3,7 @@ package comp
 import (
 	"math"
 
+	"github.com/MeshBench/meshbench/internal/geo"
 	"github.com/MeshBench/meshbench/internal/gui/state"
 )
 
@@ -71,11 +72,5 @@ func fingerprint(pts []projected) uint64 {
 // near is the same proximity rule the rest of the tool uses for a quick link
 // estimate: close enough to hear on this band.
 func near(a, b *state.Node) bool {
-	const r = 6371.0
-	dLat := (b.Lat - a.Lat) * math.Pi / 180
-	dLon := (b.Lon - a.Lon) * math.Pi / 180
-	la, lb := a.Lat*math.Pi/180, b.Lat*math.Pi/180
-	h := math.Sin(dLat/2)*math.Sin(dLat/2) +
-		math.Cos(la)*math.Cos(lb)*math.Sin(dLon/2)*math.Sin(dLon/2)
-	return 2*r*math.Asin(math.Sqrt(h)) < 18
+	return geo.DistanceKm(a.Lat, a.Lon, b.Lat, b.Lon) < 18
 }

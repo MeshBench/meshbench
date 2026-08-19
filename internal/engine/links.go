@@ -17,6 +17,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/dsp"
 	"github.com/MeshBench/meshbench/internal/environ"
+	"github.com/MeshBench/meshbench/internal/geo"
 	"github.com/MeshBench/meshbench/internal/scenario"
 	"github.com/MeshBench/meshbench/internal/terrain"
 )
@@ -39,7 +40,7 @@ func (e *Engine) pathLoss(a, b int) (float64, bool) {
 	from, to := e.nodes[a].Spec, e.nodes[b].Spec
 	e.mu.Unlock()
 
-	distKm := haversineKm(from.Position.Lat, from.Position.Lon, to.Position.Lat, to.Position.Lon)
+	distKm := geo.DistanceKm(from.Position.Lat, from.Position.Lon, to.Position.Lat, to.Position.Lon)
 	if distKm <= 0 {
 		return 0, false
 	}
