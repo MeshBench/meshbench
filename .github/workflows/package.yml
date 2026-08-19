@@ -42,7 +42,13 @@ jobs:
     # Build on the oldest base you intend to support, because glibc symbol
     # versioning is one-way: a binary linked against 2.35 runs on 2.38, and
     # never the other way round.
-    runs-on: ubuntu-22.04
+    # lab-2204 is the one Ubuntu 22.04 runner in the pool, and that is the
+    # whole point of the label - it pins the glibc floor described above. Do
+    # not widen this to lab-linux; the other two are 24.04 and would raise it.
+    #
+    # No fork guard here: this workflow only triggers on tag pushes and
+    # workflow_dispatch, both of which need write access to this repo.
+    runs-on: [self-hosted, linux, x64, lab-2204]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -483,7 +489,13 @@ jobs:
     # gets the workbench and native firmware, and the honest line about
     # emulated boards.
     if: inputs.windows
-    runs-on: ubuntu-22.04
+    # lab-2204 is the one Ubuntu 22.04 runner in the pool, and that is the
+    # whole point of the label - it pins the glibc floor described above. Do
+    # not widen this to lab-linux; the other two are 24.04 and would raise it.
+    #
+    # No fork guard here: this workflow only triggers on tag pushes and
+    # workflow_dispatch, both of which need write access to this repo.
+    runs-on: [self-hosted, linux, x64, lab-2204]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -589,7 +601,13 @@ jobs:
     # release missing the thing most people came for is worse than no release.
     if: always() && inputs.release
     needs: [linux, macos, windows]
-    runs-on: ubuntu-22.04
+    # lab-2204 is the one Ubuntu 22.04 runner in the pool, and that is the
+    # whole point of the label - it pins the glibc floor described above. Do
+    # not widen this to lab-linux; the other two are 24.04 and would raise it.
+    #
+    # No fork guard here: this workflow only triggers on tag pushes and
+    # workflow_dispatch, both of which need write access to this repo.
+    runs-on: [self-hosted, linux, x64, lab-2204]
     permissions:
       contents: write
     steps:

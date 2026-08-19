@@ -12,7 +12,10 @@ permissions:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    # The lab runners sit on a home LAN with a NAS mounted, so a fork's PR -
+    # a stranger's code - must never land on one. Forks fall back to hosted
+    # runners here rather than being skipped, so a fork PR still gets checked.
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","lab-linux"]') || fromJSON('["ubuntu-latest"]') }}
     steps:
       - uses: actions/checkout@v4
 
@@ -105,7 +108,10 @@ jobs:
   # for is a check that gets bypassed. The detector still runs, on main, after
   # the merge - see the race job below.
   test:
-    runs-on: ubuntu-latest
+    # The lab runners sit on a home LAN with a NAS mounted, so a fork's PR -
+    # a stranger's code - must never land on one. Forks fall back to hosted
+    # runners here rather than being skipped, so a fork PR still gets checked.
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","lab-linux"]') || fromJSON('["ubuntu-latest"]') }}
     strategy:
       # One shard failing should not hide the others - a red session shard
       # and a red dsp shard are usually two different problems.
@@ -165,7 +171,8 @@ jobs:
   # `go test -race ./...` while chasing something.
   race:
     if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    # No fork fallback needed: dispatch requires write access to this repo.
+    runs-on: [self-hosted, linux, x64, lab-linux]
     steps:
       - uses: actions/checkout@v4
 
