@@ -94,8 +94,10 @@ type MapView struct {
 	BuildingsIn func(south, west, north, east float64) []state.BuildingPoly
 	bldCache    buildingsCache
 	// CoverageOpacity is the raster's draw-time opacity, the slider beside
-	// the layer panel. Zero means "not set yet" and draws as 1.
-	CoverageOpacity widget.Float
+	// the layer panel. It starts below full - the ground and its names
+	// belong in the picture the raster explains - and zero is a position
+	// the operator can actually reach, meaning "raster off the picture".
+	CoverageOpacity Slider
 	// OnRasterView asks the session to raster exactly this viewport - the
 	// borders someone is looking at, not the network's or the boundary's.
 	OnRasterView  func(south, west, north, east float64, cells int)
@@ -206,10 +208,8 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 	// Coverage under everything but the basemap: it is the ground a network
 	// sits on, and drawn over the links it would hide what it explains.
 	if m.Layers.Coverage {
-		alpha := m.CoverageOpacity.Value
-		if alpha <= 0 {
-			alpha = 0.75 // the slider's own default: the ground bleeds through
-		}
+		m.CoverageOpacity.Default = 0.75
+		alpha := m.CoverageOpacity.Value()
 		ol := paint.PushOpacity(gtx.Ops, alpha)
 		m.drawCoverage(t, gtx, sz, s)
 		ol.Pop()

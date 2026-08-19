@@ -3,8 +3,6 @@ package comp
 import (
 	"image"
 
-	"gioui.org/widget/material"
-
 	"gioui.org/f32"
 
 	"gioui.org/layout"
@@ -236,12 +234,8 @@ func (m *MapView) layerPanel(t *theme.Theme, gtx layout.Context, sz image.Point,
 			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 				layout.Rigid(Text(t, t.Sz.Caption, t.P.Faint, "opacity ")),
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-					if m.CoverageOpacity.Value == 0 {
-						// Below full by default: the ground and its names
-						// belong in the picture the raster explains.
-						m.CoverageOpacity.Value = 0.75
-					}
-					return material.Slider(t.M, &m.CoverageOpacity).Layout(gtx)
+					m.CoverageOpacity.Default = 0.75
+					return m.CoverageOpacity.Layout(t, gtx)
 				}),
 			)
 		}))
