@@ -30,6 +30,9 @@ type mapTools struct {
 
 	mv    *comp.MapView
 	built bool
+	// lastFilter is what the box and the map last agreed on, so a change on
+	// either side can be told from a frame where nothing moved.
+	lastFilter string
 }
 
 var toolNames = [5]string{"select", "move", "place", "link", "measure"}
@@ -62,9 +65,21 @@ func (m *mapTools) Draw(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 		m.built = true
 	}
 	// The filter applies as it is typed: a box that needs a button pressed
-	// after it is a box people think is broken.
+	// after it is a box people think is broken. But the map's filter is the
+	// truth and the box follows it - writing the box's text out every frame
+	// silently overwrote whatever the map.filter verb had just set, so the
+	// verb worked for exactly one frame.
 	if m.mv != nil {
-		m.mv.Filter = m.filter.Editor.Text()
+		switch text := m.filter.Editor.Text(); {
+		case text != m.lastFilter:
+			// The operator typed: the map follows the box.
+			m.mv.Filter, m.lastFilter = text, text
+		case m.mv.Filter != m.lastFilter:
+			// A verb spoke: the box follows the map, on the frame loop,
+			// which is the only place an editor may be written.
+			m.filter.Editor.SetText(m.mv.Filter)
+			m.lastFilter = m.mv.Filter
+		}
 	}
 	if m.fit.Click.Clicked(gtx) && m.mv != nil {
 		m.mv.FitNext = true
