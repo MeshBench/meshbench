@@ -73,7 +73,7 @@ run() {
       MESHCORESIM_NODEFS="$nodefs" \
       STUDY_SEEDS="$seeds" \
       ${STUDY_SCENARIO:+STUDY_SCENARIO="$STUDY_SCENARIO"} \
-    go test -count=1 ./internal/engine/ -run TestStudyArm -v -timeout 1800s 2>&1 \
+    go test -count=1 ./internal/sim/engine/ -run TestStudyArm -v -timeout 1800s 2>&1 \
     | grep -E "loaded |seed |STUDY_RESULT|FAIL" || true
 }
 

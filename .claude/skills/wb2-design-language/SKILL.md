@@ -11,7 +11,7 @@ a reported bug.
 
 ## Colour and type
 
-- **Every colour and size comes from `theme.Theme`** (`internal/gui/theme`).
+- **Every colour and size comes from `theme.Theme`** (`internal/ui/theme`).
   Nothing outside that package writes a literal colour or pixel count.
   Palette is semantic: `Ink/Dim/Faint` for text, `Panel/Sunk/Ground` for
   surfaces, `Rule` for borders, one `Accent`, `Good/Warn/Bad` for states.

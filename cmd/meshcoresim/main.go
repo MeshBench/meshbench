@@ -20,7 +20,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/MeshBench/meshbench/internal/terrain"
+	"github.com/MeshBench/meshbench/internal/rf/terrain"
 )
 
 const version = "0.1.0"

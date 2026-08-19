@@ -1,6 +1,6 @@
 package main
 
-import m "github.com/MeshBench/meshbench/internal/mockup"
+import m "github.com/MeshBench/meshbench/tools/internal/mockup"
 
 // noise gives deterministic speckle for the waterfall background.
 func noise(x, y int) int {

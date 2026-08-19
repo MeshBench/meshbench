@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MeshBench/meshbench/internal/antenna"
-	"github.com/MeshBench/meshbench/internal/capture"
-	"github.com/MeshBench/meshbench/internal/engine"
-	"github.com/MeshBench/meshbench/internal/provider"
-	"github.com/MeshBench/meshbench/internal/scenario"
+	"github.com/MeshBench/meshbench/internal/rf/antenna"
+	"github.com/MeshBench/meshbench/internal/sim/capture"
+	"github.com/MeshBench/meshbench/internal/sim/engine"
+	"github.com/MeshBench/meshbench/internal/world/provider"
+	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
 // runTraffic is the flood simulator: put a message into a network and report

@@ -74,7 +74,7 @@ jobs:
         # inbox. licgen itself fails on a module whose licence it cannot name.
         run: |
           go run ./tools/licgen
-          git diff --exit-code -- internal/workbench/licences/licences.json
+          git diff --exit-code -- internal/ui/workbench/licences/licences.json
 
       - name: Build and check
         run: |
@@ -106,7 +106,7 @@ jobs:
           fi
           go build -trimpath \
             -ldflags "-X gioui.org/app.ID=io.github.meshbench.meshbench \
-                      -X github.com/MeshBench/meshbench/internal/workbench.Version=$VERSION" \
+                      -X github.com/MeshBench/meshbench/internal/ui/workbench.Version=$VERSION" \
             -o dist/meshbench/meshbench ./cmd/meshcoresim
 
       - name: Fetch the emulators
@@ -536,7 +536,7 @@ jobs:
           GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc \
           go build -trimpath \
             -ldflags "-H windowsgui -X gioui.org/app.ID=io.github.meshbench.meshbench \
-                      -X github.com/MeshBench/meshbench/internal/workbench.Version=$VERSION" \
+                      -X github.com/MeshBench/meshbench/internal/ui/workbench.Version=$VERSION" \
             -o dist/meshbench/meshbench.exe ./cmd/meshcoresim
           cp -r fixtures dist/meshbench/fixtures
           go run ./tools/icon && cp packaging/icons/meshbench-256.png dist/meshbench/meshbench.png

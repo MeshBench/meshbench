@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/MeshBench/meshbench/internal/basemap"
+	"github.com/MeshBench/meshbench/internal/world/basemap"
 )
 
 // runBasemap downloads map tiles for an area.

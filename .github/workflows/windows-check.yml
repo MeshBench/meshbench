@@ -34,12 +34,12 @@ jobs:
         shell: bash
         # No tail: the failing test is the one that gets cut off, every time.
         continue-on-error: true
-        run: go test ./internal/gpu/ -count=1 -v -timeout 15m
+        run: go test ./internal/rf/gpu/ -count=1 -v -timeout 15m
 
       - name: The platform layer
         shell: bash
         continue-on-error: true
-        run: go test ./internal/firmware/ ./internal/companion/ ./internal/engine/ -short -count=1 2>&1 | tail -20
+        run: go test ./internal/mesh/firmware/ ./internal/mesh/companion/ ./internal/sim/engine/ -short -count=1 2>&1 | tail -20
 
       - name: Does it open its own network with no fixtures beside it
         shell: bash

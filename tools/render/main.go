@@ -12,11 +12,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/MeshBench/meshbench/internal/antenna"
-	"github.com/MeshBench/meshbench/internal/dsp"
-	m "github.com/MeshBench/meshbench/internal/mockup"
-	"github.com/MeshBench/meshbench/internal/rf"
-	"github.com/MeshBench/meshbench/internal/terrain"
+	"github.com/MeshBench/meshbench/internal/rf/antenna"
+	"github.com/MeshBench/meshbench/internal/rf/channel"
+	"github.com/MeshBench/meshbench/internal/rf/dsp"
+	"github.com/MeshBench/meshbench/internal/rf/terrain"
+	m "github.com/MeshBench/meshbench/tools/internal/mockup"
 )
 
 func sq(x float64) float64 { return x * x }
@@ -166,10 +166,10 @@ func realWaterfall() *m.Canvas {
 	strong := mod.Modulate([]int{10, 20, 30, 40})
 	weak := mod.Modulate([]int{200, 210, 220})
 
-	obs := rf.Observe([]rf.Transmission{
+	obs := channel.Observe([]channel.Transmission{
 		{Node: "GB7XYZ", Samples: strong, GainDB: 0, StartSample: 0, DelaySamples: 0.4},
 		{Node: "node-04", Samples: weak, GainDB: -6, StartSample: n * 2, DelaySamples: 1.7},
-	}, rf.Receiver{NoisePowerLinear: 0.02, Seed: 4417}, window)
+	}, channel.Receiver{NoisePowerLinear: 0.02, Seed: 4417}, window)
 
 	x0, y0, w, h := 40, 70, 1120, 300
 	c.RoundRect(x0-8, y0-8, w+16, h+16, 8, m.BgInset, m.Border)

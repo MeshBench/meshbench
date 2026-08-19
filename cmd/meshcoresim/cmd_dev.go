@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MeshBench/meshbench/internal/firmware"
+	"github.com/MeshBench/meshbench/internal/mesh/firmware"
 )
 
 // runDev is the firmware development loop as one command.

@@ -33,44 +33,70 @@ go test ./...
 
 ## Layout
 
+Seven layers. **A package may import its own layer and everything below it,
+never anything above.** `internal/layers_test.go` fails the build otherwise, so
+this is a check rather than a description.
+
 ```
-cmd/meshcoresim/   the binary
-internal/geo/      great-circle distance and bearing, once
-internal/rf/       channel: sum, delay, noise
-internal/dsp/      modulation, demodulation, FFT — CPU reference
-internal/gpu/      the GPU twins, and the .wgsl they embed
-internal/lora/     the coding chain: payload bytes to chirp symbols
-internal/antenna/  patterns, orientation, polarisation
-internal/terrain/  DEM tiles, profiles, diffraction
-internal/environ/  buildings, heights, materials
-internal/propagation/ path loss: heights in, decibels out, and the CPU twins
-internal/coverage/ link budgets into rasters, combined and searched
-internal/linkbudget/ path loss into a margin
-internal/pathview/ why a link missed
-internal/planning/ where the next node should go
-internal/energy/   battery, load, solar
-internal/firmware/ host builds of MeshCore, the Radio shim, per-node runtime
-internal/companion/ TCP and PTY companion transports, and the protocol
-internal/console/  the operator's terminal onto a running node
-internal/scenario/ nodes, import, persistence, seeds
-internal/provider/ CoreScope, Beacon and MQTT feeds
-internal/boundary/ named administrative areas
-internal/basemap/  hillshaded terrain under the simulation
-internal/sdr/      IQ export, SigMF, streaming
-internal/engine/   the simulation: firmware nodes over the channel
-internal/packet/   the MeshCore frame: what the bytes on the air mean
-internal/capture/  pcapng, event log, the reception ledger
-internal/fixture/  the on-disk form of a whole setup
-internal/session/  the workbench without a user interface
-internal/control/  the unix socket another process drives it by
-internal/mcp/      the engine over the Model Context Protocol
-internal/gui/      Gio primitives: theme, components, shell, map view, state
-internal/workbench/ the workbench itself: panels, state, wiring
-tools/dissector/   Wireshark Lua dissector
+cmd/meshcoresim/    the binary
+
+internal/rf/        radio physics — knows nothing of nodes, networks or the app
+  geo/                great-circle distance and bearing, once
+  channel/            sums waveforms, applies gain and delay, adds noise
+  dsp/                modulation, demodulation, FFT — the CPU reference
+  gpu/                the GPU twins, and the .wgsl they embed
+  lora/               the coding chain: payload bytes to chirp symbols
+  antenna/            patterns, orientation, polarisation
+  terrain/            DEM tiles, profiles, diffraction
+  environ/            buildings, heights, materials
+  propagation/        path loss: heights in, decibels out, and the CPU twins
+
+internal/mesh/      MeshCore itself: what a node is and what it says
+  firmware/           host builds, per-node runtime
+  shim/               the Radio shim the emulated firmware links against
+  companion/          TCP and PTY companion transports
+  proto/              the companion protocol codec
+  packet/             the MeshCore frame: what the bytes on the air mean
+  console/            the operator's terminal onto a running node
+  energy/             battery, load, solar
+
+internal/world/     what is being simulated, and where it came from
+  scenario/           nodes, region, seed
+  provider/           CoreScope, Beacon and MQTT feeds
+  mqtt/               the paho client behind provider.Subscriber
+  boundary/           named administrative areas
+  basemap/            hillshaded terrain under the simulation
+  sdr/                IQ export, SigMF, streaming
+
+internal/sim/       running it, and recording what happened
+  engine/             firmware nodes exchanging traffic over the channel
+  capture/            pcapng, event log, the reception ledger
+  replay/             observed traffic back into transmissions
+
+internal/study/     the questions asked of a simulation
+  coverage/           link budgets into rasters, combined and searched
+  linkbudget/         path loss into a margin
+  planning/           where the next node should go
+  pathview/           why a link missed
+  validate/           predicted against actually heard
+
+internal/app/       orchestration, no toolkit
+  state/              the store, and the snapshots the renderer reads
+  session/            the workbench without a user interface
+  fixture/            the on-disk form of a whole setup
+  control/            the unix socket another process drives it by
+  mcp/                the engine over the Model Context Protocol
+
+internal/ui/        Gio — the only layer permitted a toolkit
+  theme/ comp/ mapview-in-comp/ shell/ desktop/ float/ pick/
+  workbench/          the workbench itself: panels, state, wiring
+
+tools/dissector/    Wireshark Lua dissector
+tools/internal/     what only the tools use, said structurally
 ```
 
-The WGSL lives in `internal/gpu/` because `//go:embed` cannot reach outside its
-own package directory. There is no top-level `shaders/`; a second copy there
+The WGSL lives in `internal/rf/gpu/` because `//go:embed` cannot reach outside
+its own package directory. There is no top-level `shaders/`; a second copy there
 went stale, which is how we found out.
 
 This table is the map. A new package updates it in the same commit — the map

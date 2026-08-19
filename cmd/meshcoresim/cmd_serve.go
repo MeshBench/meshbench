@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/MeshBench/meshbench/internal/engine"
-	"github.com/MeshBench/meshbench/internal/fixture"
+	"github.com/MeshBench/meshbench/internal/app/fixture"
+	"github.com/MeshBench/meshbench/internal/sim/engine"
 )
 
 // runServe gives an application developer a mesh and an address, and nothing
