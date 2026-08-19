@@ -60,7 +60,11 @@ type MapView struct {
 	Tool string
 	// linkFrom is the first end of a link being made with the link tool. A
 	// link takes two clicks, so the first one has to be remembered somewhere.
-	linkFrom    string
+	linkFrom *LinkEnd
+	// PinnedLink says a pair picked with the link tool is holding the Link
+	// panel: ordinary selection still selects, but stops refreshing the
+	// budget over the pinned pair. Cleared by CancelLink.
+	PinnedLink  bool
 	CentreLat   float64
 	CentreLon   float64
 	initialised bool
@@ -126,15 +130,15 @@ type MapView struct {
 	// lastClick remembers the previous click for the double-click test.
 	lastClickName string
 	lastClickAt   time.Duration
-	// OnLinkPair is called when the link tool has been given two nodes. What
-	// to do with the pair - select them and break the link into its terms -
-	// belongs to whoever knows what a link budget is.
-	OnLinkPair func(a, b string)
-}
-
-type projected struct {
-	x, y float32
-	n    *state.Node
+	// OnLinkPair is called when the link tool has been given two ends. What
+	// to do with the pair - break the link into its terms - belongs to
+	// whoever knows what a link budget is.
+	OnLinkPair func(a, b LinkEnd)
+	// OnLinkArmed says the first end has been picked, so a hint can tell the
+	// operator what the next click means; OnLinkCancel says the tool's state
+	// was abandoned, which is also the moment to release a pinned pair.
+	OnLinkArmed  func(end LinkEnd)
+	OnLinkCancel func()
 }
 
 // Layout draws the map for one snapshot.
@@ -387,26 +391,6 @@ func (m *MapView) fit(s *state.Snapshot, sz image.Point) {
 	m.Zoom = math.Min(float64(sz.X-80)/spanX, float64(sz.Y-80)/spanY)
 }
 
-func (m *MapView) project(s *state.Snapshot, sz image.Point) []projected {
-	cos := math.Cos(m.CentreLat * math.Pi / 180)
-	out := make([]projected, 0, len(s.Nodes))
-	for i := range s.Nodes {
-		n := &s.Nodes[i]
-		if n.Lat == 0 && n.Lon == 0 {
-			continue
-		}
-		x := float64(sz.X)/2 + (n.Lon-m.CentreLon)*cos*m.Zoom
-		y := float64(sz.Y)/2 - (n.Lat-m.CentreLat)*m.Zoom
-		out = append(out, projected{x: float32(x), y: float32(y), n: n})
-	}
-	return out
-}
-
-func offscreen(p projected, sz image.Point) bool {
-	const m = 40
-	return p.x < -m || p.y < -m || p.x > float32(sz.X)+m || p.y > float32(sz.Y)+m
-}
-
 func kindOf(k string) theme.NodeKind {
 	switch k {
 	case "companion":
@@ -436,6 +420,7 @@ func (m *MapView) rings(t *theme.Theme, gtx layout.Context, pts []projected, sz 
 		func(i int, p projected) bool { return i == m.cam.hover })
 	m.ringPass(gtx, pts, sz, t.P.Selected, 7, 1.5,
 		func(i int, p projected) bool { return p.n.Selected })
+	m.linkMark(t, gtx, sz)
 }
 
 // ringPass draws one ring around every node the predicate accepts, as a single

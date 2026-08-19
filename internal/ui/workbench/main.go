@@ -272,7 +272,7 @@ func Run(args []string) {
 		go func() { _, _ = st.Do(ctx, "nodes.select", name) }()
 	}
 	mapTop := &mapTools{mv: mv}
-	wireMapTools(mv, mapTop, st, ctx)
+	wireMapTools(mv, mapTop, sh, st, ctx)
 	cfg := addPanels(panelDeps{
 		sh: sh, st: st, ctx: ctx, mv: mv, wbUI: wbUI, wins: wins, mapTop: mapTop, nodes: nodes,
 		do: do, withControls: withControls, chooserIn: chooserIn, openPacket: openPacket,

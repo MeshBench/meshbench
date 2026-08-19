@@ -174,6 +174,10 @@ func (a startupActions) run() {
 			a.mv.FocusOn(a.st.Snapshot(), node)
 		case "map.centre_here":
 			a.mv.CentreOn(lat, lon)
+		case "link.from":
+			a.mv.ArmLink(node, lat, lon)
+		case "link.to":
+			a.mv.LinkTo(node, lat, lon)
 		case "map.neighbours":
 			go func() { _, _ = a.st.Do(a.ctx, "nodes.select_many", []string{node}) }()
 		case "coverage.compute":

@@ -80,6 +80,12 @@ func (m *mapTools) Draw(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 			m.current = toolNames[i]
 			if m.mv != nil {
 				m.mv.Tool = m.current
+				// Leaving the link tool abandons its half-made pick: a
+				// pick that survives switching to pan is a click three
+				// minutes later completing a link nobody remembers starting.
+				if m.current != "link" {
+					m.mv.CancelLink()
+				}
 			}
 		}
 	}

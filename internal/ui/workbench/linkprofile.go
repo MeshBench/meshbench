@@ -27,8 +27,8 @@ type linkPanel struct{}
 func (linkPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
 	if s == nil || s.LinkProfile == nil || len(s.LinkProfile.Samples) < 2 {
 		return layout.Center.Layout(gtx, comp.Text(t, t.Sz.Body, t.P.Dim,
-			"select a pair - or one node, for its strongest link - and the "+
-				"ground between them is cut through here"))
+			"pick two ends with the map's link tool - nodes, bare ground, or "+
+				"one of each - and the ground between them is cut through here"))
 	}
 	p := s.LinkProfile
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
@@ -69,6 +69,15 @@ func (linkPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) lay
 				"edges:  "+strings.Join(parts, "   "), false)(gtx)
 		}),
 		layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Dim, p.Verdict)),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if p.Assumed == "" {
+				return layout.Dimensions{}
+			}
+			// Where the margins came from is content, not small print: a
+			// number whose model is silent reads as measured.
+			return comp.OneLine(t, t.Sz.Caption, t.P.Faint,
+				"margins assume "+p.Assumed+" - the air will be worse", false)(gtx)
+		}),
 	)
 }
 
@@ -150,6 +159,16 @@ func drawCutThrough(t *theme.Theme, gtx layout.Context, p *state.Profile) layout
 	last := p.Samples[len(p.Samples)-1]
 	los.LineTo(f32.Pt(X(last.DistM), Y(last.LOSm)))
 	paint.FillShape(gtx.Ops, t.P.Ink, clip.Stroke{Path: los.End(), Width: 1.5}.Op())
+	// The masts: each end stands on its own ground, so an antenna's height
+	// above it is visible rather than implied - wb1 drew these and the port
+	// dropped them.
+	var masts clip.Path
+	masts.Begin(gtx.Ops)
+	for _, sm := range []state.ProfileSample{p.Samples[0], last} {
+		masts.MoveTo(f32.Pt(X(sm.DistM), Y(sm.BulgedM)))
+		masts.LineTo(f32.Pt(X(sm.DistM), Y(sm.LOSm)))
+	}
+	paint.FillShape(gtx.Ops, t.P.Ink, clip.Stroke{Path: masts.End(), Width: 2}.Op())
 	for _, sm := range []state.ProfileSample{p.Samples[0], last} {
 		func() {
 			r := gtx.Dp(3)
@@ -158,6 +177,27 @@ func drawCutThrough(t *theme.Theme, gtx layout.Context, p *state.Profile) layout
 			paint.ColorOp{Color: t.P.Ink}.Add(gtx.Ops)
 			paint.PaintOp{}.Add(gtx.Ops)
 		}()
+	}
+
+	// The deciding sample: a full-height rule where the first Fresnel zone
+	// is most intruded on, amber while the path clears and red when it does
+	// not. This is the answer to "where does it fail".
+	if p.Worst.DistM > 0 || p.Worst.FresnelPct != 0 {
+		col := t.P.Warn
+		if p.Worst.Blocked {
+			col = t.P.Bad
+		}
+		x := X(p.Worst.DistM)
+		var rule clip.Path
+		rule.Begin(gtx.Ops)
+		rule.MoveTo(f32.Pt(x, 0))
+		rule.LineTo(f32.Pt(x, h))
+		paint.FillShape(gtx.Ops, theme.Alpha(col, 0.55),
+			clip.Stroke{Path: rule.End(), Width: 1}.Op())
+		off := op.Offset(imagePtXY(int(x)+4, int(h)-gtx.Dp(16))).Push(gtx.Ops)
+		comp.Mono(t, t.Sz.Caption, col,
+			fmt.Sprintf("worst: %.0f%% F1", p.Worst.FresnelPct))(unbounded2(gtx))
+		off.Pop()
 	}
 
 	// The edges: a line from the top to the obstruction, its cost at the top.

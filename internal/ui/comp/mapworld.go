@@ -271,6 +271,34 @@ func (m *MapView) ringPath(t *theme.Theme, gtx layout.Context, sz image.Point,
 	}
 }
 
+// projected is a node with its screen position for this frame.
+type projected struct {
+	x, y float32
+	n    *state.Node
+}
+
+// project puts every positioned node on screen. Moved here from mapview.go
+// at the file limit, beside the single-point form it shares its maths with.
+func (m *MapView) project(s *state.Snapshot, sz image.Point) []projected {
+	cos := math.Cos(m.CentreLat * math.Pi / 180)
+	out := make([]projected, 0, len(s.Nodes))
+	for i := range s.Nodes {
+		n := &s.Nodes[i]
+		if n.Lat == 0 && n.Lon == 0 {
+			continue
+		}
+		x := float64(sz.X)/2 + (n.Lon-m.CentreLon)*cos*m.Zoom
+		y := float64(sz.Y)/2 - (n.Lat-m.CentreLat)*m.Zoom
+		out = append(out, projected{x: float32(x), y: float32(y), n: n})
+	}
+	return out
+}
+
+func offscreen(p projected, sz image.Point) bool {
+	const m = 40
+	return p.x < -m || p.y < -m || p.x > float32(sz.X)+m || p.y > float32(sz.Y)+m
+}
+
 // projectPoint is project() for a single position.
 func (m *MapView) projectPoint(p state.Point, sz image.Point) f32.Point {
 	cos := math.Cos(m.CentreLat * math.Pi / 180)

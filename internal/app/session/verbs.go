@@ -34,6 +34,7 @@ func Register(st *state.Store, s *Sim) {
 	registerBasemap(st, s)
 	registerPacket(st, s)
 	registerLinkProfile(st, s)
+	registerLinkPair(st, s)
 	registerImport(st, s)
 	registerBoundary(st, s)
 	registerPlanningVerbs(st, s)

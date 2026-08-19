@@ -40,32 +40,48 @@ func (s *Sim) profileFor(st *state.Store, from, to string, atob, btoa float64) {
 			_, _ = st.Do(ctx, "link.profile_set", (*state.Profile)(nil))
 			return
 		}
-		p := &state.Profile{
-			From: from, To: to, DistanceKm: cut.DistanceKm,
-			AtoB: atob, BtoA: btoa, Verdict: cut.Verdict(),
-		}
-		p.LowM, p.HighM = cut.Extent()
-		pts := make([]terrain.Point, 0, len(cut.Samples))
-		for _, sm := range cut.Samples {
-			p.Samples = append(p.Samples, state.ProfileSample{
-				DistM: sm.DistM, BulgedM: sm.BulgedM,
-				LOSm: sm.LOSm, FresnelM: sm.FresnelM,
-			})
-			pts = append(pts, terrain.Point{DistM: sm.DistM, HeightM: sm.GroundM})
-		}
-		// The obstructions, each with its own Bullington contribution. Only
-		// the ones that cost anything worth a label.
-		for _, e := range terrain.Edges(pts, a.HeightAGLm, b.HeightAGLm, freq) {
-			if e.LossDB < 1 {
-				continue
-			}
-			p.Edges = append(p.Edges, state.ProfileEdge{DistM: e.DistM, LossDB: e.LossDB})
-			if len(p.Edges) == 6 {
-				break
-			}
-		}
+		p := stateProfile(cut, from, to, atob, btoa, a.HeightAGLm, b.HeightAGLm, freq)
 		_, _ = st.Do(ctx, "link.profile_set", p)
 	}()
+}
+
+// stateProfile turns a cut-through into what the snapshot carries: the
+// samples with their bare ground, the labelled edges, and the sample that
+// decides the verdict.
+func stateProfile(cut pathview.CutThrough, from, to string,
+	atob, btoa, aAGL, bAGL, freq float64) *state.Profile {
+	p := &state.Profile{
+		From: from, To: to, DistanceKm: cut.DistanceKm,
+		AtoB: atob, BtoA: btoa, Verdict: cut.Verdict(),
+	}
+	p.LowM, p.HighM = cut.Extent()
+	pts := make([]terrain.Point, 0, len(cut.Samples))
+	for _, sm := range cut.Samples {
+		p.Samples = append(p.Samples, state.ProfileSample{
+			DistM: sm.DistM, GroundM: sm.GroundM, BulgedM: sm.BulgedM,
+			LOSm: sm.LOSm, FresnelM: sm.FresnelM,
+		})
+		pts = append(pts, terrain.Point{DistM: sm.DistM, HeightM: sm.GroundM})
+	}
+	if cut.Worst >= 0 && cut.Worst < len(cut.Samples) {
+		w := cut.Samples[cut.Worst]
+		p.Worst = state.ProfileWorst{
+			DistM: w.DistM, ClearanceM: w.ClearanceM,
+			FresnelPct: cut.WorstF1Pct, Blocked: cut.Blocked,
+		}
+	}
+	// The obstructions, each with its own Bullington contribution. Only
+	// the ones that cost anything worth a label.
+	for _, e := range terrain.Edges(pts, aAGL, bAGL, freq) {
+		if e.LossDB < 1 {
+			continue
+		}
+		p.Edges = append(p.Edges, state.ProfileEdge{DistM: e.DistM, LossDB: e.LossDB})
+		if len(p.Edges) == 6 {
+			break
+		}
+	}
+	return p
 }
 
 func registerLinkProfile(st *state.Store, s *Sim) {

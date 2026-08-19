@@ -52,6 +52,18 @@ func (m *MapView) handle(gtx layout.Context, sz image.Point, pts []projected) {
 	defer clip.Rect{Max: sz}.Push(gtx.Ops).Pop()
 	event.Op(gtx.Ops, m)
 
+	// Escape abandons the link tool's half-made pick, and tells the
+	// workbench so - a pinned pair is released the same way.
+	for {
+		ev, ok := gtx.Event(key.Filter{Name: key.NameEscape})
+		if !ok {
+			break
+		}
+		if ke, ok := ev.(key.Event); ok && ke.State == key.Press {
+			m.CancelLink()
+		}
+	}
+
 	for {
 		ev, ok := gtx.Event(pointer.Filter{
 			Target: m,
@@ -170,25 +182,7 @@ func (m *MapView) release(e pointer.Event, pts []projected, sz image.Point) {
 			}
 			return
 		case "link":
-			i := nearestWithin(pts, e.Position, 10)
-			if i < 0 {
-				// A click on open ground abandons a half-made link, which is
-				// what it means everywhere else.
-				m.linkFrom = ""
-				return
-			}
-			name := pts[i].n.Name
-			if m.linkFrom == "" || m.linkFrom == name {
-				m.linkFrom = name
-				if m.OnSelect != nil {
-					m.OnSelect([]string{name}, false)
-				}
-				return
-			}
-			if m.OnLinkPair != nil {
-				m.OnLinkPair(m.linkFrom, name)
-			}
-			m.linkFrom = ""
+			m.linkClick(e.Position, pts, sz)
 			return
 		}
 	}
