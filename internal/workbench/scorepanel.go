@@ -1,4 +1,4 @@
-// The tables of P4, on the virtualised component from P1.
+// The Score panel: the per-node counters, on the virtualised table.
 //
 // Each one is a projection of the snapshot into rows, done fresh every frame.
 // That sounds wasteful and is not: the table only builds the rows it can show,
@@ -29,7 +29,7 @@ func snrOf(e *state.Event) string {
 	return fmt.Sprintf("%.1f", e.SNRdB)
 }
 
-// scorePanel is the per-node counters (6.8).
+// scorePanel is the per-node counters.
 type scorePanel struct {
 	tb   comp.Table
 	init bool

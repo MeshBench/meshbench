@@ -1,9 +1,7 @@
-// The last two panels of P6: what the real network is doing (6.20), and how
-// far the model is from it (6.18).
+// The Validate panel: the model against reality.
 //
-// Both read the same observed receptions from the deployment. A live feed and
-// a validation are the same data asked two questions: what is happening, and
-// whether we would have predicted it.
+// It says which way the model is wrong and by how much, because that is
+// something somebody can act on; "validation failed" is not.
 package workbench
 
 import (
@@ -16,57 +14,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/gui/theme"
 )
 
-// feedPanel is recent traffic on the real network (6.20).
-type feedPanel struct {
-	tb   comp.Table
-	init bool
-	// OnPull asks the store to fetch recent receptions.
-	OnPull func()
-}
-
-func (p *feedPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
-	if !p.init {
-		p.tb.Cols = []comp.Column{
-			{Title: "when", Width: 160, Mono: true, Sortable: true},
-			{Title: "heard by", Width: 200, Sortable: true},
-			{Title: "from", Width: 200, Sortable: true},
-			{Title: "hops", Width: 66, Right: true, Mono: true},
-			{Title: "SNR", Width: 80, Right: true, Mono: true, Sortable: true},
-			{Title: "packet", Mono: true},
-		}
-		p.tb.SortCol, p.tb.SortDesc = 0, true
-		p.init = true
-	}
-	body := func(gtx layout.Context) layout.Dimensions {
-		if s == nil || len(s.Observed) == 0 {
-			return layout.Center.Layout(gtx, comp.Text(t, t.Sz.Body, t.P.Dim,
-				"nothing pulled yet - this is the real network, not the simulated one"))
-		}
-		rows := make([]comp.Row, 0, len(s.Observed))
-		for i, o := range s.Observed {
-			snr := "-"
-			if o.HasSNR {
-				snr = fmt.Sprintf("%.1f", o.SNRdB)
-			}
-			rows = append(rows, comp.Row{
-				Key: fmt.Sprintf("%d/%s", i, o.PacketID),
-				Cells: []string{
-					o.At.Format("2006-01-02 15:04:05"),
-					o.Receiver, o.Origin, fmt.Sprintf("%d", o.HopCount),
-					snr, o.PacketID,
-				},
-			})
-		}
-		p.tb.SetRows(rows)
-		return p.tb.Layout(t, gtx, nil)
-	}
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(comp.SectionTitle(t, "the real network")),
-		layout.Flexed(1, body),
-	)
-}
-
-// validatePanel is the model against reality (6.18).
+// validatePanel is the model against reality.
 //
 // Residuals, not a verdict. "The model is 3 dB optimistic on this network" is
 // something somebody can act on; "validation failed" is not.

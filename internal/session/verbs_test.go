@@ -18,7 +18,7 @@ func register(t *testing.T) (*state.Store, *Sim) {
 	return st, s
 }
 
-// The parity test the plan asks for (12.9), generated from what is registered
+// The parity test the plan asks for, generated from what is registered
 // rather than from a list in a document.
 //
 // A hand-counted list was already wrong by three when this was written the

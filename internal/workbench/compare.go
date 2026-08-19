@@ -1,4 +1,4 @@
-// Two runs, metric by metric (6.11).
+// Two runs, metric by metric.
 package workbench
 
 import (

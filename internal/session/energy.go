@@ -1,4 +1,4 @@
-// A repeater site's year on solar, for the selected node (6.19).
+// A repeater site's year on solar, for the selected node.
 //
 // Through internal/energy, which runs the year hourly rather than daily: the
 // thing being tested is whether the pack gets through the night, and a daily

@@ -1,4 +1,9 @@
-// Configuration and the experiment log (6.17, 6.14).
+// The Configuration panel: what this run is, in the terms that change a result.
+//
+// A sidebar of sections, cards of labelled values with the reason each matters
+// underneath, and every value settable where it is shown - through the same verb
+// a script would use. The cards themselves are in configcards.go; the interaction
+// pass is in configupdate.go.
 package workbench
 
 import (
@@ -15,7 +20,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/gui/theme"
 )
 
-// configPanel is what this run is, in the terms that change a result (6.17) -
+// configPanel is what this run is, in the terms that change a result -
 // redesigned to the mock: a sidebar of sections, cards of labelled values with
 // the reason each matters underneath, and every value settable where it is
 // shown, through the same verb a script would use.
@@ -350,32 +355,5 @@ func (p *configPanel) auditDraw(t *theme.Theme, gtx layout.Context, s *state.Sna
 			return layout.Inset{Right: t.Sp.M}.Layout(gtx, left)
 		}),
 		layout.Flexed(1, right),
-	)
-}
-
-// logPanel is what has happened in this session, newest last (6.14).
-//
-// The store's own log rather than a second one kept by the interface: every
-// verb that says something says it there, so a script and a click leave the
-// same trace.
-type logPanel struct {
-	list widget.List
-}
-
-func (p *logPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
-	if s == nil || len(s.Log) == 0 {
-		return layout.Center.Layout(gtx, comp.Text(t, t.Sz.Body, t.P.Dim,
-			"nothing has happened yet"))
-	}
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(comp.SectionTitle(t, "experiment log")),
-		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			p.list.Axis = layout.Vertical
-			return comp.List(t, &p.list, len(s.Log),
-				func(gtx layout.Context, i int) layout.Dimensions {
-					// Oldest first, so reading downwards is reading forwards.
-					return comp.Mono(t, t.Sz.Caption, t.P.Dim, s.Log[i])(gtx)
-				})(gtx)
-		}),
 	)
 }
