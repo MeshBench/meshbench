@@ -20,7 +20,6 @@ import (
 	"gioui.org/op"
 	"gioui.org/text"
 	"gioui.org/unit"
-	"gioui.org/widget"
 
 	fixturelib "github.com/MeshBench/meshbench/internal/fixture"
 	"github.com/MeshBench/meshbench/internal/gui/comp"
@@ -254,16 +253,6 @@ func Run(args []string) {
 	// The buildings layer reads straight from the loaded environment: a
 	// city of polygons has no business in the world snapshot.
 	mv.BuildingsIn = sm.BuildingsIn
-	mv.OnRasterView = func(south, west, north, east float64, cells int) {
-		go func() {
-			if _, err := st.Do(ctx, "coverage.map", map[string]any{
-				"south": south, "west": west, "north": north, "east": east,
-				"cells": float64(cells),
-			}); err != nil {
-				_, _ = st.Do(ctx, "ui.said", err.Error())
-			}
-		}()
-	}
 	wbUI := &workbenchUI{sh: sh, sim: sm, mv: mv, nodes: newNodeWindows(), store: st}
 	callbacks{
 		wbUI: wbUI, mv: mv, st: st, ctx: ctx, sm: sm, openPacket: openPacket,
@@ -282,48 +271,7 @@ func Run(args []string) {
 		go func() { _, _ = st.Do(ctx, "nodes.select", name) }()
 	}
 	mapTop := &mapTools{mv: mv}
-	// A double-click on a node is "show me this one".
-	mv.OnNodeOpen = func(name string) {
-		go func() { _, _ = st.Do(ctx, "node.window", name) }()
-	}
-	// The place tool puts a node where it was clicked.
-	//
-	// The kind comes from the toolbar rather than from the map: what a place
-	// tool places is a decision about the network, and the map's business is
-	// where. Named from the kind and a count, because a node with no name is
-	// a node no command can be aimed at.
-	mv.OnPlace = func(lat, lon float64) {
-		kind, name := mapTop.placeKind, ""
-		if kind == "" {
-			kind = "simple-repeater"
-		}
-		if s := st.Snapshot(); s != nil {
-			name = nextPlacedName(kind, s)
-		}
-		go func() {
-			if _, err := st.Do(ctx, "nodes.place", map[string]any{
-				"name": name, "kind": kind, "lat": lat, "lon": lon,
-			}); err != nil {
-				_, _ = st.Do(ctx, "ui.said", "place: "+err.Error())
-				return
-			}
-			_, _ = st.Do(ctx, "ui.said", "placed "+name+" - drag it with the move tool")
-		}()
-	}
-	// The link tool asks the question the Inspector asks: what does this link
-	// cost, in both directions.
-	mv.OnLinkPair = func(a, b string) {
-		go func() {
-			if _, err := st.Do(ctx, "nodes.select_many", []string{a, b}); err != nil {
-				return
-			}
-			if _, err := st.Do(ctx, "budget.for_selection", nil); err != nil {
-				_, _ = st.Do(ctx, "ui.said", "link: "+err.Error())
-				return
-			}
-			_, _ = st.Do(ctx, "ui.said", a+" to "+b+": the budget is in the Link panel")
-		}()
-	}
+	wireMapTools(mv, mapTop, st, ctx)
 	cfg := addPanels(panelDeps{
 		sh: sh, st: st, ctx: ctx, mv: mv, wbUI: wbUI, wins: wins, mapTop: mapTop, nodes: nodes,
 		do: do, withControls: withControls, chooserIn: chooserIn, openPacket: openPacket,
@@ -397,34 +345,7 @@ func Run(args []string) {
 	menuBar{sh: sh, sets: sets, cfg: cfg, dropFlag: dropFlag,
 		st: st, ctx: ctx, nodes: nodes,
 		chooser: chooser, menuFlag: menuFlag,
-		onShown: func(action string) bool {
-			// The rasters exist to be looked at; computing one behind a
-			// switched-off layer was a click that did nothing.
-			switch action {
-			case "coverage.map":
-				mv.Layers.Coverage = true
-			case "coverage.viewport", "coverage.selection.viewport":
-				mv.Layers.Coverage = true
-				south, west, north, east, ok := mv.ViewportBox()
-				if !ok {
-					return true
-				}
-				params := map[string]any{
-					"south": south, "west": west, "north": north, "east": east,
-					"cells": float64(mv.ViewportCells()),
-				}
-				if action == "coverage.selection.viewport" {
-					params["station"] = "selected"
-				}
-				go func() {
-					if _, err := st.Do(ctx, "coverage.map", params); err != nil {
-						_, _ = st.Do(ctx, "ui.said", err.Error())
-					}
-				}()
-				return true
-			}
-			return false
-		}}.build()
+		onShown: rasterMenuIntercept(mv, st, ctx)}.build()
 
 	// -menu fires one at startup, so what it opens can be captured.
 	if *menuFlag != "" {
@@ -523,6 +444,3 @@ func Run(args []string) {
 	}()
 	app.Main()
 }
-
-var _ = widget.Clickable{}
-var _ = time.Now
