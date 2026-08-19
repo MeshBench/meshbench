@@ -3,13 +3,37 @@
 The code is fine. The *map* is not. This plan is about where things live and
 what they are called, not about what they do.
 
-Measured against `34bad7e`. Nothing here has been applied. Interactive version:
-the Layout Explorer artifact, which walks the proposed tree and the import graph.
+Measured against `31d1330`.
 
-> **Earlier draft.** The first version of this document proposed renames and a
-> few extractions inside `internal/session` and `internal/workbench`. That was
-> too small to matter: it left `internal/` a flat listing of 38 sibling
-> packages, which is the same complaint one level up. This version replaces it.
+> **Status.** Steps 0 and 1 have landed — the filename renames, the duplicated
+> assets, and the tracked tool binaries. Everything from step 2 on is still a
+> proposal.
+>
+> **Earlier drafts.** The first version proposed renames and a few extractions
+> and nothing else, which left `internal/` a flat listing of 38 sibling packages
+> — the same complaint one level up. The second added the seven layers. This one
+> records what main has since done on its own, and what actually shipped.
+
+## 0. What main did while this was being written
+
+Three things landed between `34bad7e` and `31d1330` that this plan had called
+for, and one that changes how it is enforced:
+
+- **CI now checks the 500-line hard limit** on `.go`, `.wgsl` and `.lua`, with a
+  `lint:file-length-exempt` escape hatch used exactly once (the Wireshark
+  dissector, which Wireshark loads as a single file). The limit stopped being a
+  convention the day that landed.
+- **`41289b5` split six files back under it** — `waveform.go`, `mapchrome.go`,
+  `session/engine.go`, `configcards.go`, `panels6c.go` and `main.go`. Each split
+  is a seam, and the new names (`waveformbusy.go`, `mapscale.go`, `enginewarm.go`,
+  `configinterface.go`, `configupdate.go`, `mainmap.go`) all say what they hold.
+- **`eedb830` dropped the committed `engine.test` binary** and gitignored `*.test`.
+
+Two consequences for this plan. `configcards.go` is now 379 lines and its name
+is honest, so **the three-way split it proposed is withdrawn** — nothing is
+wrong with it. And `session/engine.go` is now 332 rather than 502, so splitting
+`type Sim` out of it is no longer forced by the limit; it is still worth doing,
+for the reason in §5, but it is no longer urgent.
 
 ---
 
@@ -289,13 +313,13 @@ each panel owns its methods — but the filenames do not say so:
 panels.go        → nodespanel.go                    declares nodesPanel
 panels6.go       → schedulepanel.go, consolepanel.go
 panels6b.go      → fleetpanel.go, boundarypanel.go, timelinespanel.go
-panels6c.go      → configpanel.go, logpanel.go      564 lines, over the limit
+panels6c.go      → configpanel.go, logpanel.go
 events2.go       → eventspanel.go
 tables.go        → scorepanel.go                    doc says "the tables of P4";
                                                     the file holds one scorePanel
 tables2.go       → runspanel.go                     doc says "installed firmware and
                                                     past runs"; holds only runsPanel
-observed.go      → feedpanel.go                     declares feedPanel
+observed.go      → feedpanel.go, validatepanel.go   declares both
 planning.go      → planpanel.go                     declares planPanel
 importer.go      → importpanel.go                   declares importPanel
 bench.go         → benchpanel.go                    declares benchPanel
@@ -305,7 +329,7 @@ actionpanels.go  → fleetcontrols.go, schedulecontrols.go,
                    planningcontrols.go, provisioningcontrols.go
 livepanels.go    → benchcontrols.go, feedcontrols.go
 networkpanels.go → importcontrols.go, boundarycontrols.go, validatecontrols.go
-configcards.go   → configcards_{model,run,system}.go   559 lines, over the limit
+configcards.go   — withdrawn: 41289b5 took it to 379 lines and the name is honest
 ```
 
 And the `node*` prefix hides which of three panels a file serves:
@@ -345,14 +369,12 @@ The renames above came from an audit rather than from the directory listing.
 Three other things came out of it, and two of them are more serious than any
 filename.
 
-### Four files over the 500-line hard limit
+### The 500-line hard limit — now CI's problem, not a convention
 
-| File | Lines | |
-|---|---:|---|
-| `workbench/panels6c.go` | 564 | split by the renames above |
-| `workbench/configcards.go` | 559 | split by the renames above |
-| `engine/waveform.go` | 522 | **being edited on this branch** — flagged, not planned |
-| `session/engine.go` | 502 | split into `sim.go` + `engine.go` |
+All four files that breached it have been fixed: `waveform.go`, `configcards.go`
+and `session/engine.go` by `41289b5` on main, and `panels6c.go` by the renames
+above. **Nothing in the tree is over 500 lines except the Wireshark dissector,
+which carries an exemption and says why in its own header.**
 
 ### Three packages are built and imported by nothing
 
@@ -403,17 +425,22 @@ commits: when a file is touched, fix its comment.
 
 ## 6. Deletions
 
-Verified byte-identical duplicates and tracked artifacts. None is referenced by
-any Go file, so removing them should be a build no-op:
+**Done.** All of these have been removed:
 
-- `internal/ux/` — 9 PNGs and a README, identical to `docs/ux/`. **No code.**
-- `internal/output/` — 4 PNGs and a WAV, identical to `docs/output/`. **No code.**
-- `shaders/` — identical to `internal/gpu/*.wgsl`. `//go:embed` cannot reach
-  outside its own package directory, so this copy can never be the live one —
-  and CLAUDE.md's layout section points at it.
-- `engine.test`, `envgen`, `goldencap` — tracked binaries at the repo root.
-  `envgen` and `goldencap` shadow the real packages at `tools/envgen` and
-  `tools/goldencap`.
+- `internal/ux/` — 9 PNGs and a README, byte-identical to `docs/ux/`. No code.
+- `internal/output/` — 4 PNGs and a WAV, byte-identical to `docs/output/`. No code.
+- `shaders/` — `//go:embed` cannot reach outside its own package directory, so
+  this copy could never be the live one. By the time it was removed it had
+  already rotted: `dechirp.wgsl` and `pairs.wgsl` had been deleted from it while
+  `internal/gpu` kept its own, and the `coverage.wgsl` left behind **no longer
+  matched** the one actually compiled. A comment in `internal/dsp/dechirp.go`
+  still pointed at a path that had not existed for some time. That is the whole
+  argument for the duplicated-asset rule, and it took nine months to bite.
+- `envgen`, `goldencap` — tracked ELF binaries at the repo root, 3.4 MB and
+  4.0 MB, shadowing the packages at `tools/envgen` and `tools/goldencap` so that
+  tab-completing the name got you a stale binary. Removed and gitignored
+  alongside `/workbench2`, with `/meshcoresim` added for the same reason.
+  (`engine.test` was already dropped by `eedb830`, and `*.test` gitignored.)
 
 Also: `internal/mockup` is used only by `tools/mockup` and `tools/render`, never
 by the application → `tools/internal/mockup`, where the path says so.
@@ -453,8 +480,8 @@ moves happen before the refactors that need thought.
 
 | # | Step | Effort | Risk |
 |---|---|---|---|
-| 0 | Deletions and hygiene (§6) | minutes | none |
-| 1 | The 33 renames (§5), fixing each file's doc comment as it is touched | 1 day | none — `git mv` plus splits at type boundaries |
+| 0 | ✅ **Done.** Deletions and hygiene (§6) | minutes | none |
+| 1 | ✅ **Done.** The workbench renames (§5), doc comments fixed as each file was touched | 1 day | none — `git mv` plus splits at type boundaries |
 | 2 | Split `coverage` → `rf/propagation` + `study/coverage`; move `Terrain` down | half a day | low — file-aligned |
 | 3 | Split `capture` → `mesh/packet` + `sim/capture` | half a day | low — zero shared symbols |
 | 4 | Move all packages into the seven layers; update ldflags and CI shards | 1 day | low, very wide diff |
@@ -465,8 +492,15 @@ moves happen before the refactors that need thought.
 | 9 | `app/session` decomposition, starting with `analysis` | week+ | high — wants an ADR |
 
 Steps 2–5 are the spine: they are what makes the tree navigable *and* keep it
-that way. Do 0 and 1 first because they are free, then 2 and 3 because
-everything else depends on them.
+that way. Steps 0 and 1 are done — they were free — so 2 and 3 are next, because
+everything after them depends on them.
+
+Step 1 shipped as 15 straight renames plus 8 splits at type boundaries, and was
+verified by comparing every top-level declaration in `internal/workbench` and
+`tools/mockup` before and after: **589 declarations, identical on both sides.**
+Code moved between files; no signature changed, none was added, none was lost.
+That check is worth repeating for steps 2, 3 and 4, which are the same kind of
+move at a larger scale.
 
 Step 6 is the only one that is not mine to decide. Three packages and 1,343
 lines are either load-bearing or dead, and nobody can tell which by looking —
