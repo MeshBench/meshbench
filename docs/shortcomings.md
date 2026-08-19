@@ -15,8 +15,7 @@ strength of a simulation.
 
 ## 0. Two RF modes, two error budgets
 
-Since the waveform work (docs/waveform-source-of-truth.md) MeshBench has two
-reception models, chosen in Configuration under **RF Simulation** and stamped
+MeshBench has two reception models, chosen in Configuration under **RF Simulation** and stamped
 into every result:
 
 **Calculated** (the default): reception is a link-budget SNR against the
@@ -452,6 +451,47 @@ not the same as "true on the hill above Aberfeldy".
   boundary source MSIM-37 uses.
 
 ---
+
+## 9. Conditions that produce no error at all
+
+Everything above is a limit of the model. This is a shorter and more dangerous
+list: configurations that change a result while reporting nothing wrong.
+
+**A region inferred and never applied.** Every node transmits, no node relays,
+and nothing reports an error. It reads as a mesh with no propagation.
+
+**A scope written without its `#`.** The key on the wire is `sha256("#sco")`.
+`sha256("sco")` matches no repeater in existence, so every repeater receives the
+packet, derives a different key, and declines to forward it. No error anywhere.
+
+**Saved node state overriding a compiled default.** Both arms of a comparison
+return identical numbers and the change looks inert.
+
+**A bare version tag.** MeshCore tags one role at a time, so `v1.17.0` resolves
+nothing while `repeater-v1.17.0` resolves.
+
+**More than about eight emulated nodes on a twelve-core machine.** Boots
+stretch, simulated time falls behind the wall clock, and the symptom is a mesh
+gone quiet — which is what a genuine RF problem looks like.
+
+**A permissive fixture.** More generous than the real network. This one does say
+so, on screen and in the first line of the test runner's output, every time,
+because a quiet version of it produces exactly the flattering-but-wrong answer
+this document exists to prevent.
+
+## 10. Measurement floors depend on the metric
+
+The ±20% figure sometimes quoted is the spread of *reach under contention from
+around eight simultaneous senders*, measured by running one configuration
+repeatedly. It is a property of that contention, not of the simulator, and it
+does not transfer to every measurement.
+
+A one-originator flood on a 58-node network has produced an identical
+transmission count across eight seeds while receptions on those same runs varied
+by ±17%.
+
+Measure the control's own spread on the metric in question, and quote that
+figure rather than a general one.
 
 ## What this is good at
 
