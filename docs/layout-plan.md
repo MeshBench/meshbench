@@ -5,13 +5,13 @@ what they are called, not about what they do.
 
 Measured against `31d1330`.
 
-> **Status.** Steps 0–3 have landed, plus `internal/geo`. The filename renames,
-> the duplicated assets, the tracked binaries, one great-circle implementation,
-> and both package splits.
+> **Status.** Steps 0–5 have landed. `internal/` is seven layers, and
+> `internal/layers_test.go` fails the build if anything imports upward or if a
+> package appears outside the seven.
 >
-> **The seven-layer order now verifies against the real import graph with zero
-> upward imports** — not modelled, measured. The packages have not moved into
-> the layer directories yet; that is step 4, and it is now a pure rename.
+> What remains is §5b's open question — `replay`, `validate` and `mqtt`, still
+> imported by nothing — and the two large packages, `app/session` and
+> `ui/workbench`.
 >
 > **Earlier drafts.** The first version proposed renames and a few extractions
 > and nothing else, which left `internal/` a flat listing of 38 sibling packages
@@ -505,8 +505,8 @@ moves happen before the refactors that need thought.
 | 2a | ✅ **Done.** `internal/geo` — one great-circle implementation, not thirteen (PR #102) | half a day | none — prerequisite found while cutting the seam |
 | 2 | ✅ **Done.** Split `coverage` → `propagation` + `coverage`; `Terrain` moved down | half a day | low — file-aligned |
 | 3 | ✅ **Done.** Split `capture` → `packet` + `capture` | half a day | low — zero shared symbols |
-| 4 | Move all packages into the seven layers; update ldflags and CI shards | 1 day | low, very wide diff |
-| 5 | Add the layer-enforcement test (§4) | hours | none — locks in 0–4 |
+| 4 | ✅ **Done.** All packages into the seven layers; ldflags, CI shards and tool scripts with them | 1 day | low, very wide diff |
+| 5 | ✅ **Done.** The layer-enforcement test (§4) | hours | none — locks in 0–4 |
 | 6 | Decide `replay` / `validate` / `mqttclient`: wire or delete (§5b) | half a day | **needs a decision, not a refactor** |
 | 7 | `gui/comp` → `ui/comp` + `ui/mapview` | half a day | low |
 | 8 | `ui/workbench/panel`, then `packetview` as pilot | 2–3 days | medium |
