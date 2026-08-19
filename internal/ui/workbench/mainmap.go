@@ -8,10 +8,12 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/ui/comp"
+	"github.com/MeshBench/meshbench/internal/ui/shell"
 )
 
 // wireMapTools connects the map's gestures to verbs.
-func wireMapTools(mv *comp.MapView, mapTop *mapTools, st *state.Store, ctx context.Context) {
+func wireMapTools(mv *comp.MapView, mapTop *mapTools, sh *shell.Shell,
+	st *state.Store, ctx context.Context) {
 	// Rastering the viewport is the map asking about its own borders, at a
 	// resolution matched to the screen showing it.
 	mv.OnRasterView = func(south, west, north, east float64, cells int) {
@@ -59,6 +61,12 @@ func wireMapTools(mv *comp.MapView, mapTop *mapTools, st *state.Store, ctx conte
 	// consulted, and a far-apart pair produced an empty panel.
 	mv.OnLinkPair = func(a, b comp.LinkEnd) {
 		mv.PinnedLink = true
+		// The answer appears where the operator is looking: completing a
+		// pair opens the Link panel in its own window, unless it is already
+		// on screen - in this view's layout or in a window of its own.
+		if sh != nil && !linkPanelVisible(sh) && sh.OnPopOut != nil {
+			sh.OnPopOut("Link")
+		}
 		params := map[string]any{"a": linkEndParam(a), "b": linkEndParam(b)}
 		var sel []string
 		for _, e := range []comp.LinkEnd{a, b} {
@@ -88,6 +96,20 @@ func wireMapTools(mv *comp.MapView, mapTop *mapTools, st *state.Store, ctx conte
 	mv.OnLinkCancel = func() {
 		go func() { _, _ = st.Do(ctx, "ui.said", "link released") }()
 	}
+}
+
+// linkPanelVisible reports whether the Link panel is already on screen:
+// docked in the current view's arrangement, or popped into its own window.
+func linkPanelVisible(sh *shell.Shell) bool {
+	if sh.PoppedOut != nil && sh.PoppedOut("Link") {
+		return true
+	}
+	for _, n := range shell.PanelsIn(sh.View) {
+		if n == "Link" {
+			return true
+		}
+	}
+	return false
 }
 
 // linkEndParam is what link.pair is told about one end.
