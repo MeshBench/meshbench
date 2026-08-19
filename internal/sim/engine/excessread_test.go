@@ -46,3 +46,22 @@ func TestExcessLossIsReadNotStored(t *testing.T) {
 		t.Fatalf("the term moved the loss by %.3f dB, want exactly 23.5", d)
 	}
 }
+
+// A pair beyond the horizon is culled without a single elevation lookup.
+//
+// An import that carries one stray node on another continent used to have a
+// hundred thousand kilometres of profile walked against it - and, once the
+// warm learned to prefetch, the Sahara downloaded under it. The Earth's own
+// bulge is a floor under any terrain, so the refusal needs no terrain at all.
+func TestAContinentalPairIsCulledWithoutWalking(t *testing.T) {
+	e := engine.New(flat{100}, engine.Config{StepMs: 10, Seed: 4417})
+	e.Add(node("fife", 56.20, -3.16, 22), nil)
+	e.Add(node("equator", 0.5, 6.0, 22), nil)
+	before := e.LiveProfiles()
+	if _, ok := e.PathLossForTest(0, 1); !ok {
+		t.Fatal("a culled pair still answers, with its free-space underestimate")
+	}
+	if e.LiveProfiles() != before {
+		t.Fatal("a pair the planet refuses was still walked")
+	}
+}

@@ -67,8 +67,15 @@ func (e *Engine) pathLoss(a, b int) (float64, bool) {
 	// 300-node scenario into a frozen minute: the lazy cache fill walked
 	// forty-five thousand pairs of DEM samples on the frame thread.
 	fspl := terrain.FSPLdB(distKm, e.phyOf(from).freqMHz)
+	// The planet is the first obstacle: the spherical-Earth bulge at midpoint
+	// is a floor under any terrain the profile could find, so a pair the
+	// bulge alone refuses is refused without walking. This is what keeps a
+	// continental stray in an import - one node on the equator - from having
+	// a hundred thousand kilometres of profile walked against it.
+	bulge := terrain.EarthBulgeLossDB(distKm*1000, from.HeightAGLm, to.HeightAGLm,
+		e.phyOf(from).freqMHz)
 	bestTx := math.Max(from.TxPowerDBm, to.TxPowerDBm)
-	bestRx := bestTx + gain(from) + gain(to) - fspl
+	bestRx := bestTx + gain(from) + gain(to) - fspl - bulge
 	// The quieter of the two receivers. This is a cull, so the question is
 	// whether *either* end could hear the other: taking the worse figure would
 	// discard a pair the better receiver can close.
@@ -77,10 +84,15 @@ func (e *Engine) pathLoss(a, b int) (float64, bool) {
 	if bestRx < noise-30 {
 		e.mu.Lock()
 		excess := e.Config.ExcessPathLossDB
-		e.linkCache[k] = fspl // an underestimate, and irrelevant below the floor
+		// Still an underestimate - terrain can only add to it - but the
+		// planet stays in the figure. Caching bare free space here turned
+		// every bulge-culled pair into a viable-looking link: a 200 km hop
+		// prices at 137 dB of free space, which is a -19 dB margin and a line
+		// on the map, when the bulge that refused it was another 40 dB.
+		e.linkCache[k] = fspl + bulge
 		e.culled[k] = true
 		e.mu.Unlock()
-		return fspl + excess, true
+		return fspl + bulge + excess, true
 	}
 
 	// The expensive branch, counted so a caller mid-run can say why it just

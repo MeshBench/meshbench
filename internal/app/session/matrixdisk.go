@@ -33,6 +33,25 @@ func (s *Sim) matrixDir() string {
 // that has seen many networks does not need all of them forever.
 const keepMatrices = 24
 
+// matrixVersion is the meaning of the numbers, not their layout.
+//
+// The fingerprint says which geometry a matrix is about; it cannot say what
+// the code that measured it believed. When the semantics of a cached entry
+// change - culled pairs learning to keep the Earth-bulge term, the excess
+// loss moving from stored to read-side - an old file is wrong in a way no
+// hash of the nodes can detect: one such file kept resurrecting fourteen
+// thousand free-space "links" across the North Sea after the cull that
+// refused them had shipped. Bump this when a cached number's meaning moves,
+// and every stale file quietly fails to load and is remeasured once.
+const matrixVersion = 2
+
+// versionedMatrix is the file's whole content. Decoding an unversioned or
+// older file fails or mismatches, which is exactly the point.
+type versionedMatrix struct {
+	Version int
+	M       map[[2]int]float64
+}
+
 // saveMatrix writes one matrix under its fingerprint, then prunes.
 func saveMatrix(dir string, fp uint64, m map[[2]int]float64) {
 	if dir == "" || len(m) == 0 {
@@ -46,7 +65,7 @@ func saveMatrix(dir string, fp uint64, m map[[2]int]float64) {
 	if err != nil {
 		return
 	}
-	if err := gob.NewEncoder(f).Encode(m); err != nil {
+	if err := gob.NewEncoder(f).Encode(versionedMatrix{Version: matrixVersion, M: m}); err != nil {
 		_ = f.Close()
 		_ = os.Remove(f.Name())
 		return
@@ -68,11 +87,11 @@ func loadMatrix(dir string, fp uint64) map[[2]int]float64 {
 		return nil
 	}
 	defer func() { _ = f.Close() }()
-	var m map[[2]int]float64
-	if err := gob.NewDecoder(f).Decode(&m); err != nil {
+	var v versionedMatrix
+	if err := gob.NewDecoder(f).Decode(&v); err != nil || v.Version != matrixVersion {
 		return nil
 	}
-	return m
+	return v.M
 }
 
 // pruneMatrices drops the oldest beyond the bound.

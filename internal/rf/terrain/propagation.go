@@ -267,3 +267,32 @@ func Edges(profile []Point, txH, rxH, freqMHz float64) []Edge {
 	}
 	return out
 }
+
+// EarthBulgeLossDB is the least diffraction loss the planet itself imposes on
+// a path, before any terrain is consulted: the spherical Earth rises
+// d²/8R at the midpoint of a path of length d, and whatever does not clear
+// that bulge is diffracting over it.
+//
+// It exists as a cull. At 300 km the bulge is 1,800 m; at 800 km it is
+// 12,500 m - no antenna clears that, no budget survives the knife edge over
+// it, and a network import that carries a node on another continent was
+// having profiles walked, tiles downloaded and GPU jobs priced for pairs
+// physics had already refused. The 4/3-Earth radius is used, as the
+// diffraction chain's K-factor convention already does, so refraction is
+// credited before a pair is refused.
+func EarthBulgeLossDB(distM, aglA, aglB, freqMHz float64) float64 {
+	if distM <= 0 {
+		return 0
+	}
+	const effectiveEarthM = 6371000.0 * 4 / 3
+	bulgeM := distM * distM / (8 * effectiveEarthM)
+	// The ray at midpoint runs between the two antennas; against a mean
+	// height it is what a flat-earth model would call clearance.
+	rayM := (aglA + aglB) / 2
+	h := bulgeM - rayM
+	if h <= 0 {
+		return 0
+	}
+	v := FresnelParameter(h, distM/2, distM/2, freqMHz)
+	return KnifeEdgeDB(v)
+}

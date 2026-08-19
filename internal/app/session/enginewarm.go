@@ -75,6 +75,12 @@ func (s *Sim) warm(st *state.Store, nodes int) {
 		// re-measured the whole country to move a constant the cache does not
 		// even store.
 		primed := eng.LinkCachePairs() >= total
+		if !primed {
+			// The ground first, announced: a walk over a region whose tiles
+			// are not down yet otherwise fetches them one by one from the
+			// middle of the measurement, which reads as a hang.
+			s.prefetchWarmTerrain(ctx, st, warmNodes)
+		}
 		// The GPU first, if it is switched on and can answer honestly. What
 		// it fills, the cores below no longer have to: WarmLinks asks the
 		// cache before it measures anything.

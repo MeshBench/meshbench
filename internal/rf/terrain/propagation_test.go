@@ -189,3 +189,20 @@ func TestDiffractionRisesWithDistance(t *testing.T) {
 		t.Errorf("100 km cost %.1f dB against %.1f dB at 30 km", far, near)
 	}
 }
+
+// The planet refuses long ground paths before any terrain is asked: the
+// spherical-Earth bulge at 300 km is already 1,700 m of obstruction, and by
+// 800 km it is beyond twelve kilometres. Short paths owe it nothing.
+func TestEarthBulgeRefusesTheHorizon(t *testing.T) {
+	if got := EarthBulgeLossDB(10_000, 8, 8, 869.525); got != 0 {
+		t.Fatalf("a 10 km path paid %.1f dB of planet", got)
+	}
+	mid := EarthBulgeLossDB(300_000, 8, 8, 869.525)
+	if mid < 30 {
+		t.Fatalf("300 km over the bulge priced %.1f dB; the horizon is cheaper than it should be", mid)
+	}
+	far := EarthBulgeLossDB(6_000_000, 8, 8, 869.525)
+	if far <= mid {
+		t.Fatalf("6,000 km (%.1f dB) priced no worse than 300 km (%.1f dB)", far, mid)
+	}
+}

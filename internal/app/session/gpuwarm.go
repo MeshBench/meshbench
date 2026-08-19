@@ -94,11 +94,19 @@ func (s *Sim) warmOnGPU(eng *engine.Engine, nodes []scenario.Node, freqMHz float
 				continue
 			}
 			fspl := terrain.FSPLdB(distKm, freqMHz)
+			// The Earth's own bulge, exactly as the engine's cull charges it:
+			// a pair the planet refuses is not walked, not shipped to the
+			// device, and not worth a tile.
+			bulge := terrain.EarthBulgeLossDB(distKm*1000,
+				na.HeightAGLm, nb.HeightAGLm, freqMHz)
 			bestTx := math.Max(na.TxPowerDBm, nb.TxPowerDBm)
 			// A generous allowance for antenna gain on both ends, so this
 			// cull is never tighter than the engine's own.
-			if bestTx+24-fspl < noise-30 {
-				loss[a*n+b] = float32(fspl)
+			if bestTx+24-fspl-bulge < noise-30 {
+				// The planet stays in the cached figure, or a bulge-culled
+				// pair prices as viable free space - the engine's cull keeps
+				// it for the same reason.
+				loss[a*n+b] = float32(fspl + bulge)
 				culled++
 				continue
 			}
