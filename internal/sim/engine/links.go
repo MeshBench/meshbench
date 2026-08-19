@@ -48,6 +48,14 @@ func (e *Engine) pathLoss(a, b int) (float64, bool) {
 
 	distKm := geo.DistanceKm(from.Position.Lat, from.Position.Lon, to.Position.Lat, to.Position.Lon)
 	if distKm <= 0 {
+		// Cached like any other no-data answer. Two nodes at one position is
+		// a fact about the scenario, not a transient - and an uncached early
+		// return here left the cache permanently short of complete, so the
+		// "matrix already covers everything" check could never say yes and a
+		// calibration re-measured the country to move a constant.
+		e.mu.Lock()
+		e.linkCache[k] = math.Inf(1)
+		e.mu.Unlock()
 		return 0, false
 	}
 
@@ -323,4 +331,16 @@ func (e *Engine) DropLinkCache() {
 	defer e.mu.Unlock()
 	e.linkCache = map[[2]int]float64{}
 	e.culled = map[[2]int]bool{}
+}
+
+// LinkCachePairs is how many pairs the cache already holds an answer for -
+// including no-data answers, which are answers. A warm that is about to
+// re-measure a hundred thousand pairs asks this first: a cache restored from
+// disk that covers everything leaves the expensive half of a warm with
+// nothing to do, and re-measuring it anyway was the difference between a
+// calibration costing seconds and costing another walk of the country.
+func (e *Engine) LinkCachePairs() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return len(e.linkCache)
 }

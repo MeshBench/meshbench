@@ -68,10 +68,17 @@ func (s *Sim) warm(st *state.Store, nodes int) {
 
 		// On by default where there is hardware for it, decided once.
 		s.gpuDefault()
+		// A matrix restored from disk that already answers every pair leaves
+		// the device nothing to measure: the sweep below is map hits, and the
+		// warm is over in the time it takes to read them. Without this check a
+		// calibration - which rebuilds the engine but changes no geometry -
+		// re-measured the whole country to move a constant the cache does not
+		// even store.
+		primed := eng.LinkCachePairs() >= total
 		// The GPU first, if it is switched on and can answer honestly. What
 		// it fills, the cores below no longer have to: WarmLinks asks the
 		// cache before it measures anything.
-		if s.gpuWarm {
+		if s.gpuWarm && !primed {
 			res := s.warmOnGPU(eng, warmNodes, freqMHz, func(what string, done, total int) {
 				_, _ = st.Do(ctx, "job.progress", state.Job{
 					ID: "links", What: what, Done: done, Total: total})
