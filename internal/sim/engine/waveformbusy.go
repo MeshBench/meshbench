@@ -126,8 +126,15 @@ func (e *Engine) judgeHybrid(t transmission, rxIdx int, concurrent []transmissio
 	e.mu.Lock()
 	seed := e.Config.Seed
 	e.mu.Unlock()
+	c := wfCandidate{i: rxIdx, rxDBm: rxDBm, noiseDBm: noiseDBm,
+		heldBy: e.demodulatorHeldBy(rxIdx, t, concurrent, nodes, txPHY)}
+	if c.heldBy != "" {
+		// One demodulator here too: a True RF receiver does not get a second
+		// one just because the rest of the run is calculated.
+		e.settleWaveform(t, src, nodes[rxIdx], c, wfResult{}, txPHY)
+		return true
+	}
 	txSamples := e.modulated(cache, t, txPHY)
-	c := wfCandidate{i: rxIdx, rxDBm: rxDBm, noiseDBm: noiseDBm}
 	r := e.judgeWaveform(t, c, concurrent, nodes, txPHY, txSamples, cache, seed)
 	e.settleWaveform(t, src, nodes[rxIdx], c, r, txPHY)
 	return true

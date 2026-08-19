@@ -58,6 +58,30 @@ func ReportSNRdB(snrDB float64) float64 {
 	return snrDB
 }
 
+// ReportableRSSIFloorDBm and ReportableRSSICeilingDBm bound what an SX126x
+// can say about received power: the RssiPkt register is an unsigned byte read
+// out as -RssiPkt/2, so the strongest reportable signal is 0 dBm and the
+// weakest is -127.5. The 2,000 ScotMesh packets agree exactly - RSSI spans
+// -127 to 0 and nothing outside it - which is the same shape of evidence as
+// the SNR wall: the register's span is the instrument's vocabulary.
+const (
+	ReportableRSSIFloorDBm   = -127.5
+	ReportableRSSICeilingDBm = 0.0
+)
+
+// ReportRSSIdBm is what the modem would have said about a computed receive
+// power. Same contract as ReportSNRdB: for readings that leave the simulator,
+// never for decisions, which keep the unclamped figure.
+func ReportRSSIdBm(rssiDBm float64) float64 {
+	if rssiDBm > ReportableRSSICeilingDBm {
+		return ReportableRSSICeilingDBm
+	}
+	if rssiDBm < ReportableRSSIFloorDBm {
+		return ReportableRSSIFloorDBm
+	}
+	return rssiDBm
+}
+
 // SymbolErrorRate runs a Monte Carlo trial: modulate random symbols at the given
 // SNR, demodulate, and return the fraction wrong.
 //

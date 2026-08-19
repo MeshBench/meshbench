@@ -220,7 +220,7 @@ func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCac
 
 		rec := capture.Reception{
 			PacketID: t.packetID, FromNode: src.Spec.Name, ToNode: dst.Spec.Name,
-			RSSIdBm: rxDBm, SNRdB: reported,
+			RSSIdBm: dsp.ReportRSSIdBm(rxDBm), SNRdB: reported,
 			Offered: rxDBm > noiseDBm-10,
 		}
 		// Recorded before the verdict is turned into words: the capture wants
@@ -276,7 +276,8 @@ func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCac
 				SNRdB: reported, Frame: t.frame,
 				Detail: fmt.Sprintf(
 					"decoded its header, then %.0f symbol(s) were destroyed by a collision "+
-						"it could not capture over; FEC repairs one", damaged)})
+						"it could not capture over; beyond what CR 4/%d can repair",
+					damaged, txPHY.codingRate+4)})
 		case effective < required:
 			rec.Outcome = capture.NotDemodulated
 			// How near it came. Interference is included deliberately: a packet

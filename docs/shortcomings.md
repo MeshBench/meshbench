@@ -243,13 +243,21 @@ widely cited, but it is not measured from ScotMesh or from a bench here. It is
 the least-grounded constant in the collision model, and the one to attack first
 with real captures.
 
-By contrast, the two rules either side of it *are* grounded. The reported-SNR
-ceiling of +15 dB is measured from 1,992 real ScotMesh receptions, which have a
-median of +5.0 dB, a 90th percentile of +13.0 dB and nothing above the wall. The
-repair rule — one destroyed symbol is recoverable at CR 4/7 and 4/8 and fatal
-below them, two are fatal everywhere — falls straight out of the diagonal
-interleaver and the Hamming layer in `internal/rf/lora`, whose parity equations
-were solved from a real captured frame rather than taken from a paper.
+By contrast, the rules around it *are* grounded. The reported-SNR ceiling of
++15 dB is measured from 1,992 real ScotMesh receptions, which have a median of
++5.0 dB, a 90th percentile of +13.0 dB and nothing above the wall; reported
+RSSI is bounded to the register that reports it (0 to −127.5 dBm), which the
+same 2,000 packets span exactly. The repair rule — one destroyed symbol is
+recoverable at CR 4/7 and 4/8 and fatal below them, two are fatal everywhere —
+falls straight out of the diagonal interleaver and the Hamming layer in
+`internal/rf/lora`, whose parity equations were solved from a real captured
+frame rather than taken from a paper. And the demodulator lock's contest
+window is paced by our own detector's commitment — `dsp.PreambleDetectSymbols`,
+five stable dechirped windows — with measurement literature on real chips
+putting the same commit at about four symbols; inside that window the dominant
+signal takes the lock, which is capture effect at the moment it happens, and a
+holder that falls silent early in a long MeshCore preamble frees the receiver
+to acquire what is left.
 
 ---
 

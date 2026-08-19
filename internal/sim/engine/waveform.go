@@ -244,7 +244,7 @@ func (e *Engine) waveformCandidates(t transmission, concurrent []transmission,
 		if isDeaf {
 			deaf[i] = capture.Reception{
 				PacketID: t.packetID, FromNode: nodes[t.from].Spec.Name,
-				ToNode: dst.Spec.Name, RSSIdBm: rxDBm,
+				ToNode: dst.Spec.Name, RSSIdBm: dsp.ReportRSSIdBm(rxDBm),
 				SNRdB:   dsp.ReportSNRdB(rxDBm - noiseDBm),
 				Offered: true, Outcome: capture.NotDemodulated,
 			}
@@ -334,7 +334,7 @@ func (e *Engine) settleWaveform(t transmission, src, dst *Node, c wfCandidate,
 	r wfResult, txPHY phy) {
 	rec := capture.Reception{
 		PacketID: t.packetID, FromNode: src.Spec.Name, ToNode: dst.Spec.Name,
-		RSSIdBm: c.rxDBm, SNRdB: r.snrdB, Offered: true,
+		RSSIdBm: dsp.ReportRSSIdBm(c.rxDBm), SNRdB: r.snrdB, Offered: true,
 		Demod: r.stats.HeaderOK, CRCOK: r.decoded && r.stats.CRCOK,
 	}
 	if c.heldBy != "" {
