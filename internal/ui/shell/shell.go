@@ -8,6 +8,8 @@
 package shell
 
 import (
+	"image"
+
 	"gioui.org/layout"
 	"gioui.org/widget"
 
@@ -71,8 +73,21 @@ type Shell struct {
 	// focus is the region a panel opened from a menu lands in: the last one
 	// pressed, so opening a panel puts it where the work is.
 	focus regionRef
-	// tabClicks are the tab strip's widgets, pooled by region and name.
+	// tabClicks are the tab strip's buttons and tabTags its tabs, both pooled
+	// by region and name.
 	tabClicks map[string]*widget.Clickable
+	tabTags   map[string]*tabHandle
+	// drag is the tab being carried, if any, and regionSize/regionRect are
+	// what the drop test needs: Gio tells a widget its size and never its
+	// position, so the positions are accumulated from the sizes.
+	drag       *tabDrag
+	regionSize map[regionRef]image.Point
+	regionRect map[regionRef]image.Rectangle
+	// bodyTop is how far down the window the panels begin - the menu bar,
+	// the view bar and the rule between them. Recorded as they draw so the
+	// region rectangles can be in the window's own coordinates, which is
+	// what a pointer event speaks.
+	bodyTop int
 
 	// sizes is what the operator has dragged a panel to, in dp, keyed by what
 	// the splitter sizes. Absent means the arrangement's own figure, so a view
@@ -137,10 +152,24 @@ func (sh *Shell) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) l
 		sh.menuDrop(t, gtx)
 		sh.Ask.Layout(t, gtx)
 	}()
+	top := 0
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return sh.menuBar(t, gtx) }),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return sh.viewBar(t, gtx, s) }),
-		layout.Rigid(comp.HRule(t)),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			d := sh.menuBar(t, gtx)
+			top += d.Size.Y
+			return d
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			d := sh.viewBar(t, gtx, s)
+			top += d.Size.Y
+			return d
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			d := comp.HRule(t)(gtx)
+			top += d.Size.Y
+			sh.bodyTop = top
+			return d
+		}),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return sh.body(t, gtx, s) }),
 		layout.Rigid(comp.HRule(t)),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return sh.statusBar(t, gtx, s) }),

@@ -17,6 +17,10 @@ import (
 
 func (sh *Shell) body(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
 	a := sh.arrangement()
+	// Where every region ended up, from the sizes they reported last frame.
+	// Done before drawing so a strip can turn a pointer position inside a tab
+	// into one in the body's own coordinates while the frame is being built.
+	sh.placeRegions(gtx.Constraints.Max, gtx.Dp(unit.Dp(sh.sizeOf("rail:"+sh.View.String(), a.RailDp))))
 	if len(a.Rail) == 0 {
 		return sh.rows(t, gtx, s, a.Rows)
 	}
@@ -192,7 +196,7 @@ func (sh *Shell) region(t *theme.Theme, gtx layout.Context, s *state.Snapshot,
 		return layout.Dimensions{Size: gtx.Constraints.Max}
 	}
 	name := c.shown()
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+	dims := layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return sh.tabStrip(t, gtx, ref)
 		}),
@@ -204,6 +208,16 @@ func (sh *Shell) region(t *theme.Theme, gtx layout.Context, s *state.Snapshot,
 			})
 		}),
 	)
+	// What it measured, for next frame's drop test.
+	sh.noteRegionSize(ref, dims.Size)
+	// The region a carried tab would land in, outlined while it is being
+	// carried: a drag with no target drawn is a drag somebody has to let go
+	// of to find out what it does.
+	if sh.dragging() && sh.drag.Over == ref && sh.drag.From != ref {
+		comp.FillRect(gtx, dims.Size, theme.Alpha(t.P.Accent, 0.10))
+		comp.Border(gtx, dims.Size, 2, 2, t.P.Accent)
+	}
+	return dims
 }
 
 // panelBody draws one panel's contents, or says why it is not drawing them.
