@@ -10,14 +10,14 @@ import (
 	"math"
 	"os"
 
-	"github.com/MeshBench/meshbench/internal/coverage"
-	"github.com/MeshBench/meshbench/internal/dsp"
-	"github.com/MeshBench/meshbench/internal/geo"
-	"github.com/MeshBench/meshbench/internal/planning"
-	"github.com/MeshBench/meshbench/internal/rf"
-	"github.com/MeshBench/meshbench/internal/scenario"
-	"github.com/MeshBench/meshbench/internal/sdr"
-	"github.com/MeshBench/meshbench/internal/terrain"
+	"github.com/MeshBench/meshbench/internal/rf/channel"
+	"github.com/MeshBench/meshbench/internal/rf/dsp"
+	"github.com/MeshBench/meshbench/internal/rf/geo"
+	"github.com/MeshBench/meshbench/internal/rf/terrain"
+	"github.com/MeshBench/meshbench/internal/study/coverage"
+	"github.com/MeshBench/meshbench/internal/study/planning"
+	"github.com/MeshBench/meshbench/internal/world/scenario"
+	"github.com/MeshBench/meshbench/internal/world/sdr"
 )
 
 func runLink(ctx context.Context, args []string) error {
@@ -303,7 +303,7 @@ func runSpectrum(ctx context.Context, args []string) error {
 	}
 	mod := dsp.Modulator{SF: *sf}
 	n := dsp.SamplesPerSymbol(*sf)
-	cap := obs.Capture([]rf.Transmission{{
+	cap := obs.Capture([]channel.Transmission{{
 		Node: "tx", Samples: mod.Modulate(make([]int, *symbols)), GainDB: *rxDBm,
 	}}, 4417, 0, n*(*symbols+1))
 

@@ -13,7 +13,7 @@ set -euo pipefail
 
 MC=${MESHCORE:-$HOME/msim/MeshCore}
 CRY=${CRYPTO:-$HOME/msim/arduinolibs/libraries/Crypto}
-SHIM=${SHIM:-$(dirname "$0")/../../internal/firmware/shim}
+SHIM=${SHIM:-$(dirname "$0")/../../internal/mesh/shim}
 TC=$(ls -d "$HOME"/.platformio/packages/toolchain-gccarmnoneeabi/bin 2>/dev/null || true)
 [ -n "$TC" ] && export PATH="$TC:$PATH"
 

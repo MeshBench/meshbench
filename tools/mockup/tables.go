@@ -1,6 +1,6 @@
 package main
 
-import m "github.com/MeshBench/meshbench/internal/mockup"
+import m "github.com/MeshBench/meshbench/tools/internal/mockup"
 
 func linkBudget() *m.Canvas {
 	c := m.New(1000, 660)

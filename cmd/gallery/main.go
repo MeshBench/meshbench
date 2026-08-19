@@ -22,9 +22,9 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 
-	"github.com/MeshBench/meshbench/internal/gui/comp"
-	"github.com/MeshBench/meshbench/internal/gui/desktop"
-	"github.com/MeshBench/meshbench/internal/gui/theme"
+	"github.com/MeshBench/meshbench/internal/ui/comp"
+	"github.com/MeshBench/meshbench/internal/ui/desktop"
+	"github.com/MeshBench/meshbench/internal/ui/theme"
 )
 
 type gallery struct {

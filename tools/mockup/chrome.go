@@ -1,6 +1,6 @@
 package main
 
-import m "github.com/MeshBench/meshbench/internal/mockup"
+import m "github.com/MeshBench/meshbench/tools/internal/mockup"
 
 // card draws a titled surface with a subtle raised header, and returns the
 // content origin. Every panel in the app uses this so spacing stays consistent.

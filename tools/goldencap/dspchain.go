@@ -7,8 +7,8 @@ import (
 	"math"
 	"os"
 
-	"github.com/MeshBench/meshbench/internal/dsp"
-	"github.com/MeshBench/meshbench/internal/lora"
+	"github.com/MeshBench/meshbench/internal/rf/dsp"
+	"github.com/MeshBench/meshbench/internal/rf/lora"
 )
 
 // u8ToComplex converts rtl_tcp's unsigned 8-bit interleaved IQ.

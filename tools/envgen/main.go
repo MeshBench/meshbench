@@ -15,7 +15,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/MeshBench/meshbench/internal/environ"
+	"github.com/MeshBench/meshbench/internal/rf/environ"
 )
 
 func main() {

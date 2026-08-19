@@ -5,10 +5,10 @@ import (
 	"math"
 	"os"
 
-	"github.com/MeshBench/meshbench/internal/dsp"
-	m "github.com/MeshBench/meshbench/internal/mockup"
-	"github.com/MeshBench/meshbench/internal/rf"
-	"github.com/MeshBench/meshbench/internal/sdr"
+	"github.com/MeshBench/meshbench/internal/rf/channel"
+	"github.com/MeshBench/meshbench/internal/rf/dsp"
+	"github.com/MeshBench/meshbench/internal/world/sdr"
+	m "github.com/MeshBench/meshbench/tools/internal/mockup"
 )
 
 // sdrCapture is the scene both the waterfall and the audio are made from — the
@@ -26,7 +26,7 @@ func sdrCapture(symbols int) sdr.Capture {
 	// picture that could never occur.
 	obs := sdr.Observer{Name: "obs-1", CentreHz: 869.525e6, SampleRateHz: 125_000, NoiseFigureDB: 6}
 	up := func(k int) []int { return make([]int, k) } // symbol 0 is a plain upchirp
-	return obs.Capture([]rf.Transmission{
+	return obs.Capture([]channel.Transmission{
 		{Node: "GB7XYZ", Samples: mod.Modulate(up(symbols)), GainDB: -100, DelaySamples: 0.4},
 		{Node: "node-04", Samples: mod.Modulate(up(symbols / 2)), GainDB: -112,
 			StartSample: n * 2, DelaySamples: 1.7},

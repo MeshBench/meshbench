@@ -17,7 +17,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/MeshBench/meshbench/internal/lora"
+	"github.com/MeshBench/meshbench/internal/rf/lora"
 )
 
 func main() {

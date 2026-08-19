@@ -14,7 +14,7 @@ set -euo pipefail
 : "${CRYPTO:?set CRYPTO to arduinolibs/libraries/Crypto}"
 
 root=$(cd "$(dirname "$0")/../.." && pwd)
-shim="$root/internal/firmware/shim"
+shim="$root/internal/mesh/shim"
 out=${1:-"$root/build/native"}
 mkdir -p "$out/obj"
 

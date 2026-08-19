@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 
-	"github.com/MeshBench/meshbench/internal/workbench"
+	"github.com/MeshBench/meshbench/internal/ui/workbench"
 )
 
 // runWorkbench opens the desktop application - the Gio workbench, since the

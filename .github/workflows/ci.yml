@@ -125,11 +125,11 @@ jobs:
       matrix:
         include:
           - name: session
-            packages: ./internal/session/...
+            packages: ./internal/app/session/...
           - name: workbench
-            packages: ./internal/workbench/...
+            packages: ./internal/ui/workbench/...
           - name: dsp
-            packages: ./internal/dsp/...
+            packages: ./internal/rf/dsp/...
           - name: rest
             packages: ""
     name: test (${{ matrix.name }})
@@ -166,7 +166,7 @@ jobs:
           if [ -n "${{ matrix.packages }}" ]; then
             pkgs="${{ matrix.packages }}"
           else
-            pkgs=$(go list ./... | grep -vE '/internal/(session|workbench|dsp)(/|$)')
+            pkgs=$(go list ./... | grep -vE '/internal/(app/session|ui/workbench|rf/dsp)(/|$)')
           fi
           echo "$pkgs" | tr ' ' '\n'
           go test -count=1 -timeout 20m $pkgs
