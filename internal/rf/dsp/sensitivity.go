@@ -24,6 +24,40 @@ var RequiredSNRdB = map[int]float64{
 	12: -20.0,
 }
 
+// ReportableSNRCeilingDB is the highest signal-to-noise ratio an SX126x can
+// tell anyone about, and therefore the highest a MeshCore node can ever report.
+//
+// The estimator saturates. A signal 20 dB above the noise floor and one 60 dB
+// above it come back as the same number, because the quantity is read out of a
+// register with a finite span - so this is a property of the receiver, not of
+// the air, and no amount of transmit power moves it.
+//
+// The figure is measured, not assumed: 1,992 receptions carrying SNR from the
+// ScotMesh network have a hard wall here, a median of +5.0 dB, a 90th
+// percentile of +13.0 dB, and not one reception above +15.0 dB.
+//
+// There is deliberately no matching floor. The real distribution stops near
+// -13 dB, but that is the demodulator giving up rather than the estimator
+// saturating - packets below it are not reported because they are not
+// received - and clamping there would put a floor under exactly the failures
+// RequiredSNRdB exists to judge.
+const ReportableSNRCeilingDB = 15.0
+
+// ReportSNRdB is what the modem would have said about a computed ratio.
+//
+// Use it wherever an SNR leaves the simulator - a ledger row, an event, a
+// companion's packet status - and never for a decode decision, which is the
+// unclamped ratio's job. Skipping it emits readings no field instrument can
+// express: +94.1 dB was measured between two hilltop nodes here, against a
+// real-world maximum of +15.0 dB, and every consumer downstream inherited a
+// number that could not be compared with a measurement.
+func ReportSNRdB(snrDB float64) float64 {
+	if snrDB > ReportableSNRCeilingDB {
+		return ReportableSNRCeilingDB
+	}
+	return snrDB
+}
+
 // SymbolErrorRate runs a Monte Carlo trial: modulate random symbols at the given
 // SNR, demodulate, and return the fraction wrong.
 //

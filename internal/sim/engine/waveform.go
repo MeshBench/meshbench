@@ -81,6 +81,12 @@ type wfCandidate struct {
 	i        int
 	rxDBm    float64
 	noiseDBm float64
+	// heldBy names whoever already had this receiver's one demodulator. Set
+	// here rather than discovered by the judge because a receiver that is not
+	// listening is not worth synthesising a window for - and because the judge
+	// runs one goroutine per pair, which is precisely the shape that cannot
+	// see another pair's outcome.
+	heldBy string
 }
 
 // wfResult is what the receive chain said for one candidate.
@@ -152,6 +158,12 @@ func (e *Engine) deliverWaveformBatch(done []transmission,
 	for _, d := range deliveries {
 		for _, c := range d.cands {
 			d, c := d, c
+			if c.heldBy != "" {
+				// No window is built for a receiver that was never listening.
+				// Settlement still reports it: a packet lost to a busy
+				// demodulator is a cause, not an absence.
+				continue
+			}
 			wg.Add(1)
 			sem <- struct{}{}
 			go func() {
@@ -232,12 +244,14 @@ func (e *Engine) waveformCandidates(t transmission, concurrent []transmission,
 		if isDeaf {
 			deaf[i] = capture.Reception{
 				PacketID: t.packetID, FromNode: nodes[t.from].Spec.Name,
-				ToNode: dst.Spec.Name, RSSIdBm: rxDBm, SNRdB: rxDBm - noiseDBm,
+				ToNode: dst.Spec.Name, RSSIdBm: rxDBm,
+				SNRdB:   dsp.ReportSNRdB(rxDBm - noiseDBm),
 				Offered: true, Outcome: capture.NotDemodulated,
 			}
 			continue
 		}
-		cands = append(cands, wfCandidate{i: i, rxDBm: rxDBm, noiseDBm: noiseDBm})
+		cands = append(cands, wfCandidate{i: i, rxDBm: rxDBm, noiseDBm: noiseDBm,
+			heldBy: e.demodulatorHeldBy(i, t, concurrent, nodes, txPHY)})
 	}
 	return cands, deaf
 }
@@ -285,7 +299,10 @@ func (e *Engine) judgeWaveform(t transmission, c wfCandidate, concurrent []trans
 	}, window)
 
 	e.saturate(observed)
-	res := wfResult{snrdB: channel.SNRdB(observed, noiseLinear)}
+	// Measured from the IQ, then clamped to what the modem could report. The
+	// front end saturates before the estimator does, so a window this strong
+	// reads as the ceiling on the chip too.
+	res := wfResult{snrdB: dsp.ReportSNRdB(channel.SNRdB(observed, noiseLinear))}
 	// The receiver front end is real: no lock, no packet. Detection, sync
 	// word timing and the SFD's STO/CFO split all run against the observed
 	// IQ - a preamble buried in interference fails here exactly as it does
@@ -319,6 +336,19 @@ func (e *Engine) settleWaveform(t transmission, src, dst *Node, c wfCandidate,
 		PacketID: t.packetID, FromNode: src.Spec.Name, ToNode: dst.Spec.Name,
 		RSSIdBm: c.rxDBm, SNRdB: r.snrdB, Offered: true,
 		Demod: r.stats.HeaderOK, CRCOK: r.decoded && r.stats.CRCOK,
+	}
+	if c.heldBy != "" {
+		// Never demodulated, so there is no measured SNR to report: the
+		// estimate the gates produced is the honest figure, and it is what
+		// the receiver would have seen had it been free to look.
+		rec.SNRdB = dsp.ReportSNRdB(c.rxDBm - c.noiseDBm)
+		rec.Outcome = capture.NotDemodulated
+		e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.Spec.Name, To: dst.Spec.Name,
+			PacketID: t.packetID, MessageID: t.payload, Outcome: rec.Outcome,
+			SNRdB: rec.SNRdB, Frame: t.frame, Detail: busyDemodulatorDetail(c.heldBy)})
+		e.Ledger.Record(rec)
+		e.captureWrite(t, src, dst, txPHY, rec)
+		return
 	}
 	if !r.decoded {
 		rec.Outcome = capture.NotDemodulated

@@ -117,3 +117,33 @@ func TestSeedsGiveIndependentNoise(t *testing.T) {
 			"not a mix, so two seeds are not independent", same, n)
 	}
 }
+
+// The estimator saturates, so the simulator must too.
+//
+// Measured rather than assumed: 1,992 receptions carrying SNR from the real
+// ScotMesh network have a median of +5.0 dB, a 90th percentile of +13.0 dB and
+// a hard wall at +15.0 dB with nothing above it. A model that reports +94 dB
+// is not merely optimistic - it is saying something no field instrument can
+// contradict, because none can express it.
+func TestReportSNRSaysWhatAModemCouldSay(t *testing.T) {
+	if got := ReportSNRdB(94.1); got != ReportableSNRCeilingDB {
+		t.Fatalf("an impossible reading survived: %.1f dB", got)
+	}
+	if got := ReportSNRdB(ReportableSNRCeilingDB); got != ReportableSNRCeilingDB {
+		t.Fatalf("the ceiling itself is reportable, got %.1f dB", got)
+	}
+	// Everything a real radio actually reports passes through untouched: the
+	// whole measured distribution, floor included.
+	for _, v := range []float64{-13.5, -5.5, 0, 5.0, 13.0, 14.9} {
+		if got := ReportSNRdB(v); got != v {
+			t.Fatalf("ReportSNRdB(%.1f) = %.1f; readings a real radio makes "+
+				"must not be altered", v, got)
+		}
+	}
+	// Deliberately no floor: below the demodulator's limit a packet is not
+	// reported because it is not received, and clamping there would put a
+	// floor under the failures RequiredSNRdB exists to judge.
+	if got := ReportSNRdB(-34.2); got != -34.2 {
+		t.Fatalf("a floor appeared: ReportSNRdB(-34.2) = %.1f", got)
+	}
+}

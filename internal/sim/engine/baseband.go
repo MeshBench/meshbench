@@ -14,6 +14,13 @@ import (
 // Six dB is the figure LoRa capture is usually quoted at, and it is the reason
 // a flood works at all: without capture, every simultaneous relay would destroy
 // every other one.
+//
+// Quoted is not measured, and this constant decides which packets survive a
+// collision, so TestCaptureThresholdMatchesTheDemodulator puts two real chirps
+// into one window at a sweep of power ratios and asks our own receive chain
+// where it actually starts recovering the stronger one. The calculated path is
+// supposed to be a fast twin of that chain; if the two disagree, the constant
+// is wrong rather than the demodulator, and the test says so.
 const captureThresholdDB = 6
 
 // CaptureThresholdDB is that figure, for a UI that has to explain a verdict.

@@ -218,7 +218,16 @@ func residual(src, dst Station, r provider.Reception, t propagation.Terrain, p P
 
 	rxDBm := src.TxPowerDBm + src.GainDBi - loss + dst.GainDBi
 	noiseDBm := dsp.NoiseFloorDBm(p.BandwidthHz, dst.NoiseFigureDB)
-	predictedSNR := rxDBm - noiseDBm
+	// Clamped, because the thing it is subtracted from is.
+	//
+	// An observed SNR comes off a real modem whose estimator saturates, so a
+	// strong link is reported at the ceiling however strong it truly was.
+	// Comparing that against an unclamped prediction subtracts two different
+	// quantities: on the best links - the ones most likely to be observed
+	// often - it manufactures tens of decibels of residual out of nothing but
+	// the receiver's register width, and the excess path loss fitted to it
+	// comes out wrong in a direction nobody could explain.
+	predictedSNR := dsp.ReportSNRdB(rxDBm - noiseDBm)
 
 	return Residual{
 		From: src.Name, To: dst.Name, PacketID: r.PacketID,
