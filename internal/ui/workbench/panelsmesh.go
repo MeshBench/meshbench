@@ -26,10 +26,7 @@ func addMeshPanels(d panelDeps) {
 		}()
 	}
 	nv.OnFirmware = func(node, version string) {
-		go func() {
-			_, _ = d.st.Do(d.ctx, "node.set_firmware",
-				map[string]any{"node": node, "version": version})
-		}()
+		d.do("node.set_firmware", map[string]any{"node": node, "version": version})
 	}
 	if *d.filterFlag != "" {
 		nv.SetFilter(*d.filterFlag)
@@ -87,18 +84,14 @@ func addMeshPanels(d panelDeps) {
 		Draw: d.withControls(d.fleetCtl.Draw, fleet.Draw)})
 	bench := &benchPanel{}
 	bench.OnAction = func(action, node string) {
-		go func() {
-			switch action {
-			case "serve.tcp":
-				_, _ = d.st.Do(d.ctx, "bench.serve",
-					map[string]any{"node": node, "kind": "tcp"})
-			case "serve.serial":
-				_, _ = d.st.Do(d.ctx, "bench.serve",
-					map[string]any{"node": node, "kind": "serial"})
-			default:
-				_, _ = d.st.Do(d.ctx, action, nil)
-			}
-		}()
+		switch action {
+		case "serve.tcp":
+			d.do("bench.serve", map[string]any{"node": node, "kind": "tcp"})
+		case "serve.serial":
+			d.do("bench.serve", map[string]any{"node": node, "kind": "serial"})
+		default:
+			d.do(action, nil)
+		}
 	}
 	d.sh.Add(&shell.Panel{Name: "Companion bench", Windowable: true,
 		Draw: d.withControls(d.benchCtl.Draw, bench.Draw)})

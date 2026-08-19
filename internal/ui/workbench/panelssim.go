@@ -40,9 +40,7 @@ func addSimPanels(d panelDeps) {
 			return wf.Layout(t, gtx, s)
 		}})
 	feed := &feedPanel{}
-	feed.OnPull = func() {
-		go func() { _, _ = d.st.Do(d.ctx, "feed.pull", *d.importFlag) }()
-	}
+	feed.OnPull = func() { d.do("feed.pull", *d.importFlag) }
 	d.sh.Add(&shell.Panel{Name: "Live feed", Windowable: true,
 		Draw: d.withControls(d.feedCtl.Draw, feed.Draw)})
 	tls := &timelinesPanel{}
