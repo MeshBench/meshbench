@@ -10,21 +10,15 @@ func addStudyPanels(d panelDeps) {
 	d.sh.Add(&shell.Panel{Name: "Validate", Windowable: true,
 		Draw: d.withControls(d.validCtl.Draw, (&validatePanel{}).Draw)})
 	imp := &importPanel{}
-	imp.OnFetch = func(url string) {
-		go func() { _, _ = d.st.Do(d.ctx, "import.describe", url) }()
-	}
+	imp.OnFetch = func(url string) { d.do("import.describe", url) }
 	d.sh.Add(&shell.Panel{Name: "Import", Windowable: true,
 		Draw: d.withControls(d.importCtl.Draw, imp.Draw)})
 	plan := &planPanel{}
-	plan.OnRun = func() {
-		go func() { _, _ = d.st.Do(d.ctx, "plan.routes", nil) }()
-	}
+	plan.OnRun = func() { d.do("plan.routes", nil) }
 	d.sh.Add(&shell.Panel{Name: "Planning", Windowable: true,
 		Draw: d.withControls(d.planCtl.Draw, plan.Draw)})
 	cmpP := &comparePanel{}
-	cmpP.OnSave = func() {
-		go func() { _, _ = d.st.Do(d.ctx, "run.save", "run") }()
-	}
+	cmpP.OnSave = func() { d.do("run.save", "run") }
 	d.sh.Add(&shell.Panel{Name: "Compare", Windowable: true, Draw: cmpP.Draw})
 	bounds := &boundaryPanel{}
 	d.sh.Add(&shell.Panel{Name: "Boundary", Windowable: true,
