@@ -6,11 +6,13 @@ import (
 	"math"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/coverage"
 	"github.com/MeshBench/meshbench/internal/dsp"
 	"github.com/MeshBench/meshbench/internal/engine"
+	"github.com/MeshBench/meshbench/internal/environ"
 	"github.com/MeshBench/meshbench/internal/gpu"
 	"github.com/MeshBench/meshbench/internal/gui/state"
 	"github.com/MeshBench/meshbench/internal/scenario"
@@ -192,6 +194,41 @@ func (s *Sim) warmOnGPU(eng *engine.Engine, nodes []scenario.Node, freqMHz float
 		if err != nil {
 			out.Why = err.Error()
 			return out
+		}
+		// The environment's share, CPU, in parallel: the kernel knows
+		// terrain, and a warm that skipped the roofs would disagree with
+		// the engine's own lazy fill about the same pair - the exact
+		// two-paths drift the shared environ call exists to prevent.
+		if env := eng.Env; env != nil {
+			var priced int64
+			var bwg sync.WaitGroup
+			bnext := 0
+			var bmu sync.Mutex
+			for w := 0; w < workers; w++ {
+				bwg.Add(1)
+				go func() {
+					defer bwg.Done()
+					for {
+						bmu.Lock()
+						i := bnext
+						bnext++
+						bmu.Unlock()
+						if i >= len(packedIdx) {
+							return
+						}
+						r := results[packedIdx[i]]
+						j := jobs[packedIdx[i]]
+						res[i] += float32(pairBuildingLossDB(env, terr,
+							nodes[j.a], nodes[j.b], r.heights,
+							r.aglA, r.aglB, r.distM, freqMHz, float64(res[i])))
+						if c := atomic.AddInt64(&priced, 1); progress != nil &&
+							(c == 1 || c%512 == 0) {
+							progress("buildings along each link", int(c), len(packedIdx))
+						}
+					}
+				}()
+			}
+			bwg.Wait()
 		}
 		for k, li := range packedIdx {
 			j := jobs[li]
@@ -470,4 +507,27 @@ func (s *Sim) gpuWorldState() state.GPUState {
 		out.Why = last.Why
 	}
 	return out
+}
+
+// gpuWarmDeadLossDB is where pricing buildings stops being worth the
+// corridor walk: no budget on this network closes 175 dB, and a roof can
+// only add. The cached number for such a pair differs from the engine's
+// lazy fill by the building term, and both numbers say the same thing.
+const gpuWarmDeadLossDB = 175
+
+// pairBuildingLossDB is the environment's price for one warmed pair, from
+// the profile the GPU judged - engine.pathLoss's own building term: the
+// same environ call, the same endpoint construction, so the two ways a
+// link gets priced cannot disagree about a roof.
+func pairBuildingLossDB(env environ.Provider, g environ.Ground,
+	na, nb scenario.Node, heights []float32,
+	aglA, aglB, distM, freqMHz, terrainLossDB float64) float64 {
+	if env == nil || len(heights) < 2 || distM <= 0 || terrainLossDB > gpuWarmDeadLossDB {
+		return 0
+	}
+	tx := float64(heights[0]) + aglA
+	rx := float64(heights[len(heights)-1]) + aglB
+	return environ.PathBuildingLossDB(env, g,
+		na.Position.Lat, na.Position.Lon, tx,
+		nb.Position.Lat, nb.Position.Lon, rx, distM, freqMHz)
 }
