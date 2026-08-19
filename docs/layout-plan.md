@@ -170,6 +170,19 @@ The `Terrain` interface is currently declared in `raster.go:19` and must move
 it is the only thing `sim/engine` needs. Leaving it in the study layer is what
 makes the engine import upward.
 
+**`internal/geo` was the other prerequisite, and it is done (PR #102).** Cutting
+this seam turned up two more upward references besides `Terrain`: `haversineKm`
+and `bearingDeg`, declared in `raster.go` and called from `grid.go` and
+`foldcpu.go`. Pulling on that found the same formula copied thirteen times, two
+copies of it numerically worse than the rest. One implementation now, and the
+seam has exactly one thing left to move across it.
+
+`internal/coverage` has also grown `foldcpu.go` and `bestserver.go` since this
+plan was written. `foldcpu.go` is another CPU twin the GPU calls and touches no
+`Raster`, so it goes down with the kernels; `bestserver.go` produces a `Raster`,
+so it stays. The generator that builds the explorer now fails loudly if a file
+in either split package is unassigned, rather than quietly leaving it behind.
+
 ### 3.2 `internal/capture` is packet dissection *and* recording
 
 `internal/provider` imports it for exactly one symbol: `capture.Dissect`.
@@ -482,6 +495,7 @@ moves happen before the refactors that need thought.
 |---|---|---|---|
 | 0 | ✅ **Done.** Deletions and hygiene (§6) | minutes | none |
 | 1 | ✅ **Done.** The workbench renames (§5), doc comments fixed as each file was touched | 1 day | none — `git mv` plus splits at type boundaries |
+| 2a | ✅ **Done.** `internal/geo` — one great-circle implementation, not thirteen (PR #102) | half a day | none — prerequisite found while cutting the seam |
 | 2 | Split `coverage` → `rf/propagation` + `study/coverage`; move `Terrain` down | half a day | low — file-aligned |
 | 3 | Split `capture` → `mesh/packet` + `sim/capture` | half a day | low — zero shared symbols |
 | 4 | Move all packages into the seven layers; update ldflags and CI shards | 1 day | low, very wide diff |
