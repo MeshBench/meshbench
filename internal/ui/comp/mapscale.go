@@ -104,8 +104,12 @@ func distanceLabel(metres float64) string {
 }
 
 // measureReadout reports the distance and bearing of the measuring line.
+//
+// Gated on either way of measuring: the toolbar's measure tool starts the
+// same drag the Measure layer does, and a drag whose readout refuses to draw
+// is a tool that silently does nothing.
 func (m *MapView) measureReadout(t *theme.Theme, gtx layout.Context, sz image.Point) {
-	if !m.Layers.Measure || m.cam.drag != dragMeasure || !m.cam.moved {
+	if (!m.Layers.Measure && m.Tool != "measure") || m.cam.drag != dragMeasure || !m.cam.moved {
 		return
 	}
 	a, b := m.cam.from, m.cam.last
