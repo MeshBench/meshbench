@@ -10,6 +10,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/coverage"
 	"github.com/MeshBench/meshbench/internal/dsp"
 	"github.com/MeshBench/meshbench/internal/energy"
+	"github.com/MeshBench/meshbench/internal/geo"
 	"github.com/MeshBench/meshbench/internal/planning"
 	"github.com/MeshBench/meshbench/internal/terrain"
 )
@@ -120,7 +121,7 @@ func linkBudgetTool(t Terrain) Tool {
 				return "", fmt.Errorf("no terrain data covers this path; download tiles for the area first")
 			}
 
-			distKm := haversineKm(a.FromLat, a.FromLon, a.ToLat, a.ToLon)
+			distKm := geo.DistanceKm(a.FromLat, a.FromLon, a.ToLat, a.ToLon)
 			l := planning.Summarise("from", "to", distKm, cell)
 
 			var b strings.Builder
@@ -176,7 +177,7 @@ func pathProfileTool(t Terrain) Tool {
 			if n <= 2 {
 				n = 128
 			}
-			distKm := haversineKm(a.FromLat, a.FromLon, a.ToLat, a.ToLon)
+			distKm := geo.DistanceKm(a.FromLat, a.FromLon, a.ToLat, a.ToLon)
 			if distKm <= 0 {
 				return "", fmt.Errorf("the two points are the same place")
 			}
@@ -431,15 +432,6 @@ func biasNote(distKm float64) string {
 			"disproportionately; check path_profile before trusting a marginal answer."
 	}
 	return s
-}
-
-func haversineKm(lat1, lon1, lat2, lon2 float64) float64 {
-	const r = 6371.0
-	rad := math.Pi / 180
-	dLat, dLon := (lat2-lat1)*rad, (lon2-lon1)*rad
-	a := math.Sin(dLat/2)*math.Sin(dLat/2) +
-		math.Cos(lat1*rad)*math.Cos(lat2*rad)*math.Sin(dLon/2)*math.Sin(dLon/2)
-	return 2 * r * math.Asin(math.Min(1, math.Sqrt(a)))
 }
 
 func schema(props map[string]any, required ...string) map[string]any {

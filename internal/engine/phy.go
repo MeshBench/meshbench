@@ -100,15 +100,6 @@ func requiredSNRdB(sf int) float64 {
 	return -20
 }
 
-func haversineKm(lat1, lon1, lat2, lon2 float64) float64 {
-	const r = 6371.0
-	rad := math.Pi / 180
-	dLat, dLon := (lat2-lat1)*rad, (lon2-lon1)*rad
-	a := math.Sin(dLat/2)*math.Sin(dLat/2) +
-		math.Cos(lat1*rad)*math.Cos(lat2*rad)*math.Sin(dLon/2)*math.Sin(dLon/2)
-	return 2 * r * math.Asin(math.Min(1, math.Sqrt(a)))
-}
-
 // payloadID identifies a message by its content, across every hop it takes.
 //
 // The header and the payload; deliberately *not* the path. A flood packet grows

@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/MeshBench/meshbench/internal/geo"
 	"github.com/MeshBench/meshbench/internal/terrain"
 )
 
@@ -78,7 +79,7 @@ func Analyse(t Terrain, fromLat, fromLon, fromHeightM, toLat, toLon, toHeightM, 
 		return CutThrough{}, fmt.Errorf("pathview: no terrain at the far end")
 	}
 
-	distKm := haversineKm(fromLat, fromLon, toLat, toLon)
+	distKm := geo.DistanceKm(fromLat, fromLon, toLat, toLon)
 	if distKm <= 0 {
 		return CutThrough{}, fmt.Errorf("pathview: both ends are the same place")
 	}
@@ -195,13 +196,4 @@ func (c CutThrough) Extent() (lo, hi float64) {
 		lo = 0
 	}
 	return lo, hi + pad
-}
-
-func haversineKm(lat1, lon1, lat2, lon2 float64) float64 {
-	const rEarth = 6371.0
-	rad := math.Pi / 180
-	dLat, dLon := (lat2-lat1)*rad, (lon2-lon1)*rad
-	a := math.Sin(dLat/2)*math.Sin(dLat/2) +
-		math.Cos(lat1*rad)*math.Cos(lat2*rad)*math.Sin(dLon/2)*math.Sin(dLon/2)
-	return 2 * rEarth * math.Asin(math.Min(1, math.Sqrt(a)))
 }

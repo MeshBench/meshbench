@@ -12,6 +12,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/coverage"
 	"github.com/MeshBench/meshbench/internal/dsp"
+	"github.com/MeshBench/meshbench/internal/geo"
 	"github.com/MeshBench/meshbench/internal/planning"
 	"github.com/MeshBench/meshbench/internal/rf"
 	"github.com/MeshBench/meshbench/internal/scenario"
@@ -69,7 +70,7 @@ func runLink(ctx context.Context, args []string) error {
 		return fmt.Errorf("no terrain covers this path; run 'meshcoresim terrain' for the area first")
 	}
 
-	distKm := haversineKm(*fromLat, *fromLon, *toLat, *toLon)
+	distKm := geo.DistanceKm(*fromLat, *fromLon, *toLat, *toLon)
 	l := planning.Summarise("from", "to", distKm, cell)
 
 	fmt.Printf("%.2f km, path loss %.1f dB at %.3f MHz\n\n", distKm, cell.PathLossDB, *freq)
@@ -120,7 +121,7 @@ func runProfile(ctx context.Context, args []string) error {
 	if !ok {
 		return fmt.Errorf("no terrain at the second point")
 	}
-	distKm := haversineKm(*fromLat, *fromLon, *toLat, *toLon)
+	distKm := geo.DistanceKm(*fromLat, *fromLon, *toLat, *toLon)
 	txAlt, rxAlt := fromGround+*fromH, toGround+*toH
 
 	worst, worstAt, worstGround := math.Inf(-1), 0.0, 0.0
@@ -404,13 +405,4 @@ func firstSentence(s string) string {
 		}
 	}
 	return s
-}
-
-func haversineKm(lat1, lon1, lat2, lon2 float64) float64 {
-	const rEarth = 6371.0
-	rad := math.Pi / 180
-	dLat, dLon := (lat2-lat1)*rad, (lon2-lon1)*rad
-	a := math.Sin(dLat/2)*math.Sin(dLat/2) +
-		math.Cos(lat1*rad)*math.Cos(lat2*rad)*math.Sin(dLon/2)*math.Sin(dLon/2)
-	return 2 * rEarth * math.Asin(math.Min(1, math.Sqrt(a)))
 }

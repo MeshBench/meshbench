@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/coverage"
+	"github.com/MeshBench/meshbench/internal/geo"
 	"github.com/MeshBench/meshbench/internal/gpu"
 	"github.com/MeshBench/meshbench/internal/terrain"
 )
@@ -176,7 +177,7 @@ func (s *Sim) foldBandCPU(c *coverage.Combined, grid coverage.HeightGrid,
 		if !ok {
 			return out, in, win
 		}
-		distM := haversineKmSession(st.Lat, st.Lon, lat, lon) * 1000
+		distM := geo.DistanceKm(st.Lat, st.Lon, lat, lon) * 1000
 		if e := extra(win, lat, lon, stGround+st.HeightAGLm, rxAsl, distM); e > 0 {
 			out, in = out-e, in-e
 		}
@@ -239,7 +240,7 @@ func (s *Sim) foldBandCPU(c *coverage.Combined, grid coverage.HeightGrid,
 func stationReaches(st coverage.Endpoint, r *coverage.Raster, o coverage.Options) bool {
 	lat := math.Min(math.Max(st.Lat, r.South), r.North)
 	lon := math.Min(math.Max(st.Lon, r.West), r.East)
-	distKm := haversineKmSession(st.Lat, st.Lon, lat, lon)
+	distKm := geo.DistanceKm(st.Lat, st.Lon, lat, lon)
 	if distKm <= 0 {
 		return true
 	}

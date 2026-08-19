@@ -27,6 +27,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/coverage"
 	"github.com/MeshBench/meshbench/internal/dsp"
+	"github.com/MeshBench/meshbench/internal/geo"
 	"github.com/MeshBench/meshbench/internal/provider"
 	"github.com/MeshBench/meshbench/internal/terrain"
 )
@@ -203,7 +204,7 @@ func residual(src, dst Station, r provider.Reception, t coverage.Terrain, p Para
 		return Residual{}, false
 	}
 
-	distKm := haversineKm(src.Lat, src.Lon, dst.Lat, dst.Lon)
+	distKm := geo.DistanceKm(src.Lat, src.Lon, dst.Lat, dst.Lon)
 	if distKm <= 0 {
 		return Residual{}, false
 	}
@@ -320,13 +321,4 @@ func (r Report) Verdict() string {
 		r.SkippedNoSNR+r.SkippedNoPosition+r.SkippedUncertain+r.SkippedNoTerrain,
 		r.SkippedNoSNR, r.SkippedNoPosition, r.SkippedUncertain, r.SkippedNoTerrain,
 		r.SilentReceivers)
-}
-
-func haversineKm(lat1, lon1, lat2, lon2 float64) float64 {
-	const rEarth = 6371.0
-	rad := math.Pi / 180
-	dLat, dLon := (lat2-lat1)*rad, (lon2-lon1)*rad
-	a := math.Sin(dLat/2)*math.Sin(dLat/2) +
-		math.Cos(lat1*rad)*math.Cos(lat2*rad)*math.Sin(dLon/2)*math.Sin(dLon/2)
-	return 2 * rEarth * math.Asin(math.Min(1, math.Sqrt(a)))
 }

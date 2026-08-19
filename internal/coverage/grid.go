@@ -5,6 +5,8 @@ import (
 	"runtime"
 	"sync"
 	"sync/atomic"
+
+	"github.com/MeshBench/meshbench/internal/geo"
 )
 
 // HeightGrid is the terrain rasterised once for one coverage area.
@@ -172,7 +174,7 @@ func GridLossCPU(g HeightGrid, p GridLossParams) []float32 {
 
 // gridLossOne is one cell: FSPL plus Bullington diffraction over the grid.
 func gridLossOne(g HeightGrid, p GridLossParams, lat, lon float64) float32 {
-	distKm := haversineKm(p.StLat, p.StLon, lat, lon)
+	distKm := geo.DistanceKm(p.StLat, p.StLon, lat, lon)
 	if distKm <= 0 {
 		return 0
 	}

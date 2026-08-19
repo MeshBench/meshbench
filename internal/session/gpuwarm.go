@@ -11,6 +11,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/coverage"
 	"github.com/MeshBench/meshbench/internal/dsp"
 	"github.com/MeshBench/meshbench/internal/engine"
+	"github.com/MeshBench/meshbench/internal/geo"
 	"github.com/MeshBench/meshbench/internal/gpu"
 	"github.com/MeshBench/meshbench/internal/gui/state"
 	"github.com/MeshBench/meshbench/internal/scenario"
@@ -86,7 +87,7 @@ func (s *Sim) warmOnGPU(eng *engine.Engine, nodes []scenario.Node, freqMHz float
 	for a := 0; a < n; a++ {
 		for b := a + 1; b < n; b++ {
 			na, nb := nodes[a], nodes[b]
-			distKm := haversineKmSession(na.Position.Lat, na.Position.Lon,
+			distKm := geo.DistanceKm(na.Position.Lat, na.Position.Lon,
 				nb.Position.Lat, nb.Position.Lon)
 			if distKm <= 0 {
 				continue
@@ -204,17 +205,6 @@ func (s *Sim) warmOnGPU(eng *engine.Engine, nodes []scenario.Node, freqMHz float
 	}
 	_ = culled
 	return out
-}
-
-// haversineKmSession is the same great-circle the engine uses.
-func haversineKmSession(lat1, lon1, lat2, lon2 float64) float64 {
-	const r = 6371.0
-	rad := math.Pi / 180
-	dLat := (lat2 - lat1) * rad
-	dLon := (lon2 - lon1) * rad
-	a := math.Sin(dLat/2)*math.Sin(dLat/2) +
-		math.Cos(lat1*rad)*math.Cos(lat2*rad)*math.Sin(dLon/2)*math.Sin(dLon/2)
-	return 2 * r * math.Asin(math.Min(1, math.Sqrt(a)))
 }
 
 // gpuDefault decides, once, whether to use the GPU without being asked.

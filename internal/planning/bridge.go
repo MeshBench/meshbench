@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"sort"
+
+	"github.com/MeshBench/meshbench/internal/geo"
 )
 
 // Site is a place a node could go.
@@ -328,11 +330,7 @@ func duplicateRoute(routes []Route, r Route) bool {
 	return false
 }
 
+// distanceKm is geo.DistanceKm over this package's own site type.
 func distanceKm(a, b Site) float64 {
-	const rEarth = 6371.0
-	rad := math.Pi / 180
-	dLat, dLon := (b.Lat-a.Lat)*rad, (b.Lon-a.Lon)*rad
-	s := math.Sin(dLat/2)*math.Sin(dLat/2) +
-		math.Cos(a.Lat*rad)*math.Cos(b.Lat*rad)*math.Sin(dLon/2)*math.Sin(dLon/2)
-	return 2 * rEarth * math.Asin(math.Min(1, math.Sqrt(s)))
+	return geo.DistanceKm(a.Lat, a.Lon, b.Lat, b.Lon)
 }

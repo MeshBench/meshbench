@@ -15,6 +15,7 @@ import (
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 
+	"github.com/MeshBench/meshbench/internal/geo"
 	"github.com/MeshBench/meshbench/internal/gui/state"
 	"github.com/MeshBench/meshbench/internal/gui/theme"
 )
@@ -116,7 +117,7 @@ func (m *MapView) measureReadout(t *theme.Theme, gtx layout.Context, sz image.Po
 	lat1, lon1 := m.unproject(a, sz)
 	lat2, lon2 := m.unproject(b, sz)
 	d := haversineM(lat1, lon1, lat2, lon2)
-	brg := bearing(lat1, lon1, lat2, lon2)
+	brg := geo.BearingDeg(lat1, lon1, lat2, lon2)
 
 	at := image.Pt(int(b.X)+10, int(b.Y)-8)
 	off := op.Offset(at).Push(gtx.Ops)
@@ -125,27 +126,9 @@ func (m *MapView) measureReadout(t *theme.Theme, gtx layout.Context, sz image.Po
 	off.Pop()
 }
 
+// haversineM is geo.DistanceKm in the metres a scale bar is drawn in.
 func haversineM(lat1, lon1, lat2, lon2 float64) float64 {
-	const r = 6371000.0
-	dLat := (lat2 - lat1) * math.Pi / 180
-	dLon := (lon2 - lon1) * math.Pi / 180
-	la, lb := lat1*math.Pi/180, lat2*math.Pi/180
-	h := math.Sin(dLat/2)*math.Sin(dLat/2) +
-		math.Cos(la)*math.Cos(lb)*math.Sin(dLon/2)*math.Sin(dLon/2)
-	return 2 * r * math.Asin(math.Sqrt(h))
-}
-
-// bearing is the initial great-circle bearing, in degrees from north.
-func bearing(lat1, lon1, lat2, lon2 float64) float64 {
-	la, lb := lat1*math.Pi/180, lat2*math.Pi/180
-	dLon := (lon2 - lon1) * math.Pi / 180
-	y := math.Sin(dLon) * math.Cos(lb)
-	x := math.Cos(la)*math.Sin(lb) - math.Sin(la)*math.Cos(lb)*math.Cos(dLon)
-	deg := math.Atan2(y, x) * 180 / math.Pi
-	if deg < 0 {
-		deg += 360
-	}
-	return deg
+	return geo.DistanceKm(lat1, lon1, lat2, lon2) * 1000
 }
 
 // basemapNote is the attribution line, and the honesty line when the basemap
