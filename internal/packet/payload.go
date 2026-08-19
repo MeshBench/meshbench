@@ -1,4 +1,4 @@
-package capture
+package packet
 
 import (
 	"encoding/binary"

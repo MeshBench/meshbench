@@ -1,11 +1,11 @@
-package capture_test
+package packet_test
 
 import (
 	"encoding/hex"
 	"strings"
 	"testing"
 
-	"github.com/MeshBench/meshbench/internal/capture"
+	"github.com/MeshBench/meshbench/internal/packet"
 )
 
 // A flood advert, as MeshCore builds one: header, path length, two hops of
@@ -25,7 +25,7 @@ func advertFrame() []byte {
 }
 
 func TestDissectReadsRoutingWithoutKeys(t *testing.T) {
-	d := capture.Dissect(advertFrame())
+	d := packet.Dissect(advertFrame())
 	if d.Truncated {
 		t.Fatalf("a well-formed advert was called malformed: %s", d.Problem)
 	}
@@ -54,7 +54,7 @@ func TestDissectReadsRoutingWithoutKeys(t *testing.T) {
 // A truncated frame is evidence about the frame. Inventing fields for it is how
 // a dissector turns a corrupt capture into a confident wrong story.
 func TestDissectReportsTruncationRatherThanGuessing(t *testing.T) {
-	d := capture.Dissect([]byte{0x01 | (0x04 << 2), 0x08, 0xAA}) // claims 8 path bytes, has 1
+	d := packet.Dissect([]byte{0x01 | (0x04 << 2), 0x08, 0xAA}) // claims 8 path bytes, has 1
 	if !d.Truncated {
 		t.Fatal("a frame claiming more path than it carries parsed cleanly")
 	}
@@ -70,7 +70,7 @@ func TestDissectReportsTruncationRatherThanGuessing(t *testing.T) {
 // would shift every field after by four bytes.
 func TestTransportCodesAreNotMistakenForPath(t *testing.T) {
 	f := []byte{0x00 | (0x05 << 2), 0x34, 0x12, 0x78, 0x56, 0x01, 0x99, 0xAA, 0xBB, 0xCC}
-	d := capture.Dissect(f)
+	d := packet.Dissect(f)
 	if !d.HasTransport {
 		t.Fatal("a transport route type was not recognised")
 	}
@@ -86,11 +86,11 @@ func TestRewritePathKeepsEverythingElse(t *testing.T) {
 	// flood route (0x01), advert payload type (0x04): header 0x11, no
 	// transport codes, then pathLen, path, payload.
 	frame := []byte{0x11, 0x02, 0xAA, 0xBB, 0xDE, 0xAD, 0xBE, 0xEF}
-	out, err := capture.RewritePath(frame, []byte{0x42, 0x42})
+	out, err := packet.RewritePath(frame, []byte{0x42, 0x42})
 	if err != nil {
 		t.Fatal(err)
 	}
-	d := capture.Dissect(out)
+	d := packet.Dissect(out)
 	if len(d.PathHashes) != 2 || d.PathHashes[0] != 0x42 || d.PathHashes[1] != 0x42 {
 		t.Fatalf("path = %x", d.PathHashes)
 	}
@@ -113,7 +113,7 @@ func TestVariablePathHashSize(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	d := capture.Dissect(raw)
+	d := packet.Dissect(raw)
 	if d.Truncated {
 		t.Fatalf("live frame reported truncated: %s", d.Problem)
 	}
@@ -137,7 +137,7 @@ func TestVariablePathHashSize(t *testing.T) {
 // A one-byte-hash packet with three hops still reads as three hops.
 func TestSingleBytePathHashesStillWork(t *testing.T) {
 	frame := []byte{0x11, 0x03, 0xAA, 0xBB, 0xCC, 0xDE, 0xAD}
-	d := capture.Dissect(frame)
+	d := packet.Dissect(frame)
 	if d.PathHashSize != 1 || d.HopCount() != 3 {
 		t.Fatalf("size=%d hops=%d, want 1 and 3", d.PathHashSize, d.HopCount())
 	}

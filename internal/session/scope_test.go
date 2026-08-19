@@ -6,7 +6,7 @@ import (
 	"encoding/binary"
 	"testing"
 
-	"github.com/MeshBench/meshbench/internal/capture"
+	"github.com/MeshBench/meshbench/internal/packet"
 	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
@@ -35,7 +35,7 @@ func TestScopeIsConfirmedAgainstCandidates(t *testing.T) {
 		{Name: "a", Regions: []string{"#sco", "#fif"}},
 		{Name: "b", Regions: []string{"#ioi"}},
 	}}
-	got := s.scopeOf(frame, capture.Dissect(frame))
+	got := s.scopeOf(frame, packet.Dissect(frame))
 	if !got.Scoped {
 		t.Fatal("a transport-flood frame was reported as unscoped")
 	}
@@ -53,7 +53,7 @@ func TestScopeIsConfirmedAgainstCandidates(t *testing.T) {
 func TestAnUnknownScopeIsNotReportedAsUnscoped(t *testing.T) {
 	frame := []byte{0x00 | (0x05 << 2), 0x34, 0x12, 0x00, 0x00, 0x00, 0xAA}
 	s := &Sim{nodes: []scenario.Node{{Name: "a", Regions: []string{"#sco"}}}}
-	got := s.scopeOf(frame, capture.Dissect(frame))
+	got := s.scopeOf(frame, packet.Dissect(frame))
 	if !got.Scoped {
 		t.Fatal("a frame carrying a scope code was reported as unscoped")
 	}
@@ -69,7 +69,7 @@ func TestAnUnknownScopeIsNotReportedAsUnscoped(t *testing.T) {
 func TestZeroScopeCodesAreNotTreatedAsARegion(t *testing.T) {
 	frame := []byte{0x00 | (0x05 << 2), 0, 0, 0, 0, 0x00, 0xAA}
 	s := &Sim{nodes: []scenario.Node{{Name: "a", Regions: []string{"#sco"}}}}
-	got := s.scopeOf(frame, capture.Dissect(frame))
+	got := s.scopeOf(frame, packet.Dissect(frame))
 	if got.Note == "" {
 		t.Error("codes {0,0} passed through without their own meaning")
 	}

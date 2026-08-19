@@ -5,7 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 
-	"github.com/MeshBench/meshbench/internal/capture"
+	"github.com/MeshBench/meshbench/internal/packet"
 )
 
 // RegionKey derives a region's transport key from its name.
@@ -70,7 +70,7 @@ func (n *NamedRegions) Match(frame []byte, codes []uint16) []string {
 	if len(codes) == 0 || len(n.keys) == 0 {
 		return nil
 	}
-	d := capture.Dissect(frame)
+	d := packet.Dissect(frame)
 	if d.Truncated || !d.HasTransport {
 		return nil
 	}

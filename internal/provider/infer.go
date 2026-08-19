@@ -5,7 +5,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/MeshBench/meshbench/internal/capture"
+	"github.com/MeshBench/meshbench/internal/packet"
 )
 
 // Inferred is what observed traffic says about a node's configuration.
@@ -127,7 +127,7 @@ func InferFromPackets(packets []PacketRecord, m RegionMatcher) map[string]*Infer
 		if len(p.Raw) == 0 {
 			continue
 		}
-		d := capture.Dissect(p.Raw)
+		d := packet.Dissect(p.Raw)
 		if d.Truncated {
 			continue
 		}
