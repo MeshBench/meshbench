@@ -52,7 +52,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
-        with: { go-version: '1.24', cache: true }
+        # cache: false - every job in this file runs on a persistent
+        # self-hosted runner (lab-2204, or the m4 pool), where the Go
+        # caches already survive between jobs. See ci.yml for the detail.
+        with: { go-version: '1.24', cache: false }
 
       - name: Dependencies
         run: |
@@ -382,7 +385,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
-        with: { go-version: '1.24', cache: true }
+        # cache: false - every job in this file runs on a persistent
+        # self-hosted runner (lab-2204, or the m4 pool), where the Go
+        # caches already survive between jobs. See ci.yml for the detail.
+        with: { go-version: '1.24', cache: false }
 
       - name: Build the bundle
         run: |
@@ -499,7 +505,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
-        with: { go-version: '1.24', cache: true }
+        # cache: false - every job in this file runs on a persistent
+        # self-hosted runner (lab-2204, or the m4 pool), where the Go
+        # caches already survive between jobs. See ci.yml for the detail.
+        with: { go-version: '1.24', cache: false }
 
       - name: Dependencies
         run: |
@@ -613,7 +622,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
-        with: { go-version: '1.24', cache: true }
+        # cache: false - every job in this file runs on a persistent
+        # self-hosted runner (lab-2204, or the m4 pool), where the Go
+        # caches already survive between jobs. See ci.yml for the detail.
+        with: { go-version: '1.24', cache: false }
       - uses: actions/download-artifact@v4
         with: { path: incoming }
 
