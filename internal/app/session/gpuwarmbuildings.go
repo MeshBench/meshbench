@@ -4,6 +4,7 @@
 package session
 
 import (
+	"math"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -43,6 +44,12 @@ func priceBuildingsIntoWarm(env environ.Provider, g environ.Ground,
 	if workers < 1 {
 		workers = runtime.NumCPU()
 	}
+	// Indexed once over the fleet's extent, exactly as the engine now does:
+	// the un-indexed corridor walk re-scanned tiles and allocated a fresh
+	// seen-map per step per pair, and profiling a 451-node warm put 61% of
+	// its half hour there. TestPathIndexMatchesDirect holds the crossings
+	// equal, so this changes minutes, not decibels.
+	ix := pathIndexOver(env, g, nodes)
 	var priced int64
 	var wg sync.WaitGroup
 	next := 0
@@ -61,7 +68,7 @@ func priceBuildingsIntoWarm(env environ.Provider, g environ.Ground,
 				}
 				r := results[packedIdx[i]]
 				j := jobs[packedIdx[i]]
-				res[i] += float32(pairBuildingLossDB(env, g,
+				res[i] += float32(pairBuildingLossDB(ix,
 					nodes[j.a], nodes[j.b], r.heights,
 					r.aglA, r.aglB, r.distM, freqMHz, float64(res[i])))
 				if c := atomic.AddInt64(&priced, 1); progress != nil &&
@@ -76,16 +83,40 @@ func priceBuildingsIntoWarm(env environ.Provider, g environ.Ground,
 
 // pairBuildingLossDB is the environment's price for one warmed pair, from
 // the profile the GPU judged - engine.pathLoss's own building term: the
-// same environ call, the same endpoint construction.
-func pairBuildingLossDB(env environ.Provider, g environ.Ground,
+// same arithmetic, through the same index.
+func pairBuildingLossDB(ix *environ.PathIndex,
 	na, nb scenario.Node, heights []float32,
 	aglA, aglB, distM, freqMHz, terrainLossDB float64) float64 {
-	if env == nil || len(heights) < 2 || distM <= 0 || terrainLossDB > gpuWarmDeadLossDB {
+	if ix == nil || len(heights) < 2 || distM <= 0 || terrainLossDB > gpuWarmDeadLossDB {
 		return 0
 	}
 	tx := float64(heights[0]) + aglA
 	rx := float64(heights[len(heights)-1]) + aglB
-	return environ.PathBuildingLossDB(env, g,
+	sc := envScratchPool.Get().(*environ.PathScratch)
+	defer envScratchPool.Put(sc)
+	return ix.PathLossDB(sc,
 		na.Position.Lat, na.Position.Lon, tx,
 		nb.Position.Lat, nb.Position.Lon, rx, distM, freqMHz)
 }
+
+// pathIndexOver builds the index for a fleet's extent, or nil for bare earth.
+func pathIndexOver(env environ.Provider, g environ.Ground,
+	nodes []scenario.Node) *environ.PathIndex {
+	if env == nil || len(nodes) == 0 {
+		return nil
+	}
+	south, north := nodes[0].Position.Lat, nodes[0].Position.Lat
+	west, east := nodes[0].Position.Lon, nodes[0].Position.Lon
+	for _, n := range nodes[1:] {
+		south = math.Min(south, n.Position.Lat)
+		north = math.Max(north, n.Position.Lat)
+		west = math.Min(west, n.Position.Lon)
+		east = math.Max(east, n.Position.Lon)
+	}
+	const marginDeg = 0.05
+	return environ.NewPathIndex(env, g,
+		south-marginDeg, west-marginDeg, north+marginDeg, east+marginDeg)
+}
+
+// envScratchPool hands each pricing worker its own epoch-marked scratch.
+var envScratchPool = sync.Pool{New: func() any { return &environ.PathScratch{} }}

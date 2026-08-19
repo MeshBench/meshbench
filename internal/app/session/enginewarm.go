@@ -155,8 +155,16 @@ func (s *Sim) warming() bool {
 	return s.warmCancel != nil && !s.warmed
 }
 
-// geometryFingerprint hashes everything a path loss depends on.
-func geometryFingerprint(nodes []scenario.Node, freqMHz, excess float64) uint64 {
+// geometryFingerprint hashes everything the stored matrix depends on.
+//
+// Deliberately not the excess-loss term: the cache stores the raw physics and
+// the term is applied where it is read, so a calibration changes a constant
+// rather than the matrix - fingerprinting on it made every validate.calibrate
+// throw away half an hour of ground-walking to move a number every path
+// shares. Old matrices, keyed under hashes that included the term with it
+// baked into every entry, simply never match this fingerprint and are
+// remeasured once.
+func geometryFingerprint(nodes []scenario.Node, freqMHz float64) uint64 {
 	h := fnv.New64a()
 	b := make([]byte, 8)
 	put := func(f float64) {
@@ -164,7 +172,6 @@ func geometryFingerprint(nodes []scenario.Node, freqMHz, excess float64) uint64 
 		_, _ = h.Write(b)
 	}
 	put(freqMHz)
-	put(excess)
 	for _, n := range nodes {
 		_, _ = h.Write([]byte(n.Name))
 		put(n.Position.Lat)

@@ -228,21 +228,25 @@ func (s *Sim) build(nodes []scenario.Node, freqMHz float64) {
 // close on ScotMesh: The Mysterons reached Leslie, Cadham and Bishop Hill
 // through the Lomond Hills, which is not possible and was reported as such.
 //
-// It is now a measurement rather than the guess it started as. Fitted against
-// 118 real receptions from the live ScotMesh deployment - packets carrying an
-// SNR from an observer whose public key matches a node in the scenario - the
-// median residual is +20.4 dB, positive meaning the model predicted more
-// signal than was heard.
+// It is now a measurement rather than the guess it started as, twice over.
+// The first fit - 118 Fife receptions - put it at 20.4 dB. The second, after
+// the matching pipeline learned to pair an observation with the link its SNR
+// was actually measured on, is 1,330 receptions across the whole of ScotMesh:
+// 451 nodes, every terrain the country has, median residual +3.5 dB on top of
+// the 20 then applied - a fitted total of 23.5 dB.
 //
-// The value was chosen before that as "what it takes for the three impossible
-// links across the Lomond ridge to fail", and it landed within half a decibel
-// of what the network says. That is luck as much as judgement, and the reason
-// the fit exists is so nobody has to rely on it again: validate.fetch then
-// validate.calibrate re-derives it from whatever observations are current.
+// This constant is what a network nobody has observed gets, which is why it
+// carries the whole-country figure rather than a per-network one: it is a
+// clutter-and-multipath term for UK terrain at 869 MHz, not a ScotMesh
+// setting. A network with observations of its own refines it through
+// validate.fetch then validate.calibrate, which re-derives the total from
+// whatever is current. If anything the figure is conservative-side: the +15 dB
+// reporting ceiling means the strongest links cannot testify to how optimistic
+// the model was about them.
 //
 // Studies comparing two firmware builds are unaffected in direction, because
 // both arms carry the same term.
-const DefaultExcessLossDB = 20
+const DefaultExcessLossDB = 23.5
 
 // defaultSeed is the one a fresh session starts from. Fixed, because a
 // simulator whose default run differs every time cannot be used to show
@@ -264,7 +268,7 @@ func (s *Sim) buildSeeded(nodes []scenario.Node, freqMHz float64, seed uint64) {
 	// else the rebuild changes; if that whole fingerprint is unchanged, the
 	// matrix is the same matrix.
 	var carried map[[2]int]float64
-	fp := geometryFingerprint(nodes, freqMHz, s.excessLossDB)
+	fp := geometryFingerprint(nodes, freqMHz)
 	if s.eng != nil && fp == s.geomFP {
 		carried = s.eng.LinkCacheSnapshot()
 	}

@@ -31,11 +31,17 @@ func (e *Engine) pathLoss(a, b int) (float64, bool) {
 
 	e.mu.Lock()
 	if v, ok := e.linkCache[k]; ok {
+		excess := e.Config.ExcessPathLossDB
 		e.mu.Unlock()
 		if math.IsInf(v, 1) {
 			return 0, false
 		}
-		return v, true
+		// The calibration term is applied here, at read, never stored. Baked
+		// into the cache it made the whole measured matrix an artefact of one
+		// calibration: fingerprinted on the term, invalidated by the term, so
+		// every validate.calibrate threw away half an hour of ground-walking
+		// to change a constant that every path shares.
+		return v + excess, true
 	}
 	from, to := e.nodes[a].Spec, e.nodes[b].Spec
 	e.mu.Unlock()
@@ -62,10 +68,11 @@ func (e *Engine) pathLoss(a, b int) (float64, bool) {
 		math.Min(e.noiseFigOf(from), e.noiseFigOf(to)))
 	if bestRx < noise-30 {
 		e.mu.Lock()
+		excess := e.Config.ExcessPathLossDB
 		e.linkCache[k] = fspl // an underestimate, and irrelevant below the floor
 		e.culled[k] = true
 		e.mu.Unlock()
-		return fspl, true
+		return fspl + excess, true
 	}
 
 	// The expensive branch, counted so a caller mid-run can say why it just
@@ -78,18 +85,18 @@ func (e *Engine) pathLoss(a, b int) (float64, bool) {
 	if ok {
 		loss = fspl +
 			terrain.MultiEdgeLossDB(profile, from.HeightAGLm, to.HeightAGLm, e.phyOf(from).freqMHz) +
-			e.buildingLossDB(from, to, profile) +
-			e.Config.ExcessPathLossDB
+			e.buildingLossDB(from, to, profile)
 	}
 
 	e.mu.Lock()
+	excess := e.Config.ExcessPathLossDB
 	e.linkCache[k] = loss
 	delete(e.culled, k)
 	e.mu.Unlock()
 	if !ok {
 		return 0, false
 	}
-	return loss, true
+	return loss + excess, true
 }
 
 // profileCached is profile behind the geometry-keyed cache. The profile is
@@ -184,7 +191,8 @@ func (e *Engine) RestoreLinkCache(m map[[2]int]float64) {
 //
 // The matrix is the upper triangle of an n by n grid, in the same node order
 // the engine holds, carrying free-space plus diffraction and not the excess
-// path loss, which is this engine's own setting and is added here. Pairs the
+// path loss, which the cache never stores - it is applied where the cache is
+// read, so a calibration changes a constant, not the matrix. Pairs the
 // terrain could not answer for are left out rather than guessed at: they fall
 // back to the profile the lazy path would have taken.
 //
@@ -209,7 +217,7 @@ func (e *Engine) PrimeLinks(n int, loss []float32, noData float32) int {
 			if v == noData || math.IsInf(float64(v), 0) || math.IsNaN(float64(v)) {
 				continue
 			}
-			e.linkCache[[2]int{a, b}] = float64(v) + e.Config.ExcessPathLossDB
+			e.linkCache[[2]int{a, b}] = float64(v)
 			filled++
 		}
 	}
@@ -293,7 +301,15 @@ func (e *Engine) buildingLossDB(from, to scenario.Node, profile []terrain.Point)
 	total := profile[len(profile)-1].DistM
 	txM := profile[0].HeightM + from.HeightAGLm
 	rxM := profile[len(profile)-1].HeightM + to.HeightAGLm
-	return environ.PathBuildingLossDB(e.Env, e.Terrain,
+	// Through the index, never the corridor scan: the two are held to the
+	// same crossings by test, and the scan was 61% of a country-sized warm.
+	ix := e.envIndex()
+	if ix == nil {
+		return 0
+	}
+	sc := envScratchPool.Get().(*environ.PathScratch)
+	defer envScratchPool.Put(sc)
+	return ix.PathLossDB(sc,
 		from.Position.Lat, from.Position.Lon, txM,
 		to.Position.Lat, to.Position.Lon, rxM,
 		total, e.phyOf(from).freqMHz)

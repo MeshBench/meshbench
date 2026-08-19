@@ -245,7 +245,7 @@ func registerValidate(st *state.Store, s *Sim) {
 			w.Links = nil
 			s.warm(st, len(s.nodes))
 		}
-		w.Say(fmt.Sprintf("excess path loss back to the %d dB default", DefaultExcessLossDB))
+		w.Say(fmt.Sprintf("excess path loss back to the %.1f dB default", float64(DefaultExcessLossDB)))
 		return map[string]any{"db": DefaultExcessLossDB}, nil
 	})
 }

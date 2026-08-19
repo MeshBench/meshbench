@@ -17,10 +17,10 @@ func (s slabProvider) Buildings(_, _, _, _ float64) []environ.Building {
 	return []environ.Building{s.b}
 }
 
-// The GPU warm's building term is the engine's building term: the shared
-// environ call, fed the same endpoints. A slab across the path must price
-// the same decibels both ways, and a pair already dead on terrain alone
-// must skip the corridor walk entirely.
+// The GPU warm's building term is the engine's building term: the same
+// arithmetic through the indexed twin, fed the same endpoints. A slab
+// across the path must price the same decibels as the direct environ call,
+// and a pair already dead on terrain alone must skip the walk entirely.
 func TestGPUWarmPricesBuildingsLikeTheEngine(t *testing.T) {
 	// A 30 m slab squarely across the midpoint of a 2 km hop.
 	env := slabProvider{b: environ.Building{
@@ -36,7 +36,8 @@ func TestGPUWarmPricesBuildingsLikeTheEngine(t *testing.T) {
 	heights := []float32{10, 10, 10, 10, 10}
 	const distM, freq = 2226.0, 869.525
 
-	got := pairBuildingLossDB(env, flatGround{}, na, nb, heights, 8, 8, distM, freq, 120)
+	ix := pathIndexOver(env, flatGround{}, []scenario.Node{na, nb})
+	got := pairBuildingLossDB(ix, na, nb, heights, 8, 8, distM, freq, 120)
 	want := environ.PathBuildingLossDB(env, flatGround{},
 		na.Position.Lat, na.Position.Lon, 18,
 		nb.Position.Lat, nb.Position.Lon, 18, distM, freq)
@@ -46,8 +47,8 @@ func TestGPUWarmPricesBuildingsLikeTheEngine(t *testing.T) {
 	if got <= 0 {
 		t.Fatalf("a 30 m slab across an 8 m path priced %f dB; the fixture is broken", got)
 	}
-	if dead := pairBuildingLossDB(env, flatGround{}, na, nb, heights, 8, 8,
+	if dead := pairBuildingLossDB(ix, na, nb, heights, 8, 8,
 		distM, freq, 200); dead != 0 {
-		t.Fatalf("a pair dead on terrain alone paid %f dB for the corridor walk", dead)
+		t.Fatalf("a pair dead on terrain alone paid %f dB for the index walk", dead)
 	}
 }
