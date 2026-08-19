@@ -9,9 +9,8 @@ import (
 	"math"
 	"unsafe"
 
+	"github.com/MeshBench/meshbench/internal/propagation"
 	"github.com/cogentcore/webgpu/wgpu"
-
-	"github.com/MeshBench/meshbench/internal/coverage"
 )
 
 // compileCoverageFold builds the fold pipeline from the coverage module's
@@ -92,8 +91,8 @@ func (f *CoverageFold) Release() {
 }
 
 // Station folds one station in: a dispatch and nothing back.
-func (f *CoverageFold) Station(p coverage.GridLossParams, b coverage.StationBudget,
-	gt coverage.GainTable) error {
+func (f *CoverageFold) Station(p propagation.GridLossParams, b propagation.StationBudget,
+	gt propagation.GainTable) error {
 	d, cg := f.cg.d, f.cg
 	if p.RasterW*p.RasterH != f.cells {
 		return fmt.Errorf("gpu: fold sized for %d cells, station priced over %d",
@@ -174,7 +173,7 @@ func (f *CoverageFold) Station(p coverage.GridLossParams, b coverage.StationBudg
 }
 
 // Read brings the fold home: best and second slots plus serving counts.
-func (f *CoverageFold) Read() (best, second []coverage.FoldSlot, served []uint32, err error) {
+func (f *CoverageFold) Read() (best, second []propagation.FoldSlot, served []uint32, err error) {
 	bestRaw, err := f.cg.d.readBuffer(f.best, f.cells*foldSlotBytes)
 	if err != nil {
 		return nil, nil, nil, err
@@ -187,8 +186,8 @@ func (f *CoverageFold) Read() (best, second []coverage.FoldSlot, served []uint32
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	best = make([]coverage.FoldSlot, f.cells)
-	second = make([]coverage.FoldSlot, f.cells)
+	best = make([]propagation.FoldSlot, f.cells)
+	second = make([]propagation.FoldSlot, f.cells)
 	served = make([]uint32, f.cells)
 	copy(unsafe.Slice((*byte)(unsafe.Pointer(&best[0])), f.cells*foldSlotBytes), bestRaw)
 	copy(unsafe.Slice((*byte)(unsafe.Pointer(&second[0])), f.cells*foldSlotBytes), secRaw)

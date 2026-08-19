@@ -15,11 +15,11 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/boundary"
 	"github.com/MeshBench/meshbench/internal/console"
-	"github.com/MeshBench/meshbench/internal/coverage"
 	"github.com/MeshBench/meshbench/internal/engine"
 	"github.com/MeshBench/meshbench/internal/environ"
 	"github.com/MeshBench/meshbench/internal/gui/state"
 	"github.com/MeshBench/meshbench/internal/linkbudget"
+	"github.com/MeshBench/meshbench/internal/propagation"
 	"github.com/MeshBench/meshbench/internal/scenario"
 	"github.com/MeshBench/meshbench/internal/terrain"
 )
@@ -154,7 +154,7 @@ type Sim struct {
 
 	eng      *engine.Engine
 	nodes    []scenario.Node
-	terr     coverage.Terrain
+	terr     propagation.Terrain
 	starting atomic.Bool
 	cpu      *cpuSampler
 	history  *nodeHistory
@@ -171,7 +171,7 @@ type Sim struct {
 // terrainCached is terrain that answers only from the tile cache - for the
 // callers that must not block on a download, where a missing tile is an
 // honest gap rather than a wait.
-func (s *Sim) terrainCached() coverage.Terrain {
+func (s *Sim) terrainCached() propagation.Terrain {
 	t := s.terrain()
 	if ts, ok := t.(*terrain.TileStore); ok {
 		return cachedOnly{ts}
@@ -185,7 +185,7 @@ func (c cachedOnly) ElevationM(lat, lon float64) (float64, bool) {
 	return c.ts.ElevationCachedM(lat, lon)
 }
 
-func (s *Sim) terrain() coverage.Terrain {
+func (s *Sim) terrain() propagation.Terrain {
 	if s.terr != nil {
 		return s.terr
 	}

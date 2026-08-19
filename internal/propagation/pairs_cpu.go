@@ -1,4 +1,4 @@
-package coverage
+package propagation
 
 import "math"
 

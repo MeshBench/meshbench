@@ -4,15 +4,15 @@ import (
 	"math"
 	"testing"
 
-	"github.com/MeshBench/meshbench/internal/coverage"
+	"github.com/MeshBench/meshbench/internal/propagation"
 )
 
 // hilly builds a synthetic height grid with real structure: ridges tall
 // enough to diffract, valleys low enough to clear, and a hole of missing
 // data — the three cases the kernel must handle.
-func hilly() coverage.HeightGrid {
+func hilly() propagation.HeightGrid {
 	const w, h = 128, 128
-	g := coverage.HeightGrid{
+	g := propagation.HeightGrid{
 		South: 56.5, North: 57.0, West: -4.2, East: -3.2,
 		W: w, H: h, Heights: make([]float32, w*h),
 	}
@@ -26,7 +26,7 @@ func hilly() coverage.HeightGrid {
 			g.Heights[y*w+x] = float32(elev)
 			// A patch of missing tiles in one corner.
 			if x > 115 && y > 115 {
-				g.Heights[y*w+x] = coverage.NoDataHeight
+				g.Heights[y*w+x] = propagation.NoDataHeight
 			}
 		}
 	}
@@ -45,13 +45,13 @@ func TestCoverageKernelMatchesCPU(t *testing.T) {
 	t.Logf("GPU: %s (%s)", d.Name, d.Backend)
 
 	g := hilly()
-	p := coverage.GridLossParams{
+	p := propagation.GridLossParams{
 		StLat: 56.75, StLon: -3.7, StAltM: 620,
 		RasterW: 96, RasterH: 96,
 		South: 56.5, North: 57.0, West: -4.2, East: -3.2,
 		RemoteHeightM: 1.5, FreqMHz: 869.525, Steps: 200,
 	}
-	want := coverage.GridLossCPU(g, p)
+	want := propagation.GridLossCPU(g, p)
 	got, err := d.CoverageGridLoss(g, p)
 	if err != nil {
 		t.Fatal(err)

@@ -12,8 +12,8 @@ import (
 	"image/color"
 	"math"
 
-	"github.com/MeshBench/meshbench/internal/coverage"
 	"github.com/MeshBench/meshbench/internal/gui/state"
+	"github.com/MeshBench/meshbench/internal/propagation"
 )
 
 // shadeGrid is the hillshade resolution. Coarser than the DEM on purpose: this
@@ -23,7 +23,7 @@ const shadeGrid = 256
 
 // hillshade renders the visible area as a shaded relief.
 func (s *Sim) hillshade(south, north, west, east float64) (*state.Coverage, error) {
-	g, _ := coverage.RasteriseHeights(s.terrain(), south, north, west, east,
+	g, _ := propagation.RasteriseHeights(s.terrain(), south, north, west, east,
 		shadeGrid, shadeGrid)
 
 	img := image.NewRGBA(image.Rect(0, 0, shadeGrid, shadeGrid))
@@ -113,7 +113,7 @@ func (s *Sim) hillshade(south, north, west, east float64) (*state.Coverage, erro
 }
 
 // heightAt reads the grid, reporting whether the DEM covered that cell.
-func heightAt(g coverage.HeightGrid, x, y int) (float64, bool) {
+func heightAt(g propagation.HeightGrid, x, y int) (float64, bool) {
 	i := y*shadeGrid + x
 	if i < 0 || i >= len(g.Heights) {
 		return 0, false
@@ -121,7 +121,7 @@ func heightAt(g coverage.HeightGrid, x, y int) (float64, bool) {
 	h := g.Heights[i]
 	// A sentinel, not NaN: the grid says so, and a NaN check here would pass
 	// for a value that is merely very negative.
-	if h == coverage.NoDataHeight {
+	if h == propagation.NoDataHeight {
 		return 0, false
 	}
 	return float64(h), true

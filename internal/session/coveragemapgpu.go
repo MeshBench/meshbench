@@ -21,6 +21,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/coverage"
 	"github.com/MeshBench/meshbench/internal/geo"
 	"github.com/MeshBench/meshbench/internal/gpu"
+	"github.com/MeshBench/meshbench/internal/propagation"
 	"github.com/MeshBench/meshbench/internal/terrain"
 )
 
@@ -30,7 +31,7 @@ import (
 // is per-cell, so banding changes nothing but the buffer sizes.
 const foldBandCells = 4_000_000
 
-func (s *Sim) coverageMapGPU(grid coverage.HeightGrid, stations []coverage.Endpoint,
+func (s *Sim) coverageMapGPU(grid propagation.HeightGrid, stations []coverage.Endpoint,
 	r *coverage.Raster, o coverage.Options,
 	extra func(int, float64, float64, float64, float64, float64) float64,
 	progress func(what string, done, total int)) (*coverage.Combined, string, bool) {
@@ -59,8 +60,8 @@ func (s *Sim) coverageMapGPU(grid coverage.HeightGrid, stations []coverage.Endpo
 		idx    int
 		st     coverage.Endpoint
 		txAslM float64
-		budget coverage.StationBudget
-		gains  coverage.GainTable
+		budget propagation.StationBudget
+		gains  propagation.GainTable
 	}
 	var reach []prepared
 	for i, st := range stations {
@@ -70,12 +71,12 @@ func (s *Sim) coverageMapGPU(grid coverage.HeightGrid, stations []coverage.Endpo
 		}
 		reach = append(reach, prepared{
 			idx: i, st: st, txAslM: ground + st.HeightAGLm,
-			budget: coverage.StationBudget{
+			budget: propagation.StationBudget{
 				TxPowerDBm: st.TxPowerDBm, SensitivityDBm: st.SensitivityDBm,
 				RemoteTxDBm: o.RemoteTxPowerDBm, RemoteGainDBi: o.RemoteGainDBi,
 				RemoteSensitivityDBm: o.RemoteSensitivityDBm, Station: i,
 			},
-			gains: coverage.SampleGains(st.GainTowardsDBi),
+			gains: propagation.SampleGains(st.GainTowardsDBi),
 		})
 	}
 
@@ -105,7 +106,7 @@ func (s *Sim) coverageMapGPU(grid coverage.HeightGrid, stations []coverage.Endpo
 		}
 		// The band's box: sliced so its cell centres are exactly the full
 		// raster's rows y0..y1 - the fold is banded, the answer is not.
-		p := coverage.GridLossParams{
+		p := propagation.GridLossParams{
 			RasterW: gw, RasterH: y1 - y0,
 			South: r.North - (r.North-r.South)*float64(y1)/float64(gh),
 			North: r.North - (r.North-r.South)*float64(y0)/float64(gh),
@@ -160,14 +161,14 @@ func (s *Sim) coverageMapGPU(grid coverage.HeightGrid, stations []coverage.Endpo
 // Serving counts stay as the kernel counted them, before buildings: a
 // count that moves by whether one roof grazes one path would read as
 // network fragility, which is a different fact than shadowing.
-func (s *Sim) foldBandCPU(c *coverage.Combined, grid coverage.HeightGrid,
+func (s *Sim) foldBandCPU(c *coverage.Combined, grid propagation.HeightGrid,
 	stations []coverage.Endpoint, o coverage.Options,
 	extra func(int, float64, float64, float64, float64, float64) float64,
-	best, second []coverage.FoldSlot, served []uint32, y0, y1 int,
+	best, second []propagation.FoldSlot, served []uint32, y0, y1 int,
 	rowsDone func(int)) {
 
 	gw, gh := c.Width, c.Height
-	price := func(sl coverage.FoldSlot, lat, lon, rxAsl float64) (float64, float64, int) {
+	price := func(sl propagation.FoldSlot, lat, lon, rxAsl float64) (float64, float64, int) {
 		out, in, win := float64(sl.OutDB), float64(sl.InDB), int(sl.Station)
 		if extra == nil || (out < -12 && in < -12) {
 			return out, in, win

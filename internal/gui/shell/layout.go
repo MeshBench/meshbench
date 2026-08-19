@@ -4,13 +4,14 @@ package shell
 
 import (
 	"fmt"
+	"image"
+
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/unit"
 	"github.com/MeshBench/meshbench/internal/gui/comp"
 	"github.com/MeshBench/meshbench/internal/gui/state"
 	"github.com/MeshBench/meshbench/internal/gui/theme"
-	"image"
 )
 
 func (sh *Shell) body(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {

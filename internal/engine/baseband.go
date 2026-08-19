@@ -1,10 +1,11 @@
 package engine
 
 import (
+	"math"
+
 	"github.com/MeshBench/meshbench/internal/dsp"
 	"github.com/MeshBench/meshbench/internal/lora"
 	"github.com/MeshBench/meshbench/internal/rf"
-	"math"
 )
 
 // captureThresholdDB is how much stronger one signal must be for a receiver to

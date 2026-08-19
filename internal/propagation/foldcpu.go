@@ -3,7 +3,7 @@
 // The gain table is shared with the device rather than the pattern
 // function itself, so the two twins interpolate the same numbers and the
 // equivalence test can hold them together.
-package coverage
+package propagation
 
 import (
 	"math"

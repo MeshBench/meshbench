@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/MeshBench/meshbench/internal/coverage"
+	"github.com/MeshBench/meshbench/internal/propagation"
 )
 
 // The fold's ADR-0004 harness: three stations - one with a directional
@@ -19,26 +19,26 @@ func TestCoverageFoldMatchesCPU(t *testing.T) {
 	defer d.Close()
 
 	g := hilly()
-	base := coverage.GridLossParams{
+	base := propagation.GridLossParams{
 		RasterW: 96, RasterH: 96,
 		South: 56.5, North: 57.0, West: -4.2, East: -3.2,
 		RemoteHeightM: 1.5, FreqMHz: 869.525, Steps: 200,
 	}
 	stations := []struct {
 		lat, lon, alt float64
-		budget        coverage.StationBudget
+		budget        propagation.StationBudget
 		gain          func(b, e float64) float64
 	}{
-		{56.75, -3.7, 620, coverage.StationBudget{TxPowerDBm: 22, SensitivityDBm: -124,
+		{56.75, -3.7, 620, propagation.StationBudget{TxPowerDBm: 22, SensitivityDBm: -124,
 			RemoteTxDBm: 20, RemoteSensitivityDBm: -124, Station: 0},
 			func(b, e float64) float64 { return 2.15 }},
-		{56.6, -4.0, 340, coverage.StationBudget{TxPowerDBm: 27, SensitivityDBm: -121,
+		{56.6, -4.0, 340, propagation.StationBudget{TxPowerDBm: 27, SensitivityDBm: -121,
 			RemoteTxDBm: 20, RemoteSensitivityDBm: -124, Station: 1},
 			// A beam: the fold must rank stations differently on and off it.
 			func(b, e float64) float64 {
 				return 9 - 12*math.Pow(math.Sin((b-45)*math.Pi/360), 2) - 0.1*math.Abs(e)
 			}},
-		{56.9, -3.4, 415, coverage.StationBudget{TxPowerDBm: 14, SensitivityDBm: -129,
+		{56.9, -3.4, 415, propagation.StationBudget{TxPowerDBm: 14, SensitivityDBm: -129,
 			RemoteTxDBm: 20, RemoteSensitivityDBm: -124, Station: 2},
 			func(b, e float64) float64 { return 5.0 }},
 	}
@@ -55,18 +55,18 @@ func TestCoverageFoldMatchesCPU(t *testing.T) {
 	defer fold.Release()
 
 	cells := base.RasterW * base.RasterH
-	wantBest := coverage.NewFoldSlots(cells)
-	wantSecond := coverage.NewFoldSlots(cells)
+	wantBest := propagation.NewFoldSlots(cells)
+	wantSecond := propagation.NewFoldSlots(cells)
 	wantServed := make([]uint32, cells)
 
 	for _, st := range stations {
 		p := base
 		p.StLat, p.StLon, p.StAltM = st.lat, st.lon, st.alt
-		gt := coverage.SampleGains(st.gain)
+		gt := propagation.SampleGains(st.gain)
 		if err := fold.Station(p, st.budget, gt); err != nil {
 			t.Fatal(err)
 		}
-		coverage.FoldStationCPU(coverage.GridLossCPU(g, p), g, p, st.budget, gt,
+		propagation.FoldStationCPU(propagation.GridLossCPU(g, p), g, p, st.budget, gt,
 			wantBest, wantSecond, wantServed)
 	}
 	gotBest, gotSecond, gotServed, err := fold.Read()
@@ -74,7 +74,7 @@ func TestCoverageFoldMatchesCPU(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	check := func(name string, got, want []coverage.FoldSlot) {
+	check := func(name string, got, want []propagation.FoldSlot) {
 		wrong := 0
 		for i := range want {
 			if got[i].Station != want[i].Station {

@@ -6,9 +6,8 @@ import (
 	"math"
 	"unsafe"
 
+	"github.com/MeshBench/meshbench/internal/propagation"
 	"github.com/cogentcore/webgpu/wgpu"
-
-	"github.com/MeshBench/meshbench/internal/coverage"
 )
 
 //go:embed pairs.wgsl
@@ -35,9 +34,9 @@ func (d *Device) compilePairs() error {
 }
 
 // PairProfileLoss runs the pairs kernel over profiles somebody gathered: one
-// loss per packed pair. The CPU twin is coverage.ProfilePairLossCPU, and the
+// loss per packed pair. The CPU twin is propagation.ProfilePairLossCPU, and the
 // equivalence test holds the two together.
-func (d *Device) PairProfileLoss(p coverage.PairProfiles, freqMHz float64) ([]float32, error) {
+func (d *Device) PairProfileLoss(p propagation.PairProfiles, freqMHz float64) ([]float32, error) {
 	if d.pairs == nil {
 		return nil, fmt.Errorf("gpu: pairs pipeline not compiled")
 	}

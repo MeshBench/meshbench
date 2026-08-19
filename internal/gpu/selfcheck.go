@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/MeshBench/meshbench/internal/coverage"
+	"github.com/MeshBench/meshbench/internal/propagation"
 )
 
 // SelfCheck runs a small problem on the device and compares the answer with
@@ -39,13 +39,13 @@ const tolerance = 0.5
 
 func (d *Device) checkCoverage() error {
 	g := checkGrid()
-	p := coverage.GridLossParams{
+	p := propagation.GridLossParams{
 		StLat: 56.75, StLon: -3.7, StAltM: 620,
 		RasterW: 24, RasterH: 24,
 		South: 56.6, North: 56.9, West: -3.9, East: -3.5,
 		RemoteHeightM: 1.5, FreqMHz: 869.525, Steps: 60,
 	}
-	want := coverage.GridLossCPU(g, p)
+	want := propagation.GridLossCPU(g, p)
 	got, err := d.CoverageGridLoss(g, p)
 	if err != nil {
 		return fmt.Errorf("coverage kernel: %w", err)
@@ -54,7 +54,7 @@ func (d *Device) checkCoverage() error {
 }
 
 func (d *Device) checkPairs() error {
-	var pp coverage.PairProfiles
+	var pp propagation.PairProfiles
 	// Three profiles: flat, a ridge in the middle, and a slope. Enough shape
 	// that a kernel which ignores the terrain still gets caught.
 	heights := make([]float32, 64)
@@ -70,7 +70,7 @@ func (d *Device) checkPairs() error {
 	}
 	pp.Add(heights, 8000, 10, 1.5)
 
-	want := coverage.ProfilePairLossCPU(pp, 869.525)
+	want := propagation.ProfilePairLossCPU(pp, 869.525)
 	got, err := d.PairProfileLoss(pp, 869.525)
 	if err != nil {
 		return fmt.Errorf("pairs kernel: %w", err)
@@ -87,7 +87,7 @@ func compare(what string, got, want []float32) error {
 	for i := range want {
 		// No-data cells are a refusal on both sides rather than a number, so
 		// they are compared as a pair of refusals.
-		if math.IsInf(float64(want[i]), 1) || want[i] == coverage.NoDataLoss {
+		if math.IsInf(float64(want[i]), 1) || want[i] == propagation.NoDataLoss {
 			continue
 		}
 		if d := math.Abs(float64(got[i] - want[i])); d > worst {
@@ -105,9 +105,9 @@ func compare(what string, got, want []float32) error {
 
 // checkGrid is a small piece of ground with relief in it: flat terrain would
 // let a kernel that never reads the heightmap pass.
-func checkGrid() coverage.HeightGrid {
+func checkGrid() propagation.HeightGrid {
 	const n = 48
-	g := coverage.HeightGrid{
+	g := propagation.HeightGrid{
 		W: n, H: n,
 		South: 56.6, North: 56.9, West: -3.9, East: -3.5,
 		Heights: make([]float32, n*n),
