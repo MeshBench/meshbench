@@ -115,197 +115,205 @@ func registerCoverageMap(st *state.Store, s *Sim) {
 	})
 
 	st.Handle("coverage.map", func(w *state.World, p any) (any, error) {
-		// One station or the whole network: "coverage from this node over
-		// what I am looking at" is the same computation with a shorter
-		// station list, so it must be the same code - two paths would
-		// disagree about buildings within a week.
-		painted := "the whole network"
-		infra := infrastructure(s.nodes)
-		if name, _ := stringField(p, "station"); name != "" {
-			infra = infra[:0]
-			for i := range s.nodes {
-				if s.nodes[i].Name == name ||
-					(name == "selected" && i < len(w.Nodes) && w.Nodes[i].Selected) {
-					infra = append(infra[:0], s.nodes[i])
-					painted = s.nodes[i].Name
-					break
-				}
-			}
-			if len(infra) == 0 {
-				return nil, fmt.Errorf("no node selected to compute coverage from")
+		return s.startCoverageMap(st, w, p)
+	})
+}
+
+// startCoverageMap is the one raster job: the whole network or a single
+// station ("coverage from this node" arrives here too), so there is one
+// code path - two would disagree about buildings within a week.
+func (s *Sim) startCoverageMap(st *state.Store, w *state.World, p any) (any, error) {
+	painted := "the whole network"
+	infra := infrastructure(s.nodes)
+	if name, _ := stringField(p, "station"); name != "" {
+		infra = infra[:0]
+		for i := range s.nodes {
+			if s.nodes[i].Name == name ||
+				(name == "selected" && i < len(w.Nodes) && w.Nodes[i].Selected) {
+				infra = append(infra[:0], s.nodes[i])
+				painted = s.nodes[i].Name
+				break
 			}
 		}
 		if len(infra) == 0 {
-			return nil, fmt.Errorf("no repeaters or room servers to cover the map with")
+			return nil, fmt.Errorf("no node selected to compute coverage from")
 		}
-		// An explicit box wins - the raster-this-view button sends the
-		// borders somebody is actually looking at. Then the study boundary,
-		// then the network's own box.
-		south, sOK := numField(p, "south")
-		north, nOK := numField(p, "north")
-		west, wOK := numField(p, "west")
-		east, eOK := numField(p, "east")
-		if !sOK || !nOK || !wOK || !eOK {
-			var ok bool
-			south, north, west, east, ok = areasBox(w.Areas)
-			if !ok {
-				var err error
-				south, north, west, east, _, _, err = mapBox(s.nodes, s.coverageCells())
-				if err != nil {
-					return nil, err
-				}
-			}
-		} else if south >= north || west >= east {
-			return nil, fmt.Errorf("that viewport is inside out")
-		}
-		// A per-run resolution rides along with a viewport box - the map
-		// picks what looks sharp on the screen asking - without touching
-		// the saved knob.
-		edge := s.coverageCells()
-		if v, ok := numField(p, "cells"); ok && p != nil {
-			if c := int(v); c >= mapGridMin && c <= mapGridMax {
-				edge = c
+	}
+	if len(infra) == 0 {
+		return nil, fmt.Errorf("no repeaters or room servers to cover the map with")
+	}
+	// An explicit box wins - the raster-this-view button sends the
+	// borders somebody is actually looking at. Then the study boundary,
+	// then the network's own box.
+	south, sOK := numField(p, "south")
+	north, nOK := numField(p, "north")
+	west, wOK := numField(p, "west")
+	east, eOK := numField(p, "east")
+	if !sOK || !nOK || !wOK || !eOK {
+		var ok bool
+		south, north, west, east, ok = areasBox(w.Areas)
+		if !ok {
+			var err error
+			south, north, west, east, _, _, err = mapBox(s.nodes, s.coverageCells())
+			if err != nil {
+				return nil, err
 			}
 		}
-		gw, gh := gridFor(south, north, west, east, edge)
-		stations := make([]coverage.Endpoint, 0, len(infra))
-		for _, n := range infra {
-			n := n
-			stations = append(stations, coverage.Endpoint{
-				Name: n.Name, Lat: n.Position.Lat, Lon: n.Position.Lon,
-				HeightAGLm: n.HeightAGLm, TxPowerDBm: n.TxPowerDBm,
-				SensitivityDBm: linkbudget.SensitivityDBm(n),
-				GainTowardsDBi: func(b, e float64) float64 { return n.Antenna.GainTowardsDBi(b, e) },
-			})
+	} else if south >= north || west >= east {
+		return nil, fmt.Errorf("that viewport is inside out")
+	}
+	// A per-run resolution rides along with a viewport box - the map
+	// picks what looks sharp on the screen asking - without touching
+	// the saved knob.
+	edge := s.coverageCells()
+	if v, ok := numField(p, "cells"); ok && p != nil {
+		if c := int(v); c >= mapGridMin && c <= mapGridMax {
+			edge = c
 		}
-		freq := s.freqMHz
-		if freq <= 0 {
-			freq = 869.618
-		}
-		var env environ.Provider
-		if s.eng != nil && s.eng.Env != nil {
-			env = s.eng.Env
-		} else if s.envDir != "" {
-			env = environ.OpenTiles(s.envDir)
-		}
-		// Cache-only terrain: a raster that walks into the sea must draw
-		// a gap there, not stall a national job on tile downloads for
-		// water nobody radioed across. Missing ground is NoData, counted.
-		ground := s.terrainCached()
+	}
+	gw, gh := gridFor(south, north, west, east, edge)
+	stations := make([]coverage.Endpoint, 0, len(infra))
+	for _, n := range infra {
+		n := n
+		stations = append(stations, coverage.Endpoint{
+			Name: n.Name, Lat: n.Position.Lat, Lon: n.Position.Lon,
+			HeightAGLm: n.HeightAGLm, TxPowerDBm: n.TxPowerDBm,
+			SensitivityDBm: linkbudget.SensitivityDBm(n),
+			GainTowardsDBi: func(b, e float64) float64 { return n.Antenna.GainTowardsDBi(b, e) },
+		})
+	}
+	freq := s.freqMHz
+	if freq <= 0 {
+		freq = 869.618
+	}
+	var env environ.Provider
+	if s.eng != nil && s.eng.Env != nil {
+		env = s.eng.Env
+	} else if s.envDir != "" {
+		env = environ.OpenTiles(s.envDir)
+	}
+	// Cache-only terrain: a raster that walks into the sea must draw
+	// a gap there, not stall a national job on tile downloads for
+	// water nobody radioed across. Missing ground is NoData, counted.
+	ground := s.terrainCached()
 
-		const id = "coverage-map"
-		// One job, two phases: the terrain sampled once, then the cells.
-		// Height rows count as the first half so the bar moves from the
-		// first second - a long job with nothing on screen reads as a hang.
-		hw, hh := gw*2, gh*2
-		if hw > 4096 {
-			hw, hh = 4096, int(4096*float64(gh)/float64(gw))
-		}
-		total := hh + gh
-		w.Jobs = append(w.Jobs, state.Job{
-			ID: id, What: "coverage: the whole map", Total: total})
-		with := "bare earth"
-		if env != nil {
-			with = "buildings priced"
-		}
+	const id = "coverage-map"
+	// One job, two phases: the terrain sampled once, then the cells.
+	// Height rows count as the first half so the bar moves from the
+	// first second - a long job with nothing on screen reads as a hang.
+	hw, hh := gw*2, gh*2
+	if hw > 4096 {
+		hw, hh = 4096, int(4096*float64(gh)/float64(gw))
+	}
+	total := hh + gh
+	w.Jobs = append(w.Jobs, state.Job{
+		ID: id, What: "coverage: " + painted, Total: total})
+	with := "bare earth"
+	if env != nil {
+		with = "buildings priced"
+	}
+	if painted == "the whole network" {
 		w.Say(fmt.Sprintf("covering the map: %d stations, %dx%d cells, %s",
 			len(stations), gw, gh, with))
-		go func() {
-			ctx := context.Background()
-			// However it ends, the bar comes down: a finished job that
-			// keeps owning the status line reads as a hang after the fact.
-			defer func() { _, _ = st.Do(ctx, "job.done", id) }()
-			grid, frac := coverage.RasteriseHeightsProgress(ground,
-				south, north, west, east, hw, hh, func(row, _ int) {
+	} else {
+		w.Say(fmt.Sprintf("covering from %s: %dx%d cells, %s",
+			painted, gw, gh, with))
+	}
+	go func() {
+		ctx := context.Background()
+		// However it ends, the bar comes down: a finished job that
+		// keeps owning the status line reads as a hang after the fact.
+		defer func() { _, _ = st.Do(ctx, "job.done", id) }()
+		grid, frac := coverage.RasteriseHeightsProgress(ground,
+			south, north, west, east, hw, hh, func(row, _ int) {
+				_, _ = st.Do(ctx, "job.progress", state.Job{
+					ID: id, What: "coverage: sampling terrain",
+					Done: row, Total: total})
+			})
+		if frac < 0.05 {
+			_, _ = st.Do(ctx, "coverage.failed",
+				"the terrain tiles for this area are not downloaded")
+			return
+		}
+		r := &coverage.Raster{South: south, North: north, West: west, East: east,
+			Width: gw, Height: gh, FreqMHz: freq}
+		var extra func(int, float64, float64, float64, float64, float64) float64
+		if env != nil {
+			// One spatial index for the whole job. Per-path store
+			// queries - even corridor-shaped - ground twelve workers
+			// against one mutex for minutes; the index pays one query
+			// and answers every path lock-free.
+			iSouth, iNorth, iWest, iEast := south, north, west, east
+			for _, sta := range stations {
+				iSouth = math.Min(iSouth, sta.Lat)
+				iNorth = math.Max(iNorth, sta.Lat)
+				iWest = math.Min(iWest, sta.Lon)
+				iEast = math.Max(iEast, sta.Lon)
+			}
+			ix := environ.NewPathIndex(env, ground,
+				iSouth-0.05, iWest-0.05, iNorth+0.05, iEast+0.05)
+			if ix.Buildings() > 0 {
+				// Each station's near-set once, up front: the raster
+				// asks about the same town a hundred thousand times,
+				// and the sector index answers with the handful of
+				// footprints the ray could actually cross.
+				shadows := make([]*environ.StationPaths, len(stations))
+				for i, sta := range stations {
+					shadows[i] = ix.Station(sta.Lat, sta.Lon)
+				}
+				nearMask := ix.NearMask(south, north, west, east, gw, gh, 3)
+				var pool = sync.Pool{New: func() any { return &environ.PathScratch{} }}
+				extra = func(sti int, cellLat, cellLon, txAsl, rxAsl, distM float64) float64 {
+					cx := int((cellLon - west) / (east - west) * float64(gw))
+					cy := int((north - cellLat) / (north - south) * float64(gh))
+					near := cx >= 0 && cx < gw && cy >= 0 && cy < gh && nearMask[cy*gw+cx]
+					sc := pool.Get().(*environ.PathScratch)
+					defer pool.Put(sc)
+					return shadows[sti].LossDB(sc, near, txAsl, cellLat, cellLon, rxAsl, distM, freq)
+				}
+			}
+		}
+		// The profile step follows the height grid: sampling terrain
+		// finer than the grid that answers is precision theatre, paid
+		// for in minutes.
+		cellM := (east - west) * 111320 * math.Cos((south+north)/2*math.Pi/180) / float64(hw)
+		stepM := math.Max(150, cellM)
+		opts := coverage.Options{
+			RemoteHeightAGLm: 1.5, RemoteTxPowerDBm: 20,
+			RemoteSensitivityDBm: -124, ProfileStepM: stepM,
+		}
+		var combined *coverage.Combined
+		if s.gpuWarm {
+			// The operator's one GPU switch, the warm's own rule: the
+			// device prices each station's whole grid at once, and a
+			// missing or dying device hands the job to the CPU twin.
+			if c, name, ok := s.coverageMapGPU(grid, stations, r, opts, extra,
+				func(what string, done, totalWork int) {
+					if totalWork < 1 {
+						totalWork = 1
+					}
 					_, _ = st.Do(ctx, "job.progress", state.Job{
-						ID: id, What: "coverage: sampling terrain",
-						Done: row, Total: total})
+						ID: id, What: what,
+						Done: hh + done*gh/totalWork, Total: total})
+				}); ok {
+				combined = c
+				_, _ = st.Do(ctx, "ui.said", "coverage priced on "+name)
+			}
+		}
+		if combined == nil {
+			combined = coverage.BestServer(grid, stations, r, opts,
+				extra, func(row, _ int) {
+					_, _ = st.Do(ctx, "job.progress", state.Job{
+						ID: id, What: "coverage: judging every cell",
+						Done: hh + row, Total: total})
 				})
-			if frac < 0.05 {
-				_, _ = st.Do(ctx, "coverage.failed",
-					"the terrain tiles for this area are not downloaded")
-				return
-			}
-			r := &coverage.Raster{South: south, North: north, West: west, East: east,
-				Width: gw, Height: gh, FreqMHz: freq}
-			var extra func(int, float64, float64, float64, float64, float64) float64
-			if env != nil {
-				// One spatial index for the whole job. Per-path store
-				// queries - even corridor-shaped - ground twelve workers
-				// against one mutex for minutes; the index pays one query
-				// and answers every path lock-free.
-				iSouth, iNorth, iWest, iEast := south, north, west, east
-				for _, sta := range stations {
-					iSouth = math.Min(iSouth, sta.Lat)
-					iNorth = math.Max(iNorth, sta.Lat)
-					iWest = math.Min(iWest, sta.Lon)
-					iEast = math.Max(iEast, sta.Lon)
-				}
-				ix := environ.NewPathIndex(env, ground,
-					iSouth-0.05, iWest-0.05, iNorth+0.05, iEast+0.05)
-				if ix.Buildings() > 0 {
-					// Each station's near-set once, up front: the raster
-					// asks about the same town a hundred thousand times,
-					// and the sector index answers with the handful of
-					// footprints the ray could actually cross.
-					shadows := make([]*environ.StationPaths, len(stations))
-					for i, sta := range stations {
-						shadows[i] = ix.Station(sta.Lat, sta.Lon)
-					}
-					nearMask := ix.NearMask(south, north, west, east, gw, gh, 3)
-					var pool = sync.Pool{New: func() any { return &environ.PathScratch{} }}
-					extra = func(sti int, cellLat, cellLon, txAsl, rxAsl, distM float64) float64 {
-						cx := int((cellLon - west) / (east - west) * float64(gw))
-						cy := int((north - cellLat) / (north - south) * float64(gh))
-						near := cx >= 0 && cx < gw && cy >= 0 && cy < gh && nearMask[cy*gw+cx]
-						sc := pool.Get().(*environ.PathScratch)
-						defer pool.Put(sc)
-						return shadows[sti].LossDB(sc, near, txAsl, cellLat, cellLon, rxAsl, distM, freq)
-					}
-				}
-			}
-			// The profile step follows the height grid: sampling terrain
-			// finer than the grid that answers is precision theatre, paid
-			// for in minutes.
-			cellM := (east - west) * 111320 * math.Cos((south+north)/2*math.Pi/180) / float64(hw)
-			stepM := math.Max(150, cellM)
-			opts := coverage.Options{
-				RemoteHeightAGLm: 1.5, RemoteTxPowerDBm: 20,
-				RemoteSensitivityDBm: -124, ProfileStepM: stepM,
-			}
-			var combined *coverage.Combined
-			if s.gpuWarm {
-				// The operator's one GPU switch, the warm's own rule: the
-				// device prices each station's whole grid at once, and a
-				// missing or dying device hands the job to the CPU twin.
-				if c, name, ok := s.coverageMapGPU(grid, stations, r, opts, extra,
-					func(what string, done, totalWork int) {
-						if totalWork < 1 {
-							totalWork = 1
-						}
-						_, _ = st.Do(ctx, "job.progress", state.Job{
-							ID: id, What: what,
-							Done: hh + done*gh/totalWork, Total: total})
-					}); ok {
-					combined = c
-					_, _ = st.Do(ctx, "ui.said", "coverage priced on "+name)
-				}
-			}
-			if combined == nil {
-				combined = coverage.BestServer(grid, stations, r, opts,
-					extra, func(row, _ int) {
-						_, _ = st.Do(ctx, "job.progress", state.Job{
-							ID: id, What: "coverage: judging every cell",
-							Done: hh + row, Total: total})
-					})
-			}
-			cov := paintCoverage(r, painted)
-			_, _ = st.Do(ctx, "coverage.set", cov)
-			_, _ = st.Do(ctx, "coverage.combined",
-				map[string]any{"mode": "map", "combined": combined})
-		}()
-		return map[string]any{"nodes": len(infra), "started": true}, nil
-	})
+		}
+		cov := paintCoverage(r, painted)
+		_, _ = st.Do(ctx, "coverage.set", cov)
+		_, _ = st.Do(ctx, "coverage.combined",
+			map[string]any{"mode": "map", "combined": combined})
+	}()
+	return map[string]any{"nodes": len(infra), "started": true}, nil
 }
 
 // areasBox is the study boundary's bounding box plus a margin, when a

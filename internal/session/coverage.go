@@ -17,44 +17,11 @@ import (
 	"github.com/MeshBench/meshbench/internal/scenario"
 )
 
-// covGrid is the raster resolution. 160 square is 25,600 cells, each one a
-// terrain profile: seconds, not minutes, and fine enough that the edge of
-// coverage is a shape rather than a staircase.
-const covGrid = 160
-
-// coverageFor computes the raster around one node and paints it.
-//
-// Returned as an image rather than as cells because the snapshot crosses into
-// the renderer, and a renderer that has to know what a decibel is in order to
-// draw a picture is a renderer that will eventually disagree with the panel
-// that prints the number.
-func (s *Sim) coverageFor(ctx context.Context, n scenario.Node, spanKm float64,
-	progress func(done, total int)) (*state.Coverage, error) {
-	c, _, err := s.coverageWithRaster(ctx, n, spanKm, progress)
-	return c, err
-}
-
-func (s *Sim) coverageWithRaster(ctx context.Context, n scenario.Node, spanKm float64,
-	progress func(done, total int)) (*state.Coverage, *coverage.Raster, error) {
-
-	// A square of spanKm each way, in degrees.
-	dLat := spanKm / 111.32
-	dLon := spanKm / (111.32 * math.Cos(n.Position.Lat*math.Pi/180))
-	r, err := s.rasterOnBox(ctx, n,
-		n.Position.Lat-dLat, n.Position.Lat+dLat,
-		n.Position.Lon-dLon, n.Position.Lon+dLon, covGrid, covGrid, progress)
-	if err != nil {
-		return nil, nil, err
-	}
-	return paintCoverage(r, n.Name), r, nil
-}
-
 // rasterOnBox is one node's raster over a caller-chosen box and grid - the
 // shape the network-wide questions need, because rasters can only be combined
 // when every node answered over the same ground.
 func (s *Sim) rasterOnBox(_ context.Context, n scenario.Node,
-	south, north, west, east float64, w, h int,
-	progress func(done, total int)) (*coverage.Raster, error) {
+	south, north, west, east float64, w, h int) (*coverage.Raster, error) {
 	r := &coverage.Raster{
 		South: south, North: north, West: west, East: east,
 		Width: w, Height: h,
@@ -73,7 +40,6 @@ func (s *Sim) rasterOnBox(_ context.Context, n scenario.Node,
 	opts := coverage.Options{
 		RemoteHeightAGLm: 1.5, RemoteTxPowerDBm: 20, RemoteGainDBi: 0,
 		RemoteSensitivityDBm: linkbudget.SensitivityDBm(n), ProfileStepM: 120,
-		Progress: progress,
 	}
 	if err := coverage.Compute(fixed, s.terrain(), r, opts); err != nil {
 		return nil, err

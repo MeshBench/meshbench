@@ -103,10 +103,6 @@ type Options struct {
 	// ProfileStepM is the terrain sampling interval along each path. Too coarse
 	// and a ridge is stepped over entirely; 30 m matches the usual DEM.
 	ProfileStepM float64
-
-	// Progress, when set, hears each finished row. A raster is a long quiet
-	// loop; the difference between "wait" and "force-quit" is a percentage.
-	Progress func(done, total int)
 }
 
 // Compute evaluates a raster.
@@ -131,9 +127,6 @@ func Compute(fixed Endpoint, t Terrain, r *Raster, o Options) error {
 		for x := 0; x < r.Width; x++ {
 			lat, lon := r.LatLonAt(x, y)
 			r.Cells[y*r.Width+x] = evaluate(fixed, fixedGround, lat, lon, t, r.FreqMHz, o)
-		}
-		if o.Progress != nil {
-			o.Progress(y+1, r.Height)
 		}
 	}
 	return nil

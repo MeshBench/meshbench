@@ -6,6 +6,7 @@ package session
 import (
 	"context"
 	"fmt"
+	"math"
 
 	"github.com/MeshBench/meshbench/internal/gui/state"
 )
@@ -33,27 +34,24 @@ func registerCoverageVerbs(st *state.Store, s *Sim) {
 			return nil, fmt.Errorf("no node selected to compute coverage from")
 		}
 		n := s.nodes[at]
-		w.Say("computing coverage from " + n.Name)
-		const id = "coverage-node"
-		w.Jobs = append(w.Jobs, state.Job{
-			ID: id, What: "coverage from " + n.Name, Total: 1})
-		// On a worker: 25,600 terrain profiles is not a thing to do on the
-		// goroutine that owns the world.
-		go func() {
-			ctx := context.Background()
-			cov, err := s.coverageFor(ctx, n, 60, func(done, total int) {
-				_, _ = st.Do(ctx, "job.progress", state.Job{
-					ID: id, What: "coverage from " + n.Name,
-					Done: done, Total: total})
-			})
-			_, _ = st.Do(ctx, "job.done", id)
-			if err != nil {
-				_, _ = st.Do(ctx, "coverage.failed", err.Error())
-				return
-			}
-			_, _ = st.Do(ctx, "coverage.set", cov)
-		}()
-		return map[string]any{"from": n.Name}, nil
+		// The whole-map job with a station list of one: the GPU fold, the
+		// buildings, the resolution knob and the percentage all arrive for
+		// free, where the 160-cell tile walk this replaced had none of
+		// them. The box is the node's 60 km study square, as it always was.
+		dLat := 60.0 / 111.32
+		dLon := 60.0 / (111.32 * math.Cos(n.Position.Lat*math.Pi/180))
+		// A floor under the resolution knob: 800 cells is ~150 m over the
+		// study box, which is what "coverage from here" is for - the knob
+		// can still push it higher for everything at once.
+		cells := s.coverageCells()
+		if cells < 800 {
+			cells = 800
+		}
+		return s.startCoverageMap(st, w, map[string]any{
+			"station": n.Name, "cells": float64(cells),
+			"south": n.Position.Lat - dLat, "north": n.Position.Lat + dLat,
+			"west": n.Position.Lon - dLon, "east": n.Position.Lon + dLon,
+		})
 	})
 
 	st.Handle("coverage.set", func(w *state.World, p any) (any, error) {
