@@ -125,7 +125,10 @@ func registerCoverageMap(st *state.Store, s *Sim) {
 func (s *Sim) startCoverageMap(st *state.Store, w *state.World, p any) (any, error) {
 	painted := "the whole network"
 	infra := infrastructure(s.nodes)
-	if name, _ := stringField(p, "station"); name != "" {
+	// From the params object only: stringField's bare-string case would
+	// otherwise read any stray string as a station name.
+	mp, _ := p.(map[string]any)
+	if name, _ := mp["station"].(string); name != "" {
 		infra = infra[:0]
 		for i := range s.nodes {
 			if s.nodes[i].Name == name ||
