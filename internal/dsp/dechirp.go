@@ -1,6 +1,6 @@
 package dsp
 
-// DechirpCPU is the CPU reference for shaders/dechirp.wgsl.
+// DechirpCPU is the CPU reference for internal/gpu/dechirp.wgsl.
 //
 // Per ADR-0004 this is the oracle, not a fallback: the GPU kernel is tested
 // against it, because a wrong dechirp produces a plausible waterfall and

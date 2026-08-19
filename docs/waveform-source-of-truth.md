@@ -26,7 +26,7 @@ would fail in its first week:
   (`docs/shortcomings.md`), which is the evidence the modem is honest.
 - `engine.InFlightTransmissions()` already synthesises what is on the air as
   baseband for any receiver — same modulator, same link budgets.
-- GPU FFT exists in `shaders/` with the CPU implementation as the tested
+- GPU FFT exists in `internal/gpu/` with the CPU implementation as the tested
   oracle (ADR-0004).
 - `internal/sdr` has spectrogram, SigMF export, WAV, and a real
   tune-filter-resample listen path.
