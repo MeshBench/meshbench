@@ -4,6 +4,7 @@ package workbench
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/ui/comp"
@@ -51,20 +52,58 @@ func wireMapTools(mv *comp.MapView, mapTop *mapTools, st *state.Store, ctx conte
 			_, _ = st.Do(ctx, "ui.said", "placed "+name+" - drag it with the move tool")
 		}()
 	}
-	// The link tool asks the question the Inspector asks: what does this link
-	// cost, in both directions.
-	mv.OnLinkPair = func(a, b string) {
-		go func() {
-			if _, err := st.Do(ctx, "nodes.select_many", []string{a, b}); err != nil {
-				return
+	// The link tool asks about exactly the pair it was given - link.pair,
+	// which answers whether or not the engine is warm and whatever the
+	// margin is. It used to route through budget.for_selection, which kept
+	// only the first node's strongest link: the chosen far end was never
+	// consulted, and a far-apart pair produced an empty panel.
+	mv.OnLinkPair = func(a, b comp.LinkEnd) {
+		mv.PinnedLink = true
+		params := map[string]any{"a": linkEndParam(a), "b": linkEndParam(b)}
+		var sel []string
+		for _, e := range []comp.LinkEnd{a, b} {
+			if e.Node != "" {
+				sel = append(sel, e.Node)
 			}
-			if _, err := st.Do(ctx, "budget.for_selection", nil); err != nil {
+		}
+		from, to := linkEndName(a), linkEndName(b)
+		go func() {
+			if len(sel) > 0 {
+				_, _ = st.Do(ctx, "nodes.select_many", sel)
+			}
+			if _, err := st.Do(ctx, "link.pair", params); err != nil {
 				_, _ = st.Do(ctx, "ui.said", "link: "+err.Error())
 				return
 			}
-			_, _ = st.Do(ctx, "ui.said", a+" to "+b+": the budget is in the Link panel")
+			_, _ = st.Do(ctx, "ui.said",
+				from+" to "+to+" is pinned in the Link panel - Esc releases it")
 		}()
 	}
+	// A half-made pick is a mode, and a mode must say so.
+	mv.OnLinkArmed = func(end comp.LinkEnd) {
+		hint := "link: first end " + linkEndName(end) +
+			" - click the far end, a node or bare ground; Esc cancels"
+		go func() { _, _ = st.Do(ctx, "ui.said", hint) }()
+	}
+	mv.OnLinkCancel = func() {
+		go func() { _, _ = st.Do(ctx, "ui.said", "link released") }()
+	}
+}
+
+// linkEndParam is what link.pair is told about one end.
+func linkEndParam(e comp.LinkEnd) any {
+	if e.Node != "" {
+		return e.Node
+	}
+	return map[string]any{"lat": e.Lat, "lon": e.Lon}
+}
+
+// linkEndName is how an end reads in the status bar.
+func linkEndName(e comp.LinkEnd) string {
+	if e.Node != "" {
+		return e.Node
+	}
+	return fmt.Sprintf("%.4f, %.4f", e.Lat, e.Lon)
 }
 
 // rasterMenuIntercept is the menu's raster entries: the rasters exist to

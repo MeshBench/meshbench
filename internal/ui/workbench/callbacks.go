@@ -121,8 +121,15 @@ func (c callbacks) wire() {
 		if additive {
 			verb = "nodes.add_to_selection"
 		}
+		// While a pair is pinned, selecting still selects - only the budget
+		// refresh is held back, because it would overwrite the pinned pair
+		// with the new selection's strongest link on the very next click.
+		pinned := c.mv.PinnedLink
 		go func() {
 			_, _ = c.st.Do(c.ctx, verb, names)
+			if pinned {
+				return
+			}
 			// The budget follows the selection: it is a panel about whatever
 			// is selected, and asking for it separately would let the two
 			// disagree about what that is.

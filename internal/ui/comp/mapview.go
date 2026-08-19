@@ -60,7 +60,11 @@ type MapView struct {
 	Tool string
 	// linkFrom is the first end of a link being made with the link tool. A
 	// link takes two clicks, so the first one has to be remembered somewhere.
-	linkFrom    string
+	linkFrom *LinkEnd
+	// PinnedLink says a pair picked with the link tool is holding the Link
+	// panel: ordinary selection still selects, but stops refreshing the
+	// budget over the pinned pair. Cleared by CancelLink.
+	PinnedLink  bool
 	CentreLat   float64
 	CentreLon   float64
 	initialised bool
@@ -126,10 +130,23 @@ type MapView struct {
 	// lastClick remembers the previous click for the double-click test.
 	lastClickName string
 	lastClickAt   time.Duration
-	// OnLinkPair is called when the link tool has been given two nodes. What
-	// to do with the pair - select them and break the link into its terms -
-	// belongs to whoever knows what a link budget is.
-	OnLinkPair func(a, b string)
+	// OnLinkPair is called when the link tool has been given two ends. What
+	// to do with the pair - break the link into its terms - belongs to
+	// whoever knows what a link budget is.
+	OnLinkPair func(a, b LinkEnd)
+	// OnLinkArmed says the first end has been picked, so a hint can tell the
+	// operator what the next click means; OnLinkCancel says the tool's state
+	// was abandoned, which is also the moment to release a pinned pair.
+	OnLinkArmed  func(end LinkEnd)
+	OnLinkCancel func()
+}
+
+// LinkEnd is one end of a link being asked about: a node by name, or a bare
+// place on the ground. A node end carries its position too, so a consumer
+// can draw it without a lookup.
+type LinkEnd struct {
+	Node     string
+	Lat, Lon float64
 }
 
 type projected struct {
@@ -436,6 +453,15 @@ func (m *MapView) rings(t *theme.Theme, gtx layout.Context, pts []projected, sz 
 		func(i int, p projected) bool { return i == m.cam.hover })
 	m.ringPass(gtx, pts, sz, t.P.Selected, 7, 1.5,
 		func(i int, p projected) bool { return p.n.Selected })
+	// The link tool's armed first end, on a node or on bare ground: a
+	// half-made pick that draws nothing reads as a click that did nothing.
+	if m.linkFrom != nil {
+		at := m.projectPoint(state.Point{Lat: m.linkFrom.Lat, Lon: m.linkFrom.Lon}, sz)
+		var path clip.Path
+		path.Begin(gtx.Ops)
+		ring(&path, at, 11, 2)
+		paint.FillShape(gtx.Ops, t.P.Accent, clip.Outline{Path: path.End()}.Op())
+	}
 }
 
 // ringPass draws one ring around every node the predicate accepts, as a single

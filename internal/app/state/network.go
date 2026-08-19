@@ -143,14 +143,35 @@ type Profile struct {
 	Edges       []ProfileEdge
 	Verdict     string
 	LowM, HighM float64
+	// Worst is the sample that decides the verdict - where the first Fresnel
+	// zone is most intruded on - so the chart can point at the cause rather
+	// than leave it to be found by eye.
+	Worst ProfileWorst
+	// Assumed names the loss model the margins came from, for the panel to
+	// say out loud. A margin whose provenance is silent reads as measured.
+	Assumed string
 }
 
 // ProfileSample is one point along the path, in metres.
 type ProfileSample struct {
-	DistM    float64
+	DistM float64
+	// GroundM is the bare terrain, for the masts standing on their own
+	// ground; BulgedM is the same ground with the earth's curvature in it,
+	// which is what the chart fills.
+	GroundM  float64
 	BulgedM  float64
 	LOSm     float64
 	FresnelM float64
+}
+
+// ProfileWorst is where a path comes closest to failing, or fails.
+type ProfileWorst struct {
+	DistM      float64
+	ClearanceM float64
+	// FresnelPct is how much of the first Fresnel zone is clear there, in
+	// percent; below 60 the link starts paying for the ground.
+	FresnelPct float64
+	Blocked    bool
 }
 
 // ProfileEdge is one obstruction and its own Bullington contribution -

@@ -54,6 +54,8 @@ func menuFor(node string) []MenuItem {
 			{Label: "Centre on this node", Action: "map.centre"},
 			{Label: "Coverage from here", Action: "coverage.compute"},
 			{Label: "Show only this node's neighbours", Action: "map.neighbours"},
+			{Label: "Link from here", Action: "link.from"},
+			{Label: "Link to here", Action: "link.to"},
 			{Label: "Originate a packet here", Action: "sim.inject"},
 			{Label: "Open node window", Action: "node.window"},
 		}
@@ -61,6 +63,8 @@ func menuFor(node string) []MenuItem {
 	return []MenuItem{
 		{Label: "Fit the whole network", Action: "map.fit"},
 		{Label: "Centre here", Action: "map.centre_here"},
+		{Label: "Link from here", Action: "link.from"},
+		{Label: "Link to here", Action: "link.to"},
 		{Label: "Clear the coverage overlay", Action: "coverage.clear"},
 	}
 }

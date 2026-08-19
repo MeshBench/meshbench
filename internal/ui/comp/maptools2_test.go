@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"gioui.org/f32"
+	"gioui.org/io/key"
 	"gioui.org/io/pointer"
 )
 
@@ -94,17 +95,61 @@ func TestThePlaceToolReportsWhereItWasClicked(t *testing.T) {
 func TestTheLinkToolTakesTwoNodes(t *testing.T) {
 	h := newMapHarness()
 	h.mv.Tool = "link"
-	var pair [2]string
-	h.mv.OnLinkPair = func(a, b string) { pair = [2]string{a, b} }
+	var pair [2]LinkEnd
+	h.mv.OnLinkPair = func(a, b LinkEnd) { pair = [2]LinkEnd{a, b} }
 	h.mv.OnSelect = func(names []string, additive bool) {}
 	h.frame()
 
 	h.press(h.nodeAt("Abernethy Repeater"), pointer.ButtonPrimary)
-	if pair[0] != "" {
+	if pair[0].Node != "" {
 		t.Fatal("one node was enough to ask about a link, which takes two")
 	}
 	h.press(h.nodeAt("Bishop Hill"), pointer.ButtonPrimary)
-	if pair[0] != "Abernethy Repeater" || pair[1] != "Bishop Hill" {
+	if pair[0].Node != "Abernethy Repeater" || pair[1].Node != "Bishop Hill" {
 		t.Fatalf("the link tool reported %v after two nodes were clicked", pair)
+	}
+}
+
+// The link tool also takes bare ground: a click away from every node is an
+// endpoint at that place, not an abandonment. "Would a mast here reach that
+// repeater" was unaskable while open ground meant cancel.
+func TestTheLinkToolTakesAPlace(t *testing.T) {
+	h := newMapHarness()
+	h.mv.Tool = "link"
+	var pair [2]LinkEnd
+	h.mv.OnLinkPair = func(a, b LinkEnd) { pair = [2]LinkEnd{a, b} }
+	h.mv.OnSelect = func(names []string, additive bool) {}
+	h.frame()
+
+	h.press(h.nodeAt("Abernethy Repeater"), pointer.ButtonPrimary)
+	h.press(f32.Pt(120, 620), pointer.ButtonPrimary) // open ground
+	if pair[0].Node != "Abernethy Repeater" {
+		t.Fatalf("the first end is %v, want the clicked node", pair[0])
+	}
+	if pair[1].Node != "" || pair[1].Lat == 0 || pair[1].Lon == 0 {
+		t.Fatalf("the second end is %v, want the bare place that was clicked", pair[1])
+	}
+}
+
+// Escape abandons a half-made pick; the next click starts over.
+func TestEscapeAbandonsTheHalfMadeLink(t *testing.T) {
+	h := newMapHarness()
+	h.mv.Tool = "link"
+	var pair [2]LinkEnd
+	cancelled := false
+	h.mv.OnLinkPair = func(a, b LinkEnd) { pair = [2]LinkEnd{a, b} }
+	h.mv.OnLinkCancel = func() { cancelled = true }
+	h.mv.OnSelect = func(names []string, additive bool) {}
+	h.frame()
+
+	h.press(h.nodeAt("Abernethy Repeater"), pointer.ButtonPrimary)
+	h.r.Queue(key.Event{Name: key.NameEscape, State: key.Press})
+	h.frame()
+	if !cancelled {
+		t.Fatal("Escape did not abandon the half-made pick")
+	}
+	h.press(h.nodeAt("Bishop Hill"), pointer.ButtonPrimary)
+	if pair[0].Node != "" {
+		t.Fatalf("a pair %v was completed from a pick Escape had abandoned", pair)
 	}
 }
