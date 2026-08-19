@@ -55,46 +55,51 @@ type MenuItem struct {
 	click    widget.Clickable
 }
 
-// WindowMenu fills a menu with every panel that can become a window.
+// PanelItems is every panel that named this menu, as entries, ticked when the
+// panel is in the current view's layout.
 //
-// Generated rather than hand-listed. A written list is a list that goes stale
-// the moment a panel is added, and the symptom is somebody looking for a panel
-// they had before and not finding it - which is exactly what a hand-written
-// Window menu of three entries did.
-func (sh *Shell) WindowMenu(name string) {
+// Generated rather than hand-listed. A written list goes stale the moment a
+// panel is added, and the symptom is somebody looking for a panel they had
+// before and not finding it. Each panel names its own menu, so the menus
+// between them are the whole inventory - there is no "the rest", which is
+// what the old show-all chooser existed to hold.
+func (sh *Shell) PanelItems(menuName string) []MenuItem {
 	names := make([]string, 0, len(sh.Panels))
-	listed := 0
 	for n, p := range sh.Panels {
-		if p == nil || !p.Windowable {
-			continue
+		if p != nil && p.Menu == menuName {
+			names = append(names, n)
 		}
-		if p.InWindowMenu {
-			listed++
-		}
-		names = append(names, n)
-	}
-	// Curated when anything opted in; the old everything-alphabetical list
-	// when nothing has, which is what a test shell full of empty panels gets.
-	if listed > 0 {
-		curated := names[:0]
-		for _, n := range names {
-			if sh.Panels[n].InWindowMenu {
-				curated = append(curated, n)
-			}
-		}
-		names = curated
 	}
 	sort.Strings(names)
-	items := make([]MenuItem, 0, len(names)+1)
+	// Grouped by the section each panel declares, sections in the order they
+	// are first met, so a menu reads as a few short lists rather than one
+	// long one.
+	var order []string
+	bySection := map[string][]string{}
 	for _, n := range names {
-		items = append(items, MenuItem{Label: n, Action: "panel." + n,
-			Section: "Panels", Icon: "panel"})
+		s := sh.Panels[n].Section
+		if _, seen := bySection[s]; !seen {
+			order = append(order, s)
+		}
+		bySection[s] = append(bySection[s], n)
 	}
-	// The overflow row, pinned under the scroll: the one list is the design's
-	// rule, and show-all is how a list taller than the window stays one list.
-	items = append(items, MenuItem{Label: "Show all panels...",
-		Action: "window.showall", Icon: "grid"})
-	sh.SetMenu(name, items)
+	sort.Strings(order)
+	items := make([]MenuItem, 0, len(names))
+	for _, s := range order {
+		for _, n := range bySection[s] {
+			// The glyph carries the state, so the label stays the panel's
+			// name: a tick where it is on screen, the panel outline where it
+			// is not. The menu is then the inventory of what exists and what
+			// is showing, which is the job a View menu does everywhere else.
+			icon := "panel"
+			if sh.Visible(n) {
+				icon = "tick"
+			}
+			items = append(items, MenuItem{Label: n, Action: "panel." + n,
+				Section: s, Icon: icon})
+		}
+	}
+	return items
 }
 
 // SetMenu gives a menu its entries.

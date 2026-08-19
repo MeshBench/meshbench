@@ -34,24 +34,12 @@ func workbenchMenus() []menu {
 				Section: "Open & Save", Icon: "save", Shortcut: "Ctrl+S"},
 			{Label: "Save this run", Action: "run.save",
 				Section: "Open & Save", Icon: "save", Shortcut: "Ctrl+Shift+S"},
-			{Label: "Firmware library", Action: "panel.Firmware",
-				Section: "Import & Export", Icon: "chip"},
-			{Label: "Import a live network", Action: "panel.Import",
-				Section: "Import & Export", Icon: "import"},
 			{Label: "Export the event log", Action: "events.dump",
 				Section: "Import & Export", Icon: "export"},
 			{Label: "Quit", Action: "app.quit",
 				Section: "Exit", Icon: "exit", Shortcut: "Ctrl+Q"},
 		}},
 		{"View", []shell.MenuItem{
-			{Label: "Nodes running", Action: "panel.Nodes running",
-				Section: "Overview", Icon: "nodes"},
-			{Label: "Companion bench", Action: "panel.Companion bench",
-				Section: "Overview", Icon: "chip"},
-			{Label: "Experiment log", Action: "panel.Experiment log",
-				Section: "Diagnostics", Icon: "log"},
-			{Label: "Configuration", Action: "panel.Configuration",
-				Section: "Diagnostics", Icon: "sliders"},
 			{Label: "Settings", Action: "config.interface",
 				Section: "Preferences", Icon: "settings"},
 		}},
@@ -85,31 +73,39 @@ func workbenchMenus() []menu {
 			{Label: "Stop capturing", Action: "capture.stop",
 				Section: "Tools", Icon: "pcap"},
 		}},
-		{"Repeaters", []shell.MenuItem{
-			{Label: "Send a command to the fleet", Action: "panel.Fleet",
-				Section: "Commands", Icon: "send"},
-			{Label: "What they are told at boot", Action: "panel.Provisioning",
-				Section: "Boot", Icon: "boot"},
+		// Mesh rather than Repeaters: a companion, a room server and an SDR
+		// observer are all nodes, and filing their panels under one node type
+		// is how somebody looking for the companion bench never finds it.
+		{"Mesh", []shell.MenuItem{
 			{Label: "Coverage from the selection", Action: "coverage.compute",
 				Section: "Analysis", Icon: "coverage"},
 			{Label: "Coverage from the selection, this view", Action: "coverage.selection.viewport",
 				Section: "Analysis", Icon: "coverage"},
 		}},
-		// Import is under File, with opening and saving, and not here as
-		// well: one entry in two menus is two entries to keep in step and one
-		// of them is always the stale one.
-		{"Planning", []shell.MenuItem{
+		// Analysis is new. The study panels - the link cut-through, the
+		// budget, the matrix, validation - had no menu of their own, which is
+		// most of what could previously only be reached by a chooser.
+		{"Analysis", []shell.MenuItem{
 			{Label: "Routes between two selected nodes", Action: "plan.routes",
 				Section: "Tools", Icon: "route"},
-			{Label: "Boundary", Action: "panel.Boundary",
-				Section: "Tools", Icon: "boundary"},
 		}},
-		// Window is generated from the panels themselves, so it is not here.
+		// Window is about windows and layouts; the panels themselves are
+		// listed in the menu each one belongs to.
+		{"Window", []shell.MenuItem{
+			{Label: "Reset this view's layout", Action: "layout.reset",
+				Section: "Layout", Icon: "grid"},
+			{Label: "Bring every window to the front", Action: "window.raise_all",
+				Section: "Windows", Icon: "window"},
+			{Label: "Dock every window back", Action: "window.dock_all",
+				Section: "Windows", Icon: "panel"},
+		}},
+		// A question, not a second door to a panel: it opens Configuration on
+		// the section that answers it. Pointing this at panel.Configuration
+		// gave that panel two menu homes, which is two entries to keep in
+		// step and one of them always stale.
 		{"Help", []shell.MenuItem{
-			{Label: "What this run assumes", Action: "panel.Configuration",
+			{Label: "What this run assumes", Action: "help.assumptions",
 				Icon: "help"},
-			{Label: "Licences & attributions", Action: "panel.Licences",
-				Icon: "doc"},
 		}},
 	}
 }

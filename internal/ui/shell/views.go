@@ -1,7 +1,11 @@
-// Views: what each one is for, and the panels it declares.
+// Views: what each one is for, and the panels it starts with.
 //
-// A view is a fixed arrangement chosen for a kind of work, which is the
-// deliberate departure from a dock model where the arrangement drifts.
+// A view is a shape chosen for a kind of work - a starting point, not a cage.
+// The declared arrangement is the preset; what is on screen is the live
+// arrangement in layoutstate.go, which docking edits and "reset view layout"
+// puts back. The fixed-arrangement rule went because it had one consequence
+// nobody wanted: twenty of the thirty-three panels could only be reached by
+// leaving the window, and there was no way back in.
 package shell
 
 // View is one kind of work.
@@ -64,33 +68,54 @@ func (v View) Purpose() string {
 type Arrangement struct {
 	// Rail is a fixed-width column down the right, drawn full height. Empty
 	// for a view that wants none.
-	Rail   []string
+	Rail   []Col
 	RailDp int
 
 	// Rows divide everything left of the rail, top to bottom.
 	Rows []Row
 }
 
-// Row is a horizontal band of one or more panels side by side.
+// Row is a horizontal band of one or more regions side by side.
 type Row struct {
 	// Weight is this row's share of the height, against the other rows.
 	Weight int
 	Cols   []Col
 }
 
-// Col is one panel in a row. WidthDp fixes it; zero takes what the fixed
-// columns leave.
+// Col is one region of the window, holding one or more panels as tabs.
+// WidthDp fixes it; zero takes what the fixed columns leave.
 //
 // Fixed is for a column of controls, whose fields have a width below which
 // they stop being usable. Flexed is for the thing being read.
+//
+// Tabs rather than a single name because a region is somewhere a panel can be
+// put: docking one adds a tab here rather than sending the panel out of the
+// window, which is what "show me the waterfall" used to do.
 type Col struct {
-	Name    string
+	Tabs []string
+	// Active is which tab is drawn, an index into Tabs.
+	Active  int
 	WidthDp int
 }
 
-// arrangementFor is the declared shape of each view. Changing a view's shape is
-// changing this table.
-func arrangementFor(v View) Arrangement {
+// col is one region holding one panel, which is what every preset declares.
+func col(name string, widthDp int) Col {
+	return Col{Tabs: []string{name}, WidthDp: widthDp}
+}
+
+// shown is the panel a region is currently drawing, or "" when every tab in
+// it has been closed.
+func (c Col) shown() string {
+	if c.Active < 0 || c.Active >= len(c.Tabs) {
+		return ""
+	}
+	return c.Tabs[c.Active]
+}
+
+// presetFor is the shape each view starts in, and the shape "reset view
+// layout" puts it back to. Changing a view's starting shape is changing this
+// table; changing what is on screen right now is docking.
+func presetFor(v View) Arrangement {
 	switch v {
 	case Run:
 		return withRail("Map", 340, "Schedule", "Scoreboard")
@@ -105,11 +130,11 @@ func arrangementFor(v View) Arrangement {
 		// Results takes the rest, being the thing actually read; Timelines gets
 		// the full width under them because a burst is long and thin.
 		return Arrangement{
-			Rail:   []string{"Runs", "Experiment log", "Matrix"},
+			Rail:   []Col{col("Runs", 0), col("Experiment log", 0), col("Matrix", 0)},
 			RailDp: 460,
 			Rows: []Row{
-				{Weight: 3, Cols: []Col{{Name: "Sweep", WidthDp: 440}, {Name: "Results"}}},
-				{Weight: 2, Cols: []Col{{Name: "Timelines"}}},
+				{Weight: 3, Cols: []Col{col("Sweep", 440), col("Results", 0)}},
+				{Weight: 2, Cols: []Col{col("Timelines", 0)}},
 			},
 		}
 	case App:
@@ -122,27 +147,61 @@ func arrangementFor(v View) Arrangement {
 // withRail is the older shape, kept because most views want it: one panel with
 // a fixed rail of readouts beside it.
 func withRail(main string, railDp int, rail ...string) Arrangement {
-	return Arrangement{
-		Rail: rail, RailDp: railDp,
-		Rows: []Row{{Weight: 1, Cols: []Col{{Name: main}}}},
+	a := Arrangement{
+		RailDp: railDp,
+		Rows:   []Row{{Weight: 1, Cols: []Col{col(main, 0)}}},
 	}
+	for _, n := range rail {
+		a.Rail = append(a.Rail, col(n, 0))
+	}
+	return a
+}
+
+// clone is a deep copy, so editing a view's live arrangement cannot reach
+// back into the preset every reset reads from.
+func (a Arrangement) clone() Arrangement {
+	out := Arrangement{RailDp: a.RailDp}
+	for _, c := range a.Rail {
+		out.Rail = append(out.Rail, c.clone())
+	}
+	for _, r := range a.Rows {
+		nr := Row{Weight: r.Weight}
+		for _, c := range r.Cols {
+			nr.Cols = append(nr.Cols, c.clone())
+		}
+		out.Rows = append(out.Rows, nr)
+	}
+	return out
+}
+
+func (c Col) clone() Col {
+	return Col{Tabs: append([]string(nil), c.Tabs...), Active: c.Active, WidthDp: c.WidthDp}
 }
 
 // NumViews is how many views there are, for anything outside this package
 // that has to enumerate them - a verb naming one, or a test covering all.
 const NumViews = numViews
 
-// PanelsIn is every panel a view shows, for anything outside this package that
-// needs to know where a panel lives - showing one means showing its view.
+// PanelsIn is every panel a view starts with, for anything outside this
+// package that needs to know where a panel belongs by default - a verb
+// choosing which view to switch to, or a test covering the presets.
+//
+// The preset rather than the live arrangement: what a view is *for* does not
+// change because somebody docked a waterfall into it.
 func PanelsIn(v View) []string {
-	a := arrangementFor(v)
+	return presetFor(v).panels()
+}
+
+// panels is every panel an arrangement holds, tabs included.
+func (a Arrangement) panels() []string {
 	var out []string
 	for _, r := range a.Rows {
 		for _, c := range r.Cols {
-			if c.Name != "" {
-				out = append(out, c.Name)
-			}
+			out = append(out, c.Tabs...)
 		}
 	}
-	return append(out, a.Rail...)
+	for _, c := range a.Rail {
+		out = append(out, c.Tabs...)
+	}
+	return out
 }

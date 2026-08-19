@@ -10,6 +10,7 @@ package workbench
 
 import (
 	"fmt"
+	"sort"
 	"sync"
 
 	"gioui.org/io/system"
@@ -31,9 +32,12 @@ import (
 type windows struct {
 	mu   sync.Mutex
 	open map[string]bool
-	// closing is which windows have been asked to go away, read by each
-	// window's own loop.
+	// closing is which windows have been asked to go away, and raising which
+	// have been asked to come forward. Both are wishes rather than actions:
+	// a window belongs to its own event loop, and performing anything on it
+	// from another goroutine is how a destroyed window stays in Gio's queue.
 	closing map[string]bool
+	raising map[string]bool
 	// prompts is each popped-out window's own question overlay. A question
 	// asked from a panel belongs in the window the panel is in - the shared
 	// prompt lives in the main window, and a dialog appearing there while the
@@ -65,7 +69,12 @@ func (w *windows) popOut(name string, sh *shell.Shell, newTheme func() *theme.Th
 	}
 	w.mu.Lock()
 	if w.open[name] {
+		// Already out there: raise it rather than doing nothing. A second
+		// press used to return in silence, which from the far side of the
+		// screen is indistinguishable from a dead menu entry - and on Linux
+		// the window it was asking for had usually fallen behind this one.
 		w.mu.Unlock()
+		w.raise(name)
 		return
 	}
 	w.open[name] = true
@@ -111,6 +120,9 @@ func (w *windows) popOut(name string, sh *shell.Shell, newTheme func() *theme.Th
 			case app.FrameEvent:
 				if w.wantsClose(name) {
 					win.Perform(system.ActionClose)
+				}
+				if w.wantsRaise(name) {
+					win.Perform(system.ActionRaise)
 				}
 				gtx := app.NewContext(&ops, e)
 				comp.Fill(gtx, th.P.Ground)
@@ -175,6 +187,41 @@ func (w *windows) dock(name string) {
 	if w.open[name] {
 		w.closing[name] = true
 	}
+}
+
+// raise asks a window to come to the front on its next frame.
+func (w *windows) raise(name string) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.raising == nil {
+		w.raising = map[string]bool{}
+	}
+	if w.open[name] {
+		w.raising[name] = true
+	}
+}
+
+// wantsRaise reports and clears the wish, so one ask is one raise.
+func (w *windows) wantsRaise(name string) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.raising[name] {
+		delete(w.raising, name)
+		return true
+	}
+	return false
+}
+
+// names is every panel currently in a window of its own.
+func (w *windows) names() []string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	out := make([]string, 0, len(w.open))
+	for n := range w.open {
+		out = append(out, n)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func (w *windows) close(name string) error {

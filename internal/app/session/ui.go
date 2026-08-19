@@ -39,6 +39,11 @@ type UI interface {
 	// OpenPanel shows a panel. where is "" for in the layout, "window" for
 	// its own window, or "dock" to bring it back.
 	OpenPanel(name, where string) error
+	// ClosePanel takes a panel out of the layout, and ResetLayout puts the
+	// current view back to the shape it is declared with. A layout that can
+	// be changed has to be one a script can change back.
+	ClosePanel(name string) error
+	ResetLayout()
 	// CloseWindow closes a popped-out panel's window.
 	CloseWindow(name string) error
 
@@ -272,6 +277,25 @@ func registerUIVerbs(st *state.Store, s *Sim) {
 			return nil, err
 		}
 		return map[string]any{"panel": name, "where": "layout"}, nil
+	})
+	st.Handle("panel.close", func(w *state.World, p any) (any, error) {
+		if err := need(); err != nil {
+			return nil, err
+		}
+		name, _ := stringField(p, "name")
+		if err := s.ui.ClosePanel(name); err != nil {
+			return nil, err
+		}
+		w.Say(name + " closed")
+		return map[string]any{"panel": name}, nil
+	})
+	st.Handle("layout.reset", func(w *state.World, _ any) (any, error) {
+		if err := need(); err != nil {
+			return nil, err
+		}
+		s.ui.ResetLayout()
+		w.Say("layout reset")
+		return map[string]any{"reset": true}, nil
 	})
 	st.Handle("window.open", func(w *state.World, p any) (any, error) {
 		if err := need(); err != nil {
