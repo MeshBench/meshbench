@@ -346,17 +346,22 @@ func decodeTerrarium(b []byte) (*tile, error) {
 	return t, nil
 }
 
-// DefaultMaxLoadedTiles is 40,960 decoded tiles at a quarter megabyte each:
-// 10 GB, a whole country several times over, on machines that carry three
-// times that. Settable from the Configuration page for machines that do not.
+// DefaultMaxLoadedTiles is 24,576 decoded tiles at a quarter megabyte each:
+// about 6 GB - the whole of Britain and Ireland at zoom 12 with headroom,
+// which is the largest thing anyone has imported. Settable from the
+// Configuration page in either direction.
 //
-// The old cap of 1,024 believed its own comment - "enough that a profile
-// across a country does not thrash" - and it was not: a national scenario
-// has tens of thousands of tiles on disk, so warming 48,000 criss-crossing
-// profiles evicted constantly and re-decoded PNGs at milliseconds each. That
-// thrash was the whole cost of a nine-minute warm whose arithmetic took 30
-// milliseconds.
-const DefaultMaxLoadedTiles = 40960
+// Both edges of this number have been hit. The old cap of 1,024 believed its
+// own comment - "enough that a profile across a country does not thrash" -
+// and it was not: a national warm evicted constantly and re-decoded PNGs at
+// milliseconds each, and the thrash was the whole cost of a nine-minute warm
+// whose arithmetic took 30 milliseconds. The next cap of 40,960 fixed that
+// by allowing 10 GB, and on a 31 GB desktop that was already running a
+// browser and a compile it was the difference between simulating and
+// swapping - the operator watched their RAM run out mid-warm. The working
+// set is what decides: below it, milliseconds per sample; above it, wasted
+// memory. UK-and-Ireland at zoom 12 is roughly 18,000 tiles.
+const DefaultMaxLoadedTiles = 24576
 
 // remember stores a decoded tile and evicts the oldest once the cap is passed.
 // Called with the lock held.

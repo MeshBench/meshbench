@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"runtime"
+	"sort"
 	"sync"
 	"time"
 
@@ -104,6 +105,23 @@ func (s *Sim) warmOnGPU(eng *engine.Engine, nodes []scenario.Node, freqMHz float
 			jobs = append(jobs, warmJob{a: a, b: b, distKm: distKm})
 		}
 	}
+	// Walked in geographic order, not node order. Node order pairs Aberdeen
+	// with Dublin and then Aberdeen with Truro: every profile crosses a
+	// different swathe of the country, the decoded-tile cache faces the whole
+	// map at once, and a bound sized for a region thrashes on a nation. Sorted
+	// by the pair's midpoint, neighbouring jobs share most of their tiles and
+	// the cache works as a moving window instead of a lottery.
+	sort.Slice(jobs, func(i, j int) bool {
+		mi := midpointKey(nodes[jobs[i].a], nodes[jobs[i].b])
+		mj := midpointKey(nodes[jobs[j].a], nodes[jobs[j].b])
+		if mi != mj {
+			return mi < mj
+		}
+		if jobs[i].a != jobs[j].a {
+			return jobs[i].a < jobs[j].a
+		}
+		return jobs[i].b < jobs[j].b
+	})
 
 	// Profiles, every core, from the tile cache. The same sampling as the
 	// engine's own profile: a point per 60 m, at least two, at most 256.
@@ -242,6 +260,7 @@ func registerTileCache(st *state.Store, s *Sim) {
 		if v, ok := numField(p, "gb"); ok && v >= 0.25 {
 			tiles := int(v * tilesPerGB)
 			s.tileCacheTiles = tiles
+			s.applyMemoryCeiling()
 			if ts, ok := s.terr.(*terrain.TileStore); ok && ts != nil {
 				ts.MaxLoadedTiles = tiles
 			}
@@ -457,4 +476,14 @@ func (s *Sim) gpuWorldState() state.GPUState {
 		out.Why = last.Why
 	}
 	return out
+}
+
+// midpointKey buckets a pair's midpoint onto a coarse row-major grid, so a
+// sort by it walks the country in bands. Half a degree a band: wide enough
+// that a band's tiles fit any sane cache bound, coarse enough that the sort
+// cannot disturb determinism - within a band the node order still decides.
+func midpointKey(a, b scenario.Node) int {
+	lat := (a.Position.Lat + b.Position.Lat) / 2
+	lon := (a.Position.Lon + b.Position.Lon) / 2
+	return int(lat*2)*1024 + int(lon*2)
 }
