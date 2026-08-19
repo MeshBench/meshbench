@@ -82,6 +82,10 @@ type World struct {
 	Routes []Route
 	// Import is the last fetch's description, or nil.
 	Import *Import
+	// ExcessLossDB is the calibration term the model is running with, and
+	// Calibrated says it was fitted rather than left at the default.
+	ExcessLossDB float64
+	Calibrated   bool
 	// Observed is recent traffic on the real network; Residuals is the model
 	// measured against it.
 	Observed  []Observed

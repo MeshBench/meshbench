@@ -15,7 +15,10 @@ const (
 	Plan View = iota
 	Run
 	Debug
-	Verify
+	// Validate was called Verify, which named no work anybody does. What it
+	// holds is the comparison against a real network, which is what its
+	// panels and its verbs were already called.
+	Validate
 	Bench
 	App
 	numViews
@@ -27,8 +30,8 @@ func (v View) String() string {
 		return "Run"
 	case Debug:
 		return "Debug"
-	case Verify:
-		return "Verify"
+	case Validate:
+		return "Validate"
 	case Bench:
 		return "Bench"
 	case App:
@@ -46,8 +49,8 @@ func (v View) Purpose() string {
 		return "exercise it and watch: play, schedule traffic, consoles, live feed"
 	case Debug:
 		return "ask why one thing happened: packets, waterfall, consoles, budgets"
-	case Verify:
-		return "check it is still true: baselines, A/B bisect, residuals against reality"
+	case Validate:
+		return "measure it against the real network: fetch what was heard, compare, correct for the difference"
 	case Bench:
 		return "compare configurations: sweep a parameter, repeat it, read what differed"
 	case App:
@@ -121,7 +124,7 @@ func presetFor(v View) Arrangement {
 		return withRail("Map", 340, "Schedule", "Scoreboard")
 	case Debug:
 		return withRail("Packet timeline", 340, "Inspector", "Link")
-	case Verify:
+	case Validate:
 		return withRail("Compare", 340, "Validate", "Scoreboard")
 	case Bench:
 		// Three columns and a strip, because comparing arms means reading a

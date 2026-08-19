@@ -289,8 +289,11 @@ func Run(args []string) {
 		sh.View = shell.Run
 	case "debug":
 		sh.View = shell.Debug
-	case "verify":
-		sh.View = shell.Verify
+	// "verify" as well as "validate": the view was renamed, and a script or a
+	// saved command written against the old name should not stop working
+	// because a caption improved.
+	case "validate", "verify":
+		sh.View = shell.Validate
 	case "bench":
 		sh.View = shell.Bench
 	case "app":

@@ -99,6 +99,11 @@ type Snapshot struct {
 	Routes []Route
 	// Import is the last fetch's description, or nil.
 	Import *Import
+	// ExcessLossDB is the calibration term the model is running with, and
+	// Calibrated says it was fitted against real receptions rather than left
+	// at the default. A margin's provenance is part of the margin.
+	ExcessLossDB float64
+	Calibrated   bool
 	// Observed is recent traffic on the real network; Residuals is the model
 	// measured against it.
 	Observed  []Observed

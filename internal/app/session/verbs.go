@@ -219,6 +219,10 @@ func Register(st *state.Store, s *Sim) {
 				}
 			}
 			w.RFMode = string(rfModeOf(s.rfMode))
+			// The calibration the model is running with, and whether it was
+			// fitted or left at the default. A margin's provenance travels
+			// with the margin or the panel showing it has to guess.
+			w.ExcessLossDB, w.Calibrated = s.excessLossDB, s.excessSet
 			w.RFRealism = s.realism
 			w.RFEnvironment = s.envDir
 			w.CoverageCells = s.covCells
