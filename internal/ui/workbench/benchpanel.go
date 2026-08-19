@@ -8,6 +8,7 @@ package workbench
 
 import (
 	"sort"
+	"strings"
 
 	"gioui.org/layout"
 
@@ -64,7 +65,9 @@ func (p *benchPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot)
 		p.tb.Cols = []comp.Column{
 			{Title: "companion", Width: 190, Sortable: true},
 			{Title: "transport", Width: 96},
-			{Title: "address", Width: 220, Mono: true},
+			// Wide, because it holds an address somebody has to read off
+			// the screen and type into a client on another machine.
+			{Title: "address", Width: 320, Mono: true},
 			{Title: "client"},
 		}
 		p.init = true
@@ -114,6 +117,13 @@ func (p *benchPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot)
 		kind, addr, client := "-", "not served", "-"
 		if ok {
 			kind, addr = e.Kind, e.Addr
+			// Every address it answers on. A machine on wifi and ethernet
+			// has two and a phone can only reach one of them, so which to
+			// type in is not this program's to guess - and the row under the
+			// pointer says the whole list, for when the column runs out.
+			if len(e.Addrs) > 1 {
+				addr = strings.Join(e.Addrs, ", ")
+			}
 			client = "waiting"
 			if e.Attached {
 				client = "attached"
@@ -168,9 +178,20 @@ func (p *benchPanel) actions(t *theme.Theme, gtx layout.Context, sel string,
 	if r.client.Click.Clicked(gtx) && p.OnAction != nil {
 		p.OnAction("node.window", sel)
 	}
+	// The row under the pointer wins, so a list too long for its column can
+	// be read in full without selecting anything.
+	if h := p.tb.Hovered(); h != "" {
+		if e, ok := served[h]; ok && len(e.Addrs) > 0 {
+			return layout.Inset{Top: t.Sp.S}.Layout(gtx, comp.Text(t, t.Sz.Caption,
+				t.P.Dim, h+" answers on "+strings.Join(e.Addrs, ", ")))
+		}
+	}
 	note := sel + " is not served yet"
 	if isServed {
 		note = sel + " is on " + e.Addr + " - point a client at it"
+		if len(e.Addrs) > 1 {
+			note += ", or " + strings.Join(e.Addrs[1:], ", ")
+		}
 	}
 	return layout.Inset{Top: t.Sp.S}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,

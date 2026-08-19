@@ -20,6 +20,11 @@ func (s *Sim) startFirmware(st *state.Store, seed uint64) {
 	go func() {
 		defer s.starting.Store(false)
 		ctx := context.Background()
+		// Cleared however this ends. Nothing took the job away, so the strip
+		// kept "telling every node what it is - 100%" for the rest of the
+		// session: a finished job that stays on screen is one somebody waits
+		// on, and it hid every job that came after it.
+		defer func() { _, _ = st.Do(ctx, "job.done", "firmware") }()
 		_, _ = st.Do(ctx, "job.progress", state.Job{
 			ID: "firmware", What: "starting firmware on every node"})
 		err := s.eng.AttachNativeProgress(ctx, seed, func(done, total int) {

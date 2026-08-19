@@ -77,6 +77,9 @@ type Table struct {
 	// Selected is the Key of the selected row, so selection survives a re-sort
 	// and a filter change.
 	Selected string
+	// hovered is the key of the row under the pointer, for a panel that has
+	// more to say about a row than fits in its columns.
+	hovered string
 
 	// widths are per-column overrides in dp: what the operator has dragged a
 	// column to, or what the content asked for. Empty means the declared
@@ -113,6 +116,13 @@ func (tb *Table) SetRows(rows []Row) {
 // "12 of 311".
 func (tb *Table) Shown() int { return len(tb.shown) }
 
+// Hovered is the key of the row under the pointer, or "".
+//
+// For a value too long for its column: the cell shows what fits and the
+// panel says the rest of it while the pointer is on the row, rather than
+// clipping something somebody has to read in full to use.
+func (tb *Table) Hovered() string { return tb.hovered }
+
 // Layout draws the table. onSelect is called with a row key when a row is
 // clicked, so selection is the caller's business rather than the widget's.
 func (tb *Table) Layout(t *theme.Theme, gtx layout.Context, onSelect func(key string)) layout.Dimensions {
@@ -137,6 +147,9 @@ func (tb *Table) Layout(t *theme.Theme, gtx layout.Context, onSelect func(key st
 		tb.widths = append(tb.widths, 0)
 	}
 	tb.autoFit(t)
+	// Cleared each frame and set by whichever row draws itself hovered, so a
+	// pointer that has left the table does not leave a row looking hovered.
+	tb.hovered = ""
 	for i := range tb.headers {
 		if tb.headers[i].Clicked(gtx) && tb.Cols[i].Sortable {
 			if tb.SortCol == i {

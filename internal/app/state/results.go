@@ -85,9 +85,17 @@ type Assertion struct {
 
 // Endpoint is one companion served to a client.
 type Endpoint struct {
-	Node     string
-	Kind     string
-	Addr     string
+	Node string
+	Kind string
+	// Addr is where to point a client: the machine's own address and the
+	// port, not the address the listener was bound to. A TCP companion is
+	// bound to every interface, and "0.0.0.0:5301" is a thing nobody can
+	// type into a client on another machine.
+	Addr string
+	// Addrs is every address this endpoint answers on, for a machine with
+	// more than one - a laptop on wifi and ethernet is two, and which one
+	// the other end can reach is not this program's to guess.
+	Addrs    []string
 	Attached bool
 }
 

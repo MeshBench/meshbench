@@ -13,7 +13,6 @@ import (
 // faults a happy path never reaches.
 type benchControls struct {
 	bar    actionBar
-	node   comp.Field
 	tcp    comp.Button
 	serial comp.Button
 	drop   comp.Button
@@ -28,9 +27,7 @@ type benchControls struct {
 
 func (c *benchControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
 	if !c.built {
-		c.node.Hint = "companion (blank: the selected node)"
 		c.msg.Hint = "a message to send from it"
-		c.node.Editor.SingleLine = true
 		c.msg.Editor.SingleLine = true
 		c.tcp.Label, c.tcp.Kind = "serve TCP", comp.Primary
 		c.serial.Label, c.serial.Kind = "serve serial", comp.Secondary
@@ -39,17 +36,26 @@ func (c *benchControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 		c.conn.Label, c.conn.Kind = "connect as a client", comp.Primary
 		c.send.Label, c.send.Kind = "send", comp.Secondary
 		c.advert.Label, c.advert.Kind = "advert", comp.Secondary
-		c.bar.fields = []*comp.Field{&c.node}
 		c.bar.buttons = []*comp.Button{&c.tcp, &c.serial, &c.drop, &c.stray}
 		c.bar.note = "both transports carry the firmware's own serial protocol byte " +
 			"for byte; the faults are what an application that reconnects cleanly survives"
 		c.built = true
 	}
-	who := func() string {
-		if n := fieldText(&c.node); n != "" {
-			return n
-		}
-		return selectedNodeName(s)
+	// Whichever companion is selected: the bench's table is what selects
+	// one now, so a box asking for the name again was a second way to say
+	// the same thing, and nobody typed into it.
+	who := func() string { return selectedNodeName(s) }
+	// Serving needs firmware. A companion's port is the firmware's own
+	// serial interface, so with nothing running there is nothing to expose -
+	// the verb refuses, correctly, and this says so before the press rather
+	// than after it.
+	running := s != nil && s.FirmwareRunning > 0
+	c.bar.note = "both transports carry the firmware's own serial protocol byte " +
+		"for byte; the faults are what an application that reconnects cleanly survives"
+	if !running {
+		c.bar.note = "nothing is running: a companion's port is its firmware's own " +
+			"serial interface, so start the firmware - Simulation, then start " +
+			"firmware on every node - before serving one"
 	}
 	if c.tcp.Click.Clicked(gtx) && c.do != nil {
 		c.do("bench.serve", map[string]any{"node": who(), "kind": "tcp"})
