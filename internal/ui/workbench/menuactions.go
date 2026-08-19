@@ -37,6 +37,17 @@ func (w menuDeps) say(line string) {
 	go func() { _, _ = w.st.Do(w.ctx, "ui.said", line) }()
 }
 
+// runVerb dispatches a verb and puts any refusal in the status bar.
+func (w menuDeps) runVerb(verb string) { w.runVerbWith(verb, nil) }
+
+func (w menuDeps) runVerbWith(verb string, params any) {
+	go func() {
+		if _, err := w.st.Do(w.ctx, verb, params); err != nil {
+			_, _ = w.st.Do(w.ctx, "ui.said", verb+": "+err.Error())
+		}
+	}()
+}
+
 // onMenu is what every menu item does.
 //
 // One switch rather than a handler per item: the shell hands back the action
@@ -97,6 +108,72 @@ func (w menuDeps) onMenu(action string) {
 				w.refresh()
 			}
 		}
+		return
+	}
+	// Starting again with nothing, which throws away whatever is loaded.
+	//
+	// Asked first, because the network on screen may be an hour of placing
+	// and dragging that nothing else can get back - and only asked when
+	// there is something to lose, since confirming the discard of an empty
+	// network teaches people to dismiss the question without reading it.
+	if action == "project.new" {
+		// Where, so the map opens somewhere rather than on the middle of the
+		// Atlantic: a network with no nodes has nothing to frame a camera on.
+		// Blank leaves the view where it was, which is what somebody
+		// starting again in the same place wants.
+		// Typed, then searched, then chosen from what came back: "Fife"
+		// matches two places and "Perth" matches one in Scotland and one in
+		// Australia, so the name alone does not say which. Blank starts
+		// blank where the map already is.
+		askWhere := func() {
+			w.sh.Ask.Open("Start a blank network where?",
+				"a place: Fife, Perth and Kinross, France - or blank to stay here",
+				"", func(place string) {
+					place = strings.TrimSpace(place)
+					if place == "" {
+						w.runVerb("project.new")
+						return
+					}
+					go func() {
+						res, err := w.st.Do(w.ctx, "boundary.set",
+							map[string]any{"query": place})
+						if err != nil {
+							w.say("no place called " + place)
+							return
+						}
+						m, _ := res.(map[string]any)
+						names, _ := m["names"].([]string)
+						if len(names) == 0 {
+							w.say("nothing with an outline matches " + place)
+							return
+						}
+						w.sh.Ask.Post(func(ask *shell.Prompt) {
+							ask.Choose("Start a blank network over which?", "filter",
+								names, func(pick string) {
+									w.runVerbWith("project.new",
+										map[string]any{"place": pick})
+								})
+						})
+					}()
+				})
+		}
+		snap := w.st.Snapshot()
+		if snap == nil || len(snap.Nodes) == 0 {
+			askWhere()
+			return
+		}
+		// Asked first, because the network on screen may be an hour of
+		// placing and dragging that nothing else can get back.
+		w.sh.Ask.Post(func(ask *shell.Prompt) {
+			ask.Choose(fmt.Sprintf("Start a blank network? %d nodes are loaded",
+				len(snap.Nodes)), "filter",
+				[]string{"Start blank, discarding them", "Keep this network"},
+				func(pick string) {
+					if strings.HasPrefix(pick, "Start blank") {
+						askWhere()
+					}
+				})
+		})
 		return
 	}
 	// Opening one of your own networks: the names are already known, so the

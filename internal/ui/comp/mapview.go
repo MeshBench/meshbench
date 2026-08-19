@@ -150,10 +150,16 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 	paint.ColorOp{Color: t.P.Sunk}.Add(gtx.Ops)
 	paint.PaintOp{}.Add(gtx.Ops)
 
-	if s == nil || len(s.Nodes) == 0 {
+	if s == nil {
 		return layout.Center.Layout(gtx,
 			Text(t, t.Sz.Caption, t.P.Faint, "no network loaded"))
 	}
+	// A network with no nodes still gets a map.
+	//
+	// It used to get this line instead of one, which is a blank network
+	// nobody can put a repeater on: the place tool needs ground to click on,
+	// and the ground is the thing that was being withheld.
+	empty := len(s.Nodes) == 0
 	// Remembered for the callers outside the frame loop - the menu's
 	// raster-this-view needs the viewport, and the viewport only exists
 	// where the widget has a size.
@@ -358,6 +364,12 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 	if m.Layers.Coverage {
 		m.coverageLegend(t, gtx, sz, s)
 	}
+	// An empty network says what to do with the map rather than what it has
+	// not got: the ground is there to be clicked on.
+	if empty {
+		layout.Center.Layout(gtx, Text(t, t.Sz.Body, m.baseInk(t),
+			"no nodes yet - choose the place tool and click the ground"))
+	}
 	m.layoutMenu(t, gtx, sz)
 
 	if m.OnSize != nil {
@@ -374,12 +386,22 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 func (m *MapView) fit(s *state.Snapshot, sz image.Point) {
 	minLat, maxLat := 90.0, -90.0
 	minLon, maxLon := 180.0, -180.0
+	placed := 0
 	for _, n := range s.Nodes {
 		if n.Lat == 0 && n.Lon == 0 {
 			continue
 		}
+		placed++
 		minLat, maxLat = math.Min(minLat, n.Lat), math.Max(maxLat, n.Lat)
 		minLon, maxLon = math.Min(minLon, n.Lon), math.Max(maxLon, n.Lon)
+	}
+	if placed == 0 {
+		// Nothing to frame. Framing it anyway averaged the empty extents to
+		// 0,0 and put a blank network in the Atlantic, a thousand miles from
+		// anywhere anybody meant to place a repeater. The study area is the
+		// next best answer; failing that the camera stays where it was.
+		m.fitAreas(s, sz)
+		return
 	}
 	m.CentreLat, m.CentreLon = (minLat+maxLat)/2, (minLon+maxLon)/2
 	cos := math.Cos(m.CentreLat * math.Pi / 180)
@@ -479,4 +501,47 @@ func (m *MapView) FocusOn(s *state.Snapshot, name string) bool {
 func nodeMatches(n *state.Node, want string) bool {
 	return strings.Contains(strings.ToLower(n.Name), want) ||
 		strings.Contains(strings.ToLower(n.Kind), want)
+}
+
+// fitAreas frames the study area, for a network with nothing in it yet.
+//
+// Somebody starting blank has usually just said where they are working -
+// that is what the study area is - so the map opens there rather than
+// wherever the last network happened to be.
+func (m *MapView) fitAreas(s *state.Snapshot, sz image.Point) {
+	if m.Zoom <= 0 {
+		m.Zoom = 1000
+	}
+	// The largest outline, not the extent of every one of them.
+	//
+	// France's boundary takes in Guadeloupe, Réunion and New Caledonia, so
+	// framing all of it frames the planet and mainland France is a smudge.
+	// The biggest ring is the part somebody meant.
+	minLat, maxLat := 90.0, -90.0
+	minLon, maxLon := 180.0, -180.0
+	best := 0
+	for _, a := range s.Areas {
+		for _, ring := range a.Rings {
+			if len(ring) <= best {
+				continue
+			}
+			best = len(ring)
+			minLat, maxLat = 90.0, -90.0
+			minLon, maxLon = 180.0, -180.0
+			for _, p := range ring {
+				minLat, maxLat = math.Min(minLat, p.Lat), math.Max(maxLat, p.Lat)
+				minLon, maxLon = math.Min(minLon, p.Lon), math.Max(maxLon, p.Lon)
+			}
+		}
+	}
+	if best == 0 {
+		return // the camera keeps whatever it was looking at
+	}
+	m.CentreLat, m.CentreLon = (minLat+maxLat)/2, (minLon+maxLon)/2
+	cos := math.Cos(m.CentreLat * math.Pi / 180)
+	spanX, spanY := (maxLon-minLon)*cos, maxLat-minLat
+	if spanX <= 0 || spanY <= 0 {
+		return
+	}
+	m.Zoom = math.Min(float64(sz.X-80)/spanX, float64(sz.Y-80)/spanY)
 }

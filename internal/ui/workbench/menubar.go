@@ -62,10 +62,29 @@ func (b menuBar) build() {
 // menu that lies.
 func (b menuBar) refresh() {
 	for _, m := range workbenchMenus() {
-		items := m.Items
-		if panels := b.sh.PanelItems(m.Name); len(panels) > 0 {
-			items = append(append([]shell.MenuItem{}, items...), panels...)
-		}
-		b.sh.SetMenu(m.Name, items)
+		b.sh.SetMenu(m.Name, mergeSections(m.Items, b.sh.PanelItems(m.Name)))
 	}
+}
+
+// mergeSections folds the panel rows into the menu's own sections.
+//
+// Appended instead, a menu grew a second "Open & Save" heading below Quit,
+// because the dropdown draws a heading wherever the section changes and the
+// panels came after everything. A section is one place in a menu.
+func mergeSections(items, panels []shell.MenuItem) []shell.MenuItem {
+	out := append([]shell.MenuItem{}, items...)
+	for _, it := range panels {
+		last := -1
+		for i := range out {
+			if out[i].Section == it.Section {
+				last = i
+			}
+		}
+		if last < 0 {
+			out = append(out, it)
+			continue
+		}
+		out = append(out[:last+1], append([]shell.MenuItem{it}, out[last+1:]...)...)
+	}
+	return out
 }

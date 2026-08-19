@@ -7,10 +7,12 @@ package session
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
+	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
 // Register wires the control verbs onto the store. Only the few the new
@@ -53,12 +55,72 @@ func Register(st *state.Store, s *Sim) {
 	registerExperiment(st, s)
 	registerExperimentDone(st, s)
 	registerCoverageCombined(st, s)
+	// project.new: an empty network, to build one by hand.
+	//
+	// The same path as opening, with nothing in it. Everything downstream -
+	// the engine, the tick, the readouts - is built the same way, because a
+	// blank network that took a different route through this would be a
+	// second kind of session with its own set of things that were not set.
+	st.Handle("project.new", func(w *state.World, p any) (any, error) {
+		s.installFn(st, w, Loaded{}, "a blank network")
+		// Somewhere to start, if a place was named.
+		//
+		// A blank network with no nodes has nothing to frame the map on, and
+		// a map framed on nothing is the middle of the Atlantic. The place
+		// is looked up the same way a study area is, so "Fife" means the
+		// same thing in both.
+		place, _ := stringField(p, "place")
+		if strings.TrimSpace(place) == "" {
+			w.Say("a blank network - place nodes with the map's place tool")
+			return map[string]any{"nodes": 0}, nil
+		}
+		w.Say("looking up " + place)
+		// The place becomes the study area, and the map is framed on it.
+		//
+		// Both, because they are the same wish: somebody starting a network
+		// in Fife wants to see Fife and wants what they build measured
+		// against it. The search runs through the same verbs the Import
+		// panel uses, so a place means the same thing everywhere - and a
+		// name already searched for is taken from what that search found
+		// rather than asked of the geocoder twice.
+		go func() {
+			ctx := context.Background()
+			if !s.knowsArea(place) {
+				if _, err := st.Do(ctx, "boundary.set",
+					map[string]any{"query": place}); err != nil {
+					_, _ = st.Do(ctx, "ui.said", "no place called "+place+
+						" - the map stays where it was")
+					return
+				}
+			}
+			if _, err := st.Do(ctx, "boundary.accept",
+				map[string]any{"name": place}); err != nil {
+				_, _ = st.Do(ctx, "ui.said", err.Error())
+				return
+			}
+			// Framed by the map itself, which is the only thing that knows
+			// how many pixels it has to frame it in.
+			_, _ = st.Do(ctx, "map.fit", nil)
+		}()
+		return map[string]any{"nodes": 0, "place": place}, nil
+	})
 	st.Handle("project.open", func(w *state.World, p any) (any, error) {
 		path := soleString(p)
 		f, err := LoadFixture(path)
 		if err != nil {
 			return nil, err
 		}
+		s.installFn(st, w, f, path)
+		w.Say(fmt.Sprintf("opened %s: %d nodes, %d links, %d areas",
+			path, len(f.nodes), len(w.Links), len(f.areas)))
+		return map[string]any{
+			"opened": path, "nodes": len(f.nodes), "links": len(w.Links),
+		}, nil
+	})
+
+	// install puts a loaded network in place: the world's copy of it, the
+	// engine, and the tick that drives both.
+	installBody := func(st *state.Store, w *state.World, f Loaded, path string) {
 		w.Nodes, w.Areas, w.MarginKm = f.nodes, f.areas, f.margin
 		w.Sends, w.Assertions = f.sends, f.assertions
 		w.Seed = 9001
@@ -181,12 +243,8 @@ func Register(st *state.Store, s *Sim) {
 		w.RFRealism = s.realism
 		w.RFEnvironment = s.envDir
 		w.CoverageCells = s.covCells
-		w.Say(fmt.Sprintf("opened %s: %d nodes, %d links, %d areas",
-			path, len(f.nodes), len(w.Links), len(f.areas)))
-		return map[string]any{
-			"opened": path, "nodes": len(f.nodes), "links": len(w.Links),
-		}, nil
-	})
+	}
+	s.installFn = installBody
 	registerClockVerbs(st, s)
 	st.Handle("nodes.select", func(w *state.World, p any) (any, error) {
 		name := soleString(p)
@@ -309,6 +367,13 @@ func Register(st *state.Store, s *Sim) {
 		if s.eng == nil {
 			return nil, fmt.Errorf("no simulation")
 		}
+		// A network with no nodes has nowhere to originate from. It used to
+		// be unreachable - every session began with a fixture - and starting
+		// a blank network made it a state somebody can be in, where this
+		// indexed an empty slice and took the process with it.
+		if len(w.Nodes) == 0 {
+			return nil, fmt.Errorf("no nodes to originate from - place one first")
+		}
 		at := 0
 		if name := soleString(p); name != "" {
 			for i := range w.Nodes {
@@ -343,4 +408,43 @@ func Register(st *state.Store, s *Sim) {
 			"playing": w.Playing,
 		}, nil
 	})
+}
+
+// centreOf is the middle of a set of outlines, for pointing a camera at a
+// place that has no nodes in it yet.
+// centreOf is the middle of the largest outline in a set, for pointing a
+// camera at a place that has no nodes in it yet.
+//
+// The largest, not the extent of all of them: France's boundary takes in
+// Guadeloupe, French Guiana and Réunion, and the middle of that extent is
+// open ocean off west Africa. The biggest ring is the part somebody means.
+func centreOf(bs []scenario.Boundary) (lat, lon float64, ok bool) {
+	best := 0
+	for _, b := range bs {
+		for _, ring := range b.Rings {
+			if len(ring) <= best {
+				continue
+			}
+			minLat, maxLat := 90.0, -90.0
+			minLon, maxLon := 180.0, -180.0
+			for _, p := range ring {
+				minLat, maxLat = math.Min(minLat, p.Lat), math.Max(maxLat, p.Lat)
+				minLon, maxLon = math.Min(minLon, p.Lon), math.Max(maxLon, p.Lon)
+			}
+			best = len(ring)
+			lat, lon, ok = (minLat+maxLat)/2, (minLon+maxLon)/2, true
+		}
+	}
+	return lat, lon, ok
+}
+
+// knowsArea reports whether the last search already found this place, so a
+// name picked from a list is not looked up a second time.
+func (s *Sim) knowsArea(name string) bool {
+	for _, f := range s.foundAreas {
+		if strings.EqualFold(f.Name, name) || strings.EqualFold(f.DisplayName, name) {
+			return true
+		}
+	}
+	return false
 }
