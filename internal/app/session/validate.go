@@ -58,17 +58,18 @@ func registerValidate(st *state.Store, s *Sim) {
 			}
 			// Names, not keys.
 			//
-			// CoreScope's packet records carry no origin field, and the path
-			// it resolves is a list of public keys. Every observation
-			// therefore names a pair that no scenario recognises - which is
-			// why 3,989 of them matched nothing at all. The scenario's own
-			// nodes keep the real key they were imported with, so the map
-			// exists; it just was not being made.
+			// CoreScope resolves paths to public keys, and an advert's sender
+			// is a key in its own payload. The scenario's nodes keep the real
+			// key they were imported with, so the map exists; it just was not
+			// being made - which is why 3,989 observations once matched
+			// nothing at all.
 			byKey := map[string]string{}
+			names := map[string]bool{}
 			for _, n := range s.nodes {
 				if k := strings.ToLower(n.PublicKey); k != "" {
 					byKey[k] = n.Name
 				}
+				names[n.Name] = true
 			}
 			named := func(key string) string {
 				k := strings.ToLower(key)
@@ -82,6 +83,10 @@ func registerValidate(st *state.Store, s *Sim) {
 						return name
 					}
 				}
+				// Some deployments resolve paths all the way to names.
+				if names[key] {
+					return key
+				}
 				return ""
 			}
 
@@ -91,24 +96,27 @@ func registerValidate(st *state.Store, s *Sim) {
 				if !p.HasSNR || p.At.Before(since) || p.Receiver == "" {
 					continue
 				}
-				origin := p.Origin
-				if origin == "" && len(p.RelayPath) > 0 {
-					// The first name on the path is who originated it; the
-					// last is whoever transmitted the copy that was heard.
-					origin = named(p.RelayPath[0])
-				}
-				if origin == "" {
-					origin = named(p.Sender)
-				}
-				if origin == "" {
+				// The SNR belongs to whoever transmitted the copy that was
+				// heard - the last relay on the path, or the origin itself
+				// when the path is empty. Not the packet's origin: a message
+				// three relays deep says nothing about the link between its
+				// origin and this observer, and pairing those two was one
+				// half of how a calibration run matched nothing.
+				tx := named(p.Sender)
+				if tx == "" {
 					unresolved++
 					continue
 				}
-				out = append(out, provider.Reception{
-					At: p.At, Receiver: p.Receiver, Origin: origin,
+				r := provider.Reception{
+					At: p.At, Receiver: p.Receiver, Transmitter: tx,
+					PacketID: p.PacketID,
 					HopCount: len(p.PathHashes),
 					HasSNR:   true, SNRdB: p.SNRdB,
-				})
+				}
+				if r.HopCount == 0 {
+					r.Origin = tx
+				}
+				out = append(out, r)
 			}
 			if len(out) == 0 && unresolved > 0 {
 				_, _ = st.Do(context.Background(), "validate.failed", fmt.Sprintf(
@@ -152,8 +160,20 @@ func registerValidate(st *state.Store, s *Sim) {
 		res := s.residualsOf(obs, w.Links, w.Nodes)
 		w.Residuals = res
 		if res == nil || res.Matched == 0 {
+			// The split is the diagnosis: names outside the scenario mean the
+			// import does not cover the network observed; pairs with no link
+			// mean the engine has not measured them yet. Their sum looking
+			// like one number is how this failure went unexplained.
+			detail := ""
+			if res != nil {
+				detail = fmt.Sprintf(": %d named a node this scenario does not have, "+
+					"%d had no measured link between their pair - "+
+					"import the region the observers cover, then let the links warm",
+					res.OffScenario, res.NoLink)
+			}
 			return nil, fmt.Errorf(
-				"none of the %d observations matched a pair in this scenario", len(recs))
+				"none of the %d observations matched a pair in this scenario%s",
+				len(recs), detail)
 		}
 		// The sign convention, stated: positive means the model predicted a
 		// stronger signal than was heard, so the model is optimistic and the
@@ -163,7 +183,14 @@ func registerValidate(st *state.Store, s *Sim) {
 		return map[string]any{
 			"matched": res.Matched, "unmatched": res.Unmatched,
 			"median_db": res.MedianDB, "iqr_db": res.IQRdB,
-			"suggested_excess_loss_db": maxFloat(0, res.MedianDB),
+			// The suggestion is a total, not a delta. The links these
+			// residuals were measured against already carried the current
+			// excess loss, so the median is what *remains* on top of it -
+			// suggesting the median alone would tell an operator to replace
+			// 20 dB of measured clutter with 6 dB of leftover bias, and the
+			// model would come out 14 dB more optimistic for having been
+			// calibrated.
+			"suggested_excess_loss_db": maxFloat(0, s.excessLossDB+res.MedianDB),
 		}, nil
 	})
 
@@ -171,7 +198,15 @@ func registerValidate(st *state.Store, s *Sim) {
 	st.Handle("validate.calibrate", func(w *state.World, p any) (any, error) {
 		db, have := 0.0, false
 		if w.Residuals != nil && w.Residuals.Matched > 0 {
-			db, have = maxFloat(0, w.Residuals.MedianDB), true
+			// On top of the current term, because that is what the residuals
+			// measured: the links they were compared against already carried
+			// s.excessLossDB, so the median is the bias that term did not
+			// cover. Setting the total *to* the median - which this once did -
+			// silently discarded the existing calibration and made a
+			// calibrated model more optimistic than an uncalibrated one.
+			// Repeated fetch-then-calibrate rounds converge: each fit is of
+			// what the previous round left over.
+			db, have = maxFloat(0, s.excessLossDB+w.Residuals.MedianDB), true
 		}
 		if v, ok := numField(p, "db"); ok {
 			db, have = v, true
@@ -228,7 +263,8 @@ func observedFrom(recs []provider.Reception) []state.Observed {
 	for _, r := range recs {
 		out = append(out, state.Observed{
 			At: r.At, Receiver: r.Receiver, Origin: r.Origin,
-			HopCount: r.HopCount, HasSNR: r.HasSNR, SNRdB: r.SNRdB,
+			Transmitter: r.Transmitter,
+			HopCount:    r.HopCount, HasSNR: r.HasSNR, SNRdB: r.SNRdB,
 			PacketID: r.PacketID,
 		})
 	}

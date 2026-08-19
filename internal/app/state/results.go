@@ -132,10 +132,13 @@ type Observed struct {
 	At       time.Time
 	Receiver string
 	Origin   string
-	HopCount int
-	HasSNR   bool
-	SNRdB    float64
-	PacketID string
+	// Transmitter is who put this copy on the air - the RF endpoint the SNR
+	// belongs to, whatever the hop count.
+	Transmitter string
+	HopCount    int
+	HasSNR      bool
+	SNRdB       float64
+	PacketID    string
 }
 
 // Residuals is the model measured against those receptions.
@@ -145,8 +148,14 @@ type Observed struct {
 type Residuals struct {
 	Matched   int
 	Unmatched int
-	MedianDB  float64
-	IQRdB     float64
+	// Why the unmatched failed, separately: an observation naming a node this
+	// scenario does not have is a scope problem, one whose pair has no
+	// measured link is a warm-up problem, and the sum of the two looking like
+	// one number is how a matching failure stayed undiagnosed.
+	OffScenario int
+	NoLink      int
+	MedianDB    float64
+	IQRdB       float64
 }
 
 // BudgetTerm is one line of a link budget: a named quantity in decibels and

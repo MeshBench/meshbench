@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
+	"github.com/MeshBench/meshbench/internal/rf/dsp"
 	"github.com/MeshBench/meshbench/internal/world/provider"
 )
 
@@ -25,7 +26,8 @@ func PullObserved(ctx context.Context, url string, since time.Duration) ([]state
 	for _, r := range recs {
 		out = append(out, state.Observed{
 			At: r.At, Receiver: r.Receiver, Origin: r.Origin,
-			HopCount: r.HopCount, HasSNR: r.HasSNR, SNRdB: r.SNRdB,
+			Transmitter: r.Transmitter,
+			HopCount:    r.HopCount, HasSNR: r.HasSNR, SNRdB: r.SNRdB,
 			PacketID: r.PacketID,
 		})
 	}
@@ -34,9 +36,12 @@ func PullObserved(ctx context.Context, url string, since time.Duration) ([]state
 
 // residualsOf compares predicted margins against observed signal-to-noise.
 //
-// Only direct receptions - hop count zero or one - because a packet that
-// arrived over three relays says nothing about the link between its origin and
-// whoever finally heard it, and counting it would compare a path to a hop.
+// The pair is transmitter to observer - the link the SNR was measured on -
+// which makes every hop count usable: a packet three relays deep is direct
+// evidence about its final relay's link to whoever heard it, and nothing at
+// all about its origin's. Filtering to "hop count zero or one" and pairing
+// origin with observer threw away the deep-path majority and mispaired the
+// rest, which is one half of how a calibration run matched nothing.
 func (s *Sim) residualsOf(obs []state.Observed, links []state.Link,
 	nodes []state.Node) *state.Residuals {
 
@@ -52,37 +57,51 @@ func (s *Sim) residualsOf(obs []state.Observed, links []state.Link,
 		}
 	}
 	var diffs []float64
-	matched, unmatched := 0, 0
+	res := &state.Residuals{}
 	for _, o := range obs {
-		if !o.HasSNR || o.HopCount > 1 {
+		if !o.HasSNR {
 			continue
 		}
-		a, ok1 := index[o.Origin]
+		tx := o.Transmitter
+		if tx == "" {
+			// An origin-only observation is a direct link only when nothing
+			// relayed it.
+			if o.HopCount > 0 {
+				continue
+			}
+			tx = o.Origin
+		}
+		a, ok1 := index[tx]
 		b, ok2 := index[o.Receiver]
 		if !ok1 || !ok2 {
-			unmatched++
+			res.Unmatched++
+			res.OffScenario++
 			continue
 		}
 		m, ok := margin[[2]int{a, b}]
 		if !ok {
-			unmatched++
+			res.Unmatched++
+			res.NoLink++
 			continue
 		}
-		// The observed margin is how far the signal was above what the
-		// demodulator needed, which is the same quantity the model predicts.
-		observed := o.SNRdB - requiredSNRFor(s, a)
-		diffs = append(diffs, m-observed)
-		matched++
+		// Predicted and observed have to be the same quantity before they are
+		// subtracted. The observation came off a modem whose estimator
+		// saturates at +15 dB, so the prediction is clamped the same way -
+		// otherwise every strong link manufactures tens of decibels of
+		// "residual" out of the receiver's register width, and the excess
+		// loss fitted to the median inherits it.
+		required := requiredSNRFor(s, a)
+		predicted := dsp.ReportSNRdB(m + required)
+		diffs = append(diffs, predicted-o.SNRdB)
+		res.Matched++
 	}
-	if matched == 0 {
-		return &state.Residuals{Matched: 0, Unmatched: unmatched}
+	if res.Matched == 0 {
+		return res
 	}
 	sort.Float64s(diffs)
-	return &state.Residuals{
-		Matched: matched, Unmatched: unmatched,
-		MedianDB: diffs[len(diffs)/2],
-		IQRdB:    math.Abs(quantile(diffs, 0.75) - quantile(diffs, 0.25)),
-	}
+	res.MedianDB = diffs[len(diffs)/2]
+	res.IQRdB = math.Abs(quantile(diffs, 0.75) - quantile(diffs, 0.25))
+	return res
 }
 
 func quantile(sorted []float64, q float64) float64 {
@@ -93,21 +112,15 @@ func quantile(sorted []float64, q float64) float64 {
 	return sorted[i]
 }
 
+// requiredSNRFor reads the demodulator floor from the one table the whole
+// project shares. A hand-rolled copy of it lived here once, silently missing
+// SF10 - dsp.RequiredSNRdB is measured against Semtech's figures by test, and
+// a second copy is a second place for it to be wrong.
 func requiredSNRFor(s *Sim, i int) float64 {
-	if i < 0 || i >= len(s.nodes) {
-		return -15
-	}
-	switch s.nodes[i].Radio.SpreadFactor {
-	case 7:
-		return -7.5
-	case 8:
-		return -10
-	case 9:
-		return -12.5
-	case 11:
-		return -17.5
-	case 12:
-		return -20
+	if i >= 0 && i < len(s.nodes) {
+		if v, ok := dsp.RequiredSNRdB[s.nodes[i].Radio.SpreadFactor]; ok {
+			return v
+		}
 	}
 	return -15
 }

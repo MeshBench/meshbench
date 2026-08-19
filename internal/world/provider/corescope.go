@@ -276,11 +276,52 @@ type csPacketRow struct {
 	// origin. CoreScope names it with a leading underscore.
 	ParsedPath []string `json:"_parsedPath"`
 	Origin     string   `json:"origin"`
-	Time       any      `json:"timestamp"`
-	Time2      any      `json:"time"`
+	// Hash identifies the message across observers: two nodes reporting the
+	// same transmission report the same hash, which is what lets a pile of
+	// rows become receptions of packets rather than a count.
+	Hash string `json:"hash"`
+	// DecodedJSON is CoreScope's own dissection of the frame. Deliberately
+	// raw here: some deployments send an object, others a JSON-encoded
+	// string, and the one field this package wants from it - an advert's
+	// public key - is worth accepting from either shape.
+	DecodedJSON json.RawMessage `json:"decoded_json"`
+	Time        any             `json:"timestamp"`
+	Time2       any             `json:"time"`
 	// SNR as this observer heard it. A pointer because zero is a real SNR and
 	// only null means "not reported".
 	SNR *float64 `json:"snr"`
+}
+
+// advertSender digs the transmitting node's public key out of CoreScope's
+// decode of an advert frame.
+//
+// This is what makes a zero-hop packet usable as RF evidence. A copy with an
+// empty path was heard straight from its origin, and for an advert the origin
+// signs its own public key into the payload - so the key is right there, in
+// the field CoreScope calls pubKey. Without this, 850 of the 2,000 packets a
+// live ScotMesh page carries - the direct receptions, the exact ones a
+// calibration wants most - resolved to nobody and were dropped.
+func advertSender(decoded json.RawMessage) string {
+	if len(decoded) == 0 {
+		return ""
+	}
+	raw := decoded
+	// The string-wrapped shape: unquote once, then parse what was inside.
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		raw = json.RawMessage(s)
+	}
+	var d struct {
+		PubKey    string `json:"pubKey"`
+		PublicKey string `json:"public_key"`
+	}
+	if err := json.Unmarshal(raw, &d); err != nil {
+		return ""
+	}
+	if d.PubKey != "" {
+		return d.PubKey
+	}
+	return d.PublicKey
 }
 
 // fetchPacketPage decodes one page, accepting either shape CoreScope answers
@@ -323,6 +364,7 @@ func (c *CoreScope) recordFrom(r csPacketRow) (PacketRecord, bool) {
 	}
 	rec := PacketRecord{
 		Raw: raw, Receiver: r.ObserverName, Origin: r.Origin,
+		PacketID:   r.Hash,
 		PathHashes: append([]string(nil), r.ParsedPath...),
 		RelayPath:  append([]string(nil), r.ResolvedPath...),
 	}
@@ -336,10 +378,16 @@ func (c *CoreScope) recordFrom(r csPacketRow) (PacketRecord, bool) {
 	}
 	// The last name on the resolved path is whoever transmitted the copy that
 	// was heard - the node whose behaviour this packet is evidence about.
-	if n := len(r.ResolvedPath); n > 0 {
-		rec.Sender = r.ResolvedPath[n-1]
-	} else if r.Origin != "" {
+	// With no path at all, this copy came straight from its origin: the
+	// origin field where the deployment fills one, or the key an advert
+	// carries in its own payload where it does not.
+	switch {
+	case len(r.ResolvedPath) > 0:
+		rec.Sender = r.ResolvedPath[len(r.ResolvedPath)-1]
+	case r.Origin != "":
 		rec.Sender = r.Origin
+	default:
+		rec.Sender = advertSender(r.DecodedJSON)
 	}
 	return rec, true
 }

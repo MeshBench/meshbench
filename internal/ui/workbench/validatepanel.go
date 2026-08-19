@@ -40,9 +40,15 @@ func (p *validatePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 	rows := []comp.Row{
 		{Key: "pairs", Cells: []string{"observed pairs matched", fmt.Sprintf("%d", r.Matched),
 			"receptions between two nodes this scenario also has"}},
-		{Key: "unmatched", Cells: []string{"observed pairs not in the scenario",
-			fmt.Sprintf("%d", r.Unmatched),
-			"heard on the real network between nodes this scenario does not contain"}},
+		// The two ways an observation fails to match are different problems
+		// with different fixes, and their sum shown as one number is how a
+		// total matching failure once went undiagnosed for weeks.
+		{Key: "offscenario", Cells: []string{"named a node not in this scenario",
+			fmt.Sprintf("%d", r.OffScenario),
+			"the real network is bigger than this import - widen the region if these matter"}},
+		{Key: "nolink", Cells: []string{"no measured link for the pair",
+			fmt.Sprintf("%d", r.NoLink),
+			"both nodes are here but the engine has not priced the path - let the links finish warming"}},
 		{Key: "median", Cells: []string{"median residual", fmt.Sprintf("%+.1f dB", r.MedianDB),
 			"positive means the model predicts more margin than was observed"}},
 		{Key: "spread", Cells: []string{"half the residuals within",

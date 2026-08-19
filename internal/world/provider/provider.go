@@ -63,17 +63,23 @@ type NodeRecord struct {
 // nodes reporting the same transmission cannot be recognised as the same event,
 // and the only thing a large pile of receptions can then support is counting.
 type Reception struct {
-	At         time.Time
-	Receiver   string
-	PacketID   string
-	Origin     string
-	HopCount   int
-	HasSNR     bool
-	SNRdB      float64
-	HasRSSI    bool
-	RSSIdBm    float64
-	Source     string
-	RawPayload []byte
+	At       time.Time
+	Receiver string
+	PacketID string
+	Origin   string
+	// Transmitter is who put this copy on the air: the last relay on the
+	// path, or the origin itself when the copy was heard directly. The SNR
+	// belongs to the transmitter-receiver link whatever the hop count -
+	// a packet three relays deep says nothing about its origin's radio, and
+	// everything about its final relay's.
+	Transmitter string
+	HopCount    int
+	HasSNR      bool
+	SNRdB       float64
+	HasRSSI     bool
+	RSSIdBm     float64
+	Source      string
+	RawPayload  []byte
 }
 
 // Provider is a source of nodes and past receptions.
