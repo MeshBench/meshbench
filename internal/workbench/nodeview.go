@@ -1,4 +1,4 @@
-// The node view: what every node is costing and doing (P6).
+// The node view: what every node is costing and doing.
 //
 // The question this answers is the one somebody asks when a hundred and fifty
 // processes are running and the machine has started to labour: which node, and

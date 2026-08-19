@@ -1,4 +1,4 @@
-// Planning: what would it take to connect these two (6.23).
+// Planning: what would it take to connect these two.
 //
 // Through internal/planning, whose search returns the fewest *new* sites
 // rather than the fewest hops. Existing infrastructure is free, and a five-hop

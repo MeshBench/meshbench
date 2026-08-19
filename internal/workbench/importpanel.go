@@ -1,4 +1,4 @@
-// Importing a live network (6.21).
+// Importing a live network.
 //
 // Through internal/provider and internal/scenario, whose rule is the one worth
 // keeping in front of somebody importing: a record that cannot be placed is

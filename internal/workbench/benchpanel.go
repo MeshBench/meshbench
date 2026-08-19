@@ -1,4 +1,4 @@
-// The Companion bench: a mesh and an address to point a client at (6.25).
+// The Companion bench: a mesh and an address to point a client at.
 //
 // The front door for somebody writing an application against MeshCore rather
 // than studying a network. Everything it does existed already - firmware

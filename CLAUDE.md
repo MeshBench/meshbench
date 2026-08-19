@@ -36,19 +36,42 @@ go test ./...
 ```
 cmd/meshcoresim/   the binary
 internal/rf/       channel: sum, delay, noise
-internal/dsp/      modulation, demodulation, FFT — CPU reference and GPU
+internal/dsp/      modulation, demodulation, FFT — CPU reference
+internal/gpu/      the GPU twins, and the .wgsl they embed
+internal/lora/     the coding chain: payload bytes to chirp symbols
 internal/antenna/  patterns, orientation, polarisation
 internal/terrain/  DEM tiles, profiles, diffraction
+internal/environ/  buildings, heights, materials
+internal/coverage/ link budgets into rasters, and the CPU twins of the kernels
+internal/linkbudget/ path loss into a margin
+internal/pathview/ why a link missed
+internal/planning/ where the next node should go
+internal/energy/   battery, load, solar
 internal/firmware/ host builds of MeshCore, the Radio shim, per-node runtime
+internal/companion/ TCP and PTY companion transports, and the protocol
+internal/console/  the operator's terminal onto a running node
 internal/scenario/ nodes, import, persistence, seeds
-internal/capture/  pcapng, event log
+internal/provider/ CoreScope, Beacon and MQTT feeds
+internal/boundary/ named administrative areas
+internal/basemap/  hillshaded terrain under the simulation
 internal/sdr/      IQ export, SigMF, streaming
-internal/companion/ TCP and PTY companion transports
-internal/gui/      Gio primitives: theme, components, shell, map view
+internal/engine/   the simulation: firmware nodes over the channel
+internal/capture/  pcapng, event log, packet dissection
+internal/fixture/  the on-disk form of a whole setup
+internal/session/  the workbench without a user interface
+internal/control/  the unix socket another process drives it by
+internal/mcp/      the engine over the Model Context Protocol
+internal/gui/      Gio primitives: theme, components, shell, map view, state
 internal/workbench/ the workbench itself: panels, state, wiring
-shaders/           WGSL compute shaders
 tools/dissector/   Wireshark Lua dissector
 ```
+
+The WGSL lives in `internal/gpu/` because `//go:embed` cannot reach outside its
+own package directory. There is no top-level `shaders/`; a second copy there
+went stale, which is how we found out.
+
+This table is the map. A new package updates it in the same commit — the map
+being wrong is worse than the map being short.
 
 `internal/` by default. Deliberately not `golang-standards/project-layout` — it
 is unofficial, disclaims itself, and Go maintainers have criticised it.
@@ -63,9 +86,13 @@ Mechanical, because taste does not survive scale — and this codebase will be b
 | Function length | 50 lines soft |
 | Nesting depth | 4 |
 | Dead code | none — git remembers |
+| Filename | says what the file holds — never a plan phase, never a `2`/`b`/`c` suffix |
+| Panel & widget files | one type per file, named after the type |
+| Duplicated asset | none — one copy, and the code points at it |
+| Build artifacts | never tracked |
 | Speculative abstraction | none — write the interface at the *second* implementation |
 | New dependency | justify it in the PR, one line |
-| Comments | explain *why*, never *what* |
+| Comments | explain *why*, never *what* — and never cite a plan phase or ticket number, which the reader will not have |
 
 ## Domain rules that are easy to get wrong
 

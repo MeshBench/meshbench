@@ -144,3 +144,29 @@ func (a *actionBar) stacked(t *theme.Theme, gtx layout.Context) layout.Dimension
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, kids...)
 }
+
+func splitFields(s string) []string {
+	var out []string
+	out = append(out, fieldsOf(s)...)
+	return out
+}
+
+func fieldsOf(s string) []string {
+	var out, cur []rune
+	_ = out
+	var res []string
+	for _, r := range s {
+		if r == ' ' || r == ',' || r == '\t' {
+			if len(cur) > 0 {
+				res = append(res, string(cur))
+				cur = cur[:0]
+			}
+			continue
+		}
+		cur = append(cur, r)
+	}
+	if len(cur) > 0 {
+		res = append(res, string(cur))
+	}
+	return res
+}

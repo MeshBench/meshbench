@@ -1,4 +1,4 @@
-// The other two tables of P4: installed firmware, and past runs.
+// The Runs panel: past runs, and the firmware installed on this machine.
 //
 // Both read the same places on disk the rest of the tool writes to, rather
 // than keeping a list of their own. A second inventory of what is installed
@@ -20,7 +20,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/gui/theme"
 )
 
-// firmwarePanel is what is installed and could be run (6.x, P4).
+// firmwarePanel is what is installed and could be run.
 // firmwarePanel is the library: every build, what runs it, and what can be
 // done to it.
 //

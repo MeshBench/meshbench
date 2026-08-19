@@ -39,3 +39,8 @@ type menu struct {
 	Name  string
 	Items []shell.MenuItem
 }
+
+// Do is how these panels reach the store. One function rather than a callback
+// per control, because every one of them is "run this verb with these
+// parameters and say what came back".
+type Do func(verb string, params any)

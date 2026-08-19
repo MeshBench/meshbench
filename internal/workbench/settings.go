@@ -1,4 +1,4 @@
-// Settings, and the dialog that changes them (P7, section 9).
+// Settings, and the dialog that changes them.
 //
 // Applied live rather than at next launch. A theme somebody cannot see the
 // effect of until they restart is a theme they set by trial and error, and

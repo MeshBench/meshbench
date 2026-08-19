@@ -1,4 +1,4 @@
-// Sweeping a parameter over seeds (6.12), into the matrix that draws it.
+// Sweeping a parameter over seeds, into the matrix that draws it.
 //
 // Every cell is its own engine on its own seed. Reusing one engine across
 // cells would carry a warmed link cache and an event log from the previous

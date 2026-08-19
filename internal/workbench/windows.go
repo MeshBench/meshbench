@@ -1,4 +1,4 @@
-// Panels that leave the layout and become real windows (P7).
+// Panels that leave the layout and become real windows.
 //
 // This is the departure from the old design that started the whole exercise. A
 // dock is the right answer when two things are read together; it is the wrong
