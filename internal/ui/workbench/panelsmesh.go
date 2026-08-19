@@ -17,13 +17,11 @@ func addMeshPanels(d panelDeps) {
 			"what every node is told when it starts").Draw)})
 	nv := &nodeViewPanel{}
 	nv.OnAction = func(action, node string) {
-		go func() {
-			if action == "d.nodes.stats" {
-				_, _ = d.st.Do(d.ctx, action, nil)
-				return
-			}
-			_, _ = d.st.Do(d.ctx, action, node)
-		}()
+		if action == "nodes.stats" {
+			d.do(action, nil)
+			return
+		}
+		d.do(action, node)
 	}
 	nv.OnFirmware = func(node, version string) {
 		go func() {
@@ -77,7 +75,7 @@ func addMeshPanels(d panelDeps) {
 				return
 			case <-t.C:
 				if nv.watched.Swap(false) {
-					_, _ = d.st.Do(d.ctx, "d.nodes.stats", nil)
+					d.do("nodes.stats", nil)
 				}
 			}
 		}
