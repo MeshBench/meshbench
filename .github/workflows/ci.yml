@@ -27,7 +27,13 @@ jobs:
           # load a config targeting a Go version higher than itself. Matching
           # the two removes that gap rather than working around it once.
           go-version: "1.25"
-          cache: true
+          # cache: false - this runs on a persistent self-hosted runner whose
+          # GOMODCACHE and GOCACHE already survive between jobs, so the cache
+          # action only uploads ~260 MB to GitHub over the lab's uplink at
+          # under 1 MB/s to rebuild what is already on disk. It stalled a run.
+          # Forks fall back to hosted runners and lose the cache; rare, and
+          # cheap next to the stall.
+          cache: false
 
       # cgo, through cimgui-go. Every step below that compiles a package -
       # vet, lint, test - compiles the UI package too, and without these it
@@ -133,7 +139,13 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.25"
-          cache: true
+          # cache: false - this runs on a persistent self-hosted runner whose
+          # GOMODCACHE and GOCACHE already survive between jobs, so the cache
+          # action only uploads ~260 MB to GitHub over the lab's uplink at
+          # under 1 MB/s to rebuild what is already on disk. It stalled a run.
+          # Forks fall back to hosted runners and lose the cache; rare, and
+          # cheap next to the stall.
+          cache: false
 
       - name: Headers cgo needs
         run: |
@@ -179,7 +191,13 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.25"
-          cache: true
+          # cache: false - this runs on a persistent self-hosted runner whose
+          # GOMODCACHE and GOCACHE already survive between jobs, so the cache
+          # action only uploads ~260 MB to GitHub over the lab's uplink at
+          # under 1 MB/s to rebuild what is already on disk. It stalled a run.
+          # Forks fall back to hosted runners and lose the cache; rare, and
+          # cheap next to the stall.
+          cache: false
 
       - name: Headers cgo needs
         run: |
