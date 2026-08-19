@@ -75,25 +75,35 @@ func TestUnmatchedSaysWhichFailureItWas(t *testing.T) {
 	}
 }
 
-// Predicted and observed are the same quantity before they are subtracted.
+// A prediction past the modem's reporting ceiling is censored, not compared.
 //
-// The observation came off a modem that saturates at +15 dB, so a hilltop
-// pair whose unclamped prediction is +40 dB must compare as +15 against an
-// observed +15 - a residual of zero, not a manufactured +25 that the fitted
-// excess loss would then inherit.
-func TestResidualsCompareWhatAModemCouldReport(t *testing.T) {
+// Clamping it and letting it vote looked right and ran away: the clamped
+// sample reports the same fixed residual whatever the excess term is, so the
+// fitted median never moves and every calibration round adds the same few
+// decibels for ever - measured live, +3.0 dB per round with no convergence.
+// A censored sample says "at least this optimistic", and a bound does not
+// get to vote a number.
+func TestASaturatedPredictionIsCensoredNotVoting(t *testing.T) {
 	s, nodes, _ := residualsFixture()
-	// Margin +50 at SF8 (floor -10) is an unclamped prediction of +40 dB.
-	links := []state.Link{{A: 0, B: 1, MarginDB: 50, Known: true}}
+	// Margin +50 at SF8 (floor -10) is an unclamped prediction of +40 dB -
+	// far past the +15 the modem can report. The +6 margin pair predicts
+	// -4 dB, well inside the register, and is the only legitimate voter.
+	links := []state.Link{
+		{A: 0, B: 1, MarginDB: 50, Known: true},
+		{A: 1, B: 2, MarginDB: 6, Known: true},
+	}
 	res := s.residualsOf([]state.Observed{
 		{Receiver: "bravo", Transmitter: "alpha", HasSNR: true, SNRdB: 15},
+		{Receiver: "charlie", Transmitter: "bravo", HasSNR: true, SNRdB: -6},
 	}, links, nodes)
-	if res.Matched != 1 {
-		t.Fatalf("matched = %d", res.Matched)
+	if res.Matched != 2 || res.Censored != 1 {
+		t.Fatalf("matched %d censored %d, want 2 and 1 (%+v)",
+			res.Matched, res.Censored, res)
 	}
-	if res.MedianDB != 0 {
-		t.Fatalf("median residual = %+.1f dB; the register's width is not a "+
-			"model error", res.MedianDB)
+	// The voter: predicted 6-10 = -4, observed -6, residual +2. If the
+	// censored pair had voted its clamped zero, the median would sit between.
+	if res.MedianDB != 2 {
+		t.Fatalf("median = %+.1f dB, want the voter's own +2", res.MedianDB)
 	}
 }
 

@@ -178,8 +178,9 @@ func registerValidate(st *state.Store, s *Sim) {
 		// The sign convention, stated: positive means the model predicted a
 		// stronger signal than was heard, so the model is optimistic and the
 		// excess loss term should go up.
-		w.Say(fmt.Sprintf("%d observations matched, median residual %+.1f dB "+
-			"(positive means the model is optimistic)", res.Matched, res.MedianDB))
+		w.Say(fmt.Sprintf("%d observations matched (%d saturated, not voting), "+
+			"median residual %+.1f dB (positive means the model is optimistic)",
+			res.Matched, res.Censored, res.MedianDB))
 		return map[string]any{
 			"matched": res.Matched, "unmatched": res.Unmatched,
 			"median_db": res.MedianDB, "iqr_db": res.IQRdB,

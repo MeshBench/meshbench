@@ -154,8 +154,12 @@ type Residuals struct {
 	// one number is how a matching failure stayed undiagnosed.
 	OffScenario int
 	NoLink      int
-	MedianDB    float64
-	IQRdB       float64
+	// Censored counts matched pairs whose prediction sits past the modem's
+	// reporting ceiling: they say "at least this optimistic", which is a
+	// bound, not a number, so they are counted here and left out of the fit.
+	Censored int
+	MedianDB float64
+	IQRdB    float64
 }
 
 // BudgetTerm is one line of a link budget: a named quantity in decibels and

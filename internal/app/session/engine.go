@@ -228,25 +228,27 @@ func (s *Sim) build(nodes []scenario.Node, freqMHz float64) {
 // close on ScotMesh: The Mysterons reached Leslie, Cadham and Bishop Hill
 // through the Lomond Hills, which is not possible and was reported as such.
 //
-// It is now a measurement rather than the guess it started as, twice over.
-// The first fit - 118 Fife receptions - put it at 20.4 dB. The second, after
-// the matching pipeline learned to pair an observation with the link its SNR
-// was actually measured on, is 1,330 receptions across the whole of ScotMesh:
-// 451 nodes, every terrain the country has, median residual +3.5 dB on top of
-// the 20 then applied - a fitted total of 23.5 dB.
+// It is now a measurement rather than the guess it started as, three times
+// over. The first fit - 118 Fife receptions - put it at 20.4 dB. The second,
+// after the matching pipeline learned to pair an observation with the link its
+// SNR was actually measured on, said 23.5 across the whole of ScotMesh. The
+// third is the converged figure: with predictions past the modem's +15 dB
+// reporting ceiling censored out of the fit - they can only say "at least",
+// and a bound must not vote a number - repeated fetch-then-calibrate rounds
+// against 444 live nodes settle at 25.1 dB after one step and stay there,
+// fitted on the 357 observations of 1,363 whose predictions the register
+// could actually express.
 //
 // This constant is what a network nobody has observed gets, which is why it
 // carries the whole-country figure rather than a per-network one: it is a
 // clutter-and-multipath term for UK terrain at 869 MHz, not a ScotMesh
 // setting. A network with observations of its own refines it through
 // validate.fetch then validate.calibrate, which re-derives the total from
-// whatever is current. If anything the figure is conservative-side: the +15 dB
-// reporting ceiling means the strongest links cannot testify to how optimistic
-// the model was about them.
+// whatever is current and now converges instead of creeping.
 //
 // Studies comparing two firmware builds are unaffected in direction, because
 // both arms carry the same term.
-const DefaultExcessLossDB = 23.5
+const DefaultExcessLossDB = 25.1
 
 // defaultSeed is the one a fresh session starts from. Fixed, because a
 // simulator whose default run differs every time cannot be used to show

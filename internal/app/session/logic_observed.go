@@ -85,17 +85,25 @@ func (s *Sim) residualsOf(obs []state.Observed, links []state.Link,
 			continue
 		}
 		// Predicted and observed have to be the same quantity before they are
-		// subtracted. The observation came off a modem whose estimator
-		// saturates at +15 dB, so the prediction is clamped the same way -
-		// otherwise every strong link manufactures tens of decibels of
-		// "residual" out of the receiver's register width, and the excess
-		// loss fitted to the median inherits it.
+		// subtracted - and a prediction past the modem's reporting ceiling is
+		// not the same quantity at all. Clamped, such a sample votes the same
+		// fixed residual whatever the excess term is, so the fitted median
+		// stops moving and every calibration round adds the same few decibels
+		// for ever: the estimator ran away precisely because it looked
+		// converged. A censored sample only says "at least this optimistic",
+		// and a lower bound does not get to vote a number - it is counted,
+		// said aloud, and left out of the fit.
 		required := requiredSNRFor(s, a)
-		predicted := dsp.ReportSNRdB(m + required)
+		predicted := m + required
+		if predicted > dsp.ReportableSNRCeilingDB {
+			res.Matched++
+			res.Censored++
+			continue
+		}
 		diffs = append(diffs, predicted-o.SNRdB)
 		res.Matched++
 	}
-	if res.Matched == 0 {
+	if len(diffs) == 0 {
 		return res
 	}
 	sort.Float64s(diffs)
