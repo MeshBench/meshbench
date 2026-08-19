@@ -60,15 +60,12 @@ func newShellHarness(t *testing.T) *shellHarness {
 	}
 	// Every panel the real workbench registers, as an empty body: this test is
 	// about whether the chrome reaches anything, not about what a panel draws.
-	for _, n := range []string{
-		"Map", "Nodes", "Inspector", "Events", "Scoreboard", "Packet timeline",
-		"Waterfall", "Link", "Budget", "Planning", "Boundary", "Import",
-		"Validate", "Energy", "Live feed", "Console", "Schedule", "Compare",
-		"Sweep", "Runs", "Matrix", "Timelines", "Experiment log",
-		"Configuration", "Firmware", "Fleet", "Companion bench",
-		"Nodes running", "Provisioning", "Packet",
-	} {
-		h.sh.Add(shell.EmptyPanel(n, "for the walkthrough"))
+	//
+	// Taken from the same table the registrations use, so a panel added to
+	// the application cannot be missing from the walkthrough - the old hand
+	// written list here was already three panels short of the real one.
+	for n := range panelMenus {
+		h.sh.Add(homed(shell.EmptyPanel(n, "for the walkthrough")))
 	}
 	h.sh.OnMenu = func(action string) { h.fired = append(h.fired, action) }
 	h.sh.OnPopOut = func(name string) { h.fired = append(h.fired, "panel."+name) }
@@ -162,22 +159,91 @@ func TestMenuShortcutsFire(t *testing.T) {
 	}
 }
 
-// The Window menu ends in a pinned show-all row, and it can be pressed.
-func TestWindowMenuHasShowAll(t *testing.T) {
+// Every panel is one click from a menu, and named in exactly one of them.
+//
+// This is what replaced "Show all panels...": that entry was a chooser of all
+// thirty-three, and picking one threw it out of the window. A panel nobody
+// can find from a menu is a panel that does not exist, and a panel in two
+// menus is two entries to keep in step - one of which is always the stale one.
+func TestEveryPanelIsInExactlyOneMenu(t *testing.T) {
 	h := newShellHarness(t)
-	h.sh.WindowMenu("Window")
+	menus := map[string][]shell.MenuItem{}
+	for _, m := range workbenchMenus() {
+		menus[m.Name] = m.Items
+	}
+	seen := map[string][]string{}
+	for _, name := range shell.MenuNames {
+		items := append(append([]shell.MenuItem{}, menus[name]...), h.sh.PanelItems(name)...)
+		h.sh.SetMenu(name, items)
+		for _, it := range items {
+			if p, ok := strings.CutPrefix(it.Action, "panel."); ok {
+				seen[p] = append(seen[p], name)
+			}
+		}
+	}
+	for name := range h.sh.Panels {
+		switch len(seen[name]) {
+		case 1:
+		case 0:
+			t.Errorf("%q is in no menu, so nothing can open it", name)
+		default:
+			t.Errorf("%q is in %v; one entry lives in one menu", name, seen[name])
+		}
+	}
+	// And show-all is gone rather than merely unused.
+	for _, name := range shell.MenuNames {
+		for _, it := range h.sh.MenuItems(name) {
+			if it.Action == "window.showall" {
+				t.Errorf("%s still offers the show-all chooser", name)
+			}
+		}
+	}
+}
+
+// A menu entry for a panel docks it into the layout, and says so with a tick.
+func TestPanelEntryDocksAndTicks(t *testing.T) {
+	h := newShellHarness(t)
 	h.frame()
-	items := h.sh.MenuItems("Window")
-	if len(items) == 0 {
-		t.Fatal("the Window menu is empty")
+	const name = "Waterfall"
+	if h.sh.Visible(name) {
+		t.Fatalf("%s is in the Plan view already; pick a panel that is not", name)
 	}
-	last := items[len(items)-1]
-	if last.Action != "window.showall" {
-		t.Fatalf("the last Window entry is %q, want the show-all overflow", last.Action)
+	iconFor := func() string {
+		for _, it := range h.sh.PanelItems("Analysis") {
+			if it.Action == "panel."+name {
+				return it.Icon
+			}
+		}
+		return ""
 	}
-	if !h.fireMenuItem("Window", "window.showall") {
-		t.Error("no pointer position reaches the pinned show-all row")
+	if got := iconFor(); got != "panel" {
+		t.Fatalf("a panel that is not on screen carries the %q glyph, want the plain panel outline", got)
 	}
+	h.sh.Dock(name)
+	if !h.sh.Visible(name) {
+		t.Fatal("docking a panel did not put it in the layout")
+	}
+	if got := iconFor(); got != "tick" {
+		t.Fatalf("a docked panel carries the %q glyph, want a tick", got)
+	}
+	h.frame()
+	// And it draws where it was docked, rather than in a window elsewhere.
+	if !containsPanel(h.sh.VisiblePanels(), name) {
+		t.Fatal("the docked panel is not among the panels this view is showing")
+	}
+	h.sh.Undock(name)
+	if h.sh.Visible(name) {
+		t.Fatal("undocking left the panel in the layout")
+	}
+}
+
+func containsPanel(names []string, want string) bool {
+	for _, n := range names {
+		if n == want {
+			return true
+		}
+	}
+	return false
 }
 
 // clickMenu opens a named menu by pressing its title in the bar.

@@ -12,9 +12,9 @@ import (
 )
 
 func addMeshPanels(d panelDeps) {
-	d.sh.Add(&shell.Panel{Name: "Provisioning", Windowable: true,
+	d.sh.Add(homed(&shell.Panel{Name: "Provisioning", Windowable: true,
 		Draw: d.withControls(d.provCtl.Draw, shell.EmptyPanel("Provisioning",
-			"what every node is told when it starts").Draw)})
+			"what every node is told when it starts").Draw)}))
 	nv := &nodeViewPanel{}
 	nv.OnAction = func(action, node string) {
 		go func() {
@@ -62,7 +62,7 @@ func addMeshPanels(d panelDeps) {
 			nv.OpenMenu(*d.openMenuFlag, d.st.Snapshot())
 		}()
 	}
-	d.sh.Add(&shell.Panel{Name: "Nodes running", Windowable: true, Draw: nv.Draw})
+	d.sh.Add(homed(&shell.Panel{Name: "Nodes running", Windowable: true, Draw: nv.Draw}))
 	// Keep the node view live while somebody is looking at it.
 	//
 	// Sampling costs a /proc read per node, so it is driven by the panel
@@ -83,8 +83,8 @@ func addMeshPanels(d panelDeps) {
 		}
 	}()
 	fleet := &fleetPanel{}
-	d.sh.Add(&shell.Panel{Name: "Fleet", Windowable: true,
-		Draw: d.withControls(d.fleetCtl.Draw, fleet.Draw)})
+	d.sh.Add(homed(&shell.Panel{Name: "Fleet", Windowable: true,
+		Draw: d.withControls(d.fleetCtl.Draw, fleet.Draw)}))
 	bench := &benchPanel{}
 	bench.OnAction = func(action, node string) {
 		go func() {
@@ -100,10 +100,10 @@ func addMeshPanels(d panelDeps) {
 			}
 		}()
 	}
-	d.sh.Add(&shell.Panel{Name: "Companion bench", Windowable: true,
-		Draw: d.withControls(d.benchCtl.Draw, bench.Draw)})
+	d.sh.Add(homed(&shell.Panel{Name: "Companion bench", Windowable: true,
+		Draw: d.withControls(d.benchCtl.Draw, bench.Draw)}))
 	console := &consolePanel{}
-	d.sh.Add(&shell.Panel{Name: "Console", Windowable: true, Draw: console.Draw})
+	d.sh.Add(homed(&shell.Panel{Name: "Console", Windowable: true, Draw: console.Draw}))
 	fw := &firmwarePanel{choose: d.chooserIn("Firmware")}
 	// The library asks for itself, and asks again after anything that changes
 	// it. A panel that reads the cache directly cannot know when a download
@@ -148,5 +148,5 @@ func addMeshPanels(d panelDeps) {
 				})
 		})
 	}
-	d.sh.Add(&shell.Panel{Name: "Firmware", Windowable: true, Draw: fw.Draw})
+	d.sh.Add(homed(&shell.Panel{Name: "Firmware", Windowable: true, Draw: fw.Draw}))
 }

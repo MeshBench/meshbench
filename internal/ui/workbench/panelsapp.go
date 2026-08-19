@@ -14,12 +14,12 @@ func addAppPanels(d panelDeps) *configPanel {
 		cfg.Open(*d.cfgSection)
 	}
 	logp := &logPanel{}
-	d.sh.Add(&shell.Panel{Name: "Configuration", Windowable: true, Draw: cfg.Draw})
-	d.sh.Add(&shell.Panel{Name: "Experiment log", Windowable: true, Draw: logp.Draw})
+	d.sh.Add(homed(&shell.Panel{Name: "Configuration", Windowable: true, Draw: cfg.Draw}))
+	d.sh.Add(homed(&shell.Panel{Name: "Experiment log", Windowable: true, Draw: logp.Draw}))
 	lic := &licPanel{}
 	// A chip is a click, and a click cannot be captured; the flag is how a
 	// screenshot of one section gets taken.
 	lic.openAt = *d.licSection
-	d.sh.Add(&shell.Panel{Name: "Licences", Windowable: true, Draw: lic.Draw})
+	d.sh.Add(homed(&shell.Panel{Name: "Licences", Windowable: true, Draw: lic.Draw}))
 	return cfg
 }

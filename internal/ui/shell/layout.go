@@ -16,7 +16,7 @@ import (
 )
 
 func (sh *Shell) body(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
-	a := arrangementFor(sh.View)
+	a := sh.arrangement()
 	if len(a.Rail) == 0 {
 		return sh.rows(t, gtx, s, a.Rows)
 	}
@@ -78,16 +78,16 @@ func (sh *Shell) split(t *theme.Theme, gtx layout.Context, key string, vertical 
 	return d
 }
 
-// stack draws panels down a column, sharing the height equally.
-func (sh *Shell) stack(t *theme.Theme, gtx layout.Context, s *state.Snapshot, names []string) layout.Dimensions {
-	children := make([]layout.FlexChild, 0, len(names)*2)
-	for i, n := range names {
-		n := n
+// stack draws the rail's regions down a column, sharing the height equally.
+func (sh *Shell) stack(t *theme.Theme, gtx layout.Context, s *state.Snapshot, cols []Col) layout.Dimensions {
+	children := make([]layout.FlexChild, 0, len(cols)*2)
+	for i := range cols {
+		i := i
 		if i > 0 {
 			children = append(children, layout.Rigid(comp.HRule(t)))
 		}
 		children = append(children, layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			return sh.panel(t, gtx, s, n)
+			return sh.region(t, gtx, s, regionRef{Row: -1, Col: i})
 		}))
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
@@ -96,8 +96,8 @@ func (sh *Shell) stack(t *theme.Theme, gtx layout.Context, s *state.Snapshot, na
 // rows draws the bands of a view, top to bottom, each taking its share.
 func (sh *Shell) rows(t *theme.Theme, gtx layout.Context, s *state.Snapshot, rs []Row) layout.Dimensions {
 	children := make([]layout.FlexChild, 0, len(rs)*2)
-	for i, r := range rs {
-		r, i := r, i
+	for i := range rs {
+		r, i := rs[i], i
 		key := "row:" + sh.View.String() + ":" + itoa(i)
 		if i > 0 {
 			// The rule above a row sizes the row before it: dragging down
@@ -115,7 +115,7 @@ func (sh *Shell) rows(t *theme.Theme, gtx layout.Context, s *state.Snapshot, rs 
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				px := gtx.Dp(unit.Dp(h))
 				gtx.Constraints.Min.Y, gtx.Constraints.Max.Y = px, px
-				return sh.measuredRow(t, gtx, s, r.Cols, key)
+				return sh.measuredRow(t, gtx, s, i, r.Cols, key)
 			}))
 			continue
 		}
@@ -124,7 +124,7 @@ func (sh *Shell) rows(t *theme.Theme, gtx layout.Context, s *state.Snapshot, rs 
 			w = 1
 		}
 		children = append(children, layout.Flexed(float32(w), func(gtx layout.Context) layout.Dimensions {
-			return sh.measuredRow(t, gtx, s, r.Cols, key)
+			return sh.measuredRow(t, gtx, s, i, r.Cols, key)
 		}))
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
@@ -133,8 +133,8 @@ func (sh *Shell) rows(t *theme.Theme, gtx layout.Context, s *state.Snapshot, rs 
 // measuredRow draws a row and remembers how tall it came out, so a splitter
 // above the next one has somewhere to start from.
 func (sh *Shell) measuredRow(t *theme.Theme, gtx layout.Context, s *state.Snapshot,
-	cols []Col, key string) layout.Dimensions {
-	d := sh.row(t, gtx, s, cols)
+	rowIdx int, cols []Col, key string) layout.Dimensions {
+	d := sh.row(t, gtx, s, rowIdx, cols)
 	if gtx.Metric.PxPerDp > 0 && d.Size.Y > 0 {
 		if sh.lastRow == nil {
 			sh.lastRow = map[string]int{}
@@ -154,67 +154,79 @@ func (sh *Shell) rowDp(key string) int {
 
 // row draws one band's panels side by side. A column with a width keeps it; the
 // rest share what is left.
-func (sh *Shell) row(t *theme.Theme, gtx layout.Context, s *state.Snapshot, cols []Col) layout.Dimensions {
+func (sh *Shell) row(t *theme.Theme, gtx layout.Context, s *state.Snapshot,
+	rowIdx int, cols []Col) layout.Dimensions {
 	children := make([]layout.FlexChild, 0, len(cols)*2)
-	for _, c := range cols {
-		c := c
+	for j := range cols {
+		c, j := cols[j], j
+		ref := regionRef{Row: rowIdx, Col: j}
 		if c.WidthDp > 0 {
+			// Keyed by where the region is rather than by what is in it: a
+			// region holds several panels now, and its width belongs to the
+			// region rather than to whichever tab is showing.
+			key := "col:" + regionKey(sh.View, ref)
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				w := gtx.Dp(unit.Dp(sh.sizeOf("col:"+c.Name, c.WidthDp)))
+				w := gtx.Dp(unit.Dp(sh.sizeOf(key, c.WidthDp)))
 				gtx.Constraints.Min.X, gtx.Constraints.Max.X = w, w
-				return sh.panel(t, gtx, s, c.Name)
+				return sh.region(t, gtx, s, ref)
 			}))
 			// The rule after a fixed column sizes it: dragging right widens it.
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return sh.split(t, gtx, "col:"+c.Name, true, +1, c.WidthDp)
+				return sh.split(t, gtx, key, true, +1, c.WidthDp)
 			}))
 			continue
 		}
 		children = append(children, layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			return sh.panel(t, gtx, s, c.Name)
+			return sh.region(t, gtx, s, ref)
 		}))
 	}
 	return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, children...)
 }
 
-// panel draws one panel with its chrome: a title, a pop-out affordance where
-// the panel supports it, and the body.
-func (sh *Shell) panel(t *theme.Theme, gtx layout.Context, s *state.Snapshot, name string) layout.Dimensions {
-	p := sh.Panels[name]
+// region draws one region: its tabs, and the body of whichever is showing.
+func (sh *Shell) region(t *theme.Theme, gtx layout.Context, s *state.Snapshot,
+	ref regionRef) layout.Dimensions {
 	comp.Fill(gtx, t.P.Panel)
-	return layout.Inset{
-		Left: t.Sp.M, Right: t.Sp.M, Top: t.Sp.S, Bottom: t.Sp.S,
-	}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-					layout.Rigid(comp.SectionTitle(t, name)),
-					layout.Flexed(1, comp.Spacer),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						if p == nil || !p.Windowable {
-							return layout.Dimensions{}
-						}
-						return sh.popOut[name].Layout(gtx,
-							comp.Text(t, t.Sz.Caption, t.P.Accent, "open in its own window"))
-					}),
-				)
-			}),
-			layout.Rigid(layout.Spacer{Height: t.Sp.S}.Layout),
-			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-				if p == nil {
-					return layout.Center.Layout(gtx,
-						comp.Text(t, t.Sz.Caption, t.P.Faint, "not built yet"))
-				}
-				if sh.PoppedOut != nil && sh.PoppedOut(name) {
-					// Said, not left blank: a panel that has gone somewhere
-					// looks identical to one that has broken.
-					return layout.Center.Layout(gtx,
-						comp.Text(t, t.Sz.Caption, t.P.Dim, "in its own window"))
-				}
-				return p.Draw(t, gtx, s)
-			}),
-		)
-	})
+	c := sh.regionAt(sh.View, ref)
+	if c == nil {
+		return layout.Dimensions{Size: gtx.Constraints.Max}
+	}
+	name := c.shown()
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return sh.tabStrip(t, gtx, ref)
+		}),
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{
+				Left: t.Sp.M, Right: t.Sp.M, Top: t.Sp.XS, Bottom: t.Sp.S,
+			}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return sh.panelBody(t, gtx, s, name)
+			})
+		}),
+	)
+}
+
+// panelBody draws one panel's contents, or says why it is not drawing them.
+func (sh *Shell) panelBody(t *theme.Theme, gtx layout.Context, s *state.Snapshot,
+	name string) layout.Dimensions {
+	if name == "" {
+		// An empty region is an invitation, not a fault: it says what to do
+		// with it rather than sitting blank.
+		return layout.Center.Layout(gtx, comp.Text(t, t.Sz.Caption, t.P.Faint,
+			"empty - open a panel here from a menu"))
+	}
+	p := sh.Panels[name]
+	if p == nil {
+		return layout.Center.Layout(gtx,
+			comp.Text(t, t.Sz.Caption, t.P.Faint, "not built yet"))
+	}
+	if sh.PoppedOut != nil && sh.PoppedOut(name) {
+		// Said, not left blank: a panel that has gone somewhere looks
+		// identical to one that has broken.
+		return layout.Center.Layout(gtx,
+			comp.Text(t, t.Sz.Caption, t.P.Dim, "in its own window"))
+	}
+	return p.Draw(t, gtx, s)
 }
 
 func (sh *Shell) viewBar(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {

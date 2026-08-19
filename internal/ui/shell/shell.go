@@ -25,10 +25,13 @@ type Panel struct {
 	// panel in the old design could, and scripts rely on panel.pop_out being
 	// generic, so this defaults to true.
 	Windowable bool
-	// InWindowMenu lists the panel in the Window menu itself. The menu had
-	// become a dumping ground of every panel alphabetically; the daily set
-	// is listed, and the rest stay one step away behind "Show all panels...".
-	InWindowMenu bool
+	// Menu is where this panel is offered, by menu name, and Section groups
+	// it within that menu. Every panel names one, because a panel nobody can
+	// find from a menu is a panel that does not exist: the old arrangement
+	// listed a curated thirteen and left twenty reachable only by a chooser
+	// that then threw them out of the window.
+	Menu    string
+	Section string
 }
 
 // Shell is the whole frame.
@@ -61,6 +64,16 @@ type Shell struct {
 	// carries no parameters, so a verb needing a name had nowhere to get one.
 	Ask Prompt
 
+	// layouts is each view's live arrangement, seeded from its preset on
+	// first use. Nil means "not touched yet", which is what makes a view
+	// nobody has visited behave exactly as declared.
+	layouts [numViews]*Arrangement
+	// focus is the region a panel opened from a menu lands in: the last one
+	// pressed, so opening a panel puts it where the work is.
+	focus regionRef
+	// tabClicks are the tab strip's widgets, pooled by region and name.
+	tabClicks map[string]*widget.Clickable
+
 	// sizes is what the operator has dragged a panel to, in dp, keyed by what
 	// the splitter sizes. Absent means the arrangement's own figure, so a view
 	// nobody has resized behaves exactly as declared.
@@ -78,12 +91,22 @@ func New() *Shell {
 		Panels:   map[string]*Panel{},
 		popOut:   map[string]*widget.Clickable{},
 		openMenu: -1,
+		focus:    noRegion,
 	}
-	for _, m := range []string{"File", "View", "Simulation", "Repeaters", "Planning", "Window", "Help"} {
+	// Repeaters widened to Mesh, which is what it always held - companions
+	// and room servers are not repeaters - and Analysis is new: the study
+	// panels had no home of their own and were the bulk of what could only
+	// be reached by the chooser.
+	for _, m := range MenuNames {
 		sh.menus = append(sh.menus, menu{name: m})
 	}
 	return sh
 }
+
+// MenuNames are the menu bar's menus, in order. Exported because the
+// workbench's own table has to name the same ones: SetMenu silently ignores a
+// name that is not here, so a typo would be a menu that never appears.
+var MenuNames = []string{"File", "View", "Simulation", "Mesh", "Analysis", "Window", "Help"}
 
 // Add registers a panel.
 func (sh *Shell) Add(p *Panel) {

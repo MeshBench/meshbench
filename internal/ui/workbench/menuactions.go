@@ -3,8 +3,8 @@ package workbench
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
@@ -25,6 +25,16 @@ type menuDeps struct {
 	chooser  func(string, []string, func(string))
 	menuFlag *string
 	onShown  func(action string) bool
+	// refresh rebuilds the menus, so the ticks follow what docking changed.
+	refresh func()
+	// wins is the pop-out windows, for the entries that act on all of them.
+	wins *windows
+}
+
+// say puts a line in the status bar. A menu entry that declines has to say so
+// or it reads as a dead row.
+func (w menuDeps) say(line string) {
+	go func() { _, _ = w.st.Do(w.ctx, "ui.said", line) }()
 }
 
 // onMenu is what every menu item does.
@@ -34,25 +44,59 @@ type menuDeps struct {
 // the same in one place, and a menu entry that reaches nothing is a case that
 // is missing rather than a wiring mistake somewhere else.
 func (w menuDeps) onMenu(action string) {
+	// A panel entry toggles the panel in the layout: docked here, in this
+	// window, where it can be seen beside everything else. It used to throw
+	// the panel out into an OS window that could not be raised on Linux and
+	// had no route back, which is how "show all panels" came to hide them.
 	if name, ok := strings.CutPrefix(action, "panel."); ok {
-		w.sh.OnPopOut(name)
+		if w.sh.Visible(name) {
+			w.sh.Undock(name)
+		} else {
+			w.sh.Dock(name)
+		}
+		if w.refresh != nil {
+			w.refresh()
+		}
 		return
 	}
-	// The Window menu's overflow: every panel in the w.chooser, for when
-	// the scrolling list is more list than anybody wants to scroll.
-	if action == "window.showall" {
-		var names []string
-		for n, p := range w.sh.Panels {
-			if p != nil && p.Windowable {
-				names = append(names, n)
+	// Sending a panel to a window of its own, which is now the secondary way
+	// to see one rather than the only way.
+	if name, ok := strings.CutPrefix(action, "window.panel."); ok {
+		if w.sh.OnPopOut != nil {
+			w.sh.OnPopOut(name)
+		}
+		return
+	}
+	if action == "layout.reset" {
+		w.sh.ResetLayout(w.sh.View)
+		if w.refresh != nil {
+			w.refresh()
+		}
+		return
+	}
+	// What to do with the windows that have left: bring them where they can
+	// be seen, or bring them home. Both say what happened, because with no
+	// windows open either one is otherwise a press with no effect.
+	if action == "window.raise_all" || action == "window.dock_all" {
+		names := w.wins.names()
+		if len(names) == 0 {
+			w.say("no panel is in a window of its own")
+			return
+		}
+		for _, n := range names {
+			if action == "window.dock_all" {
+				w.wins.dock(n)
+				w.sh.Dock(n)
+			} else {
+				w.wins.raise(n)
 			}
 		}
-		sort.Strings(names)
-		w.sh.Ask.Post(func(ask *shell.Prompt) {
-			ask.Choose("Open a panel", "filter", names, func(name string) {
-				w.sh.OnPopOut(name)
-			})
-		})
+		if action == "window.dock_all" {
+			w.say(fmt.Sprintf("docked %d back", len(names)))
+			if w.refresh != nil {
+				w.refresh()
+			}
+		}
 		return
 	}
 	// Opening one of your own networks: the names are already known, so the
@@ -133,9 +177,17 @@ func (w menuDeps) onMenu(action string) {
 		return
 	}
 	// The interface's own settings are a Configuration section now.
-	if action == "config.interface" {
-		w.cfg.Open("Interface")
-		w.sh.OnPopOut("Configuration")
+	// Both of these are questions the Configuration page answers, opened on
+	// the section that answers them.
+	if section, ok := map[string]string{
+		"config.interface": "Interface",
+		"help.assumptions": "RF Simulation",
+	}[action]; ok {
+		w.cfg.Open(section)
+		w.sh.Dock("Configuration")
+		if w.refresh != nil {
+			w.refresh()
+		}
 		return
 	}
 	if action == "ui.toggle_real_firmware" {

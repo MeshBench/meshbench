@@ -27,23 +27,46 @@ func (u *workbenchUI) OpenPanel(name, where string) error {
 		if u.sh.OnPopOut != nil {
 			u.sh.OnPopOut(name)
 		}
+		return nil
 	case "dock":
 		if u.dock != nil {
 			u.dock(name)
 		}
 	}
-	// Showing a panel means showing the view that contains it, because a
-	// panel that is "open" in a view nobody is looking at has not been shown.
+	// Asked for with no destination: put it in the layout here.
+	//
+	// This used only to switch to whichever view happened to declare the
+	// panel, and returned silently doing nothing at all for the twenty that
+	// no view declared - "open the waterfall" was a verb that could not.
+	// Switching first, so the panel lands in the view it belongs to when it
+	// has one, and in the one on screen when it does not.
 	for v := 0; v < int(shell.NumViews); v++ {
 		for _, n := range shell.PanelsIn(shell.View(v)) {
 			if n == name {
 				pendingView.Store(int32(v) + 1)
+				u.sh.View = shell.View(v)
+				u.sh.Dock(name)
 				return nil
 			}
 		}
 	}
+	u.sh.Dock(name)
 	return nil
 }
+
+func (u *workbenchUI) ClosePanel(name string) error {
+	if _, ok := u.sh.Panels[name]; !ok {
+		return fmt.Errorf("no panel %q; there is: %s", name,
+			strings.Join(u.PanelNames(), ", "))
+	}
+	if !u.sh.Visible(name) {
+		return fmt.Errorf("%s is not in this view's layout", name)
+	}
+	u.sh.Undock(name)
+	return nil
+}
+
+func (u *workbenchUI) ResetLayout() { u.sh.ResetLayout(u.sh.View) }
 
 func (u *workbenchUI) CloseWindow(name string) error {
 	if u.closeWin == nil {
@@ -80,6 +103,12 @@ type savedView struct {
 	// Popped is which panels were in their own windows, so loading a view
 	// restores the second monitor as well as the first.
 	Popped []string `json:"popped"`
+	// Layouts is each view's arrangement: which panels are docked where, and
+	// which tab each region is showing. Absent in a file written before
+	// docking existed, which then loads as "the presets" rather than as an
+	// error - a layout file older than a feature should cost the layout, not
+	// the launch.
+	Layouts map[string]shell.Arrangement `json:"layouts,omitempty"`
 }
 
 func (u *workbenchUI) SaveView(name string) error {
@@ -93,7 +122,7 @@ func (u *workbenchUI) SaveView(name string) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	v := savedView{View: int(u.sh.View)}
+	v := savedView{View: int(u.sh.View), Layouts: u.sh.SaveLayouts()}
 	for _, n := range u.PanelNames() {
 		if u.sh.PoppedOut != nil && u.sh.PoppedOut(n) {
 			v.Popped = append(v.Popped, n)
@@ -118,6 +147,9 @@ func (u *workbenchUI) LoadView(name string) error {
 	var v savedView
 	if err := json.Unmarshal(b, &v); err != nil {
 		return err
+	}
+	if len(v.Layouts) > 0 {
+		u.sh.LoadLayouts(v.Layouts)
 	}
 	if v.View >= 0 && v.View < int(shell.NumViews) {
 		pendingView.Store(int32(v.View) + 1)

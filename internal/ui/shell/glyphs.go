@@ -244,6 +244,16 @@ func glyphBox(t *theme.Theme, gtx layout.Context, name string) layout.Dimensions
 	case "help":
 		circle(s*0.5, s*0.5, s*0.4)
 		dot(s*0.5, s*0.5, s*0.1)
+	case "tick":
+		line(s*0.2, s*0.55, s*0.42, s*0.78)
+		line(s*0.42, s*0.78, s*0.82, s*0.22)
+	case "close":
+		line(s*0.25, s*0.25, s*0.75, s*0.75)
+		line(s*0.75, s*0.25, s*0.25, s*0.75)
+	case "window":
+		// A pane lifting off another: "put this in a window of its own".
+		stroke(box(s*0.1, s*0.3, s*0.65, s*0.9))
+		stroke(box(s*0.35, s*0.1, s*0.9, s*0.7))
 	default:
 		// An unnamed glyph draws as a quiet dot rather than nothing, so a
 		// typo in an icon name is visible instead of silent.

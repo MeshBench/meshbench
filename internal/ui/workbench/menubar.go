@@ -18,6 +18,7 @@ type menuBar struct {
 	st       *state.Store
 	ctx      context.Context
 	nodes    *nodesPanel
+	wins     *windows
 	chooser  func(string, []string, func(string))
 	menuFlag *string
 	// onShown handles the menu entries whose whole point is the map: it
@@ -39,22 +40,10 @@ func (b menuBar) build() {
 	// room server and an SDR observer all run firmware too - filing it under
 	// one node type is how somebody looking for a companion build never finds
 	// it.
-	for _, m := range workbenchMenus() {
-		b.sh.SetMenu(m.Name, m.Items)
-	}
-	// The Window menu had become a dumping ground: every panel, alphabetical,
-	// thirty rows deep. It lists the daily set; everything else stays one
-	// step away behind "Show all panels...".
-	for _, name := range []string{
-		"Map", "Events", "Nodes", "Nodes running", "Console", "Fleet",
-		"Firmware", "Configuration", "Packet timeline", "Packet",
-		"Waterfall", "Companion bench", "Experiment log",
-	} {
-		if p := b.sh.Panels[name]; p != nil {
-			p.InWindowMenu = true
-		}
-	}
-	b.sh.WindowMenu("Window")
+	// Each menu is its own verbs plus the panels that named it, so a menu is
+	// read as one list: what this part of the application can do, and what it
+	// can show. Rebuilt every frame in Refresh, because the ticks move.
+	b.refresh()
 	if *b.dropFlag != "" {
 		// Before the frame loop starts, so no goroutine races the renderer.
 		b.sh.OpenMenu(*b.dropFlag)
@@ -62,5 +51,21 @@ func (b menuBar) build() {
 	b.sh.OnMenu = menuDeps{
 		sh: b.sh, st: b.st, ctx: b.ctx, cfg: b.cfg, nodes: b.nodes,
 		chooser: b.chooser, menuFlag: b.menuFlag, onShown: b.onShown,
+		refresh: b.refresh, wins: b.wins,
 	}.onMenu
+}
+
+// refresh rebuilds every menu from the table plus the panels that named it.
+//
+// Called again after anything that changes what is on screen, because the
+// ticks are the menu's answer to "what am I looking at" and a stale tick is a
+// menu that lies.
+func (b menuBar) refresh() {
+	for _, m := range workbenchMenus() {
+		items := m.Items
+		if panels := b.sh.PanelItems(m.Name); len(panels) > 0 {
+			items = append(append([]shell.MenuItem{}, items...), panels...)
+		}
+		b.sh.SetMenu(m.Name, items)
+	}
 }

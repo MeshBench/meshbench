@@ -344,7 +344,7 @@ func Run(args []string) {
 	}
 
 	menuBar{sh: sh, sets: sets, cfg: cfg, dropFlag: dropFlag,
-		st: st, ctx: ctx, nodes: nodes,
+		st: st, ctx: ctx, nodes: nodes, wins: wins,
 		chooser: chooser, menuFlag: menuFlag,
 		onShown: rasterMenuIntercept(mv, st, ctx)}.build()
 
