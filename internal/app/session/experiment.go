@@ -384,17 +384,22 @@ func registerExperiment(st *state.Store, s *Sim) {
 		}
 		w.Experiment = w.Experiment[:0]
 		for _, m := range sums {
-			arm := m["arm"].(string)
+			// Read rather than asserted. These summaries travel as
+			// map[string]any because the control socket serves them too, and
+			// a key that is absent or holds another type would panic the
+			// store's goroutine - taking the whole application with it - for
+			// what is at worst one arm with a missing number.
+			arm, _ := m["arm"].(string)
 			w.Experiment = append(w.Experiment, state.ArmSummary{
 				Arm:       arm,
-				Runs:      m["runs"].(int),
-				TX:        m["tx"].(float64),
-				RX:        m["rx"].(float64),
-				Delivered: m["delivered"].(float64),
-				Redundant: m["redundant"].(float64),
-				Collided:  m["collisions"].(float64),
-				AirtimeMs: m["airtime_ms"].(float64),
-				RXSpread:  m["rx_spread"].(float64),
+				Runs:      mapInt(m, "runs"),
+				TX:        mapFloat(m, "tx"),
+				RX:        mapFloat(m, "rx"),
+				Delivered: mapFloat(m, "delivered"),
+				Redundant: mapFloat(m, "redundant"),
+				Collided:  mapFloat(m, "collisions"),
+				AirtimeMs: mapFloat(m, "airtime_ms"),
+				RXSpread:  mapFloat(m, "rx_spread"),
 				PerSecond: e.perSecondFor(arm),
 			})
 		}
@@ -467,3 +472,20 @@ func registerExperiment(st *state.Store, s *Sim) {
 
 var _ = time.Now
 var _ = engine.New
+
+// mapFloat and mapInt read a summary field without asserting it.
+//
+// A summary is built in this package and consumed in it, so a missing key is a
+// bug here rather than bad input - but the consequence of asserting is a panic
+// on the store's goroutine, which ends the application, and the consequence of
+// reading is a zero in one cell of a table. The second is the better failure
+// for a number nobody has looked at yet.
+func mapFloat(m map[string]any, key string) float64 {
+	v, _ := m[key].(float64)
+	return v
+}
+
+func mapInt(m map[string]any, key string) int {
+	v, _ := m[key].(int)
+	return v
+}

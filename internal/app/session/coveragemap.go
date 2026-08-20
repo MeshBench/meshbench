@@ -271,7 +271,9 @@ func (s *Sim) startCoverageMap(st *state.Store, w *state.World, p any) (any, err
 					cx := int((cellLon - west) / (east - west) * float64(gw))
 					cy := int((north - cellLat) / (north - south) * float64(gh))
 					near := cx >= 0 && cx < gw && cy >= 0 && cy < gh && nearMask[cy*gw+cx]
-					sc := pool.Get().(*environ.PathScratch)
+					// A pool whose New returns *PathScratch cannot hand back
+					// anything else, so this one is safe by construction.
+					sc := pool.Get().(*environ.PathScratch) //nolint:forcetypeassert // sync.Pool with a typed New
 					defer pool.Put(sc)
 					return shadows[sti].LossDB(sc, near, txAsl, cellLat, cellLon, rxAsl, distM, freq)
 				}

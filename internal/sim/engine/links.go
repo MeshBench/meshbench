@@ -327,7 +327,8 @@ func (e *Engine) buildingLossDB(from, to scenario.Node, profile []terrain.Point)
 	if ix == nil {
 		return 0
 	}
-	sc := envScratchPool.Get().(*environ.PathScratch)
+	// envScratchPool.New returns *PathScratch and nothing else puts into it.
+	sc := envScratchPool.Get().(*environ.PathScratch) //nolint:forcetypeassert // sync.Pool with a typed New
 	defer envScratchPool.Put(sc)
 	return ix.PathLossDB(sc,
 		from.Position.Lat, from.Position.Lon, txM,
