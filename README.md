@@ -1,9 +1,13 @@
 # MeshBench
 
-**An RF-accurate MeshCore simulator.** It runs real, published MeshCore firmware
-against a sample-accurate LoRa channel over real terrain — so the question it
-answers is not *would a packet get through*, but **what arrived at the antenna,
-and why**.
+**Everything you need to work on MeshCore, in one binary.** Plan a network,
+develop firmware, and build a companion app — against real MeshCore code running
+on a sample-accurate LoRa channel over real terrain.
+
+It runs the published firmware, byte for byte, and the channel does not decide
+anything: it sums waveforms, applies path loss and adds noise, and each
+receiver's demodulator finds out. So the question it answers is not *would a
+packet get through*, but **what arrived at the antenna, and why**.
 
 [![CI](https://github.com/MeshBench/meshbench/actions/workflows/ci.yml/badge.svg)](https://github.com/MeshBench/meshbench/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/MeshBench/meshbench?display_name=tag)](https://github.com/MeshBench/meshbench/releases/latest)
@@ -30,11 +34,36 @@ link margins and the terrain cut-through that explains them.
 Per-platform detail, including the macOS and Windows signing caveats, is in
 **[`docs/install.md`](docs/install.md)**.
 
-## Why it exists
+## Three things it is for
 
-Most mesh simulators answer *did the packet arrive* from a link-budget rule. That
-tells you nothing about the case that actually matters: a marginal link, two
-nodes transmitting at once, a hill in the way.
+### Plan a network
+
+Coverage rasterised over real terrain and searched for where the next node
+should go. Both link margins for any pair, and the terrain cut-through that
+explains them — in both directions, because reachability is asymmetric. Import
+a live network from CoreScope, Beacon or MQTT and ask what it would do.
+
+### Develop firmware
+
+Run **MeshCore's own code**, not a reimplementation. Routing, flood suppression,
+duty-cycle policing and CSMA timing are the real thing, running against our
+radio. Point `meshcoresim dev` at a checkout and the workbench runs your build;
+run half a mesh on one firmware and half on another, same traffic, and diff.
+Published `.uf2` and `.bin` images boot under QEMU and Renode, and the board
+matrix below says which have actually been watched doing what.
+
+### Build a companion app
+
+`meshcoresim serve` runs a mesh and exposes a node to your application over
+**TCP, a serial pty, or Bluetooth** — the real companion protocol, spoken by
+real firmware. Your app cannot tell it from a radio on a desk, and you can put
+forty nodes and a hill between it and the far end without leaving the room.
+
+## Why the physics matters to all three
+
+Most mesh simulators answer *did the packet arrive* from a link-budget rule.
+That tells you nothing about the case that actually matters: a marginal link,
+two nodes transmitting at once, a hill in the way.
 
 MeshBench does not have that rule. **The channel decides nothing.** It sums
 waveforms, applies path loss over real terrain, adds thermal noise, and lets each
@@ -43,24 +72,27 @@ Gray, the diagonal deinterleaver, Hamming FEC, dewhitening, header and payload
 CRC. Capture effect, partial collisions and sensitivity are *emergent*, not rules
 somebody wrote down.
 
-And the firmware is **MeshCore's own code**, not a reimplementation of it.
-Routing, flood suppression, duty-cycle policing and CSMA timing are the real
-thing, running against our radio.
+That is what makes a firmware change or an app's retry logic testable here at
+all: the failure you are chasing has to be able to happen.
 
 ## What you get
 
 | | |
 |---|---|
-| **Why a link missed** | Terrain cut-through with the Fresnel zone and each diffracting edge's own loss — in both directions, because reachability is asymmetric. |
+| **Why a link missed** | Terrain cut-through with the Fresnel zone and each diffracting edge's own loss, in both directions. |
 | **What the air looked like** | Waterfall, IQ, and a dechirped symbol view showing which of two colliding frames captured. |
 | **Coverage and planning** | Link budgets rasterised over terrain, combined across a fleet, and searched for where the next node should go. |
-| **Real boards** | Published `.uf2` and `.bin` images run under QEMU and Renode, with a per-board capability matrix that says what has actually been watched happening. |
-| **Did that commit break relaying?** | Run half the repeaters on one firmware build and half on another, same traffic, and diff. |
-| **Your app against a mesh** | Attach a real companion client over TCP, a serial pty, or Bluetooth. |
+| **Real boards** | Published `.uf2` and `.bin` images under QEMU and Renode, with a capability matrix that says what has been watched happening. |
+| **Firmware A/B** | Half the repeaters on one build, half on another, same traffic, and diff. |
+| **Your app against a mesh** | A real companion over TCP, a serial pty, or Bluetooth. |
+| **Repeatable tests** | `meshcoresim test` runs a fixture on real firmware and checks its assertions — for CI, yours or MeshCore's. |
 | **Wireshark** | Every receiver's view of every frame, live over loopback UDP or saved as pcapng. |
 | **SDR** | Export IQ or stream it, so an unmodified SDR client sees the simulated band. |
+| **Batteries and solar** | Whether a node survives the winter where you want to put it. |
 
-Every result is **deterministic**: same seed, same scenario, same answer.
+Every result is **deterministic**: same seed, same scenario, same answer. It is a
+native desktop application and a command line — one binary, no service to
+deploy, and nothing in the simulation depends on anything we run.
 
 ## Honesty about the model
 
