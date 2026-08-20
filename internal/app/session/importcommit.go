@@ -213,7 +213,7 @@ func registerImport(st *state.Store, s *Sim) {
 
 func importOptions(s *Sim, marginKm float64) scenario.ImportOptions {
 	o := scenario.ImportOptions{
-		DefaultBoard: "RAK4631",
+		DefaultBoard: "RAK_4631",
 		Radio: scenario.RadioConfig{
 			CentreHz: 869.618e6, BandwidthHz: 62.5e3,
 			SpreadFactor: 8, CodingRate: 4,

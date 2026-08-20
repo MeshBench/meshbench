@@ -3,6 +3,7 @@ package state_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -250,5 +251,35 @@ func TestSayWritesToFullLog(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("FullLog %v did not contain the line Say just said", snap.FullLog)
+	}
+}
+
+// A session that has ended must not be able to hang the process. Work started
+// before the stop - a warm, a firmware attach, a coverage raster - outlives the
+// store by design and reports its progress by calling Do, on a context of its
+// own that knows nothing about the store's. Once nothing was reading those
+// calls they waited for ever: twenty minutes of a test binary whose tests had
+// all finished, which is how this was found.
+func TestDoRefusesOnceTheStoreHasStopped(t *testing.T) {
+	s := state.New(10)
+	go s.Run(context.Background())
+	s.Handle("noop", func(*state.World, any) (any, error) { return nil, nil })
+	if _, err := s.Do(context.Background(), "noop", nil); err != nil {
+		t.Fatalf("while running: %v", err)
+	}
+	s.Close()
+
+	answered := make(chan error, 1)
+	go func() {
+		_, err := s.Do(context.Background(), "noop", nil)
+		answered <- err
+	}()
+	select {
+	case err := <-answered:
+		if !errors.Is(err, state.ErrStopped) {
+			t.Fatalf("got %v, want ErrStopped", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Do never returned: a stopped store still hangs its callers")
 	}
 }

@@ -27,6 +27,7 @@ func auditTargets(r *recorder) []target {
 		return "", nil
 	}
 
+	boards := &boardsPanel{do: r.do}
 	fleet := &fleetControls{do: r.do}
 	fleet.choose = func(title string, _ []string, _ func(string)) { r.do("ui.choose", title) }
 	sched := &scheduleControls{do: r.do}
@@ -144,6 +145,7 @@ func auditTargets(r *recorder) []target {
 		{"Import (view)", impP, impP.Draw, nil, nil, nil, nil},
 		{"Live feed (view)", feedP, feedP.Draw, nil, nil, nil, nil},
 		{"Companion bench (view)", benchP, benchP.Draw, snapWithCompanion, nil, nil, nil},
+		{"Boards", boards, boards.Draw, nil, nil, nil, nil},
 		{"Fleet", fleet, fleet.Draw, nil, nil, nil, nil},
 		{"Schedule", sched, sched.Draw, nil, nil, nil, nil},
 		{"Import", imp, imp.Draw, nil, nil, nil, nil},

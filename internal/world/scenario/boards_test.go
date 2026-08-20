@@ -75,8 +75,22 @@ func TestEmulationSupportIsStated(t *testing.T) {
 		// Offered means booted, not merely configured. Wiring read off a
 		// config file and never run is exactly the kind of thing that looks
 		// like support and is not.
-		if b.QEMU == nil || !b.QEMU.Verified {
-			t.Errorf("%s is offered for emulation without verified wiring", b.Name)
+		//
+		// Either emulator counts. An nRF52 board is wired for Renode and has
+		// no QEMU machine at all, so asking every offered board for a verified
+		// QEMU wiring made a Renode board impossible to offer however
+		// thoroughly it had been booted.
+		switch {
+		case b.QEMU != nil:
+			if !b.QEMU.Verified {
+				t.Errorf("%s is offered for emulation without verified wiring", b.Name)
+			}
+		case b.Renode != nil:
+			// Renode wiring carries no Verified flag of its own; the
+			// EmulationVerified list is what says a board has been booted,
+			// and EmulatableBoards has already required it.
+		default:
+			t.Errorf("%s is offered for emulation with no wiring at all", b.Name)
 		}
 	}
 	// Every board that is not offered owes the operator a reason, because a
@@ -98,6 +112,19 @@ func TestEmulationSupportIsStated(t *testing.T) {
 func TestEmulationWiringIsComplete(t *testing.T) {
 	ok, _ := scenario.EmulatableBoards()
 	for _, b := range ok {
+		if b.QEMU == nil {
+			// A Renode board's wiring is checked below on its own terms:
+			// these fields are the ESP32's SPI controllers and mean nothing
+			// to an nRF52.
+			if b.Renode.Platform == "" || b.Renode.SPIBase == 0 {
+				t.Errorf("%s has Renode wiring with no platform or SPI base", b.Name)
+			}
+			if b.Renode.NssPort == "" || b.Renode.IrqPort == "" {
+				t.Errorf("%s is missing NSS or DIO1: without them the driver "+
+					"reports no chip, which reads as a broken emulator", b.Name)
+			}
+			continue
+		}
 		w := b.QEMU
 		if w.Machine == "" {
 			t.Errorf("%s has no QEMU machine type", b.Name)
@@ -139,7 +166,37 @@ func TestUnknownBoardListsWhatExists(t *testing.T) {
 	if err == nil {
 		t.Fatal("an unknown board was accepted")
 	}
-	if !strings.Contains(err.Error(), "RAK4631") {
+	if !strings.Contains(err.Error(), "RAK_4631") {
 		t.Errorf("the error should list what is available: %v", err)
+	}
+}
+
+// A board is named for the build that produces its image.
+//
+// Both halves of this were once wrong at the same time: a "RAK4631" that no
+// release published sat beside the "RAK_4631" that did, and a Xiao named for
+// its chip could never be given an image because the release names it for its
+// variant. Neither failed loudly - the boards simply stayed grey in the matrix.
+func TestBoardsAreNamedForTheirBuild(t *testing.T) {
+	seen := map[string]bool{}
+	for _, b := range scenario.Boards() {
+		if seen[strings.ToLower(b.Name)] {
+			t.Errorf("two profiles named %q", b.Name)
+		}
+		seen[strings.ToLower(b.Name)] = true
+	}
+	// A rename keeps the old name working: fixtures on disk name their boards.
+	for _, old := range []string{"RAK4631", "Xiao_nRF52840"} {
+		b, err := scenario.BoardByName(old)
+		if err != nil {
+			t.Errorf("a fixture naming %q can no longer be loaded: %v", old, err)
+			continue
+		}
+		if seen[strings.ToLower(old)] {
+			t.Errorf("%q was renamed, yet still exists as a profile", old)
+		}
+		if b.Name == old {
+			t.Errorf("%q resolved to itself rather than to its new name", old)
+		}
 	}
 }

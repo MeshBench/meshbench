@@ -153,6 +153,21 @@ type QEMUWiring struct {
 	// showing. Zero means none recorded.
 	LED int
 
+	// PSRAMMB is the external RAM the board carries, in megabytes, or zero on
+	// a board with none.
+	//
+	// Not a detail the radio cares about, and not optional either: a firmware
+	// built for a board with PSRAM calls the driver at startup, and one that
+	// finds no chip fails initialisation and asserts. The Xiao S3 WIO does
+	// exactly that - "SPI RAM enabled but initialization failed. Bailing out."
+	// - and reboots for ever without reaching MeshCore at all.
+	PSRAMMB int
+
+	// PSRAMOctal says that RAM is an octal (OPI) part rather than a quad one.
+	// The firmware probes for the one it was built against and reports a quad
+	// chip as missing entirely.
+	PSRAMOctal bool
+
 	// FEM is the GPIO carrying the front-end module's transmit enable, zero on
 	// a board without one. RadioLib drives it from its RF-switch table rather
 	// than the firmware driving it directly, so it moves on every transition
@@ -186,153 +201,6 @@ func (b Board) RadiatedDBm(driveDBm float64) float64 {
 	return driveDBm - b.FeedlineDB + b.AntennaDBi
 }
 
-// boards is the starter set: the hardware people actually deploy on a UK mesh.
-//
-// Deliberately small. Seven profiles that are right are worth more than forty
-// that were guessed at, and every figure here can be traced to a datasheet or a
-// published schematic. Anything uncertain is in Notes rather than smoothed over.
-var boards = []Board{
-	{
-		Name: "RAK4631", MCU: "nRF52840", Radio: "SX1262", Vendor: "RAKwireless",
-		MaxTxDBm: 22, FeedlineDB: 0.8, AntennaDBi: 2.15,
-		SensitivityDBm: -137, NoiseFigureDB: 6, SleepUA: 20,
-		Battery:  energy.Battery{Chemistry: energy.LiIon, CapacityMAh: 3400, Cells: 1, CutoffV: 3.1},
-		Emulated: true,
-		Notes: "The reference repeater. Runs under Renode today, including the shipped " +
-			"image's MBR and SoftDevice. Ships with an external whip, so the antenna " +
-			"figure assumes a half-wave dipole rather than the board.",
-	},
-	{
-		Name: "Heltec_v3", MCU: "ESP32-S3", Radio: "SX1262", Vendor: "Heltec",
-		MaxTxDBm: 21, FeedlineDB: 1.2, AntennaDBi: -1,
-		SensitivityDBm: -136, NoiseFigureDB: 7, SleepUA: 200,
-		Battery:  energy.Battery{Chemistry: energy.LiIon, CapacityMAh: 2000, Cells: 1, CutoffV: 3.2},
-		Emulated: false,
-		Notes: "Very common and not a good repeater: the stock spring antenna is well " +
-			"below a dipole, and sleep current is dominated by the board rather than " +
-			"the MCU. Not emulated: QEMU's ESP32-S3 machine models only the flash SPI " +
-			"controller, so there is no bus for the radio to sit on. The plain-ESP32 " +
-			"machine models SPI0 to SPI3 and does work.",
-	},
-	{
-		// The first board driven end to end under emulation, which is why it is
-		// here rather than for being popular.
-		Name: "Generic_E22_sx1262", MCU: "ESP32", Radio: "SX1262", Vendor: "Ebyte",
-		MaxTxDBm: 22, FeedlineDB: 1.0, AntennaDBi: 2.15,
-		SensitivityDBm: -137, NoiseFigureDB: 6, SleepUA: 250,
-		Battery:  energy.Battery{Chemistry: energy.LiIon, CapacityMAh: 2000, Cells: 1, CutoffV: 3.2},
-		Emulated: true,
-		QEMU: &QEMUWiring{
-			// FEM 13 is SX126X_TXEN, from the variant's platformio.ini. RadioLib
-			// drives it from setRfSwitchPins(RXEN=14, TXEN=13), so it goes high
-			// before SetTx and low again before SetRx.
-			Machine: "esp32", SPI: 2, NSS: 18, Busy: 32, LED: 2, FEM: 13,
-			Verified: true,
-		},
-		// The module's TXEN and RXEN, on MCU pins 13 and 14. No gain stage:
-		// MeshCore compiles this variant for LORA_TX_POWER=22 and the E22's own
-		// SX1262 produces it, so these switch the path rather than amplify it.
-		// The loss is an RF switch's isolation and is a plausible figure rather
-		// than a measured one - see Notes.
-		FEM: &FEM{TxGainDB: 0, TxLossDB: 25},
-		Notes: "An E22 module on a devkit rather than a product, so the antenna figure " +
-			"assumes the external whip the module is designed for. The published " +
-			"repeater image boots and runs RadioLib's full SX126x init sequence under " +
-			"emulation: version read, LoRa mode, modulation and IRQ setup. " +
-			"The 25 dB switch isolation is a plausible figure for an SPDT part at " +
-			"868 MHz and has not been measured. Upstream also sets " +
-			"SX126X_DIO2_AS_RF_SWITCH=true alongside the MCU pins, which its own " +
-			"variant.h warns against - so on this board the path may be switched by " +
-			"DIO2 whatever the MCU pins do, and a transmit-enable fault here would " +
-			"be milder than the model says. The T096 is the honest case for that.",
-	},
-	{
-		// Carries the front-end module MeshCore 1.17.1's transmit fix was about.
-		// Not emulated yet: it is nRF52, so it wants Renode rather than QEMU.
-		Name: "Heltec_t096", MCU: "nRF52840", Radio: "SX1262", Vendor: "Heltec",
-		MaxTxDBm: 22, FeedlineDB: 1.0, AntennaDBi: -1,
-		SensitivityDBm: -137, NoiseFigureDB: 6, SleepUA: 60,
-		Battery:  energy.Battery{Chemistry: energy.LiIon, CapacityMAh: 1000, Cells: 1, CutoffV: 3.1},
-		Emulated: false,
-		// A KCT8103L, switched by three GPIOs: an LDO enable, a shutdown line
-		// and a transmit/receive path select. The gain figure is upstream's own:
-		// variants/heltec_t096/platformio.ini sets LORA_TX_POWER=9 against
-		// MAX_LORA_TX_POWER=22 and says "9dBm + ~13dB KCT8103L gain".
-		FEM: &FEM{TxGainDB: 13, TxLossDB: 0},
-		Notes: "The board whose transmit failure 1.17.1 fixed: PIN_SPI1_MISO was -1 " +
-			"against a 48-entry pin map, and the out-of-bounds read left the " +
-			"module's transmit enable undriven. The chip is compiled for 9 dBm and " +
-			"the module carries it to about 22, so a firmware that does not switch " +
-			"the module in is 13 dB down with nothing in the radio's registers to " +
-			"say so. MaxTxDBm here is the antenna figure, not the chip's. Antenna " +
-			"and sleep figures are taken from the comparable nRF52840 boards rather " +
-			"than from this board's own schematic, and should be checked before " +
-			"either is trusted.",
-	},
-	{
-		Name: "Heltec_v2", MCU: "ESP32", Radio: "SX1276", Vendor: "Heltec",
-		MaxTxDBm: 20, FeedlineDB: 1.2, AntennaDBi: -1,
-		SensitivityDBm: -136, NoiseFigureDB: 7, SleepUA: 250,
-		Battery:  energy.Battery{Chemistry: energy.LiIon, CapacityMAh: 2000, Cells: 1, CutoffV: 3.2},
-		Emulated: false,
-		Notes: "Carries an SX1276, not an SX1262, despite sitting next to the V3 in " +
-			"every shop. Its firmware speaks SX127x register access rather than " +
-			"SX126x commands, so the radio model does not answer it. Recorded here " +
-			"because the name invites exactly that mistake.",
-	},
-	{
-		Name: "Heltec_mesh_solar", MCU: "ESP32-S3", Radio: "SX1262", Vendor: "Heltec",
-		MaxTxDBm: 21, FeedlineDB: 1.2, AntennaDBi: -1,
-		SensitivityDBm: -136, NoiseFigureDB: 7, SleepUA: 150,
-		Battery: energy.Battery{Chemistry: energy.LiIon, CapacityMAh: 3000, Cells: 1, CutoffV: 3.2},
-		Panel: energy.Panel{PeakW: 1.5, TiltDeg: 0, AzimuthDeg: 180,
-			SoilingFactor: 0.8, ChargeEfficiency: 0.75},
-		Emulated: false,
-		Notes: "Integrated panel mounted flat, which at UK latitudes is the worst case " +
-			"in December — see internal/energy. PWM charging, so the efficiency figure " +
-			"is not MPPT.",
-	},
-	{
-		Name: "Xiao_S3_WIO", MCU: "ESP32-S3", Radio: "SX1262", Vendor: "Seeed",
-		MaxTxDBm: 22, FeedlineDB: 1.0, AntennaDBi: -2,
-		SensitivityDBm: -136, NoiseFigureDB: 7, SleepUA: 50,
-		Battery:  energy.Battery{Chemistry: energy.LiIon, CapacityMAh: 1000, Cells: 1, CutoffV: 3.2},
-		Emulated: false,
-		Notes:    "Tiny, and the antenna figure reflects it. A companion, not a repeater.",
-	},
-	{
-		Name: "Xiao_nRF52840", MCU: "nRF52840", Radio: "SX1262", Vendor: "Seeed",
-		MaxTxDBm: 22, FeedlineDB: 1.0, AntennaDBi: -2,
-		SensitivityDBm: -137, NoiseFigureDB: 6, SleepUA: 5,
-		Battery:  energy.Battery{Chemistry: energy.LiIon, CapacityMAh: 1000, Cells: 1, CutoffV: 3.1},
-		Emulated: true,
-		Notes: "Same nRF52840 core as the RAK4631, so it emulates on the same path. " +
-			"Genuinely low sleep current, which makes it the one board here where " +
-			"duty-cycling buys a great deal.",
-	},
-	{
-		Name: "Heltec_t114", MCU: "nRF52840", Radio: "SX1262", Vendor: "Heltec",
-		MaxTxDBm: 22, FeedlineDB: 1.0, AntennaDBi: 0,
-		SensitivityDBm: -137, NoiseFigureDB: 6, SleepUA: 60,
-		Battery:  energy.Battery{Chemistry: energy.LiIon, CapacityMAh: 2000, Cells: 1, CutoffV: 3.1},
-		Emulated: true,
-		Notes:    "nRF52840 with a display, which is why sleep current is not the MCU's own.",
-	},
-	{
-		Name: "Station_G2", MCU: "ESP32-S3", Radio: "SX1262", Vendor: "LILYGO",
-		MaxTxDBm: 30, FeedlineDB: 1.5, AntennaDBi: 2.15,
-		SensitivityDBm: -136, NoiseFigureDB: 7, SleepUA: 5000,
-		Battery:  energy.Battery{Chemistry: energy.LiIon, CapacityMAh: 0, Cells: 1, CutoffV: 3.2},
-		Emulated: false,
-		Notes: "Mains-powered with an external PA, so it is the only board here that " +
-			"can legally run 30 dBm where the band plan allows it — and the only one " +
-			"whose sleep current does not matter. Check the licence conditions before " +
-			"simulating it at full power.",
-	},
-
-	rak4631Board,
-}
-
 // Boards returns the profiles, sorted.
 func Boards() []Board {
 	out := make([]Board, len(boards))
@@ -341,8 +209,25 @@ func Boards() []Board {
 	return out
 }
 
+// renamedBoards maps names this project used to publish to the ones it uses now.
+//
+// A fixture on someone's disk names its boards, and renaming one here would
+// otherwise stop that fixture loading with "no board profile named". The names
+// on the left were ours; the names on the right are the ones the firmware
+// release publishes, which is what an image is fetched by.
+var renamedBoards = map[string]string{
+	"RAK4631":       "RAK_4631",
+	"Xiao_nRF52840": "Xiao_nrf52",
+}
+
 // BoardByName looks one up, case-insensitively.
 func BoardByName(name string) (Board, error) {
+	for from, to := range renamedBoards {
+		if strings.EqualFold(from, name) {
+			name = to
+			break
+		}
+	}
 	for _, b := range boards {
 		if strings.EqualFold(b.Name, name) {
 			return b, nil
@@ -355,38 +240,6 @@ func BoardByName(name string) (Board, error) {
 	sort.Strings(names)
 	return Board{}, fmt.Errorf("scenario: no board profile named %q; have %s",
 		name, strings.Join(names, ", "))
-}
-
-// rak4631Board is the first nRF52 board to run its published firmware here.
-//
-// Verified the same way the E22 was: its own image, off the flasher, booting
-// and putting an advert on the channel - MBR to SoftDevice to application, then
-// SetStandby, SetDIO3AsTCXOCtrl, SetPacketType(LoRa) and a 127-byte advert.
-var rak4631Board = Board{
-	Name:   "RAK_4631",
-	MCU:    "nRF52840",
-	Radio:  "SX1262",
-	Vendor: "RAKwireless",
-
-	MaxTxDBm:       22,
-	FeedlineDB:     0.6,
-	AntennaDBi:     2.0,
-	SensitivityDBm: -137,
-	NoiseFigureDB:  6,
-
-	Renode: &RenodeWiring{
-		Platform: "platforms/cpus/nrf52840.repl",
-		SPIBase:  0x4002F000,
-		NssPort:  "gpio1",
-		NssPin:   10,
-		IrqPort:  "gpio1",
-		IrqPin:   15,
-	},
-
-	Notes: "Published .uf2 images are linked above a Nordic SoftDevice, fetched " +
-		"from Nordic's own site rather than bundled - Nordic has confirmed " +
-		"emulating it for firmware testing is not a licensing problem " +
-		"(docs/licence.md). The radio is on SPIM3, which stock Renode does not model.",
 }
 
 // EmulationVerified lists the boards whose firmware has actually been booted
@@ -404,6 +257,13 @@ var rak4631Board = Board{
 var EmulationVerified = []string{
 	"Generic_E22_sx1262",
 	"RAK_4631",
+	"Heltec_t114",
+	"Heltec_t096",
+	// Both were unreachable until they were named for the build that makes
+	// their image, and both went straight through on the first probe after
+	// that: build, boot, radio, tx, rx, flood.
+	"Xiao_nrf52",
+	"Heltec_mesh_solar",
 }
 
 // EmulationSupported reports whether a board can be run under emulation today.
@@ -435,15 +295,26 @@ func isEmulationVerified(name string) bool {
 func EmulatableBoards() (ok []Board, blocked map[string]string) {
 	blocked = map[string]string{}
 	for _, b := range Boards() {
+		// Either wiring counts. Gating on QEMU alone meant a board wired for
+		// Renode could never be emulable however thoroughly it had been
+		// verified - RAK_4631 sat on EmulationVerified and still reported
+		// "wiring not yet verified", because the only branch that could admit
+		// it asked for the wrong emulator.
 		switch {
-		case b.QEMU != nil && isEmulationVerified(b.Name):
+		case (b.QEMU != nil || b.Renode != nil) && isEmulationVerified(b.Name):
 			ok = append(ok, b)
-		case b.QEMU != nil:
+		case b.QEMU != nil || b.Renode != nil:
 			blocked[b.Name] = "wiring recorded but never booted"
 		case b.Radio != "SX1262":
 			blocked[b.Name] = b.Radio + " radio, not modelled"
 		case b.MCU == "ESP32-S3" || b.MCU == "ESP32-C3" || b.MCU == "ESP32-C6":
-			blocked[b.Name] = b.MCU + " has no general-purpose SPI in QEMU"
+			// No longer "there is no bus for the radio": the fork's S3 machine
+			// now builds GPSPI2, offers the 49 GPIOs the part has rather than
+			// the ESP32's 40, and can be given an octal PSRAM. An image gets as
+			// far as ESP-IDF's own startup and asserts there, before MeshCore
+			// runs - the same line on two different boards, one of which has no
+			// PSRAM at all, so it is not that either.
+			blocked[b.Name] = b.MCU + ": boots, then asserts inside ESP-IDF startup"
 		case strings.HasPrefix(b.MCU, "nRF52"):
 			// Not a licensing block - see docs/licence.md, DevZone case 362437.
 			// Every other nRF52 board still needs the same Renode wiring

@@ -233,3 +233,21 @@ type ResourceRow struct {
 	Why       string
 	Auto      bool
 }
+
+// BoardCapabilityCell is one board's one capability: "untested", "passed",
+// "failed" or "n/a", with Detail carrying the reason for anything that is
+// not a plain pass.
+type BoardCapabilityCell struct {
+	Capability string
+	State      string
+	Detail     string
+}
+
+// BoardRow is one board's whole line in the capability matrix.
+type BoardRow struct {
+	Board      string
+	Version    string
+	Cells      []BoardCapabilityCell
+	Stale      bool
+	MeasuredAt string
+}

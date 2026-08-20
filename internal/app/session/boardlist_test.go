@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/MeshBench/meshbench/internal/mesh/firmware"
 )
 
 // The published board images reach the library. This is the bug 0.0.1
@@ -15,9 +17,25 @@ func TestPublishedBoardsReachTheLibrary(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
+
+	// The catalogue is asked for directly first, so that an empty answer can
+	// be attributed. publishedBoards swallows the fetch error and returns
+	// nothing either way, which left this test unable to tell "GitHub said no"
+	// from "we broke the mapping" - and it has now failed three times on the
+	// former, each time passing locally straight afterwards.
+	cat := &firmware.BoardCatalogue{CacheDir: firmware.DefaultCacheDir()}
+	imgs, err := cat.ListAll(ctx)
+	if err != nil {
+		t.Skipf("the release catalogue was not reachable: %v", err)
+	}
+	if len(imgs) == 0 {
+		t.Skip("the release catalogue came back empty, which is not this code's doing")
+	}
+
 	got := publishedBoards(ctx)
 	if len(got) == 0 {
-		t.Fatal("no published board images: the emulated half of the library is missing again")
+		t.Fatalf("the catalogue listed %d images and none of them reached the "+
+			"library: the emulated half is missing again", len(imgs))
 	}
 	t.Logf("%d board builds", len(got))
 	boards := map[string]bool{}

@@ -108,6 +108,10 @@ type Snapshot struct {
 	// measured against it.
 	Observed  []Observed
 	Residuals *Residuals
+	// BoardMatrix is the hardware capability matrix, one row per board, and
+	// BoardMatrixVersion the board-image version it was measured against.
+	BoardMatrix        []BoardRow
+	BoardMatrixVersion string
 	// Resources is everything the application downloads at runtime, as last
 	// listed from disk.
 	Resources []ResourceRow

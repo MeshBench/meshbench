@@ -120,6 +120,11 @@ type World struct {
 	// its own copy showed "no arms yet" over a session with four.
 	ExperimentArms    []string
 	ExperimentSenders []string
+	// BoardMatrix is the hardware capability matrix: one row per board,
+	// each capability three-valued - untested, passed or failed with a
+	// reason - never blank, because a blank cell reads as working.
+	BoardMatrix        []BoardRow
+	BoardMatrixVersion string
 	// Series is the selected node's history, for its graphs.
 	Series NodeSeries
 	// Provisioning is the script for the node last asked about.

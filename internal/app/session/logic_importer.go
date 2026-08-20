@@ -30,7 +30,7 @@ func ImportFrom(ctx context.Context, url string, region *scenario.Region) (*stat
 	}
 	res, err := scenario.Import(records, scenario.ImportOptions{
 		Region:       region,
-		DefaultBoard: "RAK4631",
+		DefaultBoard: "RAK_4631",
 		// The band this project works in. Stated rather than defaulted,
 		// because no source publishes a modem configuration and a wrong one
 		// makes every imported link wrong in the same direction. EU/UK
