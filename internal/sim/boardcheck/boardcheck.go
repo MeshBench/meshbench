@@ -13,11 +13,9 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/mesh/firmware"
-	"github.com/MeshBench/meshbench/internal/rf/antenna"
 	"github.com/MeshBench/meshbench/internal/rf/propagation"
 	"github.com/MeshBench/meshbench/internal/sim/engine"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
@@ -102,84 +100,6 @@ func EmulatorFingerprint() string {
 	return fmt.Sprintf("%s@%d-%d", path, fi.Size(), fi.ModTime().Unix())
 }
 
-// probeGeometry is three nodes: a native sender, the board under test in the
-// middle, and a native listener out of the sender's own direct reach - so a
-// message the listener receives proves the middle node relayed it, not that
-// the sender happened to reach both.
-func probeGeometry(board, version string) []scenario.Node {
-	mast := antenna.Mounted{Pattern: antenna.Collinear{GainDBiPeak: 6}, Polarisation: "vertical"}
-	radio := scenario.RadioConfig{CentreHz: 869.618e6, BandwidthHz: 62_500, SpreadFactor: 8, CodingRate: 4}
-	node := func(name string, lat, lon float64, txDBm float64, fw scenario.FirmwareRef) scenario.Node {
-		return scenario.Node{
-			Name: name, Kind: scenario.SimpleRepeater,
-			Position: scenario.LatLon{Lat: lat, Lon: lon}, HeightAGLm: 10,
-			Antenna: mast, TxPowerDBm: txDBm, NoiseFigureDB: 6, Radio: radio,
-			Firmware: fw,
-		}
-	}
-	// The listener must not hear the sender, and now does not.
-	//
-	// It used to, which quietly broke the flood phase: three nodes 0.6 degrees
-	// of longitude apart put the far pair 73 km from each other, which 20 dBm
-	// from a 6 dBi mast covers easily over flat bare earth. So the listener
-	// heard every packet directly, relayed it before the board had finished
-	// waiting, and the board dropped its own copy - which is what a repeater
-	// should do when somebody else has already relayed. The board was behaving
-	// correctly and being marked down for it.
-	//
-	// Distance alone cannot separate the two links: free space costs 6 dB per
-	// doubling, so a line of three nodes never puts much between the near hop
-	// and the far one. A weak sender does. Measured on the channel rather than
-	// estimated: at 2 dBm the sender reached the listener at -1.6 dB SNR, some
-	// 8 dB above what SF8 needs, so it comes down another 14 dB and the board
-	// moves in to 3 km to keep its own hop strong.
-	//
-	//	sender -> board       about +12 dB SNR   must work
-	//	sender -> listener    about -16 dB SNR   must not
-	//	board  -> listener    about  +1 dB SNR   must work
-	//
-	// A sender this quiet is not a realistic node, and it is not pretending to
-	// be one: it is a fixture that puts the board on the only path between two
-	// others, which is the whole of what this phase measures.
-	return []scenario.Node{
-		node("bc-sender", 56.70, -3.90, -12,
-			scenario.FirmwareRef{Role: "simple_repeater", Version: nativePeerVersion}),
-		node("bc-under-test", 56.70, -3.85, 20,
-			scenario.FirmwareRef{Role: "simple_repeater", Version: version, Board: board}),
-		node("bc-listener", 56.70, -2.90, 20,
-			scenario.FirmwareRef{Role: "simple_repeater", Version: nativePeerVersion}),
-	}
-}
-
-// nativePeerVersion is the native build the probe's sender and listener run.
-const nativePeerVersion = "repeater-v1.17.0"
-
-// advertBudgetMs is how long any phase waits for something to reach the air,
-// and it is one number on purpose.
-//
-// The phases used to differ - 90 s for the first advert, 60 s after an idle -
-// and an emulated ESP32 took 68.5 s to produce its first. So the board passed
-// the phase with the generous budget and failed the identical act under the
-// tighter one, and the matrix recorded "no response after the idle period"
-// for a board that was answering perfectly well. A board's second advert
-// cannot be held to a shorter deadline than its first, and a relay - which is
-// an advert plus a hop - cannot be held to a shorter one than either.
-//
-// Four minutes, not ninety seconds, since an emulated board got a filesystem
-// that works. It formats it on first boot, which is 1.4 MB of flash through an
-// emulated SPI controller and takes most of ninety seconds by itself - so the
-// old budget was spent before the board had finished starting. The board was
-// relaying the whole time and being recorded as a board that would not.
-//
-// The cost is real: a probe takes minutes rather than one. Measuring the wrong
-// thing faster is not a saving.
-const advertBudgetMs = 240_000
-
-// Probe runs every capability for one board and version, in one boot.
-//
-// A board's full column completing quickly matters: this is scripted rather
-// than exploratory, each phase is bounded, and a phase that never produces
-// its evidence fails rather than hanging the probe for anyone waiting on it.
 func Probe(ctx context.Context, terr propagation.Terrain, board, version string) BoardReport {
 	report := untestedReport(board, version)
 	report.EmulatorFP = EmulatorFingerprint()
@@ -404,7 +324,42 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 		return report
 	}
 	if err := under.Firmware.Bridge.Type([]byte("clock\r\n")); err != nil {
-		report.set(Power, Untested, "no way to ask it: "+err.Error())
+		// No console, so ask over the air instead.
+		//
+		// A board booted under Renode has no console at all and cannot be
+		// given one without modelling the nRF52840's USB device: its firmware
+		// reads its command interface from Serial, which the Adafruit core
+		// puts on USB CDC, and the platform models two UARTs and no USB.
+		//
+		// Relaying answers the question anyway, and answers it about the whole
+		// firmware rather than one task: a board that forwards somebody else's
+		// packet has a radio receiving, a mesh stack deciding and a radio
+		// transmitting, after having been left alone. It is only available to
+		// a board that passed flood, because a board that never relays cannot
+		// be asked this way either.
+		if report.Results[Flood].State != Passed {
+			report.set(Power, Untested, "no way to ask it: "+err.Error())
+			return report
+		}
+		if !ok || sender.Firmware == nil {
+			report.set(Power, Untested, "the native sender never came up to ask with")
+			return report
+		}
+		_ = sender.Firmware.Bridge.Type([]byte("time 1754707200\r\n"))
+		_ = e.Run(ctx, e.NowMs()+1_000)
+		if err := sender.Firmware.Bridge.Type([]byte("advert\r\n")); err != nil {
+			report.set(Power, Untested, "could not command the sender: "+err.Error())
+			return report
+		}
+		if atMs, relayed := waitForEvent(ctx, e, advertBudgetMs, func(ev engine.Event) bool {
+			return ev.Kind == "tx" && ev.From == "bc-under-test"
+		}); relayed {
+			report.set(Power, Passed,
+				fmt.Sprintf("relayed again at %.1f s, after a 15 s idle", float64(atMs)/1000))
+		} else {
+			report.set(Power, Failed,
+				"relayed before a 15 s idle and not after it")
+		}
 		return report
 	}
 	if !answeredOn(ctx, e, said, len(baseline), "->") {
@@ -457,76 +412,4 @@ func MatrixReports(version string) []BoardReport {
 		out = append(out, Load(b.Name, version))
 	}
 	return out
-}
-
-// waitForEvent steps the engine in short strides, paced to real time because
-// an emulated node cannot be run faster than it runs, until match sees an
-// event or budgetMs of simulated time passes without one.
-func waitForEvent(ctx context.Context, e *engine.Engine, budgetMs uint32,
-	match func(engine.Event) bool) (atMs uint32, ok bool) {
-
-	start := e.NowMs()
-	began := time.Now()
-	for e.NowMs() < start+budgetMs {
-		if ctx.Err() != nil {
-			return 0, false
-		}
-		target := e.NowMs() + 500
-		if err := e.Run(ctx, target); err != nil {
-			return 0, false
-		}
-		for _, ev := range e.Events() {
-			if ev.AtMs >= start && match(ev) {
-				return ev.AtMs, true
-			}
-		}
-		// Sleep the whole deficit, not a capped slice of it.
-		//
-		// Each stride advances the simulation half a second while the old cap
-		// slept at most a fifth of one, so simulated time outran the clock by
-		// up to 300 ms a stride: a "90 second" budget could expire in 36
-		// seconds of real time, and how much real time a board actually got
-		// varied with whatever else the machine was doing. The board is a real
-		// process on the real clock - an emulated ESP32 that adverts 68
-		// seconds after boot needs 68 seconds, not 68 of somebody's
-		// accelerated units - and that is why the same board passed this phase
-		// twice and then failed it outright. Slept in slices so cancellation
-		// stays responsive, but the full deficit is slept.
-		for {
-			d := time.Duration(e.NowMs()-start)*time.Millisecond - time.Since(began)
-			if d <= 0 || ctx.Err() != nil {
-				break
-			}
-			time.Sleep(min(d, 200*time.Millisecond))
-		}
-	}
-	return 0, false
-}
-
-func min(a, b time.Duration) time.Duration {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-// answeredOn waits for the node to say something new on its console.
-//
-// Given the length the log had before the question, so that a reply is only
-// what arrived after it - the boot chain is already in there, and matching
-// against the whole file would find the firmware's own startup chatter.
-func answeredOn(ctx context.Context, e *engine.Engine,
-	said interface{ ConsoleLog() ([]byte, error) }, from int, want string) bool {
-
-	for i := 0; i < 40; i++ {
-		if err := e.Run(ctx, e.NowMs()+500); err != nil {
-			return false
-		}
-		b, err := said.ConsoleLog()
-		if err == nil && len(b) > from && strings.Contains(string(b[from:]), want) {
-			return true
-		}
-		time.Sleep(250 * time.Millisecond)
-	}
-	return false
 }
