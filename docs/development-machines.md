@@ -11,10 +11,12 @@ does.
 real GPU, and the Renode and QEMU toolchains for the firmware work.
 
 - The full suite with `-race` runs in about three minutes.
-- `golangci-lint` is pinned at `~/go/bin` to the version CI uses, **v2.1.6**.
-  Matching it matters: v2.1.6 is built with go1.24 and refuses a config
-  targeting a higher Go version, so a newer local binary disagrees with CI
-  about whether the tree is clean.
+- `golangci-lint` must match **the version CI runs, v2.12.2** — the pin is in
+  `ci.yml`, which is the authority. Matching it is not pedantry: v2.1.6 and
+  v2.12.2 disagree about this tree by 29 findings (34 `gosec` against 17, 12
+  `noctx` against 1), so a local run on the wrong version says the tree is
+  clean when CI will not. `tools/lint-ratchet.sh` takes `GOLANGCI_LINT` if the
+  right binary is not first on your path.
 - Clone with `gh repo clone MeshBench/meshbench`.
 
 **One emulated board at a time.** The board check across several emulated
