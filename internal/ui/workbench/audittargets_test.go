@@ -83,7 +83,17 @@ func auditTargets(r *recorder) []target {
 	// The URL is asked for in the action bar, so this panel owns no controls.
 	impP := &importPanel{}
 	feedP := &feedPanel{OnPull: func() { r.do("feed.pull", nil) }}
-	benchP := &benchPanel{OnAction: func(a, n string) { r.do(a, n) }}
+	benchP := &benchPanel{
+		OnAction: func(a, n string) { r.do(a, n) },
+		OnSelect: func(n string) { r.do("nodes.select", n) },
+	}
+	// A companion selected, because the bench's actions are about one: with
+	// a repeater selected it correctly offers nothing, and auditing that
+	// only proves the guard works.
+	snapWithCompanion := auditSnapshot()
+	for i := range snapWithCompanion.Nodes {
+		snapWithCompanion.Nodes[i].Selected = snapWithCompanion.Nodes[i].Kind == "companion"
+	}
 
 	targets := []target{
 		{"Nodes running", nv, nv.Draw, nil,
@@ -119,7 +129,7 @@ func auditTargets(r *recorder) []target {
 		{"Planning (view)", planP, planP.Draw, nil, nil, nil, nil},
 		{"Import (view)", impP, impP.Draw, nil, nil, nil, nil},
 		{"Live feed (view)", feedP, feedP.Draw, nil, nil, nil, nil},
-		{"Companion bench (view)", benchP, benchP.Draw, nil, nil, nil, nil},
+		{"Companion bench (view)", benchP, benchP.Draw, snapWithCompanion, nil, nil, nil},
 		{"Fleet", fleet, fleet.Draw, nil, nil, nil, nil},
 		{"Schedule", sched, sched.Draw, nil, nil, nil, nil},
 		{"Import", imp, imp.Draw, nil, nil, nil, nil},

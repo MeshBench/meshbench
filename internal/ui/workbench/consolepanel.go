@@ -46,8 +46,12 @@ func (p *consolePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 		}
 	}
 	if who == "" {
+		// Named where to select one, rather than only that one is wanted.
+		// In the App view this panel sat beside a table nothing could pick
+		// from, telling somebody to do a thing the view could not do.
 		return layout.Center.Layout(gtx, comp.Text(t, t.Sz.Body, t.P.Dim,
-			"select a node to see its console"))
+			"select a node - on the map, in the node list, or a row of the "+
+				"companion bench - to see what it has said and heard"))
 	}
 	rows := make([]comp.Row, 0, 64)
 	for i := range s.Events {

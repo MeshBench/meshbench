@@ -168,6 +168,7 @@ func (tb *Table) row(t *theme.Theme, gtx layout.Context, idx int) layout.Dimensi
 		case selected:
 			FillRect(gtx, image.Pt(gtx.Constraints.Max.X, h), t.P.Selected)
 		case tb.rows[idx].Hovered():
+			tb.hovered = tb.shown[idx].Key
 			FillRect(gtx, image.Pt(gtx.Constraints.Max.X, h), theme.Alpha(t.P.Ink, 0.05))
 		}
 		call.Add(gtx.Ops)

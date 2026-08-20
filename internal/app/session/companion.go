@@ -45,8 +45,20 @@ func registerCompanion(st *state.Store, s *Sim) {
 		// One holder at a time, and an outside client outranks us: connecting
 		// over a served port would steal it from whatever is attached, with
 		// nothing said at either end.
-		if _, serving := s.served[node]; serving {
-			return nil, fmt.Errorf("%s is being served to an outside client; stop serving first", node)
+		//
+		// Attached, not merely served. A listener with nobody on it was
+		// refused with "is being served to an outside client" while the panel
+		// beside it said "waiting" - which is the interface contradicting
+		// itself, and a dead end: the only way on was to stop serving, and
+		// nothing said so. An idle port has no client to steal from, so it is
+		// taken back and said out loud.
+		if l, serving := s.served[node]; serving {
+			if l.Attached() {
+				return nil, fmt.Errorf("%s is being served to an outside client; stop serving first", node)
+			}
+			s.stopServing(node)
+			w.Endpoints = s.endpoints()
+			w.Say("took " + node + "'s port back from an idle listener")
 		}
 		c := &compSession{node: node}
 		c.release = en.Firmware.Bridge.Claim(c)

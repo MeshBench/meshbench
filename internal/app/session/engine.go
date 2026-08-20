@@ -43,6 +43,9 @@ type Sim struct {
 	// one that took its own route would be a second kind of session with its
 	// own set of things nobody remembered to set.
 	installFn func(*state.Store, *state.World, Loaded, string)
+	// servedAddrs is where each served companion can be reached, worked out
+	// when it was served.
+	servedAddrs map[string][]string
 	// warmed reports that the matrix has been measured for the engine as it
 	// stands. Cleared by a rebuild, set when a warm finishes uncancelled.
 	warmed bool

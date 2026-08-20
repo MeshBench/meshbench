@@ -84,19 +84,21 @@ func addMeshPanels(d panelDeps) {
 	d.sh.Add(homed(&shell.Panel{Name: "Fleet", Windowable: true,
 		Draw: d.withControls(d.fleetCtl.Draw, fleet.Draw)}))
 	bench := &benchPanel{}
+	// Clicking a companion is the App view's only way of saying which one
+	// everything else is about: the view carries neither the map nor the
+	// node list, and those were the only two things that selected anything.
+	bench.OnSelect = func(node string) { d.do("nodes.select", node) }
 	bench.OnAction = func(action, node string) {
-		go func() {
-			switch action {
-			case "serve.tcp":
-				_, _ = d.st.Do(d.ctx, "bench.serve",
-					map[string]any{"node": node, "kind": "tcp"})
-			case "serve.serial":
-				_, _ = d.st.Do(d.ctx, "bench.serve",
-					map[string]any{"node": node, "kind": "serial"})
-			default:
-				_, _ = d.st.Do(d.ctx, action, nil)
-			}
-		}()
+		switch action {
+		case "serve.tcp":
+			d.do("bench.serve", map[string]any{"node": node, "kind": "tcp"})
+		case "serve.serial":
+			d.do("bench.serve", map[string]any{"node": node, "kind": "serial"})
+		case "node.window":
+			d.do("node.window", node)
+		default:
+			d.do(action, nil)
+		}
 	}
 	d.sh.Add(homed(&shell.Panel{Name: "Companion bench", Windowable: true,
 		Draw: d.withControls(d.benchCtl.Draw, bench.Draw)}))
