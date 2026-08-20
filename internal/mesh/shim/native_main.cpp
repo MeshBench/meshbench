@@ -30,6 +30,7 @@ constexpr uint8_t kTick = 0x02;
 constexpr uint8_t kAck = 0x03;
 constexpr uint8_t kTxDone = 0x04;
 constexpr uint8_t kOriginate = 0x05;
+constexpr uint8_t kConsoleOut = 0x07;
 
 // LoRa parameters. Defaults are MeshCore's UK/EU settings; the simulator will
 // override them per node once board profiles land (MSIM-18).
@@ -306,7 +307,27 @@ int main(int argc, char** argv) {
         p->header = (PAYLOAD_TYPE_GRP_TXT << PH_TYPE_SHIFT) | ROUTE_TYPE_FLOOD;
         p->payload_len = (uint8_t)n;
         for (int i = 0; i < n; i++) p->payload[i] = payload[(size_t)i];
+
+        // Whether the stack accepted it, said out loud.
+        //
+        // sendFlood can decline for several reasons and every one of them is
+        // silent on a host build: MeshCore reports them through
+        // MESH_DEBUG_PRINTLN, which is `#if MESH_DEBUG && ARDUINO` and so
+        // compiles to nothing here. Dispatcher::sendPacket frees a packet with
+        // an invalid path_len without a word. An originate that quietly does
+        // nothing is indistinguishable from a network that does not relay, and
+        // a test built on it measures nothing while looking like it passed.
+        const int queuedBefore = mgr.getOutboundTotal();
         node.sendFlood(p);
+        if (mgr.getOutboundTotal() == queuedBefore) {
+          char why[128];
+          int m = snprintf(why, sizeof why,
+                           "originate refused: %d payload bytes did not reach the "
+                           "outbound queue (path_len=%u, free=%d)\n",
+                           n, (unsigned)p->path_len, mgr.getFreeCount());
+          if (m > 0) writeMsg(fd, kConsoleOut, (const uint8_t*)why, m);
+          fprintf(stderr, "native: %s", why);
+        }
         break;
       }
 
