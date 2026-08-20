@@ -25,6 +25,7 @@ type noopBackend struct{}
 func (noopBackend) Start(context.Context, string) error { return nil }
 func (noopBackend) Stop() error                         { return nil }
 func (noopBackend) Kind() string                        { return "test" }
+func (noopBackend) HasConsole() bool                    { return false }
 
 // fakeFirmwareConn stands in for a firmware process: it acks every tick it is
 // sent, until crash ends the connection - the one thing a crashed process and

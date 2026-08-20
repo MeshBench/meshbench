@@ -28,6 +28,18 @@ type Backend interface {
 	// because a result that does not say which backend produced it cannot be
 	// compared with one that does.
 	Kind() string
+
+	// HasConsole says whether anything on the far end of the bridge reads the
+	// node's serial port.
+	//
+	// Asked rather than assumed, because the two backends differ and the
+	// difference is invisible from here. The native shim implements the console
+	// frames. The emulated path does not: its peer is radioserver, which models
+	// an SX1262 over SPI and has no UART, and the emulator's own serial is
+	// opened write-only. Console input sent that way is accepted by the socket
+	// and dropped, and reporting success for it is how four capability rows
+	// came to describe a board's own boot advert as a transmission on command.
+	HasConsole() bool
 }
 
 // A Node is a MeshCore instance plus the bridge that carries its RF.
@@ -46,6 +58,7 @@ func Start(ctx context.Context, name string, b Backend) (*Node, error) {
 		_ = br.Close()
 		return nil, fmt.Errorf("firmware: start %s (%s): %w", name, b.Kind(), err)
 	}
+	br.hasConsole = b.HasConsole()
 	return &Node{Bridge: br, Backend: b}, nil
 }
 

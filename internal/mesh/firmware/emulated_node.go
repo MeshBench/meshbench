@@ -177,6 +177,10 @@ func waitForPort(ctx context.Context, logPath string) (int, error) {
 
 func (e *EmulatedNode) Kind() string { return "emulated" }
 
+// The emulator's serial is opened write-only and radioserver has no UART, so
+// there is nowhere for typed input to arrive.
+func (e *EmulatedNode) HasConsole() bool { return false }
+
 // Start brings up the radio model and then the emulator.
 //
 // Order matters: the device connects to the socket as it is realized, so a
