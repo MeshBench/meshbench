@@ -259,6 +259,15 @@ var boards = []Board{
 		// variants/heltec_t096/platformio.ini sets LORA_TX_POWER=9 against
 		// MAX_LORA_TX_POWER=22 and says "9dBm + ~13dB KCT8103L gain".
 		FEM: &FEM{TxGainDB: 13, TxLossDB: 0},
+		// variants/heltec_t096/platformio.ini: P_LORA_NSS=5, P_LORA_DIO_1=21.
+		Renode: &RenodeWiring{
+			Platform: "platforms/cpus/nrf52840.repl",
+			SPIBase:  0x4002F000,
+			NssPort:  "gpio0",
+			NssPin:   5,
+			IrqPort:  "gpio0",
+			IrqPin:   21,
+		},
 		Notes: "The board whose transmit failure 1.17.1 fixed: PIN_SPI1_MISO was -1 " +
 			"against a 48-entry pin map, and the out-of-bounds read left the " +
 			"module's transmit enable undriven. The chip is compiled for 9 dBm and " +
@@ -306,7 +315,22 @@ var boards = []Board{
 		SensitivityDBm: -137, NoiseFigureDB: 6, SleepUA: 5,
 		Battery:  energy.Battery{Chemistry: energy.LiIon, CapacityMAh: 1000, Cells: 1, CutoffV: 3.1},
 		Emulated: true,
-		Notes: "Same nRF52840 core as the RAK4631, so it emulates on the same path. " +
+		// variants/xiao_nrf52/platformio.ini names the pins by the board's own
+		// labels - P_LORA_NSS=D4, P_LORA_DIO_1=D1 - which variant.cpp's pin map
+		// resolves to P0.04 and P0.03.
+		Renode: &RenodeWiring{
+			Platform: "platforms/cpus/nrf52840.repl",
+			SPIBase:  0x4002F000,
+			NssPort:  "gpio0",
+			NssPin:   4,
+			IrqPort:  "gpio0",
+			IrqPin:   3,
+		},
+		Notes: "Same nRF52840 core as the RAK4631, and wired for the same path, but " +
+			"not yet booted here: MeshCore publishes this board's image as " +
+			"Xiao_nrf52 and we call it Xiao_nRF52840, so nothing matches the name " +
+			"we ask for. The wiring below is from the board's own build and should " +
+			"hold the moment the names are reconciled. " +
 			"Genuinely low sleep current, which makes it the one board here where " +
 			"duty-cycling buys a great deal.",
 	},
@@ -316,7 +340,19 @@ var boards = []Board{
 		SensitivityDBm: -137, NoiseFigureDB: 6, SleepUA: 60,
 		Battery:  energy.Battery{Chemistry: energy.LiIon, CapacityMAh: 2000, Cells: 1, CutoffV: 3.1},
 		Emulated: true,
-		Notes:    "nRF52840 with a display, which is why sleep current is not the MCU's own.",
+		// Pins from the board's own build: variants/heltec_t114/platformio.ini
+		// sets P_LORA_NSS=24 and P_LORA_DIO_1=20, both on gpio0. The radio is
+		// on SPIM3, like the RAK4631; the display is the thing on SPIM2, and
+		// the firmware blocks on that too until it is given its EasyDMA half.
+		Renode: &RenodeWiring{
+			Platform: "platforms/cpus/nrf52840.repl",
+			SPIBase:  0x4002F000,
+			NssPort:  "gpio0",
+			NssPin:   24,
+			IrqPort:  "gpio0",
+			IrqPin:   20,
+		},
+		Notes: "nRF52840 with a display, which is why sleep current is not the MCU's own.",
 	},
 	{
 		Name: "Station_G2", MCU: "ESP32-S3", Radio: "SX1262", Vendor: "LILYGO",
@@ -404,6 +440,8 @@ var rak4631Board = Board{
 var EmulationVerified = []string{
 	"Generic_E22_sx1262",
 	"RAK_4631",
+	"Heltec_t114",
+	"Heltec_t096",
 }
 
 // EmulationSupported reports whether a board can be run under emulation today.
