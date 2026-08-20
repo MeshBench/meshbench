@@ -173,14 +173,25 @@ const headerNibbleCount = 5
 // chk_hi, chk_lo]. The checksum equations are the XOR set the
 // reverse-engineering literature reports; the golden-vector suite is what
 // holds them to real silicon.
+// Every value here is a nibble, so every value is masked to one. n1 always
+// was; n0 and n2 were not, and the asymmetry between two adjacent lines is
+// the whole reason this is worth changing.
+//
+// The invariant that made them safe is real but remote: Encode refuses a
+// payload over 255 bytes, so length>>4 fits four bits by the time it arrives.
+// This function does not enforce that itself, and a future caller reaching it
+// without the check would encode a header claiming a length nobody sent - a
+// frame that modulates, transmits and decodes, to the wrong answer. Masking
+// here makes the nibble a nibble at the point it is built rather than three
+// call sites away.
 func headerNibbles(length, cr int, crc bool) []byte {
 	c := 0
 	if crc {
 		c = 1
 	}
-	n0 := byte(length >> 4)
+	n0 := byte(length >> 4 & 0xF)
 	n1 := byte(length & 0xF)
-	n2 := byte(cr<<1 | c)
+	n2 := byte(cr<<1&0xF | c)
 	chk := headerChecksum(n0, n1, n2)
 	return []byte{n0, n1, n2, byte(chk >> 4 & 1), byte(chk & 0xF)}
 }
