@@ -1,3 +1,5 @@
+> **Working note, last true on 10 August 2026.** Kept for the thinking in it, not maintained as a description of the code. **3 of the 3 package paths it names no longer exist**, the seven-layer restructure of 19 August having moved them. Where this disagrees with the tree, the tree is right; the authority is the code in `internal/mesh/companion/` and `proto/`.
+
 # The mini companion
 
 A companion client inside the workbench, so that exercising a mesh does not

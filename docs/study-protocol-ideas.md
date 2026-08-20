@@ -1,3 +1,5 @@
+> **Working note, last true on 12 August 2026.** Kept for the thinking in it, not maintained as a description of the code. Where this disagrees with the tree, the tree is right; the authority is nothing - these are ideas, not a record.
+
 # Eight protocol ideas, pre-registered
 
 Read from MeshCore at `727fc05` (the commit `repeater-v1.17.0`,

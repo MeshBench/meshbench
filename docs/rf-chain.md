@@ -1,3 +1,5 @@
+> **Working note, last true on 9 August 2026.** Kept for the thinking in it, not maintained as a description of the code. **2 of the 3 package paths it names no longer exist**, the seven-layer restructure of 19 August having moved them. Where this disagrees with the tree, the tree is right; the authority is the code in `internal/rf/`, and its tests.
+
 # The RF chain
 
 Implementation-level detail for `internal/dsp` and `internal/rf`. Every constant

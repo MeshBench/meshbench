@@ -1,3 +1,5 @@
+> **Working note, last true on 12 August 2026.** Kept for the thinking in it, not maintained as a description of the code. Where this disagrees with the tree, the tree is right; the authority is the wb2 design-language skill, and `internal/ui/`.
+
 # The Gio workbench
 
 A second interface to the same simulator, built to replace the imgui one. Both
