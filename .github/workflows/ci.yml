@@ -70,6 +70,17 @@ jobs:
       - name: go vet
         run: go vet ./...
 
+      # The licence inventory is generated, embedded in the workbench and
+      # shipped in every bundle - and until now licgen ran only on a tag
+      # push. The seven-layer move renamed internal/workbench and licgen's
+      # hardcoded destination did not follow, so the release pipeline was
+      # broken for two days with nothing to notice. Running it here means a
+      # rename that breaks it fails the PR that does the renaming.
+      - name: Licence inventory is generatable, and fresh
+        run: |
+          go run ./tools/licgen
+          git diff --exit-code -- internal/ui/workbench/licences/licences.json
+
       - uses: golangci/golangci-lint-action@v7
         with:
           # v2.1.6 is built with go1.24 and cannot lint a go1.25.0 module -

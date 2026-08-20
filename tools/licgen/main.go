@@ -11,7 +11,7 @@
 //
 // Run from anywhere inside the repo:
 //
-//	go run ./tools/licgen                  regenerate internal/workbench/licences/licences.json
+//	go run ./tools/licgen                  regenerate the embedded licence inventory
 //	go run ./tools/licgen -text DIR        also write one text file per entry into DIR
 //	go run ./tools/licgen -require-project-licence
 //	                                       fail if the project itself still has no licence,
@@ -132,7 +132,16 @@ func main() {
 	if err != nil {
 		fatal(err)
 	}
-	dest := filepath.Join(root, "internal", "workbench", "licences", "licences.json")
+	dest := filepath.Join(root, inventoryPath)
+	// The directory must already exist: this file is compiled into the
+	// workbench, so writing it somewhere new would produce an inventory
+	// nothing embeds while reporting success. The seven-layer move renamed
+	// internal/workbench to internal/ui/workbench and this path did not
+	// follow, which broke the release pipeline silently for two days -
+	// licgen runs only on a tag, so nothing else ever executed it.
+	if _, err := os.Stat(filepath.Dir(dest)); err != nil {
+		fatal(fmt.Errorf("licgen: %s is not where the inventory lives: %w", dest, err))
+	}
 	if err := os.WriteFile(dest, append(buf, '\n'), 0o644); err != nil {
 		fatal(err)
 	}
@@ -399,3 +408,8 @@ func fatal(err error) {
 	fmt.Fprintln(os.Stderr, "licgen:", err)
 	os.Exit(1)
 }
+
+// inventoryPath is where the generated inventory lives, relative to the repo
+// root. Named here rather than spelled inline so the package that embeds it
+// and the tool that writes it can be checked against each other.
+const inventoryPath = "internal/ui/workbench/licences/licences.json"
