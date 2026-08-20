@@ -106,11 +106,17 @@ func registerTerrainPrefetch(st *state.Store, s *Sim) {
 		}
 		w.Say(fmt.Sprintf("fetching %d of %d tiles, roughly %d MB",
 			est.ToFetch, est.Tiles, est.BytesRough>>20))
+		// Cancellable, and the handle registered with the job rather than
+		// kept here: a download of a few thousand tiles is the longest thing
+		// an operator can start by accident, and the only honest way to offer
+		// a stop is to hand the store the function that performs it.
+		ctx, stop := context.WithCancel(context.Background())
 		go func() {
 			defer s.prefetching.Store(false)
-			ctx := context.Background()
-			_, _ = st.Do(ctx, "job.progress", state.Job{
-				ID: "tiles", What: "fetching terrain tiles", Total: est.ToFetch})
+			defer stop()
+			_, _ = st.Do(context.Background(), "job.progress", state.Job{
+				ID: "tiles", What: "fetching terrain tiles",
+				Total: est.ToFetch, Cancel: stop})
 			ts.OnProgress = func(done, total int) {
 				if done == 1 || done%16 == 0 || done == total {
 					_, _ = st.Do(ctx, "job.progress", state.Job{
@@ -120,12 +126,19 @@ func registerTerrainPrefetch(st *state.Store, s *Sim) {
 			}
 			err := ts.Prefetch(ctx, south, north, west, east)
 			ts.OnProgress = nil
-			_, _ = st.Do(ctx, "job.done", "tiles")
+			_, _ = st.Do(context.Background(), "job.done", "tiles")
 			if err != nil {
-				_, _ = st.Do(ctx, "ui.said", "the tile fetch stopped: "+err.Error())
+				// A cancel is not a failure, and saying so as one would teach
+				// an operator to distrust the button they just pressed.
+				if ctx.Err() != nil {
+					_, _ = st.Do(context.Background(), "ui.said",
+						"the tile fetch was stopped; what had already arrived is cached")
+					return
+				}
+				_, _ = st.Do(context.Background(), "ui.said", "the tile fetch stopped: "+err.Error())
 				return
 			}
-			_, _ = st.Do(ctx, "ui.said", fmt.Sprintf(
+			_, _ = st.Do(context.Background(), "ui.said", fmt.Sprintf(
 				"the ground under this study is cached: %d tiles", est.Tiles))
 		}()
 		return map[string]any{"tiles": est.Tiles, "to_fetch": est.ToFetch,
