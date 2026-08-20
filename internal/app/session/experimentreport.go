@@ -179,7 +179,8 @@ func (e *experiment) verdict() string {
 			}
 			d := (got - ref) / ref
 			if math.Abs(d) > math.Abs(biggest) {
-				biggest, what, which = d, m.said, s["arm"].(string)
+				arm, _ := s["arm"].(string)
+				biggest, what, which = d, m.said, arm
 			}
 		}
 	}

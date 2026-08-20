@@ -92,7 +92,8 @@ func pairBuildingLossDB(ix *environ.PathIndex,
 	}
 	tx := float64(heights[0]) + aglA
 	rx := float64(heights[len(heights)-1]) + aglB
-	sc := envScratchPool.Get().(*environ.PathScratch)
+	// envScratchPool.New returns *PathScratch and nothing else puts into it.
+	sc := envScratchPool.Get().(*environ.PathScratch) //nolint:forcetypeassert // sync.Pool with a typed New
 	defer envScratchPool.Put(sc)
 	return ix.PathLossDB(sc,
 		na.Position.Lat, na.Position.Lon, tx,
