@@ -1,6 +1,5 @@
 contextcheck 4
 dupl 10
-forcetypeassert 4
 gosec 34
 noctx 11
 recvcheck 2

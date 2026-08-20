@@ -433,19 +433,25 @@ func terrainStore(opts Options) (*terrain.TileStore, error) {
 // test that only needs "a mesh" should not pay for a country.
 const defaultFixture = "fife-strict"
 
+// radioOf is the network's channel, taken from its first node.
+//
+// The first rather than a survey of all of them: every node in a fixture shares
+// a channel, because a set of nodes that cannot hear each other is not one
+// network. Anything the node leaves unset keeps the default beside it.
 func radioOf(fx *fixture.Fixture) (sf int, bandwidthHz, freqMHz float64) {
 	sf, bandwidthHz, freqMHz = 8, 62.5e3, 869.618
-	for _, n := range fx.Nodes {
-		if n.Radio.SpreadFactor > 0 {
-			sf = n.Radio.SpreadFactor
-		}
-		if n.Radio.BandwidthHz > 0 {
-			bandwidthHz = n.Radio.BandwidthHz
-		}
-		if n.Radio.CentreHz > 0 {
-			freqMHz = float64(n.Radio.CentreHz) / 1e6
-		}
-		break
+	if len(fx.Nodes) == 0 {
+		return sf, bandwidthHz, freqMHz
+	}
+	n := fx.Nodes[0]
+	if n.Radio.SpreadFactor > 0 {
+		sf = n.Radio.SpreadFactor
+	}
+	if n.Radio.BandwidthHz > 0 {
+		bandwidthHz = n.Radio.BandwidthHz
+	}
+	if n.Radio.CentreHz > 0 {
+		freqMHz = float64(n.Radio.CentreHz) / 1e6
 	}
 	return sf, bandwidthHz, freqMHz
 }
