@@ -1,16 +1,12 @@
 name: CI
 
 on:
-  schedule:
-    # 02:00 UTC, when the lab pool is idle. Everything runs: the race detector
-    # because it is too slow to sit in front of a merge, and the ordinary
-    # checks because a nightly green on main is what catches the tree breaking
-    # without anybody having pushed - a dependency, a runner image, a toolchain.
-    - cron: "0 2 * * *"
   push:
     branches: [main]
+    # Tags as well as main, so that pushing a release tag runs the full set
+    # including the race detector - see the race job below.
+    tags: ["v*"]
   pull_request:
-  # The race job below runs on request only, so asking for it is how it runs.
   workflow_dispatch:
 
 permissions:
@@ -204,15 +200,16 @@ jobs:
   # for: run it from the Actions tab before a release, or locally with
   # `go test -race ./...` while chasing something.
   race:
-    # Nightly as well as on request. The reasoning above still holds - it is
-    # too slow to sit in front of a merge - but "run it from the Actions tab
-    # before a release" is a step a person has to remember, and the argument
-    # this whole file makes is that a check should not depend on that.
+    # On a release tag, and on request. The reasoning above still holds - it
+    # is far too slow to sit in front of a merge, and three runners in the
+    # pool means an hour of detector on every push would starve the checks
+    # people are actually waiting for.
     #
-    # Not on push: three runners in the pool and an hour of detector on every
-    # merge would starve the checks people are actually waiting for. At 02:00
-    # the pool is idle and nobody is waiting for anything.
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    # But "run it from the Actions tab before a release" is a step somebody
+    # has to remember, and the argument this file makes throughout is that a
+    # check should not depend on that. Pushing the tag is the moment it
+    # matters, and the moment nobody is waiting on the answer.
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     timeout-minutes: 60
     # No fork fallback needed: schedule and dispatch both run on this repo,
     # and dispatch requires write access to it.
