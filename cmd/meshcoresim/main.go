@@ -67,27 +67,41 @@ func main() {
 	// that way one line above and a tool that takes one and not the other
 	// is the kind of thing people report.
 	if name == "version" || name == "-version" || name == "--version" {
-		fmt.Println("meshcoresim", version.Detail())
+		fmt.Println(invoked(), version.Detail())
 		return
 	}
 
 	for _, c := range commands() {
 		if c.name == name {
 			if err := c.run(ctx, os.Args[2:]); err != nil {
-				fmt.Fprintln(os.Stderr, "meshcoresim:", err)
+				fmt.Fprintln(os.Stderr, invoked()+":", err)
 				os.Exit(1)
 			}
 			return
 		}
 	}
-	fmt.Fprintf(os.Stderr, "meshcoresim: no command %q\n\n", name)
+	fmt.Fprintf(os.Stderr, "%s: no command %q\n\n", invoked(), name)
 	usage()
 	os.Exit(2)
 }
 
+// invoked is the name this binary was run as.
+//
+// The release ships it as "meshbench" while the package is cmd/meshcoresim, so
+// a hardcoded name is wrong for one audience or the other: a user who installs
+// a release and types --help was told to run "meshcoresim", which is not on
+// their machine. Reading argv gets both right, and a rename cannot make it
+// stale again.
+func invoked() string {
+	if len(os.Args) == 0 || os.Args[0] == "" {
+		return "meshcoresim"
+	}
+	return strings.TrimSuffix(filepath.Base(os.Args[0]), ".exe")
+}
+
 func usage() {
-	fmt.Fprintf(os.Stderr, "meshcoresim %s — MeshCore network simulator\n\n", version.String())
-	fmt.Fprintln(os.Stderr, "Usage: meshcoresim <command> [flags]")
+	fmt.Fprintf(os.Stderr, "%s %s — MeshCore network simulator\n\n", invoked(), version.String())
+	fmt.Fprintf(os.Stderr, "Usage: %s <command> [flags]\n", invoked())
 	fmt.Fprintln(os.Stderr)
 	cs := commands()
 	sort.Slice(cs, func(i, j int) bool { return cs[i].name < cs[j].name })
@@ -127,7 +141,7 @@ func terrainFlags(fs *flag.FlagSet) func() (*terrain.TileStore, error) {
 // parse is the shared flag handling: a command's own usage, then its flags.
 func parse(fs *flag.FlagSet, args []string, describe string) error {
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "meshcoresim %s — %s\n\n", fs.Name(), describe)
+		fmt.Fprintf(os.Stderr, "%s %s — %s\n\n", invoked(), fs.Name(), describe)
 		fs.PrintDefaults()
 	}
 	return fs.Parse(args)
