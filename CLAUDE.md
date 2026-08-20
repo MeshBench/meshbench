@@ -101,6 +101,10 @@ internal/ui/        Gio — the only layer permitted a toolkit
   theme/ comp/ mapview-in-comp/ shell/ desktop/ float/ pick/
   workbench/          the workbench itself: panels, state, wiring
 
+meshtest/           a MeshCore network inside somebody else's test - the one
+                    package here that is not internal/, because it exists to
+                    be imported
+
 tools/dissector/    Wireshark Lua dissector
 tools/soak/         drives a running workbench and judges what it heard
 tools/internal/     what only the tools use, said structurally
