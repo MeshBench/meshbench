@@ -8,6 +8,7 @@ package session
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 
@@ -94,9 +95,18 @@ func eventsAsMaps(evs []state.Event) []map[string]any {
 }
 
 func eventAsMap(e state.Event) map[string]any {
-	return map[string]any{
+	m := map[string]any{
 		"at_ms": e.AtMs, "kind": e.Kind, "from": e.From, "to": e.To,
 		"message_id": e.MessageID, "packet_id": e.PacketID,
 		"snr_db": e.SNRdB, "detail": e.Detail,
 	}
+	// A ratio against no noise at all is infinite, and JSON has no way to
+	// say so: one such event failed the whole dump with "unsupported value:
+	// -Inf", losing a hundred thousand good rows to one unrepresentable
+	// number. Null is what JSON has for "no value", and a consumer reading
+	// null as missing is right.
+	if math.IsInf(e.SNRdB, 0) || math.IsNaN(e.SNRdB) {
+		m["snr_db"] = nil
+	}
+	return m
 }

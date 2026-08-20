@@ -34,6 +34,17 @@ func StandardSync(sf int) (int, int) {
 // sfdSamples is the SFD's length in samples: 2.25 downchirp symbols.
 func sfdSamples(sf int) int { return SamplesPerSymbol(sf) * 9 / 4 }
 
+// PreambleDetectSymbols is how many consecutive stable dechirped windows
+// Detect needs before it calls a preamble a preamble and commits.
+//
+// Exported because the engine's demodulator-lock model paces itself by the
+// same figure: the locking contest between two near-simultaneous packets
+// lasts exactly as long as the detector takes to commit, and two copies of
+// that number would drift. Measurement literature on real chips puts the
+// commit at about four symbols; our detector wants five, and the engine
+// mirrors the chain it stands in for rather than the paper.
+const PreambleDetectSymbols = 5
+
 // DataStart is the sample index of the first data symbol.
 func (l FrameLayout) DataStart() int {
 	return (l.Preamble+2)*SamplesPerSymbol(l.SF) + sfdSamples(l.SF)
@@ -94,7 +105,7 @@ type Sync struct {
 func Detect(iq []complex128, layout FrameLayout) (Sync, bool) {
 	sf := layout.SF
 	n := SamplesPerSymbol(sf)
-	need := 5 // consecutive stable windows to call it a preamble
+	need := PreambleDetectSymbols // consecutive stable windows to call it a preamble
 	if layout.Preamble < need+1 {
 		need = layout.Preamble - 1
 	}

@@ -31,17 +31,31 @@ func (e *Engine) pathLoss(a, b int) (float64, bool) {
 
 	e.mu.Lock()
 	if v, ok := e.linkCache[k]; ok {
+		excess := e.Config.ExcessPathLossDB
 		e.mu.Unlock()
 		if math.IsInf(v, 1) {
 			return 0, false
 		}
-		return v, true
+		// The calibration term is applied here, at read, never stored. Baked
+		// into the cache it made the whole measured matrix an artefact of one
+		// calibration: fingerprinted on the term, invalidated by the term, so
+		// every validate.calibrate threw away half an hour of ground-walking
+		// to change a constant that every path shares.
+		return v + excess, true
 	}
 	from, to := e.nodes[a].Spec, e.nodes[b].Spec
 	e.mu.Unlock()
 
 	distKm := geo.DistanceKm(from.Position.Lat, from.Position.Lon, to.Position.Lat, to.Position.Lon)
 	if distKm <= 0 {
+		// Cached like any other no-data answer. Two nodes at one position is
+		// a fact about the scenario, not a transient - and an uncached early
+		// return here left the cache permanently short of complete, so the
+		// "matrix already covers everything" check could never say yes and a
+		// calibration re-measured the country to move a constant.
+		e.mu.Lock()
+		e.linkCache[k] = math.Inf(1)
+		e.mu.Unlock()
 		return 0, false
 	}
 
@@ -53,8 +67,15 @@ func (e *Engine) pathLoss(a, b int) (float64, bool) {
 	// 300-node scenario into a frozen minute: the lazy cache fill walked
 	// forty-five thousand pairs of DEM samples on the frame thread.
 	fspl := terrain.FSPLdB(distKm, e.phyOf(from).freqMHz)
+	// The planet is the first obstacle: the spherical-Earth bulge at midpoint
+	// is a floor under any terrain the profile could find, so a pair the
+	// bulge alone refuses is refused without walking. This is what keeps a
+	// continental stray in an import - one node on the equator - from having
+	// a hundred thousand kilometres of profile walked against it.
+	bulge := terrain.EarthBulgeLossDB(distKm*1000, from.HeightAGLm, to.HeightAGLm,
+		e.phyOf(from).freqMHz)
 	bestTx := math.Max(from.TxPowerDBm, to.TxPowerDBm)
-	bestRx := bestTx + gain(from) + gain(to) - fspl
+	bestRx := bestTx + gain(from) + gain(to) - fspl - bulge
 	// The quieter of the two receivers. This is a cull, so the question is
 	// whether *either* end could hear the other: taking the worse figure would
 	// discard a pair the better receiver can close.
@@ -62,10 +83,16 @@ func (e *Engine) pathLoss(a, b int) (float64, bool) {
 		math.Min(e.noiseFigOf(from), e.noiseFigOf(to)))
 	if bestRx < noise-30 {
 		e.mu.Lock()
-		e.linkCache[k] = fspl // an underestimate, and irrelevant below the floor
+		excess := e.Config.ExcessPathLossDB
+		// Still an underestimate - terrain can only add to it - but the
+		// planet stays in the figure. Caching bare free space here turned
+		// every bulge-culled pair into a viable-looking link: a 200 km hop
+		// prices at 137 dB of free space, which is a -19 dB margin and a line
+		// on the map, when the bulge that refused it was another 40 dB.
+		e.linkCache[k] = fspl + bulge
 		e.culled[k] = true
 		e.mu.Unlock()
-		return fspl, true
+		return fspl + bulge + excess, true
 	}
 
 	// The expensive branch, counted so a caller mid-run can say why it just
@@ -78,18 +105,18 @@ func (e *Engine) pathLoss(a, b int) (float64, bool) {
 	if ok {
 		loss = fspl +
 			terrain.MultiEdgeLossDB(profile, from.HeightAGLm, to.HeightAGLm, e.phyOf(from).freqMHz) +
-			e.buildingLossDB(from, to, profile) +
-			e.Config.ExcessPathLossDB
+			e.buildingLossDB(from, to, profile)
 	}
 
 	e.mu.Lock()
+	excess := e.Config.ExcessPathLossDB
 	e.linkCache[k] = loss
 	delete(e.culled, k)
 	e.mu.Unlock()
 	if !ok {
 		return 0, false
 	}
-	return loss, true
+	return loss + excess, true
 }
 
 // profileCached is profile behind the geometry-keyed cache. The profile is
@@ -184,7 +211,8 @@ func (e *Engine) RestoreLinkCache(m map[[2]int]float64) {
 //
 // The matrix is the upper triangle of an n by n grid, in the same node order
 // the engine holds, carrying free-space plus diffraction and not the excess
-// path loss, which is this engine's own setting and is added here. Pairs the
+// path loss, which the cache never stores - it is applied where the cache is
+// read, so a calibration changes a constant, not the matrix. Pairs the
 // terrain could not answer for are left out rather than guessed at: they fall
 // back to the profile the lazy path would have taken.
 //
@@ -209,7 +237,7 @@ func (e *Engine) PrimeLinks(n int, loss []float32, noData float32) int {
 			if v == noData || math.IsInf(float64(v), 0) || math.IsNaN(float64(v)) {
 				continue
 			}
-			e.linkCache[[2]int{a, b}] = float64(v) + e.Config.ExcessPathLossDB
+			e.linkCache[[2]int{a, b}] = float64(v)
 			filled++
 		}
 	}
@@ -293,7 +321,15 @@ func (e *Engine) buildingLossDB(from, to scenario.Node, profile []terrain.Point)
 	total := profile[len(profile)-1].DistM
 	txM := profile[0].HeightM + from.HeightAGLm
 	rxM := profile[len(profile)-1].HeightM + to.HeightAGLm
-	return environ.PathBuildingLossDB(e.Env, e.Terrain,
+	// Through the index, never the corridor scan: the two are held to the
+	// same crossings by test, and the scan was 61% of a country-sized warm.
+	ix := e.envIndex()
+	if ix == nil {
+		return 0
+	}
+	sc := envScratchPool.Get().(*environ.PathScratch)
+	defer envScratchPool.Put(sc)
+	return ix.PathLossDB(sc,
 		from.Position.Lat, from.Position.Lon, txM,
 		to.Position.Lat, to.Position.Lon, rxM,
 		total, e.phyOf(from).freqMHz)
@@ -307,4 +343,16 @@ func (e *Engine) DropLinkCache() {
 	defer e.mu.Unlock()
 	e.linkCache = map[[2]int]float64{}
 	e.culled = map[[2]int]bool{}
+}
+
+// LinkCachePairs is how many pairs the cache already holds an answer for -
+// including no-data answers, which are answers. A warm that is about to
+// re-measure a hundred thousand pairs asks this first: a cache restored from
+// disk that covers everything leaves the expensive half of a warm with
+// nothing to do, and re-measuring it anyway was the difference between a
+// calibration costing seconds and costing another walk of the country.
+func (e *Engine) LinkCachePairs() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return len(e.linkCache)
 }

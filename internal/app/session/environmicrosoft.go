@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // quadkey is Bing's tile name: the slippy x,y interleaved, one digit a zoom.
@@ -207,6 +208,7 @@ func filterNDJSON(r io.Reader, idx *patchIndex, out io.Writer) (kept int, err er
 // matter how many the map spans.
 func microsoftNDJSON(files []msFile, patches []llBox,
 	progress func(done int)) (io.Reader, func(), error) {
+	sweepStaleEnvironTemps()
 	tmp, err := os.MkdirTemp("", "msim-environ-*")
 	if err != nil {
 		return nil, nil, err
@@ -278,4 +280,24 @@ func downloadTo(url, path string) error {
 		return err
 	}
 	return f.Close()
+}
+
+// sweepStaleEnvironTemps clears extraction directories that earlier runs
+// left behind. The cleanup closure handles every ordinary exit; a killed
+// process cannot run it, and on Linux the temp directory is usually tmpfs -
+// so three abandoned extractions were half a gigabyte of somebody's RAM.
+// An hour of quiet is the safety margin: a directory younger than that may
+// belong to another meshcoresim mid-download, and losing the race costs
+// that download, not correctness.
+func sweepStaleEnvironTemps() {
+	stale, err := filepath.Glob(filepath.Join(os.TempDir(), "msim-environ-*"))
+	if err != nil {
+		return
+	}
+	for _, dir := range stale {
+		if info, err := os.Stat(dir); err == nil &&
+			time.Since(info.ModTime()) > time.Hour {
+			_ = os.RemoveAll(dir)
+		}
+	}
 }

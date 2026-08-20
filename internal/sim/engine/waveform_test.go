@@ -58,22 +58,24 @@ func runCollision(t *testing.T, mode engine.RFMode, interfererStartMs uint32) st
 
 // The MS1 gate: the same interferer at the same power, and the only thing
 // that differs is when it transmits - dead-aligned with the wanted packet,
-// or after the air has cleared. The calculated model's verdict is identical
-// in both timings (an equal-power interferer leaves the effective SNR far
-// above the demodulator floor, so it calls both received); the receiver's
-// verdict is not, because an equal-power collision is a coin flip in every
-// FFT bin and a cleared channel is not. Timing decides, dBm cannot.
+// or after the air has cleared. Timing decides, dBm cannot.
+//
+// Both models now agree on it. They did not always: the calculated path used
+// to call an equal-power aligned collision received, because a single ratio
+// over the whole packet stayed far above the demodulator floor and nothing
+// represented the symbols the interferer landed on. That is the gap this test
+// existed to demonstrate, and it is the one collision.go closes - so the
+// assertion is no longer "the fast model gets this wrong", it is "both models
+// get it right, for their own reasons".
 func TestWaveformInterferenceAlignmentDecides(t *testing.T) {
 	const colliding, cleared = 10, 4000 // interferer start, ms; wanted starts at 10
 
-	calcC := runCollision(t, engine.RFCalculated, colliding)
-	calcF := runCollision(t, engine.RFCalculated, cleared)
-	if calcC != calcF {
-		t.Fatalf("calculated mode distinguished the timings (%q vs %q); "+
-			"the test needs a collision it waves through identically", calcC, calcF)
+	if got := runCollision(t, engine.RFCalculated, colliding); got != "miss" {
+		t.Fatalf("an equal-power aligned collision should not decode in the "+
+			"calculated model either, got %q", got)
 	}
-	if calcC != "rx" {
-		t.Fatalf("the calculated model should wave this collision through, got %q", calcC)
+	if got := runCollision(t, engine.RFCalculated, cleared); got != "rx" {
+		t.Fatalf("clear air should decode in the calculated model, got %q", got)
 	}
 
 	wfC := runCollision(t, engine.RFWaveform, colliding)
@@ -295,8 +297,12 @@ func TestMultipathIsDeterministicGeometry(t *testing.T) {
 			StepMs: 10, Seed: 12, RFMode: engine.RFWaveform,
 			Realism: engine.Realism{MultipathEchoDB: echoDB},
 		})
-		e.Add(wfNode("a", 0, 22), nil)
-		e.Add(wfNode("b", 0.010, 22), nil)
+		// A link the modem can still describe. Two nodes 600 m apart at full
+		// power sit far past the SNR an SX126x can report, so both runs come
+		// back at the ceiling and the echo becomes invisible to a test that
+		// reads it off the ledger - saturated, not absent.
+		e.Add(wfNode("a", 0, -5), nil)
+		e.Add(wfNode("b", 0.060, -5), nil)
 		_ = e.Run(context.Background(), 10)
 		e.InjectFrame(0, []byte("two paths, one antenna"))
 		_ = e.Run(context.Background(), 5000)

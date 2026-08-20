@@ -68,10 +68,23 @@ func (s *Sim) warm(st *state.Store, nodes int) {
 
 		// On by default where there is hardware for it, decided once.
 		s.gpuDefault()
+		// A matrix restored from disk that already answers every pair leaves
+		// the device nothing to measure: the sweep below is map hits, and the
+		// warm is over in the time it takes to read them. Without this check a
+		// calibration - which rebuilds the engine but changes no geometry -
+		// re-measured the whole country to move a constant the cache does not
+		// even store.
+		primed := eng.LinkCachePairs() >= total
+		if !primed {
+			// The ground first, announced: a walk over a region whose tiles
+			// are not down yet otherwise fetches them one by one from the
+			// middle of the measurement, which reads as a hang.
+			s.prefetchWarmTerrain(ctx, st, warmNodes)
+		}
 		// The GPU first, if it is switched on and can answer honestly. What
 		// it fills, the cores below no longer have to: WarmLinks asks the
 		// cache before it measures anything.
-		if s.gpuWarm {
+		if s.gpuWarm && !primed {
 			res := s.warmOnGPU(eng, warmNodes, freqMHz, func(what string, done, total int) {
 				_, _ = st.Do(ctx, "job.progress", state.Job{
 					ID: "links", What: what, Done: done, Total: total})
@@ -155,8 +168,16 @@ func (s *Sim) warming() bool {
 	return s.warmCancel != nil && !s.warmed
 }
 
-// geometryFingerprint hashes everything a path loss depends on.
-func geometryFingerprint(nodes []scenario.Node, freqMHz, excess float64) uint64 {
+// geometryFingerprint hashes everything the stored matrix depends on.
+//
+// Deliberately not the excess-loss term: the cache stores the raw physics and
+// the term is applied where it is read, so a calibration changes a constant
+// rather than the matrix - fingerprinting on it made every validate.calibrate
+// throw away half an hour of ground-walking to move a number every path
+// shares. Old matrices, keyed under hashes that included the term with it
+// baked into every entry, simply never match this fingerprint and are
+// remeasured once.
+func geometryFingerprint(nodes []scenario.Node, freqMHz float64) uint64 {
 	h := fnv.New64a()
 	b := make([]byte, 8)
 	put := func(f float64) {
@@ -164,7 +185,6 @@ func geometryFingerprint(nodes []scenario.Node, freqMHz, excess float64) uint64 
 		_, _ = h.Write(b)
 	}
 	put(freqMHz)
-	put(excess)
 	for _, n := range nodes {
 		_, _ = h.Write([]byte(n.Name))
 		put(n.Position.Lat)

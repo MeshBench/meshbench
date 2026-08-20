@@ -99,6 +99,14 @@ type Engine struct {
 	// rather than verdicts.
 	Env environ.Provider
 
+	// The building index over Env, built lazily by envIndex and remembered
+	// with what it was built from, so swapping the provider or growing the
+	// fleet rebuilds it rather than pricing yesterday's town.
+	envMu      sync.Mutex
+	envIx      *environ.PathIndex
+	envIxFor   environ.Provider
+	envIxNodes int
+
 	mu    sync.Mutex
 	nodes []*Node
 	// builds is what the last firmware attach resolved to, so a result can

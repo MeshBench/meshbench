@@ -257,3 +257,41 @@ func TestCachedReadSeesDiskNotJustMemory(t *testing.T) {
 		t.Error("a tile that was never downloaded was reported as cached")
 	}
 }
+
+// A prefetch moves only what is missing, and never decodes what is not.
+//
+// The old loop get()ed every tile in the box: on an already-cached country
+// that was gigabytes of RAM spent decoding tiles to confirm what a stat
+// already said, and progress that counted cached tiles as work. Now a cached
+// tile costs one stat; only the gaps travel, and the totals are the gaps.
+func TestPrefetchSkipsWhatIsAlreadyOnDisk(t *testing.T) {
+	srv := &tileServer{body: terrariumTile(func(int, int) float64 { return 100 })}
+	s := store(t, srv)
+
+	// Cache the box once, wholesale.
+	if err := s.Prefetch(context.Background(), 56.6, 56.7, -4.0, -3.9); err != nil {
+		t.Fatal(err)
+	}
+	fetched := atomic.LoadInt64(&srv.requests)
+	if fetched == 0 {
+		t.Fatal("the first prefetch fetched nothing; the fixture is broken")
+	}
+
+	// A second store over the same directory: cold memory, warm disk.
+	again := store(t, srv)
+	again.CacheDir = s.CacheDir
+	var total int
+	again.OnProgress = func(_, tot int) { total = tot }
+	if err := again.Prefetch(context.Background(), 56.6, 56.7, -4.0, -3.9); err != nil {
+		t.Fatal(err)
+	}
+	if got := atomic.LoadInt64(&srv.requests); got != fetched {
+		t.Fatalf("a fully-cached prefetch made %d more requests", got-fetched)
+	}
+	if total != 0 {
+		t.Fatalf("progress promised %d tiles over a fully-cached box", total)
+	}
+	if n := again.LoadedTiles(); n != 0 {
+		t.Fatalf("prefetch decoded %d cached tiles into memory just to skip them", n)
+	}
+}

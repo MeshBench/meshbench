@@ -157,29 +157,97 @@ func (s *TileStore) Estimate(south, north, west, east float64) Estimate {
 	return e
 }
 
-// Prefetch downloads everything a box needs, reporting progress.
+// Prefetch downloads what a box is missing, reporting progress over exactly
+// that: the tiles it will actually move.
 //
 // Done up front rather than lazily during a computation because a raster that
 // stalls for a minute in the middle looks like a hang, and because the total is
-// only knowable in advance.
+// only knowable in advance. Two properties are deliberate. Cached tiles are
+// skipped by a stat, never by get(): getting a cached tile decodes it into
+// memory, so a prefetch over an already-cached country cost gigabytes of RAM
+// to confirm what the filesystem already knew. And the missing ones download
+// on several connections at once - one at a time, a few thousand tiles of a
+// fresh region is most of an hour spent watching one request's latency.
 func (s *TileStore) Prefetch(ctx context.Context, south, north, west, east float64) error {
-	count, x0, y0, x1, y1 := TilesForBounds(south, north, west, east, s.zoom())
-	done := 0
+	_, x0, y0, x1, y1 := TilesForBounds(south, north, west, east, s.zoom())
+	tiles := make([][2]int, 0, (x1-x0+1)*(y1-y0+1))
 	for x := x0; x <= x1; x++ {
 		for y := y0; y <= y1; y++ {
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-			if _, err := s.get(ctx, x, y); err != nil {
-				return err
-			}
-			done++
-			if s.OnProgress != nil {
-				s.OnProgress(done, count)
-			}
+			tiles = append(tiles, [2]int{x, y})
 		}
 	}
-	return nil
+	return s.PrefetchTiles(ctx, tiles)
+}
+
+// PrefetchTiles downloads whichever of the given tiles are not on disk yet.
+//
+// The list form exists because a bounding box is usually the wrong shape: a
+// link warm samples terrain only under the lines between its nodes, and the
+// rectangle around a coastal country is mostly open sea those lines never
+// cross. Prefetching the box fetched twenty-eight thousand tiles of Atlantic
+// while the operator watched the warm sit on zero percent.
+func (s *TileStore) PrefetchTiles(ctx context.Context, tiles [][2]int) error {
+	var missing [][2]int
+	for _, t := range tiles {
+		if _, err := os.Stat(s.path(t[0], t[1])); err != nil {
+			missing = append(missing, t)
+		}
+	}
+	if s.OnProgress != nil {
+		s.OnProgress(0, len(missing))
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+
+	// Bounded fan-out: kind to the tile host, decisive against latency. The
+	// first error stops the hand-out - a host that refused one tile is about
+	// to refuse the rest, and a thousand further failures say nothing new.
+	const fetchers = 8
+	jobs := make(chan [2]int)
+	var wg sync.WaitGroup
+	// One voice for progress: the callback's contract predates the fan-out,
+	// and every existing caller writes plain state from it. Serialised here,
+	// the count also stays monotonic instead of arriving shuffled.
+	var progressMu sync.Mutex
+	done := 0
+	var firstErr error
+	var errOnce sync.Once
+	fetchCtx, stop := context.WithCancel(ctx)
+	defer stop()
+	for w := 0; w < fetchers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for t := range jobs {
+				if fetchCtx.Err() != nil {
+					continue
+				}
+				if _, err := s.get(fetchCtx, t[0], t[1]); err != nil {
+					errOnce.Do(func() { firstErr = err; stop() })
+					continue
+				}
+				progressMu.Lock()
+				done++
+				if s.OnProgress != nil {
+					s.OnProgress(done, len(missing))
+				}
+				progressMu.Unlock()
+			}
+		}()
+	}
+	for _, t := range missing {
+		if fetchCtx.Err() != nil {
+			break
+		}
+		jobs <- t
+	}
+	close(jobs)
+	wg.Wait()
+	if firstErr != nil {
+		return firstErr
+	}
+	return ctx.Err()
 }
 
 func (s *TileStore) path(x, y int) string {
@@ -346,17 +414,22 @@ func decodeTerrarium(b []byte) (*tile, error) {
 	return t, nil
 }
 
-// DefaultMaxLoadedTiles is 40,960 decoded tiles at a quarter megabyte each:
-// 10 GB, a whole country several times over, on machines that carry three
-// times that. Settable from the Configuration page for machines that do not.
+// DefaultMaxLoadedTiles is 24,576 decoded tiles at a quarter megabyte each:
+// about 6 GB - the whole of Britain and Ireland at zoom 12 with headroom,
+// which is the largest thing anyone has imported. Settable from the
+// Configuration page in either direction.
 //
-// The old cap of 1,024 believed its own comment - "enough that a profile
-// across a country does not thrash" - and it was not: a national scenario
-// has tens of thousands of tiles on disk, so warming 48,000 criss-crossing
-// profiles evicted constantly and re-decoded PNGs at milliseconds each. That
-// thrash was the whole cost of a nine-minute warm whose arithmetic took 30
-// milliseconds.
-const DefaultMaxLoadedTiles = 40960
+// Both edges of this number have been hit. The old cap of 1,024 believed its
+// own comment - "enough that a profile across a country does not thrash" -
+// and it was not: a national warm evicted constantly and re-decoded PNGs at
+// milliseconds each, and the thrash was the whole cost of a nine-minute warm
+// whose arithmetic took 30 milliseconds. The next cap of 40,960 fixed that
+// by allowing 10 GB, and on a 31 GB desktop that was already running a
+// browser and a compile it was the difference between simulating and
+// swapping - the operator watched their RAM run out mid-warm. The working
+// set is what decides: below it, milliseconds per sample; above it, wasted
+// memory. UK-and-Ireland at zoom 12 is roughly 18,000 tiles.
+const DefaultMaxLoadedTiles = 24576
 
 // remember stores a decoded tile and evicts the oldest once the cap is passed.
 // Called with the lock held.

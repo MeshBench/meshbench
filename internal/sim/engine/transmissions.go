@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/MeshBench/meshbench/internal/mesh/firmware"
 	"github.com/MeshBench/meshbench/internal/rf/dsp"
 	"github.com/MeshBench/meshbench/internal/sim/capture"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
@@ -198,9 +197,30 @@ func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCac
 			}
 		}
 
+		// One demodulator: whoever this receiver locked onto first has it for
+		// the length of their packet, and nothing else gets decoded inside
+		// that window however strong it is.
+		held := ""
+		if !deaf {
+			held = e.demodulatorHeldBy(i, t, concurrent, nodes, txPHY)
+		}
+
+		// What a collision destroyed on the way through, for a packet that
+		// won the demodulator in the first place.
+		damaged, repaired, survives := 0.0, 0, true
+		if !deaf && held == "" {
+			damaged = e.corruptedSymbols(i, t, rxDBm, concurrent, nodes, txPHY)
+			repaired, survives = survivesCorruption(damaged, txPHY.codingRate)
+		}
+
+		// What the modem would have said, as against what the arithmetic
+		// produced. Every SNR that leaves here is the reportable one; the
+		// unclamped ratio stays behind to make the decisions.
+		reported := dsp.ReportSNRdB(effective)
+
 		rec := capture.Reception{
 			PacketID: t.packetID, FromNode: src.Spec.Name, ToNode: dst.Spec.Name,
-			RSSIdBm: rxDBm, SNRdB: effective,
+			RSSIdBm: dsp.ReportRSSIdBm(rxDBm), SNRdB: reported,
 			Offered: rxDBm > noiseDBm-10,
 		}
 		// Recorded before the verdict is turned into words: the capture wants
@@ -232,8 +252,32 @@ func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCac
 			rec.Outcome = capture.NotDemodulated
 			e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.Spec.Name, To: dst.Spec.Name,
 				PacketID: t.packetID, MessageID: t.payload, Outcome: rec.Outcome,
-				SNRdB: effective, Frame: t.frame,
+				SNRdB: reported, Frame: t.frame,
 				Detail: "its own transmitter was keyed; LoRa is half duplex"})
+		case held != "" && effective >= required:
+			// Strong enough to have decoded, and it still did not: the one
+			// demodulator this receiver has was already following somebody
+			// else's preamble. Reported only when the packet would otherwise
+			// have arrived, so a weak signal is never relabelled as a
+			// collision it was never in the running for.
+			rec.Outcome = capture.NotDemodulated
+			e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.Spec.Name, To: dst.Spec.Name,
+				PacketID: t.packetID, MessageID: t.payload, Outcome: rec.Outcome,
+				SNRdB: reported, Frame: t.frame, Detail: busyDemodulatorDetail(held)})
+		case held == "" && effective >= required && !survives:
+			// It locked, it led every interferer on average, and something
+			// still landed on its symbols. Waveform mode reaches this verdict
+			// through the demodulator; here it is the interleaver's own
+			// guarantee applied to the overlap the timing actually produced.
+			rec.Outcome = capture.NotDemodulated
+			rec.Demod = true
+			e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.Spec.Name, To: dst.Spec.Name,
+				PacketID: t.packetID, MessageID: t.payload, Outcome: rec.Outcome,
+				SNRdB: reported, Frame: t.frame,
+				Detail: fmt.Sprintf(
+					"decoded its header, then %.0f symbol(s) were destroyed by a collision "+
+						"it could not capture over; beyond what CR 4/%d can repair",
+					damaged, txPHY.codingRate+4)})
 		case effective < required:
 			rec.Outcome = capture.NotDemodulated
 			// How near it came. Interference is included deliberately: a packet
@@ -243,11 +287,12 @@ func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCac
 			e.sens.note(effective-required, false)
 			why := fmt.Sprintf("SNR %.1f dB against %.1f dB needed at SF%d", effective, required, e.Config.SF)
 			if !math.IsInf(interferenceDBm, -1) && snr >= required {
-				why = fmt.Sprintf("would have decoded at %.1f dB, lost to a stronger interferer", snr)
+				why = fmt.Sprintf("would have decoded at %.1f dB, lost to a stronger interferer",
+					dsp.ReportSNRdB(snr))
 			}
 			e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.Spec.Name, To: dst.Spec.Name,
 				PacketID: t.packetID, MessageID: t.payload, Outcome: rec.Outcome,
-				SNRdB: effective, Frame: t.frame, Detail: why})
+				SNRdB: reported, Frame: t.frame, Detail: why})
 		default:
 			rec.Demod, rec.CRCOK, rec.FirmwareSaw = true, true, true
 			rec.Outcome = capture.Accepted
@@ -274,9 +319,13 @@ func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCac
 			if !first {
 				detail = "already had this message; the relay cost airtime and reached nobody new"
 			}
+			if repaired > 0 {
+				detail = fmt.Sprintf("%d symbol(s) lost to a collision and repaired by FEC; ",
+					repaired) + detail
+			}
 			e.record(Event{AtMs: t.endMs, Kind: "rx", From: src.Spec.Name, To: dst.Spec.Name,
 				Frame: t.frame, PacketID: t.packetID, MessageID: t.payload,
-				Outcome: rec.Outcome, SNRdB: effective, Detail: detail})
+				Outcome: rec.Outcome, SNRdB: reported, Detail: detail})
 
 			// Only a node running firmware is handed the frame. An observer
 			// hears it and does nothing, which is what an observer is.
@@ -349,128 +398,4 @@ func (e *Engine) startTransmission(from int, frame []byte, now uint32) {
 
 	e.record(Event{AtMs: now, Kind: "tx", From: name, PacketID: id, MessageID: t.payload, Frame: frame,
 		Detail: fmt.Sprintf("%d bytes, %.0f ms on air", len(frame), airtime)})
-}
-
-// channelBusy answers, for every node, whether another station is on the air
-// loudly enough to be detected here.
-//
-// This is the input to MeshCore's listen-before-talk, and it is the whole
-// reason the firmware defers instead of transmitting into somebody else's
-// packet. Nothing but the engine can work it out: the node's own radio has no
-// view of the channel, and a node cannot hear itself.
-//
-// Detection, not decoding. A LoRa receiver locks onto a preamble several dB
-// below the level at which it could demodulate the payload, so the threshold is
-// the demodulator floor for the current spreading factor rather than anything
-// stricter - a carrier a node can detect but not decode is exactly the case
-// listen-before-talk exists for.
-func (e *Engine) channelBusy(now uint32) []bool {
-	// Snapshot under the lock, compute outside it. pathLoss takes the same
-	// mutex, and Go's is not reentrant: holding it across that call deadlocks
-	// the frame thread on the first tick with anything in the air, which
-	// presents as the window going black.
-	e.mu.Lock()
-	nodes := make([]*Node, len(e.nodes))
-	copy(nodes, e.nodes)
-	air := make([]transmission, 0, len(e.inFlight))
-	for _, t := range e.inFlight {
-		if now >= t.startMs && now < t.endMs {
-			air = append(air, t)
-		}
-	}
-	e.mu.Unlock()
-
-	busy := make([]bool, len(nodes))
-	if len(air) == 0 {
-		return busy
-	}
-	e.mu.Lock()
-	mode := e.Config.rfMode()
-	e.mu.Unlock()
-	if mode == RFWaveform {
-		return e.waveformBusy(now, nodes, air)
-	}
-	for i, dst := range nodes {
-		if dst.Firmware == nil {
-			continue
-		}
-		rxPHY := e.phyOf(dst.Spec)
-		for _, t := range air {
-			// A node is deaf to the channel while its own transmitter is keyed,
-			// and it is not listening for itself in any case.
-			if t.from == i {
-				continue
-			}
-			src := nodes[t.from]
-			// Activity on another channel is not activity this node can detect
-			// - the rule delivery already uses. Without it a node would defer
-			// to a mesh it is not part of.
-			txPHY := e.phyOf(src.Spec)
-			if !txPHY.sameChannel(rxPHY) {
-				continue
-			}
-			loss, ok := e.pathLoss(t.from, i)
-			if !ok {
-				continue
-			}
-			rxDBm := src.Spec.TxPowerDBm + gain(src.Spec) - loss + gain(dst.Spec)
-			noiseDBm := dsp.NoiseFloorDBm(txPHY.bandwidthHz, e.noiseFigOf(dst.Spec))
-			if rxDBm-noiseDBm >= requiredSNRdB(txPHY.sf) {
-				busy[i] = true
-				break
-			}
-		}
-	}
-	return busy
-}
-
-// Inject introduces a message into the network from a node.
-//
-// Where the node runs firmware, the firmware is asked to originate it and
-// builds a real MeshCore packet — which is the only way the rest of the network
-// will relay it. A frame fabricated here is not a valid packet, every receiving
-// node drops it, and the result is a flood that reaches its neighbours and stops
-// dead. That failure is silent and looks exactly like a network with no relays
-// configured, which is why it is worth this branch.
-//
-// Where there is no firmware, the frame goes on the air as-is. That still
-// exercises the channel, the collisions and the ledger, and it is how a
-// scenario runs at all without a MeshCore build to hand.
-func (e *Engine) Inject(nodeIndex int, payload []byte) {
-	e.mu.Lock()
-	ok := nodeIndex >= 0 && nodeIndex < len(e.nodes)
-	var fw *firmware.Node
-	if ok {
-		fw = e.nodes[nodeIndex].Firmware
-	}
-	now := e.nowMs
-	e.mu.Unlock()
-	if !ok {
-		return
-	}
-	if fw != nil {
-		if err := fw.Bridge.Originate(payload); err != nil {
-			e.record(Event{AtMs: now, Kind: "miss", Detail: err.Error()})
-		}
-		return
-	}
-	e.startTransmission(nodeIndex, payload, now)
-}
-
-// InjectFrame puts raw bytes on the air from a node, exactly as recorded.
-//
-// The live-replay path: a packet the real network's origin transmitted is
-// re-transmitted here by the same-named simulated node, bytes unaltered, so
-// the region scope, path and type the other nodes' firmware will judge are the
-// real ones. Deliberately not Originate(): the firmware would wrap the payload
-// in a new packet of its own, and the point is to replay the packet that flew.
-func (e *Engine) InjectFrame(nodeIndex int, frame []byte) {
-	e.mu.Lock()
-	ok := nodeIndex >= 0 && nodeIndex < len(e.nodes)
-	now := e.nowMs
-	e.mu.Unlock()
-	if !ok || len(frame) == 0 {
-		return
-	}
-	e.startTransmission(nodeIndex, frame, now)
 }

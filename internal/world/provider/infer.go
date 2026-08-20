@@ -259,6 +259,11 @@ type PacketRecord struct {
 	Receiver string
 	Origin   string
 
+	// PacketID identifies the message across observers, where the source has
+	// one. Two rows with the same ID are two vantage points on one
+	// transmission, which is what turns a pile of rows into evidence.
+	PacketID string
+
 	// At is when the source recorded it, where it says. A walk bounded by
 	// hours needs this; a walk bounded by a packet count did not, which is
 	// why it was missing.

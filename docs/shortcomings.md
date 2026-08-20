@@ -219,6 +219,46 @@ whose symbols we got right, not one that passed a real integrity check.
 Airtime *is* computed with the coding rate (§4.1), so timing is right even
 though the error behaviour is not.
 
+### 2.3 The capture threshold is a hardware figure, not one we measured
+
+Collisions are decided by how far a wanted signal leads its interferer. The
+calculated path uses **6 dB**, the figure LoRa capture is usually quoted at for
+same-spreading-factor collisions.
+
+Our own receive chain does not need anything like that much. Swept across eight
+symbol alignments, it recovers the stronger of two fully-overlapping frames from
+**0.5 dB** ahead — because it is an ideal coherent demodulator with no
+oscillator error, no AGC transient and no quantisation, so two clean tones in an
+FFT are separated by whichever is larger.
+
+**We deliberately use the hardware number rather than our own.** A simulator that
+captured as easily as its idealised DSP would let packets survive collisions
+that kill them on the bench. `TestCaptureThresholdMatchesTheDemodulator` guards
+the relationship rather than the value: it fails if the receive chain ever needs
+*more* lead than real hardware, which would make the fast path the optimistic
+one.
+
+**Direction of error: unknown, and that is the point.** 6 dB is defensible and
+widely cited, but it is not measured from ScotMesh or from a bench here. It is
+the least-grounded constant in the collision model, and the one to attack first
+with real captures.
+
+By contrast, the rules around it *are* grounded. The reported-SNR ceiling of
++15 dB is measured from 1,992 real ScotMesh receptions, which have a median of
++5.0 dB, a 90th percentile of +13.0 dB and nothing above the wall; reported
+RSSI is bounded to the register that reports it (0 to −127.5 dBm), which the
+same 2,000 packets span exactly. The repair rule — one destroyed symbol is
+recoverable at CR 4/7 and 4/8 and fatal below them, two are fatal everywhere —
+falls straight out of the diagonal interleaver and the Hamming layer in
+`internal/rf/lora`, whose parity equations were solved from a real captured
+frame rather than taken from a paper. And the demodulator lock's contest
+window is paced by our own detector's commitment — `dsp.PreambleDetectSymbols`,
+five stable dechirped windows — with measurement literature on real chips
+putting the same commit at about four symbols; inside that window the dominant
+signal takes the lock, which is capture effect at the moment it happens, and a
+holder that falls silent early in a long MeshCore preamble frees the receiver
+to acquire what is left.
+
 ---
 
 ## 3. Firmware fidelity

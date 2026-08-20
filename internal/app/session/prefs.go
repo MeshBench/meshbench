@@ -11,9 +11,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
+	"github.com/MeshBench/meshbench/internal/rf/terrain"
 )
 
 // Prefs are the machine-level choices, as the file stores them.
@@ -80,6 +82,7 @@ func (s *Sim) LoadPrefs() {
 	if p.TileCacheGB > 0 {
 		s.tileCacheTiles = int(p.TileCacheGB * tilesPerGB)
 	}
+	s.applyMemoryCeiling()
 	if p.GPU != nil {
 		// A remembered choice is a choice: the hardware default does not get
 		// another go at it.
@@ -241,4 +244,32 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	return os.WriteFile(dst, b, 0o644)
+}
+
+// applyMemoryCeiling puts a soft limit on the Go heap: the tile budget plus
+// fixed headroom for everything else the application is.
+//
+// Without one, the collector's doubling headroom sat on top of the tile
+// cache's own budget: a 10 GB cache preference became 20 GB of process on a
+// 31 GB desktop, and the operator watched their machine run out of memory
+// mid-warm - twice. The ceiling makes the garbage collector actually collect
+// what the tile cache evicts, instead of banking it against a heap target
+// nobody chose.
+//
+// GOMEMLIMIT in the environment wins untouched: the runtime already honours
+// it, and an operator who set it has said something this heuristic must not
+// talk over.
+func (s *Sim) applyMemoryCeiling() {
+	if os.Getenv("GOMEMLIMIT") != "" {
+		return
+	}
+	tiles := s.tileCacheTiles
+	if tiles <= 0 {
+		tiles = terrain.DefaultMaxLoadedTiles
+	}
+	// A decoded tile is 256x256 float32; the headroom carries the engine,
+	// the interface, the decode scratch and the basemap.
+	const tileBytes = 256 * 256 * 4
+	const headroom = int64(3) << 30
+	debug.SetMemoryLimit(int64(tiles)*tileBytes + headroom)
 }

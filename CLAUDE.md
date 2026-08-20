@@ -93,6 +93,7 @@ internal/ui/        Gio — the only layer permitted a toolkit
   workbench/          the workbench itself: panels, state, wiring
 
 tools/dissector/    Wireshark Lua dissector
+tools/soak/         drives a running workbench and judges what it heard
 tools/internal/     what only the tools use, said structurally
 ```
 
