@@ -1,8 +1,11 @@
+> **Working note, last true on 14 August 2026.** Kept for the thinking in it, not maintained as a description of the code. **11 of the 12 package paths it names no longer exist**, the seven-layer restructure of 19 August having moved them. Where this disagrees with the tree, the tree is right; the authority is the layout map in `CLAUDE.md`.
+
 # Architecture
 
-How MeshBench fits together, and why each seam is where it is. Read this
-before writing code; the ADRs in Plane project **MSIM** carry the reasoning,
-this carries the shape.
+How MeshBench fits together, and why each seam is where it is. The ADRs in
+Plane project **MSIM** carry the reasoning; this carries the shape it had when
+it was written. For the shape it has now, read the layout map in `CLAUDE.md` —
+that one is checked against the tree.
 
 ## The one-paragraph version
 

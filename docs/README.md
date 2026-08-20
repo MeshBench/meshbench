@@ -35,17 +35,26 @@ what will not run where. Split out of `CLAUDE.md` so that the rules there apply
 to anyone on any machine. This one is expected to go stale, and going stale
 harms nothing.
 
-## Not migrated yet
+## Working notes
 
-Source material for pages that have not been written. Each is technical writing
-in the working register — it gets rewritten for the site rather than copied,
-because the site is neutral and impersonal and these are not.
+Source material for pages that have not been written, and thinking worth
+keeping. Each is technical writing in the working register — it gets rewritten
+for the site rather than copied, because the site is neutral and impersonal and
+these are not.
+
+**Every one now opens with the date it was last true**, and says so where the
+code has moved underneath it. That stamp is the point: `architecture.md` opened
+with "read this before writing code" while eleven of the twelve package paths it
+named no longer existed, which is worse than having no architecture document.
 
 `architecture.md`, `rf-chain.md`, `firmware-integration.md`, `fixtures.md`,
 `experiments.md`, `driving-the-workbench.md`, `gio-workbench.md`,
 `emulated-published-firmware.md`, `packaging-emulation.md`,
-`lower-radio-shim.md`, `virtual-sx1262.md`, `radio-state-from-firmware.md`,
-`mini-companion.md`, `adr-0019-headless.md`
+`lower-radio-shim.md`, `radio-state-from-firmware.md`, `mini-companion.md`,
+`study-protocol-ideas.md`, `adr-0019-headless.md`
+
+`virtual-sx1262.md` is **not** in that list any more: two packages name it, so
+it is load-bearing and belongs above.
 
 Several already have a thinner page on the site under the same name. Those need
 reconciling, not replacing.

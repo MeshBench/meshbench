@@ -1,3 +1,5 @@
+> **Working note, last true on 11 August 2026.** Kept for the thinking in it, not maintained as a description of the code. Where this disagrees with the tree, the tree is right; the authority is the code in `internal/mesh/shim/`.
+
 # Moving the shim below the driver
 
 ## The problem, stated precisely

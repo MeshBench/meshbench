@@ -1,3 +1,5 @@
+> **Working note, last true on 12 August 2026.** Kept for the thinking in it, not maintained as a description of the code. **2 of the 2 package paths it names no longer exist**, the seven-layer restructure of 19 August having moved them. Where this disagrees with the tree, the tree is right; the authority is the board matrix in `README.md`.
+
 # Download the published firmware and run it
 
 The goal: pick a board and a version in the workbench, fetch the same binary the

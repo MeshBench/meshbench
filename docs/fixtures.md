@@ -1,3 +1,5 @@
+> **Working note, last true on 12 August 2026.** Kept for the thinking in it, not maintained as a description of the code. Where this disagrees with the tree, the tree is right; the authority is the fixtures themselves, under `fixtures/`.
+
 # The shipped fixtures
 
 Networks you can load and run without importing anything. Built from live

@@ -1,3 +1,5 @@
+> **Working note, last true on 12 August 2026.** Kept for the thinking in it, not maintained as a description of the code. **1 of the 1 package paths it names no longer exist**, the seven-layer restructure of 19 August having moved them. Where this disagrees with the tree, the tree is right; the authority is the verb list the control socket answers.
+
 # Driving the workbench from outside
 
 Findings from agent-driven sessions, written down because each one cost a

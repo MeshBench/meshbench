@@ -1,3 +1,5 @@
+> **Working note, last true on 17 August 2026.** Kept for the thinking in it, not maintained as a description of the code. Where this disagrees with the tree, the tree is right; the authority is `.github/workflows/package.yml`.
+
 # Packaging emulation
 
 What a released MeshBench has to ship, fetch or ask for so that emulated nodes

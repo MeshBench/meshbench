@@ -1,3 +1,5 @@
+> **Working note, last true on 14 August 2026.** Kept for the thinking in it, not maintained as a description of the code. **2 of the 2 package paths it names no longer exist**, the seven-layer restructure of 19 August having moved them. Where this disagrees with the tree, the tree is right; the authority is the code in `internal/mesh/shim/`.
+
 # Radio state comes from the firmware, not the board profile
 
 Two bugs from MeshCore 1.17.1, chosen because they are the two MeshBench should
