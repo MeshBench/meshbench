@@ -11,9 +11,13 @@
 # (residual data patterns, not instructions), and the image boots directly.
 set -euo pipefail
 
+HERE=$(cd "$(dirname "$0")" && pwd)
+
 MC=${MESHCORE:-$HOME/msim/MeshCore}
 CRY=${CRYPTO:-$HOME/msim/arduinolibs/libraries/Crypto}
-SHIM=${SHIM:-$(dirname "$0")/../../internal/mesh/shim}
+# Absolute, because the compile runs from build/ - a relative shim path
+# resolved against the wrong directory there and Stream.h went missing.
+SHIM=${SHIM:-$HERE/../../internal/mesh/shim}
 TC=$(ls -d "$HOME"/.platformio/packages/toolchain-gccarmnoneeabi/bin 2>/dev/null || true)
 [ -n "$TC" ] && export PATH="$TC:$PATH"
 
@@ -21,7 +25,6 @@ FLAGS="-mcpu=cortex-m4 -mthumb -mfloat-abi=softfp -mfpu=fpv4-sp-d16 -Os
        -ffunction-sections -fdata-sections -fno-exceptions -fno-rtti
        -fno-threadsafe-statics"
 INC="-I $MC/src -I $SHIM -I $CRY -I $MC/lib/ed25519"
-HERE=$(cd "$(dirname "$0")" && pwd)
 
 rm -rf "$HERE/build" && mkdir -p "$HERE/build" && cd "$HERE/build"
 arm-none-eabi-g++ -std=c++17 $FLAGS $INC -c "$MC"/src/{Utils,Packet,Identity,Mesh,Dispatcher}.cpp
