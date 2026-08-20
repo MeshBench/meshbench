@@ -291,6 +291,11 @@ var EmulationVerified = []string{
 	"RAK_4631",
 	"Heltec_t114",
 	"Heltec_t096",
+	// Both were unreachable until they were named for the build that makes
+	// their image, and both went straight through on the first probe after
+	// that: build, boot, radio, tx, rx, flood.
+	"Xiao_nrf52",
+	"Heltec_mesh_solar",
 }
 
 // EmulationSupported reports whether a board can be run under emulation today.
