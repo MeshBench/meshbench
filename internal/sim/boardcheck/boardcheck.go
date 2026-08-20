@@ -158,9 +158,20 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 	// Already on disk is the common case once a board has been probed once,
 	// and it needs no network at all - checked first, so a flaky connection
 	// to GitHub's API does not turn "cached" into "untested".
-	cached := firmware.BoardImage{Board: board, Role: "simple_repeater", Version: version, Format: "bin"}
-	imgPath := firmware.BoardImagePath(cacheDir, cached)
-	if _, err := os.Stat(imgPath); err == nil {
+	// Both formats, because the format follows the MCU: a merged .bin for the
+	// ESP32 boards and a .uf2 for the nRF52 ones. Looking only for .bin sent
+	// every nRF52 board to the network on every probe, cached or not.
+	var imgPath string
+	for _, format := range []string{"bin", "uf2"} {
+		p := firmware.BoardImagePath(cacheDir, firmware.BoardImage{
+			Board: board, Role: "simple_repeater", Version: version, Format: format,
+		})
+		if _, err := os.Stat(p); err == nil {
+			imgPath = p
+			break
+		}
+	}
+	if imgPath != "" {
 		report.set(Build, Passed, "image already cached: "+imgPath)
 	} else {
 		all, err := cat.ListAll(ctx)
@@ -168,8 +179,12 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 			report.set(Build, Failed, "could not reach the firmware catalogue: "+err.Error())
 			return report
 		}
+		// Through Runnable, because a release carries more than one asset per
+		// board and only some of them are a flash image. Taking the last match
+		// picked the DFU .zip over the .uf2, which then got loaded as if it
+		// were flash.
 		var img firmware.BoardImage
-		for _, i := range all {
+		for _, i := range firmware.Runnable(all, nil) {
 			if i.Board == board && i.Version == version && i.Role == "simple_repeater" {
 				img = i
 			}
