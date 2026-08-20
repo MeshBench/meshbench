@@ -114,7 +114,7 @@ func registerTerrainPrefetch(st *state.Store, s *Sim) {
 		go func() {
 			defer s.prefetching.Store(false)
 			defer stop()
-			_, _ = st.Do(context.Background(), "job.progress", state.Job{
+			_, _ = st.Do(ctx, "job.progress", state.Job{
 				ID: "tiles", What: "fetching terrain tiles",
 				Total: est.ToFetch, Cancel: stop})
 			ts.OnProgress = func(done, total int) {
@@ -126,19 +126,23 @@ func registerTerrainPrefetch(st *state.Store, s *Sim) {
 			}
 			err := ts.Prefetch(ctx, south, north, west, east)
 			ts.OnProgress = nil
-			_, _ = st.Do(context.Background(), "job.done", "tiles")
+			// Outliving the cancel on purpose: the stop is the moment the
+			// operator most needs to be told what happened.
+			done, release := finishing(ctx)
+			defer release()
+			_, _ = st.Do(done, "job.done", "tiles")
 			if err != nil {
 				// A cancel is not a failure, and saying so as one would teach
 				// an operator to distrust the button they just pressed.
 				if ctx.Err() != nil {
-					_, _ = st.Do(context.Background(), "ui.said",
+					_, _ = st.Do(done, "ui.said",
 						"the tile fetch was stopped; what had already arrived is cached")
 					return
 				}
-				_, _ = st.Do(context.Background(), "ui.said", "the tile fetch stopped: "+err.Error())
+				_, _ = st.Do(done, "ui.said", "the tile fetch stopped: "+err.Error())
 				return
 			}
-			_, _ = st.Do(context.Background(), "ui.said", fmt.Sprintf(
+			_, _ = st.Do(done, "ui.said", fmt.Sprintf(
 				"the ground under this study is cached: %d tiles", est.Tiles))
 		}()
 		return map[string]any{"tiles": est.Tiles, "to_fetch": est.ToFetch,
@@ -190,11 +194,13 @@ func (s *Sim) prefetchWarmTerrain(ctx context.Context, st *state.Store, nodes []
 	}
 	err := ts.PrefetchTiles(ctx, tiles)
 	ts.OnProgress = nil
-	_, _ = st.Do(context.Background(), "job.done", "tiles")
+	done, release := finishing(ctx)
+	defer release()
+	_, _ = st.Do(done, "job.done", "tiles")
 	if err != nil && ctx.Err() == nil {
 		// Reported, then out of the way: the walk's own lazy fetch and its
 		// honest no-data misses take over from here.
-		_, _ = st.Do(context.Background(), "ui.said",
+		_, _ = st.Do(done, "ui.said",
 			"the terrain fetch stopped: "+err.Error()+
 				" - the walk will fetch what it can as it goes")
 	}

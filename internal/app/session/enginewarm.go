@@ -132,8 +132,13 @@ func (s *Sim) warm(st *state.Store, nodes int) {
 		// is about. On its own goroutine already, and after the staleness
 		// checks, so what lands on disk is a matrix somebody saw.
 		saveMatrix(s.matrixDir(), s.geomFP, s.eng.LinkCacheSnapshot())
-		_, _ = st.Do(context.Background(), "links.set", links)
-		_, _ = st.Do(context.Background(), "job.progress", state.Job{
+		// The warm's own context has been cancelled by the time a rewarm
+		// supersedes this one, and the measurement it just finished still has
+		// to reach the store - so these inherit it without its cancellation.
+		done, release := finishing(ctx)
+		defer release()
+		_, _ = st.Do(done, "links.set", links)
+		_, _ = st.Do(done, "job.progress", state.Job{
 			ID: "links", What: "measuring every link",
 			Done: total, Total: total, Finished: true})
 	}()

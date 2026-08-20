@@ -172,21 +172,27 @@ func registerResources(st *state.Store, s *Sim) {
 				if total <= 0 {
 					return
 				}
-				_, _ = st.Do(context.Background(), "job.progress", state.Job{
+				// The job's own context: progress from a fetch somebody
+				// stopped is noise they did not ask for.
+				_, _ = st.Do(ctx, "job.progress", state.Job{
 					ID: id, What: "fetching " + name + " " + version,
 					Done: int(done >> 10), Total: int(total >> 10)})
 			})
-			_, _ = st.Do(context.Background(), "job.done", id)
+			// How it ended has to be said even when what ended it was the
+			// cancel, so these outlive ctx - but not indefinitely.
+			done, release := finishing(ctx)
+			defer release()
+			_, _ = st.Do(done, "job.done", id)
 			if err != nil {
 				if ctx.Err() != nil {
-					_, _ = st.Do(context.Background(), "ui.said",
+					_, _ = st.Do(done, "ui.said",
 						"the "+name+" download was stopped")
 					return
 				}
-				_, _ = st.Do(context.Background(), "ui.said", err.Error())
+				_, _ = st.Do(done, "ui.said", err.Error())
 				return
 			}
-			_, _ = st.Do(context.Background(), "resource.fetched",
+			_, _ = st.Do(done, "resource.fetched",
 				map[string]any{"name": name, "version": version})
 		}()
 		return map[string]any{"fetching": name, "version": version}, nil
