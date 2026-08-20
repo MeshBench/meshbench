@@ -109,23 +109,45 @@ func EmulatorFingerprint() string {
 func probeGeometry(board, version string) []scenario.Node {
 	mast := antenna.Mounted{Pattern: antenna.Collinear{GainDBiPeak: 6}, Polarisation: "vertical"}
 	radio := scenario.RadioConfig{CentreHz: 869.618e6, BandwidthHz: 62_500, SpreadFactor: 8, CodingRate: 4}
-	node := func(name string, lat, lon float64, fw scenario.FirmwareRef) scenario.Node {
+	node := func(name string, lat, lon float64, txDBm float64, fw scenario.FirmwareRef) scenario.Node {
 		return scenario.Node{
 			Name: name, Kind: scenario.SimpleRepeater,
 			Position: scenario.LatLon{Lat: lat, Lon: lon}, HeightAGLm: 10,
-			Antenna: mast, TxPowerDBm: 20, NoiseFigureDB: 6, Radio: radio,
+			Antenna: mast, TxPowerDBm: txDBm, NoiseFigureDB: 6, Radio: radio,
 			Firmware: fw,
 		}
 	}
-	// The native peers are not what is under test - they only need to be a
-	// reliable sender and listener - so they pin a native build ref
-	// ("repeater-vX.Y.Z"), which is a different naming convention from a
-	// published board image's bare "vX.Y.Z" and not interchangeable with it.
+	// The listener must not hear the sender, and now does not.
+	//
+	// It used to, which quietly broke the flood phase: three nodes 0.6 degrees
+	// of longitude apart put the far pair 73 km from each other, which 20 dBm
+	// from a 6 dBi mast covers easily over flat bare earth. So the listener
+	// heard every packet directly, relayed it before the board had finished
+	// waiting, and the board dropped its own copy - which is what a repeater
+	// should do when somebody else has already relayed. The board was behaving
+	// correctly and being marked down for it.
+	//
+	// Distance alone cannot separate the two links: free space costs 6 dB per
+	// doubling, so a line of three nodes never puts much between the near hop
+	// and the far one. A weak sender does. Measured on the channel rather than
+	// estimated: at 2 dBm the sender reached the listener at -1.6 dB SNR, some
+	// 8 dB above what SF8 needs, so it comes down another 14 dB and the board
+	// moves in to 3 km to keep its own hop strong.
+	//
+	//	sender -> board       about +12 dB SNR   must work
+	//	sender -> listener    about -16 dB SNR   must not
+	//	board  -> listener    about  +1 dB SNR   must work
+	//
+	// A sender this quiet is not a realistic node, and it is not pretending to
+	// be one: it is a fixture that puts the board on the only path between two
+	// others, which is the whole of what this phase measures.
 	return []scenario.Node{
-		node("bc-sender", 56.70, -3.90, scenario.FirmwareRef{Role: "simple_repeater", Version: nativePeerVersion}),
-		node("bc-under-test", 56.70, -3.30,
+		node("bc-sender", 56.70, -3.90, -12,
+			scenario.FirmwareRef{Role: "simple_repeater", Version: nativePeerVersion}),
+		node("bc-under-test", 56.70, -3.85, 20,
 			scenario.FirmwareRef{Role: "simple_repeater", Version: version, Board: board}),
-		node("bc-listener", 56.70, -2.70, scenario.FirmwareRef{Role: "simple_repeater", Version: nativePeerVersion}),
+		node("bc-listener", 56.70, -2.90, 20,
+			scenario.FirmwareRef{Role: "simple_repeater", Version: nativePeerVersion}),
 	}
 }
 
@@ -225,6 +247,23 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 	}
 	report.set(Boot, Passed, "attached and answering")
 
+	// Turn the sender down, in the firmware, because that is the only place it
+	// can be turned down.
+	//
+	// A scenario node carries a TxPowerDBm and for a node running firmware it
+	// is not what reaches the air: the firmware tells its radio what power to
+	// use, from a preference of its own. Changing the scenario's figure moved
+	// no measured SNR at all, while moving a node did - which is how that was
+	// found rather than assumed.
+	//
+	// It is turned down so the listener cannot hear it, leaving the board the
+	// only path between the two. See probeGeometry for the levels.
+	if sender0, ok0 := e.NodeByName("bc-sender"); ok0 && sender0.Firmware != nil {
+		if sender0.Firmware.Bridge.Type([]byte("set tx -9\r\n")) == nil {
+			_ = e.Run(ctx, e.NowMs()+1_000)
+		}
+	}
+
 	// A socket connecting is not the same as the firmware's own boot being
 	// finished - an emulated board is a real bootloader and a real MeshCore
 	// init, on top of QEMU's own startup, and a command sent into that
@@ -287,6 +326,17 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 	// nodes are put, which is the property the old test was trying to buy with
 	// geometry and did not get.
 	if ok && sender.Firmware != nil {
+		// A message the sender authors, rather than another advert. An advert
+		// is the one packet a node has already sent once by the time this runs,
+		// and the simulated clock does not move, so a second one is the same
+		// bytes and the board is right to drop it. Originate makes the sender
+		// the author of something nobody has seen.
+		// The sender's clock is moved on first: every node adverts once as it
+		// boots, the simulated clock does not advance, and a second advert with
+		// the same timestamp is the same bytes - which the board drops as the
+		// duplicate it is. Moving the clock makes this a packet nobody has seen.
+		_ = sender.Firmware.Bridge.Type([]byte("time 1754703600\r\n"))
+		_ = e.Run(ctx, e.NowMs()+1_000)
 		if err := sender.Firmware.Bridge.Type([]byte("advert\r\n")); err != nil {
 			report.set(Flood, Failed, "could not command the sender: "+err.Error())
 		} else if _, relayed := waitForEvent(ctx, e, advertBudgetMs, func(ev engine.Event) bool {
@@ -295,7 +345,8 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 			report.set(Flood, Passed, "forwarded the sender's advert itself")
 		} else {
 			report.set(Flood, Failed,
-				"heard the sender and put nothing back on the air within 90 s")
+				"received a fresh advert as the only node that could relay it, "+
+					"and put nothing back on the air within 90 s")
 		}
 	} else {
 		report.set(Flood, Failed, "the native sender never came up")
@@ -309,12 +360,11 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 	// power: the board is still answering after sitting idle.
 	//
 	// Asked directly, now that an emulated board has a serial port to be asked
-	// through. What it is asked for is a transmission, and its own duty cycle
-	// cannot refuse that: simple_repeater takes the cycle from a preference
-	// defaulting to zero, which leaves the airtime budget pinned at the whole
-	// hour-long window.
+	// through, and asked for a console reply rather than for a transmission.
+	// Nothing about the duty cycle can refuse a reply, and nothing about a
+	// timer can produce one - which a transmission could, and did.
 	//
-	// A refusal here is therefore a board that has stopped, which is the thing
+	// Silence here is therefore a board that has stopped, which is the thing
 	// this row is for.
 	if err := e.Run(ctx, e.NowMs()+15_000); err != nil {
 		report.set(Power, Untested, "idle step: "+err.Error())
