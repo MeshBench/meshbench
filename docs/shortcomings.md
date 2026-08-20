@@ -263,7 +263,7 @@ to acquire what is left.
 
 ## 3. Firmware fidelity
 
-### 3.1 The shipped image boots, but does not yet reach its radio
+### 3.1 The shipped image boots and reaches its radio; three boards then go quiet
 
 **This entry previously said the published `.uf2` could not be run at all,
 because the SoftDevice needed Nordic behaviour Renode does not model. That was
@@ -286,17 +286,22 @@ were in the way, none of them the SoftDevice:
    critical sections and hits it constantly. Renode answers from the SVD, which
    is enough not to fault but is not the peripheral behaving.
 
-What still does not happen is SPI traffic to the SX1262, so the shipped image
-has not been observed driving its radio. That is now a peripheral-coverage
-question — the right SPI instance for the board, and MWU — rather than a
-proprietary-blob question.
+**That last paragraph used to say SPI traffic to the SX1262 still did not
+happen, so no shipped image had been observed driving its radio. It does now.**
+Six published nRF52840 images boot through the MBR and the s140 SoftDevice,
+reach their own main loop, and put an advert on the air that another node hears
+— measured board by board in the compatibility matrix in `README.md`. Two of
+them relay somebody else's packet and are still answering after an idle.
 
-**Consequence, as it actually stands.** Our own SoftDevice-free build is what
-runs end to end today, so anything depending on the real scheduler, or on the
-BLE stack stealing time from the radio ISR, is still not reproduced. But the
-path to running stock images is open and short, which matters: downloading
-prebuilt firmware is meant to be the *default* experience (ADR-0020), not a
-stretch goal.
+**Consequence, as it actually stands.** Downloading prebuilt firmware is the
+default experience it was meant to be (ADR-0020) rather than a stretch goal.
+What is still not reproduced is anything depending on the BLE stack stealing
+time from the radio ISR: the images that run are repeater builds, and nothing
+here connects to one over Bluetooth.
+
+Three of those six advert once and then report their channel busy for the rest
+of the run. That is tracked separately and is not a SoftDevice problem — a board
+on the same emulator with the same boot chain relays correctly.
 
 ### 3.2 The SX1262 model is functional, not cycle-accurate
 
@@ -319,27 +324,32 @@ powering up with its FPU disabled. A native node cannot express that bug. This
 is the whole reason both backends exist, and it is why native being ~3300×
 faster is not a reason to delete the emulated one.
 
-### 3.4 Two board families run, and the boards with front ends are not among them
+### 3.4 Both board families run; the front-end path is thin
 
 nRF52840 under Renode and ESP32 under our QEMU fork, which now does model the
 SX1262 — `hw/ssi/sx1262` forwards SPI to the same `VirtualSX1262` a native node
 clocks, so an emulated node and a native one are the same radio. The wall this
 section used to describe is gone.
 
-What is still missing is the boards where a front-end module decides how much
-power reaches the antenna. The enable line crosses into the model as a GPIO
-(`radio-fem`), and `Generic_E22_sx1262` can exercise it under QEMU today, but
-**the Heltec T096 cannot be run at all**: it is nRF52840, so it needs Renode
-rather than QEMU, and of the boards shipping `.uf2` images only T-Beam Supreme S3
-is ESP32-S3.
+The front-end module — the amplifier deciding how much power actually reaches
+the antenna — is where this is still thin. The enable line crosses into the
+model as a GPIO (`radio-fem`), and `Generic_E22_sx1262` exercises it under QEMU:
+the module is switched in to transmit, and the board's output changes by the
+gain its profile declares.
 
-That matters more than a missing board usually would, because the T096 is the
-board of the transmit fault MeshCore 1.17.1 fixed — firmware that never raised
-the enable line, so the PA's output went through the module's isolation instead
-of its gain. **A study of that class of fault cannot presently be run here.** No
-fixture shipping today contains a node with a front end at all: every node in
-the Scotland and Fife fixtures is a RAK4631, which has none, so the front-end
-path is unexercised rather than merely untested.
+**This section used to say the Heltec T096 could not be run at all.** It runs,
+under Renode, and passes every column of the board check except the front-end
+one — which is the column that matters for it. The T096 is the board of the
+transmit fault MeshCore 1.17.1 fixed: firmware that never raised the enable
+line, so the PA's output went through the module's isolation instead of its
+gain. Renode's nRF52840 platform does not drive the pin that board's module
+hangs off, so the fault class is now *nearly* reproducible rather than out of
+reach — one emulator can show it, and the board it actually happened on is on
+the other one.
+
+No fixture shipping today contains a node with a front end at all: every node in
+the Scotland and Fife fixtures is a RAK4631, which has none. The front-end path
+is exercised by the board check and by no scenario a user runs.
 
 ### 3.5 Forwarding policy is ours, not the repeater application's
 
@@ -439,7 +449,6 @@ Specified and ticketed, with nothing running behind them:
 | Instrumented firmware builds | MSIM-26 |
 | Calibrating excess loss from residuals | MSIM-29 — needs MSIM-28 to have data first |
 | Shadow mode: live model-versus-reality | MSIM-33 |
-| Our own MeshCore builds in a separate MIT repo | MSIM-39 — the repo has not been created |
 
 Built since this list was first written: the desktop application (MSIM-10), the
 terrain cut-through view (MSIM-11), coverage rasters and planning (MSIM-34/35),
@@ -447,17 +456,41 @@ terrain and boundary download (MSIM-38/37), the firmware catalogue (MSIM-13),
 the provider interface with CoreScope, Beacon and MQTT (MSIM-30/31/32), battery
 and solar (MSIM-19), external interference (MSIM-20), the MCP server (MSIM-36),
 the validation harness (MSIM-28), replay (MSIM-27), board profiles (MSIM-18),
-the multi-node console (MSIM-25), the emulated/native cross-check (MSIM-40) and
-a command line covering all of it (MSIM-23).
+the multi-node console (MSIM-25), the emulated/native cross-check (MSIM-40), a
+command line covering all of it (MSIM-23), the separate MIT repository for our
+MeshCore builds (MSIM-39, `MeshBench/meshcore-native`, public since 9 August)
+and the resource manager over everything downloaded at runtime.
 
 ### What the application does not do yet
 
-There is a window, and it answers the question the whole project is about — pick
-two nodes, get both margins and a terrain cut-through explaining the verdict.
-What it does not have is a **map**. Nodes are a list, not points on terrain, and
-the coverage rasters that `meshcoresim coverage` writes as a PNG are not drawn in
-the application. That is the largest remaining gap in the product rather than in
-the physics.
+**This section used to say the application had no map, and that this was the
+largest remaining product gap. It has one.** Nodes project onto terrain as
+points with a glyph per role, the basemap, hillshading, buildings, links and the
+coverage raster are all layers that can be turned on, and a pair of nodes gives
+both margins and the terrain cut-through that explains the verdict. The entry is
+kept, struck through rather than deleted, because it was wrong for long enough
+to be worth admitting.
+
+The largest remaining product gap is now **the boards**. Ten are described in
+`internal/world/scenario`, and as measured on 20 August exactly one —
+`Generic_E22_sx1262` — passes every capability the board check asks of it. Two
+more are green with a caveat. The rest either cannot be run at all, or run and
+then go quiet:
+
+- **Three nRF52 boards advert once and never again** (RAK4631, Xiao nRF52,
+  Heltec Mesh Solar). All three report the channel busy, which is what a frozen
+  clock would look like to CSMA — see the simulated RTC, which does not advance.
+- **Two ESP32 boards boot and then assert inside ESP-IDF startup**
+  (Xiao S3 WIO, Heltec V3).
+- **Two have not been attempted** (Station G2, Heltec V2).
+- **No emulated board has a console**, because the firmware talks to `Serial`
+  — USB CDC — and neither emulator platform models USB. Anything that can only
+  be established by asking the node a question is reported as untested rather
+  than as passing.
+
+That is the gap a new user meets first: they own a board, and the odds are it is
+not one of the three that work. Everything in the physics above matters less to
+them than that.
 
 ---
 
@@ -481,14 +514,55 @@ not the same as "true on the hill above Aberfeldy".
 
 ## 8. Legal and licensing
 
-- **No licence chosen** (MSIM-15). No `LICENSE` file, deliberately.
-- **No `THIRD_PARTY_NOTICES.md`.** MeshCore (MIT), rweather/arduinolibs Crypto
-  (MIT) and MeshCore's vendored ed25519 all require attribution on
-  distribution. This must exist before anything ships.
-- **Our MeshCore builds go in a separate repo** under MeshCore's own MIT licence
-  (MSIM-39, ADR-0020), because they link MeshCore. Not yet created.
-- **Ofcom mast data terms unresolved** (MSIM-20), as are the terms for whichever
-  boundary source MSIM-37 uses.
+**This section previously said no licence had been chosen, that there was no
+`LICENSE` file, that attribution did not exist, and that the MeshCore build repo
+had not been created. All four were true when written and none of them is true
+now.** It is recorded here because a document about honesty that has quietly
+gone stale is the failure mode it exists to prevent.
+
+- **MeshBench is GPL-3.0-or-later**, decided 14 August 2026. The reasoning is in
+  `docs/licence.md`: what is linked into this binary is permissive throughout,
+  MeshCore is a separate process fetched at runtime rather than linked, and the
+  emulator forks are aggregated beside the binary rather than combined with it.
+  The one dependency that needed a decision — `eclipse/paho.mqtt.golang`, which
+  is EPL-2.0 *or* EDL-1.0 — is taken under its EDL branch, and `tools/licgen`
+  fails the build if a future dependency arrives under EPL alone.
+- **Attribution is generated and enforced, not maintained by hand.**
+  `tools/licgen` walks the build graph of `./cmd/meshcoresim`, reads every linked
+  module's licence out of the module cache, and **fails the run** on a module
+  whose licence it cannot name — the enforcement is the build, not a review. The
+  curated half (the forks, the bundled native pieces, what is downloaded at
+  runtime, the data sources) lives in `docs/licences.json` with its texts checked
+  in beside it, so generation needs no network. Every bundle carries a `LICENCES`
+  directory of the texts, the workbench embeds the same inventory as a licence
+  window, and the release pipeline runs `licgen -require-project-licence` before
+  it will publish.
+- **Map data attribution is drawn where the data is shown.** Each basemap layer
+  carries its own attribution string and the map renders it; that is an ODbL and
+  CARTO requirement rather than a courtesy, and it is why the field is not
+  optional on a layer.
+- **The source offer is met by the pipeline.** GPL-3.0 §6 obliges a recipient of
+  a binary to be able to get the corresponding source. The repository is private,
+  so every release attaches `meshbench-<tag>-source.tar.gz`. When the repository
+  is made public that archive can be replaced with a link.
+- **`MeshBench/meshcore-native` exists and is public**, under MeshCore's own MIT
+  terms. That is where MeshCore is compiled; nothing of it is linked here.
+
+**What is genuinely still open:**
+
+- **Contributions.** Alex holds the copyright alone, which is what keeps
+  relicensing possible. A substantial outside contribution freezes that unless it
+  arrives under a CLA, and there is no CLA and no `CONTRIBUTING.md` saying so.
+  Decide before merging one, not after.
+- **Nominatim's usage policy.** Boundary lookup calls the public OpenStreetMap
+  Nominatim endpoint. The *data* licence is settled — ODbL, attributed — but the
+  endpoint's own rate limits and identification requirements are a separate
+  obligation that has not been checked against what the application actually
+  sends.
+- **The Ofcom worry recorded here was hypothetical and remains so.** No Ofcom
+  register data is ingested anywhere; the only mention is a comment naming it as
+  a place a person might look up a real site's ERP. There is nothing to resolve
+  until something actually reads it.
 
 ---
 
