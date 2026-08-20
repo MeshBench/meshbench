@@ -13,6 +13,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/mesh/firmware"
@@ -305,30 +306,61 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 	// is, not guessed at.
 	report.set(FEM, NotApplicable, "no front-end module modelled for this board's wiring")
 
-	// power: whether the board is still there after sitting idle, and still
-	// not measurable - but for a reason that has been established rather than
-	// guessed at.
+	// power: the board is still answering after sitting idle.
 	//
-	// Asking it directly is out: an emulated board has no console at all, so
-	// anything typed at it is discarded before it runs. Asking over the air
-	// fails for a second reason. The simulated RTC does not advance, so every
-	// advert a node emits carries the same timestamp; a sender told to advert
-	// twice emits the same bytes twice, and the board's duplicate table drops
-	// the repeat exactly as MeshCore should. Silence afterwards is then a
-	// correctly-suppressed duplicate, not a wedged node, and the two are
-	// indistinguishable from here.
+	// Asked directly, now that an emulated board has a serial port to be asked
+	// through. What it is asked for is a transmission, and its own duty cycle
+	// cannot refuse that: simple_repeater takes the cycle from a preference
+	// defaulting to zero, which leaves the airtime budget pinned at the whole
+	// hour-long window.
 	//
-	// Both would be fixed by a console on the emulated path; until there is
-	// one, untested is the answer this matrix exists to give. A red cell
-	// nobody can defend is the same lie as a green one nobody earned.
+	// A refusal here is therefore a board that has stopped, which is the thing
+	// this row is for.
 	if err := e.Run(ctx, e.NowMs()+15_000); err != nil {
 		report.set(Power, Untested, "idle step: "+err.Error())
 		return report
 	}
-	report.set(Power, Untested,
-		"no way to ask: an emulated board has no console, and a repeat advert "+
-			"over the air is a duplicate the board is right to drop, because "+
-			"the simulated clock never moves")
+	// Asked for a reply, not for a transmission.
+	//
+	// Watching for a transmission cannot answer this: the firmware adverts on
+	// a timer of its own, about two minutes apart, so a board left alone
+	// transmits again whether or not anything reached it. Withholding the
+	// command and running the probe anyway produced the same pass at the same
+	// moment, which is how that was ruled out. A console reply cannot be
+	// produced by a timer - it exists only if the command was read and run.
+	said, ok := under.Firmware.Backend.(interface{ ConsoleLog() ([]byte, error) })
+	if !ok {
+		report.set(Power, Untested, "this backend keeps no console log to read a reply from")
+		return report
+	}
+	before, err := said.ConsoleLog()
+	if err != nil {
+		report.set(Power, Untested, "could not read the console: "+err.Error())
+		return report
+	}
+	if err := under.Firmware.Bridge.Type([]byte("advert\r\n")); err != nil {
+		report.set(Power, Untested, "no way to ask it: "+err.Error())
+		return report
+	}
+	answered := false
+	for i := 0; i < 40; i++ {
+		if err := e.Run(ctx, e.NowMs()+500); err != nil {
+			break
+		}
+		after, rerr := said.ConsoleLog()
+		if rerr == nil && len(after) > len(before) &&
+			strings.Contains(string(after[len(before):]), "Advert sent") {
+			answered = true
+			break
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+	if answered {
+		report.set(Power, Passed, "answered a command on the console after a 15 s idle")
+	} else {
+		report.set(Power, Failed,
+			"asked to advert after a 15 s idle and said nothing back on the console")
+	}
 
 	return report
 }
