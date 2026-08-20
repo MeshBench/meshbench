@@ -81,7 +81,7 @@ jobs:
           go run ./tools/licgen
           git diff --exit-code -- internal/ui/workbench/licences/licences.json
 
-      - uses: golangci/golangci-lint-action@v7
+      - uses: golangci/golangci-lint-action@v9
         with:
           # v2.1.6 is built with go1.24 and cannot lint a go1.25.0 module -
           # "the Go language version used to build golangci-lint is lower
