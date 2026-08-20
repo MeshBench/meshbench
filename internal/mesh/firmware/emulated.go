@@ -54,6 +54,8 @@ func (e *Emulated) Kind() string { return "emulated" }
 // The bridge to an emulated node carries the radio and nothing else.
 func (e *Emulated) HasConsole() bool { return false }
 
+func (e *Emulated) ConsoleIn() io.Writer { return nil }
+
 func (e *Emulated) Start(ctx context.Context, bridgeAddr string) error {
 	if e.Firmware == "" {
 		return errors.New("firmware: emulated node needs a firmware image")

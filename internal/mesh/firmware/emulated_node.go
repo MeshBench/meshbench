@@ -3,6 +3,7 @@ package firmware
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -84,6 +85,7 @@ type EmulatedNode struct {
 	radio     *exec.Cmd
 	sock      string
 	radioPort int
+	serial    *serialLink
 }
 
 // startRenode writes the machine description this node needs and runs it.
@@ -177,9 +179,25 @@ func waitForPort(ctx context.Context, logPath string) (int, error) {
 
 func (e *EmulatedNode) Kind() string { return "emulated" }
 
-// The emulator's serial is opened write-only and radioserver has no UART, so
-// there is nowhere for typed input to arrive.
-func (e *EmulatedNode) HasConsole() bool { return false }
+// HasConsole is true once the emulator publishes a serial port we hold open.
+// Renode's machines do not yet, so a board booted under it is still watched
+// rather than driven.
+func (e *EmulatedNode) HasConsole() bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.serial != nil
+}
+
+// ConsoleIn is the node's serial port. An emulated node carries its own, rather
+// than the console frames the native shim answers on the bridge.
+func (e *EmulatedNode) ConsoleIn() io.Writer {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.serial == nil {
+		return nil
+	}
+	return e.serial
+}
 
 // Start brings up the radio model and then the emulator.
 //
@@ -283,21 +301,33 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 		_ = e.stopLocked()
 		return err
 	}
-	// Serial to a file rather than to us: it carries the whole boot chain, ROM
-	// through the application, and that is where an emulated node fails when it
-	// fails. The node window reads this back.
+	// Serial to a socket rather than to a file. The file it used to be written
+	// to was write-only, which made the node's command interface unreachable -
+	// MeshCore's applications carry their own on Serial, so a board that could
+	// not be typed at could not be configured, only watched. The socket carries
+	// the same boot chain, ROM through application, and is copied on to the
+	// same log, so what could be read before still can be.
+	conPath := filepath.Join(e.Dir, "console.sock")
 	e.qemu = exec.CommandContext(ctx, qemuBin,
 		"-machine", machine,
 		"-nographic", "-monitor", "none",
 		"-drive", "file="+e.Image+",if=mtd,format=raw",
-		"-serial", "file:"+filepath.Join(e.Dir, "console.log"),
+		"-chardev", "socket,id=con,path="+conPath+",server=on,wait=off",
+		"-serial", "chardev:con",
 	)
 	e.qemu.Stdout, e.qemu.Stderr = qemuLog, qemuLog
 	if err := e.qemu.Start(); err != nil {
 		_ = e.stopLocked()
 		return fmt.Errorf("firmware: starting the emulator: %w", err)
 	}
+	e.serial = dialSerial(ctx, conPath, qemuLog)
 	return nil
+}
+
+// ConsoleLog is everything the node has said on its serial port: the whole
+// boot chain, ROM through application, and the replies to anything typed at it.
+func (e *EmulatedNode) ConsoleLog() ([]byte, error) {
+	return os.ReadFile(e.ConsolePath())
 }
 
 // ConsolePath is where this node's boot output is written.
@@ -313,6 +343,10 @@ func (e *EmulatedNode) Stop() error {
 }
 
 func (e *EmulatedNode) stopLocked() error {
+	if e.serial != nil {
+		_ = e.serial.Close()
+		e.serial = nil
+	}
 	for _, c := range []*exec.Cmd{e.qemu, e.radio} {
 		if c == nil || c.Process == nil {
 			continue

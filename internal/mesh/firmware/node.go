@@ -3,6 +3,7 @@ package firmware
 import (
 	"context"
 	"fmt"
+	"io"
 )
 
 // A Backend is one way of running MeshCore's firmware.
@@ -40,6 +41,11 @@ type Backend interface {
 	// and dropped, and reporting success for it is how four capability rows
 	// came to describe a board's own boot advert as a transmission on command.
 	HasConsole() bool
+
+	// ConsoleIn is where bytes typed at this node's serial port should go, for
+	// a backend that carries its own serial channel. Nil means the console
+	// rides the bridge instead, as the native shim's does.
+	ConsoleIn() io.Writer
 }
 
 // A Node is a MeshCore instance plus the bridge that carries its RF.
@@ -59,6 +65,7 @@ func Start(ctx context.Context, name string, b Backend) (*Node, error) {
 		return nil, fmt.Errorf("firmware: start %s (%s): %w", name, b.Kind(), err)
 	}
 	br.hasConsole = b.HasConsole()
+	br.consoleIn = b.ConsoleIn()
 	return &Node{Bridge: br, Backend: b}, nil
 }
 

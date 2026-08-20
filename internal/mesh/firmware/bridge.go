@@ -74,8 +74,10 @@ type Bridge struct {
 	ln   net.Listener
 	node string
 
-	// hasConsole is what the backend answered when the node was started.
+	// hasConsole is what the backend answered when the node was started, and
+	// consoleIn is the backend's own serial port when it has one.
 	hasConsole bool
+	consoleIn  io.Writer
 
 	mu     sync.Mutex
 	conn   net.Conn
@@ -313,6 +315,12 @@ func (b *Bridge) Claimed() bool {
 // The caller supplies the line ending, because which one a command needs is the
 // firmware's business and differs between applications.
 func (b *Bridge) Type(input []byte) error {
+	if b.consoleIn != nil {
+		if _, err := b.consoleIn.Write(input); err != nil {
+			return fmt.Errorf("firmware: %s console input: %w", b.node, err)
+		}
+		return nil
+	}
 	if !b.hasConsole {
 		return fmt.Errorf(
 			"firmware: %s has no console: this backend's bridge carries RF only, "+
