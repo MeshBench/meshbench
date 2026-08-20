@@ -61,7 +61,7 @@ internal/mesh/      MeshCore itself: what a node is and what it says
   energy/             battery, load, solar
 
 internal/world/     what is being simulated, and where it came from
-  scenario/           nodes, region, seed
+  scenario/           nodes, region, seed; one board_<name>.go per board
   provider/           CoreScope, Beacon and MQTT feeds
   mqtt/               the paho client behind provider.Subscriber
   boundary/           named administrative areas
