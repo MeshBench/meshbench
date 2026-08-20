@@ -295,8 +295,9 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 		return ev.Kind == "tx" && ev.From == "bc-under-test"
 	})
 	if !ok {
-		report.set(Radio, Failed, "never transmitted within 90 s of coming up")
-		report.set(TX, Failed, "never transmitted within 90 s of coming up")
+		never := fmt.Sprintf("never transmitted within %d s of coming up", advertBudgetMs/1000)
+		report.set(Radio, Failed, never)
+		report.set(TX, Failed, never)
 		return report
 	}
 	report.set(Radio, Passed, fmt.Sprintf("adverted unprompted at %.1f s", float64(txAt)/1000))
@@ -311,7 +312,8 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 			}); ok {
 				report.set(RX, Passed, "heard the sender's advert")
 			} else {
-				report.set(RX, Failed, "no reception observed within 60 s")
+				report.set(RX, Failed, fmt.Sprintf(
+					"no reception observed within %d s", advertBudgetMs/1000))
 			}
 		} else {
 			report.set(RX, Failed, "could not command the sender: "+err.Error())
@@ -353,9 +355,9 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 		}); relayed {
 			report.set(Flood, Passed, "forwarded the sender's advert itself")
 		} else {
-			report.set(Flood, Failed,
+			report.set(Flood, Failed, fmt.Sprintf(
 				"received a fresh advert as the only node that could relay it, "+
-					"and put nothing back on the air within 90 s")
+					"and put nothing back on the air within %d s", advertBudgetMs/1000))
 		}
 	} else {
 		report.set(Flood, Failed, "the native sender never came up")
