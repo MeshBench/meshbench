@@ -28,6 +28,16 @@ model changes, which is why it lives beside the code rather than on the site.
 The site renders it with `tools/sync-limits.py` and refuses to build if its copy
 has fallen behind this one.
 
+## Moved out of the README
+
+The front page is meant to be readable in a minute, so the detail behind it
+lives here and **is** maintained - unlike the working notes below.
+
+| file | what it holds |
+|---|---|
+| `install.md` | per platform, including the macOS and Windows signing caveats |
+| `native-and-emulated.md` | where the real firmware ends and the simulation begins, and the two ways a node can run |
+
 ## Machine-specific, and deliberately so
 
 `development-machines.md` — which host does what, what the lab runners are, and
