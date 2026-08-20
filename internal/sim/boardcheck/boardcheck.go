@@ -283,10 +283,32 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 		report.set(Flood, Failed, "the native sender never came up")
 	}
 
-	// fem: nothing in scenario.QEMUWiring or RenodeWiring models a front-end
-	// module today, so there is no signal to assert - reported as what it
-	// is, not guessed at.
-	report.set(FEM, NotApplicable, "no front-end module modelled for this board's wiring")
+	// fem: the board's front-end module is switched in when it transmits.
+	//
+	// Asked of the board rather than assumed of the family. This row used to
+	// report "no front-end module modelled for this board's wiring" for every
+	// board, which was false for the ones that have one: the Generic E22
+	// carries a module on GPIO 13 and a profile that prices it, and the engine
+	// has been reading the line's state at each transmission all along.
+	//
+	// The line is judged at the instant the board last transmitted, not at its
+	// level now: a module is meant to be switched out while the board listens,
+	// so the question only means anything about a board that has transmitted.
+	if prof, perr := scenario.BoardByName(board); perr == nil && prof.FEM != nil {
+		switch under.Firmware.Bridge.Stats().FemAtTx {
+		case firmware.FemIn:
+			report.set(FEM, Passed, "the module was switched in to transmit")
+		case firmware.FemOut:
+			report.set(FEM, Failed,
+				"the module was switched out while transmitting, which costs "+
+					fmt.Sprintf("%.0f dB of the board's output", prof.FEM.TxLossDB))
+		default:
+			report.set(FEM, Untested,
+				"the firmware never reported where it left the module's enable line")
+		}
+	} else {
+		report.set(FEM, NotApplicable, "this board carries no front-end module")
+	}
 
 	// power: the board is still answering after sitting idle.
 	//
