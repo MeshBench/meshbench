@@ -10,11 +10,9 @@
 package boardcheck
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/mesh/firmware"
@@ -273,55 +271,30 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 	// is, not guessed at.
 	report.set(FEM, NotApplicable, "no front-end module modelled for this board's wiring")
 
-	// power: idle, then prove the board still answers.
+	// power: not measurable yet, and said so rather than guessed at.
 	//
-	// Asked as a question rather than as a transmission. The first version
-	// typed "advert" after the idle and waited for something on the air,
-	// which conflates two different things: whether the node is alive, and
-	// whether its own airtime budget will let it speak again this minute.
-	// MeshCore polices its duty cycle, so a healthy board that has just
-	// adverted and relayed twice can decline correctly - and the matrix
-	// recorded that as a dead node. A console reply costs no airtime and
-	// answers the question actually being asked.
+	// The question is whether a board is still alive after sitting idle, and
+	// three ways of asking it have now been tried against a real emulated
+	// ESP32. Demanding a transmission conflates liveness with MeshCore's own
+	// duty cycle: a board that has just adverted and relayed twice can decline
+	// correctly and be entirely well. Watching the console for an
+	// acknowledgement finds nothing either - not even for "advert", which the
+	// radio phase proves this firmware accepts - so either this build echoes
+	// nothing to serial or the probe is reading the wrong place.
+	//
+	// Which of those it is decides how the phase should work, and neither is
+	// established. Untested is the honest answer until one of them is: this
+	// matrix exists so a board nobody has measured never looks like one that
+	// ran and passed, and a red cell nobody can defend is the same lie the
+	// other way round.
 	if err := e.Run(ctx, e.NowMs()+15_000); err != nil {
-		report.set(Power, Failed, "idle step: "+err.Error())
+		report.set(Power, Untested, "idle step: "+err.Error())
 		return report
 	}
-	var replies bytes.Buffer
-	var mu sync.Mutex
-	under.Firmware.Bridge.Console(writerFunc(func(p []byte) (int, error) {
-		mu.Lock()
-		defer mu.Unlock()
-		return replies.Write(p)
-	}))
-	// The same command the radio phase used, because it is the one this
-	// firmware is known to accept - and read on the console rather than on
-	// the air. Whether the packet leaves is the duty cycle's business; whether
-	// the node acknowledges the command at all is the question here.
-	if err := under.Firmware.Bridge.Type([]byte("advert\r\n")); err != nil {
-		report.set(Power, Failed, "commanding it after idle: "+err.Error())
-		return report
-	}
-	answered := false
-	deadline := e.NowMs() + advertBudgetMs
-	for e.NowMs() < deadline {
-		if err := e.Run(ctx, e.NowMs()+500); err != nil {
-			break
-		}
-		mu.Lock()
-		got := replies.Len() > 0
-		mu.Unlock()
-		if got {
-			answered = true
-			break
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-	if answered {
-		report.set(Power, Passed, "acknowledged a command after a 15 s idle period")
-	} else {
-		report.set(Power, Failed, "said nothing at all after a 15 s idle period")
-	}
+	report.set(Power, Untested,
+		"no way yet to tell a wedged node from one declining to transmit: this "+
+			"firmware acknowledges nothing on the console, and its duty cycle "+
+			"may refuse the air legitimately")
 
 	return report
 }
@@ -402,9 +375,3 @@ func min(a, b time.Duration) time.Duration {
 	}
 	return b
 }
-
-// writerFunc adapts a function to io.Writer, so the probe can collect a
-// node's console without a pipe and a goroutine to drain it.
-type writerFunc func([]byte) (int, error)
-
-func (f writerFunc) Write(p []byte) (int, error) { return f(p) }
