@@ -37,7 +37,9 @@ var baseCache sync.Map // int -> []complex128
 
 func baseFor(sf int) []complex128 {
 	if v, ok := baseCache.Load(sf); ok {
-		return v.([]complex128)
+		// baseCache is package-private and stores []complex128 and nothing
+		// else, here and in the LoadOrStore below.
+		return v.([]complex128) //nolint:forcetypeassert // private sync.Map, one value type
 	}
 	n := SamplesPerSymbol(sf)
 	out := make([]complex128, n)
@@ -45,7 +47,7 @@ func baseFor(sf int) []complex128 {
 		out[i] = chirpSample(i, 0, n)
 	}
 	actual, _ := baseCache.LoadOrStore(sf, out)
-	return actual.([]complex128)
+	return actual.([]complex128) //nolint:forcetypeassert // private sync.Map, one value type
 }
 
 // ModulateSymbol returns the waveform for one symbol value s in [0, 2^SF).
