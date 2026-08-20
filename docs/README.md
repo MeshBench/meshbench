@@ -28,6 +28,13 @@ model changes, which is why it lives beside the code rather than on the site.
 The site renders it with `tools/sync-limits.py` and refuses to build if its copy
 has fallen behind this one.
 
+## Machine-specific, and deliberately so
+
+`development-machines.md` — which host does what, what the lab runners are, and
+what will not run where. Split out of `CLAUDE.md` so that the rules there apply
+to anyone on any machine. This one is expected to go stale, and going stale
+harms nothing.
+
 ## Not migrated yet
 
 Source material for pages that have not been written. Each is technical writing

@@ -172,15 +172,11 @@ simulation depends on anything we run.
 
 ## Where development happens
 
-**elite** (`alex@10.100.72.98`), at `~/Documents/projects/meshcoresim`. Twelve
-cores, a real GPU, and the Renode and QEMU toolchains for the firmware work.
-The full suite with `-race` runs there in about three minutes; on the VM it is
-several times that and the GPU path cannot run at all.
+Machine-specific: which host, what it can run, and what the lab runners are for
+are in `docs/development-machines.md`. It is kept separate because it goes
+stale on its own schedule and none of it is a rule.
 
-Clone with `gh repo clone MeshBench/meshbench`. `golangci-lint` is pinned to the
-version CI uses (v2.1.6) at `~/go/bin`.
-
-## Running
-
-Needs a GPU and a display: **this does not run on VM 114** (virtual VGA, no
-display). Develop here, run on a Mac. The CPU path is what CI exercises.
+Two things from it are worth knowing before reading anything above: **the
+emulated boards are run one at a time**, because several at once will take a
+twelve-core machine down, and **`golangci-lint` must match the version CI
+pins**, or it will disagree with CI about whether the tree is clean.
