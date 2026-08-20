@@ -2,11 +2,12 @@ package workbench
 
 import (
 	"fmt"
-	"github.com/MeshBench/meshbench/internal/app/resource"
+	"image"
 
 	"gioui.org/layout"
 	"gioui.org/unit"
 
+	"github.com/MeshBench/meshbench/internal/app/resource"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/ui/comp"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
@@ -54,6 +55,52 @@ func resourceSize(r state.ResourceRow) string {
 	return siBytes(r.Bytes)
 }
 
+// shareBar draws how much of the cache one row accounts for.
+//
+// On a page about disk usage the useful number is the proportion, not the
+// size: one row here is nearly all of it and the rest are rounding error, and
+// four sizes in four different units do not say that at a glance.
+func shareBar(t *theme.Theme, frac float64) layout.Widget {
+	return func(gtx layout.Context) layout.Dimensions {
+		// Fixed width, not the width available. Stretched across the card a
+		// bar this thin reads as a rule between sections rather than as a
+		// measurement of anything.
+		h, w := gtx.Dp(t.Sp.S), gtx.Dp(shareBarWidth)
+		if max := gtx.Constraints.Max.X; w > max {
+			w = max
+		}
+		// The radius is the bar's own height: cornerRadius clamps it to half
+		// the shorter side, which is exactly a capsule.
+		comp.RoundRect(gtx, image.Point{X: w, Y: h}, t.Sp.S, t.P.Sunk)
+		fill := int(float64(w) * frac)
+		// A share too small to draw still gets a mark. A bar that renders as
+		// nothing reads as none, and none is not what a tenth of a percent
+		// of seven gigabytes means.
+		if min := gtx.Dp(t.Sp.XS); fill < min {
+			fill = min
+		}
+		comp.RoundRect(gtx, image.Point{X: fill, Y: h}, t.Sp.S, t.P.Accent)
+		return layout.Dimensions{Size: image.Point{X: w, Y: h}}
+	}
+}
+
+// shareBarWidth is the gauge's length. Wide enough that a few percent is a
+// visible sliver rather than the minimum mark.
+const shareBarWidth = unit.Dp(240)
+
+// sharePct is the share as words, keeping a real but tiny share distinct from
+// nothing at all.
+func sharePct(frac float64) string {
+	switch pc := frac * 100; {
+	case pc >= 10:
+		return fmt.Sprintf("%.0f%% of the cache", pc)
+	case pc >= 0.1:
+		return fmt.Sprintf("%.1f%% of the cache", pc)
+	default:
+		return "under 0.1% of the cache"
+	}
+}
+
 func (p *resourcesPanel) row(t *theme.Theme, gtx layout.Context,
 	r state.ResourceRow) layout.Dimensions {
 	key := resourceKey(r)
@@ -70,7 +117,14 @@ func (p *resourcesPanel) row(t *theme.Theme, gtx layout.Context,
 			"name": r.Name, "version": r.Version, "kind": r.Kind})
 	}
 	if w.licence.Click.Clicked(gtx) {
-		p.do("resource.licence", map[string]any{
+		// Pressed again it closes, and closing is a verb of its own rather
+		// than a flag the panel keeps to itself. Both halves of a toggle
+		// should be things a script can do.
+		verb := "resource.licence"
+		if p.licenceShown(r) {
+			verb = "resource.licence.hide"
+		}
+		p.do(verb, map[string]any{
 			"name": r.Name, "version": r.Version, "kind": r.Kind})
 	}
 	if w.remove.Click.Clicked(gtx) {
@@ -82,20 +136,14 @@ func (p *resourcesPanel) row(t *theme.Theme, gtx layout.Context,
 			p.confirm = key
 		}
 	}
-	label, ink := resourceStateInk(t, r.State)
-	return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(8)}.Layout(gtx,
+
+	return layout.Inset{Bottom: t.Sp.S}.Layout(gtx, comp.Card(t, "",
 		func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-						layout.Flexed(1, comp.Text(t, t.Sz.Body, t.P.Ink,
-							fmt.Sprintf("%s %s", r.Name, r.Version))),
-						layout.Rigid(comp.Mono(t, t.Sz.Caption, t.P.Dim, resourceSize(r))),
-						layout.Rigid(layout.Spacer{Width: unit.Dp(12)}.Layout),
-						layout.Rigid(comp.Text(t, t.Sz.Caption, ink, label)),
-					)
+					return p.rowHead(t, gtx, r)
 				}),
-				layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint, r.Kind)),
+				layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint, rowMeta(r))),
 				// Why is content, not a tooltip: it is the row's answer to
 				// "and why is it in that state", and a state without one is
 				// how an operator concludes the application is stuck.
@@ -103,14 +151,71 @@ func (p *resourcesPanel) row(t *theme.Theme, gtx layout.Context,
 					if r.Why == "" {
 						return layout.Dimensions{}
 					}
-					return comp.Text(t, t.Sz.Caption, t.P.Faint, r.Why)(gtx)
+					return layout.Inset{Top: t.Sp.XXS}.Layout(gtx,
+						comp.Text(t, t.Sz.Caption, t.P.Dim, r.Why))
 				}),
-				layout.Rigid(layout.Spacer{Height: unit.Dp(4)}.Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return p.rowShare(t, gtx, r, present)
+				}),
+				layout.Rigid(layout.Spacer{Height: t.Sp.S}.Layout),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return p.rowActions(t, gtx, w, key, present, r)
 				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return p.licenceBox(t, gtx, r)
+				}),
+			)
+		}))
+}
+
+// rowHead is the name, then the two facts read across from it: how big, and
+// what state it is in.
+func (p *resourcesPanel) rowHead(t *theme.Theme, gtx layout.Context,
+	r state.ResourceRow) layout.Dimensions {
+	label, ink := resourceStateInk(t, r.State)
+	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+		layout.Rigid(comp.Text(t, t.Sz.Section, t.P.Ink, r.Name)),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			// A version is compared down a column, so it is mono - and a row
+			// that has none says nothing rather than trailing a space.
+			if r.Version == "" {
+				return layout.Dimensions{}
+			}
+			return layout.Inset{Left: t.Sp.S}.Layout(gtx,
+				comp.Mono(t, t.Sz.Caption, t.P.Dim, r.Version))
+		}),
+		layout.Flexed(1, comp.Spacer),
+		layout.Rigid(comp.Mono(t, t.Sz.Data, t.P.Ink, resourceSize(r))),
+		layout.Rigid(layout.Spacer{Width: t.Sp.M}.Layout),
+		layout.Rigid(comp.Pill(t, ink, label)),
+	)
+}
+
+// rowShare is the proportion bar, drawn only for bytes that were counted.
+//
+// An estimate has no place on it: the bar is a comparison of what is actually
+// on the disk, and a guess drawn beside measurements would be read as one.
+func (p *resourcesPanel) rowShare(t *theme.Theme, gtx layout.Context,
+	r state.ResourceRow, present bool) layout.Dimensions {
+	if !present || r.Estimated || p.onDisk <= 0 || r.Bytes <= 0 {
+		return layout.Dimensions{}
+	}
+	frac := float64(r.Bytes) / float64(p.onDisk)
+	return layout.Inset{Top: t.Sp.S}.Layout(gtx,
+		func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+				layout.Rigid(shareBar(t, frac)),
+				layout.Rigid(layout.Spacer{Width: t.Sp.M}.Layout),
+				layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint, sharePct(frac))),
+				layout.Flexed(1, comp.Spacer),
 			)
 		})
+}
+
+// rowMeta is the kind and how it got here, on one line. The second half used to
+// float alone at the far right of the row, a caption with nothing to attach to.
+func rowMeta(r state.ResourceRow) string {
+	return r.Kind + " - " + autoLabel(r.Auto)
 }
 
 func (p *resourcesPanel) rowActions(t *theme.Theme, gtx layout.Context,
@@ -133,6 +238,10 @@ func (p *resourcesPanel) rowActions(t *theme.Theme, gtx layout.Context,
 	if !r.Fetchable {
 		w.fetch.Reason = "fills itself as the map is used"
 	}
+	w.licence.Label = "Licence"
+	if p.licenceShown(r) {
+		w.licence.Label = "Hide licence"
+	}
 	w.licence.Disabled = !r.Licensed
 	w.licence.Reason = ""
 	if !r.Licensed {
@@ -141,7 +250,6 @@ func (p *resourcesPanel) rowActions(t *theme.Theme, gtx layout.Context,
 			w.licence.Reason = "terms arrive with the file"
 		}
 	}
-
 	w.remove.Disabled = !present
 	w.remove.Reason = ""
 	if !present {
@@ -150,16 +258,12 @@ func (p *resourcesPanel) rowActions(t *theme.Theme, gtx layout.Context,
 
 	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return w.fetch.Layout(t, gtx) }),
-		layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
+		layout.Rigid(layout.Spacer{Width: t.Sp.S}.Layout),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return w.licence.Layout(t, gtx) }),
-		layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
+		// Remove sits away from the two safe actions rather than beside them.
+		// Destructive things should not be the next button along.
+		layout.Flexed(1, comp.Spacer),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return w.remove.Layout(t, gtx) }),
-		layout.Flexed(1, layout.Spacer{}.Layout),
-		// Said rather than offered. Nothing here can fetch itself yet - the
-		// SoftDevice deliberately will not, because it is somebody else's
-		// licensed binary and the terms should arrive where a person sees
-		// them. A tickbox that cannot be ticked is worse than a sentence.
-		layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint, autoLabel(r.Auto))),
 	)
 }
 

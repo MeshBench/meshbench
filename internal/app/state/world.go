@@ -22,9 +22,14 @@ type World struct {
 	// Resources is everything the application downloads at runtime, as last
 	// listed from disk.
 	Resources []ResourceRow
-	Jobs      []Job
-	Status    string
-	Log       []string
+	// Licence is the terms last asked for, and the row that asked. On the
+	// world rather than on every row because they are read on demand: a list
+	// carrying every licence it might one day show has opened files nobody
+	// asked to see.
+	Licence LicenceText
+	Jobs    []Job
+	Status  string
+	Log     []string
 	// FullLog is Log kept much further back - a few thousand lines rather
 	// than twenty - for a panel built to be scrolled and searched, not just
 	// glanced at.

@@ -33,6 +33,15 @@ type resourcesPanel struct {
 	list       widget.List
 	rows       map[string]*resRowW
 
+	// onDisk is what the rows add up to this frame, so each can say what
+	// share of it it is. Render state, recomputed before the list draws.
+	onDisk int64
+
+	// licence is the terms the store last read, and the row they belong to.
+	// Which row is open is a fact about the world here rather than about the
+	// panel, so that opening one is something a script can do.
+	licence state.LicenceText
+
 	// confirm holds the key of the row whose removal has been asked once.
 	// Destructive things ask twice, in place, and never behind a modal.
 	confirm string
@@ -90,13 +99,24 @@ func (p *resourcesPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snaps
 		return rows[i].Name < rows[j].Name
 	})
 
+	sum := totalsOf(rows)
+	p.onDisk = sum.bytes
+	p.licence = s.Licence
+
 	p.list.Axis = layout.Vertical
-	return layout.UniformInset(unit.Dp(16)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+	return layout.UniformInset(t.Sp.L).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return p.header(t, gtx, rows)
+				return p.header(t, gtx, rows, sum)
 			}),
-			layout.Rigid(layout.Spacer{Height: unit.Dp(12)}.Layout),
+			layout.Rigid(layout.Spacer{Height: t.Sp.M}.Layout),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				if len(rows) == 0 {
+					return layout.Dimensions{}
+				}
+				return p.cards(t, gtx, rows, sum)
+			}),
+			layout.Rigid(layout.Spacer{Height: t.Sp.M}.Layout),
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 				if len(rows) == 0 {
 					return p.empty(t, gtx)
@@ -106,7 +126,7 @@ func (p *resourcesPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snaps
 						return p.row(t, gtx, rows[i])
 					})(gtx)
 			}),
-			layout.Rigid(layout.Spacer{Height: unit.Dp(8)}.Layout),
+			layout.Rigid(layout.Spacer{Height: t.Sp.S}.Layout),
 			layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint,
 				"Sizes marked ~ are estimates, not measurements. "+
 					"Nothing here is fetched without being asked.")),
@@ -114,32 +134,89 @@ func (p *resourcesPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snaps
 	})
 }
 
-func (p *resourcesPanel) header(t *theme.Theme, gtx layout.Context,
-	rows []state.ResourceRow) layout.Dimensions {
-	var onDisk int
-	var total int64
+// totals is what the page says about itself, counted once per frame.
+type totals struct {
+	onDisk  int
+	bytes   int64
+	auto    int64
+	asked   int64
+	largest state.ResourceRow
+}
+
+func totalsOf(rows []state.ResourceRow) totals {
+	var s totals
 	for _, r := range rows {
 		// resource.State's own names. This tested "present", which nothing
 		// emits, so the count was always zero and the header said nothing was
 		// here while a fetched SoftDevice sat in the row beneath it.
 		switch resource.State(r.State) {
 		case resource.OnDisk, resource.InUse:
-			onDisk++
-			total += r.Bytes
+		default:
+			continue
+		}
+		s.onDisk++
+		s.bytes += r.Bytes
+		if r.Auto {
+			s.auto += r.Bytes
+		} else {
+			s.asked += r.Bytes
+		}
+		if r.Bytes > s.largest.Bytes {
+			s.largest = r
 		}
 	}
-	// "0 of 1, -" put a dash where a size belongs, which reads as a broken
-	// number rather than as nothing being here yet.
-	sub := "none of them on this machine yet"
-	if onDisk > 0 {
-		sub = fmt.Sprintf("%d of %d here, %s on disk", onDisk, len(rows), siBytes(total))
+	return s
+}
+
+// cards are the four questions this page exists to answer: how much is here,
+// what is most of it, and how much of that arrived without anybody deciding.
+func (p *resourcesPanel) cards(t *theme.Theme, gtx layout.Context,
+	rows []state.ResourceRow, s totals) layout.Dimensions {
+	cells := []layout.Widget{
+		comp.StatCell(t, "On disk", siOrDash(s.bytes),
+			fmt.Sprintf("%d of %d listed here", s.onDisk, len(rows))),
+		comp.StatCell(t, "Largest", siOrDash(s.largest.Bytes), largestCaption(s)),
+		comp.StatCell(t, "Filled itself", siOrDash(s.auto),
+			"cached as the map was used"),
+		comp.StatCell(t, "Asked for", siOrDash(s.asked),
+			"fetched deliberately, licence and all"),
+	}
+	return comp.Card(t, "", func(gtx layout.Context) layout.Dimensions {
+		return comp.CellGrid(t, gtx, 150, cells)
+	})(gtx)
+}
+
+// siOrDash keeps nothing distinct from zero: a page about disk usage that
+// prints "0 B" for a cache it has not measured is lying about the disk.
+func siOrDash(b int64) string {
+	if b <= 0 {
+		return "-"
+	}
+	return siBytes(b)
+}
+
+func largestCaption(s totals) string {
+	if s.largest.Name == "" {
+		return "nothing measured yet"
+	}
+	return s.largest.Name
+}
+
+func (p *resourcesPanel) header(t *theme.Theme, gtx layout.Context,
+	rows []state.ResourceRow, s totals) layout.Dimensions {
+	// The counting moved to the cards below. The subtitle says what the page
+	// is; the numbers say what is in it, and saying both twice is how a header
+	// and its own contents start disagreeing.
+	sub := "What this build downloads that is not firmware."
+	if len(rows) > 0 && s.onDisk == 0 {
+		sub = "What this build downloads that is not firmware - " +
+			"none of it on this machine yet."
 	}
 	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 				layout.Rigid(comp.Text(t, t.Sz.Title, t.P.Ink, "Resources")),
-				layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Dim,
-					"What this build downloads that is not firmware - "+sub+".")),
+				layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Dim, sub)),
 			)
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {

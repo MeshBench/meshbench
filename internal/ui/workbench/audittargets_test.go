@@ -77,6 +77,13 @@ func auditTargets(r *recorder) []target {
 			Why: "height data under every link budget"},
 	}
 
+	// Terms open on one row, so the licence box is drawn in the audit rather
+	// than only when somebody presses the button on a running workbench.
+	snapWithResources.Licence = state.LicenceText{
+		Kind: "terrain", Name: "terrain tiles",
+		Text: "Terrain heights are Copernicus DEM and NASA SRTM.",
+	}
+
 	nodes := &nodesPanel{}
 	nodes.OnSelect = func(string) { r.do("nodes.select", nil) }
 	nv := &nodeViewPanel{}

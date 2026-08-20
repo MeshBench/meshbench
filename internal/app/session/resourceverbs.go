@@ -214,7 +214,7 @@ func registerResources(st *state.Store, s *Sim) {
 	})
 
 	// resource.licence: the terms, for the interface to show.
-	st.Handle("resource.licence", func(_ *state.World, p any) (any, error) {
+	st.Handle("resource.licence", func(w *state.World, p any) (any, error) {
 		name, _ := stringField(p, "name")
 		version, _ := stringField(p, "version")
 		kind, _ := stringField(p, "kind")
@@ -236,7 +236,20 @@ func registerResources(st *state.Store, s *Sim) {
 		if text == "" {
 			return nil, fmt.Errorf("no licence here: %s %s is not cached", name, version)
 		}
+		// Nordic's file has CRLF endings. A carriage return reaches the text
+		// shaper as a glyph nobody has, so the terms drew as a column of
+		// tofu down the right-hand edge.
+		text = strings.ReplaceAll(text, "\r\n", "\n")
+		w.Licence = state.LicenceText{Kind: kind, Name: name, Version: version, Text: text}
 		return map[string]any{"name": name, "version": version, "text": text}, nil
+	})
+
+	// resource.licence.hide: put the terms away again. A verb rather than a
+	// flag the panel keeps, so both halves of the toggle are scriptable and
+	// both are therefore capturable.
+	st.Handle("resource.licence.hide", func(w *state.World, _ any) (any, error) {
+		w.Licence = state.LicenceText{}
+		return map[string]any{"hidden": true}, nil
 	})
 
 	// resource.remove: delete one. The caller has already asked twice.

@@ -236,6 +236,15 @@ type ResourceRow struct {
 	Licensed  bool
 }
 
+// LicenceText is one resource's terms, and which resource they belong to.
+//
+// Kind and Name as well as the text, because the panel shows them against the
+// row that asked: terms displayed under the wrong resource are worse than no
+// terms at all.
+type LicenceText struct {
+	Kind, Name, Version, Text string
+}
+
 // BoardCapabilityCell is one board's one capability: "untested", "passed",
 // "failed" or "n/a", with Detail carrying the reason for anything that is
 // not a plain pass.
