@@ -32,6 +32,7 @@ on:
 
 jobs:
   linux:
+    timeout-minutes: 75
     # The oldest base that can link. This used to be 24.04 because cimgui-go
     # shipped a prebuilt cimgui.a referencing __isoc23_sscanf, a symbol glibc
     # only grew in 2.38 - a dependency's floor showing through as several
@@ -367,6 +368,7 @@ jobs:
             dist/SHA256SUMS
 
   macos:
+    timeout-minutes: 75
     # macos-14 is Apple Silicon and is the standard runner, not the xlarge -
     # larger runners are billed on every plan and fail with a message about
     # account payments, which is a confusing way to be told you picked the
@@ -491,6 +493,7 @@ jobs:
           retention-days: ${{ inputs.release && 1 || 3 }}
           path: dist/*.dmg
   windows:
+    timeout-minutes: 60
     # Cross-compiled from Linux with mingw rather than built on a Windows
     # runner: Gio's Windows backend and wgpu both build that way, and Windows
     # minutes bill at 2x on a private repository for a build that needs
@@ -609,6 +612,7 @@ jobs:
           path: dist/*.zip
 
   release:
+    timeout-minutes: 20
     # One release, once every platform has built. Publishing per-job would put
     # the Linux downloads on a release page that has no Mac or Windows build
     # in it yet, which is a release somebody downloads halfway through.

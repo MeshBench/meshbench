@@ -1,6 +1,12 @@
 name: CI
 
 on:
+  schedule:
+    # 02:00 UTC, when the lab pool is idle. Everything runs: the race detector
+    # because it is too slow to sit in front of a merge, and the ordinary
+    # checks because a nightly green on main is what catches the tree breaking
+    # without anybody having pushed - a dependency, a runner image, a toolchain.
+    - cron: "0 2 * * *"
   push:
     branches: [main]
   pull_request:
@@ -12,6 +18,10 @@ permissions:
 
 jobs:
   check:
+    # 20 minutes is roughly forty times what this job takes. The point of the
+    # number is not to be tight - it is that the GitHub default is six hours,
+    # and a wedged job holds one of three lab runners for all of it.
+    timeout-minutes: 20
     # The lab runners sit on a home LAN with a NAS mounted, so a fork's PR -
     # a stranger's code - must never land on one. Forks fall back to hosted
     # runners here rather than being skipped, so a fork PR still gets checked.
@@ -125,6 +135,7 @@ jobs:
   # for is a check that gets bypassed. The detector still runs, on main, after
   # the merge - see the race job below.
   test:
+    timeout-minutes: 30
     # The lab runners sit on a home LAN with a NAS mounted, so a fork's PR -
     # a stranger's code - must never land on one. Forks fall back to hosted
     # runners here rather than being skipped, so a fork PR still gets checked.
@@ -193,8 +204,18 @@ jobs:
   # for: run it from the Actions tab before a release, or locally with
   # `go test -race ./...` while chasing something.
   race:
-    if: github.event_name == 'workflow_dispatch'
-    # No fork fallback needed: dispatch requires write access to this repo.
+    # Nightly as well as on request. The reasoning above still holds - it is
+    # too slow to sit in front of a merge - but "run it from the Actions tab
+    # before a release" is a step a person has to remember, and the argument
+    # this whole file makes is that a check should not depend on that.
+    #
+    # Not on push: three runners in the pool and an hour of detector on every
+    # merge would starve the checks people are actually waiting for. At 02:00
+    # the pool is idle and nobody is waiting for anything.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 60
+    # No fork fallback needed: schedule and dispatch both run on this repo,
+    # and dispatch requires write access to it.
     runs-on: [self-hosted, linux, x64, lab-linux]
     steps:
       - uses: actions/checkout@v4

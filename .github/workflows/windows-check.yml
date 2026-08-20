@@ -15,6 +15,10 @@ on:
 
 jobs:
   check:
+    # A hosted Windows runner is minutes we pay for, and this job only smoke-
+    # checks a cross-compiled binary. Six hours of a hung one is not a bill
+    # worth risking.
+    timeout-minutes: 30
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
