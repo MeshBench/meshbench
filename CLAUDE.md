@@ -86,6 +86,7 @@ internal/app/       orchestration, no toolkit
   state/              the store, and the snapshots the renderer reads
   session/            the workbench without a user interface
   fixture/            the on-disk form of a whole setup
+  resource/           what is downloaded at runtime, and what it cost the disk
   control/            the unix socket another process drives it by
   mcp/                the engine over the Model Context Protocol
 
