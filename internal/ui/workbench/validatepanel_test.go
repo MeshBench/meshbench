@@ -71,7 +71,11 @@ func TestValidatePanelGuidesBeforeAnyData(t *testing.T) {
 	})
 	h2.frame()
 	h2.frame()
-	if p.tb.Shown() != 4 {
-		t.Fatalf("the residual table shows %d rows, want the four figures", p.tb.Shown())
+	// Six figures now: the two headline numbers, the bias and spread, and the
+	// two ways an observation fails to match. Their sum as one "unmatched"
+	// count is how a total matching failure once went undiagnosed, so the
+	// split is worth asserting rather than tolerating.
+	if p.tb.Shown() != 6 {
+		t.Fatalf("the residual table shows %d rows, want six", p.tb.Shown())
 	}
 }
