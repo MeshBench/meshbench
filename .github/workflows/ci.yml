@@ -135,6 +135,16 @@ jobs:
           done < <(find . \( -name '*.go' -o -name '*.wgsl' -o -name '*.lua' \) -not -path './vendor/*')
           exit $fail
 
+      # "Build artifacts: never tracked", from CLAUDE.md's limits table. A
+      # committed engine.test binary had to be removed by hand once; .gitignore
+      # covers it now, but .gitignore only stops the accident it anticipated.
+      - name: no tracked build artifacts
+        run: |
+          if git ls-files | grep -nE '\.(test|exe|out|o|a|so|dylib|AppImage|deb|dmg)$|^(meshcoresim|workbench2|envgen|goldencap)$'; then
+            echo "a build artifact is tracked; git remembers, so it does not need to be committed"
+            exit 1
+          fi
+
   # The suite, split across runners.
   #
   # It used to be one step at the end of `check`, which meant the whole run
