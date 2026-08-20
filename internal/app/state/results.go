@@ -214,3 +214,22 @@ type Build struct {
 	Bytes   int64
 	Path    string
 }
+
+// ResourceRow is one thing the application downloads at runtime, as the panel
+// and the verbs see it.
+//
+// Estimated says whether Bytes was measured or guessed, because a guess
+// presented as a survey is exactly what a page about disk usage must not do.
+// Auto is whether the application may fetch it without being asked - not the
+// same question as whether it is present, which is State.
+type ResourceRow struct {
+	Kind      string
+	Name      string
+	Version   string
+	Path      string
+	Bytes     int64
+	Estimated bool
+	State     string
+	Why       string
+	Auto      bool
+}

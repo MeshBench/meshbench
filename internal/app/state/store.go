@@ -257,6 +257,7 @@ func (s *Store) publish() {
 		Calibrated:        s.world.Calibrated,
 		Observed:          s.world.Observed,
 		Residuals:         s.world.Residuals,
+		Resources:         append([]ResourceRow(nil), s.world.Resources...),
 		Stats:             s.world.Stats,
 		Builds:            s.world.Builds,
 		Library:           append([]FirmwareRow(nil), s.world.Library...),

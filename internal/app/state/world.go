@@ -19,9 +19,12 @@ type World struct {
 	RunUntilMs uint32
 	Seed       uint64
 	Nodes      []Node
-	Jobs       []Job
-	Status     string
-	Log        []string
+	// Resources is everything the application downloads at runtime, as last
+	// listed from disk.
+	Resources []ResourceRow
+	Jobs      []Job
+	Status    string
+	Log       []string
 	// FullLog is Log kept much further back - a few thousand lines rather
 	// than twenty - for a panel built to be scrolled and searched, not just
 	// glanced at.
