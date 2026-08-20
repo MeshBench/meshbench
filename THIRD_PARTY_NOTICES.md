@@ -24,7 +24,7 @@ that it cannot fall behind the build:
 
 ## What is in it
 
-Six sections, 27 entries besides MeshBench itself, as of this writing:
+Six sections, 26 entries besides MeshBench itself, as of this writing:
 
 | Section | Count | What it covers |
 |---|--:|---|
