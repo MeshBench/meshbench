@@ -322,8 +322,6 @@ func classify(text string) string {
 		return "Apache-2.0"
 	case strings.Contains(t, "mozilla public license") && strings.Contains(t, "2.0"):
 		return "MPL-2.0"
-	case strings.Contains(t, "eclipse public license"):
-		return "EPL-2.0"
 	case strings.Contains(t, "gnu general public license"):
 		// Version 2 without the "or later" escape hatch cannot be combined
 		// with our GPL-3.0; version 3 and "2 or later" can.
