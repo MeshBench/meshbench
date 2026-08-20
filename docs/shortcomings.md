@@ -304,7 +304,7 @@ were in the way, none of them the SoftDevice:
 
 **That last paragraph used to say SPI traffic to the SX1262 still did not
 happen, so no shipped image had been observed driving its radio. It does now.**
-Six published nRF52840 images boot through the MBR and the s140 SoftDevice,
+Five published nRF52840 images boot through the MBR and the s140 SoftDevice,
 reach their own main loop, and put an advert on the air that another node hears
 — measured board by board in the compatibility matrix in `README.md`. Two of
 them relay somebody else's packet and are still answering after an idle.
@@ -315,7 +315,7 @@ What is still not reproduced is anything depending on the BLE stack stealing
 time from the radio ISR: the images that run are repeater builds, and nothing
 here connects to one over Bluetooth.
 
-Three of those six advert once and then report their channel busy for the rest
+Three of those five advert once and then report their channel busy for the rest
 of the run. That is tracked separately and is not a SoftDevice problem — a board
 on the same emulator with the same boot chain relays correctly.
 
