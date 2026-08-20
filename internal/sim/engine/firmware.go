@@ -412,14 +412,19 @@ func emulatedBackend(spec scenario.Node) (*firmware.EmulatedNode, error) {
 		return &firmware.EmulatedNode{
 			Emulator: firmware.Renode,
 			Image:    src,
-			Platform: board.Renode.Platform,
-			SPIBase:  board.Renode.SPIBase,
-			NssPort:  board.Renode.NssPort,
-			NssPin:   board.Renode.NssPin,
-			IrqPort:  board.Renode.IrqPort,
-			IrqPin:   board.Renode.IrqPin,
-			NodeName: spec.Name,
-			Dir:      dir,
+			// Published nRF52 images are linked above a Nordic SoftDevice,
+			// which is fetched rather than bundled and so may not be here yet.
+			// The refusal names it, because the alternative is a node that
+			// boots into a fill pattern and looks like a broken emulator.
+			SoftDeviceDir: firmware.SoftDeviceDir(cache),
+			Platform:      board.Renode.Platform,
+			SPIBase:       board.Renode.SPIBase,
+			NssPort:       board.Renode.NssPort,
+			NssPin:        board.Renode.NssPin,
+			IrqPort:       board.Renode.IrqPort,
+			IrqPin:        board.Renode.IrqPin,
+			NodeName:      spec.Name,
+			Dir:           dir,
 		}, nil
 	}
 
