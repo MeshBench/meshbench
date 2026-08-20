@@ -333,6 +333,26 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 		report.set(Power, Untested, "this backend keeps no console log to read a reply from")
 		return report
 	}
+	// Established before the idle, not assumed: a board that answers nothing on
+	// its console cannot be measured this way, and calling that a failure would
+	// mark a healthy board dead for saying little. Only a board that answered
+	// before and does not after has actually stopped.
+	baseline, err := said.ConsoleLog()
+	if err != nil {
+		report.set(Power, Untested, "could not read the console: "+err.Error())
+		return report
+	}
+	if err := under.Firmware.Bridge.Type([]byte("clock\r\n")); err != nil {
+		report.set(Power, Untested, "no way to ask it: "+err.Error())
+		return report
+	}
+	if !answeredOn(ctx, e, said, len(baseline), "->") {
+		report.set(Power, Untested,
+			"this build answers nothing on its console, so silence later would "+
+				"not mean it had stopped")
+		return report
+	}
+
 	before, err := said.ConsoleLog()
 	if err != nil {
 		report.set(Power, Untested, "could not read the console: "+err.Error())
@@ -342,20 +362,7 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 		report.set(Power, Untested, "no way to ask it: "+err.Error())
 		return report
 	}
-	answered := false
-	for i := 0; i < 40; i++ {
-		if err := e.Run(ctx, e.NowMs()+500); err != nil {
-			break
-		}
-		after, rerr := said.ConsoleLog()
-		if rerr == nil && len(after) > len(before) &&
-			strings.Contains(string(after[len(before):]), "Advert sent") {
-			answered = true
-			break
-		}
-		time.Sleep(250 * time.Millisecond)
-	}
-	if answered {
+	if answeredOn(ctx, e, said, len(before), "Advert sent") {
 		report.set(Power, Passed, "answered a command on the console after a 15 s idle")
 	} else {
 		report.set(Power, Failed,
@@ -440,4 +447,25 @@ func min(a, b time.Duration) time.Duration {
 		return a
 	}
 	return b
+}
+
+// answeredOn waits for the node to say something new on its console.
+//
+// Given the length the log had before the question, so that a reply is only
+// what arrived after it - the boot chain is already in there, and matching
+// against the whole file would find the firmware's own startup chatter.
+func answeredOn(ctx context.Context, e *engine.Engine,
+	said interface{ ConsoleLog() ([]byte, error) }, from int, want string) bool {
+
+	for i := 0; i < 40; i++ {
+		if err := e.Run(ctx, e.NowMs()+500); err != nil {
+			return false
+		}
+		b, err := said.ConsoleLog()
+		if err == nil && len(b) > from && strings.Contains(string(b[from:]), want) {
+			return true
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+	return false
 }
