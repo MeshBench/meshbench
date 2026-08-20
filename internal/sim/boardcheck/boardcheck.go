@@ -294,20 +294,36 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 	// The line is judged at the instant the board last transmitted, not at its
 	// level now: a module is meant to be switched out while the board listens,
 	// so the question only means anything about a board that has transmitted.
-	if prof, perr := scenario.BoardByName(board); perr == nil && prof.FEM != nil {
+	prof, perr := scenario.BoardByName(board)
+	switch {
+	case perr != nil || prof.FEM == nil:
+		report.set(FEM, NotApplicable, "this board carries no front-end module")
+
+	// A board can only be judged on a line the emulator is able to drive.
+	// QEMUWiring carries the module's enable pin; RenodeWiring has no field for
+	// one, so a Renode board's firmware can toggle the pin all it likes and
+	// nothing downstream will ever see it. Reporting that as a failure blames
+	// the board for the emulator's gap, which is the same lie as a green cell
+	// nobody earned.
+	case prof.QEMU == nil || prof.QEMU.FEM == 0:
+		report.set(FEM, Untested,
+			"this board has a front-end module and this emulator has no pin for it")
+
+	default:
 		switch under.Firmware.Bridge.Stats().FemAtTx {
 		case firmware.FemIn:
 			report.set(FEM, Passed, "the module was switched in to transmit")
 		case firmware.FemOut:
-			report.set(FEM, Failed,
-				"the module was switched out while transmitting, which costs "+
-					fmt.Sprintf("%.0f dB of the board's output", prof.FEM.TxLossDB))
+			// What it costs is the gain forgone plus the loss taken, and for
+			// these two boards it is one or the other: the E22's module is an
+			// attenuator worth 25 dB and the t096's an amplifier worth 13.
+			report.set(FEM, Failed, fmt.Sprintf(
+				"the module was switched out while transmitting, costing %.0f dB",
+				prof.FEM.TxGainDB+prof.FEM.TxLossDB))
 		default:
 			report.set(FEM, Untested,
 				"the firmware never reported where it left the module's enable line")
 		}
-	} else {
-		report.set(FEM, NotApplicable, "this board carries no front-end module")
 	}
 
 	// power: the board is still answering after sitting idle.
