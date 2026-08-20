@@ -62,6 +62,13 @@ type EmulatedNode struct {
 	FEM      int
 	NodeName string
 
+	// PSRAMMB is the board's external RAM, in megabytes. Zero means none, and
+	// a firmware built expecting some will not start without it.
+	PSRAMMB int
+
+	// PSRAMOctal selects an octal (OPI) part rather than a quad one.
+	PSRAMOctal bool
+
 	// Emulator selects QEMU or Renode.
 	Emulator Emulator
 
@@ -242,6 +249,9 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	if e.FEM != 0 {
 		machine += fmt.Sprintf(",radio-fem=%d", e.FEM)
 	}
+	if e.PSRAMOctal {
+		machine += ",psram-octal=on"
+	}
 
 	qemuLog, err := os.Create(filepath.Join(e.Dir, "console.log"))
 	if err != nil {
@@ -264,13 +274,17 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	}
 
 	conPath := filepath.Join(e.Dir, "console.sock")
-	e.qemu = exec.CommandContext(ctx, qemuBin,
+	args := []string{
 		"-machine", machine,
 		"-nographic", "-monitor", "none",
-		"-drive", "file="+flash+",if=mtd,format=raw",
-		"-chardev", "socket,id=con,path="+conPath+",server=on,wait=off",
+		"-drive", "file=" + flash + ",if=mtd,format=raw",
+		"-chardev", "socket,id=con,path=" + conPath + ",server=on,wait=off",
 		"-serial", "chardev:con",
-	)
+	}
+	if e.PSRAMMB > 0 {
+		args = append(args, "-m", fmt.Sprintf("%dM", e.PSRAMMB))
+	}
+	e.qemu = exec.CommandContext(ctx, qemuBin, args...)
 	e.qemu.Stdout, e.qemu.Stderr = qemuLog, qemuLog
 	if err := e.qemu.Start(); err != nil {
 		_ = e.stopLocked()

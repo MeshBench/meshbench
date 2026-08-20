@@ -153,6 +153,21 @@ type QEMUWiring struct {
 	// showing. Zero means none recorded.
 	LED int
 
+	// PSRAMMB is the external RAM the board carries, in megabytes, or zero on
+	// a board with none.
+	//
+	// Not a detail the radio cares about, and not optional either: a firmware
+	// built for a board with PSRAM calls the driver at startup, and one that
+	// finds no chip fails initialisation and asserts. The Xiao S3 WIO does
+	// exactly that - "SPI RAM enabled but initialization failed. Bailing out."
+	// - and reboots for ever without reaching MeshCore at all.
+	PSRAMMB int
+
+	// PSRAMOctal says that RAM is an octal (OPI) part rather than a quad one.
+	// The firmware probes for the one it was built against and reports a quad
+	// chip as missing entirely.
+	PSRAMOctal bool
+
 	// FEM is the GPIO carrying the front-end module's transmit enable, zero on
 	// a board without one. RadioLib drives it from its RF-switch table rather
 	// than the firmware driving it directly, so it moves on every transition
@@ -340,14 +355,13 @@ func EmulatableBoards() (ok []Board, blocked map[string]string) {
 		case b.Radio != "SX1262":
 			blocked[b.Name] = b.Radio + " radio, not modelled"
 		case b.MCU == "ESP32-S3" || b.MCU == "ESP32-C3" || b.MCU == "ESP32-C6":
-			// Two specific gaps, not a missing peripheral model: the SoC
-			// instantiates only the flash controller, never GPSPI2 where these
-			// boards put the radio, and the GPIO model has no pin in or out,
-			// so NSS could not be wired even once it did. NSS is what frames a
-			// RadioLib transaction, so without it the chip cannot answer a
-			// register read. The plain ESP32 needed exactly these two before it
-			// worked, and they are changes to our QEMU fork rather than here.
-			blocked[b.Name] = b.MCU + ": QEMU wires no radio SPI or GPIO for it yet"
+			// No longer "there is no bus for the radio": the fork's S3 machine
+			// now builds GPSPI2, offers the 49 GPIOs the part has rather than
+			// the ESP32's 40, and can be given an octal PSRAM. An image gets as
+			// far as ESP-IDF's own startup and asserts there, before MeshCore
+			// runs - the same line on two different boards, one of which has no
+			// PSRAM at all, so it is not that either.
+			blocked[b.Name] = b.MCU + ": boots, then asserts inside ESP-IDF startup"
 		case strings.HasPrefix(b.MCU, "nRF52"):
 			// Not a licensing block - see docs/licence.md, DevZone case 362437.
 			// Every other nRF52 board still needs the same Renode wiring

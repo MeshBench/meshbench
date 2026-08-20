@@ -92,9 +92,14 @@ func fileExists(p string) bool {
 //
 // Two traps in one function. QEMU takes only 2, 4, 8 or 16 MB images; and the
 // size must match what the image header asks for, or ESP-IDF asserts in
-// do_core_init with a message naming both sizes. The header lives at 0x1000 in
-// a merged image, because the file starts with padding - reading it from zero
-// gives 0xff and a nonsense answer.
+// do_core_init with a message naming both sizes.
+//
+// Where the header lives is the part that differs by part. An ESP32 boots its
+// bootloader from 0x1000, so a merged image starts with padding and reading a
+// header from zero gives 0xff and a nonsense answer. An ESP32-S3 boots from
+// zero, so the header is the first thing in the file. Looked for rather than
+// assumed: the byte is 0xE9 either way, and a merged image for one part has
+// erased flash where the other keeps its header.
 func PadImage(src, dst string) (int, error) {
 	data, err := os.ReadFile(src)
 	if err != nil {
@@ -103,12 +108,19 @@ func PadImage(src, dst string) (int, error) {
 	if len(data) < 0x1004 {
 		return 0, fmt.Errorf("firmware: %s is too small to be a merged image", src)
 	}
-	if data[0x1000] != 0xE9 {
-		return 0, fmt.Errorf("firmware: %s has no image header at 0x1000; "+
+	hdr := -1
+	switch {
+	case data[0] == 0xE9:
+		hdr = 0 // ESP32-S3, and the other parts that boot from zero
+	case data[0x1000] == 0xE9:
+		hdr = 0x1000 // ESP32
+	}
+	if hdr < 0 {
+		return 0, fmt.Errorf("firmware: %s has no image header at 0x0 or 0x1000; "+
 			"it is probably an application-only build rather than a merged one", src)
 	}
 	sizes := map[byte]int{0: 1, 1: 2, 2: 4, 3: 8, 4: 16}
-	mb, ok := sizes[data[0x1003]>>4]
+	mb, ok := sizes[data[hdr+3]>>4]
 	if !ok {
 		return 0, fmt.Errorf("firmware: %s declares an unknown flash size", src)
 	}

@@ -18,12 +18,17 @@ var boards = []Board{
 		MaxTxDBm: 21, FeedlineDB: 1.2, AntennaDBi: -1,
 		SensitivityDBm: -136, NoiseFigureDB: 7, SleepUA: 200,
 		Battery:  energy.Battery{Chemistry: energy.LiIon, CapacityMAh: 2000, Cells: 1, CutoffV: 3.2},
-		Emulated: false,
+		Emulated: true,
+		// Pins from variants/heltec_v3/platformio.ini - raw GPIO numbers on an
+		// ESP32. No PSRAM on this board, so nothing to declare.
+		QEMU: &QEMUWiring{
+			Machine: "esp32s3", SPI: 2, NSS: 8, Busy: 13,
+		},
 		Notes: "Very common and not a good repeater: the stock spring antenna is well " +
 			"below a dipole, and sleep current is dominated by the board rather than " +
-			"the MCU. Not emulated: QEMU's ESP32-S3 machine models only the flash SPI " +
-			"controller, so there is no bus for the radio to sit on. The plain-ESP32 " +
-			"machine models SPI0 to SPI3 and does work.",
+			"the MCU. Its radio has a bus now - the machine builds GPSPI2 and offers " +
+			"the 49 GPIOs this part has rather than the ESP32's 40 - but the published " +
+			"image still asserts inside ESP-IDF's own startup, before MeshCore runs.",
 	},
 	{
 		// The first board driven end to end under emulation, which is why it is
@@ -132,8 +137,19 @@ var boards = []Board{
 		MaxTxDBm: 22, FeedlineDB: 1.0, AntennaDBi: -2,
 		SensitivityDBm: -136, NoiseFigureDB: 7, SleepUA: 50,
 		Battery:  energy.Battery{Chemistry: energy.LiIon, CapacityMAh: 1000, Cells: 1, CutoffV: 3.2},
-		Emulated: false,
-		Notes:    "Tiny, and the antenna figure reflects it. A companion, not a repeater.",
+		Emulated: true,
+		// The first ESP32-S3 to be wired here. Its radio is on GPSPI2 - FSPI on
+		// this part, and what Arduino's SPI object drives - which the machine
+		// did not model at all until now: it built the flash controller and
+		// stopped. Pins from variants/xiao_s3_wio/platformio.ini, which are raw
+		// GPIO numbers on an ESP32 rather than an Arduino index.
+		QEMU: &QEMUWiring{
+			Machine: "esp32s3", SPI: 2, NSS: 41, Busy: 40,
+			PSRAMMB: 8, PSRAMOctal: true,
+		},
+		Notes: "Tiny, and the antenna figure reflects it. A companion, not a " +
+			"repeater. SX126X_TXEN is RADIOLIB_NC on this board, so there is no " +
+			"front-end module to switch in.",
 	},
 	{
 		Name: "Xiao_nrf52", MCU: "nRF52840", Radio: "SX1262", Vendor: "Seeed",

@@ -436,14 +436,16 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 	}
 
 	return &firmware.EmulatedNode{
-		Emulator: firmware.QEMU,
-		Image:    padded,
-		Machine:  board.QEMU.Machine,
-		SPI:      board.QEMU.SPI,
-		NSS:      board.QEMU.NSS,
-		FEM:      board.QEMU.FEM,
-		Busy:     board.QEMU.Busy,
-		NodeName: spec.Name,
-		Dir:      dir,
+		Emulator:   firmware.QEMU,
+		Image:      padded,
+		Machine:    board.QEMU.Machine,
+		SPI:        board.QEMU.SPI,
+		NSS:        board.QEMU.NSS,
+		PSRAMMB:    board.QEMU.PSRAMMB,
+		PSRAMOctal: board.QEMU.PSRAMOctal,
+		FEM:        board.QEMU.FEM,
+		Busy:       board.QEMU.Busy,
+		NodeName:   spec.Name,
+		Dir:        dir,
 	}, nil
 }
