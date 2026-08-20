@@ -9,6 +9,8 @@ import (
 	"image/png"
 	"math"
 	"os"
+	"strings"
+	"unicode"
 
 	"github.com/MeshBench/meshbench/internal/rf/channel"
 	"github.com/MeshBench/meshbench/internal/rf/dsp"
@@ -398,9 +400,33 @@ func runBoards(_ context.Context, args []string) error {
 	return nil
 }
 
+// firstSentence is the note's opening sentence, for a table that has one line
+// per board.
+//
+// A full stop only ends a sentence when what follows is a space and a capital.
+// Stopping at the first '.' regardless cut "The board whose transmit failure
+// 1.17.1 fixed" down to "The board whose transmit failure 1." and turned "the
+// release publishes it as .uf2" into "the release publishes it as ." - version
+// numbers and file extensions are exactly what these notes are full of.
 func firstSentence(s string) string {
 	for i, r := range s {
-		if r == '.' {
+		if r != '.' {
+			continue
+		}
+		rest := s[i+1:]
+		if rest == "" {
+			return s
+		}
+		// A space, then a capital or a quote, is a sentence boundary. A digit
+		// or a lowercase letter after the stop is a version or a suffix.
+		if rest[0] != ' ' {
+			continue
+		}
+		next := strings.TrimLeft(rest, " ")
+		if next == "" {
+			return s[:i+1]
+		}
+		if c := rune(next[0]); unicode.IsUpper(c) || c == '"' || c == '\'' {
 			return s[:i+1]
 		}
 	}
