@@ -5,6 +5,7 @@ import (
 	"hash/fnv"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -18,13 +19,20 @@ const (
 	nrf52FICRBase   = 0x10000000
 )
 
-// SoftDevicePath is where a fetched SoftDevice binary lives.
+// SoftDeviceHex finds the fetched SoftDevice for a version, or "" if it is not
+// there.
 //
-// This package owns the name because it is the one that knows which version an
-// image needs; the layer that fetches it writes to the same path. The same
-// split as board images, for the same reason.
-func SoftDevicePath(dir, version string) string {
-	return filepath.Join(dir, "s140-"+version+".bin")
+// The directory layout is the downloader's, and the file is found by extension
+// rather than by name: Nordic's own filename is the downloader's business, and
+// spelling it in two places is how the two drift apart without either being
+// wrong.
+func SoftDeviceHex(dir, name, version string) string {
+	found, err := filepath.Glob(filepath.Join(dir, name+"-"+version, "*.hex"))
+	if err != nil || len(found) == 0 {
+		return ""
+	}
+	sort.Strings(found)
+	return found[0]
 }
 
 // softDeviceBase maps an application's base address to the SoftDevice it was
@@ -65,9 +73,6 @@ func (e *EmulatedNode) renodeFlash() (string, error) {
 	var b strings.Builder
 	fmt.Fprintf(&b, "sysbus LoadBinary @%s 0x0\n", erased)
 	fmt.Fprintf(&b, "sysbus LoadBinary @%s 0x%X\n", uicr, nrf52UICRBase)
-	if sd := regions.softDevice; sd != "" {
-		fmt.Fprintf(&b, "sysbus LoadBinary @%s 0x0\n", sd)
-	}
 	for _, r := range regions.parts {
 		path := r.path
 		if path == "" {
@@ -96,11 +101,9 @@ type flashRegion struct {
 	path string // set when the bytes are already a file worth loading directly
 }
 
-// flashPlan is everything that goes into flash, and where the SoftDevice under
-// it came from.
+// flashPlan is everything that goes into flash, in the order it is laid down.
 type flashPlan struct {
-	parts      []flashRegion
-	softDevice string
+	parts []flashRegion
 }
 
 // flashRegions is where the image is taken apart, and where a missing
@@ -135,17 +138,26 @@ func (e *EmulatedNode) flashRegions() (flashPlan, error) {
 		return flashPlan{}, fmt.Errorf(
 			"firmware: %s starts at 0x%X, which matches no SoftDevice we know", e.Image, base)
 	}
-	if e.SoftDeviceDir == "" {
-		return flashPlan{}, fmt.Errorf(
-			"firmware: %s is linked above SoftDevice s140 v%s, and no cache was given to find it in",
-			e.Image, want)
+	hexPath := ""
+	if e.SoftDeviceDir != "" {
+		hexPath = SoftDeviceHex(e.SoftDeviceDir, "s140", want)
 	}
-	plan.softDevice = SoftDevicePath(e.SoftDeviceDir, want)
-	if _, err := os.Stat(plan.softDevice); err != nil {
+	if hexPath == "" {
 		return flashPlan{}, fmt.Errorf(
 			"firmware: %s is linked above SoftDevice s140 v%s, which has not been fetched - "+
 				"download it in Resources first", e.Image, want)
 	}
+	sd, err := ReadIntelHex(hexPath)
+	if err != nil {
+		return flashPlan{}, err
+	}
+	// Underneath the application, and first, so the MBR's vector table is what
+	// the CPU takes its stack pointer and entry from.
+	under := make([]flashRegion, 0, len(sd)+len(plan.parts))
+	for _, r := range sd {
+		under = append(under, flashRegion{addr: r.Addr, data: r.Data})
+	}
+	plan.parts = append(under, plan.parts...)
 	return plan, nil
 }
 
@@ -213,7 +225,16 @@ func writeFill(path string, n int) error {
 	return nil
 }
 
-// SoftDeviceDir is where SoftDevices are cached, beside the board images.
-func SoftDeviceDir(cache string) string {
-	return filepath.Join(cache, "softdevice")
+// SoftDeviceDir is where the downloader caches SoftDevices.
+//
+// Off the cache root rather than the firmware directory, because that is where
+// the thing that fetches them puts them - and a reader that invents its own
+// path finds an empty directory and reports a download that did happen as one
+// that did not.
+func SoftDeviceDir() string {
+	dir, err := os.UserCacheDir()
+	if err != nil {
+		return filepath.Join("meshcoresim", "softdevice")
+	}
+	return filepath.Join(dir, "meshcoresim", "softdevice")
 }

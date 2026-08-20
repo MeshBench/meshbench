@@ -416,7 +416,7 @@ func emulatedBackend(spec scenario.Node) (*firmware.EmulatedNode, error) {
 			// which is fetched rather than bundled and so may not be here yet.
 			// The refusal names it, because the alternative is a node that
 			// boots into a fill pattern and looks like a broken emulator.
-			SoftDeviceDir: firmware.SoftDeviceDir(cache),
+			SoftDeviceDir: firmware.SoftDeviceDir(),
 			Platform:      board.Renode.Platform,
 			SPIBase:       board.Renode.SPIBase,
 			NssPort:       board.Renode.NssPort,

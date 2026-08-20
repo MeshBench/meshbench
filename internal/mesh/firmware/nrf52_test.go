@@ -43,8 +43,8 @@ func TestFlashTakesAZeroBasedImageAlone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.softDevice != "" {
-		t.Errorf("a zero-based image asked for a SoftDevice: %q", plan.softDevice)
+	if len(plan.parts) != 1 || plan.parts[0].addr != 0 {
+		t.Errorf("a zero-based image did not come back as one region at zero: %+v", plan.parts)
 	}
 }
 
@@ -61,5 +61,49 @@ func TestFICRDeviceIDFollowsTheNodeName(t *testing.T) {
 	}
 	if !strings.Contains(a, "0x10000060") {
 		t.Error("DEVICEID[0] was not written")
+	}
+}
+
+// The SoftDevice arrives as a .hex and has to end up as flat bytes under the
+// application, at the addresses the file names.
+func TestFlashLaysTheSoftDeviceUnderTheApplication(t *testing.T) {
+	dir := t.TempDir()
+	sd := filepath.Join(dir, "s140-6.1.1")
+	if err := os.MkdirAll(sd, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Four bytes at 0x0000 and one at 0x0010, which is inside the joining
+	// stride, so they come back as one region with erased fill between.
+	hexFile := ":04000000DEADBEEF79\n:0100100042AD\n:00000001FF\n"
+	if err := os.WriteFile(filepath.Join(sd, "s140_nrf52_6.1.1_softdevice.hex"),
+		[]byte(hexFile), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	e := &EmulatedNode{Image: writeUF2(t, 0x26000), SoftDeviceDir: dir}
+	plan, err := e.flashRegions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.parts) != 2 {
+		t.Fatalf("got %d regions, want the SoftDevice and the application", len(plan.parts))
+	}
+	if plan.parts[0].addr != 0 {
+		t.Errorf("the SoftDevice is at 0x%X, want 0x0", plan.parts[0].addr)
+	}
+	if plan.parts[1].addr != 0x26000 {
+		t.Errorf("the application is at 0x%X, want 0x26000", plan.parts[1].addr)
+	}
+	got := plan.parts[0].data
+	if len(got) != 17 {
+		t.Fatalf("the SoftDevice region is %d bytes, want 17", len(got))
+	}
+	// Erased flash, not zero: the MBR tests words against 0xFFFFFFFF to decide
+	// what exists, and a zeroed gap answers "present, at address zero".
+	if got[4] != 0xFF {
+		t.Errorf("the gap was filled with 0x%02X, want 0xFF", got[4])
+	}
+	if got[16] != 0x42 {
+		t.Errorf("the byte at 0x10 is 0x%02X, want 0x42", got[16])
 	}
 }
