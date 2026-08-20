@@ -262,7 +262,7 @@ int main(int argc, char** argv) {
 
   msim::SimClock clk;
   msim::SimRNG rng(seed);
-  msim::SimRTC rtc;
+  msim::SimRTC rtc(clk);
   msim::SimTables tables;
   msim::SimPacketMgr mgr;
   BridgeRadio radio(fd, clk);

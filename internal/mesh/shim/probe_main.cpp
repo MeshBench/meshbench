@@ -48,7 +48,7 @@ public:
 };
 
 int main() {
-  SimRadio radio; SimClock clk; SimRNG rng; SimRTC rtc; SimPacketMgr mgr; SimTables tables;
+  SimRadio radio; SimClock clk; SimRNG rng; SimRTC rtc(clk); SimPacketMgr mgr; SimTables tables;
   SimNode node(radio, clk, rng, rtc, mgr, tables);
 
   printf("MSIM-1: real MeshCore mesh stack, host build\n");

@@ -26,14 +26,35 @@ class SimClock : public mesh::MillisecondClock {
   unsigned long getMillis() override { return now; }
 };
 
+// Wall-clock seconds, derived from the simulated millisecond clock beside it
+// rather than kept independently.
+//
+// It used to hold a constant that only setCurrentTime moved, so every node
+// believed the whole run happened in one instant. MeshCore stamps each advert
+// with getCurrentTime() and dedups received packets by hash, so a node told to
+// advert twice emitted byte-identical packets and every repeater dropped the
+// second - correctly. A node could advert once per run and never again.
+//
+// Derived, not counted: the same seed still produces the same run, because the
+// only thing this reads is simulated time. setCurrentTime keeps working, as an
+// offset, so `clock sync` still moves a node's idea of the date without
+// detaching it from the clock everything else uses.
 class SimRTC : public mesh::RTCClock {
  public:
-  explicit SimRTC(uint32_t start = 1754700000) : t(start) {}
-  uint32_t getCurrentTime() override { return t; }
-  void setCurrentTime(uint32_t v) override { t = v; }
+  explicit SimRTC(const SimClock& clk, uint32_t start = 1754700000)
+      : clk(clk), base(start) {}
+  uint32_t getCurrentTime() override {
+    return base + (uint32_t)(clk.now / 1000);
+  }
+  void setCurrentTime(uint32_t v) override {
+    // Rebase rather than freeze: whatever the node is told the time is, it
+    // goes on advancing from there at the rate the simulation does.
+    base = v - (uint32_t)(clk.now / 1000);
+  }
 
  private:
-  uint32_t t;
+  const SimClock& clk;
+  uint32_t base;
 };
 
 // Seeded rather than entropic: identity generation must be reproducible, or the
