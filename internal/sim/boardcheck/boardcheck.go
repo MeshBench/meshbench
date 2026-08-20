@@ -200,9 +200,14 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 		report.set(Build, Passed, "image "+img.Name)
 	}
 
+	// A probe runs wiring nobody has watched boot yet - that is what it is
+	// for. Refusing it here would mean a board could never leave the blocked
+	// list, because the only thing that could clear it was gated on being
+	// cleared already.
 	e := engine.New(terr, engine.Config{
 		FreqMHz: 869.618, SF: 8, BandwidthHz: 62_500, CodingRate: 4,
 		NoiseFigDB: 6, StepMs: 10, Seed: 4417,
+		UnverifiedWiring: true,
 	})
 	defer func() { _ = e.Close() }()
 	for _, n := range probeGeometry(board, version) {

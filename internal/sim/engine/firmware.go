@@ -151,7 +151,7 @@ func (e *Engine) AttachNativeProgress(ctx context.Context, seed uint64, progress
 		// global mode - a scenario mixing the two is the point of having both.
 		var backend firmware.Backend
 		if n.Spec.Firmware.Emulated() {
-			em, err := emulatedBackend(n.Spec)
+			em, err := emulatedBackend(n.Spec, e.Config.UnverifiedWiring)
 			if err != nil {
 				fail(fmt.Errorf("%s: %w", n.Spec.Name, err))
 				return
@@ -363,12 +363,12 @@ const bootSpreadMs = 8_000
 // Failing here rather than later matters, because a wrong pin does not announce
 // itself - it produces a driver reporting no chip, which reads as a broken
 // emulator.
-func emulatedBackend(spec scenario.Node) (*firmware.EmulatedNode, error) {
+func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.EmulatedNode, error) {
 	board, err := scenario.BoardByName(spec.Firmware.Board)
 	if err != nil {
 		return nil, err
 	}
-	if !scenario.EmulationSupported(board.Name) {
+	if !allowUnverified && !scenario.EmulationSupported(board.Name) {
 		return nil, fmt.Errorf("%s has no verified emulation wiring", board.Name)
 	}
 	if board.QEMU == nil && board.Renode == nil {

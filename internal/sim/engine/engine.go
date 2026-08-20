@@ -86,6 +86,17 @@ type Config struct {
 	// multipath, fading, implementation loss, saturation. All zero by
 	// default: the kind simulator, with its kindness now optional.
 	Realism Realism
+
+	// UnverifiedWiring runs a board whose emulation wiring nobody has watched
+	// boot yet.
+	//
+	// The gate it lifts is a curation claim, not a safety one: a board is on
+	// scenario.EmulationVerified once someone has seen its own image boot here.
+	// Something has to do the seeing, and until this existed nothing could -
+	// the probe that establishes the fact was refused by the fact's absence.
+	// Off by default, because a scenario that quietly ran unwatched wiring
+	// would report a board as silent when it was only mis-wired.
+	UnverifiedWiring bool
 }
 
 // Engine owns the run.
