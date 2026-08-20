@@ -51,7 +51,7 @@ jobs:
     # workflow_dispatch, both of which need write access to this repo.
     runs-on: [self-hosted, linux, x64, lab-2204]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         # cache: false - every job in this file runs on a persistent
         # self-hosted runner (lab-2204, or the m4 pool), where the Go
@@ -390,7 +390,7 @@ jobs:
     if: inputs.mac
     runs-on: [self-hosted, macos-m4]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         # cache: false - every job in this file runs on a persistent
         # self-hosted runner (lab-2204, or the m4 pool), where the Go
@@ -513,7 +513,7 @@ jobs:
     # workflow_dispatch, both of which need write access to this repo.
     runs-on: [self-hosted, linux, x64, lab-2204]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         # cache: false - every job in this file runs on a persistent
         # self-hosted runner (lab-2204, or the m4 pool), where the Go
@@ -635,7 +635,7 @@ jobs:
       # build artifacts once they are release assets.
       actions: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         # cache: false - every job in this file runs on a persistent
         # self-hosted runner (lab-2204, or the m4 pool), where the Go
