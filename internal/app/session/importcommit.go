@@ -67,7 +67,7 @@ func registerImport(st *state.Store, s *Sim) {
 		if err != nil {
 			return nil, err
 		}
-		res, err := scenario.Import(records, importOptions())
+		res, err := scenario.Import(records, importOptions(s, float64(w.MarginKm)))
 		if err != nil {
 			return nil, err
 		}
@@ -211,8 +211,8 @@ func registerImport(st *state.Store, s *Sim) {
 	})
 }
 
-func importOptions() scenario.ImportOptions {
-	return scenario.ImportOptions{
+func importOptions(s *Sim, marginKm float64) scenario.ImportOptions {
+	o := scenario.ImportOptions{
 		DefaultBoard: "RAK4631",
 		Radio: scenario.RadioConfig{
 			CentreHz: 869.618e6, BandwidthHz: 62.5e3,
@@ -220,6 +220,33 @@ func importOptions() scenario.ImportOptions {
 		},
 		MaxUncertaintyKm: 1,
 	}
+	// The study area, if one has been accepted, applied here rather than
+	// afterwards.
+	//
+	// The importer has taken a Region since it was written and workbench1
+	// passed one; this stopped passing it, so a national feed imported whole
+	// and the only way to narrow it was to commit all of it and prune. That
+	// is not the same cost: committing 454 nodes measures every pair against
+	// the terrain and the buildings - tens of thousands of link profiles -
+	// and then throws most of the answer away. Applied at the import, the
+	// work is only ever done for the nodes that were wanted.
+	o.Region = s.importRegion(marginKm)
+	return o
+}
+
+// importRegion is the accepted study area as the importer wants it, or nil
+// when none has been accepted and every node should come in.
+func (s *Sim) importRegion(marginKm float64) *scenario.Region {
+	if len(s.areas) == 0 {
+		return nil
+	}
+	if marginKm <= 0 {
+		marginKm = scenario.DefaultMarginKm
+	}
+	// Participates, not Contains: a repeater just outside the border still
+	// relays to and interferes with the nodes inside, and dropping it makes
+	// the mesh behave better than reality. Those arrive as participants.
+	return &scenario.Region{Boundaries: s.areas, MarginKm: marginKm}
 }
 
 // stateNodes is the interface's view of a scenario.

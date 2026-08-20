@@ -13,11 +13,18 @@ import (
 func registerImportFeedVerbs(st *state.Store, s *Sim) {
 	st.Handle("import.describe", func(w *state.World, p any) (any, error) {
 		url := soleString(p)
-		w.Say("fetching " + url)
+		// The study area as it stands, read here on the store's goroutine
+		// rather than in the worker, which must not reach into the session.
+		region := s.importRegion(float64(w.MarginKm))
+		if region != nil {
+			w.Say(fmt.Sprintf("fetching %s, keeping what is in the study area", url))
+		} else {
+			w.Say("fetching " + url)
+		}
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 			defer cancel()
-			im, err := ImportFrom(ctx, url)
+			im, err := ImportFrom(ctx, url, region)
 			if err != nil {
 				_, _ = st.Do(context.Background(), "import.failed", err.Error())
 				return
