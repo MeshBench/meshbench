@@ -5,7 +5,6 @@ import (
 
 	"image"
 	"image/color"
-	"math"
 	"strings"
 
 	"gioui.org/f32"
@@ -150,10 +149,16 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 	paint.ColorOp{Color: t.P.Sunk}.Add(gtx.Ops)
 	paint.PaintOp{}.Add(gtx.Ops)
 
-	if s == nil || len(s.Nodes) == 0 {
+	if s == nil {
 		return layout.Center.Layout(gtx,
 			Text(t, t.Sz.Caption, t.P.Faint, "no network loaded"))
 	}
+	// A network with no nodes still gets a map.
+	//
+	// It used to get this line instead of one, which is a blank network
+	// nobody can put a repeater on: the place tool needs ground to click on,
+	// and the ground is the thing that was being withheld.
+	empty := len(s.Nodes) == 0
 	// Remembered for the callers outside the frame loop - the menu's
 	// raster-this-view needs the viewport, and the viewport only exists
 	// where the widget has a size.
@@ -358,6 +363,12 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 	if m.Layers.Coverage {
 		m.coverageLegend(t, gtx, sz, s)
 	}
+	// An empty network says what to do with the map rather than what it has
+	// not got: the ground is there to be clicked on.
+	if empty {
+		layout.Center.Layout(gtx, Text(t, t.Sz.Body, m.baseInk(t),
+			"no nodes yet - choose the place tool and click the ground"))
+	}
 	m.layoutMenu(t, gtx, sz)
 
 	if m.OnSize != nil {
@@ -369,26 +380,6 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 		m.ViewBox(south, north, west, east)
 	}
 	return layout.Dimensions{Size: sz}
-}
-
-func (m *MapView) fit(s *state.Snapshot, sz image.Point) {
-	minLat, maxLat := 90.0, -90.0
-	minLon, maxLon := 180.0, -180.0
-	for _, n := range s.Nodes {
-		if n.Lat == 0 && n.Lon == 0 {
-			continue
-		}
-		minLat, maxLat = math.Min(minLat, n.Lat), math.Max(maxLat, n.Lat)
-		minLon, maxLon = math.Min(minLon, n.Lon), math.Max(maxLon, n.Lon)
-	}
-	m.CentreLat, m.CentreLon = (minLat+maxLat)/2, (minLon+maxLon)/2
-	cos := math.Cos(m.CentreLat * math.Pi / 180)
-	spanX, spanY := (maxLon-minLon)*cos, maxLat-minLat
-	if spanX <= 0 || spanY <= 0 {
-		m.Zoom = 1000
-		return
-	}
-	m.Zoom = math.Min(float64(sz.X-80)/spanX, float64(sz.Y-80)/spanY)
 }
 
 func kindOf(k string) theme.NodeKind {
@@ -450,33 +441,4 @@ func (m *MapView) ringPass(gtx layout.Context, pts []projected, sz image.Point,
 func ring(p *clip.Path, c f32.Point, r, w float32) {
 	dot(p, c, r)
 	dotReversed(p, c, r-w)
-}
-
-// Fit frames every node with a margin (10.9).
-func (m *MapView) Fit(s *state.Snapshot, sz image.Point) {
-	if s == nil || len(s.Nodes) == 0 {
-		return
-	}
-	m.fit(s, sz)
-}
-
-// FocusOn centres the camera on a named node without changing the zoom, which
-// is what "centre on this" means: the same view, somewhere else.
-func (m *MapView) FocusOn(s *state.Snapshot, name string) bool {
-	if s == nil {
-		return false
-	}
-	for i := range s.Nodes {
-		if s.Nodes[i].Name == name {
-			m.CentreOn(s.Nodes[i].Lat, s.Nodes[i].Lon)
-			return true
-		}
-	}
-	return false
-}
-
-// nodeMatches is the map filter: name or kind, case-insensitively.
-func nodeMatches(n *state.Node, want string) bool {
-	return strings.Contains(strings.ToLower(n.Name), want) ||
-		strings.Contains(strings.ToLower(n.Kind), want)
 }

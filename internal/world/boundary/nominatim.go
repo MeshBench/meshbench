@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/MeshBench/meshbench/internal/world/scenario"
@@ -44,6 +45,14 @@ type Found struct {
 	Kind string
 	// Boundaries is the polygon set, already parsed.
 	Boundaries []scenario.Boundary
+
+	// Lat and Lon are the geocoder's own representative point for the place.
+	//
+	// Kept because the middle of a boundary is not where a place is: France's
+	// outline takes in Guadeloupe, French Guiana and Réunion, so the middle
+	// of its extent is open ocean off west Africa. A geocoder answers "where
+	// is this" and that is the answer to use for pointing a camera.
+	Lat, Lon float64
 }
 
 // Client searches and caches.
@@ -93,6 +102,8 @@ func (c *Client) Search(ctx context.Context, query string) ([]Found, error) {
 		DisplayName string          `json:"display_name"`
 		Type        string          `json:"type"`
 		GeoJSON     json.RawMessage `json:"geojson"`
+		Lat         string          `json:"lat"`
+		Lon         string          `json:"lon"`
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 64<<20)).Decode(&rows); err != nil {
 		return nil, fmt.Errorf("boundary: unparseable search result: %w", err)
@@ -115,9 +126,12 @@ func (c *Client) Search(ctx context.Context, query string) ([]Found, error) {
 			bounds[i].Name = name
 			bounds[i].Source = "osm"
 		}
-		out = append(out, Found{
-			Name: name, DisplayName: r.DisplayName, Kind: r.Type, Boundaries: bounds,
-		})
+		f := Found{Name: name, DisplayName: r.DisplayName, Kind: r.Type, Boundaries: bounds}
+		// Strings on the wire; a place whose point will not parse still has
+		// its outline, so this is not a reason to drop the result.
+		f.Lat, _ = strconv.ParseFloat(r.Lat, 64)
+		f.Lon, _ = strconv.ParseFloat(r.Lon, 64)
+		out = append(out, f)
 		c.cache(name, r.GeoJSON)
 	}
 	if len(out) == 0 {

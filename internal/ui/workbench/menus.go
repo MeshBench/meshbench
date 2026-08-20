@@ -28,6 +28,8 @@ import (
 func workbenchMenus() []menu {
 	return []menu{
 		{"File", []shell.MenuItem{
+			{Label: "New blank network", Action: "project.new",
+				Section: "Open & Save", Icon: "doc", Shortcut: "Ctrl+N"},
 			{Label: "Open a saved network", Action: "project.open",
 				Section: "Open & Save", Icon: "folder", Shortcut: "Ctrl+O"},
 			{Label: "Save this network", Action: "project.save",

@@ -37,6 +37,12 @@ type Sim struct {
 	// cold reports that the engine has been rebuilt and its link cache is
 	// empty, so the next thing that can warm it should.
 	cold bool
+	// installFn puts a loaded network in place - the world's copy, the
+	// engine, and the tick. Held here because opening a fixture and starting
+	// a blank network are the same act with different contents, and a blank
+	// one that took its own route would be a second kind of session with its
+	// own set of things nobody remembered to set.
+	installFn func(*state.Store, *state.World, Loaded, string)
 	// warmed reports that the matrix has been measured for the engine as it
 	// stands. Cleared by a rebuild, set when a warm finishes uncancelled.
 	warmed bool
