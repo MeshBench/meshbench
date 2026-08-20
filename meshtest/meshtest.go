@@ -45,18 +45,14 @@
 //
 // # Read from the connection
 //
-// Whatever attaches to the endpoint must drain it, as the example does and as
-// any real client would. A client that connects and never reads fills the
-// link's buffer, and the mesh slows to a stop behind it: sixty seconds of
-// simulated time did not finish in two and a half minutes of real time, where
-// the same sixty finish in about seven once the connection is being read.
+// Whatever attaches to the endpoint should drain it, as the example does and as
+// any real client would. A client that stops reading no longer stops the mesh -
+// the firmware's output is dropped for it after a moment, which is what a UART
+// does to a listener that is not there - but it loses whatever it did not take.
 //
-// It stops quietly, which is the worst part - a mesh that has stalled looks
-// exactly like a mesh with nothing to say. Anything that pauses your client
-// mid-test, a breakpoint included, will do this.
-//
-// That is engine-side rather than this package's, and
-// TestASilentClientStallsTheMesh reproduces it.
+// This used to be far worse: a client that connected and waited brought the
+// whole run to a halt, quietly, and a stalled mesh looks exactly like a mesh
+// with nothing to say.
 //
 // # Firmware
 //
