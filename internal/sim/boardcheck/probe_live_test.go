@@ -35,7 +35,9 @@ func TestProbeOneBoard(t *testing.T) {
 	if version == "" {
 		version = "v1.17.0"
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Minute)
+	// Longer than the sum of the phases that can wait, so a probe reports what
+	// it measured rather than being cut off mid-phase and reporting nothing.
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Minute)
 	defer cancel()
 
 	report := Probe(ctx, flat{}, board, version)
