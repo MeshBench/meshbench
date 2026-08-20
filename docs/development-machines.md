@@ -23,6 +23,37 @@ real GPU, and the Renode and QEMU toolchains for the firmware work.
 boards at once will take this machine down — an emulated node runs at roughly
 1× real time and each carries a whole emulator process.
 
+### SonarQube
+
+A Community Build container runs on elite at **http://localhost:9000**, project
+`meshbench`. It is not part of CI and deliberately so: a second gate to satisfy
+before a merge is a second thing to work around. This one is for reading.
+
+```bash
+# the server, once
+docker run -d --name meshbench-sonar -p 9000:9000 \
+  -v meshbench-sonar-data:/opt/sonarqube/data \
+  -v meshbench-sonar-ext:/opt/sonarqube/extensions \
+  --restart unless-stopped sonarqube:community
+
+# a scan, whenever
+go test ./... -coverprofile=coverage.out -covermode=atomic
+docker run --rm --network host -v "$PWD:/usr/src" \
+  -e SONAR_TOKEN=... sonarsource/sonar-scanner-cli
+```
+
+The scanner does not run the suite — a scanner that does is a scanner nobody
+waits for — so `coverage.out` has to exist first. `sonar-project.properties` in
+the repo root carries the rest.
+
+**What it is for, given golangci-lint already runs 20 linters.** The things that
+are not a single-file rule: cognitive complexity per function, duplication
+measured across the whole tree, and coverage readable per package rather than as
+one number. It found a duplicated `switch` case in `tools/licgen` that no Go
+linter had.
+
+Stop it with `docker stop meshbench-sonar`; the volumes keep the history.
+
 ## VM 114
 
 **MeshBench will not run here.** Virtual VGA, no display: it needs a GPU and a

@@ -38,3 +38,6 @@ spikes/electron/package-lock.json
 
 # built test binaries
 *.test
+
+# Written by `go test -coverprofile` for a Sonar scan; regenerated on demand.
+coverage.out
