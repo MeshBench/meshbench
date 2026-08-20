@@ -151,7 +151,7 @@ func (e *Engine) AttachNativeProgress(ctx context.Context, seed uint64, progress
 		// global mode - a scenario mixing the two is the point of having both.
 		var backend firmware.Backend
 		if n.Spec.Firmware.Emulated() {
-			em, err := emulatedBackend(n.Spec)
+			em, err := emulatedBackend(n.Spec, e.Config.UnverifiedWiring)
 			if err != nil {
 				fail(fmt.Errorf("%s: %w", n.Spec.Name, err))
 				return
@@ -363,12 +363,12 @@ const bootSpreadMs = 8_000
 // Failing here rather than later matters, because a wrong pin does not announce
 // itself - it produces a driver reporting no chip, which reads as a broken
 // emulator.
-func emulatedBackend(spec scenario.Node) (*firmware.EmulatedNode, error) {
+func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.EmulatedNode, error) {
 	board, err := scenario.BoardByName(spec.Firmware.Board)
 	if err != nil {
 		return nil, err
 	}
-	if !scenario.EmulationSupported(board.Name) {
+	if !allowUnverified && !scenario.EmulationSupported(board.Name) {
 		return nil, fmt.Errorf("%s has no verified emulation wiring", board.Name)
 	}
 	if board.QEMU == nil && board.Renode == nil {
@@ -412,14 +412,19 @@ func emulatedBackend(spec scenario.Node) (*firmware.EmulatedNode, error) {
 		return &firmware.EmulatedNode{
 			Emulator: firmware.Renode,
 			Image:    src,
-			Platform: board.Renode.Platform,
-			SPIBase:  board.Renode.SPIBase,
-			NssPort:  board.Renode.NssPort,
-			NssPin:   board.Renode.NssPin,
-			IrqPort:  board.Renode.IrqPort,
-			IrqPin:   board.Renode.IrqPin,
-			NodeName: spec.Name,
-			Dir:      dir,
+			// Published nRF52 images are linked above a Nordic SoftDevice,
+			// which is fetched rather than bundled and so may not be here yet.
+			// The refusal names it, because the alternative is a node that
+			// boots into a fill pattern and looks like a broken emulator.
+			SoftDeviceDir: firmware.SoftDeviceDir(),
+			Platform:      board.Renode.Platform,
+			SPIBase:       board.Renode.SPIBase,
+			NssPort:       board.Renode.NssPort,
+			NssPin:        board.Renode.NssPin,
+			IrqPort:       board.Renode.IrqPort,
+			IrqPin:        board.Renode.IrqPin,
+			NodeName:      spec.Name,
+			Dir:           dir,
 		}, nil
 	}
 
@@ -431,14 +436,16 @@ func emulatedBackend(spec scenario.Node) (*firmware.EmulatedNode, error) {
 	}
 
 	return &firmware.EmulatedNode{
-		Emulator: firmware.QEMU,
-		Image:    padded,
-		Machine:  board.QEMU.Machine,
-		SPI:      board.QEMU.SPI,
-		NSS:      board.QEMU.NSS,
-		FEM:      board.QEMU.FEM,
-		Busy:     board.QEMU.Busy,
-		NodeName: spec.Name,
-		Dir:      dir,
+		Emulator:   firmware.QEMU,
+		Image:      padded,
+		Machine:    board.QEMU.Machine,
+		SPI:        board.QEMU.SPI,
+		NSS:        board.QEMU.NSS,
+		PSRAMMB:    board.QEMU.PSRAMMB,
+		PSRAMOctal: board.QEMU.PSRAMOctal,
+		FEM:        board.QEMU.FEM,
+		Busy:       board.QEMU.Busy,
+		NodeName:   spec.Name,
+		Dir:        dir,
 	}, nil
 }

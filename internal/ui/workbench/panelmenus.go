@@ -37,6 +37,7 @@ var panelMenus = map[string]panelHome{
 	// The nodes themselves.
 	"Nodes":           {"Mesh", "The mesh"},
 	"Nodes running":   {"Mesh", "The mesh"},
+	"Boards":          {"Mesh", "Commands"},
 	"Fleet":           {"Mesh", "Commands"},
 	"Provisioning":    {"Mesh", "Commands"},
 	"Console":         {"Mesh", "One node"},

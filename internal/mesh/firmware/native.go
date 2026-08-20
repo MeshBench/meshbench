@@ -199,6 +199,13 @@ type Native struct {
 
 func (n *Native) Kind() string { return "native" }
 
+// The shim built into the native firmware implements the console frames.
+func (n *Native) HasConsole() bool { return true }
+
+// Native nodes answer console frames on the bridge, so there is no separate
+// port to hand back.
+func (n *Native) ConsoleIn() io.Writer { return nil }
+
 // PID is the operating system process, or zero if it is not running.
 //
 // Exposed so an interface can say what a node costs. With 154 of these on one

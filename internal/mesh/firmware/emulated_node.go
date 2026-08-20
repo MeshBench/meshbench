@@ -3,6 +3,7 @@ package firmware
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -59,8 +60,14 @@ type EmulatedNode struct {
 	// enable, or zero on a board with no module. Zero is safe as "none": GPIO 0
 	// is a strapping pin on these parts and no board routes a module to it.
 	FEM      int
-	FlashMB  int
 	NodeName string
+
+	// PSRAMMB is the board's external RAM, in megabytes. Zero means none, and
+	// a firmware built expecting some will not start without it.
+	PSRAMMB int
+
+	// PSRAMOctal selects an octal (OPI) part rather than a quad one.
+	PSRAMOctal bool
 
 	// Emulator selects QEMU or Renode.
 	Emulator Emulator
@@ -76,84 +83,29 @@ type EmulatedNode struct {
 	IrqPort  string
 	IrqPin   int
 
+	// SoftDeviceDir is the cache the Nordic SoftDevice was fetched into.
+	//
+	// A directory rather than a file because which version is needed follows
+	// from the image, and only this package reads that: an application based at
+	// 0x26000 pairs with s140 v6.1.1 and one at 0x27000 with v7.x.
+	SoftDeviceDir string
+
 	// Dir is where the socket and logs live for this node.
 	Dir string
 
-	mu        sync.Mutex
-	qemu      *exec.Cmd
-	radio     *exec.Cmd
-	sock      string
-	radioPort int
+	mu   sync.Mutex
+	qemu *exec.Cmd
+
+	// renodeStdin holds Renode's monitor open; see startRenode.
+	renodeStdin *os.File
+	radio       *exec.Cmd
+	sock        string
+	radioPort   int
+
+	// serial is the emulator's own serial port, when it publishes one.
+	serial *serialLink
 }
 
-// startRenode writes the machine description this node needs and runs it.
-//
-// Generated rather than kept as a file, because three of the values are
-// per-node: the radio model's port, the node's own working directory, and the
-// image. A shared script would need all three passed in anyway.
-func (e *EmulatedNode) startRenode(ctx context.Context) error {
-	renodeBin, err := lookupTool(EnvRenode, "renode")
-	if err != nil {
-		return err
-	}
-	tools := ToolsDir()
-	script := filepath.Join(e.Dir, "node.resc")
-	body := fmt.Sprintf(`i @%[1]s/peripherals/RadioServerSX1262.cs
-i @%[1]s/peripherals/NRF52840_Temp.cs
-i @%[1]s/peripherals/NRF52840_Clock.cs
-i @%[1]s/peripherals/NRF52840_SAADC.cs
-i @%[1]s/peripherals/NRF52840_TWIM.cs
-
-mach create "%[2]s"
-machine LoadPlatformDescription @%[3]s
-machine LoadPlatformDescription @%[1]s/ficr.repl
-machine LoadPlatformDescription @%[1]s/uicr.repl
-machine LoadPlatformDescription @%[1]s/temp.repl
-sysbus Unregister sysbus.clock
-machine LoadPlatformDescription @%[1]s/clock.repl
-machine LoadPlatformDescription @%[1]s/saadc.repl
-sysbus Unregister sysbus.twi0
-sysbus Unregister sysbus.twi1
-machine LoadPlatformDescription @%[1]s/twim.repl
-
-spi3: SPI.NRF52840_SPI @ sysbus 0x%[4]X
-    easyDMA: true
-
-lora: Radio.RadioServerSX1262 @ spi3
-    host: "127.0.0.1"
-    port: %[5]d
-    IRQ -> %[6]s@%[7]d
-
-%[8]s:
-    %[9]d -> lora@0
-
-sysbus LoadBinary @%[10]s 0x0
-spi3.lora Connect
-start
-`, tools, e.NodeName, e.Platform, e.SPIBase, e.radioPort,
-		e.IrqPort, e.IrqPin, e.NssPort, e.NssPin, e.Image)
-	if err := os.WriteFile(script, []byte(body), 0o644); err != nil {
-		return err
-	}
-
-	log, err := os.Create(filepath.Join(e.Dir, "console.log"))
-	if err != nil {
-		return err
-	}
-	e.qemu = exec.CommandContext(ctx, renodeBin,
-		"--disable-xwt", "--console", "-e", "include @"+script)
-	e.qemu.Stdout, e.qemu.Stderr = log, log
-	if err := e.qemu.Start(); err != nil {
-		return fmt.Errorf("firmware: starting the emulator: %w", err)
-	}
-	return nil
-}
-
-// waitForPort reads back the port the radio model chose.
-//
-// Asked for rather than assumed: a scenario starting several emulated nodes at
-// once cannot pick ports itself without racing, so the model takes 0, binds
-// whatever it gets, and prints it.
 func waitForPort(ctx context.Context, logPath string) (int, error) {
 	for i := 0; i < 200; i++ {
 		if b, err := os.ReadFile(logPath); err == nil {
@@ -176,6 +128,26 @@ func waitForPort(ctx context.Context, logPath string) (int, error) {
 }
 
 func (e *EmulatedNode) Kind() string { return "emulated" }
+
+// HasConsole is true once the emulator publishes a serial port we hold open.
+// Renode's machines do not yet, so a board booted under it is still watched
+// rather than driven.
+func (e *EmulatedNode) HasConsole() bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.serial != nil
+}
+
+// ConsoleIn is the node's serial port. An emulated node carries its own, rather
+// than the console frames the native shim answers on the bridge.
+func (e *EmulatedNode) ConsoleIn() io.Writer {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.serial == nil {
+		return nil
+	}
+	return e.serial
+}
 
 // Start brings up the radio model and then the emulator.
 //
@@ -221,11 +193,6 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	if err != nil {
 		return err
 	}
-	qemuBin, err := lookupTool(EnvQEMU, "qemu-system-xtensa")
-	if err != nil {
-		return err
-	}
-
 	radioLog, err := os.Create(filepath.Join(e.Dir, "radio.log"))
 	if err != nil {
 		return err
@@ -259,6 +226,15 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 		return nil
 	}
 
+	// Looked up here rather than beside the radio model: an nRF52 board runs
+	// under Renode and has no use for the Xtensa emulator, and asking for it
+	// first refused those boards on a machine that only has the one they need.
+	qemuBin, err := lookupTool(EnvQEMU, "qemu-system-xtensa")
+	if err != nil {
+		_ = e.stopLocked()
+		return err
+	}
+
 	// What the device is told to connect to: the socket file, or the port the
 	// radio model chose when there is no socket file to have.
 	radioAt := e.sock
@@ -273,27 +249,55 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	if e.FEM != 0 {
 		machine += fmt.Sprintf(",radio-fem=%d", e.FEM)
 	}
+	if e.PSRAMOctal {
+		machine += ",psram-octal=on"
+	}
 
 	qemuLog, err := os.Create(filepath.Join(e.Dir, "console.log"))
 	if err != nil {
 		_ = e.stopLocked()
 		return err
 	}
-	// Serial to a file rather than to us: it carries the whole boot chain, ROM
-	// through the application, and that is where an emulated node fails when it
-	// fails. The node window reads this back.
-	e.qemu = exec.CommandContext(ctx, qemuBin,
+	// Serial to a socket rather than to a file. The file it used to be written
+	// to was write-only, which made the node's command interface unreachable -
+	// MeshCore's applications carry their own on Serial, so a board that could
+	// not be typed at could not be configured, only watched. The socket carries
+	// the same boot chain, ROM through application, and is copied on to the
+	// same log, so what could be read before still can be.
+	// The flash device the machine gets is the image grown to the size its own
+	// partition table describes, so the partitions past the application exist
+	// to be mounted rather than falling off the end of the chip.
+	flash, err := padToDeclaredFlash(e.Image, e.Dir)
+	if err != nil {
+		_ = e.stopLocked()
+		return err
+	}
+
+	conPath := filepath.Join(e.Dir, "console.sock")
+	args := []string{
 		"-machine", machine,
 		"-nographic", "-monitor", "none",
-		"-drive", "file="+e.Image+",if=mtd,format=raw",
-		"-serial", "file:"+filepath.Join(e.Dir, "console.log"),
-	)
+		"-drive", "file=" + flash + ",if=mtd,format=raw",
+		"-chardev", "socket,id=con,path=" + conPath + ",server=on,wait=off",
+		"-serial", "chardev:con",
+	}
+	if e.PSRAMMB > 0 {
+		args = append(args, "-m", fmt.Sprintf("%dM", e.PSRAMMB))
+	}
+	e.qemu = exec.CommandContext(ctx, qemuBin, args...)
 	e.qemu.Stdout, e.qemu.Stderr = qemuLog, qemuLog
 	if err := e.qemu.Start(); err != nil {
 		_ = e.stopLocked()
 		return fmt.Errorf("firmware: starting the emulator: %w", err)
 	}
+	e.serial = dialSerial(ctx, conPath, qemuLog)
 	return nil
+}
+
+// ConsoleLog is everything the node has said on its serial port: the whole
+// boot chain, ROM through application, and the replies to anything typed at it.
+func (e *EmulatedNode) ConsoleLog() ([]byte, error) {
+	return os.ReadFile(e.ConsolePath())
 }
 
 // ConsolePath is where this node's boot output is written.
@@ -309,6 +313,10 @@ func (e *EmulatedNode) Stop() error {
 }
 
 func (e *EmulatedNode) stopLocked() error {
+	if e.serial != nil {
+		_ = e.serial.Close()
+		e.serial = nil
+	}
 	for _, c := range []*exec.Cmd{e.qemu, e.radio} {
 		if c == nil || c.Process == nil {
 			continue
@@ -317,139 +325,10 @@ func (e *EmulatedNode) stopLocked() error {
 		_, _ = c.Process.Wait()
 	}
 	e.qemu, e.radio = nil, nil
+	if e.renodeStdin != nil {
+		_ = e.renodeStdin.Close()
+		e.renodeStdin = nil
+	}
 	_ = os.Remove(e.sock)
 	return nil
-}
-
-// ToolsDir is where the emulator and the radio model are kept.
-//
-// The same shape as the native build cache, and for the same reason: a desktop
-// application is not launched from a shell, so it does not inherit one's PATH.
-// Requiring an environment variable meant emulation worked from a terminal and
-// failed from the desktop, with an error that read as a missing package.
-func ToolsDir() string {
-	dir, err := os.UserCacheDir()
-	if err != nil {
-		return "tools"
-	}
-	return filepath.Join(dir, "meshcoresim", "tools")
-}
-
-// lookupTool finds a binary: the environment variable, then beside the
-// simulator, then the tools directory, then PATH.
-//
-// The message names all of them, because "qemu-system-xtensa not found" sends
-// people to their package manager for a build that will not do: ours carries an
-// SX1262 and a GPIO implementation upstream has not got.
-func lookupTool(env, name string) (string, error) {
-	if p := os.Getenv(env); p != "" {
-		if _, err := os.Stat(p); err == nil {
-			return p, nil
-		}
-		return "", fmt.Errorf("firmware: %s points at %s, which is not there", env, p)
-	}
-	// The names a tool might be found under in a directory. Windows names its
-	// executables, and a zip cannot carry the symlink the Linux tarball and
-	// the macOS bundle use - so the emulator's own unpacked layout is
-	// searched too, rather than requiring a link nobody could ship.
-	candidates := []string{name}
-	if runtime.GOOS == "windows" {
-		candidates = append(candidates, name+".exe")
-	}
-	subdirs := []string{"", "qemu/bin", "qemu-meshbench/bin"}
-	if self, err := os.Executable(); err == nil {
-		dir := filepath.Dir(self)
-		// Renode unpacks into a directory carrying its version, so the name
-		// changes with every release and cannot be listed above. Globbing for
-		// the shape is what the Linux tarball's symlink step already does;
-		// this is the same rule on the side that has to find it.
-		if matches, err := filepath.Glob(filepath.Join(dir, "renode*-portable")); err == nil {
-			for _, m := range matches {
-				subdirs = append(subdirs, filepath.Base(m))
-			}
-		}
-		for _, sub := range subdirs {
-			for _, cand := range candidates {
-				if p := filepath.Join(dir, sub, cand); fileExists(p) {
-					return p, nil
-				}
-			}
-		}
-	}
-	for _, cand := range candidates {
-		if p := filepath.Join(ToolsDir(), cand); fileExists(p) {
-			return p, nil
-		}
-	}
-	if p, err := exec.LookPath(name); err == nil {
-		return p, nil
-	}
-	return "", fmt.Errorf("firmware: %s not found - looked beside the simulator, "+
-		"in %s, and on PATH. Put it in that directory or set %s. A distribution "+
-		"build will not do: ours carries the SX1262 device",
-		name, ToolsDir(), env)
-}
-
-func fileExists(p string) bool {
-	st, err := os.Stat(p)
-	return err == nil && !st.IsDir()
-}
-
-// PadImage copies a flash image padded to a size QEMU will accept.
-//
-// Two traps in one function. QEMU takes only 2, 4, 8 or 16 MB images; and the
-// size must match what the image header asks for, or ESP-IDF asserts in
-// do_core_init with a message naming both sizes. The header lives at 0x1000 in
-// a merged image, because the file starts with padding - reading it from zero
-// gives 0xff and a nonsense answer.
-func PadImage(src, dst string) (int, error) {
-	data, err := os.ReadFile(src)
-	if err != nil {
-		return 0, err
-	}
-	if len(data) < 0x1004 {
-		return 0, fmt.Errorf("firmware: %s is too small to be a merged image", src)
-	}
-	if data[0x1000] != 0xE9 {
-		return 0, fmt.Errorf("firmware: %s has no image header at 0x1000; "+
-			"it is probably an application-only build rather than a merged one", src)
-	}
-	sizes := map[byte]int{0: 1, 1: 2, 2: 4, 3: 8, 4: 16}
-	mb, ok := sizes[data[0x1003]>>4]
-	if !ok {
-		return 0, fmt.Errorf("firmware: %s declares an unknown flash size", src)
-	}
-	if mb == 1 {
-		mb = 2 // QEMU's smallest
-	}
-	want := mb << 20
-	if len(data) > want {
-		return 0, fmt.Errorf("firmware: %s is larger than the %d MB its header declares",
-			src, mb)
-	}
-	out := make([]byte, want)
-	copy(out, data)
-	for i := len(data); i < want; i++ {
-		out[i] = 0xFF // erased flash
-	}
-	return mb, os.WriteFile(dst, out, 0o644)
-}
-
-// waitForSocket blocks until the radio model is listening, or the context ends.
-//
-// Polled rather than assumed: the device connects to this socket as QEMU
-// realizes it, and a race there fails the whole boot with a message about the
-// radio being unreachable, which points at configuration rather than at timing.
-func waitForSocket(ctx context.Context, path string) error {
-	for i := 0; i < 200; i++ {
-		if _, err := os.Stat(path); err == nil {
-			return nil
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(25 * time.Millisecond):
-		}
-	}
-	return fmt.Errorf("firmware: the radio model never opened %s", path)
 }

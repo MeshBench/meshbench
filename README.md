@@ -376,6 +376,67 @@ this board's platform code behave, does a version we cannot compile still relay.
 A scenario can mix the two, and the useful shape is usually one emulated node in
 a native mesh.
 
+## Board compatibility
+
+Which published board images have actually been run here, and how far each one
+got. Every row is a measurement, not a claim about the hardware: the firmware is
+the released `.uf2` or merged `.bin` from MeshCore's own releases, run under an
+emulator, and a blank cell means nobody has watched that board do that thing.
+
+| Board | MCU | Emulator | build | boot | radio | tx | rx | flood | fem | power |
+|---|---|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| `Generic_E22_sx1262` | ESP32 | QEMU | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `Heltec_t114` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | – | ✓ |
+| `Heltec_t096` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ? | ✓ |
+| `RAK_4631` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ? |
+| `Xiao_nrf52` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ? |
+| `Heltec_mesh_solar` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ? |
+| `Xiao_S3_WIO` | ESP32-S3 | QEMU | ✓ | ✗ | | | | | | |
+| `Heltec_v3` | ESP32-S3 | QEMU | ✓ | ✗ | | | | | | |
+| `Station_G2` | ESP32-S3 | — | | | | | | | | |
+| `Heltec_v2` | ESP32 | — | | | | | | | | |
+
+✓ passed  ✗ failed  – not applicable  ? not measurable yet  blank not attempted
+
+What the columns mean:
+
+- **build** — a published image for this board exists and its digest checks out.
+- **boot** — the emulator attached and the node kept its clock. Weaker than it
+  sounds: an emulated part advances its clock whether or not its core is
+  executing, so this passed against machines sitting in lockup until that was
+  found.
+- **radio**, **tx** — the board put something on the air. Watched, not
+  commanded: an emulated board's console is not reachable on every backend, and
+  what arrives is the firmware's own unprompted advert.
+- **rx** — it heard another node.
+- **flood** — it *forwarded somebody else's packet*, which is the thing a
+  repeater is for. Judged at the board, not at the far end: the probe puts it on
+  the only path between two others and requires its own transmission.
+- **fem** — the front-end module was switched in to transmit. Only two of these
+  boards carry one, and only a backend with a pin for it can tell.
+- **power** — it was still answering after being left idle. Asked on the console
+  where there is one, and over the air where there is not: a board that relays
+  again after an idle has a radio receiving, a mesh stack deciding and a radio
+  transmitting.
+
+Where the failures are, and why they are not the board's fault:
+
+- The three nRF52 boards that fail **flood** report their channel busy for
+  essentially the whole run — 241 seconds of 250 on one measurement, against
+  zero on a board that relays — and MeshCore will not transmit into a busy
+  channel. Not the wiring (resolved through each variant's own pin map), not the
+  budget, the seed, the geometry, or firmware 1.17.1.
+- The two ESP32-S3 boards reach ESP-IDF's own startup and assert there, at the
+  same line on both — and one of them has no PSRAM, so it is not the PSRAM. The
+  releases publish no ELF, so the assert cannot be symbolised.
+- `Station_G2` has no emulation wiring recorded yet. `Heltec_v2` carries an
+  SX1276, which is not modelled: the chip here is an SX1262.
+
+**power** is untested on boards with no console rather than failed. A board
+booted under Renode cannot have one: its firmware reads commands from `Serial`,
+which the Adafruit core puts on USB CDC, and the platform models two UARTs and
+no USB device at all.
+
 ## What it is for
 
 Answering **why**, not just whether:

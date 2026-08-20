@@ -10,7 +10,7 @@ import (
 
 func importOpts() scenario.ImportOptions {
 	return scenario.ImportOptions{
-		DefaultBoard: "RAK4631",
+		DefaultBoard: "RAK_4631",
 		Radio: scenario.RadioConfig{
 			CentreHz: 869.525e6, BandwidthHz: 250e3, SpreadFactor: 10, CodingRate: 1,
 		},
