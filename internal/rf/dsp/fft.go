@@ -27,7 +27,9 @@ var fftPlans sync.Map // map[int]*fftPlan
 
 func planFor(n int) *fftPlan {
 	if p, ok := fftPlans.Load(n); ok {
-		return p.(*fftPlan)
+		// fftPlans is package-private and stores *fftPlan and nothing else,
+		// here and in the LoadOrStore below.
+		return p.(*fftPlan) //nolint:forcetypeassert // private sync.Map, one value type
 	}
 	p := &fftPlan{rev: make([]int32, n)}
 	for i, j := 1, 0; i < n; i++ {
@@ -46,7 +48,7 @@ func planFor(n int) *fftPlan {
 		}
 	}
 	actual, _ := fftPlans.LoadOrStore(n, p)
-	return actual.(*fftPlan)
+	return actual.(*fftPlan) //nolint:forcetypeassert // private sync.Map, one value type
 }
 
 func FFT(x []complex128) {
