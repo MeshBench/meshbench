@@ -28,9 +28,9 @@ golangci-lint run   # pin to the version CI uses; a newer one disagrees
 go test ./...
 ```
 
-`golangci-lint` is v2.1.6. It is built with go1.24 and refuses a config
-targeting a higher Go version, so a newer local binary will disagree with CI
-about whether the tree is clean.
+`golangci-lint` must be **the version `ci.yml` pins**. Versions genuinely
+disagree about this tree — v2.1.6 and v2.12.2 differ by 29 findings — so
+linting with a different one tells you the tree is clean when CI will not.
 
 `go test -race ./...` runs on request rather than every push. Run it yourself
 for anything touching concurrency; it has already caught a race that crashed
