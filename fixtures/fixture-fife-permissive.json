@@ -5,7 +5,7 @@
     {
       "Name": "Abernethy Repeater",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "7c3f669435d798d330a276932eb934adf627defdbb156b2ca36b6e7aead28e79",
       "Regions": [
         "#sco"
@@ -45,7 +45,7 @@
     {
       "Name": "Alba-\u00c9ireann-01",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "e426c0041016cdadfed8665741648402d577edae40b7a94e52066ce70ca4e7a4",
       "Regions": [
         "#ioi",
@@ -89,7 +89,7 @@
     {
       "Name": "AngusOutlaw1",
       "Kind": "companion",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "d75a730019eb4f113adc6f17d55e075c59d5977b0f6894465fb1cc3b711bd3c5",
       "Regions": [
         "#sco"
@@ -129,7 +129,7 @@
     {
       "Name": "AngusOutlaw2\ud83d\udce1",
       "Kind": "companion",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "50ad68925a26340e72e182e5ac869c9b501b77a3686f529c941d717032964f09",
       "Regions": null,
       "DefaultScope": "#sco",
@@ -167,7 +167,7 @@
     {
       "Name": "AngusOutlaw3",
       "Kind": "companion",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "09e0cfde27d8f86341c7cad7d98f4107a9cf8a594968dfd1304adad16e92bf22",
       "Regions": null,
       "DefaultScope": "",
@@ -205,7 +205,7 @@
     {
       "Name": "AngusOutlaw4",
       "Kind": "companion",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "e7296105ea7f0a4232b3b963e5f860b789c88b5a2dd4f2eb96a4d41dda5ad8fe",
       "Regions": null,
       "DefaultScope": "",
@@ -243,7 +243,7 @@
     {
       "Name": "Bathgate room",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "79e04e9ef6e3ce23338405ec007b7a9b98cf40316d3692e2d38ca55dd2f53b27",
       "Regions": [
         "#sco"
@@ -283,7 +283,7 @@
     {
       "Name": "Bishop Hill \u2600\ufe0f\ud83d\udd0b",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "2eecdff2c19996b333c5059a40740dfa8bf8b803f306c23084269f8a39edf8b4",
       "Regions": [
         "#ioi",
@@ -327,7 +327,7 @@
     {
       "Name": "Blairgowrie_RPT",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "574eaeb08a14555b8381cec4c5acb42680610e7195631828a46d88f681aa46ed",
       "Regions": [
         "#sco",
@@ -368,7 +368,7 @@
     {
       "Name": "Bowden_R63",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "0aa023c9c07a10ded81d4a4f8e5a45db527c583e08aecfe4064e33139c17a26a",
       "Regions": [
         "#ioi",
@@ -411,7 +411,7 @@
     {
       "Name": "Cadham Village \ud83c\udfd8\ufe0f",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "04f1fe66a27b35a586704323de2267c8b11cd0719e5af499035a0bc69e3689e8",
       "Regions": [
         "#ioi",
@@ -453,7 +453,7 @@
     {
       "Name": "CaptBlack-Mysteron1",
       "Kind": "companion",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "aed097142a302a24280fee296668445a7eb58184db24e1e42c201a1f53ebd7bc",
       "Regions": [
         "#sco"
@@ -493,7 +493,7 @@
     {
       "Name": "Dalgety Bay Repeater",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "e4eb4ecb1b5da46d542ebc98ff97f01aa85da1cbebefd579d1483d2f82bc82fc",
       "Regions": [
         "#ioi",
@@ -534,7 +534,7 @@
     {
       "Name": "Drumcarrow Craig NWR \ufffd\ufffd",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "07f1fef7b2c51616cb9207f4afafce3c14a4fb20f9e216ab6fad3584235be50b",
       "Regions": [
         "#sco",
@@ -575,7 +575,7 @@
     {
       "Name": "Duke Listen'em \u2622\ufe0f",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "3dfb86967209667c2e4028bc739a335fba7a88da6257fe69a4804a5520f65c11",
       "Regions": [
         "#sco",
@@ -617,7 +617,7 @@
     {
       "Name": "GM5JFC MeshCoreRepeater",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "c386bd1f8bdc0cdbb6b869f851052359b60556b698d11a8c05287b1bf0c266ad",
       "Regions": [
         "#sco"
@@ -657,7 +657,7 @@
     {
       "Name": "GM8ARV HT.4 RPT",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "94f708a393a4b7bafbbbb4118209e1756669ffacee1175b30627cf98d0ca1e9d",
       "Regions": [
         "#sco",
@@ -698,7 +698,7 @@
     {
       "Name": "Jazzy",
       "Kind": "companion",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "ddfedeeee2b27f78a3495e2770a0b665fb4a708d588b7c1dbbdfbb3a5aeed4cf",
       "Regions": null,
       "DefaultScope": "#sco",
@@ -736,7 +736,7 @@
     {
       "Name": "Kellie Law NWR \ud83c\udf24\ufe0f\ufffd",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "06f1fece5ea0422a26b32e5f23d8f8acb2db02c684897eeedec8097223e64d1e",
       "Regions": [
         "#ioi",
@@ -777,7 +777,7 @@
     {
       "Name": "Leslie \ud83c\udfd8",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "03f1fe3b9b86e54ce86d928ed50df7f361b7745ee43d8efaf3e7fc8108d88c89",
       "Regions": [
         "#ioi",
@@ -819,7 +819,7 @@
     {
       "Name": "Lucklaw Hill \u26f0\ufe0f\ud83c\udf24",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "05f1fe40f295291f57d5a18ca5f2d11c64c90a7068dfb13b0ab531b9a23300f9",
       "Regions": [
         "#ioi",
@@ -861,7 +861,7 @@
     {
       "Name": "Markinch",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "50480de69facdca812f193785174e11f8734db641b0ec9d32c1e0d5c81bc9e5a",
       "Regions": [
         "#ioi",
@@ -905,7 +905,7 @@
     {
       "Name": "Menstrie E4428D72",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "e4428d72294cd07e7c3c5d0267714611b57215d830af07fbe65942eac892b084",
       "Regions": [
         "#sco",
@@ -946,7 +946,7 @@
     {
       "Name": "Midmar Allotment Solar",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "587e6e73c9e8295bb93d432e7289bf65f3b054949cfc8814f31a9e7f6299a9f4",
       "Regions": [
         "#ioi",
@@ -988,7 +988,7 @@
     {
       "Name": "Mothy",
       "Kind": "companion",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "a38b0afebf59ddfecc178a168c18dd33ebe864fcc31b7abfdb22b62176110443",
       "Regions": [
         "#ioi",
@@ -1030,7 +1030,7 @@
     {
       "Name": "Musselburgh Omni",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "23205e85cdd1b9af74dcfab4aeef5d65e8d9527abb922bf3e835c6e0e0666eba",
       "Regions": [
         "#sco",
@@ -1072,7 +1072,7 @@
     {
       "Name": "NUMC-MC",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "d41ee22644b0ea3aee70958cc5f4e87a1cfdbb1f404396dc0a7be3e7030df741",
       "Regions": [
         "#ioi",
@@ -1114,7 +1114,7 @@
     {
       "Name": "Newarthill-01",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "637b623e1370e326bc4806b2cd9511fc0a6988ef163ffbf630a1d81c256bf9dd",
       "Regions": [
         "#sco",
@@ -1157,7 +1157,7 @@
     {
       "Name": "PERTH-RPT-0",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "490a4fcea9e12685dc9aee0dec878ce0e786957d42aa44ce354450df3243dab6",
       "Regions": [
         "#sco",
@@ -1198,7 +1198,7 @@
     {
       "Name": "PeterB",
       "Kind": "companion",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "afbb904455f726df9c27044f1c8dbb6fd93359ce74419164c7b940780c9832cb",
       "Regions": [
         "#sco"
@@ -1238,7 +1238,7 @@
     {
       "Name": "Red Station",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "01b63afbbcd463a9d7e0765911b9cdb827c86c9e0bd23bf8a41ab519347657aa",
       "Regions": [
         "#ioi",
@@ -1279,7 +1279,7 @@
     {
       "Name": "Repeater McRepeaterface",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "9a62d7bb444c9dd98c4eeec55b1fccab66c3c35b89347bb86cca759b5032d6d9",
       "Regions": [
         "#ioi",
@@ -1322,7 +1322,7 @@
     {
       "Name": "Rogue2-W-T",
       "Kind": "companion",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "3a708cfb1f7a6c053c0d38101b47be2764bdba39649a2c693de7935110b0476a",
       "Regions": null,
       "DefaultScope": "",
@@ -1360,7 +1360,7 @@
     {
       "Name": "SCO BGT 1 mack",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "a26a787d656b4cc5b5e7997c0946aa88db65991fb407b30a175f97889e2c0974",
       "Regions": [
         "#sco",
@@ -1401,7 +1401,7 @@
     {
       "Name": "SCO BGT 2 mack",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "e29edafaa9114cc2f60a0ec2a64ddac51460ba5e6d1d0b564465cd2b12e63644",
       "Regions": [
         "#sco",
@@ -1442,7 +1442,7 @@
     {
       "Name": "SCO BGT 3",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "636fd7abd6335edd5452179159738449c545ac84635088e717fcda333df9ca1f",
       "Regions": [
         "#sco",
@@ -1484,7 +1484,7 @@
     {
       "Name": "SCO-ANG-01-RPT",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "ddffcd4905b78f8486404241ca45239c9a3ab8dadc68760386a7e22b917be282",
       "Regions": [
         "#ioi",
@@ -1528,7 +1528,7 @@
     {
       "Name": "SCO-ANG-02-RPT",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "c97276aadc2b64c9d5344c9233086ed57e50ece07af3b12ccdab2bfe6466aff0",
       "Regions": [
         "#sco",
@@ -1570,7 +1570,7 @@
     {
       "Name": "SCO-DFE-1-Omni",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "df41e2d096eefad202c154e9624e7eee3d39818ad4b52120d1b636cb4774420d",
       "Regions": [
         "#sco"
@@ -1610,7 +1610,7 @@
     {
       "Name": "SCO-DFE-2-EDI",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "863831b7652f16e83d6814496a043141673de6b085539cf37141e8da803da5e6",
       "Regions": [
         "#sco",
@@ -1651,7 +1651,7 @@
     {
       "Name": "The Mysterons",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "b9e43b66d704569335471b9db5e78cd5d8563c6b259f87acc494c5e498d6223b",
       "Regions": [
         "#ioi",
@@ -1692,7 +1692,7 @@
     {
       "Name": "WMF Openhop",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "45b551a859019b27f1ba8fa0e9b71139a1b1a96d21ea2b1ca0d562fd3607526a",
       "Regions": [
         "#sco",
@@ -1733,7 +1733,7 @@
     {
       "Name": "West Lomond \u26f0\ufe0f\ud83c\udf24",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "02f1fec87388205862e6dc3c370a7611cf61d1c307885959d2e30cec59ef9974",
       "Regions": [
         "#ioi",
@@ -1776,7 +1776,7 @@
     {
       "Name": "bosgag-tay-sidlaw-r",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "3cbd2e8b43e8e3eb606e6ed2c796f41242be97c54766aca21e7917c205772ed3",
       "Regions": [
         "#ioi",
@@ -1818,7 +1818,7 @@
     {
       "Name": "sco-ALVA-rptr",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "f949144390a4f501dfd2938564181e058268207bd4453012ba25022b775cd729",
       "Regions": [
         "#ioi",
@@ -1859,7 +1859,7 @@
     {
       "Name": "sco-Avon Heritage Trail",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "0d10989f473ee47de04d782692d78eaded5243c5e6988f9cf173a6851302e25d",
       "Regions": [
         "#ioi",
@@ -1900,7 +1900,7 @@
     {
       "Name": "sco-Bonaly-edi",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "f3bcf18b78deee33596d29d49aa6891d30ac6e2c97e7e6a9b81907f1470afcfc",
       "Regions": [
         "#ioi",
@@ -1942,7 +1942,7 @@
     {
       "Name": "sco-Goyle Hill-r73",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "3120dc1066dee851c185f352df79b9073f8b16df95bd7c9c729ed055de376e87",
       "Regions": [
         "#sco",
@@ -1983,7 +1983,7 @@
     {
       "Name": "sco-earl-r65",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "1360f7f0a82a845a75029b8efe31ef88fb3e92b673d9a2590714972883db774e",
       "Regions": [
         "#ioi",
@@ -2025,7 +2025,7 @@
     {
       "Name": "sco-fif-aberdour-east",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "93c28cc4f49fa1e272bf0a7b36acce62f137366e1a121cb52c52046b4de6a94b",
       "Regions": [
         "#ioi",
@@ -2066,7 +2066,7 @@
     {
       "Name": "sco-fif-burntisland",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "44a484d1b33b50d35f62dacbf08fd02ced4503549605ba92281ade421783276e",
       "Regions": [
         "#ioi",
@@ -2107,7 +2107,7 @@
     {
       "Name": "sco-fif-cullaloe",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "438d648688f94e7cfad4076da98fb0446863f39d5b7166b3dc98c3422bc86ce4",
       "Regions": [
         "#ioi",
@@ -2151,7 +2151,7 @@
     {
       "Name": "sco-fif-montrave",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "fd12d156e7d72c737ef34a9d7da074e6b9b0175b506c2828b68ace02372d6cfc",
       "Regions": [
         "#ioi",
@@ -2194,7 +2194,7 @@
     {
       "Name": "sco-tay-moncreiffe",
       "Kind": "simple-repeater",
-      "Board": "RAK_4631",
+      "Board": "RAK4631",
       "PublicKey": "484a5fb491a3fc2d8956e27642ab21e07717c1dceef2491bf3ac95d1fe6f7fe0",
       "Regions": [
         "#sco",
