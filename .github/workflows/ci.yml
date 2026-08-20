@@ -3,8 +3,10 @@ name: CI
 on:
   push:
     branches: [main]
+    # Tags as well as main, so that pushing a release tag runs the full set
+    # including the race detector - see the race job below.
+    tags: ["v*"]
   pull_request:
-  # The race job below runs on request only, so asking for it is how it runs.
   workflow_dispatch:
 
 permissions:
@@ -12,6 +14,10 @@ permissions:
 
 jobs:
   check:
+    # 20 minutes is roughly forty times what this job takes. The point of the
+    # number is not to be tight - it is that the GitHub default is six hours,
+    # and a wedged job holds one of three lab runners for all of it.
+    timeout-minutes: 20
     # The lab runners sit on a home LAN with a NAS mounted, so a fork's PR -
     # a stranger's code - must never land on one. Forks fall back to hosted
     # runners here rather than being skipped, so a fork PR still gets checked.
@@ -125,6 +131,7 @@ jobs:
   # for is a check that gets bypassed. The detector still runs, on main, after
   # the merge - see the race job below.
   test:
+    timeout-minutes: 30
     # The lab runners sit on a home LAN with a NAS mounted, so a fork's PR -
     # a stranger's code - must never land on one. Forks fall back to hosted
     # runners here rather than being skipped, so a fork PR still gets checked.
@@ -193,8 +200,19 @@ jobs:
   # for: run it from the Actions tab before a release, or locally with
   # `go test -race ./...` while chasing something.
   race:
-    if: github.event_name == 'workflow_dispatch'
-    # No fork fallback needed: dispatch requires write access to this repo.
+    # On a release tag, and on request. The reasoning above still holds - it
+    # is far too slow to sit in front of a merge, and three runners in the
+    # pool means an hour of detector on every push would starve the checks
+    # people are actually waiting for.
+    #
+    # But "run it from the Actions tab before a release" is a step somebody
+    # has to remember, and the argument this file makes throughout is that a
+    # check should not depend on that. Pushing the tag is the moment it
+    # matters, and the moment nobody is waiting on the answer.
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 60
+    # No fork fallback needed: schedule and dispatch both run on this repo,
+    # and dispatch requires write access to it.
     runs-on: [self-hosted, linux, x64, lab-linux]
     steps:
       - uses: actions/checkout@v4
