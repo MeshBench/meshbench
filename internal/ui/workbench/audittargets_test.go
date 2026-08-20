@@ -52,6 +52,20 @@ func auditTargets(r *recorder) []target {
 	}
 	prov := &provisioningControls{do: r.do}
 
+	resP := &resourcesPanel{}
+	resP.Refresh = func() { r.do("resource.list", "") }
+	resP.OnAction = func(verb string, _ map[string]any) { r.do(verb, "") }
+	// A row is what carries the controls, so the audit needs one on disk and
+	// one absent: Remove is deliberately disabled for the second, and a panel
+	// with no rows would prove nothing at all.
+	snapWithResources := auditSnapshot()
+	snapWithResources.Resources = []state.ResourceRow{
+		{Kind: "softdevice", Name: "s140", Version: "6.1.1", Bytes: 155112,
+			State: "present", Why: "pairs with an application based at 0x26000"},
+		{Kind: "softdevice", Name: "s140", Version: "7.3.0", Bytes: 160000,
+			Estimated: true, State: "available", Why: "not fetched"},
+	}
+
 	nodes := &nodesPanel{}
 	nodes.OnSelect = func(string) { r.do("nodes.select", nil) }
 	nv := &nodeViewPanel{}
@@ -144,6 +158,7 @@ func auditTargets(r *recorder) []target {
 			"varyDD.Btn": "picks the parameter; add arms is what applies it",
 		}},
 		{"Provisioning", prov, prov.Draw, nil, nil, nil, nil},
+		{"Resources", resP, resP.Draw, snapWithResources, nil, nil, nil},
 		// The flat layout, so every section's controls are on screen at once;
 		// the sidebar's own switching is TestConfigurationSectionsSwitch.
 		// Fired counts the settings generation too: the Interface controls
