@@ -346,7 +346,7 @@ jobs:
           (cd dist && rm -rf AppDir deb && sha256sum *.tar.gz *.AppImage *.deb 2>/dev/null > SHA256SUMS; cat SHA256SUMS)
           ls -la dist/
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: meshbench-linux
           # These bundles are 30-110 MB each and three platforms upload one
@@ -483,7 +483,7 @@ jobs:
           ls -la dist/*.dmg
           shasum -a 256 dist/*.dmg
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: meshbench-macos
           # As the Linux upload above: the release job deletes these once it
@@ -601,7 +601,7 @@ jobs:
           ls -la dist/*.zip
           file dist/meshbench/meshbench.exe
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: meshbench-windows
           # As the Linux upload above.
