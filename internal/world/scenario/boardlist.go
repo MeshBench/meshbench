@@ -14,16 +14,6 @@ import "github.com/MeshBench/meshbench/internal/mesh/energy"
 // published schematic. Anything uncertain is in Notes rather than smoothed over.
 var boards = []Board{
 	{
-		Name: "RAK4631", MCU: "nRF52840", Radio: "SX1262", Vendor: "RAKwireless",
-		MaxTxDBm: 22, FeedlineDB: 0.8, AntennaDBi: 2.15,
-		SensitivityDBm: -137, NoiseFigureDB: 6, SleepUA: 20,
-		Battery:  energy.Battery{Chemistry: energy.LiIon, CapacityMAh: 3400, Cells: 1, CutoffV: 3.1},
-		Emulated: true,
-		Notes: "The reference repeater. Runs under Renode today, including the shipped " +
-			"image's MBR and SoftDevice. Ships with an external whip, so the antenna " +
-			"figure assumes a half-wave dipole rather than the board.",
-	},
-	{
 		Name: "Heltec_v3", MCU: "ESP32-S3", Radio: "SX1262", Vendor: "Heltec",
 		MaxTxDBm: 21, FeedlineDB: 1.2, AntennaDBi: -1,
 		SensitivityDBm: -136, NoiseFigureDB: 7, SleepUA: 200,
@@ -111,14 +101,29 @@ var boards = []Board{
 			"because the name invites exactly that mistake.",
 	},
 	{
-		Name: "Heltec_mesh_solar", MCU: "ESP32-S3", Radio: "SX1262", Vendor: "Heltec",
-		MaxTxDBm: 21, FeedlineDB: 1.2, AntennaDBi: -1,
-		SensitivityDBm: -136, NoiseFigureDB: 7, SleepUA: 150,
+		Name: "Heltec_mesh_solar", MCU: "nRF52840", Radio: "SX1262", Vendor: "Heltec",
+		MaxTxDBm: 22, FeedlineDB: 1.2, AntennaDBi: -1,
+		SensitivityDBm: -137, NoiseFigureDB: 6, SleepUA: 150,
 		Battery: energy.Battery{Chemistry: energy.LiIon, CapacityMAh: 3000, Cells: 1, CutoffV: 3.2},
 		Panel: energy.Panel{PeakW: 1.5, TiltDeg: 0, AzimuthDeg: 180,
 			SoilingFactor: 0.8, ChargeEfficiency: 0.75},
-		Emulated: false,
-		Notes: "Integrated panel mounted flat, which at UK latitudes is the worst case " +
+		Emulated: true,
+		// Same pins as the Heltec_t114: variants/heltec_mesh_solar/MeshSolarBoard.h
+		// sets P_LORA_NSS=24 and P_LORA_DIO_1=20, both on gpio0.
+		Renode: &RenodeWiring{
+			Platform: "platforms/cpus/nrf52840.repl",
+			SPIBase:  0x4002F000,
+			NssPort:  "gpio0",
+			NssPin:   24,
+			IrqPort:  "gpio0",
+			IrqPin:   20,
+		},
+		Notes: "An nRF52840, not the ESP32-S3 this profile claimed for a while: the " +
+			"variant extends nrf52_base and links against the s140 SoftDevice, and " +
+			"the release publishes it as .uf2 like every other nRF52 board here. " +
+			"Recorded as an ESP32-S3 it was refused emulation for a reason that was " +
+			"never true of it. " +
+			"Integrated panel mounted flat, which at UK latitudes is the worst case " +
 			"in December — see internal/energy. PWM charging, so the efficiency figure " +
 			"is not MPPT.",
 	},
@@ -131,7 +136,7 @@ var boards = []Board{
 		Notes:    "Tiny, and the antenna figure reflects it. A companion, not a repeater.",
 	},
 	{
-		Name: "Xiao_nRF52840", MCU: "nRF52840", Radio: "SX1262", Vendor: "Seeed",
+		Name: "Xiao_nrf52", MCU: "nRF52840", Radio: "SX1262", Vendor: "Seeed",
 		MaxTxDBm: 22, FeedlineDB: 1.0, AntennaDBi: -2,
 		SensitivityDBm: -137, NoiseFigureDB: 6, SleepUA: 5,
 		Battery:  energy.Battery{Chemistry: energy.LiIon, CapacityMAh: 1000, Cells: 1, CutoffV: 3.1},
@@ -147,11 +152,10 @@ var boards = []Board{
 			IrqPort:  "gpio0",
 			IrqPin:   3,
 		},
-		Notes: "Same nRF52840 core as the RAK4631, and wired for the same path, but " +
-			"not yet booted here: MeshCore publishes this board's image as " +
-			"Xiao_nrf52 and we call it Xiao_nRF52840, so nothing matches the name " +
-			"we ask for. The wiring below is from the board's own build and should " +
-			"hold the moment the names are reconciled. " +
+		Notes: "Same nRF52840 core as the RAK_4631, and wired for the same path. " +
+			"Named for the build that produces it rather than for the chip on it: " +
+			"this was Xiao_nRF52840 here and Xiao_nrf52 in the release, and no " +
+			"image was ever found for it. " +
 			"Genuinely low sleep current, which makes it the one board here where " +
 			"duty-cycling buys a great deal.",
 	},

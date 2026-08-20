@@ -194,8 +194,25 @@ func Boards() []Board {
 	return out
 }
 
+// renamedBoards maps names this project used to publish to the ones it uses now.
+//
+// A fixture on someone's disk names its boards, and renaming one here would
+// otherwise stop that fixture loading with "no board profile named". The names
+// on the left were ours; the names on the right are the ones the firmware
+// release publishes, which is what an image is fetched by.
+var renamedBoards = map[string]string{
+	"RAK4631":       "RAK_4631",
+	"Xiao_nRF52840": "Xiao_nrf52",
+}
+
 // BoardByName looks one up, case-insensitively.
 func BoardByName(name string) (Board, error) {
+	for from, to := range renamedBoards {
+		if strings.EqualFold(from, name) {
+			name = to
+			break
+		}
+	}
 	for _, b := range boards {
 		if strings.EqualFold(b.Name, name) {
 			return b, nil
@@ -212,6 +229,12 @@ func BoardByName(name string) (Board, error) {
 
 // rak4631Board is the first nRF52 board to run its published firmware here.
 //
+// One board, one profile. There were two for a while - this one and a "RAK4631"
+// with no underscore - and they disagreed: this one booted, and the other sat in
+// the matrix reporting that its wiring had never been verified. The name that
+// survived is the one the release publishes, because that is the name an image
+// is fetched by.
+//
 // Verified the same way the E22 was: its own image, off the flasher, booting
 // and putting an advert on the channel - MBR to SoftDevice to application, then
 // SetStandby, SetDIO3AsTCXOCtrl, SetPacketType(LoRa) and a 127-byte advert.
@@ -222,10 +245,16 @@ var rak4631Board = Board{
 	Vendor: "RAKwireless",
 
 	MaxTxDBm:       22,
-	FeedlineDB:     0.6,
-	AntennaDBi:     2.0,
+	FeedlineDB:     0.8,
+	AntennaDBi:     2.15,
 	SensitivityDBm: -137,
 	NoiseFigureDB:  6,
+	SleepUA:        20,
+
+	Emulated: true,
+	Battery: energy.Battery{
+		Chemistry: energy.LiIon, CapacityMAh: 3400, Cells: 1, CutoffV: 3.1,
+	},
 
 	Renode: &RenodeWiring{
 		Platform: "platforms/cpus/nrf52840.repl",
@@ -236,7 +265,10 @@ var rak4631Board = Board{
 		IrqPin:   15,
 	},
 
-	Notes: "Published .uf2 images are linked above a Nordic SoftDevice, fetched " +
+	Notes: "The reference repeater, and the first board here to run its own " +
+		"published image. Ships with an external whip, so the antenna figure " +
+		"assumes a half-wave dipole rather than the board. " +
+		"Published .uf2 images are linked above a Nordic SoftDevice, fetched " +
 		"from Nordic's own site rather than bundled - Nordic has confirmed " +
 		"emulating it for firmware testing is not a licensing problem " +
 		"(docs/licence.md). The radio is on SPIM3, which stock Renode does not model.",
@@ -303,7 +335,14 @@ func EmulatableBoards() (ok []Board, blocked map[string]string) {
 		case b.Radio != "SX1262":
 			blocked[b.Name] = b.Radio + " radio, not modelled"
 		case b.MCU == "ESP32-S3" || b.MCU == "ESP32-C3" || b.MCU == "ESP32-C6":
-			blocked[b.Name] = b.MCU + " has no general-purpose SPI in QEMU"
+			// Two specific gaps, not a missing peripheral model: the SoC
+			// instantiates only the flash controller, never GPSPI2 where these
+			// boards put the radio, and the GPIO model has no pin in or out,
+			// so NSS could not be wired even once it did. NSS is what frames a
+			// RadioLib transaction, so without it the chip cannot answer a
+			// register read. The plain ESP32 needed exactly these two before it
+			// worked, and they are changes to our QEMU fork rather than here.
+			blocked[b.Name] = b.MCU + ": QEMU wires no radio SPI or GPIO for it yet"
 		case strings.HasPrefix(b.MCU, "nRF52"):
 			// Not a licensing block - see docs/licence.md, DevZone case 362437.
 			// Every other nRF52 board still needs the same Renode wiring

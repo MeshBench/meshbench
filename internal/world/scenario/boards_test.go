@@ -166,7 +166,37 @@ func TestUnknownBoardListsWhatExists(t *testing.T) {
 	if err == nil {
 		t.Fatal("an unknown board was accepted")
 	}
-	if !strings.Contains(err.Error(), "RAK4631") {
+	if !strings.Contains(err.Error(), "RAK_4631") {
 		t.Errorf("the error should list what is available: %v", err)
+	}
+}
+
+// A board is named for the build that produces its image.
+//
+// Both halves of this were once wrong at the same time: a "RAK4631" that no
+// release published sat beside the "RAK_4631" that did, and a Xiao named for
+// its chip could never be given an image because the release names it for its
+// variant. Neither failed loudly - the boards simply stayed grey in the matrix.
+func TestBoardsAreNamedForTheirBuild(t *testing.T) {
+	seen := map[string]bool{}
+	for _, b := range scenario.Boards() {
+		if seen[strings.ToLower(b.Name)] {
+			t.Errorf("two profiles named %q", b.Name)
+		}
+		seen[strings.ToLower(b.Name)] = true
+	}
+	// A rename keeps the old name working: fixtures on disk name their boards.
+	for _, old := range []string{"RAK4631", "Xiao_nRF52840"} {
+		b, err := scenario.BoardByName(old)
+		if err != nil {
+			t.Errorf("a fixture naming %q can no longer be loaded: %v", old, err)
+			continue
+		}
+		if seen[strings.ToLower(old)] {
+			t.Errorf("%q was renamed, yet still exists as a profile", old)
+		}
+		if b.Name == old {
+			t.Errorf("%q resolved to itself rather than to its new name", old)
+		}
 	}
 }

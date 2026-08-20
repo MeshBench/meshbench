@@ -97,7 +97,7 @@
   {
    "Name": "Bathgate room",
    "Kind": "simple-repeater",
-   "Board": "RAK4631",
+   "Board": "RAK_4631",
    "PublicKey": "79e04e9ef6e3ce23338405ec007b7a9b98cf40316d3692e2d38ca55dd2f53b27",
    "Regions": [
     "#sco"
@@ -137,7 +137,7 @@
   {
    "Name": "AngusOutlaw1",
    "Kind": "companion",
-   "Board": "RAK4631",
+   "Board": "RAK_4631",
    "PublicKey": "d75a730019eb4f113adc6f17d55e075c59d5977b0f6894465fb1cc3b711bd3c5",
    "Regions": [
     "#sco"
