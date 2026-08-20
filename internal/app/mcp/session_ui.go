@@ -42,10 +42,11 @@ func sessionUITools() []Tool {
 
 		uiTool("session_set_view",
 			"Switch the workbench to a view: Plan (build and site), Run (exercise and "+
-				"watch), Debug (why did that happen), Verify (is it still true). Each "+
+				"watch), Debug (why did that happen), Validate (measured against a "+
+				"real network). Each "+
 				"opens its own panels.",
 			"workspace.set", sObj(map[string]any{
-				"name": sStr("Plan, Run, Debug or Verify"),
+				"name": sStr("Plan, Run, Debug or Validate"),
 			}, "name")),
 
 		uiTool("session_panels",

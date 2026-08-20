@@ -224,6 +224,7 @@ func registerValidate(st *state.Store, s *Sim) {
 			return nil, fmt.Errorf("excess loss is a loss: %.1f dB would add signal", db)
 		}
 		s.excessLossDB, s.excessSet = db, true
+		w.ExcessLossDB, w.Calibrated = db, true
 		if len(s.nodes) > 0 {
 			if err := s.rebuild(w); err != nil {
 				return nil, err
@@ -239,6 +240,7 @@ func registerValidate(st *state.Store, s *Sim) {
 	// rather than a measurement.
 	st.Handle("validate.uncalibrate", func(w *state.World, _ any) (any, error) {
 		s.excessLossDB, s.excessSet = DefaultExcessLossDB, false
+		w.ExcessLossDB, w.Calibrated = DefaultExcessLossDB, false
 		if len(s.nodes) > 0 {
 			if err := s.rebuild(w); err != nil {
 				return nil, err

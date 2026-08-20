@@ -253,6 +253,8 @@ func (s *Store) publish() {
 		RealtimeX:         s.world.RealtimeX,
 		Routes:            s.world.Routes,
 		Import:            s.world.Import,
+		ExcessLossDB:      s.world.ExcessLossDB,
+		Calibrated:        s.world.Calibrated,
 		Observed:          s.world.Observed,
 		Residuals:         s.world.Residuals,
 		Stats:             s.world.Stats,
