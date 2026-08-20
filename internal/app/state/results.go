@@ -215,6 +215,36 @@ type Build struct {
 	Path    string
 }
 
+// ResourceRow is one thing the application downloads at runtime, as the panel
+// and the verbs see it.
+//
+// Estimated says whether Bytes was measured or guessed, because a guess
+// presented as a survey is exactly what a page about disk usage must not do.
+// Auto is whether the application may fetch it without being asked - not the
+// same question as whether it is present, which is State.
+type ResourceRow struct {
+	Kind      string
+	Name      string
+	Version   string
+	Path      string
+	Bytes     int64
+	Estimated bool
+	State     string
+	Why       string
+	Auto      bool
+	Fetchable bool
+	Licensed  bool
+}
+
+// LicenceText is one resource's terms, and which resource they belong to.
+//
+// Kind and Name as well as the text, because the panel shows them against the
+// row that asked: terms displayed under the wrong resource are worse than no
+// terms at all.
+type LicenceText struct {
+	Kind, Name, Version, Text string
+}
+
 // BoardCapabilityCell is one board's one capability: "untested", "passed",
 // "failed" or "n/a", with Detail carrying the reason for anything that is
 // not a plain pass.

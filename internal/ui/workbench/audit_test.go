@@ -79,6 +79,23 @@ func controlsOf(v reflect.Value, prefix string, out *[]control) {
 			})
 		case f.Kind() == reflect.Struct:
 			controlsOf(f, name+".", out)
+		// Per-row widgets are pooled in a map keyed by the row, because widget
+		// identity is address. Not descending them left every control a table
+		// row carries outside the audit, which is where the audit is most
+		// needed - a dead button in a row is a button on every row.
+		case f.Kind() == reflect.Map && f.Type().Elem().Kind() == reflect.Pointer &&
+			f.Type().Elem().Elem().Kind() == reflect.Struct:
+			keys := f.MapKeys()
+			sort.Slice(keys, func(i, j int) bool {
+				return fmt.Sprint(keys[i]) < fmt.Sprint(keys[j])
+			})
+			for _, k := range keys {
+				e := f.MapIndex(k)
+				if e.IsNil() {
+					continue
+				}
+				controlsOf(e.Elem(), fmt.Sprintf("%s[%v].", name, k), out)
+			}
 		case f.Kind() == reflect.Slice && f.Type().Elem() == btnT:
 			for j := 0; j < f.Len(); j++ {
 				if e := f.Index(j); e.CanAddr() {
@@ -139,6 +156,15 @@ func auditOne(t *testing.T, panel string, ctrl any,
 		}
 		h.frame()
 		h.frame()
+		// A destructive control asks twice in place, so its first press is
+		// meant to reach nothing - it turns the button into the question.
+		// Pressing again is what an operator does, and what decides whether
+		// the control is wired or dead.
+		if fired() == before && c.btn != nil {
+			c.btn.Click.Click()
+			h.frame()
+			h.frame()
+		}
 		if fired() == before && c.chk == nil {
 			dead = append(dead, c.name+" ("+label(c)+")")
 		}

@@ -306,6 +306,8 @@ func (s *Store) publish() {
 		FirmwareStarting:   s.world.FirmwareStarting,
 		ConsoleNode:        s.world.ConsoleNode,
 		ProvisioningNode:   s.world.ProvisioningNode,
+		Resources:          append([]ResourceRow(nil), s.world.Resources...),
+		Licence:            s.world.Licence,
 	})
 }
 

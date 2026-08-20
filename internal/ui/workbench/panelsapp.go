@@ -16,6 +16,23 @@ func addAppPanels(d panelDeps) *configPanel {
 	logp := &logPanel{}
 	d.sh.Add(homed(&shell.Panel{Name: "Configuration", Windowable: true, Draw: cfg.Draw}))
 	d.sh.Add(homed(&shell.Panel{Name: "Experiment log", Windowable: true, Draw: logp.Draw}))
+	// Resources sits under Firmware because it is the same question about
+	// everything that is not firmware, and somebody who has found one will
+	// look for the other beside it.
+	res := &resourcesPanel{}
+	res.Refresh = func() {
+		go func() { _, _ = d.st.Do(d.ctx, "resource.list", nil) }()
+	}
+	res.OnAction = func(verb string, params map[string]any) {
+		go func() {
+			if _, err := d.st.Do(d.ctx, verb, params); err != nil {
+				_, _ = d.st.Do(d.ctx, "ui.said", verb+": "+err.Error())
+			}
+			_, _ = d.st.Do(d.ctx, "resource.list", nil)
+		}()
+	}
+	d.sh.Add(homed(&shell.Panel{Name: "Resources", Windowable: true, Draw: res.Draw}))
+
 	lic := &licPanel{}
 	// A chip is a click, and a click cannot be captured; the flag is how a
 	// screenshot of one section gets taken.

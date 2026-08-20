@@ -112,6 +112,11 @@ type Snapshot struct {
 	// BoardMatrixVersion the board-image version it was measured against.
 	BoardMatrix        []BoardRow
 	BoardMatrixVersion string
+	// Resources is everything the application downloads at runtime, as last
+	// listed from disk.
+	Resources []ResourceRow
+	// Licence is the terms last asked for, and the row that asked.
+	Licence LicenceText
 	// Stats is per-node cost and traffic, for the node view.
 	Stats []NodeStat
 	// Library is every build, published or on disk, with what runs it.

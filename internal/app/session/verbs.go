@@ -43,6 +43,7 @@ func Register(st *state.Store, s *Sim) {
 	registerSchedule(st, s)
 	registerValidate(st, s)
 	registerBoardMatrix(st, s)
+	registerResources(st, s)
 	registerUIVerbs(st, s)
 	registerCapture(st, s)
 	registerCompanion(st, s)

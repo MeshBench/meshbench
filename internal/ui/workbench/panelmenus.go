@@ -17,6 +17,7 @@ var panelMenus = map[string]panelHome{
 	// What a session is made of.
 	"Import":        {"File", "Import & Export"},
 	"Firmware":      {"File", "Import & Export"},
+	"Resources":     {"File", "Import & Export"},
 	"Runs":          {"File", "Open & Save"},
 	"Map":           {"View", "The window"},
 	"Configuration": {"View", "Preferences"},
