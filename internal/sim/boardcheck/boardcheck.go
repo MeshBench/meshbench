@@ -131,6 +131,18 @@ func probeGeometry(board, version string) []scenario.Node {
 // nativePeerVersion is the native build the probe's sender and listener run.
 const nativePeerVersion = "repeater-v1.17.0"
 
+// advertBudgetMs is how long any phase waits for something to reach the air,
+// and it is one number on purpose.
+//
+// The phases used to differ - 90 s for the first advert, 60 s after an idle -
+// and an emulated ESP32 took 68.5 s to produce its first. So the board passed
+// the phase with the generous budget and failed the identical act under the
+// tighter one, and the matrix recorded "no response after the idle period"
+// for a board that was answering perfectly well. A board's second advert
+// cannot be held to a shorter deadline than its first, and a relay - which is
+// an advert plus a hop - cannot be held to a shorter one than either.
+const advertBudgetMs = 90_000
+
 // Probe runs every capability for one board and version, in one boot.
 //
 // A board's full column completing quickly matters: this is scripted rather
@@ -208,7 +220,7 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 		report.set(TX, Failed, "advert: "+err.Error())
 		return report
 	}
-	txAt, ok := waitForEvent(ctx, e, 90_000, func(ev engine.Event) bool {
+	txAt, ok := waitForEvent(ctx, e, advertBudgetMs, func(ev engine.Event) bool {
 		return ev.Kind == "tx" && ev.From == "bc-under-test"
 	})
 	if !ok {
@@ -223,7 +235,7 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 	sender, ok := e.NodeByName("bc-sender")
 	if ok && sender.Firmware != nil {
 		if err := sender.Firmware.Bridge.Type([]byte("advert\r\n")); err == nil {
-			if _, ok := waitForEvent(ctx, e, 60_000, func(ev engine.Event) bool {
+			if _, ok := waitForEvent(ctx, e, advertBudgetMs, func(ev engine.Event) bool {
 				return ev.Kind == "rx" && ev.To == "bc-under-test"
 			}); ok {
 				report.set(RX, Passed, "heard the sender's advert")
@@ -242,7 +254,7 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 	// sender's own direct range by construction.
 	if ok && sender.Firmware != nil {
 		if err := sender.Firmware.Bridge.Type([]byte("advert\r\n")); err == nil {
-			if _, ok := waitForEvent(ctx, e, 75_000, func(ev engine.Event) bool {
+			if _, ok := waitForEvent(ctx, e, advertBudgetMs, func(ev engine.Event) bool {
 				return ev.Kind == "rx" && ev.To == "bc-listener"
 			}); ok {
 				report.set(Flood, Passed, "the listener heard it, out of the sender's own reach")
@@ -270,7 +282,7 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 		report.set(Power, Failed, "advert after idle: "+err.Error())
 		return report
 	}
-	if _, ok := waitForEvent(ctx, e, 60_000, func(ev engine.Event) bool {
+	if _, ok := waitForEvent(ctx, e, advertBudgetMs, func(ev engine.Event) bool {
 		return ev.Kind == "tx" && ev.From == "bc-under-test" && ev.AtMs > txAt+10_000
 	}); ok {
 		report.set(Power, Passed, "responded again after a 15 s idle period")
