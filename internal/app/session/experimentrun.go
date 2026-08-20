@@ -29,13 +29,17 @@ func (s *Sim) runExperiment(ctx context.Context, st *state.Store, e *experiment,
 	// believes something is playing. A sweep is the longest thing this
 	// application does, and it used to run with the clock at zero and the map
 	// still, which is indistinguishable from a hung one.
-	_, _ = st.Do(context.Background(), "sim.play", nil)
+	_, _ = st.Do(ctx, "sim.play", nil)
 	defer func() {
 		e.mu.Lock()
 		e.running = false
 		e.mu.Unlock()
-		_, _ = st.Do(context.Background(), "sim.pause", nil)
-		_, _ = st.Do(context.Background(), "experiment.finished", nil)
+		// A stopped sweep must still pause the clock and say it finished, or
+		// the map keeps running against an experiment that is over.
+		done, release := finishing(ctx)
+		defer release()
+		_, _ = st.Do(done, "sim.pause", nil)
+		_, _ = st.Do(done, "experiment.finished", nil)
 	}()
 
 	done := 0
@@ -55,12 +59,12 @@ func (s *Sim) runExperiment(ctx context.Context, st *state.Store, e *experiment,
 			e.mu.Unlock()
 
 			done++
-			_, _ = st.Do(context.Background(), "job.progress", state.Job{
+			_, _ = st.Do(ctx, "job.progress", state.Job{
 				ID: "experiment", What: "running arms",
 				Done: done, Total: e.runsTotal()})
 			// Publish as it goes: an experiment that shows nothing until the
 			// last cell is one nobody can tell is working.
-			_, _ = st.Do(context.Background(), "experiment.results", nil)
+			_, _ = st.Do(ctx, "experiment.results", nil)
 		}
 	}
 }
