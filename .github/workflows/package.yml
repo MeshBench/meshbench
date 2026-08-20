@@ -52,7 +52,7 @@ jobs:
     runs-on: [self-hosted, linux, x64, lab-2204]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         # cache: false - every job in this file runs on a persistent
         # self-hosted runner (lab-2204, or the m4 pool), where the Go
         # caches already survive between jobs. See ci.yml for the detail.
@@ -391,7 +391,7 @@ jobs:
     runs-on: [self-hosted, macos-m4]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         # cache: false - every job in this file runs on a persistent
         # self-hosted runner (lab-2204, or the m4 pool), where the Go
         # caches already survive between jobs. See ci.yml for the detail.
@@ -514,7 +514,7 @@ jobs:
     runs-on: [self-hosted, linux, x64, lab-2204]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         # cache: false - every job in this file runs on a persistent
         # self-hosted runner (lab-2204, or the m4 pool), where the Go
         # caches already survive between jobs. See ci.yml for the detail.
@@ -636,7 +636,7 @@ jobs:
       actions: write
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         # cache: false - every job in this file runs on a persistent
         # self-hosted runner (lab-2204, or the m4 pool), where the Go
         # caches already survive between jobs. See ci.yml for the detail.
