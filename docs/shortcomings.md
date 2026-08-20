@@ -204,20 +204,36 @@ This is not calibrated out, deliberately: adding a fudge factor would hide the
 fact that the chain is idealised. It should be corrected with a measured
 implementation-loss curve (MSIM-28/29), not a constant.
 
-### 2.2 No CRC, no interleaving, no Gray coding, no Hamming FEC
+### 2.2 The coding chain exists in one RF mode and not the other
 
-The modem chain is chirp modulation, channel, dechirp, FFT, peak pick. Real LoRa
-adds whitening, Gray mapping, Hamming FEC at the configured coding rate,
-interleaving and a CRC.
+**This section used to say there was no CRC, no interleaving, no Gray coding and
+no Hamming FEC anywhere.** That was true of the whole simulator once; it is now
+true of only one of its two modes, and the difference decides which mode a
+result should be trusted from.
 
-**Consequence.** Two things. First, our symbol errors translate to packet errors
-differently from a real chip — FEC repairs scattered errors and interleaving
-spreads bursts, so a real receiver survives some noise realisations we fail and
-fails some we survive. Second, we have no CRC, so a "received" packet is one
-whose symbols we got right, not one that passed a real integrity check.
+**Waveform mode has the chain.** `internal/rf/lora` implements whitening, Gray
+mapping, the diagonal interleaver, Hamming FEC at the configured coding rate,
+the explicit header and the payload CRC, in both directions. Its bit-level
+conventions were not taken from a paper: the sync-word chirps, the chip's
+four-XOR parity equations and the CRC's last-two-bytes quirk were solved from
+frames captured off a real SX1262 and are held in place by golden vectors in
+`internal/rf/lora/testdata` that the test suite checks the encoder against. A
+"received" packet in this mode is one that passed a real integrity check.
 
-Airtime *is* computed with the coding rate (§4.1), so timing is right even
-though the error behaviour is not.
+**Calculated mode does not have it, by design.** That path decides reception
+from a link-budget SNR against the demodulator floor. It never forms a symbol,
+so there is nothing for FEC to repair and no CRC to fail — a packet is received
+if the margin says so.
+
+**Consequence.** In calculated mode, symbol errors translate to packet errors
+differently from a real chip: FEC repairs scattered errors and interleaving
+spreads bursts, so a real receiver survives some noise realisations that mode
+calls lost and fails some it calls received. That is the price of the speed, and
+it is why every large scenario should run calculated and every claim about
+marginal reception should be re-checked under waveform.
+
+Airtime *is* computed with the coding rate in both modes (§4.1), so timing is
+right either way.
 
 ### 2.3 The capture threshold is a hardware figure, not one we measured
 
@@ -305,9 +321,12 @@ on the same emulator with the same boot chain relays correctly.
 
 ### 3.2 The SX1262 model is functional, not cycle-accurate
 
-The Renode peripheral answers `GetStatus`, accepts configuration and carries
-frames. It does **not** model BUSY assertion timing, DIO1 interrupt latency,
-TCXO startup delay, image calibration time, or FIFO wrap semantics.
+The peripheral answers `GetStatus`, accepts configuration and carries frames.
+The BUSY line now exists rather than being absent — RadioLib spins on it and
+gets an answer, which is what let the QEMU boards get as far as they have — but
+it is never asserted with real timing. Still unmodelled: BUSY assertion timing,
+DIO1 interrupt latency, TCXO startup delay, image calibration time and FIFO wrap
+semantics.
 
 **Consequence.** Firmware bugs in radio state-machine timing — the class that
 bites hardest on real boards — will not reproduce. This also means the
@@ -374,10 +393,12 @@ that can simply be left out.
 ### 3.6 BLE is ours, not the firmware's
 
 The Bluetooth companion is a host-side BlueZ GATT server presenting the Nordic
-UART Service. It is genuinely connectable from a real phone — but it is *our*
+UART Service (`tools/ble/nus_peripheral.py`, verified against a real adapter on
+elite). It is genuinely connectable from a real phone — but it is *our*
 implementation of the companion protocol, not MeshCore's BLE code being
 exercised. Removing the SoftDevice removed the firmware's Bluetooth stack along
-with it.
+with it, and the published images that now boot here are repeater builds, which
+have no companion role to connect to in the first place.
 
 ---
 
@@ -430,8 +451,11 @@ does not yet widen every downstream result the way HAM-34 does in hamreach.
   trips per simulated second. A 100-node scenario is 100,000 per second across
   100 processes, and the 3323× figure will not survive that. The tick
   granularity may have to be coarsened, or nodes batched — neither is designed.
-- **GPU end to end.** The dechirp kernel is validated against its CPU twin, but
-  no full scenario has run on the GPU path.
+- **GPU end to end.** Four kernels now have CPU twins tested against them —
+  dechirp, demod, coverage (including its fold) and pairs — so the individual
+  answers agree. What has still never happened is a *full scenario* run on the
+  GPU path from end to end, which is where a mismatch in how the pieces are
+  scheduled together would show up rather than in any one kernel.
 - **Memory at 100+ nodes.** Never run.
 
 The honest headline: **a 20-node native scenario is comfortable today; a
@@ -496,19 +520,37 @@ them than that.
 
 ## 7. Unvalidated, which is different from unbuilt
 
-**The RF model has never been checked against a real observation.** Every
-component is tested against a published reference — Semtech's sensitivity
-figures, ITU-R P.526, RadioLib's airtime — and the GPU against its CPU twin. No
-part of it has been compared with a packet that actually crossed real air.
+**This section used to say the RF model had never been checked against a real
+observation at all.** That is no longer true, and being precise about which half
+has been checked matters more than the headline did.
 
-The *harness* for that comparison now exists (`internal/validate`, MSIM-28): it
-takes observed receptions and reports bias, spread and percentiles, counts every
-exclusion, and refuses to treat a silent receiver as a negative observation. What
-it has never had is data. Running it against a real CoreScope or Beacon export is
-the single highest-value unfinished item in the project.
+**Checked against real air:** the bit-level conventions. Frames captured off a
+real SX1262 over `rtl_tcp` on 18 August were demodulated offline and solved for
+the sync-word chirps, the Hamming parity equations and the CRC's last-two-bytes
+quirk — all three of which were wrong here before that session and are now held
+by golden vectors carrying their own provenance. If our encoder drifts from what
+that chip actually emitted, the suite says so.
 
-Until it does, every number here is "correct according to the textbook", which is
-not the same as "true on the hill above Aberfeldy".
+**Checked against real observations:** the reporting bounds. The +15 dB
+reported-SNR ceiling and the 0 to −127.5 dBm RSSI range come from 1,992 real
+ScotMesh receptions rather than from a datasheet.
+
+**Not checked against anything real:** the part that matters most to a planner —
+*whether a link the model says will work, works*. Every propagation component is
+tested against a published reference (ITU-R P.526, Semtech's sensitivity
+figures, RadioLib's airtime) and the GPU against its CPU twin, but no predicted
+margin has ever been compared with a packet that did or did not arrive on a real
+hill.
+
+The harness for exactly that comparison exists — `internal/study/validate`,
+MSIM-28. It takes observed receptions, reports bias, spread and percentiles,
+counts every exclusion, and refuses to treat a silent receiver as a negative
+observation. What it has never had is data. Running it against a real CoreScope
+or Beacon export remains **the single highest-value unfinished item in the
+project**, and nothing else on this list would change more numbers.
+
+Until it does, the propagation numbers are "correct according to the textbook",
+which is not the same as "true on the hill above Aberfeldy".
 
 ---
 
