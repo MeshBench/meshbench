@@ -10,9 +10,11 @@
 package boardcheck
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/mesh/firmware"
@@ -271,23 +273,54 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 	// is, not guessed at.
 	report.set(FEM, NotApplicable, "no front-end module modelled for this board's wiring")
 
-	// power: idle, then prove the board still answers rather than having
-	// wedged - the same technique the flood-crosses-hops regression test
-	// uses to rule out a radio stuck after its first transmission.
+	// power: idle, then prove the board still answers.
+	//
+	// Asked as a question rather than as a transmission. The first version
+	// typed "advert" after the idle and waited for something on the air,
+	// which conflates two different things: whether the node is alive, and
+	// whether its own airtime budget will let it speak again this minute.
+	// MeshCore polices its duty cycle, so a healthy board that has just
+	// adverted and relayed twice can decline correctly - and the matrix
+	// recorded that as a dead node. A console reply costs no airtime and
+	// answers the question actually being asked.
 	if err := e.Run(ctx, e.NowMs()+15_000); err != nil {
 		report.set(Power, Failed, "idle step: "+err.Error())
 		return report
 	}
+	var replies bytes.Buffer
+	var mu sync.Mutex
+	under.Firmware.Bridge.Console(writerFunc(func(p []byte) (int, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		return replies.Write(p)
+	}))
+	// The same command the radio phase used, because it is the one this
+	// firmware is known to accept - and read on the console rather than on
+	// the air. Whether the packet leaves is the duty cycle's business; whether
+	// the node acknowledges the command at all is the question here.
 	if err := under.Firmware.Bridge.Type([]byte("advert\r\n")); err != nil {
-		report.set(Power, Failed, "advert after idle: "+err.Error())
+		report.set(Power, Failed, "commanding it after idle: "+err.Error())
 		return report
 	}
-	if _, ok := waitForEvent(ctx, e, advertBudgetMs, func(ev engine.Event) bool {
-		return ev.Kind == "tx" && ev.From == "bc-under-test" && ev.AtMs > txAt+10_000
-	}); ok {
-		report.set(Power, Passed, "responded again after a 15 s idle period")
+	answered := false
+	deadline := e.NowMs() + advertBudgetMs
+	for e.NowMs() < deadline {
+		if err := e.Run(ctx, e.NowMs()+500); err != nil {
+			break
+		}
+		mu.Lock()
+		got := replies.Len() > 0
+		mu.Unlock()
+		if got {
+			answered = true
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if answered {
+		report.set(Power, Passed, "acknowledged a command after a 15 s idle period")
 	} else {
-		report.set(Power, Failed, "no response after the idle period")
+		report.set(Power, Failed, "said nothing at all after a 15 s idle period")
 	}
 
 	return report
@@ -340,7 +373,23 @@ func waitForEvent(ctx context.Context, e *engine.Engine, budgetMs uint32,
 				return ev.AtMs, true
 			}
 		}
-		if d := time.Duration(e.NowMs()-start)*time.Millisecond - time.Since(began); d > 0 {
+		// Sleep the whole deficit, not a capped slice of it.
+		//
+		// Each stride advances the simulation half a second while the old cap
+		// slept at most a fifth of one, so simulated time outran the clock by
+		// up to 300 ms a stride: a "90 second" budget could expire in 36
+		// seconds of real time, and how much real time a board actually got
+		// varied with whatever else the machine was doing. The board is a real
+		// process on the real clock - an emulated ESP32 that adverts 68
+		// seconds after boot needs 68 seconds, not 68 of somebody's
+		// accelerated units - and that is why the same board passed this phase
+		// twice and then failed it outright. Slept in slices so cancellation
+		// stays responsive, but the full deficit is slept.
+		for {
+			d := time.Duration(e.NowMs()-start)*time.Millisecond - time.Since(began)
+			if d <= 0 || ctx.Err() != nil {
+				break
+			}
 			time.Sleep(min(d, 200*time.Millisecond))
 		}
 	}
@@ -353,3 +402,9 @@ func min(a, b time.Duration) time.Duration {
 	}
 	return b
 }
+
+// writerFunc adapts a function to io.Writer, so the probe can collect a
+// node's console without a pipe and a goroutine to drain it.
+type writerFunc func([]byte) (int, error)
+
+func (f writerFunc) Write(p []byte) (int, error) { return f(p) }
