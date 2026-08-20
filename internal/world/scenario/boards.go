@@ -435,10 +435,15 @@ func isEmulationVerified(name string) bool {
 func EmulatableBoards() (ok []Board, blocked map[string]string) {
 	blocked = map[string]string{}
 	for _, b := range Boards() {
+		// Either wiring counts. Gating on QEMU alone meant a board wired for
+		// Renode could never be emulable however thoroughly it had been
+		// verified - RAK_4631 sat on EmulationVerified and still reported
+		// "wiring not yet verified", because the only branch that could admit
+		// it asked for the wrong emulator.
 		switch {
-		case b.QEMU != nil && isEmulationVerified(b.Name):
+		case (b.QEMU != nil || b.Renode != nil) && isEmulationVerified(b.Name):
 			ok = append(ok, b)
-		case b.QEMU != nil:
+		case b.QEMU != nil || b.Renode != nil:
 			blocked[b.Name] = "wiring recorded but never booted"
 		case b.Radio != "SX1262":
 			blocked[b.Name] = b.Radio + " radio, not modelled"
