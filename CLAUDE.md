@@ -17,6 +17,13 @@ dependency on it without a new ADR.
 Plane project **MSIM** at http://plane.lab. Work items are `MSIM-<n>`; that ID
 goes in the branch name and the PR title. ADRs live in the project's Pages.
 
+## Two files, one set of rules
+
+`CONTRIBUTING.md` states these same rules for somebody arriving cold, with the
+reasoning spelled out. **This file is the authority**: it is what the build
+enforces and what a change is held to. If the two ever disagree, that is a bug
+in `CONTRIBUTING.md`, and the fix is to change it rather than to argue.
+
 ## Style guide
 
 **Effective Go** plus the **Google Go Style Guide**. Where they are silent and
