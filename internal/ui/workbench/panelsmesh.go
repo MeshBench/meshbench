@@ -83,6 +83,8 @@ func addMeshPanels(d panelDeps) {
 	fleet := &fleetPanel{}
 	d.sh.Add(homed(&shell.Panel{Name: "Fleet", Windowable: true,
 		Draw: d.withControls(d.fleetCtl.Draw, fleet.Draw)}))
+	boards := &boardsPanel{do: d.do}
+	d.sh.Add(homed(&shell.Panel{Name: "Boards", Windowable: true, Draw: boards.Draw}))
 	bench := &benchPanel{}
 	// Clicking a companion is the App view's only way of saying which one
 	// everything else is about: the view carries neither the map nor the

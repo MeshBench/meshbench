@@ -70,6 +70,7 @@ internal/world/     what is being simulated, and where it came from
 
 internal/sim/       running it, and recording what happened
   engine/             firmware nodes exchanging traffic over the channel
+  boardcheck/         what a board demonstrates, measured one boot at a time
   capture/            pcapng, event log, the reception ledger
   replay/             observed traffic back into transmissions
 

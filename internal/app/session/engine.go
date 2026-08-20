@@ -68,6 +68,13 @@ type Sim struct {
 	// sdrServers is every node currently exposed as an rtl_tcp source,
 	// with the sample rate its stream was attached at.
 	sdrServers map[string]*sdrServer
+	// boardProbing is the single-flight guard on the capability matrix.
+	//
+	// Deliberately one at a time and never the whole fixture: a probe boots a
+	// real board image under an emulator on top of the native nodes it talks
+	// to, which is heavy enough that running the catalogue at once takes the
+	// machine down rather than measuring anything.
+	boardProbing bool
 	// covCells is the operator's coverage-raster resolution - the long
 	// edge, in cells - or zero for the default.
 	covCells int
