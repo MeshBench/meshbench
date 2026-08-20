@@ -1,11 +1,81 @@
 version: "2"
+
+# Eight linters ran here for a long time. The other ninety-six had never been
+# tried, and when they were they returned 477 findings from the bug-class ones
+# alone - so this list is not "everything golangci-lint offers", it is the set
+# whose findings are worth acting on in this codebase, with a one-line reason
+# for each family.
 linters:
   enable:
-    - errcheck
+    # --- correctness: a finding here is a way the program can be wrong ---
+    - errcheck        # an ignored error is a failure nobody was told about
     - govet
-    - ineffassign
     - staticcheck
+    - ineffassign
     - unused
+    - bodyclose       # a leaked response body holds a connection open
+    - nilerr          # returning nil after checking a non-nil error
+    - errorlint       # == on a wrapped error silently stops matching
+    - forcetypeassert # an unchecked assertion is a panic waiting for its input
+    - contextcheck    # a context that does not inherit cannot be cancelled
+    - recvcheck       # mixed receivers copy a type that expected a pointer
+    - makezero        # append to a make()d length, silently prefixing zeroes
+    - durationcheck   # multiplying two Durations is almost never meant
+    - noctx           # an HTTP request with no context cannot be given up on
+    - reassign        # assigning to another package's variable
+    - bidichk         # bidirectional runes that make source read differently
+    - asasalint       # []any passed where the variadic was meant
+
+    # --- security, in a tool that reads files and runs subprocesses ---
+    - gosec
+
+    # --- the house limits, which this repository states and did not enforce ---
+    - dupl            # "duplicated asset: none - one copy, and code points at it"
     - misspell
-    - bodyclose
-    - nilerr
+
+  settings:
+    dupl:
+      # Below this, a repeated shape is usually two things that resemble each
+      # other rather than one thing written twice.
+      threshold: 120
+    gosec:
+      excludes:
+        # G115, integer conversion overflow: 124 findings, and in the RF packages
+        # they are worth auditing by hand rather than by linter - a truncated
+        # sample index produces a plausible waterfall and slightly wrong
+        # sensitivity, which no automatic rule distinguishes from a safe cast.
+        # Tracked as its own piece of work; excluded here so the ratchet can hold
+        # the other 353 at zero rather than being defeated by the noisiest rule.
+        - G115
+        # G304, file inclusion via variable: this application's whole job is
+        # opening files whose paths came from the operator - fixtures, firmware,
+        # terrain caches. Containment is enforced where it matters, in code.
+        - G304
+        # G301/G306, directory and file permissions: cache directories and
+        # exported artefacts are meant to be readable by the user's own tools.
+        - G301
+        - G306
+
+    errcheck:
+      # An error deliberately dropped says so at the call site. These are the
+      # ones where there is genuinely nothing to do with it.
+      exclude-functions:
+        - (*os.File).Close
+        - (io.Closer).Close
+
+  exclusions:
+    rules:
+      # Test code gets the correctness linters and not the security ones: a
+      # test that writes a temporary file with generous permissions, or asserts
+      # a type it just constructed, is not a finding.
+      - path: _test\.go
+        linters: [gosec, forcetypeassert, dupl, noctx]
+      # Generated: the licence inventory's Go file is written by tools/licgen.
+      - path: internal/ui/workbench/licences/
+        linters: [dupl, misspell]
+
+issues:
+  # The ratchet: no cap, so the count in CI is the real one and can be compared
+  # against a baseline. A capped count can only ever say "at least 50".
+  max-issues-per-linter: 0
+  max-same-issues: 0

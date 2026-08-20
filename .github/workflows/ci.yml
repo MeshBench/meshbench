@@ -10,6 +10,14 @@ on:
 permissions:
   contents: read
 
+env:
+  # v2.1.6 cannot lint a go1.25.0 module at all - "the Go language version used
+  # to build golangci-lint is lower than the targeted Go version". Beyond that,
+  # versions disagree about this tree: v2.1.6 and v2.12.2 differ by 29
+  # findings, so .golangci-baseline.txt is only meaningful against the version
+  # named here. Contributors need this one too; CONTRIBUTING.md says so.
+  GOLANGCI_LINT_VERSION: v2.12.2
+
 jobs:
   check:
     # The lab runners sit on a home LAN with a NAS mounted, so a fork's PR -
@@ -81,12 +89,26 @@ jobs:
           go run ./tools/licgen
           git diff --exit-code -- internal/ui/workbench/licences/licences.json
 
-      - uses: golangci/golangci-lint-action@v7
-        with:
-          # v2.1.6 is built with go1.24 and cannot lint a go1.25.0 module -
-          # "the Go language version used to build golangci-lint is lower
-          # than the targeted Go version". v2.12.2 is built with go1.25.0.
-          version: v2.12.2
+      # The linter set went from 8 to 20 and returned 96 findings, so the run
+      # can no longer simply demand zero. It demands that the count has not
+      # risen: tools/lint-ratchet.sh compares per-linter counts against
+      # .golangci-baseline.txt, fails on any increase, and reports any decrease
+      # so the baseline gets tightened by the change that earned it.
+      #
+      # Installed directly rather than through golangci-lint-action, because
+      # the action's whole job is to run the linter and fail on findings, and
+      # here the ratchet decides that. One version, named once, in env above.
+      - name: golangci-lint
+        run: |
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$GOLANGCI_LINT_VERSION
+          # setup-go puts GOPATH/bin on PATH, but say so explicitly rather
+          # than depending on it: a self-hosted runner with a warm GOPATH has
+          # been surprising before.
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          "$(go env GOPATH)/bin/golangci-lint" --version
+
+      - name: lint ratchet
+        run: tools/lint-ratchet.sh
 
       # The 500-line hard limit from CLAUDE.md. Applied to shaders and the
       # dissector too, not just Go: hamreach enforced Go only and its largest
