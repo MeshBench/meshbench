@@ -1,0 +1,49 @@
+name: Board report
+description: A board that will not run, runs wrongly, or is missing from the matrix
+labels: [board]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The board compatibility matrix in the README says what has actually been
+        *watched* happening, board by board. A blank cell means nobody has tried,
+        not that it does not work.
+  - type: input
+    id: board
+    attributes:
+      label: Board
+      description: The profile name, as MeshBench spells it — e.g. `Heltec_t114`.
+    validations: {required: true}
+  - type: input
+    id: firmware
+    attributes:
+      label: Firmware
+      description: >
+        The published release you used, with its role — e.g.
+        `simple_repeater-v1.17.1`. MeshCore tags one role at a time, so a bare
+        `v1.17.1` resolves nothing.
+    validations: {required: true}
+  - type: dropdown
+    id: column
+    attributes:
+      label: Which capability
+      description: The column of the matrix this is about.
+      options: [build, boot, radio, tx, rx, flood, fem, power, not in the matrix at all]
+    validations: {required: true}
+  - type: textarea
+    id: observed
+    attributes:
+      label: What you watched it do
+      description: >
+        Not what you concluded — what was observed. "Adverted at 61 s, then
+        reported the channel busy for the rest of the run" is worth ten times
+        "the radio does not work".
+    validations: {required: true}
+  - type: textarea
+    id: output
+    attributes:
+      label: Board check output
+      description: >
+        If you ran it, paste the output. **One board at a time** — the full
+        fixture across emulated boards will take a machine down.
+      render: text

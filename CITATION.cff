@@ -1,0 +1,27 @@
+cff-version: 1.2.0
+title: MeshBench
+message: >-
+  If you use MeshBench for published work, please cite it — and please say
+  which RF mode produced your numbers, because the two carry different error
+  budgets.
+type: software
+authors:
+  - given-names: Alex
+    email: alex@hectospark.co.uk
+repository-code: https://github.com/MeshBench/meshbench
+abstract: >-
+  An RF-accurate MeshCore network simulator. It runs real MeshCore firmware
+  against a sample-accurate LoRa baseband channel with real noise, so the
+  question it answers is not whether a packet would get through but what
+  arrived at the antenna, and why. Reception is decided by a full receive
+  chain — demodulation, Gray mapping, the diagonal deinterleaver, Hamming FEC,
+  dewhitening, header and payload CRC — so capture effect and partial overlap
+  emerge rather than being ruled on. Known limits, and the direction each one
+  errs in, are published in docs/shortcomings.md.
+keywords:
+  - LoRa
+  - MeshCore
+  - radio propagation
+  - network simulation
+  - software-defined radio
+license: GPL-3.0-or-later

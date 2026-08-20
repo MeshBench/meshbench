@@ -1,0 +1,44 @@
+name: Physics or result question
+description: A number the simulator produced that you think is wrong
+labels: [physics]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Read [`docs/shortcomings.md`](../../docs/shortcomings.md) first if you
+        have not. It records what the model does not do and **in which
+        direction it errs** — most of the known biases point the same way, which
+        is what makes a MeshBench result usable as a *best case*.
+
+        If the answer is already in there, this is still worth reporting when
+        the size of the error surprises you.
+  - type: textarea
+    id: claim
+    attributes:
+      label: What the simulator said
+      description: The number, and where it came from — which view, which mode.
+    validations: {required: true}
+  - type: dropdown
+    id: mode
+    attributes:
+      label: RF mode
+      description: Configuration → RF Simulation. It is stamped into every result.
+      options: [Calculated, Waveform, Not sure]
+    validations: {required: true}
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and why
+      description: >
+        A measurement beats an intuition, and a measurement with its method
+        beats a measurement. If this is a real observation — a packet that did
+        or did not arrive — say what the receiver was and how you know.
+    validations: {required: true}
+  - type: textarea
+    id: repro
+    attributes:
+      label: Scenario
+      description: >
+        The fixture, the seed, and the two nodes. Determinism is a feature here:
+        same seed, same scenario, same result — so a seed makes this checkable.
+    validations: {required: true}

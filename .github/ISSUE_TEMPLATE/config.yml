@@ -1,0 +1,7 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Something the model does not do
+    url: https://github.com/MeshBench/meshbench/blob/main/docs/shortcomings.md
+    about: >
+      The honesty document — what is absent, what is measurably wrong, and in
+      which direction. Check here before reporting a result as a bug.
