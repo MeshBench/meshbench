@@ -63,6 +63,22 @@ jobs:
         # caches already survive between jobs. See ci.yml for the detail.
         with: { go-version: '1.25', cache: false }
 
+      # gh is not part of a bare Ubuntu image, and every artefact this bundle
+      # needs - both emulators and the radio model - is fetched with it. When
+      # it is missing the emulator steps warn and carry on, so the failure
+      # surfaces eight steps later as "no radioserver-v1 release", naming a
+      # release that exists. Checked here instead, before anything is built.
+      - name: The tools this job shells out to
+        run: |
+          missing=""
+          for t in gh curl tar; do command -v "$t" >/dev/null || missing="$missing $t"; done
+          if [ -n "$missing" ]; then
+            echo "::error::this runner is missing:$missing - install them on the runner;"\
+                 "every release artefact below is fetched with gh"
+            exit 1
+          fi
+          gh --version | head -1
+
       - name: Dependencies
         run: |
           sudo apt-get update
@@ -132,10 +148,15 @@ jobs:
           # QEMU's archives are .tar.xz and carry the target in the name;
           # only the Xtensa one runs ESP32 firmware, so the riscv32 build in
           # the same release is deliberately not downloaded.
+          # A warning rather than a failure, because a release that does not
+          # exist yet is a known state - but the warning says which of the two
+          # it is, so "no release" cannot be read onto a broken runner.
           gh release download --repo MeshBench/qemu --pattern '*xtensa*x86_64-linux-gnu.tar.xz' \
-            --dir . --clobber || echo "::warning::no QEMU release yet, bundle ships without it"
+            --dir . --clobber \
+            || echo "::warning::MeshBench/qemu has no matching release; bundle ships without QEMU"
           gh release download --repo MeshBench/renode --pattern '*linux*portable*meshbench*.tar.gz' \
-            --dir . --clobber || echo "::warning::no Renode release yet, bundle ships without it"
+            --dir . --clobber \
+            || echo "::warning::MeshBench/renode has no matching release; bundle ships without Renode"
           # -xf rather than -xzf: the two forks package differently and the
           # bundle should not care which. tar reads the compression itself.
           for f in *.tar.gz *.tar.xz; do [ -e "$f" ] || continue; tar xf "$f" && rm "$f"; done
@@ -156,9 +177,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -e
+          # No || here. It used to swallow gh's own error and report "no
+          # radioserver-v1 release", which was wrong - the release existed and
+          # gh was not installed - and sent the reader to the wrong repository.
+          # set -e above stops the job; gh says why.
           gh release download radioserver-v1 --repo MeshBench/meshcore-native \
-            --pattern 'radioserver-linux-amd64' --dir dist/meshbench --clobber \
-            || { echo "::error::no radioserver-v1 release for meshcore-native"; exit 1; }
+            --pattern 'radioserver-linux-amd64' --dir dist/meshbench --clobber
           mv dist/meshbench/radioserver-linux-amd64 dist/meshbench/radioserver
           chmod +x dist/meshbench/radioserver
           dist/meshbench/radioserver 2>&1 | head -1 || true
