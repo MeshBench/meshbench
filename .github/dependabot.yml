@@ -1,0 +1,28 @@
+# Dependency updates, deliberately slow.
+#
+# Every dependency here is either linked into a binary that gets released under
+# GPL-3.0 or runs in CI, and licgen fails the build on a module whose licence it
+# cannot name - so an update is a licence decision as well as a version bump.
+# Weekly, grouped, so that decision is made once rather than eight times.
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      golang-x:
+        patterns: ["golang.org/x/*"]
+      gio:
+        patterns: ["gioui.org", "gioui.org/*", "github.com/go-text/*"]
+    commit-message:
+      prefix: "deps"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "ci"

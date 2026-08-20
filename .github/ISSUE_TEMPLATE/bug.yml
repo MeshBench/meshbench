@@ -1,0 +1,49 @@
+name: Bug
+description: Something in the application or the tooling does not do what it says
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For a *simulation result you think is wrong*, use the "Physics or result
+        question" template instead — those need different information and get a
+        different kind of answer.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what happened, and what you expected instead.
+      placeholder: |
+        I opened the Resources panel and pressed Licence on the terrain row.
+        Nothing happened. I expected the terms to appear.
+    validations: {required: true}
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce it
+      description: >
+        The flags you launched with, the fixture loaded, and the steps. Most
+        states are reachable by flag (`-panel`, `-config-section`, `-layers`),
+        which makes a report far easier to act on.
+      placeholder: |
+        meshcoresim workbench -fixture "" -panel Resources
+    validations: {required: true}
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: From `meshcoresim --version`, or the commit if you built it.
+    validations: {required: true}
+  - type: dropdown
+    id: os
+    attributes:
+      label: Platform
+      options: [Linux, macOS, Windows]
+    validations: {required: true}
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: >
+        A screenshot if it is visual. The session log if it is not — the path is
+        printed on startup.
