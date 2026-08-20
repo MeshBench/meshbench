@@ -164,7 +164,16 @@ const nativePeerVersion = "repeater-v1.17.0"
 // for a board that was answering perfectly well. A board's second advert
 // cannot be held to a shorter deadline than its first, and a relay - which is
 // an advert plus a hop - cannot be held to a shorter one than either.
-const advertBudgetMs = 90_000
+//
+// Four minutes, not ninety seconds, since an emulated board got a filesystem
+// that works. It formats it on first boot, which is 1.4 MB of flash through an
+// emulated SPI controller and takes most of ninety seconds by itself - so the
+// old budget was spent before the board had finished starting. The board was
+// relaying the whole time and being recorded as a board that would not.
+//
+// The cost is real: a probe takes minutes rather than one. Measuring the wrong
+// thing faster is not a saving.
+const advertBudgetMs = 240_000
 
 // Probe runs every capability for one board and version, in one boot.
 //
