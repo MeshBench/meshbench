@@ -89,8 +89,11 @@ func Merge(existing, incoming []Node, s MergeStrategy) []Node {
 		return out
 	}
 	byKey := map[string]int{}
-	out := make([]Node, len(existing))
-	copy(out, existing)
+	// Room for both sides from the start. The loop below appends every
+	// incoming node that is not a match, and growing mid-merge copies a slice
+	// of every node in the network to do it.
+	out := make([]Node, 0, len(existing)+len(incoming))
+	out = append(out, existing...)
 	for i, n := range out {
 		byKey[mergeKey(n)] = i
 	}

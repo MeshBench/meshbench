@@ -58,17 +58,17 @@ const environUserAgent = "MeshBench/1.0 (RF mesh simulator; building-footprint f
 
 // environGet is Get with the identity, and a polite retry on the
 // throttling answers.
-func environGet(url string) (*http.Response, error) {
-	return environDo("GET", url, "", "")
+func environGet(ctx context.Context, url string) (*http.Response, error) {
+	return environDo(ctx, "GET", url, "", "")
 }
 
-func environDo(method, url, contentType, body string) (*http.Response, error) {
+func environDo(ctx context.Context, method, url, contentType, body string) (*http.Response, error) {
 	for attempt := 0; ; attempt++ {
 		var rd io.Reader
 		if body != "" {
 			rd = strings.NewReader(body)
 		}
-		req, err := http.NewRequest(method, url, rd)
+		req, err := http.NewRequestWithContext(ctx, method, url, rd)
 		if err != nil {
 			return nil, err
 		}
@@ -182,7 +182,7 @@ func hasTiles(dir string) bool {
 // deduplicated by id across the whole pull. Relations (multipolygons) are
 // left to envgen: their outer rings need assembly this path does not
 // attempt, and silently mangling them would be worse than saying so.
-func overpassNDJSON(patches []llBox, progress func(done, total int)) (io.Reader, int, error) {
+func overpassNDJSON(ctx context.Context, patches []llBox, progress func(done, total int)) (io.Reader, int, error) {
 	chunks := (len(patches) + overpassChunk - 1) / overpassChunk
 	seen := map[int64]bool{}
 	var all strings.Builder
@@ -197,7 +197,7 @@ func overpassNDJSON(patches []llBox, progress func(done, total int)) (io.Reader,
 			fmt.Fprintf(&union, `way["building"](%f,%f,%f,%f);`, b.South, b.West, b.North, b.East)
 		}
 		q := fmt.Sprintf(`[out:json][timeout:180];(%s);out geom;`, union.String())
-		resp, err := environDo("POST", "https://overpass-api.de/api/interpreter",
+		resp, err := environDo(ctx, "POST", "https://overpass-api.de/api/interpreter",
 			"application/x-www-form-urlencoded", "data="+neturl.QueryEscape(q))
 		if err != nil {
 			return nil, 0, err
@@ -280,7 +280,7 @@ func overpassToNDJSON(body io.Reader, seen map[int64]bool) (io.Reader, int, erro
 // fetchEnviron is the pull, run off the store's goroutine: resolve, download,
 // ingest into the cache, then hand the directory to rf.environment exactly as
 // if the operator had typed it.
-func (s *Sim) fetchEnviron(source string, patches []llBox,
+func (s *Sim) fetchEnviron(ctx context.Context, source string, patches []llBox,
 	progress func(done, total int)) (string, environ.IngestStats, error) {
 	dir, err := environCacheDir(source, patches)
 	if err != nil {
@@ -300,16 +300,16 @@ func (s *Sim) fetchEnviron(source string, patches []llBox,
 				a, float64(overpassMaxKm2))
 		}
 		var n int
-		rd, n, err = overpassNDJSON(patches, progress)
+		rd, n, err = overpassNDJSON(ctx, patches, progress)
 		if err == nil && n == 0 {
 			err = fmt.Errorf("OpenStreetMap has no building ways in this map's area")
 		}
 	case "microsoft":
-		files, uerr := microsoftFiles(patches)
+		files, uerr := microsoftFiles(ctx, patches)
 		if uerr != nil {
 			return "", environ.IngestStats{}, uerr
 		}
-		rd, done, err = microsoftNDJSON(files, patches,
+		rd, done, err = microsoftNDJSON(ctx, files, patches,
 			func(d int) { progress(d, len(files)+1) })
 	case "merged":
 		// The environment plan's actual shape: Microsoft for existence and
@@ -324,17 +324,17 @@ func (s *Sim) fetchEnviron(source string, patches []llBox,
 		// Overpass first: it refuses fast when it refuses at all, and a
 		// refusal after gigabytes of footprint downloads is a pull that
 		// wasted an evening's bandwidth to fail.
-		osm, _, oerr := overpassNDJSON(patches, func(done, total int) {
+		osm, _, oerr := overpassNDJSON(ctx, patches, func(done, total int) {
 			progress(done, total+1)
 		})
 		if oerr != nil {
 			return "", environ.IngestStats{}, oerr
 		}
-		files, uerr := microsoftFiles(patches)
+		files, uerr := microsoftFiles(ctx, patches)
 		if uerr != nil {
 			return "", environ.IngestStats{}, uerr
 		}
-		ms, msDone, merr := microsoftNDJSON(files, patches,
+		ms, msDone, merr := microsoftNDJSON(ctx, files, patches,
 			func(d int) { progress(d, len(files)+1) })
 		if merr != nil {
 			return "", environ.IngestStats{}, merr
@@ -377,18 +377,35 @@ func registerEnvironFetch(st *state.Store, s *Sim) {
 		}
 		const id = "environ-fetch"
 		what := "buildings: " + source
-		w.Jobs = append(w.Jobs, state.Job{ID: id, What: what, Total: 1})
+		// A footprint pull is minutes of somebody else's bandwidth and had no
+		// stop: the client's own 15-minute timeout was the only way out of one
+		// started by accident. state.Job carries a Cancel and the jobs strip
+		// draws it; this job simply never supplied one.
+		ctx, stop := context.WithCancel(context.Background())
+		w.Jobs = append(w.Jobs, state.Job{ID: id, What: what, Total: 1, Cancel: stop})
 		w.Say(fmt.Sprintf("pulling %s footprints: %d patch(es) around the "+
 			"nodes, %.0f km2", source, len(patches), patchesAreaKm2(patches)))
 		go func() {
-			ctx := context.Background()
-			dir, stats, err := s.fetchEnviron(source, patches,
+			defer stop()
+			dir, stats, err := s.fetchEnviron(ctx, source, patches,
 				func(done, total int) {
 					_, _ = st.Do(ctx, "job.progress", state.Job{
 						ID: id, What: what, Done: done, Total: total})
 				})
+			// Saying how it ended has to survive the thing that ended it.
+			done, release := finishing(ctx)
+			defer release()
 			if err != nil {
-				_, _ = st.Do(ctx, "environ.failed", err.Error())
+				// A stop is not a failure. Reporting one as the other teaches
+				// an operator to distrust the button they just pressed - the
+				// tile fetch learned this first.
+				if ctx.Err() != nil {
+					_, _ = st.Do(done, "ui.said",
+						"the "+source+" footprint pull was stopped; "+
+							"what had already been written is cached")
+					return
+				}
+				_, _ = st.Do(done, "environ.failed", err.Error())
 				return
 			}
 			note := "already cached"
@@ -396,10 +413,10 @@ func registerEnvironFetch(st *state.Store, s *Sim) {
 				note = fmt.Sprintf("%d building(s) into %d tile(s), %d skipped",
 					stats.Buildings, stats.Tiles, stats.Skipped)
 			}
-			_, _ = st.Do(ctx, "environ.fetched", note)
+			_, _ = st.Do(done, "environ.fetched", note)
 			// The same verb the manual path uses, so there is exactly one
 			// way buildings get switched on.
-			_, _ = st.Do(ctx, "rf.environment", map[string]any{"dir": dir})
+			_, _ = st.Do(done, "rf.environment", map[string]any{"dir": dir})
 		}()
 		return map[string]any{"source": source, "started": true}, nil
 	})

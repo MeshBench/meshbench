@@ -30,7 +30,10 @@ func reportPath(dir, board, version string) string {
 // Save writes a report, keyed by board and version - a later probe of the
 // same pair overwrites it, which is the point: the cache holds the most
 // recent measurement, not a history of them.
-func (r BoardReport) Save() error {
+// Pointer receiver to match set(): a type with both copies itself on every
+// call to half its methods, and the half that mutates is the one you notice
+// too late.
+func (r *BoardReport) Save() error {
 	dir, err := Dir()
 	if err != nil {
 		return err

@@ -66,7 +66,7 @@ var meshcliCommands = []cliCommand{
 		}
 		n, err := strconv.Atoi(a[0])
 		if err != nil {
-			return "", fmt.Errorf("channel number: %v", err)
+			return "", fmt.Errorf("channel number: %w", err)
 		}
 		msg := strings.Join(a[1:], " ")
 		if err := s.compFrame(node, proto.SendChannelText(uint8(n), time.Now(), msg)); err != nil {
@@ -95,7 +95,7 @@ var meshcliCommands = []cliCommand{
 		if len(a) > 0 {
 			v, err := strconv.Atoi(a[0])
 			if err != nil {
-				return "", fmt.Errorf("channel number: %v", err)
+				return "", fmt.Errorf("channel number: %w", err)
 			}
 			n = v
 		}
