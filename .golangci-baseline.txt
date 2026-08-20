@@ -1,8 +1,6 @@
-contextcheck 22
+contextcheck 4
 dupl 10
-errorlint 3
 forcetypeassert 4
 gosec 34
-makezero 1
-noctx 12
-recvcheck 4
+noctx 11
+recvcheck 2

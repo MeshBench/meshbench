@@ -68,6 +68,14 @@ func (v View) Purpose() string {
 // 340dp strip, because a strip was the only other place available. A view that
 // reads a table against its controls needs columns, and nothing here could say
 // so.
+//
+// Its methods take both kinds of receiver, deliberately. LoadLayouts clones
+// straight out of a map and a map element is not addressable, so clone() must
+// take a value or the one call site that matters will not compile. The
+// mutating method takes a pointer and is only ever called on the addressable
+// copy clone() returns, which is the ordering that makes the mix safe.
+//
+//nolint:recvcheck // clone() is called on a map element and must take a value
 type Arrangement struct {
 	// Rail is a fixed-width column down the right, drawn full height. Empty
 	// for a view that wants none.
@@ -162,6 +170,7 @@ func withRail(main string, railDp int, rail ...string) Arrangement {
 
 // clone is a deep copy, so editing a view's live arrangement cannot reach
 // back into the preset every reset reads from.
+// Value receiver, deliberately: see the note on the type.
 func (a Arrangement) clone() Arrangement {
 	out := Arrangement{RailDp: a.RailDp}
 	for _, c := range a.Rail {

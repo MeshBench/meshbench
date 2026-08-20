@@ -23,6 +23,7 @@
 package pick
 
 import (
+	"errors"
 	"github.com/ncruces/zenity"
 )
 
@@ -78,7 +79,10 @@ func Open(title, start string, kind Kind, filters ...Filter) (string, error) {
 	default:
 		path, err = zenity.SelectFile(opts...)
 	}
-	if err == zenity.ErrCanceled {
+	// errors.Is, not ==: a cancel that arrives wrapped would otherwise read as
+	// a failure, and the dialog somebody closed on purpose would report an
+	// error they never caused.
+	if errors.Is(err, zenity.ErrCanceled) {
 		return "", nil
 	}
 	return path, err

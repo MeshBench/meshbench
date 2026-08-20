@@ -7,6 +7,7 @@ package session
 import (
 	"bufio"
 	"compress/gzip"
+	"context"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -83,14 +84,14 @@ type msFile struct {
 // microsoftFiles resolves the patches to the dataset files that cover them,
 // priced by the index's own size column. Refusal is by gigabytes, not file
 // count: ninety small files are fine and three enormous ones are not.
-func microsoftFiles(patches []llBox) ([]msFile, error) {
+func microsoftFiles(ctx context.Context, patches []llBox) ([]msFile, error) {
 	want := map[string]bool{}
 	for _, b := range patches {
 		for _, k := range quadkeysFor(b.South, b.North, b.West, b.East) {
 			want[k] = true
 		}
 	}
-	resp, err := environGet(microsoftLinksURL)
+	resp, err := environGet(ctx, microsoftLinksURL)
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +207,7 @@ func filterNDJSON(r io.Reader, idx *patchIndex, out io.Writer) (kept int, err er
 // in the patches, and hands back the filtered stream. Each file is deleted
 // as soon as it is filtered, so disk holds one dataset file at a time no
 // matter how many the map spans.
-func microsoftNDJSON(files []msFile, patches []llBox,
+func microsoftNDJSON(ctx context.Context, files []msFile, patches []llBox,
 	progress func(done int)) (io.Reader, func(), error) {
 	sweepStaleEnvironTemps()
 	tmp, err := os.MkdirTemp("", "msim-environ-*")
@@ -228,7 +229,7 @@ func microsoftNDJSON(files []msFile, patches []llBox,
 	}
 	for i, f := range files {
 		path := filepath.Join(tmp, "part.gz")
-		if err := downloadTo(f.url, path); err != nil {
+		if err := downloadTo(ctx, f.url, path); err != nil {
 			return fail(err)
 		}
 		gzf, err := os.Open(path)
@@ -262,8 +263,8 @@ func microsoftNDJSON(files []msFile, patches []llBox,
 	return rd, func() { _ = rd.Close(); cleanup() }, nil
 }
 
-func downloadTo(url, path string) error {
-	resp, err := environGet(url)
+func downloadTo(ctx context.Context, url, path string) error {
+	resp, err := environGet(ctx, url)
 	if err != nil {
 		return err
 	}

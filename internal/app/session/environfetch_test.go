@@ -1,6 +1,7 @@
 package session
 
 import (
+	"context"
 	"io"
 	"strings"
 	"testing"
@@ -98,7 +99,7 @@ func TestOverpassAreaCapFailsLoudly(t *testing.T) {
 		t.Fatalf("Scotland measures %.0f km2, which should exceed the cap", a)
 	}
 	var s Sim
-	_, _, err := s.fetchEnviron("osm", scotland(), func(int, int) {})
+	_, _, err := s.fetchEnviron(context.Background(), "osm", scotland(), func(int, int) {})
 	if err == nil || !strings.Contains(err.Error(), "envgen") {
 		t.Fatalf("an oversized pull must refuse and point at envgen, got %v", err)
 	}
@@ -111,7 +112,7 @@ func scotland() []llBox {
 
 func TestFetchEnvironRefusesUnknownSource(t *testing.T) {
 	var s Sim
-	if _, _, err := s.fetchEnviron("zillow", []llBox{{South: 56, North: 56.1, West: -3.1, East: -3}}, func(int, int) {}); err == nil {
+	if _, _, err := s.fetchEnviron(context.Background(), "zillow", []llBox{{South: 56, North: 56.1, West: -3.1, East: -3}}, func(int, int) {}); err == nil {
 		t.Fatal("an unknown source must refuse")
 	}
 }
@@ -136,7 +137,7 @@ func TestHasTilesMatchesIngestLayout(t *testing.T) {
 
 func TestMergedSourceHonoursTheOverpassCap(t *testing.T) {
 	var s Sim
-	_, _, err := s.fetchEnviron("merged", scotland(), func(int, int) {})
+	_, _, err := s.fetchEnviron(context.Background(), "merged", scotland(), func(int, int) {})
 	if err == nil || !strings.Contains(err.Error(), "envgen") {
 		t.Fatalf("an oversized merged pull must refuse and point at envgen, got %v", err)
 	}
