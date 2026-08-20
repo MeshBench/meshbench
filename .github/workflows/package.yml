@@ -637,7 +637,7 @@ jobs:
         # self-hosted runner (lab-2204, or the m4 pool), where the Go
         # caches already survive between jobs. See ci.yml for the detail.
         with: { go-version: '1.24', cache: false }
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with: { path: incoming }
 
       - name: Collect
