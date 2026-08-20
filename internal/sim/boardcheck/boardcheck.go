@@ -234,22 +234,24 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 		return report
 	}
 
-	// Radio and tx: the board under test originates on command.
-	if err := under.Firmware.Bridge.Type([]byte("advert\r\n")); err != nil {
-		report.set(Radio, Failed, "advert: "+err.Error())
-		report.set(TX, Failed, "advert: "+err.Error())
-		return report
-	}
+	// Radio and tx: the board reaches the air by itself.
+	//
+	// Watched, not commanded. This phase used to type "advert" at the board
+	// first and report the transmission that followed as one made on command.
+	// It was not: nothing reads an emulated node's UART, so the typing went
+	// nowhere, and what arrived was simple_repeater's own unprompted advert a
+	// few seconds after boot. Withholding the command entirely changed neither
+	// the result nor the time it arrived, which is what settled it.
 	txAt, ok := waitForEvent(ctx, e, advertBudgetMs, func(ev engine.Event) bool {
 		return ev.Kind == "tx" && ev.From == "bc-under-test"
 	})
 	if !ok {
-		report.set(Radio, Failed, "no transmission observed within 90 s of an advert")
-		report.set(TX, Failed, "no transmission observed within 90 s of an advert")
+		report.set(Radio, Failed, "never transmitted within 90 s of coming up")
+		report.set(TX, Failed, "never transmitted within 90 s of coming up")
 		return report
 	}
-	report.set(Radio, Passed, fmt.Sprintf("transmitted at %.1f s", float64(txAt)/1000))
-	report.set(TX, Passed, fmt.Sprintf("transmitted at %.1f s", float64(txAt)/1000))
+	report.set(Radio, Passed, fmt.Sprintf("adverted unprompted at %.1f s", float64(txAt)/1000))
+	report.set(TX, Passed, fmt.Sprintf("adverted unprompted at %.1f s", float64(txAt)/1000))
 
 	// rx: the sender adverts, the board under test should hear it.
 	sender, ok := e.NodeByName("bc-sender")
@@ -269,21 +271,33 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 		report.set(RX, Failed, "the native sender never came up")
 	}
 
-	// flood: the sender's next advert should reach the listener only via a
-	// relay through the board under test - the listener is out of the
-	// sender's own direct range by construction.
+	// flood: the board forwards somebody else's packet.
+	//
+	// Watched at the board, not at the listener. This phase used to advert
+	// from the sender and pass when the listener heard it, on the stated
+	// construction that the listener was out of the sender's direct reach. It
+	// is not: the three sit 0.6 degrees of longitude apart at this latitude,
+	// making the far pair about 73 km, and 20 dBm from a 6 dBi mast over the
+	// simulator's flat bare earth covers that comfortably. The event log shows
+	// the listener hearing the sender directly, so what passed was a direct
+	// reception with a relay's name on it.
+	//
+	// Requiring the board's own transmission instead settles it wherever the
+	// nodes are put, which is the property the old test was trying to buy with
+	// geometry and did not get.
 	if ok && sender.Firmware != nil {
-		if err := sender.Firmware.Bridge.Type([]byte("advert\r\n")); err == nil {
-			if _, ok := waitForEvent(ctx, e, advertBudgetMs, func(ev engine.Event) bool {
-				return ev.Kind == "rx" && ev.To == "bc-listener"
-			}); ok {
-				report.set(Flood, Passed, "the listener heard it, out of the sender's own reach")
-			} else {
-				report.set(Flood, Failed, "the listener never heard a relay within 75 s")
-			}
-		} else {
+		if err := sender.Firmware.Bridge.Type([]byte("advert\r\n")); err != nil {
 			report.set(Flood, Failed, "could not command the sender: "+err.Error())
+		} else if _, relayed := waitForEvent(ctx, e, advertBudgetMs, func(ev engine.Event) bool {
+			return ev.Kind == "tx" && ev.From == "bc-under-test"
+		}); relayed {
+			report.set(Flood, Passed, "forwarded the sender's advert itself")
+		} else {
+			report.set(Flood, Failed,
+				"heard the sender and put nothing back on the air within 90 s")
 		}
+	} else {
+		report.set(Flood, Failed, "the native sender never came up")
 	}
 
 	// fem: nothing in scenario.QEMUWiring or RenodeWiring models a front-end
@@ -291,30 +305,30 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 	// is, not guessed at.
 	report.set(FEM, NotApplicable, "no front-end module modelled for this board's wiring")
 
-	// power: not measurable yet, and said so rather than guessed at.
+	// power: whether the board is still there after sitting idle, and still
+	// not measurable - but for a reason that has been established rather than
+	// guessed at.
 	//
-	// The question is whether a board is still alive after sitting idle, and
-	// three ways of asking it have now been tried against a real emulated
-	// ESP32. Demanding a transmission conflates liveness with MeshCore's own
-	// duty cycle: a board that has just adverted and relayed twice can decline
-	// correctly and be entirely well. Watching the console for an
-	// acknowledgement finds nothing either - not even for "advert", which the
-	// radio phase proves this firmware accepts - so either this build echoes
-	// nothing to serial or the probe is reading the wrong place.
+	// Asking it directly is out: an emulated board has no console at all, so
+	// anything typed at it is discarded before it runs. Asking over the air
+	// fails for a second reason. The simulated RTC does not advance, so every
+	// advert a node emits carries the same timestamp; a sender told to advert
+	// twice emits the same bytes twice, and the board's duplicate table drops
+	// the repeat exactly as MeshCore should. Silence afterwards is then a
+	// correctly-suppressed duplicate, not a wedged node, and the two are
+	// indistinguishable from here.
 	//
-	// Which of those it is decides how the phase should work, and neither is
-	// established. Untested is the honest answer until one of them is: this
-	// matrix exists so a board nobody has measured never looks like one that
-	// ran and passed, and a red cell nobody can defend is the same lie the
-	// other way round.
+	// Both would be fixed by a console on the emulated path; until there is
+	// one, untested is the answer this matrix exists to give. A red cell
+	// nobody can defend is the same lie as a green one nobody earned.
 	if err := e.Run(ctx, e.NowMs()+15_000); err != nil {
 		report.set(Power, Untested, "idle step: "+err.Error())
 		return report
 	}
 	report.set(Power, Untested,
-		"no way yet to tell a wedged node from one declining to transmit: this "+
-			"firmware acknowledges nothing on the console, and its duty cycle "+
-			"may refuse the air legitimately")
+		"no way to ask: an emulated board has no console, and a repeat advert "+
+			"over the air is a duplicate the board is right to drop, because "+
+			"the simulated clock never moves")
 
 	return report
 }
