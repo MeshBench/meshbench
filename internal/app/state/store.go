@@ -56,6 +56,13 @@ type result struct {
 // sees which one rather than a generic failure.
 var ErrUnknownVerb = errors.New("state: unknown verb")
 
+// ErrStopped is what a verb gets once the store has stopped. Work started
+// before the stop - a warm, a firmware attach, a coverage raster - outlives it
+// by design, and each of those reports progress by calling Do. Blocking them
+// on a goroutine that will never read again turns a finished session into a
+// process that never exits, which is how this was found.
+var ErrStopped = errors.New("state: the store has stopped")
+
 // New creates a store. It does not run until Run is called.
 func New(stepMs uint32) *Store {
 	s := &Store{
@@ -172,17 +179,31 @@ func (s *Store) Close() {
 }
 
 // Do runs a verb and waits for its result. Safe from any goroutine: the
-// control socket, the MCP server, a test, or the renderer.
+// control socket, the MCP server, a test, or the renderer. Once the store has
+// stopped it refuses with ErrStopped rather than waiting for an answer that
+// cannot come.
 func (s *Store) Do(ctx context.Context, verb string, params any) (any, error) {
 	reply := make(chan result, 1)
 	select {
 	case s.cmds <- cmd{verb: verb, params: params, reply: reply}:
+	case <-s.done:
+		return nil, ErrStopped
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
 	select {
 	case r := <-reply:
 		return r.value, r.err
+	case <-s.done:
+		// The verb may have been answered in the same moment the store shut
+		// down; reply is buffered, so its result is still there to take. A
+		// bare refusal here would discard work that actually completed.
+		select {
+		case r := <-reply:
+			return r.value, r.err
+		default:
+			return nil, ErrStopped
+		}
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
