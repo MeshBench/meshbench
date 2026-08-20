@@ -232,6 +232,8 @@ type ResourceRow struct {
 	State     string
 	Why       string
 	Auto      bool
+	Fetchable bool
+	Licensed  bool
 }
 
 // BoardCapabilityCell is one board's one capability: "untested", "passed",

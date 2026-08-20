@@ -74,10 +74,18 @@ type Row struct {
 	// same as enabled - presence is the state above - but whether bandwidth
 	// may be spent on the operator's behalf.
 	Auto bool
+	// Fetchable is whether this row can be downloaded on demand from the
+	// panel. A SoftDevice can: it is one file at a known address. A terrain
+	// cache cannot, because what to fetch depends on where the operator is
+	// looking - it fills as the map is used, and the panel says so rather
+	// than offering a button that has nothing to ask for.
+	Fetchable bool
+	// Licensed is whether there are terms to show. Somebody else's data comes
+	// with somebody else's conditions, and the panel is where they belong.
+	Licensed bool
 }
 
-// Provider is one source of rows. Written as an interface because there are
-// six implementations and not because there might be.
+// Provider is one source of rows.
 type Provider interface {
 	// Kind is what this provider produces, and names its rows in the panel.
 	Kind() Kind
@@ -86,4 +94,18 @@ type Provider interface {
 	List(ctx context.Context) ([]Row, error)
 	// Remove deletes one row's bytes. The caller has already confirmed.
 	Remove(ctx context.Context, row Row) error
+}
+
+// Fetcher is a provider that can also download on demand.
+//
+// Separate from Provider because most cannot: terrain and basemaps fill
+// themselves as the map is used and have nothing to ask for out of context,
+// so requiring them to implement a Fetch would mean writing one that refuses.
+// Licensor is a provider that can produce the terms its bytes arrived under.
+type Licensor interface {
+	Licence(name, version string) string
+}
+
+type Fetcher interface {
+	Fetch(ctx context.Context, name, version string, progress func(done, total int64)) error
 }

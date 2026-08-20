@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"gioui.org/layout"
+	"github.com/MeshBench/meshbench/internal/app/resource"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/ui/shell"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
@@ -60,11 +61,20 @@ func auditTargets(r *recorder) []target {
 	// one absent: Remove is deliberately disabled for the second, and a panel
 	// with no rows would prove nothing at all.
 	snapWithResources := auditSnapshot()
+	// The state strings are resource.State's own: a fixture that invents its
+	// own vocabulary audits a panel nobody will ever see.
 	snapWithResources.Resources = []state.ResourceRow{
 		{Kind: "softdevice", Name: "s140", Version: "6.1.1", Bytes: 155112,
-			State: "present", Why: "pairs with an application based at 0x26000"},
+			State: string(resource.OnDisk), Fetchable: true, Licensed: true,
+			Why: "pairs with an application based at 0x26000"},
 		{Kind: "softdevice", Name: "s140", Version: "7.3.0", Bytes: 160000,
-			Estimated: true, State: "available", Why: "not fetched"},
+			Estimated: true, State: string(resource.Available), Fetchable: true,
+			Why: "not fetched"},
+		// A cache that fills itself: Fetch is disabled here, which is the
+		// state the other two cannot cover.
+		{Kind: "terrain", Name: "terrain tiles", Bytes: 7_600_000_000,
+			State: string(resource.OnDisk), Auto: true, Licensed: true,
+			Why: "height data under every link budget"},
 	}
 
 	nodes := &nodesPanel{}

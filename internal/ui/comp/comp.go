@@ -179,7 +179,26 @@ type Button struct {
 	Reason   string
 }
 
+// Layout draws the button, and beside it the reason it cannot be pressed. The
+// reason is drawn every frame rather than on hover: a control that is dim and
+// silent is the one an operator reports as broken, and a caption that appears
+// only under the pointer is not there for the person scanning the page.
 func (b *Button) Layout(t *theme.Theme, gtx layout.Context) layout.Dimensions {
+	if b.Disabled && b.Reason != "" {
+		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+			layout.Rigid(b.layoutButton(t)),
+			layout.Rigid(layout.Spacer{Width: t.Sp.S}.Layout),
+			layout.Rigid(Text(t, t.Sz.Caption, t.P.Faint, b.Reason)),
+		)
+	}
+	return b.layoutButton(t)(gtx)
+}
+
+func (b *Button) layoutButton(t *theme.Theme) layout.Widget {
+	return func(gtx layout.Context) layout.Dimensions { return b.draw(t, gtx) }
+}
+
+func (b *Button) draw(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 	fg, bg, border := t.P.Ink, color.NRGBA{}, color.NRGBA{}
 	switch b.Kind {
 	case Primary:
@@ -208,10 +227,14 @@ func (b *Button) Layout(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 	pad := layout.Inset{
 		Top: t.Sp.S, Bottom: t.Sp.S, Left: t.Sp.M, Right: t.Sp.M,
 	}
+	// Disabled outside the Clickable, not inside it. Inside, the clickable
+	// still registered its own pointer area against the live context and
+	// pressed perfectly while drawn faded - a Remove button that refused in
+	// appearance only.
+	if b.Disabled {
+		gtx = gtx.Disabled()
+	}
 	return b.Click.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		if b.Disabled {
-			gtx = gtx.Disabled()
-		}
 		macro := op.Record(gtx.Ops)
 		dims := pad.Layout(gtx, Text(t, t.Sz.Body, fg, b.Label))
 		call := macro.Stop()

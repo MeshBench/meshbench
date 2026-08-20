@@ -66,15 +66,18 @@ func (p *resourcesPanel) row(t *theme.Theme, gtx layout.Context,
 	present := st == resource.OnDisk || st == resource.InUse
 
 	if w.fetch.Click.Clicked(gtx) {
-		p.do("resource.fetch", map[string]any{"name": r.Name, "version": r.Version})
+		p.do("resource.fetch", map[string]any{
+			"name": r.Name, "version": r.Version, "kind": r.Kind})
 	}
 	if w.licence.Click.Clicked(gtx) {
-		p.do("resource.licence", map[string]any{"name": r.Name, "version": r.Version})
+		p.do("resource.licence", map[string]any{
+			"name": r.Name, "version": r.Version, "kind": r.Kind})
 	}
 	if w.remove.Click.Clicked(gtx) {
 		if p.confirm == key {
 			p.confirm = ""
-			p.do("resource.remove", map[string]any{"name": r.Name, "version": r.Version})
+			p.do("resource.remove", map[string]any{
+				"name": r.Name, "version": r.Version, "kind": r.Kind})
 		} else {
 			p.confirm = key
 		}
@@ -104,14 +107,14 @@ func (p *resourcesPanel) row(t *theme.Theme, gtx layout.Context,
 				}),
 				layout.Rigid(layout.Spacer{Height: unit.Dp(4)}.Layout),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return p.rowActions(t, gtx, w, key, present, r.Auto)
+					return p.rowActions(t, gtx, w, key, present, r)
 				}),
 			)
 		})
 }
 
 func (p *resourcesPanel) rowActions(t *theme.Theme, gtx layout.Context,
-	w *resRowW, key string, present, auto bool) layout.Dimensions {
+	w *resRowW, key string, present bool, r state.ResourceRow) layout.Dimensions {
 	// Labels and disabled states are re-stated each frame; the widgets they
 	// belong to are not, so a press survives the redraw that follows it.
 	w.fetch.Label = "Fetch"
@@ -122,10 +125,27 @@ func (p *resourcesPanel) rowActions(t *theme.Theme, gtx layout.Context,
 	if p.confirm == key {
 		w.remove.Label = "Remove - sure?"
 	}
+	// A cache that fills itself has nothing to ask for out of context. The
+	// button says so rather than sitting there accepting a press that would
+	// do nothing - which is how an operator concludes downloading is broken.
+	w.fetch.Disabled = !r.Fetchable
+	w.fetch.Reason = ""
+	if !r.Fetchable {
+		w.fetch.Reason = "fills itself as the map is used"
+	}
+	w.licence.Disabled = !r.Licensed
+	w.licence.Reason = ""
+	if !r.Licensed {
+		w.licence.Reason = "no terms recorded"
+		if r.Fetchable && !present {
+			w.licence.Reason = "terms arrive with the file"
+		}
+	}
+
 	w.remove.Disabled = !present
 	w.remove.Reason = ""
 	if !present {
-		w.remove.Reason = "nothing on disk to remove"
+		w.remove.Reason = "nothing on disk"
 	}
 
 	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
@@ -139,7 +159,7 @@ func (p *resourcesPanel) rowActions(t *theme.Theme, gtx layout.Context,
 		// SoftDevice deliberately will not, because it is somebody else's
 		// licensed binary and the terms should arrive where a person sees
 		// them. A tickbox that cannot be ticked is worse than a sentence.
-		layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint, autoLabel(auto))),
+		layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint, autoLabel(r.Auto))),
 	)
 }
 

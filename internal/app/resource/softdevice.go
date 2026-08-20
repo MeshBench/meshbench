@@ -108,7 +108,7 @@ func (s *SoftDevice) List(_ context.Context) ([]Row, error) {
 	for _, r := range softDevices {
 		row := Row{
 			Kind: SoftDeviceKind, Name: r.Name, Version: r.Version,
-			Bytes: r.Bytes, Estimated: true, State: Available,
+			Bytes: r.Bytes, Estimated: true, State: Available, Fetchable: true,
 			// Never automatic. It is somebody else's licensed binary, and a
 			// person should see the terms arrive rather than find it already
 			// on their disk.
@@ -119,6 +119,10 @@ func (s *SoftDevice) List(_ context.Context) ([]Row, error) {
 		hexPath := filepath.Join(s.dir(r), r.HexName)
 		if fi, err := os.Stat(hexPath); err == nil {
 			row.State, row.Path, row.Bytes, row.Estimated = OnDisk, s.dir(r), fi.Size(), false
+			// Fetched with the hex for exactly this reason: the terms are
+			// readable here, not on a page somebody has to go and find.
+			_, err := os.Stat(filepath.Join(s.dir(r), r.LicenceName))
+			row.Licensed = err == nil
 		} else if s.Needed > 0 {
 			row.State = Needed
 			row.Why = fmt.Sprintf("%d node(s) here cannot boot without it", s.Needed)

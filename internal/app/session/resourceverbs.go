@@ -46,24 +46,81 @@ func (s *Sim) softDeviceProvider() *resource.SoftDevice {
 	return &resource.SoftDevice{CacheDir: resourceCacheDir(), Needed: needed}
 }
 
-// relistResources rescans the cache into the world, and is the only place that
-// does. Called directly by whatever needs the list refreshed, because a store
+// resourceProviders is every source of rows, in the order the panel shows them.
+//
+// The SoftDevice first because it is the one thing here that a scenario can be
+// blocked on, then the caches that fill themselves. Those are the reason this
+// package exists: on the machine it was written for the terrain cache had
+// reached 7.1 GB, and nothing in the application would tell you so.
+func (s *Sim) resourceProviders() []resource.Provider {
+	root := resourceCacheDir()
+	dir := func(k resource.Kind, label, sub, purpose, terms string) resource.Provider {
+		return &resource.DirCache{
+			K: k, Label: label, Dir: filepath.Join(root, sub),
+			Purpose: purpose, Terms: terms,
+		}
+	}
+	return []resource.Provider{
+		s.softDeviceProvider(),
+		dir(resource.Terrain, "terrain tiles", "terrain",
+			"height data under every link budget, fetched for the ground you look at",
+			terrainTerms),
+		dir(resource.Basemap, "basemap", "basemap",
+			"the hillshaded map drawn under the simulation", basemapTerms),
+		dir(resource.Buildings, "building footprints", "environment",
+			"heights and materials that stand in the way of a signal", buildingTerms),
+		dir(resource.Basemap, "map tiles", "tiles",
+			"the map imagery itself, as the view has needed it", basemapTerms),
+	}
+}
+
+// relistResources rescans every provider into the world, and is the only place
+// that does. Called directly by whatever needs the list refreshed, because a store
 // handler cannot ask the store for anything.
 func (s *Sim) relistResources(w *state.World) (int, error) {
-	rows, err := s.softDeviceProvider().List(context.Background())
-	if err != nil {
-		return 0, err
-	}
-	out := make([]state.ResourceRow, 0, len(rows))
-	for _, r := range rows {
-		out = append(out, state.ResourceRow{
-			Kind: string(r.Kind), Name: r.Name, Version: r.Version,
-			Bytes: r.Bytes, Estimated: r.Estimated, State: string(r.State),
-			Why: r.Why, Auto: r.Auto, Path: r.Path,
-		})
+	var out []state.ResourceRow
+	// One provider failing must not empty the page. A cache directory that
+	// cannot be read is a row that says so, beside the ones that could.
+	for _, p := range s.resourceProviders() {
+		rows, err := p.List(context.Background())
+		if err != nil {
+			out = append(out, state.ResourceRow{
+				Kind: string(p.Kind()), Name: string(p.Kind()),
+				State: string(resource.Unavailable), Why: err.Error(),
+			})
+			continue
+		}
+		for _, r := range rows {
+			out = append(out, state.ResourceRow{
+				Kind: string(r.Kind), Name: r.Name, Version: r.Version,
+				Bytes: r.Bytes, Estimated: r.Estimated, State: string(r.State),
+				Why: r.Why, Auto: r.Auto, Path: r.Path,
+				Fetchable: r.Fetchable, Licensed: r.Licensed,
+			})
+		}
 	}
 	w.Resources = out
 	return len(out), nil
+}
+
+// providerFor finds the provider that owns a row, by the kind and name the
+// panel sends back.
+func (s *Sim) providerFor(kind, name string) (resource.Provider, resource.Row, bool) {
+	for _, p := range s.resourceProviders() {
+		if string(p.Kind()) != kind {
+			continue
+		}
+		rows, err := p.List(context.Background())
+		if err != nil {
+			continue
+		}
+		for _, r := range rows {
+			if r.Name == name {
+				return p, r, true
+			}
+		}
+	}
+	return nil, resource.Row{}, false
 }
 
 func registerResources(st *state.Store, s *Sim) {
@@ -84,12 +141,29 @@ func registerResources(st *state.Store, s *Sim) {
 		if name == "" {
 			return nil, fmt.Errorf("resource.fetch needs a name")
 		}
-		if version == "" {
-			version = "6.1.1"
+		// The refusal lives here rather than in the panel because scripts and
+		// the control socket call this directly, and a fetch that silently
+		// does nothing is indistinguishable from one that failed.
+		kind, _ := stringField(p, "kind")
+		if kind == "" {
+			kind = string(resource.SoftDeviceKind)
+		}
+		prov, row, ok := s.providerFor(kind, name)
+		if !ok {
+			return nil, fmt.Errorf("nothing here called %s", name)
+		}
+		sd, ok := prov.(resource.Fetcher)
+		if !ok {
+			return nil, fmt.Errorf("%s fills itself as the map is used: "+
+				"there is nothing to ask for out of context", name)
+		}
+		// The row is the authority on its own version: a default here was a
+		// SoftDevice's, and it went out attached to a building set.
+		if row.Version != "" {
+			version = row.Version
 		}
 		id := "resource:" + name
 		ctx, stop := context.WithCancel(context.Background())
-		sd := s.softDeviceProvider()
 		w.Jobs = append(w.Jobs, state.Job{
 			ID: id, What: "fetching " + name + " " + version, Total: 1, Cancel: stop})
 		go func() {
@@ -143,10 +217,22 @@ func registerResources(st *state.Store, s *Sim) {
 	st.Handle("resource.licence", func(_ *state.World, p any) (any, error) {
 		name, _ := stringField(p, "name")
 		version, _ := stringField(p, "version")
-		if version == "" {
-			version = "6.1.1"
+		kind, _ := stringField(p, "kind")
+		if kind == "" {
+			kind = string(resource.SoftDeviceKind)
 		}
-		text := s.softDeviceProvider().Licence(name, version)
+		prov, row, ok := s.providerFor(kind, name)
+		if !ok {
+			return nil, fmt.Errorf("nothing here called %s", name)
+		}
+		if row.Version != "" {
+			version = row.Version
+		}
+		lic, ok := prov.(resource.Licensor)
+		if !ok {
+			return nil, fmt.Errorf("no terms recorded for %s", name)
+		}
+		text := lic.Licence(name, version)
 		if text == "" {
 			return nil, fmt.Errorf("no licence here: %s %s is not cached", name, version)
 		}
@@ -160,12 +246,21 @@ func registerResources(st *state.Store, s *Sim) {
 		if name == "" {
 			return nil, fmt.Errorf("resource.remove needs a name")
 		}
-		if version == "" {
-			version = "6.1.1"
+		// Whichever provider owns it. Removing 7 GB of terrain and removing a
+		// SoftDevice are the same gesture to the operator and different code
+		// underneath, which is what the provider list is for.
+		kind, _ := stringField(p, "kind")
+		if kind == "" {
+			kind = string(resource.SoftDeviceKind)
 		}
-		err := s.softDeviceProvider().Remove(context.Background(),
-			resource.Row{Name: name, Version: version})
-		if err != nil {
+		prov, row, ok := s.providerFor(kind, name)
+		if !ok {
+			return nil, fmt.Errorf("nothing here called %s", name)
+		}
+		if row.Version == "" {
+			row.Version = version
+		}
+		if err := prov.Remove(context.Background(), row); err != nil {
 			return nil, err
 		}
 		w.Say("removed " + name + " " + version)
@@ -175,3 +270,19 @@ func registerResources(st *state.Store, s *Sim) {
 		return map[string]any{"removed": name}, nil
 	})
 }
+
+// The terms the cached map data arrived under. Held here beside the providers
+// that serve them so a new cache cannot be added without one.
+const (
+	terrainTerms = "Terrain heights are Copernicus DEM (ESA, © DLR e.V. 2010-2014 and " +
+		"© Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the " +
+		"European Union and ESA; all rights reserved) and NASA SRTM, which is public " +
+		"domain. Both are redistributed for use, not resale."
+	basemapTerms = "Map imagery and hillshading derive from OpenStreetMap data, " +
+		"© OpenStreetMap contributors, available under the Open Database Licence " +
+		"(ODbL). Any map you publish from this simulation carries that attribution."
+	buildingTerms = "Building footprints, heights and materials come from " +
+		"OpenStreetMap, © OpenStreetMap contributors, under the Open Database " +
+		"Licence (ODbL). Heights absent from the data are inferred, and the " +
+		"simulation says which."
+)
