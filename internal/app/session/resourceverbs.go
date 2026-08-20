@@ -46,24 +46,35 @@ func (s *Sim) softDeviceProvider() *resource.SoftDevice {
 	return &resource.SoftDevice{CacheDir: resourceCacheDir(), Needed: needed}
 }
 
+// relistResources rescans the cache into the world, and is the only place that
+// does. Called directly by whatever needs the list refreshed, because a store
+// handler cannot ask the store for anything.
+func (s *Sim) relistResources(w *state.World) (int, error) {
+	rows, err := s.softDeviceProvider().List(context.Background())
+	if err != nil {
+		return 0, err
+	}
+	out := make([]state.ResourceRow, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, state.ResourceRow{
+			Kind: string(r.Kind), Name: r.Name, Version: r.Version,
+			Bytes: r.Bytes, Estimated: r.Estimated, State: string(r.State),
+			Why: r.Why, Auto: r.Auto, Path: r.Path,
+		})
+	}
+	w.Resources = out
+	return len(out), nil
+}
+
 func registerResources(st *state.Store, s *Sim) {
 	// resource.list: what is on this machine. Never touches the network -
 	// opening a panel must not start a download.
 	st.Handle("resource.list", func(w *state.World, _ any) (any, error) {
-		rows, err := s.softDeviceProvider().List(context.Background())
+		n, err := s.relistResources(w)
 		if err != nil {
 			return nil, err
 		}
-		out := make([]state.ResourceRow, 0, len(rows))
-		for _, r := range rows {
-			out = append(out, state.ResourceRow{
-				Kind: string(r.Kind), Name: r.Name, Version: r.Version,
-				Bytes: r.Bytes, Estimated: r.Estimated, State: string(r.State),
-				Why: r.Why, Auto: r.Auto, Path: r.Path,
-			})
-		}
-		w.Resources = out
-		return map[string]any{"rows": len(out)}, nil
+		return map[string]any{"rows": n}, nil
 	})
 
 	// resource.fetch: get one, as a job that can be stopped.
@@ -114,7 +125,15 @@ func registerResources(st *state.Store, s *Sim) {
 		// a licensed binary arriving silently is the thing the licence
 		// question was asked to avoid.
 		w.Say(name + " " + version + " is cached, with its licence beside it")
-		if _, err := st.Do(context.Background(), "resource.list", nil); err != nil {
+		// Listed here rather than by asking the store to do it.
+		//
+		// A handler already runs on the store's goroutine, so calling Do from
+		// inside one posts a command to the goroutine that is running it and
+		// waits for a reply that cannot come. It waited on a background context
+		// with no deadline, so the store stopped for good - and this handler is
+		// what runs when a download finishes, which is to say the workbench
+		// would have hung the first time anything was fetched.
+		if _, err := s.relistResources(w); err != nil {
 			return nil, err
 		}
 		return map[string]any{"name": name}, nil
@@ -150,7 +169,7 @@ func registerResources(st *state.Store, s *Sim) {
 			return nil, err
 		}
 		w.Say("removed " + name + " " + version)
-		if _, err := st.Do(context.Background(), "resource.list", nil); err != nil {
+		if _, err := s.relistResources(w); err != nil {
 			return nil, err
 		}
 		return map[string]any{"removed": name}, nil

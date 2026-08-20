@@ -9,6 +9,7 @@ package workbench
 
 import (
 	"fmt"
+	"github.com/MeshBench/meshbench/internal/app/resource"
 	"sort"
 
 	"gioui.org/layout"
@@ -118,7 +119,11 @@ func (p *resourcesPanel) header(t *theme.Theme, gtx layout.Context,
 	var onDisk int
 	var total int64
 	for _, r := range rows {
-		if r.State == "present" {
+		// resource.State's own names. This tested "present", which nothing
+		// emits, so the count was always zero and the header said nothing was
+		// here while a fetched SoftDevice sat in the row beneath it.
+		switch resource.State(r.State) {
+		case resource.OnDisk, resource.InUse:
 			onDisk++
 			total += r.Bytes
 		}

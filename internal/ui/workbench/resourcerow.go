@@ -2,6 +2,7 @@ package workbench
 
 import (
 	"fmt"
+	"github.com/MeshBench/meshbench/internal/app/resource"
 
 	"gioui.org/layout"
 	"gioui.org/unit"
@@ -14,17 +15,27 @@ import (
 // resourceStateInk maps a row's state to the one colour that says it.
 //
 // Absent is Dim rather than Bad: a thing nobody has asked for yet is not a
-// fault, and a red row for it teaches an operator to ignore red rows.
+// fault, and a red row for it teaches an operator to ignore red rows. Needed is
+// the exception, because it is the one state that stops a scenario running.
+//
+// The names are resource.State's own. They used to be "present", "fetching" and
+// "failed", which the provider has never emitted, so every row fell through to
+// the default and a SoftDevice sitting on disk and feeding the simulation was
+// labelled "not fetched" - the panel disagreeing with the directory beside it.
 func resourceStateInk(t *theme.Theme, s string) (string, colorNRGBA) {
-	switch s {
-	case "present":
+	switch resource.State(s) {
+	case resource.OnDisk:
 		return "on disk", t.P.Good
-	case "fetching":
-		return "fetching", t.P.Accent
-	case "failed":
-		return "failed", t.P.Bad
-	default:
+	case resource.InUse:
+		return "in use", t.P.Good
+	case resource.Needed:
+		return "needed", t.P.Warn
+	case resource.Unavailable:
+		return "unavailable", t.P.Dim
+	case resource.Available:
 		return "not fetched", t.P.Dim
+	default:
+		return s, t.P.Dim
 	}
 }
 
@@ -47,7 +58,12 @@ func (p *resourcesPanel) row(t *theme.Theme, gtx layout.Context,
 	r state.ResourceRow) layout.Dimensions {
 	key := resourceKey(r)
 	w := p.rowFor(key)
-	present := r.State == "present"
+	// On disk or feeding the simulation: either way the file is here, which is
+	// what the buttons below care about. Tested against "present", a name the
+	// provider does not use, Remove was offered on nothing and refused on
+	// everything.
+	st := resource.State(r.State)
+	present := st == resource.OnDisk || st == resource.InUse
 
 	if w.fetch.Click.Clicked(gtx) {
 		p.do("resource.fetch", map[string]any{"name": r.Name, "version": r.Version})
