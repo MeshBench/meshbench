@@ -76,85 +76,29 @@ type EmulatedNode struct {
 	IrqPort  string
 	IrqPin   int
 
+	// SoftDeviceDir is the cache the Nordic SoftDevice was fetched into.
+	//
+	// A directory rather than a file because which version is needed follows
+	// from the image, and only this package reads that: an application based at
+	// 0x26000 pairs with s140 v6.1.1 and one at 0x27000 with v7.x.
+	SoftDeviceDir string
+
 	// Dir is where the socket and logs live for this node.
 	Dir string
 
-	mu        sync.Mutex
-	qemu      *exec.Cmd
-	radio     *exec.Cmd
-	sock      string
-	radioPort int
-	serial    *serialLink
+	mu   sync.Mutex
+	qemu *exec.Cmd
+
+	// renodeStdin holds Renode's monitor open; see startRenode.
+	renodeStdin *os.File
+	radio       *exec.Cmd
+	sock        string
+	radioPort   int
+
+	// serial is the emulator's own serial port, when it publishes one.
+	serial *serialLink
 }
 
-// startRenode writes the machine description this node needs and runs it.
-//
-// Generated rather than kept as a file, because three of the values are
-// per-node: the radio model's port, the node's own working directory, and the
-// image. A shared script would need all three passed in anyway.
-func (e *EmulatedNode) startRenode(ctx context.Context) error {
-	renodeBin, err := lookupTool(EnvRenode, "renode")
-	if err != nil {
-		return err
-	}
-	tools := ToolsDir()
-	script := filepath.Join(e.Dir, "node.resc")
-	body := fmt.Sprintf(`i @%[1]s/peripherals/RadioServerSX1262.cs
-i @%[1]s/peripherals/NRF52840_Temp.cs
-i @%[1]s/peripherals/NRF52840_Clock.cs
-i @%[1]s/peripherals/NRF52840_SAADC.cs
-i @%[1]s/peripherals/NRF52840_TWIM.cs
-
-mach create "%[2]s"
-machine LoadPlatformDescription @%[3]s
-machine LoadPlatformDescription @%[1]s/ficr.repl
-machine LoadPlatformDescription @%[1]s/uicr.repl
-machine LoadPlatformDescription @%[1]s/temp.repl
-sysbus Unregister sysbus.clock
-machine LoadPlatformDescription @%[1]s/clock.repl
-machine LoadPlatformDescription @%[1]s/saadc.repl
-sysbus Unregister sysbus.twi0
-sysbus Unregister sysbus.twi1
-machine LoadPlatformDescription @%[1]s/twim.repl
-
-spi3: SPI.NRF52840_SPI @ sysbus 0x%[4]X
-    easyDMA: true
-
-lora: Radio.RadioServerSX1262 @ spi3
-    host: "127.0.0.1"
-    port: %[5]d
-    IRQ -> %[6]s@%[7]d
-
-%[8]s:
-    %[9]d -> lora@0
-
-sysbus LoadBinary @%[10]s 0x0
-spi3.lora Connect
-start
-`, tools, e.NodeName, e.Platform, e.SPIBase, e.radioPort,
-		e.IrqPort, e.IrqPin, e.NssPort, e.NssPin, e.Image)
-	if err := os.WriteFile(script, []byte(body), 0o644); err != nil {
-		return err
-	}
-
-	log, err := os.Create(filepath.Join(e.Dir, "console.log"))
-	if err != nil {
-		return err
-	}
-	e.qemu = exec.CommandContext(ctx, renodeBin,
-		"--disable-xwt", "--console", "-e", "include @"+script)
-	e.qemu.Stdout, e.qemu.Stderr = log, log
-	if err := e.qemu.Start(); err != nil {
-		return fmt.Errorf("firmware: starting the emulator: %w", err)
-	}
-	return nil
-}
-
-// waitForPort reads back the port the radio model chose.
-//
-// Asked for rather than assumed: a scenario starting several emulated nodes at
-// once cannot pick ports itself without racing, so the model takes 0, binds
-// whatever it gets, and prints it.
 func waitForPort(ctx context.Context, logPath string) (int, error) {
 	for i := 0; i < 200; i++ {
 		if b, err := os.ReadFile(logPath); err == nil {
@@ -242,11 +186,6 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	if err != nil {
 		return err
 	}
-	qemuBin, err := lookupTool(EnvQEMU, "qemu-system-xtensa")
-	if err != nil {
-		return err
-	}
-
 	radioLog, err := os.Create(filepath.Join(e.Dir, "radio.log"))
 	if err != nil {
 		return err
@@ -278,6 +217,15 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 			return err
 		}
 		return nil
+	}
+
+	// Looked up here rather than beside the radio model: an nRF52 board runs
+	// under Renode and has no use for the Xtensa emulator, and asking for it
+	// first refused those boards on a machine that only has the one they need.
+	qemuBin, err := lookupTool(EnvQEMU, "qemu-system-xtensa")
+	if err != nil {
+		_ = e.stopLocked()
+		return err
 	}
 
 	// What the device is told to connect to: the socket file, or the port the
@@ -363,6 +311,10 @@ func (e *EmulatedNode) stopLocked() error {
 		_, _ = c.Process.Wait()
 	}
 	e.qemu, e.radio = nil, nil
+	if e.renodeStdin != nil {
+		_ = e.renodeStdin.Close()
+		e.renodeStdin = nil
+	}
 	_ = os.Remove(e.sock)
 	return nil
 }
