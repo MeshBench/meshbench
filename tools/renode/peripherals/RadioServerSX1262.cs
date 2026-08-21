@@ -106,11 +106,14 @@ namespace Antmicro.Renode.Peripherals.Radio
             {
                 Send(CsAssert);
                 selected = true;
+                framedLen = 0;
+                framedOp = -1;
             }
             else if(selected)
             {
                 Send(CsRelease);
                 selected = false;
+                EndFrame();
             }
         }
 
@@ -142,6 +145,11 @@ namespace Antmicro.Renode.Peripherals.Radio
                     Drop("the radio model closed the connection");
                     return 0;
                 }
+                if(framedLen == 0)
+                {
+                    framedOp = data;
+                }
+                framedLen++;
                 Watch(data, (byte)got);
                 return (byte)got;
             }
@@ -186,6 +194,39 @@ namespace Antmicro.Renode.Peripherals.Radio
             if(said.Length > 40)
             {
                 Flush();
+            }
+        }
+
+        // What the chip select actually framed.
+        //
+        // radioserver sees a byte stream and takes the first byte of what it
+        // believes is a transaction as the opcode. This side knows where NSS
+        // went low, so it knows where a command really begins - and the two
+        // disagreeing is the difference between a firmware that sleeps its
+        // radio two thousand times and a byte being read as an opcode it is
+        // not.
+        private void EndFrame()
+        {
+            if(framedOp < 0 || !frames)
+            {
+                return;
+            }
+            int seen;
+            byOp.TryGetValue(framedOp, out seen);
+            byOp[framedOp] = seen + 1;
+            if(seen == 0)
+            {
+                this.Log(LogLevel.Warning, "sx1262 framed command 0x{0:X2}, {1} bytes", framedOp, framedLen);
+            }
+            framedTotal++;
+            if(framedTotal % FrameTally == 0)
+            {
+                var s = string.Empty;
+                foreach(var kv in byOp)
+                {
+                    s += string.Format(" 0x{0:X2}x{1}", kv.Key, kv.Value);
+                }
+                this.Log(LogLevel.Warning, "sx1262 {0} framed commands:{1}", framedTotal, s);
             }
         }
 
@@ -348,6 +389,15 @@ namespace Antmicro.Renode.Peripherals.Radio
                 return -1;
             }
         }
+
+        private static readonly bool frames =
+            !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("MESHCORESIM_SPI_FRAMES"));
+        private const int FrameTally = 2000;
+        private int framedOp = -1;
+        private int framedLen;
+        private int framedTotal;
+        private readonly System.Collections.Generic.Dictionary<int, int> byOp =
+            new System.Collections.Generic.Dictionary<int, int>();
 
         private bool irqLine;
         // A working chip raises a couple of edges a packet, so a run's worth is
