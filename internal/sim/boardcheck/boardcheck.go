@@ -403,10 +403,39 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 		// firmware rather than one task: a board that forwards somebody else's
 		// packet has a radio receiving, a mesh stack deciding and a radio
 		// transmitting, after having been left alone. It is only available to
-		// a board that passed flood, because a board that never relays cannot
-		// be asked this way either.
+		// a board that passed flood, because a relay is the strongest answer
+		// available without a console.
+		//
+		// A board that does not relay still gets asked, just a weaker question:
+		// is it transmitting at all after the idle? Its own advert timer
+		// answers that, and a timer is exactly the thing the flood row had to
+		// stop accepting - but the two rows want different facts. Flood asks
+		// whether the mesh stack decided something, where a timer is an
+		// impostor. This row asks whether the firmware is still running, and a
+		// timer that still fires is proof it is, because a stopped board has no
+		// timers.
+		//
+		// The distinction is only sound now that the two can be told apart. The
+		// detail says which question was answered, because "alive" and
+		// "relaying after an idle" are not the same claim.
 		if report.Results[Flood].State != Passed {
-			report.set(Power, Untested, "no way to ask it: "+err.Error())
+			if !ok || sender.Firmware == nil {
+				report.set(Power, Untested, "no way to ask it: "+err.Error())
+				return report
+			}
+			if atMs, spoke := waitForEvent(ctx, e, advertBudgetMs, func(ev engine.Event) bool {
+				return ev.Kind == "tx" && ev.From == "bc-under-test"
+			}); spoke {
+				report.set(Power, Passed, fmt.Sprintf(
+					"still transmitting at %.1f s, after a 15 s idle - its own advert, "+
+						"not a relay, so this shows the firmware running and not the mesh "+
+						"stack deciding", float64(atMs)/1000))
+			} else {
+				report.set(Power, Failed, fmt.Sprintf(
+					"silent for %d s after a 15 s idle, having transmitted before it - "+
+						"a board with a two-minute advert timer that has stopped firing "+
+						"has stopped", advertBudgetMs/1000))
+			}
 			return report
 		}
 		if !ok || sender.Firmware == nil {
