@@ -379,7 +379,20 @@ jobs:
           (cd dist && rm -rf AppDir deb && sha256sum *.tar.gz *.AppImage *.deb 2>/dev/null > SHA256SUMS; cat SHA256SUMS)
           ls -la dist/
 
+      # Only when something will consume it. The release job is the only
+      # consumer and runs on `inputs.release`, so an upload without that is
+      # 440 MB of Actions storage nobody collects - and storage is metered
+      # apart from minutes and fails the billing check on its own.
+      #
+      # This is not hypothetical twice over: the comment below already records
+      # four runs filling the account, and three test dispatches on 21 August
+      # filled it again, which is how the release pipeline came to fail on its
+      # last remaining step with the bundle already built and smoke-tested.
+      #
+      # A build that does not upload still proves the pipeline: it fetches the
+      # emulators, assembles, and runs the smoke test against what a user gets.
       - uses: actions/upload-artifact@v7
+        if: inputs.release
         with:
           name: meshbench-linux
           # These bundles are 30-110 MB each and three platforms upload one
@@ -523,6 +536,7 @@ jobs:
           shasum -a 256 dist/*.dmg
 
       - uses: actions/upload-artifact@v7
+        if: inputs.release
         with:
           name: meshbench-macos
           # As the Linux upload above: the release job deletes these once it
@@ -646,6 +660,7 @@ jobs:
           file dist/meshbench/meshbench.exe
 
       - uses: actions/upload-artifact@v7
+        if: inputs.release
         with:
           name: meshbench-windows
           # As the Linux upload above.
