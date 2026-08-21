@@ -13,8 +13,11 @@ import (
 // Its own file because it is the only capability that asks two different
 // questions depending on what the board can be reached through, and reading
 // Probe should not mean reading both of them.
+// haveSender says the native peer came up. It is passed rather than looked up
+// again because a second lookup could disagree with the one the flood row used,
+// and the two rows must agree about whether there was anybody to ask.
 func measurePower(ctx context.Context, e *engine.Engine, report *BoardReport,
-	under, sender *engine.Node, ok bool) {
+	under, sender *engine.Node, haveSender bool) {
 
 	// power: the board is still answering after sitting idle.
 	//
@@ -37,8 +40,8 @@ func measurePower(ctx context.Context, e *engine.Engine, report *BoardReport,
 	// command and running the probe anyway produced the same pass at the same
 	// moment, which is how that was ruled out. A console reply cannot be
 	// produced by a timer - it exists only if the command was read and run.
-	said, ok := under.Firmware.Backend.(interface{ ConsoleLog() ([]byte, error) })
-	if !ok {
+	said, hasLog := under.Firmware.Backend.(interface{ ConsoleLog() ([]byte, error) })
+	if !hasLog {
 		report.set(Power, Untested, "this backend keeps no console log to read a reply from")
 		return
 	}
@@ -79,7 +82,7 @@ func measurePower(ctx context.Context, e *engine.Engine, report *BoardReport,
 		// detail says which question was answered, because "alive" and
 		// "relaying after an idle" are not the same claim.
 		if report.Results[Flood].State != Passed {
-			if !ok || sender.Firmware == nil {
+			if !haveSender || sender.Firmware == nil {
 				report.set(Power, Untested, "no way to ask it: "+err.Error())
 				return
 			}
@@ -98,7 +101,7 @@ func measurePower(ctx context.Context, e *engine.Engine, report *BoardReport,
 			}
 			return
 		}
-		if !ok || sender.Firmware == nil {
+		if !haveSender || sender.Firmware == nil {
 			report.set(Power, Untested, "the native sender never came up to ask with")
 			return
 		}
@@ -154,5 +157,4 @@ func measurePower(ctx context.Context, e *engine.Engine, report *BoardReport,
 			"asked to advert after a 15 s idle and said nothing back on the console")
 	}
 
-	return
 }

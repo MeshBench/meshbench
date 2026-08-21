@@ -118,11 +118,11 @@ emulator, and a blank cell means nobody has watched that board do that thing.
 | Board | MCU | Emulator | build | boot | radio | tx | rx | flood | fem | power |
 |---|---|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
 | `Generic_E22_sx1262` | ESP32 | QEMU | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | ✓ | ✓ |
-| `Heltec_t114` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ? |
-| `Heltec_t096` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | ? | ? |
-| `RAK_4631` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ? |
-| `Xiao_nrf52` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ? |
-| `Heltec_mesh_solar` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ? |
+| `Heltec_t114` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ✓ |
+| `Heltec_t096` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | ? | ✓ |
+| `RAK_4631` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ✓ |
+| `Xiao_nrf52` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ✓ |
+| `Heltec_mesh_solar` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ✓ |
 | `Xiao_S3_WIO` | ESP32-S3 | QEMU | ✓ | ✗ | | | | | | |
 | `Heltec_v3` | ESP32-S3 | QEMU | ✓ | ✗ | | | | | | |
 | `Station_G2` | ESP32-S3 | — | | | | | | | | |
@@ -146,10 +146,14 @@ What the columns mean:
   the only path between two others and requires its own transmission.
 - **fem** — the front-end module was switched in to transmit. Only two of these
   boards carry one, and only a backend with a pin for it can tell.
-- **power** — it was still answering after being left idle. Asked on the console
-  where there is one, and over the air where there is not: a board that relays
-  again after an idle has a radio receiving, a mesh stack deciding and a radio
-  transmitting.
+- **power** — it was still running after being left idle. It answers a
+  different question depending on how the board can be reached, and the cell
+  does not distinguish them, so the strength differs by row: on a console it is
+  a *reply to a command*, which no timer can produce. Over the air it is a
+  relay if the board relays, and otherwise the board's own advert — which shows
+  the firmware still running, but not the mesh stack deciding anything. Every
+  Renode board is currently the weakest of the three, because none of them
+  relays and none has a console.
 
 Where the failures are, and why they are not the board's fault:
 
@@ -171,10 +175,11 @@ Where the failures are, and why they are not the board's fault:
   on the advert receive path. Modelling it lets them finish the run. It does
   not make them relay, because nothing relays.
 - The failure is not the same shape on every board. `Generic_E22_sx1262`,
-  `Heltec_t114`, `Heltec_t096` and `RAK_4631` transmit their own adverts
-  throughout and forward nothing; `Xiao_nrf52` and `Heltec_mesh_solar` put
-  nothing at all back on the air. The row says which, because a board that is
-  alive and refusing and a board that has gone quiet want different work.
+  `Heltec_t114`, `Heltec_t096` and `RAK_4631` transmit their own adverts inside
+  the four-minute window and forward nothing; `Xiao_nrf52` and
+  `Heltec_mesh_solar` transmit nothing inside it, but advert afterwards and
+  pass **power** — so they are alive and slower, not stopped. The row says
+  which, because the two want different work.
 - The two ESP32-S3 boards reach ESP-IDF's own startup and assert there, at the
   same line on both — and one of them has no PSRAM, so it is not the PSRAM. The
   releases publish no ELF, so the assert cannot be symbolised.
