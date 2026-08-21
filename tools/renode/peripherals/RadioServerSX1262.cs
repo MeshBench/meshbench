@@ -142,6 +142,7 @@ namespace Antmicro.Renode.Peripherals.Radio
                     Drop("the radio model closed the connection");
                     return 0;
                 }
+                Watch(data, (byte)got);
                 return (byte)got;
             }
             catch(Exception e)
@@ -152,8 +153,56 @@ namespace Antmicro.Renode.Peripherals.Radio
             }
         }
 
+        // MESHCORESIM_SPI_WATCH names one opcode to record both ways.
+        //
+        // radioserver's own tracer logs what the firmware sends and not what
+        // comes back, which is the wrong half when the question is what the
+        // chip told it. A firmware that reads the signal strength and then puts
+        // its radio to sleep is either responding sensibly to a bad number or
+        // sleeping for its own reasons, and only the returned bytes separate
+        // those.
+        //
+        // One opcode at a time, and budgeted: this sits on the hot path of
+        // every SPI byte.
+        private void Watch(byte mosi, byte miso)
+        {
+            if(watchOp < 0 || watched >= WatchBudget)
+            {
+                return;
+            }
+            if(!inWatched)
+            {
+                if(mosi != (byte)watchOp)
+                {
+                    return;
+                }
+                inWatched = true;
+                said = string.Format("0x{0:X2} ->", mosi);
+                back = string.Empty;
+                return;
+            }
+            said += string.Format(" {0:X2}", mosi);
+            back += string.Format(" {0:X2}", miso);
+            if(said.Length > 40)
+            {
+                Flush();
+            }
+        }
+
+        private void Flush()
+        {
+            if(!inWatched)
+            {
+                return;
+            }
+            inWatched = false;
+            watched++;
+            this.Log(LogLevel.Warning, "sx1262 {0}  chip said:{1}", said, back);
+        }
+
         public void FinishTransmission()
         {
+            Flush();
             if(selected && implicitSelect)
             {
                 Send(CsRelease);
@@ -275,6 +324,31 @@ namespace Antmicro.Renode.Peripherals.Radio
         private NetworkStream stream;
         private bool selected;
         private bool implicitSelect;
+        // Which opcode to record, as a decimal number, or absent for none.
+        private static readonly int watchOp = ParseWatch();
+        private const int WatchBudget = 30;
+        private bool inWatched;
+        private int watched;
+        private string said = string.Empty;
+        private string back = string.Empty;
+
+        private static int ParseWatch()
+        {
+            var v = Environment.GetEnvironmentVariable("MESHCORESIM_SPI_WATCH");
+            if(string.IsNullOrEmpty(v))
+            {
+                return -1;
+            }
+            try
+            {
+                return Convert.ToInt32(v, 16);
+            }
+            catch
+            {
+                return -1;
+            }
+        }
+
         private bool irqLine;
         // A working chip raises a couple of edges a packet, so a run's worth is
         // a few hundred lines. Enough to see the shape and then quiet.
