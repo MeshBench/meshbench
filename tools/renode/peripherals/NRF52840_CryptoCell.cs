@@ -27,6 +27,13 @@
 // the opcode set and field positions follow the CC312 runtime, which Arm
 // publishes and whose PKA is the same machine grown up.
 //
+// lint:file-length-exempt - Renode compiles each included .cs into its own
+// assembly, so a class here cannot reference one in a neighbouring file. The
+// register map, the opcode set and the arithmetic are one peripheral and
+// splitting them would mean two assemblies and a callback between them, which
+// buys a line count and costs the only thing that makes an unpublished
+// register map readable: the reasoning next to the registers.
+//
 // What is not modelled: timing. Every operation completes before the firmware
 // can look, so PKA_DONE is always set. A study of how long crypto takes on this
 // part would be measuring this file rather than the hardware.
