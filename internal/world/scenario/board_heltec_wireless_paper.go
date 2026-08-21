@@ -15,7 +15,7 @@ var heltecWirelessPaperBoard = Board{
 	// Pins from variants/heltec_wireless_paper/platformio.ini - the V3's, on
 	// the same devkit board definition, and with no PSRAM on either.
 	QEMU: &QEMUWiring{
-		Machine: "esp32s3", SPI: 2, NSS: 8, Busy: 13, DIO1: 14, LED: 18,
+		Machine: "esp32s3", SPI: 3, NSS: 8, Busy: 13, DIO1: 14, LED: 18,
 	},
 	Notes: "An e-paper display, which is why the sleep figure is worse than the " +
 		"V3's it otherwise matches: the panel's driver keeps its rails up. The " +

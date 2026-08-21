@@ -15,7 +15,7 @@ var heltecV4Board = Board{
 	// Pins from variants/heltec_v4/platformio.ini. Quad PSRAM and only two
 	// megabytes of it, where the S3 boards around it carry eight octal.
 	QEMU: &QEMUWiring{
-		Machine: "esp32s3", SPI: 2, NSS: 8, Busy: 13, DIO1: 14, LED: 35,
+		Machine: "esp32s3", SPI: 3, NSS: 8, Busy: 13, DIO1: 14, LED: 35,
 		PSRAMMB: 2,
 	},
 	Notes: "The V3's successor, and the amplifier is the difference: a GC1109 " +
