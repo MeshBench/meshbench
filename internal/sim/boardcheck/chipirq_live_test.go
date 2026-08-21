@@ -72,8 +72,12 @@ func TestTheChipReportsWhatItSaw(t *testing.T) {
 
 	show := func(when string) {
 		s := under.Firmware.Bridge.Stats()
-		t.Logf("%-22s irqReads=%-7d mask=0x%04X flags=0x%04X  %s",
-			when, s.IRQReads, s.IRQMask, s.IRQFlags, decode(s.IRQFlags))
+		// busyReads and busyMs are the firmware's own view of how often the air
+		// looked occupied. A board that thinks the channel is never clear
+		// behaves exactly like one that cannot hear: it does not transmit, and
+		// on nRF52 it puts its radio to sleep between samples.
+		t.Logf("%-22s irqReads=%-7d busyReads=%-7d busyMs=%-8d mask=0x%04X flags=0x%04X  %s",
+			when, s.IRQReads, s.BusyReads, s.BusyMs, s.IRQMask, s.IRQFlags, decode(s.IRQFlags))
 	}
 
 	settle(ctx, e, 90_000)
