@@ -203,6 +203,13 @@ jobs:
           # The shipped fixtures, so the workbench has something to open on a
           # machine with nothing else on it.
           cp -r fixtures dist/meshbench/fixtures
+          # Renode's platform descriptions and peripheral models. Ours, not the
+          # emulator's: Renode compiles them at run time and without them every
+          # emulated nRF52 board boots a machine with holes in it. Nothing
+          # shipped them until now, so the boards in the compatibility matrix
+          # only ever worked on a machine where somebody had copied these by
+          # hand.
+          cp -r tools/renode dist/meshbench/renode-support
 
       - name: Assemble
         run: |
@@ -508,6 +515,12 @@ jobs:
             ln -sf ../Resources/emulators/qemu/bin/qemu-system-xtensa "$APP/Contents/MacOS/qemu-system-xtensa"
           [ -f "$APP/Contents/Resources/emulators/Release/osx-arm64/Renode" ] && \
             ln -sf ../Resources/emulators/Release/osx-arm64/Renode "$APP/Contents/MacOS/renode"
+          # Renode's platform descriptions and peripheral models. In Resources
+          # like the emulators, linked from MacOS/ because MeshBench looks
+          # beside its own binary - and because a bundle keeps its data out of
+          # the directory codesigning expects to hold executables.
+          cp -r tools/renode "$APP/Contents/Resources/renode-support"
+          ln -sf ../Resources/renode-support "$APP/Contents/MacOS/renode-support"
           # The radio model. A real file rather than a link: it is 40 KB and
           # resolves nothing from its own path.
           (cd "$APP/Contents/MacOS" && fetchTag MeshBench/meshcore-native radioserver-v1 radioserver-darwin-arm64)
@@ -605,6 +618,8 @@ jobs:
                       -X github.com/MeshBench/meshbench/internal/app/version.Version=$VERSION" \
             -o dist/meshbench/meshbench.exe ./cmd/meshcoresim
           cp -r fixtures dist/meshbench/fixtures
+          # Renode's platform descriptions and peripheral models, as on Linux.
+          cp -r tools/renode dist/meshbench/renode-support
           go run ./tools/icon && cp packaging/icons/meshbench-256.png dist/meshbench/meshbench.png
 
           # The emulators, same as the Linux tarball and the macOS bundle. A

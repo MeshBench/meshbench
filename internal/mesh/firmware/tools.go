@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -26,6 +27,58 @@ func ToolsDir() string {
 		return "tools"
 	}
 	return filepath.Join(dir, "meshcoresim", "tools")
+}
+
+// EnvRenodeSupport names a directory holding Renode's platform descriptions
+// and peripheral models, for anyone running from a source tree.
+const EnvRenodeSupport = "MESHCORESIM_RENODE_SUPPORT"
+
+// SupportDir is where Renode's .repl platform descriptions and .cs peripheral
+// models are read from at run time.
+//
+// Beside the binary before the cache, because the cache is the one place
+// nothing fills. The emulators arrive by download and unpack themselves; these
+// files are ours, they ship in the bundle, and until now nothing copied them
+// anywhere - which made every emulated nRF52 board depend on a directory a
+// user's machine has no way to acquire.
+func SupportDir() string {
+	if p := os.Getenv(EnvRenodeSupport); p != "" {
+		return p
+	}
+	if self, err := os.Executable(); err == nil {
+		beside := filepath.Join(filepath.Dir(self), "renode-support")
+		if dirExists(filepath.Join(beside, "peripherals")) {
+			return beside
+		}
+	}
+	return ToolsDir()
+}
+
+// CheckSupport refuses early, and says where it looked.
+//
+// Without these files Renode starts, fails to compile a peripheral, and boots
+// a machine with holes in it - and the only sign is a compiler error buried in
+// a console log nobody reads. The board then reports "untested" for a reason
+// that has nothing to do with the board.
+func CheckSupport(dir string, needed ...string) error {
+	var missing []string
+	for _, n := range needed {
+		if !fileExists(filepath.Join(dir, n)) {
+			missing = append(missing, n)
+		}
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	return fmt.Errorf("firmware: %s is missing from %s (%d of %d support files). "+
+		"They ship in the bundle as renode-support beside the binary; from a source "+
+		"tree, point %s at tools/renode",
+		strings.Join(missing, ", "), dir, len(missing), len(needed), EnvRenodeSupport)
+}
+
+func dirExists(p string) bool {
+	st, err := os.Stat(p)
+	return err == nil && st.IsDir()
 }
 
 // lookupTool finds a binary: the environment variable, then beside the
