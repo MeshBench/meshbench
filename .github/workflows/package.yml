@@ -676,7 +676,16 @@ jobs:
     # always(), so a platform that fails does not withhold the ones that
     # worked - but the tarball and the AppImage are required below, because a
     # release missing the thing most people came for is worse than no release.
-    if: always() && inputs.release
+    # A pushed tag publishes. Without the second clause it does not: inputs
+    # are empty on a push event, so `v0.1.0` built all three platforms - macOS
+    # bills at ten times - and then skipped this job and said nothing. Every
+    # release so far was made by workflow_dispatch, which is the only reason
+    # nobody hit it.
+    #
+    # The rest of this job was already written for a tag: it takes the version
+    # from GITHUB_REF_NAME and refuses with a message when there is neither a
+    # tag nor an input. The gate was the one place that did not.
+    if: always() && (inputs.release || startsWith(github.ref, 'refs/tags/v'))
     needs: [linux, macos, windows]
     # lab-2204 is the one Ubuntu 22.04 runner in the pool, and that is the
     # whole point of the label - it pins the glibc floor described above. Do
