@@ -16,8 +16,8 @@ func (flat) ElevationM(_, _ float64) (float64, bool) { return 0, true }
 // One board, one real emulator boot.
 //
 //	MESHCORESIM_LIVE=1 MESHCORESIM_QEMU=~/.cache/meshcoresim/tools/qemu-system-xtensa \
-//	  go test ./internal/sim/boardcheck -run TestProbeOneBoard -v \
-//	  -args -board Generic_E22_sx1262 -version v1.17.0
+//	  MESHCORESIM_BOARD=Generic_E22_sx1262 MESHCORESIM_BOARD_VERSION=v1.17.1 \
+//	  go test ./internal/sim/boardcheck -run TestProbeOneBoard -v
 //
 // Deliberately one board and never the catalogue: a probe runs a published
 // image under an emulator alongside the native peers it talks to, and starting
@@ -33,7 +33,7 @@ func TestProbeOneBoard(t *testing.T) {
 	}
 	version := os.Getenv("MESHCORESIM_BOARD_VERSION")
 	if version == "" {
-		version = "v1.17.0"
+		version = "v1.17.1"
 	}
 	// Longer than the sum of the phases that can wait, so a probe reports what
 	// it measured rather than being cut off mid-phase and reporting nothing.

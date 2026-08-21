@@ -56,7 +56,7 @@ func probeGeometry(board, version string) []scenario.Node {
 }
 
 // nativePeerVersion is the native build the probe's sender and listener run.
-const nativePeerVersion = "repeater-v1.17.0"
+const nativePeerVersion = "repeater-v1.17.1"
 
 // advertBudgetMs is how long any phase waits for something to reach the air,
 // and it is one number on purpose.
