@@ -68,8 +68,8 @@ machine LoadPlatformDescription @%[1]s/twim.repl
 
 %[5]s
 radiospi.lora Connect
-start
-`, tools, e.NodeName, e.Platform, repl, flash, unregisterStockSPI())
+%[7]sstart
+`, tools, e.NodeName, e.Platform, repl, flash, unregisterStockSPI(), renodeTrace())
 	if err := os.WriteFile(script, []byte(body), 0o644); err != nil {
 		return err
 	}
@@ -130,4 +130,29 @@ func easyDMASPI(radioBase uint32) string {
 
 func unregisterStockSPI() string {
 	return "sysbus Unregister sysbus." + stockSPIName + "\n"
+}
+
+// EnvRenodeTrace turns on peripheral-access logging in the generated script.
+//
+// Off by default and deliberately opt-in: it writes a line per register touch,
+// which is megabytes a minute and slows the machine enough to change what is
+// being measured. It exists because the alternative for "where is this board
+// spending its time" is guessing, and #136 has now cost five wrong guesses.
+const EnvRenodeTrace = "MESHCORESIM_RENODE_TRACE"
+
+// renodeTrace is the tracing preamble, or nothing.
+//
+// The radio SPI and the two I2C controllers, because those are the three places
+// a board can wait: for the chip it talks to, or for a sensor that is not there.
+// Silence on all three means the time is going somewhere else entirely, which is
+// as useful an answer as noise on one of them.
+func renodeTrace() string {
+	if os.Getenv(EnvRenodeTrace) == "" {
+		return ""
+	}
+	return `logLevel 0
+sysbus LogPeripheralAccess sysbus.radiospi true
+sysbus LogPeripheralAccess sysbus.twi0 true
+sysbus LogPeripheralAccess sysbus.twi1 true
+`
 }
