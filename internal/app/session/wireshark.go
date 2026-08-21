@@ -35,8 +35,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-
-	"golang.org/x/sys/unix"
 )
 
 // captureUDPPort is not a choice - it is meshcoresim.lua's own
@@ -158,7 +156,7 @@ func launchWireshark(bin, meshcoreLua, meshbenchLua string) string {
 // fix and needs root and a fresh login; this needs neither, and a capture
 // available now beats one available after logging out.
 func usableDumpcap() string {
-	if p, err := exec.LookPath("dumpcap"); err == nil && unix.Access(p, unix.X_OK) == nil {
+	if p, err := exec.LookPath("dumpcap"); err == nil && executable(p) {
 		return p
 	}
 	home, err := os.UserHomeDir()
@@ -166,7 +164,7 @@ func usableDumpcap() string {
 		return ""
 	}
 	mine := filepath.Join(home, ".local", "bin", "dumpcap")
-	if unix.Access(mine, unix.X_OK) == nil {
+	if executable(mine) {
 		return mine
 	}
 	for _, src := range []string{"/usr/bin/dumpcap", "/usr/local/bin/dumpcap", "/opt/wireshark/bin/dumpcap"} {

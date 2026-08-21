@@ -7,10 +7,21 @@ name: windows-check
 # would get. A kernel that is wrong there fails as a silently slow or silently
 # empty link warm, which is exactly the kind of bug that reaches a user.
 #
-# Manual, not on push: Windows minutes bill at double on a private repository,
-# and this only needs running when something touches the GPU or the platform
-# layer.
+# Manual for the GPU work, because Windows minutes bill at double on a private
+# repository and DX12 only needs re-proving when something touches the kernels.
+#
+# But also on a release tag, and for one narrow reason: on 21 August the Windows
+# build had been broken for a week and nothing knew. internal/app/session used
+# unix.Access, which does not exist there, and the only thing that compiles for
+# Windows is this file - last dispatched seven days earlier. A check that runs
+# when somebody remembers did not remember.
+#
+# The tag is the cheapest moment that is not "never": one run per release rather
+# than one per push, and a release that cannot build for Windows should not be
+# published anyway.
 on:
+  push:
+    tags: ["v*"]
   workflow_dispatch:
 
 jobs:
