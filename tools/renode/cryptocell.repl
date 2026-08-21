@@ -1,0 +1,5 @@
+// CryptoCell is absent from Renode's nRF52840 platform entirely, so this adds
+// rather than replaces - there is no stock peripheral to unregister first. Only
+// the CC310 core register file is needed: the wrapper's ENABLE a page below is
+// already absorbed from the SVD.
+cryptocell: Miscellaneous.NRF52840_CryptoCell @ sysbus 0x5002B000
