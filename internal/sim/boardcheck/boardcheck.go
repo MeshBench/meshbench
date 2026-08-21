@@ -268,16 +268,46 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 		// duplicate it is. Moving the clock makes this a packet nobody has seen.
 		_ = sender.Firmware.Bridge.Type([]byte("time 1754703600\r\n"))
 		_ = e.Run(ctx, e.NowMs()+1_000)
+		// The board must put *the sender's message* back on the air, not
+		// merely transmit.
+		//
+		// Watching for any transmission cannot tell a relay from the board
+		// talking to itself: MeshCore's repeater adverts on its own timer every
+		// two minutes by default, and this window is four. A board that relays
+		// nothing at all passes simply by being alive - which is the same trap
+		// the power row was carrying, found there and not here.
+		//
+		// MessageID is the discriminator: it hashes the payload and not the
+		// route bits, so a flood relay carries the sender's id while the
+		// board's own advert carries its own.
+		fromSender := map[uint64]bool{}
+		spoke := false
 		if err := sender.Firmware.Bridge.Type([]byte("advert\r\n")); err != nil {
 			report.set(Flood, Failed, "could not command the sender: "+err.Error())
 		} else if _, relayed := waitForEvent(ctx, e, advertBudgetMs, func(ev engine.Event) bool {
-			return ev.Kind == "tx" && ev.From == "bc-under-test"
+			if ev.Kind != "tx" {
+				return false
+			}
+			if ev.From == "bc-sender" {
+				fromSender[ev.MessageID] = true
+				return false
+			}
+			if ev.From != "bc-under-test" {
+				return false
+			}
+			spoke = true
+			return fromSender[ev.MessageID]
 		}); relayed {
 			report.set(Flood, Passed, "forwarded the sender's advert itself")
+		} else if spoke {
+			report.set(Flood, Failed, fmt.Sprintf(
+				"received a fresh advert as the only node that could relay it, and in %d s "+
+					"transmitted only its own traffic - alive, but forwarding nothing",
+				advertBudgetMs/1000))
 		} else {
 			report.set(Flood, Failed, fmt.Sprintf(
 				"received a fresh advert as the only node that could relay it, "+
-					"and put nothing back on the air within %d s", advertBudgetMs/1000))
+					"and put nothing at all back on the air within %d s", advertBudgetMs/1000))
 		}
 	} else {
 		report.set(Flood, Failed, "the native sender never came up")
@@ -389,8 +419,20 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 			report.set(Power, Untested, "could not command the sender: "+err.Error())
 			return report
 		}
+		// The sender's message, not any transmission - the same discrimination
+		// the flood row makes, and for the same reason: this row exists to tell
+		// a stopped board from a live one, and a two-minute advert timer will
+		// answer for a board that has stopped deciding anything.
+		again := map[uint64]bool{}
 		if atMs, relayed := waitForEvent(ctx, e, advertBudgetMs, func(ev engine.Event) bool {
-			return ev.Kind == "tx" && ev.From == "bc-under-test"
+			if ev.Kind != "tx" {
+				return false
+			}
+			if ev.From == "bc-sender" {
+				again[ev.MessageID] = true
+				return false
+			}
+			return ev.From == "bc-under-test" && again[ev.MessageID]
 		}); relayed {
 			report.set(Power, Passed,
 				fmt.Sprintf("relayed again at %.1f s, after a 15 s idle", float64(atMs)/1000))
