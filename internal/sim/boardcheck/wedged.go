@@ -12,9 +12,9 @@ import (
 // It matters because the row above cannot tell the difference on its own. A
 // board that stops executing puts nothing back on the air, which is exactly
 // what a board that decided not to relay looks like - and the matrix would
-// print "failed" against firmware that never got the chance to decide. The
-// RAK4631 spent five wrong explanations being called slow before anyone
-// noticed it had stopped (#136).
+// print "failed" against firmware that never got the chance to decide. One
+// board spent five wrong explanations being called slow before anyone noticed
+// it had stopped.
 type wedge struct {
 	Addr  string // the address being read
 	PC    string // the instruction it never advances past
