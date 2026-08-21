@@ -685,7 +685,15 @@ jobs:
     # The rest of this job was already written for a tag: it takes the version
     # from GITHUB_REF_NAME and refuses with a message when there is neither a
     # tag nor an input. The gate was the one place that did not.
-    if: always() && (inputs.release || startsWith(github.ref, 'refs/tags/v'))
+    #
+    # The event is checked as well as the ref, so that dispatching a test build
+    # from a tag still builds without publishing. A workflow_dispatch carries
+    # the ref it was started from, so matching on the ref alone would have made
+    # "build, do not release" publish whenever somebody chose a tag to run it
+    # against - which is exactly when they are most likely to be careful.
+    if: >-
+      always() && (inputs.release ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')))
     needs: [linux, macos, windows]
     # lab-2204 is the one Ubuntu 22.04 runner in the pool, and that is the
     # whole point of the label - it pins the glibc floor described above. Do
