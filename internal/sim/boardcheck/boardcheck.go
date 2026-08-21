@@ -284,9 +284,28 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 		// boots, the simulated clock does not advance, and a second advert with
 		// the same timestamp is the same bytes - which the board drops as the
 		// duplicate it is. Moving the clock makes this a packet nobody has seen.
+		// And it waits for the board to stop talking first.
+		//
+		// The phase before this one had the sender advert too, and the board
+		// relays that one - so at the moment this phase runs, the board is
+		// very often mid-transmission. A packet arriving then is not received:
+		// the channel is half duplex and the ledger records a miss. The board
+		// never heard the thing it was being judged on, and this row failed
+		// three runs in four while the board was behaving perfectly. Measured
+		// on the ledger, not reasoned: the miss is right there beside the
+		// board's own transmission, and putting thirty seconds between the two
+		// adverts turned twelve consecutive failures into twelve passes.
+		if !waitUntilQuiet(ctx, e, "bc-under-test", floodQuietMs, advertBudgetMs) {
+			report.set(Flood, Untested, fmt.Sprintf(
+				"the board never stopped transmitting for %d s, so it could not be "+
+					"handed a packet it would hear", floodQuietMs/1000))
+			return report
+		}
+
 		fromSender := map[uint64]bool{}
 		_ = sender.Firmware.Bridge.Type([]byte("time 1754703600\r\n"))
 		_ = e.Run(ctx, e.NowMs()+1_000)
+		missed := map[uint64]bool{}
 		if err := sender.Firmware.Bridge.Type([]byte("advert\r\n")); err != nil {
 			report.set(Flood, Failed, "could not command the sender: "+err.Error())
 		} else if _, relayed := waitForEvent(ctx, e, advertBudgetMs, func(ev engine.Event) bool {
@@ -296,6 +315,10 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 			// nothing at all. MessageID hashes the payload and not the route
 			// bits, so a flood relay carries the sender's id where the board's
 			// own advert carries its own.
+			if ev.Kind == "miss" && ev.To == "bc-under-test" {
+				missed[ev.MessageID] = true
+				return false
+			}
 			if ev.Kind != "tx" {
 				return false
 			}
@@ -303,7 +326,11 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 				fromSender[ev.MessageID] = true
 				return false
 			}
-			return ev.From == "bc-under-test" && fromSender[ev.MessageID]
+			if ev.From != "bc-under-test" || !fromSender[ev.MessageID] {
+				return false
+			}
+			delete(missed, ev.MessageID)
+			return true
 		}); relayed {
 			report.set(Flood, Passed, "forwarded the sender's advert itself")
 		} else {
@@ -316,11 +343,28 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 					last = int(ev.AtMs)
 				}
 			}
-			report.set(Flood, Failed, fmt.Sprintf(
-				"received a fresh advert as the only node that could relay it, and put "+
-					"nothing back on the air within %d s (it transmitted %d times in the "+
-					"run, last at %.1f s, and the window ran to %.1f s)",
-				advertBudgetMs/1000, own, float64(last)/1000, float64(e.NowMs())/1000))
+			// A stimulus that never arrived measures nothing. Saying so is
+			// the difference between a board that declines to forward and one
+			// that was never given the chance, and this row spent a long time
+			// reporting the second as the first.
+			lost := false
+			for id := range missed {
+				if fromSender[id] {
+					lost = true
+				}
+			}
+			if lost {
+				report.set(Flood, Untested, fmt.Sprintf(
+					"the advert did not reach the board - it was on the air itself when "+
+						"it arrived, so nothing was heard to forward (the board "+
+						"transmitted %d times, last at %.1f s)", own, float64(last)/1000))
+			} else {
+				report.set(Flood, Failed, fmt.Sprintf(
+					"received a fresh advert as the only node that could relay it, and put "+
+						"nothing back on the air within %d s (it transmitted %d times in the "+
+						"run, last at %.1f s, and the window ran to %.1f s)",
+					advertBudgetMs/1000, own, float64(last)/1000, float64(e.NowMs())/1000))
+			}
 		}
 	} else {
 		report.set(Flood, Failed, "the native sender never came up")
