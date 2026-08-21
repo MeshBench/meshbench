@@ -445,6 +445,7 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 		PSRAMOctal: board.QEMU.PSRAMOctal,
 		FEM:        board.QEMU.FEM,
 		Busy:       board.QEMU.Busy,
+		DIO1:       board.QEMU.DIO1,
 		NodeName:   spec.Name,
 		Dir:        dir,
 	}, nil

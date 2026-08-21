@@ -278,18 +278,43 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 		// boots, the simulated clock does not advance, and a second advert with
 		// the same timestamp is the same bytes - which the board drops as the
 		// duplicate it is. Moving the clock makes this a packet nobody has seen.
+		fromSender := map[uint64]bool{}
 		_ = sender.Firmware.Bridge.Type([]byte("time 1754703600\r\n"))
 		_ = e.Run(ctx, e.NowMs()+1_000)
 		if err := sender.Firmware.Bridge.Type([]byte("advert\r\n")); err != nil {
 			report.set(Flood, Failed, "could not command the sender: "+err.Error())
 		} else if _, relayed := waitForEvent(ctx, e, advertBudgetMs, func(ev engine.Event) bool {
-			return ev.Kind == "tx" && ev.From == "bc-under-test"
+			// The sender's message, not any transmission. MeshCore's repeater
+			// adverts on its own timer every two minutes and this window is
+			// four, so watching for a transmission passes a board that relays
+			// nothing at all. MessageID hashes the payload and not the route
+			// bits, so a flood relay carries the sender's id where the board's
+			// own advert carries its own.
+			if ev.Kind != "tx" {
+				return false
+			}
+			if ev.From == "bc-sender" {
+				fromSender[ev.MessageID] = true
+				return false
+			}
+			return ev.From == "bc-under-test" && fromSender[ev.MessageID]
 		}); relayed {
 			report.set(Flood, Passed, "forwarded the sender's advert itself")
 		} else {
+			// What the board did instead, because "nothing" and "everything
+			// except the relay" want different work and read the same.
+			var own, last int
+			for _, ev := range e.Events() {
+				if ev.Kind == "tx" && ev.From == "bc-under-test" {
+					own++
+					last = int(ev.AtMs)
+				}
+			}
 			report.set(Flood, Failed, fmt.Sprintf(
-				"received a fresh advert as the only node that could relay it, "+
-					"and put nothing back on the air within %d s", advertBudgetMs/1000))
+				"received a fresh advert as the only node that could relay it, and put "+
+					"nothing back on the air within %d s (it transmitted %d times in the "+
+					"run, last at %.1f s, and the window ran to %.1f s)",
+				advertBudgetMs/1000, own, float64(last)/1000, float64(e.NowMs())/1000))
 		}
 	} else {
 		report.set(Flood, Failed, "the native sender never came up")

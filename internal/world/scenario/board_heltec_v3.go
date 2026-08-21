@@ -15,7 +15,7 @@ var heltecV3Board = Board{
 	// Pins from variants/heltec_v3/platformio.ini - raw GPIO numbers on an
 	// ESP32. No PSRAM on this board, so nothing to declare.
 	QEMU: &QEMUWiring{
-		Machine: "esp32s3", SPI: 2, NSS: 8, Busy: 13,
+		Machine: "esp32s3", SPI: 2, NSS: 8, Busy: 13, DIO1: 14,
 	},
 	Notes: "Very common and not a good repeater: the stock spring antenna is well " +
 		"below a dipole, and sleep current is dominated by the board rather than " +

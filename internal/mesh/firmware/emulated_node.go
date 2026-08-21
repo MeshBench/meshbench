@@ -55,6 +55,7 @@ type EmulatedNode struct {
 	SPI     int
 	NSS     int
 	Busy    int
+	DIO1    int
 
 	// FEM is the GPIO the firmware drives as the front-end module's transmit
 	// enable, or zero on a board with no module. Zero is safe as "none": GPIO 0
@@ -243,6 +244,12 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	}
 	machine := fmt.Sprintf("%s,radio-path=%s,radio-spi=%d,radio-nss=%d,radio-busy=%d",
 		e.Machine, radioAt, e.SPI, e.NSS, e.Busy)
+	// Only when the board records one. Without it the machine leaves the line
+	// unwired, and the firmware never learns a packet arrived - it reads a
+	// received packet solely from the interrupt this pin raises.
+	if e.DIO1 != 0 {
+		machine += fmt.Sprintf(",radio-dio1=%d", e.DIO1)
+	}
 	// Only when the board has one. Left off, the machine leaves the line
 	// unwired, which is what a board with no module should look like - as
 	// opposed to one whose module is permanently switched off.
