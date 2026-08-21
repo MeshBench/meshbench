@@ -16,4 +16,12 @@ var boards = []Board{
 	heltecT114Board,
 	stationG2Board,
 	rak4631Board,
+	tbeamSX1262Board,
+	tbeam1WBoard,
+	lilygoT3S3Board,
+	ebyteEoRaS3Board,
+	xiaoS3Board,
+	heltecV4Board,
+	heltecWirelessPaperBoard,
+	stationG3ESP32Board,
 }

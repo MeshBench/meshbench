@@ -120,8 +120,9 @@ type RenodeWiring struct {
 	NssPin  int
 
 	// IrqPort and IrqPin are DIO1, which is how the chip tells this MCU that a
-	// packet arrived or a transmission finished. The ESP32 firmware polls the
-	// IRQ register over SPI instead and does not need this.
+	// packet arrived or a transmission finished. Every board needs it - the
+	// ESP32's QEMUWiring carries the same line under a flat pin number - and a
+	// board wired without it hears everything and forwards nothing.
 	IrqPort string
 	IrqPin  int
 }
