@@ -15,7 +15,7 @@ var ebyteEoRaS3Board = Board{
 	// Pins from variants/ebyte_eora_s3/platformio.ini, which are the T3S3's:
 	// the two boards are the same layout under different names.
 	QEMU: &QEMUWiring{
-		Machine: "esp32s3", SPI: 2, NSS: 7, Busy: 34, DIO1: 33, LED: 37,
+		Machine: "esp32s3", SPI: 3, NSS: 7, Busy: 34, DIO1: 33, LED: 37,
 		PSRAMMB: 8,
 	},
 	Notes: "Wired identically to the LilyGo T3S3 and published as its own image. " +

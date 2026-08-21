@@ -16,7 +16,7 @@ var lilygoT3S3Board = Board{
 	// the two are probed differently and a firmware built for one reports the
 	// other as absent.
 	QEMU: &QEMUWiring{
-		Machine: "esp32s3", SPI: 2, NSS: 7, Busy: 34, DIO1: 33, LED: 37,
+		Machine: "esp32s3", SPI: 3, NSS: 7, Busy: 34, DIO1: 33, LED: 37,
 		PSRAMMB: 8,
 	},
 	Notes: "The same board sells with an SX1276 fitted instead, published as a " +

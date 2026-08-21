@@ -15,7 +15,7 @@ var xiaoS3Board = Board{
 	// Pins from variants/xiao_s3/platformio.ini. The same module as the WIO
 	// on a different carrier, so the radio moves and the RAM does not.
 	QEMU: &QEMUWiring{
-		Machine: "esp32s3", SPI: 2, NSS: 5, Busy: 4, DIO1: 2,
+		Machine: "esp32s3", SPI: 3, NSS: 5, Busy: 4, DIO1: 2,
 		PSRAMMB: 8, PSRAMOctal: true,
 	},
 	Notes: "The Xiao S3 with a LoRa expansion rather than the WIO's integrated " +

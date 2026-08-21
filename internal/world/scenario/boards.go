@@ -139,9 +139,15 @@ type QEMUWiring struct {
 	// Machine is the QEMU machine type, e.g. "esp32".
 	Machine string
 
-	// SPI is which controller the radio hangs off. Arduino's default-constructed
-	// SPIClass is HSPI, which is controller 2, and that is what most of these
-	// boards get by passing it to std_init.
+	// SPI is which controller the radio hangs off, numbered as the chip
+	// numbers its controllers rather than as Arduino names them.
+	//
+	// Arduino's default-constructed SPIClass is HSPI, and HSPI is not the same
+	// peripheral on the two parts: on an ESP32 it is controller 2, on an
+	// ESP32-S3 it is controller 3. Every board here takes that default, so the
+	// ESP32 boards say 2 and the S3 boards say 3, and a board that says the
+	// wrong one produces a driver that reports no chip - which reads as a
+	// board with no radio fitted rather than as a wrong number.
 	SPI int
 
 	// NSS and Busy are GPIOs, not the SPI controller's own lines: RadioLib

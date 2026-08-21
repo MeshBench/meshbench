@@ -15,7 +15,7 @@ var stationG3ESP32Board = Board{
 	// Pins from variants/station_g3_esp32/platformio.ini. Same radio pins as
 	// the G2, octal RAM like it, and a second MCU option published separately.
 	QEMU: &QEMUWiring{
-		Machine: "esp32s3", SPI: 2, NSS: 11, Busy: 47, DIO1: 48,
+		Machine: "esp32s3", SPI: 3, NSS: 11, Busy: 47, DIO1: 48,
 		PSRAMMB: 8, PSRAMOctal: true,
 	},
 	Notes: "Mains-powered with an external amplifier: the firmware asks the chip " +

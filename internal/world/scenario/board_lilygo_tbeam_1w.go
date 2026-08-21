@@ -15,7 +15,7 @@ var tbeam1WBoard = Board{
 	// Pins from variants/lilygo_tbeam_1w/platformio.ini. An S3 despite the
 	// name it shares with the ESP32 T-Beam, and its RAM is an octal part.
 	QEMU: &QEMUWiring{
-		Machine: "esp32s3", SPI: 2, NSS: 15, Busy: 38, DIO1: 1,
+		Machine: "esp32s3", SPI: 3, NSS: 15, Busy: 38, DIO1: 1,
 		PSRAMMB: 8, PSRAMOctal: true,
 	},
 	Notes: "A watt at the antenna, which almost nowhere permits on these bands - " +
