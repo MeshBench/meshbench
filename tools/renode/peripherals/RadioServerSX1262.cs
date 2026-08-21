@@ -106,11 +106,14 @@ namespace Antmicro.Renode.Peripherals.Radio
             {
                 Send(CsAssert);
                 selected = true;
+                framedLen = 0;
+                framedOp = -1;
             }
             else if(selected)
             {
                 Send(CsRelease);
                 selected = false;
+                EndFrame();
             }
         }
 
@@ -142,6 +145,12 @@ namespace Antmicro.Renode.Peripherals.Radio
                     Drop("the radio model closed the connection");
                     return 0;
                 }
+                if(framedLen == 0)
+                {
+                    framedOp = data;
+                }
+                framedLen++;
+                Watch(data, (byte)got);
                 return (byte)got;
             }
             catch(Exception e)
@@ -152,8 +161,89 @@ namespace Antmicro.Renode.Peripherals.Radio
             }
         }
 
+        // MESHCORESIM_SPI_WATCH names one opcode to record both ways.
+        //
+        // radioserver's own tracer logs what the firmware sends and not what
+        // comes back, which is the wrong half when the question is what the
+        // chip told it. A firmware that reads the signal strength and then puts
+        // its radio to sleep is either responding sensibly to a bad number or
+        // sleeping for its own reasons, and only the returned bytes separate
+        // those.
+        //
+        // One opcode at a time, and budgeted: this sits on the hot path of
+        // every SPI byte.
+        private void Watch(byte mosi, byte miso)
+        {
+            if(watchOp < 0 || watched >= WatchBudget)
+            {
+                return;
+            }
+            if(!inWatched)
+            {
+                if(mosi != (byte)watchOp)
+                {
+                    return;
+                }
+                inWatched = true;
+                said = string.Format("0x{0:X2} ->", mosi);
+                back = string.Empty;
+                return;
+            }
+            said += string.Format(" {0:X2}", mosi);
+            back += string.Format(" {0:X2}", miso);
+            if(said.Length > 40)
+            {
+                Flush();
+            }
+        }
+
+        // What the chip select actually framed.
+        //
+        // radioserver sees a byte stream and takes the first byte of what it
+        // believes is a transaction as the opcode. This side knows where NSS
+        // went low, so it knows where a command really begins - and the two
+        // disagreeing is the difference between a firmware that sleeps its
+        // radio two thousand times and a byte being read as an opcode it is
+        // not.
+        private void EndFrame()
+        {
+            if(framedOp < 0 || !frames)
+            {
+                return;
+            }
+            int seen;
+            byOp.TryGetValue(framedOp, out seen);
+            byOp[framedOp] = seen + 1;
+            if(seen == 0)
+            {
+                this.Log(LogLevel.Warning, "sx1262 framed command 0x{0:X2}, {1} bytes", framedOp, framedLen);
+            }
+            framedTotal++;
+            if(framedTotal % FrameTally == 0)
+            {
+                var s = string.Empty;
+                foreach(var kv in byOp)
+                {
+                    s += string.Format(" 0x{0:X2}x{1}", kv.Key, kv.Value);
+                }
+                this.Log(LogLevel.Warning, "sx1262 {0} framed commands:{1}", framedTotal, s);
+            }
+        }
+
+        private void Flush()
+        {
+            if(!inWatched)
+            {
+                return;
+            }
+            inWatched = false;
+            watched++;
+            this.Log(LogLevel.Warning, "sx1262 {0}  chip said:{1}", said, back);
+        }
+
         public void FinishTransmission()
         {
+            Flush();
             if(selected && implicitSelect)
             {
                 Send(CsRelease);
@@ -201,6 +291,23 @@ namespace Antmicro.Renode.Peripherals.Radio
                     {
                         irqLine = asserted;
                         IRQ.Set(asserted);
+                        // Every edge, because the question "does a received
+                        // packet ever reach the firmware" is answered here and
+                        // nowhere else on this side of the socket. An emulated
+                        // board that transmits on its own timer and never acts
+                        // on anything looks identical, from the engine's side,
+                        // to one that is simply being ignored - the engine
+                        // records a reception because the channel delivered it,
+                        // which is a different claim.
+                        //
+                        // Edges only, so a chip that is quiet costs nothing.
+                        edges++;
+                        if(edges <= EdgeBudget)
+                        {
+                            this.Log(LogLevel.Warning, "sx1262 irq {0} (edge {1}){2}",
+                                asserted ? "high" : "low", edges,
+                                edges == EdgeBudget ? "  (quiet from here)" : string.Empty);
+                        }
                     }
                 }
                 catch(Exception e)
@@ -258,7 +365,46 @@ namespace Antmicro.Renode.Peripherals.Radio
         private NetworkStream stream;
         private bool selected;
         private bool implicitSelect;
+        // Which opcode to record, as a decimal number, or absent for none.
+        private static readonly int watchOp = ParseWatch();
+        private const int WatchBudget = 30;
+        private bool inWatched;
+        private int watched;
+        private string said = string.Empty;
+        private string back = string.Empty;
+
+        private static int ParseWatch()
+        {
+            var v = Environment.GetEnvironmentVariable("MESHCORESIM_SPI_WATCH");
+            if(string.IsNullOrEmpty(v))
+            {
+                return -1;
+            }
+            try
+            {
+                return Convert.ToInt32(v, 16);
+            }
+            catch
+            {
+                return -1;
+            }
+        }
+
+        private static readonly bool frames =
+            !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("MESHCORESIM_SPI_FRAMES"));
+        private const int FrameTally = 2000;
+        private int framedOp = -1;
+        private int framedLen;
+        private int framedTotal;
+        private readonly System.Collections.Generic.Dictionary<int, int> byOp =
+            new System.Collections.Generic.Dictionary<int, int>();
+
         private bool irqLine;
+        // A working chip raises a couple of edges a packet, so a run's worth is
+        // a few hundred lines. Enough to see the shape and then quiet.
+        private const int EdgeBudget = 40;
+
+        private int edges;
         private readonly LimitTimer irqPoll;
         // One socket, two threads: SPI arrives on the CPU thread and the DIO1
         // poll on a timer. Interleaving a tag with a transfer would desync the

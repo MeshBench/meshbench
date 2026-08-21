@@ -268,16 +268,46 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 		// duplicate it is. Moving the clock makes this a packet nobody has seen.
 		_ = sender.Firmware.Bridge.Type([]byte("time 1754703600\r\n"))
 		_ = e.Run(ctx, e.NowMs()+1_000)
+		// The board must put *the sender's message* back on the air, not
+		// merely transmit.
+		//
+		// Watching for any transmission cannot tell a relay from the board
+		// talking to itself: MeshCore's repeater adverts on its own timer every
+		// two minutes by default, and this window is four. A board that relays
+		// nothing at all passes simply by being alive - which is the same trap
+		// the power row was carrying, found there and not here.
+		//
+		// MessageID is the discriminator: it hashes the payload and not the
+		// route bits, so a flood relay carries the sender's id while the
+		// board's own advert carries its own.
+		fromSender := map[uint64]bool{}
+		spoke := false
 		if err := sender.Firmware.Bridge.Type([]byte("advert\r\n")); err != nil {
 			report.set(Flood, Failed, "could not command the sender: "+err.Error())
 		} else if _, relayed := waitForEvent(ctx, e, advertBudgetMs, func(ev engine.Event) bool {
-			return ev.Kind == "tx" && ev.From == "bc-under-test"
+			if ev.Kind != "tx" {
+				return false
+			}
+			if ev.From == "bc-sender" {
+				fromSender[ev.MessageID] = true
+				return false
+			}
+			if ev.From != "bc-under-test" {
+				return false
+			}
+			spoke = true
+			return fromSender[ev.MessageID]
 		}); relayed {
 			report.set(Flood, Passed, "forwarded the sender's advert itself")
+		} else if spoke {
+			report.set(Flood, Failed, fmt.Sprintf(
+				"received a fresh advert as the only node that could relay it, and in %d s "+
+					"transmitted only its own traffic - alive, but forwarding nothing",
+				advertBudgetMs/1000))
 		} else {
 			report.set(Flood, Failed, fmt.Sprintf(
 				"received a fresh advert as the only node that could relay it, "+
-					"and put nothing back on the air within %d s", advertBudgetMs/1000))
+					"and put nothing at all back on the air within %d s", advertBudgetMs/1000))
 		}
 	} else {
 		report.set(Flood, Failed, "the native sender never came up")
@@ -326,103 +356,7 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 		}
 	}
 
-	// power: the board is still answering after sitting idle.
-	//
-	// Asked directly, now that an emulated board has a serial port to be asked
-	// through, and asked for a console reply rather than for a transmission.
-	// Nothing about the duty cycle can refuse a reply, and nothing about a
-	// timer can produce one - which a transmission could, and did.
-	//
-	// Silence here is therefore a board that has stopped, which is the thing
-	// this row is for.
-	if err := e.Run(ctx, e.NowMs()+15_000); err != nil {
-		report.set(Power, Untested, "idle step: "+err.Error())
-		return report
-	}
-	// Asked for a reply, not for a transmission.
-	//
-	// Watching for a transmission cannot answer this: the firmware adverts on
-	// a timer of its own, about two minutes apart, so a board left alone
-	// transmits again whether or not anything reached it. Withholding the
-	// command and running the probe anyway produced the same pass at the same
-	// moment, which is how that was ruled out. A console reply cannot be
-	// produced by a timer - it exists only if the command was read and run.
-	said, ok := under.Firmware.Backend.(interface{ ConsoleLog() ([]byte, error) })
-	if !ok {
-		report.set(Power, Untested, "this backend keeps no console log to read a reply from")
-		return report
-	}
-	// Established before the idle, not assumed: a board that answers nothing on
-	// its console cannot be measured this way, and calling that a failure would
-	// mark a healthy board dead for saying little. Only a board that answered
-	// before and does not after has actually stopped.
-	baseline, err := said.ConsoleLog()
-	if err != nil {
-		report.set(Power, Untested, "could not read the console: "+err.Error())
-		return report
-	}
-	if err := under.Firmware.Bridge.Type([]byte("clock\r\n")); err != nil {
-		// No console, so ask over the air instead.
-		//
-		// A board booted under Renode has no console at all and cannot be
-		// given one without modelling the nRF52840's USB device: its firmware
-		// reads its command interface from Serial, which the Adafruit core
-		// puts on USB CDC, and the platform models two UARTs and no USB.
-		//
-		// Relaying answers the question anyway, and answers it about the whole
-		// firmware rather than one task: a board that forwards somebody else's
-		// packet has a radio receiving, a mesh stack deciding and a radio
-		// transmitting, after having been left alone. It is only available to
-		// a board that passed flood, because a board that never relays cannot
-		// be asked this way either.
-		if report.Results[Flood].State != Passed {
-			report.set(Power, Untested, "no way to ask it: "+err.Error())
-			return report
-		}
-		if !ok || sender.Firmware == nil {
-			report.set(Power, Untested, "the native sender never came up to ask with")
-			return report
-		}
-		_ = sender.Firmware.Bridge.Type([]byte("time 1754707200\r\n"))
-		_ = e.Run(ctx, e.NowMs()+1_000)
-		if err := sender.Firmware.Bridge.Type([]byte("advert\r\n")); err != nil {
-			report.set(Power, Untested, "could not command the sender: "+err.Error())
-			return report
-		}
-		if atMs, relayed := waitForEvent(ctx, e, advertBudgetMs, func(ev engine.Event) bool {
-			return ev.Kind == "tx" && ev.From == "bc-under-test"
-		}); relayed {
-			report.set(Power, Passed,
-				fmt.Sprintf("relayed again at %.1f s, after a 15 s idle", float64(atMs)/1000))
-		} else {
-			report.set(Power, Failed,
-				"relayed before a 15 s idle and not after it")
-		}
-		return report
-	}
-	if !answeredOn(ctx, e, said, len(baseline), "->") {
-		report.set(Power, Untested,
-			"this build answers nothing on its console, so silence later would "+
-				"not mean it had stopped")
-		return report
-	}
-
-	before, err := said.ConsoleLog()
-	if err != nil {
-		report.set(Power, Untested, "could not read the console: "+err.Error())
-		return report
-	}
-	if err := under.Firmware.Bridge.Type([]byte("advert\r\n")); err != nil {
-		report.set(Power, Untested, "no way to ask it: "+err.Error())
-		return report
-	}
-	if answeredOn(ctx, e, said, len(before), "Advert sent") {
-		report.set(Power, Passed, "answered a command on the console after a 15 s idle")
-	} else {
-		report.set(Power, Failed,
-			"asked to advert after a 15 s idle and said nothing back on the console")
-	}
-
+	measurePower(ctx, e, &report, under, sender, ok)
 	return report
 }
 

@@ -315,9 +315,32 @@ What is still not reproduced is anything depending on the BLE stack stealing
 time from the radio ISR: the images that run are repeater builds, and nothing
 here connects to one over Bluetooth.
 
-Three of those five advert once and then report their channel busy for the rest
-of the run. That is tracked separately and is not a SoftDevice problem — a board
-on the same emulator with the same boot chain relays correctly.
+**No board relays, and for a while the matrix said three of them did.** The
+flood row waited for any transmission from the board under test, and MeshCore's
+repeater adverts on a two-minute timer against a four-minute window — so a board
+that forwards nothing passed by being alive. Corrected to require the board to
+put *the sender's* message back on the air, every board fails it, the ESP32 one
+included: different emulator, real console, passes every other column, forwards
+nothing. Why is open. Every gate in MeshCore's own `allowPacketForward` is
+permissive on a fresh node — `disable_fwd` off, `flood_max` 64,
+`flood_max_advert` 8, and the wildcard region `flags = 0`, which its own source
+comments as "default behaviour, allow flood and direct".
+
+Separately, three of the five nRF52 boards stopped executing partway through a
+run, and that was a gap in our platform rather than anything about them.
+`RAK_4631`, `Xiao_nrf52` and `Heltec_mesh_solar` each read `0x5002B0B4` between
+122 and 126 million times and did nothing further — three images, three program
+counters, one address. Renode's nRF52840 maps nothing above `0x50000800`; that
+region is CryptoCell's public-key accelerator, and MeshCore's `[nrf52_base]`
+compiles `-D USE_CC310_HW_CRYPTO=1` for every nRF52 board, so the firmware
+configured an accelerator that was not there and waited for it. It is reached
+from Ed25519 signature verification on the advert receive path, which MeshCore
+routes through the hardware because the software implementation wants about
+3 KB of stack and can overflow the loop task's 4 KB from that exact path.
+
+Modelling the accelerator lets those boards finish a run. It does not make them
+relay, because nothing relays — the two were separate faults that looked like
+one, and the second was only visible once the first stopped hiding it.
 
 ### 3.2 The SX1262 model is functional, not cycle-accurate
 
