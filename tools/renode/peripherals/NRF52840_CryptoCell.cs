@@ -5,7 +5,7 @@
 // answered nothing at all. MeshCore compiles -D USE_CC310_HW_CRYPTO=1 for every
 // nRF52 board, and three of the five published images configure it and then
 // poll PKA_DONE until the run ends - upwards of 120 million reads from a
-// program counter that never moves again. See #136.
+// program counter that never moves again.
 //
 // The block identified itself by its own arithmetic. The firmware writes 32
 // consecutive registers with values exactly 18 apart, then writes 576 into
