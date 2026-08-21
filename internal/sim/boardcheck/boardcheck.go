@@ -238,6 +238,16 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 	// rx: the sender adverts, the board under test should hear it.
 	sender, ok := e.NodeByName("bc-sender")
 	if ok && sender.Firmware != nil {
+		// Stamped, and stamped differently from the one the flood row sends.
+		//
+		// An advert carries the sender's clock, the board drops a packet whose
+		// hash it has already seen, and the simulated clock does not advance on
+		// its own - so two adverts sent an hour apart in wall time are the same
+		// bytes and the second is a duplicate. The flood row was asking a board
+		// to forward a packet it had already forwarded, and reading the silence
+		// as a refusal.
+		_ = sender.Firmware.Bridge.Type([]byte("time 1754700000\r\n"))
+		_, _ = waitForEvent(ctx, e, 1_000, func(engine.Event) bool { return false })
 		if err := sender.Firmware.Bridge.Type([]byte("advert\r\n")); err == nil {
 			if _, ok := waitForEvent(ctx, e, advertBudgetMs, func(ev engine.Event) bool {
 				return ev.Kind == "rx" && ev.To == "bc-under-test"
@@ -278,12 +288,26 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 		// boots, the simulated clock does not advance, and a second advert with
 		// the same timestamp is the same bytes - which the board drops as the
 		// duplicate it is. Moving the clock makes this a packet nobody has seen.
+		fromSender := map[uint64]bool{}
 		_ = sender.Firmware.Bridge.Type([]byte("time 1754703600\r\n"))
 		_ = e.Run(ctx, e.NowMs()+1_000)
 		if err := sender.Firmware.Bridge.Type([]byte("advert\r\n")); err != nil {
 			report.set(Flood, Failed, "could not command the sender: "+err.Error())
 		} else if _, relayed := waitForEvent(ctx, e, advertBudgetMs, func(ev engine.Event) bool {
-			return ev.Kind == "tx" && ev.From == "bc-under-test"
+			// The sender's message, not any transmission. MeshCore's repeater
+			// adverts on its own timer every two minutes and this window is
+			// four, so watching for a transmission passes a board that relays
+			// nothing at all. MessageID hashes the payload and not the route
+			// bits, so a flood relay carries the sender's id where the board's
+			// own advert carries its own.
+			if ev.Kind != "tx" {
+				return false
+			}
+			if ev.From == "bc-sender" {
+				fromSender[ev.MessageID] = true
+				return false
+			}
+			return ev.From == "bc-under-test" && fromSender[ev.MessageID]
 		}); relayed {
 			report.set(Flood, Passed, "forwarded the sender's advert itself")
 		} else {

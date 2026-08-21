@@ -149,6 +149,16 @@ type QEMUWiring struct {
 	NSS  int
 	Busy int
 
+	// DIO1 is the radio's interrupt line, and the firmware learns a packet
+	// arrived from nowhere else: MeshCore's receive path is gated on a flag
+	// set only by the packet-received ISR this pin fires. A board wired
+	// without it receives perfectly and forwards nothing, which is how five
+	// boards spent a long time looking like they had a routing problem.
+	//
+	// Zero means none recorded, and leaves the line unwired rather than
+	// raising edges on a GPIO the firmware is using for something else.
+	DIO1 int
+
 	// LED is the pin the firmware blinks, where the board has one worth
 	// showing. Zero means none recorded.
 	LED int

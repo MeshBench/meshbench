@@ -18,7 +18,7 @@ var xiaoS3WIOBoard = Board{
 	// stopped. Pins from variants/xiao_s3_wio/platformio.ini, which are raw
 	// GPIO numbers on an ESP32 rather than an Arduino index.
 	QEMU: &QEMUWiring{
-		Machine: "esp32s3", SPI: 2, NSS: 41, Busy: 40,
+		Machine: "esp32s3", SPI: 2, NSS: 41, Busy: 40, DIO1: 39,
 		PSRAMMB: 8, PSRAMOctal: true,
 	},
 	Notes: "Tiny, and the antenna figure reflects it. A companion, not a " +

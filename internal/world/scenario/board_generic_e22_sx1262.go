@@ -18,7 +18,7 @@ var genericE22Sx1262Board = Board{
 		// FEM 13 is SX126X_TXEN, from the variant's platformio.ini. RadioLib
 		// drives it from setRfSwitchPins(RXEN=14, TXEN=13), so it goes high
 		// before SetTx and low again before SetRx.
-		Machine: "esp32", SPI: 2, NSS: 18, Busy: 32, LED: 2, FEM: 13,
+		Machine: "esp32", SPI: 2, NSS: 18, Busy: 32, DIO1: 33, LED: 2, FEM: 13,
 		Verified: true,
 	},
 	// The module's TXEN and RXEN, on MCU pins 13 and 14. No gain stage:
