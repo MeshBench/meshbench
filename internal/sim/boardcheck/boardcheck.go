@@ -100,8 +100,8 @@ func EmulatorFingerprint() string {
 	return fmt.Sprintf("%s@%d-%d", path, fi.Size(), fi.ModTime().Unix())
 }
 
-func Probe(ctx context.Context, terr propagation.Terrain, board, version string) BoardReport {
-	report := untestedReport(board, version)
+func Probe(ctx context.Context, terr propagation.Terrain, board, version string) (report BoardReport) {
+	report = untestedReport(board, version)
 	report.EmulatorFP = EmulatorFingerprint()
 	report.MeasuredAt = time.Now()
 
@@ -175,6 +175,18 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 		return report
 	}
 	report.set(Boot, Passed, "attached and answering")
+
+	// Read at the end whatever the probe does in between, because a hang can
+	// happen after any step and there are a dozen ways out of this function.
+	// The log is a file the emulator has already written, so it survives the
+	// node being stopped and can be read here rather than at each return.
+	if said, ok := under.Firmware.Backend.(interface{ ConsoleLog() ([]byte, error) }); ok {
+		defer func() {
+			if log, err := said.ConsoleLog(); err == nil {
+				report.downgradeIfWedged(log)
+			}
+		}()
+	}
 
 	// Turn the sender down, in the firmware, because that is the only place it
 	// can be turned down.
