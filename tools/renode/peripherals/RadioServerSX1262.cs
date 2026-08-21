@@ -201,6 +201,23 @@ namespace Antmicro.Renode.Peripherals.Radio
                     {
                         irqLine = asserted;
                         IRQ.Set(asserted);
+                        // Every edge, because the question "does a received
+                        // packet ever reach the firmware" is answered here and
+                        // nowhere else on this side of the socket. An emulated
+                        // board that transmits on its own timer and never acts
+                        // on anything looks identical, from the engine's side,
+                        // to one that is simply being ignored - the engine
+                        // records a reception because the channel delivered it,
+                        // which is a different claim.
+                        //
+                        // Edges only, so a chip that is quiet costs nothing.
+                        edges++;
+                        if(edges <= EdgeBudget)
+                        {
+                            this.Log(LogLevel.Warning, "sx1262 irq {0} (edge {1}){2}",
+                                asserted ? "high" : "low", edges,
+                                edges == EdgeBudget ? "  (quiet from here)" : string.Empty);
+                        }
                     }
                 }
                 catch(Exception e)
@@ -259,6 +276,11 @@ namespace Antmicro.Renode.Peripherals.Radio
         private bool selected;
         private bool implicitSelect;
         private bool irqLine;
+        // A working chip raises a couple of edges a packet, so a run's worth is
+        // a few hundred lines. Enough to see the shape and then quiet.
+        private const int EdgeBudget = 40;
+
+        private int edges;
         private readonly LimitTimer irqPoll;
         // One socket, two threads: SPI arrives on the CPU thread and the DIO1
         // poll on a timer. Interleaving a tag with a transfer would desync the
