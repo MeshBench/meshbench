@@ -123,8 +123,8 @@ emulator, and a blank cell means nobody has watched that board do that thing.
 | `RAK_4631` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ? |
 | `Xiao_nrf52` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ? |
 | `Heltec_mesh_solar` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ? |
-| `Xiao_S3_WIO` | ESP32-S3 | QEMU | ✓ | ✓ | ✗ | ✗ | | | | |
-| `Heltec_v3` | ESP32-S3 | QEMU | ✓ | ✓ | ✗ | ✗ | | | | |
+| `Xiao_S3_WIO` | ESP32-S3 | QEMU | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ? |
+| `Heltec_v3` | ESP32-S3 | QEMU | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ✓ |
 | `Station_G2` | ESP32-S3 | — | | | | | | | | |
 | `Heltec_v2` | ESP32 | — | | | | | | | | |
 
@@ -169,10 +169,17 @@ Where the failures are, and why they are not the board's fault:
   and were not, which is why it looked like an S3 fault rather than a flash
   one. The emulator's flash model knew GigaDevice parts by name and handled
   their quad-enable bit nowhere, so the bit could be written and never took.
-- What those two fail now is **radio**: RadioLib reports no chip. Measured at
-  the device, the firmware toggles chip select 569 times and clocks not one
-  byte — it never writes the radio's SPI controller at all, on any address the
-  machine models or does not. Why is open.
+- Both ESP32-S3 boards now reach the air. Two things were wrong and neither
+  was where it looked. Their radios are not on the controller the profiles
+  named: Arduino's default `SPIClass` is HSPI, and HSPI is controller 2 on an
+  ESP32 but controller 3 on an ESP32-S3 — and the machine modelled only the
+  flash controller's registers, using that layout for the general-purpose one
+  too, where a transfer starts on a different bit and the data sits at a
+  different offset. And every input pin read low out of reset, GPIO0 included;
+  it is a strapping pin whose pull-up holds it high, and reading it low is a
+  program button held down, so MeshCore powered the board off after two
+  minutes, every time, before it had adverted once.
+- What those two fail now is **flood**, in common with the boards below.
 - `Station_G2` has no emulation wiring recorded yet. `Heltec_v2` carries an
   SX1276, which is not modelled: the chip here is an SX1262.
 
