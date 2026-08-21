@@ -1,0 +1,70 @@
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x1 (POWERON),boot:0x4 (SPI_FLASH_BOOT)
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce3808,len:0x4bc
+load:0x403c9700,len:0xbd8
+load:0x403cc700,len:0x2a0c
+entry 0x403c98d0
+
+assert failed: 0x42043e52 <cached disabled>:328 (<cached disabled>)
+
+
+Backtrace: 0x40378026:0x3fceb180 0x4037e245:0x3fceb1a0 0x4038441d:0x3fceb1c0 0x42043e52:0x3fceb2f0 0x40377997:0x3fceb320 0x403cd86b:0x3fceb350 0x403cdb2a:0x3fceb380 0x403c9925:0x3fceb4b0 0x40045c01:0x3fceb570 0x40043ab6:0x3fceb6f0 0x40034c45:0x3fceb710
+
+
+
+
+ELF file SHA256: 0fa3fd4384f46544
+
+E (237) esp_core_dump_flash: Core dump flash config is corrupted! CRC=0x7bd5c66f instead of 0x0
+Rebooting...
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0xc (RTC_SW_CPU_RST),boot:0x4 (SPI_FLASH_BOOT)
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce3808,len:0x4bc
+load:0x403c9700,len:0xbd8
+load:0x403cc700,len:0x2a0c
+entry 0x403c98d0
+
+assert failed: 0x42043e52 <cached disabled>:328 (<cached disabled>)
+
+
+Backtrace: 0x40378026:0x3fceb180 0x4037e245:0x3fceb1a0 0x4038441d:0x3fceb1c0 0x42043e52:0x3fceb2f0 0x40377997:0x3fceb320 0x403cd86b:0x3fceb350 0x403cdb2a:0x3fceb380 0x403c9925:0x3fceb4b0 0x40045c01:0x3fceb570 0x40043ab6:0x3fceb6f0 0x40034c45:0x3fceb710
+
+
+
+
+ELF file SHA256: 0fa3fd4384f46544
+
+E (963) esp_core_dump_flash: Core dump flash config is corrupted! CRC=0x7bd5c66f instead of 0x0
+Rebooting...
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0xc (RTC_SW_CPU_RST),boot:0x4 (SPI_FLASH_BOOT)
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce3808,len:0x4bc
+load:0x403c9700,len:0xbd8
+load:0x403cc700,len:0x2a0c
+entry 0x403c98d0
+
+assert failed: 0x42043e52 <cached disabled>:328 (<cached disabled>)
+
+
+Backtrace: 0x40378026:0x3fceb180 0x4037e245:0x3fceb1a0 0x4038441d:0x3fceb1c0 0x42043e52:0x3fceb2f0 0x40377997:0x3fceb320 0x403cd86b:0x3fceb350 0x403cdb2a:0x3fceb380 0x403c9925:0x3fceb4b0 0x40045c01:0x3fceb570 0x40043ab6:0x3fceb6f0 0x40034c45:0x3fceb710
+
+
+
+
+ELF file SHA256: 0fa3fd4384f46544
+
+E (3130) esp_core_dump_flash: Core dump flash config is corrupted! CRC=0x7bd5c66f instead of 0x0
+Rebooting...
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0xc (RTC_SW_CPU_RST),boot:0x4 (SPI_FLASH_BOOT)
+SPIWP:0xee

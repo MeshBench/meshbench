@@ -190,6 +190,7 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 		defer func() {
 			if log, err := said.ConsoleLog(); err == nil {
 				report.downgradeIfWedged(log)
+				report.downgradeIfRebooting(log)
 			}
 		}()
 	}
