@@ -14,11 +14,15 @@ import (
 )
 
 // defaultBoardVersion is what the matrix probes when nothing else is asked
-// for. Published board images are tagged bare - "v1.17.0" - unlike a
-// native build ref such as "repeater-v1.17.0"; the "repeater-" prefix is
-// this project's own convention for a build for this machine, and the
-// board catalogue does not use it.
-const defaultBoardVersion = "v1.17.0"
+// for, and it tracks MeshCore's latest release rather than the one a result
+// was first measured on - a matrix about a superseded firmware answers a
+// question nobody asked.
+//
+// Published board images are tagged bare - "v1.17.1" - unlike a native build
+// ref such as "repeater-v1.17.1"; the "repeater-" prefix is this project's own
+// convention for a build for this machine, and the board catalogue does not
+// use it.
+const defaultBoardVersion = "v1.17.1"
 
 func registerBoardMatrix(st *state.Store, s *Sim) {
 	st.Handle("board.matrix", func(w *state.World, p any) (any, error) {
