@@ -80,3 +80,38 @@ func answeredOn(ctx context.Context, e *engine.Engine,
 	}
 	return false
 }
+
+// waitUntilQuiet runs the engine on until the named node has put nothing on
+// the air for quietMs, or the budget runs out.
+//
+// A packet that arrives while a board is transmitting is not received - the
+// channel models half duplex, and the ledger records it as a miss. That is
+// correct, and it silently ruins any phase that hands a board a stimulus
+// without checking whether it is busy: the board never hears the thing it is
+// being judged on, and gets marked down for not forwarding it.
+//
+// Returns whether the node actually went quiet. A caller that ignores that is
+// back where it started.
+func waitUntilQuiet(ctx context.Context, e *engine.Engine, node string,
+	quietMs, budgetMs uint32) bool {
+
+	deadline := e.NowMs() + budgetMs
+	for e.NowMs() < deadline {
+		last := uint32(0)
+		for _, ev := range e.Events() {
+			if ev.Kind == "tx" && ev.From == node && ev.AtMs > last {
+				last = ev.AtMs
+			}
+		}
+		if e.NowMs() >= last+quietMs {
+			return true
+		}
+		if _, ok := waitForEvent(ctx, e, quietMs, func(engine.Event) bool { return false }); ok {
+			return false
+		}
+		if ctx.Err() != nil {
+			return false
+		}
+	}
+	return false
+}

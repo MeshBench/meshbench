@@ -79,6 +79,15 @@ const nativePeerVersion = "repeater-v1.17.1"
 // thing faster is not a saving.
 const advertBudgetMs = 240_000
 
+// floodQuietMs is how long the board must have been off the air before it is
+// handed the packet the flood row judges it on.
+//
+// A repeater's own retransmit delay is a random fraction of the airtime it is
+// forwarding - under three seconds here - and its transmission takes about a
+// second more. Ten covers both with room to spare, and costs a tenth of the
+// budget the row already has.
+const floodQuietMs = 10_000
+
 // Probe runs every capability for one board and version, in one boot.
 //
 // A board's full column completing quickly matters: this is scripted rather
