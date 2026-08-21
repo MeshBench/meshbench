@@ -13,6 +13,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/mesh/firmware"
@@ -137,7 +138,12 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 		// were flash.
 		var img firmware.BoardImage
 		for _, i := range firmware.Runnable(all, nil) {
-			if i.Board == board && i.Version == version && i.Role == "simple_repeater" {
+			// Case-insensitively, because a board profile's name and the
+			// asset's differ in case more often than not - upstream publishes
+			// Generic_E22_sx1262 beside Heltec_v3 - and an exact comparison
+			// reports a board nobody has an image for, which is a different
+			// and much more alarming thing than a spelling difference.
+			if strings.EqualFold(i.Board, board) && i.Version == version && i.Role == "simple_repeater" {
 				img = i
 			}
 		}
