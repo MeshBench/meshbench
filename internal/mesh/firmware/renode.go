@@ -52,6 +52,7 @@ i @%[1]s/peripherals/NRF52840_Temp.cs
 i @%[1]s/peripherals/NRF52840_Clock.cs
 i @%[1]s/peripherals/NRF52840_SAADC.cs
 i @%[1]s/peripherals/NRF52840_TWIM.cs
+i @%[1]s/peripherals/NRF52840_CryptoCell.cs
 
 mach create "%[2]s"
 machine LoadPlatformDescription @%[3]s
@@ -64,6 +65,7 @@ machine LoadPlatformDescription @%[1]s/saadc.repl
 sysbus Unregister sysbus.twi0
 sysbus Unregister sysbus.twi1
 machine LoadPlatformDescription @%[1]s/twim.repl
+machine LoadPlatformDescription @%[1]s/cryptocell.repl
 %[6]smachine LoadPlatformDescription @%[4]s
 
 %[5]s
