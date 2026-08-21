@@ -136,8 +136,11 @@ func unregisterStockSPI() string {
 //
 // Off by default and deliberately opt-in: it writes a line per register touch,
 // which is megabytes a minute and slows the machine enough to change what is
-// being measured. It exists because the alternative for "where is this board
-// spending its time" is guessing, and #136 has now cost five wrong guesses.
+// being measured, so a traced run is for reading structure and never for
+// reporting timings. It exists because the alternative for "where is this
+// board spending its time" is guessing, and guessing has a poor record here:
+// a board that reads one address a hundred million times and a board that is
+// merely slow look identical from outside.
 const EnvRenodeTrace = "MESHCORESIM_RENODE_TRACE"
 
 // renodeTrace is the tracing preamble, or nothing.
