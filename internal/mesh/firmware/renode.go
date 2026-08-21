@@ -18,7 +18,18 @@ func (e *EmulatedNode) startRenode(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	tools := ToolsDir()
+	tools := SupportDir()
+	// Named here rather than discovered by Renode, because Renode's answer to a
+	// missing peripheral model is to compile the rest and run a machine with a
+	// hole in it. The board then fails for a reason that is not about the board.
+	if err := CheckSupport(tools,
+		"ficr.repl", "uicr.repl", "temp.repl", "clock.repl", "saadc.repl",
+		"twim.repl", "cryptocell.repl",
+		"peripherals/RadioServerSX1262.cs", "peripherals/NRF52840_Temp.cs",
+		"peripherals/NRF52840_Clock.cs", "peripherals/NRF52840_SAADC.cs",
+		"peripherals/NRF52840_TWIM.cs", "peripherals/NRF52840_CryptoCell.cs"); err != nil {
+		return err
+	}
 
 	// The radio's wiring goes in a platform description of its own rather than
 	// into the script: these are declarations, and Renode's monitor does not
