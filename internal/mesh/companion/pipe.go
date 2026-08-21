@@ -1,11 +1,13 @@
 package companion
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"os"
 	"sync"
+	"time"
 )
 
 // Serial is a node's serial port, as the simulator sees it.
@@ -34,13 +36,35 @@ type Serial interface {
 type Pipe struct {
 	serial Serial
 
-	mu     sync.Mutex
-	client io.WriteCloser
-	closed bool
+	// OnStall is called once when an attached client first fails to take what
+	// the firmware printed. See the note below.
+	OnStall func()
+
+	mu      sync.Mutex
+	client  io.WriteCloser
+	closed  bool
+	stalled bool
 }
+
+// writeWindow is how long the firmware's output waits for a client to take it.
+//
+// Generous by the standards of a socket and instant by the standards of a
+// simulation: a client that is running keeps up easily, and one that has
+// stopped costs a tenth of a second per write instead of everything.
+const writeWindow = 100 * time.Millisecond
+
+// deadliner is what a transport offers if it can bound a write. Both of the
+// ones here can - a TCP conn and a pty are each backed by a file descriptor.
+type deadliner interface{ SetWriteDeadline(time.Time) error }
 
 // NewPipe wires a serial port to whatever attaches next.
 func NewPipe(s Serial) *Pipe { return &Pipe{serial: s} }
+
+// OnStall is called once when an attached client first fails to take what the
+// firmware printed, so the interface can say so. Silence is the one thing this
+// failure cannot be allowed to be.
+//
+// Set it before attaching anything.
 
 // Write implements io.Writer for the firmware's output, forwarding to the
 // attached client.
@@ -54,13 +78,66 @@ func (p *Pipe) Write(b []byte) (int, error) {
 		// since the node booted.
 		return len(b), nil
 	}
-	if _, err := c.Write(b); err != nil {
+	// Bounded, because an attached client that has stopped reading is not the
+	// same as one that has gone away and used to be worse. The socket's send
+	// buffer fills, this write blocks, and the firmware behind it stops - so
+	// the whole simulation waits on somebody's paused debugger. Sixty seconds
+	// of simulated time did not finish in two and a half minutes of real time.
+	//
+	// A real radio does not wait either. It puts bytes on a wire whether or not
+	// anything is listening.
+	if d, ok := c.(deadliner); ok {
+		_ = d.SetWriteDeadline(time.Now().Add(writeWindow))
+	}
+	_, err := c.Write(b)
+	if d, ok := c.(deadliner); ok {
+		_ = d.SetWriteDeadline(time.Time{})
+	}
+	switch {
+	case err == nil:
+		p.clearStall()
+	case errors.Is(err, os.ErrDeadlineExceeded):
+		// Kept, not dropped: a client that is merely slow should not lose its
+		// session over one burst. The bytes are gone, which is what a UART does
+		// to a listener that is not there, and it is said once rather than on
+		// every write - a stall produces thousands.
+		p.noteStall()
+	default:
 		// The client went away mid-write. Drop it and carry on: the node's
 		// serial port accepted these bytes, and a firmware that stalled because
 		// somebody closed a phone app would be a simulation of nothing.
 		p.dropClient(c)
 	}
 	return len(b), nil
+}
+
+// noteStall reports the first write a client failed to take, and says nothing
+// on the thousands that follow.
+func (p *Pipe) noteStall() {
+	p.mu.Lock()
+	first := !p.stalled
+	p.stalled = true
+	p.mu.Unlock()
+	if first && p.OnStall != nil {
+		p.OnStall()
+	}
+}
+
+func (p *Pipe) clearStall() {
+	p.mu.Lock()
+	p.stalled = false
+	p.mu.Unlock()
+}
+
+// Stalled reports whether the attached client failed to take the last thing
+// written to it.
+//
+// Worth asking, because the symptom is silence: a client that has stopped
+// reading looks exactly like a mesh with nothing to say.
+func (p *Pipe) Stalled() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.stalled
 }
 
 // dropClient detaches a client that is no longer readable or writable.
@@ -158,6 +235,13 @@ func (l *TCPLink) Addr() string { return l.ln.Addr().String() }
 // Attached reports whether a client is connected right now.
 func (l *TCPLink) Attached() bool { return l.pipe.Attached() }
 
+// Stalled reports whether the attached client has stopped taking output.
+func (l *TCPLink) Stalled() bool { return l.pipe.Stalled() }
+
+// OnStall is called once when a client first fails to take what the firmware
+// printed. Set it before anything attaches.
+func (l *TCPLink) OnStall(f func()) { l.pipe.OnStall = f }
+
 func (l *TCPLink) Close() error {
 	_ = l.pipe.Close()
 	return l.ln.Close()
@@ -184,6 +268,13 @@ func (l *PTYLink) Path() string { return l.path }
 // event, and pretending otherwise would leave the pin off while a client is
 // mid-conversation.
 func (l *PTYLink) Attached() bool { return l.pipe.Attached() }
+
+// Stalled reports whether the attached client has stopped taking output.
+func (l *PTYLink) Stalled() bool { return l.pipe.Stalled() }
+
+// OnStall is called once when a client first fails to take what the firmware
+// printed. Set it before anything attaches.
+func (l *PTYLink) OnStall(f func()) { l.pipe.OnStall = f }
 
 func (l *PTYLink) Close() error {
 	_ = l.pipe.Close()

@@ -10,14 +10,15 @@ import (
 	"github.com/MeshBench/meshbench/meshtest"
 )
 
-// Reproduces the stall described in the package doc: a client that connects
-// and never reads.
+// A client that connects and never reads must not stop the mesh.
 //
-// Live-only and expected to fail until the engine side is fixed - it is a
-// reproduction, not a guard. Advancing first is the documented way around it.
-func TestASilentClientStallsTheMesh(t *testing.T) {
-	if os.Getenv("MESHTEST_STALL") == "" {
-		t.Skip("set MESHTEST_STALL=1: reproduces a known stall and takes 45 s to do it")
+// This began as a reproduction: sixty seconds of simulated time did not finish
+// in two and a half minutes of real time behind a client that had stopped
+// taking output. It is a guard now - the same run finishes in about ten
+// seconds - and it is kept live-only because it starts real firmware.
+func TestASilentClientDoesNotStallTheMesh(t *testing.T) {
+	if os.Getenv("MESHTEST_LIVE") == "" {
+		t.Skip("set MESHTEST_LIVE=1: this starts real firmware and may download it")
 	}
 	m, err := meshtest.Start(context.Background(), meshtest.Options{})
 	if err != nil {
