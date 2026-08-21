@@ -123,8 +123,8 @@ emulator, and a blank cell means nobody has watched that board do that thing.
 | `RAK_4631` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ? |
 | `Xiao_nrf52` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ? |
 | `Heltec_mesh_solar` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ? |
-| `Xiao_S3_WIO` | ESP32-S3 | QEMU | ✓ | ✗ | ? | ? | ? | ? | ? | ? |
-| `Heltec_v3` | ESP32-S3 | QEMU | ✓ | ✗ | ? | ? | ? | ? | ? | ? |
+| `Xiao_S3_WIO` | ESP32-S3 | QEMU | ✓ | ✓ | ✗ | ✗ | | | | |
+| `Heltec_v3` | ESP32-S3 | QEMU | ✓ | ✓ | ✗ | ✗ | | | | |
 | `Station_G2` | ESP32-S3 | — | | | | | | | | |
 | `Heltec_v2` | ESP32 | — | | | | | | | | |
 
@@ -160,15 +160,19 @@ Where the failures are, and why they are not the board's fault:
   zero on a board that relays — and MeshCore will not transmit into a busy
   channel. Not the wiring (resolved through each variant's own pin map), not the
   budget, the seed, the geometry, or firmware 1.17.1.
-- The two ESP32-S3 boards restart for ever without finishing startup — 360
-  times in one probe. The assert is in ESP-IDF's `do_core_init`, on
-  `esp_vfs_console_register()` returning an error. Symbolised by building the
-  same firmware from source, since the releases publish no ELF: on the cold
-  boot the console's first two VFS registrations succeed and the third,
-  `/dev/console`, fails; every restart after that fails at the first one, so
-  state is surviving the software reset. It is not the PSRAM — one of these
-  boards has none — and not the flash model's missing SFDP, which was added
-  and changed nothing. Why the registration fails is still open.
+- The two ESP32-S3 boards now boot and reach their application. They used to
+  restart for ever without finishing startup — 360 times in one probe —
+  asserting in ESP-IDF's `do_core_init` on `esp_flash_init_default_chip()`.
+  The flash driver's `set_io_mode()` was returning `ESP_ERR_FLASH_NO_RESPONSE`,
+  which ESP-IDF forgives only when the flash is not in quad mode: the ESP32
+  boards are built for DIO and were forgiven, the S3 boards are built for QIO
+  and were not, which is why it looked like an S3 fault rather than a flash
+  one. The emulator's flash model knew GigaDevice parts by name and handled
+  their quad-enable bit nowhere, so the bit could be written and never took.
+- What those two fail now is **radio**: RadioLib reports no chip. Measured at
+  the device, the firmware toggles chip select 569 times and clocks not one
+  byte — it never writes the radio's SPI controller at all, on any address the
+  machine models or does not. Why is open.
 - `Station_G2` has no emulation wiring recorded yet. `Heltec_v2` carries an
   SX1276, which is not modelled: the chip here is an SX1262.
 
