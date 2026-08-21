@@ -123,8 +123,8 @@ emulator, and a blank cell means nobody has watched that board do that thing.
 | `RAK_4631` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ? |
 | `Xiao_nrf52` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ? |
 | `Heltec_mesh_solar` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ? |
-| `Xiao_S3_WIO` | ESP32-S3 | QEMU | ✓ | ✗ | | | | | | |
-| `Heltec_v3` | ESP32-S3 | QEMU | ✓ | ✗ | | | | | | |
+| `Xiao_S3_WIO` | ESP32-S3 | QEMU | ✓ | ✗ | ? | ? | ? | ? | ? | ? |
+| `Heltec_v3` | ESP32-S3 | QEMU | ✓ | ✗ | ? | ? | ? | ? | ? | ? |
 | `Station_G2` | ESP32-S3 | — | | | | | | | | |
 | `Heltec_v2` | ESP32 | — | | | | | | | | |
 
@@ -133,10 +133,12 @@ emulator, and a blank cell means nobody has watched that board do that thing.
 What the columns mean:
 
 - **build** — a published image for this board exists and its digest checks out.
-- **boot** — the emulator attached and the node kept its clock. Weaker than it
-  sounds: an emulated part advances its clock whether or not its core is
-  executing, so this passed against machines sitting in lockup until that was
-  found.
+- **boot** — the emulator attached, the node kept its clock, and it did not
+  spend the run restarting. Weaker than it sounds on its own: an emulated part
+  advances its clock whether or not its core is getting anywhere, so this
+  passed against machines sitting in lockup, and against an ESP32-S3 that
+  asserted in ESP-IDF's startup and began again three hundred and sixty times.
+  Both are now counted rather than assumed.
 - **radio**, **tx** — the board put something on the air. Watched, not
   commanded: an emulated board's console is not reachable on every backend, and
   what arrives is the firmware's own unprompted advert.
@@ -158,9 +160,15 @@ Where the failures are, and why they are not the board's fault:
   zero on a board that relays — and MeshCore will not transmit into a busy
   channel. Not the wiring (resolved through each variant's own pin map), not the
   budget, the seed, the geometry, or firmware 1.17.1.
-- The two ESP32-S3 boards reach ESP-IDF's own startup and assert there, at the
-  same line on both — and one of them has no PSRAM, so it is not the PSRAM. The
-  releases publish no ELF, so the assert cannot be symbolised.
+- The two ESP32-S3 boards restart for ever without finishing startup — 360
+  times in one probe. The assert is in ESP-IDF's `do_core_init`, on
+  `esp_vfs_console_register()` returning an error. Symbolised by building the
+  same firmware from source, since the releases publish no ELF: on the cold
+  boot the console's first two VFS registrations succeed and the third,
+  `/dev/console`, fails; every restart after that fails at the first one, so
+  state is surviving the software reset. It is not the PSRAM — one of these
+  boards has none — and not the flash model's missing SFDP, which was added
+  and changed nothing. Why the registration fails is still open.
 - `Station_G2` has no emulation wiring recorded yet. `Heltec_v2` carries an
   SX1276, which is not modelled: the chip here is an SX1262.
 
