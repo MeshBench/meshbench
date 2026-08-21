@@ -120,9 +120,9 @@ emulator, and a blank cell means nobody has watched that board do that thing.
 | `Generic_E22_sx1262` | ESP32 | QEMU | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `Heltec_t114` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | – | ✓ |
 | `Heltec_t096` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ? | ✓ |
-| `RAK_4631` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ? |
-| `Xiao_nrf52` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ? |
-| `Heltec_mesh_solar` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ? |
+| `RAK_4631` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ? | – | ? |
+| `Xiao_nrf52` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ? | – | ? |
+| `Heltec_mesh_solar` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ? | – | ? |
 | `Xiao_S3_WIO` | ESP32-S3 | QEMU | ✓ | ✗ | | | | | | |
 | `Heltec_v3` | ESP32-S3 | QEMU | ✓ | ✗ | | | | | | |
 | `Station_G2` | ESP32-S3 | — | | | | | | | | |
@@ -153,11 +153,17 @@ What the columns mean:
 
 Where the failures are, and why they are not the board's fault:
 
-- The three nRF52 boards that fail **flood** report their channel busy for
-  essentially the whole run — 241 seconds of 250 on one measurement, against
-  zero on a board that relays — and MeshCore will not transmit into a busy
-  channel. Not the wiring (resolved through each variant's own pin map), not the
-  budget, the seed, the geometry, or firmware 1.17.1.
+- The three nRF52 boards that cannot be measured for **flood** all stop
+  executing at the same address, and it is ours rather than theirs. Each one
+  boots, adverts and hears its neighbour, then reads `0x5002B0B4` between 122
+  and 126 million times and never does anything else — three different images,
+  three different program counters, one address. Nothing above `0x50000800` is
+  mapped in Renode's nRF52840; that region is the CryptoCell hardware crypto
+  block, which MeshCore compiles in for every nRF52 board. The firmware
+  configures an accelerator we do not model and waits for it. Until we model
+  it, these rows are unmeasurable rather than failed — a stopped board and a
+  board that declined to relay look identical from outside, and calling one the
+  other is what made this take five wrong explanations (#136).
 - The two ESP32-S3 boards reach ESP-IDF's own startup and assert there, at the
   same line on both — and one of them has no PSRAM, so it is not the PSRAM. The
   releases publish no ELF, so the assert cannot be symbolised.

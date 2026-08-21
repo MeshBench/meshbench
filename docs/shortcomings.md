@@ -315,9 +315,28 @@ What is still not reproduced is anything depending on the BLE stack stealing
 time from the radio ISR: the images that run are repeater builds, and nothing
 here connects to one over Bluetooth.
 
-Three of those five advert once and then report their channel busy for the rest
-of the run. That is tracked separately and is not a SoftDevice problem — a board
-on the same emulator with the same boot chain relays correctly.
+Three of those five stop executing partway through the run, and the cause is a
+gap in our platform rather than anything about the SoftDevice or the firmware.
+`RAK_4631`, `Xiao_nrf52` and `Heltec_mesh_solar` each boot, put an advert on the
+air and hear their neighbour, then read address `0x5002B0B4` between 122 and 126
+million times and do nothing further — three different images, three different
+program counters, the same address. Renode's nRF52840 maps nothing above
+`0x50000800`; that region is the CryptoCell hardware crypto block, and
+MeshCore's `[nrf52_base]` compiles `-D USE_CC310_HW_CRYPTO=1` for every nRF52
+board. The firmware configures an accelerator that is not there and waits for a
+completion that cannot arrive.
+
+What is not yet explained is why `Heltec_t114` and `Heltec_t096` never reach
+that code path, when they are the same MCU built from the same base. Both read
+two CryptoCell identifier registers once and carry on.
+
+The matrix reports these three as *not measurable* rather than *failed*, which
+is the honest shape: a board that stopped and a board that decided not to relay
+put exactly the same nothing on the air, and the row cannot tell them apart
+without being told where the CPU is. Modelling CryptoCell is not a mechanical
+addition — a status register that says "done" without doing the work hands the
+firmware wrong crypto, which is worse than a hang because it fails quietly. See
+#136.
 
 ### 3.2 The SX1262 model is functional, not cycle-accurate
 
