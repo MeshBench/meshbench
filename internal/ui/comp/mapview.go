@@ -117,6 +117,15 @@ type MapView struct {
 	// OnMenu is called when a context menu entry is chosen: the action, the
 	// node it was opened on if any, and where on the ground it was opened.
 	OnMenu func(action, node string, lat, lon float64)
+	// OnDelete is called with every node the Delete key was pressed over -
+	// the selection, since that is what the key acts on everywhere else.
+	//
+	// Separate from OnMenu, which carries one node: a box drag selects
+	// several and asking the same question once per node is not a
+	// confirmation, it is an obstacle. The menu entry routes here too, with
+	// a slice of one, so the key and the menu cannot come to mean different
+	// things.
+	OnDelete func(names []string)
 	// OnMove is called while a node is being dragged, every frame it moves,
 	// so the rest of the interface follows the drag rather than jumping at
 	// the end of it.

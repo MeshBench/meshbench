@@ -52,17 +52,7 @@ func (m *MapView) handle(gtx layout.Context, sz image.Point, pts []projected) {
 	defer clip.Rect{Max: sz}.Push(gtx.Ops).Pop()
 	event.Op(gtx.Ops, m)
 
-	// Escape abandons the link tool's half-made pick, and tells the
-	// workbench so - a pinned pair is released the same way.
-	for {
-		ev, ok := gtx.Event(key.Filter{Name: key.NameEscape})
-		if !ok {
-			break
-		}
-		if ke, ok := ev.(key.Event); ok && ke.State == key.Press {
-			m.CancelLink()
-		}
-	}
+	m.keys(gtx, pts)
 
 	for {
 		ev, ok := gtx.Event(pointer.Filter{
