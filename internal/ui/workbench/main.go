@@ -101,21 +101,10 @@ func Run(args []string) {
 		return
 	}
 
-	st := state.New(10)
-	sm := &session.Sim{}
-	// What survived the last session: the GPU choice, the cache bound and
-	// where the cache lives. Loaded here rather than in Register, so a test's
-	// session never depends on this machine's own file.
-	sm.LoadPrefs()
-	// Set on the session rather than through its verb, and before Register.
-	// The store's loop does not run until Run does, so a verb fired here waits
-	// for a goroutine that has not started - a workbench that never opens a
-	// window. It has to happen before the network loads either way: that is
-	// when the engine is built, and the engine is what reads this.
-	if *unwatchedFlag {
-		sm.RunUnverifiedWiring()
-	}
-	session.Register(st, sm)
+	// The same construction the headless command uses, so the two modes
+	// cannot become two ways of building a session that drift. What this one
+	// does afterwards that headless does not is attach a UI.
+	st, sm := session.Boot(session.Options{UnverifiedWiring: *unwatchedFlag})
 	// Every status line, timestamped and kept in full - not just the last
 	// twenty the strip at the bottom shows. Set before Run starts: nothing
 	// else touches World before then, so there is nothing to race. A run

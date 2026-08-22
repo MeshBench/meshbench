@@ -13,9 +13,11 @@ import (
 )
 
 func init() {
+	// The store's own, which control cannot see and this package cannot
+	// change.
 	control.Classify(state.ErrUnknownVerb, control.UnknownVerb)
 	control.Classify(state.ErrStopped, control.Closing)
-	control.Classify(ErrNoInterface, control.Unavailable)
+	// Ours, returned bare rather than wrapped - see errors.go for why the
+	// others carry their code at the site instead.
 	control.Classify(ErrNoSimulation, control.Conflict)
-	control.Classify(ErrNoSuchNode, control.NotFound)
 }

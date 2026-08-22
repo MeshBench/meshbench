@@ -26,7 +26,7 @@ func (s *Sim) consoleFor(name string) (*console.Buf, error) {
 	}
 	n, ok := s.eng.NodeByName(name)
 	if !ok {
-		return nil, fmt.Errorf("no node named %q: %w", name, ErrNoSuchNode)
+		return nil, noSuchNode(name)
 	}
 	if n.Firmware == nil {
 		return nil, fmt.Errorf("%s runs no firmware, so it has no console", name)

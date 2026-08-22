@@ -405,7 +405,7 @@ func Register(st *state.Store, s *Sim) {
 				return map[string]any{"name": name, "lat": lat, "lon": lon}, nil
 			}
 		}
-		return nil, fmt.Errorf("no node named %q: %w", name, ErrNoSuchNode)
+		return nil, noSuchNode(name)
 	})
 	st.Handle("sim.inject", func(w *state.World, p any) (any, error) {
 		// Originating a packet without firmware on the node. The engine

@@ -198,7 +198,7 @@ func (s *Sim) stopNode(name string) error {
 	}
 	n, ok := s.eng.NodeByName(name)
 	if !ok {
-		return fmt.Errorf("no node named %q: %w", name, ErrNoSuchNode)
+		return noSuchNode(name)
 	}
 	if n.Firmware == nil {
 		return fmt.Errorf("%s is not running firmware", name)
@@ -215,7 +215,7 @@ func (s *Sim) startNode(ctx context.Context, name string, seed uint64) error {
 	}
 	n, ok := s.eng.NodeByName(name)
 	if !ok {
-		return fmt.Errorf("no node named %q: %w", name, ErrNoSuchNode)
+		return noSuchNode(name)
 	}
 	if n.Firmware != nil {
 		return fmt.Errorf("%s is already running", name)
@@ -300,7 +300,7 @@ func (s *Sim) setFirmware(name string, b Build) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("no node named %q: %w", name, ErrNoSuchNode)
+	return noSuchNode(name)
 }
 
 // history is a bounded ring of samples per node, for the graphs.
