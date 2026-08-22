@@ -17,6 +17,19 @@ var heltecV3Board = Board{
 	QEMU: &QEMUWiring{
 		Machine: "esp32s3", SPI: 3, NSS: 8, Busy: 13, DIO1: 14,
 	},
+	// A 128x64 OLED on the bus the firmware brings up, a transmit lamp, and
+	// the program button - the pin whose stuck-low reading used to power this
+	// board off two minutes into every run.
+	Hardware: &Panel{
+		Screen: &Screen{
+			Controller: "SSD1306", Bus: BusI2C, Addr: 0x3C,
+			WidthPx: 128, HeightPx: 64, Ink: Mono,
+		},
+		Parts: []Part{
+			{Kind: Lamp, Name: "TX", Pin: 35},
+			{Kind: Button, Name: "PRG", Pin: 0, ActiveLow: true},
+		},
+	},
 	Notes: "Very common and not a good repeater: the stock spring antenna is well " +
 		"below a dipole, and sleep current is dominated by the board rather than " +
 		"the MCU. Its radio has a bus now - the machine builds GPSPI2 and offers " +

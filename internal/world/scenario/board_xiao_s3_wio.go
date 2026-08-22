@@ -21,6 +21,13 @@ var xiaoS3WIOBoard = Board{
 		Machine: "esp32s3", SPI: 3, NSS: 41, Busy: 40, DIO1: 39,
 		PSRAMMB: 8, PSRAMOctal: true,
 	},
+	// A status lamp rather than a transmit one, and no screen in this build.
+	Hardware: &Panel{
+		Parts: []Part{
+			{Kind: Lamp, Name: "status", Pin: 48},
+			{Kind: Button, Name: "user", Pin: 21, ActiveLow: true},
+		},
+	},
 	Notes: "Tiny, and the antenna figure reflects it. A companion, not a " +
 		"repeater. SX126X_TXEN is RADIOLIB_NC on this board, so there is no " +
 		"front-end module to switch in.",

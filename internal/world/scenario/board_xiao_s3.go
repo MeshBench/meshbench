@@ -18,6 +18,14 @@ var xiaoS3Board = Board{
 		Machine: "esp32s3", SPI: 3, NSS: 5, Busy: 4, DIO1: 2,
 		PSRAMMB: 8, PSRAMOctal: true,
 	},
+	// Declares no button at all, which is worth carrying: the tab says so
+	// rather than leaving a gap that reads as nobody having looked.
+	Hardware: &Panel{
+		Parts: []Part{
+			{Kind: Lamp, Name: "status", Pin: 21},
+			{Kind: Button, Name: "user", Pin: PinNone},
+		},
+	},
 	Notes: "The Xiao S3 with a LoRa expansion rather than the WIO's integrated " +
 		"radio: the same MCU module, a different set of pins, and its own image. " +
 		"GPIO 6 gates the receive path; there is no transmit-enable line, so " +

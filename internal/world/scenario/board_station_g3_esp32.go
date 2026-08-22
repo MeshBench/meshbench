@@ -18,6 +18,17 @@ var stationG3ESP32Board = Board{
 		Machine: "esp32s3", SPI: 3, NSS: 11, Busy: 47, DIO1: 48,
 		PSRAMMB: 8, PSRAMOctal: true,
 	},
+	// An SH1106: the same panel with its columns two to the right.
+	Hardware: &Panel{
+		Screen: &Screen{
+			Controller: "SH1106", Bus: BusI2C, Addr: 0x3C,
+			WidthPx: 128, HeightPx: 64, Ink: Mono,
+		},
+		Parts: []Part{
+			{Kind: Lamp, Name: "TX", Pin: 35},
+			{Kind: Button, Name: "user", Pin: 38, ActiveLow: true},
+		},
+	},
 	Notes: "Mains-powered with an external amplifier: the firmware asks the chip " +
 		"for 7 dBm and about half a watt leaves the antenna. Check the licence " +
 		"conditions before simulating it at full power. The amplifier and the " +

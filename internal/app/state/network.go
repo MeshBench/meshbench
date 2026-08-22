@@ -81,6 +81,50 @@ type NodeStat struct {
 	// a radio that cries busy too readily.
 	IRQReads, BusyReads uint32
 	BusyMs, Spurious    uint32
+
+	// Board is which hardware this node is, empty for a node running a host
+	// build. It is what decides the shape of the Hardware tab: a board's
+	// screen, lamps and buttons are properties of the board, so the interface
+	// asks the board rather than carrying a setting that could disagree
+	// with it.
+	Board string
+
+	// Screen is the last picture this node's display sent, or nil where the
+	// board has no display or has drawn nothing yet.
+	//
+	// Nil for both on purpose: which of the two it is comes from the board's
+	// own declaration, not from here, and inventing an empty picture would
+	// report a board with no screen and a board with a blank one as the same
+	// thing.
+	Screen *Screen
+}
+
+// Screen is one picture from a board's display.
+//
+// Bits rather than pixels, as the controller holds them: byte n carries eight
+// vertical pixels of column n%Width in page n/Width. Kept in that form because
+// converting here would lose the only property that makes it worth showing -
+// that it is exactly what the firmware drew.
+type Screen struct {
+	Width, Height int
+	// On is the display's own power state. MeshCore switches the panel off
+	// after an idle, so a blank picture with On false is a sleeping board and
+	// a blank one with On true is a board that cleared its screen. Drawing
+	// them the same way reports the first as broken.
+	On   bool
+	Bits []byte
+}
+
+// Lit reports whether a pixel is on.
+func (s *Screen) Lit(x, y int) bool {
+	if s == nil || x < 0 || y < 0 || x >= s.Width || y >= s.Height {
+		return false
+	}
+	i := (y/8)*s.Width + x
+	if i >= len(s.Bits) {
+		return false
+	}
+	return s.Bits[i]&(1<<(y%8)) != 0
 }
 
 // NodeSeries is one node's recent history, for its graphs.

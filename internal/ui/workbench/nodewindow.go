@@ -47,6 +47,11 @@ const (
 	tabStats
 	tabActivity
 	tabConnect
+	// tabHardware is the board drawn as itself - its screen, its lamps, the
+	// buttons somebody can press. Only a node whose board declares any of
+	// that grows it, because a tab that is always there and always empty
+	// teaches people to ignore tabs.
+	tabHardware
 	numNodeTabs
 )
 
@@ -66,6 +71,8 @@ func (n nodeTab) String() string {
 		return "Activity"
 	case tabConnect:
 		return "Connect"
+	case tabHardware:
+		return "Hardware"
 	}
 	return "Console"
 }
@@ -117,6 +124,11 @@ type nodeWindowPanel struct {
 	OnOpenPacket func(id uint64)
 	// Kind is what this node is, which decides which tabs it grows.
 	Kind string
+	// hasHardware is set each frame from the node's board, so the Hardware
+	// tab appears exactly when the board declares something to show. Not a
+	// preference: a setting and the hardware can disagree, and a node showing
+	// a display its board has not got is worse than one showing none.
+	hasHardware bool
 }
 
 // visibleTabs is the tab set this node gets.
@@ -131,7 +143,11 @@ func (p *nodeWindowPanel) visibleTabs() []nodeTab {
 		// people to ignore tabs.
 		return []nodeTab{tabSDR, tabSettings, tabStats, tabActivity}
 	}
-	return []nodeTab{tabConsole, tabSettings, tabRadio, tabStats, tabActivity}
+	tabs := []nodeTab{tabConsole, tabSettings, tabRadio, tabStats, tabActivity}
+	if p.hasHardware {
+		tabs = append(tabs, tabHardware)
+	}
+	return tabs
 }
 
 // clicks handles every control, whichever tab is showing - shared with the
@@ -190,6 +206,10 @@ func (p *nodeWindowPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snap
 			p.tab = tabSDR
 		}
 	}
+	p.hasHardware = p.boardPanel(s).HasAnything()
+	if !p.hasHardware && p.tab == tabHardware {
+		p.tab = tabConsole
+	}
 	p.clicks(gtx)
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(p.head(t, s)),
@@ -211,6 +231,8 @@ func (p *nodeWindowPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snap
 				return p.comp.Draw(t, gtx, s)
 			case tabSDR:
 				return p.sdrTab(t, gtx, s)
+			case tabHardware:
+				return p.hardware(t, gtx, s)
 			}
 			return p.console(t, gtx, s)
 		}),

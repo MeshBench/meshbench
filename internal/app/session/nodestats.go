@@ -132,6 +132,7 @@ func (s *Sim) nodeStats(events []state.Event) []state.NodeStat {
 		}
 		if i < len(s.nodes) {
 			st.Firmware = s.nodes[i].Firmware.Version
+			st.Board = s.nodes[i].Firmware.Board
 		}
 		if n.Firmware != nil {
 			st.Running = true
@@ -139,6 +140,17 @@ func (s *Sim) nodeStats(events []state.Event) []state.NodeStat {
 			r := n.Firmware.Bridge.Stats()
 			st.IRQReads, st.BusyReads = r.IRQReads, r.BusyReads
 			st.BusyMs, st.Spurious = r.BusyMs, r.SpuriousUp
+			// The board's own screen, where it has one and has drawn. A board
+			// with no display and one that has drawn nothing both leave this
+			// nil - which of the two it is comes from the board's declaration,
+			// not from here.
+			if scr, ok := n.Firmware.Backend.(interface {
+				Screen() (int, int, bool, []byte, bool)
+			}); ok {
+				if w, h, on, bits, have := scr.Screen(); have {
+					st.Screen = &state.Screen{Width: w, Height: h, On: on, Bits: bits}
+				}
+			}
 			st.Radio = state.RadioState{
 				Reported: r.Configured, GainReg: r.RxGainReg,
 				Boosted: r.RxBoosted(), TxPowerDBm: r.TxPowerDBm,

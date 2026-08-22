@@ -67,6 +67,23 @@ type EmulatedNode struct {
 	// a firmware built expecting some will not start without it.
 	PSRAMMB int
 
+	// Panel is the board's display, where it has one, and where somebody is
+	// listening for its picture. Empty leaves the machine without a display -
+	// which is what a board with none looks like, and what a board whose
+	// screen nobody is watching should look like too.
+	//
+	// The controller decides the column offset: an SH1106 is an SSD1306 whose
+	// columns start two to the right, and a picture drawn with the wrong one
+	// slides sideways rather than failing.
+	PanelPath   string
+	PanelAddr   uint8
+	PanelOffset int
+
+	// Panel is where this node's pictures arrive, when something is listening.
+	// Held here so a caller with the node has the screen too, rather than
+	// having to keep the two in step itself.
+	Panel *PanelListener
+
 	// PSRAMOctal selects an octal (OPI) part rather than a quad one.
 	PSRAMOctal bool
 
@@ -259,6 +276,16 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	if e.PSRAMOctal {
 		machine += ",psram-octal=on"
 	}
+	// The display, on the same terms as the radio: only when the board has
+	// one and only when something is listening.
+	if e.PanelPath != "" {
+		addr := e.PanelAddr
+		if addr == 0 {
+			addr = 0x3C
+		}
+		machine += fmt.Sprintf(",panel-path=%s,panel-addr=%d,panel-offset=%d",
+			e.PanelPath, addr, e.PanelOffset)
+	}
 
 	qemuLog, err := os.Create(filepath.Join(e.Dir, "console.log"))
 	if err != nil {
@@ -338,4 +365,21 @@ func (e *EmulatedNode) stopLocked() error {
 	}
 	_ = os.Remove(e.sock)
 	return nil
+}
+
+// Screen is the last picture this board's display sent, and whether there is
+// one at all.
+//
+// The last return says which: a board that declares no display and a board
+// whose display has drawn nothing are different facts, and drawing an empty
+// picture for both would report the first as the second.
+func (e *EmulatedNode) Screen() (width, height int, on bool, bits []byte, have bool) {
+	if e.Panel == nil {
+		return 0, 0, false, nil, false
+	}
+	f, _ := e.Panel.Frame()
+	if f == nil {
+		return 0, 0, false, nil, false
+	}
+	return f.Width, f.Height, f.On, f.Bits, true
 }

@@ -17,6 +17,14 @@ var heltecWSL3Board = Board{
 	QEMU: &QEMUWiring{
 		Machine: "esp32s3", SPI: 3, NSS: 8, Busy: 13, DIO1: 14,
 	},
+	// The Stick Lite has no screen - that is what Lite means here, and its
+	// repeater build declares none.
+	Hardware: &Panel{
+		Parts: []Part{
+			{Kind: Lamp, Name: "TX", Pin: 35},
+			{Kind: Button, Name: "PRG", Pin: 0, ActiveLow: true},
+		},
+	},
 	Notes: "The Wireless Stick Lite: a V3 without the screen, and better for it " +
 		"as a repeater - no display rails to keep up and an SMA connector instead " +
 		"of the V3's spring antenna, so the antenna figure is for whatever gets " +

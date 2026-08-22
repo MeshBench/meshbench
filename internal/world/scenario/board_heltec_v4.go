@@ -18,6 +18,17 @@ var heltecV4Board = Board{
 		Machine: "esp32s3", SPI: 3, NSS: 8, Busy: 13, DIO1: 14, LED: 35,
 		PSRAMMB: 2,
 	},
+	// The V3's panel exactly: same controller, same address, same pins.
+	Hardware: &Panel{
+		Screen: &Screen{
+			Controller: "SSD1306", Bus: BusI2C, Addr: 0x3C,
+			WidthPx: 128, HeightPx: 64, Ink: Mono,
+		},
+		Parts: []Part{
+			{Kind: Lamp, Name: "TX", Pin: 35},
+			{Kind: Button, Name: "PRG", Pin: 0, ActiveLow: true},
+		},
+	},
 	Notes: "The V3's successor, and the amplifier is the difference: a GC1109 " +
 		"takes the chip's 10 dBm to about 22 at the antenna. It is switched by the " +
 		"radio's own DIO2 rather than by a firmware GPIO, so the fault that costs a " +

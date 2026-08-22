@@ -17,6 +17,16 @@ var tbeamSX1262Board = Board{
 	QEMU: &QEMUWiring{
 		Machine: "esp32", SPI: 2, NSS: 18, Busy: 32, DIO1: 33, LED: 4,
 	},
+	Hardware: &Panel{
+		Screen: &Screen{
+			Controller: "SSD1306", Bus: BusI2C, Addr: 0x3C,
+			WidthPx: 128, HeightPx: 64, Ink: Mono,
+		},
+		Parts: []Part{
+			{Kind: Lamp, Name: "TX", Pin: 4},
+			{Kind: Button, Name: "user", Pin: 38, ActiveLow: true},
+		},
+	},
 	Notes: "An SMA connector, so the antenna figure is for a half-wave whip " +
 		"rather than anything the board provides; fit something else and the " +
 		"figure is wrong. Sleep current is the board's, not the MCU's: the AXP192 " +
