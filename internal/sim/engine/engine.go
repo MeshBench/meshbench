@@ -312,6 +312,31 @@ func (e *Engine) PinFirmware(name, version string) int {
 	return n
 }
 
+// PinBoard changes which hardware a node's build is for, alongside the pin
+// above.
+//
+// Separate from PinFirmware because a version can change without the hardware
+// doing so, and because the engine's copy of the spec is what decides which
+// backend a node gets: an emulated board or a build for this machine. A pin
+// that moved the version and left the board behind produced exactly that
+// mismatch - a host build asked to run under an emulator, or the reverse.
+func (e *Engine) PinBoard(name, board, role string) int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	n := 0
+	for _, nd := range e.nodes {
+		if name != "" && nd.Spec.Name != name {
+			continue
+		}
+		nd.Spec.Firmware.Board = board
+		if role != "" {
+			nd.Spec.Firmware.Role = role
+		}
+		n++
+	}
+	return n
+}
+
 // NowMs is the simulated clock.
 func (e *Engine) NowMs() uint32 {
 	e.mu.Lock()

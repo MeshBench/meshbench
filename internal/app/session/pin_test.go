@@ -77,7 +77,7 @@ func TestPinningOneNodeReachesTheEngine(t *testing.T) {
 	}
 	name := sim.nodes[0].Name
 	const want = "repeater-v8.8.8-test"
-	if err := sim.setFirmware(name, want); err != nil {
+	if err := sim.setFirmware(name, Build{Version: want}); err != nil {
 		t.Fatal(err)
 	}
 	for _, n := range sim.eng.Nodes() {

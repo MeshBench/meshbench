@@ -9,6 +9,12 @@ import (
 	"sync"
 )
 
+// Colour frames carry each pixel as two bytes, low byte first, because the
+// panel model ships its framebuffer as an array of sixteen bit words and both
+// ends of this socket are the same machine. Stated because it is invisible in
+// anything monochrome and in anything black and white: only a colour picture
+// shows it, and by then it looks like a broken panel rather than a swap.
+//
 // PanelFrame is one picture from a board's display, as the panel stores it.
 //
 // Bits rather than pixels, because that is what a monochrome controller holds
@@ -168,3 +174,26 @@ var errNoPanel = errors.New("firmware: this board declares no display")
 
 // ErrNoPanel is that error, for callers that want to tell it apart.
 func ErrNoPanel() error { return errNoPanel }
+
+// RGB565At is one pixel of a colour frame, widened to eight bits a channel.
+//
+// Here rather than beside either caller because the frame's format belongs
+// with the frame: the workbench draws these and the board checks capture them,
+// and when each had its own copy of the arithmetic they disagreed about which
+// byte comes first. That disagreement is invisible in anything black and
+// white - a boot logo looks perfect read either way - so it survived until a
+// colour interface was put on screen.
+func RGB565At(bits []byte, width, x, y int) (r, g, b uint8, ok bool) {
+	if width <= 0 || x < 0 || y < 0 || x >= width {
+		return 0, 0, 0, false
+	}
+	i := (y*width + x) * 2
+	if i+1 >= len(bits) {
+		return 0, 0, 0, false
+	}
+	v := uint16(bits[i]) | uint16(bits[i+1])<<8
+	// Widened rather than shifted: five bits scaled to eight by repeating the
+	// top bits, so full red reads as 0xFF and not 0xF8.
+	r5, g6, b5 := uint8(v>>11)&0x1F, uint8(v>>5)&0x3F, uint8(v)&0x1F
+	return r5<<3 | r5>>2, g6<<2 | g6>>4, b5<<3 | b5>>2, true
+}

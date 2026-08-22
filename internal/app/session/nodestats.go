@@ -11,6 +11,7 @@ package session
 import (
 	"context"
 	"fmt"
+	"github.com/MeshBench/meshbench/internal/world/scenario"
 	"os"
 	"strconv"
 	"strings"
@@ -125,14 +126,19 @@ func (s *Sim) nodeStats(events []state.Event) []state.NodeStat {
 	nodes := s.liveEngine().Nodes()
 	out := make([]state.NodeStat, 0, len(nodes))
 	live := map[int]bool{}
-	for i, n := range nodes {
+	for _, n := range nodes {
 		st := state.NodeStat{Name: n.Spec.Name, Sent: n.Sent, Heard: n.Heard}
 		if s.states != nil {
 			st.State = s.states[n.Spec.Name]
 		}
-		if i < len(s.nodes) {
-			st.Firmware = s.nodes[i].Firmware.Version
-			st.Board = s.nodes[i].Firmware.Board
+		// By name, not by position. The engine keeps its own list and there
+		// is nothing holding the two in the same order, so indexing one with
+		// the other's subscript reads some other node's build - and a board
+		// read off the wrong node is a Hardware tab that appears on a node
+		// without one and is missing from the node that has it.
+		if spec, ok := s.nodeByName(n.Spec.Name); ok {
+			st.Firmware = spec.Firmware.Version
+			st.Board = spec.Firmware.Board
 		}
 		if n.Firmware != nil {
 			st.Running = true
@@ -222,13 +228,74 @@ func (s *Sim) startNode(ctx context.Context, name string, seed uint64) error {
 }
 
 // setFirmware changes which build a node will run next time it starts.
-func (s *Sim) setFirmware(name, version string) error {
+// Build is one firmware choice: a version, and where it came from.
+//
+// Board and Role travel with the version because a board image only means
+// anything alongside them - "wadamesh" is not a build until it is wadamesh for
+// a LilyGo_TDeck. Both empty is a host build, which is what every node had
+// before board images could be chosen at all.
+type Build struct {
+	Version string
+	Board   string
+	Role    string
+}
+
+// Describe names a build the way somebody would say it aloud.
+func (b Build) Describe() string {
+	if b.Board == "" {
+		return b.Version
+	}
+	return b.Version + " for " + b.Board
+}
+
+// refreshNodeBuild copies what a node is set to run back into the list the
+// interface draws from.
+//
+// The two are separate on purpose - the scenario is what runs, the list is
+// what is shown - but nothing was carrying a change from one to the other, so
+// picking a build updated the table (which reads the live stats) and left the
+// node's own window showing whatever it had been loaded with. Two views of one
+// node disagreeing is worse than either being wrong.
+// nodeByName is the session's copy of one node's specification.
+func (s *Sim) nodeByName(name string) (scenario.Node, bool) {
 	for i := range s.nodes {
 		if s.nodes[i].Name == name {
-			s.nodes[i].Firmware.Version = version
+			return s.nodes[i], true
+		}
+	}
+	return scenario.Node{}, false
+}
+
+func (s *Sim) refreshNodeBuild(w *state.World, name string) {
+	for i := range s.nodes {
+		if s.nodes[i].Name != name {
+			continue
+		}
+		for j := range w.Nodes {
+			if w.Nodes[j].Name == name {
+				w.Nodes[j].Firmware = s.nodes[i].Firmware.Version
+				w.Nodes[j].Board = s.nodes[i].Firmware.Board
+			}
+		}
+		return
+	}
+}
+
+func (s *Sim) setFirmware(name string, b Build) error {
+	for i := range s.nodes {
+		if s.nodes[i].Name == name {
+			s.nodes[i].Firmware.Version = b.Version
+			// Cleared rather than left alone when a host build is chosen: a
+			// node that keeps a board from its last image would try to run the
+			// new one under an emulator it was never built for.
+			s.nodes[i].Firmware.Board = b.Board
+			if b.Role != "" {
+				s.nodes[i].Firmware.Role = b.Role
+			}
 			// The engine keeps its own copy; see Engine.PinFirmware.
 			if s.eng != nil {
-				s.eng.PinFirmware(name, version)
+				s.eng.PinFirmware(name, b.Version)
+				s.eng.PinBoard(name, b.Board, b.Role)
 			}
 			return nil
 		}
@@ -327,7 +394,7 @@ func (s *Sim) setState(name, what string) {
 // The whole cycle, because firmware is chosen when a node launches: setting the
 // version on a running node changes nothing until something else restarts it,
 // and a control that appears to do nothing is one somebody presses twice.
-func (s *Sim) Reflash(ctx context.Context, st *state.Store, name, version string, seed uint64) {
+func (s *Sim) Reflash(ctx context.Context, st *state.Store, name string, b Build, seed uint64) {
 	go func() {
 		announce := func(what string) {
 			s.setState(name, what)
@@ -340,7 +407,7 @@ func (s *Sim) Reflash(ctx context.Context, st *state.Store, name, version string
 			_ = err
 		}
 		announce("provisioning")
-		if err := s.setFirmware(name, version); err != nil {
+		if err := s.setFirmware(name, b); err != nil {
 			s.setState(name, "")
 			_, _ = st.Do(ctx, "node.reflash_failed", err.Error())
 			return
@@ -352,6 +419,6 @@ func (s *Sim) Reflash(ctx context.Context, st *state.Store, name, version string
 			return
 		}
 		s.setState(name, "")
-		_, _ = st.Do(ctx, "node.reflashed", name+" now runs "+version)
+		_, _ = st.Do(ctx, "node.reflashed", name+" now runs "+b.Describe())
 	}()
 }
