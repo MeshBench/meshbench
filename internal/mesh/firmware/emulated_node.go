@@ -78,6 +78,11 @@ type EmulatedNode struct {
 	PanelPath   string
 	PanelAddr   uint8
 	PanelOffset int
+	// PanelCS and PanelDC put the display on the radio's SPI controller
+	// instead of on I2C: its own chip select, and the line that says whether
+	// a byte is a command or data. Zero leaves it on I2C.
+	PanelCS, PanelDC     int
+	PanelWidth, PanelHgt int
 
 	// Panel is where this node's pictures arrive, when something is listening.
 	// Held here so a caller with the node has the screen too, rather than
@@ -285,6 +290,10 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 		}
 		machine += fmt.Sprintf(",panel-path=%s,panel-addr=%d,panel-offset=%d",
 			e.PanelPath, addr, e.PanelOffset)
+		if e.PanelCS != 0 {
+			machine += fmt.Sprintf(",panel-cs=%d,panel-dc=%d,panel-w=%d,panel-h=%d",
+				e.PanelCS, e.PanelDC, e.PanelWidth, e.PanelHgt)
+		}
 	}
 
 	qemuLog, err := os.Create(filepath.Join(e.Dir, "console.log"))
@@ -373,13 +382,13 @@ func (e *EmulatedNode) stopLocked() error {
 // The last return says which: a board that declares no display and a board
 // whose display has drawn nothing are different facts, and drawing an empty
 // picture for both would report the first as the second.
-func (e *EmulatedNode) Screen() (width, height int, on bool, bits []byte, have bool) {
+func (e *EmulatedNode) Screen() (width, height, bpp int, on bool, bits []byte, have bool) {
 	if e.Panel == nil {
-		return 0, 0, false, nil, false
+		return 0, 0, 0, false, nil, false
 	}
 	f, _ := e.Panel.Frame()
 	if f == nil {
-		return 0, 0, false, nil, false
+		return 0, 0, 0, false, nil, false
 	}
-	return f.Width, f.Height, f.On, f.Bits, true
+	return f.Width, f.Height, f.BPP, f.On, f.Bits, true
 }

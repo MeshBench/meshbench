@@ -41,6 +41,7 @@ func TestDrawTheHardwareTab(t *testing.T) {
 	}
 
 	bits, w, h := loadCapturedScreen(t)
+	cbits, cw, ch := loadCapturedColourScreen(t)
 
 	cases := []struct {
 		name  string
@@ -49,11 +50,11 @@ func TestDrawTheHardwareTab(t *testing.T) {
 	}{
 		{"heltec-v3-drawing", "Heltec_v3", state.NodeStat{
 			Name: "node-1", Board: "Heltec_v3", Running: true,
-			Screen: &state.Screen{Width: w, Height: h, On: true, Bits: bits},
+			Screen: &state.Screen{Width: w, Height: h, BPP: 1, On: true, Bits: bits},
 		}},
 		{"heltec-v3-asleep", "Heltec_v3", state.NodeStat{
 			Name: "node-1", Board: "Heltec_v3", Running: true,
-			Screen: &state.Screen{Width: w, Height: h, On: false, Bits: bits},
+			Screen: &state.Screen{Width: w, Height: h, BPP: 1, On: false, Bits: bits},
 		}},
 		{"heltec-v3-stopped", "Heltec_v3", state.NodeStat{
 			Name: "node-1", Board: "Heltec_v3", Running: false,
@@ -66,6 +67,12 @@ func TestDrawTheHardwareTab(t *testing.T) {
 		// a gap.
 		{"xiao-s3-no-button", "Xiao_S3", state.NodeStat{
 			Name: "node-1", Board: "Xiao_S3", Running: true,
+		}},
+		// A colour panel on the radio's own SPI bus, three times the pixels
+		// and a different shape - the layout has to hold for both.
+		{"tdeck-colour", "LilyGo_TDeck", state.NodeStat{
+			Name: "node-1", Board: "LilyGo_TDeck", Running: true,
+			Screen: &state.Screen{Width: cw, Height: ch, BPP: 16, On: true, Bits: cbits},
 		}},
 	}
 
@@ -130,6 +137,36 @@ func loadCapturedScreen(t *testing.T) ([]byte, int, int) {
 		}
 	}
 	return bits, w, h
+}
+
+// loadCapturedColourScreen reads a colour capture from a real emulated board.
+//
+// Stored as a PNG rather than as raw pixels: a hundred and fifty kilobytes of
+// RGB565 in a repository is a file nobody will ever open, and this one can be
+// looked at before it is trusted.
+func loadCapturedColourScreen(t *testing.T) ([]byte, int, int) {
+	t.Helper()
+	f, err := os.Open(filepath.Join("testdata", "tdeck_screen.png"))
+	if err != nil {
+		t.Fatalf("reading the captured colour screen: %v", err)
+	}
+	defer func() { _ = f.Close() }()
+	img, err := png.Decode(f)
+	if err != nil {
+		t.Fatalf("decoding it: %v", err)
+	}
+	b := img.Bounds()
+	w, h := b.Dx(), b.Dy()
+	out := make([]byte, w*h*2)
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			r, g, bl, _ := img.At(b.Min.X+x, b.Min.Y+y).RGBA()
+			v := uint16(r>>11)<<11 | uint16(g>>10)<<5 | uint16(bl>>11)
+			i := (y*w + x) * 2
+			out[i], out[i+1] = byte(v>>8), byte(v)
+		}
+	}
+	return out, w, h
 }
 
 // renderWidget draws one widget into an image, with no window and no display.
