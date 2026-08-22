@@ -5,6 +5,8 @@ import (
 	"image"
 	"image/color"
 
+	"gioui.org/io/event"
+	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
@@ -117,6 +119,7 @@ func (p *nodeWindowPanel) screen(t *theme.Theme, gtx layout.Context,
 		scale = 4
 	}
 	w, h := sc.WidthPx*scale, sc.HeightPx*scale
+	p.screenScale = scale
 
 	var note string
 	switch {
@@ -134,6 +137,13 @@ func (p *nodeWindowPanel) screen(t *theme.Theme, gtx layout.Context,
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			size := image.Pt(w, h)
+			// A panel with a touch layer takes pointer events, in the panel's
+			// own pixels rather than the window's - the firmware is told where
+			// on its screen a finger is, and the scale is ours not its.
+			if p.touchable(panel) {
+				defer clip.Rect{Max: size}.Push(gtx.Ops).Pop()
+				event.Op(gtx.Ops, &p.screenTouch)
+			}
 			// The panel's own colours, not the theme's: a display is a
 			// physical object and reads as light on black whichever way the
 			// interface is set.
@@ -260,6 +270,51 @@ func (p *nodeWindowPanel) buttons(t *theme.Theme, gtx layout.Context,
 		children = append(children, layout.Rigid(layout.Spacer{Width: t.Sp.XS}.Layout))
 	}
 	return layout.Flex{Alignment: layout.Middle}.Layout(gtx, children...)
+}
+
+// touchable reports whether this board has a panel worth aiming at.
+func (p *nodeWindowPanel) touchable(panel *scenario.Panel) bool {
+	return panel != nil && panel.Screen != nil &&
+		len(panel.PartsOfKind(scenario.Touch)) > 0
+}
+
+// boardTouches turns pointer events on the drawn screen into touches at the
+// panel's own coordinates.
+//
+// Scaled back rather than sent as drawn: the firmware knows its panel is 320
+// across and nothing else, and sending window pixels would make every touch
+// land wherever the interface happened to be sized.
+func (p *nodeWindowPanel) boardTouches(gtx layout.Context, s *state.Snapshot) {
+	panel := p.boardPanel(s)
+	if !p.touchable(panel) || p.OnDo == nil {
+		return
+	}
+	sc := panel.Screen
+	for {
+		ev, ok := gtx.Event(pointer.Filter{
+			Target: &p.screenTouch,
+			Kinds:  pointer.Press | pointer.Release | pointer.Drag,
+		})
+		if !ok {
+			break
+		}
+		pe, ok := ev.(pointer.Event)
+		if !ok {
+			continue
+		}
+		if p.screenScale <= 0 {
+			continue
+		}
+		x := int(pe.Position.X) / p.screenScale
+		y := int(pe.Position.Y) / p.screenScale
+		if x < 0 || y < 0 || x >= sc.WidthPx || y >= sc.HeightPx {
+			continue
+		}
+		p.OnDo("board.touch", map[string]any{
+			"node": p.node, "x": x, "y": y,
+			"down": pe.Kind != pointer.Release,
+		})
+	}
 }
 
 // buttonFor is this pin's control, kept across frames.

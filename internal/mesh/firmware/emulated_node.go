@@ -91,6 +91,10 @@ type EmulatedNode struct {
 	ButtonPins []int
 	Buttons    *ButtonSender
 
+	// KbdAddr and TouchAddr are where a keyboard and a touch panel answer on
+	// the board's I2C bus, or zero where it carries neither.
+	KbdAddr, TouchAddr uint8
+
 	// Panel is where this node's pictures arrive, when something is listening.
 	// Held here so a caller with the node has the screen too, rather than
 	// having to keep the two in step itself.
@@ -288,6 +292,9 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	if e.PSRAMOctal {
 		machine += ",psram-octal=on"
 	}
+	if e.ButtonPath != "" && (e.KbdAddr != 0 || e.TouchAddr != 0) {
+		machine += fmt.Sprintf(",kbd-addr=%d,touch-addr=%d", e.KbdAddr, e.TouchAddr)
+	}
 	if e.ButtonPath != "" && len(e.ButtonPins) > 0 {
 		pins := make([]string, len(e.ButtonPins))
 		for i, p := range e.ButtonPins {
@@ -419,4 +426,20 @@ func (e *EmulatedNode) PressButton(pin int, down bool) error {
 // ButtonHeld reports whether a pin is being held.
 func (e *EmulatedNode) ButtonHeld(pin int) bool {
 	return e.Buttons != nil && e.Buttons.Held(pin)
+}
+
+// TypeKey types one character at this board's keyboard.
+func (e *EmulatedNode) TypeKey(ch byte) error {
+	if e.Buttons == nil {
+		return ErrNoButtons()
+	}
+	return e.Buttons.Key(ch)
+}
+
+// TouchScreen reports where this board's panel is being touched.
+func (e *EmulatedNode) TouchScreen(x, y int, down bool) error {
+	if e.Buttons == nil {
+		return ErrNoButtons()
+	}
+	return e.Buttons.Touch(x, y, down)
 }
