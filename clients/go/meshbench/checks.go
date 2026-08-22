@@ -5,7 +5,7 @@
 // to remove: a verb name spelled by hand, parameters in milliseconds because
 // that is what the wire happens to use, and nothing a compiler can check. An
 // example written that way is an advertisement for not using the library.
-package client
+package meshbench
 
 import (
 	"context"

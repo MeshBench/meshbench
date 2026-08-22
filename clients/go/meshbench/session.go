@@ -1,6 +1,6 @@
 // The rest of a scripted run: the project, what happened, and what a node
 // said.
-package client
+package meshbench
 
 import (
 	"context"

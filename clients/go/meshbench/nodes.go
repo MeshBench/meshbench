@@ -1,5 +1,5 @@
 // The network: what is in it, and what one node can be asked to do.
-package client
+package meshbench
 
 import (
 	"context"

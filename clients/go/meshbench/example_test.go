@@ -1,4 +1,4 @@
-package client_test
+package meshbench_test
 
 import (
 	"context"
@@ -6,13 +6,13 @@ import (
 	"log"
 	"time"
 
-	"github.com/MeshBench/meshbench/client"
+	"github.com/MeshBench/meshbench/clients/go/meshbench"
 )
 
 // Build a small network and run it, with no window anywhere.
 func Example_headless() {
 	ctx := context.Background()
-	wb, err := client.Headless(ctx, client.Fixture("fife-strict"), client.Seed(9001))
+	wb, err := meshbench.Headless(ctx, meshbench.Fixture("fife-strict"), meshbench.Seed(9001))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -41,7 +41,7 @@ func Example_headless() {
 // Place a network by hand, the way somebody would on the map.
 func Example_placingNodes() {
 	ctx := context.Background()
-	wb, err := client.Attach(ctx)
+	wb, err := meshbench.Attach(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -51,14 +51,14 @@ func Example_placingNodes() {
 		log.Fatal(err)
 	}
 	// One warm at the end rather than one per node.
-	if _, err := wb.Nodes().PlaceMany(ctx, []client.Placement{
-		{Name: "R1", Kind: client.SimpleRepeater, Lat: 56.20, Lon: -3.20},
-		{Name: "R2", Kind: client.SimpleRepeater, Lat: 56.12, Lon: -3.02},
+	if _, err := wb.Nodes().PlaceMany(ctx, []meshbench.Placement{
+		{Name: "R1", Kind: meshbench.SimpleRepeater, Lat: 56.20, Lon: -3.20},
+		{Name: "R2", Kind: meshbench.SimpleRepeater, Lat: 56.12, Lon: -3.02},
 		// One of them is a T-Deck, which decides its transmit ceiling, its
 		// noise figure and the battery the energy model uses.
-		{Name: "C1", Kind: client.Companion, Lat: 56.19, Lon: -3.17,
-			Board: client.BoardLilyGoTDeck},
-		{Name: "C2", Kind: client.Companion, Lat: 56.09, Lon: -3.10},
+		{Name: "C1", Kind: meshbench.Companion, Lat: 56.19, Lon: -3.17,
+			Board: meshbench.BoardLilyGoTDeck},
+		{Name: "C2", Kind: meshbench.Companion, Lat: 56.09, Lon: -3.10},
 	}); err != nil {
 		log.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func Example_placingNodes() {
 // for, in six lines.
 func Example_twoBuildsInOneScenario() {
 	ctx := context.Background()
-	wb, err := client.Attach(ctx)
+	wb, err := meshbench.Attach(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -102,14 +102,14 @@ func Example_twoBuildsInOneScenario() {
 // Repeating traffic, and a verdict. What CI actually runs.
 func Example_regression() {
 	ctx := context.Background()
-	wb, err := client.Headless(ctx, client.Fixture("fife-strict"), client.Seed(9001))
+	wb, err := meshbench.Headless(ctx, meshbench.Fixture("fife-strict"), meshbench.Seed(9001))
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer func() { _ = wb.Close() }()
 
 	// Simulated seconds - the mesh's own clock, not yours.
-	if err := wb.Schedule().Add(ctx, client.Send{
+	if err := wb.Schedule().Add(ctx, meshbench.Send{
 		Node: "AngusOutlaw1", Command: "send hello",
 		At: 5 * time.Second, Every: 20 * time.Second,
 	}); err != nil {
@@ -141,7 +141,7 @@ func Example_regression() {
 // Ask a node something and get its answer, rather than the moment before it.
 func Example_askingANode() {
 	ctx := context.Background()
-	wb, err := client.Attach(ctx)
+	wb, err := meshbench.Attach(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}

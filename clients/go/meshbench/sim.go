@@ -1,5 +1,5 @@
 // The clock, and the run.
-package client
+package meshbench
 
 import (
 	"context"

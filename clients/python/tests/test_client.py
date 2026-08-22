@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from datetime import timedelta
 
 import pytest
 
@@ -166,7 +167,12 @@ def test_scheduling_and_asserting(wb):
     wb.project.new()
     wb.nodes.place("R1", lat=56.2, lon=-3.2)
 
-    wb.schedule.add("R1", "send hello", at="5s", every="20s")
+    wb.schedule.add(
+        "R1",
+        "send hello",
+        at=timedelta(seconds=5),
+        every=timedelta(seconds=20),
+    )
     assert len(wb.schedule) == 1
 
     wb.assertions.delivered(at_least=1)
@@ -243,7 +249,7 @@ def test_the_clock_advances_and_stops(wb):
     wb.project.open("fife-strict")
     before = wb.sim.state()
     assert not before.playing
-    wb.sim.run(seconds_=2, wait="2m")
+    wb.sim.run(timedelta(seconds=2), wait=timedelta(minutes=2))
     after = wb.sim.state()
     assert not after.playing, "run() returned while the clock was still going"
     assert after.now_ms - before.now_ms >= 2000
@@ -261,7 +267,7 @@ def test_the_same_seed_reaches_the_same_state(binary, tmp_path):
             stderr=subprocess.DEVNULL,
         )
         try:
-            w.sim.run(seconds_=3, wait="2m")
+            w.sim.run(timedelta(seconds=3), wait=timedelta(minutes=2))
             return w.sim.state()
         finally:
             w.close()
@@ -349,7 +355,7 @@ def test_a_timeout_says_what_it_was_waiting_for(wb):
     wb.project.new()
     node = wb.nodes.place("Quiet", lat=56, lon=-3)
     with pytest.raises(meshbench.Timeout) as e:
-        node.wait_running(timeout=0.6)
+        node.wait_running(timeout=timedelta(seconds=0.6))
     assert "Quiet" in e.value.what
     assert e.value.last, "the timeout does not say what it last saw"
 

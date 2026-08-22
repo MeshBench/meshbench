@@ -36,7 +36,7 @@ func main() {
 		fail(err)
 	}
 	for path, body := range map[string][]byte{
-		filepath.Join(root, "client", "sets_gen.go"):                     goSets(),
+		filepath.Join(root, "clients", "go", "meshbench", "sets_gen.go"): goSets(),
 		filepath.Join(root, "clients", "python", "meshbench", "sets.py"): pySets(),
 	} {
 		if *check {
@@ -92,7 +92,7 @@ func goSets() []byte {
 // time - and generated so the list cannot be wrong the week somebody adds a
 // board.
 
-package client
+package meshbench
 
 // Kind is what a node is.
 type Kind string

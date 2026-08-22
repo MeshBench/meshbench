@@ -3,7 +3,7 @@
     from meshbench import Workbench
 
     with Workbench.headless(fixture="fife-strict", seed=9001) as wb:
-        wb.sim.run(minutes=5)
+        wb.sim.run(timedelta(minutes=5))
         print(wb.provenance())
         print(wb.events.total(), "events")
 

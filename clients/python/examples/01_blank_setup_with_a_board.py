@@ -9,6 +9,8 @@ which is the point of it. Run the headless examples instead if you have no displ
 
 """
 
+from datetime import timedelta
+
 from meshbench import Board, Kind, NotFound, Workbench
 
 WADAMESH = "wadamesh"
@@ -34,7 +36,7 @@ def main() -> None:
             build = wb.firmware.find(WADAMESH, board=BOARD)
         except NotFound:
             wb.firmware.download("companion", WADAMESH, board=BOARD)
-            wb.wait_idle("10m")
+            wb.wait_idle(timedelta(minutes=10))
             build = wb.firmware.find(WADAMESH, board=BOARD)
 
         # Applied: stop, provision, start. On a board that means an emulator,
@@ -42,7 +44,7 @@ def main() -> None:
         deck.firmware = build
 
         wb.sim.start()
-        deck.wait_running("5m")
+        deck.wait_running(timedelta(minutes=5))
 
         # The Hardware tab is where the board draws its own screen, which is
         # the whole reason for making this node a T-Deck.

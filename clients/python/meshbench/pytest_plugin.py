@@ -2,7 +2,7 @@
 
     def test_the_flood_reaches_glenrothes(meshbench):
         meshbench.project.open("fixtures/fixture-fife-strict.json")
-        meshbench.sim.run(minutes=5)
+        meshbench.sim.run(timedelta(minutes=5))
         assert meshbench.events.total() > 0
 
 Two fixtures, because starting real firmware on a mesh is minutes and a test

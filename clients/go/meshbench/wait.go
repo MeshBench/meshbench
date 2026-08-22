@@ -7,7 +7,7 @@
 //
 // They poll. When the socket learns to push, this file changes and no caller
 // does - which is the whole reason the clients are built before the events.
-package client
+package meshbench
 
 import (
 	"context"

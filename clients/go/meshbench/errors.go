@@ -4,7 +4,7 @@
 // part - "no node is running firmware, so there is nothing to send to" - and
 // it survives untouched; the code is what turns into a Go error a caller can
 // match with errors.Is.
-package client
+package meshbench
 
 import (
 	"errors"

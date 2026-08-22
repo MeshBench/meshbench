@@ -5,7 +5,7 @@
 // time - and generated so the list cannot be wrong the week somebody adds a
 // board.
 
-package client
+package meshbench
 
 // Kind is what a node is.
 type Kind string

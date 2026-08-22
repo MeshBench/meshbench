@@ -14,6 +14,7 @@ because trimming is what this example is about.
 
 import subprocess
 import sys
+from datetime import timedelta
 
 from meshbench import Build, Kind, Workbench
 
@@ -70,7 +71,7 @@ def main() -> None:
                     wb.nodes[name].move(lat, lon)
                 else:
                     wb.nodes.place(name, Kind.COMPANION, lat, lon)
-            wb.wait_idle("10m")
+            wb.wait_idle(timedelta(minutes=10))
 
         builds = build_from_checkout(checkout, wb)
 
@@ -80,7 +81,7 @@ def main() -> None:
             node.firmware = builds[role]
 
         wb.sim.start()
-        wb.firmware.wait_started("10m")
+        wb.firmware.wait_started(timedelta(minutes=10))
         print(f"{len(wb.nodes)} nodes on a build from {checkout}")
         print(wb.provenance())
 

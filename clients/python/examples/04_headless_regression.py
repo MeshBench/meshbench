@@ -13,6 +13,7 @@ with it.
 """
 
 import sys
+from datetime import timedelta
 
 from meshbench import Workbench
 
@@ -24,7 +25,7 @@ def main() -> int:
     junit = sys.argv[2] if len(sys.argv) > 2 else ""
 
     with Workbench.headless(fixture=fixture, seed=SEED) as wb:
-        wb.sim.run(minutes=5, wait="60m")
+        wb.sim.run(timedelta(minutes=5), wait=timedelta(minutes=60))
 
         report = wb.assertions.check()
 

@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from datetime import timedelta
 from typing import TYPE_CHECKING
 
 from . import errors
-from .types import SIMPLE_REPEATER, Build, NodeInfo, NodeStat
-from .wait import seconds, wait_for
+from .sets import Board, Kind
+from .types import Build, NodeInfo, NodeStat
+from .wait import FIRMWARE_WAIT, wait_for
 
 if TYPE_CHECKING:  # pragma: no cover - import for typing only
     from .parts import Console
@@ -49,12 +51,12 @@ class Nodes:
     def place(
         self,
         name: str,
-        kind: str = SIMPLE_REPEATER,
+        kind: Kind | str = Kind.SIMPLE_REPEATER,
         lat: float = 0.0,
         lon: float = 0.0,
         height_m: float | None = None,
         tx_dbm: float | None = None,
-        board: str | None = None,
+        board: Board | str | None = None,
     ) -> Node:
         """Put one node down.
 
@@ -250,9 +252,12 @@ class Node:
 
         return Console(self._wb, self.name)
 
-    def wait_running(self, timeout: float | str = "5m") -> None:
-        """Wait for its firmware to come up."""
-        secs = seconds(timeout)
+    def wait_running(self, timeout: timedelta = FIRMWARE_WAIT) -> None:
+        """Wait for its firmware process to be up.
+
+        ``timeout`` is wall clock - how long you are prepared to sit here - not
+        simulated time. Starting a process is real work on the real machine.
+        """
 
         def check():
             s = self.stat
@@ -260,4 +265,4 @@ class Node:
                 return True, ""
             return False, (s.state if s else "no stat row yet")
 
-        wait_for(check, secs, f"firmware on {self.name}")
+        wait_for(check, timeout, f"firmware on {self.name}")

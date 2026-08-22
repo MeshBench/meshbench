@@ -4,10 +4,12 @@ Drive a [MeshBench](https://github.com/MeshBench/meshbench) workbench from
 Python: real MeshCore firmware over a sample-accurate LoRa channel, scripted.
 
 ```python
+from datetime import timedelta
+
 from meshbench import Workbench
 
 with Workbench.headless(fixture="fife-strict", seed=9001) as wb:
-    wb.sim.run(minutes=5)
+    wb.sim.run(timedelta(minutes=5))
     print(wb.provenance())
     print(wb.events.total(), "events")
 ```
@@ -35,7 +37,7 @@ wb.nodes.place_many(
     ]
 )
 wb.sim.start()
-wb.firmware.wait_started("10m")
+wb.firmware.wait_started()  # a sensible default, or pass a timedelta
 
 node = wb.nodes["C1"]
 node.firmware = wb.firmware.find("companion-v1.17.0")
@@ -52,7 +54,7 @@ The package registers a pytest plugin, so there is no `conftest.py` to copy:
 ```python
 def test_the_flood_reaches_glenrothes(meshbench):
     meshbench.project.open("fixtures/fixture-fife-strict.json")
-    meshbench.sim.run(minutes=5)
+    meshbench.sim.run(timedelta(minutes=5))
     assert meshbench.events.total() > 0
 ```
 
@@ -66,9 +68,18 @@ change broke something, and they need to know what the run assumed first.
 
 ## Two things that will bite otherwise
 
-**Simulated time is not your time.** `sim.run(minutes=5)` is five minutes of
-the mesh's own clock. On 155 emulated nodes that is a great deal longer than
-five of yours, which is why the wait is a separate argument.
+**Simulated time is not your time.** Every duration here is a
+`datetime.timedelta` - Python already has a duration type, so this package does
+not invent one - but two different clocks are measured in them:
+
+- **the mesh's**, for `sim.run(...)`, `schedule.add(at=, every=)` and
+  `sim.wait_until(at=)`
+- **yours**, for every `timeout` and for `sim.run(wait=)`
+
+`sim.run(timedelta(minutes=5), wait=timedelta(minutes=60))` is five minutes of
+the mesh's clock, and up to an hour of yours waiting for it. On 155 emulated
+nodes that gap is the normal case, which is why they are separate arguments.
+Every wait has a defensible default, so `wait_started()` on its own is fine.
 
 **A node answers on its next loop.** Its loop only runs when the engine steps,
 so reading a console straight after writing to it reads the moment *before* the

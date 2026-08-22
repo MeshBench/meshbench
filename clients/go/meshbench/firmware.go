@@ -1,5 +1,5 @@
 // What this machine can run, and what it is running.
-package client
+package meshbench
 
 import (
 	"context"

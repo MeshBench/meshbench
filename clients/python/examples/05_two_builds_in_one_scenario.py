@@ -11,6 +11,7 @@ Costs: firmware on a whole fixture, so minutes.
 """
 
 import sys
+from datetime import timedelta
 
 from meshbench import Workbench
 
@@ -35,8 +36,8 @@ def main() -> None:
         b.firmware = changed
 
         wb.sim.start()
-        wb.firmware.wait_started("15m")
-        wb.sim.run(minutes=5, wait="60m")
+        wb.firmware.wait_started(timedelta(minutes=15))
+        wb.sim.run(timedelta(minutes=5), wait=timedelta(minutes=60))
 
         # Per node, because the whole point is which of the two behaved
         # differently - a total would hide it.

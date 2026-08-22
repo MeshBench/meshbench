@@ -3,11 +3,19 @@ happened, and what a node said."""
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
 from . import errors
 from .types import Build, Event, JobInfo, SimState
-from .wait import seconds, wait_for
+from .wait import (
+    EVENT_WAIT,
+    FIRMWARE_WAIT,
+    JOB_WAIT,
+    RUN_WAIT,
+    as_seconds,
+    wait_for,
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     from .workbench import Workbench
@@ -102,49 +110,49 @@ class Sim:
     def set_real_firmware(self, on: bool = True) -> None:
         self._wb.call("sim.kind", {"real": on})
 
-    def run(
-        self,
-        ms: int | None = None,
-        seconds_: float | None = None,
-        minutes: float | None = None,
-        wait: float | str = "30m",
-    ) -> None:
+    def run(self, simulated: timedelta, wait: timedelta = RUN_WAIT) -> None:
         """Advance the mesh's own clock by this much, and wait for it.
 
-        Simulated time, not yours. Five minutes here is five minutes of the
-        mesh's clock; on 155 emulated nodes that is a great deal longer than
-        five of yours, which is why the wait is a separate and generous
-        argument.
+        Two clocks, one call, and they are not the same one:
+
+        - ``simulated`` is the mesh's. ``timedelta(minutes=5)`` is five minutes
+          of its time.
+        - ``wait`` is yours: how long you are prepared to sit here before
+          giving up. On 155 emulated nodes five simulated minutes is a great
+          deal more than five of yours, which is why it is separate and
+          generous.
         """
-        total = ms or 0
-        if seconds_:
-            total += int(seconds_ * 1000)
-        if minutes:
-            total += int(minutes * 60_000)
+        total = int(as_seconds(simulated) * 1000)
         if total <= 0:
-            raise ValueError("run() needs a length: ms=, seconds_= or minutes=")
+            raise ValueError("run() needs a length, e.g. timedelta(minutes=5)")
         self._wb.call("sim.run", {"for_ms": total})
         self.wait_stopped(wait)
 
-    def wait_stopped(self, timeout: float | str = "30m") -> None:
+    def wait_stopped(self, timeout: timedelta = RUN_WAIT) -> None:
+        """Wait for a run to end. ``timeout`` is wall clock."""
+
         def check():
             st = self.state()
             if not st.playing:
                 return True, ""
             return False, f"{st.now_ms / 1000:.1f}s of simulated time"
 
-        wait_for(check, seconds(timeout), "the run to finish")
+        wait_for(check, timeout, "the run to finish")
 
-    def wait_until(self, at_ms: int, timeout: float | str = "30m") -> None:
+    def wait_until(self, at: timedelta, timeout: timedelta = RUN_WAIT) -> None:
+        """Wait for the mesh's clock to reach a moment.
+
+        ``at`` is simulated time; ``timeout`` is yours.
+        """
+        at_ms = int(as_seconds(at) * 1000)
+
         def check():
             st = self.state()
             if st.now_ms >= at_ms:
                 return True, ""
             return False, f"{st.now_ms / 1000:.1f}s"
 
-        wait_for(
-            check, seconds(timeout), f"simulated time to reach {at_ms / 1000:.1f}s"
-        )
+        wait_for(check, timeout, f"simulated time to reach {at_ms / 1000:.1f}s")
 
 
 class Firmware:
@@ -199,7 +207,7 @@ class Firmware:
         checkout: str,
         role: str = "",
         label: str = "",
-        wait: float | str = "30m",
+        wait: timedelta = JOB_WAIT,
     ) -> list[Build]:
         """Compile a MeshCore checkout and put the results in the library.
 
@@ -244,7 +252,9 @@ class Firmware:
         refuses to start until every one is answered."""
         return (self._wb.call("firmware.needed") or {}).get("roles", [])
 
-    def wait_started(self, timeout: float | str = "10m") -> None:
+    def wait_started(self, timeout: timedelta = FIRMWARE_WAIT) -> None:
+        """Wait for every node's firmware to be up. ``timeout`` is wall clock."""
+
         def check():
             st = self.state()
             running, nodes = st.get("running", 0), st.get("nodes", 0)
@@ -252,7 +262,7 @@ class Firmware:
                 return True, ""
             return False, f"{running} of {nodes} running"
 
-        wait_for(check, seconds(timeout), "firmware to come up")
+        wait_for(check, timeout, "firmware to come up")
 
 
 class Events:
@@ -284,7 +294,7 @@ class Events:
         kind: str = "",
         from_: str = "",
         to: str = "",
-        timeout: float | str = "5m",
+        timeout: timedelta = EVENT_WAIT,
     ) -> Event:
         """Wait for an event to match, and return it."""
         found: list[Event] = []
@@ -316,7 +326,7 @@ class Events:
             )
             or "anything"
         )
-        wait_for(check, seconds(timeout), f"an event matching {want}")
+        wait_for(check, timeout, f"an event matching {want}")
         return found[0]
 
 
@@ -349,7 +359,10 @@ class Console:
         sim = self._wb.sim
         st = sim.state()
         if st.playing:
-            sim.wait_until(st.now_ms + steps * max(st.step_ms, 1), timeout="2m")
+            sim.wait_until(
+                timedelta(milliseconds=st.now_ms + steps * max(st.step_ms, 1)),
+                timeout=timedelta(minutes=2),
+            )
         else:
             sim.settle(steps)
         after = self.read()
@@ -378,11 +391,13 @@ class Job:
         """
         self._wb.call("job.cancel", {"id": self.id})
 
-    def wait(self, timeout: float | str = "30m") -> None:
+    def wait(self, timeout: timedelta = JOB_WAIT) -> None:
+        """Wait for it to finish. ``timeout`` is wall clock."""
+
         def check():
             info = self.info()
             if info is None or info.finished:
                 return True, ""
             return False, f"{info.what}, {info.done} of {info.total}"
 
-        wait_for(check, seconds(timeout), f"job {self.id}")
+        wait_for(check, timeout, f"job {self.id}")

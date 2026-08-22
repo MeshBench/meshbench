@@ -11,6 +11,8 @@ along and nothing said so, which to somebody writing a script is the same as
 it not existing.
 """
 
+from datetime import timedelta
+
 from meshbench import RECEIVED, Board, Kind, Workbench
 
 MESH = [
@@ -25,7 +27,7 @@ def main() -> None:
     with Workbench.headless() as wb:
         wb.project.new(place="Fife")
         wb.nodes.place_many(MESH)
-        wb.wait_idle("10m")
+        wb.wait_idle(timedelta(minutes=10))
 
         # C1 is the T-Deck. The board goes on before the firmware is pinned,
         # because a host image is not a board image and setting the board
@@ -47,11 +49,16 @@ def main() -> None:
 
         # Every twenty seconds, from the plain companion to the public channel.
         # Simulated seconds - the mesh's own clock, not yours.
-        wb.schedule.add("C2", "send hello", at="5s", every="20s")
+        wb.schedule.add(
+            "C2",
+            "send hello",
+            at=timedelta(seconds=5),
+            every=timedelta(seconds=20),
+        )
 
         wb.sim.start()
-        wb.firmware.wait_started("10m")
-        wb.sim.run(minutes=10, wait="60m")
+        wb.firmware.wait_started(timedelta(minutes=10))
+        wb.sim.run(timedelta(minutes=10), wait=timedelta(minutes=60))
 
         received = [e for e in wb.events.recent(1000) if e.class_ == RECEIVED]
         print(wb.provenance())

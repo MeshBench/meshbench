@@ -5,7 +5,7 @@
 // they re-read the session every time they are asked. Which one a thing is
 // decides whether it can be held across a Run and still be true, so it is
 // stated on each.
-package client
+package meshbench
 
 import "time"
 

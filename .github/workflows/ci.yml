@@ -103,7 +103,7 @@ jobs:
       - name: Client enums are generatable, and fresh
         run: |
           go run ./tools/clientgen
-          git diff --exit-code -- client/sets_gen.go clients/python/meshbench/sets.py
+          git diff --exit-code -- clients/go/meshbench/sets_gen.go clients/python/meshbench/sets.py
 
       # The scripting API's verb table is generated
       # The linter set went from 8 to 20 and returned 96 findings, so the run

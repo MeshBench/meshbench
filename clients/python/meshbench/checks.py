@@ -11,9 +11,10 @@ from __future__ import annotations
 
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
+from datetime import timedelta
 from typing import TYPE_CHECKING
 
-from .wait import seconds
+from .wait import as_seconds
 
 if TYPE_CHECKING:  # pragma: no cover
     from .nodes import Node
@@ -31,23 +32,23 @@ class Schedule:
         self,
         node: str | Node,
         command: str,
-        at: float | str = 0,
-        every: float | str = 0,
+        at: timedelta | None = None,
+        every: timedelta | None = None,
     ) -> int:
         """Have a node send something, once or repeatedly.
 
-        ``at`` and ``every`` are seconds - of the mesh's own clock, not
-        yours - and accept "20s" or "3m" as readily as a number. The verb
-        underneath takes milliseconds; nobody writing a script should have to.
+        ``at`` and ``every`` are **simulated** time - the mesh's own clock,
+        not yours. The verb underneath takes milliseconds; nobody writing a
+        script should have to.
 
         Repeating traffic has worked all along and nothing said so, which to
         somebody writing a script is the same as it not existing.
         """
         params: dict[str, object] = {"node": str(node), "command": command}
-        if at:
-            params["at_ms"] = int(seconds(at) * 1000)
-        if every:
-            params["every_ms"] = int(seconds(every) * 1000)
+        if at is not None:
+            params["at_ms"] = int(as_seconds(at) * 1000)
+        if every is not None:
+            params["every_ms"] = int(as_seconds(every) * 1000)
         got = self._wb.call("schedule.add", params) or {}
         return got.get("sends", 0)
 
@@ -153,7 +154,7 @@ class Assertions:
     def __init__(self, wb: Workbench) -> None:
         self._wb = wb
 
-    def delivered(self, at_least: int, within: float | str = 0) -> None:
+    def delivered(self, at_least: int, within: timedelta | None = None) -> None:
         """At least this many nodes received something."""
         self.add("delivered", at_least=at_least, within=within)
 
@@ -162,7 +163,7 @@ class Assertions:
         node: str | Node = "",
         at_least: int = 0,
         at_most: int = 0,
-        within: float | str = 0,
+        within: timedelta | None = None,
     ) -> None:
         """This node - or the whole mesh - transmitted within these bounds.
 
@@ -178,7 +179,7 @@ class Assertions:
         at_least: int = 0,
         at_most: int = 0,
         max_pct: float = 0.0,
-        within: float | str = 0,
+        within: timedelta | None = None,
     ) -> int:
         """The general form, for a kind this package has no name for yet."""
         params: dict[str, object] = {"kind": kind}
@@ -190,8 +191,8 @@ class Assertions:
             params["at_most"] = at_most
         if max_pct:
             params["max_pct"] = max_pct
-        if within:
-            params["within_ms"] = int(seconds(within) * 1000)
+        if within is not None:
+            params["within_ms"] = int(as_seconds(within) * 1000)
         got = self._wb.call("assert.add", params) or {}
         return got.get("assertions", 0)
 
