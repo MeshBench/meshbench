@@ -1,30 +1,10 @@
 package float
 
-import (
-	"syscall"
+import "gioui.org/app"
 
-	"gioui.org/app"
-)
-
-var (
-	user32       = syscall.NewLazyDLL("user32.dll")
-	setWindowPos = user32.NewProc("SetWindowPos")
-)
-
-const (
-	hwndTopmost   = ^uintptr(0) // (HWND)-1
-	swpNoMove     = 0x0002
-	swpNoSize     = 0x0001
-	swpNoActivate = 0x0010
-	swpShowWindow = 0x0040
-)
-
-func keep(e app.ViewEvent) bool {
-	v, ok := e.(app.Win32ViewEvent)
-	if !ok || v.HWND == 0 {
-		return false
-	}
-	r, _, _ := setWindowPos.Call(v.HWND, hwndTopmost, 0, 0, 0, 0,
-		uintptr(swpNoMove|swpNoSize|swpNoActivate|swpShowWindow))
-	return r != 0
+// Windows: HWND_TOPMOST, asked for when the window is made. The spot and the
+// preference are meaningless - the compositor places the window and there is
+// no price to decline.
+func above(Spot, bool) []app.Option {
+	return []app.Option{app.TopMost(true)}
 }

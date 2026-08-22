@@ -4,9 +4,19 @@ package float
 
 import "gioui.org/app"
 
-// Linux: under Wayland a client cannot ask - the compositor decides, and a
-// KWin window rule ("keep above others" for io.github.meshbench.meshbench)
-// is the supported answer. Under X11 an EWMH message could do it, but that
-// needs its own X connection beside Gio's; not worth it until somebody on
-// X11 asks.
-func keep(app.ViewEvent) bool { return false }
+// Linux and the BSDs: a Wayland session can have the overlay ask, and an X11
+// one has no ask a client can make without an X connection of its own. The
+// ask is the machine's preference - it buys pinning at the price of a window
+// with no decoration of the compositor's - and the spot is only used where
+// the ask succeeded.
+func above(spot Spot, keep bool) []app.Option {
+	if keep && onWayland() {
+		return []app.Option{app.LayerShell(app.LayerShellConfig{
+			Layer:     app.LayerOverlay,
+			Keyboard:  app.KeyboardOnDemand,
+			Anchor:    app.EdgeTop | app.EdgeLeft,
+			MarginTop: spot.Top, MarginLeft: spot.Left,
+		})}
+	}
+	return nil
+}

@@ -297,6 +297,7 @@ func (s *Store) publish() {
 		Console:            s.world.Console,
 		Companions:         s.world.Companions,
 		RFMode:             s.world.RFMode,
+		KeepAbove:          s.world.KeepAbove,
 		RFRealism:          s.world.RFRealism,
 		RFEnvironment:      s.world.RFEnvironment,
 		FleetReplies:       append([]FleetReply(nil), s.world.FleetReplies...),

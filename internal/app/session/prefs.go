@@ -29,6 +29,12 @@ type Prefs struct {
 	// "never said" are different answers and only one of them lets the
 	// hardware default decide.
 	GPU *bool `json:"gpu,omitempty"`
+	// KeepAbove is whether panels in their own windows stay above the main
+	// one. A pointer for the same reason as GPU: the default is on, and a
+	// machine that turned it off has to be distinguishable from one that was
+	// never asked. Linux only - everywhere else always-on-top is a property
+	// of a normal window and costs nothing.
+	KeepAbove *bool `json:"keep_above,omitempty"`
 	// Basemap is the chosen map layer's ID - carto-dark, carto-light,
 	// esri-topo. Empty means the default.
 	Basemap string `json:"basemap,omitempty"`

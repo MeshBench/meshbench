@@ -90,31 +90,35 @@ func (w *windows) popOut(name string, sh *shell.Shell, newTheme func() *theme.Th
 			w.mu.Unlock()
 		}()
 		th := newTheme()
+		spot := float.NextSpot()
 		win := new(app.Window)
 		// Titled for the panel, so a taskbar with six of these open is
 		// readable. The app id stays the same: these are windows of one
-		// application, not six applications.
-		win.Option(app.Title("MeshBench - "+name),
-			app.Size(unit.Dp(900), unit.Dp(640)))
-		// Brought to the front as it opens.
-		//
-		// Gio can raise a window and cannot pin one above the others: there is
-		// an ActionRaise and no always-on-top, and under Wayland no client can
-		// ask for that at all - it is the compositor's to decide, which is
-		// what a KWin window rule is for. Raising covers what going behind the
-		// main window actually costs somebody, which is opening a panel and
-		// not seeing it.
+		// application, not six applications. Whether it stays above the
+		// others is the machine's preference, read once here because the
+		// ask only exists at creation.
+		win.Option(append([]app.Option{
+			app.Title("MeshBench - " + name),
+			app.Size(unit.Dp(900), unit.Dp(640)),
+		}, float.Above(spot, keepAbove(st))...)...)
+		// Raised as it opens, for the platforms where above is not or
+		// cannot be honoured - the preference off, GNOME, X11 - so the
+		// window at least starts in front rather than behind.
 		win.Perform(system.ActionRaise)
+		// A layer-shell surface carries no decoration of the compositor's,
+		// so this window draws its own title bar when the ask was granted;
+		// the chrome is the machinery under it.
+		var layered bool
+		var bar comp.TitleBar
+		var chrome *layerChrome
 		var ops op.Ops
 		for {
 			switch e := win.Event().(type) {
-			case app.ViewEvent:
-				// Keep the panel window above the main one, where the
-				// platform lets a client ask (macOS and Windows; under
-				// Wayland only a compositor rule can, and the package
-				// documents that rather than pretending). Re-asked on every
-				// ViewEvent because the native handle can change.
-				float.Keep(e)
+			case app.ConfigEvent:
+				if e.Config.LayerShell && !layered {
+					layered, chrome = true, newLayerChrome(spot)
+					bar.Title = "MeshBench - " + name
+				}
 			case app.DestroyEvent:
 				return
 			case app.FrameEvent:
@@ -127,7 +131,14 @@ func (w *windows) popOut(name string, sh *shell.Shell, newTheme func() *theme.Th
 				gtx := app.NewContext(&ops, e)
 				comp.Fill(gtx, th.P.Ground)
 				snap := st.Snapshot()
-				layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				var kids []layout.FlexChild
+				if layered {
+					chrome.frame(e)
+					kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return bar.Layout(th, gtx)
+					}))
+				}
+				kids = append(kids,
 					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 						return layout.UniformInset(th.Sp.M).Layout(gtx,
 							func(gtx layout.Context) layout.Dimensions {
@@ -142,6 +153,14 @@ func (w *windows) popOut(name string, sh *shell.Shell, newTheme func() *theme.Th
 						return popStatus(th, gtx, snap)
 					}),
 				)
+				layout.Flex{Axis: layout.Vertical}.Layout(gtx, kids...)
+				if layered {
+					if opts, close := chrome.update(&bar); close {
+						win.Perform(system.ActionClose)
+					} else if len(opts) > 0 {
+						win.Option(opts...)
+					}
+				}
 				// This window's own questions, over everything in it.
 				ask.Layout(th, gtx)
 				e.Frame(gtx.Ops)

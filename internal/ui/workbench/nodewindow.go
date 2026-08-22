@@ -22,6 +22,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/ui/comp"
+	"github.com/MeshBench/meshbench/internal/ui/float"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 )
 
@@ -122,6 +123,15 @@ type nodeWindowPanel struct {
 	OnServe func(node, kind string)
 	// OnOpenPacket opens the packet view for an activity row.
 	OnOpenPacket func(id uint64)
+	// Layered reports that the window is a Wayland layer-shell surface, which
+	// carries no decoration of the compositor's and so draws its own title
+	// bar. Set by the window loop from ConfigEvent.
+	Layered bool
+	// bar is that title bar, and maximised is its restore state, both owned
+	// here so the widget's address never changes across frames. The window
+	// loop polls them; the panel only draws.
+	bar       comp.TitleBar
+	maximised bool
 	// Kind is what this node is, which decides which tabs it grows.
 	Kind string
 	// hasHardware is set each frame from the node's board, so the Hardware
@@ -225,7 +235,16 @@ func (p *nodeWindowPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snap
 		p.tab = tabConsole
 	}
 	p.clicks(gtx)
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+	// The window's own chrome when nothing else gave it any: a layer-shell
+	// window has no title bar but the one drawn here.
+	var kids []layout.FlexChild
+	if p.Layered {
+		p.bar.Title, p.bar.Maximised = p.node, p.maximised
+		kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return p.bar.Layout(t, gtx)
+		}))
+	}
+	kids = append(kids,
 		layout.Rigid(p.head(t, s)),
 		layout.Rigid(layout.Spacer{Height: t.Sp.S}.Layout),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
@@ -251,6 +270,7 @@ func (p *nodeWindowPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snap
 			return p.console(t, gtx, s)
 		}),
 	)
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, kids...)
 }
 
 // head is the node's name, what it is and has done, and the tab strip.
@@ -421,22 +441,47 @@ func (w *nodeWindows) openFor(node string, newTheme func() *theme.Theme,
 			OnCLI: h.onCLI, OnServe: h.onServe, OnOpenPacket: h.onOpenPacket,
 			OnDo: h.onDo, Kind: kindOfNode(st, node)}
 		p.tab = openOnTab
+		spot := float.NextSpot()
 		win := new(app.Window)
-		win.Option(app.Title("MeshBench - "+node), app.Size(unit.Dp(820), unit.Dp(620)))
-		// Raised as it opens; see windows.go for why that is all there is.
+		// Whether it stays above the main window is the machine's preference,
+		// read once here because the ask only exists at creation.
+		win.Option(append([]app.Option{
+			app.Title("MeshBench - " + node),
+			app.Size(unit.Dp(820), unit.Dp(620)),
+		}, float.Above(spot, keepAbove(st))...)...)
+		// Raised as it opens, for the platforms where above is not or cannot
+		// be honoured. Where it was, the window is on the overlay layer and
+		// raising is meaningless anyway.
 		win.Perform(system.ActionRaise)
+		var chrome *layerChrome
 		var ops op.Ops
 		for {
 			switch e := win.Event().(type) {
+			case app.ConfigEvent:
+				if e.Config.LayerShell && chrome == nil {
+					p.Layered, chrome = true, newLayerChrome(spot)
+				}
 			case app.DestroyEvent:
 				return
 			case app.FrameEvent:
 				gtx := app.NewContext(&ops, e)
 				comp.Fill(gtx, th.P.Ground)
+				if chrome != nil {
+					chrome.frame(e)
+				}
 				layout.UniformInset(th.Sp.M).Layout(gtx,
 					func(gtx layout.Context) layout.Dimensions {
 						return p.Draw(th, gtx, st.Snapshot())
 					})
+				if chrome != nil {
+					opts, close := chrome.update(&p.bar)
+					p.maximised = chrome.maximised
+					if close {
+						win.Perform(system.ActionClose)
+					} else if len(opts) > 0 {
+						win.Option(opts...)
+					}
+				}
 				e.Frame(gtx.Ops)
 				win.Invalidate()
 			}

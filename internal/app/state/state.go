@@ -158,6 +158,10 @@ type Snapshot struct {
 	Companions []Companion
 	// RFMode is which physics decides reception: "calculated" or "waveform".
 	RFMode string
+	// KeepAbove is whether windows opened from now on stay above the main
+	// one - a Linux-only preference, because only there the ask changes what
+	// the windows are.
+	KeepAbove bool
 	// RFRealism is the optional-imperfections switch set, all zero for the
 	// kind default.
 	RFRealism RFRealism

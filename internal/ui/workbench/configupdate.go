@@ -37,6 +37,18 @@ func (p *configPanel) update(gtx layout.Context, s *state.Snapshot) {
 		p.wasReal = s.RealFirmware
 		p.realFW.Bool.Value = s.RealFirmware
 	}
+	// Linux only, and drawn only there (interfaceCards); the update pass
+	// follows the same was/now shape as the GPU switch so a preference set
+	// from the socket is not fought by a control that thinks it is off.
+	if p.keepAbove.Bool.Update(gtx) {
+		p.wasKeep = p.keepAbove.Bool.Value
+		if p.do != nil {
+			p.do("ui.keep_above", map[string]any{"on": p.keepAbove.Bool.Value})
+		}
+	} else if s.KeepAbove != p.wasKeep {
+		p.wasKeep = s.KeepAbove
+		p.keepAbove.Bool.Value = s.KeepAbove
+	}
 
 	numeric := []struct {
 		btn   *comp.Button

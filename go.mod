@@ -24,3 +24,5 @@ require (
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 )
+
+replace gioui.org => github.com/MeshBench/gio v0.10.3-0.20260822143337-78a8a004c70d
