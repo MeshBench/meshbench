@@ -9,6 +9,7 @@ import (
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
+	"gioui.org/widget"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/ui/comp"
@@ -236,21 +237,70 @@ func (p *nodeWindowPanel) buttons(t *theme.Theme, gtx layout.Context,
 	children := make([]layout.FlexChild, 0, len(parts)*2)
 	for i := range parts {
 		part := parts[i]
+		if part.Pin == scenario.PinNone {
+			// The board says it has none. Said rather than omitted: an
+			// absence somebody recorded is worth more than a gap that reads
+			// as nobody having looked. Not a control, because there is
+			// nothing to press.
+			children = append(children, layout.Rigid(
+				comp.Pill(t, t.P.Faint, part.Name+" - none on this board")))
+			children = append(children, layout.Rigid(layout.Spacer{Width: t.Sp.XS}.Layout))
+			continue
+		}
+		// Pooled by pin, because widget identity is address: rebuilding one
+		// per frame loses the press half way through.
+		btn := p.buttonFor(part.Pin)
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			label := part.Name
 			col := t.P.Dim
-			if part.Pin == scenario.PinNone {
-				// The board says it has none. Drawn struck through rather
-				// than omitted: an absence somebody recorded is worth more
-				// than a gap that reads as nobody having looked.
-				label = part.Name + " - none on this board"
-				col = t.P.Faint
+			if btn.Pressed() {
+				col = t.P.Accent
 			}
-			return comp.Pill(t, col, label)(gtx)
+			return btn.Layout(gtx, comp.Pill(t, col, part.Name))
 		}))
 		children = append(children, layout.Rigid(layout.Spacer{Width: t.Sp.XS}.Layout))
 	}
 	return layout.Flex{Alignment: layout.Middle}.Layout(gtx, children...)
+}
+
+// buttonFor is this pin's control, kept across frames.
+func (p *nodeWindowPanel) buttonFor(pin int) *widget.Clickable {
+	if p.boardButtons == nil {
+		p.boardButtons = map[int]*widget.Clickable{}
+	}
+	if b, ok := p.boardButtons[pin]; ok {
+		return b
+	}
+	b := &widget.Clickable{}
+	p.boardButtons[pin] = b
+	return b
+}
+
+// boardPresses turns what the pointer did into holds and releases.
+//
+// Held rather than clicked, because the firmware behind these pins cares: a
+// press wakes a sleeping display and a long one powers the board off, and a
+// control that only ever produced a tap could reach neither.
+func (p *nodeWindowPanel) boardPresses(gtx layout.Context, s *state.Snapshot) {
+	panel := p.boardPanel(s)
+	if panel == nil || p.OnDo == nil {
+		return
+	}
+	for _, part := range panel.PartsOfKind(scenario.Button) {
+		if part.Pin == scenario.PinNone {
+			continue
+		}
+		btn := p.buttonFor(part.Pin)
+		down := btn.Pressed()
+		if down == p.buttonDown[part.Pin] {
+			continue
+		}
+		if p.buttonDown == nil {
+			p.buttonDown = map[int]bool{}
+		}
+		p.buttonDown[part.Pin] = down
+		p.OnDo("board.press", map[string]any{
+			"node": p.node, "pin": part.Pin, "down": down})
+	}
 }
 
 // hardwareFacts is the same things as a column of readable values.

@@ -84,6 +84,13 @@ type EmulatedNode struct {
 	PanelCS, PanelDC     int
 	PanelWidth, PanelHgt int
 
+	// Buttons is where presses leave from, and the pins they may move. Empty
+	// leaves the board's buttons where their pull-ups put them, which is
+	// nobody pressing them.
+	ButtonPath string
+	ButtonPins []int
+	Buttons    *ButtonSender
+
 	// Panel is where this node's pictures arrive, when something is listening.
 	// Held here so a caller with the node has the screen too, rather than
 	// having to keep the two in step itself.
@@ -281,6 +288,14 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	if e.PSRAMOctal {
 		machine += ",psram-octal=on"
 	}
+	if e.ButtonPath != "" && len(e.ButtonPins) > 0 {
+		pins := make([]string, len(e.ButtonPins))
+		for i, p := range e.ButtonPins {
+			pins[i] = strconv.Itoa(p)
+		}
+		machine += fmt.Sprintf(",input-path=%s,input-pins=%s",
+			e.ButtonPath, strings.Join(pins, ","))
+	}
 	// The display, on the same terms as the radio: only when the board has
 	// one and only when something is listening.
 	if e.PanelPath != "" {
@@ -391,4 +406,17 @@ func (e *EmulatedNode) Screen() (width, height, bpp int, on bool, bits []byte, h
 		return 0, 0, 0, false, nil, false
 	}
 	return f.Width, f.Height, f.BPP, f.On, f.Bits, true
+}
+
+// PressButton holds one of this board's buttons down or lets it go.
+func (e *EmulatedNode) PressButton(pin int, down bool) error {
+	if e.Buttons == nil {
+		return ErrNoButtons()
+	}
+	return e.Buttons.Press(pin, down)
+}
+
+// ButtonHeld reports whether a pin is being held.
+func (e *EmulatedNode) ButtonHeld(pin int) bool {
+	return e.Buttons != nil && e.Buttons.Held(pin)
 }
