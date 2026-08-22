@@ -5,6 +5,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/mesh/firmware"
@@ -250,6 +251,13 @@ type meterReading struct {
 func batteryMeter(board scenario.Board) (meterReading, bool) {
 	p := board.Hardware
 	if p == nil {
+		return meterReading{}, false
+	}
+	// The pin to channel mapping below is the ESP32-S3's. Every board that
+	// declares a meter is one today, and a board that is not would be given
+	// somebody else's channel in silence - so it is refused rather than
+	// guessed at, and whoever adds the first non-S3 meter finds out here.
+	if !strings.EqualFold(board.MCU, "ESP32-S3") {
 		return meterReading{}, false
 	}
 	for _, part := range p.PartsOfKind(scenario.Meter) {
