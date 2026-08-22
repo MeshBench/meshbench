@@ -60,28 +60,36 @@ type Palette struct {
 	// the theme's ground - the map picks MapInk over a dark layer and
 	// MapInkDark over a light one.
 	MapInk, MapInkDark, MapPlate color.NRGBA
+	// ScreenGround and ScreenLit are a board's own display, and are the same
+	// in both modes for the same reason MapInk is: a panel is a physical
+	// object, not a surface of this interface. An OLED reads as light on
+	// black whichever way the workbench is set, and painting it in theme
+	// colours would draw something the board cannot do.
+	ScreenGround, ScreenLit color.NRGBA
 }
 
 // dark is the primary palette. Neutrals carry a slight blue-green bias rather
 // than being pure grey, so the interface reads as chosen rather than defaulted,
 // and so the teal accent sits in the same family as its surroundings.
 var dark = Palette{
-	Ground:     rgb(0x0d, 0x11, 0x13),
-	Panel:      rgb(0x14, 0x1a, 0x1d),
-	Sunk:       rgb(0x0a, 0x0e, 0x10),
-	Ink:        rgb(0xe4, 0xea, 0xe8),
-	Dim:        rgb(0x93, 0xa1, 0x9e),
-	Faint:      rgb(0x68, 0x76, 0x74),
-	Rule:       rgb(0x23, 0x2c, 0x2f),
-	Accent:     rgb(0x4a, 0xc4, 0xa8),
-	AccentInk:  rgb(0x06, 0x0d, 0x0c),
-	Good:       rgb(0x7f, 0xc9, 0x7f),
-	Warn:       rgb(0xe0, 0xa8, 0x5c),
-	Bad:        rgb(0xe0, 0x7a, 0x6a),
-	Selected:   rgb(0x1d, 0x2c, 0x2c),
-	MapInk:     rgb(0xf2, 0xf5, 0xff),
-	MapInkDark: rgb(0x22, 0x28, 0x2c),
-	MapPlate:   color.NRGBA{R: 0x0d, G: 0x0f, B: 0x14, A: 0xb3},
+	Ground:       rgb(0x0d, 0x11, 0x13),
+	Panel:        rgb(0x14, 0x1a, 0x1d),
+	Sunk:         rgb(0x0a, 0x0e, 0x10),
+	Ink:          rgb(0xe4, 0xea, 0xe8),
+	Dim:          rgb(0x93, 0xa1, 0x9e),
+	Faint:        rgb(0x68, 0x76, 0x74),
+	Rule:         rgb(0x23, 0x2c, 0x2f),
+	Accent:       rgb(0x4a, 0xc4, 0xa8),
+	AccentInk:    rgb(0x06, 0x0d, 0x0c),
+	Good:         rgb(0x7f, 0xc9, 0x7f),
+	Warn:         rgb(0xe0, 0xa8, 0x5c),
+	Bad:          rgb(0xe0, 0x7a, 0x6a),
+	Selected:     rgb(0x1d, 0x2c, 0x2c),
+	ScreenGround: rgb(0x08, 0x0c, 0x0e),
+	ScreenLit:    rgb(0x7f, 0xd8, 0xee),
+	MapInk:       rgb(0xf2, 0xf5, 0xff),
+	MapInkDark:   rgb(0x22, 0x28, 0x2c),
+	MapPlate:     color.NRGBA{R: 0x0d, G: 0x0f, B: 0x14, A: 0xb3},
 }
 
 // light is a real design rather than an inversion: the accent darkens so it
@@ -101,9 +109,11 @@ var light = Palette{
 	Bad:       rgb(0x9c, 0x3b, 0x2c),
 	Selected:  rgb(0xdd, 0xeb, 0xe6),
 	// The same as dark's, on purpose: see the field comment.
-	MapInk:     rgb(0xf2, 0xf5, 0xff),
-	MapInkDark: rgb(0x22, 0x28, 0x2c),
-	MapPlate:   color.NRGBA{R: 0x0d, G: 0x0f, B: 0x14, A: 0xb3},
+	ScreenGround: rgb(0x08, 0x0c, 0x0e),
+	ScreenLit:    rgb(0x7f, 0xd8, 0xee),
+	MapInk:       rgb(0xf2, 0xf5, 0xff),
+	MapInkDark:   rgb(0x22, 0x28, 0x2c),
+	MapPlate:     color.NRGBA{R: 0x0d, G: 0x0f, B: 0x14, A: 0xb3},
 }
 
 // NodeKind colours the six node kinds. Chosen to stay distinguishable under

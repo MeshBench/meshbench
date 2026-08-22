@@ -16,6 +16,12 @@ var heltecE213Board = Board{
 		Machine: "esp32s3", SPI: 3, NSS: 8, Busy: 13, DIO1: 14, LED: 45,
 		PSRAMMB: 8, PSRAMOctal: true,
 	},
+	Hardware: &Panel{
+		Parts: []Part{
+			{Kind: Lamp, Name: "TX", Pin: 45},
+			{Kind: Button, Name: "PRG", Pin: 0, ActiveLow: true},
+		},
+	},
 	Notes: "The smaller e-paper board of the pair, wired identically to the E290 " +
 		"and published as its own image. The figures here are the E290's; nothing " +
 		"about the panel changes what leaves the antenna.",

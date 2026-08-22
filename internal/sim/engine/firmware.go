@@ -435,7 +435,7 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 		return nil, err
 	}
 
-	return &firmware.EmulatedNode{
+	node := &firmware.EmulatedNode{
 		Emulator:   firmware.QEMU,
 		Image:      padded,
 		Machine:    board.QEMU.Machine,
@@ -448,5 +448,26 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 		DIO1:       board.QEMU.DIO1,
 		NodeName:   spec.Name,
 		Dir:        dir,
-	}, nil
+	}
+
+	// The display, from the same declaration the machine's wiring comes from.
+	// Only where the board says it has one and only where the controller is
+	// one we model: a board whose screen we cannot draw shows nothing, which
+	// is what it does today and is honest about it.
+	if p := board.Hardware; p != nil && p.Screen != nil && p.Screen.Bus == scenario.BusI2C {
+		ln, err := firmware.ListenPanel(filepath.Join(dir, "panel.sock"))
+		if err != nil {
+			return nil, fmt.Errorf("engine: listening for %s's display: %w", spec.Name, err)
+		}
+		node.Panel = ln
+		node.PanelPath = ln.Path()
+		node.PanelAddr = p.Screen.Addr
+		// An SH1106 is an SSD1306 whose columns start two to the right. Not a
+		// detail: the whole picture slides sideways without it, which reads as
+		// a driver fault rather than a wrong constant.
+		if p.Screen.Controller == "SH1106" {
+			node.PanelOffset = 2
+		}
+	}
+	return node, nil
 }

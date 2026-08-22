@@ -27,6 +27,12 @@ var genericE22Sx1262Board = Board{
 	// The loss is an RF switch's isolation and is a plausible figure rather
 	// than a measured one - see Notes.
 	FEM: &FEM{TxGainDB: 0, TxLossDB: 25},
+	// No screen at all, which the tab says rather than drawing an empty one.
+	Hardware: &Panel{
+		Parts: []Part{
+			{Kind: Lamp, Name: "TX", Pin: 2},
+		},
+	},
 	Notes: "An E22 module on a devkit rather than a product, so the antenna figure " +
 		"assumes the external whip the module is designed for. The published " +
 		"repeater image boots and runs RadioLib's full SX126x init sequence under " +

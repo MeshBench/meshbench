@@ -17,6 +17,14 @@ var heltecWirelessPaperBoard = Board{
 	QEMU: &QEMUWiring{
 		Machine: "esp32s3", SPI: 3, NSS: 8, Busy: 13, DIO1: 14, LED: 18,
 	},
+	// E-paper, which wants a refresh model rather than a framebuffer, so no
+	// screen is declared yet.
+	Hardware: &Panel{
+		Parts: []Part{
+			{Kind: Lamp, Name: "TX", Pin: 18},
+			{Kind: Button, Name: "PRG", Pin: 0, ActiveLow: true},
+		},
+	},
 	Notes: "An e-paper display, which is why the sleep figure is worse than the " +
 		"V3's it otherwise matches: the panel's driver keeps its rails up. The " +
 		"small cell makes it a poor repeater and a reasonable sensor. Radio " +

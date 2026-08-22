@@ -17,6 +17,12 @@ var rak3112Board = Board{
 	QEMU: &QEMUWiring{
 		Machine: "esp32s3", SPI: 3, NSS: 7, Busy: 48, DIO1: 47, LED: 46,
 	},
+	Hardware: &Panel{
+		Parts: []Part{
+			{Kind: Lamp, Name: "TX", Pin: 46},
+			{Kind: Button, Name: "user", Pin: PinNone},
+		},
+	},
 	Notes: "RAK's ESP32-S3 module on a WisBlock base, with an IPEX connector, so " +
 		"the antenna figure is for whatever is plugged in rather than anything the " +
 		"board provides. Better built for being left alone than the Heltec boards " +

@@ -72,6 +72,16 @@ type Board struct {
 	// radio drives the antenna directly.
 	FEM *FEM
 
+	// Hardware is what this board shows and what somebody can press on it -
+	// its screen, its lamps, its buttons. Nil where nobody has established
+	// it, which is not the same as a board that carries nothing: that one
+	// declares an empty panel and says so.
+	//
+	// Here rather than in the interface because none of it is a fact about
+	// the interface. A lamp's pin is a property of the board, and the
+	// emulator reads the same declaration to know which output to watch.
+	Hardware *Panel
+
 	// Notes carries anything an engineer would want to know before trusting a
 	// figure here.
 	Notes string

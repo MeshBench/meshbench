@@ -16,6 +16,14 @@ var heltecWirelessTrackerBoard = Board{
 	QEMU: &QEMUWiring{
 		Machine: "esp32s3", SPI: 3, NSS: 8, Busy: 13, DIO1: 14, LED: 18,
 	},
+	// A colour panel on SPI rather than an OLED on I2C, so the screen is
+	// declared once the shared-bus work lands; the lamp and button are here.
+	Hardware: &Panel{
+		Parts: []Part{
+			{Kind: Lamp, Name: "TX", Pin: 18},
+			{Kind: Button, Name: "PRG", Pin: 0, ActiveLow: true},
+		},
+	},
 	Notes: "A GPS and a small colour display on the V3's radio wiring, which is " +
 		"where the sleep figure goes: the receiver dominates it and this board is " +
 		"not built to be left alone. A tracker rather than a repeater, and worth " +

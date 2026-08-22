@@ -15,6 +15,12 @@ var heltecTrackerV2Board = Board{
 	QEMU: &QEMUWiring{
 		Machine: "esp32s3", SPI: 3, NSS: 8, Busy: 13, DIO1: 14, LED: 18,
 	},
+	Hardware: &Panel{
+		Parts: []Part{
+			{Kind: Lamp, Name: "TX", Pin: 18},
+			{Kind: Button, Name: "PRG", Pin: 0, ActiveLow: true},
+		},
+	},
 	Notes: "The tracker with an amplifier: the firmware asks the chip for 9 dBm " +
 		"and a KCT8103L takes it to about 22 at the antenna. No transmit-enable " +
 		"GPIO is declared for it because the variant configures none - the module " +

@@ -18,6 +18,16 @@ var ebyteEoRaS3Board = Board{
 		Machine: "esp32s3", SPI: 3, NSS: 7, Busy: 34, DIO1: 33, LED: 37,
 		PSRAMMB: 8,
 	},
+	Hardware: &Panel{
+		Screen: &Screen{
+			Controller: "SSD1306", Bus: BusI2C, Addr: 0x3C,
+			WidthPx: 128, HeightPx: 64, Ink: Mono,
+		},
+		Parts: []Part{
+			{Kind: Lamp, Name: "TX", Pin: 37},
+			{Kind: Button, Name: "BOOT", Pin: 0, ActiveLow: true},
+		},
+	},
 	Notes: "Wired identically to the LilyGo T3S3 and published as its own image. " +
 		"Ebyte also sell modules with an integrated amplifier under names close to " +
 		"this one; those are a different board and these figures do not describe " +

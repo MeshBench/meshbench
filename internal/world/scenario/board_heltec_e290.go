@@ -18,6 +18,12 @@ var heltecE290Board = Board{
 		Machine: "esp32s3", SPI: 3, NSS: 8, Busy: 13, DIO1: 14, LED: 45,
 		PSRAMMB: 8, PSRAMOctal: true,
 	},
+	Hardware: &Panel{
+		Parts: []Part{
+			{Kind: Lamp, Name: "TX", Pin: 45},
+			{Kind: Button, Name: "PRG", Pin: 0, ActiveLow: true},
+		},
+	},
 	Notes: "A 2.9 inch e-paper panel on the V3's radio wiring. The display costs " +
 		"almost nothing between refreshes, which is what makes this family worth " +
 		"simulating as a sensor rather than a repeater.",

@@ -1,0 +1,78 @@
+package scenario
+
+import "testing"
+
+// Every declared panel has to make sense on its own.
+//
+// There is no per-board rendering code to review - one renderer draws whatever
+// a board declared - so this is the review. A panel that cannot be drawn, or
+// that quietly claims a pin the radio is already using, is caught against the
+// board that introduced it rather than on the day somebody opens that node.
+func TestEveryPanelIsDeclaredProperly(t *testing.T) {
+	declared := 0
+	for _, b := range Boards() {
+		if b.Hardware == nil {
+			continue
+		}
+		declared++
+		if err := b.Hardware.Validate(b.radioPins()); err != nil {
+			t.Errorf("%s: %v", b.Name, err)
+		}
+	}
+	if declared == 0 {
+		t.Fatal("no board declares a panel, so this test is checking nothing")
+	}
+	t.Logf("%d boards declare a panel", declared)
+}
+
+// A screen has to say enough about itself to be driven.
+func TestAScreenMustSayHowItIsReached(t *testing.T) {
+	cases := []struct {
+		what string
+		p    Panel
+	}{
+		{"no controller", Panel{Screen: &Screen{Bus: BusI2C, Addr: 0x3C, WidthPx: 128, HeightPx: 64}}},
+		{"no size", Panel{Screen: &Screen{Controller: "SSD1306", Bus: BusI2C, Addr: 0x3C}}},
+		{"I2C with no address", Panel{Screen: &Screen{Controller: "SSD1306", Bus: BusI2C, WidthPx: 128, HeightPx: 64}}},
+		{"SPI with no command pin", Panel{Screen: &Screen{Controller: "ST7789", Bus: BusSPI, CS: 12, WidthPx: 320, HeightPx: 240}}},
+	}
+	for _, c := range cases {
+		if err := c.p.Validate(nil); err == nil {
+			t.Errorf("a screen with %s was accepted", c.what)
+		}
+	}
+}
+
+// Two things on one pin is the worst kind of mistake to debug: the board still
+// boots and the radio still reports a chip.
+func TestAPartCannotTakeAPinTheRadioHas(t *testing.T) {
+	p := Panel{Parts: []Part{{Kind: Lamp, Name: "TX", Pin: 8}}}
+	if err := p.Validate(map[int]string{8: "chip select"}); err == nil {
+		t.Error("a lamp on the radio's chip select was accepted")
+	}
+	dup := Panel{Parts: []Part{
+		{Kind: Lamp, Name: "TX", Pin: 35},
+		{Kind: Button, Name: "PRG", Pin: 35},
+	}}
+	if err := dup.Validate(nil); err == nil {
+		t.Error("two parts on one pin were accepted")
+	}
+}
+
+// A board that declares no button is saying something, and it must survive
+// being declared: PinNone is a fact, not a gap.
+func TestNoButtonIsAValidDeclaration(t *testing.T) {
+	p := Panel{Parts: []Part{
+		{Kind: Lamp, Name: "status", Pin: 21},
+		{Kind: Button, Name: "user", Pin: PinNone},
+	}}
+	if err := p.Validate(nil); err != nil {
+		t.Errorf("a board with no button was refused: %v", err)
+	}
+	if !p.HasAnything() {
+		t.Error("a board with a lamp has something to draw")
+	}
+	if got := len(p.PartsOfKind(Button)); got != 1 {
+		t.Errorf("the absent button is still declared, got %d", got)
+	}
+}
