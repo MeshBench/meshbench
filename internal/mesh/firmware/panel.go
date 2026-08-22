@@ -21,14 +21,20 @@ type PanelFrame struct {
 	// switched off, and MeshCore switches it off after an idle. Drawing those
 	// the same way would report a sleeping board as a broken one.
 	On bool
-	// Bits is one bit a pixel, in the controller's page order: byte n holds
-	// eight vertical pixels of column n%Width in page n/Width.
+	// BPP is one for a monochrome panel and sixteen for a colour one, and
+	// decides how Bits is read. Carried rather than inferred from the size,
+	// because a wrong guess draws something the firmware did not send.
+	BPP int
+	// Bits is the picture as the controller holds it. At one bit a pixel that
+	// is the page order - byte n holds eight vertical pixels of column
+	// n%Width in page n/Width. At sixteen it is RGB565, two bytes a pixel,
+	// left to right and top to bottom.
 	Bits []byte
 }
 
-// Lit reports whether a pixel is on.
+// Lit reports whether a pixel is on, which only a monochrome panel can answer.
 func (f *PanelFrame) Lit(x, y int) bool {
-	if f == nil || x < 0 || y < 0 || x >= f.Width || y >= f.Height {
+	if f == nil || f.BPP != 1 || x < 0 || y < 0 || x >= f.Width || y >= f.Height {
 		return false
 	}
 	i := (y/8)*f.Width + x
@@ -42,7 +48,7 @@ func (f *PanelFrame) Lit(x, y int) bool {
 // assumed: this socket is a private contract between two of our own processes,
 // and the failure it protects against is not an attacker but a version skew
 // that would otherwise draw garbage and look like a firmware bug.
-var panelMagic = [4]byte{'M', 'B', 'F', '1'}
+var panelMagic = [4]byte{'M', 'B', 'F', '2'}
 
 // PanelListener accepts frames from one node's display.
 //
@@ -117,7 +123,7 @@ func (p *PanelListener) accept() {
 
 func (p *PanelListener) read(conn net.Conn) {
 	defer func() { _ = conn.Close() }()
-	var hdr [8]byte
+	var hdr [10]byte
 	for {
 		if _, err := io.ReadFull(conn, hdr[:]); err != nil {
 			return
@@ -126,16 +132,30 @@ func (p *PanelListener) read(conn net.Conn) {
 			hdr[2] != panelMagic[2] || hdr[3] != panelMagic[3] {
 			return
 		}
-		w, h := int(hdr[4]), int(hdr[5])
-		if w <= 0 || h <= 0 || h%8 != 0 {
+		w := int(hdr[4]) | int(hdr[5])<<8
+		h := int(hdr[6]) | int(hdr[7])<<8
+		bpp := int(hdr[8])
+		if w <= 0 || h <= 0 || w > 4096 || h > 4096 {
 			return
 		}
-		bits := make([]byte, w*h/8)
+		var n int
+		switch bpp {
+		case 1:
+			if h%8 != 0 {
+				return
+			}
+			n = w * h / 8
+		case 16:
+			n = w * h * 2
+		default:
+			return
+		}
+		bits := make([]byte, n)
 		if _, err := io.ReadFull(conn, bits); err != nil {
 			return
 		}
 		p.mu.Lock()
-		p.frame = &PanelFrame{Width: w, Height: h, On: hdr[7] != 0, Bits: bits}
+		p.frame = &PanelFrame{Width: w, Height: h, BPP: bpp, On: hdr[9] != 0, Bits: bits}
 		p.seq++
 		p.mu.Unlock()
 	}

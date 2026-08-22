@@ -52,7 +52,7 @@ func TestTheBoardDrawsItsScreen(t *testing.T) {
 		t.Fatal("the board never came up")
 	}
 	screen, ok := under.Firmware.Backend.(interface {
-		Screen() (int, int, bool, []byte, bool)
+		Screen() (int, int, int, bool, []byte, bool)
 	})
 	if !ok {
 		t.Fatal("this backend has no display to read")
@@ -66,7 +66,7 @@ func TestTheBoardDrawsItsScreen(t *testing.T) {
 	deadline := time.Now().Add(6 * time.Minute)
 	for time.Now().Before(deadline) {
 		settle(ctx, e, 5_000)
-		w, h, _, b, have := screen.Screen()
+		w, h, _, _, b, have := screen.Screen()
 		if !have {
 			continue
 		}

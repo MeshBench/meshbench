@@ -30,4 +30,5 @@ var boards = []Board{
 	heltecE290Board,
 	heltecE213Board,
 	rak3112Board,
+	lilygoTDeckBoard,
 }

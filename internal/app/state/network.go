@@ -111,13 +111,17 @@ type Screen struct {
 	// after an idle, so a blank picture with On false is a sleeping board and
 	// a blank one with On true is a board that cleared its screen. Drawing
 	// them the same way reports the first as broken.
-	On   bool
+	On bool
+	// BPP is one for a monochrome panel and sixteen for a colour one. Carried
+	// rather than inferred from the size: a wrong guess draws something the
+	// firmware did not send.
+	BPP  int
 	Bits []byte
 }
 
-// Lit reports whether a pixel is on.
+// Lit reports whether a pixel is on, which only a monochrome panel can answer.
 func (s *Screen) Lit(x, y int) bool {
-	if s == nil || x < 0 || y < 0 || x >= s.Width || y >= s.Height {
+	if s == nil || s.BPP != 1 || x < 0 || y < 0 || x >= s.Width || y >= s.Height {
 		return false
 	}
 	i := (y/8)*s.Width + x
@@ -125,6 +129,22 @@ func (s *Screen) Lit(x, y int) bool {
 		return false
 	}
 	return s.Bits[i]&(1<<(y%8)) != 0
+}
+
+// At is the colour of a pixel on a colour panel, as RGB565.
+func (s *Screen) At(x, y int) (r, g, b uint8, ok bool) {
+	if s == nil || s.BPP != 16 || x < 0 || y < 0 || x >= s.Width || y >= s.Height {
+		return 0, 0, 0, false
+	}
+	i := (y*s.Width + x) * 2
+	if i+1 >= len(s.Bits) {
+		return 0, 0, 0, false
+	}
+	v := uint16(s.Bits[i])<<8 | uint16(s.Bits[i+1])
+	// Widened rather than shifted: 5 bits scaled to 8 by repeating the top
+	// bits, so full red reads as 0xFF and not 0xF8.
+	r5, g6, b5 := uint8(v>>11)&0x1F, uint8(v>>5)&0x3F, uint8(v)&0x1F
+	return r5<<3 | r5>>2, g6<<2 | g6>>4, b5<<3 | b5>>2, true
 }
 
 // NodeSeries is one node's recent history, for its graphs.

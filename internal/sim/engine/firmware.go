@@ -454,7 +454,8 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 	// Only where the board says it has one and only where the controller is
 	// one we model: a board whose screen we cannot draw shows nothing, which
 	// is what it does today and is honest about it.
-	if p := board.Hardware; p != nil && p.Screen != nil && p.Screen.Bus == scenario.BusI2C {
+	if p := board.Hardware; p != nil && p.Screen != nil &&
+		(p.Screen.Bus == scenario.BusI2C || p.Screen.Bus == scenario.BusSPI) {
 		ln, err := firmware.ListenPanel(filepath.Join(dir, "panel.sock"))
 		if err != nil {
 			return nil, fmt.Errorf("engine: listening for %s's display: %w", spec.Name, err)
@@ -467,6 +468,12 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 		// a driver fault rather than a wrong constant.
 		if p.Screen.Controller == "SH1106" {
 			node.PanelOffset = 2
+		}
+		// A colour panel goes on the radio's controller instead, and needs
+		// its own select and the command/data line to be told apart from it.
+		if p.Screen.Bus == scenario.BusSPI {
+			node.PanelCS, node.PanelDC = p.Screen.CS, p.Screen.DC
+			node.PanelWidth, node.PanelHgt = p.Screen.WidthPx, p.Screen.HeightPx
 		}
 	}
 	return node, nil

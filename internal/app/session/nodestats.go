@@ -145,10 +145,11 @@ func (s *Sim) nodeStats(events []state.Event) []state.NodeStat {
 			// nil - which of the two it is comes from the board's declaration,
 			// not from here.
 			if scr, ok := n.Firmware.Backend.(interface {
-				Screen() (int, int, bool, []byte, bool)
+				Screen() (int, int, int, bool, []byte, bool)
 			}); ok {
-				if w, h, on, bits, have := scr.Screen(); have {
-					st.Screen = &state.Screen{Width: w, Height: h, On: on, Bits: bits}
+				if w, h, bpp, on, bits, have := scr.Screen(); have {
+					st.Screen = &state.Screen{
+						Width: w, Height: h, BPP: bpp, On: on, Bits: bits}
 				}
 			}
 			st.Radio = state.RadioState{
