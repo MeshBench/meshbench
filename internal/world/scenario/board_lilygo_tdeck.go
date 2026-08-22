@@ -18,6 +18,7 @@ var lilygoTDeckBoard = Board{
 	QEMU: &QEMUWiring{
 		Machine: "esp32s3", SPI: 3, NSS: 9, Busy: 13, DIO1: 45,
 		PSRAMMB: 8, PSRAMOctal: true,
+		Verified: true,
 	},
 	// A colour panel on the radio's own bus, with the keyboard and the touch
 	// layer on I2C beside it. The keyboard is not a matrix: it is a second
@@ -26,9 +27,15 @@ var lilygoTDeckBoard = Board{
 	// than by pins.
 	//
 	// The trackball's four lines come from LilyGo's own header for this board
-	// rather than from MeshCore, whose variant declares only the click. Their
-	// order is theirs too: their example reads the four in turn and moves a
-	// pointer right, up, left, down, which is what fixes which pin is which.
+	// rather than from MeshCore, whose variant declares only the click.
+	//
+	// Which pin is which way took working out, because two frames disagree.
+	// The lines are named in the panel's portrait frame - up is 15, down 3,
+	// left 2, right 1 - while the screen is drawn in landscape, and the
+	// firmware turns one into the other by negating both axes. So a pulse on
+	// the line called "up" moves the cursor down the picture, and the order
+	// below is the picture's, because that is the one somebody pressing an
+	// arrow on a drawn board is looking at.
 	Hardware: &Panel{
 		Screen: &Screen{
 			Controller: "ST7789", Bus: BusSPI, CS: 12, DC: 11,
@@ -36,7 +43,10 @@ var lilygoTDeckBoard = Board{
 		},
 		Parts: []Part{
 			{Kind: Keys, Name: "keyboard", Bus: BusI2C, Addr: 0x55},
-			{Kind: Touch, Name: "GT911", Bus: BusI2C, Addr: 0x5D},
+			// Mounted a quarter turn: the firmware reads screen x out of the
+			// panel's y and screen y backwards from the panel's x, so a tap
+			// is turned the other way before it is sent.
+			{Kind: Touch, Name: "GT911", Bus: BusI2C, Addr: 0x5D, Rotate: 90},
 			{Kind: Ball, Name: "trackball", Pins: []int{3, 15, 1, 2}},
 			// On the second serial port at 38400, which is what the variant
 			// opens. The pins are the board's; what decides where the
