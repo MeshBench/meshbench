@@ -89,7 +89,7 @@ func auditTargets(r *recorder) []target {
 	nv := &nodeViewPanel{}
 	// The build list is an overlay: its buttons do not exist until a firmware
 	// cell has been clicked, and auditing them shut only proves they are shut.
-	nv.pickFor = "Abernethy Repeater"
+	nv.pick.open("Abernethy Repeater")
 	nv.OnAction = func(a string, n string) { r.do(a, n) }
 	nv.OnFirmware = func(n, v string) { r.do("node.set_firmware", v) }
 	nw := &nodeWindowPanel{node: "Abernethy Repeater"}
@@ -130,32 +130,11 @@ func auditTargets(r *recorder) []target {
 	targets := []target{
 		{"Nodes running", nv, nv.Draw, nil,
 			// Choosing a build closes the list, so it is reopened before each.
-			func() { nv.pickFor = "Abernethy Repeater" }, nil, buildSkips()},
+			func() { nv.pick.open("Abernethy Repeater") }, nil, buildSkips()},
 		{"Node window", nw, nw.auditDraw, snapWithConsole,
 			// The tab row is above everything, so a pointer moving down the
 			// panel leaves the console before it reaches the send button.
-			func() { nw.tab = 0 }, nil, map[string]string{
-				// The companion tab belongs to a companion, and this node is a
-				// repeater. Its controls are audited on their own below.
-				"comp.msg": "companion only", "comp.scope": "companion only",
-				"comp.cmd": "companion only", "comp.sendMsg": "companion only",
-				"comp.applyScope": "companion only", "comp.advertBtn": "companion only",
-				"comp.refreshBtn": "companion only", "comp.runCmd": "companion only",
-				"comp.connectBtn": "companion only", "comp.release": "companion only",
-				"comp.serveBtn": "companion only", "comp.stopServeBtn": "companion only",
-				"comp.dropBtn": "companion only", "comp.tcpChip": "companion only",
-				"comp.newChan": "companion only", "comp.addChan": "companion only",
-				"comp.ptyChip": "companion only",
-				"comp.setName": "companion only", "comp.setFreq": "companion only",
-				"comp.setBW": "companion only", "comp.setSF": "companion only",
-				"comp.setCR": "companion only", "comp.setTx": "companion only",
-				"comp.applyRadio": "companion only",
-				// The node is running, so the head offers stop and not start.
-				"start": "drawn only when the node is stopped",
-				// Nothing is served in the audit snapshot, so the SDR pane
-				// offers serve and not stop.
-				"sdrStop": "drawn only while an observer is being served",
-			}},
+			func() { nw.tab = 0 }, nil, nodeWindowSkips()},
 		{"Node window: companion", &nw.comp, nw.comp.auditDraw, nil, nil, nil, nil},
 		{"Compare", cmpP, cmpP.Draw, nil, nil, nil, nil},
 		{"Planning (view)", planP, planP.Draw, nil, nil, nil, nil},
@@ -208,6 +187,55 @@ func auditSnapshot() *state.Snapshot {
 	}
 }
 
+// nodeWindowSkips is what the node window is not expected to answer.
+//
+// It carries the build list's own skips, because the window grows the same
+// control the Nodes running panel does and a list you have to scroll is not a
+// list that is broken.
+func nodeWindowSkips() map[string]string {
+	skip := map[string]string{
+		// The companion tab belongs to a companion, and this node is a
+		// repeater. Its controls are audited on their own below.
+		"comp.msg": "companion only", "comp.scope": "companion only",
+		"comp.cmd": "companion only", "comp.sendMsg": "companion only",
+		"comp.applyScope": "companion only", "comp.advertBtn": "companion only",
+		"comp.refreshBtn": "companion only", "comp.runCmd": "companion only",
+		"comp.connectBtn": "companion only", "comp.release": "companion only",
+		"comp.serveBtn": "companion only", "comp.stopServeBtn": "companion only",
+		"comp.dropBtn": "companion only", "comp.tcpChip": "companion only",
+		"comp.newChan": "companion only", "comp.addChan": "companion only",
+		"comp.ptyChip": "companion only",
+		"comp.setName": "companion only", "comp.setFreq": "companion only",
+		"comp.setBW": "companion only", "comp.setSF": "companion only",
+		"comp.setCR": "companion only", "comp.setTx": "companion only",
+		"comp.applyRadio": "companion only",
+		// The node is running, so the head offers stop and not start.
+		"start": "drawn only when the node is stopped",
+		// Nothing is served in the audit snapshot, so the SDR pane
+		// offers serve and not stop.
+		"sdrStop": "drawn only while an observer is being served",
+		// The build list, which this window draws over everything rather than
+		// inside its flex - so the audit's flat layout, which has no overlay,
+		// never lays it out at all.
+		//
+		// Both claims below are held by tests that use the real draw path
+		// instead: TestTheSettingsTabOpensTheBuildList moves a pointer down
+		// the Settings pane until something opens the list, and
+		// TestTheNodeWindowChangesOneNodesFirmware then clicks over the
+		// overlay itself and checks which verb it reached. That is stronger
+		// evidence than the flat layout could give, not weaker: it is the
+		// route somebody actually takes.
+		"changeFw":    "opens the build list rather than reaching a verb",
+		"pick.cancel": "drawn in the overlay, which the flat audit layout has not got",
+		"pick.filter": "drawn in the overlay, which the flat audit layout has not got",
+	}
+	for i := range installedBuilds() {
+		skip[fmt.Sprintf("pick.btns[%d]", i)] =
+			"drawn in the overlay, which the flat audit layout has not got"
+	}
+	return skip
+}
+
 // buildSkips names what the sweep is not expected to land on in the build list.
 //
 // Only the first few builds fit in the overlay, and a list you have to scroll
@@ -220,10 +248,10 @@ func buildSkips() map[string]string {
 	skip := map[string]string{
 		// Cancel closes the list. That is the whole of its job, so it reaches
 		// no verb by design.
-		"closePick": "closes the list rather than reaching a verb",
+		"pick.cancel": "closes the list rather than reaching a verb",
 	}
 	for i := 11; i <= len(installedBuilds()); i++ {
-		skip[fmt.Sprintf("buildBtns[%d]", i)] = "below the fold; reached by filtering"
+		skip[fmt.Sprintf("pick.btns[%d]", i)] = "below the fold; reached by filtering"
 	}
 	return skip
 }

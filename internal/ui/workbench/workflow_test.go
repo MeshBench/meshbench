@@ -88,17 +88,17 @@ func TestWorkflowChangeOneNodesFirmware(t *testing.T) {
 		}
 		x += float32(wpx)
 	}
-	for y := float32(40); y < 260 && p.pickFor == ""; y += 6 {
+	for y := float32(40); y < 260 && p.pick.node == ""; y += 6 {
 		h.click(f32.Pt(x+40, y))
 		h.frame()
 	}
 
-	if p.pickFor == "" {
+	if p.pick.node == "" {
 		t.Fatal("clicking the firmware cell opened nothing: there is no way " +
 			"to change one node's firmware by pointing at it")
 	}
-	w.step(fmt.Sprintf("a list of builds opens for %q", p.pickFor))
-	t.Logf("builds available to the picker: %d (%v)", len(p.builds), firstFew(p.builds))
+	w.step(fmt.Sprintf("a list of builds opens for %q", p.pick.node))
+	t.Logf("builds available to the picker: %d (%v)", len(p.pick.builds), firstFew(p.pick.builds))
 
 	// 2. Click the build you want.
 	w.step("click the build to use")

@@ -47,8 +47,13 @@ func (p *nodeWindowPanel) settings(t *theme.Theme, gtx layout.Context, s *state.
 				})
 		}
 	}
+	// What it is running, and what pressing the button will do to it. Said
+	// before the press rather than discovered after: node.set_firmware stops
+	// the node, provisions it again and starts it, and a control that quietly
+	// restarts a node mid-run is one somebody will press during a
+	// measurement.
 	fw := orDash(node.Firmware)
-	fwNote := "change the build from the Nodes running panel"
+	fwNote := "changing it stops this node, provisions it again and starts it"
 	if st != nil && st.Backend != "" {
 		fwNote = st.Backend + " - " + fwNote
 	}
@@ -93,9 +98,18 @@ func (p *nodeWindowPanel) settings(t *theme.Theme, gtx layout.Context, s *state.
 		},
 		head("firmware"),
 		func(gtx layout.Context) layout.Dimensions {
+			p.changeFw.Label, p.changeFw.Kind = "change the build...", comp.Secondary
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 				layout.Rigid(comp.Mono(t, t.Sz.Body, t.P.Ink, fw)),
 				layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint, fwNote)),
+				layout.Rigid(layout.Spacer{Height: t.Sp.XS}.Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{}.Layout(gtx,
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return p.changeFw.Layout(t, gtx)
+						}),
+					)
+				}),
 			)
 		},
 	}
