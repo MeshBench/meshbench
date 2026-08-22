@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -461,8 +462,18 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 				pins = append(pins, part.Pin)
 			}
 		}
-		// A keyboard and a touch panel travel the same channel, so the
-		// channel exists if the board has any of the three.
+		// A trackball's directions are buttons as far as the machine is
+		// concerned - four lines the guest reads, moved from outside. It is
+		// the firmware that decides an edge on one of them means a step.
+		for _, part := range p.PartsOfKind(scenario.Ball) {
+			for _, pin := range part.Pins {
+				if pin != scenario.PinNone {
+					pins = append(pins, pin)
+				}
+			}
+		}
+		// A keyboard, a touch panel and the cell's own divider travel the same
+		// channel, so the channel exists if the board has any of them.
 		var kbd, touch uint8
 		for _, part := range p.PartsOfKind(scenario.Keys) {
 			kbd = part.Addr
@@ -470,7 +481,8 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 		for _, part := range p.PartsOfKind(scenario.Touch) {
 			touch = part.Addr
 		}
-		if len(pins) > 0 || kbd != 0 || touch != 0 {
+		meter, hasMeter := batteryMeter(board)
+		if len(pins) > 0 || kbd != 0 || touch != 0 || hasMeter {
 			bs, err := firmware.ListenButtons(filepath.Join(dir, "buttons.sock"))
 			if err != nil {
 				return nil, fmt.Errorf("engine: listening for %s's inputs: %w", spec.Name, err)
@@ -479,7 +491,39 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 			node.ButtonPath = bs.Path()
 			node.ButtonPins = pins
 			node.KbdAddr, node.TouchAddr = kbd, touch
+			if hasMeter {
+				node.BatChannel, node.BatRaw = meter.channel, meter.raw
+			}
 		}
+	}
+
+	// The card slot, where the board has one. The file is the node's, beside
+	// its sockets and its logs, and survives the run.
+	if p := board.Hardware; p != nil {
+		for _, part := range p.PartsOfKind(scenario.Card) {
+			if part.Pin == scenario.PinNone {
+				continue
+			}
+			card := filepath.Join(dir, "card.img")
+			if err := firmware.MakeCard(card); err != nil {
+				return nil, fmt.Errorf("engine: %s's card: %w", spec.Name, err)
+			}
+			node.CardPath, node.CardCS = card, part.Pin
+			break
+		}
+	}
+
+	// The receiver, where the board has one. Fed from the node's own position
+	// rather than from a log, so there is one place the node is and both the
+	// channel and the handheld read it.
+	if p := board.Hardware; p != nil && len(p.PartsOfKind(scenario.GPS)) > 0 {
+		g, err := firmware.ListenGPS(filepath.Join(dir, "gps.sock"),
+			spec.Position.Lat, spec.Position.Lon, spec.HeightAGLm, gpsEpoch)
+		if err != nil {
+			return nil, fmt.Errorf("engine: listening for %s's receiver: %w", spec.Name, err)
+		}
+		node.GPS = g
+		node.GPSPath = g.Path()
 	}
 
 	// The display, from the same declaration the machine's wiring comes from.
@@ -509,4 +553,58 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 		}
 	}
 	return node, nil
+}
+
+// gpsEpoch is the date and time the first sentence carries.
+//
+// Fixed rather than the wall clock, because determinism is a feature here: the
+// same scenario run twice has to put out the same bytes, and a receiver
+// stamping the real time would make every capture differ from every other. The
+// date is arbitrary; that it never moves is not.
+var gpsEpoch = time.Date(2024, 6, 1, 12, 0, 0, 0, time.UTC)
+
+// meterReading is a converter channel and what it should read.
+type meterReading struct {
+	channel int
+	raw     uint16
+}
+
+// batteryMeter is what the board's cell puts on its converter, at a full
+// charge.
+//
+// The number the firmware sees rather than a voltage, because the arithmetic
+// between the two is the board's - its divider against the converter's range -
+// and it is declared beside the pin for that reason. A board that declares no
+// meter gets no reading, which leaves the channel at nothing: honest about a
+// cell nobody has measured, and still enough that the converter answers rather
+// than leaving a firmware waiting for it.
+func batteryMeter(board scenario.Board) (meterReading, bool) {
+	p := board.Hardware
+	if p == nil {
+		return meterReading{}, false
+	}
+	for _, part := range p.PartsOfKind(scenario.Meter) {
+		if part.Pin == scenario.PinNone || part.FullScaleMV <= 0 {
+			continue
+		}
+		ch, ok := adc1Channel(part.Pin)
+		if !ok {
+			continue
+		}
+		raw := board.Battery.VoltageAt(1) * 1000 * 4096 / float64(part.FullScaleMV)
+		return meterReading{channel: ch, raw: uint16(math.Max(0, math.Min(4095, raw)))}, true
+	}
+	return meterReading{}, false
+}
+
+// adc1Channel is which of the first converter's channels a pin is, on the
+// ESP32-S3: its ten inputs are GPIO 1 to GPIO 10, in order. A pin outside that
+// is on the second converter or on none, and neither is modelled - so it is
+// reported as no channel rather than as channel zero, which would put a
+// reading on somebody else's pin.
+func adc1Channel(pin int) (int, bool) {
+	if pin < 1 || pin > 10 {
+		return 0, false
+	}
+	return pin - 1, true
 }

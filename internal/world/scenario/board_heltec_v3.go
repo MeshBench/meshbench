@@ -28,6 +28,10 @@ var heltecV3Board = Board{
 		Parts: []Part{
 			{Kind: Lamp, Name: "TX", Pin: 35},
 			{Kind: Button, Name: "PRG", Pin: 0, ActiveLow: true},
+			// Heltec's own arithmetic: the reading is scaled by 5.42
+			// against a 3.3 V range, so a cell at the top of it is 17.9 V -
+			// a divider sized for a pack this board will never carry.
+			{Kind: Meter, Name: "battery", Pin: 1, FullScaleMV: 17886},
 		},
 	},
 	Notes: "Very common and not a good repeater: the stock spring antenna is well " +

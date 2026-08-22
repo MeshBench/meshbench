@@ -24,6 +24,9 @@ var xiaoS3Board = Board{
 		Parts: []Part{
 			{Kind: Lamp, Name: "status", Pin: 21},
 			{Kind: Button, Name: "user", Pin: PinNone},
+			// A halving divider read against the converter's 3.3 V
+			// range, so full scale is 6.6 V.
+			{Kind: Meter, Name: "battery", Pin: 1, FullScaleMV: 6600},
 		},
 	},
 	Notes: "The Xiao S3 with a LoRa expansion rather than the WIO's integrated " +

@@ -42,6 +42,10 @@ const (
 	buttonTag = 'B'
 	keyTag    = 'K'
 	touchTag  = 'T'
+	// analogTag carries a converter channel and what it reads, for the parts
+	// of a board the simulation drives rather than a person: on these boards,
+	// the divider its cell is measured through.
+	analogTag = 'A'
 )
 
 // ListenButtons starts accepting the emulator's connection at path.
@@ -101,6 +105,11 @@ func (b *ButtonSender) Touch(x, y int, down bool) error {
 	}
 	return b.send([msgLen]byte{touchTag,
 		byte(x), byte(x >> 8), byte(y), byte(y >> 8), d})
+}
+
+// Analog is what one of the board's converter channels reads from now on.
+func (b *ButtonSender) Analog(channel int, raw uint16) error {
+	return b.send([msgLen]byte{analogTag, byte(channel), byte(raw), byte(raw >> 8)})
 }
 
 // send puts one message to every device listening, and reports whether any

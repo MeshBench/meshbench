@@ -25,10 +25,10 @@ var lilygoTDeckBoard = Board{
 	// character last pressed, which is why it is declared by address rather
 	// than by pins.
 	//
-	// The trackball's four direction lines are still absent. MeshCore's own
-	// variant declares only its click, so nothing here has established which
-	// pins they are, and a part declared on a guess would look like a part
-	// that is broken.
+	// The trackball's four lines come from LilyGo's own header for this board
+	// rather than from MeshCore, whose variant declares only the click. Their
+	// order is theirs too: their example reads the four in turn and moves a
+	// pointer right, up, left, down, which is what fixes which pin is which.
 	Hardware: &Panel{
 		Screen: &Screen{
 			Controller: "ST7789", Bus: BusSPI, CS: 12, DC: 11,
@@ -37,7 +37,20 @@ var lilygoTDeckBoard = Board{
 		Parts: []Part{
 			{Kind: Keys, Name: "keyboard", Bus: BusI2C, Addr: 0x55},
 			{Kind: Touch, Name: "GT911", Bus: BusI2C, Addr: 0x5D},
+			{Kind: Ball, Name: "trackball", Pins: []int{3, 15, 1, 2}},
+			// On the second serial port at 38400, which is what the variant
+			// opens. The pins are the board's; what decides where the
+			// sentences arrive is the port, not them.
+			{Kind: GPS, Name: "receiver", Pins: []int{43, 44}},
+			// A third device on the radio's bus. MeshCore's variant names no
+			// card pins at all, so this select is LilyGo's own figure rather
+			// than the firmware's - which is the point of having it: there is
+			// nothing to develop card handling against until the slot exists.
+			{Kind: Card, Name: "card slot", Pin: 39},
 			{Kind: Button, Name: "trackball click", Pin: 0, ActiveLow: true},
+			// The divider is halving, so the top of the converter's range is
+			// twice its own: 2 x 3.3 V, which is what MeshCore multiplies by.
+			{Kind: Meter, Name: "battery", Pin: 4, FullScaleMV: 6600},
 		},
 	},
 	Notes: "A handheld rather than a repeater: a colour touchscreen, a keyboard " +

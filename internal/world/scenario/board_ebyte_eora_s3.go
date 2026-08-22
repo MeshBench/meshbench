@@ -26,6 +26,9 @@ var ebyteEoRaS3Board = Board{
 		Parts: []Part{
 			{Kind: Lamp, Name: "TX", Pin: 37},
 			{Kind: Button, Name: "BOOT", Pin: 0, ActiveLow: true},
+			// A halving divider read against the converter's 3.3 V
+			// range, so full scale is 6.6 V.
+			{Kind: Meter, Name: "battery", Pin: 1, FullScaleMV: 6600},
 		},
 	},
 	Notes: "Wired identically to the LilyGo T3S3 and published as its own image. " +
