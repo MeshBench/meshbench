@@ -12,17 +12,9 @@ import (
 	"sort"
 	"time"
 
+	"github.com/MeshBench/meshbench/internal/app/control"
 	"github.com/MeshBench/meshbench/internal/app/version"
 )
-
-// Protocol is the wire version, bumped only when a change breaks a client that
-// was written against the previous number.
-//
-// Adding a verb does not break anybody, and neither does adding a field to a
-// result: a client reads the fields it knows. What breaks somebody is a verb
-// changing what it means, a field changing type, or the framing changing - and
-// those are the only things that move this.
-const Protocol = 1
 
 // Hello is the answer: enough for a client to decide whether to carry on.
 type Hello struct {
@@ -60,7 +52,7 @@ var Mode = "workbench"
 // hello answers session.hello.
 func hello(verbs []string, socket string) Hello {
 	return Hello{
-		Protocol:  Protocol,
+		Protocol:  control.Protocol,
 		Version:   version.Detail(),
 		Mode:      Mode,
 		Socket:    socket,

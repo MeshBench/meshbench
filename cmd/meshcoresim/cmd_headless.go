@@ -73,11 +73,6 @@ func runHeadless(ctx context.Context, args []string) error {
 	}
 	fmt.Fprintln(os.Stderr, "meshbench", version.Detail(), "headless")
 
-	if *seed != 0 {
-		if _, err := st.Do(ctx, "sim.seed", map[string]any{"seed": float64(*seed)}); err != nil {
-			return err
-		}
-	}
 	if *fixture != "" {
 		// Inline, not on a worker. The workbench defers this because a
 		// national fixture takes a moment and an application that has not
@@ -86,6 +81,18 @@ func runHeadless(ctx context.Context, args []string) error {
 		// is loaded would find an empty one.
 		if _, err := st.Do(ctx, "project.open", *fixture); err != nil {
 			return fmt.Errorf("loading %s: %w", *fixture, err)
+		}
+	}
+	// After the network, because setting a seed rebuilds the scenario against
+	// it and there has to be a scenario to rebuild. The other order refused
+	// with "no network loaded", which is true and unhelpful when the fixture
+	// is right there on the same command line.
+	if *seed != 0 {
+		if *fixture == "" {
+			return fmt.Errorf("-seed %d needs a network to seed: give -fixture too", *seed)
+		}
+		if _, err := st.Do(ctx, "sim.seed", map[string]any{"seed": float64(*seed)}); err != nil {
+			return err
 		}
 	}
 	if *play {

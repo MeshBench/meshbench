@@ -67,7 +67,14 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 		// Also on demand, because a paused simulation still costs memory and
 		// somebody looking at the node view has usually just paused it.
 		w.Stats = s.nodeStats(w.Events)
-		return map[string]any{"nodes": len(w.Stats)}, nil
+		// And the rows, not only how many there are.
+		//
+		// It answered with a count and put the rows in the snapshot, where
+		// only a panel could reach them - so from outside the window there
+		// was no way to ask whether a node was running, which is the first
+		// thing any script wants to know and the thing every wait is built
+		// on. The count stays for whoever is already reading it.
+		return map[string]any{"nodes": len(w.Stats), "stats": statRows(w.Stats)}, nil
 	})
 
 	st.Handle("node.stop", func(w *state.World, p any) (any, error) {

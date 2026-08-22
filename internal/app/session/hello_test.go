@@ -50,8 +50,8 @@ func TestHelloSaysWhatItIs(t *testing.T) {
 	if err := json.Unmarshal(raw, &h); err != nil {
 		t.Fatal(err)
 	}
-	if h.Protocol != Protocol {
-		t.Errorf("protocol %d, want %d", h.Protocol, Protocol)
+	if h.Protocol != control.Protocol {
+		t.Errorf("protocol %d, want %d", h.Protocol, control.Protocol)
 	}
 	if h.Version == "" {
 		t.Error("no version, so a client cannot say what it disagreed with")
