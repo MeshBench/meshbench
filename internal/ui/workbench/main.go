@@ -83,6 +83,11 @@ func Run(args []string) {
 	unwatchedFlag := flag.Bool("unverified-wiring", false,
 		"run boards whose emulation wiring nobody has watched boot yet")
 	quitFlag := flag.Duration("quit-after", 0, "exit after this long; 0 runs until closed")
+	socketFlag := flag.String("control-socket", "",
+		"where the control socket answers: a path for a unix socket, or "+
+			"\"tcp\" for loopback with a token (the default on Windows, which "+
+			"has no unix socket a Python client can reach). "+
+			"MESHBENCH_CONTROL_SOCKET does the same, and two workbenches need two")
 	versionFlag := flag.Bool("version", false, "print the version and exit")
 	_ = flag.CommandLine.Parse(args)
 	if *versionFlag {
@@ -171,7 +176,7 @@ func Run(args []string) {
 
 	// The control socket, before any window: a script that drives the
 	// workbench should not have to wait for a frame.
-	if srv, err := session.ServeControl(ctx, st); err != nil {
+	if srv, err := session.ServeControlAt(ctx, st, *socketFlag); err != nil {
 		fmt.Fprintln(os.Stderr, "control socket:", err)
 	} else {
 		defer func() { _ = srv.Close() }()

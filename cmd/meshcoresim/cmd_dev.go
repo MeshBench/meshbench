@@ -1,18 +1,16 @@
 package main
 
 import (
-	"bufio"
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/MeshBench/meshbench/internal/app/control"
 	"github.com/MeshBench/meshbench/internal/mesh/firmware"
 )
 
@@ -235,35 +233,18 @@ func gitRef(dir string) string {
 }
 
 // tell sends one verb to a running workbench.
+//
+// Through the control client rather than by opening a socket here. This built
+// the path by hand - XDG_RUNTIME_DIR or /run/user/<uid> - which is a Linux
+// sentence, and os.Getuid() does not fail on Windows so much as return -1. One
+// resolver, in the package that owns the address, is the only way the two
+// cannot disagree about where a workbench is.
 func tell(method string, params map[string]any) error {
-	sock := filepath.Join(runtimeDir(), "meshcoresim.sock")
-	c, err := net.DialTimeout("unix", sock, 2*time.Second)
+	c, err := control.Dial()
 	if err != nil {
 		return err
 	}
 	defer func() { _ = c.Close() }()
-	body, _ := json.Marshal(map[string]any{"id": 1, "method": method, "params": params})
-	if _, err := c.Write(append(body, '\n')); err != nil {
-		return err
-	}
-	_ = c.SetReadDeadline(time.Now().Add(30 * time.Second))
-	line, err := bufio.NewReader(c).ReadString('\n')
-	if err != nil {
-		return err
-	}
-	var reply struct {
-		Error string `json:"error"`
-	}
-	_ = json.Unmarshal([]byte(line), &reply)
-	if reply.Error != "" {
-		return fmt.Errorf("%s", reply.Error)
-	}
-	return nil
-}
-
-func runtimeDir() string {
-	if d := os.Getenv("XDG_RUNTIME_DIR"); d != "" {
-		return d
-	}
-	return fmt.Sprintf("/run/user/%d", os.Getuid())
+	_, err = c.Call(method, params)
+	return err
 }

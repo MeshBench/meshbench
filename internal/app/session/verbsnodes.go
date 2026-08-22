@@ -13,7 +13,7 @@ import (
 func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 	st.Handle("firmware.start", func(w *state.World, _ any) (any, error) {
 		if s.eng == nil {
-			return nil, fmt.Errorf("no network Loaded")
+			return nil, fmt.Errorf("no network loaded: %w", ErrNoSimulation)
 		}
 		w.Say("starting firmware on every node")
 		s.startFirmware(st, w.Seed)

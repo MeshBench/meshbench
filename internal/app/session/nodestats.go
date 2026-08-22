@@ -194,11 +194,11 @@ func (s *Sim) nodeStats(events []state.Event) []state.NodeStat {
 // are usually the only evidence about a node that was misbehaving.
 func (s *Sim) stopNode(name string) error {
 	if s.eng == nil {
-		return fmt.Errorf("no simulation")
+		return ErrNoSimulation
 	}
 	n, ok := s.eng.NodeByName(name)
 	if !ok {
-		return fmt.Errorf("no node named %q", name)
+		return fmt.Errorf("no node named %q: %w", name, ErrNoSuchNode)
 	}
 	if n.Firmware == nil {
 		return fmt.Errorf("%s is not running firmware", name)
@@ -211,11 +211,11 @@ func (s *Sim) stopNode(name string) error {
 // startNode brings one node's firmware up again.
 func (s *Sim) startNode(ctx context.Context, name string, seed uint64) error {
 	if s.eng == nil {
-		return fmt.Errorf("no simulation")
+		return ErrNoSimulation
 	}
 	n, ok := s.eng.NodeByName(name)
 	if !ok {
-		return fmt.Errorf("no node named %q", name)
+		return fmt.Errorf("no node named %q: %w", name, ErrNoSuchNode)
 	}
 	if n.Firmware != nil {
 		return fmt.Errorf("%s is already running", name)
@@ -300,7 +300,7 @@ func (s *Sim) setFirmware(name string, b Build) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("no node named %q", name)
+	return fmt.Errorf("no node named %q: %w", name, ErrNoSuchNode)
 }
 
 // history is a bounded ring of samples per node, for the graphs.

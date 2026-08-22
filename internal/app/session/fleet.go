@@ -207,7 +207,7 @@ func registerFleet(st *state.Store, s *Sim) {
 			}
 		}
 		if len(kept) == len(s.nodes) {
-			return nil, fmt.Errorf("no node named %q", name)
+			return nil, fmt.Errorf("no node named %q: %w", name, ErrNoSuchNode)
 		}
 		s.buildSeeded(kept, s.freqMHz, s.seed)
 		out := w.Nodes[:0]

@@ -80,7 +80,7 @@ func (s *Sim) SetUI(u UI) { s.ui = u }
 
 func (s *Sim) needUI() error {
 	if s.ui == nil {
-		return fmt.Errorf("this session has no interface attached, so there is nothing to show")
+		return fmt.Errorf("this session has no interface attached, so there is nothing to show: %w", ErrNoInterface)
 	}
 	return nil
 }
@@ -131,7 +131,7 @@ func registerNodeWindow(st *state.Store, s *Sim) {
 			name, _ = m["node"].(string)
 		}
 		if _, found := findNode(w.Nodes, name); !found {
-			return nil, fmt.Errorf("no node named %q", name)
+			return nil, fmt.Errorf("no node named %q: %w", name, ErrNoSuchNode)
 		}
 		s.ui.OpenNodeWindow(name)
 		return map[string]any{"node": name}, nil
@@ -152,7 +152,7 @@ func registerMapCamera(st *state.Store, s *Sim) {
 		if name := soleString(p); name != "" {
 			n, found := findNode(w.Nodes, name)
 			if !found {
-				return nil, fmt.Errorf("no node named %q", name)
+				return nil, fmt.Errorf("no node named %q: %w", name, ErrNoSuchNode)
 			}
 			lat, lon = n.Lat, n.Lon
 		} else {
@@ -163,7 +163,7 @@ func registerMapCamera(st *state.Store, s *Sim) {
 				if name, ok := m["node"].(string); ok && name != "" {
 					n, found := findNode(w.Nodes, name)
 					if !found {
-						return nil, fmt.Errorf("no node named %q", name)
+						return nil, fmt.Errorf("no node named %q: %w", name, ErrNoSuchNode)
 					}
 					lat, lon = n.Lat, n.Lon
 				}

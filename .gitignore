@@ -14,6 +14,21 @@
 *.sigmf-data
 *.cf32
 
+# Python build artifacts, from the client under clients/python and from
+# anything that imports it. Reproducible from the source beside them, and here
+# rather than beside the client because a test run leaves them in the working
+# tree and the next `git add -A` on any branch picks them up - which is exactly
+# how eleven of them got committed once.
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+/clients/python/build/
+/clients/python/dist/
+/.venv/
+/venv/
+
 /.idea/
 /.vscode/
 *.swp
