@@ -41,7 +41,7 @@ func registerBudgetVerbs(st *state.Store, s *Sim) {
 			}
 		}
 		if at < 0 {
-			return nil, fmt.Errorf("no node named %q: %w", name, ErrNoSuchNode)
+			return nil, noSuchNode(name)
 		}
 		duty := 0.0
 		for _, v := range w.Scores {
