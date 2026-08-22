@@ -23,10 +23,8 @@ Nothing here reaches the network and nothing is uploaded. If MeshBench is not
 running the hand-over is skipped and the build still succeeds, because a build
 should not fail because a simulator is closed.
 """
-import json
 import os
 import re
-import socket
 
 Import("env")  # noqa: F821  - provided by SCons, this is a PlatformIO script
 
@@ -59,23 +57,24 @@ def hand_over(path, board, role, version):
     copying the file here as well would be a second opinion about a layout that
     is not ours.
     """
-    sock = os.path.join(
-        os.environ.get("XDG_RUNTIME_DIR", "/run/user/%d" % os.getuid()),
-        "meshcoresim.sock")
-    if not os.path.exists(sock):
+    # Through the client rather than by opening a socket here. This built the
+    # path by hand - XDG_RUNTIME_DIR or /run/user/<uid> - which is a Linux
+    # sentence, and os.getuid() does not exist on Windows at all: a firmware
+    # developer building there hit an AttributeError before anything could
+    # even fail to connect.
+    try:
+        from meshbench import Workbench
+    except ImportError:
+        # Not installed is a perfectly ordinary state for somebody who only
+        # wanted to build firmware. pip install meshbench turns this on.
         return False
     try:
-        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        s.settimeout(5)
-        s.connect(sock)
-        req = {"id": 1, "method": "firmware.import",
-               "params": {"path": path, "board": board, "role": role,
-                          "version": version}}
-        s.sendall((json.dumps(req) + "\n").encode())
-        s.recv(4096)
-        s.close()
+        with Workbench.attach() as wb:
+            wb.call("firmware.import", {
+                "path": path, "board": board, "role": role,
+                "version": version})
         return True
-    except OSError:
+    except Exception:  # noqa: BLE001 - a build must not fail over this
         return False
 
 
