@@ -258,7 +258,7 @@ func stateNodes(nodes []scenario.Node) []state.Node {
 			Lat: n.Position.Lat, Lon: n.Position.Lon,
 			HeightM: n.HeightAGLm, TxDBm: n.TxPowerDBm,
 			Regions: n.Regions, DefaultScope: n.DefaultScope,
-			Firmware: n.Firmware.Version,
+			Firmware: n.Firmware.Version, Board: n.Firmware.Board,
 			Selected: i == 0,
 		})
 	}

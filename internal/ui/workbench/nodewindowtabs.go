@@ -47,7 +47,13 @@ func (p *nodeWindowPanel) settings(t *theme.Theme, gtx layout.Context, s *state.
 				})
 		}
 	}
+	// The build and the hardware it is for, together. A version on its own
+	// says nothing about which board it runs on, and that is exactly the pair
+	// somebody comes to this section to check.
 	fw := orDash(node.Firmware)
+	if node.Board != "" {
+		fw += "  on " + node.Board
+	}
 	fwNote := "change the build from the Nodes running panel"
 	if st != nil && st.Backend != "" {
 		fwNote = st.Backend + " - " + fwNote

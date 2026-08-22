@@ -27,6 +27,7 @@ func Register(st *state.Store, s *Sim) {
 	registerConsole(st, s)
 	registerLogs(st, s)
 	registerRunKind(st, s)
+	registerUnverifiedWiring(st, s)
 	registerNodeWindow(st, s)
 	registerFirmwareLibrary(st, s)
 	registerFleet(st, s)

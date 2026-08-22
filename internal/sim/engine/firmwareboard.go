@@ -5,6 +5,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/mesh/firmware"
@@ -32,7 +33,14 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 		return nil, err
 	}
 	if !allowUnverified && !scenario.EmulationSupported(board.Name) {
-		return nil, fmt.Errorf("%s has no verified emulation wiring", board.Name)
+		// Named with the way out of it. The gate is a curation claim - has
+		// anybody watched this board's own image boot - and an operator who
+		// wants to be the one doing the watching had no way to say so from
+		// the refusal alone.
+		return nil, fmt.Errorf("%s has no verified emulation wiring: nobody has "+
+			"watched its own image boot here yet. Run the board probe for it "+
+			"from the Bench view, or switch on unwatched wiring to run it "+
+			"anyway and be the one who finds out", board.Name)
 	}
 	if board.QEMU == nil && board.Renode == nil {
 		return nil, fmt.Errorf("%s names no emulator", board.Name)
@@ -243,6 +251,13 @@ type meterReading struct {
 func batteryMeter(board scenario.Board) (meterReading, bool) {
 	p := board.Hardware
 	if p == nil {
+		return meterReading{}, false
+	}
+	// The pin to channel mapping below is the ESP32-S3's. Every board that
+	// declares a meter is one today, and a board that is not would be given
+	// somebody else's channel in silence - so it is refused rather than
+	// guessed at, and whoever adds the first non-S3 meter finds out here.
+	if !strings.EqualFold(board.MCU, "ESP32-S3") {
 		return meterReading{}, false
 	}
 	for _, part := range p.PartsOfKind(scenario.Meter) {

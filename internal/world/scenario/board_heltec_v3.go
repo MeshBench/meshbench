@@ -16,6 +16,7 @@ var heltecV3Board = Board{
 	// ESP32. No PSRAM on this board, so nothing to declare.
 	QEMU: &QEMUWiring{
 		Machine: "esp32s3", SPI: 3, NSS: 8, Busy: 13, DIO1: 14,
+		Verified: true,
 	},
 	// A 128x64 OLED on the bus the firmware brings up, a transmit lamp, and
 	// the program button - the pin whose stuck-low reading used to power this

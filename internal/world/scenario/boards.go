@@ -291,6 +291,31 @@ var EmulationVerified = []string{
 	// that: build, boot, radio, tx, rx, flood.
 	"Xiao_nrf52",
 	"Heltec_mesh_solar",
+
+	// The ESP32 side, added when the board probe agreed about all of them.
+	//
+	// The bar is what the six above cleared: the published image builds,
+	// boots, brings its radio up, transmits unprompted and hears a neighbour.
+	// It is deliberately not the flood column, which fails for most of this
+	// list including boards that were on it from the start - that row is
+	// measuring the repeater's own forwarding policy against a stimulus it
+	// half-duplexes through, and it has never been the question of whether
+	// the wiring is right.
+	//
+	// The T-Deck was the last of them and failed reception until the day the
+	// converter, the analog bus and the front end were answered; it passes
+	// now, which is what put it here rather than a wish to run wadamesh on
+	// something.
+	"Heltec_v3",
+	"heltec_v4",
+	"Heltec_WSL3",
+	"Heltec_Wireless_Tracker",
+	"LilyGo_T3S3_sx1262",
+	"LilyGo_TDeck",
+	"Ebyte_EoRa-S3",
+	"Xiao_S3",
+	"Xiao_S3_WIO",
+	"RAK_3112",
 }
 
 // EmulationSupported reports whether a board can be run under emulation today.

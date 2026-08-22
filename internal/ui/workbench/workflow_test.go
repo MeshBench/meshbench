@@ -54,8 +54,8 @@ func TestWorkflowChangeOneNodesFirmware(t *testing.T) {
 	w := &walk{}
 	p := &nodeViewPanel{}
 	var did []string
-	p.OnFirmware = func(node, version string) {
-		did = append(did, node+" -> "+version)
+	p.OnFirmware = func(node string, b buildChoice) {
+		did = append(did, node+" -> "+b.Version)
 	}
 	snap := &state.Snapshot{
 		Stats: []state.NodeStat{
@@ -98,7 +98,11 @@ func TestWorkflowChangeOneNodesFirmware(t *testing.T) {
 			"to change one node's firmware by pointing at it")
 	}
 	w.step(fmt.Sprintf("a list of builds opens for %q", p.pickFor))
-	t.Logf("builds available to the picker: %d (%v)", len(p.builds), firstFew(p.builds))
+	labels := make([]string, len(p.builds))
+	for i, b := range p.builds {
+		labels[i] = b.Label
+	}
+	t.Logf("builds available to the picker: %d (%v)", len(p.builds), firstFew(labels))
 
 	// 2. Click the build you want.
 	w.step("click the build to use")
