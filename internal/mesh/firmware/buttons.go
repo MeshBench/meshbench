@@ -7,18 +7,22 @@ import (
 	"sync"
 )
 
-// ButtonSender presses a board's buttons.
+// ButtonSender works a board's inputs: its buttons, its keyboard, its touch
+// panel.
 //
-// The other half of the panel: a board's lamps are outputs to watch and its
-// buttons are inputs to drive, and the interface that draws one should be able
-// to work the other.
+// The other half of the panel. A board's lamps are outputs to watch and these
+// are inputs to drive, and the interface that draws one should be able to work
+// the other.
 //
 // It listens and the emulator connects, as the display does, because the
 // emulator is started by us and dies with us - the side that outlives the
-// other should own the address.
+// other should own the address. More than one device connects: the buttons,
+// the keyboard and the touch panel are separate peripherals inside the
+// machine, so every message goes to all of them and each keeps the ones
+// tagged for it.
 type ButtonSender struct {
-	mu   sync.Mutex
-	conn net.Conn
+	mu    sync.Mutex
+	conns []net.Conn
 	// held is what each pin was last driven to, so a caller can ask what is
 	// pressed without the guest being the only record of it.
 	held map[int]bool
@@ -28,10 +32,17 @@ type ButtonSender struct {
 	done chan struct{}
 }
 
-// buttonMsg is a tag, the pin, the level, and a byte of padding. The pin
-// rather than an index into anything, so neither end has to keep a list in
-// step with the other.
-const buttonTag = 'B'
+// Every message is eight bytes: a tag and seven of payload. Fixed width
+// because several devices read this socket and each has to skip what is not
+// its own without knowing how long it was.
+const (
+	msgLen = 8
+	// buttonTag carries a pin and a level. The pin rather than an index into
+	// anything, so neither end has to keep a list in step with the other.
+	buttonTag = 'B'
+	keyTag    = 'K'
+	touchTag  = 'T'
+)
 
 // ListenButtons starts accepting the emulator's connection at path.
 func ListenButtons(path string) (*ButtonSender, error) {
@@ -57,20 +68,63 @@ func (b *ButtonSender) Path() string { return b.path }
 // the translation in one place is what stops a board being drawn permanently
 // pressed because somebody inverted it twice.
 func (b *ButtonSender) Press(pin int, down bool) error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if b.conn == nil {
-		return errNoButtons
-	}
 	level := byte(1)
 	if down {
 		level = 0
 	}
-	if _, err := b.conn.Write([]byte{buttonTag, byte(pin), level, 0}); err != nil {
-		b.conn = nil
+	if err := b.send([msgLen]byte{buttonTag, byte(pin), level}); err != nil {
 		return err
 	}
+	b.mu.Lock()
 	b.held[pin] = down
+	b.mu.Unlock()
+	return nil
+}
+
+// Key types one character at the board's keyboard.
+//
+// A character rather than a scan code, because that is what this keyboard
+// sends: on these boards it is a second microcontroller that has already
+// decided what was pressed.
+func (b *ButtonSender) Key(ch byte) error {
+	if ch == 0 {
+		return nil
+	}
+	return b.send([msgLen]byte{keyTag, ch})
+}
+
+// Touch reports where the panel is being touched, or that it is not.
+func (b *ButtonSender) Touch(x, y int, down bool) error {
+	var d byte
+	if down {
+		d = 1
+	}
+	return b.send([msgLen]byte{touchTag,
+		byte(x), byte(x >> 8), byte(y), byte(y >> 8), d})
+}
+
+// send puts one message to every device listening, and reports whether any
+// heard it.
+func (b *ButtonSender) send(msg [msgLen]byte) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if len(b.conns) == 0 {
+		return errNoButtons
+	}
+	live := b.conns[:0]
+	sent := false
+	for _, c := range b.conns {
+		if _, err := c.Write(msg[:]); err != nil {
+			_ = c.Close()
+			continue
+		}
+		live = append(live, c)
+		sent = true
+	}
+	b.conns = live
+	if !sent {
+		return errNoButtons
+	}
 	return nil
 }
 
@@ -86,7 +140,7 @@ func (b *ButtonSender) Held(pin int) bool {
 func (b *ButtonSender) Ready() bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return b.conn != nil
+	return len(b.conns) > 0
 }
 
 // Close stops listening and removes the socket.
@@ -108,10 +162,7 @@ func (b *ButtonSender) accept() {
 			return
 		}
 		b.mu.Lock()
-		if b.conn != nil {
-			_ = b.conn.Close()
-		}
-		b.conn = conn
+		b.conns = append(b.conns, conn)
 		// A board that restarts comes up with its buttons released, whatever
 		// they were before, so the record starts again with it.
 		b.held = map[int]bool{}
@@ -124,7 +175,7 @@ var errNoButtons = errNoButtonsError{}
 type errNoButtonsError struct{}
 
 func (errNoButtonsError) Error() string {
-	return "firmware: this board is not running, so its buttons cannot be pressed"
+	return "firmware: this board is not running, so nothing on it can be worked"
 }
 
 // ErrNoButtons is that error, for callers that want to tell it apart from a

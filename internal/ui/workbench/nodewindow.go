@@ -134,6 +134,11 @@ type nodeWindowPanel struct {
 	// once, rather than every frame the pointer is down.
 	boardButtons map[int]*widget.Clickable
 	buttonDown   map[int]bool
+	// screenTouch is what pointer events on the drawn panel are addressed to,
+	// and screenScale is what they have to be divided by to become the
+	// panel's own coordinates.
+	screenTouch struct{}
+	screenScale int
 }
 
 // visibleTabs is the tab set this node gets.
@@ -214,6 +219,7 @@ func (p *nodeWindowPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snap
 	p.hasHardware = p.boardPanel(s).HasAnything()
 	if p.tab == tabHardware {
 		p.boardPresses(gtx, s)
+		p.boardTouches(gtx, s)
 	}
 	if !p.hasHardware && p.tab == tabHardware {
 		p.tab = tabConsole

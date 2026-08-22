@@ -122,6 +122,56 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 		return map[string]any{"node": name, "pin": pin, "down": down}, nil
 	})
 
+	// board.key: type one character at the board's own keyboard.
+	st.Handle("board.key", func(w *state.World, p any) (any, error) {
+		m, _ := p.(map[string]any)
+		name, _ := m["node"].(string)
+		text, _ := m["text"].(string)
+		if name == "" || text == "" {
+			return nil, fmt.Errorf("board.key needs a node and some text")
+		}
+		n, found := s.liveEngine().NodeByName(name)
+		if !found || n.Firmware == nil {
+			return nil, fmt.Errorf("%s is not running", name)
+		}
+		typer, ok := n.Firmware.Backend.(interface{ TypeKey(byte) error })
+		if !ok {
+			return nil, fmt.Errorf("%s is not a board with a keyboard", name)
+		}
+		// One character at a time, because that is what the keyboard sends:
+		// it answers with the last key pressed and the firmware polls it.
+		for i := 0; i < len(text); i++ {
+			if err := typer.TypeKey(text[i]); err != nil {
+				return nil, err
+			}
+		}
+		return map[string]any{"node": name, "typed": len(text)}, nil
+	})
+
+	// board.touch: put a finger on the panel, or take it off.
+	st.Handle("board.touch", func(w *state.World, p any) (any, error) {
+		m, _ := p.(map[string]any)
+		name, _ := m["node"].(string)
+		xf, okX := numField(p, "x")
+		yf, okY := numField(p, "y")
+		down, _ := m["down"].(bool)
+		if name == "" || !okX || !okY {
+			return nil, fmt.Errorf("board.touch needs a node and a point")
+		}
+		n, found := s.liveEngine().NodeByName(name)
+		if !found || n.Firmware == nil {
+			return nil, fmt.Errorf("%s is not running", name)
+		}
+		toucher, ok := n.Firmware.Backend.(interface{ TouchScreen(int, int, bool) error })
+		if !ok {
+			return nil, fmt.Errorf("%s is not a board with a touch panel", name)
+		}
+		if err := toucher.TouchScreen(int(xf), int(yf), down); err != nil {
+			return nil, err
+		}
+		return map[string]any{"node": name, "x": int(xf), "y": int(yf), "down": down}, nil
+	})
+
 	st.Handle("node.set_firmware", func(w *state.World, p any) (any, error) {
 		m, _ := p.(map[string]any)
 		name, _ := m["node"].(string)

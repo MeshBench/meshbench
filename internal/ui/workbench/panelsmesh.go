@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/ui/shell"
+	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
 func addMeshPanels(d panelDeps) {
@@ -138,17 +139,54 @@ func addMeshPanels(d panelDeps) {
 							"simple_repeater", "advanced_repeater", "companion_radio",
 							"simple_room_server",
 						}, func(role string) {
-							go func() {
-								if _, err := d.st.Do(d.ctx, "firmware.import",
-									map[string]any{"path": path, "role": role}); err != nil {
-									_, _ = d.st.Do(d.ctx, "ui.said", "import: "+err.Error())
-								}
-								_, _ = d.st.Do(d.ctx, "firmware.library", nil)
-							}()
+							// And which board it was compiled for. The verb has
+							// always taken one and nothing ever asked, so every
+							// build imported here became a host build - which
+							// meant an image built for a board could not be
+							// pointed at one, and firmware somebody had just
+							// compiled could not be run at all.
+							fwAsk.Post(func(ask *shell.Prompt) {
+								ask.Choose("Which board was it built for?", "filter",
+									importBoards(), func(board string) {
+										if board == hostBuildChoice {
+											board = ""
+										}
+										go func() {
+											p := map[string]any{"path": path, "role": role}
+											if board != "" {
+												p["board"] = board
+											}
+											if _, err := d.st.Do(d.ctx, "firmware.import", p); err != nil {
+												_, _ = d.st.Do(d.ctx, "ui.said", "import: "+err.Error())
+											}
+											_, _ = d.st.Do(d.ctx, "firmware.library", nil)
+										}()
+									})
+							})
 						})
 					})
 				})
 		})
 	}
 	d.sh.Add(homed(&shell.Panel{Name: "Firmware", Windowable: true, Draw: fw.Draw}))
+}
+
+// hostBuildChoice is the first option, and the one most imports want: a build
+// compiled for this machine rather than for a board.
+const hostBuildChoice = "host build - not for a board"
+
+// importBoards is what an imported build can be pointed at.
+//
+// Every board with emulation wiring, not only the ones already verified: an
+// image somebody has just compiled for a board is exactly the thing that
+// establishes whether that board works, so refusing to import it would make
+// the list impossible to grow.
+func importBoards() []string {
+	out := []string{hostBuildChoice}
+	for _, b := range scenario.Boards() {
+		if b.QEMU != nil || b.Renode != nil {
+			out = append(out, b.Name)
+		}
+	}
+	return out
 }

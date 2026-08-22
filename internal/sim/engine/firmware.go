@@ -461,14 +461,24 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 				pins = append(pins, part.Pin)
 			}
 		}
-		if len(pins) > 0 {
+		// A keyboard and a touch panel travel the same channel, so the
+		// channel exists if the board has any of the three.
+		var kbd, touch uint8
+		for _, part := range p.PartsOfKind(scenario.Keys) {
+			kbd = part.Addr
+		}
+		for _, part := range p.PartsOfKind(scenario.Touch) {
+			touch = part.Addr
+		}
+		if len(pins) > 0 || kbd != 0 || touch != 0 {
 			bs, err := firmware.ListenButtons(filepath.Join(dir, "buttons.sock"))
 			if err != nil {
-				return nil, fmt.Errorf("engine: listening for %s's buttons: %w", spec.Name, err)
+				return nil, fmt.Errorf("engine: listening for %s's inputs: %w", spec.Name, err)
 			}
 			node.Buttons = bs
 			node.ButtonPath = bs.Path()
 			node.ButtonPins = pins
+			node.KbdAddr, node.TouchAddr = kbd, touch
 		}
 	}
 
