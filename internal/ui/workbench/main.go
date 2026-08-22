@@ -71,7 +71,8 @@ func Run(args []string) {
 		"which tab the packet window opens on: 0 dissection, 1 journey "+
 			"(the propagation graph), 2 reception ledger, 3 where it went")
 	nodeTabFlag := flag.Int("node-tab", 0, "which tab a node window opens on: "+
-		"0 console, 1 companion, 2 settings, 3 radio, 4 stats, 5 activity, 6 connect")
+		"0 console, 1 companion, 2 SDR, 3 settings, 4 radio, 5 stats, "+
+		"6 activity, 7 connect, 8 hardware")
 	coverFlag := flag.String("coverage", "",
 		"compute and show coverage from this node at startup")
 	energyFlag := flag.Bool("energy", false, "run the site study for the selected node at startup")
@@ -79,6 +80,8 @@ func Run(args []string) {
 		"capture the waterfall at this node once the run has traffic")
 	injectEvery := flag.Duration("inject-every", 0,
 		"keep originating at that node this often; for looking at the traffic layer")
+	unwatchedFlag := flag.Bool("unverified-wiring", false,
+		"run boards whose emulation wiring nobody has watched boot yet")
 	quitFlag := flag.Duration("quit-after", 0, "exit after this long; 0 runs until closed")
 	versionFlag := flag.Bool("version", false, "print the version and exit")
 	_ = flag.CommandLine.Parse(args)
@@ -99,6 +102,14 @@ func Run(args []string) {
 	// where the cache lives. Loaded here rather than in Register, so a test's
 	// session never depends on this machine's own file.
 	sm.LoadPrefs()
+	// Set on the session rather than through its verb, and before Register.
+	// The store's loop does not run until Run does, so a verb fired here waits
+	// for a goroutine that has not started - a workbench that never opens a
+	// window. It has to happen before the network loads either way: that is
+	// when the engine is built, and the engine is what reads this.
+	if *unwatchedFlag {
+		sm.RunUnverifiedWiring()
+	}
 	session.Register(st, sm)
 	// Every status line, timestamped and kept in full - not just the last
 	// twenty the strip at the bottom shows. Set before Run starts: nothing

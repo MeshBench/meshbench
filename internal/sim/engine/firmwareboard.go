@@ -32,7 +32,14 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 		return nil, err
 	}
 	if !allowUnverified && !scenario.EmulationSupported(board.Name) {
-		return nil, fmt.Errorf("%s has no verified emulation wiring", board.Name)
+		// Named with the way out of it. The gate is a curation claim - has
+		// anybody watched this board's own image boot - and an operator who
+		// wants to be the one doing the watching had no way to say so from
+		// the refusal alone.
+		return nil, fmt.Errorf("%s has no verified emulation wiring: nobody has "+
+			"watched its own image boot here yet. Run the board probe for it "+
+			"from the Bench view, or switch on unwatched wiring to run it "+
+			"anyway and be the one who finds out", board.Name)
 	}
 	if board.QEMU == nil && board.Renode == nil {
 		return nil, fmt.Errorf("%s names no emulator", board.Name)

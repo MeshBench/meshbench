@@ -16,6 +16,7 @@ var rak3112Board = Board{
 	// definition: taken from variants/rak3112/platformio.ini.
 	QEMU: &QEMUWiring{
 		Machine: "esp32s3", SPI: 3, NSS: 7, Busy: 48, DIO1: 47, LED: 46,
+		Verified: true,
 	},
 	Hardware: &Panel{
 		Parts: []Part{
