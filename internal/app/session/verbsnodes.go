@@ -89,6 +89,39 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 		return map[string]any{"started": name}, nil
 	})
 
+	// board.press: hold one of a board's own buttons down, or let it go.
+	//
+	// Held rather than clicked, because the firmware behind these pins cares:
+	// MeshCore wakes a sleeping display on a press and powers the board off on
+	// a long one, and a verb that could only produce a tap could reach neither.
+	st.Handle("board.press", func(w *state.World, p any) (any, error) {
+		m, _ := p.(map[string]any)
+		name, _ := m["node"].(string)
+		pinF, okPin := numField(p, "pin")
+		pin := int(pinF)
+		down, _ := m["down"].(bool)
+		if name == "" || !okPin {
+			return nil, fmt.Errorf("board.press needs a node and a pin")
+		}
+		n, found := s.liveEngine().NodeByName(name)
+		if !found || n.Firmware == nil {
+			return nil, fmt.Errorf("%s is not running", name)
+		}
+		presser, ok := n.Firmware.Backend.(interface{ PressButton(int, bool) error })
+		if !ok {
+			return nil, fmt.Errorf("%s is not a board with buttons", name)
+		}
+		if err := presser.PressButton(pin, down); err != nil {
+			return nil, err
+		}
+		what := "released"
+		if down {
+			what = "held"
+		}
+		w.Say(fmt.Sprintf("%s: %s pin %d", name, what, pin))
+		return map[string]any{"node": name, "pin": pin, "down": down}, nil
+	})
+
 	st.Handle("node.set_firmware", func(w *state.World, p any) (any, error) {
 		m, _ := p.(map[string]any)
 		name, _ := m["node"].(string)

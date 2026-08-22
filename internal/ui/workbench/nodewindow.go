@@ -129,6 +129,11 @@ type nodeWindowPanel struct {
 	// preference: a setting and the hardware can disagree, and a node showing
 	// a display its board has not got is worse than one showing none.
 	hasHardware bool
+	// boardButtons are the drawn buttons, pooled by pin, and buttonDown is
+	// what each was last reported as - so a hold is sent once and a release
+	// once, rather than every frame the pointer is down.
+	boardButtons map[int]*widget.Clickable
+	buttonDown   map[int]bool
 }
 
 // visibleTabs is the tab set this node gets.
@@ -207,6 +212,9 @@ func (p *nodeWindowPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snap
 		}
 	}
 	p.hasHardware = p.boardPanel(s).HasAnything()
+	if p.tab == tabHardware {
+		p.boardPresses(gtx, s)
+	}
 	if !p.hasHardware && p.tab == tabHardware {
 		p.tab = tabConsole
 	}

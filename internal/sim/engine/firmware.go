@@ -450,6 +450,28 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 		Dir:        dir,
 	}
 
+	// The board's buttons, from the same declaration everything else comes
+	// from. Only the ones it actually has: a board that declares none, or
+	// declares one as absent, gets no channel rather than a channel nothing
+	// can move.
+	if p := board.Hardware; p != nil {
+		var pins []int
+		for _, part := range p.PartsOfKind(scenario.Button) {
+			if part.Pin != scenario.PinNone {
+				pins = append(pins, part.Pin)
+			}
+		}
+		if len(pins) > 0 {
+			bs, err := firmware.ListenButtons(filepath.Join(dir, "buttons.sock"))
+			if err != nil {
+				return nil, fmt.Errorf("engine: listening for %s's buttons: %w", spec.Name, err)
+			}
+			node.Buttons = bs
+			node.ButtonPath = bs.Path()
+			node.ButtonPins = pins
+		}
+	}
+
 	// The display, from the same declaration the machine's wiring comes from.
 	// Only where the board says it has one and only where the controller is
 	// one we model: a board whose screen we cannot draw shows nothing, which
