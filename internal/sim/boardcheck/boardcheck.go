@@ -127,7 +127,23 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 	if imgPath != "" {
 		report.set(Build, Passed, "image already cached: "+imgPath)
 	} else {
-		all, err := cat.ListAll(ctx)
+		// The tag this image lives under, rather than every release in the
+		// repository. Upstream tags per role, so the one wanted here is
+		// derivable from the version - and asking for it directly is one
+		// request against a hundred.
+		//
+		// This is not a tidy-up. Listing every release takes about nine
+		// seconds against GitHub and times out often enough to have failed
+		// five boards in one sweep, reported as "could not reach the firmware
+		// catalogue" against boards that were never the problem. Fetching the
+		// single tag takes under half a second.
+		all, err := cat.List(ctx, "repeater-"+version)
+		if err != nil || len(all) == 0 {
+			// A tag that is not named the way this expects is a reason to look
+			// wider, not to give up: older releases and any future renaming
+			// still resolve, just slowly.
+			all, err = cat.ListAll(ctx)
+		}
 		if err != nil {
 			report.set(Build, Failed, "could not reach the firmware catalogue: "+err.Error())
 			return report

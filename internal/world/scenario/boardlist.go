@@ -24,4 +24,10 @@ var boards = []Board{
 	heltecV4Board,
 	heltecWirelessPaperBoard,
 	stationG3ESP32Board,
+	heltecWSL3Board,
+	heltecWirelessTrackerBoard,
+	heltecTrackerV2Board,
+	heltecE290Board,
+	heltecE213Board,
+	rak3112Board,
 }
