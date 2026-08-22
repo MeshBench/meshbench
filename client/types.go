@@ -47,9 +47,14 @@ type NodeInfo struct {
 	TxDBm    float64  `json:"tx_dbm"`
 	Regions  []string `json:"regions"`
 	Firmware string   `json:"firmware"`
-	Sent     int      `json:"sent"`
-	Heard    int      `json:"heard"`
-	Selected bool     `json:"selected"`
+	// Board is what the node is; FirmwareBoard is what its image was built
+	// for. They agree most of the time and come apart the moment a host build
+	// is pointed at a T-Deck, which is an ordinary thing to do.
+	Board         string `json:"board"`
+	FirmwareBoard string `json:"firmware_board"`
+	Sent          int    `json:"sent"`
+	Heard         int    `json:"heard"`
+	Selected      bool   `json:"selected"`
 }
 
 // Kinds, as the scenario names them.

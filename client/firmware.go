@@ -4,6 +4,7 @@ package client
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -81,6 +82,63 @@ func (f Firmware) Import(ctx context.Context, path, role, board string) (Build, 
 	}
 	var out Build
 	return out, f.w.CallInto(ctx, "firmware.import", p, &out)
+}
+
+// Build compiles a MeshCore checkout and puts the results in the library.
+//
+// Both roles from one call unless one is named, deliberately. A locally built
+// repeater compiled against a stale shim once answered console output with
+// 0x06 where the host expects 0x07: it connected, misbehaved and exited. Two
+// arms of a comparison built at different moments from different trees measure
+// the build process rather than the firmware, so the easy thing to do here is
+// the thing that builds them together.
+//
+// It returns once the work has started. Wait on it: a MeshCore build is a
+// minute or two per role.
+func (f Firmware) Build(ctx context.Context, checkout, role, label string) (Job, error) {
+	p := map[string]any{"source": checkout}
+	if role != "" {
+		p["role"] = role
+	}
+	if label != "" {
+		p["label"] = label
+	}
+	var out struct {
+		Job string `json:"job"`
+	}
+	if err := f.w.CallInto(ctx, "firmware.build", p, &out); err != nil {
+		return Job{}, err
+	}
+	return Job{w: f.w, id: out.Job}, nil
+}
+
+// BuildAndWait is the same, blocking, for a caller with nothing else to do -
+// which is most of them.
+func (f Firmware) BuildAndWait(ctx context.Context, checkout string,
+	timeout time.Duration) ([]Build, error) {
+	job, err := f.Build(ctx, checkout, "", "")
+	if err != nil {
+		return nil, err
+	}
+	if timeout <= 0 {
+		timeout = 30 * time.Minute
+	}
+	if err := job.Wait(ctx, timeout); err != nil {
+		return nil, err
+	}
+	// What the library holds afterwards that it did not before is the honest
+	// answer, and it is also the one a caller can pin a node to.
+	all, err := f.Library(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var built []Build
+	for _, b := range all {
+		if strings.HasPrefix(b.Version, "local-") {
+			built = append(built, b)
+		}
+	}
+	return built, nil
 }
 
 // UseForRole pins every node of a role to one build.

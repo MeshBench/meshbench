@@ -25,6 +25,15 @@ type Node struct {
 	// not a build: "wadamesh" means nothing until it is wadamesh for a
 	// LilyGo_TDeck.
 	Board string
+	// Hardware is what the node itself is, by board profile name.
+	//
+	// Not the same fact as Board, however often the two agree: Board is what
+	// the *image* was built for, and this is what the node *is*. They come
+	// apart the moment somebody points a host build at a node that is a
+	// T-Deck, which is a perfectly ordinary thing to do, and reporting one as
+	// the other would say the node had changed hardware when it had changed
+	// firmware.
+	Hardware string
 	// TrueRF marks a receiver that takes waveform verdicts whatever the
 	// run's RF mode - the hybrid flag.
 	TrueRF   bool

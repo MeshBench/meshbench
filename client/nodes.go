@@ -61,6 +61,11 @@ type Placement struct {
 	// ten metres and 22 dBm - rather than to nothing.
 	HeightM float64
 	TxDBm   float64
+	// Board is the hardware this node is, by profile name. Empty is a host
+	// build. A name nothing matches is refused rather than ignored: the board
+	// decides the transmit ceiling, the noise figure and the battery, so a
+	// silent fallback would be a different node answering the question.
+	Board string
 }
 
 // Place puts one node down and hands back a handle to it.
@@ -80,6 +85,9 @@ func (n Nodes) Place(ctx context.Context, p Placement) (Node, error) {
 	}
 	if p.TxDBm != 0 {
 		params["tx_dbm"] = p.TxDBm
+	}
+	if p.Board != "" {
+		params["board"] = p.Board
 	}
 	if err := n.w.Do(ctx, "nodes.place", params); err != nil {
 		return Node{}, err
@@ -103,38 +111,24 @@ func (n Nodes) PlaceMany(ctx context.Context, ps []Placement) ([]Node, error) {
 	return out, n.w.Do(ctx, "links.recompute", nil)
 }
 
-// Delete removes them, in order.
+// Delete removes them, in one rebuild.
 //
-// One call per node until there is a verb that takes a set. Each rebuild
-// cancels the previous warm, so the cost is one measurement of the matrix
-// rather than one per node - but it is still N rebuilds, so a script trimming
-// forty nodes should expect to wait.
+// All or none: a name that is not there refuses and removes nothing, because
+// half a deletion leaves a scenario nobody described and no way to tell which
+// half survived without asking again.
 func (n Nodes) Delete(ctx context.Context, names ...string) error {
-	for _, name := range names {
-		if err := n.w.Do(ctx, "nodes.delete", map[string]any{"node": name}); err != nil {
-			return err
-		}
+	if len(names) == 0 {
+		return nil
 	}
-	return nil
+	return n.w.Do(ctx, "nodes.delete_many", names)
 }
 
-// Keep deletes everything except these.
+// Keep deletes everything these do not name.
+//
+// The complement is worked out at the workbench rather than here, so it cannot
+// be computed against a list that changed in between.
 func (n Nodes) Keep(ctx context.Context, names ...string) error {
-	all, err := n.List(ctx)
-	if err != nil {
-		return err
-	}
-	want := map[string]bool{}
-	for _, k := range names {
-		want[k] = true
-	}
-	var drop []string
-	for _, x := range all {
-		if !want[x.Name] {
-			drop = append(drop, x.Name)
-		}
-	}
-	return n.Delete(ctx, drop...)
+	return n.w.Do(ctx, "nodes.keep", names)
 }
 
 // Select replaces the selection, or adds to it.
@@ -221,6 +215,17 @@ func (n Node) SetFirmware(ctx context.Context, b Build, apply bool) error {
 	return n.w.Do(ctx, verb, map[string]any{
 		"node": n.name, "version": b.Version,
 		"board": b.Board, "role": b.Role})
+}
+
+// SetBoard changes what hardware this node is.
+//
+// A change to the physics rather than a label, so it rebuilds and re-warms -
+// and it clears a firmware pin made for a different board, because that image
+// cannot run on this one and a pin nobody can honour reads as a configured
+// node right up until it refuses to start.
+func (n Node) SetBoard(ctx context.Context, board string) error {
+	return n.w.Do(ctx, "node.set_board",
+		map[string]any{"node": n.name, "board": board})
 }
 
 // SetTrueRF makes this receiver take waveform verdicts whatever the run's

@@ -194,6 +194,34 @@ class Firmware:
             p["board"] = board
         return Build.parse(self._wb.call("firmware.import", p) or {})
 
+    def build(
+        self,
+        checkout: str,
+        role: str = "",
+        label: str = "",
+        wait: float | str = "30m",
+    ) -> list[Build]:
+        """Compile a MeshCore checkout and put the results in the library.
+
+        Both roles unless one is named, deliberately. A locally built repeater
+        compiled against a stale shim once answered console output with 0x06
+        where the host expects 0x07: it connected, misbehaved and exited. Two
+        arms of a comparison built at different moments from different trees
+        measure the build process rather than the firmware, so the easy thing
+        here is the thing that builds them together.
+
+        Blocks until it is done - a MeshCore build is a minute or two per
+        role - and returns what the library now holds that was built locally.
+        """
+        p: dict[str, Any] = {"source": checkout}
+        if role:
+            p["role"] = role
+        if label:
+            p["label"] = label
+        got = self._wb.call("firmware.build", p) or {}
+        self._wb.job(got.get("job", "firmware-build")).wait(wait)
+        return [b for b in self.library() if b.version.startswith("local-")]
+
     def use_for_role(self, role: str, build: Build | str) -> None:
         version = build if isinstance(build, str) else build.version
         self._wb.call("firmware.set", {"role": role, "version": version})

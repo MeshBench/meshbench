@@ -107,6 +107,42 @@ def test_building_a_network_from_nothing(wb):
     assert len(wb.nodes) == 2
 
 
+def test_placing_a_node_on_a_board(wb):
+    """#216: nodes.place took no board, so a script could build a mesh and not
+    build the one it wanted."""
+    wb.project.new()
+    wb.nodes.place("Deck", meshbench.COMPANION, 56.19, -3.17, board="LilyGo_TDeck")
+    assert wb.nodes["Deck"].board == "LilyGo_TDeck"
+
+    # A board is physics - the transmit ceiling, the noise figure, the
+    # battery - so a name nothing matches refuses rather than falling back.
+    with pytest.raises(meshbench.BadParams):
+        wb.nodes.place("Wrong", lat=56, lon=-3, board="LilyGo T-Deck Pro Max")
+
+
+def test_changing_what_a_node_is(wb):
+    wb.project.new()
+    node = wb.nodes.place("Deck", meshbench.COMPANION, 56.19, -3.17)
+    node.board = "LilyGo_TDeck"
+    assert node.board == "LilyGo_TDeck"
+
+
+def test_a_bad_name_deletes_nothing(wb):
+    """Half a deletion leaves a scenario nobody described."""
+    wb.project.new()
+    for name in ("A", "B", "C"):
+        wb.nodes.place(name, lat=56.2, lon=-3.2)
+    with pytest.raises(meshbench.NotFound):
+        wb.nodes.delete("A", "Nowhere")
+    assert len(wb.nodes) == 3
+
+
+def test_a_window_verb_refuses_headless(wb):
+    """It says so at the client, not after twelve refusals in a row."""
+    with pytest.raises(meshbench.Unavailable):
+        wb.window("anything", tab="Hardware")
+
+
 def test_keep_deletes_the_complement(wb):
     wb.project.new()
     for name in ("A", "B", "C", "D"):

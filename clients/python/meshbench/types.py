@@ -86,6 +86,11 @@ class NodeInfo:
     tx_dbm: float = 0.0
     regions: list[str] = field(default_factory=list)
     firmware: str = ""
+    #: What the node is, by board profile name. Not firmware_board, which is
+    #: what its image was built for - the two agree most of the time and come
+    #: apart the moment a host build is pointed at a T-Deck.
+    board: str = ""
+    firmware_board: str = ""
     sent: int = 0
     heard: int = 0
     selected: bool = False

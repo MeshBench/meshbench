@@ -4,13 +4,9 @@
     ./01_blank_setup_with_a_board.py
 
 Costs: a minute or two, plus whatever downloading a build takes the first time.
-Needs a window - it opens the node's own window at the end, which is the point
-of it. Run the headless examples instead if you have no display.
+Needs a window - it opens the node's own window on the Hardware tab at the end,
+which is the point of it. Run the headless examples instead if you have no display.
 
-Two lines of this are marked NOT YET: giving a node a board at placement, and
-opening a node window on a chosen tab, are both missing verbs (#216). They are
-left in, commented, rather than worked around, so this file stops being a lie
-the day that lands.
 """
 
 import meshbench
@@ -29,7 +25,7 @@ def main() -> None:
             kind=meshbench.COMPANION,
             lat=56.19,
             lon=-3.17,
-            # board=BOARD,  # NOT YET: nodes.place takes no board (#216)
+            board=BOARD,
         )
 
         # Whatever the catalogue has, so this does not go stale against a
@@ -49,11 +45,11 @@ def main() -> None:
         wb.sim.start()
         deck.wait_running("5m")
 
-        # wb.call("node.window", {"node": deck.name, "tab": "Hardware"})
-        #   NOT YET: node.window takes no tab (#216)
-        wb.call("node.window", deck.name)
+        # The Hardware tab is where the board draws its own screen, which is
+        # the whole reason for making this node a T-Deck.
+        tab = wb.window(deck, tab="Hardware")
 
-        print(f"{deck.name} is up on {build}; its window is open")
+        print(f"{deck.name} is up on {build}; its window is open on {tab}")
         print(wb.provenance())
         input("press enter to close the workbench ")
 

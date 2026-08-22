@@ -54,6 +54,7 @@ class Nodes:
         lon: float = 0.0,
         height_m: float | None = None,
         tx_dbm: float | None = None,
+        board: str | None = None,
     ) -> Node:
         """Put one node down.
 
@@ -66,6 +67,11 @@ class Nodes:
             params["height_m"] = height_m
         if tx_dbm is not None:
             params["tx_dbm"] = tx_dbm
+        if board:
+            # A name nothing matches is refused rather than ignored: the board
+            # decides the transmit ceiling, the noise figure and the battery,
+            # so a silent fallback would be a different node answering.
+            params["board"] = board
         self._wb.call("nodes.place", params)
         return Node(self._wb, name)
 
@@ -81,20 +87,22 @@ class Nodes:
         return out
 
     def delete(self, *names: str) -> None:
-        """Remove them, in order.
+        """Remove them, in one rebuild.
 
-        One call per node until there is a verb that takes a set. Each rebuild
-        cancels the previous warm, so the cost is one measurement of the matrix
-        rather than one per node - but it is still N rebuilds, so trimming
-        forty nodes takes a while.
+        All or none: a name that is not there refuses and removes nothing,
+        because half a deletion leaves a scenario nobody described and no way
+        to tell which half survived without asking again.
         """
-        for name in names:
-            self._wb.call("nodes.delete", {"node": name})
+        if names:
+            self._wb.call("nodes.delete_many", list(names))
 
     def keep(self, *names: str) -> None:
-        """Delete everything except these."""
-        want = set(names)
-        self.delete(*[n.name for n in self.list() if n.name not in want])
+        """Delete everything these do not name.
+
+        The complement is worked out at the workbench rather than here, so it
+        cannot be computed against a list that changed in between.
+        """
+        self._wb.call("nodes.keep", list(names))
 
     def select(self, *names: str, add: bool = False) -> None:
         self._wb.call(
@@ -190,6 +198,26 @@ class Node:
     @firmware.setter
     def firmware(self, build: Build | str) -> None:
         self.set_firmware(build)
+
+    @property
+    def board(self) -> str:
+        """What this node is, by board profile name.
+
+        From the network rather than from the statistics: a stopped node has
+        hardware just as surely as a running one.
+        """
+        return self.info.board
+
+    @board.setter
+    def board(self, name: str) -> None:
+        """What hardware this node is.
+
+        A change to the physics rather than a label, so it rebuilds and
+        re-warms - and it clears a firmware pin made for a different board,
+        because that image cannot run on this one and a pin nobody can honour
+        reads as a configured node right up until it refuses to start.
+        """
+        self._wb.call("node.set_board", {"node": self.name, "board": name})
 
     def set_true_rf(self, on: bool = True) -> None:
         """Take waveform verdicts whatever the run's mode - the hybrid flag,

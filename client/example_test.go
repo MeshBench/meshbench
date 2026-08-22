@@ -54,7 +54,10 @@ func Example_placingNodes() {
 	if _, err := wb.Nodes().PlaceMany(ctx, []client.Placement{
 		{Name: "R1", Kind: client.SimpleRepeater, Lat: 56.20, Lon: -3.20},
 		{Name: "R2", Kind: client.SimpleRepeater, Lat: 56.12, Lon: -3.02},
-		{Name: "C1", Kind: client.Companion, Lat: 56.19, Lon: -3.17},
+		// One of them is a T-Deck, which decides its transmit ceiling, its
+		// noise figure and the battery the energy model uses.
+		{Name: "C1", Kind: client.Companion, Lat: 56.19, Lon: -3.17,
+			Board: "LilyGo_TDeck"},
 		{Name: "C2", Kind: client.Companion, Lat: 56.09, Lon: -3.10},
 	}); err != nil {
 		log.Fatal(err)
@@ -81,6 +84,8 @@ func Example_twoBuildsInOneScenario() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	// Or build it here, which is what a comparison against a checkout wants:
+	//   built, err := wb.Firmware().BuildAndWait(ctx, "~/src/MeshCore", 0)
 	changed, err := wb.Firmware().Import(ctx, "/tmp/my-build", "repeater", "")
 	if err != nil {
 		log.Fatal(err)

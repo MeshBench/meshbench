@@ -25,8 +25,15 @@ func registerInventory(st *state.Store, s *Sim) {
 				"name": n.Name, "kind": n.Kind,
 				"lat": n.Lat, "lon": n.Lon, "height_m": n.HeightM,
 				"tx_dbm": n.TxDBm, "regions": n.Regions,
-				"firmware": n.Firmware,
-				"sent":     n.Sent, "heard": n.Heard,
+				// Two boards, because they are two facts. "board" is what the
+				// node is; "firmware_board" is what its image was built for.
+				// They agree most of the time and come apart the moment
+				// somebody points a host build at a T-Deck - and neither was
+				// published at all, so a scenario built by a script could not
+				// be read back with the hardware it had been given.
+				"firmware": n.Firmware, "board": n.Hardware,
+				"firmware_board": n.Board,
+				"sent":           n.Sent, "heard": n.Heard,
 				"selected": n.Selected,
 			})
 		}

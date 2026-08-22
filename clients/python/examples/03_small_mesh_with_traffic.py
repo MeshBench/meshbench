@@ -6,10 +6,9 @@ public channel every twenty seconds.
 
 Costs: about ten minutes of simulated time, and a few of yours.
 
-The T-Deck half of the original is marked NOT YET, because giving a node a
-board still needs #216. Everything else here works, including the repeating
-traffic - schedule.add has taken every_ms all along and nothing said so, which
-to somebody writing a script is the same as it not existing.
+The repeating traffic needed no new verb: schedule.add has taken every_ms all
+along and nothing said so, which to somebody writing a script is the same as
+it not existing.
 """
 
 import meshbench
@@ -42,8 +41,10 @@ def main() -> None:
                 )
             wb.firmware.use_for_role(role, builds[-1])
 
-        # C1 would be the T-Deck running wadamesh:
-        #   wb.nodes["C1"].board = "LilyGo_TDeck"   # NOT YET (#216)
+        # C1 is the T-Deck. The board goes on before the firmware is pinned,
+        # because a host image is not a board image and setting the board
+        # clears a pin that was made for different hardware.
+        wb.nodes["C1"].board = "LilyGo_TDeck"
 
         # Every twenty seconds, from the plain companion to the public channel.
         # Simulated seconds: this is the mesh's own clock.

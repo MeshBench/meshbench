@@ -13,6 +13,32 @@ import (
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 )
 
+// nodeTabByName is a tab named the way it is on screen.
+//
+// By its own String, so the names a script uses and the names somebody reads
+// off the strip cannot drift apart - and case-insensitively, because "hardware"
+// is what a person types and refusing it would be pedantry with a stack trace.
+func nodeTabByName(name string) (nodeTab, bool) {
+	if strings.TrimSpace(name) == "" {
+		return openOnTab, true
+	}
+	for t := nodeTab(0); t < numNodeTabs; t++ {
+		if strings.EqualFold(t.String(), name) {
+			return t, true
+		}
+	}
+	return 0, false
+}
+
+// nodeTabNames is every tab, for saying what was possible when one was not.
+func nodeTabNames() []string {
+	out := make([]string, 0, numNodeTabs)
+	for t := nodeTab(0); t < numNodeTabs; t++ {
+		out = append(out, t.String())
+	}
+	return out
+}
+
 // settings is what this node is: identity, radio, regions and firmware - the
 // mock's card, from what the snapshot honestly carries.
 func (p *nodeWindowPanel) settings(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {

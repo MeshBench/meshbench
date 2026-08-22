@@ -238,6 +238,26 @@ class Workbench:
         """Leave a line in the session's log, for whoever is watching."""
         self.call("ui.said", text)
 
+    def window(self, node: str | Node, tab: str = "") -> str:
+        """Open a node's own window, on a named tab.
+
+        Windowed sessions only, and it says so here rather than appearing to
+        work: a headless run has nothing to open, and a script that "opened the
+        Hardware tab" in CI and saw no error will be written to assume it did.
+
+        Tabs are named as they are on the strip - Console, Companion, SDR,
+        Settings, Radio, Stats, Activity, Connect, Hardware. Returns the one it
+        opened on.
+        """
+        if self.is_headless:
+            raise errors.Unavailable(
+                "node.window",
+                "this session has no interface attached, so there is nothing to show",
+                "unavailable",
+            )
+        got = self.call("node.window", {"node": str(node), "tab": tab}) or {}
+        return got.get("tab", "")
+
     # ---- the shape -------------------------------------------------------
 
     @property

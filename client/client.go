@@ -341,6 +341,31 @@ func (w *Workbench) Say(ctx context.Context, text string) error {
 	return w.Do(ctx, "ui.said", text)
 }
 
+// Window opens a node's own window, on a named tab.
+//
+// Windowed sessions only, and it says so here rather than appearing to work: a
+// headless run has nothing to open, and a script that "opened the Hardware
+// tab" in CI and saw no error will be written to assume it did.
+//
+// The tab names are the ones on the strip - Console, Companion, SDR, Settings,
+// Radio, Stats, Activity, Connect, Hardware - and an empty one takes the
+// default. It returns the tab it opened on.
+func (w *Workbench) Window(ctx context.Context, node, tab string) (string, error) {
+	if w.Headless() {
+		return "", &Refused{
+			Verb: "node.window", Code: "unavailable",
+			Message: "this session has no interface attached, so there is nothing to show",
+			kind:    ErrUnavailable,
+		}
+	}
+	var out struct {
+		Tab string `json:"tab"`
+	}
+	err := w.CallInto(ctx, "node.window",
+		map[string]any{"node": node, "tab": tab}, &out)
+	return out.Tab, err
+}
+
 var errNoProcess = errors.New("this client did not start the workbench")
 
 // Stop ends a workbench this client started. Attach's connection has nothing
