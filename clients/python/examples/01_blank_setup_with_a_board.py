@@ -9,11 +9,10 @@ which is the point of it. Run the headless examples instead if you have no displ
 
 """
 
-import meshbench
-from meshbench import Workbench
+from meshbench import Board, Kind, NotFound, Workbench
 
 WADAMESH = "wadamesh"
-BOARD = "LilyGo_TDeck"
+BOARD = Board.LILYGO_TDECK
 
 
 def main() -> None:
@@ -22,7 +21,7 @@ def main() -> None:
 
         deck = wb.nodes.place(
             "Deck",
-            kind=meshbench.COMPANION,
+            kind=Kind.COMPANION,
             lat=56.19,
             lon=-3.17,
             board=BOARD,
@@ -33,7 +32,7 @@ def main() -> None:
         wb.firmware.scan()
         try:
             build = wb.firmware.find(WADAMESH, board=BOARD)
-        except meshbench.NotFound:
+        except NotFound:
             wb.firmware.download("companion", WADAMESH, board=BOARD)
             wb.wait_idle("10m")
             build = wb.firmware.find(WADAMESH, board=BOARD)

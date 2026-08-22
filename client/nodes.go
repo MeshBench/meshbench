@@ -38,7 +38,7 @@ func (n Nodes) Get(ctx context.Context, name string) (NodeInfo, error) {
 
 // OfKind filters. Evaluated here rather than at the workbench: it is a
 // question about a list somebody already has.
-func (n Nodes) OfKind(ctx context.Context, kind string) ([]NodeInfo, error) {
+func (n Nodes) OfKind(ctx context.Context, kind Kind) ([]NodeInfo, error) {
 	all, err := n.List(ctx)
 	if err != nil {
 		return nil, err
@@ -55,7 +55,7 @@ func (n Nodes) OfKind(ctx context.Context, kind string) ([]NodeInfo, error) {
 // Placement is a node to put down.
 type Placement struct {
 	Name     string
-	Kind     string
+	Kind     Kind
 	Lat, Lon float64
 	// HeightM and TxDBm default to the scenario's own defaults when zero -
 	// ten metres and 22 dBm - rather than to nothing.
@@ -65,7 +65,7 @@ type Placement struct {
 	// build. A name nothing matches is refused rather than ignored: the board
 	// decides the transmit ceiling, the noise figure and the battery, so a
 	// silent fallback would be a different node answering the question.
-	Board string
+	Board Board
 }
 
 // Place puts one node down and hands back a handle to it.
@@ -78,7 +78,7 @@ func (n Nodes) Place(ctx context.Context, p Placement) (Node, error) {
 		p.Kind = SimpleRepeater
 	}
 	params := map[string]any{
-		"name": p.Name, "kind": p.Kind, "lat": p.Lat, "lon": p.Lon,
+		"name": p.Name, "kind": string(p.Kind), "lat": p.Lat, "lon": p.Lon,
 	}
 	if p.HeightM != 0 {
 		params["height_m"] = p.HeightM
@@ -87,7 +87,7 @@ func (n Nodes) Place(ctx context.Context, p Placement) (Node, error) {
 		params["tx_dbm"] = p.TxDBm
 	}
 	if p.Board != "" {
-		params["board"] = p.Board
+		params["board"] = string(p.Board)
 	}
 	if err := n.w.Do(ctx, "nodes.place", params); err != nil {
 		return Node{}, err
@@ -223,9 +223,9 @@ func (n Node) SetFirmware(ctx context.Context, b Build, apply bool) error {
 // and it clears a firmware pin made for a different board, because that image
 // cannot run on this one and a pin nobody can honour reads as a configured
 // node right up until it refuses to start.
-func (n Node) SetBoard(ctx context.Context, board string) error {
+func (n Node) SetBoard(ctx context.Context, board Board) error {
 	return n.w.Do(ctx, "node.set_board",
-		map[string]any{"node": n.name, "board": board})
+		map[string]any{"node": n.name, "board": string(board)})
 }
 
 // SetTrueRF makes this receiver take waveform verdicts whatever the run's

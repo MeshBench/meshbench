@@ -19,6 +19,7 @@ from ._socket import (
     Connection,
     default_address,
 )
+from .checks import Assertions, Schedule
 from .nodes import Node, Nodes
 from .parts import Console, Events, Firmware, Job, Project, Sim
 from .types import Hello, NodeStat, Provenance
@@ -268,6 +269,14 @@ class Workbench:
         """A handle, without checking it exists - so one can be named before
         it is placed. Every method on it will say so if it does not."""
         return Node(self, name)
+
+    @property
+    def schedule(self) -> Schedule:
+        return Schedule(self)
+
+    @property
+    def assertions(self) -> Assertions:
+        return Assertions(self)
 
     @property
     def sim(self) -> Sim:

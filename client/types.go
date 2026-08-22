@@ -40,7 +40,7 @@ type Describe struct {
 // publishes them separately.
 type NodeInfo struct {
 	Name     string   `json:"name"`
-	Kind     string   `json:"kind"`
+	Kind     Kind     `json:"kind"`
 	Lat      float64  `json:"lat"`
 	Lon      float64  `json:"lon"`
 	HeightM  float64  `json:"height_m"`
@@ -50,28 +50,12 @@ type NodeInfo struct {
 	// Board is what the node is; FirmwareBoard is what its image was built
 	// for. They agree most of the time and come apart the moment a host build
 	// is pointed at a T-Deck, which is an ordinary thing to do.
-	Board         string `json:"board"`
+	Board         Board  `json:"board"`
 	FirmwareBoard string `json:"firmware_board"`
 	Sent          int    `json:"sent"`
 	Heard         int    `json:"heard"`
 	Selected      bool   `json:"selected"`
 }
-
-// Kinds, as the scenario names them.
-const (
-	SimpleRepeater   = "simple-repeater"
-	AdvancedRepeater = "advanced-repeater"
-	Companion        = "companion"
-	// RoomServer holds posts for clients to collect and does not forward. A
-	// mesh that treats one as a repeater overstates its own reach.
-	RoomServer = "room-server"
-	// SDRObserver runs no firmware and transmits nothing: it captures the
-	// summed field at its antenna and hands back IQ.
-	SDRObserver = "sdr-observer"
-	// Emitter is interference that is not MeshCore, propagated through the
-	// same terrain as everything else.
-	Emitter = "emitter"
-)
 
 // Event is one thing the engine did. Snapshot.
 //

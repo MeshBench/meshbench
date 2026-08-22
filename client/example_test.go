@@ -57,7 +57,7 @@ func Example_placingNodes() {
 		// One of them is a T-Deck, which decides its transmit ceiling, its
 		// noise figure and the battery the energy model uses.
 		{Name: "C1", Kind: client.Companion, Lat: 56.19, Lon: -3.17,
-			Board: "LilyGo_TDeck"},
+			Board: client.BoardLilyGoTDeck},
 		{Name: "C2", Kind: client.Companion, Lat: 56.09, Lon: -3.10},
 	}); err != nil {
 		log.Fatal(err)
@@ -96,6 +96,45 @@ func Example_twoBuildsInOneScenario() {
 	}
 	if err := wb.Node("Bishop Hill").SetFirmware(ctx, changed, true); err != nil {
 		log.Fatal(err)
+	}
+}
+
+// Repeating traffic, and a verdict. What CI actually runs.
+func Example_regression() {
+	ctx := context.Background()
+	wb, err := client.Headless(ctx, client.Fixture("fife-strict"), client.Seed(9001))
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer func() { _ = wb.Close() }()
+
+	// Simulated seconds - the mesh's own clock, not yours.
+	if err := wb.Schedule().Add(ctx, client.Send{
+		Node: "AngusOutlaw1", Command: "send hello",
+		At: 5 * time.Second, Every: 20 * time.Second,
+	}); err != nil {
+		log.Fatal(err)
+	}
+	if err := wb.Assertions().Delivered(ctx, 40); err != nil {
+		log.Fatal(err)
+	}
+	if err := wb.Sim().Run(ctx, 5*time.Minute, time.Hour); err != nil {
+		log.Fatal(err)
+	}
+
+	report, err := wb.Assertions().Check(ctx)
+	if err != nil {
+		log.Fatal(err)
+	}
+	// The report prints the caveats above the numbers itself: this is the
+	// output somebody pastes into a pull request, and the caveats are the half
+	// that gets dropped.
+	fmt.Println(report)
+	if err := report.WriteJUnit("results.xml", ""); err != nil {
+		log.Fatal(err)
+	}
+	if !report.OK() {
+		log.Fatal("the mesh stopped delivering")
 	}
 }
 

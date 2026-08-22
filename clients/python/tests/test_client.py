@@ -82,17 +82,22 @@ def test_building_a_network_from_nothing(wb):
         [
             {
                 "name": "R1",
-                "kind": meshbench.SIMPLE_REPEATER,
+                "kind": meshbench.Kind.SIMPLE_REPEATER,
                 "lat": 56.20,
                 "lon": -3.20,
             },
             {
                 "name": "R2",
-                "kind": meshbench.SIMPLE_REPEATER,
+                "kind": meshbench.Kind.SIMPLE_REPEATER,
                 "lat": 56.12,
                 "lon": -3.02,
             },
-            {"name": "C1", "kind": meshbench.COMPANION, "lat": 56.19, "lon": -3.17},
+            {
+                "name": "C1",
+                "kind": meshbench.Kind.COMPANION,
+                "lat": 56.19,
+                "lon": -3.17,
+            },
         ]
     )
     assert len(wb.nodes) == 3
@@ -100,7 +105,7 @@ def test_building_a_network_from_nothing(wb):
     # Read back, not just counted: a client that silently dropped a parameter
     # would still have produced three nodes.
     c1 = wb.nodes.info("C1")
-    assert c1.kind == meshbench.COMPANION
+    assert c1.kind == meshbench.Kind.COMPANION
     assert 56.18 < c1.lat < 56.20
 
     wb.nodes.delete("R2")
@@ -111,8 +116,14 @@ def test_placing_a_node_on_a_board(wb):
     """#216: nodes.place took no board, so a script could build a mesh and not
     build the one it wanted."""
     wb.project.new()
-    wb.nodes.place("Deck", meshbench.COMPANION, 56.19, -3.17, board="LilyGo_TDeck")
-    assert wb.nodes["Deck"].board == "LilyGo_TDeck"
+    wb.nodes.place(
+        "Deck",
+        meshbench.Kind.COMPANION,
+        56.19,
+        -3.17,
+        board=meshbench.Board.LILYGO_TDECK,
+    )
+    assert wb.nodes["Deck"].board == meshbench.Board.LILYGO_TDECK
 
     # A board is physics - the transmit ceiling, the noise figure, the
     # battery - so a name nothing matches refuses rather than falling back.
@@ -122,9 +133,75 @@ def test_placing_a_node_on_a_board(wb):
 
 def test_changing_what_a_node_is(wb):
     wb.project.new()
-    node = wb.nodes.place("Deck", meshbench.COMPANION, 56.19, -3.17)
-    node.board = "LilyGo_TDeck"
-    assert node.board == "LilyGo_TDeck"
+    node = wb.nodes.place("Deck", meshbench.Kind.COMPANION, 56.19, -3.17)
+    node.board = meshbench.Board.LILYGO_TDECK
+    assert node.board == meshbench.Board.LILYGO_TDECK
+
+
+def test_every_generated_board_is_one_the_workbench_knows(wb):
+    """A constant that compiles and is not a board the simulator knows is worse
+    than a string, because it looks checked."""
+    wb.project.new()
+    assert len(meshbench.Board) > 0
+    for i, board in enumerate(meshbench.Board):
+        wb.nodes.place(
+            f"n{i}", lat=56 + i / 1000, lon=-3, board=board
+        )  # refuses if the workbench disagrees
+
+
+def test_every_generated_kind_is_one_the_workbench_knows(wb):
+    wb.project.new()
+    for i, kind in enumerate(meshbench.Kind):
+        wb.nodes.place(kind.value, kind, 56 + i / 1000, -3)
+
+
+def test_scheduling_and_asserting(wb):
+    """Through the shape rather than through call().
+
+    The verb takes milliseconds; a caller says twenty seconds. That difference
+    is the entire reason this layer exists.
+    """
+    # A blank network rather than a fixture: the shipped ones carry their own
+    # assertions, and counting mine among theirs would prove nothing.
+    wb.project.new()
+    wb.nodes.place("R1", lat=56.2, lon=-3.2)
+
+    wb.schedule.add("R1", "send hello", at="5s", every="20s")
+    assert len(wb.schedule) == 1
+
+    wb.assertions.delivered(at_least=1)
+    report = wb.assertions.check()
+    assert report.total == 1
+    # Nothing has run, so it has not been met - and the report says which one.
+    assert not report.ok
+    assert len(report.failures) == 1
+    assert report.failures[0].kind
+    # And the caveats travel with the verdict.
+    assert "best case" in str(report)
+
+
+def test_no_assertions_is_not_a_pass():
+    """A green tick that checked nothing is the worst outcome available."""
+    empty = meshbench.Report()
+    assert not empty.ok
+    assert "checked nothing" in str(empty)
+
+
+def test_junit_carries_the_provenance(tmp_path):
+    report = meshbench.Report(
+        passed=1,
+        total=2,
+        checks=[
+            meshbench.Check("delivered", "", True, "40", "at least 40"),
+            meshbench.Check("sent", "R1", False, "99", "at most 12"),
+        ],
+        provenance=meshbench.Provenance(rf_mode="waveform", seed=9001),
+    )
+    path = tmp_path / "results.xml"
+    report.write_junit(str(path))
+    body = path.read_text()
+    for want in ("best case", "waveform", "at most 12", 'failures="1"'):
+        assert want in body
 
 
 def test_a_bad_name_deletes_nothing(wb):

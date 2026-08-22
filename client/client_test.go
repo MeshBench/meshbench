@@ -169,7 +169,7 @@ func TestPlacingANodeOnABoard(t *testing.T) {
 	}
 	deck, err := wb.Nodes().Place(ctx, Placement{
 		Name: "Deck", Kind: Companion, Lat: 56.19, Lon: -3.17,
-		Board: "LilyGo_TDeck",
+		Board: BoardLilyGoTDeck,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -178,7 +178,7 @@ func TestPlacingANodeOnABoard(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Board != "LilyGo_TDeck" {
+	if info.Board != BoardLilyGoTDeck {
 		t.Fatalf("placed as a T-Deck and came back as %q", info.Board)
 	}
 
@@ -186,7 +186,7 @@ func TestPlacingANodeOnABoard(t *testing.T) {
 	// battery - so a name nothing matches refuses rather than falling back to
 	// something plausible.
 	_, err = wb.Nodes().Place(ctx, Placement{
-		Name: "Wrong", Lat: 56, Lon: -3, Board: "LilyGo T-Deck Pro Max"})
+		Name: "Wrong", Lat: 56, Lon: -3, Board: Board("LilyGo T-Deck Pro Max")})
 	if !errors.Is(err, ErrBadParams) {
 		t.Errorf("a board nobody has gave %v, want ErrBadParams", err)
 	}
@@ -201,14 +201,14 @@ func TestChangingWhatANodeIs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := n.SetBoard(ctx, "Heltec_v3"); err != nil {
+	if err := n.SetBoard(ctx, BoardHeltecV3); err != nil {
 		t.Fatal(err)
 	}
 	info, err := n.Info(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Board != "Heltec_v3" {
+	if info.Board != BoardHeltecV3 {
 		t.Fatalf("set to a Heltec and reads as %q", info.Board)
 	}
 }

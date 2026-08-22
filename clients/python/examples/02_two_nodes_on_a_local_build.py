@@ -15,8 +15,7 @@ because trimming is what this example is about.
 import subprocess
 import sys
 
-import meshbench
-from meshbench import Workbench
+from meshbench import Build, Kind, Workbench
 
 # Outskirts of Glasgow, and Glenrothes.
 KEEP = {
@@ -25,7 +24,7 @@ KEEP = {
 }
 
 
-def build_from_checkout(checkout: str, wb: Workbench) -> dict[str, meshbench.Build]:
+def build_from_checkout(checkout: str, wb: Workbench) -> dict[str, Build]:
     """Build MeshCore and import what came out, one build per role.
 
     Both roles from one invocation, deliberately. A locally built repeater
@@ -35,7 +34,7 @@ def build_from_checkout(checkout: str, wb: Workbench) -> dict[str, meshbench.Bui
     firmware - so if either arm is built by hand, both are, the same way, at
     the same moment.
     """
-    out: dict[str, meshbench.Build] = {}
+    out: dict[str, Build] = {}
     for role in ("repeater", "companion"):
         made = subprocess.run(
             ["meshcoresim", "dev", "-src", checkout, "-role", role],
@@ -70,14 +69,14 @@ def main() -> None:
                 if name in wb.nodes:
                     wb.nodes[name].move(lat, lon)
                 else:
-                    wb.nodes.place(name, meshbench.COMPANION, lat, lon)
+                    wb.nodes.place(name, Kind.COMPANION, lat, lon)
             wb.wait_idle("10m")
 
         builds = build_from_checkout(checkout, wb)
 
         # Repoint every node, applied - which stops, provisions and starts it.
         for node in wb.nodes:
-            role = "companion" if node.info.kind == meshbench.COMPANION else "repeater"
+            role = "companion" if node.info.kind == Kind.COMPANION else "repeater"
             node.firmware = builds[role]
 
         wb.sim.start()

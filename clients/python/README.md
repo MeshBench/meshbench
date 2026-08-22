@@ -30,8 +30,8 @@ does not contain it.
 wb.project.new(place="Fife")
 wb.nodes.place_many(
     [
-        {"name": "R1", "kind": meshbench.SIMPLE_REPEATER, "lat": 56.20, "lon": -3.20},
-        {"name": "C1", "kind": meshbench.COMPANION, "lat": 56.19, "lon": -3.17},
+        {"name": "R1", "kind": Kind.SIMPLE_REPEATER, "lat": 56.20, "lon": -3.20},
+        {"name": "C1", "kind": Kind.COMPANION, "lat": 56.19, "lon": -3.17},
     ]
 )
 wb.sim.start()

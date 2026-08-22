@@ -28,6 +28,7 @@ from ._socket import (
     default_address,
     default_socket_path,
 )
+from .checks import Assertions, Check, Report, Schedule
 from .errors import (
     BadParams,
     Closing,
@@ -42,6 +43,7 @@ from .errors import (
 )
 from .nodes import Node, Nodes
 from .parts import Console, Events, Firmware, Job, Project, Sim
+from .sets import DEFAULT_PRESET, Board, Kind, Preset
 from .types import (
     ADVANCED_REPEATER,
     COMPANION,
@@ -66,6 +68,14 @@ from .types import (
 from .workbench import Workbench
 
 __all__ = [
+    "Schedule",
+    "Report",
+    "Preset",
+    "Kind",
+    "DEFAULT_PRESET",
+    "Check",
+    "Board",
+    "Assertions",
     "ADVANCED_REPEATER",
     "COMPANION",
     "EMITTER",
