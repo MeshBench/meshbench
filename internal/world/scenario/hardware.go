@@ -42,6 +42,27 @@ const (
 	// a click declared separately as a Button, because that is how the
 	// firmware reads them.
 	Ball
+	// Card is a card slot, on these boards a third device on the bus the
+	// radio and the display already share, told apart by its own select.
+	//
+	// Backed by a file per node, which is what makes a node's storage
+	// something an operator can look inside afterwards - a real handheld only
+	// offers that by taking the card out.
+	Card
+	// GPS is a receiver on the board's second serial port, which is where
+	// every variant here opens one. It reports rather than being driven: what
+	// it says is where the scenario put the node, so moving a node on the map
+	// moves it on the handheld.
+	GPS
+	// Meter is something the board measures rather than shows - on these
+	// boards, the divider its cell is read through. It is here for the same
+	// reason a lamp is: the pin is a fact about the board, and the machine
+	// needs it as much as the interface does.
+	//
+	// An unmodelled one is not quiet. A firmware that starts a conversion and
+	// waits for a converter nobody built waits for ever, which is what the
+	// published companion build did here.
+	Meter
 )
 
 func (k PartKind) String() string {
@@ -54,6 +75,12 @@ func (k PartKind) String() string {
 		return "touch"
 	case Ball:
 		return "trackball"
+	case Meter:
+		return "meter"
+	case GPS:
+		return "GPS"
+	case Card:
+		return "card slot"
 	}
 	return "lamp"
 }
@@ -133,6 +160,16 @@ type Part struct {
 	// four directions, in the order up, down, left, right.
 	Pins []int
 
+	// FullScaleMV is what a Meter reads at the top of its range, in the units
+	// the firmware reports - so for a battery divider, the cell voltage that
+	// would put the converter at full scale.
+	//
+	// It is the divider and the converter's range together, because that is
+	// the only form in which it can be checked: the number is right when the
+	// firmware's own arithmetic, applied to what we injected, prints what the
+	// simulation says the cell is at.
+	FullScaleMV int
+
 	// ActiveLow says the firmware reads this part pressed when its pin is
 	// low, which is what a button with a pull-up looks like. Recorded because
 	// getting it backwards produces a board that is either always pressed or never
@@ -209,6 +246,12 @@ func (p *Panel) Validate(taken map[int]string) error {
 		}
 		if part.Bus == BusI2C && part.Addr == 0 {
 			return fmt.Errorf("%s is on I2C with no address", part.Name)
+		}
+		if part.Kind == Meter && part.FullScaleMV <= 0 {
+			return fmt.Errorf("%s measures something with no scale to read it against", part.Name)
+		}
+		if part.Kind == Ball && len(part.Pins) != 4 {
+			return fmt.Errorf("%s needs four direction lines, has %d", part.Name, len(part.Pins))
 		}
 		pins := part.Pins
 		if part.Bus == BusPin && part.Pin != PinNone && len(pins) == 0 {

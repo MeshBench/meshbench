@@ -158,3 +158,25 @@ func waitForSocket(ctx context.Context, path string) error {
 	}
 	return fmt.Errorf("firmware: the radio model never opened %s", path)
 }
+
+// cardBytes is how big a card a node gets. Small as cards go, because nothing
+// here fills one and a file per node is a file per node.
+const cardBytes = 64 << 20
+
+// MakeCard is the file behind a board's card slot, made once and kept.
+//
+// Made rather than downloaded, and kept rather than remade, because what is on
+// it is what the node wrote last time: a card an operator can look inside
+// afterwards is most of the reason for having one at all. Sparse, so an empty
+// card costs nothing on disk.
+func MakeCard(path string) error {
+	if st, err := os.Stat(path); err == nil && st.Size() == cardBytes {
+		return nil
+	}
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o600)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = f.Close() }()
+	return f.Truncate(cardBytes)
+}

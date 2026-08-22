@@ -95,6 +95,23 @@ type EmulatedNode struct {
 	// the board's I2C bus, or zero where it carries neither.
 	KbdAddr, TouchAddr uint8
 
+	// CardPath is the file behind the board's card slot, and CardCS the pin
+	// that selects it. Empty on a board with no slot.
+	CardPath string
+	CardCS   int
+
+	// GPSPath is where the board's receiver sends its sentences from, or empty
+	// on a board that carries none.
+	GPSPath string
+	GPS     *GPSFeed
+
+	// BatChannel is the converter channel the board's cell is read on, and
+	// BatRaw what it reads at bring-up. Both zero on a board that declares no
+	// meter, which leaves the channel reading nothing - honest, and still
+	// enough to stop a firmware waiting for a conversion that never finishes.
+	BatChannel int
+	BatRaw     uint16
+
 	// Panel is where this node's pictures arrive, when something is listening.
 	// Held here so a caller with the node has the screen too, rather than
 	// having to keep the two in step itself.
@@ -292,16 +309,30 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	if e.PSRAMOctal {
 		machine += ",psram-octal=on"
 	}
-	if e.ButtonPath != "" && (e.KbdAddr != 0 || e.TouchAddr != 0) {
-		machine += fmt.Sprintf(",kbd-addr=%d,touch-addr=%d", e.KbdAddr, e.TouchAddr)
-	}
-	if e.ButtonPath != "" && len(e.ButtonPins) > 0 {
-		pins := make([]string, len(e.ButtonPins))
-		for i, p := range e.ButtonPins {
-			pins[i] = strconv.Itoa(p)
+	if e.ButtonPath != "" {
+		// The path on its own, because more than the buttons listen on it: a
+		// board with a meter and no button still has something to say.
+		machine += ",input-path=" + e.ButtonPath
+		if e.KbdAddr != 0 || e.TouchAddr != 0 {
+			machine += fmt.Sprintf(",kbd-addr=%d,touch-addr=%d", e.KbdAddr, e.TouchAddr)
 		}
-		machine += fmt.Sprintf(",input-path=%s,input-pins=%s",
-			e.ButtonPath, strings.Join(pins, ","))
+		if len(e.ButtonPins) > 0 {
+			pins := make([]string, len(e.ButtonPins))
+			for i, p := range e.ButtonPins {
+				pins[i] = strconv.Itoa(p)
+			}
+			// Doubled, because this is one value inside a comma separated
+			// list and a bare comma would end it: a board with two buttons
+			// refused to start at all until it was.
+			machine += ",input-pins=" + strings.Join(pins, ",,")
+		}
+	}
+	if e.CardPath != "" {
+		machine += fmt.Sprintf(",card-cs=%d", e.CardCS)
+	}
+	if e.BatRaw != 0 {
+		machine += fmt.Sprintf(",bat-adc-channel=%d,bat-adc-raw=%d",
+			e.BatChannel, e.BatRaw)
 	}
 	// The display, on the same terms as the radio: only when the board has
 	// one and only when something is listening.
@@ -345,6 +376,18 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 		"-drive", "file=" + flash + ",if=mtd,format=raw",
 		"-chardev", "socket,id=con,path=" + conPath + ",server=on,wait=off",
 		"-serial", "chardev:con",
+	}
+	// The receiver's port, where the board has one. Second rather than first
+	// because the order of these is the order of the ports: the application's
+	// own console is the first serial port on every one of these boards, and
+	// the receiver is on the second.
+	if e.GPSPath != "" {
+		args = append(args,
+			"-chardev", "socket,id=gps,path="+e.GPSPath+",server=on,wait=off",
+			"-serial", "chardev:gps")
+	}
+	if e.CardPath != "" {
+		args = append(args, "-drive", "if=sd,format=raw,file="+e.CardPath)
 	}
 	if e.PSRAMMB > 0 {
 		args = append(args, "-m", fmt.Sprintf("%dM", e.PSRAMMB))
@@ -394,52 +437,13 @@ func (e *EmulatedNode) stopLocked() error {
 		_ = e.renodeStdin.Close()
 		e.renodeStdin = nil
 	}
+	// The receiver stops with the board. It is the one of these that keeps a
+	// clock running of its own, so leaving it would have a stopped node still
+	// reporting where it is.
+	if e.GPS != nil {
+		_ = e.GPS.Close()
+		e.GPS = nil
+	}
 	_ = os.Remove(e.sock)
 	return nil
-}
-
-// Screen is the last picture this board's display sent, and whether there is
-// one at all.
-//
-// The last return says which: a board that declares no display and a board
-// whose display has drawn nothing are different facts, and drawing an empty
-// picture for both would report the first as the second.
-func (e *EmulatedNode) Screen() (width, height, bpp int, on bool, bits []byte, have bool) {
-	if e.Panel == nil {
-		return 0, 0, 0, false, nil, false
-	}
-	f, _ := e.Panel.Frame()
-	if f == nil {
-		return 0, 0, 0, false, nil, false
-	}
-	return f.Width, f.Height, f.BPP, f.On, f.Bits, true
-}
-
-// PressButton holds one of this board's buttons down or lets it go.
-func (e *EmulatedNode) PressButton(pin int, down bool) error {
-	if e.Buttons == nil {
-		return ErrNoButtons()
-	}
-	return e.Buttons.Press(pin, down)
-}
-
-// ButtonHeld reports whether a pin is being held.
-func (e *EmulatedNode) ButtonHeld(pin int) bool {
-	return e.Buttons != nil && e.Buttons.Held(pin)
-}
-
-// TypeKey types one character at this board's keyboard.
-func (e *EmulatedNode) TypeKey(ch byte) error {
-	if e.Buttons == nil {
-		return ErrNoButtons()
-	}
-	return e.Buttons.Key(ch)
-}
-
-// TouchScreen reports where this board's panel is being touched.
-func (e *EmulatedNode) TouchScreen(x, y int, down bool) error {
-	if e.Buttons == nil {
-		return ErrNoButtons()
-	}
-	return e.Buttons.Touch(x, y, down)
 }

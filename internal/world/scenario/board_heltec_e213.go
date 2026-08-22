@@ -20,6 +20,10 @@ var heltecE213Board = Board{
 		Parts: []Part{
 			{Kind: Lamp, Name: "TX", Pin: 45},
 			{Kind: Button, Name: "PRG", Pin: 0, ActiveLow: true},
+			// Heltec's own arithmetic: the reading is scaled by 5.42
+			// against a 3.3 V range, so a cell at the top of it is 17.9 V -
+			// a divider sized for a pack this board will never carry.
+			{Kind: Meter, Name: "battery", Pin: 7, FullScaleMV: 17886},
 		},
 	},
 	Notes: "The smaller e-paper board of the pair, wired identically to the E290 " +
