@@ -5,7 +5,7 @@
 // they re-read the session every time they are asked. Which one a thing is
 // decides whether it can be held across a Run and still be true, so it is
 // stated on each.
-package client
+package meshbench
 
 import "time"
 
@@ -40,33 +40,22 @@ type Describe struct {
 // publishes them separately.
 type NodeInfo struct {
 	Name     string   `json:"name"`
-	Kind     string   `json:"kind"`
+	Kind     Kind     `json:"kind"`
 	Lat      float64  `json:"lat"`
 	Lon      float64  `json:"lon"`
 	HeightM  float64  `json:"height_m"`
 	TxDBm    float64  `json:"tx_dbm"`
 	Regions  []string `json:"regions"`
 	Firmware string   `json:"firmware"`
-	Sent     int      `json:"sent"`
-	Heard    int      `json:"heard"`
-	Selected bool     `json:"selected"`
+	// Board is what the node is; FirmwareBoard is what its image was built
+	// for. They agree most of the time and come apart the moment a host build
+	// is pointed at a T-Deck, which is an ordinary thing to do.
+	Board         Board  `json:"board"`
+	FirmwareBoard string `json:"firmware_board"`
+	Sent          int    `json:"sent"`
+	Heard         int    `json:"heard"`
+	Selected      bool   `json:"selected"`
 }
-
-// Kinds, as the scenario names them.
-const (
-	SimpleRepeater   = "simple-repeater"
-	AdvancedRepeater = "advanced-repeater"
-	Companion        = "companion"
-	// RoomServer holds posts for clients to collect and does not forward. A
-	// mesh that treats one as a repeater overstates its own reach.
-	RoomServer = "room-server"
-	// SDRObserver runs no firmware and transmits nothing: it captures the
-	// summed field at its antenna and hands back IQ.
-	SDRObserver = "sdr-observer"
-	// Emitter is interference that is not MeshCore, propagated through the
-	// same terrain as everything else.
-	Emitter = "emitter"
-)
 
 // Event is one thing the engine did. Snapshot.
 //
@@ -83,17 +72,8 @@ type Event struct {
 	// noise at all - so it is a pointer here. Absent is not zero.
 	SNRdB  *float64 `json:"snr_db"`
 	Detail string   `json:"detail"`
-	Class  string   `json:"class"`
+	Class  Class    `json:"class"`
 }
-
-// Event classes, as the engine buckets them.
-const (
-	ClassSent         = "sent"
-	ClassReceived     = "received"
-	ClassHalfDuplex   = "half-duplex"
-	ClassInterference = "interference"
-	ClassFloor        = "floor"
-)
 
 // SimState is the clock. Snapshot.
 type SimState struct {
@@ -107,8 +87,13 @@ type SimState struct {
 
 // FirmwareState is how far a start has got. Snapshot.
 type FirmwareState struct {
-	Running  int  `json:"running"`
+	Running int `json:"running"`
+	// Nodes is the nodes that run firmware, which is not every node: an SDR
+	// observer and an emitter never boot one. Comparing Running against the
+	// scenario's size is how a wait ends up asking for 58 of 58 on a mesh
+	// where only 56 can ever start.
 	Nodes    int  `json:"nodes"`
+	Total    int  `json:"total"`
 	Starting bool `json:"starting"`
 }
 
@@ -118,9 +103,9 @@ type FirmwareState struct {
 // on its own: "wadamesh" means nothing until it is wadamesh for a LilyGo_TDeck,
 // built as a companion. A host build carries neither of the other two.
 type Build struct {
-	Role    string `json:"role"`
+	Role    Role   `json:"role"`
 	Version string `json:"version"`
-	Board   string `json:"board"`
+	Board   Board  `json:"board"`
 	Bytes   int64  `json:"bytes"`
 	OnDisk  bool   `json:"on_disk"`
 	Path    string `json:"path"`
@@ -137,7 +122,7 @@ func (b Build) Describe() string {
 	if b.Board == "" {
 		return b.Version
 	}
-	return b.Board + " - " + b.Role + " " + b.Version
+	return string(b.Board) + " - " + string(b.Role) + " " + b.Version
 }
 
 // JobInfo is a long operation in flight. Snapshot; ask again for progress, or
@@ -148,6 +133,11 @@ type JobInfo struct {
 	Done     int    `json:"done"`
 	Total    int    `json:"total"`
 	Finished bool   `json:"finished"`
+	// Failed marks a job that ended without doing what it was for. Separate
+	// from Finished because a waiter needs both: "stop waiting" and "this did
+	// not work" are different answers, and telling them apart by reading What
+	// means matching on prose.
+	Failed bool `json:"failed"`
 }
 
 // Provenance is what a measurement was measured under.
@@ -174,3 +164,27 @@ func (p Provenance) String() string {
 	return "MeshBench: " + p.RFMode + " reception, " + fit +
 		" — a best case; no multipath, no body loss, no oscillator error"
 }
+
+// NameMatch is one answer from a name search, and how sure it is.
+//
+// Score runs 0 to 1, ranked best first by the workbench. It exists so a script
+// can tell "found it" from "found something that shares a word": a top result
+// at 0.3 is a prompt to look at the list, not a node to start talking to.
+type NameMatch struct {
+	Name     string  `json:"name"`
+	Score    float64 `json:"score"`
+	Kind     Kind    `json:"kind"`
+	Lat, Lon float64 `json:"-"`
+}
+
+func (m NameMatch) String() string { return m.Name }
+
+// Neighbour is one node near another, with how far away it is.
+type Neighbour struct {
+	Name     string  `json:"name"`
+	Km       float64 `json:"km"`
+	Kind     Kind    `json:"kind"`
+	Lat, Lon float64 `json:"-"`
+}
+
+func (n Neighbour) String() string { return n.Name }

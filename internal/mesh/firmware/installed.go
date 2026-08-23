@@ -7,7 +7,26 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 )
+
+// ImportLabel is what to call an imported build when nobody said.
+//
+// A timestamp, because the alternative was the constant "imported" and every
+// import then collided with the last one: the library showed a single entry,
+// pinning it pinned whichever file had most recently overwritten the other,
+// and there was no way to say which of two local builds a node was running. A
+// label somebody chose is always better, and this is what happens when they
+// did not.
+//
+// Local time, and no separators past the day, so it sorts the way it reads and
+// survives being part of a filename on every platform.
+func ImportLabel(chosen string) string {
+	if chosen != "" {
+		return chosen
+	}
+	return "imported-" + time.Now().Format("20060102-150405")
+}
 
 // Installed is one firmware build sitting in the cache.
 //
@@ -151,10 +170,29 @@ func roleFromBinary(name string) string {
 	return s
 }
 
-// roleVersionFromImage pulls role and version out of <role>-<version>.bin,
-// which is how board images are stored.
+// labelSep separates an imported build's role from the label it was given.
+//
+// A hyphen was used for both this and the published form, and the two are not
+// separable: roles contain hyphens ("room-server") and so does any label worth
+// having ("wadamesh-20260823-142530"), so splitting at the last one turned
+// "repeater-mine-1" into role "repeater-mine" at version "1". A character that
+// appears in neither ends the guessing.
+//
+// Published downloads keep the hyphen. Their versions never contain one, the
+// reader below handles both, and changing their names would invalidate every
+// cache already on disk - which for somebody with thirty boards downloaded is
+// a gigabyte re-fetched to fix a bug they never hit.
+const labelSep = "@"
+
+// roleVersionFromImage pulls role and version out of a stored board image.
+//
+// Two forms: <role>@<label> for an imported build, and <role>-<version> for a
+// published one.
 func roleVersionFromImage(name string) (role, version string) {
 	s := strings.TrimSuffix(name, filepath.Ext(name))
+	if k := strings.Index(s, labelSep); k > 0 {
+		return s[:k], s[k+1:]
+	}
 	k := strings.LastIndex(s, "-")
 	if k <= 0 {
 		return s, ""
@@ -200,6 +238,14 @@ func Import(cacheDir, src, version, role, board string) (Installed, error) {
 	if version == "" || role == "" {
 		return Installed{}, fmt.Errorf("firmware: an imported build needs a version and a role")
 	}
+	// Refused rather than sanitised. A label quietly rewritten is a build
+	// nobody can find again under the name they gave it, and one containing a
+	// path separator is a build written somewhere nobody asked for.
+	if strings.ContainsAny(version, `/\`+labelSep) || strings.ContainsAny(role, `/\`+labelSep) {
+		return Installed{}, fmt.Errorf(
+			"firmware: %q is not usable as a name; no %s, / or \\ in a role or a label",
+			version, labelSep)
+	}
 	st, err := os.Stat(src)
 	if err != nil {
 		return Installed{}, err
@@ -213,7 +259,7 @@ func Import(cacheDir, src, version, role, board string) (Installed, error) {
 	if native {
 		dst = filepath.Join(cacheDir, "native", version, NativeBinaryName(role))
 	} else {
-		dst = filepath.Join(cacheDir, boardDir, board, role+"-"+version+filepath.Ext(src))
+		dst = filepath.Join(cacheDir, boardDir, board, role+labelSep+version+filepath.Ext(src))
 	}
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return Installed{}, err

@@ -41,6 +41,12 @@ func Run(args []string) {
 	fixture := flag.String("fixture", "scotland-ireland-strict",
 		"network to load: a name (see -list-fixtures) or a path to a .json")
 	listFixtures := flag.Bool("list-fixtures", false, "list the built-in networks and exit")
+	// The same flag headless has, and for the same reason. It was only on
+	// headless, so a client launching a windowed run with a seed built a
+	// command line the binary refused - exit 2, before the window appeared,
+	// which reads as the workbench failing to start rather than as a flag it
+	// has not got.
+	seedFlag := flag.Uint("seed", 0, "override the scenario's seed")
 	modeFlag := flag.String("theme", "dark", "dark or light")
 	viewFlag := flag.String("view", "plan", "which view to open")
 	fpsFlag := flag.Bool("fps", false, "report frames per second to stderr and /tmp/wb2-fps.log")
@@ -138,6 +144,15 @@ func Run(args []string) {
 	go func() {
 		if _, err := st.Do(ctx, "project.open", *fixture); err != nil {
 			fmt.Fprintln(os.Stderr, "loading:", err)
+		}
+		// After the fixture, never before: sim.seed rebuilds the scenario, so a
+		// seed set first is a seed applied to an empty network and then thrown
+		// away by the open.
+		if *seedFlag != 0 {
+			if _, err := st.Do(ctx, "sim.seed",
+				map[string]any{"seed": float64(*seedFlag)}); err != nil {
+				fmt.Fprintln(os.Stderr, "seed:", err)
+			}
 		}
 		if *playFlag {
 			_, _ = st.Do(ctx, "sim.play", nil)

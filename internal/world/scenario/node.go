@@ -49,24 +49,46 @@ const (
 	Emitter Kind = "emitter"
 )
 
-// Application is the MeshCore application a node of this kind runs, named as
-// upstream names its example directory.
+// Role is the MeshCore application a node runs, named as upstream names its
+// example directory.
+//
+// A named type because it is the string every firmware verb is keyed on -
+// pinning a build, asking what is needed, importing your own - and the
+// published catalogue spells the same things differently ("repeater",
+// "room-server"). Those shorter names belong to the release assets and are
+// normalised away on the way in; a caller who types one at a verb gets a role
+// nothing matches and a mesh with no firmware, which reports as nothing at all
+// until the run refuses to start.
+type Role string
+
+// The roles. The transport variants exist only for board images: a board
+// publishes both companion builds at one version, and which one a node runs is
+// not something to leave to whichever was downloaded last.
+const (
+	RoleSimpleRepeater    Role = "simple_repeater"
+	RoleCompanionRadio    Role = "companion_radio"
+	RoleSimpleRoomServer  Role = "simple_room_server"
+	RoleCompanionRadioUSB Role = "companion_radio_usb"
+	RoleCompanionRadioBLE Role = "companion_radio_ble"
+)
+
+// Application is the MeshCore application a node of this kind runs.
 //
 // A default, not a definition. What a node actually is depends on which firmware
 // is loaded onto it, and Node.Firmware overrides this — so a node type MeshCore
 // ships next year needs no new Kind, only its application name.
-func (k Kind) Application() string {
+func (k Kind) Application() Role {
 	switch k {
 	case Companion:
-		return "companion_radio"
+		return RoleCompanionRadio
 	case RoomServer:
-		return "simple_room_server"
+		return RoleSimpleRoomServer
 	case SDRObserver, Emitter:
 		return "" // no firmware to run
 	default:
 		// Both repeater kinds run the same application; they differ in how it is
 		// configured, which is the firmware's business and not ours.
-		return "simple_repeater"
+		return RoleSimpleRepeater
 	}
 }
 
@@ -84,7 +106,7 @@ func (k Kind) RunsFirmware() bool { return k != SDRObserver && k != Emitter }
 // this behave differently on the development branch" a question the workbench
 // can answer by changing a string.
 type FirmwareRef struct {
-	Role    string
+	Role    Role
 	Version string
 
 	// Board names the hardware this node emulates, and empty means the host

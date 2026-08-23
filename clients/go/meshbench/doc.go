@@ -1,4 +1,11 @@
-// Package client drives a MeshBench workbench from Go.
+// Package meshbench drives a MeshBench workbench from Go.
+//
+//	import "github.com/MeshBench/meshbench/clients/go/meshbench"
+//
+// Under clients/ beside the Python one, and named the same, because the two
+// are peers: neither is the real interface and neither is a wrapper around the
+// other. Both speak the control socket, and anything either can do the other
+// can.
 //
 // Not internal/, deliberately. meshtest/ is the existing precedent and the
 // reason is the same: it exists to be imported. While this repository is
@@ -33,4 +40,4 @@
 // realism switches, whether the excess loss was fitted or defaulted, whether
 // the fixture is permissive, and the seed. A scripted number gets pasted into
 // a report with the caveats stripped, so the caveats travel in the value.
-package client
+package meshbench

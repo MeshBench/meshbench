@@ -7,7 +7,7 @@
 //
 // They poll. When the socket learns to push, this file changes and no caller
 // does - which is the whole reason the clients are built before the events.
-package client
+package meshbench
 
 import (
 	"context"
@@ -131,31 +131,54 @@ func (j Job) Cancel(ctx context.Context) error {
 
 // Wait blocks until it is gone from the list.
 func (j Job) Wait(ctx context.Context, timeout time.Duration) error {
-	return waitFor(ctx, timeout, "job "+j.id, func() (bool, string, error) {
+	var last JobInfo
+	err := waitFor(ctx, timeout, "job "+j.id, func() (bool, string, error) {
 		info, live, err := j.Info(ctx)
 		if err != nil {
 			return false, "", err
 		}
+		last = info
 		if !live || info.Finished {
 			return true, "", nil
 		}
 		return false, fmt.Sprintf("%s, %d of %d", info.What, info.Done, info.Total), nil
 	})
+	if err != nil {
+		return err
+	}
+	// Ended is not the same as worked. A read that failed used to finish the
+	// job with the reason in its title and nothing else, so every caller either
+	// carried on as though it had succeeded or matched on the wording.
+	if last.Failed {
+		return fmt.Errorf("job %s failed: %s", j.id, last.What)
+	}
+	return nil
 }
 
 // WaitIdle waits for every job to finish - the honest way to wait out a warm,
 // which is what most of them are.
+//
+// Finished jobs are ignored rather than waited for. Some are removed when they
+// end and some are only marked - infer.run's is marked - so waiting for the
+// list to empty waits forever on half of them. That is a difference between
+// the verbs, and not a caller's to know about.
 func (w *Workbench) WaitIdle(ctx context.Context, timeout time.Duration) error {
 	return waitFor(ctx, timeout, "the workbench to go idle", func() (bool, string, error) {
 		jobs, err := w.Jobs(ctx)
 		if err != nil {
 			return false, "", err
 		}
-		if len(jobs) == 0 {
+		var running []JobInfo
+		for _, j := range jobs {
+			if !j.Finished {
+				running = append(running, j)
+			}
+		}
+		if len(running) == 0 {
 			return true, "", nil
 		}
-		return false, fmt.Sprintf("%d still running, first is %q",
-			len(jobs), jobs[0].What), nil
+		return false, fmt.Sprintf("%d still running, first is %q (%d of %d)",
+			len(running), running[0].What, running[0].Done, running[0].Total), nil
 	})
 }
 

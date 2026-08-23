@@ -45,7 +45,7 @@ func (e *Engine) record(ev Event) {
 	e.mu.Lock()
 	e.events = append(e.events, ev)
 	if e.classCounts == nil {
-		e.classCounts = map[string]int{}
+		e.classCounts = map[Class]int{}
 	}
 	e.classCounts[EventClass(ev.Kind, ev.Detail)]++
 	l := e.eventLog
@@ -108,37 +108,60 @@ func (e *Engine) EventsSince(fromMs uint32) []Event {
 	return out
 }
 
+// Class is what happened to an event.
+//
+// A named type because it is a closed set that leaves this process - the cards
+// count it, the filter chips select on it, and both clients compare against
+// it - and a misspelt comparison against a free string is a filter that
+// silently matches nothing.
+type Class string
+
+// The classes. A miss lost to the node's own transmitter, a miss lost to a
+// stronger signal, and a miss that was simply too quiet are three different
+// problems with three different fixes, so they are three classes rather than
+// one "failed".
+const (
+	ClassSent         Class = "sent"
+	ClassReceived     Class = "received"
+	ClassHalfDuplex   Class = "half-duplex"
+	ClassInterference Class = "interference"
+	ClassFloor        Class = "floor"
+)
+
+// Classes is every one, in the order the interface offers them.
+var Classes = []Class{
+	ClassSent, ClassReceived, ClassHalfDuplex, ClassInterference, ClassFloor,
+}
+
 // EventClass buckets an event by what happened to it, which is what the
-// interface's cards and filter chips count: a miss lost to the node's own
-// transmitter, a miss lost to a stronger signal, and a miss that was simply
-// too quiet are three different problems with three different fixes.
-func EventClass(kind, detail string) string {
+// interface's cards and filter chips count.
+func EventClass(kind, detail string) Class {
 	switch kind {
 	case "tx":
-		return "sent"
+		return ClassSent
 	case "rx":
-		return "received"
+		return ClassReceived
 	}
 	// Prefixes, matching how the details above are written - and not
 	// strings.Contains, which a guard test forbids in this package to keep
 	// region logic out of the channel.
 	switch {
 	case strings.HasPrefix(detail, "its own transmitter"):
-		return "half-duplex"
+		return ClassHalfDuplex
 	case strings.HasPrefix(detail, "would have decoded"):
-		return "interference"
+		return ClassInterference
 	default:
-		return "floor"
+		return ClassFloor
 	}
 }
 
 // EventCounts is how many events of each class the run has produced, counted
 // as they are recorded rather than by walking the log - the log is millions
 // on a long run, and the cards asking for these ask every tick.
-func (e *Engine) EventCounts() map[string]int {
+func (e *Engine) EventCounts() map[Class]int {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	out := make(map[string]int, len(e.classCounts))
+	out := make(map[Class]int, len(e.classCounts))
 	for k, v := range e.classCounts {
 		out[k] = v
 	}

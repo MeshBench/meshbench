@@ -7,12 +7,15 @@ The most common real use of this API, and the reason the node window grew a
 firmware control: comparing a stock build against one with a single changed
 constant, on the same mesh, at the same seed.
 
+Needs a display: it opens the workbench so you can watch both arms run.
+
 Costs: firmware on a whole fixture, so minutes.
 """
 
 import sys
+from datetime import timedelta
 
-from meshbench import Workbench
+from meshbench import Role, Workbench
 
 SEED = 9001
 
@@ -24,9 +27,12 @@ def main() -> None:
         )
     stock_version, local_path = sys.argv[1], sys.argv[2]
 
-    with Workbench.headless(fixture="fife-strict", seed=SEED) as wb:
+    with Workbench.launch(fixture="fife-strict", seed=SEED) as wb:
         stock = wb.firmware.find(stock_version)
-        changed = wb.firmware.import_(local_path, role="repeater")
+        # The application name the verbs are keyed on, not the catalogue's
+        # shorter "repeater": a build imported under a role no node has is a
+        # build nothing will ever run.
+        changed = wb.firmware.import_(local_path, Role.SIMPLE_REPEATER)
 
         # Two nodes far enough apart to be independently interesting, one on
         # each build. Applied, which restarts each of them.
@@ -35,8 +41,8 @@ def main() -> None:
         b.firmware = changed
 
         wb.sim.start()
-        wb.firmware.wait_started("15m")
-        wb.sim.run(minutes=5, wait="60m")
+        wb.firmware.wait_started(timedelta(minutes=15))
+        wb.sim.run(timedelta(minutes=5), wait=timedelta(minutes=60))
 
         # Per node, because the whole point is which of the two behaved
         # differently - a total would hide it.

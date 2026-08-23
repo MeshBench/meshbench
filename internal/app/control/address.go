@@ -144,6 +144,32 @@ func checkUnixPath(path string) error {
 }
 
 // defaultAddress is where this operating system answers when nobody says.
+// DefaultAddress is where a workbench answers unless it was told otherwise,
+// as a string to hand back to Resolve or to -control-socket.
+//
+// Exported for the clients' attach-or-start pair, which has to *name* the
+// default rather than leave it implied: an unnamed launch invents a private
+// address, and a session started at one is a session the next run will not
+// find. Empty when this machine has nowhere to put one, which Resolve then
+// reports properly.
+func DefaultAddress() string {
+	// Through Resolve, so the environment override is honoured. Calling
+	// defaultAddress directly skipped it, which would have had a client start a
+	// session at the per-user path while MESHBENCH_SOCKET said somewhere else -
+	// and then fail to attach to its own session next time.
+	a, err := Resolve("")
+	if err != nil {
+		return ""
+	}
+	if a.Kind == TCP {
+		// The caller wants something to hand to -control-socket, and an
+		// ephemeral 127.0.0.1:0 is not it: the port is not known until it is
+		// bound, and the rendezvous file is how it is found.
+		return "tcp"
+	}
+	return a.Addr
+}
+
 func defaultAddress() (Address, error) {
 	if runtime.GOOS == "windows" {
 		// No AF_UNIX a Python client can reach, so loopback and a token.

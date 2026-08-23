@@ -9,20 +9,26 @@ import subprocess
 import sys
 import tempfile
 import time
+from datetime import timedelta
 from typing import Any
 
 from . import errors
 from ._socket import (
+    BINARY_ENV,
     MAX_UNIX_PATH,
     PROTOCOL,
     RENDEZVOUS_ENV,
     Connection,
     default_address,
 )
+from .boundary import Boundary
+from .checks import Assertions, Schedule
+from .live import Live
 from .nodes import Node, Nodes
 from .parts import Console, Events, Firmware, Job, Project, Sim
+from .sets import Tab
 from .types import Hello, NodeStat, Provenance
-from .wait import wait_for
+from .wait import JOB_WAIT, wait_for
 
 
 class Workbench:
@@ -79,18 +85,45 @@ class Workbench:
         return cls._spawn("workbench", **_launch_kw(kw))
 
     @classmethod
-    def attach_or_launch(cls, **kw) -> Workbench:
-        """Use the one that is running, or start one.
+    def attach_or_headless(cls, **kw) -> Workbench:
+        """Use the session that is running, or start one with no window.
 
-        For a script somebody runs repeatedly by hand, which is example 2 in
-        #209: the second run should carry on from the first rather than
-        clearing everything down.
+        For a script somebody runs repeatedly by hand: the second run should
+        carry on from the first rather than clearing everything down.
+
+        Note which half you get. Attaching does not own the process and leaves
+        it running at the end; starting one does own it and stops it. A script
+        that wants the session to survive should attach to a session started
+        separately.
         """
-        path = kw.get("socket") or default_address()
+        return cls._attach_or(cls.headless, kw)
+
+    @classmethod
+    def attach_or_launch(cls, **kw) -> Workbench:
+        """Use the session that is running, or open the desktop workbench.
+
+        The windowed half of the pair, so a re-run can put something back on
+        screen. Needs a display.
+        """
+        return cls._attach_or(cls.launch, kw)
+
+    @classmethod
+    def _attach_or(cls, start, kw: dict) -> Workbench:
+        # The session that is started is started *at the address that was just
+        # tried*, which is the whole point of the pair.
+        #
+        # headless() and launch() called directly invent a private address, so
+        # that two of them - two pytest workers, two scripts - do not fight
+        # over the per-user default. Inheriting that here made attach_or_
+        # useless: every run failed to attach, started a session somewhere
+        # nobody would look again, and the next run did the same. It read as
+        # "reuse does not work" rather than as an address nobody had named.
+        kw = dict(kw)
+        kw["socket"] = kw.get("socket") or default_address()
         try:
-            return cls.attach(path)
+            return cls.attach(kw["socket"])
         except errors.MeshbenchError:
-            return cls.headless(**kw)
+            return start(**kw)
 
     @classmethod
     def _spawn(
@@ -117,7 +150,12 @@ class Workbench:
             # A rendezvous file of its own too, or two sessions would overwrite
             # each other's port and token in the per-user one.
             env[RENDEZVOUS_ENV] = os.path.join(directory, "control.json")
-        exe = binary or shutil.which("meshcoresim") or "meshcoresim"
+        exe = (
+            binary
+            or os.environ.get(BINARY_ENV)
+            or shutil.which("meshcoresim")
+            or "meshcoresim"
+        )
         args = [exe, command, "-control-socket", path]
         if fixture:
             args += ["-fixture", fixture]
@@ -156,11 +194,23 @@ class Workbench:
                     ) from None
                 time.sleep(0.05)
         try:
-            return cls(conn, process=proc)
+            wb = cls(conn, process=proc)
         except Exception:
             conn.close()
             proc.kill()
             raise
+        if fixture:
+            # The socket answers before the fixture is open. The windowed
+            # build loads it on a worker so the window appears first, so a
+            # client can connect, ask what is going on, and be told nothing -
+            # an empty job list, no nodes, and a wait_idle that returns
+            # instantly having waited for work that had not been queued yet.
+            try:
+                wb.wait_for_nodes(timedelta(seconds=start_timeout))
+            except Exception:
+                wb.close()
+                raise
+        return wb
 
     def _greet(self) -> None:
         """Ask what this is, and refuse a build this client cannot speak to."""
@@ -238,6 +288,26 @@ class Workbench:
         """Leave a line in the session's log, for whoever is watching."""
         self.call("ui.said", text)
 
+    def window(self, node: str | Node, tab: Tab | str = "") -> str:
+        """Open a node's own window, on a named tab.
+
+        Windowed sessions only, and it says so here rather than appearing to
+        work: a headless run has nothing to open, and a script that "opened the
+        Hardware tab" in CI and saw no error will be written to assume it did.
+
+        Tabs are named as they are on the strip - Console, Companion, SDR,
+        Settings, Radio, Stats, Activity, Connect, Hardware. Returns the one it
+        opened on.
+        """
+        if self.is_headless:
+            raise errors.Unavailable(
+                "node.window",
+                "this session has no interface attached, so there is nothing to show",
+                "unavailable",
+            )
+        got = self.call("node.window", {"node": str(node), "tab": tab}) or {}
+        return got.get("tab", "")
+
     # ---- the shape -------------------------------------------------------
 
     @property
@@ -248,6 +318,14 @@ class Workbench:
         """A handle, without checking it exists - so one can be named before
         it is placed. Every method on it will say so if it does not."""
         return Node(self, name)
+
+    @property
+    def schedule(self) -> Schedule:
+        return Schedule(self)
+
+    @property
+    def assertions(self) -> Assertions:
+        return Assertions(self)
 
     @property
     def sim(self) -> Sim:
@@ -265,6 +343,18 @@ class Workbench:
     def events(self) -> Events:
         return Events(self)
 
+    @property
+    def boundary(self) -> Boundary:
+        """The study area: which nodes are in the question being asked. Set it
+        before importing, because the import filters at fetch time."""
+        return Boundary(self)
+
+    @property
+    def live(self) -> Live:
+        """A live deployment feed - CoreScope and the rest - and the import
+        chain that brings one in."""
+        return Live(self)
+
     def console(self, node: str) -> Console:
         return Console(self, node)
 
@@ -275,15 +365,40 @@ class Workbench:
         """Everything long-running that is in flight."""
         return self.snapshot().get("jobs", [])
 
-    def wait_idle(self, timeout: float = 1800.0) -> None:
-        """Wait for every job to finish - the honest way to wait out a warm,
-        which is what most of them are."""
+    def wait_for_nodes(self, timeout: timedelta = JOB_WAIT) -> None:
+        """Wait until the session has a network in it.
+
+        For a fixture opened at startup, which happens on a worker: the socket
+        answers first, so everything asked before the open lands describes an
+        empty session and is believed.
+        """
 
         def check():
-            jobs = self.jobs()
-            if not jobs:
+            n = self.describe().get("nodes", 0)
+            return (True, "") if n else (False, "no nodes yet")
+
+        wait_for(check, timeout, "the fixture to open")
+
+    def wait_idle(self, timeout: timedelta = JOB_WAIT) -> None:
+        """Wait for every job to finish.
+
+        The honest way to wait out a warm, which is what most of them are.
+
+        Finished jobs are ignored rather than waited for: some are removed when
+        they end and some are only marked - infer.run's is marked - so waiting
+        for the list to empty waits forever on half of them. That is a
+        difference between the verbs, not something a caller should know.
+        """
+
+        def check():
+            running = [j for j in self.jobs() if not j.get("finished")]
+            if not running:
                 return True, ""
-            return False, f"{len(jobs)} still running, first is {jobs[0].get('what')!r}"
+            first = running[0]
+            return False, (
+                f"{len(running)} still running, first is {first.get('what')!r} "
+                f"({first.get('done')} of {first.get('total')})"
+            )
 
         wait_for(check, timeout, "the workbench to go idle")
 

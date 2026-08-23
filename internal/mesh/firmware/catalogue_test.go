@@ -212,27 +212,71 @@ func TestImportOwnBuild(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	c := &firmware.Catalogue{CacheDir: filepath.Join(dir, "cache")}
-	img, err := c.Import(src, "RAK_4631", "repeater")
+	cache := filepath.Join(dir, "cache")
+	c := &firmware.Catalogue{CacheDir: cache}
+	img, err := c.Import(src, "RAK_4631", "repeater", "mine-1")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if img.Verified() {
 		t.Error("an imported image claimed a published digest")
 	}
-	if img.Board != "RAK_4631" || img.Version != "imported" {
+	if img.Board != "RAK_4631" || img.Version != "mine-1" {
 		t.Errorf("unexpected image: %+v", img)
 	}
 	if _, err := os.Stat(img.URL); err != nil {
 		t.Errorf("imported file was not stored: %v", err)
 	}
 
-	// Nothing in a bare .bin says which board it is for, so it has to be told.
-	if _, err := c.Import(src, "", "repeater"); err == nil {
-		t.Error("an import with no board was accepted")
+	// The point of importing at all. It used to be stored under imported/,
+	// which nothing lists, so every import succeeded and then could not be
+	// found, pinned or deleted.
+	installed := firmware.ListInstalled(cache)
+	if len(installed) != 1 || installed[0].Version != "mine-1" {
+		t.Fatalf("the imported build is not in the library: %+v", installed)
 	}
-	if _, err := c.Import(filepath.Join(dir, "notes.txt"), "RAK_4631", "repeater"); err == nil {
-		t.Error("a text file was accepted as firmware")
+
+	// A second import under its own label is a second build, not an
+	// overwrite - which is what makes "replace the firmware and delete the old
+	// one" a thing a script can do.
+	if _, err := c.Import(src, "RAK_4631", "repeater", "mine-2"); err != nil {
+		t.Fatal(err)
+	}
+	if got := firmware.ListInstalled(cache); len(got) != 2 {
+		t.Errorf("two labelled imports gave %d builds, want 2: %+v", len(got), got)
+	}
+
+	// No board means a build for this machine, which is a different shape
+	// entirely: an extensionless ELF, not a flash image. Refusing it was the
+	// bug - it turned away the only kind of build somebody compiles themselves.
+	native, err := c.Import(src, "", "simple_repeater", "mine-native")
+	if err != nil {
+		t.Fatalf("a build for this machine was refused: %v", err)
+	}
+	if native.Board != "" {
+		t.Errorf("a native build came back claiming board %q", native.Board)
+	}
+	if _, err := os.Stat(native.URL); err != nil {
+		t.Errorf("the native build was not stored: %v", err)
+	}
+	if _, err := c.Import(src, "RAK_4631", "repeater", ""); err == nil {
+		t.Error("an import with no version was accepted")
+	}
+	// A board image still has to look like one.
+	if _, err := c.Import(filepath.Join(dir, "notes.txt"), "RAK_4631", "repeater", "x"); err == nil {
+		t.Error("a text file was accepted as a board image")
+	}
+}
+
+// The default label is a timestamp rather than a constant, so two imports that
+// nobody named do not silently become one.
+func TestImportLabelDefaultsToSomethingDistinct(t *testing.T) {
+	if got := firmware.ImportLabel("mine"); got != "mine" {
+		t.Errorf("a chosen label was not kept: %q", got)
+	}
+	got := firmware.ImportLabel("")
+	if !strings.HasPrefix(got, "imported-") || len(got) != len("imported-20060102-150405") {
+		t.Errorf("default label %q is not a timestamp", got)
 	}
 }
 

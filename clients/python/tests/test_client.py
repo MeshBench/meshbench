@@ -10,11 +10,14 @@ Needs a meshcoresim binary. MESHBENCH_BINARY names one; otherwise PATH.
 
 from __future__ import annotations
 
+import contextlib
+import json
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
+from datetime import timedelta
 
 import pytest
 
@@ -82,17 +85,22 @@ def test_building_a_network_from_nothing(wb):
         [
             {
                 "name": "R1",
-                "kind": meshbench.SIMPLE_REPEATER,
+                "kind": meshbench.Kind.SIMPLE_REPEATER,
                 "lat": 56.20,
                 "lon": -3.20,
             },
             {
                 "name": "R2",
-                "kind": meshbench.SIMPLE_REPEATER,
+                "kind": meshbench.Kind.SIMPLE_REPEATER,
                 "lat": 56.12,
                 "lon": -3.02,
             },
-            {"name": "C1", "kind": meshbench.COMPANION, "lat": 56.19, "lon": -3.17},
+            {
+                "name": "C1",
+                "kind": meshbench.Kind.COMPANION,
+                "lat": 56.19,
+                "lon": -3.17,
+            },
         ]
     )
     assert len(wb.nodes) == 3
@@ -100,11 +108,124 @@ def test_building_a_network_from_nothing(wb):
     # Read back, not just counted: a client that silently dropped a parameter
     # would still have produced three nodes.
     c1 = wb.nodes.info("C1")
-    assert c1.kind == meshbench.COMPANION
+    assert c1.kind == meshbench.Kind.COMPANION
     assert 56.18 < c1.lat < 56.20
 
     wb.nodes.delete("R2")
     assert len(wb.nodes) == 2
+
+
+def test_placing_a_node_on_a_board(wb):
+    """#216: nodes.place took no board, so a script could build a mesh and not
+    build the one it wanted."""
+    wb.project.new()
+    wb.nodes.place(
+        "Deck",
+        meshbench.Kind.COMPANION,
+        56.19,
+        -3.17,
+        board=meshbench.Board.LILYGO_TDECK,
+    )
+    assert wb.nodes["Deck"].board == meshbench.Board.LILYGO_TDECK
+
+    # A board is physics - the transmit ceiling, the noise figure, the
+    # battery - so a name nothing matches refuses rather than falling back.
+    with pytest.raises(meshbench.BadParams):
+        wb.nodes.place("Wrong", lat=56, lon=-3, board="LilyGo T-Deck Pro Max")
+
+
+def test_changing_what_a_node_is(wb):
+    wb.project.new()
+    node = wb.nodes.place("Deck", meshbench.Kind.COMPANION, 56.19, -3.17)
+    node.board = meshbench.Board.LILYGO_TDECK
+    assert node.board == meshbench.Board.LILYGO_TDECK
+
+
+def test_every_generated_board_is_one_the_workbench_knows(wb):
+    """A constant that compiles and is not a board the simulator knows is worse
+    than a string, because it looks checked."""
+    wb.project.new()
+    assert len(meshbench.Board) > 0
+    for i, board in enumerate(meshbench.Board):
+        wb.nodes.place(
+            f"n{i}", lat=56 + i / 1000, lon=-3, board=board
+        )  # refuses if the workbench disagrees
+
+
+def test_every_generated_kind_is_one_the_workbench_knows(wb):
+    wb.project.new()
+    for i, kind in enumerate(meshbench.Kind):
+        wb.nodes.place(kind.value, kind, 56 + i / 1000, -3)
+
+
+def test_scheduling_and_asserting(wb):
+    """Through the shape rather than through call().
+
+    The verb takes milliseconds; a caller says twenty seconds. That difference
+    is the entire reason this layer exists.
+    """
+    # A blank network rather than a fixture: the shipped ones carry their own
+    # assertions, and counting mine among theirs would prove nothing.
+    wb.project.new()
+    wb.nodes.place("R1", lat=56.2, lon=-3.2)
+
+    wb.schedule.add(
+        "R1",
+        "send hello",
+        at=timedelta(seconds=5),
+        every=timedelta(seconds=20),
+    )
+    assert len(wb.schedule) == 1
+
+    wb.assertions.delivered(at_least=1)
+    report = wb.assertions.check()
+    assert report.total == 1
+    # Nothing has run, so it has not been met - and the report says which one.
+    assert not report.ok
+    assert len(report.failures) == 1
+    assert report.failures[0].kind
+    # And the caveats travel with the verdict.
+    assert "best case" in str(report)
+
+
+def test_no_assertions_is_not_a_pass():
+    """A green tick that checked nothing is the worst outcome available."""
+    empty = meshbench.Report()
+    assert not empty.ok
+    assert "checked nothing" in str(empty)
+
+
+def test_junit_carries_the_provenance(tmp_path):
+    report = meshbench.Report(
+        passed=1,
+        total=2,
+        checks=[
+            meshbench.Check("delivered", "", True, "40", "at least 40"),
+            meshbench.Check("sent", "R1", False, "99", "at most 12"),
+        ],
+        provenance=meshbench.Provenance(rf_mode="waveform", seed=9001),
+    )
+    path = tmp_path / "results.xml"
+    report.write_junit(str(path))
+    body = path.read_text()
+    for want in ("best case", "waveform", "at most 12", 'failures="1"'):
+        assert want in body
+
+
+def test_a_bad_name_deletes_nothing(wb):
+    """Half a deletion leaves a scenario nobody described."""
+    wb.project.new()
+    for name in ("A", "B", "C"):
+        wb.nodes.place(name, lat=56.2, lon=-3.2)
+    with pytest.raises(meshbench.NotFound):
+        wb.nodes.delete("A", "Nowhere")
+    assert len(wb.nodes) == 3
+
+
+def test_a_window_verb_refuses_headless(wb):
+    """It says so at the client, not after twelve refusals in a row."""
+    with pytest.raises(meshbench.Unavailable):
+        wb.window("anything", tab="Hardware")
 
 
 def test_keep_deletes_the_complement(wb):
@@ -130,7 +251,7 @@ def test_the_clock_advances_and_stops(wb):
     wb.project.open("fife-strict")
     before = wb.sim.state()
     assert not before.playing
-    wb.sim.run(seconds_=2, wait="2m")
+    wb.sim.run(timedelta(seconds=2), wait=timedelta(minutes=2))
     after = wb.sim.state()
     assert not after.playing, "run() returned while the clock was still going"
     assert after.now_ms - before.now_ms >= 2000
@@ -148,7 +269,7 @@ def test_the_same_seed_reaches_the_same_state(binary, tmp_path):
             stderr=subprocess.DEVNULL,
         )
         try:
-            w.sim.run(seconds_=3, wait="2m")
+            w.sim.run(timedelta(seconds=3), wait=timedelta(minutes=2))
             return w.sim.state()
         finally:
             w.close()
@@ -236,7 +357,7 @@ def test_a_timeout_says_what_it_was_waiting_for(wb):
     wb.project.new()
     node = wb.nodes.place("Quiet", lat=56, lon=-3)
     with pytest.raises(meshbench.Timeout) as e:
-        node.wait_running(timeout=0.6)
+        node.wait_running(timeout=timedelta(seconds=0.6))
     assert "Quiet" in e.value.what
     assert e.value.last, "the timeout does not say what it last saw"
 
@@ -253,3 +374,245 @@ def test_the_escape_hatch_is_usable(wb):
     """Anything the shaped API has not reached is one line away."""
     got = wb.call("session.describe")
     assert "nodes" in got
+
+
+def test_finding_a_node_whose_name_you_cannot_type(wb):
+    """The case the ScotMesh example is built on.
+
+    Real imported names carry emoji either side and sometimes an accent, so
+    every script that wanted one node was reduced to fetching all of them and
+    matching by hand.
+    """
+    wb.project.new()
+    wb.nodes.place_many(
+        [
+            {"name": "\U0001f3d4️ West Lomond \U0001f4e1", "lat": 56.24, "lon": -3.29},
+            {"name": "West Lomond Relay Two", "lat": 56.25, "lon": -3.28},
+            {"name": "Beinn Àrd ⛰", "lat": 56.30, "lon": -3.40},
+            {"name": "\U0001f4fb Dunfermline Repeater", "lat": 56.07, "lon": -3.46},
+        ]
+    )
+
+    hits = wb.nodes.search("west lomond")
+    assert hits, "the emoji name was not found at all"
+    # The exact name beats the one that merely starts the same way. A caller
+    # taking the top result is taking this.
+    assert hits[0].name == "\U0001f3d4️ West Lomond \U0001f4e1"
+    assert hits[0].score > hits[1].score
+
+    # Accents fold, so the Gaelic name is reachable from an ASCII keyboard.
+    assert wb.nodes.find("beinn ard").name == "Beinn Àrd ⛰"
+
+    # find() refuses rather than handing back the nearest thing, and says what
+    # it did find - which is the difference between a typo and an absence.
+    with pytest.raises(meshbench.NotFound) as e:
+        wb.nodes.find("Ben Nevis")
+    assert "Ben Nevis" in str(e.value)
+
+    # The handle works: a name found this way is a name every other verb takes.
+    assert wb.nodes.find("dunfermline").info.lat < 56.1
+
+
+@pytest.fixture
+def imported(wb, tmp_path):
+    """Import builds, and take them back out however the test ends.
+
+    These land in the machine's real firmware cache - the verb uses it and
+    nothing overrides it - so a test that fails half way through would leave a
+    build behind in somebody's library. Deleting on the way out regardless is
+    the difference between a failing test and a failing test plus a mess.
+    """
+    image = tmp_path / "firmware.bin"
+    image.write_bytes(b"not really a firmware, but it is a .bin")
+    made = []
+
+    def do(role="companion_radio", board="LilyGo_TDeck", label=""):
+        b = wb.firmware.import_(str(image), role, board=board, label=label)
+        made.append(b)
+        return b
+
+    yield do
+    for b in made:
+        # Already gone is fine: deleting one is what a test here does.
+        with contextlib.suppress(meshbench.MeshbenchError):
+            wb.firmware.delete(b)
+
+
+def test_two_imports_of_one_file_are_two_builds(wb, imported):
+    """Labelled imports, which is what makes replacing a build possible.
+
+    Every import used to be called "imported" and land in a directory nothing
+    lists, so a second one replaced the first in place: the library showed one
+    entry, and there was no way to say which of two local builds a node was on
+    or to delete the older.
+    """
+    first = imported(label="wadamesh-a")
+    second = imported(label="wadamesh-b")
+    assert first.version == "wadamesh-a"
+    assert second.version == "wadamesh-b"
+
+    # Both in the library, and both on disk - the part that was broken. The
+    # library reported a count and kept the rows where only a panel could
+    # reach them, so this list was an integer.
+    on_disk = {b.version for b in wb.firmware.on_disk()}
+    assert {"wadamesh-a", "wadamesh-b"} <= on_disk
+
+    # And the older one can be deleted by itself, which is the point.
+    wb.firmware.delete(first)
+    assert "wadamesh-a" not in {b.version for b in wb.firmware.on_disk()}
+    assert "wadamesh-b" in {b.version for b in wb.firmware.on_disk()}
+
+
+def test_a_default_import_label_is_a_timestamp(wb, imported):
+    """No label still gives a distinguishable build, rather than a collision."""
+    got = imported(board="Heltec_v3")
+    assert got.version.startswith("imported-")
+    assert got.version in {b.version for b in wb.firmware.on_disk()}
+
+
+def test_the_import_chain_refuses_in_the_wrong_order(wb):
+    """Each step needs the one before it, and says so rather than doing half.
+
+    The chain is where scripted imports go wrong, and the failures are quiet:
+    committing nothing, or inferring against no source, used to be the kind of
+    thing that produced an empty mesh and no error.
+    """
+    with pytest.raises(meshbench.Refused):
+        wb.live.commit()  # nothing fetched
+    with pytest.raises(meshbench.Refused):
+        wb.live.infer()  # no source
+    with pytest.raises(meshbench.Refused):
+        wb.live.apply_regions()  # nothing inferred
+
+    # A pasted trailing slash is tidied at the workbench rather than turning
+    # into a double slash in every request it then makes.
+    assert wb.live.set_source("http://127.0.0.1:9/feed/") == "http://127.0.0.1:9/feed"
+
+    # A source that cannot be reached is an error, not a hang and not silence.
+    with pytest.raises(meshbench.Refused):
+        wb.live.fetch()
+
+
+def test_infer_result_is_not_a_verb_to_call(wb):
+    """It is the reading goroutine's own callback.
+
+    Reachable from the socket like everything else, and the version that
+    ignored that answered by replacing a finished inference with an empty one -
+    so a mesh that had just been imported correctly went silent, and nothing
+    said why.
+    """
+    with pytest.raises(meshbench.BadParams):
+        wb.call("infer.result")
+
+
+# A square over Fife, as a FeatureCollection with a named feature - the shape
+# anything that exports a drawn polygon produces.
+FIFE_ISH = {
+    "type": "FeatureCollection",
+    "features": [
+        {
+            "type": "Feature",
+            "properties": {"name": "Test square"},
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [-3.4, 56.0],
+                        [-2.8, 56.0],
+                        [-2.8, 56.4],
+                        [-3.4, 56.4],
+                        [-3.4, 56.0],
+                    ]
+                ],
+            },
+        }
+    ],
+}
+
+
+def test_a_study_area_from_geojson(wb, tmp_path):
+    """Your own polygon, rather than one the gazetteer has a name for.
+
+    boundary.set searches Nominatim, so it needs the network and needs the area
+    to have an administrative name. A catchment, a valley or a polygon drawn
+    this morning has neither, and the GeoJSON parser this uses has been in the
+    tree the whole time with nothing outside the process able to reach it.
+    """
+    assert wb.boundary.list() == []
+
+    # As a dict, as a document, and as a file: all three are things a caller
+    # actually has.
+    assert wb.boundary.load(FIFE_ISH) == ["Test square"]
+    assert wb.boundary.list() == ["Test square"]
+
+    path = tmp_path / "tay-catchment.geojson"
+    path.write_text(json.dumps(FIFE_ISH["features"][0]["geometry"]))
+    # A bare geometry carries no name, so the file's own name is used - which
+    # is what somebody who named it "tay-catchment.geojson" already told us.
+    assert wb.boundary.use(str(path)) == ["tay-catchment"]
+    assert set(wb.boundary.list()) == {"Test square", "tay-catchment"}
+
+    wb.boundary.remove("tay-catchment")
+    assert wb.boundary.list() == ["Test square"]
+
+
+def test_a_study_area_prunes_what_is_outside(wb):
+    """What the boundary is for, on a mesh that was loaded before it was set."""
+    wb.project.new()
+    wb.nodes.place_many(
+        [
+            {"name": "Inside", "lat": 56.2, "lon": -3.1},
+            {"name": "Outside", "lat": 57.5, "lon": -4.2},
+        ]
+    )
+    wb.boundary.load(FIFE_ISH)
+
+    # No margin, or the node 150 km away is kept on the grounds that it might
+    # interfere - which is the right default and the wrong thing to assert on.
+    assert wb.boundary.prune(margin_km=0) == 1
+    assert [n.name for n in wb.nodes.list()] == ["Inside"]
+
+
+def test_geojson_that_is_not_geojson_says_so(wb, tmp_path):
+    """A refusal that names the problem, rather than an empty study area."""
+    with pytest.raises(meshbench.BadParams):
+        wb.boundary.load('{"type": "Point", "coordinates": [0, 0]}')
+    with pytest.raises(meshbench.MeshbenchError):
+        wb.boundary.load(str(tmp_path / "nothing-here.geojson"))
+
+
+def test_attach_or_start_reuses_the_session_it_started(binary, tmp_path, monkeypatch):
+    """The whole point of the pair, and it did not work.
+
+    headless() and launch() invent a private address when none is named, so
+    that two of them do not fight over the per-user default. attach_or_ was
+    inheriting that: every run failed to attach, started a session somewhere
+    nobody would look again, and the next run did the same - so a script
+    written to be re-run built a second workbench each time and appeared to
+    lose its scenario.
+
+    The environment names the address, so this exercises the default path
+    without touching the one the operator's own workbench is on.
+    """
+    monkeypatch.setenv(meshbench.SOCKET_ENV, str(tmp_path / "shared.sock"))
+    monkeypatch.setenv("MESHBENCH_BINARY", binary)
+
+    first = Workbench.attach_or_headless(binary=binary, stderr=subprocess.DEVNULL)
+    try:
+        assert first.owns_process, (
+            "nothing was listening, so it should have started one"
+        )
+        first.project.new()
+        first.nodes.place("Marker", lat=56.0, lon=-3.0)
+
+        second = Workbench.attach_or_headless(binary=binary, stderr=subprocess.DEVNULL)
+        try:
+            # The same session, which is the claim: it found the scenario the
+            # first one built rather than starting an empty one of its own.
+            assert not second.owns_process, "it started a second session"
+            assert second.hello.pid == first.hello.pid
+            assert "Marker" in second.nodes
+        finally:
+            second.close()
+    finally:
+        first.close()

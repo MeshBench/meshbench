@@ -1,5 +1,5 @@
 // The clock, and the run.
-package client
+package meshbench
 
 import (
 	"context"
@@ -18,8 +18,59 @@ func (s Sim) State(ctx context.Context) (SimState, error) {
 	return st, s.w.CallInto(ctx, "sim.state", nil, &st)
 }
 
-// Start warms the links, starts firmware on every node, and plays.
-func (s Sim) Start(ctx context.Context) error { return s.w.Do(ctx, "sim.start", nil) }
+// Start brings the run up: waits out the warm, starts every node, and plays.
+//
+// Deliberately not one call to sim.start. That verb is the play button's own
+// handler and answers four ways - it pauses if already playing, declines while
+// links are being measured, or starts firmware and does not play - so a script
+// pressing it once gets whichever of those the moment happens to be in.
+//
+// Worse, it only starts firmware when *no* node is running. Pin a build onto
+// two nodes of a fifty-eight node fixture and it considers the mesh started,
+// plays with fifty-six of them down, and says nothing.
+//
+// So this asks for the three things it actually wants, in order, and checks
+// each one. Zero timeouts mean the usual ones.
+func (s Sim) Start(ctx context.Context) error {
+	return s.StartWithin(ctx, 0, 0)
+}
+
+// StartWithin is Start with the two waits named: how long to give the link
+// measurement, and how long to give the firmware.
+func (s Sim) StartWithin(ctx context.Context, warm, firmware time.Duration) error {
+	if warm <= 0 {
+		warm = 30 * time.Minute
+	}
+	// The links first. Nothing that follows means anything against a matrix
+	// that is still being measured.
+	if err := s.w.WaitIdle(ctx, warm); err != nil {
+		return err
+	}
+	// Then every node that is not up, which firmware.start does and sim.start
+	// does only when none of them are.
+	st, err := s.w.Firmware().State(ctx)
+	if err != nil {
+		return err
+	}
+	if st.Running < st.Nodes {
+		if err := s.w.Firmware().Start(ctx); err != nil {
+			return err
+		}
+		if err := s.w.Firmware().WaitStarted(ctx, firmware); err != nil {
+			return err
+		}
+	}
+	// Then the clock, by its own name. Play cannot pause, which is the other
+	// half of what made Start unusable from a script.
+	now, err := s.State(ctx)
+	if err != nil {
+		return err
+	}
+	if now.Playing {
+		return nil
+	}
+	return s.Play(ctx)
+}
 
 // Play, Pause and Toggle are the clock itself.
 func (s Sim) Play(ctx context.Context) error   { return s.w.Do(ctx, "sim.play", nil) }

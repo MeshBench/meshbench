@@ -35,8 +35,15 @@ type UI interface {
 	// FitMap frames every node, which is the only camera request that needs
 	// no numbers and is the one somebody driving a capture usually wants.
 	FitMap()
-	// OpenNodeWindow gives one node a window of its own.
-	OpenNodeWindow(node string)
+	// OpenNodeWindow gives one node a window of its own, opened on a named tab
+	// where one was asked for, and reports which tab it landed on.
+	//
+	// The tab because the Hardware pane is where a board draws itself and it
+	// could be reached only by clicking - so a capture could not show it and a
+	// script could not open it. What it landed on, because a node whose board
+	// declares no screen, lamps or buttons grows no Hardware tab, and
+	// reporting one it does not have would be worse than refusing.
+	OpenNodeWindow(node, tab string) (string, error)
 
 	// OpenPanel shows a panel. where is "" for in the layout, "window" for
 	// its own window, or "dock" to bring it back.
@@ -141,8 +148,12 @@ func registerNodeWindow(st *state.Store, s *Sim) {
 		if _, found := findNode(w.Nodes, name); !found {
 			return nil, noSuchNode(name)
 		}
-		s.ui.OpenNodeWindow(name)
-		return map[string]any{"node": name}, nil
+		tab, _ := stringField(p, "tab")
+		shown, err := s.ui.OpenNodeWindow(name, tab)
+		if err != nil {
+			return nil, control.WithCode(control.BadParams, err)
+		}
+		return map[string]any{"node": name, "tab": shown}, nil
 	})
 }
 

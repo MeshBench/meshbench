@@ -3,14 +3,14 @@
     from meshbench import Workbench
 
     with Workbench.headless(fixture="fife-strict", seed=9001) as wb:
-        wb.sim.run(minutes=5)
+        wb.sim.run(timedelta(minutes=5))
         print(wb.provenance())
         print(wb.events.total(), "events")
 
 Two layers. `wb.call(verb, params)` is the whole API and stays public, so a
 verb this package has not shaped is one line away rather than a blocker; above
-it sit `wb.nodes`, `wb.sim`, `wb.firmware`, `wb.events`, `wb.project` and a
-node's own console.
+it sit `wb.nodes`, `wb.sim`, `wb.firmware`, `wb.events`, `wb.project`,
+`wb.live` and a node's own console.
 
 Every wait is a method - `node.wait_running()`, `sim.run()`,
 `firmware.wait_started()` - never a sleep in a script. They poll today and will
@@ -22,12 +22,15 @@ emulated nodes that is a great deal longer than five of yours.
 """
 
 from ._socket import (
+    BINARY_ENV,
     PROTOCOL,
     RENDEZVOUS_ENV,
     SOCKET_ENV,
     default_address,
     default_socket_path,
 )
+from .boundary import Boundary
+from .checks import Assertions, Check, Report, Schedule
 from .errors import (
     BadParams,
     Closing,
@@ -40,24 +43,27 @@ from .errors import (
     Unavailable,
     UnknownVerb,
 )
+from .live import DEFAULT_WINDOW, Live
 from .nodes import Node, Nodes
 from .parts import Console, Events, Firmware, Job, Project, Sim
+from .sets import (
+    DEFAULT_PRESET,
+    Board,
+    Class,
+    Kind,
+    Preset,
+    Role,
+    Strategy,
+    Tab,
+    Transport,
+)
 from .types import (
-    ADVANCED_REPEATER,
-    COMPANION,
-    EMITTER,
-    FLOOR,
-    HALF_DUPLEX,
-    INTERFERENCE,
-    RECEIVED,
-    ROOM_SERVER,
-    SDR_OBSERVER,
-    SENT,
-    SIMPLE_REPEATER,
     Build,
     Event,
     Hello,
+    ImportPreview,
     JobInfo,
+    NameMatch,
     NodeInfo,
     NodeStat,
     Provenance,
@@ -66,18 +72,26 @@ from .types import (
 from .workbench import Workbench
 
 __all__ = [
-    "ADVANCED_REPEATER",
-    "COMPANION",
-    "EMITTER",
-    "FLOOR",
-    "HALF_DUPLEX",
-    "INTERFERENCE",
+    "Schedule",
+    "BINARY_ENV",
+    "Boundary",
+    "Transport",
+    "Tab",
+    "Strategy",
+    "Role",
+    "Class",
+    "Live",
+    "DEFAULT_WINDOW",
+    "ImportPreview",
+    "NameMatch",
+    "Report",
+    "Preset",
+    "Kind",
+    "DEFAULT_PRESET",
+    "Check",
+    "Board",
+    "Assertions",
     "PROTOCOL",
-    "RECEIVED",
-    "ROOM_SERVER",
-    "SDR_OBSERVER",
-    "SENT",
-    "SIMPLE_REPEATER",
     "RENDEZVOUS_ENV",
     "SOCKET_ENV",
     "BadParams",

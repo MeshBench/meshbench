@@ -1,4 +1,4 @@
-package client
+package meshbench
 
 import (
 	"context"
@@ -31,6 +31,9 @@ type Workbench struct {
 	// somebody is looking at by falling off the end of a function.
 	owned *exec.Cmd
 }
+
+// BinaryEnv names the workbench to start when nothing else does.
+const BinaryEnv = "MESHBENCH_BINARY"
 
 // Option configures a connection.
 type Option func(*dialOptions)
@@ -152,6 +155,13 @@ func launch(ctx context.Context, o *dialOptions, args []string) (*Workbench, err
 		args = append(args, "-control-socket", o.socket)
 	}
 	bin := o.binary
+	if bin == "" {
+		// A checkout has one built but not installed, and every example and
+		// every test then needs the same three lines to find it. The variable
+		// the test harness already used is honoured here too, so that
+		// MESHBENCH_BINARY means what the README says it means.
+		bin = os.Getenv(BinaryEnv)
+	}
 	if bin == "" {
 		bin = "meshcoresim"
 	}
@@ -341,6 +351,31 @@ func (w *Workbench) Say(ctx context.Context, text string) error {
 	return w.Do(ctx, "ui.said", text)
 }
 
+// Window opens a node's own window, on a named tab.
+//
+// Windowed sessions only, and it says so here rather than appearing to work: a
+// headless run has nothing to open, and a script that "opened the Hardware
+// tab" in CI and saw no error will be written to assume it did.
+//
+// The tab names are the ones on the strip - Console, Companion, SDR, Settings,
+// Radio, Stats, Activity, Connect, Hardware - and an empty one takes the
+// default. It returns the tab it opened on.
+func (w *Workbench) Window(ctx context.Context, node string, tab Tab) (Tab, error) {
+	if w.Headless() {
+		return "", &Refused{
+			Verb: "node.window", Code: "unavailable",
+			Message: "this session has no interface attached, so there is nothing to show",
+			kind:    ErrUnavailable,
+		}
+	}
+	var out struct {
+		Tab Tab `json:"tab"`
+	}
+	err := w.CallInto(ctx, "node.window",
+		map[string]any{"node": node, "tab": tab}, &out)
+	return out.Tab, err
+}
+
 var errNoProcess = errors.New("this client did not start the workbench")
 
 // Stop ends a workbench this client started. Attach's connection has nothing
@@ -351,3 +386,49 @@ func (w *Workbench) Stop() error {
 	}
 	return w.Close()
 }
+
+// AttachOrLaunch uses the session that is already running, or opens one.
+//
+// For a script somebody runs repeatedly by hand: the second run carries on
+// from the first rather than clearing everything down and starting again.
+//
+// Note which half you got, because they differ in one important way. Attaching
+// does not own the process and Close leaves it running; launching owns it and
+// Close stops it. Owned reports which happened, so a script that must not take
+// the session down with it can say so.
+func AttachOrLaunch(ctx context.Context, options ...Option) (*Workbench, error) {
+	return attachOr(ctx, Launch, options)
+}
+
+// AttachOrHeadless is AttachOrLaunch without a window, for a machine with no
+// display.
+func AttachOrHeadless(ctx context.Context, options ...Option) (*Workbench, error) {
+	return attachOr(ctx, Headless, options)
+}
+
+// attachOr starts a session at the address it has just tried, which is the
+// whole point of the pair.
+//
+// Launch and Headless called directly invent a private address, so that two of
+// them - two tests, two scripts - do not fight over the per-user default.
+// Inheriting that here made AttachOrLaunch useless: every run failed to
+// attach, started a session somewhere nobody would look again, and the next
+// run did the same. It read as "reuse does not work" rather than as an address
+// nobody had named.
+func attachOr(ctx context.Context, start func(context.Context, ...Option) (*Workbench, error),
+	options []Option,
+) (*Workbench, error) {
+	if opts(options).socket == "" {
+		options = append(options, Socket(control.DefaultAddress()))
+	}
+	if wb, err := Attach(ctx, options...); err == nil {
+		return wb, nil
+	}
+	return start(ctx, options...)
+}
+
+// Owned reports whether Close will stop the session or only hang up on it.
+//
+// Worth asking after AttachOrLaunch, where either is possible and the
+// difference is whether the workbench is still there afterwards.
+func (w *Workbench) Owned() bool { return w.owned != nil }

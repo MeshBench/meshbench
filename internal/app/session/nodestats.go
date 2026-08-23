@@ -128,9 +128,7 @@ func (s *Sim) nodeStats(events []state.Event) []state.NodeStat {
 	live := map[int]bool{}
 	for _, n := range nodes {
 		st := state.NodeStat{Name: n.Spec.Name, Sent: n.Sent, Heard: n.Heard}
-		if s.states != nil {
-			st.State = s.states[n.Spec.Name]
-		}
+		st.State = s.stateOf(n.Spec.Name)
 		// By name, not by position. The engine keeps its own list and there
 		// is nothing holding the two in the same order, so indexing one with
 		// the other's subscript reads some other node's build - and a board
@@ -290,12 +288,12 @@ func (s *Sim) setFirmware(name string, b Build) error {
 			// new one under an emulator it was never built for.
 			s.nodes[i].Firmware.Board = b.Board
 			if b.Role != "" {
-				s.nodes[i].Firmware.Role = b.Role
+				s.nodes[i].Firmware.Role = scenario.Role(b.Role)
 			}
 			// The engine keeps its own copy; see Engine.PinFirmware.
 			if s.eng != nil {
 				s.eng.PinFirmware(name, b.Version)
-				s.eng.PinBoard(name, b.Board, b.Role)
+				s.eng.PinBoard(name, b.Board, scenario.Role(b.Role))
 			}
 			return nil
 		}
@@ -379,6 +377,13 @@ func pushInt(s []int, v int) []int {
 // interesting moments are the ones where it does not: a row that goes blank
 // while its firmware is being changed looks exactly like a node that has died.
 func (s *Sim) setState(name, what string) {
+	// Locked, because Reflash writes this from a goroutine of its own while
+	// the store goroutine reads it to answer nodes.stats. That is a concurrent
+	// map read and write, which Go does not merely tolerate badly - it kills
+	// the process, taking the whole workbench and every emulated node with it.
+	// Reflashing two nodes and then asking what is running was enough.
+	s.statesMu.Lock()
+	defer s.statesMu.Unlock()
 	if s.states == nil {
 		s.states = map[string]string{}
 	}
@@ -387,6 +392,13 @@ func (s *Sim) setState(name, what string) {
 		return
 	}
 	s.states[name] = what
+}
+
+// stateOf reads what a node is doing between the states it rests in.
+func (s *Sim) stateOf(name string) string {
+	s.statesMu.Lock()
+	defer s.statesMu.Unlock()
+	return s.states[name]
 }
 
 // Reflash stops a node, gives it a different build, and starts it again.

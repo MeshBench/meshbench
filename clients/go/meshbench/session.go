@@ -1,6 +1,6 @@
 // The rest of a scripted run: the project, what happened, and what a node
 // said.
-package client
+package meshbench
 
 import (
 	"context"
@@ -160,12 +160,19 @@ func (c Console) Send(ctx context.Context, line string) error {
 }
 
 // Read is the scrollback.
+// Read is the scrollback, newest last.
+//
+// The lines come back under "tail" and "lines" is how many there are in total,
+// so reading "lines" hands you a number where you asked for text. The tail is
+// the last 200; a node up for an hour has thousands and nobody reads the first
+// one.
 func (c Console) Read(ctx context.Context) ([]string, error) {
 	var out struct {
-		Lines []string `json:"lines"`
+		Tail  []string `json:"tail"`
+		Lines int      `json:"lines"`
 	}
 	err := c.w.CallInto(ctx, "console.read", map[string]any{"node": c.node}, &out)
-	return out.Lines, err
+	return out.Tail, err
 }
 
 // Ask sends a line and waits for the node to answer it.

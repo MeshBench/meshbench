@@ -13,41 +13,11 @@ with it.
 """
 
 import sys
-import xml.etree.ElementTree as ET
+from datetime import timedelta
 
 from meshbench import Workbench
 
 SEED = 9001
-
-
-def write_junit(path: str, results: list[dict], provenance: str) -> None:
-    """A JUnit file, with the caveats inside it.
-
-    In the file rather than only on stdout, because the file is what a CI
-    system keeps and shows six months later - and a delivery figure with no
-    note of what the model assumed is exactly the number this project exists
-    not to publish.
-    """
-    suite = ET.Element(
-        "testsuite",
-        name="meshbench",
-        tests=str(len(results)),
-        failures=str(sum(1 for r in results if not r.get("pass"))),
-    )
-    ET.SubElement(suite, "properties").append(
-        ET.Element("property", name="meshbench.provenance", value=provenance)
-    )
-    for r in results:
-        case = ET.SubElement(
-            suite, "testcase", classname="assertions", name=str(r.get("kind"))
-        )
-        if not r.get("pass"):
-            ET.SubElement(
-                case,
-                "failure",
-                message=f"got {r.get('got')}, want {r.get('want')}",
-            )
-    ET.ElementTree(suite).write(path, encoding="utf-8", xml_declaration=True)
 
 
 def main() -> int:
@@ -55,34 +25,32 @@ def main() -> int:
     junit = sys.argv[2] if len(sys.argv) > 2 else ""
 
     with Workbench.headless(fixture=fixture, seed=SEED) as wb:
-        wb.sim.run(minutes=5, wait="60m")
+        # Bring the mesh up before running the clock. sim.run only advances
+        # time; without this the firmware never starts, nothing transmits, and
+        # the run reports every assertion failed on a tree with nothing wrong
+        # with it - which is the worst thing a regression check can do.
+        wb.sim.start()
+        wb.firmware.wait_started()
 
-        report = wb.call("assert.check") or {}
-        results = report.get("results") or []
-        passed, total = report.get("passed", 0), report.get("total", 0)
-        provenance = str(wb.provenance())
+        wb.sim.run(timedelta(minutes=5), wait=timedelta(minutes=60))
 
-        # The caveats above the numbers, always. Not a footnote: this is the
-        # output somebody pastes into a pull request.
-        print(provenance)
-        print(f"{wb.events.total()} events, {passed} of {total} assertions passed")
-        for r in results:
-            if not r.get("pass"):
-                print(
-                    f"  FAILED {r.get('kind')}: got {r.get('got')}, "
-                    f"want {r.get('want')}"
-                )
+        report = wb.assertions.check()
+
+        # The report prints the caveats above the numbers itself, because this
+        # is the output somebody pastes into a pull request and the caveats are
+        # the half that gets dropped.
+        print(report)
+        print(f"{wb.events.total()} events")
 
         if junit:
-            write_junit(junit, results, provenance)
+            report.write_junit(junit)
 
-        if total == 0:
+        if report.total == 0:
             # Not a pass. A fixture with no assertions can report but cannot
             # pass or fail, and a green tick that checked nothing is the worst
             # outcome available here.
-            print(f"{fixture} carries no assertions, so this checked nothing")
             return 2
-        return 0 if passed == total else 1
+        return 0 if report.ok else 1
 
 
 if __name__ == "__main__":

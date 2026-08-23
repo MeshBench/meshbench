@@ -1,4 +1,4 @@
-package client
+package meshbench
 
 import (
 	"context"
@@ -39,7 +39,11 @@ func meshbench(t *testing.T) string {
 			return
 		}
 		binary = filepath.Join(dir, "meshcoresim")
-		cmd := exec.Command("go", "build", "-o", binary, "../cmd/meshcoresim")
+		// By package path from the module root rather than by counting "../"
+		// out of this directory - which is what broke when the client moved
+		// under clients/go, and would break again on the next move.
+		cmd := exec.Command("go", "build", "-o", binary,
+			"github.com/MeshBench/meshbench/cmd/meshcoresim")
 		if out, err := cmd.CombinedOutput(); err != nil {
 			buildErr = errors.New(string(out))
 		}
@@ -157,6 +161,90 @@ func TestNodeStatsCarryTheRowsAndNotJustACount(t *testing.T) {
 	// firmware" are not the same answer.
 	if first.Running || first.State != "stopped" {
 		t.Errorf("nothing was started and %s reports %q", first.Name, first.State)
+	}
+}
+
+// #216: nodes.place took no board, so a script could build a mesh and not
+// build the one it wanted.
+func TestPlacingANodeOnABoard(t *testing.T) {
+	wb, ctx := headless(t)
+	if err := wb.Project().New(ctx, ""); err != nil {
+		t.Fatal(err)
+	}
+	deck, err := wb.Nodes().Place(ctx, Placement{
+		Name: "Deck", Kind: Companion, Lat: 56.19, Lon: -3.17,
+		Board: BoardLilyGoTDeck,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	info, err := deck.Info(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Board != BoardLilyGoTDeck {
+		t.Fatalf("placed as a T-Deck and came back as %q", info.Board)
+	}
+
+	// A board is physics - the transmit ceiling, the noise figure, the
+	// battery - so a name nothing matches refuses rather than falling back to
+	// something plausible.
+	_, err = wb.Nodes().Place(ctx, Placement{
+		Name: "Wrong", Lat: 56, Lon: -3, Board: Board("LilyGo T-Deck Pro Max")})
+	if !errors.Is(err, ErrBadParams) {
+		t.Errorf("a board nobody has gave %v, want ErrBadParams", err)
+	}
+}
+
+func TestChangingWhatANodeIs(t *testing.T) {
+	wb, ctx := headless(t)
+	if err := wb.Project().New(ctx, ""); err != nil {
+		t.Fatal(err)
+	}
+	n, err := wb.Nodes().Place(ctx, Placement{Name: "Deck", Lat: 56, Lon: -3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := n.SetBoard(ctx, BoardHeltecV3); err != nil {
+		t.Fatal(err)
+	}
+	info, err := n.Info(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Board != BoardHeltecV3 {
+		t.Fatalf("set to a Heltec and reads as %q", info.Board)
+	}
+}
+
+// Half a deletion leaves a scenario nobody described.
+func TestABadNameDeletesNothing(t *testing.T) {
+	wb, ctx := headless(t)
+	if err := wb.Project().New(ctx, ""); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"A", "B", "C"} {
+		if _, err := wb.Nodes().Place(ctx, Placement{Name: name, Lat: 56, Lon: -3}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := wb.Nodes().Delete(ctx, "A", "Nowhere"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("deleting a name that is not there gave %v, want ErrNotFound", err)
+	}
+	list, err := wb.Nodes().List(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 3 {
+		t.Fatalf("a refused delete removed something anyway: %v", names(list))
+	}
+}
+
+// The client says so, rather than letting twelve verbs refuse in a row.
+func TestAWindowVerbRefusesHeadless(t *testing.T) {
+	wb, ctx := headless(t)
+	if _, err := wb.Window(ctx, "anything", "Hardware"); !errors.Is(err, ErrUnavailable) {
+		t.Errorf("opening a window headless gave %v, want ErrUnavailable", err)
 	}
 }
 

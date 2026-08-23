@@ -33,3 +33,9 @@ var ErrNoSimulation = errors.New("no simulation")
 func noSuchNode(name string) error {
 	return control.WithCode(control.NotFound, fmt.Errorf("no node named %q", name))
 }
+
+// badParams is the closed-set code for "you asked wrongly", so the message
+// reads as a sentence rather than as a wrapped sentinel.
+func badParams(format string, args ...any) error {
+	return control.WithCode(control.BadParams, fmt.Errorf(format, args...))
+}

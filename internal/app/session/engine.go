@@ -30,6 +30,12 @@ type Sim struct {
 	ui UI
 	// consoles is one scrollback per node, keyed by name.
 	consoles map[string]*console.Buf
+	// sendClock is when each scheduled send last fired, so a repeating one
+	// repeats per interval rather than per tick.
+	sendClock sendClock
+	// statesMu guards states, which Reflash writes from its own goroutine and
+	// the store goroutine reads to answer nodes.stats.
+	statesMu sync.Mutex
 	// logPath is where this run's full status log is being written, if
 	// anywhere - set by whoever opened it, read by log.path so a script or a
 	// menu action can find the file without knowing the naming scheme.

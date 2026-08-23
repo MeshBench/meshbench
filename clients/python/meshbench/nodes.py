@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from datetime import timedelta
 from typing import TYPE_CHECKING
 
 from . import errors
-from .types import SIMPLE_REPEATER, Build, NodeInfo, NodeStat
-from .wait import seconds, wait_for
+from .sets import Board, Kind, Transport
+from .types import Build, NameMatch, NodeInfo, NodeStat
+from .wait import FIRMWARE_WAIT, wait_for
 
 if TYPE_CHECKING:  # pragma: no cover - import for typing only
     from .parts import Console
@@ -43,17 +45,63 @@ class Nodes:
                 return n
         raise errors.NotFound("nodes.list", f"no node named {name!r}", "not_found")
 
+    def search(self, query: str, limit: int = 10) -> list[NameMatch]:
+        """Find nodes by name, best first, when you cannot type the name.
+
+        Imported names carry emoji and accents - "🏔️ West Lomond 📡" is one
+        real node - so matching is done on letters and digits alone, with
+        accents folded and word order ignored. The ranking happens at the
+        workbench rather than here, so this client and the Go one agree about
+        which result is the top one.
+
+        Returns an empty list rather than raising: "nothing matched" is an
+        answer, and the caller usually wants to widen the query rather than
+        handle an exception.
+        """
+        got = self._wb.call("nodes.search", {"query": query, "limit": limit}) or {}
+        return [NameMatch.parse(m) for m in got.get("matches") or []]
+
+    def find(self, query: str, least: float = 0.5) -> Node:
+        """The one node a search meant, or a refusal naming what it did find.
+
+        ``least`` is the score below which the top answer is not good enough to
+        act on. Taking the top result unconditionally is how a script ends up
+        sending an advert from a node that merely shared a word with what was
+        asked for, and it does that silently.
+        """
+        matches = self.search(query, limit=5)
+        if not matches or matches[0].score < least:
+            near = ", ".join(f"{m.name!r} ({m.score:.2f})" for m in matches[:3])
+            raise errors.NotFound(
+                "nodes.search",
+                f"nothing matches {query!r} well enough"
+                + (f"; nearest were {near}" if near else ""),
+                "not_found",
+            )
+        return Node(self._wb, matches[0].name)
+
+    def near(self, node: Node | str, count: int = 0) -> list[Node]:
+        """The nodes closest to this one, nearest first.
+
+        Trimming an imported deployment to a neighbourhood is the first thing
+        anybody does with one, and the distance is the workbench's own - the
+        same great circle its path losses use.
+        """
+        got = self._wb.call("nodes.near", {"node": str(node), "count": count}) or {}
+        return [Node(self._wb, n["name"]) for n in got.get("near") or []]
+
     def of_kind(self, kind: str) -> list[Node]:
         return [Node(self._wb, n.name) for n in self.list() if n.kind == kind]
 
     def place(
         self,
         name: str,
-        kind: str = SIMPLE_REPEATER,
+        kind: Kind | str = Kind.SIMPLE_REPEATER,
         lat: float = 0.0,
         lon: float = 0.0,
         height_m: float | None = None,
         tx_dbm: float | None = None,
+        board: Board | str | None = None,
     ) -> Node:
         """Put one node down.
 
@@ -66,6 +114,11 @@ class Nodes:
             params["height_m"] = height_m
         if tx_dbm is not None:
             params["tx_dbm"] = tx_dbm
+        if board:
+            # A name nothing matches is refused rather than ignored: the board
+            # decides the transmit ceiling, the noise figure and the battery,
+            # so a silent fallback would be a different node answering.
+            params["board"] = board
         self._wb.call("nodes.place", params)
         return Node(self._wb, name)
 
@@ -80,25 +133,27 @@ class Nodes:
         self._wb.call("links.recompute")
         return out
 
-    def delete(self, *names: str) -> None:
-        """Remove them, in order.
+    def delete(self, *nodes: Node | str) -> None:
+        """Remove them, in one rebuild.
 
-        One call per node until there is a verb that takes a set. Each rebuild
-        cancels the previous warm, so the cost is one measurement of the matrix
-        rather than one per node - but it is still N rebuilds, so trimming
-        forty nodes takes a while.
+        All or none: a name that is not there refuses and removes nothing,
+        because half a deletion leaves a scenario nobody described and no way
+        to tell which half survived without asking again.
         """
-        for name in names:
-            self._wb.call("nodes.delete", {"node": name})
+        if nodes:
+            self._wb.call("nodes.delete_many", _names(nodes))
 
-    def keep(self, *names: str) -> None:
-        """Delete everything except these."""
-        want = set(names)
-        self.delete(*[n.name for n in self.list() if n.name not in want])
+    def keep(self, *nodes: Node | str) -> None:
+        """Delete everything these do not name.
 
-    def select(self, *names: str, add: bool = False) -> None:
+        The complement is worked out at the workbench rather than here, so it
+        cannot be computed against a list that changed in between.
+        """
+        self._wb.call("nodes.keep", _names(nodes))
+
+    def select(self, *nodes: Node | str, add: bool = False) -> None:
         self._wb.call(
-            "nodes.add_to_selection" if add else "nodes.select_many", list(names)
+            "nodes.add_to_selection" if add else "nodes.select_many", _names(nodes)
         )
 
     def selected(self) -> list[str]:
@@ -184,12 +239,48 @@ class Node:
         )
 
     @property
+    def build(self) -> Build | None:
+        """The build this node runs, or None if it is pinned to nothing.
+
+        The whole row rather than the version string, because deleting a build
+        or comparing two needs its path and its board, and reassembling those
+        from a version is the kind of guesswork that deletes the wrong file.
+        """
+        want = self.info.firmware
+        if not want:
+            return None
+        for b in self._wb.firmware.library():
+            if b.version == want:
+                return b
+        return None
+
+    @property
     def firmware(self) -> str:
         return self.info.firmware
 
     @firmware.setter
     def firmware(self, build: Build | str) -> None:
         self.set_firmware(build)
+
+    @property
+    def board(self) -> str:
+        """What this node is, by board profile name.
+
+        From the network rather than from the statistics: a stopped node has
+        hardware just as surely as a running one.
+        """
+        return self.info.board
+
+    @board.setter
+    def board(self, name: Board | str) -> None:
+        """What hardware this node is.
+
+        A change to the physics rather than a label, so it rebuilds and
+        re-warms - and it clears a firmware pin made for a different board,
+        because that image cannot run on this one and a pin nobody can honour
+        reads as a configured node right up until it refuses to start.
+        """
+        self._wb.call("node.set_board", {"node": self.name, "board": name})
 
     def set_true_rf(self, on: bool = True) -> None:
         """Take waveform verdicts whatever the run's mode - the hybrid flag,
@@ -208,9 +299,9 @@ class Node:
         """What this node is told at boot, in the console's own words."""
         return (self._wb.call("node.provisioning", self.name) or {}).get("commands", [])
 
-    def serve(self, kind: str = "tcp") -> str:
+    def serve(self, over: Transport = Transport.TCP) -> str:
         """Hand this companion to a real client, and say where to point it."""
-        got = self._wb.call("bench.serve", {"node": self.name, "kind": kind}) or {}
+        got = self._wb.call("bench.serve", {"node": self.name, "kind": over}) or {}
         return got.get("addr", "")
 
     def unserve(self) -> None:
@@ -222,9 +313,12 @@ class Node:
 
         return Console(self._wb, self.name)
 
-    def wait_running(self, timeout: float | str = "5m") -> None:
-        """Wait for its firmware to come up."""
-        secs = seconds(timeout)
+    def wait_running(self, timeout: timedelta = FIRMWARE_WAIT) -> None:
+        """Wait for its firmware process to be up.
+
+        ``timeout`` is wall clock - how long you are prepared to sit here - not
+        simulated time. Starting a process is real work on the real machine.
+        """
 
         def check():
             s = self.stat
@@ -232,4 +326,15 @@ class Node:
                 return True, ""
             return False, (s.state if s else "no stat row yet")
 
-        wait_for(check, secs, f"firmware on {self.name}")
+        wait_for(check, timeout, f"firmware on {self.name}")
+
+
+def _names(nodes: tuple[Node | str, ...]) -> list[str]:
+    """Names, whether handles or strings were passed.
+
+    search() and near() hand back handles and every verb takes names, so
+    without this each caller writes the same map(str) - and the one that
+    forgets sends a repr down the socket and is told there is no node named
+    "<Node 'Bench'>".
+    """
+    return [str(n) for n in nodes]

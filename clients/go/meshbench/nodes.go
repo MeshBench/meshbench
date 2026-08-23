@@ -1,5 +1,5 @@
 // The network: what is in it, and what one node can be asked to do.
-package client
+package meshbench
 
 import (
 	"context"
@@ -36,9 +36,78 @@ func (n Nodes) Get(ctx context.Context, name string) (NodeInfo, error) {
 		Message: fmt.Sprintf("no node named %q", name), kind: ErrNotFound}
 }
 
+// Search finds nodes by name, best first, when you cannot type the name.
+//
+// Imported names carry emoji and accents - "\U0001F3D4\uFE0F West Lomond \U0001F4E1" is one
+// real node - so matching is done on letters and digits alone, with accents
+// folded and word order ignored. The ranking happens at the workbench rather
+// than here, so this client and the Python one agree about which result is the
+// top one.
+//
+// An empty result is not an error: "nothing matched" is an answer, and the
+// caller usually wants to widen the query rather than handle a refusal.
+func (n Nodes) Search(ctx context.Context, query string, limit int) ([]NameMatch, error) {
+	params := map[string]any{"query": query}
+	if limit > 0 {
+		params["limit"] = limit
+	}
+	var out struct {
+		Matches []NameMatch `json:"matches"`
+	}
+	return out.Matches, n.w.CallInto(ctx, "nodes.search", params, &out)
+}
+
+// FindLeast is the score below which Find will not act on a top answer.
+//
+// Taking the top result unconditionally is how a script ends up sending an
+// advert from a node that merely shared a word with what was asked for, and it
+// does that silently.
+const FindLeast = 0.5
+
+// Find is the one node a search meant, or a refusal naming what it did find.
+func (n Nodes) Find(ctx context.Context, query string) (Node, error) {
+	matches, err := n.Search(ctx, query, 5)
+	if err != nil {
+		return Node{}, err
+	}
+	if len(matches) == 0 || matches[0].Score < FindLeast {
+		msg := fmt.Sprintf("nothing matches %q well enough", query)
+		if len(matches) > 0 {
+			near := ""
+			for i, m := range matches {
+				if i == 3 {
+					break
+				}
+				if i > 0 {
+					near += ", "
+				}
+				near += fmt.Sprintf("%q (%.2f)", m.Name, m.Score)
+			}
+			msg += "; nearest were " + near
+		}
+		return Node{}, &Refused{Verb: "nodes.search", Code: "not_found",
+			Message: msg, kind: ErrNotFound}
+	}
+	return n.w.Node(matches[0].Name), nil
+}
+
+// Near is the nodes closest to this one, nearest first, at most count of them
+// (all of them when count is zero).
+//
+// Trimming an imported deployment to a neighbourhood is the first thing anybody
+// does with one, and the distance is the workbench's own - the same great
+// circle its path losses use.
+func (n Nodes) Near(ctx context.Context, name string, count int) ([]Neighbour, error) {
+	var out struct {
+		Near []Neighbour `json:"near"`
+	}
+	return out.Near, n.w.CallInto(ctx, "nodes.near",
+		map[string]any{"node": name, "count": count}, &out)
+}
+
 // OfKind filters. Evaluated here rather than at the workbench: it is a
 // question about a list somebody already has.
-func (n Nodes) OfKind(ctx context.Context, kind string) ([]NodeInfo, error) {
+func (n Nodes) OfKind(ctx context.Context, kind Kind) ([]NodeInfo, error) {
 	all, err := n.List(ctx)
 	if err != nil {
 		return nil, err
@@ -55,12 +124,17 @@ func (n Nodes) OfKind(ctx context.Context, kind string) ([]NodeInfo, error) {
 // Placement is a node to put down.
 type Placement struct {
 	Name     string
-	Kind     string
+	Kind     Kind
 	Lat, Lon float64
 	// HeightM and TxDBm default to the scenario's own defaults when zero -
 	// ten metres and 22 dBm - rather than to nothing.
 	HeightM float64
 	TxDBm   float64
+	// Board is the hardware this node is, by profile name. Empty is a host
+	// build. A name nothing matches is refused rather than ignored: the board
+	// decides the transmit ceiling, the noise figure and the battery, so a
+	// silent fallback would be a different node answering the question.
+	Board Board
 }
 
 // Place puts one node down and hands back a handle to it.
@@ -73,13 +147,16 @@ func (n Nodes) Place(ctx context.Context, p Placement) (Node, error) {
 		p.Kind = SimpleRepeater
 	}
 	params := map[string]any{
-		"name": p.Name, "kind": p.Kind, "lat": p.Lat, "lon": p.Lon,
+		"name": p.Name, "kind": string(p.Kind), "lat": p.Lat, "lon": p.Lon,
 	}
 	if p.HeightM != 0 {
 		params["height_m"] = p.HeightM
 	}
 	if p.TxDBm != 0 {
 		params["tx_dbm"] = p.TxDBm
+	}
+	if p.Board != "" {
+		params["board"] = string(p.Board)
 	}
 	if err := n.w.Do(ctx, "nodes.place", params); err != nil {
 		return Node{}, err
@@ -103,38 +180,24 @@ func (n Nodes) PlaceMany(ctx context.Context, ps []Placement) ([]Node, error) {
 	return out, n.w.Do(ctx, "links.recompute", nil)
 }
 
-// Delete removes them, in order.
+// Delete removes them, in one rebuild.
 //
-// One call per node until there is a verb that takes a set. Each rebuild
-// cancels the previous warm, so the cost is one measurement of the matrix
-// rather than one per node - but it is still N rebuilds, so a script trimming
-// forty nodes should expect to wait.
+// All or none: a name that is not there refuses and removes nothing, because
+// half a deletion leaves a scenario nobody described and no way to tell which
+// half survived without asking again.
 func (n Nodes) Delete(ctx context.Context, names ...string) error {
-	for _, name := range names {
-		if err := n.w.Do(ctx, "nodes.delete", map[string]any{"node": name}); err != nil {
-			return err
-		}
+	if len(names) == 0 {
+		return nil
 	}
-	return nil
+	return n.w.Do(ctx, "nodes.delete_many", names)
 }
 
-// Keep deletes everything except these.
+// Keep deletes everything these do not name.
+//
+// The complement is worked out at the workbench rather than here, so it cannot
+// be computed against a list that changed in between.
 func (n Nodes) Keep(ctx context.Context, names ...string) error {
-	all, err := n.List(ctx)
-	if err != nil {
-		return err
-	}
-	want := map[string]bool{}
-	for _, k := range names {
-		want[k] = true
-	}
-	var drop []string
-	for _, x := range all {
-		if !want[x.Name] {
-			drop = append(drop, x.Name)
-		}
-	}
-	return n.Delete(ctx, drop...)
+	return n.w.Do(ctx, "nodes.keep", names)
 }
 
 // Select replaces the selection, or adds to it.
@@ -213,6 +276,28 @@ func (n Node) SetRegions(ctx context.Context, regions ...string) error {
 // when a node launches, so recording it and leaving the node on its old build
 // is the control somebody presses twice and then distrusts. Pass false to
 // record it for the next start instead - and know that is what you have done.
+// Build is the build this node runs, and false when it is pinned to nothing.
+//
+// The whole row rather than the version string, because deleting a build or
+// comparing two needs its path and its board, and reassembling those from a
+// version is the kind of guesswork that deletes the wrong file.
+func (n Node) Build(ctx context.Context) (Build, bool, error) {
+	info, err := n.w.Nodes().Get(ctx, n.name)
+	if err != nil || info.Firmware == "" {
+		return Build{}, false, err
+	}
+	all, err := n.w.Firmware().Library(ctx)
+	if err != nil {
+		return Build{}, false, err
+	}
+	for _, b := range all {
+		if b.Version == info.Firmware {
+			return b, true, nil
+		}
+	}
+	return Build{}, false, nil
+}
+
 func (n Node) SetFirmware(ctx context.Context, b Build, apply bool) error {
 	verb := "node.set_firmware"
 	if !apply {
@@ -221,6 +306,17 @@ func (n Node) SetFirmware(ctx context.Context, b Build, apply bool) error {
 	return n.w.Do(ctx, verb, map[string]any{
 		"node": n.name, "version": b.Version,
 		"board": b.Board, "role": b.Role})
+}
+
+// SetBoard changes what hardware this node is.
+//
+// A change to the physics rather than a label, so it rebuilds and re-warms -
+// and it clears a firmware pin made for a different board, because that image
+// cannot run on this one and a pin nobody can honour reads as a configured
+// node right up until it refuses to start.
+func (n Node) SetBoard(ctx context.Context, board Board) error {
+	return n.w.Do(ctx, "node.set_board",
+		map[string]any{"node": n.name, "board": string(board)})
 }
 
 // SetTrueRF makes this receiver take waveform verdicts whatever the run's
@@ -247,12 +343,12 @@ func (n Node) Provisioning(ctx context.Context) ([]string, error) {
 
 // Serve hands this companion to a real client - meshcore-cli, or an app over a
 // bridge - and returns where to point it.
-func (n Node) Serve(ctx context.Context, kind string) (string, error) {
+func (n Node) Serve(ctx context.Context, over Transport) (string, error) {
 	var out struct {
 		Addr string `json:"addr"`
 	}
 	err := n.w.CallInto(ctx, "bench.serve",
-		map[string]any{"node": n.name, "kind": kind}, &out)
+		map[string]any{"node": n.name, "kind": over}, &out)
 	return out.Addr, err
 }
 

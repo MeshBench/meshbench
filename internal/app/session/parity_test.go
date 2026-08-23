@@ -143,12 +143,17 @@ type stubUI struct {
 	layers map[string]bool
 }
 
-func (u *stubUI) ShowView(string) error       { return nil }
-func (u *stubUI) PanelNames() []string        { return []string{"Map", "Nodes running"} }
-func (u *stubUI) Quit()                       {}
-func (u *stubUI) CentreMap(_, _, _ float64)   {}
-func (u *stubUI) FitMap()                     {}
-func (u *stubUI) OpenNodeWindow(string)       {}
+func (u *stubUI) ShowView(string) error     { return nil }
+func (u *stubUI) PanelNames() []string      { return []string{"Map", "Nodes running"} }
+func (u *stubUI) Quit()                     {}
+func (u *stubUI) CentreMap(_, _, _ float64) {}
+func (u *stubUI) FitMap()                   {}
+func (u *stubUI) OpenNodeWindow(_, tab string) (string, error) {
+	if tab == "" {
+		tab = "Console"
+	}
+	return tab, nil
+}
 func (u *stubUI) OpenPanel(_, _ string) error { return nil }
 func (u *stubUI) ClosePanel(string) error     { return nil }
 func (u *stubUI) ResetLayout()                {}

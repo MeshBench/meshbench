@@ -95,6 +95,17 @@ jobs:
           go run ./tools/licgen
           git diff --exit-code -- internal/ui/workbench/licences/licences.json
 
+      # The boards, radio presets and node kinds both clients offer, generated
+      # from internal/world/scenario. A hand-copied list is a list that is
+      # wrong the week somebody adds a board - and a constant that compiles and
+      # names a board the simulator has never heard of is worse than a string,
+      # because it looks checked.
+      - name: Client enums are generatable, and fresh
+        run: |
+          go run ./tools/clientgen
+          git diff --exit-code -- clients/go/meshbench/sets_gen.go clients/python/meshbench/sets.py
+
+      # The scripting API's verb table is generated
       # The linter set went from 8 to 20 and returned 96 findings, so the run
       # can no longer simply demand zero. It demands that the count has not
       # risen: tools/lint-ratchet.sh compares per-linter counts against
