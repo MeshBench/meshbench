@@ -11,7 +11,9 @@
 package workbench
 
 import (
+	"fmt"
 	"image"
+	"os"
 
 	"gioui.org/app"
 	"gioui.org/unit"
@@ -146,8 +148,16 @@ func (c *layerChrome) recall(spot float.Spot) []app.Option {
 // express, and recall is the way back from one.
 func (c *layerChrome) clamp() {
 	if c.screen.Empty() || c.pxPerDp <= 0 {
+		layerLog("clamp skipped: screen=%v pxPerDp=%v", c.screen, c.pxPerDp)
 		return
 	}
+	was := c.spot
+	defer func() {
+		layerLog("screen=%v outputs=%v neighbours L=%v R=%v U=%v D=%v spot %v,%v -> %v,%v",
+			c.screen, c.outputs,
+			c.neighbour(-1, 0), c.neighbour(1, 0), c.neighbour(0, -1), c.neighbour(0, 1),
+			was.Left, was.Top, c.spot.Left, c.spot.Top)
+	}()
 	if !c.neighbour(-1, 0) && c.spot.Left < 0 {
 		c.spot.Left = 0
 	}
@@ -213,3 +223,29 @@ func (c *layerChrome) pxToDp() float32 {
 func (c *layerChrome) pxToDpSize(sz image.Point) (unit.Dp, unit.Dp) {
 	return unit.Dp(float32(sz.X) * c.pxToDp()), unit.Dp(float32(sz.Y) * c.pxToDp())
 }
+
+// layerLog says what a drag is being measured against, when asked.
+//
+// Diagnostic rather than logging: a layer surface cannot be asked where it is,
+// so when a drag stops at a screen edge the only way to tell a client that
+// refused the move from a compositor that ignored it is to print what the
+// client believed and what it then sent.
+//
+//	MESHBENCH_LAYER_DEBUG=1 go run ./cmd/meshcoresim workbench
+func layerLog(format string, args ...any) {
+	if os.Getenv("MESHBENCH_LAYER_DEBUG") == "" {
+		return
+	}
+	// A drag reports several times a frame and says the same thing each time
+	// until something moves, so only changes are printed - what is wanted here
+	// is the moment a value stops changing, and that is unreadable inside a
+	// thousand identical lines.
+	line := fmt.Sprintf(format, args...)
+	if line == lastLayerLog {
+		return
+	}
+	lastLayerLog = line
+	fmt.Fprintln(os.Stderr, "layer: "+line)
+}
+
+var lastLayerLog string
