@@ -25,16 +25,19 @@ import (
 // is given.
 
 type chromeHarness struct {
-	bar     comp.TitleBar
-	chrome  *layerChrome
-	r       input.Router
-	ops     op.Ops
+	bar    comp.TitleBar
+	chrome *layerChrome
+	r      input.Router
+	ops    op.Ops
+	// pxPerDp is the frame's metric, settable because a window dragged onto a
+	// screen at another scale has it change underneath the drag.
+	pxPerDp float32
 	applied []app.Option
 	closed  bool
 }
 
 func newChromeHarness() *chromeHarness {
-	return &chromeHarness{chrome: newLayerChrome(float.Spot{
+	return &chromeHarness{pxPerDp: 2, chrome: newLayerChrome(float.Spot{
 		Top: unit.Dp(24), Left: unit.Dp(24)})}
 }
 
@@ -42,7 +45,7 @@ func (h *chromeHarness) frame(sz image.Point) {
 	h.ops.Reset()
 	gtx := layout.Context{
 		Ops:         &h.ops,
-		Metric:      unit.Metric{PxPerDp: 2, PxPerSp: 2},
+		Metric:      unit.Metric{PxPerDp: h.pxPerDp, PxPerSp: h.pxPerDp},
 		Constraints: layout.Exact(sz),
 		Source:      h.r.Source(),
 	}
@@ -119,6 +122,10 @@ func TestLayerChromeDragMoves(t *testing.T) {
 // latest place - the behaviour the old model could not survive.
 func TestLayerChromeDragSurvivesMoveLag(t *testing.T) {
 	h := newChromeHarness()
+	// The screens are given in the coordinates the compositor lays the desktop
+	// out in, which is what xdg-output reports and the units a margin is
+	// measured in. Not the window's pixels: those are the same number only on
+	// a screen at 100%.
 	h.chrome.screens(image.Rect(0, 0, 800, 600), []image.Rectangle{image.Rect(0, 0, 800, 600)})
 	h.frame(image.Pt(800, 600))
 	h.frame(image.Pt(800, 600))
@@ -162,7 +169,7 @@ func TestLayerChromeDragClamps(t *testing.T) {
 	// Right and bottom: dragging far past the output's far edge leaves the
 	// bar at its rightmost reachable place, not beyond it.
 	h.drag(f32.Pt(400, 12), f32.Pt(10000, 12))
-	if max := unit.Dp(800/2 - barGrabDp); h.chrome.spot.Left > max {
+	if max := unit.Dp(800) - barGrabDp; h.chrome.spot.Left > max {
 		t.Fatalf("left margin is %v, want at most %v (the bar still grabbable)",
 			h.chrome.spot.Left, max)
 	}
