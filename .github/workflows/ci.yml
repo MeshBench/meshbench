@@ -95,6 +95,17 @@ jobs:
           go run ./tools/licgen
           git diff --exit-code -- internal/ui/workbench/licences/licences.json
 
+      # The boards, radio presets and node kinds both clients offer, generated
+      # from internal/world/scenario. A hand-copied list is a list that is
+      # wrong the week somebody adds a board - and a constant that compiles and
+      # names a board the simulator has never heard of is worse than a string,
+      # because it looks checked.
+      - name: Client enums are generatable, and fresh
+        run: |
+          go run ./tools/clientgen
+          git diff --exit-code -- clients/go/meshbench/sets_gen.go clients/python/meshbench/sets.py
+
+      # The scripting API's verb table is generated
       # The linter set went from 8 to 20 and returned 96 findings, so the run
       # can no longer simply demand zero. It demands that the count has not
       # risen: tools/lint-ratchet.sh compares per-linter counts against
@@ -140,7 +151,11 @@ jobs:
       # covers it now, but .gitignore only stops the accident it anticipated.
       - name: no tracked build artifacts
         run: |
-          if git ls-files | grep -nE '\.(test|exe|out|o|a|so|dylib|AppImage|deb|dmg)$|^(meshcoresim|workbench2|envgen|goldencap)$'; then
+          # .pyc and __pycache__ are on this list because they got committed
+          # once: an amend with `git add -A` picked up what a test run had left
+          # beside the Python client, and nothing here noticed because the
+          # pattern was written before there was any Python to catch.
+          if git ls-files | grep -nE '\.(test|exe|out|o|a|so|dylib|AppImage|deb|dmg|pyc|pyo)$|(^|/)__pycache__/|\.egg-info/|^(meshcoresim|workbench2|envgen|goldencap)$'; then
             echo "a build artifact is tracked; git remembers, so it does not need to be committed"
             exit 1
           fi
@@ -220,6 +235,48 @@ jobs:
           fi
           echo "$pkgs" | tr ' ' '\n'
           go test -count=1 -timeout 20m $pkgs
+
+  # The Python client, against a real workbench.
+  #
+  # Its own job because it needs Python and a built binary and neither of the
+  # Go shards do, and because a client that is only checked by hand is a client
+  # that is wrong by the next release. It starts headless processes, drives
+  # them over sockets of its own and stops them - no display anywhere.
+  python-client:
+    timeout-minutes: 20
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","lab-linux"]') || fromJSON('["ubuntu-latest"]') }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.25"
+          cache: false
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      # Built once and handed to the tests, rather than left for each of them
+      # to build: the suite starts a process per test and `go build` is not
+      # what is being tested.
+      - name: Build the workbench
+        run: go build -o /tmp/meshcoresim ./cmd/meshcoresim
+
+      - name: Install the client
+        run: pip install -e "clients/python[test]" ruff
+
+      # The lint the package declares for itself, so its own rules are the ones
+      # enforced rather than whatever the runner happens to have.
+      - name: ruff
+        run: |
+          ruff check clients/python
+          ruff format --check clients/python
+
+      - name: pytest
+        env:
+          MESHBENCH_BINARY: /tmp/meshcoresim
+        run: pytest clients/python/tests -q
 
   # The race detector, on request.
   #

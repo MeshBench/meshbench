@@ -4640,7 +4640,26 @@
     }
   ],
   "margin_km": 30,
-  "sends": null,
+  "sends": [
+    {
+      "node": "AngusOutlaw1",
+      "command": "public hello from Angus",
+      "at_ms": 20000,
+      "every_ms": 60000
+    },
+    {
+      "node": "Jazzy",
+      "command": "public hello from Jazzy",
+      "at_ms": 35000,
+      "every_ms": 60000
+    },
+    {
+      "node": "CaptBlack-Mysteron1",
+      "command": "public hello from Mysteron",
+      "at_ms": 50000,
+      "every_ms": 60000
+    }
+  ],
   "assertions": [
     {
       "kind": "delivered",

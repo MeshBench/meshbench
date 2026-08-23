@@ -17,6 +17,7 @@ var xiaoS3Board = Board{
 	QEMU: &QEMUWiring{
 		Machine: "esp32s3", SPI: 3, NSS: 5, Busy: 4, DIO1: 2,
 		PSRAMMB: 8, PSRAMOctal: true,
+		Verified: true,
 	},
 	// Declares no button at all, which is worth carrying: the tab says so
 	// rather than leaving a gap that reads as nobody having looked.

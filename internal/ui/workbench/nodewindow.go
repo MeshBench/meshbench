@@ -139,21 +139,35 @@ type nodeWindowPanel struct {
 	// panel's own coordinates.
 	screenTouch struct{}
 	screenScale int
+	// screenKeys is what typing at the board is addressed to. Focus is taken
+	// by clicking the drawn panel, which is how somebody would pick a
+	// handheld up before typing on it.
+	screenKeys struct{}
 }
 
 // visibleTabs is the tab set this node gets.
 func (p *nodeWindowPanel) visibleTabs() []nodeTab {
-	if p.isCompanion() {
-		return []nodeTab{tabCompanion, tabSettings, tabRadio,
+	var tabs []nodeTab
+	switch {
+	case p.isCompanion():
+		tabs = []nodeTab{tabCompanion, tabSettings, tabRadio,
 			tabStats, tabActivity, tabConnect}
-	}
-	if p.isObserver() {
+	case p.isObserver():
 		// No console and no Radio tab: an observer runs no firmware and has
 		// no chip to read back, and a tab that is always empty teaches
 		// people to ignore tabs.
+		//
+		// No Hardware tab either, and that one is not about tidiness: an
+		// observer is not a board. It has no screen to draw and no button to
+		// press, so there is nothing for the tab to be.
 		return []nodeTab{tabSDR, tabSettings, tabStats, tabActivity}
+	default:
+		tabs = []nodeTab{tabConsole, tabSettings, tabRadio, tabStats, tabActivity}
 	}
-	tabs := []nodeTab{tabConsole, tabSettings, tabRadio, tabStats, tabActivity}
+	// Whatever the node's role. The hardware belongs to the board, not to the
+	// application running on it - a companion on a T-Deck has the same screen
+	// and the same keyboard as a repeater on one, and the tab was reachable
+	// on the repeater and not on the handheld it was built for.
 	if p.hasHardware {
 		tabs = append(tabs, tabHardware)
 	}
@@ -220,6 +234,7 @@ func (p *nodeWindowPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snap
 	if p.tab == tabHardware {
 		p.boardPresses(gtx, s)
 		p.boardTouches(gtx, s)
+		p.boardKeys(gtx, s)
 	}
 	if !p.hasHardware && p.tab == tabHardware {
 		p.tab = tabConsole
@@ -400,8 +415,8 @@ type nodeWindowHooks struct {
 	onDo         func(verb string, params any)
 }
 
-func (w *nodeWindows) openFor(node string, newTheme func() *theme.Theme,
-	st *state.Store, h nodeWindowHooks) {
+func (w *nodeWindows) openFor(node string, tab nodeTab,
+	newTheme func() *theme.Theme, st *state.Store, h nodeWindowHooks) {
 	w.mu.Lock()
 	if w.open[node] {
 		w.mu.Unlock()
@@ -420,7 +435,7 @@ func (w *nodeWindows) openFor(node string, newTheme func() *theme.Theme,
 		p := &nodeWindowPanel{node: node, OnCommand: h.onCommand, OnAction: h.onAction,
 			OnCLI: h.onCLI, OnServe: h.onServe, OnOpenPacket: h.onOpenPacket,
 			OnDo: h.onDo, Kind: kindOfNode(st, node)}
-		p.tab = openOnTab
+		p.tab = tab
 		win := new(app.Window)
 		win.Option(app.Title("MeshBench - "+node), app.Size(unit.Dp(820), unit.Dp(620)))
 		// Raised as it opens; see windows.go for why that is all there is.

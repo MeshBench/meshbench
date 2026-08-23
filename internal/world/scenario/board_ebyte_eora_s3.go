@@ -16,7 +16,8 @@ var ebyteEoRaS3Board = Board{
 	// the two boards are the same layout under different names.
 	QEMU: &QEMUWiring{
 		Machine: "esp32s3", SPI: 3, NSS: 7, Busy: 34, DIO1: 33, LED: 37,
-		PSRAMMB: 8,
+		PSRAMMB:  8,
+		Verified: true,
 	},
 	Hardware: &Panel{
 		Screen: &Screen{

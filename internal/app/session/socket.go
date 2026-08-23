@@ -16,35 +16,47 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"sort"
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/app/control"
 	"github.com/MeshBench/meshbench/internal/app/state"
 )
 
-// ServeControl opens the socket and answers from the store.
+// ServeControl opens the socket on the default path and answers from the store.
 func ServeControl(ctx context.Context, st *state.Store) (*control.Server, error) {
-	srv, err := control.Listen(func(method string, raw json.RawMessage) (any, error) {
-		// Two methods the socket owns, because they are about the socket's
+	return ServeControlAt(ctx, st, "")
+}
+
+// ServeControlAt opens it on a chosen path.
+//
+// Chosen, because one socket per user is not enough for two CI jobs on one
+// runner, nor for a scripted run beside a workbench somebody is looking at.
+func ServeControlAt(ctx context.Context, st *state.Store,
+	path string) (*control.Server, error) {
+	// Where the socket ended up, so session.hello can say. Assigned before
+	// anything can call the handler: Listen returns before it accepts.
+	var where string
+	srv, err := control.ListenAt(path, func(method string, raw json.RawMessage) (any, error) {
+		// Three methods the socket owns, because they are about the socket's
 		// view of the application rather than about the world.
 		switch method {
+		case "session.hello":
+			return hello(st.Verbs(), where), nil
 		case "session.verbs":
-			v := append([]string(nil), st.Verbs()...)
-			sort.Strings(v)
-			return map[string]any{"verbs": v}, nil
+			return map[string]any{"verbs": sortedVerbs(st.Verbs())}, nil
 		case "session.snapshot":
 			return snapshotSummary(st.Snapshot()), nil
 		}
 		params, err := decodeParams(raw)
 		if err != nil {
-			return nil, err
+			return nil, control.WithCode(control.BadParams, err)
 		}
 		return st.Do(ctx, method, params)
 	})
 	if err != nil {
 		return nil, err
 	}
+	where = srv.Path()
 	// Pumped from a worker rather than from the frame loop. The imgui
 	// workbench has to pump on the frame thread because its state is the frame
 	// thread; here every verb lands on the store's goroutine whichever way it
@@ -157,7 +169,7 @@ func snapshotSummary(s *state.Snapshot) map[string]any {
 		for _, j := range s.Jobs {
 			jobs = append(jobs, map[string]any{
 				"id": j.ID, "what": j.What, "done": j.Done,
-				"total": j.Total, "finished": j.Finished,
+				"total": j.Total, "finished": j.Finished, "failed": j.Failed,
 			})
 		}
 		out["jobs"] = jobs

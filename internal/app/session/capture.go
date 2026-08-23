@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/MeshBench/meshbench/internal/app/control"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/rf/geo"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
@@ -171,6 +172,21 @@ func registerCapture(st *state.Store, s *Sim) {
 		if v, ok := numField(p, "tx_dbm"); ok {
 			node.TxPowerDBm = v
 		}
+		// The hardware it is, if it was said.
+		//
+		// Missing until now, which meant a node could be placed and could not
+		// be made a T-Deck without going through the interface - so a script
+		// could build a mesh and not build the one it wanted. The board is
+		// what decides the transmit ceiling, the receive chain's noise figure
+		// and the battery the energy model needs, so a wrong name has to
+		// refuse rather than fall back to a plausible default.
+		if b, ok := stringField(p, "board"); ok && b != "" {
+			board, err := scenario.BoardByName(b)
+			if err != nil {
+				return nil, control.WithCode(control.BadParams, err)
+			}
+			node.Board = board.Name
+		}
 		// A placed node holds what its neighbours hold. Not the busiest
 		// region in the fixture: on a mesh spanning two islands that would
 		// give a repeater in Edinburgh the region held in Wicklow, and a node
@@ -193,7 +209,7 @@ func registerCapture(st *state.Store, s *Sim) {
 		w.Say("placed " + name)
 		return map[string]any{
 			"placed": name, "kind": kind, "regions": node.Regions,
-			"nodes": len(nodes),
+			"board": node.Board, "nodes": len(nodes),
 		}, nil
 	})
 }

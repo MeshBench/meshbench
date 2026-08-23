@@ -64,9 +64,18 @@ func (p *nodeWindowPanel) screen(t *theme.Theme, gtx layout.Context,
 			// A panel with a touch layer takes pointer events, in the panel's
 			// own pixels rather than the window's - the firmware is told where
 			// on its screen a finger is, and the scale is ours not its.
-			if p.touchable(panel) {
+			// The panel takes pointer events where it has a touch layer, and
+			// key events where the board has a keyboard - both addressed to
+			// the drawn screen, because that is the board somebody is
+			// pointing at.
+			if p.touchable(panel) || p.typeable(panel) {
 				defer clip.Rect{Max: size}.Push(gtx.Ops).Pop()
-				event.Op(gtx.Ops, &p.screenTouch)
+				if p.touchable(panel) {
+					event.Op(gtx.Ops, &p.screenTouch)
+				}
+				if p.typeable(panel) {
+					event.Op(gtx.Ops, &p.screenKeys)
+				}
 			}
 			// The panel's own colours, not the theme's: a display is a
 			// physical object and reads as light on black whichever way the
@@ -213,7 +222,13 @@ func (p *nodeWindowPanel) ball(t *theme.Theme, gtx layout.Context,
 	// Named in the order a board declares them, and only as many as it has:
 	// a trackball with fewer lines than four is a declaration to fix rather
 	// than a thing to draw four arrows for.
-	dirs := [4]string{"\u25b2 up", "\u25bc down", "\u25c0 left", "\u25b6 right"}
+	dirs := [4]struct {
+		way   comp.Arrow
+		label string
+	}{
+		{comp.ArrowUp, "up"}, {comp.ArrowDown, "down"},
+		{comp.ArrowLeft, "left"}, {comp.ArrowRight, "right"},
+	}
 	if len(part.Pins) > len(dirs) {
 		part.Pins = part.Pins[:len(dirs)]
 	}
@@ -225,14 +240,14 @@ func (p *nodeWindowPanel) ball(t *theme.Theme, gtx layout.Context,
 		if pin == scenario.PinNone {
 			continue
 		}
-		label := dirs[i]
+		dir := dirs[i]
 		btn := p.buttonFor(pin)
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			col := t.P.Dim
 			if btn.Pressed() {
 				col = t.P.Accent
 			}
-			return btn.Layout(gtx, comp.Pill(t, col, label))
+			return btn.Layout(gtx, comp.ArrowPill(t, col, dir.way, dir.label))
 		}))
 		children = append(children, layout.Rigid(layout.Spacer{Width: t.Sp.XS}.Layout))
 	}

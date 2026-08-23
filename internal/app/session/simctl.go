@@ -10,6 +10,7 @@ package session
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
@@ -73,7 +74,7 @@ func registerSimControl(st *state.Store, s *Sim) {
 	// told everything and heard nothing.
 	st.Handle("sim.settle", func(w *state.World, p any) (any, error) {
 		if s.eng == nil {
-			return nil, fmt.Errorf("no simulation")
+			return nil, ErrNoSimulation
 		}
 		n := 60
 		if v, ok := numField(p, "steps"); ok && v > 0 {
@@ -91,6 +92,10 @@ func registerSimControl(st *state.Store, s *Sim) {
 		if err := s.rebuild(w); err != nil {
 			return nil, err
 		}
+		// The clock went back to zero, so what the schedule has already said
+		// has to go with it - or a repeating send would sit waiting out an
+		// interval measured against a run that no longer exists.
+		s.resetSendClock()
 		w.Links = nil
 		s.warm(st, len(s.nodes))
 		w.Say("reset")
@@ -127,15 +132,52 @@ const baseStepMs = 10
 
 // numField reads a number from a verb's parameters, which arrive either as a
 // JSON object or as a bare number when the verb takes exactly one.
+// numField reads a number a verb was given, whoever gave it.
+//
+// Every kind of integer, not just the float a decoder produces. The control
+// socket arrives as JSON and every number in it is a float64, so a map that
+// only understood floats worked perfectly for anything scripted - and refused
+// the interface, which calls the same verbs in process and passes an int like
+// any Go caller would. The symptom was a drawn screen that could not be
+// tapped and drawn buttons that could not be pressed, both of them answering
+// "needs a node and a point" to a call that had one.
 func numField(p any, name string) (float64, bool) {
-	switch v := p.(type) {
-	case map[string]any:
-		n, ok := v[name].(float64)
-		return n, ok
+	if m, ok := p.(map[string]any); ok {
+		return toNumber(m[name])
+	}
+	return toNumber(p)
+}
+
+// toNumber is the one place that says what counts as a number here.
+func toNumber(v any) (float64, bool) {
+	switch n := v.(type) {
 	case float64:
-		return v, true
+		return n, true
+	case float32:
+		return float64(n), true
 	case int:
-		return float64(v), true
+		return float64(n), true
+	case int8:
+		return float64(n), true
+	case int16:
+		return float64(n), true
+	case int32:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	case uint:
+		return float64(n), true
+	case uint8:
+		return float64(n), true
+	case uint16:
+		return float64(n), true
+	case uint32:
+		return float64(n), true
+	case uint64:
+		return float64(n), true
+	case json.Number:
+		f, err := n.Float64()
+		return f, err == nil
 	}
 	return 0, false
 }

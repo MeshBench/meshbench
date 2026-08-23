@@ -30,6 +30,12 @@ type Sim struct {
 	ui UI
 	// consoles is one scrollback per node, keyed by name.
 	consoles map[string]*console.Buf
+	// sendClock is when each scheduled send last fired, so a repeating one
+	// repeats per interval rather than per tick.
+	sendClock sendClock
+	// statesMu guards states, which Reflash writes from its own goroutine and
+	// the store goroutine reads to answer nodes.stats.
+	statesMu sync.Mutex
 	// logPath is where this run's full status log is being written, if
 	// anywhere - set by whoever opened it, read by log.path so a script or a
 	// menu action can find the file without knowing the naming scheme.
@@ -65,6 +71,19 @@ type Sim struct {
 	// rfMode is which physics decides reception - "" or "calculated" for the
 	// fast model, "waveform" for demodulator verdicts. See rfmode.go.
 	rfMode string
+
+	// unverifiedWiring runs boards nobody has watched boot yet.
+	//
+	// Off by default, and the default is the right one for a measurement: a
+	// board whose wiring is wrong reports as silent rather than as mis-wired,
+	// and a run that quietly did that would be worse than one that refused.
+	//
+	// But the import flow deliberately offers every board with wiring, on the
+	// grounds that an image compiled for a board is the thing that establishes
+	// whether that board works. Without this, that import could not then be
+	// run, and the list of verified boards could never grow past what it
+	// already holds. So the operator can lift the gate, and is told they have.
+	unverifiedWiring bool
 	// sdrServers is every node currently exposed as an rtl_tcp source,
 	// with the sample rate its stream was attached at.
 	sdrServers map[string]*sdrServer
@@ -331,6 +350,7 @@ func (s *Sim) buildSeeded(nodes []scenario.Node, freqMHz float64, seed uint64) {
 		NoiseFigDB: 6, StepMs: 10, Seed: seed,
 		ExcessPathLossDB: s.excessLossDB,
 		RFMode:           rfModeOf(s.rfMode),
+		UnverifiedWiring: s.unverifiedWiring,
 		Realism:          engineRealism(s.realism),
 	})
 	for _, n := range nodes {

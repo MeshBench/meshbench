@@ -25,8 +25,15 @@ func registerInventory(st *state.Store, s *Sim) {
 				"name": n.Name, "kind": n.Kind,
 				"lat": n.Lat, "lon": n.Lon, "height_m": n.HeightM,
 				"tx_dbm": n.TxDBm, "regions": n.Regions,
-				"firmware": n.Firmware,
-				"sent":     n.Sent, "heard": n.Heard,
+				// Two boards, because they are two facts. "board" is what the
+				// node is; "firmware_board" is what its image was built for.
+				// They agree most of the time and come apart the moment
+				// somebody points a host build at a T-Deck - and neither was
+				// published at all, so a scenario built by a script could not
+				// be read back with the hardware it had been given.
+				"firmware": n.Firmware, "board": n.Hardware,
+				"firmware_board": n.Board,
+				"sent":           n.Sent, "heard": n.Heard,
 				"selected": n.Selected,
 			})
 		}
@@ -99,6 +106,12 @@ func eventAsMap(e state.Event) map[string]any {
 		"at_ms": e.AtMs, "kind": e.Kind, "from": e.From, "to": e.To,
 		"message_id": e.MessageID, "packet_id": e.PacketID,
 		"snr_db": e.SNRdB, "detail": e.Detail,
+		// The class, which the cards and the filter chips are built on and
+		// which never reached the wire. Kind is "tx"/"rx"/"miss"; the class
+		// says which *kind* of miss - half duplex, interference, or simply
+		// too quiet - and those are three different problems. Without it
+		// every client-side filter on class matched nothing at all.
+		"class": e.Class,
 	}
 	// A ratio against no noise at all is infinite, and JSON has no way to
 	// say so: one such event failed the whole dump with "unsupported value:

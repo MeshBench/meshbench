@@ -3,7 +3,9 @@ package workbench
 import (
 	"fmt"
 	"image"
+	"strings"
 
+	"gioui.org/io/key"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/unit"
@@ -95,8 +97,80 @@ func (p *nodeWindowPanel) device(t *theme.Theme, gtx layout.Context,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return p.ball(t, gtx, panel)
 			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return p.typingNote(t, gtx, panel)
+			}),
 		)
 	})(gtx)
+}
+
+// typingNote says how to type at a board that has a keyboard.
+//
+// Said rather than left to be discovered. Keys go to whatever has focus, and
+// a keyboard that silently needs a click first is one somebody decides is
+// broken - which is exactly what happened.
+func (p *nodeWindowPanel) typingNote(t *theme.Theme, gtx layout.Context,
+	panel *scenario.Panel) layout.Dimensions {
+
+	if !p.typeable(panel) {
+		return layout.Dimensions{}
+	}
+	note := "click the screen, then type - keys go to the board's own keyboard"
+	if gtx.Focused(&p.screenKeys) {
+		note = "typing goes to the board - click elsewhere to stop"
+	}
+	return layout.Inset{Top: t.Sp.XS}.Layout(gtx,
+		comp.Text(t, t.Sz.Caption, t.P.Faint, note))
+}
+
+// typeable reports whether this board has a keyboard to type at.
+func (p *nodeWindowPanel) typeable(panel *scenario.Panel) bool {
+	return panel != nil && len(panel.PartsOfKind(scenario.Keys)) > 0
+}
+
+// boardKeys turns typing into keys at the board's own keyboard.
+//
+// Focus is taken by clicking the drawn panel, which is what somebody does
+// with a handheld before typing on it - and what stops every keystroke
+// meant for the workbench being swallowed by whichever node window happens
+// to be open.
+//
+// Characters rather than scan codes, because that is what this keyboard
+// sends: on these boards it is a second microcontroller that has already
+// decided what was pressed. The two keys that are not characters and that a
+// text field cannot do without are sent as the bytes it expects for them.
+func (p *nodeWindowPanel) boardKeys(gtx layout.Context, s *state.Snapshot) {
+	panel := p.boardPanel(s)
+	if !p.typeable(panel) || p.OnDo == nil {
+		return
+	}
+	for {
+		ev, ok := gtx.Event(
+			key.FocusFilter{Target: &p.screenKeys},
+			key.Filter{Focus: &p.screenKeys},
+		)
+		if !ok {
+			break
+		}
+		switch e := ev.(type) {
+		case key.EditEvent:
+			if e.Text != "" {
+				p.OnDo("board.key", map[string]any{"node": p.node, "text": e.Text})
+			}
+		case key.Event:
+			if e.State != key.Press {
+				continue
+			}
+			// Backspace and return, as their own bytes. A field somebody is
+			// typing a name into is unusable without them.
+			switch e.Name {
+			case key.NameDeleteBackward:
+				p.OnDo("board.key", map[string]any{"node": p.node, "text": "\b"})
+			case key.NameReturn, key.NameEnter:
+				p.OnDo("board.key", map[string]any{"node": p.node, "text": "\r"})
+			}
+		}
+	}
 }
 
 // touchable reports whether this board has a panel worth aiming at.
@@ -117,6 +191,7 @@ func (p *nodeWindowPanel) boardTouches(gtx layout.Context, s *state.Snapshot) {
 		return
 	}
 	sc := panel.Screen
+	touch := panel.PartsOfKind(scenario.Touch)
 	for {
 		ev, ok := gtx.Event(pointer.Filter{
 			Target: &p.screenTouch,
@@ -137,8 +212,18 @@ func (p *nodeWindowPanel) boardTouches(gtx layout.Context, s *state.Snapshot) {
 		if x < 0 || y < 0 || x >= sc.WidthPx || y >= sc.HeightPx {
 			continue
 		}
+		// Clicking the board is also what puts the keyboard on it, the way
+		// picking a handheld up is what precedes typing on it.
+		if pe.Kind == pointer.Press && p.typeable(panel) {
+			gtx.Execute(key.FocusCmd{Tag: &p.screenKeys})
+		}
+		// Turned back into the panel's own axes before it leaves. What was
+		// clicked is a point on the picture; what the firmware reads is a
+		// point on a panel that may be screwed in sideways, and on the one
+		// board here that has a touch layer it is.
+		rx, ry := touch[0].RawPoint(x, y, sc.WidthPx, sc.HeightPx)
 		p.OnDo("board.touch", map[string]any{
-			"node": p.node, "x": x, "y": y,
+			"node": p.node, "x": rx, "y": ry,
 			"down": pe.Kind != pointer.Release,
 		})
 	}
@@ -230,28 +315,21 @@ func (p *nodeWindowPanel) hardwareFacts(t *theme.Theme, gtx layout.Context,
 		rows = append(rows, row{"screen", "none"})
 	}
 	for _, part := range panel.Parts {
-		if part.Kind == scenario.Lamp || part.Kind == scenario.Button {
-			where := fmt.Sprintf("pin %d", part.Pin)
-			if part.Pin == scenario.PinNone {
-				where = "none"
-			}
-			rows = append(rows, row{part.Kind.String() + " " + part.Name, where})
-			continue
+		rows = append(rows, row{partLabel(part), partFact(part)})
+	}
+	// The radio the board has and the simulation has not.
+	//
+	// Every ESP32 part carries Wi-Fi and Bluetooth, and neither is modelled
+	// here: this simulator has one radio and it is the LoRa transceiver. Said
+	// on the tab because the alternative is a firmware that appears to join a
+	// network and an operator with no way to know it never could. Derived
+	// from the MCU rather than declared per board, so it cannot drift.
+	if st != nil {
+		if b, err := scenario.BoardByName(st.Board); err == nil &&
+			strings.HasPrefix(strings.ToUpper(b.MCU), "ESP32") {
+			rows = append(rows, row{"wireless",
+				"Wi-Fi and Bluetooth - stubbed, never on the air"})
 		}
-		if part.Kind == scenario.Meter {
-			// The scale as well as the pin, because it is the scale that the
-			// number on the board's own screen has to be checked against.
-			rows = append(rows, row{"meter " + part.Name,
-				fmt.Sprintf("pin %d, full scale %.1f V",
-					part.Pin, float64(part.FullScaleMV)/1000)})
-			continue
-		}
-		if part.Kind == scenario.Ball {
-			rows = append(rows, row{part.Kind.String(), fmt.Sprintf("%s, pins %v",
-				part.Name, part.Pins)})
-			continue
-		}
-		rows = append(rows, row{part.Kind.String(), part.Name})
 	}
 	// Said once, on the tab rather than in a tooltip: this is what the
 	// firmware drew, not what the panel looks like.
@@ -273,4 +351,44 @@ func (p *nodeWindowPanel) hardwareFacts(t *theme.Theme, gtx layout.Context,
 		"What the firmware drew, not what the panel looks like: no backlight, "+
 			"no viewing angle, no refresh artefacts.")))
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+}
+
+// partLabel is what a part is called on the left of the facts column.
+//
+// The kind and the name, unless the board named it after its kind - a T-Deck's
+// keyboard is called "keyboard", and "keyboard keyboard" reads as a bug in the
+// interface rather than as a board that had nothing more to add.
+func partLabel(part scenario.Part) string {
+	kind := part.Kind.String()
+	if part.Name == "" || strings.EqualFold(part.Name, kind) {
+		return kind
+	}
+	return kind + " " + part.Name
+}
+
+// partFact is the one thing worth reading off a part: where it is.
+//
+// Where rather than what, because what it is was said on the left. A pin
+// number, a bus address or a port is the fact somebody comes to this column
+// for - it is what they will compare against the board's own documentation
+// when something does not work.
+func partFact(part scenario.Part) string {
+	if part.Bus == scenario.BusI2C {
+		return fmt.Sprintf("I2C 0x%02X", part.Addr)
+	}
+	switch part.Kind {
+	case scenario.Ball:
+		return fmt.Sprintf("pins %v, up down left right", part.Pins)
+	case scenario.Meter:
+		// The scale as well as the pin, because the scale is what the number
+		// on the board's own screen has to be checked against.
+		return fmt.Sprintf("pin %d, full scale %.1f V",
+			part.Pin, float64(part.FullScaleMV)/1000)
+	case scenario.GPS:
+		return "second serial port"
+	}
+	if part.Pin == scenario.PinNone {
+		return "none on this board"
+	}
+	return fmt.Sprintf("pin %d", part.Pin)
 }

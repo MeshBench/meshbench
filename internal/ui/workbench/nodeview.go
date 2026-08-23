@@ -40,7 +40,7 @@ type nodeViewPanel struct {
 	// cell. A row of buttons was the first attempt and the wrong shape - nine
 	// builds overflowed the panel, and the number of builds is however many
 	// somebody has installed.
-	builds     []string
+	builds     []buildChoice
 	buildBtns  []comp.Button
 	buildsRead bool
 	buildList  widget.List
@@ -55,7 +55,7 @@ type nodeViewPanel struct {
 	pickFilter  comp.Field
 	shownBuilds []int
 	// OnFirmware asks the store to put a build on a node.
-	OnFirmware func(node, version string)
+	OnFirmware func(node string, b buildChoice)
 
 	// OnAction asks the store to do something to the selected node.
 	OnAction func(action, node string)
@@ -110,7 +110,7 @@ func (p *nodeViewPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 		p.builds = installedBuilds()
 		p.buildBtns = make([]comp.Button, len(p.builds))
 		for i := range p.buildBtns {
-			p.buildBtns[i].Label = p.builds[i]
+			p.buildBtns[i].Label = p.builds[i].Label
 			p.buildBtns[i].Kind = comp.Secondary
 		}
 	}

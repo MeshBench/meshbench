@@ -91,7 +91,7 @@ func auditTargets(r *recorder) []target {
 	// cell has been clicked, and auditing them shut only proves they are shut.
 	nv.pickFor = "Abernethy Repeater"
 	nv.OnAction = func(a string, n string) { r.do(a, n) }
-	nv.OnFirmware = func(n, v string) { r.do("node.set_firmware", v) }
+	nv.OnFirmware = func(n string, b buildChoice) { r.do("node.set_firmware", b.Version) }
 	nw := &nodeWindowPanel{node: "Abernethy Repeater"}
 	snapWithConsole := auditSnapshot()
 	snapWithConsole.ConsoleNode = "Abernethy Repeater"

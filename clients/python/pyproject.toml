@@ -1,0 +1,51 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "meshbench"
+dynamic = ["version"]
+description = "Drive a MeshBench workbench: RF-accurate MeshCore simulation, from Python"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "GPL-3.0-or-later"
+authors = [{ name = "MeshBench" }]
+keywords = ["meshcore", "lora", "mesh", "rf", "simulation"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3",
+  "Topic :: Communications :: Ham Radio",
+  "Topic :: Scientific/Engineering",
+]
+# No dependencies, deliberately. The protocol is one JSON object per line over
+# a unix socket, and a client that needed a framework for that would be one
+# nobody could debug - and one more thing to pin in somebody else's CI.
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[project.urls]
+Homepage = "https://github.com/MeshBench/meshbench"
+Issues = "https://github.com/MeshBench/meshbench/issues"
+
+# Registered as an entry point so `pip install meshbench` is all a firmware
+# developer needs: no conftest to copy, which is the step people forget and
+# then debug.
+[project.entry-points.pytest11]
+meshbench = "meshbench.pytest_plugin"
+
+[tool.hatch.version]
+path = "meshbench/__init__.py"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]

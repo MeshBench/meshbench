@@ -84,7 +84,9 @@ func registerFirmwareLibrary(st *state.Store, s *Sim) {
 			}()
 		}
 		s.fillLibrary(w)
-		return map[string]any{"builds": len(w.Library)}, nil
+		return map[string]any{
+			"builds": libraryRows(w.Library), "count": len(w.Library),
+		}, nil
 	})
 
 	// firmware.published: what the catalogue offers, landed from the fetch.
@@ -131,7 +133,8 @@ func registerFirmwareLibrary(st *state.Store, s *Sim) {
 				done = "download failed: " + err.Error()
 			}
 			_, _ = st.Do(ctx, "job.progress", state.Job{
-				ID: id, What: done, Done: 1, Total: 1, Finished: true})
+				ID: id, What: done, Done: 1, Total: 1,
+				Finished: true, Failed: err != nil})
 			// Both lists: what is installed, and the library the panel draws.
 			// Only the first was refreshed, so a finished download left the
 			// row saying "not downloaded" until something else happened to
@@ -150,15 +153,24 @@ func registerFirmwareLibrary(st *state.Store, s *Sim) {
 		role, _ := stringField(p, "role")
 		board, _ := stringField(p, "board")
 		if path == "" || role == "" {
-			return nil, fmt.Errorf("firmware.import needs a path and a role")
+			return nil, badParams("firmware.import needs a path and a role")
 		}
+		// The label is what the library will know it by, and what a node pins.
+		// Left out it is a timestamp rather than the constant it used to be:
+		// every import called itself "imported", so a second one replaced the
+		// first in place and nothing could say which of two local builds was
+		// running.
+		label, _ := stringField(p, "label")
 		cat := &firmware.Catalogue{CacheDir: firmware.DefaultCacheDir()}
-		img, err := cat.Import(path, board, role)
+		img, err := cat.Import(path, board, role, firmware.ImportLabel(label))
 		if err != nil {
 			return nil, err
 		}
 		w.Say("imported " + img.Version + " as " + role)
-		return map[string]any{"version": img.Version, "role": role}, nil
+		return map[string]any{
+			"version": img.Version, "role": role,
+			"board": img.Board, "path": img.URL, "bytes": img.Size,
+		}, nil
 	})
 
 	// firmware.delete: reclaim the disk, and prove a download works by
