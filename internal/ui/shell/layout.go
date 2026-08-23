@@ -285,7 +285,7 @@ func (sh *Shell) viewBar(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 		// tone for calculated, and a press flips it.
 		label, fill, fg := "calculated RF", t.P.Sunk, t.P.Ink
 		if s != nil && s.RFMode == "waveform" {
-			label, fill, fg = "waveform RF", t.P.Accent, t.P.Ground
+			label, fill, fg = "waveform RF", t.P.Accent, t.P.AccentInk
 		}
 		if sh.rfChip.Hovered() {
 			fill = theme.Alpha(fill, 0.85)

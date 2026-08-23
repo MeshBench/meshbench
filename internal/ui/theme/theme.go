@@ -48,7 +48,14 @@ type Palette struct {
 	// Rule is a border or divider. Accent is the one colour that means
 	// "interactive or selected".
 	Rule, Accent color.NRGBA
-	// AccentInk is what sits legibly on top of Accent.
+	// AccentInk is what sits on top of Accent. White on both grounds: dark
+	// text on an orange button reads as a disabled control, and asked to
+	// choose, legibility of the label lost to looking like a button at all.
+	//
+	// White on the bright orange is 3.4:1, which is under the 4.5:1 a body
+	// paragraph is held to and over the 3:1 that large or bold text is. Every
+	// place this is used is a short bold label on a filled shape, which is
+	// what that allowance is for - do not reach for it as a text colour.
 	AccentInk color.NRGBA
 	// Signal is traffic: a packet in flight, the route that carried it, the
 	// node transmitting.
@@ -116,7 +123,7 @@ var dark = shared(Palette{
 	Faint:     rgb(0x6a, 0x64, 0x80), // graphite
 	Rule:      rgb(0x26, 0x23, 0x38),
 	Accent:    rgb(0xe8, 0x50, 0x0f), // signal
-	AccentInk: rgb(0x0b, 0x0a, 0x12),
+	AccentInk: rgb(0xff, 0xff, 0xff),
 	// Status is the brand's own, and deliberately not orange: a warning that
 	// shared a colour with traffic would make every busy mesh look like a
 	// fault.
