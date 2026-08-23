@@ -36,24 +36,13 @@ type nodeViewPanel struct {
 	running, native, emulated, stopped, busy comp.Check
 	stop, start, refresh                     comp.Button
 
-	// The firmware picker: every installed build, offered from the firmware
-	// cell. A row of buttons was the first attempt and the wrong shape - nine
-	// builds overflowed the panel, and the number of builds is however many
-	// somebody has installed.
-	builds     []buildChoice
-	buildBtns  []comp.Button
-	buildsRead bool
-	buildList  widget.List
-	// pickFor is the node whose firmware list is open, or "".
-	pickFor string
+	// pick is the firmware picker, offered from the firmware cell. Shared
+	// with the node window, which asks the same question about one node.
+	pick buildPicker
 	// menuFor is the node whose context menu is open, and where it opened.
 	menuFor   string
 	menuAt    image.Point
 	menuItems []comp.MenuItem
-	closePick comp.Button
-	// pickFilter narrows the build list, because there are dozens.
-	pickFilter  comp.Field
-	shownBuilds []int
 	// OnFirmware asks the store to put a build on a node.
 	OnFirmware func(node string, b buildChoice)
 
@@ -68,10 +57,11 @@ func (p *nodeViewPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 	// and the list was laid out at zero height: open, invisible, and
 	// impossible to click. Choosing a build was unreachable by pointing at
 	// anything, which is the only way a person would try.
-	if p.pickFor != "" {
+	p.pick.OnPick = p.OnFirmware
+	if p.pick.showing() {
 		defer func() {
 			macro := op.Record(gtx.Ops)
-			p.firmwareOverlay(t, gtx)
+			p.pick.overlay(t, gtx)
 			macro.Stop().Add(gtx.Ops)
 		}()
 	}
@@ -105,15 +95,6 @@ func (p *nodeViewPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 		c.Bool.Update(gtx)
 	}
 
-	if !p.buildsRead {
-		p.buildsRead = true
-		p.builds = installedBuilds()
-		p.buildBtns = make([]comp.Button, len(p.builds))
-		for i := range p.buildBtns {
-			p.buildBtns[i].Label = p.builds[i].Label
-			p.buildBtns[i].Kind = comp.Secondary
-		}
-	}
 	p.tb.OnRightClick = func(key string, at f32.Point) {
 		p.menuFor = key
 		p.menuAt = image.Pt(int(at.X), int(at.Y))
@@ -121,7 +102,7 @@ func (p *nodeViewPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 	}
 	p.tb.OnCell = func(key string, col int) {
 		if col == 3 {
-			p.pickFor = key
+			p.pick.open(key)
 		}
 	}
 
@@ -204,7 +185,7 @@ func (p *nodeViewPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 			// children draws them over each other - which put the menu's
 			// entries on top of the graph titles. One or the other, and the
 			// menu wins because it was just asked for.
-			if p.menuFor != "" || p.pickFor != "" {
+			if p.menuFor != "" || p.pick.showing() {
 				return layout.Dimensions{}
 			}
 			gtx.Constraints.Min.Y = gtx.Dp(96)
@@ -365,7 +346,7 @@ func (p *nodeViewPanel) contextMenu(t *theme.Theme) layout.Widget {
 		if chosen == "ui.firmware" {
 			// The one entry the interface handles itself: it opens a control
 			// rather than asking the store to do something.
-			p.pickFor = who
+			p.pick.open(who)
 			return layout.Dimensions{}
 		}
 		if p.OnAction != nil {

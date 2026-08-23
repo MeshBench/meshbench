@@ -4,98 +4,16 @@ package workbench
 
 import (
 	"fmt"
-	"image"
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"gioui.org/layout"
-	"gioui.org/op"
-	"gioui.org/widget"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/mesh/firmware"
 	"github.com/MeshBench/meshbench/internal/ui/comp"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 )
-
-// firmwarePicker offers every installed build for the selected node.
-//
-// It says which node it would change, because a row of version buttons with
-// nothing naming the target is a control somebody presses and then has to go
-// and check.
-// firmwareList is the open dropdown for one node's firmware cell.
-//
-// A list rather than a row of buttons, because the number of installed builds
-// is whatever somebody has installed - nine already overflowed a row, and a
-// control that works until you install a tenth is not a control.
-func (p *nodeViewPanel) firmwareList(t *theme.Theme) layout.Widget {
-	return func(gtx layout.Context) layout.Dimensions {
-		if p.pickFor == "" {
-			return comp.Text(t, t.Sz.Caption, t.P.Faint,
-				"click a firmware cell to change what that node runs")(gtx)
-		}
-		if p.closePick.Label == "" {
-			p.closePick.Label, p.closePick.Kind = "cancel", comp.Quiet
-		}
-		if p.closePick.Click.Clicked(gtx) {
-			p.pickFor, p.pickFilter.Editor = "", widget.Editor{}
-			return layout.Dimensions{}
-		}
-		for i := range p.buildBtns {
-			if p.buildBtns[i].Click.Clicked(gtx) && p.OnFirmware != nil {
-				p.OnFirmware(p.pickFor, p.builds[i])
-				p.pickFor = ""
-				return layout.Dimensions{}
-			}
-		}
-
-		// Which builds survive the box.
-		//
-		// Thirty-nine are installed on this machine. A horizontal row of
-		// thirty-nine buttons is not a control, and it put cancel where the
-		// first click lands - so choosing a build closed the list instead.
-		want := strings.ToLower(strings.TrimSpace(p.pickFilter.Editor.Text()))
-		shown := p.shownBuilds[:0]
-		for i := range p.builds {
-			if want == "" || strings.Contains(strings.ToLower(p.builds[i].Label), want) {
-				shown = append(shown, i)
-			}
-		}
-		p.shownBuilds = shown
-
-		p.buildList.Axis = layout.Vertical
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-					layout.Rigid(comp.Text(t, t.Sz.Body, t.P.Ink,
-						"What should "+p.pickFor+" run?")),
-					layout.Flexed(1, comp.Spacer),
-					btn(t, &p.closePick),
-				)
-			}),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				p.pickFilter.Hint = fmt.Sprintf("filter %d builds", len(p.builds))
-				p.pickFilter.Editor.SingleLine = true
-				return p.pickFilter.Layout(t, gtx)
-			}),
-			layout.Rigid(layout.Spacer{Height: t.Sp.XS}.Layout),
-			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-				if len(shown) == 0 {
-					return layout.Center.Layout(gtx, comp.Text(t, t.Sz.Caption,
-						t.P.Faint, "nothing matches that"))
-				}
-				return comp.List(t, &p.buildList, len(shown),
-					func(gtx layout.Context, i int) layout.Dimensions {
-						return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx,
-							func(gtx layout.Context) layout.Dimensions {
-								return p.buildBtns[shown[i]].Layout(t, gtx)
-							})
-					})(gtx)
-			}),
-		)
-	}
-}
 
 // buildChoice is one thing a node could be told to run.
 //
@@ -206,33 +124,10 @@ func provisioningScript(t *theme.Theme, s *state.Snapshot) layout.Widget {
 	}
 }
 
-// firmwareOverlay draws the build list over the panel, centred.
-func (p *nodeViewPanel) firmwareOverlay(t *theme.Theme, gtx layout.Context) layout.Dimensions {
-	comp.FillRect(gtx, gtx.Constraints.Max, theme.Alpha(t.P.Ground, 0.86))
-	return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		w, h := gtx.Dp(520), gtx.Dp(420)
-		if w > gtx.Constraints.Max.X {
-			w = gtx.Constraints.Max.X
-		}
-		if h > gtx.Constraints.Max.Y {
-			h = gtx.Constraints.Max.Y
-		}
-		gtx.Constraints.Min = image.Pt(w, h)
-		gtx.Constraints.Max = image.Pt(w, h)
-		macro := op.Record(gtx.Ops)
-		dims := layout.UniformInset(t.Sp.M).Layout(gtx, p.firmwareList(t))
-		call := macro.Stop()
-		comp.RoundRect(gtx, dims.Size, 6, t.P.Panel)
-		comp.Border(gtx, dims.Size, 6, 1, t.P.Rule)
-		call.Add(gtx.Ops)
-		return dims
-	})
-}
-
 // OpenFirmware and OpenMenu show a node's controls without a click.
 //
 // Scriptable for the same reason the search box and the pop-out are: a control
 // that only opens under a hand cannot be captured, and a thing nobody can
 // screenshot is a thing nobody checks. This is now the third time that has
 // bitten, so it goes in with the control rather than after it.
-func (p *nodeViewPanel) OpenFirmware(node string) { p.pickFor = node }
+func (p *nodeViewPanel) OpenFirmware(node string) { p.pick.open(node) }
