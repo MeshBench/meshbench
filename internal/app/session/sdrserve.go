@@ -212,7 +212,7 @@ func registerSDRServe(st *state.Store, s *Sim) {
 			}
 		}
 		if idx < 0 {
-			return nil, fmt.Errorf("no node named %q: %w", name, ErrNoSuchNode)
+			return nil, noSuchNode(name)
 		}
 		if s.sdrServers == nil {
 			s.sdrServers = map[string]*sdrServer{}

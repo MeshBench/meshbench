@@ -12,8 +12,10 @@
 package session
 
 import (
+	"errors"
 	"fmt"
 
+	"github.com/MeshBench/meshbench/internal/app/control"
 	"github.com/MeshBench/meshbench/internal/app/state"
 )
 
@@ -80,10 +82,16 @@ func (s *Sim) SetUI(u UI) { s.ui = u }
 
 func (s *Sim) needUI() error {
 	if s.ui == nil {
-		return fmt.Errorf("this session has no interface attached, so there is nothing to show: %w", ErrNoInterface)
+		return errNoInterface
 	}
 	return nil
 }
+
+// errNoInterface is a window verb in a session with no window - headless,
+// almost always. Built once: it is returned from 23 verbs and carries no
+// detail, so there is nothing per-call to put in it.
+var errNoInterface = control.WithCode(control.Unavailable, errors.New(
+	"this session has no interface attached, so there is nothing to show"))
 
 func registerUI(st *state.Store, s *Sim) {
 	st.Handle("workspace.set", func(w *state.World, p any) (any, error) {
@@ -131,7 +139,7 @@ func registerNodeWindow(st *state.Store, s *Sim) {
 			name, _ = m["node"].(string)
 		}
 		if _, found := findNode(w.Nodes, name); !found {
-			return nil, fmt.Errorf("no node named %q: %w", name, ErrNoSuchNode)
+			return nil, noSuchNode(name)
 		}
 		s.ui.OpenNodeWindow(name)
 		return map[string]any{"node": name}, nil
@@ -152,7 +160,7 @@ func registerMapCamera(st *state.Store, s *Sim) {
 		if name := soleString(p); name != "" {
 			n, found := findNode(w.Nodes, name)
 			if !found {
-				return nil, fmt.Errorf("no node named %q: %w", name, ErrNoSuchNode)
+				return nil, noSuchNode(name)
 			}
 			lat, lon = n.Lat, n.Lon
 		} else {
@@ -163,7 +171,7 @@ func registerMapCamera(st *state.Store, s *Sim) {
 				if name, ok := m["node"].(string); ok && name != "" {
 					n, found := findNode(w.Nodes, name)
 					if !found {
-						return nil, fmt.Errorf("no node named %q: %w", name, ErrNoSuchNode)
+						return nil, noSuchNode(name)
 					}
 					lat, lon = n.Lat, n.Lon
 				}

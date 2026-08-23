@@ -21,7 +21,7 @@ func registerSchedule(st *state.Store, s *Sim) {
 			return nil, fmt.Errorf("schedule.add needs a node")
 		}
 		if _, ok := findNode(w.Nodes, node); !ok {
-			return nil, fmt.Errorf("no node named %q: %w", node, ErrNoSuchNode)
+			return nil, noSuchNode(node)
 		}
 		snd := state.Send{Node: node}
 		if v, ok := numField(p, "at_ms"); ok {
