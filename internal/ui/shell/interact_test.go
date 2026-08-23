@@ -5,13 +5,13 @@ import (
 	"testing"
 
 	"gioui.org/f32"
-	"gioui.org/font/gofont"
 	"gioui.org/io/input"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/text"
 	"gioui.org/unit"
+	"github.com/MeshBench/meshbench/internal/ui/theme/brandfont"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
@@ -49,7 +49,7 @@ func newHarness(t *testing.T) *harness {
 	return &harness{
 		sh: sh,
 		th: theme.New(theme.Dark, theme.Default,
-			text.NewShaper(text.WithCollection(gofont.Collection()))),
+			text.NewShaper(text.WithCollection(brandfont.Collection()))),
 		sz: image.Pt(1400, 900),
 	}
 }

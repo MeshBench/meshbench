@@ -337,9 +337,16 @@ func (p *configPanel) auditDraw(t *theme.Theme, gtx layout.Context, s *state.Sna
 		func(gtx layout.Context) layout.Dimensions { return p.themeDD.Layout(t, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.densityDD.Layout(t, gtx) },
 	}
-	// Two columns, because the flat list has outgrown the audit's reach: a
+	// Columns, because the flat list has outgrown the audit's reach: a
 	// control below the pointer sweep reads as unreachable, and it would be
 	// the audit that was wrong.
+	//
+	// Three of them rather than two. Two fitted the Go faces and did not fit
+	// the brand's, which are a little taller - the layout came to 822 pixels
+	// in an 800 pixel sweep and the control that fell off the bottom was
+	// reported as unclickable. Columns are the cheap axis here: the sweep
+	// costs nothing extra for a wider layout and a great deal for a taller
+	// one.
 	col := func(rows []layout.Widget) layout.Widget {
 		return func(gtx layout.Context) layout.Dimensions {
 			var kids []layout.FlexChild
@@ -352,12 +359,18 @@ func (p *configPanel) auditDraw(t *theme.Theme, gtx layout.Context, s *state.Sna
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, kids...)
 		}
 	}
-	half := (len(rows) + 1) / 2
-	left, right := col(rows[:half]), col(rows[half:])
-	return layout.Flex{}.Layout(gtx,
-		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Right: t.Sp.M}.Layout(gtx, left)
-		}),
-		layout.Flexed(1, right),
-	)
+	const cols = 3
+	per := (len(rows) + cols - 1) / cols
+	var kids []layout.FlexChild
+	for i := 0; i < len(rows); i += per {
+		part := col(rows[i:min(i+per, len(rows))])
+		last := i+per >= len(rows)
+		kids = append(kids, layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			if last {
+				return part(gtx)
+			}
+			return layout.Inset{Right: t.Sp.M}.Layout(gtx, part)
+		}))
+	}
+	return layout.Flex{}.Layout(gtx, kids...)
 }

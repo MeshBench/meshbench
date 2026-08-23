@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"gioui.org/f32"
-	"gioui.org/font/gofont"
 	"gioui.org/io/input"
 	"gioui.org/io/key"
 	"gioui.org/io/pointer"
@@ -49,7 +48,7 @@ func newShellHarness(t *testing.T) *shellHarness {
 	h := &shellHarness{
 		sh: shell.New(),
 		th: theme.New(theme.Dark, theme.Default,
-			text.NewShaper(text.WithCollection(gofont.Collection()))),
+			text.NewShaper(text.WithCollection(brandFaces()))),
 		sz: image.Pt(1700, 1000),
 		snap: &state.Snapshot{
 			Nodes: []state.Node{

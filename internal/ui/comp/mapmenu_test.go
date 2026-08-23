@@ -5,13 +5,13 @@ import (
 	"testing"
 
 	"gioui.org/f32"
-	"gioui.org/font/gofont"
 	"gioui.org/io/input"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/text"
 	"gioui.org/unit"
+	"github.com/MeshBench/meshbench/internal/ui/theme/brandfont"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
@@ -36,7 +36,7 @@ func newMapHarness() *mapHarness {
 	return &mapHarness{
 		mv: &MapView{Zoom: 4000, CentreLat: 56.3, CentreLon: -3.3},
 		th: theme.New(theme.Dark, theme.Default,
-			text.NewShaper(text.WithCollection(gofont.Collection()))),
+			text.NewShaper(text.WithCollection(brandfont.Collection()))),
 		sz: image.Pt(900, 700),
 		sn: &state.Snapshot{Nodes: []state.Node{
 			{Name: "Abernethy Repeater", Kind: "simple-repeater", Lat: 56.33, Lon: -3.32},
