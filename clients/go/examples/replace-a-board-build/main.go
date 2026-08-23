@@ -20,16 +20,22 @@ import (
 )
 
 const (
-	pioEnv = "LilyGo_TDeck_companion_radio"
-	node   = "Bench"
-	board  = meshbench.BoardLilyGoTDeck
-	role   = meshbench.RoleCompanionRadio
+	// Every environment wadamesh defines ends in _touch. WADAMESH_ENV picks
+	// a different board.
+	defaultPIOEnv = "LilyGo_TDeck_companion_radio_touch"
+	node          = "Bench"
+	board         = meshbench.BoardLilyGoTDeck
+	role          = meshbench.RoleCompanionRadio
 )
 
 func main() {
 	repo := os.Getenv("WADAMESH")
 	if repo == "" {
 		repo = filepath.Join(os.Getenv("HOME"), "src", "wadamesh")
+	}
+	pioEnv := os.Getenv("WADAMESH_ENV")
+	if pioEnv == "" {
+		pioEnv = defaultPIOEnv
 	}
 	image := filepath.Join(repo, ".pio", "build", pioEnv, "firmware.bin")
 

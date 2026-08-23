@@ -110,7 +110,7 @@ func Example_regression() {
 
 	// Simulated seconds - the mesh's own clock, not yours.
 	if err := wb.Schedule().Add(ctx, meshbench.Send{
-		Node: "AngusOutlaw1", Command: "send hello",
+		Node: "AngusOutlaw1", Command: "public hello",
 		At: 5 * time.Second, Every: 20 * time.Second,
 	}); err != nil {
 		log.Fatal(err)

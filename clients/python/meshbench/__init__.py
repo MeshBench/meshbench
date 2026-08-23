@@ -22,6 +22,7 @@ emulated nodes that is a great deal longer than five of yours.
 """
 
 from ._socket import (
+    BINARY_ENV,
     PROTOCOL,
     RENDEZVOUS_ENV,
     SOCKET_ENV,
@@ -72,6 +73,7 @@ from .workbench import Workbench
 
 __all__ = [
     "Schedule",
+    "BINARY_ENV",
     "Boundary",
     "Transport",
     "Tab",

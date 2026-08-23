@@ -15,7 +15,7 @@ Costs: firmware on a whole fixture, so minutes.
 import sys
 from datetime import timedelta
 
-from meshbench import Workbench
+from meshbench import Role, Workbench
 
 SEED = 9001
 
@@ -29,7 +29,10 @@ def main() -> None:
 
     with Workbench.launch(fixture="fife-strict", seed=SEED) as wb:
         stock = wb.firmware.find(stock_version)
-        changed = wb.firmware.import_(local_path, role="repeater")
+        # The application name the verbs are keyed on, not the catalogue's
+        # shorter "repeater": a build imported under a role no node has is a
+        # build nothing will ever run.
+        changed = wb.firmware.import_(local_path, Role.SIMPLE_REPEATER)
 
         # Two nodes far enough apart to be independently interesting, one on
         # each build. Applied, which restarts each of them.

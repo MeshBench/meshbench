@@ -32,6 +32,9 @@ type Workbench struct {
 	owned *exec.Cmd
 }
 
+// BinaryEnv names the workbench to start when nothing else does.
+const BinaryEnv = "MESHBENCH_BINARY"
+
 // Option configures a connection.
 type Option func(*dialOptions)
 
@@ -152,6 +155,13 @@ func launch(ctx context.Context, o *dialOptions, args []string) (*Workbench, err
 		args = append(args, "-control-socket", o.socket)
 	}
 	bin := o.binary
+	if bin == "" {
+		// A checkout has one built but not installed, and every example and
+		// every test then needs the same three lines to find it. The variable
+		// the test harness already used is honoured here too, so that
+		// MESHBENCH_BINARY means what the README says it means.
+		bin = os.Getenv(BinaryEnv)
+	}
 	if bin == "" {
 		bin = "meshcoresim"
 	}

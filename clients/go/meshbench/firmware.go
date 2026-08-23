@@ -241,19 +241,55 @@ func (f Firmware) State(ctx context.Context) (FirmwareState, error) {
 //
 // Generous by default where a caller passes nothing: real firmware on a large
 // network is minutes, and on emulated boards it is longer.
+// WaitStarted waits for every node's firmware to be up.
+//
+// Nodes here is the nodes that run firmware, which is not every node: an SDR
+// observer and an emitter never boot one. It used to be every node, so a
+// fixture holding either reported "56 of 58" until the timeout with no way to
+// see which two.
+//
+// Which is why this names the stragglers rather than counting them. Ten
+// minutes of "56 of 58" tells you nothing; two node names tell you whether a
+// build is missing or a board is wedged.
 func (f Firmware) WaitStarted(ctx context.Context, timeout time.Duration) error {
 	if timeout <= 0 {
 		timeout = 10 * time.Minute
 	}
+	var named time.Time
+	var last string
 	return waitFor(ctx, timeout, "firmware to come up", func() (bool, string, error) {
 		st, err := f.State(ctx)
 		if err != nil {
 			return false, "", err
 		}
-		if !st.Starting && st.Running >= st.Nodes && st.Nodes > 0 {
+		if !st.Starting && st.Nodes > 0 && st.Running >= st.Nodes {
 			return true, "", nil
 		}
-		return false, fmt.Sprintf("%d of %d running", st.Running, st.Nodes), nil
+		// The names cost a /proc read per node and this polls while firmware
+		// is starting, which is the busiest moment there is. Once every ten
+		// seconds: often enough for something a person only reads when the wait
+		// fails, rare enough not to become the fault it was meant to explain.
+		if time.Since(named) >= 10*time.Second {
+			named = time.Now()
+			if stats, err := f.w.NodeStats(ctx); err == nil {
+				var waiting []string
+				for _, s := range stats {
+					if !s.Running {
+						waiting = append(waiting, s.Name)
+					}
+				}
+				switch {
+				case len(waiting) == 0:
+					last = ""
+				case len(waiting) > 4:
+					last = "; waiting on " + strings.Join(waiting[:4], ", ") +
+						fmt.Sprintf(" and %d more", len(waiting)-4)
+				default:
+					last = "; waiting on " + strings.Join(waiting, ", ")
+				}
+			}
+		}
+		return false, fmt.Sprintf("%d of %d running%s", st.Running, st.Nodes, last), nil
 	})
 }
 

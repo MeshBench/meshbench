@@ -14,6 +14,7 @@ from typing import Any
 
 from . import errors
 from ._socket import (
+    BINARY_ENV,
     MAX_UNIX_PATH,
     PROTOCOL,
     RENDEZVOUS_ENV,
@@ -149,7 +150,12 @@ class Workbench:
             # A rendezvous file of its own too, or two sessions would overwrite
             # each other's port and token in the per-user one.
             env[RENDEZVOUS_ENV] = os.path.join(directory, "control.json")
-        exe = binary or shutil.which("meshcoresim") or "meshcoresim"
+        exe = (
+            binary
+            or os.environ.get(BINARY_ENV)
+            or shutil.which("meshcoresim")
+            or "meshcoresim"
+        )
         args = [exe, command, "-control-socket", path]
         if fixture:
             args += ["-fixture", fixture]
@@ -188,11 +194,23 @@ class Workbench:
                     ) from None
                 time.sleep(0.05)
         try:
-            return cls(conn, process=proc)
+            wb = cls(conn, process=proc)
         except Exception:
             conn.close()
             proc.kill()
             raise
+        if fixture:
+            # The socket answers before the fixture is open. The windowed
+            # build loads it on a worker so the window appears first, so a
+            # client can connect, ask what is going on, and be told nothing -
+            # an empty job list, no nodes, and a wait_idle that returns
+            # instantly having waited for work that had not been queued yet.
+            try:
+                wb.wait_for_nodes(timedelta(seconds=start_timeout))
+            except Exception:
+                wb.close()
+                raise
+        return wb
 
     def _greet(self) -> None:
         """Ask what this is, and refuse a build this client cannot speak to."""
@@ -346,6 +364,20 @@ class Workbench:
     def jobs(self) -> list[dict[str, Any]]:
         """Everything long-running that is in flight."""
         return self.snapshot().get("jobs", [])
+
+    def wait_for_nodes(self, timeout: timedelta = JOB_WAIT) -> None:
+        """Wait until the session has a network in it.
+
+        For a fixture opened at startup, which happens on a worker: the socket
+        answers first, so everything asked before the open lands describes an
+        empty session and is believed.
+        """
+
+        def check():
+            n = self.describe().get("nodes", 0)
+            return (True, "") if n else (False, "no nodes yet")
+
+        wait_for(check, timeout, "the fixture to open")
 
     def wait_idle(self, timeout: timedelta = JOB_WAIT) -> None:
         """Wait for every job to finish.

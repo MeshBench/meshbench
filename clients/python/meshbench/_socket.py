@@ -33,6 +33,12 @@ from typing import Any
 #: Chooses where the workbench answers: a path, or "tcp", or "tcp:host:port".
 SOCKET_ENV = "MESHBENCH_CONTROL_SOCKET"
 
+#: What to run when a client is asked to start a workbench and nothing named a
+#: binary. A checkout has one built but not installed, and every example and
+#: every test then needs the same three lines to find it - so the variable the
+#: test harness already used is honoured by the clients too.
+BINARY_ENV = "MESHBENCH_BINARY"
+
 #: Chooses the file a TCP listener writes its address and token to. Per user by
 #: default, which is wrong for two runs at once - the second would overwrite the
 #: first's - so a client that starts a workbench gives it one of its own.

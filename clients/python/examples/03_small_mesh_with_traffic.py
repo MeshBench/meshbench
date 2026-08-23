@@ -44,7 +44,7 @@ def main() -> None:
         # Simulated seconds - the mesh's own clock, not yours.
         wb.schedule.add(
             "C2",
-            "send hello",
+            "public hello",
             at=timedelta(seconds=5),
             every=timedelta(seconds=20),
         )

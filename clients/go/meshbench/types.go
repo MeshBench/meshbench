@@ -87,8 +87,13 @@ type SimState struct {
 
 // FirmwareState is how far a start has got. Snapshot.
 type FirmwareState struct {
-	Running  int  `json:"running"`
+	Running int `json:"running"`
+	// Nodes is the nodes that run firmware, which is not every node: an SDR
+	// observer and an emitter never boot one. Comparing Running against the
+	// scenario's size is how a wait ends up asking for 58 of 58 on a mesh
+	// where only 56 can ever start.
 	Nodes    int  `json:"nodes"`
+	Total    int  `json:"total"`
 	Starting bool `json:"starting"`
 }
 

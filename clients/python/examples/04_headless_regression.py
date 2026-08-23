@@ -25,6 +25,13 @@ def main() -> int:
     junit = sys.argv[2] if len(sys.argv) > 2 else ""
 
     with Workbench.headless(fixture=fixture, seed=SEED) as wb:
+        # Bring the mesh up before running the clock. sim.run only advances
+        # time; without this the firmware never starts, nothing transmits, and
+        # the run reports every assertion failed on a tree with nothing wrong
+        # with it - which is the worst thing a regression check can do.
+        wb.sim.start()
+        wb.firmware.wait_started()
+
         wb.sim.run(timedelta(minutes=5), wait=timedelta(minutes=60))
 
         report = wb.assertions.check()

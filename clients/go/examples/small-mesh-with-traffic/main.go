@@ -49,6 +49,13 @@ func main() {
 	_, err = wb.Firmware().UseWhatIsHere(ctx)
 	must(err)
 
+	// Every twenty seconds, from the plain companion to the public channel.
+	// Simulated seconds - the mesh's own clock, not yours.
+	must(wb.Schedule().Add(ctx, meshbench.Send{
+		Node: "C2", Command: "public hello",
+		At: 5 * time.Second, Every: 20 * time.Second,
+	}))
+
 	must(wb.Sim().Start(ctx))
 	must(wb.Firmware().WaitStarted(ctx, 10*time.Minute))
 	must(wb.Sim().Run(ctx, 10*time.Minute, time.Hour))

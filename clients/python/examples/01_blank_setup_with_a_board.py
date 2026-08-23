@@ -9,6 +9,7 @@ end, which is the point of it.
 
 """
 
+import sys
 from datetime import timedelta
 
 from meshbench import Board, Kind, NotFound, Workbench
@@ -52,7 +53,12 @@ def main() -> None:
 
         print(f"{deck.name} is up on {build}; its window is open on {tab}")
         print(wb.provenance())
-        input("press enter to close the workbench ")
+        # Held open for somebody looking at it, and only then. Piped or run
+        # from CI there is nobody to press enter, and input() raises EOFError
+        # there - so an example that had done everything right ended in a
+        # traceback and a non-zero-looking failure.
+        if sys.stdin.isatty():
+            input("press enter to close the workbench ")
 
 
 if __name__ == "__main__":

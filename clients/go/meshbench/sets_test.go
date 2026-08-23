@@ -79,7 +79,7 @@ func TestSchedulingAndAsserting(t *testing.T) {
 	}
 
 	if err := wb.Schedule().Add(ctx, Send{
-		Node: "R1", Command: "send hello",
+		Node: "R1", Command: "public hello",
 		At: 5 * time.Second, Every: 20 * time.Second,
 	}); err != nil {
 		t.Fatal(err)

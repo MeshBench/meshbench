@@ -16,7 +16,9 @@ from pathlib import Path
 from meshbench import Board, Kind, Role, Tab, Workbench
 
 WADAMESH = Path(os.environ.get("WADAMESH", "~/src/wadamesh")).expanduser()
-PIO_ENV = "LilyGo_TDeck_companion_radio"
+#: The PlatformIO environment to build. Every one wadamesh defines ends in
+#: _touch; override it for a different board.
+PIO_ENV = os.environ.get("WADAMESH_ENV", "LilyGo_TDeck_companion_radio_touch")
 IMAGE = WADAMESH / ".pio" / "build" / PIO_ENV / "firmware.bin"
 
 BOARD, ROLE, NODE = Board.LILYGO_TDECK, Role.COMPANION_RADIO, "Bench"

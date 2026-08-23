@@ -41,6 +41,17 @@ func run() int {
 	}
 	defer func() { _ = wb.Close() }()
 
+	// Bring the mesh up before running the clock. Run only advances time;
+	// without this the firmware never starts, nothing transmits, and the run
+	// reports every assertion failed on a tree with nothing wrong with it -
+	// which is the worst thing a regression check can do.
+	if err := wb.Sim().Start(ctx); err != nil {
+		log.Fatal(err)
+	}
+	if err := wb.Firmware().WaitStarted(ctx, 0); err != nil {
+		log.Fatal(err)
+	}
+
 	if err := wb.Sim().Run(ctx, 5*time.Minute, time.Hour); err != nil {
 		log.Fatal(err)
 	}

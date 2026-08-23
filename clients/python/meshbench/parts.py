@@ -3,11 +3,12 @@ happened, and what a node said."""
 
 from __future__ import annotations
 
+import time
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
 from . import errors
-from .sets import Board, Role
+from .sets import Board, Kind, Role
 from .types import Build, Event, JobInfo, SimState
 from .wait import (
     EVENT_WAIT,
@@ -69,9 +70,39 @@ class Sim:
     def now_ms(self) -> int:
         return self.state().now_ms
 
-    def start(self) -> None:
-        """Warm the links, start firmware on every node, and play."""
-        self._wb.call("sim.start")
+    def start(
+        self, firmware_wait: timedelta = FIRMWARE_WAIT, wait: timedelta = JOB_WAIT
+    ) -> None:
+        """Bring the run up: wait out the warm, start every node, and play.
+
+        Deliberately not one call to ``sim.start``. That verb is the play
+        button's own handler and answers four ways - it *pauses* if already
+        playing, declines while links are being measured, or starts firmware
+        and does not play - so a script pressing it once gets whichever of
+        those the moment happens to be in.
+
+        Worse, it only starts firmware when **no** node is running. Pin a
+        build onto two nodes of a fifty-eight node fixture and it considers
+        the mesh started, plays with fifty-six of them down, and says nothing.
+
+        So this asks for the three things it actually wants, in order, and
+        checks each one.
+        """
+        # The links first. Nothing that follows means anything against a
+        # matrix that is still being measured.
+        self._wb.wait_idle(wait)
+
+        # Then every node that is not up, which firmware.start does and
+        # sim.start does only when none of them are.
+        st = self._wb.firmware.state()
+        if st.get("running", 0) < st.get("nodes", 0):
+            self._wb.firmware.start()
+            self._wb.firmware.wait_started(firmware_wait)
+
+        # Then the clock, by its own name. play cannot pause, which is the
+        # other half of what made start unusable from a script.
+        if not self.playing:
+            self.play()
 
     def play(self) -> None:
         self._wb.call("sim.play")
@@ -311,14 +342,49 @@ class Firmware:
         return (self._wb.call("firmware.needed") or {}).get("roles", [])
 
     def wait_started(self, timeout: timedelta = FIRMWARE_WAIT) -> None:
-        """Wait for every node's firmware to be up. ``timeout`` is wall clock."""
+        """Wait for every node's firmware to be up. ``timeout`` is wall clock.
+
+        ``nodes`` here is the nodes that *run* firmware, which is not every
+        node - an SDR observer and an emitter never boot one. It used to be
+        every node, so a fixture holding either reported "56 of 58" until the
+        timeout and there was no way to see which two.
+
+        Which is why the wait names the stragglers rather than counting them.
+        Ten minutes of "56 of 58" tells you nothing; two node names tell you
+        whether a build is missing or a board is wedged.
+        """
+
+        # The names cost a /proc read per node and this polls while firmware is
+        # starting, which is the busiest moment there is - 58 nodes every
+        # fiftieth of a second is how a diagnostic becomes the fault it was
+        # meant to explain, and it timed the socket out. Once every ten
+        # seconds is often enough for something a person only reads when the
+        # wait fails.
+        named = [0.0]
+
+        def stragglers() -> str:
+            now = time.monotonic()
+            if now - named[0] < 10.0:
+                return ""
+            named[0] = now
+            waiting = [s.name for s in self._wb.node_stats() if not s.running]
+            if not waiting:
+                return ""
+            shown = ", ".join(waiting[:4])
+            if len(waiting) > 4:
+                shown += f" and {len(waiting) - 4} more"
+            return f"; waiting on {shown}"
+
+        last = [""]
 
         def check():
             st = self.state()
             running, nodes = st.get("running", 0), st.get("nodes", 0)
             if not st.get("starting") and nodes and running >= nodes:
                 return True, ""
-            return False, f"{running} of {nodes} running"
+            if who := stragglers():
+                last[0] = who
+            return False, f"{running} of {nodes} running{last[0]}"
 
         wait_for(check, timeout, "firmware to come up")
 
@@ -389,19 +455,52 @@ class Events:
 
 
 class Console:
-    """One node's firmware console. Live."""
+    """One node's firmware console. Live.
+
+    Two consoles, not one, and which you get depends on what the node is.
+
+    A repeater has a text CLI and reads typed bytes. A companion does not: it
+    speaks the framed companion protocol, and its command line is
+    meshcore-cli's vocabulary - ``advert``, ``public <msg>``, ``chan <n>
+    <msg>``. Typing text at a companion goes nowhere, is echoed locally, and
+    reads exactly like a command that ran and did nothing.
+
+    So this picks the right one from the node's kind. A caller should not have
+    to know, and every caller that did know got it wrong at least once.
+    """
 
     def __init__(self, wb: Workbench, node: str) -> None:
         self._wb = wb
         self.node = node
 
+    @property
+    def _framed(self) -> bool:
+        """Whether this node's console is the framed protocol."""
+        try:
+            return self._wb.nodes.info(self.node).kind in (
+                Kind.COMPANION,
+                Kind.ROOM_SERVER,
+            )
+        except errors.MeshbenchError:
+            # A node this client cannot see is not one to guess about; let the
+            # verb below say so in its own words.
+            return False
+
     def send(self, line: str) -> None:
-        self._wb.call("console.type", {"node": self.node, "command": line})
+        verb = "console.cli" if self._framed else "console.type"
+        self._wb.call(verb, {"node": self.node, "command": line})
 
     def read(self) -> list[str]:
-        return (self._wb.call("console.read", {"node": self.node}) or {}).get(
-            "lines", []
-        )
+        """The scrollback, newest last.
+
+        The lines come back under "tail" and "lines" is how many there are in
+        total - so reading "lines" hands you an integer where you asked for
+        text, and every use of it fails somewhere further along. The tail is
+        the last 200; a node up for an hour has thousands and nobody reads the
+        first one.
+        """
+        got = self._wb.call("console.read", {"node": self.node}) or {}
+        return got.get("tail") or []
 
     def ask(self, line: str, steps: int = 100) -> str:
         """Send a line and wait for the node to answer it.

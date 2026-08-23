@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"github.com/MeshBench/meshbench/clients/go/meshbench"
@@ -62,7 +63,12 @@ func main() {
 		deck.Name(), build.Describe(), tab)
 	fmt.Println(p)
 	fmt.Println("press enter to close the workbench")
-	_, _ = fmt.Scanln()
+	// Held open for somebody looking at it, and only then. Piped or run from
+	// CI there is nobody to press enter, and the read returns immediately - so
+	// say which happened rather than appearing to have been dismissed.
+	if st, err := os.Stdin.Stat(); err == nil && st.Mode()&os.ModeCharDevice != 0 {
+		_, _ = fmt.Scanln()
+	}
 }
 
 func must(err error) {

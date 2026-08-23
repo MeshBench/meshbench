@@ -43,7 +43,19 @@ func main() {
 
 	nodes, err := wb.Nodes().List(ctx)
 	must(err)
-	if len(nodes) == 0 {
+	// Whether the mesh is already the one this example is about, not whether
+	// the session is empty. A launched workbench is never empty: it opens its
+	// own default fixture, which is 311 nodes - so "is it empty" was always
+	// false, the trim below never ran, and this put a local build on a
+	// national network and reported it as though that had been the plan.
+	already := len(nodes) == len(keep)
+	for _, n := range nodes {
+		if _, want := keep[n.Name]; !want {
+			already = false
+			break
+		}
+	}
+	if !already {
 		must(wb.Project().Open(ctx, "fife-strict"))
 		// Everything the two names do not cover, in one rebuild.
 		want := make([]string, 0, len(keep))
@@ -51,9 +63,11 @@ func main() {
 			want = append(want, name)
 		}
 		sort.Strings(want)
-		must(wb.Nodes().Keep(ctx, want...))
-		// Whichever of them the fixture already had is moved; the rest are
-		// placed. Keep refuses a name it does not hold, so this asks first.
+		// Put them where they belong first, then delete the rest. Keep is
+		// all-or-none by design, so naming a node that is not there yet refuses
+		// and removes nothing - and one of these two is never in the fixture, so
+		// the trim refused on every run that reached it. The comment here used to
+		// say it asked first, directly under the line that did not.
 		have, err := wb.Nodes().List(ctx)
 		must(err)
 		for _, name := range want {
@@ -66,6 +80,7 @@ func main() {
 				Name: name, Kind: meshbench.Companion, Lat: at[0], Lon: at[1]})
 			must(err)
 		}
+		must(wb.Nodes().Keep(ctx, want...))
 		must(wb.WaitIdle(ctx, 10*time.Minute))
 	}
 
