@@ -49,13 +49,30 @@ func TestEveryGeneratedKindIsOneTheWorkbenchKnows(t *testing.T) {
 }
 
 func TestEveryGeneratedPresetIsOneTheWorkbenchKnows(t *testing.T) {
-	wb, ctx := headless(t, Fixture("fife-strict"))
+	// Two nodes of our own, not a fixture.
+	//
+	// This asks one question - does the workbench know this name - and it used
+	// to ask it of fife-strict, where every preset change rebuilds the engine
+	// and re-measures 1,653 links. Twenty presets is thirty-three thousand link
+	// measurements to check a list of strings, and on a two-core runner the
+	// workbench died part way through: EOF, then a broken pipe for every preset
+	// after it. A test that heavy is a test that fails for reasons that have
+	// nothing to do with what it is testing.
+	wb, ctx := headless(t)
 	if len(Presets) == 0 {
 		t.Fatal("the generated preset list is empty")
 	}
+	if err := wb.Project().New(ctx, ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := wb.Nodes().Place(ctx, Placement{
+		Name: "Solo", Kind: SimpleRepeater, Lat: 56.2, Lon: -3.2,
+	}); err != nil {
+		t.Fatal(err)
+	}
 	for _, p := range Presets {
 		if err := wb.Do(ctx, "radio.preset", map[string]any{
-			"preset": string(p), "node": "Abernethy Repeater",
+			"preset": string(p), "node": "Solo",
 		}); err != nil {
 			t.Errorf("preset %s was refused: %v", p, err)
 		}
