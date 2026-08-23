@@ -54,6 +54,10 @@ A third is deliberately not being written; the reasoning is on #209 and in
 [#219](https://github.com/MeshBench/meshbench/issues/219). The generator still
 emits two from the start, which is what keeps a third cheap.
 
+They live side by side, as peers: `clients/go/meshbench` and
+`clients/python/meshbench`, with runnable examples under `clients/*/examples`.
+Neither wraps the other; both speak the socket.
+
 ### Naming
 
 Go is `CamelCase` and takes a `context.Context` first; Python is `snake_case`,
@@ -151,28 +155,42 @@ The collection is iterable, indexable by name, and filterable:
 ```python
 for n in wb.nodes: ...
 wb.nodes["Bishop Hill"]
-wb.nodes.of_kind("companion")
+wb.nodes.of_kind(Kind.COMPANION)
 wb.nodes.running
 wb.nodes.selected
 len(wb.nodes)
 ```
 
+Imported names carry emoji and accents — `🏔️ West Lomond 📡` is one real node
+— so a name is something you search for rather than type:
+
 ```python
-deck = wb.nodes.place("Deck", kind="companion", lat=56.19, lon=-3.17,
-                      height_m=10, tx_dbm=22, board="LilyGo T-Deck")
-wb.nodes.place_many([("R1", "repeater", 56.20, -3.20), ...])
-wb.nodes.delete("R1", "R2")
-wb.nodes.keep("Glasgow-Outskirts", "Glenrothes")
+wb.nodes.search("west lomond")       # -> [NameMatch], best first, with a score
+wb.nodes.find("west lomond")         # -> Node, or a refusal naming the near misses
+wb.nodes.near(node, 12)              # -> the twelve closest, nearest first
+```
+
+Ranking happens at the workbench so both clients agree which result is the top
+one, and `find` refuses below a score of 0.5 rather than handing back the
+nearest thing — taking the top result unconditionally is how a script adverts
+from a node that merely shared a word with the query, silently.
+
+```python
+deck = wb.nodes.place("Deck", kind=Kind.COMPANION, lat=56.19, lon=-3.17,
+                      height_m=10, tx_dbm=22, board=Board.LILYGO_TDECK)
+wb.nodes.place_many([{"name": "R1", "kind": Kind.SIMPLE_REPEATER, ...}, ...])
+wb.nodes.delete("R1", "R2")          # nodes.delete_many, all or none
+wb.nodes.keep("Glenrothes", deck)    # names or handles
 wb.nodes.select("R1", "R2", add=False)
-wb.nodes.refresh_stats()
+wb.nodes.stats()
 ```
 
 A placed node inherits its neighbours' regions and their firmware, because
 somebody dropping a repeater on the map is adding a repeater to *this* network,
 not choosing a firmware strategy. `place_many` does one warm at the end rather
-than one per node; `keep` and multi-`delete` are one verb call per node until
-the bulk verb in
-[#216](https://github.com/MeshBench/meshbench/issues/216) lands, and each warm
+than one per node; `keep` and multi-`delete` are single verbs, all-or-none, so
+a name that is not there refuses and removes nothing — half a deletion leaves a
+scenario nobody described and no way to tell which half survived. Each warm
 cancels the one before it so the cost is one measurement of the matrix, not N.
 
 The `Node` object's fields and methods are in
@@ -187,7 +205,7 @@ node.set_firmware(b, apply=False)   # node.set_firmware_only: at next start
 node.move(lat, lon)
 node.regions = ["ScotMesh"]
 node.true_rf = True
-node.wait_running(timeout="3m")
+node.wait_running(timedelta(minutes=3))
 node.inject()                  # originate without firmware
 node.delete()
 ```
@@ -199,9 +217,9 @@ mid-run has restarted a node mid-measurement.
 ### `wb.sim`
 
 ```python
-wb.sim.start()                 # sim.start: warm, start firmware, then play
+wb.sim.start()                 # wait out the warm, start every node, then play
 wb.sim.play() / .pause() / .toggle() / .step()
-wb.sim.run(minutes=10)         # sim.run, then wait for it to finish
+wb.sim.run(timedelta(minutes=10))   # sim.run, then wait for it to finish
 wb.sim.settle(steps=20)        # sim.settle
 wb.sim.reset()
 wb.sim.seed = 9001
@@ -215,6 +233,18 @@ polling `sim.state` today and a subscription once
 [#214](https://github.com/MeshBench/meshbench/issues/214) lands, and no script
 changes when it switches — which is why events are sequenced *after* the
 clients.
+
+`start()` is the other composite, and it is deliberately **not** one call to
+`sim.start`. That verb is the play button's own handler and answers four ways:
+it *pauses* if the run is already playing, declines while links are still being
+measured, starts firmware and does **not** play, or plays. None of those is an
+error, so a script that pressed it once and moved on waited for firmware
+nothing had been asked to start — which reads as a hang in the workbench. It
+also starts firmware only when *no* node is running, so a mesh where two nodes
+were pinned individually is "started" with the rest down.
+
+So `start()` waits out the warm, calls `firmware.start` for whatever is not up,
+waits for it, and then calls `sim.play`, which cannot pause.
 
 `wb.sim.playing`, `now_ms`, `realtime_x`, `firmware_running` are live reads off
 the snapshot and cost nothing.
@@ -235,7 +265,7 @@ wb.firmware.import_(path, role="repeater")
 wb.firmware.build("~/src/MeshCore")       # NEW, #216 -> {role: Build}
 wb.firmware.use("companion-v1.17.0", role="companion")
 wb.firmware.start()                       # firmware.start -> Job
-wb.firmware.wait_started(timeout="5m")
+wb.firmware.wait_started(timedelta(minutes=5))
 wb.firmware.delete(build); wb.firmware.wipe()
 ```
 
@@ -255,9 +285,8 @@ together, which read as a crash and was reported as one. The façade returns a
 
 ```python
 node.console.send("advert")
-node.console.read()
-node.console.tail
-reply = node.console.ask("get region", timeout="2s")
+node.console.read()          # the scrollback, newest last
+reply = node.console.ask("get region")
 wb.fleet.send("set region ScotMesh", kind="repeater")   # -> [FleetReply]
 ```
 
@@ -266,6 +295,18 @@ only runs when the engine steps.** Reading straight after sending reads the
 moment before the command was sent — every script that has done this by hand
 got an empty reply and concluded the console was broken. `ask` sends, gives the
 mesh its own time, and then reads.
+
+**There are two consoles, and which you get depends on what the node is.** A
+repeater reads typed text, over `console.type`. A companion does not: it speaks
+the framed companion protocol, and its command line is meshcore-cli's
+vocabulary, over `console.cli` — `advert`, `floodadv`, `public <msg>`,
+`chan <n> <msg>`, `infos`, `ver`, `contacts`, `sync_msgs`, `set`, `time`.
+
+Text typed at a companion is echoed locally and goes nowhere, which looks
+exactly like a command that ran and did nothing. `node.console` picks the right
+one from the node's kind, so a caller never has to know — and **there is no
+`send` command** in either vocabulary, which is what several scripts assumed
+before anybody ran them.
 
 `fleet.send` warns when the command changes what the nodes *are* — `region`,
 `set`, `reboot`, `clock`, `advert`, `erase`, `reset` — because a region added
@@ -354,18 +395,20 @@ A warm on a national network is minutes and 48,000 terrain profiles. Every call
 here that triggers one returns a `Job`, and `wb.links.recompute().wait()` is
 how a script waits for it rather than guessing at a sleep.
 
-### `wb.boundary`, `wb.import_`, `wb.feed`
+### `wb.boundary` and `wb.live`
 
 ```python
-wb.boundary.search("Fife")           # boundary.set -> candidate names
-wb.boundary.accept("Fife")           # boundary.accept
-wb.boundary.prune(margin_km=25)
-wb.import_.source = url
-wb.import_.fetch(url)                # -> Import (a preview)
-wb.import_.commit(strategy="merge")
-wb.import_.infer(hours=24)           # -> Job
-wb.import_.apply_inference()
-wb.feed.pull(url); wb.feed.stop()
+wb.boundary.use("Fife")              # a place name, or a path to GeoJSON
+wb.boundary.use("bounds/tay.geojson")
+wb.boundary.load(polygon, name="Tay catchment")   # a dict, a document, a path
+wb.boundary.list()                   # what the study area is made of
+wb.boundary.prune(margin_km=25)      # -> how many nodes went
+
+wb.live.pull(url)                    # fetch, commit, infer, apply - all four
+wb.live.fetch(url)                   # -> ImportPreview, changing nothing
+wb.live.commit(Strategy.REPLACE)
+wb.live.infer(timedelta(days=7))     # reads the feed's own past
+wb.live.apply_regions()              # -> how many nodes took one
 ```
 
 **Order is load-bearing**, and the façade enforces it rather than documenting
@@ -374,6 +417,16 @@ fetch time and a boundary set afterwards prunes rather than filters — having
 already paid to fetch nodes it will discard. `commit` refuses until a preview
 exists; the façade turns that refusal into a sentence saying which step is
 missing.
+
+`pull` runs all four steps because the last two are the ones that get skipped,
+and skipping them does not fail: the mesh comes up with regions inferred but
+never applied, which transmits, relays nothing, and reports no error at all.
+It reads as bad RF.
+
+`boundary.use` takes either a place name — searched for at Nominatim, so it
+needs the network and needs the area to have an administrative name — or a
+path to GeoJSON, which is the only way to study a catchment, a valley, or
+something drawn in QGIS this morning, and the only one that works offline.
 
 ### `wb.experiment` and `wb.sweep`
 
@@ -520,12 +573,12 @@ is worth knowing before estimating it.
 Every wait is a method, never a sleep in a script.
 
 ```python
-node.wait_running(timeout="3m")
-wb.firmware.wait_started(timeout="5m")
-wb.sim.run(minutes=5)                 # returns when the run has finished
-job.wait(timeout="20m")
-wb.events.wait(kind="rx", to="Glenrothes", timeout="60s")
-node.board.wait_screen(changed=True, timeout="30s")
+node.wait_running(timedelta(minutes=3))
+wb.firmware.wait_started(timedelta(minutes=5))
+wb.sim.run(timedelta(minutes=5))      # returns when the run has finished
+job.wait(timedelta(minutes=20))
+wb.events.wait(kind="rx", to="Glenrothes", timeout=timedelta(seconds=60))
+node.board.wait_screen(changed=True, timeout=timedelta(seconds=30))
 ```
 
 They poll today and subscribe once #214 lands. **No script changes when that
@@ -538,9 +591,21 @@ actually was — not `TimeoutError`. `tools/soak/soak.py` hand-writes this loop
 three times in 72 lines, each with its own interval and its own timeout, and
 each one is a chance to sample the wrong moment.
 
-**A wait is simulated time, not wall time.** `sim.run(minutes=5)` is five
-minutes of the mesh's own clock; on 155 emulated nodes that is a great deal
-longer than five minutes of yours.
+**Two clocks, and they are not the same one.** The length of a run is the
+mesh's: `sim.run(timedelta(minutes=5))` is five minutes of its time, and on 155
+emulated nodes that is a great deal more than five of yours. Every *timeout* is
+yours. Nothing that means simulated time is called `timeout`, and every
+duration is the language's own type — `datetime.timedelta` and
+`time.Duration` — rather than a string mini-language nothing completes and
+nothing checks.
+
+**A wait is only as good as its premise.** Three of them were wrong at once
+before anybody ran an example: one waited for a job list to empty when half the
+jobs are marked finished rather than removed; one compared running firmware
+against every node, including an SDR observer and an emitter that never boot
+one; and one returned instantly because it was called before the fixture had
+been opened. All three read as the workbench hanging. When a wait expires,
+suspect what it is comparing before you suspect the simulator.
 
 ---
 

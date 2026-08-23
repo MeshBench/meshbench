@@ -56,7 +56,7 @@ func (s *Sim) eventTail(n int) ([]state.Event, int) {
 			AtMs: e.AtMs, Kind: e.Kind, From: e.From, To: e.To,
 			MessageID: e.MessageID, PacketID: e.PacketID,
 			SNRdB: e.SNRdB, Detail: e.Detail,
-			Class: engine.EventClass(e.Kind, e.Detail),
+			Class: string(engine.EventClass(e.Kind, e.Detail)),
 		})
 	}
 	return out, total
@@ -69,8 +69,9 @@ func (s *Sim) eventCounts() state.EventCounts {
 	}
 	c := s.liveEngine().EventCounts()
 	return state.EventCounts{
-		Sent: c["sent"], Received: c["received"], HalfDuplex: c["half-duplex"],
-		Interference: c["interference"], Floor: c["floor"],
+		Sent: c[engine.ClassSent], Received: c[engine.ClassReceived],
+		HalfDuplex:   c[engine.ClassHalfDuplex],
+		Interference: c[engine.ClassInterference], Floor: c[engine.ClassFloor],
 	}
 }
 

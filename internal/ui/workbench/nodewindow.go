@@ -415,8 +415,8 @@ type nodeWindowHooks struct {
 	onDo         func(verb string, params any)
 }
 
-func (w *nodeWindows) openFor(node string, newTheme func() *theme.Theme,
-	st *state.Store, h nodeWindowHooks) {
+func (w *nodeWindows) openFor(node string, tab nodeTab,
+	newTheme func() *theme.Theme, st *state.Store, h nodeWindowHooks) {
 	w.mu.Lock()
 	if w.open[node] {
 		w.mu.Unlock()
@@ -435,7 +435,7 @@ func (w *nodeWindows) openFor(node string, newTheme func() *theme.Theme,
 		p := &nodeWindowPanel{node: node, OnCommand: h.onCommand, OnAction: h.onAction,
 			OnCLI: h.onCLI, OnServe: h.onServe, OnOpenPacket: h.onOpenPacket,
 			OnDo: h.onDo, Kind: kindOfNode(st, node)}
-		p.tab = openOnTab
+		p.tab = tab
 		win := new(app.Window)
 		win.Option(app.Title("MeshBench - "+node), app.Size(unit.Dp(820), unit.Dp(620)))
 		// Raised as it opens; see windows.go for why that is all there is.

@@ -74,7 +74,7 @@ func registerSimControl(st *state.Store, s *Sim) {
 	// told everything and heard nothing.
 	st.Handle("sim.settle", func(w *state.World, p any) (any, error) {
 		if s.eng == nil {
-			return nil, fmt.Errorf("no simulation")
+			return nil, ErrNoSimulation
 		}
 		n := 60
 		if v, ok := numField(p, "steps"); ok && v > 0 {
@@ -92,6 +92,10 @@ func registerSimControl(st *state.Store, s *Sim) {
 		if err := s.rebuild(w); err != nil {
 			return nil, err
 		}
+		// The clock went back to zero, so what the schedule has already said
+		// has to go with it - or a repeating send would sit waiting out an
+		// interval measured against a run that no longer exists.
+		s.resetSendClock()
 		w.Links = nil
 		s.warm(st, len(s.nodes))
 		w.Say("reset")

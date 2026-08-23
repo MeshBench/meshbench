@@ -41,6 +41,12 @@ func Run(args []string) {
 	fixture := flag.String("fixture", "scotland-ireland-strict",
 		"network to load: a name (see -list-fixtures) or a path to a .json")
 	listFixtures := flag.Bool("list-fixtures", false, "list the built-in networks and exit")
+	// The same flag headless has, and for the same reason. It was only on
+	// headless, so a client launching a windowed run with a seed built a
+	// command line the binary refused - exit 2, before the window appeared,
+	// which reads as the workbench failing to start rather than as a flag it
+	// has not got.
+	seedFlag := flag.Uint("seed", 0, "override the scenario's seed")
 	modeFlag := flag.String("theme", "dark", "dark or light")
 	viewFlag := flag.String("view", "plan", "which view to open")
 	fpsFlag := flag.Bool("fps", false, "report frames per second to stderr and /tmp/wb2-fps.log")
@@ -83,6 +89,11 @@ func Run(args []string) {
 	unwatchedFlag := flag.Bool("unverified-wiring", false,
 		"run boards whose emulation wiring nobody has watched boot yet")
 	quitFlag := flag.Duration("quit-after", 0, "exit after this long; 0 runs until closed")
+	socketFlag := flag.String("control-socket", "",
+		"where the control socket answers: a path for a unix socket, or "+
+			"\"tcp\" for loopback with a token (the default on Windows, which "+
+			"has no unix socket a Python client can reach). "+
+			"MESHBENCH_CONTROL_SOCKET does the same, and two workbenches need two")
 	versionFlag := flag.Bool("version", false, "print the version and exit")
 	_ = flag.CommandLine.Parse(args)
 	if *versionFlag {
@@ -96,21 +107,10 @@ func Run(args []string) {
 		return
 	}
 
-	st := state.New(10)
-	sm := &session.Sim{}
-	// What survived the last session: the GPU choice, the cache bound and
-	// where the cache lives. Loaded here rather than in Register, so a test's
-	// session never depends on this machine's own file.
-	sm.LoadPrefs()
-	// Set on the session rather than through its verb, and before Register.
-	// The store's loop does not run until Run does, so a verb fired here waits
-	// for a goroutine that has not started - a workbench that never opens a
-	// window. It has to happen before the network loads either way: that is
-	// when the engine is built, and the engine is what reads this.
-	if *unwatchedFlag {
-		sm.RunUnverifiedWiring()
-	}
-	session.Register(st, sm)
+	// The same construction the headless command uses, so the two modes
+	// cannot become two ways of building a session that drift. What this one
+	// does afterwards that headless does not is attach a UI.
+	st, sm := session.Boot(session.Options{UnverifiedWiring: *unwatchedFlag})
 	// Every status line, timestamped and kept in full - not just the last
 	// twenty the strip at the bottom shows. Set before Run starts: nothing
 	// else touches World before then, so there is nothing to race. A run
@@ -145,6 +145,15 @@ func Run(args []string) {
 		if _, err := st.Do(ctx, "project.open", *fixture); err != nil {
 			fmt.Fprintln(os.Stderr, "loading:", err)
 		}
+		// After the fixture, never before: sim.seed rebuilds the scenario, so a
+		// seed set first is a seed applied to an empty network and then thrown
+		// away by the open.
+		if *seedFlag != 0 {
+			if _, err := st.Do(ctx, "sim.seed",
+				map[string]any{"seed": float64(*seedFlag)}); err != nil {
+				fmt.Fprintln(os.Stderr, "seed:", err)
+			}
+		}
 		if *playFlag {
 			_, _ = st.Do(ctx, "sim.play", nil)
 		}
@@ -171,7 +180,7 @@ func Run(args []string) {
 
 	// The control socket, before any window: a script that drives the
 	// workbench should not have to wait for a frame.
-	if srv, err := session.ServeControl(ctx, st); err != nil {
+	if srv, err := session.ServeControlAt(ctx, st, *socketFlag); err != nil {
 		fmt.Fprintln(os.Stderr, "control socket:", err)
 	} else {
 		defer func() { _ = srv.Close() }()

@@ -169,7 +169,11 @@ still missing is a board on `nodes.place`, which is #216.
 
 ### Kind
 
-From `scenario.Kind`. A string on the wire; a constant in both clients.
+From `scenario.Kind`. A string on the wire; a generated enum in both clients,
+alongside `Board`, `Preset`, `Role`, `Class`, `Tab`, `Strategy` and
+`Transport`. All eight come out of `tools/clientgen`, so the two clients cannot
+drift and CI fails if either is stale — a constant naming a board the simulator
+has never heard of is worse than a string, because it looks checked.
 
 | value | what it is |
 |---|---|
@@ -188,14 +192,21 @@ From `scenario.Kind`. A string on the wire; a constant in both clients.
 |---|---|---|
 | iterate / `len` | `nodes.list` | |
 | `["Name"]` | — | from the snapshot |
-| `Place(name, kind, lat, lon, height_m=, tx_dbm=, board=)` | `nodes.place` | `board` needs #216 |
+| `Place(name, kind, lat, lon, height_m=, tx_dbm=, board=)` | `nodes.place` | `board` is a `Board`, refused if nothing matches |
 | `PlaceMany([...])` | `nodes.place` × n | one warm at the end, not one per node |
-| `Delete(*names)` | `nodes.delete` | |
-| `Keep(*names)` | `nodes.delete` × n | the complement; a bulk verb is #216 |
+| `Delete(*names)` | `nodes.delete_many` | all or none: a name that is not there removes nothing |
+| `Keep(*names)` | `nodes.keep` | the complement, worked out at the workbench |
+| `Search(query, limit)` | `nodes.search` | ranked, emoji and accents folded; `NameMatch` |
+| `Find(query)` | `nodes.search` | the one it meant, or a refusal naming the near misses |
+| `Near(node, count)` | `nodes.near` | the closest, on the same great circle the path losses use |
 | `Select(*names, add=False)` | `nodes.select_many` | |
 | `Selected` | — | who is selected now |
 | `OfKind(kind)`, `Running`, `Stopped` | — | filters, evaluated client-side |
-| `RefreshStats()` | `nodes.stats` | forces a sample rather than waiting for the tick |
+| `Stats()` | `nodes.stats` | the rows, not a count of them |
+
+Names and handles are interchangeable wherever a node is named: `Search` and
+`Near` hand back handles and every verb takes a name, so the client converts
+rather than making each caller do it.
 
 ## Link
 

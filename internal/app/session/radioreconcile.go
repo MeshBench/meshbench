@@ -43,7 +43,7 @@ func registerRadioReconcile(st *state.Store, s *Sim) {
 			}
 		}
 		if scen == nil {
-			return nil, fmt.Errorf("no node named %q", name)
+			return nil, noSuchNode(name)
 		}
 		out := map[string]any{"node": name, "assumed": scen.describe()}
 
@@ -148,7 +148,7 @@ func registerRadioReconcile(st *state.Store, s *Sim) {
 			changed = true
 		}
 		if !changed {
-			return nil, fmt.Errorf("no node named %q", name)
+			return nil, noSuchNode(name)
 		}
 		for i := range w.Nodes {
 			if w.Nodes[i].Name == name {

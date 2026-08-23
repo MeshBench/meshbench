@@ -110,22 +110,27 @@ Two verbs are **not** in this table:
 | `node.radio_adopt` | `node` string | `node`, `tx_dbm` | `node.adopt_radio()` |
 | `node.reflash_failed` | *a bare string* | — | *none* — the store telling itself a reflash failed |
 | `node.reflashed` | *a bare string* | — | *none* — the store telling itself a reflash finished |
+| `node.set_board` | `node` string, `board` string | `node`, `board` | `node.board = ...` |
 | `node.set_firmware` | `node` string, `version` string, `board` string, `role` string | `node`, `version`, `board`, `role` | `node.firmware = build` |
 | `node.set_firmware_only` | `node` string, `version` string, `board` string, `role` string | `node`, `version`, `board`, `role` | `node.set_firmware(build, apply=False)` |
 | `node.start` | *a bare string* | `started` | `node.start()` |
 | `node.stop` | *a bare string* | `stopped` | `node.stop()` |
 | `node.truerf` | `node` string, `on` bool | `node`, `true_rf` | `node.true_rf = bool` |
-| `node.window` 🪟 | *a bare string*, `node` string | `node` | `wb.window(node, tab=None)` |
+| `node.window` 🪟 | *a bare string*, `tab` string, `node` string | `node`, `tab` | `wb.window(node, tab=None)` |
 | `nodes.add_to_selection` | — | `added` | `wb.nodes.select(*names, add=True)` |
 | `nodes.allow_flood` | `node` string, `on` bool | `nodes`, `allow_any_flood` | `node.allow_flood = bool` |
 | `nodes.delete` | `node` string | `deleted`, `nodes` | `wb.nodes.delete(*names) / node.delete()` |
+| `nodes.delete_many` | — | — | `wb.nodes.delete()` |
+| `nodes.keep` | — | — | `wb.nodes.keep()` |
 | `nodes.list` | — | `nodes`, `count` | `wb.nodes  (iterate)` |
 | `nodes.move` | `name` string, `lat` number, `lon` number | `name`, `lat`, `lon` | `node.move(lat, lon)` |
-| `nodes.place` | `name` string, `kind` string, `lat` number, `lon` number, `height_m` number, `tx_dbm` number | `placed`, `kind`, `regions`, `nodes` | `wb.nodes.place(name, kind, lat, lon, ...)` |
+| `nodes.near` | *a bare string*, `node` string, `count` number | `node`, `near` | `wb.nodes.near()` |
+| `nodes.place` | `name` string, `kind` string, `board` string, `lat` number, `lon` number, `height_m` number, `tx_dbm` number | `placed`, `kind`, `regions`, `board`, `nodes` | `wb.nodes.place(name, kind, lat, lon, ...)` |
 | `nodes.regions` | `node` string, `regions` list | `nodes`, `regions` | `node.regions = [...]` |
+| `nodes.search` | `query` string, `limit` number | `query`, `matches`, `total` | `wb.nodes.search() / wb.nodes.find()` |
 | `nodes.select` | *a bare string* | `selected` | `wb.nodes.select(name)` |
 | `nodes.select_many` | — | `selected` | `wb.nodes.select(*names)` |
-| `nodes.stats` | — | `nodes` | `wb.nodes.refresh_stats()` |
+| `nodes.stats` | — | `nodes`, `stats` | `wb.nodes.refresh_stats()` |
 
 ### Boards
 
@@ -164,18 +169,21 @@ Two verbs are **not** in this table:
 
 | verb | takes | returns | façade |
 |---|---|---|---|
+| `firmware.build` | `source` string, `from` string, `role` string, `label` string | `building`, `source`, `job` | `wb.firmware.build()` |
+| `firmware.build_failed` | *a bare string* | — | *none* — the build worker telling the store it failed |
+| `firmware.built` | `version` string | `built` | *none* — the build worker telling the store it finished |
 | `firmware.delete` | `path` string | `deleted` | `wb.firmware.delete(build)` |
 | `firmware.download` | `role` string, `version` string, `board` string | `downloading`, `role`, `version` | `wb.firmware.download(role, version, board=None)` |
 | `firmware.failed` | *a bare string* | — | *none* — the firmware starter reporting a failure |
-| `firmware.import` | `path` string, `role` string, `board` string | `version`, `role` | `wb.firmware.import_(path, role, board=None)` |
+| `firmware.import` | `path` string, `role` string, `board` string, `label` string | `version`, `role`, `board`, `path`, `bytes` | `wb.firmware.import_(path, role, board=None)` |
 | `firmware.installed` | — | `cache`, `installed` | `wb.firmware.installed` |
-| `firmware.library` | — | `builds` | `wb.firmware.library` |
+| `firmware.library` | — | `builds`, `count` | `wb.firmware.library` |
 | `firmware.needed` | — | `roles` | `wb.firmware.needed()` |
 | `firmware.published` | — | `published`, `builds` | `wb.firmware.scan()` |
 | `firmware.set` | `version` string, `node` string, `role` string | `version`, `nodes`, `considered` | `wb.firmware.use(version, role=|node=)` |
 | `firmware.start` | — | `starting` | `wb.firmware.start()` |
 | `firmware.started` | — | `running`, `playing` | *none* — the firmware starter reporting back |
-| `firmware.state` | — | `running`, `nodes`, `starting` | `wb.firmware.state()  /  wb.firmware.wait_started()` |
+| `firmware.state` | — | `running`, `nodes`, `total`, `starting` | `wb.firmware.state()  /  wb.firmware.wait_started()` |
 | `firmware.wipe` | — | `wiped`, `root` | `wb.firmware.wipe()` |
 
 ### Console and fleet
@@ -263,6 +271,8 @@ Two verbs are **not** in this table:
 | verb | takes | returns | façade |
 |---|---|---|---|
 | `boundary.accept` | `name` string | `accepted`, `areas` | `wb.boundary.accept(name)` |
+| `boundary.list` | — | `areas`, `names` | `wb.boundary.list()` |
+| `boundary.load` | `path` string, `geojson` string, `name_field` string, `name` string | `loaded`, `areas`, `polygons` | `wb.boundary.load() / wb.boundary.use()` |
 | `boundary.prune` | `margin_km` number | `removed`, `nodes` | `wb.boundary.prune(margin_km=)` |
 | `boundary.remove` | `name` string | `removed`, `areas` | `wb.boundary.remove(name)` |
 | `boundary.set` | `query` string | `found`, `names` | `wb.boundary.search(query)` |
@@ -277,6 +287,7 @@ Two verbs are **not** in this table:
 | `import.set` | — | — | *none* — the fetch publishing its preview |
 | `import.set_source` | `url` string | `url` | `wb.import_.source = url` |
 | `infer.apply` | — | `applied` | `wb.import_.apply_inference()` |
+| `infer.progress` | — | — | *none* — the traffic reader saying how far it has got |
 | `infer.result` | — | `packets`, `nodes`, `regions` | `wb.import_.inference` |
 | `infer.run` | `hours` number | `reading`, `hours` | `wb.import_.infer(hours=)` |
 

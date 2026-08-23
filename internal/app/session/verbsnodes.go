@@ -13,7 +13,7 @@ import (
 func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 	st.Handle("firmware.start", func(w *state.World, _ any) (any, error) {
 		if s.eng == nil {
-			return nil, fmt.Errorf("no network Loaded")
+			return nil, fmt.Errorf("no network loaded: %w", ErrNoSimulation)
 		}
 		w.Say("starting firmware on every node")
 		s.startFirmware(st, w.Seed)
@@ -56,9 +56,26 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 		return nil, nil
 	})
 
+	// firmware.state: how far along starting the mesh is.
+	//
+	// "nodes" is the nodes that *run* firmware, not every node there is. It
+	// used to be every node, and running is a count of processes - so on any
+	// scenario holding an SDR observer or an emitter the two could never meet.
+	// fife-strict holds one of each, so the shipped fixture reported 56 of 58
+	// for ever and every wait built on it hung. Comparing two different
+	// populations is the whole of that bug.
 	st.Handle("firmware.state", func(w *state.World, _ any) (any, error) {
+		runs := 0
+		for _, n := range s.nodes {
+			if n.Kind.RunsFirmware() {
+				runs++
+			}
+		}
 		return map[string]any{
-			"running": s.firmwareCount(), "nodes": len(w.Nodes),
+			"running": s.firmwareCount(), "nodes": runs,
+			// Every node, for a caller that wants the scenario's size rather
+			// than the part of it that boots.
+			"total":    len(w.Nodes),
 			"starting": s.starting.Load(),
 		}, nil
 	})
@@ -67,7 +84,14 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 		// Also on demand, because a paused simulation still costs memory and
 		// somebody looking at the node view has usually just paused it.
 		w.Stats = s.nodeStats(w.Events)
-		return map[string]any{"nodes": len(w.Stats)}, nil
+		// And the rows, not only how many there are.
+		//
+		// It answered with a count and put the rows in the snapshot, where
+		// only a panel could reach them - so from outside the window there
+		// was no way to ask whether a node was running, which is the first
+		// thing any script wants to know and the thing every wait is built
+		// on. The count stays for whoever is already reading it.
+		return map[string]any{"nodes": len(w.Stats), "stats": statRows(w.Stats)}, nil
 	})
 
 	st.Handle("node.stop", func(w *state.World, p any) (any, error) {
