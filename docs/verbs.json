@@ -1,0 +1,104 @@
+{
+  "verbs": {
+    "app.quit": {
+      "what": "Close the workbench, stopping firmware on the way out.",
+      "returns": [
+        "closing",
+        "headless"
+      ]
+    },
+    "map.centre": {
+      "what": "Point the map at a node, or at a latitude and longitude.",
+      "params": [
+        {
+          "name": "node",
+          "type": "string",
+          "primary": true,
+          "what": "centre on this node instead of giving coordinates"
+        },
+        {
+          "name": "lat",
+          "type": "number",
+          "what": "degrees north"
+        },
+        {
+          "name": "lon",
+          "type": "number",
+          "what": "degrees east"
+        },
+        {
+          "name": "zoom",
+          "type": "number",
+          "what": "zoom level; unchanged when absent"
+        }
+      ],
+      "returns": [
+        "lat",
+        "lon",
+        "zoom"
+      ]
+    },
+    "map.fit": {
+      "what": "Zoom the map so every node is on it.",
+      "returns": [
+        "nodes"
+      ]
+    },
+    "node.window": {
+      "what": "Open one node's own window, the thing people put on a second monitor.",
+      "params": [
+        {
+          "name": "node",
+          "type": "string",
+          "required": true,
+          "primary": true,
+          "what": "which node"
+        },
+        {
+          "name": "tab",
+          "type": "string",
+          "what": "which tab to open on; the window's default when absent"
+        }
+      ],
+      "returns": [
+        "node",
+        "tab"
+      ]
+    },
+    "panels.list": {
+      "what": "Name every panel the interface has registered.",
+      "returns": [
+        "panels",
+        "count"
+      ]
+    },
+    "ui.keep_above": {
+      "what": "Say whether a window popped out of the workbench stays above it, and report the setting either way.",
+      "params": [
+        {
+          "name": "on",
+          "type": "bool",
+          "what": "set it; omit to read the current setting without changing it"
+        }
+      ],
+      "returns": [
+        "on"
+      ]
+    },
+    "workspace.set": {
+      "what": "Show one of the workbench's top-level views.",
+      "params": [
+        {
+          "name": "view",
+          "type": "string",
+          "required": true,
+          "primary": true,
+          "what": "the view's name, as panels.list and the view bar spell it"
+        }
+      ],
+      "returns": [
+        "view"
+      ]
+    }
+  }
+}

@@ -31,6 +31,13 @@ type Tool struct {
 	Description string         `json:"description"`
 	InputSchema map[string]any `json:"inputSchema"`
 
+	// Verb is the verb Call reaches, named so it can be checked against what
+	// the session registers. It was not, and this server shipped a
+	// session_journal tool calling session.journal - a verb no version of this
+	// tree registers - because the name lived only inside the closure below
+	// where nothing could compare it to anything.
+	Verb string `json:"-"`
+
 	// Call runs it. Returning an error produces a tool error the model can
 	// read and react to, rather than a transport failure that ends the session
 	// — a wrong argument should be correctable, not fatal.

@@ -20,6 +20,17 @@ import (
 // a client mid-conversation is worse than a tool that says "no workbench is
 // running".
 func RegisterSessionTools(s *Server) error {
+	for _, t := range sessionTools() {
+		if err := s.Register(t); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// sessionTools is every tool this server offers, assembled once so a test can
+// walk it and check each one names a verb the session actually registers.
+func sessionTools() []Tool {
 	tools := []Tool{
 		sessionDescribeTool(),
 		sessionNodesTool(),
@@ -38,12 +49,7 @@ func RegisterSessionTools(s *Server) error {
 	// without ever seeing it.
 	tools = append(tools, sessionUITools()...)
 	tools = append(tools, sessionCompanionTools()...)
-	for _, t := range tools {
-		if err := s.Register(t); err != nil {
-			return err
-		}
-	}
-	return nil
+	return tools
 }
 
 // call reaches the workbench for one command.
@@ -101,7 +107,7 @@ func sBool(desc string) map[string]any {
 
 func sessionDescribeTool() Tool {
 	return Tool{
-		Name: "session_describe",
+		Name: "session_describe", Verb: "session.describe",
 		Description: "What the running workbench currently holds: node count, simulated " +
 			"clock, event count, how many nodes are on real firmware, and the study " +
 			"region. Start here — it also confirms a workbench is running at all.",
@@ -114,7 +120,7 @@ func sessionDescribeTool() Tool {
 
 func sessionNodesTool() Tool {
 	return Tool{
-		Name: "session_nodes",
+		Name: "session_nodes", Verb: "nodes.list",
 		Description: "Every node in the running session with its position, height, transmit " +
 			"power, radio and — once a run has happened — what it has sent and heard.",
 		InputSchema: sObj(nil),
@@ -126,7 +132,7 @@ func sessionNodesTool() Tool {
 
 func sessionPlaceTool() Tool {
 	return Tool{
-		Name: "session_place_node",
+		Name: "session_place_node", Verb: "nodes.place",
 		Description: "Place a node on the operator's map. kind is repeater, companion or " +
 			"observer. This changes what they are looking at, so say what you placed " +
 			"and why.",
@@ -147,7 +153,7 @@ func sessionPlaceTool() Tool {
 
 func sessionMoveTool() Tool {
 	return Tool{
-		Name: "session_move_node",
+		Name: "session_move_node", Verb: "nodes.move",
 		Description: "Move a node or change its mast height, and recompute. This is the " +
 			"primary what-if: 400 m up the hill is frequently the whole answer.",
 		InputSchema: sObj(map[string]any{
@@ -164,7 +170,7 @@ func sessionMoveTool() Tool {
 
 func sessionDeleteTool() Tool {
 	return Tool{
-		Name:        "session_delete_node",
+		Name: "session_delete_node", Verb: "nodes.delete",
 		Description: "Remove a node from the operator's session.",
 		InputSchema: sObj(map[string]any{"name": sStr("the node to delete")}, "name"),
 		Call: func(_ context.Context, args json.RawMessage) (string, error) {
@@ -175,7 +181,7 @@ func sessionDeleteTool() Tool {
 
 func sessionRunTool() Tool {
 	return Tool{
-		Name: "session_run",
+		Name: "session_run", Verb: "sim.run",
 		Description: "Advance the simulation by a span of simulated time. The window is " +
 			"blocked while this runs, so prefer seconds to hours.",
 		InputSchema: sObj(map[string]any{
@@ -189,7 +195,7 @@ func sessionRunTool() Tool {
 
 func sessionFirmwareTool() Tool {
 	return Tool{
-		Name: "session_start_firmware",
+		Name: "session_start_firmware", Verb: "firmware.start",
 		Description: "Start real MeshCore on every node that runs firmware. Downloads the " +
 			"build on first use. Until this is called, relay decisions are not the " +
 			"firmware's own.",
@@ -202,7 +208,7 @@ func sessionFirmwareTool() Tool {
 
 func sessionConsoleTool() Tool {
 	return Tool{
-		Name: "session_console",
+		Name: "session_console", Verb: "console.type",
 		Description: "Type a line at a node's real MeshCore CLI and return what it printed. " +
 			"This is the firmware's own command interface — `advert`, `get flood.max`, " +
 			"`set flood.max.advert 4` — and the reply is its own words.",
@@ -218,7 +224,7 @@ func sessionConsoleTool() Tool {
 
 func sessionEventsTool() Tool {
 	return Tool{
-		Name: "session_events",
+		Name: "session_events", Verb: "events.recent",
 		Description: "Recent traffic from the running session: transmissions, receptions, " +
 			"and why packets did not arrive. Each carries the cause in words.",
 		InputSchema: sObj(map[string]any{
@@ -232,7 +238,7 @@ func sessionEventsTool() Tool {
 
 func sessionPresetTool() Tool {
 	return Tool{
-		Name: "session_set_preset",
+		Name: "session_set_preset", Verb: "radio.preset",
 		Description: "Apply a community radio preset (for example \"EU/UK (Narrow)\") to one " +
 			"node or, with no node, to every transmitter. On nodes running firmware " +
 			"this goes through their own CLI, so the firmware validates and persists it.",

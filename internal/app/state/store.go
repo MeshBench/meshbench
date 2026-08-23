@@ -25,6 +25,9 @@ type Handler func(w *World, params any) (any, error)
 type Store struct {
 	mu       sync.Mutex
 	handlers map[string]Handler
+	// specs is what each verb says about itself, keyed the same way. Separate
+	// from handlers so a test may register a stub with nothing to describe.
+	specs map[string]Spec
 
 	cmds chan cmd
 	snap atomic.Pointer[Snapshot]
@@ -67,6 +70,7 @@ var ErrStopped = errors.New("state: the store has stopped")
 func New(stepMs uint32) *Store {
 	s := &Store{
 		handlers: map[string]Handler{},
+		specs:    map[string]Spec{},
 		cmds:     make(chan cmd, 64),
 		stop:     make(chan struct{}),
 		done:     make(chan struct{}),

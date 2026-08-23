@@ -117,7 +117,7 @@ Two verbs are **not** in this table:
 | `node.start` | *a bare string* | `started` | `node.start()` |
 | `node.stop` | *a bare string* | `stopped` | `node.stop()` |
 | `node.truerf` | `node` string, `on` bool | `node`, `true_rf` | `node.true_rf = bool` |
-| `node.window` 🪟 | *a bare string*, `tab` string, `node` string | `node`, `tab` | `wb.window(node, tab=None)` |
+| `node.window` 🪟 | *a bare string*, `node` string, `tab` string | `node`, `tab` | `wb.window(node, tab=None)` |
 | `nodes.add_to_selection` | — | `added` | `wb.nodes.select(*names, add=True)` |
 | `nodes.allow_flood` | `node` string, `on` bool | `nodes`, `allow_any_flood` | `node.allow_flood = bool` |
 | `nodes.delete` | `node` string | `deleted`, `nodes` | `wb.nodes.delete(*names) / node.delete()` |
@@ -378,7 +378,7 @@ Two verbs are **not** in this table:
 |---|---|---|---|
 | `layout.reset` 🪟 | — | `reset` | `wb.ui.layouts.reset()` |
 | `map.basemap` | `id` string | `id` | `wb.ui.map.basemap = id` |
-| `map.centre` 🪟 | *a bare string*, `node` number, `lat` number, `lon` number, `zoom` number | `lat`, `lon`, `zoom` | `wb.ui.map.centre(node=|lat=, lon=, zoom=)` |
+| `map.centre` 🪟 | *a bare string*, `node` string, `lat` number, `lon` number, `zoom` number | `lat`, `lon`, `zoom` | `wb.ui.map.centre(node=|lat=, lon=, zoom=)` |
 | `map.filter` 🪟 | `query` string | `query` | `wb.ui.map.filter = query` |
 | `map.fit` 🪟 | — | `nodes` | `wb.ui.map.fit()` |
 | `map.layer` 🪟 | *a bare string*, `name` string, `on` bool | `layers` | `wb.ui.map.layers[name] = bool` |
