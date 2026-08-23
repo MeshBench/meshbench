@@ -24,10 +24,11 @@ func addMeshPanels(d panelDeps) {
 		}
 		d.do(action, node)
 	}
-	nv.OnFirmware = func(node, version string) {
+	nv.OnFirmware = func(node string, b buildChoice) {
 		go func() {
-			_, _ = d.st.Do(d.ctx, "node.set_firmware",
-				map[string]any{"node": node, "version": version})
+			_, _ = d.st.Do(d.ctx, "node.set_firmware", map[string]any{
+				"node": node, "version": b.Version,
+				"board": b.Board, "role": b.Role})
 		}()
 	}
 	if *d.filterFlag != "" {

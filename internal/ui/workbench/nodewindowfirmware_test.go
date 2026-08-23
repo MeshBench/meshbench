@@ -60,7 +60,7 @@ func TestTheNodeWindowChangesOneNodesFirmware(t *testing.T) {
 	want := p.pick.builds[0]
 	p.pick.open(p.node)
 	// One build only, so the click cannot land on a neighbour.
-	p.pick.filter.Editor.SetText(want)
+	p.pick.filter.Editor.SetText(want.Label)
 	h.frame()
 
 	// Upward: cancel sits at the top of the card, and closing the list on the
@@ -81,8 +81,8 @@ func TestTheNodeWindowChangesOneNodesFirmware(t *testing.T) {
 	// companion-v1.16.0-faultyirq - so a filter that leaves two is not a
 	// fault in the control.
 	got, _ := params["version"].(string)
-	if !strings.Contains(got, want) {
-		t.Fatalf("filtered the list to %q and the click chose %q", want, got)
+	if !strings.Contains(got, want.Label) {
+		t.Fatalf("filtered the list to %q and the click chose %q", want.Label, got)
 	}
 }
 
@@ -94,7 +94,7 @@ func TestChangingFirmwareAppliesItRatherThanRecordingIt(t *testing.T) {
 	p.OnDo = func(v string, _ any) { verb = v }
 	h := newPanelHarness(p.Draw, auditSnapshot())
 	h.frame()
-	p.pick.OnPick(p.node, "repeater-v1.17.0")
+	p.pick.OnPick(p.node, buildChoice{Label: "repeater-v1.17.0", Version: "repeater-v1.17.0"})
 	if verb != "node.set_firmware" {
 		t.Fatalf("picking a build reached %q, want node.set_firmware", verb)
 	}

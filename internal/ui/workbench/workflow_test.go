@@ -54,8 +54,8 @@ func TestWorkflowChangeOneNodesFirmware(t *testing.T) {
 	w := &walk{}
 	p := &nodeViewPanel{}
 	var did []string
-	p.OnFirmware = func(node, version string) {
-		did = append(did, node+" -> "+version)
+	p.OnFirmware = func(node string, b buildChoice) {
+		did = append(did, node+" -> "+b.Version)
 	}
 	snap := &state.Snapshot{
 		Stats: []state.NodeStat{
@@ -98,7 +98,7 @@ func TestWorkflowChangeOneNodesFirmware(t *testing.T) {
 			"to change one node's firmware by pointing at it")
 	}
 	w.step(fmt.Sprintf("a list of builds opens for %q", p.pick.node))
-	t.Logf("builds available to the picker: %d (%v)", len(p.pick.builds), firstFew(p.pick.builds))
+	t.Logf("builds available to the picker: %d (%v)", len(p.pick.builds), firstFew(buildLabels(p.pick.builds)))
 
 	// 2. Click the build you want.
 	w.step("click the build to use")
@@ -173,4 +173,14 @@ func firstFew(v []string) []string {
 		return v[:3]
 	}
 	return v
+}
+
+// buildLabels is what a person would read off the picker, for a failure
+// message that names builds rather than printing a struct.
+func buildLabels(v []buildChoice) []string {
+	out := make([]string, 0, len(v))
+	for _, b := range v {
+		out = append(out, b.Label)
+	}
+	return out
 }

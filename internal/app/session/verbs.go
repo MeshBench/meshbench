@@ -7,12 +7,10 @@ package session
 import (
 	"context"
 	"fmt"
-	"math"
 	"strings"
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
-	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
 // Register wires the control verbs onto the store. Only the few the new
@@ -27,9 +25,13 @@ func Register(st *state.Store, s *Sim) {
 	registerConsole(st, s)
 	registerLogs(st, s)
 	registerRunKind(st, s)
+	registerUnverifiedWiring(st, s)
 	registerNodeWindow(st, s)
 	registerFirmwareLibrary(st, s)
+	registerFirmwareBuild(st, s)
+	registerFirmwareBuildResults(st, s)
 	registerFleet(st, s)
+	registerNodesBulk(st, s)
 	registerGPU(st, s)
 	registerTileCache(st, s)
 	registerTerrainPrefetch(st, s)
@@ -38,7 +40,11 @@ func Register(st *state.Store, s *Sim) {
 	registerLinkProfile(st, s)
 	registerLinkPair(st, s)
 	registerImport(st, s)
+	registerNodeSearch(st)
+	registerNodesNear(st)
 	registerBoundary(st, s)
+	registerBoundaryLoad(st, s)
+	registerBoundaryList(st)
 	registerPlanningVerbs(st, s)
 	registerSchedule(st, s)
 	registerValidate(st, s)
@@ -161,6 +167,10 @@ func Register(st *state.Store, s *Sim) {
 			// cell owns the clock this only reads.
 			if !s.benchOwnsTheClock() {
 				_ = s.eng.Step(context.Background())
+				// Whatever the schedule is due to say at this moment of
+				// simulated time. After the step, so a send lands on a mesh
+				// whose clock has already reached its moment.
+				s.fireDueSends(w)
 			}
 			// A rebuild anywhere leaves the matrix cold; this is the one
 			// place every run passes through, so it is where the warm is
@@ -404,7 +414,7 @@ func Register(st *state.Store, s *Sim) {
 				return map[string]any{"name": name, "lat": lat, "lon": lon}, nil
 			}
 		}
-		return nil, fmt.Errorf("no node named %q", name)
+		return nil, noSuchNode(name)
 	})
 	st.Handle("sim.inject", func(w *state.World, p any) (any, error) {
 		// Originating a packet without firmware on the node. The engine
@@ -412,7 +422,7 @@ func Register(st *state.Store, s *Sim) {
 		// radio model and the map's traffic layer; what it does not exercise
 		// is relaying, which is a firmware behaviour and needs a firmware.
 		if s.eng == nil {
-			return nil, fmt.Errorf("no simulation")
+			return nil, ErrNoSimulation
 		}
 		// A network with no nodes has nowhere to originate from. It used to
 		// be unreachable - every session began with a fixture - and starting
@@ -455,43 +465,4 @@ func Register(st *state.Store, s *Sim) {
 			"playing": w.Playing,
 		}, nil
 	})
-}
-
-// centreOf is the middle of a set of outlines, for pointing a camera at a
-// place that has no nodes in it yet.
-// centreOf is the middle of the largest outline in a set, for pointing a
-// camera at a place that has no nodes in it yet.
-//
-// The largest, not the extent of all of them: France's boundary takes in
-// Guadeloupe, French Guiana and Réunion, and the middle of that extent is
-// open ocean off west Africa. The biggest ring is the part somebody means.
-func centreOf(bs []scenario.Boundary) (lat, lon float64, ok bool) {
-	best := 0
-	for _, b := range bs {
-		for _, ring := range b.Rings {
-			if len(ring) <= best {
-				continue
-			}
-			minLat, maxLat := 90.0, -90.0
-			minLon, maxLon := 180.0, -180.0
-			for _, p := range ring {
-				minLat, maxLat = math.Min(minLat, p.Lat), math.Max(maxLat, p.Lat)
-				minLon, maxLon = math.Min(minLon, p.Lon), math.Max(maxLon, p.Lon)
-			}
-			best = len(ring)
-			lat, lon, ok = (minLat+maxLat)/2, (minLon+maxLon)/2, true
-		}
-	}
-	return lat, lon, ok
-}
-
-// knowsArea reports whether the last search already found this place, so a
-// name picked from a list is not looked up a second time.
-func (s *Sim) knowsArea(name string) bool {
-	for _, f := range s.foundAreas {
-		if strings.EqualFold(f.Name, name) || strings.EqualFold(f.DisplayName, name) {
-			return true
-		}
-	}
-	return false
 }

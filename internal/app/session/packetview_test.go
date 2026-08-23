@@ -310,7 +310,7 @@ func TestCollapseLedgerFallsBackToAReasonedMiss(t *testing.T) {
 
 // The classifier puts every kind somewhere the chips can find it.
 func TestEventClassBuckets(t *testing.T) {
-	cases := map[string]struct{ kind, detail string }{
+	cases := map[engine.Class]struct{ kind, detail string }{
 		"sent":         {"tx", "32 bytes, 120 ms on air"},
 		"received":     {"rx", "first time this node heard the message"},
 		"half-duplex":  {"miss", "its own transmitter was keyed; LoRa is half duplex"},

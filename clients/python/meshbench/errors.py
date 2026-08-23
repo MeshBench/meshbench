@@ -1,0 +1,112 @@
+"""What went wrong, in a shape a script can catch.
+
+The workbench answers with a sentence and a code. The sentence is the good
+part - "no node is running firmware, so there is nothing to send to" - and it
+survives untouched as the exception's message; the code decides which exception
+it is.
+"""
+
+from __future__ import annotations
+
+
+class MeshbenchError(Exception):
+    """Anything this client raises."""
+
+
+class Refused(MeshbenchError):
+    """A verb the workbench declined, with its own words kept."""
+
+    def __init__(self, verb: str, message: str, code: str = "") -> None:
+        super().__init__(f"{verb}: {message}")
+        self.verb = verb
+        self.message = message
+        self.code = code
+
+
+class UnknownVerb(Refused):
+    """Not a method this build has.
+
+    Nearly always a client older or newer than the workbench - which connecting
+    is supposed to have caught first, so seeing this is worth looking into.
+    """
+
+
+class BadParams(Refused):
+    """The verb refused what it was given."""
+
+
+class NotFound(Refused):
+    """No node, build, area or job of that name."""
+
+
+class Conflict(Refused):
+    """The right request in the wrong state.
+
+    Nothing loaded, nothing running to send to, no import preview to commit.
+    """
+
+
+class Unavailable(Refused):
+    """A request this session cannot serve at all.
+
+    A window verb with no window, or hardware that is not here.
+    """
+
+
+class Closing(Refused):
+    """The workbench is shutting down. Retry against a new session."""
+
+
+class ProtocolMismatch(MeshbenchError):
+    """A client and a workbench that cannot speak to each other.
+
+    Raised at connect rather than discovered on the fortieth call, because a
+    mismatch found halfway through a script looks like the simulation
+    misbehaving - and in a CI run that reads as a firmware regression.
+    """
+
+    def __init__(self, client: int, workbench: int, version: str, socket: str) -> None:
+        super().__init__(
+            f"this client speaks protocol {client} and the workbench at "
+            f"{socket} speaks {workbench} ({version}). Upgrade whichever is older"
+        )
+        self.client = client
+        self.workbench = workbench
+
+
+class Timeout(MeshbenchError):
+    """A wait that ran out, saying what it wanted and what it last saw.
+
+    Not a bare deadline: "timeout" in a CI log tells whoever reads it nothing,
+    and the state at the moment it gave up is the only thing that does.
+    """
+
+    def __init__(self, what: str, after: float, last: str = "") -> None:
+        msg = f"waited {after:.0f}s for {what}"
+        if last:
+            msg += f"; last saw: {last}"
+        super().__init__(msg)
+        self.what = what
+        self.after = after
+        self.last = last
+
+
+_BY_CODE = {
+    "unknown_verb": UnknownVerb,
+    "bad_params": BadParams,
+    "not_found": NotFound,
+    "conflict": Conflict,
+    "unavailable": Unavailable,
+    "closing": Closing,
+}
+
+
+def refusal(verb: str, message: str, code: str) -> Refused:
+    """Build the right exception for a code.
+
+    An unrecognised code becomes a plain Refused rather than an error about the
+    error: a workbench newer than this client may classify something in a way
+    this version has never heard of, and swallowing that would be worse than
+    passing it on.
+    """
+    return _BY_CODE.get(code, Refused)(verb, message, code)

@@ -29,7 +29,7 @@ type buildPicker struct {
 	// node is whose firmware is being chosen, and "" when nothing is being
 	// chosen. The one piece of state that says whether this is on screen.
 	node   string
-	builds []string
+	builds []buildChoice
 	btns   []comp.Button
 	read   bool
 	list   widget.List
@@ -39,7 +39,7 @@ type buildPicker struct {
 	cancel comp.Button
 
 	// OnPick is given the node and the build it should run.
-	OnPick func(node, version string)
+	OnPick func(node string, b buildChoice)
 }
 
 // open asks which build this node should run.
@@ -68,7 +68,7 @@ func (p *buildPicker) load() {
 	p.builds = installedBuilds()
 	p.btns = make([]comp.Button, len(p.builds))
 	for i := range p.btns {
-		p.btns[i].Label = p.builds[i]
+		p.btns[i].Label = p.builds[i].Label
 		p.btns[i].Kind = comp.Secondary
 	}
 }
@@ -102,7 +102,7 @@ func (p *buildPicker) body(t *theme.Theme) layout.Widget {
 		want := strings.ToLower(strings.TrimSpace(p.filter.Editor.Text()))
 		shown := p.shown[:0]
 		for i := range p.builds {
-			if want == "" || strings.Contains(strings.ToLower(p.builds[i]), want) {
+			if want == "" || strings.Contains(strings.ToLower(p.builds[i].Label), want) {
 				shown = append(shown, i)
 			}
 		}

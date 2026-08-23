@@ -202,7 +202,7 @@ func registerSDRServe(st *state.Store, s *Sim) {
 	// sdr.serve: expose one node's antenna as an rtl_tcp source.
 	st.Handle("sdr.serve", func(w *state.World, p any) (any, error) {
 		if s.eng == nil {
-			return nil, fmt.Errorf("no simulation")
+			return nil, ErrNoSimulation
 		}
 		name, _ := stringField(p, "node")
 		idx := -1
@@ -212,7 +212,7 @@ func registerSDRServe(st *state.Store, s *Sim) {
 			}
 		}
 		if idx < 0 {
-			return nil, fmt.Errorf("no node named %q", name)
+			return nil, noSuchNode(name)
 		}
 		if s.sdrServers == nil {
 			s.sdrServers = map[string]*sdrServer{}

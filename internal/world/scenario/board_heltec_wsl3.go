@@ -16,6 +16,7 @@ var heltecWSL3Board = Board{
 	// extends the same base, so the radio is on the same pins.
 	QEMU: &QEMUWiring{
 		Machine: "esp32s3", SPI: 3, NSS: 8, Busy: 13, DIO1: 14,
+		Verified: true,
 	},
 	// The Stick Lite has no screen - that is what Lite means here, and its
 	// repeater build declares none.

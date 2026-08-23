@@ -96,7 +96,7 @@ failure looking like bad RF rather than a missing step:
     import.set_source → fetch → commit    strategy "replace-all"
     boundary.prune
     firmware.set per node
-    infer.run {hours:168} → infer.result → infer.apply
+    infer.run {hours:168} → wait for the job → infer.apply
     nodes.place + nodes.regions           the four kinds the import has none of
     nodes.allow_flood                     for the permissive variant only
     project.save

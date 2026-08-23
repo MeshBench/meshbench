@@ -44,7 +44,7 @@ type nodeViewPanel struct {
 	menuAt    image.Point
 	menuItems []comp.MenuItem
 	// OnFirmware asks the store to put a build on a node.
-	OnFirmware func(node, version string)
+	OnFirmware func(node string, b buildChoice)
 
 	// OnAction asks the store to do something to the selected node.
 	OnAction func(action, node string)

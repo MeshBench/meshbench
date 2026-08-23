@@ -325,7 +325,7 @@ func TestAnyBuildIsReachableByFiltering(t *testing.T) {
 	nv := &nodeViewPanel{}
 	nv.pick.open("Abernethy Repeater")
 	got := ""
-	nv.OnFirmware = func(node, version string) { got = version }
+	nv.OnFirmware = func(node string, b buildChoice) { got = b.Version }
 
 	h := newPanelHarness(nv.Draw, auditSnapshot())
 	h.frame()
@@ -336,7 +336,7 @@ func TestAnyBuildIsReachableByFiltering(t *testing.T) {
 	want := nv.pick.builds[len(nv.pick.builds)-1]
 
 	// Type enough of its name to leave it alone in the list.
-	nv.pick.filter.Editor.SetText(want)
+	nv.pick.filter.Editor.SetText(want.Label)
 	h.frame()
 
 	// Upward, because cancel sits at the top of the card and closing the list
@@ -346,7 +346,7 @@ func TestAnyBuildIsReachableByFiltering(t *testing.T) {
 			h.click(f32.Pt(x, y))
 		}
 	}
-	if got != want {
+	if got != want.Version {
 		t.Fatalf("filtered the build list to %q and clicking it reached %q; "+
 			"a build that does not fit on screen has to be reachable by "+
 			"narrowing the list", want, got)

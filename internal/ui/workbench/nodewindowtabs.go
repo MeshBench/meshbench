@@ -13,6 +13,32 @@ import (
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 )
 
+// nodeTabByName is a tab named the way it is on screen.
+//
+// By its own String, so the names a script uses and the names somebody reads
+// off the strip cannot drift apart - and case-insensitively, because "hardware"
+// is what a person types and refusing it would be pedantry with a stack trace.
+func nodeTabByName(name string) (nodeTab, bool) {
+	if strings.TrimSpace(name) == "" {
+		return openOnTab, true
+	}
+	for t := nodeTab(0); t < numNodeTabs; t++ {
+		if strings.EqualFold(t.String(), name) {
+			return t, true
+		}
+	}
+	return 0, false
+}
+
+// nodeTabNames is every tab, for saying what was possible when one was not.
+func nodeTabNames() []string {
+	out := make([]string, 0, numNodeTabs)
+	for t := nodeTab(0); t < numNodeTabs; t++ {
+		out = append(out, t.String())
+	}
+	return out
+}
+
 // settings is what this node is: identity, radio, regions and firmware - the
 // mock's card, from what the snapshot honestly carries.
 func (p *nodeWindowPanel) settings(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
@@ -47,12 +73,17 @@ func (p *nodeWindowPanel) settings(t *theme.Theme, gtx layout.Context, s *state.
 				})
 		}
 	}
-	// What it is running, and what pressing the button will do to it. Said
-	// before the press rather than discovered after: node.set_firmware stops
-	// the node, provisions it again and starts it, and a control that quietly
-	// restarts a node mid-run is one somebody will press during a
-	// measurement.
+	// The build and the hardware it is for, together. A version on its own
+	// says nothing about which board it runs on, and that is exactly the pair
+	// somebody comes to this section to check.
 	fw := orDash(node.Firmware)
+	if node.Board != "" {
+		fw += "  on " + node.Board
+	}
+	// And what pressing the button will do to it, said before the press rather
+	// than discovered after: node.set_firmware stops the node, provisions it
+	// again and starts it, and a control that quietly restarts a node mid-run
+	// is one somebody will press during a measurement.
 	fwNote := "changing it stops this node, provisions it again and starts it"
 	if st != nil && st.Backend != "" {
 		fwNote = st.Backend + " - " + fwNote

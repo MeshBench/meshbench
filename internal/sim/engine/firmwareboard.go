@@ -5,6 +5,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/mesh/firmware"
@@ -32,7 +33,14 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 		return nil, err
 	}
 	if !allowUnverified && !scenario.EmulationSupported(board.Name) {
-		return nil, fmt.Errorf("%s has no verified emulation wiring", board.Name)
+		// Named with the way out of it. The gate is a curation claim - has
+		// anybody watched this board's own image boot - and an operator who
+		// wants to be the one doing the watching had no way to say so from
+		// the refusal alone.
+		return nil, fmt.Errorf("%s has no verified emulation wiring: nobody has "+
+			"watched its own image boot here yet. Run the board probe for it "+
+			"from the Bench view, or switch on unwatched wiring to run it "+
+			"anyway and be the one who finds out", board.Name)
 	}
 	if board.QEMU == nil && board.Renode == nil {
 		return nil, fmt.Errorf("%s names no emulator", board.Name)
@@ -49,7 +57,7 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 	cache := firmware.DefaultCacheDir()
 	img := firmware.BoardImage{
 		Board:   board.Name,
-		Role:    spec.Firmware.Role,
+		Role:    string(spec.Firmware.Role),
 		Version: spec.Firmware.Version,
 		Format:  format,
 	}
@@ -61,9 +69,33 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 	}
 	src := firmware.BoardImagePath(cache, img)
 	if _, err := os.Stat(src); err != nil {
-		return nil, fmt.Errorf("no %s image for %s %s in the cache - download it "+
-			"from the firmware library first", board.Name, spec.Firmware.Role,
-			spec.Firmware.Version)
+		// Not where a download would have put it, so ask what the cache
+		// actually holds.
+		//
+		// A downloaded image is named by convention and this found it. An
+		// imported one is named after the label its importer chose, which is
+		// the whole point of importing - so computing the path and giving up
+		// meant a build you could see in the library, pin to a node, and never
+		// run. The refusal even told you to download it, which is the one thing
+		// that would not have helped.
+		found := ""
+		for _, in := range firmware.ListInstalled(cache) {
+			if in.Board != img.Board || in.Version != img.Version {
+				continue
+			}
+			// The role as the node names it, or that plus the transport a
+			// published companion carries.
+			if in.Role == img.Role || in.Role == img.Role+"_"+img.Transport {
+				found = in.Path
+				break
+			}
+		}
+		if found == "" {
+			return nil, fmt.Errorf("no %s image for %s %s in the cache - download "+
+				"one from the firmware library, or import your own",
+				board.Name, spec.Firmware.Role, spec.Firmware.Version)
+		}
+		src = found
 	}
 
 	dir := firmware.NodeWorkDir(spec.Name)
@@ -243,6 +275,13 @@ type meterReading struct {
 func batteryMeter(board scenario.Board) (meterReading, bool) {
 	p := board.Hardware
 	if p == nil {
+		return meterReading{}, false
+	}
+	// The pin to channel mapping below is the ESP32-S3's. Every board that
+	// declares a meter is one today, and a board that is not would be given
+	// somebody else's channel in silence - so it is refused rather than
+	// guessed at, and whoever adds the first non-S3 meter finds out here.
+	if !strings.EqualFold(board.MCU, "ESP32-S3") {
 		return meterReading{}, false
 	}
 	for _, part := range p.PartsOfKind(scenario.Meter) {

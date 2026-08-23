@@ -16,7 +16,8 @@ var heltecV4Board = Board{
 	// megabytes of it, where the S3 boards around it carry eight octal.
 	QEMU: &QEMUWiring{
 		Machine: "esp32s3", SPI: 3, NSS: 8, Busy: 13, DIO1: 14, LED: 35,
-		PSRAMMB: 2,
+		PSRAMMB:  2,
+		Verified: true,
 	},
 	// The V3's panel exactly: same controller, same address, same pins.
 	Hardware: &Panel{

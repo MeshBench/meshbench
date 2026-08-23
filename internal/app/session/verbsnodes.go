@@ -5,6 +5,7 @@ package session
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 )
@@ -12,7 +13,7 @@ import (
 func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 	st.Handle("firmware.start", func(w *state.World, _ any) (any, error) {
 		if s.eng == nil {
-			return nil, fmt.Errorf("no network Loaded")
+			return nil, fmt.Errorf("no network loaded: %w", ErrNoSimulation)
 		}
 		w.Say("starting firmware on every node")
 		s.startFirmware(st, w.Seed)
@@ -55,9 +56,26 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 		return nil, nil
 	})
 
+	// firmware.state: how far along starting the mesh is.
+	//
+	// "nodes" is the nodes that *run* firmware, not every node there is. It
+	// used to be every node, and running is a count of processes - so on any
+	// scenario holding an SDR observer or an emitter the two could never meet.
+	// fife-strict holds one of each, so the shipped fixture reported 56 of 58
+	// for ever and every wait built on it hung. Comparing two different
+	// populations is the whole of that bug.
 	st.Handle("firmware.state", func(w *state.World, _ any) (any, error) {
+		runs := 0
+		for _, n := range s.nodes {
+			if n.Kind.RunsFirmware() {
+				runs++
+			}
+		}
 		return map[string]any{
-			"running": s.firmwareCount(), "nodes": len(w.Nodes),
+			"running": s.firmwareCount(), "nodes": runs,
+			// Every node, for a caller that wants the scenario's size rather
+			// than the part of it that boots.
+			"total":    len(w.Nodes),
 			"starting": s.starting.Load(),
 		}, nil
 	})
@@ -66,7 +84,14 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 		// Also on demand, because a paused simulation still costs memory and
 		// somebody looking at the node view has usually just paused it.
 		w.Stats = s.nodeStats(w.Events)
-		return map[string]any{"nodes": len(w.Stats)}, nil
+		// And the rows, not only how many there are.
+		//
+		// It answered with a count and put the rows in the snapshot, where
+		// only a panel could reach them - so from outside the window there
+		// was no way to ask whether a node was running, which is the first
+		// thing any script wants to know and the thing every wait is built
+		// on. The count stays for whoever is already reading it.
+		return map[string]any{"nodes": len(w.Stats), "stats": statRows(w.Stats)}, nil
 	})
 
 	st.Handle("node.stop", func(w *state.World, p any) (any, error) {
@@ -169,24 +194,83 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 		if err := toucher.TouchScreen(int(xf), int(yf), down); err != nil {
 			return nil, err
 		}
+		// Said, because a control that reaches the board silently is
+		// indistinguishable from one that does not reach it at all - which is
+		// exactly the question somebody asks when tapping a drawn screen does
+		// nothing. Presses say the same thing.
+		what := "lifted off"
+		if down {
+			what = "touched"
+		}
+		w.Say(fmt.Sprintf("%s: %s at %d,%d on its panel", name, what, int(xf), int(yf)))
 		return map[string]any{"node": name, "x": int(xf), "y": int(yf), "down": down}, nil
+	})
+
+	// board.screen: what the board's own display is showing, as numbers.
+	//
+	// Not a picture. Enough to answer "did anything change" from a script or
+	// a control socket, which is the question every check of a touch or a
+	// keypress comes down to - and answering it by taking a screenshot of
+	// somebody's desktop is not an answer.
+	st.Handle("board.screen", func(w *state.World, p any) (any, error) {
+		name, _ := stringField(p, "node")
+		if name == "" {
+			return nil, fmt.Errorf("board.screen needs a node")
+		}
+		n, found := s.liveEngine().NodeByName(name)
+		if !found || n.Firmware == nil {
+			return nil, fmt.Errorf("%s is not running", name)
+		}
+		sc, ok := n.Firmware.Backend.(interface {
+			Screen() (int, int, int, bool, []byte, bool)
+		})
+		if !ok {
+			return nil, fmt.Errorf("%s is not a board with a display", name)
+		}
+		width, height, bpp, on, bits, have := sc.Screen()
+		if !have {
+			return map[string]any{"node": name, "has_screen": false}, nil
+		}
+		lit := 0
+		for _, b := range bits {
+			if b != 0 {
+				lit++
+			}
+		}
+		return map[string]any{"node": name, "has_screen": true,
+			"width": width, "height": height, "bpp": bpp, "on": on,
+			"lit": lit}, nil
 	})
 
 	st.Handle("node.set_firmware", func(w *state.World, p any) (any, error) {
 		m, _ := p.(map[string]any)
 		name, _ := m["node"].(string)
 		version, _ := m["version"].(string)
+		// The board and the role travel with the version, because a board
+		// image is not a build on its own: it is that image for that hardware.
+		// Absent means a build for this machine, which is what every node ran
+		// before board images could be chosen here at all.
+		b := Build{Version: version}
+		b.Board, _ = m["board"].(string)
+		b.Role, _ = m["role"].(string)
 		// Applied, not just recorded: stop, provision, start. Firmware is
 		// chosen when a node launches, so setting it on a running node changes
 		// nothing until something restarts it.
-		s.Reflash(context.Background(), st, name, version, w.Seed)
-		w.Say(name + ": changing to " + version)
-		return map[string]any{"node": name, "version": version}, nil
+		s.Reflash(context.Background(), st, name, b, w.Seed)
+		w.Say(name + ": changing to " + b.Describe())
+		return map[string]any{"node": name, "version": version,
+			"board": b.Board, "role": b.Role}, nil
 	})
 
 	st.Handle("node.reflashed", func(w *state.World, p any) (any, error) {
 		msg := soleString(p)
 		w.Stats = s.nodeStats(w.Events)
+		// The node's own window reads the node list rather than the stats, so
+		// a change that stopped at the stats showed in the table and nowhere
+		// else. Name is the first word of the message the reflash sent.
+		if name, _, ok := strings.Cut(msg, " "); ok {
+			s.refreshNodeBuild(w, name)
+		}
 		w.Say(msg)
 		return nil, nil
 	})
@@ -202,15 +286,20 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 		m, _ := p.(map[string]any)
 		name, _ := m["node"].(string)
 		version, _ := m["version"].(string)
-		if err := s.setFirmware(name, version); err != nil {
+		b := Build{Version: version}
+		b.Board, _ = m["board"].(string)
+		b.Role, _ = m["role"].(string)
+		if err := s.setFirmware(name, b); err != nil {
 			return nil, err
 		}
+		s.refreshNodeBuild(w, name)
 		// Not applied until the node restarts, and said so rather than left to
 		// be discovered: firmware is chosen at launch, and a version that
 		// changes nothing until something else happens is the kind of control
 		// somebody presses twice and then distrusts.
-		w.Say(name + " will run " + version + " when it next starts")
-		return map[string]any{"node": name, "version": version}, nil
+		w.Say(name + " will run " + b.Describe() + " when it next starts")
+		return map[string]any{"node": name, "version": version,
+			"board": b.Board, "role": b.Role}, nil
 	})
 
 	st.Handle("node.provisioning", func(w *state.World, p any) (any, error) {

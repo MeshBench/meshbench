@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"sort"
 
 	"gioui.org/layout"
@@ -16,20 +15,56 @@ import (
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 )
 
-// installedBuilds is the native builds this machine has, newest name last.
-func installedBuilds() []string {
+// buildChoice is one thing a node could be told to run.
+//
+// A board image is not a version on its own - "wadamesh" means nothing until
+// it is wadamesh for a LilyGo_TDeck, built as a companion - so the label says
+// so and the three fields travel together to the verb. A host build carries
+// neither, which is what it is.
+type buildChoice struct {
+	Label   string
+	Version string
+	Board   string
+	Role    string
+}
+
+// installedBuilds is every build this machine has: the ones for this machine,
+// and the images downloaded or imported for a board.
+//
+// Board images used to be filtered out here, which meant a build somebody had
+// just imported for their board could not then be put on a node - the import
+// offered every board and the picker offered none of them.
+func installedBuilds() []buildChoice {
 	cache, err := os.UserCacheDir()
 	if err != nil {
 		return nil
 	}
-	var out []string
+	seen := map[string]bool{}
+	var out []buildChoice
 	for _, f := range firmware.ListInstalled(filepath.Join(cache, "meshcoresim", "firmware")) {
-		if f.Native {
-			out = append(out, f.Version)
+		c := buildChoice{Version: f.Version, Label: f.Version}
+		if !f.Native {
+			c.Board, c.Role = f.Board, f.Role
+			// Named board first, because that is the question somebody is
+			// answering: which hardware, then which build for it.
+			c.Label = f.Board + " - " + f.Role + " " + f.Version
 		}
+		key := c.Label
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, c)
 	}
-	sort.Strings(out)
-	return slices.Compact(out)
+	sort.Slice(out, func(i, j int) bool {
+		// Host builds first: they are what most nodes run, and a list that
+		// opens on somebody else's hardware reads as the wrong list.
+		if (out[i].Board == "") != (out[j].Board == "") {
+			return out[i].Board == ""
+		}
+		return out[i].Label < out[j].Label
+	})
+	return out
 }
 
 // cpuTime prints processor time at a scale somebody can read.

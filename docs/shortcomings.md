@@ -370,7 +370,33 @@ No fixture shipping today contains a node with a front end at all: every node in
 the Scotland and Fife fixtures is a RAK4631, which has none. The front-end path
 is exercised by the board check and by no scenario a user runs.
 
-### 3.5 Forwarding policy is ours, not the repeater application's
+### 3.5 The board's other radio is stubbed, and firmware that uses it will not work
+
+Every ESP32 part carries Wi-Fi and Bluetooth. Neither is simulated: this
+simulator has one radio and it is the LoRa transceiver on the board's SPI bus.
+
+That would be unremarkable if an absent peripheral were simply absent. It is
+not. `esp_wifi_init` runs Espressif's PHY blob, which reaches the analog blocks
+through a register bridge at `0x6000E000` and waits for each transfer to
+complete. With nothing answering, it waits for ever: measured on a LilyGo
+T-Deck running wadamesh, **15,523,974 reads of one register**, and the
+application never reaching its interface — a handheld frozen on its boot logo
+with no clue as to why.
+
+So the bridge is stubbed. It answers "the transfer finished", the calibration
+returns, and firmware that brings Wi-Fi up at boot gets past it and goes on to
+build its interface. What it does *not* get is a radio. Nothing is on the air,
+no network can be joined, and a firmware that waits for an association will
+wait for ever with the emulator saying nothing about why.
+
+The Hardware tab says so, on every board whose MCU is an ESP32: *Wi-Fi and
+Bluetooth — stubbed, never on the air*. It is derived from the MCU rather than
+declared per board, so it cannot go stale as boards are added.
+
+**Treat a node's Wi-Fi and Bluetooth as absent.** Anything a firmware reports
+about them here is the stub talking, not a measurement.
+
+### 3.6 Forwarding policy is ours, not the repeater application's
 
 The native node links MeshCore's *library* — `Mesh`, `Dispatcher`, `Packet`,
 `Identity` — which is where routing, retransmit timing, duty-cycle accounting
@@ -390,7 +416,7 @@ forward at all and a flood stops dead at the origin's neighbours — which looks
 exactly like a network with no repeaters configured, so this is not something
 that can simply be left out.
 
-### 3.6 BLE is ours, not the firmware's
+### 3.7 BLE is ours, not the firmware's
 
 The Bluetooth companion is a host-side BlueZ GATT server presenting the Nordic
 UART Service (`tools/ble/nus_peripheral.py`, verified against a real adapter on

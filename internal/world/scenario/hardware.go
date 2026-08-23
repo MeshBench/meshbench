@@ -170,6 +170,16 @@ type Part struct {
 	// simulation says the cell is at.
 	FullScaleMV int
 
+	// Rotate is how the panel is mounted against the picture drawn on it, in
+	// degrees clockwise, for a touch layer whose axes are not the screen's.
+	//
+	// A T-Deck's panel is fitted turned a quarter: its firmware reads a point
+	// and computes screen x from the panel's y, and screen y backwards from
+	// the panel's x. So a tap has to be turned the other way before it is
+	// sent, or every one lands somewhere else - which looks exactly like a
+	// touch layer that is not wired at all.
+	Rotate int
+
 	// ActiveLow says the firmware reads this part pressed when its pin is
 	// low, which is what a button with a pull-up looks like. Recorded because
 	// getting it backwards produces a board that is either always pressed or never
@@ -186,6 +196,24 @@ type Part struct {
 type Panel struct {
 	Screen *Screen
 	Parts  []Part
+}
+
+// RawPoint turns a point on the drawn picture into the point the panel itself
+// would report, undoing however it is mounted.
+//
+// Here rather than in the interface because the mounting is a fact about the
+// board, and the interface should not have to know which way round anybody
+// screwed a panel in.
+func (p Part) RawPoint(x, y, width, height int) (int, int) {
+	switch ((p.Rotate % 360) + 360) % 360 {
+	case 90:
+		return height - 1 - y, x
+	case 180:
+		return width - 1 - x, height - 1 - y
+	case 270:
+		return y, width - 1 - x
+	}
+	return x, y
 }
 
 // PartsOfKind is the parts of one kind, in declared order.

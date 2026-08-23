@@ -2,6 +2,7 @@ package boardcheck
 
 import (
 	"context"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -11,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/MeshBench/meshbench/internal/mesh/firmware"
 	"github.com/MeshBench/meshbench/internal/rf/antenna"
 	"github.com/MeshBench/meshbench/internal/sim/engine"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
@@ -102,16 +104,45 @@ func TestTheCompanionDrawsItsInterface(t *testing.T) {
 	writeShot(t, "before", bw, bh, bpp, bits)
 	// A finger in the middle, put down and taken off. Together with the keys
 	// below, that is every way somebody can reach this board's interface.
-	if os.Getenv("MESHCORESIM_TOUCH") != "" {
-		for _, down := range []bool{true, false} {
-			if err := dev.TouchScreen(bw/2, bh/2, down); err != nil {
+	if at := os.Getenv("MESHCORESIM_TOUCH"); at != "" {
+		// Where, in the panel's own pixels. A touch in the middle of a screen
+		// whose controls are along the bottom proves nothing, which is what
+		// the first run of this proved.
+		// A sequence, separated by semicolons: an interface is reached by
+		// getting to it, and one tap into the middle of whatever is showing
+		// proves nothing. The last point is the one watched.
+		var pts [][2]int
+		for _, part := range strings.Split(at, ";") {
+			var x, y int
+			if n, err := fmt.Sscanf(strings.TrimSpace(part), "%d,%d", &x, &y); n == 2 && err == nil {
+				pts = append(pts, [2]int{x, y})
+			}
+		}
+		if len(pts) == 0 {
+			pts = [][2]int{{bw / 2, bh / 2}}
+		}
+		tx, ty := pts[len(pts)-1][0], pts[len(pts)-1][1]
+		for _, p := range pts[:len(pts)-1] {
+			// A click, not a hold: press and release with nothing between
+			// them, which is what a mouse sends and a finger never does.
+			if err := dev.TouchScreen(p[0], p[1], true); err != nil {
 				t.Fatalf("touching: %v", err)
 			}
-			settle(ctx, e, 500)
+			if err := dev.TouchScreen(p[0], p[1], false); err != nil {
+				t.Fatalf("releasing: %v", err)
+			}
+			settle(ctx, e, 2_000)
 		}
-		settle(ctx, e, 10_000)
+		// The one that is watched. Every tap before it was only getting here.
+		if err := dev.TouchScreen(tx, ty, true); err != nil {
+			t.Fatalf("touching: %v", err)
+		}
+		if err := dev.TouchScreen(tx, ty, false); err != nil {
+			t.Fatalf("releasing: %v", err)
+		}
+		settle(ctx, e, 3_000)
 		if _, _, _, _, b, have := dev.Screen(); have {
-			t.Logf("touched the middle: %d bytes lit before, %d after", before, lit(b))
+			t.Logf("touched %d,%d: %d bytes lit before, %d after", tx, ty, before, lit(b))
 			writeShot(t, "touched", bw, bh, bpp, b)
 			bits, before = b, lit(b)
 		}
@@ -174,19 +205,17 @@ func writeShot(t *testing.T, name string, w, h, bpp int, bits []byte) {
 	img := image.NewNRGBA(image.Rect(0, 0, w, h))
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
+			// Through the same reader the workbench draws with, rather than
+			// a second copy of the arithmetic. Two decoders is how one of
+			// them came to disagree about which byte comes first, and the
+			// picture that would have shown it was only ever black and white.
 			c := color.NRGBA{A: 255}
 			if bpp == 1 {
 				if bits[(y/8)*w+x]&(1<<(y%8)) != 0 {
 					c = color.NRGBA{R: 220, G: 240, B: 255, A: 255}
 				}
-			} else {
-				i := (y*w + x) * 2
-				if i+1 < len(bits) {
-					v := uint16(bits[i]) | uint16(bits[i+1])<<8
-					r5, g6, b5 := v>>11, (v>>5)&0x3f, v&0x1f
-					c = color.NRGBA{R: uint8(r5<<3 | r5>>2),
-						G: uint8(g6<<2 | g6>>4), B: uint8(b5<<3 | b5>>2), A: 255}
-				}
+			} else if r, g, b, ok := firmware.RGB565At(bits, w, x, y); ok {
+				c = color.NRGBA{R: r, G: g, B: b, A: 255}
 			}
 			img.SetNRGBA(x, y, c)
 		}

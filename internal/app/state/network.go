@@ -2,7 +2,11 @@
 // what each one has done.
 package state
 
-import "image"
+import (
+	"image"
+
+	"github.com/MeshBench/meshbench/internal/mesh/firmware"
+)
 
 // Node is one node, as the interface needs it.
 type Node struct {
@@ -16,6 +20,20 @@ type Node struct {
 	// draws as the innermost ring.
 	DefaultScope string
 	Firmware     string
+	// Board is the hardware that build is for, empty for a build made for
+	// this machine. Kept beside the version because on its own a version is
+	// not a build: "wadamesh" means nothing until it is wadamesh for a
+	// LilyGo_TDeck.
+	Board string
+	// Hardware is what the node itself is, by board profile name.
+	//
+	// Not the same fact as Board, however often the two agree: Board is what
+	// the *image* was built for, and this is what the node *is*. They come
+	// apart the moment somebody points a host build at a node that is a
+	// T-Deck, which is a perfectly ordinary thing to do, and reporting one as
+	// the other would say the node had changed hardware when it had changed
+	// firmware.
+	Hardware string
 	// TrueRF marks a receiver that takes waveform verdicts whatever the
 	// run's RF mode - the hybrid flag.
 	TrueRF   bool
@@ -133,18 +151,10 @@ func (s *Screen) Lit(x, y int) bool {
 
 // At is the colour of a pixel on a colour panel, as RGB565.
 func (s *Screen) At(x, y int) (r, g, b uint8, ok bool) {
-	if s == nil || s.BPP != 16 || x < 0 || y < 0 || x >= s.Width || y >= s.Height {
+	if s == nil || s.BPP != 16 || y < 0 || y >= s.Height {
 		return 0, 0, 0, false
 	}
-	i := (y*s.Width + x) * 2
-	if i+1 >= len(s.Bits) {
-		return 0, 0, 0, false
-	}
-	v := uint16(s.Bits[i])<<8 | uint16(s.Bits[i+1])
-	// Widened rather than shifted: 5 bits scaled to 8 by repeating the top
-	// bits, so full red reads as 0xFF and not 0xF8.
-	r5, g6, b5 := uint8(v>>11)&0x1F, uint8(v>>5)&0x3F, uint8(v)&0x1F
-	return r5<<3 | r5>>2, g6<<2 | g6>>4, b5<<3 | b5>>2, true
+	return firmware.RGB565At(s.Bits, s.Width, x, y)
 }
 
 // NodeSeries is one node's recent history, for its graphs.
