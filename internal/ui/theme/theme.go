@@ -51,13 +51,20 @@ type Palette struct {
 	// AccentInk is what sits legibly on top of Accent.
 	AccentInk color.NRGBA
 	// Signal is traffic: a packet in flight, the route that carried it, the
-	// node transmitting. It is the identity's orange and it is reserved.
+	// node transmitting.
 	//
-	// Never a surface, never a status, never decoration. The brand carries
-	// that as its one governing rule, and the reason is that this interface
-	// exists to show where signal went - a colour that means "signal" is worth
-	// nothing if it is also the colour of buttons. Interactive is Accent;
-	// pass and fail are Good and Bad; orange is the air.
+	// The brand reserves its orange for exactly that and names using it for
+	// anything else as its one never, on the reasoning that a colour meaning
+	// "signal" is worth nothing if it is also the colour of buttons. This
+	// application overrides that deliberately: Accent is the same orange,
+	// because the interface was asked to look warm and the violet it had
+	// instead was not wanted.
+	//
+	// So the separation is by place rather than by hue. Chrome is orange and
+	// the map is orange, and they never share a surface - nothing on the map
+	// is a button, and no panel draws a packet. Status stays green, amber and
+	// red, which is the part of the rule that still earns its keep: a warning
+	// the colour of traffic would make every busy mesh look like a fault.
 	Signal, SignalBright color.NRGBA
 	// Semantic states. Good is not always green in meaning: it means the
 	// direction the operator wants.
@@ -108,7 +115,7 @@ var dark = shared(Palette{
 	Dim:       rgb(0xa9, 0xa3, 0xbe),
 	Faint:     rgb(0x6a, 0x64, 0x80), // graphite
 	Rule:      rgb(0x26, 0x23, 0x38),
-	Accent:    rgb(0x7c, 0x5c, 0xff), // relay-bright
+	Accent:    rgb(0xe8, 0x50, 0x0f), // signal
 	AccentInk: rgb(0x0b, 0x0a, 0x12),
 	// Status is the brand's own, and deliberately not orange: a warning that
 	// shared a colour with traffic would make every busy mesh look like a
@@ -118,7 +125,7 @@ var dark = shared(Palette{
 	Bad:          rgb(0xe2, 0x3d, 0x4e),
 	Signal:       rgb(0xe8, 0x50, 0x0f), // signal
 	SignalBright: rgb(0xff, 0x7a, 0x3d), // signal-bright
-	Selected:     rgb(0x22, 0x1c, 0x3f),
+	Selected:     rgb(0x33, 0x1c, 0x12),
 })
 
 // light is a real design rather than an inversion: the accent darkens so it
@@ -129,14 +136,17 @@ var dark = shared(Palette{
 // packet trail that changed hue with the theme would be a different reading of
 // the same run.
 var light = shared(Palette{
-	Ground:    rgb(0xf5, 0xf3, 0xfa), // mist
-	Panel:     rgb(0xff, 0xff, 0xff), // paper
-	Sunk:      rgb(0xea, 0xe7, 0xf2),
-	Ink:       rgb(0x14, 0x13, 0x1f), // ink
-	Dim:       rgb(0x4a, 0x45, 0x5e),
-	Faint:     rgb(0x6a, 0x64, 0x80), // graphite
-	Rule:      rgb(0xd8, 0xd3, 0xe6),
-	Accent:    rgb(0x5b, 0x3b, 0xd6), // relay
+	Ground: rgb(0xf5, 0xf3, 0xfa), // mist
+	Panel:  rgb(0xff, 0xff, 0xff), // paper
+	Sunk:   rgb(0xea, 0xe7, 0xf2),
+	Ink:    rgb(0x14, 0x13, 0x1f), // ink
+	Dim:    rgb(0x4a, 0x45, 0x5e),
+	Faint:  rgb(0x6a, 0x64, 0x80), // graphite
+	Rule:   rgb(0xd8, 0xd3, 0xe6),
+	// signal-deep rather than signal: white on the bright one is 3.4:1, which
+	// is below anything readable, and dark text on an orange button in a pale
+	// interface reads as disabled.
+	Accent:    rgb(0xb9, 0x3b, 0x06),
 	AccentInk: rgb(0xff, 0xff, 0xff),
 	Good:      rgb(0x1b, 0x7a, 0x44), // pass-deep
 	Warn:      rgb(0x8a, 0x62, 0x00), // warn-deep
@@ -145,7 +155,7 @@ var light = shared(Palette{
 	// bright one vibrates against paper.
 	Signal:       rgb(0xb9, 0x3b, 0x06),
 	SignalBright: rgb(0xe8, 0x50, 0x0f),
-	Selected:     rgb(0xe4, 0xde, 0xfa),
+	Selected:     rgb(0xfb, 0xe3, 0xd5),
 })
 
 // NodeKind colours the six node kinds. Chosen to stay distinguishable under
