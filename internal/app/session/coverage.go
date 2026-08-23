@@ -90,23 +90,13 @@ func paintCoverage(r *coverage.Raster, name string) *state.Coverage {
 	}
 }
 
-// rampFor is the legend: a continuous run from orange at the floor to
-// green at 20 dB, HopReach's readability decision adopted whole - bands
-// made a smooth physical quantity look like four verdicts, and the eye
-// reads a gradient's shape where it only counts a band's edges. Above
-// 20 dB stays the same green: more margin than that is not a distinction
-// anybody acts on. The alpha is constant; the operator's opacity slider
-// owns visibility now.
+// rampFor is the coverage overlay's colour, from the shared ramp so the
+// picture and the legend beside it cannot drift.
+//
+// The alpha is this caller's: the overlay sits on a map and the operator's
+// opacity slider owns how much of it shows.
 func rampFor(marginDB float64) color.RGBA {
-	t := marginDB / 20
-	if t < 0 {
-		t = 0
-	}
-	if t > 1 {
-		t = 1
-	}
-	lerp := func(a, b float64) uint8 { return uint8(a + t*(b-a)) }
-	return color.RGBA{
-		R: lerp(230, 40), G: lerp(140, 190), B: lerp(50, 120), A: 150,
-	}
+	c := coverage.Ramp(marginDB)
+	c.A = 150
+	return c
 }

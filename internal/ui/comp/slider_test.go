@@ -5,13 +5,13 @@ import (
 	"testing"
 
 	"gioui.org/f32"
-	"gioui.org/font/gofont"
 	"gioui.org/io/input"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/text"
 	"gioui.org/unit"
+	"github.com/MeshBench/meshbench/internal/ui/theme/brandfont"
 
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 )
@@ -28,7 +28,7 @@ func newSliderHarness() *sliderHarness {
 	return &sliderHarness{
 		s: &Slider{Default: 0.75},
 		th: theme.New(theme.Dark, theme.Default,
-			text.NewShaper(text.WithCollection(gofont.Collection()))),
+			text.NewShaper(text.WithCollection(brandfont.Collection()))),
 		sz: image.Pt(200, 20),
 	}
 }

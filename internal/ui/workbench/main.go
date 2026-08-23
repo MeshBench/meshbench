@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"gioui.org/app"
-	"gioui.org/font/gofont"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/text"
@@ -320,7 +319,7 @@ func Run(args []string) {
 		sh.View = shell.App
 	}
 
-	sh2 := text.NewShaper(text.WithCollection(withEmoji(gofont.Collection())))
+	sh2 := text.NewShaper(text.WithCollection(brandFaces()))
 	mode := theme.Dark
 	if *modeFlag == "light" {
 		mode = theme.Light
@@ -378,7 +377,7 @@ func Run(args []string) {
 	wbUI.newTheme = func() *theme.Theme {
 		m, d, _ := sets.get()
 		return theme.New(m, d,
-			text.NewShaper(text.WithCollection(withEmoji(gofont.Collection()))))
+			text.NewShaper(text.WithCollection(brandFaces())))
 	}
 	wbUI.dock = func(name string) { wins.dock(name) }
 	wbUI.closeWin = func(name string) error { return wins.close(name) }
@@ -392,7 +391,7 @@ func Run(args []string) {
 			// window opened after a theme change does not open in the old one.
 			m, d, _ := sets.get()
 			return theme.New(m, d,
-				text.NewShaper(text.WithCollection(withEmoji(gofont.Collection()))))
+				text.NewShaper(text.WithCollection(brandFaces())))
 		}, st)
 		// Said, with the way back in it. A window that opens behind this one
 		// is a panel that has apparently vanished, and right-clicking a tab

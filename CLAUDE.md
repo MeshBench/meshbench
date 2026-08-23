@@ -99,6 +99,7 @@ internal/app/       orchestration, no toolkit
 
 internal/ui/        Gio — the only layer permitted a toolkit
   theme/ comp/ mapview-in-comp/ shell/ desktop/ float/ pick/
+  theme/brandfont/    the three faces the identity is set in, embedded
   workbench/          the workbench itself: panels, state, wiring
 
 meshtest/           a MeshCore network inside somebody else's test - the one

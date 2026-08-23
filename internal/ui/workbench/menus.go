@@ -13,6 +13,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/ui/shell"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
+	"github.com/MeshBench/meshbench/internal/ui/theme/brandfont"
 )
 
 // workbenchMenus is the menu bar, in one place.
@@ -110,6 +111,17 @@ func workbenchMenus() []menu {
 				Icon: "help"},
 		}},
 	}
+}
+
+// brandFaces is the collection every shaper in the application is built from:
+// the three faces the identity is set in, then the machine's colour emoji.
+//
+// Gio's own faces are not in it. They were the default and nothing chose them;
+// leaving them in means a style that names no typeface gets Go Sans while one
+// that names Inter gets Inter, and the interface is then set in two families
+// nobody picked.
+func brandFaces() []font.FontFace {
+	return withEmoji(brandfont.Collection())
 }
 
 func withEmoji(base []font.FontFace) []font.FontFace {

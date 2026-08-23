@@ -14,7 +14,6 @@ import (
 
 	"gioui.org/app"
 	"gioui.org/font"
-	"gioui.org/font/gofont"
 	"gioui.org/font/opentype"
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -25,6 +24,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/ui/comp"
 	"github.com/MeshBench/meshbench/internal/ui/desktop"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
+	"github.com/MeshBench/meshbench/internal/ui/theme/brandfont"
 )
 
 type gallery struct {
@@ -51,7 +51,7 @@ func main() {
 	densFlag := flag.String("density", "default", "comfortable, default or compact")
 	flag.Parse()
 
-	sh := text.NewShaper(text.WithCollection(withEmoji(gofont.Collection())))
+	sh := text.NewShaper(text.WithCollection(withEmoji(brandfont.Collection())))
 	mode := theme.Dark
 	if *modeFlag == "light" {
 		mode = theme.Light

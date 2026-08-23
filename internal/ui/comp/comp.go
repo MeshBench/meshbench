@@ -9,6 +9,7 @@ import (
 	"image"
 	"image/color"
 
+	"gioui.org/f32"
 	"gioui.org/font"
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -327,10 +328,90 @@ type Check struct {
 	Label string
 }
 
+// Layout draws the box and its tick.
+//
+// Drawn rather than material.CheckBox, which renders a filled square with the
+// tick knocked out of it - so the tick is a hole showing whatever the box
+// happens to sit on, and on a panel that is panel-coloured. A tick is a mark
+// somebody made, not a gap, and it has to be the same ink as every other label
+// on a filled accent shape.
+//
+// The same widget.Bool underneath, so everything that finds and presses
+// checkboxes - the control audit included - finds this too.
 func (c *Check) Layout(t *theme.Theme, gtx layout.Context) layout.Dimensions {
-	cb := material.CheckBox(t.M, &c.Bool, c.Label)
-	cb.Color = t.P.Ink
-	cb.IconColor = t.P.Accent
-	cb.TextSize = t.Sz.Body
-	return cb.Layout(gtx)
+	return c.Bool.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		// Hugging the content, not the column it sits in: a flex given a
+		// minimum fills it, and the clickable this returns to is sized from
+		// what it reports - so a box that claimed the full width took the
+		// presses meant for whatever was beside it. The node filter stopped
+		// accepting typing that way.
+		gtx.Constraints.Min = image.Point{}
+		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return c.box(t, gtx)
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				if c.Label == "" {
+					return layout.Dimensions{}
+				}
+				return layout.Inset{Left: t.Sp.S}.Layout(gtx,
+					Text(t, t.Sz.Body, t.P.Ink, c.Label))
+			}),
+		)
+	})
+}
+
+// box is the square: filled in the accent when it is on, outlined when it is
+// off, with the tick stroked across it in the accent's own ink.
+func (c *Check) box(t *theme.Theme, gtx layout.Context) layout.Dimensions {
+	// The square is drawn at 20dp inside a 34dp cell, which is the footprint
+	// material.CheckBox occupied - its 26dp icon in the 4/3 cell it keeps for
+	// the hover halo. Matched deliberately: this is a drop-in, and a control
+	// that changed height would reflow every panel that has one, which is how
+	// a fixed-coordinate test found the node filter had moved.
+	cell := gtx.Dp(26) * 4 / 3
+	side := gtx.Dp(20)
+	off := (cell - side) / 2
+	defer op.Offset(image.Pt(off, off)).Push(gtx.Ops).Pop()
+	sz := image.Pt(side, side)
+	rr := gtx.Dp(3)
+	shape := clip.RRect{Rect: image.Rectangle{Max: sz}, NE: rr, NW: rr, SE: rr, SW: rr}
+
+	edge := t.P.Rule
+	if c.Bool.Hovered() {
+		edge = t.P.Accent
+	}
+	if c.Bool.Value {
+		fill := t.P.Accent
+		if c.Bool.Hovered() {
+			fill = theme.Alpha(fill, 0.85)
+		}
+		func() {
+			defer shape.Push(gtx.Ops).Pop()
+			paint.ColorOp{Color: fill}.Add(gtx.Ops)
+			paint.PaintOp{}.Add(gtx.Ops)
+		}()
+	} else {
+		paint.FillShape(gtx.Ops, edge, clip.Stroke{
+			Path:  shape.Path(gtx.Ops),
+			Width: float32(gtx.Dp(1.5)),
+		}.Op())
+	}
+
+	if c.Bool.Value {
+		// Two strokes, proportioned off the side so the tick keeps its shape
+		// at any density: down to the low point at two fifths across, then up
+		// and out to the top right.
+		f := func(n float32) float32 { return float32(side) * n }
+		var p clip.Path
+		p.Begin(gtx.Ops)
+		p.MoveTo(f32.Pt(f(0.24), f(0.52)))
+		p.LineTo(f32.Pt(f(0.42), f(0.71)))
+		p.LineTo(f32.Pt(f(0.77), f(0.31)))
+		paint.FillShape(gtx.Ops, t.P.AccentInk, clip.Stroke{
+			Path:  p.End(),
+			Width: float32(gtx.Dp(2)),
+		}.Op())
+	}
+	return layout.Dimensions{Size: image.Pt(cell, cell)}
 }

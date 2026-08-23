@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"gioui.org/font/gofont"
 	"gioui.org/gpu/headless"
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -172,14 +171,22 @@ func loadCapturedColourScreen(t *testing.T) ([]byte, int, int) {
 // renderWidget draws one widget into an image, with no window and no display.
 func renderWidget(t *testing.T, w, h int, draw func(layout.Context, *theme.Theme) layout.Dimensions) image.Image {
 	t.Helper()
+	return renderMode(t, w, h, theme.Dark, draw)
+}
+
+// renderMode is the same on a chosen ground, for the pictures that are about
+// the ground itself.
+func renderMode(t *testing.T, w, h int, mode theme.Mode,
+	draw func(layout.Context, *theme.Theme) layout.Dimensions) image.Image {
+	t.Helper()
 	win, err := headless.NewWindow(w, h)
 	if err != nil {
 		t.Skipf("no GPU for headless rendering here: %v", err)
 	}
 	defer win.Release()
 
-	th := theme.New(theme.Dark, theme.Default,
-		text.NewShaper(text.WithCollection(gofont.Collection())))
+	th := theme.New(mode, theme.Default,
+		text.NewShaper(text.WithCollection(brandFaces())))
 	var ops op.Ops
 	gtx := layout.Context{
 		Ops:         &ops,

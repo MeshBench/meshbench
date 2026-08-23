@@ -5,13 +5,13 @@ import (
 	"testing"
 
 	"gioui.org/f32"
-	"gioui.org/font/gofont"
 	"gioui.org/io/input"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/text"
 	"gioui.org/unit"
+	"github.com/MeshBench/meshbench/internal/ui/theme/brandfont"
 
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 )
@@ -34,7 +34,7 @@ func newBarHarness(b *TitleBar) *barHarness {
 		bar: b,
 		sz:  image.Pt(400, 32),
 		th: theme.New(theme.Dark, theme.Default,
-			text.NewShaper(text.WithCollection(gofont.Collection()))),
+			text.NewShaper(text.WithCollection(brandfont.Collection()))),
 	}
 }
 

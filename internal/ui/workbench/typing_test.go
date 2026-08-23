@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"gioui.org/f32"
-	"gioui.org/font/gofont"
 	"gioui.org/io/input"
 	"gioui.org/io/key"
 	"gioui.org/io/pointer"
@@ -13,6 +12,7 @@ import (
 	"gioui.org/op"
 	"gioui.org/text"
 	"gioui.org/unit"
+	"github.com/MeshBench/meshbench/internal/ui/theme/brandfont"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
@@ -39,7 +39,7 @@ func newPanelHarness(draw func(*theme.Theme, layout.Context, *state.Snapshot) la
 	return &panelHarness{
 		draw: draw,
 		th: theme.New(theme.Dark, theme.Default,
-			text.NewShaper(text.WithCollection(gofont.Collection()))),
+			text.NewShaper(text.WithCollection(brandfont.Collection()))),
 		sz:   image.Pt(1200, 800),
 		snap: snap,
 	}

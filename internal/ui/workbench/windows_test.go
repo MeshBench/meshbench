@@ -6,7 +6,6 @@ import (
 
 	"gioui.org/app"
 	"gioui.org/f32"
-	"gioui.org/font/gofont"
 	"gioui.org/io/input"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
@@ -54,7 +53,7 @@ func (h *chromeHarness) frame(sz image.Point) {
 	// them, so a drag is stated in dp rather than pixels.
 	h.chrome.frame(app.FrameEvent{Size: sz, Metric: gtx.Metric})
 	h.bar.Layout(theme.New(theme.Dark, theme.Default,
-		text.NewShaper(text.WithCollection(gofont.Collection()))), gtx)
+		text.NewShaper(text.WithCollection(brandFaces()))), gtx)
 	h.r.Frame(&h.ops)
 	opts, close := h.chrome.update(&h.bar)
 	h.applied = append(h.applied, opts...)

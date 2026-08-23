@@ -1,14 +1,20 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <title>MeshBench</title>
-  <rect width="512" height="512" rx="96" fill="#0d1113"/>
-  <circle cx="154" cy="164" r="93" fill="none" stroke="#4ac4a8" stroke-opacity="0.35" stroke-width="10"/>
-  <line x1="154" y1="164" x2="369" y2="133" stroke="#4ac4a8" stroke-opacity="1.00" stroke-width="14" stroke-linecap="round"/>
-  <line x1="154" y1="164" x2="138" y2="369" stroke="#4ac4a8" stroke-opacity="1.00" stroke-width="14" stroke-linecap="round"/>
-  <line x1="154" y1="164" x2="389" y2="358" stroke="#4ac4a8" stroke-opacity="0.40" stroke-width="9" stroke-linecap="round"/>
-  <line x1="389" y1="358" x2="138" y2="369" stroke="#4ac4a8" stroke-opacity="0.40" stroke-width="9" stroke-linecap="round"/>
-  <circle cx="154" cy="164" r="36" fill="#4ac4a8"/>
-  <circle cx="369" cy="133" r="28" fill="#4ac4a8"/>
-  <circle cx="389" cy="358" r="28" fill="#4ac4a8"/>
-  <circle cx="138" cy="369" r="28" fill="#4ac4a8"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="MeshBench"><rect width="48" height="48" rx="11" fill="#0B0A12"/><g transform="translate(3.31,1.66) scale(0.8276)">
+  <path d="M 9.50 34.50 L 18.00 43.00" stroke="#7C5CFF" stroke-width="2.0" opacity="0.26"/>
+  <path d="M 18.00 43.00 L 32.00 30.50" stroke="#7C5CFF" stroke-width="2.0" opacity="0.26"/>
+  <path d="M 18.00 43.00 L 20.50 23.00" stroke="#7C5CFF" stroke-width="2.0" opacity="0.26"/>
+  <path d="M 20.50 23.00 L 29.50 11.00" stroke="#7C5CFF" stroke-width="2.0" opacity="0.26"/>
+  <path d="M 29.50 11.00 L 40.50 19.50" stroke="#7C5CFF" stroke-width="2.0" opacity="0.26"/>
+  <path d="M 32.00 30.50 L 39.00 40.00" stroke="#7C5CFF" stroke-width="2.0" opacity="0.26"/>
+  <path d="M 40.50 19.50 L 39.00 40.00" stroke="#7C5CFF" stroke-width="2.0" opacity="0.26"/>
+  <path d="M 9.50 34.50 L 29.50 11.00" stroke="#7C5CFF" stroke-width="2.0" opacity="0.26"/>
+  <path d="M 9.50 34.50 L 20.50 23.00" stroke="#FF7A3D" stroke-width="3.6"/>
+  <path d="M 20.50 23.00 L 32.00 30.50" stroke="#FF7A3D" stroke-width="3.6"/>
+  <path d="M 32.00 30.50 L 40.50 19.50" stroke="#FF7A3D" stroke-width="3.6"/>
+  <circle cx="18.00" cy="43.00" r="2.50" fill="#7C5CFF" opacity="0.4"/>
+  <circle cx="29.50" cy="11.00" r="2.50" fill="#7C5CFF" opacity="0.4"/>
+  <circle cx="39.00" cy="40.00" r="2.50" fill="#7C5CFF" opacity="0.4"/>
+  <circle cx="20.50" cy="23.00" r="3.80" fill="#F2EFF9"/>
+  <circle cx="32.00" cy="30.50" r="3.80" fill="#F2EFF9"/>
+  <circle cx="9.50" cy="34.50" r="4.80" fill="#FF7A3D"/>
+  <circle cx="40.50" cy="19.50" r="4.80" fill="#F2EFF9"/>
+</g></svg>

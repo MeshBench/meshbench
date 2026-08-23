@@ -15,6 +15,7 @@ import (
 	"image/color"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
+	"github.com/MeshBench/meshbench/internal/study/coverage"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 )
 
@@ -360,11 +361,17 @@ func (m *MapView) drawTrails(t *theme.Theme, gtx layout.Context, pts []projected
 		if n == 0 {
 			continue
 		}
-		// Ink rather than the selection colour: a trail has to read against
-		// links that are already green and amber, and the colour left that is
-		// not one of those is no colour at all.
+		// Signal, which is the one thing the identity reserves orange for: a
+		// packet in flight and the route that carried it. It was Ink, because
+		// links are already green and amber and nothing else was left - and a
+		// trail the colour of text is a trail nobody sees. The newest step
+		// takes the brighter of the two, so a burst reads as a leading edge.
+		ink := t.P.Signal
+		if step == 0 {
+			ink = t.P.SignalBright
+		}
 		alpha := float32(0.9 * (1 - float64(step)/steps))
-		paint.FillShape(gtx.Ops, theme.Alpha(t.P.Ink, alpha),
+		paint.FillShape(gtx.Ops, theme.Alpha(ink, alpha),
 			clip.Outline{Path: spec}.Op())
 	}
 }
@@ -433,8 +440,8 @@ func (m *MapView) coverageLegend(t *theme.Theme, gtx layout.Context, sz image.Po
 		w, h := gtx.Dp(180), gtx.Dp(10)
 		for x := 0; x < w; x++ {
 			tt := float64(x) / float64(w-1)
-			lerp := func(a, b float64) uint8 { return uint8(a + tt*(b-a)) }
-			col := color.NRGBA{R: lerp(230, 40), G: lerp(140, 190), B: lerp(50, 120), A: 230}
+			c := coverage.Ramp(tt * 20)
+			col := color.NRGBA{R: c.R, G: c.G, B: c.B, A: 230}
 			paint.FillShape(gtx.Ops, col,
 				clip.Rect{Min: image.Pt(x, 0), Max: image.Pt(x+1, h)}.Op())
 		}
