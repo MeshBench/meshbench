@@ -124,7 +124,7 @@ func (w *nodeWindows) openFor(node string, tab nodeTab,
 					p.Layered, chrome = true, newLayerChrome(spot)
 				}
 				if chrome != nil {
-					chrome.outputSize(e.Config.OutputSize)
+					chrome.screens(e.Config.Output, e.Config.Outputs)
 				}
 			case app.DestroyEvent:
 				return

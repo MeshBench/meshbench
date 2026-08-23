@@ -120,7 +120,7 @@ func TestLayerChromeDragMoves(t *testing.T) {
 // latest place - the behaviour the old model could not survive.
 func TestLayerChromeDragSurvivesMoveLag(t *testing.T) {
 	h := newChromeHarness()
-	h.chrome.outputSize(image.Pt(800, 600))
+	h.chrome.screens(image.Rect(0, 0, 800, 600), []image.Rectangle{image.Rect(0, 0, 800, 600)})
 	h.frame(image.Pt(800, 600))
 	h.frame(image.Pt(800, 600))
 	h.r.Queue(pointer.Event{Kind: pointer.Press, Position: f32.Pt(100, 12), Buttons: pointer.ButtonPrimary})
@@ -150,7 +150,7 @@ func TestLayerChromeDragSurvivesMoveLag(t *testing.T) {
 // can drag it back.
 func TestLayerChromeDragClamps(t *testing.T) {
 	h := newChromeHarness()
-	h.chrome.outputSize(image.Pt(800, 600))
+	h.chrome.screens(image.Rect(0, 0, 800, 600), []image.Rectangle{image.Rect(0, 0, 800, 600)})
 	h.frame(image.Pt(800, 600))
 	h.frame(image.Pt(800, 600))
 	h.drag(f32.Pt(100, 12), f32.Pt(20, -60))
@@ -229,5 +229,52 @@ func TestLayerChromeClose(t *testing.T) {
 	if !h.closed {
 		t.Fatal("the close glyph never fired; a layer-shell window with no " +
 			"decoration and no working close affordance cannot be closed at all")
+	}
+}
+
+// The bug this clamp was rewritten for: a pop-out would not move onto the
+// screen to its left, and jerked when it arrived on the one to its right.
+//
+// Margins are measured from the surface's own screen, so reaching the screen
+// to the left needs a negative one. Clamping margins at zero forbade that
+// along with genuinely leaving the desktop, and clamping them at this screen's
+// width undid a rightward move the moment the compositor handed the surface
+// over. A direction is only closed off when no screen lies that way.
+func TestLayerChromeDragReachesTheScreenNextDoor(t *testing.T) {
+	left := image.Rect(0, 0, 2560, 1440)
+	right := image.Rect(2560, 0, 4480, 1080)
+
+	// Anchored to the right-hand screen, dragging left towards the other.
+	h := newChromeHarness()
+	h.chrome.screens(right, []image.Rectangle{left, right})
+	h.frame(image.Pt(800, 600))
+	h.frame(image.Pt(800, 600))
+	h.drag(f32.Pt(100, 12), f32.Pt(-400, 0))
+	if h.chrome.spot.Left >= 0 {
+		t.Errorf("margin is %v after dragging towards the screen on the left, "+
+			"want it negative - that is what reaching the next screen is",
+			h.chrome.spot.Left)
+	}
+
+	// Anchored to the left-hand screen, dragging right past its own edge.
+	h = newChromeHarness()
+	h.chrome.screens(left, []image.Rectangle{left, right})
+	h.frame(image.Pt(800, 600))
+	h.frame(image.Pt(800, 600))
+	h.drag(f32.Pt(100, 12), f32.Pt(4000, 0))
+	if edge := unit.Dp(2560/2) - 120; h.chrome.spot.Left <= edge {
+		t.Errorf("margin is %v after dragging towards the screen on the right, "+
+			"want it past this screen's own edge at %v", h.chrome.spot.Left, edge)
+	}
+
+	// And with only one screen, the direction is closed off again.
+	h = newChromeHarness()
+	h.chrome.screens(left, []image.Rectangle{left})
+	h.frame(image.Pt(800, 600))
+	h.frame(image.Pt(800, 600))
+	h.drag(f32.Pt(100, 12), f32.Pt(-400, 0))
+	if h.chrome.spot.Left != 0 {
+		t.Errorf("margin is %v on a single screen, want 0: there is nothing "+
+			"to the left of it", h.chrome.spot.Left)
 	}
 }

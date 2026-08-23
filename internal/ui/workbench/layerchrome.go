@@ -50,13 +50,17 @@ type layerChrome struct {
 		spot float.Spot
 		w, h unit.Dp
 	}
-	// size, pxPerDp and output are the last frame's facts: the first two
+	// size, pxPerDp and outputs are the last frame's facts: the first two
 	// so a drag or a restore can be stated in the units the options take,
-	// and the output's extent so a drag cannot carry the window somewhere
-	// its bar can no longer be reached from.
+	// and the screens so a drag cannot carry the window somewhere its bar
+	// can no longer be reached from.
 	size    image.Point
 	pxPerDp float32
-	output  image.Point
+	// screen is the output the margins are measured from, and outputs is
+	// every one of them - both, because the first says where the window is
+	// and the second says whether there is anywhere to go.
+	screen  image.Rectangle
+	outputs []image.Rectangle
 }
 
 // newLayerChrome is a chrome for a window placed at spot.
@@ -69,9 +73,12 @@ func (c *layerChrome) frame(e app.FrameEvent) {
 	c.size, c.pxPerDp = e.Size, e.Metric.PxPerDp
 }
 
-// outputSize notes the output's extent, as the fork reports it in the same
-// pixels as the frame size. Zero means unknown, and clamping waits for it.
-func (c *layerChrome) outputSize(sz image.Point) { c.output = sz }
+// screens notes where the outputs are and which one the margins are measured
+// from, as the fork reports them in the same pixels as the frame size. Empty
+// means unknown, and clamping waits for it.
+func (c *layerChrome) screens(mine image.Rectangle, all []image.Rectangle) {
+	c.screen, c.outputs = mine, all
+}
 
 // update reads the bar after it has been laid out - its glyphs collect
 // their own clicks during Layout - and returns the options to apply, and
@@ -124,32 +131,73 @@ func (c *layerChrome) recall(spot float.Spot) []app.Option {
 	return []app.Option{float.Move(spot)}
 }
 
-// clamp keeps the bar reachable: never above or left of the output's top-left
-// corner, and never so far right or down that the bar has left it.
+// clamp keeps the bar somewhere it can be grabbed.
 //
-// The left edge is the corner, not a part-width overhang. Allowing the window
-// to sit partly off the left while keeping a grabbable strip on screen is a
-// second rule, and it cannot both hold and be clamped to zero first - so there
-// is one rule here rather than an unreachable branch implying another.
+// A margin is measured from the screen the surface is anchored to, so a
+// negative one means "left of this screen" - which is off the desktop if this
+// screen is the leftmost, and perfectly ordinary if there is another one
+// there. That is the whole of the bug this replaces: clamping margins at zero
+// forbade the second case along with the first, and clamping them at the
+// screen's width undid a move the moment the compositor handed the surface
+// over.
+//
+// So a direction is only closed off when no screen lies that way. Whether the
+// window then ends up in a gap between screens is not something margins can
+// express, and recall is the way back from one.
 func (c *layerChrome) clamp() {
-	if c.spot.Top < 0 {
-		c.spot.Top = 0
-	}
-	if c.spot.Left < 0 {
-		c.spot.Left = 0
-	}
-	if c.output == (image.Point{}) || c.pxPerDp <= 0 {
+	if c.screen.Empty() || c.pxPerDp <= 0 {
 		return
 	}
-	outY := unit.Dp(float32(c.output.Y) * c.pxToDp())
-	if max := outY - barHeightDp; c.spot.Top > max {
-		c.spot.Top = max
+	if !c.neighbour(-1, 0) && c.spot.Left < 0 {
+		c.spot.Left = 0
 	}
-	outX := unit.Dp(float32(c.output.X) * c.pxToDp())
-	if max := outX - barGrabDp; c.spot.Left > max {
-		c.spot.Left = max
+	if !c.neighbour(0, -1) && c.spot.Top < 0 {
+		c.spot.Top = 0
+	}
+	if !c.neighbour(1, 0) {
+		if max := c.dp(c.screen.Dx()) - barGrabDp; c.spot.Left > max {
+			c.spot.Left = max
+		}
+	}
+	if !c.neighbour(0, 1) {
+		if max := c.dp(c.screen.Dy()) - barHeightDp; c.spot.Top > max {
+			c.spot.Top = max
+		}
 	}
 }
+
+// neighbour reports whether a screen lies in the given direction from the one
+// the margins are measured from, sharing some of its span across.
+//
+// Sharing the span, because a screen diagonally opposite is not somewhere a
+// horizontal drag arrives: two side by side and one below the right-hand of
+// them means there is nothing to the left of the left-hand one, whatever the
+// bounding box says.
+func (c *layerChrome) neighbour(dx, dy int) bool {
+	for _, o := range c.outputs {
+		if o == c.screen {
+			continue
+		}
+		switch {
+		case dx < 0 && o.Max.X <= c.screen.Min.X && spans(o.Min.Y, o.Max.Y, c.screen.Min.Y, c.screen.Max.Y):
+			return true
+		case dx > 0 && o.Min.X >= c.screen.Max.X && spans(o.Min.Y, o.Max.Y, c.screen.Min.Y, c.screen.Max.Y):
+			return true
+		case dy < 0 && o.Max.Y <= c.screen.Min.Y && spans(o.Min.X, o.Max.X, c.screen.Min.X, c.screen.Max.X):
+			return true
+		case dy > 0 && o.Min.Y >= c.screen.Max.Y && spans(o.Min.X, o.Max.X, c.screen.Min.X, c.screen.Max.X):
+			return true
+		}
+	}
+	return false
+}
+
+// spans reports whether two ranges overlap at all.
+func spans(a0, a1, b0, b1 int) bool { return a0 < b1 && b0 < a1 }
+
+// dp turns a length in the pixels the screens are measured in into the dp a
+// Spot is measured in.
+func (c *layerChrome) dp(px int) unit.Dp { return unit.Dp(float32(px) * c.pxToDp()) }
 
 // pxToDp is the frame's pixel-per-dp as a multiplier the other way, so a
 // drag measured in pixels can be added to a place stated in dp.

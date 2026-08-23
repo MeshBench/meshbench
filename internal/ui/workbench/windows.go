@@ -120,7 +120,7 @@ func (w *windows) popOut(name string, sh *shell.Shell, newTheme func() *theme.Th
 					bar.Title = "MeshBench - " + name
 				}
 				if layered {
-					chrome.outputSize(e.Config.OutputSize)
+					chrome.screens(e.Config.Output, e.Config.Outputs)
 				}
 			case app.DestroyEvent:
 				return
