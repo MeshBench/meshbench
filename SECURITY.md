@@ -16,10 +16,32 @@ The only things that cross the network are *data*:
 - **The optional CoreScope, Beacon and MQTT feeds**, which you configure and
   which are off until you do.
 
-MeshBench listens on a **unix domain socket** for the control interface
-(`$XDG_RUNTIME_DIR/meshcoresim.sock`), which is per-user and does not survive a
-reboot. It opens no TCP port unless you ask it to serve a companion transport,
-which binds where you tell it to.
+The control interface listens locally, and how depends on the operating
+system:
+
+- **Linux, macOS and the BSDs**: a **unix domain socket**, per user, mode
+  `0600`, gone at reboot. On Linux it is `$XDG_RUNTIME_DIR/meshcoresim.sock`;
+  elsewhere it is under the per-user cache directory. The kernel enforces who
+  may connect.
+- **Windows**: a **loopback TCP listener** on an ephemeral port, because
+  Windows has no unix socket a Python client can reach. It is bound to
+  `127.0.0.1` and never to an outward-facing address, and a connection must
+  present a 128-bit token before it is served. The port and token are written
+  to a `0600` file under the per-user cache directory.
+
+The Windows arrangement is deliberately weaker than the unix one, and worth
+saying plainly: **any local process can open a loopback port**, so the token in
+that file is what stands between another program on the same machine and your
+running session, where on Linux the kernel does it. If that matters to you,
+pass `-control-socket` a unix socket path — Windows 10 and later do have
+AF_UNIX for Go clients, it is only the Python one that cannot use it.
+
+Either transport can be pointed somewhere else with `-control-socket` or
+`MESHBENCH_CONTROL_SOCKET`. An address that is not loopback is refused rather
+than bound.
+
+No other port is opened unless you ask it to serve a companion transport or an
+SDR source, which bind where you tell them to.
 
 ## Reporting a vulnerability
 

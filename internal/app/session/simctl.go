@@ -74,7 +74,7 @@ func registerSimControl(st *state.Store, s *Sim) {
 	// told everything and heard nothing.
 	st.Handle("sim.settle", func(w *state.World, p any) (any, error) {
 		if s.eng == nil {
-			return nil, fmt.Errorf("no simulation")
+			return nil, ErrNoSimulation
 		}
 		n := 60
 		if v, ok := numField(p, "steps"); ok && v > 0 {

@@ -405,7 +405,7 @@ func Register(st *state.Store, s *Sim) {
 				return map[string]any{"name": name, "lat": lat, "lon": lon}, nil
 			}
 		}
-		return nil, fmt.Errorf("no node named %q", name)
+		return nil, fmt.Errorf("no node named %q: %w", name, ErrNoSuchNode)
 	})
 	st.Handle("sim.inject", func(w *state.World, p any) (any, error) {
 		// Originating a packet without firmware on the node. The engine
@@ -413,7 +413,7 @@ func Register(st *state.Store, s *Sim) {
 		// radio model and the map's traffic layer; what it does not exercise
 		// is relaying, which is a firmware behaviour and needs a firmware.
 		if s.eng == nil {
-			return nil, fmt.Errorf("no simulation")
+			return nil, ErrNoSimulation
 		}
 		// A network with no nodes has nowhere to originate from. It used to
 		// be unreachable - every session began with a fixture - and starting

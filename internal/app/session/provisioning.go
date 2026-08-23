@@ -101,7 +101,7 @@ func (s *Sim) provisioningFor(name string) ([]state.ProvisionLine, error) {
 			return s.provisionLines(n), nil
 		}
 	}
-	return nil, fmt.Errorf("no node named %q", name)
+	return nil, fmt.Errorf("no node named %q: %w", name, ErrNoSuchNode)
 }
 
 // whyProvision is the reason a session-settings line exists, each of which is

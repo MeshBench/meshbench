@@ -63,7 +63,7 @@ func registerBenchVerbs(st *state.Store, s *Sim) {
 
 	st.Handle("bench.stray", func(w *state.World, _ any) (any, error) {
 		if s.eng == nil {
-			return nil, fmt.Errorf("no simulation")
+			return nil, ErrNoSimulation
 		}
 		for i := range w.Nodes {
 			if w.Nodes[i].Kind == "companion" {
