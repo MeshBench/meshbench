@@ -1,9 +1,18 @@
 // Import a real mesh from its live feed, find one node, and make it advert.
 //
-//	go run ./clients/go/examples/live-import-and-advert ["node name"]
+//	go run ./clients/go/examples/live-import-and-advert [area] [node]
 //
-// Needs the network. The names on a real mesh carry emoji - "West Lomond" is
-// really "🏔️ West Lomond 📡" - so the node is searched for rather than typed.
+//	go run ./clients/go/examples/live-import-and-advert Fife
+//	go run ./clients/go/examples/live-import-and-advert bounds/tay-catchment.geojson
+//
+// The area is a place name or a path to GeoJSON, and it is set before the
+// import because the import filters at fetch time - the whole feed is around
+// 676 nodes and this is how you study a corner of it.
+//
+// The node is searched for rather than typed: the names on a real mesh carry
+// emoji, so "West Lomond" is really "🏔️ West Lomond 📡".
+//
+// Needs the network.
 package main
 
 import (
@@ -11,6 +20,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/MeshBench/meshbench/clients/go/meshbench"
@@ -18,20 +28,23 @@ import (
 
 const feed = "https://scotmesh-corescope.mm7roq.compute.oarc.uk"
 
-// ScotMesh is around 676 nodes and firmware on all of them is hours, so this
-// keeps the one we want and its dozen nearest.
-const neighbours = 12
-
 func main() {
-	want := "West Lomond"
+	area, wanted := "Fife", "West Lomond"
 	if len(os.Args) > 1 {
-		want = os.Args[1]
+		area = os.Args[1]
+	}
+	if len(os.Args) > 2 {
+		wanted = os.Args[2]
 	}
 
 	ctx := context.Background()
 	wb, err := meshbench.Headless(ctx)
 	must(err)
 	defer func() { _ = wb.Close() }()
+
+	studying, err := wb.Boundary().Use(ctx, area)
+	must(err)
+	fmt.Println("studying", strings.Join(studying, ", "))
 
 	// Fetch the nodes, commit them, read a week of traffic, and apply the
 	// regions it implies. Skip that last step and nothing ever relays.
@@ -40,18 +53,11 @@ func main() {
 	fmt.Println(found)
 	must(wb.WaitIdle(ctx, time.Hour))
 
-	node, err := wb.Nodes().Find(ctx, want)
+	node, err := wb.Nodes().Find(ctx, wanted)
 	must(err)
-	fmt.Printf("%s is %q\n", want, node.Name())
-
-	near, err := wb.Nodes().Near(ctx, node.Name(), neighbours)
+	all, err := wb.Nodes().List(ctx)
 	must(err)
-	keep := []string{node.Name()}
-	for _, n := range near {
-		keep = append(keep, n.Name)
-	}
-	must(wb.Nodes().Keep(ctx, keep...))
-	must(wb.WaitIdle(ctx, time.Hour))
+	fmt.Printf("%s is %q, one of %d\n", wanted, node.Name(), len(all))
 
 	_, err = wb.Firmware().UseWhatIsHere(ctx)
 	must(err)
@@ -73,7 +79,7 @@ func main() {
 			heard[e.To] = true
 		}
 	}
-	fmt.Printf("%d of %d neighbours heard it directly\n", len(heard), len(keep)-1)
+	fmt.Printf("%d of %d others heard it directly\n", len(heard), len(all)-1)
 
 	prov, err := wb.Provenance(ctx)
 	must(err)

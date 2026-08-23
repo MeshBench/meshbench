@@ -56,6 +56,17 @@ looks like bad RF rather than a missing step.
 5. `firmware.start`, then check `firmware.state` says `running == total`.
 6. Only then define and start the sweep.
 
+### A study area of your own
+
+`boundary.load {path}` or `{geojson}` takes a Polygon, MultiPolygon, Feature or
+FeatureCollection and puts it in the study area. `boundary.set` searches
+Nominatim, which needs the network and needs the area to have an administrative
+name — a catchment, a valley or something drawn in QGIS has neither.
+
+**Before the import, either way.** The import filters at fetch time, so a
+boundary set afterwards prunes what has already been fetched. `boundary.list`
+says what the study area currently holds; the snapshot only carries how many.
+
 ### Finding a node you cannot type
 
 Imported names carry emoji and accents — `🏔️ West Lomond 📡` is one real node —

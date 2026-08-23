@@ -11,6 +11,7 @@ Needs a meshcoresim binary. MESHBENCH_BINARY names one; otherwise PATH.
 from __future__ import annotations
 
 import contextlib
+import json
 import os
 import shutil
 import subprocess
@@ -502,3 +503,79 @@ def test_infer_result_is_not_a_verb_to_call(wb):
     """
     with pytest.raises(meshbench.BadParams):
         wb.call("infer.result")
+
+
+# A square over Fife, as a FeatureCollection with a named feature - the shape
+# anything that exports a drawn polygon produces.
+FIFE_ISH = {
+    "type": "FeatureCollection",
+    "features": [
+        {
+            "type": "Feature",
+            "properties": {"name": "Test square"},
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [-3.4, 56.0],
+                        [-2.8, 56.0],
+                        [-2.8, 56.4],
+                        [-3.4, 56.4],
+                        [-3.4, 56.0],
+                    ]
+                ],
+            },
+        }
+    ],
+}
+
+
+def test_a_study_area_from_geojson(wb, tmp_path):
+    """Your own polygon, rather than one the gazetteer has a name for.
+
+    boundary.set searches Nominatim, so it needs the network and needs the area
+    to have an administrative name. A catchment, a valley or a polygon drawn
+    this morning has neither, and the GeoJSON parser this uses has been in the
+    tree the whole time with nothing outside the process able to reach it.
+    """
+    assert wb.boundary.list() == []
+
+    # As a dict, as a document, and as a file: all three are things a caller
+    # actually has.
+    assert wb.boundary.load(FIFE_ISH) == ["Test square"]
+    assert wb.boundary.list() == ["Test square"]
+
+    path = tmp_path / "tay-catchment.geojson"
+    path.write_text(json.dumps(FIFE_ISH["features"][0]["geometry"]))
+    # A bare geometry carries no name, so the file's own name is used - which
+    # is what somebody who named it "tay-catchment.geojson" already told us.
+    assert wb.boundary.use(str(path)) == ["tay-catchment"]
+    assert set(wb.boundary.list()) == {"Test square", "tay-catchment"}
+
+    wb.boundary.remove("tay-catchment")
+    assert wb.boundary.list() == ["Test square"]
+
+
+def test_a_study_area_prunes_what_is_outside(wb):
+    """What the boundary is for, on a mesh that was loaded before it was set."""
+    wb.project.new()
+    wb.nodes.place_many(
+        [
+            {"name": "Inside", "lat": 56.2, "lon": -3.1},
+            {"name": "Outside", "lat": 57.5, "lon": -4.2},
+        ]
+    )
+    wb.boundary.load(FIFE_ISH)
+
+    # No margin, or the node 150 km away is kept on the grounds that it might
+    # interfere - which is the right default and the wrong thing to assert on.
+    assert wb.boundary.prune(margin_km=0) == 1
+    assert [n.name for n in wb.nodes.list()] == ["Inside"]
+
+
+def test_geojson_that_is_not_geojson_says_so(wb, tmp_path):
+    """A refusal that names the problem, rather than an empty study area."""
+    with pytest.raises(meshbench.BadParams):
+        wb.boundary.load('{"type": "Point", "coordinates": [0, 0]}')
+    with pytest.raises(meshbench.MeshbenchError):
+        wb.boundary.load(str(tmp_path / "nothing-here.geojson"))

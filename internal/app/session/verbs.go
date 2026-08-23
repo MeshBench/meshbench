@@ -43,6 +43,8 @@ func Register(st *state.Store, s *Sim) {
 	registerNodeSearch(st)
 	registerNodesNear(st)
 	registerBoundary(st, s)
+	registerBoundaryLoad(st, s)
+	registerBoundaryList(st)
 	registerPlanningVerbs(st, s)
 	registerSchedule(st, s)
 	registerValidate(st, s)

@@ -28,6 +28,7 @@ from ._socket import (
     default_address,
     default_socket_path,
 )
+from .boundary import Boundary
 from .checks import Assertions, Check, Report, Schedule
 from .errors import (
     BadParams,
@@ -71,6 +72,7 @@ from .workbench import Workbench
 
 __all__ = [
     "Schedule",
+    "Boundary",
     "Transport",
     "Tab",
     "Strategy",

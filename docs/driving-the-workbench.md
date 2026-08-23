@@ -46,9 +46,16 @@ Call it before assuming anything about a session you did not start.
 
 ## Order is load-bearing
 
-1. `boundary.set` + `boundary.accept` — **before** the import. The import
-   filters at fetch time, so a boundary set afterwards prunes rather than
-   filters, and the fetch has already paid for nodes it will discard.
+1. `boundary.set` + `boundary.accept`, or `boundary.load` — **before** the
+   import. The import filters at fetch time, so a boundary set afterwards
+   prunes rather than filters, and the fetch has already paid for nodes it
+   will discard.
+
+   `boundary.load {path}` or `{geojson}` takes your own polygon: a Polygon,
+   MultiPolygon, Feature or FeatureCollection. `boundary.set` searches
+   Nominatim, so it needs the network and needs the area to have an
+   administrative name; a catchment, a valley or something drawn in QGIS has
+   neither. `boundary.list` says what the study area is made of.
 2. `import.set_source` → `import.fetch` → poll `import.commit` until it
    stops erroring (the commit refuses until a preview exists).
 3. `boundary.prune` if the boundary changed after the import.

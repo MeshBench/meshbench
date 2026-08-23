@@ -20,6 +20,7 @@ from ._socket import (
     Connection,
     default_address,
 )
+from .boundary import Boundary
 from .checks import Assertions, Schedule
 from .live import Live
 from .nodes import Node, Nodes
@@ -313,6 +314,12 @@ class Workbench:
     @property
     def events(self) -> Events:
         return Events(self)
+
+    @property
+    def boundary(self) -> Boundary:
+        """The study area: which nodes are in the question being asked. Set it
+        before importing, because the import filters at fetch time."""
+        return Boundary(self)
 
     @property
     def live(self) -> Live:
