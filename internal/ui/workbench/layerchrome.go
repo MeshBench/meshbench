@@ -15,6 +15,8 @@ import (
 	"image"
 	"os"
 
+	"gioui.org/f32"
+
 	"gioui.org/app"
 	"gioui.org/unit"
 
@@ -63,6 +65,11 @@ type layerChrome struct {
 	// and the second says whether there is anywhere to go.
 	screen  image.Rectangle
 	outputs []image.Rectangle
+	// dragging and grabbedAt hold the point the bar was taken hold of, in
+	// logical pixels rather than in the window's own - because the window's
+	// own change underneath a drag that crosses to a screen at another scale.
+	dragging  bool
+	grabbedAt f32.Point
 }
 
 // newLayerChrome is a chrome for a window placed at spot.
@@ -86,22 +93,43 @@ func (c *layerChrome) screens(mine image.Rectangle, all []image.Rectangle) {
 // their own clicks during Layout - and returns the options to apply, and
 // whether the window was asked to close.
 func (c *layerChrome) update(bar *comp.TitleBar) (opts []app.Option, close bool) {
-	if grab, pos, held, fresh := bar.Drag(); held && fresh && !c.maximised {
-		// The grab anchor: each event's whole distance from the point the
-		// bar was grabbed at is added to the place, and nothing is applied
-		// without an event. Measuring from the fixed anchor, rather than
-		// accumulating per-event deltas, is what keeps a drag stable while
-		// the window's own move lags the pointer: a position reported
-		// against the window's latest place telescopes the formula to
-		// exactly right, and a position reported against an older one is
-		// corrected by the very next event - while a window tracking the
-		// pointer perfectly reports the same position on every event, and
-		// each event's full grab-distance is exactly the movement still
-		// owed. Per-event deltas instead double-counted every pending move,
-		// which was a drag that accelerated until the window left the
-		// screen.
-		c.spot.Top += unit.Dp((pos.Y - grab.Y) * c.pxToDp())
-		c.spot.Left += unit.Dp((pos.X - grab.X) * c.pxToDp())
+	// Asked once: Drag reports whether an event has arrived since the last ask
+	// and clears that as it answers, so a second call always says no.
+	grab, pos, held, fresh := bar.Drag()
+	if !held || c.maximised {
+		// The hold has ended, so the next press takes a fresh anchor rather
+		// than measuring from the last drag's.
+		c.dragging = false
+	}
+	if held && fresh && !c.maximised {
+		// The whole drag is done in logical pixels - the units a margin is
+		// measured in - and not in the window's own pixels, because those
+		// change during the drag.
+		//
+		// Gio takes the largest scale of the outputs a surface is on, so the
+		// moment a window touches a screen at 200% its pixels-per-dp doubles.
+		// The bar reports its grab in the pixels of the frame it was taken in,
+		// so from then on the grab is measured in one unit and the pointer in
+		// another, and the difference between them is nonsense: the window
+		// leaps, the leap changes which screens it is touching, the scale
+		// changes back, and it leaps again. That is the bouncing at a
+		// boundary between two screens of different scale.
+		//
+		// So the grab is converted once, at the press, and every position
+		// after it with whatever the metric is at the time. Both are then
+		// logical pixels within the surface however the scale changed in
+		// between, and the shape of the sum is the one it always was: each
+		// event adds the whole remaining distance from the grabbed point,
+		// which shrinks to nothing as the window arrives under the pointer.
+		// Per-event deltas were tried and accelerated, because each one
+		// counted a move that had not landed yet.
+		here := f32.Pt(pos.X*c.pxToDp(), pos.Y*c.pxToDp())
+		if !c.dragging {
+			c.dragging = true
+			c.grabbedAt = f32.Pt(grab.X*c.pxToDp(), grab.Y*c.pxToDp())
+		}
+		c.spot.Left += unit.Dp(here.X - c.grabbedAt.X)
+		c.spot.Top += unit.Dp(here.Y - c.grabbedAt.Y)
 		c.clamp()
 		opts = append(opts, float.Move(c.spot))
 	}
@@ -164,13 +192,17 @@ func (c *layerChrome) clamp() {
 	if !c.neighbour(0, -1) && c.spot.Top < 0 {
 		c.spot.Top = 0
 	}
+	// The screen's own units, not the window's. A margin and an output's
+	// logical rectangle are both in the coordinates the compositor lays the
+	// desktop out in, and dividing one of them by the window's pixels-per-dp
+	// halved the bound on any screen above 100%.
 	if !c.neighbour(1, 0) {
-		if max := c.dp(c.screen.Dx()) - barGrabDp; c.spot.Left > max {
+		if max := unit.Dp(c.screen.Dx()) - barGrabDp; c.spot.Left > max {
 			c.spot.Left = max
 		}
 	}
 	if !c.neighbour(0, 1) {
-		if max := c.dp(c.screen.Dy()) - barHeightDp; c.spot.Top > max {
+		if max := unit.Dp(c.screen.Dy()) - barHeightDp; c.spot.Top > max {
 			c.spot.Top = max
 		}
 	}
@@ -204,10 +236,6 @@ func (c *layerChrome) neighbour(dx, dy int) bool {
 
 // spans reports whether two ranges overlap at all.
 func spans(a0, a1, b0, b1 int) bool { return a0 < b1 && b0 < a1 }
-
-// dp turns a length in the pixels the screens are measured in into the dp a
-// Spot is measured in.
-func (c *layerChrome) dp(px int) unit.Dp { return unit.Dp(float32(px) * c.pxToDp()) }
 
 // pxToDp is the frame's pixel-per-dp as a multiplier the other way, so a
 // drag measured in pixels can be added to a place stated in dp.
