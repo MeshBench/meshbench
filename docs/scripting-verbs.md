@@ -87,6 +87,7 @@ Two verbs are **not** in this table:
 | `logs.export` | *a bare string* | `path` | `wb.log.export(path)` |
 | `session.describe` | — | `nodes`, `seed`, `now_ms`, `playing` | `wb.describe()` |
 | `session.status` | — | — | `wb.status()` |
+| `ui.keep_above` | `on` bool | `on` | `wb.keep_above()` |
 | `ui.said` | *a bare string* | `said` | `wb.say(text)` |
 | `ui.scale` 🪟 | `scale` number | `scale` | `wb.ui.scale = x` |
 | `ui.state` 🪟 | — | — | `wb.ui.state()` |

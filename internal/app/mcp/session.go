@@ -95,6 +95,10 @@ func sStr(desc string) map[string]any {
 	return map[string]any{"type": "string", "description": desc}
 }
 
+func sBool(desc string) map[string]any {
+	return map[string]any{"type": "boolean", "description": desc}
+}
+
 func sessionDescribeTool() Tool {
 	return Tool{
 		Name: "session_describe",

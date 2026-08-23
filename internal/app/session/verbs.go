@@ -51,6 +51,7 @@ func Register(st *state.Store, s *Sim) {
 	registerBoardMatrix(st, s)
 	registerResources(st, s)
 	registerUIVerbs(st, s)
+	registerKeepAbove(st, s)
 	registerCapture(st, s)
 	registerCompanion(st, s)
 	registerMeshCLI(st, s)
@@ -256,6 +257,7 @@ func Register(st *state.Store, s *Sim) {
 		// window opens, and a waveform preference wearing a calculated label
 		// is a lie about what the next run will do.
 		w.RFMode = string(rfModeOf(s.rfMode))
+		w.KeepAbove = s.keepAbove()
 		w.RFRealism = s.realism
 		w.RFEnvironment = s.envDir
 		w.CoverageCells = s.covCells

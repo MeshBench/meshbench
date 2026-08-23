@@ -148,6 +148,13 @@ type World struct {
 	FleetCommand string
 	// RFMode is which physics decides reception: "calculated" or "waveform".
 	RFMode string
+	// KeepAbove is the machine preference for whether panels in their own
+	// windows stay above the main one. A preference rather than a fact of
+	// the interface because only Linux pays anything for it: there the ask
+	// is a Wayland layer-shell window, which carries no decoration of the
+	// compositor's, so the windows themselves must draw their title bars.
+	// Windows opened before a change keep what they were made as.
+	KeepAbove bool
 	// RFRealism is the optional-imperfections switch set.
 	RFRealism RFRealism
 	// RFEnvironment is the loaded building-tile directory, or "" for bare

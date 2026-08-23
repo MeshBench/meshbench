@@ -5,6 +5,7 @@ package workbench
 
 import (
 	"fmt"
+	"runtime"
 
 	"gioui.org/layout"
 
@@ -62,7 +63,7 @@ func (p *configPanel) interfaceCards(t *theme.Theme, s *state.Snapshot) []layout
 				}
 			})
 	}
-	return []layout.Widget{
+	cards := []layout.Widget{
 		comp.Card(t, "Appearance", func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -91,6 +92,29 @@ func (p *configPanel) interfaceCards(t *theme.Theme, s *state.Snapshot) []layout
 			"the whole interface's size; for a screen whose pixels and viewing "+
 				"distance disagree with the platform's guess")),
 	}
+	// Linux only: there, and only there under Wayland, staying above the main
+	// window costs anything - the window becomes one that draws its own title
+	// bar - so only there is it a choice. macOS and Windows pin the windows
+	// unconditionally, and the card would be a switch that switches nothing.
+	if runtime.GOOS == "linux" {
+		cards = append(cards, comp.Card(t, "Windows", func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return p.keepAbove.LayoutSwitch(t, gtx)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Top: t.Sp.XS}.Layout(gtx,
+						comp.Text(t, t.Sz.Caption, t.P.Faint,
+							"a window that stays above the main one is a Wayland "+
+								"overlay-layer window: it draws its own title bar, and "+
+								"the close on it returns the panel to the main window - "+
+								"there is no minimise, because the protocol has none. "+
+								"Applies to windows opened from now on"))
+				}),
+			)
+		}))
+	}
+	return cards
 }
 
 // fieldRow is a field, its button and the reason underneath - the shape every

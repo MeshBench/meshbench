@@ -18,11 +18,29 @@ Everything except MeshBench itself is in the **MeshBench** organisation.
 | `MeshBench/tlib` | the CPU library, with the SEVONPEND fix | upstream's |
 | `MeshBench/renode-infrastructure` | the C# half of that fix | upstream's |
 | `MeshBench/renode` | ties them together and builds the package | upstream's |
+| `MeshBench/gio` | Gio with Wayland layer-shell windows | upstream's |
 
 ## Forks, and what we changed in each
 
 Every one is a fork we carry a patch on, not a vendored copy. Upstream is listed
 so the patch can be rebased, and so anyone can see how small each change is.
+
+### `MeshBench/gio` — branch `msim-210-layer-shell`
+
+Forked from `gioui/gio` (v0.10.2). Adds the `wlr-layer-shell` protocol to the
+Wayland backend: the `app.LayerShell` option gives a window the
+`zwlr_layer_surface_v1` role on a chosen layer instead of an `xdg_toplevel`,
+with anchors, margins, exclusive zone and keyboard interactivity. A surface on
+the overlay layer is stacked above every normal window by the compositor —
+under Wayland the only mechanism a client has for that, which is why every
+window that is not the main one asks for it (`internal/ui/float`). Compositors
+without the protocol fall back to a normal window, which Gio reports in
+`ConfigEvent.LayerShell`. The protocol XML is vendored in the fork because
+`wlr-protocols` is not part of `wayland-protocols` and cannot be expected at a
+system path.
+
+Pinned in `go.mod` by a `replace` directive, the way a Go fork is carried: the
+branch is upstream-plus-one-feature so a rebase is a tag away.
 
 ### `MeshBench/qemu` — branch `meshbench-sx1262`
 

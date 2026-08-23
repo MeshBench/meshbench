@@ -288,6 +288,24 @@ class Workbench:
         """Leave a line in the session's log, for whoever is watching."""
         self.call("ui.said", text)
 
+    def keep_above(self, on: bool | None = None) -> bool:
+        """Whether a panel opened in its own window stays above the main one.
+
+        Reads the preference when called with nothing, sets it when given a
+        value, and returns what it now is.
+
+        The preference exists for Linux under Wayland, where no client may ask
+        a normal window to stay above others. What can be asked for is a
+        layer-shell surface, and that is a different kind of window: the
+        compositor gives it no title bar, no taskbar entry and no minimise, so
+        the window draws its own bar and its close button returns the panel to
+        the main window. Somebody who would rather have the compositor's own
+        windows turns this off. On macOS and Windows always-on-top costs
+        nothing and the preference does not apply.
+        """
+        params = {} if on is None else {"on": on}
+        return (self.call("ui.keep_above", params) or {}).get("on", True)
+
     def window(self, node: str | Node, tab: Tab | str = "") -> str:
         """Open a node's own window, on a named tab.
 

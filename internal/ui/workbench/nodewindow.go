@@ -8,16 +8,10 @@ package workbench
 
 import (
 	"fmt"
-	"image"
 	"strings"
-	"sync"
 
-	"gioui.org/app"
-	"gioui.org/io/key"
-	"gioui.org/io/system"
 	"gioui.org/layout"
 	"gioui.org/op"
-	"gioui.org/unit"
 	"gioui.org/widget"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
@@ -75,6 +69,15 @@ type nodeWindowPanel struct {
 	OnServe func(node, kind string)
 	// OnOpenPacket opens the packet view for an activity row.
 	OnOpenPacket func(id uint64)
+	// Layered reports that the window is a Wayland layer-shell surface, which
+	// carries no decoration of the compositor's and so draws its own title
+	// bar. Set by the window loop from ConfigEvent.
+	Layered bool
+	// bar is that title bar, and maximised is its restore state, both owned
+	// here so the widget's address never changes across frames. The window
+	// loop polls them; the panel only draws.
+	bar       comp.TitleBar
+	maximised bool
 	// Kind is what this node is, which decides which tabs it grows.
 	Kind string
 	// hasHardware is set each frame from the node's board, so the Hardware
@@ -222,6 +225,10 @@ func (p *nodeWindowPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snap
 	// space, it drew at zero height and could not be clicked. That is the
 	// same trap the Nodes running panel fell into, which is why both use the
 	// one control.
+	//
+	// Over the title bar too, when there is one: the bar is a child of the
+	// same flex, and an overlay that stopped short of it would leave a strip
+	// of live buttons above a modal list.
 	if p.pick.showing() {
 		defer func() {
 			macro := op.Record(gtx.Ops)
@@ -229,7 +236,16 @@ func (p *nodeWindowPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snap
 			macro.Stop().Add(gtx.Ops)
 		}()
 	}
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+	// The window's own chrome when nothing else gave it any: a layer-shell
+	// window has no title bar but the one drawn here.
+	var kids []layout.FlexChild
+	if p.Layered {
+		p.bar.Title, p.bar.Maximised = p.node, p.maximised
+		kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return p.bar.Layout(t, gtx)
+		}))
+	}
+	kids = append(kids,
 		layout.Rigid(p.head(t, s)),
 		layout.Rigid(layout.Spacer{Height: t.Sp.S}.Layout),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
@@ -255,6 +271,7 @@ func (p *nodeWindowPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snap
 			return p.console(t, gtx, s)
 		}),
 	)
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, kids...)
 }
 
 // head is the node's name, what it is and has done, and the tab strip.
@@ -380,93 +397,3 @@ func (p *nodeWindowPanel) auditDraw(t *theme.Theme, gtx layout.Context, s *state
 		}),
 	)
 }
-
-// nodeWindows tracks which nodes have a window, so a second request raises
-// rather than opening a duplicate.
-type nodeWindows struct {
-	mu   sync.Mutex
-	open map[string]bool
-}
-
-func newNodeWindows() *nodeWindows { return &nodeWindows{open: map[string]bool{}} }
-
-// nodeWindowHooks is how a node window reaches the rest of the application.
-//
-// A struct rather than a seventh positional callback: six was already a list
-// nobody could read at the call site, and the companion client needs one more
-// that carries parameters rather than only a node name.
-type nodeWindowHooks struct {
-	onCommand    func(node, line string)
-	onAction     func(action, node string)
-	onCLI        func(node, line string)
-	onServe      func(node, kind string)
-	onOpenPacket func(id uint64)
-	onDo         func(verb string, params any)
-}
-
-func (w *nodeWindows) openFor(node string, tab nodeTab,
-	newTheme func() *theme.Theme, st *state.Store, h nodeWindowHooks) {
-	w.mu.Lock()
-	if w.open[node] {
-		w.mu.Unlock()
-		return
-	}
-	w.open[node] = true
-	w.mu.Unlock()
-
-	go func() {
-		defer func() {
-			w.mu.Lock()
-			delete(w.open, node)
-			w.mu.Unlock()
-		}()
-		th := newTheme()
-		p := &nodeWindowPanel{node: node, OnCommand: h.onCommand, OnAction: h.onAction,
-			OnCLI: h.onCLI, OnServe: h.onServe, OnOpenPacket: h.onOpenPacket,
-			OnDo: h.onDo, Kind: kindOfNode(st, node)}
-		p.tab = tab
-		win := new(app.Window)
-		win.Option(app.Title("MeshBench - "+node), app.Size(unit.Dp(820), unit.Dp(620)))
-		// Raised as it opens; see windows.go for why that is all there is.
-		win.Perform(system.ActionRaise)
-		var ops op.Ops
-		for {
-			switch e := win.Event().(type) {
-			case app.DestroyEvent:
-				return
-			case app.FrameEvent:
-				gtx := app.NewContext(&ops, e)
-				comp.Fill(gtx, th.P.Ground)
-				layout.UniformInset(th.Sp.M).Layout(gtx,
-					func(gtx layout.Context) layout.Dimensions {
-						return p.Draw(th, gtx, st.Snapshot())
-					})
-				e.Frame(gtx.Ops)
-				win.Invalidate()
-			}
-		}
-	}()
-}
-
-var _ = key.NameEscape
-var _ = image.Pt
-
-// kindOfNode reads what a node is from the current snapshot.
-func kindOfNode(st *state.Store, node string) string {
-	s := st.Snapshot()
-	if s == nil {
-		return ""
-	}
-	for i := range s.Nodes {
-		if s.Nodes[i].Name == node {
-			return s.Nodes[i].Kind
-		}
-	}
-	return ""
-}
-
-// openOnTab is which tab a node window opens on. Console, except when a
-// capture is being taken of one of the others - a tab cannot be reached from
-// outside the application otherwise, and a screenshot of it is how the tab
-// gets checked.
-var openOnTab nodeTab

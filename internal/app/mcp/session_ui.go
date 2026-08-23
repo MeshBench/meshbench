@@ -193,6 +193,13 @@ func sessionUITools() []Tool {
 			"Set the UI scale (1.0 is default, 1.5 is half again as large). Omit the "+
 				"factor to read the current one.",
 			"ui.scale", sObj(map[string]any{"factor": sNum("scale multiplier")})),
+
+		uiTool("session_ui_keep_above",
+			"Set whether windows opened from now on stay above the main one. Linux "+
+				"only; on Wayland the ask makes them layer-shell windows that draw "+
+				"their own title bar, so a machine may prefer it off. Omit the flag "+
+				"to read the current one.",
+			"ui.keep_above", sObj(map[string]any{"on": sBool("keep new windows above")})),
 	}
 }
 

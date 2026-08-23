@@ -68,6 +68,7 @@ type configPanel struct {
 	cacheDD     comp.Dropdown
 	themeDD     comp.Dropdown
 	densityDD   comp.Dropdown
+	keepAbove   comp.Check
 	scale       comp.Field
 	setScale    comp.Button
 	cacheGBf    comp.Field
@@ -82,6 +83,7 @@ type configPanel struct {
 
 	init            bool
 	wasGPU, wasReal bool
+	wasKeep         bool
 }
 
 // configSections is the sidebar, in the mock's order. Overview first, then
@@ -123,6 +125,7 @@ func (p *configPanel) build() {
 	p.cacheDD.Label = "Tile cache"
 	p.themeDD.Label = "Theme"
 	p.densityDD.Label = "Density"
+	p.keepAbove.Label = "keep new windows above the main one"
 	p.scale.Hint, p.scale.Label = "scale, 0.5 to 3", "Scale"
 	p.scale.Editor.SingleLine = true
 	p.setScale.Label, p.setScale.Kind = "set scale", comp.Secondary
@@ -326,6 +329,7 @@ func (p *configPanel) auditDraw(t *theme.Theme, gtx layout.Context, s *state.Sna
 		func(gtx layout.Context) layout.Dimensions { return p.recomp.Layout(t, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.gpu.LayoutSwitch(t, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.realFW.LayoutSwitch(t, gtx) },
+		func(gtx layout.Context) layout.Dimensions { return p.keepAbove.LayoutSwitch(t, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.device.Layout(t, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.rfModeDD.Layout(t, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.cacheDD.Layout(t, gtx) },

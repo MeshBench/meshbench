@@ -360,6 +360,31 @@ func (w *Workbench) Say(ctx context.Context, text string) error {
 // The tab names are the ones on the strip - Console, Companion, SDR, Settings,
 // Radio, Stats, Activity, Connect, Hardware - and an empty one takes the
 // default. It returns the tab it opened on.
+// KeepAbove reads whether a panel opened in its own window stays above the
+// main one.
+//
+// The preference exists for Linux under Wayland, where no client may ask a
+// normal window to stay above others. What can be asked for is a layer-shell
+// surface, and that is a different kind of window: the compositor gives it no
+// title bar, no taskbar entry and no minimise, so the window draws its own bar
+// and its close button returns the panel to the main window. On macOS and
+// Windows always-on-top costs nothing and the preference does not apply.
+func (w *Workbench) KeepAbove(ctx context.Context) (bool, error) {
+	var out struct {
+		On bool `json:"on"`
+	}
+	return out.On, w.CallInto(ctx, "ui.keep_above", nil, &out)
+}
+
+// SetKeepAbove sets it, and reports what it now is.
+func (w *Workbench) SetKeepAbove(ctx context.Context, on bool) (bool, error) {
+	var out struct {
+		On bool `json:"on"`
+	}
+	return out.On, w.CallInto(ctx, "ui.keep_above",
+		map[string]any{"on": on}, &out)
+}
+
 func (w *Workbench) Window(ctx context.Context, node string, tab Tab) (Tab, error) {
 	if w.Headless() {
 		return "", &Refused{
