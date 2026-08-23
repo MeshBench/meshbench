@@ -376,3 +376,34 @@ func (w *Workbench) Stop() error {
 	}
 	return w.Close()
 }
+
+// AttachOrLaunch uses the session that is already running, or opens one.
+//
+// For a script somebody runs repeatedly by hand: the second run carries on
+// from the first rather than clearing everything down and starting again.
+//
+// Note which half you got, because they differ in one important way. Attaching
+// does not own the process and Close leaves it running; launching owns it and
+// Close stops it. Owned reports which happened, so a script that must not take
+// the session down with it can say so.
+func AttachOrLaunch(ctx context.Context, options ...Option) (*Workbench, error) {
+	if wb, err := Attach(ctx, options...); err == nil {
+		return wb, nil
+	}
+	return Launch(ctx, options...)
+}
+
+// AttachOrHeadless is AttachOrLaunch without a window, for a machine with no
+// display.
+func AttachOrHeadless(ctx context.Context, options ...Option) (*Workbench, error) {
+	if wb, err := Attach(ctx, options...); err == nil {
+		return wb, nil
+	}
+	return Headless(ctx, options...)
+}
+
+// Owned reports whether Close will stop the session or only hang up on it.
+//
+// Worth asking after AttachOrLaunch, where either is possible and the
+// difference is whether the workbench is still there afterwards.
+func (w *Workbench) Owned() bool { return w.owned != nil }

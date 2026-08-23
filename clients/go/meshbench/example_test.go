@@ -86,7 +86,7 @@ func Example_twoBuildsInOneScenario() {
 	}
 	// Or build it here, which is what a comparison against a checkout wants:
 	//   built, err := wb.Firmware().BuildAndWait(ctx, "~/src/MeshCore", 0)
-	changed, err := wb.Firmware().Import(ctx, "/tmp/my-build", "repeater", "")
+	changed, err := wb.Firmware().Import(ctx, "/tmp/my-build", "repeater", "", "")
 	if err != nil {
 		log.Fatal(err)
 	}

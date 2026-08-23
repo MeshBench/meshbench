@@ -194,13 +194,34 @@ class Firmware:
             p["board"] = board
         self._wb.call("firmware.download", p)
 
-    def import_(self, path: str, role: str, board: str = "") -> Build:
+    def import_(self, path: str, role: str, board: str = "", label: str = "") -> Build:
         """Take a build from a path - the one way a locally built image gets
-        into the library."""
+        into the library.
+
+        ``label`` is what the library will know it by and what a node pins.
+        Left out it is a timestamp, so importing twice gives two builds rather
+        than one that quietly replaced the other - which matters the moment you
+        want to put the new one on a node and delete the old.
+        """
         p: dict[str, Any] = {"path": path, "role": role}
         if board:
             p["board"] = board
+        if label:
+            p["label"] = label
         return Build.parse(self._wb.call("firmware.import", p) or {})
+
+    def delete(self, build: Build) -> str:
+        """Remove a build from the cache, and say what was removed.
+
+        By path, and the workbench refuses any path outside the firmware
+        cache. A build nodes are still pinned to will go: they keep the pin,
+        which then cannot be honoured and fails at start - so move them onto
+        the replacement first.
+        """
+        if not build.path:
+            raise ValueError(f"{build} has no path on this machine to delete")
+        got = self._wb.call("firmware.delete", {"path": build.path}) or {}
+        return got.get("deleted", "")
 
     def build(
         self,
@@ -392,12 +413,26 @@ class Job:
         self._wb.call("job.cancel", {"id": self.id})
 
     def wait(self, timeout: timedelta = JOB_WAIT) -> None:
-        """Wait for it to finish. ``timeout`` is wall clock."""
+        """Wait for it to finish, and raise if it finished badly.
+
+        ``timeout`` is wall clock. Ended is not the same as worked: a read that
+        failed used to finish the job with the reason in its title and nothing
+        else, so every caller either carried on as though it had succeeded or
+        matched on the wording.
+        """
+        last: list[JobInfo] = []
 
         def check():
             info = self.info()
-            if info is None or info.finished:
+            if info is None:
+                return True, ""
+            last.append(info)
+            if info.finished:
                 return True, ""
             return False, f"{info.what}, {info.done} of {info.total}"
 
         wait_for(check, timeout, f"job {self.id}")
+        if last and last[-1].failed:
+            raise errors.Refused(
+                "job", f"job {self.id} failed: {last[-1].what}", "internal"
+            )

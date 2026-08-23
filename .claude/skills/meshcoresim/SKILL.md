@@ -56,6 +56,24 @@ looks like bad RF rather than a missing step.
 5. `firmware.start`, then check `firmware.state` says `running == total`.
 6. Only then define and start the sweep.
 
+### Finding a node you cannot type
+
+Imported names carry emoji and accents — `🏔️ West Lomond 📡` is one real node —
+so `nodes.search {"query": "west lomond"}` is how you get a handle on one. It
+answers `matches[]` ranked best first with a `score`; the tighter name wins, so
+the exact one beats the one that merely starts the same way. **Check the score.**
+Taking the top result unconditionally is how a command ends up going to a node
+that shared one word with the query, silently.
+
+### Getting your own build in
+
+`firmware.import {path, role, board, label}`. The `label` is what the library
+will know it by and what a node pins — leave it out and it is a timestamp.
+Never assume two imports of the same file are the same build: they are two, on
+purpose, so you can move a node onto the new one and then `firmware.delete` the
+old by its `path`. Delete only *after* the node is on the replacement; a pin
+nothing can honour does not fail until the node next starts.
+
 ### The repeater console
 
 `console.type {"node": …, "command": …}` runs a line on a node's CLI and returns
@@ -81,11 +99,24 @@ its sender and dropped by all 300 repeaters: **8 transmissions, 0 relays, and a
 ledger of 137 events.** That reads exactly like a network with no propagation.
 
 Regions are not in the node API — they are **inferred from days of CoreScope
-packet traffic**: `infer.run {"hours": 168}`, poll `infer.result`, then
+packet traffic**: `infer.run {"hours": 168}`, wait for its job, then
 `infer.apply`. Applying is a separate call and returns how many nodes it
 touched; "0 applied" means you inferred and walked away. On ScotMesh a week of
-traffic is ~38,000 packets over ~420 nodes and yields `#sco`, `#ioi`,
-`#ioi-admin`, `#fif`, `#wls`, `#noc`, `#per`, `#gla`.
+traffic is around 150,000 packets and yields `#sco`, `#ioi`, `#ioi-admin`,
+`#fif`, `#wls`, `#noc`, `#per`, `#gla`.
+
+Wait on the **job** called `infer`, not on `infer.result`. That verb is the
+reading goroutine's own callback and refuses when called from anywhere else;
+before it refused, calling it from outside replaced a finished inference with
+an empty one. The job is marked finished rather than removed, so a waiter that
+waits for the job list to *empty* waits for ever, and one that ends when the
+list stops changing has to check `failed` — a read that could not reach the
+feed ends the job too.
+
+The `hours` window is honoured. It used to be accepted, echoed back and
+discarded, every import reading the most recent 40,000 packets whatever it
+said — under two days on ScotMesh, which drops the quiet regions entirely and
+reads as a mesh that has gone silent.
 
 ### The `#` asymmetry — write the scope with it, the region without
 
@@ -113,7 +144,7 @@ say it with the `#` anyway.
 
 Then **send on a scope the nodes actually hold**. `experiment.define`'s `scope`
 is applied to the senders only; the repeaters relay it or not according to what
-inference gave them. Check the holder counts in `infer.result` before choosing —
+inference gave them. Check the holder counts `infer.apply` reports before choosing —
 `#sco` and `#ioi` are the two big ones, and a scope only a handful hold will
 look like a dead mesh for the same reason as above.
 

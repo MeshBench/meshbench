@@ -75,13 +75,39 @@ func (f Firmware) Download(ctx context.Context, role, version, board string) err
 
 // Import takes a build from a path - the one way a locally built image gets
 // into the library.
-func (f Firmware) Import(ctx context.Context, path, role, board string) (Build, error) {
+//
+// label is what the library will know it by and what a node pins. Left empty
+// it is a timestamp, so importing twice gives two builds rather than one that
+// quietly replaced the other - which matters the moment you want to put the
+// new one on a node and delete the old.
+func (f Firmware) Import(ctx context.Context, path, role, board, label string) (Build, error) {
 	p := map[string]any{"path": path, "role": role}
 	if board != "" {
 		p["board"] = board
 	}
+	if label != "" {
+		p["label"] = label
+	}
 	var out Build
 	return out, f.w.CallInto(ctx, "firmware.import", p, &out)
+}
+
+// Delete removes a build from the cache, and says what it removed.
+//
+// By path, and the workbench refuses any path outside the firmware cache. A
+// build nodes are still pinned to will go: they keep the pin, which then
+// cannot be honoured and fails at start - so move them onto the replacement
+// first.
+func (f Firmware) Delete(ctx context.Context, b Build) (string, error) {
+	if b.Path == "" {
+		return "", fmt.Errorf("meshbench: %s has no path on this machine to delete",
+			b.Describe())
+	}
+	var out struct {
+		Deleted string `json:"deleted"`
+	}
+	return out.Deleted, f.w.CallInto(ctx, "firmware.delete",
+		map[string]any{"path": b.Path}, &out)
 }
 
 // Build compiles a MeshCore checkout and puts the results in the library.

@@ -273,11 +273,7 @@ func (i Image) Verified() bool { return i.SHA256 != "" }
 // engineer testing a build of their own should not have to publish a release
 // first. Imported images have no digest and report as unverified, which is
 // accurate rather than pessimistic.
-func (c *Catalogue) Import(path, board, role string) (Image, error) {
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return Image{}, fmt.Errorf("firmware: import %s: %w", path, err)
-	}
+func (c *Catalogue) Import(path, board, role, version string) (Image, error) {
 	ext := strings.ToLower(filepath.Ext(path))
 	if ext != ".uf2" && ext != ".bin" && ext != ".elf" {
 		return Image{}, fmt.Errorf("firmware: %s is not a firmware image (.uf2, .bin or .elf)", path)
@@ -285,17 +281,21 @@ func (c *Catalogue) Import(path, board, role string) (Image, error) {
 	if board == "" {
 		return Image{}, fmt.Errorf("firmware: an imported image needs a board; nothing in the file says which")
 	}
-
-	dest := filepath.Join(c.CacheDir, "imported", filepath.Base(path))
-	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
-		return Image{}, fmt.Errorf("firmware: cache directory: %w", err)
+	if version == "" {
+		return Image{}, fmt.Errorf("firmware: an imported image needs a version to be known by")
 	}
-	if err := os.WriteFile(dest, b, 0o644); err != nil {
-		return Image{}, fmt.Errorf("firmware: store import: %w", err)
+	// Stored where the library reads, which was the whole bug: this wrote the
+	// file to imported/ under its original name, and nothing lists that
+	// directory. Every import succeeded, reported a version of "imported", and
+	// then could not be found, pinned or deleted - so a locally built image was
+	// unusable by the one path that exists to use one.
+	in, err := Import(c.CacheDir, path, version, role, board)
+	if err != nil {
+		return Image{}, err
 	}
 	return Image{
-		Board: board, Role: role, Version: "imported",
-		Asset: filepath.Base(path), URL: dest, Size: int64(len(b)),
+		Board: board, Role: role, Version: version,
+		Asset: filepath.Base(in.Path), URL: in.Path, Size: in.Bytes,
 	}, nil
 }
 

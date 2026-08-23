@@ -137,6 +137,11 @@ type JobInfo struct {
 	Done     int    `json:"done"`
 	Total    int    `json:"total"`
 	Finished bool   `json:"finished"`
+	// Failed marks a job that ended without doing what it was for. Separate
+	// from Finished because a waiter needs both: "stop waiting" and "this did
+	// not work" are different answers, and telling them apart by reading What
+	// means matching on prose.
+	Failed bool `json:"failed"`
 }
 
 // Provenance is what a measurement was measured under.
@@ -163,3 +168,17 @@ func (p Provenance) String() string {
 	return "MeshBench: " + p.RFMode + " reception, " + fit +
 		" — a best case; no multipath, no body loss, no oscillator error"
 }
+
+// NameMatch is one answer from a name search, and how sure it is.
+//
+// Score runs 0 to 1, ranked best first by the workbench. It exists so a script
+// can tell "found it" from "found something that shares a word": a top result
+// at 0.3 is a prompt to look at the list, not a node to start talking to.
+type NameMatch struct {
+	Name     string  `json:"name"`
+	Score    float64 `json:"score"`
+	Kind     Kind    `json:"kind"`
+	Lat, Lon float64 `json:"-"`
+}
+
+func (m NameMatch) String() string { return m.Name }

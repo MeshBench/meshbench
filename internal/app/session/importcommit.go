@@ -148,10 +148,19 @@ func registerImport(st *state.Store, s *Sim) {
 		id := "infer"
 		w.Jobs = append(w.Jobs, state.Job{ID: id, What: "reading traffic", Total: 1})
 		url := s.imp.url
+		// The window is what the caller asked for, and until recently it was
+		// accepted, echoed back and then dropped: every import read the most
+		// recent 40,000 packets whatever it said. On ScotMesh that is under two
+		// days, so a week's worth of regions came back missing the quiet ones and
+		// the answer looked like a mesh that had gone silent rather than a
+		// truncated read.
+		since := time.Now().Add(-time.Duration(hours * float64(time.Hour)))
 		go func() {
 			cs := &provider.CoreScope{BaseURL: url}
-			_ = hours
-			packets, err := cs.Packets(context.Background(), 40000, nil)
+			progress := func(n int) {
+				_, _ = st.Do(context.Background(), "infer.progress", n)
+			}
+			packets, err := cs.PacketsSince(context.Background(), since, progress)
 			if err != nil {
 				_, _ = st.Do(context.Background(), "import.failed", err.Error())
 				return
@@ -161,8 +170,30 @@ func registerImport(st *state.Store, s *Sim) {
 		return map[string]any{"reading": true, "hours": hours}, nil
 	})
 
+	st.Handle("infer.progress", func(w *state.World, p any) (any, error) {
+		n, _ := p.(int)
+		for i := range w.Jobs {
+			if w.Jobs[i].ID == "infer" {
+				// No denominator: the walk ends on a timestamp rather than a
+				// count, so a percentage here would be invented.
+				w.Jobs[i].Done = n
+				w.Jobs[i].What = fmt.Sprintf("reading traffic, %d packets", n)
+			}
+		}
+		return nil, nil
+	})
+
+	// infer.result is how the reading goroutine hands its packets back, and it
+	// is reachable from the socket like every other verb. Called from out there
+	// it arrives with no packets, and the version that ignored that answered by
+	// replacing a completed inference with an empty one - so a mesh that had
+	// just been imported correctly went silent and nothing said why.
 	st.Handle("infer.result", func(w *state.World, p any) (any, error) {
-		packets, _ := p.([]provider.PacketRecord)
+		packets, ok := p.([]provider.PacketRecord)
+		if !ok {
+			return nil, badParams("infer.result is the reader's own callback; " +
+				"use infer.run to start a read")
+		}
 		if s.imp == nil {
 			s.imp = &importState{}
 		}

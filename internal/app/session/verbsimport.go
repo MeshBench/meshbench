@@ -47,6 +47,16 @@ func registerImportFeedVerbs(st *state.Store, s *Sim) {
 
 	st.Handle("import.failed", func(w *state.World, p any) (any, error) {
 		msg := soleString(p)
+		// End the job as well as saying so. It used to only say so, and the
+		// reading job then sat in the list for ever: anything waiting on it -
+		// which is every scripted import - waited out its whole timeout for a
+		// read that had already failed, with the reason visible only in the log.
+		for i := range w.Jobs {
+			if w.Jobs[i].ID == "infer" {
+				w.Jobs[i].Finished, w.Jobs[i].Failed = true, true
+				w.Jobs[i].What = "reading traffic failed: " + msg
+			}
+		}
 		w.Say("import failed: " + msg)
 		return nil, nil
 	})

@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from . import errors
 from .sets import Board, Kind
-from .types import Build, NodeInfo, NodeStat
+from .types import Build, NameMatch, NodeInfo, NodeStat
 from .wait import FIRMWARE_WAIT, wait_for
 
 if TYPE_CHECKING:  # pragma: no cover - import for typing only
@@ -44,6 +44,41 @@ class Nodes:
             if n.name == name:
                 return n
         raise errors.NotFound("nodes.list", f"no node named {name!r}", "not_found")
+
+    def search(self, query: str, limit: int = 10) -> list[NameMatch]:
+        """Find nodes by name, best first, when you cannot type the name.
+
+        Imported names carry emoji and accents - "🏔️ West Lomond 📡" is one
+        real node - so matching is done on letters and digits alone, with
+        accents folded and word order ignored. The ranking happens at the
+        workbench rather than here, so this client and the Go one agree about
+        which result is the top one.
+
+        Returns an empty list rather than raising: "nothing matched" is an
+        answer, and the caller usually wants to widen the query rather than
+        handle an exception.
+        """
+        got = self._wb.call("nodes.search", {"query": query, "limit": limit}) or {}
+        return [NameMatch.parse(m) for m in got.get("matches") or []]
+
+    def find(self, query: str, least: float = 0.5) -> Node:
+        """The one node a search meant, or a refusal naming what it did find.
+
+        ``least`` is the score below which the top answer is not good enough to
+        act on. Taking the top result unconditionally is how a script ends up
+        sending an advert from a node that merely shared a word with what was
+        asked for, and it does that silently.
+        """
+        matches = self.search(query, limit=5)
+        if not matches or matches[0].score < least:
+            near = ", ".join(f"{m.name!r} ({m.score:.2f})" for m in matches[:3])
+            raise errors.NotFound(
+                "nodes.search",
+                f"nothing matches {query!r} well enough"
+                + (f"; nearest were {near}" if near else ""),
+                "not_found",
+            )
+        return Node(self._wb, matches[0].name)
 
     def of_kind(self, kind: str) -> list[Node]:
         return [Node(self._wb, n.name) for n in self.list() if n.kind == kind]

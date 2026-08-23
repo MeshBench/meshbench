@@ -224,6 +224,11 @@ class JobInfo:
     done: int = 0
     total: int = 0
     finished: bool = False
+    #: Ended without doing what it was for. Separate from ``finished`` because
+    #: a waiter needs both: "stop waiting" and "this did not work" are
+    #: different answers, and telling them apart by reading ``what`` means
+    #: matching on prose.
+    failed: bool = False
 
     @classmethod
     def parse(cls, raw: dict[str, Any]) -> JobInfo:
@@ -254,3 +259,55 @@ class Provenance:
             f"MeshBench: {self.rf_mode} reception, {fit} — a best case; "
             "no multipath, no body loss, no oscillator error"
         )
+
+
+@dataclass(frozen=True)
+class NameMatch:
+    """One answer from a name search, and how sure it is.
+
+    ``score`` runs 0 to 1, ranked best first by the workbench. It exists so a
+    script can tell "found it" from "found something that shares a word": a top
+    result at 0.3 is a prompt to look at the list, not a node to start talking
+    to.
+    """
+
+    name: str = ""
+    score: float = 0.0
+    kind: str = ""
+    lat: float = 0.0
+    lon: float = 0.0
+
+    def __str__(self) -> str:
+        return self.name
+
+    @classmethod
+    def parse(cls, raw: dict[str, Any]) -> NameMatch:
+        return _from_dict(cls, raw)
+
+
+@dataclass(frozen=True)
+class ImportPreview:
+    """What a fetch found, before anything has been changed.
+
+    ``skipped_no_position`` and ``uncertain`` are the two numbers worth reading
+    before committing. A node with no position cannot be simulated at all, and
+    an uncertain one is being placed to within kilometres - the answer it gives
+    is that vague too, however confident the rest of the output looks.
+    """
+
+    records: int = 0
+    nodes: int = 0
+    skipped_no_position: int = 0
+    uncertain: int = 0
+
+    def __str__(self) -> str:
+        out = f"{self.records} records, {self.nodes} usable"
+        if self.skipped_no_position:
+            out += f", {self.skipped_no_position} with no position"
+        if self.uncertain:
+            out += f", {self.uncertain} placed only roughly"
+        return out
+
+    @classmethod
+    def parse(cls, raw: dict[str, Any]) -> ImportPreview:
+        return _from_dict(cls, raw)

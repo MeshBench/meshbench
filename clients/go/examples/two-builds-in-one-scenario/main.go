@@ -33,7 +33,7 @@ func main() {
 
 	stock, err := wb.Firmware().Find(ctx, stockVersion, "")
 	must(err)
-	changed, err := wb.Firmware().Import(ctx, localPath, "repeater", "")
+	changed, err := wb.Firmware().Import(ctx, localPath, "repeater", "", "")
 	must(err)
 
 	// Two nodes far enough apart to be independently interesting, one on each

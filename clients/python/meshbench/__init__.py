@@ -9,8 +9,8 @@
 
 Two layers. `wb.call(verb, params)` is the whole API and stays public, so a
 verb this package has not shaped is one line away rather than a blocker; above
-it sit `wb.nodes`, `wb.sim`, `wb.firmware`, `wb.events`, `wb.project` and a
-node's own console.
+it sit `wb.nodes`, `wb.sim`, `wb.firmware`, `wb.events`, `wb.project`,
+`wb.live` and a node's own console.
 
 Every wait is a method - `node.wait_running()`, `sim.run()`,
 `firmware.wait_started()` - never a sleep in a script. They poll today and will
@@ -41,6 +41,7 @@ from .errors import (
     Unavailable,
     UnknownVerb,
 )
+from .live import DEFAULT_WINDOW, Live
 from .nodes import Node, Nodes
 from .parts import Console, Events, Firmware, Job, Project, Sim
 from .sets import DEFAULT_PRESET, Board, Kind, Preset
@@ -59,7 +60,9 @@ from .types import (
     Build,
     Event,
     Hello,
+    ImportPreview,
     JobInfo,
+    NameMatch,
     NodeInfo,
     NodeStat,
     Provenance,
@@ -69,6 +72,10 @@ from .workbench import Workbench
 
 __all__ = [
     "Schedule",
+    "Live",
+    "DEFAULT_WINDOW",
+    "ImportPreview",
+    "NameMatch",
     "Report",
     "Preset",
     "Kind",

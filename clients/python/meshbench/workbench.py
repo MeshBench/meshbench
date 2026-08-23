@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from datetime import timedelta
 from typing import Any
 
 from . import errors
@@ -20,10 +21,11 @@ from ._socket import (
     default_address,
 )
 from .checks import Assertions, Schedule
+from .live import Live
 from .nodes import Node, Nodes
 from .parts import Console, Events, Firmware, Job, Project, Sim
 from .types import Hello, NodeStat, Provenance
-from .wait import wait_for
+from .wait import JOB_WAIT, wait_for
 
 
 class Workbench:
@@ -80,18 +82,35 @@ class Workbench:
         return cls._spawn("workbench", **_launch_kw(kw))
 
     @classmethod
-    def attach_or_launch(cls, **kw) -> Workbench:
-        """Use the one that is running, or start one.
+    def attach_or_headless(cls, **kw) -> Workbench:
+        """Use the session that is running, or start one with no window.
 
-        For a script somebody runs repeatedly by hand, which is example 2 in
-        #209: the second run should carry on from the first rather than
-        clearing everything down.
+        For a script somebody runs repeatedly by hand: the second run should
+        carry on from the first rather than clearing everything down.
+
+        Note which half you get. Attaching does not own the process and leaves
+        it running at the end; starting one does own it and stops it. A script
+        that wants the session to survive should attach to a session started
+        separately.
         """
+        return cls._attach_or(cls.headless, kw)
+
+    @classmethod
+    def attach_or_launch(cls, **kw) -> Workbench:
+        """Use the session that is running, or open the desktop workbench.
+
+        The windowed half of the pair, so a re-run can put something back on
+        screen. Needs a display.
+        """
+        return cls._attach_or(cls.launch, kw)
+
+    @classmethod
+    def _attach_or(cls, start, kw: dict) -> Workbench:
         path = kw.get("socket") or default_address()
         try:
             return cls.attach(path)
         except errors.MeshbenchError:
-            return cls.headless(**kw)
+            return start(**kw)
 
     @classmethod
     def _spawn(
@@ -294,6 +313,12 @@ class Workbench:
     def events(self) -> Events:
         return Events(self)
 
+    @property
+    def live(self) -> Live:
+        """A live deployment feed - CoreScope and the rest - and the import
+        chain that brings one in."""
+        return Live(self)
+
     def console(self, node: str) -> Console:
         return Console(self, node)
 
@@ -304,15 +329,26 @@ class Workbench:
         """Everything long-running that is in flight."""
         return self.snapshot().get("jobs", [])
 
-    def wait_idle(self, timeout: float = 1800.0) -> None:
-        """Wait for every job to finish - the honest way to wait out a warm,
-        which is what most of them are."""
+    def wait_idle(self, timeout: timedelta = JOB_WAIT) -> None:
+        """Wait for every job to finish.
+
+        The honest way to wait out a warm, which is what most of them are.
+
+        Finished jobs are ignored rather than waited for: some are removed when
+        they end and some are only marked - infer.run's is marked - so waiting
+        for the list to empty waits forever on half of them. That is a
+        difference between the verbs, not something a caller should know.
+        """
 
         def check():
-            jobs = self.jobs()
-            if not jobs:
+            running = [j for j in self.jobs() if not j.get("finished")]
+            if not running:
                 return True, ""
-            return False, f"{len(jobs)} still running, first is {jobs[0].get('what')!r}"
+            first = running[0]
+            return False, (
+                f"{len(running)} still running, first is {first.get('what')!r} "
+                f"({first.get('done')} of {first.get('total')})"
+            )
 
         wait_for(check, timeout, "the workbench to go idle")
 

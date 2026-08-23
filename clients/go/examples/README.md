@@ -23,6 +23,8 @@ compiling is a red build rather than something somebody finds by trying it.
 | `small-mesh-with-traffic` | two repeaters, two companions, a message every twenty seconds | — |
 | `headless-regression` | the one CI runs: assertions, JUnit, non-zero on regression | — |
 | `two-builds-in-one-scenario` | the A/B: two builds, two nodes, one seed | two builds |
+| `live-import-and-advert` | ScotMesh pulled live, a node found by name, an advert sent | the network |
+| `replace-a-board-build` | build a repository, swap the image in, delete the old one, re-runnable | a display, a checkout |
 
 There are also doc examples in `meshbench/example_test.go`. Those are for
 `go doc`; these are for running.

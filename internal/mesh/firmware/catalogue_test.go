@@ -212,27 +212,61 @@ func TestImportOwnBuild(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	c := &firmware.Catalogue{CacheDir: filepath.Join(dir, "cache")}
-	img, err := c.Import(src, "RAK_4631", "repeater")
+	cache := filepath.Join(dir, "cache")
+	c := &firmware.Catalogue{CacheDir: cache}
+	img, err := c.Import(src, "RAK_4631", "repeater", "mine-1")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if img.Verified() {
 		t.Error("an imported image claimed a published digest")
 	}
-	if img.Board != "RAK_4631" || img.Version != "imported" {
+	if img.Board != "RAK_4631" || img.Version != "mine-1" {
 		t.Errorf("unexpected image: %+v", img)
 	}
 	if _, err := os.Stat(img.URL); err != nil {
 		t.Errorf("imported file was not stored: %v", err)
 	}
 
+	// The point of importing at all. It used to be stored under imported/,
+	// which nothing lists, so every import succeeded and then could not be
+	// found, pinned or deleted.
+	installed := firmware.ListInstalled(cache)
+	if len(installed) != 1 || installed[0].Version != "mine-1" {
+		t.Fatalf("the imported build is not in the library: %+v", installed)
+	}
+
+	// A second import under its own label is a second build, not an
+	// overwrite - which is what makes "replace the firmware and delete the old
+	// one" a thing a script can do.
+	if _, err := c.Import(src, "RAK_4631", "repeater", "mine-2"); err != nil {
+		t.Fatal(err)
+	}
+	if got := firmware.ListInstalled(cache); len(got) != 2 {
+		t.Errorf("two labelled imports gave %d builds, want 2: %+v", len(got), got)
+	}
+
 	// Nothing in a bare .bin says which board it is for, so it has to be told.
-	if _, err := c.Import(src, "", "repeater"); err == nil {
+	if _, err := c.Import(src, "", "repeater", "mine-3"); err == nil {
 		t.Error("an import with no board was accepted")
 	}
-	if _, err := c.Import(filepath.Join(dir, "notes.txt"), "RAK_4631", "repeater"); err == nil {
+	if _, err := c.Import(src, "RAK_4631", "repeater", ""); err == nil {
+		t.Error("an import with no version was accepted")
+	}
+	if _, err := c.Import(filepath.Join(dir, "notes.txt"), "RAK_4631", "repeater", "x"); err == nil {
 		t.Error("a text file was accepted as firmware")
+	}
+}
+
+// The default label is a timestamp rather than a constant, so two imports that
+// nobody named do not silently become one.
+func TestImportLabelDefaultsToSomethingDistinct(t *testing.T) {
+	if got := firmware.ImportLabel("mine"); got != "mine" {
+		t.Errorf("a chosen label was not kept: %q", got)
+	}
+	got := firmware.ImportLabel("")
+	if !strings.HasPrefix(got, "imported-") || len(got) != len("imported-20060102-150405") {
+		t.Errorf("default label %q is not a timestamp", got)
 	}
 }
 

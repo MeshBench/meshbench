@@ -169,7 +169,7 @@ func snapshotSummary(s *state.Snapshot) map[string]any {
 		for _, j := range s.Jobs {
 			jobs = append(jobs, map[string]any{
 				"id": j.ID, "what": j.What, "done": j.Done,
-				"total": j.Total, "finished": j.Finished,
+				"total": j.Total, "finished": j.Finished, "failed": j.Failed,
 			})
 		}
 		out["jobs"] = jobs

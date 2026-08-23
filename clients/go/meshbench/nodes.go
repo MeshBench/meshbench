@@ -36,6 +36,61 @@ func (n Nodes) Get(ctx context.Context, name string) (NodeInfo, error) {
 		Message: fmt.Sprintf("no node named %q", name), kind: ErrNotFound}
 }
 
+// Search finds nodes by name, best first, when you cannot type the name.
+//
+// Imported names carry emoji and accents - "\U0001F3D4\uFE0F West Lomond \U0001F4E1" is one
+// real node - so matching is done on letters and digits alone, with accents
+// folded and word order ignored. The ranking happens at the workbench rather
+// than here, so this client and the Python one agree about which result is the
+// top one.
+//
+// An empty result is not an error: "nothing matched" is an answer, and the
+// caller usually wants to widen the query rather than handle a refusal.
+func (n Nodes) Search(ctx context.Context, query string, limit int) ([]NameMatch, error) {
+	params := map[string]any{"query": query}
+	if limit > 0 {
+		params["limit"] = limit
+	}
+	var out struct {
+		Matches []NameMatch `json:"matches"`
+	}
+	return out.Matches, n.w.CallInto(ctx, "nodes.search", params, &out)
+}
+
+// FindLeast is the score below which Find will not act on a top answer.
+//
+// Taking the top result unconditionally is how a script ends up sending an
+// advert from a node that merely shared a word with what was asked for, and it
+// does that silently.
+const FindLeast = 0.5
+
+// Find is the one node a search meant, or a refusal naming what it did find.
+func (n Nodes) Find(ctx context.Context, query string) (Node, error) {
+	matches, err := n.Search(ctx, query, 5)
+	if err != nil {
+		return Node{}, err
+	}
+	if len(matches) == 0 || matches[0].Score < FindLeast {
+		msg := fmt.Sprintf("nothing matches %q well enough", query)
+		if len(matches) > 0 {
+			near := ""
+			for i, m := range matches {
+				if i == 3 {
+					break
+				}
+				if i > 0 {
+					near += ", "
+				}
+				near += fmt.Sprintf("%q (%.2f)", m.Name, m.Score)
+			}
+			msg += "; nearest were " + near
+		}
+		return Node{}, &Refused{Verb: "nodes.search", Code: "not_found",
+			Message: msg, kind: ErrNotFound}
+	}
+	return n.w.Node(matches[0].Name), nil
+}
+
 // OfKind filters. Evaluated here rather than at the workbench: it is a
 // question about a list somebody already has.
 func (n Nodes) OfKind(ctx context.Context, kind Kind) ([]NodeInfo, error) {

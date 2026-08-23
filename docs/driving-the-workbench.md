@@ -52,7 +52,10 @@ Call it before assuming anything about a session you did not start.
 2. `import.set_source` → `import.fetch` → poll `import.commit` until it
    stops erroring (the commit refuses until a preview exists).
 3. `boundary.prune` if the boundary changed after the import.
-4. `infer.run` → poll `infer.result` → `infer.apply`.
+4. `infer.run {hours}` → wait for its job → `infer.apply`. The window is the
+   feed's own past and it is honoured: reading a week of ScotMesh is around
+   150,000 packets. Do not call `infer.result` yourself - it is the reader's
+   callback, and it refuses when called from outside.
 5. `firmware.set` per version, then `sim.play`/`sim.step`.
 
 ## Firmware comes from meshcore-native, not from your own build
@@ -84,6 +87,22 @@ read as a crash and was reported as one. If a driven step ever leaves the
 workbench silent and pegged at 0% CPU, that is the shape of the fault: an
 unbounded wait on the frame thread, not slowness. Take a goroutine dump
 (`kill -QUIT`) before killing it, because the dump names the line.
+
+## You cannot type an imported node's name
+
+The names come from the people running the mesh, so on ScotMesh they carry
+emoji either side and sometimes a Gaelic accent: `🏔️ West Lomond 📡` is one
+node's actual name. Nothing pastes it reliably and nobody types it.
+
+`nodes.search {query, limit}` answers with `matches[]` - `name`, `score`,
+`kind`, `lat`, `lon` - ranked best first. Matching is on letters and digits
+alone, with accents folded, word order ignored, and the tighter name winning:
+`west lomond` puts `🏔️ West Lomond 📡` above `West Lomond Relay Two`.
+
+Check the score before acting on the top result. Taking it unconditionally is
+how a script ends up adverting from a node that merely shared a word with the
+query, and it does that silently. Both clients wrap this as `find`, which
+refuses under 0.5 and names what it did find.
 
 ## CoreScope's real endpoints
 

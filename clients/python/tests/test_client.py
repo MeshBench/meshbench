@@ -10,6 +10,7 @@ Needs a meshcoresim binary. MESHBENCH_BINARY names one; otherwise PATH.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import shutil
 import subprocess
@@ -372,3 +373,132 @@ def test_the_escape_hatch_is_usable(wb):
     """Anything the shaped API has not reached is one line away."""
     got = wb.call("session.describe")
     assert "nodes" in got
+
+
+def test_finding_a_node_whose_name_you_cannot_type(wb):
+    """The case the ScotMesh example is built on.
+
+    Real imported names carry emoji either side and sometimes an accent, so
+    every script that wanted one node was reduced to fetching all of them and
+    matching by hand.
+    """
+    wb.project.new()
+    wb.nodes.place_many(
+        [
+            {"name": "\U0001f3d4️ West Lomond \U0001f4e1", "lat": 56.24, "lon": -3.29},
+            {"name": "West Lomond Relay Two", "lat": 56.25, "lon": -3.28},
+            {"name": "Beinn Àrd ⛰", "lat": 56.30, "lon": -3.40},
+            {"name": "\U0001f4fb Dunfermline Repeater", "lat": 56.07, "lon": -3.46},
+        ]
+    )
+
+    hits = wb.nodes.search("west lomond")
+    assert hits, "the emoji name was not found at all"
+    # The exact name beats the one that merely starts the same way. A caller
+    # taking the top result is taking this.
+    assert hits[0].name == "\U0001f3d4️ West Lomond \U0001f4e1"
+    assert hits[0].score > hits[1].score
+
+    # Accents fold, so the Gaelic name is reachable from an ASCII keyboard.
+    assert wb.nodes.find("beinn ard").name == "Beinn Àrd ⛰"
+
+    # find() refuses rather than handing back the nearest thing, and says what
+    # it did find - which is the difference between a typo and an absence.
+    with pytest.raises(meshbench.NotFound) as e:
+        wb.nodes.find("Ben Nevis")
+    assert "Ben Nevis" in str(e.value)
+
+    # The handle works: a name found this way is a name every other verb takes.
+    assert wb.nodes.find("dunfermline").info.lat < 56.1
+
+
+@pytest.fixture
+def imported(wb, tmp_path):
+    """Import builds, and take them back out however the test ends.
+
+    These land in the machine's real firmware cache - the verb uses it and
+    nothing overrides it - so a test that fails half way through would leave a
+    build behind in somebody's library. Deleting on the way out regardless is
+    the difference between a failing test and a failing test plus a mess.
+    """
+    image = tmp_path / "firmware.bin"
+    image.write_bytes(b"not really a firmware, but it is a .bin")
+    made = []
+
+    def do(role="companion_radio", board="LilyGo_TDeck", label=""):
+        b = wb.firmware.import_(str(image), role, board=board, label=label)
+        made.append(b)
+        return b
+
+    yield do
+    for b in made:
+        # Already gone is fine: deleting one is what a test here does.
+        with contextlib.suppress(meshbench.MeshbenchError):
+            wb.firmware.delete(b)
+
+
+def test_two_imports_of_one_file_are_two_builds(wb, imported):
+    """Labelled imports, which is what makes replacing a build possible.
+
+    Every import used to be called "imported" and land in a directory nothing
+    lists, so a second one replaced the first in place: the library showed one
+    entry, and there was no way to say which of two local builds a node was on
+    or to delete the older.
+    """
+    first = imported(label="wadamesh-a")
+    second = imported(label="wadamesh-b")
+    assert first.version == "wadamesh-a"
+    assert second.version == "wadamesh-b"
+
+    # Both in the library, and both on disk - the part that was broken. The
+    # library reported a count and kept the rows where only a panel could
+    # reach them, so this list was an integer.
+    on_disk = {b.version for b in wb.firmware.on_disk()}
+    assert {"wadamesh-a", "wadamesh-b"} <= on_disk
+
+    # And the older one can be deleted by itself, which is the point.
+    wb.firmware.delete(first)
+    assert "wadamesh-a" not in {b.version for b in wb.firmware.on_disk()}
+    assert "wadamesh-b" in {b.version for b in wb.firmware.on_disk()}
+
+
+def test_a_default_import_label_is_a_timestamp(wb, imported):
+    """No label still gives a distinguishable build, rather than a collision."""
+    got = imported(board="Heltec_v3")
+    assert got.version.startswith("imported-")
+    assert got.version in {b.version for b in wb.firmware.on_disk()}
+
+
+def test_the_import_chain_refuses_in_the_wrong_order(wb):
+    """Each step needs the one before it, and says so rather than doing half.
+
+    The chain is where scripted imports go wrong, and the failures are quiet:
+    committing nothing, or inferring against no source, used to be the kind of
+    thing that produced an empty mesh and no error.
+    """
+    with pytest.raises(meshbench.Refused):
+        wb.live.commit()  # nothing fetched
+    with pytest.raises(meshbench.Refused):
+        wb.live.infer()  # no source
+    with pytest.raises(meshbench.Refused):
+        wb.live.apply_regions()  # nothing inferred
+
+    # A pasted trailing slash is tidied at the workbench rather than turning
+    # into a double slash in every request it then makes.
+    assert wb.live.set_source("http://127.0.0.1:9/feed/") == "http://127.0.0.1:9/feed"
+
+    # A source that cannot be reached is an error, not a hang and not silence.
+    with pytest.raises(meshbench.Refused):
+        wb.live.fetch()
+
+
+def test_infer_result_is_not_a_verb_to_call(wb):
+    """It is the reading goroutine's own callback.
+
+    Reachable from the socket like everything else, and the version that
+    ignored that answered by replacing a finished inference with an empty one -
+    so a mesh that had just been imported correctly went silent, and nothing
+    said why.
+    """
+    with pytest.raises(meshbench.BadParams):
+        wb.call("infer.result")
