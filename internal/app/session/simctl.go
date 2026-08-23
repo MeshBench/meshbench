@@ -92,6 +92,10 @@ func registerSimControl(st *state.Store, s *Sim) {
 		if err := s.rebuild(w); err != nil {
 			return nil, err
 		}
+		// The clock went back to zero, so what the schedule has already said
+		// has to go with it - or a repeating send would sit waiting out an
+		// interval measured against a run that no longer exists.
+		s.resetSendClock()
 		w.Links = nil
 		s.warm(st, len(s.nodes))
 		w.Say("reset")

@@ -56,9 +56,26 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 		return nil, nil
 	})
 
+	// firmware.state: how far along starting the mesh is.
+	//
+	// "nodes" is the nodes that *run* firmware, not every node there is. It
+	// used to be every node, and running is a count of processes - so on any
+	// scenario holding an SDR observer or an emitter the two could never meet.
+	// fife-strict holds one of each, so the shipped fixture reported 56 of 58
+	// for ever and every wait built on it hung. Comparing two different
+	// populations is the whole of that bug.
 	st.Handle("firmware.state", func(w *state.World, _ any) (any, error) {
+		runs := 0
+		for _, n := range s.nodes {
+			if n.Kind.RunsFirmware() {
+				runs++
+			}
+		}
 		return map[string]any{
-			"running": s.firmwareCount(), "nodes": len(w.Nodes),
+			"running": s.firmwareCount(), "nodes": runs,
+			// Every node, for a caller that wants the scenario's size rather
+			// than the part of it that boots.
+			"total":    len(w.Nodes),
 			"starting": s.starting.Load(),
 		}, nil
 	})

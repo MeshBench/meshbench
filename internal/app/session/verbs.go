@@ -167,6 +167,10 @@ func Register(st *state.Store, s *Sim) {
 			// cell owns the clock this only reads.
 			if !s.benchOwnsTheClock() {
 				_ = s.eng.Step(context.Background())
+				// Whatever the schedule is due to say at this moment of
+				// simulated time. After the step, so a send lands on a mesh
+				// whose clock has already reached its moment.
+				s.fireDueSends(w)
 			}
 			// A rebuild anywhere leaves the matrix cold; this is the one
 			// place every run passes through, so it is where the warm is

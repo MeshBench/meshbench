@@ -274,15 +274,36 @@ func (i Image) Verified() bool { return i.SHA256 != "" }
 // first. Imported images have no digest and report as unverified, which is
 // accurate rather than pessimistic.
 func (c *Catalogue) Import(path, board, role, version string) (Image, error) {
-	ext := strings.ToLower(filepath.Ext(path))
-	if ext != ".uf2" && ext != ".bin" && ext != ".elf" {
-		return Image{}, fmt.Errorf("firmware: %s is not a firmware image (.uf2, .bin or .elf)", path)
-	}
-	if board == "" {
-		return Image{}, fmt.Errorf("firmware: an imported image needs a board; nothing in the file says which")
-	}
 	if version == "" {
 		return Image{}, fmt.Errorf("firmware: an imported image needs a version to be known by")
+	}
+	// No board means a build for this machine, and those are shaped nothing
+	// like a flash image: meshcore-simple_repeater-linux-amd64 is an ELF with
+	// no extension at all. Both checks below were written for board images and
+	// between them they refused every host build - which is the one kind of
+	// build somebody compiles themselves, and the whole point of importing.
+	if board == "" {
+		st, err := os.Stat(path)
+		if err != nil {
+			return Image{}, err
+		}
+		if st.IsDir() {
+			return Image{}, fmt.Errorf("firmware: %s is a directory", path)
+		}
+		in, err := Import(c.CacheDir, path, version, role, "")
+		if err != nil {
+			return Image{}, err
+		}
+		return Image{
+			Role: role, Version: version,
+			Asset: filepath.Base(in.Path), URL: in.Path, Size: in.Bytes,
+		}, nil
+	}
+	ext := strings.ToLower(filepath.Ext(path))
+	if ext != ".uf2" && ext != ".bin" && ext != ".elf" {
+		return Image{}, fmt.Errorf(
+			"firmware: %s is not a board image (.uf2, .bin or .elf). "+
+				"Leave the board out to import a build for this machine", path)
 	}
 	// Stored where the library reads, which was the whole bug: this wrote the
 	// file to imported/ under its original name, and nothing lists that

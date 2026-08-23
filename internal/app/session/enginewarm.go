@@ -119,10 +119,19 @@ func (s *Sim) warm(st *state.Store, nodes int) {
 			// Superseded: what this measured is about a network that has been
 			// replaced, and publishing it would put another network's links
 			// on the map.
+			//
+			// The job row goes with it. Returning silently left "measuring
+			// every link" in the list at whatever count it had reached, for
+			// ever - and anything waiting for the workbench to go idle waited
+			// on a measurement that had been abandoned. The warm that
+			// superseded this one owns the row now and will post its own
+			// progress under the same id.
+			abandonWarmJob(ctx, st)
 			return
 		}
 		links := s.links()
 		if ctx.Err() != nil {
+			abandonWarmJob(ctx, st)
 			return
 		}
 		s.warmMu.Lock()
@@ -203,4 +212,22 @@ func geometryFingerprint(nodes []scenario.Node, freqMHz float64) uint64 {
 		put(n.NoiseFigureDB)
 	}
 	return h.Sum64()
+}
+
+// abandonWarmJob marks the link measurement finished when this warm is not the
+// one that will publish it.
+//
+// Finished rather than removed: a newer warm re-posts the row under the same
+// id the moment it starts, so removing it would race with that and leave a
+// caller watching a list that flickers. What matters is that nothing waits on
+// a measurement nobody is doing any more.
+func abandonWarmJob(ctx context.Context, st *state.Store) {
+	// The warm's own context, through finishing: it has been cancelled, which
+	// is why this is being called at all, and the update still has to reach
+	// the store. Same shape as the success path below it.
+	done, release := finishing(ctx)
+	defer release()
+	_, _ = st.Do(done, "job.progress", state.Job{
+		ID: "links", What: "measuring every link (superseded)",
+		Done: 1, Total: 1, Finished: true})
 }

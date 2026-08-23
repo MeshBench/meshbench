@@ -246,15 +246,25 @@ func TestImportOwnBuild(t *testing.T) {
 		t.Errorf("two labelled imports gave %d builds, want 2: %+v", len(got), got)
 	}
 
-	// Nothing in a bare .bin says which board it is for, so it has to be told.
-	if _, err := c.Import(src, "", "repeater", "mine-3"); err == nil {
-		t.Error("an import with no board was accepted")
+	// No board means a build for this machine, which is a different shape
+	// entirely: an extensionless ELF, not a flash image. Refusing it was the
+	// bug - it turned away the only kind of build somebody compiles themselves.
+	native, err := c.Import(src, "", "simple_repeater", "mine-native")
+	if err != nil {
+		t.Fatalf("a build for this machine was refused: %v", err)
+	}
+	if native.Board != "" {
+		t.Errorf("a native build came back claiming board %q", native.Board)
+	}
+	if _, err := os.Stat(native.URL); err != nil {
+		t.Errorf("the native build was not stored: %v", err)
 	}
 	if _, err := c.Import(src, "RAK_4631", "repeater", ""); err == nil {
 		t.Error("an import with no version was accepted")
 	}
+	// A board image still has to look like one.
 	if _, err := c.Import(filepath.Join(dir, "notes.txt"), "RAK_4631", "repeater", "x"); err == nil {
-		t.Error("a text file was accepted as firmware")
+		t.Error("a text file was accepted as a board image")
 	}
 }
 

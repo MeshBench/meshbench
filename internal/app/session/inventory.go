@@ -106,6 +106,12 @@ func eventAsMap(e state.Event) map[string]any {
 		"at_ms": e.AtMs, "kind": e.Kind, "from": e.From, "to": e.To,
 		"message_id": e.MessageID, "packet_id": e.PacketID,
 		"snr_db": e.SNRdB, "detail": e.Detail,
+		// The class, which the cards and the filter chips are built on and
+		// which never reached the wire. Kind is "tx"/"rx"/"miss"; the class
+		// says which *kind* of miss - half duplex, interference, or simply
+		// too quiet - and those are three different problems. Without it
+		// every client-side filter on class matched nothing at all.
+		"class": e.Class,
 	}
 	// A ratio against no noise at all is infinite, and JSON has no way to
 	// say so: one such event failed the whole dump with "unsupported value:
