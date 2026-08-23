@@ -48,9 +48,22 @@ type TitleBar struct {
 	closePressed    bool
 	maximisePressed bool
 	drag            struct {
-		held  bool
-		last  f32.Point
-		moved image.Point
+		held bool
+		// grab is where in the bar the pointer took hold, and pos its
+		// latest reported position - the two points a drag is measured
+		// between. The window has to be moved so that the grabbed point
+		// lands under the pointer again, which the caller computes from
+		// these; accumulating per-event deltas instead cannot work,
+		// because the events pause while the window's move is in flight
+		// and a delta across the move double-counts it.
+		grab f32.Point
+		pos  f32.Point
+		// fresh is whether a drag event arrived since the last Drag call:
+		// the difference between the pointer having moved and the caller
+		// merely asking again. A window tracking the pointer perfectly
+		// reports the same position on every event, so the position alone
+		// cannot tell them apart.
+		fresh bool
 	}
 }
 
@@ -69,14 +82,17 @@ func (b *TitleBar) MaximiseClicked() bool {
 	return v
 }
 
-// Drag is how far the bar was dragged since the last ask, in pixels. The
-// caller turns that into the window's new place; a maximised window has no
-// place to be dragged to, and the drag is simply not reported while the
-// maximise glyph reads restore - the same rule a decorated window follows.
-func (b *TitleBar) Drag() image.Point {
-	d := b.drag.moved
-	b.drag.moved = image.Pt(0, 0)
-	return d
+// Drag reports the bar being dragged: the point grabbed and the pointer's
+// latest position, both in window coordinates, whether the hold is still
+// on, and whether a drag event arrived since the last ask. The caller moves
+// the window so the grabbed point lands under the pointer again, every time
+// an event arrives; a maximised window has no place to be dragged to, and
+// the caller declines - the same rule a decorated window follows. While not
+// held the positions are the last drag's, so a caller reading on every
+// frame sees the target stand still rather than snap back.
+func (b *TitleBar) Drag() (grab, pos f32.Point, held, fresh bool) {
+	fresh, b.drag.fresh = b.drag.fresh, false
+	return b.drag.grab, b.drag.pos, b.drag.held, fresh
 }
 
 // Layout draws the bar: the title and drag handle filling the width, the
@@ -104,18 +120,16 @@ func (b *TitleBar) Layout(t *theme.Theme, gtx layout.Context) layout.Dimensions 
 		}
 		switch e.Kind {
 		case pointer.Press:
-			b.drag.held, b.drag.last = true, e.Position
+			b.drag.held = true
+			b.drag.grab, b.drag.pos = e.Position, e.Position
 		case pointer.Drag:
-			if !b.drag.held {
-				break
+			// Only the latest position matters: the target is recomputed
+			// from the grab point every time, so a burst of events between
+			// frames contributes its last member and nothing compounds.
+			if b.drag.held {
+				b.drag.pos = e.Position
+				b.drag.fresh = true
 			}
-			d := e.Position.Sub(b.drag.last)
-			b.drag.moved = b.drag.moved.Add(image.Pt(int(d.X), int(d.Y)))
-			// The caller moves the window by d, so the pointer's place in
-			// it moves by -d. Expecting that here stops the compositor's
-			// correction event - same pointer, new surface-relative place -
-			// from being read as a drag straight back.
-			b.drag.last = e.Position.Sub(d)
 		case pointer.Release, pointer.Cancel:
 			b.drag.held = false
 		}

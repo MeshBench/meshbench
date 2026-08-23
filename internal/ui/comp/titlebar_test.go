@@ -93,10 +93,13 @@ func TestTitleBarGlyphsAreClickable(t *testing.T) {
 	}
 }
 
-// A drag of the bar's body has to report the distance travelled - that is
-// how a layer window moves, margins being the only mechanism the protocol
-// offers - while the correction a compositor sends once the window has moved
-// must not read as a drag back.
+// A drag of the bar's body reports the grab point and the pointer's latest
+// position - the two numbers the caller places the window from. The latest
+// event wins within a frame's burst, because the caller recomputes the
+// window's whole place from them; per-event deltas would double-count every
+// event that arrived while the window's own move was still in flight. The
+// positions are in the handle's own coordinate space, which the caller
+// never minds: it moves by their difference.
 func TestTitleBarDragReportsMovement(t *testing.T) {
 	b := &TitleBar{Title: "MeshBench - Console"}
 	h := newBarHarness(b)
@@ -104,32 +107,39 @@ func TestTitleBarDragReportsMovement(t *testing.T) {
 	h.frame()
 
 	h.press(f32.Pt(20, 16))
-	// The pointer moves to (30, 18): a drag of (10, 2), which the caller
-	// applies to the window's margins - moving the window under the grabbed
-	// pointer, so its surface-relative place is (20, 16) again.
 	h.moveTo(f32.Pt(30, 18))
-	if d := b.Drag(); d.X != 10 || d.Y != 2 {
-		t.Fatalf("first move reported (%d, %d), want (10, 2)", d.X, d.Y)
+	grab, pos, held, fresh := b.Drag()
+	if !held || !fresh {
+		t.Fatal("the bar is not held, or the event was not reported fresh")
 	}
-	// The compositor's next event, at the new surface-relative place, must
-	// read as no movement - otherwise every drag would halve itself.
-	h.moveTo(f32.Pt(20, 16))
-	if d := b.Drag(); d != (image.Point{}) {
-		t.Fatalf("the correction event read as a drag of %v; every drag would halve itself", d)
+	if d := pos.Sub(grab); d != (f32.Pt(10, 2)) {
+		t.Fatalf("drag is %v, want (10, 2)", d)
 	}
-	// And a genuinely further move still reports its full distance.
+	// Asking again without an event in between reports nothing fresh: a
+	// caller polling every frame must not re-apply the last event.
+	if _, _, _, fresh := b.Drag(); fresh {
+		t.Fatal("a second ask with no event reported fresh")
+	}
+	// A burst of further moves: only the latest matters.
 	h.moveTo(f32.Pt(40, 20))
-	if d := b.Drag(); d.X != 20 || d.Y != 4 {
-		t.Fatalf("second move reported (%d, %d), want (20, 4)", d.X, d.Y)
+	h.moveTo(f32.Pt(50, 22))
+	grab2, pos, _, _ := b.Drag()
+	if grab2 != grab {
+		t.Fatalf("grab moved from %v to %v mid-drag", grab, grab2)
 	}
-	if d := b.Drag(); d != (image.Point{}) {
-		t.Fatalf("a second ask reported %v; the drag is consumed", d)
+	if d := pos.Sub(grab); d != (f32.Pt(30, 6)) {
+		t.Fatalf("drag is %v after a burst, want (30, 6) - the last event only", d)
 	}
-	h.release(f32.Pt(40, 20))
+	// After release the hold is off, though the positions stand so a caller
+	// reading every frame sees its target stand still rather than snap back.
+	h.release(f32.Pt(50, 22))
+	if _, _, held, _ := b.Drag(); held {
+		t.Fatal("the bar reports itself held after release")
+	}
 }
 
-// A press on the bar without movement is not a drag: the bar's job is to
-// move the window, not to flinch.
+// A press on the bar without movement is not a drag: the grab point and the
+// position coincide, so the caller computes no movement.
 func TestTitleBarClickIsNotADrag(t *testing.T) {
 	b := &TitleBar{Title: "MeshBench - Console"}
 	h := newBarHarness(b)
@@ -137,7 +147,11 @@ func TestTitleBarClickIsNotADrag(t *testing.T) {
 	h.frame()
 	h.press(f32.Pt(200, 16))
 	h.release(f32.Pt(200, 16))
-	if d := b.Drag(); d != (image.Point{}) {
-		t.Fatalf("a click without movement reported a drag of %v", d)
+	grab, pos, held, _ := b.Drag()
+	if held {
+		t.Fatal("a click without movement holds the bar")
+	}
+	if grab != pos {
+		t.Fatalf("grab %v and position %v differ after a click without movement", grab, pos)
 	}
 }

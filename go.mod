@@ -25,4 +25,4 @@ require (
 	golang.org/x/text v0.41.0 // indirect
 )
 
-replace gioui.org => github.com/MeshBench/gio v0.10.3-0.20260822143337-78a8a004c70d
+replace gioui.org => github.com/MeshBench/gio v0.10.3-0.20260822194416-168ea8af2ae1

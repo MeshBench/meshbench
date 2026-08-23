@@ -119,6 +119,9 @@ func (w *windows) popOut(name string, sh *shell.Shell, newTheme func() *theme.Th
 					layered, chrome = true, newLayerChrome(spot)
 					bar.Title = "MeshBench - " + name
 				}
+				if layered {
+					chrome.outputSize(e.Config.OutputSize)
+				}
 			case app.DestroyEvent:
 				return
 			case app.FrameEvent:
@@ -126,7 +129,16 @@ func (w *windows) popOut(name string, sh *shell.Shell, newTheme func() *theme.Th
 					win.Perform(system.ActionClose)
 				}
 				if w.wantsRaise(name) {
-					win.Perform(system.ActionRaise)
+					// Raising means nothing to a layer surface, so for a
+					// layered window the wish recalls it on screen instead -
+					// which is also how one dragged out of reach comes back.
+					if layered {
+						if opts := chrome.recall(float.NextSpot()); len(opts) > 0 {
+							win.Option(opts...)
+						}
+					} else {
+						win.Perform(system.ActionRaise)
+					}
 				}
 				gtx := app.NewContext(&ops, e)
 				comp.Fill(gtx, th.P.Ground)

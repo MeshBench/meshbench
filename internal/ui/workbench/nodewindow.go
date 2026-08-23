@@ -402,9 +402,41 @@ func (p *nodeWindowPanel) auditDraw(t *theme.Theme, gtx layout.Context, s *state
 type nodeWindows struct {
 	mu   sync.Mutex
 	open map[string]bool
+	// raising is which windows have been asked to come forward: a wish
+	// rather than an action, because a window belongs to its own event
+	// loop and reaching into it from another goroutine is how a destroyed
+	// window stays in Gio's queue.
+	raising map[string]bool
 }
 
-func newNodeWindows() *nodeWindows { return &nodeWindows{open: map[string]bool{}} }
+func newNodeWindows() *nodeWindows {
+	return &nodeWindows{open: map[string]bool{}}
+}
+
+// raise asks a node's window to come back on screen on its next frame -
+// which is also the escape hatch for one dragged somewhere its bar cannot
+// be reached from, where raising alone would mean nothing.
+func (w *nodeWindows) raise(node string) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.raising == nil {
+		w.raising = map[string]bool{}
+	}
+	if w.open[node] {
+		w.raising[node] = true
+	}
+}
+
+// wantsRaise reports and clears the wish, on the window's own goroutine.
+func (w *nodeWindows) wantsRaise(node string) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.raising[node] {
+		delete(w.raising, node)
+		return true
+	}
+	return false
+}
 
 // nodeWindowHooks is how a node window reaches the rest of the application.
 //
@@ -424,7 +456,12 @@ func (w *nodeWindows) openFor(node string, newTheme func() *theme.Theme,
 	st *state.Store, h nodeWindowHooks) {
 	w.mu.Lock()
 	if w.open[node] {
+		// Already out there: recall it rather than doing nothing. A second
+		// press used to return in silence, which is indistinguishable from
+		// a dead menu entry - and for a layered window dragged out of
+		// reach, the recall is the only way back.
 		w.mu.Unlock()
+		w.raise(node)
 		return
 	}
 	w.open[node] = true
@@ -461,9 +498,24 @@ func (w *nodeWindows) openFor(node string, newTheme func() *theme.Theme,
 				if e.Config.LayerShell && chrome == nil {
 					p.Layered, chrome = true, newLayerChrome(spot)
 				}
+				if chrome != nil {
+					chrome.outputSize(e.Config.OutputSize)
+				}
 			case app.DestroyEvent:
 				return
 			case app.FrameEvent:
+				if w.wantsRaise(p.node) {
+					// Raising means nothing to a layer surface, so for a
+					// layered window the wish recalls it on screen instead -
+					// which is also how one dragged out of reach comes back.
+					if chrome != nil {
+						if opts := chrome.recall(float.NextSpot()); len(opts) > 0 {
+							win.Option(opts...)
+						}
+					} else {
+						win.Perform(system.ActionRaise)
+					}
+				}
 				gtx := app.NewContext(&ops, e)
 				comp.Fill(gtx, th.P.Ground)
 				if chrome != nil {
