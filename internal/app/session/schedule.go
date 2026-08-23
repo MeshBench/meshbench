@@ -30,7 +30,7 @@ func registerSchedule(st *state.Store, s *Sim) {
 		if v, ok := numField(p, "every_ms"); ok {
 			snd.EveryMs = uint32(v)
 		}
-		if c, ok := stringField(p, "command"); ok {
+		if c, ok := namedField(p, "command"); ok {
 			snd.Command = c
 		}
 		w.Sends = append(w.Sends, snd)
@@ -52,7 +52,7 @@ func registerSchedule(st *state.Store, s *Sim) {
 			return nil, fmt.Errorf("assert.add needs a kind")
 		}
 		a := state.Assertion{Kind: kind}
-		a.Node, _ = stringField(p, "node")
+		a.Node, _ = namedField(p, "node")
 		if v, ok := numField(p, "at_least"); ok {
 			a.AtLeast = int(v)
 		}

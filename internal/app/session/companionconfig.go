@@ -60,7 +60,7 @@ func registerCompanionConfig(st *state.Store, s *Sim) {
 			return nil
 		}
 
-		if name, ok := stringField(p, "name"); ok && name != "" {
+		if name, ok := namedField(p, "name"); ok && name != "" {
 			if err := send("name", proto.SetAdvertName(name)); err != nil {
 				return nil, err
 			}
