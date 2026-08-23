@@ -27,8 +27,8 @@ func registerFleet(st *state.Store, s *Sim) {
 		if strings.TrimSpace(cmd) == "" {
 			return nil, fmt.Errorf("fleet.send needs a command")
 		}
-		only, _ := stringField(p, "node")
-		kind, _ := stringField(p, "kind")
+		only, _ := namedField(p, "node")
+		kind, _ := namedField(p, "kind")
 
 		targets := make([]string, 0, len(s.nodes))
 		for _, n := range s.nodes {

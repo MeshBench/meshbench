@@ -416,7 +416,7 @@ func registerExperiment(st *state.Store, s *Sim) {
 	st.Handle("experiment.compare", func(w *state.World, p any) (any, error) {
 		e := s.experiment()
 		a, _ := stringField(p, "arm_a")
-		b, _ := stringField(p, "arm_b")
+		b, _ := namedField(p, "arm_b")
 		e.mu.Lock()
 		defer e.mu.Unlock()
 		sums := e.summarise()

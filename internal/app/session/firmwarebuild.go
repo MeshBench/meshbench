@@ -38,17 +38,17 @@ func registerFirmwareBuild(st *state.Store, s *Sim) {
 	st.Handle("firmware.build", func(w *state.World, p any) (any, error) {
 		src, _ := stringField(p, "source")
 		if src == "" {
-			src, _ = stringField(p, "from")
+			src, _ = namedField(p, "from")
 		}
 		if src == "" {
 			return nil, control.WithCode(control.BadParams, fmt.Errorf(
 				"firmware.build needs a source: the top of a MeshCore checkout"))
 		}
 		roles := buildRoles
-		if only, ok := stringField(p, "role"); ok && only != "" {
+		if only, ok := namedField(p, "role"); ok && only != "" {
 			roles = []string{only}
 		}
-		label, _ := stringField(p, "label")
+		label, _ := namedField(p, "label")
 
 		id := "firmware-build"
 		w.Say("building " + strings.Join(roles, " and ") + " from " + src)
