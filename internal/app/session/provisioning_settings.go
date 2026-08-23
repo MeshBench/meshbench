@@ -122,13 +122,13 @@ func registerProvisioningSettings(st *state.Store, s *Sim) {
 		if v, ok := numField(p, "comp_path_hash_mode"); ok {
 			pr.CompPathHashMode = int(v)
 		}
-		if v, ok := stringField(p, "loop_detect"); ok {
+		if v, ok := namedField(p, "loop_detect"); ok {
 			pr.LoopDetect = v
 		}
-		if v, ok := stringField(p, "cad"); ok {
+		if v, ok := namedField(p, "cad"); ok {
 			pr.CadMode = v
 		}
-		if v, ok := stringField(p, "extra"); ok {
+		if v, ok := namedField(p, "extra"); ok {
 			pr.Extra = v
 		}
 		s.prov = pr

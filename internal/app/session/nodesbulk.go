@@ -62,7 +62,7 @@ func registerNodesBulk(st *state.Store, s *Sim) {
 			return nil, control.WithCode(control.BadParams,
 				fmt.Errorf("node.set_board needs a node"))
 		}
-		want, _ := stringField(p, "board")
+		want, _ := namedField(p, "board")
 		resolved := ""
 		if want != "" {
 			board, err := scenario.BoardByName(want)

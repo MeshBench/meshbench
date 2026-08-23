@@ -137,14 +137,14 @@ func registerResources(st *state.Store, s *Sim) {
 	// resource.fetch: get one, as a job that can be stopped.
 	st.Handle("resource.fetch", func(w *state.World, p any) (any, error) {
 		name, _ := stringField(p, "name")
-		version, _ := stringField(p, "version")
+		version, _ := namedField(p, "version")
 		if name == "" {
 			return nil, fmt.Errorf("resource.fetch needs a name")
 		}
 		// The refusal lives here rather than in the panel because scripts and
 		// the control socket call this directly, and a fetch that silently
 		// does nothing is indistinguishable from one that failed.
-		kind, _ := stringField(p, "kind")
+		kind, _ := namedField(p, "kind")
 		if kind == "" {
 			kind = string(resource.SoftDeviceKind)
 		}
@@ -200,7 +200,7 @@ func registerResources(st *state.Store, s *Sim) {
 
 	st.Handle("resource.fetched", func(w *state.World, p any) (any, error) {
 		name, _ := stringField(p, "name")
-		version, _ := stringField(p, "version")
+		version, _ := namedField(p, "version")
 		// Nordic's own terms, cached beside the image and said aloud once:
 		// a licensed binary arriving silently is the thing the licence
 		// question was asked to avoid.
@@ -222,8 +222,8 @@ func registerResources(st *state.Store, s *Sim) {
 	// resource.licence: the terms, for the interface to show.
 	st.Handle("resource.licence", func(w *state.World, p any) (any, error) {
 		name, _ := stringField(p, "name")
-		version, _ := stringField(p, "version")
-		kind, _ := stringField(p, "kind")
+		version, _ := namedField(p, "version")
+		kind, _ := namedField(p, "kind")
 		if kind == "" {
 			kind = string(resource.SoftDeviceKind)
 		}
@@ -261,14 +261,14 @@ func registerResources(st *state.Store, s *Sim) {
 	// resource.remove: delete one. The caller has already asked twice.
 	st.Handle("resource.remove", func(w *state.World, p any) (any, error) {
 		name, _ := stringField(p, "name")
-		version, _ := stringField(p, "version")
+		version, _ := namedField(p, "version")
 		if name == "" {
 			return nil, fmt.Errorf("resource.remove needs a name")
 		}
 		// Whichever provider owns it. Removing 7 GB of terrain and removing a
 		// SoftDevice are the same gesture to the operator and different code
 		// underneath, which is what the provider list is for.
-		kind, _ := stringField(p, "kind")
+		kind, _ := namedField(p, "kind")
 		if kind == "" {
 			kind = string(resource.SoftDeviceKind)
 		}

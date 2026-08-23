@@ -42,7 +42,7 @@ func registerBoardMatrix(st *state.Store, s *Sim) {
 		if board == "" {
 			return nil, fmt.Errorf("board.probe needs a board")
 		}
-		version, _ := stringField(p, "version")
+		version, _ := namedField(p, "version")
 		if version == "" {
 			version = defaultBoardVersion
 		}
@@ -72,7 +72,7 @@ func registerBoardMatrix(st *state.Store, s *Sim) {
 		s.boardProbing = false
 		w.Jobs = finishJob(w.Jobs, "boardprobe")
 		board, _ := stringField(p, "board")
-		version, _ := stringField(p, "version")
+		version, _ := namedField(p, "version")
 		publishMatrix(w, version)
 		var passed, failed int
 		for _, c := range boardcheck.Load(board, version).Results {
