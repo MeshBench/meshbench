@@ -170,7 +170,7 @@ func registerNodeWindow(st *state.Store, s *Sim) {
 		if _, found := findNode(w.Nodes, name); !found {
 			return nil, noSuchNode(name)
 		}
-		tab, _ := stringField(p, "tab")
+		tab, _ := namedField(p, "tab")
 		shown, err := s.ui.OpenNodeWindow(name, tab)
 		if err != nil {
 			return nil, control.WithCode(control.BadParams, err)

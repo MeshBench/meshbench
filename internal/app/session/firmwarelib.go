@@ -107,8 +107,8 @@ func registerFirmwareLibrary(st *state.Store, s *Sim) {
 	// use, which is what somebody about to work offline actually wants.
 	st.Handle("firmware.download", func(w *state.World, p any) (any, error) {
 		role, _ := stringField(p, "role")
-		version, _ := stringField(p, "version")
-		board, _ := stringField(p, "board")
+		version, _ := namedField(p, "version")
+		board, _ := namedField(p, "board")
 		if role == "" || version == "" {
 			return nil, fmt.Errorf("firmware.download needs a role and a version")
 		}
@@ -150,8 +150,8 @@ func registerFirmwareLibrary(st *state.Store, s *Sim) {
 	// before it is a release.
 	st.Handle("firmware.import", func(w *state.World, p any) (any, error) {
 		path, _ := stringField(p, "path")
-		role, _ := stringField(p, "role")
-		board, _ := stringField(p, "board")
+		role, _ := namedField(p, "role")
+		board, _ := namedField(p, "board")
 		if path == "" || role == "" {
 			return nil, badParams("firmware.import needs a path and a role")
 		}
@@ -160,7 +160,7 @@ func registerFirmwareLibrary(st *state.Store, s *Sim) {
 		// every import called itself "imported", so a second one replaced the
 		// first in place and nothing could say which of two local builds was
 		// running.
-		label, _ := stringField(p, "label")
+		label, _ := namedField(p, "label")
 		cat := &firmware.Catalogue{CacheDir: firmware.DefaultCacheDir()}
 		img, err := cat.Import(path, board, role, firmware.ImportLabel(label))
 		if err != nil {
@@ -245,8 +245,8 @@ func registerFirmwareLibrary(st *state.Store, s *Sim) {
 	// firmware.set: pin a build to a role, or to one node.
 	st.Handle("firmware.set", func(w *state.World, p any) (any, error) {
 		version, _ := stringField(p, "version")
-		node, _ := stringField(p, "node")
-		role, _ := stringField(p, "role")
+		node, _ := namedField(p, "node")
+		role, _ := namedField(p, "role")
 		if version == "" {
 			return nil, fmt.Errorf("firmware.set needs a version")
 		}
@@ -344,6 +344,15 @@ func nodeStorageRoot() string {
 	return filepath.Join(dir, "meshcoresim", "nodefs")
 }
 
+// stringField reads a verb's PRIMARY field: the one, and only one, that a bare
+// string parameter is allowed to mean.
+//
+// Use it once per verb. Every other field goes through namedField, because a
+// bare string satisfies this function whatever it is asked for - ask it for two
+// fields and both come back holding the same value. That is how node.window
+// came to be unopenable: the window is asked for by name, the name arrived as a
+// bare string, and the optional tab was read with this, so every double-click
+// asked for a tab named after the node and was refused.
 func stringField(p any, name string) (string, bool) {
 	switch v := p.(type) {
 	case map[string]any:
@@ -353,6 +362,20 @@ func stringField(p any, name string) (string, bool) {
 		return v, true
 	}
 	return "", false
+}
+
+// namedField reads a field that has to be named to be meant.
+//
+// No bare-string fallback: a caller who wrote one has already spent it on the
+// verb's primary field, and handing the same value to a second field invents a
+// parameter they did not pass.
+func namedField(p any, name string) (string, bool) {
+	m, ok := p.(map[string]any)
+	if !ok {
+		return "", false
+	}
+	s, ok := m[name].(string)
+	return s, ok
 }
 
 // soleString reads a verb's one parameter, which arrives either as a bare

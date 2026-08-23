@@ -188,7 +188,7 @@ func registerMeshCLI(st *state.Store, s *Sim) {
 	// console.cli: one meshcore-cli line, for a companion.
 	st.Handle("console.cli", func(w *state.World, p any) (any, error) {
 		node, _ := stringField(p, "node")
-		line, _ := stringField(p, "command")
+		line, _ := namedField(p, "command")
 		if m, ok := p.(map[string]any); ok {
 			node, _ = m["node"].(string)
 			line, _ = m["command"].(string)

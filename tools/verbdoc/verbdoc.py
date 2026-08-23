@@ -50,6 +50,12 @@ HANDLE = re.compile(r'st\.Handle(?:Spec)?\(\s*"([a-z0-9_.]+)"\s*,')
 
 PARAM_PATTERNS = [
     (re.compile(r'stringField\(\s*p\s*,\s*"([a-z0-9_]+)"'), "string"),
+    # namedField is stringField's sibling for a verb's non-primary parameters -
+    # added once a verb learned that a bare value must fill only one field, not
+    # every field asked of it (#235). Missing this pattern is not cosmetic: it
+    # silently dropped every secondary parameter a verb converted, which is
+    # exactly the kind of surface #213 exists to keep honest.
+    (re.compile(r'namedField\(\s*p\s*,\s*"([a-z0-9_]+)"'), "string"),
     (re.compile(r'numField\(\s*p\s*,\s*"([a-z0-9_]+)"'), "number"),
     (re.compile(r'boolField\(\s*p\s*,\s*"([a-z0-9_]+)"'), "bool"),
     (re.compile(r'm\["([a-z0-9_]+)"\]\.\(string\)'), "string"),

@@ -138,7 +138,7 @@ func registerCompanion(st *state.Store, s *Sim) {
 
 	st.Handle("companion.send", func(w *state.World, p any) (any, error) {
 		node, _ := stringField(p, "node")
-		text, _ := stringField(p, "text")
+		text, _ := namedField(p, "text")
 		if strings.TrimSpace(text) == "" {
 			return nil, fmt.Errorf("companion.send needs text")
 		}
@@ -285,7 +285,7 @@ func registerCompanion(st *state.Store, s *Sim) {
 	// transport-scoped measures a different network from the one asked for.
 	st.Handle("companion.scope", func(w *state.World, p any) (any, error) {
 		node, _ := stringField(p, "node")
-		name, _ := stringField(p, "scope")
+		name, _ := namedField(p, "scope")
 		c, en, err := s.companionFor(node)
 		if err != nil {
 			return nil, err

@@ -32,7 +32,7 @@ func registerBoundaryLoad(st *state.Store, s *Sim) {
 	// should not have to write it to disk to be understood.
 	st.Handle("boundary.load", func(w *state.World, p any) (any, error) {
 		path, _ := stringField(p, "path")
-		text, _ := stringField(p, "geojson")
+		text, _ := namedField(p, "geojson")
 		if path == "" && text == "" {
 			return nil, badParams("boundary.load needs a path or a geojson document")
 		}
@@ -60,7 +60,7 @@ func registerBoundaryLoad(st *state.Store, s *Sim) {
 		// out it is guessed, because the property is called "name" in almost
 		// every file and asking for it every time is a question with one
 		// answer.
-		nameField, _ := stringField(p, "name_field")
+		nameField, _ := namedField(p, "name_field")
 		if nameField == "" {
 			nameField = "name"
 		}
@@ -76,7 +76,7 @@ func registerBoundaryLoad(st *state.Store, s *Sim) {
 		// A name the caller gave wins outright for a single polygon - they are
 		// saying what to call this area - and otherwise fills in the blanks the
 		// file left, falling back to the file's own name and then to a number.
-		chosen, _ := stringField(p, "name")
+		chosen, _ := namedField(p, "name")
 		fallback := chosen
 		if fallback == "" && path != "" {
 			fallback = defaultAreaName(path)

@@ -116,7 +116,7 @@ func registerCapture(st *state.Store, s *Sim) {
 		if !ok {
 			return nil, fmt.Errorf("no radio preset %q", label)
 		}
-		only, _ := stringField(p, "node")
+		only, _ := namedField(p, "node")
 		n := 0
 		for i := range s.nodes {
 			if only != "" && s.nodes[i].Name != only {
@@ -145,7 +145,7 @@ func registerCapture(st *state.Store, s *Sim) {
 	// contains get into a scenario.
 	st.Handle("nodes.place", func(w *state.World, p any) (any, error) {
 		name, _ := stringField(p, "name")
-		kind, _ := stringField(p, "kind")
+		kind, _ := namedField(p, "kind")
 		lat, okLat := numField(p, "lat")
 		lon, okLon := numField(p, "lon")
 		if name == "" || !okLat || !okLon {
@@ -180,7 +180,7 @@ func registerCapture(st *state.Store, s *Sim) {
 		// what decides the transmit ceiling, the receive chain's noise figure
 		// and the battery the energy model needs, so a wrong name has to
 		// refuse rather than fall back to a plausible default.
-		if b, ok := stringField(p, "board"); ok && b != "" {
+		if b, ok := namedField(p, "board"); ok && b != "" {
 			board, err := scenario.BoardByName(b)
 			if err != nil {
 				return nil, control.WithCode(control.BadParams, err)
