@@ -321,8 +321,26 @@ func TestEveryControlIsWiredAndReachable(t *testing.T) {
 }
 
 // The build you want is not always one of the eleven that fit.
+// longLibrary is more builds than the overlay can show at once, so the last of
+// them is genuinely below the fold and has to be filtered for.
+func longLibrary() []buildChoice {
+	var out []buildChoice
+	for i := 40; i > 20; i-- {
+		v := fmt.Sprintf("v1.%d.0", i)
+		out = append(out, buildChoice{Label: v, Version: v})
+	}
+	return out
+}
+
 func TestAnyBuildIsReachableByFiltering(t *testing.T) {
 	nv := &nodeViewPanel{}
+	// A library long enough to overflow the overlay, supplied rather than
+	// found. This test used to read the machine's own and skip itself when it
+	// held fewer than twelve builds - which on a clean runner is always, so the
+	// one test standing behind the audit's "reached by filtering" exemption
+	// did not run in CI at all. Between them the two tests excused the tail of
+	// the list to each other and neither walked it.
+	nv.pick.library = longLibrary
 	nv.pick.open("Abernethy Repeater")
 	got := ""
 	nv.OnFirmware = func(node string, b buildChoice) { got = b.Version }
@@ -331,7 +349,8 @@ func TestAnyBuildIsReachableByFiltering(t *testing.T) {
 	h.frame()
 	h.frame()
 	if len(nv.pick.builds) < 12 {
-		t.Skipf("only %d builds installed, so nothing is below the fold", len(nv.pick.builds))
+		t.Fatalf("the supplied library holds %d builds; this test needs enough"+
+			" to put one below the fold", len(nv.pick.builds))
 	}
 	want := nv.pick.builds[len(nv.pick.builds)-1]
 
