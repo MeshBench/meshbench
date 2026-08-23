@@ -26,58 +26,6 @@ import (
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 )
 
-// nodeTab is which pane of the window is showing, in the mock's order.
-type nodeTab int
-
-const (
-	// tabConsole is the firmware's text console, which only a repeater has.
-	// A companion speaks the framed protocol instead, and its command line -
-	// meshcore-cli's vocabulary - lives inside the Companion tab; a second
-	// tab for the same thing taught people the two might differ.
-	tabConsole nodeTab = iota
-	// tabCompanion and tabConnect only exist for a node that speaks the
-	// companion protocol. A repeater has no channels and no contacts, and a
-	// tab that is always there and always empty teaches people to ignore
-	// tabs.
-	tabCompanion
-	// tabSDR is the observer's front pane - serve the antenna, read the
-	// address - and only an observer's window grows it.
-	tabSDR
-	tabSettings
-	tabRadio
-	tabStats
-	tabActivity
-	tabConnect
-	// tabHardware is the board drawn as itself - its screen, its lamps, the
-	// buttons somebody can press. Only a node whose board declares any of
-	// that grows it, because a tab that is always there and always empty
-	// teaches people to ignore tabs.
-	tabHardware
-	numNodeTabs
-)
-
-func (n nodeTab) String() string {
-	switch n {
-	case tabCompanion:
-		return "Companion"
-	case tabSDR:
-		return "SDR"
-	case tabSettings:
-		return "Settings"
-	case tabRadio:
-		return "Radio"
-	case tabStats:
-		return "Stats"
-	case tabActivity:
-		return "Activity"
-	case tabConnect:
-		return "Connect"
-	case tabHardware:
-		return "Hardware"
-	}
-	return "Console"
-}
-
 // nodeWindowPanel is the body. Kept separate from the window so it can be
 // drawn - and tested - without one.
 type nodeWindowPanel struct {
@@ -95,6 +43,11 @@ type nodeWindowPanel struct {
 	start    comp.Button
 	stop     comp.Button
 	energy   comp.Button
+	changeFw comp.Button
+	// pick is the build list, the same control the Nodes running panel opens
+	// from its firmware cell. Shared so the two cannot come to offer
+	// different builds or apply them differently.
+	pick     buildPicker
 	tcpBtn   comp.Button
 	serBtn   comp.Button
 	dropBtn  comp.Button
@@ -149,21 +102,35 @@ type nodeWindowPanel struct {
 	// panel's own coordinates.
 	screenTouch struct{}
 	screenScale int
+	// screenKeys is what typing at the board is addressed to. Focus is taken
+	// by clicking the drawn panel, which is how somebody would pick a
+	// handheld up before typing on it.
+	screenKeys struct{}
 }
 
 // visibleTabs is the tab set this node gets.
 func (p *nodeWindowPanel) visibleTabs() []nodeTab {
-	if p.isCompanion() {
-		return []nodeTab{tabCompanion, tabSettings, tabRadio,
+	var tabs []nodeTab
+	switch {
+	case p.isCompanion():
+		tabs = []nodeTab{tabCompanion, tabSettings, tabRadio,
 			tabStats, tabActivity, tabConnect}
-	}
-	if p.isObserver() {
+	case p.isObserver():
 		// No console and no Radio tab: an observer runs no firmware and has
 		// no chip to read back, and a tab that is always empty teaches
 		// people to ignore tabs.
+		//
+		// No Hardware tab either, and that one is not about tidiness: an
+		// observer is not a board. It has no screen to draw and no button to
+		// press, so there is nothing for the tab to be.
 		return []nodeTab{tabSDR, tabSettings, tabStats, tabActivity}
+	default:
+		tabs = []nodeTab{tabConsole, tabSettings, tabRadio, tabStats, tabActivity}
 	}
-	tabs := []nodeTab{tabConsole, tabSettings, tabRadio, tabStats, tabActivity}
+	// Whatever the node's role. The hardware belongs to the board, not to the
+	// application running on it - a companion on a T-Deck has the same screen
+	// and the same keyboard as a repeater on one, and the tab was reachable
+	// on the repeater and not on the handheld it was built for.
 	if p.hasHardware {
 		tabs = append(tabs, tabHardware)
 	}
@@ -190,6 +157,30 @@ func (p *nodeWindowPanel) clicks(gtx layout.Context) {
 	}
 	if p.sdrStop.Click.Clicked(gtx) && p.OnAction != nil {
 		p.OnAction("sdr.stop", p.node)
+	}
+	// Which build this node runs, from the window that is about this node.
+	//
+	// The capability was only ever reachable from the Nodes running table or
+	// over the control socket, so pinning one local build to one node meant
+	// leaving the window that names it. Same control, same verb.
+	if p.changeFw.Click.Clicked(gtx) {
+		p.pick.open(p.node)
+	}
+	p.pick.OnPick = func(node string, b buildChoice) {
+		if p.OnDo == nil {
+			return
+		}
+		// node.set_firmware, not node.set_firmware_only: firmware is chosen
+		// when a node launches, so the verb stops it, provisions it again and
+		// starts it. Recording the choice and leaving the node on its old
+		// build is the control somebody presses twice and then distrusts.
+		//
+		// Board and role travel with the version. A board image is not a
+		// version on its own - "wadamesh" means nothing until it is wadamesh
+		// for a LilyGo_TDeck built as a companion - so a pin carrying only the
+		// version is one the runner cannot honour.
+		p.OnDo("node.set_firmware", map[string]any{
+			"node": node, "version": b.Version, "board": b.Board, "role": b.Role})
 	}
 	// Enter sends, because a console with a send button and no Enter is a
 	// console nobody will use twice.
@@ -230,11 +221,28 @@ func (p *nodeWindowPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snap
 	if p.tab == tabHardware {
 		p.boardPresses(gtx, s)
 		p.boardTouches(gtx, s)
+		p.boardKeys(gtx, s)
 	}
 	if !p.hasHardware && p.tab == tabHardware {
 		p.tab = tabConsole
 	}
 	p.clicks(gtx)
+	// The build list goes over the whole window, not inside the Settings
+	// tab's flex: laid out as a child of a pane that has already taken the
+	// space, it drew at zero height and could not be clicked. That is the
+	// same trap the Nodes running panel fell into, which is why both use the
+	// one control.
+	//
+	// Over the title bar too, when there is one: the bar is a child of the
+	// same flex, and an overlay that stopped short of it would leave a strip
+	// of live buttons above a modal list.
+	if p.pick.showing() {
+		defer func() {
+			macro := op.Record(gtx.Ops)
+			p.pick.overlay(t, gtx)
+			macro.Stop().Add(gtx.Ops)
+		}()
+	}
 	// The window's own chrome when nothing else gave it any: a layer-shell
 	// window has no title bar but the one drawn here.
 	var kids []layout.FlexChild
@@ -452,8 +460,8 @@ type nodeWindowHooks struct {
 	onDo         func(verb string, params any)
 }
 
-func (w *nodeWindows) openFor(node string, newTheme func() *theme.Theme,
-	st *state.Store, h nodeWindowHooks) {
+func (w *nodeWindows) openFor(node string, tab nodeTab,
+	newTheme func() *theme.Theme, st *state.Store, h nodeWindowHooks) {
 	w.mu.Lock()
 	if w.open[node] {
 		// Already out there: recall it rather than doing nothing. A second
@@ -477,7 +485,7 @@ func (w *nodeWindows) openFor(node string, newTheme func() *theme.Theme,
 		p := &nodeWindowPanel{node: node, OnCommand: h.onCommand, OnAction: h.onAction,
 			OnCLI: h.onCLI, OnServe: h.onServe, OnOpenPacket: h.onOpenPacket,
 			OnDo: h.onDo, Kind: kindOfNode(st, node)}
-		p.tab = openOnTab
+		p.tab = tab
 		spot := float.NextSpot()
 		win := new(app.Window)
 		// Whether it stays above the main window is the machine's preference,

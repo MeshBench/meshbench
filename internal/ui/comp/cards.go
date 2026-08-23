@@ -116,19 +116,24 @@ func CellGrid(t *theme.Theme, gtx layout.Context, min unit.Dp, cells []layout.Wi
 // Pill is a small status capsule: a coloured dot and a word, tinted with the
 // state it reports.
 func Pill(t *theme.Theme, c color.NRGBA, label string) layout.Widget {
+	return pillWith(t, c, label, func(gtx layout.Context) layout.Dimensions {
+		r := gtx.Dp(3)
+		defer clip.Ellipse{Max: image.Pt(2*r, 2*r)}.Push(gtx.Ops).Pop()
+		paint.ColorOp{Color: c}.Add(gtx.Ops)
+		paint.PaintOp{}.Add(gtx.Ops)
+		return layout.Dimensions{Size: image.Pt(2*r+gtx.Dp(t.Sp.XS), 2*r)}
+	})
+}
+
+// pillWith is the capsule itself, whatever leads it.
+func pillWith(t *theme.Theme, c color.NRGBA, label string, mark layout.Widget) layout.Widget {
 	return func(gtx layout.Context) layout.Dimensions {
 		macro := op.Record(gtx.Ops)
 		dims := layout.Inset{
 			Top: t.Sp.XS, Bottom: t.Sp.XS, Left: t.Sp.M, Right: t.Sp.M,
 		}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					r := gtx.Dp(3)
-					defer clip.Ellipse{Max: image.Pt(2*r, 2*r)}.Push(gtx.Ops).Pop()
-					paint.ColorOp{Color: c}.Add(gtx.Ops)
-					paint.PaintOp{}.Add(gtx.Ops)
-					return layout.Dimensions{Size: image.Pt(2*r+gtx.Dp(t.Sp.XS), 2*r)}
-				}),
+				layout.Rigid(mark),
 				layout.Rigid(Text(t, t.Sz.Label, c, label)),
 			)
 		})
@@ -146,6 +151,53 @@ func Pill(t *theme.Theme, c color.NRGBA, label string) layout.Widget {
 		call.Add(gtx.Ops)
 		return dims
 	}
+}
+
+// Arrow is which way a drawn arrowhead points.
+type Arrow int
+
+const (
+	ArrowUp Arrow = iota
+	ArrowDown
+	ArrowLeft
+	ArrowRight
+)
+
+// ArrowPill is a Pill whose leading mark is an arrowhead rather than a dot.
+//
+// Drawn rather than typed. The arrows in the character set are not in every
+// font: on this machine two of the four came back as coloured boxes, which is
+// the same failure the transport's symbols and the chevron were drawn to
+// avoid. A direction that renders as a box is worse than no direction at all.
+func ArrowPill(t *theme.Theme, c color.NRGBA, dir Arrow, label string) layout.Widget {
+	return pillWith(t, c, label, func(gtx layout.Context) layout.Dimensions {
+		return arrowHead(t, gtx, c, dir)
+	})
+}
+
+// arrowHead is one small filled triangle.
+func arrowHead(t *theme.Theme, gtx layout.Context, c color.NRGBA, dir Arrow) layout.Dimensions {
+	d := gtx.Dp(7)
+	f := float32(d)
+	var a, b, tip f32.Point
+	switch dir {
+	case ArrowUp:
+		a, b, tip = f32.Pt(0, f), f32.Pt(f, f), f32.Pt(f/2, 0)
+	case ArrowDown:
+		a, b, tip = f32.Pt(0, 0), f32.Pt(f, 0), f32.Pt(f/2, f)
+	case ArrowLeft:
+		a, b, tip = f32.Pt(f, 0), f32.Pt(f, f), f32.Pt(0, f/2)
+	default:
+		a, b, tip = f32.Pt(0, 0), f32.Pt(0, f), f32.Pt(f, f/2)
+	}
+	var p clip.Path
+	p.Begin(gtx.Ops)
+	p.MoveTo(a)
+	p.LineTo(b)
+	p.LineTo(tip)
+	p.Close()
+	paint.FillShape(gtx.Ops, c, clip.Outline{Path: p.End()}.Op())
+	return layout.Dimensions{Size: image.Pt(d+gtx.Dp(t.Sp.XS), d)}
 }
 
 // Switch is a Check drawn as a pill toggle.

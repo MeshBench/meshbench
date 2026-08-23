@@ -6,8 +6,8 @@
 // as a wlr-layer-shell window - and that changes what the window is: no
 // decoration of the compositor's, so the window draws its own title bar; no
 // taskbar entry; no minimise, the close button being what returns the panel
-// to the main layout. A preference, because a person may would rather have
-// the compositor's own windows than the pinning.
+// to the main layout. A preference, because somebody may prefer the
+// compositor's own windows to the pinning.
 package session
 
 import (

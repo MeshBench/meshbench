@@ -124,8 +124,13 @@ func (c *layerChrome) recall(spot float.Spot) []app.Option {
 	return []app.Option{float.Move(spot)}
 }
 
-// clamp keeps the bar reachable: never above or left of the output's
-// top-left corner, and never so far right or down that the bar has left it.
+// clamp keeps the bar reachable: never above or left of the output's top-left
+// corner, and never so far right or down that the bar has left it.
+//
+// The left edge is the corner, not a part-width overhang. Allowing the window
+// to sit partly off the left while keeping a grabbable strip on screen is a
+// second rule, and it cannot both hold and be clamped to zero first - so there
+// is one rule here rather than an unreachable branch implying another.
 func (c *layerChrome) clamp() {
 	if c.spot.Top < 0 {
 		c.spot.Top = 0
@@ -141,12 +146,8 @@ func (c *layerChrome) clamp() {
 		c.spot.Top = max
 	}
 	outX := unit.Dp(float32(c.output.X) * c.pxToDp())
-	winW := unit.Dp(float32(c.size.X) * c.pxToDp())
 	if max := outX - barGrabDp; c.spot.Left > max {
 		c.spot.Left = max
-	}
-	if min := barGrabDp - winW; c.spot.Left < min {
-		c.spot.Left = min
 	}
 }
 

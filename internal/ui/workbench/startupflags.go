@@ -188,6 +188,14 @@ func (a startupActions) run() {
 			go func() { _, _ = a.st.Do(a.ctx, "coverage.clear", nil) }()
 		case "sim.inject":
 			go func() { _, _ = a.st.Do(a.ctx, "sim.inject", node) }()
+		case "nodes.delete":
+			// Not through the default below, which would call the verb
+			// straight away. Deleting is the one entry here that asks first,
+			// and it asks in the same place the Delete key does so the two
+			// cannot come to behave differently.
+			if a.mv.OnDelete != nil {
+				a.mv.OnDelete([]string{node})
+			}
 		case "panel.pop_out":
 			// The shell owns what a pop-out means; the map only says which
 			// panel the request was about.

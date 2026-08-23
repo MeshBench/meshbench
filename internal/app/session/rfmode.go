@@ -126,7 +126,7 @@ func registerRFRealism(st *state.Store, s *Sim) {
 			}
 		}
 		if !found {
-			return nil, fmt.Errorf("no node named %q", name)
+			return nil, noSuchNode(name)
 		}
 		if s.eng != nil {
 			if en, ok := s.eng.NodeByName(name); ok {

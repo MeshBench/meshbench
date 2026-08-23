@@ -12,8 +12,10 @@
 package session
 
 import (
+	"errors"
 	"fmt"
 
+	"github.com/MeshBench/meshbench/internal/app/control"
 	"github.com/MeshBench/meshbench/internal/app/state"
 )
 
@@ -33,8 +35,15 @@ type UI interface {
 	// FitMap frames every node, which is the only camera request that needs
 	// no numbers and is the one somebody driving a capture usually wants.
 	FitMap()
-	// OpenNodeWindow gives one node a window of its own.
-	OpenNodeWindow(node string)
+	// OpenNodeWindow gives one node a window of its own, opened on a named tab
+	// where one was asked for, and reports which tab it landed on.
+	//
+	// The tab because the Hardware pane is where a board draws itself and it
+	// could be reached only by clicking - so a capture could not show it and a
+	// script could not open it. What it landed on, because a node whose board
+	// declares no screen, lamps or buttons grows no Hardware tab, and
+	// reporting one it does not have would be worse than refusing.
+	OpenNodeWindow(node, tab string) (string, error)
 
 	// OpenPanel shows a panel. where is "" for in the layout, "window" for
 	// its own window, or "dock" to bring it back.
@@ -80,10 +89,16 @@ func (s *Sim) SetUI(u UI) { s.ui = u }
 
 func (s *Sim) needUI() error {
 	if s.ui == nil {
-		return fmt.Errorf("this session has no interface attached, so there is nothing to show")
+		return errNoInterface
 	}
 	return nil
 }
+
+// errNoInterface is a window verb in a session with no window - headless,
+// almost always. Built once: it is returned from 23 verbs and carries no
+// detail, so there is nothing per-call to put in it.
+var errNoInterface = control.WithCode(control.Unavailable, errors.New(
+	"this session has no interface attached, so there is nothing to show"))
 
 func registerUI(st *state.Store, s *Sim) {
 	st.Handle("workspace.set", func(w *state.World, p any) (any, error) {
@@ -131,10 +146,14 @@ func registerNodeWindow(st *state.Store, s *Sim) {
 			name, _ = m["node"].(string)
 		}
 		if _, found := findNode(w.Nodes, name); !found {
-			return nil, fmt.Errorf("no node named %q", name)
+			return nil, noSuchNode(name)
 		}
-		s.ui.OpenNodeWindow(name)
-		return map[string]any{"node": name}, nil
+		tab, _ := stringField(p, "tab")
+		shown, err := s.ui.OpenNodeWindow(name, tab)
+		if err != nil {
+			return nil, control.WithCode(control.BadParams, err)
+		}
+		return map[string]any{"node": name, "tab": shown}, nil
 	})
 }
 
@@ -152,7 +171,7 @@ func registerMapCamera(st *state.Store, s *Sim) {
 		if name := soleString(p); name != "" {
 			n, found := findNode(w.Nodes, name)
 			if !found {
-				return nil, fmt.Errorf("no node named %q", name)
+				return nil, noSuchNode(name)
 			}
 			lat, lon = n.Lat, n.Lon
 		} else {
@@ -163,7 +182,7 @@ func registerMapCamera(st *state.Store, s *Sim) {
 				if name, ok := m["node"].(string); ok && name != "" {
 					n, found := findNode(w.Nodes, name)
 					if !found {
-						return nil, fmt.Errorf("no node named %q", name)
+						return nil, noSuchNode(name)
 					}
 					lat, lon = n.Lat, n.Lon
 				}

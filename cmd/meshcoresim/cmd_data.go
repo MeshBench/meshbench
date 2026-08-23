@@ -74,6 +74,7 @@ func runFirmware(ctx context.Context, args []string) error {
 	get := fs.String("get", "", "download an image by name, e.g. RAK_4631/repeater")
 	importPath := fs.String("import", "", "import your own .uf2, .bin or .elf")
 	role := fs.String("role", "repeater", "role, when importing")
+	label := fs.String("label", "", "what to call an imported build; defaults to a timestamp")
 	if err := parse(fs, args, "list, download or import MeshCore firmware"); err != nil {
 		return err
 	}
@@ -81,7 +82,7 @@ func runFirmware(ctx context.Context, args []string) error {
 	c := &firmware.Catalogue{CacheDir: *cache, Offline: *offline}
 
 	if *importPath != "" {
-		img, err := c.Import(*importPath, *board, *role)
+		img, err := c.Import(*importPath, *board, *role, firmware.ImportLabel(*label))
 		if err != nil {
 			return err
 		}

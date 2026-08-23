@@ -1,7 +1,6 @@
 package session
 
 import (
-	"fmt"
 	"net"
 	"sort"
 
@@ -18,7 +17,7 @@ import (
 // released the port out from under the client that had just taken it.
 func (s *Sim) serve(name, kind string) (state.Endpoint, error) {
 	if s.eng == nil {
-		return state.Endpoint{}, fmt.Errorf("no simulation")
+		return state.Endpoint{}, ErrNoSimulation
 	}
 	if c, ok := s.comps[name]; ok {
 		if c.release != nil {

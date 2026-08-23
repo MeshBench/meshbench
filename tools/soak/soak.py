@@ -7,26 +7,22 @@ two thousand events - the most congested five seconds of it. This sends the
 way a mesh is actually used: one message, let it flood, let the air clear,
 send the next. Every round's events are dumped before the ring can drop them.
 """
-import json, os, socket, subprocess, sys, time
+import os, subprocess, sys, time
 
-PATH = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "meshcoresim.sock")
+from meshbench import Workbench
+
+# One connection for the whole soak, through the client rather than a socket
+# opened here. This built the path by hand out of XDG_RUNTIME_DIR, which is a
+# Linux sentence, and opened a fresh AF_UNIX socket per verb - some hundreds of
+# them over a long run, none of which Windows could have opened at all.
+WB = Workbench.attach()
 
 def call(verb, params=None, timeout=300):
-    s = socket.socket(socket.AF_UNIX)
-    s.settimeout(timeout)
-    s.connect(PATH)
-    req = {"id": 1, "method": verb}
-    if params is not None:
-        req["params"] = params
-    s.sendall((json.dumps(req) + "\n").encode())
-    buf = b""
-    while not buf.endswith(b"\n"):
-        c = s.recv(1 << 20)
-        if not c:
-            break
-        buf += c
-    s.close()
-    return json.loads(buf.decode())
+    """The old shape, kept: every call site below reads {"result": ...}."""
+    try:
+        return {"result": WB.call(verb, params)}
+    except Exception as e:  # noqa: BLE001 - a soak reports and carries on
+        return {"error": str(e)}
 
 COMPANIONS = ["Mothy", "Jazzy", "PeterB", "AngusOutlaw1", "CaptBlack-Mysteron1"]
 

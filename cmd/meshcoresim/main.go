@@ -46,6 +46,7 @@ func commands() []command {
 		{"dev", "build a MeshCore checkout and give it to the workbench", runDev},
 		{"serve", "run a mesh and expose a companion to your app", runServe},
 		{"test", "run a fixture on real firmware and check its assertions", runTest},
+		{"headless", "run the verbs over the control socket, with no window", runHeadless},
 		{"workbench", "open the desktop workbench: build a scenario on a map and run it", runWorkbench},
 	}
 }

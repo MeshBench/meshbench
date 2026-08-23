@@ -114,6 +114,12 @@ func (b *ButtonSender) Analog(channel int, raw uint16) error {
 
 // send puts one message to every device listening, and reports whether any
 // heard it.
+//
+// Sent as it is made, with no pacing here. How long a press has to last to be
+// noticed is a question about the board being driven - its firmware polls,
+// and the emulator runs at a fraction of real speed - so the holding is done
+// in the devices, against the guest's own clock. Pacing it here against the
+// host's would be the wrong clock and would drag out a swipe as well.
 func (b *ButtonSender) send(msg [msgLen]byte) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()

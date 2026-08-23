@@ -20,6 +20,7 @@ var xiaoS3WIOBoard = Board{
 	QEMU: &QEMUWiring{
 		Machine: "esp32s3", SPI: 3, NSS: 41, Busy: 40, DIO1: 39,
 		PSRAMMB: 8, PSRAMOctal: true,
+		Verified: true,
 	},
 	// A status lamp rather than a transmit one, and no screen in this build.
 	Hardware: &Panel{

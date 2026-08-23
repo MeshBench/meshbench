@@ -133,12 +133,28 @@ func (u *workbenchUI) applyCamera() {
 	}
 }
 
-func (u *workbenchUI) OpenNodeWindow(node string) {
+func (u *workbenchUI) OpenNodeWindow(node, tab string) (string, error) {
 	if u.nodes == nil || u.newTheme == nil {
-		return
+		return "", fmt.Errorf("this build has no node windows to open")
 	}
-	u.nodes.openFor(node, u.newTheme, u.store, nodeWindowHooks{
+	// Named rather than numbered, and refused by name when it is not one.
+	//
+	// The startup flag takes an index, which is fine for a capture script
+	// written beside the enum and useless to anybody else: a tab that moved
+	// would silently open a different pane. A name cannot do that.
+	want, ok := nodeTabByName(tab)
+	if !ok {
+		return "", fmt.Errorf("no tab called %q - there is %s",
+			tab, strings.Join(nodeTabNames(), ", "))
+	}
+	u.nodes.openFor(node, want, u.newTheme, u.store, nodeWindowHooks{
 		onCommand: u.onCommand, onAction: u.onAction, onCLI: u.onCLI,
 		onServe: u.onServe, onOpenPacket: u.onOpenPacket, onDo: u.onDo,
 	})
+	// What was asked for, which is not always what will be drawn: a node
+	// whose board declares nothing grows no Hardware tab and the window falls
+	// back to its console. Saying which of those happened is the window's own
+	// business once it is up; what this can honestly report is the tab it was
+	// opened on.
+	return want.String(), nil
 }

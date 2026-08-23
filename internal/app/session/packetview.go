@@ -23,7 +23,7 @@ func registerPacket(st *state.Store, s *Sim) {
 	// milliseconds a scan costs.
 	st.Handle("packet.open", func(w *state.World, p any) (any, error) {
 		if s.eng == nil {
-			return nil, fmt.Errorf("no simulation")
+			return nil, ErrNoSimulation
 		}
 		id := uint64(0)
 		if v, ok := numField(p, "id"); ok {

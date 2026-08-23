@@ -205,4 +205,11 @@ type Job struct {
 	Total    int
 	Cancel   func()
 	Finished bool
+	// Failed marks a job that ended without doing what it was for.
+	//
+	// Separate from Finished because a waiter needs both: "stop waiting" and
+	// "this did not work" are different answers, and the only way to tell them
+	// apart used to be reading the What line - which means matching on prose,
+	// and breaks the moment somebody improves the wording.
+	Failed bool
 }

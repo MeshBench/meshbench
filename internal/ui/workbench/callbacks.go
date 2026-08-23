@@ -8,6 +8,7 @@ package workbench
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -136,10 +137,45 @@ func (c callbacks) wire() {
 			_, _ = c.st.Do(c.ctx, "budget.for_selection", nil)
 		}()
 	}
+	c.mv.OnDelete = c.deleteNodes
 	c.mv.OnMove = func(name string, lat, lon float64) {
 		go func() {
 			_, _ = c.st.Do(c.ctx, "nodes.move",
 				map[string]any{"name": name, "lat": lat, "lon": lon})
 		}()
 	}
+}
+
+// deleteNodes asks first, then removes them.
+//
+// Asked because it is the one gesture on the map that cannot be undone: a node
+// carries its regions, its firmware and its position, and the way back is to
+// place it again and set all three. The question goes through the shell's
+// chooser, which is the single way anything here picks from a list.
+func (c callbacks) deleteNodes(names []string) {
+	if len(names) == 0 || c.chooser == nil {
+		return
+	}
+	title := "Delete " + names[0] + "?"
+	if len(names) > 1 {
+		title = fmt.Sprintf("Delete these %d nodes?", len(names))
+	}
+	c.chooser(title, []string{"Delete", "Keep"}, func(picked string) {
+		if picked != "Delete" {
+			return
+		}
+		// One verb call per node, in order, on a worker. nodes.delete
+		// rebuilds the seeded scenario and re-warms the link matrix, and a
+		// warm cancels the one before it - so trimming several nodes by hand
+		// costs one measurement of the matrix rather than one per node.
+		go func() {
+			for _, name := range names {
+				if _, err := c.st.Do(c.ctx, "nodes.delete",
+					map[string]any{"node": name}); err != nil {
+					_, _ = c.st.Do(c.ctx, "ui.said", "delete: "+err.Error())
+					return
+				}
+			}
+		}()
+	})
 }

@@ -1,0 +1,423 @@
+{
+  "_comment": [
+    "Which scripting-API call covers each verb, and how the table is",
+    "grouped. Authored: this is the design decision docs/scripting-verbs.md",
+    "exists to record, and the one thing tools/verbdoc/verbdoc.py cannot",
+    "read out of the tree.",
+    "",
+    "An empty facade means deliberately none - the store talking to",
+    "itself - and it must have a matching entry in no_facade saying why.",
+    "A verb with no entry here fails the script, which is the guard: a",
+    "verb no client can reach is one nobody outside the workbench can use."
+  ],
+  "facade": {
+    "session.describe": "wb.describe()",
+    "session.status": "wb.status()",
+    "app.quit": "wb.quit()",
+    "ui.said": "wb.say(text)",
+    "log.path": "wb.log.path",
+    "logs.export": "wb.log.export(path)",
+    "project.new": "wb.project.new(place=None)",
+    "project.open": "wb.project.open(path)",
+    "project.save": "wb.project.save(name)",
+    "project.list": "wb.project.list()",
+    "nodes.list": "wb.nodes  (iterate)",
+    "nodes.place": "wb.nodes.place(name, kind, lat, lon, ...)",
+    "nodes.delete": "wb.nodes.delete(*names) / node.delete()",
+    "nodes.move": "node.move(lat, lon)",
+    "nodes.select": "wb.nodes.select(name)",
+    "nodes.select_many": "wb.nodes.select(*names)",
+    "nodes.add_to_selection": "wb.nodes.select(*names, add=True)",
+    "nodes.regions": "node.regions = [...]",
+    "nodes.allow_flood": "node.allow_flood = bool",
+    "nodes.stats": "wb.nodes.refresh_stats()",
+    "node.start": "node.start()",
+    "node.stop": "node.stop()",
+    "node.set_firmware": "node.firmware = build",
+    "node.set_firmware_only": "node.set_firmware(build, apply=False)",
+    "node.truerf": "node.true_rf = bool",
+    "node.radio": "node.radio",
+    "node.radio_adopt": "node.adopt_radio()",
+    "node.provisioning": "node.provisioning",
+    "node.energy": "node.energy()",
+    "node.window": "wb.window(node, tab=None)",
+    "node.reflashed": "",
+    "node.reflash_failed": "",
+    "board.press": "node.board.press(pin, down)  /  .tap(pin)",
+    "board.key": "node.board.type(text)",
+    "board.touch": "node.board.touch(x, y, down) / .tap_at(x, y)",
+    "board.matrix": "wb.boards.matrix(version)",
+    "board.probe": "wb.boards.probe(board, version)",
+    "board.probe_finished": "",
+    "sim.start": "wb.sim.start()",
+    "sim.play": "wb.sim.play()",
+    "sim.pause": "wb.sim.pause()",
+    "sim.toggle": "wb.sim.toggle()",
+    "sim.step": "wb.sim.step()",
+    "sim.run": "wb.sim.run(ms=|seconds=|minutes=)",
+    "sim.settle": "wb.sim.settle(steps=...)",
+    "sim.reset": "wb.sim.reset()",
+    "sim.seed": "wb.sim.seed = n",
+    "sim.speed": "wb.sim.step_ms = n  /  wb.sim.faster(x)",
+    "sim.faster": "wb.sim.faster()",
+    "sim.slower": "wb.sim.slower()",
+    "sim.state": "wb.sim.state()",
+    "sim.kind": "wb.sim.real_firmware = bool",
+    "sim.inject": "node.inject(payload=None)",
+    "firmware.library": "wb.firmware.library",
+    "firmware.installed": "wb.firmware.installed",
+    "firmware.published": "wb.firmware.scan()",
+    "firmware.needed": "wb.firmware.needed()",
+    "firmware.download": "wb.firmware.download(role, version, board=None)",
+    "firmware.import": "wb.firmware.import_(path, role, board=None)",
+    "firmware.delete": "wb.firmware.delete(build)",
+    "firmware.wipe": "wb.firmware.wipe()",
+    "firmware.set": "wb.firmware.use(version, role=|node=)",
+    "firmware.start": "wb.firmware.start()",
+    "firmware.state": "wb.firmware.state()  /  wb.firmware.wait_started()",
+    "firmware.started": "",
+    "firmware.failed": "",
+    "console.type": "node.console.send(line)",
+    "console.read": "node.console.read()  /  node.console.tail",
+    "console.cli": "node.companion.cli(line)",
+    "fleet.send": "wb.fleet.send(command, kind=|node=)",
+    "fleet.replies": "",
+    "companion.connect": "node.companion.connect()",
+    "companion.disconnect": "node.companion.disconnect()",
+    "companion.state": "node.companion  (properties)",
+    "companion.refresh": "node.companion.refresh()",
+    "companion.send": "node.companion.send(text, channel=, path_hash=)",
+    "companion.read": "node.companion.messages(channel=)",
+    "companion.advert": "node.companion.advert(flood=False)",
+    "companion.scope": "node.companion.scope = name",
+    "companion.configure": "node.companion.configure(...)",
+    "companion.add_channel": "node.companion.add_channel(index)",
+    "companion.raw": "node.companion.raw(bytes)",
+    "bench.serve": "node.serve(kind='tcp'|'serial')",
+    "bench.drop": "node.unserve()",
+    "bench.refresh": "wb.endpoints",
+    "bench.stray": "wb.endpoints.stray()",
+    "sdr.serve": "node.serve_sdr()",
+    "sdr.stop": "node.unserve_sdr()",
+    "events.recent": "wb.events.recent(limit=)",
+    "events.dump": "wb.events.dump(path)",
+    "packet.open": "wb.packets.open(id, seek=)",
+    "packet.close": "wb.packets.close()",
+    "waterfall.capture": "wb.capture.waterfall(node)",
+    "capture.file": "wb.capture.start(path)",
+    "capture.stop": "wb.capture.stop()",
+    "capture.wireshark": "wb.capture.wireshark()",
+    "links.recompute": "wb.links.recompute()",
+    "links.set": "",
+    "link.pair": "wb.links.pair(a, b)",
+    "link.pair_set": "",
+    "link.profile": "wb.links.profile(a, b)",
+    "link.profile_set": "",
+    "budget.for_selection": "wb.links.budget()",
+    "study.margin": "wb.study.margin_km = n",
+    "coverage.compute": "wb.study.coverage(node)",
+    "coverage.start": "wb.study.coverage(mode=)",
+    "coverage.combined": "wb.study.coverage(mode='combined')",
+    "coverage.map": "wb.study.coverage_map()",
+    "coverage.resolution": "wb.study.coverage_cells = n",
+    "coverage.clear": "wb.study.clear_coverage()",
+    "coverage.set": "",
+    "coverage.failed": "",
+    "energy.for_selection": "wb.study.energy()",
+    "plan.routes": "wb.study.plan(a, b)",
+    "plan.set": "",
+    "plan.failed": "",
+    "boundary.set": "wb.boundary.search(query)",
+    "boundary.accept": "wb.boundary.accept(name)",
+    "boundary.remove": "wb.boundary.remove(name)",
+    "boundary.prune": "wb.boundary.prune(margin_km=)",
+    "import.set_source": "wb.import_.source = url",
+    "import.fetch": "wb.import_.fetch(url)",
+    "import.describe": "wb.import_.describe(url)",
+    "import.commit": "wb.import_.commit(strategy=)",
+    "import.set": "",
+    "import.failed": "",
+    "infer.run": "wb.import_.infer(hours=)",
+    "infer.result": "wb.import_.inference",
+    "infer.apply": "wb.import_.apply_inference()",
+    "feed.pull": "wb.feed.pull(url)",
+    "feed.stop": "wb.feed.stop()",
+    "feed.set": "",
+    "feed.failed": "",
+    "experiment.define": "wb.experiment.define(...)",
+    "experiment.base": "wb.experiment.base(...)",
+    "experiment.vary": "wb.experiment.vary(parameter, values)",
+    "experiment.seeds": "wb.experiment.seeds = [...]",
+    "experiment.senders": "wb.experiment.senders = [...]",
+    "experiment.start": "wb.experiment.start()",
+    "experiment.stop": "wb.experiment.stop()",
+    "experiment.state": "wb.experiment.state()",
+    "experiment.results": "wb.experiment.results(arm=)",
+    "experiment.compare": "wb.experiment.compare(a, b)",
+    "experiment.export": "wb.experiment.export(path)",
+    "experiment.finished": "",
+    "sweep.set": "wb.sweep.set(...)",
+    "sweep.run": "wb.sweep.run()",
+    "validate.fetch": "wb.validate.fetch(url, hours=)",
+    "validate.compare": "wb.validate.compare()",
+    "validate.calibrate": "wb.validate.calibrate(db=None)",
+    "validate.uncalibrate": "wb.validate.uncalibrate()",
+    "validate.failed": "",
+    "rf.mode": "wb.rf.mode = 'calculated'|'waveform'",
+    "rf.toggle": "wb.rf.toggle()",
+    "rf.realism": "wb.rf.realism(...)",
+    "rf.excess_loss": "wb.rf.excess_loss_db = n",
+    "rf.environment": "wb.rf.environment = dir",
+    "environ.list": "wb.rf.environments",
+    "environ.fetch": "wb.rf.fetch_environment(source)",
+    "environ.fetched": "",
+    "environ.failed": "",
+    "radio.preset": "wb.radio.presets  /  wb.radio.apply(preset, node=)",
+    "provisioning.get": "wb.provisioning.settings",
+    "provisioning.set": "wb.provisioning.set(...)",
+    "provisioning.apply": "wb.provisioning.apply()",
+    "schedule.add": "wb.schedule.add(node, command, at=, every=)",
+    "schedule.clear": "wb.schedule.clear()",
+    "assert.add": "wb.assertions.add(kind, ...)",
+    "assert.check": "wb.assertions.check()  ->  Report",
+    "run.save": "wb.save_run(path)",
+    "resource.list": "wb.resources",
+    "resource.fetch": "wb.resources.fetch(kind, name, version)",
+    "resource.fetched": "",
+    "resource.remove": "wb.resources.remove(kind, name, version)",
+    "resource.licence": "wb.resources.licence(kind, name, version)",
+    "resource.licence.hide": "",
+    "terrain.cache": "wb.terrain.cache_gb = n",
+    "terrain.cache_dir": "wb.terrain.cache_dir = path",
+    "terrain.cache_moved": "",
+    "terrain.prefetch": "wb.terrain.prefetch()",
+    "terrain.shade": "wb.ui.map.shade()",
+    "terrain.shade_set": "",
+    "terrain.shade_failed": "",
+    "gpu.state": "wb.gpu",
+    "gpu.set": "wb.gpu.enabled = bool",
+    "job.progress": "",
+    "job.done": "",
+    "job.cancel": "wb.jobs[id].cancel()",
+    "workspace.set": "wb.ui.view = name",
+    "panels.list": "wb.ui.panels",
+    "panel.open": "wb.ui.panel(name).open()",
+    "panel.close": "wb.ui.panel(name).close()",
+    "panel.dock": "wb.ui.panel(name).dock()",
+    "panel.pop_out": "wb.ui.panel(name).pop_out()",
+    "window.open": "wb.ui.window(name).open()",
+    "window.close": "wb.ui.window(name).close()",
+    "view.save": "wb.ui.layouts.save(name)",
+    "view.load": "wb.ui.layouts.load(name)",
+    "view.delete": "wb.ui.layouts.delete(name)",
+    "view.list": "wb.ui.layouts",
+    "layout.reset": "wb.ui.layouts.reset()",
+    "ui.scale": "wb.ui.scale = x",
+    "ui.state": "wb.ui.state()",
+    "map.fit": "wb.ui.map.fit()",
+    "map.centre": "wb.ui.map.centre(node=|lat=, lon=, zoom=)",
+    "map.zoom": "wb.ui.map.zoom(factor)",
+    "map.layer": "wb.ui.map.layers[name] = bool",
+    "map.layers": "wb.ui.map.layers",
+    "map.filter": "wb.ui.map.filter = query",
+    "map.basemap": "wb.ui.map.basemap = id",
+    "tool.set": "wb.ui.map.tool = name",
+    "board.screen": "node.board.screen  (numbers, not a picture)",
+    "sim.unverified_wiring": "wb.sim.unverified_wiring = bool",
+    "nodes.search": "wb.nodes.search() / wb.nodes.find()",
+    "nodes.near": "wb.nodes.near()",
+    "nodes.delete_many": "wb.nodes.delete()",
+    "nodes.keep": "wb.nodes.keep()",
+    "node.set_board": "node.board = ...",
+    "boundary.load": "wb.boundary.load() / wb.boundary.use()",
+    "boundary.list": "wb.boundary.list()",
+    "firmware.build": "wb.firmware.build()",
+    "firmware.built": "",
+    "firmware.build_failed": "",
+    "infer.progress": "",
+    "ui.keep_above": "wb.keep_above()"
+  },
+  "no_facade": {
+    "node.reflashed": "the store telling itself a reflash finished",
+    "node.reflash_failed": "the store telling itself a reflash failed",
+    "board.probe_finished": "a probe worker reporting back",
+    "firmware.started": "the firmware starter reporting back",
+    "firmware.failed": "the firmware starter reporting a failure",
+    "fleet.replies": "the reply collector, called only by its own goroutine",
+    "links.set": "the warm publishing its matrix",
+    "link.pair_set": "the pair worker publishing its answer",
+    "link.profile_set": "the profile worker publishing its answer",
+    "coverage.set": "the raster worker publishing its answer",
+    "coverage.failed": "the raster worker reporting a failure",
+    "plan.set": "the planner publishing its answer",
+    "plan.failed": "the planner reporting a failure",
+    "import.set": "the fetch publishing its preview",
+    "import.failed": "the fetch reporting a failure",
+    "feed.set": "the feed publishing receptions",
+    "feed.failed": "the feed reporting a failure",
+    "environ.fetched": "the building fetch reporting success",
+    "environ.failed": "the building fetch reporting a failure",
+    "terrain.shade_set": "the hillshade worker publishing its raster",
+    "terrain.shade_failed": "the hillshade worker reporting a failure",
+    "terrain.cache_moved": "the cache mover reporting it finished",
+    "validate.failed": "the observation fetch reporting a failure",
+    "experiment.finished": "the sweep runner reporting it finished",
+    "resource.fetched": "the downloader reporting it finished",
+    "resource.licence.hide": "closing a box only a window has",
+    "job.progress": "a worker reporting progress; read wb.jobs instead",
+    "job.done": "a worker retiring its own progress row",
+    "firmware.built": "the build worker telling the store it finished",
+    "firmware.build_failed": "the build worker telling the store it failed",
+    "infer.progress": "the traffic reader saying how far it has got"
+  },
+  "groups": [
+    {
+      "title": "Session and lifecycle",
+      "prefixes": [
+        "session",
+        "app",
+        "ui",
+        "log",
+        "logs"
+      ]
+    },
+    {
+      "title": "Project",
+      "prefixes": [
+        "project"
+      ]
+    },
+    {
+      "title": "Nodes",
+      "prefixes": [
+        "nodes",
+        "node"
+      ]
+    },
+    {
+      "title": "Boards",
+      "prefixes": [
+        "board"
+      ]
+    },
+    {
+      "title": "Simulation",
+      "prefixes": [
+        "sim"
+      ]
+    },
+    {
+      "title": "Firmware",
+      "prefixes": [
+        "firmware"
+      ]
+    },
+    {
+      "title": "Console and fleet",
+      "prefixes": [
+        "console",
+        "fleet"
+      ]
+    },
+    {
+      "title": "Companion",
+      "prefixes": [
+        "companion"
+      ]
+    },
+    {
+      "title": "Serving to real clients",
+      "prefixes": [
+        "bench",
+        "sdr"
+      ]
+    },
+    {
+      "title": "Events, packets and capture",
+      "prefixes": [
+        "events",
+        "packet",
+        "capture",
+        "waterfall"
+      ]
+    },
+    {
+      "title": "Links, budgets and profiles",
+      "prefixes": [
+        "links",
+        "link",
+        "budget",
+        "study"
+      ]
+    },
+    {
+      "title": "Coverage and planning",
+      "prefixes": [
+        "coverage",
+        "energy",
+        "plan"
+      ]
+    },
+    {
+      "title": "Boundary, import and feeds",
+      "prefixes": [
+        "boundary",
+        "import",
+        "infer",
+        "feed"
+      ]
+    },
+    {
+      "title": "Experiments and sweeps",
+      "prefixes": [
+        "experiment",
+        "sweep"
+      ]
+    },
+    {
+      "title": "Validation",
+      "prefixes": [
+        "validate"
+      ]
+    },
+    {
+      "title": "The radio model",
+      "prefixes": [
+        "rf",
+        "environ",
+        "radio"
+      ]
+    },
+    {
+      "title": "Provisioning, schedule and assertions",
+      "prefixes": [
+        "provisioning",
+        "schedule",
+        "assert",
+        "run"
+      ]
+    },
+    {
+      "title": "Machine resources",
+      "prefixes": [
+        "resource",
+        "terrain",
+        "gpu",
+        "job"
+      ]
+    },
+    {
+      "title": "The window",
+      "prefixes": [
+        "workspace",
+        "panels",
+        "panel",
+        "window",
+        "view",
+        "layout",
+        "map",
+        "tool"
+      ]
+    }
+  ]
+}

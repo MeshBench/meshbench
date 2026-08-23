@@ -23,6 +23,11 @@ type Prefs struct {
 	// TileCacheDir is where terrain tiles live on disk. Empty means the
 	// default under the user cache directory.
 	TileCacheDir string `json:"tile_cache_dir,omitempty"`
+
+	// UnverifiedWiring runs boards nobody has watched boot yet. Kept because
+	// somebody developing firmware for one board sets it once, not on every
+	// launch.
+	UnverifiedWiring bool `json:"unverified_wiring,omitempty"`
 	// TileCacheGB bounds the decoded tiles held in memory.
 	TileCacheGB float64 `json:"tile_cache_gb,omitempty"`
 	// GPU is nil until somebody has chosen; a pointer because "off" and
@@ -98,6 +103,7 @@ func (s *Sim) LoadPrefs() {
 	if p.RFMode == "waveform" {
 		s.rfMode = "waveform"
 	}
+	s.unverifiedWiring = p.UnverifiedWiring
 	s.envDir = p.EnvironmentDir
 	s.covCells = p.CoverageCells
 	s.realism = state.RFRealism{
