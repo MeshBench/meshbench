@@ -4,6 +4,8 @@ and a message to the public channel every twenty seconds.
 
     ./03_small_mesh_with_traffic.py
 
+Needs a display: it opens the workbench so you can watch the traffic move.
+
 Costs: about ten minutes of simulated time, and a few of yours.
 
 The repeating traffic needed no new verb: schedule.add has taken every_ms all
@@ -24,7 +26,7 @@ MESH = [
 
 
 def main() -> None:
-    with Workbench.headless() as wb:
+    with Workbench.launch() as wb:
         wb.project.new(place="Fife")
         wb.nodes.place_many(MESH)
         wb.wait_idle(timedelta(minutes=10))

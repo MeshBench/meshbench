@@ -33,7 +33,7 @@ func main() {
 
 	ctx := context.Background()
 	// The one the last run left, or a new one.
-	wb, err := meshbench.AttachOrHeadless(ctx)
+	wb, err := meshbench.AttachOrLaunch(ctx)
 	must(err)
 	defer func() { _ = wb.Close() }()
 

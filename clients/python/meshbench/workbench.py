@@ -108,9 +108,19 @@ class Workbench:
 
     @classmethod
     def _attach_or(cls, start, kw: dict) -> Workbench:
-        path = kw.get("socket") or default_address()
+        # The session that is started is started *at the address that was just
+        # tried*, which is the whole point of the pair.
+        #
+        # headless() and launch() called directly invent a private address, so
+        # that two of them - two pytest workers, two scripts - do not fight
+        # over the per-user default. Inheriting that here made attach_or_
+        # useless: every run failed to attach, started a session somewhere
+        # nobody would look again, and the next run did the same. It read as
+        # "reuse does not work" rather than as an address nobody had named.
+        kw = dict(kw)
+        kw["socket"] = kw.get("socket") or default_address()
         try:
-            return cls.attach(path)
+            return cls.attach(kw["socket"])
         except errors.MeshbenchError:
             return start(**kw)
 

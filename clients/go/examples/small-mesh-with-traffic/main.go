@@ -3,6 +3,8 @@
 //
 //	go run ./clients/go/examples/small-mesh-with-traffic
 //
+// Needs a display: it opens the workbench so you can watch the traffic move.
+//
 // Costs about ten minutes of simulated time, and a few of yours.
 //
 // The repeating traffic needed no new verb: schedule.add has taken every_ms
@@ -28,7 +30,7 @@ var mesh = []meshbench.Placement{
 
 func main() {
 	ctx := context.Background()
-	wb, err := meshbench.Headless(ctx)
+	wb, err := meshbench.Launch(ctx)
 	must(err)
 	defer func() { _ = wb.Close() }()
 

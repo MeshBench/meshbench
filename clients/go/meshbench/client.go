@@ -387,19 +387,34 @@ func (w *Workbench) Stop() error {
 // Close stops it. Owned reports which happened, so a script that must not take
 // the session down with it can say so.
 func AttachOrLaunch(ctx context.Context, options ...Option) (*Workbench, error) {
-	if wb, err := Attach(ctx, options...); err == nil {
-		return wb, nil
-	}
-	return Launch(ctx, options...)
+	return attachOr(ctx, Launch, options)
 }
 
 // AttachOrHeadless is AttachOrLaunch without a window, for a machine with no
 // display.
 func AttachOrHeadless(ctx context.Context, options ...Option) (*Workbench, error) {
+	return attachOr(ctx, Headless, options)
+}
+
+// attachOr starts a session at the address it has just tried, which is the
+// whole point of the pair.
+//
+// Launch and Headless called directly invent a private address, so that two of
+// them - two tests, two scripts - do not fight over the per-user default.
+// Inheriting that here made AttachOrLaunch useless: every run failed to
+// attach, started a session somewhere nobody would look again, and the next
+// run did the same. It read as "reuse does not work" rather than as an address
+// nobody had named.
+func attachOr(ctx context.Context, start func(context.Context, ...Option) (*Workbench, error),
+	options []Option,
+) (*Workbench, error) {
+	if opts(options).socket == "" {
+		options = append(options, Socket(control.DefaultAddress()))
+	}
 	if wb, err := Attach(ctx, options...); err == nil {
 		return wb, nil
 	}
-	return Headless(ctx, options...)
+	return start(ctx, options...)
 }
 
 // Owned reports whether Close will stop the session or only hang up on it.

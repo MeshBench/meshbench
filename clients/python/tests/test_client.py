@@ -579,3 +579,40 @@ def test_geojson_that_is_not_geojson_says_so(wb, tmp_path):
         wb.boundary.load('{"type": "Point", "coordinates": [0, 0]}')
     with pytest.raises(meshbench.MeshbenchError):
         wb.boundary.load(str(tmp_path / "nothing-here.geojson"))
+
+
+def test_attach_or_start_reuses_the_session_it_started(binary, tmp_path, monkeypatch):
+    """The whole point of the pair, and it did not work.
+
+    headless() and launch() invent a private address when none is named, so
+    that two of them do not fight over the per-user default. attach_or_ was
+    inheriting that: every run failed to attach, started a session somewhere
+    nobody would look again, and the next run did the same - so a script
+    written to be re-run built a second workbench each time and appeared to
+    lose its scenario.
+
+    The environment names the address, so this exercises the default path
+    without touching the one the operator's own workbench is on.
+    """
+    monkeypatch.setenv(meshbench.SOCKET_ENV, str(tmp_path / "shared.sock"))
+    monkeypatch.setenv("MESHBENCH_BINARY", binary)
+
+    first = Workbench.attach_or_headless(binary=binary, stderr=subprocess.DEVNULL)
+    try:
+        assert first.owns_process, (
+            "nothing was listening, so it should have started one"
+        )
+        first.project.new()
+        first.nodes.place("Marker", lat=56.0, lon=-3.0)
+
+        second = Workbench.attach_or_headless(binary=binary, stderr=subprocess.DEVNULL)
+        try:
+            # The same session, which is the claim: it found the scenario the
+            # first one built rather than starting an empty one of its own.
+            assert not second.owns_process, "it started a second session"
+            assert second.hello.pid == first.hello.pid
+            assert "Marker" in second.nodes
+        finally:
+            second.close()
+    finally:
+        first.close()

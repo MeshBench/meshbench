@@ -7,6 +7,8 @@ The most common real use of this API, and the reason the node window grew a
 firmware control: comparing a stock build against one with a single changed
 constant, on the same mesh, at the same seed.
 
+Needs a display: it opens the workbench so you can watch both arms run.
+
 Costs: firmware on a whole fixture, so minutes.
 """
 
@@ -25,7 +27,7 @@ def main() -> None:
         )
     stock_version, local_path = sys.argv[1], sys.argv[2]
 
-    with Workbench.headless(fixture="fife-strict", seed=SEED) as wb:
+    with Workbench.launch(fixture="fife-strict", seed=SEED) as wb:
         stock = wb.firmware.find(stock_version)
         changed = wb.firmware.import_(local_path, role="repeater")
 

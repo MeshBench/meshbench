@@ -56,7 +56,7 @@ def main() -> None:
         sys.exit("usage: 02_two_nodes_on_a_local_build.py <path to MeshCore>")
     checkout = sys.argv[1]
 
-    with Workbench.attach_or_headless() as wb:
+    with Workbench.attach_or_launch() as wb:
         first_run = len(wb.nodes) == 0
 
         # Stop the clock before anything else. A no-op on a fresh session, and

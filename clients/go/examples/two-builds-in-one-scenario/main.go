@@ -5,6 +5,8 @@
 // The most common real use of this API, and the reason the node window grew a
 // firmware control: comparing a stock build against one with a single changed
 // constant, on the same mesh, at the same seed.
+//
+// Needs a display: it opens the workbench so you can watch both arms run.
 package main
 
 import (
@@ -26,7 +28,7 @@ func main() {
 	stockVersion, localPath := os.Args[1], os.Args[2]
 
 	ctx := context.Background()
-	wb, err := meshbench.Headless(ctx,
+	wb, err := meshbench.Launch(ctx,
 		meshbench.Fixture("fife-strict"), meshbench.Seed(seed))
 	must(err)
 	defer func() { _ = wb.Close() }()

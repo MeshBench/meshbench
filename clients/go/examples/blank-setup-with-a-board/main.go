@@ -2,9 +2,8 @@
 //
 //	go run ./clients/go/examples/blank-setup-with-a-board
 //
-// Needs a display: it opens the node's own window on the Hardware tab at the
-// end, which is the point of it. Run the headless examples instead if you have
-// none.
+// Needs a display. It opens the node's own window on the Hardware tab at the
+// end, which is the point of it.
 package main
 
 import (

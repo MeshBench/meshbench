@@ -28,7 +28,7 @@ def main() -> None:
     area = sys.argv[1] if len(sys.argv) > 1 else "Fife"
     wanted = sys.argv[2] if len(sys.argv) > 2 else "West Lomond"
 
-    with Workbench.headless() as wb:
+    with Workbench.launch() as wb:
         print("studying", ", ".join(wb.boundary.use(area)))
 
         # Fetch the nodes, commit them, read a week of traffic, and apply the

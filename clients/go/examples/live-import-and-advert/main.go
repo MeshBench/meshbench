@@ -38,7 +38,7 @@ func main() {
 	}
 
 	ctx := context.Background()
-	wb, err := meshbench.Headless(ctx)
+	wb, err := meshbench.Launch(ctx)
 	must(err)
 	defer func() { _ = wb.Close() }()
 

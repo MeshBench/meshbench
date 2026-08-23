@@ -4,8 +4,8 @@
     ./01_blank_setup_with_a_board.py
 
 Costs: a minute or two, plus whatever downloading a build takes the first time.
-Needs a window - it opens the node's own window on the Hardware tab at the end,
-which is the point of it. Run the headless examples instead if you have no display.
+Needs a display. It opens the node's own window on the Hardware tab at the
+end, which is the point of it.
 
 """
 
