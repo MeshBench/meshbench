@@ -42,7 +42,7 @@ func (f Firmware) OnDisk(ctx context.Context) ([]Build, error) {
 // Find is one build by version, and by board where the version alone is
 // ambiguous - which it is for every board image, because "wadamesh" is not a
 // build until it is wadamesh for a particular piece of hardware.
-func (f Firmware) Find(ctx context.Context, version, board string) (Build, error) {
+func (f Firmware) Find(ctx context.Context, version string, board Board) (Build, error) {
 	all, err := f.Library(ctx)
 	if err != nil {
 		return Build{}, err
@@ -65,7 +65,11 @@ func (f Firmware) Scan(ctx context.Context) error {
 
 // Download fetches one. It returns once the download has been asked for, not
 // once it has landed: wait on the job.
-func (f Firmware) Download(ctx context.Context, role, version, board string) error {
+// role is a plain string here and a Role everywhere else, deliberately: this
+// one names a published release asset, and the catalogue's own spellings are
+// not always the application names the verbs are keyed on. Typing it as Role
+// would have the compiler vouch for something nobody has checked.
+func (f Firmware) Download(ctx context.Context, role, version string, board Board) error {
 	p := map[string]any{"role": role, "version": version}
 	if board != "" {
 		p["board"] = board
@@ -80,7 +84,8 @@ func (f Firmware) Download(ctx context.Context, role, version, board string) err
 // it is a timestamp, so importing twice gives two builds rather than one that
 // quietly replaced the other - which matters the moment you want to put the
 // new one on a node and delete the old.
-func (f Firmware) Import(ctx context.Context, path, role, board, label string) (Build, error) {
+func (f Firmware) Import(ctx context.Context, path string, role Role, board Board,
+	label string) (Build, error) {
 	p := map[string]any{"path": path, "role": role}
 	if board != "" {
 		p["board"] = board
@@ -167,8 +172,51 @@ func (f Firmware) BuildAndWait(ctx context.Context, checkout string,
 	return built, nil
 }
 
+// UseWhatIsHere pins every role that needs one to the newest build on this
+// machine, and reports what it chose.
+//
+// What a script wants almost every time: this mesh, whatever this machine
+// holds, rather than a version typed into the script that goes stale. A run
+// refuses to start until every role is answered, so the alternative is the
+// same loop written out in every caller.
+//
+// It refuses by name when a role has nothing, because "no companion build" is
+// a thing to go and fix rather than a reason to start a mesh with a silent
+// hole in it.
+func (f Firmware) UseWhatIsHere(ctx context.Context) (map[Role]Build, error) {
+	needed, err := f.Needed(ctx)
+	if err != nil {
+		return nil, err
+	}
+	have, err := f.OnDisk(ctx)
+	if err != nil {
+		return nil, err
+	}
+	chosen := map[Role]Build{}
+	for _, want := range needed {
+		var pick Build
+		for _, b := range have {
+			if b.Role == want.Role && b.Board == "" {
+				pick = b
+			}
+		}
+		if pick.Version == "" {
+			return nil, &Refused{Verb: "firmware.needed", Code: "not_found",
+				Message: fmt.Sprintf(
+					"no %s build on this machine: meshcoresim firmware download %s",
+					want.Role, want.Role),
+				kind: ErrNotFound}
+		}
+		if err := f.UseForRole(ctx, want.Role, pick); err != nil {
+			return nil, err
+		}
+		chosen[want.Role] = pick
+	}
+	return chosen, nil
+}
+
 // UseForRole pins every node of a role to one build.
-func (f Firmware) UseForRole(ctx context.Context, role string, b Build) error {
+func (f Firmware) UseForRole(ctx context.Context, role Role, b Build) error {
 	return f.w.Do(ctx, "firmware.set", map[string]any{
 		"role": role, "version": b.Version})
 }
@@ -220,7 +268,7 @@ func (f Firmware) Needed(ctx context.Context) ([]RoleNeed, error) {
 
 // RoleNeed is one role with nothing to run. Snapshot.
 type RoleNeed struct {
-	Role    string   `json:"role"`
+	Role    Role     `json:"role"`
 	Nodes   int      `json:"nodes"`
 	Choices []string `json:"choices"`
 }

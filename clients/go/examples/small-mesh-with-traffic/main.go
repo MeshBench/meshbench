@@ -42,30 +42,10 @@ func main() {
 	// pin made for different hardware.
 	must(wb.Node("C1").SetBoard(ctx, meshbench.BoardLilyGoTDeck))
 
-	// Whatever this machine holds for each role, rather than a version typed
-	// here that goes stale.
-	for _, role := range []string{"repeater", "companion"} {
-		builds, err := wb.Firmware().OnDisk(ctx)
-		must(err)
-		var pick *meshbench.Build
-		for i := range builds {
-			if builds[i].Role == role && builds[i].Board == "" {
-				pick = &builds[i]
-			}
-		}
-		if pick == nil {
-			log.Fatalf("no %s build on this machine: meshcoresim firmware download %s",
-				role, role)
-		}
-		must(wb.Firmware().UseForRole(ctx, role, *pick))
-	}
-
-	// Every twenty seconds, from the plain companion to the public channel.
-	// Simulated time - the mesh's own clock, not yours.
-	must(wb.Schedule().Add(ctx, meshbench.Send{
-		Node: "C2", Command: "send hello",
-		At: 5 * time.Second, Every: 20 * time.Second,
-	}))
+	// Whatever this machine holds for each role that needs one, rather than a
+	// version typed here that goes stale.
+	_, err = wb.Firmware().UseWhatIsHere(ctx)
+	must(err)
 
 	must(wb.Sim().Start(ctx))
 	must(wb.Firmware().WaitStarted(ctx, 10*time.Minute))

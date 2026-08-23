@@ -112,7 +112,7 @@ func (l Live) Fetch(ctx context.Context, url string) (ImportPreview, error) {
 // Measuring the links afterwards is a job rather than part of this call - 676
 // nodes is 228,000 terrain paths over real ground - so this returns while that
 // is still running.
-func (l Live) Commit(ctx context.Context, strategy string) (int, error) {
+func (l Live) Commit(ctx context.Context, strategy Strategy) (int, error) {
 	params := map[string]any{}
 	if strategy != "" {
 		params["strategy"] = strategy

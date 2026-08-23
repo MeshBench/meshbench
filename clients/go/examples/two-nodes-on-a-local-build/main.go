@@ -25,8 +25,6 @@ var keep = map[string][2]float64{
 	"Glenrothes":        {56.1980, -3.1780},
 }
 
-const socket = "/tmp/meshbench-example-02.sock"
-
 func main() {
 	if len(os.Args) < 2 {
 		log.Fatal("usage: two-nodes-on-a-local-build <path to MeshCore>")
@@ -34,12 +32,9 @@ func main() {
 	checkout := os.Args[1]
 
 	ctx := context.Background()
-	// Attach to the one the last run left, or start one that stays.
-	wb, err := meshbench.Attach(ctx, meshbench.Socket(socket))
-	if err != nil {
-		wb, err = meshbench.Headless(ctx, meshbench.Socket(socket))
-		must(err)
-	}
+	// The one the last run left, or a new one.
+	wb, err := meshbench.AttachOrHeadless(ctx)
+	must(err)
 	defer func() { _ = wb.Close() }()
 
 	// Stop the clock before anything else: a no-op on a fresh session, and the
@@ -88,9 +83,9 @@ func main() {
 	nodes, err = wb.Nodes().List(ctx)
 	must(err)
 	for _, n := range nodes {
-		role := "repeater"
+		role := meshbench.RoleSimpleRepeater
 		if n.Kind == meshbench.Companion {
-			role = "companion"
+			role = meshbench.RoleCompanionRadio
 		}
 		for _, b := range built {
 			if b.Role == role {

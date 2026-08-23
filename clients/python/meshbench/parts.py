@@ -7,6 +7,7 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
 from . import errors
+from .sets import Board, Role
 from .types import Build, Event, JobInfo, SimState
 from .wait import (
     EVENT_WAIT,
@@ -171,7 +172,7 @@ class Firmware:
         daily use look identical from anywhere else."""
         return [b for b in self.library() if b.on_disk]
 
-    def find(self, version: str, board: str = "") -> Build:
+    def find(self, version: str, board: Board | str = "") -> Build:
         """One build, by version and - where the version alone is ambiguous,
         which it is for every board image - by board."""
         for b in self.library():
@@ -188,7 +189,14 @@ class Firmware:
         downloaded becomes offerable."""
         self._wb.call("firmware.published")
 
-    def download(self, role: str, version: str, board: str = "") -> None:
+    def download(self, role: str, version: str, board: Board | str = "") -> None:
+        """Fetch a published build.
+
+        ``role`` is a plain string here and a Role everywhere else,
+        deliberately: this one names a published release asset, and the
+        catalogue's own spellings are not always the application names the
+        verbs are keyed on.
+        """
         p: dict[str, Any] = {"role": role, "version": version}
         if board:
             p["board"] = board
@@ -226,7 +234,7 @@ class Firmware:
     def build(
         self,
         checkout: str,
-        role: str = "",
+        role: Role | str = "",
         label: str = "",
         wait: timedelta = JOB_WAIT,
     ) -> list[Build]:
@@ -251,7 +259,36 @@ class Firmware:
         self._wb.job(got.get("job", "firmware-build")).wait(wait)
         return [b for b in self.library() if b.version.startswith("local-")]
 
-    def use_for_role(self, role: str, build: Build | str) -> None:
+    def use_what_is_here(self) -> dict[Role, Build]:
+        """Pin every role that needs one to the newest build on this machine.
+
+        What a script wants almost every time: this mesh, whatever this machine
+        holds, rather than a version typed into the script that goes stale. A
+        run refuses to start until every role is answered, so the alternative
+        is the same loop written out in each one.
+
+        Refuses by name when a role has nothing, because "no companion build"
+        is a thing to go and fix rather than a reason to start a mesh with a
+        silent hole in it.
+        """
+        have = [b for b in self.on_disk() if not b.board]
+        chosen: dict[Role, Build] = {}
+        for row in self.needed():
+            role = row["role"]
+            for b in have:
+                if b.role == role:
+                    chosen[role] = b
+            if role not in chosen:
+                raise errors.NotFound(
+                    "firmware.needed",
+                    f"no {role} build on this machine: "
+                    f"meshcoresim firmware download {role}",
+                    "not_found",
+                )
+            self.use_for_role(role, chosen[role])
+        return chosen
+
+    def use_for_role(self, role: Role, build: Build | str) -> None:
         version = build if isinstance(build, str) else build.version
         self._wb.call("firmware.set", {"role": role, "version": version})
 

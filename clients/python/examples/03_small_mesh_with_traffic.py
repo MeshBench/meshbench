@@ -13,7 +13,7 @@ it not existing.
 
 from datetime import timedelta
 
-from meshbench import RECEIVED, Board, Kind, Workbench
+from meshbench import Board, Class, Kind, Workbench
 
 MESH = [
     {"name": "R1", "kind": Kind.SIMPLE_REPEATER, "lat": 56.20, "lon": -3.20},
@@ -34,18 +34,9 @@ def main() -> None:
         # clears a pin that was made for different hardware.
         wb.nodes["C1"].board = Board.LILYGO_TDECK
 
-        # Whatever this machine holds for each role, rather than a version
-        # typed here that goes stale.
-        for role in ("repeater", "companion"):
-            builds = [
-                b for b in wb.firmware.on_disk() if b.role == role and not b.board
-            ]
-            if not builds:
-                raise SystemExit(
-                    f"no {role} build on this machine: "
-                    f"meshcoresim firmware download {role}"
-                )
-            wb.firmware.use_for_role(role, builds[-1])
+        # Whatever this machine holds for each role that needs one, rather
+        # than a version typed here that goes stale.
+        wb.firmware.use_what_is_here()
 
         # Every twenty seconds, from the plain companion to the public channel.
         # Simulated seconds - the mesh's own clock, not yours.
@@ -60,7 +51,7 @@ def main() -> None:
         wb.firmware.wait_started(timedelta(minutes=10))
         wb.sim.run(timedelta(minutes=10), wait=timedelta(minutes=60))
 
-        received = [e for e in wb.events.recent(1000) if e.class_ == RECEIVED]
+        received = [e for e in wb.events.recent(1000) if e.class_ == Class.RECEIVED]
         print(wb.provenance())
         print(f"{wb.events.total()} events, {len(received)} receptions in the tail")
 

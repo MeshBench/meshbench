@@ -14,7 +14,23 @@ from __future__ import annotations
 from enum import Enum
 
 
-class Kind(str, Enum):
+class _Set(str, Enum):
+    """A closed set of strings, which is its value wherever a string is wanted.
+
+    The __str__ line is spelled out because a plain (str, Enum) does not do
+    this: an f-string of Board.LILYGO_TDECK renders as "Board.LILYGO_TDECK",
+    which then reaches a verb as a board name nothing matches. Comparison and
+    JSON already used the value and only printing disagreed, which is the worst
+    combination of the two.
+    """
+
+    __str__ = str.__str__
+
+    def __repr__(self) -> str:
+        return type(self).__name__ + "." + self.name
+
+
+class Kind(_Set):
     """What a node is."""
 
     SIMPLE_REPEATER = "simple-repeater"
@@ -42,7 +58,7 @@ class Kind(str, Enum):
     """
 
 
-class Board(str, Enum):
+class Board(_Set):
     """A hardware profile this build knows about.
 
     A node's board decides its transmit ceiling, its receive chain's noise
@@ -126,7 +142,7 @@ class Board(str, Enum):
     """ESP32-S3, SX1262, by Heltec."""
 
 
-class Preset(str, Enum):
+class Preset(_Set):
     """A named set of LoRa parameters for a territory.
 
     An agreement between operators rather than a configuration, which is why
@@ -195,3 +211,106 @@ class Preset(str, Enum):
 
 
 DEFAULT_PRESET = Preset("EU/UK (Narrow)")
+
+
+class Role(_Set):
+    """The MeshCore application a node runs, named as upstream names
+    its example directory.
+
+    The string every firmware verb is keyed on. The published catalogue spells
+    some of the same things differently - "repeater", "room-server" - and those
+    belong to the release assets; typing one at a verb pins nothing, and the run
+    then refuses to start with no clue as to why."""
+
+    SIMPLE_REPEATER = "simple_repeater"
+    """forwards; both repeater kinds run it and differ only in configuration"""
+
+    COMPANION_RADIO = "companion_radio"
+    """a user's device - the thing a phone connects to"""
+
+    SIMPLE_ROOM_SERVER = "simple_room_server"
+    """holds posts for clients to collect, and does not forward"""
+
+    COMPANION_RADIO_USB = "companion_radio_usb"
+    """the USB companion build; board images only, where a board publishes both
+    transports at one version
+    """
+
+    COMPANION_RADIO_BLE = "companion_radio_ble"
+    """the Bluetooth companion build; board images only"""
+
+
+class Class(_Set):
+    """What happened to an event."""
+
+    SENT = "sent"
+    """this node transmitted it"""
+
+    RECEIVED = "received"
+    """this node decoded it, for the first time"""
+
+    HALF_DUPLEX = "half-duplex"
+    """missed because this node's own transmitter was keyed; LoRa is half duplex"""
+
+    INTERFERENCE = "interference"
+    """would have decoded, but a stronger signal took it"""
+
+    FLOOR = "floor"
+    """too quiet: under the demodulator's threshold for its spreading factor"""
+
+
+class Tab(_Set):
+    """A pane of a node's own window."""
+
+    CONSOLE = "Console"
+    """the firmware's text console, which only a repeater has"""
+
+    COMPANION = "Companion"
+    """channels, contacts and the companion command line"""
+
+    SDR = "SDR"
+    """an observer's antenna: serve it, read the address"""
+
+    SETTINGS = "Settings"
+    """what this node is: identity, radio, regions, firmware"""
+
+    RADIO = "Radio"
+    """what the chip is really doing"""
+
+    STATS = "Stats"
+    """what it has cost and what it has carried"""
+
+    ACTIVITY = "Activity"
+    """what it has heard and sent, in order"""
+
+    CONNECT = "Connect"
+    """hand this companion to a real client"""
+
+    HARDWARE = "Hardware"
+    """the board drawn as itself - its screen, its lamps, the buttons somebody can
+    press; only a board that declares any of that grows it
+    """
+
+
+class Strategy(_Set):
+    """How an imported deployment meets what is already loaded."""
+
+    REPLACE = "replace-all"
+    """throw away what is loaded and take the import; what the shipped fixtures were
+    built with
+    """
+
+    ADD = "add"
+    """keep what is loaded and add the names it has not got"""
+
+
+class Transport(_Set):
+    """How a served companion is reached."""
+
+    TCP = "tcp"
+    """a socket on every interface, on a port the system picks; the one to point a
+    phone or another machine at
+    """
+
+    SERIAL = "serial"
+    """a pseudo-terminal, for a client that wants a serial port"""

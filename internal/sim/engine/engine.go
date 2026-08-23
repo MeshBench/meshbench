@@ -185,7 +185,7 @@ type Engine struct {
 	firmwareNewlyDown []string
 	// classCounts is events by class, kept as they are recorded so the cards
 	// that show them never walk the log.
-	classCounts map[string]int
+	classCounts map[Class]int
 
 	// capture, when a run is being recorded to pcapng.
 	capture *Capture
@@ -320,7 +320,7 @@ func (e *Engine) PinFirmware(name, version string) int {
 // backend a node gets: an emulated board or a build for this machine. A pin
 // that moved the version and left the board behind produced exactly that
 // mismatch - a host build asked to run under an emulator, or the reverse.
-func (e *Engine) PinBoard(name, board, role string) int {
+func (e *Engine) PinBoard(name, board string, role scenario.Role) int {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	n := 0

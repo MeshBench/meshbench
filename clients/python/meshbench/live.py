@@ -17,6 +17,7 @@ from __future__ import annotations
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
+from .sets import Strategy
 from .types import ImportPreview
 from .wait import JOB_WAIT
 
@@ -41,7 +42,7 @@ class Live:
     def pull(
         self,
         url: str,
-        strategy: str = "replace-all",
+        strategy: Strategy = Strategy.REPLACE,
         window: timedelta = DEFAULT_WINDOW,
         wait: timedelta = JOB_WAIT,
     ) -> ImportPreview:
@@ -81,7 +82,7 @@ class Live:
             self.set_source(url)
         return ImportPreview.parse(self._wb.call("import.fetch") or {})
 
-    def commit(self, strategy: str = "replace-all") -> int:
+    def commit(self, strategy: Strategy = Strategy.REPLACE) -> int:
         """Apply the fetched nodes to the scenario.
 
         ``"replace-all"`` is what the shipped fixtures were built with;

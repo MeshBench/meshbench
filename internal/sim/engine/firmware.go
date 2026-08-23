@@ -66,11 +66,12 @@ func (e *Engine) AttachNativeProgress(ctx context.Context, seed uint64, progress
 		if role == "" {
 			role = n.Spec.Kind.Application()
 		}
-		key := role + "@" + n.Spec.Firmware.Version
+		key := string(role) + "@" + n.Spec.Firmware.Version
 		if _, ok := resolved[key]; ok {
 			continue
 		}
-		path, err := firmware.Resolve(ctx, "", role, n.Spec.Firmware.Version, firmware.DefaultCacheDir())
+		path, err := firmware.Resolve(ctx, "", string(role), n.Spec.Firmware.Version,
+			firmware.DefaultCacheDir())
 		if err != nil {
 			if resolveErr == nil {
 				resolveErr = fmt.Errorf("%s: %w", n.Spec.Name, err)
@@ -157,7 +158,7 @@ func (e *Engine) AttachNativeProgress(ctx context.Context, seed uint64, progress
 			}
 			backend = em
 		} else {
-			key := role + "@" + n.Spec.Firmware.Version
+			key := string(role) + "@" + n.Spec.Firmware.Version
 			path, ok := resolved[key]
 			if !ok {
 				// Its build did not resolve above. One node's missing build
@@ -178,7 +179,7 @@ func (e *Engine) AttachNativeProgress(ctx context.Context, seed uint64, progress
 			}
 			backend = &firmware.Native{
 				Path:    path,
-				Role:    role,
+				Role:    string(role),
 				WorkDir: dir,
 				Log:     stderr,
 				Seed:    seed + uint64(i)*0x9E3779B97F4A7C15,

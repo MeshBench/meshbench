@@ -7,7 +7,7 @@ from datetime import timedelta
 from typing import TYPE_CHECKING
 
 from . import errors
-from .sets import Board, Kind
+from .sets import Board, Kind, Transport
 from .types import Build, NameMatch, NodeInfo, NodeStat
 from .wait import FIRMWARE_WAIT, wait_for
 
@@ -80,6 +80,16 @@ class Nodes:
             )
         return Node(self._wb, matches[0].name)
 
+    def near(self, node: Node | str, count: int = 0) -> list[Node]:
+        """The nodes closest to this one, nearest first.
+
+        Trimming an imported deployment to a neighbourhood is the first thing
+        anybody does with one, and the distance is the workbench's own - the
+        same great circle its path losses use.
+        """
+        got = self._wb.call("nodes.near", {"node": str(node), "count": count}) or {}
+        return [Node(self._wb, n["name"]) for n in got.get("near") or []]
+
     def of_kind(self, kind: str) -> list[Node]:
         return [Node(self._wb, n.name) for n in self.list() if n.kind == kind]
 
@@ -123,27 +133,27 @@ class Nodes:
         self._wb.call("links.recompute")
         return out
 
-    def delete(self, *names: str) -> None:
+    def delete(self, *nodes: Node | str) -> None:
         """Remove them, in one rebuild.
 
         All or none: a name that is not there refuses and removes nothing,
         because half a deletion leaves a scenario nobody described and no way
         to tell which half survived without asking again.
         """
-        if names:
-            self._wb.call("nodes.delete_many", list(names))
+        if nodes:
+            self._wb.call("nodes.delete_many", _names(nodes))
 
-    def keep(self, *names: str) -> None:
+    def keep(self, *nodes: Node | str) -> None:
         """Delete everything these do not name.
 
         The complement is worked out at the workbench rather than here, so it
         cannot be computed against a list that changed in between.
         """
-        self._wb.call("nodes.keep", list(names))
+        self._wb.call("nodes.keep", _names(nodes))
 
-    def select(self, *names: str, add: bool = False) -> None:
+    def select(self, *nodes: Node | str, add: bool = False) -> None:
         self._wb.call(
-            "nodes.add_to_selection" if add else "nodes.select_many", list(names)
+            "nodes.add_to_selection" if add else "nodes.select_many", _names(nodes)
         )
 
     def selected(self) -> list[str]:
@@ -229,6 +239,22 @@ class Node:
         )
 
     @property
+    def build(self) -> Build | None:
+        """The build this node runs, or None if it is pinned to nothing.
+
+        The whole row rather than the version string, because deleting a build
+        or comparing two needs its path and its board, and reassembling those
+        from a version is the kind of guesswork that deletes the wrong file.
+        """
+        want = self.info.firmware
+        if not want:
+            return None
+        for b in self._wb.firmware.library():
+            if b.version == want:
+                return b
+        return None
+
+    @property
     def firmware(self) -> str:
         return self.info.firmware
 
@@ -246,7 +272,7 @@ class Node:
         return self.info.board
 
     @board.setter
-    def board(self, name: str) -> None:
+    def board(self, name: Board | str) -> None:
         """What hardware this node is.
 
         A change to the physics rather than a label, so it rebuilds and
@@ -273,9 +299,9 @@ class Node:
         """What this node is told at boot, in the console's own words."""
         return (self._wb.call("node.provisioning", self.name) or {}).get("commands", [])
 
-    def serve(self, kind: str = "tcp") -> str:
+    def serve(self, over: Transport = Transport.TCP) -> str:
         """Hand this companion to a real client, and say where to point it."""
-        got = self._wb.call("bench.serve", {"node": self.name, "kind": kind}) or {}
+        got = self._wb.call("bench.serve", {"node": self.name, "kind": over}) or {}
         return got.get("addr", "")
 
     def unserve(self) -> None:
@@ -301,3 +327,14 @@ class Node:
             return False, (s.state if s else "no stat row yet")
 
         wait_for(check, timeout, f"firmware on {self.name}")
+
+
+def _names(nodes: tuple[Node | str, ...]) -> list[str]:
+    """Names, whether handles or strings were passed.
+
+    search() and near() hand back handles and every verb takes names, so
+    without this each caller writes the same map(str) - and the one that
+    forgets sends a repr down the socket and is told there is no node named
+    "<Node 'Bench'>".
+    """
+    return [str(n) for n in nodes]

@@ -24,6 +24,7 @@ from .checks import Assertions, Schedule
 from .live import Live
 from .nodes import Node, Nodes
 from .parts import Console, Events, Firmware, Job, Project, Sim
+from .sets import Tab
 from .types import Hello, NodeStat, Provenance
 from .wait import JOB_WAIT, wait_for
 
@@ -258,7 +259,7 @@ class Workbench:
         """Leave a line in the session's log, for whoever is watching."""
         self.call("ui.said", text)
 
-    def window(self, node: str | Node, tab: str = "") -> str:
+    def window(self, node: str | Node, tab: Tab | str = "") -> str:
         """Open a node's own window, on a named tab.
 
         Windowed sessions only, and it says so here rather than appearing to

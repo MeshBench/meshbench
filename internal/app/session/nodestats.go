@@ -290,12 +290,12 @@ func (s *Sim) setFirmware(name string, b Build) error {
 			// new one under an emulator it was never built for.
 			s.nodes[i].Firmware.Board = b.Board
 			if b.Role != "" {
-				s.nodes[i].Firmware.Role = b.Role
+				s.nodes[i].Firmware.Role = scenario.Role(b.Role)
 			}
 			// The engine keeps its own copy; see Engine.PinFirmware.
 			if s.eng != nil {
 				s.eng.PinFirmware(name, b.Version)
-				s.eng.PinBoard(name, b.Board, b.Role)
+				s.eng.PinBoard(name, b.Board, scenario.Role(b.Role))
 			}
 			return nil
 		}

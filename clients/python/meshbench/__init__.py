@@ -44,19 +44,18 @@ from .errors import (
 from .live import DEFAULT_WINDOW, Live
 from .nodes import Node, Nodes
 from .parts import Console, Events, Firmware, Job, Project, Sim
-from .sets import DEFAULT_PRESET, Board, Kind, Preset
+from .sets import (
+    DEFAULT_PRESET,
+    Board,
+    Class,
+    Kind,
+    Preset,
+    Role,
+    Strategy,
+    Tab,
+    Transport,
+)
 from .types import (
-    ADVANCED_REPEATER,
-    COMPANION,
-    EMITTER,
-    FLOOR,
-    HALF_DUPLEX,
-    INTERFERENCE,
-    RECEIVED,
-    ROOM_SERVER,
-    SDR_OBSERVER,
-    SENT,
-    SIMPLE_REPEATER,
     Build,
     Event,
     Hello,
@@ -72,6 +71,11 @@ from .workbench import Workbench
 
 __all__ = [
     "Schedule",
+    "Transport",
+    "Tab",
+    "Strategy",
+    "Role",
+    "Class",
     "Live",
     "DEFAULT_WINDOW",
     "ImportPreview",
@@ -83,18 +87,7 @@ __all__ = [
     "Check",
     "Board",
     "Assertions",
-    "ADVANCED_REPEATER",
-    "COMPANION",
-    "EMITTER",
-    "FLOOR",
-    "HALF_DUPLEX",
-    "INTERFERENCE",
     "PROTOCOL",
-    "RECEIVED",
-    "ROOM_SERVER",
-    "SDR_OBSERVER",
-    "SENT",
-    "SIMPLE_REPEATER",
     "RENDEZVOUS_ENV",
     "SOCKET_ENV",
     "BadParams",

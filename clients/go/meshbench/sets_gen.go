@@ -190,3 +190,125 @@ var Presets = []Preset{
 }
 
 const DefaultPreset Preset = "EU/UK (Narrow)"
+
+// Role is the MeshCore application a node runs, named as upstream names
+// its example directory. The string every firmware verb is keyed on. The
+// published catalogue spells some of the same things differently -
+// "repeater", "room-server" - and those belong to the release assets;
+// typing one at a verb pins nothing and the run refuses to start with no
+// clue as to why.
+type Role string
+
+const (
+	// RoleSimpleRepeater is forwards; both repeater kinds run it and differ
+	// only in configuration.
+	RoleSimpleRepeater Role = "simple_repeater"
+	// RoleCompanionRadio is a user's device - the thing a phone connects to.
+	RoleCompanionRadio Role = "companion_radio"
+	// RoleSimpleRoomServer is holds posts for clients to collect, and does
+	// not forward.
+	RoleSimpleRoomServer Role = "simple_room_server"
+	// RoleCompanionRadioUSB is the USB companion build; board images only,
+	// where a board publishes both transports at one version.
+	RoleCompanionRadioUSB Role = "companion_radio_usb"
+	// RoleCompanionRadioBLE is the Bluetooth companion build; board images
+	// only.
+	RoleCompanionRadioBLE Role = "companion_radio_ble"
+)
+
+// Roles is every one, for a caller offering a choice.
+var Roles = []Role{
+	RoleSimpleRepeater,
+	RoleCompanionRadio,
+	RoleSimpleRoomServer,
+	RoleCompanionRadioUSB,
+	RoleCompanionRadioBLE,
+}
+
+// Class is what happened to an event.
+type Class string
+
+const (
+	// ClassSent is this node transmitted it.
+	ClassSent Class = "sent"
+	// ClassReceived is this node decoded it, for the first time.
+	ClassReceived Class = "received"
+	// ClassHalfDuplex is missed because this node's own transmitter was
+	// keyed; LoRa is half duplex.
+	ClassHalfDuplex Class = "half-duplex"
+	// ClassInterference is would have decoded, but a stronger signal took it.
+	ClassInterference Class = "interference"
+	// ClassFloor is too quiet: under the demodulator's threshold for its
+	// spreading factor.
+	ClassFloor Class = "floor"
+)
+
+// Classs is every one, for a caller offering a choice.
+var Classs = []Class{
+	ClassSent,
+	ClassReceived,
+	ClassHalfDuplex,
+	ClassInterference,
+	ClassFloor,
+}
+
+// Tab is a pane of a node's own window.
+type Tab string
+
+const (
+	// TabConsole is the firmware's text console, which only a repeater has.
+	TabConsole Tab = "Console"
+	// TabCompanion is channels, contacts and the companion command line.
+	TabCompanion Tab = "Companion"
+	// TabSDR is an observer's antenna: serve it, read the address.
+	TabSDR Tab = "SDR"
+	// TabSettings is what this node is: identity, radio, regions, firmware.
+	TabSettings Tab = "Settings"
+	// TabRadio is what the chip is really doing.
+	TabRadio Tab = "Radio"
+	// TabStats is what it has cost and what it has carried.
+	TabStats Tab = "Stats"
+	// TabActivity is what it has heard and sent, in order.
+	TabActivity Tab = "Activity"
+	// TabConnect is hand this companion to a real client.
+	TabConnect Tab = "Connect"
+	// TabHardware is the board drawn as itself - its screen, its lamps, the
+	// buttons somebody can press; only a board that declares any of that
+	// grows it.
+	TabHardware Tab = "Hardware"
+)
+
+// Tabs is every one, for a caller offering a choice.
+var Tabs = []Tab{
+	TabConsole,
+	TabCompanion,
+	TabSDR,
+	TabSettings,
+	TabRadio,
+	TabStats,
+	TabActivity,
+	TabConnect,
+	TabHardware,
+}
+
+// Strategy is how an imported deployment meets what is already loaded.
+type Strategy string
+
+const (
+	// Replace is throw away what is loaded and take the import; what the
+	// shipped fixtures were built with.
+	Replace Strategy = "replace-all"
+	// Add is keep what is loaded and add the names it has not got.
+	Add Strategy = "add"
+)
+
+// Transport is how a served companion is reached.
+type Transport string
+
+const (
+	// OverTCP is a socket on every interface, on a port the system picks; the
+	// one to point a phone or another machine at.
+	OverTCP Transport = "tcp"
+	// OverSerial is a pseudo-terminal, for a client that wants a serial port.
+	OverSerial Transport = "serial"
+)

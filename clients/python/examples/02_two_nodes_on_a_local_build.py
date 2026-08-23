@@ -16,7 +16,7 @@ import subprocess
 import sys
 from datetime import timedelta
 
-from meshbench import Build, Kind, Workbench
+from meshbench import Build, Kind, Role, Workbench
 
 # Outskirts of Glasgow, and Glenrothes.
 KEEP = {
@@ -35,8 +35,8 @@ def build_from_checkout(checkout: str, wb: Workbench) -> dict[str, Build]:
     firmware - so if either arm is built by hand, both are, the same way, at
     the same moment.
     """
-    out: dict[str, Build] = {}
-    for role in ("repeater", "companion"):
+    out: dict[Role, Build] = {}
+    for role in (Role.SIMPLE_REPEATER, Role.COMPANION_RADIO):
         made = subprocess.run(
             ["meshcoresim", "dev", "-src", checkout, "-role", role],
             capture_output=True,
@@ -56,7 +56,7 @@ def main() -> None:
         sys.exit("usage: 02_two_nodes_on_a_local_build.py <path to MeshCore>")
     checkout = sys.argv[1]
 
-    with Workbench.attach_or_headless(socket="/tmp/meshbench-example-02.sock") as wb:
+    with Workbench.attach_or_headless() as wb:
         first_run = len(wb.nodes) == 0
 
         # Stop the clock before anything else. A no-op on a fresh session, and
@@ -77,7 +77,11 @@ def main() -> None:
 
         # Repoint every node, applied - which stops, provisions and starts it.
         for node in wb.nodes:
-            role = "companion" if node.info.kind == Kind.COMPANION else "repeater"
+            role = (
+                Role.COMPANION_RADIO
+                if node.info.kind == Kind.COMPANION
+                else Role.SIMPLE_REPEATER
+            )
             node.firmware = builds[role]
 
         wb.sim.start()

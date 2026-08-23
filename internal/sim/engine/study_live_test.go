@@ -161,7 +161,7 @@ func studyLoadProject(t *testing.T, e *engine.Engine, path string) []string {
 	// A version is a per-role release tag, so each role is pinned separately.
 	// A companion asked for repeater-v1.17.0 resolves nothing, and the failure
 	// arrives minutes later as "runs no firmware".
-	version := map[string]string{
+	version := map[scenario.Role]string{
 		"simple_repeater":    "repeater-v1.17.0",
 		"companion_radio":    "companion-v1.17.0",
 		"simple_room_server": "room-server-v1.17.0",

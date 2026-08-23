@@ -11,26 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, fields
 from typing import Any
 
-# Node kinds, as the scenario names them.
-SIMPLE_REPEATER = "simple-repeater"
-ADVANCED_REPEATER = "advanced-repeater"
-COMPANION = "companion"
-#: Holds posts for clients to collect and **does not forward**. A mesh that
-#: treats one as a repeater overstates its own reach.
-ROOM_SERVER = "room-server"
-#: Runs no firmware and transmits nothing: captures the summed field at its
-#: antenna and hands back IQ.
-SDR_OBSERVER = "sdr-observer"
-#: Interference that is not MeshCore, propagated through the same terrain as
-#: everything else.
-EMITTER = "emitter"
-
-# Event classes, as the engine buckets them.
-SENT = "sent"
-RECEIVED = "received"
-HALF_DUPLEX = "half-duplex"
-INTERFERENCE = "interference"
-FLOOR = "floor"
+from .sets import Class, Kind, Role
 
 
 def _from_dict(cls, raw: dict[str, Any]):
@@ -79,7 +60,7 @@ class NodeInfo:
     """
 
     name: str = ""
-    kind: str = ""
+    kind: Kind | str = ""
     lat: float = 0.0
     lon: float = 0.0
     height_m: float = 0.0
@@ -144,7 +125,7 @@ class Event:
     """
 
     at_ms: int = 0
-    kind: str = ""
+    kind: Kind | str = ""
     from_: str = ""
     to: str = ""
     message_id: int = 0
@@ -154,7 +135,7 @@ class Event:
     #: value". Absent is not zero.
     snr_db: float | None = None
     detail: str = ""
-    class_: str = ""
+    class_: Class | str = ""
 
     @classmethod
     def parse(cls, raw: dict[str, Any]) -> Event:
@@ -193,7 +174,7 @@ class Build:
     LilyGo_TDeck, built as a companion.
     """
 
-    role: str = ""
+    role: Role | str = ""
     version: str = ""
     board: str = ""
     bytes: int = 0
@@ -273,7 +254,7 @@ class NameMatch:
 
     name: str = ""
     score: float = 0.0
-    kind: str = ""
+    kind: Kind | str = ""
     lat: float = 0.0
     lon: float = 0.0
 

@@ -57,7 +57,7 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 	cache := firmware.DefaultCacheDir()
 	img := firmware.BoardImage{
 		Board:   board.Name,
-		Role:    spec.Firmware.Role,
+		Role:    string(spec.Firmware.Role),
 		Version: spec.Firmware.Version,
 		Format:  format,
 	}

@@ -72,17 +72,8 @@ type Event struct {
 	// noise at all - so it is a pointer here. Absent is not zero.
 	SNRdB  *float64 `json:"snr_db"`
 	Detail string   `json:"detail"`
-	Class  string   `json:"class"`
+	Class  Class    `json:"class"`
 }
-
-// Event classes, as the engine buckets them.
-const (
-	ClassSent         = "sent"
-	ClassReceived     = "received"
-	ClassHalfDuplex   = "half-duplex"
-	ClassInterference = "interference"
-	ClassFloor        = "floor"
-)
 
 // SimState is the clock. Snapshot.
 type SimState struct {
@@ -107,9 +98,9 @@ type FirmwareState struct {
 // on its own: "wadamesh" means nothing until it is wadamesh for a LilyGo_TDeck,
 // built as a companion. A host build carries neither of the other two.
 type Build struct {
-	Role    string `json:"role"`
+	Role    Role   `json:"role"`
 	Version string `json:"version"`
-	Board   string `json:"board"`
+	Board   Board  `json:"board"`
 	Bytes   int64  `json:"bytes"`
 	OnDisk  bool   `json:"on_disk"`
 	Path    string `json:"path"`
@@ -126,7 +117,7 @@ func (b Build) Describe() string {
 	if b.Board == "" {
 		return b.Version
 	}
-	return b.Board + " - " + b.Role + " " + b.Version
+	return string(b.Board) + " - " + string(b.Role) + " " + b.Version
 }
 
 // JobInfo is a long operation in flight. Snapshot; ask again for progress, or
@@ -182,3 +173,13 @@ type NameMatch struct {
 }
 
 func (m NameMatch) String() string { return m.Name }
+
+// Neighbour is one node near another, with how far away it is.
+type Neighbour struct {
+	Name     string  `json:"name"`
+	Km       float64 `json:"km"`
+	Kind     Kind    `json:"kind"`
+	Lat, Lon float64 `json:"-"`
+}
+
+func (n Neighbour) String() string { return n.Name }

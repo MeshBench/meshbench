@@ -350,7 +350,7 @@ func (w *Workbench) Say(ctx context.Context, text string) error {
 // The tab names are the ones on the strip - Console, Companion, SDR, Settings,
 // Radio, Stats, Activity, Connect, Hardware - and an empty one takes the
 // default. It returns the tab it opened on.
-func (w *Workbench) Window(ctx context.Context, node, tab string) (string, error) {
+func (w *Workbench) Window(ctx context.Context, node string, tab Tab) (Tab, error) {
 	if w.Headless() {
 		return "", &Refused{
 			Verb: "node.window", Code: "unavailable",
@@ -359,7 +359,7 @@ func (w *Workbench) Window(ctx context.Context, node, tab string) (string, error
 		}
 	}
 	var out struct {
-		Tab string `json:"tab"`
+		Tab Tab `json:"tab"`
 	}
 	err := w.CallInto(ctx, "node.window",
 		map[string]any{"node": node, "tab": tab}, &out)

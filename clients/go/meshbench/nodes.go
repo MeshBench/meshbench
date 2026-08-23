@@ -91,6 +91,20 @@ func (n Nodes) Find(ctx context.Context, query string) (Node, error) {
 	return n.w.Node(matches[0].Name), nil
 }
 
+// Near is the nodes closest to this one, nearest first, at most count of them
+// (all of them when count is zero).
+//
+// Trimming an imported deployment to a neighbourhood is the first thing anybody
+// does with one, and the distance is the workbench's own - the same great
+// circle its path losses use.
+func (n Nodes) Near(ctx context.Context, name string, count int) ([]Neighbour, error) {
+	var out struct {
+		Near []Neighbour `json:"near"`
+	}
+	return out.Near, n.w.CallInto(ctx, "nodes.near",
+		map[string]any{"node": name, "count": count}, &out)
+}
+
 // OfKind filters. Evaluated here rather than at the workbench: it is a
 // question about a list somebody already has.
 func (n Nodes) OfKind(ctx context.Context, kind Kind) ([]NodeInfo, error) {
@@ -262,6 +276,28 @@ func (n Node) SetRegions(ctx context.Context, regions ...string) error {
 // when a node launches, so recording it and leaving the node on its old build
 // is the control somebody presses twice and then distrusts. Pass false to
 // record it for the next start instead - and know that is what you have done.
+// Build is the build this node runs, and false when it is pinned to nothing.
+//
+// The whole row rather than the version string, because deleting a build or
+// comparing two needs its path and its board, and reassembling those from a
+// version is the kind of guesswork that deletes the wrong file.
+func (n Node) Build(ctx context.Context) (Build, bool, error) {
+	info, err := n.w.Nodes().Get(ctx, n.name)
+	if err != nil || info.Firmware == "" {
+		return Build{}, false, err
+	}
+	all, err := n.w.Firmware().Library(ctx)
+	if err != nil {
+		return Build{}, false, err
+	}
+	for _, b := range all {
+		if b.Version == info.Firmware {
+			return b, true, nil
+		}
+	}
+	return Build{}, false, nil
+}
+
 func (n Node) SetFirmware(ctx context.Context, b Build, apply bool) error {
 	verb := "node.set_firmware"
 	if !apply {
@@ -307,12 +343,12 @@ func (n Node) Provisioning(ctx context.Context) ([]string, error) {
 
 // Serve hands this companion to a real client - meshcore-cli, or an app over a
 // bridge - and returns where to point it.
-func (n Node) Serve(ctx context.Context, kind string) (string, error) {
+func (n Node) Serve(ctx context.Context, over Transport) (string, error) {
 	var out struct {
 		Addr string `json:"addr"`
 	}
 	err := n.w.CallInto(ctx, "bench.serve",
-		map[string]any{"node": n.name, "kind": kind}, &out)
+		map[string]any{"node": n.name, "kind": over}, &out)
 	return out.Addr, err
 }
 

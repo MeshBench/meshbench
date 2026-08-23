@@ -38,11 +38,11 @@ func main() {
 	// Whatever the catalogue has, so this does not go stale against a version
 	// number typed here.
 	must(wb.Firmware().Scan(ctx))
-	build, err := wb.Firmware().Find(ctx, wadamesh, string(board))
+	build, err := wb.Firmware().Find(ctx, wadamesh, board)
 	if errors.Is(err, meshbench.ErrNotFound) {
-		must(wb.Firmware().Download(ctx, "companion", wadamesh, string(board)))
+		must(wb.Firmware().Download(ctx, "companion", wadamesh, board))
 		must(wb.WaitIdle(ctx, 10*time.Minute))
-		build, err = wb.Firmware().Find(ctx, wadamesh, string(board))
+		build, err = wb.Firmware().Find(ctx, wadamesh, board)
 	}
 	must(err)
 
@@ -54,7 +54,7 @@ func main() {
 
 	// The Hardware tab is where the board draws its own screen, which is the
 	// whole reason for making this node a T-Deck.
-	tab, err := wb.Window(ctx, deck.Name(), "Hardware")
+	tab, err := wb.Window(ctx, deck.Name(), meshbench.TabHardware)
 	must(err)
 
 	p, err := wb.Provenance(ctx)
