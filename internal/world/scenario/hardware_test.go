@@ -76,3 +76,40 @@ func TestNoButtonIsAValidDeclaration(t *testing.T) {
 		t.Errorf("the absent button is still declared, got %d", got)
 	}
 }
+
+// A board is emulated exactly when it says how to wire it up.
+//
+// Two statements about one fact, in the same struct: the Emulated flag, which
+// is what `meshcoresim boards` prints and what the workbench filters on, and
+// the Renode or QEMU wiring block, which is what the runner needs to start it.
+// Nothing kept them in step, so Heltec_t096 carried a complete Renode block -
+// platform, SPI base, chip select, interrupt pin - beside `Emulated: false`
+// and a comment saying it wanted Renode one day. It had wanted it for weeks:
+// the board builds, boots, adverts, receives and is still running at 392 s,
+// and was invisible to anybody choosing hardware from the list.
+//
+// Stated as an equivalence rather than one direction, because the other way
+// round is worse: a board claiming to be emulated with no wiring is a scenario
+// that passes at build time and dies at run time, which is the exact failure
+// the Emulated field's own comment says it exists to prevent.
+func TestABoardIsEmulatedExactlyWhenItIsWired(t *testing.T) {
+	wired := 0
+	for _, b := range Boards() {
+		w := b.Renode != nil || b.QEMU != nil
+		if w {
+			wired++
+		}
+		switch {
+		case w && !b.Emulated:
+			t.Errorf("%s has wiring for an emulator but says Emulated: false,"+
+				" so nothing will offer it", b.Name)
+		case !w && b.Emulated:
+			t.Errorf("%s says Emulated: true with no wiring, so a scenario"+
+				" built around it will fail at run time", b.Name)
+		}
+	}
+	if wired == 0 {
+		t.Fatal("no board is wired for an emulator, so this test is checking nothing")
+	}
+	t.Logf("%d boards are wired for an emulator", wired)
+}
