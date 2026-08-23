@@ -3,8 +3,8 @@ eliasnaur.com/font v0.0.0-20230308162249-dd43949cb42d/go.mod h1:OYVuxibdk9OSLX8v
 gioui.org/cpu v0.0.0-20210808092351-bfe733dd3334/go.mod h1:A8M0Cn5o+vY5LTMlnRoK3O5kG+rH0kWfJjeKd9QpBmQ=
 gioui.org/shader v1.0.9 h1:XxnqIfmClWpN49kizxH2W0JcCFrrEP4q3jZmNYaltbs=
 gioui.org/shader v1.0.9/go.mod h1:mWdiME581d/kV7/iEhLmUgUK5iZ09XR5XpduXzbePVM=
-github.com/MeshBench/gio v0.10.3-0.20260822194416-168ea8af2ae1 h1:nfOkeo2H/130MP7aMuV+OwFgfIcKaXnI6811j47M8SA=
-github.com/MeshBench/gio v0.10.3-0.20260822194416-168ea8af2ae1/go.mod h1:iKILKNq6+LHMWhP/HjGDW/wDidUzRnb7B6c7ZD9y1Mg=
+github.com/MeshBench/gio v0.10.3-0.20260823070533-eff45becca79 h1:hvKp4aBUAGKwyFqkcY9sITYiVPD9zS2YmIxs1/Abmp4=
+github.com/MeshBench/gio v0.10.3-0.20260823070533-eff45becca79/go.mod h1:iKILKNq6+LHMWhP/HjGDW/wDidUzRnb7B6c7ZD9y1Mg=
 github.com/akavel/rsrc v0.10.2 h1:Zxm8V5eI1hW4gGaYsJQUhxpjkENuG91ki8B4zCrvEsw=
 github.com/akavel/rsrc v0.10.2/go.mod h1:uLoCtb9J+EyAqh+26kdrTgmzRBFPGOolLWKpdxkKq+c=
 github.com/cogentcore/webgpu v0.23.0 h1:hrjnnuDZAPSRsqBjQAsJOyg2COGztIkBbxL87r0Q9KE=
