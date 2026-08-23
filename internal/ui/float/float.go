@@ -25,6 +25,7 @@ package float
 
 import (
 	"os"
+	"sync"
 
 	"gioui.org/app"
 	"gioui.org/unit"
@@ -32,7 +33,15 @@ import (
 
 // cascade counts the layer-shell windows this process has placed, so each
 // takes the next stagger slot rather than the one before it.
-var cascade int
+//
+// Guarded, because every window runs its own event loop: popOut and the node
+// windows each open on a goroutine of their own, and two opened together
+// reach this from both. An unguarded counter is a data race the detector
+// catches and Go kills the process for.
+var cascade struct {
+	mu sync.Mutex
+	n  int
+}
 
 // Spot is where a layer window sits: its distances from the top and left of
 // the output, which is what a drag of its title bar changes.
@@ -43,8 +52,10 @@ type Spot struct {
 // NextSpot is where the next layer window goes: staggered down and right in
 // steps of a row, so two opened together do not land exactly on one another.
 func NextSpot() Spot {
-	m := unit.Dp(24 + 32*(cascade%8))
-	cascade++
+	cascade.mu.Lock()
+	defer cascade.mu.Unlock()
+	m := unit.Dp(24 + 32*(cascade.n%8))
+	cascade.n++
 	return Spot{Top: m, Left: m}
 }
 
