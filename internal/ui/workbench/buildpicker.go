@@ -40,6 +40,17 @@ type buildPicker struct {
 
 	// OnPick is given the node and the build it should run.
 	OnPick func(node string, b buildChoice)
+
+	// library is where the builds come from, and is the machine's own unless
+	// something says otherwise.
+	//
+	// A seam for the tests rather than a feature. The control audit walks
+	// every control on every panel and asserts each one can be reached by a
+	// pointer, and reading the real library made that verdict a property of
+	// the machine it ran on: a runner with a warm cache had more buttons than
+	// one without, and one of them fell below the fold. A gate whose answer
+	// depends on what somebody last downloaded is not a gate.
+	library func() []buildChoice
 }
 
 // open asks which build this node should run.
@@ -65,7 +76,11 @@ func (p *buildPicker) load() {
 		return
 	}
 	p.read = true
-	p.builds = installedBuilds()
+	read := p.library
+	if read == nil {
+		read = installedBuilds
+	}
+	p.builds = read()
 	p.btns = make([]comp.Button, len(p.builds))
 	for i := range p.btns {
 		p.btns[i].Label = p.builds[i].Label

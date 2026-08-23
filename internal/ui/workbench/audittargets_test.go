@@ -89,6 +89,7 @@ func auditTargets(r *recorder) []target {
 	nv := &nodeViewPanel{}
 	// The build list is an overlay: its buttons do not exist until a firmware
 	// cell has been clicked, and auditing them shut only proves they are shut.
+	nv.pick.library = auditBuilds
 	nv.pick.open("Abernethy Repeater")
 	nv.OnAction = func(a string, n string) { r.do(a, n) }
 	nv.OnFirmware = func(n string, b buildChoice) { r.do("node.set_firmware", b.Version) }
@@ -229,31 +230,42 @@ func nodeWindowSkips() map[string]string {
 		"pick.cancel": "drawn in the overlay, which the flat audit layout has not got",
 		"pick.filter": "drawn in the overlay, which the flat audit layout has not got",
 	}
-	for i := range installedBuilds() {
+	for i := range auditBuilds() {
 		skip[fmt.Sprintf("pick.btns[%d]", i)] =
 			"drawn in the overlay, which the flat audit layout has not got"
 	}
 	return skip
 }
 
-// buildSkips names what the sweep is not expected to land on in the build list.
+// auditBuilds is the library every audit sees: a fixed few, so the number of
+// controls on the page is a property of the panel and not of the machine.
 //
-// Only the first few builds fit in the overlay, and a list you have to scroll
-// is not a list that is broken. The ones below the fold are reached by typing
-// into the filter above them, which TestAnyBuildIsReachableByFiltering walks
-// rather than assumes. The fold is counted from the machine's actual library,
-// because the audit reads the real one and a machine with a few extra builds
-// is not a fault in the panel.
+// Short enough that all of them fit in the overlay, which is what lets the
+// audit require every one to be reachable rather than excusing a tail of them.
+// Scrolling to a build below the fold is a real thing a real library does, and
+// TestAnyBuildIsReachableByFiltering is where that is walked - through the
+// filter, which is how somebody actually reaches the fortieth build.
+//
+// One board image among them on purpose: those carry a board and a role as
+// well as a version, and label themselves differently for it.
+func auditBuilds() []buildChoice {
+	return []buildChoice{
+		{Label: "v1.9.1", Version: "v1.9.1"},
+		{Label: "v1.9.0", Version: "v1.9.0"},
+		{Label: "v1.8.2", Version: "v1.8.2"},
+		{Label: "wadamesh-local", Version: "wadamesh-local"},
+		{Label: "Heltec_v3 - repeater v1.9.1", Version: "v1.9.1",
+			Board: "Heltec_v3", Role: "repeater"},
+	}
+}
+
+// buildSkips names what the sweep is not expected to land on in the build list.
 func buildSkips() map[string]string {
-	skip := map[string]string{
+	return map[string]string{
 		// Cancel closes the list. That is the whole of its job, so it reaches
 		// no verb by design.
 		"pick.cancel": "closes the list rather than reaching a verb",
 	}
-	for i := 11; i <= len(installedBuilds()); i++ {
-		skip[fmt.Sprintf("pick.btns[%d]", i)] = "below the fold; reached by filtering"
-	}
-	return skip
 }
 
 type target struct {
