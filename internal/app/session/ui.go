@@ -101,7 +101,14 @@ var errNoInterface = control.WithCode(control.Unavailable, errors.New(
 	"this session has no interface attached, so there is nothing to show"))
 
 func registerUI(st *state.Store, s *Sim) {
-	st.Handle("workspace.set", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("workspace.set", state.Spec{
+		What: "Show one of the workbench's top-level views.",
+		Params: []state.Param{
+			{Name: "view", Type: state.ParamString, Primary: true, Required: true,
+				What: "the view's name, as panels.list and the view bar spell it"},
+		},
+		Returns: []string{"view"},
+	}, func(w *state.World, p any) (any, error) {
 		if err := s.needUI(); err != nil {
 			return nil, err
 		}
@@ -115,14 +122,20 @@ func registerUI(st *state.Store, s *Sim) {
 		w.Say("showing " + name)
 		return map[string]any{"view": name}, nil
 	})
-	st.Handle("panels.list", func(_ *state.World, _ any) (any, error) {
+	st.HandleSpec("panels.list", state.Spec{
+		What:    "Name every panel the interface has registered.",
+		Returns: []string{"panels", "count"},
+	}, func(_ *state.World, _ any) (any, error) {
 		if err := s.needUI(); err != nil {
 			return nil, err
 		}
 		names := s.ui.PanelNames()
 		return map[string]any{"panels": names, "count": len(names)}, nil
 	})
-	st.Handle("app.quit", func(w *state.World, _ any) (any, error) {
+	st.HandleSpec("app.quit", state.Spec{
+		What:    "Close the workbench, stopping firmware on the way out.",
+		Returns: []string{"closing", "headless"},
+	}, func(w *state.World, _ any) (any, error) {
 		w.Say("closing")
 		if s.ui != nil {
 			go s.ui.Quit()
@@ -137,7 +150,16 @@ func registerUI(st *state.Store, s *Sim) {
 
 func registerNodeWindow(st *state.Store, s *Sim) {
 	// node.window: the thing people put on a second monitor.
-	st.Handle("node.window", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("node.window", state.Spec{
+		What: "Open one node's own window, the thing people put on a second monitor.",
+		Params: []state.Param{
+			{Name: "node", Type: state.ParamString, Primary: true, Required: true,
+				What: "which node"},
+			{Name: "tab", Type: state.ParamString,
+				What: "which tab to open on; the window's default when absent"},
+		},
+		Returns: []string{"node", "tab"},
+	}, func(w *state.World, p any) (any, error) {
 		if err := s.needUI(); err != nil {
 			return nil, err
 		}
@@ -163,7 +185,17 @@ func registerMapCamera(st *state.Store, s *Sim) {
 	// A name is accepted as well as a position because a caller aiming a
 	// capture knows "Bishop Hill" and would otherwise have to look its
 	// coordinates up first.
-	st.Handle("map.centre", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("map.centre", state.Spec{
+		What: "Point the map at a node, or at a latitude and longitude.",
+		Params: []state.Param{
+			{Name: "node", Type: state.ParamString, Primary: true,
+				What: "centre on this node instead of giving coordinates"},
+			{Name: "lat", Type: state.ParamNumber, What: "degrees north"},
+			{Name: "lon", Type: state.ParamNumber, What: "degrees east"},
+			{Name: "zoom", Type: state.ParamNumber, What: "zoom level; unchanged when absent"},
+		},
+		Returns: []string{"lat", "lon", "zoom"},
+	}, func(w *state.World, p any) (any, error) {
 		if err := s.needUI(); err != nil {
 			return nil, err
 		}
@@ -204,7 +236,10 @@ func registerMapCamera(st *state.Store, s *Sim) {
 		return map[string]any{"lat": lat, "lon": lon, "zoom": zoom}, nil
 	})
 
-	st.Handle("map.fit", func(w *state.World, _ any) (any, error) {
+	st.HandleSpec("map.fit", state.Spec{
+		What:    "Zoom the map so every node is on it.",
+		Returns: []string{"nodes"},
+	}, func(w *state.World, _ any) (any, error) {
 		if err := s.needUI(); err != nil {
 			return nil, err
 		}

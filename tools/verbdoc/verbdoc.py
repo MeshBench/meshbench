@@ -43,7 +43,10 @@ FACADE = _map["facade"]
 WHY_NONE = _map["no_facade"]
 GROUPS = [(g["title"], g["prefixes"]) for g in _map["groups"]]
 
-HANDLE = re.compile(r'st\.Handle\(\s*"([a-z0-9_.]+)"\s*,')
+# Both spellings: HandleSpec is the one that carries a description, and verbs
+# are being moved onto it a file at a time (#213). Until they all are, this has
+# to see either, or a described verb silently drops out of the document.
+HANDLE = re.compile(r'st\.Handle(?:Spec)?\(\s*"([a-z0-9_.]+)"\s*,')
 
 PARAM_PATTERNS = [
     (re.compile(r'stringField\(\s*p\s*,\s*"([a-z0-9_]+)"'), "string"),
@@ -60,7 +63,17 @@ RESULT_KEY = re.compile(r'"([a-z0-9_]+)"\s*:')
 
 
 def body_of(src, start):
-    """The handler body, by brace matching from the func literal."""
+    """The handler body, by brace matching from the func literal.
+
+    Started at the `func(` rather than at the next brace, because on a
+    HandleSpec call the next brace opens the description and brace-matching
+    from there reads the spec where the handler should be - which showed up as
+    a described verb losing its parameters and its interface marker in this
+    table, the opposite of what describing it was for.
+    """
+    f = src.find("func(", start)
+    if f >= 0:
+        start = f
     i = src.find("{", start)
     if i < 0:
         return ""
@@ -83,6 +96,24 @@ def body_of(src, start):
             j = src.find("`", j + 1)
         j += 1
     return src[i:]
+
+
+MANIFEST = os.path.join(os.path.dirname(__file__), "..", "..", "docs", "verbs.json")
+
+
+def described():
+    """What the manifest says, for the verbs that have learned to say it.
+
+    Preferred over the regexes below wherever it exists. The regexes read a
+    handler body and guess; the manifest is what whoever wrote the verb said it
+    takes, which is the whole point of #213. As verbs move onto HandleSpec this
+    table gets better a row at a time instead of worse.
+    """
+    try:
+        with open(MANIFEST) as f:
+            return json.load(f).get("verbs", {})
+    except FileNotFoundError:
+        return {}
 
 
 def scan():
@@ -116,6 +147,23 @@ def scan():
                 }
     # Registered only inside a test, so not part of the surface.
     verbs.pop("test.residuals", None)
+
+    # What a verb says about itself beats what a regular expression made of it.
+    for name, spec in described().items():
+        if name not in verbs:
+            continue
+        params, sole = [], False
+        for prm in spec.get("params", []):
+            if prm.get("primary"):
+                sole = True
+            params.append((prm["name"], prm.get("type", "")))
+        verbs[name] = {
+            "params": params,
+            "sole": sole,
+            "strlist": verbs[name]["strlist"],
+            "returns": spec.get("returns", []),
+            "what": spec.get("what", ""),
+        }
     return verbs
 
 

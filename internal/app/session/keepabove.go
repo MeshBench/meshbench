@@ -25,7 +25,15 @@ func (s *Sim) keepAbove() bool {
 // script would use, because a preference only the mouse can change is a
 // preference the control socket cannot report.
 func registerKeepAbove(st *state.Store, s *Sim) {
-	st.Handle("ui.keep_above", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("ui.keep_above", state.Spec{
+		What: "Say whether a window popped out of the workbench stays above it, " +
+			"and report the setting either way.",
+		Params: []state.Param{
+			{Name: "on", Type: state.ParamBool,
+				What: "set it; omit to read the current setting without changing it"},
+		},
+		Returns: []string{"on"},
+	}, func(w *state.World, p any) (any, error) {
 		if v, ok := boolField(p, "on"); ok {
 			on := v
 			s.prefs.KeepAbove = &on
