@@ -33,10 +33,9 @@ go build -trimpath \
   -o "$APP/Contents/MacOS/meshbench-bin" ./cmd/meshcoresim
 
 echo "--- icon"
-go run ./tools/icon
 ICONSET=$(mktemp -d)/meshbench.iconset
 mkdir -p "$ICONSET"
-# The names iconutil insists on, mapped from the sizes tools/icon writes.
+# The names iconutil insists on, mapped from the committed sizes.
 cp packaging/icons/meshbench-16.png  "$ICONSET/icon_16x16.png"
 cp packaging/icons/meshbench-32.png  "$ICONSET/icon_16x16@2x.png"
 cp packaging/icons/meshbench-32.png  "$ICONSET/icon_32x32.png"

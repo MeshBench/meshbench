@@ -295,7 +295,6 @@ jobs:
       - name: Desktop integration, AppImage and .deb
         run: |
           set -e
-          go run ./tools/icon
           VERSION="${{ inputs.version }}"
           if [ -z "$VERSION" ]; then
             case "${GITHUB_REF_NAME}" in
@@ -605,7 +604,7 @@ jobs:
                       -X github.com/MeshBench/meshbench/internal/app/version.Version=$VERSION" \
             -o dist/meshbench/meshbench.exe ./cmd/meshcoresim
           cp -r fixtures dist/meshbench/fixtures
-          go run ./tools/icon && cp packaging/icons/meshbench-256.png dist/meshbench/meshbench.png
+          cp packaging/icons/meshbench-256.png dist/meshbench/meshbench.png
 
           # The emulators, same as the Linux tarball and the macOS bundle. A
           # zip cannot carry symlinks, so nothing is linked: lookupTool knows
