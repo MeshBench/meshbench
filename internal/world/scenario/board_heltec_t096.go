@@ -8,12 +8,15 @@ import "github.com/MeshBench/meshbench/internal/mesh/energy"
 
 var heltecT096Board = Board{
 	// Carries the front-end module MeshCore 1.17.1's transmit fix was about.
-	// Not emulated yet: it is nRF52, so it wants Renode rather than QEMU.
 	Name: "Heltec_t096", MCU: "nRF52840", Radio: "SX1262", Vendor: "Heltec",
 	MaxTxDBm: 22, FeedlineDB: 1.0, AntennaDBi: -1,
 	SensitivityDBm: -137, NoiseFigureDB: 6, SleepUA: 60,
-	Battery:  energy.Battery{Chemistry: energy.LiIon, CapacityMAh: 1000, Cells: 1, CutoffV: 3.1},
-	Emulated: false,
+	Battery: energy.Battery{Chemistry: energy.LiIon, CapacityMAh: 1000, Cells: 1, CutoffV: 3.1},
+	// Runs under Renode, and measured doing it: build, boot, radio, tx, rx and
+	// still alive at 392 s. It does not relay, which it shares with three other
+	// nRF52 boards that are marked emulated anyway - this field is whether the
+	// firmware runs at all, not whether the mesh stack does everything.
+	Emulated: true,
 	// A KCT8103L, switched by three GPIOs: an LDO enable, a shutdown line
 	// and a transmit/receive path select. The gain figure is upstream's own:
 	// variants/heltec_t096/platformio.ini sets LORA_TX_POWER=9 against
