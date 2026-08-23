@@ -58,6 +58,11 @@ func menuFor(node string) []MenuItem {
 			{Label: "Link to here", Action: "link.to"},
 			{Label: "Originate a packet here", Action: "sim.inject"},
 			{Label: "Open node window", Action: "node.window"},
+			// Last, and on its own, because it is the only entry here that
+			// takes something away. The Delete key does the same thing, and
+			// both are asked to confirm by whoever handles them - the map
+			// does not know what a node costs to rebuild.
+			{Label: "Delete this node", Action: "nodes.delete"},
 		}
 	}
 	return []MenuItem{
