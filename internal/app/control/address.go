@@ -67,6 +67,14 @@ func (a Address) String() string {
 // SocketEnv names the environment variable that chooses where to answer.
 const SocketEnv = "MESHBENCH_CONTROL_SOCKET"
 
+// RendezvousEnv names the file a TCP listener writes its address and token to.
+//
+// Per user by default, which is right for somebody's own desktop and wrong for
+// two runs at once: the second would overwrite the first's file and a client
+// reading it would reach the wrong session, or the right one with the wrong
+// token. A client that starts a workbench gives it a file of its own.
+const RendezvousEnv = "MESHBENCH_CONTROL_RENDEZVOUS"
+
 // maxUnixPath is the shortest sun_path any platform we run on allows.
 //
 // 108 bytes on Linux, 104 on macOS and the BSDs. Checked against the smaller,
@@ -173,8 +181,21 @@ type rendezvous struct {
 	PID     int    `json:"pid"`
 }
 
-// RendezvousPath is where that file lives, per user.
+// RendezvousPath is where that file lives: where the environment says, or per
+// user.
 func RendezvousPath() (string, error) {
+	if p := os.Getenv(RendezvousEnv); p != "" {
+		p = filepath.Clean(p)
+		// The path comes from this process's own environment, set by whoever
+		// started it - the same person who can pass -control-socket, and who
+		// can already create directories as this user. There is no
+		// lesser-privileged source for it to be tainted by.
+		//nolint:gosec // G703: the value is the operator's own, like the flag
+		if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+			return "", err
+		}
+		return p, nil
+	}
 	dir, err := os.UserCacheDir()
 	if err != nil {
 		return "", err

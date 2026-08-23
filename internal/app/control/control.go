@@ -22,6 +22,18 @@ import (
 	"time"
 )
 
+// Protocol is the wire version, bumped only when a change breaks a client
+// written against the previous number.
+//
+// Here rather than beside session.hello, which is what reports it: this is the
+// package that defines the wire, and a client should be able to know what it
+// speaks without importing a simulator.
+//
+// Adding a verb does not break anybody, and neither does adding a field to a
+// result: a client reads the fields it knows. What moves this is a verb
+// changing what it means, a field changing type, or the framing changing.
+const Protocol = 1
+
 // Request is one command.
 type Request struct {
 	ID     int             `json:"id"`
