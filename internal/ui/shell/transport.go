@@ -153,7 +153,10 @@ func speedChip(t *theme.Theme, s *state.Snapshot) layout.Widget {
 	if s != nil && s.StepMs > 0 {
 		ms = s.StepMs
 	}
-	return chip(t, t.P.Faint, fmt.Sprintf("%d ms/tick", ms))
+	// Dim rather than Faint: this and the rewarm beside it are the same rank
+	// of thing as the node count and the seed at the other end of the bar, and
+	// a row of facts set in two greys reads as one of them being disabled.
+	return chip(t, t.P.Dim, fmt.Sprintf("%d ms/tick", ms))
 }
 
 // realFirmware is what kind of run this is, stated once beside the transport.
@@ -200,7 +203,7 @@ func realFirmware(t *theme.Theme, c *widget.Clickable, s *state.Snapshot) layout
 func rewarmButton(t *theme.Theme, c *widget.Clickable) layout.Widget {
 	return func(gtx layout.Context) layout.Dimensions {
 		return c.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			fg := t.P.Faint
+			fg := t.P.Dim
 			if c.Hovered() {
 				fg = t.P.Ink
 			}
