@@ -5,6 +5,7 @@ package workbench
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -126,50 +127,104 @@ func addMeshPanels(d panelDeps) {
 	// Importing needs a path and a role, which a button cannot carry: ask for
 	// both through the shell, then refresh so the new build appears.
 	fw.OnImport = func() {
-		// Both questions go to the Firmware panel's own window: asked from a
+		// Four questions, all to the Firmware panel's own window: asked from a
 		// pop-out, answered in the pop-out.
 		fwAsk := d.wins.promptFor("Firmware", &d.sh.Ask)
 		fwAsk.Post(func(ask *shell.Prompt) {
 			ask.OpenPath("Import a build from", "path to a binary", "",
-				shell.PathAsk{Kind: shell.PathFile}, func(path string) {
+				shell.PathAsk{Kind: shell.PathFile, FilterName: "Firmware images",
+					Extensions: []string{"bin", "uf2", "elf"}}, func(path string) {
 					if strings.TrimSpace(path) == "" {
 						return
 					}
 					fwAsk.Post(func(ask *shell.Prompt) {
-						ask.Choose("Import it as which role?", "filter", []string{
-							"simple_repeater", "advanced_repeater", "companion_radio",
-							"simple_room_server",
-						}, func(role string) {
-							// And which board it was compiled for. The verb has
-							// always taken one and nothing ever asked, so every
-							// build imported here became a host build - which
-							// meant an image built for a board could not be
-							// pointed at one, and firmware somebody had just
-							// compiled could not be run at all.
-							fwAsk.Post(func(ask *shell.Prompt) {
-								ask.Choose("Which board was it built for?", "filter",
-									importBoards(), func(board string) {
-										if board == hostBuildChoice {
-											board = ""
-										}
-										go func() {
-											p := map[string]any{"path": path, "role": role}
-											if board != "" {
-												p["board"] = board
+						ask.Choose("Import it as which role?", "filter",
+							importRoles(), func(role string) {
+								// And which board it was compiled for. The verb
+								// has always taken one and nothing ever asked, so
+								// every build imported here became a host build -
+								// which meant an image built for a board could
+								// not be pointed at one, and firmware somebody
+								// had just compiled could not be run at all.
+								fwAsk.Post(func(ask *shell.Prompt) {
+									ask.Choose("Which board was it built for?", "filter",
+										importBoards(), func(board string) {
+											if board == hostBuildChoice {
+												board = ""
 											}
-											if _, err := d.st.Do(d.ctx, "firmware.import", p); err != nil {
-												_, _ = d.st.Do(d.ctx, "ui.said", "import: "+err.Error())
-											}
-											_, _ = d.st.Do(d.ctx, "firmware.library", nil)
-										}()
-									})
+											d.askImportName(fwAsk, path, role, board)
+										})
+								})
 							})
-						})
 					})
 				})
 		})
 	}
 	d.sh.Add(homed(&shell.Panel{Name: "Firmware", Windowable: true, Draw: fw.Draw}))
+}
+
+// askImportName is the last question, and the one the library is read by.
+//
+// Asked rather than defaulted, because the default was a timestamp: every
+// import called itself imported-20260824-142530, so a library of four local
+// builds said nothing about which was which and pinning one was guesswork.
+// Seeded from the file's own name, so somebody who has nothing to add presses
+// Enter and still gets "mesh-rs" rather than a clock reading.
+func (d panelDeps) askImportName(fwAsk *shell.Prompt, path, role, board string) {
+	fwAsk.Post(func(ask *shell.Prompt) {
+		ask.Open("Call this build what?", "a name and version, e.g. mesh-rs 1.2.0",
+			importNameFrom(path), func(label string) {
+				go func() {
+					p := map[string]any{"path": path, "role": role}
+					if board != "" {
+						p["board"] = board
+					}
+					if s := strings.TrimSpace(label); s != "" {
+						p["label"] = s
+					}
+					if _, err := d.st.Do(d.ctx, "firmware.import", p); err != nil {
+						_, _ = d.st.Do(d.ctx, "ui.said", "import: "+err.Error())
+					}
+					_, _ = d.st.Do(d.ctx, "firmware.library", nil)
+				}()
+			})
+	})
+}
+
+// importNameFrom is what to call a build when nobody has said yet.
+//
+// The file's own name with the parts that are about how it was packaged taken
+// off: "firmware-heltec-v3-2.7.26.factory.bin" is a Meshtastic release and
+// "-merged" is how an image was assembled, neither of which is what somebody
+// would call the thing in a list beside three others.
+func importNameFrom(path string) string {
+	name := filepath.Base(path)
+	name = strings.TrimSuffix(name, filepath.Ext(name))
+	for _, suffix := range []string{".factory", "-merged", "-factory", ".merged"} {
+		name = strings.TrimSuffix(name, suffix)
+	}
+	return name
+}
+
+// importRoles is what a build may be imported as.
+//
+// From the scenario's own list rather than a literal beside it, which had
+// drifted: it offered "advanced_repeater", which is not a role anywhere else
+// in the tree and produced builds the runner would never select, and it did
+// not offer the companion transports at all - so a companion build could only
+// be imported under the name of the transport-less role and its transport was
+// then guessed downstream.
+//
+// Bluetooth is left out on purpose and the entry says why: an emulated node
+// has no Bluetooth, so a companion_radio_ble image imported for a board is one
+// that can never be run here.
+func importRoles() []string {
+	return []string{
+		string(scenario.RoleSimpleRepeater),
+		string(scenario.RoleCompanionRadioUSB),
+		string(scenario.RoleCompanionRadio),
+		string(scenario.RoleSimpleRoomServer),
+	}
 }
 
 // hostBuildChoice is the first option, and the one most imports want: a build

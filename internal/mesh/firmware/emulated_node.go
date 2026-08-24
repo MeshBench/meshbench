@@ -25,6 +25,47 @@ const (
 	EnvRadioServer = "MESHCORESIM_RADIO_SERVER"
 )
 
+// EnvQEMUDebug turns on the emulator's own instruction and access tracing, as
+// a comma-separated list of QEMU log items - "unimp,guest_errors" being the
+// pair worth reaching for first, because between them they name every register
+// the machine does not model and every access it rejected.
+//
+// Off by default and deliberately not a setting: the output is megabytes a
+// second. One `-d unimp` run once filled a 16 GB tmpfs, and the space stayed
+// allocated until the emulator holding the file was killed.
+const EnvQEMUDebug = "MESHCORESIM_QEMU_DEBUG"
+
+// The three files a node's output is read from. Named here because the reader
+// is in another layer: the application shows them and only this package knows
+// where the emulator was told to put them.
+const (
+	consoleLogName  = "console.log"
+	emulatorLogName = "emulator.log"
+	radioLogName    = "radio.log"
+	traceLogName    = "emulator-trace.log"
+)
+
+// ConsoleLogName, EmulatorLogName, RadioLogName and TraceLogName are those
+// files' names, for a caller that has a node's directory and wants one of them.
+func ConsoleLogName() string  { return consoleLogName }
+func EmulatorLogName() string { return emulatorLogName }
+func RadioLogName() string    { return radioLogName }
+func TraceLogName() string    { return traceLogName }
+
+// qemuDebugArgs is the tracing the environment asked for, and nothing when it
+// asked for none.
+func qemuDebugArgs(dir string) []string {
+	items := strings.TrimSpace(os.Getenv(EnvQEMUDebug))
+	if items == "" {
+		return nil
+	}
+	return []string{"-d", items, "-D", filepath.Join(dir, traceLogName)}
+}
+
+// QEMUTracing reports what the emulator was asked to trace, so a pane showing
+// the output can say why it is enormous.
+func QEMUTracing() string { return strings.TrimSpace(os.Getenv(EnvQEMUDebug)) }
+
 // Emulator is which one runs a node. It follows from the board's MCU rather
 // than from a preference: QEMU has the Xtensa cores and Renode has the ARM
 // ones, and neither will take the other's firmware.
@@ -155,6 +196,10 @@ type EmulatedNode struct {
 
 	// serial is the emulator's own serial port, when it publishes one.
 	serial *serialLink
+
+	// console is where the serial port's output goes: the log file always, and
+	// whoever is currently listening as well.
+	console *consoleSink
 }
 
 func waitForPort(ctx context.Context, logPath string) (int, error) {
@@ -254,6 +299,7 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	}
 	e.radio = exec.CommandContext(ctx, radioBin, radioArgs...)
 	e.radio.Stdout, e.radio.Stderr = radioLog, radioLog
+	e.radio.SysProcAttr = childProcAttr()
 	if err := e.radio.Start(); err != nil {
 		return fmt.Errorf("firmware: starting the radio model: %w", err)
 	}
@@ -349,7 +395,20 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 		}
 	}
 
-	qemuLog, err := os.Create(filepath.Join(e.Dir, "console.log"))
+	// The board's own output and the emulator's are two different things, and
+	// separating them is what makes either readable. They shared console.log,
+	// so a QEMU error about a drive or a machine property landed in the middle
+	// of the boot chain looking like something the firmware had printed - and
+	// the boot-banner and assert patterns the board probe matches against that
+	// file could be satisfied by the emulator complaining rather than by the
+	// board saying anything at all.
+	conLog, err := os.Create(filepath.Join(e.Dir, "console.log"))
+	if err != nil {
+		_ = e.stopLocked()
+		return err
+	}
+	e.console = &consoleSink{file: conLog}
+	emuLog, err := os.Create(filepath.Join(e.Dir, emulatorLogName))
 	if err != nil {
 		_ = e.stopLocked()
 		return err
@@ -392,14 +451,35 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	if e.PSRAMMB > 0 {
 		args = append(args, "-m", fmt.Sprintf("%dM", e.PSRAMMB))
 	}
+	args = append(args, qemuDebugArgs(e.Dir)...)
 	e.qemu = exec.CommandContext(ctx, qemuBin, args...)
-	e.qemu.Stdout, e.qemu.Stderr = qemuLog, qemuLog
+	e.qemu.Stdout, e.qemu.Stderr = emuLog, emuLog
+	// The emulator dies with the simulator. Without this a workbench killed
+	// outright leaves a qemu-system-xtensa and a radioserver per node running,
+	// and the next run's radio socket is answered by the last run's model.
+	e.qemu.SysProcAttr = childProcAttr()
 	if err := e.qemu.Start(); err != nil {
 		_ = e.stopLocked()
 		return fmt.Errorf("firmware: starting the emulator: %w", err)
 	}
-	e.serial = dialSerial(ctx, conPath, qemuLog)
+	e.serial = dialSerial(ctx, conPath, e.console)
 	return nil
+}
+
+// TeeConsole sends a copy of everything the node says on its serial port to w,
+// on top of the log file it always writes. Nil stops the copy.
+//
+// This is how an emulated node's output reaches the things that read a native
+// node's: the console pane, a companion client, meshcore-cli over TCP. Without
+// it the port was readable only by opening the log file afterwards, so every
+// emulated board was write-only to everything in the application that tried to
+// listen to it - which read as a board that had no serial port at all.
+func (e *EmulatedNode) TeeConsole(w io.Writer) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.console != nil {
+		e.console.setTee(w)
+	}
 }
 
 // ConsoleLog is everything the node has said on its serial port: the whole
@@ -410,7 +490,23 @@ func (e *EmulatedNode) ConsoleLog() ([]byte, error) {
 
 // ConsolePath is where this node's boot output is written.
 func (e *EmulatedNode) ConsolePath() string {
-	return filepath.Join(e.Dir, "console.log")
+	return filepath.Join(e.Dir, consoleLogName)
+}
+
+// EmulatorLog is what the emulator itself said: the properties it refused, the
+// peripherals it does not implement, the reason it exited.
+//
+// A different question from ConsoleLog, and they used to share a file. A board
+// that says nothing and an emulator that would not start look identical in a
+// merged log, and the patterns the probe matches for a boot loop could be
+// satisfied by the emulator complaining rather than by the board booting.
+func (e *EmulatedNode) EmulatorLog() ([]byte, error) {
+	return os.ReadFile(e.EmulatorPath())
+}
+
+// EmulatorPath is where the emulator's own output is written.
+func (e *EmulatedNode) EmulatorPath() string {
+	return filepath.Join(e.Dir, emulatorLogName)
 }
 
 // Stop ends both processes.

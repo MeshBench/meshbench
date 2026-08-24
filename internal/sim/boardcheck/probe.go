@@ -121,11 +121,24 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 	// happen after any step and there are a dozen ways out of this function.
 	// The log is a file the emulator has already written, so it survives the
 	// node being stopped and can be read here rather than at each return.
+	//
+	// Two files, because the two verdicts read two different voices. A boot
+	// loop is the board saying the same first words over and over, and that is
+	// on its serial port. A wedge is the emulator saying the board asked for an
+	// address it does not implement, and that is the emulator's own output.
+	// They shared a file until the emulator's noise started matching the
+	// board's patterns.
 	if said, ok := under.Firmware.Backend.(interface{ ConsoleLog() ([]byte, error) }); ok {
 		defer func() {
 			if log, err := said.ConsoleLog(); err == nil {
-				report.downgradeIfWedged(log)
 				report.downgradeIfRebooting(log)
+			}
+		}()
+	}
+	if said, ok := under.Firmware.Backend.(interface{ EmulatorLog() ([]byte, error) }); ok {
+		defer func() {
+			if log, err := said.EmulatorLog(); err == nil {
+				report.downgradeIfWedged(log)
 			}
 		}()
 	}

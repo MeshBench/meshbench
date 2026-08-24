@@ -138,6 +138,22 @@ type World struct {
 	// Console is one node's firmware scrollback.
 	Console     []string
 	ConsoleNode string
+	// Output is one node's raw output from one source - what its serial port
+	// printed, what the emulator itself said, or what the radio model logged.
+	// Separate from Console, which is the scrollback of a conversation: this
+	// is a file on disk, read whole and shown as it is.
+	Output       []string
+	OutputNode   string
+	OutputSource string
+	// OutputTotal is how many lines the file holds, which is not how many are
+	// in Output: a node that has been running for an hour has more than
+	// anybody will read, and a pane that shows a tail must be able to say so.
+	OutputTotal int
+	// OutputPath is the file itself, for somebody who wants to open it.
+	OutputPath string
+	// OutputNote is why this source is empty when it is empty for a reason
+	// that is not "nothing happened".
+	OutputNote string
 	// Companions is every companion session, decoded.
 	Companions []Companion
 	// FleetReplies is what each node said to the last fleet command. A

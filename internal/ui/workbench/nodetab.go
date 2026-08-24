@@ -33,6 +33,12 @@ const (
 	// that grows it, because a tab that is always there and always empty
 	// teaches people to ignore tabs.
 	tabHardware
+	// tabOutput is what the node itself printed, from each of the three
+	// things that can print something about it: its serial port, the emulator
+	// running it, and the radio model beside it. Every node that runs firmware
+	// grows it - a native node writes to standard error where an emulated one
+	// writes to a serial port, and the question being asked is the same.
+	tabOutput
 	numNodeTabs
 )
 
@@ -54,6 +60,8 @@ func (n nodeTab) String() string {
 		return "Connect"
 	case tabHardware:
 		return "Hardware"
+	case tabOutput:
+		return "Output"
 	}
 	return "Console"
 }

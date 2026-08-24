@@ -105,27 +105,9 @@ func PadImage(src, dst string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	if len(data) < 0x1004 {
-		return 0, fmt.Errorf("firmware: %s is too small to be a merged image", src)
-	}
-	hdr := -1
-	switch {
-	case data[0] == 0xE9:
-		hdr = 0 // ESP32-S3, and the other parts that boot from zero
-	case data[0x1000] == 0xE9:
-		hdr = 0x1000 // ESP32
-	}
-	if hdr < 0 {
-		return 0, fmt.Errorf("firmware: %s has no image header at 0x0 or 0x1000; "+
-			"it is probably an application-only build rather than a merged one", src)
-	}
-	sizes := map[byte]int{0: 1, 1: 2, 2: 4, 3: 8, 4: 16}
-	mb, ok := sizes[data[hdr+3]>>4]
-	if !ok {
-		return 0, fmt.Errorf("firmware: %s declares an unknown flash size", src)
-	}
-	if mb == 1 {
-		mb = 2 // QEMU's smallest
+	mb, err := ClassifyESPImage(data)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", src, err)
 	}
 	want := mb << 20
 	if len(data) > want {
@@ -138,6 +120,44 @@ func PadImage(src, dst string) (int, error) {
 		out[i] = 0xFF // erased flash
 	}
 	return mb, os.WriteFile(dst, out, 0o644)
+}
+
+// ClassifyESPImage reads an ESP32 flash image's header and answers the flash
+// size in megabytes it was built for, or says why it is not one.
+//
+// Split out of PadImage so the same question can be asked at import, where it
+// can still be answered by refusing. Asked only at play, an application-only
+// build imported cleanly, listed cleanly, could be pinned to a node - and then
+// failed minutes later, in a message about a flash image, to somebody who
+// thought they were starting a board.
+func ClassifyESPImage(data []byte) (flashMB int, err error) {
+	if len(data) < 0x1004 {
+		return 0, fmt.Errorf("firmware: too small to be a merged image")
+	}
+	// Where the header lives differs by part, so it is looked for rather than
+	// assumed: an ESP32 boots its bootloader from 0x1000 and a merged image
+	// for one starts with padding, while an ESP32-S3 boots from zero. The byte
+	// is 0xE9 either way.
+	hdr := -1
+	switch {
+	case data[0] == 0xE9:
+		hdr = 0 // ESP32-S3, and the other parts that boot from zero
+	case data[0x1000] == 0xE9:
+		hdr = 0x1000 // ESP32
+	}
+	if hdr < 0 {
+		return 0, fmt.Errorf("firmware: no image header at 0x0 or 0x1000; " +
+			"it is probably an application-only build rather than a merged one")
+	}
+	sizes := map[byte]int{0: 1, 1: 2, 2: 4, 3: 8, 4: 16}
+	mb, ok := sizes[data[hdr+3]>>4]
+	if !ok {
+		return 0, fmt.Errorf("firmware: the image header declares an unknown flash size")
+	}
+	if mb == 1 {
+		mb = 2 // QEMU's smallest
+	}
+	return mb, nil
 }
 
 // waitForSocket blocks until the radio model is listening, or the context ends.

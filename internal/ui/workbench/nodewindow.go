@@ -80,6 +80,9 @@ type nodeWindowPanel struct {
 	maximised bool
 	// Kind is what this node is, which decides which tabs it grows.
 	Kind string
+	// out is the Output tab's own state: which source is showing, and the
+	// widgets that say so.
+	out outputPane
 	// hasHardware is set each frame from the node's board, so the Hardware
 	// tab appears exactly when the board declares something to show. Not a
 	// preference: a setting and the hardware can disagree, and a node showing
@@ -127,6 +130,10 @@ func (p *nodeWindowPanel) visibleTabs() []nodeTab {
 	if p.hasHardware {
 		tabs = append(tabs, tabHardware)
 	}
+	// Every node that runs firmware, whatever it runs and wherever it runs.
+	// What a board printed while failing to start is the one thing that says
+	// why, and it was reachable only by finding the file in a terminal.
+	tabs = append(tabs, tabOutput)
 	return tabs
 }
 
@@ -139,6 +146,7 @@ func (p *nodeWindowPanel) clicks(gtx layout.Context) {
 			p.tab = nodeTab(i)
 		}
 	}
+	p.outputClicks(gtx)
 	if p.start.Click.Clicked(gtx) && p.OnAction != nil {
 		p.OnAction("node.start", p.node)
 	}
@@ -267,6 +275,8 @@ func (p *nodeWindowPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snap
 				return p.sdrTab(t, gtx, s)
 			case tabHardware:
 				return p.hardware(t, gtx, s)
+			case tabOutput:
+				return p.output(t, gtx, s)
 			}
 			return p.console(t, gtx, s)
 		}),
@@ -389,6 +399,13 @@ func (p *nodeWindowPanel) auditDraw(t *theme.Theme, gtx layout.Context, s *state
 					p.wireTrueRF(gtx, s)
 					return p.trueRF.LayoutSwitch(t, gtx)
 				})
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			// The output pane's own chrome - the source buttons and the
+			// follow toggle. Bounded, because it fills what it is given.
+			gtx.Constraints.Max.Y = gtx.Dp(120)
+			return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx,
+				func(gtx layout.Context) layout.Dimensions { return p.output(t, gtx, s) })
 		}),
 		// The console last, with whatever height remains: its own input row
 		// sits at its bottom edge and stays on screen.

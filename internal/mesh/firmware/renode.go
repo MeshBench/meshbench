@@ -76,9 +76,16 @@ radiospi.lora Connect
 		return err
 	}
 
-	log, err := os.Create(filepath.Join(e.Dir, "console.log"))
+	// Renode's own output, not the board's. This machine's UART reaches
+	// nothing, so console.log stays empty for it rather than absent: what a
+	// reader wants to know about an nRF52 board is that it said nothing, and a
+	// missing file is indistinguishable from a node that never started.
+	log, err := os.Create(filepath.Join(e.Dir, emulatorLogName))
 	if err != nil {
 		return err
+	}
+	if f, err := os.Create(filepath.Join(e.Dir, consoleLogName)); err == nil {
+		_ = f.Close()
 	}
 	// Renode's monitor reads commands from standard input, and a monitor at
 	// end of file quits. With nothing on stdin it ran the script, reached the
@@ -93,6 +100,7 @@ radiospi.lora Connect
 		"--disable-xwt", "--console", "-e", "include @"+script)
 	e.qemu.Stdin = stdin
 	e.qemu.Stdout, e.qemu.Stderr = log, log
+	e.qemu.SysProcAttr = childProcAttr()
 	if err := e.qemu.Start(); err != nil {
 		_, _ = hold.Close(), stdin.Close()
 		return fmt.Errorf("firmware: starting the emulator: %w", err)

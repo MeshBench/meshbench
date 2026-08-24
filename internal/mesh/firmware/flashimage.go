@@ -55,6 +55,24 @@ func padToDeclaredFlash(image, dir string) (string, error) {
 	return out, nil
 }
 
+// HasPartitionTable reports whether a flash image carries a partition table
+// where the ROM bootloader looks for one.
+//
+// This is what separates a whole flash image from the application on its own,
+// and it is not the image header: an application image begins with 0xE9 too,
+// because it is an ESP image as well - just one that starts at 0x10000 rather
+// than at the beginning of the chip. Both halves of a published release are
+// called .bin, both start with the same magic, and only one of them boots.
+// Measured on Meshtastic's own pair, where firmware-heltec-v3-2.7.26.bin and
+// firmware-heltec-v3-2.7.26.factory.bin differ in exactly this.
+func HasPartitionTable(b []byte) bool {
+	if len(b) < partitionTableOffset+partitionEntrySize {
+		return false
+	}
+	e := b[partitionTableOffset:]
+	return e[0] == partitionMagic[0] && e[1] == partitionMagic[1]
+}
+
 // declaredFlashSize is the end of the last partition the table lists, or zero
 // if there is no table to read.
 func declaredFlashSize(b []byte) int {

@@ -226,9 +226,15 @@ func nodeWindowSkips() map[string]string {
 		// overlay itself and checks which verb it reached. That is stronger
 		// evidence than the flat layout could give, not weaker: it is the
 		// route somebody actually takes.
-		"changeFw":    "opens the build list rather than reaching a verb",
-		"pick.cancel": "drawn in the overlay, which the flat audit layout has not got",
-		"pick.filter": "drawn in the overlay, which the flat audit layout has not got",
+		// Following the end of a file is a property of the pane, not of the
+		// session: nothing outside this window needs to know, and a verb for
+		// it would be a verb whose only caller is the button beside it. Held
+		// instead by TestPausingStopsTheOutputPaneChasingTheEnd, which
+		// presses it and checks what it changed.
+		"out.pauseBtn": "changes what this pane draws rather than reaching a verb",
+		"changeFw":     "opens the build list rather than reaching a verb",
+		"pick.cancel":  "drawn in the overlay, which the flat audit layout has not got",
+		"pick.filter":  "drawn in the overlay, which the flat audit layout has not got",
 	}
 	for i := range auditBuilds() {
 		skip[fmt.Sprintf("pick.btns[%d]", i)] =

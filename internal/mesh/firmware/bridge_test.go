@@ -1,6 +1,7 @@
 package firmware
 
 import (
+	"bytes"
 	"encoding/binary"
 	"io"
 	"net"
@@ -185,5 +186,54 @@ func TestAStaleReleaseKeepsTheNewClaim(t *testing.T) {
 	release3()
 	if b.Claimed() {
 		t.Fatal("the final release did not release")
+	}
+}
+
+// A backend with its own serial port writes through ConsoleSink, and what it
+// writes has to land wherever the port currently belongs.
+//
+// The three states matter separately: nobody listening, the console pane
+// attached, and a client holding an exclusive claim. Getting the last one
+// wrong is how an attached companion client would receive the boot chain it
+// cannot parse, or nothing at all.
+func TestConsoleSinkFollowsWhoeverHoldsThePort(t *testing.T) {
+	b, err := Listen("127.0.0.1:0", "GB7XYZ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = b.Close() }()
+
+	sink := b.ConsoleSink()
+	// Nobody listening: accepted and discarded, never an error - the node has
+	// to keep running when no window is open.
+	if n, err := sink.Write([]byte("before anyone looked\n")); err != nil || n == 0 {
+		t.Fatalf("write with no listener: n=%d err=%v", n, err)
+	}
+
+	var pane, client bytes.Buffer
+	b.Console(&pane)
+	if _, err := sink.Write([]byte("boot ok\n")); err != nil {
+		t.Fatal(err)
+	}
+	release := b.Claim(&client)
+	if _, err := sink.Write([]byte("claimed\n")); err != nil {
+		t.Fatal(err)
+	}
+	// The pane re-attaches itself every frame, and must not take the port back.
+	b.Console(&pane)
+	if _, err := sink.Write([]byte("still claimed\n")); err != nil {
+		t.Fatal(err)
+	}
+	release()
+	b.Console(&pane)
+	if _, err := sink.Write([]byte("released\n")); err != nil {
+		t.Fatal(err)
+	}
+
+	if got, want := pane.String(), "boot ok\nreleased\n"; got != want {
+		t.Errorf("the pane saw %q, want %q", got, want)
+	}
+	if got, want := client.String(), "claimed\nstill claimed\n"; got != want {
+		t.Errorf("the client saw %q, want %q", got, want)
 	}
 }

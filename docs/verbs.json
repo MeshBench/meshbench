@@ -44,6 +44,38 @@
         "nodes"
       ]
     },
+    "node.output": {
+      "what": "read what a node's serial port, emulator or radio model has printed",
+      "params": [
+        {
+          "name": "node",
+          "type": "string",
+          "required": true,
+          "primary": true,
+          "what": "the node to read"
+        },
+        {
+          "name": "source",
+          "type": "string",
+          "what": "serial, emulator or radio; serial by default"
+        },
+        {
+          "name": "lines",
+          "type": "number",
+          "what": "how many lines of the tail to answer with, up to 2000"
+        }
+      ],
+      "returns": [
+        "node",
+        "source",
+        "lines",
+        "total",
+        "path",
+        "tail",
+        "note",
+        "tracing"
+      ]
+    },
     "node.window": {
       "what": "Open one node's own window, the thing people put on a second monitor.",
       "params": [

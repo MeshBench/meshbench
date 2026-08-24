@@ -66,6 +66,14 @@ func Start(ctx context.Context, name string, b Backend) (*Node, error) {
 	}
 	br.hasConsole = b.HasConsole()
 	br.consoleIn = b.ConsoleIn()
+	// A backend with its own serial port has to be asked to copy it here.
+	// Input already went straight to the port and output went straight to a
+	// file, so an emulated node could be typed at and never answered: the
+	// console pane, the companion client and meshcore-cli all read the bridge,
+	// and nothing had ever written to it for these backends.
+	if t, ok := b.(interface{ TeeConsole(io.Writer) }); ok {
+		t.TeeConsole(br.ConsoleSink())
+	}
 	return &Node{Bridge: br, Backend: b}, nil
 }
 
