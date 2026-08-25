@@ -591,11 +591,22 @@ which are a different image.
 ### 3.5d mesh-rs on the emulated T-Deck: boots, does not draw
 
 mesh-rs is closed-source Rust firmware. Past the emulator faults documented
-above it boots, brings up PSRAM, resets the display controller and initialises
-a card completely — but it stops in a panic handler of its own before sending
-the display's SLPOUT, so the panel stays dark. That last step is inside the
-firmware, not the emulator: the stock MeshCore and Meshtastic images drive the
-same panel on the same machine and draw. It is recorded as a firmware-side
+above it boots, brings up PSRAM, resets the display controller, initialises a
+card completely, and — unlike MeshCore and Meshtastic — drives its display over
+SPI **DMA** rather than polled SPI. Two more emulator gaps were fixed to follow
+it that far: the general-purpose SPI controller had no DMA data path at all (a
+DMA transfer clocked nothing, because the model only read the CPU data
+registers), and the GDMA's channel lookup returned the wrong channel (its
+"peripheral matches AND is started" test was coded as OR). With both fixed, a
+DMA transfer moves its data and raises the end-of-list interrupt the driver
+waits on — verified: the transfer completes and the correct completion status
+is raised on the right channel.
+
+It still does not draw. After that first DMA completes it sleeps in a backoff
+of its own, not polling or waiting on any register this emulator can be shown
+to mishandle — the completion interrupt it asked for is delivered. The stall is
+inside the closed firmware. The stock MeshCore and Meshtastic images drive the
+same panel on the same machine and draw, so it is recorded as a firmware-side
 blocker rather than an emulator one.
 
 ### 3.6 Forwarding policy is ours, not the repeater application's
