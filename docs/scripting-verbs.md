@@ -106,7 +106,7 @@ Two verbs are **not** in this table:
 | verb | takes | returns | façade |
 |---|---|---|---|
 | `node.energy` | *a bare string* | `node` | `node.energy()` |
-| `node.output` | `node` string, `source` string, `lines` number | `node`, `source`, `lines`, `total`, `path`, `tail`, `note`, `tracing` | *none yet* |
+| `node.output` | *a bare string*, `node` string, `source` string, `lines` number | `node`, `source`, `lines`, `total`, `path`, `tail`, `note`, `tracing` | `node.output(source)` |
 | `node.provisioning` | *a bare string* | `node`, `commands` | `node.provisioning` |
 | `node.radio` | `node` string | — | `node.radio` |
 | `node.radio_adopt` | `node` string | `node`, `tx_dbm` | `node.adopt_radio()` |
@@ -118,8 +118,8 @@ Two verbs are **not** in this table:
 | `node.start` | *a bare string* | `started` | `node.start()` |
 | `node.stop` | *a bare string* | `stopped` | `node.stop()` |
 | `node.truerf` | `node` string, `on` bool | `node`, `true_rf` | `node.true_rf = bool` |
-| `node.wipe` | *a bare string*, `node` string | `node`, `wiped`, `removed` | *none yet* |
 | `node.window` 🪟 | *a bare string*, `node` string, `tab` string | `node`, `tab` | `wb.window(node, tab=None)` |
+| `node.wipe` | *a bare string*, `node` string | `node`, `wiped`, `removed` | `node.wipe()` |
 | `nodes.add_to_selection` | — | `added` | `wb.nodes.select(*names, add=True)` |
 | `nodes.allow_flood` | `node` string, `on` bool | `nodes`, `allow_any_flood` | `node.allow_flood = bool` |
 | `nodes.delete` | `node` string | `deleted`, `nodes` | `wb.nodes.delete(*names) / node.delete()` |
@@ -178,7 +178,7 @@ Two verbs are **not** in this table:
 | `firmware.delete` | `path` string | `deleted` | `wb.firmware.delete(build)` |
 | `firmware.download` | `role` string, `version` string, `board` string | `downloading`, `role`, `version` | `wb.firmware.download(role, version, board=None)` |
 | `firmware.failed` | *a bare string* | — | *none* — the firmware starter reporting a failure |
-| `firmware.import` | `path` string, `role` string, `board` string, `label` string | `version`, `role`, `board`, `path`, `bytes` | `wb.firmware.import_(path, role, board=None)` |
+| `firmware.import` | `path` string, `role` string, `board` string, `label` string, `version` string | `version`, `role`, `board`, `path`, `bytes` | `wb.firmware.import_(path, role, board=None, label="")` |
 | `firmware.installed` | — | `cache`, `installed` | `wb.firmware.installed` |
 | `firmware.library` | — | `builds`, `count` | `wb.firmware.library` |
 | `firmware.needed` | — | `roles` | `wb.firmware.needed()` |
@@ -188,19 +188,6 @@ Two verbs are **not** in this table:
 | `firmware.started` | — | `running`, `playing` | *none* — the firmware starter reporting back |
 | `firmware.state` | — | `running`, `nodes`, `total`, `starting` | `wb.firmware.state()  /  wb.firmware.wait_started()` |
 | `firmware.wipe` | — | `wiped`, `root` | `wb.firmware.wipe()` |
-
-An emulated board keeps its flash between runs, as hardware does: its identity,
-its preferences and its contacts survive a stop and a start, and only a change
-of build reflashes the chip. `node.wipe` puts one board back to factory and
-`firmware.wipe` does all of them — which is what an experiment's arms want
-between runs, and what a node configured into a corner wants on its own.
-
-`node.output` reads what a node printed, from whichever of the three voices is
-asked for: `serial` is the board's own port (a native node's standard error),
-`emulator` is what QEMU or Renode said about running it, and `radio` is the
-radio model's log. Set `MESHCORESIM_QEMU_DEBUG=unimp,guest_errors` before
-starting the workbench to have the emulator name every register the machine
-does not model — off by default, because the output is megabytes a second.
 
 ### Console and fleet
 

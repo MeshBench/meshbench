@@ -210,6 +210,33 @@ class Node:
     def delete(self) -> None:
         self._wb.call("nodes.delete", {"node": self.name})
 
+    def output(self, source: str = "serial", lines: int = 200) -> list[str]:
+        """What this node printed, from one of four voices.
+
+        `serial` is the board's own port - a native node's standard error;
+        `boot` is the ROM's, on a board whose application talks over USB;
+        `emulator` is what QEMU or Renode said about running it; `radio` is
+        the radio model's log.
+
+        The lines, not a count of them: a board that has gone quiet is read
+        by looking at what it last said.
+        """
+        got = self._wb.call(
+            "node.output",
+            {"node": self.name, "source": source, "lines": lines},
+        ) or {}
+        return got.get("tail") or []
+
+    def wipe(self) -> None:
+        """Put this board back to factory: its flash, its card, its files.
+
+        A board keeps what it was told between runs, as hardware does, so a
+        node configured into a corner stays there until this is called. Refused
+        while it is running, rather than rewriting a flash underneath the
+        emulator holding it.
+        """
+        self._wb.call("node.wipe", {"node": self.name})
+
     def move(self, lat: float, lon: float) -> None:
         """Put it somewhere else. The physics moves with it: cached losses for
         this node are forgotten."""

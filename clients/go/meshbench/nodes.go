@@ -252,6 +252,31 @@ func (n Node) Info(ctx context.Context) (NodeInfo, error) {
 func (n Node) Start(ctx context.Context) error { return n.w.Do(ctx, "node.start", n.name) }
 func (n Node) Stop(ctx context.Context) error  { return n.w.Do(ctx, "node.stop", n.name) }
 
+// Output is what this node printed, from one of four voices: "serial" is the
+// board's own port (a native node's standard error), "boot" is the ROM's on a
+// board whose application talks over USB, "emulator" is what QEMU or Renode
+// said about running it, and "radio" is the radio model's log.
+//
+// The lines, not a count of them. A board that has gone quiet is read by
+// looking at what it last said.
+func (n Node) Output(ctx context.Context, source string, lines int) ([]string, error) {
+	var got struct {
+		Tail []string `json:"tail"`
+	}
+	err := n.w.CallInto(ctx, "node.output", map[string]any{
+		"node": n.name, "source": source, "lines": lines}, &got)
+	return got.Tail, err
+}
+
+// Wipe puts this board back to factory: its flash, its card, its files.
+//
+// A board keeps what it was told between runs, as hardware does, so a node
+// configured into a corner stays there until this is called. Refused while it
+// is running, rather than rewriting a flash underneath the emulator holding it.
+func (n Node) Wipe(ctx context.Context) error {
+	return n.w.Do(ctx, "node.wipe", map[string]any{"node": n.name})
+}
+
 // Delete removes it from the scenario, and re-measures what is left.
 func (n Node) Delete(ctx context.Context) error {
 	return n.w.Do(ctx, "nodes.delete", map[string]any{"node": n.name})
