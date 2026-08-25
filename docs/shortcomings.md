@@ -456,34 +456,32 @@ peripherals attached, so it is not the panel, the card slot, the keyboard or
 the touch panel. It never reads the touch panel at all, where a working build
 reads it 56 times in the same window.
 
-**Four explanations tested and disproved**, which is most of what is known:
+**Five explanations tested and disproved**, which is most of what is known.
+The software interrupt it raises is legitimate — this core's configuration
+matches ESP-IDF's. The MMU entry's flag bits are not swapped, and its page
+numbering is a plain 64 KB index, both checked against ESP-IDF's own headers.
+PSRAM pages past the end of the fitted part are not it either: wrapping the
+address changes nothing under a controlled comparison.
 
-1. *The software interrupt it raises is legitimate.* This core's configuration
-   matches ESP-IDF's — `XCHAL_INT7` is a level-1 software interrupt in both.
-   Worth noting anyway that a working build never raises it once, so the path
-   had not been exercised here before.
-2. *The MMU entry's flag bits are not swapped.* ESP-IDF gives `MMU_INVALID` as
-   bit 14 and `MMU_ACCESS_SPIRAM` as bit 15, which is what the model has.
-3. *The page numbering is right.* ESP-IDF 5.5's `mmu_ll_format_paddr` for this
-   part is `paddr >> 16` — a plain 64 KB index for flash and PSRAM alike.
-4. *PSRAM pages past the end of the part are not it.* This firmware does map
-   SPIRAM pages as high as 2820 against an 8 MB device, which looked damning,
-   but wrapping the address to the fitted size changes nothing: 11,857,581
-   rejected writes without it against 12,540,575 with it, over identical
-   twenty-second runs.
+And the twelve million rejected writes are **not a cause**. They could not be
+caught in a debugger — the failure does not occur under debugger timing — so
+the guest's program counter was printed from the rejection path at full speed
+instead. Every one of them comes from `0x40378cc6`, which is the firmware's own
+double-exception handler storing to its stack, with the address falling 256
+bytes each time exactly as that handler's `addmi a1, a1, -256` says it should.
+They are the storm, not the spark.
 
-**Where it actually stops.** The cache MMU's translate function, instrumented
-to count write translations, returns **zero** while the same run rejects
-**12,029,842 writes** — so those writes never pass through the MMU, and the
-whole PSRAM line above is the wrong region. They land at offsets 0xDC0000 to
-0x1000000 in an *unnamed* memory region, around 600,000 a second, and QEMU
-refuses them. Everything else this firmware does is downstream of twelve
-million stores it believes it made and did not.
+**What it leaves is one register at one instruction.** The first rejected write
+is at `0x3FBFFF1C`, and this part's internal DRAM begins at `0x3FC88000` — so
+when the interrupt was taken, the interrupted context's stack pointer was
+already below the RAM window. A software interrupt taken while `a1` is not a
+valid stack is the entire fault; everything else is consequence.
 
-The next step is instrumentation rather than research: name that region.
-QEMU prints `region '(null)'` because the `MemoryRegion` carries no name, and
-printing the owner from `memory_region_access_valid` identifies it in a single
-run.
+Whether the firmware set that stack up wrongly for this part, or derived it
+from something this emulator told it, cannot be settled from outside a closed
+binary. That is a narrower wall than it was — a single register at a single
+instruction rather than a region of unexplained behaviour — but it is still a
+wall.
 
 ### 3.6 Forwarding policy is ours, not the repeater application's
 
