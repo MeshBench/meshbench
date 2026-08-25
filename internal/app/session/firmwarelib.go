@@ -324,8 +324,14 @@ func registerFirmwareLibrary(st *state.Store, s *Sim) {
 				n++
 			}
 		}
-		w.Say(fmt.Sprintf("wiped %d nodes' stored settings", n))
-		return map[string]any{"wiped": n, "root": root}, nil
+		// And the cards kept somewhere else. A node handed a card of its own
+		// choosing has its storage outside this directory, so wiping the
+		// directory leaves it holding everything it was supposed to forget -
+		// which is the one case where "wiped every node" would be a lie.
+		cards := s.wipeCardsOutside(root)
+		w.Say(fmt.Sprintf("wiped %d nodes' stored settings and %d cards kept elsewhere",
+			n, cards))
+		return map[string]any{"wiped": n, "root": root, "cards": cards}, nil
 	})
 }
 

@@ -33,6 +33,8 @@
     "nodes.stats": "wb.nodes.refresh_stats()",
     "node.output": "node.output(source)",
     "node.wipe": "node.wipe()",
+    "node.card": "node.card(fitted=|file=|wipe=)",
+    "node.output_window": "node.output_window(source)",
     "node.start": "node.start()",
     "node.stop": "node.stop()",
     "node.set_firmware": "node.firmware = build",

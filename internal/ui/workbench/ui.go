@@ -27,8 +27,10 @@ type workbenchUI struct {
 	sim   *session.Sim
 	mv    *comp.MapView
 	nodes *nodeWindows
-	// builds is the firmware windows, on the same terms as the node ones.
+	// builds is the firmware windows, and logs the popped-out output ones,
+	// both on the same terms as the node windows.
 	builds *firmwareWindows
+	logs   *outputWindows
 	store  *state.Store
 	// newTheme gives each window a shaper of its own: Gio's is not safe for
 	// concurrent use and two frame loops sharing one corrupts its glyph
@@ -159,6 +161,17 @@ func (u *workbenchUI) OpenNodeWindow(node, tab string) (string, error) {
 	// business once it is up; what this can honestly report is the tab it was
 	// opened on.
 	return want.String(), nil
+}
+
+func (u *workbenchUI) OpenOutputWindow(node, source string) error {
+	if u.logs == nil || u.newTheme == nil {
+		return fmt.Errorf("this build has no output windows to open")
+	}
+	if u.onDo == nil {
+		return fmt.Errorf("this build cannot run verbs from an output window")
+	}
+	u.logs.openFor(node, source, u.newTheme, u.store, u.onDo)
+	return nil
 }
 
 func (u *workbenchUI) OpenFirmwareWindow(role, version, board string) error {

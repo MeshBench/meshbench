@@ -8,16 +8,9 @@ package workbench
 import (
 	"image"
 
-	"gioui.org/app"
 	"gioui.org/io/key"
-	"gioui.org/io/system"
-	"gioui.org/layout"
-	"gioui.org/op"
-	"gioui.org/unit"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
-	"github.com/MeshBench/meshbench/internal/ui/comp"
-	"github.com/MeshBench/meshbench/internal/ui/float"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 )
 
@@ -54,75 +47,12 @@ func (w *nodeWindows) openFor(node string, tab nodeTab,
 	if !w.claim(node) {
 		return
 	}
-
-	go func() {
-		defer w.release(node)
-		th := newTheme()
-		p := &nodeWindowPanel{node: node, OnCommand: h.onCommand, OnAction: h.onAction,
-			OnCLI: h.onCLI, OnServe: h.onServe, OnOpenPacket: h.onOpenPacket,
-			OnDo: h.onDo, Kind: kindOfNode(st, node)}
-		p.tab = tab
-		spot := float.NextSpot()
-		win := new(app.Window)
-		// Whether it stays above the main window is the machine's preference,
-		// read once here because the ask only exists at creation.
-		win.Option(append([]app.Option{
-			app.Title("MeshBench - " + node),
-			app.Size(unit.Dp(820), unit.Dp(620)),
-		}, float.Above(spot, keepAbove(st))...)...)
-		// Raised as it opens, for the platforms where above is not or cannot
-		// be honoured. Where it was, the window is on the overlay layer and
-		// raising is meaningless anyway.
-		win.Perform(system.ActionRaise)
-		var chrome *layerChrome
-		var ops op.Ops
-		for {
-			switch e := win.Event().(type) {
-			case app.ConfigEvent:
-				if e.Config.LayerShell && chrome == nil {
-					p.Layered, chrome = true, newLayerChrome(spot)
-				}
-				if chrome != nil {
-					chrome.screens(e.Config.Output, e.Config.Outputs)
-				}
-			case app.DestroyEvent:
-				return
-			case app.FrameEvent:
-				if w.wantsRaise(p.node) {
-					// Raising means nothing to a layer surface, so for a
-					// layered window the wish recalls it on screen instead -
-					// which is also how one dragged out of reach comes back.
-					if chrome != nil {
-						if opts := chrome.recall(float.NextSpot()); len(opts) > 0 {
-							win.Option(opts...)
-						}
-					} else {
-						win.Perform(system.ActionRaise)
-					}
-				}
-				gtx := app.NewContext(&ops, e)
-				comp.Fill(gtx, th.P.Ground)
-				if chrome != nil {
-					chrome.frame(e)
-				}
-				layout.UniformInset(th.Sp.M).Layout(gtx,
-					func(gtx layout.Context) layout.Dimensions {
-						return p.Draw(th, gtx, st.Snapshot())
-					})
-				if chrome != nil {
-					opts, close := chrome.update(&p.bar)
-					p.maximised = chrome.maximised
-					if close {
-						win.Perform(system.ActionClose)
-					} else if len(opts) > 0 {
-						win.Option(opts...)
-					}
-				}
-				e.Frame(gtx.Ops)
-				win.Invalidate()
-			}
-		}
-	}()
+	p := &nodeWindowPanel{node: node, OnCommand: h.onCommand, OnAction: h.onAction,
+		OnCLI: h.onCLI, OnServe: h.onServe, OnOpenPacket: h.onOpenPacket,
+		OnDo: h.onDo, Kind: kindOfNode(st, node)}
+	p.tab = tab
+	go runPopout(w.windowSet, node, "MeshBench - "+node,
+		popoutSize{820, 620}, p, newTheme, st)
 }
 
 var _ = key.NameEscape

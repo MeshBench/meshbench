@@ -186,11 +186,15 @@ func TestNodeOutputReadsWhatTheEmulatorWrote(t *testing.T) {
 	if n := len(m["tail"].([]string)); n != 5 {
 		t.Errorf("asked for 5 lines and got %d", n)
 	}
-	if n := len(w.Output); n != outputTail {
+	if len(w.Outputs) != 1 {
+		t.Fatalf("published %d panes, want 1", len(w.Outputs))
+	}
+	pane := w.Outputs[0]
+	if n := len(pane.Lines); n != outputTail {
 		t.Errorf("the pane got %d lines, want the %d-line cap", n, outputTail)
 	}
-	if w.OutputNode != "GB7XYZ" || w.OutputSource != "serial" {
-		t.Errorf("published %s/%s", w.OutputNode, w.OutputSource)
+	if pane.Node != "GB7XYZ" || pane.Source != "serial" {
+		t.Errorf("published %s/%s", pane.Node, pane.Source)
 	}
 
 	// A node with no board has no emulator, and the pane is told so rather

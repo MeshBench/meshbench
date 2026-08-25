@@ -109,6 +109,7 @@ type BuildChange struct {
 
 	CoprocAtReset *bool
 	SPIController *int
+	CardRequired  *bool
 	Notes         *string
 }
 
@@ -130,6 +131,9 @@ func (f Firmware) Update(ctx context.Context, id BuildID, c BuildChange) (BuildD
 	}
 	if c.SPIController != nil {
 		p["spi_controller"] = *c.SPIController
+	}
+	if c.CardRequired != nil {
+		p["card_required"] = *c.CardRequired
 	}
 	if c.Notes != nil {
 		p["notes"] = *c.Notes

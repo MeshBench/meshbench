@@ -152,17 +152,15 @@ type Snapshot struct {
 	// Console is one node's firmware scrollback.
 	Console     []string
 	ConsoleNode string
-	// Output is one node's raw output from one source: its serial port, the
-	// emulator's own log, or the radio model's. A tail rather than the file,
-	// with OutputTotal saying what the file holds so the pane can report the
-	// difference rather than implying it has everything.
-	Output       []string
-	OutputNode   string
-	OutputSource string
-	OutputTotal  int
-	OutputPath   string
-	// OutputNote is why this source is empty, when it is empty for a reason.
-	OutputNote string
+	// Outputs is every node-and-source pane something is currently looking
+	// at: a board's serial port, the emulator's own log, the radio model's.
+	//
+	// Many rather than one, which is what it was. One pane at a time meant
+	// two windows on two nodes overwrote each other every tick, and switching
+	// source blanked the pane until the next one landed - both of which read
+	// as the workbench losing the log. What is on disk was never lost; what
+	// was lost was the one slot they were all sharing.
+	Outputs []OutputPane
 	// Companions are the companion sessions the workbench currently holds,
 	// decoded rather than flattened to console text, so the client can draw a
 	// channel list and a conversation instead of a terminal.

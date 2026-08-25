@@ -34,6 +34,8 @@ func (u *tabStrictUI) OpenNodeWindow(_, tab string) (string, error) {
 
 func (u *tabStrictUI) OpenFirmwareWindow(_, _, _ string) error { return nil }
 
+func (u *tabStrictUI) OpenOutputWindow(_, _ string) error { return nil }
+
 // Does double-clicking a node open its window?
 //
 // Reported: it opens nothing at all. Every route to a node window passes the

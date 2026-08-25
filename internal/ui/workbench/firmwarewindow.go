@@ -44,6 +44,7 @@ type firmwareWindowPanel struct {
 	name   comp.Field
 	notes  comp.Field
 	coproc comp.Check
+	card   comp.Check
 	// spiChips is the controller this firmware drives, one chip per choice.
 	spiChips map[string]*comp.Chip
 	spiWant  int
@@ -75,6 +76,10 @@ type firmwareWindowPanel struct {
 	seeded string
 }
 
+func (p *firmwareWindowPanel) setLayered(on bool)       { p.Layered = on }
+func (p *firmwareWindowPanel) titleBar() *comp.TitleBar { return &p.bar }
+func (p *firmwareWindowPanel) setMaximised(on bool)     { p.maximised = on }
+
 func (p *firmwareWindowPanel) build() {
 	p.list.Axis = layout.Vertical
 	p.boardList.Axis = layout.Vertical
@@ -83,6 +88,7 @@ func (p *firmwareWindowPanel) build() {
 	p.notes.Label = "Notes"
 	p.notes.Hint = "what the next person should know about this build"
 	p.coproc.Label = "coprocessors enabled at reset"
+	p.card.Label = "needs a card in the board's slot"
 	p.apply.Label, p.apply.Kind = "apply", comp.Primary
 	p.revert.Label, p.revert.Kind = "revert", comp.Secondary
 	p.useFor.Label, p.useFor.Kind = "use for this role", comp.Secondary
@@ -125,6 +131,7 @@ func (p *firmwareWindowPanel) seed(r state.FirmwareRow) {
 	p.name.Editor.SetText(r.Version)
 	p.notes.Editor.SetText(r.Settings.Notes)
 	p.coproc.Bool.Value = r.Settings.CoprocAtReset
+	p.card.Bool.Value = r.Settings.CardRequired
 	p.spiWant = r.Settings.SPIController
 	p.roleWant, p.boardWant = r.Role, r.Board
 }

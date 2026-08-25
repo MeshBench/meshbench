@@ -73,6 +73,9 @@ type nodeWindowPanel struct {
 	// carries no decoration of the compositor's and so draws its own title
 	// bar. Set by the window loop from ConfigEvent.
 	Layered bool
+	// cardCtl is the card slot's own controls, drawn in the Hardware tab
+	// because a card is hardware.
+	cardCtl cardControls
 	// bar is that title bar, and maximised is its restore state, both owned
 	// here so the widget's address never changes across frames. The window
 	// loop polls them; the panel only draws.
@@ -105,6 +108,10 @@ type nodeWindowPanel struct {
 }
 
 // visibleTabs is the tab set this node gets.
+func (p *nodeWindowPanel) setLayered(on bool)       { p.Layered = on }
+func (p *nodeWindowPanel) titleBar() *comp.TitleBar { return &p.bar }
+func (p *nodeWindowPanel) setMaximised(on bool)     { p.maximised = on }
+
 func (p *nodeWindowPanel) visibleTabs() []nodeTab {
 	var tabs []nodeTab
 	switch {
@@ -376,8 +383,11 @@ func (p *nodeWindowPanel) auditDraw(t *theme.Theme, gtx layout.Context, s *state
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			// Bounded: settings fills whatever it is offered, and offered
-			// everything it would leave nothing for the tabs below it.
-			gtx.Constraints.Max.Y = gtx.Dp(300)
+			// everything it would leave nothing for the tabs below it. The
+			// figure is what is left once every other pane has its own
+			// bound - the card slot's row took the last of the slack, and
+			// the console's send button went off the bottom.
+			gtx.Constraints.Max.Y = gtx.Dp(250)
 			return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx,
 				func(gtx layout.Context) layout.Dimensions { return p.settings(t, gtx, s) })
 		}),
@@ -398,6 +408,17 @@ func (p *nodeWindowPanel) auditDraw(t *theme.Theme, gtx layout.Context, s *state
 				func(gtx layout.Context) layout.Dimensions {
 					p.wireTrueRF(gtx, s)
 					return p.trueRF.LayoutSwitch(t, gtx)
+				})
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			// The card slot's controls, which live in the Hardware tab beside
+			// the drawn board - too far down it to be reached in the flat
+			// layout otherwise. Its controls without its prose, which is three
+			// paragraphs and would push the console's own send button off the
+			// bottom of the canvas.
+			return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx,
+				func(gtx layout.Context) layout.Dimensions {
+					return p.cardAuditRow(t, gtx, s)
 				})
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {

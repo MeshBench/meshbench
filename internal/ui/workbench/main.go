@@ -274,7 +274,8 @@ func Run(args []string) {
 	// city of polygons has no business in the world snapshot.
 	mv.BuildingsIn = sm.BuildingsIn
 	wbUI := &workbenchUI{sh: sh, sim: sm, mv: mv, store: st,
-		nodes: newNodeWindows(), builds: newFirmwareWindows()}
+		nodes: newNodeWindows(), builds: newFirmwareWindows(),
+		logs: newOutputWindows()}
 	callbacks{
 		wbUI: wbUI, mv: mv, st: st, ctx: ctx, sm: sm, openPacket: openPacket,
 		chooser: chooser, do: do,

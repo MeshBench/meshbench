@@ -47,6 +47,16 @@ type BuildSettings struct {
 	// looks exactly like a board with nothing fitted.
 	SPIController int `json:"spi_controller,omitempty"`
 
+	// CardRequired says this firmware will not get far without storage in the
+	// board's slot, so every node running it is given a card whatever it would
+	// otherwise have had.
+	//
+	// A property of the build for the same reason as the rest: one firmware
+	// for a handheld keeps its settings on a card and another keeps them in
+	// flash, and only the build knows which. Without it, a node with an empty
+	// slot fails minutes into a run, somewhere that does not mention cards.
+	CardRequired bool `json:"card_required,omitempty"`
+
 	// Notes is whatever the person who imported it wanted the next person to
 	// know: where it came from, what it is for, what is wrong with it.
 	Notes string `json:"notes,omitempty"`

@@ -260,3 +260,25 @@ Two later findings that change how this study should be read:
 - **Repeats of one seed are identical**, and in the simultaneous arms so are
   different seeds. Three seeds is three runs, not three samples. To get a real
   interval, vary something that perturbs the mesh rather than the noise.
+
+## Watching more than one log at once
+
+*Added 25 August 2026.*
+
+A node's **Output** tab shows one of its four voices at a time: what the board
+printed (`serial`), what the ROM printed before the board's own console existed
+(`rom`), what the emulator said about running it (`emulator`), and what the
+radio model logged (`radio`).
+
+**"pop out"** puts the one being shown into a window of its own, so a board's
+screen and two of its logs can be watched together — which is what a
+misbehaving board actually needs: what it printed beside what the emulator said
+about running it.
+
+    node.output_window {node, source}
+
+Every popped-out window keeps its own subscription. Panes no longer share one
+slot in the world, so two windows on two nodes stay filled, and switching
+source no longer blanks the pane it switched away from. Nothing on disk was
+ever lost when they did — the files under `~/.cache/meshcoresim/nodefs/<node>/`
+hold everything, and the pane's footer names the one it is reading.

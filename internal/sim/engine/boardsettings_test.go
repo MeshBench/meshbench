@@ -93,3 +93,75 @@ func TestABuildCanNameTheSPIControllerItDrives(t *testing.T) {
 			node.SPI, declared.QEMU.SPI)
 	}
 }
+
+// A slot is not a fitted card: the board says the slot exists, the node says
+// whether it is filled, and a firmware that keeps its settings on one fills it
+// regardless.
+func TestTheCardSlotIsTheNodesUntilTheFirmwareInsists(t *testing.T) {
+	cache := t.TempDir()
+	t.Setenv("XDG_CACHE_HOME", cache)
+	t.Setenv("HOME", cache)
+	t.Setenv(firmware.EnvNodeFS, t.TempDir())
+
+	board := "LilyGo_TDeck"
+	dir := filepath.Join(firmware.DefaultCacheDir(), "board", board)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	img := make([]byte, 0x9000)
+	img[0], img[3] = 0xE9, 0x40
+	img[0x8000], img[0x8001] = 0xAA, 0x50
+	image := filepath.Join(dir, "companion_radio_usb@mesh-rs.bin")
+	if err := os.WriteFile(image, img, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	spec := scenario.Node{
+		Name: "Deck", Kind: scenario.Companion, Board: board,
+		Firmware: scenario.FirmwareRef{Version: "mesh-rs", Board: board,
+			Role: scenario.RoleCompanionRadioUSB},
+	}
+
+	// The board's own answer: a card in every slot it declares, which is what
+	// happened before any of this existed.
+	node, err := emulatedBackend(spec, true)
+	if err != nil {
+		t.Fatalf("emulatedBackend: %v", err)
+	}
+	if node.CardPath == "" {
+		t.Fatal("a T-Deck came up with no card at all")
+	}
+
+	// Taken out, and it stays out.
+	spec.Card = scenario.CardEmpty
+	node, err = emulatedBackend(spec, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if node.CardPath != "" {
+		t.Errorf("the slot was emptied and the machine still got %s", node.CardPath)
+	}
+
+	// Unless the firmware will not boot without one, which it can say.
+	if err := firmware.SaveBuildSettings(image,
+		firmware.BuildSettings{CardRequired: true}); err != nil {
+		t.Fatal(err)
+	}
+	node, err = emulatedBackend(spec, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if node.CardPath == "" {
+		t.Error("a build that needs storage was started without any")
+	}
+
+	// And a card the node was handed is the one it gets.
+	mine := filepath.Join(t.TempDir(), "shared.img")
+	spec.Card, spec.CardFile = scenario.CardFitted, mine
+	node, err = emulatedBackend(spec, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if node.CardPath != mine {
+		t.Errorf("it was handed %s and got %s", mine, node.CardPath)
+	}
+}

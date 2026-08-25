@@ -233,6 +233,9 @@ class BuildDetails:
     #: right: the pins are fixed and the matrix routes whichever controller the
     #: firmware picks onto them.
     spi_controller: int = 0
+    #: This firmware will not get far without storage in the board's slot, so
+    #: every node running it is given a card whatever its own slot was set to.
+    card_required: bool = False
     notes: str = ""
 
     def __str__(self) -> str:
@@ -242,6 +245,32 @@ class BuildDetails:
 
     @classmethod
     def parse(cls, raw: dict[str, Any]) -> BuildDetails:
+        return _from_dict(cls, raw)
+
+
+@dataclass(frozen=True)
+class CardSlot:
+    """What is in one node's card slot.
+
+    A slot is not a fitted card: the board says the slot exists, the node says
+    whether it is filled, and a firmware that keeps its settings on a card
+    fills it regardless.
+    """
+
+    node: str = ""
+    #: "" for the board's own answer, "fitted" or "empty" for a decision.
+    slot: str = ""
+    fitted: bool = False
+    #: The file behind the card, and the one it would use if handed none.
+    file: str = ""
+    own_file: str = ""
+    bytes: int = 0
+    required_by_firmware: bool = False
+    board_has_slot: bool = False
+    wiped: bool = False
+
+    @classmethod
+    def parse(cls, raw: dict[str, Any]) -> CardSlot:
         return _from_dict(cls, raw)
 
 

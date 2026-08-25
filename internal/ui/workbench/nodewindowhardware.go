@@ -53,7 +53,14 @@ func (p *nodeWindowPanel) hardware(t *theme.Theme, gtx layout.Context, s *state.
 					}),
 					layout.Rigid(layout.Spacer{Width: t.Sp.L}.Layout),
 					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-						return p.hardwareFacts(t, gtx, panel, st)
+						return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return p.hardwareFacts(t, gtx, panel, st)
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return p.card(t, gtx, s)
+							}),
+						)
 					}),
 				)
 			}),
@@ -72,7 +79,7 @@ func (p *nodeWindowPanel) hardware(t *theme.Theme, gtx layout.Context, s *state.
 // the strip says so; four lines is enough to tell a board that is booting from
 // one that has said nothing at all.
 func (p *nodeWindowPanel) lastWords(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
-	p.askOutput("serial")
+	p.askSerial()
 	lines := outputSummary(p.node, s, 4)
 	if len(lines) == 0 {
 		// Silence is a finding, so it is drawn rather than skipped - a strip

@@ -218,14 +218,30 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 		}
 	}
 
-	// The card slot, where the board has one. The file is the node's, beside
-	// its sockets and its logs, and survives the run.
+	// The card slot, where the board has one and the node has a card in it.
+	//
+	// A slot is not a fitted card: the board can only say the slot exists, and
+	// whether this particular node has storage is the scenario's business -
+	// except where the firmware insists, which it can, because a build that
+	// keeps its settings on a card boots into nothing without one.
 	if p := board.Hardware; p != nil {
 		for _, part := range p.PartsOfKind(scenario.Card) {
 			if part.Pin == scenario.PinNone {
 				continue
 			}
-			card := filepath.Join(dir, "card.img")
+			if !spec.HasCard(true, set.CardRequired) {
+				break
+			}
+			// The node's own, beside its sockets and its logs, unless it was
+			// handed one somewhere else - which is how a card is shared
+			// between nodes or prepared in advance.
+			card := spec.CardFile
+			if card == "" {
+				card = filepath.Join(dir, "card.img")
+			}
+			if err := os.MkdirAll(filepath.Dir(card), 0o755); err != nil {
+				return nil, fmt.Errorf("engine: %s's card: %w", spec.Name, err)
+			}
 			if err := firmware.MakeCard(card); err != nil {
 				return nil, fmt.Errorf("engine: %s's card: %w", spec.Name, err)
 			}

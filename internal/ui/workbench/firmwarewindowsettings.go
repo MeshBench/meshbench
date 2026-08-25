@@ -46,6 +46,22 @@ func (p *firmwareWindowPanel) howItRuns(t *theme.Theme, gtx layout.Context,
 						"flattered, so leave it off unless a board looks dead."))
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return p.card.LayoutSwitch(t, gtx)
+				}),
+			)
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Top: t.Sp.XS, Bottom: t.Sp.S}.Layout(gtx,
+				comp.Text(t, t.Sz.Caption, t.P.Faint,
+					"A firmware that keeps its settings on a card boots into nothing "+
+						"without one. On, every node running this build is given a card "+
+						"whatever its own slot was set to - which is better than a boot "+
+						"failure minutes into a run, in a message that never mentions "+
+						"cards."))
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Bottom: t.Sp.S}.Layout(gtx,
 				func(gtx layout.Context) layout.Dimensions { return p.spiRow(t, gtx) })
 		}),
@@ -204,6 +220,7 @@ func (p *firmwareWindowPanel) renaming(r state.FirmwareRow) bool {
 func (p *firmwareWindowPanel) changed(r state.FirmwareRow) bool {
 	return p.renaming(r) ||
 		p.coproc.Bool.Value != r.Settings.CoprocAtReset ||
+		p.card.Bool.Value != r.Settings.CardRequired ||
 		p.spiWant != r.Settings.SPIController ||
 		fieldText(&p.notes) != r.Settings.Notes
 }
@@ -224,6 +241,7 @@ func (p *firmwareWindowPanel) act(gtx layout.Context, r state.FirmwareRow) {
 			"version": r.Version, "role": r.Role, "board": r.Board,
 			"label": name, "new_role": p.roleWant, "new_board": p.boardWant,
 			"coproc_at_reset": p.coproc.Bool.Value,
+			"card_required":   p.card.Bool.Value,
 			"spi_controller":  p.spiWant,
 			"notes":           fieldText(&p.notes),
 		}

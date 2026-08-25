@@ -51,6 +51,10 @@ type UI interface {
 	// one is a rename of somebody else's image.
 	OpenFirmwareWindow(role, version, board string) error
 
+	// OpenOutputWindow gives one node's one log a window of its own, so a
+	// board's screen and two of its logs can be watched at once.
+	OpenOutputWindow(node, source string) error
+
 	// OpenPanel shows a panel. where is "" for in the layout, "window" for
 	// its own window, or "dock" to bring it back.
 	OpenPanel(name, where string) error

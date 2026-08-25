@@ -44,6 +44,7 @@
         "flash_mb",
         "coproc_at_reset",
         "spi_controller",
+        "card_required",
         "notes"
       ]
     },
@@ -86,6 +87,11 @@
           "name": "spi_controller",
           "type": "number",
           "what": "which general-purpose SPI controller this firmware drives - 2 or 3 on an ESP32-S3, or 0 to take the board's own answer. Wrong, the radio, the card and the screen all answer nothing"
+        },
+        {
+          "name": "card_required",
+          "type": "bool",
+          "what": "this firmware will not get far without storage in the board's slot, so every node running it is given a card whatever it would otherwise have had"
         },
         {
           "name": "coproc_at_reset",
@@ -172,6 +178,44 @@
         "nodes"
       ]
     },
+    "node.card": {
+      "what": "Report or change what is in one node's card slot: whether a card is fitted, which file it is, and whether to erase it.",
+      "params": [
+        {
+          "name": "node",
+          "type": "string",
+          "required": true,
+          "primary": true,
+          "what": "which node"
+        },
+        {
+          "name": "fitted",
+          "type": "bool",
+          "what": "put a card in the slot or take it out; unchanged when absent"
+        },
+        {
+          "name": "file",
+          "type": "string",
+          "what": "the file behind the card; empty string returns it to the node's own, named after the node and kept beside its flash"
+        },
+        {
+          "name": "wipe",
+          "type": "bool",
+          "what": "erase the card, which is what reformatting one is"
+        }
+      ],
+      "returns": [
+        "node",
+        "slot",
+        "fitted",
+        "file",
+        "own_file",
+        "bytes",
+        "required_by_firmware",
+        "board_has_slot",
+        "wiped"
+      ]
+    },
     "node.output": {
       "what": "read what a node's serial port, emulator or radio model has printed",
       "params": [
@@ -202,6 +246,27 @@
         "tail",
         "note",
         "tracing"
+      ]
+    },
+    "node.output_window": {
+      "what": "Open one node's one log in a window of its own, so a board's screen and several of its logs can be watched at once.",
+      "params": [
+        {
+          "name": "node",
+          "type": "string",
+          "required": true,
+          "primary": true,
+          "what": "which node"
+        },
+        {
+          "name": "source",
+          "type": "string",
+          "what": "which log: serial, rom, emulator, radio; serial when absent"
+        }
+      ],
+      "returns": [
+        "node",
+        "source"
       ]
     },
     "node.window": {

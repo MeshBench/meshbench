@@ -36,6 +36,7 @@ lives here and **is** maintained - unlike the working notes below.
 | file | what it holds |
 |---|---|
 | `install.md` | per platform, including the macOS and Windows signing caveats |
+| `firmware-build-settings.md` | what each setting in a build's own window does, and what it costs |
 | `native-and-emulated.md` | where the real firmware ends and the simulation begins, and the two ways a node can run |
 
 ## Machine-specific, and deliberately so

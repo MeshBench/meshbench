@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/MeshBench/meshbench/internal/app/control"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/mesh/firmware"
 )
@@ -126,8 +127,10 @@ func registerNodeOutput(st *state.Store, s *Sim) {
 			}
 		}
 
-		w.Output, w.OutputNode, w.OutputSource = lines, name, source
-		w.OutputTotal, w.OutputPath, w.OutputNote = total, path, note
+		putOutput(w, state.OutputPane{
+			Node: name, Source: source, Lines: lines, Total: total,
+			Path: path, Note: note, Tracing: firmware.QEMUTracing(),
+		})
 
 		// The answer is a shorter tail than the pane gets: a script asking over
 		// the control socket is usually asking a question about the last few
@@ -151,21 +154,54 @@ func registerNodeOutput(st *state.Store, s *Sim) {
 	})
 }
 
-// refreshOutput re-reads the file the output pane is showing.
+// putOutput lands one pane's content in the world, replacing that pane's
+// previous content and leaving every other pane alone.
+//
+// The list is keyed by node and source together. One slot for all of them was
+// what it was: two windows on two nodes overwrote each other every tick, and
+// switching source blanked the pane until the next tick landed. Nothing on
+// disk was ever lost - what was lost was the one slot they shared.
+func putOutput(w *state.World, pane state.OutputPane) {
+	for i := range w.Outputs {
+		if w.Outputs[i].Node == pane.Node && w.Outputs[i].Source == pane.Source {
+			w.Outputs[i] = pane
+			return
+		}
+	}
+	if len(w.Outputs) >= maxOutputPanes {
+		// A bound, because every pane is re-read on every tick and each one
+		// costs a file read. Reached only by opening more output windows than
+		// anybody has screen for; the oldest goes, and its pane asks again on
+		// its next frame because it will not find itself here.
+		w.Outputs = w.Outputs[1:]
+	}
+	w.Outputs = append(w.Outputs, pane)
+}
+
+// maxOutputPanes is how many node-and-source pairs are re-read per tick.
+const maxOutputPanes = 12
+
+// refreshOutput re-reads every file a pane is showing.
 //
 // Called from the tick rather than by the pane, because the emulator is still
 // writing: a pane that reads once shows a board that stopped talking the moment
-// somebody looked at it. Failures are left in place - a file that has gone is
-// what the pane last saw plus no new lines, which is nearer the truth than an
-// empty pane.
+// somebody looked at it. Failures leave a pane as it was - a file that has gone
+// is what the pane last saw plus no new lines, which is nearer the truth than
+// an empty pane.
 func (s *Sim) refreshOutput(w *state.World) {
-	emulated, err := s.nodeIsEmulated(w, w.OutputNode)
+	for i := range w.Outputs {
+		s.refreshOnePane(w, &w.Outputs[i])
+	}
+}
+
+func (s *Sim) refreshOnePane(w *state.World, pane *state.OutputPane) {
+	emulated, err := s.nodeIsEmulated(w, pane.Node)
 	if err != nil {
 		return
 	}
-	path, note, err := outputFile(firmware.NodeWorkDir(w.OutputNode), w.OutputSource, emulated)
+	path, note, err := outputFile(firmware.NodeWorkDir(pane.Node), pane.Source, emulated)
 	if err != nil || path == "" {
-		w.OutputPath, w.OutputNote = path, note
+		pane.Path, pane.Note = path, note
 		return
 	}
 	b, err := os.ReadFile(path)
@@ -173,11 +209,11 @@ func (s *Sim) refreshOutput(w *state.World) {
 		return
 	}
 	lines := printableLines(b)
-	w.OutputTotal, w.OutputPath, w.OutputNote = len(lines), path, note
+	pane.Total, pane.Path, pane.Note = len(lines), path, note
 	if len(lines) > outputTail {
 		lines = lines[len(lines)-outputTail:]
 	}
-	w.Output = lines
+	pane.Lines = lines
 }
 
 // nodeIsEmulated says which backend a node is running on, and refuses a node
@@ -264,4 +300,55 @@ func printableLines(b []byte) []string {
 		out = out[:n-1]
 	}
 	return out
+}
+
+func registerNodeOutputWindow(st *state.Store, s *Sim) {
+	// node.output_window: one log, on its own, beside the board it came from.
+	//
+	// A tab is one pane, and what people do while a board is misbehaving is
+	// watch its screen and two of its logs together - what the board printed
+	// beside what the emulator said about running it.
+	st.HandleSpec("node.output_window", state.Spec{
+		What: "Open one node's one log in a window of its own, so a board's screen and several of its logs can be watched at once.",
+		Params: []state.Param{
+			{Name: "node", Type: state.ParamString, Required: true, Primary: true,
+				What: "which node"},
+			{Name: "source", Type: state.ParamString,
+				What: "which log: " + strings.Join(OutputSources, ", ") + "; serial when absent"},
+		},
+		Returns: []string{"node", "source"},
+	}, func(w *state.World, p any) (any, error) {
+		if err := s.needUI(); err != nil {
+			return nil, err
+		}
+		name, _ := stringField(p, "node")
+		if name == "" {
+			return nil, badParams("node.output_window needs a node")
+		}
+		if _, err := s.nodeIsEmulated(w, name); err != nil {
+			return nil, err
+		}
+		source, _ := namedField(p, "source")
+		if source == "" {
+			source = "serial"
+		}
+		if !knownOutputSource(source) {
+			return nil, badParams("no output called %q - there is %s",
+				source, strings.Join(OutputSources, ", "))
+		}
+		if err := s.ui.OpenOutputWindow(name, source); err != nil {
+			return nil, control.WithCode(control.BadParams, err)
+		}
+		return map[string]any{"node": name, "source": source}, nil
+	})
+}
+
+// knownOutputSource reports whether this is one of the voices a node has.
+func knownOutputSource(source string) bool {
+	for _, s := range OutputSources {
+		if s == source {
+			return true
+		}
+	}
+	return false
 }

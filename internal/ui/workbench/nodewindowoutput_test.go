@@ -33,20 +33,17 @@ func TestEveryFirmwareNodeGetsTheOutputTab(t *testing.T) {
 
 // The pane shows this node's output and no other's.
 //
-// The snapshot carries one node's output at a time, the way it carries one
-// node's console. Two windows open on two boards, and the one that asked last
-// wins - so a pane that drew whatever the snapshot held would show one board's
-// boot chain under the other board's name. That is worse than an empty pane:
-// it is a wrong answer to the question the pane exists for.
+// The snapshot carries a pane per node and source, and a pane draws its own.
+// A pane that drew whatever the snapshot held would show one board's boot
+// chain under the other board's name, which is worse than an empty pane: it is
+// a wrong answer to the question the pane exists for.
 func TestThePaneRefusesAnotherNodesOutput(t *testing.T) {
 	o := &outputPane{}
 	o.build()
-	s := &state.Snapshot{
-		Output:       []string{"ets Jul 29 2019", "boot ok"},
-		OutputNode:   "GB7AAA",
-		OutputSource: "serial",
-		OutputTotal:  2,
-	}
+	s := &state.Snapshot{Outputs: []state.OutputPane{{
+		Node: "GB7AAA", Source: "serial", Total: 2,
+		Lines: []string{"ets Jul 29 2019", "boot ok"},
+	}}}
 	if lines, _, _, _ := o.readFrom("GB7BBB", s); len(lines) != 0 {
 		t.Errorf("a window on GB7BBB drew GB7AAA's output: %q", lines)
 	}
@@ -142,5 +139,79 @@ func TestChoosingASourceAsksForIt(t *testing.T) {
 	h.frame()
 	if len(asked) == before {
 		t.Error("pressing the source already showing asked for nothing, so it cannot be re-read")
+	}
+}
+
+// Two windows on two boards, and two logs of one board, all stay filled.
+//
+// One slot for all of them was what the world had: whichever pane asked last
+// won and the others drew empty until their turn came round again, which reads
+// as the workbench losing the log. Nothing on disk was ever lost.
+func TestEveryOpenPaneKeepsItsOwnLog(t *testing.T) {
+	s := &state.Snapshot{Outputs: []state.OutputPane{
+		{Node: "GB7AAA", Source: "serial", Total: 1, Lines: []string{"A serial"}},
+		{Node: "GB7AAA", Source: "emulator", Total: 1, Lines: []string{"A emulator"}},
+		{Node: "GB7BBB", Source: "serial", Total: 1, Lines: []string{"B serial"}},
+	}}
+	for _, want := range []struct{ node, source, line string }{
+		{"GB7AAA", "serial", "A serial"},
+		{"GB7AAA", "emulator", "A emulator"},
+		{"GB7BBB", "serial", "B serial"},
+	} {
+		o := &outputPane{}
+		o.build()
+		o.source = want.source
+		lines, _, _, _ := o.readFrom(want.node, s)
+		if len(lines) != 1 || lines[0] != want.line {
+			t.Errorf("%s/%s drew %q, want %q", want.node, want.source, lines, want.line)
+		}
+	}
+	// And the Hardware tab's strip reads the serial pane of its own node,
+	// not whichever one happens to be first.
+	if got := outputSummary("GB7BBB", s, 4); len(got) != 1 || got[0] != "B serial" {
+		t.Errorf("the strip drew %q", got)
+	}
+}
+
+// Switching source does not blank the pane it switched away from.
+//
+// The subscription is what changes; the pane the window came from stays in the
+// world and stays refreshed, so switching back shows the log rather than
+// "nothing on this source yet" until the next tick.
+func TestSwitchingSourceLeavesTheOtherLogInPlace(t *testing.T) {
+	var asked []map[string]any
+	do := func(_ string, params any) {
+		asked = append(asked, params.(map[string]any))
+	}
+	var last string
+	askOutputOnce(do, &last, "GB7AAA", "serial")
+	askOutputOnce(do, &last, "GB7AAA", "serial") // the same again asks nothing
+	askOutputOnce(do, &last, "GB7AAA", "emulator")
+	if len(asked) != 2 {
+		t.Fatalf("subscribed %d times, want 2: %+v", len(asked), asked)
+	}
+	if asked[0]["source"] != "serial" || asked[1]["source"] != "emulator" {
+		t.Errorf("subscribed to %v", asked)
+	}
+}
+
+// A popped-out window keeps the log it was opened for.
+//
+// The pane's own build() defaulted the source to serial, which ran after the
+// window had set the one it was opened for - so every log window showed the
+// serial log under its own name.
+func TestAPoppedOutWindowKeepsTheLogItWasOpenedFor(t *testing.T) {
+	p := &outputWindowPanel{node: "GB7AAA"}
+	p.out.source, p.out.noPop = "emulator", true
+	p.out.build()
+	if p.out.source != "emulator" {
+		t.Errorf("the window was opened on the emulator log and built as %q", p.out.source)
+	}
+	// And a pane nobody has pointed anywhere still starts on serial, which is
+	// what the tab wants.
+	o := &outputPane{}
+	o.build()
+	if o.source != "serial" {
+		t.Errorf("a fresh pane starts on %q, want serial", o.source)
 	}
 }

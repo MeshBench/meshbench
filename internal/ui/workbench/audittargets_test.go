@@ -96,6 +96,20 @@ func auditTargets(r *recorder) []target {
 	nv.OnFirmware = func(n string, b buildChoice) { r.do("node.set_firmware", b.Version) }
 	nw := &nodeWindowPanel{node: "Abernethy Repeater"}
 	snapWithConsole := auditSnapshot()
+	// A card slot on the node the window is about, so the Hardware tab draws
+	// its card controls: with no slot it correctly offers none, and auditing
+	// that would only prove the guard works.
+	for i := range snapWithConsole.Nodes {
+		if snapWithConsole.Nodes[i].Name == "Abernethy Repeater" {
+			snapWithConsole.Nodes[i].CardSlot = true
+			snapWithConsole.Nodes[i].CardFitted = true
+			// Handed a card of its own rather than using the node's, so the
+			// control that puts it back is drawn: with its own it correctly
+			// offers none.
+			snapWithConsole.Nodes[i].CardFile = "/srv/cards/shared.img"
+			snapWithConsole.Nodes[i].CardShared = true
+		}
+	}
 	snapWithConsole.ConsoleNode = "Abernethy Repeater"
 	snapWithConsole.Console = []string{"   0.000  > advert"}
 	nw.OnCommand = func(n, l string) { r.do("console.type", l) }
@@ -144,6 +158,19 @@ func auditTargets(r *recorder) []target {
 		Facts: firmware.ImageFacts{Kind: "whole flash image", Bootable: true, FlashMB: 16},
 	}}
 
+	// One log in a window of its own. Its source buttons switch what the
+	// window is rather than opening more of them, so they reach no verb - the
+	// same excuse the tab's own do not need, because there they change what
+	// the session is watching.
+	logWin := &outputWindowPanel{node: "Abernethy Repeater"}
+	logWin.OnDo = func(verb string, _ any) { r.do(verb, "") }
+	snapWithLog := auditSnapshot()
+	snapWithLog.Outputs = []state.OutputPane{{
+		Node: "Abernethy Repeater", Source: "serial", Total: 2,
+		Lines: []string{"ets Jul 29 2019", "[BOOT] radio ok"},
+		Path:  "/cache/nodefs/Abernethy Repeater/console.log",
+	}}
+
 	targets := []target{
 		{"Nodes running", nv, nv.Draw, nil,
 			// Choosing a build closes the list, so it is reopened before each.
@@ -165,8 +192,18 @@ func auditTargets(r *recorder) []target {
 				"revert":   "puts the editors back rather than reaching a verb",
 				"boardBtn": "opens the board list rather than reaching a verb",
 				"coproc":   "changes what apply would send rather than reaching a verb",
+				"card":     "changes what apply would send rather than reaching a verb",
 				"name":     "changes what apply would send rather than reaching a verb",
 				"notes":    "changes what apply would send rather than reaching a verb",
+			}},
+		{"Output window", logWin, logWin.Draw, snapWithLog, nil, nil,
+			map[string]string{
+				"out.pauseBtn":   "changes what this pane draws rather than reaching a verb",
+				"out.popBtn":     "not drawn in a window that is already popped out",
+				"out.srcBtns[0]": "switches what this window is rather than reaching a verb",
+				"out.srcBtns[1]": "switches what this window is rather than reaching a verb",
+				"out.srcBtns[2]": "switches what this window is rather than reaching a verb",
+				"out.srcBtns[3]": "switches what this window is rather than reaching a verb",
 			}},
 		{"Node window", nw, nw.auditDraw, snapWithConsole,
 			// The tab row is above everything, so a pointer moving down the

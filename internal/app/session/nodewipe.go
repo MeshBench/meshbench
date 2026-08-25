@@ -65,6 +65,15 @@ func registerNodeWipe(st *state.Store, s *Sim) {
 				removed = append(removed, e.Name())
 			}
 		}
+		// And its card, where it keeps one somewhere other than here. A node
+		// put back to factory with its storage intact is not back to factory:
+		// the firmware finds its old settings on the card and nothing says
+		// why.
+		if i, ok := s.nodeIndex(name); ok && s.nodes[i].CardFile != "" {
+			if err := os.Remove(s.nodes[i].CardFile); err == nil {
+				removed = append(removed, filepath.Base(s.nodes[i].CardFile))
+			}
+		}
 		w.Say("wiped " + name + "'s stored settings")
 		return map[string]any{"node": name, "wiped": len(removed), "removed": removed}, nil
 	})

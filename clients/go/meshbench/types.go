@@ -152,8 +152,12 @@ type BuildDetails struct {
 	// drives, or zero for the board's own answer. Two builds for one board
 	// can differ and both be right: the pins are fixed and the matrix routes
 	// whichever controller the firmware picks onto them.
-	SPIController int    `json:"spi_controller"`
-	Notes         string `json:"notes"`
+	SPIController int `json:"spi_controller"`
+	// CardRequired says this firmware will not get far without storage in the
+	// board's slot, so every node running it is given a card whatever its own
+	// slot was set to.
+	CardRequired bool   `json:"card_required"`
+	Notes        string `json:"notes"`
 }
 
 // Describe is how this build is named where a person will read it.
@@ -235,3 +239,26 @@ type Neighbour struct {
 }
 
 func (n Neighbour) String() string { return n.Name }
+
+// CardSlot is what is in one node's card slot.
+//
+// A slot is not a fitted card: the board says the slot exists, the node says
+// whether it is filled, and a firmware that keeps its settings on a card fills
+// it regardless.
+type CardSlot struct {
+	Node string `json:"node"`
+	// Slot is "" for the board's own answer, "fitted" or "empty" for a
+	// decision somebody made about this node.
+	Slot   string `json:"slot"`
+	Fitted bool   `json:"fitted"`
+	// File is the card this node uses, and OwnFile the one it would use if it
+	// had been handed none.
+	File    string `json:"file"`
+	OwnFile string `json:"own_file"`
+	Bytes   int64  `json:"bytes"`
+	// RequiredByFirmware says the build fills the slot whatever the node
+	// asked for; BoardHasSlot that there is a slot at all.
+	RequiredByFirmware bool `json:"required_by_firmware"`
+	BoardHasSlot       bool `json:"board_has_slot"`
+	Wiped              bool `json:"wiped"`
+}

@@ -105,8 +105,10 @@ Two verbs are **not** in this table:
 
 | verb | takes | returns | façade |
 |---|---|---|---|
+| `node.card` | *a bare string*, `node` string, `fitted` bool, `file` string, `wipe` bool | `node`, `slot`, `fitted`, `file`, `own_file`, `bytes`, `required_by_firmware`, `board_has_slot`, `wiped` | `node.card(fitted=|file=|wipe=)` |
 | `node.energy` | *a bare string* | `node` | `node.energy()` |
 | `node.output` | *a bare string*, `node` string, `source` string, `lines` number | `node`, `source`, `lines`, `total`, `path`, `tail`, `note`, `tracing` | `node.output(source)` |
+| `node.output_window` | *a bare string*, `node` string, `source` string | `node`, `source` | `node.output_window(source)` |
 | `node.provisioning` | *a bare string* | `node`, `commands` | `node.provisioning` |
 | `node.radio` | `node` string | — | `node.radio` |
 | `node.radio_adopt` | `node` string | `node`, `tx_dbm` | `node.adopt_radio()` |
@@ -176,7 +178,7 @@ Two verbs are **not** in this table:
 | `firmware.build_failed` | *a bare string* | — | *none* — the build worker telling the store it failed |
 | `firmware.built` | `version` string | `built` | *none* — the build worker telling the store it finished |
 | `firmware.delete` | `path` string | `deleted` | `wb.firmware.delete(build)` |
-| `firmware.details` | *a bare string*, `version` string, `role` string, `board` string | `role`, `version`, `board`, `native`, `on_disk`, `path`, `settings_path`, `bytes`, `modified`, `in_use`, `kind`, `bootable`, `flash_mb`, `coproc_at_reset`, `spi_controller`, `notes` | `wb.firmware.details(build)` |
+| `firmware.details` | *a bare string*, `version` string, `role` string, `board` string | `role`, `version`, `board`, `native`, `on_disk`, `path`, `settings_path`, `bytes`, `modified`, `in_use`, `kind`, `bootable`, `flash_mb`, `coproc_at_reset`, `spi_controller`, `card_required`, `notes` | `wb.firmware.details(build)` |
 | `firmware.download` | `role` string, `version` string, `board` string | `downloading`, `role`, `version` | `wb.firmware.download(role, version, board=None)` |
 | `firmware.failed` | *a bare string* | — | *none* — the firmware starter reporting a failure |
 | `firmware.import` | `path` string, `role` string, `board` string, `label` string, `version` string | `version`, `role`, `board`, `path`, `bytes` | `wb.firmware.import_(path, role, board=None, label="")` |
@@ -188,9 +190,9 @@ Two verbs are **not** in this table:
 | `firmware.start` | — | `starting` | `wb.firmware.start()` |
 | `firmware.started` | — | `running`, `playing` | *none* — the firmware starter reporting back |
 | `firmware.state` | — | `running`, `nodes`, `total`, `starting` | `wb.firmware.state()  /  wb.firmware.wait_started()` |
-| `firmware.update` | *a bare string*, `version` string, `role` string, `board` string, `label` string, `new_role` string, `new_board` string, `spi_controller` number, `coproc_at_reset` bool, `notes` string | `role`, `version`, `board`, `path`, `renamed`, `repinned`, `settings` | `wb.firmware.update(build, label=|new_role=|coproc_at_reset=|notes=)` |
+| `firmware.update` | *a bare string*, `version` string, `role` string, `board` string, `label` string, `new_role` string, `new_board` string, `spi_controller` number, `card_required` bool, `coproc_at_reset` bool, `notes` string | `role`, `version`, `board`, `path`, `renamed`, `repinned`, `settings` | `wb.firmware.update(build, label=|new_role=|coproc_at_reset=|notes=)` |
 | `firmware.window` | *a bare string*, `version` string, `role` string, `board` string | `role`, `version`, `board` | `wb.firmware.window(build)` |
-| `firmware.wipe` | — | `wiped`, `root` | `wb.firmware.wipe()` |
+| `firmware.wipe` | — | `wiped`, `root`, `cards` | `wb.firmware.wipe()` |
 
 ### Console and fleet
 

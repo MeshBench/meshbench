@@ -236,7 +236,7 @@ func Register(st *state.Store, s *Sim) {
 			// And the output pane, for the same reason. Its source is a file
 			// the emulator is still writing, so a pane that read it once shows
 			// a board that stopped talking the moment it was opened.
-			if w.OutputNode != "" {
+			if len(w.Outputs) > 0 {
 				s.refreshOutput(w)
 			}
 			w.RFMode = string(rfModeOf(s.rfMode))
@@ -471,6 +471,8 @@ func Register(st *state.Store, s *Sim) {
 	registerNodeFirmwareVerbs(st, s)
 	registerNodeOutput(st, s)
 	registerNodeWipe(st, s)
+	registerNodeCard(st, s)
+	registerNodeOutputWindow(st, s)
 	st.Handle("session.describe", func(w *state.World, _ any) (any, error) {
 		return map[string]any{
 			"nodes": len(w.Nodes), "seed": w.Seed, "now_ms": w.NowMs,

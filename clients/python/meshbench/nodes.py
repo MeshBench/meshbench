@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from datetime import timedelta
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from . import errors
 from .sets import Board, Kind, Transport
-from .types import Build, NameMatch, NodeInfo, NodeStat
+from .types import Build, CardSlot, NameMatch, NodeInfo, NodeStat
 from .wait import FIRMWARE_WAIT, wait_for
 
 if TYPE_CHECKING:  # pragma: no cover - import for typing only
@@ -239,6 +239,46 @@ class Node:
         emulator holding it.
         """
         self._wb.call("node.wipe", {"node": self.name})
+
+    def card(
+        self,
+        *,
+        fitted: bool | None = None,
+        file: str | None = None,
+        wipe: bool = False,
+    ) -> CardSlot:
+        """What is in this node's card slot, and changing it.
+
+        A slot is not a fitted card: the board says the slot exists, this says
+        whether it is filled. Two of the same handheld in one network, one with
+        storage and one without, is an ordinary thing to want.
+
+        ``file`` hands the node a card of your own - shared between runs, or
+        prepared in advance; an empty string returns it to its own, named after
+        it and kept beside its flash. ``wipe`` erases it, which is what
+        reformatting one is, and is refused while the node is running.
+
+        A firmware marked as needing a card fills the slot whatever this says,
+        because a build that keeps its settings there boots into nothing
+        without one.
+        """
+        p: dict[str, Any] = {"node": self.name}
+        if fitted is not None:
+            p["fitted"] = fitted
+        if file is not None:
+            p["file"] = file
+        if wipe:
+            p["wipe"] = True
+        return CardSlot.parse(self._wb.call("node.card", p) or {})
+
+    def output_window(self, source: str = "serial") -> None:
+        """Open one of this node's logs in a window of its own.
+
+        A tab is one pane. What people do while a board is misbehaving is watch
+        its screen and two of its logs together - what the board printed beside
+        what the emulator said about running it - and that needs windows.
+        """
+        self._wb.call("node.output_window", {"node": self.name, "source": source})
 
     def move(self, lat: float, lon: float) -> None:
         """Put it somewhere else. The physics moves with it: cached losses for

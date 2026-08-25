@@ -54,10 +54,26 @@ type outputPane struct {
 	// asked is the node and source last requested, so the verb is called when
 	// either changes rather than every frame.
 	asked string
+	// askedSerial is the Hardware tab's strip, kept apart so the two do not
+	// cancel each other's subscription.
+	askedSerial string
+	// popBtn opens this log in a window of its own, so a board's screen and
+	// two of its logs can be watched together.
+	popBtn comp.Button
+	// noPop hides that button in a window that is already popped out, where
+	// it would offer to open the window it is drawn in.
+	noPop bool
 }
 
 func (o *outputPane) build() {
-	o.source, o.follow = "serial", true
+	o.popBtn.Label, o.popBtn.Kind = "pop out", comp.Quiet
+	// Serial only where nothing has chosen: a popped-out window is built with
+	// the source it was opened for, and defaulting over the top of that gave
+	// every log window the serial log under its own name.
+	if o.source == "" {
+		o.source = "serial"
+	}
+	o.follow = true
 	o.srcBtns = make([]comp.Button, len(outputSources))
 	o.search.Hint = "search this output"
 	o.search.Editor.SingleLine = true
@@ -91,17 +107,31 @@ func (p *nodeWindowPanel) output(t *theme.Theme, gtx layout.Context, s *state.Sn
 	)
 }
 
-// readFrom is the snapshot's output, but only when it is this node's and this
-// source's.
+// readFrom is this node's output from this source, and nothing else.
 //
-// The snapshot carries one node's output at a time, the way it carries one
-// node's console. Showing another node's under this node's heading is worse
-// than showing nothing: it is a wrong answer to the question the pane is for.
+// The snapshot carries a pane per node and source, so two windows on two nodes
+// no longer overwrite each other and switching source no longer blanks the
+// pane. Showing another node's under this node's heading would be worse than
+// showing nothing: it is a wrong answer to the question the pane is for.
 func (o *outputPane) readFrom(node string, s *state.Snapshot) (lines []string, total int, note, path string) {
-	if s == nil || s.OutputNode != node || s.OutputSource != o.source {
+	p, ok := outputFor(s, node, o.source)
+	if !ok {
 		return nil, 0, "", ""
 	}
-	return s.Output, s.OutputTotal, s.OutputNote, s.OutputPath
+	return p.Lines, p.Total, p.Note, p.Path
+}
+
+// outputFor is one node-and-source pane out of the snapshot.
+func outputFor(s *state.Snapshot, node, source string) (state.OutputPane, bool) {
+	if s == nil {
+		return state.OutputPane{}, false
+	}
+	for i := range s.Outputs {
+		if s.Outputs[i].Node == node && s.Outputs[i].Source == source {
+			return s.Outputs[i], true
+		}
+	}
+	return state.OutputPane{}, false
 }
 
 func (o *outputPane) head(t *theme.Theme, gtx layout.Context) layout.Dimensions {
@@ -126,6 +156,15 @@ func (o *outputPane) head(t *theme.Theme, gtx layout.Context) layout.Dimensions 
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Max.X = gtx.Dp(200)
 			return o.search.Layout(t, gtx)
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if o.noPop {
+				return layout.Dimensions{}
+			}
+			return layout.Inset{Left: t.Sp.XS}.Layout(gtx,
+				func(gtx layout.Context) layout.Dimensions {
+					return o.popBtn.Layout(t, gtx)
+				})
 		}),
 	)
 	return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -183,15 +222,35 @@ const outputPaneCap = 2000
 // onto Hardware has never asked at all, and its strip would sit empty saying
 // the board had printed nothing.
 func (p *nodeWindowPanel) askOutput(source string) {
-	if p.OnDo == nil {
+	askOutputOnce(p.OnDo, &p.out.asked, p.node, source)
+}
+
+// askSerial keeps the Hardware tab's strip subscribed, on a field of its own.
+//
+// Its own, because the tab and the Output pane want different sources and one
+// field between them would have each cancelling the other's subscription every
+// frame they were both drawn.
+func (p *nodeWindowPanel) askSerial() {
+	askOutputOnce(p.OnDo, &p.out.askedSerial, p.node, "serial")
+}
+
+// askOutputOnce subscribes one pane to one node and source.
+//
+// Asked on a change rather than every frame: the tick refreshes every pane
+// that has been asked for, and this is only what puts one on that list. The
+// caller passes the last thing it asked for so that a window drawing two panes
+// - the Output tab and the Hardware tab's serial strip - does not ask twice a
+// frame for ever.
+func askOutputOnce(do Do, asked *string, node, source string) {
+	if do == nil {
 		return
 	}
-	want := p.node + "/" + source
-	if want == p.out.asked {
+	want := node + "/" + source
+	if want == *asked {
 		return
 	}
-	p.out.asked = want
-	p.OnDo("node.output", map[string]any{"node": p.node, "source": source})
+	*asked = want
+	do("node.output", map[string]any{"node": node, "source": source})
 }
 
 // outputClicks handles the pane's controls.
@@ -202,6 +261,10 @@ func (p *nodeWindowPanel) outputClicks(gtx layout.Context) {
 	o := &p.out
 	if !o.built {
 		o.build()
+	}
+	if o.popBtn.Click.Clicked(gtx) && p.OnDo != nil {
+		p.OnDo("node.output_window",
+			map[string]any{"node": p.node, "source": o.source})
 	}
 	if o.pauseBtn.Click.Clicked(gtx) {
 		o.follow = !o.follow
@@ -234,10 +297,11 @@ func (p *nodeWindowPanel) outputClicks(gtx layout.Context) {
 // draws nothing: looking at a picture of the board. Sending them to another
 // tab to find out why is the trip this saves.
 func outputSummary(node string, s *state.Snapshot, n int) []string {
-	if s == nil || s.OutputNode != node || s.OutputSource != "serial" {
+	p, ok := outputFor(s, node, "serial")
+	if !ok {
 		return nil
 	}
-	lines := s.Output
+	lines := p.Lines
 	if len(lines) > n {
 		lines = lines[len(lines)-n:]
 	}
