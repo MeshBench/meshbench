@@ -620,13 +620,27 @@ the battery ADC every iteration.
 Two rough edges, both fidelity rather than correctness, and neither introduced
 by the fixes above (no input, touch, keyboard or GPIO code was changed):
 
-- **The ADC calibration eFuse is not modelled.** A real ESP32-S3 has ADC
-  calibration burnt in eFuse BLK2 at the factory; ours is blank, so
-  `esp_adc_cal_characterize` logs *"No calibration efuse burnt"* — and a
-  firmware that reads the ADC in its loop logs it thousands of times. The
-  reading still works (a default Vref is used); it is warning noise, and
-  populating the eFuse cal bits correctly is deferred rather than guessed at,
-  since a wrong value would give a wrong voltage silently.
+- **The ADC calibration eFuse is not modelled, and modelling it is a
+  cross-cutting change, not a warning to silence.** A real ESP32-S3 has ADC
+  calibration burnt in eFuse BLK2 at the factory (`BLK_VERSION_MAJOR` at bit
+  128 = 1 for "ADC calib V1", then `OCODE`, `ADC1_INIT_CODE_ATTEN0..3`,
+  `ADC1_CAL_VOL_ATTEN0..3`); ours is blank, so `esp_adc_cal_characterize` logs
+  *"No calibration efuse burnt"* — and a firmware that reads the ADC in its
+  loop (wadamesh) logs it thousands of times. The reading itself still works on
+  the default Vref path, so this is warning noise. It stays unmodelled on
+  purpose. Our battery model is deliberately **linear** — `batteryMeter` sets
+  the raw as `Vbat/FullScaleMV × 4096` (4.2 V / 6600 mV × 4096 = 2606, which
+  the T-Deck reports as ~3.1 V). ESP-IDF's calibration is a **non-linear**
+  piecewise curve built from those eFuse fields (see
+  `esp_efuse_rtc_calib_get_cal_voltage`: even all-zero diffs give the baseline
+  900/1700/2400/3200 mV points, not garbage). Burning `BLK_VERSION_MAJOR=1`
+  therefore does not just quiet the log — it switches every emulated S3 board's
+  firmware from the linear conversion the raw was computed for to that curve,
+  shifting the reported voltage. Doing it right means a coordinated change —
+  the eFuse curve *and* inverting it in `batteryMeter` so the reported voltage
+  is unchanged — and that inverse cannot be checked here without booting the
+  firmware to read the voltage back. So it is deferred as a real fidelity item,
+  not faked, because a wrong value would regress the battery display silently.
 - **The first-boot filesystem format is slow**, because it happens in real
   time at emulation speed — the LittleFS/SPIFFS format a firmware does on a
   blank partition or SD card can take tens of seconds of guest time, which is
