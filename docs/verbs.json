@@ -7,6 +7,26 @@
         "headless"
       ]
     },
+    "board.screenshot": {
+      "what": "write the board's display to a PNG and return its path",
+      "params": [
+        {
+          "name": "node",
+          "type": "string",
+          "required": true,
+          "primary": true,
+          "what": "the node whose screen to capture"
+        }
+      ],
+      "returns": [
+        "node",
+        "path",
+        "width",
+        "height",
+        "bpp",
+        "on"
+      ]
+    },
     "firmware.details": {
       "what": "Report everything known about one build: where it is, what it is, and what has been decided about it.",
       "params": [
