@@ -27,6 +27,7 @@ import (
 // have needed the difference once.
 var outputSources = []struct{ key, label, what string }{
 	{"serial", "serial", "what the board itself printed"},
+	{"rom", "boot", "the ROM's own output, on a board whose application talks over USB"},
 	{"emulator", "emulator", "what the emulator said about running it"},
 	{"radio", "radio", "what the radio model beside it logged"},
 }

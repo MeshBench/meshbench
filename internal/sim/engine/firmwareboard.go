@@ -125,8 +125,15 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 
 	// Padded once per node, beside its own working directory: QEMU takes only
 	// 2, 4, 8 or 16 MB images and the size has to match the image header.
+	//
+	// Kept between runs, as a board's flash is. Rewritten every start, an
+	// emulated node lost its identity, preferences and contacts each time it
+	// was restarted - so a node configured over its console reverted the
+	// moment somebody stopped and started it, and both arms of a comparison
+	// began factory-fresh whether or not that was the intention. A different
+	// build still gets a fresh chip: that is what reflashing a board is.
 	padded := filepath.Join(dir, "flash.bin")
-	if _, err := firmware.PadImage(src, padded); err != nil {
+	if _, err := firmware.PadImageKeeping(src, padded); err != nil {
 		return nil, err
 	}
 
@@ -143,6 +150,11 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 		DIO1:       board.QEMU.DIO1,
 		NodeName:   spec.Name,
 		Dir:        dir,
+		// Where this board's firmware puts Serial. On a board built with
+		// ARDUINO_USB_CDC_ON_BOOT that is the USB peripheral, not UART0, and
+		// a console handed to the wrong one is a board that boots and then
+		// appears to say nothing.
+		ConsoleOnUSB: board.QEMU.ConsoleOnUSB,
 	}
 
 	// The board's buttons, from the same declaration everything else comes

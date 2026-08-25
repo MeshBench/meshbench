@@ -201,6 +201,22 @@ type QEMUWiring struct {
 	// between receive and transmit.
 	FEM int
 
+	// ConsoleOnUSB says the application's Serial is the USB Serial/JTAG
+	// peripheral rather than UART0.
+	//
+	// Which it is follows from the build, not from the silicon: a variant
+	// compiled with ARDUINO_USB_CDC_ON_BOOT puts Arduino's Serial on the USB
+	// port, and every one of MeshCore's own builds for such a board does. It
+	// has to be recorded because the two are different pieces of hardware and
+	// the emulator has to be told which one to hand the console to - a board
+	// listening on the wrong one boots, prints its ROM banner to a file and
+	// then appears to fall silent, which is exactly how the T-Deck read.
+	//
+	// UART0 keeps its own log either way: the ROM bootloader prints there
+	// before any of this is configured, and that output is what says whether a
+	// board started at all.
+	ConsoleOnUSB bool
+
 	// Verified records that firmware for this board has actually been booted
 	// with this wiring and driven the radio, rather than the numbers having
 	// been read off a config file and assumed.

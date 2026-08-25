@@ -28,8 +28,8 @@ import (
 // board stopped talking when it only stopped being shown.
 const outputTail = 2000
 
-// OutputSources are the three voices, in the order somebody asks for them.
-var OutputSources = []string{"serial", "emulator", "radio"}
+// OutputSources are the voices, in the order somebody asks for them.
+var OutputSources = []string{"serial", "rom", "emulator", "radio"}
 
 // outputFile is which file a source is, and why it might be empty.
 //
@@ -45,6 +45,20 @@ func outputFile(dir, source string, emulated bool) (path, note string, err error
 		// A native node prints to standard error; it has no serial port to
 		// have. Same question, different wire.
 		return filepath.Join(dir, "stderr.log"), "", nil
+	case "rom":
+		if !emulated {
+			return "", "a build for this machine has no boot chain to read: it is " +
+				"started by this process rather than by a ROM", nil
+		}
+		// Only a board whose application talks over USB has a separate one.
+		// On every other board the ROM prints to the same port the firmware
+		// does, and the serial pane already has it from the first byte.
+		p := filepath.Join(dir, firmware.ROMLogName())
+		if _, err := os.Stat(p); err != nil {
+			return "", "this board's console is UART0, so the ROM's own output is " +
+				"at the top of the serial pane rather than in one of its own", nil
+		}
+		return p, "", nil
 	case "emulator":
 		if !emulated {
 			return "", "this node runs on this machine rather than under an " +

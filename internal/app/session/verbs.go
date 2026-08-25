@@ -468,6 +468,7 @@ func Register(st *state.Store, s *Sim) {
 	registerImportFeedVerbs(st, s)
 	registerNodeFirmwareVerbs(st, s)
 	registerNodeOutput(st, s)
+	registerNodeWipe(st, s)
 	st.Handle("session.describe", func(w *state.World, _ any) (any, error) {
 		return map[string]any{
 			"nodes": len(w.Nodes), "seed": w.Seed, "now_ms": w.NowMs,

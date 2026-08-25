@@ -42,7 +42,10 @@ const (
 	consoleLogName  = "console.log"
 	emulatorLogName = "emulator.log"
 	radioLogName    = "radio.log"
-	traceLogName    = "emulator-trace.log"
+	// romLogName is UART0 on a board whose application talks over USB: the
+	// boot chain up to the point the firmware takes over, and nothing after.
+	romLogName   = "rom.log"
+	traceLogName = "emulator-trace.log"
 )
 
 // ConsoleLogName, EmulatorLogName, RadioLogName and TraceLogName are those
@@ -50,7 +53,10 @@ const (
 func ConsoleLogName() string  { return consoleLogName }
 func EmulatorLogName() string { return emulatorLogName }
 func RadioLogName() string    { return radioLogName }
-func TraceLogName() string    { return traceLogName }
+
+// ROMLogName is UART0's log on a board whose console is on the USB port.
+func ROMLogName() string   { return romLogName }
+func TraceLogName() string { return traceLogName }
 
 // qemuDebugArgs is the tracing the environment asked for, and nothing when it
 // asked for none.
@@ -140,6 +146,16 @@ type EmulatedNode struct {
 	// that selects it. Empty on a board with no slot.
 	CardPath string
 	CardCS   int
+
+	// ConsoleOnUSB puts the console on the machine's USB Serial/JTAG rather
+	// than on UART0, for a board whose firmware has Serial there.
+	//
+	// Which it is is the build's business rather than the part's, so it comes
+	// from the board profile. Getting it wrong is quiet: the board boots, the
+	// ROM bootloader prints to UART0, and then everything the application says
+	// goes to a peripheral nobody is holding - a node that started and appears
+	// never to have spoken.
+	ConsoleOnUSB bool
 
 	// GPSPath is where the board's receiver sends its sentences from, or empty
 	// on a board that carries none.
@@ -434,16 +450,36 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 		"-nographic", "-monitor", "none",
 		"-drive", "file=" + flash + ",if=mtd,format=raw",
 		"-chardev", "socket,id=con,path=" + conPath + ",server=on,wait=off",
-		"-serial", "chardev:con",
 	}
-	// The receiver's port, where the board has one. Second rather than first
-	// because the order of these is the order of the ports: the application's
-	// own console is the first serial port on every one of these boards, and
-	// the receiver is on the second.
-	if e.GPSPath != "" {
+	// The order of these is the order of the ports: UART0, UART1, then the USB
+	// Serial/JTAG. Which one the console goes to depends on where this board's
+	// firmware put Serial, and the other two are filled in so the count still
+	// lands the console where it is meant to.
+	//
+	// UART0 keeps a log of its own either way. The ROM bootloader prints there
+	// before any of this is configured, and that output - the reset reason,
+	// the load addresses, the entry point - is what says whether a board
+	// started at all, which is exactly the question being asked of a board
+	// that says nothing afterwards.
+	if e.ConsoleOnUSB {
+		args = append(args, "-serial", "file:"+filepath.Join(e.Dir, romLogName))
+	} else {
+		args = append(args, "-serial", "chardev:con")
+	}
+	// The receiver's port, where the board has one: the second, which is the
+	// port its variant opens.
+	switch {
+	case e.GPSPath != "":
 		args = append(args,
 			"-chardev", "socket,id=gps,path="+e.GPSPath+",server=on,wait=off",
 			"-serial", "chardev:gps")
+	case e.ConsoleOnUSB:
+		// A placeholder, so the console lands on the third port rather than
+		// the second.
+		args = append(args, "-serial", "null")
+	}
+	if e.ConsoleOnUSB {
+		args = append(args, "-serial", "chardev:con")
 	}
 	if e.CardPath != "" {
 		args = append(args, "-drive", "if=sd,format=raw,file="+e.CardPath)

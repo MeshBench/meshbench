@@ -16,7 +16,10 @@ var rak3112Board = Board{
 	// definition: taken from variants/rak3112/platformio.ini.
 	QEMU: &QEMUWiring{
 		Machine: "esp32s3", SPI: 3, NSS: 7, Busy: 48, DIO1: 47, LED: 46,
-		Verified: true,
+		// Serial is the USB port on this board: its MeshCore variant is
+		// built with ARDUINO_USB_CDC_ON_BOOT.
+		ConsoleOnUSB: true,
+		Verified:     true,
 	},
 	Hardware: &Panel{
 		Parts: []Part{

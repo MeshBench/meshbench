@@ -126,13 +126,19 @@ func TestChoosingASourceAsksForIt(t *testing.T) {
 		p.askOutput(p.out.source)
 		return layout.Dimensions{}
 	}, nil)
-	p.out.srcBtns[1].Click.Click() // emulator
+	emulator := 0
+	for i := range outputSources {
+		if outputSources[i].key == "emulator" {
+			emulator = i
+		}
+	}
+	p.out.srcBtns[emulator].Click.Click()
 	h.frame()
 	if got := asked[len(asked)-1]; got != "emulator" {
 		t.Errorf("choosing the emulator asked for %q", got)
 	}
 	before := len(asked)
-	p.out.srcBtns[1].Click.Click() // the same one again
+	p.out.srcBtns[emulator].Click.Click() // the same one again
 	h.frame()
 	if len(asked) == before {
 		t.Error("pressing the source already showing asked for nothing, so it cannot be re-read")

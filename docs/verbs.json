@@ -97,6 +97,23 @@
         "tab"
       ]
     },
+    "node.wipe": {
+      "what": "erase one node's stored state: its flash, its card and its files",
+      "params": [
+        {
+          "name": "node",
+          "type": "string",
+          "required": true,
+          "primary": true,
+          "what": "the node to put back to factory"
+        }
+      ],
+      "returns": [
+        "node",
+        "wiped",
+        "removed"
+      ]
+    },
     "panels.list": {
       "what": "Name every panel the interface has registered.",
       "returns": [
