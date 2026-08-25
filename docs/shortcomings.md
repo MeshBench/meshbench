@@ -434,13 +434,25 @@ answer; an RSA accelerator that handed a zero modulus to libgcrypt, which
 aborts the process; and a timer group that divided by a zero prescaler, which
 the watchdog beside it had guarded against for years. All four are fixed.
 
-**The firmware still does not run**, and the honest statement of where it gets
-to is this: the ROM boots, the second-stage bootloader loads the application,
-the application runs, and then takes an unending storm of exceptions at its own
-vector with a stack pointer that is not an address this part has. That is a
-corrupted stack rather than anything the emulator refused — nothing is left
-unanswered by the time it happens — but it is not proof the emulator is
-innocent either. It is where the measurement stops.
+Three more followed, and the first of them was the black screen itself. The RF
+front end's registers were declared four bytes at a time, and a narrower access
+is not a slower access: QEMU refuses it and the guest takes a fault. `mesh-rs`
+reads one of those registers a byte at a time, masks a bit and writes it back —
+an ordinary read-modify-write — and took that fault on its first attempt, after
+which its handler faulted on its own stack and the board disappeared into a
+storm of double exceptions with nothing printed. The SYSTEM block also forgot
+everything written to it, so every `REG_SET_BIT` on a peripheral clock-enable
+was a no-op. And the second core ran from the moment the machine came up, so it
+sat in the ROM's "wait for somewhere to jump" loop and took the first word
+written to the message register — which for this firmware is a message, written
+long before it starts a core.
+
+**Where it reaches now:** it boots, brings up its PHY and its PSRAM, and speaks
+its own framed protocol on the USB port — configuration records going out as
+`~`-delimited frames. It does not yet touch the radio, and a sweep of writes
+lands on physical addresses past the end of a 16 MB flash. That is the next
+thing to look at, and it is where the measurement stops. Not a diagnosis: the
+emulator has been wrong about four things already on this one firmware.
 
 Two things follow for anybody importing a firmware that goes quiet. First,
 **read the emulator source in the Output tab**: an emulator that refused a
