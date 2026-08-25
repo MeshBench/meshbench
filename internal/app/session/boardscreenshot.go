@@ -57,13 +57,12 @@ func registerBoardScreenshot(st *state.Store, s *Sim) {
 		// NodeWorkDir maps the name to [a-zA-Z0-9_-] and the filename is a
 		// constant, so this path is the node's own directory and nowhere else.
 		path := filepath.Join(firmware.NodeWorkDir(name), "screen.png")
-		f, err := os.Create(path) //nolint:gosec // path is NodeWorkDir(sanitised name)/screen.png
-
+		f, err := os.Create(path) //nolint:gosec // a sanitised path this package composed
 		if err != nil {
 			return nil, fmt.Errorf("board.screenshot: %w", err)
 		}
 		if err := png.Encode(f, img); err != nil {
-			f.Close()
+			_ = f.Close()
 			return nil, fmt.Errorf("board.screenshot: %w", err)
 		}
 		if err := f.Close(); err != nil {
