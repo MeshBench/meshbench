@@ -147,6 +147,7 @@ Two verbs are **not** in this table:
 | `board.probe` | `board` string, `version` string | `probing`, `board`, `version` | `wb.boards.probe(board, version)` |
 | `board.probe_finished` | `board` string, `version` string | `board`, `passed`, `failed` | *none* — a probe worker reporting back |
 | `board.screen` | `node` string | `node`, `has_screen`, `width`, `height`, `bpp`, `on`, `lit` | `node.board.screen  (numbers, not a picture)` |
+| `board.screenshot` | `node` string | `node`, `path`, `width`, `height`, `bpp`, `on` | `node.board.screenshot(path)  (writes a PNG)` |
 | `board.touch` | `x` number, `y` number, `node` string, `down` bool | `node`, `x`, `y`, `down` | `node.board.touch(x, y, down) / .tap_at(x, y)` |
 
 ### Simulation

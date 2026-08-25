@@ -230,6 +230,7 @@
     "map.basemap": "wb.ui.map.basemap = id",
     "tool.set": "wb.ui.map.tool = name",
     "board.screen": "node.board.screen  (numbers, not a picture)",
+    "board.screenshot": "node.board.screenshot(path)  (writes a PNG)",
     "sim.unverified_wiring": "wb.sim.unverified_wiring = bool",
     "nodes.search": "wb.nodes.search() / wb.nodes.find()",
     "nodes.near": "wb.nodes.near()",

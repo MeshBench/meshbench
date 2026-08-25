@@ -473,6 +473,7 @@ func Register(st *state.Store, s *Sim) {
 	registerNodeWipe(st, s)
 	registerNodeCard(st, s)
 	registerNodeOutputWindow(st, s)
+	registerBoardScreenshot(st, s)
 	st.Handle("session.describe", func(w *state.World, _ any) (any, error) {
 		return map[string]any{
 			"nodes": len(w.Nodes), "seed": w.Seed, "now_ms": w.NowMs,
