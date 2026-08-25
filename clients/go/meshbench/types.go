@@ -145,9 +145,14 @@ type BuildDetails struct {
 	Kind     string `json:"kind"`
 	Bootable bool   `json:"bootable"`
 	FlashMB  int    `json:"flash_mb"`
-	// CoprocAtReset and Notes are kept beside the image, so they follow this
-	// build rather than the board it runs on.
-	CoprocAtReset bool   `json:"coproc_at_reset"`
+	// CoprocAtReset, SPIController and Notes are kept beside the image, so
+	// they follow this build rather than the board it runs on.
+	CoprocAtReset bool `json:"coproc_at_reset"`
+	// SPIController is which general-purpose SPI controller this firmware
+	// drives, or zero for the board's own answer. Two builds for one board
+	// can differ and both be right: the pins are fixed and the matrix routes
+	// whichever controller the firmware picks onto them.
+	SPIController int    `json:"spi_controller"`
 	Notes         string `json:"notes"`
 }
 

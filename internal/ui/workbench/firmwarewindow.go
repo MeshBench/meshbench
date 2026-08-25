@@ -44,6 +44,9 @@ type firmwareWindowPanel struct {
 	name   comp.Field
 	notes  comp.Field
 	coproc comp.Check
+	// spiChips is the controller this firmware drives, one chip per choice.
+	spiChips map[string]*comp.Chip
+	spiWant  int
 
 	// roleWant and boardWant are the draft: what the chips and the board
 	// list say, which is not the same as what the build is until apply. They
@@ -90,6 +93,10 @@ func (p *firmwareWindowPanel) build() {
 		p.roleChips[r] = &comp.Chip{}
 	}
 	p.boardChips = map[string]*comp.Chip{}
+	p.spiChips = map[string]*comp.Chip{}
+	for _, c := range spiChoices {
+		p.spiChips[c.label] = &comp.Chip{}
+	}
 	p.built = true
 }
 
@@ -118,6 +125,7 @@ func (p *firmwareWindowPanel) seed(r state.FirmwareRow) {
 	p.name.Editor.SetText(r.Version)
 	p.notes.Editor.SetText(r.Settings.Notes)
 	p.coproc.Bool.Value = r.Settings.CoprocAtReset
+	p.spiWant = r.Settings.SPIController
 	p.roleWant, p.boardWant = r.Role, r.Board
 }
 

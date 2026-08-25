@@ -305,6 +305,7 @@ class Firmware:
         new_role: Role | str | None = None,
         new_board: Board | str | None = None,
         coproc_at_reset: bool | None = None,
+        spi_controller: int | None = None,
         notes: str | None = None,
     ) -> BuildDetails:
         """Rename a build, move it to another board or role, or change how it
@@ -329,6 +330,8 @@ class Firmware:
             p["new_board"] = new_board
         if coproc_at_reset is not None:
             p["coproc_at_reset"] = coproc_at_reset
+        if spi_controller is not None:
+            p["spi_controller"] = spi_controller
         if notes is not None:
             p["notes"] = notes
         got = self._wb.call("firmware.update", p) or {}

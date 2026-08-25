@@ -46,7 +46,64 @@ func (p *firmwareWindowPanel) howItRuns(t *theme.Theme, gtx layout.Context,
 						"flattered, so leave it off unless a board looks dead."))
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Bottom: t.Sp.S}.Layout(gtx,
+				func(gtx layout.Context) layout.Dimensions { return p.spiRow(t, gtx) })
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return p.notes.Layout(t, gtx)
+		}),
+	)
+}
+
+// spiChoices is which general-purpose SPI controller a build drives.
+//
+// The board's own answer first, because it is right for every build published
+// for that board - the setting exists for the ones that are not.
+var spiChoices = []struct {
+	label string
+	n     int
+}{
+	{"the board's own", 0},
+	{"GPSPI2", 2},
+	{"GPSPI3", 3},
+}
+
+// spiRow is that choice, and what getting it wrong looks like.
+func (p *firmwareWindowPanel) spiRow(t *theme.Theme, gtx layout.Context) layout.Dimensions {
+	kids := []layout.FlexChild{
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			w := gtx.Dp(unitDp(110))
+			gtx.Constraints.Min.X, gtx.Constraints.Max.X = w, w
+			d := comp.Text(t, t.Sz.Caption, t.P.Faint, "SPI controller")(gtx)
+			d.Size.X = w
+			return d
+		}),
+	}
+	for _, c := range spiChoices {
+		c := c
+		chip := p.spiChips[c.label]
+		if chip.Click.Clicked(gtx) {
+			p.spiWant = c.n
+		}
+		kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Right: t.Sp.XS}.Layout(gtx,
+				func(gtx layout.Context) layout.Dimensions {
+					return chip.Layout(t, gtx, c.label, "", p.spiWant == c.n, t.P.Accent)
+				})
+		}))
+	}
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Alignment: layout.Middle}.Layout(gtx, kids...)
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Top: t.Sp.XS}.Layout(gtx,
+				comp.Text(t, t.Sz.Caption, t.P.Faint,
+					"The pins are fixed in copper and the matrix routes whichever "+
+						"controller the firmware picks onto them, so two builds for one "+
+						"board can differ and both be right. Wired for the wrong one, "+
+						"the radio, the card and the screen all answer nothing - which "+
+						"reads as a board with nothing fitted."))
 		}),
 	)
 }
@@ -147,6 +204,7 @@ func (p *firmwareWindowPanel) renaming(r state.FirmwareRow) bool {
 func (p *firmwareWindowPanel) changed(r state.FirmwareRow) bool {
 	return p.renaming(r) ||
 		p.coproc.Bool.Value != r.Settings.CoprocAtReset ||
+		p.spiWant != r.Settings.SPIController ||
 		fieldText(&p.notes) != r.Settings.Notes
 }
 
@@ -157,6 +215,7 @@ func (p *firmwareWindowPanel) act(gtx layout.Context, r state.FirmwareRow) {
 		// from, rather than by writing them here twice.
 		p.seeded = ""
 		p.roleWant, p.boardWant = r.Role, r.Board
+		p.spiWant = r.Settings.SPIController
 		p.confirm = false
 	}
 	if p.apply.Click.Clicked(gtx) && p.OnDo != nil {
@@ -165,6 +224,7 @@ func (p *firmwareWindowPanel) act(gtx layout.Context, r state.FirmwareRow) {
 			"version": r.Version, "role": r.Role, "board": r.Board,
 			"label": name, "new_role": p.roleWant, "new_board": p.boardWant,
 			"coproc_at_reset": p.coproc.Bool.Value,
+			"spi_controller":  p.spiWant,
 			"notes":           fieldText(&p.notes),
 		}
 		// A board of "" is the host build, and an absent new_board means
