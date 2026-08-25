@@ -3,6 +3,7 @@ package firmware
 import (
 	"encoding/binary"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 )
@@ -93,4 +94,58 @@ func declaredFlashSize(b []byte) int {
 		}
 	}
 	return end
+}
+
+// ImageFacts is what can be told about a build by reading the front of it.
+//
+// For a window that has to say why a build will not run, in the place somebody
+// is looking at that build, rather than in a refusal several minutes into a
+// start. Every field is what was read, not what should be done about it.
+type ImageFacts struct {
+	// Kind is the one-line answer: a whole flash image, an application on its
+	// own, or something this cannot read.
+	Kind string
+	// Bootable reports whether a board could start from it - a header and a
+	// partition table, which is what the ROM bootloader needs.
+	Bootable bool
+	// FlashMB is the chip size the header declares, or zero when there is no
+	// header to read it from.
+	FlashMB int
+}
+
+// imageHeadBytes is how much of a build is read to answer that.
+//
+// The partition table sits at 0x8000 and is 0xC00 long, so this covers the
+// header, the table and a little past it. Reading the whole build instead
+// would mean holding sixteen megabytes per row of a library that may have
+// thirty of them, every time the library is rebuilt.
+const imageHeadBytes = partitionTableOffset + 0x1000
+
+// InspectImage reads the front of a build and says what it is.
+//
+// An unreadable file is not an error worth propagating: the caller is a
+// library row, and "this cannot be read" is the answer it wants to show.
+func InspectImage(path string) ImageFacts {
+	f, err := os.Open(path) //nolint:gosec // a path this package composed, from its own cache
+	if err != nil {
+		return ImageFacts{Kind: "unreadable"}
+	}
+	defer func() { _ = f.Close() }()
+	head := make([]byte, imageHeadBytes)
+	n, err := io.ReadFull(f, head)
+	if err != nil && n == 0 {
+		return ImageFacts{Kind: "unreadable"}
+	}
+	head = head[:n]
+	mb, err := ClassifyESPImage(head)
+	if err != nil {
+		return ImageFacts{Kind: "not an ESP32 flash image"}
+	}
+	if !HasPartitionTable(head) {
+		// The distinction that decides whether a board starts: the header is
+		// the same byte in both, and only the table at 0x8000 tells them
+		// apart.
+		return ImageFacts{Kind: "application only - no partition table", FlashMB: mb}
+	}
+	return ImageFacts{Kind: "whole flash image", Bootable: true, FlashMB: mb}
 }

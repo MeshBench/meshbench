@@ -155,6 +155,11 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 		// a console handed to the wrong one is a board that boots and then
 		// appears to say nothing.
 		ConsoleOnUSB: board.QEMU.ConsoleOnUSB,
+		// And what has been decided about this particular build, read from
+		// beside the image rather than from the board: the same hardware runs
+		// one image that needs the coprocessors up at reset and another that
+		// would be flattered by it.
+		CoprocAtReset: firmware.LoadBuildSettings(src).CoprocAtReset,
 	}
 
 	// The board's buttons, from the same declaration everything else comes

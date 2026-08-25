@@ -59,6 +59,7 @@ from .sets import (
 )
 from .types import (
     Build,
+    BuildDetails,
     Event,
     Hello,
     ImportPreview,
@@ -96,6 +97,7 @@ __all__ = [
     "SOCKET_ENV",
     "BadParams",
     "Build",
+    "BuildDetails",
     "Closing",
     "Conflict",
     "Console",

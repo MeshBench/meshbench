@@ -32,6 +32,8 @@ func (u *tabStrictUI) OpenNodeWindow(_, tab string) (string, error) {
 	return "", fmt.Errorf("no tab called %q - there is %s", tab, strings.Join(known, ", "))
 }
 
+func (u *tabStrictUI) OpenFirmwareWindow(_, _, _ string) error { return nil }
+
 // Does double-clicking a node open its window?
 //
 // Reported: it opens nothing at all. Every route to a node window passes the

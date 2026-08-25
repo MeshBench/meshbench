@@ -27,7 +27,9 @@ type workbenchUI struct {
 	sim   *session.Sim
 	mv    *comp.MapView
 	nodes *nodeWindows
-	store *state.Store
+	// builds is the firmware windows, on the same terms as the node ones.
+	builds *firmwareWindows
+	store  *state.Store
 	// newTheme gives each window a shaper of its own: Gio's is not safe for
 	// concurrent use and two frame loops sharing one corrupts its glyph
 	// buffer.
@@ -157,4 +159,15 @@ func (u *workbenchUI) OpenNodeWindow(node, tab string) (string, error) {
 	// business once it is up; what this can honestly report is the tab it was
 	// opened on.
 	return want.String(), nil
+}
+
+func (u *workbenchUI) OpenFirmwareWindow(role, version, board string) error {
+	if u.builds == nil || u.newTheme == nil {
+		return fmt.Errorf("this build has no firmware windows to open")
+	}
+	if u.onDo == nil {
+		return fmt.Errorf("this build cannot run verbs from a firmware window")
+	}
+	u.builds.openFor(role, version, board, u.newTheme, u.store, u.onDo)
+	return nil
 }

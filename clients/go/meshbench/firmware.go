@@ -57,6 +57,99 @@ func (f Firmware) Find(ctx context.Context, version string, board Board) (Build,
 		kind:    ErrNotFound}
 }
 
+// BuildID says which build a call means.
+//
+// All three names travel together where they are known, so a call cannot land
+// on a different build that happens to share a label. Version alone is
+// accepted and the workbench refuses it when it is ambiguous, rather than
+// guessing - acting on the wrong build is a rename of somebody else's image.
+type BuildID struct {
+	Version string
+	Role    Role
+	Board   Board
+}
+
+// ID is the identity of a build already in hand.
+func (b Build) ID() BuildID {
+	return BuildID{Version: b.Version, Role: b.Role, Board: b.Board}
+}
+
+func (id BuildID) params() map[string]any {
+	p := map[string]any{"version": id.Version}
+	if id.Role != "" {
+		p["role"] = string(id.Role)
+	}
+	if id.Board != "" {
+		p["board"] = string(id.Board)
+	}
+	return p
+}
+
+// Details is everything known about one build: where it is, what it is, and
+// what has been decided about it.
+func (f Firmware) Details(ctx context.Context, id BuildID) (BuildDetails, error) {
+	var out BuildDetails
+	return out, f.w.CallInto(ctx, "firmware.details", id.params(), &out)
+}
+
+// BuildChange is what to change about a build. Every field left at its zero
+// value is left alone, which is why the settings are pointers: "leave this
+// setting" and "turn it off" are different answers, and a bool cannot say
+// both.
+type BuildChange struct {
+	// Label, NewRole and NewBoard rename the build, which moves the file: the
+	// name is the identity, because a board image is stored as
+	// <board>/<role>@<label>.bin and nothing else records what it is. Nodes
+	// pinned to the old name are repointed, or they would fail at their next
+	// start with "no image in the cache" about a build sitting in the library
+	// under its new name.
+	Label    string
+	NewRole  Role
+	NewBoard Board
+
+	CoprocAtReset *bool
+	Notes         *string
+}
+
+// Update renames a build, moves it to another board or role, or changes how it
+// is run, and reports it as it now stands.
+func (f Firmware) Update(ctx context.Context, id BuildID, c BuildChange) (BuildDetails, error) {
+	p := id.params()
+	if c.Label != "" {
+		p["label"] = c.Label
+	}
+	if c.NewRole != "" {
+		p["new_role"] = string(c.NewRole)
+	}
+	if c.NewBoard != "" {
+		p["new_board"] = string(c.NewBoard)
+	}
+	if c.CoprocAtReset != nil {
+		p["coproc_at_reset"] = *c.CoprocAtReset
+	}
+	if c.Notes != nil {
+		p["notes"] = *c.Notes
+	}
+	var moved struct {
+		Role    Role   `json:"role"`
+		Version string `json:"version"`
+		Board   Board  `json:"board"`
+	}
+	if err := f.w.CallInto(ctx, "firmware.update", p, &moved); err != nil {
+		return BuildDetails{}, err
+	}
+	// Read back under whatever it is called now, which is not what it was
+	// called if this was a rename.
+	return f.Details(ctx, BuildID{Version: moved.Version, Role: moved.Role, Board: moved.Board})
+}
+
+// Window opens the build's own window, which is what a click on a library row
+// does. Refused by a workbench with no interface.
+func (f Firmware) Window(ctx context.Context, id BuildID) error {
+	_, err := f.w.Call(ctx, "firmware.window", id.params())
+	return err
+}
+
 // Scan asks the catalogue what is published, which is how a build nobody has
 // downloaded becomes offerable.
 func (f Firmware) Scan(ctx context.Context) error {

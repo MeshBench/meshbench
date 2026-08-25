@@ -117,6 +117,48 @@ type Build struct {
 	Unavailable bool `json:"unavailable"`
 }
 
+// BuildDetails is one build in full: what a library row cannot hold.
+//
+// Separate from Build because the library is deliberately a list - role,
+// version, size, a tick. Where the file actually is, whether it is a whole
+// flash image or half of one, and what has been decided about how it runs are
+// the questions somebody has once a build does not do what they expected.
+type BuildDetails struct {
+	Role    Role   `json:"role"`
+	Version string `json:"version"`
+	Board   Board  `json:"board"`
+	// Native marks a build for this machine rather than an image for a board.
+	// The two are not interchangeable and only one of them can be renamed.
+	Native bool   `json:"native"`
+	OnDisk bool   `json:"on_disk"`
+	Path   string `json:"path"`
+	// SettingsPath is where the settings below are written, named whether or
+	// not any exist: "where does this live" is asked of a build that has none
+	// as often as of one that has.
+	SettingsPath string `json:"settings_path"`
+	Bytes        int64  `json:"bytes"`
+	Modified     string `json:"modified"`
+	InUse        int    `json:"in_use"`
+	// Kind is what reading the front of the image says it is, and Bootable
+	// whether a board could start from it. An application-only image imports,
+	// lists and pins exactly like a whole one and then starts nothing.
+	Kind     string `json:"kind"`
+	Bootable bool   `json:"bootable"`
+	FlashMB  int    `json:"flash_mb"`
+	// CoprocAtReset and Notes are kept beside the image, so they follow this
+	// build rather than the board it runs on.
+	CoprocAtReset bool   `json:"coproc_at_reset"`
+	Notes         string `json:"notes"`
+}
+
+// Describe is how this build is named where a person will read it.
+func (b BuildDetails) Describe() string {
+	if b.Board == "" {
+		return b.Version
+	}
+	return string(b.Board) + " - " + string(b.Role) + " " + b.Version
+}
+
 // Describe is how this build is named where a person will read it.
 func (b Build) Describe() string {
 	if b.Board == "" {

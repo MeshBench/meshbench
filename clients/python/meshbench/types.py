@@ -197,6 +197,50 @@ class Build:
 
 
 @dataclass(frozen=True)
+class BuildDetails:
+    """One build, in full: what a row cannot hold.
+
+    Separate from :class:`Build` because the library is deliberately a list -
+    role, version, size, a tick. Where the file actually is, whether it is a
+    whole flash image or half of one, and what has been decided about how it
+    runs are the questions somebody has once a build does not do what they
+    expected.
+    """
+
+    role: Role | str = ""
+    version: str = ""
+    board: str = ""
+    native: bool = False
+    on_disk: bool = False
+    path: str = ""
+    #: Where the settings below are written. Named whether or not any exist,
+    #: because "where does this live" is asked of a build that has none as
+    #: often as of one that has.
+    settings_path: str = ""
+    bytes: int = 0
+    modified: str = ""
+    in_use: int = 0
+    #: What reading the front of the image says it is, and whether a board
+    #: could start from it. An application-only image imports, lists and pins
+    #: exactly like a whole one and then starts nothing.
+    kind: str = ""
+    bootable: bool = False
+    flash_mb: int = 0
+    #: Kept beside the image, so they follow this build rather than the board.
+    coproc_at_reset: bool = False
+    notes: str = ""
+
+    def __str__(self) -> str:
+        if not self.board:
+            return self.version
+        return f"{self.board} - {self.role} {self.version}"
+
+    @classmethod
+    def parse(cls, raw: dict[str, Any]) -> BuildDetails:
+        return _from_dict(cls, raw)
+
+
+@dataclass(frozen=True)
 class JobInfo:
     """A long operation in flight."""
 

@@ -154,19 +154,21 @@ func (u *stubUI) OpenNodeWindow(_, tab string) (string, error) {
 	}
 	return tab, nil
 }
-func (u *stubUI) OpenPanel(_, _ string) error { return nil }
-func (u *stubUI) ClosePanel(string) error     { return nil }
-func (u *stubUI) ResetLayout()                {}
-func (u *stubUI) CloseWindow(string) error    { return nil }
-func (u *stubUI) Scale() float64              { return 1 }
-func (u *stubUI) SetScale(float64)            {}
-func (u *stubUI) SaveView(n string) error     { u.views = append(u.views, n); return nil }
-func (u *stubUI) LoadView(string) error       { return nil }
-func (u *stubUI) ListViews() []string         { return u.views }
-func (u *stubUI) DeleteView(string) error     { return nil }
-func (u *stubUI) ZoomMap(float64)             {}
-func (u *stubUI) FilterMap(string)            {}
-func (u *stubUI) SetTool(string) error        { return nil }
+
+func (u *stubUI) OpenFirmwareWindow(_, _, _ string) error { return nil }
+func (u *stubUI) OpenPanel(_, _ string) error             { return nil }
+func (u *stubUI) ClosePanel(string) error                 { return nil }
+func (u *stubUI) ResetLayout()                            {}
+func (u *stubUI) CloseWindow(string) error                { return nil }
+func (u *stubUI) Scale() float64                          { return 1 }
+func (u *stubUI) SetScale(float64)                        {}
+func (u *stubUI) SaveView(n string) error                 { u.views = append(u.views, n); return nil }
+func (u *stubUI) LoadView(string) error                   { return nil }
+func (u *stubUI) ListViews() []string                     { return u.views }
+func (u *stubUI) DeleteView(string) error                 { return nil }
+func (u *stubUI) ZoomMap(float64)                         {}
+func (u *stubUI) FilterMap(string)                        {}
+func (u *stubUI) SetTool(string) error                    { return nil }
 
 func (u *stubUI) SetLayer(name string, on bool) error {
 	if u.layers == nil {

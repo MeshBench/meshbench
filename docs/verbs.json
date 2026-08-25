@@ -7,6 +7,128 @@
         "headless"
       ]
     },
+    "firmware.details": {
+      "what": "Report everything known about one build: where it is, what it is, and what has been decided about it.",
+      "params": [
+        {
+          "name": "version",
+          "type": "string",
+          "required": true,
+          "primary": true,
+          "what": "the build's version or imported label"
+        },
+        {
+          "name": "role",
+          "type": "string",
+          "what": "which role, when one label carries more than one"
+        },
+        {
+          "name": "board",
+          "type": "string",
+          "what": "which board; absent means a build for this machine"
+        }
+      ],
+      "returns": [
+        "role",
+        "version",
+        "board",
+        "native",
+        "on_disk",
+        "path",
+        "settings_path",
+        "bytes",
+        "modified",
+        "in_use",
+        "kind",
+        "bootable",
+        "flash_mb",
+        "coproc_at_reset",
+        "notes"
+      ]
+    },
+    "firmware.update": {
+      "what": "Rename a build, move it to another board or role, or change how it is run.",
+      "params": [
+        {
+          "name": "version",
+          "type": "string",
+          "required": true,
+          "primary": true,
+          "what": "the build to change, by its current version or label"
+        },
+        {
+          "name": "role",
+          "type": "string",
+          "what": "its current role, when one label carries more than one"
+        },
+        {
+          "name": "board",
+          "type": "string",
+          "what": "its current board"
+        },
+        {
+          "name": "label",
+          "type": "string",
+          "what": "rename it to this; unchanged when absent"
+        },
+        {
+          "name": "new_role",
+          "type": "string",
+          "what": "run it as this role instead; unchanged when absent"
+        },
+        {
+          "name": "new_board",
+          "type": "string",
+          "what": "move it to this board instead; unchanged when absent"
+        },
+        {
+          "name": "coproc_at_reset",
+          "type": "bool",
+          "what": "start this build's coprocessors enabled, which the part does not do - for a firmware that traps inside its own exception vector and cannot be seen past"
+        },
+        {
+          "name": "notes",
+          "type": "string",
+          "what": "what the next person should know about this build"
+        }
+      ],
+      "returns": [
+        "role",
+        "version",
+        "board",
+        "path",
+        "renamed",
+        "repinned",
+        "settings"
+      ]
+    },
+    "firmware.window": {
+      "what": "Open one build's own window: what it is, where it lives, and how it is run.",
+      "params": [
+        {
+          "name": "version",
+          "type": "string",
+          "required": true,
+          "primary": true,
+          "what": "the build's version or imported label"
+        },
+        {
+          "name": "role",
+          "type": "string",
+          "what": "which role, when one label carries more than one"
+        },
+        {
+          "name": "board",
+          "type": "string",
+          "what": "which board; absent means a build for this machine"
+        }
+      ],
+      "returns": [
+        "role",
+        "version",
+        "board"
+      ]
+    },
     "map.centre": {
       "what": "Point the map at a node, or at a latitude and longitude.",
       "params": [

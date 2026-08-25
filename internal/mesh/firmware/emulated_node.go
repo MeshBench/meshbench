@@ -130,6 +130,12 @@ type EmulatedNode struct {
 	// PSRAMOctal selects an octal (OPI) part rather than a quad one.
 	PSRAMOctal bool
 
+	// CoprocAtReset brings the coprocessors up enabled, which the part does
+	// not do. A property of the build rather than of the board, so it arrives
+	// from the build's own settings; EnvCoprocAtReset forces it on for every
+	// node regardless, which is how it is reached from a script.
+	CoprocAtReset bool
+
 	// Emulator selects QEMU or Renode.
 	Emulator Emulator
 

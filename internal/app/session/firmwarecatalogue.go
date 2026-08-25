@@ -8,6 +8,7 @@ package session
 import (
 	"context"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 
@@ -82,7 +83,19 @@ func (s *Sim) fillLibrary(w *state.World) {
 	// today, and what a delete has to act on.
 	for _, in := range firmware.ListInstalled(firmware.DefaultCacheDir()) {
 		r := add(in.Role, in.Version, in.Board)
-		r.OnDisk, r.Bytes, r.Path = true, in.Bytes, in.Path
+		r.OnDisk, r.Bytes, r.Path, r.Native = true, in.Bytes, in.Path, in.Native
+		if st, err := os.Stat(in.Path); err == nil {
+			r.Modified = st.ModTime()
+		}
+		r.Settings = firmware.LoadBuildSettings(in.Path)
+		// Only a board image is worth reading the front of: a native build is
+		// an executable for this machine and none of what that reads applies.
+		// Read on a rebuild rather than per frame, and only the first 36 KB of
+		// each - a library of thirty sixteen-megabyte images read whole would
+		// be half a gigabyte to answer one line of a window.
+		if !in.Native {
+			r.Facts = firmware.InspectImage(in.Path)
+		}
 	}
 	// What is published for this machine, from the cache rather than the
 	// network: a library that can only be read online is no use to

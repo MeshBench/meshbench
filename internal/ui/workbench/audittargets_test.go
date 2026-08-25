@@ -10,6 +10,7 @@ import (
 	"gioui.org/layout"
 	"github.com/MeshBench/meshbench/internal/app/resource"
 	"github.com/MeshBench/meshbench/internal/app/state"
+	"github.com/MeshBench/meshbench/internal/mesh/firmware"
 	"github.com/MeshBench/meshbench/internal/ui/shell"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 )
@@ -128,10 +129,45 @@ func auditTargets(r *recorder) []target {
 		snapWithCompanion.Nodes[i].Selected = snapWithCompanion.Nodes[i].Kind == "companion"
 	}
 
+	// One build's own window. It draws from the library row it was opened on,
+	// so the snapshot needs that row: with no row it correctly says the build
+	// has gone, and auditing that would only prove the guard works.
+	fwWin := &firmwareWindowPanel{
+		role: "companion_radio_usb", version: "mesh-rs", board: "LilyGo_TDeck",
+	}
+	fwWin.OnDo = func(verb string, _ any) { r.do(verb, "") }
+	snapWithBuild := auditSnapshot()
+	snapWithBuild.Library = []state.FirmwareRow{{
+		Role: "companion_radio_usb", Version: "mesh-rs", Board: "LilyGo_TDeck",
+		OnDisk: true, Bytes: 3 << 20, InUse: 1,
+		Path:  "/cache/board/LilyGo_TDeck/companion_radio_usb@mesh-rs.bin",
+		Facts: firmware.ImageFacts{Kind: "whole flash image", Bootable: true, FlashMB: 16},
+	}}
+
 	targets := []target{
 		{"Nodes running", nv, nv.Draw, nil,
 			// Choosing a build closes the list, so it is reopened before each.
 			func() { nv.pick.open("Abernethy Repeater") }, nil, buildSkips()},
+		// apply and delete are only drawn once there is something to apply
+		// and once the first press has asked, so the panel is put into both
+		// states before each press rather than being audited shut.
+		{"Firmware window", fwWin, fwWin.auditDraw, snapWithBuild,
+			func() {
+				// Back onto the build, because applying a rename moves the
+				// window onto the new name and the next press would land on
+				// a window saying the build has gone.
+				fwWin.role, fwWin.version, fwWin.board =
+					"companion_radio_usb", "mesh-rs", "LilyGo_TDeck"
+				fwWin.coproc.Bool.Value = true
+				fwWin.confirm = true
+			}, nil,
+			map[string]string{
+				"revert":   "puts the editors back rather than reaching a verb",
+				"boardBtn": "opens the board list rather than reaching a verb",
+				"coproc":   "changes what apply would send rather than reaching a verb",
+				"name":     "changes what apply would send rather than reaching a verb",
+				"notes":    "changes what apply would send rather than reaching a verb",
+			}},
 		{"Node window", nw, nw.auditDraw, snapWithConsole,
 			// The tab row is above everything, so a pointer moving down the
 			// panel leaves the console before it reaches the send button.

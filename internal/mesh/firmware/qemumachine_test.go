@@ -34,3 +34,23 @@ func TestTheCoprocessorLieIsOptIn(t *testing.T) {
 		}
 	}
 }
+
+// The same switch, asked for by the build rather than by the environment.
+//
+// Which is the way it is meant to be reached: it is a property of the firmware
+// being looked at, so the same board runs one image that needs it and another
+// that would be flattered by it. The environment stays as the way a script
+// forces it on for everything at once.
+func TestABuildCanAskForEnabledCoprocessorsItself(t *testing.T) {
+	t.Setenv(EnvCoprocAtReset, "")
+	plain := &EmulatedNode{Machine: "esp32s3", SPI: 3, NSS: 9, Busy: 13}
+	asked := &EmulatedNode{Machine: "esp32s3", SPI: 3, NSS: 9, Busy: 13,
+		CoprocAtReset: true}
+
+	if got := plain.machineString("radio.sock"); strings.Contains(got, "cp-at-reset") {
+		t.Errorf("a build that asked for nothing got it anyway: %s", got)
+	}
+	if got := asked.machineString("radio.sock"); !strings.Contains(got, "cp-at-reset=on") {
+		t.Errorf("the build asked and the machine did not hear: %s", got)
+	}
+}

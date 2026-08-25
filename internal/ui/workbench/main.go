@@ -273,7 +273,8 @@ func Run(args []string) {
 	// The buildings layer reads straight from the loaded environment: a
 	// city of polygons has no business in the world snapshot.
 	mv.BuildingsIn = sm.BuildingsIn
-	wbUI := &workbenchUI{sh: sh, sim: sm, mv: mv, nodes: newNodeWindows(), store: st}
+	wbUI := &workbenchUI{sh: sh, sim: sm, mv: mv, store: st,
+		nodes: newNodeWindows(), builds: newFirmwareWindows()}
 	callbacks{
 		wbUI: wbUI, mv: mv, st: st, ctx: ctx, sm: sm, openPacket: openPacket,
 		chooser: chooser, do: do,

@@ -180,6 +180,7 @@ func registerFirmwareLibrary(st *state.Store, s *Sim) {
 		if err != nil {
 			return nil, err
 		}
+		s.fillLibrary(w)
 		w.Say("imported " + img.Version + " as " + role)
 		return map[string]any{
 			"version": img.Version, "role": role,
@@ -205,6 +206,11 @@ func registerFirmwareLibrary(st *state.Store, s *Sim) {
 		if err := os.RemoveAll(clean); err != nil {
 			return nil, err
 		}
+		deleteBuildSettings(clean)
+		// The library the panels draw, not only the directory: a delete that
+		// left the row behind read as a delete that did nothing, and the
+		// only caller that refreshed was the one panel that remembered to.
+		s.fillLibrary(w)
 		w.Say("deleted " + filepath.Base(clean))
 		return map[string]any{"deleted": clean}, nil
 	})

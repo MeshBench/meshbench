@@ -492,12 +492,20 @@ interrupted task has the FPU enabled and this handler survives. Which task is
 running when a self-raised software interrupt fires is not something that can
 be established from outside a closed binary.
 
-**There is a way to look past it**, and it is deliberately not the default.
-`MESHCORESIM_QEMU_COPROC_AT_RESET=1` brings the emulated coprocessors up
-enabled, which the part does not do. With it on, this firmware stops looping —
-no refused stores at all, against eighteen million — and reaches its own panic
-handler, which prints *panic details unavailable after restart*. That is a
-fault worth being able to see, and it was completely hidden before.
+**There is a way to look past it**, and it is deliberately not the default. It
+brings the emulated coprocessors up enabled, which the part does not do. With
+it on, this firmware stops looping — no refused stores at all, against eighteen
+million — and reaches its own panic handler, which prints *panic details
+unavailable after restart*. That is a fault worth being able to see, and it was
+completely hidden before.
+
+It is a property of the firmware being looked at rather than of the hardware —
+the same T-Deck runs a stock MeshCore image that wants nothing to do with it —
+so it is stored per build, beside the image, and follows the build when it is
+renamed or moved. Set it in the build's own window in the Firmware Library, or
+with `firmware.update {version, coproc_at_reset: true}`.
+`MESHCORESIM_QEMU_COPROC_AT_RESET=1` still forces it on for every board at
+once, which is the form a script reaching for it once wants.
 
 Treat anything measured under that switch as measured on a machine that is
 lying about a register: a firmware which genuinely mismanages its floating

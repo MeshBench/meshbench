@@ -4,6 +4,7 @@ package state
 
 import (
 	"image"
+	"time"
 
 	"github.com/MeshBench/meshbench/internal/mesh/firmware"
 )
@@ -371,4 +372,15 @@ type FirmwareRow struct {
 	// which reads as the library losing builds rather than as a pin nobody
 	// can honour.
 	Unavailable bool
+	// Native marks a build for this machine rather than an image for a board.
+	// The two are not interchangeable and only one of them can be renamed.
+	Native bool
+	// Modified is when the file was last written, which is how a build
+	// imported twice under one name is told from the one before it.
+	Modified time.Time
+	// Facts is what reading the front of the image says about it, and
+	// Settings what has been decided about it. Both zero for a build that is
+	// not on disk, where there is nothing to read and nothing decided.
+	Facts    firmware.ImageFacts
+	Settings firmware.BuildSettings
 }

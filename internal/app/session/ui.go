@@ -45,6 +45,12 @@ type UI interface {
 	// reporting one it does not have would be worse than refusing.
 	OpenNodeWindow(node, tab string) (string, error)
 
+	// OpenFirmwareWindow gives one build a window of its own: what it is,
+	// where it lives, and the settings it runs under. All three names,
+	// because a label can carry more than one build and acting on the wrong
+	// one is a rename of somebody else's image.
+	OpenFirmwareWindow(role, version, board string) error
+
 	// OpenPanel shows a panel. where is "" for in the layout, "window" for
 	// its own window, or "dock" to bring it back.
 	OpenPanel(name, where string) error

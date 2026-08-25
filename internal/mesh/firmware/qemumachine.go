@@ -36,9 +36,12 @@ func (e *EmulatedNode) machineString(radioAt string) string {
 	}
 	// A firmware whose exception handler reaches for the floating point unit
 	// before anything has enabled it dies in a loop nothing can be seen past.
-	// Asked for by environment rather than by board, because it is a property
-	// of the firmware being looked at rather than of the hardware.
-	if CoprocAtReset() {
+	// Asked for by the build rather than by the board, because it is a
+	// property of the firmware being looked at rather than of the hardware -
+	// the same board runs an image that needs it and one that does not. The
+	// environment forces it on for everything, for a script that is looking
+	// rather than configuring.
+	if e.CoprocAtReset || CoprocAtReset() {
 		machine += ",cp-at-reset=on"
 	}
 	if e.ButtonPath != "" {
