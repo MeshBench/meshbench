@@ -456,32 +456,36 @@ peripherals attached, so it is not the panel, the card slot, the keyboard or
 the touch panel. It never reads the touch panel at all, where a working build
 reads it 56 times in the same window.
 
-**Five explanations tested and disproved**, which is most of what is known.
-The software interrupt it raises is legitimate — this core's configuration
-matches ESP-IDF's. The MMU entry's flag bits are not swapped, and its page
-numbering is a plain 64 KB index, both checked against ESP-IDF's own headers.
-PSRAM pages past the end of the fitted part are not it either: wrapping the
-address changes nothing under a controlled comparison.
+**It stops on one instruction.** Printing `EXCCAUSE` at every exception ends
+the search: the software interrupt is delivered with a valid stack
+(`exccause = 4`), and the very next event is a double exception with
+`exccause = 32` — CoprocessorDisabled — at `0x40378b04`, which disassembles to
+`rur.fcr`: reading the floating-point control register, inside the firmware's
+own context-save, two instructions after it saves the MAC16 accumulators.
+`CPENABLE` is zero, so it traps; a trap inside an exception vector with
+`PS.EXCM` set is a double exception, which re-enters the same vector and
+reaches the same instruction. Forty-three thousand of them in eighteen seconds,
+and not one ever handled — nothing enables the FPU.
 
-And the twelve million rejected writes are **not a cause**. They could not be
-caught in a debugger — the failure does not occur under debugger timing — so
-the guest's program counter was printed from the rejection path at full speed
-instead. Every one of them comes from `0x40378cc6`, which is the firmware's own
-double-exception handler storing to its stack, with the address falling 256
-bytes each time exactly as that handler's `addmi a1, a1, -256` says it should.
-They are the storm, not the spark.
+Everything else this firmware appears to do is downstream of that loop: the
+stack walking out of RAM, the twelve million rejected writes, the single frame
+drawn and then silence.
 
-**What it leaves is one register at one instruction.** The first rejected write
-is at `0x3FBFFF1C`, and this part's internal DRAM begins at `0x3FC88000` — so
-when the interrupt was taken, the interrupted context's stack pointer was
-already below the RAM window. A software interrupt taken while `a1` is not a
-valid stack is the entire fault; everything else is consequence.
+**The emulator is right about it**, checked rather than assumed: Espressif's own
+configuration for this part gives coprocessor 0 as the FPU and `CPENABLE`
+resets to zero, as the ISA specifies. The same instruction with the same
+`CPENABLE` traps identically on silicon.
 
-Whether the firmware set that stack up wrongly for this part, or derived it
-from something this emulator told it, cannot be settled from outside a closed
-binary. That is a narrower wall than it was — a single register at a single
-instruction rather than a region of unexplained behaviour — but it is still a
-wall.
+So one question is left, and it is about ordering rather than about any
+peripheral: why `CPENABLE` is still zero when that handler runs, given the same
+firmware works on a real board. The firmware raises this interrupt itself
+during early startup, so the emulator-side candidate worth testing is when the
+pending interrupt is delivered relative to `wsr.ps`.
+
+**Six explanations were tested and disproved** getting here, all by
+measurement: the interrupt's core configuration, the MMU flag bits, the MMU
+page numbering, PSRAM pages past the end of the fitted part, the fabricated
+Bluetooth memory block, and the rejected writes themselves.
 
 ### 3.6 Forwarding policy is ours, not the repeater application's
 
