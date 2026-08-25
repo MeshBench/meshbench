@@ -71,6 +71,26 @@ func TestBinaryFramesStayReadableBesideTheText(t *testing.T) {
 	}
 }
 
+// A terminal escape is an instruction to a terminal, not something the board
+// said. Meshtastic colours every line it prints; rendered as hex, four escapes
+// wrapped every word and the pane was unreadable.
+func TestTerminalColoursDoNotDrownTheText(t *testing.T) {
+	in := []byte("\x1b[32mINFO  \x1b[0m| Booted, wake cause 0\n")
+	got := printableLines(in)
+	if len(got) != 1 || got[0] != "INFO  | Booted, wake cause 0" {
+		t.Errorf("got %q, want the line without its colours", got)
+	}
+}
+
+// An empty source answers with an empty list, never with nothing at all. This
+// crosses JSON, where a nil slice is null, and a caller indexing what the
+// schema calls a list of lines gets a type error rather than no lines.
+func TestAnEmptySourceStillAnswersWithAList(t *testing.T) {
+	if got := printableLines(nil); got == nil {
+		t.Error("an empty file gave a nil slice, which crosses the socket as null")
+	}
+}
+
 // A file ending in a newline is not a file with a blank last line, and a bare
 // carriage return ends a line on its own - ESP-IDF's bootloader uses both.
 func TestLineEndingsDoNotInventLines(t *testing.T) {

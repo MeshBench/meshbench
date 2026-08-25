@@ -396,6 +396,62 @@ declared per board, so it cannot go stale as boards are added.
 **Treat a node's Wi-Fi and Bluetooth as absent.** Anything a firmware reports
 about them here is the stub talking, not a measurement.
 
+### 3.5a Which wire an application's console is on, and what happens when it is the wrong one
+
+An ESP32-S3 board built with `ARDUINO_USB_CDC_ON_BOOT` puts Arduino's `Serial`
+on the USB Serial/JTAG peripheral rather than on UART0. Six of the boards here
+are built that way — the T-Deck, the RAK3112, the Heltec Wireless Tracker, the
+E213, the E290 and the Wireless Paper — and until that peripheral carried bytes
+they printed their ROM banner to one wire and everything afterwards into a
+register stub. They read as boards that started and then stopped talking, and
+the companion protocol, which rides the same port, had no far end.
+
+It carries bytes now, and which port a board uses is recorded with the board
+(`QEMUWiring.ConsoleOnUSB`). UART0 is still logged separately on those boards —
+the *boot* source in a node's Output tab — because the ROM prints there before
+any of this is configured, and that output is what says whether a board started
+at all.
+
+**Where this can still be wrong:** the flag is a property of the *build*, not
+of the silicon. A board's profile records what MeshCore's own variant does. An
+imported firmware compiled the other way round will have its console on the
+wire the profile does not name, and will read as silent. The Output tab's boot
+source is the check: if the ROM banner is there and nothing follows it, the
+console is on the other wire.
+
+### 3.5b What a firmware may still walk into, and what happened when one did
+
+The emulated ESP32-S3 answers a great deal that it does not model, and the
+answers are per register rather than blanket, because the two conventions are
+mixed — some waits end when a busy bit clears and some when a done bit sets.
+That table grows as firmware finds the gaps in it, and it grows by measurement.
+
+Running `mesh-rs`, an ESP-IDF v5.5 firmware for the T-Deck, found four things
+in one sitting, each hiding the next: a PSRAM model that indexed backwards on
+an address with its top bit set and took the emulator down with it; a command
+register on the analog bus that a newer PHY blob uses and the table did not
+answer; an RSA accelerator that handed a zero modulus to libgcrypt, which
+aborts the process; and a timer group that divided by a zero prescaler, which
+the watchdog beside it had guarded against for years. All four are fixed.
+
+**The firmware still does not run**, and the honest statement of where it gets
+to is this: the ROM boots, the second-stage bootloader loads the application,
+the application runs, and then takes an unending storm of exceptions at its own
+vector with a stack pointer that is not an address this part has. That is a
+corrupted stack rather than anything the emulator refused — nothing is left
+unanswered by the time it happens — but it is not proof the emulator is
+innocent either. It is where the measurement stops.
+
+Two things follow for anybody importing a firmware that goes quiet. First,
+**read the emulator source in the Output tab**: an emulator that refused a
+machine property or could not open a drive says so there, and that used to be
+mixed into the board's own output where it read as something the firmware had
+printed. Second, `MESHCORESIM_QEMU_DEBUG=unimp,guest_errors` names every
+register the machine does not implement — a single address with millions of
+hits is a firmware waiting for an answer that cannot arrive. It is off by
+default because the output is megabytes a second; one run of it once filled a
+16 GB tmpfs.
+
 ### 3.6 Forwarding policy is ours, not the repeater application's
 
 The native node links MeshCore's *library* — `Mesh`, `Dispatcher`, `Packet`,

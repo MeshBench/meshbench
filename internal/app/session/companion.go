@@ -168,6 +168,9 @@ func registerCompanion(st *state.Store, s *Sim) {
 			// there - the exact cost the guard exists to avoid.
 			_ = en.Firmware.Bridge.Type(compFrame(proto.DeviceQuery()))
 		}
+		if err := silentCompanion(c, node); err != nil {
+			return nil, err
+		}
 		at := time.Now()
 		if err := en.Firmware.Bridge.Type(compFrame(proto.SendChannelText(idx, at, text))); err != nil {
 			return nil, err
@@ -196,6 +199,9 @@ func registerCompanion(st *state.Store, s *Sim) {
 		flood := true
 		if v, ok := boolField(p, "flood"); ok {
 			flood = v
+		}
+		if err := silentCompanion(c, node); err != nil {
+			return nil, err
 		}
 		if err := en.Firmware.Bridge.Type(compFrame(proto.SendSelfAdvert(flood))); err != nil {
 			return nil, err
@@ -373,6 +379,28 @@ func orUnscoped(s string) string {
 		return "no scope"
 	}
 	return s
+}
+
+// silentCompanion refuses a command to a node that has never answered.
+//
+// Writing at a serial port succeeds whether or not anything is reading it, so
+// every companion command reported itself sent - against a board whose
+// firmware never started, against a build that is not a companion, against a
+// node that had crashed twenty minutes ago. "It says advert sent and nothing
+// transmits" is that sentence, and the interface was the last thing anybody
+// would suspect.
+//
+// A session that has decoded even one frame is talking, and stays trusted: a
+// node can be busy without being dead, and refusing on a slow reply would be
+// worse than the fault this catches.
+func silentCompanion(c *compSession, node string) error {
+	if c.Answered() {
+		return nil
+	}
+	return fmt.Errorf(
+		"%s has not answered anything since it was connected, so this would be "+
+			"written at a port with nothing reading it - check the Output tab for "+
+			"what its firmware is doing", node)
 }
 
 func (s *Sim) companionFor(node string) (*compSession, *engine.Node, error) {

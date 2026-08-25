@@ -106,7 +106,7 @@ func registerNodeOutput(st *state.Store, s *Sim) {
 			return nil, err
 		}
 
-		var lines []string
+		lines := []string{}
 		total := 0
 		if path != "" {
 			b, rerr := os.ReadFile(path)
@@ -132,6 +132,9 @@ func registerNodeOutput(st *state.Store, s *Sim) {
 		// The answer is a shorter tail than the pane gets: a script asking over
 		// the control socket is usually asking a question about the last few
 		// lines, and the whole two thousand is a megabyte down a pipe.
+		// An empty list rather than nothing at all: this crosses JSON, where
+		// a nil slice is null, and a caller indexing what the schema says is
+		// a list of lines gets a type error instead of no lines.
 		tail := lines
 		want := 200
 		if n, ok := numField(p, "lines"); ok && n > 0 {
@@ -207,7 +210,7 @@ func (s *Sim) nodeIsEmulated(w *state.World, name string) (bool, error) {
 // frames are shown as their hex rather than dropped: what somebody is looking
 // for is often that they are there at all.
 func printableLines(b []byte) []string {
-	var out []string
+	out := []string{}
 	var line strings.Builder
 	flush := func() {
 		out = append(out, line.String())
@@ -215,6 +218,18 @@ func printableLines(b []byte) []string {
 	}
 	for i := 0; i < len(b); i++ {
 		c := b[i]
+		// A terminal escape is an instruction to a terminal, not something the
+		// board said. Meshtastic colours every line it prints, and rendering
+		// those bytes as hex put four escapes around every word - the pane was
+		// legible only to somebody willing to read past them.
+		if c == 0x1B && i+1 < len(b) && b[i+1] == '[' {
+			j := i + 2
+			for j < len(b) && (b[j] < 0x40 || b[j] > 0x7E) {
+				j++
+			}
+			i = j
+			continue
+		}
 		switch {
 		case c == '\n':
 			flush()

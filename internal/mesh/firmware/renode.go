@@ -8,6 +8,11 @@ import (
 	"path/filepath"
 )
 
+// EnvRenode overrides the Renode executable, as EnvQEMU does for the other
+// emulator. Ours is a fork with the peripherals an nRF52 board needs, so a
+// distribution build will not do.
+const EnvRenode = "MESHCORESIM_RENODE"
+
 // startRenode writes the machine description this node needs and runs it.
 //
 // Generated rather than kept as a file, because three of the values are

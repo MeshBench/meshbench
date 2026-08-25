@@ -91,6 +91,19 @@ func (c *compSession) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
+// Answered reports whether this node has ever said anything back.
+//
+// A companion is spoken to by writing frames at its serial port, and writing
+// succeeds whether or not anything is listening: a board running firmware that
+// never starts, or that is not a companion at all, takes every frame and
+// answers none. Commands then report themselves sent - which is exactly what
+// "it says advert sent and nothing transmits" is.
+func (c *compSession) Answered() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.rev > 0
+}
+
 func (c *compSession) apply(f proto.Frame) {
 	c.rev++
 	// A message is not pushed to us, only the news that one exists. Asking

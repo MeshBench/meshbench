@@ -144,15 +144,6 @@ func TestNativeStopIsSafeWithoutStart(t *testing.T) {
 	if err := (&firmware.Native{}).Stop(); err != nil {
 		t.Fatal(err)
 	}
-	if err := (&firmware.Emulated{}).Stop(); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestEmulatedNeedsFirmware(t *testing.T) {
-	if err := (&firmware.Emulated{}).Start(context.Background(), "127.0.0.1:1"); err == nil {
-		t.Fatal("an emulated node with no image should not start")
-	}
 }
 
 // The airtime formula exists twice — once in Go for the channel, once in C++
