@@ -609,6 +609,39 @@ inside the closed firmware. The stock MeshCore and Meshtastic images drive the
 same panel on the same machine and draw, so it is recorded as a firmware-side
 blocker rather than an emulator one.
 
+### 3.5e wadamesh, and the state of the third-party bring-ups
+
+wadamesh (an older Arduino/ESP-IDF companion build, distinct from the Rust
+mesh-rs) **boots and runs** on the emulated T-Deck: NVS, PSRAM, touch
+detection and the main loop all come up, and it polls the GT911 touch panel
+actively. It is not stuck — what looked like a hang is its main loop reading
+the battery ADC every iteration.
+
+Two rough edges, both fidelity rather than correctness, and neither introduced
+by the fixes above (no input, touch, keyboard or GPIO code was changed):
+
+- **The ADC calibration eFuse is not modelled.** A real ESP32-S3 has ADC
+  calibration burnt in eFuse BLK2 at the factory; ours is blank, so
+  `esp_adc_cal_characterize` logs *"No calibration efuse burnt"* — and a
+  firmware that reads the ADC in its loop logs it thousands of times. The
+  reading still works (a default Vref is used); it is warning noise, and
+  populating the eFuse cal bits correctly is deferred rather than guessed at,
+  since a wrong value would give a wrong voltage silently.
+- **The first-boot filesystem format is slow**, because it happens in real
+  time at emulation speed — the LittleFS/SPIFFS format a firmware does on a
+  blank partition or SD card can take tens of seconds of guest time, which is
+  minutes of wall clock. It is a one-time cost: the flash and card persist, so
+  the next boot mounts at once. A workbench boot-offset check can time out
+  during that first format; the firmware keeps running behind it.
+
+The three third-party images now stand as: **MeshCore** works fully (companion
+flow, screen, identity); **Meshtastic** boots, mounts LittleFS on the second
+boot, and draws its full UI; **wadamesh** boots and runs with the rough edges
+above; **mesh-rs** boots and initialises everything but stops in a panic of its
+own before drawing (§3.5d). The remaining gaps are firmware-side or
+emulation-fidelity limits rather than emulator faults on any path that could be
+verified.
+
 ### 3.6 Forwarding policy is ours, not the repeater application's
 
 The native node links MeshCore's *library* — `Mesh`, `Dispatcher`, `Packet`,
