@@ -476,16 +476,27 @@ configuration for this part gives coprocessor 0 as the FPU and `CPENABLE`
 resets to zero, as the ISA specifies. The same instruction with the same
 `CPENABLE` traps identically on silicon.
 
-So one question is left, and it is about ordering rather than about any
-peripheral: why `CPENABLE` is still zero when that handler runs, given the same
-firmware works on a real board. The firmware raises this interrupt itself
-during early startup, so the emulator-side candidate worth testing is when the
-pending interrupt is delivered relative to `wsr.ps`.
+That ordering question was tested rather than left open. QEMU recognises a
+pending interrupt on the instruction after `wsr.ps`, while the ISA says a `WSR`
+to `PS` is not guaranteed in effect until an `RSYNC` — and this firmware has no
+`rsync` in between. Moving the check off `wsr.ps` and onto `rsync`, where the
+ISA puts it, changes nothing: the storm is identical. Reverted, because an
+unproven change to shared Xtensa translation would reach every other guest.
+Also checked and correct: exception entry never clears `CPENABLE`, here or on
+silicon.
 
-**Six explanations were tested and disproved** getting here, all by
+What remains is a statement about firmware state rather than about this
+emulator. The firmware does manage `CPENABLE` — its image carries four
+`wsr.cpenable` and sixty-four `rsr.cpenable` — so on a real board the
+interrupted task has the FPU enabled and this handler survives. Which task is
+running when a self-raised software interrupt fires is not something that can
+be established from outside a closed binary.
+
+**Seven explanations were tested and disproved** getting here, all by
 measurement: the interrupt's core configuration, the MMU flag bits, the MMU
 page numbering, PSRAM pages past the end of the fitted part, the fabricated
-Bluetooth memory block, and the rejected writes themselves.
+Bluetooth memory block, the rejected writes themselves, and interrupt delivery
+timing.
 
 ### 3.6 Forwarding policy is ours, not the repeater application's
 
