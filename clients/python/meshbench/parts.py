@@ -305,7 +305,6 @@ class Firmware:
         new_role: Role | str | None = None,
         new_board: Board | str | None = None,
         coproc_at_reset: bool | None = None,
-        spi_controller: int | None = None,
         card_required: bool | None = None,
         notes: str | None = None,
     ) -> BuildDetails:
@@ -331,8 +330,6 @@ class Firmware:
             p["new_board"] = new_board
         if coproc_at_reset is not None:
             p["coproc_at_reset"] = coproc_at_reset
-        if spi_controller is not None:
-            p["spi_controller"] = spi_controller
         if card_required is not None:
             p["card_required"] = card_required
         if notes is not None:

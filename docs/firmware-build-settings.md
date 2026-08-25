@@ -73,25 +73,6 @@ refused stores to none. `docs/shortcomings.md` §3.5 has the whole account.
 `MESHCORESIM_QEMU_COPROC_AT_RESET=1` forces it on for every board at once,
 which is the form a script reaching for it once wants.
 
-## SPI controller
-
-`spi_controller` — `0` for the board's own answer, or `2` or `3`
-
-Which of the part's general-purpose SPI controllers this firmware drives its
-peripherals from.
-
-The pins are fixed in copper and the GPIO matrix routes whichever controller
-the firmware picks onto them, so two builds for one board can differ and both
-be right. MeshCore's T-Deck build drives GPSPI3 and the board profile says so;
-a Rust build for the same board drives GPSPI2.
-
-**Wired for the wrong one, the radio, the card and the screen all answer
-nothing** — which reads as a board with nothing fitted, and is exactly the
-symptom that sends an investigation looking at the radio.
-
-This one costs no honesty: it moves the peripherals to the controller the
-firmware is actually driving, which is where the real board has them.
-
 ## Needs a card in the board's slot
 
 `card_required`

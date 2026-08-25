@@ -43,7 +43,6 @@
         "bootable",
         "flash_mb",
         "coproc_at_reset",
-        "spi_controller",
         "card_required",
         "notes"
       ]
@@ -82,11 +81,6 @@
           "name": "new_board",
           "type": "string",
           "what": "move it to this board instead; unchanged when absent"
-        },
-        {
-          "name": "spi_controller",
-          "type": "number",
-          "what": "which general-purpose SPI controller this firmware drives - 2 or 3 on an ESP32-S3, or 0 to take the board's own answer. Wrong, the radio, the card and the screen all answer nothing"
         },
         {
           "name": "card_required",

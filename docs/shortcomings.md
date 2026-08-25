@@ -507,6 +507,21 @@ with `firmware.update {version, coproc_at_reset: true}`.
 `MESHCORESIM_QEMU_COPROC_AT_RESET=1` still forces it on for every board at
 once, which is the form a script reaching for it once wants.
 
+**Where that firmware stops now.** Past the trap it brings up PSRAM, resets the
+display controller, and initialises a card completely — CMD0, CMD8, CMD58,
+CMD16, CMD9, CMD10, ACMD51, ACMD13, with the CSD and CID read back as data
+blocks, where before it died at CMD8. Then it takes an
+InstructionFetchProhibited exception (`EXCCAUSE=20`) at `0x42251cf1`, inside
+its own mapped flash, and parks in a one-instruction loop at `0x42177324` —
+a Rust panic halt, at 0% CPU. It never sends the display's SLPOUT, so the
+panel stays dark.
+
+The stock MeshCore image for the same board is the control: it runs the whole
+ST7789 sequence — SWRESET, SLPOUT, COLMOD, MADCTL, CASET, RASET, INVON, NORON,
+DISPON — and draws, on the same machine, in the same run configuration. So the
+panel model, the SPI wiring and the board profile are all right; what remains
+is one prohibited instruction fetch that only this firmware reaches.
+
 Treat anything measured under that switch as measured on a machine that is
 lying about a register: a firmware which genuinely mismanages its floating
 point enable is flattered by it rather than caught. It exists to make the next

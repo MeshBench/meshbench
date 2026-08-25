@@ -34,7 +34,7 @@ func registerFirmwareDetails(st *state.Store, s *Sim) {
 		},
 		Returns: []string{"role", "version", "board", "native", "on_disk", "path",
 			"settings_path", "bytes", "modified", "in_use", "kind", "bootable",
-			"flash_mb", "coproc_at_reset", "spi_controller", "card_required", "notes"},
+			"flash_mb", "coproc_at_reset", "card_required", "notes"},
 	}, func(w *state.World, p any) (any, error) {
 		row, err := findBuildRow(w, s, p)
 		if err != nil {
@@ -47,7 +47,6 @@ func registerFirmwareDetails(st *state.Store, s *Sim) {
 			"kind": row.Facts.Kind, "bootable": row.Facts.Bootable,
 			"flash_mb":        row.Facts.FlashMB,
 			"coproc_at_reset": row.Settings.CoprocAtReset,
-			"spi_controller":  row.Settings.SPIController,
 			"card_required":   row.Settings.CardRequired,
 			"notes":           row.Settings.Notes,
 		}
@@ -79,11 +78,6 @@ func registerFirmwareUpdate(st *state.Store, s *Sim) {
 				What: "run it as this role instead; unchanged when absent"},
 			{Name: "new_board", Type: state.ParamString,
 				What: "move it to this board instead; unchanged when absent"},
-			{Name: "spi_controller", Type: state.ParamNumber,
-				What: "which general-purpose SPI controller this firmware " +
-					"drives - 2 or 3 on an ESP32-S3, or 0 to take the board's " +
-					"own answer. Wrong, the radio, the card and the screen all " +
-					"answer nothing"},
 			{Name: "card_required", Type: state.ParamBool,
 				What: "this firmware will not get far without storage in the " +
 					"board's slot, so every node running it is given a card " +
@@ -147,14 +141,6 @@ func registerFirmwareUpdate(st *state.Store, s *Sim) {
 		if on, ok := boolOf(p, "card_required"); ok {
 			set.CardRequired = on
 		}
-		if n, ok := numField(p, "spi_controller"); ok {
-			if n != 0 && n != 2 && n != 3 {
-				return nil, badParams(
-					"spi_controller is 2 or 3 on these parts, or 0 to take the "+
-						"board's own answer; %v is neither", n)
-			}
-			set.SPIController = int(n)
-		}
 		if err := firmware.SaveBuildSettings(in.Path, set); err != nil {
 			return nil, err
 		}
@@ -172,8 +158,7 @@ func registerFirmwareUpdate(st *state.Store, s *Sim) {
 			"path": in.Path, "renamed": renamed, "repinned": repinned,
 			"settings": map[string]any{
 				"coproc_at_reset": set.CoprocAtReset, "notes": set.Notes,
-				"spi_controller": set.SPIController,
-				"card_required":  set.CardRequired,
+				"card_required": set.CardRequired,
 			},
 		}, nil
 	})

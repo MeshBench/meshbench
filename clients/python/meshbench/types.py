@@ -228,11 +228,6 @@ class BuildDetails:
     flash_mb: int = 0
     #: Kept beside the image, so they follow this build rather than the board.
     coproc_at_reset: bool = False
-    #: Which general-purpose SPI controller this firmware drives, or 0 for the
-    #: board's own answer. Two builds for one board can differ and both be
-    #: right: the pins are fixed and the matrix routes whichever controller the
-    #: firmware picks onto them.
-    spi_controller: int = 0
     #: This firmware will not get far without storage in the board's slot, so
     #: every node running it is given a card whatever its own slot was set to.
     card_required: bool = False

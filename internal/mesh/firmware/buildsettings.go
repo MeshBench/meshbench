@@ -34,19 +34,6 @@ type BuildSettings struct {
 	// and what it costs in honesty.
 	CoprocAtReset bool `json:"coproc_at_reset,omitempty"`
 
-	// SPIController is which of the part's general-purpose SPI controllers
-	// this firmware drives its peripherals from, or zero to take the board's
-	// own answer.
-	//
-	// A property of the build, not of the board. The pins are fixed in copper
-	// and the GPIO matrix routes whichever controller the firmware picks onto
-	// them, so two firmwares for one handheld can use different controllers
-	// and both are right. MeshCore's T-Deck build uses GPSPI3; a Rust one for
-	// the same board uses GPSPI2, and against a machine wired for the other
-	// its radio, its card and its screen all answer nothing at all - which
-	// looks exactly like a board with nothing fitted.
-	SPIController int `json:"spi_controller,omitempty"`
-
 	// CardRequired says this firmware will not get far without storage in the
 	// board's slot, so every node running it is given a card whatever it would
 	// otherwise have had.

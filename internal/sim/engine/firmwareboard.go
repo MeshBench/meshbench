@@ -134,8 +134,7 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 	// build still gets a fresh chip: that is what reflashing a board is.
 	// What has been decided about this build, read from beside the image
 	// rather than from the board: the same hardware runs one image that needs
-	// the coprocessors up at reset and another that would be flattered by it,
-	// and one that drives a different SPI controller entirely.
+	// the coprocessors up at reset and another that would be flattered by it.
 	set := firmware.LoadBuildSettings(src)
 
 	padded := filepath.Join(dir, "flash.bin")
@@ -164,14 +163,6 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 		// And what has been decided about this particular build.
 		CoprocAtReset: set.CoprocAtReset,
 	}
-	// Which controller this firmware drives, where it is not the one the
-	// board's own image uses. The peripherals move with it: they are one bus
-	// in copper, and it is the firmware that decides which controller the
-	// matrix puts on those pins.
-	if set.SPIController != 0 {
-		node.SPI = set.SPIController
-	}
-
 	// The board's buttons, from the same declaration everything else comes
 	// from. Only the ones it actually has: a board that declares none, or
 	// declares one as absent, gets no channel rather than a channel nothing
