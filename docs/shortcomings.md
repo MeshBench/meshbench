@@ -456,38 +456,34 @@ peripherals attached, so it is not the panel, the card slot, the keyboard or
 the touch panel. It never reads the touch panel at all, where a working build
 reads it 56 times in the same window.
 
-**And the reason it faults is upstream of the fault.** Logging every MMU entry
-this machine is given: a working build maps exactly 128 PSRAM pages, numbered
-0 to 127 — precisely an 8 MB part at 64 KB pages — and never has a store
-rejected. `mesh-rs` maps 192 entries with page numbers as high as 6336, which
-this model turns into `page × 64 KB` in the PSRAM address space. That lands far
-outside the fitted part, QEMU rejects the store, **and the guest carries on
-believing it wrote** — 14,518,200 rejected stores in twenty-five seconds. A
-handler that later faults on its own stack is what memory silently not being
-written looks like from the outside.
+**Four explanations tested and disproved**, which is most of what is known:
 
-Two other explanations were tested and disproved rather than assumed. The
-software interrupt it raises is legitimate: this core's configuration matches
-ESP-IDF's, `XCHAL_INT7` is a level-1 software interrupt in both. And the MMU
-entry's flag bits are not swapped: ESP-IDF's own header gives `MMU_INVALID` as
-bit 14 and `MMU_ACCESS_SPIRAM` as bit 15, which is what the model has. Taking
-the PSRAM address modulo the fitted size — on the reasoning that a real part
-decodes only the address lines it has — did not fix it either, so the page
-numbers are not simply wrapping.
+1. *The software interrupt it raises is legitimate.* This core's configuration
+   matches ESP-IDF's — `XCHAL_INT7` is a level-1 software interrupt in both.
+   Worth noting anyway that a working build never raises it once, so the path
+   had not been exercised here before.
+2. *The MMU entry's flag bits are not swapped.* ESP-IDF gives `MMU_INVALID` as
+   bit 14 and `MMU_ACCESS_SPIRAM` as bit 15, which is what the model has.
+3. *The page numbering is right.* ESP-IDF 5.5's `mmu_ll_format_paddr` for this
+   part is `paddr >> 16` — a plain 64 KB index for flash and PSRAM alike.
+4. *PSRAM pages past the end of the part are not it.* This firmware does map
+   SPIRAM pages as high as 2820 against an 8 MB device, which looked damning,
+   but wrapping the address to the fitted size changes nothing: 11,857,581
+   rejected writes without it against 12,540,575 with it, over identical
+   twenty-second runs.
 
-**The blocker, then, is a documented lookup rather than a mystery:** what a
-PSRAM page number above the fitted size means on this part, from the S3's
-technical reference manual. Nothing here needs the firmware's symbols.
+**Where it actually stops.** The cache MMU's translate function, instrumented
+to count write translations, returns **zero** while the same run rejects
+**12,029,842 writes** — so those writes never pass through the MMU, and the
+whole PSRAM line above is the wrong region. They land at offsets 0xDC0000 to
+0x1000000 in an *unnamed* memory region, around 600,000 a second, and QEMU
+refuses them. Everything else this firmware does is downstream of twelve
+million stores it believes it made and did not.
 
-Two things follow for anybody importing a firmware that goes quiet. First,
-**read the emulator source in the Output tab**: an emulator that refused a
-machine property or could not open a drive says so there, and that used to be
-mixed into the board's own output where it read as something the firmware had
-printed. Second, `MESHCORESIM_QEMU_DEBUG=unimp,guest_errors` names every
-register the machine does not implement — a single address with millions of
-hits is a firmware waiting for an answer that cannot arrive. It is off by
-default because the output is megabytes a second; one run of it once filled a
-16 GB tmpfs.
+The next step is instrumentation rather than research: name that region.
+QEMU prints `region '(null)'` because the `MemoryRegion` carries no name, and
+printing the owner from `memory_region_access_valid` identifies it in a single
+run.
 
 ### 3.6 Forwarding policy is ours, not the repeater application's
 
