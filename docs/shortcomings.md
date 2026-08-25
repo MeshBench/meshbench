@@ -519,7 +519,18 @@ thirteen jumps to address zero per run, ending in a panic. With the registers
 answering, both are zero.
 
 It still does not draw. It sends the display's SWRESET and never follows with
-SLPOUT, so the panel stays dark and the Hardware tab shows a black screen.
+SLPOUT, so the panel stays dark and the Hardware tab shows a black screen. What
+is known about that: its executor is alive and being woken — the timer group
+fires and is dispatched, and the alarms it sets halve repeatedly, which is the
+shape of something retrying with a backoff. Its SD card work finishes and then
+no further byte crosses the SPI bus. The delay a display needs after a software
+reset is 120 ms and guest time reaches several seconds, so it is not waiting on
+that clock.
+
+One thing worth knowing before chasing it: **guest time here runs about fifty
+times slower than the wall clock** — measured at 2.66 seconds of emulated time
+in 150 seconds of real time on this machine. A firmware waiting on a long
+timeout will look hung long before it is.
 
 The stock MeshCore image for the same board is the control: it runs the whole
 ST7789 sequence — SWRESET, SLPOUT, COLMOD, MADCTL, CASET, RASET, INVON, NORON,
