@@ -25,6 +25,26 @@ import (
 // allocated until the emulator holding the file was killed.
 const EnvQEMUDebug = "MESHCORESIM_QEMU_DEBUG"
 
+// EnvCoprocAtReset brings the emulated coprocessors up enabled, which the part
+// does not do.
+//
+// For one firmware only, and it is a lie the machine tells: CPENABLE resets to
+// zero on this architecture and a firmware decides which of its tasks may use
+// the floating point unit. A firmware whose exception handler saves floating
+// point state before anything has enabled it takes a CoprocessorDisabled trap
+// inside an exception vector, which is fatal and loops for ever - and hides
+// everything behind it, so the board looks like it simply stopped.
+//
+// Off by default, because a firmware that genuinely mismanages that register
+// would be flattered by it. On, it is a way to see what happens next.
+const EnvCoprocAtReset = "MESHCORESIM_QEMU_COPROC_AT_RESET"
+
+// CoprocAtReset reports whether that has been asked for.
+func CoprocAtReset() bool {
+	v := strings.TrimSpace(os.Getenv(EnvCoprocAtReset))
+	return v != "" && v != "0" && !strings.EqualFold(v, "false")
+}
+
 // The three files a node's output is read from. Named here because the reader
 // is in another layer: the application shows them and only this package knows
 // where the emulator was told to put them.

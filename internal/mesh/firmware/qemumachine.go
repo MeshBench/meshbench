@@ -34,6 +34,13 @@ func (e *EmulatedNode) machineString(radioAt string) string {
 	if e.PSRAMOctal {
 		machine += ",psram-octal=on"
 	}
+	// A firmware whose exception handler reaches for the floating point unit
+	// before anything has enabled it dies in a loop nothing can be seen past.
+	// Asked for by environment rather than by board, because it is a property
+	// of the firmware being looked at rather than of the hardware.
+	if CoprocAtReset() {
+		machine += ",cp-at-reset=on"
+	}
 	if e.ButtonPath != "" {
 		// The path on its own, because more than the buttons listen on it: a
 		// board with a meter and no button still has something to say.
