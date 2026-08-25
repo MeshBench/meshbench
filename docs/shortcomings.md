@@ -456,14 +456,28 @@ peripherals attached, so it is not the panel, the card slot, the keyboard or
 the touch panel. It never reads the touch panel at all, where a working build
 reads it 56 times in the same window.
 
-That is a blocker rather than a diagnosis. Separating "the emulator delivered
-something it should not have" from "the firmware has a bug" needs symbols, and
-this is a closed binary with no ELF: the technique that resolved the other
-faults — disassemble, read the literal, name the register — stops at a handler
-whose prologue faults with a stack pointer that is not in this part's memory
-map. Seven emulator faults were found and fixed getting this far, so the
-emulator is not owed the benefit of the doubt; it is simply where measurement
-runs out.
+**And the reason it faults is upstream of the fault.** Logging every MMU entry
+this machine is given: a working build maps exactly 128 PSRAM pages, numbered
+0 to 127 — precisely an 8 MB part at 64 KB pages — and never has a store
+rejected. `mesh-rs` maps 192 entries with page numbers as high as 6336, which
+this model turns into `page × 64 KB` in the PSRAM address space. That lands far
+outside the fitted part, QEMU rejects the store, **and the guest carries on
+believing it wrote** — 14,518,200 rejected stores in twenty-five seconds. A
+handler that later faults on its own stack is what memory silently not being
+written looks like from the outside.
+
+Two other explanations were tested and disproved rather than assumed. The
+software interrupt it raises is legitimate: this core's configuration matches
+ESP-IDF's, `XCHAL_INT7` is a level-1 software interrupt in both. And the MMU
+entry's flag bits are not swapped: ESP-IDF's own header gives `MMU_INVALID` as
+bit 14 and `MMU_ACCESS_SPIRAM` as bit 15, which is what the model has. Taking
+the PSRAM address modulo the fitted size — on the reasoning that a real part
+decodes only the address lines it has — did not fix it either, so the page
+numbers are not simply wrapping.
+
+**The blocker, then, is a documented lookup rather than a mystery:** what a
+PSRAM page number above the fitted size means on this part, from the S3's
+technical reference manual. Nothing here needs the firmware's symbols.
 
 Two things follow for anybody importing a firmware that goes quiet. First,
 **read the emulator source in the Output tab**: an emulator that refused a
