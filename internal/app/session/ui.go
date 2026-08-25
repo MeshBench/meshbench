@@ -158,37 +158,6 @@ func registerUI(st *state.Store, s *Sim) {
 	})
 }
 
-func registerNodeWindow(st *state.Store, s *Sim) {
-	// node.window: the thing people put on a second monitor.
-	st.HandleSpec("node.window", state.Spec{
-		What: "Open one node's own window, the thing people put on a second monitor.",
-		Params: []state.Param{
-			{Name: "node", Type: state.ParamString, Primary: true, Required: true,
-				What: "which node"},
-			{Name: "tab", Type: state.ParamString,
-				What: "which tab to open on; the window's default when absent"},
-		},
-		Returns: []string{"node", "tab"},
-	}, func(w *state.World, p any) (any, error) {
-		if err := s.needUI(); err != nil {
-			return nil, err
-		}
-		name := soleString(p)
-		if m, ok := p.(map[string]any); ok {
-			name, _ = m["node"].(string)
-		}
-		if _, found := findNode(w.Nodes, name); !found {
-			return nil, noSuchNode(name)
-		}
-		tab, _ := namedField(p, "tab")
-		shown, err := s.ui.OpenNodeWindow(name, tab)
-		if err != nil {
-			return nil, control.WithCode(control.BadParams, err)
-		}
-		return map[string]any{"node": name, "tab": shown}, nil
-	})
-}
-
 func registerMapCamera(st *state.Store, s *Sim) {
 	// map.centre: look at a place, or at a node.
 	//
