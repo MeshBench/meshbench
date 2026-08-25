@@ -54,7 +54,7 @@ func outputFile(dir, source string, emulated bool) (path, note string, err error
 		// On every other board the ROM prints to the same port the firmware
 		// does, and the serial pane already has it from the first byte.
 		p := filepath.Join(dir, firmware.ROMLogName())
-		if _, err := os.Stat(p); err != nil {
+		if !fileExists(p) {
 			return "", "this board's console is UART0, so the ROM's own output is " +
 				"at the top of the serial pane rather than in one of its own", nil
 		}
@@ -200,6 +200,16 @@ func (s *Sim) nodeIsEmulated(w *state.World, name string) (bool, error) {
 		}
 	}
 	return false, noSuchNode(name)
+}
+
+// fileExists answers whether a path is a readable file.
+//
+// A separate question from "did a read fail": whether a board keeps a separate
+// boot log is a fact about the board, and reporting its absence as an error
+// would make a normal configuration look like a fault.
+func fileExists(p string) bool {
+	st, err := os.Stat(p)
+	return err == nil && !st.IsDir()
 }
 
 // printableLines splits a log into lines a pane can draw.

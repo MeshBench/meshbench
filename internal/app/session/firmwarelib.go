@@ -429,15 +429,26 @@ func soleString(p any) string {
 //
 // Only for a board with an ESP32-family MCU: the header this reads is Espressif's,
 // and an nRF52 image is a different shape entirely.
+// isESP32Board reports whether this board's MCU is one whose flash images the
+// check below can read. A board nobody has heard of is not one to judge.
+func isESP32Board(board string) bool {
+	b, err := scenario.BoardByName(board)
+	if err != nil {
+		return false
+	}
+	return strings.HasPrefix(strings.ToUpper(b.MCU), "ESP32")
+}
+
 func refuseHalfAnImage(path, board string) error {
 	if board == "" || strings.ToLower(filepath.Ext(path)) != ".bin" {
 		return nil
 	}
-	b, err := scenario.BoardByName(board)
-	if err != nil || !strings.HasPrefix(strings.ToUpper(b.MCU), "ESP32") {
+	if !isESP32Board(board) {
 		return nil
 	}
-	data, err := os.ReadFile(path)
+	// The path is what somebody chose in a file dialog, and reading it is the
+	// whole of what this function is for.
+	data, err := os.ReadFile(path) //nolint:gosec // the caller's own chosen import
 	if err != nil {
 		return err
 	}

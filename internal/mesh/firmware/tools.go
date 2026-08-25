@@ -135,7 +135,8 @@ func PadImageKeeping(src, dst string) (int, error) {
 // twice under two labels is two paths and one chip, and an image rebuilt in
 // place by a compiler keeps both its path and, often enough, its size.
 func imageStamp(src string) (string, error) {
-	f, err := os.Open(src)
+	// The image this node was told to run, from the cache or from an import.
+	f, err := os.Open(src) //nolint:gosec // the build the caller asked for
 	if err != nil {
 		return "", err
 	}

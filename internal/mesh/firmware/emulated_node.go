@@ -25,53 +25,6 @@ const (
 	EnvRadioServer = "MESHCORESIM_RADIO_SERVER"
 )
 
-// EnvQEMUDebug turns on the emulator's own instruction and access tracing, as
-// a comma-separated list of QEMU log items - "unimp,guest_errors" being the
-// pair worth reaching for first, because between them they name every register
-// the machine does not model and every access it rejected.
-//
-// Off by default and deliberately not a setting: the output is megabytes a
-// second. One `-d unimp` run once filled a 16 GB tmpfs, and the space stayed
-// allocated until the emulator holding the file was killed.
-const EnvQEMUDebug = "MESHCORESIM_QEMU_DEBUG"
-
-// The three files a node's output is read from. Named here because the reader
-// is in another layer: the application shows them and only this package knows
-// where the emulator was told to put them.
-const (
-	consoleLogName  = "console.log"
-	emulatorLogName = "emulator.log"
-	radioLogName    = "radio.log"
-	// romLogName is UART0 on a board whose application talks over USB: the
-	// boot chain up to the point the firmware takes over, and nothing after.
-	romLogName   = "rom.log"
-	traceLogName = "emulator-trace.log"
-)
-
-// ConsoleLogName, EmulatorLogName, RadioLogName and TraceLogName are those
-// files' names, for a caller that has a node's directory and wants one of them.
-func ConsoleLogName() string  { return consoleLogName }
-func EmulatorLogName() string { return emulatorLogName }
-func RadioLogName() string    { return radioLogName }
-
-// ROMLogName is UART0's log on a board whose console is on the USB port.
-func ROMLogName() string   { return romLogName }
-func TraceLogName() string { return traceLogName }
-
-// qemuDebugArgs is the tracing the environment asked for, and nothing when it
-// asked for none.
-func qemuDebugArgs(dir string) []string {
-	items := strings.TrimSpace(os.Getenv(EnvQEMUDebug))
-	if items == "" {
-		return nil
-	}
-	return []string{"-d", items, "-D", filepath.Join(dir, traceLogName)}
-}
-
-// QEMUTracing reports what the emulator was asked to trace, so a pane showing
-// the output can say why it is enormous.
-func QEMUTracing() string { return strings.TrimSpace(os.Getenv(EnvQEMUDebug)) }
-
 // Emulator is which one runs a node. It follows from the board's MCU rather
 // than from a preference: QEMU has the Xtensa cores and Renode has the ARM
 // ones, and neither will take the other's firmware.
@@ -354,62 +307,7 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	if e.radioPort != 0 {
 		radioAt = fmt.Sprintf("127.0.0.1:%d", e.radioPort)
 	}
-	machine := fmt.Sprintf("%s,radio-path=%s,radio-spi=%d,radio-nss=%d,radio-busy=%d",
-		e.Machine, radioAt, e.SPI, e.NSS, e.Busy)
-	// Only when the board records one. Without it the machine leaves the line
-	// unwired, and the firmware never learns a packet arrived - it reads a
-	// received packet solely from the interrupt this pin raises.
-	if e.DIO1 != 0 {
-		machine += fmt.Sprintf(",radio-dio1=%d", e.DIO1)
-	}
-	// Only when the board has one. Left off, the machine leaves the line
-	// unwired, which is what a board with no module should look like - as
-	// opposed to one whose module is permanently switched off.
-	if e.FEM != 0 {
-		machine += fmt.Sprintf(",radio-fem=%d", e.FEM)
-	}
-	if e.PSRAMOctal {
-		machine += ",psram-octal=on"
-	}
-	if e.ButtonPath != "" {
-		// The path on its own, because more than the buttons listen on it: a
-		// board with a meter and no button still has something to say.
-		machine += ",input-path=" + e.ButtonPath
-		if e.KbdAddr != 0 || e.TouchAddr != 0 {
-			machine += fmt.Sprintf(",kbd-addr=%d,touch-addr=%d", e.KbdAddr, e.TouchAddr)
-		}
-		if len(e.ButtonPins) > 0 {
-			pins := make([]string, len(e.ButtonPins))
-			for i, p := range e.ButtonPins {
-				pins[i] = strconv.Itoa(p)
-			}
-			// Doubled, because this is one value inside a comma separated
-			// list and a bare comma would end it: a board with two buttons
-			// refused to start at all until it was.
-			machine += ",input-pins=" + strings.Join(pins, ",,")
-		}
-	}
-	if e.CardPath != "" {
-		machine += fmt.Sprintf(",card-cs=%d", e.CardCS)
-	}
-	if e.BatRaw != 0 {
-		machine += fmt.Sprintf(",bat-adc-channel=%d,bat-adc-raw=%d",
-			e.BatChannel, e.BatRaw)
-	}
-	// The display, on the same terms as the radio: only when the board has
-	// one and only when something is listening.
-	if e.PanelPath != "" {
-		addr := e.PanelAddr
-		if addr == 0 {
-			addr = 0x3C
-		}
-		machine += fmt.Sprintf(",panel-path=%s,panel-addr=%d,panel-offset=%d",
-			e.PanelPath, addr, e.PanelOffset)
-		if e.PanelCS != 0 {
-			machine += fmt.Sprintf(",panel-cs=%d,panel-dc=%d,panel-w=%d,panel-h=%d",
-				e.PanelCS, e.PanelDC, e.PanelWidth, e.PanelHgt)
-		}
-	}
+	machine := e.machineString(radioAt)
 
 	// The board's own output and the emulator's are two different things, and
 	// separating them is what makes either readable. They shared console.log,
@@ -516,33 +414,6 @@ func (e *EmulatedNode) TeeConsole(w io.Writer) {
 	if e.console != nil {
 		e.console.setTee(w)
 	}
-}
-
-// ConsoleLog is everything the node has said on its serial port: the whole
-// boot chain, ROM through application, and the replies to anything typed at it.
-func (e *EmulatedNode) ConsoleLog() ([]byte, error) {
-	return os.ReadFile(e.ConsolePath())
-}
-
-// ConsolePath is where this node's boot output is written.
-func (e *EmulatedNode) ConsolePath() string {
-	return filepath.Join(e.Dir, consoleLogName)
-}
-
-// EmulatorLog is what the emulator itself said: the properties it refused, the
-// peripherals it does not implement, the reason it exited.
-//
-// A different question from ConsoleLog, and they used to share a file. A board
-// that says nothing and an emulator that would not start look identical in a
-// merged log, and the patterns the probe matches for a boot loop could be
-// satisfied by the emulator complaining rather than by the board booting.
-func (e *EmulatedNode) EmulatorLog() ([]byte, error) {
-	return os.ReadFile(e.EmulatorPath())
-}
-
-// EmulatorPath is where the emulator's own output is written.
-func (e *EmulatedNode) EmulatorPath() string {
-	return filepath.Join(e.Dir, emulatorLogName)
 }
 
 // Stop ends both processes.

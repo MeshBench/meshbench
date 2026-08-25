@@ -77,7 +77,7 @@ func Run(args []string) {
 			"(the propagation graph), 2 reception ledger, 3 where it went")
 	nodeTabFlag := flag.Int("node-tab", 0, "which tab a node window opens on: "+
 		"0 console, 1 companion, 2 SDR, 3 settings, 4 radio, 5 stats, "+
-		"6 activity, 7 connect, 8 hardware")
+		"6 activity, 7 connect, 8 hardware, 9 output")
 	coverFlag := flag.String("coverage", "",
 		"compute and show coverage from this node at startup")
 	energyFlag := flag.Bool("energy", false, "run the site study for the selected node at startup")
