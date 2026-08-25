@@ -447,12 +447,23 @@ sat in the ROM's "wait for somewhere to jump" loop and took the first word
 written to the message register — which for this firmware is a message, written
 long before it starts a core.
 
-**Where it reaches now:** it boots, brings up its PHY and its PSRAM, and speaks
-its own framed protocol on the USB port — configuration records going out as
-`~`-delimited frames. It does not yet touch the radio, and a sweep of writes
-lands on physical addresses past the end of a 16 MB flash. That is the next
-thing to look at, and it is where the measurement stops. Not a diagnosis: the
-emulator has been wrong about four things already on this one firmware.
+**Where it reaches now:** it boots, brings up its PHY and its PSRAM, draws one
+whole 320×240 frame to the panel, and speaks its own framed protocol on the USB
+port. Then it raises a software interrupt with `wsr.intset`, restores `PS` to
+let it in, and its own interrupt entry faults — an unending storm of double
+exceptions with a stack pointer descending 256 bytes a time. Measured with no
+peripherals attached, so it is not the panel, the card slot, the keyboard or
+the touch panel. It never reads the touch panel at all, where a working build
+reads it 56 times in the same window.
+
+That is a blocker rather than a diagnosis. Separating "the emulator delivered
+something it should not have" from "the firmware has a bug" needs symbols, and
+this is a closed binary with no ELF: the technique that resolved the other
+faults — disassemble, read the literal, name the register — stops at a handler
+whose prologue faults with a stack pointer that is not in this part's memory
+map. Seven emulator faults were found and fixed getting this far, so the
+emulator is not owed the benefit of the doubt; it is simply where measurement
+runs out.
 
 Two things follow for anybody importing a firmware that goes quiet. First,
 **read the emulator source in the Output tab**: an emulator that refused a
