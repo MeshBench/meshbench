@@ -108,7 +108,7 @@ Two verbs are **not** in this table:
 | `node.card` | *a bare string*, `node` string, `fitted` bool, `file` string, `wipe` bool | `node`, `slot`, `fitted`, `file`, `own_file`, `bytes`, `required_by_firmware`, `board_has_slot`, `wiped` | `node.card(fitted=|file=|wipe=)` |
 | `node.energy` | *a bare string* | `node` | `node.energy()` |
 | `node.output` | *a bare string*, `node` string, `source` string, `lines` number | `node`, `source`, `lines`, `total`, `path`, `tail`, `note`, `tracing` | `node.output(source)` |
-| `node.output_window` | *a bare string*, `node` string, `source` string | `node`, `source` | `node.output_window(source)` |
+| `node.output_window` 🪟 | *a bare string*, `node` string, `source` string | `node`, `source` | `node.output_window(source)` |
 | `node.provisioning` | *a bare string* | `node`, `commands` | `node.provisioning` |
 | `node.radio` | `node` string | — | `node.radio` |
 | `node.radio_adopt` | `node` string | `node`, `tx_dbm` | `node.adopt_radio()` |
@@ -191,7 +191,7 @@ Two verbs are **not** in this table:
 | `firmware.started` | — | `running`, `playing` | *none* — the firmware starter reporting back |
 | `firmware.state` | — | `running`, `nodes`, `total`, `starting` | `wb.firmware.state()  /  wb.firmware.wait_started()` |
 | `firmware.update` | *a bare string*, `version` string, `role` string, `board` string, `label` string, `new_role` string, `new_board` string, `spi_controller` number, `card_required` bool, `coproc_at_reset` bool, `notes` string | `role`, `version`, `board`, `path`, `renamed`, `repinned`, `settings` | `wb.firmware.update(build, label=|new_role=|coproc_at_reset=|notes=)` |
-| `firmware.window` | *a bare string*, `version` string, `role` string, `board` string | `role`, `version`, `board` | `wb.firmware.window(build)` |
+| `firmware.window` 🪟 | *a bare string*, `version` string, `role` string, `board` string | `role`, `version`, `board` | `wb.firmware.window(build)` |
 | `firmware.wipe` | — | `wiped`, `root`, `cards` | `wb.firmware.wipe()` |
 
 ### Console and fleet
