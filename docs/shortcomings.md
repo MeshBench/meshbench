@@ -510,11 +510,16 @@ once, which is the form a script reaching for it once wants.
 **Where that firmware stops now.** Past the trap it brings up PSRAM, resets the
 display controller, and initialises a card completely — CMD0, CMD8, CMD58,
 CMD16, CMD9, CMD10, ACMD51, ACMD13, with the CSD and CID read back as data
-blocks, where before it died at CMD8. Then it takes an
-InstructionFetchProhibited exception (`EXCCAUSE=20`) at `0x42251cf1`, inside
-its own mapped flash, and parks in a one-instruction loop at `0x42177324` —
-a Rust panic halt, at 0% CPU. It never sends the display's SLPOUT, so the
-panel stays dark.
+blocks, where before it died at CMD8. It then survives its own interrupt
+dispatch, which it did not: the machine's interrupt matrix laid every address
+in its window out as a map register, so the four status registers at 0x18C —
+the ones a firmware reads to learn *which* peripheral interrupted it — returned
+map bytes. That firmware recognised nothing in them and called a null handler,
+thirteen jumps to address zero per run, ending in a panic. With the registers
+answering, both are zero.
+
+It still does not draw. It sends the display's SWRESET and never follows with
+SLPOUT, so the panel stays dark and the Hardware tab shows a black screen.
 
 The stock MeshCore image for the same board is the control: it runs the whole
 ST7789 sequence — SWRESET, SLPOUT, COLMOD, MADCTL, CASET, RASET, INVON, NORON,
