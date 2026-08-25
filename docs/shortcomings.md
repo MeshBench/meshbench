@@ -536,7 +536,8 @@ The stock MeshCore image for the same board is the control: it runs the whole
 ST7789 sequence — SWRESET, SLPOUT, COLMOD, MADCTL, CASET, RASET, INVON, NORON,
 DISPON — and draws, on the same machine, in the same run configuration. So the
 panel model, the SPI wiring and the board profile are all right; what remains
-is one prohibited instruction fetch that only this firmware reaches.
+is inside the closed firmware, which stops in a panic handler of its own before
+it reaches SLPOUT. See §3.5d.
 
 Treat anything measured under that switch as measured on a machine that is
 lying about a register: a firmware which genuinely mismanages its floating
@@ -549,35 +550,53 @@ page numbering, PSRAM pages past the end of the fitted part, the fabricated
 Bluetooth memory block, the rejected writes themselves, and interrupt delivery
 timing.
 
-### 3.5c Meshtastic on the emulated T-Deck: it runs, and it cannot keep a file
+### 3.5c Third-party firmware and the flash a filesystem is kept in
 
-Measured on 2.7.26, `firmware-t-deck-….factory.bin`, on the LilyGo T-Deck.
+Two firmware families run under emulation besides MeshCore's own build, and for
+a while neither could keep a file — nor could MeshCore. Every filesystem read
+on every ESP32-S3 board came back two bytes late: an erased sector read as
+`00 00 ff ff ...`, a freshly written superblock read back as garbage, and
+LittleFS and SPIFFS both refused to mount or format.
 
-**It boots and it runs.** USB CDC comes up, the CPU goes to 240 MHz, PSRAM
-initialises, both I²C masters start on the board's own pins, NVS reads and
-writes, and it drives the ST7789 — the panel comes on and it draws. That is
-further than any other third-party image has got here.
+The cause was in the emulator, not any of the firmware. The flash controller
+and the flash chip model disagreed about the read's dummy phase: a quad I/O
+read clocks its dummy cycles on four lines, and the controller counted them as
+one bit each, so it sent one dummy byte where the chip expected three and every
+data byte after arrived two places late. The application itself was untouched,
+because it executes through the cache — which reads the image directly and never
+goes down the controller's data path — so every board booted and nobody noticed
+that nothing could be *kept*. Fixed in the fork by counting the dummy phase at
+the width of the read.
 
-**It cannot mount or format its filesystem**, deterministically, three boots out
-of three:
+What runs now, each measured on the board's own profile:
 
-```
-esp_littlefs: Corrupted dir pair at {0x0, 0x1}
-esp_littlefs: mount failed,  (-84)
-esp_littlefs: Failed to format filesystem
-```
+| firmware | board | result |
+|---|---|---|
+| MeshCore 1.17.1 companion | LilyGo T-Deck | boots, formats SPIFFS, reaches its home screen (node ID, message count, "Connected"), answers a USB companion query, and keeps its identity across a reboot |
+| MeshCore 1.17.1 repeater | Heltec V3 | formats SPIFFS, radio active, same Repeater ID on the second boot as the first |
+| Meshtastic 2.7.26 | LilyGo T-Deck | boots, PSRAM, I²C, draws; LittleFS formats and mounts clean on the second boot |
+| Meshtastic 2.7.26 | Heltec V3 | the same, on the GigaDevice flash model |
 
-Everything after that is the consequence: `File system is not mounted` on every
-open and mkdir, and a screen that draws one partial frame and then stops
-updating. MeshCore's own build hits the same wall on this board with SPIFFS.
+A first boot on wiped flash now spends real time formatting, because the format
+actually happens — at this machine's emulation speed, minutes for a multi-megabyte
+partition. It is done once; the flash persists, so the second boot mounts
+immediately.
 
-**The flash is not the reason**, checked rather than assumed. Erase, program and
-read-back all work and all persist: the run erases the filesystem partition's
-first sector at `0xc90000`, programs littlefs's superblock into it, reads it
-back correctly, and the magic is still in the image afterwards. What it never
-does is touch the second block of the superblock pair, which is why the pair
-reads as corrupt. Where that leaves off is the open question — it is a firmware
-giving up rather than a device refusing.
+**The T-Deck companion's screen is a status display, not an on-screen menu.**
+The `companion_radio_usb` build reads only its GPS switch and one button; it is
+driven over USB (or BLE on the BLE build), and shows node ID, unread count and
+link state on the panel. On-screen navigation belongs to the GUI-first builds,
+which are a different image.
+
+### 3.5d mesh-rs on the emulated T-Deck: boots, does not draw
+
+mesh-rs is closed-source Rust firmware. Past the emulator faults documented
+above it boots, brings up PSRAM, resets the display controller and initialises
+a card completely — but it stops in a panic handler of its own before sending
+the display's SLPOUT, so the panel stays dark. That last step is inside the
+firmware, not the emulator: the stock MeshCore and Meshtastic images drive the
+same panel on the same machine and draw. It is recorded as a firmware-side
+blocker rather than an emulator one.
 
 ### 3.6 Forwarding policy is ours, not the repeater application's
 
