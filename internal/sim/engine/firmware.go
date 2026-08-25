@@ -40,6 +40,13 @@ func (e *Engine) AttachNative(ctx context.Context, seed uint64) error {
 // progress is called from the calling goroutine's perspective at each
 // completion, with the count done and the total to do. It may be nil.
 func (e *Engine) AttachNativeProgress(ctx context.Context, seed uint64, progress func(done, total int)) error {
+	// One whole-mesh attach at a time. The second caller waits here, and by
+	// the time it runs the first has set Firmware on every node it started, so
+	// the filter below finds them running and leaves them alone rather than
+	// booting a second emulator onto the same node's storage.
+	e.attachMu.Lock()
+	defer e.attachMu.Unlock()
+
 	e.mu.Lock()
 	nodes := make([]*Node, len(e.nodes))
 	copy(nodes, e.nodes)
