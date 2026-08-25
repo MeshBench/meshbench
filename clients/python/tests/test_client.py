@@ -429,9 +429,9 @@ def imported(wb, tmp_path):
     # and only one of them boots, so a placeholder here would be testing the
     # labels against a file no board could start.
     flash = bytearray(b"\xff" * 0x9000)
-    flash[0] = 0xE9        # an image header, where an ESP32-S3 boots from
-    flash[3] = 1 << 4      # declaring 2 MB of flash
-    flash[0x8000] = 0xAA   # and a partition table where the bootloader reads one
+    flash[0] = 0xE9  # an image header, where an ESP32-S3 boots from
+    flash[3] = 1 << 4  # declaring 2 MB of flash
+    flash[0x8000] = 0xAA  # and a partition table where the bootloader reads one
     flash[0x8001] = 0x50
     image = tmp_path / "firmware.bin"
     image.write_bytes(bytes(flash))

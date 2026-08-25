@@ -221,10 +221,13 @@ class Node:
         The lines, not a count of them: a board that has gone quiet is read
         by looking at what it last said.
         """
-        got = self._wb.call(
-            "node.output",
-            {"node": self.name, "source": source, "lines": lines},
-        ) or {}
+        got = (
+            self._wb.call(
+                "node.output",
+                {"node": self.name, "source": source, "lines": lines},
+            )
+            or {}
+        )
         return got.get("tail") or []
 
     def wipe(self) -> None:
