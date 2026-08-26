@@ -65,11 +65,10 @@ internal/mesh/      MeshCore itself: what a node is and what it says
   packet/             the MeshCore frame: what the bytes on the air mean
   energy/             battery, load, solar
 
-internal/firmware/  running real firmware against the radio, native or emulated
+internal/firmware/  running real firmware against the radio, native or emulated;
+                    the native host build and the emulator runner, being split
+                    into subdomains as the emulation domain lands
   console/            the operator's terminal onto a running node
-                    (the runner, the native host build and the board profiles
-                    are being pulled in here as their own subdomains - native/,
-                    emulated/{qemu,renode,peripheral}/, board/)
 
 internal/world/     what is being simulated, and where it came from
   scenario/           nodes, region, seed; one board_<name>.go per board
