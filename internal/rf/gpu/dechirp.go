@@ -9,10 +9,21 @@ package gpu
 import (
 	_ "embed"
 	"fmt"
+	"sync"
 	"unsafe"
 
 	"github.com/cogentcore/webgpu/wgpu"
 )
+
+// acquireMu serialises acquiring and releasing a device. The wgpu adapter and
+// device requests register a cgo.Handle for their callback and delete it when
+// the callback fires; two Opens - the GPU probe, a warm, and a coverage map can
+// each reach one on a fresh session - racing that path, or a Close releasing a
+// device while another Open is mid-request, is the "misuse of an invalid
+// Handle" panic that made a green CI tick mean less. Only acquisition and
+// release are guarded; work on an already-open device is not, so nothing here
+// serialises the actual GPU passes.
+var acquireMu sync.Mutex
 
 //go:embed dechirp.wgsl
 var dechirpWGSL string
@@ -41,6 +52,8 @@ type Device struct {
 // error, and finding it at the first frame that happens to use one is much worse
 // than finding it now.
 func Open() (*Device, error) {
+	acquireMu.Lock()
+	defer acquireMu.Unlock()
 	inst := wgpu.CreateInstance(nil)
 	if inst == nil {
 		return nil, fmt.Errorf("gpu: no WebGPU instance (no Vulkan/Metal/DX12 backend?)")
@@ -109,6 +122,8 @@ func Open() (*Device, error) {
 }
 
 func (d *Device) Close() {
+	acquireMu.Lock()
+	defer acquireMu.Unlock()
 	if d.coverage != nil {
 		d.coverage.Release()
 	}
