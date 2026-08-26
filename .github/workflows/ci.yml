@@ -162,7 +162,7 @@ jobs:
           # once: an amend with `git add -A` picked up what a test run had left
           # beside the Python client, and nothing here noticed because the
           # pattern was written before there was any Python to catch.
-          if git ls-files | grep -nE '\.(test|exe|out|o|a|so|dylib|AppImage|deb|dmg|pyc|pyo)$|(^|/)__pycache__/|\.egg-info/|^(meshbench|workbench2|envgen|goldencap)$'; then
+          if git ls-files | grep -nE '\.(test|exe|out|o|a|so|dylib|AppImage|deb|dmg|pyc|pyo)$|(^|/)__pycache__/|\.egg-info/|^(meshbench|envgen|goldencap)$'; then
             echo "a build artifact is tracked; git remembers, so it does not need to be committed"
             exit 1
           fi

@@ -1,6 +1,6 @@
 // Package workbench is the workbench: the shell, the state layer and the
 // panels, wired together. This is the application - `meshbench workbench`
-// and the standalone cmd/workbench2 both land here.
+// lands here.
 package workbench
 
 import (
