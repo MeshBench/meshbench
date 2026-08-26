@@ -127,6 +127,7 @@ one call is one round trip will write a loop that is forty.
 | `wb.status()` | `session.status` |
 | `wb.verbs()` | `session.verbs` *(socket-owned)* |
 | `wb.snapshot()` | `session.snapshot` *(socket-owned)* |
+| `wb.subscribe(*topics)` | `session.subscribe` *(socket-owned; streams, see [Being told](#being-told))* |
 | `wb.say(text)` | `ui.said` |
 | `wb.save_run(path)` | `run.save` |
 | `wb.quit()` | `app.quit` |
@@ -581,8 +582,10 @@ wb.events.wait(kind="rx", to="Glenrothes", timeout=timedelta(seconds=60))
 node.board.wait_screen(changed=True, timeout=timedelta(seconds=30))
 ```
 
-They poll today and subscribe once #214 lands. **No script changes when that
-happens**, which is the whole reason the clients are sequenced before the
+They poll today. The events they will move onto are landing
+([#214](https://github.com/MeshBench/meshbench/issues/214)) — see *Being told*
+below — and **no script changes when a wait moves from polling to a
+subscription**, which is the whole reason the clients were sequenced before the
 events.
 
 Every timeout is required to be explicit or to have a documented default, and
@@ -606,6 +609,50 @@ against every node, including an SDR observer and an emitter that never boot
 one; and one returned instantly because it was called before the fixture had
 been opened. All three read as the workbench hanging. When a wait expires,
 suspect what it is comparing before you suspect the simulator.
+
+---
+
+## Being told
+
+The socket is request/reply, and stays that way: a script sends a verb and reads
+its answer. A subscription is the other shape — the workbench writing a line the
+moment something changes, rather than a script asking again — and it does not
+fit a call, so it is given a connection of its own to stream on. A client that
+never subscribes speaks exactly the request/reply protocol it always did.
+
+```python
+with wb.subscribe("status", "snapshot") as stream:
+    for note in stream:                 # blocks until the next event
+        print(note.topic, note.data)
+```
+
+```go
+sub, err := wb.Subscribe("status", "snapshot")
+for e := range sub.Events() { use(e.Topic, e.Data) }
+```
+
+Each notification is `{"event": ..., "data": ...}` with **no id**. The absent id
+is the whole distinction: a reply carries the id it answered, a notification
+never does, so a stream and a reply can never be mistaken for one another —
+which is why a subscription is opened on its own connection rather than
+multiplexed onto the calling one.
+
+Topics today:
+
+| Topic | Sent | Data |
+|---|---|---|
+| `status` | a line was added to the session log | `{"line": ...}` |
+| `snapshot` | after a publish, **coalesced** | `{"seq", "now_ms", "playing", "run_until_ms", "nodes", "jobs"}` |
+
+**Coalescing is the server's job, not the client's.** A run publishes a snapshot
+every tick, which on a large network would flood a slow reader, so at most one
+snapshot notification is sent per connection every 200 ms; the count that were
+dropped in between rides along on the next one as `dropped`. `status` is never
+dropped — a log line missed is a log line gone.
+
+The `wait_*` methods above still poll today; the subscription is the mechanism
+they move onto, and **no script changes when they do** — a wait is a wait
+whether it asked or was told.
 
 ---
 

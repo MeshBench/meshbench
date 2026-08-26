@@ -627,3 +627,50 @@ def test_attach_or_start_reuses_the_session_it_started(binary, tmp_path, monkeyp
             second.close()
     finally:
         first.close()
+
+
+def test_subscribe_is_told_when_the_log_changes(wb):
+    """#214: a subscribed connection is pushed changes rather than polling.
+
+    ui.said appends a log line, which the store announces on the "status" topic;
+    a subscription opened beforehand must see it. The stream runs on a thread
+    because iterating it blocks until the next event - which is the point."""
+    import threading
+    import time
+
+    seen: list[meshbench.Notification] = []
+    sub = wb.subscribe("status")
+
+    def drain() -> None:
+        for note in sub:
+            seen.append(note)
+
+    reader = threading.Thread(target=drain, daemon=True)
+    reader.start()
+
+    wb.say("marker-6f3a")
+
+    def landed() -> bool:
+        return any("marker-6f3a" in json.dumps(n.data) for n in seen)
+
+    deadline = time.time() + 5
+    while time.time() < deadline and not landed():
+        time.sleep(0.05)
+    sub.close()
+
+    assert landed(), f"no status notification carried the line; got {seen}"
+    status = next(n for n in seen if "marker-6f3a" in json.dumps(n.data))
+    assert status.topic == "status"
+
+
+def test_a_plain_client_is_untouched_by_notifications(wb):
+    """Backward compatibility: a client that never subscribes still reads one
+    reply per call, even while another connection is being pushed events."""
+    sub = wb.subscribe("status")
+    try:
+        wb.say("some-line")  # fans out to the subscriber, not to wb's own conn
+        # wb's own request/reply must still line up perfectly.
+        assert wb.describe().get("nodes") is not None
+        assert wb.verbs()
+    finally:
+        sub.close()

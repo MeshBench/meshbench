@@ -57,6 +57,7 @@ from .sets import (
     Tab,
     Transport,
 )
+from .subscribe import Notification, Subscription, subscribe
 from .types import (
     Build,
     BuildDetails,
@@ -124,6 +125,9 @@ __all__ = [
     "Timeout",
     "Unavailable",
     "UnknownVerb",
+    "Notification",
+    "Subscription",
+    "subscribe",
     "Workbench",
     "default_address",
     "default_socket_path",

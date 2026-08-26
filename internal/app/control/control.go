@@ -77,6 +77,10 @@ type Server struct {
 	queue   []job
 	handler Handler
 	closed  bool
+	// subs are the connections that asked to be told what changed. Guarded by
+	// mu, like the queue. clock is time.Now unless a test pins it.
+	subs  map[*subscriber]struct{}
+	clock func() time.Time
 }
 
 type job struct {
@@ -228,26 +232,73 @@ func (s *Server) serve(c net.Conn) {
 	if s.addr.Kind == TCP && !s.authorised(c, dec, enc) {
 		return
 	}
+
+	// One writer, so replies and notifications never interleave a half-frame on
+	// the wire. The reader still takes one request at a time; notifications are
+	// pushed onto out from Notify, on the store's goroutine, and the writer
+	// serialises the two. A buffered channel means a slow client stalls its own
+	// notifications (dropped in Notify) rather than the store.
+	out := make(chan any, 64)
+	done := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case msg := <-out:
+				if enc.Encode(msg) != nil {
+					return
+				}
+			case <-done:
+				return
+			}
+		}
+	}()
+
+	var sub *subscriber
+	defer func() {
+		if sub != nil {
+			s.unsubscribe(sub)
+		}
+		close(done)
+	}()
+
 	for {
 		var req Request
 		if err := dec.Decode(&req); err != nil {
 			return
 		}
-		reply := make(chan Response, 1)
 
+		// session.subscribe is a connection-level concern, not a world verb: it
+		// registers this connection's interest and replies, without a trip
+		// through the handler.
+		//
+		// The acknowledgement is queued to the writer before the subscription
+		// is registered, and that order matters: register first and a publish
+		// in the gap would push a notification into the same queue ahead of the
+		// ack, and the client's subscribe Call - which decodes exactly one
+		// reply - would read that notification as its answer. Queued first, the
+		// ack is always the first frame the writer sends.
+		if req.Method == SubscribeMethod {
+			topics := parseTopics(req.Params)
+			out <- Response{ID: req.ID, Result: map[string]any{"subscribed": topics}}
+			if sub == nil {
+				sub = s.subscribe(out, topics)
+			} else {
+				s.setTopics(sub, topics)
+			}
+			continue
+		}
+
+		reply := make(chan Response, 1)
 		s.mu.Lock()
 		if s.closed {
 			s.mu.Unlock()
-			_ = enc.Encode(Response{ID: req.ID, Error: "workbench closing",
-				Code: string(Closing)})
+			out <- Response{ID: req.ID, Error: "workbench closing", Code: string(Closing)}
 			return
 		}
 		s.queue = append(s.queue, job{req: req, reply: reply})
 		s.mu.Unlock()
 
-		if err := enc.Encode(<-reply); err != nil {
-			return
-		}
+		out <- <-reply
 	}
 }
 
@@ -328,6 +379,13 @@ func DialAt(want string) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	return dialAddr(addr)
+}
+
+// dialAddr opens one connection to an already-resolved address, doing the TCP
+// token handshake if it needs to. Split out so a subscription can open a second
+// connection to the same place - token and all - without re-resolving.
+func dialAddr(addr Address) (*Client, error) {
 	network := "unix"
 	if addr.Kind == TCP {
 		network = "tcp"

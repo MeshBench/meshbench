@@ -22,6 +22,7 @@ one always speak the same thing on the same machine.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import socket
@@ -184,6 +185,16 @@ class Connection:
                     f"the workbench at {self.address} closed the connection"
                 )
             return json.loads(line.decode())
+
+    def shutdown(self) -> None:
+        """Break a read in progress so a streaming reader on another thread can
+        be closed. A plain close would deadlock: readline holds the buffer's
+        lock while it blocks on the socket, and close wants that same lock. A
+        socket shutdown makes the blocked read return instead, and then close is
+        uncontended. Errors are ignored - the socket may already be gone.
+        """
+        with contextlib.suppress(OSError):
+            self._sock.shutdown(socket.SHUT_RDWR)
 
     def close(self) -> None:
         try:

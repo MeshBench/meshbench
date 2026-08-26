@@ -38,6 +38,13 @@ type Store struct {
 	stop chan struct{}
 	done chan struct{}
 
+	// notify, when set, is called on the store's own goroutine after each
+	// publish, so a control-socket subscription can push what changed instead
+	// of a client polling for it. pubLog tracks how much of FullLog has already
+	// been announced, so only new lines go out. Nil until a server wires it.
+	notify func(topic string, data any)
+	pubLog int
+
 	// stepMs is how much simulated time one tick advances. It is deliberately
 	// independent of the frame rate: the simulation must not run faster on a
 	// machine with a better graphics card.
@@ -213,6 +220,11 @@ func (s *Store) Do(ctx context.Context, verb string, params any) (any, error) {
 	}
 }
 
+// SetNotifier wires a sink that publish calls with what changed, for the
+// control socket's subscriptions. Called once at start-up, before the store
+// runs, so it needs no lock.
+func (s *Store) SetNotifier(fn func(topic string, data any)) { s.notify = fn }
+
 // Snapshot is what the renderer reads. It never blocks, never waits for a
 // verb, and never returns a half-applied change.
 func (s *Store) Snapshot() *Snapshot { return s.snap.Load() }
@@ -314,6 +326,29 @@ func (s *Store) publish() {
 		ProvisioningNode:   s.world.ProvisioningNode,
 		Resources:          append([]ResourceRow(nil), s.world.Resources...),
 		Licence:            s.world.Licence,
+	})
+	s.announce()
+}
+
+// announce pushes what this publish changed to the notifier, if one is wired:
+// each new log line as a status event, and a compact summary as a snapshot
+// event. The snapshot event is emitted every publish - a run publishes one per
+// tick - so the sink coalesces it; status lines are rare and go out whole.
+func (s *Store) announce() {
+	if s.notify == nil {
+		return
+	}
+	if s.pubLog > len(s.world.FullLog) {
+		s.pubLog = 0 // the log was reset (a new project); re-announce from the top
+	}
+	for _, line := range s.world.FullLog[s.pubLog:] {
+		s.notify("status", map[string]any{"line": line})
+	}
+	s.pubLog = len(s.world.FullLog)
+	s.notify("snapshot", map[string]any{
+		"seq": s.seq, "now_ms": s.world.NowMs, "playing": s.world.Playing,
+		"run_until_ms": s.world.RunUntilMs, "nodes": len(s.world.Nodes),
+		"jobs": len(s.world.Jobs),
 	})
 }
 
