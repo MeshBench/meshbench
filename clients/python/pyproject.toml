@@ -40,6 +40,15 @@ meshbench = "meshbench.pytest_plugin"
 [tool.hatch.version]
 path = "meshbench/__init__.py"
 
+[tool.hatch.build.targets.wheel]
+# The repo-root .gitignore has "/meshbench" for the built Go binary; without
+# this, hatchling's VCS file selection reads it and excludes this package,
+# shipping an empty wheel. Name the package explicitly and do not defer to the
+# ignore file for what belongs in it.
+packages = ["meshbench"]
+ignore-vcs = true
+
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
