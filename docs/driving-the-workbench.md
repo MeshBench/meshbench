@@ -6,7 +6,7 @@ Findings from agent-driven sessions, written down because each one cost a
 wasted run.
 
 The same knowledge is packaged as a skill at
-`.claude/skills/meshcoresim/SKILL.md`, which is what an agent working in this
+`.claude/skills/meshbench/SKILL.md`, which is what an agent working in this
 repository loads. This page is the prose version for people; the skill is the
 operational checklist. Keep them in step, and put anything newly learned in the
 skill first, because that is the copy which gets read before the mistake rather
@@ -14,8 +14,8 @@ than after it.
 
 ## The socket
 
-`$XDG_RUNTIME_DIR/meshcoresim.sock` — on elite's desktop session that is
-`/run/user/1000/meshcoresim.sock`. One JSON request per line,
+`$XDG_RUNTIME_DIR/meshbench.sock` — on elite's desktop session that is
+`/run/user/1000/meshbench.sock`. One JSON request per line,
 `{"id":1,"method":"...","params":{...}}`, one JSON reply. The switch is
 File → Preferences → *Agent control*; off means no socket file exists at all.
 
@@ -70,7 +70,7 @@ Call it before assuming anything about a session you did not start.
 `MeshBench/meshcore-native` publishes a native build per MeshCore tag -
 `repeater-v1.16.0`, `companion-v1.17.0`, and so on - all from one pipeline.
 Those are the ones to use, and `firmware.Resolve` fetches them into
-`~/.cache/meshcoresim/firmware/native/<tag>/`.
+`~/.cache/meshbench/firmware/native/<tag>/`.
 
 Building one by hand to fill a gap is how a study gets quietly invalidated. A
 locally built 1.16.0 compiled against a stale copy of the shim answered console
@@ -120,7 +120,7 @@ a machine property or could not open a drive says so there, and that used to be
 mixed into the board's own output where it read as something the firmware had
 printed.
 
-When even that is quiet, `MESHCORESIM_QEMU_DEBUG=unimp,guest_errors` in the
+When even that is quiet, `MESHBENCH_QEMU_DEBUG=unimp,guest_errors` in the
 workbench's environment makes the emulator name every register the machine does
 not implement. A single address with millions of hits is a firmware waiting for
 an answer that cannot arrive. It is off by default because the output is
@@ -280,5 +280,5 @@ about running it.
 Every popped-out window keeps its own subscription. Panes no longer share one
 slot in the world, so two windows on two nodes stay filled, and switching
 source no longer blanks the pane it switched away from. Nothing on disk was
-ever lost when they did — the files under `~/.cache/meshcoresim/nodefs/<node>/`
+ever lost when they did — the files under `~/.cache/meshbench/nodefs/<node>/`
 hold everything, and the pane's footer names the one it is reading.

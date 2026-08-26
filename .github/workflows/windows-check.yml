@@ -61,7 +61,7 @@ jobs:
         continue-on-error: true
         run: |
           set -e
-          go build -o meshbench.exe ./cmd/meshcoresim
+          go build -o meshbench.exe ./cmd/meshbench
           mkdir -p /tmp/elsewhere && cp meshbench.exe /tmp/elsewhere/
           cd /tmp/elsewhere
           # The question bug 1 asks, on Windows: run from a directory with no

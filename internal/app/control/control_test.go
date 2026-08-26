@@ -136,7 +136,7 @@ func TestAddressPrecedence(t *testing.T) {
 	t.Setenv(SocketEnv, "")
 	t.Setenv("XDG_RUNTIME_DIR", "/run/user/test")
 	if runtime.GOOS != "windows" {
-		if got, _ = Resolve(""); got.Addr != "/run/user/test/meshcoresim.sock" {
+		if got, _ = Resolve(""); got.Addr != "/run/user/test/meshbench.sock" {
 			t.Errorf("the Linux default moved: %v", got)
 		}
 	}

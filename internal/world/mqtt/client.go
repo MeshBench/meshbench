@@ -34,7 +34,7 @@ var _ provider.Subscriber = (*Client)(nil)
 func (c *Client) Subscribe(ctx context.Context, topic string, fn func(provider.Message)) error {
 	opts := paho.NewClientOptions().
 		AddBroker(c.BrokerURL).
-		SetClientID(fmt.Sprintf("meshcoresim-%d", time.Now().UnixNano())).
+		SetClientID(fmt.Sprintf("meshbench-%d", time.Now().UnixNano())).
 		SetConnectTimeout(10 * time.Second).
 		SetAutoReconnect(true)
 	if c.Username != "" {

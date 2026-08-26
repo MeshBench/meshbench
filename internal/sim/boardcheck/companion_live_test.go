@@ -26,14 +26,14 @@ import (
 // keyboard and a battery reading have to be measured against. Every peripheral
 // below the radio is proved here or not at all.
 func TestTheCompanionDrawsItsInterface(t *testing.T) {
-	if os.Getenv("MESHCORESIM_LIVE") == "" {
-		t.Skip("set MESHCORESIM_LIVE=1")
+	if os.Getenv("MESHBENCH_LIVE") == "" {
+		t.Skip("set MESHBENCH_LIVE=1")
 	}
-	board := os.Getenv("MESHCORESIM_BOARD")
+	board := os.Getenv("MESHBENCH_BOARD")
 	if board == "" {
-		t.Skip("set MESHCORESIM_BOARD")
+		t.Skip("set MESHBENCH_BOARD")
 	}
-	version := os.Getenv("MESHCORESIM_BOARD_VERSION")
+	version := os.Getenv("MESHBENCH_BOARD_VERSION")
 	if version == "" {
 		version = "v1.17.1"
 	}
@@ -104,7 +104,7 @@ func TestTheCompanionDrawsItsInterface(t *testing.T) {
 	writeShot(t, "before", bw, bh, bpp, bits)
 	// A finger in the middle, put down and taken off. Together with the keys
 	// below, that is every way somebody can reach this board's interface.
-	if at := os.Getenv("MESHCORESIM_TOUCH"); at != "" {
+	if at := os.Getenv("MESHBENCH_TOUCH"); at != "" {
 		// Where, in the panel's own pixels. A touch in the middle of a screen
 		// whose controls are along the bottom proves nothing, which is what
 		// the first run of this proved.
@@ -147,17 +147,17 @@ func TestTheCompanionDrawsItsInterface(t *testing.T) {
 			bits, before = b, lit(b)
 		}
 	}
-	for _, ch := range os.Getenv("MESHCORESIM_TYPE") {
+	for _, ch := range os.Getenv("MESHBENCH_TYPE") {
 		if err := dev.TypeKey(byte(ch)); err != nil {
 			t.Fatalf("typing: %v", err)
 		}
 		settle(ctx, e, 500)
 	}
-	if os.Getenv("MESHCORESIM_TYPE") != "" {
+	if os.Getenv("MESHBENCH_TYPE") != "" {
 		settle(ctx, e, 5_000)
 		if _, _, _, _, b, have := dev.Screen(); have {
 			t.Logf("typed %q: %d bytes lit before, %d after",
-				os.Getenv("MESHCORESIM_TYPE"), before, lit(b))
+				os.Getenv("MESHBENCH_TYPE"), before, lit(b))
 			bits = b
 			writeShot(t, "after", bw, bh, bpp, b)
 		}
@@ -198,7 +198,7 @@ func lit(b []byte) int {
 // a panel drawing noise.
 func writeShot(t *testing.T, name string, w, h, bpp int, bits []byte) {
 	t.Helper()
-	dir := os.Getenv("MESHCORESIM_SHOTS")
+	dir := os.Getenv("MESHBENCH_SHOTS")
 	if dir == "" {
 		return
 	}
@@ -236,7 +236,7 @@ func writeShot(t *testing.T, name string, w, h, bpp int, bits []byte) {
 // how long that takes depends on the build, so it is set from outside rather
 // than guessed here.
 func settleFor() time.Duration {
-	if v := os.Getenv("MESHCORESIM_SETTLE"); v != "" {
+	if v := os.Getenv("MESHBENCH_SETTLE"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
 			return d
 		}

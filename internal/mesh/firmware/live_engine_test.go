@@ -16,8 +16,8 @@ import (
 // Stand in for the engine: accept the node, tick it, and see whether anything
 // comes back. If a frame arrives, the emulated node is on the channel.
 func TestLiveEmulatedNodeJoinsTheEngine(t *testing.T) {
-	if os.Getenv("MESHCORESIM_LIVE") == "" {
-		t.Skip("set MESHCORESIM_LIVE=1")
+	if os.Getenv("MESHBENCH_LIVE") == "" {
+		t.Skip("set MESHBENCH_LIVE=1")
 	}
 	dir := t.TempDir()
 	ctx, cancel := context.WithTimeout(context.Background(), 240*time.Second)

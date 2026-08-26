@@ -26,13 +26,13 @@ body:
         states are reachable by flag (`-panel`, `-config-section`, `-layers`),
         which makes a report far easier to act on.
       placeholder: |
-        meshcoresim workbench -fixture "" -panel Resources
+        meshbench workbench -fixture "" -panel Resources
     validations: {required: true}
   - type: input
     id: version
     attributes:
       label: Version
-      description: From `meshcoresim --version`, or the commit if you built it.
+      description: From `meshbench --version`, or the commit if you built it.
     validations: {required: true}
   - type: dropdown
     id: os

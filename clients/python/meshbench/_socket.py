@@ -95,7 +95,7 @@ def default_address() -> str:
     # and tools/soak all name it, and moving it would break them for no gain.
     runtime = os.environ.get("XDG_RUNTIME_DIR")
     if runtime:
-        return os.path.join(runtime, "meshcoresim.sock")
+        return os.path.join(runtime, "meshbench.sock")
     # Everywhere else, the per-user cache directory - which on macOS is also
     # short enough to stay inside sun_path, where $TMPDIR would not be.
     return str(_cache_dir() / "control.sock")

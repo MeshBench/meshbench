@@ -24,7 +24,7 @@ func resourceCacheDir() string {
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(cache, "meshcoresim")
+	return filepath.Join(cache, "meshbench")
 }
 
 // softDeviceProvider is the SoftDevice source, told how many nodes here are

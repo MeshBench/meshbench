@@ -15,7 +15,7 @@
 #    has run before loads its old value and never reaches the changed default,
 #    so both arms return identical numbers and the change looks inert. It fails
 #    silently and in both arms, which is the worst way for a comparison to fail.
-#    Every arm therefore gets its own storage through MESHCORESIM_NODEFS.
+#    Every arm therefore gets its own storage through MESHBENCH_NODEFS.
 #
 # 2. THE TEST CACHE REPLAYS THE PREVIOUS ARM.
 #    Go caches a result against the package, its inputs and the environment
@@ -24,7 +24,7 @@
 #    again returns the previous arm's numbers. Hence -count=1.
 #
 # 3. AN ARM NEEDS EVERY ROLE, NOT JUST THE ONE IT CHANGES.
-#    MESHCORESIM_NATIVE naming a directory requires a build per role in it. A
+#    MESHBENCH_NATIVE naming a directory requires a build per role in it. A
 #    scenario with companions or room servers fails to resolve otherwise. The
 #    roles an arm does not change are copied in from the release cache, so only
 #    one thing differs.
@@ -35,8 +35,8 @@ MESHCORE="${MESHCORE:-$HOME/msim/MeshCore}"
 NATIVE="${NATIVE:-$HOME/msim/meshcore-native}"
 CRYPTO="${CRYPTO:-$HOME/msim/arduinolibs/libraries/Crypto}"
 ARMS="${ARMS:-$HOME/msim/study}"
-CACHE="${CACHE:-$HOME/.cache/meshcoresim/firmware/native}"
-SIM="${SIM:-$HOME/Documents/projects/meshcoresim}"
+CACHE="${CACHE:-$HOME/.cache/meshbench/firmware/native}"
+SIM="${SIM:-$HOME/Documents/projects/meshbench}"
 
 usage() { sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 
@@ -68,9 +68,9 @@ run() {
   rm -rf "$nodefs"; mkdir -p "$nodefs"
 
   cd "$SIM"
-  env MESHCORESIM_LIVE=1 \
-      MESHCORESIM_NATIVE="$out" \
-      MESHCORESIM_NODEFS="$nodefs" \
+  env MESHBENCH_LIVE=1 \
+      MESHBENCH_NATIVE="$out" \
+      MESHBENCH_NODEFS="$nodefs" \
       STUDY_SEEDS="$seeds" \
       ${STUDY_SCENARIO:+STUDY_SCENARIO="$STUDY_SCENARIO"} \
     go test -count=1 ./internal/sim/engine/ -run TestStudyArm -v -timeout 1800s 2>&1 \

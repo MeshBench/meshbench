@@ -23,11 +23,11 @@ import (
 // on the answer, and the ceiling is the only number a simulator this kind can
 // honestly claim.
 //
-//	MESHCORESIM_LIVE=1 MESHCORESIM_QEMU=... MESHCORESIM_RADIO_SERVER=... \
+//	MESHBENCH_LIVE=1 MESHBENCH_QEMU=... MESHBENCH_RADIO_SERVER=... \
 //	go test ./internal/engine/ -run TestHowFarDoesADevBoardShout -v -timeout 400s
 func TestHowFarDoesADevBoardShout(t *testing.T) {
-	if os.Getenv("MESHCORESIM_LIVE") == "" {
-		t.Skip("set MESHCORESIM_LIVE=1")
+	if os.Getenv("MESHBENCH_LIVE") == "" {
+		t.Skip("set MESHBENCH_LIVE=1")
 	}
 
 	// EU/UK (Narrow) - what ScotMesh actually runs.

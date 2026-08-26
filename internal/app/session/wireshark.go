@@ -15,14 +15,14 @@
 // capturing a real interface (loopback) with a display filter for the port,
 // exactly the way workbench1 launched it.
 //
-// The dissector is two files, and both matter. meshcoresim.lua registers on
+// The dissector is two files, and both matter. meshbench.lua registers on
 // udp.port 5555 and reads the pseudo-header the engine writes; it is the
 // only thing that makes Wireshark look at this port at all. It then hands
 // the MeshCore frame inside to meshcore_dissector.lua - Aaron Brown's
 // vendored dissector, GPL-2.0-only, tools/dissector/LICENSE.meshcore_dissector
 // - which knows the wire format in far more detail than anything written
 // here would. Load order matters: both claim DLT_USER0 for their own radio
-// layer, and meshcoresim.lua has to load second for its registration to be
+// layer, and meshbench.lua has to load second for its registration to be
 // the one that stands. -X lua_script: is used rather than installing into
 // Wireshark's plugin directory, in that order, on purpose - it is the only
 // way to guarantee which one wins, and it needs no install step for a
@@ -37,7 +37,7 @@ import (
 	"runtime"
 )
 
-// captureUDPPort is not a choice - it is meshcoresim.lua's own
+// captureUDPPort is not a choice - it is meshbench.lua's own
 // MSIM_UDP_PORT, so a stream sent anywhere else is invisible to it.
 const (
 	captureUDPPort = "5555"
@@ -51,7 +51,7 @@ const (
 // pasted elsewhere silently loads nothing and the frames arrive looking like
 // bytes.
 func dissectorFiles() (meshcore, meshbench string) {
-	names := []string{"meshcore_dissector.lua", "meshcoresim.lua"}
+	names := []string{"meshcore_dissector.lua", "meshbench.lua"}
 	var roots []string
 	if exe, err := os.Executable(); err == nil {
 		dir := filepath.Dir(exe)

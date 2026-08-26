@@ -73,7 +73,7 @@ Until that is settled, treat `-permissive` as *declared* permissive rather than
 
 ## Running one
 
-    meshcoresim test -fixture fixtures/fixture-fife-strict.json -junit out.xml
+    meshbench test -fixture fixtures/fixture-fife-strict.json -junit out.xml
 
 Real firmware on every node, the fixture's assertions checked, JUnit written,
 and a non-zero exit if anything failed. A permissive fixture says so on its

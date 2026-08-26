@@ -173,7 +173,7 @@ needs to originate traffic the way a user does.
    commands above, table-driven, tested against captured frames. No UI.
 2. **Session** (`internal/companion/client`): claim, handshake, request and
    response matching, an inbound queue. Tested against a real
-   `companion_radio` build under `MESHCORESIM_LIVE`.
+   `companion_radio` build under `MESHBENCH_LIVE`.
 3. **Tab**: the wireframe, reading only from the session.
 4. **MCP verbs**, mirroring the tab exactly.
 

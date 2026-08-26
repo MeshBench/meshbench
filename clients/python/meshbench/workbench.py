@@ -154,8 +154,8 @@ class Workbench:
         exe = (
             binary
             or os.environ.get(BINARY_ENV)
-            or shutil.which("meshcoresim")
-            or "meshcoresim"
+            or shutil.which("meshbench")
+            or "meshbench"
         )
         args = [exe, command, "-control-socket", path]
         if fixture:

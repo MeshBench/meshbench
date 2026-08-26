@@ -1,5 +1,5 @@
 ---
-name: meshcoresim
+name: meshbench
 description: Drive MeshcoreSim to answer RF and mesh-network questions — link viability, coverage, why a packet failed, site selection, solar survival, firmware A/B. Use when asked about MeshCore network behaviour, repeater placement, coverage, or radio settings. Encodes the honesty rules the simulator's own results depend on.
 ---
 
@@ -15,7 +15,7 @@ Load `plane-conventions` if you are also updating tickets.
 It is a **native desktop app**, not a CLI or a service, so it needs a machine
 with a display and it has to already be running. You drive the *running* app
 over its control socket at
-`$XDG_RUNTIME_DIR/meshcoresim.sock`, newline-delimited JSON,
+`$XDG_RUNTIME_DIR/meshbench.sock`, newline-delimited JSON,
 `{"id":1,"method":"<verb>","params":{}}`. `session.describe` lists every verb;
 read that before inventing a way to do something, because there is almost always
 a verb for it.
@@ -189,7 +189,7 @@ we learned the seed does not capture all the run-to-run variation.
 
 ## Regions come from GeoJSON, and there are saved ones
 
-`~/.config/meshcoresim/boundaries/*.geojson` — Scotland and Ireland are already
+`~/.config/meshbench/boundaries/*.geojson` — Scotland and Ireland are already
 there. `boundary.set` searches for a place, `boundary.accept` adds it to the
 chosen set, `boundary.prune` deletes every node outside it. **The chosen set
 unions**, so a two-region scenario is two accepts and one prune. Never
@@ -211,7 +211,7 @@ poll `experiment.state`, and `experiment.export` writes an HTML report.
 
 **Pin the firmware even when you are not varying it.** `experiment.base` takes
 `repeater_version` / `companion_version`, and builds are cached at
-`~/.cache/meshcoresim/firmware/native/` — currently `repeater-` and
+`~/.cache/meshbench/firmware/native/` — currently `repeater-` and
 `companion-v1.16.0`, `v1.17.0`, and `-faultyirq` variants of both. Freshly
 imported nodes carry no firmware ref at all, which resolves to MeshCore `main`,
 for which nothing is published; a sweep that varies something else then dies on
@@ -243,13 +243,13 @@ password, same place in a scenario; the difference is only on the air. Model one
 as a repeater and the result overstates the mesh's reach. `RoomServer` is its
 own node kind and has its own fleet-console target.
 
-**`MESHCORESIM_NATIVE` may name a directory of per-role builds**, which is what
+**`MESHBENCH_NATIVE` may name a directory of per-role builds**, which is what
 a mixed-role scenario needs. Naming a single binary overrides every node
 regardless of role, so a mesh of repeaters and room servers quietly becomes a
 mesh of one application.
 
 **A node that stops answering ticks leaves a log.** Native stderr is at
-`~/.cache/meshcoresim/nodefs/<node>/stderr.log`, and an emulated node's boot
+`~/.cache/meshbench/nodefs/<node>/stderr.log`, and an emulated node's boot
 output at `console.log` in its work directory. Read it before theorising: a
 stale published build stalling after three seconds and a firmware bug look
 identical from the ledger, and the log tells them apart in one line. A current
@@ -264,7 +264,7 @@ rather than assuming; a scenario built by hand may sit on the deprecated
 
 **Diff against a scenario that worked.** When a run produces nothing and the
 configuration all looks right, load the last project that *did* work and compare
-the two JSON files under `~/.config/meshcoresim/projects/` — radio, regions,
+the two JSON files under `~/.config/meshbench/projects/` — radio, regions,
 firmware refs, scopes. It is far faster than reasoning forwards, and the answer
 is usually one field.
 
@@ -384,7 +384,7 @@ strictly, so `signalRssiPkt` read zero on every native run.
 time, which costs far more per restart than a prebuilt binary — and that gap
 decides whether a layout gets checked or guessed at:
 
-    go build -o msim ./cmd/meshcoresim && ./msim workbench
+    go build -o msim ./cmd/meshbench && ./msim workbench
 
 **Screenshots need a grabber the compositor supports.** Under Wayland the app
 does not render on Xwayland, so an X11 grab captures a solid black screen that

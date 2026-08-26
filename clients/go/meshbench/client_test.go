@@ -38,12 +38,12 @@ func meshbench(t *testing.T) string {
 			buildErr = err
 			return
 		}
-		binary = filepath.Join(dir, "meshcoresim")
+		binary = filepath.Join(dir, "meshbench")
 		// By package path from the module root rather than by counting "../"
 		// out of this directory - which is what broke when the client moved
 		// under clients/go, and would break again on the next move.
 		cmd := exec.Command("go", "build", "-o", binary,
-			"github.com/MeshBench/meshbench/cmd/meshcoresim")
+			"github.com/MeshBench/meshbench/cmd/meshbench")
 		if out, err := cmd.CombinedOutput(); err != nil {
 			buildErr = errors.New(string(out))
 		}

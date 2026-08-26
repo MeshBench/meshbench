@@ -95,7 +95,7 @@ func viewsDir() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(cfg, "meshcoresim", "views"), nil
+	return filepath.Join(cfg, "meshbench", "views"), nil
 }
 
 type savedView struct {

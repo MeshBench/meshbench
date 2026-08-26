@@ -16,7 +16,7 @@ import (
 )
 
 // EnvNativeBinary overrides where the native node binary is found.
-const EnvNativeBinary = "MESHCORESIM_NATIVE"
+const EnvNativeBinary = "MESHBENCH_NATIVE"
 
 // DefaultRole is the application a node runs when nothing says otherwise.
 const DefaultRole = "simple_repeater"
@@ -121,7 +121,7 @@ func NodeWorkDir(name string) string {
 // Pointing this at a directory per arm gives each one nodes that have never
 // run. It is equally useful to a person who wants an experiment not to inherit
 // last week's state.
-const EnvNodeFS = "MESHCORESIM_NODEFS"
+const EnvNodeFS = "MESHBENCH_NODEFS"
 
 // NodeFSRoot is where per-node storage lives.
 func NodeFSRoot() string {
@@ -132,7 +132,7 @@ func NodeFSRoot() string {
 	if err != nil {
 		return "nodefs"
 	}
-	return filepath.Join(base, "meshcoresim", "nodefs")
+	return filepath.Join(base, "meshbench", "nodefs")
 }
 
 // WipeNodeStorage deletes every node's persistent files — identities, prefs,
@@ -145,7 +145,7 @@ func NodeFSRoot() string {
 // Identities regenerate deterministically from the run seed, so a wipe costs
 // nothing but the next boot.
 func WipeNodeStorage() error {
-	// Through NodeFSRoot, so a run with MESHCORESIM_NODEFS set wipes the
+	// Through NodeFSRoot, so a run with MESHBENCH_NODEFS set wipes the
 	// storage it is actually using. Wiping a different directory from the one
 	// in use is worse than not wiping at all: it reports success and changes
 	// nothing.

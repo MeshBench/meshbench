@@ -41,8 +41,8 @@ import (
 // driver introduces. That is expected and is asserted as ordering plus a stated
 // tolerance, not equality - see TestRadioStackTimingStaysOrdered.
 func TestRadioStackGolden(t *testing.T) {
-	if os.Getenv("MESHCORESIM_LIVE") == "" {
-		t.Skip("set MESHCORESIM_LIVE=1")
+	if os.Getenv("MESHBENCH_LIVE") == "" {
+		t.Skip("set MESHBENCH_LIVE=1")
 	}
 	got := runTwoNodeExchange(t, 4417)
 
@@ -54,7 +54,7 @@ func TestRadioStackGolden(t *testing.T) {
 	}
 
 	path := filepath.Join("testdata", "radiostack-golden.json")
-	if os.Getenv("MESHCORESIM_UPDATE_GOLDEN") != "" {
+	if os.Getenv("MESHBENCH_UPDATE_GOLDEN") != "" {
 		writeGolden(t, path, got)
 		t.Logf("golden written to %s", path)
 		return
@@ -103,8 +103,8 @@ func TestRadioStackGolden(t *testing.T) {
 // would force a rewrite at every step and hide a real regression among the
 // noise.
 func TestRadioStackTimingStaysOrdered(t *testing.T) {
-	if os.Getenv("MESHCORESIM_LIVE") == "" {
-		t.Skip("set MESHCORESIM_LIVE=1")
+	if os.Getenv("MESHBENCH_LIVE") == "" {
+		t.Skip("set MESHBENCH_LIVE=1")
 	}
 	got := runTwoNodeExchange(t, 4417)
 
@@ -128,8 +128,8 @@ func TestRadioStackTimingStaysOrdered(t *testing.T) {
 // the simulator rather than a nice-to-have. If it fails, the golden file is
 // meaningless and so is any A/B built on it.
 func TestRadioStackIsDeterministic(t *testing.T) {
-	if os.Getenv("MESHCORESIM_LIVE") == "" {
-		t.Skip("set MESHCORESIM_LIVE=1")
+	if os.Getenv("MESHBENCH_LIVE") == "" {
+		t.Skip("set MESHBENCH_LIVE=1")
 	}
 	a := runTwoNodeExchange(t, 4417)
 	b := runTwoNodeExchange(t, 4417)

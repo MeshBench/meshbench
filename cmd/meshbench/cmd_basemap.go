@@ -18,7 +18,7 @@ import (
 func runBasemap(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("basemap", flag.ExitOnError)
 	defaultCache, _ := os.UserCacheDir()
-	cache := fs.String("cache", filepath.Join(defaultCache, "meshcoresim", "basemap"), "tile cache")
+	cache := fs.String("cache", filepath.Join(defaultCache, "meshbench", "basemap"), "tile cache")
 	layerID := fs.String("layer", "", "which layer; omit to list them")
 	south := fs.Float64("south", 0, "southern edge")
 	north := fs.Float64("north", 0, "northern edge")

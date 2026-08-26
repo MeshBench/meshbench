@@ -300,7 +300,7 @@ func (f Firmware) UseWhatIsHere(ctx context.Context) (map[Role]Build, error) {
 		if pick.Version == "" {
 			return nil, &Refused{Verb: "firmware.needed", Code: "not_found",
 				Message: fmt.Sprintf(
-					"no %s build on this machine: meshcoresim firmware download %s",
+					"no %s build on this machine: meshbench firmware download %s",
 					want.Role, want.Role),
 				kind: ErrNotFound}
 		}

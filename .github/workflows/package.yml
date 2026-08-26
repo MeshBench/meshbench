@@ -129,7 +129,7 @@ jobs:
           go build -trimpath \
             -ldflags "-X gioui.org/app.ID=io.github.meshbench.meshbench \
                       -X github.com/MeshBench/meshbench/internal/app/version.Version=$VERSION" \
-            -o dist/meshbench/meshbench ./cmd/meshcoresim
+            -o dist/meshbench/meshbench ./cmd/meshbench
 
       - name: Fetch the emulators
         env:
@@ -255,7 +255,7 @@ jobs:
           need it; neither works without it.
 
           Native MeshCore builds and board images are downloaded on first use and
-          cached under ~/.cache/meshcoresim. Nothing else is needed.
+          cached under ~/.cache/meshbench. Nothing else is needed.
 
           Needs glibc 2.35 or newer: Ubuntu 22.04, Debian 12, RHEL 9, or
           anything more recent.
@@ -602,7 +602,7 @@ jobs:
           go build -trimpath \
             -ldflags "-H windowsgui -X gioui.org/app.ID=io.github.meshbench.meshbench \
                       -X github.com/MeshBench/meshbench/internal/app/version.Version=$VERSION" \
-            -o dist/meshbench/meshbench.exe ./cmd/meshcoresim
+            -o dist/meshbench/meshbench.exe ./cmd/meshbench
           cp -r fixtures dist/meshbench/fixtures
           cp packaging/icons/meshbench-256.png dist/meshbench/meshbench.png
 

@@ -536,7 +536,7 @@ the same T-Deck runs a stock MeshCore image that wants nothing to do with it —
 so it is stored per build, beside the image, and follows the build when it is
 renamed or moved. Set it in the build's own window in the Firmware Library, or
 with `firmware.update {version, coproc_at_reset: true}`.
-`MESHCORESIM_QEMU_COPROC_AT_RESET=1` still forces it on for every board at
+`MESHBENCH_QEMU_COPROC_AT_RESET=1` still forces it on for every board at
 once, which is the form a script reaching for it once wants.
 
 **Where that firmware stops now.** Past the trap it brings up PSRAM, resets the
@@ -891,7 +891,7 @@ gone stale is the failure mode it exists to prevent.
   is EPL-2.0 *or* EDL-1.0 — is taken under its EDL branch, and `tools/licgen`
   fails the build if a future dependency arrives under EPL alone.
 - **Attribution is generated and enforced, not maintained by hand.**
-  `tools/licgen` walks the build graph of `./cmd/meshcoresim`, reads every linked
+  `tools/licgen` walks the build graph of `./cmd/meshbench`, reads every linked
   module's licence out of the module cache, and **fails the run** on a module
   whose licence it cannot name — the enforcement is the build, not a review. The
   curated half (the forks, the bundled native pieces, what is downloaded at

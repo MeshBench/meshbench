@@ -18,8 +18,8 @@ pytest_plugins = ["pytester"]
 
 @pytest.fixture(autouse=True)
 def _needs_binary():
-    if not (os.environ.get("MESHBENCH_BINARY") or shutil.which("meshcoresim")):
-        pytest.skip("no meshcoresim binary")
+    if not (os.environ.get("MESHBENCH_BINARY") or shutil.which("meshbench")):
+        pytest.skip("no meshbench binary")
 
 
 def test_the_meshbench_fixture_is_discovered(pytester: pytest.Pytester):
@@ -34,7 +34,7 @@ def test_the_meshbench_fixture_is_discovered(pytester: pytest.Pytester):
     result = pytester.runpytest_subprocess(
         # No -p: the entry point is what has to work. Registering it by hand
         # would test that the module imports, which is not the claim.
-        f"--meshbench-binary={os.environ.get('MESHBENCH_BINARY', 'meshcoresim')}",
+        f"--meshbench-binary={os.environ.get('MESHBENCH_BINARY', 'meshbench')}",
     )
     result.assert_outcomes(passed=1)
 
@@ -58,7 +58,7 @@ def test_the_scenario_is_cleared_between_tests(pytester: pytest.Pytester):
     result = pytester.runpytest_subprocess(
         # No -p: the entry point is what has to work. Registering it by hand
         # would test that the module imports, which is not the claim.
-        f"--meshbench-binary={os.environ.get('MESHBENCH_BINARY', 'meshcoresim')}",
+        f"--meshbench-binary={os.environ.get('MESHBENCH_BINARY', 'meshbench')}",
     )
     result.assert_outcomes(passed=2)
 
@@ -81,7 +81,7 @@ def test_a_failure_carries_the_provenance(pytester: pytest.Pytester):
     result = pytester.runpytest_subprocess(
         # No -p: the entry point is what has to work. Registering it by hand
         # would test that the module imports, which is not the claim.
-        f"--meshbench-binary={os.environ.get('MESHBENCH_BINARY', 'meshcoresim')}",
+        f"--meshbench-binary={os.environ.get('MESHBENCH_BINARY', 'meshbench')}",
     )
     result.assert_outcomes(failed=1)
     result.stdout.fnmatch_lines(["*best case*"])

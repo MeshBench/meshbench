@@ -85,7 +85,7 @@ func (r *BoardReport) set(c Capability, s State, detail string) {
 func EmulatorFingerprint() string {
 	path := os.Getenv(firmware.EnvQEMU)
 	if path == "" {
-		path = os.Getenv("MESHCORESIM_RENODE")
+		path = os.Getenv("MESHBENCH_RENODE")
 	}
 	if path == "" {
 		return "unconfigured"

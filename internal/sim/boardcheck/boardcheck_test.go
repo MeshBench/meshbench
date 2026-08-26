@@ -72,7 +72,7 @@ func TestALoadedReportIsStaleWhenTheEmulatorFingerprintDiffers(t *testing.T) {
 	}
 
 	got := Load("RAK_4631", "repeater-v1.17.0")
-	// EmulatorFingerprint() with no MESHCORESIM_QEMU/RENODE set resolves to
+	// EmulatorFingerprint() with no MESHBENCH_QEMU/RENODE set resolves to
 	// "unconfigured", which does not equal the saved fingerprint above - so
 	// this must read as stale, not as still current.
 	if !got.Stale {

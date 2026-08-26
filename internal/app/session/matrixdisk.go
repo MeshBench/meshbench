@@ -26,7 +26,7 @@ func (s *Sim) matrixDir() string {
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(cache, "meshcoresim", "matrix")
+	return filepath.Join(cache, "meshbench", "matrix")
 }
 
 // keepMatrices bounds the directory: a matrix per geometry, and a workbench

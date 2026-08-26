@@ -126,7 +126,7 @@ func defaultFixture() (string, error) {
 	}
 	roots = append(roots, "fixtures")
 	if home, err := os.UserHomeDir(); err == nil {
-		roots = append(roots, filepath.Join(home, ".cache", "meshcoresim", "fixtures"))
+		roots = append(roots, filepath.Join(home, ".cache", "meshbench", "fixtures"))
 	}
 	for _, r := range roots {
 		p := filepath.Join(r, "fixture-fife-strict.json")

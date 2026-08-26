@@ -288,7 +288,7 @@ func downloadTo(ctx context.Context, url, path string) error {
 // process cannot run it, and on Linux the temp directory is usually tmpfs -
 // so three abandoned extractions were half a gigabyte of somebody's RAM.
 // An hour of quiet is the safety margin: a directory younger than that may
-// belong to another meshcoresim mid-download, and losing the race costs
+// belong to another meshbench mid-download, and losing the race costs
 // that download, not correctness.
 func sweepStaleEnvironTemps() {
 	stale, err := filepath.Glob(filepath.Join(os.TempDir(), "msim-environ-*"))

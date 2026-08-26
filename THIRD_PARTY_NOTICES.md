@@ -6,7 +6,7 @@ MeshBench is **GPL-3.0-or-later** — see [`LICENSE`](LICENSE), and
 This file is a pointer, not the inventory. **The inventory is generated**, so
 that it cannot fall behind the build:
 
-- `go run ./tools/licgen` walks the build graph of `./cmd/meshcoresim`, reads
+- `go run ./tools/licgen` walks the build graph of `./cmd/meshbench`, reads
   every linked module's licence out of the module cache, classifies it, and
   **fails** on a module whose licence it cannot name. A dependency arriving
   without a licence breaks the build, not somebody's review.

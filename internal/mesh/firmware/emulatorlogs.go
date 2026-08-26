@@ -23,7 +23,7 @@ import (
 // Off by default and deliberately not a setting: the output is megabytes a
 // second. One `-d unimp` run once filled a 16 GB tmpfs, and the space stayed
 // allocated until the emulator holding the file was killed.
-const EnvQEMUDebug = "MESHCORESIM_QEMU_DEBUG"
+const EnvQEMUDebug = "MESHBENCH_QEMU_DEBUG"
 
 // EnvCoprocAtReset brings the emulated coprocessors up enabled, which the part
 // does not do.
@@ -37,7 +37,7 @@ const EnvQEMUDebug = "MESHCORESIM_QEMU_DEBUG"
 //
 // Off by default, because a firmware that genuinely mismanages that register
 // would be flattered by it. On, it is a way to see what happens next.
-const EnvCoprocAtReset = "MESHCORESIM_QEMU_COPROC_AT_RESET"
+const EnvCoprocAtReset = "MESHBENCH_QEMU_COPROC_AT_RESET"
 
 // CoprocAtReset reports whether that has been asked for.
 func CoprocAtReset() bool {

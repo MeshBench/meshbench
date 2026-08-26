@@ -372,7 +372,7 @@ func (p *configPanel) system(t *theme.Theme, s *state.Snapshot) []layout.Widget 
 		}),
 		comp.Card(t, "Saved settings", comp.Text(t, t.Sz.Caption, t.P.Faint,
 			"the GPU choice, the cache size and the cache location survive a "+
-				"restart, in ~/.config/meshcoresim/workbench2.json; the scenario "+
+				"restart, in ~/.config/meshbench/workbench2.json; the scenario "+
 				"itself deliberately stays in the fixture")),
 	}
 }

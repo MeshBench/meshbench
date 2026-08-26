@@ -70,7 +70,7 @@ to make a board work.
 Found on mesh-rs for the LilyGo T-Deck, where it took the run from 18,671,402
 refused stores to none. `docs/shortcomings.md` §3.5 has the whole account.
 
-`MESHCORESIM_QEMU_COPROC_AT_RESET=1` forces it on for every board at once,
+`MESHBENCH_QEMU_COPROC_AT_RESET=1` forces it on for every board at once,
 which is the form a script reaching for it once wants.
 
 ## Needs a card in the board's slot
@@ -137,8 +137,8 @@ in the cache from before will say `application only - no partition table` here.
 ## Where these are stored
 
 ```
-~/.cache/meshcoresim/firmware/board/<board>/<role>@<label>.bin
-~/.cache/meshcoresim/firmware/board/<board>/<role>@<label>.bin.msim.json
+~/.cache/meshbench/firmware/board/<board>/<role>@<label>.bin
+~/.cache/meshbench/firmware/board/<board>/<role>@<label>.bin.msim.json
 ```
 
 The settings file is written only when something has been decided, and removed

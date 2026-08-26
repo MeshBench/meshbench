@@ -34,8 +34,8 @@ func (s *safeBuf) String() string {
 // build, reads what it prints on startup, types a command at it, and requires
 // the firmware's own reply — no part of which this side composes.
 func TestLiveConsoleReachesTheFirmware(t *testing.T) {
-	if os.Getenv("MESHCORESIM_LIVE") == "" {
-		t.Skip("set MESHCORESIM_LIVE=1")
+	if os.Getenv("MESHBENCH_LIVE") == "" {
+		t.Skip("set MESHBENCH_LIVE=1")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()

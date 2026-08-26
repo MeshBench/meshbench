@@ -80,7 +80,7 @@ func TestNoButtonIsAValidDeclaration(t *testing.T) {
 // A board is emulated exactly when it says how to wire it up.
 //
 // Two statements about one fact, in the same struct: the Emulated flag, which
-// is what `meshcoresim boards` prints and what the workbench filters on, and
+// is what `meshbench boards` prints and what the workbench filters on, and
 // the Renode or QEMU wiring block, which is what the runner needs to start it.
 // Nothing kept them in step, so Heltec_t096 carried a complete Renode block -
 // platform, SPI base, chip select, interrupt pin - beside `Emulated: false`

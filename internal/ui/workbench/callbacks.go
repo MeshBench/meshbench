@@ -80,11 +80,11 @@ func (c callbacks) wire() {
 		if id := c.sm.Basemap(); id != "" {
 			layerID = id
 		}
-		c.mv.Tiles = comp.NewTiles(filepath.Join(cache, "meshcoresim", "tiles"), layerID)
+		c.mv.Tiles = comp.NewTiles(filepath.Join(cache, "meshbench", "tiles"), layerID)
 		c.mv.OverlayTiles = nil
 		for _, ov := range basemap.OverlaysFor(layerID) {
 			c.mv.OverlayTiles = append(c.mv.OverlayTiles,
-				comp.NewTiles(filepath.Join(cache, "meshcoresim", "tiles"), ov.ID))
+				comp.NewTiles(filepath.Join(cache, "meshbench", "tiles"), ov.ID))
 		}
 	}
 	// The basemap picker at the top of the map's layer panel: base layers
@@ -106,7 +106,7 @@ func (c callbacks) wire() {
 					if cache, err := os.UserCacheDir(); err == nil {
 						for _, ov := range basemap.OverlaysFor(l.ID) {
 							c.mv.OverlayTiles = append(c.mv.OverlayTiles,
-								comp.NewTiles(filepath.Join(cache, "meshcoresim", "tiles"), ov.ID))
+								comp.NewTiles(filepath.Join(cache, "meshbench", "tiles"), ov.ID))
 						}
 					}
 					c.do("map.basemap", map[string]any{"id": l.ID})

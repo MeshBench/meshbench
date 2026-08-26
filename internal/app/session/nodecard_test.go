@@ -143,7 +143,7 @@ func TestErasingACardRemovesTheFileWhereverItIs(t *testing.T) {
 // be a lie.
 func TestWipingEveryNodeTakesTheCardsKeptElsewhere(t *testing.T) {
 	root := t.TempDir()
-	t.Setenv("MESHCORESIM_NODEFS", root)
+	t.Setenv("MESHBENCH_NODEFS", root)
 	outside := filepath.Join(t.TempDir(), "elsewhere.img")
 	if err := os.WriteFile(outside, []byte("settings"), 0o600); err != nil {
 		t.Fatal(err)

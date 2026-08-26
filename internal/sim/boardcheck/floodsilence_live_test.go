@@ -21,14 +21,14 @@ import (
 // the only account of whether it queued a relay and something ate it, or
 // whether it decided not to.
 func TestWhatTheBoardSaysAboutTheAdvert(t *testing.T) {
-	if os.Getenv("MESHCORESIM_LIVE") == "" {
-		t.Skip("set MESHCORESIM_LIVE=1")
+	if os.Getenv("MESHBENCH_LIVE") == "" {
+		t.Skip("set MESHBENCH_LIVE=1")
 	}
-	board := os.Getenv("MESHCORESIM_BOARD")
+	board := os.Getenv("MESHBENCH_BOARD")
 	if board == "" {
-		t.Skip("set MESHCORESIM_BOARD")
+		t.Skip("set MESHBENCH_BOARD")
 	}
-	version := os.Getenv("MESHCORESIM_BOARD_VERSION")
+	version := os.Getenv("MESHBENCH_BOARD_VERSION")
 	if version == "" {
 		version = "v1.17.1"
 	}
@@ -63,7 +63,7 @@ func TestWhatTheBoardSaysAboutTheAdvert(t *testing.T) {
 	// which also thins the board's own margin. Whether that is what makes the
 	// row intermittent is the question, so it is a knob here rather than a
 	// constant.
-	if p := os.Getenv("MESHCORESIM_SENDER_TX"); p != "" {
+	if p := os.Getenv("MESHBENCH_SENDER_TX"); p != "" {
 		_ = sender.Firmware.Bridge.Type([]byte("set tx " + p + "\r\n"))
 		settle(ctx, e, 1_000)
 		t.Logf("the sender was turned to %s dBm", p)
@@ -75,7 +75,7 @@ func TestWhatTheBoardSaysAboutTheAdvert(t *testing.T) {
 	// adverts once on its own clock. That advert is the only thing between
 	// this test, which relays every time, and the row, which relays about one
 	// run in four - so it is a knob rather than an assumption.
-	if gap := os.Getenv("MESHCORESIM_RX_PHASE"); gap != "" {
+	if gap := os.Getenv("MESHBENCH_RX_PHASE"); gap != "" {
 		secs := 30
 		if n, err := strconv.Atoi(gap); err == nil {
 			secs = n

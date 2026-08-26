@@ -1,6 +1,6 @@
 // Building a MeshCore checkout, from a script.
 //
-// `meshcoresim dev` has always done this and lived outside the store, so a
+// `meshbench dev` has always done this and lived outside the store, so a
 // script comparing a stock build against a locally changed one had to shell
 // out to a second copy of the binary. Both now call firmware.Build; this is
 // the half that answers over the socket.
@@ -70,7 +70,7 @@ func buildFirmware(st *state.Store, id, src, label string, roles []string) {
 		// A compiler's stderr is thousands of lines and the workbench's status
 		// bar is one; putting it there would bury everything else the session
 		// has to say. What a caller needs is whether it worked and what came
-		// out, and on a failure the error carries the reason. `meshcoresim
+		// out, and on a failure the error carries the reason. `meshbench
 		// dev` is still the way to watch a build.
 		out, err := firmware.Build(ctx, firmware.BuildOptions{
 			Source: src, Role: role, Label: label,
@@ -100,7 +100,7 @@ func registerFirmwareBuildResults(st *state.Store, _ *Sim) {
 	// firmware.built: what came out.
 	//
 	// It is already in the cache - firmware.Build imports it, which is the
-	// same call `meshcoresim dev` makes - so there is nothing to add here.
+	// same call `meshbench dev` makes - so there is nothing to add here.
 	// What this does is say so and re-read the library, because a build
 	// nothing has listed is a build no picker offers.
 	st.Handle("firmware.built", func(w *state.World, p any) (any, error) {

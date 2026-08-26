@@ -40,7 +40,7 @@ TX_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"
 
 class Application(dbus.service.Object):
     def __init__(self, bus, bridge):
-        self.path = "/org/meshcoresim/app"
+        self.path = "/org/meshbench/app"
         self.services = [NUSService(bus, 0, bridge)]
         super().__init__(bus, self.path)
 
@@ -59,7 +59,7 @@ class Application(dbus.service.Object):
 
 class NUSService(dbus.service.Object):
     def __init__(self, bus, index, bridge):
-        self.path = f"/org/meshcoresim/app/service{index}"
+        self.path = f"/org/meshbench/app/service{index}"
         super().__init__(bus, self.path)
         self.chars = [TxChar(bus, 0, self), RxChar(bus, 1, self, bridge)]
 
@@ -139,7 +139,7 @@ class RxChar(Characteristic):
 
 class Advertisement(dbus.service.Object):
     def __init__(self, bus, index, name):
-        self.path = f"/org/meshcoresim/adv{index}"
+        self.path = f"/org/meshbench/adv{index}"
         self.name = name
         super().__init__(bus, self.path)
 

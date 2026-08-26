@@ -21,8 +21,8 @@ import (
 // radio model is the same one native nodes run against. A released build ships
 // both, and until then these say where to find them.
 const (
-	EnvQEMU        = "MESHCORESIM_QEMU"
-	EnvRadioServer = "MESHCORESIM_RADIO_SERVER"
+	EnvQEMU        = "MESHBENCH_QEMU"
+	EnvRadioServer = "MESHBENCH_RADIO_SERVER"
 )
 
 // Emulator is which one runs a node. It follows from the board's MCU rather
@@ -238,7 +238,7 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 		e.Machine = "esp32"
 	}
 	if e.Dir == "" {
-		e.Dir = filepath.Join(os.TempDir(), "meshcoresim-emulated", e.NodeName)
+		e.Dir = filepath.Join(os.TempDir(), "meshbench-emulated", e.NodeName)
 	}
 	if err := os.MkdirAll(e.Dir, 0o755); err != nil {
 		return err

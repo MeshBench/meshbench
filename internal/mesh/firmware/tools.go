@@ -28,7 +28,7 @@ func ToolsDir() string {
 	if err != nil {
 		return "tools"
 	}
-	return filepath.Join(dir, "meshcoresim", "tools")
+	return filepath.Join(dir, "meshbench", "tools")
 }
 
 // lookupTool finds a binary: the environment variable, then beside the

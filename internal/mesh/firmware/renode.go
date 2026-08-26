@@ -11,7 +11,7 @@ import (
 // EnvRenode overrides the Renode executable, as EnvQEMU does for the other
 // emulator. Ours is a fork with the peripherals an nRF52 board needs, so a
 // distribution build will not do.
-const EnvRenode = "MESHCORESIM_RENODE"
+const EnvRenode = "MESHBENCH_RENODE"
 
 // startRenode writes the machine description this node needs and runs it.
 //
@@ -156,7 +156,7 @@ func unregisterStockSPI() string {
 // board spending its time" is guessing, and guessing has a poor record here:
 // a board that reads one address a hundred million times and a board that is
 // merely slow look identical from outside.
-const EnvRenodeTrace = "MESHCORESIM_RENODE_TRACE"
+const EnvRenodeTrace = "MESHBENCH_RENODE_TRACE"
 
 // renodeTrace is the tracing preamble, or nothing.
 //

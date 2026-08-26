@@ -39,7 +39,7 @@ func call(t *testing.T, s *mcp.Server, lines ...string) []map[string]any {
 
 func server(t *testing.T, terrain mcp.Terrain) *mcp.Server {
 	t.Helper()
-	s := mcp.NewServer("meshcoresim", "test")
+	s := mcp.NewServer("meshbench", "test")
 	if err := mcp.RegisterEngineTools(s, terrain); err != nil {
 		t.Fatal(err)
 	}

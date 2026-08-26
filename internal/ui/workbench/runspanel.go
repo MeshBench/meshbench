@@ -127,7 +127,7 @@ func runRows() []comp.Row {
 	if err != nil {
 		return nil
 	}
-	dir := filepath.Join(cache, "meshcoresim", "runs")
+	dir := filepath.Join(cache, "meshbench", "runs")
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil

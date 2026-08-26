@@ -25,8 +25,8 @@ import (
 // test that saved "region denyf *" at a node called bravo silently configured
 // every later test's bravo — which is exactly what happened.
 func TestLiveFloodCrossesHopsAndNodesTransmitTwice(t *testing.T) {
-	if os.Getenv("MESHCORESIM_LIVE") == "" {
-		t.Skip("set MESHCORESIM_LIVE=1")
+	if os.Getenv("MESHBENCH_LIVE") == "" {
+		t.Skip("set MESHBENCH_LIVE=1")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 120e9)
 	defer cancel()

@@ -60,14 +60,14 @@ type Prefs struct {
 	CoverageCells int `json:"coverage_cells,omitempty"`
 }
 
-// prefsPath is ~/.config/meshcoresim/workbench2.json, or empty when the
+// prefsPath is ~/.config/meshbench/workbench2.json, or empty when the
 // platform cannot say where config lives.
 func prefsPath() string {
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(dir, "meshcoresim", "workbench2.json")
+	return filepath.Join(dir, "meshbench", "workbench2.json")
 }
 
 // LoadPrefs reads the settings file and applies it to the session.
@@ -164,7 +164,7 @@ func (s *Sim) tileCacheDir() string {
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(cache, "meshcoresim", "terrain")
+	return filepath.Join(cache, "meshbench", "terrain")
 }
 
 // validateCacheDir refuses the moves that cannot work before any file moves.
@@ -186,7 +186,7 @@ func validateCacheDir(oldDir, newDir string) (string, error) {
 	}
 	// A write test, because MkdirAll succeeding says the directory exists,
 	// not that tiles can land in it.
-	probe := filepath.Join(abs, ".meshcoresim-write-test")
+	probe := filepath.Join(abs, ".meshbench-write-test")
 	if err := os.WriteFile(probe, []byte("ok"), 0o644); err != nil {
 		return "", fmt.Errorf("cannot write into %s: %w", abs, err)
 	}

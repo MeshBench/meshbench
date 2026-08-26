@@ -360,14 +360,14 @@ func downloadBuildProgress(ctx context.Context, role, version, board string,
 
 // nodeStorageRoot is where nodes keep what they remember between runs.
 func nodeStorageRoot() string {
-	if v := os.Getenv("MESHCORESIM_NODEFS"); v != "" {
+	if v := os.Getenv("MESHBENCH_NODEFS"); v != "" {
 		return v
 	}
 	dir, err := os.UserCacheDir()
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(dir, "meshcoresim", "nodefs")
+	return filepath.Join(dir, "meshbench", "nodefs")
 }
 
 // stringField reads a verb's PRIMARY field: the one, and only one, that a bare

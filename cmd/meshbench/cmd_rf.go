@@ -69,7 +69,7 @@ func runLink(ctx context.Context, args []string) error {
 	}
 	cell := r.At(0, 0)
 	if cell.NoData {
-		return fmt.Errorf("no terrain covers this path; run 'meshcoresim terrain' for the area first")
+		return fmt.Errorf("no terrain covers this path; run 'meshbench terrain' for the area first")
 	}
 
 	distKm := geo.DistanceKm(*fromLat, *fromLon, *toLat, *toLon)
@@ -151,7 +151,7 @@ func runProfile(ctx context.Context, args []string) error {
 		fmt.Printf("BLOCKED by %.0f m. Raising an antenna by about that, or moving, is what changes it.\n", worst)
 	} else {
 		fmt.Printf("Line of sight clear by %.0f m. Clearance is not the same as a clear Fresnel zone —\n"+
-			"run 'meshcoresim link' for the answer that counts.\n", -worst)
+			"run 'meshbench link' for the answer that counts.\n", -worst)
 	}
 	return ctx.Err()
 }

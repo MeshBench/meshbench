@@ -5,7 +5,7 @@ the entire risk in a client is disagreeing with the thing it drives. So every
 test here starts a headless process, drives it over a socket of its own, and
 stops it.
 
-Needs a meshcoresim binary. MESHBENCH_BINARY names one; otherwise PATH.
+Needs a meshbench binary. MESHBENCH_BINARY names one; otherwise PATH.
 """
 
 from __future__ import annotations
@@ -38,14 +38,14 @@ def binary() -> str:
     named = os.environ.get("MESHBENCH_BINARY")
     if named:
         return named
-    found = shutil.which("meshcoresim")
+    found = shutil.which("meshbench")
     if found:
         return found
     if not shutil.which("go"):
-        pytest.skip("no meshcoresim binary and no Go to build one")
-    out = os.path.join(tempfile.mkdtemp(prefix="meshbench-bin"), "meshcoresim")
+        pytest.skip("no meshbench binary and no Go to build one")
+    out = os.path.join(tempfile.mkdtemp(prefix="meshbench-bin"), "meshbench")
     build = subprocess.run(
-        ["go", "build", "-o", out, "./cmd/meshcoresim"],
+        ["go", "build", "-o", out, "./cmd/meshbench"],
         cwd=REPO,
         capture_output=True,
         text=True,

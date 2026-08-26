@@ -76,7 +76,7 @@ and three things quietly break that. All three are handled in
   between runs, as hardware does, so a node that has run before loads its old
   `rx_delay_base` and never reaches the changed one. Both arms then return
   identical numbers and the change looks inert. Every arm gets its own storage
-  through `MESHCORESIM_NODEFS`.
+  through `MESHBENCH_NODEFS`.
 - **The Go test cache replays the previous arm.** The cache keys on the package
   and the environment variables the test reads, not on the contents of a binary
   that a variable merely points at. Hence `-count=1`.

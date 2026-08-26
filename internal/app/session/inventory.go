@@ -71,7 +71,7 @@ func registerInventory(st *state.Store, s *Sim) {
 			path, _ = m["path"].(string)
 		}
 		if path == "" {
-			path = filepath.Join(os.TempDir(), "meshcoresim-events.ndjson")
+			path = filepath.Join(os.TempDir(), "meshbench-events.ndjson")
 		}
 		f, err := os.Create(path)
 		if err != nil {

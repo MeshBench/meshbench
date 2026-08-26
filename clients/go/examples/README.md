@@ -10,7 +10,7 @@ go run ./clients/go/examples/small-mesh-with-traffic
 go run ./clients/go/examples/headless-regression fife-strict results.xml
 ```
 
-Each needs `meshcoresim` on `PATH`, or `MESHBENCH_BINARY` naming one.
+Each needs `meshbench` on `PATH`, or `MESHBENCH_BINARY` naming one.
 
 `go build ./...` compiles all of them, which is the point of their being
 programs rather than snippets in a comment: an example that has stopped

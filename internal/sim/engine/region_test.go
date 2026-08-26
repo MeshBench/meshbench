@@ -23,8 +23,8 @@ import (
 // So: deny flooding on one node via its own CLI, and require that the channel
 // still delivered while that node stopped relaying.
 func TestFirmwareRejectsByRegionAndTheChannelDoesNot(t *testing.T) {
-	if os.Getenv("MESHCORESIM_LIVE") == "" {
-		t.Skip("set MESHCORESIM_LIVE=1")
+	if os.Getenv("MESHBENCH_LIVE") == "" {
+		t.Skip("set MESHBENCH_LIVE=1")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()

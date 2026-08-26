@@ -37,8 +37,8 @@ import (
 // every pair. If any lock ordering in the engine is wrong, this is where it
 // shows.
 func TestRadioStackDoesNotDeadlockUnderContention(t *testing.T) {
-	if os.Getenv("MESHCORESIM_LIVE") == "" {
-		t.Skip("set MESHCORESIM_LIVE=1")
+	if os.Getenv("MESHBENCH_LIVE") == "" {
+		t.Skip("set MESHBENCH_LIVE=1")
 	}
 	const nodes = 12
 	e := engine.New(flat{}, engine.Config{
@@ -106,8 +106,8 @@ func TestRadioStackDoesNotDeadlockUnderContention(t *testing.T) {
 // could never arrive. Closing the bridge must make every wait on it fail, not
 // block.
 func TestEngineSurvivesFirmwareVanishing(t *testing.T) {
-	if os.Getenv("MESHCORESIM_LIVE") == "" {
-		t.Skip("set MESHCORESIM_LIVE=1")
+	if os.Getenv("MESHBENCH_LIVE") == "" {
+		t.Skip("set MESHBENCH_LIVE=1")
 	}
 	e := engine.New(flat{}, engine.Config{
 		FreqMHz: 869.525, SF: 10, BandwidthHz: 250e3, CodingRate: 1,

@@ -26,7 +26,7 @@ func registerCapture(st *state.Store, s *Sim) {
 		}
 		path, _ := stringField(p, "path")
 		if path == "" {
-			path = filepath.Join(os.TempDir(), "meshcoresim-capture.pcapng")
+			path = filepath.Join(os.TempDir(), "meshbench-capture.pcapng")
 		}
 		if err := s.eng.StartCapture(path); err != nil {
 			return nil, err
@@ -60,10 +60,10 @@ func registerCapture(st *state.Store, s *Sim) {
 		}
 		switch {
 		case meshbenchLua == "":
-			// meshcoresim.lua is the one that registers on this port at all;
+			// meshbench.lua is the one that registers on this port at all;
 			// without it Wireshark shows raw UDP payload, not a missing
 			// field here and there.
-			out["dissector_error"] = "tools/dissector/meshcoresim.lua was not found beside the binary"
+			out["dissector_error"] = "tools/dissector/meshbench.lua was not found beside the binary"
 		case meshcoreLua == "":
 			out["dissector_warning"] = "tools/dissector/meshcore_dissector.lua was not found - " +
 				"MeshBench's own metadata will show, the MeshCore frame inside it will not"

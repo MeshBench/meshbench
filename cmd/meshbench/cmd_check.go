@@ -53,7 +53,7 @@ func runTest(ctx context.Context, args []string) error {
 		// Not an error: a fixture with no assertions is still worth running for
 		// its summary. It cannot fail, though, and saying so beats a green tick
 		// that means nothing.
-		fmt.Fprintln(os.Stderr, "meshcoresim: this fixture carries no assertions, "+
+		fmt.Fprintln(os.Stderr, "meshbench: this fixture carries no assertions, "+
 			"so it can report but not pass or fail")
 	}
 

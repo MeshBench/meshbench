@@ -45,7 +45,7 @@ never anything above.** `internal/layers_test.go` fails the build otherwise, so
 this is a check rather than a description.
 
 ```
-cmd/meshcoresim/    the binary
+cmd/meshbench/    the binary
 
 internal/rf/        radio physics — knows nothing of nodes, networks or the app
   geo/                great-circle distance and bearing, once

@@ -58,7 +58,7 @@ func TestTheAuditDoesNotReadTheMachine(t *testing.T) {
 	// reads: one directory per version, holding a meshcore- binary.
 	cache := t.TempDir()
 	for i := 1; i <= 20; i++ {
-		dir := filepath.Join(cache, "meshcoresim", "firmware", "native",
+		dir := filepath.Join(cache, "meshbench", "firmware", "native",
 			fmt.Sprintf("v1.%d.0", i))
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)

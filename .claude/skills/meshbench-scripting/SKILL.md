@@ -119,13 +119,13 @@ matches produces a different node, silently.
 - Unix socket paths are capped at 104 bytes. The scratchpad path is longer than
   that, so let the client choose the address.
 - A killed run can leave a QEMU emulator behind. Check `pgrep -f qemu-system`.
-- Firmware roles on disk: `ls ~/.cache/meshcoresim/firmware/native/`.
+- Firmware roles on disk: `ls ~/.cache/meshbench/firmware/native/`.
 
 ## Debugging a script that has stopped
 
 In this order, because each step invalidated a theory today:
 
-1. **What else is running?** `pgrep -af meshcoresim`. Load, not logic.
+1. **What else is running?** `pgrep -af meshbench`. Load, not logic.
 2. **Attach and ask.** A second client can attach while the first is stuck:
    `describe`, `firmware.state`, `jobs`, `nodes.stats`. That is how the
    `56 of 58` and the unfinished warm job were both found in seconds.
