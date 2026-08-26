@@ -93,6 +93,14 @@ func (sh *Shell) Visible(name string) bool {
 // VisiblePanels is every panel in the current view's live arrangement.
 func (sh *Shell) VisiblePanels() []string { return sh.arrangement().panels() }
 
+// reveal fires a panel's OnReveal, if it has one. Called wherever a panel is
+// brought into view, so "opened" means the same thing from a menu and a tab.
+func (sh *Shell) reveal(name string) {
+	if p := sh.Panels[name]; p != nil && p.OnReveal != nil {
+		p.OnReveal()
+	}
+}
+
 // Dock puts a panel on screen in the current view and shows it.
 //
 // Into the region last pressed, so "open the waterfall" lands where the
@@ -109,6 +117,7 @@ func (sh *Shell) Dock(name string) {
 			c.Active = k
 		}
 		sh.focus = r
+		sh.reveal(name)
 		return
 	}
 	target := sh.focus
@@ -121,11 +130,13 @@ func (sh *Shell) Dock(name string) {
 		a := sh.arrangement()
 		a.Rows = append(a.Rows, Row{Weight: 1, Cols: []Col{col(name, 0)}})
 		sh.focus = regionRef{Row: len(a.Rows) - 1, Col: 0}
+		sh.reveal(name)
 		return
 	}
 	c.Tabs = append(c.Tabs, name)
 	c.Active = len(c.Tabs) - 1
 	sh.focus = target
+	sh.reveal(name)
 }
 
 // defaultRegion is where a panel goes when nothing has been pressed: the

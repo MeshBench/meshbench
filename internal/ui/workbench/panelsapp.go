@@ -31,7 +31,10 @@ func addAppPanels(d panelDeps) *configPanel {
 			_, _ = d.st.Do(d.ctx, "resource.list", nil)
 		}()
 	}
-	d.sh.Add(homed(&shell.Panel{Name: "Resources", Windowable: true, Draw: res.Draw}))
+	// Opening the panel re-asks the cache what is there, so a download or a
+	// wipe made elsewhere shows the moment it is looked at rather than only
+	// after a manual Rescan.
+	d.sh.Add(homed(&shell.Panel{Name: "Resources", Windowable: true, Draw: res.Draw, OnReveal: res.Refresh}))
 
 	lic := &licPanel{}
 	// A chip is a click, and a click cannot be captured; the flag is how a

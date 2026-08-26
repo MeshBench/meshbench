@@ -34,6 +34,10 @@ type Panel struct {
 	// that then threw them out of the window.
 	Menu    string
 	Section string
+	// OnReveal fires when the panel is opened - docked from a menu, or its tab
+	// raised - so a panel whose content is a snapshot of something external
+	// (the resource caches) can refresh it the moment it comes back into view.
+	OnReveal func()
 }
 
 // Shell is the whole frame.
