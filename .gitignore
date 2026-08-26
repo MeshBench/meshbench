@@ -42,7 +42,6 @@ tools/armfw/build/
 
 # Tool binaries built at the repo root by `go build ./tools/...`. They shadow
 # the packages they are built from, so tab-completing the name gets the binary.
-/workbench2
 /envgen
 /goldencap
 /meshbench
