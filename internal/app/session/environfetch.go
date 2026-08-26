@@ -163,7 +163,7 @@ func environCacheDir(source string, patches []llBox) (string, error) {
 	}
 	sort.Strings(keys)
 	sum := sha256.Sum256([]byte(strings.Join(keys, "|")))
-	return filepath.Join(cache, "meshcoresim", "environment",
+	return filepath.Join(cache, "meshbench", "environment",
 		fmt.Sprintf("%s-%x", source, sum[:4])), nil
 }
 
@@ -428,7 +428,7 @@ func registerEnvironFetch(st *state.Store, s *Sim) {
 		// an error: the dropdown's honest answer is "nothing downloaded".
 		var root string
 		if cache, err := os.UserCacheDir(); err == nil {
-			root = filepath.Join(cache, "meshcoresim", "environment")
+			root = filepath.Join(cache, "meshbench", "environment")
 		}
 		entries, _ := os.ReadDir(root)
 		var dirs []string

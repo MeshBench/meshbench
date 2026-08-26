@@ -20,7 +20,7 @@ The control interface listens locally, and how depends on the operating
 system:
 
 - **Linux, macOS and the BSDs**: a **unix domain socket**, per user, mode
-  `0600`, gone at reboot. On Linux it is `$XDG_RUNTIME_DIR/meshcoresim.sock`;
+  `0600`, gone at reboot. On Linux it is `$XDG_RUNTIME_DIR/meshbench.sock`;
   elsewhere it is under the per-user cache directory. The kernel enforces who
   may connect.
 - **Windows**: a **loopback TCP listener** on an ephemeral port, because

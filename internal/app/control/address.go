@@ -6,7 +6,7 @@
 // on Windows cannot speak to one at all. And the per-user default was built
 // out of XDG_RUNTIME_DIR and os.Getuid(), neither of which means anything off
 // Linux; Getuid does not even fail there, it returns -1, so the fallback
-// quietly produced one shared path called meshcoresim--1.sock.
+// quietly produced one shared path called meshbench--1.sock.
 //
 // So there are two transports:
 //
@@ -88,7 +88,7 @@ const maxUnixPath = 104
 //
 // Accepted forms:
 //
-//	/run/user/1000/meshcoresim.sock   a unix socket at a path
+//	/run/user/1000/meshbench.sock   a unix socket at a path
 //	unix:/tmp/mb.sock                 the same, said explicitly
 //	tcp                               loopback, an ephemeral port
 //	tcp:127.0.0.1:5599                loopback, a port somebody chose
@@ -178,7 +178,7 @@ func defaultAddress() (Address, error) {
 	// Linux keeps exactly the path it has always had: scripts, the MCP server
 	// and tools/soak all name it, and moving it would break them for no gain.
 	if dir := os.Getenv("XDG_RUNTIME_DIR"); dir != "" {
-		p := filepath.Join(dir, "meshcoresim.sock")
+		p := filepath.Join(dir, "meshbench.sock")
 		return Address{Kind: Unix, Addr: p}, checkUnixPath(p)
 	}
 	// Everywhere else, a per-user directory the OS already defines - which is

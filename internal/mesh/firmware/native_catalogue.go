@@ -196,5 +196,5 @@ func DefaultCacheDir() string {
 	if err != nil {
 		return "firmware"
 	}
-	return filepath.Join(dir, "meshcoresim", "firmware")
+	return filepath.Join(dir, "meshbench", "firmware")
 }

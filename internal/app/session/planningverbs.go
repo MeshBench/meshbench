@@ -176,5 +176,5 @@ func projectsDir() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(cfg, "meshcoresim", "projects"), nil
+	return filepath.Join(cfg, "meshbench", "projects"), nil
 }

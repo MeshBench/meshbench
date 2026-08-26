@@ -4,12 +4,12 @@
 # The question is not whether it starts. It is whether the control socket
 # answers, because that is the whole interface a test harness has.
 set -u
-cd ~/Documents/projects/meshcoresim
-go build -o /tmp/msim-headless ./cmd/meshcoresim || exit 1
+cd ~/Documents/projects/meshbench
+go build -o /tmp/msim-headless ./cmd/meshbench || exit 1
 
 export XDG_RUNTIME_DIR=/tmp/hlrun
 mkdir -p "$XDG_RUNTIME_DIR"
-rm -f "$XDG_RUNTIME_DIR/meshcoresim.sock"
+rm -f "$XDG_RUNTIME_DIR/meshbench.sock"
 
 # llvmpipe: no GPU on a CI runner, and the GPU paths all have CPU twins anyway.
 export LIBGL_ALWAYS_SOFTWARE=1
@@ -22,11 +22,11 @@ setsid nohup xvfb-run -a --server-args="-screen 0 1600x1000x24" \
 sleep 1
 
 for i in $(seq 1 40); do
-  [ -S "$XDG_RUNTIME_DIR/meshcoresim.sock" ] && break
+  [ -S "$XDG_RUNTIME_DIR/meshbench.sock" ] && break
   sleep 1
 done
 
-if [ ! -S "$XDG_RUNTIME_DIR/meshcoresim.sock" ]; then
+if [ ! -S "$XDG_RUNTIME_DIR/meshbench.sock" ]; then
   echo "no control socket after 40s"
   tail -15 /tmp/headless.log
   exit 1
@@ -35,7 +35,7 @@ echo "control socket up"
 
 ask() {
   printf '{"id":1,"method":"%s","params":%s}\n' "$1" "${2:-\{\}}" \
-    | timeout 30 socat - UNIX-CONNECT:"$XDG_RUNTIME_DIR/meshcoresim.sock"
+    | timeout 30 socat - UNIX-CONNECT:"$XDG_RUNTIME_DIR/meshbench.sock"
 }
 
 echo "=== session.describe"

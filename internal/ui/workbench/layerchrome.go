@@ -259,7 +259,7 @@ func (c *layerChrome) pxToDpSize(sz image.Point) (unit.Dp, unit.Dp) {
 // refused the move from a compositor that ignored it is to print what the
 // client believed and what it then sent.
 //
-//	MESHBENCH_LAYER_DEBUG=1 go run ./cmd/meshcoresim workbench
+//	MESHBENCH_LAYER_DEBUG=1 go run ./cmd/meshbench workbench
 func layerLog(format string, args ...any) {
 	if os.Getenv("MESHBENCH_LAYER_DEBUG") == "" {
 		return

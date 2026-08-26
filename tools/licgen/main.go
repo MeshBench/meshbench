@@ -4,7 +4,7 @@
 // The curated half - the forks, the bundled native pieces, what is downloaded
 // at runtime, the data attributions - lives in docs/licences.json with its
 // texts checked in under docs/licences/, so generation needs no network. The
-// Go half is discovered from the build graph of ./cmd/meshcoresim: every
+// Go half is discovered from the build graph of ./cmd/meshbench: every
 // linked module's licence file is read from the module cache and classified,
 // and a module whose licence cannot be named fails the run - that is the
 // enforcement, not a warning.
@@ -196,12 +196,12 @@ func readCurated(root string) (curated, error) {
 	return c, nil
 }
 
-// goLibraries walks the build graph of ./cmd/meshcoresim (the superset: both
+// goLibraries walks the build graph of ./cmd/meshbench (the superset: both
 // workbenches) and reads each linked module's licence from the module cache.
 func goLibraries(root string, notes map[string]string) ([]Entry, error) {
 	cmd := exec.Command("go", "list", "-deps",
 		"-f", `{{if .Module}}{{if not .Module.Main}}{{.Module.Path}}	{{.Module.Version}}	{{.Module.Dir}}{{end}}{{end}}`,
-		"./cmd/meshcoresim")
+		"./cmd/meshbench")
 	cmd.Dir = root
 	cmd.Stderr = os.Stderr
 	out, err := cmd.Output()

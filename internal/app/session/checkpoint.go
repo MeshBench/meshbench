@@ -59,7 +59,7 @@ func checkpointsDir() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(cfg, "meshcoresim", "checkpoints"), nil
+	return filepath.Join(cfg, "meshbench", "checkpoints"), nil
 }
 
 // safeCheckpointName maps a chosen name onto a filename that stays inside the

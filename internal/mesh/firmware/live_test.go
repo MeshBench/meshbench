@@ -13,8 +13,8 @@ import (
 // A live check that the published release and the simulator agree about names.
 // Skipped without the flag: a unit test that needs the network is a flaky test.
 func TestLiveNativeCatalogue(t *testing.T) {
-	if os.Getenv("MESHCORESIM_LIVE") == "" {
-		t.Skip("set MESHCORESIM_LIVE=1")
+	if os.Getenv("MESHBENCH_LIVE") == "" {
+		t.Skip("set MESHBENCH_LIVE=1")
 	}
 	c := &firmware.NativeCatalogue{CacheDir: t.TempDir()}
 	path, err := c.Ensure(context.Background(), "simple_repeater", "main")

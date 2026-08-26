@@ -91,7 +91,7 @@ func TestHowCloseTheLinksAreToThreshold(t *testing.T) {
 // indices mean other nodes entirely.
 func savedMatrixFor(t *testing.T, n int) map[[2]int]float64 {
 	t.Helper()
-	dir := filepath.Join(os.Getenv("HOME"), ".cache", "meshcoresim", "matrix")
+	dir := filepath.Join(os.Getenv("HOME"), ".cache", "meshbench", "matrix")
 	ents, err := os.ReadDir(dir)
 	if err != nil {
 		return nil

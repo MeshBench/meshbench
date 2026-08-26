@@ -41,9 +41,9 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 		out.Err = err.Error()
 		return out
 	}
-	old := os.Getenv("MESHCORESIM_NODEFS")
-	_ = os.Setenv("MESHCORESIM_NODEFS", fs)
-	defer func() { _ = os.Setenv("MESHCORESIM_NODEFS", old) }()
+	old := os.Getenv("MESHBENCH_NODEFS")
+	_ = os.Setenv("MESHBENCH_NODEFS", fs)
+	defer func() { _ = os.Setenv("MESHBENCH_NODEFS", old) }()
 
 	eng := engine.New(s.terrain(), engine.Config{
 		FreqMHz: 869.618, SF: 10, BandwidthHz: 250e3, CodingRate: 1,

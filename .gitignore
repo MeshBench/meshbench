@@ -1,4 +1,4 @@
-/meshcoresim
+/meshbench
 /dist/
 *.exe
 
@@ -49,7 +49,7 @@ spikes/electron/package-lock.json
 /workbench2
 /envgen
 /goldencap
-/meshcoresim
+/meshbench
 
 # built test binaries
 *.test

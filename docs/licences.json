@@ -114,7 +114,7 @@
     },
     {
       "name": "wireshark-meshcore (Wireshark dissector)",
-      "detail": "Vendored verbatim in tools/dissector/meshcore_dissector.lua. Decodes the MeshCore protocol itself for 'watch it live in Wireshark' and saved captures; MeshBench's own meshcoresim.lua is the metadata layer beside it and calls into this one for the frame body. A standalone script Wireshark loads at runtime, not linked into the binary, so it sits alongside MeshBench's own GPL-3.0-or-later rather than combining with it.",
+      "detail": "Vendored verbatim in tools/dissector/meshcore_dissector.lua. Decodes the MeshCore protocol itself for 'watch it live in Wireshark' and saved captures; MeshBench's own meshbench.lua is the metadata layer beside it and calls into this one for the frame body. A standalone script Wireshark loads at runtime, not linked into the binary, so it sits alongside MeshBench's own GPL-3.0-or-later rather than combining with it.",
       "licence": "GPL-2.0-only",
       "link": "https://github.com/aaronb/wireshark-meshcore",
       "text_files": [
@@ -134,7 +134,7 @@
     },
     {
       "name": "Board firmware images",
-      "detail": "Published MeshCore releases and flasher.meshcore.io, fetched on first use and cached under ~/.cache/meshcoresim.",
+      "detail": "Published MeshCore releases and flasher.meshcore.io, fetched on first use and cached under ~/.cache/meshbench.",
       "licence": "MIT (as MeshCore publishes them)",
       "link": "https://flasher.meshcore.io",
       "text": "Downloaded on demand under MeshCore's own terms; see the MeshCore entry above."

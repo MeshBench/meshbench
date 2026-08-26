@@ -125,9 +125,9 @@ Already implemented, and the reasoning matters for packaging.
 
 `lookupTool` searches, in order:
 
-1. `MESHCORESIM_QEMU` / `MESHCORESIM_RADIO_SERVER`
+1. `MESHBENCH_QEMU` / `MESHBENCH_RADIO_SERVER`
 2. beside the MeshBench binary
-3. `~/.cache/meshcoresim/tools/`
+3. `~/.cache/meshbench/tools/`
 4. `PATH`
 
 Beside-the-binary is what an installed bundle should use. `PATH` is last and

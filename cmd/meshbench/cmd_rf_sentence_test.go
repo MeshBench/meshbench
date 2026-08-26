@@ -4,7 +4,7 @@ import "testing"
 
 // The board notes are full of version numbers and file extensions, and a full
 // stop inside one is not the end of a sentence. Both cases below were printing
-// truncated in `meshcoresim boards` before this was fixed.
+// truncated in `meshbench boards` before this was fixed.
 func TestFirstSentenceKeepsVersionsAndExtensions(t *testing.T) {
 	for _, c := range []struct{ in, want string }{
 		{"The board whose transmit failure 1.17.1 fixed: the pin was -1. And then more.",

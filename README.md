@@ -47,14 +47,14 @@ a live network from CoreScope, Beacon or MQTT and ask what it would do.
 
 Run **MeshCore's own code**, not a reimplementation. Routing, flood suppression,
 duty-cycle policing and CSMA timing are the real thing, running against our
-radio. Point `meshcoresim dev` at a checkout and the workbench runs your build;
+radio. Point `meshbench dev` at a checkout and the workbench runs your build;
 run half a mesh on one firmware and half on another, same traffic, and diff.
 Published `.uf2` and `.bin` images boot under QEMU and Renode, and the board
 matrix below says which have actually been watched doing what.
 
 ### Build a companion app
 
-`meshcoresim serve` runs a mesh and exposes a node to your application over
+`meshbench serve` runs a mesh and exposes a node to your application over
 **TCP, a serial pty, or Bluetooth** — the real companion protocol, spoken by
 real firmware. Your app cannot tell it from a radio on a desk, and you can put
 forty nodes and a hill between it and the far end without leaving the room.
@@ -85,7 +85,7 @@ all: the failure you are chasing has to be able to happen.
 | **Real boards** | Published `.uf2` and `.bin` images under QEMU and Renode, with a capability matrix that says what has been watched happening. |
 | **Firmware A/B** | Half the repeaters on one build, half on another, same traffic, and diff. |
 | **Your app against a mesh** | A real companion over TCP, a serial pty, or Bluetooth. |
-| **Repeatable tests** | `meshcoresim test` runs a fixture on real firmware and checks its assertions — for CI, yours or MeshCore's. |
+| **Repeatable tests** | `meshbench test` runs a fixture on real firmware and checks its assertions — for CI, yours or MeshCore's. |
 | **Wireshark** | Every receiver's view of every frame, live over loopback UDP or saved as pcapng. |
 | **SDR** | Export IQ or stream it, so an unmodified SDR client sees the simulated band. |
 | **Batteries and solar** | Whether a node survives the winter where you want to put it. |
@@ -212,7 +212,7 @@ no USB device at all.
 
 ```bash
 go test ./...        # the CPU reference path, which is what CI exercises
-go run ./cmd/meshcoresim workbench
+go run ./cmd/meshbench workbench
 ```
 
 Needs a GPU and a display to open its window; the CPU path is a maintained

@@ -1,5 +1,5 @@
 // The standalone workbench binary. The application itself lives in
-// internal/workbench; `meshcoresim workbench` is the same code.
+// internal/workbench; `meshbench workbench` is the same code.
 package main
 
 import (

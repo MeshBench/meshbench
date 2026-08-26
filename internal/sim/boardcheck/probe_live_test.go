@@ -15,8 +15,8 @@ func (flat) ElevationM(_, _ float64) (float64, bool) { return 0, true }
 
 // One board, one real emulator boot.
 //
-//	MESHCORESIM_LIVE=1 MESHCORESIM_QEMU=~/.cache/meshcoresim/tools/qemu-system-xtensa \
-//	  MESHCORESIM_BOARD=Generic_E22_sx1262 MESHCORESIM_BOARD_VERSION=v1.17.1 \
+//	MESHBENCH_LIVE=1 MESHBENCH_QEMU=~/.cache/meshbench/tools/qemu-system-xtensa \
+//	  MESHBENCH_BOARD=Generic_E22_sx1262 MESHBENCH_BOARD_VERSION=v1.17.1 \
 //	  go test ./internal/sim/boardcheck -run TestProbeOneBoard -v
 //
 // Deliberately one board and never the catalogue: a probe runs a published
@@ -24,14 +24,14 @@ func (flat) ElevationM(_, _ float64) (float64, bool) { return 0, true }
 // eleven of those at once takes the machine down rather than measuring
 // anything.
 func TestProbeOneBoard(t *testing.T) {
-	if os.Getenv("MESHCORESIM_LIVE") == "" {
-		t.Skip("set MESHCORESIM_LIVE=1")
+	if os.Getenv("MESHBENCH_LIVE") == "" {
+		t.Skip("set MESHBENCH_LIVE=1")
 	}
-	board := os.Getenv("MESHCORESIM_BOARD")
+	board := os.Getenv("MESHBENCH_BOARD")
 	if board == "" {
 		board = "Generic_E22_sx1262"
 	}
-	version := os.Getenv("MESHCORESIM_BOARD_VERSION")
+	version := os.Getenv("MESHBENCH_BOARD_VERSION")
 	if version == "" {
 		version = "v1.17.1"
 	}

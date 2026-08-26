@@ -31,10 +31,10 @@ import (
 // The screen bits are a real capture from an emulated Heltec V3, not a
 // pattern: a mock would prove the layout and nothing about the pipeline.
 func TestDrawTheHardwareTab(t *testing.T) {
-	if os.Getenv("MESHCORESIM_SHOTS") == "" {
-		t.Skip("set MESHCORESIM_SHOTS=<dir> to write the pictures")
+	if os.Getenv("MESHBENCH_SHOTS") == "" {
+		t.Skip("set MESHBENCH_SHOTS=<dir> to write the pictures")
 	}
-	dir := os.Getenv("MESHCORESIM_SHOTS")
+	dir := os.Getenv("MESHBENCH_SHOTS")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}

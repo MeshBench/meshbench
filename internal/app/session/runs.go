@@ -36,7 +36,7 @@ func runsDir() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	dir := filepath.Join(cache, "meshcoresim", "runs")
+	dir := filepath.Join(cache, "meshbench", "runs")
 	return dir, os.MkdirAll(dir, 0o755)
 }
 

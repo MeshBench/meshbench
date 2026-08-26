@@ -16,8 +16,8 @@ import (
 // How long does the link matrix actually take? The answer decides whether a
 // GPU path is worth building, so it is measured rather than assumed.
 func TestLiveWarmSpeed(t *testing.T) {
-	if os.Getenv("MESHCORESIM_LIVE") == "" {
-		t.Skip("set MESHCORESIM_LIVE=1")
+	if os.Getenv("MESHBENCH_LIVE") == "" {
+		t.Skip("set MESHBENCH_LIVE=1")
 	}
 	rng := rand.New(rand.NewSource(4417))
 	e := engine.New(flat{}, engine.Config{
@@ -47,11 +47,11 @@ func TestLiveWarmSpeed(t *testing.T) {
 // The same measurement over the real DEM, which is where the cost actually
 // lives: every profile is ~256 bilinear tile reads.
 func TestLiveWarmSpeedRealDEM(t *testing.T) {
-	if os.Getenv("MESHCORESIM_LIVE") == "" {
-		t.Skip("set MESHCORESIM_LIVE=1")
+	if os.Getenv("MESHBENCH_LIVE") == "" {
+		t.Skip("set MESHBENCH_LIVE=1")
 	}
 	cache, _ := os.UserCacheDir()
-	store, err := terrain.NewTileStore(cache + "/meshcoresim/terrain")
+	store, err := terrain.NewTileStore(cache + "/meshbench/terrain")
 	if err != nil {
 		t.Fatal(err)
 	}

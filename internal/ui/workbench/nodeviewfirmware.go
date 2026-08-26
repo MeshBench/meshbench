@@ -41,7 +41,7 @@ func installedBuilds() []buildChoice {
 	}
 	seen := map[string]bool{}
 	var out []buildChoice
-	for _, f := range firmware.ListInstalled(filepath.Join(cache, "meshcoresim", "firmware")) {
+	for _, f := range firmware.ListInstalled(filepath.Join(cache, "meshbench", "firmware")) {
 		c := buildChoice{Version: f.Version, Label: f.Version}
 		if !f.Native {
 			c.Board, c.Role = f.Board, f.Role

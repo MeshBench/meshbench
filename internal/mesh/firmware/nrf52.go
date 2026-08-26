@@ -234,7 +234,7 @@ func writeFill(path string, n int) error {
 func SoftDeviceDir() string {
 	dir, err := os.UserCacheDir()
 	if err != nil {
-		return filepath.Join("meshcoresim", "softdevice")
+		return filepath.Join("meshbench", "softdevice")
 	}
-	return filepath.Join(dir, "meshcoresim", "softdevice")
+	return filepath.Join(dir, "meshbench", "softdevice")
 }

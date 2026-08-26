@@ -1,4 +1,4 @@
-// Command meshcoresim is the MeshCore network simulator.
+// Command meshbench is the MeshCore network simulator.
 //
 // `workbench` opens the desktop application; every other command is headless.
 // That split is deliberate and permanent: the headless path is what scripted
@@ -88,14 +88,14 @@ func main() {
 
 // invoked is the name this binary was run as.
 //
-// The release ships it as "meshbench" while the package is cmd/meshcoresim, so
+// The release ships it as "meshbench" while the package is cmd/meshbench, so
 // a hardcoded name is wrong for one audience or the other: a user who installs
-// a release and types --help was told to run "meshcoresim", which is not on
+// a release and types --help was told to run "meshbench", which is not on
 // their machine. Reading argv gets both right, and a rename cannot make it
 // stale again.
 func invoked() string {
 	if len(os.Args) == 0 || os.Args[0] == "" {
-		return "meshcoresim"
+		return "meshbench"
 	}
 	return strings.TrimSuffix(filepath.Base(os.Args[0]), ".exe")
 }
@@ -123,7 +123,7 @@ func usage() {
 // to is the kind of surprise that ends up on a metered connection.
 func terrainFlags(fs *flag.FlagSet) func() (*terrain.TileStore, error) {
 	defaultCache, _ := os.UserCacheDir()
-	dir := fs.String("terrain-cache", filepath.Join(defaultCache, "meshcoresim", "terrain"),
+	dir := fs.String("terrain-cache", filepath.Join(defaultCache, "meshbench", "terrain"),
 		"where downloaded elevation tiles live")
 	offline := fs.Bool("offline", false, "never download; answer from the cache and fail loudly otherwise")
 	zoom := fs.Int("zoom", terrain.DefaultZoom, "tile zoom; 12 is about 30 m per pixel and matches the data")

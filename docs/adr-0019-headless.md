@@ -1,6 +1,6 @@
 > **Working note, last true on 19 August 2026.** Kept for the thinking in it, not maintained as a description of the code. Where this disagrees with the tree, the tree is right; the authority is the decision itself, which stands.
 >
-> **Built on 22 August 2026: `meshcoresim headless`.** Two things below are no longer true of the tree. "Control verbs are serviced on the frame thread" was the ADR's central argument and is not: `state.Store.Run` owns its own goroutine and its own ticker, and the socket is pumped from a worker. And "the verb layer must be usable without a frame loop. Today it is not, and that is the work" - it is, and the work turned out to be small because of that. What the decision bought is intact: the two modes build one session through `session.Boot`, so they cannot become two registrations that drift.
+> **Built on 22 August 2026: `meshbench headless`.** Two things below are no longer true of the tree. "Control verbs are serviced on the frame thread" was the ADR's central argument and is not: `state.Store.Run` owns its own goroutine and its own ticker, and the socket is pumped from a worker. And "the verb layer must be usable without a frame loop. Today it is not, and that is the work" - it is, and the work turned out to be small because of that. What the decision bought is intact: the two modes build one session through `session.Boot`, so they cannot become two registrations that drift.
 
 # ADR-0019: a headless mode, rather than a virtual display
 

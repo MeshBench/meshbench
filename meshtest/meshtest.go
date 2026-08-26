@@ -414,7 +414,7 @@ func terrainStore(opts Options) (*terrain.TileStore, error) {
 		}
 		// The same place the application keeps them, so a test on a machine
 		// that has run MeshBench does not download the country again.
-		dir = filepath.Join(cache, "meshcoresim", "terrain")
+		dir = filepath.Join(cache, "meshbench", "terrain")
 	}
 	ts, err := terrain.NewTileStore(dir)
 	if err != nil {

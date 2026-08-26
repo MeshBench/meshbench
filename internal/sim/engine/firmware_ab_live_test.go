@@ -21,9 +21,9 @@ import (
 // the two timelines is the firmware, which is the whole premise of running the
 // real thing rather than a model of it.
 //
-//	MESHCORESIM_LIVE=1 MESHCORESIM_AB_OUT=/tmp/ab.json \
-//	MESHCORESIM_QEMU=~/msim/espqemu-src/build/qemu-system-xtensa \
-//	MESHCORESIM_RADIO_SERVER=~/.cache/meshcoresim/tools/radioserver \
+//	MESHBENCH_LIVE=1 MESHBENCH_AB_OUT=/tmp/ab.json \
+//	MESHBENCH_QEMU=~/msim/espqemu-src/build/qemu-system-xtensa \
+//	MESHBENCH_RADIO_SERVER=~/.cache/meshbench/tools/radioserver \
 //	go test ./internal/engine/ -run TestFirmwareABRadioConfiguration -v -timeout 600s
 
 // sample is one moment in a node's radio configuration.
@@ -55,8 +55,8 @@ type versionRun struct {
 }
 
 func TestFirmwareABRadioConfiguration(t *testing.T) {
-	if os.Getenv("MESHCORESIM_LIVE") == "" {
-		t.Skip("set MESHCORESIM_LIVE=1")
+	if os.Getenv("MESHBENCH_LIVE") == "" {
+		t.Skip("set MESHBENCH_LIVE=1")
 	}
 	const board = "Generic_E22_sx1262"
 	versions := []string{"v1.17.0", "v1.17.1"}
@@ -71,7 +71,7 @@ func TestFirmwareABRadioConfiguration(t *testing.T) {
 			r.BoostedEver, r.BoostedFinal, r.Transmits)
 	}
 
-	if out := os.Getenv("MESHCORESIM_AB_OUT"); out != "" {
+	if out := os.Getenv("MESHBENCH_AB_OUT"); out != "" {
 		b, err := json.MarshalIndent(runs, "", "  ")
 		if err != nil {
 			t.Fatal(err)

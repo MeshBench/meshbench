@@ -23,7 +23,7 @@ func TestTheLomondRidgeBlocksWhatItShould(t *testing.T) {
 	if err != nil {
 		t.Skip(err)
 	}
-	st, err := terrain.NewTileStore(filepath.Join(cache, "meshcoresim", "terrain"))
+	st, err := terrain.NewTileStore(filepath.Join(cache, "meshbench", "terrain"))
 	if err != nil {
 		t.Skip(err)
 	}

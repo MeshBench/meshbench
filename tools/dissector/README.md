@@ -1,7 +1,7 @@
 # Wireshark dissector
 
 ```
-cp meshcoresim.lua ~/.local/lib/wireshark/plugins/
+cp meshbench.lua ~/.local/lib/wireshark/plugins/
 ```
 
 Then open any `.pcapng` written by `internal/capture`.
@@ -34,7 +34,7 @@ that wrote them.
 
 ## Two files, two jobs
 
-`meshcoresim.lua` is the metadata layer: which node received a frame, what it
+`meshbench.lua` is the metadata layer: which node received a frame, what it
 then did with it, the true RSSI and SNR, and the node names — everything only a
 simulator can know. It registers on loopback UDP (live) and on DLT_USER0 (a
 saved pcapng).
@@ -61,7 +61,7 @@ By hand:
 
     wireshark -k -i lo -f "udp port 5555" \
       -X lua_script:tools/dissector/meshcore_dissector.lua \
-      -X lua_script:tools/dissector/meshcoresim.lua
+      -X lua_script:tools/dissector/meshbench.lua
 
 Order matters: ours registers DLT_USER0 last so our captures get our header.
 

@@ -28,7 +28,7 @@ func (p *configPanel) wireEnvironLoaded() {
 		// well-known directory, and a listing needs no verb round-trip.
 		opts := []string{"bare earth - no buildings"}
 		if cache, err := os.UserCacheDir(); err == nil {
-			root := filepath.Join(cache, "meshcoresim", "environment")
+			root := filepath.Join(cache, "meshbench", "environment")
 			if entries, err := os.ReadDir(root); err == nil {
 				for _, e := range entries {
 					if e.IsDir() {

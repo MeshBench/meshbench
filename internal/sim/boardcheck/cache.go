@@ -19,7 +19,7 @@ func Dir() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	dir := filepath.Join(cache, "meshcoresim", "boardcapability")
+	dir := filepath.Join(cache, "meshbench", "boardcapability")
 	return dir, os.MkdirAll(dir, 0o755)
 }
 

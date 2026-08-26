@@ -27,11 +27,11 @@ func frame(payload []byte) []byte {
 // the AppStart handshake. The experiment discards a node's stderr, so this is
 // the only place the firmware's own account of it is visible.
 //
-//	MESHCORESIM_LIVE=1 MESHCORESIM_NATIVE=~/msim/meshcore-native/build \
+//	MESHBENCH_LIVE=1 MESHBENCH_NATIVE=~/msim/meshcore-native/build \
 //	go test ./internal/firmware/ -run TestWhatKillsACompanion -v
 func TestWhatKillsACompanion(t *testing.T) {
-	if os.Getenv("MESHCORESIM_LIVE") == "" {
-		t.Skip("set MESHCORESIM_LIVE=1")
+	if os.Getenv("MESHBENCH_LIVE") == "" {
+		t.Skip("set MESHBENCH_LIVE=1")
 	}
 	if _, err := firmware.FindNative("", "companion_radio"); err != nil {
 		t.Skipf("no native companion build: %v", err)

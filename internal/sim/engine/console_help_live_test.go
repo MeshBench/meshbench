@@ -21,11 +21,11 @@ import (
 // answers "Err - ??", which is what a repeater says when it understands
 // nothing at all, so the first thing a newcomer tries reads as a broken node.
 //
-//	MESHCORESIM_LIVE=1 MESHCORESIM_NATIVE=~/msim/study/11-console-help \
+//	MESHBENCH_LIVE=1 MESHBENCH_NATIVE=~/msim/study/11-console-help \
 //	go test ./internal/engine/ -run TestConsoleHelp -v -timeout 200s
 func TestConsoleHelpAnswersAPerson(t *testing.T) {
-	if os.Getenv("MESHCORESIM_LIVE") == "" {
-		t.Skip("set MESHCORESIM_LIVE=1")
+	if os.Getenv("MESHBENCH_LIVE") == "" {
+		t.Skip("set MESHBENCH_LIVE=1")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 120e9)
 	defer cancel()

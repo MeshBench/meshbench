@@ -34,11 +34,11 @@ import (
 // makes it invisible without reading the register, and it is the whole reason
 // kRadioStats carries one.
 //
-//	MESHCORESIM_LIVE=1 go test ./internal/engine/ \
+//	MESHBENCH_LIVE=1 go test ./internal/engine/ \
 //	  -run TestAnAGCResetLosesBoostedGain -v -timeout 600s
 func TestAnAGCResetLosesBoostedGain(t *testing.T) {
-	if os.Getenv("MESHCORESIM_LIVE") == "" {
-		t.Skip("set MESHCORESIM_LIVE=1")
+	if os.Getenv("MESHBENCH_LIVE") == "" {
+		t.Skip("set MESHBENCH_LIVE=1")
 	}
 	for _, version := range []string{"repeater-v1.17.0", "repeater-v1.17.1"} {
 		t.Run(version, func(t *testing.T) {
@@ -62,14 +62,14 @@ func runAGCFault(t *testing.T, version string) bool {
 	// experiment is about. Fresh storage is also what makes the boot value
 	// below evidence rather than an inheritance.
 	fs := t.TempDir()
-	old, had := os.LookupEnv("MESHCORESIM_NODEFS")
-	_ = os.Setenv("MESHCORESIM_NODEFS", fs)
+	old, had := os.LookupEnv("MESHBENCH_NODEFS")
+	_ = os.Setenv("MESHBENCH_NODEFS", fs)
 	defer func() {
 		if had {
-			_ = os.Setenv("MESHCORESIM_NODEFS", old)
+			_ = os.Setenv("MESHBENCH_NODEFS", old)
 			return
 		}
-		_ = os.Unsetenv("MESHCORESIM_NODEFS")
+		_ = os.Unsetenv("MESHBENCH_NODEFS")
 	}()
 
 	e := engine.New(flat{100}, engine.Config{

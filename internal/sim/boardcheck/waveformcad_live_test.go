@@ -23,12 +23,12 @@ import (
 // it goes quiet - decided by the actual channel energy, with no engine rule
 // mediating.
 //
-// Live only: it runs native firmware. Set MESHCORESIM_LIVE=1.
+// Live only: it runs native firmware. Set MESHBENCH_LIVE=1.
 func TestWaveformCADIsWhatTheFirmwareCarrierSenses(t *testing.T) {
-	if os.Getenv("MESHCORESIM_LIVE") == "" {
-		t.Skip("set MESHCORESIM_LIVE=1")
+	if os.Getenv("MESHBENCH_LIVE") == "" {
+		t.Skip("set MESHBENCH_LIVE=1")
 	}
-	ver := os.Getenv("MESHCORESIM_BOARD_VERSION")
+	ver := os.Getenv("MESHBENCH_BOARD_VERSION")
 	if ver == "" {
 		ver = nativePeerVersion
 	}

@@ -30,7 +30,7 @@ echo "--- binary"
 go build -trimpath \
   -ldflags "-X gioui.org/app.ID=io.github.meshbench.meshbench \
             -X github.com/MeshBench/meshbench/internal/app/version.Version=v$VER" \
-  -o "$APP/Contents/MacOS/meshbench-bin" ./cmd/meshcoresim
+  -o "$APP/Contents/MacOS/meshbench-bin" ./cmd/meshbench
 
 echo "--- icon"
 ICONSET=$(mktemp -d)/meshbench.iconset

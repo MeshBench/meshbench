@@ -67,7 +67,7 @@ func runTerrain(ctx context.Context, args []string) error {
 func runFirmware(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("firmware", flag.ExitOnError)
 	defaultCache, _ := os.UserCacheDir()
-	cache := fs.String("cache", filepath.Join(defaultCache, "meshcoresim", "firmware"),
+	cache := fs.String("cache", filepath.Join(defaultCache, "meshbench", "firmware"),
 		"where downloaded images live")
 	offline := fs.Bool("offline", false, "list and use only what is already downloaded")
 	board := fs.String("board", "", "filter by board, or name the board when importing")

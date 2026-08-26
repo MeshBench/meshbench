@@ -21,7 +21,7 @@ func openSessionLog(st *state.Store, sm *session.Sim) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	dir = filepath.Join(dir, "meshcoresim", "logs")
+	dir = filepath.Join(dir, "meshbench", "logs")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", fmt.Errorf("session log directory: %w", err)
 	}

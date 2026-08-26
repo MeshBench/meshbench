@@ -149,10 +149,10 @@ both talk to. Put them where the application looks and nothing else is needed â€
 no environment variables, no flags.
 
 ```bash
-mkdir -p ~/.cache/meshcoresim/tools
-ln -sf /path/to/qemu-system-xtensa ~/.cache/meshcoresim/tools/
-cp /path/to/radioserver ~/.cache/meshcoresim/tools/
-ln -sf /path/to/renode ~/.cache/meshcoresim/tools/          # nRF52 only
+mkdir -p ~/.cache/meshbench/tools
+ln -sf /path/to/qemu-system-xtensa ~/.cache/meshbench/tools/
+cp /path/to/radioserver ~/.cache/meshbench/tools/
+ln -sf /path/to/renode ~/.cache/meshbench/tools/          # nRF52 only
 ```
 
 The Renode build comes from our fork's CI, which publishes a portable package
@@ -169,7 +169,7 @@ Then open the firmware library, download a board image, and set a node's role to
 it. The library only offers boards with verified wiring, so anything it lists
 will start.
 
-MeshBench searches, in order: `MESHCORESIM_QEMU` and `MESHCORESIM_RADIO_SERVER`,
+MeshBench searches, in order: `MESHBENCH_QEMU` and `MESHBENCH_RADIO_SERVER`,
 then beside its own binary, then that tools directory, then `PATH`. `PATH` is
 last because a desktop application is not launched from a shell and inherits
 nothing useful from one â€” which is why emulation used to work from a terminal

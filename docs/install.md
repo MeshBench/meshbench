@@ -80,7 +80,7 @@ Windows than on Linux and macOS: if a board will not start, run
 ### What arrives later, over the network
 
 Nothing needs a toolchain, but three things are fetched on first use and cached
-under `~/.cache/meshcoresim` (`%LOCALAPPDATA%` on Windows):
+under `~/.cache/meshbench` (`%LOCALAPPDATA%` on Windows):
 
 | what | where from | when |
 |---|---|---|

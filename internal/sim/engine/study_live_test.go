@@ -16,17 +16,17 @@ import (
 
 // One arm of the protocol study, over a fixed set of seeds.
 //
-// The arm is whichever firmware MESHCORESIM_NATIVE points at, so the same
+// The arm is whichever firmware MESHBENCH_NATIVE points at, so the same
 // scenario is replayed against each build without the harness knowing or caring
 // what changed in it. That is what makes the control arm meaningful: two builds
 // of identical source must produce identical numbers, and if they do not, no
 // difference measured here means anything.
 //
-//	MESHCORESIM_LIVE=1 MESHCORESIM_NATIVE=~/msim/study/00-control-a \
+//	MESHBENCH_LIVE=1 MESHBENCH_NATIVE=~/msim/study/00-control-a \
 //	STUDY_SEEDS=1,2,3,4,5 go test ./internal/engine/ -run TestStudyArm -v -timeout 900s
 func TestStudyArm(t *testing.T) {
-	if os.Getenv("MESHCORESIM_LIVE") == "" {
-		t.Skip("set MESHCORESIM_LIVE=1")
+	if os.Getenv("MESHBENCH_LIVE") == "" {
+		t.Skip("set MESHBENCH_LIVE=1")
 	}
 
 	seeds := []uint64{1, 2, 3}

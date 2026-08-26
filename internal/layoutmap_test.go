@@ -107,7 +107,7 @@ func TestLayoutMapMatchesTheTree(t *testing.T) {
 // layer it must start with rather than by counting fences.
 func layoutBlock(s string) string {
 	for _, part := range strings.Split(s, "```") {
-		if strings.Contains(part, "cmd/meshcoresim/") && strings.Contains(part, "internal/rf/") {
+		if strings.Contains(part, "cmd/meshbench/") && strings.Contains(part, "internal/rf/") {
 			return part
 		}
 	}

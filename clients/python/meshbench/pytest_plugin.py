@@ -36,7 +36,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     group.addoption(
         "--meshbench-binary",
         default=os.environ.get("MESHBENCH_BINARY"),
-        help="the meshcoresim executable to start",
+        help="the meshbench executable to start",
     )
     group.addoption(
         "--meshbench-fixture",

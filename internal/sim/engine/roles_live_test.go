@@ -23,10 +23,10 @@ import (
 // question of whether the middle node forwarded, which is the one behaviour
 // that separates the two roles.
 //
-//	MESHCORESIM_LIVE=1 go test ./internal/engine/ -run TestLiveRoles -v -timeout 400s
+//	MESHBENCH_LIVE=1 go test ./internal/engine/ -run TestLiveRoles -v -timeout 400s
 func TestLiveRolesRepeaterForwardsAndRoomServerDoesNot(t *testing.T) {
-	if os.Getenv("MESHCORESIM_LIVE") == "" {
-		t.Skip("set MESHCORESIM_LIVE=1")
+	if os.Getenv("MESHBENCH_LIVE") == "" {
+		t.Skip("set MESHBENCH_LIVE=1")
 	}
 
 	mast := antenna.Mounted{Pattern: antenna.Collinear{GainDBiPeak: 6}, Polarisation: "vertical"}

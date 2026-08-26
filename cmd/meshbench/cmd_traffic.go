@@ -82,7 +82,7 @@ func runTraffic(ctx context.Context, args []string) error {
 		len(nodes), *sf, *bw, *freq, nodes[originIdx].Name, mode)
 
 	start := time.Now()
-	e.Inject(originIdx, []byte("meshcoresim flood test"))
+	e.Inject(originIdx, []byte("meshbench flood test"))
 	if err := e.Run(ctx, uint32(*forMs)); err != nil {
 		return err
 	}

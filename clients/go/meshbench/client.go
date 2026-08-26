@@ -55,7 +55,7 @@ type dialOptions struct {
 func Socket(path string) Option { return func(o *dialOptions) { o.socket = path } }
 
 // Binary names the meshbench executable to launch. The default is whatever
-// "meshcoresim" resolves to on PATH.
+// "meshbench" resolves to on PATH.
 func Binary(path string) Option { return func(o *dialOptions) { o.binary = path } }
 
 // Fixture opens a network as the session starts.
@@ -163,7 +163,7 @@ func launch(ctx context.Context, o *dialOptions, args []string) (*Workbench, err
 		bin = os.Getenv(BinaryEnv)
 	}
 	if bin == "" {
-		bin = "meshcoresim"
+		bin = "meshbench"
 	}
 	// The binary and its arguments come from this process's own caller, not
 	// from anything the workbench or a network said. Launching a named

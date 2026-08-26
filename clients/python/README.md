@@ -23,7 +23,7 @@ connects to a workbench somebody is already looking at and never closes it.
 pip install meshbench
 ```
 
-You also need the `meshcoresim` binary on `PATH` — the package drives it, it
+You also need the `meshbench` binary on `PATH` — the package drives it, it
 does not contain it.
 
 ## What it looks like

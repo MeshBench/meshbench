@@ -34,7 +34,7 @@ a detection flag set (`busyReads`), and for how long (`busyMs`) — are its acco
 of how busy the air looked. Reproduce with:
 
 ```
-MESHCORESIM_LIVE=1 go test ./internal/sim/boardcheck/ \
+MESHBENCH_LIVE=1 go test ./internal/sim/boardcheck/ \
     -run TestWaveformCADIsWhatTheFirmwareCarrierSenses -v
 ```
 

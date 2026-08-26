@@ -7,7 +7,7 @@ does.
 
 ## elite
 
-`alex@10.100.72.98`, at `~/Documents/projects/meshcoresim`. Twelve cores, a
+`alex@10.100.72.98`, at `~/Documents/projects/meshbench`. Twelve cores, a
 real GPU, and the Renode and QEMU toolchains for the firmware work.
 
 - The full suite with `-race` runs in about three minutes.

@@ -396,7 +396,7 @@ class Firmware:
                 raise errors.NotFound(
                     "firmware.needed",
                     f"no {role} build on this machine: "
-                    f"meshcoresim firmware download {role}",
+                    f"meshbench firmware download {role}",
                     "not_found",
                 )
             self.use_for_role(role, chosen[role])

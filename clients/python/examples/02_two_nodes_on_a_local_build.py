@@ -39,7 +39,7 @@ def build_from_checkout(checkout: str, wb: Workbench) -> dict[str, Build]:
     # The same binary the client is driving, not whatever is on PATH: a
     # checkout usually has one built and not installed, and building with one
     # while talking to another is how two arms end up on different code.
-    exe = os.environ.get(BINARY_ENV) or "meshcoresim"
+    exe = os.environ.get(BINARY_ENV) or "meshbench"
 
     out: dict[Role, Build] = {}
     for role in (Role.SIMPLE_REPEATER, Role.COMPANION_RADIO):
@@ -57,7 +57,7 @@ def build_from_checkout(checkout: str, wb: Workbench) -> dict[str, Build]:
             sys.exit(
                 f"building the {role}: {made.stderr.strip() or made.stdout.strip()}"
             )
-        # meshcoresim dev puts the build in the cache; the library sees it.
+        # meshbench dev puts the build in the cache; the library sees it.
         wb.firmware.scan()
         out[role] = wb.firmware.find(name)
     return out

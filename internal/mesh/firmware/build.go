@@ -1,6 +1,6 @@
 // Building a MeshCore checkout into something a node can run.
 //
-// This lived in cmd/meshcoresim, which meant `meshcoresim dev` could build a
+// This lived in cmd/meshbench, which meant `meshbench dev` could build a
 // checkout and nothing else could - so a script comparing a stock build
 // against a locally changed one had to shell out to another copy of this
 // binary. It is a firmware concern, so it lives with the rest of them and the
@@ -154,7 +154,7 @@ func FindCrypto(ctx context.Context, log io.Writer) (string, error) {
 	if err != nil {
 		cache = filepath.Join(home, ".cache")
 	}
-	deps := filepath.Join(cache, "meshcoresim", "deps", "arduinolibs")
+	deps := filepath.Join(cache, "meshbench", "deps", "arduinolibs")
 	for _, c := range []string{
 		filepath.Join(home, "msim", "arduinolibs", "libraries", "Crypto"),
 		filepath.Join(home, "src", "arduinolibs", "libraries", "Crypto"),

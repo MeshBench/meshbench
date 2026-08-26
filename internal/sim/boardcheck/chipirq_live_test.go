@@ -28,14 +28,14 @@ const (
 // radioserver already reports: what the firmware asked to be told about, and
 // what actually happened.
 func TestTheChipReportsWhatItSaw(t *testing.T) {
-	if os.Getenv("MESHCORESIM_LIVE") == "" {
-		t.Skip("set MESHCORESIM_LIVE=1")
+	if os.Getenv("MESHBENCH_LIVE") == "" {
+		t.Skip("set MESHBENCH_LIVE=1")
 	}
-	board := os.Getenv("MESHCORESIM_BOARD")
+	board := os.Getenv("MESHBENCH_BOARD")
 	if board == "" {
-		t.Skip("set MESHCORESIM_BOARD")
+		t.Skip("set MESHBENCH_BOARD")
 	}
-	version := os.Getenv("MESHCORESIM_BOARD_VERSION")
+	version := os.Getenv("MESHBENCH_BOARD_VERSION")
 	if version == "" {
 		version = "v1.17.1"
 	}

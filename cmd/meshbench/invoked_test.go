@@ -6,7 +6,7 @@ import (
 )
 
 // The release ships this binary as "meshbench" while the package is
-// cmd/meshcoresim, so a hardcoded name is wrong for one audience or the other.
+// cmd/meshbench, so a hardcoded name is wrong for one audience or the other.
 func TestInvokedIsWhatTheUserTyped(t *testing.T) {
 	saved := os.Args
 	defer func() { os.Args = saved }()
@@ -14,12 +14,12 @@ func TestInvokedIsWhatTheUserTyped(t *testing.T) {
 	for _, c := range []struct{ argv0, want string }{
 		{"meshbench", "meshbench"},
 		{"/usr/local/bin/meshbench", "meshbench"},
-		{"./meshcoresim", "meshcoresim"},
+		{"./meshbench", "meshbench"},
 		// filepath.Base is platform-specific, so a Windows path cannot be
 		// exercised from here - on Windows it splits on the backslash and the
 		// suffix trim does the rest, which is what the .exe case below covers.
 		{"meshbench.exe", "meshbench"},
-		{"", "meshcoresim"},
+		{"", "meshbench"},
 	} {
 		os.Args = []string{c.argv0}
 		if got := invoked(); got != c.want {
@@ -28,7 +28,7 @@ func TestInvokedIsWhatTheUserTyped(t *testing.T) {
 	}
 
 	os.Args = nil
-	if got := invoked(); got != "meshcoresim" {
+	if got := invoked(); got != "meshbench" {
 		t.Errorf("invoked() with no argv at all: got %q", got)
 	}
 }

@@ -40,7 +40,7 @@ func TestWorkflowChangeOneNodesFirmware(t *testing.T) {
 	// rather than riding on whatever this machine has downloaded.
 	cache := t.TempDir()
 	for _, v := range []string{"repeater-v1.16.0", "repeater-v1.17.0"} {
-		dir := filepath.Join(cache, "meshcoresim", "firmware", "native", v)
+		dir := filepath.Join(cache, "meshbench", "firmware", "native", v)
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
 		}

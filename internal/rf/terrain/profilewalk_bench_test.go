@@ -10,7 +10,7 @@ import (
 // The link warm's actual workload, against a real tile store: many long
 // profiles across a country, each up to 257 bilinear samples. Run it with
 //
-//	MESHBENCH_TERRAIN_DIR=~/.cache/meshcoresim/terrain go test -bench ProfileWalk
+//	MESHBENCH_TERRAIN_DIR=~/.cache/meshbench/terrain go test -bench ProfileWalk
 //
 // against a populated cache; without the variable it skips, because a
 // benchmark that fetches tiles from the network measures the weather.

@@ -60,7 +60,7 @@ func sessionTools() []Tool {
 func call(method string, params any) (string, error) {
 	c, err := control.Dial()
 	if err != nil {
-		return "", fmt.Errorf("%w\n\nStart the workbench with `meshcoresim workbench`; "+
+		return "", fmt.Errorf("%w\n\nStart the workbench with `meshbench workbench`; "+
 			"these tools drive a running session rather than their own simulation", err)
 	}
 	defer func() { _ = c.Close() }()

@@ -23,8 +23,8 @@ import (
 // Both presented identically — a client that connects and then receives
 // nothing — which is why this asserts on bytes reaching a real socket.
 func TestLiveCompanionSerialBytes(t *testing.T) {
-	if os.Getenv("MESHCORESIM_LIVE") == "" {
-		t.Skip("set MESHCORESIM_LIVE=1")
+	if os.Getenv("MESHBENCH_LIVE") == "" {
+		t.Skip("set MESHBENCH_LIVE=1")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()

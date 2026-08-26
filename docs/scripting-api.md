@@ -699,7 +699,7 @@ long run therefore takes the run's own length, shown as a run in progress — an
 *instant* restore would have to freeze the emulators mid-write, which a native
 firmware process cannot do at all.
 
-Checkpoints live in `~/.config/meshcoresim/checkpoints/`. A name is a label, not
+Checkpoints live in `~/.config/meshbench/checkpoints/`. A name is a label, not
 a path; `restore` also accepts an explicit `{path}` for a file kept elsewhere.
 
 ---

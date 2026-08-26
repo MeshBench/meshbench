@@ -22,13 +22,13 @@ import (
 // every change the radio's configuration goes through, which is the only place
 // either fault shows.
 //
-//	MESHCORESIM_LIVE=1 \
-//	MESHCORESIM_QEMU=~/msim/espqemu-src/build/qemu-system-xtensa \
-//	MESHCORESIM_RADIO_SERVER=~/.cache/meshcoresim/tools/radioserver \
+//	MESHBENCH_LIVE=1 \
+//	MESHBENCH_QEMU=~/msim/espqemu-src/build/qemu-system-xtensa \
+//	MESHBENCH_RADIO_SERVER=~/.cache/meshbench/tools/radioserver \
 //	go test ./internal/engine/ -run TestTheRadioReportsHowTheFirmwareConfiguredIt -v -timeout 400s
 func TestTheRadioReportsHowTheFirmwareConfiguredIt(t *testing.T) {
-	if os.Getenv("MESHCORESIM_LIVE") == "" {
-		t.Skip("set MESHCORESIM_LIVE=1")
+	if os.Getenv("MESHBENCH_LIVE") == "" {
+		t.Skip("set MESHBENCH_LIVE=1")
 	}
 	const board = "Generic_E22_sx1262"
 	const version = "v1.17.0"

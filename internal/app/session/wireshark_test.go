@@ -7,11 +7,11 @@ import (
 	"testing"
 )
 
-// The port is not a free choice - it is meshcoresim.lua's own MSIM_UDP_PORT -
+// The port is not a free choice - it is meshbench.lua's own MSIM_UDP_PORT -
 // so this fails loudly if somebody "tidies" it back to an arbitrary value.
 func TestWeStreamWhereMeshbenchLuaListens(t *testing.T) {
 	if !strings.HasSuffix(captureUDPAddr, ":5555") {
-		t.Fatalf("streaming to %s, which is not where meshcoresim.lua registers", captureUDPAddr)
+		t.Fatalf("streaming to %s, which is not where meshbench.lua registers", captureUDPAddr)
 	}
 }
 
@@ -31,29 +31,29 @@ func TestLaunchNeverUsesTheUdpdumpExtcap(t *testing.T) {
 		t.Fatalf("wanted a real interface with a display filter, got %q", got)
 	}
 	if !strings.Contains(got, "udp port "+captureUDPPort) {
-		t.Fatalf("wanted the capture filtered to the port meshcoresim.lua listens on, got %q", got)
+		t.Fatalf("wanted the capture filtered to the port meshbench.lua listens on, got %q", got)
 	}
 }
 
 func TestTheHintCarriesBothDissectorsInLoadOrder(t *testing.T) {
-	got := wiresharkHint("/path/meshcore_dissector.lua", "/path/meshcoresim.lua")
+	got := wiresharkHint("/path/meshcore_dissector.lua", "/path/meshbench.lua")
 	meshcoreAt := strings.Index(got, "meshcore_dissector.lua")
-	meshbenchAt := strings.Index(got, "meshcoresim.lua")
+	meshbenchAt := strings.Index(got, "meshbench.lua")
 	if meshcoreAt < 0 || meshbenchAt < 0 {
 		t.Fatalf("both dissectors should appear, got %q", got)
 	}
 	if meshcoreAt > meshbenchAt {
-		t.Fatalf("meshcore_dissector.lua must load before meshcoresim.lua - its "+
+		t.Fatalf("meshcore_dissector.lua must load before meshbench.lua - its "+
 			"DLT_USER0 registration has to be the one that stands - got: %q", got)
 	}
 }
 
 func TestTheHintOmitsAMissingDissectorRatherThanAnEmptyFlag(t *testing.T) {
-	got := wiresharkHint("", "/path/meshcoresim.lua")
+	got := wiresharkHint("", "/path/meshbench.lua")
 	if strings.Contains(got, "lua_script:  ") || strings.Contains(got, "lua_script:-X") {
 		t.Errorf("a missing path should not leave a bare -X, got %q", got)
 	}
-	if !strings.Contains(got, "meshcoresim.lua") {
+	if !strings.Contains(got, "meshbench.lua") {
 		t.Errorf("the one that was found should still be there, got %q", got)
 	}
 }
@@ -68,7 +68,7 @@ func TestDissectorFilesFindsBothInACheckout(t *testing.T) {
 		t.Fatal(err)
 	}
 	root := filepath.Dir(filepath.Dir(wd))
-	if _, err := os.Stat(filepath.Join(root, "tools", "dissector", "meshcoresim.lua")); err != nil {
+	if _, err := os.Stat(filepath.Join(root, "tools", "dissector", "meshbench.lua")); err != nil {
 		t.Skip("not running from a checkout")
 	}
 	t.Chdir(root)
@@ -77,7 +77,7 @@ func TestDissectorFilesFindsBothInACheckout(t *testing.T) {
 		t.Error("meshcore_dissector.lua was not found in the checkout")
 	}
 	if meshbench == "" {
-		t.Error("meshcoresim.lua was not found in the checkout")
+		t.Error("meshbench.lua was not found in the checkout")
 	}
 }
 

@@ -7,7 +7,7 @@
 // operator's step (they are per-region and enormous); turning them into
 // tiles is this one.
 //
-//	envgen -in fife.geojsonl -out ~/.cache/meshcoresim/environment -region uk
+//	envgen -in fife.geojsonl -out ~/.cache/meshbench/environment -region uk
 package main
 
 import (
