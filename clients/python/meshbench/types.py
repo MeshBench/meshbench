@@ -270,6 +270,51 @@ class CardSlot:
 
 
 @dataclass(frozen=True)
+class Screen:
+    """What a board's display is showing, as numbers rather than a picture.
+
+    Enough to answer "did anything change" after a press or a touch, which is
+    the question every check of an input comes down to; for the picture itself
+    ask for a screenshot.
+    """
+
+    node: str = ""
+    #: False when the board has drawn nothing yet, or has no display - the
+    #: other fields mean nothing then.
+    has_screen: bool = False
+    width: int = 0
+    height: int = 0
+    bpp: int = 0
+    on: bool = False
+    #: How many framebuffer bytes are non-zero - how much is lit.
+    lit: int = 0
+    #: Identifies the frame: two screens with the same digest are the same
+    #: picture, which lit cannot promise. It is what a wait-for-change watches.
+    digest: str = ""
+
+    @classmethod
+    def parse(cls, raw: dict[str, Any]) -> Screen:
+        return _from_dict(cls, raw)
+
+
+@dataclass(frozen=True)
+class Shot:
+    """A captured display: a PNG under the node's own work directory, and the
+    frame's dimensions. The frame is exactly what the controller holds."""
+
+    node: str = ""
+    path: str = ""
+    width: int = 0
+    height: int = 0
+    bpp: int = 0
+    on: bool = False
+
+    @classmethod
+    def parse(cls, raw: dict[str, Any]) -> Shot:
+        return _from_dict(cls, raw)
+
+
+@dataclass(frozen=True)
 class JobInfo:
     """A long operation in flight."""
 

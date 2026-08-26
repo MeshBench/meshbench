@@ -7,6 +7,7 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
 from . import errors
+from .device import Device
 from .sets import Board, Kind, Transport
 from .types import Build, CardSlot, NameMatch, NodeInfo, NodeStat
 from .wait import FIRMWARE_WAIT, wait_for
@@ -229,6 +230,23 @@ class Node:
             or {}
         )
         return got.get("tail") or []
+
+    # ---- looking at it, and prodding it ---------------------------------
+
+    @property
+    def device(self) -> Device:
+        """This node as a device to drive: its screen, buttons and panel. All
+        of it works headless - the display is the framebuffer the controller
+        holds, not a picture of the desktop. Distinct from `board`, which is
+        the model name this hardware is."""
+        return Device(self._wb, self.name)
+
+    def radio(self) -> dict[str, Any]:
+        """What this node's radio is set to - the same thing the workbench
+        shows under Radio. What the model assumes, and, for a node that is
+        running, what it reports back and where the two differ. Left as a dict
+        because a repeater and a companion answer it differently."""
+        return self._wb.call("node.radio", {"node": self.name}) or {}
 
     def wipe(self) -> None:
         """Put this board back to factory: its flash, its card, its files.
