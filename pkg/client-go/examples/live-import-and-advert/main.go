@@ -1,9 +1,9 @@
 // Import a real mesh from its live feed, find one node, and make it advert.
 //
-//	go run ./clients/go/examples/live-import-and-advert [area] [node]
+//	go run ./pkg/client-go/examples/live-import-and-advert [area] [node]
 //
-//	go run ./clients/go/examples/live-import-and-advert Fife
-//	go run ./clients/go/examples/live-import-and-advert bounds/tay-catchment.geojson
+//	go run ./pkg/client-go/examples/live-import-and-advert Fife
+//	go run ./pkg/client-go/examples/live-import-and-advert bounds/tay-catchment.geojson
 //
 // The area is a place name or a path to GeoJSON, and it is set before the
 // import because the import filters at fetch time - the whole feed is around
@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MeshBench/meshbench/clients/go/meshbench"
+	"github.com/MeshBench/meshbench/pkg/client-go/meshbench"
 )
 
 const feed = "https://scotmesh-corescope.mm7roq.compute.oarc.uk"

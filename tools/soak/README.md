@@ -10,7 +10,7 @@ an operator spotted in seconds because a companion stopped hearing its own
 messages. A soak is what catches that class of thing: run the mesh, count what
 arrives, compare the shape against reality.
 
-    pip install -e clients/python  # the client it drives the workbench through
+    pip install -e pkg/client-python  # the client it drives the workbench through
     ./soak.py 18 /tmp/soakdump     # 18 floods, one at a time, dumped per round
     ./check.py /tmp/soakdump       # verdicts against the real distribution
 

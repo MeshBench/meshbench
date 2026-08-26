@@ -1,6 +1,6 @@
 // The one CI runs.
 //
-//	go run ./clients/go/examples/headless-regression [fixture] [junit.xml]
+//	go run ./pkg/client-go/examples/headless-regression [fixture] [junit.xml]
 //
 // No display, no GPU, no toolkit. Opens a fixture, runs it, checks its
 // assertions, writes JUnit, and exits non-zero if the mesh stopped delivering.
@@ -14,7 +14,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/MeshBench/meshbench/clients/go/meshbench"
+	"github.com/MeshBench/meshbench/pkg/client-go/meshbench"
 )
 
 const seed = 9001

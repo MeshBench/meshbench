@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/MeshBench/meshbench/clients/go/meshbench"
+	"github.com/MeshBench/meshbench/pkg/client-go/meshbench"
 )
 
 // The clients carry their own copy of the tab names, because tools/clientgen

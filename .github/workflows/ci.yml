@@ -103,7 +103,7 @@ jobs:
       - name: Client enums are generatable, and fresh
         run: |
           go run ./tools/clientgen
-          git diff --exit-code -- clients/go/meshbench/sets_gen.go clients/python/meshbench/sets.py
+          git diff --exit-code -- pkg/client-go/meshbench/sets_gen.go pkg/client-python/meshbench/sets.py
 
       # The scripting API's verb table is generated from the verbs the tree
       # registers, and a verb added with no decision about how a client
@@ -271,19 +271,19 @@ jobs:
         run: go build -o /tmp/meshbench ./cmd/meshbench
 
       - name: Install the client
-        run: pip install -e "clients/python[test]" ruff
+        run: pip install -e "pkg/client-python[test]" ruff
 
       # The lint the package declares for itself, so its own rules are the ones
       # enforced rather than whatever the runner happens to have.
       - name: ruff
         run: |
-          ruff check clients/python
-          ruff format --check clients/python
+          ruff check pkg/client-python
+          ruff format --check pkg/client-python
 
       - name: pytest
         env:
           MESHBENCH_BINARY: /tmp/meshbench
-        run: pytest clients/python/tests -q
+        run: pytest pkg/client-python/tests -q
 
   # The race detector, on request.
   #

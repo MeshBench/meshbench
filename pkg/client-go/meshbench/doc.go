@@ -1,8 +1,8 @@
 // Package meshbench drives a MeshBench workbench from Go.
 //
-//	import "github.com/MeshBench/meshbench/clients/go/meshbench"
+//	import "github.com/MeshBench/meshbench/pkg/client-go/meshbench"
 //
-// Under clients/ beside the Python one, and named the same, because the two
+// Under pkg/ beside the Python one, and named the same, because the two
 // are peers: neither is the real interface and neither is a wrapper around the
 // other. Both speak the control socket, and anything either can do the other
 // can.

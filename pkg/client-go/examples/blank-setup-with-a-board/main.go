@@ -1,6 +1,6 @@
 // A blank setup, one companion, and its screen on show.
 //
-//	go run ./clients/go/examples/blank-setup-with-a-board
+//	go run ./pkg/client-go/examples/blank-setup-with-a-board
 //
 // Needs a display. It opens the node's own window on the Hardware tab at the
 // end, which is the point of it.
@@ -14,7 +14,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/MeshBench/meshbench/clients/go/meshbench"
+	"github.com/MeshBench/meshbench/pkg/client-go/meshbench"
 )
 
 const (

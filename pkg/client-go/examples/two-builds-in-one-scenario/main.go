@@ -1,6 +1,6 @@
 // Two builds, two nodes, one scenario - the A/B #192 was filed from.
 //
-//	go run ./clients/go/examples/two-builds-in-one-scenario <stock version> <local build path>
+//	go run ./pkg/client-go/examples/two-builds-in-one-scenario <stock version> <local build path>
 //
 // The most common real use of this API, and the reason the node window grew a
 // firmware control: comparing a stock build against one with a single changed
@@ -16,7 +16,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/MeshBench/meshbench/clients/go/meshbench"
+	"github.com/MeshBench/meshbench/pkg/client-go/meshbench"
 )
 
 const seed = 9001

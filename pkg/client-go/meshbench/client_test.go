@@ -41,7 +41,7 @@ func meshbench(t *testing.T) string {
 		binary = filepath.Join(dir, "meshbench")
 		// By package path from the module root rather than by counting "../"
 		// out of this directory - which is what broke when the client moved
-		// under clients/go, and would break again on the next move.
+		// under pkg/client-go, and would break again on the next move.
 		cmd := exec.Command("go", "build", "-o", binary,
 			"github.com/MeshBench/meshbench/cmd/meshbench")
 		if out, err := cmd.CombinedOutput(); err != nil {

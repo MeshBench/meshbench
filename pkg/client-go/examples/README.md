@@ -1,13 +1,13 @@
 # Go examples
 
-Runnable programs, one per directory, matching `clients/python/examples/`
+Runnable programs, one per directory, matching `pkg/client-python/examples/`
 one for one. The pair exist so neither client reads like a translation of the
 other: the same thing is done in each, idiomatically, and where one is
 awkward that is a fault in the client rather than in the language.
 
 ```
-go run ./clients/go/examples/small-mesh-with-traffic
-go run ./clients/go/examples/headless-regression fife-strict results.xml
+go run ./pkg/client-go/examples/small-mesh-with-traffic
+go run ./pkg/client-go/examples/headless-regression fife-strict results.xml
 ```
 
 Each needs `meshbench` on `PATH`, or `MESHBENCH_BINARY` naming one.

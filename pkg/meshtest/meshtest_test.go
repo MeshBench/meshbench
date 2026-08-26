@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MeshBench/meshbench/meshtest"
+	"github.com/MeshBench/meshbench/pkg/meshtest"
 )
 
 // The example in the package doc, run.
