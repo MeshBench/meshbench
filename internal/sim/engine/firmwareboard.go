@@ -326,8 +326,15 @@ func batteryMeter(board scenario.Board) (meterReading, bool) {
 		if !ok {
 			continue
 		}
-		raw := board.Battery.VoltageAt(1) * 1000 * 4096 / float64(part.FullScaleMV)
-		return meterReading{channel: ch, raw: uint16(math.Max(0, math.Min(4095, raw)))}, true
+		// The emulated part now carries ADC calibration (BLK_VERSION_MAJOR=1
+		// in eFuse BLK2), so the firmware converts the raw through ESP-IDF's
+		// non-linear V1 curve rather than a linear default. Encode the raw as
+		// the inverse of that exact curve, evaluated at the voltage the divider
+		// puts on the pin, so the firmware reads the true cell voltage back.
+		// The divider ratio is FullScaleMV/adc1Atten3FullScaleMV - the cell
+		// voltage that fills the converter, over the pin voltage that does.
+		pinMV := board.Battery.VoltageAt(1) * 1000 * adc1Atten3FullScaleMV / float64(part.FullScaleMV)
+		return meterReading{channel: ch, raw: adc1Atten3RawForVoltage(pinMV)}, true
 	}
 	return meterReading{}, false
 }
@@ -342,4 +349,53 @@ func adc1Channel(pin int) (int, bool) {
 		return 0, false
 	}
 	return pin - 1, true
+}
+
+// adc1Atten3FullScaleMV is the pin voltage that fills ADC1 at 12 dB (atten 3)
+// on the ESP32-S3 - the nominal full scale the board's FullScaleMV divider was
+// chosen against. The battery meter is the only ADC input modelled and it is on
+// this attenuation, so it is the only curve that needs inverting.
+const adc1Atten3FullScaleMV = 3300.0
+
+// adc1Atten3Voltage is ESP-IDF's calibration-V1 curve for ADC1 at atten 3 with
+// the factory-baseline eFuse - the init codes and cal points that all-zero
+// diffs produce, which is exactly what the emulated eFuse presents once
+// BLK_VERSION_MAJOR is 1. It maps a raw converter reading to millivolts as
+// esp_adc_cal_raw_to_voltage does on the part, so inverting it round-trips the
+// firmware's own arithmetic and the reported voltage is unchanged. Transcribed
+// from esp-idf (v5.5) components/esp_adc/esp32s3/curve_fitting_coefficients.c
+// and components/efuse/esp32s3/esp_efuse_rtc_calib.c.
+func adc1Atten3Voltage(raw float64) float64 {
+	// First step: the linear reference through (digi 900, 850 mV).
+	x := raw * 850.0 / 900.0
+	// Second step: the reading-error polynomial for atten 3, five terms, with
+	// the signs the part records them under.
+	adcErr := -0.644403418269478 -
+		0.0644334888647536*x +
+		0.0001297891447611*x*x -
+		7.0769718e-8*x*x*x +
+		1.3515e-11*x*x*x*x
+	return x - adcErr
+}
+
+// adc1Atten3RawForVoltage inverts adc1Atten3Voltage: the raw the converter must
+// return for the firmware to read pinMV back. The curve is monotonic, so a
+// bisection settles to the nearest code well inside one LSB.
+func adc1Atten3RawForVoltage(pinMV float64) uint16 {
+	lo, hi := 0.0, 4095.0
+	if pinMV <= adc1Atten3Voltage(lo) {
+		return 0
+	}
+	if pinMV >= adc1Atten3Voltage(hi) {
+		return 4095
+	}
+	for i := 0; i < 24; i++ {
+		mid := (lo + hi) / 2
+		if adc1Atten3Voltage(mid) < pinMV {
+			lo = mid
+		} else {
+			hi = mid
+		}
+	}
+	return uint16(math.Round((lo + hi) / 2))
 }
