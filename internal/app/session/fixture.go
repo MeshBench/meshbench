@@ -31,19 +31,7 @@ func LoadFixture(path string) (Loaded, error) {
 	out := Loaded{
 		scene:  f.Nodes,
 		margin: f.MarginKm,
-		nodes:  make([]state.Node, 0, len(f.Nodes)),
-	}
-	for i, n := range f.Nodes {
-		out.nodes = append(out.nodes, state.Node{
-			Name: n.Name, Kind: string(n.Kind),
-			Lat: n.Position.Lat, Lon: n.Position.Lon,
-			HeightM: n.HeightAGLm, TxDBm: n.TxPowerDBm,
-			Regions: n.Regions, DefaultScope: n.DefaultScope,
-			Firmware: n.Firmware.Version, Board: n.Firmware.Board,
-			TrueRF:   n.TrueRF,
-			Selected: i == 0,
-			Pattern:  patternOf(n),
-		})
+		nodes:  statesFromScene(f.Nodes),
 	}
 	for _, snd := range f.Sends {
 		out.sends = append(out.sends, state.Send{
@@ -70,6 +58,28 @@ func LoadFixture(path string) (Loaded, error) {
 		out.areas = append(out.areas, area)
 	}
 	return out, nil
+}
+
+// statesFromScene builds the renderer's node list from the canonical scenario
+// one. The first node is selected, matching the interface's rule that opening a
+// network puts the cursor on something. Shared by fixture load and checkpoint
+// restore, so the two cannot disagree about how a scenario node becomes a
+// world node.
+func statesFromScene(scene []scenario.Node) []state.Node {
+	out := make([]state.Node, 0, len(scene))
+	for i, n := range scene {
+		out = append(out, state.Node{
+			Name: n.Name, Kind: string(n.Kind),
+			Lat: n.Position.Lat, Lon: n.Position.Lon,
+			HeightM: n.HeightAGLm, TxDBm: n.TxPowerDBm,
+			Regions: n.Regions, DefaultScope: n.DefaultScope,
+			Firmware: n.Firmware.Version, Board: n.Firmware.Board,
+			TrueRF:   n.TrueRF,
+			Selected: i == 0,
+			Pattern:  patternOf(n),
+		})
+	}
+	return out
 }
 
 // ringOf converts a scenario ring to the flat form the renderer wants. The

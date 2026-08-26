@@ -66,6 +66,7 @@ func Register(st *state.Store, s *Sim) {
 	registerExperiment(st, s)
 	registerExperimentDone(st, s)
 	registerCoverageCombined(st, s)
+	registerCheckpoint(st, s)
 	// project.new: an empty network, to build one by hand.
 	//
 	// The same path as opening, with nothing in it. Everything downstream -

@@ -328,6 +328,53 @@
         "count"
       ]
     },
+    "session.checkpoint": {
+      "what": "freeze the whole session to a named checkpoint",
+      "params": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "primary": true,
+          "what": "what to call this checkpoint"
+        }
+      ],
+      "returns": [
+        "checkpoint",
+        "path",
+        "now_ms",
+        "nodes"
+      ]
+    },
+    "session.checkpoints": {
+      "what": "list the checkpoints that can be restored",
+      "returns": [
+        "checkpoints"
+      ]
+    },
+    "session.restore": {
+      "what": "rebuild a checkpoint and replay to the moment it was taken",
+      "params": [
+        {
+          "name": "name",
+          "type": "string",
+          "primary": true,
+          "what": "the checkpoint to restore, by name"
+        },
+        {
+          "name": "path",
+          "type": "string",
+          "what": "a checkpoint file kept outside the checkpoints directory"
+        }
+      ],
+      "returns": [
+        "restored",
+        "nodes",
+        "now_ms",
+        "target_ms",
+        "replaying"
+      ]
+    },
     "ui.keep_above": {
       "what": "Say whether a window popped out of the workbench stays above it, and report the setting either way.",
       "params": [
