@@ -284,6 +284,22 @@ class Workbench:
         """
         return Subscription(*topics, address=self._conn.address)
 
+    def checkpoint(self, name: str) -> dict[str, Any]:
+        """Freeze the whole session under a name - the network, how it is being
+        run, and where the clock had got to - so it can be taken back here."""
+        return self.call("session.checkpoint", {"name": name}) or {}
+
+    def restore(self, name: str) -> dict[str, Any]:
+        """Rebuild a checkpoint and replay to the moment it was taken. Returns
+        as soon as the replay is under way; the sim reaching target_ms is when
+        it has actually arrived. Deterministic, so it comes back to exactly
+        where it was - at the cost of the replay taking the run's own time."""
+        return self.call("session.restore", {"name": name}) or {}
+
+    def checkpoints(self) -> list[str]:
+        """What can be restored, by name."""
+        return (self.call("session.checkpoints") or {}).get("checkpoints", [])
+
     def snapshot(self) -> dict[str, Any]:
         """The whole session as the socket summarises it."""
         return self.call("session.snapshot") or {}

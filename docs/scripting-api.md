@@ -128,6 +128,9 @@ one call is one round trip will write a loop that is forty.
 | `wb.verbs()` | `session.verbs` *(socket-owned)* |
 | `wb.snapshot()` | `session.snapshot` *(socket-owned)* |
 | `wb.subscribe(*topics)` | `session.subscribe` *(socket-owned; streams, see [Being told](#being-told))* |
+| `wb.checkpoint(name)` | `session.checkpoint` |
+| `wb.restore(name)` | `session.restore` |
+| `wb.checkpoints()` | `session.checkpoints` |
 | `wb.say(text)` | `ui.said` |
 | `wb.save_run(path)` | `run.save` |
 | `wb.quit()` | `app.quit` |
@@ -669,6 +672,35 @@ dropped — a log line missed is a log line gone.
 The `wait_*` methods above still poll today; the subscription is the mechanism
 they move onto, and **no script changes when they do** — a wait is a wait
 whether it asked or was told.
+
+---
+
+## Checkpoints
+
+```python
+wb.checkpoint("before the flood")     # freeze the whole session under a name
+wb.checkpoints()                      # ["before the flood", ...]
+r = wb.restore("before the flood")    # rebuild and replay back to that moment
+```
+
+A checkpoint is the whole session frozen: the network, how it is being run
+(seed, RF mode, realism, calibration, real-firmware or the fast model), and
+where the clock had got to. Restoring one takes the mesh **back to that exact
+moment** — and it does so by rebuilding the session and **replaying
+deterministically** to the checkpoint's time, not by thawing a saved image.
+
+That is the honest mechanism, and it follows from *determinism is a feature*:
+same seed, same scenario, same result, so there is nothing to store that the
+seed does not already reproduce — not the firmware's own RAM, not the waveforms
+in flight. The cost is that the replay runs in **the mesh's own time**: restore
+returns as soon as the replay is under way (`replaying: true`, `target_ms` set),
+and the sim reaching `target_ms` is when it has actually arrived. Restoring a
+long run therefore takes the run's own length, shown as a run in progress — an
+*instant* restore would have to freeze the emulators mid-write, which a native
+firmware process cannot do at all.
+
+Checkpoints live in `~/.config/meshcoresim/checkpoints/`. A name is a label, not
+a path; `restore` also accepts an explicit `{path}` for a file kept elsewhere.
 
 ---
 

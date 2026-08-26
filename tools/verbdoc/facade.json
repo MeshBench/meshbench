@@ -13,6 +13,9 @@
   "facade": {
     "session.describe": "wb.describe()",
     "session.status": "wb.status()",
+    "session.checkpoint": "wb.checkpoint(name)",
+    "session.restore": "wb.restore(name)",
+    "session.checkpoints": "wb.checkpoints()",
     "app.quit": "wb.quit()",
     "ui.said": "wb.say(text)",
     "log.path": "wb.log.path",

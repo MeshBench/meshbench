@@ -701,3 +701,43 @@ def test_board_api_refuses_a_node_that_is_not_running(wb):
         d.tap_at(10, 10)
     with _pytest.raises(meshbench.MeshbenchError):
         n.radio()
+
+
+def test_checkpoint_round_trips(wb):
+    """#207: a checkpoint is only worth anything if what comes back is what went
+    in. Build a network, move the clock, freeze it, throw the session away,
+    restore, and the network and the moment are both back."""
+    wb.project.new()
+    wb.nodes.place_many(
+        [
+            {
+                "name": "R1",
+                "kind": meshbench.Kind.SIMPLE_REPEATER,
+                "lat": 56.20,
+                "lon": -3.20,
+            },
+            {
+                "name": "R2",
+                "kind": meshbench.Kind.SIMPLE_REPEATER,
+                "lat": 56.12,
+                "lon": -3.02,
+            },
+        ]
+    )
+    wb.call("sim.settle", {"steps": 10})
+    now = wb.call("sim.state")["now_ms"]
+    assert now > 0
+
+    cp = wb.checkpoint("py-trip")
+    assert cp["nodes"] == 2
+    assert cp["now_ms"] == now
+    assert "py-trip" in wb.checkpoints()
+
+    wb.project.new()
+    assert len(wb.nodes) == 0
+
+    r = wb.restore("py-trip")
+    assert r["nodes"] == 2
+    assert r["target_ms"] == now
+    assert r["replaying"] is True
+    assert "R1" in wb.nodes and "R2" in wb.nodes
