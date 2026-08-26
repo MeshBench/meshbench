@@ -141,14 +141,14 @@ Two verbs are **not** in this table:
 
 | verb | takes | returns | façade |
 |---|---|---|---|
-| `board.key` | `node` string, `text` string | `node`, `typed` | `node.board.type(text)` |
+| `board.key` | `node` string, `text` string | `node`, `typed` | `node.device.type(text)` |
 | `board.matrix` | `version` string | `version`, `boards` | `wb.boards.matrix(version)` |
-| `board.press` | `pin` number, `node` string, `down` bool | `node`, `pin`, `down` | `node.board.press(pin, down)  /  .tap(pin)` |
+| `board.press` | `pin` number, `node` string, `down` bool | `node`, `pin`, `down` | `node.device.press(pin, down)  /  .tap(pin)` |
 | `board.probe` | `board` string, `version` string | `probing`, `board`, `version` | `wb.boards.probe(board, version)` |
 | `board.probe_finished` | `board` string, `version` string | `board`, `passed`, `failed` | *none* — a probe worker reporting back |
-| `board.screen` | `node` string | `node`, `has_screen`, `width`, `height`, `bpp`, `on`, `lit` | `node.board.screen  (numbers, not a picture)` |
-| `board.screenshot` | *a bare string*, `node` string | `node`, `path`, `width`, `height`, `bpp`, `on` | `node.board.screenshot(path)  (writes a PNG)` |
-| `board.touch` | `x` number, `y` number, `node` string, `down` bool | `node`, `x`, `y`, `down` | `node.board.touch(x, y, down) / .tap_at(x, y)` |
+| `board.screen` | `node` string | `node`, `has_screen`, `width`, `height`, `bpp`, `on`, `lit`, `digest` | `node.device.screen()  (numbers, not a picture)` |
+| `board.screenshot` | *a bare string*, `node` string | `node`, `path`, `width`, `height`, `bpp`, `on` | `node.device.screenshot()  (writes a PNG)` |
+| `board.touch` | `x` number, `y` number, `node` string, `down` bool | `node`, `x`, `y`, `down` | `node.device.touch(x, y, down) / .tap_at(x, y)` |
 
 ### Simulation
 
