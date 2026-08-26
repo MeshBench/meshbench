@@ -13,7 +13,7 @@ about the tree. Data rather than code so it reads as the manifest it is.
 
 A verb with no entry in facade.json fails this script, which is the point: a
 verb no client can reach is a verb nobody outside the workbench can use, and
-that is exactly how the MCP server came to ship a tool calling a verb that had
+that is exactly how a hand-written surface can come to call a verb that had
 been deleted.
 
 This is deliberately a prototype of the manifest in #213 rather than the

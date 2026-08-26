@@ -72,8 +72,8 @@ func TestEveryVerbDescribesItself(t *testing.T) {
 
 	// The other direction - a description naming no verb - cannot happen here,
 	// because HandleSpec registers both at once. Where it can happen is on the
-	// surfaces built over the verbs, and that is what
-	// TestEveryToolNamesARegisteredVerb walks in internal/app/mcp.
+	// surfaces built over the verbs - a client naming a verb the tree does not
+	// have - which the generated verb table (tools/verbdoc) is the guard for.
 	allowed := readUndescribed(t)
 	var unexpected []string
 	for _, v := range st.Undescribed() {

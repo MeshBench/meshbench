@@ -799,7 +799,7 @@ Built since this list was first written: the desktop application (MSIM-10), the
 terrain cut-through view (MSIM-11), coverage rasters and planning (MSIM-34/35),
 terrain and boundary download (MSIM-38/37), the firmware catalogue (MSIM-13),
 the provider interface with CoreScope, Beacon and MQTT (MSIM-30/31/32), battery
-and solar (MSIM-19), external interference (MSIM-20), the MCP server (MSIM-36),
+and solar (MSIM-19), external interference (MSIM-20),
 the validation harness (MSIM-28), replay (MSIM-27), board profiles (MSIM-18),
 the multi-node console (MSIM-25), the emulated/native cross-check (MSIM-40), a
 command line covering all of it (MSIM-23), the separate MIT repository for our

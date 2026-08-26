@@ -157,7 +157,7 @@ func TestVerbsAreDiscoverable(t *testing.T) {
 }
 
 // Verbs from many goroutines at once must not corrupt state: the socket, the
-// MCP server and the renderer all call Do.
+// the clients and the renderer all call Do.
 func TestConcurrentVerbsAreSerialised(t *testing.T) {
 	s, ctx := run(t, 10)
 	s.Handle("inc", func(w *state.World, _ any) (any, error) {

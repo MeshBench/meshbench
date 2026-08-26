@@ -364,7 +364,7 @@ by hand.
 4. **The matrix view**, the small-multiple grid, and per-run drill-down.
 5. **First divergence**, surfaced from the engine.
 6. **Export**: self-contained HTML with the charts, plus CSV and JSON.
-7. **MCP**: `experiment.define`, `.start`, `.state`, `.results`, `.compare`.
+7. **Clients**: `experiment.define`, `.start`, `.state`, `.results`, `.compare` from the Go and Python clients.
 
 Each step is worth having alone, which is the test of the ordering: (1) makes
 hash-size questions answerable by hand today, (3) makes them repeatable, (4)

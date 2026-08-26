@@ -39,9 +39,10 @@ and a verb added tomorrow is usable today.
 ### Why two layers rather than one
 
 215 addressable methods hand-written across two languages is 430 things to keep
-in step. This tree cannot currently keep **one** in step: the MCP server ships
-a `session_journal` tool calling a verb that no longer exists, and nothing
-failed, because there is no schema for a test to compare a surface against.
+in step. Keeping them in step is what the verb manifest (`docs/verbs.json`) is for: a
+hand-written surface that names a verb the tree no longer has is exactly the
+drift it catches, where once a tool could call a deleted verb and nothing
+failed because there was no schema to compare a surface against.
 
 ### Two languages, Go and Python
 

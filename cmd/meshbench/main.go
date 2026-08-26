@@ -2,7 +2,7 @@
 //
 // `workbench` opens the desktop application; every other command is headless.
 // That split is deliberate and permanent: the headless path is what scripted
-// runs, regression suites and the MCP server are built on, not a stopgap for
+// runs and regression suites are built on, not a stopgap for
 // the UI.
 //
 // Nothing but `workbench` needs a GPU, a display, or anything running anywhere

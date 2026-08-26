@@ -27,13 +27,13 @@ the `needUI()` guard, so a verb that grows or loses it moves by itself. The
 this document exists to record and is the one column a machine cannot fill in.
 
 **A verb added with no façade decision fails the script.** That is the point: a
-verb no client can reach is a verb nobody outside the workbench can use, and it
-is how the MCP server came to ship a tool calling a verb that had been deleted.
-The prose above the first table is written by hand and is left alone.
+verb no client can reach is a verb nobody outside the workbench can use, and a
+hand-written surface calling a verb the tree no longer has is exactly the drift
+this catches. The prose above the first table is written by hand and is left
+alone.
 
 That split is the shape of the manifest in #213. This document is its
-prototype, and it already found things nothing else had: `session.journal` is
-exposed as an MCP tool and is not registered anywhere, and 77 verbs take
+prototype, and it already found things nothing else had: 77 verbs take
 parameters no extraction can see because they are read positionally.
 
 Two verbs are **not** in this table:
