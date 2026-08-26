@@ -61,8 +61,8 @@ several reasons it is.
 
 ## Comparing the two
 
-Run them side by side and work through section 6 of `spikes/GIO-REDESIGN.md`,
-which lists every panel and what it has to do. What is worth checking by hand
+Run them side by side, panel by panel, and check each one does what it has to.
+What is worth checking by hand
 rather than by screenshot: whether menus and view tabs respond, whether dragging
 a node moves it, whether a popped-out window keeps drawing while the main one
 is busy. Rendering correctly and responding correctly are different claims, and
