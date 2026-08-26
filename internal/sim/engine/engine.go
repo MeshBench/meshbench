@@ -118,6 +118,16 @@ type Engine struct {
 	envIxFor   environ.Provider
 	envIxNodes int
 
+	// attachMu serialises whole-mesh firmware attaches against each other.
+	// AttachNativeProgress filters to nodes that are not yet running, then
+	// starts them - and a node's Firmware field is only set once its backend
+	// is up. Two attaches racing (a single-node reflash and the play button's
+	// start-everything, fired close together) would both see the same node as
+	// idle and both boot it, leaving two emulators on one node's flash, card
+	// and input sockets. Held for the whole attach, the second waits and then
+	// finds nothing left to start.
+	attachMu sync.Mutex
+
 	mu    sync.Mutex
 	nodes []*Node
 	// builds is what the last firmware attach resolved to, so a result can
@@ -310,6 +320,28 @@ func (e *Engine) PinFirmware(name, version string) int {
 		n++
 	}
 	return n
+}
+
+// SetCard changes what is in a node's card slot, so the engine's own copy of
+// the scenario agrees with the one the panels draw.
+//
+// Held here as well as in the session because the engine is what actually
+// starts a machine: without this the slot would be changed in the interface,
+// agree with itself everywhere, and the next start would fit the card the run
+// was opened with.
+func (e *Engine) SetCard(name string, fitted bool, file string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for _, nd := range e.nodes {
+		if nd.Spec.Name != name {
+			continue
+		}
+		nd.Spec.Card = scenario.CardFitted
+		if !fitted {
+			nd.Spec.Card = scenario.CardEmpty
+		}
+		nd.Spec.CardFile = file
+	}
 }
 
 // PinBoard changes which hardware a node's build is for, alongside the pin

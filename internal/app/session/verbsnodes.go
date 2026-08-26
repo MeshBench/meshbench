@@ -257,6 +257,9 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 		// chosen when a node launches, so setting it on a running node changes
 		// nothing until something restarts it.
 		s.Reflash(context.Background(), st, name, b, w.Seed)
+		// A different build may insist on storage where the last one did not,
+		// so what the node's slot will hold has just changed.
+		s.publishCards(w)
 		w.Say(name + ": changing to " + b.Describe())
 		return map[string]any{"node": name, "version": version,
 			"board": b.Board, "role": b.Role}, nil

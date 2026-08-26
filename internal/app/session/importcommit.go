@@ -282,10 +282,16 @@ func (s *Sim) importRegion(marginKm float64) *scenario.Region {
 
 // stateNodes is the interface's view of a scenario.
 func stateNodes(nodes []scenario.Node) []state.Node {
+	need := buildsNeedingCards()
 	out := make([]state.Node, 0, len(nodes))
 	for i, n := range nodes {
+		slot := boardHasCardSlot(n.Board)
+		required := need[n.Firmware.Board+"\x00"+n.Firmware.Version] && slot
 		out = append(out, state.Node{
-			Name: n.Name, Kind: string(n.Kind),
+			CardSlot: slot, CardRequired: required,
+			CardFitted: n.HasCard(slot, required), CardFile: cardFileFor(n),
+			CardShared: n.CardFile != "",
+			Name:       n.Name, Kind: string(n.Kind),
 			Lat: n.Position.Lat, Lon: n.Position.Lon,
 			HeightM: n.HeightAGLm, TxDBm: n.TxPowerDBm,
 			Regions: n.Regions, DefaultScope: n.DefaultScope,

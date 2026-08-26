@@ -10,6 +10,7 @@ import (
 	"gioui.org/layout"
 	"github.com/MeshBench/meshbench/internal/app/resource"
 	"github.com/MeshBench/meshbench/internal/app/state"
+	"github.com/MeshBench/meshbench/internal/mesh/firmware"
 	"github.com/MeshBench/meshbench/internal/ui/shell"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 )
@@ -95,6 +96,20 @@ func auditTargets(r *recorder) []target {
 	nv.OnFirmware = func(n string, b buildChoice) { r.do("node.set_firmware", b.Version) }
 	nw := &nodeWindowPanel{node: "Abernethy Repeater"}
 	snapWithConsole := auditSnapshot()
+	// A card slot on the node the window is about, so the Hardware tab draws
+	// its card controls: with no slot it correctly offers none, and auditing
+	// that would only prove the guard works.
+	for i := range snapWithConsole.Nodes {
+		if snapWithConsole.Nodes[i].Name == "Abernethy Repeater" {
+			snapWithConsole.Nodes[i].CardSlot = true
+			snapWithConsole.Nodes[i].CardFitted = true
+			// Handed a card of its own rather than using the node's, so the
+			// control that puts it back is drawn: with its own it correctly
+			// offers none.
+			snapWithConsole.Nodes[i].CardFile = "/srv/cards/shared.img"
+			snapWithConsole.Nodes[i].CardShared = true
+		}
+	}
 	snapWithConsole.ConsoleNode = "Abernethy Repeater"
 	snapWithConsole.Console = []string{"   0.000  > advert"}
 	nw.OnCommand = func(n, l string) { r.do("console.type", l) }
@@ -128,10 +143,68 @@ func auditTargets(r *recorder) []target {
 		snapWithCompanion.Nodes[i].Selected = snapWithCompanion.Nodes[i].Kind == "companion"
 	}
 
+	// One build's own window. It draws from the library row it was opened on,
+	// so the snapshot needs that row: with no row it correctly says the build
+	// has gone, and auditing that would only prove the guard works.
+	fwWin := &firmwareWindowPanel{
+		role: "companion_radio_usb", version: "mesh-rs", board: "LilyGo_TDeck",
+	}
+	fwWin.OnDo = func(verb string, _ any) { r.do(verb, "") }
+	snapWithBuild := auditSnapshot()
+	snapWithBuild.Library = []state.FirmwareRow{{
+		Role: "companion_radio_usb", Version: "mesh-rs", Board: "LilyGo_TDeck",
+		OnDisk: true, Bytes: 3 << 20, InUse: 1,
+		Path:  "/cache/board/LilyGo_TDeck/companion_radio_usb@mesh-rs.bin",
+		Facts: firmware.ImageFacts{Kind: "whole flash image", Bootable: true, FlashMB: 16},
+	}}
+
+	// One log in a window of its own. Its source buttons switch what the
+	// window is rather than opening more of them, so they reach no verb - the
+	// same excuse the tab's own do not need, because there they change what
+	// the session is watching.
+	logWin := &outputWindowPanel{node: "Abernethy Repeater"}
+	logWin.OnDo = func(verb string, _ any) { r.do(verb, "") }
+	snapWithLog := auditSnapshot()
+	snapWithLog.Outputs = []state.OutputPane{{
+		Node: "Abernethy Repeater", Source: "serial", Total: 2,
+		Lines: []string{"ets Jul 29 2019", "[BOOT] radio ok"},
+		Path:  "/cache/nodefs/Abernethy Repeater/console.log",
+	}}
+
 	targets := []target{
 		{"Nodes running", nv, nv.Draw, nil,
 			// Choosing a build closes the list, so it is reopened before each.
 			func() { nv.pick.open("Abernethy Repeater") }, nil, buildSkips()},
+		// apply and delete are only drawn once there is something to apply
+		// and once the first press has asked, so the panel is put into both
+		// states before each press rather than being audited shut.
+		{"Firmware window", fwWin, fwWin.auditDraw, snapWithBuild,
+			func() {
+				// Back onto the build, because applying a rename moves the
+				// window onto the new name and the next press would land on
+				// a window saying the build has gone.
+				fwWin.role, fwWin.version, fwWin.board =
+					"companion_radio_usb", "mesh-rs", "LilyGo_TDeck"
+				fwWin.coproc.Bool.Value = true
+				fwWin.confirm = true
+			}, nil,
+			map[string]string{
+				"revert":   "puts the editors back rather than reaching a verb",
+				"boardBtn": "opens the board list rather than reaching a verb",
+				"coproc":   "changes what apply would send rather than reaching a verb",
+				"card":     "changes what apply would send rather than reaching a verb",
+				"name":     "changes what apply would send rather than reaching a verb",
+				"notes":    "changes what apply would send rather than reaching a verb",
+			}},
+		{"Output window", logWin, logWin.Draw, snapWithLog, nil, nil,
+			map[string]string{
+				"out.pauseBtn":   "changes what this pane draws rather than reaching a verb",
+				"out.popBtn":     "not drawn in a window that is already popped out",
+				"out.srcBtns[0]": "switches what this window is rather than reaching a verb",
+				"out.srcBtns[1]": "switches what this window is rather than reaching a verb",
+				"out.srcBtns[2]": "switches what this window is rather than reaching a verb",
+				"out.srcBtns[3]": "switches what this window is rather than reaching a verb",
+			}},
 		{"Node window", nw, nw.auditDraw, snapWithConsole,
 			// The tab row is above everything, so a pointer moving down the
 			// panel leaves the console before it reaches the send button.
@@ -226,9 +299,15 @@ func nodeWindowSkips() map[string]string {
 		// overlay itself and checks which verb it reached. That is stronger
 		// evidence than the flat layout could give, not weaker: it is the
 		// route somebody actually takes.
-		"changeFw":    "opens the build list rather than reaching a verb",
-		"pick.cancel": "drawn in the overlay, which the flat audit layout has not got",
-		"pick.filter": "drawn in the overlay, which the flat audit layout has not got",
+		// Following the end of a file is a property of the pane, not of the
+		// session: nothing outside this window needs to know, and a verb for
+		// it would be a verb whose only caller is the button beside it. Held
+		// instead by TestPausingStopsTheOutputPaneChasingTheEnd, which
+		// presses it and checks what it changed.
+		"out.pauseBtn": "changes what this pane draws rather than reaching a verb",
+		"changeFw":     "opens the build list rather than reaching a verb",
+		"pick.cancel":  "drawn in the overlay, which the flat audit layout has not got",
+		"pick.filter":  "drawn in the overlay, which the flat audit layout has not got",
 	}
 	for i := range auditBuilds() {
 		skip[fmt.Sprintf("pick.btns[%d]", i)] =

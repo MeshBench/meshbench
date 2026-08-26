@@ -179,12 +179,20 @@ def ui_only():
     Read rather than listed, so a verb that grows or loses the guard moves in
     this table by itself.
     """
-    src = open(os.path.join(SESSION, "ui.go")).read()
     out = set()
-    for m in HANDLE.finditer(src):
-        body = body_of(src, m.end())
-        if "needUI()" in body or "need()" in body:
-            out.add(m.group(1))
+    # Every file in the package, not ui.go alone. The guard is what makes a
+    # verb interface-only, and which file its handler happens to sit in is a
+    # question of length limits: node.window, firmware.window and
+    # node.output_window all guard and all live elsewhere, and reading one
+    # file silently dropped the mark from the table.
+    for name in sorted(os.listdir(SESSION)):
+        if not name.endswith(".go") or name.endswith("_test.go"):
+            continue
+        src = open(os.path.join(SESSION, name)).read()
+        for m in HANDLE.finditer(src):
+            body = body_of(src, m.end())
+            if "needUI()" in body or "need()" in body:
+                out.add(m.group(1))
     return out
 
 

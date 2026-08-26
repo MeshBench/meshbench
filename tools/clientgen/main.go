@@ -141,6 +141,9 @@ var tabs = []set{
 	{"TabHardware", "HARDWARE", "Hardware",
 		"the board drawn as itself - its screen, its lamps, the buttons " +
 			"somebody can press; only a board that declares any of that grows it"},
+	{"TabOutput", "OUTPUT", "Output",
+		"what the node printed: its serial port, the emulator running it, " +
+			"or the radio model beside it"},
 }
 
 // strategies is how a fetched deployment meets the scenario already loaded.

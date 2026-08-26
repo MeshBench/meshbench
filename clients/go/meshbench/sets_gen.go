@@ -276,6 +276,9 @@ const (
 	// buttons somebody can press; only a board that declares any of that
 	// grows it.
 	TabHardware Tab = "Hardware"
+	// TabOutput is what the node printed: its serial port, the emulator
+	// running it, or the radio model beside it.
+	TabOutput Tab = "Output"
 )
 
 // Tabs is every one, for a caller offering a choice.
@@ -289,6 +292,7 @@ var Tabs = []Tab{
 	TabActivity,
 	TabConnect,
 	TabHardware,
+	TabOutput,
 }
 
 // Strategy is how an imported deployment meets what is already loaded.

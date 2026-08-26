@@ -316,10 +316,10 @@ func sessionCompanionTools() []Tool {
 				"branch build, a patched image, somebody else's binary. Omit board for "+
 				"a native build for this machine.",
 			"firmware.import", sObj(map[string]any{
-				"path":    sStr("file to import"),
-				"version": sStr("what to call it, e.g. v1.17.0-mybranch"),
-				"role":    sStr("role, e.g. simple_repeater or companion_radio"),
-				"board":   sStr("board this image is for; omit for a native build"),
+				"path":  sStr("file to import"),
+				"label": sStr("what to call it in the library, e.g. mesh-rs 1.2.0"),
+				"role":  sStr("role, e.g. simple_repeater or companion_radio_usb"),
+				"board": sStr("board this image is for; omit for a native build"),
 			})),
 
 		uiTool("session_firmware_wipe",

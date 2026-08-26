@@ -138,6 +138,18 @@ type World struct {
 	// Console is one node's firmware scrollback.
 	Console     []string
 	ConsoleNode string
+	// Outputs is every node-and-source pane something is currently looking
+	// at - what a serial port printed, what the emulator itself said, what
+	// the radio model logged. Separate from Console, which is the scrollback
+	// of a conversation: these are files on disk, read whole and shown as
+	// they are.
+	//
+	// A list rather than one, which is what it was. One slot meant two
+	// windows on two nodes overwrote each other every tick and switching
+	// source blanked the pane until the next one landed - both of which read
+	// as the workbench losing the log. Nothing on disk was ever lost; the one
+	// slot they shared was.
+	Outputs []OutputPane
 	// Companions is every companion session, decoded.
 	Companions []Companion
 	// FleetReplies is what each node said to the last fleet command. A

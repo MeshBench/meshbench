@@ -291,6 +291,11 @@ class Tab(_Set):
     press; only a board that declares any of that grows it
     """
 
+    OUTPUT = "Output"
+    """what the node printed: its serial port, the emulator running it, or the radio
+    model beside it
+    """
+
 
 class Strategy(_Set):
     """How an imported deployment meets what is already loaded."""

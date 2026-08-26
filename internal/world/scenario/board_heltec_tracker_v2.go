@@ -14,6 +14,9 @@ var heltecTrackerV2Board = Board{
 	Emulated: true,
 	QEMU: &QEMUWiring{
 		Machine: "esp32s3", SPI: 3, NSS: 8, Busy: 13, DIO1: 14, LED: 18,
+		// Serial is the USB port on this board: its MeshCore variant is
+		// built with ARDUINO_USB_CDC_ON_BOOT.
+		ConsoleOnUSB: true,
 	},
 	Hardware: &Panel{
 		Parts: []Part{

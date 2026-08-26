@@ -3,6 +3,7 @@ package firmware
 import (
 	"encoding/binary"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 )
@@ -55,6 +56,24 @@ func padToDeclaredFlash(image, dir string) (string, error) {
 	return out, nil
 }
 
+// HasPartitionTable reports whether a flash image carries a partition table
+// where the ROM bootloader looks for one.
+//
+// This is what separates a whole flash image from the application on its own,
+// and it is not the image header: an application image begins with 0xE9 too,
+// because it is an ESP image as well - just one that starts at 0x10000 rather
+// than at the beginning of the chip. Both halves of a published release are
+// called .bin, both start with the same magic, and only one of them boots.
+// Measured on Meshtastic's own pair, where firmware-heltec-v3-2.7.26.bin and
+// firmware-heltec-v3-2.7.26.factory.bin differ in exactly this.
+func HasPartitionTable(b []byte) bool {
+	if len(b) < partitionTableOffset+partitionEntrySize {
+		return false
+	}
+	e := b[partitionTableOffset:]
+	return e[0] == partitionMagic[0] && e[1] == partitionMagic[1]
+}
+
 // declaredFlashSize is the end of the last partition the table lists, or zero
 // if there is no table to read.
 func declaredFlashSize(b []byte) int {
@@ -75,4 +94,58 @@ func declaredFlashSize(b []byte) int {
 		}
 	}
 	return end
+}
+
+// ImageFacts is what can be told about a build by reading the front of it.
+//
+// For a window that has to say why a build will not run, in the place somebody
+// is looking at that build, rather than in a refusal several minutes into a
+// start. Every field is what was read, not what should be done about it.
+type ImageFacts struct {
+	// Kind is the one-line answer: a whole flash image, an application on its
+	// own, or something this cannot read.
+	Kind string
+	// Bootable reports whether a board could start from it - a header and a
+	// partition table, which is what the ROM bootloader needs.
+	Bootable bool
+	// FlashMB is the chip size the header declares, or zero when there is no
+	// header to read it from.
+	FlashMB int
+}
+
+// imageHeadBytes is how much of a build is read to answer that.
+//
+// The partition table sits at 0x8000 and is 0xC00 long, so this covers the
+// header, the table and a little past it. Reading the whole build instead
+// would mean holding sixteen megabytes per row of a library that may have
+// thirty of them, every time the library is rebuilt.
+const imageHeadBytes = partitionTableOffset + 0x1000
+
+// InspectImage reads the front of a build and says what it is.
+//
+// An unreadable file is not an error worth propagating: the caller is a
+// library row, and "this cannot be read" is the answer it wants to show.
+func InspectImage(path string) ImageFacts {
+	f, err := os.Open(path) //nolint:gosec // a path this package composed, from its own cache
+	if err != nil {
+		return ImageFacts{Kind: "unreadable"}
+	}
+	defer func() { _ = f.Close() }()
+	head := make([]byte, imageHeadBytes)
+	n, err := io.ReadFull(f, head)
+	if err != nil && n == 0 {
+		return ImageFacts{Kind: "unreadable"}
+	}
+	head = head[:n]
+	mb, err := ClassifyESPImage(head)
+	if err != nil {
+		return ImageFacts{Kind: "not an ESP32 flash image"}
+	}
+	if !HasPartitionTable(head) {
+		// The distinction that decides whether a board starts: the header is
+		// the same byte in both, and only the table at 0x8000 tells them
+		// apart.
+		return ImageFacts{Kind: "application only - no partition table", FlashMB: mb}
+	}
+	return ImageFacts{Kind: "whole flash image", Bootable: true, FlashMB: mb}
 }

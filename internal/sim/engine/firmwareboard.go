@@ -125,8 +125,20 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 
 	// Padded once per node, beside its own working directory: QEMU takes only
 	// 2, 4, 8 or 16 MB images and the size has to match the image header.
+	//
+	// Kept between runs, as a board's flash is. Rewritten every start, an
+	// emulated node lost its identity, preferences and contacts each time it
+	// was restarted - so a node configured over its console reverted the
+	// moment somebody stopped and started it, and both arms of a comparison
+	// began factory-fresh whether or not that was the intention. A different
+	// build still gets a fresh chip: that is what reflashing a board is.
+	// What has been decided about this build, read from beside the image
+	// rather than from the board: the same hardware runs one image that needs
+	// the coprocessors up at reset and another that would be flattered by it.
+	set := firmware.LoadBuildSettings(src)
+
 	padded := filepath.Join(dir, "flash.bin")
-	if _, err := firmware.PadImage(src, padded); err != nil {
+	if _, err := firmware.PadImageKeeping(src, padded); err != nil {
 		return nil, err
 	}
 
@@ -143,8 +155,14 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 		DIO1:       board.QEMU.DIO1,
 		NodeName:   spec.Name,
 		Dir:        dir,
+		// Where this board's firmware puts Serial. On a board built with
+		// ARDUINO_USB_CDC_ON_BOOT that is the USB peripheral, not UART0, and
+		// a console handed to the wrong one is a board that boots and then
+		// appears to say nothing.
+		ConsoleOnUSB: board.QEMU.ConsoleOnUSB,
+		// And what has been decided about this particular build.
+		CoprocAtReset: set.CoprocAtReset,
 	}
-
 	// The board's buttons, from the same declaration everything else comes
 	// from. Only the ones it actually has: a board that declares none, or
 	// declares one as absent, gets no channel rather than a channel nothing
@@ -191,14 +209,30 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 		}
 	}
 
-	// The card slot, where the board has one. The file is the node's, beside
-	// its sockets and its logs, and survives the run.
+	// The card slot, where the board has one and the node has a card in it.
+	//
+	// A slot is not a fitted card: the board can only say the slot exists, and
+	// whether this particular node has storage is the scenario's business -
+	// except where the firmware insists, which it can, because a build that
+	// keeps its settings on a card boots into nothing without one.
 	if p := board.Hardware; p != nil {
 		for _, part := range p.PartsOfKind(scenario.Card) {
 			if part.Pin == scenario.PinNone {
 				continue
 			}
-			card := filepath.Join(dir, "card.img")
+			if !spec.HasCard(true, set.CardRequired) {
+				break
+			}
+			// The node's own, beside its sockets and its logs, unless it was
+			// handed one somewhere else - which is how a card is shared
+			// between nodes or prepared in advance.
+			card := spec.CardFile
+			if card == "" {
+				card = filepath.Join(dir, "card.img")
+			}
+			if err := os.MkdirAll(filepath.Dir(card), 0o755); err != nil {
+				return nil, fmt.Errorf("engine: %s's card: %w", spec.Name, err)
+			}
 			if err := firmware.MakeCard(card); err != nil {
 				return nil, fmt.Errorf("engine: %s's card: %w", spec.Name, err)
 			}

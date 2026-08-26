@@ -27,6 +27,13 @@ func (p *firmwarePanel) row(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 			"role": r.Role, "version": r.Version,
 		})
 	}
+	if w.open.Clicked(gtx) && p.OnAction != nil {
+		// The window is opened by verb like everything else here, so that a
+		// double-click and a script asking for it take the same path.
+		p.OnAction("firmware.window", map[string]any{
+			"version": r.Version, "role": r.Role, "board": r.Board,
+		})
+	}
 	if w.act.Clicked(gtx) {
 		switch {
 		case r.Unavailable:
@@ -90,15 +97,30 @@ func (p *firmwarePanel) row(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 			return layout.Inset{Top: t.Sp.S, Bottom: t.Sp.S}.Layout(gtx,
 				func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-						cell(fwCols[0].width, func(gtx layout.Context) layout.Dimensions {
-							return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									return roleIcon(t, gtx, r.Role)
-								}),
-								layout.Rigid(comp.OneLine(t, t.Sz.Caption, t.P.Ink, r.Role, true)),
-							)
+						// The role and the version together are the way into the
+						// build's own window: one clickable across both, because
+						// two would mean the name and the icon behaved
+						// differently from each other for no reason a reader
+						// could see.
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return w.open.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								ink := t.P.Ink
+								if w.open.Hovered() {
+									ink = t.P.Accent
+								}
+								return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+									cell(fwCols[0].width, func(gtx layout.Context) layout.Dimensions {
+										return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+											layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+												return roleIcon(t, gtx, r.Role)
+											}),
+											layout.Rigid(comp.OneLine(t, t.Sz.Caption, ink, r.Role, true)),
+										)
+									}),
+									cell(fwCols[1].width, comp.OneLine(t, t.Sz.Caption, ink, r.Version, true)),
+								)
+							})
 						}),
-						cell(fwCols[1].width, comp.OneLine(t, t.Sz.Caption, t.P.Ink, r.Version, true)),
 						cell(fwCols[2].width, comp.Text(t, t.Sz.Caption, t.P.Dim, runsAs)),
 						cell(fwCols[3].width, comp.Mono(t, t.Sz.Caption, t.P.Dim, size)),
 						cell(fwCols[4].width, func(gtx layout.Context) layout.Dimensions {

@@ -73,6 +73,9 @@ type nodeWindowPanel struct {
 	// carries no decoration of the compositor's and so draws its own title
 	// bar. Set by the window loop from ConfigEvent.
 	Layered bool
+	// cardCtl is the card slot's own controls, drawn in the Hardware tab
+	// because a card is hardware.
+	cardCtl cardControls
 	// bar is that title bar, and maximised is its restore state, both owned
 	// here so the widget's address never changes across frames. The window
 	// loop polls them; the panel only draws.
@@ -80,6 +83,9 @@ type nodeWindowPanel struct {
 	maximised bool
 	// Kind is what this node is, which decides which tabs it grows.
 	Kind string
+	// out is the Output tab's own state: which source is showing, and the
+	// widgets that say so.
+	out outputPane
 	// hasHardware is set each frame from the node's board, so the Hardware
 	// tab appears exactly when the board declares something to show. Not a
 	// preference: a setting and the hardware can disagree, and a node showing
@@ -102,6 +108,10 @@ type nodeWindowPanel struct {
 }
 
 // visibleTabs is the tab set this node gets.
+func (p *nodeWindowPanel) setLayered(on bool)       { p.Layered = on }
+func (p *nodeWindowPanel) titleBar() *comp.TitleBar { return &p.bar }
+func (p *nodeWindowPanel) setMaximised(on bool)     { p.maximised = on }
+
 func (p *nodeWindowPanel) visibleTabs() []nodeTab {
 	var tabs []nodeTab
 	switch {
@@ -127,6 +137,10 @@ func (p *nodeWindowPanel) visibleTabs() []nodeTab {
 	if p.hasHardware {
 		tabs = append(tabs, tabHardware)
 	}
+	// Every node that runs firmware, whatever it runs and wherever it runs.
+	// What a board printed while failing to start is the one thing that says
+	// why, and it was reachable only by finding the file in a terminal.
+	tabs = append(tabs, tabOutput)
 	return tabs
 }
 
@@ -139,6 +153,7 @@ func (p *nodeWindowPanel) clicks(gtx layout.Context) {
 			p.tab = nodeTab(i)
 		}
 	}
+	p.outputClicks(gtx)
 	if p.start.Click.Clicked(gtx) && p.OnAction != nil {
 		p.OnAction("node.start", p.node)
 	}
@@ -267,6 +282,8 @@ func (p *nodeWindowPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snap
 				return p.sdrTab(t, gtx, s)
 			case tabHardware:
 				return p.hardware(t, gtx, s)
+			case tabOutput:
+				return p.output(t, gtx, s)
 			}
 			return p.console(t, gtx, s)
 		}),
@@ -366,8 +383,11 @@ func (p *nodeWindowPanel) auditDraw(t *theme.Theme, gtx layout.Context, s *state
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			// Bounded: settings fills whatever it is offered, and offered
-			// everything it would leave nothing for the tabs below it.
-			gtx.Constraints.Max.Y = gtx.Dp(300)
+			// everything it would leave nothing for the tabs below it. The
+			// figure is what is left once every other pane has its own
+			// bound - the card slot's row took the last of the slack, and
+			// the console's send button went off the bottom.
+			gtx.Constraints.Max.Y = gtx.Dp(250)
 			return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx,
 				func(gtx layout.Context) layout.Dimensions { return p.settings(t, gtx, s) })
 		}),
@@ -389,6 +409,24 @@ func (p *nodeWindowPanel) auditDraw(t *theme.Theme, gtx layout.Context, s *state
 					p.wireTrueRF(gtx, s)
 					return p.trueRF.LayoutSwitch(t, gtx)
 				})
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			// The card slot's controls, which live in the Hardware tab beside
+			// the drawn board - too far down it to be reached in the flat
+			// layout otherwise. Its controls without its prose, which is three
+			// paragraphs and would push the console's own send button off the
+			// bottom of the canvas.
+			return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx,
+				func(gtx layout.Context) layout.Dimensions {
+					return p.cardAuditRow(t, gtx, s)
+				})
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			// The output pane's own chrome - the source buttons and the
+			// follow toggle. Bounded, because it fills what it is given.
+			gtx.Constraints.Max.Y = gtx.Dp(120)
+			return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx,
+				func(gtx layout.Context) layout.Dimensions { return p.output(t, gtx, s) })
 		}),
 		// The console last, with whatever height remains: its own input row
 		// sits at its bottom edge and stays on screen.

@@ -16,6 +16,9 @@ var heltecWirelessPaperBoard = Board{
 	// the same devkit board definition, and with no PSRAM on either.
 	QEMU: &QEMUWiring{
 		Machine: "esp32s3", SPI: 3, NSS: 8, Busy: 13, DIO1: 14, LED: 18,
+		// Serial is the USB port on this board: its MeshCore variant is
+		// built with ARDUINO_USB_CDC_ON_BOOT.
+		ConsoleOnUSB: true,
 	},
 	// E-paper, which wants a refresh model rather than a framebuffer, so no
 	// screen is declared yet.

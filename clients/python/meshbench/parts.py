@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from . import errors
 from .sets import Board, Kind, Role
-from .types import Build, Event, JobInfo, SimState
+from .types import Build, BuildDetails, Event, JobInfo, SimState
 from .wait import (
     EVENT_WAIT,
     FIRMWARE_WAIT,
@@ -187,6 +187,26 @@ class Sim:
         wait_for(check, timeout, f"simulated time to reach {at_ms / 1000:.1f}s")
 
 
+def _build_id(
+    build: Build | str, board: Board | str = "", role: Role | str = ""
+) -> dict[str, Any]:
+    """Which build a call means, from either a Build or a bare label.
+
+    A Build carries all three names and they are sent together, so the call
+    cannot land on a different build that happens to share a label. A bare
+    label sends only what was given, and the workbench refuses it when it is
+    ambiguous rather than guessing.
+    """
+    if isinstance(build, Build):
+        return {"version": build.version, "role": build.role, "board": build.board}
+    p: dict[str, Any] = {"version": build}
+    if role:
+        p["role"] = role
+    if board:
+        p["board"] = board
+    return p
+
+
 class Firmware:
     """What this machine can run, and what it is running. Live."""
 
@@ -261,6 +281,69 @@ class Firmware:
             raise ValueError(f"{build} has no path on this machine to delete")
         got = self._wb.call("firmware.delete", {"path": build.path}) or {}
         return got.get("deleted", "")
+
+    def details(
+        self, build: Build | str, board: Board | str = "", role: Role | str = ""
+    ) -> BuildDetails:
+        """Everything known about one build: where it is, what it is, and what
+        has been decided about it.
+
+        Takes a Build or a bare label. A label alone is refused when it names
+        more than one build - the same image imported for two boards, say -
+        because acting on the wrong one is a rename of somebody else's image.
+        """
+        p: dict[str, Any] = dict(_build_id(build, board, role))
+        return BuildDetails.parse(self._wb.call("firmware.details", p) or {})
+
+    def update(
+        self,
+        build: Build | str,
+        *,
+        board: Board | str = "",
+        role: Role | str = "",
+        label: str | None = None,
+        new_role: Role | str | None = None,
+        new_board: Board | str | None = None,
+        coproc_at_reset: bool | None = None,
+        card_required: bool | None = None,
+        notes: str | None = None,
+    ) -> BuildDetails:
+        """Rename a build, move it to another board or role, or change how it
+        is run.
+
+        Renaming moves the file, because the name is the identity: a board
+        image is stored as ``<board>/<role>@<label>.bin`` and nothing else
+        records what it is. Nodes pinned to the old name are repointed, or they
+        would fail at their next start with "no image in the cache" about a
+        build sitting in the library under its new name.
+
+        Every argument left out is left alone, which is why they default to
+        None rather than to "" or False: "leave this setting" and "turn it
+        off" are different answers.
+        """
+        p: dict[str, Any] = dict(_build_id(build, board, role))
+        if label is not None:
+            p["label"] = label
+        if new_role is not None:
+            p["new_role"] = new_role
+        if new_board is not None:
+            p["new_board"] = new_board
+        if coproc_at_reset is not None:
+            p["coproc_at_reset"] = coproc_at_reset
+        if card_required is not None:
+            p["card_required"] = card_required
+        if notes is not None:
+            p["notes"] = notes
+        got = self._wb.call("firmware.update", p) or {}
+        return self.details(
+            got.get("version", ""), got.get("board", ""), got.get("role", "")
+        )
+
+    def window(
+        self, build: Build | str, board: Board | str = "", role: Role | str = ""
+    ) -> None:
+        """Open the build's own window - what a click on a library row does."""
+        self._wb.call("firmware.window", dict(_build_id(build, board, role)))
 
     def build(
         self,

@@ -4,6 +4,7 @@ package state
 
 import (
 	"image"
+	"time"
 
 	"github.com/MeshBench/meshbench/internal/mesh/firmware"
 )
@@ -34,6 +35,24 @@ type Node struct {
 	// the other would say the node had changed hardware when it had changed
 	// firmware.
 	Hardware string
+	// CardSlot reports that this node's board has a card slot at all, and
+	// CardFitted that there is a card in it. A slot is not a card: the board
+	// says the slot exists, the node says whether it is filled.
+	CardSlot   bool
+	CardFitted bool
+	// CardFile is the file behind that card, whether it is the node's own or
+	// one it was handed, and CardShared says which. Reported rather than
+	// guessed from the path: only the session knows where a node's own card
+	// would be, and a panel comparing filenames gets it wrong for anybody who
+	// pointed a node at a file that happens to be called card.img.
+	CardFile   string
+	CardShared bool
+	// CardRequired says the firmware this node runs will not get far without
+	// storage, so the slot is filled whatever the node would have preferred.
+	// Shown rather than hidden, because a toggle that will not move needs to
+	// say who is holding it.
+	CardRequired bool
+
 	// TrueRF marks a receiver that takes waveform verdicts whatever the
 	// run's RF mode - the hybrid flag.
 	TrueRF   bool
@@ -371,4 +390,34 @@ type FirmwareRow struct {
 	// which reads as the library losing builds rather than as a pin nobody
 	// can honour.
 	Unavailable bool
+	// Native marks a build for this machine rather than an image for a board.
+	// The two are not interchangeable and only one of them can be renamed.
+	Native bool
+	// Modified is when the file was last written, which is how a build
+	// imported twice under one name is told from the one before it.
+	Modified time.Time
+	// Facts is what reading the front of the image says about it, and
+	// Settings what has been decided about it. Both zero for a build that is
+	// not on disk, where there is nothing to read and nothing decided.
+	Facts    firmware.ImageFacts
+	Settings firmware.BuildSettings
+}
+
+// OutputPane is one node's raw output from one source.
+//
+// A tail rather than the whole file, with Total saying what the file holds so
+// a pane can report the difference rather than implying it has everything.
+type OutputPane struct {
+	Node   string
+	Source string
+	Lines  []string
+	Total  int
+	Path   string
+	// Note is why this source is empty, when it is empty for a reason - a
+	// board whose console is on USB has nothing on UART0 after the bootloader,
+	// and a blank pane with no explanation reads as a broken one.
+	Note string
+	// Tracing is what the emulator was asked to trace, so a pane showing an
+	// enormous log can say why it is enormous.
+	Tracing string
 }

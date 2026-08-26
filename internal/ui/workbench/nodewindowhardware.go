@@ -44,17 +44,65 @@ func (p *nodeWindowPanel) hardware(t *theme.Theme, gtx layout.Context, s *state.
 	}
 
 	return comp.Inset(t, t.Sp.M, func(gtx layout.Context) layout.Dimensions {
-		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Start,
-			Spacing: layout.SpaceEnd}.Layout(gtx,
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return p.device(t, gtx, panel, st)
-			}),
-			layout.Rigid(layout.Spacer{Width: t.Sp.L}.Layout),
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-				return p.hardwareFacts(t, gtx, panel, st)
+				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Start,
+					Spacing: layout.SpaceEnd}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return p.device(t, gtx, panel, st)
+					}),
+					layout.Rigid(layout.Spacer{Width: t.Sp.L}.Layout),
+					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return p.hardwareFacts(t, gtx, panel, st)
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return p.card(t, gtx, s)
+							}),
+						)
+					}),
+				)
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return p.lastWords(t, gtx, s)
 			}),
 		)
 	})(gtx)
+}
+
+// lastWords is the tail of what the board printed, under the picture of it.
+//
+// Here because this is where somebody is standing when a board draws nothing:
+// looking at a drawn panel that is blank, deciding whether the emulator is
+// broken or the firmware never started. The whole of it is one tab away and
+// the strip says so; four lines is enough to tell a board that is booting from
+// one that has said nothing at all.
+func (p *nodeWindowPanel) lastWords(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+	p.askSerial()
+	lines := outputSummary(p.node, s, 4)
+	if len(lines) == 0 {
+		// Silence is a finding, so it is drawn rather than skipped - a strip
+		// that disappears when there is nothing looks like a strip that has
+		// not loaded.
+		lines = []string{"nothing on this board's serial port yet"}
+	}
+	kids := []layout.FlexChild{
+		layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint, "last words")),
+		layout.Rigid(layout.Spacer{Height: t.Sp.XXS}.Layout),
+	}
+	for i := range lines {
+		line := trimLine(lines[i], 110)
+		kids = append(kids, layout.Rigid(comp.Mono(t, t.Sz.Caption, t.P.Dim, line)))
+	}
+	kids = append(kids,
+		layout.Rigid(layout.Spacer{Height: t.Sp.XXS}.Layout),
+		layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint,
+			"the whole of it, and the emulator's own, are in the Output tab")),
+	)
+	return layout.Inset{Top: t.Sp.S}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, kids...)
+	})
 }
 
 // boardPanel is what this node's board declares, or nil where nothing is

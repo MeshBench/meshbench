@@ -97,6 +97,37 @@ func (k Kind) Application() Role {
 // but does none of those; its power enters the model as noise, not as frames.
 func (k Kind) Transmits() bool { return k != SDRObserver && k != Emitter }
 
+// CardSlot is what is in a board's card slot.
+type CardSlot string
+
+const (
+	// CardAsBoard is the board's own answer: a card in every slot it
+	// declares. The zero value, so a scenario saved before any of this loads
+	// the way it always did.
+	CardAsBoard CardSlot = ""
+	// CardFitted and CardEmpty are a decision about this node, which is what
+	// makes them worth saving: "this handheld has no card in it" is part of
+	// the scenario, not a detail of the run.
+	CardFitted CardSlot = "fitted"
+	CardEmpty  CardSlot = "empty"
+)
+
+// HasCard reports whether this node's slot holds a card, given whether its
+// board has a slot at all and whether its firmware insists on one.
+//
+// A firmware that requires storage wins, because a build that will not boot
+// without a card is not something a per-node preference should be able to
+// half-configure into failing several minutes later.
+func (n Node) HasCard(boardHasSlot, firmwareRequires bool) bool {
+	if !boardHasSlot {
+		return false
+	}
+	if firmwareRequires {
+		return true
+	}
+	return n.Card != CardEmpty
+}
+
 // RunsFirmware reports whether a node needs a firmware backend.
 func (k Kind) RunsFirmware() bool { return k != SDRObserver && k != Emitter }
 
@@ -210,6 +241,21 @@ type Node struct {
 	// is in calculated mode - the hybrid the waveform plan describes: a big
 	// mesh priced fast, with full-fidelity reception where it matters.
 	TrueRF bool `json:"true_rf,omitempty"`
+
+	// Card is what is in this node's card slot, on a board that has one.
+	//
+	// Carried on the node rather than decided by the board, because a slot is
+	// not a fitted card: two of the same handheld in one scenario, one with
+	// storage and one without, is an ordinary thing to want and the board can
+	// only say that the slot exists. Empty means the board's own answer, which
+	// is a card in every slot a board declares - the behaviour before this
+	// existed, so a saved scenario loads unchanged.
+	Card CardSlot `json:"card,omitempty"`
+
+	// CardFile is the file behind that card, or empty for the node's own,
+	// named after it and kept beside its flash. Set it to share one card
+	// between runs, or to hand a node a card somebody else prepared.
+	CardFile string `json:"card_file,omitempty"`
 
 	// FEM is the front-end module this node's board carries, where it has one.
 	// Nil means the radio drives the antenna directly, and then whether the

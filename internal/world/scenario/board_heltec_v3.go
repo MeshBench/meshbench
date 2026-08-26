@@ -37,7 +37,7 @@ var heltecV3Board = Board{
 	},
 	Notes: "Very common and not a good repeater: the stock spring antenna is well " +
 		"below a dipole, and sleep current is dominated by the board rather than " +
-		"the MCU. Its radio has a bus now - the machine builds GPSPI2 and offers " +
-		"the 49 GPIOs this part has rather than the ESP32's 40 - but the published " +
-		"image still asserts inside ESP-IDF's own startup, before MeshCore runs.",
+		"the MCU. It boots, brings its radio up and can be typed at: its Serial is " +
+		"UART0 rather than the USB port, so its console is reachable without the " +
+		"USB Serial/JTAG the handhelds need.",
 }

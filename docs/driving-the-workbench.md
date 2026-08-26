@@ -95,6 +95,51 @@ workbench silent and pegged at 0% CPU, that is the shape of the fault: an
 unbounded wait on the frame thread, not slowness. Take a goroutine dump
 (`kill -QUIT`) before killing it, because the dump names the line.
 
+## A board remembers, and what it printed is readable
+
+An emulated board keeps its flash between runs, exactly as hardware does: its
+identity, its preferences and its contacts survive a stop and a start, and only
+a change of build reflashes the chip. That is what you want when you configure
+a node and come back to it, and what you do **not** want between the arms of a
+comparison - so `node.wipe` puts one board back to factory and `firmware.wipe`
+does all of them.
+
+`node.output` reads what a node printed, from whichever of four voices you ask
+for. They answer different questions and a merged log answers none of them
+well:
+
+| source | what it is |
+|---|---|
+| `serial` | the board's own port; a native node's standard error |
+| `boot` | the ROM's own output, on a board whose application talks over USB |
+| `emulator` | what QEMU or Renode said about *running* it |
+| `radio` | what the radio model beside it logged |
+
+Reach for `emulator` first when a board says nothing. An emulator that refused
+a machine property or could not open a drive says so there, and that used to be
+mixed into the board's own output where it read as something the firmware had
+printed.
+
+When even that is quiet, `MESHCORESIM_QEMU_DEBUG=unimp,guest_errors` in the
+workbench's environment makes the emulator name every register the machine does
+not implement. A single address with millions of hits is a firmware waiting for
+an answer that cannot arrive. It is off by default because the output is
+megabytes a second - one run of it once filled a 16 GB tmpfs, and the space
+stayed allocated until the emulator holding the file was killed.
+
+## Writing at a port is not the same as being heard
+
+A companion is driven by writing frames at its serial port, and **writing
+succeeds whether or not anything is reading**. A board whose firmware never
+started takes every frame and answers none, so commands used to report
+themselves sent against a node that was doing nothing at all - "it says advert
+sent and nothing transmits", with the interface the last thing anybody would
+suspect.
+
+A node that has never answered a single frame is refused now. If you see that
+refusal, the node is not the problem to debug: read its Output tab and find out
+what its firmware is doing.
+
 ## You cannot type an imported node's name
 
 The names come from the people running the mesh, so on ScotMesh they carry
@@ -215,3 +260,25 @@ Two later findings that change how this study should be read:
 - **Repeats of one seed are identical**, and in the simultaneous arms so are
   different seeds. Three seeds is three runs, not three samples. To get a real
   interval, vary something that perturbs the mesh rather than the noise.
+
+## Watching more than one log at once
+
+*Added 25 August 2026.*
+
+A node's **Output** tab shows one of its four voices at a time: what the board
+printed (`serial`), what the ROM printed before the board's own console existed
+(`rom`), what the emulator said about running it (`emulator`), and what the
+radio model logged (`radio`).
+
+**"pop out"** puts the one being shown into a window of its own, so a board's
+screen and two of its logs can be watched together — which is what a
+misbehaving board actually needs: what it printed beside what the emulator said
+about running it.
+
+    node.output_window {node, source}
+
+Every popped-out window keeps its own subscription. Panes no longer share one
+slot in the world, so two windows on two nodes stay filled, and switching
+source no longer blanks the pane it switched away from. Nothing on disk was
+ever lost when they did — the files under `~/.cache/meshcoresim/nodefs/<node>/`
+hold everything, and the pane's footer names the one it is reading.

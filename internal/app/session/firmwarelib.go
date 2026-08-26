@@ -13,10 +13,12 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/mesh/firmware"
+	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
 func registerFirmwareLibrary(st *state.Store, s *Sim) {
@@ -161,11 +163,24 @@ func registerFirmwareLibrary(st *state.Store, s *Sim) {
 		// first in place and nothing could say which of two local builds was
 		// running.
 		label, _ := namedField(p, "label")
+		if label == "" {
+			// The MCP tool and one command-line path both called it "version"
+			// and the handler read neither, so every import through them was
+			// stamped with a timestamp - and cmd_dev then pinned nodes to a
+			// version that had never been created. Accepted here as well as
+			// fixed there, because scripts written against the old name are
+			// already out in the world.
+			label, _ = namedField(p, "version")
+		}
+		if err := refuseHalfAnImage(path, board); err != nil {
+			return nil, err
+		}
 		cat := &firmware.Catalogue{CacheDir: firmware.DefaultCacheDir()}
 		img, err := cat.Import(path, board, role, firmware.ImportLabel(label))
 		if err != nil {
 			return nil, err
 		}
+		s.fillLibrary(w)
 		w.Say("imported " + img.Version + " as " + role)
 		return map[string]any{
 			"version": img.Version, "role": role,
@@ -191,6 +206,11 @@ func registerFirmwareLibrary(st *state.Store, s *Sim) {
 		if err := os.RemoveAll(clean); err != nil {
 			return nil, err
 		}
+		deleteBuildSettings(clean)
+		// The library the panels draw, not only the directory: a delete that
+		// left the row behind read as a delete that did nothing, and the
+		// only caller that refreshed was the one panel that remembered to.
+		s.fillLibrary(w)
 		w.Say("deleted " + filepath.Base(clean))
 		return map[string]any{"deleted": clean}, nil
 	})
@@ -304,8 +324,14 @@ func registerFirmwareLibrary(st *state.Store, s *Sim) {
 				n++
 			}
 		}
-		w.Say(fmt.Sprintf("wiped %d nodes' stored settings", n))
-		return map[string]any{"wiped": n, "root": root}, nil
+		// And the cards kept somewhere else. A node handed a card of its own
+		// choosing has its storage outside this directory, so wiping the
+		// directory leaves it holding everything it was supposed to forget -
+		// which is the one case where "wiped every node" would be a lie.
+		cards := s.wipeCardsOutside(root)
+		w.Say(fmt.Sprintf("wiped %d nodes' stored settings and %d cards kept elsewhere",
+			n, cards))
+		return map[string]any{"wiped": n, "root": root, "cards": cards}, nil
 	})
 }
 
@@ -397,4 +423,61 @@ func soleString(p any) string {
 		}
 	}
 	return ""
+}
+
+// refuseHalfAnImage turns away an application-only build before it is stored.
+//
+// A published release for an ESP32 board carries two files whose names differ
+// by one word, and only one of them boots: firmware-heltec-v3-2.7.26.bin is the
+// application, and firmware-heltec-v3-2.7.26.factory.bin is the whole flash -
+// bootloader, partition table and application together. A board starts from the
+// bootloader, so the first of those starts nothing.
+//
+// Checked here rather than at play, where it was checked before. The refusal
+// arrived several minutes after the import, phrased as a flash-image error, to
+// somebody who thought they were starting a board - and the library went on
+// offering the build that could not run. Checked here it is an answer to the
+// question being asked, at the moment it is asked.
+//
+// Only for a board with an ESP32-family MCU: the header this reads is Espressif's,
+// and an nRF52 image is a different shape entirely.
+// isESP32Board reports whether this board's MCU is one whose flash images the
+// check below can read. A board nobody has heard of is not one to judge.
+func isESP32Board(board string) bool {
+	b, err := scenario.BoardByName(board)
+	if err != nil {
+		return false
+	}
+	return strings.HasPrefix(strings.ToUpper(b.MCU), "ESP32")
+}
+
+func refuseHalfAnImage(path, board string) error {
+	if board == "" || strings.ToLower(filepath.Ext(path)) != ".bin" {
+		return nil
+	}
+	if !isESP32Board(board) {
+		return nil
+	}
+	// The path is what somebody chose in a file dialog, and reading it is the
+	// whole of what this function is for.
+	data, err := os.ReadFile(path) //nolint:gosec // the caller's own chosen import
+	if err != nil {
+		return err
+	}
+	if _, err := firmware.ClassifyESPImage(data); err != nil {
+		return fmt.Errorf("%s: %w", filepath.Base(path), err)
+	}
+	// The header is not the test. An application image begins with the same
+	// magic byte - it is an ESP image too, just one that belongs at 0x10000
+	// rather than at the start of the chip. What a whole flash image has and
+	// an application has not is the partition table the ROM bootloader reads.
+	if !firmware.HasPartitionTable(data) {
+		return fmt.Errorf(
+			"%s has no partition table at 0x8000, so it is the application on its "+
+				"own rather than a whole flash image: it starts at 0x10000 and a board "+
+				"starts from the bootloader. The release this came from publishes the "+
+				"whole flash beside it, named -merged.bin or .factory.bin",
+			filepath.Base(path))
+	}
+	return nil
 }

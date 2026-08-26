@@ -396,6 +396,266 @@ declared per board, so it cannot go stale as boards are added.
 **Treat a node's Wi-Fi and Bluetooth as absent.** Anything a firmware reports
 about them here is the stub talking, not a measurement.
 
+### 3.5a Which wire an application's console is on, and what happens when it is the wrong one
+
+An ESP32-S3 board built with `ARDUINO_USB_CDC_ON_BOOT` puts Arduino's `Serial`
+on the USB Serial/JTAG peripheral rather than on UART0. Six of the boards here
+are built that way — the T-Deck, the RAK3112, the Heltec Wireless Tracker, the
+E213, the E290 and the Wireless Paper — and until that peripheral carried bytes
+they printed their ROM banner to one wire and everything afterwards into a
+register stub. They read as boards that started and then stopped talking, and
+the companion protocol, which rides the same port, had no far end.
+
+It carries bytes now, and which port a board uses is recorded with the board
+(`QEMUWiring.ConsoleOnUSB`). UART0 is still logged separately on those boards —
+the *boot* source in a node's Output tab — because the ROM prints there before
+any of this is configured, and that output is what says whether a board started
+at all.
+
+**Where this can still be wrong:** the flag is a property of the *build*, not
+of the silicon. A board's profile records what MeshCore's own variant does. An
+imported firmware compiled the other way round will have its console on the
+wire the profile does not name, and will read as silent. The Output tab's boot
+source is the check: if the ROM banner is there and nothing follows it, the
+console is on the other wire.
+
+### 3.5b What a firmware may still walk into, and what happened when one did
+
+The emulated ESP32-S3 answers a great deal that it does not model, and the
+answers are per register rather than blanket, because the two conventions are
+mixed — some waits end when a busy bit clears and some when a done bit sets.
+That table grows as firmware finds the gaps in it, and it grows by measurement.
+
+Running `mesh-rs`, an ESP-IDF v5.5 firmware for the T-Deck, found four things
+in one sitting, each hiding the next: a PSRAM model that indexed backwards on
+an address with its top bit set and took the emulator down with it; a command
+register on the analog bus that a newer PHY blob uses and the table did not
+answer; an RSA accelerator that handed a zero modulus to libgcrypt, which
+aborts the process; and a timer group that divided by a zero prescaler, which
+the watchdog beside it had guarded against for years. All four are fixed.
+
+Three more followed, and the first of them was the black screen itself. The RF
+front end's registers were declared four bytes at a time, and a narrower access
+is not a slower access: QEMU refuses it and the guest takes a fault. `mesh-rs`
+reads one of those registers a byte at a time, masks a bit and writes it back —
+an ordinary read-modify-write — and took that fault on its first attempt, after
+which its handler faulted on its own stack and the board disappeared into a
+storm of double exceptions with nothing printed. The SYSTEM block also forgot
+everything written to it, so every `REG_SET_BIT` on a peripheral clock-enable
+was a no-op. And the second core ran from the moment the machine came up, so it
+sat in the ROM's "wait for somewhere to jump" loop and took the first word
+written to the message register — which for this firmware is a message, written
+long before it starts a core.
+
+**Where it reaches now:** it boots, brings up its PHY and its PSRAM, draws one
+whole 320×240 frame to the panel, and speaks its own framed protocol on the USB
+port. Then it raises a software interrupt with `wsr.intset`, restores `PS` to
+let it in, and its own interrupt entry faults — an unending storm of double
+exceptions with a stack pointer descending 256 bytes a time. Measured with no
+peripherals attached, so it is not the panel, the card slot, the keyboard or
+the touch panel. It never reads the touch panel at all, where a working build
+reads it 56 times in the same window.
+
+**It stops on one instruction.** Printing `EXCCAUSE` at every exception ends
+the search: the software interrupt is delivered with a valid stack
+(`exccause = 4`), and the very next event is a double exception with
+`exccause = 32` — CoprocessorDisabled — at `0x40378b04`, which disassembles to
+`rur.fcr`: reading the floating-point control register, inside the firmware's
+own context-save, two instructions after it saves the MAC16 accumulators.
+`CPENABLE` is zero, so it traps; a trap inside an exception vector with
+`PS.EXCM` set is a double exception, which re-enters the same vector and
+reaches the same instruction. Forty-three thousand of them in eighteen seconds,
+and not one ever handled — nothing enables the FPU.
+
+Everything else this firmware appears to do is downstream of that loop: the
+stack walking out of RAM, the twelve million rejected writes, the single frame
+drawn and then silence.
+
+**The emulator is right about it**, checked rather than assumed: Espressif's own
+configuration for this part gives coprocessor 0 as the FPU and `CPENABLE`
+resets to zero, as the ISA specifies. The same instruction with the same
+`CPENABLE` traps identically on silicon.
+
+That ordering question was tested rather than left open. QEMU recognises a
+pending interrupt on the instruction after `wsr.ps`, while the ISA says a `WSR`
+to `PS` is not guaranteed in effect until an `RSYNC` — and this firmware has no
+`rsync` in between. Moving the check off `wsr.ps` and onto `rsync`, where the
+ISA puts it, changes nothing: the storm is identical. Reverted, because an
+unproven change to shared Xtensa translation would reach every other guest.
+Also checked and correct: exception entry never clears `CPENABLE`, here or on
+silicon.
+
+What remains is a statement about firmware state rather than about this
+emulator. The firmware does manage `CPENABLE` — its image carries four
+`wsr.cpenable` and sixty-four `rsr.cpenable` — so on a real board the
+interrupted task has the FPU enabled and this handler survives. Which task is
+running when a self-raised software interrupt fires is not something that can
+be established from outside a closed binary.
+
+**There is a way to look past it**, and it is deliberately not the default. It
+brings the emulated coprocessors up enabled, which the part does not do. With
+it on, this firmware stops looping — no refused stores at all, against eighteen
+million — and reaches its own panic handler, which prints *panic details
+unavailable after restart*. That is a fault worth being able to see, and it was
+completely hidden before.
+
+It is a property of the firmware being looked at rather than of the hardware —
+the same T-Deck runs a stock MeshCore image that wants nothing to do with it —
+so it is stored per build, beside the image, and follows the build when it is
+renamed or moved. Set it in the build's own window in the Firmware Library, or
+with `firmware.update {version, coproc_at_reset: true}`.
+`MESHCORESIM_QEMU_COPROC_AT_RESET=1` still forces it on for every board at
+once, which is the form a script reaching for it once wants.
+
+**Where that firmware stops now.** Past the trap it brings up PSRAM, resets the
+display controller, and initialises a card completely — CMD0, CMD8, CMD58,
+CMD16, CMD9, CMD10, ACMD51, ACMD13, with the CSD and CID read back as data
+blocks, where before it died at CMD8. It then survives its own interrupt
+dispatch, which it did not: the machine's interrupt matrix laid every address
+in its window out as a map register, so the four status registers at 0x18C —
+the ones a firmware reads to learn *which* peripheral interrupted it — returned
+map bytes. That firmware recognised nothing in them and called a null handler,
+thirteen jumps to address zero per run, ending in a panic. With the registers
+answering, both are zero.
+
+It still does not draw. It sends the display's SWRESET and never follows with
+SLPOUT, so the panel stays dark and the Hardware tab shows a black screen. What
+is known about that: its executor is alive and being woken — the timer group
+fires and is dispatched, and the alarms it sets halve repeatedly, which is the
+shape of something retrying with a backoff. Its SD card work finishes and then
+no further byte crosses the SPI bus. The delay a display needs after a software
+reset is 120 ms and guest time reaches several seconds, so it is not waiting on
+that clock.
+
+One thing worth knowing before chasing it: **guest time here runs about fifty
+times slower than the wall clock** — measured at 2.66 seconds of emulated time
+in 150 seconds of real time on this machine. A firmware waiting on a long
+timeout will look hung long before it is.
+
+The stock MeshCore image for the same board is the control: it runs the whole
+ST7789 sequence — SWRESET, SLPOUT, COLMOD, MADCTL, CASET, RASET, INVON, NORON,
+DISPON — and draws, on the same machine, in the same run configuration. So the
+panel model, the SPI wiring and the board profile are all right; what remains
+is inside the closed firmware, which stops in a panic handler of its own before
+it reaches SLPOUT. See §3.5d.
+
+Treat anything measured under that switch as measured on a machine that is
+lying about a register: a firmware which genuinely mismanages its floating
+point enable is flattered by it rather than caught. It exists to make the next
+fault visible, not to make a board work.
+
+**Seven explanations were tested and disproved** getting here, all by
+measurement: the interrupt's core configuration, the MMU flag bits, the MMU
+page numbering, PSRAM pages past the end of the fitted part, the fabricated
+Bluetooth memory block, the rejected writes themselves, and interrupt delivery
+timing.
+
+### 3.5c Third-party firmware and the flash a filesystem is kept in
+
+Two firmware families run under emulation besides MeshCore's own build, and for
+a while neither could keep a file — nor could MeshCore. Every filesystem read
+on every ESP32-S3 board came back two bytes late: an erased sector read as
+`00 00 ff ff ...`, a freshly written superblock read back as garbage, and
+LittleFS and SPIFFS both refused to mount or format.
+
+The cause was in the emulator, not any of the firmware. The flash controller
+and the flash chip model disagreed about the read's dummy phase: a quad I/O
+read clocks its dummy cycles on four lines, and the controller counted them as
+one bit each, so it sent one dummy byte where the chip expected three and every
+data byte after arrived two places late. The application itself was untouched,
+because it executes through the cache — which reads the image directly and never
+goes down the controller's data path — so every board booted and nobody noticed
+that nothing could be *kept*. Fixed in the fork by counting the dummy phase at
+the width of the read.
+
+What runs now, each measured on the board's own profile:
+
+| firmware | board | result |
+|---|---|---|
+| MeshCore 1.17.1 companion | LilyGo T-Deck | boots, formats SPIFFS, reaches its home screen (node ID, message count, "Connected"), answers a USB companion query, and keeps its identity across a reboot |
+| MeshCore 1.17.1 repeater | Heltec V3 | formats SPIFFS, radio active, same Repeater ID on the second boot as the first |
+| Meshtastic 2.7.26 | LilyGo T-Deck | boots, PSRAM, I²C, draws; LittleFS formats and mounts clean on the second boot |
+| Meshtastic 2.7.26 | Heltec V3 | the same, on the GigaDevice flash model |
+
+A first boot on wiped flash now spends real time formatting, because the format
+actually happens — at this machine's emulation speed, minutes for a multi-megabyte
+partition. It is done once; the flash persists, so the second boot mounts
+immediately.
+
+**The T-Deck companion's screen is a status display, not an on-screen menu.**
+The `companion_radio_usb` build reads only its GPS switch and one button; it is
+driven over USB (or BLE on the BLE build), and shows node ID, unread count and
+link state on the panel. On-screen navigation belongs to the GUI-first builds,
+which are a different image.
+
+### 3.5d mesh-rs on the emulated T-Deck: boots, does not draw
+
+mesh-rs is closed-source Rust firmware. Past the emulator faults documented
+above it boots, brings up PSRAM, resets the display controller, initialises a
+card completely, and — unlike MeshCore and Meshtastic — drives its display over
+SPI **DMA** rather than polled SPI. Two more emulator gaps were fixed to follow
+it that far: the general-purpose SPI controller had no DMA data path at all (a
+DMA transfer clocked nothing, because the model only read the CPU data
+registers), and the GDMA's channel lookup returned the wrong channel (its
+"peripheral matches AND is started" test was coded as OR). With both fixed, a
+DMA transfer moves its data and raises the end-of-list interrupt the driver
+waits on — verified: the transfer completes and the correct completion status
+is raised on the right channel.
+
+It still does not draw. After that first DMA completes it sleeps in a backoff
+of its own, not polling or waiting on any register this emulator can be shown
+to mishandle — the completion interrupt it asked for is delivered. The stall is
+inside the closed firmware. The stock MeshCore and Meshtastic images drive the
+same panel on the same machine and draw, so it is recorded as a firmware-side
+blocker rather than an emulator one.
+
+### 3.5e wadamesh, and the state of the third-party bring-ups
+
+wadamesh (an older Arduino/ESP-IDF companion build, distinct from the Rust
+mesh-rs) **boots and runs** on the emulated T-Deck: NVS, PSRAM, touch
+detection and the main loop all come up, and it polls the GT911 touch panel
+actively. It is not stuck — what looked like a hang is its main loop reading
+the battery ADC every iteration.
+
+Two rough edges, both fidelity rather than correctness, and neither introduced
+by the fixes above (no input, touch, keyboard or GPIO code was changed):
+
+- **The ADC calibration eFuse is not modelled, and modelling it is a
+  cross-cutting change, not a warning to silence.** A real ESP32-S3 has ADC
+  calibration burnt in eFuse BLK2 at the factory (`BLK_VERSION_MAJOR` at bit
+  128 = 1 for "ADC calib V1", then `OCODE`, `ADC1_INIT_CODE_ATTEN0..3`,
+  `ADC1_CAL_VOL_ATTEN0..3`); ours is blank, so `esp_adc_cal_characterize` logs
+  *"No calibration efuse burnt"* — and a firmware that reads the ADC in its
+  loop (wadamesh) logs it thousands of times. The reading itself still works on
+  the default Vref path, so this is warning noise. It stays unmodelled on
+  purpose. Our battery model is deliberately **linear** — `batteryMeter` sets
+  the raw as `Vbat/FullScaleMV × 4096` (4.2 V / 6600 mV × 4096 = 2606, which
+  the T-Deck reports as ~3.1 V). ESP-IDF's calibration is a **non-linear**
+  piecewise curve built from those eFuse fields (see
+  `esp_efuse_rtc_calib_get_cal_voltage`: even all-zero diffs give the baseline
+  900/1700/2400/3200 mV points, not garbage). Burning `BLK_VERSION_MAJOR=1`
+  therefore does not just quiet the log — it switches every emulated S3 board's
+  firmware from the linear conversion the raw was computed for to that curve,
+  shifting the reported voltage. Doing it right means a coordinated change —
+  the eFuse curve *and* inverting it in `batteryMeter` so the reported voltage
+  is unchanged — and that inverse cannot be checked here without booting the
+  firmware to read the voltage back. So it is deferred as a real fidelity item,
+  not faked, because a wrong value would regress the battery display silently.
+- **The first-boot filesystem format is slow**, because it happens in real
+  time at emulation speed — the LittleFS/SPIFFS format a firmware does on a
+  blank partition or SD card can take tens of seconds of guest time, which is
+  minutes of wall clock. It is a one-time cost: the flash and card persist, so
+  the next boot mounts at once. A workbench boot-offset check can time out
+  during that first format; the firmware keeps running behind it.
+
+The three third-party images now stand as: **MeshCore** works fully (companion
+flow, screen, identity); **Meshtastic** boots, mounts LittleFS on the second
+boot, and draws its full UI; **wadamesh** boots and runs with the rough edges
+above; **mesh-rs** boots and initialises everything but stops in a panic of its
+own before drawing (§3.5d). The remaining gaps are firmware-side or
+emulation-fidelity limits rather than emulator faults on any path that could be
+verified.
+
 ### 3.6 Forwarding policy is ours, not the repeater application's
 
 The native node links MeshCore's *library* — `Mesh`, `Dispatcher`, `Packet`,

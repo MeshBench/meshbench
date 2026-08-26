@@ -34,6 +34,10 @@ func imageRectPt(d int) image.Rectangle { return image.Rect(0, 0, d, d) }
 
 type fwRowW struct {
 	use, act widget.Clickable
+	// open is the row itself: a press on the role or the version opens the
+	// build's own window. The two buttons keep their own areas, so the
+	// clickable covers only the cells that are not already controls.
+	open widget.Clickable
 }
 
 type firmwarePanel struct {

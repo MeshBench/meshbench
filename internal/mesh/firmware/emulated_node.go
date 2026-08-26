@@ -100,6 +100,16 @@ type EmulatedNode struct {
 	CardPath string
 	CardCS   int
 
+	// ConsoleOnUSB puts the console on the machine's USB Serial/JTAG rather
+	// than on UART0, for a board whose firmware has Serial there.
+	//
+	// Which it is is the build's business rather than the part's, so it comes
+	// from the board profile. Getting it wrong is quiet: the board boots, the
+	// ROM bootloader prints to UART0, and then everything the application says
+	// goes to a peripheral nobody is holding - a node that started and appears
+	// never to have spoken.
+	ConsoleOnUSB bool
+
 	// GPSPath is where the board's receiver sends its sentences from, or empty
 	// on a board that carries none.
 	GPSPath string
@@ -119,6 +129,12 @@ type EmulatedNode struct {
 
 	// PSRAMOctal selects an octal (OPI) part rather than a quad one.
 	PSRAMOctal bool
+
+	// CoprocAtReset brings the coprocessors up enabled, which the part does
+	// not do. A property of the build rather than of the board, so it arrives
+	// from the build's own settings; EnvCoprocAtReset forces it on for every
+	// node regardless, which is how it is reached from a script.
+	CoprocAtReset bool
 
 	// Emulator selects QEMU or Renode.
 	Emulator Emulator
@@ -155,6 +171,10 @@ type EmulatedNode struct {
 
 	// serial is the emulator's own serial port, when it publishes one.
 	serial *serialLink
+
+	// console is where the serial port's output goes: the log file always, and
+	// whoever is currently listening as well.
+	console *consoleSink
 }
 
 func waitForPort(ctx context.Context, logPath string) (int, error) {
@@ -254,6 +274,7 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	}
 	e.radio = exec.CommandContext(ctx, radioBin, radioArgs...)
 	e.radio.Stdout, e.radio.Stderr = radioLog, radioLog
+	e.radio.SysProcAttr = childProcAttr()
 	if err := e.radio.Start(); err != nil {
 		return fmt.Errorf("firmware: starting the radio model: %w", err)
 	}
@@ -292,64 +313,22 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	if e.radioPort != 0 {
 		radioAt = fmt.Sprintf("127.0.0.1:%d", e.radioPort)
 	}
-	machine := fmt.Sprintf("%s,radio-path=%s,radio-spi=%d,radio-nss=%d,radio-busy=%d",
-		e.Machine, radioAt, e.SPI, e.NSS, e.Busy)
-	// Only when the board records one. Without it the machine leaves the line
-	// unwired, and the firmware never learns a packet arrived - it reads a
-	// received packet solely from the interrupt this pin raises.
-	if e.DIO1 != 0 {
-		machine += fmt.Sprintf(",radio-dio1=%d", e.DIO1)
-	}
-	// Only when the board has one. Left off, the machine leaves the line
-	// unwired, which is what a board with no module should look like - as
-	// opposed to one whose module is permanently switched off.
-	if e.FEM != 0 {
-		machine += fmt.Sprintf(",radio-fem=%d", e.FEM)
-	}
-	if e.PSRAMOctal {
-		machine += ",psram-octal=on"
-	}
-	if e.ButtonPath != "" {
-		// The path on its own, because more than the buttons listen on it: a
-		// board with a meter and no button still has something to say.
-		machine += ",input-path=" + e.ButtonPath
-		if e.KbdAddr != 0 || e.TouchAddr != 0 {
-			machine += fmt.Sprintf(",kbd-addr=%d,touch-addr=%d", e.KbdAddr, e.TouchAddr)
-		}
-		if len(e.ButtonPins) > 0 {
-			pins := make([]string, len(e.ButtonPins))
-			for i, p := range e.ButtonPins {
-				pins[i] = strconv.Itoa(p)
-			}
-			// Doubled, because this is one value inside a comma separated
-			// list and a bare comma would end it: a board with two buttons
-			// refused to start at all until it was.
-			machine += ",input-pins=" + strings.Join(pins, ",,")
-		}
-	}
-	if e.CardPath != "" {
-		machine += fmt.Sprintf(",card-cs=%d", e.CardCS)
-	}
-	if e.BatRaw != 0 {
-		machine += fmt.Sprintf(",bat-adc-channel=%d,bat-adc-raw=%d",
-			e.BatChannel, e.BatRaw)
-	}
-	// The display, on the same terms as the radio: only when the board has
-	// one and only when something is listening.
-	if e.PanelPath != "" {
-		addr := e.PanelAddr
-		if addr == 0 {
-			addr = 0x3C
-		}
-		machine += fmt.Sprintf(",panel-path=%s,panel-addr=%d,panel-offset=%d",
-			e.PanelPath, addr, e.PanelOffset)
-		if e.PanelCS != 0 {
-			machine += fmt.Sprintf(",panel-cs=%d,panel-dc=%d,panel-w=%d,panel-h=%d",
-				e.PanelCS, e.PanelDC, e.PanelWidth, e.PanelHgt)
-		}
-	}
+	machine := e.machineString(radioAt)
 
-	qemuLog, err := os.Create(filepath.Join(e.Dir, "console.log"))
+	// The board's own output and the emulator's are two different things, and
+	// separating them is what makes either readable. They shared console.log,
+	// so a QEMU error about a drive or a machine property landed in the middle
+	// of the boot chain looking like something the firmware had printed - and
+	// the boot-banner and assert patterns the board probe matches against that
+	// file could be satisfied by the emulator complaining rather than by the
+	// board saying anything at all.
+	conLog, err := os.Create(filepath.Join(e.Dir, "console.log"))
+	if err != nil {
+		_ = e.stopLocked()
+		return err
+	}
+	e.console = &consoleSink{file: conLog}
+	emuLog, err := os.Create(filepath.Join(e.Dir, emulatorLogName))
 	if err != nil {
 		_ = e.stopLocked()
 		return err
@@ -375,16 +354,36 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 		"-nographic", "-monitor", "none",
 		"-drive", "file=" + flash + ",if=mtd,format=raw",
 		"-chardev", "socket,id=con,path=" + conPath + ",server=on,wait=off",
-		"-serial", "chardev:con",
 	}
-	// The receiver's port, where the board has one. Second rather than first
-	// because the order of these is the order of the ports: the application's
-	// own console is the first serial port on every one of these boards, and
-	// the receiver is on the second.
-	if e.GPSPath != "" {
+	// The order of these is the order of the ports: UART0, UART1, then the USB
+	// Serial/JTAG. Which one the console goes to depends on where this board's
+	// firmware put Serial, and the other two are filled in so the count still
+	// lands the console where it is meant to.
+	//
+	// UART0 keeps a log of its own either way. The ROM bootloader prints there
+	// before any of this is configured, and that output - the reset reason,
+	// the load addresses, the entry point - is what says whether a board
+	// started at all, which is exactly the question being asked of a board
+	// that says nothing afterwards.
+	if e.ConsoleOnUSB {
+		args = append(args, "-serial", "file:"+filepath.Join(e.Dir, romLogName))
+	} else {
+		args = append(args, "-serial", "chardev:con")
+	}
+	// The receiver's port, where the board has one: the second, which is the
+	// port its variant opens.
+	switch {
+	case e.GPSPath != "":
 		args = append(args,
 			"-chardev", "socket,id=gps,path="+e.GPSPath+",server=on,wait=off",
 			"-serial", "chardev:gps")
+	case e.ConsoleOnUSB:
+		// A placeholder, so the console lands on the third port rather than
+		// the second.
+		args = append(args, "-serial", "null")
+	}
+	if e.ConsoleOnUSB {
+		args = append(args, "-serial", "chardev:con")
 	}
 	if e.CardPath != "" {
 		args = append(args, "-drive", "if=sd,format=raw,file="+e.CardPath)
@@ -392,25 +391,35 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	if e.PSRAMMB > 0 {
 		args = append(args, "-m", fmt.Sprintf("%dM", e.PSRAMMB))
 	}
+	args = append(args, qemuDebugArgs(e.Dir)...)
 	e.qemu = exec.CommandContext(ctx, qemuBin, args...)
-	e.qemu.Stdout, e.qemu.Stderr = qemuLog, qemuLog
+	e.qemu.Stdout, e.qemu.Stderr = emuLog, emuLog
+	// The emulator dies with the simulator. Without this a workbench killed
+	// outright leaves a qemu-system-xtensa and a radioserver per node running,
+	// and the next run's radio socket is answered by the last run's model.
+	e.qemu.SysProcAttr = childProcAttr()
 	if err := e.qemu.Start(); err != nil {
 		_ = e.stopLocked()
 		return fmt.Errorf("firmware: starting the emulator: %w", err)
 	}
-	e.serial = dialSerial(ctx, conPath, qemuLog)
+	e.serial = dialSerial(ctx, conPath, e.console)
 	return nil
 }
 
-// ConsoleLog is everything the node has said on its serial port: the whole
-// boot chain, ROM through application, and the replies to anything typed at it.
-func (e *EmulatedNode) ConsoleLog() ([]byte, error) {
-	return os.ReadFile(e.ConsolePath())
-}
-
-// ConsolePath is where this node's boot output is written.
-func (e *EmulatedNode) ConsolePath() string {
-	return filepath.Join(e.Dir, "console.log")
+// TeeConsole sends a copy of everything the node says on its serial port to w,
+// on top of the log file it always writes. Nil stops the copy.
+//
+// This is how an emulated node's output reaches the things that read a native
+// node's: the console pane, a companion client, meshcore-cli over TCP. Without
+// it the port was readable only by opening the log file afterwards, so every
+// emulated board was write-only to everything in the application that tried to
+// listen to it - which read as a board that had no serial port at all.
+func (e *EmulatedNode) TeeConsole(w io.Writer) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.console != nil {
+		e.console.setTee(w)
+	}
 }
 
 // Stop ends both processes.

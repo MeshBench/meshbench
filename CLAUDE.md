@@ -164,6 +164,18 @@ Mechanical, because taste does not survive scale — and this codebase will be b
   as a best case.
 - **Determinism is a feature.** Same seed, same scenario, same result. Use
   counter-based RNG, never a stateful stream shared across goroutines.
+- **A board profile is a transcription of a real board — read its documentation
+  first.** When adding or fixing a `board_<name>.go`, work from the
+  manufacturer's own pinout, not from another board or from memory: the LilyGo
+  T-Deck / T-Deck Plus wiki (`wiki.lilygo.cc`), the Heltec docs, the vendor
+  schematic. Every pin the profile declares — radio SPI/NSS/BUSY/DIO1, the
+  display CS/DC/backlight and controller, the card CS, the trackball and
+  keyboard, the peripheral-power enable (e.g. the T-Deck's GPIO10) — has a
+  right answer on that page, and a wrong one is silent: the board boots and a
+  peripheral reads as absent. Cross-check against the firmware's own variant
+  (MeshCore `variants/<board>/`, Meshtastic `variants/esp32s3/<board>/`) for
+  which controller and I2C bus it actually drives, because two firmwares for one
+  board can differ and both be right. Cite the source in the profile's comment.
 
 ## It is an application, and it runs standalone
 

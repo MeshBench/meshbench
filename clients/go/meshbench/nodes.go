@@ -252,6 +252,74 @@ func (n Node) Info(ctx context.Context) (NodeInfo, error) {
 func (n Node) Start(ctx context.Context) error { return n.w.Do(ctx, "node.start", n.name) }
 func (n Node) Stop(ctx context.Context) error  { return n.w.Do(ctx, "node.stop", n.name) }
 
+// Output is what this node printed, from one of four voices: "serial" is the
+// board's own port (a native node's standard error), "boot" is the ROM's on a
+// board whose application talks over USB, "emulator" is what QEMU or Renode
+// said about running it, and "radio" is the radio model's log.
+//
+// The lines, not a count of them. A board that has gone quiet is read by
+// looking at what it last said.
+func (n Node) Output(ctx context.Context, source string, lines int) ([]string, error) {
+	var got struct {
+		Tail []string `json:"tail"`
+	}
+	err := n.w.CallInto(ctx, "node.output", map[string]any{
+		"node": n.name, "source": source, "lines": lines}, &got)
+	return got.Tail, err
+}
+
+// OutputWindow opens one of this node's logs in a window of its own.
+//
+// A tab is one pane. What people do while a board is misbehaving is watch its
+// screen and two of its logs together - what the board printed beside what the
+// emulator said about running it - and that needs windows.
+func (n Node) OutputWindow(ctx context.Context, source string) error {
+	return n.w.Do(ctx, "node.output_window",
+		map[string]any{"node": n.name, "source": source})
+}
+
+// Card is what is in this node's card slot, and changing it.
+//
+// A slot is not a fitted card: the board says the slot exists, this says
+// whether it is filled. A firmware marked as needing a card fills the slot
+// whatever this says, because a build that keeps its settings there boots into
+// nothing without one.
+func (n Node) Card(ctx context.Context, c CardChange) (CardSlot, error) {
+	p := map[string]any{"node": n.name}
+	if c.Fitted != nil {
+		p["fitted"] = *c.Fitted
+	}
+	if c.File != nil {
+		p["file"] = *c.File
+	}
+	if c.Wipe {
+		p["wipe"] = true
+	}
+	var out CardSlot
+	return out, n.w.CallInto(ctx, "node.card", p, &out)
+}
+
+// CardChange is what to change about a node's card. Nil leaves a field alone,
+// which is why the two that can be turned off are pointers: "leave this" and
+// "take the card out" are different answers and a bool cannot say both.
+type CardChange struct {
+	Fitted *bool
+	// File hands the node a card of its own - shared between runs, or
+	// prepared in advance. A pointer to the empty string returns it to its
+	// own, named after it and kept beside its flash.
+	File *string
+	Wipe bool
+}
+
+// Wipe puts this board back to factory: its flash, its card, its files.
+//
+// A board keeps what it was told between runs, as hardware does, so a node
+// configured into a corner stays there until this is called. Refused while it
+// is running, rather than rewriting a flash underneath the emulator holding it.
+func (n Node) Wipe(ctx context.Context) error {
+	return n.w.Do(ctx, "node.wipe", map[string]any{"node": n.name})
+}
+
 // Delete removes it from the scenario, and re-measures what is left.
 func (n Node) Delete(ctx context.Context) error {
 	return n.w.Do(ctx, "nodes.delete", map[string]any{"node": n.name})

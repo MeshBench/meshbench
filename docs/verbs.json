@@ -7,6 +7,154 @@
         "headless"
       ]
     },
+    "board.screenshot": {
+      "what": "write the board's display to a PNG and return its path",
+      "params": [
+        {
+          "name": "node",
+          "type": "string",
+          "required": true,
+          "primary": true,
+          "what": "the node whose screen to capture"
+        }
+      ],
+      "returns": [
+        "node",
+        "path",
+        "width",
+        "height",
+        "bpp",
+        "on"
+      ]
+    },
+    "firmware.details": {
+      "what": "Report everything known about one build: where it is, what it is, and what has been decided about it.",
+      "params": [
+        {
+          "name": "version",
+          "type": "string",
+          "required": true,
+          "primary": true,
+          "what": "the build's version or imported label"
+        },
+        {
+          "name": "role",
+          "type": "string",
+          "what": "which role, when one label carries more than one"
+        },
+        {
+          "name": "board",
+          "type": "string",
+          "what": "which board; absent means a build for this machine"
+        }
+      ],
+      "returns": [
+        "role",
+        "version",
+        "board",
+        "native",
+        "on_disk",
+        "path",
+        "settings_path",
+        "bytes",
+        "modified",
+        "in_use",
+        "kind",
+        "bootable",
+        "flash_mb",
+        "coproc_at_reset",
+        "card_required",
+        "notes"
+      ]
+    },
+    "firmware.update": {
+      "what": "Rename a build, move it to another board or role, or change how it is run.",
+      "params": [
+        {
+          "name": "version",
+          "type": "string",
+          "required": true,
+          "primary": true,
+          "what": "the build to change, by its current version or label"
+        },
+        {
+          "name": "role",
+          "type": "string",
+          "what": "its current role, when one label carries more than one"
+        },
+        {
+          "name": "board",
+          "type": "string",
+          "what": "its current board"
+        },
+        {
+          "name": "label",
+          "type": "string",
+          "what": "rename it to this; unchanged when absent"
+        },
+        {
+          "name": "new_role",
+          "type": "string",
+          "what": "run it as this role instead; unchanged when absent"
+        },
+        {
+          "name": "new_board",
+          "type": "string",
+          "what": "move it to this board instead; unchanged when absent"
+        },
+        {
+          "name": "card_required",
+          "type": "bool",
+          "what": "this firmware will not get far without storage in the board's slot, so every node running it is given a card whatever it would otherwise have had"
+        },
+        {
+          "name": "coproc_at_reset",
+          "type": "bool",
+          "what": "start this build's coprocessors enabled, which the part does not do - for a firmware that traps inside its own exception vector and cannot be seen past"
+        },
+        {
+          "name": "notes",
+          "type": "string",
+          "what": "what the next person should know about this build"
+        }
+      ],
+      "returns": [
+        "role",
+        "version",
+        "board",
+        "path",
+        "renamed",
+        "repinned",
+        "settings"
+      ]
+    },
+    "firmware.window": {
+      "what": "Open one build's own window: what it is, where it lives, and how it is run.",
+      "params": [
+        {
+          "name": "version",
+          "type": "string",
+          "required": true,
+          "primary": true,
+          "what": "the build's version or imported label"
+        },
+        {
+          "name": "role",
+          "type": "string",
+          "what": "which role, when one label carries more than one"
+        },
+        {
+          "name": "board",
+          "type": "string",
+          "what": "which board; absent means a build for this machine"
+        }
+      ],
+      "returns": [
+        "role",
+        "version",
+        "board"
+      ]
+    },
     "map.centre": {
       "what": "Point the map at a node, or at a latitude and longitude.",
       "params": [
@@ -44,6 +192,97 @@
         "nodes"
       ]
     },
+    "node.card": {
+      "what": "Report or change what is in one node's card slot: whether a card is fitted, which file it is, and whether to erase it.",
+      "params": [
+        {
+          "name": "node",
+          "type": "string",
+          "required": true,
+          "primary": true,
+          "what": "which node"
+        },
+        {
+          "name": "fitted",
+          "type": "bool",
+          "what": "put a card in the slot or take it out; unchanged when absent"
+        },
+        {
+          "name": "file",
+          "type": "string",
+          "what": "the file behind the card; empty string returns it to the node's own, named after the node and kept beside its flash"
+        },
+        {
+          "name": "wipe",
+          "type": "bool",
+          "what": "erase the card, which is what reformatting one is"
+        }
+      ],
+      "returns": [
+        "node",
+        "slot",
+        "fitted",
+        "file",
+        "own_file",
+        "bytes",
+        "required_by_firmware",
+        "board_has_slot",
+        "wiped"
+      ]
+    },
+    "node.output": {
+      "what": "read what a node's serial port, emulator or radio model has printed",
+      "params": [
+        {
+          "name": "node",
+          "type": "string",
+          "required": true,
+          "primary": true,
+          "what": "the node to read"
+        },
+        {
+          "name": "source",
+          "type": "string",
+          "what": "serial, emulator or radio; serial by default"
+        },
+        {
+          "name": "lines",
+          "type": "number",
+          "what": "how many lines of the tail to answer with, up to 2000"
+        }
+      ],
+      "returns": [
+        "node",
+        "source",
+        "lines",
+        "total",
+        "path",
+        "tail",
+        "note",
+        "tracing"
+      ]
+    },
+    "node.output_window": {
+      "what": "Open one node's one log in a window of its own, so a board's screen and several of its logs can be watched at once.",
+      "params": [
+        {
+          "name": "node",
+          "type": "string",
+          "required": true,
+          "primary": true,
+          "what": "which node"
+        },
+        {
+          "name": "source",
+          "type": "string",
+          "what": "which log: serial, rom, emulator, radio; serial when absent"
+        }
+      ],
+      "returns": [
+        "node",
+        "source"
+      ]
+    },
     "node.window": {
       "what": "Open one node's own window, the thing people put on a second monitor.",
       "params": [
@@ -63,6 +302,23 @@
       "returns": [
         "node",
         "tab"
+      ]
+    },
+    "node.wipe": {
+      "what": "erase one node's stored state: its flash, its card and its files",
+      "params": [
+        {
+          "name": "node",
+          "type": "string",
+          "required": true,
+          "primary": true,
+          "what": "the node to put back to factory"
+        }
+      ],
+      "returns": [
+        "node",
+        "wiped",
+        "removed"
       ]
     },
     "panels.list": {

@@ -45,6 +45,16 @@ type UI interface {
 	// reporting one it does not have would be worse than refusing.
 	OpenNodeWindow(node, tab string) (string, error)
 
+	// OpenFirmwareWindow gives one build a window of its own: what it is,
+	// where it lives, and the settings it runs under. All three names,
+	// because a label can carry more than one build and acting on the wrong
+	// one is a rename of somebody else's image.
+	OpenFirmwareWindow(role, version, board string) error
+
+	// OpenOutputWindow gives one node's one log a window of its own, so a
+	// board's screen and two of its logs can be watched at once.
+	OpenOutputWindow(node, source string) error
+
 	// OpenPanel shows a panel. where is "" for in the layout, "window" for
 	// its own window, or "dock" to bring it back.
 	OpenPanel(name, where string) error
@@ -145,37 +155,6 @@ func registerUI(st *state.Store, s *Sim) {
 		// asks to quit means it.
 		go s.Close()
 		return map[string]any{"closing": true, "headless": true}, nil
-	})
-}
-
-func registerNodeWindow(st *state.Store, s *Sim) {
-	// node.window: the thing people put on a second monitor.
-	st.HandleSpec("node.window", state.Spec{
-		What: "Open one node's own window, the thing people put on a second monitor.",
-		Params: []state.Param{
-			{Name: "node", Type: state.ParamString, Primary: true, Required: true,
-				What: "which node"},
-			{Name: "tab", Type: state.ParamString,
-				What: "which tab to open on; the window's default when absent"},
-		},
-		Returns: []string{"node", "tab"},
-	}, func(w *state.World, p any) (any, error) {
-		if err := s.needUI(); err != nil {
-			return nil, err
-		}
-		name := soleString(p)
-		if m, ok := p.(map[string]any); ok {
-			name, _ = m["node"].(string)
-		}
-		if _, found := findNode(w.Nodes, name); !found {
-			return nil, noSuchNode(name)
-		}
-		tab, _ := namedField(p, "tab")
-		shown, err := s.ui.OpenNodeWindow(name, tab)
-		if err != nil {
-			return nil, control.WithCode(control.BadParams, err)
-		}
-		return map[string]any{"node": name, "tab": shown}, nil
 	})
 }
 

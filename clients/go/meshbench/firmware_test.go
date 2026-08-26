@@ -15,10 +15,7 @@ import (
 // or to delete the older.
 func TestTwoImportsOfOneFileAreTwoBuilds(t *testing.T) {
 	wb, ctx := headless(t)
-	image := filepath.Join(t.TempDir(), "firmware.bin")
-	if err := os.WriteFile(image, []byte("not a firmware, but it is a .bin"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	image := boardImage(t)
 
 	// These land in the machine's real firmware cache - the verb uses it and
 	// nothing overrides it - so they come back out however this ends.
@@ -74,4 +71,29 @@ func holds(t *testing.T, wb *Workbench, ctx context.Context, version string) boo
 		}
 	}
 	return false
+}
+
+// boardImage writes the smallest thing that is honestly a board's flash image.
+//
+// Not arbitrary bytes: an import for a board is checked against what the ROM
+// bootloader needs to find - an image header where the part boots from, and a
+// partition table at 0x8000 - because a published release carries the whole
+// flash and the application on its own under names that differ by one word,
+// and only one of them boots. A placeholder here would be testing the labels
+// against a file no board could start.
+func boardImage(t *testing.T) string {
+	t.Helper()
+	b := make([]byte, 0x9000)
+	for i := range b {
+		b[i] = 0xFF
+	}
+	b[0] = 0xE9      // an image header, where an ESP32-S3 boots from
+	b[3] = 1 << 4    // declaring 2 MB of flash
+	b[0x8000] = 0xAA // and a partition table where the bootloader reads one
+	b[0x8001] = 0x50
+	path := filepath.Join(t.TempDir(), "firmware.bin")
+	if err := os.WriteFile(path, b, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
 }

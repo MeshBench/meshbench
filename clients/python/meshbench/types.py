@@ -197,6 +197,79 @@ class Build:
 
 
 @dataclass(frozen=True)
+class BuildDetails:
+    """One build, in full: what a row cannot hold.
+
+    Separate from :class:`Build` because the library is deliberately a list -
+    role, version, size, a tick. Where the file actually is, whether it is a
+    whole flash image or half of one, and what has been decided about how it
+    runs are the questions somebody has once a build does not do what they
+    expected.
+    """
+
+    role: Role | str = ""
+    version: str = ""
+    board: str = ""
+    native: bool = False
+    on_disk: bool = False
+    path: str = ""
+    #: Where the settings below are written. Named whether or not any exist,
+    #: because "where does this live" is asked of a build that has none as
+    #: often as of one that has.
+    settings_path: str = ""
+    bytes: int = 0
+    modified: str = ""
+    in_use: int = 0
+    #: What reading the front of the image says it is, and whether a board
+    #: could start from it. An application-only image imports, lists and pins
+    #: exactly like a whole one and then starts nothing.
+    kind: str = ""
+    bootable: bool = False
+    flash_mb: int = 0
+    #: Kept beside the image, so they follow this build rather than the board.
+    coproc_at_reset: bool = False
+    #: This firmware will not get far without storage in the board's slot, so
+    #: every node running it is given a card whatever its own slot was set to.
+    card_required: bool = False
+    notes: str = ""
+
+    def __str__(self) -> str:
+        if not self.board:
+            return self.version
+        return f"{self.board} - {self.role} {self.version}"
+
+    @classmethod
+    def parse(cls, raw: dict[str, Any]) -> BuildDetails:
+        return _from_dict(cls, raw)
+
+
+@dataclass(frozen=True)
+class CardSlot:
+    """What is in one node's card slot.
+
+    A slot is not a fitted card: the board says the slot exists, the node says
+    whether it is filled, and a firmware that keeps its settings on a card
+    fills it regardless.
+    """
+
+    node: str = ""
+    #: "" for the board's own answer, "fitted" or "empty" for a decision.
+    slot: str = ""
+    fitted: bool = False
+    #: The file behind the card, and the one it would use if handed none.
+    file: str = ""
+    own_file: str = ""
+    bytes: int = 0
+    required_by_firmware: bool = False
+    board_has_slot: bool = False
+    wiped: bool = False
+
+    @classmethod
+    def parse(cls, raw: dict[str, Any]) -> CardSlot:
+        return _from_dict(cls, raw)
+
+
+@dataclass(frozen=True)
 class JobInfo:
     """A long operation in flight."""
 

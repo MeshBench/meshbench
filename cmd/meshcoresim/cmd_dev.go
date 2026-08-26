@@ -58,7 +58,7 @@ func runDev(ctx context.Context, args []string) error {
 		// perfectly normal state, and the build is still in the cache for the
 		// next time one starts.
 		if err := tell("firmware.import", map[string]any{
-			"path": built.Path, "role": *role, "version": built.Label}); err != nil {
+			"path": built.Path, "role": *role, "label": built.Label}); err != nil {
 			fmt.Println("  workbench not running, so it is cached but not loaded")
 			return nil //nolint:nilerr // not an error: the build is cached either way
 		}

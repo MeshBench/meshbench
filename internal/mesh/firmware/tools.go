@@ -6,7 +6,10 @@ package firmware
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -88,44 +91,80 @@ func fileExists(p string) bool {
 	return err == nil && !st.IsDir()
 }
 
-// PadImage copies a flash image padded to a size QEMU will accept.
+// PadImageKeeping is PadImage, except that a flash the node has already been
+// running is left exactly as it is.
+//
+// A board keeps what it was told between runs, and this is where that had
+// stopped being true. The flash was rewritten from the pristine image on every
+// start, so an emulated node's NVS and its filesystem were blanked each time -
+// its identity, its preferences, its contacts, its region. Two places in the
+// tree describe the opposite behaviour and are right about native nodes: a
+// repeater keeping its identity between sessions is how hardware behaves, and
+// firmware.wipe exists precisely because it does.
+//
+// What decides is the source, recorded beside the flash. A node pinned to a
+// different build gets a fresh chip, because that is what reflashing a board
+// is; a node started again on the same build gets the chip it left behind.
+// Same reasoning as the card image, which has always been kept.
+func PadImageKeeping(src, dst string) (int, error) {
+	stamp := dst + ".src"
+	want, err := imageStamp(src)
+	if err != nil {
+		return 0, err
+	}
+	if have, err := os.ReadFile(stamp); err == nil && string(have) == want {
+		if st, err := os.Stat(dst); err == nil && st.Size() > 0 {
+			return int(st.Size() >> 20), nil
+		}
+	}
+	mb, err := PadImage(src, dst)
+	if err != nil {
+		return 0, err
+	}
+	// Written after the flash, so an interrupted write leaves a stamp that
+	// does not match and the next run rebuilds rather than booting half a
+	// chip. Best effort: a stamp that cannot be written costs a re-flash on
+	// the next start, which is what happened every time before this.
+	_ = os.WriteFile(stamp, []byte(want), 0o644)
+	return mb, nil
+}
+
+// imageStamp identifies the build a flash was made from.
+//
+// The digest rather than the path or the modification time: a build imported
+// twice under two labels is two paths and one chip, and an image rebuilt in
+// place by a compiler keeps both its path and, often enough, its size.
+func imageStamp(src string) (string, error) {
+	// The image this node was told to run, from the cache or from an import.
+	f, err := os.Open(src) //nolint:gosec // the build the caller asked for
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = f.Close() }()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// PadImage copies a flash image padded to a size QEMU will accept, always
+// rewriting the destination.
 //
 // Two traps in one function. QEMU takes only 2, 4, 8 or 16 MB images; and the
 // size must match what the image header asks for, or ESP-IDF asserts in
 // do_core_init with a message naming both sizes.
 //
-// Where the header lives is the part that differs by part. An ESP32 boots its
-// bootloader from 0x1000, so a merged image starts with padding and reading a
-// header from zero gives 0xff and a nonsense answer. An ESP32-S3 boots from
-// zero, so the header is the first thing in the file. Looked for rather than
-// assumed: the byte is 0xE9 either way, and a merged image for one part has
-// erased flash where the other keeps its header.
+// Callers starting a node want PadImageKeeping instead: this one blanks
+// whatever the board had written to its flash.
 func PadImage(src, dst string) (int, error) {
 	data, err := os.ReadFile(src)
 	if err != nil {
 		return 0, err
 	}
-	if len(data) < 0x1004 {
-		return 0, fmt.Errorf("firmware: %s is too small to be a merged image", src)
-	}
-	hdr := -1
-	switch {
-	case data[0] == 0xE9:
-		hdr = 0 // ESP32-S3, and the other parts that boot from zero
-	case data[0x1000] == 0xE9:
-		hdr = 0x1000 // ESP32
-	}
-	if hdr < 0 {
-		return 0, fmt.Errorf("firmware: %s has no image header at 0x0 or 0x1000; "+
-			"it is probably an application-only build rather than a merged one", src)
-	}
-	sizes := map[byte]int{0: 1, 1: 2, 2: 4, 3: 8, 4: 16}
-	mb, ok := sizes[data[hdr+3]>>4]
-	if !ok {
-		return 0, fmt.Errorf("firmware: %s declares an unknown flash size", src)
-	}
-	if mb == 1 {
-		mb = 2 // QEMU's smallest
+	mb, err := ClassifyESPImage(data)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", src, err)
 	}
 	want := mb << 20
 	if len(data) > want {
@@ -138,6 +177,44 @@ func PadImage(src, dst string) (int, error) {
 		out[i] = 0xFF // erased flash
 	}
 	return mb, os.WriteFile(dst, out, 0o644)
+}
+
+// ClassifyESPImage reads an ESP32 flash image's header and answers the flash
+// size in megabytes it was built for, or says why it is not one.
+//
+// Split out of PadImage so the same question can be asked at import, where it
+// can still be answered by refusing. Asked only at play, an application-only
+// build imported cleanly, listed cleanly, could be pinned to a node - and then
+// failed minutes later, in a message about a flash image, to somebody who
+// thought they were starting a board.
+func ClassifyESPImage(data []byte) (flashMB int, err error) {
+	if len(data) < 0x1004 {
+		return 0, fmt.Errorf("firmware: too small to be a merged image")
+	}
+	// Where the header lives differs by part, so it is looked for rather than
+	// assumed: an ESP32 boots its bootloader from 0x1000 and a merged image
+	// for one starts with padding, while an ESP32-S3 boots from zero. The byte
+	// is 0xE9 either way.
+	hdr := -1
+	switch {
+	case data[0] == 0xE9:
+		hdr = 0 // ESP32-S3, and the other parts that boot from zero
+	case data[0x1000] == 0xE9:
+		hdr = 0x1000 // ESP32
+	}
+	if hdr < 0 {
+		return 0, fmt.Errorf("firmware: no image header at 0x0 or 0x1000; " +
+			"it is probably an application-only build rather than a merged one")
+	}
+	sizes := map[byte]int{0: 1, 1: 2, 2: 4, 3: 8, 4: 16}
+	mb, ok := sizes[data[hdr+3]>>4]
+	if !ok {
+		return 0, fmt.Errorf("firmware: the image header declares an unknown flash size")
+	}
+	if mb == 1 {
+		mb = 2 // QEMU's smallest
+	}
+	return mb, nil
 }
 
 // waitForSocket blocks until the radio model is listening, or the context ends.

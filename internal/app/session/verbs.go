@@ -27,7 +27,9 @@ func Register(st *state.Store, s *Sim) {
 	registerRunKind(st, s)
 	registerUnverifiedWiring(st, s)
 	registerNodeWindow(st, s)
+	registerFirmwareWindow(st, s)
 	registerFirmwareLibrary(st, s)
+	registerFirmwareDetail(st, s)
 	registerFirmwareBuild(st, s)
 	registerFirmwareBuildResults(st, s)
 	registerFleet(st, s)
@@ -230,6 +232,12 @@ func Register(st *state.Store, s *Sim) {
 				if buf, ok := s.consoles[w.ConsoleNode]; ok {
 					w.Console = buf.Snapshot()
 				}
+			}
+			// And the output pane, for the same reason. Its source is a file
+			// the emulator is still writing, so a pane that read it once shows
+			// a board that stopped talking the moment it was opened.
+			if len(w.Outputs) > 0 {
+				s.refreshOutput(w)
 			}
 			w.RFMode = string(rfModeOf(s.rfMode))
 			// The calibration the model is running with, and whether it was
@@ -461,6 +469,11 @@ func Register(st *state.Store, s *Sim) {
 	registerSweepVerbs(st, s)
 	registerImportFeedVerbs(st, s)
 	registerNodeFirmwareVerbs(st, s)
+	registerNodeOutput(st, s)
+	registerNodeWipe(st, s)
+	registerNodeCard(st, s)
+	registerNodeOutputWindow(st, s)
+	registerBoardScreenshot(st, s)
 	st.Handle("session.describe", func(w *state.World, _ any) (any, error) {
 		return map[string]any{
 			"nodes": len(w.Nodes), "seed": w.Seed, "now_ms": w.NowMs,

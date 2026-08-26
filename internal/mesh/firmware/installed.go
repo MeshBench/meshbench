@@ -1,6 +1,7 @@
 package firmware
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -134,7 +135,9 @@ func listBoard(cacheDir string) []Installed {
 			continue
 		}
 		for _, f := range files {
-			if f.IsDir() {
+			// A build's settings sit beside it under its own name. Listed,
+			// they would appear as builds whose role is the whole filename.
+			if f.IsDir() || isSettingsFile(f.Name()) {
 				continue
 			}
 			role, version := roleVersionFromImage(f.Name())
@@ -219,6 +222,12 @@ func Remove(cacheDir string, in Installed) error {
 		return fmt.Errorf("firmware: refusing to delete %s, which is outside the cache", p)
 	}
 	if err := os.Remove(p); err != nil {
+		return err
+	}
+	// And whatever was decided about it, which means nothing once the build
+	// it describes is gone and would be inherited by the next build to be
+	// given the same name.
+	if err := os.Remove(SettingsPath(p)); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 	// Take the version directory with it when it empties, so a cache that has

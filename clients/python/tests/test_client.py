@@ -422,8 +422,19 @@ def imported(wb, tmp_path):
     build behind in somebody's library. Deleting on the way out regardless is
     the difference between a failing test and a failing test plus a mess.
     """
+    # Not arbitrary bytes: an import for a board is checked against what the
+    # ROM bootloader needs to find - an image header where the part boots from,
+    # and a partition table at 0x8000. A published release carries the whole
+    # flash and the application on its own under names differing by one word,
+    # and only one of them boots, so a placeholder here would be testing the
+    # labels against a file no board could start.
+    flash = bytearray(b"\xff" * 0x9000)
+    flash[0] = 0xE9  # an image header, where an ESP32-S3 boots from
+    flash[3] = 1 << 4  # declaring 2 MB of flash
+    flash[0x8000] = 0xAA  # and a partition table where the bootloader reads one
+    flash[0x8001] = 0x50
     image = tmp_path / "firmware.bin"
-    image.write_bytes(b"not really a firmware, but it is a .bin")
+    image.write_bytes(bytes(flash))
     made = []
 
     def do(role="companion_radio", board="LilyGo_TDeck", label=""):

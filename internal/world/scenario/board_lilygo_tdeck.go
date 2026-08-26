@@ -18,7 +18,10 @@ var lilygoTDeckBoard = Board{
 	QEMU: &QEMUWiring{
 		Machine: "esp32s3", SPI: 3, NSS: 9, Busy: 13, DIO1: 45,
 		PSRAMMB: 8, PSRAMOctal: true,
-		Verified: true,
+		// Serial is the USB port on this board: its MeshCore variant is
+		// built with ARDUINO_USB_CDC_ON_BOOT.
+		ConsoleOnUSB: true,
+		Verified:     true,
 	},
 	// A colour panel on the radio's own bus, with the keyboard and the touch
 	// layer on I2C beside it. The keyboard is not a matrix: it is a second

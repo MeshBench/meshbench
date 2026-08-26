@@ -125,6 +125,7 @@ emulator, and a blank cell means nobody has watched that board do that thing.
 | `Heltec_mesh_solar` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ? |
 | `Xiao_S3_WIO` | ESP32-S3 | QEMU | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ? |
 | `Heltec_v3` | ESP32-S3 | QEMU | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ✓ |
+| `LilyGo_TDeck` | ESP32-S3 | QEMU | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ? |
 | `Station_G2` | ESP32-S3 | — | | | | | | | | |
 | `Heltec_v2` | ESP32 | — | | | | | | | | |
 
@@ -148,6 +149,14 @@ What the columns mean:
   the only path between two others and requires its own transmission.
 - **fem** — the front-end module was switched in to transmit. Only two of these
   boards carry one, and only a backend with a pin for it can tell.
+
+Three of these boards put the application's `Serial` on the USB Serial/JTAG
+peripheral rather than on UART0, because their MeshCore variant is built with
+`ARDUINO_USB_CDC_ON_BOOT` — the T-Deck, the RAK3112 and the Heltec Wireless
+Tracker. Until that peripheral carried bytes, those boards printed their ROM
+banner to one wire and everything afterwards to a stub: they read as boards
+that started and then fell silent, and their companion interface had no far
+end. The T-Deck's row above is measured with it carrying bytes.
 - **power** — it was still answering after being left idle. Asked on the console
   where there is one, and over the air where there is not: a board that relays
   again after an idle has a radio receiving, a mesh stack deciding and a radio

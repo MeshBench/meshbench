@@ -275,6 +275,30 @@ func (b *Bridge) Console(w io.Writer) {
 	b.console = w
 }
 
+// ConsoleSink is a writer that forwards to whoever currently holds this node's
+// console, and discards when nobody does.
+//
+// For a backend that carries its own serial port rather than sending console
+// frames over the bridge. The holder is looked up per write, because it
+// changes while the node runs - the console pane attaches, a client claims the
+// port, the claim is released - and a writer captured once would go on feeding
+// whoever held it when the node booted, which is nobody.
+func (b *Bridge) ConsoleSink() io.Writer { return bridgeConsole{b} }
+
+type bridgeConsole struct{ b *Bridge }
+
+func (c bridgeConsole) Write(p []byte) (int, error) {
+	c.b.mu.Lock()
+	w := c.b.console
+	c.b.mu.Unlock()
+	if w != nil && len(p) > 0 {
+		// Best effort, as the frame path is: the simulation's correctness does
+		// not depend on anybody reading the output.
+		_, _ = w.Write(p)
+	}
+	return len(p), nil
+}
+
 // Claim gives one owner exclusive use of the serial port, as a USB cable does.
 //
 // Returns a release function. While a claim is held, Console is ignored: two
