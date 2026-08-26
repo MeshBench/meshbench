@@ -396,6 +396,38 @@ declared per board, so it cannot go stale as boards are added.
 **Treat a node's Wi-Fi and Bluetooth as absent.** Anything a firmware reports
 about them here is the stub talking, not a measurement.
 
+The stub gets a firmware *past* the Wi-Fi PHY, but Bluetooth has a harder wall
+behind it, and a firmware that brings BLE up at boot can stop there. A LilyGo
+T-Deck running the Rust `mesh-rs` build is the measured case: it boots through
+ESP-IDF, emits one companion advert, issues the display's `SWRESET` — and then,
+about a second in, the whole executor freezes. Measured over ninety seconds:
+the console emits its single advert and never another byte, the panel's chip
+select is asserted exactly once (for that `SWRESET`) and never again, and there
+is no reboot and no panic. It is not spinning either — a thousand register
+touches, not fifteen million. It is *parked*: the last thing it did was sweep
+the BT controller and radio-PHY calibration registers (`0x60011xxx`,
+`0x60035084`+, the `r_rw_rf_init` path), and then it idled in `waiti` with
+nothing left to wake it — the way a NimBLE host waits on an HCI command-complete
+event from a controller that here has no silicon to raise it. The dev's own build reports
+BLE back-off loops for exactly this, and the emulator's `TIMG0` alarms halving
+in the background are those back-offs. So the panel never gets its `SLPOUT` and
+the LoRa radio is never touched: both are downstream of a boot that never
+returns from Bluetooth. The controller's exchange RAM is faked (at `0x3FC00000`,
+so the older `LoadStoreError` panic in `r_rw_rf_init` no longer reboots the
+board), which is why `mesh-rs` stays *alive* rather than crashing — but staying
+alive is as far as it gets. A companion build that talks over USB instead of
+BLE, MeshCore's own among them, never enters this path and boots to its
+interface.
+
+There is no BLE-controller emulation to borrow for this. Espressif's own
+`esp-emulator` does carry a virtual BLE controller that runs unmodified NimBLE
+firmware (Apache-2.0, so its licence would allow it), but it emulates only the
+RISC-V parts — C3, C6, H2, P4 — not the Xtensa S3, and it intercepts HCI by
+firmware symbol, which a stripped closed binary like `mesh-rs` does not carry.
+So closing this would mean writing an S3 BLE controller from nothing, which is a
+radio on the air by another name and out of scope here. It is recorded, not
+attempted.
+
 ### 3.5a Which wire an application's console is on, and what happens when it is the wrong one
 
 An ESP32-S3 board built with `ARDUINO_USB_CDC_ON_BOOT` puts Arduino's `Serial`
@@ -620,27 +652,30 @@ the battery ADC every iteration.
 Two rough edges, both fidelity rather than correctness, and neither introduced
 by the fixes above (no input, touch, keyboard or GPIO code was changed):
 
-- **The ADC calibration eFuse is not modelled, and modelling it is a
-  cross-cutting change, not a warning to silence.** A real ESP32-S3 has ADC
-  calibration burnt in eFuse BLK2 at the factory (`BLK_VERSION_MAJOR` at bit
-  128 = 1 for "ADC calib V1", then `OCODE`, `ADC1_INIT_CODE_ATTEN0..3`,
-  `ADC1_CAL_VOL_ATTEN0..3`); ours is blank, so `esp_adc_cal_characterize` logs
-  *"No calibration efuse burnt"* — and a firmware that reads the ADC in its
-  loop (wadamesh) logs it thousands of times. The reading itself still works on
-  the default Vref path, so this is warning noise. It stays unmodelled on
-  purpose. Our battery model is deliberately **linear** — `batteryMeter` sets
-  the raw as `Vbat/FullScaleMV × 4096` (4.2 V / 6600 mV × 4096 = 2606, which
-  the T-Deck reports as ~3.1 V). ESP-IDF's calibration is a **non-linear**
-  piecewise curve built from those eFuse fields (see
-  `esp_efuse_rtc_calib_get_cal_voltage`: even all-zero diffs give the baseline
-  900/1700/2400/3200 mV points, not garbage). Burning `BLK_VERSION_MAJOR=1`
-  therefore does not just quiet the log — it switches every emulated S3 board's
-  firmware from the linear conversion the raw was computed for to that curve,
-  shifting the reported voltage. Doing it right means a coordinated change —
-  the eFuse curve *and* inverting it in `batteryMeter` so the reported voltage
-  is unchanged — and that inverse cannot be checked here without booting the
-  firmware to read the voltage back. So it is deferred as a real fidelity item,
-  not faked, because a wrong value would regress the battery display silently.
+- **The ADC calibration eFuse is modelled, and the battery meter is the
+  inverse of the firmware's own curve.** A real ESP32-S3 has ADC calibration
+  burnt in eFuse BLK2 at the factory (`BLK_VERSION_MAJOR` at bit 128 = 1 for
+  "ADC calib V1"); a blank block made `esp_efuse_rtc_calib_get_ver()` return 0,
+  so `esp_adc_cal_characterize` logged *"No calibration efuse burnt"* / *"cal-
+  ibration efuse version does not match"* — on every reading, for a firmware
+  that reads the ADC in its loop. The emulated S3 eFuse now seeds
+  `BLK_VERSION_MAJOR=1` (`esp32s3_efuse.c`), so the firmware takes the
+  calibration path and the log is quiet. The ADC diffs are left zero, which the
+  firmware reads as the baseline V1 curve (ADC1 init codes 1850/1940/1940/2010,
+  cal points 3200/2400/1700/900 at 850 mV).
+
+  That curve is **not** the linear default the uncalibrated fallback used, so
+  burning the version alone would have shifted every S3 board's reported voltage
+  — by about +15 %, measured. So it is a coordinated change: `batteryMeter`
+  encodes the raw as the *inverse* of that exact curve (transcribed from
+  esp-idf's `curve_fitting_coefficients.c` and `esp_efuse_rtc_calib.c`),
+  evaluated at the voltage the board's halving divider puts on the pin. The
+  firmware reads the true cell voltage back — more consistent than before, since
+  every S3 firmware now shares one calibration curve rather than its own
+  uncalibrated fallback. The battery meter is on ADC1 at 12 dB (atten 3), whose
+  3300 mV pin full scale is what each board's `FullScaleMV` divider is stated
+  against. `TestBatteryMeterReportsTrueVoltage` and the curve round-trip tests
+  hold it to the firmware's arithmetic.
 - **The first-boot filesystem format is slow**, because it happens in real
   time at emulation speed — the LittleFS/SPIFFS format a firmware does on a
   blank partition or SD card can take tens of seconds of guest time, which is
