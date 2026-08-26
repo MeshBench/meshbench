@@ -119,6 +119,9 @@ func (sh *Shell) tabStrip(t *theme.Theme, gtx layout.Context, ref regionRef) lay
 				// A press that never travelled is a click: show this tab.
 				// One that did is a move, and the drop decides where to.
 				if !sh.dropTabDrag() && h.pressed {
+					if c.Active != i {
+						sh.reveal(c.Tabs[i])
+					}
 					c.Active, sh.focus = i, ref
 				}
 				h.pressed = false
