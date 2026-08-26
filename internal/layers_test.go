@@ -1,12 +1,12 @@
 // The layer rule, enforced.
 //
-// internal/ is seven layers deep, in this order, and a package may import its
+// internal/ is eight layers deep, in this order, and a package may import its
 // own layer and everything beneath it. Nothing may import upward. That is what
 // makes "ui can reach the physics, the physics cannot reach a widget" a fact
 // about the build rather than a claim in a document.
 //
 // This is here because a layout that is not enforced decays back. The tree
-// already carried the shape - the seven layers verified against the real import
+// already carried the shape - the layers verified against the real import
 // graph with nothing bent to fit - and the only thing missing was something to
 // notice when it stopped being true.
 //
@@ -30,7 +30,7 @@ import (
 
 // layers, lowest first. A package's layer is the first path element under
 // internal/.
-var layers = []string{"rf", "mesh", "world", "sim", "study", "app", "ui"}
+var layers = []string{"rf", "mesh", "firmware", "world", "sim", "study", "app", "ui"}
 
 const modulePrefix = "github.com/MeshBench/meshbench/internal/"
 
@@ -111,7 +111,8 @@ func TestNoPackageImportsUpward(t *testing.T) {
 		t.Fatal("no .go files found under internal/<layer>/ - has the layout moved?")
 	}
 	if !t.Failed() {
-		t.Logf("%d files in the seven layers, %d internal imports, none pointing upward", files, edges)
+		t.Logf("%d files in the %d layers, %d internal imports, none pointing upward",
+			files, len(layers), edges)
 	}
 }
 

@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/MeshBench/meshbench/internal/mesh/energy"
-	"github.com/MeshBench/meshbench/internal/mesh/firmware"
+	"github.com/MeshBench/meshbench/internal/firmware"
 )
 
 func runTerrain(ctx context.Context, args []string) error {

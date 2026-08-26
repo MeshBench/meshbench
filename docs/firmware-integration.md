@@ -1,4 +1,4 @@
-> **Working note, last true on 11 August 2026.** Kept for the thinking in it, not maintained as a description of the code. **1 of the 1 package paths it names no longer exist**, the seven-layer restructure of 19 August having moved them. Where this disagrees with the tree, the tree is right; the authority is the code in `internal/mesh/firmware/`.
+> **Working note, last true on 11 August 2026.** Kept for the thinking in it, not maintained as a description of the code. **1 of the 1 package paths it names no longer exist**, the seven-layer restructure of 19 August having moved them. Where this disagrees with the tree, the tree is right; the authority is the code in `internal/firmware/`.
 
 # Firmware integration
 

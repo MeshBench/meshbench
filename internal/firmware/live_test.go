@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/MeshBench/meshbench/internal/mesh/firmware"
+	"github.com/MeshBench/meshbench/internal/firmware"
 )
 
 // A live check that the published release and the simulator agree about names.

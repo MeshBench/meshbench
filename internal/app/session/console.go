@@ -11,7 +11,7 @@ import (
 	"fmt"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
-	"github.com/MeshBench/meshbench/internal/mesh/console"
+	"github.com/MeshBench/meshbench/internal/firmware/console"
 )
 
 // consoleFor returns the buffer attached to a node's firmware, attaching one

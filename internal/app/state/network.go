@@ -6,7 +6,7 @@ import (
 	"image"
 	"time"
 
-	"github.com/MeshBench/meshbench/internal/mesh/firmware"
+	"github.com/MeshBench/meshbench/internal/firmware"
 )
 
 // Node is one node, as the interface needs it.

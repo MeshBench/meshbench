@@ -14,7 +14,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/MeshBench/meshbench/internal/mesh/firmware"
+	"github.com/MeshBench/meshbench/internal/firmware"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 

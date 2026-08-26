@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MeshBench/meshbench/internal/mesh/firmware"
+	"github.com/MeshBench/meshbench/internal/firmware"
 )
 
 // The published board images reach the library. This is the bug 0.0.1

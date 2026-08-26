@@ -1,6 +1,6 @@
 package engine
 
-import "github.com/MeshBench/meshbench/internal/mesh/firmware"
+import "github.com/MeshBench/meshbench/internal/firmware"
 
 // What a node's radio is worth, given what its firmware has actually configured
 // it to be rather than what its board profile claims it can do.

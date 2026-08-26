@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/MeshBench/meshbench/internal/mesh/firmware"
+	"github.com/MeshBench/meshbench/internal/firmware"
 )
 
 // The cache decides what a node can run, so the manager has to describe it

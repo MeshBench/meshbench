@@ -7,7 +7,7 @@
 package engine
 
 import (
-	"github.com/MeshBench/meshbench/internal/mesh/firmware"
+	"github.com/MeshBench/meshbench/internal/firmware"
 )
 
 // Inject introduces a message into the network from a node.
