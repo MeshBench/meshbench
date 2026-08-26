@@ -91,7 +91,7 @@ def default_address() -> str:
         return env
     if sys.platform == "win32" or not HAVE_AF_UNIX:
         return "tcp"
-    # Linux keeps exactly the path it has always had: scripts, the MCP server
+    # Linux keeps exactly the path it has always had: scripts
     # and tools/soak all name it, and moving it would break them for no gain.
     runtime = os.environ.get("XDG_RUNTIME_DIR")
     if runtime:

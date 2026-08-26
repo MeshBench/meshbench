@@ -107,8 +107,8 @@ jobs:
 
       # The scripting API's verb table is generated from the verbs the tree
       # registers, and a verb added with no decision about how a client
-      # reaches it fails here. That is the whole guard: the MCP server shipped
-      # a tool calling a deleted verb for weeks because no test compared a
+      # reaches it fails here. That is the whole guard: a surface once shipped
+      # a call to a deleted verb for weeks because no test compared a
       # surface against the registrations.
       - name: Scripting verb table is current
         run: tools/verbdoc/verbdoc.py --check

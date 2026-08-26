@@ -95,7 +95,6 @@ internal/app/       orchestration, no toolkit
   fixture/            the on-disk form of a whole setup
   resource/           what is downloaded at runtime, and what it cost the disk
   control/            the unix socket another process drives it by
-  mcp/                the engine over the Model Context Protocol
 
 internal/ui/        Gio — the only layer permitted a toolkit
   theme/ comp/ mapview-in-comp/ shell/ desktop/ float/ pick/

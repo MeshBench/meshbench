@@ -215,7 +215,7 @@ poll `experiment.state`, and `experiment.export` writes an HTML report.
 `companion-v1.16.0`, `v1.17.0`, and `-faultyirq` variants of both. Freshly
 imported nodes carry no firmware ref at all, which resolves to MeshCore `main`,
 for which nothing is published; a sweep that varies something else then dies on
-its first run with "firmware on 0 of N nodes". The MCP server exposes the same
+its first run with "firmware on 0 of N nodes". The clients expose the same
 builds if you would rather ask than list the directory.
 
 **Role is the MeshCore application, not the node kind.** Repeaters run

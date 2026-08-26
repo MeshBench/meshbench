@@ -175,7 +175,7 @@ func defaultAddress() (Address, error) {
 		// No AF_UNIX a Python client can reach, so loopback and a token.
 		return Address{Kind: TCP, Addr: "127.0.0.1:0"}, nil
 	}
-	// Linux keeps exactly the path it has always had: scripts, the MCP server
+	// Linux keeps exactly the path it has always had: scripts
 	// and tools/soak all name it, and moving it would break them for no gain.
 	if dir := os.Getenv("XDG_RUNTIME_DIR"); dir != "" {
 		p := filepath.Join(dir, "meshbench.sock")

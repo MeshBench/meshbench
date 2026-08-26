@@ -35,7 +35,7 @@ result, and no error anywhere to say so.
 
 ## Ask what has already happened
 
-`session.journal` (MCP: `session_journal`) returns every command the running
+`session.journal` returns every command the running
 workbench has been driven with, newest last, with the node count at the time
 and any error. The first entry of every session is `session.start`, so a
 restart is visible rather than inferred - which is the failure that wasted

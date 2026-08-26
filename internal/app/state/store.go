@@ -190,7 +190,7 @@ func (s *Store) Close() {
 }
 
 // Do runs a verb and waits for its result. Safe from any goroutine: the
-// control socket, the MCP server, a test, or the renderer. Once the store has
+// control socket, a test, or the renderer. Once the store has
 // stopped it refuses with ErrStopped rather than waiting for an answer that
 // cannot come.
 func (s *Store) Do(ctx context.Context, verb string, params any) (any, error) {

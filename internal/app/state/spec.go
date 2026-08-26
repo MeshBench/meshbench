@@ -4,12 +4,12 @@ import "sort"
 
 // What a verb is and what it takes, said where it is registered.
 //
-// Every surface onto the verbs - the Go client, the Python client, the MCP
+// Every surface onto the verbs - the Go client, the Python client, the
 // tools, the published reference - is a restatement of facts that live in the
-// handler bodies, and each restatement is maintained by hand. That is how the
-// MCP server came to ship a tool calling `session.journal`, a verb this tree
-// does not register: nothing could compare the tool against anything, because
-// there was nothing to compare it to.
+// handler bodies, and each restatement is maintained by hand. That is how a
+// surface can come to name a verb this tree does not register: nothing could
+// compare the surface against anything, because there was nothing to compare
+// it to.
 //
 // A parser over the handlers is not the answer either, and the tree already
 // has one: tools/verbdoc reads them with a brace matcher and regular

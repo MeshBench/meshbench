@@ -14,7 +14,7 @@ import (
 // main view, the panels are around it, and everything the other commands do
 // headlessly is reachable by clicking. It needs a display and a GPU, which is
 // why every capability also has a command - a scripted run, a regression
-// suite and the MCP server are all built on the headless path, and that is
+// suite is built on the headless path, and that is
 // not a stopgap for this.
 func runWorkbench(_ context.Context, args []string) error {
 	workbench.Run(args)

@@ -147,25 +147,26 @@ it for the UART.
 - **No silent reconfiguration.** Setting radio parameters or scope is an
   explicit act with a visible result, because both change what the run means.
 
-## MCP
+## Driving it from a script
 
-The same verbs, so an agent can do what the tab does — this is the gap that
-stopped the ScotMesh experiment from sending anything:
+The same verbs, reachable from the Go and Python clients, so a script or an
+agent can do what the tab does — this is the gap that stopped the ScotMesh
+experiment from sending anything:
 
-| tool | does |
+| operation | does |
 |---|---|
-| `session_companion_connect` | claim the port, return self info |
-| `session_companion_disconnect` | release it |
-| `session_companion_channels` | list channels with indices |
-| `session_companion_send` | text to a channel or contact, optional scope |
-| `session_companion_messages` | what has arrived since a mark |
-| `session_companion_advert` | send a self advert |
-| `session_companion_contacts` | the contact list with hop counts |
-| `session_companion_radio` | set frequency, bandwidth, SF, CR, power |
+| `connect` | claim the port, return self info |
+| `disconnect` | release it |
+| `channels` | list channels with indices |
+| `send` | text to a channel or contact, optional scope |
+| `messages` | what has arrived since a mark |
+| `advert` | send a self advert |
+| `contacts` | the contact list with hop counts |
+| `radio` | set frequency, bandwidth, SF, CR, power |
 
-`session_companion_send` is the one that matters: "send a message from a
-Fife companion to #sco" becomes one call, which is what the CAD comparison
-needs to originate traffic the way a user does.
+The send is the one that matters: "send a message from a Fife companion to
+#sco" becomes one call, which is what the CAD comparison needs to originate
+traffic the way a user does.
 
 ## Build order
 
@@ -175,7 +176,8 @@ needs to originate traffic the way a user does.
    response matching, an inbound queue. Tested against a real
    `companion_radio` build under `MESHBENCH_LIVE`.
 3. **Tab**: the wireframe, reading only from the session.
-4. **MCP verbs**, mirroring the tab exactly.
+4. **Client surface**, mirroring the tab exactly, so a script reaches every
+   companion operation the tab does.
 
 Each step is useful alone: the codec makes the protocol legible, the session
 makes it drivable, and only then is there a UI worth looking at.

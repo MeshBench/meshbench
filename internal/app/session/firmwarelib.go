@@ -164,7 +164,7 @@ func registerFirmwareLibrary(st *state.Store, s *Sim) {
 		// running.
 		label, _ := namedField(p, "label")
 		if label == "" {
-			// The MCP tool and one command-line path both called it "version"
+			// A command-line path called it "version"
 			// and the handler read neither, so every import through them was
 			// stamped with a timestamp - and cmd_dev then pinned nodes to a
 			// version that had never been created. Accepted here as well as
