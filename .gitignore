@@ -40,10 +40,6 @@ __pycache__/
 .claude/settings.local.json
 tools/armfw/build/
 
-# Electron's spike pulls a 177 MB Chromium binary; npm install brings it back.
-spikes/electron/node_modules/
-spikes/electron/package-lock.json
-
 # Tool binaries built at the repo root by `go build ./tools/...`. They shadow
 # the packages they are built from, so tab-completing the name gets the binary.
 /workbench2
