@@ -31,6 +31,7 @@ from ._socket import (
 )
 from .boundary import Boundary
 from .checks import Assertions, Check, Report, Schedule
+from .device import Device
 from .errors import (
     BadParams,
     Closing,
@@ -70,6 +71,8 @@ from .types import (
     NodeInfo,
     NodeStat,
     Provenance,
+    Screen,
+    Shot,
     SimState,
 )
 from .workbench import Workbench
@@ -93,6 +96,7 @@ __all__ = [
     "DEFAULT_PRESET",
     "Check",
     "Board",
+    "Device",
     "Assertions",
     "PROTOCOL",
     "RENDEZVOUS_ENV",
@@ -121,6 +125,8 @@ __all__ = [
     "Provenance",
     "Refused",
     "Sim",
+    "Screen",
+    "Shot",
     "SimState",
     "Timeout",
     "Unavailable",

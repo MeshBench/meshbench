@@ -674,3 +674,30 @@ def test_a_plain_client_is_untouched_by_notifications(wb):
         assert wb.verbs()
     finally:
         sub.close()
+
+
+def test_board_api_refuses_a_node_that_is_not_running(wb):
+    """#257: the board API - screen, screenshot, buttons, touch, radio - drives
+    a running board. Booting an emulated one is too slow and flaky for this
+    suite; what is checked here is the client layer, that each method reaches
+    its verb and a refusal on a stopped node comes back as an error rather than
+    a zero value read as success."""
+    wb.project.new()
+    wb.nodes.place("R1", meshbench.Kind.SIMPLE_REPEATER, 56.20, -3.20)
+    n = wb.nodes["R1"]
+    d = n.device
+
+    import pytest as _pytest
+
+    with _pytest.raises(meshbench.MeshbenchError):
+        d.screen()
+    with _pytest.raises(meshbench.MeshbenchError):
+        d.screenshot()
+    with _pytest.raises(meshbench.MeshbenchError):
+        d.press(0)
+    with _pytest.raises(meshbench.MeshbenchError):
+        d.type("x")
+    with _pytest.raises(meshbench.MeshbenchError):
+        d.tap_at(10, 10)
+    with _pytest.raises(meshbench.MeshbenchError):
+        n.radio()

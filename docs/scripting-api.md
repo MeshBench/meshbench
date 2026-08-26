@@ -332,24 +332,40 @@ c.raw(b"\x01\x02")
 `c.path_hash_bytes == 0` means the node has not said — firmware older than v10
 does not report it, and guessing 1 there would be a confident wrong answer.
 
-### `node.board`
+### `node.device` — driving a running board
 
 ```python
-b = node.board
-b.tap(b.buttons["PRG"].pin)
-b.press(pin, down=True); b.press(pin, down=False)
-b.type("hello")
-b.tap_at(120, 200)
-b.screen.png()
+d = node.device                      # distinct from node.board, the model name
+d.screen()                           # board.screen  -> what it is showing, as numbers
+d.screenshot()                       # board.screenshot -> a PNG, path returned
+d.press(pin, down=True); d.press(pin, down=False)   # board.press, held
+d.tap(pin)                           # press and release
+d.type("hello")                      # board.key
+d.touch(120, 200); d.tap_at(120, 200)               # board.touch
+d.radio()                            # node.radio, on the node itself
+new = d.wait_screen(timeout=timedelta(seconds=30))  # block until the frame changes
 ```
 
+All of it works **headless**: the screen it reads is the framebuffer the
+controller holds, not a picture of anybody's desktop, so a board test runs in
+CI without a display. `node.device` is the running hardware; `node.board` is
+the model name that hardware is (`LilyGo_TDeck`), and the two are deliberately
+separate. Serial and the emulator's own output are read through
+[`node.output`](#node-console-and-wb-fleet), which every board and every native
+node has.
+
 Held rather than clicked, because the firmware cares: MeshCore wakes a sleeping
-display on a press and powers the board off on a long one.
+display on a press and powers the board off on a long one — so `press` takes a
+`down`, and `tap` is the press-and-release for when the hold does not matter.
 
 **Half duplex eats stimuli.** A board handed a packet while it is transmitting
-never hears it. A script that taps a button and immediately asserts on the
-screen will intermittently be asserting on a board that was mid-transmission;
-`wait_screen(changed=True, timeout=)` is the honest way to do it.
+never hears it. A script that taps a button and immediately reads the screen
+will intermittently read the frame from *before* the tap landed;
+`wait_screen(timeout=)` is the honest way to do it — it blocks until the frame's
+digest changes, so a redraw that keeps the same number of lit pixels still
+counts. Capturing an arbitrary desktop *window* (as opposed to a board's own
+display) is not here yet: it needs OS-level capture rather than a headless
+verb, and is tracked separately.
 
 ### `wb.events` and `wb.packets`
 
@@ -579,7 +595,7 @@ wb.firmware.wait_started(timedelta(minutes=5))
 wb.sim.run(timedelta(minutes=5))      # returns when the run has finished
 job.wait(timedelta(minutes=20))
 wb.events.wait(kind="rx", to="Glenrothes", timeout=timedelta(seconds=60))
-node.board.wait_screen(changed=True, timeout=timedelta(seconds=30))
+node.device.wait_screen(timeout=timedelta(seconds=30))
 ```
 
 They poll today. The events they will move onto are landing

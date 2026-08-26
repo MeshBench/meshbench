@@ -5,6 +5,7 @@ package session
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
@@ -237,9 +238,13 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 				lit++
 			}
 		}
+		// A digest of the whole frame, so a script can tell one screen from the
+		// next by identity rather than by a byte count two different frames can
+		// share. It is what a wait-for-the-screen-to-change is built on: the
+		// count answers "how much is lit", the digest answers "is it the same".
 		return map[string]any{"node": name, "has_screen": true,
 			"width": width, "height": height, "bpp": bpp, "on": on,
-			"lit": lit}, nil
+			"lit": lit, "digest": frameDigest(bits)}, nil
 	})
 
 	st.Handle("node.set_firmware", func(w *state.World, p any) (any, error) {
@@ -320,4 +325,21 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 		}
 		return map[string]any{"node": name, "commands": cmds}, nil
 	})
+}
+
+// frameDigest is a cheap FNV-1a hash of a framebuffer, returned as a hex string
+// so a script can compare two screens for identity without carrying the pixels.
+// Hex rather than a number because JSON's number is a float64 and a 64-bit hash
+// does not survive the round trip whole.
+func frameDigest(bits []byte) string {
+	const (
+		offset = 1469598103934665603
+		prime  = 1099511628211
+	)
+	var h uint64 = offset
+	for _, b := range bits {
+		h ^= uint64(b)
+		h *= prime
+	}
+	return strconv.FormatUint(h, 16)
 }
