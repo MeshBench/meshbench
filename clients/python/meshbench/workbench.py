@@ -27,6 +27,7 @@ from .live import Live
 from .nodes import Node, Nodes
 from .parts import Console, Events, Firmware, Job, Project, Sim
 from .sets import Tab
+from .subscribe import Subscription
 from .types import Hello, NodeStat, Provenance
 from .wait import JOB_WAIT, wait_for
 
@@ -271,6 +272,17 @@ class Workbench:
         if reply.get("error"):
             raise errors.refusal(verb, reply["error"], reply.get("code", ""))
         return reply.get("result")
+
+    def subscribe(self, *topics: str) -> Subscription:
+        """Stream server-pushed notifications for the given topics, rather than
+        polling. Opens a second connection to this same workbench, so closing
+        the returned Subscription hangs up only that stream.
+
+        Topics today: "status" (a new console line) and "snapshot" (a compact
+        summary after each publish, coalesced by the server so a busy run cannot
+        flood a slow reader).
+        """
+        return Subscription(*topics, address=self._conn.address)
 
     def snapshot(self) -> dict[str, Any]:
         """The whole session as the socket summarises it."""

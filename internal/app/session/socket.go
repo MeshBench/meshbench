@@ -57,6 +57,10 @@ func ServeControlAt(ctx context.Context, st *state.Store,
 		return nil, err
 	}
 	where = srv.Path()
+	// The store pushes what each publish changed to the socket, so a subscribed
+	// client is told rather than left to poll. Wired before Pump starts, so no
+	// change is announced to a server that is not yet answering.
+	st.SetNotifier(srv.Notify)
 	// Pumped from a worker rather than from the frame loop. The imgui
 	// workbench has to pump on the frame thread because its state is the frame
 	// thread; here every verb lands on the store's goroutine whichever way it
