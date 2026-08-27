@@ -147,6 +147,31 @@ type FirmwareRef struct {
 	// mixes emulated and native nodes is the point of having both, and a reader
 	// must never have to guess which a node is.
 	Board string
+
+	// Transport is how a companion's protocol reaches a client - "usb", "ble",
+	// "wifi", or empty for a build that has no choice (a host build, or any
+	// non-companion role). It is a setting of one role rather than three roles:
+	// companion_radio_usb and companion_radio_ble are one application built two
+	// ways, and pretending the transport is part of the role name is the
+	// confusion this field exists to end (#256). Empty on an older scenario
+	// whose role still carries the suffix, which Companion reads back out.
+	Transport string `json:"transport,omitempty"`
+}
+
+// Companion resolves a firmware reference to its plain role and transport,
+// reading a transport out of a legacy composite role name (companion_radio_usb)
+// when the Transport field is not set. So companion_radio_usb and
+// {companion_radio, usb} name the same build, and a reader downstream compares
+// one role and one transport rather than four role strings.
+func (f FirmwareRef) Companion() (role Role, transport string) {
+	role, transport = f.Role, f.Transport
+	switch f.Role {
+	case RoleCompanionRadioUSB:
+		role, transport = RoleCompanionRadio, "usb"
+	case RoleCompanionRadioBLE:
+		role, transport = RoleCompanionRadio, "ble"
+	}
+	return role, transport
 }
 
 // Emulated reports whether this node runs published hardware firmware rather

@@ -58,27 +58,36 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*emulated.Emulat
 	}
 
 	cache := firmware.DefaultCacheDir()
-	img := emulated.BoardImage{
-		Board:   board.Name,
-		Role:    string(spec.Firmware.Role),
-		Version: spec.Firmware.Version,
-		Format:  format,
-	}
-	// A companion publishes a BLE build and a USB one. Only the USB build is
-	// reachable here: its client arrives over the serial port, which an
-	// emulator has, and Bluetooth is not something we model.
-	if img.Role == "companion_radio" {
-		img.Transport = "usb"
-	}
+	// A companion is one application built for several transports; the role and
+	// the transport are separate settings of it, not four role names. Resolve
+	// them together so a node written the old way (role companion_radio_usb)
+	// and one written the new way (role companion_radio, transport usb) name
+	// the same image. Only the USB build is reachable here: its client arrives
+	// over the serial port, which an emulator has, and Bluetooth is not
+	// something we model - so a companion with no transport of its own is run
+	// as the USB one.
+	role, transport := spec.Firmware.Companion()
 	// A BLE companion waits for a phone over Bluetooth, and there is none here.
 	// Left to the image lookup it would fail with "no image in the cache",
 	// which sends the operator downloading a build that could never run; say
-	// what is actually wrong and what to use instead.
-	if img.Role == string(scenario.RoleCompanionRadioBLE) {
+	// what is actually wrong and what to use instead. Checked on the resolved
+	// transport so a node written either way - the composite role, or the
+	// transport field - is caught.
+	if role == scenario.RoleCompanionRadio && transport == "ble" {
 		return nil, fmt.Errorf(
 			"%s is a Bluetooth companion (companion_radio_ble); the emulator models "+
 				"no Bluetooth, so nothing could reach it - use companion_radio_usb instead",
 			spec.Name)
+	}
+	if role == scenario.RoleCompanionRadio && transport == "" {
+		transport = "usb"
+	}
+	img := emulated.BoardImage{
+		Board:     board.Name,
+		Role:      string(role),
+		Version:   spec.Firmware.Version,
+		Format:    format,
+		Transport: transport,
 	}
 	src := emulated.BoardImagePath(cache, img)
 	if _, err := os.Stat(src); err != nil {
