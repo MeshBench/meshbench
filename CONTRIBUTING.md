@@ -74,6 +74,47 @@ only when they genuinely depend on each other. A pull request called "lint
 fixes" is the thing this rule exists to prevent: a reviewer can judge thirty
 type assertions, and nobody can judge thirty unrelated edits.
 
+## If you are an AI agent
+
+This repository expects that some contributions come from agents, and the rules
+above bind you exactly as they bind a person. These are the few more that exist
+because an agent fails in ways a person does not.
+
+**Verify; never invent.** State only what you have checked in the code or
+watched happen. A verb, a flag, a file path, a function, a config key, a test
+result you have not confirmed is a claim you must not make. Run the command and
+read its output; open the file and read the line. "It should pass" is not
+"it passed", and the difference is the whole of the trust an agent is given.
+
+**Some things a human signs off before you change them.** Within the rules
+above you may write code, tests and documentation freely. But do **not**, on
+your own initiative:
+
+- change the RF model's calibrated defaults or any physical constant — the
+  numbers are a result, and moving one silently changes every study built on it;
+- regenerate or hand-edit the fixtures, or any recorded real-world data;
+- edit licence headers, `docs/licence.md`, or the release and CI workflows;
+- stage anything you did not write or were not asked to change. Never
+  `git add -A`; a contributor's untracked working directory (for example a
+  local `security-audit/`) is not yours to commit.
+
+If a task seems to need one of these, say so and ask, rather than guess a value
+the reader will trust because a machine produced it.
+
+**A behaviour change ships with a test that would fail without it.** Not a test
+that passes because the code does; a test that pins the behaviour, so the next
+change that breaks it is caught. Moving code counts: pin it before the move.
+
+**Never get past a check by weakening it.** Do not force-merge over a red
+required check, skip a test to make a build green, or widen a lint baseline to
+admit a new finding. A check you cannot satisfy is a conversation, not an
+obstacle.
+
+**One change, small enough to review.** The human rule is one pull request per
+independent change; for an agent it is also a size limit, because a large diff
+from a machine is one nobody can actually read. If it is growing past a few
+hundred lines of real change, it is more than one pull request.
+
 ## Domain rules that are easy to get wrong
 
 These are not style. Each one is a way to make the simulator quietly lie.

@@ -35,3 +35,6 @@ For anything touching the RF model: the numbers, before and after.
 - [ ] Files under 500 lines; new panels and widgets are one type per file.
 - [ ] A new panel joins `auditTargets`; a new state is reachable by flag.
 - [ ] `docs/shortcomings.md` still tells the truth after this change.
+- [ ] Every claim here is verified, not assumed — no invented verb, flag, path or result.
+- [ ] A behaviour change is covered by a test that fails without it.
+- [ ] Nothing staged that was not written or asked for — no build artifacts, nothing under `security-audit/`.
