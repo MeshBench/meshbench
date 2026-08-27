@@ -32,7 +32,6 @@ func Register(st *state.Store, s *Sim) {
 	registerFirmwareDetail(st, s)
 	registerFirmwareBuild(st, s)
 	registerFirmwareBuildResults(st, s)
-	registerFleet(st, s)
 	registerNodesBulk(st, s)
 	registerGPU(st, s)
 	registerTileCache(st, s)
