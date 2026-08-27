@@ -11,9 +11,9 @@ import (
 	"gioui.org/unit"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
+	hw "github.com/MeshBench/meshbench/internal/firmware/board"
 	"github.com/MeshBench/meshbench/internal/ui/comp"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
-	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
 // The parts a board is drawn out of: its screen, its lamps, the things
@@ -29,7 +29,7 @@ import (
 // firmware did not draw. Better to show it small and true than large and
 // invented.
 func (p *nodeWindowPanel) screen(t *theme.Theme, gtx layout.Context,
-	panel *scenario.Panel, st *state.NodeStat) layout.Dimensions {
+	panel *hw.Panel, st *state.NodeStat) layout.Dimensions {
 
 	if panel.Screen == nil {
 		return comp.Text(t, t.Sz.Caption, t.P.Faint, "this board has no display")(gtx)
@@ -127,9 +127,9 @@ func screenPixel(t *theme.Theme, sc *state.Screen, x, y int) (color.NRGBA, bool)
 
 // lamps draws the board's lights.
 func (p *nodeWindowPanel) lamps(t *theme.Theme, gtx layout.Context,
-	panel *scenario.Panel, st *state.NodeStat) layout.Dimensions {
+	panel *hw.Panel, st *state.NodeStat) layout.Dimensions {
 
-	parts := panel.PartsOfKind(scenario.Lamp)
+	parts := panel.PartsOfKind(hw.Lamp)
 	if len(parts) == 0 {
 		return comp.Text(t, t.Sz.Caption, t.P.Faint, "no lamp declared")(gtx)
 	}
@@ -144,7 +144,7 @@ func (p *nodeWindowPanel) lamps(t *theme.Theme, gtx layout.Context,
 	return layout.Flex{Alignment: layout.Middle}.Layout(gtx, children...)
 }
 func (p *nodeWindowPanel) lamp(t *theme.Theme, gtx layout.Context,
-	part scenario.Part, st *state.NodeStat) layout.Dimensions {
+	part hw.Part, st *state.NodeStat) layout.Dimensions {
 
 	d := gtx.Dp(unit.Dp(10))
 	return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
@@ -170,16 +170,16 @@ func (p *nodeWindowPanel) lamp(t *theme.Theme, gtx layout.Context,
 
 // buttons draws what somebody can press, and says where a board has none.
 func (p *nodeWindowPanel) buttons(t *theme.Theme, gtx layout.Context,
-	panel *scenario.Panel) layout.Dimensions {
+	panel *hw.Panel) layout.Dimensions {
 
-	parts := panel.PartsOfKind(scenario.Button)
+	parts := panel.PartsOfKind(hw.Button)
 	if len(parts) == 0 {
 		return comp.Text(t, t.Sz.Caption, t.P.Faint, "no button declared")(gtx)
 	}
 	children := make([]layout.FlexChild, 0, len(parts)*2)
 	for i := range parts {
 		part := parts[i]
-		if part.Pin == scenario.PinNone {
+		if part.Pin == hw.PinNone {
 			// The board says it has none. Said rather than omitted: an
 			// absence somebody recorded is worth more than a gap that reads
 			// as nobody having looked. Not a control, because there is
@@ -212,9 +212,9 @@ func (p *nodeWindowPanel) buttons(t *theme.Theme, gtx layout.Context,
 // turns past it, and the firmware counts the changes. One press is one step,
 // which is exactly what these produce.
 func (p *nodeWindowPanel) ball(t *theme.Theme, gtx layout.Context,
-	panel *scenario.Panel) layout.Dimensions {
+	panel *hw.Panel) layout.Dimensions {
 
-	parts := panel.PartsOfKind(scenario.Ball)
+	parts := panel.PartsOfKind(hw.Ball)
 	if len(parts) == 0 {
 		return layout.Dimensions{}
 	}
@@ -237,7 +237,7 @@ func (p *nodeWindowPanel) ball(t *theme.Theme, gtx layout.Context,
 		comp.Text(t, t.Sz.Caption, t.P.Dim, part.Name)))
 	children = append(children, layout.Rigid(layout.Spacer{Width: t.Sp.XS}.Layout))
 	for i, pin := range part.Pins {
-		if pin == scenario.PinNone {
+		if pin == hw.PinNone {
 			continue
 		}
 		dir := dirs[i]

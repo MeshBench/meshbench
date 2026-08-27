@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/firmware"
+	hw "github.com/MeshBench/meshbench/internal/firmware/board"
 	"github.com/MeshBench/meshbench/internal/rf/antenna"
 	"github.com/MeshBench/meshbench/internal/sim/engine"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
@@ -55,7 +56,7 @@ func TestTheRadioReportsHowTheFirmwareConfiguredIt(t *testing.T) {
 		Name: "e22", Kind: scenario.SimpleRepeater,
 		Position: scenario.LatLon{Lat: 56.70, Lon: -3.90}, HeightAGLm: 10,
 		Antenna: mast, TxPowerDBm: 22, NoiseFigureDB: 6, Radio: radio,
-		FEM: &scenario.FEM{TxGainDB: 0, TxLossDB: 25},
+		FEM: &hw.FEM{TxGainDB: 0, TxLossDB: 25},
 		Firmware: scenario.FirmwareRef{
 			Role: "simple_repeater", Version: version, Board: board,
 		},

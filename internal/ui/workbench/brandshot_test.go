@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"gioui.org/layout"
+
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 )
 

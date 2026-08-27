@@ -13,6 +13,7 @@ import (
 
 	"gioui.org/layout"
 	"gioui.org/widget"
+
 	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/ui/comp"

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/firmware"
+	hw "github.com/MeshBench/meshbench/internal/firmware/board"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
@@ -28,11 +29,11 @@ import (
 // itself - it produces a driver reporting no chip, which reads as a broken
 // emulator.
 func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.EmulatedNode, error) {
-	board, err := scenario.BoardByName(spec.Firmware.Board)
+	board, err := hw.BoardByName(spec.Firmware.Board)
 	if err != nil {
 		return nil, err
 	}
-	if !allowUnverified && !scenario.EmulationSupported(board.Name) {
+	if !allowUnverified && !hw.EmulationSupported(board.Name) {
 		// Named with the way out of it. The gate is a curation claim - has
 		// anybody watched this board's own image boot - and an operator who
 		// wants to be the one doing the watching had no way to say so from
@@ -169,17 +170,17 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 	// can move.
 	if p := board.Hardware; p != nil {
 		var pins []int
-		for _, part := range p.PartsOfKind(scenario.Button) {
-			if part.Pin != scenario.PinNone {
+		for _, part := range p.PartsOfKind(hw.Button) {
+			if part.Pin != hw.PinNone {
 				pins = append(pins, part.Pin)
 			}
 		}
 		// A trackball's directions are buttons as far as the machine is
 		// concerned - four lines the guest reads, moved from outside. It is
 		// the firmware that decides an edge on one of them means a step.
-		for _, part := range p.PartsOfKind(scenario.Ball) {
+		for _, part := range p.PartsOfKind(hw.Ball) {
 			for _, pin := range part.Pins {
-				if pin != scenario.PinNone {
+				if pin != hw.PinNone {
 					pins = append(pins, pin)
 				}
 			}
@@ -187,10 +188,10 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 		// A keyboard, a touch panel and the cell's own divider travel the same
 		// channel, so the channel exists if the board has any of them.
 		var kbd, touch uint8
-		for _, part := range p.PartsOfKind(scenario.Keys) {
+		for _, part := range p.PartsOfKind(hw.Keys) {
 			kbd = part.Addr
 		}
-		for _, part := range p.PartsOfKind(scenario.Touch) {
+		for _, part := range p.PartsOfKind(hw.Touch) {
 			touch = part.Addr
 		}
 		meter, hasMeter := batteryMeter(board)
@@ -216,8 +217,8 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 	// except where the firmware insists, which it can, because a build that
 	// keeps its settings on a card boots into nothing without one.
 	if p := board.Hardware; p != nil {
-		for _, part := range p.PartsOfKind(scenario.Card) {
-			if part.Pin == scenario.PinNone {
+		for _, part := range p.PartsOfKind(hw.Card) {
+			if part.Pin == hw.PinNone {
 				continue
 			}
 			if !spec.HasCard(true, set.CardRequired) {
@@ -244,7 +245,7 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 	// The receiver, where the board has one. Fed from the node's own position
 	// rather than from a log, so there is one place the node is and both the
 	// channel and the handheld read it.
-	if p := board.Hardware; p != nil && len(p.PartsOfKind(scenario.GPS)) > 0 {
+	if p := board.Hardware; p != nil && len(p.PartsOfKind(hw.GPS)) > 0 {
 		g, err := firmware.ListenGPS(filepath.Join(dir, "gps.sock"),
 			spec.Position.Lat, spec.Position.Lon, spec.HeightAGLm, gpsEpoch)
 		if err != nil {
@@ -259,7 +260,7 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 	// one we model: a board whose screen we cannot draw shows nothing, which
 	// is what it does today and is honest about it.
 	if p := board.Hardware; p != nil && p.Screen != nil &&
-		(p.Screen.Bus == scenario.BusI2C || p.Screen.Bus == scenario.BusSPI) {
+		(p.Screen.Bus == hw.BusI2C || p.Screen.Bus == hw.BusSPI) {
 		ln, err := firmware.ListenPanel(filepath.Join(dir, "panel.sock"))
 		if err != nil {
 			return nil, fmt.Errorf("engine: listening for %s's display: %w", spec.Name, err)
@@ -275,7 +276,7 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 		}
 		// A colour panel goes on the radio's controller instead, and needs
 		// its own select and the command/data line to be told apart from it.
-		if p.Screen.Bus == scenario.BusSPI {
+		if p.Screen.Bus == hw.BusSPI {
 			node.PanelCS, node.PanelDC = p.Screen.CS, p.Screen.DC
 			node.PanelWidth, node.PanelHgt = p.Screen.WidthPx, p.Screen.HeightPx
 		}
@@ -306,7 +307,7 @@ type meterReading struct {
 // meter gets no reading, which leaves the channel at nothing: honest about a
 // cell nobody has measured, and still enough that the converter answers rather
 // than leaving a firmware waiting for it.
-func batteryMeter(board scenario.Board) (meterReading, bool) {
+func batteryMeter(board hw.Board) (meterReading, bool) {
 	p := board.Hardware
 	if p == nil {
 		return meterReading{}, false
@@ -318,8 +319,8 @@ func batteryMeter(board scenario.Board) (meterReading, bool) {
 	if !strings.EqualFold(board.MCU, "ESP32-S3") {
 		return meterReading{}, false
 	}
-	for _, part := range p.PartsOfKind(scenario.Meter) {
-		if part.Pin == scenario.PinNone || part.FullScaleMV <= 0 {
+	for _, part := range p.PartsOfKind(hw.Meter) {
+		if part.Pin == hw.PinNone || part.FullScaleMV <= 0 {
 			continue
 		}
 		ch, ok := adc1Channel(part.Pin)

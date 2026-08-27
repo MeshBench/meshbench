@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/firmware"
+	hw "github.com/MeshBench/meshbench/internal/firmware/board"
 	"github.com/MeshBench/meshbench/internal/rf/propagation"
 	"github.com/MeshBench/meshbench/internal/sim/engine"
-	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
 // One board, measured one boot at a time.
@@ -330,7 +330,7 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 	// The line is judged at the instant the board last transmitted, not at its
 	// level now: a module is meant to be switched out while the board listens,
 	// so the question only means anything about a board that has transmitted.
-	prof, perr := scenario.BoardByName(board)
+	prof, perr := hw.BoardByName(board)
 	switch {
 	case perr != nil || prof.FEM == nil:
 		report.set(FEM, NotApplicable, "this board carries no front-end module")

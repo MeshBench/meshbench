@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/firmware"
+	hw "github.com/MeshBench/meshbench/internal/firmware/board"
 	"github.com/MeshBench/meshbench/internal/rf/antenna"
 	"github.com/MeshBench/meshbench/internal/sim/engine"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
@@ -50,7 +51,7 @@ func TestEmulatedAndNativeShareAChannel(t *testing.T) {
 			t.Fatal(err)
 		}
 		var want firmware.BoardImage
-		for _, i := range firmware.Runnable(all, scenario.EmulationSupported) {
+		for _, i := range firmware.Runnable(all, hw.EmulationSupported) {
 			if i.Board == board && i.Version == version && i.Role == "simple_repeater" {
 				want = i
 			}

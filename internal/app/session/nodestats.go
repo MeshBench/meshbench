@@ -11,12 +11,13 @@ package session
 import (
 	"context"
 	"fmt"
-	"github.com/MeshBench/meshbench/internal/world/scenario"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/MeshBench/meshbench/internal/world/scenario"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 )

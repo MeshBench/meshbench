@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"gioui.org/layout"
+
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 
 	"github.com/MeshBench/meshbench/internal/app/state"

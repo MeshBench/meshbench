@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/MeshBench/meshbench/internal/world/scenario"
+	hw "github.com/MeshBench/meshbench/internal/firmware/board"
 )
 
 // A board never run reports "untested" in every column, never blank and
@@ -109,22 +109,22 @@ func TestAnIncompleteCacheFileIsTreatedAsUntested(t *testing.T) {
 	}
 }
 
-// The matrix agrees with scenario.EmulatableBoards() on the can-it-run
+// The matrix agrees with hw.EmulatableBoards() on the can-it-run
 // question: every board that function blocks reports boot-failed with its
 // own reason, and every board it allows is at least representable (never
 // silently dropped from the matrix).
 func TestMatrixAgreesWithEmulatableBoards(t *testing.T) {
 	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 
-	ok, blocked := scenario.EmulatableBoards()
+	ok, blocked := hw.EmulatableBoards()
 	okNames := map[string]bool{}
 	for _, b := range ok {
 		okNames[b.Name] = true
 	}
 
 	reports := MatrixReports("repeater-v1.17.0")
-	if len(reports) != len(scenario.Boards()) {
-		t.Fatalf("got %d reports, want one per board (%d)", len(reports), len(scenario.Boards()))
+	if len(reports) != len(hw.Boards()) {
+		t.Fatalf("got %d reports, want one per board (%d)", len(reports), len(hw.Boards()))
 	}
 	byName := map[string]BoardReport{}
 	for _, r := range reports {

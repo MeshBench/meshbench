@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"gioui.org/layout"
+
 	"github.com/MeshBench/meshbench/internal/app/resource"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/firmware"

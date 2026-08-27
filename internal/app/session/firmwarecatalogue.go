@@ -14,6 +14,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/firmware"
+	hw "github.com/MeshBench/meshbench/internal/firmware/board"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
@@ -164,7 +165,7 @@ func publishedBoards(ctx context.Context) []publishedBuild {
 		return nil
 	}
 	known := map[string]bool{}
-	for _, b := range scenario.Boards() {
+	for _, b := range hw.Boards() {
 		known[strings.ToLower(b.Name)] = true
 	}
 	// Newest version per board and role. Versions are vX.Y.Z, so comparing

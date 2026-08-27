@@ -19,6 +19,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/firmware"
+	hw "github.com/MeshBench/meshbench/internal/firmware/board"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
@@ -134,12 +135,12 @@ func boardHasCardSlot(board string) bool {
 	if board == "" {
 		return false
 	}
-	b, err := scenario.BoardByName(board)
+	b, err := hw.BoardByName(board)
 	if err != nil || b.Hardware == nil {
 		return false
 	}
-	for _, part := range b.Hardware.PartsOfKind(scenario.Card) {
-		if part.Pin != scenario.PinNone {
+	for _, part := range b.Hardware.PartsOfKind(hw.Card) {
+		if part.Pin != hw.PinNone {
 			return true
 		}
 	}

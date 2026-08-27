@@ -9,6 +9,7 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/unit"
+
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/app/version"
 	"github.com/MeshBench/meshbench/internal/ui/comp"

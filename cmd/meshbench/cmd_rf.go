@@ -12,13 +12,13 @@ import (
 	"strings"
 	"unicode"
 
+	hw "github.com/MeshBench/meshbench/internal/firmware/board"
 	"github.com/MeshBench/meshbench/internal/rf/channel"
 	"github.com/MeshBench/meshbench/internal/rf/dsp"
 	"github.com/MeshBench/meshbench/internal/rf/geo"
 	"github.com/MeshBench/meshbench/internal/rf/terrain"
 	"github.com/MeshBench/meshbench/internal/study/coverage"
 	"github.com/MeshBench/meshbench/internal/study/planning"
-	"github.com/MeshBench/meshbench/internal/world/scenario"
 	"github.com/MeshBench/meshbench/internal/world/sdr"
 )
 
@@ -386,7 +386,7 @@ func runBoards(_ context.Context, args []string) error {
 		return err
 	}
 	fmt.Printf("%-20s %-10s %-8s %8s %8s  %s\n", "BOARD", "MCU", "EMULATE", "TX dBm", "RADIATED", "NOTES")
-	for _, b := range scenario.Boards() {
+	for _, b := range hw.Boards() {
 		emu := "no"
 		if b.Emulated {
 			emu = "yes"
