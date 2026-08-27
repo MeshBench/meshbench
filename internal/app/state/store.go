@@ -49,6 +49,13 @@ type Store struct {
 	// independent of the frame rate: the simulation must not run faster on a
 	// machine with a better graphics card.
 	stepMs uint32
+
+	// journal is the ring of commands the store has been driven with, and
+	// journalStart when the process began, so a cold pickup can be told how the
+	// world got here. journalSkip is what not to record. See journal.go.
+	journal      []JournalEntry
+	journalStart time.Time
+	journalSkip  map[string]bool
 }
 
 type cmd struct {
@@ -83,6 +90,10 @@ func New(stepMs uint32) *Store {
 		done:     make(chan struct{}),
 		stepMs:   stepMs,
 	}
+	s.journalStart = time.Now()
+	// The first line of every journal, so "the process started here" is a fact
+	// in the log rather than something a reader has to infer from a gap.
+	s.appendJournal(JournalEntry{AtMs: s.journalStart.UnixMilli(), Verb: "session.start"})
 	// Real firmware is what this simulator is for, so it is the assumption
 	// rather than a switch to be found first. Turning it off is a deliberate
 	// choice - a channel with no firmware behind it - and reads as one.
@@ -136,6 +147,7 @@ func (s *Store) Run(ctx context.Context) {
 				continue
 			}
 			v, err := h(&s.world, c.params)
+			s.journalRecord(c.verb, c.params, err)
 			s.publish()
 			c.reply <- result{v, err}
 		case <-tick.C:
@@ -156,6 +168,7 @@ func (s *Store) Run(ctx context.Context) {
 						continue
 					}
 					v, err := h(&s.world, c.params)
+					s.journalRecord(c.verb, c.params, err)
 					s.publish()
 					c.reply <- result{v, err}
 				default:

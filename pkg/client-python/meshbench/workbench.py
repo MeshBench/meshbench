@@ -308,6 +308,12 @@ class Workbench:
         """The cheap summary: nodes, seed, time, whether it is playing."""
         return self.call("session.describe") or {}
 
+    def journal(self) -> dict[str, Any]:
+        """Every command this workbench has been driven with, newest last, and
+        when the process started - so a session picked up cold can be told how
+        the world got here, and whether it has been restarted."""
+        return self.call("session.journal") or {}
+
     def verbs(self) -> list[str]:
         """Every method this build answers."""
         return (self.call("session.verbs") or {}).get("verbs", [])

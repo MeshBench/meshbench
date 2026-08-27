@@ -328,6 +328,13 @@ func (w *Workbench) Describe(ctx context.Context) (Describe, error) {
 	return d, w.CallInto(ctx, "session.describe", nil, &d)
 }
 
+// Journal is the command history, for picking up a session cold: how the world
+// got here, and whether the process has been restarted since it was built.
+func (w *Workbench) Journal(ctx context.Context) (Journal, error) {
+	var j Journal
+	return j, w.CallInto(ctx, "session.journal", nil, &j)
+}
+
 // Snapshot is the whole session as the socket summarises it - counts, jobs,
 // endpoints, the status line. Decoded loosely on purpose: it grows, and a
 // client that failed on a field it had not heard of would break on every
