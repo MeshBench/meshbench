@@ -1,4 +1,4 @@
-package emulated
+package peripheral
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// A serialLink is an emulated node's serial port, both ways.
+// A SerialLink is an emulated node's serial port, both ways.
 //
 // The emulator publishes the port as a unix socket and we connect to it once
 // it exists, which is not at once: the socket appears when the machine starts,
@@ -19,7 +19,7 @@ import (
 // Everything the node prints is copied on to the console log, because that file
 // has always carried the whole boot chain - ROM through application - and is
 // where an emulated node's failures are read.
-type serialLink struct {
+type SerialLink struct {
 	ready chan struct{}
 
 	mu   sync.Mutex
@@ -27,10 +27,10 @@ type serialLink struct {
 	err  error
 }
 
-// dialSerial connects to the emulator's serial socket in the background and
+// DialSerial connects to the emulator's serial socket in the background and
 // pumps everything it says into log.
-func dialSerial(ctx context.Context, path string, log io.Writer) *serialLink {
-	s := &serialLink{ready: make(chan struct{})}
+func DialSerial(ctx context.Context, path string, log io.Writer) *SerialLink {
+	s := &SerialLink{ready: make(chan struct{})}
 	go func() {
 		var conn net.Conn
 		var err error
@@ -60,7 +60,7 @@ func dialSerial(ctx context.Context, path string, log io.Writer) *serialLink {
 }
 
 // Write types bytes at the node, waiting for the port to exist first.
-func (s *serialLink) Write(p []byte) (int, error) {
+func (s *SerialLink) Write(p []byte) (int, error) {
 	select {
 	case <-s.ready:
 	case <-time.After(10 * time.Second):
@@ -75,7 +75,7 @@ func (s *serialLink) Write(p []byte) (int, error) {
 	return conn.Write(p)
 }
 
-func (s *serialLink) Close() error {
+func (s *SerialLink) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.conn == nil {

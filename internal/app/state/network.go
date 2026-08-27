@@ -8,6 +8,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/firmware"
 	"github.com/MeshBench/meshbench/internal/firmware/emulated"
+	"github.com/MeshBench/meshbench/internal/firmware/emulated/peripheral"
 )
 
 // Node is one node, as the interface needs it.
@@ -174,7 +175,7 @@ func (s *Screen) At(x, y int) (r, g, b uint8, ok bool) {
 	if s == nil || s.BPP != 16 || y < 0 || y >= s.Height {
 		return 0, 0, 0, false
 	}
-	return emulated.RGB565At(s.Bits, s.Width, x, y)
+	return peripheral.RGB565At(s.Bits, s.Width, x, y)
 }
 
 // NodeSeries is one node's recent history, for its graphs.

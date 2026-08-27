@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/firmware"
+	"github.com/MeshBench/meshbench/internal/firmware/emulated/peripheral"
 )
 
 // EnvQEMU overrides the emulator binary, and EnvRadioServer the radio model.
@@ -91,7 +92,7 @@ type EmulatedNode struct {
 	// nobody pressing them.
 	ButtonPath string
 	ButtonPins []int
-	Buttons    *ButtonSender
+	Buttons    *peripheral.ButtonSender
 
 	// KbdAddr and TouchAddr are where a keyboard and a touch panel answer on
 	// the board's I2C bus, or zero where it carries neither.
@@ -115,7 +116,7 @@ type EmulatedNode struct {
 	// GPSPath is where the board's receiver sends its sentences from, or empty
 	// on a board that carries none.
 	GPSPath string
-	GPS     *GPSFeed
+	GPS     *peripheral.GPSFeed
 
 	// BatChannel is the converter channel the board's cell is read on, and
 	// BatRaw what it reads at bring-up. Both zero on a board that declares no
@@ -127,7 +128,7 @@ type EmulatedNode struct {
 	// Panel is where this node's pictures arrive, when something is listening.
 	// Held here so a caller with the node has the screen too, rather than
 	// having to keep the two in step itself.
-	Panel *PanelListener
+	Panel *peripheral.PanelListener
 
 	// PSRAMOctal selects an octal (OPI) part rather than a quad one.
 	PSRAMOctal bool
@@ -172,7 +173,7 @@ type EmulatedNode struct {
 	radioPort   int
 
 	// serial is the emulator's own serial port, when it publishes one.
-	serial *serialLink
+	serial *peripheral.SerialLink
 
 	// console is where the serial port's output goes: the log file always, and
 	// whoever is currently listening as well.
@@ -404,7 +405,7 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 		_ = e.stopLocked()
 		return fmt.Errorf("firmware: starting the emulator: %w", err)
 	}
-	e.serial = dialSerial(ctx, conPath, e.console)
+	e.serial = peripheral.DialSerial(ctx, conPath, e.console)
 	return nil
 }
 

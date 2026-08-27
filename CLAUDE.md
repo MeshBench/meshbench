@@ -72,7 +72,9 @@ internal/firmware/  running real firmware against the radio, native or emulated;
   native/             the native backend: MeshCore built for this host, run
                       as a child process
   emulated/           the emulator runner: QEMU and Renode, the flash images
-                      and peripherals a published image boots against
+                      a published image boots against
+    peripheral/         the models a board wires - display, buttons, keyboard,
+                        GPS, serial - each addressed by pin
   console/            the operator's terminal onto a running node
 
 internal/world/     what is being simulated, and where it came from

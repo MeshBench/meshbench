@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MeshBench/meshbench/internal/firmware/emulated"
+	"github.com/MeshBench/meshbench/internal/firmware/emulated/peripheral"
 	"github.com/MeshBench/meshbench/internal/rf/antenna"
 	"github.com/MeshBench/meshbench/internal/sim/engine"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
@@ -214,7 +214,7 @@ func writeShot(t *testing.T, name string, w, h, bpp int, bits []byte) {
 				if bits[(y/8)*w+x]&(1<<(y%8)) != 0 {
 					c = color.NRGBA{R: 220, G: 240, B: 255, A: 255}
 				}
-			} else if r, g, b, ok := emulated.RGB565At(bits, w, x, y); ok {
+			} else if r, g, b, ok := peripheral.RGB565At(bits, w, x, y); ok {
 				c = color.NRGBA{R: r, G: g, B: b, A: 255}
 			}
 			img.SetNRGBA(x, y, c)
