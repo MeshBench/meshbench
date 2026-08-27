@@ -3,7 +3,7 @@
 // The computation is the same internal/coverage the planning tools use, with
 // the same remote assumption - a person holding a handheld at 1.5 m - so a
 // coverage picture here and a coverage answer there cannot disagree.
-package session
+package study
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	"image/color"
 	"math"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/study/coverage"
 	"github.com/MeshBench/meshbench/internal/study/linkbudget"
@@ -20,7 +21,7 @@ import (
 // rasterOnBox is one node's raster over a caller-chosen box and grid - the
 // shape the network-wide questions need, because rasters can only be combined
 // when every node answered over the same ground.
-func (s *Sim) rasterOnBox(_ context.Context, n scenario.Node,
+func rasterOnBox(s *session.Sim, _ context.Context, n scenario.Node,
 	south, north, west, east float64, w, h int) (*coverage.Raster, error) {
 	r := &coverage.Raster{
 		South: south, North: north, West: west, East: east,
@@ -41,7 +42,7 @@ func (s *Sim) rasterOnBox(_ context.Context, n scenario.Node,
 		RemoteHeightAGLm: 1.5, RemoteTxPowerDBm: 20, RemoteGainDBi: 0,
 		RemoteSensitivityDBm: linkbudget.SensitivityDBm(n), ProfileStepM: 120,
 	}
-	if err := coverage.Compute(fixed, s.terrain(), r, opts); err != nil {
+	if err := coverage.Compute(fixed, s.Terrain(), r, opts); err != nil {
 		return nil, err
 	}
 	return r, nil

@@ -8,7 +8,7 @@
 // are priced once at the end, on the surviving cells only, with the
 // second-best slot there to catch a shadow deep enough to change the
 // winner.
-package session
+package study
 
 import (
 	"fmt"
@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/rf/geo"
 	"github.com/MeshBench/meshbench/internal/rf/gpu"
 	"github.com/MeshBench/meshbench/internal/rf/propagation"
@@ -31,7 +32,7 @@ import (
 // is per-cell, so banding changes nothing but the buffer sizes.
 const foldBandCells = 4_000_000
 
-func (s *Sim) coverageMapGPU(grid propagation.HeightGrid, stations []coverage.Endpoint,
+func coverageMapGPU(s *session.Sim, grid propagation.HeightGrid, stations []coverage.Endpoint,
 	r *coverage.Raster, o coverage.Options,
 	extra func(int, float64, float64, float64, float64, float64) float64,
 	progress func(what string, done, total int)) (*coverage.Combined, string, bool) {
@@ -138,7 +139,7 @@ func (s *Sim) coverageMapGPU(grid propagation.HeightGrid, stations []coverage.En
 		tGPU += time.Since(t0)
 
 		t0 = time.Now()
-		s.foldBandCPU(c, grid, stations, o, extra, best, second, served, y0, y1,
+		foldBandCPU(s, c, grid, stations, o, extra, best, second, served, y0, y1,
 			func(rows int) {
 				if progress != nil {
 					progress("coverage: buildings on the survivors",
@@ -161,7 +162,7 @@ func (s *Sim) coverageMapGPU(grid propagation.HeightGrid, stations []coverage.En
 // Serving counts stay as the kernel counted them, before buildings: a
 // count that moves by whether one roof grazes one path would read as
 // network fragility, which is a different fact than shadowing.
-func (s *Sim) foldBandCPU(c *coverage.Combined, grid propagation.HeightGrid,
+func foldBandCPU(s *session.Sim, c *coverage.Combined, grid propagation.HeightGrid,
 	stations []coverage.Endpoint, o coverage.Options,
 	extra func(int, float64, float64, float64, float64, float64) float64,
 	best, second []propagation.FoldSlot, served []uint32, y0, y1 int,

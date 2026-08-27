@@ -3,7 +3,7 @@
 // The old workbench answered three planning questions - bridge two areas,
 // cover a gap, survive a failure - and the Gio build had the panel with the
 // results table and no way to ask any of them.
-package session
+package study
 
 import (
 	"context"
@@ -14,14 +14,15 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/study/coverage"
 )
 
-func registerPlanningVerbs(st *state.Store, s *Sim) {
+func registerPlanningVerbs(st *state.Store, s *session.Sim) {
 	// coverage.start: the network-wide questions, by name.
 	st.Handle("coverage.start", func(w *state.World, p any) (any, error) {
-		mode, _ := stringField(p, "mode")
+		mode, _ := session.StringField(p, "mode")
 		if mode == "" {
 			mode = "best"
 		}
@@ -50,13 +51,13 @@ func registerPlanningVerbs(st *state.Store, s *Sim) {
 		// One shared grid for every node: rasters over per-node boxes do not
 		// share ground, and Combine rightly refuses them - which is why this
 		// job could never finish on a spread-out network before.
-		south, north, west, east, gw, gh, boxErr := mapBox(s.nodes, s.coverageCells())
+		south, north, west, east, gw, gh, boxErr := mapBox(s.Nodes(), coverageCells(s))
 		if boxErr != nil {
 			return nil, boxErr
 		}
-		byName := make(map[string]int, len(s.nodes))
-		for i := range s.nodes {
-			byName[s.nodes[i].Name] = i
+		byName := make(map[string]int, len(s.Nodes()))
+		for i := range s.Nodes() {
+			byName[s.Nodes()[i].Name] = i
 		}
 		go func() {
 			rasters := make([]*coverage.Raster, 0, len(names))
@@ -65,7 +66,7 @@ func registerPlanningVerbs(st *state.Store, s *Sim) {
 				if !ok {
 					continue
 				}
-				r, err := s.rasterOnBox(context.Background(), s.nodes[ni],
+				r, err := rasterOnBox(s, context.Background(), s.Nodes()[ni],
 					south, north, west, east, gw, gh)
 				if err == nil && r != nil {
 					rasters = append(rasters, r)
@@ -88,7 +89,7 @@ func registerPlanningVerbs(st *state.Store, s *Sim) {
 
 	// project.save: what is here, as a fixture, so it can be opened again.
 	st.Handle("project.save", func(w *state.World, p any) (any, error) {
-		name, _ := stringField(p, "name")
+		name, _ := session.StringField(p, "name")
 		if name == "" {
 			return nil, fmt.Errorf("project.save needs a name")
 		}
@@ -104,7 +105,7 @@ func registerPlanningVerbs(st *state.Store, s *Sim) {
 			Nodes    []any   `json:"nodes"`
 			MarginKm float64 `json:"margin_km"`
 		}{MarginKm: float64(w.MarginKm)}
-		for _, n := range s.nodes {
+		for _, n := range s.Nodes() {
 			f.Nodes = append(f.Nodes, n)
 		}
 		b, err := json.MarshalIndent(f, "", "  ")
@@ -115,7 +116,7 @@ func registerPlanningVerbs(st *state.Store, s *Sim) {
 			return nil, err
 		}
 		w.Say("saved " + name)
-		return map[string]any{"saved": name, "path": path, "nodes": len(s.nodes)}, nil
+		return map[string]any{"saved": name, "path": path, "nodes": len(s.Nodes())}, nil
 	})
 
 	// project.list: what can be opened.
@@ -143,7 +144,7 @@ func registerPlanningVerbs(st *state.Store, s *Sim) {
 }
 
 // coverage.combined lands the network-wide answer.
-func registerCoverageCombined(st *state.Store, s *Sim) {
+func registerCoverageCombined(st *state.Store, s *session.Sim) {
 	st.Handle("coverage.combined", func(w *state.World, p any) (any, error) {
 		m, _ := p.(map[string]any)
 		c, _ := m["combined"].(*coverage.Combined)
@@ -157,7 +158,7 @@ func registerCoverageCombined(st *state.Store, s *Sim) {
 			"redundancy":              c.Redundancy(),
 			"single_point_of_failure": c.SinglePointOfFailure(),
 		}
-		w.Jobs = finishJob(w.Jobs, "coverage-"+mode)
+		w.Jobs = session.FinishJob(w.Jobs, "coverage-"+mode)
 		switch mode {
 		case "gaps":
 			w.Say(fmt.Sprintf("%d of %d cells reach nobody", gaps, known))

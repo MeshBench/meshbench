@@ -47,9 +47,7 @@ func Register(st *state.Store, s *Sim) {
 	registerBoundary(st, s)
 	registerBoundaryLoad(st, s)
 	registerBoundaryList(st)
-	registerPlanningVerbs(st, s)
 	registerSchedule(st, s)
-	registerValidate(st, s)
 	registerBoardMatrix(st, s)
 	registerResources(st, s)
 	registerUIVerbs(st, s)
@@ -65,7 +63,7 @@ func Register(st *state.Store, s *Sim) {
 	registerRadioReconcile(st, s)
 	registerExperiment(st, s)
 	registerExperimentDone(st, s)
-	registerCoverageCombined(st, s)
+	runDomainRegistrars(st, s)
 	registerCheckpoint(st, s)
 	// project.new: an empty network, to build one by hand.
 	//
@@ -461,8 +459,6 @@ func Register(st *state.Store, s *Sim) {
 		w.Say("injected a packet at " + w.Nodes[at].Name)
 		return map[string]any{"at": w.Nodes[at].Name}, nil
 	})
-	registerCoverageVerbs(st, s)
-	registerCoverageMap(st, s)
 	registerEnvironFetch(st, s)
 	registerBudgetVerbs(st, s)
 
