@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
+	"github.com/MeshBench/meshbench/internal/firmware/console"
 	"github.com/MeshBench/meshbench/internal/rf/propagation"
 	"github.com/MeshBench/meshbench/internal/sim/engine"
 	"github.com/MeshBench/meshbench/internal/world/boundary"
@@ -139,10 +140,21 @@ func NamedField(p any, name string) (string, bool)  { return namedField(p, name)
 func BadParams(format string, args ...any) error    { return badParams(format, args...) }
 func StateNodes(nodes []scenario.Node) []state.Node { return stateNodes(nodes) }
 
+// BoolField reads a named boolean parameter; NoSuchNode is the standard
+// not-found error; IsCompanionNode reports whether a named node is a companion.
+// Three more shared readers the split-out domains need.
+func BoolField(p any, name string) (bool, bool)               { return boolField(p, name) }
+func NoSuchNode(name string) error                            { return noSuchNode(name) }
+func IsCompanionNode(nodes []scenario.Node, name string) bool { return isCompanionNode(nodes, name) }
+
 // Finishing is the context a verb uses to report how a job ended even as the
 // job's own context is being cancelled - the shared helper the split-out
 // domains' long-running pulls need.
 func Finishing(ctx context.Context) (context.Context, context.CancelFunc) { return finishing(ctx) }
+
+// ConsoleFor is the console buffer for a named node, creating it if need be -
+// the shared reader the fleet and radio verbs use to talk to a node.
+func (s *Sim) ConsoleFor(name string) (*console.Buf, error) { return s.consoleFor(name) }
 
 // SetCoverageCells records the operator's coverage-raster resolution, on the
 // Sim and in the preferences both, for the study verbs that let it be chosen.

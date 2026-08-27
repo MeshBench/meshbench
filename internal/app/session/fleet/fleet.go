@@ -3,7 +3,7 @@
 // A mesh is configured by typing the same line at forty repeaters, and doing
 // that by hand is where the region spelling trap was paid for twice. The old
 // workbench had a Fleet window; this build had the panel and no way to send.
-package session
+package fleet
 
 import (
 	"context"
@@ -13,32 +13,33 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
-func registerFleet(st *state.Store, s *Sim) {
+func registerFleet(st *state.Store, s *session.Sim) {
 	// fleet.send: one command, to every node or to a filtered subset.
 	//
 	// Replies are collected per node rather than merged, because the answer
 	// worth having is which node disagreed with the others.
 	st.Handle("fleet.send", func(w *state.World, p any) (any, error) {
-		cmd, _ := stringField(p, "command")
+		cmd, _ := session.StringField(p, "command")
 		if strings.TrimSpace(cmd) == "" {
 			return nil, fmt.Errorf("fleet.send needs a command")
 		}
-		only, _ := namedField(p, "node")
-		kind, _ := namedField(p, "kind")
+		only, _ := session.NamedField(p, "node")
+		kind, _ := session.NamedField(p, "kind")
 
-		targets := make([]string, 0, len(s.nodes))
-		for _, n := range s.nodes {
+		targets := make([]string, 0, len(s.Nodes()))
+		for _, n := range s.Nodes() {
 			if only != "" && n.Name != only {
 				continue
 			}
 			if kind != "" && string(n.Kind) != kind {
 				continue
 			}
-			if en, ok := s.eng.NodeByName(n.Name); !ok || en.Firmware == nil {
+			if en, ok := s.Engine().NodeByName(n.Name); !ok || en.Firmware == nil {
 				continue
 			}
 			targets = append(targets, n.Name)
@@ -58,14 +59,14 @@ func registerFleet(st *state.Store, s *Sim) {
 		replies := map[string]string{}
 		marks := map[string]int{}
 		for _, name := range targets {
-			buf, err := s.consoleFor(name)
+			buf, err := s.ConsoleFor(name)
 			if err != nil {
 				replies[name] = "no console: " + err.Error()
 				continue
 			}
 			mark := buf.Mark()
 			buf.Echo(cmd)
-			en, _ := s.eng.NodeByName(name)
+			en, _ := s.Engine().NodeByName(name)
 			if err := en.Firmware.Bridge.Type([]byte(cmd + "\r\n")); err != nil {
 				replies[name] = "send failed: " + err.Error()
 				continue
@@ -114,7 +115,7 @@ func registerFleet(st *state.Store, s *Sim) {
 		}
 		out := make([]state.FleetReply, 0, len(pend.marks))
 		for name, mark := range pend.marks {
-			buf, err := s.consoleFor(name)
+			buf, err := s.ConsoleFor(name)
 			if err != nil {
 				out = append(out, state.FleetReply{Node: name, Reply: "no console"})
 				continue
@@ -126,7 +127,7 @@ func registerFleet(st *state.Store, s *Sim) {
 			// CLI, so a fleet command reaches it and means nothing - and a
 			// blank row reads as a node that failed rather than one that was
 			// asked the wrong question.
-			if isCompanionNode(s.nodes, name) {
+			if session.IsCompanionNode(s.Nodes(), name) {
 				said = "a companion: speaks the app protocol, not this CLI - " +
 					"use its own tab"
 			} else if said == "" {
@@ -153,13 +154,13 @@ func registerFleet(st *state.Store, s *Sim) {
 				}
 			}
 		}
-		only, _ := stringField(p, "node")
+		only, _ := session.StringField(p, "node")
 		n := 0
-		for i := range s.nodes {
-			if only != "" && s.nodes[i].Name != only {
+		for i := range s.Nodes() {
+			if only != "" && s.Nodes()[i].Name != only {
 				continue
 			}
-			s.nodes[i].Regions = append([]string(nil), regions...)
+			s.Nodes()[i].Regions = append([]string(nil), regions...)
 			n++
 		}
 		for i := range w.Nodes {
@@ -173,16 +174,16 @@ func registerFleet(st *state.Store, s *Sim) {
 
 	st.Handle("nodes.allow_flood", func(w *state.World, p any) (any, error) {
 		on := true
-		if v, ok := boolField(p, "on"); ok {
+		if v, ok := session.BoolField(p, "on"); ok {
 			on = v
 		}
-		only, _ := stringField(p, "node")
+		only, _ := session.StringField(p, "node")
 		n := 0
-		for i := range s.nodes {
-			if only != "" && s.nodes[i].Name != only {
+		for i := range s.Nodes() {
+			if only != "" && s.Nodes()[i].Name != only {
 				continue
 			}
-			s.nodes[i].AllowAnyFlood = on
+			s.Nodes()[i].AllowAnyFlood = on
 			n++
 		}
 		// The wildcard is the parent of every region, so a flood is forwarded
@@ -196,20 +197,20 @@ func registerFleet(st *state.Store, s *Sim) {
 
 	// nodes.delete: the destructive one, so it says what it removed.
 	st.Handle("nodes.delete", func(w *state.World, p any) (any, error) {
-		name, _ := stringField(p, "node")
+		name, _ := session.StringField(p, "node")
 		if name == "" {
 			return nil, fmt.Errorf("nodes.delete needs a node")
 		}
-		kept := make([]scenario.Node, 0, len(s.nodes))
-		for _, n := range s.nodes {
+		kept := make([]scenario.Node, 0, len(s.Nodes()))
+		for _, n := range s.Nodes() {
 			if n.Name != name {
 				kept = append(kept, n)
 			}
 		}
-		if len(kept) == len(s.nodes) {
-			return nil, noSuchNode(name)
+		if len(kept) == len(s.Nodes()) {
+			return nil, session.NoSuchNode(name)
 		}
-		s.buildSeeded(kept, s.freqMHz, s.seed)
+		s.BuildSeeded(kept, s.FreqMHz(), s.Seed())
 		out := w.Nodes[:0]
 		for _, n := range w.Nodes {
 			if n.Name != name {
@@ -218,7 +219,7 @@ func registerFleet(st *state.Store, s *Sim) {
 		}
 		w.Nodes = out
 		w.Links = nil
-		s.warm(st, len(kept))
+		s.Warm(st, len(kept))
 		w.Say("deleted " + name)
 		return map[string]any{"deleted": name, "nodes": len(kept)}, nil
 	})

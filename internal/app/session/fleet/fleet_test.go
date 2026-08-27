@@ -1,17 +1,18 @@
-package session
+package fleet
 
 import (
 	"context"
 	"testing"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 )
 
 func newFleetTestSim(t *testing.T) *state.Store {
 	t.Helper()
 	st := state.New(10)
-	s := &Sim{gpuAsked: true}
-	Register(st, s)
+	s := &session.Sim{}
+	session.Register(st, s)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	go st.Run(ctx)
