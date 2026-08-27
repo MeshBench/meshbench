@@ -195,6 +195,13 @@ type Sim struct {
 	history  *nodeHistory
 	states   map[string]string
 	served   map[string]*engine.CompanionLink
+
+	// domainState holds the per-domain state that used to live as a typed field
+	// here, for the domains split out of session that cannot name their own
+	// type on this struct without an import cycle. Keyed by a name the domain
+	// chooses; reached through DomainState. Guarded by domainStateMu.
+	domainState   map[string]any
+	domainStateMu sync.Mutex
 }
 
 // terrainStore is the elevation the engine sees.
