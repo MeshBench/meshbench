@@ -203,7 +203,7 @@ func (e *Engine) AttachNativeProgress(ctx context.Context, seed uint64, progress
 		// engine ticks immediately afterwards, and a tick to a bridge with
 		// nothing on the other end fails — so the wait is not a convenience,
 		// it is the difference between working and not.
-		if err := waitAttached(ctx, fw, attachTimeout); err != nil {
+		if err := waitAttached(ctx, fw, attachBudget(workers)); err != nil {
 			_ = fw.Close()
 			fail(fmt.Errorf("%s: %w", n.Spec.Name, err))
 			return
@@ -291,8 +291,23 @@ func (e *Engine) AttachNativeProgress(ctx context.Context, seed uint64, progress
 	return nil
 }
 
-// attachTimeout is how long a firmware process gets to connect back.
-const attachTimeout = 10 * time.Second
+// attachBudget is how long a firmware process gets to connect back, scaled by
+// how many are being brought up at once.
+//
+// The connect itself is a socket handshake - milliseconds when a node has a
+// core to itself. But up to workers processes start together, and each one
+// brings MeshCore's loop, RadioLib and a virtual chip up before it answers; on
+// a busy machine the last of a full dozen is scheduled late enough to miss a
+// flat ten seconds, which is a loaded runner rather than a hung node. So the
+// budget grows with the contention, for the same reason bootAdvanceTimeout
+// does. Generous on purpose: this deadline exists to turn a process that will
+// never connect into an error, not to police startup latency.
+func attachBudget(workers int) time.Duration {
+	if d := time.Duration(workers) * 5 * time.Second; d > 30*time.Second {
+		return d
+	}
+	return 30 * time.Second
+}
 
 // bootAdvanceTimeout is how long a node gets to simulate its boot offset.
 //
