@@ -55,7 +55,7 @@ PARAM_PATTERNS = [
     # every field asked of it (#235). Missing this pattern is not cosmetic: it
     # silently dropped every secondary parameter a verb converted, which is
     # exactly the kind of surface #213 exists to keep honest.
-    (re.compile(r'namedField\(\s*p\s*,\s*"([a-z0-9_]+)"'), "string"),
+    (re.compile(r'(?:session\.Named|named)Field\(\s*p\s*,\s*"([a-z0-9_]+)"'), "string"),
     (re.compile(r'(?:session\.Num|num)Field\(\s*p\s*,\s*"([a-z0-9_]+)"'), "number"),
     (re.compile(r'boolField\(\s*p\s*,\s*"([a-z0-9_]+)"'), "bool"),
     (re.compile(r'm\["([a-z0-9_]+)"\]\.\(string\)'), "string"),

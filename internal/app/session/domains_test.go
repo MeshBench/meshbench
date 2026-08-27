@@ -5,5 +5,5 @@ package session_test
 // verb manifest and the parity checks - then see every verb, not only the core
 // ones, exactly as a running binary does once it imports the domains.
 import (
-	_ "github.com/MeshBench/meshbench/internal/app/session/study"
+	_ "github.com/MeshBench/meshbench/internal/app/session/domains"
 )

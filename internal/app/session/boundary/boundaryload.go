@@ -6,13 +6,14 @@
 // north of the river, a polygon somebody drew in QGIS this morning. Those
 // arrive as GeoJSON, the parser has been in scenario the whole time, and
 // nothing outside the process could reach it.
-package session
+package boundary
 
 import (
 	"fmt"
 	"os"
 	"strings"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
@@ -24,20 +25,20 @@ import (
 // typed by mistake should fail rather than read a DVD image into memory.
 const maxBoundaryBytes = 64 << 20
 
-func registerBoundaryLoad(st *state.Store, s *Sim) {
+func registerBoundaryLoad(st *state.Store, s *session.Sim) {
 	// boundary.load: take a study area from GeoJSON.
 	//
 	// A path or the document itself, because both callers are real: a script
 	// has a file, and a program that generated the polygon has a string and
 	// should not have to write it to disk to be understood.
 	st.Handle("boundary.load", func(w *state.World, p any) (any, error) {
-		path, _ := stringField(p, "path")
-		text, _ := namedField(p, "geojson")
+		path, _ := session.StringField(p, "path")
+		text, _ := session.NamedField(p, "geojson")
 		if path == "" && text == "" {
-			return nil, badParams("boundary.load needs a path or a geojson document")
+			return nil, session.BadParams("boundary.load needs a path or a geojson document")
 		}
 		if path != "" && text != "" {
-			return nil, badParams("boundary.load takes a path or a geojson document, not both")
+			return nil, session.BadParams("boundary.load takes a path or a geojson document, not both")
 		}
 
 		data := []byte(text)
@@ -47,7 +48,7 @@ func registerBoundaryLoad(st *state.Store, s *Sim) {
 				return nil, err
 			}
 			if st.Size() > maxBoundaryBytes {
-				return nil, badParams("%s is %d MB; a study area does not need that resolution",
+				return nil, session.BadParams("%s is %d MB; a study area does not need that resolution",
 					path, st.Size()>>20)
 			}
 			data, err = os.ReadFile(path) //nolint:gosec // the caller is naming their own study area
@@ -60,13 +61,13 @@ func registerBoundaryLoad(st *state.Store, s *Sim) {
 		// out it is guessed, because the property is called "name" in almost
 		// every file and asking for it every time is a question with one
 		// answer.
-		nameField, _ := namedField(p, "name_field")
+		nameField, _ := session.NamedField(p, "name_field")
 		if nameField == "" {
 			nameField = "name"
 		}
 		bounds, err := scenario.ParseGeoJSON(data, nameField)
 		if err != nil {
-			return nil, badParams("%s", err)
+			return nil, session.BadParams("%s", err)
 		}
 
 		// Every area needs a name, because the name is how one is taken back
@@ -76,7 +77,7 @@ func registerBoundaryLoad(st *state.Store, s *Sim) {
 		// A name the caller gave wins outright for a single polygon - they are
 		// saying what to call this area - and otherwise fills in the blanks the
 		// file left, falling back to the file's own name and then to a number.
-		chosen, _ := namedField(p, "name")
+		chosen, _ := session.NamedField(p, "name")
 		fallback := chosen
 		if fallback == "" && path != "" {
 			fallback = defaultAreaName(path)
@@ -98,7 +99,7 @@ func registerBoundaryLoad(st *state.Store, s *Sim) {
 				continue
 			}
 			w.Areas = append(w.Areas, areaFrom(b))
-			s.areas = append(s.areas, b)
+			s.SetAreas(append(s.Areas(), b))
 			added = append(added, b.Name)
 		}
 		w.Say(fmt.Sprintf("study area now includes %s - %d in all",
