@@ -7,6 +7,8 @@ import (
 	"github.com/MeshBench/meshbench/internal/firmware/console"
 	"github.com/MeshBench/meshbench/internal/rf/propagation"
 	"github.com/MeshBench/meshbench/internal/sim/engine"
+	"github.com/MeshBench/meshbench/internal/study/linkbudget"
+	"github.com/MeshBench/meshbench/internal/study/pathview"
 	"github.com/MeshBench/meshbench/internal/world/boundary"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
@@ -157,6 +159,20 @@ func (s *Sim) NodeIndex(name string) (int, bool) { return s.nodeIndex(name) }
 func (s *Sim) BoardProbing() bool         { return s.boardProbing }
 func (s *Sim) SetBoardProbing(v bool)     { s.boardProbing = v }
 func (s *Sim) LiveEngine() *engine.Engine { return s.liveEngine() }
+
+// ProfileFor computes a link's terrain profile in both directions, publishing
+// it to the store - shared by the link.profile verb and the link budget.
+func (s *Sim) ProfileFor(st *state.Store, from, to string, atob, btoa float64) {
+	s.profileFor(st, from, to, atob, btoa)
+}
+
+// StateProfile renders a cut-through into a snapshot Profile, and TermsOf turns
+// link-budget terms into their snapshot form - the two link-budget helpers the
+// link.pair verb shares with core.
+func StateProfile(cut pathview.CutThrough, from, to string, atob, btoa, aAGL, bAGL, freq float64) *state.Profile {
+	return stateProfile(cut, from, to, atob, btoa, aAGL, bAGL, freq)
+}
+func TermsOf(in []linkbudget.Term) []state.BudgetTerm { return termsOf(in) }
 
 // BoolField reads a named boolean parameter; NoSuchNode is the standard
 // not-found error; IsCompanionNode reports whether a named node is a companion.

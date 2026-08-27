@@ -112,6 +112,7 @@ internal/app/       orchestration, no toolkit
     environ/            the environ.fetch verb, wired in by init
     sweep/              the sweep verbs and their offered-load plan, wired in by init
     fleet/              the bulk node verbs, wired in by init
+    links/              the link pair and profile verbs, wired in by init
     nodelookup/         the node-finding verbs (search, near), wired in by init
     nodewipe/           node.wipe - one node back to factory, wired in by init
     sdr/                the rtl_tcp observer server, state off Sim via the seam

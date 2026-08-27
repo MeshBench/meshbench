@@ -38,8 +38,6 @@ func Register(st *state.Store, s *Sim) {
 	registerTerrainPrefetch(st, s)
 	registerBasemap(st, s)
 	registerPacket(st, s)
-	registerLinkProfile(st, s)
-	registerLinkPair(st, s)
 	registerImport(st, s)
 	registerSchedule(st, s)
 	registerResources(st, s)
