@@ -257,3 +257,23 @@ type CardSlot struct {
 	BoardHasSlot       bool `json:"board_has_slot"`
 	Wiped              bool `json:"wiped"`
 }
+
+// JournalEntry is one command the workbench was driven with: its sequence, the
+// wall-clock time it ran, the verb, and a compact rendering of its argument.
+type JournalEntry struct {
+	Seq   uint64 `json:"seq"`
+	AtMs  int64  `json:"at_ms"`
+	Verb  string `json:"verb"`
+	Nodes int    `json:"nodes"`
+	Err   string `json:"err,omitempty"`
+	Arg   string `json:"arg,omitempty"`
+}
+
+// Journal is the command history: when the process started, and the commands
+// since, newest last. Polls and the workers' own progress reports are left out,
+// so this is how the world got here, not everything that touched the socket.
+type Journal struct {
+	StartedMs int64          `json:"started_ms"`
+	Count     int            `json:"count"`
+	Entries   []JournalEntry `json:"entries"`
+}

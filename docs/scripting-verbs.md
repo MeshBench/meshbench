@@ -88,6 +88,7 @@ Two verbs are **not** in this table:
 | `session.checkpoint` | *a bare string*, `name` string | `checkpoint`, `path`, `now_ms`, `nodes` | `wb.checkpoint(name)` |
 | `session.checkpoints` | — | `checkpoints` | `wb.checkpoints()` |
 | `session.describe` | — | `nodes`, `seed`, `now_ms`, `playing` | `wb.describe()` |
+| `session.journal` | — | `started_ms`, `count`, `entries` | `wb.journal()` |
 | `session.restore` | *a bare string*, `name` string, `path` string | `restored`, `nodes`, `now_ms`, `target_ms`, `replaying` | `wb.restore(name)` |
 | `session.status` | — | — | `wb.status()` |
 | `ui.keep_above` | `on` bool | `on` | `wb.keep_above()` |

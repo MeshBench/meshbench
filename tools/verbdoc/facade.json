@@ -246,7 +246,8 @@
     "firmware.built": "",
     "firmware.build_failed": "",
     "infer.progress": "",
-    "ui.keep_above": "wb.keep_above()"
+    "ui.keep_above": "wb.keep_above()",
+    "session.journal": "wb.journal()"
   },
   "no_facade": {
     "node.reflashed": "the store telling itself a reflash finished",
