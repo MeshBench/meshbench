@@ -10,10 +10,24 @@
 package session
 
 import (
+	"errors"
+	"os"
+
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/mesh/energy"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
+
+// EnergyEnabled reports whether the solar site study is switched on. It is off
+// by default: the model is not yet trusted (#254), and a plausible-looking
+// worst-day figure from an untrusted model is worse than none. Set
+// MESHBENCH_ENERGY to any non-empty value to run the work in progress.
+func EnergyEnabled() bool { return os.Getenv("MESHBENCH_ENERGY") != "" }
+
+// ErrEnergyDisabled is what the energy verbs return while the feature is off,
+// so a script gets a reason rather than a wrong number.
+var ErrEnergyDisabled = errors.New(
+	"energy monitoring is not ready and is disabled; set MESHBENCH_ENERGY=1 to run the work in progress")
 
 // A typical UK hilltop repeater, stated here so that changing it is a decision
 // rather than a discovery. These are the defaults the panel starts from; the
