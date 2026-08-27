@@ -41,8 +41,6 @@ func Register(st *state.Store, s *Sim) {
 	registerLinkProfile(st, s)
 	registerLinkPair(st, s)
 	registerImport(st, s)
-	registerNodeSearch(st)
-	registerNodesNear(st)
 	registerSchedule(st, s)
 	registerBoardMatrix(st, s)
 	registerResources(st, s)
