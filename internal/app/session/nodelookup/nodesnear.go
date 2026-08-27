@@ -5,27 +5,28 @@
 // every caller was writing its own haversine to do it. Written here once, on
 // the same geo the path losses use, so a script's idea of "nearest" and the
 // simulator's are the same idea.
-package session
+package nodelookup
 
 import (
 	"sort"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/rf/geo"
 )
 
 func registerNodesNear(st *state.Store) {
 	st.Handle("nodes.near", func(w *state.World, p any) (any, error) {
-		name, _ := stringField(p, "node")
+		name, _ := session.StringField(p, "node")
 		if name == "" {
-			name = soleString(p)
+			name = session.SoleString(p)
 		}
-		here, found := findNode(w.Nodes, name)
+		here, found := session.FindNode(w.Nodes, name)
 		if !found {
-			return nil, noSuchNode(name)
+			return nil, session.NoSuchNode(name)
 		}
 		count := 0
-		if v, ok := numField(p, "count"); ok && v > 0 {
+		if v, ok := session.NumField(p, "count"); ok && v > 0 {
 			count = int(v)
 		}
 

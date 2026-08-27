@@ -10,7 +10,7 @@
 // It is one verb rather than a helper in each client because both clients ask
 // the same question and a "top result" that differs between them is worse than
 // no ranking at all.
-package session
+package nodelookup
 
 import (
 	"sort"
@@ -19,6 +19,7 @@ import (
 
 	"golang.org/x/text/unicode/norm"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 )
 
@@ -33,16 +34,16 @@ const defaultSearchLimit = 10
 
 func registerNodeSearch(st *state.Store) {
 	st.Handle("nodes.search", func(w *state.World, p any) (any, error) {
-		q, _ := stringField(p, "query")
+		q, _ := session.StringField(p, "query")
 		needle := searchKey(q)
 		if needle == "" {
 			// Refused rather than answered with everything: an empty query is
 			// a bug in the caller, and the whole list is the least useful
 			// possible reply to it.
-			return nil, badParams("nodes.search needs a query with letters or digits in it")
+			return nil, session.BadParams("nodes.search needs a query with letters or digits in it")
 		}
 		limit := defaultSearchLimit
-		if v, ok := numField(p, "limit"); ok && v > 0 {
+		if v, ok := session.NumField(p, "limit"); ok && v > 0 {
 			limit = int(v)
 		}
 

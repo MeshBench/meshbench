@@ -140,6 +140,9 @@ func NamedField(p any, name string) (string, bool)  { return namedField(p, name)
 func BadParams(format string, args ...any) error    { return badParams(format, args...) }
 func StateNodes(nodes []scenario.Node) []state.Node { return stateNodes(nodes) }
 
+// FindNode looks a node up in the snapshot by name, for the split-out domains.
+func FindNode(nodes []state.Node, name string) (state.Node, bool) { return findNode(nodes, name) }
+
 // BoolField reads a named boolean parameter; NoSuchNode is the standard
 // not-found error; IsCompanionNode reports whether a named node is a companion.
 // Three more shared readers the split-out domains need.
