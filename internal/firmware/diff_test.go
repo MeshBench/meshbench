@@ -4,8 +4,10 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/MeshBench/meshbench/internal/firmware"
+	"github.com/MeshBench/meshbench/internal/firmware/native"
 )
 
 // A cross-check that reports "they matched" when neither side transmitted has
@@ -70,12 +72,12 @@ func pair(t *testing.T) (*firmware.Node, *firmware.Node) {
 		t.Skipf("no native node binary: %v", err)
 	}
 	ctx := context.Background()
-	a, err := firmware.Start(ctx, "a", &firmware.Native{Seed: 1})
+	a, err := firmware.Start(ctx, "a", &native.Native{Seed: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = a.Close() })
-	b, err := firmware.Start(ctx, "b", &firmware.Native{Seed: 1})
+	b, err := firmware.Start(ctx, "b", &native.Native{Seed: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,4 +85,17 @@ func pair(t *testing.T) (*firmware.Node, *firmware.Node) {
 	waitAttached(t, a)
 	waitAttached(t, b)
 	return a, b
+}
+
+// waitAttached blocks until a node's bridge has a peer. A local copy: the
+// native runtime tests carry their own, in a different test package.
+func waitAttached(t *testing.T, n *firmware.Node) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for !n.Bridge.Attached() {
+		if time.Now().After(deadline) {
+			t.Fatal("node never connected to the bridge")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 }

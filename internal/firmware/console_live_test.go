@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/firmware"
+	"github.com/MeshBench/meshbench/internal/firmware/native"
 )
 
 // safeBuf collects console output written from the bridge's goroutine.
@@ -46,7 +47,7 @@ func TestLiveConsoleReachesTheFirmware(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	node, err := firmware.Start(ctx, "console-test", &firmware.Native{
+	node, err := firmware.Start(ctx, "console-test", &native.Native{
 		Path: path, Seed: 4417, SF: 10, BandwidthKHz: 250, CodingRate: 1,
 	})
 	if err != nil {

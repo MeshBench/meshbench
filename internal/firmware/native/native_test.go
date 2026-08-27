@@ -1,4 +1,4 @@
-package firmware_test
+package native_test
 
 import (
 	"bytes"
@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/firmware"
+	"github.com/MeshBench/meshbench/internal/firmware/native"
 	"github.com/MeshBench/meshbench/internal/rf/dsp"
 )
 
@@ -28,7 +29,7 @@ func nativeNode(t *testing.T, seed uint64) (*firmware.Node, *bytes.Buffer) {
 		t.Fatal(err)
 	}
 	log := &bytes.Buffer{}
-	n, err := firmware.Start(context.Background(), "native-1", &firmware.Native{Seed: seed, Log: log})
+	n, err := firmware.Start(context.Background(), "native-1", &native.Native{Seed: seed, Log: log})
 	if err != nil {
 		t.Fatalf("start native node: %v", err)
 	}
@@ -131,7 +132,7 @@ func TestFindNativeReportsWhereItLooked(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 	_, err := firmware.FindNative("", "simple_repeater")
 	if !errors.Is(err, firmware.ErrNativeMissing) {
-		t.Fatalf("want ErrNativeMissing, got %v", err)
+		t.Fatalf("want firmware.ErrNativeMissing, got %v", err)
 	}
 	for _, want := range []string{firmware.NativeBinaryName("simple_repeater"), firmware.EnvNativeBinary} {
 		if !bytes.Contains([]byte(err.Error()), []byte(want)) {
@@ -141,7 +142,7 @@ func TestFindNativeReportsWhereItLooked(t *testing.T) {
 }
 
 func TestNativeStopIsSafeWithoutStart(t *testing.T) {
-	if err := (&firmware.Native{}).Stop(); err != nil {
+	if err := (&native.Native{}).Stop(); err != nil {
 		t.Fatal(err)
 	}
 }
