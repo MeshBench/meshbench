@@ -6,13 +6,14 @@
 // warm - which are precisely the moments somebody points at two repeaters and
 // asks "why don't these hear each other". This path always answers, from the
 // same model the chart draws, and says what it assumed.
-package session
+package links
 
 import (
 	"context"
 	"fmt"
 	"math"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/rf/terrain"
 	"github.com/MeshBench/meshbench/internal/study/linkbudget"
@@ -34,24 +35,24 @@ const pairEndDefaultAGL = 2.0
 
 // pairEndOf reads one endpoint from a verb's parameters: a node's name, or a
 // map with lat and lon (and optionally height_m).
-func (s *Sim) pairEndOf(v any) (pairEnd, error) {
+func pairEndOf(s *session.Sim, v any) (pairEnd, error) {
 	if name, ok := v.(string); ok && name != "" {
-		return s.nodeEnd(name)
+		return nodeEnd(s, name)
 	}
 	m, ok := v.(map[string]any)
 	if !ok {
 		return pairEnd{}, fmt.Errorf("an endpoint is a node's name, or {lat, lon}")
 	}
-	if name, ok := stringField(m, "node"); ok && name != "" {
-		return s.nodeEnd(name)
+	if name, ok := session.StringField(m, "node"); ok && name != "" {
+		return nodeEnd(s, name)
 	}
-	lat, okLat := numField(m, "lat")
-	lon, okLon := numField(m, "lon")
+	lat, okLat := session.NumField(m, "lat")
+	lon, okLon := session.NumField(m, "lon")
 	if !okLat || !okLon {
 		return pairEnd{}, fmt.Errorf("an endpoint is a node's name, or {lat, lon}")
 	}
 	agl := pairEndDefaultAGL
-	if v, ok := numField(m, "height_m"); ok && v > 0 {
+	if v, ok := session.NumField(m, "height_m"); ok && v > 0 {
 		agl = v
 	}
 	n := scenario.Node{
@@ -64,28 +65,28 @@ func (s *Sim) pairEndOf(v any) (pairEnd, error) {
 	// The mast radios what the mesh radios, taken from the nearest real
 	// node, so its margin is about the ground rather than about a spreading
 	// factor nobody chose.
-	if near := s.nearestNode(lat, lon); near != nil {
+	if near := nearestNode(s, lat, lon); near != nil {
 		n.Radio = near.Radio
 		n.TxPowerDBm = near.TxPowerDBm
 	}
 	return pairEnd{n: n, label: n.Name}, nil
 }
 
-func (s *Sim) nodeEnd(name string) (pairEnd, error) {
-	for i := range s.nodes {
-		if s.nodes[i].Name == name {
-			return pairEnd{n: s.nodes[i], label: name}, nil
+func nodeEnd(s *session.Sim, name string) (pairEnd, error) {
+	for i := range s.Nodes() {
+		if s.Nodes()[i].Name == name {
+			return pairEnd{n: s.Nodes()[i], label: name}, nil
 		}
 	}
 	return pairEnd{}, fmt.Errorf("no node called %q", name)
 }
 
 // nearestNode is the closest scenario node to a place, or nil with none.
-func (s *Sim) nearestNode(lat, lon float64) *scenario.Node {
+func nearestNode(s *session.Sim, lat, lon float64) *scenario.Node {
 	best, bestD := -1, math.Inf(1)
-	for i := range s.nodes {
-		dLat := s.nodes[i].Position.Lat - lat
-		dLon := s.nodes[i].Position.Lon - lon
+	for i := range s.Nodes() {
+		dLat := s.Nodes()[i].Position.Lat - lat
+		dLon := s.Nodes()[i].Position.Lon - lon
 		if d := dLat*dLat + dLon*dLon; d < bestD {
 			best, bestD = i, d
 		}
@@ -93,7 +94,7 @@ func (s *Sim) nearestNode(lat, lon float64) *scenario.Node {
 	if best < 0 {
 		return nil
 	}
-	return &s.nodes[best]
+	return &s.Nodes()[best]
 }
 
 // pairResult is what the worker hands back to the store goroutine: the
@@ -106,8 +107,8 @@ type pairResult struct {
 // pairProfile computes the cut-through and both margins for a pair on a
 // worker. Everything the worker needs is captured here, on the store's
 // goroutine, so it reads no Sim state of its own.
-func (s *Sim) pairProfile(st *state.Store, a, b pairEnd) {
-	freq := s.freqMHz
+func pairProfile(s *session.Sim, st *state.Store, a, b pairEnd) {
+	freq := s.FreqMHz()
 	assumedFreq := ""
 	if freq <= 0 {
 		// Two places can be asked about before any scenario is loaded; the
@@ -115,8 +116,8 @@ func (s *Sim) pairProfile(st *state.Store, a, b pairEnd) {
 		freq = 868
 		assumedFreq = ", 868 MHz assumed"
 	}
-	terr := s.terrain()
-	excess := s.excessLossDB
+	terr := s.Terrain()
+	excess := s.ExcessLossDB()
 	go func() {
 		ctx := context.Background()
 		cut, err := pathview.Analyse(terr,
@@ -139,7 +140,7 @@ func (s *Sim) pairProfile(st *state.Store, a, b pairEnd) {
 			excess
 		ab := linkbudget.OneWayDB(a.n, b.n, loss)
 		ba := linkbudget.OneWayDB(b.n, a.n, loss)
-		p := stateProfile(cut, a.label, b.label, ab, ba,
+		p := session.StateProfile(cut, a.label, b.label, ab, ba,
 			a.n.HeightAGLm, b.n.HeightAGLm, freq)
 		p.Assumed = fmt.Sprintf(
 			"bare earth + %.1f dB excess, default noise floor%s", excess, assumedFreq)
@@ -147,32 +148,32 @@ func (s *Sim) pairProfile(st *state.Store, a, b pairEnd) {
 			profile: p,
 			budgets: []state.Budget{
 				{From: a.label, To: b.label, MarginDB: ab,
-					Terms: termsOf(linkbudget.Terms(a.n, b.n, loss))},
+					Terms: session.TermsOf(linkbudget.Terms(a.n, b.n, loss))},
 				{From: b.label, To: a.label, MarginDB: ba,
-					Terms: termsOf(linkbudget.Terms(b.n, a.n, loss))},
+					Terms: session.TermsOf(linkbudget.Terms(b.n, a.n, loss))},
 			},
 		})
 	}()
 }
 
-func registerLinkPair(st *state.Store, s *Sim) {
+func registerLinkPair(st *state.Store, s *session.Sim) {
 	st.Handle("link.pair", func(w *state.World, p any) (any, error) {
 		m, ok := p.(map[string]any)
 		if !ok {
 			return nil, fmt.Errorf("link.pair needs {a, b} endpoints")
 		}
-		a, err := s.pairEndOf(m["a"])
+		a, err := pairEndOf(s, m["a"])
 		if err != nil {
 			return nil, err
 		}
-		b, err := s.pairEndOf(m["b"])
+		b, err := pairEndOf(s, m["b"])
 		if err != nil {
 			return nil, err
 		}
 		if a.label == b.label {
 			return nil, fmt.Errorf("both ends are %s - a link needs two places", a.label)
 		}
-		s.pairProfile(st, a, b)
+		pairProfile(s, st, a, b)
 		return map[string]any{"from": a.label, "to": b.label}, nil
 	})
 

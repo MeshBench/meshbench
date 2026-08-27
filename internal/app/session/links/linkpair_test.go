@@ -1,7 +1,9 @@
-package session
+package links_test
 
 import (
 	"context"
+	"github.com/MeshBench/meshbench/internal/app/session"
+	_ "github.com/MeshBench/meshbench/internal/app/session/links"
 	"strings"
 	"testing"
 	"time"
@@ -17,7 +19,7 @@ import (
 func pairStore(t *testing.T) (*state.Store, context.Context, context.CancelFunc) {
 	t.Helper()
 	st := state.New(10)
-	Register(st, &Sim{})
+	session.Register(st, &session.Sim{})
 	ctx, cancel := context.WithCancel(context.Background())
 	go st.Run(ctx)
 	return st, ctx, cancel
