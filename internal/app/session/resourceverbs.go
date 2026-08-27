@@ -15,7 +15,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/app/resource"
 	"github.com/MeshBench/meshbench/internal/app/state"
-	"github.com/MeshBench/meshbench/internal/world/scenario"
+	hw "github.com/MeshBench/meshbench/internal/firmware/board"
 )
 
 // resourceCacheDir is the root every provider keeps its bytes under.
@@ -38,7 +38,7 @@ func (s *Sim) softDeviceProvider() *resource.SoftDevice {
 		// An emulated nRF52 boots MBR, then the SoftDevice, then MeshCore.
 		// Which boards those are is the catalogue's own MCU field rather than
 		// a list of board names repeated here and left to drift.
-		if b, err := scenario.BoardByName(n.Firmware.Board); err == nil &&
+		if b, err := hw.BoardByName(n.Firmware.Board); err == nil &&
 			strings.HasPrefix(b.MCU, "nRF52") {
 			needed++
 		}

@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/firmware"
-	"github.com/MeshBench/meshbench/internal/world/scenario"
+	hw "github.com/MeshBench/meshbench/internal/firmware/board"
 )
 
 // Capability is one thing worth knowing about a board.
@@ -98,18 +98,18 @@ func EmulatorFingerprint() string {
 }
 
 // MatrixReports is the whole board list, agreeing with
-// scenario.EmulatableBoards() on the can-it-run question: a board that
+// hw.EmulatableBoards() on the can-it-run question: a board that
 // cannot be emulated at all is reported boot-failed with that reason,
 // without spending any emulator time finding out again. A board that can
 // run gets whatever was last measured for it - Untested in every column if
 // that is nothing.
 func MatrixReports(version string) []BoardReport {
-	ok, blocked := scenario.EmulatableBoards()
+	ok, blocked := hw.EmulatableBoards()
 	okNames := map[string]bool{}
 	for _, b := range ok {
 		okNames[b.Name] = true
 	}
-	all := scenario.Boards()
+	all := hw.Boards()
 	out := make([]BoardReport, 0, len(all))
 	for _, b := range all {
 		if reason, isBlocked := blocked[b.Name]; isBlocked && !okNames[b.Name] {

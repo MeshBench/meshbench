@@ -12,7 +12,7 @@
 // board, and the emulator needs it too - to know which output to watch - so
 // the machine's wiring reads the same declaration. Two lists that must agree
 // eventually do not.
-package scenario
+package board
 
 import "fmt"
 

@@ -68,10 +68,11 @@ internal/mesh/      MeshCore itself: what a node is and what it says
 internal/firmware/  running real firmware against the radio, native or emulated;
                     the native host build and the emulator runner, being split
                     into subdomains as the emulation domain lands
+  board/              one board_<name>.go per real board, its wiring and parts
   console/            the operator's terminal onto a running node
 
 internal/world/     what is being simulated, and where it came from
-  scenario/           nodes, region, seed; one board_<name>.go per board
+  scenario/           nodes, region, seed
   provider/           CoreScope, Beacon and MQTT feeds
   mqtt/               the paho client behind provider.Subscriber
   boundary/           named administrative areas

@@ -12,6 +12,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/app/control"
 	"github.com/MeshBench/meshbench/internal/app/state"
+	hw "github.com/MeshBench/meshbench/internal/firmware/board"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
@@ -65,7 +66,7 @@ func registerNodesBulk(st *state.Store, s *Sim) {
 		want, _ := namedField(p, "board")
 		resolved := ""
 		if want != "" {
-			board, err := scenario.BoardByName(want)
+			board, err := hw.BoardByName(want)
 			if err != nil {
 				return nil, control.WithCode(control.BadParams, err)
 			}

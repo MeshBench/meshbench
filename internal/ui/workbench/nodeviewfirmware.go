@@ -9,6 +9,7 @@ import (
 	"sort"
 
 	"gioui.org/layout"
+
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/firmware"
 	"github.com/MeshBench/meshbench/internal/ui/comp"

@@ -91,7 +91,7 @@ type Config struct {
 	// boot yet.
 	//
 	// The gate it lifts is a curation claim, not a safety one: a board is on
-	// scenario.EmulationVerified once someone has seen its own image boot here.
+	// board.EmulationVerified once someone has seen its own image boot here.
 	// Something has to do the seeing, and until this existed nothing could -
 	// the probe that establishes the fact was refused by the fact's absence.
 	// Off by default, because a scenario that quietly ran unwatched wiring

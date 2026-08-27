@@ -17,8 +17,9 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/MeshBench/meshbench/internal/app/state"
 	"golang.org/x/text/unicode/norm"
+
+	"github.com/MeshBench/meshbench/internal/app/state"
 )
 
 // searchFloor is the score below which a name is not offered at all. A search

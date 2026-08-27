@@ -2,7 +2,7 @@
 //
 // One board to a file: a board is edited on its own, so a change to one cannot
 // reach another by accident.
-package scenario
+package board
 
 import "github.com/MeshBench/meshbench/internal/mesh/energy"
 

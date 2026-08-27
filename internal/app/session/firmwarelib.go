@@ -18,7 +18,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/firmware"
-	"github.com/MeshBench/meshbench/internal/world/scenario"
+	hw "github.com/MeshBench/meshbench/internal/firmware/board"
 )
 
 func registerFirmwareLibrary(st *state.Store, s *Sim) {
@@ -444,7 +444,7 @@ func soleString(p any) string {
 // isESP32Board reports whether this board's MCU is one whose flash images the
 // check below can read. A board nobody has heard of is not one to judge.
 func isESP32Board(board string) bool {
-	b, err := scenario.BoardByName(board)
+	b, err := hw.BoardByName(board)
 	if err != nil {
 		return false
 	}

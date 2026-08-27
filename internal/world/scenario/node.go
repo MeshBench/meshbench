@@ -3,6 +3,7 @@ package scenario
 import (
 	"fmt"
 
+	hw "github.com/MeshBench/meshbench/internal/firmware/board"
 	"github.com/MeshBench/meshbench/internal/rf/antenna"
 	"github.com/MeshBench/meshbench/internal/world/sdr"
 )
@@ -260,7 +261,7 @@ type Node struct {
 	// FEM is the front-end module this node's board carries, where it has one.
 	// Nil means the radio drives the antenna directly, and then whether the
 	// firmware drives a transmit-enable line is not a question worth asking.
-	FEM *FEM `json:",omitempty"`
+	FEM *hw.FEM `json:",omitempty"`
 }
 
 // RadioConfig is the modem setup.

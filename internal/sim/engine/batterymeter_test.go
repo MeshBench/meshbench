@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/MeshBench/meshbench/internal/world/scenario"
+	hw "github.com/MeshBench/meshbench/internal/firmware/board"
 )
 
 // The emulated ESP32-S3 carries ADC calibration in eFuse (BLK_VERSION_MAJOR=1),
@@ -47,7 +47,7 @@ func TestADC1Atten3CurveMonotonic(t *testing.T) {
 // the firmware reports the full-charge voltage rather than the ~15% high the
 // bare eFuse burn would have produced.
 func TestBatteryMeterReportsTrueVoltage(t *testing.T) {
-	board, err := scenario.BoardByName("LilyGo_TDeck")
+	board, err := hw.BoardByName("LilyGo_TDeck")
 	if err != nil {
 		t.Fatalf("looking up the T-Deck: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestBatteryMeterReportsTrueVoltage(t *testing.T) {
 	// The divider the board declares: cell volts that fill the converter over
 	// pin volts that do.
 	var fullScaleMV float64
-	for _, part := range board.Hardware.PartsOfKind(scenario.Meter) {
+	for _, part := range board.Hardware.PartsOfKind(hw.Meter) {
 		if part.FullScaleMV > 0 {
 			fullScaleMV = float64(part.FullScaleMV)
 		}

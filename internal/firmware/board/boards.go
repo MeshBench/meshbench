@@ -1,4 +1,4 @@
-package scenario
+package board
 
 import (
 	"fmt"
