@@ -18,7 +18,6 @@ import (
 // 12.9 is generated from what is registered here.
 func Register(st *state.Store, s *Sim) {
 	registerSimControl(st, s)
-	registerInventory(st, s)
 	registerUI(st, s)
 	registerMapCamera(st, s)
 	registerExcessLoss(st, s)

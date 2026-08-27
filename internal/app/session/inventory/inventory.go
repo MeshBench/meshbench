@@ -3,7 +3,7 @@
 // Three verbs the old control socket had. They are what anything automated
 // does first - list what is here, then watch what happened - and without them
 // a caller can drive a run on this build but cannot find out what it did.
-package session
+package inventory
 
 import (
 	"encoding/json"
@@ -12,11 +12,12 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 )
 
 // registerInventory adds the read-only verbs.
-func registerInventory(st *state.Store, s *Sim) {
+func registerInventory(st *state.Store, s *session.Sim) {
 	// nodes.list: the network as it stands.
 	st.Handle("nodes.list", func(w *state.World, _ any) (any, error) {
 		out := make([]map[string]any, 0, len(w.Nodes))
@@ -47,7 +48,7 @@ func registerInventory(st *state.Store, s *Sim) {
 	// every second on a long run would otherwise be handed millions.
 	st.Handle("events.recent", func(w *state.World, p any) (any, error) {
 		limit := 50
-		if v, ok := numField(p, "limit"); ok && v > 0 {
+		if v, ok := session.NumField(p, "limit"); ok && v > 0 {
 			limit = int(v)
 		}
 		from := len(w.Events) - limit
@@ -66,7 +67,7 @@ func registerInventory(st *state.Store, s *Sim) {
 	// NDJSON because a run's log is appended to and read back a line at a
 	// time; a single JSON array cannot be streamed and cannot be tailed.
 	st.Handle("events.dump", func(w *state.World, p any) (any, error) {
-		path := soleString(p)
+		path := session.SoleString(p)
 		if m, ok := p.(map[string]any); ok {
 			path, _ = m["path"].(string)
 		}
