@@ -40,7 +40,6 @@ func Register(st *state.Store, s *Sim) {
 	registerPacket(st, s)
 	registerImport(st, s)
 	registerSchedule(st, s)
-	registerResources(st, s)
 	registerUIVerbs(st, s)
 	registerKeepAbove(st, s)
 	registerPresetsAndPlace(st, s)

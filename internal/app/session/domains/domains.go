@@ -15,6 +15,7 @@ import (
 	_ "github.com/MeshBench/meshbench/internal/app/session/nodelookup"
 	_ "github.com/MeshBench/meshbench/internal/app/session/nodewipe"
 	_ "github.com/MeshBench/meshbench/internal/app/session/provisioning"
+	_ "github.com/MeshBench/meshbench/internal/app/session/resources"
 	_ "github.com/MeshBench/meshbench/internal/app/session/sdr"
 	_ "github.com/MeshBench/meshbench/internal/app/session/study"
 	_ "github.com/MeshBench/meshbench/internal/app/session/sweep"
