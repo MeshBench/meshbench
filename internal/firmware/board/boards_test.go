@@ -1,16 +1,16 @@
-package scenario_test
+package board_test
 
 import (
 	"strings"
 	"testing"
 
-	"github.com/MeshBench/meshbench/internal/world/scenario"
+	hw "github.com/MeshBench/meshbench/internal/firmware/board"
 )
 
 // Every figure in a board profile has to be defensible. These are the checks
 // that catch a copied-and-edited profile with a field left from the one above.
 func TestBoardProfilesArePlausible(t *testing.T) {
-	for _, b := range scenario.Boards() {
+	for _, b := range hw.Boards() {
 		if b.Name == "" || b.MCU == "" || b.Radio == "" {
 			t.Errorf("%+v is missing an identity field", b)
 		}
@@ -38,11 +38,11 @@ func TestBoardProfilesArePlausible(t *testing.T) {
 // reaches the far end is that minus the board's losses plus its antenna, and on
 // a board with a chip antenna the difference is most of a decade of range.
 func TestRadiatedPowerIsNotDatasheetPower(t *testing.T) {
-	xiao, err := scenario.BoardByName("Xiao_S3_WIO")
+	xiao, err := hw.BoardByName("Xiao_S3_WIO")
 	if err != nil {
 		t.Fatal(err)
 	}
-	rak, err := scenario.BoardByName("rak4631") // case-insensitive on purpose
+	rak, err := hw.BoardByName("rak4631") // case-insensitive on purpose
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestRadiatedPowerIsNotDatasheetPower(t *testing.T) {
 // A scenario built around a board that cannot be emulated should say so at
 // build time rather than fail at run time.
 func TestEmulationSupportIsStated(t *testing.T) {
-	ok, blocked := scenario.EmulatableBoards()
+	ok, blocked := hw.EmulatableBoards()
 	if len(ok) == 0 {
 		t.Fatal("no board can be emulated, which contradicts MSIM-13")
 	}
@@ -95,7 +95,7 @@ func TestEmulationSupportIsStated(t *testing.T) {
 	}
 	// Every board that is not offered owes the operator a reason, because a
 	// board missing without one reads as a bug in the picker.
-	for _, b := range scenario.Boards() {
+	for _, b := range hw.Boards() {
 		offered := false
 		for _, o := range ok {
 			offered = offered || o.Name == b.Name
@@ -110,7 +110,7 @@ func TestEmulationSupportIsStated(t *testing.T) {
 // SPI controller and different pins from one board to the next, and a wrong pin
 // produces a driver reporting no chip, which reads as a broken emulator.
 func TestEmulationWiringIsComplete(t *testing.T) {
-	ok, _ := scenario.EmulatableBoards()
+	ok, _ := hw.EmulatableBoards()
 	for _, b := range ok {
 		if b.QEMU == nil {
 			// A Renode board's wiring is checked below on its own terms:
@@ -143,16 +143,16 @@ func TestEmulationWiringIsComplete(t *testing.T) {
 // profiles must not all quote the MCU's own figure.
 func TestSleepCurrentReflectsTheBoardNotTheMCU(t *testing.T) {
 	var distinct = map[float64]bool{}
-	for _, b := range scenario.Boards() {
+	for _, b := range hw.Boards() {
 		distinct[b.SleepUA] = true
 	}
 	if len(distinct) < 4 {
 		t.Errorf("only %d distinct sleep currents across %d boards; these look copied",
-			len(distinct), len(scenario.Boards()))
+			len(distinct), len(hw.Boards()))
 	}
 
-	xiao, _ := scenario.BoardByName("Xiao_nRF52840")
-	heltec, _ := scenario.BoardByName("Heltec_v3")
+	xiao, _ := hw.BoardByName("Xiao_nRF52840")
+	heltec, _ := hw.BoardByName("Heltec_v3")
 	if xiao.SleepUA >= heltec.SleepUA {
 		t.Error("a bare nRF52840 should sleep far below an ESP32 board with a regulator and an LED")
 	}
@@ -162,7 +162,7 @@ func TestSleepCurrentReflectsTheBoardNotTheMCU(t *testing.T) {
 }
 
 func TestUnknownBoardListsWhatExists(t *testing.T) {
-	_, err := scenario.BoardByName("nonesuch")
+	_, err := hw.BoardByName("nonesuch")
 	if err == nil {
 		t.Fatal("an unknown board was accepted")
 	}
@@ -179,7 +179,7 @@ func TestUnknownBoardListsWhatExists(t *testing.T) {
 // variant. Neither failed loudly - the boards simply stayed grey in the matrix.
 func TestBoardsAreNamedForTheirBuild(t *testing.T) {
 	seen := map[string]bool{}
-	for _, b := range scenario.Boards() {
+	for _, b := range hw.Boards() {
 		if seen[strings.ToLower(b.Name)] {
 			t.Errorf("two profiles named %q", b.Name)
 		}
@@ -187,7 +187,7 @@ func TestBoardsAreNamedForTheirBuild(t *testing.T) {
 	}
 	// A rename keeps the old name working: fixtures on disk name their boards.
 	for _, old := range []string{"RAK4631", "Xiao_nRF52840"} {
-		b, err := scenario.BoardByName(old)
+		b, err := hw.BoardByName(old)
 		if err != nil {
 			t.Errorf("a fixture naming %q can no longer be loaded: %v", old, err)
 			continue

@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	hw "github.com/MeshBench/meshbench/internal/firmware/board"
 	"github.com/MeshBench/meshbench/internal/rf/antenna"
 	"github.com/MeshBench/meshbench/internal/world/provider"
 )
@@ -73,7 +74,7 @@ func Import(records []provider.NodeRecord, o ImportOptions) (ImportResult, error
 			"scenario: import needs a default board; there is no neutral choice, and " +
 				"guessing one gives every node someone else's transmit power")
 	}
-	board, err := BoardByName(o.DefaultBoard)
+	profile, err := hw.BoardByName(o.DefaultBoard)
 	if err != nil {
 		return ImportResult{}, err
 	}
@@ -127,7 +128,7 @@ func Import(records []provider.NodeRecord, o ImportOptions) (ImportResult, error
 
 		n := Node{
 			Name:          name,
-			Board:         board.Name,
+			Board:         profile.Name,
 			DefaultScope:  r.DefaultScope,
 			PublicKey:     strings.ToLower(r.PublicKey),
 			Kind:          kindFor(r.Kind),
@@ -135,16 +136,16 @@ func Import(records []provider.NodeRecord, o ImportOptions) (ImportResult, error
 			UncertaintyKm: r.UncertaintyKm,
 			HeightAGLm:    r.HeightAGLm,
 			Radio:         o.Radio,
-			NoiseFigureDB: board.NoiseFigureDB,
-			FEM:           board.FEM,
+			NoiseFigureDB: profile.NoiseFigureDB,
+			FEM:           profile.FEM,
 			Antenna: antenna.Mounted{
-				Pattern:      antenna.Collinear{GainDBiPeak: board.AntennaDBi + 4},
+				Pattern:      antenna.Collinear{GainDBiPeak: profile.AntennaDBi + 4},
 				Polarisation: "vertical",
-				FeedlineDB:   board.FeedlineDB,
+				FeedlineDB:   profile.FeedlineDB,
 			},
 		}
 		if n.Kind.Transmits() {
-			n.TxPowerDBm = board.MaxTxDBm
+			n.TxPowerDBm = profile.MaxTxDBm
 		}
 		if n.HeightAGLm <= 0 {
 			// A height nobody recorded. Ten metres is a plausible repeater mast

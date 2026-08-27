@@ -10,6 +10,7 @@ import (
 
 	"gioui.org/font"
 	"gioui.org/font/opentype"
+
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/ui/shell"
 	"github.com/MeshBench/meshbench/internal/ui/theme"

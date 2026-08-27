@@ -3,7 +3,7 @@
 // The list is the only thing here. Each board's figures live in its own
 // board_<name>.go, so editing one board is a change to one file and cannot
 // disturb the others - which it did, twice, when they shared a slice.
-package scenario
+package board
 
 var boards = []Board{
 	heltecV3Board,

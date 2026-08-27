@@ -12,9 +12,9 @@ import (
 	"gioui.org/widget"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
+	hw "github.com/MeshBench/meshbench/internal/firmware/board"
 	"github.com/MeshBench/meshbench/internal/ui/comp"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
-	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
 // The Hardware tab: this board drawn as itself.
@@ -107,12 +107,12 @@ func (p *nodeWindowPanel) lastWords(t *theme.Theme, gtx layout.Context, s *state
 
 // boardPanel is what this node's board declares, or nil where nothing is
 // recorded. The board decides; there is no setting that could disagree with it.
-func (p *nodeWindowPanel) boardPanel(s *state.Snapshot) *scenario.Panel {
+func (p *nodeWindowPanel) boardPanel(s *state.Snapshot) *hw.Panel {
 	st := p.statFor(s)
 	if st == nil || st.Board == "" {
 		return nil
 	}
-	b, err := scenario.BoardByName(st.Board)
+	b, err := hw.BoardByName(st.Board)
 	if err != nil {
 		return nil
 	}
@@ -121,7 +121,7 @@ func (p *nodeWindowPanel) boardPanel(s *state.Snapshot) *scenario.Panel {
 
 // device is the board: lamps above, screen in the middle, buttons below.
 func (p *nodeWindowPanel) device(t *theme.Theme, gtx layout.Context,
-	panel *scenario.Panel, st *state.NodeStat) layout.Dimensions {
+	panel *hw.Panel, st *state.NodeStat) layout.Dimensions {
 
 	// Hug the board rather than fill the pane. A card stretched to the height
 	// of the window puts the thing being looked at in a corner of a lot of
@@ -158,7 +158,7 @@ func (p *nodeWindowPanel) device(t *theme.Theme, gtx layout.Context,
 // a keyboard that silently needs a click first is one somebody decides is
 // broken - which is exactly what happened.
 func (p *nodeWindowPanel) typingNote(t *theme.Theme, gtx layout.Context,
-	panel *scenario.Panel) layout.Dimensions {
+	panel *hw.Panel) layout.Dimensions {
 
 	if !p.typeable(panel) {
 		return layout.Dimensions{}
@@ -172,8 +172,8 @@ func (p *nodeWindowPanel) typingNote(t *theme.Theme, gtx layout.Context,
 }
 
 // typeable reports whether this board has a keyboard to type at.
-func (p *nodeWindowPanel) typeable(panel *scenario.Panel) bool {
-	return panel != nil && len(panel.PartsOfKind(scenario.Keys)) > 0
+func (p *nodeWindowPanel) typeable(panel *hw.Panel) bool {
+	return panel != nil && len(panel.PartsOfKind(hw.Keys)) > 0
 }
 
 // boardKeys turns typing into keys at the board's own keyboard.
@@ -222,9 +222,9 @@ func (p *nodeWindowPanel) boardKeys(gtx layout.Context, s *state.Snapshot) {
 }
 
 // touchable reports whether this board has a panel worth aiming at.
-func (p *nodeWindowPanel) touchable(panel *scenario.Panel) bool {
+func (p *nodeWindowPanel) touchable(panel *hw.Panel) bool {
 	return panel != nil && panel.Screen != nil &&
-		len(panel.PartsOfKind(scenario.Touch)) > 0
+		len(panel.PartsOfKind(hw.Touch)) > 0
 }
 
 // boardTouches turns pointer events on the drawn screen into touches at the
@@ -239,7 +239,7 @@ func (p *nodeWindowPanel) boardTouches(gtx layout.Context, s *state.Snapshot) {
 		return
 	}
 	sc := panel.Screen
-	touch := panel.PartsOfKind(scenario.Touch)
+	touch := panel.PartsOfKind(hw.Touch)
 	for {
 		ev, ok := gtx.Event(pointer.Filter{
 			Target: &p.screenTouch,
@@ -305,14 +305,14 @@ func (p *nodeWindowPanel) boardPresses(gtx layout.Context, s *state.Snapshot) {
 	// pressing and letting go rolls the ball two notches, which is what
 	// rolling it past a line does.
 	pins := make([]int, 0, len(panel.Parts))
-	for _, part := range panel.PartsOfKind(scenario.Button) {
-		if part.Pin != scenario.PinNone {
+	for _, part := range panel.PartsOfKind(hw.Button) {
+		if part.Pin != hw.PinNone {
 			pins = append(pins, part.Pin)
 		}
 	}
-	for _, part := range panel.PartsOfKind(scenario.Ball) {
+	for _, part := range panel.PartsOfKind(hw.Ball) {
 		for _, pin := range part.Pins {
-			if pin != scenario.PinNone {
+			if pin != hw.PinNone {
 				pins = append(pins, pin)
 			}
 		}
@@ -334,7 +334,7 @@ func (p *nodeWindowPanel) boardPresses(gtx layout.Context, s *state.Snapshot) {
 
 // hardwareFacts is the same things as a column of readable values.
 func (p *nodeWindowPanel) hardwareFacts(t *theme.Theme, gtx layout.Context,
-	panel *scenario.Panel, st *state.NodeStat) layout.Dimensions {
+	panel *hw.Panel, st *state.NodeStat) layout.Dimensions {
 
 	type row struct{ what, val string }
 	var rows []row
@@ -342,9 +342,9 @@ func (p *nodeWindowPanel) hardwareFacts(t *theme.Theme, gtx layout.Context,
 		rows = append(rows, row{"screen",
 			fmt.Sprintf("%s %dx%d", s.Controller, s.WidthPx, s.HeightPx)})
 		switch s.Bus {
-		case scenario.BusI2C:
+		case hw.BusI2C:
 			rows = append(rows, row{"", fmt.Sprintf("I2C 0x%02X", s.Addr)})
-		case scenario.BusSPI:
+		case hw.BusSPI:
 			rows = append(rows, row{"", fmt.Sprintf("SPI cs %d dc %d", s.CS, s.DC)})
 		}
 		var showing string
@@ -373,7 +373,7 @@ func (p *nodeWindowPanel) hardwareFacts(t *theme.Theme, gtx layout.Context,
 	// network and an operator with no way to know it never could. Derived
 	// from the MCU rather than declared per board, so it cannot drift.
 	if st != nil {
-		if b, err := scenario.BoardByName(st.Board); err == nil &&
+		if b, err := hw.BoardByName(st.Board); err == nil &&
 			strings.HasPrefix(strings.ToUpper(b.MCU), "ESP32") {
 			rows = append(rows, row{"wireless",
 				"Wi-Fi and Bluetooth - stubbed, never on the air"})
@@ -406,7 +406,7 @@ func (p *nodeWindowPanel) hardwareFacts(t *theme.Theme, gtx layout.Context,
 // The kind and the name, unless the board named it after its kind - a T-Deck's
 // keyboard is called "keyboard", and "keyboard keyboard" reads as a bug in the
 // interface rather than as a board that had nothing more to add.
-func partLabel(part scenario.Part) string {
+func partLabel(part hw.Part) string {
 	kind := part.Kind.String()
 	if part.Name == "" || strings.EqualFold(part.Name, kind) {
 		return kind
@@ -420,22 +420,22 @@ func partLabel(part scenario.Part) string {
 // number, a bus address or a port is the fact somebody comes to this column
 // for - it is what they will compare against the board's own documentation
 // when something does not work.
-func partFact(part scenario.Part) string {
-	if part.Bus == scenario.BusI2C {
+func partFact(part hw.Part) string {
+	if part.Bus == hw.BusI2C {
 		return fmt.Sprintf("I2C 0x%02X", part.Addr)
 	}
 	switch part.Kind {
-	case scenario.Ball:
+	case hw.Ball:
 		return fmt.Sprintf("pins %v, up down left right", part.Pins)
-	case scenario.Meter:
+	case hw.Meter:
 		// The scale as well as the pin, because the scale is what the number
 		// on the board's own screen has to be checked against.
 		return fmt.Sprintf("pin %d, full scale %.1f V",
 			part.Pin, float64(part.FullScaleMV)/1000)
-	case scenario.GPS:
+	case hw.GPS:
 		return "second serial port"
 	}
-	if part.Pin == scenario.PinNone {
+	if part.Pin == hw.PinNone {
 		return "none on this board"
 	}
 	return fmt.Sprintf("pin %d", part.Pin)

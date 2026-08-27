@@ -24,6 +24,7 @@ import (
 	"strings"
 	"unicode"
 
+	hw "github.com/MeshBench/meshbench/internal/firmware/board"
 	"github.com/MeshBench/meshbench/internal/sim/engine"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
@@ -187,13 +188,13 @@ const (
 	b.WriteString("// The boards. A node's board decides its transmit ceiling, its receive\n")
 	b.WriteString("// chain's noise figure and the battery the energy model uses, so naming one\n")
 	b.WriteString("// that does not exist is refused rather than defaulted.\nconst (\n")
-	for _, bd := range scenario.Boards() {
+	for _, bd := range hw.Boards() {
 		fmt.Fprintf(&b, "\t// %s: %s, %s, by %s.\n",
 			bd.Name, bd.MCU, bd.Radio, bd.Vendor)
 		fmt.Fprintf(&b, "\tBoard%s Board = %q\n", goIdent(bd.Name), bd.Name)
 	}
 	b.WriteString(")\n\n// Boards is every one, for a caller offering a choice.\nvar Boards = []Board{\n")
-	for _, bd := range scenario.Boards() {
+	for _, bd := range hw.Boards() {
 		fmt.Fprintf(&b, "\tBoard%s,\n", goIdent(bd.Name))
 	}
 	b.WriteString("}\n\n// Preset is a named set of LoRa parameters for a territory.\ntype Preset string\n\n")
@@ -294,7 +295,7 @@ class Board(_Set):
     """
 
 `)
-	for _, bd := range scenario.Boards() {
+	for _, bd := range hw.Boards() {
 		fmt.Fprintf(&b, "    %s = %q\n%s\n", pyIdent(bd.Name), bd.Name,
 			pyDoc("    ", fmt.Sprintf("%s, %s, by %s.", bd.MCU, bd.Radio, bd.Vendor)))
 	}

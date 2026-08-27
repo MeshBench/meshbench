@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	hw "github.com/MeshBench/meshbench/internal/firmware/board"
 	"github.com/MeshBench/meshbench/internal/ui/shell"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
@@ -239,7 +240,7 @@ const hostBuildChoice = "host build - not for a board"
 // the list impossible to grow.
 func importBoards() []string {
 	out := []string{hostBuildChoice}
-	for _, b := range scenario.Boards() {
+	for _, b := range hw.Boards() {
 		if b.QEMU != nil || b.Renode != nil {
 			out = append(out, b.Name)
 		}

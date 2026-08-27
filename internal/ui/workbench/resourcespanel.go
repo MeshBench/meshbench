@@ -9,8 +9,9 @@ package workbench
 
 import (
 	"fmt"
-	"github.com/MeshBench/meshbench/internal/app/resource"
 	"sort"
+
+	"github.com/MeshBench/meshbench/internal/app/resource"
 
 	"gioui.org/layout"
 	"gioui.org/unit"

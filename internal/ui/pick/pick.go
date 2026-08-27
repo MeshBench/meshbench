@@ -24,6 +24,7 @@ package pick
 
 import (
 	"errors"
+
 	"github.com/ncruces/zenity"
 )
 

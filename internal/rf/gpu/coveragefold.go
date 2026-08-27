@@ -9,8 +9,9 @@ import (
 	"math"
 	"unsafe"
 
-	"github.com/MeshBench/meshbench/internal/rf/propagation"
 	"github.com/cogentcore/webgpu/wgpu"
+
+	"github.com/MeshBench/meshbench/internal/rf/propagation"
 )
 
 // compileCoverageFold builds the fold pipeline from the coverage module's

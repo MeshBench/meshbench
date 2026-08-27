@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	hw "github.com/MeshBench/meshbench/internal/firmware/board"
 	"github.com/MeshBench/meshbench/internal/rf/antenna"
 	"github.com/MeshBench/meshbench/internal/sim/capture"
 	"github.com/MeshBench/meshbench/internal/sim/engine"
@@ -274,7 +275,7 @@ func loadNodes(ctx context.Context, path, source, baseURL, token, board string,
 // repeaters go on hills, and a demo that does not is teaching the wrong lesson
 // about why links fail.
 func demoNetwork(radio scenario.RadioConfig, boardName string) ([]scenario.Node, error) {
-	b, err := scenario.BoardByName(boardName)
+	b, err := hw.BoardByName(boardName)
 	if err != nil {
 		return nil, err
 	}

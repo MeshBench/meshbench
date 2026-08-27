@@ -4,12 +4,13 @@ import (
 	"testing"
 
 	"github.com/MeshBench/meshbench/internal/firmware"
+	hw "github.com/MeshBench/meshbench/internal/firmware/board"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
 // board is a node as imported: the datasheet figures, before any firmware has
 // said what it actually did with the radio.
-func board(nfDB, txDBm float64, fem *scenario.FEM) *Node {
+func board(nfDB, txDBm float64, fem *hw.FEM) *Node {
 	return &Node{
 		Spec:           scenario.Node{NoiseFigureDB: nfDB, TxPowerDBm: txDBm, FEM: fem},
 		baseNoiseFigDB: nfDB,
@@ -91,7 +92,7 @@ func TestABoardWithNoModuleIgnoresTheEnableLine(t *testing.T) {
 // be charged the loss for it. Observed on a live run: reading the line's current
 // level docked a node 25 dB for the ordinary state of listening.
 func TestANodeThatHasNotTransmittedIsNotChargedForIt(t *testing.T) {
-	n := board(6, 22, &scenario.FEM{TxGainDB: 0, TxLossDB: 25})
+	n := board(6, 22, &hw.FEM{TxGainDB: 0, TxLossDB: 25})
 	tx, _, ok := effectiveRF(n, configured(firmware.RxGainBoosted, 22, firmware.FemUnknown))
 	if !ok || tx != 22 {
 		t.Fatalf("never transmitted: %v dBm, want the board's 22 untouched", tx)
@@ -103,7 +104,7 @@ func TestANodeThatHasNotTransmittedIsNotChargedForIt(t *testing.T) {
 // module in transmits 13 dB down - which is the difference between a link and
 // no link, and which the board profile's MaxTxDBm cannot express.
 func TestAnUnswitchedFrontEndCostsItsGain(t *testing.T) {
-	n := board(6, 22, &scenario.FEM{TxGainDB: 13, TxLossDB: 0})
+	n := board(6, 22, &hw.FEM{TxGainDB: 13, TxLossDB: 0})
 
 	in, _, _ := effectiveRF(n, configured(firmware.RxGainBoosted, 9, firmware.FemIn))
 	if in != 22 {
@@ -119,7 +120,7 @@ func TestAnUnswitchedFrontEndCostsItsGain(t *testing.T) {
 // not merely cost gain - the path is not connected, and what leaks past is far
 // below anything that closes a link.
 func TestAnUnswitchedAntennaPathLosesFarMoreThanGain(t *testing.T) {
-	n := board(6, 22, &scenario.FEM{TxGainDB: 0, TxLossDB: 25})
+	n := board(6, 22, &hw.FEM{TxGainDB: 0, TxLossDB: 25})
 
 	out, _, _ := effectiveRF(n, configured(firmware.RxGainBoosted, 22, firmware.FemOut))
 	if out != -3 {

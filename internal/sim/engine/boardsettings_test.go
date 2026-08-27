@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/MeshBench/meshbench/internal/firmware"
+	hw "github.com/MeshBench/meshbench/internal/firmware/board"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
@@ -48,7 +49,7 @@ func TestABuildsSettingsReachTheMachine(t *testing.T) {
 	if node.CoprocAtReset {
 		t.Error("a build that asked for nothing got enabled coprocessors")
 	}
-	if declared, err := scenario.BoardByName(board); err != nil {
+	if declared, err := hw.BoardByName(board); err != nil {
 		t.Fatal(err)
 	} else if node.SPI != declared.QEMU.SPI {
 		t.Errorf("the node is on controller %d, want the board's %d",

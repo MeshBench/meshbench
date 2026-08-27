@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
+	hw "github.com/MeshBench/meshbench/internal/firmware/board"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
@@ -42,7 +43,7 @@ func unwatchedWarning(nodes []scenario.Node) string {
 	var boards []string
 	for _, n := range nodes {
 		b := n.Firmware.Board
-		if b == "" || seen[b] || scenario.EmulationSupported(b) {
+		if b == "" || seen[b] || hw.EmulationSupported(b) {
 			continue
 		}
 		seen[b] = true
