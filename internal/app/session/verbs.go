@@ -456,7 +456,6 @@ func Register(st *state.Store, s *Sim) {
 		w.Say("injected a packet at " + w.Nodes[at].Name)
 		return map[string]any{"at": w.Nodes[at].Name}, nil
 	})
-	registerEnvironFetch(st, s)
 	registerBudgetVerbs(st, s)
 
 	registerBenchVerbs(st, s)

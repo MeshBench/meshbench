@@ -106,6 +106,7 @@ internal/app/       orchestration, no toolkit
   session/            the workbench without a user interface
     study/              coverage and validation verbs, wired in by init
     boundary/           the study-area verbs, wired in by init
+    environ/            the environ.fetch verb, wired in by init
     domains/            blank-imports the split-out domains so their init runs
   fixture/            the on-disk form of a whole setup
   resource/           what is downloaded at runtime, and what it cost the disk

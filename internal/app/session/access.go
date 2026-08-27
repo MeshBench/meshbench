@@ -139,6 +139,11 @@ func NamedField(p any, name string) (string, bool)  { return namedField(p, name)
 func BadParams(format string, args ...any) error    { return badParams(format, args...) }
 func StateNodes(nodes []scenario.Node) []state.Node { return stateNodes(nodes) }
 
+// Finishing is the context a verb uses to report how a job ended even as the
+// job's own context is being cancelled - the shared helper the split-out
+// domains' long-running pulls need.
+func Finishing(ctx context.Context) (context.Context, context.CancelFunc) { return finishing(ctx) }
+
 // SetCoverageCells records the operator's coverage-raster resolution, on the
 // Sim and in the preferences both, for the study verbs that let it be chosen.
 func (s *Sim) SetCoverageCells(n int) {

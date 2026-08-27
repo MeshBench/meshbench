@@ -5,7 +5,7 @@
 // loaded network, and test buildings without leaving the application. Only
 // data crosses the network, the result is cached permanently like terrain,
 // and a pull that would be enormous fails loudly rather than trying.
-package session
+package environ
 
 import (
 	"context"
@@ -22,8 +22,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
-	"github.com/MeshBench/meshbench/internal/rf/environ"
+	worldenv "github.com/MeshBench/meshbench/internal/rf/environ"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
@@ -171,7 +172,7 @@ func environCacheDir(source string, patches []llBox) (string, error) {
 // lays tiles out as z<zoom>/x/y.jsonl.gz, so the zoom directory existing
 // with anything in it is the fact that matters.
 func hasTiles(dir string) bool {
-	entries, err := os.ReadDir(filepath.Join(dir, fmt.Sprintf("z%d", environ.TileZoom)))
+	entries, err := os.ReadDir(filepath.Join(dir, fmt.Sprintf("z%d", worldenv.TileZoom)))
 	return err == nil && len(entries) > 0
 }
 
@@ -280,21 +281,21 @@ func overpassToNDJSON(body io.Reader, seen map[int64]bool) (io.Reader, int, erro
 // fetchEnviron is the pull, run off the store's goroutine: resolve, download,
 // ingest into the cache, then hand the directory to rf.environment exactly as
 // if the operator had typed it.
-func (s *Sim) fetchEnviron(ctx context.Context, source string, patches []llBox,
-	progress func(done, total int)) (string, environ.IngestStats, error) {
+func fetchEnviron(s *session.Sim, ctx context.Context, source string, patches []llBox,
+	progress func(done, total int)) (string, worldenv.IngestStats, error) {
 	dir, err := environCacheDir(source, patches)
 	if err != nil {
-		return "", environ.IngestStats{}, err
+		return "", worldenv.IngestStats{}, err
 	}
 	if hasTiles(dir) {
-		return dir, environ.IngestStats{}, nil
+		return dir, worldenv.IngestStats{}, nil
 	}
 	var rd io.Reader
 	var done func()
 	switch source {
 	case "osm":
 		if a := patchesAreaKm2(patches); a > overpassMaxKm2 {
-			return "", environ.IngestStats{}, fmt.Errorf(
+			return "", worldenv.IngestStats{}, fmt.Errorf(
 				"the node patches sum to %.0f km2, past the %.0f km2 a live "+
 					"Overpass pull is fair for; prepare the region offline with tools/envgen",
 				a, float64(overpassMaxKm2))
@@ -307,7 +308,7 @@ func (s *Sim) fetchEnviron(ctx context.Context, source string, patches []llBox,
 	case "microsoft":
 		files, uerr := microsoftFiles(ctx, patches)
 		if uerr != nil {
-			return "", environ.IngestStats{}, uerr
+			return "", worldenv.IngestStats{}, uerr
 		}
 		rd, done, err = microsoftNDJSON(ctx, files, patches,
 			func(d int) { progress(d, len(files)+1) })
@@ -316,7 +317,7 @@ func (s *Sim) fetchEnviron(ctx context.Context, source string, patches []llBox,
 		// height, OSM tags for what it explicitly knows, explicit over
 		// inferred. Both halves' caps apply, because both halves are pulled.
 		if a := patchesAreaKm2(patches); a > overpassMaxKm2 {
-			return "", environ.IngestStats{}, fmt.Errorf(
+			return "", worldenv.IngestStats{}, fmt.Errorf(
 				"the node patches sum to %.0f km2, past the %.0f km2 a live "+
 					"Overpass pull is fair for; prepare the region offline with tools/envgen",
 				a, float64(overpassMaxKm2))
@@ -328,50 +329,50 @@ func (s *Sim) fetchEnviron(ctx context.Context, source string, patches []llBox,
 			progress(done, total+1)
 		})
 		if oerr != nil {
-			return "", environ.IngestStats{}, oerr
+			return "", worldenv.IngestStats{}, oerr
 		}
 		files, uerr := microsoftFiles(ctx, patches)
 		if uerr != nil {
-			return "", environ.IngestStats{}, uerr
+			return "", worldenv.IngestStats{}, uerr
 		}
 		ms, msDone, merr := microsoftNDJSON(ctx, files, patches,
 			func(d int) { progress(d, len(files)+1) })
 		if merr != nil {
-			return "", environ.IngestStats{}, merr
+			return "", worldenv.IngestStats{}, merr
 		}
 		defer msDone()
-		var mstats environ.MergeStats
-		rd, mstats, err = environ.MergeGeoJSON(ms, osm)
+		var mstats worldenv.MergeStats
+		rd, mstats, err = worldenv.MergeGeoJSON(ms, osm)
 		if err == nil && mstats.Primary+mstats.Enrich == 0 {
 			err = fmt.Errorf("neither source has buildings in this map's area")
 		}
 	default:
-		return "", environ.IngestStats{}, fmt.Errorf(
+		return "", worldenv.IngestStats{}, fmt.Errorf(
 			"no building database %q; there is merged, osm and microsoft", source)
 	}
 	if err != nil {
-		return "", environ.IngestStats{}, err
+		return "", worldenv.IngestStats{}, err
 	}
 	if done != nil {
 		defer done()
 	}
-	stats, err := environ.IngestGeoJSON(rd, dir, "uk")
+	stats, err := worldenv.IngestGeoJSON(rd, dir, "uk")
 	if err != nil {
 		return "", stats, err
 	}
 	return dir, stats, nil
 }
 
-func registerEnvironFetch(st *state.Store, s *Sim) {
+func registerEnvironFetch(st *state.Store, s *session.Sim) {
 	// environ.fetch: pull a building database for the loaded map, cache it,
 	// and switch it on. The heavy part runs as a job; what lands back on the
 	// store's goroutine is only the outcome.
 	st.Handle("environ.fetch", func(w *state.World, p any) (any, error) {
-		source, _ := stringField(p, "source")
+		source, _ := session.StringField(p, "source")
 		if source == "" {
 			source = "osm"
 		}
-		patches, err := environPatches(s.nodes)
+		patches, err := environPatches(s.Nodes())
 		if err != nil {
 			return nil, err
 		}
@@ -387,13 +388,13 @@ func registerEnvironFetch(st *state.Store, s *Sim) {
 			"nodes, %.0f km2", source, len(patches), patchesAreaKm2(patches)))
 		go func() {
 			defer stop()
-			dir, stats, err := s.fetchEnviron(ctx, source, patches,
+			dir, stats, err := fetchEnviron(s, ctx, source, patches,
 				func(done, total int) {
 					_, _ = st.Do(ctx, "job.progress", state.Job{
 						ID: id, What: what, Done: done, Total: total})
 				})
 			// Saying how it ended has to survive the thing that ended it.
-			done, release := finishing(ctx)
+			done, release := session.Finishing(ctx)
 			defer release()
 			if err != nil {
 				// A stop is not a failure. Reporting one as the other teaches
@@ -438,18 +439,18 @@ func registerEnvironFetch(st *state.Store, s *Sim) {
 			}
 		}
 		sort.Strings(dirs)
-		return map[string]any{"dirs": dirs, "current": s.envDir}, nil
+		return map[string]any{"dirs": dirs, "current": s.EnvDir()}, nil
 	})
 
 	st.Handle("environ.fetched", func(w *state.World, p any) (any, error) {
-		w.Jobs = finishJob(w.Jobs, "environ-fetch")
-		w.Say("footprints ready: " + soleString(p))
+		w.Jobs = session.FinishJob(w.Jobs, "environ-fetch")
+		w.Say("footprints ready: " + session.SoleString(p))
 		return nil, nil
 	})
 
 	st.Handle("environ.failed", func(w *state.World, p any) (any, error) {
-		w.Jobs = finishJob(w.Jobs, "environ-fetch")
-		w.Say("building pull failed: " + soleString(p))
+		w.Jobs = session.FinishJob(w.Jobs, "environ-fetch")
+		w.Say("building pull failed: " + session.SoleString(p))
 		return nil, nil
 	})
 }
