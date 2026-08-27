@@ -42,9 +42,16 @@ tools/armfw/build/
 
 # Tool binaries built at the repo root by `go build ./tools/...`. They shadow
 # the packages they are built from, so tab-completing the name gets the binary.
+# Every `package main` under tools/ produces one, named after its directory; the
+# list is the whole set, because a missing one sits untracked in `git status`
+# until a `git add -A` sweeps it in - which is how eleven Python artifacts got
+# committed once, and how these four kept reappearing.
+/clientgen
 /envgen
 /goldencap
-/meshbench
+/licgen
+/mockup
+/render
 
 # built test binaries
 *.test
