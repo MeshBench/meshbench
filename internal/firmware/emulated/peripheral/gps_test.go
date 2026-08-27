@@ -1,4 +1,4 @@
-package emulated
+package peripheral
 
 import (
 	"strings"

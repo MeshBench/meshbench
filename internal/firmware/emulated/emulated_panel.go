@@ -1,5 +1,7 @@
 package emulated
 
+import "github.com/MeshBench/meshbench/internal/firmware/emulated/peripheral"
+
 // What somebody can see on an emulated board, and what they can do to it.
 //
 // Kept beside the node rather than inside it because they are one shape of
@@ -27,7 +29,7 @@ func (e *EmulatedNode) Screen() (width, height, bpp int, on bool, bits []byte, h
 // PressButton holds one of this board's buttons down or lets it go.
 func (e *EmulatedNode) PressButton(pin int, down bool) error {
 	if e.Buttons == nil {
-		return ErrNoButtons()
+		return peripheral.ErrNoButtons()
 	}
 	return e.Buttons.Press(pin, down)
 }
@@ -40,7 +42,7 @@ func (e *EmulatedNode) ButtonHeld(pin int) bool {
 // TypeKey types one character at this board's keyboard.
 func (e *EmulatedNode) TypeKey(ch byte) error {
 	if e.Buttons == nil {
-		return ErrNoButtons()
+		return peripheral.ErrNoButtons()
 	}
 	return e.Buttons.Key(ch)
 }
@@ -48,7 +50,7 @@ func (e *EmulatedNode) TypeKey(ch byte) error {
 // TouchScreen reports where this board's panel is being touched.
 func (e *EmulatedNode) TouchScreen(x, y int, down bool) error {
 	if e.Buttons == nil {
-		return ErrNoButtons()
+		return peripheral.ErrNoButtons()
 	}
 	return e.Buttons.Touch(x, y, down)
 }
@@ -61,7 +63,7 @@ func (e *EmulatedNode) TouchScreen(x, y int, down bool) error {
 // channel per board is what keeps it that way.
 func (e *EmulatedNode) SetMeter(channel int, raw uint16) error {
 	if e.Buttons == nil {
-		return ErrNoButtons()
+		return peripheral.ErrNoButtons()
 	}
 	e.BatRaw = raw
 	return e.Buttons.Analog(channel, raw)

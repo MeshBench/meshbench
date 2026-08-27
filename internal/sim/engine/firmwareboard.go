@@ -11,6 +11,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/firmware"
 	hw "github.com/MeshBench/meshbench/internal/firmware/board"
 	"github.com/MeshBench/meshbench/internal/firmware/emulated"
+	"github.com/MeshBench/meshbench/internal/firmware/emulated/peripheral"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
@@ -197,7 +198,7 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*emulated.Emulat
 		}
 		meter, hasMeter := batteryMeter(board)
 		if len(pins) > 0 || kbd != 0 || touch != 0 || hasMeter {
-			bs, err := emulated.ListenButtons(filepath.Join(dir, "buttons.sock"))
+			bs, err := peripheral.ListenButtons(filepath.Join(dir, "buttons.sock"))
 			if err != nil {
 				return nil, fmt.Errorf("engine: listening for %s's inputs: %w", spec.Name, err)
 			}
@@ -247,7 +248,7 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*emulated.Emulat
 	// rather than from a log, so there is one place the node is and both the
 	// channel and the handheld read it.
 	if p := board.Hardware; p != nil && len(p.PartsOfKind(hw.GPS)) > 0 {
-		g, err := emulated.ListenGPS(filepath.Join(dir, "gps.sock"),
+		g, err := peripheral.ListenGPS(filepath.Join(dir, "gps.sock"),
 			spec.Position.Lat, spec.Position.Lon, spec.HeightAGLm, gpsEpoch)
 		if err != nil {
 			return nil, fmt.Errorf("engine: listening for %s's receiver: %w", spec.Name, err)
@@ -262,7 +263,7 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*emulated.Emulat
 	// is what it does today and is honest about it.
 	if p := board.Hardware; p != nil && p.Screen != nil &&
 		(p.Screen.Bus == hw.BusI2C || p.Screen.Bus == hw.BusSPI) {
-		ln, err := emulated.ListenPanel(filepath.Join(dir, "panel.sock"))
+		ln, err := peripheral.ListenPanel(filepath.Join(dir, "panel.sock"))
 		if err != nil {
 			return nil, fmt.Errorf("engine: listening for %s's display: %w", spec.Name, err)
 		}
