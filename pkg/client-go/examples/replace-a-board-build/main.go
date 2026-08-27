@@ -1,6 +1,6 @@
 // Build a board image from its own repository and put the new one on a node.
 //
-//	WADAMESH=~/src/wadamesh go run ./clients/go/examples/replace-a-board-build
+//	WADAMESH=~/src/wadamesh go run ./pkg/client-go/examples/replace-a-board-build
 //
 // Run it again after a change and it reuses the session already open: pause,
 // swap the firmware, delete the build it replaced, carry on. Needs a display,
@@ -16,7 +16,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/MeshBench/meshbench/clients/go/meshbench"
+	"github.com/MeshBench/meshbench/pkg/client-go/meshbench"
 )
 
 const (

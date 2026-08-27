@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/MeshBench/meshbench/clients/go/meshbench"
+	"github.com/MeshBench/meshbench/pkg/client-go/meshbench"
 )
 
 // Build a small network and run it, with no window anywhere.

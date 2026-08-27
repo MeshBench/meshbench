@@ -1,6 +1,7 @@
 // The layout map, enforced.
 //
-// CLAUDE.md carries a table of every package under internal/ and what it holds,
+// CLAUDE.md carries a table of every package under internal/ and pkg/ and what
+// it holds,
 // and states the rule in as many words: "A new package updates it in the same
 // commit - the map being wrong is worse than the map being short." That rule
 // was broken the week it was written, by a package that shipped without its
@@ -27,7 +28,7 @@ import (
 // mapEntry matches a line of the table: two spaces, the package name, a
 // trailing slash, then whitespace and its description. The layer headings
 // themselves start at column zero and so do not match.
-var mapEntry = regexp.MustCompile(`(?m)^ {2}([a-z][a-z0-9]*)/\s+\S`)
+var mapEntry = regexp.MustCompile(`(?m)^ {2}([a-z][a-z0-9-]*)/\s+\S`)
 
 // layerEntry matches a layer's own heading, which sits at column zero as
 // "internal/rf/" rather than being indented like the packages beneath it.
@@ -93,6 +94,22 @@ func TestLayoutMapMatchesTheTree(t *testing.T) {
 			t.Errorf("the layer internal/%s has no entry in CLAUDE.md's layout map", layer.Name())
 		}
 		found[layer.Name()] = true
+	}
+
+	// pkg/ is the public surface, and the map lists it the same way. Enforce it
+	// the same way too: a public package with no entry fails, and an entry
+	// naming one that has gone fails.
+	if pkgs, err := os.ReadDir(filepath.Join("..", "pkg")); err == nil {
+		for _, pkg := range pkgs {
+			if !pkg.IsDir() || strings.HasPrefix(pkg.Name(), "testdata") {
+				continue
+			}
+			found[pkg.Name()] = true
+			if !mapped[pkg.Name()] {
+				t.Errorf("pkg/%s has no entry in CLAUDE.md's layout map.\n"+
+					"A new public package updates the map in the same commit.", pkg.Name())
+			}
+		}
 	}
 
 	for name := range mapped {

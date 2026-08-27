@@ -1,7 +1,7 @@
 // Example 3 from #209: two repeaters, two companions, one of them a T-Deck,
 // and a message to the public channel every twenty seconds.
 //
-//	go run ./clients/go/examples/small-mesh-with-traffic
+//	go run ./pkg/client-go/examples/small-mesh-with-traffic
 //
 // Needs a display: it opens the workbench so you can watch the traffic move.
 //
@@ -18,7 +18,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/MeshBench/meshbench/clients/go/meshbench"
+	"github.com/MeshBench/meshbench/pkg/client-go/meshbench"
 )
 
 var mesh = []meshbench.Placement{

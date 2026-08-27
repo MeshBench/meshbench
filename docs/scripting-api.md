@@ -13,7 +13,7 @@ Three documents:
   complete in both directions.
 
 Written against `210d9ec`. **This describes what is being built, not what
-exists.** Nothing in `clients/` is written yet — the issues under #209 are the
+exists.** Nothing in `pkg/` is written yet — the issues under #209 are the
 work, and this is the thing they are held to.
 
 ---
@@ -55,8 +55,8 @@ A third is deliberately not being written; the reasoning is on #209 and in
 [#219](https://github.com/MeshBench/meshbench/issues/219). The generator still
 emits two from the start, which is what keeps a third cheap.
 
-They live side by side, as peers: `clients/go/meshbench` and
-`clients/python/meshbench`, with runnable examples under `clients/*/examples`.
+They live side by side, as peers: `pkg/client-go/meshbench` and
+`pkg/client-python/meshbench`, with runnable examples under `pkg/client-*/examples`.
 Neither wraps the other; both speak the socket.
 
 ### Naming

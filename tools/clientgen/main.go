@@ -37,8 +37,8 @@ func main() {
 		fail(err)
 	}
 	for path, body := range map[string][]byte{
-		filepath.Join(root, "clients", "go", "meshbench", "sets_gen.go"): goSets(),
-		filepath.Join(root, "clients", "python", "meshbench", "sets.py"): pySets(),
+		filepath.Join(root, "pkg", "client-go", "meshbench", "sets_gen.go"): goSets(),
+		filepath.Join(root, "pkg", "client-python", "meshbench", "sets.py"): pySets(),
 	} {
 		if *check {
 			have, err := os.ReadFile(path) //nolint:gosec // a path this program chose

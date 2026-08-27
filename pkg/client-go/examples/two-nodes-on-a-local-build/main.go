@@ -1,7 +1,7 @@
 // A fixture trimmed to two, both on a build from a MeshCore checkout - and
 // re-runnable without clearing anything down.
 //
-//	go run ./clients/go/examples/two-nodes-on-a-local-build ~/src/MeshCore
+//	go run ./pkg/client-go/examples/two-nodes-on-a-local-build ~/src/MeshCore
 //
 // The interesting half is the second run. It attaches to the workbench the
 // first one left, stops the clock, rebuilds, repoints the nodes and starts
@@ -16,7 +16,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/MeshBench/meshbench/clients/go/meshbench"
+	"github.com/MeshBench/meshbench/pkg/client-go/meshbench"
 )
 
 // Outskirts of Glasgow, and Glenrothes.

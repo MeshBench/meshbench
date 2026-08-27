@@ -14,7 +14,7 @@
 *.sigmf-data
 *.cf32
 
-# Python build artifacts, from the client under clients/python and from
+# Python build artifacts, from the client under pkg/client-python and from
 # anything that imports it. Reproducible from the source beside them, and here
 # rather than beside the client because a test run leaves them in the working
 # tree and the next `git add -A` on any branch picks them up - which is exactly
@@ -24,8 +24,8 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 .ruff_cache/
-/clients/python/build/
-/clients/python/dist/
+/pkg/client-python/build/
+/pkg/client-python/dist/
 /.venv/
 /venv/
 

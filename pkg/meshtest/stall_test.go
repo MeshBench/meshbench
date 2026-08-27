@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MeshBench/meshbench/meshtest"
+	"github.com/MeshBench/meshbench/pkg/meshtest"
 )
 
 // A client that connects and never reads must not stop the mesh.

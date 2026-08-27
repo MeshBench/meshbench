@@ -5,7 +5,7 @@ description: Write and debug scripts that drive the MeshBench workbench from out
 
 # Scripting the workbench
 
-Two clients — `clients/python/meshbench` and `clients/go/meshbench` — over a
+Two clients — `pkg/client-python/meshbench` and `pkg/client-go/meshbench` — over a
 line-delimited JSON socket. They are peers; neither wraps the other. Examples
 live beside each, one per directory, and `go build ./...` compiles the Go ones
 so a broken example is a red build rather than something somebody finds by
