@@ -6,7 +6,7 @@
 // "put this one back and leave the others" is a question somebody actually
 // has: a node configured into a state it will not come out of, in a network of
 // forty that are fine.
-package session
+package nodewipe
 
 import (
 	"fmt"
@@ -14,11 +14,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/firmware"
 )
 
-func registerNodeWipe(st *state.Store, s *Sim) {
+func registerNodeWipe(st *state.Store, s *session.Sim) {
 	st.HandleSpec("node.wipe", state.Spec{
 		What: "erase one node's stored state: its flash, its card and its files",
 		Params: []state.Param{
@@ -27,19 +28,19 @@ func registerNodeWipe(st *state.Store, s *Sim) {
 		},
 		Returns: []string{"node", "wiped", "removed"},
 	}, func(w *state.World, p any) (any, error) {
-		name, _ := stringField(p, "node")
+		name, _ := session.StringField(p, "node")
 		if name == "" {
-			return nil, badParams("node.wipe needs a node")
+			return nil, session.BadParams("node.wipe needs a node")
 		}
-		if _, err := s.nodeIsEmulated(w, name); err != nil {
+		if _, err := s.NodeIsEmulated(w, name); err != nil {
 			return nil, err
 		}
 		// Refused while it is running, rather than racing the emulator for its
 		// own flash file. A wipe that half-succeeded against a live machine
 		// would leave a chip whose partition table and contents disagree, and
 		// the board would fail to boot for a reason nothing recorded.
-		if s.eng != nil {
-			if n, ok := s.eng.NodeByName(name); ok && n.Firmware != nil {
+		if s.Engine() != nil {
+			if n, ok := s.Engine().NodeByName(name); ok && n.Firmware != nil {
 				return nil, fmt.Errorf(
 					"%s is running: stop it before wiping, or its flash would be "+
 						"rewritten underneath the emulator", name)
@@ -69,9 +70,9 @@ func registerNodeWipe(st *state.Store, s *Sim) {
 		// put back to factory with its storage intact is not back to factory:
 		// the firmware finds its old settings on the card and nothing says
 		// why.
-		if i, ok := s.nodeIndex(name); ok && s.nodes[i].CardFile != "" {
-			if err := os.Remove(s.nodes[i].CardFile); err == nil {
-				removed = append(removed, filepath.Base(s.nodes[i].CardFile))
+		if i, ok := s.NodeIndex(name); ok && s.Nodes()[i].CardFile != "" {
+			if err := os.Remove(s.Nodes()[i].CardFile); err == nil {
+				removed = append(removed, filepath.Base(s.Nodes()[i].CardFile))
 			}
 		}
 		w.Say("wiped " + name + "'s stored settings")

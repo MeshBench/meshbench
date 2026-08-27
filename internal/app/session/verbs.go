@@ -457,7 +457,6 @@ func Register(st *state.Store, s *Sim) {
 	registerImportFeedVerbs(st, s)
 	registerNodeFirmwareVerbs(st, s)
 	registerNodeOutput(st, s)
-	registerNodeWipe(st, s)
 	registerNodeCard(st, s)
 	registerNodeOutputWindow(st, s)
 	registerBoardScreenshot(st, s)

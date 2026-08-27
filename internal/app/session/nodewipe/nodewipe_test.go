@@ -1,10 +1,12 @@
-package session
+package nodewipe_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
+	_ "github.com/MeshBench/meshbench/internal/app/session/nodewipe"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/firmware"
 )
@@ -14,7 +16,7 @@ import (
 // firmware.wipe has always been every node at once, which was the only
 // granularity that made sense while an emulated node's flash was rewritten on
 // every start. Now that a board keeps what it was told, this is the question
-// somebody actually has.
+// somebody actually has. Pinned here because node.wipe moved out of session.
 func TestWipingOneNodeLeavesTheOthersAlone(t *testing.T) {
 	t.Setenv(firmware.EnvNodeFS, t.TempDir())
 	for _, n := range []string{"GB7XYZ", "GB7AAA"} {
@@ -36,9 +38,8 @@ func TestWipingOneNodeLeavesTheOthersAlone(t *testing.T) {
 	}
 
 	st := state.New(10)
-	s := &Sim{}
-	registerNodeOutput(st, s)
-	registerNodeWipe(st, s)
+	s := &session.Sim{}
+	session.Register(st, s)
 	st.Handle("test.nodes", func(w *state.World, p any) (any, error) {
 		w.Nodes = p.([]state.Node)
 		return nil, nil
