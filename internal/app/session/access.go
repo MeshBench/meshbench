@@ -143,8 +143,19 @@ func StateNodes(nodes []scenario.Node) []state.Node { return stateNodes(nodes) }
 // BoolField reads a named boolean parameter; NoSuchNode is the standard
 // not-found error; IsCompanionNode reports whether a named node is a companion.
 // Three more shared readers the split-out domains need.
-func BoolField(p any, name string) (bool, bool)               { return boolField(p, name) }
-func NoSuchNode(name string) error                            { return noSuchNode(name) }
+func BoolField(p any, name string) (bool, bool) { return boolField(p, name) }
+func NoSuchNode(name string) error              { return noSuchNode(name) }
+
+// CapturePath and CaptureLive are where frames are being written and streamed,
+// if anywhere; the capture verbs set and clear them.
+func (s *Sim) CapturePath() string     { return s.capturePath }
+func (s *Sim) SetCapturePath(p string) { s.capturePath = p }
+func (s *Sim) CaptureLive() string     { return s.captureLive }
+func (s *Sim) SetCaptureLive(a string) { s.captureLive = a }
+
+// Executable reports whether a path is an executable file, per platform - the
+// reader the capture package's dumpcap search needs.
+func Executable(path string) bool                             { return executable(path) }
 func IsCompanionNode(nodes []scenario.Node, name string) bool { return isCompanionNode(nodes, name) }
 
 // Provisioning is the current provisioning settings, created from the default

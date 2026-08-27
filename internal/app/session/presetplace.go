@@ -1,12 +1,8 @@
-// Capture, radio presets, and placing a node.
-//
-// The last of the old socket's vocabulary that does not need the study engine.
+// Radio presets and placing a node - the socket vocabulary that stays in core.
 package session
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/MeshBench/meshbench/internal/app/control"
 	"github.com/MeshBench/meshbench/internal/app/state"
@@ -15,93 +11,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
-func registerCapture(st *state.Store, s *Sim) {
-	// capture.file: the bytes, without a GUI.
-	//
-	// Diagnosing why a packet was not relayed needs the frame, not a window,
-	// and on a driven session there is often nobody at the screen to look at
-	// one.
-	st.Handle("capture.file", func(w *state.World, p any) (any, error) {
-		if s.eng == nil {
-			return nil, fmt.Errorf("no network loaded")
-		}
-		path, _ := stringField(p, "path")
-		if path == "" {
-			path = filepath.Join(os.TempDir(), "meshbench-capture.pcapng")
-		}
-		if err := s.eng.StartCapture(path); err != nil {
-			return nil, err
-		}
-		s.capturePath = path
-		w.Say("capturing to " + path)
-		return map[string]any{"path": path}, nil
-	})
-
-	// capture.wireshark: the same frames, streamed, with Wireshark opened on
-	// them.
-	//
-	// Loopback, not the udpdump extcap - see wireshark.go's own doc for why
-	// those are not interchangeable, however alike "port 5555" makes them
-	// look. All three parts, because any one missing is the feature not
-	// working: the stream Wireshark is actually capturing, both dissectors in
-	// the order that makes them agree with each other, and Wireshark started.
-	// It streams even when the last two fail, and says which of them did - a
-	// capture running with no window is recoverable by hand, and knowing that
-	// is the difference between a hint and a dead end.
-	st.Handle("capture.wireshark", func(w *state.World, p any) (any, error) {
-		if s.eng == nil {
-			return nil, fmt.Errorf("no network loaded")
-		}
-		if err := s.eng.StartCaptureUDP(captureUDPAddr); err != nil {
-			return nil, err
-		}
-		meshcoreLua, meshbenchLua := dissectorFiles()
-		out := map[string]any{
-			"addr": captureUDPAddr, "how": wiresharkHint(meshcoreLua, meshbenchLua),
-		}
-		switch {
-		case meshbenchLua == "":
-			// meshbench.lua is the one that registers on this port at all;
-			// without it Wireshark shows raw UDP payload, not a missing
-			// field here and there.
-			out["dissector_error"] = "tools/dissector/meshbench.lua was not found beside the binary"
-		case meshcoreLua == "":
-			out["dissector_warning"] = "tools/dissector/meshcore_dissector.lua was not found - " +
-				"MeshBench's own metadata will show, the MeshCore frame inside it will not"
-		}
-
-		bin := wiresharkBinary()
-		if bin == "" {
-			w.Say("streaming frames to " + captureUDPAddr + " - Wireshark is not installed, so run: " +
-				wiresharkHint(meshcoreLua, meshbenchLua))
-			out["launched"] = false
-			return out, nil
-		}
-		if why := launchWireshark(bin, meshcoreLua, meshbenchLua); why != "" {
-			w.Say("streaming to " + captureUDPAddr + ", but Wireshark would not start: " + why)
-			out["launched"] = false
-			out["launch_error"] = why
-			return out, nil
-		}
-		out["launched"] = true
-		s.captureLive = captureUDPAddr
-		w.Say("Wireshark is opening on " + captureUDPAddr)
-		return out, nil
-	})
-
-	st.Handle("capture.stop", func(w *state.World, _ any) (any, error) {
-		if s.eng == nil {
-			return nil, fmt.Errorf("no network loaded")
-		}
-		path, frames, err := s.eng.StopCapture()
-		if err != nil {
-			return nil, err
-		}
-		s.capturePath, s.captureLive = "", ""
-		w.Say(fmt.Sprintf("captured %d frames", frames))
-		return map[string]any{"path": path, "frames": frames}, nil
-	})
-
+func registerPresetsAndPlace(st *state.Store, s *Sim) {
 	// radio.preset: the modem configuration, which decides sensitivity and
 	// airtime and therefore every number downstream of them.
 	st.Handle("radio.preset", func(w *state.World, p any) (any, error) {
