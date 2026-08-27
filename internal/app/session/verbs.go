@@ -54,7 +54,6 @@ func Register(st *state.Store, s *Sim) {
 	registerRFMode(st, s)
 	registerRFRealism(st, s)
 	registerRFEnvironment(st, s)
-	registerProvisioningSettings(st, s)
 	registerRadioReconcile(st, s)
 	registerExperiment(st, s)
 	registerExperimentDone(st, s)
