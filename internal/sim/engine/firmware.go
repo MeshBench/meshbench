@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/firmware"
+	"github.com/MeshBench/meshbench/internal/firmware/native"
 )
 
 // AttachNative starts a real MeshCore build for every node that runs firmware.
@@ -184,7 +185,7 @@ func (e *Engine) AttachNativeProgress(ctx context.Context, seed uint64, progress
 					stderr = f
 				}
 			}
-			backend = &firmware.Native{
+			backend = &native.Native{
 				Path:    path,
 				Role:    string(role),
 				WorkDir: dir,

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/firmware"
+	"github.com/MeshBench/meshbench/internal/firmware/native"
 	"github.com/MeshBench/meshbench/internal/mesh/proto"
 )
 
@@ -39,7 +40,7 @@ func TestWhatKillsACompanion(t *testing.T) {
 
 	log := &bytes.Buffer{}
 	n, err := firmware.Start(context.Background(), "companion-1",
-		&firmware.Native{Seed: 4417, Role: "companion_radio", Log: log})
+		&native.Native{Seed: 4417, Role: "companion_radio", Log: log})
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
