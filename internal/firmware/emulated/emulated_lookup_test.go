@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	"github.com/MeshBench/meshbench/internal/firmware/emulated/renode"
 )
 
 // Renode unpacks into renode_<version>-portable/, and a zip cannot carry the
@@ -37,9 +39,9 @@ func TestLookupToolFindsRenodeInItsVersionedDirectory(t *testing.T) {
 	}
 
 	// The environment variable would short-circuit the search this is testing.
-	t.Setenv(EnvRenode, "")
+	t.Setenv(renode.EnvRenode, "")
 
-	got, err := lookupTool(EnvRenode, "renode")
+	got, err := lookupTool(renode.EnvRenode, "renode")
 	if err != nil {
 		t.Fatalf("renode not found with %s present: %v", bin, err)
 	}
