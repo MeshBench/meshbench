@@ -22,7 +22,7 @@ import (
 
 	fixturelib "github.com/MeshBench/meshbench/internal/app/fixture"
 	"github.com/MeshBench/meshbench/internal/app/session"
-	_ "github.com/MeshBench/meshbench/internal/app/session/study"
+	_ "github.com/MeshBench/meshbench/internal/app/session/domains"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/app/version"
 	"github.com/MeshBench/meshbench/internal/ui/comp"
