@@ -5,7 +5,7 @@
 // every infrastructure node over one shared grid and keeping, per cell, the
 // best two-way link anyone offers. One shared grid is not an optimisation:
 // rasters over different boxes cannot honestly be combined at all.
-package session
+package study
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"math"
 	"sync"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/rf/environ"
 	"github.com/MeshBench/meshbench/internal/rf/propagation"
@@ -35,9 +36,9 @@ const (
 )
 
 // coverageCells is the long edge the operator chose, or the default.
-func (s *Sim) coverageCells() int {
-	if s.covCells >= mapGridMin && s.covCells <= mapGridMax {
-		return s.covCells
+func coverageCells(s *session.Sim) int {
+	if s.CovCells() >= mapGridMin && s.CovCells() <= mapGridMax {
+		return s.CovCells()
 	}
 	return mapGridDefault
 }
@@ -95,47 +96,46 @@ func infrastructure(nodes []scenario.Node) []scenario.Node {
 	return out
 }
 
-func registerCoverageMap(st *state.Store, s *Sim) {
+func registerCoverageMap(st *state.Store, s *session.Sim) {
 	// coverage.resolution: how sharp the shared-grid rasters are. Persisted,
 	// because a resolution is a machine-and-patience choice, not a scenario's.
 	st.Handle("coverage.resolution", func(w *state.World, p any) (any, error) {
-		if v, ok := numField(p, "cells"); ok {
+		if v, ok := session.NumField(p, "cells"); ok {
 			cells := int(v)
 			if cells < mapGridMin || cells > mapGridMax {
 				return nil, fmt.Errorf("coverage resolution is %d to %d cells on the long edge",
 					mapGridMin, mapGridMax)
 			}
-			s.covCells = cells
+			s.SetCoverageCells(cells)
 			w.CoverageCells = cells
-			s.prefs.CoverageCells = cells
-			s.savePrefs()
+			s.SavePrefs()
 			w.Say(fmt.Sprintf("coverage rasters at %d cells on the long edge - "+
 				"cost scales with the square", cells))
 		}
-		return map[string]any{"cells": s.coverageCells()}, nil
+		return map[string]any{"cells": coverageCells(s)}, nil
 	})
 
 	st.Handle("coverage.map", func(w *state.World, p any) (any, error) {
-		return s.startCoverageMap(st, w, p)
+		return startCoverageMap(s, st, w, p)
 	})
 }
 
 // startCoverageMap is the one raster job: the whole network or a single
 // station ("coverage from this node" arrives here too), so there is one
 // code path - two would disagree about buildings within a week.
-func (s *Sim) startCoverageMap(st *state.Store, w *state.World, p any) (any, error) {
+func startCoverageMap(s *session.Sim, st *state.Store, w *state.World, p any) (any, error) {
 	painted := "the whole network"
-	infra := infrastructure(s.nodes)
+	infra := infrastructure(s.Nodes())
 	// From the params object only: stringField's bare-string case would
 	// otherwise read any stray string as a station name.
 	mp, _ := p.(map[string]any)
 	if name, _ := mp["station"].(string); name != "" {
 		infra = infra[:0]
-		for i := range s.nodes {
-			if s.nodes[i].Name == name ||
+		for i := range s.Nodes() {
+			if s.Nodes()[i].Name == name ||
 				(name == "selected" && i < len(w.Nodes) && w.Nodes[i].Selected) {
-				infra = append(infra[:0], s.nodes[i])
-				painted = s.nodes[i].Name
+				infra = append(infra[:0], s.Nodes()[i])
+				painted = s.Nodes()[i].Name
 				break
 			}
 		}
@@ -149,16 +149,16 @@ func (s *Sim) startCoverageMap(st *state.Store, w *state.World, p any) (any, err
 	// An explicit box wins - the raster-this-view button sends the
 	// borders somebody is actually looking at. Then the study boundary,
 	// then the network's own box.
-	south, sOK := numField(p, "south")
-	north, nOK := numField(p, "north")
-	west, wOK := numField(p, "west")
-	east, eOK := numField(p, "east")
+	south, sOK := session.NumField(p, "south")
+	north, nOK := session.NumField(p, "north")
+	west, wOK := session.NumField(p, "west")
+	east, eOK := session.NumField(p, "east")
 	if !sOK || !nOK || !wOK || !eOK {
 		var ok bool
 		south, north, west, east, ok = areasBox(w.Areas)
 		if !ok {
 			var err error
-			south, north, west, east, _, _, err = mapBox(s.nodes, s.coverageCells())
+			south, north, west, east, _, _, err = mapBox(s.Nodes(), coverageCells(s))
 			if err != nil {
 				return nil, err
 			}
@@ -169,8 +169,8 @@ func (s *Sim) startCoverageMap(st *state.Store, w *state.World, p any) (any, err
 	// A per-run resolution rides along with a viewport box - the map
 	// picks what looks sharp on the screen asking - without touching
 	// the saved knob.
-	edge := s.coverageCells()
-	if v, ok := numField(p, "cells"); ok && p != nil {
+	edge := coverageCells(s)
+	if v, ok := session.NumField(p, "cells"); ok && p != nil {
 		if c := int(v); c >= mapGridMin && c <= mapGridMax {
 			edge = c
 		}
@@ -186,20 +186,20 @@ func (s *Sim) startCoverageMap(st *state.Store, w *state.World, p any) (any, err
 			GainTowardsDBi: func(b, e float64) float64 { return n.Antenna.GainTowardsDBi(b, e) },
 		})
 	}
-	freq := s.freqMHz
+	freq := s.FreqMHz()
 	if freq <= 0 {
 		freq = 869.618
 	}
 	var env environ.Provider
-	if s.eng != nil && s.eng.Env != nil {
-		env = s.eng.Env
-	} else if s.envDir != "" {
-		env = environ.OpenTiles(s.envDir)
+	if s.Engine() != nil && s.Engine().Env != nil {
+		env = s.Engine().Env
+	} else if s.EnvDir() != "" {
+		env = environ.OpenTiles(s.EnvDir())
 	}
 	// Cache-only terrain: a raster that walks into the sea must draw
 	// a gap there, not stall a national job on tile downloads for
 	// water nobody radioed across. Missing ground is NoData, counted.
-	ground := s.terrainCached()
+	ground := s.TerrainCached()
 
 	const id = "coverage-map"
 	// One job, two phases: the terrain sampled once, then the cells.
@@ -289,11 +289,11 @@ func (s *Sim) startCoverageMap(st *state.Store, w *state.World, p any) (any, err
 			RemoteSensitivityDBm: -124, ProfileStepM: stepM,
 		}
 		var combined *coverage.Combined
-		if s.gpuWarm {
+		if s.GPUWarm() {
 			// The operator's one GPU switch, the warm's own rule: the
 			// device prices each station's whole grid at once, and a
 			// missing or dying device hands the job to the CPU twin.
-			if c, name, ok := s.coverageMapGPU(grid, stations, r, opts, extra,
+			if c, name, ok := coverageMapGPU(s, grid, stations, r, opts, extra,
 				func(what string, done, totalWork int) {
 					if totalWork < 1 {
 						totalWork = 1

@@ -4,7 +4,7 @@
 // compare. The calibration that comes out of it is the excess path loss term -
 // the same one whose absence made links cross the Lomond ridge - so this is
 // where a number to put in it comes from rather than a guess.
-package session
+package study
 
 import (
 	"context"
@@ -12,23 +12,24 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/world/provider"
 )
 
-func registerValidate(st *state.Store, s *Sim) {
+func registerValidate(st *state.Store, s *session.Sim) {
 	// validate.fetch: real receptions, replayed against the model.
 	st.Handle("validate.fetch", func(w *state.World, p any) (any, error) {
-		url, _ := stringField(p, "url")
-		if url == "" && s.imp != nil {
-			url = s.imp.url
+		url, _ := session.StringField(p, "url")
+		if url == "" && s.ImportURL() != "" {
+			url = s.ImportURL()
 		}
 		if url == "" {
 			return nil, fmt.Errorf("no source: set one with import.set_source")
 		}
 		url = strings.TrimRight(url, "/")
 		hours := 24.0
-		if v, ok := numField(p, "hours"); ok && v > 0 {
+		if v, ok := session.NumField(p, "hours"); ok && v > 0 {
 			hours = v
 		}
 		id := "validate"
@@ -65,7 +66,7 @@ func registerValidate(st *state.Store, s *Sim) {
 			// nothing at all.
 			byKey := map[string]string{}
 			names := map[string]bool{}
-			for _, n := range s.nodes {
+			for _, n := range s.Nodes() {
 				if k := strings.ToLower(n.PublicKey); k != "" {
 					byKey[k] = n.Name
 				}
@@ -142,8 +143,8 @@ func registerValidate(st *state.Store, s *Sim) {
 	})
 
 	st.Handle("validate.failed", func(w *state.World, p any) (any, error) {
-		msg := soleString(p)
-		w.Jobs = finishJob(w.Jobs, "validate")
+		msg := session.SoleString(p)
+		w.Jobs = session.FinishJob(w.Jobs, "validate")
 		w.Say("validate: " + msg)
 		return nil, nil
 	})
@@ -151,13 +152,13 @@ func registerValidate(st *state.Store, s *Sim) {
 	// validate.compare: what the model said against what was heard.
 	st.Handle("validate.compare", func(w *state.World, p any) (any, error) {
 		recs, _ := p.([]provider.Reception)
-		w.Jobs = finishJob(w.Jobs, "validate")
+		w.Jobs = session.FinishJob(w.Jobs, "validate")
 		if len(recs) == 0 {
 			return nil, fmt.Errorf("no observations in that window")
 		}
 		obs := observedFrom(recs)
 		w.Observed = obs
-		res := s.residualsOf(obs, w.Links, w.Nodes)
+		res := s.ResidualsOf(obs, w.Links, w.Nodes)
 		w.Residuals = res
 		if res == nil || res.Matched == 0 {
 			// The split is the diagnosis: names outside the scenario mean the
@@ -191,7 +192,7 @@ func registerValidate(st *state.Store, s *Sim) {
 			// 20 dB of measured clutter with 6 dB of leftover bias, and the
 			// model would come out 14 dB more optimistic for having been
 			// calibrated.
-			"suggested_excess_loss_db": maxFloat(0, s.excessLossDB+res.MedianDB),
+			"suggested_excess_loss_db": maxFloat(0, s.ExcessLossDB()+res.MedianDB),
 		}, nil
 	})
 
@@ -201,15 +202,15 @@ func registerValidate(st *state.Store, s *Sim) {
 		if w.Residuals != nil && w.Residuals.Matched > 0 {
 			// On top of the current term, because that is what the residuals
 			// measured: the links they were compared against already carried
-			// s.excessLossDB, so the median is the bias that term did not
+			// s.ExcessLossDB(), so the median is the bias that term did not
 			// cover. Setting the total *to* the median - which this once did -
 			// silently discarded the existing calibration and made a
 			// calibrated model more optimistic than an uncalibrated one.
 			// Repeated fetch-then-calibrate rounds converge: each fit is of
 			// what the previous round left over.
-			db, have = maxFloat(0, s.excessLossDB+w.Residuals.MedianDB), true
+			db, have = maxFloat(0, s.ExcessLossDB()+w.Residuals.MedianDB), true
 		}
-		if v, ok := numField(p, "db"); ok {
+		if v, ok := session.NumField(p, "db"); ok {
 			db, have = v, true
 		}
 		// Refuse rather than default. Called with nothing measured this used
@@ -223,14 +224,14 @@ func registerValidate(st *state.Store, s *Sim) {
 		if db < 0 {
 			return nil, fmt.Errorf("excess loss is a loss: %.1f dB would add signal", db)
 		}
-		s.excessLossDB, s.excessSet = db, true
+		s.SetExcessLoss(db, true)
 		w.ExcessLossDB, w.Calibrated = db, true
-		if len(s.nodes) > 0 {
-			if err := s.rebuild(w); err != nil {
+		if len(s.Nodes()) > 0 {
+			if err := s.Rebuild(w); err != nil {
 				return nil, err
 			}
 			w.Links = nil
-			s.warm(st, len(s.nodes))
+			s.Warm(st, len(s.Nodes()))
 		}
 		w.Say(fmt.Sprintf("excess path loss calibrated to %.1f dB; measuring links", db))
 		return map[string]any{"db": db, "links": len(w.Links)}, nil
@@ -239,17 +240,17 @@ func registerValidate(st *state.Store, s *Sim) {
 	// validate.uncalibrate: back to the default, which is a stated guess
 	// rather than a measurement.
 	st.Handle("validate.uncalibrate", func(w *state.World, _ any) (any, error) {
-		s.excessLossDB, s.excessSet = DefaultExcessLossDB, false
-		w.ExcessLossDB, w.Calibrated = DefaultExcessLossDB, false
-		if len(s.nodes) > 0 {
-			if err := s.rebuild(w); err != nil {
+		s.SetExcessLoss(session.DefaultExcessLossDB, false)
+		w.ExcessLossDB, w.Calibrated = session.DefaultExcessLossDB, false
+		if len(s.Nodes()) > 0 {
+			if err := s.Rebuild(w); err != nil {
 				return nil, err
 			}
 			w.Links = nil
-			s.warm(st, len(s.nodes))
+			s.Warm(st, len(s.Nodes()))
 		}
-		w.Say(fmt.Sprintf("excess path loss back to the %.1f dB default", float64(DefaultExcessLossDB)))
-		return map[string]any{"db": DefaultExcessLossDB}, nil
+		w.Say(fmt.Sprintf("excess path loss back to the %.1f dB default", float64(session.DefaultExcessLossDB)))
+		return map[string]any{"db": session.DefaultExcessLossDB}, nil
 	})
 }
 

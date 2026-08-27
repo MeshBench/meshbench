@@ -1,8 +1,9 @@
-package session
+package study
 
 import (
 	"testing"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
@@ -66,51 +67,27 @@ func TestInfrastructureExcludesPocketsAndObservers(t *testing.T) {
 // The resolution knob must move the shared grid, refuse nonsense, and leave
 // the default alone when unset.
 func TestCoverageResolutionGovernsTheGrid(t *testing.T) {
-	var s Sim
-	if got := s.coverageCells(); got != mapGridDefault {
+	var s session.Sim
+	if got := coverageCells(&s); got != mapGridDefault {
 		t.Fatalf("unset resolution gives %d, want the default %d", got, mapGridDefault)
 	}
-	s.covCells = 512
-	if got := s.coverageCells(); got != 512 {
+	s.SetCoverageCells(512)
+	if got := coverageCells(&s); got != 512 {
 		t.Fatalf("set resolution gives %d, want 512", got)
 	}
 	nodes := []scenario.Node{
 		nodeAt("a", scenario.SimpleRepeater, 56.0, -4.0),
 		nodeAt("b", scenario.SimpleRepeater, 56.2, -3.0),
 	}
-	_, _, _, _, w, _, err := mapBox(nodes, s.coverageCells())
+	_, _, _, _, w, _, err := mapBox(nodes, coverageCells(&s))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if w != 512 {
 		t.Fatalf("long edge %d, want the chosen 512", w)
 	}
-	s.covCells = 7 // out of range: the default answers, not the nonsense
-	if got := s.coverageCells(); got != mapGridDefault {
+	s.SetCoverageCells(7) // out of range: the default answers, not the nonsense
+	if got := coverageCells(&s); got != mapGridDefault {
 		t.Fatalf("out-of-range resolution gives %d, want the default", got)
-	}
-}
-
-// A node placed into a running mesh runs what the mesh runs; a mesh with
-// nothing to copy leaves the ref empty for sim.start's message to explain.
-func TestFirmwareOfNeighboursJoinsTheMesh(t *testing.T) {
-	ref := func(v string) scenario.FirmwareRef {
-		return scenario.FirmwareRef{Role: "repeater", Version: v}
-	}
-	nodes := []scenario.Node{
-		{Kind: scenario.SimpleRepeater, Firmware: ref("v1.17.1")},
-		{Kind: scenario.SimpleRepeater, Firmware: ref("v1.17.1")},
-		{Kind: scenario.AdvancedRepeater, Firmware: ref("v1.16.0")},
-		{Kind: scenario.Companion, Firmware: scenario.FirmwareRef{Role: "companion_radio", Version: "v9"}},
-	}
-	got := firmwareOfNeighbours(nodes, scenario.SimpleRepeater)
-	if got.Version != "v1.17.1" || got.Role != "repeater" {
-		t.Fatalf("joined with %+v, want the mesh's v1.17.1 repeater build", got)
-	}
-	if got := firmwareOfNeighbours(nodes, scenario.SDRObserver); got.Version != "" {
-		t.Fatalf("an observer got firmware %+v; it runs none", got)
-	}
-	if got := firmwareOfNeighbours(nil, scenario.SimpleRepeater); got.Version != "" {
-		t.Fatalf("an empty mesh invented firmware %+v", got)
 	}
 }

@@ -95,6 +95,7 @@ internal/app/       orchestration, no toolkit
   version/            what this build is, stamped by the release pipeline
   state/              the store, and the snapshots the renderer reads
   session/            the workbench without a user interface
+    study/              coverage and validation verbs, wired in by init
   fixture/            the on-disk form of a whole setup
   resource/           what is downloaded at runtime, and what it cost the disk
   control/            the unix socket another process drives it by

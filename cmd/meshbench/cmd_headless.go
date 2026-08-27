@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/app/session"
+	_ "github.com/MeshBench/meshbench/internal/app/session/study"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/app/version"
 )

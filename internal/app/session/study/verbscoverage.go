@@ -1,22 +1,23 @@
 // Coverage, terrain shading and the waterfall: the three things the map can
 // be asked to draw on top of itself, and the three that take long enough to
 // need a job and a failure verb each.
-package session
+package study
 
 import (
 	"context"
 	"fmt"
 	"math"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 )
 
-func registerCoverageVerbs(st *state.Store, s *Sim) {
+func registerCoverageVerbs(st *state.Store, s *session.Sim) {
 	st.Handle("coverage.compute", func(w *state.World, p any) (any, error) {
 		// The selected node unless told otherwise, because "coverage from
 		// here" is what somebody means when they have just clicked a node.
 		at := -1
-		if name := soleString(p); name != "" {
+		if name := session.SoleString(p); name != "" {
 			for i := range w.Nodes {
 				if w.Nodes[i].Name == name {
 					at = i
@@ -30,10 +31,10 @@ func registerCoverageVerbs(st *state.Store, s *Sim) {
 				}
 			}
 		}
-		if at < 0 || at >= len(s.nodes) {
+		if at < 0 || at >= len(s.Nodes()) {
 			return nil, fmt.Errorf("no node selected to compute coverage from")
 		}
-		n := s.nodes[at]
+		n := s.Nodes()[at]
 		// The whole-map job with a station list of one: the GPU fold, the
 		// buildings, the resolution knob and the percentage all arrive for
 		// free, where the 160-cell tile walk this replaced had none of
@@ -43,11 +44,11 @@ func registerCoverageVerbs(st *state.Store, s *Sim) {
 		// A floor under the resolution knob: 800 cells is ~150 m over the
 		// study box, which is what "coverage from here" is for - the knob
 		// can still push it higher for everything at once.
-		cells := s.coverageCells()
+		cells := coverageCells(s)
 		if cells < 800 {
 			cells = 800
 		}
-		return s.startCoverageMap(st, w, map[string]any{
+		return startCoverageMap(s, st, w, map[string]any{
 			"station": n.Name, "cells": float64(cells),
 			"south": n.Position.Lat - dLat, "north": n.Position.Lat + dLat,
 			"west": n.Position.Lon - dLon, "east": n.Position.Lon + dLon,
@@ -111,7 +112,7 @@ func registerCoverageVerbs(st *state.Store, s *Sim) {
 			ctx := context.Background()
 			_, _ = st.Do(ctx, "job.progress", state.Job{
 				ID: "shade", What: "shading the terrain in this view"})
-			sh, err := s.hillshade(box[0], box[1], box[2], box[3])
+			sh, err := s.Hillshade(box[0], box[1], box[2], box[3])
 			_, _ = st.Do(ctx, "job.done", "shade")
 			if err != nil || sh == nil {
 				_, _ = st.Do(ctx, "terrain.shade_failed", nil)
@@ -139,7 +140,7 @@ func registerCoverageVerbs(st *state.Store, s *Sim) {
 
 	st.Handle("waterfall.capture", func(w *state.World, p any) (any, error) {
 		at := -1
-		if name := soleString(p); name != "" {
+		if name := session.SoleString(p); name != "" {
 			for i := range w.Nodes {
 				if w.Nodes[i].Name == name {
 					at = i
@@ -157,7 +158,7 @@ func registerCoverageVerbs(st *state.Store, s *Sim) {
 		// samples through one FFT, not a national raster, and doing it inline
 		// means the capture is of the instant that was asked for rather than
 		// of whenever a goroutine got round to it.
-		img, note := s.capture(context.Background(), at)
+		img, note := s.Capture(context.Background(), at)
 		w.Waterfall, w.WaterfallNote = img, note
 		// Silence was the whole fault here. It answered "captured: false" and
 		// said nothing at all, so picking it from a menu looked exactly like
@@ -182,7 +183,7 @@ func registerCoverageVerbs(st *state.Store, s *Sim) {
 	})
 
 	st.Handle("coverage.failed", func(w *state.World, p any) (any, error) {
-		msg := soleString(p)
+		msg := session.SoleString(p)
 		w.Say("coverage failed: " + msg)
 		return nil, nil
 	})
