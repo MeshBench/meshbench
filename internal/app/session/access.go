@@ -143,6 +143,14 @@ func StateNodes(nodes []scenario.Node) []state.Node { return stateNodes(nodes) }
 // FindNode looks a node up in the snapshot by name, for the split-out domains.
 func FindNode(nodes []state.Node, name string) (state.Node, bool) { return findNode(nodes, name) }
 
+// NodeIsEmulated reports whether a named node runs under an emulator, and
+// NodeIndex finds a node's position in the scenario - shared node readers the
+// split-out node verbs need.
+func (s *Sim) NodeIsEmulated(w *state.World, name string) (bool, error) {
+	return s.nodeIsEmulated(w, name)
+}
+func (s *Sim) NodeIndex(name string) (int, bool) { return s.nodeIndex(name) }
+
 // BoolField reads a named boolean parameter; NoSuchNode is the standard
 // not-found error; IsCompanionNode reports whether a named node is a companion.
 // Three more shared readers the split-out domains need.

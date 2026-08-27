@@ -112,6 +112,7 @@ internal/app/       orchestration, no toolkit
     sweep/              the sweep verbs and their offered-load plan, wired in by init
     fleet/              the bulk node verbs, wired in by init
     nodelookup/         the node-finding verbs (search, near), wired in by init
+    nodewipe/           node.wipe - one node back to factory, wired in by init
     sdr/                the rtl_tcp observer server, state off Sim via the seam
     domains/            blank-imports the split-out domains so their init runs
   fixture/            the on-disk form of a whole setup
