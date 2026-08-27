@@ -70,6 +70,16 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*emulated.Emulat
 	if img.Role == "companion_radio" {
 		img.Transport = "usb"
 	}
+	// A BLE companion waits for a phone over Bluetooth, and there is none here.
+	// Left to the image lookup it would fail with "no image in the cache",
+	// which sends the operator downloading a build that could never run; say
+	// what is actually wrong and what to use instead.
+	if img.Role == string(scenario.RoleCompanionRadioBLE) {
+		return nil, fmt.Errorf(
+			"%s is a Bluetooth companion (companion_radio_ble); the emulator models "+
+				"no Bluetooth, so nothing could reach it - use companion_radio_usb instead",
+			spec.Name)
+	}
 	src := emulated.BoardImagePath(cache, img)
 	if _, err := os.Stat(src); err != nil {
 		// Not where a download would have put it, so ask what the cache
