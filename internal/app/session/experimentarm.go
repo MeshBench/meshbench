@@ -60,7 +60,7 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 
 	senders := map[string]bool{}
 	for _, n := range nodes {
-		n = withFirmware(n, SweepArm{
+		n = WithFirmware(n, SweepArm{
 			RepeaterVersion:  arm.RepeaterVersion,
 			CompanionVersion: arm.CompanionVersion,
 		})
