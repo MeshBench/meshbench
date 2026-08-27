@@ -1,5 +1,7 @@
 package session
 
+import "github.com/MeshBench/meshbench/internal/app/state"
+
 // DomainState decouples a split-out domain's state from the Sim struct.
 //
 // Study and boundary and the other early domains held no state of their own, so
@@ -15,16 +17,47 @@ package session
 // time; session never names the type, and the domain type-asserts the value it
 // gets back. mk runs at most once per key per Sim, under the lock, so two
 // goroutines racing to first-touch a domain still share one instance.
-func DomainState(s *Sim, key string, mk func() any) any {
+func DomainState[T any](s *Sim, key string, mk func() T) T {
 	s.domainStateMu.Lock()
 	defer s.domainStateMu.Unlock()
 	if s.domainState == nil {
 		s.domainState = map[string]any{}
 	}
-	v, ok := s.domainState[key]
-	if !ok {
-		v = mk()
-		s.domainState[key] = v
+	if v, ok := s.domainState[key]; ok {
+		// Same key, same maker, same type every call - the map is written only
+		// here, so this assert cannot fail.
+		return v.(T) //nolint:forcetypeassert // invariant held by this function
 	}
+	v := mk()
+	s.domainState[key] = v
 	return v
+}
+
+// teardowns run when the engine is torn down, before it is replaced; ticks run
+// once per store step, to re-describe a domain's live state into the snapshot.
+// Between them and DomainState, a domain that held a typed field on Sim and was
+// read by core lifecycle and tick code can move out entirely: its state lives
+// in DomainState, its cleanup in a teardown, and its per-tick snapshot refresh
+// in a tick - none of which makes core name the domain's type.
+var (
+	teardowns []func(*Sim)
+	ticks     []func(*Sim, *state.World)
+)
+
+// RegisterTeardown adds a reset run when the engine is torn down; RegisterTick
+// adds a per-step snapshot refresh. Both are called from a domain package's
+// init, and both run in registration order.
+func RegisterTeardown(f func(*Sim))           { teardowns = append(teardowns, f) }
+func RegisterTick(f func(*Sim, *state.World)) { ticks = append(ticks, f) }
+
+func runTeardowns(s *Sim) {
+	for _, f := range teardowns {
+		f(s)
+	}
+}
+
+func runTicks(s *Sim, w *state.World) {
+	for _, f := range ticks {
+		f(s, w)
+	}
 }

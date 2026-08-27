@@ -9,6 +9,7 @@ import (
 	_ "github.com/MeshBench/meshbench/internal/app/session/boundary"
 	_ "github.com/MeshBench/meshbench/internal/app/session/environ"
 	_ "github.com/MeshBench/meshbench/internal/app/session/fleet"
+	_ "github.com/MeshBench/meshbench/internal/app/session/sdr"
 	_ "github.com/MeshBench/meshbench/internal/app/session/study"
 	_ "github.com/MeshBench/meshbench/internal/app/session/sweep"
 )

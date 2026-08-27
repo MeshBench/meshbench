@@ -84,9 +84,6 @@ type Sim struct {
 	// run, and the list of verified boards could never grow past what it
 	// already holds. So the operator can lift the gate, and is told they have.
 	unverifiedWiring bool
-	// sdrServers is every node currently exposed as an rtl_tcp source,
-	// with the sample rate its stream was attached at.
-	sdrServers map[string]*sdrServer
 	// boardProbing is the single-flight guard on the capability matrix.
 	//
 	// Deliberately one at a time and never the whole fixture: a probe boots a
