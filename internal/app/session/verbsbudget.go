@@ -32,6 +32,9 @@ func registerBudgetVerbs(st *state.Store, s *Sim) {
 	// node.energy is energy.for_selection with the node named, for the node
 	// window's own December button.
 	st.Handle("node.energy", func(w *state.World, p any) (any, error) {
+		if !EnergyEnabled() {
+			return nil, ErrEnergyDisabled
+		}
 		name := soleString(p)
 		at := -1
 		for i := range w.Nodes {
@@ -60,6 +63,9 @@ func registerBudgetVerbs(st *state.Store, s *Sim) {
 	})
 
 	st.Handle("energy.for_selection", func(w *state.World, _ any) (any, error) {
+		if !EnergyEnabled() {
+			return nil, ErrEnergyDisabled
+		}
 		at := -1
 		for i := range w.Nodes {
 			if w.Nodes[i].Selected {

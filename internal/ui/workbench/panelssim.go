@@ -3,6 +3,7 @@ package workbench
 
 import (
 	"gioui.org/layout"
+	"github.com/MeshBench/meshbench/internal/app/session"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/ui/comp"
@@ -30,10 +31,15 @@ func addSimPanels(d panelDeps) {
 		Draw: func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
 			return comp.Matrix{}.Layout(t, gtx, s)
 		}}))
-	d.sh.Add(homed(&shell.Panel{Name: "Energy", Windowable: true,
-		Draw: func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
-			return comp.Energy{}.Layout(t, gtx, s)
-		}}))
+	// Energy monitoring is off until the model is trusted (#254); the panel
+	// only appears when the feature flag runs it, so nobody reads a worst-day
+	// figure the simulator does not yet stand behind.
+	if session.EnergyEnabled() {
+		d.sh.Add(homed(&shell.Panel{Name: "Energy", Windowable: true,
+			Draw: func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+				return comp.Energy{}.Layout(t, gtx, s)
+			}}))
+	}
 	wf := &comp.Waterfall{}
 	d.sh.Add(homed(&shell.Panel{Name: "Waterfall", Windowable: true,
 		Draw: func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
