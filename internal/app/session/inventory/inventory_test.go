@@ -1,4 +1,4 @@
-package session
+package inventory
 
 import (
 	"encoding/json"
