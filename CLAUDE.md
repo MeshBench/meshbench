@@ -71,8 +71,10 @@ internal/firmware/  running real firmware against the radio, native or emulated;
   board/              one board_<name>.go per real board, its wiring and parts
   native/             the native backend: MeshCore built for this host, run
                       as a child process
-  emulated/           the emulator runner: QEMU and Renode, the flash images
+  emulated/           the emulator runner: the node, the flash images, and what
                       a published image boots against
+    qemu/               the QEMU -machine argument, composed from a board's wiring
+    renode/             the Renode script fragments for the nRF52 boards
     peripheral/         the models a board wires - display, buttons, keyboard,
                         GPS, serial - each addressed by pin
   console/            the operator's terminal onto a running node

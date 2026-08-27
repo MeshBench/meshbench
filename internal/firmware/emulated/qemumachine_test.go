@@ -3,6 +3,8 @@ package emulated
 import (
 	"strings"
 	"testing"
+
+	"github.com/MeshBench/meshbench/internal/firmware/emulated/qemu"
 )
 
 // The coprocessor lie is off unless somebody asks for it.
@@ -20,7 +22,7 @@ func TestTheCoprocessorLieIsOptIn(t *testing.T) {
 		t.Errorf("the machine asks for enabled coprocessors by default: %s", got)
 	}
 
-	t.Setenv(EnvCoprocAtReset, "1")
+	t.Setenv(qemu.EnvCoprocAtReset, "1")
 	if got := e.machineString("radio.sock"); !strings.Contains(got, "cp-at-reset=on") {
 		t.Errorf("asking for it did not reach the machine: %s", got)
 	}
@@ -28,7 +30,7 @@ func TestTheCoprocessorLieIsOptIn(t *testing.T) {
 	// A value that plainly means no is no, so an exported "0" left in a shell
 	// does not quietly change what a board is.
 	for _, off := range []string{"0", "false", "FALSE", ""} {
-		t.Setenv(EnvCoprocAtReset, off)
+		t.Setenv(qemu.EnvCoprocAtReset, off)
 		if got := e.machineString("radio.sock"); strings.Contains(got, "cp-at-reset") {
 			t.Errorf("%q was read as yes: %s", off, got)
 		}
@@ -42,7 +44,7 @@ func TestTheCoprocessorLieIsOptIn(t *testing.T) {
 // that would be flattered by it. The environment stays as the way a script
 // forces it on for everything at once.
 func TestABuildCanAskForEnabledCoprocessorsItself(t *testing.T) {
-	t.Setenv(EnvCoprocAtReset, "")
+	t.Setenv(qemu.EnvCoprocAtReset, "")
 	plain := &EmulatedNode{Machine: "esp32s3", SPI: 3, NSS: 9, Busy: 13}
 	asked := &EmulatedNode{Machine: "esp32s3", SPI: 3, NSS: 9, Busy: 13,
 		CoprocAtReset: true}
