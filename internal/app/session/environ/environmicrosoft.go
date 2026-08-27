@@ -2,7 +2,7 @@
 // published as one gzipped GeoJSONL file per level-9 Bing quadkey, indexed by
 // a CSV of links. Resolving a pull is quadkey arithmetic; the rest is
 // downloads.
-package session
+package environ
 
 import (
 	"bufio"

@@ -1,4 +1,4 @@
-package session
+package environ
 
 import (
 	"context"
@@ -6,7 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/MeshBench/meshbench/internal/rf/environ"
+	"github.com/MeshBench/meshbench/internal/app/session"
+	worldenv "github.com/MeshBench/meshbench/internal/rf/environ"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
@@ -98,8 +99,8 @@ func TestOverpassAreaCapFailsLoudly(t *testing.T) {
 	if a := patchesAreaKm2(scotland()); a <= overpassMaxKm2 {
 		t.Fatalf("Scotland measures %.0f km2, which should exceed the cap", a)
 	}
-	var s Sim
-	_, _, err := s.fetchEnviron(context.Background(), "osm", scotland(), func(int, int) {})
+	var s session.Sim
+	_, _, err := fetchEnviron(&s, context.Background(), "osm", scotland(), func(int, int) {})
 	if err == nil || !strings.Contains(err.Error(), "envgen") {
 		t.Fatalf("an oversized pull must refuse and point at envgen, got %v", err)
 	}
@@ -111,8 +112,8 @@ func scotland() []llBox {
 }
 
 func TestFetchEnvironRefusesUnknownSource(t *testing.T) {
-	var s Sim
-	if _, _, err := s.fetchEnviron(context.Background(), "zillow", []llBox{{South: 56, North: 56.1, West: -3.1, East: -3}}, func(int, int) {}); err == nil {
+	var s session.Sim
+	if _, _, err := fetchEnviron(&s, context.Background(), "zillow", []llBox{{South: 56, North: 56.1, West: -3.1, East: -3}}, func(int, int) {}); err == nil {
 		t.Fatal("an unknown source must refuse")
 	}
 }
@@ -127,7 +128,7 @@ func TestHasTilesMatchesIngestLayout(t *testing.T) {
 	one := `{"type":"Feature","geometry":{"type":"Polygon","coordinates":` +
 		`[[[-3.0,56.0],[-3.0,56.0005],[-3.0005,56.0005],[-3.0,56.0]]]},` +
 		`"properties":{"building":"house"}}`
-	if _, err := environ.IngestGeoJSON(strings.NewReader(one), dir, "uk"); err != nil {
+	if _, err := worldenv.IngestGeoJSON(strings.NewReader(one), dir, "uk"); err != nil {
 		t.Fatal(err)
 	}
 	if !hasTiles(dir) {
@@ -136,8 +137,8 @@ func TestHasTilesMatchesIngestLayout(t *testing.T) {
 }
 
 func TestMergedSourceHonoursTheOverpassCap(t *testing.T) {
-	var s Sim
-	_, _, err := s.fetchEnviron(context.Background(), "merged", scotland(), func(int, int) {})
+	var s session.Sim
+	_, _, err := fetchEnviron(&s, context.Background(), "merged", scotland(), func(int, int) {})
 	if err == nil || !strings.Contains(err.Error(), "envgen") {
 		t.Fatalf("an oversized merged pull must refuse and point at envgen, got %v", err)
 	}
