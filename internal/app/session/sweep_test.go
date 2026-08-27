@@ -24,7 +24,7 @@ func TestAnArmPinsBothRoles(t *testing.T) {
 	}
 	got := map[string]string{}
 	for _, n := range nodes() {
-		got[n.Name] = withFirmware(n, arm).Firmware.Version
+		got[n.Name] = WithFirmware(n, arm).Firmware.Version
 	}
 	if got["rep"] != "repeater-v1.17.0" {
 		t.Errorf("repeater got %q", got["rep"])
@@ -47,7 +47,7 @@ func TestAnArmDoesNotEditTheScenario(t *testing.T) {
 	original := nodes()
 	arm := SweepArm{RepeaterVersion: "repeater-v1.16.0", CompanionVersion: "companion-v1.16.0"}
 	for _, n := range original {
-		_ = withFirmware(n, arm)
+		_ = WithFirmware(n, arm)
 	}
 	for _, n := range original {
 		if n.Firmware.Version != "" {
@@ -61,7 +61,7 @@ func TestAnArmDoesNotEditTheScenario(t *testing.T) {
 func TestAnEmptyArmChangesNothing(t *testing.T) {
 	n := scenario.Node{Name: "rep", Kind: scenario.SimpleRepeater}
 	n.Firmware.Version = "repeater-v1.17.0"
-	if got := withFirmware(n, SweepArm{Name: "load only"}).Firmware.Version; got != "repeater-v1.17.0" {
+	if got := WithFirmware(n, SweepArm{Name: "load only"}).Firmware.Version; got != "repeater-v1.17.0" {
 		t.Fatalf("an arm with no versions changed the pin to %q", got)
 	}
 }
