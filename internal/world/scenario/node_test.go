@@ -120,3 +120,57 @@ func TestObserverNodeBecomesAnInstrument(t *testing.T) {
 		t.Error("a repeater was handed out as an SDR observer")
 	}
 }
+
+// A companion is one application built for several transports. The role and the
+// transport are separate settings of it, and a firmware reference written the
+// old way - a composite role name - resolves to the same pair as one written
+// the new way, so the runner downstream compares one role and one transport
+// rather than four role strings (#256).
+func TestFirmwareRefCompanion(t *testing.T) {
+	cases := []struct {
+		name      string
+		ref       scenario.FirmwareRef
+		role      scenario.Role
+		transport string
+	}{
+		{
+			name:      "composite usb role",
+			ref:       scenario.FirmwareRef{Role: scenario.RoleCompanionRadioUSB},
+			role:      scenario.RoleCompanionRadio,
+			transport: "usb",
+		},
+		{
+			name:      "composite ble role",
+			ref:       scenario.FirmwareRef{Role: scenario.RoleCompanionRadioBLE},
+			role:      scenario.RoleCompanionRadio,
+			transport: "ble",
+		},
+		{
+			name:      "role and transport field agree",
+			ref:       scenario.FirmwareRef{Role: scenario.RoleCompanionRadio, Transport: "usb"},
+			role:      scenario.RoleCompanionRadio,
+			transport: "usb",
+		},
+		{
+			name:      "plain companion carries no transport of its own",
+			ref:       scenario.FirmwareRef{Role: scenario.RoleCompanionRadio},
+			role:      scenario.RoleCompanionRadio,
+			transport: "",
+		},
+		{
+			name:      "a non-companion role has no transport",
+			ref:       scenario.FirmwareRef{Role: scenario.RoleSimpleRepeater},
+			role:      scenario.RoleSimpleRepeater,
+			transport: "",
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			role, transport := c.ref.Companion()
+			if role != c.role || transport != c.transport {
+				t.Errorf("Companion() = (%q, %q), want (%q, %q)",
+					role, transport, c.role, c.transport)
+			}
+		})
+	}
+}
