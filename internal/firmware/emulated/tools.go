@@ -2,7 +2,7 @@
 //
 // Kept apart from the node itself because none of it is about a node: it is
 // about this machine, and what is installed on it.
-package firmware
+package emulated
 
 import (
 	"context"

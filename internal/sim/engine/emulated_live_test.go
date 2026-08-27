@@ -8,6 +8,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/firmware"
 	hw "github.com/MeshBench/meshbench/internal/firmware/board"
+	"github.com/MeshBench/meshbench/internal/firmware/emulated"
 	"github.com/MeshBench/meshbench/internal/rf/antenna"
 	"github.com/MeshBench/meshbench/internal/sim/engine"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
@@ -40,18 +41,18 @@ func TestEmulatedAndNativeShareAChannel(t *testing.T) {
 	// network mid-attach, because a scenario that quietly downloads a hundred
 	// megabytes when someone presses play is not one anybody trusts.
 	cache := firmware.DefaultCacheDir()
-	img := firmware.BoardImage{Board: board, Role: "simple_repeater",
+	img := emulated.BoardImage{Board: board, Role: "simple_repeater",
 		Version: version, Format: "bin"}
-	if _, err := os.Stat(firmware.BoardImagePath(cache, img)); err != nil {
-		bc := &firmware.BoardCatalogue{CacheDir: cache}
+	if _, err := os.Stat(emulated.BoardImagePath(cache, img)); err != nil {
+		bc := &emulated.BoardCatalogue{CacheDir: cache}
 		ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 		defer cancel()
 		all, err := bc.ListAll(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
-		var want firmware.BoardImage
-		for _, i := range firmware.Runnable(all, hw.EmulationSupported) {
+		var want emulated.BoardImage
+		for _, i := range emulated.Runnable(all, hw.EmulationSupported) {
 			if i.Board == board && i.Version == version && i.Role == "simple_repeater" {
 				want = i
 			}

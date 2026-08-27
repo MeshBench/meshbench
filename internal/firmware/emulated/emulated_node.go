@@ -1,4 +1,4 @@
-package firmware
+package emulated
 
 import (
 	"context"
@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/MeshBench/meshbench/internal/firmware"
 )
 
 // EnvQEMU overrides the emulator binary, and EnvRadioServer the radio model.
@@ -174,7 +176,7 @@ type EmulatedNode struct {
 
 	// console is where the serial port's output goes: the log file always, and
 	// whoever is currently listening as well.
-	console *consoleSink
+	console *firmware.ConsoleSink
 }
 
 func waitForPort(ctx context.Context, logPath string) (int, error) {
@@ -274,7 +276,7 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	}
 	e.radio = exec.CommandContext(ctx, radioBin, radioArgs...)
 	e.radio.Stdout, e.radio.Stderr = radioLog, radioLog
-	e.radio.SysProcAttr = childProcAttr()
+	e.radio.SysProcAttr = firmware.ChildProcAttr()
 	if err := e.radio.Start(); err != nil {
 		return fmt.Errorf("firmware: starting the radio model: %w", err)
 	}
@@ -327,7 +329,7 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 		_ = e.stopLocked()
 		return err
 	}
-	e.console = &consoleSink{file: conLog}
+	e.console = firmware.NewConsoleSink(conLog)
 	emuLog, err := os.Create(filepath.Join(e.Dir, emulatorLogName))
 	if err != nil {
 		_ = e.stopLocked()
@@ -397,7 +399,7 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	// The emulator dies with the simulator. Without this a workbench killed
 	// outright leaves a qemu-system-xtensa and a radioserver per node running,
 	// and the next run's radio socket is answered by the last run's model.
-	e.qemu.SysProcAttr = childProcAttr()
+	e.qemu.SysProcAttr = firmware.ChildProcAttr()
 	if err := e.qemu.Start(); err != nil {
 		_ = e.stopLocked()
 		return fmt.Errorf("firmware: starting the emulator: %w", err)
@@ -418,7 +420,7 @@ func (e *EmulatedNode) TeeConsole(w io.Writer) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.console != nil {
-		e.console.setTee(w)
+		e.console.SetTee(w)
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/firmware"
+	"github.com/MeshBench/meshbench/internal/firmware/emulated"
 )
 
 // Node is one node, as the interface needs it.
@@ -173,7 +174,7 @@ func (s *Screen) At(x, y int) (r, g, b uint8, ok bool) {
 	if s == nil || s.BPP != 16 || y < 0 || y >= s.Height {
 		return 0, 0, 0, false
 	}
-	return firmware.RGB565At(s.Bits, s.Width, x, y)
+	return emulated.RGB565At(s.Bits, s.Width, x, y)
 }
 
 // NodeSeries is one node's recent history, for its graphs.
@@ -399,7 +400,7 @@ type FirmwareRow struct {
 	// Facts is what reading the front of the image says about it, and
 	// Settings what has been decided about it. Both zero for a build that is
 	// not on disk, where there is nothing to read and nothing decided.
-	Facts    firmware.ImageFacts
+	Facts    emulated.ImageFacts
 	Settings firmware.BuildSettings
 }
 

@@ -58,13 +58,13 @@ func (i Installed) Label() string {
 	return i.Role + " " + i.Version + " (" + i.Board + ")"
 }
 
-// boardDir is where downloaded and imported board images live.
+// BoardDir is where downloaded and imported board images live.
 //
 // Separate from native/ because they are not interchangeable: one is an
 // executable for this machine and the other is a flash image for a particular
 // piece of hardware, and putting them in one directory invites running the
 // wrong one.
-const boardDir = "board"
+const BoardDir = "board"
 
 // ListInstalled reports every build in the cache, newest naming first.
 //
@@ -120,7 +120,7 @@ func listNative(cacheDir string) []Installed {
 }
 
 func listBoard(cacheDir string) []Installed {
-	root := filepath.Join(cacheDir, boardDir)
+	root := filepath.Join(cacheDir, BoardDir)
 	boards, err := os.ReadDir(root)
 	if err != nil {
 		return nil
@@ -268,7 +268,7 @@ func Import(cacheDir, src, version, role, board string) (Installed, error) {
 	if native {
 		dst = filepath.Join(cacheDir, "native", version, NativeBinaryName(role))
 	} else {
-		dst = filepath.Join(cacheDir, boardDir, board, role+labelSep+version+filepath.Ext(src))
+		dst = filepath.Join(cacheDir, BoardDir, board, role+labelSep+version+filepath.Ext(src))
 	}
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return Installed{}, err

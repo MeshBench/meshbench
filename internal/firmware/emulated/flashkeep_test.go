@@ -1,11 +1,11 @@
-package firmware_test
+package emulated_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/MeshBench/meshbench/internal/firmware"
+	"github.com/MeshBench/meshbench/internal/firmware/emulated"
 )
 
 // mergedImage writes a whole flash image declaring 2 MB.
@@ -38,7 +38,7 @@ func TestAFlashSurvivesARestartOnTheSameBuild(t *testing.T) {
 	dst := filepath.Join(dir, "flash.bin")
 	mergedImage(t, src, 0x01)
 
-	if _, err := firmware.PadImageKeeping(src, dst); err != nil {
+	if _, err := emulated.PadImageKeeping(src, dst); err != nil {
 		t.Fatal(err)
 	}
 	// What the board wrote while it was running: its identity, in the part of
@@ -53,7 +53,7 @@ func TestAFlashSurvivesARestartOnTheSameBuild(t *testing.T) {
 	}
 
 	// Started again on the same build.
-	if _, err := firmware.PadImageKeeping(src, dst); err != nil {
+	if _, err := emulated.PadImageKeeping(src, dst); err != nil {
 		t.Fatal(err)
 	}
 	again, err := os.ReadFile(dst)
@@ -66,7 +66,7 @@ func TestAFlashSurvivesARestartOnTheSameBuild(t *testing.T) {
 
 	// A different build is a reflash, and a reflashed board does start fresh.
 	mergedImage(t, src, 0x02)
-	if _, err := firmware.PadImageKeeping(src, dst); err != nil {
+	if _, err := emulated.PadImageKeeping(src, dst); err != nil {
 		t.Fatal(err)
 	}
 	fresh, err := os.ReadFile(dst)
@@ -89,13 +89,13 @@ func TestAMissingFlashIsRebuiltDespiteItsStamp(t *testing.T) {
 	src := filepath.Join(dir, "build.bin")
 	dst := filepath.Join(dir, "flash.bin")
 	mergedImage(t, src, 0x01)
-	if _, err := firmware.PadImageKeeping(src, dst); err != nil {
+	if _, err := emulated.PadImageKeeping(src, dst); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.Remove(dst); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := firmware.PadImageKeeping(src, dst); err != nil {
+	if _, err := emulated.PadImageKeeping(src, dst); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(dst); err != nil {

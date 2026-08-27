@@ -17,20 +17,20 @@ import (
 // held the port at boot, which is nobody.
 func TestTheSinkFeedsTheFileAndWhoeverIsListening(t *testing.T) {
 	var file, first, second bytes.Buffer
-	s := &consoleSink{file: &file}
+	s := &ConsoleSink{file: &file}
 
 	if _, err := s.Write([]byte("ets Jul 29 2019\n")); err != nil {
 		t.Fatalf("write with nobody listening: %v", err)
 	}
-	s.setTee(&first)
+	s.SetTee(&first)
 	if _, err := s.Write([]byte("boot ok\n")); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	s.setTee(&second)
+	s.SetTee(&second)
 	if _, err := s.Write([]byte("radio ok\n")); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	s.setTee(nil)
+	s.SetTee(nil)
 	if _, err := s.Write([]byte("after\n")); err != nil {
 		t.Fatalf("write: %v", err)
 	}
@@ -54,8 +54,8 @@ func TestTheSinkFeedsTheFileAndWhoeverIsListening(t *testing.T) {
 // depend on whether somebody is reading the output.
 func TestAFailingListenerDoesNotStopTheNode(t *testing.T) {
 	var file bytes.Buffer
-	s := &consoleSink{file: &file}
-	s.setTee(errWriter{})
+	s := &ConsoleSink{file: &file}
+	s.SetTee(errWriter{})
 	if _, err := s.Write([]byte("still printing\n")); err != nil {
 		t.Fatalf("a broken listener broke the node: %v", err)
 	}
@@ -67,7 +67,7 @@ func TestAFailingListenerDoesNotStopTheNode(t *testing.T) {
 // Output arrives on the pump's goroutine while the port changes hands on the
 // caller's. Run under -race, this is the whole assertion.
 func TestTheSinkSurvivesAttachingWhileItIsWriting(t *testing.T) {
-	s := &consoleSink{file: &bytes.Buffer{}}
+	s := &ConsoleSink{file: &bytes.Buffer{}}
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
@@ -79,8 +79,8 @@ func TestTheSinkSurvivesAttachingWhileItIsWriting(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 200; i++ {
-			s.setTee(&bytes.Buffer{})
-			s.setTee(nil)
+			s.SetTee(&bytes.Buffer{})
+			s.SetTee(nil)
 		}
 	}()
 	wg.Wait()

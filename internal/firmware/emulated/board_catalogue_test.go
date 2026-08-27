@@ -1,9 +1,9 @@
-package firmware_test
+package emulated_test
 
 import (
 	"testing"
 
-	"github.com/MeshBench/meshbench/internal/firmware"
+	"github.com/MeshBench/meshbench/internal/firmware/emulated"
 )
 
 // Real asset names from repeater-v1.17.0. The catalogue is the naming scheme,
@@ -52,7 +52,7 @@ func TestParsesPublishedAssetNames(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		got, ok := firmware.ParseAssetName(c.name)
+		got, ok := emulated.ParseAssetName(c.name)
 		if !ok {
 			t.Errorf("%s was not recognised as a published asset", c.name)
 			continue
@@ -84,7 +84,7 @@ func TestIgnoresThingsThatAreNotBoardImages(t *testing.T) {
 		"source.tar.gz",
 		"README.md",
 	} {
-		if _, ok := firmware.ParseAssetName(name); ok {
+		if _, ok := emulated.ParseAssetName(name); ok {
 			t.Errorf("%s was read as a board image", name)
 		}
 	}
@@ -94,7 +94,7 @@ func TestIgnoresThingsThatAreNotBoardImages(t *testing.T) {
 // arrives when someone presses run, by which point they have stopped thinking
 // about the picker.
 func TestRunnableKeepsOnlyWhatCouldBoot(t *testing.T) {
-	all := []firmware.BoardImage{
+	all := []emulated.BoardImage{
 		{Board: "Generic_E22_sx1262", Merged: true, Format: "bin"},
 		{Board: "Generic_E22_sx1262", Merged: false, Format: "bin"}, // app only
 		{Board: "RAK_4631", Merged: false, Format: "uf2"},           // nRF52
@@ -102,7 +102,7 @@ func TestRunnableKeepsOnlyWhatCouldBoot(t *testing.T) {
 	}
 	wired := func(board string) bool { return board == "Generic_E22_sx1262" }
 
-	got := firmware.Runnable(all, wired)
+	got := emulated.Runnable(all, wired)
 	if len(got) != 1 {
 		for _, g := range got {
 			t.Logf("  kept %s merged=%v %s", g.Board, g.Merged, g.Format)
@@ -118,7 +118,7 @@ func TestRunnableKeepsOnlyWhatCouldBoot(t *testing.T) {
 // people reach for and it boots nothing, so it must never be offered as though
 // it would.
 func TestBareImageIsNeverRunnable(t *testing.T) {
-	got := firmware.Runnable([]firmware.BoardImage{
+	got := emulated.Runnable([]emulated.BoardImage{
 		{Board: "Generic_E22_sx1262", Merged: false, Format: "bin"},
 	}, nil)
 	if len(got) != 0 {
@@ -133,9 +133,9 @@ func TestBareImageIsNeverRunnable(t *testing.T) {
 // node asking for the USB build could silently run the BLE one and wait for a
 // phone that has no way to arrive.
 func TestCompanionTransportsDoNotShareACachePath(t *testing.T) {
-	usb, _ := firmware.ParseAssetName("Heltec_v3_companion_radio_usb-v1.17.0-727fc05-merged.bin")
-	ble, _ := firmware.ParseAssetName("Heltec_v3_companion_radio_ble-v1.17.0-727fc05-merged.bin")
-	if a, b := firmware.BoardImagePath("/c", usb), firmware.BoardImagePath("/c", ble); a == b {
+	usb, _ := emulated.ParseAssetName("Heltec_v3_companion_radio_usb-v1.17.0-727fc05-merged.bin")
+	ble, _ := emulated.ParseAssetName("Heltec_v3_companion_radio_ble-v1.17.0-727fc05-merged.bin")
+	if a, b := emulated.BoardImagePath("/c", usb), emulated.BoardImagePath("/c", ble); a == b {
 		t.Errorf("both companion builds cache to %s", a)
 	}
 }
@@ -143,18 +143,18 @@ func TestCompanionTransportsDoNotShareACachePath(t *testing.T) {
 // A BLE companion boots and then waits for a phone. There is no Bluetooth here,
 // so offering it produces a node that looks hung rather than one that failed.
 func TestRunnableDropsBluetoothCompanions(t *testing.T) {
-	all := []firmware.BoardImage{}
+	all := []emulated.BoardImage{}
 	for _, n := range []string{
 		"Heltec_v3_companion_radio_usb-v1.17.0-727fc05-merged.bin",
 		"Heltec_v3_companion_radio_ble-v1.17.0-727fc05-merged.bin",
 	} {
-		img, ok := firmware.ParseAssetName(n)
+		img, ok := emulated.ParseAssetName(n)
 		if !ok {
 			t.Fatalf("%s did not parse", n)
 		}
 		all = append(all, img)
 	}
-	got := firmware.Runnable(all, nil)
+	got := emulated.Runnable(all, nil)
 	if len(got) != 1 || got[0].Transport != "usb" {
 		t.Errorf("Runnable kept %+v; only the usb companion can run here", got)
 	}

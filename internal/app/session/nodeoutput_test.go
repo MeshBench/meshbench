@@ -9,6 +9,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/firmware"
+	"github.com/MeshBench/meshbench/internal/firmware/emulated"
 )
 
 // outputStore is a store with node.output registered and the given nodes in
@@ -166,7 +167,7 @@ func TestNodeOutputReadsWhatTheEmulatorWrote(t *testing.T) {
 	for i := 0; i < outputTail+50; i++ {
 		sb.WriteString("boot line\n")
 	}
-	if err := os.WriteFile(filepath.Join(dir, firmware.ConsoleLogName()),
+	if err := os.WriteFile(filepath.Join(dir, emulated.ConsoleLogName()),
 		[]byte(sb.String()), 0o644); err != nil {
 		t.Fatal(err)
 	}

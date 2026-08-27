@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/firmware"
+	"github.com/MeshBench/meshbench/internal/firmware/emulated"
 )
 
 // The published board images reach the library. This is the bug 0.0.1
@@ -23,7 +24,7 @@ func TestPublishedBoardsReachTheLibrary(t *testing.T) {
 	// nothing either way, which left this test unable to tell "GitHub said no"
 	// from "we broke the mapping" - and it has now failed three times on the
 	// former, each time passing locally straight afterwards.
-	cat := &firmware.BoardCatalogue{CacheDir: firmware.DefaultCacheDir()}
+	cat := &emulated.BoardCatalogue{CacheDir: firmware.DefaultCacheDir()}
 	imgs, err := cat.ListAll(ctx)
 	if err != nil {
 		t.Skipf("the release catalogue was not reachable: %v", err)

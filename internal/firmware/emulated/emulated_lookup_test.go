@@ -1,4 +1,4 @@
-package firmware
+package emulated
 
 // White-box, because lookupTool is where the bundles are found or not found and
 // the layouts it has to know about are not visible from outside the package.

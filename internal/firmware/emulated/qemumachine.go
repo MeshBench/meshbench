@@ -6,7 +6,7 @@
 // through the launch. Only what the board actually declares is passed: a
 // property with a zero value is a pin the machine would wire to GPIO 0, which
 // is a strapping pin on this part and not a spare one.
-package firmware
+package emulated
 
 import (
 	"fmt"

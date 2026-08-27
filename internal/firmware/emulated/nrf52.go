@@ -1,4 +1,4 @@
-package firmware
+package emulated
 
 import (
 	"fmt"

@@ -1,4 +1,4 @@
-package firmware_test
+package emulated_test
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MeshBench/meshbench/internal/firmware"
+	"github.com/MeshBench/meshbench/internal/firmware/emulated"
 )
 
 // Stand in for the engine: accept the node, tick it, and see whether anything
@@ -23,13 +23,13 @@ func TestLiveEmulatedNodeJoinsTheEngine(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 240*time.Second)
 	defer cancel()
 
-	bc := &firmware.BoardCatalogue{CacheDir: dir}
+	bc := &emulated.BoardCatalogue{CacheDir: dir}
 	all, err := bc.ListAll(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var want firmware.BoardImage
-	for _, img := range firmware.Runnable(all, func(b string) bool { return b == "Generic_E22_sx1262" }) {
+	var want emulated.BoardImage
+	for _, img := range emulated.Runnable(all, func(b string) bool { return b == "Generic_E22_sx1262" }) {
 		if img.Version == "v1.17.0" && img.Role == "simple_repeater" {
 			want = img
 		}
@@ -39,7 +39,7 @@ func TestLiveEmulatedNodeJoinsTheEngine(t *testing.T) {
 		t.Fatal(err)
 	}
 	padded := filepath.Join(dir, "p.bin")
-	if _, err := firmware.PadImage(path, padded); err != nil {
+	if _, err := emulated.PadImage(path, padded); err != nil {
 		t.Fatal(err)
 	}
 
@@ -49,7 +49,7 @@ func TestLiveEmulatedNodeJoinsTheEngine(t *testing.T) {
 	}
 	defer func() { _ = ln.Close() }()
 
-	n := &firmware.EmulatedNode{
+	n := &emulated.EmulatedNode{
 		Image: padded, NodeName: "eng", Dir: filepath.Join(dir, "node"),
 		Machine: "esp32", SPI: 2, NSS: 18, Busy: 32,
 	}

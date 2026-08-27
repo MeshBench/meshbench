@@ -1,4 +1,4 @@
-package firmware
+package emulated
 
 import (
 	"context"
@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/MeshBench/meshbench/internal/firmware"
 )
 
 // BoardImage is one published firmware for real hardware.
@@ -105,7 +107,7 @@ type BoardCatalogue struct {
 
 	// Repo is owner/name; empty means MeshCore's own.
 	Repo string
-	HTTP Doer
+	HTTP firmware.Doer
 
 	// CacheDir is where downloads land.
 	CacheDir string
@@ -272,7 +274,7 @@ func BoardImagePath(cacheDir string, img BoardImage) string {
 	if img.Transport != "" {
 		name += "_" + img.Transport
 	}
-	return filepath.Join(cacheDir, boardDir, img.Board,
+	return filepath.Join(cacheDir, firmware.BoardDir, img.Board,
 		name+"-"+img.Version+"."+img.Format)
 }
 

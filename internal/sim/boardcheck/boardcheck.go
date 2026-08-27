@@ -14,8 +14,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/MeshBench/meshbench/internal/firmware"
 	hw "github.com/MeshBench/meshbench/internal/firmware/board"
+	"github.com/MeshBench/meshbench/internal/firmware/emulated"
 )
 
 // Capability is one thing worth knowing about a board.
@@ -83,7 +83,7 @@ func (r *BoardReport) set(c Capability, s State, detail string) {
 // The size and mtime of the QEMU or Renode binary this run resolves to -
 // cheap, and it changes exactly when a rebuild would invalidate the report.
 func EmulatorFingerprint() string {
-	path := os.Getenv(firmware.EnvQEMU)
+	path := os.Getenv(emulated.EnvQEMU)
 	if path == "" {
 		path = os.Getenv("MESHBENCH_RENODE")
 	}

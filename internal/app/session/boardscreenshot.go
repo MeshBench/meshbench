@@ -18,6 +18,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/firmware"
+	"github.com/MeshBench/meshbench/internal/firmware/emulated"
 )
 
 func registerBoardScreenshot(st *state.Store, s *Sim) {
@@ -85,7 +86,7 @@ func frameToImage(width, height, bpp int, bits []byte) (image.Image, error) {
 	case 16:
 		for y := 0; y < height; y++ {
 			for x := 0; x < width; x++ {
-				r, g, b, ok := firmware.RGB565At(bits, width, x, y)
+				r, g, b, ok := emulated.RGB565At(bits, width, x, y)
 				if !ok {
 					r, g, b = 0, 0, 0
 				}
@@ -93,7 +94,7 @@ func frameToImage(width, height, bpp int, bits []byte) (image.Image, error) {
 			}
 		}
 	case 1:
-		f := &firmware.PanelFrame{Width: width, Height: height, BPP: 1, Bits: bits}
+		f := &emulated.PanelFrame{Width: width, Height: height, BPP: 1, Bits: bits}
 		for y := 0; y < height; y++ {
 			for x := 0; x < width; x++ {
 				v := uint8(0)

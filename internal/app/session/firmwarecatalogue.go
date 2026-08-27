@@ -15,6 +15,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/firmware"
 	hw "github.com/MeshBench/meshbench/internal/firmware/board"
+	"github.com/MeshBench/meshbench/internal/firmware/emulated"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
@@ -95,7 +96,7 @@ func (s *Sim) fillLibrary(w *state.World) {
 		// each - a library of thirty sixteen-megabyte images read whole would
 		// be half a gigabyte to answer one line of a window.
 		if !in.Native {
-			r.Facts = firmware.InspectImage(in.Path)
+			r.Facts = emulated.InspectImage(in.Path)
 		}
 	}
 	// What is published for this machine, from the cache rather than the
@@ -159,7 +160,7 @@ func (s *Sim) fillLibrary(w *state.World) {
 // board and role, the newest version. Older ones stay one click away in the
 // firmware picker, which reads the catalogue directly.
 func publishedBoards(ctx context.Context) []publishedBuild {
-	cat := &firmware.BoardCatalogue{CacheDir: firmware.DefaultCacheDir()}
+	cat := &emulated.BoardCatalogue{CacheDir: firmware.DefaultCacheDir()}
 	imgs, err := cat.ListAll(ctx)
 	if err != nil {
 		return nil
