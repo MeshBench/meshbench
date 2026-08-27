@@ -2,13 +2,14 @@
 // capabilities does it actually demonstrate - untested distinguished from
 // failed, because a blank cell reads as working and it should read as
 // unknown.
-package session
+package board
 
 import (
 	"context"
 	"fmt"
 	"time"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/sim/boardcheck"
 )
@@ -24,9 +25,9 @@ import (
 // use it.
 const defaultBoardVersion = "v1.17.1"
 
-func registerBoardMatrix(st *state.Store, s *Sim) {
+func registerBoardMatrix(st *state.Store, s *session.Sim) {
 	st.Handle("board.matrix", func(w *state.World, p any) (any, error) {
-		version, _ := stringField(p, "version")
+		version, _ := session.StringField(p, "version")
 		if version == "" {
 			version = defaultBoardVersion
 		}
@@ -38,20 +39,20 @@ func registerBoardMatrix(st *state.Store, s *Sim) {
 	// job, and every capability it measures overwrites that board's cached
 	// row when it finishes.
 	st.Handle("board.probe", func(w *state.World, p any) (any, error) {
-		board, _ := stringField(p, "board")
+		board, _ := session.StringField(p, "board")
 		if board == "" {
 			return nil, fmt.Errorf("board.probe needs a board")
 		}
-		version, _ := namedField(p, "version")
+		version, _ := session.NamedField(p, "version")
 		if version == "" {
 			version = defaultBoardVersion
 		}
-		if s.boardProbing {
+		if s.BoardProbing() {
 			return nil, fmt.Errorf("a board probe is already running")
 		}
-		s.boardProbing = true
+		s.SetBoardProbing(true)
 		w.Jobs = append(w.Jobs, state.Job{ID: "boardprobe", What: "probing " + board, Total: 1})
-		terr := s.terrain()
+		terr := s.Terrain()
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 			defer cancel()
@@ -69,10 +70,10 @@ func registerBoardMatrix(st *state.Store, s *Sim) {
 	})
 
 	st.Handle("board.probe_finished", func(w *state.World, p any) (any, error) {
-		s.boardProbing = false
-		w.Jobs = finishJob(w.Jobs, "boardprobe")
-		board, _ := stringField(p, "board")
-		version, _ := namedField(p, "version")
+		s.SetBoardProbing(false)
+		w.Jobs = session.FinishJob(w.Jobs, "boardprobe")
+		board, _ := session.StringField(p, "board")
+		version, _ := session.NamedField(p, "version")
 		publishMatrix(w, version)
 		var passed, failed int
 		for _, c := range boardcheck.Load(board, version).Results {
