@@ -59,13 +59,16 @@ internal/rf/        radio physics — knows nothing of nodes, networks or the ap
   propagation/        path loss: heights in, decibels out, and the CPU twins
 
 internal/mesh/      MeshCore itself: what a node is and what it says
-  firmware/           host builds, per-node runtime
   shim/               the Radio shim the emulated firmware links against
   companion/          TCP and PTY companion transports
   proto/              the companion protocol codec
   packet/             the MeshCore frame: what the bytes on the air mean
-  console/            the operator's terminal onto a running node
   energy/             battery, load, solar
+
+internal/firmware/  running real firmware against the radio, native or emulated;
+                    the native host build and the emulator runner, being split
+                    into subdomains as the emulation domain lands
+  console/            the operator's terminal onto a running node
 
 internal/world/     what is being simulated, and where it came from
   scenario/           nodes, region, seed; one board_<name>.go per board

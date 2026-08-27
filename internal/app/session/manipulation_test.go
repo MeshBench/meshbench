@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/MeshBench/meshbench/internal/mesh/firmware"
+	"github.com/MeshBench/meshbench/internal/firmware"
 )
 
 func boosted(name string) radioSample {

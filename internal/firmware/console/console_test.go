@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MeshBench/meshbench/internal/mesh/console"
+	"github.com/MeshBench/meshbench/internal/firmware/console"
 )
 
 // fakeNode answers a command with canned lines and a prompt, optionally slowly

@@ -22,7 +22,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/rf/propagation"
 	"github.com/MeshBench/meshbench/internal/rf/terrain"
 
-	"github.com/MeshBench/meshbench/internal/mesh/firmware"
+	"github.com/MeshBench/meshbench/internal/firmware"
 	"github.com/MeshBench/meshbench/internal/rf/environ"
 	"github.com/MeshBench/meshbench/internal/sim/capture"
 	"github.com/MeshBench/meshbench/internal/world/scenario"

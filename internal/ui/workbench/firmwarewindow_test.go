@@ -7,7 +7,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
-	"github.com/MeshBench/meshbench/internal/mesh/firmware"
+	"github.com/MeshBench/meshbench/internal/firmware"
 )
 
 func aBuildSnapshot(notes string, coproc bool) *state.Snapshot {

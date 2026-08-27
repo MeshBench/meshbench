@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
-	"github.com/MeshBench/meshbench/internal/mesh/firmware"
+	"github.com/MeshBench/meshbench/internal/firmware"
 )
 
 // outputStore is a store with node.output registered and the given nodes in

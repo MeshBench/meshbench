@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/MeshBench/meshbench/internal/mesh/firmware"
+	"github.com/MeshBench/meshbench/internal/firmware"
 )
 
 // Padding is where two traps live, and both produce failures that name the

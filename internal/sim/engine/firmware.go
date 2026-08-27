@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/MeshBench/meshbench/internal/mesh/firmware"
+	"github.com/MeshBench/meshbench/internal/firmware"
 )
 
 // AttachNative starts a real MeshCore build for every node that runs firmware.
