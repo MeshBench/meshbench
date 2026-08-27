@@ -48,7 +48,7 @@ func Register(st *state.Store, s *Sim) {
 	registerResources(st, s)
 	registerUIVerbs(st, s)
 	registerKeepAbove(st, s)
-	registerCapture(st, s)
+	registerPresetsAndPlace(st, s)
 	registerCompanion(st, s)
 	registerMeshCLI(st, s)
 	registerRFMode(st, s)

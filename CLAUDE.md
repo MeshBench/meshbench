@@ -107,6 +107,7 @@ internal/app/       orchestration, no toolkit
     study/              coverage and validation verbs, wired in by init
     provisioning/       the provisioning settings verbs, wired in by init
     boundary/           the study-area verbs, wired in by init
+    capture/            the frame-capture verbs and Wireshark launch, wired in by init
     environ/            the environ.fetch verb, wired in by init
     sweep/              the sweep verbs and their offered-load plan, wired in by init
     fleet/              the bulk node verbs, wired in by init

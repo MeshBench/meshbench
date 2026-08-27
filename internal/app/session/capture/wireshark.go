@@ -27,10 +27,11 @@
 // Wireshark's plugin directory, in that order, on purpose - it is the only
 // way to guarantee which one wins, and it needs no install step for a
 // developer running the checkout raw.
-package session
+package capture
 
 import (
 	"fmt"
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -156,7 +157,7 @@ func launchWireshark(bin, meshcoreLua, meshbenchLua string) string {
 // fix and needs root and a fresh login; this needs neither, and a capture
 // available now beats one available after logging out.
 func usableDumpcap() string {
-	if p, err := exec.LookPath("dumpcap"); err == nil && executable(p) {
+	if p, err := exec.LookPath("dumpcap"); err == nil && session.Executable(p) {
 		return p
 	}
 	home, err := os.UserHomeDir()
@@ -164,7 +165,7 @@ func usableDumpcap() string {
 		return ""
 	}
 	mine := filepath.Join(home, ".local", "bin", "dumpcap")
-	if executable(mine) {
+	if session.Executable(mine) {
 		return mine
 	}
 	for _, src := range []string{"/usr/bin/dumpcap", "/usr/local/bin/dumpcap", "/opt/wireshark/bin/dumpcap"} {
