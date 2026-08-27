@@ -7,7 +7,7 @@
 // running it, and what the radio model logged. They shared a file until the
 // emulator's own complaints started matching the patterns the board probe
 // looks for in the board's output.
-package firmware
+package emulated
 
 import (
 	"os"

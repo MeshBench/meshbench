@@ -10,6 +10,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/firmware"
 	hw "github.com/MeshBench/meshbench/internal/firmware/board"
+	"github.com/MeshBench/meshbench/internal/firmware/emulated"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
@@ -28,7 +29,7 @@ import (
 // Failing here rather than later matters, because a wrong pin does not announce
 // itself - it produces a driver reporting no chip, which reads as a broken
 // emulator.
-func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.EmulatedNode, error) {
+func emulatedBackend(spec scenario.Node, allowUnverified bool) (*emulated.EmulatedNode, error) {
 	board, err := hw.BoardByName(spec.Firmware.Board)
 	if err != nil {
 		return nil, err
@@ -56,7 +57,7 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 	}
 
 	cache := firmware.DefaultCacheDir()
-	img := firmware.BoardImage{
+	img := emulated.BoardImage{
 		Board:   board.Name,
 		Role:    string(spec.Firmware.Role),
 		Version: spec.Firmware.Version,
@@ -68,7 +69,7 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 	if img.Role == "companion_radio" {
 		img.Transport = "usb"
 	}
-	src := firmware.BoardImagePath(cache, img)
+	src := emulated.BoardImagePath(cache, img)
 	if _, err := os.Stat(src); err != nil {
 		// Not where a download would have put it, so ask what the cache
 		// actually holds.
@@ -105,14 +106,14 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 	}
 
 	if board.Renode != nil {
-		return &firmware.EmulatedNode{
-			Emulator: firmware.Renode,
+		return &emulated.EmulatedNode{
+			Emulator: emulated.Renode,
 			Image:    src,
 			// Published nRF52 images are linked above a Nordic SoftDevice,
 			// which is fetched rather than bundled and so may not be here yet.
 			// The refusal names it, because the alternative is a node that
 			// boots into a fill pattern and looks like a broken emulator.
-			SoftDeviceDir: firmware.SoftDeviceDir(),
+			SoftDeviceDir: emulated.SoftDeviceDir(),
 			Platform:      board.Renode.Platform,
 			SPIBase:       board.Renode.SPIBase,
 			NssPort:       board.Renode.NssPort,
@@ -139,12 +140,12 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 	set := firmware.LoadBuildSettings(src)
 
 	padded := filepath.Join(dir, "flash.bin")
-	if _, err := firmware.PadImageKeeping(src, padded); err != nil {
+	if _, err := emulated.PadImageKeeping(src, padded); err != nil {
 		return nil, err
 	}
 
-	node := &firmware.EmulatedNode{
-		Emulator:   firmware.QEMU,
+	node := &emulated.EmulatedNode{
+		Emulator:   emulated.QEMU,
 		Image:      padded,
 		Machine:    board.QEMU.Machine,
 		SPI:        board.QEMU.SPI,
@@ -196,7 +197,7 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 		}
 		meter, hasMeter := batteryMeter(board)
 		if len(pins) > 0 || kbd != 0 || touch != 0 || hasMeter {
-			bs, err := firmware.ListenButtons(filepath.Join(dir, "buttons.sock"))
+			bs, err := emulated.ListenButtons(filepath.Join(dir, "buttons.sock"))
 			if err != nil {
 				return nil, fmt.Errorf("engine: listening for %s's inputs: %w", spec.Name, err)
 			}
@@ -234,7 +235,7 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 			if err := os.MkdirAll(filepath.Dir(card), 0o755); err != nil {
 				return nil, fmt.Errorf("engine: %s's card: %w", spec.Name, err)
 			}
-			if err := firmware.MakeCard(card); err != nil {
+			if err := emulated.MakeCard(card); err != nil {
 				return nil, fmt.Errorf("engine: %s's card: %w", spec.Name, err)
 			}
 			node.CardPath, node.CardCS = card, part.Pin
@@ -246,7 +247,7 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 	// rather than from a log, so there is one place the node is and both the
 	// channel and the handheld read it.
 	if p := board.Hardware; p != nil && len(p.PartsOfKind(hw.GPS)) > 0 {
-		g, err := firmware.ListenGPS(filepath.Join(dir, "gps.sock"),
+		g, err := emulated.ListenGPS(filepath.Join(dir, "gps.sock"),
 			spec.Position.Lat, spec.Position.Lon, spec.HeightAGLm, gpsEpoch)
 		if err != nil {
 			return nil, fmt.Errorf("engine: listening for %s's receiver: %w", spec.Name, err)
@@ -261,7 +262,7 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*firmware.Emulat
 	// is what it does today and is honest about it.
 	if p := board.Hardware; p != nil && p.Screen != nil &&
 		(p.Screen.Bus == hw.BusI2C || p.Screen.Bus == hw.BusSPI) {
-		ln, err := firmware.ListenPanel(filepath.Join(dir, "panel.sock"))
+		ln, err := emulated.ListenPanel(filepath.Join(dir, "panel.sock"))
 		if err != nil {
 			return nil, fmt.Errorf("engine: listening for %s's display: %w", spec.Name, err)
 		}

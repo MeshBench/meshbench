@@ -5,7 +5,7 @@ import (
 	"sync"
 )
 
-// A consoleSink is where an emulated node's serial output goes.
+// A ConsoleSink is where an emulated node's serial output goes.
 //
 // Two destinations, because they answer different questions and neither can
 // stand in for the other. The file is the whole boot chain from the first ROM
@@ -18,14 +18,18 @@ import (
 // serial port changes hands while it runs: the workbench console holds it,
 // a client claims it, the claim is released. A writer captured when the pump
 // started would go on feeding whoever held the port at boot, which is nobody.
-type consoleSink struct {
+type ConsoleSink struct {
 	file io.Writer
 
 	mu  sync.Mutex
 	tee io.Writer
 }
 
-func (s *consoleSink) Write(p []byte) (int, error) {
+// NewConsoleSink writes the whole boot chain to file, and a live copy to
+// whoever is looking (see SetTee).
+func NewConsoleSink(file io.Writer) *ConsoleSink { return &ConsoleSink{file: file} }
+
+func (s *ConsoleSink) Write(p []byte) (int, error) {
 	s.mu.Lock()
 	tee := s.tee
 	s.mu.Unlock()
@@ -40,8 +44,8 @@ func (s *consoleSink) Write(p []byte) (int, error) {
 	return s.file.Write(p)
 }
 
-// tee directs a copy of everything the node says at w. Nil stops the copy.
-func (s *consoleSink) setTee(w io.Writer) {
+// SetTee directs a copy of everything the node says at w. Nil stops the copy.
+func (s *ConsoleSink) SetTee(w io.Writer) {
 	s.mu.Lock()
 	s.tee = w
 	s.mu.Unlock()

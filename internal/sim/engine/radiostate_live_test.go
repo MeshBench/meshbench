@@ -9,6 +9,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/firmware"
 	hw "github.com/MeshBench/meshbench/internal/firmware/board"
+	"github.com/MeshBench/meshbench/internal/firmware/emulated"
 	"github.com/MeshBench/meshbench/internal/rf/antenna"
 	"github.com/MeshBench/meshbench/internal/sim/engine"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
@@ -35,9 +36,9 @@ func TestTheRadioReportsHowTheFirmwareConfiguredIt(t *testing.T) {
 	const version = "v1.17.0"
 
 	cache := firmware.DefaultCacheDir()
-	img := firmware.BoardImage{Board: board, Role: "simple_repeater",
+	img := emulated.BoardImage{Board: board, Role: "simple_repeater",
 		Version: version, Format: "bin"}
-	if _, err := os.Stat(firmware.BoardImagePath(cache, img)); err != nil {
+	if _, err := os.Stat(emulated.BoardImagePath(cache, img)); err != nil {
 		t.Skipf("no cached image for %s %s", board, version)
 	}
 

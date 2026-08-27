@@ -151,7 +151,7 @@ func Rename(cacheDir string, in Installed, role, label, board string) (Installed
 		return Installed{}, fmt.Errorf(
 			"firmware: refusing to rename %s, which is outside the cache", src)
 	}
-	dst := filepath.Join(root, boardDir, board, role+labelSep+label+filepath.Ext(src))
+	dst := filepath.Join(root, BoardDir, board, role+labelSep+label+filepath.Ext(src))
 	if dst == src {
 		return in, nil
 	}

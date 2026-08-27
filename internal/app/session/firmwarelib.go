@@ -19,6 +19,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/firmware"
 	hw "github.com/MeshBench/meshbench/internal/firmware/board"
+	"github.com/MeshBench/meshbench/internal/firmware/emulated"
 )
 
 func registerFirmwareLibrary(st *state.Store, s *Sim) {
@@ -340,7 +341,7 @@ func downloadBuildProgress(ctx context.Context, role, version, board string,
 ) error {
 	cache := firmware.DefaultCacheDir()
 	if board != "" {
-		bc := &firmware.BoardCatalogue{CacheDir: cache, OnProgress: onProgress}
+		bc := &emulated.BoardCatalogue{CacheDir: cache, OnProgress: onProgress}
 		imgs, err := bc.List(ctx, version)
 		if err != nil {
 			return err
@@ -464,14 +465,14 @@ func refuseHalfAnImage(path, board string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := firmware.ClassifyESPImage(data); err != nil {
+	if _, err := emulated.ClassifyESPImage(data); err != nil {
 		return fmt.Errorf("%s: %w", filepath.Base(path), err)
 	}
 	// The header is not the test. An application image begins with the same
 	// magic byte - it is an ESP image too, just one that belongs at 0x10000
 	// rather than at the start of the chip. What a whole flash image has and
 	// an application has not is the partition table the ROM bootloader reads.
-	if !firmware.HasPartitionTable(data) {
+	if !emulated.HasPartitionTable(data) {
 		return fmt.Errorf(
 			"%s has no partition table at 0x8000, so it is the application on its "+
 				"own rather than a whole flash image: it starts at 0x10000 and a board "+

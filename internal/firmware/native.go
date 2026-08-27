@@ -249,7 +249,7 @@ func (n *Native) Start(ctx context.Context, bridgeAddr string) error {
 	// graceful path still closes the bridge and waits; this is for the paths
 	// that never reach it, which left three hundred orphans running after a
 	// killed workbench.
-	cmd.SysProcAttr = childProcAttr()
+	cmd.SysProcAttr = ChildProcAttr()
 	cmd.Stderr = n.Log
 	if cmd.Stderr == nil {
 		cmd.Stderr = io.Discard

@@ -5,6 +5,7 @@ import (
 
 	"gioui.org/layout"
 
+	"github.com/MeshBench/meshbench/internal/firmware/emulated"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
@@ -17,7 +18,7 @@ func aBuildSnapshot(notes string, coproc bool) *state.Snapshot {
 		Role: "companion_radio_usb", Version: "mesh-rs", Board: "LilyGo_TDeck",
 		OnDisk: true, Bytes: 3 << 20, InUse: 2,
 		Path:     "/cache/board/LilyGo_TDeck/companion_radio_usb@mesh-rs.bin",
-		Facts:    firmware.ImageFacts{Kind: "whole flash image", Bootable: true, FlashMB: 16},
+		Facts:    emulated.ImageFacts{Kind: "whole flash image", Bootable: true, FlashMB: 16},
 		Settings: firmware.BuildSettings{CoprocAtReset: coproc, Notes: notes},
 	}}
 	return s

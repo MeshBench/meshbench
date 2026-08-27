@@ -1,4 +1,4 @@
-package firmware
+package emulated
 
 // What somebody can see on an emulated board, and what they can do to it.
 //

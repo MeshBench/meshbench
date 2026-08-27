@@ -11,7 +11,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/app/resource"
 	"github.com/MeshBench/meshbench/internal/app/state"
-	"github.com/MeshBench/meshbench/internal/firmware"
+	"github.com/MeshBench/meshbench/internal/firmware/emulated"
 	"github.com/MeshBench/meshbench/internal/ui/shell"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 )
@@ -156,7 +156,7 @@ func auditTargets(r *recorder) []target {
 		Role: "companion_radio_usb", Version: "mesh-rs", Board: "LilyGo_TDeck",
 		OnDisk: true, Bytes: 3 << 20, InUse: 1,
 		Path:  "/cache/board/LilyGo_TDeck/companion_radio_usb@mesh-rs.bin",
-		Facts: firmware.ImageFacts{Kind: "whole flash image", Bootable: true, FlashMB: 16},
+		Facts: emulated.ImageFacts{Kind: "whole flash image", Bootable: true, FlashMB: 16},
 	}}
 
 	// One log in a window of its own. Its source buttons switch what the

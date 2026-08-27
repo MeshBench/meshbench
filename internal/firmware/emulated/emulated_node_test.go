@@ -1,4 +1,4 @@
-package firmware_test
+package emulated_test
 
 import (
 	"os"
@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/MeshBench/meshbench/internal/firmware"
+	"github.com/MeshBench/meshbench/internal/firmware/emulated"
 )
 
 // Padding is where two traps live, and both produce failures that name the
@@ -33,7 +33,7 @@ func TestPadImageReadsTheHeaderWhereItActuallyIs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mb, err := firmware.PadImage(src, dst)
+	mb, err := emulated.PadImage(src, dst)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestPadImageRejectsAnApplicationOnlyBuild(t *testing.T) {
 	if err := os.WriteFile(src, make([]byte, 0x4000), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	_, err := firmware.PadImage(src, filepath.Join(dir, "out.bin"))
+	_, err := emulated.PadImage(src, filepath.Join(dir, "out.bin"))
 	if err == nil {
 		t.Fatal("an application-only image was accepted as bootable")
 	}
@@ -80,8 +80,8 @@ func TestPadImageRejectsAnApplicationOnlyBuild(t *testing.T) {
 // A missing emulator should send someone to the right place. "not found" alone
 // sends them to their package manager, and a distribution build has no SX1262.
 func TestMissingToolsExplainThemselves(t *testing.T) {
-	t.Setenv(firmware.EnvQEMU, filepath.Join(t.TempDir(), "not-here"))
-	n := &firmware.EmulatedNode{
+	t.Setenv(emulated.EnvQEMU, filepath.Join(t.TempDir(), "not-here"))
+	n := &emulated.EmulatedNode{
 		Image: filepath.Join(t.TempDir(), "image.bin"), NodeName: "n1",
 	}
 	if err := os.WriteFile(n.Image, make([]byte, 16), 0o644); err != nil {
@@ -91,14 +91,14 @@ func TestMissingToolsExplainThemselves(t *testing.T) {
 	if err == nil {
 		t.Fatal("started with no emulator present")
 	}
-	if !strings.Contains(err.Error(), firmware.EnvQEMU) &&
-		!strings.Contains(err.Error(), firmware.EnvRadioServer) {
+	if !strings.Contains(err.Error(), emulated.EnvQEMU) &&
+		!strings.Contains(err.Error(), emulated.EnvRadioServer) {
 		t.Errorf("the error names neither environment variable: %v", err)
 	}
 }
 
 func TestEmulatedNodeNeedsAnImage(t *testing.T) {
-	n := &firmware.EmulatedNode{NodeName: "n1"}
+	n := &emulated.EmulatedNode{NodeName: "n1"}
 	if err := n.Start(t.Context(), ""); err == nil {
 		t.Error("started with no flash image")
 	}

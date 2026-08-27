@@ -1,4 +1,4 @@
-package firmware
+package emulated
 
 import (
 	"context"
@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"github.com/MeshBench/meshbench/internal/firmware"
 )
 
 // EnvRenode overrides the Renode executable, as EnvQEMU does for the other
@@ -105,7 +107,7 @@ radiospi.lora Connect
 		"--disable-xwt", "--console", "-e", "include @"+script)
 	e.qemu.Stdin = stdin
 	e.qemu.Stdout, e.qemu.Stderr = log, log
-	e.qemu.SysProcAttr = childProcAttr()
+	e.qemu.SysProcAttr = firmware.ChildProcAttr()
 	if err := e.qemu.Start(); err != nil {
 		_, _ = hold.Close(), stdin.Close()
 		return fmt.Errorf("firmware: starting the emulator: %w", err)

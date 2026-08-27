@@ -8,6 +8,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/firmware"
+	"github.com/MeshBench/meshbench/internal/firmware/emulated"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
@@ -124,7 +125,7 @@ func TestASettingFollowsTheBuildIntoTheEmulator(t *testing.T) {
 		t.Fatal("the setting did not reach the file beside the image")
 	}
 	// And a node running this build is given it, which is the whole point.
-	node := &firmware.EmulatedNode{Machine: "esp32s3", SPI: 3, NSS: 9, Busy: 13,
+	node := &emulated.EmulatedNode{Machine: "esp32s3", SPI: 3, NSS: 9, Busy: 13,
 		CoprocAtReset: firmware.LoadBuildSettings(image).CoprocAtReset}
 	if !node.CoprocAtReset {
 		t.Error("a node built from this image was not told")

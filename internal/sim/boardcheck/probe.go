@@ -9,6 +9,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/firmware"
 	hw "github.com/MeshBench/meshbench/internal/firmware/board"
+	"github.com/MeshBench/meshbench/internal/firmware/emulated"
 	"github.com/MeshBench/meshbench/internal/rf/propagation"
 	"github.com/MeshBench/meshbench/internal/sim/engine"
 )
@@ -26,7 +27,7 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 	report.MeasuredAt = time.Now()
 
 	cacheDir := firmware.DefaultCacheDir()
-	cat := &firmware.BoardCatalogue{CacheDir: cacheDir}
+	cat := &emulated.BoardCatalogue{CacheDir: cacheDir}
 	// Already on disk is the common case once a board has been probed once,
 	// and it needs no network at all - checked first, so a flaky connection
 	// to GitHub's API does not turn "cached" into "untested".
@@ -35,7 +36,7 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 	// every nRF52 board to the network on every probe, cached or not.
 	var imgPath string
 	for _, format := range []string{"bin", "uf2"} {
-		p := firmware.BoardImagePath(cacheDir, firmware.BoardImage{
+		p := emulated.BoardImagePath(cacheDir, emulated.BoardImage{
 			Board: board, Role: "simple_repeater", Version: version, Format: format,
 		})
 		if _, err := os.Stat(p); err == nil {
@@ -71,8 +72,8 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 		// board and only some of them are a flash image. Taking the last match
 		// picked the DFU .zip over the .uf2, which then got loaded as if it
 		// were flash.
-		var img firmware.BoardImage
-		for _, i := range firmware.Runnable(all, nil) {
+		var img emulated.BoardImage
+		for _, i := range emulated.Runnable(all, nil) {
 			// Case-insensitively, because a board profile's name and the
 			// asset's differ in case more often than not - upstream publishes
 			// Generic_E22_sx1262 beside Heltec_v3 - and an exact comparison

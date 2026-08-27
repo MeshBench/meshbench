@@ -69,6 +69,8 @@ internal/firmware/  running real firmware against the radio, native or emulated;
                     the native host build and the emulator runner, being split
                     into subdomains as the emulation domain lands
   board/              one board_<name>.go per real board, its wiring and parts
+  emulated/           the emulator runner: QEMU and Renode, the flash images
+                      and peripherals a published image boots against
   console/            the operator's terminal onto a running node
 
 internal/world/     what is being simulated, and where it came from

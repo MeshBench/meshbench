@@ -19,6 +19,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/app/control"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/firmware"
+	emu "github.com/MeshBench/meshbench/internal/firmware/emulated"
 )
 
 // outputTail is how many lines are published at once.
@@ -41,7 +42,7 @@ func outputFile(dir, source string, emulated bool) (path, note string, err error
 	switch source {
 	case "serial":
 		if emulated {
-			return filepath.Join(dir, firmware.ConsoleLogName()), "", nil
+			return filepath.Join(dir, emu.ConsoleLogName()), "", nil
 		}
 		// A native node prints to standard error; it has no serial port to
 		// have. Same question, different wire.
@@ -54,7 +55,7 @@ func outputFile(dir, source string, emulated bool) (path, note string, err error
 		// Only a board whose application talks over USB has a separate one.
 		// On every other board the ROM prints to the same port the firmware
 		// does, and the serial pane already has it from the first byte.
-		p := filepath.Join(dir, firmware.ROMLogName())
+		p := filepath.Join(dir, emu.ROMLogName())
 		if !fileExists(p) {
 			return "", "this board's console is UART0, so the ROM's own output is " +
 				"at the top of the serial pane rather than in one of its own", nil
@@ -65,13 +66,13 @@ func outputFile(dir, source string, emulated bool) (path, note string, err error
 			return "", "this node runs on this machine rather than under an " +
 				"emulator, so there is no emulator to have said anything", nil
 		}
-		return filepath.Join(dir, firmware.EmulatorLogName()), "", nil
+		return filepath.Join(dir, emu.EmulatorLogName()), "", nil
 	case "radio":
 		if !emulated {
 			return "", "a native node is linked against the radio model rather " +
 				"than talking to one, so the model keeps no log of its own", nil
 		}
-		return filepath.Join(dir, firmware.RadioLogName()), "", nil
+		return filepath.Join(dir, emu.RadioLogName()), "", nil
 	}
 	return "", "", fmt.Errorf("node.output: %q is not a source; try %s",
 		source, strings.Join(OutputSources, ", "))
@@ -129,7 +130,7 @@ func registerNodeOutput(st *state.Store, s *Sim) {
 
 		putOutput(w, state.OutputPane{
 			Node: name, Source: source, Lines: lines, Total: total,
-			Path: path, Note: note, Tracing: firmware.QEMUTracing(),
+			Path: path, Note: note, Tracing: emu.QEMUTracing(),
 		})
 
 		// The answer is a shorter tail than the pane gets: a script asking over
@@ -149,7 +150,7 @@ func registerNodeOutput(st *state.Store, s *Sim) {
 		return map[string]any{
 			"node": name, "source": source, "lines": len(lines), "total": total,
 			"path": path, "tail": tail, "note": note,
-			"tracing": firmware.QEMUTracing(),
+			"tracing": emu.QEMUTracing(),
 		}, nil
 	})
 }
