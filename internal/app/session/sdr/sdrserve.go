@@ -4,7 +4,7 @@
 // point SDR++ at the address, watch the simulated spectrum. The IQ comes
 // from the same shared synthesis the verdicts render from - never from
 // packet events, which is the whole point.
-package session
+package sdr
 
 import (
 	"fmt"
@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/world/sdr"
 )
@@ -42,7 +43,7 @@ const (
 // what lets a paused simulation stream an honest bare floor: the producer
 // parks and feeds the ring silence.
 type engineSource struct {
-	s   *Sim
+	s   *session.Sim
 	idx int
 	// rate is fixed at attach: the receiver's bandwidth, one sample per Hz.
 	rate float64
@@ -66,7 +67,7 @@ type engineSource struct {
 	lastMove time.Time
 }
 
-func newEngineSource(s *Sim, idx int, rate, psd float64) *engineSource {
+func newEngineSource(s *session.Sim, idx int, rate, psd float64) *engineSource {
 	g := &engineSource{s: s, idx: idx, rate: rate, psd: psd,
 		stop: make(chan struct{}), lastMove: time.Now()}
 	go g.pump()
@@ -96,7 +97,7 @@ func (g *engineSource) pump() {
 			return
 		default:
 		}
-		if g.s.eng == nil {
+		if g.s.Engine() == nil {
 			time.Sleep(50 * time.Millisecond)
 			continue
 		}
@@ -107,7 +108,7 @@ func (g *engineSource) pump() {
 			time.Sleep(10 * time.Millisecond)
 			continue
 		}
-		now := float64(g.s.eng.NowMs())
+		now := float64(g.s.Engine().NowMs())
 		if now != g.lastNow {
 			g.lastNow, g.lastMove = now, time.Now()
 		}
@@ -126,7 +127,7 @@ func (g *engineSource) pump() {
 			if atMs+spanMs < now-observerLagMs-2000 {
 				at = uint64((now - observerLagMs - spanMs) * spms)
 			}
-			out := g.s.eng.ObserveSignalAt(g.idx, at, n)
+			out := g.s.Engine().ObserveSignalAt(g.idx, at, n)
 			g.mu.Lock()
 			g.buf = append(g.buf, out...)
 			g.atSample = at + uint64(n)
@@ -184,11 +185,24 @@ func (e *sdrServer) shutdown() {
 	e.src.close()
 }
 
-// sdrSources is what is currently served, for the observer windows: address,
-// rate, and whether a client is on the line right now.
-func (s *Sim) sdrSources() []state.SDRSource {
-	out := make([]state.SDRSource, 0, len(s.sdrServers))
-	for name, e := range s.sdrServers {
+// sdrState holds the servers this session is running, off the Sim struct
+// through the DomainState seam. Reached only from the store goroutine - the
+// verbs and the per-tick refresh - so it needs no lock of its own.
+type sdrState struct {
+	servers map[string]*sdrServer
+}
+
+func stateOf(s *session.Sim) *sdrState {
+	return session.DomainState(s, "sdr", func() *sdrState {
+		return &sdrState{servers: map[string]*sdrServer{}}
+	})
+}
+
+// sources is what is currently served, for the observer windows: address, rate,
+// and whether a client is on the line right now.
+func sources(ss *sdrState) []state.SDRSource {
+	out := make([]state.SDRSource, 0, len(ss.servers))
+	for name, e := range ss.servers {
 		out = append(out, state.SDRSource{
 			Node: name, Addr: e.srv.Addr(), RateHz: e.rateHz,
 			Attached: e.srv.Attached(),
@@ -198,13 +212,13 @@ func (s *Sim) sdrSources() []state.SDRSource {
 	return out
 }
 
-func registerSDRServe(st *state.Store, s *Sim) {
+func registerSDRServe(st *state.Store, s *session.Sim) {
 	// sdr.serve: expose one node's antenna as an rtl_tcp source.
 	st.Handle("sdr.serve", func(w *state.World, p any) (any, error) {
-		if s.eng == nil {
-			return nil, ErrNoSimulation
+		if s.Engine() == nil {
+			return nil, session.ErrNoSimulation
 		}
-		name, _ := stringField(p, "node")
+		name, _ := session.StringField(p, "node")
 		idx := -1
 		for i := range w.Nodes {
 			if w.Nodes[i].Name == name {
@@ -212,16 +226,14 @@ func registerSDRServe(st *state.Store, s *Sim) {
 			}
 		}
 		if idx < 0 {
-			return nil, noSuchNode(name)
+			return nil, session.NoSuchNode(name)
 		}
-		if s.sdrServers == nil {
-			s.sdrServers = map[string]*sdrServer{}
-		}
-		if old, ok := s.sdrServers[name]; ok {
+		ss := stateOf(s)
+		if old, ok := ss.servers[name]; ok {
 			old.shutdown()
-			delete(s.sdrServers, name)
+			delete(ss.servers, name)
 		}
-		en, ok := s.eng.NodeByName(name)
+		en, ok := s.Engine().NodeByName(name)
 		if !ok {
 			return nil, fmt.Errorf("%s is not in the engine", name)
 		}
@@ -229,28 +241,29 @@ func registerSDRServe(st *state.Store, s *Sim) {
 		if rate <= 0 {
 			rate = 250e3
 		}
-		src := newEngineSource(s, idx, rate, s.eng.ObserverNoisePSD(idx))
+		src := newEngineSource(s, idx, rate, s.Engine().ObserverNoisePSD(idx))
 		srv, err := sdr.ServeRTLTCP("127.0.0.1:0", src)
 		if err != nil {
 			src.close()
 			return nil, err
 		}
-		s.sdrServers[name] = &sdrServer{srv: srv, src: src, rateHz: rate}
-		w.SDRSources = s.sdrSources()
+		ss.servers[name] = &sdrServer{srv: srv, src: src, rateHz: rate}
+		w.SDRSources = sources(ss)
 		w.Say(fmt.Sprintf("%s is an rtl_tcp source at %s - the stream follows "+
 			"the client's own rate setting (native %.0f Hz)", name, srv.Addr(), rate))
 		return map[string]any{"node": name, "addr": srv.Addr(), "rate_hz": rate}, nil
 	})
 
 	st.Handle("sdr.stop", func(w *state.World, p any) (any, error) {
-		name, _ := stringField(p, "node")
-		e, ok := s.sdrServers[name]
+		name, _ := session.StringField(p, "node")
+		ss := stateOf(s)
+		e, ok := ss.servers[name]
 		if !ok {
 			return nil, fmt.Errorf("%s is not being served", name)
 		}
 		e.shutdown()
-		delete(s.sdrServers, name)
-		w.SDRSources = s.sdrSources()
+		delete(ss.servers, name)
+		w.SDRSources = sources(ss)
 		w.Say("stopped serving " + name)
 		return map[string]any{"stopped": name}, nil
 	})

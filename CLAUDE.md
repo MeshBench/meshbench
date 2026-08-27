@@ -109,6 +109,7 @@ internal/app/       orchestration, no toolkit
     environ/            the environ.fetch verb, wired in by init
     sweep/              the sweep verbs and their offered-load plan, wired in by init
     fleet/              the bulk node verbs, wired in by init
+    sdr/                the rtl_tcp observer server, state off Sim via the seam
     domains/            blank-imports the split-out domains so their init runs
   fixture/            the on-disk form of a whole setup
   resource/           what is downloaded at runtime, and what it cost the disk

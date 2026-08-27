@@ -84,9 +84,6 @@ type Sim struct {
 	// run, and the list of verified boards could never grow past what it
 	// already holds. So the operator can lift the gate, and is told they have.
 	unverifiedWiring bool
-	// sdrServers is every node currently exposed as an rtl_tcp source,
-	// with the sample rate its stream was attached at.
-	sdrServers map[string]*sdrServer
 	// boardProbing is the single-flight guard on the capability matrix.
 	//
 	// Deliberately one at a time and never the whole fixture: a probe boots a
@@ -195,6 +192,13 @@ type Sim struct {
 	history  *nodeHistory
 	states   map[string]string
 	served   map[string]*engine.CompanionLink
+
+	// domainState holds the per-domain state that used to live as a typed field
+	// here, for the domains split out of session that cannot name their own
+	// type on this struct without an import cycle. Keyed by a name the domain
+	// chooses; reached through DomainState. Guarded by domainStateMu.
+	domainState   map[string]any
+	domainStateMu sync.Mutex
 }
 
 // terrainStore is the elevation the engine sees.
