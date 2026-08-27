@@ -17,7 +17,7 @@ func repeaterNode(name string) scenario.Node {
 
 // The default provisioning sends what the old workbench sends at attach.
 func TestDefaultProvisioningMatchesOldWorkbench(t *testing.T) {
-	cmds := DefaultProvisioning().commandsFor(repeaterNode("Abernethy Repeater"))
+	cmds := DefaultProvisioning().CommandsFor(repeaterNode("Abernethy Repeater"))
 	joined := strings.Join(cmds, "\n")
 	for _, want := range []string{
 		"set name Abernethy Repeater",
@@ -45,7 +45,7 @@ func TestStartupKnobsPassThrough(t *testing.T) {
 	p.PathHashMode = 1
 	p.LoopDetect = "minimal"
 	p.CadMode = "aggressive"
-	joined := strings.Join(p.commandsFor(repeaterNode("A")), "\n")
+	joined := strings.Join(p.CommandsFor(repeaterNode("A")), "\n")
 	for _, want := range []string{
 		"set path.hash.mode 1",
 		"set loop.detect minimal",
@@ -61,7 +61,7 @@ func TestStartupKnobsPassThrough(t *testing.T) {
 // inside an emoji.
 func TestNameTruncatesOnRunes(t *testing.T) {
 	long := "West Lomond " + strings.Repeat("⛰", 30)
-	cmds := DefaultProvisioning().commandsFor(repeaterNode(long))
+	cmds := DefaultProvisioning().CommandsFor(repeaterNode(long))
 	var sent string
 	for _, c := range cmds {
 		if strings.HasPrefix(c, "set name ") {

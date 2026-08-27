@@ -19,8 +19,6 @@ import (
 	"strings"
 
 	"github.com/MeshBench/meshbench/internal/world/scenario"
-
-	"github.com/MeshBench/meshbench/internal/app/state"
 )
 
 // Provisioning is what a node is told when it starts.
@@ -86,83 +84,6 @@ func DefaultProvisioning() Provisioning {
 	}
 }
 
-func registerProvisioningSettings(st *state.Store, s *Sim) {
-	st.Handle("provisioning.get", func(w *state.World, _ any) (any, error) {
-		return s.provisioning().describe(), nil
-	})
-
-	st.Handle("provisioning.set", func(w *state.World, p any) (any, error) {
-		pr := s.provisioning()
-		for name, set := range map[string]func(bool){
-			"set_name":         func(v bool) { pr.SetName = v },
-			"set_position":     func(v bool) { pr.SetPosition = v },
-			"set_clock":        func(v bool) { pr.SetClock = v },
-			"region_from_area": func(v bool) { pr.RegionFromArea = v },
-			"default_scope":    func(v bool) { pr.DefaultScope = v },
-		} {
-			if v, ok := boolField(p, name); ok {
-				set(v)
-			}
-		}
-		if v, ok := numField(p, "advert_hops"); ok {
-			pr.AdvertHops = int(v)
-		}
-		if v, ok := numField(p, "advert_minutes"); ok {
-			pr.AdvertMinutes = int(v)
-		}
-		if v, ok := numField(p, "stagger_ms"); ok {
-			pr.StaggerMs = int(v)
-		}
-		if v, ok := numField(p, "flood_max_advert"); ok {
-			pr.FloodMaxAdvert = int(v)
-		}
-		if v, ok := numField(p, "path_hash_mode"); ok {
-			pr.PathHashMode = int(v)
-		}
-		if v, ok := numField(p, "comp_path_hash_mode"); ok {
-			pr.CompPathHashMode = int(v)
-		}
-		if v, ok := namedField(p, "loop_detect"); ok {
-			pr.LoopDetect = v
-		}
-		if v, ok := namedField(p, "cad"); ok {
-			pr.CadMode = v
-		}
-		if v, ok := namedField(p, "extra"); ok {
-			pr.Extra = v
-		}
-		s.prov = pr
-		w.Provisioning, w.ProvisioningNode = nil, ""
-		w.Say("provisioning changed; the next start uses it")
-		return pr.describe(), nil
-	})
-
-	// provisioning.apply sends the current settings to nodes already running,
-	// which is the difference between changing what a future run does and
-	// changing what this one is doing.
-	st.Handle("provisioning.apply", func(w *state.World, _ any) (any, error) {
-		if s.eng == nil {
-			return nil, fmt.Errorf("no network loaded")
-		}
-		pr := s.provisioning()
-		sent := 0
-		for _, n := range s.nodes {
-			en, ok := s.eng.NodeByName(n.Name)
-			if !ok || en.Firmware == nil {
-				continue
-			}
-			for _, line := range pr.commandsFor(n) {
-				if err := en.Firmware.Bridge.Type([]byte(line + "\r\n")); err != nil {
-					return nil, fmt.Errorf("%s: %w", n.Name, err)
-				}
-			}
-			sent++
-		}
-		w.Say(fmt.Sprintf("re-provisioned %d running nodes", sent))
-		return map[string]any{"nodes": sent}, nil
-	})
-}
-
 func (s *Sim) provisioning() *Provisioning {
 	if s.prov == nil {
 		p := DefaultProvisioning()
@@ -171,7 +92,7 @@ func (s *Sim) provisioning() *Provisioning {
 	return s.prov
 }
 
-func (p Provisioning) describe() map[string]any {
+func (p Provisioning) Describe() map[string]any {
 	return map[string]any{
 		"set_name": p.SetName, "set_position": p.SetPosition,
 		"set_clock": p.SetClock, "region_from_area": p.RegionFromArea,
@@ -198,7 +119,7 @@ func (p Provisioning) pathHashFor(n scenario.Node) int {
 // The same list the provisioning panel shows, so what an operator reads and
 // what a node is told cannot drift apart - which is the whole reason that
 // panel exists.
-func (p Provisioning) commandsFor(n scenario.Node) []string {
+func (p Provisioning) CommandsFor(n scenario.Node) []string {
 	var out []string
 	if p.SetName && n.Name != "" {
 		// Truncated to the firmware's own field width, on a rune boundary:

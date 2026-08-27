@@ -147,6 +147,11 @@ func BoolField(p any, name string) (bool, bool)               { return boolField
 func NoSuchNode(name string) error                            { return noSuchNode(name) }
 func IsCompanionNode(nodes []scenario.Node, name string) bool { return isCompanionNode(nodes, name) }
 
+// Provisioning is the current provisioning settings, created from the default
+// on first use; the provisioning verbs read and mutate it through this pointer.
+// The type and its logic stay in core because the experiment matrix shares them.
+func (s *Sim) Provisioning() *Provisioning { return s.provisioning() }
+
 // Finishing is the context a verb uses to report how a job ended even as the
 // job's own context is being cancelled - the shared helper the split-out
 // domains' long-running pulls need.

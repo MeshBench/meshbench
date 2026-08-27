@@ -26,7 +26,7 @@ func TestScriptIsWhatIsSent(t *testing.T) {
 	// What is sent is the session's own settings first - name, clock - and
 	// then the regions. The test used to compare against the regions alone,
 	// and so failed the moment provisioning learned to set a name.
-	want := append(DefaultProvisioning().commandsFor(n), fixture.RegionCommands(n)...)
+	want := append(DefaultProvisioning().CommandsFor(n), fixture.RegionCommands(n)...)
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("script has drifted from what is sent:\n got %q\nwant %q", got, want)
 	}

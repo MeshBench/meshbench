@@ -60,7 +60,7 @@ func provisioningWith(prov Provisioning, n scenario.Node) []state.ProvisionLine 
 	// The session's own settings first: name, position, clock, advert cap.
 	// They are what the node is told before anything about regions, and
 	// showing them here is the point of this panel.
-	for _, c := range prov.commandsFor(n) {
+	for _, c := range prov.CommandsFor(n) {
 		out = append(out, state.ProvisionLine{
 			Command: c, Why: whyProvision(c),
 		})
