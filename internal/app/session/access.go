@@ -151,6 +151,13 @@ func (s *Sim) NodeIsEmulated(w *state.World, name string) (bool, error) {
 }
 func (s *Sim) NodeIndex(name string) (int, bool) { return s.nodeIndex(name) }
 
+// BoardProbing is the single-flight guard on the capability matrix, and
+// LiveEngine is the engine a running sweep cell owns, or the main one - the two
+// the board verbs need.
+func (s *Sim) BoardProbing() bool         { return s.boardProbing }
+func (s *Sim) SetBoardProbing(v bool)     { s.boardProbing = v }
+func (s *Sim) LiveEngine() *engine.Engine { return s.liveEngine() }
+
 // BoolField reads a named boolean parameter; NoSuchNode is the standard
 // not-found error; IsCompanionNode reports whether a named node is a companion.
 // Three more shared readers the split-out domains need.

@@ -42,7 +42,6 @@ func Register(st *state.Store, s *Sim) {
 	registerLinkPair(st, s)
 	registerImport(st, s)
 	registerSchedule(st, s)
-	registerBoardMatrix(st, s)
 	registerResources(st, s)
 	registerUIVerbs(st, s)
 	registerKeepAbove(st, s)
@@ -459,7 +458,6 @@ func Register(st *state.Store, s *Sim) {
 	registerNodeOutput(st, s)
 	registerNodeCard(st, s)
 	registerNodeOutputWindow(st, s)
-	registerBoardScreenshot(st, s)
 	st.Handle("session.describe", func(w *state.World, _ any) (any, error) {
 		return map[string]any{
 			"nodes": len(w.Nodes), "seed": w.Seed, "now_ms": w.NowMs,

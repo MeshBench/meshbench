@@ -6,7 +6,7 @@
 // a screenshot in a doc. It reads the same framebuffer the panel model holds
 // and encodes it here rather than anywhere near a desktop, because the honest
 // picture is the one the firmware drew, not the one a window manager composited.
-package session
+package board
 
 import (
 	"fmt"
@@ -16,12 +16,13 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/firmware"
 	"github.com/MeshBench/meshbench/internal/firmware/emulated/peripheral"
 )
 
-func registerBoardScreenshot(st *state.Store, s *Sim) {
+func registerBoardScreenshot(st *state.Store, s *session.Sim) {
 	// board.screenshot: the board's display as a PNG under the node's work
 	// directory. The path is returned so a caller can open it; the frame is
 	// exactly what the controller holds, at the size it holds it.
@@ -33,11 +34,11 @@ func registerBoardScreenshot(st *state.Store, s *Sim) {
 		},
 		Returns: []string{"node", "path", "width", "height", "bpp", "on"},
 	}, func(w *state.World, p any) (any, error) {
-		name, _ := stringField(p, "node")
+		name, _ := session.StringField(p, "node")
 		if name == "" {
 			return nil, fmt.Errorf("board.screenshot needs a node")
 		}
-		n, found := s.liveEngine().NodeByName(name)
+		n, found := s.LiveEngine().NodeByName(name)
 		if !found || n.Firmware == nil {
 			return nil, fmt.Errorf("%s is not running", name)
 		}

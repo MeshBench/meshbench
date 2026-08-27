@@ -6,6 +6,7 @@
 package domains
 
 import (
+	_ "github.com/MeshBench/meshbench/internal/app/session/board"
 	_ "github.com/MeshBench/meshbench/internal/app/session/boundary"
 	_ "github.com/MeshBench/meshbench/internal/app/session/capture"
 	_ "github.com/MeshBench/meshbench/internal/app/session/environ"
