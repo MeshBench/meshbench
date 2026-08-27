@@ -106,6 +106,7 @@ internal/app/       orchestration, no toolkit
   session/            the workbench without a user interface
     study/              coverage and validation verbs, wired in by init
     provisioning/       the provisioning settings verbs, wired in by init
+    resources/          the runtime-resource verbs, wired in by init
     board/              the board-probe and screenshot verbs, wired in by init
     boundary/           the study-area verbs, wired in by init
     capture/            the frame-capture verbs and Wireshark launch, wired in by init

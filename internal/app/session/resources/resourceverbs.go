@@ -4,7 +4,7 @@
 // the control socket is how a script or a headless machine reaches any of
 // this, and the SoftDevice in particular unblocks emulated nRF52 boards for
 // somebody who never opens the interface at all.
-package session
+package resources
 
 import (
 	"context"
@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/MeshBench/meshbench/internal/app/resource"
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	hw "github.com/MeshBench/meshbench/internal/firmware/board"
 )
@@ -29,9 +30,9 @@ func resourceCacheDir() string {
 
 // softDeviceProvider is the SoftDevice source, told how many nodes here are
 // waiting on one so a missing row reads as needed rather than optional.
-func (s *Sim) softDeviceProvider() *resource.SoftDevice {
+func softDeviceProvider(s *session.Sim) *resource.SoftDevice {
 	needed := 0
-	for _, n := range s.nodes {
+	for _, n := range s.Nodes() {
 		if n.Firmware.Board == "" {
 			continue
 		}
@@ -52,7 +53,7 @@ func (s *Sim) softDeviceProvider() *resource.SoftDevice {
 // blocked on, then the caches that fill themselves. Those are the reason this
 // package exists: on the machine it was written for the terrain cache had
 // reached 7.1 GB, and nothing in the application would tell you so.
-func (s *Sim) resourceProviders() []resource.Provider {
+func resourceProviders(s *session.Sim) []resource.Provider {
 	root := resourceCacheDir()
 	dir := func(k resource.Kind, label, sub, purpose, terms string) resource.Provider {
 		return &resource.DirCache{
@@ -61,7 +62,7 @@ func (s *Sim) resourceProviders() []resource.Provider {
 		}
 	}
 	return []resource.Provider{
-		s.softDeviceProvider(),
+		softDeviceProvider(s),
 		dir(resource.Terrain, "terrain tiles", "terrain",
 			"height data under every link budget, fetched for the ground you look at",
 			terrainTerms),
@@ -77,11 +78,11 @@ func (s *Sim) resourceProviders() []resource.Provider {
 // relistResources rescans every provider into the world, and is the only place
 // that does. Called directly by whatever needs the list refreshed, because a store
 // handler cannot ask the store for anything.
-func (s *Sim) relistResources(w *state.World) (int, error) {
+func relistResources(s *session.Sim, w *state.World) (int, error) {
 	var out []state.ResourceRow
 	// One provider failing must not empty the page. A cache directory that
 	// cannot be read is a row that says so, beside the ones that could.
-	for _, p := range s.resourceProviders() {
+	for _, p := range resourceProviders(s) {
 		rows, err := p.List(context.Background())
 		if err != nil {
 			out = append(out, state.ResourceRow{
@@ -105,8 +106,8 @@ func (s *Sim) relistResources(w *state.World) (int, error) {
 
 // providerFor finds the provider that owns a row, by the kind and name the
 // panel sends back.
-func (s *Sim) providerFor(kind, name string) (resource.Provider, resource.Row, bool) {
-	for _, p := range s.resourceProviders() {
+func providerFor(s *session.Sim, kind, name string) (resource.Provider, resource.Row, bool) {
+	for _, p := range resourceProviders(s) {
 		if string(p.Kind()) != kind {
 			continue
 		}
@@ -123,11 +124,11 @@ func (s *Sim) providerFor(kind, name string) (resource.Provider, resource.Row, b
 	return nil, resource.Row{}, false
 }
 
-func registerResources(st *state.Store, s *Sim) {
+func registerResources(st *state.Store, s *session.Sim) {
 	// resource.list: what is on this machine. Never touches the network -
 	// opening a panel must not start a download.
 	st.Handle("resource.list", func(w *state.World, _ any) (any, error) {
-		n, err := s.relistResources(w)
+		n, err := relistResources(s, w)
 		if err != nil {
 			return nil, err
 		}
@@ -136,19 +137,19 @@ func registerResources(st *state.Store, s *Sim) {
 
 	// resource.fetch: get one, as a job that can be stopped.
 	st.Handle("resource.fetch", func(w *state.World, p any) (any, error) {
-		name, _ := stringField(p, "name")
-		version, _ := namedField(p, "version")
+		name, _ := session.StringField(p, "name")
+		version, _ := session.NamedField(p, "version")
 		if name == "" {
 			return nil, fmt.Errorf("resource.fetch needs a name")
 		}
 		// The refusal lives here rather than in the panel because scripts and
 		// the control socket call this directly, and a fetch that silently
 		// does nothing is indistinguishable from one that failed.
-		kind, _ := namedField(p, "kind")
+		kind, _ := session.NamedField(p, "kind")
 		if kind == "" {
 			kind = string(resource.SoftDeviceKind)
 		}
-		prov, row, ok := s.providerFor(kind, name)
+		prov, row, ok := providerFor(s, kind, name)
 		if !ok {
 			return nil, fmt.Errorf("nothing here called %s", name)
 		}
@@ -180,7 +181,7 @@ func registerResources(st *state.Store, s *Sim) {
 			})
 			// How it ended has to be said even when what ended it was the
 			// cancel, so these outlive ctx - but not indefinitely.
-			done, release := finishing(ctx)
+			done, release := session.Finishing(ctx)
 			defer release()
 			_, _ = st.Do(done, "job.done", id)
 			if err != nil {
@@ -199,8 +200,8 @@ func registerResources(st *state.Store, s *Sim) {
 	})
 
 	st.Handle("resource.fetched", func(w *state.World, p any) (any, error) {
-		name, _ := stringField(p, "name")
-		version, _ := namedField(p, "version")
+		name, _ := session.StringField(p, "name")
+		version, _ := session.NamedField(p, "version")
 		// Nordic's own terms, cached beside the image and said aloud once:
 		// a licensed binary arriving silently is the thing the licence
 		// question was asked to avoid.
@@ -213,7 +214,7 @@ func registerResources(st *state.Store, s *Sim) {
 		// with no deadline, so the store stopped for good - and this handler is
 		// what runs when a download finishes, which is to say the workbench
 		// would have hung the first time anything was fetched.
-		if _, err := s.relistResources(w); err != nil {
+		if _, err := relistResources(s, w); err != nil {
 			return nil, err
 		}
 		return map[string]any{"name": name}, nil
@@ -221,13 +222,13 @@ func registerResources(st *state.Store, s *Sim) {
 
 	// resource.licence: the terms, for the interface to show.
 	st.Handle("resource.licence", func(w *state.World, p any) (any, error) {
-		name, _ := stringField(p, "name")
-		version, _ := namedField(p, "version")
-		kind, _ := namedField(p, "kind")
+		name, _ := session.StringField(p, "name")
+		version, _ := session.NamedField(p, "version")
+		kind, _ := session.NamedField(p, "kind")
 		if kind == "" {
 			kind = string(resource.SoftDeviceKind)
 		}
-		prov, row, ok := s.providerFor(kind, name)
+		prov, row, ok := providerFor(s, kind, name)
 		if !ok {
 			return nil, fmt.Errorf("nothing here called %s", name)
 		}
@@ -260,19 +261,19 @@ func registerResources(st *state.Store, s *Sim) {
 
 	// resource.remove: delete one. The caller has already asked twice.
 	st.Handle("resource.remove", func(w *state.World, p any) (any, error) {
-		name, _ := stringField(p, "name")
-		version, _ := namedField(p, "version")
+		name, _ := session.StringField(p, "name")
+		version, _ := session.NamedField(p, "version")
 		if name == "" {
 			return nil, fmt.Errorf("resource.remove needs a name")
 		}
 		// Whichever provider owns it. Removing 7 GB of terrain and removing a
 		// SoftDevice are the same gesture to the operator and different code
 		// underneath, which is what the provider list is for.
-		kind, _ := namedField(p, "kind")
+		kind, _ := session.NamedField(p, "kind")
 		if kind == "" {
 			kind = string(resource.SoftDeviceKind)
 		}
-		prov, row, ok := s.providerFor(kind, name)
+		prov, row, ok := providerFor(s, kind, name)
 		if !ok {
 			return nil, fmt.Errorf("nothing here called %s", name)
 		}
@@ -283,7 +284,7 @@ func registerResources(st *state.Store, s *Sim) {
 			return nil, err
 		}
 		w.Say("removed " + name + " " + version)
-		if _, err := s.relistResources(w); err != nil {
+		if _, err := relistResources(s, w); err != nil {
 			return nil, err
 		}
 		return map[string]any{"removed": name}, nil
