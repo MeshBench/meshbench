@@ -84,6 +84,24 @@ jobs:
       - name: go vet
         run: go vet ./...
 
+      # Dependencies, locked down. verify checks every module in the cache
+      # against the hash in go.sum, so a tampered or swapped module fails here
+      # rather than being linked into a release; the tidy check keeps go.mod and
+      # go.sum minimal and consistent, so a dependency cannot be added, or left
+      # behind after removal, without the change showing up in the diff. Both
+      # are deterministic and offline - the supply-chain guard is dependabot
+      # (weekly) plus licgen (which already refuses a module whose licence it
+      # cannot name), and these two keep the manifest honest between updates.
+      - name: Dependencies verified and tidy
+        run: |
+          go mod verify
+          go mod tidy
+          if ! git diff --quiet go.mod go.sum; then
+            echo "go.mod/go.sum are not tidy - run 'go mod tidy' and commit:"
+            git --no-pager diff go.mod go.sum
+            exit 1
+          fi
+
       # The licence inventory is generated, embedded in the workbench and
       # shipped in every bundle - and until now licgen ran only on a tag
       # push. The seven-layer move renamed internal/workbench and licgen's
