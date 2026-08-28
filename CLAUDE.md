@@ -131,6 +131,7 @@ internal/ui/        Gio — the only layer permitted a toolkit
 pkg/                the public surface, for a fork or an app to import
   client-go/          the Go client and its runnable examples
   client-python/      the Python client, its pytest plugin and examples
+  client-js/          the Node client, one ES module on the same socket
 
 tools/dissector/    Wireshark Lua dissector
 tools/soak/         drives a running workbench and judges what it heard

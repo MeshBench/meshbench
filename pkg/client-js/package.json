@@ -1,0 +1,14 @@
+{
+  "name": "@meshbench/client",
+  "version": "0.1.0",
+  "description": "Drive a running MeshBench workbench from Node over its control socket.",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "main": "meshbench.mjs",
+  "exports": "./meshbench.mjs",
+  "files": ["meshbench.mjs", "README.md"],
+  "engines": { "node": ">=18" },
+  "scripts": { "test": "node --test meshbench.test.mjs" },
+  "repository": { "type": "git", "url": "https://github.com/MeshBench/meshbench.git", "directory": "pkg/client-js" },
+  "keywords": ["meshbench", "meshcore", "lora", "simulation"]
+}
