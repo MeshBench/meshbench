@@ -7,13 +7,25 @@ companion app discovers and connects to it exactly as it would to hardware.
 python3 tools/ble/nus_peripheral.py --name MSIM-GB7XYZ --bridge 127.0.0.1:7801
 ```
 
-Verified on elite against a real adapter:
+`--bridge` is the node's TCP companion port (`companion.serve tcp`). Both
+directions cross it: the app's writes to `rx` go to the node's UART, and the
+node's output comes back as `tx` notifications. `--mtu` sets the notification
+payload size (default 20 — the largest that fits the smallest BLE MTU; a longer
+frame is split and the app reassembles it from MeshCore's length prefix).
+
+Registration verified on elite against a real adapter:
 
 ```
 adapter: /org/bluez/hci0
 gatt registered
 adv registered
 REGISTERED OK
+```
+
+The pure framing logic has a bus-free check that runs anywhere:
+
+```bash
+python3 tools/ble/nus_peripheral.py --selftest   # -> selftest OK
 ```
 
 ## UUIDs
@@ -32,6 +44,17 @@ authority on what it looks for.
 This process holds **no simulation state**. Frames bridge to the simulator over
 a local socket, so it is a transport and nothing more — the clock-pinning rule
 in ADR-0008 (a real client forces 1× time) stays the simulator's business.
+
+The socket is read on its own thread, because `recv` blocks and the GLib main
+loop must stay free for D-Bus; each notification is handed back to that loop
+with `idle_add`, since a D-Bus signal must be emitted on the thread that owns
+the loop. Output produced before a central subscribes is dropped rather than
+buffered, matching the TCP and pty transports: a client that connects late
+wants what happens next, not a replay since boot.
+
+Not in CI: this tool needs BlueZ, an adapter and D-Bus, none of which the
+runners have. The `--selftest` path covers the one piece of logic — frame
+chunking and reassembly — that can be checked without them.
 
 ## Requirements
 
