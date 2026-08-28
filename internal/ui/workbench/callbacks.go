@@ -76,7 +76,11 @@ func (c callbacks) wire() {
 	// machine, and the same store, so nothing is downloaded twice. The layer
 	// is the remembered choice, like the old workbench's.
 	if cache, err := os.UserCacheDir(); err == nil {
-		layerID := "carto-dark"
+		// OpenStreetMap by default, because it needs no key: the CARTO layers
+		// return a "API KEY REQUIRED" tile without a token, so a first run that
+		// defaulted to one opened onto a wall of watermarks. A remembered
+		// choice still wins.
+		layerID := "osm"
 		if id := c.sm.Basemap(); id != "" {
 			layerID = id
 		}
