@@ -21,6 +21,7 @@ import (
 	"gioui.org/unit"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
+	"github.com/MeshBench/meshbench/internal/diag"
 	"github.com/MeshBench/meshbench/internal/ui/comp"
 	"github.com/MeshBench/meshbench/internal/ui/float"
 )
@@ -259,9 +260,13 @@ func (c *layerChrome) pxToDpSize(sz image.Point) (unit.Dp, unit.Dp) {
 // refused the move from a compositor that ignored it is to print what the
 // client believed and what it then sent.
 //
-//	MESHBENCH_LAYER_DEBUG=1 go run ./cmd/meshbench workbench
+//	MESHBENCH_LOG=layer go run ./cmd/meshbench workbench
+//
+// MESHBENCH_LAYER_DEBUG still turns it on, so a script or a note that named the
+// old variable keeps working; MESHBENCH_LOG is the one that also selects the
+// other domains at the same time.
 func layerLog(format string, args ...any) {
-	if os.Getenv("MESHBENCH_LAYER_DEBUG") == "" {
+	if !diag.On("layer") && os.Getenv("MESHBENCH_LAYER_DEBUG") == "" {
 		return
 	}
 	// A drag reports several times a frame and says the same thing each time
