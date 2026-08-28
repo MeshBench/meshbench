@@ -269,6 +269,20 @@ func NewStore(cacheDir string) (*Store, error) {
 
 func key(l Layer, z, x, y int) string { return fmt.Sprintf("%s/%d/%d/%d", l.ID, z, x, y) }
 
+// tileURL is the request for one tile. CARTO's raster service wants an API
+// key on the URL; without one it serves an "API KEY REQUIRED" watermark tile
+// that caches like a real answer. The key comes from the environment so it
+// stays the operator's own - nothing here ships one.
+func tileURL(l Layer, z, x, y int) string {
+	url := expand(l.URL, z, x, y)
+	if strings.Contains(url, "cartocdn.com") {
+		if k := os.Getenv("MESHBENCH_CARTO_KEY"); k != "" {
+			url += "?key=" + k
+		}
+	}
+	return url
+}
+
 func (s *Store) path(l Layer, z, x, y int) string {
 	return filepath.Join(s.CacheDir, l.ID, fmt.Sprint(z), fmt.Sprint(x), fmt.Sprint(y)+".img")
 }
@@ -324,7 +338,7 @@ func (s *Store) Fetch(ctx context.Context, l Layer, z, x, y int) error {
 			"and blocks generic defaults")
 	}
 
-	url := expand(l.URL, z, x, y)
+	url := tileURL(l, z, x, y)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return err
