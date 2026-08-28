@@ -1,6 +1,6 @@
 // The layer rule, enforced.
 //
-// internal/ is eight layers deep, in this order, and a package may import its
+// internal/ is nine layers deep, in this order, and a package may import its
 // own layer and everything beneath it. Nothing may import upward. That is what
 // makes "ui can reach the physics, the physics cannot reach a widget" a fact
 // about the build rather than a claim in a document.
@@ -30,7 +30,7 @@ import (
 
 // layers, lowest first. A package's layer is the first path element under
 // internal/.
-var layers = []string{"rf", "mesh", "firmware", "world", "sim", "study", "app", "ui"}
+var layers = []string{"diag", "rf", "mesh", "firmware", "world", "sim", "study", "app", "ui"}
 
 const modulePrefix = "github.com/MeshBench/meshbench/internal/"
 

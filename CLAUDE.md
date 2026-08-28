@@ -47,6 +47,8 @@ this is a check rather than a description.
 ```
 cmd/meshbench/    the binary
 
+internal/diag/      opt-in diagnostic logging, chosen by domain (MESHBENCH_LOG)
+
 internal/rf/        radio physics — knows nothing of nodes, networks or the app
   geo/                great-circle distance and bearing, once
   channel/            sums waveforms, applies gain and delay, adds noise
