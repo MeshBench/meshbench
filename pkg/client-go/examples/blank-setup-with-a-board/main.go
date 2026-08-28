@@ -2,7 +2,8 @@
 //
 //	go run ./pkg/client-go/examples/blank-setup-with-a-board
 //
-// Needs a display. It opens the node's own window on the Hardware tab at the
+// wadamesh is imported, not downloaded: it must be in the library or
+// reachable through WADAMESH_IMAGE. Needs a display. It opens the node's own window on the Hardware tab at the
 // end, which is the point of it.
 package main
 
@@ -40,9 +41,15 @@ func main() {
 	must(wb.Firmware().Scan(ctx))
 	build, err := wb.Firmware().Find(ctx, wadamesh, board)
 	if errors.Is(err, meshbench.ErrNotFound) {
-		must(wb.Firmware().Download(ctx, "companion", wadamesh, board))
-		must(wb.WaitIdle(ctx, 10*time.Minute))
-		build, err = wb.Firmware().Find(ctx, wadamesh, board)
+		// wadamesh is imported, not in the download catalogue - import a
+		// built image, named by WADAMESH_IMAGE.
+		image := os.Getenv("WADAMESH_IMAGE")
+		if image == "" {
+			log.Fatal("wadamesh is not in the library; set WADAMESH_IMAGE " +
+				"to a built image, or import one in the workbench first")
+		}
+		build, err = wb.Firmware().Import(ctx, image,
+			meshbench.RoleCompanionRadioUSB, board, wadamesh)
 	}
 	must(err)
 
