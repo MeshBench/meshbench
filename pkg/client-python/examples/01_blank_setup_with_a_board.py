@@ -3,18 +3,23 @@
 
     ./01_blank_setup_with_a_board.py
 
-Costs: a minute or two, plus whatever downloading a build takes the first time.
+Costs: a minute or two. wadamesh is imported, not downloaded, so it must
+already be in the library or reachable through WADAMESH_IMAGE (see below).
 Needs a display. It opens the node's own window on the Hardware tab at the
 end, which is the point of it.
 
 """
 
+import os
 import sys
 from datetime import timedelta
 
-from meshbench import Board, Kind, NotFound, Workbench
+from meshbench import Board, Kind, NotFound, Role, Workbench
 
 WADAMESH = "wadamesh"
+# wadamesh is imported, not in the download catalogue: a built image to
+# import if it is not already in the library. Point this at one.
+WADAMESH_IMAGE = os.environ.get("WADAMESH_IMAGE")
 BOARD = Board.LILYGO_TDECK
 
 
@@ -36,9 +41,18 @@ def main() -> None:
         try:
             build = wb.firmware.find(WADAMESH, board=BOARD)
         except NotFound:
-            wb.firmware.download("companion", WADAMESH, board=BOARD)
-            wb.wait_idle(timedelta(minutes=10))
-            build = wb.firmware.find(WADAMESH, board=BOARD)
+            # wadamesh is imported, not downloaded - import a built image.
+            if not WADAMESH_IMAGE:
+                sys.exit(
+                    f"{WADAMESH} is not in the library; set WADAMESH_IMAGE "
+                    "to a built image, or import one in the workbench first"
+                )
+            build = wb.firmware.import_(
+                WADAMESH_IMAGE,
+                Role.COMPANION_RADIO_USB,
+                board=BOARD,
+                label=WADAMESH,
+            )
 
         # Applied: stop, provision, start. On a board that means an emulator,
         # which is why the wait below is generous.
