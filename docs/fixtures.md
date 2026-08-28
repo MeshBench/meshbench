@@ -114,5 +114,18 @@ left the room server looking for `simple_room_server` inside `repeater-v1.17.0`,
 which does not publish one, and one node of fifty-six failed to start. Pin the
 roles you are not varying, or leave `experiment.base` alone.
 
-The scripts that drove all of this are in the session, not the repository: the
-fixtures are the artefact, and they load with no network and no re-inference.
+The steps above are now a committed script — [`fixtures/regenerate.mjs`](../fixtures/regenerate.mjs),
+driving a headless workbench through the Node client — so a refresh is
+reproducible rather than reconstructed from memory. The fixtures are still the
+artefact: they load with no network and no re-inference. The script writes only
+the nodes and settings a headless save carries; the study metadata a fixture
+also holds (the map view, the assertions) is merged from the previous fixture
+when the output is copied into place.
+
+**`scotland-ireland` now includes Northern Ireland.** The earlier pair chose
+Scotland and the Republic of Ireland only, and NI is a separate UK
+administrative area, so its nodes fell outside both boundaries and none was
+imported (MSIM #244). The regenerated pair adds a third boundary, and the region
+naming that had regressed to a no-op — a `nil` matcher, then a name-vs-key
+mismatch — is fixed, so the nodes come back with the regions that decide whether
+they relay.
