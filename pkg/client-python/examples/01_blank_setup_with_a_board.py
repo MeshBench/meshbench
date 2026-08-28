@@ -48,8 +48,10 @@ def main() -> None:
                     "to a built image, or import one in the workbench first"
                 )
             build = wb.firmware.import_(
-                WADAMESH_IMAGE, Role.COMPANION_RADIO_USB,
-                board=BOARD, label=WADAMESH,
+                WADAMESH_IMAGE,
+                Role.COMPANION_RADIO_USB,
+                board=BOARD,
+                label=WADAMESH,
             )
 
         # Applied: stop, provision, start. On a board that means an emulator,
