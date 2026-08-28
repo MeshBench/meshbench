@@ -28,6 +28,16 @@ type importState struct {
 	inferred map[string]*provider.Inferred
 }
 
+// inferReading is how the reading goroutine hands its work back to the store:
+// the packets it read and the matcher that names their regions, both prepared
+// off the store thread because one is a large read and the other a network
+// call. A matcher of nil is honest - the regions stay unnamed rather than
+// guessed - but the CoreScope path always supplies one.
+type inferReading struct {
+	packets []provider.PacketRecord
+	matcher provider.RegionMatcher
+}
+
 func registerImport(st *state.Store, s *Sim) {
 	// import.set_source: where to fetch from.
 	st.Handle("import.set_source", func(w *state.World, p any) (any, error) {
@@ -165,7 +175,21 @@ func registerImport(st *state.Store, s *Sim) {
 				_, _ = st.Do(context.Background(), "import.failed", err.Error())
 				return
 			}
-			_, _ = st.Do(context.Background(), "infer.result", packets)
+			// Name the regions, not merely detect that traffic was scoped: the
+			// candidates are the regions CoreScope has seen, and a transport
+			// code checked against a candidate's key turns "relays something
+			// scoped" into "relays #ioi". Without this a whole import comes back
+			// with every node region-less, which transmits everything and
+			// relays nothing - the silence the shipped fixtures were missing.
+			// Fetched here, off the store thread, because it is a network call;
+			// best-effort, since an unnamed region is still honestly reported as
+			// scoped rather than guessed.
+			var matcher provider.RegionMatcher
+			if names, rerr := cs.Regions(context.Background()); rerr == nil && len(names) > 0 {
+				matcher = provider.NewNamedRegions(names)
+			}
+			_, _ = st.Do(context.Background(), "infer.result",
+				inferReading{packets: packets, matcher: matcher})
 		}()
 		return map[string]any{"reading": true, "hours": hours}, nil
 	})
@@ -189,7 +213,7 @@ func registerImport(st *state.Store, s *Sim) {
 	// replacing a completed inference with an empty one - so a mesh that had
 	// just been imported correctly went silent and nothing said why.
 	st.Handle("infer.result", func(w *state.World, p any) (any, error) {
-		packets, ok := p.([]provider.PacketRecord)
+		r, ok := p.(inferReading)
 		if !ok {
 			return nil, badParams("infer.result is the reader's own callback; " +
 				"use infer.run to start a read")
@@ -197,18 +221,18 @@ func registerImport(st *state.Store, s *Sim) {
 		if s.imp == nil {
 			s.imp = &importState{}
 		}
-		s.imp.packets = packets
-		s.imp.inferred = provider.InferFromPackets(packets, nil)
+		s.imp.packets = r.packets
+		s.imp.inferred = provider.InferFromPackets(r.packets, r.matcher)
 		holders := map[string]int{}
 		for _, in := range s.imp.inferred {
-			for _, r := range in.Regions {
-				holders[r]++
+			for _, rn := range in.Regions {
+				holders[rn]++
 			}
 		}
 		w.Jobs = finishJob(w.Jobs, "infer")
-		w.Say(fmt.Sprintf("read %d packets, %d nodes seen", len(packets), len(s.imp.inferred)))
+		w.Say(fmt.Sprintf("read %d packets, %d nodes seen", len(r.packets), len(s.imp.inferred)))
 		return map[string]any{
-			"packets": len(packets), "nodes": len(s.imp.inferred),
+			"packets": len(r.packets), "nodes": len(s.imp.inferred),
 			"regions": holders,
 		}, nil
 	})
@@ -220,10 +244,28 @@ func registerImport(st *state.Store, s *Sim) {
 		if s.imp == nil || len(s.imp.inferred) == 0 {
 			return nil, fmt.Errorf("nothing inferred yet")
 		}
+		// A packet names the nodes on its path by public key - that is what
+		// CoreScope's resolved_path carries - so the inference is keyed by key,
+		// not by the display name. Match on the key an imported node kept from
+		// the feed, and fall back to the name for anything placed by hand or a
+		// feed that resolved a name. Matching on name alone credited almost
+		// nobody: a whole import came back with a handful of regions where the
+		// traffic proved hundreds.
+		find := func(name, key string) (*provider.Inferred, bool) {
+			if key != "" {
+				if in, ok := s.imp.inferred[key]; ok && len(in.Regions) > 0 {
+					return in, true
+				}
+			}
+			if in, ok := s.imp.inferred[name]; ok && len(in.Regions) > 0 {
+				return in, true
+			}
+			return nil, false
+		}
 		n := 0
 		for i := range s.nodes {
-			in, ok := s.imp.inferred[s.nodes[i].Name]
-			if !ok || len(in.Regions) == 0 {
+			in, ok := find(s.nodes[i].Name, s.nodes[i].PublicKey)
+			if !ok {
 				continue
 			}
 			s.nodes[i].Regions = append([]string(nil), in.Regions...)
@@ -232,8 +274,11 @@ func registerImport(st *state.Store, s *Sim) {
 			}
 			n++
 		}
+		// The snapshot's own nodes carry no key, so match them by name; the
+		// saved fixture comes from the scenario nodes above, which is where the
+		// key match matters. This keeps the live view roughly in step.
 		for i := range w.Nodes {
-			if in, ok := s.imp.inferred[w.Nodes[i].Name]; ok && len(in.Regions) > 0 {
+			if in, ok := find(w.Nodes[i].Name, ""); ok {
 				w.Nodes[i].Regions = append([]string(nil), in.Regions...)
 			}
 		}
