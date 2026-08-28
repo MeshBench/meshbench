@@ -21,6 +21,7 @@ stays the simulator's business.
 import argparse
 import socket
 import sys
+import threading
 
 import dbus
 import dbus.mainloop.glib
@@ -36,6 +37,45 @@ DBUS_PROPS = "org.freedesktop.DBus.Properties"
 SVC_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
 RX_UUID = "6e400002-b5a3-f393-e0a9-e50e24dcca9e"
 TX_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"
+
+# The default notification payload. A BLE notification carries at most
+# ATT_MTU-3 bytes, and the smallest MTU a stack may offer is 23, so 20 is what
+# always fits without knowing what was negotiated. A frame longer than this
+# goes as several notifications, which the app reassembles from MeshCore's own
+# length prefix - the transport is byte-transparent, exactly as the TCP and pty
+# ones are.
+DEFAULT_MTU = 20
+
+
+def chunk(data, size):
+    """Split a byte string into notification-sized pieces.
+
+    Pure and bus-free, so the one piece of logic with an off-by-one to get
+    wrong can be tested with --selftest on a machine that has no adapter. A
+    non-positive size means "do not split"; empty input yields no pieces, so a
+    zero-length read is never sent as an empty notification.
+    """
+    if not data:
+        return []
+    if size <= 0:
+        return [data]
+    return [data[i:i + size] for i in range(0, len(data), size)]
+
+
+def _selftest():
+    """Exercise the pure logic without a D-Bus session or an adapter."""
+    assert chunk(b"", 20) == []
+    assert chunk(b"abc", 20) == [b"abc"]
+    assert chunk(b"a" * 20, 20) == [b"a" * 20]
+    assert chunk(b"a" * 21, 20) == [b"a" * 20, b"a"]
+    assert chunk(b"a" * 45, 20) == [b"a" * 20, b"a" * 20, b"a" * 5]
+    assert chunk(b"abc", 0) == [b"abc"]
+    # Reassembly is the whole contract: the pieces must concatenate back to the
+    # original, whatever the size.
+    for n in (0, 1, 19, 20, 21, 200):
+        blob = bytes(range(256)) * 3
+        assert b"".join(chunk(blob, n)) == blob, n
+    print("selftest OK")
 
 
 class Application(dbus.service.Object):
@@ -119,6 +159,34 @@ class TxChar(Characteristic):
         pass
 
 
+def pump_bridge(sock, tx, mtu, loop):
+    """Carry the simulator's output to the app: read the node's byte stream off
+    the bridge socket and notify it in MTU-sized pieces.
+
+    This is the return path. Without it a phone can write to the node but never
+    hears it answer, which looks exactly like a node that has gone quiet - the
+    write path (RxChar) was here from the start and this was not.
+
+    Runs in its own thread, because socket.recv blocks and the GLib main loop
+    must stay free to service D-Bus. Each notification is handed back to that
+    loop with idle_add, because a D-Bus signal must be emitted on the thread
+    that owns the loop. Output before the central subscribes is dropped by
+    TxChar.send rather than buffered, matching the other transports: a client
+    that connects late wants what happens next, not a replay.
+    """
+    try:
+        while True:
+            data = sock.recv(4096)
+            if not data:
+                break  # the simulator closed the node's port
+            for piece in chunk(data, mtu):
+                GLib.idle_add(tx.send, piece)
+    except OSError as e:
+        print(f"bridge read failed: {e}", file=sys.stderr)
+    finally:
+        GLib.idle_add(loop.quit)
+
+
 class RxChar(Characteristic):
     """Central -> peripheral. App writes land here and go to the simulator."""
 
@@ -172,8 +240,16 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--name", default="MSIM-node")
     ap.add_argument("--bridge", default="", help="host:port of the simulator's node socket")
+    ap.add_argument("--mtu", type=int, default=DEFAULT_MTU,
+                    help=f"notification payload size, bytes (default {DEFAULT_MTU})")
     ap.add_argument("--check", action="store_true", help="verify registration then exit")
+    ap.add_argument("--selftest", action="store_true",
+                    help="run the pure-logic checks and exit; needs no bus or adapter")
     a = ap.parse_args()
+
+    if a.selftest:
+        _selftest()
+        return
 
     dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
     bus = dbus.SystemBus()
@@ -213,6 +289,13 @@ def main():
     am.RegisterAdvertisement(adv.get_path(), {},
                              reply_handler=lambda: done("adv"),
                              error_handler=lambda e: fail("adv", e))
+    # The return path: pump the simulator's output to the app. Only when there
+    # is a socket to read and we are staying up - a --check run exits before a
+    # central ever subscribes, so it needs no pump.
+    if sock and not a.check:
+        tx = app.services[0].chars[0]  # TxChar, the notify characteristic
+        threading.Thread(target=pump_bridge, args=(sock, tx, a.mtu, loop),
+                         daemon=True).start()
     if a.check:
         GLib.timeout_add_seconds(10, loop.quit)
     print(f"advertising as {a.name!r} with the MeshCore companion service")
