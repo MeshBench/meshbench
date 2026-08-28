@@ -7,9 +7,8 @@
 // other. Both speak the control socket, and anything either can do the other
 // can.
 //
-// Not internal/, deliberately. meshtest/ is the existing precedent and the
-// reason is the same: it exists to be imported. While this repository is
-// private that means us and meshtest's users; after it opens it means anybody.
+// Not internal/, deliberately: it exists to be imported. While this repository
+// is private that means us; after it opens it means anybody.
 //
 // # Two layers
 //

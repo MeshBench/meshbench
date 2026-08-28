@@ -129,8 +129,6 @@ internal/ui/        Gio — the only layer permitted a toolkit
   workbench/          the workbench itself: panels, state, wiring
 
 pkg/                the public surface, for a fork or an app to import
-  meshtest/           a MeshCore network inside somebody else's test - it exists
-                      to be imported, which is why it is not internal/
   client-go/          the Go client and its runnable examples
   client-python/      the Python client, its pytest plugin and examples
 
@@ -147,7 +145,7 @@ This table is the map. A new package updates it in the same commit — the map
 being wrong is worse than the map being short.
 
 `internal/` for everything private - the seven layers - and `pkg/` for the small
-public surface a fork imports (`meshtest`, the clients). Not
+public surface a fork imports (the clients). Not
 `golang-standards/project-layout` wholesale — it is unofficial, disclaims
 itself, and Go maintainers have criticised it — but `pkg/` earns its place as
 the one boundary between what outsiders may import and what they may not.
