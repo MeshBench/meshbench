@@ -35,3 +35,26 @@ func TestNoKeyNoParameter(t *testing.T) {
 		}
 	}
 }
+
+// The environment always beats the build-stamped default, and the stamp
+// alone is enough for a keyed tile.
+func TestEnvironmentBeatsTheBakedDefault(t *testing.T) {
+	old := defaultCartoKey
+	defaultCartoKey = "baked"
+	defer func() { defaultCartoKey = old }()
+
+	t.Setenv("MESHBENCH_CARTO_KEY", "")
+	var carto Layer
+	for _, l := range Layers() {
+		if l.ID == "carto-dark" {
+			carto = l
+		}
+	}
+	if got := tileURL(carto, 6, 31, 20); !strings.HasSuffix(got, "?key=baked") {
+		t.Fatalf("the baked default did not reach the tile: %s", got)
+	}
+	t.Setenv("MESHBENCH_CARTO_KEY", "mine")
+	if got := tileURL(carto, 6, 31, 20); !strings.HasSuffix(got, "?key=mine") {
+		t.Fatalf("the environment did not win: %s", got)
+	}
+}

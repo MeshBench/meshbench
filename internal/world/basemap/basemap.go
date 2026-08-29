@@ -269,14 +269,28 @@ func NewStore(cacheDir string) (*Store, error) {
 
 func key(l Layer, z, x, y int) string { return fmt.Sprintf("%s/%d/%d/%d", l.ID, z, x, y) }
 
+// defaultCartoKey is stamped by the release pipeline with -ldflags -X, from
+// a repository secret, so a downloaded build serves CARTO tiles out of the
+// box. It never appears in the source tree; a source build without the
+// stamp simply has no default. The environment always wins over it.
+var defaultCartoKey string
+
+// CartoKey is the CARTO API key this process will use: the operator's
+// environment first, then whatever the build was stamped with, else empty.
+func CartoKey() string {
+	if k := os.Getenv("MESHBENCH_CARTO_KEY"); k != "" {
+		return k
+	}
+	return defaultCartoKey
+}
+
 // tileURL is the request for one tile. CARTO's raster service wants an API
 // key on the URL; without one it serves an "API KEY REQUIRED" watermark tile
-// that caches like a real answer. The key comes from the environment so it
-// stays the operator's own - nothing here ships one.
+// that caches like a real answer.
 func tileURL(l Layer, z, x, y int) string {
 	url := expand(l.URL, z, x, y)
 	if strings.Contains(url, "cartocdn.com") {
-		if k := os.Getenv("MESHBENCH_CARTO_KEY"); k != "" {
+		if k := CartoKey(); k != "" {
 			url += "?key=" + k
 		}
 	}
