@@ -792,7 +792,6 @@ Specified and ticketed, with nothing running behind them:
 |---|---|
 | Antenna filters against interference | MSIM-21 — the emitter model exists (MSIM-20); per-emitter emission masks and receive filters do not |
 | Instrumented firmware builds | MSIM-26 |
-| Calibrating excess loss from residuals | MSIM-29 — needs MSIM-28 to have data first |
 | Shadow mode: live model-versus-reality | MSIM-33 |
 
 Built since this list was first written: the desktop application (MSIM-10), the
