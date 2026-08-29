@@ -23,7 +23,7 @@ await wb.close();
 ```
 
 `call(verb, params)` is the whole API; everything the workbench can do is a
-verb, and the [control-socket reference](https://meshbench.github.io/meshbench-docs/reference-control.html)
+verb, and the [control-socket reference](https://meshbench.github.io/docs/reference-control.html)
 lists them all. A verb the workbench refuses throws a `WorkbenchError` carrying
 its `code`, so you can tell "no such node" from "the workbench is closing"
 without matching prose.
@@ -58,4 +58,4 @@ real workbench, no network.
 
 A number this prints is a simulated number, kinder than the air, exactly as it
 is from the application. The limits travel with it — see
-[what it does not do](https://meshbench.github.io/meshbench-docs/what-it-does-not-do.html).
+[what it does not do](https://meshbench.github.io/docs/what-it-does-not-do.html).

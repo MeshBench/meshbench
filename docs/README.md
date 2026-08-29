@@ -1,6 +1,6 @@
 # MeshBench documentation
 
-**User and reference documentation lives in `MeshBench/meshbench-docs`.** What
+**User and reference documentation lives in `MeshBench/docs`.** What
 is here is either something the code depends on, or source material that has
 not been migrated yet.
 
