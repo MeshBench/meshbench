@@ -58,3 +58,4 @@ tools/armfw/build/
 
 # Written by `go test -coverprofile` for a Sonar scan; regenerated on demand.
 coverage.out
+.carto-key

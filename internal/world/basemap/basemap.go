@@ -271,12 +271,11 @@ func key(l Layer, z, x, y int) string { return fmt.Sprintf("%s/%d/%d/%d", l.ID, 
 
 // tileURL is the request for one tile. CARTO's raster service wants an API
 // key on the URL; without one it serves an "API KEY REQUIRED" watermark tile
-// that caches like a real answer. The key comes from the environment so it
-// stays the operator's own - nothing here ships one.
+// that caches like a real answer.
 func tileURL(l Layer, z, x, y int) string {
 	url := expand(l.URL, z, x, y)
 	if strings.Contains(url, "cartocdn.com") {
-		if k := os.Getenv("MESHBENCH_CARTO_KEY"); k != "" {
+		if k := CartoKey(); k != "" {
 			url += "?key=" + k
 		}
 	}

@@ -82,7 +82,7 @@ func (c callbacks) wire() {
 		// environment the CARTO dark map is the better ground for data, which
 		// is what it was designed to be. A remembered choice still wins.
 		layerID := "osm"
-		if os.Getenv("MESHBENCH_CARTO_KEY") != "" {
+		if basemap.CartoKey() != "" {
 			layerID = "carto-dark"
 		}
 		if id := c.sm.Basemap(); id != "" {

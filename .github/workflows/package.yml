@@ -30,6 +30,13 @@ on:
         type: boolean
         default: true
 
+# The CARTO basemap key is a repository secret, stamped into release
+# binaries at link time (see internal/world/basemap.defaultCartoKey) so a
+# downloaded build serves keyed tiles out of the box. It never appears in
+# the source tree, and the operator's environment overrides it at runtime.
+env:
+  CARTO_API_KEY: ${{ secrets.CARTO_API_KEY }}
+
 jobs:
   linux:
     timeout-minutes: 75
@@ -128,6 +135,7 @@ jobs:
           fi
           go build -trimpath \
             -ldflags "-X gioui.org/app.ID=io.github.meshbench.meshbench \
+              -X github.com/MeshBench/meshbench/internal/world/basemap.defaultCartoKey=${CARTO_API_KEY} \
                       -X github.com/MeshBench/meshbench/internal/app/version.Version=$VERSION" \
             -o dist/meshbench/meshbench ./cmd/meshbench
 
@@ -601,6 +609,7 @@ jobs:
           GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc \
           go build -trimpath \
             -ldflags "-H windowsgui -X gioui.org/app.ID=io.github.meshbench.meshbench \
+              -X github.com/MeshBench/meshbench/internal/world/basemap.defaultCartoKey=${CARTO_API_KEY} \
                       -X github.com/MeshBench/meshbench/internal/app/version.Version=$VERSION" \
             -o dist/meshbench/meshbench.exe ./cmd/meshbench
           cp -r fixtures dist/meshbench/fixtures
