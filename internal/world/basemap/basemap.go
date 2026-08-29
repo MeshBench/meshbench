@@ -276,10 +276,17 @@ func key(l Layer, z, x, y int) string { return fmt.Sprintf("%s/%d/%d/%d", l.ID, 
 var defaultCartoKey string
 
 // CartoKey is the CARTO API key this process will use: the operator's
-// environment first, then whatever the build was stamped with, else empty.
+// environment first, then a .carto-key file in the working directory - the
+// gitignored way a source checkout carries the key for development - then
+// whatever the build was stamped with, else empty.
 func CartoKey() string {
 	if k := os.Getenv("MESHBENCH_CARTO_KEY"); k != "" {
 		return k
+	}
+	if b, err := os.ReadFile(".carto-key"); err == nil {
+		if k := strings.TrimSpace(string(b)); k != "" {
+			return k
+		}
 	}
 	return defaultCartoKey
 }

@@ -1,6 +1,7 @@
 package basemap
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -56,5 +57,28 @@ func TestEnvironmentBeatsTheBakedDefault(t *testing.T) {
 	t.Setenv("MESHBENCH_CARTO_KEY", "mine")
 	if got := tileURL(carto, 6, 31, 20); !strings.HasSuffix(got, "?key=mine") {
 		t.Fatalf("the environment did not win: %s", got)
+	}
+}
+
+// A .carto-key file in the working directory carries the key for a source
+// checkout: above the baked default, below the environment.
+func TestCartoKeyFileBeatsBakedAndLosesToEnv(t *testing.T) {
+	old := defaultCartoKey
+	defaultCartoKey = "baked"
+	defer func() { defaultCartoKey = old }()
+
+	dir := t.TempDir()
+	if err := os.WriteFile(dir+"/.carto-key", []byte("from-file\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
+
+	t.Setenv("MESHBENCH_CARTO_KEY", "")
+	if got := CartoKey(); got != "from-file" {
+		t.Fatalf("file did not win over the baked default: %q", got)
+	}
+	t.Setenv("MESHBENCH_CARTO_KEY", "mine")
+	if got := CartoKey(); got != "mine" {
+		t.Fatalf("environment did not win over the file: %q", got)
 	}
 }
