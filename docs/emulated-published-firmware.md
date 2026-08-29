@@ -153,3 +153,45 @@ bytes, and it should not be described as if it were.
   native mesh is.
 - **The long tail is boards, not architectures.** One board working does not
   make fifty work.
+
+## Where the board matrix's failures are (last true: 2026-08-29)
+
+The README's compatibility matrix links here for what each ✗ turned out to
+be, and why it is not the board's fault.
+
+- The three nRF52 boards that fail **flood** report their channel busy for
+  essentially the whole run, 241 seconds of 250 on one measurement against
+  zero on a board that relays, and MeshCore will not transmit into a busy
+  channel. Not the wiring (resolved through each variant's own pin map), not
+  the budget, the seed, the geometry, or firmware 1.17.1.
+- The two ESP32-S3 boards now boot and reach their application. They used to
+  restart for ever without finishing startup, 360 times in one probe,
+  asserting in ESP-IDF's `do_core_init` on `esp_flash_init_default_chip()`.
+  The flash driver's `set_io_mode()` was returning
+  `ESP_ERR_FLASH_NO_RESPONSE`, which ESP-IDF forgives only when the flash is
+  not in quad mode: the ESP32 boards are built for DIO and were forgiven,
+  the S3 boards are built for QIO and were not, which is why it looked like
+  an S3 fault rather than a flash one. The emulator's flash model knew
+  GigaDevice parts by name and handled their quad-enable bit nowhere, so the
+  bit could be written and never took.
+- Both ESP32-S3 boards now reach the air. Two things were wrong and neither
+  was where it looked. Their radios are not on the controller the profiles
+  named: Arduino's default `SPIClass` is HSPI, and HSPI is controller 2 on
+  an ESP32 but controller 3 on an ESP32-S3, and the machine modelled only
+  the flash controller's registers, using that layout for the
+  general-purpose one too, where a transfer starts on a different bit and
+  the data sits at a different offset. And every input pin read low out of
+  reset, GPIO0 included; it is a strapping pin whose pull-up holds it high,
+  and reading it low is a program button held down, so MeshCore powered the
+  board off after two minutes, every time, before it had adverted once.
+- What those two fail now is **flood**, in common with the nRF52 group.
+- Three boards put the application's `Serial` on USB Serial/JTAG rather than
+  UART0 (`ARDUINO_USB_CDC_ON_BOOT`): the T-Deck, the RAK3112 and the Heltec
+  Wireless Tracker. Until that peripheral carried bytes they read as boards
+  that started and then fell silent; the T-Deck's row is measured with it
+  carrying bytes.
+- `Station_G2` has no emulation wiring recorded yet. `Heltec_v2` carries an
+  SX1276, which is not modelled: the chip here is an SX1262.
+- **power** is untested on boards with no console rather than failed: Renode
+  models two UARTs and no USB device, and the Adafruit core puts `Serial`
+  on USB CDC.
