@@ -304,6 +304,7 @@ class Node:
         self._wb.call("nodes.move", {"name": self.name, "lat": lat, "lon": lon})
 
     def set_regions(self, *regions: str) -> None:
+        """What this node relays flood traffic for."""
         self._wb.call("nodes.regions", {"node": self.name, "regions": list(regions)})
 
     def set_firmware(self, build: Build | str, apply: bool = True) -> None:
