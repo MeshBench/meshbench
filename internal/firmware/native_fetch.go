@@ -129,7 +129,7 @@ func (c *NativeCatalogue) Fetch(ctx context.Context, img NativeImage) (string, e
 	dest := filepath.Join(c.CacheDir, "native", img.Version, asset)
 
 	if b, err := os.ReadFile(dest); err == nil {
-		if err := verify(b, img.SHA256); err == nil {
+		if err := Verify(b, img.SHA256); err == nil {
 			return dest, nil
 		}
 		// A cached binary that no longer matches its digest is corruption or a
@@ -160,7 +160,7 @@ func (c *NativeCatalogue) Fetch(ctx context.Context, img NativeImage) (string, e
 	if err != nil {
 		return "", fmt.Errorf("firmware: read %s: %w", img.Name(), err)
 	}
-	if err := verify(body, img.SHA256); err != nil {
+	if err := Verify(body, img.SHA256); err != nil {
 		return "", fmt.Errorf("firmware: %s: %w", img.Name(), err)
 	}
 
@@ -170,6 +170,12 @@ func (c *NativeCatalogue) Fetch(ctx context.Context, img NativeImage) (string, e
 	// Executable, because unlike a .uf2 this is a program this machine runs.
 	if err := os.WriteFile(dest, body, 0o755); err != nil {
 		return "", fmt.Errorf("firmware: write %s: %w", dest, err)
+	}
+	// Recorded so a later cache hit, from either this path or fetchDirect, has
+	// something on-disk corruption is checked against without keeping the
+	// published digest around separately.
+	if err := recordChecksum(dest, body); err != nil {
+		return "", fmt.Errorf("firmware: recording %s's checksum: %w", dest, err)
 	}
 	return dest, nil
 }
@@ -317,6 +323,13 @@ func (c *NativeCatalogue) fetchDirect(ctx context.Context, role, version string)
 		return "", err
 	}
 	if err := os.WriteFile(dest, body, 0o755); err != nil {
+		return "", err
+	}
+	// No published digest to check this against - that is the whole point of
+	// this path - but what it hands back can still be checked against itself
+	// later: cachedBinary refuses to serve this file again once its bytes stop
+	// matching what was written here.
+	if err := recordChecksum(dest, body); err != nil {
 		return "", err
 	}
 	return dest, nil

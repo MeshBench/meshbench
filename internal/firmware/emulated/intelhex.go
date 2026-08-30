@@ -57,8 +57,15 @@ func ReadIntelHex(path string) ([]Region, error) {
 			return nil, fmt.Errorf("firmware: %s:%d: %w", path, line, err)
 		}
 		n, offset, typ := int(raw[0]), uint32(raw[1])<<8|uint32(raw[2]), raw[3]
-		if len(raw) < 5+n {
-			return nil, fmt.Errorf("firmware: %s:%d claims %d bytes and carries fewer", path, line, n)
+		// Exact, not "at least": the checksum below is the record's last byte,
+		// and a record with anything past it would have that byte checked
+		// instead. A short record used to slip through as "fewer" and reach an
+		// index into a data slice with nothing in it.
+		if len(raw) != 5+n {
+			return nil, fmt.Errorf("firmware: %s:%d claims %d bytes and carries %d", path, line, n, len(raw)-5)
+		}
+		if sum := recordChecksum(raw); sum != 0 {
+			return nil, fmt.Errorf("firmware: %s:%d fails its checksum", path, line)
 		}
 		data := raw[4 : 4+n]
 		switch typ {
@@ -67,8 +74,16 @@ func ReadIntelHex(path string) ([]Region, error) {
 				bytesAt[upper+offset+uint32(i)] = b
 			}
 		case hexExtendedLin:
+			if n < 2 {
+				return nil, fmt.Errorf(
+					"firmware: %s:%d is an extended linear address record with %d bytes, want 2", path, line, n)
+			}
 			upper = (uint32(data[0])<<8 | uint32(data[1])) << 16
 		case hexExtendedSeg:
+			if n < 2 {
+				return nil, fmt.Errorf(
+					"firmware: %s:%d is an extended segment address record with %d bytes, want 2", path, line, n)
+			}
 			upper = (uint32(data[0])<<8 | uint32(data[1])) << 4
 		case hexEOF, hexStartLinAddr, hexStartSegAddr:
 			// Nothing to place: the start-address records name an entry point,
@@ -85,6 +100,17 @@ func ReadIntelHex(path string) ([]Region, error) {
 		return nil, fmt.Errorf("firmware: %s carries no data records", path)
 	}
 	return regionsFrom(bytesAt), nil
+}
+
+// recordChecksum sums a decoded record's bytes, its own trailing checksum
+// byte included. A well-formed record sums to zero mod 256; anything else is
+// a corrupted line that must not be loaded into flash as though it were not.
+func recordChecksum(raw []byte) byte {
+	var sum byte
+	for _, b := range raw {
+		sum += b
+	}
+	return sum
 }
 
 // regionsFrom joins scattered bytes into as few runs as it can.

@@ -205,7 +205,7 @@ func (c *Catalogue) Fetch(ctx context.Context, img Image) (string, error) {
 	dest := filepath.Join(c.CacheDir, img.Version, asset)
 
 	if b, err := os.ReadFile(dest); err == nil {
-		if err := verify(b, img.SHA256); err != nil {
+		if err := Verify(b, img.SHA256); err != nil {
 			// A cached file that no longer matches is corruption or a moved
 			// tag. Removing and refetching is right; serving it is not.
 			_ = os.Remove(dest)
@@ -237,7 +237,7 @@ func (c *Catalogue) Fetch(ctx context.Context, img Image) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("firmware: read %s: %w", img.Name(), err)
 	}
-	if err := verify(body, img.SHA256); err != nil {
+	if err := Verify(body, img.SHA256); err != nil {
 		return "", fmt.Errorf("firmware: %s: %w", img.Name(), err)
 	}
 
@@ -250,8 +250,12 @@ func (c *Catalogue) Fetch(ctx context.Context, img Image) (string, error) {
 	return dest, nil
 }
 
-// verify checks a digest when one was published, and says so when none was.
-func verify(body []byte, want string) error {
+// Verify checks a digest when one was published, and says so when none was.
+//
+// Exported because a published digest is checked in more than one catalogue:
+// the board images in internal/firmware/emulated carry the same kind of
+// SHA256 and want the same rule, rather than a second copy of it.
+func Verify(body []byte, want string) error {
 	if want == "" {
 		return nil // nothing published to check against
 	}

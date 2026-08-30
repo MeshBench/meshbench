@@ -2,6 +2,8 @@ package emulated
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -47,6 +49,11 @@ type BoardImage struct {
 	Name  string
 	URL   string
 	Bytes int64
+
+	// SHA256 as published, if the release carries one. Empty means the release
+	// predates GitHub's digest field, which Ensure treats as nothing to check
+	// against rather than as a reason to refuse the image.
+	SHA256 string
 }
 
 // assetPattern splits a published asset name.
@@ -127,9 +134,10 @@ func (c *BoardCatalogue) repo() string {
 func (c *BoardCatalogue) List(ctx context.Context, tag string) ([]BoardImage, error) {
 	var payload struct {
 		Assets []struct {
-			Name string `json:"name"`
-			URL  string `json:"browser_download_url"`
-			Size int64  `json:"size"`
+			Name   string `json:"name"`
+			URL    string `json:"browser_download_url"`
+			Size   int64  `json:"size"`
+			Digest string `json:"digest"`
 		} `json:"assets"`
 	}
 	url := fmt.Sprintf("https://api.github.com/repos/%s/releases/tags/%s", c.repo(), tag)
@@ -149,6 +157,7 @@ func (c *BoardCatalogue) List(ctx context.Context, tag string) ([]BoardImage, er
 			continue
 		}
 		img.URL, img.Bytes = a.URL, a.Size
+		img.SHA256 = strings.TrimPrefix(a.Digest, "sha256:")
 		out = append(out, img)
 	}
 	sort.Slice(out, func(i, j int) bool {
@@ -173,9 +182,10 @@ func (c *BoardCatalogue) ListAll(ctx context.Context) ([]BoardImage, error) {
 		var releases []struct {
 			TagName string `json:"tag_name"`
 			Assets  []struct {
-				Name string `json:"name"`
-				URL  string `json:"browser_download_url"`
-				Size int64  `json:"size"`
+				Name   string `json:"name"`
+				URL    string `json:"browser_download_url"`
+				Size   int64  `json:"size"`
+				Digest string `json:"digest"`
 			} `json:"assets"`
 		}
 		url := fmt.Sprintf("https://api.github.com/repos/%s/releases?per_page=100&page=%d",
@@ -204,6 +214,7 @@ func (c *BoardCatalogue) ListAll(ctx context.Context) ([]BoardImage, error) {
 					continue
 				}
 				img.URL, img.Bytes = a.URL, a.Size
+				img.SHA256 = strings.TrimPrefix(a.Digest, "sha256:")
 				out = append(out, img)
 			}
 		}
@@ -278,11 +289,17 @@ func BoardImagePath(cacheDir string, img BoardImage) string {
 		name+"-"+img.Version+"."+img.Format)
 }
 
-// Ensure downloads an image if it is not already cached, and returns its path.
+// Ensure downloads an image if it is not already cached, and returns its
+// path. A cache hit is trusted only when it still carries the published
+// digest; a mismatch there is corruption or a moved tag, and refetching is
+// right where serving it is not.
 func (c *BoardCatalogue) Ensure(ctx context.Context, img BoardImage) (string, error) {
 	dst := BoardImagePath(c.CacheDir, img)
-	if st, err := os.Stat(dst); err == nil && st.Size() > 0 {
-		return dst, nil
+	if body, err := os.ReadFile(dst); err == nil && len(body) > 0 {
+		if err := firmware.Verify(body, img.SHA256); err == nil {
+			return dst, nil
+		}
+		_ = os.Remove(dst)
 	}
 	if img.URL == "" {
 		return "", fmt.Errorf("firmware: %s has no download URL", img.Name)
@@ -310,7 +327,11 @@ func (c *BoardCatalogue) Ensure(ctx context.Context, img BoardImage) (string, er
 	if c.OnProgress != nil && img.Bytes > 0 {
 		src = &countingReader{r: body, total: img.Bytes, report: c.OnProgress}
 	}
-	if _, err := io.Copy(f, src); err != nil {
+	// Hashed as it is written, rather than read back afterwards: a flash image
+	// this size costs nothing extra to hash on the way past, and it means the
+	// digest check happens before anything is renamed into place.
+	hasher := sha256.New()
+	if _, err := io.Copy(io.MultiWriter(f, hasher), src); err != nil {
 		_ = f.Close()
 		_ = os.Remove(tmp)
 		return "", err
@@ -318,6 +339,11 @@ func (c *BoardCatalogue) Ensure(ctx context.Context, img BoardImage) (string, er
 	if err := f.Close(); err != nil {
 		_ = os.Remove(tmp)
 		return "", err
+	}
+	if sum := hex.EncodeToString(hasher.Sum(nil)); img.SHA256 != "" && !strings.EqualFold(sum, img.SHA256) {
+		_ = os.Remove(tmp)
+		return "", fmt.Errorf("firmware: %s: checksum mismatch: got %s, published %s",
+			img.Name, sum, img.SHA256)
 	}
 	if err := os.Rename(tmp, dst); err != nil {
 		return "", err
