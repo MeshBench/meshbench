@@ -3,10 +3,12 @@ package control
 import (
 	"encoding/json"
 	"errors"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -239,6 +241,83 @@ func TestClassifyMapsASentinel(t *testing.T) {
 	if got := CodeOf(boom); got != Closing {
 		t.Errorf("the registered sentinel is %q, want %q", got, Closing)
 	}
+}
+
+// flakyListener stands in for a real one refusing Accept a fixed number of
+// times before it starts working - what a process brushing a file descriptor
+// ceiling looks like to whoever is calling Accept, with nothing distinguishing
+// it from a fault at the type level.
+type flakyListener struct {
+	net.Listener
+	mu    sync.Mutex
+	fails int
+}
+
+func (f *flakyListener) Accept() (net.Conn, error) {
+	f.mu.Lock()
+	if f.fails > 0 {
+		f.fails--
+		f.mu.Unlock()
+		return nil, errors.New("transient: too many open files")
+	}
+	f.mu.Unlock()
+	return f.Listener.Accept()
+}
+
+// A transient Accept error must not be the last thing the accept loop ever
+// does: it retries, with backoff, and the socket goes on answering once
+// whatever briefly starved it clears.
+func TestATransientAcceptErrorDoesNotDisableTheSocket(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "flaky.sock")
+	ln, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(path, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	flaky := &flakyListener{Listener: ln, fails: 3}
+	srv := &Server{
+		ln:      flaky,
+		addr:    Address{Kind: Unix, Addr: path},
+		handler: func(string, json.RawMessage) (any, error) { return map[string]any{"ok": true}, nil },
+	}
+	go srv.accept()
+	t.Cleanup(func() { _ = srv.Close() })
+
+	stop := make(chan struct{})
+	go func() {
+		tick := time.NewTicker(2 * time.Millisecond)
+		defer tick.Stop()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-tick.C:
+				srv.Pump()
+			}
+		}
+	}()
+	t.Cleanup(func() { close(stop) })
+
+	// The listener refuses three times before it will ever hand back a
+	// connection; a permanently disabled accept loop would never get through
+	// this, backoff or not.
+	deadline := time.Now().Add(3 * time.Second)
+	var lastErr error
+	for time.Now().Before(deadline) {
+		c, err := DialAt(path)
+		if err == nil {
+			_, err = c.Call("who", nil)
+			_ = c.Close()
+			if err == nil {
+				return
+			}
+		}
+		lastErr = err
+		time.Sleep(acceptBackoffMin)
+	}
+	t.Fatalf("the socket never recovered from transient accept errors: %v", lastErr)
 }
 
 func contains(s, sub string) bool {

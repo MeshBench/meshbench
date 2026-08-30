@@ -20,6 +20,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/MeshBench/meshbench/internal/diag"
 )
 
 // Protocol is the wire version, bumped only when a change breaks a client
@@ -215,22 +217,65 @@ func (s *Server) Close() error {
 	return err
 }
 
+// acceptBackoffMin and acceptBackoffMax bound the retry after a transient
+// Accept error. An application that opens terrain tiles, firmware child
+// processes, pcapng files and emulator sockets can plausibly brush a
+// per-process file descriptor ceiling, and Accept reports that exactly like
+// any other failure - so one such moment used to close the socket for the
+// rest of the run, silently, while the window stayed open and every later
+// client was told nobody was listening. The doubling with a ceiling is what
+// net/http's own Server.Serve has done since Go 1.0.
+const (
+	acceptBackoffMin = 5 * time.Millisecond
+	acceptBackoffMax = time.Second
+)
+
 func (s *Server) accept() {
+	var backoff time.Duration
 	for {
 		c, err := s.ln.Accept()
 		if err != nil {
-			return
+			if s.isClosed() {
+				// Close() did this on purpose; there is nothing to report.
+				return
+			}
+			if backoff == 0 {
+				backoff = acceptBackoffMin
+			} else if backoff *= 2; backoff > acceptBackoffMax {
+				backoff = acceptBackoffMax
+			}
+			diag.Printf("control", "accept: %v - retrying in %s", err, backoff)
+			time.Sleep(backoff)
+			continue
 		}
+		backoff = 0
 		go s.serve(c)
 	}
 }
 
+func (s *Server) isClosed() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.closed
+}
+
 func (s *Server) serve(c net.Conn) {
 	defer func() { _ = c.Close() }()
-	dec := json.NewDecoder(bufio.NewReader(c))
+	// The frame is bounded before anything in it is decoded: json.Decoder
+	// buffers one whole value before it hands anything back, so an unbounded
+	// reader here would let a single huge string literal be allocated by a
+	// peer that has not yet proven it is allowed to send anything at all.
+	lr := newLimitedReader(bufio.NewReader(c), requestFrameLimit)
+	dec := json.NewDecoder(lr)
 	enc := json.NewEncoder(c)
-	if s.addr.Kind == TCP && !s.authorised(c, dec, enc) {
-		return
+	if s.addr.Kind == TCP {
+		// The hello line gets its own, far tighter budget: it is a token and
+		// nothing else, and it is read before anybody has proven anything.
+		lr.reset(helloFrameLimit)
+		if !s.authorised(c, dec, enc) {
+			return
+		}
+		lr.reset(requestFrameLimit)
 	}
 
 	// One writer, so replies and notifications never interleave a half-frame on
@@ -240,7 +285,14 @@ func (s *Server) serve(c net.Conn) {
 	// notifications (dropped in Notify) rather than the store.
 	out := make(chan any, 64)
 	done := make(chan struct{})
+	// writerDone closes once the writer has stopped, for any reason. A dead
+	// peer makes enc.Encode fail the moment the writer next tries it, and
+	// from then on nothing will ever drain out again - so the reader watches
+	// writerDone too, and a dead writer ends the connection instead of
+	// parking the reader on a full channel for the rest of the process.
+	writerDone := make(chan struct{})
 	go func() {
+		defer close(writerDone)
 		for {
 			select {
 			case msg := <-out:
@@ -248,6 +300,10 @@ func (s *Server) serve(c net.Conn) {
 					return
 				}
 			case <-done:
+				// The reader has already decided to stop; flush what it
+				// queued on the way out rather than let the close that
+				// follows race ahead of a reply or a refusal.
+				drainPending(enc, out)
 				return
 			}
 		}
@@ -259,11 +315,19 @@ func (s *Server) serve(c net.Conn) {
 			s.unsubscribe(sub)
 		}
 		close(done)
+		// Waited on rather than fired and forgotten, so the outer defer's
+		// c.Close() cannot run while the writer is still mid-Encode of
+		// whatever drainPending found queued.
+		<-writerDone
 	}()
 
 	for {
 		var req Request
 		if err := dec.Decode(&req); err != nil {
+			if errors.Is(err, errFrameTooLarge) {
+				sendOrGiveUp(out, writerDone, Response{
+					Error: errFrameTooLarge.Error(), Code: string(BadParams)})
+			}
 			return
 		}
 
@@ -279,7 +343,10 @@ func (s *Server) serve(c net.Conn) {
 		// ack is always the first frame the writer sends.
 		if req.Method == SubscribeMethod {
 			topics := parseTopics(req.Params)
-			out <- Response{ID: req.ID, Result: map[string]any{"subscribed": topics}}
+			if !sendOrGiveUp(out, writerDone, Response{
+				ID: req.ID, Result: map[string]any{"subscribed": topics}}) {
+				return
+			}
 			if sub == nil {
 				sub = s.subscribe(out, topics)
 			} else {
@@ -292,13 +359,44 @@ func (s *Server) serve(c net.Conn) {
 		s.mu.Lock()
 		if s.closed {
 			s.mu.Unlock()
-			out <- Response{ID: req.ID, Error: "workbench closing", Code: string(Closing)}
+			sendOrGiveUp(out, writerDone, Response{
+				ID: req.ID, Error: "workbench closing", Code: string(Closing)})
 			return
 		}
 		s.queue = append(s.queue, job{req: req, reply: reply})
 		s.mu.Unlock()
 
-		out <- <-reply
+		if !sendOrGiveUp(out, writerDone, <-reply) {
+			return
+		}
+	}
+}
+
+// sendOrGiveUp queues a frame for the writer, or reports that the writer has
+// already gone rather than block on a channel nothing will ever drain again.
+func sendOrGiveUp(out chan any, writerDone <-chan struct{}, msg any) bool {
+	select {
+	case out <- msg:
+		return true
+	case <-writerDone:
+		return false
+	}
+}
+
+// drainPending flushes whatever the reader already queued once it has decided
+// to stop. It does not wait for more to arrive - only what is already
+// buffered gets a chance - because waiting here is exactly the block this
+// exists to avoid.
+func drainPending(enc *json.Encoder, out <-chan any) {
+	for {
+		select {
+		case msg := <-out:
+			if enc.Encode(msg) != nil {
+				return
+			}
+		default:
+			return
+		}
 	}
 }
 
@@ -317,6 +415,11 @@ func (s *Server) authorised(c net.Conn, dec *json.Decoder, enc *json.Encoder) bo
 	_ = c.SetReadDeadline(time.Now().Add(10 * time.Second))
 	var h hello
 	if err := dec.Decode(&h); err != nil {
+		if errors.Is(err, errFrameTooLarge) {
+			// Answered rather than just closed: a peer over the hello limit
+			// gets told why, the same as a peer with the wrong token.
+			_ = enc.Encode(Response{Error: errFrameTooLarge.Error(), Code: string(BadParams)})
+		}
 		return false
 	}
 	if h.Token != s.addr.Token {
@@ -354,108 +457,4 @@ func (s *Server) Pump() {
 		}
 		j.reply <- resp
 	}
-}
-
-// Client talks to a running workbench.
-type Client struct {
-	conn net.Conn
-	addr Address
-	enc  *json.Encoder
-	dec  *json.Decoder
-	mu   sync.Mutex
-	next int
-}
-
-// Dial connects to the workbench where this operating system answers.
-func Dial() (*Client, error) { return DialAt("") }
-
-// DialAt connects to a chosen address.
-//
-// A TCP address is found through the rendezvous file rather than guessed at,
-// because the port is ephemeral - and the token comes from the same file, so
-// a client that can read it is a client entitled to drive the session.
-func DialAt(want string) (*Client, error) {
-	addr, err := Resolve(want)
-	if err != nil {
-		return nil, err
-	}
-	return dialAddr(addr)
-}
-
-// dialAddr opens one connection to an already-resolved address, doing the TCP
-// token handshake if it needs to. Split out so a subscription can open a second
-// connection to the same place - token and all - without re-resolving.
-func dialAddr(addr Address) (*Client, error) {
-	network := "unix"
-	if addr.Kind == TCP {
-		network = "tcp"
-		if strings.HasSuffix(addr.Addr, ":0") || addr.Token == "" {
-			r, err := readRendezvous()
-			if err != nil {
-				return nil, err
-			}
-			addr.Addr, addr.Token = r.Address, r.Token
-		}
-	}
-	c, err := net.Dial(network, addr.Addr) //nolint:noctx // see live()
-	if err != nil {
-		return nil, fmt.Errorf("control: no workbench is listening at %s: %w",
-			addr, err)
-	}
-	cl := &Client{conn: c, addr: addr, enc: json.NewEncoder(c),
-		dec: json.NewDecoder(bufio.NewReader(c))}
-	if addr.Kind == TCP {
-		// The token first, before anything else on the wire. A loopback port
-		// is reachable by any local process, so this is what stands in for the
-		// permissions a unix socket would have had.
-		if err := cl.enc.Encode(hello{Token: addr.Token}); err != nil {
-			_ = c.Close()
-			return nil, err
-		}
-	}
-	return cl, nil
-}
-
-// hello is the first line of a TCP connection, and the only thing sent before
-// the token has been accepted.
-type hello struct {
-	Token string `json:"token"`
-}
-
-// Path is where this client is connected.
-func (c *Client) Path() string { return c.addr.String() }
-
-func (c *Client) Close() error { return c.conn.Close() }
-
-// Call runs one command and returns the raw JSON result.
-func (c *Client) Call(method string, params any) (json.RawMessage, error) {
-	var raw json.RawMessage
-	if params != nil {
-		b, err := json.Marshal(params)
-		if err != nil {
-			return nil, err
-		}
-		raw = b
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.next++
-	if err := c.enc.Encode(Request{ID: c.next, Method: method, Params: raw}); err != nil {
-		return nil, err
-	}
-	var resp Response
-	if err := c.dec.Decode(&resp); err != nil {
-		return nil, err
-	}
-	if resp.Error != "" {
-		// The code travels with the message rather than replacing it, so
-		// errors.As gets the classification and a person still gets the
-		// sentence the verb wrote.
-		return nil, &Coded{Code: Code(resp.Code), Err: errors.New(resp.Error)}
-	}
-	b, err := json.Marshal(resp.Result)
-	if err != nil {
-		return nil, err
-	}
-	return b, nil
 }
