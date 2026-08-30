@@ -69,7 +69,7 @@ func registerBoardMatrix(st *state.Store, s *session.Sim) {
 		return map[string]any{"probing": true, "board": board, "version": version}, nil
 	})
 
-	st.Handle("board.probe_finished", func(w *state.World, p any) (any, error) {
+	st.HandleInternal("board.probe_finished", func(w *state.World, p any) (any, error) {
 		s.SetBoardProbing(false)
 		w.Jobs = session.FinishJob(w.Jobs, "boardprobe")
 		board, _ := session.StringField(p, "board")

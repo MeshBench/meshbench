@@ -142,7 +142,7 @@ func registerValidate(st *state.Store, s *session.Sim) {
 		return map[string]any{"fetching": true, "hours": hours}, nil
 	})
 
-	st.Handle("validate.failed", func(w *state.World, p any) (any, error) {
+	st.HandleInternal("validate.failed", func(w *state.World, p any) (any, error) {
 		msg := session.SoleString(p)
 		w.Jobs = session.FinishJob(w.Jobs, "validate")
 		w.Say("validate: " + msg)
@@ -150,8 +150,11 @@ func registerValidate(st *state.Store, s *session.Sim) {
 	})
 
 	// validate.compare: what the model said against what was heard.
-	st.Handle("validate.compare", func(w *state.World, p any) (any, error) {
-		recs, _ := p.([]provider.Reception)
+	st.HandleInternal("validate.compare", func(w *state.World, p any) (any, error) {
+		recs, ok := p.([]provider.Reception)
+		if !ok {
+			return nil, session.WrongCallback("validate.compare")
+		}
 		w.Jobs = session.FinishJob(w.Jobs, "validate")
 		if len(recs) == 0 {
 			return nil, fmt.Errorf("no observations in that window")

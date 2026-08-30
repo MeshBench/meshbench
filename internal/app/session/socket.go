@@ -41,11 +41,19 @@ func ServeControlAt(ctx context.Context, st *state.Store,
 		// view of the application rather than about the world.
 		switch method {
 		case "session.hello":
-			return hello(st.Verbs(), where), nil
+			return hello(st.PublicVerbs(), where), nil
 		case "session.verbs":
-			return map[string]any{"verbs": sortedVerbs(st.Verbs())}, nil
+			return map[string]any{"verbs": st.PublicVerbs()}, nil
 		case "session.snapshot":
 			return snapshotSummary(st.Snapshot()), nil
+		}
+		// The application's own callbacks stop here, and are not offered in the
+		// two answers above either. They carry Go values from a worker to the
+		// store; the same call over the wire arrives as JSON, misses its type
+		// and lands a zero value on top of a real answer, reporting success.
+		if st.IsInternal(method) {
+			return nil, control.WithCode(control.BadParams, fmt.Errorf(
+				"%s is the workbench's own callback, not a verb to call", method))
 		}
 		params, err := decodeParams(raw)
 		if err != nil {

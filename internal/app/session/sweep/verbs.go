@@ -45,8 +45,11 @@ func registerSweep(st *state.Store, s *session.Sim) {
 		return map[string]any{"arms": len(plan.Arms), "seeds": len(plan.Seeds)}, nil
 	})
 
-	st.Handle("sweep.set", func(w *state.World, p any) (any, error) {
-		m, _ := p.(*state.Matrix)
+	st.HandleInternal("sweep.set", func(w *state.World, p any) (any, error) {
+		m, ok := p.(*state.Matrix)
+		if !ok {
+			return nil, session.WrongCallback("sweep.set")
+		}
 		w.Matrix = m
 		if m != nil {
 			w.Say(fmt.Sprintf("swept %d arms over %d seeds", len(m.Arms), len(m.Seeds)))

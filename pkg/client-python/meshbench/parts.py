@@ -238,7 +238,7 @@ class Firmware:
     def scan(self) -> None:
         """Ask the catalogue what is published, which is how a build nobody has
         downloaded becomes offerable."""
-        self._wb.call("firmware.published")
+        self._wb.call("firmware.rescan")
 
     def download(self, role: str, version: str, board: Board | str = "") -> None:
         """Fetch a published build.

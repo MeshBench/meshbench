@@ -21,7 +21,7 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 		return map[string]any{"starting": true}, nil
 	})
 
-	st.Handle("firmware.started", func(w *state.World, _ any) (any, error) {
+	st.HandleInternal("firmware.started", func(w *state.World, _ any) (any, error) {
 		n := s.firmwareCount()
 		// The count, here as well as on the tick.
 		//
@@ -44,7 +44,7 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 		return map[string]any{"running": n}, nil
 	})
 
-	st.Handle("firmware.failed", func(w *state.World, p any) (any, error) {
+	st.HandleInternal("firmware.failed", func(w *state.World, p any) (any, error) {
 		msg := soleString(p)
 		// A run that was waiting for firmware does not start on a failure. It
 		// would advance a clock over a mesh that is not there.
@@ -270,7 +270,7 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 			"board": b.Board, "role": b.Role}, nil
 	})
 
-	st.Handle("node.reflashed", func(w *state.World, p any) (any, error) {
+	st.HandleInternal("node.reflashed", func(w *state.World, p any) (any, error) {
 		msg := soleString(p)
 		w.Stats = s.nodeStats(w.Events)
 		// The node's own window reads the node list rather than the stats, so
@@ -283,7 +283,7 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 		return nil, nil
 	})
 
-	st.Handle("node.reflash_failed", func(w *state.World, p any) (any, error) {
+	st.HandleInternal("node.reflash_failed", func(w *state.World, p any) (any, error) {
 		msg := soleString(p)
 		w.Stats = s.nodeStats(w.Events)
 		w.Say("firmware change failed: " + msg)

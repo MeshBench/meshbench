@@ -8,8 +8,11 @@ import (
 )
 
 func registerLinkProfile(st *state.Store, s *session.Sim) {
-	st.Handle("link.profile_set", func(w *state.World, p any) (any, error) {
-		prof, _ := p.(*state.Profile)
+	st.HandleInternal("link.profile_set", func(w *state.World, p any) (any, error) {
+		prof, ok := p.(*state.Profile)
+		if !ok {
+			return nil, session.WrongCallback("link.profile_set")
+		}
 		w.LinkProfile = prof
 		if prof != nil {
 			return map[string]any{"from": prof.From, "to": prof.To,

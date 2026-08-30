@@ -263,7 +263,7 @@ it was.
 ```python
 wb.firmware.library                       # firmware.library
 wb.firmware.installed                     # firmware.installed
-wb.firmware.scan()                        # firmware.published
+wb.firmware.scan()                        # firmware.rescan
 wb.firmware.needed()                      # firmware.needed
 wb.firmware.download("companion", "v1.17.0")     # -> Job
 wb.firmware.import_(path, role="repeater")

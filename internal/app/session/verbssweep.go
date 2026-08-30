@@ -49,14 +49,14 @@ func registerSweepVerbs(st *state.Store, s *Sim) {
 		return map[string]any{"from": from, "to": to}, nil
 	})
 
-	st.Handle("plan.set", func(w *state.World, p any) (any, error) {
+	st.HandleInternal("plan.set", func(w *state.World, p any) (any, error) {
 		routes, _ := p.([]state.Route)
 		w.Routes = routes
 		w.Say(fmt.Sprintf("%d route(s) found", len(routes)))
 		return map[string]any{"routes": len(routes)}, nil
 	})
 
-	st.Handle("plan.failed", func(w *state.World, p any) (any, error) {
+	st.HandleInternal("plan.failed", func(w *state.World, p any) (any, error) {
 		msg := soleString(p)
 		w.Say("planning: " + msg)
 		return nil, nil

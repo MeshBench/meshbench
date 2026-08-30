@@ -55,8 +55,11 @@ func registerCoverageVerbs(st *state.Store, s *session.Sim) {
 		})
 	})
 
-	st.Handle("coverage.set", func(w *state.World, p any) (any, error) {
-		cov, _ := p.(*state.Coverage)
+	st.HandleInternal("coverage.set", func(w *state.World, p any) (any, error) {
+		cov, ok := p.(*state.Coverage)
+		if !ok {
+			return nil, session.WrongCallback("coverage.set")
+		}
 		w.Coverage = cov
 		if cov == nil {
 			return nil, nil
@@ -123,8 +126,11 @@ func registerCoverageVerbs(st *state.Store, s *session.Sim) {
 		return map[string]any{"shading": true}, nil
 	})
 
-	st.Handle("terrain.shade_set", func(w *state.World, p any) (any, error) {
-		sh, _ := p.(*state.Coverage)
+	st.HandleInternal("terrain.shade_set", func(w *state.World, p any) (any, error) {
+		sh, ok := p.(*state.Coverage)
+		if !ok {
+			return nil, session.WrongCallback("terrain.shade_set")
+		}
 		w.Shade = sh
 		if sh != nil && sh.NoDataCells > sh.Cells/2 {
 			w.Say("terrain shading: most of this view has no elevation data cached")
@@ -132,7 +138,7 @@ func registerCoverageVerbs(st *state.Store, s *session.Sim) {
 		return nil, nil
 	})
 
-	st.Handle("terrain.shade_failed", func(w *state.World, _ any) (any, error) {
+	st.HandleInternal("terrain.shade_failed", func(w *state.World, _ any) (any, error) {
 		w.Shade = nil
 		w.Say("terrain shading: no elevation data for this view")
 		return nil, nil
@@ -182,7 +188,7 @@ func registerCoverageVerbs(st *state.Store, s *session.Sim) {
 		return nil, nil
 	})
 
-	st.Handle("coverage.failed", func(w *state.World, p any) (any, error) {
+	st.HandleInternal("coverage.failed", func(w *state.World, p any) (any, error) {
 		msg := session.SoleString(p)
 		w.Say("coverage failed: " + msg)
 		return nil, nil

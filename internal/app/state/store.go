@@ -28,6 +28,8 @@ type Store struct {
 	// specs is what each verb says about itself, keyed the same way. Separate
 	// from handlers so a test may register a stub with nothing to describe.
 	specs map[string]Spec
+	// private is the verbs only this process may call. See internalverbs.go.
+	private map[string]bool
 
 	cmds chan cmd
 	snap atomic.Pointer[Snapshot]
@@ -85,6 +87,7 @@ func New(stepMs uint32) *Store {
 	s := &Store{
 		handlers: map[string]Handler{},
 		specs:    map[string]Spec{},
+		private:  map[string]bool{},
 		cmds:     make(chan cmd, 64),
 		stop:     make(chan struct{}),
 		done:     make(chan struct{}),
@@ -108,6 +111,9 @@ func (s *Store) Handle(verb string, h Handler) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.handlers[verb] = h
+	// Replacing a handler replaces what it is, so a stub put over an internal
+	// verb does not inherit a refusal the stub knows nothing about.
+	delete(s.private, verb)
 }
 
 // Verbs lists what is registered, so the parity test can be generated from the

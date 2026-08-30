@@ -103,8 +103,11 @@ func registerFirmwareBuildResults(st *state.Store, _ *Sim) {
 	// same call `meshbench dev` makes - so there is nothing to add here.
 	// What this does is say so and re-read the library, because a build
 	// nothing has listed is a build no picker offers.
-	st.Handle("firmware.built", func(w *state.World, p any) (any, error) {
-		got, _ := p.(map[string]any)
+	st.HandleInternal("firmware.built", func(w *state.World, p any) (any, error) {
+		got, ok := p.(map[string]any)
+		if !ok {
+			return nil, wrongCallback("firmware.built")
+		}
 		var names []string
 		for role, v := range got {
 			m, _ := v.(map[string]any)
@@ -117,7 +120,7 @@ func registerFirmwareBuildResults(st *state.Store, _ *Sim) {
 		return map[string]any{"built": names}, nil
 	})
 
-	st.Handle("firmware.build_failed", func(w *state.World, p any) (any, error) {
+	st.HandleInternal("firmware.build_failed", func(w *state.World, p any) (any, error) {
 		w.Say("build failed: " + soleString(p))
 		return nil, nil
 	})

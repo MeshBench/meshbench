@@ -180,6 +180,11 @@ func TermsOf(in []linkbudget.Term) []state.BudgetTerm { return termsOf(in) }
 func BoolField(p any, name string) (bool, bool) { return boolField(p, name) }
 func NoSuchNode(name string) error              { return noSuchNode(name) }
 
+// WrongCallback is the refusal an internal verb returns when it is handed
+// something other than the value its own worker passes it, for the callbacks
+// that live in the split-out domains.
+func WrongCallback(verb string) error { return wrongCallback(verb) }
+
 // CapturePath and CaptureLive are where frames are being written and streamed,
 // if anywhere; the capture verbs set and clear them.
 func (s *Sim) CapturePath() string     { return s.capturePath }

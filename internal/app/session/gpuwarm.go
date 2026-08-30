@@ -335,8 +335,11 @@ func registerTileCache(st *state.Store, s *Sim) {
 
 	// terrain.cache_moved is the worker reporting back on the store's
 	// goroutine, which is the only place the swap may happen.
-	st.Handle("terrain.cache_moved", func(w *state.World, p any) (any, error) {
-		m, _ := p.(map[string]any)
+	st.HandleInternal("terrain.cache_moved", func(w *state.World, p any) (any, error) {
+		m, ok := p.(map[string]any)
+		if !ok {
+			return nil, wrongCallback("terrain.cache_moved")
+		}
 		dir, _ := m["dir"].(string)
 		files := 0
 		if v, ok := numField(p, "files"); ok {

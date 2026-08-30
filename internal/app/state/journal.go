@@ -64,6 +64,11 @@ func (s *Store) ExcludeFromJournal(verbs ...string) {
 	}
 }
 
+// SkipsJournal reports whether a verb is one of the excluded. Asked by the test
+// that holds the exclusions against the registrations: the exclusions are set
+// once at start-up and nothing later can tell they were.
+func (s *Store) SkipsJournal(verb string) bool { return s.journalSkip[verb] }
+
 // journalRecord appends one command, unless it is excluded - errors included,
 // because a refused command is history too. Called on the store's goroutine,
 // from the same place a verb is dispatched.

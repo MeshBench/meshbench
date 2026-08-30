@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/firmware"
@@ -56,54 +55,11 @@ func registerFirmwareLibrary(st *state.Store, s *Sim) {
 		// read only the catalogue's cache, and everything in the cache is by
 		// definition already downloaded - so the one thing a library is for,
 		// showing what could be fetched, never appeared on it.
-		if s.publishedNet == nil && !s.fetchingPublished {
-			s.fetchingPublished = true
-			go func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-				defer cancel()
-				list := []publishedBuild{}
-				// The native builds: MeshCore compiled for this machine, which
-				// is how most nodes run.
-				cat := &firmware.NativeCatalogue{CacheDir: firmware.DefaultCacheDir()}
-				if images, err := cat.List(ctx); err == nil {
-					for _, img := range images {
-						if img.ForThisMachine() {
-							list = append(list, publishedBuild{
-								role: img.Role, version: img.Version,
-							})
-						}
-					}
-				}
-				// And the published board images - the ones the flasher
-				// serves, which emulated boards run. workbench1 listed these
-				// and the Gio library never did, so the whole emulated half
-				// of the library was missing: on Linux the native builds hid
-				// it, and on a Mac, where no native build exists yet, the
-				// panel was simply empty.
-				list = append(list, publishedBoards(ctx)...)
-				// An empty non-nil list on failure, so a dead network is one
-				// failed fetch rather than a fetch per frame.
-				_, _ = st.Do(context.Background(), "firmware.published", list)
-			}()
-		}
+		s.startPublishedFetch(st)
 		s.fillLibrary(w)
 		return map[string]any{
 			"builds": libraryRows(w.Library), "count": len(w.Library),
 		}, nil
-	})
-
-	// firmware.published: what the catalogue offers, landed from the fetch.
-	st.Handle("firmware.published", func(w *state.World, p any) (any, error) {
-		list, _ := p.([]publishedBuild)
-		s.publishedNet = list
-		s.fetchingPublished = false
-		// Rebuild the rows here, or the fetch lands in a field nobody reads
-		// again: the panel asks for the library once, the network answers a
-		// few seconds later, and without this the answer sits unused until
-		// somebody presses refresh. Which is what "the published builds never
-		// appear" looked like.
-		s.fillLibrary(w)
-		return map[string]any{"published": len(list), "builds": len(w.Library)}, nil
 	})
 
 	// firmware.download: fetch a published build now rather than on first

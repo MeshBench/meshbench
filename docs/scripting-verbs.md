@@ -58,13 +58,18 @@ Two verbs are **not** in this table:
   They are all gated on the same check in `internal/app/session/ui.go`, which
   is most of what [#215](https://github.com/MeshBench/meshbench/issues/215)
   needs and is worth knowing before estimating it.
-- *none* — deliberately no façade. The store talking to itself; still reachable
-  through `wb.call`.
+- *none* — deliberately no façade. Where the reason given is the workbench
+  calling itself, the verb is **not reachable from the socket at all**: it is
+  registered with `st.HandleInternal`, left out of `session.verbs` and
+  `session.hello`, and answers `bad_params` to a client that names it anyway.
+  Those verbs carry Go values from a worker to the store - a `*Coverage`, a
+  `[]Link` - and the same call in JSON used to land a zero value on top of a
+  real answer and report success.
 
 ## What this table shows about the surface
 
-- **213 verbs, 28 of them internal.** The façade covers 185, over roughly 60
-  calls once objects and properties absorb the rest.
+- **213 verbs, 35 of them the workbench's own callbacks.** The façade covers
+  the rest, over roughly 60 calls once objects and properties absorb them.
 - **The naming is not regular.** `node.*` and `nodes.*` are both node verbs and
   the split is not singular-versus-plural: `nodes.stats`, `nodes.allow_flood`
   and `nodes.regions` all act on one node. `firmware.set` is by role while
@@ -190,7 +195,8 @@ Two verbs are **not** in this table:
 | `firmware.installed` | — | `cache`, `installed` | `wb.firmware.installed` |
 | `firmware.library` | — | `builds`, `count` | `wb.firmware.library` |
 | `firmware.needed` | — | `roles` | `wb.firmware.needed()` |
-| `firmware.published` | — | `published`, `builds` | `wb.firmware.scan()` |
+| `firmware.published` | — | `published`, `builds` | *none* — the catalogue fetch landing its answer; wb.firmware.scan() asks for one |
+| `firmware.rescan` | — | `scanning`, `count` | `wb.firmware.scan()` |
 | `firmware.set` | `version` string, `node` string, `role` string | `version`, `nodes`, `considered` | `wb.firmware.use(version, role=|node=)` |
 | `firmware.start` | — | `starting` | `wb.firmware.start()` |
 | `firmware.started` | — | `running`, `playing` | *none* — the firmware starter reporting back |
@@ -267,7 +273,7 @@ Two verbs are **not** in this table:
 | verb | takes | returns | façade |
 |---|---|---|---|
 | `coverage.clear` | — | — | `wb.study.clear_coverage()` |
-| `coverage.combined` | `mode` string, `combined` any | — | `wb.study.coverage(mode='combined')` |
+| `coverage.combined` | `mode` string, `combined` any | — | *none* — the raster worker publishing the network-wide answer |
 | `coverage.compute` | *a bare string* | — | `wb.study.coverage(node)` |
 | `coverage.failed` | *a bare string* | — | *none* — the raster worker reporting a failure |
 | `coverage.map` | — | — | `wb.study.coverage_map()` |
@@ -301,7 +307,7 @@ Two verbs are **not** in this table:
 | `import.set_source` | `url` string | `url` | `wb.import_.source = url` |
 | `infer.apply` | — | `applied` | `wb.import_.apply_inference()` |
 | `infer.progress` | — | — | *none* — the traffic reader saying how far it has got |
-| `infer.result` | — | `packets`, `nodes`, `regions` | `wb.import_.inference` |
+| `infer.result` | — | `packets`, `nodes`, `regions` | *none* — the traffic reader handing its packets back; wb.import_.inference reads the answer |
 | `infer.run` | `hours` number | `reading`, `hours` | `wb.import_.infer(hours=)` |
 
 ### Experiments and sweeps
@@ -321,14 +327,14 @@ Two verbs are **not** in this table:
 | `experiment.stop` | — | `stopped`, `done`, `total` | `wb.experiment.stop()` |
 | `experiment.vary` | `parameter` string, `values` list | — | `wb.experiment.vary(parameter, values)` |
 | `sweep.run` | — | `arms`, `seeds` | `wb.sweep.run()` |
-| `sweep.set` | — | — | `wb.sweep.set(...)` |
+| `sweep.set` | — | — | *none* — the sweep runner publishing its matrix |
 
 ### Validation
 
 | verb | takes | returns | façade |
 |---|---|---|---|
 | `validate.calibrate` | `db` number | `db`, `links` | `wb.validate.calibrate(db=None)` |
-| `validate.compare` | — | `matched`, `unmatched`, `median_db`, `iqr_db`, `suggested_excess_loss_db` | `wb.validate.compare()` |
+| `validate.compare` | — | `matched`, `unmatched`, `median_db`, `iqr_db`, `suggested_excess_loss_db` | *none* — the observation fetch handing back what was heard |
 | `validate.failed` | *a bare string* | — | *none* — the observation fetch reporting a failure |
 | `validate.fetch` | `url` string, `hours` number | `fetching`, `hours` | `wb.validate.fetch(url, hours=)` |
 | `validate.uncalibrate` | — | `db` | `wb.validate.uncalibrate()` |

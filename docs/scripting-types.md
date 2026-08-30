@@ -410,7 +410,7 @@ pin nobody can honour.
 |---|---|
 | iterate / `len` | `firmware.library` |
 | `Installed()` | `firmware.installed` |
-| `Scan()` | `firmware.published` |
+| `Scan()` | `firmware.rescan` |
 | `Needed()` → `[]RoleNeed` | `firmware.needed` |
 | `Download(role, version, board=)` → `Job` | `firmware.download` |
 | `Import(path, role, board=)` → `Build` | `firmware.import` |
