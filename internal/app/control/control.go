@@ -227,10 +227,21 @@ func (s *Server) accept() {
 
 func (s *Server) serve(c net.Conn) {
 	defer func() { _ = c.Close() }()
-	dec := json.NewDecoder(bufio.NewReader(c))
+	// The frame is bounded before anything in it is decoded: json.Decoder
+	// buffers one whole value before it hands anything back, so an unbounded
+	// reader here would let a single huge string literal be allocated by a
+	// peer that has not yet proven it is allowed to send anything at all.
+	lr := newLimitedReader(bufio.NewReader(c), requestFrameLimit)
+	dec := json.NewDecoder(lr)
 	enc := json.NewEncoder(c)
-	if s.addr.Kind == TCP && !s.authorised(c, dec, enc) {
-		return
+	if s.addr.Kind == TCP {
+		// The hello line gets its own, far tighter budget: it is a token and
+		// nothing else, and it is read before anybody has proven anything.
+		lr.reset(helloFrameLimit)
+		if !s.authorised(c, dec, enc) {
+			return
+		}
+		lr.reset(requestFrameLimit)
 	}
 
 	// One writer, so replies and notifications never interleave a half-frame on
@@ -264,6 +275,9 @@ func (s *Server) serve(c net.Conn) {
 	for {
 		var req Request
 		if err := dec.Decode(&req); err != nil {
+			if errors.Is(err, errFrameTooLarge) {
+				out <- Response{Error: errFrameTooLarge.Error(), Code: string(BadParams)}
+			}
 			return
 		}
 
@@ -317,6 +331,11 @@ func (s *Server) authorised(c net.Conn, dec *json.Decoder, enc *json.Encoder) bo
 	_ = c.SetReadDeadline(time.Now().Add(10 * time.Second))
 	var h hello
 	if err := dec.Decode(&h); err != nil {
+		if errors.Is(err, errFrameTooLarge) {
+			// Answered rather than just closed: a peer over the hello limit
+			// gets told why, the same as a peer with the wrong token.
+			_ = enc.Encode(Response{Error: errFrameTooLarge.Error(), Code: string(BadParams)})
+		}
 		return false
 	}
 	if h.Token != s.addr.Token {
