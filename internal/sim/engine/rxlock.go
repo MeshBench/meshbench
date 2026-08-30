@@ -78,10 +78,10 @@ func (e *Engine) demodulatorHeldBy(rx int, t transmission,
 				return ""
 			}
 			cands = append(cands, cand{t.startMs, t.endMs, tDBm, t.packetID,
-				nodes[t.from].Spec().Name, true})
+				nodes[t.from].specRef().Name, true})
 			continue
 		}
-		otherPHY := e.phyOf(nodes[other.from].Spec())
+		otherPHY := e.phyOf(nodes[other.from].specRef())
 		if !otherPHY.sameChannel(txPHY) {
 			// A receiver is not locked by a packet it is not tuned to hear,
 			// which is the whole reason an operator splits a mesh across two
@@ -93,7 +93,7 @@ func (e *Engine) demodulatorHeldBy(rx int, t transmission,
 			continue
 		}
 		cands = append(cands, cand{other.startMs, other.endMs, dBm,
-			other.packetID, nodes[other.from].Spec().Name, false})
+			other.packetID, nodes[other.from].specRef().Name, false})
 	}
 	if len(cands) == 0 {
 		return ""
@@ -195,8 +195,7 @@ func (e *Engine) rxPowerAt(from, rx int, nodes []*Node) (float64, bool) {
 	if !ok {
 		return 0, false
 	}
-	src, dst := nodes[from], nodes[rx]
-	return src.Spec().TxPowerDBm + gain(src.Spec()) - loss + gain(dst.Spec()), true
+	return e.rxPowerDBm(nodes, from, rx, loss), true
 }
 
 // detectableAt reports whether a transmission arrived at this receiver loudly
@@ -211,7 +210,7 @@ func (e *Engine) detectableAt(rx int, t transmission, nodes []*Node, txPHY phy) 
 	if !ok {
 		return 0, false
 	}
-	noiseDBm := dsp.NoiseFloorDBm(txPHY.bandwidthHz, e.noiseFigOf(nodes[rx].Spec()))
+	noiseDBm := dsp.NoiseFloorDBm(txPHY.bandwidthHz, e.noiseFigOf(nodes[rx].specRef()))
 	if extra := e.emitterNoiseAt(rx); !math.IsInf(extra, -1) {
 		noiseDBm = addDBm(noiseDBm, extra)
 	}

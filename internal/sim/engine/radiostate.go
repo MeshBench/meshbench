@@ -71,7 +71,7 @@ func effectiveRF(n *Node, st firmware.RadioStats) (txDBm, nfDB float64, ok bool)
 	// Judged at the instant the node last transmitted, not on the line's
 	// current level: the line is meant to be low while it listens, and a node
 	// that has not transmitted at all has not answered the question.
-	if fem := n.Spec().FEM; fem != nil {
+	if fem := n.specRef().FEM; fem != nil {
 		switch st.FemAtTx {
 		case firmware.FemIn:
 			txDBm += fem.TxGainDB
@@ -96,7 +96,7 @@ func (e *Engine) ApplyRadioState(i int, st firmware.RadioStats) {
 	}
 	n := e.nodes[i]
 	txDBm, nfDB, ok := effectiveRF(n, st)
-	if !ok || (n.Spec().TxPowerDBm == txDBm && n.Spec().NoiseFigureDB == nfDB) {
+	if !ok || (n.specRef().TxPowerDBm == txDBm && n.specRef().NoiseFigureDB == nfDB) {
 		return
 	}
 	n.changeSpec(func(s *scenario.Node) {

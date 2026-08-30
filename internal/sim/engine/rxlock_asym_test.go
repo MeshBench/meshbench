@@ -36,7 +36,7 @@ func TestSubThresholdArrivalsBothWin(t *testing.T) {
 	e.Add(mk("far-a", scenario.SimpleRepeater, 57.4, -3.0, 2, -20), nil)
 	e.Add(mk("far-b", scenario.SimpleRepeater, 56.0, -1.0, 2, -20), nil)
 	nodes := e.nodes
-	p := e.phyOf(nodes[1].Spec())
+	p := e.phyOf(nodes[1].specRef())
 
 	a := transmission{from: 1, packetID: 1, startMs: 1000, endMs: 1541}
 	b := transmission{from: 2, packetID: 2, startMs: 1000, endMs: 1541}

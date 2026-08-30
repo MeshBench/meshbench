@@ -11,14 +11,161 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/mesh/packet"
 	"github.com/MeshBench/meshbench/internal/rf/dsp"
+	"github.com/MeshBench/meshbench/internal/rf/geo"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
-func gain(n scenario.Node) float64 {
+// bestGainDBi is what an antenna could manage if the far end were straight
+// down its boresight, feedline already deducted.
+//
+// Only the path-loss cull may use it. The cull asks whether a pair could
+// matter at all, so it wants each end's best case: charging a real look angle
+// there would discard links that close. Everything that prices an actual
+// reception goes through linkGainsDBi instead, which evaluates the pattern in
+// the direction the far end is really in.
+func bestGainDBi(n scenario.Node) float64 {
 	if n.Antenna.Pattern == nil {
 		return 0
 	}
 	return n.Antenna.Pattern.PeakDBi() - n.Antenna.FeedlineDB
+}
+
+// linkGainsDBi is each end's antenna gain in the true direction of the other:
+// the transmitter's first, the receiver's second.
+//
+// Cached, because a pair is asked several times per transmission - once for
+// the wanted signal, again for the demodulator contest, again for every
+// interferer that lands on it - and the answer is trigonometry that only a
+// node moving can change.
+func (e *Engine) linkGainsDBi(nodes []*Node, from, to int) (txDBi, rxDBi float64) {
+	k := [2]int{from, to}
+	e.gainMu.RLock()
+	g, ok := e.gainCache[k]
+	e.gainMu.RUnlock()
+	if ok {
+		return g[0], g[1]
+	}
+	txDBi, rxDBi = e.measureGains(nodes, from, to)
+	e.gainMu.Lock()
+	if e.gainCache == nil {
+		e.gainCache = map[[2]int][2]float64{}
+	}
+	e.gainCache[k] = [2]float64{txDBi, rxDBi}
+	e.gainMu.Unlock()
+	return txDBi, rxDBi
+}
+
+// measureGains evaluates both patterns in the direction each end is really
+// in: bearing to the far end, and the elevation angle from both altitudes.
+//
+// Two evaluations, never one shared figure. The bearing from a to b is not
+// the reverse of the bearing from b to a, the elevation angle changes sign
+// between them, and the two ends are rarely the same antenna - so a single
+// scalar cannot be right for both directions of a link that is asymmetric by
+// nature.
+//
+// This was peak gain until it was not, and the error was not academic. Every
+// imported node is given a collinear, whose gain falls three decibels within
+// about four degrees of the horizon at 10 dBi: a repeater 500 m above a node
+// 5 km away is looking almost six degrees down, and the engine was crediting
+// it roughly six decibels it does not have. Hill paths are the ordinary case
+// for this tool, and the coverage raster - which has always evaluated the
+// pattern properly - therefore disagreed with the packets.
+func (e *Engine) measureGains(nodes []*Node, from, to int) (txDBi, rxDBi float64) {
+	a, b := nodes[from].specRef(), nodes[to].specRef()
+	if a.Antenna.Pattern == nil && b.Antenna.Pattern == nil {
+		// Nothing to point. Common enough in scenarios built by hand, and
+		// worth the branch: it skips the trigonometry as well as the patterns.
+		return 0, 0
+	}
+	distKm := geo.DistanceKm(a.Position.Lat, a.Position.Lon, b.Position.Lat, b.Position.Lon)
+	if distKm <= 0 {
+		// Two nodes at one point have no direction between them. Nothing is
+		// delivered over such a pair anyway - pathLoss refuses it - so the
+		// best case is the least surprising answer.
+		return bestGainDBi(*a), bestGainDBi(*b)
+	}
+	up := geo.ElevationDeg(
+		e.groundAt(nodes[from])+a.HeightAGLm,
+		e.groundAt(nodes[to])+b.HeightAGLm, distKm)
+	txDBi = gainTowards(a, geo.BearingDeg(a.Position.Lat, a.Position.Lon,
+		b.Position.Lat, b.Position.Lon), up)
+	rxDBi = gainTowards(b, geo.BearingDeg(b.Position.Lat, b.Position.Lon,
+		a.Position.Lat, a.Position.Lon), -up)
+	return txDBi, rxDBi
+}
+
+// gainTowards is Mounted.GainTowardsDBi with the missing-pattern case, which
+// a scenario built by hand or imported without an antenna still produces.
+func gainTowards(n *scenario.Node, bearingDeg, elevationDeg float64) float64 {
+	if n.Antenna.Pattern == nil {
+		return 0
+	}
+	return n.Antenna.GainTowardsDBi(bearingDeg, elevationDeg)
+}
+
+// rxPowerDBm is what one node's transmission delivers at another's antenna:
+// transmit power, both patterns evaluated towards each other, and the path
+// loss between them. Every judgement in the package is built on this one
+// line, so there is one place a decibel can go missing rather than eleven.
+func (e *Engine) rxPowerDBm(nodes []*Node, from, to int, lossDB float64) float64 {
+	txDBi, rxDBi := e.linkGainsDBi(nodes, from, to)
+	return nodes[from].specRef().TxPowerDBm + txDBi - lossDB + rxDBi
+}
+
+// groundAt is the terrain elevation under a node, measured once and kept on
+// the node's own state.
+//
+// A look angle needs both ends' altitude, and the DEM lookup behind it can
+// reach the network - which the delivery path must never do, and which would
+// otherwise happen once per receiver per transmission. It is not behind the
+// engine's lock because this is asked from the parallel judges, where four
+// lock acquisitions per pair cost more than the arithmetic they guard.
+//
+// Where the terrain has no answer both ends read as sea level, so the angle
+// falls back to the difference in mast heights: flat earth, which is what a
+// scenario with no DEM under it is.
+func (e *Engine) groundAt(n *Node) float64 {
+	st := n.state.Load()
+	if st.groundKnown {
+		return st.groundM
+	}
+	h := 0.0
+	if e.Terrain != nil {
+		if g, found := e.Terrain.ElevationM(st.spec.Position.Lat, st.spec.Position.Lon); found {
+			h = g
+		}
+	}
+	next := *st
+	next.groundM, next.groundKnown = h, true
+	// Losing the swap means somebody measured the same ground first, or the
+	// node moved and this answer is already stale. Both are answers to throw
+	// away, never to force.
+	n.state.CompareAndSwap(st, &next)
+	return h
+}
+
+// dropGains forgets the look angles a node is party to, or all of them when
+// idx is negative. The bearing and the elevation are geometry, so this is
+// the one thing that invalidates them: a node that moved.
+func (e *Engine) dropGains(idx int) {
+	e.gainMu.Lock()
+	defer e.gainMu.Unlock()
+	if idx < 0 {
+		e.gainCache = nil
+		return
+	}
+	for k := range e.gainCache {
+		if k[0] == idx || k[1] == idx {
+			delete(e.gainCache, k)
+		}
+	}
+}
+
+// LinkGainsDBiForTest exposes the pair's directional gains, so a test can
+// hold the engine and a coverage raster to the same arithmetic.
+func (e *Engine) LinkGainsDBiForTest(from, to int) (txDBi, rxDBi float64) {
+	return e.linkGainsDBi(e.Nodes(), from, to)
 }
 
 // addDBm sums two powers expressed in dBm. Adding decibels instead is a mistake
@@ -60,7 +207,7 @@ func (a phy) sameChannel(b phy) bool {
 // field since import and the engine simply never read it, so every node in
 // every result so far has been given the run-wide figure regardless of what its
 // board profile said.
-func (e *Engine) noiseFigOf(n scenario.Node) float64 {
+func (e *Engine) noiseFigOf(n *scenario.Node) float64 {
 	if n.NoiseFigureDB > 0 {
 		return n.NoiseFigureDB
 	}
@@ -69,7 +216,7 @@ func (e *Engine) noiseFigOf(n scenario.Node) float64 {
 
 // phyOf resolves a node's radio, falling back to the scenario's defaults for
 // nodes imported without one.
-func (e *Engine) phyOf(n scenario.Node) phy {
+func (e *Engine) phyOf(n *scenario.Node) phy {
 	p := phy{
 		freqMHz:     n.Radio.CentreHz / 1e6,
 		bandwidthHz: n.Radio.BandwidthHz,

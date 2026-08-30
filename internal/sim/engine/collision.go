@@ -44,15 +44,14 @@ func (e *Engine) corruptedSymbols(rx int, t transmission, wantedDBm float64,
 		if to <= from {
 			continue
 		}
-		if !e.phyOf(nodes[other.from].Spec()).sameChannel(txPHY) {
+		if !e.phyOf(nodes[other.from].specRef()).sameChannel(txPHY) {
 			continue
 		}
 		loss, ok := e.pathLoss(other.from, rx)
 		if !ok {
 			continue
 		}
-		src := nodes[other.from]
-		otherDBm := src.Spec().TxPowerDBm + gain(src.Spec()) - loss + gain(nodes[rx].Spec())
+		otherDBm := e.rxPowerDBm(nodes, other.from, rx, loss)
 		if wantedDBm-otherDBm >= captureThresholdDB {
 			// Captured: the interferer is present, and irrelevant.
 			continue

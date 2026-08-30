@@ -52,3 +52,23 @@ func BearingDeg(lat1, lon1, lat2, lon2 float64) float64 {
 		math.Sin(lat1*rad)*math.Cos(lat2*rad)*math.Cos((lon2-lon1)*rad)
 	return math.Mod(math.Atan2(y, x)/rad+360, 360)
 }
+
+// ElevationDeg is the look angle from one antenna to another: positive when
+// the far end is above us, negative when it is below.
+//
+// The altitudes are absolute - ground plus height above it - and the distance
+// is the great-circle one between the two points. Here rather than at each
+// caller because it is the other half of the direction an antenna pattern is
+// evaluated in, and the two callers that need it are a coverage raster and
+// the engine's delivery path: the map and the packet must not be able to
+// disagree about the angle at which a repeater sees a node below it.
+//
+// Flat, deliberately: the Earth's curvature between two points that can hear
+// each other is under a tenth of a degree, which is far inside the accuracy
+// of any pattern this is fed to.
+func ElevationDeg(fromAltM, toAltM, distKm float64) float64 {
+	if distKm <= 0 {
+		return 0
+	}
+	return math.Atan2(toAltM-fromAltM, distKm*1000) / rad
+}

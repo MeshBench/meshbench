@@ -25,9 +25,12 @@ func (e *Engine) SetNodePosition(idx int, lat, lon float64) {
 	if idx < 0 || idx >= len(e.nodes) {
 		return
 	}
+	// The ground under it goes with the position, inside changeSpec: a new
+	// altitude is a new look angle to every far end.
 	e.nodes[idx].changeSpec(func(s *scenario.Node) {
 		s.Position.Lat, s.Position.Lon = lat, lon
 	})
+	e.dropGains(idx)
 	for k := range e.linkCache {
 		if k[0] == idx || k[1] == idx {
 			delete(e.linkCache, k)
@@ -72,7 +75,7 @@ func (e *Engine) ObserveSignalAt(rxIdx int, fromSample uint64, n int) []complex1
 	if !ok {
 		return make([]complex128, n)
 	}
-	spms := e.phyOf(spec).bandwidthHz / 1000
+	spms := e.phyOf(&spec).bandwidthHz / 1000
 	return e.observeSpan(rxIdx, float64(fromSample)/spms, n, false)
 }
 
@@ -87,8 +90,8 @@ func (e *Engine) ObserverNoisePSD(rxIdx int) float64 {
 	}
 	spec := e.nodes[rxIdx].Spec()
 	e.mu.Unlock()
-	rxPHY := e.phyOf(spec)
-	noiseDBm := dsp.NoiseFloorDBm(rxPHY.bandwidthHz, e.noiseFigOf(spec))
+	rxPHY := e.phyOf(&spec)
+	noiseDBm := dsp.NoiseFloorDBm(rxPHY.bandwidthHz, e.noiseFigOf(&spec))
 	return math.Pow(10, noiseDBm/10) / rxPHY.bandwidthHz
 }
 
@@ -105,7 +108,7 @@ func (e *Engine) observeSpan(rxIdx int, fromMs float64, n int, withNoise bool) [
 		return nil
 	}
 
-	rxPHY := e.phyOf(nodes[rxIdx].Spec())
+	rxPHY := e.phyOf(nodes[rxIdx].specRef())
 	spms := rxPHY.bandwidthHz / 1000
 	spanMs := float64(n) / spms
 	// The cache survives between windows and is pruned to the air: without
@@ -144,7 +147,7 @@ func (e *Engine) observeSpan(rxIdx int, fromMs float64, n int, withNoise bool) [
 	}
 	noisePower := 0.0
 	if withNoise {
-		noiseDBm := dsp.NoiseFloorDBm(rxPHY.bandwidthHz, e.noiseFigOf(nodes[rxIdx].Spec()))
+		noiseDBm := dsp.NoiseFloorDBm(rxPHY.bandwidthHz, e.noiseFigOf(nodes[rxIdx].specRef()))
 		noisePower = math.Pow(10, noiseDBm/10)
 	}
 	return channel.Observe(txs, channel.Receiver{

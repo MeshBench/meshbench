@@ -41,12 +41,13 @@ import (
 // are the exception that proves it: they are written under e.mu and read
 // under it, by Scoreboard, and never touched from a snapshot.
 type Node struct {
-	// spec is what the world says this node is. Never edited in place: a
-	// change builds a whole new value and stores it, so a reader holding the
-	// old one has a consistent node rather than half of two. ApplyRadioState
-	// rewrites transmit power and noise figure every tick, which is what makes
-	// this the field the rule exists for.
-	spec atomic.Pointer[scenario.Node]
+	// state is what the world says this node is, plus what was measured from
+	// where it stands. Never edited in place: a change builds a whole new
+	// value and stores it, so a reader holding the old one has a consistent
+	// node rather than half of two. ApplyRadioState rewrites transmit power
+	// and noise figure every tick, which is what makes this the field the
+	// rule exists for.
+	state atomic.Pointer[nodeState]
 
 	// Firmware is nil for a node that does not run any — an SDR observer, or a
 	// custom emitter that is only there to be interfered with.
@@ -70,19 +71,46 @@ type Node struct {
 	AirtimeMs      float64
 }
 
+// nodeState is one immutable snapshot of a node: the spec, and the ground
+// under it once the terrain has been asked.
+//
+// The ground rides along because it is a property of where the node stands,
+// so a change of position invalidates both at once and nothing has to
+// remember to invalidate the second one. Asking the DEM is the expensive part
+// - it can reach the network - and the look angle to every far end needs it.
+type nodeState struct {
+	spec scenario.Node
+	// groundM is metres above sea level under the node; groundKnown says the
+	// terrain has been asked, because sea level is a real answer.
+	groundM     float64
+	groundKnown bool
+}
+
 // Spec is what the world says this node is, as one consistent value.
 //
 // Safe from any goroutine, which is the whole point: the callers that matter
 // hold a pointer taken under e.mu and read it long after.
-func (n *Node) Spec() scenario.Node { return *n.spec.Load() }
+func (n *Node) Spec() scenario.Node { return n.state.Load().spec }
+
+// specRef is Spec without the copy, for the arithmetic that runs per receiver
+// per transmission. The value behind it is never written, so the pointer is
+// as safe as the copy and several times cheaper.
+func (n *Node) specRef() *scenario.Node { return &n.state.Load().spec }
 
 // changeSpec swaps a modified spec in. The caller holds e.mu, because the
 // load, the change and the store are three steps and two writers racing
 // through them would lose one of the changes.
+//
+// A node that moved loses its measured ground here rather than at each
+// caller: the position and the terrain under it are one fact.
 func (n *Node) changeSpec(f func(*scenario.Node)) {
-	s := *n.spec.Load()
-	f(&s)
-	n.spec.Store(&s)
+	st := *n.state.Load()
+	was := st.spec.Position
+	f(&st.spec)
+	if st.spec.Position != was {
+		st.groundM, st.groundKnown = 0, false
+	}
+	n.state.Store(&st)
 }
 
 // Config is what a run needs that a scenario does not carry.
@@ -189,6 +217,16 @@ type Engine struct {
 	// goroutines while the step loop holds the engine's own lock.
 	obsMu    sync.Mutex
 	obsCache modCache
+
+	// gainCache is each ordered pair's two antenna gains, in the direction
+	// each end is really in. Kept because the arithmetic is trigonometry and
+	// the same pair is asked several times per transmission - once for the
+	// wanted signal, again for the demodulator contest, again for every
+	// interferer that lands on it. Its own lock rather than e.mu: it is read
+	// from the parallel waveform judges, which already queue on that one.
+	// Only a node moving changes a look angle, which is where it is dropped.
+	gainMu    sync.RWMutex
+	gainCache map[[2]int][2]float64
 
 	// emitterNoise caches each receiver's extra floor from the emitter fleet,
 	// invalidated with the link cache — emitters move exactly as often as
@@ -302,7 +340,7 @@ func (e *Engine) Add(spec scenario.Node, fw *firmware.Node) *Node {
 		baseTxPowerDBm: spec.TxPowerDBm,
 		baseNoiseFigDB: spec.NoiseFigureDB,
 	}
-	n.spec.Store(&spec)
+	n.state.Store(&nodeState{spec: spec})
 	e.nodes = append(e.nodes, n)
 	// Terrain has not changed, but the set of pairs has. The profiles keep:
 	// they are keyed by pair index, and existing indices still mean the
@@ -341,10 +379,10 @@ func (e *Engine) PinFirmware(name, version string) int {
 	defer e.mu.Unlock()
 	n := 0
 	for _, nd := range e.nodes {
-		if name != "" && nd.Spec().Name != name {
+		if name != "" && nd.specRef().Name != name {
 			continue
 		}
-		if nd.Spec().Firmware.Version == version {
+		if nd.specRef().Firmware.Version == version {
 			continue
 		}
 		nd.changeSpec(func(s *scenario.Node) { s.Firmware.Version = version })
@@ -364,7 +402,7 @@ func (e *Engine) SetCard(name string, fitted bool, file string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	for _, nd := range e.nodes {
-		if nd.Spec().Name != name {
+		if nd.specRef().Name != name {
 			continue
 		}
 		nd.changeSpec(func(s *scenario.Node) {
@@ -390,7 +428,7 @@ func (e *Engine) PinBoard(name, board string, role scenario.Role) int {
 	defer e.mu.Unlock()
 	n := 0
 	for _, nd := range e.nodes {
-		if name != "" && nd.Spec().Name != name {
+		if name != "" && nd.specRef().Name != name {
 			continue
 		}
 		nd.changeSpec(func(s *scenario.Node) {

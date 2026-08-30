@@ -20,7 +20,7 @@ type nodeSerial struct {
 
 func (s *nodeSerial) Write(b []byte) error {
 	if s.node.Firmware == nil {
-		return fmt.Errorf("engine: %s runs no firmware", s.node.Spec().Name)
+		return fmt.Errorf("engine: %s runs no firmware", s.node.specRef().Name)
 	}
 	return s.node.Firmware.Bridge.Type(b)
 }

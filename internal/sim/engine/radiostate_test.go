@@ -12,7 +12,9 @@ import (
 // said what it actually did with the radio.
 func board(nfDB, txDBm float64, fem *hw.FEM) *Node {
 	n := &Node{baseNoiseFigDB: nfDB, baseTxPowerDBm: txDBm}
-	n.spec.Store(&scenario.Node{NoiseFigureDB: nfDB, TxPowerDBm: txDBm, FEM: fem})
+	n.state.Store(&nodeState{
+		spec: scenario.Node{NoiseFigureDB: nfDB, TxPowerDBm: txDBm, FEM: fem},
+	})
 	return n
 }
 

@@ -53,7 +53,7 @@ func (e *Engine) channelBusy(now uint32) []bool {
 		if dst.Firmware == nil {
 			continue
 		}
-		rxPHY := e.phyOf(dst.Spec())
+		rxPHY := e.phyOf(dst.specRef())
 		for _, t := range air {
 			// A node is deaf to the channel while its own transmitter is keyed,
 			// and it is not listening for itself in any case.
@@ -64,7 +64,7 @@ func (e *Engine) channelBusy(now uint32) []bool {
 			// Activity on another channel is not activity this node can detect
 			// - the rule delivery already uses. Without it a node would defer
 			// to a mesh it is not part of.
-			txPHY := e.phyOf(src.Spec())
+			txPHY := e.phyOf(src.specRef())
 			if !txPHY.sameChannel(rxPHY) {
 				continue
 			}
@@ -72,8 +72,8 @@ func (e *Engine) channelBusy(now uint32) []bool {
 			if !ok {
 				continue
 			}
-			rxDBm := src.Spec().TxPowerDBm + gain(src.Spec()) - loss + gain(dst.Spec())
-			noiseDBm := dsp.NoiseFloorDBm(txPHY.bandwidthHz, e.noiseFigOf(dst.Spec()))
+			rxDBm := e.rxPowerDBm(nodes, t.from, i, loss)
+			noiseDBm := dsp.NoiseFloorDBm(txPHY.bandwidthHz, e.noiseFigOf(dst.specRef()))
 			if rxDBm-noiseDBm >= requiredSNRdB(txPHY.sf) {
 				busy[i] = true
 				break
