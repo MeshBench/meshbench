@@ -108,7 +108,7 @@ func registerCoverageMap(st *state.Store, s *session.Sim) {
 			}
 			s.SetCoverageCells(cells)
 			w.CoverageCells = cells
-			s.SavePrefs()
+			_ = s.SavePrefs(w)
 			w.Say(fmt.Sprintf("coverage rasters at %d cells on the long edge - "+
 				"cost scales with the square", cells))
 		}

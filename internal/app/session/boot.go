@@ -11,6 +11,9 @@
 package session
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/MeshBench/meshbench/internal/app/state"
 )
 
@@ -49,7 +52,13 @@ func Boot(o Options) (*state.Store, *Sim) {
 	st := state.New(step)
 	sm := &Sim{}
 	if !o.NoPrefs {
-		sm.LoadPrefs()
+		if err := sm.LoadPrefs(); err != nil {
+			// Before the store runs and before a window exists, so stderr is
+			// the only place this can be said - and it has to be said
+			// somewhere: unreadable settings and settings nobody ever chose
+			// look identical from the inside.
+			fmt.Fprintln(os.Stderr, err)
+		}
 	}
 	if o.UnverifiedWiring {
 		sm.RunUnverifiedWiring()

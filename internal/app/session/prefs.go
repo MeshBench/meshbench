@@ -7,7 +7,6 @@
 package session
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
+	"github.com/MeshBench/meshbench/internal/diag"
 	"github.com/MeshBench/meshbench/internal/rf/terrain"
 )
 
@@ -60,9 +60,12 @@ type Prefs struct {
 	CoverageCells int `json:"coverage_cells,omitempty"`
 }
 
-// prefsPath is ~/.config/meshbench/workbench2.json, or empty when the
-// platform cannot say where config lives.
-func prefsPath() string {
+// prefsPath is ~/.config/meshbench/workbench2.json, the file a test pointed
+// somewhere else, or empty when the platform cannot say where config lives.
+func (s *Sim) prefsPath() string {
+	if s.prefsFile != "" {
+		return s.prefsFile
+	}
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		return ""
@@ -75,21 +78,28 @@ func prefsPath() string {
 // Called by the command, once, before anything runs - and deliberately not by
 // Register, so a test's session never depends on what the developer's own
 // machine happens to have chosen.
-func (s *Sim) LoadPrefs() {
+//
+// A file that cannot be read is returned rather than swallowed. Silence there
+// is indistinguishable from a machine nobody has configured: the GPU choice,
+// the RF mode, the cache bound, the environment directory and the coverage
+// resolution all quietly back to their defaults, with nothing to say why.
+func (s *Sim) LoadPrefs() error {
 	s.persist = true
-	path := prefsPath()
+	path := s.prefsPath()
 	if path == "" {
-		return
+		return nil
 	}
-	b, err := os.ReadFile(path)
+	p, err := readPrefs(path)
 	if err != nil {
-		return
+		diag.Printf("prefs", "%v", err)
+		return err
 	}
-	var p Prefs
-	if err := json.Unmarshal(b, &p); err != nil {
-		return
+	if p == nil {
+		// No file yet: nothing has been chosen, and nothing is applied. The
+		// defaults below are the tile cache's own, not this file's.
+		return nil
 	}
-	s.prefs = p
+	s.prefs = *p
 	if p.TileCacheGB > 0 {
 		s.tileCacheTiles = int(p.TileCacheGB * tilesPerGB)
 	}
@@ -110,29 +120,34 @@ func (s *Sim) LoadPrefs() {
 		OscPPM: p.OscPPM, MultipathDB: p.MultipathDB, FadingHz: p.FadingHz,
 		ImplLossDB: p.ImplLossDB, SaturationDBm: p.SaturationDBm,
 	}
+	return nil
 }
 
-// savePrefs writes the current choices, if persistence is on.
+// savePrefs writes the current choices, if persistence is on, and says so when
+// it cannot.
 //
-// Small enough to write inline from a verb: the file is a couple of hundred
-// bytes, and a change that does not survive a crash between "set" and "quit"
-// is a change that was never really made.
-func (s *Sim) savePrefs() {
+// A setting somebody has been told is remembered and is not is worse than one
+// that was never offered, and a full or read-only disk said nothing at all
+// here: every error was discarded. The failure goes to the world's log, where
+// the verb that made the promise is talking, and to the prefs diagnostic for
+// the detail. The error comes back as well, for the verbs whose own sentence
+// is a promise about the next launch.
+func (s *Sim) savePrefs(w *state.World) error {
 	if !s.persist {
-		return
+		return nil
 	}
-	path := prefsPath()
+	path := s.prefsPath()
 	if path == "" {
-		return
+		return nil
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return
+	if err := writePrefs(path, s.prefs); err != nil {
+		diag.Printf("prefs", "%v", err)
+		if w != nil {
+			w.Say("settings not saved: " + err.Error())
+		}
+		return err
 	}
-	b, err := json.MarshalIndent(s.prefs, "", "  ")
-	if err != nil {
-		return
-	}
-	_ = os.WriteFile(path, append(b, '\n'), 0o644)
+	return nil
 }
 
 // Basemap is the remembered map layer's ID, for the command to hand the map
@@ -148,8 +163,13 @@ func registerBasemap(st *state.Store, s *Sim) {
 	st.Handle("map.basemap", func(w *state.World, p any) (any, error) {
 		if id, ok := stringField(p, "id"); ok && id != "" {
 			s.prefs.Basemap = id
-			s.savePrefs()
-			w.Say("the basemap is " + id + ", here and on the next launch")
+			// The promise is only made where it can be kept: savePrefs has
+			// already said why not, so this says what is still true.
+			if err := s.savePrefs(w); err == nil {
+				w.Say("the basemap is " + id + ", here and on the next launch")
+			} else {
+				w.Say("the basemap is " + id + " for this session")
+			}
 		}
 		return map[string]any{"id": s.prefs.Basemap}, nil
 	})

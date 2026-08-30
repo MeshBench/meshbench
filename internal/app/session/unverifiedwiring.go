@@ -21,7 +21,7 @@ func registerUnverifiedWiring(st *state.Store, s *Sim) {
 		if on, ok := boolField(p, "on"); ok {
 			s.unverifiedWiring = on
 			s.prefs.UnverifiedWiring = on
-			s.savePrefs()
+			_ = s.savePrefs(w)
 			if on {
 				w.Say(unwatchedWarning(s.nodes))
 			} else {

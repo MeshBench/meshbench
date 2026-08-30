@@ -1,7 +1,6 @@
 package session
 
 import (
-	"context"
 	"fmt"
 	"math"
 	"runtime"
@@ -257,109 +256,6 @@ func (s *Sim) gpuDefault() {
 	s.gpuWarm = s.gpuProbe.present
 }
 
-// tilesPerGB is how many decoded tiles a gigabyte holds: a tile is 256x256
-// float32, a quarter of a megabyte.
-const tilesPerGB = 4096
-
-// registerTileCache is the tile cache bound, in the unit people think in, and
-// where the cache lives on disk.
-func registerTileCache(st *state.Store, s *Sim) {
-	st.Handle("terrain.cache", func(w *state.World, p any) (any, error) {
-		if v, ok := numField(p, "gb"); ok && v >= 0.25 {
-			tiles := int(v * tilesPerGB)
-			s.tileCacheTiles = tiles
-			s.applyMemoryCeiling()
-			if ts, ok := s.terr.(*terrain.TileStore); ok && ts != nil {
-				ts.MaxLoadedTiles = tiles
-			}
-			w.TileCacheGB = v
-			s.prefs.TileCacheGB = v
-			s.savePrefs()
-			w.Say(fmt.Sprintf("the tile cache holds %.3g GB", v))
-		}
-		if w.TileCacheGB == 0 {
-			if s.tileCacheTiles > 0 {
-				w.TileCacheGB = float64(s.tileCacheTiles) / tilesPerGB
-			} else {
-				w.TileCacheGB = float64(terrain.DefaultMaxLoadedTiles) / tilesPerGB
-			}
-		}
-		w.TileCacheDir = s.tileCacheDir()
-		return map[string]any{"gb": w.TileCacheGB, "dir": w.TileCacheDir}, nil
-	})
-
-	// terrain.cache_dir moves the cache. Gigabytes of tiles, so it runs as a
-	// visible job on a worker, and the store only swaps directories after the
-	// move has succeeded - the decoded tiles in memory survive throughout.
-	st.Handle("terrain.cache_dir", func(w *state.World, p any) (any, error) {
-		path := soleString(p)
-		if m, ok := p.(map[string]any); ok {
-			if v, ok := m["path"].(string); ok {
-				path = v
-			}
-		}
-		if path == "" {
-			return map[string]any{"dir": s.tileCacheDir()}, nil
-		}
-		oldDir := s.tileCacheDir()
-		newDir, err := validateCacheDir(oldDir, path)
-		if err != nil {
-			return nil, err
-		}
-		if s.movingCache.Swap(true) {
-			return nil, fmt.Errorf("a cache move is already running")
-		}
-		w.Say("moving the tile cache to " + newDir)
-		go func() {
-			defer s.movingCache.Store(false)
-			ctx := context.Background()
-			_, _ = st.Do(ctx, "job.progress", state.Job{
-				ID: "cachemove", What: "moving the tile cache"})
-			n, err := moveTree(oldDir, newDir, func(done, total int) {
-				_, _ = st.Do(ctx, "job.progress", state.Job{
-					ID: "cachemove", What: "moving the tile cache",
-					Done: done, Total: total})
-			})
-			_, _ = st.Do(ctx, "job.done", "cachemove")
-			if err != nil {
-				_, _ = st.Do(ctx, "ui.said", fmt.Sprintf(
-					"the cache move stopped after %d files: %v - "+
-						"the cache stays at %s", n, err, oldDir))
-				return
-			}
-			_, _ = st.Do(ctx, "terrain.cache_moved",
-				map[string]any{"dir": newDir, "files": n})
-		}()
-		return map[string]any{"moving": true, "to": newDir}, nil
-	})
-
-	// terrain.cache_moved is the worker reporting back on the store's
-	// goroutine, which is the only place the swap may happen.
-	st.HandleInternal("terrain.cache_moved", func(w *state.World, p any) (any, error) {
-		m, ok := p.(map[string]any)
-		if !ok {
-			return nil, wrongCallback("terrain.cache_moved")
-		}
-		dir, _ := m["dir"].(string)
-		files := 0
-		if v, ok := numField(p, "files"); ok {
-			files = int(v)
-		}
-		if dir == "" {
-			return nil, fmt.Errorf("terrain.cache_moved needs the directory")
-		}
-		if ts, ok := s.terr.(*terrain.TileStore); ok && ts != nil {
-			ts.SetCacheDir(dir)
-		}
-		s.prefs.TileCacheDir = dir
-		s.savePrefs()
-		w.TileCacheDir = dir
-		w.Say(fmt.Sprintf("the tile cache lives at %s now - %d files moved, "+
-			"nothing needs downloading again", dir, files))
-		return map[string]any{"dir": dir}, nil
-	})
-}
-
 // registerGPU is the switch and what it did.
 func registerGPU(st *state.Store, s *Sim) {
 	// gpu.set: on or off, said once and remembered.
@@ -372,7 +268,7 @@ func registerGPU(st *state.Store, s *Sim) {
 			s.gpuWarm = v
 			s.gpuMu.Unlock()
 			s.prefs.GPU = &v
-			s.savePrefs()
+			_ = s.savePrefs(w)
 			if v {
 				w.Say("the link matrix will be measured on the GPU where it can be")
 			} else {

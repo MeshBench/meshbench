@@ -78,8 +78,8 @@ func (s *Sim) Warm(st *state.Store, nodes int) { s.warm(st, nodes) }
 // Rebuild rebuilds the engine at the current seed.
 func (s *Sim) Rebuild(w *state.World) error { return s.rebuild(w) }
 
-// SavePrefs persists the preferences.
-func (s *Sim) SavePrefs() { s.savePrefs() }
+// SavePrefs persists the preferences, saying into the world when it cannot.
+func (s *Sim) SavePrefs(w *state.World) error { return s.savePrefs(w) }
 
 // RoutesBetween is the path a message would take from one node to another.
 func (s *Sim) RoutesBetween(from, to string) ([]state.Route, error) {
