@@ -223,18 +223,6 @@ func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCac
 			RSSIdBm: dsp.ReportRSSIdBm(rxDBm), SNRdB: reported,
 			Offered: rxDBm > noiseDBm-10,
 		}
-		// Recorded before the verdict is turned into words: the capture wants
-		// the outcome code, and every receiver's view including the ones that
-		// heard nothing worth reporting in the ledger.
-		defer func() {
-			e.mu.Lock()
-			c := e.capture
-			e.mu.Unlock()
-			if c != nil && rec.Offered {
-				c.write(t.endMs, src.Spec.Name, dst.Spec.Name, txPHY,
-					rec.RSSIdBm, rec.SNRdB, rec.Outcome, rec.CRCOK, t.frame)
-			}
-		}()
 		switch {
 		case !rec.Offered:
 			rec.Outcome = capture.OutOfRange
@@ -331,6 +319,12 @@ func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCac
 			// hears it and does nothing, which is what an observer is.
 			if dst.Firmware != nil {
 				if err := dst.Firmware.Bridge.Deliver(t.frame); err != nil {
+					// The verdict was reached before the handoff, so this
+					// receiver's row is owed to the ledger and the capture
+					// whatever the bridge then did. A run that abandons them
+					// here loses the one reception that explains the failure.
+					e.Ledger.Record(rec)
+					e.captureWrite(t, src, dst, txPHY, rec)
 					return fmt.Errorf("engine: deliver to %s: %w", dst.Spec.Name, err)
 				}
 			}
@@ -340,14 +334,10 @@ func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCac
 		// The capture takes every receiver's view, including the ones the
 		// ledger does not narrate. That is the point of capturing from a
 		// simulator: a real capture has one vantage point, and "A heard it, B
-		// did not" is the most informative event in a mesh.
-		e.mu.Lock()
-		c := e.capture
-		e.mu.Unlock()
-		if c != nil && rec.Offered {
-			c.write(t.endMs, src.Spec.Name, dst.Spec.Name, txPHY,
-				rec.RSSIdBm, rec.SNRdB, rec.Outcome, rec.CRCOK, t.frame)
-		}
+		// did not" is the most informative event in a mesh. Once per receiver,
+		// after the verdict: a second write of the same row makes a capture
+		// count every reception twice, and the count is what a soak judges on.
+		e.captureWrite(t, src, dst, txPHY, rec)
 	}
 	return nil
 }
