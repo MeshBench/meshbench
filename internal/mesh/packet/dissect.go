@@ -296,8 +296,13 @@ func RewritePath(frame, path []byte) ([]byte, error) {
 	if d.Truncated {
 		return nil, fmt.Errorf("capture: cannot rewrite a truncated frame: %s", d.Problem)
 	}
-	if len(path) > 255 {
-		return nil, fmt.Errorf("capture: path of %d bytes does not fit its length byte", len(path))
+	// The length byte is not a plain count: Dissect reads its low six bits as
+	// the hop count and its top two as the hash size (see the comment above
+	// PathHashSize). Only the low six bits are ever written here, so a path
+	// this dissector itself cannot read back must be rejected before it
+	// reaches byte(len(path)).
+	if len(path) > 63 {
+		return nil, fmt.Errorf("capture: path of %d bytes does not fit the six-bit hop count its own length byte carries", len(path))
 	}
 	head := 1
 	if d.HasTransport {
