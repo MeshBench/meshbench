@@ -20,6 +20,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/MeshBench/meshbench/internal/diag"
 )
 
 // Protocol is the wire version, bumped only when a change breaks a client
@@ -215,14 +217,46 @@ func (s *Server) Close() error {
 	return err
 }
 
+// acceptBackoffMin and acceptBackoffMax bound the retry after a transient
+// Accept error. An application that opens terrain tiles, firmware child
+// processes, pcapng files and emulator sockets can plausibly brush a
+// per-process file descriptor ceiling, and Accept reports that exactly like
+// any other failure - so one such moment used to close the socket for the
+// rest of the run, silently, while the window stayed open and every later
+// client was told nobody was listening. The doubling with a ceiling is what
+// net/http's own Server.Serve has done since Go 1.0.
+const (
+	acceptBackoffMin = 5 * time.Millisecond
+	acceptBackoffMax = time.Second
+)
+
 func (s *Server) accept() {
+	var backoff time.Duration
 	for {
 		c, err := s.ln.Accept()
 		if err != nil {
-			return
+			if s.isClosed() {
+				// Close() did this on purpose; there is nothing to report.
+				return
+			}
+			if backoff == 0 {
+				backoff = acceptBackoffMin
+			} else if backoff *= 2; backoff > acceptBackoffMax {
+				backoff = acceptBackoffMax
+			}
+			diag.Printf("control", "accept: %v - retrying in %s", err, backoff)
+			time.Sleep(backoff)
+			continue
 		}
+		backoff = 0
 		go s.serve(c)
 	}
+}
+
+func (s *Server) isClosed() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.closed
 }
 
 func (s *Server) serve(c net.Conn) {
