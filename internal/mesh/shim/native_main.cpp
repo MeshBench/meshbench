@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "SimNode.h"
+#include "tick.h"
 
 namespace {
 
@@ -335,16 +336,7 @@ int main(int argc, char** argv) {
         if (n != 4) break;
         uint32_t at = ((uint32_t)payload[0] << 24) | ((uint32_t)payload[1] << 16) |
                       ((uint32_t)payload[2] << 8) | payload[3];
-        // One loop per millisecond of simulated time. Stepping rather than
-        // jumping is what keeps timeouts, retries and duty-cycle refill
-        // behaving as they do on hardware; a node that sees time move in
-        // 500 ms jumps takes different branches.
-        while (clk.now < at) {
-          clk.now++;
-          node.loop();
-        }
-        clk.now = at;
-        node.loop();
+        StepTick(clk.now, at, [&] { node.loop(); });
         uint8_t ack[4] = {payload[0], payload[1], payload[2], payload[3]};
         if (!writeMsg(fd, kAck, ack, 4)) goto done;
         break;
