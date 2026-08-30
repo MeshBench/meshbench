@@ -92,7 +92,19 @@ func FindNative(explicit, role string) (string, error) {
 // runs on purpose: a repeater keeping its identity between sessions is how
 // hardware behaves, and the seed regenerates the same identity anyway.
 func NodeWorkDir(name string) string {
-	safe := strings.Map(func(r rune) rune {
+	return filepath.Join(NodeFSRoot(), SafeNodeName(name))
+}
+
+// SafeNodeName reduces a node's name to what is safe to put in a path or a
+// generated script.
+//
+// A name is not always typed by the operator: a scenario imported from a live
+// feed carries whatever the network said, and that name reaches a filesystem
+// path and a Renode script that Renode executes as monitor commands. Anything
+// outside this set becomes an underscore, so a quote or a newline cannot end
+// the argument it sits in.
+func SafeNodeName(name string) string {
+	return strings.Map(func(r rune) rune {
 		switch {
 		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_':
 			return r
@@ -100,7 +112,6 @@ func NodeWorkDir(name string) string {
 			return '_'
 		}
 	}, name)
-	return filepath.Join(NodeFSRoot(), safe)
 }
 
 // EnvNodeFS moves every node's persistent storage somewhere else.

@@ -74,7 +74,8 @@ machine LoadPlatformDescription @%[1]s/cryptocell.repl
 %[5]s
 radiospi.lora Connect
 %[7]sstart
-`, tools, e.NodeName, e.Platform, repl, flash, renode.UnregisterStockSPI(), renode.RenodeTrace())
+`, tools, firmware.SafeNodeName(e.NodeName), e.Platform, repl, flash,
+		renode.UnregisterStockSPI(), renode.RenodeTrace())
 	if err := os.WriteFile(script, []byte(body), 0o644); err != nil {
 		return err
 	}
