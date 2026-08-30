@@ -19,6 +19,7 @@ package basemap
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"image"
 	"image/draw"
@@ -27,11 +28,14 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/MeshBench/meshbench/internal/diag"
 )
 
 // Kind separates a base layer from something drawn over one.
@@ -286,6 +290,29 @@ func (s *Store) path(l Layer, z, x, y int) string {
 	return filepath.Join(s.CacheDir, l.ID, fmt.Sprint(z), fmt.Sprint(x), fmt.Sprint(y)+".img")
 }
 
+// tileName identifies a tile in a message, without the request URL.
+//
+// The URL carries the CARTO key as a query parameter, and these messages reach
+// a terminal, a shell history and whatever somebody pastes into a bug report.
+// The layer and the coordinates say which tile failed, which is the whole of
+// what a reader needs.
+func tileName(l Layer, z, x, y int) string {
+	return fmt.Sprintf("%s tile %d/%d/%d", l.ID, z, x, y)
+}
+
+// causeOf strips the request URL out of a transport failure.
+//
+// net/http reports one as a *url.Error, which prints the whole URL it was
+// given. Naming the tile and then wrapping that puts the key back into the
+// message it was just taken out of, so the underlying cause is what travels.
+func causeOf(err error) error {
+	var u *url.Error
+	if errors.As(err, &u) && u.Err != nil {
+		return u.Err
+	}
+	return err
+}
+
 // Cached returns a tile only from memory or disk, never the network.
 //
 // Drawing uses this. A redraw that can block on an HTTP request is a window
@@ -350,7 +377,7 @@ func (s *Store) Fetch(ctx context.Context, l Layer, z, x, y int) error {
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("basemap: fetch %s: %w", url, err)
+		return fmt.Errorf("basemap: fetch %s: %w", tileName(l, z, x, y), causeOf(err))
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -363,7 +390,7 @@ func (s *Store) Fetch(ctx context.Context, l Layer, z, x, y int) error {
 		return nil
 	}
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("basemap: %s returned %s", url, resp.Status)
+		return fmt.Errorf("basemap: %s returned %s", tileName(l, z, x, y), resp.Status)
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
@@ -372,12 +399,19 @@ func (s *Store) Fetch(ctx context.Context, l Layer, z, x, y int) error {
 	}
 	img, err := decode(body)
 	if err != nil {
-		return fmt.Errorf("basemap: %s: %w", url, err)
+		return fmt.Errorf("basemap: %s: %w", tileName(l, z, x, y), err)
 	}
 
 	// Decoded before it is written, so an error page never lands in the cache.
-	if err := os.MkdirAll(filepath.Dir(s.path(l, z, x, y)), 0o755); err == nil {
-		_ = os.WriteFile(s.path(l, z, x, y), body, 0o644)
+	//
+	// A tile that cannot be written is still a tile that can be drawn, so this
+	// does not fail the fetch. It is reported rather than dropped because a full
+	// or read-only cache directory otherwise presents as a map that redownloads
+	// everything on every launch and never says why.
+	if err := os.MkdirAll(filepath.Dir(s.path(l, z, x, y)), 0o755); err != nil {
+		diag.Printf("basemap", "caching %s: %v", tileName(l, z, x, y), err)
+	} else if err := os.WriteFile(s.path(l, z, x, y), body, 0o644); err != nil {
+		diag.Printf("basemap", "caching %s: %v", tileName(l, z, x, y), err)
 	}
 	s.mu.Lock()
 	s.loaded[k] = img
