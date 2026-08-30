@@ -49,26 +49,26 @@ func (e *Engine) LinkMargins() []LinkMargin {
 
 	out := make([]LinkMargin, 0, len(nodes)*8)
 	for from, src := range nodes {
-		txPHY := e.phyOf(src.Spec)
+		txPHY := e.phyOf(src.Spec())
 		for to, dst := range nodes {
 			if from == to {
 				continue
 			}
-			if !dst.Spec.Kind.RunsFirmware() && dst.Spec.Kind != scenario.SDRObserver {
+			if !dst.Spec().Kind.RunsFirmware() && dst.Spec().Kind != scenario.SDRObserver {
 				continue
 			}
-			if dst.Spec.Kind != scenario.SDRObserver && !txPHY.sameChannel(e.phyOf(dst.Spec)) {
+			if dst.Spec().Kind != scenario.SDRObserver && !txPHY.sameChannel(e.phyOf(dst.Spec())) {
 				continue
 			}
 			loss, ok := e.pathLoss(from, to)
 			if !ok {
 				continue
 			}
-			noiseDBm := dsp.NoiseFloorDBm(txPHY.bandwidthHz, e.noiseFigOf(dst.Spec))
+			noiseDBm := dsp.NoiseFloorDBm(txPHY.bandwidthHz, e.noiseFigOf(dst.Spec()))
 			if extra := e.emitterNoiseAt(to); !math.IsInf(extra, -1) {
 				noiseDBm = addDBm(noiseDBm, extra)
 			}
-			rxDBm := src.Spec.TxPowerDBm + gain(src.Spec) - loss + gain(dst.Spec)
+			rxDBm := src.Spec().TxPowerDBm + gain(src.Spec()) - loss + gain(dst.Spec())
 			out = append(out, LinkMargin{
 				From: from, To: to,
 				MarginDB: rxDBm - noiseDBm - requiredSNRdB(txPHY.sf),

@@ -1,6 +1,9 @@
 package engine
 
-import "github.com/MeshBench/meshbench/internal/firmware"
+import (
+	"github.com/MeshBench/meshbench/internal/firmware"
+	"github.com/MeshBench/meshbench/internal/world/scenario"
+)
 
 // What a node's radio is worth, given what its firmware has actually configured
 // it to be rather than what its board profile claims it can do.
@@ -68,7 +71,7 @@ func effectiveRF(n *Node, st firmware.RadioStats) (txDBm, nfDB float64, ok bool)
 	// Judged at the instant the node last transmitted, not on the line's
 	// current level: the line is meant to be low while it listens, and a node
 	// that has not transmitted at all has not answered the question.
-	if fem := n.Spec.FEM; fem != nil {
+	if fem := n.Spec().FEM; fem != nil {
 		switch st.FemAtTx {
 		case firmware.FemIn:
 			txDBm += fem.TxGainDB
@@ -93,11 +96,12 @@ func (e *Engine) ApplyRadioState(i int, st firmware.RadioStats) {
 	}
 	n := e.nodes[i]
 	txDBm, nfDB, ok := effectiveRF(n, st)
-	if !ok || (n.Spec.TxPowerDBm == txDBm && n.Spec.NoiseFigureDB == nfDB) {
+	if !ok || (n.Spec().TxPowerDBm == txDBm && n.Spec().NoiseFigureDB == nfDB) {
 		return
 	}
-	n.Spec.TxPowerDBm = txDBm
-	n.Spec.NoiseFigureDB = nfDB
+	n.changeSpec(func(s *scenario.Node) {
+		s.TxPowerDBm, s.NoiseFigureDB = txDBm, nfDB
+	})
 	// Both figures feed the path-loss cull, so a cached pair cannot outlive
 	// them - but only pairs this node is party to are affected, not the whole
 	// mesh. Wiping the entire cache here was the bug: the FEM-at-TX and

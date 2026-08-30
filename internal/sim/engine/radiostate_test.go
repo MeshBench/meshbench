@@ -11,11 +11,9 @@ import (
 // board is a node as imported: the datasheet figures, before any firmware has
 // said what it actually did with the radio.
 func board(nfDB, txDBm float64, fem *hw.FEM) *Node {
-	return &Node{
-		Spec:           scenario.Node{NoiseFigureDB: nfDB, TxPowerDBm: txDBm, FEM: fem},
-		baseNoiseFigDB: nfDB,
-		baseTxPowerDBm: txDBm,
-	}
+	n := &Node{baseNoiseFigDB: nfDB, baseTxPowerDBm: txDBm}
+	n.spec.Store(&scenario.Node{NoiseFigureDB: nfDB, TxPowerDBm: txDBm, FEM: fem})
+	return n
 }
 
 // configured is what a radio that has come up and been set up reports.

@@ -29,8 +29,24 @@ import (
 )
 
 // Node is one participant: its place in the world and its running firmware.
+//
+// The rule for everything on it, because the package's shape forces one:
+// *Node pointers are copied out under e.mu and then dereferenced long after
+// it is released. deliver, the observers and the carrier-sense scans all
+// snapshot the slice and work outside the lock, because pathLoss takes the
+// same mutex and Go's is not reentrant. So the lock orders the writes; it is
+// not what makes the reads safe. Anything here that changes while a run is in
+// progress is therefore swapped whole through an atomic rather than edited
+// field by field - which is why the spec is behind an accessor. The counters
+// are the exception that proves it: they are written under e.mu and read
+// under it, by Scoreboard, and never touched from a snapshot.
 type Node struct {
-	Spec scenario.Node
+	// spec is what the world says this node is. Never edited in place: a
+	// change builds a whole new value and stores it, so a reader holding the
+	// old one has a consistent node rather than half of two. ApplyRadioState
+	// rewrites transmit power and noise figure every tick, which is what makes
+	// this the field the rule exists for.
+	spec atomic.Pointer[scenario.Node]
 
 	// Firmware is nil for a node that does not run any — an SDR observer, or a
 	// custom emitter that is only there to be interfered with.
@@ -52,6 +68,21 @@ type Node struct {
 	UniqueDelivery int
 	RedundantRelay int
 	AirtimeMs      float64
+}
+
+// Spec is what the world says this node is, as one consistent value.
+//
+// Safe from any goroutine, which is the whole point: the callers that matter
+// hold a pointer taken under e.mu and read it long after.
+func (n *Node) Spec() scenario.Node { return *n.spec.Load() }
+
+// changeSpec swaps a modified spec in. The caller holds e.mu, because the
+// load, the change and the store are three steps and two writers racing
+// through them would lose one of the changes.
+func (n *Node) changeSpec(f func(*scenario.Node)) {
+	s := *n.spec.Load()
+	f(&s)
+	n.spec.Store(&s)
 }
 
 // Config is what a run needs that a scenario does not carry.
@@ -267,11 +298,11 @@ func (e *Engine) Add(spec scenario.Node, fw *firmware.Node) *Node {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	n := &Node{
-		Spec:           spec,
 		Firmware:       fw,
 		baseTxPowerDBm: spec.TxPowerDBm,
 		baseNoiseFigDB: spec.NoiseFigureDB,
 	}
+	n.spec.Store(&spec)
 	e.nodes = append(e.nodes, n)
 	// Terrain has not changed, but the set of pairs has. The profiles keep:
 	// they are keyed by pair index, and existing indices still mean the
@@ -310,13 +341,13 @@ func (e *Engine) PinFirmware(name, version string) int {
 	defer e.mu.Unlock()
 	n := 0
 	for _, nd := range e.nodes {
-		if name != "" && nd.Spec.Name != name {
+		if name != "" && nd.Spec().Name != name {
 			continue
 		}
-		if nd.Spec.Firmware.Version == version {
+		if nd.Spec().Firmware.Version == version {
 			continue
 		}
-		nd.Spec.Firmware.Version = version
+		nd.changeSpec(func(s *scenario.Node) { s.Firmware.Version = version })
 		n++
 	}
 	return n
@@ -333,14 +364,16 @@ func (e *Engine) SetCard(name string, fitted bool, file string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	for _, nd := range e.nodes {
-		if nd.Spec.Name != name {
+		if nd.Spec().Name != name {
 			continue
 		}
-		nd.Spec.Card = scenario.CardFitted
-		if !fitted {
-			nd.Spec.Card = scenario.CardEmpty
-		}
-		nd.Spec.CardFile = file
+		nd.changeSpec(func(s *scenario.Node) {
+			s.Card = scenario.CardFitted
+			if !fitted {
+				s.Card = scenario.CardEmpty
+			}
+			s.CardFile = file
+		})
 	}
 }
 
@@ -357,13 +390,15 @@ func (e *Engine) PinBoard(name, board string, role scenario.Role) int {
 	defer e.mu.Unlock()
 	n := 0
 	for _, nd := range e.nodes {
-		if name != "" && nd.Spec.Name != name {
+		if name != "" && nd.Spec().Name != name {
 			continue
 		}
-		nd.Spec.Firmware.Board = board
-		if role != "" {
-			nd.Spec.Firmware.Role = role
-		}
+		nd.changeSpec(func(s *scenario.Node) {
+			s.Firmware.Board = board
+			if role != "" {
+				s.Firmware.Role = role
+			}
+		})
 		n++
 	}
 	return n
@@ -411,7 +446,13 @@ func (e *Engine) Run(ctx context.Context, untilMs uint32) error {
 	return nil
 }
 
-// Close shuts every node down.
+// Close shuts every node down, and closes what the run was writing to.
+//
+// The recorders are part of shutting down, not an afterthought: a FIFO
+// capture owns a goroutine draining onto the pipe, and an engine that closed
+// its nodes and left the capture open leaked that goroutine and its open file
+// for the life of the process. A workbench that opens a scenario, records,
+// closes it and opens another accumulates one of each per run.
 func (e *Engine) Close() error {
 	var err error
 	for _, n := range e.Nodes() {
@@ -421,6 +462,12 @@ func (e *Engine) Close() error {
 		if cerr := n.Firmware.Close(); err == nil {
 			err = cerr
 		}
+	}
+	if _, _, cerr := e.StopCapture(); err == nil {
+		err = cerr
+	}
+	if _, _, cerr := e.StopEventLog(); err == nil {
+		err = cerr
 	}
 	return err
 }

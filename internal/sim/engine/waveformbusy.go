@@ -23,7 +23,7 @@ func (e *Engine) waveformBusy(now uint32, nodes []*Node, air []transmission) []b
 	// Fill the cache serially before the listeners fan out: the workers
 	// only read it, and a lazily-filled map under them would be a race.
 	for _, t := range air {
-		e.modulated(cache, t, e.phyOf(nodes[t.from].Spec))
+		e.modulated(cache, t, e.phyOf(nodes[t.from].Spec()))
 	}
 	// Every listener in parallel. Three hundred nodes each dechirping a
 	// symbol every tick is real work, it lands on the tick that paces the
@@ -35,7 +35,7 @@ func (e *Engine) waveformBusy(now uint32, nodes []*Node, air []transmission) []b
 		// By kind, not by attached process: what can listen is a property of
 		// the node, and the physics must not change because a test runs the
 		// channel without processes on it.
-		if !dst.Spec.Kind.RunsFirmware() {
+		if !dst.Spec().Kind.RunsFirmware() {
 			continue
 		}
 		i, dst := i, dst
@@ -44,13 +44,13 @@ func (e *Engine) waveformBusy(now uint32, nodes []*Node, air []transmission) []b
 		go func() {
 			defer wg.Done()
 			defer func() { <-sem }()
-			rxPHY := e.phyOf(dst.Spec)
+			rxPHY := e.phyOf(dst.Spec())
 			var txs []channel.Transmission
 			for _, t := range air {
 				if t.from == i {
 					continue
 				}
-				if !e.phyOf(nodes[t.from].Spec).sameChannel(rxPHY) {
+				if !e.phyOf(nodes[t.from].Spec()).sameChannel(rxPHY) {
 					continue
 				}
 				if tx, ok := e.rxTransmission(t, i, float64(now), nodes, cache); ok {
@@ -61,7 +61,7 @@ func (e *Engine) waveformBusy(now uint32, nodes []*Node, air []transmission) []b
 				return
 			}
 			n := dsp.SamplesPerSymbol(rxPHY.sf)
-			noiseDBm := dsp.NoiseFloorDBm(rxPHY.bandwidthHz, e.noiseFigOf(dst.Spec))
+			noiseDBm := dsp.NoiseFloorDBm(rxPHY.bandwidthHz, e.noiseFigOf(dst.Spec()))
 			window := channel.Observe(txs, channel.Receiver{
 				NoisePowerLinear: math.Pow(10, noiseDBm/10),
 				Seed:             e.Config.Seed,
@@ -115,8 +115,8 @@ func (e *Engine) judgeHybrid(t transmission, rxIdx int, concurrent []transmissio
 		}
 	}
 	src := nodes[t.from]
-	rxDBm := src.Spec.TxPowerDBm + gain(src.Spec) - loss + gain(nodes[rxIdx].Spec)
-	noiseDBm := dsp.NoiseFloorDBm(txPHY.bandwidthHz, e.noiseFigOf(nodes[rxIdx].Spec))
+	rxDBm := src.Spec().TxPowerDBm + gain(src.Spec()) - loss + gain(nodes[rxIdx].Spec())
+	noiseDBm := dsp.NoiseFloorDBm(txPHY.bandwidthHz, e.noiseFigOf(nodes[rxIdx].Spec()))
 	if extra := e.emitterNoiseAt(rxIdx); !math.IsInf(extra, -1) {
 		noiseDBm = addDBm(noiseDBm, extra)
 	}

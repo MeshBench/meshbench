@@ -49,7 +49,7 @@ func TestPinningFirmwareReachesTheEngine(t *testing.T) {
 	// And what will actually start.
 	inEngine := 0
 	for _, n := range sim.eng.Nodes() {
-		if n.Spec.Firmware.Version == want {
+		if n.Spec().Firmware.Version == want {
 			inEngine++
 		}
 	}
@@ -81,10 +81,10 @@ func TestPinningOneNodeReachesTheEngine(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, n := range sim.eng.Nodes() {
-		if n.Spec.Name == name {
-			if n.Spec.Firmware.Version != want {
+		if n.Spec().Name == name {
+			if n.Spec().Firmware.Version != want {
 				t.Fatalf("%s: engine has %q, the scenario has %q",
-					name, n.Spec.Firmware.Version, want)
+					name, n.Spec().Firmware.Version, want)
 			}
 			return
 		}

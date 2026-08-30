@@ -48,7 +48,7 @@ func (e *Engine) InFlightTransmissions(rxIndex int) []channel.Transmission {
 	if rxIndex < 0 || rxIndex >= len(nodes) {
 		return nil
 	}
-	rxPHY := e.phyOf(nodes[rxIndex].Spec)
+	rxPHY := e.phyOf(nodes[rxIndex].Spec())
 
 	var out []channel.Transmission
 	cache := modCache{}
@@ -56,7 +56,7 @@ func (e *Engine) InFlightTransmissions(rxIndex int) []channel.Transmission {
 		// Only what this receiver could actually see. A transmission on another
 		// channel is not in this waterfall, for the same reason it is not in
 		// this receiver's ledger.
-		if !e.phyOf(nodes[t.from].Spec).sameChannel(rxPHY) {
+		if !e.phyOf(nodes[t.from].Spec()).sameChannel(rxPHY) {
 			continue
 		}
 		tx, ok := e.rxTransmission(t, rxIndex, float64(t.startMs), nodes, cache)
@@ -84,7 +84,7 @@ func (e *Engine) InFlightTransmissions(rxIndex int) []channel.Transmission {
 func (e *Engine) rxTransmission(t transmission, rxIdx int, anchorMs float64,
 	nodes []*Node, cache modCache) (channel.Transmission, bool) {
 	src := nodes[t.from]
-	txPHY := e.phyOf(src.Spec)
+	txPHY := e.phyOf(src.Spec())
 	loss, ok := e.pathLoss(t.from, rxIdx)
 	if !ok {
 		return channel.Transmission{}, false
@@ -93,9 +93,9 @@ func (e *Engine) rxTransmission(t transmission, rxIdx int, anchorMs float64,
 	rel := (float64(t.startMs) - anchorMs) * spms
 	start := math.Floor(rel)
 	tx := channel.Transmission{
-		Node:         src.Spec.Name,
+		Node:         src.Spec().Name,
 		Samples:      e.modulated(cache, t, txPHY),
-		GainDB:       src.Spec.TxPowerDBm + gain(src.Spec) - loss + gain(nodes[rxIdx].Spec),
+		GainDB:       src.Spec().TxPowerDBm + gain(src.Spec()) - loss + gain(nodes[rxIdx].Spec()),
 		StartSample:  int(start),
 		DelaySamples: rel - start,
 		PhaseStepRad: e.phaseStepFor(src, nodes[rxIdx], txPHY),
@@ -113,8 +113,8 @@ func (e *Engine) rxTransmissions(t transmission, rxIdx int, anchorMs float64,
 		return nil
 	}
 	out := []channel.Transmission{direct}
-	if echo, has := e.echoFor(direct, nodes[t.from].Spec.Name,
-		nodes[rxIdx].Spec.Name, e.phyOf(nodes[t.from].Spec), t.startMs); has {
+	if echo, has := e.echoFor(direct, nodes[t.from].Spec().Name,
+		nodes[rxIdx].Spec().Name, e.phyOf(nodes[t.from].Spec()), t.startMs); has {
 		out = append(out, echo)
 	}
 	return out

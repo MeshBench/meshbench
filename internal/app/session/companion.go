@@ -362,12 +362,12 @@ func companionBootFrames(en *engine.Node, nowMs uint32) [][]byte {
 	// Only what the scenario actually states. A zeroed radio sent anyway is
 	// ERR_CODE_ILLEGAL_ARG at best, and a zeroed TX power is worse: 0 dBm is
 	// a legal setting, so the firmware would take it and go quiet.
-	if r := en.Spec.Radio; r.CentreHz > 0 {
+	if r := en.Spec().Radio; r.CentreHz > 0 {
 		out = append(out, proto.SetRadioParams(uint32(r.CentreHz/1000),
 			uint32(r.BandwidthHz), uint8(r.SpreadFactor), uint8(r.CodingRate+4)))
 	}
-	if en.Spec.TxPowerDBm > 0 {
-		out = append(out, proto.SetTxPower(uint8(en.Spec.TxPowerDBm)))
+	if en.Spec().TxPowerDBm > 0 {
+		out = append(out, proto.SetTxPower(uint8(en.Spec().TxPowerDBm)))
 	}
 	return out
 }

@@ -94,7 +94,7 @@ func (s *Sim) saySend(snd state.Send) error {
 	if n.Firmware == nil || n.Firmware.Bridge == nil {
 		return fmt.Errorf("its firmware is not running")
 	}
-	if !speaksCompanion(n.Spec.Kind) {
+	if !speaksCompanion(n.Spec().Kind) {
 		return n.Firmware.Bridge.Type([]byte(cmd + "\r\n"))
 	}
 	return s.runCompanionLine(snd.Node, cmd)

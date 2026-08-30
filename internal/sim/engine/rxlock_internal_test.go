@@ -26,7 +26,7 @@ func lockBench(t *testing.T) (*Engine, phy) {
 	e.Add(mk("near", 0.001), nil)  // ~60 m: the dominant signal
 	e.Add(mk("far", 0.050), nil)   // ~3 km: heard, but well down on near
 	e.Add(mk("other", 0.020), nil) // ~1.2 km: a third voice
-	return e, e.phyOf(e.nodes[0].Spec)
+	return e, e.phyOf(e.nodes[0].Spec())
 }
 
 // A transmission that lost the demodulator holds nothing afterwards.
@@ -173,7 +173,7 @@ func TestTheSoaksOwnDoubleDecode(t *testing.T) {
 	e.Add(mk("Drumcarrow Craig NWR", scenario.SimpleRepeater, 56.308243, -2.874867, 10, 22), nil)
 	e.Add(mk("sco-fif-montrave", scenario.SimpleRepeater, 56.246614, -3.03611, 10, 22), nil)
 	nodes := e.nodes
-	p := e.phyOf(nodes[1].Spec)
+	p := e.phyOf(nodes[1].Spec())
 
 	a := transmission{from: 1, packetID: 1253, startMs: 51720, endMs: 52261}
 	b := transmission{from: 2, packetID: 1256, startMs: 51720, endMs: 52261}

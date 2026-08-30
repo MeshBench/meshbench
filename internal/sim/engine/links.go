@@ -43,7 +43,7 @@ func (e *Engine) pathLoss(a, b int) (float64, bool) {
 		// to change a constant that every path shares.
 		return v + excess, true
 	}
-	from, to := e.nodes[a].Spec, e.nodes[b].Spec
+	from, to := e.nodes[a].Spec(), e.nodes[b].Spec()
 	e.mu.Unlock()
 
 	distKm := geo.DistanceKm(from.Position.Lat, from.Position.Lon, to.Position.Lat, to.Position.Lon)

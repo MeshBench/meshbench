@@ -59,7 +59,7 @@ func (e *Engine) AttachNativeProgress(ctx context.Context, seed uint64, progress
 	var resolveErr error
 	todo := 0
 	for _, n := range nodes {
-		if !n.Spec.Kind.RunsFirmware() || n.Firmware != nil {
+		if !n.Spec().Kind.RunsFirmware() || n.Firmware != nil {
 			continue
 		}
 		todo++
@@ -67,22 +67,22 @@ func (e *Engine) AttachNativeProgress(ctx context.Context, seed uint64, progress
 		// the cache. Resolving a native build for it would fail on a version
 		// that was never built for this machine, and take the whole attach down
 		// with it.
-		if n.Spec.Firmware.Emulated() {
+		if n.Spec().Firmware.Emulated() {
 			continue
 		}
-		role := n.Spec.Firmware.Role
+		role := n.Spec().Firmware.Role
 		if role == "" {
-			role = n.Spec.Kind.Application()
+			role = n.Spec().Kind.Application()
 		}
-		key := string(role) + "@" + n.Spec.Firmware.Version
+		key := string(role) + "@" + n.Spec().Firmware.Version
 		if _, ok := resolved[key]; ok {
 			continue
 		}
-		path, err := firmware.Resolve(ctx, "", string(role), n.Spec.Firmware.Version,
+		path, err := firmware.Resolve(ctx, "", string(role), n.Spec().Firmware.Version,
 			firmware.DefaultCacheDir())
 		if err != nil {
 			if resolveErr == nil {
-				resolveErr = fmt.Errorf("%s: %w", n.Spec.Name, err)
+				resolveErr = fmt.Errorf("%s: %w", n.Spec().Name, err)
 			}
 			continue
 		}
@@ -145,9 +145,9 @@ func (e *Engine) AttachNativeProgress(ctx context.Context, seed uint64, progress
 		// not a switch on a node type: the scenario says which firmware is
 		// loaded, and that is the whole of what makes a node a repeater rather
 		// than a companion.
-		role := n.Spec.Firmware.Role
+		role := n.Spec().Firmware.Role
 		if role == "" {
-			role = n.Spec.Kind.Application()
+			role = n.Spec().Kind.Application()
 		}
 		// One resolve per distinct build, not per node. Six hundred repeaters
 		// share one binary; resolving each separately made six hundred GitHub
@@ -158,27 +158,27 @@ func (e *Engine) AttachNativeProgress(ctx context.Context, seed uint64, progress
 		// means a build for this machine. Not a switch on node type, and not a
 		// global mode - a scenario mixing the two is the point of having both.
 		var backend firmware.Backend
-		if n.Spec.Firmware.Emulated() {
-			em, err := emulatedBackend(n.Spec, e.Config.UnverifiedWiring)
+		if n.Spec().Firmware.Emulated() {
+			em, err := emulatedBackend(n.Spec(), e.Config.UnverifiedWiring)
 			if err != nil {
-				fail(fmt.Errorf("%s: %w", n.Spec.Name, err))
+				fail(fmt.Errorf("%s: %w", n.Spec().Name, err))
 				return
 			}
 			backend = em
 		} else {
-			key := string(role) + "@" + n.Spec.Firmware.Version
+			key := string(role) + "@" + n.Spec().Firmware.Version
 			path, ok := resolved[key]
 			if !ok {
 				// Its build did not resolve above. One node's missing build
 				// must not abandon the other two hundred.
-				fail(fmt.Errorf("%s: no build for %s", n.Spec.Name, key))
+				fail(fmt.Errorf("%s: no build for %s", n.Spec().Name, key))
 				return
 			}
 			// The firmware's own diagnostics are the only window into a native
 			// node, and discarding them meant a node that stopped ticking left
 			// nothing behind to say why. An emulated node keeps console.log
 			// beside it for the same reason; this is the native equivalent.
-			dir := firmware.NodeWorkDir(n.Spec.Name)
+			dir := firmware.NodeWorkDir(n.Spec().Name)
 			var stderr io.Writer
 			if err := os.MkdirAll(dir, 0o755); err == nil {
 				if f, err := os.Create(filepath.Join(dir, "stderr.log")); err == nil {
@@ -195,9 +195,9 @@ func (e *Engine) AttachNativeProgress(ctx context.Context, seed uint64, progress
 				CodingRate: e.Config.CodingRate,
 			}
 		}
-		fw, err := firmware.Start(ctx, n.Spec.Name, backend)
+		fw, err := firmware.Start(ctx, n.Spec().Name, backend)
 		if err != nil {
-			fail(fmt.Errorf("start %s: %w", n.Spec.Name, err))
+			fail(fmt.Errorf("start %s: %w", n.Spec().Name, err))
 			return
 		}
 		// Start returns once the process exists, not once it has connected. The
@@ -206,7 +206,7 @@ func (e *Engine) AttachNativeProgress(ctx context.Context, seed uint64, progress
 		// it is the difference between working and not.
 		if err := waitAttached(ctx, fw, attachBudget(workers)); err != nil {
 			_ = fw.Close()
-			fail(fmt.Errorf("%s: %w", n.Spec.Name, err))
+			fail(fmt.Errorf("%s: %w", n.Spec().Name, err))
 			return
 		}
 
@@ -242,7 +242,7 @@ func (e *Engine) AttachNativeProgress(ctx context.Context, seed uint64, progress
 		cancel()
 		if err != nil {
 			_ = fw.Close()
-			fail(fmt.Errorf("%s: boot offset: %w", n.Spec.Name, err))
+			fail(fmt.Errorf("%s: boot offset: %w", n.Spec().Name, err))
 			return
 		}
 
@@ -274,7 +274,7 @@ func (e *Engine) AttachNativeProgress(ctx context.Context, seed uint64, progress
 		}()
 	}
 	for i, n := range nodes {
-		if !n.Spec.Kind.RunsFirmware() || n.Firmware != nil {
+		if !n.Spec().Kind.RunsFirmware() || n.Firmware != nil {
 			continue
 		}
 		jobs <- job{i, n}

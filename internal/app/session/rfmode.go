@@ -129,9 +129,7 @@ func registerRFRealism(st *state.Store, s *Sim) {
 			return nil, noSuchNode(name)
 		}
 		if s.eng != nil {
-			if en, ok := s.eng.NodeByName(name); ok {
-				en.Spec.TrueRF = on
-			}
+			s.eng.SetTrueRF(name, on)
 		}
 		for i := range w.Nodes {
 			if w.Nodes[i].Name == name {

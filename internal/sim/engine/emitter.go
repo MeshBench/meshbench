@@ -27,28 +27,28 @@ func (e *Engine) emitterNoiseAt(rx int) float64 {
 	e.mu.Unlock()
 
 	total := math.Inf(-1)
-	rxSpec := nodes[rx].Spec
+	rxSpec := nodes[rx].Spec()
 	rxPHY := e.phyOf(rxSpec)
 	for i, n := range nodes {
-		if n.Spec.Kind != scenario.Emitter || i == rx {
+		if n.Spec().Kind != scenario.Emitter || i == rx {
 			continue
 		}
 		loss, ok := e.pathLoss(i, rx)
 		if !ok {
 			continue
 		}
-		p := n.Spec.TxPowerDBm + gain(n.Spec) - loss + gain(rxSpec)
+		p := n.Spec().TxPowerDBm + gain(n.Spec()) - loss + gain(rxSpec)
 		// Only the emitter power that lands inside the receiver's bandwidth
 		// raises its floor. An out-of-band emitter contributes nothing here —
 		// front-end blocking is a different curve, and pretending overlap
 		// covers it would be wrong in the flattering direction.
-		frac := overlapFraction(n.Spec.Radio.CentreHz, n.Spec.Radio.BandwidthHz,
+		frac := overlapFraction(n.Spec().Radio.CentreHz, n.Spec().Radio.BandwidthHz,
 			rxPHY.freqMHz*1e6, rxPHY.bandwidthHz)
 		if frac <= 0 {
 			continue
 		}
 		p += 10 * math.Log10(frac)
-		duty := n.Spec.EmitterDutyPct
+		duty := n.Spec().EmitterDutyPct
 		if duty <= 0 || duty > 100 {
 			duty = 100
 		}
@@ -83,7 +83,7 @@ func (e *Engine) FloorAt(name string) (thermalDBm, withEmittersDBm float64, ok b
 	e.mu.Lock()
 	idx := -1
 	for i, n := range e.nodes {
-		if n.Spec.Name == name {
+		if n.Spec().Name == name {
 			idx = i
 			break
 		}
@@ -104,5 +104,5 @@ func (e *Engine) FloorAt(name string) (thermalDBm, withEmittersDBm float64, ok b
 func (e *Engine) nodeSpec(i int) scenario.Node {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	return e.nodes[i].Spec
+	return e.nodes[i].Spec()
 }

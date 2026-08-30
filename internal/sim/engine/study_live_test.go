@@ -208,7 +208,7 @@ func studyOriginate(t *testing.T, ctx context.Context, e *engine.Engine,
 	var src *engine.Node
 	for _, name := range names {
 		n, ok := e.NodeByName(name)
-		if ok && n.Firmware != nil && n.Spec.Kind == scenario.SimpleRepeater {
+		if ok && n.Firmware != nil && n.Spec().Kind == scenario.SimpleRepeater {
 			src = n
 			break
 		}

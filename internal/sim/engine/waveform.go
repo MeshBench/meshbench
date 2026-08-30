@@ -59,6 +59,26 @@ func (e *Engine) SetRFMode(m RFMode) {
 	}
 }
 
+// SetTrueRF flags one node for waveform verdicts inside a calculated run,
+// and reports whether it found the node.
+//
+// Here rather than in the caller because the flag lives on the engine's own
+// copy of the spec, and that copy is swapped whole rather than written
+// through: a caller reaching in to set a field would be editing a value other
+// goroutines are already reading.
+func (e *Engine) SetTrueRF(name string, on bool) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for _, n := range e.nodes {
+		if n.Spec().Name != name {
+			continue
+		}
+		n.changeSpec(func(s *scenario.Node) { s.TrueRF = on })
+		return true
+	}
+	return false
+}
+
 // modCache is one delivery batch's modulated baseband, keyed by packet.
 //
 // A transmission's unit-amplitude samples do not depend on who is listening,
@@ -119,14 +139,14 @@ type wfDelivery struct {
 func (e *Engine) prepareWaveform(t transmission, concurrent []transmission,
 	nodes []*Node, cache modCache) *wfDelivery {
 	src := nodes[t.from]
-	txPHY := e.phyOf(src.Spec)
+	txPHY := e.phyOf(src.Spec())
 	d := &wfDelivery{
 		t: t, src: src, txPHY: txPHY,
 		txSamples: e.modulated(cache, t, txPHY),
 	}
 	for _, other := range concurrent {
 		if other.packetID != t.packetID {
-			e.modulated(cache, other, e.phyOf(nodes[other.from].Spec))
+			e.modulated(cache, other, e.phyOf(nodes[other.from].Spec()))
 		}
 	}
 	d.cands, d.deaf = e.waveformCandidates(t, concurrent, nodes, txPHY)
@@ -207,22 +227,22 @@ func (e *Engine) waveformCandidates(t transmission, concurrent []transmission,
 		if i == t.from {
 			continue
 		}
-		if !dst.Spec.Kind.RunsFirmware() && dst.Spec.Kind != scenario.SDRObserver {
+		if !dst.Spec().Kind.RunsFirmware() && dst.Spec().Kind != scenario.SDRObserver {
 			continue
 		}
-		rxPHY := e.phyOf(dst.Spec)
-		if dst.Spec.Kind != scenario.SDRObserver && !txPHY.sameChannel(rxPHY) {
+		rxPHY := e.phyOf(dst.Spec())
+		if dst.Spec().Kind != scenario.SDRObserver && !txPHY.sameChannel(rxPHY) {
 			continue
 		}
 		loss, ok := e.pathLoss(t.from, i)
 		if !ok {
-			e.record(Event{AtMs: t.endMs, Kind: "miss", From: nodes[t.from].Spec.Name,
-				To: dst.Spec.Name, PacketID: t.packetID, Outcome: capture.OutOfRange,
+			e.record(Event{AtMs: t.endMs, Kind: "miss", From: nodes[t.from].Spec().Name,
+				To: dst.Spec().Name, PacketID: t.packetID, Outcome: capture.OutOfRange,
 				Detail: "no terrain data covers this path"})
 			continue
 		}
-		rxDBm := nodes[t.from].Spec.TxPowerDBm + gain(nodes[t.from].Spec) - loss + gain(dst.Spec)
-		noiseDBm := dsp.NoiseFloorDBm(txPHY.bandwidthHz, e.noiseFigOf(dst.Spec))
+		rxDBm := nodes[t.from].Spec().TxPowerDBm + gain(nodes[t.from].Spec()) - loss + gain(dst.Spec())
+		noiseDBm := dsp.NoiseFloorDBm(txPHY.bandwidthHz, e.noiseFigOf(dst.Spec()))
 		if extra := e.emitterNoiseAt(i); !math.IsInf(extra, -1) {
 			noiseDBm = addDBm(noiseDBm, extra)
 		}
@@ -243,8 +263,8 @@ func (e *Engine) waveformCandidates(t transmission, concurrent []transmission,
 		}
 		if isDeaf {
 			deaf[i] = capture.Reception{
-				PacketID: t.packetID, FromNode: nodes[t.from].Spec.Name,
-				ToNode: dst.Spec.Name, RSSIdBm: dsp.ReportRSSIdBm(rxDBm),
+				PacketID: t.packetID, FromNode: nodes[t.from].Spec().Name,
+				ToNode: dst.Spec().Name, RSSIdBm: dsp.ReportRSSIdBm(rxDBm),
 				SNRdB:   dsp.ReportSNRdB(rxDBm - noiseDBm),
 				Offered: true, Outcome: capture.NotDemodulated,
 			}
@@ -268,12 +288,12 @@ func (e *Engine) judgeWaveform(t transmission, c wfCandidate, concurrent []trans
 
 	window := len(txSamples)
 	wanted := channel.Transmission{
-		Node: nodes[t.from].Spec.Name, Samples: txSamples, GainDB: c.rxDBm,
+		Node: nodes[t.from].Spec().Name, Samples: txSamples, GainDB: c.rxDBm,
 		PhaseStepRad: e.phaseStepFor(nodes[t.from], nodes[c.i], txPHY),
 	}
 	txs := []channel.Transmission{wanted}
-	if echo, has := e.echoFor(wanted, nodes[t.from].Spec.Name,
-		nodes[c.i].Spec.Name, txPHY, t.startMs); has {
+	if echo, has := e.echoFor(wanted, nodes[t.from].Spec().Name,
+		nodes[c.i].Spec().Name, txPHY, t.startMs); has {
 		txs = append(txs, echo)
 	}
 	for _, other := range concurrent {
@@ -283,7 +303,7 @@ func (e *Engine) judgeWaveform(t transmission, c wfCandidate, concurrent []trans
 		if other.endMs <= t.startMs || other.startMs >= t.endMs {
 			continue
 		}
-		if !e.phyOf(nodes[other.from].Spec).sameChannel(txPHY) {
+		if !e.phyOf(nodes[other.from].Spec()).sameChannel(txPHY) {
 			continue
 		}
 		txs = append(txs, e.rxTransmissions(other, c.i, float64(t.startMs), nodes, cache)...)
@@ -333,7 +353,7 @@ func (e *Engine) judgeWaveform(t transmission, c wfCandidate, concurrent []trans
 func (e *Engine) settleWaveform(t transmission, src, dst *Node, c wfCandidate,
 	r wfResult, txPHY phy) {
 	rec := capture.Reception{
-		PacketID: t.packetID, FromNode: src.Spec.Name, ToNode: dst.Spec.Name,
+		PacketID: t.packetID, FromNode: src.Spec().Name, ToNode: dst.Spec().Name,
 		RSSIdBm: dsp.ReportRSSIdBm(c.rxDBm), SNRdB: r.snrdB, Offered: true,
 		Demod: r.stats.HeaderOK, CRCOK: r.decoded && r.stats.CRCOK,
 	}
@@ -343,7 +363,7 @@ func (e *Engine) settleWaveform(t transmission, src, dst *Node, c wfCandidate,
 		// the receiver would have seen had it been free to look.
 		rec.SNRdB = dsp.ReportSNRdB(c.rxDBm - c.noiseDBm)
 		rec.Outcome = capture.NotDemodulated
-		e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.Spec.Name, To: dst.Spec.Name,
+		e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.Spec().Name, To: dst.Spec().Name,
 			PacketID: t.packetID, MessageID: t.payload, Outcome: rec.Outcome,
 			SNRdB: rec.SNRdB, Frame: t.frame, Detail: busyDemodulatorDetail(c.heldBy)})
 		e.Ledger.Record(rec)
@@ -363,7 +383,7 @@ func (e *Engine) settleWaveform(t transmission, src, dst *Node, c wfCandidate,
 				"waveform: %d codeword(s) beyond repair, %d repaired, CRC %v, at %.1f dB",
 				r.stats.Failed, r.stats.Corrected, r.stats.CRCOK, r.snrdB)
 		}
-		e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.Spec.Name, To: dst.Spec.Name,
+		e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.Spec().Name, To: dst.Spec().Name,
 			PacketID: t.packetID, MessageID: t.payload, Outcome: rec.Outcome,
 			SNRdB: r.snrdB, Frame: t.frame, Detail: why})
 		e.Ledger.Record(rec)
@@ -373,11 +393,11 @@ func (e *Engine) settleWaveform(t transmission, src, dst *Node, c wfCandidate,
 	rec.Outcome, rec.FirmwareSaw = capture.Accepted, true
 	e.mu.Lock()
 	dst.Heard++
-	if e.seen[dst.Spec.Name] == nil {
-		e.seen[dst.Spec.Name] = map[uint64]bool{}
+	if e.seen[dst.Spec().Name] == nil {
+		e.seen[dst.Spec().Name] = map[uint64]bool{}
 	}
-	first := !e.seen[dst.Spec.Name][t.payload]
-	e.seen[dst.Spec.Name][t.payload] = true
+	first := !e.seen[dst.Spec().Name][t.payload]
+	e.seen[dst.Spec().Name][t.payload] = true
 	if first {
 		src.UniqueDelivery++
 	} else {
@@ -392,7 +412,7 @@ func (e *Engine) settleWaveform(t transmission, src, dst *Node, c wfCandidate,
 	if !first {
 		detail += "; already had this message"
 	}
-	e.record(Event{AtMs: t.endMs, Kind: "rx", From: src.Spec.Name, To: dst.Spec.Name,
+	e.record(Event{AtMs: t.endMs, Kind: "rx", From: src.Spec().Name, To: dst.Spec().Name,
 		Frame: t.frame, PacketID: t.packetID, MessageID: t.payload,
 		Outcome: rec.Outcome, SNRdB: r.snrdB, Detail: detail})
 	if dst.Firmware != nil {
@@ -410,7 +430,7 @@ func (e *Engine) settleWaveform(t transmission, src, dst *Node, c wfCandidate,
 // measurable arrived and this node's own transmitter was keyed.
 func (e *Engine) recordDeaf(t transmission, src, dst *Node,
 	rec capture.Reception, txPHY phy) {
-	e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.Spec.Name, To: dst.Spec.Name,
+	e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.Spec().Name, To: dst.Spec().Name,
 		PacketID: t.packetID, MessageID: t.payload, Outcome: rec.Outcome,
 		SNRdB: rec.SNRdB, Frame: t.frame,
 		Detail: "its own transmitter was keyed; LoRa is half duplex"})
@@ -424,7 +444,7 @@ func (e *Engine) captureWrite(t transmission, src, dst *Node, txPHY phy, rec cap
 	c := e.capture
 	e.mu.Unlock()
 	if c != nil && rec.Offered {
-		c.write(t.endMs, src.Spec.Name, dst.Spec.Name, txPHY,
+		c.write(t.endMs, src.Spec().Name, dst.Spec().Name, txPHY,
 			rec.RSSIdBm, rec.SNRdB, rec.Outcome, rec.CRCOK, t.frame)
 	}
 }
