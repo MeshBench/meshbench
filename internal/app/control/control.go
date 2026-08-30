@@ -251,7 +251,14 @@ func (s *Server) serve(c net.Conn) {
 	// notifications (dropped in Notify) rather than the store.
 	out := make(chan any, 64)
 	done := make(chan struct{})
+	// writerDone closes once the writer has stopped, for any reason. A dead
+	// peer makes enc.Encode fail the moment the writer next tries it, and
+	// from then on nothing will ever drain out again - so the reader watches
+	// writerDone too, and a dead writer ends the connection instead of
+	// parking the reader on a full channel for the rest of the process.
+	writerDone := make(chan struct{})
 	go func() {
+		defer close(writerDone)
 		for {
 			select {
 			case msg := <-out:
@@ -259,6 +266,10 @@ func (s *Server) serve(c net.Conn) {
 					return
 				}
 			case <-done:
+				// The reader has already decided to stop; flush what it
+				// queued on the way out rather than let the close that
+				// follows race ahead of a reply or a refusal.
+				drainPending(enc, out)
 				return
 			}
 		}
@@ -270,13 +281,18 @@ func (s *Server) serve(c net.Conn) {
 			s.unsubscribe(sub)
 		}
 		close(done)
+		// Waited on rather than fired and forgotten, so the outer defer's
+		// c.Close() cannot run while the writer is still mid-Encode of
+		// whatever drainPending found queued.
+		<-writerDone
 	}()
 
 	for {
 		var req Request
 		if err := dec.Decode(&req); err != nil {
 			if errors.Is(err, errFrameTooLarge) {
-				out <- Response{Error: errFrameTooLarge.Error(), Code: string(BadParams)}
+				sendOrGiveUp(out, writerDone, Response{
+					Error: errFrameTooLarge.Error(), Code: string(BadParams)})
 			}
 			return
 		}
@@ -293,7 +309,10 @@ func (s *Server) serve(c net.Conn) {
 		// ack is always the first frame the writer sends.
 		if req.Method == SubscribeMethod {
 			topics := parseTopics(req.Params)
-			out <- Response{ID: req.ID, Result: map[string]any{"subscribed": topics}}
+			if !sendOrGiveUp(out, writerDone, Response{
+				ID: req.ID, Result: map[string]any{"subscribed": topics}}) {
+				return
+			}
 			if sub == nil {
 				sub = s.subscribe(out, topics)
 			} else {
@@ -306,13 +325,44 @@ func (s *Server) serve(c net.Conn) {
 		s.mu.Lock()
 		if s.closed {
 			s.mu.Unlock()
-			out <- Response{ID: req.ID, Error: "workbench closing", Code: string(Closing)}
+			sendOrGiveUp(out, writerDone, Response{
+				ID: req.ID, Error: "workbench closing", Code: string(Closing)})
 			return
 		}
 		s.queue = append(s.queue, job{req: req, reply: reply})
 		s.mu.Unlock()
 
-		out <- <-reply
+		if !sendOrGiveUp(out, writerDone, <-reply) {
+			return
+		}
+	}
+}
+
+// sendOrGiveUp queues a frame for the writer, or reports that the writer has
+// already gone rather than block on a channel nothing will ever drain again.
+func sendOrGiveUp(out chan any, writerDone <-chan struct{}, msg any) bool {
+	select {
+	case out <- msg:
+		return true
+	case <-writerDone:
+		return false
+	}
+}
+
+// drainPending flushes whatever the reader already queued once it has decided
+// to stop. It does not wait for more to arrive - only what is already
+// buffered gets a chance - because waiting here is exactly the block this
+// exists to avoid.
+func drainPending(enc *json.Encoder, out <-chan any) {
+	for {
+		select {
+		case msg := <-out:
+			if enc.Encode(msg) != nil {
+				return
+			}
+		default:
+			return
+		}
 	}
 }
 

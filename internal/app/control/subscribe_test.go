@@ -137,6 +137,60 @@ func TestSnapshotCoalesces(t *testing.T) {
 	}
 }
 
+// A subscriber whose connection dies while a request is still queued must
+// not leave the reader parked forever on a full notification buffer: it is
+// the reader's defer chain that removes the entry from s.subs, so a shrunken
+// map is direct evidence the goroutine actually returned rather than being
+// stuck for the life of the process.
+func TestAKilledSubscriberLeavesNoSubscriptionBehind(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "killed.sock")
+	srv, err := ListenAt(path, func(string, json.RawMessage) (any, error) {
+		return map[string]any{"ok": true}, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = srv.Close() })
+
+	c, err := DialAt(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Call(SubscribeMethod, map[string]any{"topics": []string{"status"}}); err != nil {
+		t.Fatalf("subscribe: %v", err)
+	}
+
+	// Fill the writer's own buffer, which is what a dead writer needs before
+	// the send in serve() would have blocked rather than noticed.
+	for i := 0; i < 128; i++ {
+		srv.Notify("status", map[string]any{"seq": i})
+	}
+
+	// A request queued and never answered before the connection dies -
+	// Pump has deliberately not run yet.
+	go func() { _, _ = c.Call("who", nil) }()
+	time.Sleep(20 * time.Millisecond) // give it time to reach the queue
+	_ = c.Close()                     // the client is killed mid-request
+
+	// Only now does the workbench notice: Pump answers the queued job, and
+	// the connection's reader and writer should unwind on their own.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		srv.Pump()
+		srv.mu.Lock()
+		n := len(srv.subs)
+		srv.mu.Unlock()
+		if n == 0 {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	srv.mu.Lock()
+	n := len(srv.subs)
+	srv.mu.Unlock()
+	t.Fatalf("a killed subscriber is still in s.subs: %d entries", n)
+}
+
 func recv(t *testing.T, sub *Subscription) Event {
 	t.Helper()
 	select {
