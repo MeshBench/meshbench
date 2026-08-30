@@ -9,9 +9,6 @@
 package session
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/MeshBench/meshbench/internal/app/state"
 )
 
@@ -60,11 +57,8 @@ func registerRunKind(st *state.Store, s *Sim) {
 			// network that does not exist, and the operator sees "starting
 			// MeshCore" for ever with nothing saying which node had no
 			// firmware. Say it before the first process is launched.
-			if missing := s.buildsMissing(); len(missing) > 0 {
-				return nil, fmt.Errorf(
-					"no firmware for %d of %d nodes, so this run would be half a mesh: %s. "+
-						"Pin one in the Firmware panel, or download it there",
-					len(missing), len(s.nodes), strings.Join(missing, ", "))
+			if err := s.firmwareStartBlocker(); err != nil {
+				return nil, err
 			}
 			// Called directly, not through st.Do: this handler already runs
 			// on the store's goroutine, and asking the store to do something

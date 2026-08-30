@@ -61,6 +61,22 @@ func (s *Sim) firmwareCount() int {
 	return s.eng.FirmwareCount()
 }
 
+// firmwareNodeCount is how many of this scenario's nodes run firmware at all -
+// not every node, since an SDR observer or an emitter never boots one. Shared
+// by firmware.state's own count and anything waiting for a start to finish, so
+// the two cannot drift into counting different populations again: comparing
+// "running" against every node on a scenario holding an observer never met,
+// which is what "56 of 58" forever was.
+func (s *Sim) firmwareNodeCount() int {
+	n := 0
+	for _, node := range s.nodes {
+		if node.Kind.RunsFirmware() {
+			n++
+		}
+	}
+	return n
+}
+
 // Close shuts the simulation down, firmware included.
 //
 // Safe on a Sim that never built an engine, because the common shutdown path

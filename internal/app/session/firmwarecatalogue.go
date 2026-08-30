@@ -57,6 +57,22 @@ func (s *Sim) buildsMissing() []string {
 	return out
 }
 
+// firmwareStartBlocker names why real firmware cannot start yet, or nil if it
+// can - shared by every caller that would otherwise launch half a mesh and
+// only find out node by node afterwards. sim.start's own play-button guard
+// and a one-shot script both call this rather than each formatting the same
+// refusal its own way.
+func (s *Sim) firmwareStartBlocker() error {
+	missing := s.buildsMissing()
+	if len(missing) == 0 {
+		return nil
+	}
+	return fmt.Errorf(
+		"no firmware for %d of %d nodes, so this run would be half a mesh: %s. "+
+			"Pin one in the Firmware panel, or download it there",
+		len(missing), len(s.nodes), strings.Join(missing, ", "))
+}
+
 // nodeRole is what a node runs: its pinned role, or the one its kind implies.
 func nodeRole(n scenario.Node) string {
 	if r := string(n.Firmware.Role); r != "" {

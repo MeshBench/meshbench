@@ -66,14 +66,8 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 	// for ever and every wait built on it hung. Comparing two different
 	// populations is the whole of that bug.
 	st.Handle("firmware.state", func(w *state.World, _ any) (any, error) {
-		runs := 0
-		for _, n := range s.nodes {
-			if n.Kind.RunsFirmware() {
-				runs++
-			}
-		}
 		return map[string]any{
-			"running": s.firmwareCount(), "nodes": runs,
+			"running": s.firmwareCount(), "nodes": s.firmwareNodeCount(),
 			// Every node, for a caller that wants the scenario's size rather
 			// than the part of it that boots.
 			"total":    len(w.Nodes),

@@ -51,7 +51,7 @@ func runHeadless(ctx context.Context, args []string) error {
 	// finding as the workbench's, which is already in the baseline for the
 	// same reason.
 	//nolint:contextcheck // a warm's lifetime is the session's, not a request's
-	st, _ := session.Boot(session.Options{
+	st, sm := session.Boot(session.Options{
 		Headless: true, UnverifiedWiring: *unwatched,
 	})
 
@@ -97,7 +97,14 @@ func runHeadless(ctx context.Context, args []string) error {
 		}
 	}
 	if *play {
-		if _, err := st.Do(ctx, "sim.play", nil); err != nil {
+		// Not a bare sim.play: that verb only ever moves the clock, and a
+		// fresh store wants real firmware by default (state.New sets
+		// RealFirmware true). Calling it directly advanced simulated time
+		// over zero MeshCore processes, produced no traffic, and exited
+		// clean - a regression that broke firmware entirely would still have
+		// gone green. PlayWhenReady brings the mesh up first, or says why it
+		// could not, before the clock ever starts.
+		if err := sm.PlayWhenReady(ctx, st, 0, 0); err != nil {
 			return err
 		}
 	}
