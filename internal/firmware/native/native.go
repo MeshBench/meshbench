@@ -75,8 +75,14 @@ func (n *Native) ConsoleIn() io.Writer { return nil }
 //
 // Exposed so an interface can say what a node costs. With 154 of these on one
 // machine, "which node is using the memory" is a question somebody asks well
-// before they ask anything about radio.
+// before they ask anything about radio - from a panel on the frame thread,
+// while the engine is starting and stopping nodes on goroutines of its own.
+// Under the lock for that reason: both writers hold it, and a read that did
+// not was a race the detector reports and a torn read reports as a process
+// belonging to a node that has none.
 func (n *Native) PID() int {
+	n.mu.Lock()
+	defer n.mu.Unlock()
 	if n.cmd == nil || n.cmd.Process == nil {
 		return 0
 	}
