@@ -31,12 +31,14 @@ linked; it is not.
 What is actually linked is permissive: MIT, BSD-2/3, Apache-2.0, Unlicense -
 all one-way compatible with GPL-3.0 - with one that needed checking:
 
-- **`eclipse/paho.mqtt.golang` is dual-licensed EPL-2.0 *or* EDL-1.0.**
+- **`eclipse/paho.mqtt.golang` was dual-licensed EPL-2.0 *or* EDL-1.0.**
   EPL-2.0 alone is not GPL-compatible. EDL-1.0 is the Eclipse Distribution
-  License, which is BSD-3-Clause verbatim, and is. **MeshBench takes the EDL
-  branch**, which the dual licence explicitly permits. The licence window says
-  so on that entry, and `tools/licgen` fails the build if a future dependency
-  arrives under EPL alone.
+  License, which is BSD-3-Clause verbatim, and is. MeshBench took the EDL
+  branch, which the dual licence explicitly permitted, for as long as the
+  dependency was there: the MQTT feed it backed had no path any user could
+  reach, so the dependency was removed rather than kept for a feature nobody
+  could use. `tools/licgen` fails the build if a future dependency arrives
+  under EPL alone.
 
 ## The decision
 

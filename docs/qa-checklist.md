@@ -62,7 +62,7 @@ the tin.
 | B2 | Link margin, both directions | Pick a marginal pair. | Two margins, one per direction, and they can differ — reachability is asymmetric. | | |
 | B3 | Terrain cut-through | Open the path view for a pair. | The Fresnel zone and each diffracting edge's own loss are shown, in both directions. | | |
 | B4 | Where the next node goes | Run planning / next-node search. | It proposes a location and says why (what it would cover). | | |
-| B5 | Import a live network | Import from CoreScope, Beacon or MQTT. | Real nodes appear with positions; a node imported at low confidence is shown as uncertain, not as a confident point. | | |
+| B5 | Import a live network | Import from CoreScope or Beacon. | Real nodes appear with positions; a node imported at low confidence is shown as uncertain, not as a confident point. | | |
 | B6 | Position uncertainty | Inspect an imported node's answer. | A node with ±km position does not get a single confident margin. | | |
 
 ## C. The physics, and being honest about it

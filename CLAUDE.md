@@ -83,8 +83,7 @@ internal/firmware/  running real firmware against the radio, native or emulated;
 
 internal/world/     what is being simulated, and where it came from
   scenario/           nodes, region, seed
-  provider/           CoreScope, Beacon and MQTT feeds
-  mqtt/               the paho client behind provider.Subscriber
+  provider/           CoreScope and Beacon feeds
   boundary/           named administrative areas
   basemap/            hillshaded terrain under the simulation
   sdr/                IQ export, SigMF, streaming
@@ -222,7 +221,7 @@ that is running it, and every GPU path has a CPU one that produces the same
 answer more slowly — a machine without a usable GPU loses time, not features.
 
 The only thing that crosses the network is *data*: terrain tiles, and the
-optional CoreScope, Beacon and MQTT feeds. Terrain caches permanently and has an
+optional CoreScope and Beacon feeds. Terrain caches permanently and has an
 offline mode that fails loudly; the feeds are all optional. Nothing in the
 simulation depends on anything we run.
 

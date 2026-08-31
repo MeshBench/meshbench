@@ -887,8 +887,10 @@ gone stale is the failure mode it exists to prevent.
   MeshCore is a separate process fetched at runtime rather than linked, and the
   emulator forks are aggregated beside the binary rather than combined with it.
   The one dependency that needed a decision — `eclipse/paho.mqtt.golang`, which
-  is EPL-2.0 *or* EDL-1.0 — is taken under its EDL branch, and `tools/licgen`
-  fails the build if a future dependency arrives under EPL alone.
+  was EPL-2.0 *or* EDL-1.0 — was taken under its EDL branch for as long as it
+  was there; it backed an MQTT feed no user could reach, so it was removed
+  rather than kept unused, and `tools/licgen` still fails the build if a future
+  dependency arrives under EPL alone.
 - **Attribution is generated and enforced, not maintained by hand.**
   `tools/licgen` walks the build graph of `./cmd/meshbench`, reads every linked
   module's licence out of the module cache, and **fails the run** on a module

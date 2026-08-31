@@ -2,7 +2,6 @@ package provider_test
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -180,71 +179,6 @@ func TestMergeKeepsPositionlessNodes(t *testing.T) {
 	}
 	if merged[0].HasPosition {
 		t.Error("a node with no position acquired one in the merge")
-	}
-}
-
-type fakeMQTT struct{ msgs []provider.Message }
-
-func (f *fakeMQTT) Subscribe(ctx context.Context, _ string, fn func(provider.Message)) error {
-	for _, m := range f.msgs {
-		fn(m)
-	}
-	<-ctx.Done()
-	return ctx.Err()
-}
-
-// A live feed carrying one bad payload must not take the run down, and a
-// message with nothing to join on is worse than useless — it can only be
-// counted.
-func TestMQTTDropsUnjoinableMessages(t *testing.T) {
-	good, _ := json.Marshal(map[string]any{
-		"time": "2026-08-09T10:00:00Z", "receiver": "a", "packet_id": "p1", "snr": -7.5,
-	})
-	msgs := []provider.Message{
-		{Topic: "meshcore/a/rx", Payload: good},
-		{Topic: "meshcore/a/rx", Payload: []byte("not json at all")},
-		{Topic: "meshcore/a/rx", Payload: []byte(`{"receiver":"b"}`)}, // no packet id
-	}
-
-	m := &provider.MQTT{Client: &fakeMQTT{msgs: msgs}, Retain: 10}
-	ctx, cancel := context.WithCancel(context.Background())
-
-	var got []provider.Reception
-	done := make(chan struct{})
-	go func() {
-		_ = m.Subscribe(ctx, func(r provider.Reception) { got = append(got, r) })
-		close(done)
-	}()
-
-	time.Sleep(20 * time.Millisecond)
-	cancel()
-	<-done
-
-	if len(got) != 1 {
-		t.Fatalf("delivered %d receptions, want 1", len(got))
-	}
-	if !got[0].HasSNR || got[0].SNRdB != -7.5 {
-		t.Errorf("SNR did not survive: %+v", got[0])
-	}
-
-	retained, err := m.Receptions(context.Background(), time.Time{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(retained) != 1 {
-		t.Errorf("retained %d, want 1", len(retained))
-	}
-}
-
-// A live feed is not a node registry, and saying so with an empty list rather
-// than an error means a caller merging several sources needs no special case.
-func TestMQTTHasNoNodeRegistry(t *testing.T) {
-	nodes, err := (&provider.MQTT{}).Nodes(context.Background())
-	if err != nil {
-		t.Fatalf("a live feed should not error on Nodes: %v", err)
-	}
-	if len(nodes) != 0 {
-		t.Errorf("got %d nodes from a packet feed", len(nodes))
 	}
 }
 

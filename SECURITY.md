@@ -13,7 +13,7 @@ The only things that cross the network are *data*:
   silently degrading.
 - **Firmware images and the Nordic SoftDevice**, downloaded from their
   publishers on request, checksummed against digests pinned at build time.
-- **The optional CoreScope, Beacon and MQTT feeds**, which you configure and
+- **The optional CoreScope and Beacon feeds**, which you configure and
   which are off until you do.
 
 The control interface listens locally, and how depends on the operating
