@@ -80,14 +80,17 @@ func (s *Sim) firmwareNodeCount() int {
 // Close shuts the simulation down, firmware included.
 //
 // Safe on a Sim that never built an engine, because the common shutdown path
-// is a workbench closed before anything was loaded.
+// is a workbench closed before anything was loaded. Called from the
+// workbench's own shutdown goroutine rather than the store's, so the served
+// listeners are taken out under their lock and closed only once it is
+// released - a verb still running on the store's goroutine at the same
+// moment must never see a map mid-edit.
 func (s *Sim) Close() {
 	if s.eng == nil {
 		return
 	}
-	for name, l := range s.served {
+	for _, l := range s.takeAllServed() {
 		_ = l.Close()
-		delete(s.served, name)
 	}
 	runTeardowns(s)
 	_ = s.eng.Close()

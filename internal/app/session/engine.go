@@ -194,6 +194,12 @@ type Sim struct {
 	cpu      *cpuSampler
 	history  *nodeHistory
 	states   map[string]string
+	// servedMu guards served and servedAddrs together, since a listener and
+	// its reachable addresses are one fact told across two maps. Close runs
+	// from a goroutine that is not the store's, so without this a verb
+	// handler serving or dropping a companion at the same moment is a
+	// concurrent map write the Go runtime kills the process for.
+	servedMu sync.Mutex
 	served   map[string]*engine.CompanionLink
 
 	// domainState holds the per-domain state that used to live as a typed field

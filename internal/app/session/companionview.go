@@ -13,6 +13,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/mesh/proto"
+	"github.com/MeshBench/meshbench/internal/sim/engine"
 )
 
 // companions is every session the workbench holds, plus the endpoints it has
@@ -27,17 +28,17 @@ func (s *Sim) companions() []state.Companion {
 		v := c.view()
 		byNode[node] = &v
 	}
-	for node, l := range s.served {
+	s.eachServed(func(node string, l *engine.CompanionLink, _ []string) {
 		v, ok := byNode[node]
 		if !ok {
 			byNode[node] = &state.Companion{
 				Node:    node,
 				Serving: state.Endpoint{Node: node, Kind: l.Kind, Addr: l.Addr, Attached: l.Attached()},
 			}
-			continue
+			return
 		}
 		v.Serving = state.Endpoint{Node: node, Kind: l.Kind, Addr: l.Addr, Attached: l.Attached()}
-	}
+	})
 	out := make([]state.Companion, 0, len(byNode))
 	for _, v := range byNode {
 		out = append(out, *v)
@@ -139,7 +140,7 @@ func (s *Sim) publishCompanions(w *state.World) {
 // rather than a rebuilt view compared field by field - a mesh of three
 // hundred nodes with one companion open should not pay for the other 299.
 func (s *Sim) refreshCompanions(w *state.World) {
-	if len(s.comps) == 0 && len(s.served) == 0 {
+	if len(s.comps) == 0 && s.servedCount() == 0 {
 		return
 	}
 	s.collectWaiting()

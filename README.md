@@ -62,7 +62,7 @@ what is not modelled, and it is stated in the interface on every result.
   missed link, in both directions, because reachability is asymmetric.
 - **Coverage and planning**: link budgets rasterised over terrain, combined
   across a fleet, and searched for where the next node should go.
-- **Import real networks** live from CoreScope, Beacon or MQTT, with
+- **Import real networks** live from CoreScope or Beacon, with
   transport regions inferred from a week of real traffic.
 - **Firmware A/B on one seed**: half the repeaters on one build, half on
   another, same traffic, and diff. Deterministic: same seed, same scenario,
