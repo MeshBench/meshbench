@@ -37,9 +37,12 @@ const stuckLimit = 2 * time.Minute
 // status it should exit with. A test binary's TestMain calls it when Mode is
 // not empty.
 func Serve() int {
-	// The first thing a real node prints, and what the existing tests look for
-	// to know the firmware came up rather than the socket merely opening.
-	fmt.Fprintln(os.Stderr, "MeshCore up")
+	// The words a published build prints, not words of our own.
+	//
+	// A stand-in that says something different is a trap for the next person:
+	// they write a test against what the stand-in says, and it passes against
+	// a node that never says it. Checked against repeater-v1.17.1 and main.
+	fmt.Fprintln(os.Stderr, BootLine)
 	switch Mode() {
 	case ModeExit:
 		return 0
@@ -69,18 +72,22 @@ func attach() int {
 	defer func() { _ = c.Close() }()
 
 	advertAt, adverted := txAtMs(), Mode() != ModeAdvert
+	var reached uint32
 	var hdr [3]byte
 	for {
 		if _, err := io.ReadFull(c, hdr[:]); err != nil {
 			// The socket going away is how a node is told to stop, so this is
-			// the ordinary way out and not an error.
-			fmt.Fprintln(os.Stderr, "bridge closed")
+			// the ordinary way out and not an error. The simulated time it got
+			// to goes with it, as a real node's does: a node that processed
+			// every tick and one that stopped at the first close identically,
+			// and the number is what tells them apart.
+			fmt.Fprintf(os.Stderr, ClosedLine+"\n", reached)
 			return 0
 		}
 		payload := make([]byte, binary.BigEndian.Uint16(hdr[1:]))
 		if len(payload) > 0 {
 			if _, err := io.ReadFull(c, payload); err != nil {
-				fmt.Fprintln(os.Stderr, "bridge closed")
+				fmt.Fprintf(os.Stderr, ClosedLine+"\n", reached)
 				return 0
 			}
 		}
@@ -95,7 +102,8 @@ func attach() int {
 		case hdr[0] != kindTick || len(payload) != 4:
 			// Anything else is the host's business, not a node's.
 		default:
-			if !adverted && binary.BigEndian.Uint32(payload) >= advertAt {
+			reached = binary.BigEndian.Uint32(payload)
+			if !adverted && reached >= advertAt {
 				adverted = true
 				// Sent before the acknowledgement, so the engine collects it on
 				// the tick it belongs to rather than the one after.

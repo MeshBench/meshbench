@@ -65,7 +65,7 @@ func TestStopGivesUpOnAChildThatWillNotBeReaped(t *testing.T) {
 // one the scenario describes.
 func TestANodeThatDiedIsNotACleanStop(t *testing.T) {
 	n, br, log := startFake(t, fakenative.ModeCrash)
-	waitSaid(t, log, "MeshCore up")
+	waitSaid(t, log, fakenative.BootLine)
 
 	if err := br.Close(); err != nil {
 		t.Fatal(err)

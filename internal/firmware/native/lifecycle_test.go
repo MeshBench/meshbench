@@ -7,6 +7,7 @@ package native_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -39,7 +40,7 @@ func TestAStandInNodeAttachesTicksAndStopsCleanly(t *testing.T) {
 	if err := n.Stop(); err != nil {
 		t.Fatalf("stop: %v", err)
 	}
-	log.saidAll(t, "MeshCore up", "bridge closed")
+	log.saidAll(t, fakenative.BootLine, fmt.Sprintf(fakenative.ClosedLine, 10))
 }
 
 // A second Start on a running node must be refused, and must leave the running
@@ -90,7 +91,7 @@ func TestAFailedLaunchLeavesNothingRunning(t *testing.T) {
 func TestANodeThatExitsAtOnceIsAStartedLaunchAndNoNode(t *testing.T) {
 	n, br, log := startFake(t, fakenative.ModeExit)
 
-	waitSaid(t, log, "MeshCore up")
+	waitSaid(t, log, fakenative.BootLine)
 	if err := br.Close(); err != nil {
 		t.Fatal(err)
 	}

@@ -55,6 +55,16 @@ const (
 	ModeStuck = "stuck"
 )
 
+// What a published node prints, so that a test written against the stand-in
+// is a test a real node would also pass. BootLine is the radio driver coming
+// up; ClosedLine takes the simulated time the node reached, which is the only
+// thing separating a node that ran from one that connected and stopped.
+// Checked against repeater-v1.17.1 and main.
+const (
+	BootLine   = "radio_init: entering std_init"
+	ClosedLine = "bridge: closed after %d ms"
+)
+
 // CrashStatus is what ModeCrash exits with. Any non-zero value would do; a
 // specific one lets a test assert that the status survived to the caller
 // rather than being flattened into "it stopped".
