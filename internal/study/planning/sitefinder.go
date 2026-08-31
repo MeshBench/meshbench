@@ -21,6 +21,13 @@ type Candidate struct {
 	Name       string
 	Lat, Lon   float64
 	HeightAGLm float64
+
+	// UncertaintyKm is the radius the position is good to. A site somebody
+	// proposes is zero by construction - it is wherever they decide to build -
+	// so this only carries a value when an existing node is being scored as a
+	// candidate, and it is the difference between "this mast would serve those
+	// cells" and "a mast somewhere in that valley would".
+	UncertaintyKm float64
 }
 
 // SiteScore is what a candidate would add to the network.
@@ -41,6 +48,14 @@ type SiteScore struct {
 	// second — resilience rather than reach, and worth separating because a
 	// network with no gaps can still be one mast away from failing.
 	RedundancyAdded int
+
+	// UncertainNewCells is how many of NewCellsServed are only new because the
+	// existing network's own positions are not surveyed: cells whose best
+	// existing server reaches them if it really is where it was imported to be,
+	// and not if it is not. A candidate scoring mostly on these is a proposal
+	// to build a mast against a doubt, and going out to fix the position of the
+	// node it duplicates is the cheaper half of that.
+	UncertainNewCells int
 }
 
 // RankSites scores candidates by what each adds to an existing network.
@@ -71,6 +86,9 @@ func RankSites(existing *coverage.Combined, candidates []*coverage.Raster, names
 			switch existing.ServingCount[j] {
 			case 0:
 				s.NewCellsServed++
+				if existing.Cells[j].WorkableIfExact() {
+					s.UncertainNewCells++
+				}
 			case 1:
 				s.RedundancyAdded++
 			}
@@ -84,7 +102,13 @@ func RankSites(existing *coverage.Combined, candidates []*coverage.Raster, names
 		}
 		// A tie on new reach is broken by resilience, not by raw coverage: two
 		// sites that fill the same gap are separated by what else they back up.
-		return scores[a].RedundancyAdded > scores[b].RedundancyAdded
+		if scores[a].RedundancyAdded != scores[b].RedundancyAdded {
+			return scores[a].RedundancyAdded > scores[b].RedundancyAdded
+		}
+		// Still level, so the survey decides. Two sites that buy the same thing
+		// are not equally good bets: only the one whose position is known is a
+		// site rather than an area, and preferring it costs nothing.
+		return scores[a].Candidate.UncertaintyKm < scores[b].Candidate.UncertaintyKm
 	})
 	return scores, nil
 }
@@ -164,14 +188,23 @@ func KneeHeight(sweep []HeightGain, fraction float64) (float64, bool) {
 
 // LinkMargin summarises one link for a report.
 type LinkMargin struct {
-	From, To    string
-	OutboundDB  float64
-	InboundDB   float64
-	DistanceKm  float64
-	LimitedBy   string // "outbound", "inbound" or "balanced"
-	Workable    bool
-	OneWayOnly  bool
-	WorstCaseDB float64
+	From, To   string
+	OutboundDB float64
+	InboundDB  float64
+	DistanceKm float64
+	LimitedBy  string // "outbound", "inbound" or "balanced"
+	Workable   bool
+	OneWayOnly bool
+
+	// WorstCaseDB is the weaker direction with the ends' position uncertainty
+	// going the wrong way, and it is what Workable and OneWayOnly are decided
+	// on. PositionSlackDB is how much of the two margins above that cost: they
+	// are the best case and it is not folded into them, because "3 dB of
+	// margin" and "3 dB of margin, 11 dB of which is guesswork about where the
+	// far end is" are different sentences and only one of them is worth acting
+	// on.
+	WorstCaseDB     float64
+	PositionSlackDB float64
 }
 
 // Summarise turns a computed cell into the sentence an operator needs.
@@ -183,10 +216,11 @@ func Summarise(from, to string, distanceKm float64, c coverage.Cell) LinkMargin 
 	l := LinkMargin{
 		From: from, To: to,
 		OutboundDB: c.OutboundMarginDB, InboundDB: c.InboundMarginDB,
-		DistanceKm:  distanceKm,
-		Workable:    c.Workable(),
-		OneWayOnly:  c.OneWay(),
-		WorstCaseDB: math.Min(c.OutboundMarginDB, c.InboundMarginDB),
+		DistanceKm:      distanceKm,
+		Workable:        c.Workable(),
+		OneWayOnly:      c.OneWay(),
+		WorstCaseDB:     c.WorstCaseDB(),
+		PositionSlackDB: c.PositionSlackDB,
 	}
 	switch {
 	case math.Abs(c.OutboundMarginDB-c.InboundMarginDB) < 1:

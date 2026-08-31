@@ -19,7 +19,8 @@ var (
 type Combined struct {
 	Raster
 
-	// BestMarginDB is the strongest *two-way* margin any node offers. Cells
+	// BestMarginDB is the strongest *two-way* margin any node offers, at the
+	// pessimistic end of what that node's position uncertainty allows. Cells
 	// with no two-way link keep the best one-way margin they have, which is
 	// negative by construction, so the scale stays continuous.
 	BestMarginDB []float64
@@ -72,10 +73,12 @@ func Combine(rasters []*Raster) (*Combined, error) {
 			if cell.Workable() {
 				c.ServingCount[i]++
 			}
-			// The margin that describes a link is the weaker direction. Taking
-			// the better one would call a link workable on the strength of the
-			// half that was never in doubt.
-			m := math.Min(cell.OutboundMarginDB, cell.InboundMarginDB)
+			// The margin that describes a link is the weaker direction, at the
+			// pessimistic end of its band. Taking the better one would call a
+			// link workable on the strength of the half that was never in
+			// doubt; taking the optimistic end would do the same with a
+			// position nobody surveyed.
+			m := cell.WorstCaseDB()
 			if m > c.BestMarginDB[i] {
 				c.BestMarginDB[i] = m
 				c.BestNode[i] = ni
@@ -171,7 +174,7 @@ func (f *Fold) Add(r *Raster, station int) {
 		if cell.Workable() {
 			f.c.ServingCount[i]++
 		}
-		m := math.Min(cell.OutboundMarginDB, cell.InboundMarginDB)
+		m := cell.WorstCaseDB()
 		if m > f.c.BestMarginDB[i] {
 			f.c.BestMarginDB[i] = m
 			f.c.BestNode[i] = station

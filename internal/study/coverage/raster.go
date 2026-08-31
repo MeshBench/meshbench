@@ -5,14 +5,22 @@
 // right: a 22 dBm repeater on a mast reaching a 14 dBm handheld at 1.5 m is not
 // the same link back again, and the case worth showing an operator is precisely
 // the one where they can hear it and it cannot hear them.
+//
+// Both of those margins are a best case, and each cell says by how much: a
+// station imported at +/-5 km is priced where it was reported and carries the
+// decibels that placement could cost, so the verdicts are taken at the
+// pessimistic end. A cell that is only served when a guess turns out to be
+// right is not served.
 package coverage
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/MeshBench/meshbench/internal/rf/geo"
 	"github.com/MeshBench/meshbench/internal/rf/propagation"
 	"github.com/MeshBench/meshbench/internal/rf/terrain"
+	"github.com/MeshBench/meshbench/internal/study/linkbudget"
 )
 
 // Endpoint is one end of a link.
@@ -27,15 +35,28 @@ type Endpoint struct {
 	GainTowardsDBi func(bearingDeg, elevationDeg float64) float64
 	// SensitivityDBm is what this end needs to decode.
 	SensitivityDBm float64
+
+	// UncertaintyKm is the radius this end's position is good to, carried from
+	// whatever imported it. The imagined station at each cell has none of its
+	// own: it is the point being asked about, and it is exactly there.
+	UncertaintyKm float64
 }
 
 // Cell is one raster cell's verdict.
 type Cell struct {
 	// OutboundMarginDB is the margin at the remote end for the fixed station's
 	// transmission; InboundMarginDB is the margin back at the fixed station.
-	// Positive is workable.
+	// Positive is workable. Both are the best case: the fixed station exactly
+	// where it was reported to be.
 	OutboundMarginDB float64
 	InboundMarginDB  float64
+
+	// PositionSlackDB is how much of either margin the fixed station's position
+	// uncertainty could take away. One figure serves both directions because it
+	// is a property of the path and not of an end - and it is subtracted from
+	// two different margins, so the two directions still answer separately,
+	// which is the only way a cell is allowed to answer.
+	PositionSlackDB float64
 
 	// PathLossDB is the total, including diffraction. Kept so a cell can
 	// explain itself without recomputing.
@@ -46,8 +67,35 @@ type Cell struct {
 	NoData bool
 }
 
-// Workable reports whether the link closes in both directions.
+// OutboundWorstCaseDB and InboundWorstCaseDB are the two margins with the
+// position uncertainty going the wrong way. Two methods rather than one,
+// because the pair is the answer: an uncertain link that fails outbound and an
+// uncertain link that fails inbound need different work done to them.
+func (c Cell) OutboundWorstCaseDB() float64 { return c.OutboundMarginDB - c.PositionSlackDB }
+
+// InboundWorstCaseDB is the inbound half of that pair.
+func (c Cell) InboundWorstCaseDB() float64 { return c.InboundMarginDB - c.PositionSlackDB }
+
+// WorstCaseDB is the weaker direction at the pessimistic end of its band: the
+// one number to sort or colour a cell by, where one number is all there is
+// room for.
+func (c Cell) WorstCaseDB() float64 {
+	return math.Min(c.OutboundWorstCaseDB(), c.InboundWorstCaseDB())
+}
+
+// Workable reports whether the link closes in both directions even with the
+// positions as wrong as they are allowed to be.
+//
+// Pessimistic on purpose. A cell that is only served when an imported position
+// happens to be exact is not served: it is a guess with a colour on it.
 func (c Cell) Workable() bool {
+	return !c.NoData && c.OutboundWorstCaseDB() >= 0 && c.InboundWorstCaseDB() >= 0
+}
+
+// WorkableIfExact is the same question with the positions taken at face value.
+// It can only ever be the more generous of the two, and where it disagrees with
+// Workable the cell is worth exactly as much as the survey behind it.
+func (c Cell) WorkableIfExact() bool {
 	return !c.NoData && c.OutboundMarginDB >= 0 && c.InboundMarginDB >= 0
 }
 
@@ -57,7 +105,7 @@ func (c Cell) OneWay() bool {
 	if c.NoData {
 		return false
 	}
-	return (c.OutboundMarginDB >= 0) != (c.InboundMarginDB >= 0)
+	return (c.OutboundWorstCaseDB() >= 0) != (c.InboundWorstCaseDB() >= 0)
 }
 
 // Raster is a grid of verdicts in a lat/lon box.
@@ -174,7 +222,10 @@ func cellFromLoss(fixed Endpoint, fixedGround, remoteGround, lat, lon, distKm, l
 	return Cell{
 		OutboundMarginDB: outboundRx - o.RemoteSensitivityDBm,
 		InboundMarginDB:  inboundRx - fixed.SensitivityDBm,
-		PathLossDB:       loss,
+		// Nothing from the remote end: the cell is the question, so it is
+		// exactly where it is being asked about.
+		PositionSlackDB: linkbudget.PositionSlackDB(distKm, fixed.UncertaintyKm, 0),
+		PathLossDB:      loss,
 	}
 }
 

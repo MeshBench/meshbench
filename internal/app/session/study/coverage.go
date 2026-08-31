@@ -9,7 +9,6 @@ import (
 	"context"
 	"image"
 	"image/color"
-	"math"
 
 	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
@@ -33,6 +32,7 @@ func rasterOnBox(s *session.Sim, _ context.Context, n scenario.Node,
 		Name: n.Name, Lat: n.Position.Lat, Lon: n.Position.Lon,
 		HeightAGLm: n.HeightAGLm, TxPowerDBm: n.TxPowerDBm,
 		SensitivityDBm: linkbudget.SensitivityDBm(n),
+		UncertaintyKm:  n.UncertaintyKm,
 		GainTowardsDBi: func(b, e float64) float64 { return n.Antenna.GainTowardsDBi(b, e) },
 	}
 	// The remote is a person with a handheld at 1.5 m, which is the assumption
@@ -72,7 +72,10 @@ func paintCoverage(r *coverage.Raster, name string) *state.Coverage {
 				noData++
 				col = color.RGBA{} // transparent: ignorance is not a result
 			case c.Workable():
-				col = rampFor(math.Min(c.OutboundMarginDB, c.InboundMarginDB))
+				// The pessimistic end of the band, so a node nobody has
+				// surveyed does not paint the same green as a mast that has
+				// been.
+				col = rampFor(c.WorstCaseDB())
 			case c.OneWay():
 				// Heard but cannot answer. Its own amber, apart from the
 				// ramp: asymmetry is a different fact, not a weaker margin.
