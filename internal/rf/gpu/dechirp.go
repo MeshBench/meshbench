@@ -127,6 +127,12 @@ func (d *Device) Close() {
 	if d.coverage != nil {
 		d.coverage.Release()
 	}
+	if d.coverageFold != nil {
+		d.coverageFold.Release()
+	}
+	if d.pairs != nil {
+		d.pairs.Release()
+	}
 	if d.dechirp != nil {
 		d.dechirp.Release()
 	}
