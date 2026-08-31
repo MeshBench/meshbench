@@ -265,7 +265,7 @@ class Workbench:
         """Run one verb and return its result.
 
         Public and documented, not an escape hatch to be ashamed of: the shaped
-        API will never cover all 213 verbs, and a verb added tomorrow should be
+        API will never cover all 238 verbs, and a verb added tomorrow should be
         usable today.
         """
         reply = self._conn.call(verb, params)

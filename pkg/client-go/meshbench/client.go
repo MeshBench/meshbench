@@ -276,7 +276,7 @@ func (w *Workbench) Close() error {
 // Call runs one verb and returns its result as raw JSON.
 //
 // Public and documented, not an escape hatch to be ashamed of: the façade will
-// never cover all 213 verbs, and a verb added tomorrow is usable today.
+// never cover all 238 verbs, and a verb added tomorrow is usable today.
 func (w *Workbench) Call(ctx context.Context, verb string, params any) (json.RawMessage, error) {
 	type result struct {
 		raw json.RawMessage

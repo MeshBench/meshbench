@@ -13,6 +13,11 @@
 // the tree. That is the same guard the licence inventory has, and for the same
 // reason: a generated file nobody regenerates is a stale file with a
 // convincing header.
+//
+// pkg/client-js has no target here, on purpose: it has no compiler and no
+// build step to spend a generated enum's safety on, so free strings cost it
+// nothing that the workbench's own refusal does not already cover. See that
+// package's README for the reasoning in full.
 package main
 
 import (
