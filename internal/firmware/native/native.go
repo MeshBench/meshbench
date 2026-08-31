@@ -68,6 +68,16 @@ type Native struct {
 	// cmd.Wait actually returns, and releasing any earlier lets a second
 	// node in on top of the first before it is safe.
 	workLock *firmware.WorkDirLock
+	// exitCode is the process's exit status, read from cmd.ProcessState once
+	// cmd.Wait has returned. Kept apart from waitErr because Wait itself
+	// returns nil on a clean exit, and ExitError has to describe that exit
+	// too - a process that left before attaching is the finding, whatever its
+	// status was.
+	exitCode int
+	// tail is the child's stderr, bounded, kept regardless of whether Log is
+	// set - the one account of why a process could not even start when
+	// nobody happened to be watching its output.
+	tail *stderrTail
 }
 
 func (n *Native) Kind() string { return "native" }
@@ -139,9 +149,16 @@ func (n *Native) Start(ctx context.Context, bridgeAddr string) (err error) {
 	// that never reach it, which left three hundred orphans running after a
 	// killed workbench.
 	cmd.SysProcAttr = firmware.ChildProcAttr()
-	cmd.Stderr = n.Log
-	if cmd.Stderr == nil {
-		cmd.Stderr = io.Discard
+	// The tail always gets a copy, whether or not the caller gave this node a
+	// log: the engine's own log is a file that may never be opened, and a
+	// child that dies before anyone reads anything back still leaves the one
+	// line that explains it nowhere else.
+	tail := &stderrTail{}
+	n.tail = tail
+	if n.Log != nil {
+		cmd.Stderr = io.MultiWriter(tail, n.Log)
+	} else {
+		cmd.Stderr = tail
 	}
 
 	if err := cmd.Start(); err != nil {
@@ -160,10 +177,56 @@ func (n *Native) Start(ctx context.Context, bridgeAddr string) (err error) {
 		err := cmd.Wait()
 		n.mu.Lock()
 		n.waitErr = err
+		if cmd.ProcessState != nil {
+			n.exitCode = cmd.ProcessState.ExitCode()
+		}
 		n.mu.Unlock()
 		close(exited)
 	}()
 	return nil
+}
+
+// Exited closes once the firmware process has gone, whatever took it - a
+// crash, Stop, or a launch that produced a process only long enough to leave
+// one. A caller that needs to know why waits for it and then reads
+// ExitError; a caller that only needs the fact selects on it directly.
+func (n *Native) Exited() <-chan struct{} {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.exited
+}
+
+// ExitError describes how the process ended, once Exited has closed - nil
+// before that. Unlike Stop's own account, this does not read a clean exit as
+// success: a process that left before anything ever attached to it is the
+// finding regardless of its status, so a status of zero is reported as
+// plainly as any other.
+func (n *Native) ExitError() error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	select {
+	case <-n.exited:
+	default:
+		return nil
+	}
+	if n.waitErr != nil {
+		return n.waitErr
+	}
+	return fmt.Errorf("exit status %d", n.exitCode)
+}
+
+// StderrTail is the last of what the process wrote to stderr, whatever
+// Node.Log received as well. Bounded, so a chatty node cannot grow it
+// without limit - and it is the loader's own rejection of a binary this
+// machine cannot run, most of the time this is worth reading at all.
+func (n *Native) StderrTail() string {
+	n.mu.Lock()
+	t := n.tail
+	n.mu.Unlock()
+	if t == nil {
+		return ""
+	}
+	return t.String()
 }
 
 func (n *Native) Stop() error {
