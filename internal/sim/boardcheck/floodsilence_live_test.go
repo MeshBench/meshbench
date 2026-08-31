@@ -100,7 +100,7 @@ func TestWhatTheBoardSaysAboutTheAdvert(t *testing.T) {
 	chip("before the advert")
 
 	fromSender := map[uint64]bool{}
-	_, relayed := waitForEvent(ctx, e, advertBudgetMs, func(ev engine.Event) bool {
+	_, floodOutcome := waitForEvent(ctx, e, advertBudgetMs, func(ev engine.Event) bool {
 		if ev.Kind != "tx" {
 			return false
 		}
@@ -111,7 +111,7 @@ func TestWhatTheBoardSaysAboutTheAdvert(t *testing.T) {
 		return ev.From == "bc-under-test" && fromSender[ev.MessageID]
 	})
 	chip("after the window")
-	t.Logf("relayed the sender's message: %v", relayed)
+	t.Logf("relayed the sender's message: %v", floodOutcome == eventMatched)
 
 	for _, ev := range e.Events() {
 		if ev.AtMs < mark {

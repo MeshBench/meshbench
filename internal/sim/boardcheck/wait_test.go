@@ -1,190 +1,123 @@
-// The waiting a phase is made of, checked without an emulator.
+// What a wait concluded, as opposed to merely that it stopped.
 //
-// Every capability below build is a wait: run the engine on, watch the ledger,
-// and decide from what did or did not arrive. That decision is ordinary Go and
-// it was reachable only through a probe of a real board under QEMU, which is
-// why none of it ran anywhere. A stand-in for the native child process reaches
-// all of it - the boards are what need an emulator, and no board is involved
-// in deciding what a silence means.
+// These need no node and no emulator: the distinction a phase reads is decided
+// in ordinary Go, and the point of each test below is which of the three
+// outcomes came back, not what any board did.
 package boardcheck
 
 import (
 	"context"
-	"fmt"
-	"os"
 	"testing"
 	"time"
 
-	"github.com/MeshBench/meshbench/internal/firmware"
-	"github.com/MeshBench/meshbench/internal/firmware/fakenative"
-	"github.com/MeshBench/meshbench/internal/rf/antenna"
 	"github.com/MeshBench/meshbench/internal/sim/engine"
-	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
-// TestMain lets this binary be re-entered as the node under it. The
-// environment is read before the testing package parses flags, because a node
-// is launched with MeshCore's arguments and a test binary handed --bridge
-// would refuse to start at all.
-func TestMain(m *testing.M) {
-	if fakenative.Mode() != "" {
-		os.Exit(fakenative.Serve())
-	}
-	os.Exit(m.Run())
+func quietEngine() *engine.Engine {
+	return engine.New(flat{}, engine.Config{StepMs: 10})
 }
 
-type flatEarth struct{}
+// A budget that genuinely runs out, with ctx healthy throughout, reports
+// eventTimedOut rather than merely "not matched". The callers in probe.go tell
+// a board's real failure from a cut-off probe by this alone.
+func TestWaitForEventTimesOutHonestly(t *testing.T) {
+	e := quietEngine()
+	defer func() { _ = e.Close() }()
 
-func (flatEarth) ElevationM(_, _ float64) (float64, bool) { return 0, true }
-
-// standInMesh is one node running the stand-in child, on a real engine.
-//
-// Real in every respect a phase depends on: the engine's clock, its ledger and
-// its event log are the ones a probe reads, and the node answers the bridge in
-// lockstep as a native peer does. Only what the node itself decides is
-// missing, and no phase asks it anything.
-func standInMesh(ctx context.Context, t *testing.T, txAtMs uint32) *engine.Engine {
-	t.Helper()
-	t.Setenv(fakenative.EnvMode, fakenative.ModeAdvert)
-	t.Setenv(fakenative.EnvTxAtMs, fmt.Sprint(txAtMs))
-	// Resolved rather than downloaded: an explicit binary is what the
-	// environment override is for, and it is what keeps this off the network.
-	t.Setenv(firmware.EnvNativeBinary, fakenative.Path())
-	// Somewhere disposable for the node's own storage, so a test cannot inherit
-	// or leave behind an identity.
-	t.Setenv(firmware.EnvNodeFS, t.TempDir())
-
-	e := engine.New(flatEarth{}, engine.Config{
-		FreqMHz: 869.618, SF: 8, BandwidthHz: 62_500, CodingRate: 4,
-		NoiseFigDB: 6, StepMs: 10, Seed: 4417,
-	})
-	// No stagger. It exists so that real nodes do not all start their advert
-	// timers on the same millisecond, and here it would only make the moment
-	// the stand-in transmits depend on a hash of the seed.
-	e.StaggerBoot = false
-	e.Add(scenario.Node{
-		Name: "bc-sender", Kind: scenario.SimpleRepeater,
-		Position: scenario.LatLon{Lat: 56.70, Lon: -3.90}, HeightAGLm: 10,
-		Antenna:    antenna.Mounted{Pattern: antenna.Collinear{GainDBiPeak: 6}, Polarisation: "vertical"},
-		TxPowerDBm: 20, NoiseFigureDB: 6,
-		Radio:    scenario.RadioConfig{CentreHz: 869.618e6, BandwidthHz: 62_500, SpreadFactor: 8, CodingRate: 4},
-		Firmware: scenario.FirmwareRef{Role: "simple_repeater", Version: nativePeerVersion},
-	}, nil)
-	t.Cleanup(func() { _ = e.Close() })
-
-	if err := e.AttachNative(ctx, 4417); err != nil {
-		t.Fatalf("attach the stand-in node: %v", err)
+	atMs, outcome := waitForEvent(context.Background(), e, 100,
+		func(engine.Event) bool { return false })
+	if outcome != eventTimedOut {
+		t.Fatalf("got outcome %v, want eventTimedOut", outcome)
 	}
-	return e
-}
-
-// The positive half, so that the two negatives below mean something: a phase
-// that watches for a transmission does see one when it happens.
-func TestWaitForEventSeesTheNodesOwnTransmission(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-	e := standInMesh(ctx, t, 1_000)
-
-	atMs, ok := waitForEvent(ctx, e, 10_000, func(ev engine.Event) bool {
-		return ev.Kind == "tx" && ev.From == "bc-sender"
-	})
-	if !ok {
-		t.Fatal("the node transmitted and the wait did not see it")
-	}
-	if atMs < 1_000 {
-		t.Errorf("the transmission is recorded at %d ms, before it was made", atMs)
+	if atMs != 0 {
+		t.Errorf("got atMs %d on a timeout, want 0", atMs)
 	}
 }
 
-// The flood phase's precondition, which is why three runs in four used to fail
-// on a board that was behaving.
-//
-// The channel is half duplex, so a packet handed to a node that is on the air
-// itself is a miss in the ledger and nothing the node ever heard. waitUntilQuiet
-// is what stops the phase judging a board on a stimulus it was never given, and
-// it has to wait out a transmission that is already under way rather than
-// reporting the quiet it starts in.
-func TestWaitUntilQuietWaitsOutATransmissionAlreadyUnderWay(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-	e := standInMesh(ctx, t, 1_000)
+// A wait cut short by ctx reports eventCancelled, distinct from eventTimedOut.
+// This is the whole point: a probe truncated by its caller must never read the
+// same as a board that had its full time and still did not do the thing.
+func TestWaitForEventReportsCancellation(t *testing.T) {
+	e := quietEngine()
+	defer func() { _ = e.Close() }()
 
-	if !waitUntilQuiet(ctx, e, "bc-sender", 1_000, 20_000) {
-		t.Fatal("a node that transmits once was never reported as having gone quiet")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // already gone before the wait starts
+
+	atMs, outcome := waitForEvent(ctx, e, advertBudgetMs,
+		func(engine.Event) bool { return false })
+	if outcome != eventCancelled {
+		t.Fatalf("got outcome %v, want eventCancelled", outcome)
 	}
-	var last uint32
-	for _, ev := range e.Events() {
-		if ev.Kind == "tx" && ev.From == "bc-sender" && ev.AtMs > last {
-			last = ev.AtMs
-		}
-	}
-	if last == 0 {
-		t.Fatal("the node never transmitted, so the wait proved nothing")
-	}
-	if e.NowMs() < last+1_000 {
-		t.Errorf("reported quiet at %d ms, only %d ms after the last transmission",
-			e.NowMs(), e.NowMs()-last)
+	if atMs != 0 {
+		t.Errorf("got atMs %d on a cancellation, want 0", atMs)
 	}
 }
 
-// A cancelled probe and a board that said nothing come back identical, and the
-// probe then blames the board.
-//
-// waitForEvent returns (0, false) for both, and Probe turns that into "never
-// transmitted within 240 s of coming up" - a sentence about the hardware,
-// written from evidence that only says the wait ended. What actually ends it
-// most often is the deadline the caller supplied:
-// internal/app/session/board/boardmatrix.go gives a probe five minutes, while
-// the phases below build can spend advertBudgetMs each and there are five of
-// them. So a probe is cut off mid-phase and files a specific, confident,
-// wrong finding against a board that was never given time to answer.
-//
-// Demonstrated rather than fixed: the truncation is decided in
-// internal/app/session, and this is boardcheck's half of the evidence.
-func TestWaitForEventCannotTellACancelledProbeFromASilentBoard(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-	// Late enough that neither wait below can reach it.
-	e := standInMesh(ctx, t, 600_000)
-	silent := func(ev engine.Event) bool { return ev.Kind == "tx" && ev.From == "bc-under-test" }
+// waitUntilQuiet surfaces the same distinction: a board still transmitting when
+// quietMs and budgetMs both play out fairly is not the same finding as a probe
+// that never got the chance to look.
+func TestWaitUntilQuietReportsCancellation(t *testing.T) {
+	e := quietEngine()
+	defer func() { _ = e.Close() }()
 
-	expiredAt, expiredOK := waitForEvent(ctx, e, 1_000, silent)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
 
-	cut, cancelNow := context.WithCancel(context.Background())
-	cancelNow()
-	cancelledAt, cancelledOK := waitForEvent(cut, e, 1_000, silent)
-
-	if expiredOK || cancelledOK {
-		t.Fatalf("a wait for something that never happened succeeded: budget %v, cancelled %v",
-			expiredOK, cancelledOK)
+	quiet, cancelled := waitUntilQuiet(ctx, e, "bc-under-test", 10_000, advertBudgetMs)
+	if quiet {
+		t.Error("a cancelled wait reported quiet=true")
 	}
-	if expiredAt != cancelledAt {
-		t.Fatalf("the two outcomes differ (%d and %d), so this test is out of date and "+
-			"the caller can now tell them apart", expiredAt, cancelledAt)
+	if !cancelled {
+		t.Error("a cancelled wait did not report cancelled=true")
 	}
-	// The sentence a probe writes from that answer, in both cases.
-	verdict := fmt.Sprintf("never transmitted within %d s of coming up", advertBudgetMs/1000)
-	t.Logf("both waits returned (%d, false); the probe reports %q either way", expiredAt, verdict)
 }
 
-// The budget the phases can spend against the deadline they are given.
+// A node that never transmits reads as quiet without ctx coming into it, which
+// is what makes quiet=false meaningful: it can only come from a genuine timeout
+// or a real cancellation, never from a wait that simply ran normally.
+func TestWaitUntilQuietPassesWhenNothingHasTransmitted(t *testing.T) {
+	e := quietEngine()
+	defer func() { _ = e.Close() }()
+
+	quiet, cancelled := waitUntilQuiet(context.Background(), e, "bc-under-test", 100, advertBudgetMs)
+	if !quiet {
+		t.Error("a node that never transmitted was not reported quiet")
+	}
+	if cancelled {
+		t.Error("an uncancelled wait reported cancelled=true")
+	}
+}
+
+// ProbeBudget comes from the same numbers Probe waits on rather than a second
+// figure written out by hand, so the two cannot drift apart the way
+// board.probe's hardcoded five minutes had from advertBudgetMs.
+func TestProbeBudgetIsDerivedFromThePhaseBudgets(t *testing.T) {
+	want := time.Duration(probeWaitPhases)*time.Duration(advertBudgetMs)*time.Millisecond +
+		probeFixedOverhead
+	if got := ProbeBudget(); got != want {
+		t.Fatalf("got %s, want %s", got, want)
+	}
+}
+
+// The budget a caller must grant against what the phases can actually spend.
 //
 // Arithmetic rather than a run, because running it is twenty minutes. The
-// numbers are the point: five waits of advertBudgetMs, plus the settling and
-// idle steps, against the five minutes
-// internal/app/session/board/boardmatrix.go allows a probe. The first wait
-// alone is four of those five minutes, so any board slower than that has its
-// remaining phases decided by the deadline rather than by the board.
-func TestThePhaseBudgetsOutlastTheDeadlineAProbeIsGiven(t *testing.T) {
-	// radio/tx, rx, flood's quiet wait, flood itself, and power's relay ask.
-	const waits = 5
-	phases := waits * advertBudgetMs * time.Millisecond
-	// What boardmatrix.go grants. Named here rather than imported: internal/app
-	// sits above internal/sim and may not be reached from this side.
-	const granted = 5 * time.Minute
-	if phases <= granted {
-		t.Fatalf("the phases now fit in %v (%v of budget), so this test and the "+
-			"comment on waitForEvent are out of date", granted, phases)
+// numbers are the point: five waits of advertBudgetMs plus the settling and
+// idle steps. board.probe used to grant a flat five minutes, which the first
+// wait alone very nearly exhausts, so every phase after it was decided by the
+// caller's deadline rather than by the board. ProbeBudget has to cover them.
+func TestProbeBudgetOutlastsWhatThePhasesCanSpend(t *testing.T) {
+	phases := time.Duration(probeWaitPhases) * time.Duration(advertBudgetMs) * time.Millisecond
+	if ProbeBudget() < phases {
+		t.Fatalf("ProbeBudget is %s, shorter than the %d waits it must cover (%s)",
+			ProbeBudget(), probeWaitPhases, phases)
 	}
-	t.Logf("the phases can spend %v against a %v deadline", phases, granted)
+	// The figure that used to be granted. Kept as evidence of the size of the
+	// gap, so a future shrink of ProbeBudget back towards it fails here.
+	const wasGranted = 5 * time.Minute
+	if ProbeBudget() <= wasGranted {
+		t.Errorf("ProbeBudget is %s, no better than the %s that truncated probes",
+			ProbeBudget(), wasGranted)
+	}
 }

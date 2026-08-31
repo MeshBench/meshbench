@@ -7,7 +7,6 @@ package board
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
@@ -54,7 +53,11 @@ func registerBoardMatrix(st *state.Store, s *session.Sim) {
 		w.Jobs = append(w.Jobs, state.Job{ID: "boardprobe", What: "probing " + board, Total: 1})
 		terr := s.Terrain()
 		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			// Long enough for every phase Probe can honestly spend its full
+			// budget on, not a flat guess - a board that only failed here
+			// because the caller's timeout was too short reported "failed"
+			// for a limit nobody told the operator about.
+			ctx, cancel := context.WithTimeout(context.Background(), boardcheck.ProbeBudget())
 			defer cancel()
 			report := boardcheck.Probe(ctx, terr, board, version)
 			if err := report.Save(); err != nil {

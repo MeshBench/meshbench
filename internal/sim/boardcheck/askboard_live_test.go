@@ -77,9 +77,9 @@ func TestAskTheBoardWhatItDidWithIt(t *testing.T) {
 	if err := sender.Firmware.Bridge.Type([]byte("advert\r\n")); err != nil {
 		t.Fatalf("first advert: %v", err)
 	}
-	if _, ok := waitForEvent(ctx, e, 60_000, func(ev engine.Event) bool {
+	if _, outcome := waitForEvent(ctx, e, 60_000, func(ev engine.Event) bool {
 		return ev.Kind == "rx" && ev.To == "bc-under-test"
-	}); !ok {
+	}); outcome != eventMatched {
 		t.Fatal("the board never heard the first advert")
 	}
 	settle(ctx, e, 30_000)
@@ -90,9 +90,9 @@ func TestAskTheBoardWhatItDidWithIt(t *testing.T) {
 	if err := sender.Firmware.Bridge.Type([]byte("advert\r\n")); err != nil {
 		t.Fatalf("commanding the sender: %v", err)
 	}
-	if _, ok := waitForEvent(ctx, e, 60_000, func(ev engine.Event) bool {
+	if _, outcome := waitForEvent(ctx, e, 60_000, func(ev engine.Event) bool {
 		return ev.Kind == "rx" && ev.To == "bc-under-test"
-	}); !ok {
+	}); outcome != eventMatched {
 		t.Fatal("the engine never delivered the advert")
 	}
 	settle(ctx, e, 30_000)
