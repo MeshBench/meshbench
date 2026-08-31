@@ -194,8 +194,11 @@ func registerImport(st *state.Store, s *Sim) {
 		return map[string]any{"reading": true, "hours": hours}, nil
 	})
 
-	st.Handle("infer.progress", func(w *state.World, p any) (any, error) {
-		n, _ := p.(int)
+	st.HandleInternal("infer.progress", func(w *state.World, p any) (any, error) {
+		n, ok := p.(int)
+		if !ok {
+			return nil, wrongCallback("infer.progress")
+		}
 		for i := range w.Jobs {
 			if w.Jobs[i].ID == "infer" {
 				// No denominator: the walk ends on a timestamp rather than a
@@ -207,12 +210,13 @@ func registerImport(st *state.Store, s *Sim) {
 		return nil, nil
 	})
 
-	// infer.result is how the reading goroutine hands its packets back, and it
-	// is reachable from the socket like every other verb. Called from out there
-	// it arrives with no packets, and the version that ignored that answered by
-	// replacing a completed inference with an empty one - so a mesh that had
-	// just been imported correctly went silent and nothing said why.
-	st.Handle("infer.result", func(w *state.World, p any) (any, error) {
+	// infer.result is how the reading goroutine hands its packets back. It was
+	// reachable from the socket like every other verb, and from out there it
+	// arrived with no packets: the version that ignored that replaced a
+	// completed inference with an empty one, so a mesh that had just been
+	// imported correctly went silent and nothing said why. The socket refuses
+	// it now; the check stays, for a caller in here that gets it wrong.
+	st.HandleInternal("infer.result", func(w *state.World, p any) (any, error) {
 		r, ok := p.(inferReading)
 		if !ok {
 			return nil, badParams("infer.result is the reader's own callback; " +

@@ -43,10 +43,12 @@ FACADE = _map["facade"]
 WHY_NONE = _map["no_facade"]
 GROUPS = [(g["title"], g["prefixes"]) for g in _map["groups"]]
 
-# Both spellings: HandleSpec is the one that carries a description, and verbs
-# are being moved onto it a file at a time (#213). Until they all are, this has
-# to see either, or a described verb silently drops out of the document.
-HANDLE = re.compile(r'st\.Handle(?:Spec)?\(\s*"([a-z0-9_.]+)"\s*,')
+# All three spellings: HandleSpec is the one that carries a description, and
+# verbs are being moved onto it a file at a time (#213); HandleInternal is the
+# workbench's own callbacks, which are documented here as the verbs no client
+# may call rather than left out of the table entirely. Missing a spelling drops
+# a registered verb out of the document silently.
+HANDLE = re.compile(r'st\.Handle(?:Spec|Internal)?\(\s*"([a-z0-9_.]+)"\s*,')
 
 PARAM_PATTERNS = [
     (re.compile(r'(?:session\.String|string)Field\(\s*p\s*,\s*"([a-z0-9_]+)"'), "string"),

@@ -78,8 +78,8 @@ func (s *Sim) Warm(st *state.Store, nodes int) { s.warm(st, nodes) }
 // Rebuild rebuilds the engine at the current seed.
 func (s *Sim) Rebuild(w *state.World) error { return s.rebuild(w) }
 
-// SavePrefs persists the preferences.
-func (s *Sim) SavePrefs() { s.savePrefs() }
+// SavePrefs persists the preferences, saying into the world when it cannot.
+func (s *Sim) SavePrefs(w *state.World) error { return s.savePrefs(w) }
 
 // RoutesBetween is the path a message would take from one node to another.
 func (s *Sim) RoutesBetween(from, to string) ([]state.Route, error) {
@@ -179,6 +179,11 @@ func TermsOf(in []linkbudget.Term) []state.BudgetTerm { return termsOf(in) }
 // Three more shared readers the split-out domains need.
 func BoolField(p any, name string) (bool, bool) { return boolField(p, name) }
 func NoSuchNode(name string) error              { return noSuchNode(name) }
+
+// WrongCallback is the refusal an internal verb returns when it is handed
+// something other than the value its own worker passes it, for the callbacks
+// that live in the split-out domains.
+func WrongCallback(verb string) error { return wrongCallback(verb) }
 
 // CapturePath and CaptureLive are where frames are being written and streamed,
 // if anywhere; the capture verbs set and clear them.

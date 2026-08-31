@@ -157,7 +157,7 @@ func (f Firmware) Window(ctx context.Context, id BuildID) error {
 // Scan asks the catalogue what is published, which is how a build nobody has
 // downloaded becomes offerable.
 func (f Firmware) Scan(ctx context.Context) error {
-	return f.w.Do(ctx, "firmware.published", nil)
+	return f.w.Do(ctx, "firmware.rescan", nil)
 }
 
 // Download fetches one. It returns once the download has been asked for, not

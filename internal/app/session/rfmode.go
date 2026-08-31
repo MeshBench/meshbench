@@ -60,7 +60,7 @@ func setRFMode(w *state.World, s *Sim, mode string) (any, error) {
 	}
 	w.RFMode = mode
 	s.prefs.RFMode = mode
-	s.savePrefs()
+	_ = s.savePrefs(w)
 	if mode == "waveform" {
 		w.Say("waveform RF: reception is decided by the full receive " +
 			"chain - demodulation, FEC and CRC")
@@ -108,7 +108,7 @@ func registerRFRealism(st *state.Store, s *Sim) {
 		w.RFRealism = r
 		s.prefs.OscPPM, s.prefs.MultipathDB, s.prefs.FadingHz = r.OscPPM, r.MultipathDB, r.FadingHz
 		s.prefs.ImplLossDB, s.prefs.SaturationDBm = r.ImplLossDB, r.SaturationDBm
-		s.savePrefs()
+		_ = s.savePrefs(w)
 		w.Say("RF realism updated - the switches are stamped into every result")
 		return map[string]any{"realism": r}, nil
 	})
@@ -161,7 +161,7 @@ func registerRFEnvironment(st *state.Store, s *Sim) {
 			}
 			w.RFEnvironment = ""
 			s.prefs.EnvironmentDir = ""
-			s.savePrefs()
+			_ = s.savePrefs(w)
 			w.Say("environment off - the model is bare earth again, and says so")
 			return map[string]any{"environment": ""}, nil
 		}
@@ -179,7 +179,7 @@ func registerRFEnvironment(st *state.Store, s *Sim) {
 		}
 		w.RFEnvironment = dir
 		s.prefs.EnvironmentDir = dir
-		s.savePrefs()
+		_ = s.savePrefs(w)
 		w.Say("environment loaded from " + dir + " - buildings now price the path in both modes")
 		return map[string]any{"environment": dir}, nil
 	})

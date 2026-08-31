@@ -442,13 +442,13 @@ func registerEnvironFetch(st *state.Store, s *session.Sim) {
 		return map[string]any{"dirs": dirs, "current": s.EnvDir()}, nil
 	})
 
-	st.Handle("environ.fetched", func(w *state.World, p any) (any, error) {
+	st.HandleInternal("environ.fetched", func(w *state.World, p any) (any, error) {
 		w.Jobs = session.FinishJob(w.Jobs, "environ-fetch")
 		w.Say("footprints ready: " + session.SoleString(p))
 		return nil, nil
 	})
 
-	st.Handle("environ.failed", func(w *state.World, p any) (any, error) {
+	st.HandleInternal("environ.failed", func(w *state.World, p any) (any, error) {
 		w.Jobs = session.FinishJob(w.Jobs, "environ-fetch")
 		w.Say("building pull failed: " + session.SoleString(p))
 		return nil, nil

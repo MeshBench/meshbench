@@ -132,9 +132,12 @@ type Sim struct {
 	// tileCacheTiles overrides the tile cache bound, chosen in Configuration.
 	tileCacheTiles int
 	// prefs is what survives a restart, and persist is whether saving is on -
-	// off in tests, on when the command has called LoadPrefs.
-	prefs   Prefs
-	persist bool
+	// off in tests, on when the command has called LoadPrefs. prefsFile
+	// overrides where it lives, which is how a test reads and writes real
+	// settings without touching the developer's own.
+	prefs     Prefs
+	persist   bool
+	prefsFile string
 	// movingCache reports a cache move in flight, so a second one cannot
 	// start into the middle of the first; prefetching, the same for tiles.
 	movingCache atomic.Bool

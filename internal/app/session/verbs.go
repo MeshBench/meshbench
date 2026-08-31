@@ -29,6 +29,7 @@ func Register(st *state.Store, s *Sim) {
 	registerNodeWindow(st, s)
 	registerFirmwareWindow(st, s)
 	registerFirmwareLibrary(st, s)
+	registerFirmwareScan(st, s)
 	registerFirmwareDetail(st, s)
 	registerFirmwareBuild(st, s)
 	registerFirmwareBuildResults(st, s)
@@ -310,8 +311,11 @@ func Register(st *state.Store, s *Sim) {
 		s.warm(st, len(w.Nodes))
 		return map[string]any{"warming": true}, nil
 	})
-	st.Handle("links.set", func(w *state.World, p any) (any, error) {
-		links, _ := p.([]state.Link)
+	st.HandleInternal("links.set", func(w *state.World, p any) (any, error) {
+		links, ok := p.([]state.Link)
+		if !ok {
+			return nil, wrongCallback("links.set")
+		}
 		w.Links = links
 		// The budget is about a link, so it cannot exist before the links do.
 		// Asking for it on a timer at startup gave an empty panel, because
@@ -329,8 +333,11 @@ func Register(st *state.Store, s *Sim) {
 			len(links)))
 		return map[string]any{"links": len(links)}, nil
 	})
-	st.Handle("job.progress", func(w *state.World, p any) (any, error) {
-		j, _ := p.(state.Job)
+	st.HandleInternal("job.progress", func(w *state.World, p any) (any, error) {
+		j, ok := p.(state.Job)
+		if !ok {
+			return nil, wrongCallback("job.progress")
+		}
 		for i := range w.Jobs {
 			if w.Jobs[i].ID == j.ID {
 				// A progress update carries counts, not closures. The callback
@@ -383,7 +390,7 @@ func Register(st *state.Store, s *Sim) {
 
 	// job.done removes one, because a progress bar that never goes away is a
 	// worse lie than no progress bar.
-	st.Handle("job.done", func(w *state.World, p any) (any, error) {
+	st.HandleInternal("job.done", func(w *state.World, p any) (any, error) {
 		id := soleString(p)
 		for i := range w.Jobs {
 			if w.Jobs[i].ID == id {
@@ -461,4 +468,6 @@ func Register(st *state.Store, s *Sim) {
 			"playing": w.Playing,
 		}, nil
 	})
+	// Last, because it reads what everything above has registered.
+	excludeInternalFromJournal(st)
 }

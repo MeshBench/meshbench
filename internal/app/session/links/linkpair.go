@@ -177,8 +177,11 @@ func registerLinkPair(st *state.Store, s *session.Sim) {
 		return map[string]any{"from": a.label, "to": b.label}, nil
 	})
 
-	st.Handle("link.pair_set", func(w *state.World, p any) (any, error) {
-		r, _ := p.(*pairResult)
+	st.HandleInternal("link.pair_set", func(w *state.World, p any) (any, error) {
+		r, ok := p.(*pairResult)
+		if !ok {
+			return nil, session.WrongCallback("link.pair_set")
+		}
 		if r == nil {
 			w.LinkProfile = nil
 			return nil, nil

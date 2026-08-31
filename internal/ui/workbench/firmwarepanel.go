@@ -111,7 +111,7 @@ func (p *firmwarePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 	}
 	if p.scanBtn.Click.Clicked(gtx) {
 		if p.OnAction != nil {
-			p.OnAction("firmware.published", nil)
+			p.OnAction("firmware.rescan", nil)
 		}
 		if p.Refresh != nil {
 			p.Refresh()

@@ -129,8 +129,15 @@ func TestBasemapChoiceIsKept(t *testing.T) {
 func TestSavePrefsIsOffByDefault(t *testing.T) {
 	s := &Sim{}
 	s.prefs.TileCacheGB = 5
-	s.savePrefs() // must be a no-op; nothing to assert beyond not crashing
+	// A no-op, and a path it would certainly fail to write to if it were not.
+	s.prefsFile = filepath.Join(t.TempDir(), "no", "such", "dir", "prefs.json")
+	if err := s.savePrefs(nil); err != nil {
+		t.Errorf("a session with persistence off tried to write: %v", err)
+	}
 	if s.persist {
 		t.Error("persist turned itself on")
+	}
+	if _, err := os.Stat(s.prefsFile); !os.IsNotExist(err) {
+		t.Error("a session with persistence off wrote a settings file")
 	}
 }

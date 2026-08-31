@@ -199,7 +199,7 @@ func registerResources(st *state.Store, s *session.Sim) {
 		return map[string]any{"fetching": name, "version": version}, nil
 	})
 
-	st.Handle("resource.fetched", func(w *state.World, p any) (any, error) {
+	st.HandleInternal("resource.fetched", func(w *state.World, p any) (any, error) {
 		name, _ := session.StringField(p, "name")
 		version, _ := session.NamedField(p, "version")
 		// Nordic's own terms, cached beside the image and said aloud once:

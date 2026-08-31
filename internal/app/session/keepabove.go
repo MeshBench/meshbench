@@ -37,7 +37,7 @@ func registerKeepAbove(st *state.Store, s *Sim) {
 		if v, ok := boolField(p, "on"); ok {
 			on := v
 			s.prefs.KeepAbove = &on
-			s.savePrefs()
+			_ = s.savePrefs(w)
 			w.KeepAbove = on
 			if on {
 				w.Say("new windows stay above the main one - on Wayland that " +

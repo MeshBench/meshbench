@@ -67,6 +67,13 @@
         "notes"
       ]
     },
+    "firmware.rescan": {
+      "what": "ask the catalogue what is published again, which is how a build nobody has downloaded becomes offerable",
+      "returns": [
+        "scanning",
+        "count"
+      ]
+    },
     "firmware.update": {
       "what": "Rename a build, move it to another board or role, or change how it is run.",
       "params": [

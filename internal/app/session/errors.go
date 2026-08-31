@@ -39,3 +39,15 @@ func noSuchNode(name string) error {
 func badParams(format string, args ...any) error {
 	return control.WithCode(control.BadParams, fmt.Errorf(format, args...))
 }
+
+// wrongCallback is what one of the workbench's own callbacks answers when it is
+// handed something other than the value its worker passes it.
+//
+// The socket refuses those verbs outright, so getting here means a caller
+// inside this process got it wrong - and the alternative is what these verbs
+// used to do, which was to apply the zero value over a real answer and report
+// success.
+func wrongCallback(verb string) error {
+	return badParams("%s is the workbench's own callback and was handed "+
+		"the wrong value", verb)
+}

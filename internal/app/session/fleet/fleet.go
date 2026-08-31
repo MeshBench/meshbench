@@ -108,7 +108,7 @@ func registerFleet(st *state.Store, s *session.Sim) {
 	// the pending object that particular send produced - never read back off
 	// shared state, so two fleet.send calls in flight cannot corrupt one
 	// another's replies.
-	st.Handle("fleet.replies", func(w *state.World, p any) (any, error) {
+	st.HandleInternal("fleet.replies", func(w *state.World, p any) (any, error) {
 		pend, ok := p.(*fleetPending)
 		if !ok || pend == nil {
 			return map[string]any{"replies": 0}, nil

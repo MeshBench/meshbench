@@ -2,33 +2,11 @@ package session
 
 import "github.com/MeshBench/meshbench/internal/app/state"
 
-// journalWorkerCallbacks are the verbs a background goroutine calls back through
-// the store to publish a result or report progress - a coverage raster is
-// ready, a firmware process is up, a fetch failed. They are the process talking
-// to itself, not a command anyone gave, so they are kept out of the journal.
-//
-// This is the same set facade.json marks no_facade (they have no client call
-// because no client makes them); TestJournalSkipsEveryWorkerCallback holds the
-// two together, so a new callback verb is excluded here the day it is added
-// there.
-var journalWorkerCallbacks = []string{
-	"board.probe_finished",
-	"coverage.failed", "coverage.set",
-	"environ.failed", "environ.fetched",
-	"experiment.finished",
-	"feed.failed", "feed.set",
-	"firmware.build_failed", "firmware.built", "firmware.failed", "firmware.started",
-	"fleet.replies",
-	"import.failed", "import.set",
-	"infer.progress",
-	"job.done", "job.progress",
-	"link.pair_set", "link.profile_set", "links.set",
-	"node.reflash_failed", "node.reflashed",
-	"plan.failed", "plan.set",
-	"resource.fetched", "resource.licence.hide",
-	"terrain.cache_moved", "terrain.shade_failed", "terrain.shade_set",
-	"validate.failed",
-}
+// journalInterfaceOnly is what a click does to a window and nothing else: no
+// world changed, so a history of how the world got here is not the place for
+// it. The workers' own callbacks are left out too, but they say so at their
+// registration and are excluded from there - see excludeInternalFromJournal.
+var journalInterfaceOnly = []string{"resource.licence.hide"}
 
 // journalPolls are the read-only verbs a script fires in a loop to wait for
 // something. A hundred nodes.stats say nothing about what changed the world, so
@@ -48,7 +26,7 @@ var journalPolls = []string{
 // that reads it back. The exclusions are set here, from Register, which runs
 // before the store does, so nothing is recorded that should not be.
 func registerJournal(st *state.Store, _ *Sim) {
-	st.ExcludeFromJournal(journalWorkerCallbacks...)
+	st.ExcludeFromJournal(journalInterfaceOnly...)
 	st.ExcludeFromJournal(journalPolls...)
 
 	st.HandleSpec("session.journal", state.Spec{
@@ -64,4 +42,15 @@ func registerJournal(st *state.Store, _ *Sim) {
 			"entries":    entries,
 		}, nil
 	})
+}
+
+// excludeInternalFromJournal keeps the workers' own callbacks out of the
+// history, from the one place that already knows which verbs those are.
+//
+// Called at the end of Register rather than from registerJournal, because it
+// reads the registration and every verb has to be registered first. Two lists
+// of the same set was one list too many: the journal's copy was maintained by
+// hand and by a test that compared it against a documentation file.
+func excludeInternalFromJournal(st *state.Store) {
+	st.ExcludeFromJournal(st.InternalVerbs()...)
 }

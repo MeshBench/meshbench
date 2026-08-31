@@ -145,8 +145,11 @@ func registerPlanningVerbs(st *state.Store, s *session.Sim) {
 
 // coverage.combined lands the network-wide answer.
 func registerCoverageCombined(st *state.Store, s *session.Sim) {
-	st.Handle("coverage.combined", func(w *state.World, p any) (any, error) {
-		m, _ := p.(map[string]any)
+	st.HandleInternal("coverage.combined", func(w *state.World, p any) (any, error) {
+		m, ok := p.(map[string]any)
+		if !ok {
+			return nil, session.WrongCallback("coverage.combined")
+		}
 		c, _ := m["combined"].(*coverage.Combined)
 		mode, _ := m["mode"].(string)
 		if c == nil {

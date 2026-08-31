@@ -507,10 +507,11 @@ def test_the_import_chain_refuses_in_the_wrong_order(wb):
 def test_infer_result_is_not_a_verb_to_call(wb):
     """It is the reading goroutine's own callback.
 
-    Reachable from the socket like everything else, and the version that
-    ignored that answered by replacing a finished inference with an empty one -
-    so a mesh that had just been imported correctly went silent, and nothing
-    said why.
+    It used to be reachable from the socket like everything else, and the
+    version that ignored that answered by replacing a finished inference with
+    an empty one - so a mesh that had just been imported correctly went silent,
+    and nothing said why. The socket refuses the workbench's own callbacks now,
+    and this is what a client sees when it names one.
     """
     with pytest.raises(meshbench.BadParams):
         wb.call("infer.result")

@@ -34,8 +34,11 @@ func registerImportFeedVerbs(st *state.Store, s *Sim) {
 		return map[string]any{"url": url}, nil
 	})
 
-	st.Handle("import.set", func(w *state.World, p any) (any, error) {
-		im, _ := p.(*state.Import)
+	st.HandleInternal("import.set", func(w *state.World, p any) (any, error) {
+		im, ok := p.(*state.Import)
+		if !ok {
+			return nil, wrongCallback("import.set")
+		}
 		w.Import = im
 		if im != nil {
 			w.Say(fmt.Sprintf(
@@ -45,7 +48,7 @@ func registerImportFeedVerbs(st *state.Store, s *Sim) {
 		return nil, nil
 	})
 
-	st.Handle("import.failed", func(w *state.World, p any) (any, error) {
+	st.HandleInternal("import.failed", func(w *state.World, p any) (any, error) {
 		msg := soleString(p)
 		// End the job as well as saying so. It used to only say so, and the
 		// reading job then sat in the list for ever: anything waiting on it -
@@ -98,14 +101,17 @@ func registerImportFeedVerbs(st *state.Store, s *Sim) {
 		return map[string]any{"url": url}, nil
 	})
 
-	st.Handle("feed.failed", func(w *state.World, p any) (any, error) {
+	st.HandleInternal("feed.failed", func(w *state.World, p any) (any, error) {
 		msg := soleString(p)
 		w.Say("no live feed: " + msg)
 		return nil, nil
 	})
 
-	st.Handle("feed.set", func(w *state.World, p any) (any, error) {
-		obs, _ := p.([]state.Observed)
+	st.HandleInternal("feed.set", func(w *state.World, p any) (any, error) {
+		obs, ok := p.([]state.Observed)
+		if !ok {
+			return nil, wrongCallback("feed.set")
+		}
 		w.Observed = obs
 		// Residuals fall out of the same data, so they are computed here
 		// rather than behind a second button somebody has to know to press.

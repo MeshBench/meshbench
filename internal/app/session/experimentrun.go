@@ -132,7 +132,7 @@ func (e *experiment) stage(arm ExpArm, seed uint64, what string) {
 }
 
 func registerExperimentDone(st *state.Store, s *Sim) {
-	st.Handle("experiment.finished", func(w *state.World, _ any) (any, error) {
+	st.HandleInternal("experiment.finished", func(w *state.World, _ any) (any, error) {
 		e := s.experiment()
 		e.mu.Lock()
 		n := len(e.results)
