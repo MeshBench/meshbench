@@ -234,6 +234,12 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
+	// A second Start on a node already running would overwrite e.qemu and
+	// e.radio with a new pair, orphaning the first: nothing would hold their
+	// PIDs any more, and Stop would kill only the second pair.
+	if e.qemu != nil || e.radio != nil {
+		return fmt.Errorf("firmware: emulated node already started")
+	}
 	if e.Image == "" {
 		return fmt.Errorf("firmware: an emulated node needs a flash image")
 	}
