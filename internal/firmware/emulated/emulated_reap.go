@@ -53,6 +53,15 @@ func (e *EmulatedNode) stopLocked() error {
 	e.mu.Lock()
 
 	_ = os.Remove(sock)
+	// Released only once every process that might still be touching Dir is
+	// confirmed gone. A reap that timed out leaves the lock held: a node this
+	// backend can no longer account for might still be writing to it, and
+	// letting a second node start on top of that is the exact corruption the
+	// lock exists to rule out.
+	if err == nil && e.workLock != nil {
+		_ = e.workLock.Release()
+		e.workLock = nil
+	}
 	return err
 }
 

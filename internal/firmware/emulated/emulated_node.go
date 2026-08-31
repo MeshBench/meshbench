@@ -172,6 +172,11 @@ type EmulatedNode struct {
 	sock        string
 	radioPort   int
 
+	// workLock is this process's exclusive claim on Dir, held from Start until
+	// stopLocked has confirmed every process that might still be touching it
+	// is actually gone - not just asked to stop.
+	workLock *firmware.WorkDirLock
+
 	// serial is the emulator's own serial port, when it publishes one.
 	serial *peripheral.SerialLink
 
@@ -230,7 +235,7 @@ func (e *EmulatedNode) ConsoleIn() io.Writer {
 // The engine hands over its listener for this node; empty leaves the node deaf
 // and mute, booting and then waiting for ever on a transmission that cannot
 // complete, which looks like a hang rather than a missing argument.
-func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
+func (e *EmulatedNode) Start(ctx context.Context, bridge string) (err error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
@@ -249,9 +254,19 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	if e.Dir == "" {
 		e.Dir = filepath.Join(os.TempDir(), "meshbench-emulated", e.NodeName)
 	}
-	if err := os.MkdirAll(e.Dir, 0o755); err != nil {
+	lock, err := firmware.LockWorkDir(e.Dir)
+	if err != nil {
 		return err
 	}
+	e.workLock = lock
+	// Every failure from here on is handled the one way: stopLocked already
+	// knows how to let go of processes that did start and a lock nothing
+	// needs any more, so nothing past this point has to call it for itself.
+	defer func() {
+		if err != nil {
+			_ = e.stopLocked()
+		}
+	}()
 	// A Unix socket for QEMU on Linux and macOS; a TCP port for Renode
 	// anywhere, and for either emulator on Windows.
 	//
@@ -290,18 +305,15 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	if e.sock == ":0" {
 		port, err := waitForPort(ctx, filepath.Join(e.Dir, "radio.log"))
 		if err != nil {
-			_ = e.stopLocked()
 			return err
 		}
 		e.radioPort = port
 	} else if err := waitForSocket(ctx, e.sock); err != nil {
-		_ = e.stopLocked()
 		return err
 	}
 
 	if e.Emulator == Renode {
 		if err := e.startRenode(ctx); err != nil {
-			_ = e.stopLocked()
 			return err
 		}
 		return nil
@@ -312,7 +324,6 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	// first refused those boards on a machine that only has the one they need.
 	qemuBin, err := lookupTool(EnvQEMU, "qemu-system-xtensa")
 	if err != nil {
-		_ = e.stopLocked()
 		return err
 	}
 
@@ -333,13 +344,11 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	// board saying anything at all.
 	conLog, err := os.Create(filepath.Join(e.Dir, "console.log"))
 	if err != nil {
-		_ = e.stopLocked()
 		return err
 	}
 	e.console = firmware.NewConsoleSink(conLog)
 	emuLog, err := os.Create(filepath.Join(e.Dir, emulatorLogName))
 	if err != nil {
-		_ = e.stopLocked()
 		return err
 	}
 	// Serial to a socket rather than to a file. The file it used to be written
@@ -353,7 +362,6 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	// to be mounted rather than falling off the end of the chip.
 	flash, err := padToDeclaredFlash(e.Image, e.Dir)
 	if err != nil {
-		_ = e.stopLocked()
 		return err
 	}
 
@@ -408,7 +416,6 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) error {
 	// and the next run's radio socket is answered by the last run's model.
 	e.qemu.SysProcAttr = firmware.ChildProcAttr()
 	if err := e.qemu.Start(); err != nil {
-		_ = e.stopLocked()
 		return fmt.Errorf("firmware: starting the emulator: %w", err)
 	}
 	e.serial = peripheral.DialSerial(ctx, conPath, e.console)
