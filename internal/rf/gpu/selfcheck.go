@@ -28,7 +28,10 @@ func (d *Device) SelfCheck() error {
 	if err := d.checkCoverage(); err != nil {
 		return err
 	}
-	return d.checkPairs()
+	if err := d.checkPairs(); err != nil {
+		return err
+	}
+	return d.checkFold()
 }
 
 // tolerance is the same one the equivalence tests justify: the two paths sum
@@ -76,6 +79,111 @@ func (d *Device) checkPairs() error {
 		return fmt.Errorf("pairs kernel: %w", err)
 	}
 	return compare("pairs", got, want)
+}
+
+// foldTolerance is tighter than tolerance: the fold compares margins
+// directly rather than one summed path loss, so the last-place drift the
+// wider bound exists to absorb does not accumulate here. It is the same
+// bound coveragefold_equiv_test.go holds the two paths to.
+const foldTolerance = 0.05
+
+// checkFold runs the best-server fold, which has its own gain-interpolation
+// and second-slot logic the coverage and pairs kernels never exercise, so a
+// device that passes both of those can still fold wrong. Two stations, one
+// on a directional pattern, is enough to put a cell's best and second choice
+// in play and catch a kernel that puts the wrong one in either slot.
+func (d *Device) checkFold() error {
+	g := checkGrid()
+	base := propagation.GridLossParams{
+		RasterW: 24, RasterH: 24,
+		South: 56.6, North: 56.9, West: -3.9, East: -3.5,
+		RemoteHeightM: 1.5, FreqMHz: 869.525, Steps: 60,
+	}
+	stations := []struct {
+		lat, lon, alt float64
+		budget        propagation.StationBudget
+		gain          func(b, e float64) float64
+	}{
+		{56.75, -3.7, 620, propagation.StationBudget{TxPowerDBm: 22, SensitivityDBm: -124,
+			RemoteTxDBm: 20, RemoteSensitivityDBm: -124, Station: 0},
+			func(b, e float64) float64 { return 2.15 }},
+		{56.65, -3.85, 340, propagation.StationBudget{TxPowerDBm: 14, SensitivityDBm: -129,
+			RemoteTxDBm: 20, RemoteSensitivityDBm: -124, Station: 1},
+			func(b, e float64) float64 {
+				return 9 - 12*math.Pow(math.Sin((b-45)*math.Pi/360), 2)
+			}},
+	}
+
+	cg, err := d.UploadGrid(g)
+	if err != nil {
+		return fmt.Errorf("fold kernel: %w", err)
+	}
+	defer cg.Release()
+	fold, err := cg.NewFold(base.RasterW, base.RasterH)
+	if err != nil {
+		return fmt.Errorf("fold kernel: %w", err)
+	}
+	defer fold.Release()
+
+	cells := base.RasterW * base.RasterH
+	wantBest := propagation.NewFoldSlots(cells)
+	wantSecond := propagation.NewFoldSlots(cells)
+	wantServed := make([]uint32, cells)
+	for _, st := range stations {
+		p := base
+		p.StLat, p.StLon, p.StAltM = st.lat, st.lon, st.alt
+		gt := propagation.SampleGains(st.gain)
+		if err := fold.Station(p, st.budget, gt); err != nil {
+			return fmt.Errorf("fold kernel: %w", err)
+		}
+		propagation.FoldStationCPU(propagation.GridLossCPU(g, p), g, p, st.budget, gt,
+			wantBest, wantSecond, wantServed)
+	}
+	gotBest, gotSecond, gotServed, err := fold.Read()
+	if err != nil {
+		return fmt.Errorf("fold kernel: %w", err)
+	}
+
+	if err := compareFoldSlots("fold best", gotBest, wantBest); err != nil {
+		return err
+	}
+	if err := compareFoldSlots("fold second", gotSecond, wantSecond); err != nil {
+		return err
+	}
+	for i := range wantServed {
+		if gotServed[i] != wantServed[i] {
+			return fmt.Errorf(
+				"fold kernel: served count disagrees with the processor at cell %d: got %d, want %d",
+				i, gotServed[i], wantServed[i])
+		}
+	}
+	return nil
+}
+
+// compareFoldSlots mirrors the fold's equivalence test: a slot naming a
+// different station than the processor is a defect unless the margins were
+// within noise of a tie, in which case the swap is float order rather than
+// wrong physics.
+func compareFoldSlots(what string, got, want []propagation.FoldSlot) error {
+	for i := range want {
+		if got[i].Station != want[i].Station {
+			if math.Abs(float64(got[i].MinDB-want[i].MinDB)) > foldTolerance {
+				return fmt.Errorf("%s: cell %d picked station %d, the processor %d",
+					what, i, got[i].Station, want[i].Station)
+			}
+			continue
+		}
+		if d := math.Abs(float64(got[i].MinDB - want[i].MinDB)); d > foldTolerance {
+			return fmt.Errorf("%s: cell %d's margin disagrees with the processor by %.2f dB", what, i, d)
+		}
+		if d := math.Abs(float64(got[i].OutDB - want[i].OutDB)); d > foldTolerance {
+			return fmt.Errorf("%s: cell %d's outbound margin disagrees with the processor by %.2f dB", what, i, d)
+		}
+		if d := math.Abs(float64(got[i].InDB - want[i].InDB)); d > foldTolerance {
+			return fmt.Errorf("%s: cell %d's inbound margin disagrees with the processor by %.2f dB", what, i, d)
+		}
+	}
+	return nil
 }
 
 func compare(what string, got, want []float32) error {

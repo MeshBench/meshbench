@@ -1,6 +1,7 @@
 package environ_test
 
 import (
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -103,6 +104,85 @@ func TestTileRoundTripAndMissing(t *testing.T) {
 	_ = empty.Buildings(56.33, -2.80, 56.35, -2.78)
 	if empty.Missing() == 0 {
 		t.Fatal("a store with no data claimed full coverage")
+	}
+}
+
+// A tile whose gzip stream is truncated - what a process killed mid-write
+// once left, back when the read path shadowed the error that would have
+// caught it - must read as missing, not as present and empty.
+func TestTruncatedTileReadsAsMissing(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "env")
+	b := square(56.34, -2.79, 0.0005, 9, environ.MatStone)
+	x, y, ok := environ.TileFor(b)
+	if !ok {
+		t.Fatal("no tile for a real footprint")
+	}
+	path := environ.TilePath(dir, x, y)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// A real gzip header with nothing behind it - what a kill mid-write
+	// leaves, and what os.Create followed by a write that never finished
+	// used to produce.
+	if err := os.WriteFile(path, []byte{0x1f, 0x8b, 0x08}, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	s := environ.OpenTiles(dir)
+	got := s.Buildings(56.339, -2.791, 56.341, -2.789)
+	if len(got) != 0 {
+		t.Fatalf("a corrupt tile must not invent buildings, got %d", len(got))
+	}
+	if s.Missing() == 0 {
+		t.Fatal("a corrupt tile must count as missing, not as present and empty")
+	}
+
+	// A tile once found missing must still be retried, not nil for the rest
+	// of the process's life: write a real tile over the corrupt one and ask
+	// again with a fresh store, the way a later run would.
+	if err := environ.WriteTile(dir, x, y, []environ.Building{b}); err != nil {
+		t.Fatal(err)
+	}
+	s2 := environ.OpenTiles(dir)
+	got = s2.Buildings(56.339, -2.791, 56.341, -2.789)
+	if len(got) != 1 {
+		t.Fatalf("a retried tile should read back once it is valid, got %d", len(got))
+	}
+}
+
+// A write that fails partway - here, a value gzip and JSON cannot encode -
+// must not leave a file at the destination path, and must not leave a
+// leftover temporary file where the store's directory scan will still find
+// it as a phantom sibling.
+func TestInterruptedWriteLeavesNoTile(t *testing.T) {
+	dir := t.TempDir()
+	b := square(56.34, -2.79, 0.0005, 9, environ.MatStone)
+	b.HeightM = math.NaN() // json.Marshal refuses NaN - a write that cannot finish
+	x, y, ok := environ.TileFor(b)
+	if !ok {
+		t.Fatal("no tile for a real footprint")
+	}
+
+	if err := environ.WriteTile(dir, x, y, []environ.Building{b}); err == nil {
+		t.Fatal("an unencodable building should fail the write")
+	}
+
+	path := environ.TilePath(dir, x, y)
+	if _, err := os.Stat(path); err == nil {
+		t.Fatal("a failed write left a file at the tile's own path")
+	}
+	entries, err := os.ReadDir(filepath.Dir(path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		t.Fatalf("a failed write left %q behind", e.Name())
+	}
+
+	s := environ.OpenTiles(dir)
+	got := s.Buildings(56.339, -2.791, 56.341, -2.789)
+	if len(got) != 0 || s.Missing() == 0 {
+		t.Fatal("a tile that never finished writing must read as missing")
 	}
 }
 

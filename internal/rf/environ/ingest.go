@@ -6,7 +6,9 @@ package environ
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"strconv"
 )
@@ -26,6 +28,13 @@ type IngestStats struct {
 	Tiles     int
 	Skipped   int
 }
+
+// ErrNoBuildings is returned when a document parses cleanly but yields no
+// buildings at all - a wrapper with an empty "features" array, or a stream
+// of lines every one of which failed toBuilding. Silence there reads as "no
+// obstructions here", which is the one direction of error this package
+// exists to rule out.
+var ErrNoBuildings = errors.New("environ: ingest produced no buildings")
 
 // IngestGeoJSON reads building footprints - a FeatureCollection or
 // newline-delimited features, which is how Microsoft's Global ML Building
@@ -50,20 +59,20 @@ func IngestGeoJSON(r io.Reader, outDir, region string) (IngestStats, error) {
 		stats.Buildings++
 	}
 
-	br := bufio.NewReaderSize(r, 1<<20)
-	head, _ := br.Peek(512)
-	if !json.Valid(head) && indexOf(head, `"FeatureCollection"`) >= 0 {
+	isFC, rest := sniffFeatureCollection(r)
+	br := bufio.NewReaderSize(rest, 1<<20)
+	if isFC {
 		var fc struct {
 			Type     string    `json:"type"`
 			Features []feature `json:"features"`
 		}
-		if err := json.NewDecoder(br).Decode(&fc); err == nil && fc.Type == "FeatureCollection" {
-			for _, ft := range fc.Features {
-				add(ft)
-			}
-			return writeTiles(outDir, byTile, &stats)
+		if err := json.NewDecoder(br).Decode(&fc); err != nil {
+			return stats, err
 		}
-		return stats, io.ErrUnexpectedEOF
+		for _, ft := range fc.Features {
+			add(ft)
+		}
+		return writeTiles(outDir, byTile, &stats)
 	}
 	sc := bufio.NewScanner(br)
 	sc.Buffer(make([]byte, 1<<20), 1<<24)
@@ -92,16 +101,57 @@ func writeTiles(outDir string, byTile map[[2]int][]Building, stats *IngestStats)
 		}
 	}
 	stats.Tiles = len(byTile)
+	if stats.Buildings == 0 {
+		return *stats, ErrNoBuildings
+	}
 	return *stats, nil
 }
 
-func indexOf(b []byte, s string) int {
-	for i := 0; i+len(s) <= len(b); i++ {
-		if string(b[i:i+len(s)]) == s {
-			return i
+// sniffFeatureCollection learns whether the document is a single
+// FeatureCollection object or a stream of newline-delimited features, by
+// reading only the leading "type" field rather than guessing from how much
+// of the document fits in a fixed peek window - a window a short but
+// complete FeatureCollection fits inside whole, which read as valid JSON on
+// its own and was mistaken for one NDJSON line. The bytes consumed while
+// looking are replayed ahead of whatever is left unread, so the caller sees
+// the whole document either way.
+func sniffFeatureCollection(r io.Reader) (isFC bool, rest io.Reader) {
+	var captured bytes.Buffer
+	dec := json.NewDecoder(io.TeeReader(r, &captured))
+	isFC = leadingType(dec) == "FeatureCollection"
+	return isFC, io.MultiReader(bytes.NewReader(captured.Bytes()), r)
+}
+
+// leadingType reads an object's tokens up to and including its "type" key,
+// decoding only that field's value and skipping every other one, so it never
+// commits to the shape of whatever comes after.
+func leadingType(dec *json.Decoder) string {
+	tok, err := dec.Token()
+	if err != nil {
+		return ""
+	}
+	if d, ok := tok.(json.Delim); !ok || d != '{' {
+		return ""
+	}
+	for dec.More() {
+		keyTok, err := dec.Token()
+		if err != nil {
+			return ""
+		}
+		key, _ := keyTok.(string)
+		if key == "type" {
+			var typ string
+			if err := dec.Decode(&typ); err != nil {
+				return ""
+			}
+			return typ
+		}
+		var skip json.RawMessage
+		if err := dec.Decode(&skip); err != nil {
+			return ""
 		}
 	}
-	return -1
+	return ""
 }
 
 // toBuilding maps one feature: geometry to lat/lon vertices, properties to
