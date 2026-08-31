@@ -43,7 +43,7 @@ func (e *Engine) pathLoss(a, b int) (float64, bool) {
 		// to change a constant that every path shares.
 		return v + excess, true
 	}
-	from, to := e.nodes[a].Spec, e.nodes[b].Spec
+	from, to := e.nodes[a].Spec(), e.nodes[b].Spec()
 	e.mu.Unlock()
 
 	distKm := geo.DistanceKm(from.Position.Lat, from.Position.Lon, to.Position.Lat, to.Position.Lon)
@@ -66,21 +66,24 @@ func (e *Engine) pathLoss(a, b int) (float64, bool) {
 	// like this, and profiling them anyway is what turned the first flood on a
 	// 300-node scenario into a frozen minute: the lazy cache fill walked
 	// forty-five thousand pairs of DEM samples on the frame thread.
-	fspl := terrain.FSPLdB(distKm, e.phyOf(from).freqMHz)
+	fspl := terrain.FSPLdB(distKm, e.phyOf(&from).freqMHz)
 	// The planet is the first obstacle: the spherical-Earth bulge at midpoint
 	// is a floor under any terrain the profile could find, so a pair the
 	// bulge alone refuses is refused without walking. This is what keeps a
 	// continental stray in an import - one node on the equator - from having
 	// a hundred thousand kilometres of profile walked against it.
 	bulge := terrain.EarthBulgeLossDB(distKm*1000, from.HeightAGLm, to.HeightAGLm,
-		e.phyOf(from).freqMHz)
+		e.phyOf(&from).freqMHz)
 	bestTx := math.Max(from.TxPowerDBm, to.TxPowerDBm)
-	bestRx := bestTx + gain(from) + gain(to) - fspl - bulge
+	// Best-case gain, not the look angle: this is a cull, and it must not
+	// discard a pair on a pattern's cost when the question is whether the
+	// pair could ever matter at all.
+	bestRx := bestTx + bestGainDBi(from) + bestGainDBi(to) - fspl - bulge
 	// The quieter of the two receivers. This is a cull, so the question is
 	// whether *either* end could hear the other: taking the worse figure would
 	// discard a pair the better receiver can close.
-	noise := dsp.NoiseFloorDBm(e.phyOf(from).bandwidthHz,
-		math.Min(e.noiseFigOf(from), e.noiseFigOf(to)))
+	noise := dsp.NoiseFloorDBm(e.phyOf(&from).bandwidthHz,
+		math.Min(e.noiseFigOf(&from), e.noiseFigOf(&to)))
 	if bestRx < noise-30 {
 		e.mu.Lock()
 		excess := e.Config.ExcessPathLossDB
@@ -104,7 +107,7 @@ func (e *Engine) pathLoss(a, b int) (float64, bool) {
 	loss := math.Inf(1)
 	if ok {
 		loss = fspl +
-			terrain.MultiEdgeLossDB(profile, from.HeightAGLm, to.HeightAGLm, e.phyOf(from).freqMHz) +
+			terrain.MultiEdgeLossDB(profile, from.HeightAGLm, to.HeightAGLm, e.phyOf(&from).freqMHz) +
 			e.buildingLossDB(from, to, profile)
 	}
 
@@ -306,6 +309,9 @@ func (e *Engine) InvalidateLinks() {
 	e.linkCache = map[[2]int]float64{}
 	e.emitterNoise = map[int]float64{}
 	e.mu.Unlock()
+	// Whatever moved took its look angles with it, and this cache cannot know
+	// which node it was either.
+	e.dropGains(-1)
 }
 
 // PathLossForTest exposes the cached link for measurements and tests.
@@ -333,7 +339,7 @@ func (e *Engine) buildingLossDB(from, to scenario.Node, profile []terrain.Point)
 	return ix.PathLossDB(sc,
 		from.Position.Lat, from.Position.Lon, txM,
 		to.Position.Lat, to.Position.Lon, rxM,
-		total, e.phyOf(from).freqMHz)
+		total, e.phyOf(&from).freqMHz)
 }
 
 // DropLinkCache forgets every measured path, for when the physics that

@@ -237,7 +237,7 @@ func registerSDRServe(st *state.Store, s *session.Sim) {
 		if !ok {
 			return nil, fmt.Errorf("%s is not in the engine", name)
 		}
-		rate := en.Spec.Radio.BandwidthHz
+		rate := en.Spec().Radio.BandwidthHz
 		if rate <= 0 {
 			rate = 250e3
 		}

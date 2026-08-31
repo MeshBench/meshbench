@@ -28,32 +28,6 @@ import (
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
-// Node is one participant: its place in the world and its running firmware.
-type Node struct {
-	Spec scenario.Node
-
-	// Firmware is nil for a node that does not run any — an SDR observer, or a
-	// custom emitter that is only there to be interfered with.
-	Firmware *firmware.Node
-
-	// BootOffsetMs is how far ahead of the run clock this node's own clock runs,
-	// standing in for having been powered on earlier than the others.
-	BootOffsetMs uint32
-
-	// The board's own figures, kept because Spec's are overwritten with the
-	// effective ones as the firmware reports how it has configured its radio.
-	// Without a baseline to compute from, every tick would apply the same
-	// correction again to the previous tick's answer.
-	baseTxPowerDBm, baseNoiseFigDB float64
-
-	// Sent and Heard are counters for the scoreboard.
-	Sent           int
-	Heard          int
-	UniqueDelivery int
-	RedundantRelay int
-	AirtimeMs      float64
-}
-
 // Config is what a run needs that a scenario does not carry.
 type Config struct {
 	FreqMHz      float64
@@ -158,6 +132,16 @@ type Engine struct {
 	// goroutines while the step loop holds the engine's own lock.
 	obsMu    sync.Mutex
 	obsCache modCache
+
+	// gainCache is each ordered pair's two antenna gains, in the direction
+	// each end is really in. Kept because the arithmetic is trigonometry and
+	// the same pair is asked several times per transmission - once for the
+	// wanted signal, again for the demodulator contest, again for every
+	// interferer that lands on it. Its own lock rather than e.mu: it is read
+	// from the parallel waveform judges, which already queue on that one.
+	// Only a node moving changes a look angle, which is where it is dropped.
+	gainMu    sync.RWMutex
+	gainCache map[[2]int][2]float64
 
 	// emitterNoise caches each receiver's extra floor from the emitter fleet,
 	// invalidated with the link cache — emitters move exactly as often as
@@ -267,11 +251,11 @@ func (e *Engine) Add(spec scenario.Node, fw *firmware.Node) *Node {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	n := &Node{
-		Spec:           spec,
 		Firmware:       fw,
 		baseTxPowerDBm: spec.TxPowerDBm,
 		baseNoiseFigDB: spec.NoiseFigureDB,
 	}
+	n.state.Store(&nodeState{spec: spec})
 	e.nodes = append(e.nodes, n)
 	// Terrain has not changed, but the set of pairs has. The profiles keep:
 	// they are keyed by pair index, and existing indices still mean the
@@ -310,13 +294,13 @@ func (e *Engine) PinFirmware(name, version string) int {
 	defer e.mu.Unlock()
 	n := 0
 	for _, nd := range e.nodes {
-		if name != "" && nd.Spec.Name != name {
+		if name != "" && nd.specRef().Name != name {
 			continue
 		}
-		if nd.Spec.Firmware.Version == version {
+		if nd.specRef().Firmware.Version == version {
 			continue
 		}
-		nd.Spec.Firmware.Version = version
+		nd.changeSpec(func(s *scenario.Node) { s.Firmware.Version = version })
 		n++
 	}
 	return n
@@ -333,14 +317,16 @@ func (e *Engine) SetCard(name string, fitted bool, file string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	for _, nd := range e.nodes {
-		if nd.Spec.Name != name {
+		if nd.specRef().Name != name {
 			continue
 		}
-		nd.Spec.Card = scenario.CardFitted
-		if !fitted {
-			nd.Spec.Card = scenario.CardEmpty
-		}
-		nd.Spec.CardFile = file
+		nd.changeSpec(func(s *scenario.Node) {
+			s.Card = scenario.CardFitted
+			if !fitted {
+				s.Card = scenario.CardEmpty
+			}
+			s.CardFile = file
+		})
 	}
 }
 
@@ -357,13 +343,15 @@ func (e *Engine) PinBoard(name, board string, role scenario.Role) int {
 	defer e.mu.Unlock()
 	n := 0
 	for _, nd := range e.nodes {
-		if name != "" && nd.Spec.Name != name {
+		if name != "" && nd.specRef().Name != name {
 			continue
 		}
-		nd.Spec.Firmware.Board = board
-		if role != "" {
-			nd.Spec.Firmware.Role = role
-		}
+		nd.changeSpec(func(s *scenario.Node) {
+			s.Firmware.Board = board
+			if role != "" {
+				s.Firmware.Role = role
+			}
+		})
 		n++
 	}
 	return n
@@ -411,7 +399,13 @@ func (e *Engine) Run(ctx context.Context, untilMs uint32) error {
 	return nil
 }
 
-// Close shuts every node down.
+// Close shuts every node down, and closes what the run was writing to.
+//
+// The recorders are part of shutting down, not an afterthought: a FIFO
+// capture owns a goroutine draining onto the pipe, and an engine that closed
+// its nodes and left the capture open leaked that goroutine and its open file
+// for the life of the process. A workbench that opens a scenario, records,
+// closes it and opens another accumulates one of each per run.
 func (e *Engine) Close() error {
 	var err error
 	for _, n := range e.Nodes() {
@@ -421,6 +415,12 @@ func (e *Engine) Close() error {
 		if cerr := n.Firmware.Close(); err == nil {
 			err = cerr
 		}
+	}
+	if _, _, cerr := e.StopCapture(); err == nil {
+		err = cerr
+	}
+	if _, _, cerr := e.StopEventLog(); err == nil {
+		err = cerr
 	}
 	return err
 }

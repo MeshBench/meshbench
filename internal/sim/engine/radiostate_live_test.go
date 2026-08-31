@@ -104,5 +104,5 @@ func TestTheRadioReportsHowTheFirmwareConfiguredIt(t *testing.T) {
 		t.Fatal("the radio never reported its configuration")
 	}
 	t.Logf("engine's effective figures: tx=%.1f dBm noise figure=%.1f dB",
-		node.Spec.TxPowerDBm, node.Spec.NoiseFigureDB)
+		node.Spec().TxPowerDBm, node.Spec().NoiseFigureDB)
 }

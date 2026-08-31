@@ -41,10 +41,10 @@ func (e *Engine) envIndex() *environ.PathIndex {
 	if n == 0 {
 		return nil
 	}
-	south, north := nodes[0].Spec.Position.Lat, nodes[0].Spec.Position.Lat
-	west, east := nodes[0].Spec.Position.Lon, nodes[0].Spec.Position.Lon
+	south, north := nodes[0].specRef().Position.Lat, nodes[0].specRef().Position.Lat
+	west, east := nodes[0].specRef().Position.Lon, nodes[0].specRef().Position.Lon
 	for _, nd := range nodes[1:] {
-		p := nd.Spec.Position
+		p := nd.specRef().Position
 		if p.Lat < south {
 			south = p.Lat
 		}

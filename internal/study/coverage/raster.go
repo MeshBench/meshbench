@@ -9,7 +9,6 @@ package coverage
 
 import (
 	"fmt"
-	"math"
 
 	"github.com/MeshBench/meshbench/internal/rf/geo"
 	"github.com/MeshBench/meshbench/internal/rf/propagation"
@@ -160,7 +159,7 @@ func cellFromLoss(fixed Endpoint, fixedGround, remoteGround, lat, lon, distKm, l
 	txAlt := fixedGround + fixed.HeightAGLm
 	rxAlt := remoteGround + o.RemoteHeightAGLm
 	bearing := geo.BearingDeg(fixed.Lat, fixed.Lon, lat, lon)
-	elevation := math.Atan2(rxAlt-txAlt, distKm*1000) * 180 / math.Pi
+	elevation := geo.ElevationDeg(txAlt, rxAlt, distKm)
 
 	fixedGain := 0.0
 	if fixed.GainTowardsDBi != nil {

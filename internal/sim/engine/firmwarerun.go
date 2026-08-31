@@ -25,7 +25,7 @@ func (e *Engine) runFirmware(ctx context.Context, now uint32) error {
 	// and a 300-node scenario saturating the machine.
 	busy := e.channelBusy(now)
 	for i, n := range nodes {
-		if n.Firmware == nil || e.firmwareIsDown(n.Spec.Name) {
+		if n.Firmware == nil || e.firmwareIsDown(n.specRef().Name) {
 			continue
 		}
 		// What the channel sounds like here, before the node decides whether to
@@ -33,22 +33,22 @@ func (e *Engine) runFirmware(ctx context.Context, now uint32) error {
 		// answer has to arrive before the tick it applies to - a node told after
 		// the fact would be deciding on a channel that has already changed.
 		if err := n.Firmware.Bridge.SetChannelBusy(busy[i]); err != nil {
-			e.markFirmwareDown(n.Spec.Name)
+			e.markFirmwareDown(n.specRef().Name)
 			continue
 		}
 		// Each node's own clock: the run's time plus how long it had already
 		// been powered on when the run began.
 		if err := n.Firmware.Bridge.BeginAdvance(now + n.BootOffsetMs); err != nil {
-			e.markFirmwareDown(n.Spec.Name)
+			e.markFirmwareDown(n.specRef().Name)
 			continue
 		}
 	}
 	for i, n := range nodes {
-		if n.Firmware == nil || e.firmwareIsDown(n.Spec.Name) {
+		if n.Firmware == nil || e.firmwareIsDown(n.specRef().Name) {
 			continue
 		}
 		if err := n.Firmware.Bridge.WaitAdvance(ctx, now+n.BootOffsetMs); err != nil {
-			e.markFirmwareDown(n.Spec.Name)
+			e.markFirmwareDown(n.specRef().Name)
 			continue
 		}
 		// The radio reports how the firmware has configured it in the same

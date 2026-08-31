@@ -32,7 +32,7 @@ func (e *Engine) NodeByName(name string) (*Node, bool) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	for _, n := range e.nodes {
-		if n.Spec.Name == name {
+		if n.specRef().Name == name {
 			return n, true
 		}
 	}

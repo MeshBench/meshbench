@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/MeshBench/meshbench/internal/sim/engine"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
@@ -124,18 +125,27 @@ func (s *Sim) nodeStats(events []state.Event) []state.NodeStat {
 		}
 	}
 
-	nodes := s.liveEngine().Nodes()
+	eng := s.liveEngine()
+	nodes := eng.Nodes()
+	// The counters come off the scoreboard rather than off the nodes, because
+	// the scoreboard reads them under the engine's lock and this runs while a
+	// run is stepping.
+	counted := map[string]engine.Score{}
+	for _, sc := range eng.Scoreboard() {
+		counted[sc.Name] = sc
+	}
 	out := make([]state.NodeStat, 0, len(nodes))
 	live := map[int]bool{}
 	for _, n := range nodes {
-		st := state.NodeStat{Name: n.Spec.Name, Sent: n.Sent, Heard: n.Heard}
-		st.State = s.stateOf(n.Spec.Name)
+		sc := counted[n.Spec().Name]
+		st := state.NodeStat{Name: n.Spec().Name, Sent: sc.Sent, Heard: sc.Heard}
+		st.State = s.stateOf(n.Spec().Name)
 		// By name, not by position. The engine keeps its own list and there
 		// is nothing holding the two in the same order, so indexing one with
 		// the other's subscript reads some other node's build - and a board
 		// read off the wrong node is a Hardware tab that appears on a node
 		// without one and is missing from the node that has it.
-		if spec, ok := s.nodeByName(n.Spec.Name); ok {
+		if spec, ok := s.nodeByName(n.Spec().Name); ok {
 			st.Firmware = spec.Firmware.Version
 			st.Board = spec.Firmware.Board
 		}

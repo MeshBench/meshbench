@@ -173,7 +173,7 @@ func runOneVersion(t *testing.T, board, version string) versionRun {
 			out.Transmits++
 		}
 	}
-	out.EffTxDBm = node.Spec.TxPowerDBm
-	out.EffNoiseFig = node.Spec.NoiseFigureDB
+	out.EffTxDBm = node.Spec().TxPowerDBm
+	out.EffNoiseFig = node.Spec().NoiseFigureDB
 	return out
 }

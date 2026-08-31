@@ -61,7 +61,7 @@ func (e *Engine) phaseStepFor(txNode, rxNode *Node, txPHY phy) float64 {
 	if ppm == 0 {
 		return 0
 	}
-	dppm := oscOffsetPPM(txNode.Spec.Name, ppm) - oscOffsetPPM(rxNode.Spec.Name, ppm)
+	dppm := oscOffsetPPM(txNode.specRef().Name, ppm) - oscOffsetPPM(rxNode.specRef().Name, ppm)
 	offsetHz := txPHY.freqMHz * 1e6 * dppm / 1e6
 	return 2 * math.Pi * offsetHz / txPHY.bandwidthHz
 }

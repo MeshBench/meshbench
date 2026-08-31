@@ -74,7 +74,7 @@ func (e *Engine) completeTransmissions(now uint32) error {
 	for i := range done {
 		if fw := senders[i].Firmware; fw != nil {
 			if err := fw.Bridge.TransmitFinished(); err != nil {
-				return fmt.Errorf("engine: tx done for %s: %w", senders[i].Spec.Name, err)
+				return fmt.Errorf("engine: tx done for %s: %w", senders[i].specRef().Name, err)
 			}
 		}
 	}
@@ -104,13 +104,13 @@ func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCac
 	// The transmitter's own radio settings, not the scenario's. Two nodes on
 	// different presets are on different channels, and a channel that ignores
 	// that lets a UK Narrow repeater decode an Australian one.
-	txPHY := e.phyOf(src.Spec)
+	txPHY := e.phyOf(src.specRef())
 
 	for i, dst := range nodes {
 		if i == t.from {
 			continue
 		}
-		if !dst.Spec.Kind.RunsFirmware() && dst.Spec.Kind != scenario.SDRObserver {
+		if !dst.specRef().Kind.RunsFirmware() && dst.specRef().Kind != scenario.SDRObserver {
 			// Emitters and their kin radiate; they do not listen.
 			continue
 		}
@@ -122,19 +122,19 @@ func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCac
 		// An SDR observer is exempt — it is wideband by definition, and being
 		// able to watch a channel your own nodes are not on is the point of
 		// having one.
-		rxPHY := e.phyOf(dst.Spec)
-		if dst.Spec.Kind != scenario.SDRObserver && !txPHY.sameChannel(rxPHY) {
+		rxPHY := e.phyOf(dst.specRef())
+		if dst.specRef().Kind != scenario.SDRObserver && !txPHY.sameChannel(rxPHY) {
 			continue
 		}
 		// The hybrid: a receiver flagged TrueRF gets the waveform judge even
 		// in a calculated run - a big mesh priced fast, full fidelity where
 		// somebody asked for it. Same gates first, same ledger after.
-		if dst.Spec.TrueRF {
+		if dst.specRef().TrueRF {
 			if e.judgeHybrid(t, i, concurrent, nodes, txPHY, cache) {
 				continue
 			}
 		}
-		noiseDBm := dsp.NoiseFloorDBm(txPHY.bandwidthHz, e.noiseFigOf(dst.Spec))
+		noiseDBm := dsp.NoiseFloorDBm(txPHY.bandwidthHz, e.noiseFigOf(dst.specRef()))
 		// The emitter fleet's contribution, through the same terrain. This is
 		// the per-receiver floor: a node beside a paging mast lives on a
 		// different noise floor from one on a quiet hill.
@@ -145,13 +145,13 @@ func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCac
 
 		loss, ok := e.pathLoss(t.from, i)
 		if !ok {
-			e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.Spec.Name, To: dst.Spec.Name,
+			e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.specRef().Name, To: dst.specRef().Name,
 				PacketID: t.packetID, Outcome: capture.OutOfRange,
 				Detail: "no terrain data covers this path"})
 			continue
 		}
 
-		rxDBm := src.Spec.TxPowerDBm + gain(src.Spec) - loss + gain(dst.Spec)
+		rxDBm := e.rxPowerDBm(nodes, t.from, i, loss)
 		snr := rxDBm - noiseDBm
 
 		// Interference from anything else that was on the air during this
@@ -169,14 +169,14 @@ func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCac
 			// Energy on another channel is not interference. Adding it would
 			// make a mesh on a second preset degrade the first one, which is
 			// the opposite of why an operator splits them.
-			if !e.phyOf(nodes[other.from].Spec).sameChannel(txPHY) {
+			if !e.phyOf(nodes[other.from].specRef()).sameChannel(txPHY) {
 				continue
 			}
 			ol, ok := e.pathLoss(other.from, i)
 			if !ok {
 				continue
 			}
-			p := nodes[other.from].Spec.TxPowerDBm + gain(nodes[other.from].Spec) - ol + gain(dst.Spec)
+			p := e.rxPowerDBm(nodes, other.from, i, ol)
 			interferenceDBm = addDBm(interferenceDBm, p)
 		}
 
@@ -219,22 +219,10 @@ func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCac
 		reported := dsp.ReportSNRdB(effective)
 
 		rec := capture.Reception{
-			PacketID: t.packetID, FromNode: src.Spec.Name, ToNode: dst.Spec.Name,
+			PacketID: t.packetID, FromNode: src.specRef().Name, ToNode: dst.specRef().Name,
 			RSSIdBm: dsp.ReportRSSIdBm(rxDBm), SNRdB: reported,
 			Offered: rxDBm > noiseDBm-10,
 		}
-		// Recorded before the verdict is turned into words: the capture wants
-		// the outcome code, and every receiver's view including the ones that
-		// heard nothing worth reporting in the ledger.
-		defer func() {
-			e.mu.Lock()
-			c := e.capture
-			e.mu.Unlock()
-			if c != nil && rec.Offered {
-				c.write(t.endMs, src.Spec.Name, dst.Spec.Name, txPHY,
-					rec.RSSIdBm, rec.SNRdB, rec.Outcome, rec.CRCOK, t.frame)
-			}
-		}()
 		switch {
 		case !rec.Offered:
 			rec.Outcome = capture.OutOfRange
@@ -250,7 +238,7 @@ func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCac
 			// because it was transmitting. That is a different problem from a
 			// weak signal and has a different fix, which is why it is separate.
 			rec.Outcome = capture.NotDemodulated
-			e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.Spec.Name, To: dst.Spec.Name,
+			e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.specRef().Name, To: dst.specRef().Name,
 				PacketID: t.packetID, MessageID: t.payload, Outcome: rec.Outcome,
 				SNRdB: reported, Frame: t.frame,
 				Detail: "its own transmitter was keyed; LoRa is half duplex"})
@@ -261,7 +249,7 @@ func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCac
 			// have arrived, so a weak signal is never relabelled as a
 			// collision it was never in the running for.
 			rec.Outcome = capture.NotDemodulated
-			e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.Spec.Name, To: dst.Spec.Name,
+			e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.specRef().Name, To: dst.specRef().Name,
 				PacketID: t.packetID, MessageID: t.payload, Outcome: rec.Outcome,
 				SNRdB: reported, Frame: t.frame, Detail: busyDemodulatorDetail(held)})
 		case held == "" && effective >= required && !survives:
@@ -271,7 +259,7 @@ func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCac
 			// guarantee applied to the overlap the timing actually produced.
 			rec.Outcome = capture.NotDemodulated
 			rec.Demod = true
-			e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.Spec.Name, To: dst.Spec.Name,
+			e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.specRef().Name, To: dst.specRef().Name,
 				PacketID: t.packetID, MessageID: t.payload, Outcome: rec.Outcome,
 				SNRdB: reported, Frame: t.frame,
 				Detail: fmt.Sprintf(
@@ -290,24 +278,28 @@ func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCac
 				why = fmt.Sprintf("would have decoded at %.1f dB, lost to a stronger interferer",
 					dsp.ReportSNRdB(snr))
 			}
-			e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.Spec.Name, To: dst.Spec.Name,
+			e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.specRef().Name, To: dst.specRef().Name,
 				PacketID: t.packetID, MessageID: t.payload, Outcome: rec.Outcome,
 				SNRdB: reported, Frame: t.frame, Detail: why})
 		default:
 			rec.Demod, rec.CRCOK, rec.FirmwareSaw = true, true, true
 			rec.Outcome = capture.Accepted
 			e.sens.note(effective-required, true)
-			dst.Heard++
 
 			// Unique against redundant. A repeater can be busy, legal, and
 			// reaching nobody who had not already heard the message — which a
 			// duty-cycle figure hides completely.
 			e.mu.Lock()
-			if e.seen[dst.Spec.Name] == nil {
-				e.seen[dst.Spec.Name] = map[uint64]bool{}
+			// Inside the lock with its siblings, and with the waveform path's
+			// own increment: Scoreboard reads this counter under e.mu, so a
+			// bare increment outside it is a race that loses receptions as
+			// well as reporting them wrong.
+			dst.Heard++
+			if e.seen[dst.specRef().Name] == nil {
+				e.seen[dst.specRef().Name] = map[uint64]bool{}
 			}
-			first := !e.seen[dst.Spec.Name][t.payload]
-			e.seen[dst.Spec.Name][t.payload] = true
+			first := !e.seen[dst.specRef().Name][t.payload]
+			e.seen[dst.specRef().Name][t.payload] = true
 			if first {
 				src.UniqueDelivery++
 			} else {
@@ -323,7 +315,7 @@ func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCac
 				detail = fmt.Sprintf("%d symbol(s) lost to a collision and repaired by FEC; ",
 					repaired) + detail
 			}
-			e.record(Event{AtMs: t.endMs, Kind: "rx", From: src.Spec.Name, To: dst.Spec.Name,
+			e.record(Event{AtMs: t.endMs, Kind: "rx", From: src.specRef().Name, To: dst.specRef().Name,
 				Frame: t.frame, PacketID: t.packetID, MessageID: t.payload,
 				Outcome: rec.Outcome, SNRdB: reported, Detail: detail})
 
@@ -331,7 +323,13 @@ func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCac
 			// hears it and does nothing, which is what an observer is.
 			if dst.Firmware != nil {
 				if err := dst.Firmware.Bridge.Deliver(t.frame); err != nil {
-					return fmt.Errorf("engine: deliver to %s: %w", dst.Spec.Name, err)
+					// The verdict was reached before the handoff, so this
+					// receiver's row is owed to the ledger and the capture
+					// whatever the bridge then did. A run that abandons them
+					// here loses the one reception that explains the failure.
+					e.Ledger.Record(rec)
+					e.captureWrite(t, src, dst, txPHY, rec)
+					return fmt.Errorf("engine: deliver to %s: %w", dst.specRef().Name, err)
 				}
 			}
 		}
@@ -340,14 +338,10 @@ func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCac
 		// The capture takes every receiver's view, including the ones the
 		// ledger does not narrate. That is the point of capturing from a
 		// simulator: a real capture has one vantage point, and "A heard it, B
-		// did not" is the most informative event in a mesh.
-		e.mu.Lock()
-		c := e.capture
-		e.mu.Unlock()
-		if c != nil && rec.Offered {
-			c.write(t.endMs, src.Spec.Name, dst.Spec.Name, txPHY,
-				rec.RSSIdBm, rec.SNRdB, rec.Outcome, rec.CRCOK, t.frame)
-		}
+		// did not" is the most informative event in a mesh. Once per receiver,
+		// after the verdict: a second write of the same row makes a capture
+		// count every reception twice, and the count is what a soak judges on.
+		e.captureWrite(t, src, dst, txPHY, rec)
 	}
 	return nil
 }
@@ -374,13 +368,13 @@ func (e *Engine) collectTransmissions(now uint32) error {
 
 func (e *Engine) startTransmission(from int, frame []byte, now uint32) {
 	e.mu.Lock()
-	spec := e.nodes[from].Spec
+	spec := e.nodes[from].Spec()
 	e.mu.Unlock()
 	// Airtime is a property of the transmitter's own modem settings: the same
 	// bytes at SF12/62.5 occupy the air some forty times longer than at
 	// SF7/250, and a shared figure makes every duty cycle and every collision
 	// window wrong for every node not on the default.
-	phy := e.phyOf(spec)
+	phy := e.phyOf(&spec)
 	airtime := dsp.AirtimeMillis(phy.sf, phy.bandwidthHz, phy.codingRate, len(frame), true, true)
 
 	e.mu.Lock()
@@ -393,7 +387,7 @@ func (e *Engine) startTransmission(from int, frame []byte, now uint32) {
 	e.inFlight = append(e.inFlight, t)
 	e.nodes[from].Sent++
 	e.nodes[from].AirtimeMs += airtime
-	name := e.nodes[from].Spec.Name
+	name := e.nodes[from].specRef().Name
 	e.mu.Unlock()
 
 	e.record(Event{AtMs: now, Kind: "tx", From: name, PacketID: id, MessageID: t.payload, Frame: frame,

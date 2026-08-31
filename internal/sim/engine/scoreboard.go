@@ -25,7 +25,7 @@ func (e *Engine) Scoreboard() []Score {
 	out := make([]Score, 0, len(e.nodes))
 	for _, n := range e.nodes {
 		s := Score{
-			Name: n.Spec.Name, Sent: n.Sent, Heard: n.Heard,
+			Name: n.specRef().Name, Sent: n.Sent, Heard: n.Heard,
 			AirtimeMs:      n.AirtimeMs,
 			UniqueDelivery: n.UniqueDelivery, RedundantRelay: n.RedundantRelay,
 		}
