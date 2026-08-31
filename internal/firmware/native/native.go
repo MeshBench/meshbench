@@ -60,6 +60,9 @@ type Native struct {
 	// caused it - the one signal both need, so Wait is only ever called
 	// once. cmd.Wait called a second time is undefined.
 	exited chan struct{}
+	// waitErr is what cmd.Wait said, kept because it is the only account
+	// anything has of how a node ended. Read only after exited is closed.
+	waitErr error
 }
 
 func (n *Native) Kind() string { return "native" }
@@ -137,8 +140,14 @@ func (n *Native) Start(ctx context.Context, bridgeAddr string) error {
 	// a while is indistinguishable from a leak - and cmd.Wait must only be
 	// called once per process, so this is the only place that ever does.
 	exited := make(chan struct{})
-	n.exited = exited
-	go func() { _ = cmd.Wait(); close(exited) }()
+	n.exited, n.waitErr = exited, nil
+	go func() {
+		err := cmd.Wait()
+		n.mu.Lock()
+		n.waitErr = err
+		n.mu.Unlock()
+		close(exited)
+	}()
 	return nil
 }
 
@@ -155,9 +164,13 @@ func (n *Native) Stop() error {
 	// taking that away from it.
 	select {
 	case <-exited:
-		return nil
+		// However it ended, it ended by itself, so what cmd.Wait said is the
+		// node's own account of it and the only one there will ever be.
+		return n.howItEnded()
 	case <-time.After(gracePeriod):
 	}
+	// Past here the node is being killed, and cmd.Wait will report that kill.
+	// Reporting it back would blame the node for what this function did to it.
 	_ = cmd.Process.Kill()
 	// Bounded, like the grace period before it.
 	//
@@ -179,6 +192,22 @@ func (n *Native) Stop() error {
 		return fmt.Errorf("firmware: native node %d has not been reaped %v after being killed; "+
 			"either the process or the writer taking its output is stuck", cmd.Process.Pid, reapPeriod)
 	}
+}
+
+// howItEnded turns what cmd.Wait said into what the caller is told.
+//
+// The whole reason it is kept. A node that fell over and a node that was asked
+// to stop are different findings, and discarding Wait's error made them the
+// same one: a repeater that dies at minute three of a two-hour run leaves a
+// mesh with a hole in it, every result after that is about a different network
+// from the one the scenario describes, and nothing anywhere said so.
+func (n *Native) howItEnded() error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.waitErr == nil {
+		return nil
+	}
+	return fmt.Errorf("firmware: the native node stopped on its own: %w", n.waitErr)
 }
 
 // Long enough for a node to notice a closed socket and flush, short enough that
