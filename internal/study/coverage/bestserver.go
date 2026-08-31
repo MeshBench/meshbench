@@ -118,9 +118,12 @@ func BestServer(g propagation.HeightGrid, stations []Endpoint, r *Raster, o Opti
 						// The cull: free space is the best any path can do,
 						// and the list is nearest-first, so once even free
 						// space cannot serve this cell or beat its best,
-						// nobody farther can either. The nearest station is
-						// always evaluated, so a gap cell still carries an
-						// honest negative margin rather than silence.
+						// nobody farther can either. It ignores position slack
+						// as well, which only ever lowers a real cell, so the
+						// cull stays on the generous side of every term it
+						// drops. The nearest station is always evaluated, so a
+						// gap cell still carries an honest negative margin
+						// rather than silence.
 						if rank > 0 && opt < 0 && opt < bestMin {
 							break
 						}
@@ -138,7 +141,7 @@ func BestServer(g propagation.HeightGrid, stations []Endpoint, r *Raster, o Opti
 						if cell.Workable() {
 							serving++
 						}
-						m := math.Min(cell.OutboundMarginDB, cell.InboundMarginDB)
+						m := cell.WorstCaseDB()
 						if m > bestMin {
 							best, bestIdx, bestMin = cell, cd.i, m
 						}

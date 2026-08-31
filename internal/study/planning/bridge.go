@@ -18,6 +18,11 @@ type Site struct {
 	// cost.
 	Existing bool
 	Name     string
+
+	// UncertaintyKm is the radius the position is good to. Zero on anything
+	// this package proposes - high ground is chosen, not observed - so it only
+	// ever carries a value on an existing site, from whatever imported it.
+	UncertaintyKm float64
 }
 
 // LinkChecker decides whether two sites can work.
@@ -67,6 +72,15 @@ type Route struct {
 	// LongestHopKm is the weakest part of the chain, and usually the first
 	// thing anyone wants to argue with.
 	LongestHopKm float64
+
+	// UncertainSites counts sites in the chain whose position is not surveyed,
+	// and WorstUncertaintyKm is how loose the loosest of them is. Both, because
+	// "one uncertain site" says nothing until you know whether that is 200 m or
+	// 50 km. Every hop length in a route - and so whether the chain closes at
+	// all - is only as good as the worst position in it, and a route is a plan
+	// to spend money on masts.
+	UncertainSites     int
+	WorstUncertaintyKm float64
 }
 
 // Bridge finds the fewest new sites needed to connect two points.
@@ -238,6 +252,10 @@ func buildRoute(nodes []Site, prev []int, toIdx int) Route {
 	for i, s := range chain {
 		if !s.Existing && i != 0 && i != len(chain)-1 {
 			r.NewSites++
+		}
+		if s.UncertaintyKm > 0 {
+			r.UncertainSites++
+			r.WorstUncertaintyKm = math.Max(r.WorstUncertaintyKm, s.UncertaintyKm)
 		}
 		if i > 0 {
 			if d := distanceKm(chain[i-1], s); d > r.LongestHopKm {

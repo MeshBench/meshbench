@@ -171,6 +171,39 @@ func TestSpreadIsReportedSeparatelyFromBias(t *testing.T) {
 	}
 }
 
+// One reception has a bias and no spread. Reporting "spread 0.0 dB standard
+// deviation" for it claims the tightest calibration anybody has ever measured,
+// off a number compared with itself.
+func TestASingleResidualClaimsNoSpread(t *testing.T) {
+	rep, err := validate.Compare([]provider.Reception{rx("rx-a", "p1", -5)},
+		stations(), flat{100}, params())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep.Used != 1 {
+		t.Fatalf("used %d observations, want 1", rep.Used)
+	}
+	v := rep.Verdict()
+	if contains(v, "standard deviation") {
+		t.Errorf("one observation was given a standard deviation:\n%s", v)
+	}
+	if contains(v, "percentile") {
+		t.Errorf("one observation was given a percentile range:\n%s", v)
+	}
+	if !contains(v, "spread unknown") {
+		t.Errorf("the verdict does not say the spread is unknown:\n%s", v)
+	}
+	// Two of them do have a spread between them, and it is still reported.
+	both, err := validate.Compare([]provider.Reception{
+		rx("rx-a", "p1", -5), rx("rx-b", "p1", -12)}, stations(), flat{100}, params())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !contains(both.Verdict(), "standard deviation") {
+		t.Errorf("two observations lost their spread:\n%s", both.Verdict())
+	}
+}
+
 func TestNoTerrainIsCountedNotFatal(t *testing.T) {
 	rep, err := validate.Compare([]provider.Reception{rx("rx-a", "p1", -5)}, stations(), noTerrain{}, params())
 	if err != nil {

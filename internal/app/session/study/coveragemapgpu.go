@@ -24,6 +24,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/rf/propagation"
 	"github.com/MeshBench/meshbench/internal/rf/terrain"
 	"github.com/MeshBench/meshbench/internal/study/coverage"
+	"github.com/MeshBench/meshbench/internal/study/linkbudget"
 )
 
 // foldBandCells caps one band's cell count: dispatch stays under the
@@ -169,21 +170,27 @@ func foldBandCPU(s *session.Sim, c *coverage.Combined, grid propagation.HeightGr
 	rowsDone func(int)) {
 
 	gw, gh := c.Width, c.Height
-	price := func(sl propagation.FoldSlot, lat, lon, rxAsl float64) (float64, float64, int) {
+	// The kernel prices the two margins; the position slack is this side's,
+	// because the station's uncertainty is not something a per-cell shader has
+	// any use for. It is applied here rather than left out so that a cell off
+	// the device and a cell off cellFromLoss carry the same doubt.
+	price := func(sl propagation.FoldSlot, lat, lon, rxAsl float64) (coverage.Cell, int) {
 		out, in, win := float64(sl.OutDB), float64(sl.InDB), int(sl.Station)
-		if extra == nil || (out < -12 && in < -12) {
-			return out, in, win
-		}
 		st := stations[win]
+		distKm := geo.DistanceKm(st.Lat, st.Lon, lat, lon)
+		cell := coverage.Cell{OutboundMarginDB: out, InboundMarginDB: in,
+			PositionSlackDB: linkbudget.PositionSlackDB(distKm, st.UncertaintyKm, 0)}
+		if extra == nil || (out < -12 && in < -12) {
+			return cell, win
+		}
 		stGround, ok := grid.At(st.Lat, st.Lon)
 		if !ok {
-			return out, in, win
+			return cell, win
 		}
-		distM := geo.DistanceKm(st.Lat, st.Lon, lat, lon) * 1000
-		if e := extra(win, lat, lon, stGround+st.HeightAGLm, rxAsl, distM); e > 0 {
-			out, in = out-e, in-e
+		if e := extra(win, lat, lon, stGround+st.HeightAGLm, rxAsl, distKm*1000); e > 0 {
+			cell.OutboundMarginDB, cell.InboundMarginDB = out-e, in-e
 		}
-		return out, in, win
+		return cell, win
 	}
 	var wg sync.WaitGroup
 	rows := make(chan int)
@@ -208,16 +215,16 @@ func foldBandCPU(s *session.Sim, c *coverage.Combined, grid propagation.HeightGr
 					lon := c.West + (c.East-c.West)*(float64(x)+0.5)/float64(gw)
 					ground, _ := grid.At(lat, lon)
 					rxAsl := ground + o.RemoteHeightAGLm
-					out, in, win := price(b, lat, lon, rxAsl)
+					cell, win := price(b, lat, lon, rxAsl)
 					if sec := second[bi]; sec.Station >= 0 &&
-						math.Min(out, in) < float64(sec.MinDB) {
-						so, si, sw := price(sec, lat, lon, rxAsl)
-						if math.Min(so, si) > math.Min(out, in) {
-							out, in, win = so, si, sw
+						cell.WorstCaseDB() < float64(sec.MinDB) {
+						sc, sw := price(sec, lat, lon, rxAsl)
+						if sc.WorstCaseDB() > cell.WorstCaseDB() {
+							cell, win = sc, sw
 						}
 					}
-					c.Cells[gi] = coverage.Cell{OutboundMarginDB: out, InboundMarginDB: in}
-					c.BestMarginDB[gi] = math.Min(out, in)
+					c.Cells[gi] = cell
+					c.BestMarginDB[gi] = cell.WorstCaseDB()
 					c.BestNode[gi] = win
 					c.ServingCount[gi] = int(served[bi])
 				}

@@ -319,14 +319,24 @@ func (r Report) Verdict() string {
 	if r.MeanDB < 0 {
 		direction = "OPTIMISTIC — the model predicted more signal than arrived, which is the dangerous direction"
 	}
+	// One residual has no spread, and summarise leaves the standard deviation
+	// at zero rather than inventing one. Printing that zero, next to a
+	// percentile range one observation wide, reads as the tightest calibration
+	// anybody has ever measured, when all that happened is a number was
+	// compared with itself.
+	spread := fmt.Sprintf("spread %.1f dB standard deviation, "+
+		"10th to 90th percentile %+.1f to %+.1f dB", r.StdDevDB, r.P10DB, r.P90DB)
+	if r.Used < 2 {
+		spread = "spread unknown, because one observation has none - and the bias " +
+			"above is that single reception, not a calibration"
+	}
 	return fmt.Sprintf(
-		"%d observations. Bias %+.1f dB (%s), spread %.1f dB standard deviation, "+
-			"10th to 90th percentile %+.1f to %+.1f dB.\n\n"+
+		"%d observations. Bias %+.1f dB (%s), %s.\n\n"+
 			"Bias can be calibrated out; spread cannot. %d receptions were skipped "+
 			"(%d no SNR, %d no position, %d too uncertain, %d no terrain), and %d "+
 			"observer-silences were counted but not used as evidence — a node that did "+
 			"not report a packet is not evidence that it could not hear one.",
-		r.Used, r.MeanDB, direction, r.StdDevDB, r.P10DB, r.P90DB,
+		r.Used, r.MeanDB, direction, spread,
 		r.SkippedNoSNR+r.SkippedNoPosition+r.SkippedUncertain+r.SkippedNoTerrain,
 		r.SkippedNoSNR, r.SkippedNoPosition, r.SkippedUncertain, r.SkippedNoTerrain,
 		r.SilentReceivers)

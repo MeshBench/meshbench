@@ -183,6 +183,7 @@ func startCoverageMap(s *session.Sim, st *state.Store, w *state.World, p any) (a
 			Name: n.Name, Lat: n.Position.Lat, Lon: n.Position.Lon,
 			HeightAGLm: n.HeightAGLm, TxPowerDBm: n.TxPowerDBm,
 			SensitivityDBm: linkbudget.SensitivityDBm(n),
+			UncertaintyKm:  n.UncertaintyKm,
 			GainTowardsDBi: func(b, e float64) float64 { return n.Antenna.GainTowardsDBi(b, e) },
 		})
 	}

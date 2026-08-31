@@ -71,6 +71,11 @@ func SensitivityDBm(n scenario.Node) float64 {
 
 // OneWayDB is the margin at b for a transmission from a, given the path loss
 // between them. Positive closes.
+//
+// The best case, and only that: it prices the two nodes exactly where they say
+// they are. Where either was imported rather than surveyed, OneWay carries the
+// same figure with the band that position uncertainty gives it, and that is
+// the one to decide on.
 func OneWayDB(a, b scenario.Node, lossDB float64) float64 {
 	return a.TxPowerDBm + GainDBi(a) - lossDB + GainDBi(b) - SensitivityDBm(b)
 }
@@ -80,6 +85,8 @@ func OneWayDB(a, b scenario.Node, lossDB float64) float64 {
 // The weaker, always, because a link that works one way is not a link: the
 // case worth showing is precisely the one where a mast can be heard by a
 // handheld that it cannot hear back.
+//
+// A best case in the same way OneWayDB is, and for the same reason.
 func MarginDB(a, b scenario.Node, lossDB float64) float64 {
 	return math.Min(OneWayDB(a, b, lossDB), OneWayDB(b, a, lossDB))
 }
