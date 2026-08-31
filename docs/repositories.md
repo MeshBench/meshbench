@@ -9,16 +9,21 @@ those are listed here.
 
 Everything except MeshBench itself is in the **MeshBench** organisation.
 
-| repository | what it is | licence |
-|---|---|---|
-| `MeshBench/meshbench` | MeshBench itself | GPL-3.0-or-later — `docs/licence.md` |
-| `MeshBench/meshcore-native` | host builds of MeshCore, `VirtualSX1262`, the bridge and `radioserver` | see its NOTICE |
-| `MeshBench/meshbench-reports` | the published reports site | — |
-| `MeshBench/qemu` | QEMU with our SX1262 | GPLv2, upstream's |
-| `MeshBench/tlib` | the CPU library, with the SEVONPEND fix | upstream's |
-| `MeshBench/renode-infrastructure` | the C# half of that fix | upstream's |
-| `MeshBench/renode` | ties them together and builds the package | upstream's |
-| `MeshBench/gio` | Gio with Wayland layer-shell windows | upstream's |
+Whether each is public matters, and is stated here because it has to be
+checked rather than assumed: a release publishes binaries built from these, and
+GPL-3.0 section 6 means whoever receives one can have the source that made it.
+A fork nobody outside the organisation can fetch cannot satisfy that.
+
+| repository | what it is | licence | public |
+|---|---|---|---|
+| `MeshBench/meshbench` | MeshBench itself | GPL-3.0-or-later — `docs/licence.md` | at release |
+| `MeshBench/meshcore-native` | host builds of MeshCore, `VirtualSX1262`, the bridge and `radioserver` | see its NOTICE | yes |
+| `MeshBench/meshbench-reports` | the published reports site | — | yes |
+| `MeshBench/qemu` | QEMU with our SX1262 | GPLv2, upstream's | yes |
+| `MeshBench/tlib` | the CPU library, with the SEVONPEND fix | upstream's | yes |
+| `MeshBench/renode-infrastructure` | the C# half of that fix | upstream's | yes |
+| `MeshBench/renode` | ties them together and builds the package | upstream's | yes |
+| `MeshBench/gio` | Gio with Wayland layer-shell windows | upstream's | yes |
 
 ## Forks, and what we changed in each
 
@@ -42,7 +47,7 @@ system path.
 Pinned in `go.mod` by a `replace` directive, the way a Go fork is carried: the
 branch is upstream-plus-one-feature so a rebase is a tag away.
 
-### `MeshBench/qemu` — branch `meshbench-sx1262`
+### `MeshBench/qemu` — branch `meshbench-main`
 
 Forked from Espressif's QEMU fork (`esp-develop`, QEMU 9.2.2). Adds an SX1262
 SPI device, a working GPIO implementation, and machine properties for the radio
@@ -55,7 +60,7 @@ chip present.
 
 Build with `--enable-gcrypt` or the `esp32` machine will not instantiate.
 
-### `MeshBench/tlib` — branch `sevonpend-any-pending`
+### `MeshBench/tlib` — branch `meshbench-main`
 
 Forked from `antmicro/tlib`. One clause: SEVONPEND generates an event for *any*
 exception entering the pending state, not only for ones the CPU would accept.
@@ -67,12 +72,12 @@ firmware that sets SEVONPEND, sleeps on `WFE` and then reads ISPR — handling t
 source in thread mode with the interrupt deliberately disabled — never woke.
 MeshCore's published nRF52 builds do exactly that.
 
-### `MeshBench/renode-infrastructure` — branch `sevonpend-any-pending`
+### `MeshBench/renode-infrastructure` — branch `meshbench-main`
 
 The C# half of the same fix: `AnyInterruptPending`, exported as `PendingIRQ()`
 for the tlib callback. Its own `tlib` submodule points at our fork.
 
-### `MeshBench/renode` — branch `meshbench`
+### `MeshBench/renode` — branch `meshbench-main`
 
 Points `src/Infrastructure` at our fork, and carries a GitHub Actions workflow
 that builds the **portable** package — the one that bundles the .NET runtime, so
