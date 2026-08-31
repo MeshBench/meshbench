@@ -2,11 +2,14 @@ package firmware
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -115,8 +118,14 @@ func (c *NativeCatalogue) CachedImages() []NativeImage {
 	return out
 }
 
-// cachedBinary reports whether a verified download for (role, version) is
-// already on disk.
+// cachedBinary reports whether a download for (role, version) is already on
+// disk and unmodified since it was written.
+//
+// This is the check fetchDirect's own comment says does not happen: that path
+// downloads a child-process executable with no digest to check it against, so
+// what protects a node from running a tampered or corrupted cache entry is
+// this - not the download itself, but every later run that would otherwise
+// have trusted it on sight.
 func (c *NativeCatalogue) cachedBinary(role, version string) (string, bool) {
 	if c.CacheDir == "" {
 		return "", false
@@ -126,10 +135,46 @@ func (c *NativeCatalogue) cachedBinary(role, version string) (string, bool) {
 		name += ".exe"
 	}
 	p := filepath.Join(c.CacheDir, "native", version, name)
-	if st, err := os.Stat(p); err == nil && st.Size() > 0 {
-		return p, true
+	st, err := os.Stat(p)
+	if err != nil || st.Size() == 0 {
+		return "", false
 	}
-	return "", false
+	if !checksumOK(p) {
+		return "", false
+	}
+	return p, true
+}
+
+// checksumSidecarPath is where a downloaded binary's own digest is kept, so a
+// cache hit can be checked as strictly as a fresh download.
+func checksumSidecarPath(bin string) string { return bin + ".sha256" }
+
+// recordChecksum writes what was just downloaded, so a later cache hit can be
+// checked against it.
+func recordChecksum(bin string, body []byte) error {
+	sum := sha256.Sum256(body)
+	return os.WriteFile(checksumSidecarPath(bin), []byte(hex.EncodeToString(sum[:])+"\n"), 0o644)
+}
+
+// checksumOK reports whether a cached binary still has the bytes it was
+// written with.
+//
+// A missing sidecar - a cache from before this existed - is trusted rather
+// than refused: that is the exact behaviour the fast path already had, on
+// every file it ever wrote, and refusing it now would strand an offline
+// machine on firmware it downloaded successfully. The guarantee this adds is
+// forward-looking: anything recorded from here on is checked every time it is
+// served again.
+func checksumOK(bin string) bool {
+	want, err := os.ReadFile(checksumSidecarPath(bin))
+	if err != nil {
+		return true
+	}
+	got, err := os.ReadFile(bin)
+	if err != nil {
+		return false
+	}
+	return Verify(got, strings.TrimSpace(string(want))) == nil
 }
 
 func contains(list []string, want string) bool {

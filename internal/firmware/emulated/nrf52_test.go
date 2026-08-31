@@ -74,7 +74,10 @@ func TestFlashLaysTheSoftDeviceUnderTheApplication(t *testing.T) {
 	}
 	// Four bytes at 0x0000 and one at 0x0010, which is inside the joining
 	// stride, so they come back as one region with erased fill between.
-	hexFile := ":04000000DEADBEEF79\n:0100100042AD\n:00000001FF\n"
+	//
+	// The trailing byte of each record is its Intel HEX checksum, and it is
+	// checked now, so these are the real ones rather than filler.
+	hexFile := ":04000000DEADBEEFC4\n:0100100042AD\n:00000001FF\n"
 	if err := os.WriteFile(filepath.Join(sd, "s140_nrf52_6.1.1_softdevice.hex"),
 		[]byte(hexFile), 0o644); err != nil {
 		t.Fatal(err)
