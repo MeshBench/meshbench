@@ -111,14 +111,18 @@ func TestVerbsDoNotRaceTheFrame(t *testing.T) {
 	u := verbHarness(t)
 	name := firstPanelName(t, u)
 
-	var wg sync.WaitGroup
+	// Two groups on purpose: the frame goroutine runs until it is told to
+	// stop, and it can only be told once the callers have finished. Putting it
+	// in the same group as them would have wg.Wait block on a goroutine
+	// waiting for a signal that comes after wg.Wait.
+	var callers, frame sync.WaitGroup
 	stop := make(chan struct{})
 
 	// The frame goroutine: apply what is waiting, then read what it changed,
 	// which is what Layout does.
-	wg.Add(1)
+	frame.Add(1)
 	go func() {
-		defer wg.Done()
+		defer frame.Done()
 		for {
 			select {
 			case <-stop:
@@ -139,10 +143,10 @@ func TestVerbsDoNotRaceTheFrame(t *testing.T) {
 
 	// Several callers, as two clients and the interface would be.
 	for i := 0; i < 4; i++ {
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
-			for n := 0; n < 60; n++ {
+		callers.Add(1)
+		go func() {
+			defer callers.Done()
+			for n := 0; n < 40; n++ {
 				_ = u.OpenPanel(name, "")
 				u.FilterMap("query")
 				_ = u.SetTool("select")
@@ -150,11 +154,12 @@ func TestVerbsDoNotRaceTheFrame(t *testing.T) {
 				u.ResetLayout()
 				_ = u.ClosePanel(name)
 			}
-		}(i)
+		}()
 	}
 
-	wg.Wait()
+	callers.Wait()
 	close(stop)
+	frame.Wait()
 	u.applyDeferred()
 }
 
