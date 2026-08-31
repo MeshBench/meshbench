@@ -125,6 +125,7 @@ func (n *Native) Start(ctx context.Context, bridgeAddr string) error {
 	if cmd.Stderr == nil {
 		cmd.Stderr = io.Discard
 	}
+
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("firmware: launch %s: %w", path, err)
 	}
@@ -154,13 +155,36 @@ func (n *Native) Stop() error {
 	// taking that away from it.
 	select {
 	case <-exited:
+		return nil
 	case <-time.After(gracePeriod):
-		_ = cmd.Process.Kill()
-		<-exited
 	}
-	return nil
+	_ = cmd.Process.Kill()
+	// Bounded, like the grace period before it.
+	//
+	// Killing a process is not the end of waiting for one. cmd.Wait waits for
+	// the goroutine os/exec uses to copy the node's output as well as for the
+	// process, and that writer is the caller's: the engine hands every native
+	// node a file on whatever filesystem the operator keeps their cache on, and
+	// a stalled mount is a write that never returns. So the wait after the kill
+	// outlived the process it was waiting for, with no deadline at all, and
+	// took the whole teardown with it.
+	//
+	// Reported rather than absorbed. A node this backend can no longer account
+	// for is somebody's next question, and returning nil for it says the
+	// opposite.
+	select {
+	case <-exited:
+		return nil
+	case <-time.After(reapPeriod):
+		return fmt.Errorf("firmware: native node %d has not been reaped %v after being killed; "+
+			"either the process or the writer taking its output is stuck", cmd.Process.Pid, reapPeriod)
+	}
 }
 
 // Long enough for a node to notice a closed socket and flush, short enough that
 // a hung node does not stall a scenario tearing down a hundred of them.
 const gracePeriod = 2 * time.Second
+
+// reapPeriod is how long the kill is given to take effect. It exists only so
+// that a teardown ends, and a node that is behaving never reaches it.
+const reapPeriod = 5 * time.Second
