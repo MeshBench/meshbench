@@ -141,15 +141,22 @@ func (d *Device) DemodBatch(rx []complex64, sf int) (bins []int, conf []float64,
 	}
 	d.queue.Submit(cmd)
 
-	done := make(chan wgpu.BufferMapAsyncStatus, 1)
+	// Every other readback in this package polls in a loop until its callback
+	// fires rather than trusting one blocking call to be enough - match that
+	// here too, since a callback that needs a second poll to land is exactly
+	// the kind of thing that only shows up on an untested driver.
+	status := wgpu.BufferMapAsyncStatusUnknown
+	done := false
 	err = read.MapAsync(wgpu.MapModeRead, 0, outLen,
-		func(s wgpu.BufferMapAsyncStatus) { done <- s })
+		func(s wgpu.BufferMapAsyncStatus) { status, done = s, true })
 	if err != nil {
 		return nil, nil, err
 	}
-	d.device.Poll(true, nil)
-	if s := <-done; s != wgpu.BufferMapAsyncStatusSuccess {
-		return nil, nil, fmt.Errorf("gpu: demod readback: %v", s)
+	for !done {
+		d.device.Poll(true, nil)
+	}
+	if status != wgpu.BufferMapAsyncStatusSuccess {
+		return nil, nil, fmt.Errorf("gpu: demod readback: %v", status)
 	}
 	raw := read.GetMappedRange(0, uint(outLen))
 	pairs := unsafe.Slice((*uint32)(unsafe.Pointer(&raw[0])), symbols*2)
