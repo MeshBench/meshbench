@@ -1,6 +1,7 @@
 package fakenative
 
 import (
+	"context"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -33,6 +34,11 @@ const (
 // already covered that; this covers the rest.
 const stuckLimit = 2 * time.Minute
 
+// dialTimeout is how long the stand-in waits for the bridge it was pointed at.
+// The listener is already open before the child is launched, so this only ever
+// fires on an address that was never going to answer.
+const dialTimeout = 30 * time.Second
+
 // Serve runs this process as a stand-in for a native node and returns the
 // status it should exit with. A test binary's TestMain calls it when Mode is
 // not empty.
@@ -64,7 +70,12 @@ func attach() int {
 		fmt.Fprintln(os.Stderr, "no --bridge address")
 		return 2
 	}
-	c, err := net.Dial("tcp", addr)
+	// With a deadline, because a test that mistypes the address should see a
+	// child that gave up and said so rather than one that sits there being
+	// waited for by whatever budget the caller happened to set.
+	dialCtx, cancel := context.WithTimeout(context.Background(), dialTimeout)
+	defer cancel()
+	c, err := (&net.Dialer{}).DialContext(dialCtx, "tcp", addr)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "bridge dial:", err)
 		return 2
