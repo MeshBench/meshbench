@@ -73,6 +73,8 @@ internal/firmware/  running real firmware against the radio, native or emulated;
   board/              one board_<name>.go per real board, its wiring and parts
   native/             the native backend: MeshCore built for this host, run
                       as a child process
+  fakenative/         a stand-in for that child process, so the lifecycle
+                      around it can be tested without a MeshCore build
   emulated/           the emulator runner: the node, the flash images, and what
                       a published image boots against
     qemu/               the QEMU -machine argument, composed from a board's wiring

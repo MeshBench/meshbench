@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
@@ -18,6 +19,17 @@ import (
 func TestLiveEmulatedNodeJoinsTheEngine(t *testing.T) {
 	if os.Getenv("MESHBENCH_LIVE") == "" {
 		t.Skip("set MESHBENCH_LIVE=1")
+	}
+	// And an emulator to run it in. Without this the test failed on every
+	// machine that has no QEMU, which reads as a broken emulated backend and is
+	// nothing of the sort - and it is the reason a live job could not simply be
+	// pointed at the whole tree. Ours carries an SX1262 the distribution builds
+	// have not got, so a bare name on PATH is only a last resort here as it is
+	// in the lookup itself.
+	if os.Getenv(emulated.EnvQEMU) == "" {
+		if _, err := exec.LookPath("qemu-system-xtensa"); err != nil {
+			t.Skipf("no emulator: set %s to a build carrying the SX1262 device", emulated.EnvQEMU)
+		}
 	}
 	dir := t.TempDir()
 	ctx, cancel := context.WithTimeout(context.Background(), 240*time.Second)

@@ -60,6 +60,9 @@ type Native struct {
 	// caused it - the one signal both need, so Wait is only ever called
 	// once. cmd.Wait called a second time is undefined.
 	exited chan struct{}
+	// waitErr is what cmd.Wait said, kept because it is the only account
+	// anything has of how a node ended. Read only after exited is closed.
+	waitErr error
 }
 
 func (n *Native) Kind() string { return "native" }
@@ -75,8 +78,14 @@ func (n *Native) ConsoleIn() io.Writer { return nil }
 //
 // Exposed so an interface can say what a node costs. With 154 of these on one
 // machine, "which node is using the memory" is a question somebody asks well
-// before they ask anything about radio.
+// before they ask anything about radio - from a panel on the frame thread,
+// while the engine is starting and stopping nodes on goroutines of its own.
+// Under the lock for that reason: both writers hold it, and a read that did
+// not was a race the detector reports and a torn read reports as a process
+// belonging to a node that has none.
 func (n *Native) PID() int {
+	n.mu.Lock()
+	defer n.mu.Unlock()
 	if n.cmd == nil || n.cmd.Process == nil {
 		return 0
 	}
@@ -119,6 +128,7 @@ func (n *Native) Start(ctx context.Context, bridgeAddr string) error {
 	if cmd.Stderr == nil {
 		cmd.Stderr = io.Discard
 	}
+
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("firmware: launch %s: %w", path, err)
 	}
@@ -130,8 +140,14 @@ func (n *Native) Start(ctx context.Context, bridgeAddr string) error {
 	// a while is indistinguishable from a leak - and cmd.Wait must only be
 	// called once per process, so this is the only place that ever does.
 	exited := make(chan struct{})
-	n.exited = exited
-	go func() { _ = cmd.Wait(); close(exited) }()
+	n.exited, n.waitErr = exited, nil
+	go func() {
+		err := cmd.Wait()
+		n.mu.Lock()
+		n.waitErr = err
+		n.mu.Unlock()
+		close(exited)
+	}()
 	return nil
 }
 
@@ -148,13 +164,56 @@ func (n *Native) Stop() error {
 	// taking that away from it.
 	select {
 	case <-exited:
+		// However it ended, it ended by itself, so what cmd.Wait said is the
+		// node's own account of it and the only one there will ever be.
+		return n.howItEnded()
 	case <-time.After(gracePeriod):
-		_ = cmd.Process.Kill()
-		<-exited
 	}
-	return nil
+	// Past here the node is being killed, and cmd.Wait will report that kill.
+	// Reporting it back would blame the node for what this function did to it.
+	_ = cmd.Process.Kill()
+	// Bounded, like the grace period before it.
+	//
+	// Killing a process is not the end of waiting for one. cmd.Wait waits for
+	// the goroutine os/exec uses to copy the node's output as well as for the
+	// process, and that writer is the caller's: the engine hands every native
+	// node a file on whatever filesystem the operator keeps their cache on, and
+	// a stalled mount is a write that never returns. So the wait after the kill
+	// outlived the process it was waiting for, with no deadline at all, and
+	// took the whole teardown with it.
+	//
+	// Reported rather than absorbed. A node this backend can no longer account
+	// for is somebody's next question, and returning nil for it says the
+	// opposite.
+	select {
+	case <-exited:
+		return nil
+	case <-time.After(reapPeriod):
+		return fmt.Errorf("firmware: native node %d has not been reaped %v after being killed; "+
+			"either the process or the writer taking its output is stuck", cmd.Process.Pid, reapPeriod)
+	}
+}
+
+// howItEnded turns what cmd.Wait said into what the caller is told.
+//
+// The whole reason it is kept. A node that fell over and a node that was asked
+// to stop are different findings, and discarding Wait's error made them the
+// same one: a repeater that dies at minute three of a two-hour run leaves a
+// mesh with a hole in it, every result after that is about a different network
+// from the one the scenario describes, and nothing anywhere said so.
+func (n *Native) howItEnded() error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.waitErr == nil {
+		return nil
+	}
+	return fmt.Errorf("firmware: the native node stopped on its own: %w", n.waitErr)
 }
 
 // Long enough for a node to notice a closed socket and flush, short enough that
 // a hung node does not stall a scenario tearing down a hundred of them.
 const gracePeriod = 2 * time.Second
+
+// reapPeriod is how long the kill is given to take effect. It exists only so
+// that a teardown ends, and a node that is behaving never reaches it.
+const reapPeriod = 5 * time.Second

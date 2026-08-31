@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"os/exec"
 	"strconv"
@@ -29,7 +30,12 @@ func nativeNode(t *testing.T, seed uint64) (*firmware.Node, *bytes.Buffer) {
 		t.Fatal(err)
 	}
 	log := &bytes.Buffer{}
-	n, err := firmware.Start(context.Background(), "native-1", &native.Native{Seed: seed, Log: log})
+	// A working directory of its own. Without one the node inherits the test's,
+	// which is the package's own source directory, and the repeater persists its
+	// identity to "flash" on first boot - so running these left a _main.id in
+	// the tree, and every one of them shared the identity the first had written.
+	n, err := firmware.Start(context.Background(), "native-1",
+		&native.Native{Seed: seed, Log: log, WorkDir: t.TempDir()})
 	if err != nil {
 		t.Fatalf("start native node: %v", err)
 	}
@@ -115,13 +121,29 @@ func TestNativeNodeDeliversAndTransmits(t *testing.T) {
 	}
 	_ = n.Close()
 
-	// The node reports its own counters on the way out, which is the only
-	// evidence available that the frame got past the socket and into Mesh.
-	if !bytes.Contains(log.Bytes(), []byte("MeshCore up")) {
-		t.Fatalf("node never reported MeshCore starting; stderr:\n%s", log)
+	saidItReached(t, log, 2000)
+}
+
+// saidItReached checks the node's own account of its run: that the firmware
+// came up, and that it left on a closed socket having reached the last tick it
+// was given.
+//
+// The simulated time in the closing line is the evidence that matters. A node
+// that connected and then stopped processing ticks closes just the same, and
+// the number is the only thing that tells the two apart.
+//
+// These are the words the published builds print, checked against
+// repeater-v1.17.1 and main. The pair this used to look for - "MeshCore up"
+// and "bridge closed" - are not among them and had not been for some time,
+// which nothing noticed because no pipeline ever ran a native node.
+func saidItReached(t *testing.T, log *bytes.Buffer, atMs uint32) {
+	t.Helper()
+	if !bytes.Contains(log.Bytes(), []byte("radio_init")) {
+		t.Fatalf("node never reported its radio coming up; stderr:\n%s", log)
 	}
-	if !bytes.Contains(log.Bytes(), []byte("bridge closed")) {
-		t.Fatalf("node did not shut down cleanly; stderr:\n%s", log)
+	want := fmt.Sprintf("bridge: closed after %d ms", atMs)
+	if !bytes.Contains(log.Bytes(), []byte(want)) {
+		t.Fatalf("node did not report closing at %d ms; stderr:\n%s", atMs, log)
 	}
 }
 
@@ -153,32 +175,44 @@ func TestNativeStopIsSafeWithoutStart(t *testing.T) {
 // nothing compares are two formulas, and CLAUDE.md's rule is that they must
 // agree: the firmware's CSMA timing is built on its own number, so a drift
 // desynchronises the mesh from the channel silently.
+//
+// Asked at the settings the build was compiled with, because those are the only
+// ones it will answer about. See the sweep below.
 func TestNativeAirtimeAgreesWithTheChannel(t *testing.T) {
-	bin, err := firmware.FindNative("", "simple_repeater")
-	if err != nil {
-		if errors.Is(err, firmware.ErrNativeMissing) {
-			t.Skipf("no native node binary: %v", err)
+	bin := nativeBinary(t)
+	for _, n := range []int{1, 16, 40, 64, 200} {
+		want := dsp.AirtimeMillis(builtInSF, builtInBWkHz*1000, builtInCR, n, true, true)
+		got := nodeAirtime(t, bin, n, 0, 0, 0)
+		// One millisecond, because the firmware truncates in float and the
+		// channel truncates in float64.
+		if math.Abs(float64(got)-want) > 1 {
+			t.Errorf("%d bytes: node says %d ms, channel says %.0f ms", n, got, want)
 		}
-		t.Fatal(err)
+	}
+}
+
+// The same agreement across the modem settings a scenario can actually choose,
+// which is where a drift would do the most damage: the same bytes at SF12/62.5
+// occupy the air some forty times longer than at SF7/250.
+//
+// Skipped, loudly, on a build whose --print-airtime ignores --sf, --bw-khz and
+// --cr. Both published repeater builds do - repeater-v1.17.1 and main answer
+// the same number for SF7 and SF12 - so this can only be asked of the compiled
+// default until MeshBench/meshcore-native applies those flags before printing.
+// Skipped rather than dropped: the day it does, this starts checking again
+// without anyone remembering to write it.
+func TestNativeAirtimeAgreesAcrossTheModemSettings(t *testing.T) {
+	bin := nativeBinary(t)
+	if slow, fast := nodeAirtime(t, bin, 64, 12, 125, 1), nodeAirtime(t, bin, 64, 7, 125, 1); slow == fast {
+		t.Skipf("this build answers %d ms for SF12 and for SF7, so it is not applying "+
+			"--sf/--bw-khz/--cr to --print-airtime and only its compiled default can be "+
+			"compared; that is MeshBench/meshcore-native's to fix", slow)
 	}
 	for _, sf := range []int{7, 8, 9, 10, 11, 12} {
 		for _, bwKHz := range []float64{125, 250} {
 			for _, n := range []int{1, 16, 64, 200} {
 				want := dsp.AirtimeMillis(sf, bwKHz*1000, 1, n, true, true)
-				out, err := exec.Command(bin,
-					"--print-airtime", strconv.Itoa(n),
-					"--sf", strconv.Itoa(sf),
-					"--bw-khz", strconv.FormatFloat(bwKHz, 'f', -1, 64),
-					"--cr", "1").Output()
-				if err != nil {
-					t.Fatalf("SF%d BW%.0f n=%d: %v", sf, bwKHz, n, err)
-				}
-				got, err := strconv.Atoi(strings.TrimSpace(string(out)))
-				if err != nil {
-					t.Fatalf("unparseable airtime %q: %v", out, err)
-				}
-				// One millisecond, because the firmware truncates in float and
-				// the channel truncates in float64.
+				got := nodeAirtime(t, bin, n, sf, bwKHz, 1)
 				if math.Abs(float64(got)-want) > 1 {
 					t.Errorf("SF%d BW%.0fkHz %d bytes: node says %d ms, channel says %.0f ms",
 						sf, bwKHz, n, got, want)
@@ -186,6 +220,49 @@ func TestNativeAirtimeAgreesWithTheChannel(t *testing.T) {
 			}
 		}
 	}
+}
+
+// What the published repeater build is compiled for, and therefore what
+// --print-airtime is about when it is given nothing else: 300 ms for a
+// 40-byte packet, which is the figure the catalogue's own live check uses to
+// tell a good download from a truncated one.
+const (
+	builtInSF    = 10
+	builtInBWkHz = 250.0
+	builtInCR    = 1
+)
+
+func nativeBinary(t *testing.T) string {
+	t.Helper()
+	bin, err := firmware.FindNative("", "simple_repeater")
+	if err != nil {
+		if errors.Is(err, firmware.ErrNativeMissing) {
+			t.Skipf("no native node binary: %v", err)
+		}
+		t.Fatal(err)
+	}
+	return bin
+}
+
+// nodeAirtime asks the firmware for its own estimate. A zero spreading factor
+// means ask about whatever the build was compiled with.
+func nodeAirtime(t *testing.T, bin string, n, sf int, bwKHz float64, cr int) int {
+	t.Helper()
+	args := []string{"--print-airtime", strconv.Itoa(n)}
+	if sf != 0 {
+		args = append(args, "--sf", strconv.Itoa(sf),
+			"--bw-khz", strconv.FormatFloat(bwKHz, 'f', -1, 64),
+			"--cr", strconv.Itoa(cr))
+	}
+	out, err := exec.Command(bin, args...).Output()
+	if err != nil {
+		t.Fatalf("asking the node for the airtime of %d bytes: %v", n, err)
+	}
+	ms, err := strconv.Atoi(strings.TrimSpace(string(out)))
+	if err != nil {
+		t.Fatalf("unparseable airtime %q: %v", out, err)
+	}
+	return ms
 }
 
 // The node must not decide for itself when its transmission ended. It waits to
@@ -212,7 +289,5 @@ func TestNodeWaitsForTheEngineToEndTransmission(t *testing.T) {
 		t.Fatalf("advance after tx done: %v", err)
 	}
 	_ = n.Close()
-	if !bytes.Contains(log.Bytes(), []byte("bridge closed")) {
-		t.Fatalf("node did not shut down cleanly; stderr:\n%s", log)
-	}
+	saidItReached(t, log, 5010)
 }

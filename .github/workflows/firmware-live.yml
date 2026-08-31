@@ -1,0 +1,161 @@
+name: Firmware live
+
+# The tests that need a real MeshCore process, which nothing has ever run.
+#
+# Thirty-two tests skip without MESHBENCH_LIVE, six more without
+# MESHBENCH_BOARD, and none of those three names appeared anywhere in this
+# directory. Five of the seven tests beside the native backend resolve a
+# MeshCore build and skip when there is none, and no job ever fetched one - so
+# TestNativeAirtimeAgreesWithTheChannel, which checks a rule CLAUDE.md states
+# about itself ("airtime must match the firmware's own getEstAirtimeFor()"),
+# had never run in the pipeline at all. A firmware drift there desynchronises
+# the mesh from the channel silently, which is exactly the failure a nightly
+# is for.
+#
+# Not on every push. It starts real processes and takes tens of minutes, and
+# CI's own file makes the argument: a check nobody waits for is a check that
+# gets worked around. Nightly, on request, or on a pull request labelled
+# firmware-live when a change is expected to move any of this.
+
+on:
+  schedule:
+    # Small hours, and not on the hour: the lab runners are shared, and every
+    # cron in the world fires at :00.
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      board:
+        description: >-
+          An emulated board to probe as well, e.g. Generic_E22_sx1262. Needs a
+          runner with the QEMU or Renode toolchain: docs/development-machines.md
+          records that the lab runners have none, so this is for a machine that
+          does. Left empty, the board probe is skipped rather than left to fail
+          slowly.
+        required: false
+        default: ""
+      board_version:
+        description: "Firmware version for that board, e.g. v1.17.1"
+        required: false
+        default: "v1.17.1"
+  pull_request:
+    # "labeled" is GitHub's spelling of the event, not this project's spelling
+    # of the word.
+    types: [opened, synchronize, reopened, labeled]
+
+permissions:
+  contents: read
+
+# One live run at a time, and never cancelled part way.
+#
+# docs/development-machines.md is explicit that emulated boards run one at a
+# time, because several at once take a twelve-core machine down - and a live
+# run also holds one of three shared runners for the whole of its length.
+# cancel-in-progress stays false so a nightly that is already booting a board
+# is not interrupted by somebody's dispatch.
+concurrency:
+  group: firmware-live
+  cancel-in-progress: false
+
+jobs:
+  live:
+    # On a pull request only when it is asked for by name. The label is the
+    # whole trigger: this is far too slow to sit in front of a merge.
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'firmware-live')
+    timeout-minutes: 60
+    # The same fork guard ci.yml computes rather than hardcodes: the lab
+    # runners sit on a home LAN with a NAS mounted, so a stranger's code must
+    # never land on one. Forks fall back to hosted runners, where everything
+    # here still works - the MeshCore builds are downloaded from a public
+    # release, and no board is probed without the dispatch input.
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","lab-linux"]') || fromJSON('["ubuntu-latest"]') }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.25"
+          # cache: false, as in ci.yml - a persistent self-hosted runner
+          # already has a warm GOMODCACHE, and uploading it over the lab's
+          # uplink has stalled a run before.
+          cache: false
+
+      # cgo, through Gio. The session and cmd packages compile the UI, so the
+      # headers are needed even though nothing opens a window.
+      - name: Headers cgo needs
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            gcc pkg-config libgl1-mesa-dev xorg-dev \
+            libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev \
+            libx11-xcb-dev libegl1-mesa-dev libvulkan-dev libffi-dev
+
+      # MeshCore, built for this host, from the public release the simulator
+      # downloads at runtime anyway (ADR-0020: those binaries link MeshCore and
+      # are published under its MIT licence, from a repository of their own).
+      #
+      # Fetched here rather than left to the tests so that a release that has
+      # moved fails on this step, saying so, instead of turning every live test
+      # into a skip that reads like a pass. One directory holding one build per
+      # role, which is what MESHBENCH_NATIVE wants: pointing it at a single
+      # binary would override every node regardless of role.
+      - name: The MeshCore builds the live tests run
+        env:
+          NATIVE_TAGS: repeater-v1.17.1 companion-v1.17.1 room-server-v1.17.1
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/native"
+          mkdir -p "$dir"
+          base=https://github.com/MeshBench/meshcore-native/releases/download
+          for tag in $NATIVE_TAGS; do
+            case "$tag" in
+              repeater-*)    role=simple_repeater ;;
+              companion-*)   role=companion_radio ;;
+              room-server-*) role=simple_room_server ;;
+              # Rather than carrying the previous iteration's role forward and
+              # downloading the same binary twice under two names.
+              *) echo "no role known for tag $tag"; exit 1 ;;
+            esac
+            name="meshcore-$role-linux-amd64"
+            curl -fsSL -o "$dir/$name" "$base/$tag/$name"
+            chmod +x "$dir/$name"
+          done
+          ls -l "$dir"
+          # The airtime it reports for a 40-byte packet at the defaults, which
+          # is the one number a broken or truncated download gets wrong loudly.
+          "$dir/meshcore-simple_repeater-linux-amd64" --print-airtime 40
+          echo "MESHBENCH_NATIVE=$dir" >> "$GITHUB_ENV"
+
+      - name: The gated suite
+        env:
+          MESHBENCH_LIVE: "1"
+          MESHBENCH_BOARD: ${{ inputs.board }}
+          MESHBENCH_BOARD_VERSION: ${{ inputs.board_version }}
+        run: |
+          set -euo pipefail
+          # A node keeps its identity and its preferences between runs, which
+          # is how hardware behaves and a trap for a comparison: saved
+          # preferences beat a compiled default. A directory per run gives
+          # every node one that has never booted.
+          export MESHBENCH_NODEFS="$RUNNER_TEMP/nodefs"
+          # The packages a native build alone is enough for. internal/sim/engine
+          # is not among them: half its live tests boot a published board image
+          # under QEMU beside radioserver, and on a machine without those they
+          # fail rather than skip, saying the tool is missing. Running them here
+          # would be a red job every night reporting a runner's toolchain, not a
+          # regression. They join in when a board is named, which is the moment
+          # somebody has a machine that can.
+          pkgs="./cmd/meshbench/... ./internal/firmware/... ./internal/sim/boardcheck/... ./internal/app/session/..."
+          skip=""
+          if [ -n "${MESHBENCH_BOARD}" ]; then
+            pkgs="$pkgs ./internal/sim/engine/..."
+          else
+            # TestProbeOneBoard defaults to a board rather than skipping, so
+            # without an emulator it downloads an image, fails to boot it and
+            # reports nothing, for twenty minutes.
+            skip="-skip TestProbeOneBoard"
+          fi
+          # -p 1: one package at a time. Every one of these starts real
+          # processes, and the emulated ones must run one at a time or they
+          # take the machine down - docs/development-machines.md, learned by
+          # taking one down.
+          go test -count=1 -timeout 50m -p 1 $skip $pkgs
