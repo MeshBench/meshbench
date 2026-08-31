@@ -59,6 +59,37 @@ type workbenchUI struct {
 	// them from the store's goroutine.
 	camMu   sync.Mutex
 	camWant *cameraWant
+
+	// deferred is everything else a verb asked the interface to do, waiting
+	// for the goroutine allowed to do it.
+	//
+	// The shell's views and layouts and the map view's own fields are read and
+	// written by the frame loop every frame, and a verb runs on the store's
+	// goroutine, so a verb that touched them directly was a data race on the
+	// path the control socket exists to drive. A verb checks what it can
+	// answer for straight away - that a panel exists, that a layer is real -
+	// and leaves the change here.
+	workMu sync.Mutex
+	work   []func()
+}
+
+// onFrame leaves work for the goroutine that owns the interface.
+func (u *workbenchUI) onFrame(f func()) {
+	u.workMu.Lock()
+	u.work = append(u.work, f)
+	u.workMu.Unlock()
+}
+
+// applyDeferred runs what the verbs left, on the frame goroutine, before
+// anything is drawn from it.
+func (u *workbenchUI) applyDeferred() {
+	u.workMu.Lock()
+	work := u.work
+	u.work = nil
+	u.workMu.Unlock()
+	for _, f := range work {
+		f()
+	}
 }
 
 type cameraWant struct {

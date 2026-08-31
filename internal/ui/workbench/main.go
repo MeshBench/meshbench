@@ -457,6 +457,10 @@ func Run(args []string) {
 					th = theme.New(m, d, sh2)
 					thGen = g
 				}
+				// What the verbs asked for, applied here because this is the
+				// goroutine allowed to do it, and before anything is drawn
+				// from what they change.
+				wbUI.applyDeferred()
 				if p := sh.Panels[*panelFlag]; p != nil {
 					comp.Fill(gtx, th.P.Ground)
 					p.Draw(th, gtx, st.Snapshot())

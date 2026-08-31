@@ -44,13 +44,15 @@ func (u *workbenchUI) OpenPanel(name, where string) error {
 		for _, n := range shell.PanelsIn(shell.View(v)) {
 			if n == name {
 				pendingView.Store(int32(v) + 1)
-				u.sh.View = shell.View(v)
-				u.sh.Dock(name)
+				u.onFrame(func() {
+					u.sh.View = shell.View(v)
+					u.sh.Dock(name)
+				})
 				return nil
 			}
 		}
 	}
-	u.sh.Dock(name)
+	u.onFrame(func() { u.sh.Dock(name) })
 	return nil
 }
 
@@ -59,14 +61,19 @@ func (u *workbenchUI) ClosePanel(name string) error {
 		return fmt.Errorf("no panel %q; there is: %s", name,
 			strings.Join(u.PanelNames(), ", "))
 	}
-	if !u.sh.Visible(name) {
-		return fmt.Errorf("%s is not in this view's layout", name)
-	}
-	u.sh.Undock(name)
+	// Whether it is in the layout is not asked here, only whether it exists.
+	// The layout is the frame goroutine's, and reading it from a verb was the
+	// race this hand-off exists to remove. It was also an answer with a short
+	// life: by the time a caller read "not in this view's layout" the view
+	// could have changed twice. Closing a panel that is not open is a no-op,
+	// which is what a caller asking for it wanted anyway.
+	u.onFrame(func() { u.sh.Undock(name) })
 	return nil
 }
 
-func (u *workbenchUI) ResetLayout() { u.sh.ResetLayout(u.sh.View) }
+func (u *workbenchUI) ResetLayout() {
+	u.onFrame(func() { u.sh.ResetLayout(u.sh.View) })
+}
 
 func (u *workbenchUI) CloseWindow(name string) error {
 	if u.closeWin == nil {
@@ -149,7 +156,8 @@ func (u *workbenchUI) LoadView(name string) error {
 		return err
 	}
 	if len(v.Layouts) > 0 {
-		u.sh.LoadLayouts(v.Layouts)
+		layouts := v.Layouts
+		u.onFrame(func() { u.sh.LoadLayouts(layouts) })
 	}
 	if v.View >= 0 && v.View < int(shell.NumViews) {
 		pendingView.Store(int32(v.View) + 1)
@@ -200,7 +208,7 @@ func (u *workbenchUI) ZoomMap(factor float64) {
 
 func (u *workbenchUI) FilterMap(query string) {
 	if u.mv != nil {
-		u.mv.Filter = query
+		u.onFrame(func() { u.mv.Filter = query })
 	}
 }
 
@@ -210,7 +218,7 @@ func (u *workbenchUI) SetTool(name string) error {
 	}
 	switch name {
 	case "select", "move", "place", "link", "measure":
-		u.mv.Tool = name
+		u.onFrame(func() { u.mv.Tool = name })
 		return nil
 	}
 	return fmt.Errorf("no tool %q; there is select, move, place, link and measure", name)
@@ -246,13 +254,17 @@ func (u *workbenchUI) SetLayer(name string, on bool) error {
 		sort.Strings(names)
 		return fmt.Errorf("no layer %q; there is %s", name, strings.Join(names, ", "))
 	}
-	was := *f
-	*f = on
-	// Turning one on can be a request for something that has to be computed.
-	// The map says so rather than computing it, and so does this.
-	if on && !was && u.mv.OnLayerOn != nil {
-		u.mv.OnLayerOn(strings.ToUpper(want[:1]) + want[1:])
-	}
+	// The read and the write both belong to the frame goroutine: whether this
+	// is a change at all depends on what the last frame left there.
+	u.onFrame(func() {
+		was := *f
+		*f = on
+		// Turning one on can be a request for something that has to be
+		// computed. The map says so rather than computing it, and so does this.
+		if on && !was && u.mv.OnLayerOn != nil {
+			u.mv.OnLayerOn(strings.ToUpper(want[:1]) + want[1:])
+		}
+	})
 	return nil
 }
 
