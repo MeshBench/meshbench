@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -176,57 +177,94 @@ func (s *TileStore) tile(x, y int) []Building {
 	}
 	s.mu.Unlock()
 
-	var loaded []Building
-	f, err := os.Open(TilePath(s.Dir, x, y))
-	if err == nil {
-		if gz, err := gzip.NewReader(bufio.NewReader(f)); err == nil {
-			dec := json.NewDecoder(gz)
-			for {
-				var b Building
-				if err := dec.Decode(&b); err != nil {
-					break
-				}
-				loaded = append(loaded, b)
-			}
-			_ = gz.Close()
-		}
-		_ = f.Close()
-	}
-
+	loaded, err := readTile(TilePath(s.Dir, x, y))
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	if err != nil {
+		// Not cached: a tile that failed to read stays worth retrying, rather
+		// than being nil for the rest of the process because of one bad read.
 		s.missing[k] = true
+		return nil
 	}
 	s.tiles[k] = loaded
-	s.mu.Unlock()
 	return loaded
 }
 
+// readTile decodes one tile file under a single error path, so a gzip or
+// JSON failure reaches the caller as an error rather than landing in a
+// shadowed variable and reading as a tile that exists and holds nothing.
+func readTile(path string) ([]Building, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+
+	gz, err := gzip.NewReader(bufio.NewReader(f))
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = gz.Close() }()
+
+	var loaded []Building
+	dec := json.NewDecoder(gz)
+	for {
+		var b Building
+		err := dec.Decode(&b)
+		if err == io.EOF {
+			return loaded, nil
+		}
+		if err != nil {
+			// A tile that decodes cleanly up to the point a process was
+			// killed still ends in a truncated record - report it missing
+			// rather than keep the buildings read before the cut.
+			return nil, err
+		}
+		loaded = append(loaded, b)
+	}
+}
+
 // WriteTile writes one tile the way the store reads it - envgen's output
-// side, here so format knowledge lives in one file.
+// side, here so format knowledge lives in one file. It writes to a temporary
+// file beside the target and renames over it, so a process killed mid-write
+// leaves the old tile or no tile, never one whose gzip footer never arrived -
+// which a shadowed read error once turned into a tile that was present and
+// held nothing.
 func WriteTile(dir string, x, y int, buildings []Building) error {
 	path := TilePath(dir, x, y)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	tdir := filepath.Dir(path)
+	if err := os.MkdirAll(tdir, 0o755); err != nil {
 		return err
 	}
-	f, err := os.Create(path)
+	f, err := os.CreateTemp(tdir, ".tile-*.jsonl.gz")
 	if err != nil {
 		return err
 	}
+	tmp := f.Name()
 	gz := gzip.NewWriter(f)
 	enc := json.NewEncoder(gz)
 	for _, b := range buildings {
 		if err := enc.Encode(b); err != nil {
 			_ = gz.Close()
 			_ = f.Close()
+			_ = os.Remove(tmp)
 			return err
 		}
 	}
 	if err := gz.Close(); err != nil {
 		_ = f.Close()
+		_ = os.Remove(tmp)
 		return err
 	}
-	return f.Close()
+	if err := f.Close(); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
 }
 
 // TileFor is which tile a building's first vertex lands in - envgen's
