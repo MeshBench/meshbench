@@ -425,37 +425,5 @@ func (e *EmulatedNode) TeeConsole(w io.Writer) {
 	}
 }
 
-// Stop ends both processes.
-func (e *EmulatedNode) Stop() error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return e.stopLocked()
-}
-
-func (e *EmulatedNode) stopLocked() error {
-	if e.serial != nil {
-		_ = e.serial.Close()
-		e.serial = nil
-	}
-	for _, c := range []*exec.Cmd{e.qemu, e.radio} {
-		if c == nil || c.Process == nil {
-			continue
-		}
-		_ = c.Process.Kill()
-		_, _ = c.Process.Wait()
-	}
-	e.qemu, e.radio = nil, nil
-	if e.renodeStdin != nil {
-		_ = e.renodeStdin.Close()
-		e.renodeStdin = nil
-	}
-	// The receiver stops with the board. It is the one of these that keeps a
-	// clock running of its own, so leaving it would have a stopped node still
-	// reporting where it is.
-	if e.GPS != nil {
-		_ = e.GPS.Close()
-		e.GPS = nil
-	}
-	_ = os.Remove(e.sock)
-	return nil
-}
+// Stop and stopLocked live in emulated_reap.go, beside the bounded wait they
+// depend on to reap what they kill.
