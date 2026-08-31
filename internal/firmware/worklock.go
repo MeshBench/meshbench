@@ -42,8 +42,10 @@ func LockWorkDir(dir string) (*WorkDirLock, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("firmware: node work dir: %w", err)
 	}
+	// Owner-only: the sentinel is a claim, not a file anything else has reason
+	// to open.
 	path := filepath.Join(dir, lockFileName)
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o644)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("firmware: node work dir lock: %w", err)
 	}
