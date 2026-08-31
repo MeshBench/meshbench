@@ -154,9 +154,42 @@ type Console struct {
 func (n Node) Console() Console { return Console{w: n.w, node: n.name} }
 
 // Send types a line at it.
+//
+// Which verb that is depends on what the node runs. A companion or a room
+// server speaks the framed companion protocol, so its console takes a command
+// rather than keystrokes, and console.type reaches a node of that kind without
+// ever being delivered.
 func (c Console) Send(ctx context.Context, line string) error {
-	return c.w.Do(ctx, "console.type",
+	return c.w.Do(ctx, c.verb(ctx),
 		map[string]any{"node": c.node, "command": line})
+}
+
+// verb is console.cli for a framed console and console.type for a typed one.
+//
+// A node this client cannot see is not one to guess about, so the typed verb
+// is the fallback and the refusal it gives says so in its own words.
+func (c Console) verb(ctx context.Context) string {
+	info, err := c.w.Nodes().Get(ctx, c.node)
+	if err != nil {
+		return "console.type"
+	}
+	return consoleVerb(info.Kind)
+}
+
+// consoleVerb is the mapping itself, apart from the lookup, so it can be held
+// against the kinds this build knows about rather than only against a running
+// workbench.
+//
+// A companion and a room server speak the framed companion protocol: their
+// console takes a command, not keystrokes. Everything else has a serial port
+// somebody types at. The Python client has always drawn the line here and this
+// one did not, so a companion driven from Go was sent keystrokes it never read.
+func consoleVerb(k Kind) string {
+	switch k {
+	case Companion, RoomServer:
+		return "console.cli"
+	}
+	return "console.type"
 }
 
 // Read is the scrollback.
