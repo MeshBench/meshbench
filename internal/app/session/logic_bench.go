@@ -26,9 +26,8 @@ func (s *Sim) serve(name, kind string) (state.Endpoint, error) {
 		delete(s.comps, name)
 	}
 	// A second Serve replaces the first listener rather than leaking it.
-	if old, ok := s.served[name]; ok {
+	if old, ok := s.dropServedLink(name); ok {
 		_ = old.Close()
-		delete(s.served, name)
 	}
 	var (
 		link *engine.CompanionLink
@@ -52,34 +51,109 @@ func (s *Sim) serve(name, kind string) (state.Endpoint, error) {
 	if err != nil {
 		return state.Endpoint{}, err
 	}
-	if s.served == nil {
-		s.served = map[string]*engine.CompanionLink{}
-	}
-	s.served[name] = link
 	// Worked out once and remembered, because the endpoint list is rebuilt
 	// whenever anything about a companion changes and enumerating the
 	// machine's interfaces on every rebuild is work for an answer that does
 	// not move.
+	var addrs []string
+	if link.Kind == "tcp" {
+		addrs = reachableAddrs(link.Addr)
+	}
+	s.setServedLink(name, link, addrs)
+	return s.endpointFor(name, link), nil
+}
+
+// servedLink is the listener currently open for a node, if any.
+func (s *Sim) servedLink(name string) (*engine.CompanionLink, bool) {
+	s.servedMu.Lock()
+	defer s.servedMu.Unlock()
+	l, ok := s.served[name]
+	return l, ok
+}
+
+// setServedLink records a freshly opened listener and the addresses it can be
+// reached on. Call only once any old listener for the node has been taken out
+// and closed - this only ever adds.
+func (s *Sim) setServedLink(name string, link *engine.CompanionLink, addrs []string) {
+	s.servedMu.Lock()
+	defer s.servedMu.Unlock()
+	if s.served == nil {
+		s.served = map[string]*engine.CompanionLink{}
+	}
+	s.served[name] = link
 	if s.servedAddrs == nil {
 		s.servedAddrs = map[string][]string{}
 	}
 	delete(s.servedAddrs, name)
-	if link.Kind == "tcp" {
-		if addrs := reachableAddrs(link.Addr); len(addrs) > 0 {
-			s.servedAddrs[name] = addrs
-		}
+	if len(addrs) > 0 {
+		s.servedAddrs[name] = addrs
 	}
-	return s.endpointFor(name, link), nil
 }
 
-// endpointFor is one served node as the interface sees it: the addresses
+// dropServedLink removes one node's listener and reports whether there was
+// one. Closing it is left to the caller, done once the lock is released, so a
+// slow close never holds up whoever else is reaching for these maps.
+func (s *Sim) dropServedLink(name string) (*engine.CompanionLink, bool) {
+	s.servedMu.Lock()
+	defer s.servedMu.Unlock()
+	l, ok := s.served[name]
+	if !ok {
+		return nil, false
+	}
+	delete(s.served, name)
+	delete(s.servedAddrs, name)
+	return l, true
+}
+
+// eachServed runs fn once per open listener, holding the lock for the whole
+// walk. fn must only use what it is handed - calling back into servedLink,
+// setServedLink or dropServedLink from inside it deadlocks against this same
+// lock. That is why endpoints and dropClients each enumerate here first and
+// act on the result afterwards, rather than acting inside the walk.
+func (s *Sim) eachServed(fn func(name string, l *engine.CompanionLink, addrs []string)) {
+	s.servedMu.Lock()
+	defer s.servedMu.Unlock()
+	for name, l := range s.served {
+		fn(name, l, s.servedAddrs[name])
+	}
+}
+
+// servedCount is how many listeners are open right now.
+func (s *Sim) servedCount() int {
+	s.servedMu.Lock()
+	defer s.servedMu.Unlock()
+	return len(s.served)
+}
+
+// takeAllServed empties both maps and hands back what they held, for Close to
+// shut every listener down outside the lock - so a slow one closing never
+// blocks a verb running concurrently on the store's own goroutine.
+func (s *Sim) takeAllServed() map[string]*engine.CompanionLink {
+	s.servedMu.Lock()
+	defer s.servedMu.Unlock()
+	out := s.served
+	s.served, s.servedAddrs = nil, nil
+	return out
+}
+
+// endpointView is one served node as the interface sees it: the addresses
 // somebody can type into a client, not the address the socket was bound to.
-func (s *Sim) endpointFor(name string, l *engine.CompanionLink) state.Endpoint {
+// Takes no lock, so it can be built either from a single locked lookup or
+// from inside a walk that already holds one.
+func endpointView(name string, l *engine.CompanionLink, addrs []string) state.Endpoint {
 	ep := state.Endpoint{Node: name, Kind: l.Kind, Addr: l.Addr, Attached: l.Attached()}
-	if addrs := s.servedAddrs[name]; len(addrs) > 0 {
+	if len(addrs) > 0 {
 		ep.Addr, ep.Addrs = addrs[0], addrs
 	}
 	return ep
+}
+
+// endpointFor is one served node as the interface sees it.
+func (s *Sim) endpointFor(name string, l *engine.CompanionLink) state.Endpoint {
+	s.servedMu.Lock()
+	addrs := s.servedAddrs[name]
+	s.servedMu.Unlock()
+	return endpointView(name, l, addrs)
 }
 
 // reachableAddrs turns a bound address into the ones another machine can
@@ -121,10 +195,10 @@ func reachableAddrs(bound string) []string {
 
 // endpoints is what is currently served, with whether anything is attached.
 func (s *Sim) endpoints() []state.Endpoint {
-	out := make([]state.Endpoint, 0, len(s.served))
-	for name, l := range s.served {
-		out = append(out, s.endpointFor(name, l))
-	}
+	var out []state.Endpoint
+	s.eachServed(func(name string, l *engine.CompanionLink, addrs []string) {
+		out = append(out, endpointView(name, l, addrs))
+	})
 	sort.Slice(out, func(i, j int) bool { return out[i].Node < out[j].Node })
 	return out
 }
@@ -132,13 +206,11 @@ func (s *Sim) endpoints() []state.Endpoint {
 // stopServing closes one node's endpoint whether or not a client has
 // attached, and reports how many links went.
 func (s *Sim) stopServing(name string) int {
-	l, ok := s.served[name]
+	l, ok := s.dropServedLink(name)
 	if !ok {
 		return 0
 	}
 	_ = l.Close()
-	delete(s.served, name)
-	delete(s.servedAddrs, name)
 	return 1
 }
 
@@ -149,14 +221,15 @@ func (s *Sim) stopServing(name string) int {
 // this is one that survives a phone going to sleep.
 func (s *Sim) dropClients() int {
 	var names []string
-	for name, l := range s.served {
+	s.eachServed(func(name string, l *engine.CompanionLink, _ []string) {
 		if l.Attached() {
 			names = append(names, name)
 		}
-	}
+	})
 	for _, name := range names {
-		_ = s.served[name].Close()
-		delete(s.served, name)
+		if l, ok := s.dropServedLink(name); ok {
+			_ = l.Close()
+		}
 	}
 	return len(names)
 }

@@ -52,7 +52,7 @@ func registerCompanion(st *state.Store, s *Sim) {
 		// itself, and a dead end: the only way on was to stop serving, and
 		// nothing said so. An idle port has no client to steal from, so it is
 		// taken back and said out loud.
-		if l, serving := s.served[node]; serving {
+		if l, serving := s.servedLink(node); serving {
 			if l.Attached() {
 				return nil, fmt.Errorf("%s is being served to an outside client; stop serving first", node)
 			}
@@ -428,7 +428,7 @@ func (s *Sim) connectCompanion(node string) error {
 	}
 	// The same refusal companion.connect makes: typing a CLI line must not
 	// quietly take the port from an attached outside client.
-	if _, serving := s.served[node]; serving {
+	if _, serving := s.servedLink(node); serving {
 		return fmt.Errorf("%s is being served to an outside client; stop serving first", node)
 	}
 	if s.eng == nil {
