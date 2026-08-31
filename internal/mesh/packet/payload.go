@@ -290,6 +290,7 @@ func readAck(r *rd) {
 // pathEntries reads that area as signed SNR for this type alone.
 func readTrace(r *rd) {
 	if r.left() < 9 {
+		r.short()
 		return
 	}
 	flags := r.p[r.at+8]
@@ -365,10 +366,13 @@ func readAddressed(r *rd, t uint8, version uint8) {
 // readMultipart: one byte says how many more packets are coming and what type
 // the set carries, so a multipart packet can be read without its siblings.
 func readMultipart(r *rd) {
-	r.field(1, "part header", "remaining count in the high nibble, carried type in the low", func(b []byte) (string, string) {
+	if !r.field(1, "part header", "remaining count in the high nibble, carried type in the low", func(b []byte) (string, string) {
 		return fmt.Sprintf("0x%02X", b[0]), fmt.Sprintf("%d more to come, carrying %s",
 			b[0]>>4, PayloadTypeName(b[0]&0x0F))
-	})
+	}) {
+		r.short()
+		return
+	}
 	r.rest("part data", "belongs to the carried payload type, not this one", asHexAbbrev)
 }
 
@@ -376,6 +380,7 @@ func readMultipart(r *rd) {
 // the zero-hop subset the mesh will accept without forwarding.
 func readControl(r *rd) {
 	if r.left() < 1 {
+		r.short()
 		return
 	}
 	r.field(1, "control byte", "bit 7 marks the zero-hop control subset", func(b []byte) (string, string) {

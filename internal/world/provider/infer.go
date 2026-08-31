@@ -5,6 +5,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/MeshBench/meshbench/internal/diag"
 	"github.com/MeshBench/meshbench/internal/mesh/packet"
 )
 
@@ -127,112 +128,7 @@ func InferFromPackets(packets []PacketRecord, m RegionMatcher) map[string]*Infer
 		if len(p.Raw) == 0 {
 			continue
 		}
-		d := packet.Dissect(p.Raw)
-		if d.Truncated {
-			continue
-		}
-		scoped := d.HasTransport
-
-		// The origin: a packet with no path has not been relayed yet, so
-		// whoever was heard sending it is where it came from.
-		origin := p.Origin
-		if origin == "" && d.HopCount() == 0 {
-			origin = p.Receiver
-		}
-		// A scoped packet proves its *origin's* scope however many times it
-		// has been relayed: the transport code is an HMAC over the payload
-		// with the path excluded, so it is the code the origin computed and
-		// it does not change hop to hop.
-		//
-		// Requiring a hop-0 copy threw nearly all of this away - an advert is
-		// usually observed after some repeater has already carried it - which
-		// is why almost no node came back with a default scope while the
-		// network was entirely scoped.
-		if o := get(origin); o != nil && scoped {
-			o.ScopedOrigin = true
-			// A node's default scope is what it scopes its *own* traffic to,
-			// so it is read from what it originates rather than what it
-			// forwards. Adverts are the clearest case: a node advertises
-			// itself, under its own scope.
-			if m != nil {
-				for _, name := range m.Match(p.Raw, d.TransportCodes) {
-					if !containsString(o.Regions, name) {
-						o.Regions = append(o.Regions, name)
-					}
-					if d.PayloadName == "advert" || o.DefaultScope == "" {
-						o.DefaultScope = name
-					}
-				}
-			}
-		}
-
-		// Every node on the path relayed this packet, and every one of them
-		// is therefore evidence about itself.
-		//
-		// Crediting only the last hop - whoever transmitted the copy that was
-		// heard - was why a repeater carrying three regions was credited with
-		// one: it appears in hundreds of paths and is the *final* hop in very
-		// few of them. This is what HopReach has always done
-		// (internal/corescope/scope.go, tallyPacket).
-		relays := p.RelayPath
-		if len(relays) == 0 && p.Sender != "" {
-			relays = []string{p.Sender}
-		}
-		for _, hop := range relays {
-			if hop == "" || hop == p.Sender {
-				continue
-			}
-			h := get(hop)
-			if h == nil {
-				continue
-			}
-			h.Packets++
-			if scoped {
-				h.ScopedRelay = true
-				if m != nil {
-					for _, name := range m.Match(p.Raw, d.TransportCodes) {
-						if !containsString(h.Regions, name) {
-							h.Regions = append(h.Regions, name)
-						}
-					}
-				}
-			} else {
-				h.UnscopedRelay = true
-			}
-			if d.HopCount() > h.MaxHops {
-				h.MaxHops = d.HopCount()
-			}
-		}
-
-		// The relayer: whoever transmitted this copy, if it already carried a
-		// path when it was heard.
-		if r := get(p.Sender); r != nil {
-			r.Packets++
-			if d.HopCount() > 0 {
-				if scoped {
-					r.ScopedRelay = true
-					// Named, where the name was known in advance. A node may
-					// hold several regions, so these accumulate rather than
-					// replace: one packet proves one region, not the set.
-					if m != nil {
-						for _, name := range m.Match(p.Raw, d.TransportCodes) {
-							if !containsString(r.Regions, name) {
-								r.Regions = append(r.Regions, name)
-							}
-						}
-					}
-				} else {
-					r.UnscopedRelay = true
-				}
-			}
-			if d.HopCount() > r.MaxHops {
-				r.MaxHops = d.HopCount()
-			}
-			if types[p.Sender] == nil {
-				types[p.Sender] = map[string]bool{}
-			}
-			types[p.Sender][d.PayloadName] = true
-		}
+		inferFromOnePacket(p, m, get, types)
 	}
 
 	for name, set := range types {
@@ -297,4 +193,131 @@ func containsString(list []string, want string) bool {
 		}
 	}
 	return false
+}
+
+// inferFromOnePacket reads what one observed packet proves about its origin and
+// whoever relayed it.
+//
+// Its own function so a panic here is contained. The bytes come off a live feed
+// and are read by a hand-rolled parser: a bounds mistake there would otherwise
+// end the process, and with the world held in memory that costs the operator
+// everything they have not saved. One unreadable packet is not worth that.
+//
+// Deliberately narrow. Nothing else in this package recovers, and the frame
+// loop and the store must still fail loudly: a panic there is a bug that should
+// be seen rather than swallowed.
+func inferFromOnePacket(p PacketRecord, m RegionMatcher,
+	get func(string) *Inferred, types map[string]map[string]bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			diag.Printf("provider", "dropped a packet from %s: %v", p.Receiver, r)
+		}
+	}()
+
+	d := packet.Dissect(p.Raw)
+	if d.Truncated {
+		return
+	}
+	scoped := d.HasTransport
+
+	// The origin: a packet with no path has not been relayed yet, so
+	// whoever was heard sending it is where it came from.
+	origin := p.Origin
+	if origin == "" && d.HopCount() == 0 {
+		origin = p.Receiver
+	}
+	// A scoped packet proves its *origin's* scope however many times it
+	// has been relayed: the transport code is an HMAC over the payload
+	// with the path excluded, so it is the code the origin computed and
+	// it does not change hop to hop.
+	//
+	// Requiring a hop-0 copy threw nearly all of this away - an advert is
+	// usually observed after some repeater has already carried it - which
+	// is why almost no node came back with a default scope while the
+	// network was entirely scoped.
+	if o := get(origin); o != nil && scoped {
+		o.ScopedOrigin = true
+		// A node's default scope is what it scopes its *own* traffic to,
+		// so it is read from what it originates rather than what it
+		// forwards. Adverts are the clearest case: a node advertises
+		// itself, under its own scope.
+		if m != nil {
+			for _, name := range m.Match(p.Raw, d.TransportCodes) {
+				if !containsString(o.Regions, name) {
+					o.Regions = append(o.Regions, name)
+				}
+				if d.PayloadName == "advert" || o.DefaultScope == "" {
+					o.DefaultScope = name
+				}
+			}
+		}
+	}
+
+	// Every node on the path relayed this packet, and every one of them
+	// is therefore evidence about itself.
+	//
+	// Crediting only the last hop - whoever transmitted the copy that was
+	// heard - was why a repeater carrying three regions was credited with
+	// one: it appears in hundreds of paths and is the *final* hop in very
+	// few of them. This is what HopReach has always done
+	// (internal/corescope/scope.go, tallyPacket).
+	relays := p.RelayPath
+	if len(relays) == 0 && p.Sender != "" {
+		relays = []string{p.Sender}
+	}
+	for _, hop := range relays {
+		if hop == "" || hop == p.Sender {
+			continue
+		}
+		h := get(hop)
+		if h == nil {
+			continue
+		}
+		h.Packets++
+		if scoped {
+			h.ScopedRelay = true
+			if m != nil {
+				for _, name := range m.Match(p.Raw, d.TransportCodes) {
+					if !containsString(h.Regions, name) {
+						h.Regions = append(h.Regions, name)
+					}
+				}
+			}
+		} else {
+			h.UnscopedRelay = true
+		}
+		if d.HopCount() > h.MaxHops {
+			h.MaxHops = d.HopCount()
+		}
+	}
+
+	// The relayer: whoever transmitted this copy, if it already carried a
+	// path when it was heard.
+	if r := get(p.Sender); r != nil {
+		r.Packets++
+		if d.HopCount() > 0 {
+			if scoped {
+				r.ScopedRelay = true
+				// Named, where the name was known in advance. A node may
+				// hold several regions, so these accumulate rather than
+				// replace: one packet proves one region, not the set.
+				if m != nil {
+					for _, name := range m.Match(p.Raw, d.TransportCodes) {
+						if !containsString(r.Regions, name) {
+							r.Regions = append(r.Regions, name)
+						}
+					}
+				}
+			} else {
+				r.UnscopedRelay = true
+			}
+		}
+		if d.HopCount() > r.MaxHops {
+			r.MaxHops = d.HopCount()
+		}
+		if types[p.Sender] == nil {
+			types[p.Sender] = map[string]bool{}
+		}
+		types[p.Sender][d.PayloadName] = true
+	}
 }

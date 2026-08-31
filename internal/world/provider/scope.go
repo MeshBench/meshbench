@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 
+	"github.com/MeshBench/meshbench/internal/diag"
 	"github.com/MeshBench/meshbench/internal/mesh/packet"
 )
 
@@ -66,10 +67,21 @@ func (n *NamedRegions) Names() []string {
 // calcTransportCode's own uint16 output. The path is excluded, which is what
 // lets the same message be recognised at every hop even though its bytes on the
 // air change at each one.
-func (n *NamedRegions) Match(frame []byte, codes []uint16) []string {
+func (n *NamedRegions) Match(frame []byte, codes []uint16) (out []string) {
 	if len(codes) == 0 || len(n.keys) == 0 {
 		return nil
 	}
+	// frame is bytes as heard off the air or replayed out of an import - not
+	// something this package controls the shape of. A hand-rolled parser fed
+	// directly by that should not be able to take its caller down over one
+	// bad frame, and Match has no way of knowing whether its caller is a
+	// batch import or a live feed's own goroutine, so the boundary is here.
+	defer func() {
+		if r := recover(); r != nil {
+			diag.Printf("provider", "region match panicked on a %d-byte frame: %v", len(frame), r)
+			out = nil
+		}
+	}()
 	d := packet.Dissect(frame)
 	if d.Truncated || !d.HasTransport {
 		return nil
@@ -79,7 +91,6 @@ func (n *NamedRegions) Match(frame []byte, codes []uint16) []string {
 	msg = append(msg, d.PayloadType)
 	msg = append(msg, d.Payload...)
 
-	var out []string
 	for name, key := range n.keys {
 		mac := hmac.New(sha256.New, key[:])
 		mac.Write(msg)

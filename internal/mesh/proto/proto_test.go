@@ -247,3 +247,36 @@ func TestOlderFirmwareSaysNothingAboutTheMode(t *testing.T) {
 		t.Errorf("a frame that stops before the mode must not claim to know it")
 	}
 }
+
+// Self info needs 35 bytes before the tx power ceiling and the public key are
+// both in. A short reply must be reported, not silently parsed with the key
+// running off the end of the frame.
+func TestDecodeSelfInfoTooShort(t *testing.T) {
+	f, err := proto.Decode([]byte{byte(proto.RespSelfInfo), 1, 22, 30})
+	if err == nil {
+		t.Fatalf("a 3-byte self info body decoded as %+v, want an error", f.SelfInfo)
+	}
+}
+
+// The contact record's name sits past a 64-byte out_path; anything shorter
+// than that must be reported rather than read as a contact with a name taken
+// from the middle of the path.
+func TestDecodeContactTooShort(t *testing.T) {
+	b := []byte{byte(proto.RespContact)}
+	b = append(b, bytes.Repeat([]byte{0xAB}, 32)...) // pub key
+	b = append(b, 1, 0, 3)                           // type, flags, out_path_len
+	b = append(b, bytes.Repeat([]byte{0x07}, 60)...) // out_path, four bytes short
+	f, err := proto.Decode(b)
+	if err == nil {
+		t.Fatalf("a body 4 bytes short of the name decoded as %+v, want an error", f.Contact)
+	}
+}
+
+// A message body under two bytes has no channel index or sender key at all;
+// decodeMessage must say so rather than reading past the end.
+func TestDecodeMessageTooShort(t *testing.T) {
+	f, err := proto.Decode([]byte{byte(proto.RespChannelMsgRecv), 7})
+	if err == nil {
+		t.Fatalf("a 1-byte message body decoded as %+v, want an error", f.Message)
+	}
+}
