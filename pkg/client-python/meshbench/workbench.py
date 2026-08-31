@@ -265,8 +265,10 @@ class Workbench:
         """Run one verb and return its result.
 
         Public and documented, not an escape hatch to be ashamed of: the shaped
-        API will never cover all 238 verbs, and a verb added tomorrow should be
-        usable today.
+        API will never cover every verb the socket answers, and a verb added
+        tomorrow should be usable today. Ask ``session.verbs`` for the list this
+        build actually offers: two counts written down here have already gone
+        stale, and a number nothing checks is worse than no number.
         """
         reply = self._conn.call(verb, params)
         if reply.get("error"):
