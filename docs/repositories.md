@@ -88,6 +88,39 @@ The workflow also asserts both halves of the fix are present in the tree it
 built, because a submodule quietly resolving to upstream would produce a Renode
 that looks correct and hangs in exactly the same place.
 
+## Taking a newer upstream
+
+There is no calendar for this, and inventing one would be a promise nobody
+keeps. Upstream is taken when there is a reason to take it: a security fix, a
+board or a peripheral we need, or a bug we have hit and upstream has already
+cured. The cost of waiting is real, though, so the rule is that a fork is never
+more than one upstream release behind without somebody having decided it may be.
+
+**Rebase, never merge.** Each `meshbench-main` is rebased onto the upstream tag
+so the patch stays a short series of our own commits sitting on top of a named
+upstream. A merge would bury it: the answer to "what did MeshBench change" has
+to stay `git log upstream/<tag>..meshbench-main`, readable in one screen. If
+that series ever stops being readable, the fix is to squash our own commits,
+not to accept a fork nobody can audit. That readability is also what the
+licences are built around, so it is a courtesy as well as a convenience.
+
+**A release names both commits.** A tag on a fork records our commit *and* the
+upstream tag it sits on, because "which upstream is this" is the first question
+anybody debugging an emulator asks, and a bare SHA does not answer it.
+
+**Cut releases from `meshbench-main`.** Not from a detached commit that happened
+to build. The Renode release `meshbench-20260814-a784d99` is the example of why:
+it targets `a784d994`, while `meshbench-main` is at `339f4df4`, and nothing
+records how the two relate, so what shipped cannot be reproduced from a branch
+name. The next Renode release should be cut from the branch tip and say which
+upstream it carries.
+
+**After any rebase, the emulated boards are the test.** The build asserting both
+halves of the SEVONPEND fix are present catches a submodule that has quietly
+resolved to upstream, but it does not catch a fix that still applies and no
+longer works. Boot one emulated board and watch it relay before believing a
+rebase.
+
 ## Not ours
 
 `meshcore-dev/MeshCore` is upstream and unmodified. **Nothing in MeshCore is
