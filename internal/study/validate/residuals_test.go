@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/MeshBench/meshbench/internal/rf/antenna"
 	"github.com/MeshBench/meshbench/internal/study/validate"
 	"github.com/MeshBench/meshbench/internal/world/provider"
 )
@@ -17,11 +18,17 @@ type noTerrain struct{}
 
 func (noTerrain) ElevationM(_, _ float64) (float64, bool) { return 0, false }
 
+// omni is a stacked vertical of the given gain, pointing nowhere in
+// particular, which is what most of a real network is on.
+func omni(gainDBi float64) antenna.Mounted {
+	return antenna.Mounted{Pattern: antenna.Collinear{GainDBiPeak: gainDBi}}
+}
+
 func stations() map[string]validate.Station {
 	return map[string]validate.Station{
-		"origin": {Name: "origin", Lat: 56.70, Lon: -3.90, HeightAGLm: 20, TxPowerDBm: 22, GainDBi: 3, NoiseFigureDB: 6},
-		"rx-a":   {Name: "rx-a", Lat: 56.75, Lon: -3.80, HeightAGLm: 10, TxPowerDBm: 22, GainDBi: 2, NoiseFigureDB: 6},
-		"rx-b":   {Name: "rx-b", Lat: 56.60, Lon: -4.00, HeightAGLm: 8, TxPowerDBm: 22, GainDBi: 2, NoiseFigureDB: 6},
+		"origin": {Name: "origin", Lat: 56.70, Lon: -3.90, HeightAGLm: 20, TxPowerDBm: 22, Antenna: omni(3), NoiseFigureDB: 6},
+		"rx-a":   {Name: "rx-a", Lat: 56.75, Lon: -3.80, HeightAGLm: 10, TxPowerDBm: 22, Antenna: omni(2), NoiseFigureDB: 6},
+		"rx-b":   {Name: "rx-b", Lat: 56.60, Lon: -4.00, HeightAGLm: 8, TxPowerDBm: 22, Antenna: omni(2), NoiseFigureDB: 6},
 	}
 }
 

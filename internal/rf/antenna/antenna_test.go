@@ -96,6 +96,26 @@ func TestLookAngleIsNotSymmetric(t *testing.T) {
 	}
 }
 
+// What a caller holding two positions and a path loss gets: the azimuth it can
+// work out exactly, and the elevation plane at its best rather than at an angle
+// it has no altitudes to derive.
+func TestGainAlongABearingIsAzimuthOnly(t *testing.T) {
+	m := Mounted{
+		Pattern:     Yagi{GainDBiPeak: 12, BeamwidthDeg: 50, FrontToBackDB: 20},
+		BearingDeg:  90,
+		DowntiltDeg: 8, // aimed at ground this caller cannot see
+		FeedlineDB:  1.2,
+	}
+	if got := m.GainAlongDBi(90); math.Abs(got-(12-1.2)) > 0.01 {
+		t.Errorf("gain along the boresight bearing %.2f dBi, want %.2f: the tilt was "+
+			"charged against an elevation angle nobody supplied", got, 12-1.2)
+	}
+	if front, back := m.GainAlongDBi(90), m.GainAlongDBi(270); front-back < 19 {
+		t.Errorf("front %.1f dBi against back %.1f dBi: azimuth stopped mattering",
+			front, back)
+	}
+}
+
 func TestCrossPolarisationLoss(t *testing.T) {
 	if CrossPolLossDB(Vertical, Vertical) != 0 {
 		t.Error("matched polarisation should cost nothing")

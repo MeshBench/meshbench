@@ -183,8 +183,19 @@ Mechanical, because taste does not survive scale — and this codebase will be b
   wrong sensitivity, and nobody notices for months.
 - **Reachability is asymmetric.** Compute and present both directions. A result
   that does not say *which direction* is wrong even when the arithmetic is right.
-- **Antenna gain is directional.** Evaluate the pattern in the true direction to
-  the far end, per direction. A scalar "gain" field is a bug.
+- **Antenna gain is directional.** Evaluate the pattern towards the far end,
+  per direction: A to B and B to A are different bearings and the two answers
+  may differ. A scalar "gain" field is a bug. Azimuth is never optional. The
+  bearing between two known positions is exact, and a yagi or a sector is 20 dB
+  or more down off its boresight, so peak azimuth gain is not an approximation
+  but a confident wrong answer in the optimistic direction. Elevation is
+  decided by what the caller actually knows. Where both ends' altitudes are in
+  hand, the engine and the coverage raster use the real look angle, because a
+  repeater on a hill is not on its boresight to a node 5 km below it. Where
+  they are not - the link budget and the validation residual, which are handed
+  positions and decibels - the far end is taken as on the boresight in
+  elevation: on a terrestrial path that angle is a fraction of a degree, and
+  inventing one would claim a precision the geometry cannot support.
 - **Position uncertainty propagates.** A node imported at ±5 km does not get a
   confident answer. Inherited from hamreach HAM-34, learned the hard way.
 - **Airtime must match the firmware's own `getEstAirtimeFor()`.** The firmware's
