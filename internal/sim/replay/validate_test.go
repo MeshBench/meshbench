@@ -77,6 +77,67 @@ func TestCalibrateRefusesSmallSamples(t *testing.T) {
 	}
 }
 
+// Compare must give the same rows in the same order and the same MeanBiasDB
+// on every run over identical input. Before the fix, both were read out of a
+// map keyed by receiver, so Go's randomised iteration order decided the row
+// order and the floating-point summation order behind MeanBiasDB - two
+// invocations of this test could disagree with each other, which is exactly
+// what "same seed, same scenario, same result" forbids.
+func TestCompareIsDeterministicAcrossRuns(t *testing.T) {
+	obs := []provider.Reception{
+		rx("p1", "alpha", "node-01", -6.1),
+		rx("p1", "alpha", "node-02", -12.3),
+		rx("p1", "alpha", "node-03", 3.7),
+		rx("p1", "alpha", "node-04", -8.9),
+		rx("p1", "alpha", "node-05", 15.2),
+		rx("p1", "alpha", "node-06", -1.4),
+		rx("p2", "alpha", "node-02", -0.5),
+		rx("p2", "alpha", "node-05", 9.9),
+	}
+	predict := func(_, receiver string) (float64, bool, bool) {
+		// A distinct, non-round SNR per receiver so reordering the sum would
+		// generally land on a different float64 bit pattern, not merely a
+		// different-looking but equal total.
+		snrByReceiver := map[string]float64{
+			"node-01": -4.3, "node-02": -14.7, "node-03": 1.05,
+			"node-04": -9.95, "node-05": 12.025, "node-06": -0.65,
+		}
+		return snrByReceiver[receiver], true, true
+	}
+
+	first := replay.Compare(obs, predict, nil)
+	firstReceivers := receiverOrder(first)
+	for i := 0; i < 25; i++ {
+		got := replay.Compare(obs, predict, nil)
+		if receivers := receiverOrder(got); !sameOrder(receivers, firstReceivers) {
+			t.Fatalf("run %d: row order = %v, want %v", i, receivers, firstReceivers)
+		}
+		if got.MeanBiasDB != first.MeanBiasDB {
+			t.Fatalf("run %d: MeanBiasDB = %v, want %v (bit-identical)", i, got.MeanBiasDB, first.MeanBiasDB)
+		}
+	}
+}
+
+func receiverOrder(r replay.Report) []string {
+	out := make([]string, len(r.Rows))
+	for i, row := range r.Rows {
+		out[i] = row.PacketID + "/" + row.Receiver
+	}
+	return out
+}
+
+func sameOrder(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 // An observer that was offline must not generate optimistic rows: absence of
 // an observation is weak evidence, and only a listening node's silence counts.
 func TestCompareIgnoresOfflineObservers(t *testing.T) {

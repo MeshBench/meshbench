@@ -4,6 +4,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/binary"
+	"sort"
 
 	"github.com/MeshBench/meshbench/internal/diag"
 	"github.com/MeshBench/meshbench/internal/mesh/packet"
@@ -67,6 +68,13 @@ func (n *NamedRegions) Names() []string {
 // calcTransportCode's own uint16 output. The path is excluded, which is what
 // lets the same message be recognised at every hop even though its bytes on the
 // air change at each one.
+//
+// Candidates are tried in name order rather than map order. Two candidates can
+// collide on the same two-byte code (vanishingly unlikely, but the whole point
+// of a truncated code is that it happens eventually), and a caller such as
+// infer.go's DefaultScope logic picks a winner from the order this returns
+// them in. Alphabetical order needs no data beyond the name itself, so the
+// winner is a property of the candidate set rather than of which run it was.
 func (n *NamedRegions) Match(frame []byte, codes []uint16) (out []string) {
 	if len(codes) == 0 || len(n.keys) == 0 {
 		return nil
@@ -91,7 +99,14 @@ func (n *NamedRegions) Match(frame []byte, codes []uint16) (out []string) {
 	msg = append(msg, d.PayloadType)
 	msg = append(msg, d.Payload...)
 
-	for name, key := range n.keys {
+	names := make([]string, 0, len(n.keys))
+	for name := range n.keys {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		key := n.keys[name]
 		mac := hmac.New(sha256.New, key[:])
 		mac.Write(msg)
 		sum := mac.Sum(nil)
