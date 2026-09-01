@@ -313,7 +313,10 @@ jobs:
     # check should not depend on that. Pushing the tag is the moment it
     # matters, and the moment nobody is waiting on the answer.
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 60
+    # Comfortably past the 50 minutes the test step is allowed, so a job that
+    # is merely slow is not cut off before its own timeout can say so. A test
+    # timeout names the package that hung; a job timeout names nothing.
+    timeout-minutes: 90
     # No fork fallback needed: schedule and dispatch both run on this repo,
     # and dispatch requires write access to it.
     runs-on: [self-hosted, linux, x64, lab-linux]
@@ -344,5 +347,11 @@ jobs:
       # control audit. It takes ~85s on a developer machine and blows the
       # default on a two-core runner under -race, which reads as a hang and
       # is a budget.
+      #
+      # 30 minutes was that budget until the audit was measured under -race on
+      # a fast machine: 1589 seconds for the workbench package alone, which is
+      # 26 of the 30 with the slower runner still to pay for. This job runs on
+      # the release tag, so the failure it was heading for was one nobody sees
+      # until the release is already going out.
       - name: test -race
-        run: go test -race -count=1 -timeout 30m ./...
+        run: go test -race -count=1 -timeout 50m ./...
