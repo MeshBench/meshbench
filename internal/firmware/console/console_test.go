@@ -2,6 +2,7 @@ package console_test
 
 import (
 	"context"
+	"errors"
 	"io"
 	"strings"
 	"sync"
@@ -11,25 +12,57 @@ import (
 	"github.com/MeshBench/meshbench/internal/firmware/console"
 )
 
+// errFakeDeadline is what a fakeNode's Read returns once its deadline passes,
+// standing in for the timeout error a real file or socket would give back.
+var errFakeDeadline = errors.New("fakeNode: read deadline exceeded")
+
 // fakeNode answers a command with canned lines and a prompt, optionally slowly
 // or not at all.
+//
+// SetReadDeadline is the part a real Port gets for free from the operating
+// system and this one has to build by hand: a deadline changed while Read is
+// already blocked must interrupt that call, not just the next one, which is
+// what wake exists for.
 type fakeNode struct {
 	name  string
 	reply []string
 	delay time.Duration
 	mute  bool
 
-	mu  sync.Mutex
-	out strings.Builder
-	in  chan string
-	got []string
+	mu       sync.Mutex
+	out      strings.Builder
+	in       chan string
+	got      []string
+	deadline time.Time
+	wake     chan struct{}
+
+	// readReturned fires every time Read returns, so a test can confirm the
+	// goroutine reading this port actually stopped rather than being left
+	// blocked and merely ignored.
+	readReturned chan struct{}
 }
 
 func newNode(name string, reply ...string) *fakeNode {
-	return &fakeNode{name: name, reply: reply, in: make(chan string, 8)}
+	return &fakeNode{
+		name:         name,
+		reply:        reply,
+		in:           make(chan string, 8),
+		wake:         make(chan struct{}),
+		readReturned: make(chan struct{}, 64),
+	}
 }
 
 func (f *fakeNode) Name() string { return f.name }
+
+func (f *fakeNode) SetReadDeadline(t time.Time) error {
+	f.mu.Lock()
+	f.deadline = t
+	old := f.wake
+	f.wake = make(chan struct{})
+	f.mu.Unlock()
+	close(old)
+	return nil
+}
 
 func (f *fakeNode) Write(p []byte) (int, error) {
 	f.mu.Lock()
@@ -52,15 +85,52 @@ func (f *fakeNode) Write(p []byte) (int, error) {
 }
 
 func (f *fakeNode) Read(p []byte) (int, error) {
-	<-f.in
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	s := f.out.String()
-	f.out.Reset()
-	if s == "" {
-		return 0, io.EOF
+	defer func() {
+		select {
+		case f.readReturned <- struct{}{}:
+		default:
+		}
+	}()
+	for {
+		f.mu.Lock()
+		dl, wake := f.deadline, f.wake
+		f.mu.Unlock()
+
+		var after <-chan time.Time
+		var timer *time.Timer
+		if !dl.IsZero() {
+			d := time.Until(dl)
+			if d <= 0 {
+				return 0, errFakeDeadline
+			}
+			timer = time.NewTimer(d)
+			after = timer.C
+		}
+
+		select {
+		case <-f.in:
+			if timer != nil {
+				timer.Stop()
+			}
+			f.mu.Lock()
+			s := f.out.String()
+			f.out.Reset()
+			f.mu.Unlock()
+			if s == "" {
+				return 0, io.EOF
+			}
+			return copy(p, s), nil
+		case <-after:
+			return 0, errFakeDeadline
+		case <-wake:
+			// The deadline changed while this call was blocked - recompute
+			// and keep waiting rather than returning, the same as a real
+			// SetReadDeadline would for a Read already in flight.
+			if timer != nil {
+				timer.Stop()
+			}
+		}
 	}
-	return copy(p, s), nil
 }
 
 func (f *fakeNode) Close() error { return nil }
@@ -139,6 +209,54 @@ func TestSilentNodesAreReportedNotOmitted(t *testing.T) {
 	}
 	if !strings.Contains(summary, "1 of 2") {
 		t.Errorf("the summary does not count what answered:\n%s", summary)
+	}
+
+	// Broadcast has already returned, so the goroutine reading the silent
+	// node's port must have too - not been left blocked on Scan behind a
+	// command nobody is waiting on any more.
+	select {
+	case <-silent.readReturned:
+	case <-time.After(time.Second):
+		t.Fatal("the read behind a timed-out command was never cancelled; its goroutine leaked")
+	}
+}
+
+// The same leak, reached through Send instead of Broadcast, and through
+// context cancellation rather than a timeout - both are ways a caller can stop
+// waiting on a node that never answers, and both must free the read rather
+// than abandon it.
+func TestSendToASilentNodeCancelsTheReadRatherThanLeakingIt(t *testing.T) {
+	c := console.New()
+	c.Timeout = 10 * time.Second
+
+	silent := newNode("silent")
+	silent.mute = true
+	if err := c.Attach(silent); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan console.Reply, 1)
+	go func() { done <- c.Send(ctx, "silent", "get freq") }()
+
+	// Give the goroutine above time to actually reach the blocked read before
+	// cancelling, so this exercises interrupting a read already in flight
+	// rather than one that has not started yet.
+	time.Sleep(20 * time.Millisecond)
+	cancel()
+
+	select {
+	case r := <-done:
+		if r.OK() {
+			t.Fatal("a cancelled command was reported as answered")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Send never returned after its context was cancelled")
+	}
+	select {
+	case <-silent.readReturned:
+	case <-time.After(time.Second):
+		t.Fatal("cancelling Send did not free the goroutine reading the port; it leaked")
 	}
 }
 

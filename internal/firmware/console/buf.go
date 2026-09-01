@@ -41,6 +41,14 @@ type Buf struct {
 // long scenario into a memory leak that shows up as the window slowing down.
 const MaxLines = 2000
 
+// MaxPartial bounds the not-yet-newline-terminated tail of a node's output.
+//
+// Unlike lines, which MaxLines already caps, this had no limit at all: a
+// print loop that never emits a newline - a raw progress indicator, or a
+// framing error that eats one - grew it without bound for as long as the node
+// kept running.
+const MaxPartial = 4096
+
 func (c *Buf) Write(p []byte) (int, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -57,6 +65,12 @@ func (c *Buf) Write(p []byte) (int, error) {
 		line := strings.TrimRight(c.partial[:i], "\r")
 		c.lines = append(c.lines, fmt.Sprintf("%8.3f  %s", float64(c.nowMs)/1000, line))
 		c.partial = c.partial[i+1:]
+	}
+	// Overflow is dropped from the front, the same rule lines above apply when
+	// they run past MaxLines: the bytes worth keeping are the ones nearest the
+	// prompt that has not arrived yet, not the ones already scrolled past.
+	if n := len(c.partial) - MaxPartial; n > 0 {
+		c.partial = c.partial[n:]
 	}
 	if n := len(c.lines) - MaxLines; n > 0 {
 		c.lines = append(c.lines[:0], c.lines[n:]...)

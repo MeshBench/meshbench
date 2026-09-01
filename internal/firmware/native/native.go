@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"strconv"
 	"sync"
@@ -63,6 +62,12 @@ type Native struct {
 	// waitErr is what cmd.Wait said, kept because it is the only account
 	// anything has of how a node ended. Read only after exited is closed.
 	waitErr error
+	// workLock claims WorkDir for as long as this process might still be
+	// touching it. Held past the kill in Stop, not just past Start: the
+	// process may still be writing flash.bin or radio.sock right up until
+	// cmd.Wait actually returns, and releasing any earlier lets a second
+	// node in on top of the first before it is safe.
+	workLock *firmware.WorkDirLock
 }
 
 func (n *Native) Kind() string { return "native" }
@@ -92,7 +97,7 @@ func (n *Native) PID() int {
 	return n.cmd.Process.Pid
 }
 
-func (n *Native) Start(ctx context.Context, bridgeAddr string) error {
+func (n *Native) Start(ctx context.Context, bridgeAddr string) (err error) {
 	path, err := firmware.FindNative(n.Path, n.Role)
 	if err != nil {
 		return err
@@ -114,9 +119,19 @@ func (n *Native) Start(ctx context.Context, bridgeAddr string) error {
 	}
 	cmd := exec.CommandContext(ctx, path, args...)
 	if n.WorkDir != "" {
-		if err := os.MkdirAll(n.WorkDir, 0o755); err != nil {
-			return fmt.Errorf("firmware: node filesystem: %w", err)
+		lock, lerr := firmware.LockWorkDir(n.WorkDir)
+		if lerr != nil {
+			return lerr
 		}
+		// Released on any path out of Start that is not a running node: a
+		// launch that fails to claim the directory but keeps the lock leaves
+		// nothing running and nothing able to try again either.
+		defer func() {
+			if err != nil {
+				_ = lock.Release()
+			}
+		}()
+		n.workLock = lock
 		cmd.Dir = n.WorkDir
 	}
 	// The kernel kills the child if this process dies — any way it dies. The
@@ -153,11 +168,24 @@ func (n *Native) Start(ctx context.Context, bridgeAddr string) error {
 
 func (n *Native) Stop() error {
 	n.mu.Lock()
-	cmd, exited := n.cmd, n.exited
+	cmd, exited, lock := n.cmd, n.exited, n.workLock
 	n.cmd = nil
 	n.mu.Unlock()
 	if cmd == nil || cmd.Process == nil {
 		return nil
+	}
+	// Released only once the process is confirmed gone, not as soon as Stop is
+	// called: a node still being killed or still stuck in cmd.Wait may still be
+	// touching WorkDir, and letting a second node in on top of it is the exact
+	// corruption the lock exists to prevent.
+	release := func() {
+		if lock == nil {
+			return
+		}
+		_ = lock.Release()
+		n.mu.Lock()
+		n.workLock = nil
+		n.mu.Unlock()
 	}
 	// The bridge has already been closed, so the node should be on its way out
 	// under its own steam; give it long enough to write its closing line before
@@ -166,6 +194,7 @@ func (n *Native) Stop() error {
 	case <-exited:
 		// However it ended, it ended by itself, so what cmd.Wait said is the
 		// node's own account of it and the only one there will ever be.
+		release()
 		return n.howItEnded()
 	case <-time.After(gracePeriod):
 	}
@@ -187,8 +216,12 @@ func (n *Native) Stop() error {
 	// opposite.
 	select {
 	case <-exited:
+		release()
 		return nil
 	case <-time.After(reapPeriod):
+		// The lock stays held: whatever is still touching WorkDir has not been
+		// confirmed gone, so releasing it here would trade a hang for exactly
+		// the silent corruption it exists to rule out.
 		return fmt.Errorf("firmware: native node %d has not been reaped %v after being killed; "+
 			"either the process or the writer taking its output is stuck", cmd.Process.Pid, reapPeriod)
 	}

@@ -32,9 +32,17 @@ import (
 //
 // An interface because a console reaches an emulated node through a PTY, a
 // native node through a pipe, and a test through neither.
+//
+// SetReadDeadline is what lets a timed-out or cancelled command free the
+// goroutine reading it rather than abandon that goroutine on a node that may
+// never answer. Every real implementation already has one for free: a PTY and
+// a pipe both wrap an *os.File, which has supported read deadlines since Go
+// 1.10, and a deadline changed while a Read is already blocked takes effect
+// on that call, not just the next one - the same guarantee net.Conn makes.
 type Port interface {
 	Name() string
 	io.ReadWriteCloser
+	SetReadDeadline(time.Time) error
 }
 
 // Reply is what one node said.
@@ -158,6 +166,16 @@ func (c *Console) Broadcast(ctx context.Context, cmd string) []Reply {
 	return replies
 }
 
+// outcome is what the goroutine reading a port hands back. A channel rather
+// than a Reply the goroutine appends to directly: a line arriving as the
+// timeout fires was a write to a Reply the caller was already reading, with
+// no synchronisation between the two - a data race the caller never saw
+// coming because it looked, from here, like an ordinary read.
+type outcome struct {
+	lines []string
+	err   error
+}
+
 func exchange(ctx context.Context, p Port, cmd string, timeout time.Duration) Reply {
 	start := time.Now()
 	r := Reply{Node: p.Name()}
@@ -168,9 +186,70 @@ func exchange(ctx context.Context, p Port, cmd string, timeout time.Duration) Re
 		return r
 	}
 
-	done := make(chan struct{})
+	// The read gets its own deadline instead of relying on whoever is waiting
+	// to notice a timeout and walk away. Without it, a node that never answers
+	// left the goroutine below blocked on Scan for good, once per command sent
+	// to it - Reply.Err's own documentation treats a silent node as routine,
+	// which made this a leak on the ordinary path rather than an edge case.
+	deadline := start.Add(timeout)
+	if d, ok := ctx.Deadline(); ok && d.Before(deadline) {
+		deadline = d
+	}
+	// Whether the deadline took decides how this function may wait below. A
+	// port that cannot carry one is not hypothetical: os.File returns
+	// ErrNoDeadline for anything the runtime poller will not take, so this has
+	// to keep working rather than assume.
+	deadlined := p.SetReadDeadline(deadline) == nil
+
+	done := readReply(p)
+
+	// Bounded here only when nothing will interrupt the read, because a nil
+	// channel never fires. Waiting on both would double the timeout's meaning.
+	var expired <-chan time.Time
+	if !deadlined {
+		t := time.NewTimer(timeout)
+		defer t.Stop()
+		expired = t.C
+	}
+
+	select {
+	case o := <-done:
+		r.Lines = o.lines
+		if o.err != nil {
+			// A timeout is a result, not an absence. The node is running and
+			// not answering, and any lines it did manage are kept.
+			r.Err = fmt.Errorf("no prompt within %v: %w", timeout, o.err)
+		}
+	case <-expired:
+		// The read is still blocked and cannot be freed, so the goroutine
+		// behind it outlives this call. Reported the same way regardless, so a
+		// caller cannot tell the two ports apart by their answers.
+		r.Err = fmt.Errorf("no prompt within %v", timeout)
+	case <-ctx.Done():
+		r.Err = ctx.Err()
+		// Cancelled rather than abandoned: freeing the read is what lets the
+		// goroutine finish and this function return the moment the caller
+		// gives up, instead of leaving one running behind every command whose
+		// caller stopped waiting. Only safe to wait for when the deadline took;
+		// otherwise nothing would ever end that read and this would hang.
+		if deadlined {
+			_ = p.SetReadDeadline(time.Now())
+			<-done
+		}
+	}
+	r.Took = time.Since(start)
+	return r
+}
+
+// readReply reads one reply off a port, ending at the bare prompt.
+//
+// Buffered by one so the goroutine can always deliver and exit, even when
+// nobody is left to receive - which is what stops a cancelled or timed-out
+// command leaking the goroutine as well as the read.
+func readReply(p Port) <-chan outcome {
+	done := make(chan outcome, 1)
 	go func() {
-		defer close(done)
+		var lines []string
 		sc := bufio.NewScanner(p)
 		for sc.Scan() {
 			line := strings.TrimRight(sc.Text(), "\r")
@@ -178,23 +257,14 @@ func exchange(ctx context.Context, p Port, cmd string, timeout time.Duration) Re
 			// command instead would make a twenty-node broadcast take the
 			// timeout regardless of how fast the nodes actually are.
 			if line == ">" || line == "> " {
+				done <- outcome{lines: lines}
 				return
 			}
-			r.Lines = append(r.Lines, line)
+			lines = append(lines, line)
 		}
+		done <- outcome{lines: lines, err: sc.Err()}
 	}()
-
-	select {
-	case <-done:
-	case <-ctx.Done():
-		r.Err = ctx.Err()
-	case <-time.After(timeout):
-		// A timeout is a result, not an absence. The node is running and not
-		// answering, and any lines it did manage are kept.
-		r.Err = fmt.Errorf("no prompt within %v", timeout)
-	}
-	r.Took = time.Since(start)
-	return r
+	return done
 }
 
 // Summarise reports a broadcast in the terms that matter.
