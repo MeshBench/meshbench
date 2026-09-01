@@ -10,7 +10,6 @@ import (
 	"time"
 
 	hw "github.com/MeshBench/meshbench/internal/firmware/board"
-	"github.com/MeshBench/meshbench/internal/rf/antenna"
 	"github.com/MeshBench/meshbench/internal/sim/capture"
 	"github.com/MeshBench/meshbench/internal/sim/engine"
 	"github.com/MeshBench/meshbench/internal/world/provider"
@@ -279,10 +278,7 @@ func demoNetwork(radio scenario.RadioConfig, boardName string) ([]scenario.Node,
 	if err != nil {
 		return nil, err
 	}
-	mast := antenna.Mounted{
-		Pattern:      antenna.Collinear{GainDBiPeak: b.AntennaDBi + 4},
-		Polarisation: "vertical", FeedlineDB: b.FeedlineDB,
-	}
+	mast := scenario.BoardAntenna(b)
 	place := func(name string, lat, lon, h float64) scenario.Node {
 		return scenario.Node{
 			Name: name, Kind: scenario.SimpleRepeater,

@@ -68,6 +68,33 @@ type Node struct {
 	// to draw a snapshot, not to know what an antenna is. Nil for a node with
 	// no pattern, which is drawn as no overlay rather than as a circle.
 	Pattern []float64
+	// Antenna is what that pattern is, in the words somebody chose it in.
+	//
+	// Beside the samples rather than instead of them, because the two answer
+	// different questions: the samples are the shape on the map, and this is
+	// the setting a form fills in and a person changes. The samples cannot be
+	// read back into a pattern - they are one-way, at the horizon, with the
+	// feedline already folded in - so a panel that had only those could show an
+	// antenna and never edit one.
+	Antenna Antenna
+}
+
+// Antenna is a node's antenna as the interface needs it: which sort, and where
+// it points.
+//
+// Flat strings and numbers rather than the model's own types, for the same
+// reason Pattern is samples: the renderer draws a snapshot and does not know
+// what a radiation pattern is. Type is empty for a node that has no antenna at
+// all, which is said rather than drawn as an omni at 0 dBi.
+type Antenna struct {
+	Type          string
+	GainDBiPeak   float64
+	BeamwidthDeg  float64
+	FrontToBackDB float64
+	BearingDeg    float64
+	DowntiltDeg   float64
+	Polarisation  string
+	FeedlineDB    float64
 }
 
 // NodeStat is what one node is costing and doing right now.

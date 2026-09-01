@@ -1,8 +1,8 @@
 # Every verb, and the call that covers it
 
 The wire underneath [scripting-api.md](scripting-api.md). The store registers
-**203**<!--verbdoc:public--> public verbs a script can call and
-**35**<!--verbdoc:internal--> internal callbacks it cannot, **238**<!--verbdoc:total-->
+**206**<!--verbdoc:public--> public verbs a script can call and
+**35**<!--verbdoc:internal--> internal callbacks it cannot, **241**<!--verbdoc:total-->
 in total, plus the two the socket answers itself, with what each reads, what
 each returns, and which façade call reaches it.
 
@@ -72,8 +72,8 @@ Two verbs are **not** in this table:
 
 ## What this table shows about the surface
 
-- **203**<!--verbdoc:public--> public verbs, plus **35**<!--verbdoc:internal-->
-  the workbench keeps to itself, **238**<!--verbdoc:total--> registered in
+- **206**<!--verbdoc:public--> public verbs, plus **35**<!--verbdoc:internal-->
+  the workbench keeps to itself, **241**<!--verbdoc:total--> registered in
   total. The façade covers the public verbs, over roughly 60 calls once
   objects and properties absorb them.
 - **The naming is not regular.** `node.*` and `nodes.*` are both node verbs and
@@ -120,6 +120,8 @@ Two verbs are **not** in this table:
 
 | verb | takes | returns | façade |
 |---|---|---|---|
+| `node.aim` | *a bare string*, `node` string, `at` string | `node`, `at`, `bearing_deg`, `distance_km`, `gain_dbi` | `node.aim(at)` |
+| `node.antenna` | *a bare string*, `node` string | `node`, `pattern`, `gain_dbi_peak`, `beamwidth_deg`, `front_to_back_db`, `bearing_deg`, `downtilt_deg`, `polarisation`, `feedline_db`, `peak_dbi` | `node.antenna` |
 | `node.card` | *a bare string*, `node` string, `fitted` bool, `file` string, `wipe` bool | `node`, `slot`, `fitted`, `file`, `own_file`, `bytes`, `required_by_firmware`, `board_has_slot`, `wiped` | `node.card(fitted=|file=|wipe=)` |
 | `node.energy` | *a bare string* | `node` | `node.energy()` |
 | `node.output` | *a bare string*, `node` string, `source` string, `lines` number | `node`, `source`, `lines`, `total`, `path`, `tail`, `note`, `tracing` | `node.output(source)` |
@@ -139,6 +141,7 @@ Two verbs are **not** in this table:
 | `node.wipe` | *a bare string*, `node` string | `node`, `wiped`, `removed` | `node.wipe()` |
 | `nodes.add_to_selection` | — | `added` | `wb.nodes.select(*names, add=True)` |
 | `nodes.allow_flood` | `node` string, `on` bool | `nodes`, `allow_any_flood` | `node.allow_flood = bool` |
+| `nodes.antenna` | `node` string, `kind` string, `pattern` string, `gain_dbi_peak` number, `beamwidth_deg` number, `front_to_back_db` number, `bearing_deg` number, `downtilt_deg` number, `polarisation` string, `feedline_db` number | `nodes`, `pattern`, `gain_dbi_peak`, `beamwidth_deg`, `front_to_back_db`, `bearing_deg`, `downtilt_deg`, `polarisation`, `feedline_db` | `node.set_antenna(...) / wb.nodes.set_antenna(...)` |
 | `nodes.delete` | `node` string | `deleted`, `nodes` | `wb.nodes.delete(*names) / node.delete()` |
 | `nodes.delete_many` | — | — | `wb.nodes.delete()` |
 | `nodes.keep` | — | — | `wb.nodes.keep()` |

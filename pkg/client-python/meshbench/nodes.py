@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 from . import errors
 from .device import Device
 from .sets import Board, Kind, Transport
-from .types import Build, CardSlot, NameMatch, NodeInfo, NodeStat
+from .types import Aimed, Antenna, Build, CardSlot, NameMatch, NodeInfo, NodeStat
 from .wait import FIRMWARE_WAIT, wait_for
 
 if TYPE_CHECKING:  # pragma: no cover - import for typing only
@@ -163,6 +163,23 @@ class Nodes:
     def stats(self) -> list[NodeStat]:
         return self._wb.node_stats()
 
+    def set_antenna(self, kind: str = "", **change: float | str) -> None:
+        """Give every node the same antenna, or every node of one kind.
+
+        The fleet-level default, and the only way a large scenario gets one:
+        setting fifty-eight nodes by hand is not a workflow anybody will use.
+        What is not named is left alone, so this can retune the whole mesh's
+        feedlines without restating what is on top of the masts.
+
+        The named parameters are ``pattern``, ``gain_dbi_peak``,
+        ``beamwidth_deg``, ``front_to_back_db``, ``bearing_deg``,
+        ``downtilt_deg``, ``polarisation`` and ``feedline_db``.
+        """
+        p: dict[str, Any] = dict(change)
+        if kind:
+            p["kind"] = kind
+        self._wb.call("nodes.antenna", p)
+
 
 class Node:
     """One node. Live: a handle, not a copy - it holds a name and asks."""
@@ -247,6 +264,43 @@ class Node:
         running, what it reports back and where the two differ. Left as a dict
         because a repeater and a companion answer it differently."""
         return self._wb.call("node.radio", {"node": self.name}) or {}
+
+    @property
+    def antenna(self) -> Antenna:
+        """What this node stands under, and which way it points.
+
+        Gain is directional in azimuth, so the bearing is not decoration: a
+        beam is twenty decibels or more down off its boresight, and which way
+        it faces decides which links close.
+        """
+        return Antenna.parse(
+            self._wb.call("node.antenna", {"node": self.name}) or {}
+        )
+
+    def set_antenna(self, **change: float | str) -> None:
+        """Choose and aim this node's antenna.
+
+        What is not named is left alone, so turning a beam does not restate the
+        beam. The named parameters are ``pattern`` (isotropic, dipole,
+        collinear or yagi), ``gain_dbi_peak``, ``beamwidth_deg``,
+        ``front_to_back_db``, ``bearing_deg``, ``downtilt_deg``,
+        ``polarisation`` and ``feedline_db``.
+        """
+        p: dict[str, Any] = dict(change)
+        p["node"] = self.name
+        self._wb.call("nodes.antenna", p)
+
+    def aim(self, at: Node | str) -> Aimed:
+        """Turn this node's antenna towards another node.
+
+        The bearing between two placed nodes is exact, so this is a better
+        answer than reading one off a map and typing it back. What comes back
+        says what the turn won, which on an omni is nothing.
+        """
+        name = at.name if isinstance(at, Node) else at
+        return Aimed.parse(
+            self._wb.call("node.aim", {"node": self.name, "at": name}) or {}
+        )
 
     def wipe(self) -> None:
         """Put this board back to factory: its flash, its card, its files.

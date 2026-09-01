@@ -85,3 +85,48 @@ func TestElevationCostsWhatThePatternSays(t *testing.T) {
 		t.Errorf("the far end's gain %.2f dBi is not its own look angle", down)
 	}
 }
+
+// A polarisation mismatch takes a link off the air, and an unstated one leaves
+// it exactly where it was.
+//
+// CrossPolLossDB had been defined and never called, so the polarisation field
+// was one somebody could set and nothing would read. It is charged against the
+// pair rather than against either end, because an antenna is not mismatched on
+// its own.
+func TestAPolarisationMismatchIsChargedToTheLink(t *testing.T) {
+	run := func(a, b antenna.Polarisation) string {
+		e := engine.New(flat{100}, engine.Config{StepMs: 10, Seed: 33})
+		stand := func(name string, lonOffset float64,
+			p antenna.Pattern, pol antenna.Polarisation) scenario.Node {
+			n := wfNode(name, lonOffset, 22)
+			n.Antenna = antenna.Mounted{Pattern: p, Polarisation: pol}
+			return n
+		}
+		// The same thin-margin pair as the beam above: ten decibels at one end
+		// and nothing at the other, with nothing to spare.
+		e.Add(stand("a", 0, antenna.Collinear{GainDBiPeak: 10}, a), nil)
+		e.Add(stand("b", 0.80, antenna.Isotropic{}, b), nil)
+		_ = e.Run(context.Background(), 10)
+		e.InjectFrame(0, []byte("which way up is the far end"))
+		_ = e.Run(context.Background(), 8000)
+		for _, ev := range e.Events() {
+			if ev.From == "a" && ev.To == "b" {
+				return ev.Kind
+			}
+		}
+		return "nothing"
+	}
+	// The thin-margin geometry the tests above use: twenty decibels is far more
+	// than this link has to spare.
+	if got := run(antenna.Vertical, antenna.Vertical); got != "rx" {
+		t.Fatalf("two verticals did not decode: %s", got)
+	}
+	if got := run(antenna.Vertical, antenna.Horizontal); got == "rx" {
+		t.Error("a vertical mast reached a horizontal one for free")
+	}
+	// The one that matters for every scenario saved before anybody chose: a
+	// blank field is a network nobody described, not a network mounted sideways.
+	if got := run("", antenna.Vertical); got != "rx" {
+		t.Errorf("an unstated polarisation cost the link: %s", got)
+	}
+}

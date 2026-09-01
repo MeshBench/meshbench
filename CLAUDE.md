@@ -118,6 +118,8 @@ internal/app/       orchestration, no toolkit
     fleet/              the bulk node verbs, wired in by init
     inventory/          the node and event listing verbs, wired in by init
     links/              the link pair and profile verbs, wired in by init
+    nodeantenna/        the antenna verbs - what a node stands under and which
+                        way it points, wired in by init
     nodelookup/         the node-finding verbs (search, near), wired in by init
     nodewipe/           node.wipe - one node back to factory, wired in by init
     sdr/                the rtl_tcp observer server, state off Sim via the seam

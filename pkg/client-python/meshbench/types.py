@@ -410,3 +410,74 @@ class ImportPreview:
     @classmethod
     def parse(cls, raw: dict[str, Any]) -> ImportPreview:
         return _from_dict(cls, raw)
+
+
+@dataclass(frozen=True)
+class Antenna:
+    """What a node stands under: which sort, and where it points.
+
+    Directional in azimuth, so ``bearing_deg`` is not decoration. A beam is
+    twenty decibels or more down off its boresight, and the difference between
+    a node aimed down a valley and the same node aimed at a hillside is the
+    difference between a link and no link.
+    """
+
+    node: str = ""
+    #: "isotropic", "dipole", "collinear" or "yagi", and "" for a node with no
+    #: antenna at all - which is not an omni at 0 dBi, and is said rather than
+    #: filled in.
+    pattern: str = ""
+    gain_dbi_peak: float = 0.0
+    beamwidth_deg: float = 0.0
+    front_to_back_db: float = 0.0
+    #: Compass bearing of the boresight, 0 at north.
+    bearing_deg: float = 0.0
+    #: Degrees the beam is tilted below the horizon, which is what a mast on a
+    #: hill does to reach the town underneath it.
+    downtilt_deg: float = 0.0
+    #: "vertical", "horizontal" or "circular", and "" for a node that has not
+    #: said. Unstated costs nothing; a mismatch costs 3 dB circular to linear
+    #: and 20 dB vertical to horizontal.
+    polarisation: str = ""
+    #: Cable and connector loss, as a positive number.
+    feedline_db: float = 0.0
+    #: What the pattern manages on its own boresight, before the feedline.
+    peak_dbi: float = 0.0
+
+    def __str__(self) -> str:
+        if not self.pattern:
+            return "no antenna"
+        return (
+            f"{self.pattern}, {self.gain_dbi_peak:.1f} dBi, "
+            f"pointing {self.bearing_deg:.0f} degrees"
+        )
+
+    @classmethod
+    def parse(cls, raw: dict[str, Any]) -> Antenna:
+        return _from_dict(cls, raw)
+
+
+@dataclass(frozen=True)
+class Aimed:
+    """Where an antenna ended up pointing, and what that won.
+
+    ``gain_dbi`` is the point of it: on an omni the answer is the same as
+    before, and a call that reported success while changing nothing would be
+    one to distrust.
+    """
+
+    node: str = ""
+    at: str = ""
+    bearing_deg: float = 0.0
+    distance_km: float = 0.0
+    gain_dbi: float = 0.0
+
+    def __str__(self) -> str:
+        return (
+            f"{self.node} points at {self.at}, {self.bearing_deg:.0f} degrees, "
+            f"{self.gain_dbi:.1f} dBi that way"
+        )
+
+    @classmethod
+    def parse(cls, raw: dict[str, Any]) -> Aimed:
+        return _from_dict(cls, raw)

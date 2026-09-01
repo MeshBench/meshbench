@@ -266,6 +266,8 @@ const (
 	TabSettings Tab = "Settings"
 	// TabRadio is what the chip is really doing.
 	TabRadio Tab = "Radio"
+	// TabAntenna is what this node stands under and which way it points.
+	TabAntenna Tab = "Antenna"
 	// TabStats is what it has cost and what it has carried.
 	TabStats Tab = "Stats"
 	// TabActivity is what it has heard and sent, in order.
@@ -288,6 +290,7 @@ var Tabs = []Tab{
 	TabSDR,
 	TabSettings,
 	TabRadio,
+	TabAntenna,
 	TabStats,
 	TabActivity,
 	TabConnect,

@@ -199,6 +199,55 @@
         "nodes"
       ]
     },
+    "node.aim": {
+      "what": "turn a node's antenna towards another node, and say what that won it",
+      "params": [
+        {
+          "name": "node",
+          "type": "string",
+          "required": true,
+          "primary": true,
+          "what": "the node whose antenna is turned"
+        },
+        {
+          "name": "at",
+          "type": "string",
+          "required": true,
+          "what": "the node to point it at"
+        }
+      ],
+      "returns": [
+        "node",
+        "at",
+        "bearing_deg",
+        "distance_km",
+        "gain_dbi"
+      ]
+    },
+    "node.antenna": {
+      "what": "report what one node's antenna is and which way it points",
+      "params": [
+        {
+          "name": "node",
+          "type": "string",
+          "required": true,
+          "primary": true,
+          "what": "the node to ask about"
+        }
+      ],
+      "returns": [
+        "node",
+        "pattern",
+        "gain_dbi_peak",
+        "beamwidth_deg",
+        "front_to_back_db",
+        "bearing_deg",
+        "downtilt_deg",
+        "polarisation",
+        "feedline_db",
+        "peak_dbi"
+      ]
+    },
     "node.card": {
       "what": "Report or change what is in one node's card slot: whether a card is fitted, which file it is, and whether to erase it.",
       "params": [
@@ -326,6 +375,72 @@
         "node",
         "wiped",
         "removed"
+      ]
+    },
+    "nodes.antenna": {
+      "what": "choose and aim the antenna on one node, on a kind, or on every node",
+      "params": [
+        {
+          "name": "node",
+          "type": "string",
+          "what": "one node; absent means every node the other filters leave"
+        },
+        {
+          "name": "kind",
+          "type": "string",
+          "what": "only nodes of this scenario kind"
+        },
+        {
+          "name": "pattern",
+          "type": "string",
+          "what": "isotropic, dipole, collinear or yagi"
+        },
+        {
+          "name": "gain_dbi_peak",
+          "type": "number",
+          "what": "the headline gain, for a collinear or a yagi"
+        },
+        {
+          "name": "beamwidth_deg",
+          "type": "number",
+          "what": "a yagi's horizontal half-power beamwidth"
+        },
+        {
+          "name": "front_to_back_db",
+          "type": "number",
+          "what": "how far down a yagi's back is on its front"
+        },
+        {
+          "name": "bearing_deg",
+          "type": "number",
+          "what": "compass bearing of boresight, 0 at north"
+        },
+        {
+          "name": "downtilt_deg",
+          "type": "number",
+          "what": "degrees the beam is tilted below the horizon"
+        },
+        {
+          "name": "polarisation",
+          "type": "string",
+          "what": "vertical, horizontal or circular"
+        },
+        {
+          "name": "feedline_db",
+          "type": "number",
+          "what": "cable and connector loss, as a positive number"
+        }
+      ],
+      "returns": [
+        "nodes",
+        "pattern",
+        "gain_dbi_peak",
+        "beamwidth_deg",
+        "front_to_back_db",
+        "bearing_deg",
+        "downtilt_deg",
+        "polarisation",
+        "feedline_db"
       ]
     },
     "panels.list": {

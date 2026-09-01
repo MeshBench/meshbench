@@ -277,6 +277,9 @@ class Tab(_Set):
     RADIO = "Radio"
     """what the chip is really doing"""
 
+    ANTENNA = "Antenna"
+    """what this node stands under and which way it points"""
+
     STATS = "Stats"
     """what it has cost and what it has carried"""
 

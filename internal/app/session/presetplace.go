@@ -91,13 +91,20 @@ func registerPresetsAndPlace(st *state.Store, s *Sim) {
 		// what decides the transmit ceiling, the receive chain's noise figure
 		// and the battery the energy model needs, so a wrong name has to
 		// refuse rather than fall back to a plausible default.
+		// And the antenna it stands under. A placed node had none at all, which
+		// is not "an omni": the engine credited it zero gain, the map drew no
+		// pattern beside it, and the coverage raster dereferenced it. The board's
+		// own answer, the same one an imported node on that board gets, so a
+		// mesh built by hand and a mesh built by import are priced alike.
+		profile := hw.Board{}
 		if b, ok := namedField(p, "board"); ok && b != "" {
 			board, err := hw.BoardByName(b)
 			if err != nil {
 				return nil, control.WithCode(control.BadParams, err)
 			}
-			node.Board = board.Name
+			node.Board, profile = board.Name, board
 		}
+		node.Antenna = scenario.BoardAntenna(profile)
 		// A placed node holds what its neighbours hold. Not the busiest
 		// region in the fixture: on a mesh spanning two islands that would
 		// give a repeater in Edinburgh the region held in Wicklow, and a node
