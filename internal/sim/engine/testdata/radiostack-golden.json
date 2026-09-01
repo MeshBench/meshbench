@@ -1,8 +1,7 @@
 {
  "frames": [
-  "1100330ac21f0f0e0c6c74453b1f4924c672e627deee4a7c1d38fb363debf782254fe0989668901de521706620c295b477fa80cfc03450a385974328f6869310acbf5f8f41b12fba816d2686e15a909749859fab12b27bcc867b8584c73b1d140a92d04735039200000000000000007265706561746572",
-  "1101cb330ac21f0f0e0c6c74453b1f4924c672e627deee4a7c1d38fb363debf782254fe0989668901de521706620c295b477fa80cfc03450a385974328f6869310acbf5f8f41b12fba816d2686e15a909749859fab12b27bcc867b8584c73b1d140a92d04735039200000000000000007265706561746572",
-  "1200cbb5fc632babd906649331739f6b74cd44c1d8ea5f6e8c0d0a9d462b974d4e19e098966890ee1f2fceed52e17ff8ed17f6dfcf785ec897235b26fb2e24455f3940128f9d471586fecd3ea53e479aaa9e4568425cad71d7320d72dedd6d324217f3b684029200000000000000007265706561746572"
+  "1100330ac21f0f0e0c6c74453b1f4924c672e627deee4a7c1d38fb363debf782254fe29896685f4cb9e50be8019e2a6c966e52403daf21181fee2a110a7c9378d7731d8f8404027441d61de5731c9a86c72c569ef20fc6b385495da5111a2f9b331e4ce0d4069200000000000000007265706561746572",
+  "1101cb330ac21f0f0e0c6c74453b1f4924c672e627deee4a7c1d38fb363debf782254fe29896685f4cb9e50be8019e2a6c966e52403daf21181fee2a110a7c9378d7731d8f8404027441d61de5731c9a86c72c569ef20fc6b385495da5111a2f9b331e4ce0d4069200000000000000007265706561746572"
  ],
  "events": [
   {
@@ -19,26 +18,13 @@
    "detail": "first time this node heard the message"
   },
   {
-   "at_ms": 4680,
+   "at_ms": 2200,
    "kind": "tx",
    "from": "rs-bravo",
    "detail": "120 bytes, 627 ms on air"
   },
   {
-   "at_ms": 5307,
-   "kind": "rx",
-   "from": "rs-bravo",
-   "to": "rs-alpha",
-   "detail": "first time this node heard the message"
-  },
-  {
-   "at_ms": 9640,
-   "kind": "tx",
-   "from": "rs-bravo",
-   "detail": "119 bytes, 607 ms on air"
-  },
-  {
-   "at_ms": 10247,
+   "at_ms": 2827,
    "kind": "rx",
    "from": "rs-bravo",
    "to": "rs-alpha",
@@ -47,10 +33,10 @@
  ],
  "tx": {
   "rs-alpha": 1,
-  "rs-bravo": 2
+  "rs-bravo": 1
  },
  "rx_accepted": {
-  "rs-alpha": 2,
+  "rs-alpha": 1,
   "rs-bravo": 1
  }
 }
