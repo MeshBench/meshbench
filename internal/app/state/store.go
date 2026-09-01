@@ -105,15 +105,24 @@ func New(stepMs uint32) *Store {
 	return s
 }
 
-// Handle registers a verb. Registering twice replaces, which is what a test
-// wants and what a plugin would want.
+// Handle registers a verb. A second registration under the same name panics
+// naming it, rather than silently replacing the first: two packages claiming
+// one verb is exactly the kind of collision this store cannot detect on its
+// own once both have run, so it is caught here, at whichever one runs second.
 func (s *Store) Handle(verb string, h Handler) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.claim(verb)
 	s.handlers[verb] = h
-	// Replacing a handler replaces what it is, so a stub put over an internal
-	// verb does not inherit a refusal the stub knows nothing about.
-	delete(s.private, verb)
+}
+
+// claim panics if verb is already registered, naming it so the collision does
+// not have to be found by bisection. Called with s.mu held, from each of the
+// three registration methods.
+func (s *Store) claim(verb string) {
+	if _, ok := s.handlers[verb]; ok {
+		panic(fmt.Sprintf("state: %q is registered twice - two packages are claiming the same verb", verb))
+	}
 }
 
 // Verbs lists what is registered, so the parity test can be generated from the

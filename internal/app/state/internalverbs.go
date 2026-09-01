@@ -24,6 +24,7 @@ import "sort"
 func (s *Store) HandleInternal(verb string, h Handler) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.claim(verb)
 	s.handlers[verb] = h
 	s.private[verb] = true
 }

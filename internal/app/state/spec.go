@@ -73,9 +73,9 @@ func (s Spec) described() bool { return s.What != "" }
 func (s *Store) HandleSpec(verb string, spec Spec, h Handler) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.claim(verb)
 	s.handlers[verb] = h
 	s.specs[verb] = spec
-	delete(s.private, verb)
 }
 
 // Specs is what every described verb says about itself, for the manifest and

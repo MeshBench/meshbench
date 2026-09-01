@@ -24,10 +24,14 @@ func register(t *testing.T) (*state.Store, *Sim) {
 // A hand-counted list was already wrong by three when this was written the
 // first time. Generating it means the test cannot pass while the document is
 // stale, because there is no document.
+//
+// The floor below is a collapse detector, not the coverage guarantee - the
+// tree serves well over a hundred verbs, and TestDocumentedVerbsMatchWhatTheStoreServes
+// in manifest_test.go is what checks every one of them is accounted for.
 func TestEveryVerbIsNamedAndReachable(t *testing.T) {
 	st, _ := register(t)
 	verbs := st.Verbs()
-	if len(verbs) < 20 {
+	if len(verbs) < 100 {
 		t.Fatalf("only %d verbs registered; the interface has more routes than that", len(verbs))
 	}
 	seen := map[string]bool{}

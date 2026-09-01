@@ -103,6 +103,65 @@ func TestEveryVerbDescribesItself(t *testing.T) {
 	t.Logf("%d verbs described, %d still to go", len(st.Specs()), len(st.Undescribed()))
 }
 
+// The manifest and the ratchet list are two halves of one claim: between
+// them, every verb the store serves is accounted for. Checked here directly
+// rather than left to follow from TestTheVerbManifestIsCurrent and
+// TestEveryVerbDescribesItself each holding their own half - a change to
+// either one's filtering could make both pass while a verb fell through the
+// gap between them, which is exactly the shape of the bug this guards.
+func TestDocumentedVerbsMatchWhatTheStoreServes(t *testing.T) {
+	st, _ := Boot(Options{NoPrefs: true, Headless: true})
+
+	documented := map[string]bool{}
+	for name := range readManifest(t).Verbs {
+		documented[name] = true
+	}
+	for name := range readUndescribed(t) {
+		documented[name] = true
+	}
+
+	runtime := map[string]bool{}
+	for _, v := range st.Verbs() {
+		runtime[v] = true
+	}
+
+	var missing, extra []string
+	for v := range runtime {
+		if !documented[v] {
+			missing = append(missing, v)
+		}
+	}
+	for v := range documented {
+		if !runtime[v] {
+			extra = append(extra, v)
+		}
+	}
+	sort.Strings(missing)
+	sort.Strings(extra)
+	if len(missing) > 0 {
+		t.Errorf("%d verbs the store registers are in neither docs/verbs.json nor "+
+			"docs/verbs-undescribed.txt:\n  %s", len(missing), strings.Join(missing, "\n  "))
+	}
+	if len(extra) > 0 {
+		t.Errorf("%d verbs are documented but the store does not register them:\n  %s",
+			len(extra), strings.Join(extra, "\n  "))
+	}
+}
+
+func readManifest(t *testing.T) manifest {
+	t.Helper()
+	path := filepath.Join("..", "..", "..", "docs", "verbs.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m manifest
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("%s: %v", path, err)
+	}
+	return m
+}
+
 func readUndescribed(t *testing.T) map[string]bool {
 	t.Helper()
 	path := filepath.Join("..", "..", "..", "docs", "verbs-undescribed.txt")
