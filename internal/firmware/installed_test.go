@@ -161,6 +161,53 @@ func TestImportNeedsEnoughToIdentifyIt(t *testing.T) {
 	}
 }
 
+// The dev-loop path this reproduces: firmware.Build imports a fresh build
+// into the cache, and cmd_dev then hands that same cache path back to the
+// firmware.import verb, which computes the identical destination and tries to
+// import it again. Reproduced here through the two exported entry points a
+// real run goes through - Build's own Import call, then Catalogue.Import,
+// which is what the firmware.import verb calls - rather than through
+// cmd_dev itself, since a real meshcore-native build is too heavy for a unit
+// test.
+func TestReimportingABuildAtItsOwnCachePathDoesNotEmptyIt(t *testing.T) {
+	cache := t.TempDir()
+	staged := filepath.Join(t.TempDir(), "meshcore-simple_repeater-linux-amd64")
+	want := []byte("what meshcore-native's build.sh produced")
+	if err := os.WriteFile(staged, want, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// firmware.Build's own import: the freshly built binary into the cache.
+	built, err := firmware.Import(cache, staged, "local-mybranch", "simple_repeater", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if built.Bytes != int64(len(want)) {
+		t.Fatalf("build landed %d bytes, want %d", built.Bytes, len(want))
+	}
+
+	// cmd_dev then hands built.Path to firmware.import, which for a native
+	// build (no board) is Catalogue.Import.
+	cat := &firmware.Catalogue{CacheDir: cache}
+	img, err := cat.Import(built.Path, "", "simple_repeater", "local-mybranch")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if img.Size != int64(len(want)) {
+		t.Errorf("reimport reports %d bytes, want %d: the message would claim "+
+			"success over a truncated file", img.Size, len(want))
+	}
+	got, err := os.ReadFile(built.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(want) {
+		t.Fatalf("the cached build after reimport: got %d bytes, want %d (%q)",
+			len(got), len(want), got)
+	}
+}
+
 func write(t *testing.T, root, rel, content string) {
 	t.Helper()
 	p := filepath.Join(root, filepath.FromSlash(rel))
