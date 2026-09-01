@@ -71,16 +71,27 @@ func TestOneExperimentCellReportsWhatItDid(t *testing.T) {
 // It asserts the size, not the sign: a runner whose repeats differ by a third
 // cannot support any claim about a firmware change, and one whose repeats are
 // bit-identical gives no floor to measure a claim against.
+//
+// The number this produces is a property of the machine, not of the code: it
+// measures how much run-to-run spread the HOST'S OWN SCHEDULING adds. That
+// spread comes from load, and `go test ./...` itself creates load by running
+// packages in parallel, so a gate on the CI env var alone left this red on an
+// ordinary developer's own workstation for a reason that says nothing about
+// MeshBench. It is opt-in instead of opt-out: nobody gets it by accident, and
+// it has to be asked for, alone, on a machine that is otherwise quiet.
+//
+//	MESHBENCH_NOISE_FLOOR=1 go test ./internal/app/session/ -run TestTheNoiseFloorIsMeasurable -v
 func TestTheNoiseFloorIsMeasurable(t *testing.T) {
 	if testing.Short() {
 		t.Skip("starts real firmware twice")
 	}
-	// The number this produces is a property of the machine, not of the code:
-	// it measures how much run-to-run spread the host's own scheduling adds.
-	// A shared two-core runner has far too much of it, so on CI the assertion
-	// fails for a reason that says nothing about MeshBench - and a test that
-	// is always red is a test everybody learns to ignore. It runs on a real
-	// machine, where the answer means something.
+	if os.Getenv("MESHBENCH_NOISE_FLOOR") == "" {
+		t.Skip("measures the HOST's own scheduling noise, not MeshBench: run it deliberately, " +
+			"alone and not under a parallel `go test ./...`, with MESHBENCH_NOISE_FLOOR=1")
+	}
+	// Opt-in does not make a shared runner quiet: it only proves somebody
+	// meant to run this. A CI box still has too much load of its own to
+	// measure through, so it stays excluded even when asked for.
 	if os.Getenv("CI") != "" {
 		t.Skip("measures the host's own scheduling noise; a shared CI runner has too much to measure through")
 	}
