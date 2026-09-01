@@ -22,10 +22,11 @@ report is still worth making when the *size* of the error surprises you.
 ## What CI checks, so you can check it first
 
 ```bash
-gofmt -l .          # must print nothing
+gofmt -l .            # must print nothing
 go vet ./...
-golangci-lint run   # pin to the version CI uses; a newer one disagrees
+golangci-lint run     # pin to the version CI uses; a newer one disagrees
 go test ./...
+tools/file-length.sh  # the 500-line hard limit, and the soft-limit trend
 ```
 
 `golangci-lint` must be **the version `ci.yml` pins**. Versions genuinely

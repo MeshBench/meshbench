@@ -56,6 +56,12 @@ class HostRadio : public mesh::Radio {
     return n;
   }
 
+  // Declared and not defined, deliberately: both have to be MeshCore's own
+  // formulae rather than approximations of them, and the only copy of those in
+  // this repository is in native_main.cpp, where they belong to the build that
+  // ships. Defining them here would mean a second copy free to drift, so they
+  // wait for the translation unit this directory has never had. See README.md:
+  // the whole of it is paused.
   uint32_t getEstAirtimeFor(int len) override;
   float packetScore(float snr, int len) override;
 

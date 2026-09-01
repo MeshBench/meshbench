@@ -31,10 +31,19 @@ jobs:
     # worth risking.
     timeout-minutes: 30
     runs-on: windows-latest
+    env:
+      # The job must test the Go that go.mod asks for, not a version that
+      # happens to be installed with a silent download papering over the gap.
+      # Under the default GOTOOLCHAIN=auto this job pinned 1.24, fetched
+      # 1.25.x behind the scenes and reported a pass for a toolchain it never
+      # named - so the one thing that compiles for Windows was also the one
+      # thing whose declared version meant nothing. local makes the pin below
+      # the whole answer: wrong, and the job says so on the first go command.
+      GOTOOLCHAIN: local
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
-        with: { go-version: '1.24', cache: true }
+        with: { go-version: '1.25', cache: true }
 
       - name: What GPU the runner offers
         shell: bash
