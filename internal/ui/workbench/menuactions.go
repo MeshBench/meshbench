@@ -4,7 +4,6 @@ package workbench
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
@@ -176,28 +175,33 @@ func (w menuDeps) onMenu(action string) {
 		})
 		return
 	}
-	// Opening one of your own networks: the names are already known, so the
-	// question offers them rather than asking for a path. Before this the
-	// entry opened the live-import panel, which is a different thing that
-	// happens to also produce w.nodes.
+	// Opening a network: the names are already known, so the question offers
+	// them rather than asking for a path. Before this the entry opened the
+	// live-import panel, which is a different thing that happens to also
+	// produce w.nodes.
+	//
+	// The shipped networks are in the list beside the saved ones, because on
+	// a fresh install there are no saved ones and the first thing anybody is
+	// told to do is open one of the shipped ones.
 	if action == "project.open" {
 		go func() {
 			res, err := w.st.Do(w.ctx, "project.list", nil)
 			if err != nil {
+				w.say("project.list: " + err.Error())
 				return
 			}
-			m, _ := res.(map[string]any)
-			dir, _ := m["dir"].(string)
-			var names []string
-			if raw, ok := m["projects"].([]string); ok {
-				names = raw
-			}
+			names, opens := openChoices(res)
 			w.sh.Ask.Post(func(ask *shell.Prompt) {
-				ask.Choose("Open a saved network", "filter", names,
-					func(name string) {
+				ask.Choose("Open a network", "filter - the ones marked built in ship with MeshBench",
+					names, func(pick string) {
+						what, ok := opens[pick]
+						if !ok {
+							return
+						}
 						go func() {
-							_, _ = w.st.Do(w.ctx, "project.open",
-								filepath.Join(dir, name+".json"))
+							if _, err := w.st.Do(w.ctx, "project.open", what); err != nil {
+								_, _ = w.st.Do(w.ctx, "ui.said", err.Error())
+							}
 						}()
 					})
 			})
