@@ -1,8 +1,8 @@
 # Every verb, and the call that covers it
 
 The wire underneath [scripting-api.md](scripting-api.md). The store registers
-**210**<!--verbdoc:public--> public verbs a script can call and
-**35**<!--verbdoc:internal--> internal callbacks it cannot, **245**<!--verbdoc:total-->
+**211**<!--verbdoc:public--> public verbs a script can call and
+**35**<!--verbdoc:internal--> internal callbacks it cannot, **246**<!--verbdoc:total-->
 in total, plus the two the socket answers itself, with what each reads, what
 each returns, and which façade call reaches it.
 
@@ -77,8 +77,8 @@ Two verbs are **not** in this table:
 
 ## What this table shows about the surface
 
-- **210**<!--verbdoc:public--> public verbs, plus **35**<!--verbdoc:internal-->
-  the workbench keeps to itself, **245**<!--verbdoc:total--> registered in
+- **211**<!--verbdoc:public--> public verbs, plus **35**<!--verbdoc:internal-->
+  the workbench keeps to itself, **246**<!--verbdoc:total--> registered in
   total. The façade covers the public verbs, over roughly 60 calls once
   objects and properties absorb them.
 - **The naming is not regular.** `node.*` and `nodes.*` are both node verbs and
@@ -190,7 +190,7 @@ Two verbs are **not** in this table:
 | `sim.slower` | — | `step_ms` | `wb.sim.slower()` |
 | `sim.speed` | `step_ms` number, `factor` number | `step_ms` | `wb.sim.step_ms = n  /  wb.sim.faster(x)` |
 | `sim.start` | — | `playing`, `warming`, `starting_firmware`, `started_firmware` | `wb.sim.start()` |
-| `sim.state` | — | `playing`, `now_ms`, `until_ms`, `events`, `step_ms`, `seed` | `wb.sim.state()` |
+| `sim.state` | — | `playing`, `now_ms`, `until_ms`, `events`, `step_ms`, `seed`, `warming`, `links_measured`, `warm_held`, `ground` | `wb.sim.state()` |
 | `sim.step` | — | `now_ms` | `wb.sim.step()` |
 | `sim.toggle` | — | `playing` | `wb.sim.toggle()` |
 | `sim.unverified_wiring` | *a bare string*, `on` bool | `on` | `wb.sim.unverified_wiring = bool` |
@@ -275,7 +275,7 @@ Two verbs are **not** in this table:
 | verb | takes | returns | façade |
 |---|---|---|---|
 | `budget.for_selection` | — | `budgets` | `wb.links.budget()` |
-| `link.pair` | `a` object, `b` object | `from`, `to` | `wb.links.pair(a, b)` |
+| `link.pair` | `a` object, `b` object | `from`, `to`, `ground` | `wb.links.pair(a, b)` |
 | `link.pair_set` | — | `from`, `to`, `km`, `edges` | *none* — the pair worker publishing its answer |
 | `link.profile` | — | `from`, `to` | `wb.links.profile(a, b)` |
 | `link.profile_set` | — | `from`, `to`, `km`, `edges` | *none* — the profile worker publishing its answer |
@@ -291,10 +291,10 @@ Two verbs are **not** in this table:
 | `coverage.combined` | — | `mode`, `gap_cells`, `known_cells`, `redundancy`, `single_point_of_failure` | *none* — the raster worker publishing the network-wide answer |
 | `coverage.compute` | *a bare string*, `node` string | `nodes`, `started` | `wb.study.coverage(node)` |
 | `coverage.failed` | — | — | *none* — the raster worker reporting a failure |
-| `coverage.map` | *a bare string*, `cells` number, `station` string, `south` number, `north` number, `west` number, `east` number | `nodes`, `started` | `wb.study.coverage_map()` |
+| `coverage.map` | *a bare string*, `cells` number, `station` string, `south` number, `north` number, `west` number, `east` number | `nodes`, `started`, `ground` | `wb.study.coverage_map()` |
 | `coverage.resolution` | *a bare string*, `cells` number | `cells` | `wb.study.coverage_cells = n` |
 | `coverage.set` | — | `node` | *none* — the raster worker publishing its answer |
-| `coverage.start` | *a bare string*, `mode` string | `mode`, `nodes`, `started` | `wb.study.coverage(mode=)` |
+| `coverage.start` | *a bare string*, `mode` string | `mode`, `nodes`, `started`, `ground` | `wb.study.coverage(mode=)` |
 | `energy.for_selection` | — | `node` | `wb.study.energy()` |
 | `plan.failed` | — | — | *none* — the planner reporting a failure |
 | `plan.routes` | — | `from`, `to` | `wb.study.plan(a, b)` |
@@ -403,6 +403,7 @@ Two verbs are **not** in this table:
 | `terrain.cache` | *a bare string*, `gb` number | `gb`, `dir`, `downloads` | `wb.terrain.cache_gb = n` |
 | `terrain.cache_dir` | *a bare string*, `path` string | `moving`, `to` | `wb.terrain.cache_dir = path` |
 | `terrain.cache_moved` | `dir` string, `files` number | `dir` | *none* — the cache mover reporting it finished |
+| `terrain.ground` | — | `state`, `chosen`, `note`, `tiles_sampled`, `tiles_cached` | `wb.terrain.ground()` |
 | `terrain.prefetch` | — | `tiles`, `to_fetch`, `bytes_rough` | `wb.terrain.prefetch()` |
 | `terrain.shade` | *a bare string*, `view` array | `shading` | `wb.ui.map.shade()` |
 | `terrain.shade_failed` | — | — | *none* — the hillshade worker reporting a failure |

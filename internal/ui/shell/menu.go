@@ -173,6 +173,15 @@ func (sh *Shell) menuBar(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 // that thing.
 func bestCaseLine(s *state.Snapshot) string {
 	caveats := []string{}
+	// First, and shouted, because it is the only caveat here that can be true
+	// without anybody having chosen it: a study with no elevation under it is
+	// free space, which is a bigger claim than the three below and is the one
+	// somebody would otherwise read as an ordinary best case.
+	if s != nil {
+		if c := s.Ground.Caveat(); c != "" {
+			caveats = append(caveats, c)
+		}
+	}
 	if s == nil || s.RFRealism.MultipathDB == 0 {
 		caveats = append(caveats, "no multipath")
 	}

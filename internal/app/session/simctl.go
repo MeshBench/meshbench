@@ -41,13 +41,24 @@ func registerSimControl(st *state.Store, s *Sim) {
 	// sim.state: the one a caller polls, so it must be cheap and must never
 	// fail before a network is loaded.
 	st.Handle("sim.state", func(w *state.World, _ any) (any, error) {
+		// links_measured and warm_held are the two halves of "did the
+		// measurement happen": a script that polls this and sees neither a warm
+		// running nor a matrix measured is looking at a session that stopped to
+		// ask something, not at one that is ready. The stored ground says what
+		// it stopped for, and comes off the world rather than off the disk so
+		// this stays the cheap verb it has to be.
+		measured, held := s.linksMeasured()
 		return map[string]any{
-			"playing":  w.Playing,
-			"now_ms":   w.NowMs,
-			"until_ms": w.RunUntilMs,
-			"events":   w.EventTotal,
-			"step_ms":  st.StepMs(),
-			"seed":     w.Seed,
+			"playing":        w.Playing,
+			"now_ms":         w.NowMs,
+			"until_ms":       w.RunUntilMs,
+			"events":         w.EventTotal,
+			"step_ms":        st.StepMs(),
+			"seed":           w.Seed,
+			"warming":        s.warming(),
+			"links_measured": measured,
+			"warm_held":      held,
+			"ground":         w.Ground.Map(),
 		}, nil
 	})
 

@@ -328,6 +328,7 @@ func (s *Store) publish() {
 		TileCacheGB:        s.world.TileCacheGB,
 		TileCacheDir:       s.world.TileCacheDir,
 		TerrainDownloads:   s.world.TerrainDownloads,
+		Ground:             s.world.Ground,
 		Experiment:         s.world.Experiment,
 		ExperimentWarning:  s.world.ExperimentWarning,
 		ExperimentRuns:     s.world.ExperimentRuns,

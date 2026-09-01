@@ -23,9 +23,10 @@
     "returns": [
       "mode",
       "nodes",
-      "started"
+      "started",
+      "ground"
     ],
-    "answers": "It answers as soon as the job starts. The answer itself - gap cells, servers per covered cell, cells depending on one - arrives later through the internal `coverage.combined`, and a failure through `coverage.failed`. `nodes` is every node in the scenario, companions included, because this rasterises the lot over one shared grid rather than the infrastructure alone that `coverage.map` picks out. Mode node answers with `coverage.compute`'s keys instead of these. Each raster is a best case in both directions, with gain evaluated towards each cell and any position uncertainty carried into it.",
+    "answers": "It answers as soon as the job starts, with `ground` saying what it stood on in the shape `terrain.ground` returns; over bare earth nobody chose it is refused rather than answered, because a gap found over free space is somewhere a hill would have made pointless. The answer itself - gap cells, servers per covered cell, cells depending on one - arrives later through the internal `coverage.combined`, and a failure through `coverage.failed`. `nodes` is every node in the scenario, companions included, because this rasterises the lot over one shared grid rather than the infrastructure alone that `coverage.map` picks out. Mode node answers with `coverage.compute`'s keys instead of these. Each raster is a best case in both directions, with gain evaluated towards each cell and any position uncertainty carried into it.",
     "example": {
       "params": {
         "mode": "gaps"

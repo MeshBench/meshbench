@@ -103,6 +103,26 @@ default with the low confidence that implies. The merged pull narrows that
 where OSM has surveyed the building - explicit type and material override
 the inference - but only there; the unsurveyed majority keeps the default.
 
+**A DEM that is not there is worse than a bare-earth one.** Terrain tiles
+download at runtime, and downloading them is the one thing this application
+asks permission for. Where the tiles under a study are not cached - refused,
+never asked, a fetch that failed, or an offline machine - the profile has no
+elevation at all and the model falls back to free space, which is more
+optimistic than everything described above: the hill that would have blocked
+the link is not merely rounded off, it is absent. That is not a caveat anybody
+can be expected to infer, so it is stated rather than left to be noticed. A
+study over ground with nothing cached carries a `ground` block in its own
+result (`state` of `terrain`, `partial` or `bare-earth`, and `chosen` saying
+whether the operator answered the terrain question); `terrain.ground` and
+`sim.state` report the same thing to a script; the caveat line in the chrome
+leads with it; and a study asked for over bare earth nobody chose is refused
+outright rather than answered. A warm held waiting for that permission reports
+itself held, not warmed, so nothing downstream reads an unmeasured matrix as a
+measured one.
+
+**Direction of error: strongly optimistic, and unbounded - a free-space answer
+over a blocked path can be 40 dB out.**
+
 ### 1.4 Diffraction is knife-edge, and single-mechanism
 
 Bullington construction with the ITU-R P.526 correction — the method P.1812 and

@@ -163,6 +163,15 @@ class SimState:
     events: int = 0
     step_ms: int = 0
     seed: int = 0
+    # Three states, because a warm that stopped to ask permission to download
+    # terrain is neither running nor finished. Reading "not warming" as
+    # "measured" is how a script came to read a study over ground nobody
+    # fetched. ground says what it stood on: state of "terrain", "partial" or
+    # "bare-earth", and chosen saying whether anybody answered the question.
+    warming: bool = False
+    links_measured: bool = False
+    warm_held: bool = False
+    ground: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def parse(cls, raw: dict[str, Any]) -> SimState:

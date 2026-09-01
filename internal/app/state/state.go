@@ -132,6 +132,9 @@ type Snapshot struct {
 	// TerrainDownloads is whether the application may spend this machine's
 	// bandwidth on terrain without asking.
 	TerrainDownloads bool
+	// Ground is what elevation data the studies here actually have under them,
+	// as last looked at.
+	Ground Ground
 	// Setup is what this machine has and has not, as last checked.
 	Setup []SetupGroup
 	// Builds is the firmware library on this machine.

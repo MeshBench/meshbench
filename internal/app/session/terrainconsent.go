@@ -73,28 +73,39 @@ func (s *Sim) heldForTerrain(ctx context.Context, st *state.Store, nodes []scena
 	if est.ToFetch == 0 {
 		return false
 	}
+	// Held, not finished. Nothing is being measured, so nothing should be
+	// waited on - but nothing has been measured either, and saying the matrix
+	// is warm is how every study after this came to answer over free space
+	// with a session that reported itself ready.
+	s.warmMu.Lock()
+	s.warmHeld = true
+	s.warmMu.Unlock()
 	done, release := finishing(ctx)
 	defer release()
 	_, _ = st.Do(done, "job.progress", state.Job{
-		ID: "links", What: "waiting for permission to download terrain",
-		Done: 1, Total: 1, Finished: true, Failed: true})
+		ID: "links", What: "held: no permission to download terrain, no link measured",
+		Done: 0, Total: 1, Finished: true, Failed: true})
 	_, _ = st.Do(done, "ui.said", fmt.Sprintf(
 		"measuring these links needs ground this machine has not got: about %d MB "+
-			"over %d terrain tiles. Nothing has been downloaded. Allow it in "+
-			"Configuration > System, or run terrain.allow, or start with -fixture \"\" "+
-			"to open nothing at all",
+			"over %d terrain tiles. Nothing has been downloaded and no link has been "+
+			"measured. Allow it in Configuration > System, or run terrain.allow, or "+
+			"start with -fixture \"\" to open nothing at all",
 		est.BytesRough>>20, est.ToFetch))
-	// Nothing is being measured, so nothing should be waited on: leaving the
-	// warm flagged as running blocks every run behind a measurement that will
-	// never finish on its own.
-	s.warmMu.Lock()
-	s.warmed = true
-	s.warmMu.Unlock()
+	// The world learns what it is standing on at the moment it stops standing
+	// on anything, so the chrome's own caveat line is right from here on rather
+	// than from the next study.
+	_, _ = st.Do(done, "terrain.ground", nil)
 	return true
 }
 
-// registerTerrainConsent is the answer, and the switch that gives it.
+// registerTerrainConsent is the answer, the switch that gives it, and the
+// question a script asks before it believes a study.
 func registerTerrainConsent(st *state.Store, s *Sim) {
+	st.Handle("terrain.ground", func(w *state.World, _ any) (any, error) {
+		w.Ground = s.GroundUnder(s.nodes)
+		return w.Ground.Map(), nil
+	})
+
 	st.Handle("terrain.allow", func(w *state.World, p any) (any, error) {
 		// Allow by default: this verb exists to grant permission, and the
 		// caller who wrote no argument at all wrote the common case.
@@ -115,15 +126,19 @@ func registerTerrainConsent(st *state.Store, s *Sim) {
 		}
 		// The warm that was held has to be started again by hand, because the
 		// thing that held it has returned: nothing is watching for permission
-		// to arrive.
+		// to arrive. Restarted on a refusal too, and not only on a grant: the
+		// answer "use what is cached" is still an answer, and a session left
+		// held on it never measures a link, so the map stays empty and the
+		// study that follows has nothing to be honest about.
 		warming := false
-		if on && !asked && len(s.nodes) > 0 {
+		if !asked && len(s.nodes) > 0 {
 			s.warmMu.Lock()
-			s.warmed = false
+			s.warmed, s.warmHeld = false, false
 			s.warmMu.Unlock()
 			s.warm(st, len(s.nodes))
 			warming = true
 		}
+		w.Ground = s.GroundUnder(s.nodes)
 		return map[string]any{"on": on, "asked": asked, "warming": warming}, nil
 	})
 }

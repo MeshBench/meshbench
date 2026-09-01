@@ -55,6 +55,13 @@ type Sim struct {
 	// warmed reports that the matrix has been measured for the engine as it
 	// stands. Cleared by a rebuild, set when a warm finishes uncancelled.
 	warmed bool
+	// warmHeld reports a warm that stopped to ask before spending bandwidth on
+	// terrain. It is neither running nor finished, and it is a third state
+	// rather than a second use of warmed because those are the two things the
+	// rest of the system reads: nothing should wait on a measurement nobody is
+	// doing, and nothing should be told the links have been measured when no
+	// link has been.
+	warmHeld bool
 	// lastLiveProfiles is the engine's LiveProfiles() as of the last tick, so
 	// the next tick can say how many pairs have been profiled since - the
 	// diagnosis for a pause that is not the warming chip: some pair the last
@@ -345,7 +352,7 @@ func (s *Sim) buildSeeded(nodes []scenario.Node, freqMHz float64, seed uint64) {
 	// is and which decides nothing reliably: "warming up" is what play refuses
 	// to start in front of.
 	s.warmMu.Lock()
-	s.warmed = false
+	s.warmed, s.warmHeld = false, false
 	s.warmMu.Unlock()
 	s.geomFP = fp
 	defer func() {

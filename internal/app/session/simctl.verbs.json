@@ -112,9 +112,13 @@
       "until_ms",
       "events",
       "step_ms",
-      "seed"
+      "seed",
+      "warming",
+      "links_measured",
+      "warm_held",
+      "ground"
     ],
-    "answers": "`until_ms` is zero unless `sim.run` set a limit. `events` is the count since the engine was built, not since the last call.",
+    "answers": "`until_ms` is zero unless `sim.run` set a limit. `events` is the count since the engine was built, not since the last call. The link measurement has three states, not two: `warming` while it runs, `links_measured` once every pair has been walked, and `warm_held` for a warm that stopped to ask permission to download terrain, which is neither. A held warm finishes its own job row, so a wait for the workbench to go idle returns in a moment having waited for nothing - reading that as a measurement is how a study came to be believed over ground nobody fetched. `ground` is what the studies here are standing on, in the shape `terrain.ground` returns.",
     "example": {
       "params": {},
       "what": "ask whether the run has finished",

@@ -54,6 +54,15 @@ must drive it by hand, do those three things in that order and check each.
 - **`wait_idle` ignores finished jobs.** Some jobs are removed when they end
   and some are only marked. Waiting for the list to *empty* waits for ever on
   half of them.
+- **Idle is not measured.** A warm that stopped to ask permission to download
+  terrain finishes its own job row, so `wait_idle` returns in a moment having
+  waited for nothing and no link was measured. `sim.state` answers
+  `links_measured`, `warm_held` and `ground`; `wb.sim.start()` /
+  `Sim.Start(ctx)` refuse on a held warm rather than carrying on. Every study
+  carries its own `ground` block - `state` of `terrain`, `partial` or
+  `bare-earth`, with `chosen` saying whether anybody answered the question -
+  and a raster over unchosen bare earth is refused outright, because free space
+  is the most optimistic answer the model has.
 - **Compare like with like.** `firmware.state`'s `nodes` counts nodes that run
   firmware; an SDR observer and an emitter never boot one. Comparing `running`
   against the scenario's size asks for 58 of 58 on a mesh where 56 is

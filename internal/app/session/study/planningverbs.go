@@ -37,6 +37,13 @@ func registerPlanningVerbs(st *state.Store, s *session.Sim) {
 		default:
 			return nil, fmt.Errorf("no coverage mode %q; there is best, gaps, redundancy and node", mode)
 		}
+		// The ground before the rasters. Gaps and redundancy are read as
+		// answers about where to put the next mast, and over free space every
+		// one of them is somewhere a hill would have made pointless.
+		under := s.GroundUnder(s.Nodes())
+		if err := session.StudyGround(w, "coverage.start", under); err != nil {
+			return nil, err
+		}
 		// The network-wide rasters are the same computation from every node,
 		// combined differently. Rasterising 311 of them takes minutes, so this
 		// runs as a job and reports rather than blocking the store.
@@ -83,7 +90,8 @@ func registerPlanningVerbs(st *state.Store, s *session.Sim) {
 			_, _ = st.Do(context.Background(), "coverage.combined",
 				map[string]any{"mode": mode, "combined": combined})
 		}()
-		return map[string]any{"mode": mode, "nodes": len(w.Nodes), "started": true}, nil
+		return map[string]any{"mode": mode, "nodes": len(w.Nodes), "started": true,
+			"ground": under.Map()}, nil
 	})
 
 	st.Handle("project.save", func(w *state.World, p any) (any, error) {

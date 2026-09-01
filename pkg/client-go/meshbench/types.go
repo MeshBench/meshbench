@@ -87,6 +87,16 @@ type SimState struct {
 	Events  int    `json:"events"`
 	StepMs  uint32 `json:"step_ms"`
 	Seed    uint64 `json:"seed"`
+	// Warming, LinksMeasured and WarmHeld are the three states of the link
+	// measurement, and they are three because a warm that stopped to ask
+	// permission to download terrain is neither running nor finished. Reading
+	// "not warming" as "measured" is how a script came to read a study over
+	// ground the workbench never fetched.
+	Warming       bool `json:"warming"`
+	LinksMeasured bool `json:"links_measured"`
+	WarmHeld      bool `json:"warm_held"`
+	// Ground is what elevation data the studies here have under them.
+	Ground Ground `json:"ground"`
 }
 
 // FirmwareState is how far a start has got. Snapshot.

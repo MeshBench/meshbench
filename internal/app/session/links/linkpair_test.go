@@ -116,3 +116,41 @@ func TestLinkPairRefusals(t *testing.T) {
 		}
 	}
 }
+
+// A pair asked about over ground this machine has not got still answers - this
+// verb exists for the moment before a warm - but it never answers quietly. Its
+// own result carries what it stood on, because a script is not looking at the
+// map or at the log.
+func TestLinkPairSaysWhenThereIsNoGroundUnderIt(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("XDG_CACHE_HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", home)
+	t.Setenv("HOME", home)
+	st, ctx, cancel := pairStore(t)
+	defer cancel()
+	res, err := st.Do(ctx, "link.pair", map[string]any{
+		"a": map[string]any{"lat": 56.2, "lon": -3.3},
+		"b": map[string]any{"lat": 56.25, "lon": -3.2},
+	})
+	if err != nil {
+		t.Fatalf("link.pair refused a pair it exists to answer: %v", err)
+	}
+	m, ok := res.(map[string]any)
+	if !ok {
+		t.Fatalf("link.pair answered %T", res)
+	}
+	g, ok := m["ground"].(map[string]any)
+	if !ok {
+		t.Fatalf("link.pair carries no ground in its result: %v", m)
+	}
+	if g["state"] != state.GroundBare {
+		t.Fatalf("an empty tile cache reports ground %v", g)
+	}
+	note, _ := g["note"].(string)
+	if !strings.Contains(note, "free space") {
+		t.Errorf("the ground note does not say what bare earth costs: %q", note)
+	}
+	if snap := st.Snapshot(); !snap.Ground.Bare() {
+		t.Errorf("the world did not learn what the answer stood on: %+v", snap.Ground)
+	}
+}

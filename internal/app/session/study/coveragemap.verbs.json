@@ -36,9 +36,10 @@
     ],
     "returns": [
       "nodes",
-      "started"
+      "started",
+      "ground"
     ],
-    "answers": "It answers as soon as the job starts, `nodes` being how many stations went into it. The raster lands later through the internal `coverage.set`, the network-wide summary through `coverage.combined`, and a failure through `coverage.failed` where almost none of the ground has cached elevation. With no viewport given it covers the study boundary, and with no boundary the network's own box plus 15 km. Each cell keeps both directions and they differ: gain is evaluated per station on the bearing and look angle to that cell, a station imported with position uncertainty carries it into the cell as slack, and the margins are a best case, with no multipath and no body loss in them.",
+    "answers": "It answers as soon as the job starts, `nodes` being how many stations went into it and `ground` being what it stood on, in the shape `terrain.ground` returns. A raster over bare earth nobody chose is refused outright rather than drawn: free space closes every link a hill would have blocked, and the picture is read as where the network works. An operator who has answered the terrain question - either way - gets the raster and the note that goes with it, because an offline run over cached ground is what refusing downloads is for. The raster lands later through the internal `coverage.set`, the network-wide summary through `coverage.combined`, and a failure through `coverage.failed` where almost none of the ground has cached elevation. With no viewport given it covers the study boundary, and with no boundary the network's own box plus 15 km. Each cell keeps both directions and they differ: gain is evaluated per station on the bearing and look angle to that cell, a station imported with position uncertainty carries it into the cell as slack, and the margins are a best case, with no multipath and no body loss in them.",
     "example": {
       "params": {
         "cells": 480
