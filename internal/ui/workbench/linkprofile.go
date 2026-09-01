@@ -11,237 +11,192 @@ import (
 	"image"
 	"strings"
 
-	"gioui.org/f32"
 	"gioui.org/layout"
 	"gioui.org/op"
-	"gioui.org/op/clip"
-	"gioui.org/op/paint"
+	"gioui.org/unit"
+	"gioui.org/widget"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/ui/comp"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 )
 
-type linkPanel struct{}
+// The widths the panel changes shape at, and the least room the chart is
+// worth drawing in.
+//
+// A rail is 340dp and a window is a thousand: the same single-row header
+// cannot serve both. Below wideHeader the header stacks, because two
+// direction margins beside a pair of node names in 340dp left the margins a
+// column one character wide, wrapping vertically, and a header tall enough to
+// leave the chart no height at all.
+const (
+	wideHeader = unit.Dp(560)
+	minChart   = unit.Dp(150)
+)
 
-func (linkPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+// linkPanel is the cut-through, its two margins and its verdict.
+//
+// The list is the panel's own, not one per frame: a scroll position lives at
+// the widget's address, and it is what keeps a narrow panel honest - when the
+// words and the chart together want more room than the rail has, the panel
+// scrolls rather than dropping the chart.
+type linkPanel struct {
+	list widget.List
+}
+
+func (lp *linkPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
 	if s == nil || s.LinkProfile == nil || len(s.LinkProfile.Samples) < 2 {
 		return layout.Center.Layout(gtx, comp.Text(t, t.Sz.Body, t.P.Dim,
 			"pick two ends with the map's link tool - nodes, bare ground, or "+
 				"one of each - and the ground between them is cut through here"))
 	}
 	p := s.LinkProfile
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-				layout.Rigid(comp.SectionTitle(t, p.From+"  <->  "+p.To)),
-				layout.Rigid(layout.Spacer{Width: t.Sp.M}.Layout),
-				layout.Rigid(comp.Mono(t, t.Sz.Caption, t.P.Dim,
-					fmt.Sprintf("%.1f km", p.DistanceKm))),
-				layout.Flexed(1, comp.Spacer),
-				layout.Rigid(marginText(t, p.From, p.To, p.AtoB)),
-				layout.Rigid(layout.Spacer{Width: t.Sp.M}.Layout),
-				layout.Rigid(marginText(t, p.To, p.From, p.BtoA)),
-			)
-		}),
-		layout.Rigid(layout.Spacer{Height: t.Sp.XS}.Layout),
-		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+	lp.list.Axis = layout.Vertical
+	chartH := lp.chartHeight(t, gtx, p)
+	tail := lp.notes(t, p, exaggeration(image.Pt(gtx.Constraints.Max.X, chartH), p))
+	parts := []layout.Widget{
+		lp.header(t, p),
+		func(gtx layout.Context) layout.Dimensions {
+			gtx.Constraints.Min.Y, gtx.Constraints.Max.Y = chartH, chartH
 			return drawCutThrough(t, gtx, p)
-		}),
-		layout.Rigid(layout.Spacer{Height: t.Sp.XS}.Layout),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			exag := exaggeration(gtx, p)
-			return comp.OneLine(t, t.Sz.Caption, t.P.Faint, fmt.Sprintf(
-				"terrain includes earth curvature; the band is the first Fresnel "+
-					"zone   |   %.1f km, %.0f-%.0f m   |   vertical exaggeration x%.1f",
-				p.DistanceKm, p.LowM, p.HighM, exag), false)(gtx)
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			if len(p.Edges) == 0 {
-				return comp.Text(t, t.Sz.Caption, t.P.Faint,
-					"no obstruction costs more than a decibel")(gtx)
-			}
-			parts := make([]string, 0, len(p.Edges))
-			for _, e := range p.Edges {
-				parts = append(parts, fmt.Sprintf("%.1f km -%.1f dB", e.DistM/1000, e.LossDB))
-			}
-			return comp.OneLine(t, t.Sz.Caption, t.P.Warn,
-				"edges:  "+strings.Join(parts, "   "), false)(gtx)
-		}),
-		layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Dim, p.Verdict)),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			if p.Assumed == "" {
-				return layout.Dimensions{}
-			}
-			// Where the margins came from is content, not small print: a
-			// number whose model is silent reads as measured.
-			return comp.OneLine(t, t.Sz.Caption, t.P.Faint,
-				"margins assume "+p.Assumed+" - the air will be worse", false)(gtx)
-		}),
-	)
+		},
+		tail,
+	}
+	return comp.List(t, &lp.list, len(parts),
+		func(gtx layout.Context, i int) layout.Dimensions {
+			return parts[i](gtx)
+		})(gtx)
 }
 
-func marginText(t *theme.Theme, from, to string, db float64) layout.Widget {
+// chartHeight is what the picture gets: the panel less the words, and never
+// less than the floor.
+//
+// Measured rather than guessed. The verdict is a sentence and wraps to five
+// lines in a rail and one in a window, so a fixed allowance for the words is
+// wrong at one width or the other - and the words are measured against the
+// panel's whole height first, because the exaggeration they quote is a fact
+// about a picture that has not been given its height yet. Where the floor
+// wins, the list around all three scrolls: a chart squeezed to nothing is the
+// panel saying nothing at all.
+func (lp *linkPanel) chartHeight(t *theme.Theme, gtx layout.Context, p *state.Profile) int {
+	h := gtx.Constraints.Max.Y - heightOf(gtx, lp.header(t, p)) -
+		heightOf(gtx, lp.notes(t, p, exaggeration(gtx.Constraints.Max, p)))
+	if min := gtx.Dp(minChart); h < min {
+		return min
+	}
+	return h
+}
+
+// heightOf is how tall a widget comes out at this width, drawn into a macro
+// that is then thrown away.
+func heightOf(gtx layout.Context, w layout.Widget) int {
+	macro := op.Record(gtx.Ops)
+	gtx.Constraints.Min.Y = 0
+	d := w(gtx)
+	macro.Stop()
+	return d.Size.Y
+}
+
+// header is the pair, the distance and both directions' margins.
+//
+// One row where there is room for one, stacked where there is not. Both
+// directions either way: a margin that does not say which way it was measured
+// is wrong even when the arithmetic is right.
+func (lp *linkPanel) header(t *theme.Theme, p *state.Profile) layout.Widget {
 	return func(gtx layout.Context) layout.Dimensions {
-		return layout.Flex{Axis: layout.Vertical, Alignment: layout.End}.Layout(gtx,
-			layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint, from+" -> "+to)),
+		pair := comp.OneLine(t, t.Sz.Section, t.P.Dim, p.From+"  <->  "+p.To, false)
+		km := comp.Mono(t, t.Sz.Caption, t.P.Dim, fmt.Sprintf("%.1f km", p.DistanceKm))
+		if gtx.Constraints.Max.X < gtx.Dp(wideHeader) {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(pair),
+				layout.Rigid(km),
+				layout.Rigid(layout.Spacer{Height: t.Sp.XS}.Layout),
+				layout.Rigid(marginRow(t, p.From, p.To, p.AtoB)),
+				layout.Rigid(marginRow(t, p.To, p.From, p.BtoA)),
+			)
+		}
+		// Under a third of the row each, so the pair of names keeps the rest.
+		// A header where the two margins take the width is the header this
+		// panel started with, and the names were what it left nothing for.
+		block := gtx.Constraints.Max.X * 3 / 10
+		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+			layout.Flexed(1, pair),
+			layout.Rigid(layout.Spacer{Width: t.Sp.M}.Layout),
+			layout.Rigid(km),
+			layout.Rigid(layout.Spacer{Width: t.Sp.M}.Layout),
+			layout.Rigid(marginBlockAt(t, p.From, p.To, p.AtoB, block)),
+			layout.Rigid(layout.Spacer{Width: t.Sp.M}.Layout),
+			layout.Rigid(marginBlockAt(t, p.To, p.From, p.BtoA, block)),
+		)
+	}
+}
+
+// notes is everything under the chart: what the picture is, what each edge
+// costs, the verdict, and what the margins assumed.
+func (lp *linkPanel) notes(t *theme.Theme, p *state.Profile, exag float64) layout.Widget {
+	return func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(layout.Spacer{Height: t.Sp.XS}.Layout),
+			layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint, fmt.Sprintf(
+				"terrain includes earth curvature; the band is the first Fresnel "+
+					"zone   |   %.1f km, %.0f-%.0f m   |   vertical exaggeration x%.1f",
+				p.DistanceKm, p.LowM, p.HighM, exag))),
+			layout.Rigid(edgeCosts(t, p)),
+			layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Dim, p.Verdict)),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				if p.Assumed == "" {
+					return layout.Dimensions{}
+				}
+				// Where the margins came from is content, not small print: a
+				// number whose model is silent reads as measured.
+				return comp.Text(t, t.Sz.Caption, t.P.Faint,
+					"margins assume "+p.Assumed+" - the air will be worse")(gtx)
+			}),
+		)
+	}
+}
+
+// edgeCosts is what each knife edge takes, wrapped rather than cut off: in a
+// rail this is four lines, and truncating it hides the obstruction that
+// decided the link.
+func edgeCosts(t *theme.Theme, p *state.Profile) layout.Widget {
+	if len(p.Edges) == 0 {
+		return comp.Text(t, t.Sz.Caption, t.P.Faint,
+			"no obstruction costs more than a decibel")
+	}
+	parts := make([]string, 0, len(p.Edges))
+	for _, e := range p.Edges {
+		parts = append(parts, fmt.Sprintf("%.1f km -%.1f dB", e.DistM/1000, e.LossDB))
+	}
+	return comp.Text(t, t.Sz.Caption, t.P.Warn, "edges:  "+strings.Join(parts, "   "))
+}
+
+// marginRow is one direction as a line: who to who, then the decibels, with
+// the names giving way first because the number is the answer.
+func marginRow(t *theme.Theme, from, to string, db float64) layout.Widget {
+	return func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+			layout.Flexed(1, comp.OneLine(t, t.Sz.Caption, t.P.Faint,
+				from+" -> "+to, false)),
+			layout.Rigid(layout.Spacer{Width: t.Sp.S}.Layout),
 			layout.Rigid(comp.Mono(t, t.Sz.Caption, verdictColour(t, db),
 				fmt.Sprintf("%+.1f dB", db))),
 		)
 	}
 }
 
-// exaggeration is how much taller the metres are drawn than the kilometres.
-func exaggeration(gtx layout.Context, p *state.Profile) float64 {
-	w, h := float64(gtx.Constraints.Max.X), float64(gtx.Constraints.Max.Y)
-	if w <= 0 || h <= 0 || p.HighM <= p.LowM {
-		return 1
-	}
-	mPerPxX := p.DistanceKm * 1000 / w
-	mPerPxY := (p.HighM - p.LowM) / h
-	if mPerPxY <= 0 {
-		return 1
-	}
-	return mPerPxX / mPerPxY
-}
-
-// drawCutThrough paints the chart into whatever space the panel offers.
-func drawCutThrough(t *theme.Theme, gtx layout.Context, p *state.Profile) layout.Dimensions {
-	sz := gtx.Constraints.Max
-	w, h := float32(sz.X), float32(sz.Y)
-	maxD := float32(p.Samples[len(p.Samples)-1].DistM)
-	lo, hi := float32(p.LowM), float32(p.HighM)
-	if maxD <= 0 || hi <= lo {
-		return layout.Dimensions{Size: sz}
-	}
-	X := func(d float64) float32 { return float32(d) / maxD * w }
-	Y := func(m float64) float32 { return h - (float32(m)-lo)/(hi-lo)*h }
-
-	// The ground, filled to the floor and stroked along its top.
-	var ground clip.Path
-	ground.Begin(gtx.Ops)
-	ground.MoveTo(f32.Pt(0, h))
-	for _, sm := range p.Samples {
-		ground.LineTo(f32.Pt(X(sm.DistM), Y(sm.BulgedM)))
-	}
-	ground.LineTo(f32.Pt(w, h))
-	ground.Close()
-	paint.FillShape(gtx.Ops, theme.Alpha(t.P.Good, 0.25),
-		clip.Outline{Path: ground.End()}.Op())
-	var crest clip.Path
-	crest.Begin(gtx.Ops)
-	crest.MoveTo(f32.Pt(0, Y(p.Samples[0].BulgedM)))
-	for _, sm := range p.Samples[1:] {
-		crest.LineTo(f32.Pt(X(sm.DistM), Y(sm.BulgedM)))
-	}
-	paint.FillShape(gtx.Ops, theme.Alpha(t.P.Good, 0.8),
-		clip.Stroke{Path: crest.End(), Width: 1.5}.Op())
-
-	// The first Fresnel zone, as the band the radio actually needs clear.
-	var band clip.Path
-	band.Begin(gtx.Ops)
-	band.MoveTo(f32.Pt(X(p.Samples[0].DistM), Y(p.Samples[0].LOSm)))
-	for _, sm := range p.Samples[1:] {
-		band.LineTo(f32.Pt(X(sm.DistM), Y(sm.LOSm-sm.FresnelM)))
-	}
-	for i := len(p.Samples) - 1; i >= 0; i-- {
-		sm := p.Samples[i]
-		band.LineTo(f32.Pt(X(sm.DistM), Y(sm.LOSm+sm.FresnelM)))
-	}
-	band.Close()
-	paint.FillShape(gtx.Ops, theme.Alpha(t.P.Accent, 0.15),
-		clip.Outline{Path: band.End()}.Op())
-
-	// The sight line, endpoint to endpoint.
-	var los clip.Path
-	los.Begin(gtx.Ops)
-	los.MoveTo(f32.Pt(X(p.Samples[0].DistM), Y(p.Samples[0].LOSm)))
-	last := p.Samples[len(p.Samples)-1]
-	los.LineTo(f32.Pt(X(last.DistM), Y(last.LOSm)))
-	paint.FillShape(gtx.Ops, t.P.Ink, clip.Stroke{Path: los.End(), Width: 1.5}.Op())
-	// The masts: each end stands on its own ground, so an antenna's height
-	// above it is visible rather than implied - wb1 drew these and the port
-	// dropped them.
-	var masts clip.Path
-	masts.Begin(gtx.Ops)
-	for _, sm := range []state.ProfileSample{p.Samples[0], last} {
-		masts.MoveTo(f32.Pt(X(sm.DistM), Y(sm.BulgedM)))
-		masts.LineTo(f32.Pt(X(sm.DistM), Y(sm.LOSm)))
-	}
-	paint.FillShape(gtx.Ops, t.P.Ink, clip.Stroke{Path: masts.End(), Width: 2}.Op())
-	for _, sm := range []state.ProfileSample{p.Samples[0], last} {
-		func() {
-			r := gtx.Dp(3)
-			cx, cy := int(X(sm.DistM)), int(Y(sm.LOSm))
-			defer clip.Ellipse(imageRect4(cx-r, cy-r, cx+r, cy+r)).Push(gtx.Ops).Pop()
-			paint.ColorOp{Color: t.P.Ink}.Add(gtx.Ops)
-			paint.PaintOp{}.Add(gtx.Ops)
-		}()
-	}
-
-	// The deciding sample: a full-height rule where the first Fresnel zone
-	// is most intruded on, amber while the path clears and red when it does
-	// not. This is the answer to "where does it fail".
-	if p.Worst.DistM > 0 || p.Worst.FresnelPct != 0 {
-		col := t.P.Warn
-		if p.Worst.Blocked {
-			col = t.P.Bad
+// marginBlockAt is one direction as a stacked block for the wide header,
+// bounded so a pair of long names cannot squeeze the other direction out of
+// the row entirely.
+func marginBlockAt(t *theme.Theme, from, to string, db float64, maxW int) layout.Widget {
+	return func(gtx layout.Context) layout.Dimensions {
+		if gtx.Constraints.Max.X > maxW {
+			gtx.Constraints.Max.X = maxW
 		}
-		x := X(p.Worst.DistM)
-		var rule clip.Path
-		rule.Begin(gtx.Ops)
-		rule.MoveTo(f32.Pt(x, 0))
-		rule.LineTo(f32.Pt(x, h))
-		paint.FillShape(gtx.Ops, theme.Alpha(col, 0.55),
-			clip.Stroke{Path: rule.End(), Width: 1}.Op())
-		off := op.Offset(imagePtXY(int(x)+4, int(h)-gtx.Dp(16))).Push(gtx.Ops)
-		comp.Mono(t, t.Sz.Caption, col,
-			fmt.Sprintf("worst: %.0f%% F1", p.Worst.FresnelPct))(unbounded2(gtx))
-		off.Pop()
+		return layout.Flex{Axis: layout.Vertical, Alignment: layout.End}.Layout(gtx,
+			layout.Rigid(comp.OneLine(t, t.Sz.Caption, t.P.Faint, from+" -> "+to, false)),
+			layout.Rigid(comp.Mono(t, t.Sz.Caption, verdictColour(t, db),
+				fmt.Sprintf("%+.1f dB", db))),
+		)
 	}
-
-	// The edges: a line from the top to the obstruction, its cost at the top.
-	for _, e := range p.Edges {
-		x := X(e.DistM)
-		var mark clip.Path
-		mark.Begin(gtx.Ops)
-		mark.MoveTo(f32.Pt(x, float32(gtx.Dp(14))))
-		mark.LineTo(f32.Pt(x, groundYAt(p, e.DistM, Y)))
-		paint.FillShape(gtx.Ops, theme.Alpha(t.P.Warn, 0.7),
-			clip.Stroke{Path: mark.End(), Width: 1}.Op())
-		off := op.Offset(imagePtXY(int(x)+4, 0)).Push(gtx.Ops)
-		comp.Mono(t, t.Sz.Caption, t.P.Warn,
-			fmt.Sprintf("-%.1f dB", e.LossDB))(unbounded2(gtx))
-		off.Pop()
-	}
-	return layout.Dimensions{Size: sz}
-}
-
-// groundYAt finds the drawn ground at a distance, for the edge markers.
-func groundYAt(p *state.Profile, distM float64, Y func(float64) float32) float32 {
-	best, bd := p.Samples[0], distM
-	for _, sm := range p.Samples {
-		if d := absF(sm.DistM - distM); d < bd {
-			best, bd = sm, d
-		}
-	}
-	return Y(best.BulgedM)
-}
-
-func absF(v float64) float64 {
-	if v < 0 {
-		return -v
-	}
-	return v
-}
-
-func imageRect4(x0, y0, x1, y1 int) image.Rectangle {
-	return image.Rect(x0, y0, x1, y1)
-}
-
-// unbounded2 lets a label size itself.
-func unbounded2(gtx layout.Context) layout.Context {
-	gtx.Constraints.Min = imagePtXY(0, 0)
-	gtx.Constraints.Max = imagePtXY(1<<14, 1<<14)
-	return gtx
 }

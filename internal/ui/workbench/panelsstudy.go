@@ -52,7 +52,8 @@ func addStudyPanels(d panelDeps) {
 	bounds := &boundaryPanel{}
 	d.sh.Add(homed(&shell.Panel{Name: "Boundary", Windowable: true,
 		Draw: d.withControls(d.boundCtl.Draw, bounds.Draw)}))
-	d.sh.Add(homed(&shell.Panel{Name: "Link", Windowable: true, Draw: linkPanel{}.Draw}))
+	d.sh.Add(homed(&shell.Panel{Name: "Link", Windowable: true,
+		Draw: (&linkPanel{}).Draw}))
 	runs := &runsPanel{}
 	d.sh.Add(homed(&shell.Panel{Name: "Runs", Windowable: true, Draw: runs.Draw}))
 	// Controls and results are two panels, not one.
