@@ -93,7 +93,10 @@ func (u *workbenchUI) applyDeferred() {
 }
 
 type cameraWant struct {
-	fit            bool
+	fit bool
+	// onOpen is a fit a freshly loaded network asked for, which a camera
+	// placed by a flag declines.
+	onOpen         bool
 	lat, lon, zoom float64
 	// zoomBy multiplies the current scale rather than setting it, which is
 	// what a zoom button does and what a caller without the current value can
@@ -145,6 +148,12 @@ func (u *workbenchUI) FitMap() {
 	u.camWant = &cameraWant{fit: true}
 }
 
+func (u *workbenchUI) FitMapOnOpen() {
+	u.camMu.Lock()
+	defer u.camMu.Unlock()
+	u.camWant = &cameraWant{fit: true, onOpen: true}
+}
+
 // applyCamera runs on the frame goroutine, before the map draws.
 func (u *workbenchUI) applyCamera() {
 	u.camMu.Lock()
@@ -155,6 +164,10 @@ func (u *workbenchUI) applyCamera() {
 		return
 	}
 	if want.fit {
+		if want.onOpen {
+			u.mv.FitLoaded = true
+			return
+		}
 		u.mv.FitNext = true
 		return
 	}

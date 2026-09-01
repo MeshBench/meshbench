@@ -401,10 +401,18 @@ func (m *MapView) ViewportCells() int {
 // StartAt pins the camera before the first frame - the capture flags' way
 // in, since the first frame otherwise fits the whole network over whatever
 // the flags asked for.
+// wantsFit is whether this frame reframes the camera: because it has never
+// been placed, because somebody asked outright, or because a network has
+// arrived for a camera nobody has aimed.
+func (m *MapView) wantsFit() bool {
+	return !m.initialised || m.FitNext || (m.FitLoaded && !m.pinned)
+}
+
 func (m *MapView) StartAt(lat, lon, zoom float64) {
 	m.CentreLat, m.CentreLon = lat, lon
 	m.Zoom, m.zoomTarget = zoom, zoom
 	m.initialised, m.FitNext = true, false
+	m.pinned = true
 }
 
 func (m *MapView) CentreOn(lat, lon float64) {

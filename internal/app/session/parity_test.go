@@ -148,6 +148,7 @@ func (u *stubUI) PanelNames() []string      { return []string{"Map", "Nodes runn
 func (u *stubUI) Quit()                     {}
 func (u *stubUI) CentreMap(_, _, _ float64) {}
 func (u *stubUI) FitMap()                   {}
+func (u *stubUI) FitMapOnOpen()             {}
 func (u *stubUI) OpenNodeWindow(_, tab string) (string, error) {
 	if tab == "" {
 		tab = "Console"

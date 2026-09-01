@@ -51,6 +51,16 @@ type MapView struct {
 	// FitNext asks the next frame to frame every node. Set from anywhere;
 	// cleared here once honoured.
 	FitNext bool
+	// FitLoaded is the softer request a network arriving makes: frame it,
+	// unless the camera was pinned by a flag. Somebody capturing a particular
+	// place asked for that place, and a fixture finishing its load a few
+	// seconds later is not a reason to overrule them - while a network opened
+	// onto a camera nobody aimed is a blank map that reads as a failed open.
+	FitLoaded bool
+	// pinned is that deliberate placement, set by StartAt. An outright fit -
+	// the menu entry, or the map.fit verb - is somebody asking, and ignores
+	// it.
+	pinned bool
 	// Filter dims every node whose name or kind does not contain it. Dims
 	// rather than hides, because a node that vanishes from a map looks like
 	// a node that is not in the scenario at all.
@@ -172,12 +182,15 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 	// raster-this-view needs the viewport, and the viewport only exists
 	// where the widget has a size.
 	m.lastSize = sz
-	if !m.initialised || m.FitNext {
-		// FitNext is how something outside the frame loop asks for a fit:
-		// framing needs the widget's size, which only exists here.
+	if m.wantsFit() {
+		// The request comes from outside the frame loop: framing needs the
+		// widget's size, which only exists here.
 		m.fit(s, sz)
 		m.initialised, m.FitNext = true, false
 	}
+	// Cleared whether or not it was honoured: a request a pinned camera
+	// declined is a request that has been answered, not one still waiting.
+	m.FitLoaded = false
 	m.Layers.defaults()
 
 	// The basemap first, under everything. Only cached tiles are drawn: a

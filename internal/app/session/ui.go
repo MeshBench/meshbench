@@ -35,6 +35,11 @@ type UI interface {
 	// FitMap frames every node, which is the only camera request that needs
 	// no numbers and is the one somebody driving a capture usually wants.
 	FitMap()
+	// FitMapOnOpen frames a network that has just been loaded. Separate from
+	// FitMap because it is the application's idea rather than somebody's: a
+	// camera a capture flag placed deliberately keeps it, where an outright
+	// fit overrules everything.
+	FitMapOnOpen()
 	// OpenNodeWindow gives one node a window of its own, opened on a named tab
 	// where one was asked for, and reports which tab it landed on.
 	//
