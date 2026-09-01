@@ -30,6 +30,12 @@ type Prefs struct {
 	UnverifiedWiring bool `json:"unverified_wiring,omitempty"`
 	// TileCacheGB bounds the decoded tiles held in memory.
 	TileCacheGB float64 `json:"tile_cache_gb,omitempty"`
+	// TerrainDownloads is whether terrain may be fetched without asking. A
+	// pointer for the same reason as GPU: "not yet asked" is a third state,
+	// and it is the one a fresh install is in. A national network's ground is
+	// several hundred megabytes, which is not a thing to spend on somebody's
+	// tethered phone because they opened the application.
+	TerrainDownloads *bool `json:"terrain_downloads,omitempty"`
 	// GPU is nil until somebody has chosen; a pointer because "off" and
 	// "never said" are different answers and only one of them lets the
 	// hardware default decide.

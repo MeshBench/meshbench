@@ -251,6 +251,11 @@ func (s *Sim) terrain() propagation.Terrain {
 	if s.tileCacheTiles > 0 {
 		st.MaxLoadedTiles = s.tileCacheTiles
 	}
+	// Off until somebody says otherwise. The lazy fetch inside a profile walk
+	// is the path that spent half a gigabyte unasked, and gating only the
+	// announced prefetch would have left it doing exactly that, one tile at a
+	// time, from the middle of a measurement.
+	st.Offline = !s.terrainAllowed()
 	s.terr = st
 	return s.terr
 }

@@ -76,6 +76,12 @@ func (s *Sim) warm(st *state.Store, nodes int) {
 		// even store.
 		primed := eng.LinkCachePairs() >= total
 		if !primed {
+			// Permission before bandwidth: a first launch opens a national
+			// network, and the ground under it is several hundred megabytes
+			// nobody agreed to spend.
+			if s.heldForTerrain(ctx, st, warmNodes) {
+				return
+			}
 			// The ground first, announced: a walk over a region whose tiles
 			// are not down yet otherwise fetches them one by one from the
 			// middle of the measurement, which reads as a hang.

@@ -345,6 +345,43 @@ func (sh *Shell) counts(s *state.Snapshot) string {
 	return out
 }
 
+// JobWords is the one status line several running jobs have to share.
+//
+// The newest running job rather than the oldest, which is what this took
+// before. A warm opens its measurement job first and only then starts the
+// terrain download the measurement is waiting on, so the oldest is always the
+// one that cannot move yet: a fresh install spent its first minutes reading
+// "measuring every link - 0%" while half a gigabyte arrived unmentioned, and a
+// firmware download started during a warm had nowhere to appear at all. Newest
+// is also the rule session.status already follows, so a script and the window
+// now agree about which job is the job.
+//
+// The others are counted rather than dropped, because a line that shows one of
+// three jobs and says so is honest, and one that shows one of three silently
+// is where the last version's complaint came from.
+func JobWords(jobs []state.Job) string {
+	running, at := 0, -1
+	for i := range jobs {
+		if !jobs[i].Finished {
+			running++
+			at = i
+		}
+	}
+	if at < 0 {
+		return ""
+	}
+	j := &jobs[at]
+	msg := j.What + " - working"
+	if j.Total > 0 {
+		msg = fmt.Sprintf("%s - %d%% (%d of %d)",
+			j.What, j.Done*100/j.Total, j.Done, j.Total)
+	}
+	if running > 1 {
+		msg += fmt.Sprintf("   and %d more running", running-1)
+	}
+	return msg
+}
+
 func (sh *Shell) statusBar(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
 	comp.Fill(gtx, t.P.Panel)
 	msg := sh.View.Purpose()
@@ -355,18 +392,8 @@ func (sh *Shell) statusBar(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 	// reads as a hang, and the percentage is the difference between "wait"
 	// and "force-quit".
 	if s != nil {
-		for i := range s.Jobs {
-			if s.Jobs[i].Finished {
-				continue
-			}
-			j := &s.Jobs[i]
-			if j.Total > 0 {
-				msg = fmt.Sprintf("%s - %d%% (%d of %d)",
-					j.What, j.Done*100/j.Total, j.Done, j.Total)
-			} else {
-				msg = j.What + " - working"
-			}
-			break
+		if line := JobWords(s.Jobs); line != "" {
+			msg = line
 		}
 	}
 	return layout.Inset{Left: t.Sp.M, Right: t.Sp.M, Top: t.Sp.XS, Bottom: t.Sp.XS}.

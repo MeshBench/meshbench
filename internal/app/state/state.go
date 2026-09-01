@@ -127,6 +127,9 @@ type Snapshot struct {
 	// TileCacheDir is where they live on disk.
 	TileCacheGB  float64
 	TileCacheDir string
+	// TerrainDownloads is whether the application may spend this machine's
+	// bandwidth on terrain without asking.
+	TerrainDownloads bool
 	// Builds is the firmware library on this machine.
 	Builds []Build
 	// Experiment is the A/B matrix's summary, and ExperimentWarning is why it

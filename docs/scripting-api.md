@@ -615,9 +615,22 @@ wb.boards.list(); wb.boards.matrix(version); wb.boards.probe(board, version)
 wb.resources; wb.resources.fetch(kind, name, version)
 wb.resources.licence(kind, name, version)
 wb.terrain.cache_gb = 10; wb.terrain.cache_dir = path; wb.terrain.prefetch()
+wb.terrain.allow(on=True)
 wb.gpu; wb.gpu.enabled = True
 for job in wb.jobs: job.cancel()
 ```
+
+**Terrain is not downloaded until this machine has said it may be.** A national
+network's ground is several hundred megabytes, so a machine nobody has asked
+holds the first warm rather than spending it: the status line says what it
+would cost, and `terrain.allow` is the answer. Refused, links are measured on
+whatever is already cached, and where nothing is cached the model falls back to
+free space, which flatters every link a hill would have blocked. The answer is
+remembered, so a script asks once per machine rather than once per run.
+
+`job.list` is what is running, with each job's id, words and progress;
+`job.list` with `all` includes the ones that have finished, so a script that
+polls a moment late can still see how what it was waiting for turned out.
 
 `wb.gpu.used` is what the **last warm** actually did, not the setting. "GPU
 acceleration: on" over a run that quietly fell back to the cores is the claim
@@ -685,7 +698,8 @@ nothing checks.
 
 **A wait is only as good as its premise.** Three of them were wrong at once
 before anybody ran an example: one waited for a job list to empty when half the
-jobs are marked finished rather than removed; one compared running firmware
+jobs are marked finished rather than removed (`job.list` and every count now
+answer about the running ones, but the rows themselves are still kept); one compared running firmware
 against every node, including an SDR observer and an emitter that never boot
 one; and one returned instantly because it was called before the fixture had
 been opened. All three read as the workbench hanging. When a wait expires,

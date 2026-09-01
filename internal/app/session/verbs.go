@@ -37,6 +37,8 @@ func Register(st *state.Store, s *Sim) {
 	registerGPU(st, s)
 	registerTileCache(st, s)
 	registerTerrainPrefetch(st, s)
+	registerTerrainConsent(st, s)
+	registerJobList(st)
 	registerBasemap(st, s)
 	registerPacket(st, s)
 	registerImport(st, s)

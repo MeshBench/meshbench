@@ -261,10 +261,15 @@ func registerUIVerbs(st *state.Store, s *Sim) {
 		// The newest job still running, not merely the newest: a bar that
 		// finished an hour ago reported as "the job" made every script that
 		// polls for completion wait forever.
+		out["jobs"] = w.JobsRunning()
 		for i := len(w.Jobs) - 1; i >= 0; i-- {
 			if j := w.Jobs[i]; !j.Finished {
+				// With the id, because a script that has to wait for one
+				// particular thing cannot match on prose, and matching on
+				// prose is what stopped working the moment the wording of a
+				// download improved.
 				out["job"] = map[string]any{
-					"what": j.What, "done": j.Done, "total": j.Total,
+					"id": j.ID, "what": j.What, "done": j.Done, "total": j.Total,
 				}
 				break
 			}
@@ -369,7 +374,12 @@ func registerUIVerbs(st *state.Store, s *Sim) {
 		out["nodes"] = len(w.Nodes)
 		out["playing"] = w.Playing
 		out["now_ms"] = w.NowMs
-		out["jobs"] = len(w.Jobs)
+		// Running, not merely present: this counted finished rows too, so it
+		// reported two jobs long after both had ended and the files were on
+		// disk. And the rows themselves, because a bare count cannot tell a
+		// script what it is waiting for.
+		out["jobs"] = w.JobsRunning()
+		out["running"] = jobRows(w.Jobs, true)
 		return out, nil
 	})
 
