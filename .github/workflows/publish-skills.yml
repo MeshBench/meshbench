@@ -1,0 +1,147 @@
+name: publish-skills
+
+# The two standalone skill repositories, rendered from .claude/skills and
+# pushed when those skills change on main.
+#
+# The skills have to be installable into any agent and not only into one working
+# in this checkout, so they are published as ordinary, cloneable repositories
+# split by audience. Keeping those in step was a rule people were asked to
+# remember; it was not kept, and the three files went 502 lines apart before
+# anyone diffed them. A stale skill is the worst thing this repository can
+# publish, because an agent loads one and acts on it with confidence instead of
+# going and looking.
+#
+# tools/skillmirror renders the trees, handles the one rename (meshcoresim is
+# published as meshbench-driving) and writes each mirror's front page and
+# licence. Nothing here decides anything about content: this file only carries
+# what it rendered to the two remotes.
+#
+# What a maintainer has to set up once, before the first push reaches this:
+#
+#   1. A GitHub environment named `skills-mirror`. Reviewers on it are
+#      optional; the publish is reversible, unlike a package index.
+#   2. A fine-grained personal access token, or a GitHub App installation
+#      token, with Contents: read and write on MeshBench/meshbench-scripting-skills
+#      and MeshBench/meshbench-dev-skills and nothing else, stored on that
+#      environment as the secret `SKILLS_MIRROR_TOKEN`. GITHUB_TOKEN cannot be
+#      used: it is scoped to this repository and cannot write to another.
+#
+# Until that secret exists the job fails rather than skipping, deliberately. A
+# publish that quietly does not happen is how the mirrors got four days behind
+# in the first place.
+#
+# To see what the first run would do without doing it, dispatch it by hand and
+# leave dry_run ticked: it renders, diffs against the live mirrors and prints
+# the change without pushing.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.claude/skills/**'
+      - 'tools/skillmirror/**'
+      - '.github/workflows/publish-skills.yml'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Render and diff against the live mirrors without pushing'
+        type: boolean
+        default: true
+
+permissions: {}
+
+jobs:
+  publish:
+    name: render and publish the skill mirrors
+    # Inert anywhere but here. A fork carries this file with it and must never
+    # try to write to MeshBench, and there is no pull_request trigger, so a
+    # branch cannot reach this job at all: only a commit that has landed on
+    # main, or a maintainer dispatching it.
+    if: github.repository == 'MeshBench/meshbench'
+    timeout-minutes: 10
+    # Hosted, and nothing else: this needs Go and git, it holds a token that
+    # can write to two other repositories, and that token has no business on
+    # the self-hosted lab runners.
+    runs-on: ubuntu-latest
+    environment: skills-mirror
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.25"
+
+      # The mapping is checked by tools/skillmirror's own test rather than
+      # here, because a mapping fault should fail the pull request that
+      # introduces it and not the publish that trips over it afterwards. This
+      # runs it again anyway: it is a second of wall clock, and it is the last
+      # point at which a bad render can be stopped before it is pushed.
+      - name: The mapping still matches the tree
+        run: go test ./tools/skillmirror/
+
+      - name: Render both mirrors
+        run: |
+          set -euo pipefail
+          go run ./tools/skillmirror -out "$RUNNER_TEMP/mirrors" -commit "$GITHUB_SHA"
+          go run ./tools/skillmirror -list > "$RUNNER_TEMP/repos.txt"
+          cat "$RUNNER_TEMP/repos.txt"
+
+      - name: Publish
+        env:
+          TOKEN: ${{ secrets.SKILLS_MIRROR_TOKEN }}
+          # A dispatch defaults to a dry run, so the way to see the first sync
+          # is to press the button. A push to main always publishes: that is
+          # the whole point of the trigger.
+          PUBLISH: ${{ (github.event_name == 'push' || github.event.inputs.dry_run == 'false') && 'yes' || 'no' }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${TOKEN:-}" ]; then
+            echo "::error::SKILLS_MIRROR_TOKEN is not set on the skills-mirror environment;"\
+                 "see the header of this file for the two things a maintainer sets up once."\
+                 "Failing rather than skipping: a publish that quietly does not happen is"\
+                 "what this workflow exists to stop"
+            exit 1
+          fi
+
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          changed=0
+          while read -r repo; do
+            [ -n "$repo" ] || continue
+            work="$RUNNER_TEMP/push/$repo"
+            git clone --quiet "https://x-access-token:$TOKEN@github.com/MeshBench/$repo.git" "$work"
+
+            # The tree is replaced wholesale rather than copied over. A file the
+            # renderer has stopped producing has to disappear from the mirror
+            # too, or a deleted skill stays installable from a repository that
+            # says it is generated.
+            find "$work" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+            cp -a "$RUNNER_TEMP/mirrors/$repo/." "$work/"
+
+            git -C "$work" add -A
+            if git -C "$work" diff --cached --quiet; then
+              echo "$repo is already current"
+              continue
+            fi
+            changed=1
+            echo "--- $repo would change ---"
+            git -C "$work" diff --cached --stat
+
+            if [ "$PUBLISH" != "yes" ]; then
+              echo "::notice::dry run, so $repo was not pushed"
+              continue
+            fi
+            git -C "$work" commit --quiet \
+              -m "skills: publish from meshbench $GITHUB_SHA" \
+              -m "Rendered by tools/skillmirror. The source of truth is .claude/skills in MeshBench/meshbench; an edit made here is overwritten by the next publish."
+            git -C "$work" push --quiet origin HEAD:main
+            echo "::notice::$repo published from $GITHUB_SHA"
+          done < "$RUNNER_TEMP/repos.txt"
+
+          if [ "$changed" = 0 ]; then
+            echo "both mirrors already carry $GITHUB_SHA"
+          fi

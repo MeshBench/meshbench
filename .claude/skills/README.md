@@ -11,10 +11,10 @@ agent invokes and a `name` that says something else is a label nobody sees.
 | `meshcoresim` | driving the simulator to answer an RF or mesh question |
 | `wb2-design-language` | building or changing the Gio interface |
 
-## Mirrored for installing elsewhere (#242)
+## Published for installing elsewhere
 
 So they can be installed into any agent, not only one working in this repo, the
-skills are mirrored into two standalone repositories:
+skills are published as two standalone repositories, split by audience:
 
 - **[meshbench-scripting-skills](https://github.com/MeshBench/meshbench-scripting-skills)**:
   `meshbench-scripting` and `meshcoresim`, driving and scripting the tool. The
@@ -23,10 +23,19 @@ skills are mirrored into two standalone repositories:
 - **[meshbench-dev-skills](https://github.com/MeshBench/meshbench-dev-skills)**:
   `wb2-design-language`, developing the tool.
 
-**The copies here are canonical.** The mirroring is a manual copy: nothing
-generates it, nothing checks it, and a mirror has already been found a line
-behind. When one of these skills changes, update the mirror repository in the
-same breath, and diff the two before believing they agree.
+**The copies here are canonical, and a mirror is an output.**
+`tools/skillmirror` renders both trees from this directory, performs that
+rename, and writes the front page and licence each mirror needs and this one
+does not; `.github/workflows/publish-skills.yml` pushes what it rendered when a
+skill changes on `main`. Nothing is hand-copied and no second version of a
+skill is kept anywhere, so there is nothing for these files to drift from. What
+a change here can still get wrong is the mapping, and `tools/skillmirror`'s own
+test fails without touching the network when a skill is added that no mirror
+publishes, when a mirror names one that has gone, or when front matter stops
+naming its own directory.
+
+Every published copy carries the commit it was rendered from, so somebody
+holding an install can tell whether it is current instead of guessing.
 
 The docs site explains what each skill is for and how to install it into
 Claude Code, Cursor, VS Code, Gemini CLI and Codex:

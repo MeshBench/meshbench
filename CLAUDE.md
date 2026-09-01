@@ -161,6 +161,10 @@ tools/              what builds, generates and drives it, none of it shipped
   flagdoc/            docs/cli-reference.md, built from the binary's own help,
                       plus the authored note of what each flag is for
   licgen/             the licence inventory the workbench embeds
+  skillmirror/        the two standalone skill repositories, rendered from
+                      .claude/skills so a mirror cannot drift from it
+    readme/             each mirror's front page, the one thing it carries that
+                        the canonical tree has no place for
   envgen/             building footprints into environment tiles
   mockup/             the UX wireframes in docs/ux, rendered
   render/             the figures in docs/output, from the real engine
