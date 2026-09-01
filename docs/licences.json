@@ -8,7 +8,7 @@
   "forks": [
     {
       "name": "MeshBench/qemu",
-      "detail": "Fork of qemu-project/qemu, branch meshbench-sx1262. Adds an SX1262 LoRa radio device upstream does not have, so ESP32 firmware sees its chip. The emulator in this bundle is built from this fork; the fork repository is the source offer. The application can also fetch this build into the tools directory on demand, which is how a source checkout obtains it.",
+      "detail": "Fork of qemu-project/qemu, branch meshbench-main. Adds an SX1262 LoRa radio device upstream does not have, with the DIO1 line the driver waits on, so ESP32 firmware sees its chip and hears it answer. The emulator in this bundle is built from this fork; the fork repository is the source offer, and every release carries a source archive beside the binaries. The application can also fetch this build into the tools directory on demand, which is how a source checkout obtains it.",
       "licence": "GPL-2.0",
       "link": "https://github.com/MeshBench/qemu",
       "text_files": [

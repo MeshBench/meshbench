@@ -543,11 +543,12 @@ jobs:
     # minutes bill at 2x on a private repository for a build that needs
     # nothing from Windows itself.
     #
-    # This produces the application. Emulated ESP32 boards still need
-    # radioserver's QEMU transport to stop assuming Unix sockets - the TCP
-    # path it already has for Renode is what that wants - so a Windows user
-    # gets the workbench and native firmware, and the honest line about
-    # emulated boards.
+    # This produces the application, and the zip carries both emulators and the
+    # radio model beside it. A node on Windows asks for ":0" and reaches the
+    # radio model over TCP for both emulators, so nothing here depends on a
+    # Unix socket. What a Windows user does not get is the runtime fetch: the
+    # catalogue reads ELF and Mach-O headers rather than PE, so the zip is the
+    # only way the emulators arrive.
     if: inputs.windows
     # lab-2204 is the one Ubuntu 22.04 runner in the pool, and that is the
     # whole point of the label - it pins the glibc floor described above. Do
@@ -641,10 +642,10 @@ jobs:
           upstream ones - ours carry an SX1262 device and a SEVONPEND fix that
           published firmware needs.
 
-          No QEMU is published for Windows today, so ESP32 boards cannot
-          emulate here. Put a qemu-system-xtensa.exe built from the
-          meshbench-sx1262 branch of MeshBench/qemu beside meshbench.exe, or
-          point MESHBENCH_QEMU at one, and it will be used.
+          Help > Setup cannot download a replacement on Windows - it reads ELF
+          and Mach-O headers rather than PE - so the zip is where they come
+          from. To use one of your own, put it beside meshbench.exe or point
+          MESHBENCH_QEMU, MESHBENCH_RENODE or MESHBENCH_RADIO_SERVER at it.
 
           Emulated boards on Windows are newer than the rest of this bundle
           and have had less time on real hardware than the Linux and macOS

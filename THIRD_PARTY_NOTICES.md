@@ -30,7 +30,7 @@ Six sections, 26 entries besides MeshBench itself, as of this writing:
 |---|--:|---|
 | Modified forks | 5 | `MeshBench/qemu` (GPL-2.0), `MeshBench/tlib` (LGPL), `MeshBench/renode` and `renode-infrastructure` (MIT, MIT + LGPL), `MeshBench/meshcore-native` (MIT) |
 | Bundled third parties | 4 | .NET runtime (MIT), wgpu-native (MIT or Apache-2.0), Noto Color Emoji (OFL-1.1), the Wireshark dissector (GPL-2.0-only) |
-| Go libraries | 10 | Discovered from the build graph — Gio and its shader package, cogentcore/webgpu, go-text/typesetting, zenity, and five `golang.org/x` modules |
+| Go libraries | 11 | Discovered from the build graph: Gio and its shader package, cogentcore/webgpu, go-text/typesetting, zenity, ulikunitz/xz, and five `golang.org/x` modules |
 | Downloaded at runtime | 3 | MeshCore (MIT), the published board firmware images, the Nordic SoftDevice under Nordic's own agreement |
 | Map and terrain data | 4 | OpenStreetMap (ODbL 1.0), CARTO basemaps, Esri World Imagery, Terrain Tiles on AWS |
 

@@ -22,8 +22,9 @@ had changed in them — which is the gap this file exists to close.
   emulator lookup searches, so a fetched tool needs no configuration. A release
   tarball carries all three beside the binary, but the AppImage and the `.deb`
   carry only `radioserver` and a source checkout had no path to any of them.
-  Where a platform has no build, or where emulation has never run on it, the
-  row says which rather than offering a download that could not work.
+  Where a platform has no build, or where this fetcher cannot install the one
+  there is, the row says which rather than offering a download that could not
+  work.
 - **Resource manager.** Everything the application downloads that is not
   firmware, in one page: the Nordic SoftDevice plus the caches that fill
   themselves as the map is used — terrain, basemap, map tiles, building
@@ -50,6 +51,16 @@ had changed in them — which is the gap this file exists to close.
 
 ### Changed
 
+- **QEMU on all three platforms, from one release.** The pin moves to
+  `v9.2.2-meshbench-sx1262-10`, which cross-compiles Linux, macOS and Windows
+  from one commit and refuses to publish if the SX1262 device, its DIO1 line or
+  the GPIO interrupt behind it has gone missing. The macOS bundle and the
+  Windows zip had been shipping without an ESP32 emulator, and the two
+  explanations for that - that the fork built Linux alone, and that emulation
+  had never run on Windows - are both retired. A node on Windows reaches the
+  radio model over TCP, which is the path Renode has always used; what it still
+  cannot do is fetch an emulator, because the download side reads ELF and
+  Mach-O headers rather than PE.
 - **`resource.list` returns the rows, not a count of them.** It answered
   `{"rows": 5}` and left the rows in the snapshot, where only a panel could
   reach them, so from outside the window there was no way to ask what this
