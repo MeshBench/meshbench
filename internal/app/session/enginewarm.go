@@ -59,7 +59,11 @@ func (s *Sim) warm(st *state.Store, nodes int) {
 	// warm reading a node's fields on its worker and a verb writing them on
 	// the store goroutine - setFirmware, say - are touching the same memory.
 	// The intent here was always a snapshot; this is what makes it one.
-	eng, warmNodes, freqMHz := s.eng, snapshotNodes(s.nodes), s.freqMHz
+	//
+	// The fingerprint comes with them, because it names the geometry these
+	// nodes are, and the matrix this warm saves is a matrix of that geometry
+	// and no other.
+	eng, warmNodes, freqMHz, fp := s.eng, snapshotNodes(s.nodes), s.freqMHz, s.geomFP
 	go func() {
 		defer cancel()
 		total := nodes * (nodes - 1) / 2
@@ -135,7 +139,7 @@ func (s *Sim) warm(st *state.Store, nodes int) {
 			abandonWarmJob(ctx, st)
 			return
 		}
-		links := s.links()
+		links := linksOf(eng, warmNodes)
 		if ctx.Err() != nil {
 			abandonWarmJob(ctx, st)
 			return
@@ -146,7 +150,7 @@ func (s *Sim) warm(st *state.Store, nodes int) {
 		// What was measured survives the process, keyed by the geometry it
 		// is about. On its own goroutine already, and after the staleness
 		// checks, so what lands on disk is a matrix somebody saw.
-		saveMatrix(s.matrixDir(), s.geomFP, s.eng.LinkCacheSnapshot())
+		saveMatrix(s.matrixDir(), fp, eng.LinkCacheSnapshot())
 		// The warm's own context has been cancelled by the time a rewarm
 		// supersedes this one, and the measurement it just finished still has
 		// to reach the store - so these inherit it without its cancellation.

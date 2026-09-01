@@ -142,7 +142,7 @@ func TestTheEngineChargesForTheRidge(t *testing.T) {
 	}
 
 	// And what the map would draw.
-	links := sim.links()
+	links := linksOf(sim.eng, sim.nodes)
 	drawn := map[[2]int]float64{}
 	for _, l := range links {
 		drawn[[2]int{l.A, l.B}] = l.MarginDB
@@ -188,7 +188,7 @@ func TestExcessLossClosesTheRidgePaths(t *testing.T) {
 			return 0, false
 		}
 		a, _ := find("The Mysterons")
-		links := sim.links()
+		links := linksOf(sim.eng, sim.nodes)
 		margin := map[[2]int]float64{}
 		for _, l := range links {
 			margin[[2]int{l.A, l.B}] = l.MarginDB
