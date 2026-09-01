@@ -12,16 +12,26 @@ import (
 
 // All three roles in one mesh, and the difference between two of them.
 //
-// A room server looks like a repeater from every side this simulator normally
-// sees: it runs on a mast, it has the same console, it takes the same admin
-// password. The one place it differs is the air, and it differs in the
-// direction that flatters a network - it does not forward. A scenario that
-// models a room server as a repeater will report reach the mesh does not have.
+// A room server is a BBS for shared posts - it stores message history and
+// hands it back to clients that log in, the way an email server does. It
+// looks like a repeater from every side this simulator normally sees: it runs
+// on a mast, it has the same console, it takes the same admin password. The
+// one place it differs is the air, and it differs in the direction that
+// flatters a network - by default it does not forward. (MeshCore lets one
+// repeat with `set repeat on`, which its own docs discourage; the published
+// build boots with forwarding off, and that default is what a scenario has to
+// assume.) A scenario that models a room server as a repeater reports reach
+// the mesh does not have.
 //
-// So the geometry is a chain with no shortcut: the sender reaches the middle
-// node and nothing else. Whether the far end hears anything is then entirely a
-// question of whether the middle node forwarded, which is the one behaviour
-// that separates the two roles.
+// The behaviour is read from the middle node's own transmissions, not from
+// whether the far end heard anything. Over flat earth the 73 km sender-to-far
+// path still closes directly - confirmed live: with a room server in the
+// middle the far end hears the advert while the room server transmits nothing
+// at all - so "did the far end hear it" measures the direct path, not the
+// relay. What separates the roles is whether the middle node retransmitted:
+// the repeater does (tx > 0), the room server does not (tx == 0), and that is
+// what each run asserts, having first confirmed the middle actually heard the
+// advert it was given the chance to forward.
 //
 //	MESHBENCH_LIVE=1 go test ./internal/engine/ -run TestLiveRoles -v -timeout 400s
 func TestLiveRolesRepeaterForwardsAndRoomServerDoesNot(t *testing.T) {
@@ -118,14 +128,17 @@ func TestLiveRolesRepeaterForwardsAndRoomServerDoesNot(t *testing.T) {
 	})
 
 	t.Run("room server", func(t *testing.T) {
-		_, rx := run(t, "role-room", scenario.RoomServer)
+		tx, rx := run(t, "role-room", scenario.RoomServer)
 		if rx["role-room-middle"] == 0 {
 			t.Error("the room server heard nothing, so this proves nothing about forwarding")
 		}
-		if rx["role-room-far"] != 0 {
-			t.Errorf("the far node heard %d packets; a room server does not forward, "+
-				"so either the role is wrong or the geometry leaks a direct path",
-				rx["role-room-far"])
+		// The middle node's own transmissions, not the far end's receptions: the
+		// direct path leaks over flat earth, so a room server that forwarded
+		// nothing is one that transmitted nothing, whatever the far end heard.
+		if tx["role-room-middle"] != 0 {
+			t.Errorf("the room server transmitted %d packets; it heard the advert and "+
+				"forwarded it, which is the repeater's behaviour, not a room server's",
+				tx["role-room-middle"])
 		}
 	})
 }

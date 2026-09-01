@@ -14,16 +14,23 @@ import (
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
-// Does `help` answer, and is the answer any use?
+// Does the console answer a person, in words they can use?
 //
 // A feature for a person rather than for a network, so the test is what a
-// person would do: type the word and read what comes back. Stock firmware
-// answers "Err - ??", which is what a repeater says when it understands
-// nothing at all, so the first thing a newcomer tries reads as a broken node.
+// person would do: type a command and read what comes back. It asks the
+// things someone actually types at a repeater they have just put on a mast -
+// what firmware is this, what is it tuned to, what is it called, send an
+// advert - and insists each answer carries the fact that was asked for.
 //
-//	MESHBENCH_LIVE=1 MESHBENCH_NATIVE=~/msim/study/11-console-help \
-//	go test ./internal/engine/ -run TestConsoleHelp -v -timeout 200s
-func TestConsoleHelpAnswersAPerson(t *testing.T) {
+// It deliberately does not ask for `help`. Published MeshCore repeater builds
+// have no such command and answer "Unknown command", so a newcomer's first
+// guess reads as a broken node. That is a real finding about the firmware and
+// it is recorded in the console study, but asserting it here would only pin a
+// gap this project cannot close: the scheduled live job runs against published
+// builds, and a test that can never pass is a job everybody learns to ignore.
+//
+//	MESHBENCH_LIVE=1 go test ./internal/sim/engine/ -run TestConsole -v -timeout 200s
+func TestConsoleAnswersAPerson(t *testing.T) {
 	if os.Getenv("MESHBENCH_LIVE") == "" {
 		t.Skip("set MESHBENCH_LIVE=1")
 	}
@@ -84,18 +91,26 @@ func TestConsoleHelpAnswersAPerson(t *testing.T) {
 		typed string
 		want  []string
 	}{
-		{"help", []string{"region", "get", "advert"}},
-		{"help region", []string{"allowf", "#sco"}},
-		{"help radio", []string{"rxdelay"}},
+		// The build identifies itself, which is the first thing anyone asks of
+		// a node they did not flash themselves.
+		{"ver", []string{"v1.17.0"}},
+		// The tuning comes back as freq,bw,sf,cr - all four, because a repeater
+		// on the wrong one of them is silent in a way nothing else explains.
+		{"get radio", []string{"869.6", "62.5", "8"}},
+		{"get name", []string{"repeater"}},
+		// Not a question but the one action a person takes from this prompt,
+		// and it has to say it did something.
+		{"advert", []string{"OK"}},
 	} {
 		got := ask(c.typed)
 		t.Logf("%q ->\n%s", c.typed, strings.TrimSpace(got))
-		// The reply itself quotes the error string, so look for it as the whole
-		// answer rather than anywhere in it. The first version of this check
-		// failed on its own help text.
-		if strings.Contains(got, "-> Err - ??") {
-			t.Errorf("%q was not understood", c.typed)
-			continue
+		// The two ways this firmware says it understood nothing. Checked as the
+		// whole answer rather than anywhere in it, since a reply quotes back
+		// what was typed.
+		for _, bad := range []string{"-> Err - ??", "-> Unknown command"} {
+			if strings.Contains(got, bad) {
+				t.Errorf("%q was not understood, and it is a command this build has", c.typed)
+			}
 		}
 		for _, w := range c.want {
 			if !strings.Contains(got, w) {
