@@ -95,6 +95,9 @@ func Run(args []string) {
 			"has no unix socket a Python client can reach). "+
 			"MESHBENCH_CONTROL_SOCKET does the same, and two workbenches need two")
 	versionFlag := flag.Bool("version", false, "print the version and exit")
+	if describedInstead() {
+		return
+	}
 	_ = flag.CommandLine.Parse(args)
 	if *versionFlag {
 		fmt.Println("MeshBench", version.Detail())

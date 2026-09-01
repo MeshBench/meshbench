@@ -1,0 +1,157 @@
+{
+  "roles": {
+    "result": "an input the answer depends on. Change it and the number changes.",
+    "data": "where the inputs come from, and whether the network may be used to get them. Nothing here is part of the physics.",
+    "output": "where the answer is written and how much of it is said. It does not change what was computed.",
+    "capture": "capture and scripting: it reaches a view, a panel or a menu without a click, so a screenshot or a script does not need a hand on the mouse. None of these changes a result.",
+    "diagnostic": "measures the application itself rather than the network it is simulating."
+  },
+
+  "required": {
+    "link": ["from-lat", "from-lon", "to-lat", "to-lon"],
+    "profile": ["from-lat", "from-lon", "to-lat", "to-lon"],
+    "coverage": ["lat", "lon"],
+    "terrain": ["south", "north", "west", "east"],
+    "energy": ["lat"],
+    "test": ["fixture"]
+  },
+
+  "shared": {
+    "always-on": "result",
+    "bandwidth": "result",
+    "battery": "result",
+    "board": "result",
+    "bytes": "result",
+    "cache": "data",
+    "coding-rate": "result",
+    "control-socket": "capture",
+    "east": "result",
+    "estimate": "data",
+    "firmware": "result",
+    "fixture": "result",
+    "for": "result",
+    "freq": "result",
+    "from-gain": "result",
+    "from-height": "result",
+    "from-lat": "result",
+    "from-lon": "result",
+    "from-tx": "result",
+    "gain": "result",
+    "height": "result",
+    "junit": "output",
+    "lat": "result",
+    "lon": "result",
+    "nodes": "data",
+    "noise-figure": "result",
+    "north": "result",
+    "o": "output",
+    "offline": "data",
+    "panel": "result",
+    "pixels": "result",
+    "play": "capture",
+    "quiet": "output",
+    "radius": "result",
+    "remote-height": "result",
+    "remote-tx": "result",
+    "role": "data",
+    "rx": "result",
+    "samples": "result",
+    "seed": "result",
+    "sensitivity": "result",
+    "sf": "result",
+    "source": "data",
+    "south": "result",
+    "symbols": "result",
+    "terrain-cache": "data",
+    "tilt": "result",
+    "to-gain": "result",
+    "to-height": "result",
+    "to-lat": "result",
+    "to-lon": "result",
+    "to-tx": "result",
+    "token": "data",
+    "tx": "result",
+    "unverified-wiring": "result",
+    "url": "data",
+    "v": "output",
+    "wav": "output",
+    "west": "result",
+    "zoom": "result"
+  },
+
+  "commands": {
+    "terrain": {
+      "south": "data",
+      "north": "data",
+      "west": "data",
+      "east": "data",
+      "zoom": "data"
+    },
+    "basemap": {
+      "south": "data",
+      "north": "data",
+      "west": "data",
+      "east": "data",
+      "layer": "data",
+      "zoom": "data"
+    },
+    "firmware": {
+      "board": "data",
+      "get": "data",
+      "import": "data",
+      "label": "data"
+    },
+    "traffic": {
+      "from": "result"
+    },
+    "dev": {
+      "from": "data",
+      "name": "data",
+      "assign": "capture",
+      "watch": "capture"
+    },
+    "serve": {
+      "addr": "output",
+      "node": "output",
+      "serial": "output"
+    },
+    "test": {
+      "endpoint": "output"
+    },
+    "workbench": {
+      "capture": "capture",
+      "config-section": "capture",
+      "coverage": "capture",
+      "cpuprofile": "diagnostic",
+      "drop-menu": "capture",
+      "energy": "capture",
+      "filter": "capture",
+      "fps": "diagnostic",
+      "import": "capture",
+      "inject": "capture",
+      "inject-every": "capture",
+      "layers": "capture",
+      "licence-section": "capture",
+      "list-fixtures": "output",
+      "look": "capture",
+      "memprofile": "diagnostic",
+      "menu": "capture",
+      "node-menu": "capture",
+      "node-tab": "capture",
+      "node-window": "capture",
+      "open-firmware": "capture",
+      "packet-tab": "capture",
+      "panel": "capture",
+      "plan": "capture",
+      "pop-out": "capture",
+      "provisioning": "capture",
+      "quit-after": "capture",
+      "save-run": "capture",
+      "sweep": "capture",
+      "terrain": "capture",
+      "theme": "capture",
+      "version": "output",
+      "view": "capture"
+    }
+  }
+}

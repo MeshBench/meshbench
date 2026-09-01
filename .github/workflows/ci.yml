@@ -132,6 +132,14 @@ jobs:
       - name: Scripting verb table is current
         run: tools/verbdoc/verbdoc.py --check
 
+      # The CLI reference is generated from the flag declarations by building
+      # the binary and asking it, so a flag added without a role, an example
+      # naming a flag that has gone, and a required flag that stopped being
+      # required all fail here. The page it guards documented one command's
+      # flags out of sixteen while it was hand-written, and nothing noticed.
+      - name: CLI reference is current
+        run: tools/flagdoc/flagdoc.py --check
+
       # The linter set went from 8 to 20 and returned 96 findings, so the run
       # can no longer simply demand zero. It demands that the count has not
       # risen: tools/lint-ratchet.sh compares per-linter counts against

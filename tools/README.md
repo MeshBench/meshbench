@@ -16,6 +16,7 @@ its row here.
 |---|---|---|
 | `clientgen` | emits the closed enum sets both clients need, from the one place that defines them (`sets_gen.go`, `sets.py`) | CI checks they are current |
 | `verbdoc` | regenerates `docs/scripting-verbs.md` from the verbs the tree registers | CI checks it is current |
+| `flagdoc` | regenerates `docs/cli-reference.md` by building the binary and asking it for every command's flags | CI checks it is current |
 | `licgen` | assembles the licence inventory the workbench embeds and the build checks | CI, and the build fails without it |
 | `mockup` | renders the UX wireframes in `docs/ux` to PNG | by hand, when the wireframes change |
 | `render` | produces the figures in `docs/output` from the **real** engine, not a mockup | by hand, when the figures change |

@@ -20,36 +20,10 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/MeshBench/meshbench/internal/app/flagdump"
 	"github.com/MeshBench/meshbench/internal/app/version"
 	"github.com/MeshBench/meshbench/internal/rf/terrain"
 )
-
-type command struct {
-	name    string
-	summary string
-	run     func(ctx context.Context, args []string) error
-}
-
-func commands() []command {
-	return []command{
-		{"link", "link budget between two points, both directions", runLink},
-		{"profile", "terrain profile and the worst obstruction on a path", runProfile},
-		{"coverage", "coverage raster from one station, written as a PNG", runCoverage},
-		{"spectrum", "what an SDR observer captures: waterfall PNG and audio", runSpectrum},
-		{"terrain", "download elevation tiles for an area", runTerrain},
-		{"boards", "the hardware profiles this build knows about", runBoards},
-		{"firmware", "list, download or import MeshCore firmware", runFirmware},
-		{"energy", "will a solar node survive the winter", runEnergy},
-		{"airtime", "LoRa time on air, as the firmware computes it", runAirtime},
-		{"traffic", "flood a message through a network and report what happened", runTraffic},
-		{"basemap", "download map tiles for an area", runBasemap},
-		{"dev", "build a MeshCore checkout and give it to the workbench", runDev},
-		{"serve", "run a mesh and expose a companion to your app", runServe},
-		{"test", "run a fixture on real firmware and check its assertions", runTest},
-		{"headless", "run the verbs over the control socket, with no window", runHeadless},
-		{"workbench", "open the desktop workbench: build a scenario on a map and run it", runWorkbench},
-	}
-}
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -69,6 +43,17 @@ func main() {
 	// is the kind of thing people report.
 	if name == "version" || name == "-version" || name == "--version" {
 		fmt.Println(invoked(), version.Detail())
+		return
+	}
+	// Unlisted, because it is addressed to tools/flagdoc rather than to an
+	// operator: it describes the command line instead of doing anything with
+	// it. Listing it in the usage would offer somebody a command whose output
+	// is only useful to a generator.
+	if name == "flagdump" {
+		if err := describeSelf(ctx); err != nil {
+			fmt.Fprintln(os.Stderr, invoked()+":", err)
+			os.Exit(1)
+		}
 		return
 	}
 
@@ -140,10 +125,19 @@ func terrainFlags(fs *flag.FlagSet) func() (*terrain.TileStore, error) {
 }
 
 // parse is the shared flag handling: a command's own usage, then its flags.
+//
+// It is also where the CLI reference comes from. Every command routes through
+// here after declaring its flags and before doing anything with them, which is
+// the one moment the flag set exists and nothing has run, so a process asked to
+// describe itself takes the set here and stops the command.
 func parse(fs *flag.FlagSet, args []string, describe string) error {
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "%s %s — %s\n\n", invoked(), fs.Name(), describe)
 		fs.PrintDefaults()
+	}
+	if flagdump.Wanted() {
+		flagdump.Record(fs.Name(), describe, fs)
+		return flagdump.ErrRecorded
 	}
 	return fs.Parse(args)
 }
