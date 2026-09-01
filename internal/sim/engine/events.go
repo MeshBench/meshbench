@@ -8,8 +8,6 @@
 package engine
 
 import (
-	"strings"
-
 	"github.com/MeshBench/meshbench/internal/sim/capture"
 )
 
@@ -31,6 +29,13 @@ type Event struct {
 	Outcome   capture.Outcome
 	SNRdB     float64
 	Detail    string
+	// Class is the cause, as established by whichever branch recorded the
+	// event. Carried on the event because only that branch knows it: the
+	// arithmetic that decided a packet was too quiet, or that the receiver was
+	// already following another preamble, is gone by the time anything reads
+	// the ledger. Empty on a miss means no cause was established, which is
+	// counted as such rather than assumed to be anything.
+	Class Class
 
 	// Frame is the bytes on the air. Carried on the event so the inspector can
 	// dissect what actually flew rather than a reconstruction of it — the two
@@ -47,7 +52,7 @@ func (e *Engine) record(ev Event) {
 	if e.classCounts == nil {
 		e.classCounts = map[Class]int{}
 	}
-	e.classCounts[EventClass(ev.Kind, ev.Detail)]++
+	e.classCounts[EventClass(ev)]++
 	l := e.eventLog
 	e.mu.Unlock()
 	if l != nil {
@@ -117,42 +122,57 @@ func (e *Engine) EventsSince(fromMs uint32) []Event {
 type Class string
 
 // The classes. A miss lost to the node's own transmitter, a miss lost to a
-// stronger signal, and a miss that was simply too quiet are three different
-// problems with three different fixes, so they are three classes rather than
-// one "failed".
+// stronger signal, a miss lost to a demodulator that was already following
+// somebody else, a miss whose symbols a collision destroyed, and a miss that
+// was simply too quiet are five different problems with five different fixes,
+// so they are five classes rather than one "failed". The fixes point opposite
+// ways: too quiet asks for more power or a better antenna, and the rest ask
+// for less traffic or different timing, which no antenna buys.
 const (
 	ClassSent         Class = "sent"
 	ClassReceived     Class = "received"
 	ClassHalfDuplex   Class = "half-duplex"
 	ClassInterference Class = "interference"
+	ClassCollision    Class = "collision"
+	ClassReceiverBusy Class = "receiver-busy"
 	ClassFloor        Class = "floor"
+	// ClassUnclassified is a miss whose cause the engine did not establish.
+	//
+	// It exists because the alternative is worse. A default branch answering
+	// "too quiet" for everything it did not recognise is a confident claim
+	// about a signal nobody measured, and it is acted on: an operator reads
+	// the floor card and buys antennas for a mesh that is actually too busy.
+	// An empty answer is investigated instead, and the event's own detail
+	// still says what happened.
+	ClassUnclassified Class = "unclassified"
 )
 
 // Classes is every one, in the order the interface offers them.
 var Classes = []Class{
-	ClassSent, ClassReceived, ClassHalfDuplex, ClassInterference, ClassFloor,
+	ClassSent, ClassReceived, ClassHalfDuplex, ClassInterference,
+	ClassCollision, ClassReceiverBusy, ClassFloor, ClassUnclassified,
 }
 
 // EventClass buckets an event by what happened to it, which is what the
 // interface's cards and filter chips count.
-func EventClass(kind, detail string) Class {
-	switch kind {
+//
+// Off the event's own fields, never off the shape of its detail sentence. A
+// reader that prefix-matched the prose could only recognise the wordings it
+// had been told about, and answered "too quiet" for the rest: receiver lock
+// and collision damage were both reported as floor misses for as long as
+// nobody counted them. Rewording a message now costs a line of prose rather
+// than a silently wrong class.
+func EventClass(ev Event) Class {
+	switch ev.Kind {
 	case "tx":
 		return ClassSent
 	case "rx":
 		return ClassReceived
 	}
-	// Prefixes, matching how the details above are written - and not
-	// strings.Contains, which a guard test forbids in this package to keep
-	// region logic out of the channel.
-	switch {
-	case strings.HasPrefix(detail, "its own transmitter"):
-		return ClassHalfDuplex
-	case strings.HasPrefix(detail, "would have decoded"):
-		return ClassInterference
-	default:
-		return ClassFloor
+	if ev.Class == "" {
+		return ClassUnclassified
 	}
+	return ev.Class
 }
 
 // EventCounts is how many events of each class the run has produced, counted

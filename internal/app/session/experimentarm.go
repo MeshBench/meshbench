@@ -19,6 +19,16 @@ import (
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
+// contentionClasses is what an arm counts as a collision: the miss classes
+// where traffic lost to traffic rather than to distance. A quiet miss is not
+// one of them, and neither is a node deafened by its own transmitter, which
+// is timing rather than contention.
+var contentionClasses = map[engine.Class]bool{
+	engine.ClassInterference: true,
+	engine.ClassCollision:    true,
+	engine.ClassReceiverBusy: true,
+}
+
 // runArm is one cell: one configuration at one seed, on real firmware.
 func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64,
 	nodes []scenario.Node) ExpResult {
@@ -376,6 +386,12 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 	// for. It is a miss that would have decoded on its own and did not, which
 	// is the engine's own account of capture rather than a rule on top of it.
 	//
+	// All three contention causes, off the class rather than off the detail
+	// sentence: a packet beaten by a louder one, one whose symbols a collision
+	// destroyed, and one that arrived at a demodulator already following
+	// somebody else are all traffic losing to traffic, and matching a phrase
+	// counted only the first of them.
+	//
 	// PerSecond is receptions per second after the burst. A total says which
 	// arm delivered more; the shape says whether it did so in one clean wave or
 	// in a long tail of retries, and those are different networks.
@@ -385,7 +401,7 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 	}
 	for _, ev := range eng.Events()[min(baseline, len(eng.Events())):] {
 		switch {
-		case ev.Kind == "miss" && strings.Contains(ev.Detail, "stronger interferer"):
+		case ev.Kind == "miss" && contentionClasses[engine.EventClass(ev)]:
 			out.Collided++
 		case ev.Kind == "rx" && fired && ev.AtMs >= burstMs:
 			if b := int((ev.AtMs - burstMs) / 1000); b >= 0 && b < len(out.PerSecond) {

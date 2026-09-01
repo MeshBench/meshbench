@@ -208,19 +208,23 @@ type Event struct {
 	SNRdB     float64
 	Detail    string
 	// Class buckets the event for the cards and chips: sent, received,
-	// half-duplex, interference, floor.
+	// half-duplex, interference, collision, receiver-busy, floor, and
+	// unclassified for a miss whose cause the engine did not establish.
 	Class string
 }
 
 // EventCounts is the whole run's events by class, for the cards above the
 // table - counted by the engine as they happen, never by walking the log.
 type EventCounts struct {
-	Sent, Received, HalfDuplex, Interference, Floor int
+	Sent, Received, HalfDuplex, Interference int
+	Collision, ReceiverBusy, Floor           int
+	Unclassified                             int
 }
 
 // Total is every event the run has produced.
 func (c EventCounts) Total() int {
-	return c.Sent + c.Received + c.HalfDuplex + c.Interference + c.Floor
+	return c.Sent + c.Received + c.HalfDuplex + c.Interference +
+		c.Collision + c.ReceiverBusy + c.Floor + c.Unclassified
 }
 
 // RFRealism mirrors the engine's realism switches for the RF Simulation

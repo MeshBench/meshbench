@@ -126,8 +126,17 @@ var classes = []set{
 		"missed because this node's own transmitter was keyed; LoRa is half duplex"},
 	{"ClassInterference", "INTERFERENCE", string(engine.ClassInterference),
 		"would have decoded, but a stronger signal took it"},
+	{"ClassCollision", "COLLISION", string(engine.ClassCollision),
+		"decoded its header, then a collision destroyed more symbols than " +
+			"the coding rate could repair"},
+	{"ClassReceiverBusy", "RECEIVER_BUSY", string(engine.ClassReceiverBusy),
+		"arrived at a demodulator already locked to another packet; a LoRa " +
+			"receiver decodes one at a time"},
 	{"ClassFloor", "FLOOR", string(engine.ClassFloor),
 		"too quiet: under the demodulator's threshold for its spreading factor"},
+	{"ClassUnclassified", "UNCLASSIFIED", string(engine.ClassUnclassified),
+		"a miss whose cause the engine did not establish; never assume it " +
+			"was a weak signal"},
 }
 
 // tabs is the panes a node window can be opened on.

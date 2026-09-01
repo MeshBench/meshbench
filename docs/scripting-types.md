@@ -289,7 +289,7 @@ Methods: `Start`, `Play`, `Pause`, `Toggle`, `Step`, `Run(ms=|seconds=|minutes=)
 | `MessageID`, `PacketID` | `uint64` | a message survives relaying; a packet is one transmission of it |
 | `SNRdB` | `float64` | |
 | `Detail` | `string` | |
-| `Class` | `string` | `sent`, `received`, `half-duplex`, `interference`, `floor` |
+| `Class` | `string` | `sent`, `received`, `half-duplex`, `interference`, `collision`, `receiver-busy`, `floor`, `unclassified` |
 
 The frame bytes are deliberately absent: a hundred thousand events each
 carrying a frame is real memory for something only the packet view opens. Ask
@@ -297,8 +297,12 @@ carrying a frame is real memory for something only the packet view opens. Ask
 
 ## EventCounts
 
-**snapshot.** `{Sent, Received, HalfDuplex, Interference, Floor int}` plus
-`Total()`. Counted by the engine as they happen, never by walking the log.
+**snapshot.** `{Sent, Received, HalfDuplex, Interference, Collision, ReceiverBusy,
+Floor, Unclassified int}` plus `Total()`. Counted by the engine as they happen,
+never by walking the log. `Floor` means the signal was measured under the
+demodulator's threshold, and nothing else is counted there: a miss whose cause
+the engine did not establish is `Unclassified`, because reading it as a weak
+signal is what sends somebody out to buy antennas for a busy channel.
 
 ## Packet
 
@@ -842,7 +846,7 @@ autocompletion in Python rather than a verb refusing at run time.
 | `RFMode` | `calculated`, `waveform` |
 | `Backend` | `native`, `emulated`, `""` |
 | `NodeState` | `running`, `stopped`, `stopping`, `provisioning`, `starting` |
-| `EventClass` | `sent`, `received`, `half-duplex`, `interference`, `floor` |
+| `EventClass` | `sent`, `received`, `half-duplex`, `interference`, `collision`, `receiver-busy`, `floor`, `unclassified` |
 | `AssertionKind` | `delivered`, `deliveries`, `unique_deliveries`, `sent`, `transmissions` |
 | `ServeKind` | `tcp`, `serial` |
 | `View` | `Plan`, `Run`, `Debug`, `Validate`, `Bench`, `App` |

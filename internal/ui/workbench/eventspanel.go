@@ -18,12 +18,17 @@ import (
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 )
 
-// eventClasses is the chip order, which is also the card order.
-var eventClasses = []string{"sent", "received", "half-duplex", "interference", "floor"}
+// eventClasses is the chip order, which is also the card order. It mirrors
+// engine.Classes: a class the engine counts and this list omits is a cause an
+// operator cannot see or filter on.
+var eventClasses = [8]string{
+	"sent", "received", "half-duplex", "interference",
+	"collision", "receiver-busy", "floor", "unclassified",
+}
 
 type eventsPanel struct {
 	allChip comp.Chip
-	chips   [5]comp.Chip
+	chips   [len(eventClasses)]comp.Chip
 	filter  string
 	search  comp.Field
 	list    widget.List
@@ -63,8 +68,14 @@ func classCount(c state.EventCounts, class string) int {
 		return c.HalfDuplex
 	case "interference":
 		return c.Interference
+	case "collision":
+		return c.Collision
+	case "receiver-busy":
+		return c.ReceiverBusy
 	case "floor":
 		return c.Floor
+	case "unclassified":
+		return c.Unclassified
 	}
 	return 0
 }

@@ -147,6 +147,7 @@ func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCac
 		if !ok {
 			e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.specRef().Name, To: dst.specRef().Name,
 				PacketID: t.packetID, Outcome: capture.OutOfRange,
+				Class:  noTerrainDataClass,
 				Detail: "no terrain data covers this path"})
 			continue
 		}
@@ -240,7 +241,7 @@ func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCac
 			rec.Outcome = capture.NotDemodulated
 			e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.specRef().Name, To: dst.specRef().Name,
 				PacketID: t.packetID, MessageID: t.payload, Outcome: rec.Outcome,
-				SNRdB: reported, Frame: t.frame,
+				SNRdB: reported, Frame: t.frame, Class: ClassHalfDuplex,
 				Detail: "its own transmitter was keyed; LoRa is half duplex"})
 		case held != "" && effective >= required:
 			// Strong enough to have decoded, and it still did not: the one
@@ -251,7 +252,8 @@ func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCac
 			rec.Outcome = capture.NotDemodulated
 			e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.specRef().Name, To: dst.specRef().Name,
 				PacketID: t.packetID, MessageID: t.payload, Outcome: rec.Outcome,
-				SNRdB: reported, Frame: t.frame, Detail: busyDemodulatorDetail(held)})
+				SNRdB: reported, Frame: t.frame, Class: ClassReceiverBusy,
+				Detail: busyDemodulatorDetail(held)})
 		case held == "" && effective >= required && !survives:
 			// It locked, it led every interferer on average, and something
 			// still landed on its symbols. Waveform mode reaches this verdict
@@ -261,7 +263,7 @@ func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCac
 			rec.Demod = true
 			e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.specRef().Name, To: dst.specRef().Name,
 				PacketID: t.packetID, MessageID: t.payload, Outcome: rec.Outcome,
-				SNRdB: reported, Frame: t.frame,
+				SNRdB: reported, Frame: t.frame, Class: ClassCollision,
 				Detail: fmt.Sprintf(
 					"decoded its header, then %.0f symbol(s) were destroyed by a collision "+
 						"it could not capture over; beyond what CR 4/%d can repair",
@@ -273,14 +275,10 @@ func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCac
 			// and counting it as nearly-decoded would overstate what sensitivity
 			// buys on exactly the crowded mesh where the question is asked.
 			e.sens.note(effective-required, false)
-			why := fmt.Sprintf("SNR %.1f dB against %.1f dB needed at SF%d", effective, required, e.Config.SF)
-			if !math.IsInf(interferenceDBm, -1) && snr >= required {
-				why = fmt.Sprintf("would have decoded at %.1f dB, lost to a stronger interferer",
-					dsp.ReportSNRdB(snr))
-			}
+			why, class := weakMissCause(snr, effective, required, interferenceDBm, e.Config.SF)
 			e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.specRef().Name, To: dst.specRef().Name,
 				PacketID: t.packetID, MessageID: t.payload, Outcome: rec.Outcome,
-				SNRdB: reported, Frame: t.frame, Detail: why})
+				SNRdB: reported, Frame: t.frame, Class: class, Detail: why})
 		default:
 			rec.Demod, rec.CRCOK, rec.FirmwareSaw = true, true, true
 			rec.Outcome = capture.Accepted

@@ -83,10 +83,16 @@ func ClassColour(t *theme.Theme, class string) color.NRGBA {
 		return t.P.Good
 	case "interference":
 		return t.P.Warn
+	case "collision":
+		return t.P.Bad
+	case "receiver-busy":
+		return t.NodeColour(theme.AdvancedRepeater)
 	case "floor":
 		return t.NodeColour(theme.Observer)
 	case "half-duplex":
 		return t.P.Dim
+	case "unclassified":
+		return t.P.Faint
 	}
 	return t.P.Dim
 }
@@ -102,8 +108,14 @@ func ClassLabel(class string) string {
 		return "Half duplex"
 	case "interference":
 		return "Interference"
+	case "collision":
+		return "Collision"
+	case "receiver-busy":
+		return "Receiver busy"
 	case "floor":
 		return "Below floor"
+	case "unclassified":
+		return "Unclassified"
 	}
 	return class
 }

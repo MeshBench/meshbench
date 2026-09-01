@@ -5,7 +5,6 @@ import (
 	"sort"
 
 	"image/color"
-	"strings"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
@@ -49,6 +48,7 @@ const (
 	missNone missKind = iota
 	missWeak
 	missCollided
+	missBusy
 	missDeaf
 	missOther
 )
@@ -61,6 +61,7 @@ var missKinds = []struct {
 	{missNone, "heard"},
 	{missWeak, "too weak"},
 	{missCollided, "lost to a stronger signal"},
+	{missBusy, "receiver was busy"},
 	{missDeaf, "deaf — was transmitting"},
 	{missOther, "other"},
 }
@@ -75,24 +76,32 @@ func colourOf(t *theme.Theme, k missKind) (col color.NRGBA, width float32, dashe
 		return theme.Alpha(t.P.Bad, 0.6), 1.0, false
 	case missCollided:
 		return theme.Alpha(t.P.Warn, 0.7), 1.0, false
+	case missBusy:
+		// The same blue the events panel gives the class, so a cause read on
+		// one panel is recognised on the other.
+		return theme.Alpha(t.NodeColour(theme.AdvancedRepeater), 0.7), 1.0, false
 	case missDeaf:
 		return theme.Alpha(t.P.Warn, 0.75), 1.0, true
 	}
 	return theme.Alpha(t.P.Faint, 0.6), 0.8, true
 }
 
-// classifyMiss reads the engine's own words for a miss.
+// missKindOf draws a miss as the cause the engine recorded for it.
 //
-// The strings are the ones recorded in engine.deliver, and they are matched
-// rather than re-derived so the picture cannot disagree with the ledger row
-// beside it.
-func classifyMiss(what string) missKind {
-	switch {
-	case strings.Contains(what, "stronger interferer"):
+// The class rather than the wording. Reading the detail sentence only ever
+// recognised the three phrasings somebody had thought to match, and drew every
+// other cause - a busy demodulator, a collision - as "other"; worse, the same
+// habit in the events panel reported them as too quiet. A cause that arrives
+// as a value cannot be lost to a reworded message.
+func missKindOf(class string) missKind {
+	switch class {
+	case "interference", "collision":
 		return missCollided
-	case strings.Contains(what, "half duplex"), strings.Contains(what, "own transmitter"):
+	case "receiver-busy":
+		return missBusy
+	case "half-duplex":
 		return missDeaf
-	case strings.Contains(what, "needed"):
+	case "floor":
 		return missWeak
 	}
 	return missOther
@@ -223,14 +232,14 @@ func buildHopGraph(pk *state.Packet, maxHops int, show map[missKind]bool) hopGra
 			add(h.By, n, h.AtMs, h.Hops, missNone)
 		}
 		for i, n := range h.MissedBy {
-			// The engine's own words for this exact miss, carried on the row
+			// The engine's own cause for this exact miss, carried on the row
 			// rather than looked up: a journey spans every transmission of the
 			// message and Fates covers only one packet of it.
-			what := ""
-			if i < len(h.MissWhy) {
-				what = h.MissWhy[i]
+			class := ""
+			if i < len(h.MissClass) {
+				class = h.MissClass[i]
 			}
-			add(h.By, n, h.AtMs, h.Hops, classifyMiss(what))
+			add(h.By, n, h.AtMs, h.Hops, missKindOf(class))
 		}
 	}
 

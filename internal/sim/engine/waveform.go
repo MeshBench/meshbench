@@ -238,6 +238,7 @@ func (e *Engine) waveformCandidates(t transmission, concurrent []transmission,
 		if !ok {
 			e.record(Event{AtMs: t.endMs, Kind: "miss", From: nodes[t.from].specRef().Name,
 				To: dst.specRef().Name, PacketID: t.packetID, Outcome: capture.OutOfRange,
+				Class:  noTerrainDataClass,
 				Detail: "no terrain data covers this path"})
 			continue
 		}
@@ -365,7 +366,8 @@ func (e *Engine) settleWaveform(t transmission, src, dst *Node, c wfCandidate,
 		rec.Outcome = capture.NotDemodulated
 		e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.specRef().Name, To: dst.specRef().Name,
 			PacketID: t.packetID, MessageID: t.payload, Outcome: rec.Outcome,
-			SNRdB: rec.SNRdB, Frame: t.frame, Detail: busyDemodulatorDetail(c.heldBy)})
+			SNRdB: rec.SNRdB, Frame: t.frame, Class: ClassReceiverBusy,
+			Detail: busyDemodulatorDetail(c.heldBy)})
 		e.Ledger.Record(rec)
 		e.captureWrite(t, src, dst, txPHY, rec)
 		return
@@ -385,7 +387,8 @@ func (e *Engine) settleWaveform(t transmission, src, dst *Node, c wfCandidate,
 		}
 		e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.specRef().Name, To: dst.specRef().Name,
 			PacketID: t.packetID, MessageID: t.payload, Outcome: rec.Outcome,
-			SNRdB: r.snrdB, Frame: t.frame, Detail: why})
+			SNRdB: r.snrdB, Frame: t.frame, Class: waveformMissClass(c, txPHY.sf),
+			Detail: why})
 		e.Ledger.Record(rec)
 		e.captureWrite(t, src, dst, txPHY, rec)
 		return
@@ -432,7 +435,7 @@ func (e *Engine) recordDeaf(t transmission, src, dst *Node,
 	rec capture.Reception, txPHY phy) {
 	e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.specRef().Name, To: dst.specRef().Name,
 		PacketID: t.packetID, MessageID: t.payload, Outcome: rec.Outcome,
-		SNRdB: rec.SNRdB, Frame: t.frame,
+		SNRdB: rec.SNRdB, Frame: t.frame, Class: ClassHalfDuplex,
 		Detail: "its own transmitter was keyed; LoRa is half duplex"})
 	e.Ledger.Record(rec)
 	e.captureWrite(t, src, dst, txPHY, rec)

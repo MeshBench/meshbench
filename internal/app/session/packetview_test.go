@@ -309,17 +309,36 @@ func TestCollapseLedgerFallsBackToAReasonedMiss(t *testing.T) {
 }
 
 // The classifier puts every kind somewhere the chips can find it.
+//
+// Off the event, not off its sentence: a transmission and a reception are
+// decided by kind, and a miss carries the cause the engine established.
 func TestEventClassBuckets(t *testing.T) {
-	cases := map[engine.Class]struct{ kind, detail string }{
-		"sent":         {"tx", "32 bytes, 120 ms on air"},
-		"received":     {"rx", "first time this node heard the message"},
-		"half-duplex":  {"miss", "its own transmitter was keyed; LoRa is half duplex"},
-		"interference": {"miss", "would have decoded at -3.0 dB, lost to a stronger interferer"},
-		"floor":        {"miss", "SNR -14.0 dB against -12.5 dB needed at SF10"},
+	cases := map[engine.Class]engine.Event{
+		"sent":          {Kind: "tx", Detail: "32 bytes, 120 ms on air"},
+		"received":      {Kind: "rx", Detail: "first time this node heard the message"},
+		"half-duplex":   {Kind: "miss", Class: engine.ClassHalfDuplex},
+		"interference":  {Kind: "miss", Class: engine.ClassInterference},
+		"collision":     {Kind: "miss", Class: engine.ClassCollision},
+		"receiver-busy": {Kind: "miss", Class: engine.ClassReceiverBusy},
+		"floor":         {Kind: "miss", Class: engine.ClassFloor},
 	}
-	for want, c := range cases {
-		if got := engine.EventClass(c.kind, c.detail); got != want {
-			t.Errorf("EventClass(%q, %q) = %q, want %q", c.kind, c.detail, got, want)
+	for want, ev := range cases {
+		if got := engine.EventClass(ev); got != want {
+			t.Errorf("EventClass(%+v) = %q, want %q", ev, got, want)
 		}
+	}
+}
+
+// A miss nobody classified is not a floor miss. "Too quiet" is a claim about
+// a signal, and an operator acts on it by buying antennas; a cause the engine
+// never established has to say so instead.
+func TestAnUnrecognisedMissIsNotReportedAsFloor(t *testing.T) {
+	ev := engine.Event{Kind: "miss", Detail: "something nobody has worded yet"}
+	got := engine.EventClass(ev)
+	if got == engine.ClassFloor {
+		t.Error("a miss with no established cause was reported as a floor miss")
+	}
+	if got != engine.ClassUnclassified {
+		t.Errorf("EventClass = %q, want %q", got, engine.ClassUnclassified)
 	}
 }
