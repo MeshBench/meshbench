@@ -22,7 +22,7 @@ package resource
 // not the other.
 const (
 	qemuBase   = "https://github.com/MeshBench/qemu/releases/download/v9.2.2-meshbench-sx1262-10/"
-	renodeBase = "https://github.com/MeshBench/renode/releases/download/meshbench-20260814-339f4df/"
+	renodeBase = "https://github.com/MeshBench/renode/releases/download/meshbench-20260901-ca9f7e3/"
 	radioBase  = "https://github.com/MeshBench/meshcore-native/releases/download/radioserver-v2/"
 )
 
@@ -112,7 +112,7 @@ var toolReleases = []toolRelease{{
 	},
 }, {
 	Name:    "renode",
-	Version: "meshbench-20260814-339f4df",
+	Version: "meshbench-20260901-ca9f7e3",
 	MCU:     "nRF52",
 	Why: "the emulator for the nRF52 boards, carrying the SEVONPEND fix without " +
 		"which the firmware sleeps for ever with its wake condition already true",
@@ -120,8 +120,8 @@ var toolReleases = []toolRelease{{
 	Assets: map[string]toolAsset{
 		"linux/amd64": {
 			URL:    renodeBase + "renode-1.16.1.linux-portable-meshbench.tar.gz",
-			SHA256: "0b181a669fdab4b3fe10442a187f82a3d5dbfb4b2554a6baea064902f9d9b82e",
-			Bytes:  61656398, Kind: tarGzip, Magic: elfAMD64,
+			SHA256: "f6ad9ce149be700f4d51040e5c370c4ea89735695fe61e6f8159ead04c668b03",
+			Bytes:  61647373, Kind: tarGzip, Magic: elfAMD64,
 			Root: "renode_1.16.1-portable", Binary: "renode_1.16.1-portable/renode",
 		},
 	},
@@ -132,7 +132,7 @@ var toolReleases = []toolRelease{{
 		// it. Saying that is better than shipping 88 MB and a guess.
 		"darwin/arm64": "the fork publishes a macOS build tree rather than a " +
 			"portable package, and no nRF52 board has been brought up on macOS. " +
-			"Build Renode from the meshbench branch of MeshBench/renode and put " +
+			"Build Renode from the meshbench-main branch of MeshBench/renode and put " +
 			"it in this directory, or set MESHBENCH_RENODE",
 		"darwin/amd64": "no macOS Intel package is published",
 	},
