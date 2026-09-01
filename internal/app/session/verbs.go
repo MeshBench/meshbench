@@ -113,6 +113,18 @@ func Register(st *state.Store, s *Sim) {
 			return nil, err
 		}
 		s.installFn(st, w, f, path)
+		// The camera goes to what was just opened, on the open rather than on
+		// the first play. A network opened onto a camera that was somewhere
+		// else is a blank map with a node count beside it, and the first thing
+		// somebody following the documentation concludes is that nothing
+		// happened - before there is any traffic to make the point. Waiting
+		// for play would leave that same blank map through every step between
+		// the two. Nothing else moves the camera on an open, so this cannot
+		// fight an intention; a script that wants to be elsewhere says so
+		// afterwards with map.centre.
+		if s.needUI() == nil {
+			s.ui.FitMapOnOpen()
+		}
 		w.Say(fmt.Sprintf("opened %s: %d nodes, %d links, %d areas",
 			path, len(f.nodes), len(w.Links), len(f.areas)))
 		return map[string]any{

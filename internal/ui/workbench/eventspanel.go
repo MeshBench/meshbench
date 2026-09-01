@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"gioui.org/layout"
+	"gioui.org/op"
 	"gioui.org/widget"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
@@ -43,6 +44,10 @@ type eventsPanel struct {
 	// scopedTo is the node the view is filtered to this frame, for the
 	// empty state to name.
 	scopedTo string
+	// pointedAt is the row under the pointer, said in full at the foot of the
+	// panel. Rebuilt as the rows draw, so a pointer that has left the table
+	// does not leave a stale row named down there.
+	pointedAt string
 	// OnOpenPacket opens the packet view for a row's transmission.
 	OnOpenPacket func(id uint64)
 }
@@ -159,7 +164,15 @@ func (p *eventsPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 	kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return p.footer(t, gtx, len(shown), s)
 	}))
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, kids...)
+	was := p.pointedAt
+	d := layout.Flex{Axis: layout.Vertical}.Layout(gtx, kids...)
+	// The footer is a rigid and the rows are the flexed child, so the footer
+	// is measured before the rows it reads: without asking for another frame,
+	// a pointer that comes to rest on a row leaves the row unnamed.
+	if was != p.pointedAt {
+		gtx.Execute(op.InvalidateCmd{})
+	}
+	return d
 }
 
 // cards is the run's shape: totals and causes, with their share.
@@ -224,10 +237,24 @@ func (p *eventsPanel) chipRow(t *theme.Theme, gtx layout.Context, s *state.Snaps
 }
 
 // The columns, sized once. Time and SNR are numbers and sit in mono.
+//
+// The compact view's names take whatever the panel actually has, rather than
+// a width chosen for the narrowest rail. Two node names are what a row is
+// about, and at 96dp several of a fixture's names cut to the same characters:
+// "sco-fif-aberdo..." twice over is a pair of rows that cannot be told apart.
+// Floored so a narrow rail still shows something of each, and capped because
+// past a point the names are complete and the rest is white space.
 func (p *eventsPanel) colWidths(gtx layout.Context) (tw, fw, snr, pill int) {
 	tw, fw, snr, pill = gtx.Dp(64), gtx.Dp(130), gtx.Dp(56), gtx.Dp(96)
 	if p.compact {
-		fw, pill = gtx.Dp(96), gtx.Dp(24)
+		pill = gtx.Dp(24)
+		fw = (gtx.Constraints.Max.X - tw - snr - pill) / 2
+		if lo := gtx.Dp(96); fw < lo {
+			fw = lo
+		}
+		if hi := gtx.Dp(260); fw > hi {
+			fw = hi
+		}
 	}
 	return
 }
@@ -291,6 +318,11 @@ func eventKey(e *state.Event) string {
 }
 
 func (p *eventsPanel) table(t *theme.Theme, gtx layout.Context, shown []*state.Event) layout.Dimensions {
+	// Cleared here rather than at the top of the frame: the footer that reads
+	// it is measured first, and clearing it before that would leave it with
+	// nothing to say every other frame. Before the empty case, so a table that
+	// has just emptied does not leave a row named underneath it.
+	p.pointedAt = ""
 	// An empty scoped view says what it is waiting for. "0 of 744
 	// (filtered)" with a blank pane reads as broken; it is a node that has
 	// not spoken - Alex read it exactly that way before working it out.
@@ -321,6 +353,9 @@ func (p *eventsPanel) table(t *theme.Theme, gtx layout.Context, shown []*state.E
 		}
 		return ck.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min.X = gtx.Constraints.Max.X
+			if ck.Hovered() {
+				p.pointedAt = e.From + " -> " + e.To
+			}
 			macro := func(gtx layout.Context) layout.Dimensions {
 				cell := func(w int, wgt layout.Widget) layout.FlexChild {
 					return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -356,17 +391,22 @@ func (p *eventsPanel) table(t *theme.Theme, gtx layout.Context, shown []*state.E
 }
 
 func (p *eventsPanel) footer(t *theme.Theme, gtx layout.Context, shown int, s *state.Snapshot) layout.Dimensions {
-	label := fmt.Sprintf("showing %d of %d events", shown, s.EventTotal)
+	label, col := fmt.Sprintf("showing %d of %d events", shown, s.EventTotal), t.P.Faint
 	if shown < len(s.Events) {
 		label += " (filtered)"
 	} else if s.EventTotal > len(s.Events) {
 		label += " - the rest are older than the tail the interface keeps"
 	}
+	// The row under the pointer wins the line: a From and a To cut to their
+	// column are two names this panel is otherwise unable to say, and the
+	// count is still there the moment the pointer moves off.
+	if p.pointedAt != "" {
+		label, col = p.pointedAt, t.P.Ink
+	}
 	return layout.Inset{Top: t.Sp.XS}.Layout(gtx,
 		func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-				layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint, label)),
-				layout.Flexed(1, comp.Spacer),
+				layout.Flexed(1, comp.OneLine(t, t.Sz.Caption, col, label, false)),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return p.pauseBtn.Layout(t, gtx)
 				}),

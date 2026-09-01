@@ -34,9 +34,9 @@ type Timeline struct {
 
 // Layout draws the timeline for one snapshot.
 func (tl *Timeline) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
-	sz := gtx.Constraints.Max
-	defer clip.Rect{Max: sz}.Push(gtx.Ops).Pop()
-	paint.FillShape(gtx.Ops, t.P.Sunk, clip.Rect{Max: sz}.Op())
+	full := gtx.Constraints.Max
+	defer clip.Rect{Max: full}.Push(gtx.Ops).Pop()
+	paint.FillShape(gtx.Ops, t.P.Sunk, clip.Rect{Max: full}.Op())
 
 	if s == nil || len(s.Events) == 0 {
 		return layout.Center.Layout(gtx, Text(t, t.Sz.Body, t.P.Dim,
@@ -47,13 +47,20 @@ func (tl *Timeline) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 	}
 	tl.buildLanes(s)
 
+	// The key first, and the plot under it: three colours of tick are this
+	// panel's entire content, and until they were named the panel could only
+	// be read by somebody who had read the source.
+	legendH := tl.legend(t, gtx, full.X)
+	defer op.Offset(image.Pt(0, legendH)).Push(gtx.Ops).Pop()
+	sz := image.Pt(full.X, full.Y-legendH)
+
 	gutter := gtx.Dp(150)
 	if gutter > sz.X/3 {
 		gutter = sz.X / 3
 	}
 	plotW := sz.X - gutter - gtx.Dp(t.Sp.M)
 	if plotW < 40 || len(tl.lanes) == 0 {
-		return layout.Dimensions{Size: sz}
+		return layout.Dimensions{Size: full}
 	}
 
 	// The window ends at the newest event, not at now: a run paused after
@@ -80,7 +87,7 @@ func (tl *Timeline) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 	tl.marks(t, gtx, s, start, x, laneH, sz)
 	tl.laneNames(t, gtx, laneH, gutter)
 	tl.axis(t, gtx, sz, start, end, gutter, plotW)
-	return layout.Dimensions{Size: sz}
+	return layout.Dimensions{Size: full}
 }
 
 // buildLanes decides the lane order, and keeps it while the run does.
@@ -129,20 +136,64 @@ func (tl *Timeline) laneRules(t *theme.Theme, gtx layout.Context, sz image.Point
 	}
 }
 
+// timelineKind is one kind of event as the plot draws it: the word for it,
+// its colour, and how much of a lane its tick fills.
+type timelineKind struct {
+	kind, label string
+	col         colorNRGBA
+	h           float32
+}
+
+// timelineKinds is the one place a kind gets a colour and a word.
+//
+// Read by both the ticks and the key above them, so the two cannot come to
+// disagree - a legend that has drifted from what is drawn is worse than none.
+func timelineKinds(t *theme.Theme) []timelineKind {
+	return []timelineKind{
+		{"tx", "sent", t.P.Accent, 0.42},
+		{"rx", "heard", t.P.Good, 0.30},
+		{"miss", "missed", t.P.Bad, 0.22},
+	}
+}
+
+// legend names the colours along the top, and reports how tall it came out so
+// the plot can start under it.
+func (tl *Timeline) legend(t *theme.Theme, gtx layout.Context, w int) int {
+	kids := []layout.FlexChild{
+		layout.Rigid(Text(t, t.Sz.Caption, t.P.Faint, "each mark is one event:")),
+	}
+	for _, k := range timelineKinds(t) {
+		k := k
+		kids = append(kids,
+			layout.Rigid(layout.Spacer{Width: t.Sp.M}.Layout),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						// A tick, not a dot: the same shape the plot draws, so
+						// the key is a sample of the picture rather than a
+						// translation of it.
+						return FillRect(gtx,
+							image.Pt(gtx.Dp(t.Sp.XXS), gtx.Dp(t.Sp.L)),
+							theme.Alpha(k.col, 0.9))
+					}),
+					layout.Rigid(layout.Spacer{Width: t.Sp.XS}.Layout),
+					layout.Rigid(Text(t, t.Sz.Caption, t.P.Dim, k.label)),
+				)
+			}))
+	}
+	gtx.Constraints.Min = image.Point{}
+	gtx.Constraints.Max = image.Pt(w, gtx.Dp(t.RowHeight()))
+	off := op.Offset(image.Pt(gtx.Dp(t.Sp.S), gtx.Dp(t.Sp.XS))).Push(gtx.Ops)
+	d := layout.Flex{Alignment: layout.Middle}.Layout(gtx, kids...)
+	off.Pop()
+	return d.Size.Y + gtx.Dp(t.Sp.S)
+}
+
 // marks draws one tick per event, coloured by kind.
 func (tl *Timeline) marks(t *theme.Theme, gtx layout.Context, s *state.Snapshot,
 	start uint32, x func(uint32) float32, laneH int, sz image.Point) {
 
-	kinds := []struct {
-		kind string
-		col  colorNRGBA
-		h    float32
-	}{
-		{"tx", t.P.Accent, 0.42},
-		{"rx", t.P.Good, 0.30},
-		{"miss", t.P.Bad, 0.22},
-	}
-	for _, k := range kinds {
+	for _, k := range timelineKinds(t) {
 		var path clip.Path
 		path.Begin(gtx.Ops)
 		n := 0

@@ -113,7 +113,7 @@ Two verbs are **not** in this table:
 |---|---|---|---|
 | `project.list` | — | `projects`, `dir` | `wb.project.list()` |
 | `project.new` | `place` string | `nodes`, `place` | `wb.project.new(place=None)` |
-| `project.open` | *a bare string* | `opened`, `nodes`, `links` | `wb.project.open(path)` |
+| `project.open` 🪟 | *a bare string* | `opened`, `nodes`, `links` | `wb.project.open(path)` |
 | `project.save` | `name` string | `saved`, `path`, `nodes` | `wb.project.save(name)` |
 
 ### Nodes
