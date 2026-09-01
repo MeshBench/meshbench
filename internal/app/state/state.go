@@ -130,6 +130,8 @@ type Snapshot struct {
 	// TerrainDownloads is whether the application may spend this machine's
 	// bandwidth on terrain without asking.
 	TerrainDownloads bool
+	// Setup is what this machine has and has not, as last checked.
+	Setup []SetupGroup
 	// Builds is the firmware library on this machine.
 	Builds []Build
 	// Experiment is the A/B matrix's summary, and ExperimentWarning is why it

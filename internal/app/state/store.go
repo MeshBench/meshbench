@@ -354,6 +354,7 @@ func (s *Store) publish() {
 		ConsoleNode:        s.world.ConsoleNode,
 		ProvisioningNode:   s.world.ProvisioningNode,
 		Resources:          append([]ResourceRow(nil), s.world.Resources...),
+		Setup:              append([]SetupGroup(nil), s.world.Setup...),
 		Licence:            s.world.Licence,
 	})
 	s.announce()

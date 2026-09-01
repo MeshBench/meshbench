@@ -526,6 +526,17 @@
         "replaying"
       ]
     },
+    "setup.check": {
+      "what": "what this machine has, what it is missing, and what each one costs",
+      "returns": [
+        "groups",
+        "ready",
+        "needed",
+        "undecided",
+        "blocked",
+        "missing"
+      ]
+    },
     "terrain.allow": {
       "what": "allow or refuse terrain downloads on this machine, and remember it",
       "params": [

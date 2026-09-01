@@ -72,21 +72,43 @@ Unzip `meshbench-*-windows-x86_64.zip` anywhere and run `meshbench.exe`.
 Windows SmartScreen will warn about an unrecognised publisher for the same
 reason macOS does — the binary is unsigned. Click **More info → Run anyway**.
 
-The zip carries the QEMU and Renode emulators and the radio model, so emulated
-ESP32 and nRF52 boards need nothing else installed. That path is newer on
-Windows than on Linux and macOS: if a board will not start, run
-`meshbench.exe workbench` from a terminal and it prints what it could not find.
+**Emulated boards do not work on Windows.** The radio model reaches QEMU over a
+Unix socket and the TCP path Renode uses has never been wired for it, so a
+board cannot come up whatever is in the zip. Native nodes, the channel, the
+studies and everything else do work. Help > Setup says the same thing on the
+machine itself rather than leaving it to be found here.
 
-### What arrives later, over the network
+### First run: what is missing, and what it costs
 
-Nothing needs a toolchain, but three things are fetched on first use and cached
-under `~/.cache/meshbench` (`%LOCALAPPDATA%` on Windows):
+**Help > Setup** is one page listing every dependency, what state it is in,
+what it would cost to fetch, and what to do about the ones the application
+cannot fetch itself. It opens on its own the first time something is missing,
+and stays out of the way afterwards. Over the control socket the same answer is
+`setup.check`, which reads the disk and never the network.
 
-| what | where from | when |
-|---|---|---|
-| MeshCore firmware builds | `MeshBench/meshcore-native` releases | first time a node runs firmware |
-| board images | MeshCore's own releases | first time a board is emulated |
-| map and terrain tiles | OpenStreetMap, CARTO, Esri, AWS terrarium | as the map is panned |
+The four things it reports:
+
+| what | how it arrives |
+|---|---|
+| this build | deduced from what is beside the binary, because the tarball, the AppImage and a source checkout carry different things |
+| firmware | downloaded on demand from GitHub releases; `firmware.download` takes a per-role tag such as `repeater-v1.17.0`, and a bare `v1.17.0` resolves nothing |
+| terrain heights | only once this machine has said it may, with the size quoted first |
+| the emulator toolchain | fetched from the Resources page or by `resource.fetch`, into `~/.cache/meshbench/tools` |
+
+Map and basemap tiles fill themselves as the map is panned and are small.
+
+Tools are looked for where `MESHBENCH_RADIO_SERVER`, `MESHBENCH_QEMU` or
+`MESHBENCH_RENODE` point, then beside the binary, then in
+`~/.cache/meshbench/tools`, then on `PATH`. **`PATH` is the one that will not
+help**: a desktop application is not launched from a shell and inherits no
+shell environment, so a QEMU or a Renode installed by a package manager is both
+invisible here and the wrong build. Ours carry an SX1262 device and the
+SEVONPEND fix respectively; a stock build starts, reports no chip or hangs, and
+looks like a MeshBench fault.
+
+From a source checkout, `radioserver` can also be built rather than fetched:
+`./build.sh radioserver out` in a `MeshBench/meshcore-native` clone, then copy
+the binary into the tools directory.
 
 Everything the application ships under is listed in **Help → Licences &
 attributions**, and in `LICENCES/` beside the binary.

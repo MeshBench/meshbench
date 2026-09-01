@@ -36,6 +36,26 @@ func addAppPanels(d panelDeps) *configPanel {
 	// after a manual Rescan.
 	d.sh.Add(homed(&shell.Panel{Name: "Resources", Windowable: true, Draw: res.Draw, OnReveal: res.Refresh}))
 
+	// Setup asks the same machine the same questions, and answers "can I run
+	// anything yet" rather than "what has this cost the disk". They are
+	// deliberately two pages: one is about the disk and one is about whether a
+	// node would start, and the second has to name things the first has no row
+	// for at all.
+	set := &setupPanel{}
+	set.Refresh = func() {
+		go func() { _, _ = d.st.Do(d.ctx, "setup.check", nil) }()
+	}
+	set.OnAction = func(verb string, params map[string]any) {
+		go func() {
+			if _, err := d.st.Do(d.ctx, verb, params); err != nil {
+				_, _ = d.st.Do(d.ctx, "ui.said", verb+": "+err.Error())
+			}
+			_, _ = d.st.Do(d.ctx, "setup.check", nil)
+		}()
+	}
+	d.sh.Add(homed(&shell.Panel{Name: "Setup", Windowable: true, Draw: set.Draw,
+		OnReveal: set.Refresh}))
+
 	lic := &licPanel{}
 	// A chip is a click, and a click cannot be captured; the flag is how a
 	// screenshot of one section gets taken.

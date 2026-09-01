@@ -86,6 +86,47 @@ func auditTargets(r *recorder) []target {
 		Text: "Terrain heights are Copernicus DEM and NASA SRTM.",
 	}
 
+	setP := &setupPanel{}
+	setP.Refresh = func() { r.do("setup.check", "") }
+	setP.OnAction = func(verb string, _ map[string]any) { r.do(verb, "") }
+	// One row per state the panel can draw, because the button is what carries
+	// the action and three of the five states deliberately have none. A blocked
+	// row offering a fetch is the fault this fixture exists to catch.
+	snapWithSetup := auditSnapshot()
+	snapWithSetup.Setup = []state.SetupGroup{{
+		Name: "This build", Note: "everything below is per machine",
+		Rows: []state.SetupRow{{
+			Name: "this build", State: string(state.SetupReady),
+			What: "MeshBench dev", Where: "/usr/local/bin/meshbench",
+			Do: "nothing is bundled beside the binary"}},
+	}, {
+		Name: "Firmware", Note: "cached in ~/.cache/meshbench/firmware",
+		Rows: []state.SetupRow{{
+			Name: "native builds", State: string(state.SetupNeeded),
+			What: "MeshCore compiled for this machine", Cost: "a few megabytes a role",
+			Do: "open Firmware and download one", Verb: "panel.open",
+			Params: map[string]any{"name": "Firmware"}}},
+	}, {
+		Name: "Terrain",
+		Rows: []state.SetupRow{{
+			Name: "terrain heights", State: string(state.SetupUndecided),
+			What: "the ground every link budget is measured over",
+			Cost: "several hundred megabytes for a country",
+			Do:   "nothing has been downloaded yet", Verb: "terrain.allow",
+			Params: map[string]any{"on": true}}},
+	}, {
+		Name: "Emulator toolchain", Note: "never found on PATH",
+		Rows: []state.SetupRow{{
+			Name: "radioserver", State: string(state.SetupMissing),
+			What: "the SX1262 model both emulators reach over a socket",
+			Cost: "about 41.0 kB to download, once", Do: "fetch it",
+			Verb:   "resource.fetch",
+			Params: map[string]any{"name": "radioserver", "kind": "toolchain"}}, {
+			Name: "renode", State: string(state.SetupBlocked),
+			What: "the emulator the nRF52 boards are started under",
+			Do:   "no macOS Intel package is published"}},
+	}}
+
 	nodes := &nodesPanel{}
 	nodes.OnSelect = func(string) { r.do("nodes.select", nil) }
 	nv := &nodeViewPanel{}
@@ -232,6 +273,7 @@ func auditTargets(r *recorder) []target {
 		}},
 		{"Provisioning", prov, prov.Draw, nil, nil, nil, nil},
 		{"Resources", resP, resP.Draw, snapWithResources, nil, nil, nil},
+		{"Setup", setP, setP.Draw, snapWithSetup, nil, nil, nil},
 		// The flat layout, so every section's controls are on screen at once;
 		// the sidebar's own switching is TestConfigurationSectionsSwitch.
 		// Fired counts the settings generation too: the Interface controls
