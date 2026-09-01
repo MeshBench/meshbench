@@ -233,7 +233,12 @@ type ResourceRow struct {
 	Why       string
 	Auto      bool
 	Fetchable bool
-	Licensed  bool
+	// HowTo is how to obtain this when the panel cannot, so a row that is
+	// not a button is still an answer.
+	HowTo string
+	// HowToPanel is the panel that can get it, for a row that cannot.
+	HowToPanel string
+	Licensed   bool
 }
 
 // LicenceText is one resource's terms, and which resource they belong to.

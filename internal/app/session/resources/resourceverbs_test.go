@@ -2,6 +2,7 @@ package resources_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/MeshBench/meshbench/internal/app/resource"
@@ -117,5 +118,67 @@ func TestTheEmulatorToolchainIsListed(t *testing.T) {
 		if !found {
 			t.Errorf("%s is not on the resources page", name)
 		}
+	}
+}
+
+// A row that cannot be fetched from this page still has to say where the thing
+// comes from.
+//
+// Building footprints sat here at nothing, Fetch disabled, with "fills itself
+// as the map is used" beside it: true of terrain and false of them. They are
+// pulled from Configuration > Environ, and the page that listed them was the
+// one place that did not say so.
+func TestARowThatCannotBeFetchedHereSaysWhereItComesFrom(t *testing.T) {
+	rows, _ := listResources(t)["resources"].([]map[string]any)
+	buildings := false
+	for _, r := range rows {
+		name, _ := r["name"].(string)
+		fetchable, _ := r["fetchable"].(bool)
+		howto, _ := r["howto"].(string)
+		why, _ := r["why"].(string)
+		if !fetchable && howto == "" && why == "" {
+			t.Errorf("%s cannot be fetched here and says nothing about where "+
+				"it can be: %v", name, r)
+		}
+		if name != "building footprints" {
+			continue
+		}
+		buildings = true
+		if !strings.Contains(howto, "Configuration > Environ") ||
+			!strings.Contains(howto, "environ.fetch") {
+			t.Errorf("the buildings row does not name the page or the verb "+
+				"that fetches them: %q", howto)
+		}
+		if strings.Contains(howto, "fills itself") {
+			t.Errorf("the buildings row still claims to fill itself: %q", howto)
+		}
+		// Nothing pulls them on anybody's behalf, so the row must not say the
+		// application will see to it.
+		if auto, _ := r["auto"].(bool); auto {
+			t.Error("the buildings row is marked as fetched automatically")
+		}
+	}
+	if !buildings {
+		t.Fatal("building footprints are not on the resources page at all")
+	}
+}
+
+// And the refusal a script gets says the same thing the panel does, rather than
+// the one sentence that used to be said about every cache.
+func TestFetchingBuildingsSaysWhereTheyAreFetchedFrom(t *testing.T) {
+	store := state.New(10)
+	sim := &session.Sim{}
+	session.Register(store, sim)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go store.Run(ctx)
+
+	_, err := store.Do(ctx, "resource.fetch", map[string]any{
+		"kind": string(resource.Buildings), "name": "building footprints"})
+	if err == nil {
+		t.Fatal("resource.fetch accepted building footprints, which it cannot fetch")
+	}
+	if !strings.Contains(err.Error(), "Configuration > Environ") {
+		t.Errorf("the refusal does not say where they come from: %v", err)
 	}
 }

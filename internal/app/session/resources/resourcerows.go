@@ -20,6 +20,9 @@ func resourceRows(rows []state.ResourceRow) []map[string]any {
 			// row, which for a tool this platform has no build for is the
 			// whole content of the answer.
 			"why": r.Why,
+			// Where to get it when it cannot be got from here. A script
+			// reading fetchable:false learns only that this is not the door.
+			"howto": r.HowTo, "howto_panel": r.HowToPanel,
 			// What a caller may do about it, so a script does not have to try
 			// a fetch to find out that there is nothing to ask for.
 			"fetchable": r.Fetchable, "licensed": r.Licensed, "auto": r.Auto,

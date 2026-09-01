@@ -53,26 +53,16 @@ func softDeviceProvider(s *session.Sim) *resource.SoftDevice {
 //
 // The same counting as the SoftDevice, and for the same reason: a row that
 // says "3 nodes here cannot boot without it" is a different thing from a row
-// that sits there looking optional. Which emulator a board needs is the
-// catalogue's MCU field rather than a list of board names kept here.
+// that sits there looking optional. The count is the session's own, because
+// starting firmware asks the same question to warn before a boot rather than
+// after it, and two loops answering it would be two loops that drift.
 //
 // The directory is the emulator's own ToolsDir rather than one spelled again,
 // so a fetch cannot come to land somewhere the lookup does not search.
 func toolchainProvider(s *session.Sim) *resource.Toolchain {
-	needed := map[string]int{}
-	for _, n := range s.Nodes() {
-		if !n.Firmware.Emulated() {
-			continue
-		}
-		b, err := hw.BoardByName(n.Firmware.Board)
-		if err != nil {
-			continue
-		}
-		for _, name := range resource.ToolsFor(b.MCU) {
-			needed[name]++
-		}
+	return &resource.Toolchain{
+		Dir: emulated.ToolsDir(), Needed: s.EmulatorToolsNeeded(),
 	}
-	return &resource.Toolchain{Dir: emulated.ToolsDir(), Needed: needed}
 }
 
 // resourceProviders is every source of rows, in the order the panel shows them.
@@ -92,8 +82,15 @@ func resourceProviders(s *session.Sim) []resource.Provider {
 	dir := func(k resource.Kind, label, sub, purpose, terms string) resource.Provider {
 		return &resource.DirCache{
 			K: k, Label: label, Dir: filepath.Join(root, sub),
-			Purpose: purpose, Terms: terms,
+			Purpose: purpose, Terms: terms, Fill: fillsAsTheMapIsUsed,
 		}
+	}
+	buildings := &resource.DirCache{
+		K: resource.Buildings, Label: "building footprints",
+		Dir:     filepath.Join(root, "environment"),
+		Purpose: "heights and materials that stand in the way of a signal",
+		Terms:   buildingTerms, Fill: buildingsComeFromEnviron, OnRequest: true,
+		FillPanel: "Configuration",
 	}
 	return []resource.Provider{
 		softDeviceProvider(s),
@@ -103,12 +100,29 @@ func resourceProviders(s *session.Sim) []resource.Provider {
 			terrainTerms),
 		dir(resource.Basemap, "basemap", "basemap",
 			"the hillshaded map drawn under the simulation", basemapTerms),
-		dir(resource.Buildings, "building footprints", "environment",
-			"heights and materials that stand in the way of a signal", buildingTerms),
+		buildings,
 		dir(resource.Basemap, "map tiles", "tiles",
 			"the map imagery itself, as the view has needed it", basemapTerms),
 	}
 }
+
+// How each cache is filled, which is not the same answer for all of them.
+//
+// Terrain, the basemap and the map tiles arrive as a consequence of looking at
+// somewhere: there is nothing to ask for out of context, and the row has always
+// said so. Buildings are the exception this pair of sentences exists to
+// separate. Nothing pulls them on your behalf, and the pull is not a button
+// this row could carry: environ.fetch wants a database chosen between - the
+// merged set, OSM alone, Microsoft alone - and it pulls around the nodes of the
+// map that is loaded, so from a page that knows neither there is nothing to
+// send. Naming the page that does know both is the whole of what is owed here.
+const (
+	fillsAsTheMapIsUsed = "fills itself as the map is used; there is nothing " +
+		"to ask for out of context"
+	buildingsComeFromEnviron = "fetched from Configuration > Environ, or with " +
+		"environ.fetch, which needs a database chosen and a map area to pull " +
+		"around - neither of which this page has"
+)
 
 // relistResources rescans every provider into the world, and is the only place
 // that does. Called directly by whatever needs the list refreshed, because a store
@@ -130,8 +144,9 @@ func relistResources(s *session.Sim, w *state.World) (int, error) {
 			out = append(out, state.ResourceRow{
 				Kind: string(r.Kind), Name: r.Name, Version: r.Version,
 				Bytes: r.Bytes, Estimated: r.Estimated, State: string(r.State),
-				Why: r.Why, Auto: r.Auto, Path: r.Path,
-				Fetchable: r.Fetchable, Licensed: r.Licensed,
+				Why: r.Why, Auto: r.Auto, Path: r.Path, HowTo: r.HowTo,
+				HowToPanel: r.HowToPanel,
+				Fetchable:  r.Fetchable, Licensed: r.Licensed,
 			})
 		}
 	}

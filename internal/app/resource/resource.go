@@ -80,6 +80,19 @@ type Row struct {
 	// looking - it fills as the map is used, and the panel says so rather
 	// than offering a button that has nothing to ask for.
 	Fetchable bool
+	// HowTo is how this is obtained when it cannot be obtained from here, and
+	// the row is not finished without it.
+	//
+	// A row that names a missing thing and stops is a dead end: building
+	// footprints sat at nothing with Fetch disabled and the words "fills itself
+	// as the map is used" beside it, which was true of terrain and false of
+	// them - they are pulled from Configuration > Environ, and nothing on the
+	// page said so.
+	HowTo string
+	// HowToPanel is the page that does have it, where there is one. The row
+	// carries the name and the interface decides what opening it means, which
+	// is the only part of this a provider has no business knowing.
+	HowToPanel string
 	// Licensed is whether there are terms to show. Somebody else's data comes
 	// with somebody else's conditions, and the panel is where they belong.
 	Licensed bool

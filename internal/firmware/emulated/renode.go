@@ -17,7 +17,7 @@ import (
 // per-node: the radio model's port, the node's own working directory, and the
 // image. A shared script would need all three passed in anyway.
 func (e *EmulatedNode) startRenode(ctx context.Context) error {
-	renodeBin, err := lookupTool(renode.EnvRenode, "renode")
+	renodeBin, err := lookupTool("renode")
 	if err != nil {
 		return err
 	}

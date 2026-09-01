@@ -1,7 +1,9 @@
 package emulated
 
 import (
+	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -148,4 +150,130 @@ func InspectImage(path string) ImageFacts {
 		return ImageFacts{Kind: "application only - no partition table", FlashMB: mb}
 	}
 	return ImageFacts{Kind: "whole flash image", Bootable: true, FlashMB: mb}
+}
+
+// PadImageKeeping is PadImage, except that a flash the node has already been
+// running is left exactly as it is.
+//
+// A board keeps what it was told between runs, and this is where that had
+// stopped being true. The flash was rewritten from the pristine image on every
+// start, so an emulated node's NVS and its filesystem were blanked each time -
+// its identity, its preferences, its contacts, its region. Two places in the
+// tree describe the opposite behaviour and are right about native nodes: a
+// repeater keeping its identity between sessions is how hardware behaves, and
+// firmware.wipe exists precisely because it does.
+//
+// What decides is the source, recorded beside the flash. A node pinned to a
+// different build gets a fresh chip, because that is what reflashing a board
+// is; a node started again on the same build gets the chip it left behind.
+// Same reasoning as the card image, which has always been kept.
+func PadImageKeeping(src, dst string) (int, error) {
+	stamp := dst + ".src"
+	want, err := imageStamp(src)
+	if err != nil {
+		return 0, err
+	}
+	if have, err := os.ReadFile(stamp); err == nil && string(have) == want {
+		if st, err := os.Stat(dst); err == nil && st.Size() > 0 {
+			return int(st.Size() >> 20), nil
+		}
+	}
+	mb, err := PadImage(src, dst)
+	if err != nil {
+		return 0, err
+	}
+	// Written after the flash, so an interrupted write leaves a stamp that
+	// does not match and the next run rebuilds rather than booting half a
+	// chip. Best effort: a stamp that cannot be written costs a re-flash on
+	// the next start, which is what happened every time before this.
+	_ = os.WriteFile(stamp, []byte(want), 0o644)
+	return mb, nil
+}
+
+// imageStamp identifies the build a flash was made from.
+//
+// The digest rather than the path or the modification time: a build imported
+// twice under two labels is two paths and one chip, and an image rebuilt in
+// place by a compiler keeps both its path and, often enough, its size.
+func imageStamp(src string) (string, error) {
+	// The image this node was told to run, from the cache or from an import.
+	f, err := os.Open(src) //nolint:gosec // the build the caller asked for
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = f.Close() }()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// PadImage copies a flash image padded to a size QEMU will accept, always
+// rewriting the destination.
+//
+// Two traps in one function. QEMU takes only 2, 4, 8 or 16 MB images; and the
+// size must match what the image header asks for, or ESP-IDF asserts in
+// do_core_init with a message naming both sizes.
+//
+// Callers starting a node want PadImageKeeping instead: this one blanks
+// whatever the board had written to its flash.
+func PadImage(src, dst string) (int, error) {
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return 0, err
+	}
+	mb, err := ClassifyESPImage(data)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", src, err)
+	}
+	want := mb << 20
+	if len(data) > want {
+		return 0, fmt.Errorf("firmware: %s is larger than the %d MB its header declares",
+			src, mb)
+	}
+	out := make([]byte, want)
+	copy(out, data)
+	for i := len(data); i < want; i++ {
+		out[i] = 0xFF // erased flash
+	}
+	return mb, os.WriteFile(dst, out, 0o644)
+}
+
+// ClassifyESPImage reads an ESP32 flash image's header and answers the flash
+// size in megabytes it was built for, or says why it is not one.
+//
+// Split out of PadImage so the same question can be asked at import, where it
+// can still be answered by refusing. Asked only at play, an application-only
+// build imported cleanly, listed cleanly, could be pinned to a node - and then
+// failed minutes later, in a message about a flash image, to somebody who
+// thought they were starting a board.
+func ClassifyESPImage(data []byte) (flashMB int, err error) {
+	if len(data) < 0x1004 {
+		return 0, fmt.Errorf("firmware: too small to be a merged image")
+	}
+	// Where the header lives differs by part, so it is looked for rather than
+	// assumed: an ESP32 boots its bootloader from 0x1000 and a merged image
+	// for one starts with padding, while an ESP32-S3 boots from zero. The byte
+	// is 0xE9 either way.
+	hdr := -1
+	switch {
+	case data[0] == 0xE9:
+		hdr = 0 // ESP32-S3, and the other parts that boot from zero
+	case data[0x1000] == 0xE9:
+		hdr = 0x1000 // ESP32
+	}
+	if hdr < 0 {
+		return 0, fmt.Errorf("firmware: no image header at 0x0 or 0x1000; " +
+			"it is probably an application-only build rather than a merged one")
+	}
+	sizes := map[byte]int{0: 1, 1: 2, 2: 4, 3: 8, 4: 16}
+	mb, ok := sizes[data[hdr+3]>>4]
+	if !ok {
+		return 0, fmt.Errorf("firmware: the image header declares an unknown flash size")
+	}
+	if mb == 1 {
+		mb = 2 // QEMU's smallest
+	}
+	return mb, nil
 }

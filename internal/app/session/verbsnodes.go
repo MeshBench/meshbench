@@ -17,6 +17,11 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 			return nil, fmt.Errorf("no network loaded: %w", ErrNoSimulation)
 		}
 		w.Say("starting firmware on every node")
+		// Before the boot rather than during it. The nodes that need a tool
+		// this machine has not got will fail one by one, minutes in, each with
+		// its own line; this says it once, up front, beside the page that
+		// downloads it.
+		s.sayMissingEmulatorTools(w, s.EmulatorToolsNeeded())
 		s.startFirmware(st, w.Seed)
 		return map[string]any{"starting": true}, nil
 	})
@@ -264,6 +269,12 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 		if _, found := s.nodeIndex(name); !found {
 			return nil, noSuchNode(name)
 		}
+		// Pinning a board image starts it, so the warning belongs here as well
+		// as on firmware.start: this is the gesture that boots an emulated node
+		// most of the time, and it went straight to a failure with nothing said
+		// first. The board being pinned rather than the scenario's own, because
+		// the node has not got there yet.
+		s.sayMissingEmulatorTools(w, boardToolCount(b.Board))
 		// Applied, not just recorded: stop, provision, start. Firmware is
 		// chosen when a node launches, so setting it on a running node changes
 		// nothing until something restarts it. What that background pass can

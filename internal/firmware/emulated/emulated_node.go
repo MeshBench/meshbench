@@ -284,7 +284,7 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) (err error) {
 		_ = os.Remove(e.sock)
 	}
 
-	radioBin, err := lookupTool(EnvRadioServer, "radioserver")
+	radioBin, err := lookupTool("radioserver")
 	if err != nil {
 		return err
 	}
@@ -322,7 +322,7 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) (err error) {
 	// Looked up here rather than beside the radio model: an nRF52 board runs
 	// under Renode and has no use for the Xtensa emulator, and asking for it
 	// first refused those boards on a machine that only has the one they need.
-	qemuBin, err := lookupTool(EnvQEMU, "qemu-system-xtensa")
+	qemuBin, err := lookupTool("qemu-system-xtensa")
 	if err != nil {
 		return err
 	}

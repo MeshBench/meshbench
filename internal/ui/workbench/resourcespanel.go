@@ -27,6 +27,11 @@ import (
 // pressed.
 type resRowW struct {
 	fetch, remove, licence comp.Button
+	// where takes somebody to the page that can get this, for a row that
+	// cannot get it itself. A pointer, made only for the rows that name such
+	// a page: a button that exists on every row and is drawn on one is a
+	// control nothing can click, which the panel audit counts as a fault.
+	where *comp.Button
 }
 
 type resourcesPanel struct {
@@ -54,10 +59,11 @@ type resourcesPanel struct {
 	asked bool
 }
 
-func (p *resourcesPanel) rowFor(key string) *resRowW {
+func (p *resourcesPanel) rowFor(r state.ResourceRow) *resRowW {
 	if p.rows == nil {
 		p.rows = map[string]*resRowW{}
 	}
+	key := resourceKey(r)
 	w, ok := p.rows[key]
 	if !ok {
 		w = &resRowW{}
@@ -66,6 +72,11 @@ func (p *resourcesPanel) rowFor(key string) *resRowW {
 		w.licence.Label = "Licence"
 		w.remove.Kind = comp.Destructive
 		p.rows[key] = w
+	}
+	// Made for the rows that name a page and no others, so the panel audit
+	// never meets a button nothing draws.
+	if r.HowToPanel != "" && w.where == nil {
+		w.where = &comp.Button{Kind: comp.Secondary}
 	}
 	return w
 }
