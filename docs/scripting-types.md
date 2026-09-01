@@ -74,6 +74,38 @@ connect and cached; a client compares it before doing anything else.
 | `Verbs` | `int` | how many are registered |
 | `PID` | `int` | so a restart is visible |
 | `StartedAt` | `time.Time` | likewise |
+| `Project` | `string` | the fixture or project it has open |
+| `Nodes` | `int` | how many nodes are in it |
+
+## Session
+
+**snapshot.** One running workbench, from `meshbench.Sessions()` /
+`meshbench.sessions()` before there is a connection, or from `session.list`
+once there is one. The question it answers is which of several to attach to.
+
+| field | type | meaning |
+|---|---|---|
+| `Address` | `string` | where it answers, in the form `-control-socket` takes |
+| `PID` | `int` | which process it is |
+| `StartedAt` | `time.Time` | when its socket opened |
+| `Version` | `string` | the build |
+| `Mode` | `string` | `workbench` or `headless`, empty if it did not answer in time |
+| `Project` | `string` | the fixture or project it has open |
+| `Nodes` | `int` | how many nodes are in it |
+| `Self` | `bool` | the row of the session that was asked, on `session.list` only |
+| `Token` | `string` | authorises a TCP connection; read from the session's own 0600 file and never part of a reply |
+
+A dead session is not listed, however it died. The check is a dial of the
+address, not a look at a socket file or a pid: a unix socket outlives the
+process that bound it, and a pid is reused, so both can name something that is
+not there. What that leaves is a session too busy to describe itself in the
+moment it was asked, which is listed with the description empty rather than
+dropped - `Mode` is a string for that reason, since an absent bool would read
+as `headless`.
+
+`Address` alone is enough to attach to a unix session. A second TCP session
+needs the row, because its token is in its own file and not in the per-user
+rendezvous file two of them share.
 
 ---
 

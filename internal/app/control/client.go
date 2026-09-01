@@ -44,6 +44,15 @@ func DialAt(want string) (*Client, error) {
 	return dialAddr(addr)
 }
 
+// DialAddress connects to an address already in hand, token and all, rather
+// than to one that still has to be resolved.
+//
+// This is how a row from Sessions is connected to. Resolving its address
+// again would find the token in the per-user rendezvous file, which two TCP
+// workbenches share and the second overwrites - so the second session would
+// be dialled with the first one's token, or the first with the second's.
+func DialAddress(addr Address) (*Client, error) { return dialAddr(addr) }
+
 // dialAddr opens one connection to an already-resolved address, doing the TCP
 // token handshake if it needs to. Split out so a subscription can open a second
 // connection to the same place - token and all - without re-resolving.

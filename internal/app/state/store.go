@@ -287,6 +287,7 @@ func (s *Store) publish() {
 		StepMs:   s.stepMs,
 		Seed:     s.world.Seed,
 		Nodes:    nodes,
+		Project:  s.world.Project,
 		Jobs:     jobs,
 		Status:   s.world.Status,
 		Log:      log,

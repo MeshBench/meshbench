@@ -117,19 +117,29 @@ def _read_rendezvous() -> tuple[str, str]:
     return got.get("address", ""), got.get("token", "")
 
 
-def _connect(address: str, timeout: float | None) -> tuple[socket.socket, str]:
-    """Open the socket the address names, and return it with any token."""
+def _connect(
+    address: str, timeout: float | None, token: str = ""
+) -> tuple[socket.socket, str]:
+    """Open the socket the address names, and return it with any token.
+
+    A caller that already holds the token says so. That is how a row from
+    sessions() is connected to: two TCP workbenches share one per-user
+    rendezvous file and the second overwrites the first, so the token beside
+    the address in the session's own file is the only one that is certainly
+    its own.
+    """
     if address == "tcp" or address.startswith("tcp:"):
-        token = ""
         if address == "tcp":
-            host_port, token = _read_rendezvous()
+            host_port, found = _read_rendezvous()
+            token = token or found
         else:
             host_port = address[len("tcp:") :]
             if ":" not in host_port:
                 host_port = "127.0.0.1:" + host_port
-            # A port somebody named still needs the token, and the file is the
-            # only place it exists.
-            _, token = _read_rendezvous()
+            # A port somebody named still needs the token, and without one in
+            # hand the rendezvous file is the only place it exists.
+            if not token:
+                _, token = _read_rendezvous()
         host, _, port = host_port.rpartition(":")
         s = socket.create_connection((host or "127.0.0.1", int(port)), timeout=timeout)
         return s, token
@@ -159,9 +169,14 @@ class Connection:
     have to demultiplex, and nothing here needs the throughput.
     """
 
-    def __init__(self, address: str | None = None, timeout: float | None = 300.0):
+    def __init__(
+        self,
+        address: str | None = None,
+        timeout: float | None = 300.0,
+        token: str = "",
+    ):
         self.address = address or default_address()
-        self._sock, token = _connect(self.address, timeout)
+        self._sock, token = _connect(self.address, timeout, token)
         self._file = self._sock.makefile("rb")
         self._lock = threading.Lock()
         self._next_id = 0
@@ -214,14 +229,14 @@ class Connection:
             self._sock.close()
 
 
-def is_live(address: str) -> bool:
+def is_live(address: str, token: str = "") -> bool:
     """Whether something is already answering there.
 
     A connect rather than a stat: a socket file existing says nothing about
     whether anybody is behind it, and that difference is the whole question.
     """
     try:
-        s, _ = _connect(address, 0.25)
+        s, _ = _connect(address, 0.25, token)
         s.close()
         return True
     except (OSError, ConnectionError, ValueError):
