@@ -25,6 +25,7 @@ package internal_test
 import (
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -49,6 +50,33 @@ func skipDir(name string) bool {
 		strings.HasPrefix(name, "_")
 }
 
+// trackedDirs is every directory the repository actually keeps, asked of git
+// rather than of the filesystem.
+//
+// The map describes the repository, so what is not in the repository has no
+// row to be missing. Walking the filesystem instead meant an ignored build
+// directory failed the build: tools/armfw/build is gitignored output, and
+// anybody who had once built the ARM firmware got a red tree for a directory
+// git does not track and the map should never mention.
+//
+// One invocation, and a nil answer if git cannot be reached, which leaves the
+// walk as it was rather than passing a check it could not make.
+func trackedDirs(t *testing.T) map[string]bool {
+	t.Helper()
+	out, err := exec.Command("git", "-C", "..", "ls-files", "-z").Output()
+	if err != nil {
+		t.Logf("git ls-files unavailable, checking every directory on disk: %v", err)
+		return nil
+	}
+	dirs := map[string]bool{}
+	for _, f := range strings.Split(string(out), "\x00") {
+		for d := filepath.Dir(f); d != "." && d != string(filepath.Separator); d = filepath.Dir(d) {
+			dirs[d] = true
+		}
+	}
+	return dirs
+}
+
 func TestLayoutMapMatchesTheTree(t *testing.T) {
 	src, err := os.ReadFile(filepath.Join("..", "CLAUDE.md"))
 	if err != nil {
@@ -69,11 +97,15 @@ func TestLayoutMapMatchesTheTree(t *testing.T) {
 		mapped[m[1]] = true
 	}
 
+	tracked := trackedDirs(t)
 	found := map[string]bool{}
 	// internal/ and tools/ are mapped to the bottom: a directory at any depth
 	// is a thing somebody has to find, and the ones added last are the deepest.
 	for _, root := range []string{".", filepath.Join("..", "tools")} {
 		for _, dir := range dirsUnder(t, root) {
+			if tracked != nil && !tracked[repoPath(root, dir)] {
+				continue
+			}
 			found[filepath.Base(dir)] = true
 			if !mapped[filepath.Base(dir)] {
 				t.Errorf("%s has no entry in CLAUDE.md's layout map.\n"+
@@ -128,6 +160,14 @@ func dirsUnder(t *testing.T, root string) []string {
 		t.Fatalf("walking %s: %v", root, err)
 	}
 	return out
+}
+
+// repoPath is a walked directory as git names it, from the repository root.
+func repoPath(root, dir string) string {
+	if root == "." {
+		return filepath.Join("internal", strings.TrimPrefix(dir, "./"))
+	}
+	return filepath.Join("tools", strings.TrimPrefix(dir, filepath.Join("..", "tools")+string(filepath.Separator)))
 }
 
 // shown names a directory the way the map does, so the failure can be pasted

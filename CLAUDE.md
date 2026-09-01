@@ -136,6 +136,7 @@ internal/app/       orchestration, no toolkit
 internal/ui/        Gio — the only layer permitted a toolkit
   theme/              every colour, size and face, named once and nowhere else
     brandfont/          the three faces the identity is set in, embedded
+    brandmark/          the wordmark, in the two grounds it has to sit on
   comp/               the widgets every view is built from, the map view among
                       them - there is no separate mapview package
   shell/              the window, the view switcher, the menus, the status bar
