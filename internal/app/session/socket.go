@@ -41,7 +41,7 @@ func ServeControlAt(ctx context.Context, st *state.Store,
 		// view of the application rather than about the world.
 		switch method {
 		case "session.hello":
-			return hello(st.PublicVerbs(), where), nil
+			return hello(st.PublicVerbs(), where, st.Snapshot()), nil
 		case "session.verbs":
 			return map[string]any{"verbs": st.PublicVerbs()}, nil
 		case "session.snapshot":
@@ -65,6 +65,9 @@ func ServeControlAt(ctx context.Context, st *state.Store,
 		return nil, err
 	}
 	where = srv.Path()
+	// So session.list can tell its own row from everybody else's without
+	// dialling itself and waiting for a reply it is the one that owes.
+	setAnsweringAt(where)
 	// The store pushes what each publish changed to the socket, so a subscribed
 	// client is told rather than left to poll. Wired before Pump starts, so no
 	// change is announced to a server that is not yet answering.

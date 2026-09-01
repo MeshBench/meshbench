@@ -35,6 +35,8 @@ type Snapshot struct {
 	StepMs uint32
 	Seed   uint64
 	Nodes  []Node
+	// Project is the fixture or project this session has open.
+	Project string
 	// Jobs are long operations in flight, so the interface can show them and
 	// offer to cancel rather than appearing to have hung.
 	Jobs []Job

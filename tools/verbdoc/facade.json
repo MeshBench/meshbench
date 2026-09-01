@@ -12,6 +12,7 @@
   ],
   "facade": {
     "session.describe": "wb.describe()",
+    "session.list": "meshbench.sessions()",
     "session.status": "wb.status()",
     "session.checkpoint": "wb.checkpoint(name)",
     "session.restore": "wb.restore(name)",

@@ -72,6 +72,9 @@ type Server struct {
 	addr Address
 	// rendezvous is the file naming a TCP listener, empty for a unix socket.
 	rendezvous string
+	// session is this server's row in the per-user registry, so that
+	// something else can find out this workbench is running at all.
+	session string
 
 	mu      sync.Mutex
 	queue   []job
@@ -144,6 +147,16 @@ func ListenAt(want string, h Handler) (*Server, error) {
 		}
 		s.ln, s.addr = ln, addr
 	}
+	// Written last, once the address is final and the listener is up. A file
+	// naming an address nothing is bound to yet would be a row a reader
+	// probes, finds nothing behind, and deletes.
+	//
+	// A registry this machine cannot write to is not a reason to refuse to
+	// run: the session still answers where it was told to, it is only harder
+	// to find. So it is reported and the workbench carries on.
+	if s.session, err = registerSession(addr, time.Now()); err != nil {
+		diag.Printf("control", "not listed as running: %v", err)
+	}
 	go s.accept()
 	return s, nil
 }
@@ -211,6 +224,11 @@ func (s *Server) Close() error {
 		// Removed, so the next start does not probe a port nobody holds and a
 		// client does not connect to whatever has since taken it.
 		_ = os.Remove(s.rendezvous)
+	}
+	if s.session != "" {
+		// Tidiness rather than correctness: a reader that finds this file
+		// still here dials it, gets nothing, and removes it itself.
+		_ = os.Remove(s.session)
 	}
 	return err
 }

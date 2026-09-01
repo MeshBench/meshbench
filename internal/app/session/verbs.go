@@ -39,6 +39,7 @@ func Register(st *state.Store, s *Sim) {
 	registerTerrainPrefetch(st, s)
 	registerTerrainConsent(st, s)
 	registerJobList(st)
+	registerSessionList(st)
 	registerBasemap(st, s)
 	registerPacket(st, s)
 	registerImport(st, s)
@@ -138,6 +139,10 @@ func Register(st *state.Store, s *Sim) {
 		w.Nodes, w.Areas, w.MarginKm = f.nodes, f.areas, f.margin
 		w.Sends, w.Assertions = f.sends, f.assertions
 		w.Seed = 9001
+		// Every blank network and every open passes through here, so this is
+		// the one place the name can be recorded without a second route
+		// leaving it stale.
+		w.Project = path
 
 		// Build the engine, but do not ask it for margins here.
 		//

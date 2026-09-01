@@ -503,6 +503,13 @@
         "entries"
       ]
     },
+    "session.list": {
+      "what": "list the workbenches running on this machine, this one included",
+      "returns": [
+        "sessions",
+        "count"
+      ]
+    },
     "session.restore": {
       "what": "rebuild a checkpoint and replay to the moment it was taken",
       "params": [

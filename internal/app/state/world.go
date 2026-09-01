@@ -19,6 +19,11 @@ type World struct {
 	RunUntilMs uint32
 	Seed       uint64
 	Nodes      []Node
+	// Project is the fixture or project this session has open, as it was
+	// named when it was opened. Kept because it is how a person tells two
+	// running sessions apart, and the status line it used to be the only
+	// record of is overwritten by the next thing that happens.
+	Project string
 	// Resources is everything the application downloads at runtime, as last
 	// listed from disk.
 	Resources []ResourceRow

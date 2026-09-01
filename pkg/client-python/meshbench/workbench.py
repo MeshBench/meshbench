@@ -26,6 +26,7 @@ from .checks import Assertions, Schedule
 from .live import Live
 from .nodes import Node, Nodes
 from .parts import Console, Events, Firmware, Job, Project, Sim
+from .sessions import Session
 from .sets import Tab
 from .subscribe import Subscription
 from .types import Hello, NodeStat, Provenance
@@ -50,11 +51,26 @@ class Workbench:
     # ---- connecting ------------------------------------------------------
 
     @classmethod
-    def attach(cls, socket: str | None = None, timeout: float = 300.0) -> Workbench:
-        """Connect to a workbench that is already running."""
-        path = socket or default_address()
+    def attach(
+        cls, socket: str | Session | None = None, timeout: float = 300.0
+    ) -> Workbench:
+        """Connect to a workbench that is already running.
+
+        Takes an address, or a row from :func:`meshbench.sessions`. A row is
+        the way to reach a second TCP session: its token sits beside its
+        address in its own file, where the per-user rendezvous file two of them
+        share has only one of the two.
+
+        There is deliberately no "attach to whatever is running". Where several
+        are up and none was named, guessing is how a script ends up driving the
+        session somebody else was watching.
+        """
+        if isinstance(socket, Session):
+            path, token = socket.address, socket.token
+        else:
+            path, token = socket or default_address(), ""
         try:
-            conn = Connection(path, timeout=timeout)
+            conn = Connection(path, timeout=timeout, token=token)
         except OSError as e:
             raise errors.MeshbenchError(
                 f"no workbench is listening at {path}: {e}"
@@ -330,6 +346,20 @@ class Workbench:
         """Every method this build answers."""
         return (self.call("session.verbs") or {}).get("verbs", [])
 
+    def sessions(self) -> list[Session]:
+        """What else is running on this machine, this session included.
+
+        The same list :func:`meshbench.sessions` reads from disk, asked of the
+        workbench instead - useful once a script is already attached to one.
+        Two differences: the row for this session has ``is_self`` set and
+        describes itself from the inside, and no row carries a token, because a
+        token belongs in the 0600 file it came from and not in a reply. So
+        these rows are for choosing by; pass one from :func:`meshbench.sessions`
+        to ``attach`` to connect.
+        """
+        got = self.call("session.list") or {}
+        return [Session(**_session_fields(r)) for r in got.get("sessions", [])]
+
     def say(self, text: str) -> None:
         """Leave a line in the session's log, for whoever is watching."""
         self.call("ui.said", text)
@@ -496,3 +526,17 @@ def _launch_kw(kw: dict) -> dict:
     should be able to switch between watching a run and not watching it by
     changing one word."""
     return kw
+
+
+def _session_fields(raw: dict[str, Any]) -> dict[str, Any]:
+    """The fields Session knows, so a build that answers with more than this
+    one has heard of does not fail on the extra.
+
+    The row's own-session flag arrives under a different name, because a
+    dataclass field named for the first argument of every method collides
+    with it.
+    """
+    known = {f for f in Session.__dataclass_fields__ if f != "token"}
+    out = {k: v for k, v in raw.items() if k in known}
+    out["is_self"] = bool(raw.get("self", False))
+    return out

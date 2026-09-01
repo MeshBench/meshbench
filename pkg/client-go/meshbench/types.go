@@ -22,6 +22,10 @@ type Hello struct {
 	// start has to be able to ask.
 	PID       int       `json:"pid"`
 	StartedAt time.Time `json:"started_at"`
+	// Project and Nodes are what this session has open, which is what tells
+	// two of them apart in a list.
+	Project string `json:"project"`
+	Nodes   int    `json:"nodes"`
 }
 
 // Describe is the cheap summary. Snapshot.
