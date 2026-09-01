@@ -250,6 +250,78 @@ jobs:
           echo "$pkgs" | tr ' ' '\n'
           go test -count=1 -timeout 20m $pkgs
 
+  # The shipped fixtures, against their own assertions.
+  #
+  # Every fixture carries assertions - "at least 10 unique deliveries" - and
+  # nothing here ran them, so fixture-fife-strict shipped for months exiting 1
+  # on a clean tree and no check anywhere went red. The assertions are the only
+  # machine-checkable claim this project makes about whether a mesh still
+  # delivers; leaving them to be run by hand is leaving them not run.
+  #
+  # Hosted, and deliberately, which is the one decision in this job worth
+  # explaining. It starts real native MeshCore, and the published builds need
+  # glibc 2.38. One of the three lab runners is Ubuntu 22.04 on purpose -
+  # package.yml builds releases there to hold the release's glibc floor - and
+  # runs that firmware only through a patchelf shim, which has failed outright
+  # before: every node on that runner dead, deterministically, for an
+  # afternoon. Actions labels are AND-only, so "lab-linux but not lab-2204"
+  # cannot be written, and a lab-pool job would land there about one run in
+  # three and go red for a runner's libc rather than for a fixture. A check
+  # that fails for reasons unrelated to the diff is worth nothing, which is the
+  # whole point of adding this one. ubuntu-latest is 24.04 with glibc 2.39, so
+  # the builds exec every time; it touches nothing on the lab LAN, so no fork
+  # guard is needed and a fork's pull request gets the same check.
+  #
+  # The two Fife fixtures only, at 58 nodes each. The national ones are 161 and
+  # 378 MeshCore processes and minutes of wall clock apiece, which is a
+  # nightly's work - firmware-live.yml runs the whole set with no cap.
+  fixtures:
+    timeout-minutes: 25
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.25"
+
+      # cgo, through Gio: cmd/meshbench links the workbench, so the binary does
+      # not build without these even though this job opens no window.
+      - name: Headers cgo needs
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            gcc pkg-config libgl1-mesa-dev xorg-dev \
+            libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev \
+            libx11-xcb-dev libegl1-mesa-dev libvulkan-dev libffi-dev
+
+      - name: Build the simulator
+        run: go build -o /tmp/meshbench ./cmd/meshbench
+
+      # Terrain tiles and the MeshCore builds are both fetched at runtime and
+      # cached on disk, which a hosted runner does not keep. Named directories
+      # rather than the whole cache, so a run's own working files do not end up
+      # in it. Keyed on the fixtures themselves: change what is simulated and
+      # the tiles it needs change with it.
+      - name: Cache what the fixtures download
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/meshbench/terrain
+            ~/.cache/meshbench/firmware
+          key: fixtures-${{ hashFiles('fixtures/*.json') }}
+          restore-keys: fixtures-
+
+      - name: Fixture assertions
+        env:
+          MESHBENCH: /tmp/meshbench
+          MAX_NODES: "100"
+          # api.github.com allows sixty anonymous calls an hour and the firmware
+          # catalogue is read on a cache miss. The job's own token is plenty and
+          # needs no more than the read-only permission this file already sets.
+          GITHUB_TOKEN: ${{ github.token }}
+        run: tools/fixture-check.sh
+
   # The Python client, against a real workbench.
   #
   # Its own job because it needs Python and a built binary and neither of the

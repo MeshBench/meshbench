@@ -87,6 +87,36 @@ relaying fifty-six adverts in that window reached 37% duty - far above anything
 a real network shows, where adverts are hours apart. Asserting on that would be
 asserting on the harness.
 
+**All of them at once:**
+
+    tools/fixture-check.sh            # every fixture
+    MAX_NODES=100 tools/fixture-check.sh   # the small ones only
+
+That is what CI runs. The capped form is a job on every push; the uncapped form
+is in the nightly, because a national fixture is 376 MeshCore processes.
+
+## Who a schedule is talking to
+
+A fixture's `sends` names a node and a line to say at it, and **which console
+that line goes to depends on what the node is**. A repeater has a text CLI and
+reads typed bytes. A companion and a room server do not: they speak the framed
+protocol a phone speaks, and text written at one is read as somebody typing at
+a device that answers nothing.
+
+Nothing reports the mistake. Writing at a port succeeds whether or not anything
+is reading it, so the run prints the send, delivers nothing, and looks from the
+outside like a mesh that cannot reach itself. `fixture-fife-strict` shipped that
+way: three companions, three `public hello` lines, zero deliveries, and its own
+assertion failing on a clean tree with no check anywhere to say so.
+
+A companion's schedule takes meshcore-cli's own spellings - `advert`,
+`floodadv`, `public <message>`, `chan <number> <message>` - and anything else is
+refused by name rather than swallowed. The same split decides provisioning: a
+companion is told its name, clock, position, radio and **default scope** over
+the protocol. The scope is the one that is invisible when it is missing, because
+unscoped traffic is carried by a different set of repeaters, and in a strictly
+scoped mesh by none of them.
+
 ## How they were built
 
 The order matters and every step in it has been skipped at least once, with the
