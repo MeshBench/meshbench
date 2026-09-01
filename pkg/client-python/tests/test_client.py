@@ -14,9 +14,11 @@ import contextlib
 import json
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
+import threading
 from datetime import timedelta
 
 import pytest
@@ -77,6 +79,95 @@ def test_it_connects_and_says_what_it_is(wb):
     # these two are in hello at all.
     assert wb.hello.pid and wb.hello.started_at
     assert wb.hello.verbs > 100
+
+
+def test_a_client_speaking_another_protocol_is_refused(wb):
+    """A wire version this build cannot speak is refused before the verb runs.
+
+    Raw on the unix socket, because this client declares the version it does
+    speak and the case worth testing is a client that does not - an older
+    script, or a wheel installed beside a newer workbench. What it must not get
+    is the verb failing, which is what sent people looking at the simulation.
+    """
+    if not hasattr(socket, "AF_UNIX") or not wb.hello.socket.startswith("/"):
+        pytest.skip("no unix socket to speak raw on")
+    s = socket.socket(socket.AF_UNIX)
+    s.settimeout(10.0)
+    s.connect(wb.hello.socket)
+    with contextlib.closing(s):
+        frame = {
+            "id": 3,
+            "method": "session.hello",
+            "protocol": meshbench.PROTOCOL + 1,
+        }
+        s.sendall((json.dumps(frame) + "\n").encode())
+        reply = json.loads(s.makefile("rb").readline().decode())
+
+    assert reply.get("code") == "protocol_mismatch", reply
+    said = reply.get("error", "")
+    assert str(meshbench.PROTOCOL + 1) in said
+    assert str(meshbench.PROTOCOL) in said
+    assert "Upgrade" in said
+
+
+def test_this_client_declares_its_protocol_first(tmp_path):
+    """The client half of the same mechanism.
+
+    A workbench can only refuse a version it was told about, and a real one
+    never echoes the declaration back - so what this client puts on the wire is
+    the one thing here that a socket of our own has to show us. Once, on the
+    first frame: the answer cannot change while the connection is open.
+    """
+    if not hasattr(socket, "AF_UNIX"):
+        pytest.skip("no unix socket on this platform")
+    from meshbench._socket import Connection
+
+    path = str(tmp_path / "fake.sock")
+    listener = socket.socket(socket.AF_UNIX)
+    listener.bind(path)
+    listener.listen(1)
+    seen: list[dict] = []
+
+    def serve() -> None:
+        conn, _ = listener.accept()
+        with contextlib.closing(conn):
+            f = conn.makefile("rb")
+            while True:
+                line = f.readline()
+                if not line:
+                    return
+                req = json.loads(line.decode())
+                seen.append(req)
+                conn.sendall(
+                    (json.dumps({"id": req["id"], "result": {}}) + "\n").encode()
+                )
+
+    thread = threading.Thread(target=serve, daemon=True)
+    thread.start()
+    with contextlib.closing(Connection(path)) as conn:
+        conn.call("session.hello")
+        conn.call("session.verbs")
+    thread.join(timeout=5)
+    listener.close()
+
+    assert seen[0]["protocol"] == meshbench.PROTOCOL
+    assert "protocol" not in seen[1]
+
+
+def test_a_version_refusal_keeps_the_workbenchs_own_words():
+    """When the workbench is the end that notices, its sentence is the one
+    raised: it knows its build and which end is the older one, and a paraphrase
+    would lose both."""
+    said = (
+        "this client speaks control protocol 1 and this workbench (v9.9.9) "
+        "speaks 2. Upgrade this client to the one that ships with v9.9.9"
+    )
+    e = meshbench.ProtocolMismatch(1, 0, said=said)
+    assert str(e) == said
+    assert e.client == 1
+    # And the mismatch this client notices itself still says both numbers.
+    own = meshbench.ProtocolMismatch(1, 2, "v9.9.9", "/run/mb.sock")
+    assert "1" in str(own) and "2" in str(own) and "Upgrade" in str(own)
 
 
 def test_building_a_network_from_nothing(wb):

@@ -227,7 +227,7 @@ func launch(ctx context.Context, o *dialOptions, args []string) (*Workbench, err
 // that reads as a firmware regression.
 func (w *Workbench) greet(ctx context.Context) error {
 	if err := w.CallInto(ctx, "session.hello", nil, &w.hello); err != nil {
-		return fmt.Errorf("client: %w", err)
+		return asMismatch(err)
 	}
 	if w.hello.Protocol != control.Protocol {
 		return &ProtocolMismatch{Client: control.Protocol, Workbench: w.hello}

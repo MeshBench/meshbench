@@ -168,14 +168,25 @@ class Connection:
         if token:
             # The token first, before anything else on the wire. A loopback
             # port is reachable by any local process, so this is what stands in
-            # for the permissions a unix socket would have had.
-            self._sock.sendall((json.dumps({"token": token}) + "\n").encode())
+            # for the permissions a unix socket would have had. The wire
+            # version rides along, so a workbench that cannot speak to this
+            # client says so at the door.
+            self._sock.sendall(
+                (json.dumps({"token": token, "protocol": PROTOCOL}) + "\n").encode()
+            )
 
     def call(self, verb: str, params: Any = None) -> dict[str, Any]:
         """Send one verb and return the whole reply, errors included."""
         with self._lock:
             self._next_id += 1
             req: dict[str, Any] = {"id": self._next_id, "method": verb}
+            if self._next_id == 1:
+                # A unix socket has no line of its own to declare the wire
+                # version on, so it goes on the first request: refused there,
+                # before any verb runs, rather than found out from a verb
+                # behaving oddly. Only the first, because the answer cannot
+                # change while the connection is open.
+                req["protocol"] = PROTOCOL
             if params is not None:
                 req["params"] = params
             self._sock.sendall((json.dumps(req) + "\n").encode())

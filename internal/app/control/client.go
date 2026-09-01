@@ -70,7 +70,7 @@ func dialAddr(addr Address) (*Client, error) {
 		// The token first, before anything else on the wire. A loopback port
 		// is reachable by any local process, so this is what stands in for the
 		// permissions a unix socket would have had.
-		if err := cl.enc.Encode(hello{Token: addr.Token}); err != nil {
+		if err := cl.enc.Encode(hello{Token: addr.Token, Protocol: Protocol}); err != nil {
 			_ = c.Close()
 			return nil, err
 		}
@@ -82,6 +82,10 @@ func dialAddr(addr Address) (*Client, error) {
 // the token has been accepted.
 type hello struct {
 	Token string `json:"token"`
+	// Protocol is the wire version this client speaks, checked once the token
+	// is accepted. A unix socket has no line of its own to put it on, so there
+	// it travels on the first request instead.
+	Protocol int `json:"protocol,omitempty"`
 }
 
 // Path is where this client is connected.
@@ -169,7 +173,15 @@ func (c *Client) exchange(method string, params any) (json.RawMessage, error) {
 	}
 
 	c.next++
-	if err := c.enc.Encode(Request{ID: c.next, Method: method, Params: raw}); err != nil {
+	req := Request{ID: c.next, Method: method, Params: raw}
+	if c.next == 1 {
+		// Declared on the frame this client was already sending, so a version
+		// the workbench cannot speak is refused before any verb runs and
+		// without a round trip of its own. Only the first: the answer cannot
+		// change while the connection is open.
+		req.Protocol = Protocol
+	}
+	if err := c.enc.Encode(req); err != nil {
 		return nil, err
 	}
 	var resp Response

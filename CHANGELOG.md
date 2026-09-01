@@ -41,6 +41,14 @@ had changed in them — which is the gap this file exists to close.
 
 ### Changed
 
+- **The control protocol is enforced at connect.** A client declares the wire
+  version it speaks on the frame it was already sending - the token line on
+  loopback TCP, the first request on a unix socket - and a version this build
+  does not speak is refused before any verb runs, with both numbers and which
+  end to upgrade. The rule is an exact match in both directions, because the
+  number moves only when something an older client relied on has changed. A
+  client that declares nothing is still served: it finds out from
+  `session.hello`, as the shipped clients always have.
 - **The tree is seven layers**, with `internal/layers_test.go` failing the
   build on an import that points upward. Several packages were split out along
   the way: `rf/geo` (one great-circle implementation, not thirteen),

@@ -96,11 +96,36 @@ close the workbench somebody is looking at by falling off the end.
 
 ### The first thing a connection does
 
-Calls `session.hello` ([#212](https://github.com/MeshBench/meshbench/issues/212))
-and checks the protocol number. A client older or newer than the build it
-connects to fails **here**, with a sentence naming both versions, rather than
-halfway through a script with a verb returning something unexpected — which in
-a CI run reads as a firmware regression.
+Declares the wire version it speaks, and calls `session.hello`
+([#212](https://github.com/MeshBench/meshbench/issues/212)). A client older or
+newer than the build it connects to fails **here**, with a sentence naming both
+versions, rather than halfway through a script with a verb returning something
+unexpected, which in a CI run reads as a firmware regression.
+
+### The compatibility rule
+
+**A client and a workbench must speak the same control protocol number. Any
+difference is refused at connect.** Exact match, both directions: the number is
+bumped only when a change breaks a client written against the previous one, so
+a difference *is* that break, whichever end is ahead. There is no
+"newer-serves-older" allowance, because the number would not have moved unless
+something an older client relied on had changed.
+
+The declaration travels on the frame a client was already sending: the token
+line on loopback TCP, and the first request on a unix socket, both as a
+`protocol` field. Nothing extra is sent and there is no extra round trip. The
+workbench checks it **before dispatching any verb**, and answers a mismatch
+with `protocol_mismatch`, a sentence carrying both numbers, and which end to
+upgrade.
+
+A client that declares nothing is still served. Every script written against
+this socket before the field existed is one of those, and the shipped clients
+have always compared `session.hello`'s number themselves, which is the other
+half of this rule and how such a script finds out.
+
+Adding a verb does not move the number, and neither does adding a field to a
+result: a client reads the fields it knows. What moves it is a verb changing
+what it means, a field changing type, or the framing changing.
 
 `wb.hello` keeps the answer. `wb.hello.mode` is `workbench` or `headless`, and
 it is what a script checks before touching `wb.ui`.
@@ -717,6 +742,7 @@ One exception hierarchy, mapped from the codes in #212.
 | `not_found` | `NotFound` | `ErrNotFound` | no node, build or area of that name |
 | `conflict` | `Conflict` | `ErrConflict` | wrong state: no simulation, nothing running, no preview yet |
 | `unavailable` | `Unavailable` | `ErrUnavailable` | headless, or no hardware for it |
+| `protocol_mismatch` | `ProtocolMismatch` | `ProtocolMismatch` | the client declared a wire version this build does not speak |
 | `internal` | `WorkbenchError` | `ErrInternal` | |
 | `closing` | `Closing` | `ErrClosing` | the workbench is shutting down |
 
@@ -724,7 +750,9 @@ The message stays as the verb wrote it. The verbs in this tree write good
 prose — *"no node is running firmware, so there is nothing to send to"* — and a
 client that replaced that with a code would be making the experience worse.
 
-Client-side, before the wire: `NotConnected`, `ProtocolMismatch`, `Timeout`.
+Client-side, before the wire: `NotConnected`, `Timeout`. `ProtocolMismatch` is
+raised on either side of the wire, whichever end notices first: see the
+compatibility rule above.
 
 ---
 
