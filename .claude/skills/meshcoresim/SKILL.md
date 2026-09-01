@@ -1,24 +1,33 @@
 ---
-name: meshbench
-description: Drive MeshcoreSim to answer RF and mesh-network questions — link viability, coverage, why a packet failed, site selection, solar survival, firmware A/B. Use when asked about MeshCore network behaviour, repeater placement, coverage, or radio settings. Encodes the honesty rules the simulator's own results depend on.
+name: meshcoresim
+description: Drive MeshBench to answer RF and mesh-network questions, such as link viability, coverage, why a packet missed, site selection, solar survival, firmware A/B. Use when asked about MeshCore network behaviour, repeater placement, coverage, or radio settings. Encodes the honesty rules the simulator's own results depend on.
 ---
 
-# MeshcoreSim
+# MeshBench
 
 An RF-accurate MeshCore simulator: real firmware, sample-accurate LoRa baseband,
-real terrain. Plane project **MSIM**; decisions are ADR-0001…ADR-0018.
+real terrain. Plane project **MSIM**; decisions are recorded as ADRs, in the
+project's Pages and, where a decision is about the tree, under `docs/`.
 
 Load `plane-conventions` if you are also updating tickets.
 
 ## Driving it
 
-It is a **native desktop app**, not a CLI or a service, so it needs a machine
-with a display and it has to already be running. You drive the *running* app
-over its control socket at
+It is a **native desktop app**, not a CLI or a service, so the socket needs a
+workbench already running (`meshbench workbench`, or `meshbench headless` for a
+session with no window). You drive it over
 `$XDG_RUNTIME_DIR/meshbench.sock`, newline-delimited JSON,
-`{"id":1,"method":"<verb>","params":{}}`. `session.describe` lists every verb;
-read that before inventing a way to do something, because there is almost always
-a verb for it.
+`{"id":1,"method":"<verb>","params":{}}`. `session.describe` lists every verb
+and `session.list` names the workbenches actually running; read the first before
+inventing a way to do something, because there is almost always a verb for it.
+
+**Some questions do not need a session at all.** `meshbench link`, `profile`,
+`coverage` and `terrain` are one-shot subcommands over their own tile store, and
+they are the quickest route to a number. They do not read the workbench's
+preferences, which is both why they work on a machine that has never opened the
+app and why their defaults are their own: `meshbench link` defaults to
+869.525 MHz, the **deprecated** preset, so pass `-freq 869.618` to compare with
+anything the app produced.
 
 Prefer the verb over the file. Verbs drive the same code paths a person clicks,
 so the panel opens and the operator can see what you did; editing config or
@@ -38,20 +47,35 @@ UDP stream on 127.0.0.1:5555 and launches Wireshark; it survives the engine
 rebuild each sweep run does, but a restarted workbench has no capture at all.
 "Wireshark shows nothing" after a restart means nobody started it.
 
-## Building a scenario from CoreScope — the whole order
+## Terrain is off until somebody allows it, and that is silent
+
+A machine that has never been asked runs with the tile store **offline**. The
+first warm is then held: it marks the `links` job finished *and failed* with
+"waiting for permission to download terrain" and marks the session warmed, so a
+wait returns at once with **zero links measured**, and every study runs over
+bare earth, which is free space, which is the most optimistic answer there is.
+Nothing raises, and the map still draws.
+
+`terrain.allow` answers the question and restarts the held warm; `setup.check`
+reports it as `undecided` alongside everything else a fresh install is missing.
+**Check one of the two before quoting any margin**, because a result computed
+over absent terrain looks exactly like a result computed over flat ground, and
+the difference is every hill between the two ends.
+
+## Building a scenario from CoreScope: the whole order
 
 Do these in order. Every step below was skipped at least once, and each failure
 looks like bad RF rather than a missing step.
 
-1. **Boundaries.** `boundary.set` (place) → `boundary.accept`, once per region.
-   The chosen set unions, so Scotland + Ireland is two accepts.
-2. **Import.** `import.set_source` → `import.fetch` → `import.commit` with
+1. **Boundaries.** `boundary.set` (place) then `boundary.accept`, once per
+   region. The chosen set unions, so Scotland plus Ireland is two accepts.
+2. **Import.** `import.set_source`, `import.fetch`, `import.commit` with
    `strategy: "replace-all"` (plain `"replace"` is not a strategy name and
    leaves the demo nodes in, on a different preset).
 3. **Firmware, per role.** `firmware.set` with `role: "simple_repeater"` for
    everything, then again per companion with `role: "companion_radio"`. Or set
    `repeater_version` / `companion_version` on `experiment.base`.
-4. **Regions — `infer.run` then `infer.apply`.** This is the step that gets
+4. **Regions: `infer.run` then `infer.apply`.** This is the step that gets
    forgotten, and it is the one that decides whether anything relays at all.
 5. `firmware.start`, then check `firmware.state` says `running == total`.
 6. Only then define and start the sweep.
@@ -61,15 +85,16 @@ looks like bad RF rather than a missing step.
 `boundary.load {path}` or `{geojson}` takes a Polygon, MultiPolygon, Feature or
 FeatureCollection and puts it in the study area. `boundary.set` searches
 Nominatim, which needs the network and needs the area to have an administrative
-name — a catchment, a valley or something drawn in QGIS has neither.
+name; a catchment, a valley or something drawn in QGIS has neither.
 
 **Before the import, either way.** The import filters at fetch time, so a
 boundary set afterwards prunes what has already been fetched. `boundary.list`
-says what the study area currently holds; the snapshot only carries how many.
+answers `areas` with each area's name and ring count; the snapshot only carries
+how many.
 
 ### Finding a node you cannot type
 
-Imported names carry emoji and accents — `🏔️ West Lomond 📡` is one real node —
+Imported names carry emoji and accents, `🏔️ West Lomond 📡` being one real node,
 so `nodes.search {"query": "west lomond"}` is how you get a handle on one. It
 answers `matches[]` ranked best first with a `score`; the tighter name wins, so
 the exact one beats the one that merely starts the same way. **Check the score.**
@@ -79,7 +104,7 @@ that shared one word with the query, silently.
 ### Getting your own build in
 
 `firmware.import {path, role, board, label}`. The `label` is what the library
-will know it by and what a node pins — leave it out and it is a timestamp.
+will know it by and what a node pins; leave it out and it is a timestamp.
 Never assume two imports of the same file are the same build: they are two, on
 purpose, so you can move a node onto the new one and then `firmware.delete` the
 old by its `path`. Delete only *after* the node is on the replacement; a pin
@@ -88,17 +113,18 @@ nothing can honour does not fail until the node next starts.
 ### The repeater console
 
 `console.type {"node": …, "command": …}` runs a line on a node's CLI and returns
-what it said — the fastest way to find out what a node actually believes, rather
-than what you think you configured. `get name`, `get repeat`, `get flood.max`,
-`get path.hash.mode`, `get loop.detect` all read back; `region put <r>`,
-`region allowf <r>`, `region default <r>`, `region save` configure regions.
+what it said, which is the fastest way to find out what a node actually
+believes rather than what you think you configured. `get name`, `get repeat`,
+`get flood.max`, `get path.hash.mode`, `get loop.detect` all read back;
+`region put <r>`, `region allowf <r>`, `region default <r>`, `region save`
+configure regions.
 
-**The command reference is at <https://docs.meshcore.io/cli_commands/>** — check
+**The command reference is at <https://docs.meshcore.io/cli_commands/>**; check
 it before concluding a setting did not apply. There is no `region list` and no
 `help`; both answer `Err - ??`, which looks like a broken node and is just a
 command that does not exist.
 
-Console replies come back empty while a sweep is driving the engine — the reply
+Console replies come back empty while a sweep is driving the engine: the reply
 is collected after a 50 ms step, and the experiment owns the clock. Call
 `experiment.stop` first.
 
@@ -109,7 +135,7 @@ about. A freshly imported node has none, so a scoped message is transmitted by
 its sender and dropped by all 300 repeaters: **8 transmissions, 0 relays, and a
 ledger of 137 events.** That reads exactly like a network with no propagation.
 
-Regions are not in the node API — they are **inferred from days of CoreScope
+Regions are not in the node API. They are **inferred from days of CoreScope
 packet traffic**: `infer.run {"hours": 168}`, wait for its job, then
 `infer.apply`. Applying is a separate call and returns how many nodes it
 touched; "0 applied" means you inferred and walked away. On ScotMesh a week of
@@ -121,15 +147,15 @@ reading goroutine's own callback and refuses when called from anywhere else;
 before it refused, calling it from outside replaced a finished inference with
 an empty one. The job is marked finished rather than removed, so a waiter that
 waits for the job list to *empty* waits for ever, and one that ends when the
-list stops changing has to check `failed` — a read that could not reach the
+list stops changing has to check `failed`: a read that could not reach the
 feed ends the job too.
 
 The `hours` window is honoured. It used to be accepted, echoed back and
 discarded, every import reading the most recent 40,000 packets whatever it
-said — under two days on ScotMesh, which drops the quiet regions entirely and
+said, which is under two days on ScotMesh, drops the quiet regions entirely and
 reads as a mesh that has gone silent.
 
-### The `#` asymmetry — write the scope with it, the region without
+### The `#` asymmetry: write the scope with it, the region without
 
 This one cost a whole session. A region is spelled **two different ways** and
 both are correct:
@@ -140,14 +166,14 @@ both are correct:
 | scope on the wire | **`#`-prefixed** | scope `#sco` |
 
 The key in the packet is `sha256("#sco")[:16]`. Ask a companion to send with
-scope `"sco"` and it keys its packets `sha256("sco")` — which matches no
+scope `"sco"` and it keys its packets `sha256("sco")`, which matches no
 repeater in existence. Every repeater receives the packet, derives a different
 key, and declines to forward.
 
 **There is no error anywhere.** The senders transmit, the ledger fills with
 "first time this node heard the message", and nothing relays: 8 transmissions,
 0 relays, 137 events. It reads exactly like a mesh with no propagation, and the
-temptation is to go hunting through RF, firmware roles and regions — all of
+temptation is to go hunting through RF, firmware roles and regions, all of
 which will look correct, because they are.
 
 `experiment.define {"scope": "#sco"}`. The workbench now canonicalises it, but
@@ -155,16 +181,42 @@ say it with the `#` anyway.
 
 Then **send on a scope the nodes actually hold**. `experiment.define`'s `scope`
 is applied to the senders only; the repeaters relay it or not according to what
-inference gave them. Check the holder counts `infer.apply` reports before choosing —
-`#sco` and `#ioi` are the two big ones, and a scope only a handful hold will
-look like a dead mesh for the same reason as above.
+inference gave them. Check the holder counts `infer.apply` reports before
+choosing: `#sco` and `#ioi` are the two big ones, and a scope only a handful
+hold will look like a dead mesh for the same reason as above.
+
+## Antennas: a scalar gain is a wrong answer, not a rough one
+
+Every node stands under a real pattern now, and the engine is directional in
+azimuth, so what a node is pointing at changes the result.
+
+- `node.antenna {node}` reads one back. A node with **no** antenna answers
+  `pattern: ""` and `peak_dbi: 0`, deliberately distinguishable from an omni at
+  0 dBi. Check which you have before quoting a gain.
+- `nodes.antenna` is the only verb that changes one, for a node, a kind, or
+  everything. It is a **partial overlay**: named fields replace, the rest stay,
+  so a bearing sweep is one call per step rather than a full restatement. An
+  unrecognised `polarisation` is refused rather than stored, because an
+  unrecognised value reads as orthogonal to everything and would take the link
+  off the air.
+- `node.aim {node, at}` computes the great-circle bearing, sets it, and returns
+  `gain_dbi`, which is what the turn actually won. On an omni that is nothing,
+  and saying so is the point.
+
+Two limits to quote with any directional result: the patterns are analytic
+Gaussians with a flat front-to-back floor, right on boresight and roughly right
+for the first 20 degrees or so, with no side lobes and no nulls; and
+polarisation mismatch is charged once per pair in the engine and the link
+budget but **not at all in the coverage raster**, so a raster and a budget over
+the same crossed pair disagree by up to 20 dB and the raster is the optimistic
+one.
 
 ## Read the firmware before explaining a result
 
 MeshCore is public and the tags match our firmware refs exactly
 (`repeater-v1.17.0`, `companion-v1.17.0`). Clone
 `github.com/meshcore-dev/meshcore`, check out the tag under test, and read the
-code before writing down a mechanism — a plausible story about what the firmware
+code before writing down a mechanism: a plausible story about what the firmware
 "probably does" is worth nothing next to twenty lines of it.
 
 Worth knowing, from `examples/simple_repeater/MyMesh.cpp` at v1.17.0:
@@ -175,21 +227,21 @@ Worth knowing, from `examples/simple_repeater/MyMesh.cpp` at v1.17.0:
   not explaining.
 - The loop thresholds are **indexed by path-hash size**:
   `minimal {_,4,2,1}`, `moderate {_,2,1,1}`, `strict {_,1,1,1}`. At a **3-byte
-  hash all three settings are 1 and therefore identical by construction** — arms
-  that vary `loop.detect` at 3-byte are measuring nothing, and if they differ,
-  the simulator has a reproducibility problem rather than a finding.
+  hash all three settings are 1 and therefore identical by construction**, so
+  arms that vary `loop.detect` at 3-byte are measuring nothing, and if they
+  differ, the simulator has a reproducibility problem rather than a finding.
 - `isLooped()` counts how many times *this node's own hash* already appears in
-  the packet's path — not whether a hash repeats generally.
+  the packet's path, not whether a hash repeats generally.
 - `getPathHashSize() = (path_len >> 6) + 1`, `getPathByteLen() = count × size`,
   which is where the per-hop airtime cost of a wider hash comes from.
 
 **Design a control into the matrix.** Two arms the firmware guarantees are
-identical are free reproducibility checks, and one of ours failed — which is how
+identical are free reproducibility checks, and one of ours failed, which is how
 we learned the seed does not capture all the run-to-run variation.
 
 ## Regions come from GeoJSON, and there are saved ones
 
-`~/.config/meshbench/boundaries/*.geojson` — Scotland and Ireland are already
+`~/.config/meshbench/boundaries/*.geojson`; Scotland and Ireland are already
 there. `boundary.set` searches for a place, `boundary.accept` adds it to the
 chosen set, `boundary.prune` deletes every node outside it. **The chosen set
 unions**, so a two-region scenario is two accepts and one prune. Never
@@ -197,9 +249,9 @@ hand-roll a lat/lon rectangle: it silently keeps null-island nodes and cuts real
 coastline wrong.
 
 The import source is **not persisted between launches** and has to be set each
-time: `import.set_source` → `import.fetch` → `import.commit`. ScotMesh's
+time: `import.set_source`, `import.fetch`, `import.commit`. ScotMesh's
 CoreScope is `https://scotmesh-corescope.mm7roq.compute.oarc.uk`, and it covers
-Scotland, northern England *and* Ireland — around 640 nodes, of which some tens
+Scotland, northern England *and* Ireland, around 640 nodes, of which some tens
 sit at lat/lon 0 and some have no position at all. Say how many you dropped.
 
 ## Experiments: the Bench workspace
@@ -210,18 +262,17 @@ constants. Then `experiment.seeds`, `experiment.senders`, `experiment.start`,
 poll `experiment.state`, and `experiment.export` writes an HTML report.
 
 **Pin the firmware even when you are not varying it.** `experiment.base` takes
-`repeater_version` / `companion_version`, and builds are cached at
-`~/.cache/meshbench/firmware/native/` — currently `repeater-` and
-`companion-v1.16.0`, `v1.17.0`, and `-faultyirq` variants of both. Freshly
+`repeater_version` / `companion_version`. **List the cache rather than trusting
+a written list**: `ls ~/.cache/meshbench/firmware/native/`, or ask
+`firmware.library`, which now returns `builds` as well as a count. Freshly
 imported nodes carry no firmware ref at all, which resolves to MeshCore `main`,
 for which nothing is published; a sweep that varies something else then dies on
-its first run with "firmware on 0 of N nodes". The clients expose the same
-builds if you would rather ask than list the directory.
+its first run with "firmware on 0 of N nodes".
 
 **Role is the MeshCore application, not the node kind.** Repeaters run
 `simple_repeater`; companions run **`companion_radio`**; room servers run
 **`simple_room_server`**. "companion" is not a role, and `firmware.set` used to
-take it without complaint — the run then failed minutes later with "<node> runs
+take it without complaint; the run then failed minutes later with "<node> runs
 no firmware", which reads as a firmware problem and is a typo. The binary names
 in the cache are the authority (`meshcore-<role>-linux-amd64`).
 
@@ -233,7 +284,7 @@ points at the release rather than at the string. A scenario mixing roles has to
 pin each one separately.
 
 **A companion has no command line.** It speaks the companion protocol over its
-serial link, so typing `advert` at one does nothing at all — no error, no
+serial link, so typing `advert` at one does nothing at all: no error, no
 packet. That reads as a mesh dropping the first hop. Use a repeater when a test
 needs to originate from a console, or the companion transport when it needs to
 be a companion.
@@ -253,18 +304,18 @@ mesh of one application.
 output at `console.log` in its work directory. Read it before theorising: a
 stale published build stalling after three seconds and a firmware bug look
 identical from the ledger, and the log tells them apart in one line. A current
-build prints `radio_init: entering std_init` — its absence means the binary
+build prints `radio_init: entering std_init`; its absence means the binary
 predates the host radio shim and needs rebuilding upstream.
 
 **Check the radio preset after an import.** Imported nodes take the app default,
-`EU/UK (Narrow)` — 869.618 MHz, 62.5 kHz, SF8, CR4/8 — which is what ScotMesh
+`EU/UK (Narrow)`: 869.618 MHz, 62.5 kHz, SF8, CR4/8, which is what ScotMesh
 runs, and what the earlier CAD and hash studies used too. Quote it as provenance
 rather than assuming; a scenario built by hand may sit on the deprecated
 869.525 / 250 kHz / SF10, and results either side of that are not comparable.
 
 **Diff against a scenario that worked.** When a run produces nothing and the
 configuration all looks right, load the last project that *did* work and compare
-the two JSON files under `~/.config/meshbench/projects/` — radio, regions,
+the two JSON files under `~/.config/meshbench/projects/`: radio, regions,
 firmware refs, scopes. It is far faster than reasoning forwards, and the answer
 is usually one field.
 
@@ -278,95 +329,78 @@ Three traps, all paid for:
   and watch be ignored. Firmware was exactly that.
 - **Measure the thing the change is supposed to affect.** Reach was a set of
   nodes per message, so an arm that suppressed nine duplicate copies scored the
-  same as one that suppressed none — every loop-detection comparison came back
+  same as one that suppressed none: every loop-detection comparison came back
   "no difference" for a whole session before anyone noticed the metric could not
   see it.
 
 ## Emulation: running the bytes people flash
 
-Two backends run MeshCore. **Native** compiles it for the host and is what
-everything so far is built on. **Emulated** runs the published board image
-unmodified, under QEMU, and exists as the cross-check on the native one
-(ADR-0010).
+Two backends run MeshCore. **Native** compiles it for the host and is what most
+of the above is built on. **Emulated** runs the published board image
+unmodified, under QEMU or Renode, and exists as the cross-check on the native
+one (ADR-0010). A node runs emulated when its `Firmware.Board` is set; empty
+means the host build.
 
-An emulated node is now a node on the mesh. A published `Generic_E22_sx1262`
-v1.17.0 image boots, adverts, and a native repeater decodes it off the same
-channel (`TestEmulatedAndNativeShareAChannel`). A node runs emulated when its
-`Firmware.Board` is set; empty means the host build.
+**The toolchain is a download now, not a build.** `resource.fetch` with
+`kind: "toolchain"` fetches `radioserver`, `qemu-system-xtensa` and `renode`
+into `~/.cache/meshbench/tools/`, which is step three of the lookup a boot
+already performs, so nothing has to be set afterwards. The `kind` parameter
+**defaults to `softdevice`**, so a fetch that omits it asks for the wrong thing.
+`resource.list` says what is present and what it cost; `setup.check` says the
+same beside everything else that is missing. QEMU and Renode are published for
+linux/amd64 only, macOS gets `radioserver` alone, and Windows nothing, each with
+its reason. An emulated nRF52 board additionally needs the Nordic s140
+SoftDevice, which is its own `softdevice` resource.
 
-Two constraints that follow from an emulator being in the loop. It runs on
-**wall time**, so the engine cannot race the clock ahead — pace `Run` roughly
-1:1 or it will look as though no frames arrived. And two runs of one seed will
-not produce identical ledgers, so the determinism the rest of the simulator
-guarantees does not hold for a scenario containing one.
-
-**Only the repeater role can be emulated today, and it is board coverage rather
-than role code.** The one verified board publishes the repeater alone. Every
-plain-ESP32 SX1262 board that publishes all three roles is a T-Beam, and all of
-them stall *before* `radio_init`: the I2C bus never comes up, the AXP PMU init
-spins, and the radio is never touched — zero SPI transactions, which reads as a
-broken emulator rather than a missing PMU model. T-Beam SX1262 also publishes a
-BLE-only companion. Every board publishing all three with a USB companion is an
-ESP32-S3, so the unlock is an `esp32s3` machine, not more board entries.
+**`EmulatableBoards()` is the authority on what runs**, and it returns both the
+boards that do and the reason each of the rest does not. Do not carry a list in
+your head: it has already moved twice. As things stand it covers plain ESP32,
+ESP32-S3 under the fork's `esp32s3` machine, and nRF52840 under Renode. **There
+is no role gate**: `emulated.Runnable` filters on image format, on whether the
+board has verified wiring, and on transport. Anything that once read as "only
+repeaters" was board coverage, and board coverage moves.
 
 **BLE companions are excluded deliberately.** There is no Bluetooth here, so one
 boots and then waits forever for a phone, which looks like a hang rather than an
 unsupported build. Published companion assets carry their transport in the name
 (`..._companion_radio_usb-v1.17.0-...`), and the USB one is the only usable one.
 
+Two constraints follow from an emulator being in the loop. It runs on **wall
+time**, so the engine cannot race the clock ahead; pace `Run` roughly 1:1 or it
+will look as though no frames arrived. And two runs of one seed will not produce
+identical ledgers, so **the determinism the rest of the simulator guarantees
+does not hold** for a scenario containing one. Run boards one at a time: several
+at once will take a twelve-core machine down.
+
 ### Where the pieces live
 
 | | |
 |---|---|
 | QEMU with our SX1262, GPIO and fixes | `MeshBench/qemu` branch `meshbench-sx1262` |
+| Renode with the SEVONPEND fix | `MeshBench/renode` and `MeshBench/tlib` |
 | The chip model, and the socket server | `meshcore-native`, `VirtualSX1262` + `bridge/radioserver.cpp` |
-| Per-board wiring | `internal/firmware/board/boards.go`, `QEMUWiring` |
-
-Build QEMU with **`--enable-gcrypt`** or the `esp32` machine dies with
-`unknown type 'misc.esp32.rsa'`: the RSA device is gated on gcrypt while the
-machine references it unconditionally.
-
-    ./configure --target-list=xtensa-softmmu --disable-werror --enable-slirp --enable-gcrypt
-
-### Only plain ESP32, and only some boards
-
-`hw/xtensa/esp32.c` instantiates SPI0 to SPI3, so a radio has a bus to sit on.
-**ESP32-S3 models only `spi1`**, the flash controller, so an S3 board needs a
-GP-SPI controller written before anything can be attached. Published nRF52
-images are linked above a proprietary Nordic SoftDevice and are out of scope.
+| Per-board wiring | `internal/firmware/board/board_<name>.go` |
 
 Board wiring is **per board and verified per board**, never inferred from the
 MCU. `Heltec_v2` carries an **SX1276**, not an SX1262, despite sitting beside
-the V3 in every shop — its firmware speaks SX127x register access, and the
+the V3 in every shop; its firmware speaks SX127x register access, and the
 giveaway is the firmware sending `0x42`, which is RegVersion on an SX127x.
-`EmulatableBoards()` returns what can run and why the rest cannot.
 
 ### Three things that are not obvious and cost hours
 
 **RadioLib drives NSS as an ordinary GPIO**, not the SPI controller's chip
 select. Without NSS the controller clocks bytes one at a time and the chip gets
-an unframed byte stream it cannot answer, so the driver reports no chip. The
-GPIO model had an empty write handler and had to be implemented.
+an unframed byte stream it cannot answer, so the driver reports no chip.
 
-**Arduino's default-constructed `SPIClass` is HSPI**, controller 2 — not VSPI.
+**Arduino's default-constructed `SPIClass` is HSPI**, controller 2, not VSPI.
 `std_init(NULL)` picks the global `SPI` (VSPI); `static SPIClass spi;` does not.
+Which controller a board's radio sits on is a property of that board's
+*firmware*, not of the chip, so read the variant rather than generalising.
 
 **A merged image's flash-size header is at 0x1000**, not 0, because the image
 starts with padding. Read it from the wrong offset and you pad to the wrong
 size and get `Detected size(4096k) smaller than the size in the binary image
 header(8192k)`. QEMU accepts only 2/4/8/16 MB images.
-
-### Two bugs in Espressif's QEMU
-
-Both in the SPI model, both affecting any non-flash peripheral:
-
-- **RX bounds check** indexed by the transferred byte's value instead of the
-  loop position, so replies were dropped whenever the byte just sent was
-  numerically larger than the read length. Already fixed by their open PR #144,
-  which is cherry-picked onto our branch with authorship intact.
-- **Stale command-phase bitlen**: the USR path enabled a command phase when
-  `SPI_USER.COMMAND` *or* a leftover `COMMAND_BITLEN` was set, injecting a
-  spurious `0x00` in front of every transfer. Ours, not reported yet.
 
 ### The chip model is clocked two ways and must agree
 
@@ -381,7 +415,7 @@ strictly, so `signalRssiPkt` read zero on every native run.
 ## Working on the desktop app
 
 **Never launch it with `go run`.** It relinks the cgo in Gio and wgpu every
-time, which costs far more per restart than a prebuilt binary — and that gap
+time, which costs far more per restart than a prebuilt binary, and that gap
 decides whether a layout gets checked or guessed at:
 
     go build -o msim ./cmd/meshbench && ./msim workbench
@@ -393,17 +427,18 @@ looks exactly like a crashed application. Use the compositor's own tool.
 **Look at the window before claiming it works.** One pass over the firmware
 library found it taking a viewport of its own and being sized to the display,
 two tables with fixed pixel heights that would not scale, and a window created
-without `WindowFlagsMenuBar` — which silently costs it `panelChrome`, and with
+without `WindowFlagsMenuBar`, which silently costs it `panelChrome`, and with
 it the pop-out and dock verbs.
 
 ## Before you report any number
 
 **The model is optimistic, and you must say so.** It omits multipath, fading,
 body loss, oscillator error, and non-LoRa interference beyond what is loaded.
-Every omission makes real links *worse*. The bias is one-directional.
+Every omission makes real links *worse*. The bias is one-directional, and
+`docs/shortcomings.md` is the current list.
 
 So: never present a simulated margin as a measurement. "Predicted +2.5 dB, which
-is marginal — real conditions will be worse" is honest. "It works" is not.
+is marginal, and real conditions will be worse" is honest. "It works" is not.
 
 ## The four rules that make results meaningful
 
@@ -416,86 +451,110 @@ is marginal — real conditions will be worse" is honest. "It works" is not.
    producing a confident number from an unconfident input.
 3. **One run is not evidence.** The channel is stochastic. Vary the seed and
    report the spread, or say explicitly that you ran once.
-4. **Quote provenance.** Firmware ref, seed, terrain zoom, region. A figure
-   without provenance is an anecdote.
+4. **Quote provenance.** Firmware ref, seed, terrain zoom, region, radio preset,
+   and whether terrain was allowed. A figure without provenance is an anecdote.
 
 ## Workflows
 
 ### "Will this link work?"
 
 ```
-evaluate_link A B
+meshbench link -from-lat … -from-lon … -to-lat … -to-lon … -freq 869.618
 ```
-Read the *whole* budget, not the verdict. Report: margin in both directions, the
-dominant loss term, and — if it fails — which diffracting edge cost the most.
-"That ridge at 4.2 km costs 31 dB" is actionable; "no path" is not.
+
+It prints the distance, the path loss, the margin in **both** directions, and
+which of workable / one-way / fails it is. Report the weaker direction and the
+dominant loss term; if it fails, `meshbench profile` over the same path names
+the worst obstruction, and "that ridge at 4.2 km costs 31 dB" is actionable
+where "no path" is not.
+
+From a session, `link.pair {a, b}` and `link.profile` compute the same thing and
+draw it. **They do not hand the numbers back**: the reply is only the endpoints,
+`budget.for_selection` answers a bare count, and the margins reach no snapshot
+and no client. So read a budget with the CLI, or from the panel, and say plainly
+that the socket cannot yet return one rather than inventing a value.
 
 ### "Why did that packet not arrive?"
 
-```
-reception_ledger <packet-id>
-```
-Distinguish the five outcomes; they have different fixes:
+Every miss now carries the cause the engine *established*, on `class`, and it is
+a closed set (`internal/sim/engine/events.go`, mirrored into both clients by
+`tools/clientgen`). Group on the class; never match on the detail sentence,
+which is prose and is reworded.
 
-| Outcome | What it means |
-|---|---|
-| out of range | nothing arrived — terrain or distance |
-| too weak to demodulate | raise power, lower SF, better antenna |
-| demodulated, CRC failed | marginal — interference or collision |
-| received, dropped (dedup) | working as designed, not a fault |
-| received, relayed | fine |
+| class | what it means | what fixes it |
+|---|---|---|
+| `sent` | this node transmitted it | nothing, it is the origin |
+| `received` | decoded, first time | nothing |
+| `half-duplex` | its own transmitter was keyed | timing, not power |
+| `interference` | would have decoded alone; something louder took it | less traffic, or separation |
+| `collision` | header decoded, then more symbols destroyed than the CR repairs | less traffic |
+| `receiver-busy` | the demodulator was already following another packet | less traffic |
+| `floor` | under the threshold **on its own** | power, antenna, lower SF |
+| `unclassified` | the engine did not establish a cause | investigate, do not guess |
 
-Never say "collision" without checking the waterfall — a weak signal and a
-collision look identical in delivery statistics and have opposite fixes.
+**`floor` is no longer the catch-all, and that is the point.** It used to absorb
+receiver-lock and collision misses, and an operator reading the floor card
+bought antennas for a mesh that was actually too busy. `unclassified` exists so
+that an unestablished cause reads as a question rather than as a confident wrong
+answer; waveform mode produces it often, because the receive chain reports what
+it did and not what beat it. A path with no terrain data is `unclassified` too,
+not `floor`: nothing about that signal was measured.
+
+Read them with `events.recent {limit}` or `events.dump {path}`, which writes
+NDJSON with `class` on every line. Never say "collision" without checking, and
+never average `unclassified` into anything.
 
 ### "Where should the next repeater go?"
 
-```
-find_sites --region <geojson> --objective coverage,redundancy,energy
-```
-Report the per-term scores, not the aggregate. A site that gains coverage but
+`internal/study/planning` places sites and scores them, and `meshbench coverage`
+writes a raster from one station, but **the site search is reachable from no
+verb and no subcommand today**. Say so rather than describing a workflow that
+does not exist. What can be done from outside is to propose candidates, compute
+a coverage raster for each with `coverage.compute`, and compare, reporting the
+per-term consequences rather than one aggregate: a site that gains coverage but
 flattens in December is not a site, and a site that adds interference to two
-existing repeaters may be a net loss. Both are visible in the terms.
-
-Check `energy_forecast` on the winner before recommending it.
+existing repeaters may be a net loss.
 
 ### "Will this solar node survive winter?"
 
-```
-energy_forecast <node> --months 12
-```
-The answer is not a percentage. It is *when it flattens and what fixes it* —
-usually a bigger panel, not a bigger battery. Say which, because people reliably
-buy the wrong one.
+`node.energy` (which takes the node's name as its whole parameter, not an
+object) and `energy.for_selection` produce the budget, and both refuse when the
+energy model is disabled. The answer is not a percentage. It is
+*when it flattens and what fixes it*, usually a bigger panel rather than a
+bigger battery. Say which, because people reliably buy the wrong one.
 
 ### "Did that firmware change break relaying?"
 
-```
-run --firmware-ab <refA> <refB> --seed <n> --traffic scripted
-compare
-```
-Lock the seed and script the traffic, or the comparison means nothing. Report the
-first diverging event, not just the totals.
+Pin `repeater_version` on `experiment.base`, vary it with `experiment.vary`,
+lock `experiment.seeds` and script the traffic with `schedule.add`, or the
+comparison means nothing. Report the first diverging event, not just the totals,
+and remember that `experiment.export` is the only place the matrix comes back as
+a document: `sweep.run` answers with arm and seed counts and leaves the matrix
+where only a panel can read it.
 
 ### "Is my site deaf?"
 
-Load emitters, then `evaluate_link`. If the noise floor is raised, check whether
-the interferer is **in band or out of band** before suggesting a filter — a
+Load emitters, then compute the link. If the noise floor is raised, check whether
+the interferer is **in band or out of band** before suggesting a filter: a
 filter cannot help in-band interference, and saying so plainly saves real money.
 
 ## Do not
 
 - Do not report a coverage raster as ground truth. At terrain zoom 11 a pixel is
-  ~30 m; buildings, hedges and vans are invisible to it.
+  ~30 m; buildings, hedges and vans are invisible to it, and the raster charges
+  no polarisation mismatch even where the link budget does.
 - Do not average away an asymmetry.
 - Do not run one seed and call it a result.
 - Do not recommend a site without checking energy and interference.
-- Do not silently drop nodes excluded for position uncertainty — say how many.
+- Do not silently drop nodes excluded for position uncertainty; say how many.
+- Do not quote a margin without knowing whether terrain was allowed.
 
 ## When the simulator disagrees with reality
 
-`validate` compares predictions against observer data. If agreement is poor,
-that is a **finding about the model**, not a data problem to explain away. Report
-the residual and its sign; per ADR-0003 we expect to read optimistic, so a
-negative bias is more interesting than a positive one and worth investigating
-rather than smoothing.
+`validate.fetch` and `validate.compare` put predictions against observer data.
+If agreement is poor, that is a **finding about the model**, not a data problem
+to explain away. Report the residual and its sign. ADR-0015 is why the
+comparison exists at all: the omissions in `docs/rf-chain.md` section 9 all
+make reality worse than simulation, so we expect to read optimistic, and a
+residual in the *other* direction is the interesting one, to be investigated
+rather than smoothed.
