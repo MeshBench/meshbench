@@ -50,6 +50,13 @@ func (e *Engine) AttachNativeProgress(ctx context.Context, seed uint64, progress
 	e.attachMu.Lock()
 	defer e.attachMu.Unlock()
 
+	// The network may have been replaced or shut down while this attach waited
+	// its turn. Starting a hundred processes for it now would start a hundred
+	// nothing will ever tick, close, or count.
+	if e.isClosed() {
+		return errClosedDuringAttach
+	}
+
 	e.mu.Lock()
 	nodes := make([]*Node, len(e.nodes))
 	copy(nodes, e.nodes)
@@ -139,6 +146,13 @@ func (e *Engine) AttachNativeProgress(ctx context.Context, seed uint64, progress
 	// work attaches one node. The caller has already filtered to nodes that
 	// need firmware, so there is nothing to skip here.
 	work := func(i int, n *Node) {
+		// Checked again here, and once more when the node is handed over: an
+		// attach of a national fixture is minutes of work, and the engine can
+		// go away at any point during it.
+		if e.isClosed() {
+			fail(fmt.Errorf("%s: %w", n.specRef().Name, errClosedDuringAttach))
+			return
+		}
 		// A seed per node, derived from the run's seed and the node's index.
 		// Sharing one seed would give every node the same identity, and a mesh
 		// where every repeater has the same public key does not behave like a
@@ -248,10 +262,15 @@ func (e *Engine) AttachNativeProgress(ctx context.Context, seed uint64, progress
 			return
 		}
 
-		e.mu.Lock()
-		e.nodes[i].Firmware = fw
-		e.nodes[i].BootOffsetMs = off
-		e.mu.Unlock()
+		if !e.adopt(i, fw, off) {
+			// The engine closed while this node was starting, so nothing is
+			// left that would ever tick it or shut it down. Stopped here or it
+			// is a MeshCore process with no owner, running until the whole
+			// application exits.
+			_ = fw.Close()
+			fail(fmt.Errorf("%s: %w", n.specRef().Name, errClosedDuringAttach))
+			return
+		}
 		mu.Lock()
 		attached++
 		mu.Unlock()
@@ -292,6 +311,39 @@ func (e *Engine) AttachNativeProgress(ctx context.Context, seed uint64, progress
 			attached, attached+failed, failed, firstErr)
 	}
 	return nil
+}
+
+// errClosedDuringAttach is what an attach says about a node it started, or was
+// about to start, for an engine that has since been closed.
+//
+// Reported rather than absorbed, and reported as a failure: the caller asked
+// for firmware on a network that no longer exists, and answering "started"
+// would have the session counting nodes it does not own.
+var errClosedDuringAttach = errors.New("the engine closed while its firmware was starting")
+
+// isClosed says whether Close has already run.
+func (e *Engine) isClosed() bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.closed
+}
+
+// adopt hands a node that has finished starting to the engine, and reports
+// whether the engine took it.
+//
+// The check and the assignment are one critical section on purpose. Split, the
+// window between them is exactly where Close walks the node list, finds this
+// node still empty, closes nothing, and leaves the process the assignment is
+// about to store behind for the life of the workbench.
+func (e *Engine) adopt(i int, fw *firmware.Node, bootOffsetMs uint32) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.closed {
+		return false
+	}
+	e.nodes[i].Firmware = fw
+	e.nodes[i].BootOffsetMs = bootOffsetMs
+	return true
 }
 
 // attachBudget is how long a firmware process gets to connect back, scaled by
