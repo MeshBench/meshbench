@@ -109,6 +109,7 @@ still carries two lists.
 | `AllowFlood` | `bool` | yes | relays floods it has no region for |
 | `Selected` | `bool` | via `Select` | part of the current selection |
 | `Pattern` | `[]float64` | no | antenna gain in dBi every 10° from north |
+| `Antenna` | `Antenna` | yes³ | what the antenna is and where it points |
 
 ¹ No verb sets height or power on an existing node today; both are settable at
 `Place`. Named here as a gap rather than left to be discovered — it belongs
@@ -119,6 +120,10 @@ with the other missing verbs in
 `210d9ec`, because a board image is not a build on its own — "wadamesh" means
 nothing until it is wadamesh for a LilyGo_TDeck, built as a companion. What is
 still missing is a board on `nodes.place`, which is #216.
+
+³ Through `SetAntenna` and `Aim`, not by assignment. The fleet-level form is
+`wb.nodes.set_antenna(...)`, which is what a 58-node scenario needs: the same
+verb with the node filter left off.
 
 ### What it is doing — from `state.NodeStat`
 
@@ -150,6 +155,9 @@ still missing is a board on `nodes.place`, which is #216.
 | `Select(add=False)` | `nodes.select` / `nodes.add_to_selection` | |
 | `SetFirmware(build, apply=True)` | `node.set_firmware` / `_only` | `apply` stops, provisions and restarts; without it the build is recorded and takes effect at the next start |
 | `AdoptRadio()` | `node.radio_adopt` | take the chip's reported power as the scenario's |
+| `Antenna()` → `Antenna` | `node.antenna` | which sort, its numbers, and which way it faces |
+| `SetAntenna(change)` | `nodes.antenna` | what is left nil is left alone, so turning a beam does not restate the beam |
+| `Aim(at)` → `Aimed` | `node.aim` | point it at another node; the reply says what the turn won |
 | `Inject(payload=None)` | `sim.inject` | originate without firmware: exercises the radio model, not relaying |
 | `Energy()` → `Energy` | `node.energy` | |
 | `Coverage()` → `Coverage` | `coverage.compute` | |
@@ -184,6 +192,45 @@ has never heard of is worse than a string, because it looks checked.
 | `sdr-observer` | runs no firmware, transmits nothing, hands back IQ |
 | `emitter` | external interference: a mast carrying something that is not MeshCore |
 
+### Antenna
+
+**snapshot.** `node.Antenna()`. What a node stands under, in the same words the
+verb that sets it takes, so what comes back can be handed straight back in.
+
+| field | type | meaning |
+|---|---|---|
+| `Pattern` | `string` | `isotropic`, `dipole`, `collinear`, `yagi`, or `""` for a node with no antenna at all |
+| `GainDBiPeak` | `float64` | the headline figure, for a collinear or a yagi |
+| `BeamwidthDeg` | `float64` | a yagi's horizontal half-power beamwidth |
+| `FrontToBackDB` | `float64` | how far down its back is on its front |
+| `BearingDeg` | `float64` | compass bearing of boresight, 0 at north |
+| `DowntiltDeg` | `float64` | degrees the beam is tilted below the horizon |
+| `Polarisation` | `string` | `vertical`, `horizontal`, `circular`, or `""` for unstated |
+| `FeedlineDB` | `float64` | cable and connector loss, a positive number |
+| `PeakDBi` | `float64` | what the pattern manages on its own boresight, before the feedline |
+
+`""` for the pattern is not an omni at 0 dBi. It is a node that has no antenna,
+which the engine credits no gain and the map draws no overlay for, and it is
+reported rather than filled in.
+
+Polarisation is priced against the far end, not on its own: unstated costs
+nothing, 3 dB circular against linear, 20 dB vertical against horizontal. See
+`docs/shortcomings.md` §1.8 for what that figure is and is not.
+
+### Aimed
+
+**snapshot.** What `node.Aim(at)` answers with.
+
+| field | type | meaning |
+|---|---|---|
+| `Node`, `At` | `string` | which antenna was turned, and at what |
+| `BearingDeg` | `float64` | where it now points |
+| `DistanceKm` | `float64` | how far away the far end is |
+| `GainDBi` | `float64` | what this node now manages towards it, feedline deducted |
+
+`GainDBi` is the point of it. On an omni the answer is the same as before, and
+a call that reported success while changing nothing would be one to distrust.
+
 ## NodeSet
 
 **live.** `wb.Nodes`. Iterable, indexable by name, filterable.
@@ -203,6 +250,7 @@ has never heard of is worse than a string, because it looks checked.
 | `Selected` | — | who is selected now |
 | `OfKind(kind)`, `Running`, `Stopped` | — | filters, evaluated client-side |
 | `Stats()` | `nodes.stats` | the rows, not a count of them |
+| `SetAntenna(kind, change)` | `nodes.antenna` | the fleet-level default: every node, or every node of one kind |
 
 Names and handles are interchangeable wherever a node is named: `Search` and
 `Near` hand back handles and every verb takes a name, so the client converts

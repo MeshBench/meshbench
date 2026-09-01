@@ -183,3 +183,36 @@ func TestTermsSumToTheOneWayMargin(t *testing.T) {
 		t.Fatalf("terms sum to %.6f, one-way margin is %.6f", sum, got)
 	}
 }
+
+// Polarisation is priced, and priced against the far end rather than on its
+// own. Before this it was a field somebody could set and nothing would read.
+func TestAPolarisationMismatchCostsTheLink(t *testing.T) {
+	polarised := func(n scenario.Node, p antenna.Polarisation) scenario.Node {
+		n.Antenna.Polarisation = p
+		return n
+	}
+	a := at(node(22, 6, 0.8, 10), 56.0, -4.0)
+	b := at(node(14, 2.15, 0.2, 10), 56.0, -3.0)
+	const loss = 131.5
+
+	matched := OneWayDB(polarised(a, antenna.Vertical), polarised(b, antenna.Vertical), loss)
+	crossed := OneWayDB(polarised(a, antenna.Vertical), polarised(b, antenna.Horizontal), loss)
+	if got := matched - crossed; math.Abs(got-20) > 1e-9 {
+		t.Errorf("a vertical mast against a horizontal one lost %.2f dB, wanted 20", got)
+	}
+	// Unstated stays free, so a scenario built before anybody chose is priced
+	// exactly as it always was.
+	if got := OneWayDB(a, b, loss); math.Abs(got-matched) > 1e-9 {
+		t.Errorf("a scenario that says nothing about polarisation moved by %.2f dB",
+			matched-got)
+	}
+	// And the breakdown still adds up with the new line in it.
+	var sum float64
+	for _, term := range Terms(polarised(a, antenna.Vertical), polarised(b, antenna.Circular), loss) {
+		sum += term.DB
+	}
+	want := OneWayDB(polarised(a, antenna.Vertical), polarised(b, antenna.Circular), loss)
+	if math.Abs(sum-want) > 1e-9 {
+		t.Errorf("terms sum to %.6f, one-way margin is %.6f", sum, want)
+	}
+}

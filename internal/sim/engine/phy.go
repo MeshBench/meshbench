@@ -10,6 +10,7 @@ import (
 	"math"
 
 	"github.com/MeshBench/meshbench/internal/mesh/packet"
+	"github.com/MeshBench/meshbench/internal/rf/antenna"
 	"github.com/MeshBench/meshbench/internal/rf/dsp"
 	"github.com/MeshBench/meshbench/internal/rf/geo"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
@@ -105,12 +106,19 @@ func gainTowards(n *scenario.Node, bearingDeg, elevationDeg float64) float64 {
 }
 
 // rxPowerDBm is what one node's transmission delivers at another's antenna:
-// transmit power, both patterns evaluated towards each other, and the path
-// loss between them. Every judgement in the package is built on this one
-// line, so there is one place a decibel can go missing rather than eleven.
+// transmit power, both patterns evaluated towards each other, the path loss
+// between them, and what the two ends' polarisations cost each other. Every
+// judgement in the package is built on this one line, so there is one place a
+// decibel can go missing rather than eleven.
+//
+// The polarisation term is charged here rather than folded into either end's
+// gain because it belongs to neither: it is what the pair loses, and a handheld
+// held sideways is only mismatched with respect to the mast it is talking to.
 func (e *Engine) rxPowerDBm(nodes []*Node, from, to int, lossDB float64) float64 {
 	txDBi, rxDBi := e.linkGainsDBi(nodes, from, to)
-	return nodes[from].specRef().TxPowerDBm + txDBi - lossDB + rxDBi
+	crossPol := antenna.MismatchLossDB(
+		nodes[from].specRef().Antenna, nodes[to].specRef().Antenna)
+	return nodes[from].specRef().TxPowerDBm + txDBi - lossDB + rxDBi - crossPol
 }
 
 // groundAt is the terrain elevation under a node, measured once and kept on

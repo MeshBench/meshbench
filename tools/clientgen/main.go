@@ -150,6 +150,8 @@ var tabs = []set{
 	{"TabSDR", "SDR", "SDR", "an observer's antenna: serve it, read the address"},
 	{"TabSettings", "SETTINGS", "Settings", "what this node is: identity, radio, regions, firmware"},
 	{"TabRadio", "RADIO", "Radio", "what the chip is really doing"},
+	{"TabAntenna", "ANTENNA", "Antenna",
+		"what this node stands under and which way it points"},
 	{"TabStats", "STATS", "Stats", "what it has cost and what it has carried"},
 	{"TabActivity", "ACTIVITY", "Activity", "what it has heard and sent, in order"},
 	{"TabConnect", "CONNECT", "Connect", "hand this companion to a real client"},

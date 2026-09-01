@@ -11,6 +11,7 @@ package linkbudget
 import (
 	"math"
 
+	"github.com/MeshBench/meshbench/internal/rf/antenna"
 	"github.com/MeshBench/meshbench/internal/rf/dsp"
 	"github.com/MeshBench/meshbench/internal/rf/geo"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
@@ -91,6 +92,17 @@ func SensitivityDBm(n scenario.Node) float64 {
 	return NoiseFloorDBm(n) + RequiredSNRDB(n)
 }
 
+// CrossPolDB is what this pair's polarisations cost each other, as a positive
+// loss.
+//
+// A property of the pair rather than of either end, which is why it is not
+// inside GainDBi: an antenna is not mismatched on its own, only with respect to
+// the one it is talking to. Two ends that have not said what they are cost
+// nothing, so a scenario built before anybody chose is priced as it always was.
+func CrossPolDB(a, b scenario.Node) float64 {
+	return antenna.MismatchLossDB(a.Antenna, b.Antenna)
+}
+
 // OneWayDB is the margin at b for a transmission from a, given the path loss
 // between them. Positive closes.
 //
@@ -102,7 +114,8 @@ func SensitivityDBm(n scenario.Node) float64 {
 // Each end's antenna is evaluated towards the other, so a beam pointed
 // somewhere else pays for it here rather than in a footnote.
 func OneWayDB(a, b scenario.Node, lossDB float64) float64 {
-	return a.TxPowerDBm + GainDBi(a, b) - lossDB + GainDBi(b, a) - SensitivityDBm(b)
+	return a.TxPowerDBm + GainDBi(a, b) - lossDB + GainDBi(b, a) -
+		CrossPolDB(a, b) - SensitivityDBm(b)
 }
 
 // MarginDB is the weaker of the two directions.
@@ -134,6 +147,7 @@ func Terms(a, b scenario.Node, lossDB float64) []Term {
 		{"antenna, transmitting", GainDBi(a, b)},
 		{"path loss", -lossDB},
 		{"antenna, receiving", GainDBi(b, a)},
+		{"polarisation mismatch", -CrossPolDB(a, b)},
 		{"receiver sensitivity", -SensitivityDBm(b)},
 	}
 }

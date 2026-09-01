@@ -245,6 +245,41 @@ node.delete()
 provision, start — and it is said here because a script that pins firmware
 mid-run has restarted a node mid-measurement.
 
+Antennas are chosen and aimed here too, which is the first thing a real
+deployment involves: a hilltop repeater with a beam down a valley is ordinary
+practice, and where to point it is exactly the question this tool exists to
+answer.
+
+```python
+node.antenna                                    # -> Antenna: sort, gain, bearing
+node.set_antenna(pattern="yagi", gain_dbi_peak=12,
+                 beamwidth_deg=45, front_to_back_db=22)
+node.set_antenna(bearing_deg=217, downtilt_deg=3)
+node.aim("Bishop Hill")                         # -> Aimed: bearing and what it won
+wb.nodes.set_antenna(gain_dbi_peak=8)           # every node
+wb.nodes.set_antenna(Kind.SIMPLE_REPEATER, downtilt_deg=2)
+```
+
+`set_antenna` changes only what it is named, so turning a beam does not restate
+the beam, and the fleet form is the same verb with the node filter left off,
+which is what a 58-node scenario needs.
+
+A sweep over bearings is the study this affords, and it is worth spelling out
+because it is the shape scripted use takes here:
+
+```python
+for bearing in range(0, 360, 15):
+    node.set_antenna(bearing_deg=bearing)
+    wb.wait_idle()
+    print(bearing, wb.links.pair(node, "Bishop Hill"))
+```
+
+`aim` is the better answer when the target is another node: the bearing between
+two placed positions is exact, and reading one off a map and typing it back is
+not. What it returns says what the turn won, which on an omni is nothing at
+all - a call that reported success while changing nothing would be one to
+distrust.
+
 ### `wb.sim`
 
 ```python

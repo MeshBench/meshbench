@@ -31,6 +31,21 @@ func CrossPolLossDB(a, b Polarisation) float64 {
 	}
 }
 
+// MismatchLossDB is what a pair of mounted antennas lose to each other's
+// polarisation, and nothing at all where either has not said what it is.
+//
+// The pair, not one end: polarisation costs decibels only in relation to
+// something else, and CrossPolLossDB alone had no caller for exactly that
+// reason. Unstated has to be free rather than orthogonal, because "" against
+// "vertical" is a scenario nobody described, and charging it 20 dB would take
+// every link in an older network off the air on the strength of a blank field.
+func MismatchLossDB(a, b Mounted) float64 {
+	if a.Polarisation == "" || b.Polarisation == "" {
+		return 0
+	}
+	return CrossPolLossDB(a.Polarisation, b.Polarisation)
+}
+
 // Pattern gives gain in dBi for a direction in the antenna's own frame.
 // azimuthDeg is 0 at boresight, elevationDeg positive above the horizon.
 type Pattern interface {

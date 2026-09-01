@@ -10,6 +10,7 @@ package session
 import (
 	"github.com/MeshBench/meshbench/internal/app/fixture"
 	"github.com/MeshBench/meshbench/internal/app/state"
+	"github.com/MeshBench/meshbench/internal/rf/antenna"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
@@ -77,6 +78,7 @@ func statesFromScene(scene []scenario.Node) []state.Node {
 			TrueRF:   n.TrueRF,
 			Selected: i == 0,
 			Pattern:  patternOf(n),
+			Antenna:  antennaOf(n),
 		})
 	}
 	return out
@@ -113,4 +115,30 @@ func patternOf(n scenario.Node) []float64 {
 		out[i] = n.Antenna.GainTowardsDBi(float64(i)*360/patternSamples, 0)
 	}
 	return out
+}
+
+// antennaOf is what a node's antenna is, in the words it was chosen in, for the
+// form that edits it.
+//
+// A pattern this package cannot describe leaves the type empty, which the panel
+// says out loud. Guessing at a name would put a control on screen offering to
+// change an antenna into something it never was.
+func antennaOf(n scenario.Node) state.Antenna {
+	if n.Antenna.Pattern == nil {
+		return state.Antenna{}
+	}
+	shape, err := antenna.ShapeOf(n.Antenna.Pattern)
+	if err != nil {
+		return state.Antenna{}
+	}
+	return state.Antenna{
+		Type:          shape.Type,
+		GainDBiPeak:   shape.GainDBiPeak,
+		BeamwidthDeg:  shape.BeamwidthDeg,
+		FrontToBackDB: shape.FrontToBackDB,
+		BearingDeg:    n.Antenna.BearingDeg,
+		DowntiltDeg:   n.Antenna.DowntiltDeg,
+		Polarisation:  string(n.Antenna.Polarisation),
+		FeedlineDB:    n.Antenna.FeedlineDB,
+	}
 }

@@ -76,6 +76,8 @@ type nodeWindowPanel struct {
 	// cardCtl is the card slot's own controls, drawn in the Hardware tab
 	// because a card is hardware.
 	cardCtl cardControls
+	// ant is the antenna form: the sort, its numbers, and where it points.
+	ant antennaControls
 	// bar is that title bar, and maximised is its restore state, both owned
 	// here so the widget's address never changes across frames. The window
 	// loop polls them; the panel only draws.
@@ -116,7 +118,7 @@ func (p *nodeWindowPanel) visibleTabs() []nodeTab {
 	var tabs []nodeTab
 	switch {
 	case p.isCompanion():
-		tabs = []nodeTab{tabCompanion, tabSettings, tabRadio,
+		tabs = []nodeTab{tabCompanion, tabSettings, tabRadio, tabAntenna,
 			tabStats, tabActivity, tabConnect}
 	case p.isObserver():
 		// No console and no Radio tab: an observer runs no firmware and has
@@ -126,9 +128,12 @@ func (p *nodeWindowPanel) visibleTabs() []nodeTab {
 		// No Hardware tab either, and that one is not about tidiness: an
 		// observer is not a board. It has no screen to draw and no button to
 		// press, so there is nothing for the tab to be.
-		return []nodeTab{tabSDR, tabSettings, tabStats, tabActivity}
+		// An observer has an antenna like everything else: it is the whole of
+		// what it is, and which way it points decides what it hears.
+		return []nodeTab{tabSDR, tabSettings, tabAntenna, tabStats, tabActivity}
 	default:
-		tabs = []nodeTab{tabConsole, tabSettings, tabRadio, tabStats, tabActivity}
+		tabs = []nodeTab{tabConsole, tabSettings, tabRadio, tabAntenna,
+			tabStats, tabActivity}
 	}
 	// Whatever the node's role. The hardware belongs to the board, not to the
 	// application running on it - a companion on a T-Deck has the same screen
@@ -154,6 +159,7 @@ func (p *nodeWindowPanel) clicks(gtx layout.Context) {
 		}
 	}
 	p.outputClicks(gtx)
+	p.antennaClicks(gtx)
 	if p.start.Click.Clicked(gtx) && p.OnAction != nil {
 		p.OnAction("node.start", p.node)
 	}
@@ -271,6 +277,8 @@ func (p *nodeWindowPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snap
 				return p.settings(t, gtx, s)
 			case tabRadio:
 				return p.radio(t, gtx, s)
+			case tabAntenna:
+				return p.antenna(t, gtx, s)
 			case tabActivity:
 				return p.activity(t, gtx, s)
 			case tabConnect:
@@ -386,8 +394,12 @@ func (p *nodeWindowPanel) auditDraw(t *theme.Theme, gtx layout.Context, s *state
 			// everything it would leave nothing for the tabs below it. The
 			// figure is what is left once every other pane has its own
 			// bound - the card slot's row took the last of the slack, and
-			// the console's send button went off the bottom.
-			gtx.Constraints.Max.Y = gtx.Dp(250)
+			// the console's send button went off the bottom. It came down
+			// again when the antenna form arrived below it, for the same
+			// reason and with the same symptom: this is the pane that gives
+			// way, because it is the one whose own controls are pinned to
+			// its edges rather than spread down it.
+			gtx.Constraints.Max.Y = gtx.Dp(150)
 			return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx,
 				func(gtx layout.Context) layout.Dimensions { return p.settings(t, gtx, s) })
 		}),
@@ -408,6 +420,17 @@ func (p *nodeWindowPanel) auditDraw(t *theme.Theme, gtx layout.Context, s *state
 				func(gtx layout.Context) layout.Dimensions {
 					p.wireTrueRF(gtx, s)
 					return p.trueRF.LayoutSwitch(t, gtx)
+				})
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			// The antenna form, which lives behind its own tab. Bounded, and
+			// without its prose: the honesty line about cross-polarisation is
+			// three lines of caption and would push the console's send button
+			// off the bottom of the canvas.
+			gtx.Constraints.Max.Y = gtx.Dp(100)
+			return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx,
+				func(gtx layout.Context) layout.Dimensions {
+					return p.antennaAuditRows(t, gtx, s)
 				})
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {

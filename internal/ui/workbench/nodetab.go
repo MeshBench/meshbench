@@ -25,6 +25,10 @@ const (
 	tabSDR
 	tabSettings
 	tabRadio
+	// tabAntenna is what this node stands under and where it points. Beside
+	// Radio because the two are the same signal path, and apart from it
+	// because Radio reports what the chip says and this decides something.
+	tabAntenna
 	tabStats
 	tabActivity
 	tabConnect
@@ -52,6 +56,8 @@ func (n nodeTab) String() string {
 		return "Settings"
 	case tabRadio:
 		return "Radio"
+	case tabAntenna:
+		return "Antenna"
 	case tabStats:
 		return "Stats"
 	case tabActivity:

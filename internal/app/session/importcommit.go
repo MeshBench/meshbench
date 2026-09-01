@@ -347,6 +347,13 @@ func stateNodes(nodes []scenario.Node) []state.Node {
 			Firmware: n.Firmware.Version, Board: n.Firmware.Board,
 			Hardware: n.Board,
 			Selected: i == 0,
+			// The antenna as well as everything else. This converter serves
+			// import, placement and the bulk verbs, and left without them a
+			// network that had just been imported drew no pattern and offered
+			// no antenna to edit, while the same network loaded from a fixture
+			// did both.
+			Pattern: patternOf(n),
+			Antenna: antennaOf(n),
 		})
 	}
 	return out

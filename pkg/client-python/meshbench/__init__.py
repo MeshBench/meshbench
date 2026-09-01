@@ -60,6 +60,8 @@ from .sets import (
 )
 from .subscribe import Notification, Subscription, subscribe
 from .types import (
+    Aimed,
+    Antenna,
     Build,
     BuildDetails,
     CardSlot,
@@ -104,6 +106,8 @@ __all__ = [
     "BadParams",
     "Build",
     "BuildDetails",
+    "Aimed",
+    "Antenna",
     "CardSlot",
     "Closing",
     "Conflict",

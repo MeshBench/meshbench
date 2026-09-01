@@ -62,18 +62,7 @@ func (p *nodeWindowPanel) settings(t *theme.Theme, gtx layout.Context, s *state.
 		p.OnAction("node.energy", p.node)
 	}
 
-	head := func(sec string) layout.Widget {
-		return func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Top: t.Sp.S, Bottom: t.Sp.XS}.Layout(gtx,
-				func(gtx layout.Context) layout.Dimensions {
-					return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-						layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Dim, strings.ToUpper(sec))),
-						layout.Rigid(layout.Spacer{Width: t.Sp.S}.Layout),
-						layout.Flexed(1, comp.HRule(t)),
-					)
-				})
-		}
-	}
+	head := func(sec string) layout.Widget { return comp.SectionRule(t, sec) }
 	// The build and the hardware it is for, together. A version on its own
 	// says nothing about which board it runs on, and that is exactly the pair
 	// somebody comes to this section to check.

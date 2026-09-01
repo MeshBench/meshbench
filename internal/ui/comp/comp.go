@@ -8,6 +8,7 @@ package comp
 import (
 	"image"
 	"image/color"
+	"strings"
 
 	"gioui.org/f32"
 	"gioui.org/font"
@@ -128,6 +129,26 @@ func SectionTitle(t *theme.Theme, s string) layout.Widget {
 		l.Color = t.P.Dim
 		l.Font.Weight = font.Medium
 		return l.Layout(gtx)
+	}
+}
+
+// SectionRule is a small caption with a rule running out from it, for dividing
+// one pane into named parts.
+//
+// Distinct from SectionTitle, which names a whole panel: this one is a caption
+// inside a pane, and the rule is what makes it a divider rather than a heading.
+// Here rather than copied into each pane that wants one, because two copies of
+// a divider drift in exactly the way nobody notices until they are side by side.
+func SectionRule(t *theme.Theme, label string) layout.Widget {
+	return func(gtx layout.Context) layout.Dimensions {
+		return layout.Inset{Top: t.Sp.S, Bottom: t.Sp.XS}.Layout(gtx,
+			func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+					layout.Rigid(Text(t, t.Sz.Caption, t.P.Dim, strings.ToUpper(label))),
+					layout.Rigid(layout.Spacer{Width: t.Sp.S}.Layout),
+					layout.Flexed(1, HRule(t)),
+				)
+			})
 	}
 }
 

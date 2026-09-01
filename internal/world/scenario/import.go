@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	hw "github.com/MeshBench/meshbench/internal/firmware/board"
-	"github.com/MeshBench/meshbench/internal/rf/antenna"
 	"github.com/MeshBench/meshbench/internal/world/provider"
 )
 
@@ -138,11 +137,7 @@ func Import(records []provider.NodeRecord, o ImportOptions) (ImportResult, error
 			Radio:         o.Radio,
 			NoiseFigureDB: profile.NoiseFigureDB,
 			FEM:           profile.FEM,
-			Antenna: antenna.Mounted{
-				Pattern:      antenna.Collinear{GainDBiPeak: profile.AntennaDBi + 4},
-				Polarisation: "vertical",
-				FeedlineDB:   profile.FeedlineDB,
-			},
+			Antenna:       BoardAntenna(profile),
 		}
 		if n.Kind.Transmits() {
 			n.TxPowerDBm = profile.MaxTxDBm
