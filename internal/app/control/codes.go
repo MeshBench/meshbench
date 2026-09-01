@@ -43,6 +43,11 @@ const (
 	// so a client learns it cannot be understood rather than watching one verb
 	// answer strangely.
 	ProtocolMismatch Code = "protocol_mismatch"
+	// VersionMismatch is a released client driving a workbench from another
+	// release. Separate from ProtocolMismatch because the two have different
+	// remedies: one end has to be rebuilt against the other's wire, or the
+	// pair simply has to be made the same release.
+	VersionMismatch Code = "version_mismatch"
 	// Unauthorised is a loopback connection that did not present the token.
 	//
 	// Only reachable on the TCP transport, where the port is open to any local

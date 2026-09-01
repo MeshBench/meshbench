@@ -25,6 +25,7 @@ from .boundary import Boundary
 from .checks import Assertions, Schedule
 from .live import Live
 from .nodes import Node, Nodes
+from .pairing import paired_release, pairing_note, release
 from .parts import Console, Events, Firmware, Job, Project, Sim
 from .sessions import Session
 from .sets import Tab
@@ -46,6 +47,10 @@ class Workbench:
         self._conn = conn
         self._process = process
         self.hello = Hello()
+        #: What became of the release check at connect: empty when the two ends
+        #: compared equal, and a sentence naming what was skipped and why when
+        #: one of them was not a release build.
+        self.version_check = ""
         self._greet()
 
     # ---- connecting ------------------------------------------------------
@@ -230,22 +235,35 @@ class Workbench:
         return wb
 
     def _greet(self) -> None:
-        """Ask what this is, and refuse a build this client cannot speak to."""
+        """Ask what this is, and refuse a build this client cannot speak to.
+
+        Refused at both ends. The workbench has already turned away a version it
+        will not serve, on the frame this client declared it on, so the
+        comparisons here look redundant. They are not: a workbench old enough to
+        predate the declaration ignores it and serves the connection anyway, and
+        this end is then the only one left that can notice.
+        """
         try:
             reply = self.call("session.hello")
         except errors.Refused as e:
-            if e.code != "protocol_mismatch":
-                raise
-            # The workbench refused the connection over the version this client
+            # The workbench refused the connection over what this client
             # declared. Raised as the mismatch it is rather than as
             # session.hello failing, which is the confusion the declaration
             # exists to end.
-            raise errors.ProtocolMismatch(PROTOCOL, 0, said=e.message) from None
+            if e.code == "protocol_mismatch":
+                raise errors.ProtocolMismatch(PROTOCOL, 0, said=e.message) from None
+            if e.code == "version_mismatch":
+                raise errors.VersionMismatch(release(), "", said=e.message) from None
+            raise
         self.hello = Hello.parse(reply)
         if self.hello.protocol != PROTOCOL:
             raise errors.ProtocolMismatch(
                 PROTOCOL, self.hello.protocol, self.hello.version, self.hello.socket
             )
+        ours = release()
+        if not paired_release(ours, self.hello.release):
+            raise errors.VersionMismatch(ours, self.hello.release)
+        self.version_check = pairing_note(ours, self.hello.release)
 
     # ---- lifetime --------------------------------------------------------
 

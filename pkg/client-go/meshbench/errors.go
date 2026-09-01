@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"github.com/MeshBench/meshbench/internal/app/control"
+	"github.com/MeshBench/meshbench/internal/app/version"
 )
 
 // The refusals, one per code. Match with errors.Is.
@@ -75,6 +76,34 @@ func (p *ProtocolMismatch) Error() string {
 		p.Client, p.Workbench.Socket, p.Workbench.Protocol, p.Workbench.Version)
 }
 
+// VersionMismatch is a released client driving a workbench from a different
+// release, reported at connect rather than discovered later.
+//
+// Distinct from ProtocolMismatch, and from a verb's Refused, because a script
+// has to be able to tell "these two were never meant to be used together" from
+// "this build declined what I asked". The remedies have nothing in common.
+type VersionMismatch struct {
+	// Client and Workbench are the releases each end belongs to, as they are
+	// spelled on PyPI, npm and the release page.
+	Client    string
+	Workbench string
+	// Said is the workbench's own refusal when it was the end that noticed,
+	// kept whole. Empty when this client noticed first, which happens against
+	// a build old enough to ignore what the client declared.
+	Said string
+}
+
+func (v *VersionMismatch) Error() string {
+	if v.Said != "" {
+		return v.Said
+	}
+	return fmt.Sprintf(
+		"this client is from MeshBench %s and this workbench is MeshBench %s. "+
+			"A client and the workbench it drives must be the same release: "+
+			"install the %s client, or run the %s workbench",
+		v.Client, v.Workbench, v.Workbench, v.Client)
+}
+
 // asMismatch turns a workbench's refusal of this client's declared wire
 // version into the typed mismatch, and leaves every other failure as it was.
 //
@@ -84,8 +113,14 @@ func (p *ProtocolMismatch) Error() string {
 // the confusion the declaration exists to end.
 func asMismatch(err error) error {
 	var refused *Refused
-	if errors.As(err, &refused) && refused.Code == control.ProtocolMismatch {
+	if !errors.As(err, &refused) {
+		return fmt.Errorf("client: %w", err)
+	}
+	switch refused.Code {
+	case control.ProtocolMismatch:
 		return &ProtocolMismatch{Client: control.Protocol, Said: refused.Message}
+	case control.VersionMismatch:
+		return &VersionMismatch{Client: version.Release(), Said: refused.Message}
 	}
 	return fmt.Errorf("client: %w", err)
 }

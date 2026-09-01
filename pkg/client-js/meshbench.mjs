@@ -37,6 +37,62 @@ import path from "node:path";
  *  refused rather than failing halfway through a script. */
 export const PROTOCOL = 1;
 
+/** The release this client belongs to, as npm spells it.
+ *
+ *  Read from its own package.json rather than kept as a second literal here:
+ *  the release workflow runs `npm version`, which rewrites that file and
+ *  nothing else, and a copy in this module would be a copy somebody has to
+ *  remember. Empty if it cannot be read, which is the same thing a build from a
+ *  working copy would say and is treated the same way. */
+export const RELEASE = readRelease();
+
+function readRelease() {
+  try {
+    const p = new URL("./package.json", import.meta.url);
+    return JSON.parse(fs.readFileSync(p, "utf8")).version || "";
+  } catch {
+    return "";
+  }
+}
+
+/** Whether these two releases may be used together: an exact match, or one of
+ *  the two ends not being a release at all.
+ *
+ *  A client and the workbench it drives must be the same release. The protocol
+ *  number says whether two ends can understand each other's frames; it moves
+ *  rarely and on purpose, so it cannot answer the question a script actually
+ *  has, which is whether this package is the one that came with the workbench
+ *  it is pointed at.
+ *
+ *  The second half of the rule is what keeps the tree usable by the people
+ *  working on it: a workbench built from a working copy has no release stamped
+ *  in it, so insisting on equality would refuse every pair a developer has, for
+ *  a disagreement that does not exist. Nothing is lost, because what the rule
+ *  catches is a released client meeting a released workbench of another number,
+ *  and both ends of that pair carry their stamp. */
+export function pairedRelease(ours, theirs) {
+  return !ours || !theirs || ours === theirs;
+}
+
+/** What to say about a check that did not compare anything, so a pair nothing
+ *  verified is visible rather than quietly assumed sound. Returned rather than
+ *  logged: a client is a library, and a script that wants the line can print
+ *  it. */
+export function pairingNote(ours, theirs) {
+  if (!ours && !theirs) {
+    return "release check skipped: neither this client nor the workbench is a release build";
+  }
+  if (!ours) {
+    return "release check skipped: this client is a development build; " +
+      `the workbench is ${theirs}`;
+  }
+  if (!theirs) {
+    return "release check skipped: the workbench is a development build; " +
+      `this client is ${ours}`;
+  }
+  return "";
+}
+
 /** How long a call waits for a reply before it gives up, unless a caller says
  *  otherwise. Matches the Python client's socket timeout, so a script ported
  *  between the two waits the same length of time before it hears about a
@@ -110,11 +166,56 @@ export class WorkbenchError extends Error {
     /** How the refusal was classified, so a caller can branch on it instead of
      *  on prose: the workbench's own code (`not_found`, `conflict`, `closing`
      *  and the rest the control socket defines) when a verb was refused, and
-     *  `protocol` when this client was the end that refused, at the handshake.
-     *  Empty when a refusal arrived without one, so test it rather than assume
-     *  it is set. */
+     *  `protocol_mismatch` or `version_mismatch` when this client was the end
+     *  that refused, at the handshake - the same two the workbench uses, so a
+     *  script branching on the code need not care which end noticed. Empty when
+     *  a refusal arrived without one, so test it rather than assume it is set. */
     this.code = code || "";
   }
+}
+
+/** A client and a workbench that cannot speak to each other's frames.
+ *
+ *  Its own class rather than a `WorkbenchError` carrying a code, because a
+ *  script has to be able to tell "these two cannot talk" from "this build
+ *  declined what I asked" with `instanceof`, and the two remedies have nothing
+ *  in common. */
+export class ProtocolMismatch extends WorkbenchError {
+  constructor(message, { client = PROTOCOL, workbench = 0 } = {}) {
+    super(message, "protocol_mismatch");
+    this.name = "ProtocolMismatch";
+    /** The wire version each end speaks. `workbench` is 0 when the workbench
+     *  refused the connection before it would say what it was. */
+    this.client = client;
+    this.workbench = workbench;
+  }
+}
+
+/** A released client driving a workbench from a different release.
+ *
+ *  Separate from ProtocolMismatch: two ends can understand each other's frames
+ *  perfectly and still be a pair nobody ever built or tested together. */
+export class VersionMismatch extends WorkbenchError {
+  constructor(message, { client = RELEASE, workbench = "" } = {}) {
+    super(message, "version_mismatch");
+    this.name = "VersionMismatch";
+    /** The release each end belongs to. `workbench` is empty when the
+     *  workbench refused before it would say what it was. */
+    this.client = client;
+    this.workbench = workbench;
+  }
+}
+
+/** The workbench's refusal of what this client declared, as the mismatch it is
+ *  rather than as whichever call happened to be in flight failing - which is
+ *  the confusion the declaration exists to end. Everything else is left alone.
+ */
+function asMismatch(e) {
+  if (e instanceof ProtocolMismatch || e instanceof VersionMismatch) return e;
+  if (!(e instanceof WorkbenchError)) return e;
+  if (e.code === "protocol_mismatch") return new ProtocolMismatch(e.message);
+  if (e.code === "version_mismatch") return new VersionMismatch(e.message);
+  return e;
 }
 
 /** One connection to a workbench, and the queue that keeps two callers from
@@ -135,6 +236,10 @@ export class Workbench {
     this._callTimeoutMs = callTimeoutMs;
     this._nextId = 0;
     this._buf = "";
+    /** What became of the release check at connect: empty when the two ends
+     *  compared equal, and a sentence naming what was skipped and why when one
+     *  of them was not a release build. Set by `hello()`. */
+    this.versionCheck = "";
     this._waiters = []; // FIFO: the workbench answers in order.
     this._closed = null;
     sock.setEncoding("utf8");
@@ -194,8 +299,11 @@ export class Workbench {
         clearTimeout(timer);
         sock.removeAllListeners("error");
         // The token first, before anything else on the wire, where the OS has
-        // no unix socket to stand as the access control. Unix skips it.
-        if (token) sock.write(JSON.stringify({ token }) + "\n");
+        // no unix socket to stand as the access control. Unix skips it, and
+        // declares the same two things on its first request instead.
+        if (token) {
+          sock.write(JSON.stringify({ token, protocol: PROTOCOL, release: RELEASE }) + "\n");
+        }
         const wb = new Workbench(sock, address, callTimeoutMs);
         wb.hello().then(
           () => resolve(wb),
@@ -219,6 +327,14 @@ export class Workbench {
     if (this._closed) return Promise.reject(this._closed);
     const id = ++this._nextId;
     const req = { id, method: verb };
+    if (id === 1) {
+      // Declared on the frame this client was already sending, so a workbench
+      // that cannot serve this client refuses before any verb runs and without
+      // a round trip of its own. Only the first: neither answer can change
+      // while the connection is open.
+      req.protocol = PROTOCOL;
+      req.release = RELEASE;
+    }
     if (params !== undefined && params !== null) req.params = params;
     const budget = timeoutMs === undefined ? this._callTimeoutMs : timeoutMs;
     return new Promise((resolve, reject) => {
@@ -238,16 +354,38 @@ export class Workbench {
     });
   }
 
-  /** Ask the workbench what it is, and refuse a protocol this client does not
-   *  speak. `attach()` calls this itself before handing back a connection, so
-   *  calling it again is only useful to re-check. */
+  /** Ask the workbench what it is, and refuse a build this client may not
+   *  drive: a protocol it does not speak, or a release it was not shipped
+   *  with. `attach()` calls this itself before handing back a connection, so
+   *  calling it again is only useful to re-check.
+   *
+   *  Refused at both ends. The workbench has already turned away a version it
+   *  will not serve, on the frame this client declared it on, so the
+   *  comparisons here look redundant. They are not: a workbench old enough to
+   *  predate the declaration ignores it and serves the connection anyway, and
+   *  this end is then the only one left that can notice. */
   async hello() {
-    const h = await this.call("session.hello");
-    if (h && h.protocol !== undefined && h.protocol !== PROTOCOL) {
-      throw new WorkbenchError(
-        `workbench speaks protocol ${h.protocol}, this client speaks ${PROTOCOL}`,
-        "protocol");
+    let h;
+    try {
+      h = await this.call("session.hello");
+    } catch (e) {
+      throw asMismatch(e);
     }
+    if (h && h.protocol !== undefined && h.protocol !== PROTOCOL) {
+      throw new ProtocolMismatch(
+        `this client speaks control protocol ${PROTOCOL} and the workbench at ` +
+        `${this.address} speaks ${h.protocol}. Upgrade whichever is older`,
+        { workbench: h.protocol });
+    }
+    const theirs = (h && h.release) || "";
+    if (!pairedRelease(RELEASE, theirs)) {
+      throw new VersionMismatch(
+        `this client is from MeshBench ${RELEASE} and this workbench is ` +
+        `MeshBench ${theirs}. A client and the workbench it drives must be the ` +
+        `same release: install the ${theirs} client, or run the ${RELEASE} workbench`,
+        { workbench: theirs });
+    }
+    this.versionCheck = pairingNote(RELEASE, theirs);
     return h;
   }
 
@@ -272,6 +410,17 @@ export class Workbench {
         msg = JSON.parse(line);
       } catch {
         continue; // a frame this client cannot parse is not a reply to fail on
+      }
+      // A frame that answers no request and carries an error is the connection
+      // itself being refused: the token line on loopback TCP is turned away
+      // that way, before any request exists to answer, so the refusal comes
+      // back with id 0. Dropping it turned a sentence naming both releases into
+      // "connection closed", which is the confusion the declaration exists to
+      // end. Failed rather than delivered to a waiter, because there is no
+      // connection left to make a second call on.
+      if (!msg.id && msg.error) {
+        this._fail(asMismatch(new WorkbenchError(msg.error, msg.code)));
+        continue;
       }
       // Notifications (from session.subscribe) carry no id; this request/reply
       // client does not subscribe, so anything without one is ignored.

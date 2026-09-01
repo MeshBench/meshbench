@@ -89,6 +89,32 @@ class ProtocolMismatch(MeshbenchError):
         self.workbench = workbench
 
 
+class VersionMismatch(MeshbenchError):
+    """A released client driving a workbench from a different release.
+
+    Its own class rather than a Refused with a code, because a script has to be
+    able to tell "these two were never meant to be used together" from "this
+    build declined what I asked": the remedies have nothing in common.
+
+    ``said`` carries the workbench's own refusal whole when it was the end that
+    noticed. This client is the one that notices only against a build old enough
+    to ignore what the client declared.
+    """
+
+    def __init__(self, client: str, workbench: str, said: str = "") -> None:
+        super().__init__(
+            said
+            or (
+                f"this client is from MeshBench {client} and this workbench is "
+                f"MeshBench {workbench}. A client and the workbench it drives "
+                f"must be the same release: install the {workbench} client, or "
+                f"run the {client} workbench"
+            )
+        )
+        self.client = client
+        self.workbench = workbench
+
+
 class Timeout(MeshbenchError):
     """A wait that ran out, saying what it wanted and what it last saw.
 

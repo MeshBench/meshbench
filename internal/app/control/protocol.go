@@ -76,17 +76,21 @@ func protocolRefusal(spoken, speaks int) Response {
 }
 
 // welcomed reads the opening frame of a TCP connection and decides whether
-// there is anything to go on with: the token, and then the version.
+// there is anything to go on with: the token, and then the versions.
 //
 // The token first, so a peer that has not proven it may be here does not learn
 // what this build is from the refusal.
+//
+// A skipped check is not noted here but on the first request that follows, so
+// that a connection over either transport says it once and in the same place.
 func (s *Server) welcomed(c net.Conn, dec *json.Decoder, enc *json.Encoder) bool {
 	h, ok := s.authorised(c, dec, enc)
 	if !ok {
 		return false
 	}
-	if !speaksProtocol(h.Protocol) {
-		_ = enc.Encode(protocolRefusal(h.Protocol, Protocol))
+	if refusal, ok := s.greeting(
+		Request{Protocol: h.Protocol, Release: h.Release}, false); !ok {
+		_ = enc.Encode(refusal)
 		return false
 	}
 	return true

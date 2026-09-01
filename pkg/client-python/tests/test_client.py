@@ -20,6 +20,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from datetime import timedelta
 
 import pytest
@@ -124,32 +125,10 @@ def test_this_client_declares_its_protocol_first(tmp_path):
     from meshbench._socket import Connection
 
     path = str(tmp_path / "fake.sock")
-    listener = socket.socket(socket.AF_UNIX)
-    listener.bind(path)
-    listener.listen(1)
-    seen: list[dict] = []
-
-    def serve() -> None:
-        conn, _ = listener.accept()
-        with contextlib.closing(conn):
-            f = conn.makefile("rb")
-            while True:
-                line = f.readline()
-                if not line:
-                    return
-                req = json.loads(line.decode())
-                seen.append(req)
-                conn.sendall(
-                    (json.dumps({"id": req["id"], "result": {}}) + "\n").encode()
-                )
-
-    thread = threading.Thread(target=serve, daemon=True)
-    thread.start()
+    seen = _record_frames(path)
     with contextlib.closing(Connection(path)) as conn:
         conn.call("session.hello")
         conn.call("session.verbs")
-    thread.join(timeout=5)
-    listener.close()
 
     assert seen[0]["protocol"] == meshbench.PROTOCOL
     assert "protocol" not in seen[1]
@@ -169,6 +148,188 @@ def test_a_version_refusal_keeps_the_workbenchs_own_words():
     # And the mismatch this client notices itself still says both numbers.
     own = meshbench.ProtocolMismatch(1, 2, "v9.9.9", "/run/mb.sock")
     assert "1" in str(own) and "2" in str(own) and "Upgrade" in str(own)
+
+
+RELEASED = "9.9.9"
+
+
+@pytest.fixture(scope="session")
+def released_binary() -> str:
+    """A workbench that believes it is a release, built once for the whole run.
+
+    The rule this exercises only applies between two release builds, and there
+    is no other way to make one: the release is a linker flag, so a checkout
+    cannot produce one by accident and a test cannot fake it after the fact.
+    """
+    if not shutil.which("go"):
+        pytest.skip("no Go to build a stamped workbench with")
+    out = os.path.join(tempfile.mkdtemp(prefix="meshbench-release"), "meshbench")
+    stamped = "github.com/MeshBench/meshbench/internal/app/version.Version"
+    stamp = f"-X {stamped}=v{RELEASED}"
+    build = subprocess.run(
+        ["go", "build", "-ldflags", stamp, "-o", out, "./cmd/meshbench"],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if build.returncode != 0:
+        pytest.skip(f"could not build a stamped workbench: {build.stderr}")
+    return out
+
+
+def test_a_client_from_another_release_is_refused(released_binary, tmp_path):
+    """A client and the workbench it drives must be the same release.
+
+    Raw on the socket, because the point is that the workbench refuses rather
+    than that the client is polite: a third-party script speaking this wire
+    gets the same answer as one using a shipped client.
+    """
+    if not hasattr(socket, "AF_UNIX"):
+        pytest.skip("no unix socket on this platform")
+    path = str(tmp_path / "control.sock")
+    proc = subprocess.Popen(
+        [released_binary, "headless", "-control-socket", path],
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        _wait_for_socket(path)
+        s = socket.socket(socket.AF_UNIX)
+        s.settimeout(10.0)
+        s.connect(path)
+        with contextlib.closing(s):
+            frame = {
+                "id": 3,
+                "method": "session.hello",
+                "protocol": meshbench.PROTOCOL,
+                "release": "1.5.0",
+            }
+            s.sendall((json.dumps(frame) + "\n").encode())
+            reply = json.loads(s.makefile("rb").readline().decode())
+    finally:
+        proc.kill()
+        proc.wait()
+
+    assert reply.get("code") == "version_mismatch", reply
+    said = reply.get("error", "")
+    # Both releases and the remedy: a bare "version mismatch" leaves a reader
+    # to work out which of the two things they have installed to change.
+    assert "1.5.0" in said and RELEASED in said
+    assert "must be the same release" in said
+
+
+def test_this_client_refuses_a_workbench_from_another_release(
+    released_binary, tmp_path
+):
+    """And the shipped client reports it as the mismatch it is, at connect,
+    rather than as session.hello failing forty calls before anybody looks."""
+    with pytest.raises(meshbench.VersionMismatch) as e:
+        Workbench.headless(
+            binary=released_binary,
+            socket=str(tmp_path / "control.sock"),
+            stderr=subprocess.DEVNULL,
+        )
+    said = str(e.value)
+    assert meshbench.release() in said and RELEASED in said
+    assert "must be the same release" in said
+
+
+def test_this_client_declares_its_release_first(tmp_path):
+    """A workbench can only refuse a pair it was told about, so the release
+    goes on the first frame of every connection and on no other."""
+    if not hasattr(socket, "AF_UNIX"):
+        pytest.skip("no unix socket on this platform")
+    from meshbench._socket import Connection
+
+    path = str(tmp_path / "fake.sock")
+    seen = _record_frames(path)
+    with contextlib.closing(Connection(path)) as conn:
+        conn.call("session.hello")
+        conn.call("session.verbs")
+
+    assert seen[0]["release"] == meshbench.release()
+    assert "release" not in seen[1]
+
+
+def test_a_development_workbench_is_served_and_says_the_check_was_skipped(wb):
+    """A build from a working copy stamps no release, and refusing it would
+    make the tree unusable by the people changing it. The skip is reported
+    rather than silent, so a pair nothing verified does not read as one that
+    was checked and matched."""
+    assert wb.hello.release == ""
+    assert "skipped" in wb.version_check
+    assert "development build" in wb.version_check
+
+
+def test_the_pairing_rule_is_exact_match_or_an_unstamped_end():
+    assert meshbench.paired_release("1.0.0", "1.0.0")
+    assert not meshbench.paired_release("1.0.0", "1.0.1")
+    assert not meshbench.paired_release("2.0.0", "1.0.0")
+    # An end that names no release has no second version to disagree with.
+    assert meshbench.paired_release("", "1.0.0")
+    assert meshbench.paired_release("1.0.0", "")
+    assert meshbench.paired_release("", "")
+    # A check that compared nothing says so; one that compared says nothing.
+    assert meshbench.pairing_note("1.0.0", "1.0.0") == ""
+    assert "skipped" in meshbench.pairing_note("1.0.0", "")
+
+
+def test_a_release_refusal_keeps_the_workbenchs_own_words():
+    said = (
+        "this client is from MeshBench 1.5.0 and this workbench is MeshBench "
+        "2.0.0. A client and the workbench it drives must be the same release"
+    )
+    e = meshbench.VersionMismatch("1.5.0", "", said=said)
+    assert str(e) == said
+    # And the mismatch this client notices itself names both releases.
+    own = meshbench.VersionMismatch("1.5.0", "2.0.0")
+    assert "1.5.0" in str(own) and "2.0.0" in str(own)
+
+
+def _wait_for_socket(path: str, timeout: float = 30.0) -> None:
+    """Wait for a workbench started here to be answering."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if os.path.exists(path):
+            s = socket.socket(socket.AF_UNIX)
+            try:
+                s.connect(path)
+                return
+            except OSError:
+                pass
+            finally:
+                s.close()
+        time.sleep(0.05)
+    raise AssertionError(f"nothing answered at {path} within {timeout}s")
+
+
+def _record_frames(path: str) -> list[dict]:
+    """A socket of our own that answers everything and keeps what it was sent.
+
+    A real workbench never echoes a declaration back, so what this client puts
+    on the wire is the one thing here only a fake can show us.
+    """
+    listener = socket.socket(socket.AF_UNIX)
+    listener.bind(path)
+    listener.listen(1)
+    seen: list[dict] = []
+
+    def serve() -> None:
+        conn, _ = listener.accept()
+        with contextlib.closing(conn):
+            f = conn.makefile("rb")
+            while True:
+                line = f.readline()
+                if not line:
+                    return
+                req = json.loads(line.decode())
+                seen.append(req)
+                conn.sendall(
+                    (json.dumps({"id": req["id"], "result": {}}) + "\n").encode()
+                )
+
+    threading.Thread(target=serve, daemon=True).start()
+    return seen
 
 
 def test_building_a_network_from_nothing(wb):

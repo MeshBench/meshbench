@@ -39,6 +39,11 @@ type Request struct {
 	// works against a build that has never heard of the field, which is what
 	// makes it safe to start sending.
 	Protocol int `json:"protocol,omitempty"`
+	// Release is the release this client belongs to, declared beside Protocol
+	// and on the same frame. Empty is a client built from a working copy, or
+	// one written before the field existed; both are served, because neither
+	// has a second version to disagree with.
+	Release string `json:"release,omitempty"`
 }
 
 // Response is its answer.
@@ -75,6 +80,9 @@ type Server struct {
 	// session is this server's row in the per-user registry, so that
 	// something else can find out this workbench is running at all.
 	session string
+	// release is what this build calls itself, fixed when the server starts so
+	// that nothing on a connection's goroutine reads it from anywhere else.
+	release string
 
 	mu      sync.Mutex
 	queue   []job
@@ -114,7 +122,7 @@ func ListenAt(want string, h Handler) (*Server, error) {
 			"control: %s is already answering - another workbench holds it. "+
 				"Choose another with -control-socket or %s", addr, SocketEnv)
 	}
-	s := &Server{handler: h}
+	s := &Server{handler: h, release: ourRelease}
 	switch addr.Kind {
 	case Unix:
 		_ = os.Remove(addr.Addr)
@@ -337,6 +345,7 @@ func (s *Server) serve(c net.Conn) {
 		<-writerDone
 	}()
 
+	first := true
 	for {
 		var req Request
 		if err := dec.Decode(&req); err != nil {
@@ -348,11 +357,13 @@ func (s *Server) serve(c net.Conn) {
 		}
 
 		// Before anything is dispatched, including the connection-level verb
-		// below: a client that speaks another version of this wire disagrees
-		// about what the frames mean, and a verb answered under that
-		// disagreement is worse than a refusal, because it looks like an answer.
-		if !speaksProtocol(req.Protocol) {
-			refusal := protocolRefusal(req.Protocol, Protocol)
+		// below. A client that speaks another version of this wire disagrees
+		// about what the frames mean, and one from another release disagrees
+		// about what the verbs mean; a verb answered under either disagreement
+		// is worse than a refusal, because it looks like an answer.
+		refusal, ok := s.greeting(req, first)
+		first = false
+		if !ok {
 			refusal.ID = req.ID
 			sendOrGiveUp(out, writerDone, refusal)
 			return

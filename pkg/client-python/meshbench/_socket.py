@@ -31,6 +31,8 @@ import threading
 from pathlib import Path
 from typing import Any
 
+from .pairing import release
+
 #: Chooses where the workbench answers: a path, or "tcp", or "tcp:host:port".
 SOCKET_ENV = "MESHBENCH_CONTROL_SOCKET"
 
@@ -185,10 +187,10 @@ class Connection:
             # port is reachable by any local process, so this is what stands in
             # for the permissions a unix socket would have had. The wire
             # version rides along, so a workbench that cannot speak to this
-            # client says so at the door.
-            self._sock.sendall(
-                (json.dumps({"token": token, "protocol": PROTOCOL}) + "\n").encode()
-            )
+            # client says so at the door, and the release beside it so one that
+            # was never meant to be driven by this client says so too.
+            line = {"token": token, "protocol": PROTOCOL, "release": release()}
+            self._sock.sendall((json.dumps(line) + "\n").encode())
 
     def call(self, verb: str, params: Any = None) -> dict[str, Any]:
         """Send one verb and return the whole reply, errors included."""
@@ -200,8 +202,10 @@ class Connection:
                 # version on, so it goes on the first request: refused there,
                 # before any verb runs, rather than found out from a verb
                 # behaving oddly. Only the first, because the answer cannot
-                # change while the connection is open.
+                # change while the connection is open. The release travels with
+                # it: a client and the workbench it drives must be the same one.
                 req["protocol"] = PROTOCOL
+                req["release"] = release()
             if params is not None:
                 req["params"] = params
             self._sock.sendall((json.dumps(req) + "\n").encode())

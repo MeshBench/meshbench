@@ -130,7 +130,8 @@ check is a dial rather than a socket file or a pid.
 
 ### The first thing a connection does
 
-Declares the wire version it speaks, and calls `session.hello`
+Declares the wire version and the release it belongs to, and calls
+`session.hello`
 ([#212](https://github.com/MeshBench/meshbench/issues/212)). A client older or
 newer than the build it connects to fails **here**, with a sentence naming both
 versions, rather than halfway through a script with a verb returning something
@@ -160,6 +161,40 @@ half of this rule and how such a script finds out.
 Adding a verb does not move the number, and neither does adding a field to a
 result: a client reads the fields it knows. What moves it is a verb changing
 what it means, a field changing type, or the framing changing.
+
+### The pairing rule
+
+**A client and the workbench it drives must be the same release.** The protocol
+number above says whether two ends can understand each other's frames; it moves
+rarely and on purpose, so it cannot answer the question a script actually has,
+which is whether the client in this virtualenv is the one that came with the
+workbench on the PATH. Two releases apart with no protocol bump between them
+connect happily and then disagree about a verb's parameters forty calls in.
+
+The release travels the same way the protocol number does, as a `release` field
+on the token line and on the first request, spelled the way every artefact of
+that release spells it: `1.2.3`, no leading `v`, matching PyPI and npm. The
+workbench refuses a pair it cannot be half of, before any verb is dispatched,
+with `version_mismatch` and a sentence naming both releases and what to install.
+All three clients raise that as its own type - Go `*meshbench.VersionMismatch`,
+Python `meshbench.VersionMismatch`, JavaScript `VersionMismatch` - so a script
+can tell "these two were never meant to be used together" from "this build
+declined what I asked".
+
+**An end that names no release is served.** A build from a working copy has no
+release stamped in it, and neither has a client run out of the same checkout, so
+insisting on equality would refuse every pair a developer has, for a
+disagreement that does not exist. Nothing is lost, because what the rule exists
+to catch is a released client meeting a released workbench of another number,
+and both ends of that pair carry their stamp. A skipped check is reported rather
+than silent: the workbench says so under `MESHBENCH_LOG=control`, and each
+client carries a sentence - `wb.VersionCheck()`, `wb.version_check`,
+`wb.versionCheck` - saying which end was not a release.
+
+Both ends check. The workbench refuses on the frame the declaration arrived on,
+which is what a third-party script speaking the raw socket gets; the clients
+compare `session.hello`'s `release` as well, because a workbench old enough to
+predate the declaration ignores it and serves the connection anyway.
 
 `wb.hello` keeps the answer. `wb.hello.mode` is `workbench` or `headless`, and
 it is what a script checks before touching `wb.ui`.
@@ -826,6 +861,7 @@ One exception hierarchy, mapped from the codes in #212.
 | `conflict` | `Conflict` | `ErrConflict` | wrong state: no simulation, nothing running, no preview yet |
 | `unavailable` | `Unavailable` | `ErrUnavailable` | headless, or no hardware for it |
 | `protocol_mismatch` | `ProtocolMismatch` | `ProtocolMismatch` | the client declared a wire version this build does not speak |
+| `version_mismatch` | `VersionMismatch` | `VersionMismatch` | the client is from a different release than the workbench |
 | `internal` | `WorkbenchError` | `ErrInternal` | |
 | `closing` | `Closing` | `ErrClosing` | the workbench is shutting down |
 
@@ -833,9 +869,9 @@ The message stays as the verb wrote it. The verbs in this tree write good
 prose — *"no node is running firmware, so there is nothing to send to"* — and a
 client that replaced that with a code would be making the experience worse.
 
-Client-side, before the wire: `NotConnected`, `Timeout`. `ProtocolMismatch` is
-raised on either side of the wire, whichever end notices first: see the
-compatibility rule above.
+Client-side, before the wire: `NotConnected`, `Timeout`. `ProtocolMismatch` and
+`VersionMismatch` are raised on either side of the wire, whichever end notices
+first: see the compatibility and pairing rules above.
 
 ---
 
