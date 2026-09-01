@@ -47,6 +47,34 @@ func TestInferenceFromObservedPackets(t *testing.T) {
 	}
 }
 
+// Two candidate names that collide on the same transport code must still
+// give alpha a single, repeatable default scope. The advert loop in
+// inferFromOnePacket overwrites DefaultScope on every match it sees, so
+// whichever name Match returns last decides - and since Match orders its
+// matches alphabetically, that is always the alphabetically later of the
+// two colliding names, not whichever the candidate map happened to hash to
+// first.
+func TestInferDefaultScopeCollisionIsDeterministic(t *testing.T) {
+	payload := []byte{0x11, 0x22, 0x33, 0x44}
+	adv := scopedFrame(collidingRegionA, 0x04, payload)
+	m := provider.NewNamedRegions([]string{collidingRegionB, collidingRegionA})
+	packets := []provider.PacketRecord{
+		{Raw: adv, Sender: "alpha", Origin: "alpha"},
+	}
+
+	for i := 0; i < 5; i++ {
+		got := provider.InferFromPackets(packets, m)
+		a := got["alpha"]
+		if a == nil {
+			t.Fatalf("run %d: alpha not inferred", i)
+		}
+		if a.DefaultScope != collidingRegionB {
+			t.Fatalf("run %d: default scope = %q, want %q (alphabetically later of the colliding pair)",
+				i, a.DefaultScope, collidingRegionB)
+		}
+	}
+}
+
 // A node nobody heard is not a node with no regions — it is a node with no
 // evidence, and the difference matters when the conclusion drives a change.
 func TestUnseenNodesAreNotAssumedEmpty(t *testing.T) {

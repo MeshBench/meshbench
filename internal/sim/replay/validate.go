@@ -77,6 +77,12 @@ func Compare(rx []provider.Reception, predict Predict, onlineObservers []string)
 	type group struct {
 		origin  string
 		heardBy map[string]provider.Reception
+		// recvOrder is the receivers in the order they were first heard,
+		// tracked alongside heardBy the same way Build tracks packet order
+		// alongside its own map. Ranging over heardBy directly would let Go's
+		// randomised map order decide Report.Rows and the summation order
+		// behind MeanBiasDB, which is exactly what determinism forbids.
+		recvOrder []string
 	}
 	groups := map[string]*group{}
 	var order []string
@@ -94,6 +100,9 @@ func Compare(rx []provider.Reception, predict Predict, onlineObservers []string)
 		if r.Origin != "" {
 			g.origin = r.Origin
 		}
+		if _, seen := g.heardBy[r.Receiver]; !seen {
+			g.recvOrder = append(g.recvOrder, r.Receiver)
+		}
 		g.heardBy[r.Receiver] = r
 	}
 
@@ -104,7 +113,8 @@ func Compare(rx []provider.Reception, predict Predict, onlineObservers []string)
 			rep.Excluded["no origin recorded"] += len(g.heardBy)
 			continue
 		}
-		for recv, r := range g.heardBy {
+		for _, recv := range g.recvOrder {
+			r := g.heardBy[recv]
 			if recv == g.origin {
 				continue
 			}

@@ -64,6 +64,54 @@ func TestRegionMatchSurvivesRelaying(t *testing.T) {
 	}
 }
 
+// Two real candidate names, found by brute force, whose transport code
+// collides for the advert payload used below: both hash to the same
+// truncated two-byte code, which is the scenario the two-byte truncation
+// makes inevitable given enough candidates.
+const (
+	collidingRegionA = "#region-470"
+	collidingRegionB = "#region-636"
+)
+
+// A code collision must resolve the same way every run, not by whichever
+// order Go's map happened to hand back the candidates in. Match promises
+// alphabetical order, so the pair here always comes back A before B
+// regardless of the order they were registered in.
+func TestNamedRegionsMatchCollisionIsDeterministic(t *testing.T) {
+	payload := []byte{0x11, 0x22, 0x33, 0x44}
+	frame := scopedFrame(collidingRegionA, 0x04, payload)
+	codes := []uint16{binary.LittleEndian.Uint16(frame[1:3])}
+
+	// Reversing the candidate list at construction must not change the
+	// order Match returns them in - if it did, the winner picked by a
+	// caller such as InferFromPackets would depend on registration order
+	// rather than on the names themselves.
+	forward := provider.NewNamedRegions([]string{collidingRegionA, collidingRegionB})
+	backward := provider.NewNamedRegions([]string{collidingRegionB, collidingRegionA})
+
+	want := []string{collidingRegionA, collidingRegionB}
+	for i := 0; i < 5; i++ {
+		if got := forward.Match(frame, codes); !equalStrings(got, want) {
+			t.Fatalf("forward registration, run %d: matched %v, want %v", i, got, want)
+		}
+		if got := backward.Match(frame, codes); !equalStrings(got, want) {
+			t.Fatalf("reverse registration, run %d: matched %v, want %v", i, got, want)
+		}
+	}
+}
+
+func equalStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 // End to end: observed traffic, candidate names, and what each node's own
 // behaviour proves about its configuration.
 func TestInferenceNamesRegionsFromObservedTraffic(t *testing.T) {
