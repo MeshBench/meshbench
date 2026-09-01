@@ -2,12 +2,14 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -333,11 +335,41 @@ func bootAdvanceTimeout(offsetMs uint32) time.Duration {
 	return d
 }
 
+// exiter is implemented by a backend that can say its process is gone before
+// anything ever attached to it. Optional, the same way TeeConsole in
+// firmware.Start is: the native backend has a real child process to ask
+// about; the emulated backend has a virtual machine, and forcing it to
+// answer a question about an exec.Cmd it does not have would be the wrong
+// kind of coupling.
+type exiter interface {
+	// Exited closes once the process is gone, whatever took it.
+	Exited() <-chan struct{}
+	// ExitError describes how, once Exited has closed.
+	ExitError() error
+	// StderrTail is the last of what the process said on its way out.
+	StderrTail() string
+}
+
 func waitAttached(ctx context.Context, n *firmware.Node, timeout time.Duration) error {
+	ex, canExit := n.Backend.(exiter)
+	var exited <-chan struct{}
+	if canExit {
+		exited = ex.Exited()
+	}
 	deadline := time.Now().Add(timeout)
 	for !n.Bridge.Attached() {
 		if err := ctx.Err(); err != nil {
 			return err
+		}
+		select {
+		case <-exited:
+			// The process left before the bridge ever heard from it, so
+			// waiting out the rest of the budget would only be reporting a
+			// timeout for a cause that is already known. The exit itself, and
+			// whatever it said on the way out, is a better answer than a
+			// deadline.
+			return exitedBeforeAttaching(ex)
+		default:
 		}
 		if time.Now().After(deadline) {
 			return fmt.Errorf("firmware started but never connected within %v", timeout)
@@ -345,6 +377,19 @@ func waitAttached(ctx context.Context, n *firmware.Node, timeout time.Duration) 
 		time.Sleep(2 * time.Millisecond)
 	}
 	return nil
+}
+
+// exitedBeforeAttaching turns a backend's own account of its dead process
+// into the error waitAttached returns.
+func exitedBeforeAttaching(ex exiter) error {
+	msg := "firmware exited before connecting"
+	if err := ex.ExitError(); err != nil {
+		msg = fmt.Sprintf("%s: %v", msg, err)
+	}
+	if tail := strings.TrimSpace(ex.StderrTail()); tail != "" {
+		msg = fmt.Sprintf("%s:\n%s", msg, tail)
+	}
+	return errors.New(msg)
 }
 
 // bootOffsetMs is how far into its own life a node already is when the run
