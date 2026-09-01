@@ -1,0 +1,73 @@
+{
+  "node.output": {
+    "what": "read what a node's serial port, emulator or radio model has printed",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the node to read"
+      },
+      {
+        "name": "source",
+        "type": "string",
+        "what": "which voice: serial, rom, emulator, radio; serial when absent, and anything else is refused"
+      },
+      {
+        "name": "lines",
+        "type": "number",
+        "what": "how many lines of the tail to answer with; 200 when absent or not a positive number, and never more than the 2000 the pane itself holds"
+      }
+    ],
+    "returns": [
+      "node",
+      "source",
+      "lines",
+      "total",
+      "path",
+      "tail",
+      "note",
+      "tracing"
+    ],
+    "answers": "`total` is how many lines the file has and `lines` how many the pane was given, so the two differing is a tail rather than a board that stopped talking. `tail` is the shorter answer this call gets, and is empty with a `note` where the source is one this node's backend does not have - a native node has no emulator and no radio log - or where it has not run since the workbench started.",
+    "example": {
+      "params": {
+        "lines": 50,
+        "node": "West Lomond",
+        "source": "serial"
+      },
+      "what": "read the last lines a board printed",
+      "runnable": true
+    }
+  },
+  "node.output_window": {
+    "what": "Open one node's one log in a window of its own, so a board's screen and several of its logs can be watched at once.",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "which node"
+      },
+      {
+        "name": "source",
+        "type": "string",
+        "what": "which log: serial, rom, emulator, radio; serial when absent"
+      }
+    ],
+    "returns": [
+      "node",
+      "source"
+    ],
+    "answers": "The answer says the window was opened, not what is in it: the pane fills from the tick that follows. Refused outright in a headless session, there being no window to open one beside.",
+    "example": {
+      "params": {
+        "node": "West Lomond",
+        "source": "emulator"
+      },
+      "what": "watch the emulator's log beside the board's screen"
+    }
+  }
+}

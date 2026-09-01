@@ -14,18 +14,11 @@ import (
 )
 
 func registerFirmwareScan(st *state.Store, s *Sim) {
-	// firmware.rescan: ask the catalogue again, for a build published since
-	// this session started.
-	//
 	// The catalogue is read once and kept, so without this a session that
 	// started before a release could never be told about it. Forgetting the
 	// last answer is what makes it a rescan; a fetch already in flight is left
 	// alone, because two in flight would race to land.
-	st.HandleSpec("firmware.rescan", state.Spec{
-		What: "ask the catalogue what is published again, which is how a " +
-			"build nobody has downloaded becomes offerable",
-		Returns: []string{"scanning", "count"},
-	}, func(w *state.World, _ any) (any, error) {
+	st.Handle("firmware.rescan", func(w *state.World, _ any) (any, error) {
 		if !s.fetchingPublished {
 			s.publishedNet = nil
 		}
@@ -36,7 +29,6 @@ func registerFirmwareScan(st *state.Store, s *Sim) {
 		}, nil
 	})
 
-	// firmware.published: what the catalogue offers, landed from the fetch.
 	st.HandleInternal("firmware.published", func(w *state.World, p any) (any, error) {
 		list, ok := p.([]publishedBuild)
 		if !ok {

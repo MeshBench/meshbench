@@ -1,0 +1,45 @@
+{
+  "node.radio": {
+    "what": "ask a running node what frequency, modulation and transmit power it is actually set to, and say where that disagrees with the figures every path loss for it was computed from",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "primary": true,
+        "what": "the node to ask; absent falls back to the selected node, and with nothing selected either the call is refused"
+      }
+    ],
+    "returns": [
+      "node",
+      "assumed",
+      "reported",
+      "differences",
+      "note"
+    ],
+    "answers": "`assumed` and `reported` are both objects of freq_mhz, bandwidth_hz, spreading_factor, coding_rate and tx_dbm. A node answers over a frame or its console and the reply only lands when the engine next steps, so the first call usually returns `reported` null with a `note` saying to ask again. An empty `differences` means the two agree, not that nothing was checked; coding rate is deliberately never compared, because model and firmware write the same setting in different conventions.",
+    "example": {
+      "params": "West Lomond",
+      "what": "check the model is pricing this node's real transmit power"
+    }
+  },
+  "node.radio_adopt": {
+    "what": "take the radio configuration a node has already reported as the one the model uses for it, so the path losses are computed from what the node transmits with rather than from what the scenario intended",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "primary": true,
+        "what": "the node to believe; absent falls back to the selected node, and a node that is not a connected companion, or has not reported yet, is refused with what to do about it"
+      }
+    ],
+    "returns": [
+      "node",
+      "tx_dbm"
+    ],
+    "answers": "`tx_dbm` is the node's own transmit power, now the model's. Frequency, bandwidth and spreading factor are adopted with it, and because path loss is cached per pair the engine is rebuilt and every link measured again on a worker.",
+    "example": {
+      "params": "Dunfermline",
+      "what": "stop modelling a power this node does not have"
+    }
+  }
+}

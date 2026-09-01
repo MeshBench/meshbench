@@ -1,0 +1,22 @@
+{
+  "sim.unverified_wiring": {
+    "what": "allow boards whose wiring nobody has watched boot to run anyway, which is the only way a newly imported board is ever verified",
+    "params": [
+      {
+        "name": "on",
+        "type": "bool",
+        "primary": true,
+        "what": "true to lift the gate; absent reads the setting without changing it"
+      }
+    ],
+    "returns": [
+      "on"
+    ],
+    "answers": "The setting is saved to preferences, so it outlives the session. Turning it on names the boards it has just trusted.",
+    "example": {
+      "params": {},
+      "what": "ask whether the gate is lifted",
+      "runnable": true
+    }
+  }
+}

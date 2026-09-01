@@ -1,0 +1,24 @@
+{
+  "link.profile": {
+    "what": "cut the terrain through whatever two nodes are selected, for a script or a capture that has no panel to press, where the interface reaches the same worker through budget.for_selection",
+    "returns": [
+      "from",
+      "to"
+    ],
+    "answers": "Refuses unless two nodes are selected, and takes the first and the last of them when more are. It answers with the two ends as soon as the worker starts; the profile lands later through the internal `link.profile_set` and carries no margins at all - both directions read 0 dB, because this draws the ground and `budget.for_selection` is what prices the link.",
+    "example": {
+      "params": {},
+      "what": "cut through between the two selected nodes"
+    }
+  },
+  "link.profile_set": {
+    "what": "hold the finished cut-through for the panel to draw, or clear it where the analysis could not run",
+    "returns": [
+      "from",
+      "to",
+      "km",
+      "edges"
+    ],
+    "answers": "Answers nothing at all when it is handed no profile, which is how a failed analysis takes the old picture off the panel rather than leaving one of the wrong pair there."
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "console.cli": {
+    "what": "run one meshcore-cli line at a companion node, which has no text console of its own, connecting to it first if nothing has yet",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the node to run the line at; refused when absent"
+      },
+      {
+        "name": "command",
+        "type": "string",
+        "required": true,
+        "what": "the line, in meshcore-cli's own vocabulary; refused when absent or blank, and `?` lists what this build answers"
+      }
+    ],
+    "returns": [
+      "node",
+      "reply",
+      "failed"
+    ],
+    "answers": "`failed` is present and true where the line ran and the answer was no: an unknown command, a command meshcore-cli has that this build does not, or a connect that could not be made. That is not an error, because a console refused at the status bar leaves nothing where it was typed. `reply` is what the console prints either way, and the node's own answer to it arrives later in the scrollback.",
+    "example": {
+      "params": {
+        "command": "?",
+        "node": "West Lomond"
+      },
+      "what": "list the meshcore-cli commands this build answers",
+      "runnable": true
+    }
+  }
+}

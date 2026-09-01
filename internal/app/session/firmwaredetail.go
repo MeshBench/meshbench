@@ -22,20 +22,7 @@ func registerFirmwareDetail(st *state.Store, s *Sim) {
 }
 
 func registerFirmwareDetails(st *state.Store, s *Sim) {
-	st.HandleSpec("firmware.details", state.Spec{
-		What: "Report everything known about one build: where it is, what it is, and what has been decided about it.",
-		Params: []state.Param{
-			{Name: "version", Type: state.ParamString, Required: true, Primary: true,
-				What: "the build's version or imported label"},
-			{Name: "role", Type: state.ParamString,
-				What: "which role, when one label carries more than one"},
-			{Name: "board", Type: state.ParamString,
-				What: "which board; absent means a build for this machine"},
-		},
-		Returns: []string{"role", "version", "board", "native", "on_disk", "path",
-			"settings_path", "bytes", "modified", "in_use", "kind", "bootable",
-			"flash_mb", "coproc_at_reset", "card_required", "notes"},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("firmware.details", func(w *state.World, p any) (any, error) {
 		row, err := findBuildRow(w, s, p)
 		if err != nil {
 			return nil, err
@@ -64,33 +51,7 @@ func registerFirmwareDetails(st *state.Store, s *Sim) {
 }
 
 func registerFirmwareUpdate(st *state.Store, s *Sim) {
-	st.HandleSpec("firmware.update", state.Spec{
-		What: "Rename a build, move it to another board or role, or change how it is run.",
-		Params: []state.Param{
-			{Name: "version", Type: state.ParamString, Required: true, Primary: true,
-				What: "the build to change, by its current version or label"},
-			{Name: "role", Type: state.ParamString,
-				What: "its current role, when one label carries more than one"},
-			{Name: "board", Type: state.ParamString, What: "its current board"},
-			{Name: "label", Type: state.ParamString,
-				What: "rename it to this; unchanged when absent"},
-			{Name: "new_role", Type: state.ParamString,
-				What: "run it as this role instead; unchanged when absent"},
-			{Name: "new_board", Type: state.ParamString,
-				What: "move it to this board instead; unchanged when absent"},
-			{Name: "card_required", Type: state.ParamBool,
-				What: "this firmware will not get far without storage in the " +
-					"board's slot, so every node running it is given a card " +
-					"whatever it would otherwise have had"},
-			{Name: "coproc_at_reset", Type: state.ParamBool,
-				What: "start this build's coprocessors enabled, which the part " +
-					"does not do - for a firmware that traps inside its own " +
-					"exception vector and cannot be seen past"},
-			{Name: "notes", Type: state.ParamString,
-				What: "what the next person should know about this build"},
-		},
-		Returns: []string{"role", "version", "board", "path", "renamed", "repinned", "settings"},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("firmware.update", func(w *state.World, p any) (any, error) {
 		row, err := findBuildRow(w, s, p)
 		if err != nil {
 			return nil, err

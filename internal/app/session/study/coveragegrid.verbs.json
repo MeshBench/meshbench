@@ -1,0 +1,22 @@
+{
+  "coverage.resolution": {
+    "what": "read or set how sharp every shared-grid raster is, which is the one knob that trades minutes for detail: the cost scales with the square of it",
+    "params": [
+      {
+        "name": "cells",
+        "type": "number",
+        "primary": true,
+        "what": "cells on the raster's long edge, 64 to 4096; absent reads the current setting without changing it, and a value outside that range or one that is not a number is refused rather than clamped, since a caller who asked for 30,000 cells and silently got 240 has been told a picture is sharp when it is not"
+      }
+    ],
+    "returns": [
+      "cells"
+    ],
+    "answers": "`cells` is always the setting as it stands after the call. Setting it writes the preferences rather than the scenario, because a resolution is a machine-and-patience choice and not a network's, so it outlives whichever scenario was open at the time.",
+    "example": {
+      "params": {},
+      "what": "ask how sharp the rasters are",
+      "runnable": true
+    }
+  }
+}

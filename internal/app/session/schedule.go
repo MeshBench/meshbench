@@ -14,7 +14,6 @@ import (
 )
 
 func registerSchedule(st *state.Store, s *Sim) {
-	// schedule.add: a node sends something, once or repeatedly.
 	st.Handle("schedule.add", func(w *state.World, p any) (any, error) {
 		node, _ := stringField(p, "node")
 		if node == "" {
@@ -45,7 +44,6 @@ func registerSchedule(st *state.Store, s *Sim) {
 		return map[string]any{"cleared": n}, nil
 	})
 
-	// assert.add: what has to be true for this run to have passed.
 	st.Handle("assert.add", func(w *state.World, p any) (any, error) {
 		kind, _ := stringField(p, "kind")
 		if kind == "" {
@@ -70,8 +68,6 @@ func registerSchedule(st *state.Store, s *Sim) {
 		return map[string]any{"assertions": len(w.Assertions)}, nil
 	})
 
-	// assert.check: does this run pass, now?
-	//
 	// Reported per assertion rather than as one verdict, because "it failed"
 	// without which one is a starting point rather than an answer.
 	st.Handle("assert.check", func(w *state.World, _ any) (any, error) {

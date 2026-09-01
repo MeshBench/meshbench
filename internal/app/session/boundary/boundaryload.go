@@ -26,11 +26,6 @@ import (
 const maxBoundaryBytes = 64 << 20
 
 func registerBoundaryLoad(st *state.Store, s *session.Sim) {
-	// boundary.load: take a study area from GeoJSON.
-	//
-	// A path or the document itself, because both callers are real: a script
-	// has a file, and a program that generated the polygon has a string and
-	// should not have to write it to disk to be understood.
 	st.Handle("boundary.load", func(w *state.World, p any) (any, error) {
 		path, _ := session.StringField(p, "path")
 		text, _ := session.NamedField(p, "geojson")
@@ -110,13 +105,9 @@ func registerBoundaryLoad(st *state.Store, s *session.Sim) {
 	})
 }
 
-// boundary.list: what the study area is made of.
-//
 // The snapshot carries how many, which answers a card and nothing else: from
 // outside the window "which areas am I studying" was unanswerable, and so was
-// "did that accept actually take". Names and ring counts, not the geometry -
-// a national boundary is megabytes of coordinates and nobody asking this
-// wanted them.
+// "did that accept actually take".
 func registerBoundaryList(st *state.Store) {
 	st.Handle("boundary.list", func(w *state.World, _ any) (any, error) {
 		out := make([]map[string]any, 0, len(w.Areas))

@@ -20,17 +20,7 @@ import (
 )
 
 func registerNodeWipe(st *state.Store, s *session.Sim) {
-	st.HandleSpec("node.wipe", state.Spec{
-		What: "erase one node's stored state: its flash, its card and its files",
-		Params: []state.Param{
-			{Name: "node", Type: state.ParamString, Required: true, Primary: true,
-				What: "the node to put back to factory"},
-			{Name: "confirm", Type: state.ParamBool,
-				What: "false lists what would go and removes nothing; " +
-					"absent or true erases it"},
-		},
-		Returns: []string{"node", "wiped", "removed", "would_remove"},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("node.wipe", func(w *state.World, p any) (any, error) {
 		name, _ := session.StringField(p, "node")
 		if name == "" {
 			return nil, session.BadParams("node.wipe needs a node")

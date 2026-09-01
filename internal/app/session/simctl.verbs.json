@@ -1,0 +1,145 @@
+{
+  "sim.reset": {
+    "what": "put the clock back to zero and rebuild the engine on the same seed and the same nodes, which is how the arm of a comparison starts",
+    "returns": [
+      "seed",
+      "now_ms"
+    ],
+    "answers": "The scenario survives and the run does not: the send schedule is cleared with the clock, and every link is measured again.",
+    "example": {
+      "params": {},
+      "what": "start this scenario over",
+      "runnable": true
+    }
+  },
+  "sim.run": {
+    "what": "play until a stated simulated time and stop there, which is how a script gets a run of a known length instead of watching for one",
+    "params": [
+      {
+        "name": "for_ms",
+        "type": "number",
+        "primary": true,
+        "what": "simulated milliseconds to run for; anything not a positive number leaves it at ten seconds"
+      }
+    ],
+    "returns": [
+      "running",
+      "until_ms",
+      "now_ms"
+    ],
+    "answers": "It returns as soon as the limit is set, not when the run reaches it. Poll `sim.state` until `playing` goes false.",
+    "example": {
+      "params": {
+        "for_ms": 60000
+      },
+      "what": "run for a simulated minute",
+      "runnable": true
+    }
+  },
+  "sim.seed": {
+    "what": "read the seed the run draws its noise and its timing jitter from, or set a new one and rebuild on it",
+    "params": [
+      {
+        "name": "seed",
+        "type": "number",
+        "primary": true,
+        "what": "the new seed; anything not a positive number reads the current one without changing it"
+      }
+    ],
+    "returns": [
+      "seed"
+    ],
+    "answers": "Setting it rebuilds the engine and re-measures every link, so the run starts again rather than continuing on a new draw.",
+    "example": {
+      "params": {},
+      "what": "read the seed this run is on",
+      "runnable": true
+    }
+  },
+  "sim.settle": {
+    "what": "step the engine on a stopped clock so queued serial input reaches the firmware, which is what makes provisioning take effect",
+    "params": [
+      {
+        "name": "steps",
+        "type": "number",
+        "primary": true,
+        "what": "how many ticks to step; anything not a positive number leaves it at sixty"
+      }
+    ],
+    "returns": [
+      "now_ms",
+      "steps"
+    ],
+    "answers": "Refuses with no engine built. It steps synchronously, so it answers only once the steps have been taken.",
+    "example": {
+      "params": {
+        "steps": 60
+      },
+      "what": "let a just-provisioned mesh read what it was sent"
+    }
+  },
+  "sim.speed": {
+    "what": "set how much simulated time one tick covers, which is the honest form of a speed control",
+    "params": [
+      {
+        "name": "step_ms",
+        "type": "number",
+        "what": "simulated milliseconds per tick, which is what the engine actually paces on"
+      },
+      {
+        "name": "factor",
+        "type": "number",
+        "what": "a multiple of ten milliseconds per tick, read only when `step_ms` is absent, for scripts written against the old socket"
+      }
+    ],
+    "returns": [
+      "step_ms"
+    ],
+    "answers": "`step_ms` is what it settled on. Neither parameter positive leaves the tick alone and reports it.",
+    "example": {
+      "params": {
+        "step_ms": 10
+      },
+      "what": "ten simulated milliseconds a tick",
+      "runnable": true
+    }
+  },
+  "sim.state": {
+    "what": "report where the run has got to, cheaply enough to poll and safely enough to call before anything is loaded",
+    "returns": [
+      "playing",
+      "now_ms",
+      "until_ms",
+      "events",
+      "step_ms",
+      "seed"
+    ],
+    "answers": "`until_ms` is zero unless `sim.run` set a limit. `events` is the count since the engine was built, not since the last call.",
+    "example": {
+      "params": {},
+      "what": "ask whether the run has finished",
+      "runnable": true
+    }
+  },
+  "study.margin": {
+    "what": "read or set how far outside the study boundary a node still counts, which decides what an imported network keeps",
+    "params": [
+      {
+        "name": "km",
+        "type": "number",
+        "primary": true,
+        "what": "kilometres beyond the boundary; a negative number is ignored and only reads the current value"
+      }
+    ],
+    "returns": [
+      "km"
+    ],
+    "example": {
+      "params": {
+        "km": 20
+      },
+      "what": "keep nodes up to twenty kilometres outside the boundary",
+      "runnable": true
+    }
+  }
+}

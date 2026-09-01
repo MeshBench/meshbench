@@ -1,0 +1,77 @@
+{
+  "links.recompute": {
+    "what": "measure every pair's path loss again over the real terrain, which is what a moved node, a changed radio or a new calibration needs before any margin on screen means anything",
+    "returns": [
+      "warming"
+    ],
+    "answers": "It answers the instant the work is queued, never with the links: a full matrix is tens of thousands of terrain profiles and minutes of them, so it runs as the job `links` and the links land on the world when it finishes. Watch job.list for it.",
+    "example": {
+      "params": {},
+      "what": "re-measure after moving a node"
+    }
+  },
+  "links.set": {
+    "what": "take a finished link matrix onto the world and rebuild the link budget for whatever node is selected, since a budget is about a link and cannot exist before the links do",
+    "returns": [
+      "links"
+    ],
+    "answers": "It carries a []state.Link and refuses anything else rather than emptying the matrix, which is what a caller from outside the process would otherwise do by accident."
+  },
+  "project.new": {
+    "what": "throw away what is loaded and start on an empty network, through the same path an open takes, optionally putting the map and the study area on a named place so the first node has somewhere to go",
+    "params": [
+      {
+        "name": "place",
+        "type": "string",
+        "primary": true,
+        "what": "somewhere to start, looked up the way a study area is, so \"Fife\" means the same thing here as in the Import panel; empty leaves the map where it was, and a name nothing can be found for is said in the status line rather than refused"
+      }
+    ],
+    "returns": [
+      "nodes",
+      "place"
+    ],
+    "answers": "`nodes` is always zero, and `place` appears only where one was named. The lookup runs on a worker, so the map and the study area move after this has already answered.",
+    "example": {
+      "params": {},
+      "what": "an empty network to place nodes on by hand"
+    }
+  },
+  "project.open": {
+    "what": "load a fixture and put the camera on what it holds, on the open rather than at the first play, so nobody is left reading a blank map with a node count beside it",
+    "params": [
+      {
+        "name": "path",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the fixture's path; one that will not load is refused and the session keeps whatever it already had"
+      }
+    ],
+    "returns": [
+      "opened",
+      "nodes",
+      "links"
+    ],
+    "answers": "`links` is zero on every open, because the matrix is cleared here and re-measured as the job `links`: a path loss over real terrain is minutes of work, so the map draws proximity links until it finishes. Nothing else moves the camera on an open, so a script that wants to be somewhere else says so afterwards with map.centre.",
+    "example": {
+      "params": "fixtures/fixture-fife-strict.json",
+      "what": "open a network that ships with the build"
+    }
+  },
+  "session.describe": {
+    "what": "the cheapest question a client can ask, and the one worth asking first: whether there is a network in this session at all, and whether its clock is moving",
+    "returns": [
+      "nodes",
+      "seed",
+      "now_ms",
+      "playing"
+    ],
+    "answers": "Four facts and no more. `now_ms` is simulated time, not wall time, and stands still while `playing` is false. It never fails, so it is also the handshake for a socket that has just connected.",
+    "example": {
+      "params": {},
+      "what": "check what is loaded before driving it",
+      "runnable": true
+    }
+  }
+}

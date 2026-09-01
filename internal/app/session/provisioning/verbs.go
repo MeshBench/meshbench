@@ -62,9 +62,6 @@ func registerProvisioningSettings(st *state.Store, s *session.Sim) {
 		return pr.Describe(), nil
 	})
 
-	// provisioning.apply sends the current settings to nodes already running,
-	// which is the difference between changing what a future run does and
-	// changing what this one is doing.
 	st.Handle("provisioning.apply", func(w *state.World, _ any) (any, error) {
 		if s.Engine() == nil {
 			return nil, fmt.Errorf("no network loaded")

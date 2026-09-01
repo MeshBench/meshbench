@@ -32,10 +32,7 @@ func answering() string {
 }
 
 func registerSessionList(st *state.Store) {
-	st.HandleSpec("session.list", state.Spec{
-		What:    "list the workbenches running on this machine, this one included",
-		Returns: []string{"sessions", "count"},
-	}, func(w *state.World, _ any) (any, error) {
+	st.Handle("session.list", func(w *state.World, _ any) (any, error) {
 		rows, err := control.Sessions(answering())
 		if err != nil {
 			return nil, err

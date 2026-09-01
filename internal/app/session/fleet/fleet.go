@@ -19,10 +19,6 @@ import (
 )
 
 func registerFleet(st *state.Store, s *session.Sim) {
-	// fleet.send: one command, to every node or to a filtered subset.
-	//
-	// Replies are collected per node rather than merged, because the answer
-	// worth having is which node disagreed with the others.
 	st.Handle("fleet.send", func(w *state.World, p any) (any, error) {
 		cmd, _ := session.StringField(p, "command")
 		if strings.TrimSpace(cmd) == "" {
@@ -103,11 +99,9 @@ func registerFleet(st *state.Store, s *session.Sim) {
 		return out, nil
 	})
 
-	// fleet.replies: what came back, once the engine has run far enough for
-	// the nodes to have answered. Called only from collectFleet, always with
-	// the pending object that particular send produced - never read back off
-	// shared state, so two fleet.send calls in flight cannot corrupt one
-	// another's replies.
+	// Called only from collectFleet, always with the pending object that
+	// particular send produced - never read back off shared state, so two
+	// fleet.send calls in flight cannot corrupt one another's replies.
 	st.HandleInternal("fleet.replies", func(w *state.World, p any) (any, error) {
 		pend, ok := p.(*fleetPending)
 		if !ok || pend == nil {
@@ -195,7 +189,7 @@ func registerFleet(st *state.Store, s *session.Sim) {
 		return map[string]any{"nodes": n, "allow_any_flood": on}, nil
 	})
 
-	// nodes.delete: the destructive one, so it says what it removed.
+	// The destructive one, so it says what it removed.
 	st.Handle("nodes.delete", func(w *state.World, p any) (any, error) {
 		name, _ := session.StringField(p, "node")
 		if name == "" {

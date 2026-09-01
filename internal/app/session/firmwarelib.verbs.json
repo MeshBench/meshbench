@@ -1,0 +1,39 @@
+{
+  "firmware.installed": {
+    "what": "read what is actually in the firmware cache on this machine, which is the only thing that decides what a node can start today",
+    "returns": [
+      "cache",
+      "installed"
+    ],
+    "answers": "`installed` is a row per build on disk - `version`, `role`, `board`, `native`, `bytes`, `path` - and is empty on a machine that has downloaded nothing. It says nothing about what is published: `firmware.library` is the list that holds both.",
+    "example": {
+      "params": {},
+      "what": "see what this machine can run offline",
+      "runnable": true
+    }
+  },
+  "firmware.library": {
+    "what": "list every build there is, on disk and published together, so a build nobody has fetched can still be offered and one imported from a branch still appears",
+    "returns": [
+      "builds",
+      "count"
+    ],
+    "answers": "The catalogue is asked over the network in the background and its answer lands seconds later, so the first call in a session answers from disk alone and is worth making again. Each row in `builds` carries `role`, `version`, `board`, `bytes`, `on_disk`, `path`, `in_use` and `unavailable`.",
+    "example": {
+      "params": {},
+      "what": "list what could be run, fetched or not"
+    }
+  },
+  "firmware.needed": {
+    "what": "ask what a mesh that will not start is missing, by role rather than by node, and what is already installed to fill each gap",
+    "returns": [
+      "roles"
+    ],
+    "answers": "`roles` is a list of `{role, nodes, choices}`: how many nodes running that role have no build this machine holds, and the versions installed for it, which may be none. An empty list means every node that runs firmware has one it can start.",
+    "example": {
+      "params": {},
+      "what": "find out what the run is short of",
+      "runnable": true
+    }
+  }
+}

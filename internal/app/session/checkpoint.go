@@ -75,14 +75,7 @@ func safeCheckpointName(name string) string {
 func registerCheckpoint(st *state.Store, s *Sim) {
 	// session.checkpoint: freeze the whole session to a named file, so it can
 	// be taken back to this exact moment later.
-	st.HandleSpec("session.checkpoint", state.Spec{
-		What: "freeze the whole session to a named checkpoint",
-		Params: []state.Param{
-			{Name: "name", Type: state.ParamString, Required: true, Primary: true,
-				What: "what to call this checkpoint"},
-		},
-		Returns: []string{"checkpoint", "path", "now_ms", "nodes"},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("session.checkpoint", func(w *state.World, p any) (any, error) {
 		name, _ := stringField(p, "name")
 		if name == "" {
 			return nil, fmt.Errorf("session.checkpoint needs a name")
@@ -131,16 +124,7 @@ func registerCheckpoint(st *state.Store, s *Sim) {
 	// session.restore: rebuild the session a checkpoint holds and replay to the
 	// moment it was taken. Deterministic, so the mesh comes back to exactly
 	// where it was - at the cost of the replay taking the run's own time.
-	st.HandleSpec("session.restore", state.Spec{
-		What: "rebuild a checkpoint and replay to the moment it was taken",
-		Params: []state.Param{
-			{Name: "name", Type: state.ParamString, Primary: true,
-				What: "the checkpoint to restore, by name"},
-			{Name: "path", Type: state.ParamString,
-				What: "a checkpoint file kept outside the checkpoints directory"},
-		},
-		Returns: []string{"restored", "nodes", "now_ms", "target_ms", "replaying"},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("session.restore", func(w *state.World, p any) (any, error) {
 		path, err := checkpointPath(p)
 		if err != nil {
 			return nil, err
@@ -208,10 +192,7 @@ func registerCheckpoint(st *state.Store, s *Sim) {
 	})
 
 	// session.checkpoints: what can be restored.
-	st.HandleSpec("session.checkpoints", state.Spec{
-		What:    "list the checkpoints that can be restored",
-		Returns: []string{"checkpoints"},
-	}, func(_ *state.World, _ any) (any, error) {
+	st.Handle("session.checkpoints", func(_ *state.World, _ any) (any, error) {
 		dir, err := checkpointsDir()
 		if err != nil {
 			return nil, err

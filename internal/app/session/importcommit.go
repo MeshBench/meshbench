@@ -39,7 +39,6 @@ type inferReading struct {
 }
 
 func registerImport(st *state.Store, s *Sim) {
-	// import.set_source: where to fetch from.
 	st.Handle("import.set_source", func(w *state.World, p any) (any, error) {
 		url, _ := stringField(p, "url")
 		if url == "" {
@@ -59,8 +58,6 @@ func registerImport(st *state.Store, s *Sim) {
 		return map[string]any{"url": url}, nil
 	})
 
-	// import.fetch: read the deployment, and say what would change before
-	// anything does.
 	st.Handle("import.fetch", func(w *state.World, p any) (any, error) {
 		url, _ := stringField(p, "url")
 		if s.imp == nil {
@@ -100,8 +97,6 @@ func registerImport(st *state.Store, s *Sim) {
 		}, nil
 	})
 
-	// import.commit: apply it. "replace-all" is the strategy the shipped
-	// fixtures were built with; "add" keeps what is here.
 	st.Handle("import.commit", func(w *state.World, p any) (any, error) {
 		if s.imp == nil || len(s.imp.imported) == 0 {
 			return nil, fmt.Errorf("nothing fetched to commit")
@@ -143,10 +138,6 @@ func registerImport(st *state.Store, s *Sim) {
 		return map[string]any{"nodes": len(nodes), "strategy": strategy}, nil
 	})
 
-	// infer.run: read the traffic and work out what each node holds.
-	//
-	// This is the step that gets forgotten, and it is the one that decides
-	// whether anything relays.
 	st.Handle("infer.run", func(w *state.World, p any) (any, error) {
 		if s.imp == nil || s.imp.url == "" {
 			return nil, fmt.Errorf("no import source set")
@@ -241,9 +232,6 @@ func registerImport(st *state.Store, s *Sim) {
 		}, nil
 	})
 
-	// infer.apply: the one that is forgotten. Without it a mesh has regions
-	// inferred but not applied, which transmits everything, relays nothing,
-	// and reports no error at all.
 	st.Handle("infer.apply", func(w *state.World, _ any) (any, error) {
 		if s.imp == nil || len(s.imp.inferred) == 0 {
 			return nil, fmt.Errorf("nothing inferred yet")

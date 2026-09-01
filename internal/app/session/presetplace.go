@@ -12,8 +12,6 @@ import (
 )
 
 func registerPresetsAndPlace(st *state.Store, s *Sim) {
-	// radio.preset: the modem configuration, which decides sensitivity and
-	// airtime and therefore every number downstream of them.
 	st.Handle("radio.preset", func(w *state.World, p any) (any, error) {
 		label, _ := stringField(p, "preset")
 		if label == "" {
@@ -52,8 +50,6 @@ func registerPresetsAndPlace(st *state.Store, s *Sim) {
 		return map[string]any{"preset": label, "nodes": n}, nil
 	})
 
-	// nodes.place: put one down, which is how the four kinds an import never
-	// contains get into a scenario.
 	st.Handle("nodes.place", func(w *state.World, p any) (any, error) {
 		name, _ := stringField(p, "name")
 		kind, _ := namedField(p, "kind")

@@ -9,10 +9,6 @@ import (
 )
 
 func registerLogs(st *state.Store, s *Sim) {
-	// log.path: where this run's full status log is, for a script or a menu
-	// action to find without knowing the naming scheme - one file per
-	// launch, timestamped, everything Say has said rather than only the
-	// last twenty lines the status strip keeps.
 	st.Handle("log.path", func(_ *state.World, _ any) (any, error) {
 		if s.logPath == "" {
 			return nil, fmt.Errorf("no session log is open")
@@ -20,11 +16,10 @@ func registerLogs(st *state.Store, s *Sim) {
 		return map[string]any{"path": s.logPath}, nil
 	})
 
-	// logs.export: a copy of the log file as it stands, somewhere the
-	// operator chose. Reads the file rather than FullLog, the panel's own
-	// in-memory tail, because the file is what actually has everything -
-	// FullLog is bounded, and a run long enough to fill it would export a
-	// log that quietly starts partway through.
+	// Reads the file rather than FullLog, the panel's own in-memory tail,
+	// because the file is what actually has everything - FullLog is bounded,
+	// and a run long enough to fill it would export a log that quietly starts
+	// partway through.
 	st.Handle("logs.export", func(w *state.World, p any) (any, error) {
 		to := soleString(p)
 		if to == "" {

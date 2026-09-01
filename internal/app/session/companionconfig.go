@@ -40,8 +40,6 @@ func setPathHash(en *engine.Node, bytes uint8) error {
 }
 
 func registerCompanionConfig(st *state.Store, s *Sim) {
-	// companion.configure: the node's own settings, as a phone would set them.
-	//
 	// Everything is optional and nothing is defaulted. A configure that sent
 	// every field every time would rewrite settings the operator never
 	// touched, and on a modem setting that is how a node leaves the mesh.

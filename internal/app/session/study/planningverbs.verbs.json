@@ -1,0 +1,73 @@
+{
+  "coverage.combined": {
+    "what": "turn a finished stack of rasters into the three numbers the planning question was actually about, and take the job off the status line",
+    "returns": [
+      "mode",
+      "gap_cells",
+      "known_cells",
+      "redundancy",
+      "single_point_of_failure"
+    ],
+    "answers": "`known_cells` is the cells any raster had an answer for, so `gap_cells` is out of what was known rather than out of the whole grid. It refuses when the combine produced nothing."
+  },
+  "coverage.start": {
+    "what": "ask one of the network-wide planning questions by name - where nobody is reached, how many servers a covered cell has, and how much of the map one mast is carrying alone",
+    "params": [
+      {
+        "name": "mode",
+        "type": "string",
+        "primary": true,
+        "what": "one of best, best-server, gaps, redundancy or node; absent is best, an unknown one is refused, and node hands the call to coverage.compute for the selected node and refuses when nothing is selected"
+      }
+    ],
+    "returns": [
+      "mode",
+      "nodes",
+      "started"
+    ],
+    "answers": "It answers as soon as the job starts. The answer itself - gap cells, servers per covered cell, cells depending on one - arrives later through the internal `coverage.combined`, and a failure through `coverage.failed`. `nodes` is every node in the scenario, companions included, because this rasterises the lot over one shared grid rather than the infrastructure alone that `coverage.map` picks out. Mode node answers with `coverage.compute`'s keys instead of these. Each raster is a best case in both directions, with gain evaluated towards each cell and any position uncertainty carried into it.",
+    "example": {
+      "params": {
+        "mode": "gaps"
+      },
+      "what": "find the ground nobody reaches"
+    }
+  },
+  "project.list": {
+    "what": "name what project.save has written and say where it writes them, since the directory belongs to the user's configuration rather than to anything the scenario knows about",
+    "returns": [
+      "projects",
+      "dir"
+    ],
+    "answers": "A projects directory that does not exist yet answers with an empty `projects` and no `dir` at all, which is the first-run case and not a fault.",
+    "example": {
+      "params": {},
+      "what": "see what can be opened",
+      "runnable": true
+    }
+  },
+  "project.save": {
+    "what": "write the nodes as they stand, and the margin they are judged against, into a named file under the user's config directory, so the setup can be opened again",
+    "params": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "what to call it: a name and not a path, since it is joined onto the projects directory and written to, so a separator or a leading dot is refused rather than followed"
+      }
+    ],
+    "returns": [
+      "saved",
+      "path",
+      "nodes"
+    ],
+    "answers": "It writes the scenario's nodes only. A run, its capture and the terrain cache are not in the file, so opening it again gives back the network rather than the session.",
+    "example": {
+      "params": {
+        "name": "fife-survey"
+      },
+      "what": "keep this network to come back to"
+    }
+  }
+}

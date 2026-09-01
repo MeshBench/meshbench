@@ -24,8 +24,6 @@ import (
 )
 
 func registerRadioReconcile(st *state.Store, s *Sim) {
-	// node.radio: what the scenario assumes, what the node reports, and
-	// whether they agree.
 	st.Handle("node.radio", func(w *state.World, p any) (any, error) {
 		name, _ := stringField(p, "node")
 		if name == "" {
@@ -115,8 +113,6 @@ func registerRadioReconcile(st *state.Store, s *Sim) {
 		return out, nil
 	})
 
-	// node.radio_adopt: believe the node.
-	//
 	// The node is the authority on what it is set to. The scenario is a
 	// statement of intent, and where they differ it is the scenario that is
 	// out of date.

@@ -35,14 +35,7 @@ func jobRows(jobs []state.Job, runningOnly bool) []map[string]any {
 }
 
 func registerJobList(st *state.Store) {
-	st.HandleSpec("job.list", state.Spec{
-		What: "list the long operations in flight, with what each one is and how far it has got",
-		Params: []state.Param{
-			{Name: "all", Type: state.ParamBool, Primary: true,
-				What: "include jobs that have already finished"},
-		},
-		Returns: []string{"jobs", "running"},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("job.list", func(w *state.World, p any) (any, error) {
 		all, _ := boolField(p, "all")
 		return map[string]any{
 			"jobs": jobRows(w.Jobs, !all), "running": w.JobsRunning(),

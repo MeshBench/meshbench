@@ -1,0 +1,24 @@
+{
+  "terrain.allow": {
+    "what": "allow or refuse terrain downloads on this machine, and remember it",
+    "params": [
+      {
+        "name": "on",
+        "type": "bool",
+        "primary": true,
+        "what": "true to download terrain when a study needs it, false to use only what is cached"
+      }
+    ],
+    "returns": [
+      "on",
+      "asked",
+      "warming"
+    ],
+    "answers": "`asked` is whether this machine had already answered before the call, never asked being the third state a fresh install is in. `warming` is true where granting permission released a measurement that had stopped to ask, because nothing is watching for the answer to arrive and it has to be started again by hand.",
+    "example": {
+      "params": true,
+      "what": "let this machine fetch the ground a study needs",
+      "runnable": true
+    }
+  }
+}

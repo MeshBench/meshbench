@@ -49,9 +49,9 @@ func registerTileCache(st *state.Store, s *Sim) {
 			"downloads": w.TerrainDownloads}, nil
 	})
 
-	// terrain.cache_dir moves the cache. Gigabytes of tiles, so it runs as a
-	// visible job on a worker, and the store only swaps directories after the
-	// move has succeeded - the decoded tiles in memory survive throughout.
+	// Gigabytes of tiles, so it runs as a visible job on a worker, and the
+	// store only swaps directories after the move has succeeded - the decoded
+	// tiles in memory survive throughout.
 	st.Handle("terrain.cache_dir", func(w *state.World, p any) (any, error) {
 		path := soleString(p)
 		if m, ok := p.(map[string]any); ok {
@@ -94,8 +94,7 @@ func registerTileCache(st *state.Store, s *Sim) {
 		return map[string]any{"moving": true, "to": newDir}, nil
 	})
 
-	// terrain.cache_moved is the worker reporting back on the store's
-	// goroutine, which is the only place the swap may happen.
+	// The store's goroutine is the only place the swap may happen.
 	st.HandleInternal("terrain.cache_moved", func(w *state.World, p any) (any, error) {
 		m, ok := p.(map[string]any)
 		if !ok {

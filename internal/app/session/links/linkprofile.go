@@ -21,8 +21,6 @@ func registerLinkProfile(st *state.Store, s *session.Sim) {
 		return nil, nil
 	})
 
-	// link.profile computes for the selected pair, for scripts and captures;
-	// the interface reaches the same worker through budget.for_selection.
 	st.Handle("link.profile", func(w *state.World, _ any) (any, error) {
 		var sel []string
 		for i := range w.Nodes {

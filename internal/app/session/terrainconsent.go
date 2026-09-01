@@ -95,14 +95,7 @@ func (s *Sim) heldForTerrain(ctx context.Context, st *state.Store, nodes []scena
 
 // registerTerrainConsent is the answer, and the switch that gives it.
 func registerTerrainConsent(st *state.Store, s *Sim) {
-	st.HandleSpec("terrain.allow", state.Spec{
-		What: "allow or refuse terrain downloads on this machine, and remember it",
-		Params: []state.Param{
-			{Name: "on", Type: state.ParamBool, Primary: true,
-				What: "true to download terrain when a study needs it, false to use only what is cached"},
-		},
-		Returns: []string{"on", "asked", "warming"},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("terrain.allow", func(w *state.World, p any) (any, error) {
 		// Allow by default: this verb exists to grant permission, and the
 		// caller who wrote no argument at all wrote the common case.
 		on := true

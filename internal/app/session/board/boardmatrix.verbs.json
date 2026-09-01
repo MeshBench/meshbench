@@ -1,0 +1,75 @@
+{
+  "board.matrix": {
+    "what": "publish what every board in the catalogue was last measured to demonstrate, for one firmware release, without booting anything",
+    "params": [
+      {
+        "name": "version",
+        "type": "string",
+        "primary": true,
+        "what": "the MeshCore release the rows are read for; absent or empty takes the release the matrix defaults to, which tracks the latest rather than whatever a result was first measured on"
+      }
+    ],
+    "returns": [
+      "version",
+      "boards"
+    ],
+    "answers": "`boards` is a count: the rows themselves go into the snapshot as the board matrix, where a panel or `ui.state` reads them. Nothing is measured here, so a board with no cached result for that release reads as untested, and one that cannot be emulated at all reads as boot-failed with the reason.",
+    "example": {
+      "params": {},
+      "what": "read the matrix as it stands",
+      "runnable": true
+    }
+  },
+  "board.probe": {
+    "what": "boot one board in the emulator for real and measure what it demonstrates, overwriting that board's cached row",
+    "params": [
+      {
+        "name": "board",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the board to boot, by its catalogue name; absent is refused"
+      },
+      {
+        "name": "version",
+        "type": "string",
+        "what": "the MeshCore release to probe, which has to be named to be meant; absent takes the release the matrix defaults to"
+      }
+    ],
+    "returns": [
+      "probing",
+      "board",
+      "version"
+    ],
+    "answers": "It answers as soon as the job is started, not when the board has been measured: the boot runs on its own goroutine for as long as the probe budget allows, and the result arrives through `board.probe_finished`, which republishes the matrix. Poll `job.list` for `boardprobe`. A second call while one is running is refused, because a board is probed one at a time.",
+    "example": {
+      "params": {
+        "board": "Heltec_WSL3"
+      },
+      "what": "measure one board's capabilities"
+    }
+  },
+  "board.probe_finished": {
+    "what": "take a finished probe back onto the store's goroutine: clear the job, republish the matrix over the row the probe has just written, and say how the board did",
+    "params": [
+      {
+        "name": "board",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the board that was probed"
+      },
+      {
+        "name": "version",
+        "type": "string",
+        "what": "the release it was probed at; an empty one republishes the matrix for an empty version, which holds no rows"
+      }
+    ],
+    "returns": [
+      "board",
+      "passed",
+      "failed"
+    ],
+    "answers": "`passed` and `failed` are counted off the cached row the probe saved, so capabilities it never reached are in neither total."
+  }
+}

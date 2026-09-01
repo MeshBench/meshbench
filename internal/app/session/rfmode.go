@@ -25,15 +25,13 @@ func rfModeOf(s string) engine.RFMode {
 }
 
 func registerRFMode(st *state.Store, s *Sim) {
-	// rf.mode: choose the physics. Applies live to a built engine - the
-	// switch lands on a whole-transmission boundary - and to every engine
-	// built after.
+	// Applies live to a built engine - the switch lands on a whole-transmission
+	// boundary - and to every engine built after.
 	st.Handle("rf.mode", func(w *state.World, p any) (any, error) {
 		mode, _ := stringField(p, "mode")
 		return setRFMode(w, s, mode)
 	})
 
-	// rf.toggle: the chrome's one-click flip between the two physics.
 	// Shared logic called directly, never st.Do from inside a handler -
 	// this goroutine IS the store, and asking it to do something is a wait
 	// for yourself.
@@ -81,9 +79,6 @@ func engineRealism(r state.RFRealism) engine.Realism {
 }
 
 func registerRFRealism(st *state.Store, s *Sim) {
-	// rf.realism: the imperfection switches, applied live and persisted.
-	// Absent fields are left alone, so one knob can move without restating
-	// the rest.
 	st.Handle("rf.realism", func(w *state.World, p any) (any, error) {
 		r := s.realism
 		if v, ok := numField(p, "osc_ppm"); ok {
@@ -113,8 +108,6 @@ func registerRFRealism(st *state.Store, s *Sim) {
 		return map[string]any{"realism": r}, nil
 	})
 
-	// node.truerf: the hybrid flag - waveform verdicts at one receiver
-	// inside a calculated run.
 	st.Handle("node.truerf", func(w *state.World, p any) (any, error) {
 		name, _ := stringField(p, "node")
 		on, _ := boolField(p, "on")

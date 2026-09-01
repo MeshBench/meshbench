@@ -1,0 +1,29 @@
+{
+  "board.screenshot": {
+    "what": "write the board's display to a PNG and return its path",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the node whose screen to capture"
+      }
+    ],
+    "returns": [
+      "node",
+      "path",
+      "width",
+      "height",
+      "bpp",
+      "on"
+    ],
+    "answers": "The picture is the frame the firmware drew, at the size the controller holds it, written to screen.png in that node's own work directory and overwritten each time. `on` says whether the panel was lit, which is a separate question from whether there is a frame: a display put to sleep still holds its last one. Refused where the node is not running, is not a board with a display, or has drawn nothing yet.",
+    "example": {
+      "params": {
+        "node": "West Lomond"
+      },
+      "what": "see what the board is showing"
+    }
+  }
+}

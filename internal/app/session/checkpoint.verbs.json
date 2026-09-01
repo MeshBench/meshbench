@@ -1,0 +1,69 @@
+{
+  "session.checkpoint": {
+    "what": "freeze the whole session to a named checkpoint",
+    "params": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "what to call this checkpoint"
+      }
+    ],
+    "returns": [
+      "checkpoint",
+      "path",
+      "now_ms",
+      "nodes"
+    ],
+    "answers": "`path` is the file it wrote, in the checkpoints directory under the user's configuration directory. The filename is the name with everything but letters, digits, underscore and hyphen replaced, so two names differing only in punctuation are one file and the second overwrites the first. Refused where there is no network to freeze, and where the name leaves nothing usable behind.",
+    "example": {
+      "params": {
+        "name": "before the storm"
+      },
+      "what": "keep this moment to come back to"
+    }
+  },
+  "session.checkpoints": {
+    "what": "list the checkpoints that can be restored",
+    "returns": [
+      "checkpoints"
+    ],
+    "answers": "The filenames, sorted, in the form `session.restore` takes as its name - which is the sanitised form rather than the name it was saved under, where the two differ. A machine that has never saved one answers with an empty list rather than an error.",
+    "example": {
+      "params": {},
+      "what": "see what can be gone back to",
+      "runnable": true
+    }
+  },
+  "session.restore": {
+    "what": "rebuild a checkpoint and replay to the moment it was taken",
+    "params": [
+      {
+        "name": "name",
+        "type": "string",
+        "primary": true,
+        "what": "the checkpoint to restore, by name"
+      },
+      {
+        "name": "path",
+        "type": "string",
+        "what": "a checkpoint file kept outside the checkpoints directory"
+      }
+    ],
+    "returns": [
+      "restored",
+      "nodes",
+      "now_ms",
+      "target_ms",
+      "replaying"
+    ],
+    "answers": "`replaying` true means the restore is not finished: the session is rebuilt at zero and set playing towards `target_ms`, which takes the run's own time, so poll `sim.state` until `playing` goes false. A checkpoint taken before the clock moved comes back already there, with `replaying` false. Whatever was loaded before is replaced, seed, frequency and physics included, because a checkpoint restored under other settings is a different study wearing the same name.",
+    "example": {
+      "params": {
+        "name": "before the storm"
+      },
+      "what": "take the session back to a saved moment"
+    }
+  }
+}

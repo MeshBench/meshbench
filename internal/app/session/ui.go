@@ -13,7 +13,6 @@ package session
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/MeshBench/meshbench/internal/app/control"
 	"github.com/MeshBench/meshbench/internal/app/state"
@@ -116,14 +115,7 @@ var errNoInterface = control.WithCode(control.Unavailable, errors.New(
 	"this session has no interface attached, so there is nothing to show"))
 
 func registerUI(st *state.Store, s *Sim) {
-	st.HandleSpec("workspace.set", state.Spec{
-		What: "Show one of the workbench's top-level views.",
-		Params: []state.Param{
-			{Name: "view", Type: state.ParamString, Primary: true, Required: true,
-				What: "the view's name, as panels.list and the view bar spell it"},
-		},
-		Returns: []string{"view"},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("workspace.set", func(w *state.World, p any) (any, error) {
 		if err := s.needUI(); err != nil {
 			return nil, err
 		}
@@ -137,20 +129,14 @@ func registerUI(st *state.Store, s *Sim) {
 		w.Say("showing " + name)
 		return map[string]any{"view": name}, nil
 	})
-	st.HandleSpec("panels.list", state.Spec{
-		What:    "Name every panel the interface has registered.",
-		Returns: []string{"panels", "count"},
-	}, func(_ *state.World, _ any) (any, error) {
+	st.Handle("panels.list", func(_ *state.World, _ any) (any, error) {
 		if err := s.needUI(); err != nil {
 			return nil, err
 		}
 		names := s.ui.PanelNames()
 		return map[string]any{"panels": names, "count": len(names)}, nil
 	})
-	st.HandleSpec("app.quit", state.Spec{
-		What:    "Close the workbench, stopping firmware on the way out.",
-		Returns: []string{"closing", "headless"},
-	}, func(w *state.World, _ any) (any, error) {
+	st.Handle("app.quit", func(w *state.World, _ any) (any, error) {
 		w.Say("closing")
 		if s.ui != nil {
 			go s.ui.Quit()
@@ -160,75 +146,6 @@ func registerUI(st *state.Store, s *Sim) {
 		// asks to quit means it.
 		go s.Close()
 		return map[string]any{"closing": true, "headless": true}, nil
-	})
-}
-
-func registerMapCamera(st *state.Store, s *Sim) {
-	// map.centre: look at a place, or at a node.
-	//
-	// A name is accepted as well as a position because a caller aiming a
-	// capture knows "Bishop Hill" and would otherwise have to look its
-	// coordinates up first.
-	st.HandleSpec("map.centre", state.Spec{
-		What: "Point the map at a node, or at a latitude and longitude.",
-		Params: []state.Param{
-			{Name: "node", Type: state.ParamString, Primary: true,
-				What: "centre on this node instead of giving coordinates"},
-			{Name: "lat", Type: state.ParamNumber, What: "degrees north"},
-			{Name: "lon", Type: state.ParamNumber, What: "degrees east"},
-			{Name: "zoom", Type: state.ParamNumber, What: "zoom level; unchanged when absent"},
-		},
-		Returns: []string{"lat", "lon", "zoom"},
-	}, func(w *state.World, p any) (any, error) {
-		if err := s.needUI(); err != nil {
-			return nil, err
-		}
-		var lat, lon, zoom float64
-		if name := soleString(p); name != "" {
-			n, found := findNode(w.Nodes, name)
-			if !found {
-				return nil, noSuchNode(name)
-			}
-			lat, lon = n.Lat, n.Lon
-		} else {
-			if v, ok := numField(p, "node"); !ok {
-				_ = v
-			}
-			if m, ok := p.(map[string]any); ok {
-				if name, ok := m["node"].(string); ok && name != "" {
-					n, found := findNode(w.Nodes, name)
-					if !found {
-						return nil, noSuchNode(name)
-					}
-					lat, lon = n.Lat, n.Lon
-				}
-			}
-			if v, ok := numField(p, "lat"); ok {
-				lat = v
-			}
-			if v, ok := numField(p, "lon"); ok {
-				lon = v
-			}
-			if v, ok := numField(p, "zoom"); ok {
-				zoom = v
-			}
-		}
-		if lat == 0 && lon == 0 {
-			return nil, fmt.Errorf("map.centre needs a node, or a lat and lon")
-		}
-		s.ui.CentreMap(lat, lon, zoom)
-		return map[string]any{"lat": lat, "lon": lon, "zoom": zoom}, nil
-	})
-
-	st.HandleSpec("map.fit", state.Spec{
-		What:    "Zoom the map so every node is on it.",
-		Returns: []string{"nodes"},
-	}, func(w *state.World, _ any) (any, error) {
-		if err := s.needUI(); err != nil {
-			return nil, err
-		}
-		s.ui.FitMap()
-		return map[string]any{"nodes": len(w.Nodes)}, nil
 	})
 }
 
@@ -246,242 +163,14 @@ func findNode(nodes []state.Node, name string) (state.Node, bool) {
 // They live here, not in the workbench, so a headless driver gets the same
 // vocabulary and a clear "no interface attached" rather than an absence that
 // looks like a version mismatch.
+//
+// Four groups, in four files, because one file held all seventeen and the
+// descriptions took it past the length limit: what the session is doing, the
+// panels and their windows, the saved arrangements, and the map's own
+// controls.
 func registerUIVerbs(st *state.Store, s *Sim) {
-	need := func() error { return s.needUI() }
-
-	// session.status: the one-line answer to "what is this doing", which the
-	// old workbench answered and this did not. Anything driving the workbench
-	// polls it, so it must never fail and never need a loaded network.
-	//
-	// Namespaced, unlike the old workbench1 verb of the same purpose: every
-	// verb here is noun.verb so a script reads as a sentence.
-	st.Handle("session.status", func(w *state.World, _ any) (any, error) {
-		out := map[string]any{
-			"status": w.Status, "nodes": len(w.Nodes), "playing": w.Playing,
-			"now_ms": w.NowMs, "firmware_running": w.FirmwareRunning,
-		}
-		if w.PendingPlay {
-			out["status"] = "waiting for firmware before the run starts"
-		}
-		// The newest job still running, not merely the newest: a bar that
-		// finished an hour ago reported as "the job" made every script that
-		// polls for completion wait forever.
-		out["jobs"] = w.JobsRunning()
-		for i := len(w.Jobs) - 1; i >= 0; i-- {
-			if j := w.Jobs[i]; !j.Finished {
-				// With the id, because a script that has to wait for one
-				// particular thing cannot match on prose, and matching on
-				// prose is what stopped working the moment the wording of a
-				// download improved.
-				out["job"] = map[string]any{
-					"id": j.ID, "what": j.What, "done": j.Done, "total": j.Total,
-				}
-				break
-			}
-		}
-		return out, nil
-	})
-
-	// ui.said puts a line in the status bar. A control whose verb failed and
-	// said nothing is indistinguishable from a control that does nothing.
-	st.Handle("ui.said", func(w *state.World, p any) (any, error) {
-		msg := soleString(p)
-		w.Say(msg)
-		return map[string]any{"said": msg}, nil
-	})
-
-	st.Handle("panel.open", func(w *state.World, p any) (any, error) {
-		if err := need(); err != nil {
-			return nil, err
-		}
-		name, _ := stringField(p, "name")
-		if err := s.ui.OpenPanel(name, ""); err != nil {
-			return nil, err
-		}
-		w.Say("showing " + name)
-		return map[string]any{"panel": name}, nil
-	})
-	st.Handle("panel.pop_out", func(w *state.World, p any) (any, error) {
-		if err := need(); err != nil {
-			return nil, err
-		}
-		name, _ := stringField(p, "name")
-		if err := s.ui.OpenPanel(name, "window"); err != nil {
-			return nil, err
-		}
-		return map[string]any{"panel": name, "where": "window"}, nil
-	})
-	st.Handle("panel.dock", func(w *state.World, p any) (any, error) {
-		if err := need(); err != nil {
-			return nil, err
-		}
-		name, _ := stringField(p, "name")
-		if err := s.ui.OpenPanel(name, "dock"); err != nil {
-			return nil, err
-		}
-		return map[string]any{"panel": name, "where": "layout"}, nil
-	})
-	st.Handle("panel.close", func(w *state.World, p any) (any, error) {
-		if err := need(); err != nil {
-			return nil, err
-		}
-		name, _ := stringField(p, "name")
-		if err := s.ui.ClosePanel(name); err != nil {
-			return nil, err
-		}
-		w.Say(name + " closed")
-		return map[string]any{"panel": name}, nil
-	})
-	st.Handle("layout.reset", func(w *state.World, _ any) (any, error) {
-		if err := need(); err != nil {
-			return nil, err
-		}
-		s.ui.ResetLayout()
-		w.Say("layout reset")
-		return map[string]any{"reset": true}, nil
-	})
-	st.Handle("window.open", func(w *state.World, p any) (any, error) {
-		if err := need(); err != nil {
-			return nil, err
-		}
-		name, _ := stringField(p, "name")
-		if err := s.ui.OpenPanel(name, "window"); err != nil {
-			return nil, err
-		}
-		return map[string]any{"window": name}, nil
-	})
-	st.Handle("window.close", func(w *state.World, p any) (any, error) {
-		if err := need(); err != nil {
-			return nil, err
-		}
-		name, _ := stringField(p, "name")
-		if err := s.ui.CloseWindow(name); err != nil {
-			return nil, err
-		}
-		return map[string]any{"closed": name}, nil
-	})
-
-	st.Handle("ui.scale", func(w *state.World, p any) (any, error) {
-		if err := need(); err != nil {
-			return nil, err
-		}
-		if v, ok := numField(p, "scale"); ok && v > 0 {
-			s.ui.SetScale(v)
-			w.Say(fmt.Sprintf("interface scale %.2f", v))
-		}
-		return map[string]any{"scale": s.ui.Scale()}, nil
-	})
-	st.Handle("ui.state", func(w *state.World, _ any) (any, error) {
-		if err := need(); err != nil {
-			return nil, err
-		}
-		out := s.ui.State()
-		out["nodes"] = len(w.Nodes)
-		out["playing"] = w.Playing
-		out["now_ms"] = w.NowMs
-		// Running, not merely present: this counted finished rows too, so it
-		// reported two jobs long after both had ended and the files were on
-		// disk. And the rows themselves, because a bare count cannot tell a
-		// script what it is waiting for.
-		out["jobs"] = w.JobsRunning()
-		out["running"] = jobRows(w.Jobs, true)
-		return out, nil
-	})
-
-	st.Handle("view.save", func(w *state.World, p any) (any, error) {
-		if err := need(); err != nil {
-			return nil, err
-		}
-		name, _ := stringField(p, "name")
-		if err := s.ui.SaveView(name); err != nil {
-			return nil, err
-		}
-		w.Say("saved view " + name)
-		return map[string]any{"saved": name}, nil
-	})
-	st.Handle("view.load", func(w *state.World, p any) (any, error) {
-		if err := need(); err != nil {
-			return nil, err
-		}
-		name, _ := stringField(p, "name")
-		if err := s.ui.LoadView(name); err != nil {
-			return nil, err
-		}
-		return map[string]any{"loaded": name}, nil
-	})
-	st.Handle("view.list", func(_ *state.World, _ any) (any, error) {
-		if err := need(); err != nil {
-			return nil, err
-		}
-		return map[string]any{"views": s.ui.ListViews()}, nil
-	})
-	st.Handle("view.delete", func(w *state.World, p any) (any, error) {
-		if err := need(); err != nil {
-			return nil, err
-		}
-		name, _ := stringField(p, "name")
-		if err := s.ui.DeleteView(name); err != nil {
-			return nil, err
-		}
-		return map[string]any{"deleted": name}, nil
-	})
-
-	st.Handle("map.zoom", func(w *state.World, p any) (any, error) {
-		if err := need(); err != nil {
-			return nil, err
-		}
-		f := 2.0
-		if v, ok := numField(p, "factor"); ok && v > 0 {
-			f = v
-		}
-		s.ui.ZoomMap(f)
-		return map[string]any{"factor": f}, nil
-	})
-	st.Handle("map.filter", func(w *state.World, p any) (any, error) {
-		if err := need(); err != nil {
-			return nil, err
-		}
-		q, _ := stringField(p, "query")
-		s.ui.FilterMap(q)
-		w.Say("map filter: " + q)
-		return map[string]any{"query": q}, nil
-	})
-	st.Handle("tool.set", func(w *state.World, p any) (any, error) {
-		if err := need(); err != nil {
-			return nil, err
-		}
-		name, _ := stringField(p, "name")
-		if err := s.ui.SetTool(name); err != nil {
-			return nil, err
-		}
-		w.Say("tool: " + name)
-		return map[string]any{"tool": name}, nil
-	})
-
-	// map.layer: draw this, or stop drawing it.
-	st.Handle("map.layer", func(w *state.World, p any) (any, error) {
-		if err := need(); err != nil {
-			return nil, err
-		}
-		name, _ := stringField(p, "name")
-		if name == "" {
-			name = soleString(p)
-		}
-		on := true
-		if v, ok := boolField(p, "on"); ok {
-			on = v
-		}
-		if err := s.ui.SetLayer(name, on); err != nil {
-			return nil, err
-		}
-		return map[string]any{"layers": s.ui.Layers()}, nil
-	})
-
-	// map.layers: what the map is drawing.
-	st.Handle("map.layers", func(w *state.World, _ any) (any, error) {
-		if err := need(); err != nil {
-			return nil, err
-		}
-		return map[string]any{"layers": s.ui.Layers()}, nil
-	})
+	registerSessionState(st, s)
+	registerPanelVerbs(st, s)
+	registerSavedViews(st, s)
+	registerMapView(st, s)
 }

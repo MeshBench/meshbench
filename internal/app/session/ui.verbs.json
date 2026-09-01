@@ -1,0 +1,48 @@
+{
+  "app.quit": {
+    "what": "Close the workbench, stopping firmware on the way out.",
+    "returns": [
+      "closing",
+      "headless"
+    ],
+    "answers": "It answers before anything has closed, the quit running on its own goroutine, so a caller sees the reply and then the socket go. This is the one interface verb that does not refuse without an interface: a headless driver asking to quit means it, so firmware is stopped anyway and `headless` says that is what happened.",
+    "example": {
+      "params": {},
+      "what": "end the session, firmware and all"
+    }
+  },
+  "panels.list": {
+    "what": "Name every panel the interface has registered.",
+    "returns": [
+      "panels",
+      "count"
+    ],
+    "answers": "Every panel that exists, sorted, not the ones on screen: a panel nothing has opened is still named here, which is what makes this the list to choose a `panel.open` from. Refuses when no interface is attached.",
+    "example": {
+      "params": {},
+      "what": "find out what there is to open"
+    }
+  },
+  "workspace.set": {
+    "what": "Show one of the workbench's top-level views.",
+    "params": [
+      {
+        "name": "view",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the view's name, as panels.list and the view bar spell it"
+      }
+    ],
+    "returns": [
+      "view"
+    ],
+    "answers": "Refuses when no interface is attached, and refuses a name that is not a view with the list of the ones that are.",
+    "example": {
+      "params": {
+        "view": "Debug"
+      },
+      "what": "go to the view that asks why one packet failed"
+    }
+  }
+}

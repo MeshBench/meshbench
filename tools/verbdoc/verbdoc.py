@@ -21,23 +21,29 @@ verb no client can reach is a verb nobody outside the workbench can use, and
 that is exactly how a hand-written surface can come to call a verb that had
 been deleted.
 
-This is deliberately a prototype of the manifest in #213 rather than the
-manifest itself. It reads the handler bodies with a brace matcher and regular
-expressions, which is good enough to document a surface and not good enough to
-generate a client - 77 verbs read parameters in ways nothing outside the
-handler can see. When #213 lands, the descriptions come from the registration
-and this script goes away.
+What a verb is for, what each parameter means and an example of calling it are
+authored rather than read: they live in a <basename>.verbs.json beside each Go
+file that registers verbs, and are merged here. Where a verb has one of those
+entries it wins outright over the regular expressions below, which read a
+handler body and guess. Where it has none, the guess is printed and marked as a
+guess, because a page that quietly left the verb out would look finished.
 """
 import json
 import os
 import re
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import reference  # noqa: E402  (needs the path above it)
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 SESSION = os.path.join(ROOT, "internal", "app", "session")
 DOC = os.path.join(ROOT, "docs", "scripting-verbs.md")
 API = os.path.join(ROOT, "docs", "scripting-api.md")
+# The per-verb reference, which the documentation site copies rather than
+# regenerates: its own CI has no checkout of this tree to read.
+REF = os.path.join(ROOT, "docs", "verb-reference.md")
 MAP = os.path.join(HERE, "facade.json")
 
 # Which of the counts each document states. Two documents rather than one
@@ -58,18 +64,17 @@ FACADE = _map["facade"]
 WHY_NONE = _map["no_facade"]
 GROUPS = [(g["title"], g["prefixes"]) for g in _map["groups"]]
 
-# All three spellings: HandleSpec is the one that carries a description, and
-# verbs are being moved onto it a file at a time (#213); HandleInternal is the
-# workbench's own callbacks, which are documented here as the verbs no client
-# may call rather than left out of the table entirely. Missing a spelling drops
-# a registered verb out of the document silently.
-HANDLE = re.compile(r'st\.Handle(?:Spec|Internal)?\(\s*"([a-z0-9_.]+)"\s*,')
+# Both spellings: HandleInternal is the workbench's own callbacks, which are
+# documented here as the verbs no client may call rather than left out of the
+# table entirely. Missing a spelling drops a registered verb out of the
+# document silently.
+HANDLE = re.compile(r'st\.Handle(?:Internal)?\(\s*"([a-z0-9_.]+)"\s*,')
 
 # The subset of HANDLE registered with HandleInternal specifically: the
 # workbench's own callbacks, which the socket refuses. Kept separate from
-# HANDLE rather than tagged during scan() because scan() lets the manifest
-# overwrite a verb's entry wholesale, which would lose which spelling
-# registered it.
+# HANDLE rather than tagged during scan() because scan() lets the authored
+# description overwrite a verb's entry wholesale, which would lose which
+# spelling registered it.
 INTERNAL = re.compile(r'st\.HandleInternal\(\s*"([a-z0-9_.]+)"\s*,')
 
 PARAM_PATTERNS = [
@@ -101,11 +106,9 @@ RESULT_KEY = re.compile(r'"([a-z0-9_]+)"\s*:')
 def body_of(src, start):
     """The handler body, by brace matching from the func literal.
 
-    Started at the `func(` rather than at the next brace, because on a
-    HandleSpec call the next brace opens the description and brace-matching
-    from there reads the spec where the handler should be - which showed up as
-    a described verb losing its parameters and its interface marker in this
-    table, the opposite of what describing it was for.
+    Started at the `func(` rather than at the next brace, so a registration
+    that ever gains an argument between the name and the handler does not send
+    the matcher into it and read that where the handler should be.
     """
     f = src.find("func(", start)
     if f >= 0:
@@ -134,22 +137,33 @@ def body_of(src, start):
     return src[i:]
 
 
-MANIFEST = os.path.join(os.path.dirname(__file__), "..", "..", "docs", "verbs.json")
+INTERNAL_TREE = os.path.join(ROOT, "internal")
+SPEC_SUFFIX = ".verbs.json"
 
 
 def described():
-    """What the manifest says, for the verbs that have learned to say it.
+    """Every authored description, merged from the files beside the code.
 
-    Preferred over the regexes below wherever it exists. The regexes read a
-    handler body and guess; the manifest is what whoever wrote the verb said it
-    takes, which is the whole point of #213. As verbs move onto HandleSpec this
-    table gets better a row at a time instead of worse.
+    Preferred over the regexes below wherever one exists: they read a handler
+    body and guess, and this is what whoever wrote the verb said it takes.
+
+    Two files describing one verb is refused rather than resolved, because a
+    last one wins would drop a description with nothing saying it had gone.
     """
-    try:
-        with open(MANIFEST) as f:
-            return json.load(f).get("verbs", {})
-    except FileNotFoundError:
-        return {}
+    out, seen = {}, {}
+    for dirpath, _, names in os.walk(INTERNAL_TREE):
+        for n in sorted(names):
+            if not n.endswith(SPEC_SUFFIX):
+                continue
+            path = os.path.join(dirpath, n)
+            with open(path) as f:
+                for verb, spec in sorted(json.load(f).items()):
+                    if verb in seen:
+                        sys.exit(f"{verb} is described in both {seen[verb]} "
+                                 f"and {path}")
+                    seen[verb] = path
+                    out[verb] = spec
+    return out
 
 
 def scan():
@@ -199,6 +213,10 @@ def scan():
             "strlist": verbs[name]["strlist"],
             "returns": spec.get("returns", []),
             "what": spec.get("what", ""),
+            # Carried whole as well as flattened, because the reference prints
+            # things the table has no column for: each parameter's own line,
+            # whether it is required, and the example.
+            "spec": spec,
         }
     return verbs
 
@@ -252,12 +270,15 @@ def verb_counts(verbs):
     wb.call. None substitutes for another.
     """
     internal = internal_only()
+    described = sum(1 for v in verbs.values() if v.get("what"))
     return {
         "public": len(verbs) - len(internal),
         "internal": len(internal),
         "total": len(verbs),
         "uionly": len(ui_only()),
         "nofacade": sum(1 for v in FACADE.values() if not v),
+        "described": described,
+        "undescribed": len(verbs) - described,
     }
 
 
@@ -380,18 +401,24 @@ def main():
     counts = verb_counts(verbs)
     doc = render(verbs, header_from_doc(counts))
     api = api_doc(counts)
+    ref = reference.render(verbs, GROUPS, FACADE, WHY_NONE, ui_only(),
+                           internal_only(), counts)
+    written = ((DOC, doc), (API, api), (REF, ref))
     if "--check" in sys.argv:
-        for path, want in ((DOC, doc), (API, api)):
-            if open(path).read() != want:
+        for path, want in written:
+            if not os.path.exists(path) or open(path).read() != want:
                 sys.exit(f"{path} is out of date; run tools/verbdoc/verbdoc.py")
-        print(f"{DOC} and {API} are current ({counts['public']} public, "
-              f"{counts['internal']} internal, {counts['total']} total)")
+        print(f"{DOC}, {API} and {REF} are current ({counts['public']} public, "
+              f"{counts['internal']} internal, {counts['total']} total, "
+              f"{counts['described']} described)")
         return
-    open(DOC, "w").write(doc)
-    open(API, "w").write(api)
+    for path, want in written:
+        open(path, "w").write(want)
     print(f"{DOC}: {counts['public']} public, {counts['internal']} internal, "
           f"{counts['total']} total, {counts['nofacade']} deliberately unmapped, "
-          f"{counts['uionly']} needing a window")
+          f"{counts['uionly']} needing a window\n"
+          f"{REF}: {counts['described']} verbs describe themselves, "
+          f"{counts['undescribed']} still to go")
 
 
 if __name__ == "__main__":

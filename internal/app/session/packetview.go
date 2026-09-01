@@ -17,10 +17,9 @@ import (
 )
 
 func registerPacket(st *state.Store, s *Sim) {
-	// packet.open dissects one transmission by its id. On the store's
-	// goroutine deliberately: the ledger and the event log belong to the
-	// engine, which steps on this goroutine, and a click can afford the
-	// milliseconds a scan costs.
+	// On the store's goroutine deliberately: the ledger and the event log
+	// belong to the engine, which steps on this goroutine, and a click can
+	// afford the milliseconds a scan costs.
 	st.Handle("packet.open", func(w *state.World, p any) (any, error) {
 		if s.eng == nil {
 			return nil, ErrNoSimulation

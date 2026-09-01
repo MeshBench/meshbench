@@ -1,0 +1,18 @@
+{
+  "sweep.run": {
+    "what": "push a rising offered load through one node until the network stops carrying what it is given, which is the point a delivery figure taken at one load cannot show",
+    "returns": [
+      "arms",
+      "seeds"
+    ],
+    "answers": "The shape of the plan it has just started, not a result. The plan is fixed and takes no parameters: four message rates from one every two seconds down to one every 250 ms, over six seeds. Those two dozen short simulations run on a worker and the matrix arrives later through an internal callback, with progress under the job id `sweep`. The node swept is the first selected one, or the scenario's first companion where nothing is selected. It refuses where no engine has been built or no node is loaded.",
+    "example": {
+      "params": {},
+      "what": "find where the selected node's mesh saturates"
+    }
+  },
+  "sweep.set": {
+    "what": "take the finished offered-load matrix onto the world, on the one goroutine allowed to apply it",
+    "answers": "Nothing. It carries a *state.Matrix, which is a Go value nothing outside the process can spell, so anything else is refused rather than applied as an empty matrix."
+  }
+}

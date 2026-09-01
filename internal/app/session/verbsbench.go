@@ -75,9 +75,9 @@ func registerBenchVerbs(st *state.Store, s *Sim) {
 		return nil, fmt.Errorf("no companion to inject at")
 	})
 
+	// Whether a client is attached changes without anything asking, so the
+	// panel refreshes rather than assuming what it drew is still true.
 	st.Handle("bench.refresh", func(w *state.World, _ any) (any, error) {
-		// Whether a client is attached changes without anything asking, so
-		// the panel refreshes rather than assuming what it drew is still true.
 		w.Endpoints = s.endpoints()
 		return nil, nil
 	})

@@ -16,6 +16,7 @@ These cannot move. The build reads them, or the application prints their path.
 | `licences.json`, `licences/` | `tools/licgen` reads them and fails the build if a linked module's licence cannot be named |
 | `repositories.md` | the fork table is pinned by `ui/workbench/licences_test.go` |
 | `shortcomings.md` | the application prints this path to users; the docs site generates its *What it does not do* page from it |
+| `verb-reference.md` | written by `tools/verbdoc/verbdoc.py`; the docs site's control socket page is a copy of it, and its build refuses when the copy has fallen behind |
 | `ux/` | written by `go run ./tools/mockup` |
 | `output/` | written by `go run ./tools/render` |
 

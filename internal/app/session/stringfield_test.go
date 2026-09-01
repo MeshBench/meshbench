@@ -36,6 +36,13 @@ func TestABareStringFillsOnlyOneField(t *testing.T) {
 	}
 }
 
+// registrations is every spelling a verb can be registered under.
+//
+// Both, because the guard below is only worth anything while it sees every
+// verb: a verb that moved between the two spellings would otherwise leave this
+// check silently.
+var registrations = map[string]bool{"Handle": true, "HandleInternal": true}
+
 // One primary per verb, checked rather than remembered.
 //
 // The rule only holds while every handler keeps to it, and the way it broke the
@@ -66,7 +73,7 @@ func TestEachVerbHasOneBareStringField(t *testing.T) {
 				return true
 			}
 			sel, ok := call.Fun.(*ast.SelectorExpr)
-			if !ok || sel.Sel.Name != "Handle" {
+			if !ok || !registrations[sel.Sel.Name] {
 				return true
 			}
 			lit, ok := call.Args[0].(*ast.BasicLit)
@@ -75,7 +82,10 @@ func TestEachVerbHasOneBareStringField(t *testing.T) {
 			}
 			verb, _ := strconv.Unquote(lit.Value)
 			var fields []string
-			ast.Inspect(call.Args[1], func(n ast.Node) bool {
+			// The last argument rather than the second, so this keeps working
+			// whatever else a registration is ever handed between the name and
+			// the handler.
+			ast.Inspect(call.Args[len(call.Args)-1], func(n ast.Node) bool {
 				inner, ok := n.(*ast.CallExpr)
 				if !ok {
 					return true

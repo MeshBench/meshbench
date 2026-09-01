@@ -1,0 +1,19 @@
+{
+  "setup.check": {
+    "what": "what this machine has, what it is missing, and what each one costs",
+    "returns": [
+      "groups",
+      "ready",
+      "needed",
+      "undecided",
+      "blocked",
+      "missing"
+    ],
+    "answers": "Four groups in the order the problems are met - what this build is, what a node would run, what a link is measured over, and what an emulated board needs on top - each row saying its state, what it is for, what it would cost, where it lives and what to do about it, with the verb and parameters that would do it where the application can act. The five counts beside them are those same rows tallied by state, so a script can ask whether anything is wrong without walking the list. Read-only and offline: a check that started a download would be the mistake it exists to report.",
+    "example": {
+      "params": {},
+      "what": "ask whether this machine is ready",
+      "runnable": true
+    }
+  }
+}

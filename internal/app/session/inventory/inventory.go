@@ -18,7 +18,6 @@ import (
 
 // registerInventory adds the read-only verbs.
 func registerInventory(st *state.Store, s *session.Sim) {
-	// nodes.list: the network as it stands.
 	st.Handle("nodes.list", func(w *state.World, _ any) (any, error) {
 		out := make([]map[string]any, 0, len(w.Nodes))
 		for _, n := range w.Nodes {
@@ -41,11 +40,6 @@ func registerInventory(st *state.Store, s *session.Sim) {
 		return map[string]any{"nodes": out, "count": len(out)}, nil
 	})
 
-	// events.recent: the tail, which is what a poller wants.
-	//
-	// The store keeps a bounded tail rather than the whole log, so this can
-	// never return a run's worth of events by accident - a caller polling
-	// every second on a long run would otherwise be handed millions.
 	st.Handle("events.recent", func(w *state.World, p any) (any, error) {
 		limit := 50
 		if v, ok := session.NumField(p, "limit"); ok && v > 0 {
@@ -62,10 +56,6 @@ func registerInventory(st *state.Store, s *session.Sim) {
 		}, nil
 	})
 
-	// events.dump: the tail as NDJSON on disk, one event per line.
-	//
-	// NDJSON because a run's log is appended to and read back a line at a
-	// time; a single JSON array cannot be streamed and cannot be tailed.
 	st.Handle("events.dump", func(w *state.World, p any) (any, error) {
 		path := session.SoleString(p)
 		if m, ok := p.(map[string]any); ok {

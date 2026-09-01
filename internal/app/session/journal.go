@@ -29,12 +29,7 @@ func registerJournal(st *state.Store, _ *Sim) {
 	st.ExcludeFromJournal(journalInterfaceOnly...)
 	st.ExcludeFromJournal(journalPolls...)
 
-	st.HandleSpec("session.journal", state.Spec{
-		What: "every command this workbench has been driven with, newest last, " +
-			"and when the process started - so a session picked up cold can be " +
-			"told how the world got here, and whether it has been restarted",
-		Returns: []string{"started_ms", "count", "entries"},
-	}, func(_ *state.World, _ any) (any, error) {
+	st.Handle("session.journal", func(_ *state.World, _ any) (any, error) {
 		startedMs, entries := st.Journal()
 		return map[string]any{
 			"started_ms": startedMs,

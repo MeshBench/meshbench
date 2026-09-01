@@ -258,7 +258,6 @@ func (s *Sim) gpuDefault() {
 
 // registerGPU is the switch and what it did.
 func registerGPU(st *state.Store, s *Sim) {
-	// gpu.set: on or off, said once and remembered.
 	st.Handle("gpu.set", func(w *state.World, p any) (any, error) {
 		if v, ok := boolField(p, "on"); ok {
 			// Chosen beats decided: once somebody has said, the default does
@@ -279,7 +278,6 @@ func registerGPU(st *state.Store, s *Sim) {
 		return s.gpuState(), nil
 	})
 
-	// gpu.state: what hardware there is, and what the last warm did with it.
 	st.Handle("gpu.state", func(w *state.World, _ any) (any, error) {
 		w.GPU = s.gpuWorldState()
 		return s.gpuState(), nil

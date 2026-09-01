@@ -1,0 +1,54 @@
+{
+  "console.read": {
+    "what": "read back what a node's firmware has said, which is where the reply to anything typed at it arrives",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the node whose scrollback to read; refused when it is absent, unknown, or runs no firmware"
+      }
+    ],
+    "returns": [
+      "node",
+      "lines",
+      "tail"
+    ],
+    "answers": "`lines` is how many the node has said since its console was attached and `tail` is the last two hundred of them, so the two disagree on a node that has been running a while.",
+    "example": {
+      "params": "West Lomond",
+      "what": "read what a node has been saying"
+    }
+  },
+  "console.type": {
+    "what": "run a line at a node's own firmware console, which answers what the node says rather than what it sent, and is the question asked when a node is not behaving as its configuration claims",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "required": true,
+        "what": "the node whose console to type at; refused when it is absent, unknown, or runs no firmware"
+      },
+      {
+        "name": "command",
+        "type": "string",
+        "required": true,
+        "what": "the line to type, sent with a carriage return and newline after it; refused when it is absent or empty"
+      }
+    ],
+    "returns": [
+      "node",
+      "sent",
+      "note"
+    ],
+    "answers": "The node's reply is not in this answer: it lands in the scrollback when the engine next steps, and is read with `console.read`. On a paused clock this steps the engine sixty times so the reply arrives anyway, but while a sweep owns the clock the replies come back empty.",
+    "example": {
+      "params": {
+        "command": "get name",
+        "node": "West Lomond"
+      },
+      "what": "ask a node what it believes it is called"
+    }
+  }
+}

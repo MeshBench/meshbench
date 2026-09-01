@@ -79,18 +79,7 @@ func outputFile(dir, source string, emulated bool) (path, note string, err error
 }
 
 func registerNodeOutput(st *state.Store, s *Sim) {
-	st.HandleSpec("node.output", state.Spec{
-		What: "read what a node's serial port, emulator or radio model has printed",
-		Params: []state.Param{
-			{Name: "node", Type: state.ParamString, Required: true, Primary: true,
-				What: "the node to read"},
-			{Name: "source", Type: state.ParamString,
-				What: "serial, emulator or radio; serial by default"},
-			{Name: "lines", Type: state.ParamNumber,
-				What: "how many lines of the tail to answer with, up to 2000"},
-		},
-		Returns: []string{"node", "source", "lines", "total", "path", "tail", "note", "tracing"},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("node.output", func(w *state.World, p any) (any, error) {
 		name, _ := stringField(p, "node")
 		if name == "" {
 			return nil, badParams("node.output needs a node")
@@ -309,16 +298,7 @@ func registerNodeOutputWindow(st *state.Store, s *Sim) {
 	// A tab is one pane, and what people do while a board is misbehaving is
 	// watch its screen and two of its logs together - what the board printed
 	// beside what the emulator said about running it.
-	st.HandleSpec("node.output_window", state.Spec{
-		What: "Open one node's one log in a window of its own, so a board's screen and several of its logs can be watched at once.",
-		Params: []state.Param{
-			{Name: "node", Type: state.ParamString, Required: true, Primary: true,
-				What: "which node"},
-			{Name: "source", Type: state.ParamString,
-				What: "which log: " + strings.Join(OutputSources, ", ") + "; serial when absent"},
-		},
-		Returns: []string{"node", "source"},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("node.output_window", func(w *state.World, p any) (any, error) {
 		if err := s.needUI(); err != nil {
 			return nil, err
 		}

@@ -29,8 +29,6 @@ func registerBudgetVerbs(st *state.Store, s *Sim) {
 		return map[string]any{"budgets": len(w.Budgets)}, nil
 	})
 
-	// node.energy is energy.for_selection with the node named, for the node
-	// window's own December button.
 	st.Handle("node.energy", func(w *state.World, p any) (any, error) {
 		if !EnergyEnabled() {
 			return nil, ErrEnergyDisabled

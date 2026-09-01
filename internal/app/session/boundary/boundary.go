@@ -28,7 +28,6 @@ import (
 const searchDeadline = 30 * time.Second
 
 func registerBoundary(st *state.Store, s *session.Sim) {
-	// boundary.set: search for a place by name.
 	st.Handle("boundary.set", func(w *state.World, p any) (any, error) {
 		q, _ := session.StringField(p, "query")
 		if strings.TrimSpace(q) == "" {
@@ -60,9 +59,6 @@ func registerBoundary(st *state.Store, s *session.Sim) {
 		return map[string]any{"found": out, "names": names}, nil
 	})
 
-	// boundary.accept: take one of the matches into the study area. The
-	// chosen set unions, because a study area is often two council areas
-	// rather than one.
 	st.Handle("boundary.accept", func(w *state.World, p any) (any, error) {
 		name, _ := session.StringField(p, "name")
 		if name == "" {
@@ -121,12 +117,6 @@ func registerBoundary(st *state.Store, s *session.Sim) {
 		return map[string]any{"accepted": name, "areas": len(w.Areas)}, nil
 	})
 
-	// boundary.remove: take one area back out of the study.
-	//
-	// A study area is built up from several places - Scotland and Ireland, or
-	// four council areas - so there has to be a way to take one out again
-	// without starting over. It changes what is measured, never what is
-	// loaded: the nodes stay until something prunes them.
 	st.Handle("boundary.remove", func(w *state.World, p any) (any, error) {
 		name, _ := session.StringField(p, "name")
 		if name == "" {
@@ -166,8 +156,6 @@ func registerBoundary(st *state.Store, s *session.Sim) {
 		return map[string]any{"removed": name, "areas": len(w.Areas)}, nil
 	})
 
-	// boundary.prune: remove what is outside, with the margin kept, because a
-	// node just outside still interferes with one just inside.
 	st.Handle("boundary.prune", func(w *state.World, p any) (any, error) {
 		if len(s.Areas()) == 0 {
 			return nil, fmt.Errorf("no study area accepted yet")

@@ -1,0 +1,247 @@
+{
+  "companion.add_channel": {
+    "what": "ask a node what one of its channel slots holds, despite the name: nothing is added, and the slot's name and key come back later as a frame rather than in this answer",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the connected node; refused when nothing is connected to it"
+      },
+      {
+        "name": "index",
+        "type": "number",
+        "what": "which channel slot to ask about; absent asks about slot 0"
+      }
+    ],
+    "returns": [
+      "asked_for_channel"
+    ],
+    "answers": "It answers as soon as the question is queued. What the slot holds lands in the node's decoded state, which `companion.state` counts.",
+    "example": {
+      "params": {
+        "index": 1,
+        "node": "West Lomond"
+      },
+      "what": "ask what is in the second channel slot"
+    }
+  },
+  "companion.advert": {
+    "what": "make a node announce itself, which is how the rest of the mesh comes to hold it as a contact",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the connected node; refused when nothing is connected to it, or when it has not answered anything since it was connected"
+      },
+      {
+        "name": "flood",
+        "type": "bool",
+        "what": "true sends a flood advert, which repeaters carry onward; false sends one that is not flooded; absent floods"
+      }
+    ],
+    "returns": [
+      "advert",
+      "flood"
+    ],
+    "example": {
+      "params": {
+        "flood": false,
+        "node": "West Lomond"
+      },
+      "what": "announce to the neighbours only"
+    }
+  },
+  "companion.connect": {
+    "what": "claim a node's serial port for the companion protocol and make the same opening a phone makes, so a client's view of the node can be shown or driven",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the node to attach to; refused when it is absent, runs no firmware, is already connected, or its port is being served to an attached outside client"
+      }
+    ],
+    "returns": [
+      "connected"
+    ],
+    "answers": "A listener that is serving the port but has nobody on it is taken back rather than refused. Everything the node says in reply arrives later as frames, so read it with `companion.state`.",
+    "example": {
+      "params": {
+        "node": "West Lomond"
+      },
+      "what": "attach to a node the way a phone would"
+    }
+  },
+  "companion.disconnect": {
+    "what": "give a node's port back, which is what lets its text console be used again",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the connected node; refused when nothing is connected to it"
+      }
+    ],
+    "returns": [
+      "disconnected"
+    ],
+    "example": {
+      "params": {
+        "node": "West Lomond"
+      },
+      "what": "hand the port back to the console"
+    }
+  },
+  "companion.read": {
+    "what": "mark which channel a client is looking at so its unread count clears, which is bookkeeping in this session and puts nothing on the wire",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the connected node; refused when nothing is connected to it"
+      },
+      {
+        "name": "channel",
+        "type": "number",
+        "what": "the channel slot being looked at; absent means slot 0"
+      }
+    ],
+    "returns": [
+      "node",
+      "channel"
+    ],
+    "example": {
+      "params": {
+        "channel": 0,
+        "node": "West Lomond"
+      },
+      "what": "say the public channel is on screen"
+    }
+  },
+  "companion.refresh": {
+    "what": "ask a node again for everything a client draws, emptying the held contact list first so a contact the node has forgotten does not linger in the view",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the connected node; refused when nothing is connected to it"
+      }
+    ],
+    "returns": [
+      "node"
+    ],
+    "answers": "It answers as soon as the questions are queued, so the contact count read straight after is zero. The answers arrive later as frames.",
+    "example": {
+      "params": {
+        "node": "West Lomond"
+      },
+      "what": "rebuild the view from what the node says now"
+    }
+  },
+  "companion.scope": {
+    "what": "set the region a node sends under, by the one route a companion build has for it, and ask the node back rather than assume the write landed",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the connected node; refused when nothing is connected to it"
+      },
+      {
+        "name": "scope",
+        "type": "string",
+        "what": "the region name, canonicalised before it is sent and paired with the key derived from it; absent or empty clears the scope, so the node sends unscoped"
+      }
+    ],
+    "returns": [
+      "node",
+      "scope"
+    ],
+    "answers": "`scope` is the name as it was asked for, canonicalised, not what the node now holds: the node's own answer arrives later as a frame.",
+    "example": {
+      "params": {
+        "node": "West Lomond",
+        "scope": "scotland"
+      },
+      "what": "put a node on a named region"
+    }
+  },
+  "companion.send": {
+    "what": "send a channel message from a node as a phone's composer would, and keep a copy of it, because the node transmits without saying so and a client that draws only what arrives would show an empty conversation",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the connected node; refused when nothing is connected to it, or when it has not answered anything since it was connected"
+      },
+      {
+        "name": "text",
+        "type": "string",
+        "required": true,
+        "what": "the message; refused when it is absent or only whitespace"
+      },
+      {
+        "name": "channel",
+        "type": "number",
+        "what": "which channel slot to send on; absent sends on slot 0"
+      },
+      {
+        "name": "path_hash",
+        "type": "number",
+        "what": "bytes of path hash each hop adds, 1 to 3, written to the node before the message goes and refused outside that range; absent leaves the node's own setting alone"
+      }
+    ],
+    "returns": [
+      "sent",
+      "channel"
+    ],
+    "example": {
+      "params": {
+        "node": "West Lomond",
+        "text": "anybody hearing this"
+      },
+      "what": "put a message on the public channel"
+    }
+  },
+  "companion.state": {
+    "what": "read what a client attached to this node would be showing, which is what the node has actually said rather than what the scenario believes about it",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the connected node; refused when nothing is connected to it"
+      }
+    ],
+    "returns": [
+      "node",
+      "contacts",
+      "messages",
+      "channels",
+      "recent",
+      "name",
+      "freq_khz"
+    ],
+    "answers": "`contacts`, `messages` and `channels` are counts rather than the things themselves, and `recent` is the session's own note lines. `name` and `freq_khz` appear only once the node has answered a device query, so their absence means it has not.",
+    "example": {
+      "params": {
+        "node": "West Lomond"
+      },
+      "what": "ask what the client sees"
+    }
+  }
+}

@@ -1,0 +1,95 @@
+{
+  "coverage.clear": {
+    "what": "take the raster off the map without recomputing anything, for when it is covering the ground somebody wants to look at",
+    "answers": "Answers nothing at all: there is no state left to report.",
+    "example": {
+      "params": {},
+      "what": "put the map back",
+      "runnable": true
+    }
+  },
+  "coverage.compute": {
+    "what": "raster what one node reaches over its own 60 km study square, which is the question somebody has just asked by clicking a mast",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "primary": true,
+        "what": "the node to cover from; absent falls back to whichever node is selected, and a name this network has not got is refused rather than read as none"
+      }
+    ],
+    "returns": [
+      "nodes",
+      "started"
+    ],
+    "answers": "It answers as soon as the job starts, with `nodes` at 1 for the single station. The raster lands later through the internal `coverage.set`, and a failure through `coverage.failed`. Every cell is judged in both directions and they differ: the antenna's gain is evaluated on the bearing and look angle to that cell, and a node imported with position uncertainty carries that uncertainty into the cell as slack. The margins are a best case, with no multipath and no body loss in them, and cells with no cached elevation are counted rather than coloured.",
+    "example": {
+      "params": "West Lomond",
+      "what": "see the ground one repeater serves"
+    }
+  },
+  "coverage.failed": {
+    "what": "say on the status line why a raster job gave up, because a job that ends with nothing drawn is otherwise indistinguishable from one still running",
+    "answers": "Answers nothing."
+  },
+  "coverage.set": {
+    "what": "take a finished raster into the snapshot and say how much of it is ignorance rather than absence, since a raster computed with no elevation looks exactly like a statement about radio",
+    "returns": [
+      "node"
+    ],
+    "answers": "Answers nothing at all when it is handed a nil raster, which is how the map is cleared."
+  },
+  "terrain.shade": {
+    "what": "hillshade the relief under one view, which is a tile fetch and a pass over every cell in it, so it runs as a job that says out loud that it is happening",
+    "params": [
+      {
+        "name": "view",
+        "type": "array",
+        "required": true,
+        "primary": true,
+        "what": "the borders to shade, as the four numbers south, north, west, east; anything that is not four numbers, and four that are all zero, is refused"
+      }
+    ],
+    "returns": [
+      "shading"
+    ],
+    "answers": "`shading: true` means the job started, not that anything has been drawn. The shading lands later through the internal `terrain.shade_set`, or `terrain.shade_failed` where the view has no elevation to shade.",
+    "example": {
+      "params": [
+        56,
+        56.5,
+        -3.6,
+        -3
+      ],
+      "what": "shade the relief across Fife"
+    }
+  },
+  "terrain.shade_failed": {
+    "what": "drop the hillshade and say the view has no elevation cached, so a layer that switched on and drew nothing carries its reason",
+    "answers": "Answers nothing."
+  },
+  "terrain.shade_set": {
+    "what": "hold the finished hillshade, and warn where most of the view was blank ground rather than flat ground",
+    "answers": "Answers nothing: the shading goes into the snapshot the renderer reads."
+  },
+  "waterfall.capture": {
+    "what": "take one 200 ms window of what a node's receiver hears and turn it into a spectrogram, of the instant it was asked for rather than of whenever a worker got round to it",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "primary": true,
+        "what": "the node to listen at; absent falls back to whichever node is selected, and a name this network has not got is refused rather than read as none"
+      }
+    ],
+    "returns": [
+      "captured"
+    ],
+    "answers": "`captured` is false without an error whenever there was nothing to draw: no engine, no node selected, or nothing on the air in that instant. Which of the three it was is said on the status line rather than returned.",
+    "example": {
+      "params": "West Lomond",
+      "what": "look at what one node hears during a flood",
+      "runnable": true
+    }
+  }
+}

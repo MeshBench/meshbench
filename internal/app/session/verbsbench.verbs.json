@@ -1,0 +1,70 @@
+{
+  "bench.drop": {
+    "what": "take a served node's port back, or with no node named cut every attached client loose while leaving the listeners open",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "what": "the node to stop serving, whether or not a client is on it; absent drops the clients instead and stops serving nothing"
+      }
+    ],
+    "returns": [
+      "dropped"
+    ],
+    "answers": "`dropped` counts what was closed, and zero is a normal answer: named a node nothing was serving, or asked to drop clients when none were attached.",
+    "example": {
+      "params": {
+        "node": "West Lomond"
+      },
+      "what": "stop serving one node",
+      "runnable": true
+    }
+  },
+  "bench.refresh": {
+    "what": "look again at which endpoints are open and which have a client on them, because a client attaching or leaving tells this session nothing",
+    "answers": "It answers with nothing at all. The endpoints go into the published state, which is where a panel reads them.",
+    "example": {
+      "params": {},
+      "what": "see whether a client has attached",
+      "runnable": true
+    }
+  },
+  "bench.serve": {
+    "what": "open a real endpoint onto one simulated node, so an unmodified companion client on this machine or another can talk to it as if it were hardware",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "what": "the node to serve; absent takes the first companion in the scenario, because an endpoint is what is wanted before a node has been chosen"
+      },
+      {
+        "name": "kind",
+        "type": "string",
+        "what": "\"serial\" for a pseudo-terminal a serial client opens; anything else, absent included, listens on TCP on every interface and a port the operating system picks"
+      }
+    ],
+    "returns": [
+      "node",
+      "addr"
+    ],
+    "answers": "Serving takes the port off the workbench, so a companion session on that node is released rather than shared. A second call for the same node replaces the listener rather than adding one.",
+    "example": {
+      "params": {
+        "kind": "tcp",
+        "node": "West Lomond"
+      },
+      "what": "put a node on a TCP port for a real client"
+    }
+  },
+  "bench.stray": {
+    "what": "hand a companion a frame it was never going to be sent, so what the decoder does with rubbish can be watched rather than assumed",
+    "returns": [
+      "at"
+    ],
+    "answers": "It injects at the first companion in the scenario, and names which that was. Refused where there is no run, or where the scenario holds no companion at all.",
+    "example": {
+      "params": {},
+      "what": "put a bad frame at a companion"
+    }
+  }
+}

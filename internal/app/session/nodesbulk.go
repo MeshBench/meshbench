@@ -17,7 +17,6 @@ import (
 )
 
 func registerNodesBulk(st *state.Store, s *Sim) {
-	// nodes.delete_many: remove a set, and rebuild once.
 	st.Handle("nodes.delete_many", func(w *state.World, p any) (any, error) {
 		want, err := nameSet(p, "nodes")
 		if err != nil {
@@ -26,8 +25,6 @@ func registerNodesBulk(st *state.Store, s *Sim) {
 		return s.dropNodes(st, w, want, "deleted")
 	})
 
-	// nodes.keep: remove everything the set does not name.
-	//
 	// The complement rather than the set, because that is how somebody
 	// actually says it - "just these two" - and because working it out on the
 	// client means fetching the list first and racing whatever else is
@@ -51,12 +48,7 @@ func registerNodesBulk(st *state.Store, s *Sim) {
 		return s.dropNodes(st, w, drop, "deleted")
 	})
 
-	// node.set_board: what hardware this node is.
-	//
-	// A board decides the transmit ceiling, the receive chain's noise figure
-	// and the battery the energy model needs, so this is a change to the
-	// physics and not a label. It rebuilds and re-warms for the same reason
-	// moving a node does.
+	// It rebuilds and re-warms for the same reason moving a node does.
 	st.Handle("node.set_board", func(w *state.World, p any) (any, error) {
 		name, _ := stringField(p, "node")
 		if name == "" {

@@ -213,7 +213,6 @@ func sources(ss *sdrState) []state.SDRSource {
 }
 
 func registerSDRServe(st *state.Store, s *session.Sim) {
-	// sdr.serve: expose one node's antenna as an rtl_tcp source.
 	st.Handle("sdr.serve", func(w *state.World, p any) (any, error) {
 		if s.Engine() == nil {
 			return nil, session.ErrNoSimulation

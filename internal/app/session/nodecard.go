@@ -24,22 +24,7 @@ import (
 )
 
 func registerNodeCard(st *state.Store, s *Sim) {
-	st.HandleSpec("node.card", state.Spec{
-		What: "Report or change what is in one node's card slot: whether a card is fitted, which file it is, and whether to erase it.",
-		Params: []state.Param{
-			{Name: "node", Type: state.ParamString, Required: true, Primary: true,
-				What: "which node"},
-			{Name: "fitted", Type: state.ParamBool,
-				What: "put a card in the slot or take it out; unchanged when absent"},
-			{Name: "file", Type: state.ParamString,
-				What: "the file behind the card; empty string returns it to the " +
-					"node's own, named after the node and kept beside its flash"},
-			{Name: "wipe", Type: state.ParamBool,
-				What: "erase the card, which is what reformatting one is"},
-		},
-		Returns: []string{"node", "slot", "fitted", "file", "own_file", "bytes",
-			"required_by_firmware", "board_has_slot", "wiped"},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("node.card", func(w *state.World, p any) (any, error) {
 		name, _ := stringField(p, "node")
 		if name == "" {
 			return nil, badParams("node.card needs a node")

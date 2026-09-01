@@ -26,7 +26,6 @@ const (
 )
 
 func registerValidate(st *state.Store, s *session.Sim) {
-	// validate.fetch: real receptions, replayed against the model.
 	st.Handle("validate.fetch", func(w *state.World, p any) (any, error) {
 		url, _ := session.StringField(p, "url")
 		if url == "" && s.ImportURL() != "" {
@@ -162,7 +161,6 @@ func registerValidate(st *state.Store, s *session.Sim) {
 		return nil, nil
 	})
 
-	// validate.compare: what the model said against what was heard.
 	st.HandleInternal("validate.compare", func(w *state.World, p any) (any, error) {
 		recs, ok := p.([]provider.Reception)
 		if !ok {
@@ -212,7 +210,6 @@ func registerValidate(st *state.Store, s *session.Sim) {
 		}, nil
 	})
 
-	// validate.calibrate: apply what the comparison found.
 	st.Handle("validate.calibrate", func(w *state.World, p any) (any, error) {
 		db, have := 0.0, false
 		if w.Residuals != nil && w.Residuals.Matched > 0 {
@@ -259,8 +256,6 @@ func registerValidate(st *state.Store, s *session.Sim) {
 		return map[string]any{"db": db, "links": len(w.Links)}, nil
 	})
 
-	// validate.uncalibrate: back to the default, which is a stated guess
-	// rather than a measurement.
 	st.Handle("validate.uncalibrate", func(w *state.World, _ any) (any, error) {
 		s.SetExcessLoss(session.DefaultExcessLossDB, false)
 		w.ExcessLossDB, w.Calibrated = session.DefaultExcessLossDB, false

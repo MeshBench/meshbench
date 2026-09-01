@@ -1,0 +1,41 @@
+{
+  "link.pair": {
+    "what": "answer why two particular places do or do not hear each other, without the engine or a warm link matrix, which are exactly what is missing at the moment somebody points at two masts and asks",
+    "params": [
+      {
+        "name": "a",
+        "type": "object",
+        "required": true,
+        "what": "one end: a node's name as a bare string or as {node}, or a place as {lat, lon} with an optional height_m that defaults to 2 m head height; anything else is refused, as is a name this network has not got"
+      },
+      {
+        "name": "b",
+        "type": "object",
+        "required": true,
+        "what": "the other end, in the same two forms; refused when it labels the same place as a, since a link needs two"
+      }
+    ],
+    "returns": [
+      "from",
+      "to"
+    ],
+    "answers": "It answers with the two labels as soon as the worker starts. The cut-through and both margins arrive later through the internal `link.pair_set`, and there are two margins because there are two answers: each end's gain is evaluated on the bearing towards the other, so A to B and B to A can differ by tens of decibels on a beam. Both are best cases - bare earth, the calibrated excess loss, a default noise floor and no multipath - which is what the profile's assumption line says. A clicked place with no scenario loaded is priced at 868 MHz, and says so.",
+    "example": {
+      "params": {
+        "a": "West Lomond",
+        "b": "Dunfermline"
+      },
+      "what": "ask why two repeaters do or do not hear each other"
+    }
+  },
+  "link.pair_set": {
+    "what": "take the finished cut-through and its two budgets into the snapshot in one go, so the panel's picture and its margins are always of the same pair and the same model",
+    "returns": [
+      "from",
+      "to",
+      "km",
+      "edges"
+    ],
+    "answers": "Answers nothing at all when the analysis could not run, having cleared the profile: the reason has already been said on the status line by the worker."
+  }
+}

@@ -14,8 +14,6 @@ import (
 )
 
 func registerCapture(st *state.Store, s *session.Sim) {
-	// capture.file: the bytes, without a GUI.
-	//
 	// Diagnosing why a packet was not relayed needs the frame, not a window,
 	// and on a driven session there is often nobody at the screen to look at
 	// one.
@@ -35,9 +33,8 @@ func registerCapture(st *state.Store, s *session.Sim) {
 		return map[string]any{"path": path}, nil
 	})
 
-	// capture.wireshark: the same frames, streamed, with Wireshark opened on
-	// them. It streams even when the launch or the dissectors fail, and says
-	// which did - a capture running with no window is recoverable by hand.
+	// It streams even when the launch or the dissectors fail, and says which
+	// did - a capture running with no window is recoverable by hand.
 	st.Handle("capture.wireshark", func(w *state.World, p any) (any, error) {
 		if s.Engine() == nil {
 			return nil, fmt.Errorf("no network loaded")

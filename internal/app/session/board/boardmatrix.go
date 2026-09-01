@@ -34,9 +34,6 @@ func registerBoardMatrix(st *state.Store, s *session.Sim) {
 		return map[string]any{"version": version, "boards": len(w.BoardMatrix)}, nil
 	})
 
-	// board.probe: one board, one real emulator boot. Slow, so it goes on a
-	// job, and every capability it measures overwrites that board's cached
-	// row when it finishes.
 	st.Handle("board.probe", func(w *state.World, p any) (any, error) {
 		board, _ := session.StringField(p, "board")
 		if board == "" {

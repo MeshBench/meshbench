@@ -1,0 +1,32 @@
+{
+  "job.cancel": {
+    "what": "stop a long operation where whoever started it left a way to, and say so by name where it did not, rather than leaving somebody watching a bar that carries on",
+    "params": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the job's id, as job.list reports it; an id no running job carries is refused, and so is one whose job cannot be interrupted safely - job.list's `cancellable` says which before it is pressed"
+      }
+    ],
+    "returns": [
+      "stopping"
+    ],
+    "answers": "The row stays on the list with \"stopping\" put in front of what it says, because the work ends when its context notices, which is not this instant, and a row that vanished on the press would be claiming otherwise.",
+    "example": {
+      "params": {
+        "id": "tiles"
+      },
+      "what": "stop a terrain download"
+    }
+  },
+  "job.done": {
+    "what": "take a job off the list, because a progress bar that never goes away is a worse lie than no progress bar",
+    "answers": "Nothing, and an id no job carries is not an error: the work finishing twice is commoner than the row being missing."
+  },
+  "job.progress": {
+    "what": "create or move on one row of the job list, carrying forward the cancel function of the row it replaces",
+    "answers": "Nothing. It carries a state.Job, a Go value holding a closure nothing outside the process can spell, so anything else is refused."
+  }
+}

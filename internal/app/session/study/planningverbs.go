@@ -20,7 +20,6 @@ import (
 )
 
 func registerPlanningVerbs(st *state.Store, s *session.Sim) {
-	// coverage.start: the network-wide questions, by name.
 	st.Handle("coverage.start", func(w *state.World, p any) (any, error) {
 		mode, _ := session.StringField(p, "mode")
 		if mode == "" {
@@ -87,7 +86,6 @@ func registerPlanningVerbs(st *state.Store, s *session.Sim) {
 		return map[string]any{"mode": mode, "nodes": len(w.Nodes), "started": true}, nil
 	})
 
-	// project.save: what is here, as a fixture, so it can be opened again.
 	st.Handle("project.save", func(w *state.World, p any) (any, error) {
 		name, _ := session.StringField(p, "name")
 		if name == "" {
@@ -128,7 +126,6 @@ func registerPlanningVerbs(st *state.Store, s *session.Sim) {
 		return map[string]any{"saved": name, "path": path, "nodes": len(s.Nodes())}, nil
 	})
 
-	// project.list: what can be opened.
 	st.Handle("project.list", func(_ *state.World, _ any) (any, error) {
 		dir, err := projectsDir()
 		if err != nil {

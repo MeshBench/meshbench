@@ -1,0 +1,32 @@
+{
+  "nodes.near": {
+    "what": "order the rest of the network by how far it is from one node, which is how an imported deployment is cut down to a neighbourhood a desktop will actually run",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the node to measure from, matched as nodes elsewhere are matched; a name no node has is refused, and so is an absent one"
+      },
+      {
+        "name": "count",
+        "type": "number",
+        "what": "how many of the nearest to return; anything not a positive number returns every other node in the scenario"
+      }
+    ],
+    "returns": [
+      "node",
+      "near"
+    ],
+    "answers": "`node` is the name as the scenario spells it. `near` is a row per other node with its great-circle distance in `km`, nearest first, ties broken on the name. The distance is the same geometry the path losses are computed on, so a script's idea of nearest and the simulator's are one idea; it is still only a distance, and says nothing about whether either end can hear the other.",
+    "example": {
+      "params": {
+        "count": 5,
+        "node": "West Lomond"
+      },
+      "what": "find the neighbourhood around a repeater",
+      "runnable": true
+    }
+  }
+}

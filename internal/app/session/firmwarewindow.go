@@ -12,18 +12,7 @@ import (
 
 func registerFirmwareWindow(st *state.Store, s *Sim) {
 	// firmware.window: one build, on its own, where it can be changed.
-	st.HandleSpec("firmware.window", state.Spec{
-		What: "Open one build's own window: what it is, where it lives, and how it is run.",
-		Params: []state.Param{
-			{Name: "version", Type: state.ParamString, Primary: true, Required: true,
-				What: "the build's version or imported label"},
-			{Name: "role", Type: state.ParamString,
-				What: "which role, when one label carries more than one"},
-			{Name: "board", Type: state.ParamString,
-				What: "which board; absent means a build for this machine"},
-		},
-		Returns: []string{"role", "version", "board"},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("firmware.window", func(w *state.World, p any) (any, error) {
 		if err := s.needUI(); err != nil {
 			return nil, err
 		}

@@ -26,14 +26,7 @@ func registerBoardScreenshot(st *state.Store, s *session.Sim) {
 	// board.screenshot: the board's display as a PNG under the node's work
 	// directory. The path is returned so a caller can open it; the frame is
 	// exactly what the controller holds, at the size it holds it.
-	st.HandleSpec("board.screenshot", state.Spec{
-		What: "write the board's display to a PNG and return its path",
-		Params: []state.Param{
-			{Name: "node", Type: state.ParamString, Required: true, Primary: true,
-				What: "the node whose screen to capture"},
-		},
-		Returns: []string{"node", "path", "width", "height", "bpp", "on"},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("board.screenshot", func(w *state.World, p any) (any, error) {
 		name, _ := session.StringField(p, "node")
 		if name == "" {
 			return nil, fmt.Errorf("board.screenshot needs a node")

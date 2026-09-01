@@ -64,12 +64,10 @@ func registerImportFeedVerbs(st *state.Store, s *Sim) {
 		return nil, nil
 	})
 
-	// feed.stop: the live feed is a pull with a deadline rather than a socket
-	// held open, so stopping it means not starting the next one, and dropping
-	// the one still in the air. The flag it clears used to be written and never
-	// read anywhere, which made this the stop button that genuinely did
-	// nothing: the pull it was pressed to stop landed a minute later and the
-	// panel filled up with the traffic somebody had just asked it not to fetch.
+	// The flag this clears used to be written and never read anywhere, which
+	// made it the stop button that genuinely did nothing: the pull it was
+	// pressed to stop landed a minute later and the panel filled up with the
+	// traffic somebody had just asked it not to fetch.
 	st.Handle("feed.stop", func(w *state.World, _ any) (any, error) {
 		was := s.feeding.Swap(false)
 		if !was {

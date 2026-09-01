@@ -1,0 +1,33 @@
+{
+  "node.wipe": {
+    "what": "erase one node's stored state: its flash, its card and its files",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the node to put back to factory"
+      },
+      {
+        "name": "confirm",
+        "type": "bool",
+        "what": "false lists what would go and removes nothing; absent or true erases it"
+      }
+    ],
+    "returns": [
+      "node",
+      "wiped",
+      "removed",
+      "would_remove"
+    ],
+    "answers": "`wiped` counts what went and `removed` names it, the node's card included where it keeps one elsewhere; the emulator's own sockets are left, being recreated at the next start. With `confirm` false nothing is touched and `would_remove` names what a wipe would take. A node with nothing on disk answers zero rather than refusing. Refused where the node is not an emulated board, where it is still running, and where only part of it could be removed - a partial wipe is an error naming what stayed, because a board that boots back into settings said to be gone is worse than one that was never wiped.",
+    "example": {
+      "params": {
+        "confirm": false,
+        "node": "West Lomond"
+      },
+      "what": "see what putting a board back to factory would take"
+    }
+  }
+}

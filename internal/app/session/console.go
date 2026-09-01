@@ -48,11 +48,6 @@ func (s *Sim) consoleFor(name string) (*console.Buf, error) {
 }
 
 func registerConsole(st *state.Store, s *Sim) {
-	// console.type: send a line and report what came back.
-	//
-	// The documented caveat, said here rather than in a document: replies do
-	// not arrive while a sweep owns the clock, because the firmware only
-	// speaks when the engine steps it.
 	st.Handle("console.type", func(w *state.World, p any) (any, error) {
 		var name, cmd string
 		if m, ok := p.(map[string]any); ok {
@@ -94,7 +89,6 @@ func registerConsole(st *state.Store, s *Sim) {
 		}, nil
 	})
 
-	// console.read: the scrollback, for a window that is drawing it.
 	st.Handle("console.read", func(w *state.World, p any) (any, error) {
 		name := soleString(p)
 		if m, ok := p.(map[string]any); ok {

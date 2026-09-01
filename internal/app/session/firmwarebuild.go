@@ -28,8 +28,6 @@ import (
 var buildRoles = []string{"simple_repeater", "companion_radio"}
 
 func registerFirmwareBuild(st *state.Store, s *Sim) {
-	// firmware.build: compile a checkout and put the results in the library.
-	//
 	// Returns as soon as the work has started, like every other long job here.
 	// A MeshCore build is a minute or two per role and the store's goroutine
 	// is where every verb lands - blocking it would freeze the window, the
@@ -97,12 +95,8 @@ func buildFirmware(st *state.Store, id, src, label string, roles []string) {
 }
 
 func registerFirmwareBuildResults(st *state.Store, _ *Sim) {
-	// firmware.built: what came out.
-	//
 	// It is already in the cache - firmware.Build imports it, which is the
 	// same call `meshbench dev` makes - so there is nothing to add here.
-	// What this does is say so and re-read the library, because a build
-	// nothing has listed is a build no picker offers.
 	st.HandleInternal("firmware.built", func(w *state.World, p any) (any, error) {
 		got, ok := p.(map[string]any)
 		if !ok {

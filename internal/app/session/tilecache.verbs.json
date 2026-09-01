@@ -1,0 +1,63 @@
+{
+  "terrain.cache": {
+    "what": "say how much memory decoded terrain may occupy, in the unit people think in, and read back where the tiles are kept and whether this machine is allowed to fetch more",
+    "params": [
+      {
+        "name": "gb",
+        "type": "number",
+        "primary": true,
+        "what": "the ceiling in gigabytes, four thousand-odd tiles to the gigabyte; anything under 0.25 is ignored rather than refused, and absent only reports"
+      }
+    ],
+    "returns": [
+      "gb",
+      "dir",
+      "downloads"
+    ],
+    "answers": "`dir` is where the tiles live on disk, which is permanent: nothing here expires a cached tile. `downloads` is whether terrain may be fetched at all, answered here because this is the verb the interface asks at startup and the switch has to draw its own position on the first frame.",
+    "example": {
+      "params": {},
+      "what": "ask where the terrain is and how much is held",
+      "runnable": true
+    }
+  },
+  "terrain.cache_dir": {
+    "what": "move the terrain cache to another disk, files and all, so a permanent cache that has outgrown where it started does not have to be downloaded again somewhere else",
+    "params": [
+      {
+        "name": "path",
+        "type": "string",
+        "primary": true,
+        "what": "where the cache should live, created if it is not there already; absent only reports where it lives now, while a path that cannot be written into, one that contains or sits inside the current cache, or a second move while one is still running, is refused rather than queued"
+      }
+    ],
+    "returns": [
+      "moving",
+      "to"
+    ],
+    "answers": "the move runs on a worker with a progress job, so this answers `moving` true before a byte has gone. Asked with no path it answers `dir` instead. A move that fails leaves the cache where it was and says so in the journal.",
+    "example": {
+      "params": "/srv/terrain",
+      "what": "put the tiles on the disk with room for them"
+    }
+  },
+  "terrain.cache_moved": {
+    "what": "point the tile store and the settings at the directory a finished move has filled, and say whether the next launch will look there too or download it all again",
+    "params": [
+      {
+        "name": "dir",
+        "type": "string",
+        "required": true,
+        "what": "the directory the files were moved to; the callback is refused without it"
+      },
+      {
+        "name": "files",
+        "type": "number",
+        "what": "how many files moved, for the message; absent counts as none"
+      }
+    ],
+    "returns": [
+      "dir"
+    ]
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "session.status": {
+    "what": "report what the session is saying, where the run has got to and which long job is still going, cheaply enough for a script to poll and answered whether or not anything is loaded or drawing",
+    "returns": [
+      "status",
+      "nodes",
+      "playing",
+      "now_ms",
+      "firmware_running",
+      "jobs",
+      "job"
+    ],
+    "answers": "`jobs` counts only the jobs still running, and `job` is the newest of those: it is absent when nothing is running, which is what a script waiting for a download or a sweep watches for. It carries the job's id, because matching on the wording of a progress line stopped working the moment the wording improved. `status` is the last thing said, replaced while a play is waiting on firmware to come up.",
+    "example": {
+      "params": {},
+      "what": "poll until the work in hand has finished",
+      "runnable": true
+    }
+  },
+  "ui.said": {
+    "what": "put a line where the operator is already looking, so a script's own step is visible in the status strip and in the session log beside the verbs it drove",
+    "params": [
+      {
+        "name": "text",
+        "type": "string",
+        "primary": true,
+        "what": "the line to show; anything that is not a bare string or a single-keyed object says an empty line rather than refusing"
+      }
+    ],
+    "returns": [
+      "said"
+    ],
+    "answers": "It never refuses, and it does not need an interface: with nothing drawing, the line still goes to the log the session keeps.",
+    "example": {
+      "params": "coverage sweep finished",
+      "what": "mark a step of a script on screen",
+      "runnable": true
+    }
+  },
+  "ui.scale": {
+    "what": "read or set how large the interface draws itself, the one setting a high-density screen needs and then never again",
+    "params": [
+      {
+        "name": "scale",
+        "type": "number",
+        "primary": true,
+        "what": "the new scale, one being the interface's own size; absent, zero or negative reads the current scale and changes nothing"
+      }
+    ],
+    "returns": [
+      "scale"
+    ],
+    "answers": "The scale in force after the call, read back from the interface rather than repeated from the request, so an interface that clamps it says so. Refuses when no interface is attached.",
+    "example": {
+      "params": {
+        "scale": 1.25
+      },
+      "what": "make everything a quarter larger on a dense screen"
+    }
+  },
+  "ui.state": {
+    "what": "ask what is on screen for a caller with no eyes: the view, the panels in their own windows, the map tool, and what the run is doing beside them",
+    "returns": [
+      "view",
+      "popped",
+      "scale",
+      "tool",
+      "nodes",
+      "playing",
+      "now_ms",
+      "jobs",
+      "running"
+    ],
+    "answers": "The first four come from whatever is drawing, so another interface may answer with other keys; the rest are the session's own. `jobs` counts the jobs still running and `running` is those same jobs as rows with their ids, because a bare count cannot tell a script what it is waiting for. Refuses when no interface is attached, which is what makes session.status the one to poll.",
+    "example": {
+      "params": {},
+      "what": "check which view a screenshot will catch"
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "terrain.prefetch": {
+    "what": "download the ground under the loaded network before anything needs it, so the minutes of network time a first measurement would spend invisibly are a visible, priced, stoppable job instead",
+    "returns": [
+      "tiles",
+      "to_fetch",
+      "bytes_rough"
+    ],
+    "answers": "`tiles` is the area's whole tile count and `to_fetch` how many of them are missing, so `to_fetch` zero means the ground is already cached and nothing was started. Otherwise the download runs as a cancellable job and this returns before it, with `bytes_rough` an average tile size times a count rather than a measurement. Refused where no network is loaded, where the machine has no tile store, and where terrain downloads are switched off, which terrain.allow is what turns on.",
+    "example": {
+      "params": {},
+      "what": "fetch the ground this study stands on"
+    }
+  }
+}

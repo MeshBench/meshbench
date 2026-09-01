@@ -1,0 +1,52 @@
+{
+  "firmware.build": {
+    "what": "compile a MeshCore checkout and put what comes out in the library, so one script can compare a stock build against a locally changed one without shelling out to a second binary",
+    "params": [
+      {
+        "name": "source",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the top of a MeshCore checkout, the directory holding src/ and examples/; refused when absent"
+      },
+      {
+        "name": "from",
+        "type": "string",
+        "what": "another name for `source`, read only when that is absent"
+      },
+      {
+        "name": "role",
+        "type": "string",
+        "what": "build only this role; absent builds both `simple_repeater` and `companion_radio` from the one tree"
+      },
+      {
+        "name": "label",
+        "type": "string",
+        "what": "what to call the result in the library and what a node then pins; absent names it after the checkout's git ref"
+      }
+    ],
+    "returns": [
+      "building",
+      "source",
+      "job"
+    ],
+    "answers": "It answers as soon as the build has started, because a role takes a minute or two. Watch the job named in `job`; what came out lands in the library on its own, and a failure reaches the status line with the role and the reason rather than being returned here. The toolchain's own output is discarded.",
+    "example": {
+      "params": {
+        "source": "/home/you/src/MeshCore"
+      },
+      "what": "build both roles from a working tree"
+    }
+  },
+  "firmware.build_failed": {
+    "what": "put the reason a build stopped where somebody will see it, the compiler's own output having gone nowhere",
+    "answers": "Handed the failing role and the error as one string. It answers nothing: the sentence goes to the status line."
+  },
+  "firmware.built": {
+    "what": "say what a finished build produced, so a build nothing has named is not a build no picker offers",
+    "returns": [
+      "built"
+    ],
+    "answers": "The builder hands it a role-to-result map, not named parameters, and anything else is refused. `built` is those roles and versions as one sorted list of strings."
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "node.set_board": {
+    "what": "say what hardware a node is, which is a change to the physics and not a label: the transmit ceiling, the receive chain's noise figure and the battery the energy model runs on all come off the board",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "which node changes hardware; absent or unknown is refused"
+      },
+      {
+        "name": "board",
+        "type": "string",
+        "what": "the board it is, as the firmware library names one; a board this build has no profile for is refused, and an empty or absent name returns the node to no particular hardware, which is a build for this machine"
+      }
+    ],
+    "returns": [
+      "node",
+      "board"
+    ],
+    "answers": "A build pinned for the old board is cleared rather than carried across, because that image is for that hardware and a node keeping the pin would look configured and refuse at start.",
+    "example": {
+      "params": {
+        "board": "Heltec_WSL3",
+        "node": "West Lomond"
+      },
+      "what": "make a node a Heltec WSL3"
+    }
+  },
+  "nodes.delete_many": {
+    "what": "remove a set of nodes in one rebuild, rather than one call each rebuilding the scenario and cancelling the warm the last one started",
+    "params": [
+      {
+        "name": "nodes",
+        "type": "array",
+        "primary": true,
+        "what": "the names to remove; one this network has not got refuses the whole call and removes nothing, and naming none is accepted and does nothing"
+      }
+    ],
+    "returns": [
+      "deleted",
+      "nodes"
+    ],
+    "answers": "`deleted` is the names that went and `nodes` is how many are left. Every link is dropped and the matrix re-measured behind the answer, because the network is not the one that was measured.",
+    "example": {
+      "params": {
+        "nodes": [
+          "Dunfermline"
+        ]
+      },
+      "what": "take one node out of the network"
+    }
+  },
+  "nodes.keep": {
+    "what": "cut a network down to the nodes named and remove everything else, which is how trimming a fixture is actually said",
+    "params": [
+      {
+        "name": "nodes",
+        "type": "array",
+        "primary": true,
+        "what": "the names to keep; one this network has not got refuses the whole call and removes nothing, and naming none keeps nothing, which empties the network"
+      }
+    ],
+    "returns": [
+      "deleted",
+      "nodes"
+    ],
+    "answers": "`deleted` names what was removed rather than what was kept, and `nodes` is how many are left.",
+    "example": {
+      "params": {
+        "nodes": [
+          "West Lomond"
+        ]
+      },
+      "what": "cut a network down to one node"
+    }
+  }
+}

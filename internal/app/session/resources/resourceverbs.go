@@ -17,8 +17,7 @@ import (
 )
 
 func registerResources(st *state.Store, s *session.Sim) {
-	// resource.list: what is on this machine. Never touches the network -
-	// opening a panel must not start a download.
+	// Never touches the network - opening a panel must not start a download.
 	st.Handle("resource.list", func(w *state.World, _ any) (any, error) {
 		n, err := relistResources(s, w)
 		if err != nil {
@@ -34,7 +33,6 @@ func registerResources(st *state.Store, s *session.Sim) {
 		return map[string]any{"rows": n, "resources": resourceRows(w.Resources)}, nil
 	})
 
-	// resource.fetch: get one, as a job that can be stopped.
 	st.Handle("resource.fetch", func(w *state.World, p any) (any, error) {
 		name, _ := session.StringField(p, "name")
 		version, _ := session.NamedField(p, "version")
@@ -125,7 +123,6 @@ func registerResources(st *state.Store, s *session.Sim) {
 		return map[string]any{"name": name}, nil
 	})
 
-	// resource.licence: the terms, for the interface to show.
 	st.Handle("resource.licence", func(w *state.World, p any) (any, error) {
 		name, _ := session.StringField(p, "name")
 		version, _ := session.NamedField(p, "version")
@@ -156,15 +153,14 @@ func registerResources(st *state.Store, s *session.Sim) {
 		return map[string]any{"name": name, "version": version, "text": text}, nil
 	})
 
-	// resource.licence.hide: put the terms away again. A verb rather than a
-	// flag the panel keeps, so both halves of the toggle are scriptable and
-	// both are therefore capturable.
+	// A verb rather than a flag the panel keeps, so both halves of the toggle
+	// are scriptable and both are therefore capturable.
 	st.Handle("resource.licence.hide", func(w *state.World, _ any) (any, error) {
 		w.Licence = state.LicenceText{}
 		return map[string]any{"hidden": true}, nil
 	})
 
-	// resource.remove: delete one. The caller has already asked twice.
+	// The caller has already asked twice.
 	st.Handle("resource.remove", func(w *state.World, p any) (any, error) {
 		name, _ := session.StringField(p, "name")
 		version, _ := session.NamedField(p, "version")
