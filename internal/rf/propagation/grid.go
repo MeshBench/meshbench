@@ -43,6 +43,13 @@ func RasteriseHeights(t Terrain, south, north, west, east float64, w, h int) (He
 // is what this was reported as.
 func RasteriseHeightsProgress(t Terrain, south, north, west, east float64,
 	w, h int, progress func(done, total int)) (HeightGrid, float64) {
+	if w <= 0 || h <= 0 {
+		// Nothing was sampled, so nothing is known, and the fraction has to say
+		// so as a number: known over zero is NaN, every comparison against NaN
+		// is false, and the caller's "these tiles are not downloaded" warning
+		// could never fire on the emptiest grid there is.
+		return HeightGrid{South: south, North: north, West: west, East: east, W: w, H: h}, 0
+	}
 	g := HeightGrid{South: south, North: north, West: west, East: east, W: w, H: h,
 		Heights: make([]float32, w*h)}
 

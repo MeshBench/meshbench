@@ -245,14 +245,31 @@ fn fold(@builtin(global_invocation_id) gid: vec3<u32>) {
   var m_out: f32;
   var m_in: f32;
   let dist_km = haversine_km(p.st_lat, p.st_lon, ll.x, ll.y);
+  let rg = height_at(ll.x, ll.y);
+  let rx_alt = rg.x + p.remote_h;
   if (dist_km <= 0.0) {
-    // The station's own cell: margins of zero by convention, so no bright
-    // spot appears regardless of reach - the CPU rule, mirrored.
-    m_out = 0.0;
-    m_in = 0.0;
+    // The station's own cell. Zero horizontal distance is not a zero-length
+    // path: the handheld at the foot of the mast is still the mast's height
+    // below the antenna, and the loss raster's zero for this cell means "no
+    // profile was walked" rather than "nothing was lost". The CPU twin,
+    // propagation.selfCellMargins, prices it exactly this way - change one,
+    // change both.
+    var sep = abs(p.st_alt - rx_alt);
+    if (sep < 1.0) {
+      sep = 1.0;
+    }
+    let self_loss = 32.44 + 20.0 * log10f(sep / 1000.0) + 20.0 * log10f(p.freq_mhz);
+    // No bearing exists at zero horizontal distance, so name one rather than
+    // asking atan2 about a point that is nowhere; the pattern's own clamp
+    // brings the vertical back into the sampled band.
+    var self_elev = 90.0;
+    if (p.st_alt > rx_alt) {
+      self_elev = -90.0;
+    }
+    let self_gain = gain_db(0.0, self_elev);
+    m_out = b.st_tx + self_gain - self_loss + b.rem_gain - b.rem_sens;
+    m_in = b.rem_tx + b.rem_gain - self_loss + self_gain - b.st_sens;
   } else {
-    let rg = height_at(ll.x, ll.y);
-    let rx_alt = rg.x + p.remote_h;
     let bearing = bearing_deg(p.st_lat, p.st_lon, ll.x, ll.y);
     let elev = atan2(rx_alt - p.st_alt, dist_km * 1000.0) * 180.0 / PI;
     let g = gain_db(bearing, elev);

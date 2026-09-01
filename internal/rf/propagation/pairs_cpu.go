@@ -48,6 +48,15 @@ func profilePairLoss(p PairProfiles, idx int, freqMHz float64) float32 {
 	aglB := float64(p.MetaF[idx*3+2])
 
 	distKm := d / 1000
+	if distKm <= 0 {
+		// Two stations at one position, or a profile packed with no length.
+		// log10(0) is -Inf, and an infinite negative loss is an infinite
+		// margin: the most confident answer the budget can produce, out of the
+		// least information there is. Zero is what the sibling grid path
+		// returns for exactly this cell, and one convention for the degenerate
+		// case is worth more than two defensible ones.
+		return 0
+	}
 	fspl := 32.44 + 20*math.Log10(distKm) + 20*math.Log10(freqMHz)
 	if cnt < 3 {
 		return float32(fspl)

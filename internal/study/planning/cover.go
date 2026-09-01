@@ -158,12 +158,46 @@ func BaselineCoverage(area []LatLon, t Terrain, check LinkChecker, o CoverOption
 // LatLon is a corner of an area.
 type LatLon struct{ Lat, Lon float64 }
 
+// maxScanPoints is the ceiling on any one of these grid scans.
+//
+// The greedy search is MaxNew passes over every candidate over every sample,
+// and the candidates are already thinned to sixty: a step fine enough to look
+// harmless turns a plan into an afternoon, and the scan that builds the
+// samples accumulates every point it visits whether the search will use it or
+// not. Twenty thousand points is a 140 by 140 grid over the area, which is
+// finer than the terrain under most of it.
+const maxScanPoints = 20000
+
+// checkScanFits refuses a step that would visit more points than the search
+// can afford, naming the step that fits - which is the answer the caller
+// actually wants, and one a progress bar could not give them.
+func checkScanFits(south, north, west, east, step float64, what string) error {
+	if step <= 0 {
+		return fmt.Errorf("planning: a %s step of %g degrees is not a step", what, step)
+	}
+	// Counted in floating point on purpose: the point of the check is that the
+	// operand may be enormous, and the int conversion of an enormous float is
+	// exactly the silence being guarded against.
+	rows := (north-south)/step + 1
+	cols := (east-west)/step + 1
+	if rows*cols <= maxScanPoints {
+		return nil
+	}
+	fits := math.Sqrt((north - south) * (east - west) / maxScanPoints)
+	return fmt.Errorf("planning: a %s step of %g degrees is %.0f by %.0f points over this area, "+
+		"over the limit of %d; use a step of at least %.4f degrees",
+		what, step, rows, cols, maxScanPoints, fits)
+}
+
 // sampleArea builds the points coverage is measured at.
 //
 // At ground level plus a receiver height, because coverage means "could
 // somebody standing here be heard", not "could a mast here be heard".
 func sampleArea(area []LatLon, t Terrain, o CoverOptions) ([]Site, error) {
 	south, north, west, east := bounds(area)
+	if err := checkScanFits(south, north, west, east, o.SampleStep, "sample"); err != nil {
+		return nil, err
+	}
 	var out []Site
 	for lat := south; lat <= north; lat += o.SampleStep {
 		for lon := west; lon <= east; lon += o.SampleStep {
@@ -184,6 +218,12 @@ func sampleArea(area []LatLon, t Terrain, o CoverOptions) ([]Site, error) {
 // coverCandidates is the high ground inside the area.
 func coverCandidates(area []LatLon, t Terrain, o CoverOptions) ([]Site, error) {
 	south, north, west, east := bounds(area)
+	// The output is thinned to sixty, but the scan behind it holds every point
+	// it visited to sort them by height, so the cap on the answer is no cap on
+	// the memory that produced it.
+	if err := checkScanFits(south, north, west, east, o.CandidateStep, "candidate"); err != nil {
+		return nil, err
+	}
 	type cell struct{ lat, lon, h float64 }
 	var cells []cell
 	for lat := south; lat <= north; lat += o.CandidateStep {

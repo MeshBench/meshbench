@@ -150,8 +150,8 @@ type Options struct {
 // between two points is the same whichever way the signal travels, so the
 // expensive part is shared and only the budgets differ.
 func Compute(fixed Endpoint, t propagation.Terrain, r *Raster, o Options) error {
-	if r.Width <= 0 || r.Height <= 0 {
-		return fmt.Errorf("coverage: raster is %dx%d", r.Width, r.Height)
+	if err := checkRasterSize(r.Width, r.Height); err != nil {
+		return err
 	}
 	if o.ProfileStepM <= 0 {
 		o.ProfileStepM = 30

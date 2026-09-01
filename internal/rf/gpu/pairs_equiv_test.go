@@ -31,6 +31,16 @@ func syntheticProfiles(nPairs int, seed int64) propagation.PairProfiles {
 		}
 		p.Add(hs, distM, 2+rng.Float64()*28, 2+rng.Float64()*28)
 	}
+	// Two co-located pairs among them. Zero distance is where log10 stops
+	// having an answer, and a kernel that returns -Inf there hands the caller
+	// an infinite margin: the one disagreement between the twins that would
+	// look like the best link on the map rather than like a fault.
+	flat := make([]float32, 40)
+	for i := range flat {
+		flat[i] = 100
+	}
+	p.Add(flat, 0, 10, 1.5)
+	p.Add(flat, 0, 30, 30)
 	return p
 }
 
