@@ -1,0 +1,322 @@
+name: publish-clients
+
+# The Python and Node clients, onto PyPI and npm, from the tag that cuts the
+# release. `pip install meshbench` and `npm install @meshbench/client` are what
+# the READMEs and the docs site already tell people to type; until this file
+# existed, cutting a release produced binaries and left both names unclaimed.
+#
+# A file of its own rather than three more jobs in package.yml, for two
+# reasons. PyPI binds a trusted publisher to a *workflow filename*, so the
+# workflow that mints the token has to be a stable, named file and not a
+# reusable fragment called from somewhere else. And package.yml is already 800
+# lines of binaries and emulators, none of which this needs.
+#
+# The ordering package.yml cannot give by `needs:` is given by the `pypi` and
+# `npm` GitHub environments instead: put a required reviewer on each and the
+# publish waits for a human who has seen the release page. Publishing is the
+# one step here that cannot be undone - a version on either index can be
+# yanked but never replaced - so it is the one step that is allowed to wait.
+#
+# What a maintainer has to set up once, before the first tag reaches this:
+#
+#   1. A PyPI *pending* publisher for the name `meshbench`, at
+#      https://pypi.org/manage/account/publishing/ - owner MeshBench,
+#      repository meshbench, workflow file `publish-clients.yml`, environment
+#      `pypi`. Pending, because the name is not registered yet and a pending
+#      publisher is how PyPI lets a trusted publisher claim a name on its
+#      first upload. Renaming this file or the repository breaks the match.
+#   2. GitHub environments named `pypi` and `npm`, each with whichever
+#      reviewers should stand between a tag and an irreversible upload.
+#   3. An npm automation token for the MeshBench organisation, as the secret
+#      `NPM_TOKEN` on the `npm` environment. It has to be an automation token:
+#      a classic token on an account with 2FA required for writes will be
+#      refused with no useful message. npm can only bind a trusted publisher
+#      to a package that already exists, so the token is what claims
+#      @meshbench/client; once it is claimed, configure a trusted publisher
+#      and this job can drop the secret too.
+
+on:
+  push:
+    tags: ['v*']
+  # Build and inspect, never publish. The packaging faults this guards against
+  # are silent (a wheel once shipped empty and nothing noticed), so the check
+  # belongs on the change that would cause one rather than on the tag that
+  # would ship it.
+  pull_request:
+    paths:
+      - 'pkg/client-python/**'
+      - 'pkg/client-js/**'
+      - '.github/workflows/publish-clients.yml'
+  # A dry run on demand. There is no "publish" input to tick by accident: the
+  # gate is the ref, so dispatching from a branch builds and inspects and stops
+  # there. Dispatching from a tag is how a publish that failed halfway gets
+  # re-run, and the environment approval still stands in front of it.
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  build:
+    name: build and inspect
+    timeout-minutes: 15
+    # Hosted, not the lab pool: this needs Python, Node and nothing else, and
+    # it keeps index credentials off the self-hosted runners entirely. It is
+    # also the only place `pypa/gh-action-pypi-publish` is guaranteed to run,
+    # since that action is a container.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      publish: ${{ steps.version.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      # Node comes with the runner image. Checked rather than installed with
+      # an action, so the failure names the runner instead of arriving eight
+      # steps later as an unrecognised npm flag.
+      - name: The tools this job shells out to
+        run: |
+          set -e
+          missing=""
+          for t in node npm unzip tar; do
+            command -v "$t" >/dev/null || missing="$missing $t"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::this runner is missing:$missing"
+            exit 1
+          fi
+          node --version
+          npm --version
+          # package.json declares >=18; a runner below that would pack a
+          # tarball nobody could install with the engines it advertises.
+          major=$(node --version | sed 's/^v\([0-9]*\).*/\1/')
+          [ "$major" -ge 18 ] || { echo "::error::node $major is below the engines floor of 18"; exit 1; }
+
+      # One version, from the tag, for both packages. package.yml strips the
+      # leading v for filenames and puts it back for
+      # internal/app/version.Version; PyPI and npm both want it stripped, so
+      # this is the same strip and no restore.
+      - name: Version, from the tag
+        id: version
+        run: |
+          set -e
+          case "${GITHUB_REF}" in
+            refs/tags/v*)
+              VERSION="${GITHUB_REF_NAME#v}"
+              PUBLISH=yes
+              ;;
+            *)
+              # Not a tag, so nothing will be published and the number only has
+              # to be well formed enough to build and inspect.
+              VERSION="0.0.0"
+              PUBLISH=no
+              ;;
+          esac
+          # Deliberately strict. PEP 440 and semver spell pre-releases
+          # differently (1.0.0rc1 against 1.0.0-rc.1), so a tag that is not a
+          # plain release would publish two versions that disagree about their
+          # own name. Fail here, where it is a red tag, rather than there.
+          echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$' || {
+            echo "::error::tag ${GITHUB_REF_NAME} gives version '$VERSION';"\
+                 "this workflow publishes plain X.Y.Z only, because PEP 440 and"\
+                 "semver disagree about how to spell anything else"
+            exit 1
+          }
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "publish=$PUBLISH" >> "$GITHUB_OUTPUT"
+          echo "publishing $VERSION: $PUBLISH"
+
+      # The tag is the source of truth for what the release is called, so both
+      # packages are stamped from it here rather than trusting two literals
+      # somebody has to remember to edit together. Nothing is committed: this
+      # is the workspace of one run.
+      - name: Stamp the version into both packages
+        run: |
+          set -e
+          V="${{ steps.version.outputs.version }}"
+          sed -i "s/^__version__ = \".*\"$/__version__ = \"$V\"/" pkg/client-python/meshbench/__init__.py
+          grep -qx "__version__ = \"$V\"" pkg/client-python/meshbench/__init__.py || {
+            echo "::error::__version__ did not take the stamp - has its line in __init__.py changed shape?"
+            exit 1
+          }
+          # npm version validates semver itself and rewrites the file the way
+          # npm expects to read it back.
+          (cd pkg/client-js && npm version --no-git-tag-version --allow-same-version "$V")
+          node -e "
+            const v = require('./pkg/client-js/package.json').version;
+            if (v !== process.argv[1]) { console.error('::error::package.json is ' + v + ', not ' + process.argv[1]); process.exit(1); }
+          " "$V"
+
+      - name: Build the wheel and the sdist
+        run: |
+          set -e
+          python -m pip install --upgrade pip build twine
+          (cd pkg/client-python && python -m build --outdir "$GITHUB_WORKSPACE/dist/python")
+          ls -la dist/python
+
+      # The wheel has shipped empty before: the repository root ignores
+      # /meshbench for the built Go binary, hatchling read that as "exclude the
+      # package", and the upload was a valid wheel containing nothing. The
+      # pyproject.toml fix is in place, and this is the assertion that says so
+      # on every build, because the failure mode is a successful publish.
+      - name: The wheel actually contains the package
+        run: |
+          set -e
+          V="${{ steps.version.outputs.version }}"
+          whl="dist/python/meshbench-$V-py3-none-any.whl"
+          sdist="dist/python/meshbench-$V.tar.gz"
+          test -f "$whl"   || { echo "::error::no $whl - the build named it something else"; exit 1; }
+          test -f "$sdist" || { echo "::error::no $sdist"; exit 1; }
+
+          echo "--- wheel contents ---"
+          unzip -Z1 "$whl" | sort | tee /tmp/wheel.txt
+          echo "--- sdist contents ---"
+          tar -tzf "$sdist" | sort | tee /tmp/sdist.txt
+
+          grep -q '^meshbench/' /tmp/wheel.txt || {
+            echo "::error::the wheel contains no meshbench/ at all - this is the empty-wheel fault;"\
+                 "check the root .gitignore against [tool.hatch.build.targets.wheel] in pyproject.toml"
+            exit 1
+          }
+
+          # Not just "something is in there": every module the source tree has
+          # must be in the wheel and in the sdist. A partial ship is as broken
+          # as an empty one and looks healthier.
+          missing=""
+          for f in pkg/client-python/meshbench/*.py; do
+            n="meshbench/$(basename "$f")"
+            grep -qx "$n" /tmp/wheel.txt || missing="$missing wheel:$n"
+            grep -q "/$n\$" /tmp/sdist.txt || missing="$missing sdist:$n"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::built artefacts are missing modules:$missing"
+            exit 1
+          fi
+          echo "wheel and sdist carry all $(ls pkg/client-python/meshbench/*.py | wc -l) modules"
+
+          # Long description rendering and metadata, checked before the upload
+          # rather than by looking at the project page afterwards.
+          twine check --strict dist/python/*
+
+      - name: Pack the Node client
+        run: |
+          set -e
+          V="${{ steps.version.outputs.version }}"
+          mkdir -p dist/npm
+          echo "--- npm pack --dry-run ---"
+          (cd pkg/client-js && npm pack --dry-run)
+          (cd pkg/client-js && npm pack --pack-destination "$GITHUB_WORKSPACE/dist/npm")
+          tgz="dist/npm/meshbench-client-$V.tgz"
+          test -f "$tgz" || { echo "::error::no $tgz - npm pack named it something else"; ls -la dist/npm; exit 1; }
+          echo "--- tarball contents ---"
+          tar -tzf "$tgz" | sort | tee /tmp/npm.txt
+          # `files` in package.json is an allowlist, so the failure here is the
+          # mirror of the wheel's: a tarball that installs and exports nothing.
+          for n in package/package.json package/meshbench.mjs package/README.md; do
+            grep -qx "$n" /tmp/npm.txt || { echo "::error::the npm tarball is missing $n"; exit 1; }
+          done
+
+      # The clients' own tests, which need no workbench and no display. They
+      # are the last thing between a bad build and an upload that cannot be
+      # taken back. The Python client's integration suite runs in ci.yml
+      # against a real binary; what matters here is that the built artefact
+      # imports.
+      - name: The built artefacts work
+        run: |
+          set -e
+          V="${{ steps.version.outputs.version }}"
+          python -m venv /tmp/venv
+          /tmp/venv/bin/pip install --quiet "dist/python/meshbench-$V-py3-none-any.whl"
+          /tmp/venv/bin/python -c "import meshbench; print('installed wheel reports', meshbench.__version__)"
+          /tmp/venv/bin/python -c "
+          import meshbench, sys
+          if meshbench.__version__ != sys.argv[1]:
+              raise SystemExit('::error::installed wheel reports %s, not %s' % (meshbench.__version__, sys.argv[1]))
+          " "$V"
+          (cd pkg/client-js && node --test meshbench.test.mjs)
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: client-packages
+          retention-days: 3
+          path: dist
+
+  pypi:
+    name: publish to PyPI
+    needs: build
+    if: needs.build.outputs.publish == 'yes'
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    # Trusted publishing: PyPI mints a short-lived token from the OIDC claim
+    # of this job, so there is no API token to store, rotate or leak. The
+    # environment name is part of what PyPI matches on, and is also where a
+    # required reviewer goes - see the header.
+    environment:
+      name: pypi
+      url: https://pypi.org/p/meshbench
+    permissions:
+      id-token: write
+      # Only to fetch this run's own build artefacts; nothing here reads the
+      # tree, which is why there is no checkout in this job.
+      actions: read
+    steps:
+      - uses: actions/download-artifact@v8
+        with: { name: client-packages, path: dist }
+      - name: What is about to go up
+        run: ls -la dist/python
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/python
+          # A release where the npm half failed gets re-run, and the Python
+          # half is already up. Skipping what is there turns that into a
+          # no-op instead of a red job somebody has to reason about; PyPI
+          # would refuse the replacement either way.
+          skip-existing: true
+
+  npm:
+    name: publish to npm
+    needs: build
+    if: needs.build.outputs.publish == 'yes'
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    # npm can only bind a trusted publisher to a package that already exists,
+    # so the first release has to go up on an automation token. Once
+    # @meshbench/client is on the registry, configure a trusted publisher for
+    # it and this job loses its secret the way the PyPI one already has.
+    environment:
+      name: npm
+      url: https://www.npmjs.com/package/@meshbench/client
+    permissions:
+      # As the PyPI job: this run's own artefacts, and nothing else.
+      actions: read
+    steps:
+      - uses: actions/download-artifact@v8
+        with: { name: client-packages, path: dist }
+      - name: Publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          set -e
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::error::NPM_TOKEN is not set on the npm environment;"\
+                 "an automation token is what publishes @meshbench/client"
+            exit 1
+          fi
+          npm config set "//registry.npmjs.org/:_authToken=$NODE_AUTH_TOKEN"
+          # Same argument as skip-existing above: a re-run of a half-finished
+          # release should be a no-op, not a 403 nobody can act on.
+          if npm view "@meshbench/client@$VERSION" version >/dev/null 2>&1; then
+            echo "@meshbench/client@$VERSION is already on the registry; nothing to do"
+            exit 0
+          fi
+          # A scoped package is private by default, and this one is meant to
+          # be installable by anyone following the README.
+          #
+          # No --provenance: it needs a public repository, and this one is
+          # private. Worth turning on the day that changes.
+          npm publish "dist/npm/meshbench-client-$VERSION.tgz" --access public
