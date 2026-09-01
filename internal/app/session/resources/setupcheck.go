@@ -22,24 +22,7 @@ import (
 )
 
 func registerSetup(st *state.Store, s *session.Sim) {
-	st.HandleSpec("setup.check", state.Spec{
-		What: "what this machine has, what it is missing, and what each one costs",
-		Returns: []string{"groups", "ready", "needed", "undecided", "blocked",
-			"missing"},
-		Answers: "Four groups in the order the problems are met - what this " +
-			"build is, what a node would run, what a link is measured over, and " +
-			"what an emulated board needs on top - each row saying its state, " +
-			"what it is for, what it would cost, where it lives and what to do " +
-			"about it, with the verb and parameters that would do it where the " +
-			"application can act. The five counts beside them are those same " +
-			"rows tallied by state, so a script can ask whether anything is " +
-			"wrong without walking the list. Read-only and offline: a check that " +
-			"started a download would be the mistake it exists to report.",
-		Example: &state.Example{
-			Params: map[string]any{}, What: "ask whether this machine is ready",
-			Runnable: true,
-		},
-	}, func(w *state.World, _ any) (any, error) {
+	st.Handle("setup.check", func(w *state.World, _ any) (any, error) {
 		// The cache listing first, because two of the four groups are read off
 		// it. Nothing here touches the network.
 		if _, err := relistResources(s, w); err != nil {

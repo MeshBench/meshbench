@@ -1,0 +1,70 @@
+{
+  "companion.configure": {
+    "what": "change a node's own settings the way a phone would, sending only the fields that were asked for, and reporting which ones went",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the connected node; refused when nothing is connected to it"
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "what": "the name the node advertises itself under; absent or empty leaves it alone"
+      },
+      {
+        "name": "lat",
+        "type": "number",
+        "what": "latitude in degrees; absent leaves the advertised position alone, and giving it is what makes `lon` be read at all"
+      },
+      {
+        "name": "lon",
+        "type": "number",
+        "what": "longitude in degrees, read only when `lat` was given; absent alongside a `lat` sends zero"
+      },
+      {
+        "name": "tx_dbm",
+        "type": "number",
+        "what": "transmit power in dBm; absent leaves it alone"
+      },
+      {
+        "name": "freq_khz",
+        "type": "number",
+        "what": "centre frequency in kHz, refused outside 150000 to 2500000; absent with another modem field given keeps what the node last said it holds"
+      },
+      {
+        "name": "bw_khz",
+        "type": "number",
+        "what": "bandwidth in kHz, refused outside 7 to 500; absent with another modem field given keeps what the node last said it holds"
+      },
+      {
+        "name": "sf",
+        "type": "number",
+        "what": "spreading factor, refused outside 5 to 12; absent with another modem field given keeps what the node last said it holds"
+      },
+      {
+        "name": "cr",
+        "type": "number",
+        "what": "coding rate denominator, refused outside 5 to 8; absent with another modem field given keeps what the node last said it holds"
+      },
+      {
+        "name": "path_hash",
+        "type": "number",
+        "what": "bytes of path hash each hop adds, 1 to 3, refused outside that; absent leaves it alone"
+      }
+    ],
+    "returns": [
+      "set"
+    ],
+    "answers": "`set` names what was sent, in the order it went. A call that asks for nothing at all is refused rather than answered with an empty list. The four modem fields go as one command, so any one of them is refused until the node has said what its radio is.",
+    "example": {
+      "params": {
+        "node": "West Lomond",
+        "tx_dbm": 17
+      },
+      "what": "turn a node's transmit power down"
+    }
+  }
+}

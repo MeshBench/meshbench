@@ -1,0 +1,44 @@
+{
+  "plan.failed": {
+    "what": "put a route search's error in the status line, which is the only place it can go: the search runs on a worker, long after the verb that started it answered",
+    "answers": "Nothing. It exists to say something to the operator."
+  },
+  "plan.routes": {
+    "what": "search for the paths a message could take between the first and last selected nodes, on a worker, and answer with only the pair it has gone off to search between",
+    "returns": [
+      "from",
+      "to"
+    ],
+    "answers": "It takes its ends from the selection rather than from parameters, and refuses where fewer than two nodes are selected. The routes themselves arrive later through an internal callback and land on the world; nothing here waits for them, and a search that fails says so in the status line rather than in this answer.",
+    "example": {
+      "params": {},
+      "what": "why a message gets from one end to the other"
+    }
+  },
+  "plan.set": {
+    "what": "take a finished route search onto the world, which is the only place the paths become something the map can draw",
+    "returns": [
+      "routes"
+    ],
+    "answers": "Anything that is not a []state.Route leaves the world holding no routes rather than being refused, so a caller from outside the process would silently erase them - which is why the socket is not allowed to reach it."
+  },
+  "run.save": {
+    "what": "file the counters as they stand as a named run, so two configurations measured an hour apart can still be put side by side",
+    "params": [
+      {
+        "name": "name",
+        "type": "string",
+        "primary": true,
+        "what": "what to file it under; empty files it as \"run\", and the time is appended either way so two saves of one name both survive"
+      }
+    ],
+    "returns": [
+      "path"
+    ],
+    "answers": "It writes into the user's cache directory, not the working directory, and takes its numbers from the renderer's snapshot rather than the world, so what is recorded is what was on screen when it was asked for.",
+    "example": {
+      "params": "baseline",
+      "what": "keep the run to compare the next one against"
+    }
+  }
+}

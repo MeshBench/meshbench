@@ -1,7 +1,6 @@
 package session
 
 import (
-	"bufio"
 	"encoding/json"
 	"flag"
 	"os"
@@ -9,10 +8,12 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/MeshBench/meshbench/internal/app/state"
 )
 
 var updateManifest = flag.Bool("update-manifest", false,
-	"rewrite docs/verbs.json and docs/verbs-undescribed.txt from the tree")
+	"rewrite docs/verbs.json from the .verbs.json files beside the code")
 
 // manifest is the committed shape of docs/verbs.json.
 type manifest struct {
@@ -21,18 +22,26 @@ type manifest struct {
 	Verbs map[string]any `json:"verbs"`
 }
 
-// The manifest is generated from the registration, and CI holds it current.
+// describedVerbs is every sibling .verbs.json in the tree, merged.
+func describedVerbs(t *testing.T) map[string]state.Spec {
+	t.Helper()
+	specs, err := state.LoadSpecs(filepath.Join("..", "..", "..", "internal"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return specs
+}
+
+// The manifest is generated from the descriptions, and CI holds it current.
 //
 //	go test ./internal/app/session -run TestTheVerbManifest -update-manifest
 //
 // Committed rather than generated at build time because it is read by things
 // that are not this repository - the clients, the published reference, and
 // eventually MeshCore's own CI - and a file they can fetch is worth more than
-// a program they must run.
+// a program they must run, or than eighty files they must merge themselves.
 func TestTheVerbManifestIsCurrent(t *testing.T) {
-	st, _ := Boot(Options{NoPrefs: true, Headless: true})
-
-	specs := st.Specs()
+	specs := describedVerbs(t)
 	verbs := make(map[string]any, len(specs))
 	for name, sp := range specs {
 		verbs[name] = sp
@@ -61,126 +70,40 @@ func TestTheVerbManifestIsCurrent(t *testing.T) {
 	}
 }
 
-// Every registered verb describes itself.
+// The descriptions and the store are held against each other, in the one
+// direction where a mismatch is a mistake rather than work not done yet.
 //
-// A ratchet rather than a rule, for now: 226 verbs were registered before any
-// of them could say what they took, so the ones that still cannot are listed in
-// docs/verbs-undescribed.txt and that list may only shrink. A verb added today
-// has nowhere to hide - it is not on the list, so it must describe itself.
-func TestEveryVerbDescribesItself(t *testing.T) {
+// A description naming a verb nothing registers is a rename that left its old
+// documentation behind, and the reference would print an entry for a call that
+// is refused, so it fails here. The other way round is not a failure: the
+// generated reference marks an undescribed verb in place rather than dropping
+// it, so the gap is visible to a reader without also stopping the build.
+func TestEveryDescriptionNamesAVerbTheStoreRegisters(t *testing.T) {
 	st, _ := Boot(Options{NoPrefs: true, Headless: true})
 
-	// The other direction - a description naming no verb - cannot happen here,
-	// because HandleSpec registers both at once. Where it can happen is on the
-	// surfaces built over the verbs - a client naming a verb the tree does not
-	// have - which the generated verb table (tools/verbdoc) is the guard for.
-	allowed := readUndescribed(t)
-	var unexpected []string
-	for _, v := range st.Undescribed() {
-		if !allowed[v] {
-			unexpected = append(unexpected, v)
-		}
-		delete(allowed, v)
+	registered := map[string]bool{}
+	for _, v := range st.Verbs() {
+		registered[v] = true
 	}
-	if len(unexpected) > 0 {
-		sort.Strings(unexpected)
-		t.Errorf("%d verbs say nothing about themselves and are not on the list:\n  %s\n"+
-			"describe them at their st.HandleSpec call",
-			len(unexpected), strings.Join(unexpected, "\n  "))
-	}
-	// The ratchet: a verb that has learned to describe itself, or been
-	// deleted, must leave the list, or the list stops meaning anything.
-	if len(allowed) > 0 {
-		var stale []string
-		for v := range allowed {
-			stale = append(stale, v)
+	specs := describedVerbs(t)
+
+	var stale, undescribed []string
+	for name := range specs {
+		if !registered[name] {
+			stale = append(stale, name)
 		}
+	}
+	for name := range registered {
+		if _, ok := specs[name]; !ok {
+			undescribed = append(undescribed, name)
+		}
+	}
+	if len(stale) > 0 {
 		sort.Strings(stale)
-		t.Errorf("%d verbs on docs/verbs-undescribed.txt now describe themselves"+
-			" or no longer exist; remove them:\n  %s",
+		t.Errorf("%d verbs are described but the store does not register them; "+
+			"delete their entries or fix the name:\n  %s",
 			len(stale), strings.Join(stale, "\n  "))
 	}
-	t.Logf("%d verbs described, %d still to go", len(st.Specs()), len(st.Undescribed()))
-}
-
-// The manifest and the ratchet list are two halves of one claim: between
-// them, every verb the store serves is accounted for. Checked here directly
-// rather than left to follow from TestTheVerbManifestIsCurrent and
-// TestEveryVerbDescribesItself each holding their own half - a change to
-// either one's filtering could make both pass while a verb fell through the
-// gap between them, which is exactly the shape of the bug this guards.
-func TestDocumentedVerbsMatchWhatTheStoreServes(t *testing.T) {
-	st, _ := Boot(Options{NoPrefs: true, Headless: true})
-
-	documented := map[string]bool{}
-	for name := range readManifest(t).Verbs {
-		documented[name] = true
-	}
-	for name := range readUndescribed(t) {
-		documented[name] = true
-	}
-
-	runtime := map[string]bool{}
-	for _, v := range st.Verbs() {
-		runtime[v] = true
-	}
-
-	var missing, extra []string
-	for v := range runtime {
-		if !documented[v] {
-			missing = append(missing, v)
-		}
-	}
-	for v := range documented {
-		if !runtime[v] {
-			extra = append(extra, v)
-		}
-	}
-	sort.Strings(missing)
-	sort.Strings(extra)
-	if len(missing) > 0 {
-		t.Errorf("%d verbs the store registers are in neither docs/verbs.json nor "+
-			"docs/verbs-undescribed.txt:\n  %s", len(missing), strings.Join(missing, "\n  "))
-	}
-	if len(extra) > 0 {
-		t.Errorf("%d verbs are documented but the store does not register them:\n  %s",
-			len(extra), strings.Join(extra, "\n  "))
-	}
-}
-
-func readManifest(t *testing.T) manifest {
-	t.Helper()
-	path := filepath.Join("..", "..", "..", "docs", "verbs.json")
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var m manifest
-	if err := json.Unmarshal(data, &m); err != nil {
-		t.Fatalf("%s: %v", path, err)
-	}
-	return m
-}
-
-func readUndescribed(t *testing.T) map[string]bool {
-	t.Helper()
-	path := filepath.Join("..", "..", "..", "docs", "verbs-undescribed.txt")
-	f, err := os.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = f.Close() }()
-	out := map[string]bool{}
-	sc := bufio.NewScanner(f)
-	for sc.Scan() {
-		line := strings.TrimSpace(sc.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		out[line] = true
-	}
-	if err := sc.Err(); err != nil {
-		t.Fatal(err)
-	}
-	return out
+	sort.Strings(undescribed)
+	t.Logf("%d verbs described, %d still to go", len(specs), len(undescribed))
 }

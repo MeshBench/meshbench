@@ -1,0 +1,36 @@
+{
+  "firmware.window": {
+    "what": "Open one build's own window: what it is, where it lives, and how it is run.",
+    "params": [
+      {
+        "name": "version",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the build's version or imported label"
+      },
+      {
+        "name": "role",
+        "type": "string",
+        "what": "which role, when one label carries more than one"
+      },
+      {
+        "name": "board",
+        "type": "string",
+        "what": "which board; absent means a build for this machine"
+      }
+    ],
+    "returns": [
+      "role",
+      "version",
+      "board"
+    ],
+    "answers": "The build it opened on, once. Refused where there is no user interface, and refused for a build the library does not hold or a label naming more than one, so nobody is left closing an empty window.",
+    "example": {
+      "params": {
+        "version": "repeater-v1.16.0"
+      },
+      "what": "open a build to change what it is run as"
+    }
+  }
+}

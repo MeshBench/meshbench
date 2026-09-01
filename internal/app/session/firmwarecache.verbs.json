@@ -1,0 +1,110 @@
+{
+  "firmware.delete": {
+    "what": "remove one build from the cache, to reclaim the disk or to prove a download works by taking away what it produced",
+    "params": [
+      {
+        "name": "path",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the build's path, as the library and `firmware.details` give it; refused when absent, and refused when it points anywhere but inside the firmware cache"
+      }
+    ],
+    "returns": [
+      "deleted"
+    ],
+    "answers": "The build's settings sidecar goes with it, so the next build imported under the same name does not inherit somebody else's answers. Nothing is said about the nodes pinned to it, which keep the name and have nothing to run until they are pinned again.",
+    "example": {
+      "params": {
+        "path": "/home/you/.cache/meshbench/firmware/native/repeater-v1.16.0"
+      },
+      "what": "reclaim the disk a build was using"
+    }
+  },
+  "firmware.download": {
+    "what": "fetch a published build now rather than at the moment a node first needs it, which is what somebody about to work offline wants",
+    "params": [
+      {
+        "name": "role",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the role to fetch, such as `simple_repeater`; refused when absent"
+      },
+      {
+        "name": "version",
+        "type": "string",
+        "required": true,
+        "what": "the published release tag; refused when absent"
+      },
+      {
+        "name": "board",
+        "type": "string",
+        "what": "the board image to fetch; absent means the native build for this machine"
+      }
+    ],
+    "returns": [
+      "downloading",
+      "role",
+      "version"
+    ],
+    "answers": "It answers as soon as the fetch has been started, not when the file lands. Progress arrives on a job called `fw-\u003cversion\u003e-\u003crole\u003e`, counted in kilobytes, and a failure is reported there rather than here; the installed list and the library are re-read either way.",
+    "example": {
+      "params": {
+        "role": "simple_repeater",
+        "version": "repeater-v1.16.0"
+      },
+      "what": "fetch a repeater build before working without a network"
+    }
+  },
+  "firmware.import": {
+    "what": "put somebody's own build into the library, which is how a change is tested against a release before it is one",
+    "params": [
+      {
+        "name": "path",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the file to import; refused when absent, and an ESP32 board's application-only .bin is refused too, because a board starts from the whole flash image"
+      },
+      {
+        "name": "role",
+        "type": "string",
+        "required": true,
+        "what": "the role it is imported as; refused when absent"
+      },
+      {
+        "name": "board",
+        "type": "string",
+        "what": "the board it is for; absent means a build for this machine"
+      },
+      {
+        "name": "label",
+        "type": "string",
+        "what": "what the library will know it by and what a node pins; absent, it is stamped with a timestamp so a second import does not replace the first in place"
+      },
+      {
+        "name": "version",
+        "type": "string",
+        "what": "an older name for `label`, read only when `label` is absent, because scripts written against it are already out in the world"
+      }
+    ],
+    "returns": [
+      "version",
+      "role",
+      "board",
+      "path",
+      "bytes"
+    ],
+    "answers": "`version` is the label the build was stored under, which is the timestamp when none was given and is what `firmware.set` then has to be handed.",
+    "example": {
+      "params": {
+        "board": "Heltec_v3",
+        "label": "repeater-my-fix",
+        "path": "/home/you/MeshCore/.pio/build/Heltec_v3/firmware.factory.bin",
+        "role": "simple_repeater"
+      },
+      "what": "test a local change against a published build"
+    }
+  }
+}

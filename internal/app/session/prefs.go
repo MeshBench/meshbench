@@ -166,27 +166,7 @@ func (s *Sim) Basemap() string { return s.prefs.Basemap }
 // choice is the kind of thing that was decided again every launch until the
 // settings file existed.
 func registerBasemap(st *state.Store, s *Sim) {
-	st.HandleSpec("map.basemap", state.Spec{
-		What: "choose which map is drawn under the simulation and remember the " +
-			"choice, or read the one in force",
-		Params: []state.Param{
-			{Name: "id", Type: state.ParamString, Primary: true,
-				What: "the basemap: carto-dark, carto-light or esri-topo. An " +
-					"absent or empty id reads the current choice and changes " +
-					"nothing; the session does not draw the map, so an id it " +
-					"does not recognise is stored rather than refused"},
-		},
-		Returns: []string{"id"},
-		Answers: "Empty means nobody has chosen and the map's own default " +
-			"stands. The choice is written to the settings file, so it survives " +
-			"a restart; where that write fails the session still uses it and " +
-			"says so, rather than promising a next launch it cannot keep.",
-		Example: &state.Example{
-			Params:   map[string]any{"id": "esri-topo"},
-			What:     "put topography under the nodes for a siting review",
-			Runnable: true,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("map.basemap", func(w *state.World, p any) (any, error) {
 		if id, ok := stringField(p, "id"); ok && id != "" {
 			s.prefs.Basemap = id
 			// The promise is only made where it can be kept: savePrefs has

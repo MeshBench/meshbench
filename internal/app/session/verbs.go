@@ -62,26 +62,7 @@ func Register(st *state.Store, s *Sim) {
 	// the engine, the tick, the readouts - is built the same way, because a
 	// blank network that took a different route through this would be a
 	// second kind of session with its own set of things that were not set.
-	st.HandleSpec("project.new", state.Spec{
-		What: "throw away what is loaded and start on an empty network, through " +
-			"the same path an open takes, optionally putting the map and the " +
-			"study area on a named place so the first node has somewhere to go",
-		Params: []state.Param{
-			{Name: "place", Type: state.ParamString, Primary: true,
-				What: "somewhere to start, looked up the way a study area is, so " +
-					"\"Fife\" means the same thing here as in the Import panel; " +
-					"empty leaves the map where it was, and a name nothing can " +
-					"be found for is said in the status line rather than refused"},
-		},
-		Returns: []string{"nodes", "place"},
-		Answers: "`nodes` is always zero, and `place` appears only where one was " +
-			"named. The lookup runs on a worker, so the map and the study area " +
-			"move after this has already answered.",
-		Example: &state.Example{
-			Params: map[string]any{}, What: "an empty network to place nodes on by hand",
-			Runnable: false,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("project.new", func(w *state.World, p any) (any, error) {
 		s.installFn(st, w, Loaded{}, "a blank network")
 		// Somewhere to start, if a place was named.
 		//
@@ -124,26 +105,7 @@ func Register(st *state.Store, s *Sim) {
 		}()
 		return map[string]any{"nodes": 0, "place": place}, nil
 	})
-	st.HandleSpec("project.open", state.Spec{
-		What: "load a fixture and put the camera on what it holds, on the open " +
-			"rather than at the first play, so nobody is left reading a blank " +
-			"map with a node count beside it",
-		Params: []state.Param{
-			{Name: "path", Type: state.ParamString, Required: true, Primary: true,
-				What: "the fixture's path; one that will not load is refused and " +
-					"the session keeps whatever it already had"},
-		},
-		Returns: []string{"opened", "nodes", "links"},
-		Answers: "`links` is zero on every open, because the matrix is cleared " +
-			"here and re-measured as the job `links`: a path loss over real " +
-			"terrain is minutes of work, so the map draws proximity links until " +
-			"it finishes. Nothing else moves the camera on an open, so a script " +
-			"that wants to be somewhere else says so afterwards with map.centre.",
-		Example: &state.Example{
-			Params: "fixtures/fixture-fife-strict.json", What: "open a network that ships with the build",
-			Runnable: false,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("project.open", func(w *state.World, p any) (any, error) {
 		path := soleString(p)
 		f, err := LoadFixture(path)
 		if err != nil {
@@ -311,34 +273,13 @@ func Register(st *state.Store, s *Sim) {
 	}
 	s.installFn = installBody
 	registerClockVerbs(st, s)
-	st.HandleSpec("links.recompute", state.Spec{
-		What: "measure every pair's path loss again over the real terrain, which " +
-			"is what a moved node, a changed radio or a new calibration needs " +
-			"before any margin on screen means anything",
-		Returns: []string{"warming"},
-		Answers: "It answers the instant the work is queued, never with the " +
-			"links: a full matrix is tens of thousands of terrain profiles and " +
-			"minutes of them, so it runs as the job `links` and the links land " +
-			"on the world when it finishes. Watch job.list for it.",
-		Example: &state.Example{
-			Params: map[string]any{}, What: "re-measure after moving a node",
-			Runnable: false,
-		},
-	}, func(w *state.World, _ any) (any, error) {
+	st.Handle("links.recompute", func(w *state.World, _ any) (any, error) {
 		// Also the verb a node move calls when the drag ends, so dragging a
 		// node across a country does not recompute every frame of the drag.
 		s.warm(st, len(w.Nodes))
 		return map[string]any{"warming": true}, nil
 	})
-	st.HandleInternalSpec("links.set", state.Spec{
-		What: "take a finished link matrix onto the world and rebuild the link " +
-			"budget for whatever node is selected, since a budget is about a " +
-			"link and cannot exist before the links do",
-		Returns: []string{"links"},
-		Answers: "It carries a []state.Link and refuses anything else rather " +
-			"than emptying the matrix, which is what a caller from outside the " +
-			"process would otherwise do by accident.",
-	}, func(w *state.World, p any) (any, error) {
+	st.HandleInternal("links.set", func(w *state.World, p any) (any, error) {
 		links, ok := p.([]state.Link)
 		if !ok {
 			return nil, wrongCallback("links.set")
@@ -371,19 +312,7 @@ func Register(st *state.Store, s *Sim) {
 	registerNodeOutput(st, s)
 	registerNodeCard(st, s)
 	registerNodeOutputWindow(st, s)
-	st.HandleSpec("session.describe", state.Spec{
-		What: "the cheapest question a client can ask, and the one worth asking " +
-			"first: whether there is a network in this session at all, and " +
-			"whether its clock is moving",
-		Returns: []string{"nodes", "seed", "now_ms", "playing"},
-		Answers: "Four facts and no more. `now_ms` is simulated time, not wall " +
-			"time, and stands still while `playing` is false. It never fails, " +
-			"so it is also the handshake for a socket that has just connected.",
-		Example: &state.Example{
-			Params: map[string]any{}, What: "check what is loaded before driving it",
-			Runnable: true,
-		},
-	}, func(w *state.World, _ any) (any, error) {
+	st.Handle("session.describe", func(w *state.World, _ any) (any, error) {
 		return map[string]any{
 			"nodes": len(w.Nodes), "seed": w.Seed, "now_ms": w.NowMs,
 			"playing": w.Playing,

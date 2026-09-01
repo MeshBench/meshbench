@@ -1,0 +1,55 @@
+{
+  "boundary.list": {
+    "what": "say which areas the study is made of, which is how a caller outside the window finds out whether an accept or a load took",
+    "returns": [
+      "areas",
+      "names"
+    ],
+    "answers": "`areas` is a row per area with its name and how many rings and points it is drawn from, and `names` the same names on their own, ready for boundary.remove. The geometry itself is not returned: a national boundary is megabytes of coordinates. Both are empty when no study area has been set, which is not an error.",
+    "example": {
+      "params": {},
+      "what": "check what the study area holds",
+      "runnable": true
+    }
+  },
+  "boundary.load": {
+    "what": "take a study area from GeoJSON rather than from the gazetteer, which is the only way to study a catchment, a valley or a polygon somebody drew this morning, and the only way to set one offline",
+    "params": [
+      {
+        "name": "path",
+        "type": "string",
+        "primary": true,
+        "what": "a file to read the GeoJSON from; a file over 64 MB is refused, and giving neither this nor geojson is refused, as is giving both"
+      },
+      {
+        "name": "geojson",
+        "type": "string",
+        "what": "the document itself, for a caller that generated the polygon and should not have to write it to disk first"
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "what": "what to call the area; for a single polygon it wins outright, for several it only fills in the ones the file left unnamed, and absent it falls back to the file's own name and then to a number"
+      },
+      {
+        "name": "name_field",
+        "type": "string",
+        "what": "the feature property to read each name from; absent it is \"name\", which is what almost every file calls it"
+      }
+    ],
+    "returns": [
+      "loaded",
+      "areas",
+      "polygons"
+    ],
+    "answers": "`polygons` is what the document held and `loaded` names only those actually added, so it is shorter when an area of that name was already in the study and empty when all of them were. `areas` is the size of the whole study area afterwards. A GeoJSON coordinate is longitude then latitude, which is the opposite way round to everything else here.",
+    "example": {
+      "params": {
+        "geojson": "{\"type\":\"Polygon\",\"coordinates\":[[[-3.5,56.0],[-3.2,56.0],[-3.2,56.3],[-3.5,56.3],[-3.5,56.0]]]}",
+        "name": "Lomond hills"
+      },
+      "what": "study a polygon the gazetteer has no name for",
+      "runnable": true
+    }
+  }
+}

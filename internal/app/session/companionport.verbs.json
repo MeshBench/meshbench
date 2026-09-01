@@ -1,0 +1,35 @@
+{
+  "companion.raw": {
+    "what": "put bytes of the caller's own choosing on a node's companion port, for when what the firmware makes of a frame is the thing in question",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the connected node; refused when nothing is connected to it"
+      },
+      {
+        "name": "bytes",
+        "type": "array",
+        "required": true,
+        "what": "the payload, one number per byte; anything in the array that is not a number is dropped, and an empty or absent array is refused"
+      }
+    ],
+    "returns": [
+      "sent_bytes"
+    ],
+    "answers": "`sent_bytes` counts what was framed and written, which is the numbers that survived, not the length of the array as it was passed.",
+    "example": {
+      "params": {
+        "bytes": [
+          1,
+          2,
+          3
+        ],
+        "node": "West Lomond"
+      },
+      "what": "hand the firmware three bytes and see what it makes of them"
+    }
+  }
+}

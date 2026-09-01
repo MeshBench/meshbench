@@ -98,24 +98,7 @@ func terrainWords(got, rough int64) string {
 }
 
 func registerTerrainPrefetch(st *state.Store, s *Sim) {
-	st.HandleSpec("terrain.prefetch", state.Spec{
-		What: "download the ground under the loaded network before anything " +
-			"needs it, so the minutes of network time a first measurement " +
-			"would spend invisibly are a visible, priced, stoppable job instead",
-		Returns: []string{"tiles", "to_fetch", "bytes_rough"},
-		Answers: "`tiles` is the area's whole tile count and `to_fetch` how " +
-			"many of them are missing, so `to_fetch` zero means the ground is " +
-			"already cached and nothing was started. Otherwise the download runs " +
-			"as a cancellable job and this returns before it, with " +
-			"`bytes_rough` an average tile size times a count rather than a " +
-			"measurement. Refused where no network is loaded, where the machine " +
-			"has no tile store, and where terrain downloads are switched off, " +
-			"which terrain.allow is what turns on.",
-		Example: &state.Example{
-			Params: map[string]any{}, What: "fetch the ground this study stands on",
-			Runnable: false,
-		},
-	}, func(w *state.World, _ any) (any, error) {
+	st.Handle("terrain.prefetch", func(w *state.World, _ any) (any, error) {
 		if len(w.Nodes) == 0 {
 			return nil, fmt.Errorf("no network loaded, so no area to fetch")
 		}

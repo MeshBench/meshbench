@@ -1,0 +1,114 @@
+{
+  "assert.add": {
+    "what": "state what has to be true for a run to have passed, so a scripted run ends with a verdict rather than a table somebody has to read",
+    "params": [
+      {
+        "name": "kind",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "what is measured: `delivered` (or `deliveries`, or `unique_deliveries`) counts the nodes that heard anything, `sent` (or `transmissions`) counts transmissions; absent is refused, and a kind this build does not understand is accepted here and fails at the check rather than passing"
+      },
+      {
+        "name": "node",
+        "type": "string",
+        "what": "restrict a transmission count to one node; has to be named, and absent counts every node"
+      },
+      {
+        "name": "at_least",
+        "type": "number",
+        "what": "the floor the count has to reach; absent is zero, which any count clears"
+      },
+      {
+        "name": "at_most",
+        "type": "number",
+        "what": "the ceiling, which a transmission count uses in place of at_least whenever it is above zero"
+      },
+      {
+        "name": "max_pct",
+        "type": "number",
+        "what": "recorded on the assertion and carried in the fixture, and read by no kind this build checks"
+      },
+      {
+        "name": "within_ms",
+        "type": "number",
+        "what": "recorded on the assertion and carried in the fixture, and read by no kind this build checks"
+      }
+    ],
+    "returns": [
+      "assertions"
+    ],
+    "answers": "`assertions` is how many the scenario now carries, not the one just added.",
+    "example": {
+      "params": {
+        "at_least": 2,
+        "kind": "delivered"
+      },
+      "what": "the flood has to reach at least two nodes",
+      "runnable": true
+    }
+  },
+  "assert.check": {
+    "what": "measure every assertion against the run so far and report each one separately, which is what a scripted run exits on",
+    "returns": [
+      "passed",
+      "total",
+      "results"
+    ],
+    "answers": "`results` is one row per assertion, carrying `kind`, `node`, `pass`, `got` and `want`. A scenario carrying no assertions is refused rather than answered with a pass, and an assertion whose kind this build does not understand fails with `got` reading \"not measured\": a green run that checked nothing is the failure this guards against.",
+    "example": {
+      "params": {},
+      "what": "did this run pass"
+    }
+  },
+  "schedule.add": {
+    "what": "have a node originate traffic on its own at a stated moment of simulated time, so a run reproduces without anybody watching it for the moment to press send",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the node that sends; absent is refused, and so is a name no node in this network carries"
+      },
+      {
+        "name": "at_ms",
+        "type": "number",
+        "what": "the simulated instant of the first send; absent is zero, which is the start of the run"
+      },
+      {
+        "name": "every_ms",
+        "type": "number",
+        "what": "repeat interval in simulated milliseconds; absent or zero sends once"
+      },
+      {
+        "name": "command",
+        "type": "string",
+        "what": "what the node is told to do, in its own console's words; has to be named rather than passed bare, and absent leaves it empty"
+      }
+    ],
+    "returns": [
+      "sends"
+    ],
+    "answers": "`sends` is how many the schedule now holds, not the one just added.",
+    "example": {
+      "params": {
+        "at_ms": 30000,
+        "node": "West Lomond"
+      },
+      "what": "one flood thirty seconds into the run",
+      "runnable": true
+    }
+  },
+  "schedule.clear": {
+    "what": "empty the schedule, which is what editing it amounts to: nothing removes a single send, so a schedule is rebuilt rather than amended",
+    "returns": [
+      "cleared"
+    ],
+    "example": {
+      "params": {},
+      "what": "start the schedule again",
+      "runnable": true
+    }
+  }
+}

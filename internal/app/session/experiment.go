@@ -149,63 +149,8 @@ func (e *experiment) publish(w *state.World) {
 	w.ExperimentRuns = e.runRows()
 }
 
-// matrixKeys is what every definition verb answers with: counts of what is now
-// defined, and the arm labels, which are the only part a caller cannot infer.
-var matrixKeys = []string{"arms", "seeds", "senders", "runs", "run_for_ms",
-	"send_at_ms", "spread_ms", "bytes", "scope", "arm_labels"}
-
 func registerExperiment(st *state.Store, s *Sim) {
-	st.HandleSpec("experiment.define", state.Spec{
-		What: "state a whole matrix in one call - the arms, the seeds, the " +
-			"senders and the burst's timing - which is how a script sets up a " +
-			"sweep it did not build in the panel",
-		Params: []state.Param{
-			{Name: "arms", Type: state.ParamArray,
-				What: "one object per arm, carrying `label`, `repeater_version` " +
-					"and `companion_version`; an arm with no label takes its " +
-					"repeater version as one, and an absent or empty list " +
-					"leaves the arms alone"},
-			{Name: "seeds", Type: state.ParamArray,
-				What: "the seeds each arm is repeated over, as numbers; anything " +
-					"that is not a number is dropped, and an absent or empty " +
-					"list leaves the seeds alone"},
-			{Name: "senders", Type: state.ParamArray,
-				What: "the nodes that originate the burst, by name; unlike the " +
-					"others an empty list is obeyed and clears them, which " +
-					"leaves an experiment experiment.start will refuse"},
-			{Name: "run_for_ms", Type: state.ParamNumber,
-				What: "how long each cell runs, in simulated milliseconds; zero " +
-					"or less is ignored and the current length kept"},
-			{Name: "send_at_ms", Type: state.ParamNumber,
-				What: "the simulated instant the burst is fired, which is the " +
-					"same in every arm; zero or less is ignored"},
-			{Name: "spread_ms", Type: state.ParamNumber,
-				What: "milliseconds to stagger the senders over; zero fires them " +
-					"all at once, which is the sharpest test of contention and " +
-					"the least like anything real, and a negative value is ignored"},
-			{Name: "bytes", Type: state.ParamNumber,
-				What: "pad the message to this size, since airtime scales with " +
-					"payload and airtime is what collides; zero sends the label " +
-					"alone, and a negative value is ignored"},
-			{Name: "scope", Type: state.ParamString,
-				What: "the region every sender originates under; empty sends " +
-					"unscoped, which is carried by a different set of repeaters " +
-					"and so measures a different network"},
-		},
-		Returns: matrixKeys,
-		Answers: "Counts of what is now defined rather than the definition " +
-			"itself, except `arm_labels`, which names every arm: a count cannot " +
-			"tell a cross that produced the six arms wanted from one that " +
-			"produced six others.",
-		Example: &state.Example{
-			Params: map[string]any{
-				"senders": []any{"West Lomond"}, "seeds": []any{1.0, 2.0},
-				"run_for_ms": 90000.0, "send_at_ms": 30000.0,
-			},
-			What:     "a flood from one node, ninety seconds a cell, over two seeds",
-			Runnable: true,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("experiment.define", func(w *state.World, p any) (any, error) {
 		defer func() { s.experiment().publish(w) }()
 		e := s.experiment()
 		if m, ok := p.(map[string]any); ok {
@@ -262,32 +207,7 @@ func registerExperiment(st *state.Store, s *Sim) {
 
 	// experiment.vary is the same gesture an operator makes: choose a
 	// parameter, type the values, get one arm per value.
-	st.HandleSpec("experiment.vary", state.Spec{
-		What: "cross the arms already defined with one parameter's values, so " +
-			"three path hash modes against two firmware versions is six arms " +
-			"rather than the two the second call would leave",
-		Params: []state.Param{
-			{Name: "parameter", Type: state.ParamString, Required: true, Primary: true,
-				What: "what to vary: path_hash_mode, rep_path_hash, loop_detect, " +
-					"cad, repeater_version, companion_version, spread_ms, or " +
-					"`set:` followed by any firmware setting the CLI takes; " +
-					"anything else is refused, with the list"},
-			{Name: "values", Type: state.ParamArray, Required: true,
-				What: "the values, as strings, one arm per value; a list holding " +
-					"no strings is refused, and a value the parameter cannot " +
-					"take is refused with what it can"},
-		},
-		Returns: matrixKeys,
-		Answers: "It crosses onto the arms that are there rather than replacing " +
-			"them, so calling it three times gives the full product. It also " +
-			"discards the last sweep's results, because a finished sweep's arms " +
-			"answered a different question from the one now being asked.",
-		Example: &state.Example{
-			Params:   map[string]any{"parameter": "cad", "values": []any{"off", "on"}},
-			What:     "one arm that listens before talking and one that does not",
-			Runnable: true,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("experiment.vary", func(w *state.World, p any) (any, error) {
 		defer func() { s.experiment().publish(w) }()
 		e := s.experiment()
 		param, _ := stringField(p, "parameter")
@@ -337,23 +257,7 @@ func registerExperiment(st *state.Store, s *Sim) {
 		return e.describe(), nil
 	})
 
-	st.HandleSpec("experiment.seeds", state.Spec{
-		What: "replace the seeds every arm is repeated over, which is the only " +
-			"thing that gives a difference between arms something to be called " +
-			"larger than",
-		Params: []state.Param{
-			{Name: "seeds", Type: state.ParamArray, Required: true,
-				What: "the seeds, as numbers; anything that is not a number is " +
-					"dropped, and a list left holding none is refused rather " +
-					"than emptying the seeds"},
-		},
-		Returns: matrixKeys,
-		Example: &state.Example{
-			Params:   map[string]any{"seeds": []any{1.0, 2.0, 3.0, 4.0}},
-			What:     "four draws of each arm",
-			Runnable: true,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("experiment.seeds", func(w *state.World, p any) (any, error) {
 		defer func() { s.experiment().publish(w) }()
 		e := s.experiment()
 		var seeds []uint64
@@ -373,23 +277,7 @@ func registerExperiment(st *state.Store, s *Sim) {
 		return e.describe(), nil
 	})
 
-	st.HandleSpec("experiment.senders", state.Spec{
-		What: "choose which nodes originate the burst, which decides more than " +
-			"it looks like: with one originator every seed can return the same " +
-			"numbers, and then the seed bounds nothing",
-		Params: []state.Param{
-			{Name: "senders", Type: state.ParamArray,
-				What: "the node names; an absent list leaves the senders alone, " +
-					"an empty one clears them, and entries that are not strings " +
-					"are dropped"},
-		},
-		Returns: matrixKeys,
-		Example: &state.Example{
-			Params:   map[string]any{"senders": []any{"West Lomond", "Dunfermline"}},
-			What:     "two originators, so the seeds have something to disagree about",
-			Runnable: true,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("experiment.senders", func(w *state.World, p any) (any, error) {
 		defer func() { s.experiment().publish(w) }()
 		e := s.experiment()
 		if m, ok := p.(map[string]any); ok {
@@ -405,27 +293,7 @@ func registerExperiment(st *state.Store, s *Sim) {
 		return e.describe(), nil
 	})
 
-	st.HandleSpec("experiment.base", state.Spec{
-		What: "set the two timings every arm shares, how long a cell runs and " +
-			"when its burst is fired, and deliberately nothing else: the " +
-			"firmware versions belong to the arms",
-		Params: []state.Param{
-			{Name: "run_for_ms", Type: state.ParamNumber,
-				What: "how long each cell runs, in simulated milliseconds; zero " +
-					"or less is ignored and the current length kept"},
-			{Name: "send_at_ms", Type: state.ParamNumber,
-				What: "the simulated instant the burst is fired, the same in " +
-					"every arm; zero or less is ignored"},
-		},
-		Returns: matrixKeys,
-		Answers: "The same summary experiment.define answers with, so the " +
-			"arms and senders it reports are whatever they already were.",
-		Example: &state.Example{
-			Params:   map[string]any{"run_for_ms": 120000.0, "send_at_ms": 30000.0},
-			What:     "a two minute cell with the burst thirty seconds in",
-			Runnable: true,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("experiment.base", func(w *state.World, p any) (any, error) {
 		e := s.experiment()
 		// Deliberately narrow. In the old workbench a base repeater_version
 		// overrode a per-node pin and left the room server looking for a role

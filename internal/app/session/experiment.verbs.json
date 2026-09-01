@@ -1,0 +1,220 @@
+{
+  "experiment.base": {
+    "what": "set the two timings every arm shares, how long a cell runs and when its burst is fired, and deliberately nothing else: the firmware versions belong to the arms",
+    "params": [
+      {
+        "name": "run_for_ms",
+        "type": "number",
+        "what": "how long each cell runs, in simulated milliseconds; zero or less is ignored and the current length kept"
+      },
+      {
+        "name": "send_at_ms",
+        "type": "number",
+        "what": "the simulated instant the burst is fired, the same in every arm; zero or less is ignored"
+      }
+    ],
+    "returns": [
+      "arms",
+      "seeds",
+      "senders",
+      "runs",
+      "run_for_ms",
+      "send_at_ms",
+      "spread_ms",
+      "bytes",
+      "scope",
+      "arm_labels"
+    ],
+    "answers": "The same summary experiment.define answers with, so the arms and senders it reports are whatever they already were.",
+    "example": {
+      "params": {
+        "run_for_ms": 120000,
+        "send_at_ms": 30000
+      },
+      "what": "a two minute cell with the burst thirty seconds in",
+      "runnable": true
+    }
+  },
+  "experiment.define": {
+    "what": "state a whole matrix in one call - the arms, the seeds, the senders and the burst's timing - which is how a script sets up a sweep it did not build in the panel",
+    "params": [
+      {
+        "name": "arms",
+        "type": "array",
+        "what": "one object per arm, carrying `label`, `repeater_version` and `companion_version`; an arm with no label takes its repeater version as one, and an absent or empty list leaves the arms alone"
+      },
+      {
+        "name": "seeds",
+        "type": "array",
+        "what": "the seeds each arm is repeated over, as numbers; anything that is not a number is dropped, and an absent or empty list leaves the seeds alone"
+      },
+      {
+        "name": "senders",
+        "type": "array",
+        "what": "the nodes that originate the burst, by name; unlike the others an empty list is obeyed and clears them, which leaves an experiment experiment.start will refuse"
+      },
+      {
+        "name": "run_for_ms",
+        "type": "number",
+        "what": "how long each cell runs, in simulated milliseconds; zero or less is ignored and the current length kept"
+      },
+      {
+        "name": "send_at_ms",
+        "type": "number",
+        "what": "the simulated instant the burst is fired, which is the same in every arm; zero or less is ignored"
+      },
+      {
+        "name": "spread_ms",
+        "type": "number",
+        "what": "milliseconds to stagger the senders over; zero fires them all at once, which is the sharpest test of contention and the least like anything real, and a negative value is ignored"
+      },
+      {
+        "name": "bytes",
+        "type": "number",
+        "what": "pad the message to this size, since airtime scales with payload and airtime is what collides; zero sends the label alone, and a negative value is ignored"
+      },
+      {
+        "name": "scope",
+        "type": "string",
+        "what": "the region every sender originates under; empty sends unscoped, which is carried by a different set of repeaters and so measures a different network"
+      }
+    ],
+    "returns": [
+      "arms",
+      "seeds",
+      "senders",
+      "runs",
+      "run_for_ms",
+      "send_at_ms",
+      "spread_ms",
+      "bytes",
+      "scope",
+      "arm_labels"
+    ],
+    "answers": "Counts of what is now defined rather than the definition itself, except `arm_labels`, which names every arm: a count cannot tell a cross that produced the six arms wanted from one that produced six others.",
+    "example": {
+      "params": {
+        "run_for_ms": 90000,
+        "seeds": [
+          1,
+          2
+        ],
+        "send_at_ms": 30000,
+        "senders": [
+          "West Lomond"
+        ]
+      },
+      "what": "a flood from one node, ninety seconds a cell, over two seeds",
+      "runnable": true
+    }
+  },
+  "experiment.seeds": {
+    "what": "replace the seeds every arm is repeated over, which is the only thing that gives a difference between arms something to be called larger than",
+    "params": [
+      {
+        "name": "seeds",
+        "type": "array",
+        "required": true,
+        "what": "the seeds, as numbers; anything that is not a number is dropped, and a list left holding none is refused rather than emptying the seeds"
+      }
+    ],
+    "returns": [
+      "arms",
+      "seeds",
+      "senders",
+      "runs",
+      "run_for_ms",
+      "send_at_ms",
+      "spread_ms",
+      "bytes",
+      "scope",
+      "arm_labels"
+    ],
+    "example": {
+      "params": {
+        "seeds": [
+          1,
+          2,
+          3,
+          4
+        ]
+      },
+      "what": "four draws of each arm",
+      "runnable": true
+    }
+  },
+  "experiment.senders": {
+    "what": "choose which nodes originate the burst, which decides more than it looks like: with one originator every seed can return the same numbers, and then the seed bounds nothing",
+    "params": [
+      {
+        "name": "senders",
+        "type": "array",
+        "what": "the node names; an absent list leaves the senders alone, an empty one clears them, and entries that are not strings are dropped"
+      }
+    ],
+    "returns": [
+      "arms",
+      "seeds",
+      "senders",
+      "runs",
+      "run_for_ms",
+      "send_at_ms",
+      "spread_ms",
+      "bytes",
+      "scope",
+      "arm_labels"
+    ],
+    "example": {
+      "params": {
+        "senders": [
+          "West Lomond",
+          "Dunfermline"
+        ]
+      },
+      "what": "two originators, so the seeds have something to disagree about",
+      "runnable": true
+    }
+  },
+  "experiment.vary": {
+    "what": "cross the arms already defined with one parameter's values, so three path hash modes against two firmware versions is six arms rather than the two the second call would leave",
+    "params": [
+      {
+        "name": "parameter",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "what to vary: path_hash_mode, rep_path_hash, loop_detect, cad, repeater_version, companion_version, spread_ms, or `set:` followed by any firmware setting the CLI takes; anything else is refused, with the list"
+      },
+      {
+        "name": "values",
+        "type": "array",
+        "required": true,
+        "what": "the values, as strings, one arm per value; a list holding no strings is refused, and a value the parameter cannot take is refused with what it can"
+      }
+    ],
+    "returns": [
+      "arms",
+      "seeds",
+      "senders",
+      "runs",
+      "run_for_ms",
+      "send_at_ms",
+      "spread_ms",
+      "bytes",
+      "scope",
+      "arm_labels"
+    ],
+    "answers": "It crosses onto the arms that are there rather than replacing them, so calling it three times gives the full product. It also discards the last sweep's results, because a finished sweep's arms answered a different question from the one now being asked.",
+    "example": {
+      "params": {
+        "parameter": "cad",
+        "values": [
+          "off",
+          "on"
+        ]
+      },
+      "what": "one arm that listens before talking and one that does not",
+      "runnable": true
+    }
+  }
+}

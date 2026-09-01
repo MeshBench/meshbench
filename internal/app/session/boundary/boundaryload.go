@@ -26,44 +26,7 @@ import (
 const maxBoundaryBytes = 64 << 20
 
 func registerBoundaryLoad(st *state.Store, s *session.Sim) {
-	st.HandleSpec("boundary.load", state.Spec{
-		What: "take a study area from GeoJSON rather than from the gazetteer, " +
-			"which is the only way to study a catchment, a valley or a polygon " +
-			"somebody drew this morning, and the only way to set one offline",
-		Params: []state.Param{
-			{Name: "path", Type: state.ParamString, Primary: true,
-				What: "a file to read the GeoJSON from; a file over 64 MB is " +
-					"refused, and giving neither this nor geojson is refused, " +
-					"as is giving both"},
-			{Name: "geojson", Type: state.ParamString,
-				What: "the document itself, for a caller that generated the " +
-					"polygon and should not have to write it to disk first"},
-			{Name: "name", Type: state.ParamString,
-				What: "what to call the area; for a single polygon it wins " +
-					"outright, for several it only fills in the ones the file " +
-					"left unnamed, and absent it falls back to the file's own " +
-					"name and then to a number"},
-			{Name: "name_field", Type: state.ParamString,
-				What: "the feature property to read each name from; absent it " +
-					"is \"name\", which is what almost every file calls it"},
-		},
-		Returns: []string{"loaded", "areas", "polygons"},
-		Answers: "`polygons` is what the document held and `loaded` names only " +
-			"those actually added, so it is shorter when an area of that name " +
-			"was already in the study and empty when all of them were. `areas` " +
-			"is the size of the whole study area afterwards. A GeoJSON " +
-			"coordinate is longitude then latitude, which is the opposite way " +
-			"round to everything else here.",
-		Example: &state.Example{
-			Params: map[string]any{
-				"geojson": `{"type":"Polygon","coordinates":` +
-					`[[[-3.5,56.0],[-3.2,56.0],[-3.2,56.3],[-3.5,56.3],[-3.5,56.0]]]}`,
-				"name": "Lomond hills",
-			},
-			What:     "study a polygon the gazetteer has no name for",
-			Runnable: true,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("boundary.load", func(w *state.World, p any) (any, error) {
 		path, _ := session.StringField(p, "path")
 		text, _ := session.NamedField(p, "geojson")
 		if path == "" && text == "" {
@@ -146,20 +109,7 @@ func registerBoundaryLoad(st *state.Store, s *session.Sim) {
 // outside the window "which areas am I studying" was unanswerable, and so was
 // "did that accept actually take".
 func registerBoundaryList(st *state.Store) {
-	st.HandleSpec("boundary.list", state.Spec{
-		What: "say which areas the study is made of, which is how a caller " +
-			"outside the window finds out whether an accept or a load took",
-		Returns: []string{"areas", "names"},
-		Answers: "`areas` is a row per area with its name and how many rings " +
-			"and points it is drawn from, and `names` the same names on their " +
-			"own, ready for boundary.remove. The geometry itself is not " +
-			"returned: a national boundary is megabytes of coordinates. Both " +
-			"are empty when no study area has been set, which is not an error.",
-		Example: &state.Example{
-			Params: map[string]any{}, What: "check what the study area holds",
-			Runnable: true,
-		},
-	}, func(w *state.World, _ any) (any, error) {
+	st.Handle("boundary.list", func(w *state.World, _ any) (any, error) {
 		out := make([]map[string]any, 0, len(w.Areas))
 		names := make([]string, 0, len(w.Areas))
 		for _, a := range w.Areas {

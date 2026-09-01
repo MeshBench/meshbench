@@ -42,29 +42,7 @@ func coverageCells(s *session.Sim) int {
 // registerCoverageMap rather than from the domain's own list, so that the two
 // verbs sharing this grid arrive together however the files are arranged.
 func registerCoverageResolution(st *state.Store, s *session.Sim) {
-	st.HandleSpec("coverage.resolution", state.Spec{
-		What: "read or set how sharp every shared-grid raster is, which is the " +
-			"one knob that trades minutes for detail: the cost scales with the " +
-			"square of it",
-		Params: []state.Param{
-			{Name: "cells", Type: state.ParamNumber, Primary: true,
-				What: "cells on the raster's long edge, 64 to 4096; absent " +
-					"reads the current setting without changing it, and a " +
-					"value outside that range or one that is not a number is " +
-					"refused rather than clamped, since a caller who asked for " +
-					"30,000 cells and silently got 240 has been told a picture " +
-					"is sharp when it is not"},
-		},
-		Returns: []string{"cells"},
-		Answers: "`cells` is always the setting as it stands after the call. " +
-			"Setting it writes the preferences rather than the scenario, " +
-			"because a resolution is a machine-and-patience choice and not a " +
-			"network's, so it outlives whichever scenario was open at the time.",
-		Example: &state.Example{
-			Params: map[string]any{}, What: "ask how sharp the rasters are",
-			Runnable: true,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("coverage.resolution", func(w *state.World, p any) (any, error) {
 		// Asked for, rather than merely readable. No cells at all is a read of
 		// the current setting, which is a legitimate call; cells that cannot be
 		// read as a number is a caller who meant to change it, and answering

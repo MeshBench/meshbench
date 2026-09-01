@@ -1,0 +1,32 @@
+{
+  "nodes.search": {
+    "what": "find a node by roughly what it is called and rank the matches, so a name full of emoji, box-drawing characters or Gaelic accents can be reached by something a person can type",
+    "params": [
+      {
+        "name": "query",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "roughly the name, with accents and emoji ignored on both sides; one with no letters or digits in it is refused rather than answered with the whole network"
+      },
+      {
+        "name": "limit",
+        "type": "number",
+        "what": "how many of the best matches to return; anything not a positive number leaves it at ten"
+      }
+    ],
+    "returns": [
+      "query",
+      "matches",
+      "total"
+    ],
+    "answers": "`total` is how many names scored well enough to be offered and `matches` only the best of them, so the two differ whenever the limit bit. Each match carries a score from 0.2 to 1, where 1 is the same name; a shorter name beats a longer one that matched the same way, and ties break on the name so the same query answers the same way twice. No match at all is an empty list, not an error.",
+    "example": {
+      "params": {
+        "query": "lomond"
+      },
+      "what": "find a node whose real name cannot be typed",
+      "runnable": true
+    }
+  }
+}

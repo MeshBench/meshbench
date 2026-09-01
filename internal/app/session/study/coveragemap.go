@@ -39,49 +39,7 @@ func infrastructure(nodes []scenario.Node) []scenario.Node {
 func registerCoverageMap(st *state.Store, s *session.Sim) {
 	registerCoverageResolution(st, s)
 
-	st.HandleSpec("coverage.map", state.Spec{
-		What: "raster where the network works rather than what one mast " +
-			"reaches, by pricing every repeater and room server over one shared " +
-			"grid and keeping the best two-way server in each cell",
-		Params: []state.Param{
-			{Name: "cells", Type: state.ParamNumber, Primary: true,
-				What: "cells on the long edge; absent uses the saved " +
-					"coverage.resolution, and a value outside 64 to 4096 is " +
-					"refused rather than clamped"},
-			{Name: "station", Type: state.ParamString,
-				What: "cover from this one node instead of the whole network, " +
-					"or \"selected\" for whatever the map has under the cursor; " +
-					"absent covers every repeater and room server, a name this " +
-					"network has not got is refused, and \"selected\" with " +
-					"nothing selected is refused too"},
-			{Name: "south", Type: state.ParamNumber,
-				What: "the viewport's southern border in degrees, -90 to 90; " +
-					"all four borders or none, since three and a typo is " +
-					"refused rather than quietly rastered over other ground"},
-			{Name: "north", Type: state.ParamNumber,
-				What: "the northern border, -90 to 90, and above south"},
-			{Name: "west", Type: state.ParamNumber,
-				What: "the western border, -180 to 180"},
-			{Name: "east", Type: state.ParamNumber,
-				What: "the eastern border, -180 to 180, and right of west"},
-		},
-		Returns: []string{"nodes", "started"},
-		Answers: "It answers as soon as the job starts, `nodes` being how many " +
-			"stations went into it. The raster lands later through the internal " +
-			"`coverage.set`, the network-wide summary through " +
-			"`coverage.combined`, and a failure through `coverage.failed` where " +
-			"almost none of the ground has cached elevation. With no viewport " +
-			"given it covers the study boundary, and with no boundary the " +
-			"network's own box plus 15 km. Each cell keeps both directions and " +
-			"they differ: gain is evaluated per station on the bearing and look " +
-			"angle to that cell, a station imported with position uncertainty " +
-			"carries it into the cell as slack, and the margins are a best " +
-			"case, with no multipath and no body loss in them.",
-		Example: &state.Example{
-			Params: map[string]any{"cells": 480},
-			What:   "raster where the whole network works, finer than the default",
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("coverage.map", func(w *state.World, p any) (any, error) {
 		return startCoverageMap(s, st, w, p)
 	})
 }

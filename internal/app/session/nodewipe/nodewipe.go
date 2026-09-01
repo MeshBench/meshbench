@@ -20,31 +20,7 @@ import (
 )
 
 func registerNodeWipe(st *state.Store, s *session.Sim) {
-	st.HandleSpec("node.wipe", state.Spec{
-		What: "erase one node's stored state: its flash, its card and its files",
-		Params: []state.Param{
-			{Name: "node", Type: state.ParamString, Required: true, Primary: true,
-				What: "the node to put back to factory"},
-			{Name: "confirm", Type: state.ParamBool,
-				What: "false lists what would go and removes nothing; " +
-					"absent or true erases it"},
-		},
-		Returns: []string{"node", "wiped", "removed", "would_remove"},
-		Answers: "`wiped` counts what went and `removed` names it, the node's " +
-			"card included where it keeps one elsewhere; the emulator's own " +
-			"sockets are left, being recreated at the next start. With `confirm` " +
-			"false nothing is touched and `would_remove` names what a wipe would " +
-			"take. A node with nothing on disk answers zero rather than refusing. " +
-			"Refused where the node is not an emulated board, where it is still " +
-			"running, and where only part of it could be removed - a partial " +
-			"wipe is an error naming what stayed, because a board that boots " +
-			"back into settings said to be gone is worse than one that was never " +
-			"wiped.",
-		Example: &state.Example{
-			Params: map[string]any{"node": "West Lomond", "confirm": false},
-			What:   "see what putting a board back to factory would take",
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("node.wipe", func(w *state.World, p any) (any, error) {
 		name, _ := session.StringField(p, "node")
 		if name == "" {
 			return nil, session.BadParams("node.wipe needs a node")

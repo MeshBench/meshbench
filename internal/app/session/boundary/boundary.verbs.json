@@ -1,0 +1,93 @@
+{
+  "boundary.accept": {
+    "what": "take one of the places the search offered into the study area, which unions rather than replaces: Scotland and Ireland is two accepts and then one prune, not two calls where the second wins",
+    "params": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "which of the offered places to take, matched without regard to case and on any part of the offered name, so \"Scotland\" takes \"Alba / Scotland\"; an empty one is refused, and one that matches nothing is refused with the list of what was offered"
+      }
+    ],
+    "returns": [
+      "accepted",
+      "areas"
+    ],
+    "answers": "`accepted` is the gazetteer's own name for what was taken, which is not always what was asked for, and `areas` how many the study area now holds. Accepting the same place twice is answered rather than refused, and does not stack it. This changes what is measured, never what is loaded: the nodes outside stay until boundary.prune.",
+    "example": {
+      "params": {
+        "name": "Fife"
+      },
+      "what": "add a searched place to the study area"
+    }
+  },
+  "boundary.prune": {
+    "what": "delete the nodes outside the study area, keeping a margin because a node just outside the border still relays to and interferes with one just inside it and dropping it makes the mesh behave better than reality",
+    "params": [
+      {
+        "name": "margin_km",
+        "type": "number",
+        "primary": true,
+        "what": "how far outside a node may be and still be kept; absent or negative leaves it at the session's own margin"
+      }
+    ],
+    "returns": [
+      "removed",
+      "nodes"
+    ],
+    "answers": "`nodes` is how many are left. Removing none is answered with zero and touches nothing; removing any rebuilds the engine and empties the link matrix while every remaining pair is measured again. It is refused when no study area has been accepted, rather than treated as an area that contains nothing.",
+    "example": {
+      "params": {
+        "margin_km": 15
+      },
+      "what": "cut an imported network down to the study area"
+    }
+  },
+  "boundary.remove": {
+    "what": "take one area back out of a study area built from several, so a wrong accept costs one call rather than starting the search over",
+    "params": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the area to drop, matched whole and without regard to case; an empty one is refused, and one that names no accepted area is refused with the list of what there is"
+      }
+    ],
+    "returns": [
+      "removed",
+      "areas"
+    ],
+    "answers": "`areas` is how many are left. Like accepting, this changes what is measured and not what is loaded: nodes pruned away on the old area do not come back.",
+    "example": {
+      "params": {
+        "name": "Fife"
+      },
+      "what": "drop an area from the study without starting again"
+    }
+  },
+  "boundary.set": {
+    "what": "look a place up in the gazetteer and offer what it matched, which is the search half of choosing a study area and changes nothing on its own",
+    "params": [
+      {
+        "name": "query",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the place to search for; blank or whitespace is refused rather than answered with everything"
+      }
+    ],
+    "returns": [
+      "found",
+      "names"
+    ],
+    "answers": "`found` is a row per match with its name and kind, and `names` the same names on their own, for handing straight to boundary.accept. Nothing joins the study area until one is accepted, and the names are the gazetteer's own: a search for Scotland comes back as \"Alba / Scotland\". It needs the network and gives the geocoder thirty seconds.",
+    "example": {
+      "params": {
+        "query": "Fife"
+      },
+      "what": "find a council area to study"
+    }
+  }
+}

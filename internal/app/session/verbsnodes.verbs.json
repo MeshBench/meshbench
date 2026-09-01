@@ -1,0 +1,229 @@
+{
+  "firmware.failed": {
+    "what": "report that bringing the mesh up failed, and cancel a play that was waiting on it rather than advancing a clock over a mesh that is not there",
+    "params": [
+      {
+        "name": "reason",
+        "type": "string",
+        "primary": true,
+        "what": "what went wrong, said to the operator as it stands"
+      }
+    ],
+    "answers": "Answers with nothing: it is a report, and what it changes is the status line and whether a waiting play is still waiting."
+  },
+  "firmware.start": {
+    "what": "bring MeshCore up on every node that runs one, without starting the clock, so a mesh can be watched settling before any traffic",
+    "returns": [
+      "starting"
+    ],
+    "answers": "The answer says the attempt began, not that anything is up: each node attaches on its own goroutine and the outcome arrives later as firmware.started or firmware.failed. Poll firmware.state to see how far it has got.",
+    "example": {
+      "params": {},
+      "what": "bring the mesh up before pressing play"
+    }
+  },
+  "firmware.started": {
+    "what": "carry the count of running firmware back into the world when an attach finishes, and tell whoever pressed play that pressing it again will now start the run",
+    "returns": [
+      "running",
+      "playing"
+    ],
+    "answers": "`playing` appears only where a play was waiting on the mesh coming up, and is false: this reports that the mesh is up, and the next press of play is what starts the run."
+  },
+  "firmware.state": {
+    "what": "ask how far along bringing the mesh up is, which is what every wait for firmware is built on",
+    "returns": [
+      "running",
+      "nodes",
+      "total",
+      "starting"
+    ],
+    "answers": "`running` counts the processes that are up and `nodes` the nodes that run firmware at all, so a wait compares those two and never `total`, which counts every node in the scenario including the SDR observers and emitters that never boot one. `starting` is how many attaches are still in flight.",
+    "example": {
+      "params": {},
+      "what": "ask whether the mesh is up yet",
+      "runnable": true
+    }
+  },
+  "node.provisioning": {
+    "what": "read the console lines a node is told before a run, so a region defined but never allowed to flood is visible rather than looking like broken radio",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "whose script to read; a name this network has not got is refused"
+      }
+    ],
+    "returns": [
+      "node",
+      "commands"
+    ],
+    "answers": "`commands` is the lines that are actually sent, with the commentary dropped; the panel keeps the annotated form, each line with the reason it exists.",
+    "example": {
+      "params": "West Lomond",
+      "what": "see what a node will be told at start",
+      "runnable": true
+    }
+  },
+  "node.reflash_failed": {
+    "what": "report that a build change did not go through, which reaches the operator after the caller that asked has already been told it was accepted",
+    "params": [
+      {
+        "name": "reason",
+        "type": "string",
+        "primary": true,
+        "what": "what went wrong, said to the operator as it stands"
+      }
+    ],
+    "answers": "Answers with nothing: what it changes is the stats and the status line."
+  },
+  "node.reflashed": {
+    "what": "report that a node's build change went through, refreshing the counters and the node's own window, which reads the node list rather than the stats and so showed the old build for ever",
+    "params": [
+      {
+        "name": "message",
+        "type": "string",
+        "primary": true,
+        "what": "what to say, whose first word is the node that changed"
+      }
+    ],
+    "answers": "Answers with nothing: what it changes is the stats, the node list and the status line."
+  },
+  "node.set_firmware": {
+    "what": "change the build a node runs and apply it now, stopping the node, provisioning it and starting it again, because firmware is chosen when a node launches and nothing else would take effect",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "required": true,
+        "what": "which node changes build; absent, blank or unknown is refused"
+      },
+      {
+        "name": "version",
+        "type": "string",
+        "required": true,
+        "what": "the build to run, as the firmware library names it; absent or blank is refused"
+      },
+      {
+        "name": "board",
+        "type": "string",
+        "what": "the hardware the image is for, because a board image is that image for that board; absent means a build for this machine"
+      },
+      {
+        "name": "role",
+        "type": "string",
+        "what": "which MeshCore role the image is; absent leaves the node's role as it was"
+      }
+    ],
+    "returns": [
+      "node",
+      "version",
+      "board",
+      "role"
+    ],
+    "answers": "The answer says the change was accepted, not that it took: the stop, provision and start run behind it, and a build that will not provision or a node that will not start arrives afterwards as node.reflash_failed.",
+    "example": {
+      "params": {
+        "node": "West Lomond",
+        "version": "v1.7.1"
+      },
+      "what": "put a host build on one node and restart it into it"
+    }
+  },
+  "node.set_firmware_only": {
+    "what": "record the build a node will run at its next start without touching the node now, for setting a fleet up before anything is launched",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "required": true,
+        "what": "which node is set; absent, blank or unknown is refused"
+      },
+      {
+        "name": "version",
+        "type": "string",
+        "required": true,
+        "what": "the build it will run, as the firmware library names it; absent or blank is refused"
+      },
+      {
+        "name": "board",
+        "type": "string",
+        "what": "the hardware the image is for; absent means a build for this machine, and clears any board the node was pinned to"
+      },
+      {
+        "name": "role",
+        "type": "string",
+        "what": "which MeshCore role the image is; absent leaves the node's role as it was"
+      }
+    ],
+    "returns": [
+      "node",
+      "version",
+      "board",
+      "role"
+    ],
+    "answers": "Nothing restarts. A node already running goes on running what it has until something stops it, which is the difference between this and node.set_firmware.",
+    "example": {
+      "params": {
+        "node": "West Lomond",
+        "version": "v1.7.1"
+      },
+      "what": "choose what a node will run without disturbing it",
+      "runnable": true
+    }
+  },
+  "node.start": {
+    "what": "bring a stopped node's firmware back up, which goes through the whole-mesh attach and so starts every other stopped node with it",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "which node starts; a name this network has not got is refused, and so is a node that is already running"
+      }
+    ],
+    "returns": [
+      "started"
+    ],
+    "answers": "`started` is the node that was asked for, not everything that came up: the attach behind it skips only the nodes already running.",
+    "example": {
+      "params": "West Lomond",
+      "what": "put a stopped node back on the air"
+    }
+  },
+  "node.stop": {
+    "what": "take one node's firmware down while leaving the node in the scenario, so it reports its final counters on the way out - which are usually the only evidence about a node that was misbehaving",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "which node stops; a name this network has not got is refused, and so is a node that is not running firmware"
+      }
+    ],
+    "returns": [
+      "stopped"
+    ],
+    "example": {
+      "params": "West Lomond",
+      "what": "take one node off the air"
+    }
+  },
+  "nodes.stats": {
+    "what": "recompute every node's counters now rather than at the next tick, and answer with the rows themselves, which is how anything outside the window asks whether a node is running",
+    "returns": [
+      "nodes",
+      "stats"
+    ],
+    "answers": "`nodes` is how many rows there are and `stats` is the rows. A session with no engine built has no counters to report and answers with none, which is not a failure.",
+    "example": {
+      "params": {},
+      "what": "read every node's state and counters",
+      "runnable": true
+    }
+  }
+}

@@ -19,35 +19,7 @@ import (
 )
 
 func registerFleet(st *state.Store, s *session.Sim) {
-	st.HandleSpec("fleet.send", state.Spec{
-		What: "type one repeater command at every node at once, or at a " +
-			"filtered subset, and keep each node's reply apart from the others " +
-			"because the answer worth having is which node disagreed",
-		Params: []state.Param{
-			{Name: "command", Type: state.ParamString, Required: true, Primary: true,
-				What: "the line to type, exactly as it would be typed at one " +
-					"node's console; blank or whitespace is refused"},
-			{Name: "node", Type: state.ParamString,
-				What: "send to this node alone, matched on the whole name; " +
-					"absent, every node with firmware up is a target"},
-			{Name: "kind", Type: state.ParamString,
-				What: "send only to nodes of this kind; absent, kind is not " +
-					"filtered on"},
-		},
-		Returns: []string{"command", "sent_to", "replies", "warning"},
-		Answers: "The `replies` in this answer are not the replies: they are " +
-			"empty for every node the command reached, and carry a reason only " +
-			"where the send itself failed. A node answers on its own next loop, " +
-			"so the real replies land on the snapshot a second of simulated " +
-			"time later. `warning` appears only for a command that changes what " +
-			"the nodes are, which makes anything already measured a different " +
-			"mesh. It is refused when no node is running firmware.",
-		Example: &state.Example{
-			Params:   map[string]any{"command": "advert"},
-			What:     "make every repeater advertise itself",
-			Runnable: false,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("fleet.send", func(w *state.World, p any) (any, error) {
 		cmd, _ := session.StringField(p, "command")
 		if strings.TrimSpace(cmd) == "" {
 			return nil, fmt.Errorf("fleet.send needs a command")
@@ -130,17 +102,7 @@ func registerFleet(st *state.Store, s *session.Sim) {
 	// Called only from collectFleet, always with the pending object that
 	// particular send produced - never read back off shared state, so two
 	// fleet.send calls in flight cannot corrupt one another's replies.
-	st.HandleInternalSpec("fleet.replies", state.Spec{
-		What: "read what each node said once the engine has run far enough for " +
-			"it to have answered, and put the rows on the snapshot, which is " +
-			"where a fleet command's real answer arrives",
-		Returns: []string{"replies"},
-		Answers: "`replies` is how many rows were collected, and the rows " +
-			"themselves go on the snapshot. A node that said nothing reads as " +
-			"\"-\", and a companion says so in words: it speaks the app " +
-			"protocol rather than the repeater console, so the command reached " +
-			"it and meant nothing.",
-	}, func(w *state.World, p any) (any, error) {
+	st.HandleInternal("fleet.replies", func(w *state.World, p any) (any, error) {
 		pend, ok := p.(*fleetPending)
 		if !ok || pend == nil {
 			return map[string]any{"replies": 0}, nil
@@ -175,33 +137,7 @@ func registerFleet(st *state.Store, s *session.Sim) {
 
 	// nodes.regions and nodes.allow_flood: the two that decide whether
 	// anything relays at all.
-	st.HandleSpec("nodes.regions", state.Spec{
-		What: "say which regions a node holds, which is how a node placed by " +
-			"hand is given what its neighbours already hold: inference reads " +
-			"the real network's traffic and so reaches only the nodes that " +
-			"were seen on it",
-		Params: []state.Param{
-			{Name: "node", Type: state.ParamString, Primary: true,
-				What: "the one node to set, matched on the whole name; absent, " +
-					"every node in the scenario is set, and a name that matches " +
-					"nothing sets nothing and is not refused"},
-			{Name: "regions", Type: state.ParamArray,
-				What: "the regions the node is to hold, as strings; absent or " +
-					"not a list of strings leaves the node holding none, which " +
-					"is a clear rather than a call that did nothing"},
-		},
-		Returns: []string{"nodes", "regions"},
-		Answers: "`nodes` is how many were written to, which is 0 when the " +
-			"name matched nothing. What is given replaces what a node held " +
-			"rather than adding to it.",
-		Example: &state.Example{
-			Params: map[string]any{
-				"node": "West Lomond", "regions": []any{"ioi"},
-			},
-			What:     "give a hand-placed repeater the region its neighbours use",
-			Runnable: true,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("nodes.regions", func(w *state.World, p any) (any, error) {
 		var regions []string
 		if m, ok := p.(map[string]any); ok {
 			if xs, ok := m["regions"].([]any); ok {
@@ -230,28 +166,7 @@ func registerFleet(st *state.Store, s *session.Sim) {
 		return map[string]any{"nodes": n, "regions": regions}, nil
 	})
 
-	st.HandleSpec("nodes.allow_flood", state.Spec{
-		What: "let a node forward a flood whatever region it was scoped to, " +
-			"which is the difference between a scenario that relays and one " +
-			"that transmits everything, relays nothing and reports no error",
-		Params: []state.Param{
-			{Name: "on", Type: state.ParamBool, Primary: true,
-				What: "true to forward any flood, false to forward only the " +
-					"scoped ones; anything that is not a boolean leaves it true"},
-			{Name: "node", Type: state.ParamString,
-				What: "the one node to set, matched on the whole name; absent, " +
-					"every node is set, and a name that matches nothing sets " +
-					"nothing and is not refused"},
-		},
-		Returns: []string{"nodes", "allow_any_flood"},
-		Answers: "`nodes` is how many were written to, which is 0 when the name " +
-			"matched nothing.",
-		Example: &state.Example{
-			Params:   map[string]any{"on": true},
-			What:     "let every node forward a flood whatever its scope",
-			Runnable: true,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("nodes.allow_flood", func(w *state.World, p any) (any, error) {
 		on := true
 		if v, ok := session.BoolField(p, "on"); ok {
 			on = v
@@ -275,25 +190,7 @@ func registerFleet(st *state.Store, s *session.Sim) {
 	})
 
 	// The destructive one, so it says what it removed.
-	st.HandleSpec("nodes.delete", state.Spec{
-		What: "take one node out of the scenario for good, which is how an " +
-			"imported deployment is cut down to what a desktop will actually run",
-		Params: []state.Param{
-			{Name: "node", Type: state.ParamString, Required: true, Primary: true,
-				What: "the node to remove, matched on the whole name and " +
-					"exactly; an empty one is refused, and so is a name no node " +
-					"has, rather than deleting nothing quietly"},
-		},
-		Returns: []string{"deleted", "nodes"},
-		Answers: "`nodes` is how many are left. It rebuilds the engine and " +
-			"empties the link matrix, so every remaining pair is measured again " +
-			"as a job before the run means anything.",
-		Example: &state.Example{
-			Params:   map[string]any{"node": "Dunfermline"},
-			What:     "drop a node from the scenario",
-			Runnable: false,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("nodes.delete", func(w *state.World, p any) (any, error) {
 		name, _ := session.StringField(p, "node")
 		if name == "" {
 			return nil, fmt.Errorf("nodes.delete needs a node")

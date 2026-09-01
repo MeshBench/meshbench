@@ -1,0 +1,78 @@
+{
+  "validate.calibrate": {
+    "what": "set the excess path loss term from what the comparison measured, or from a stated figure, and rebuild every link on it",
+    "params": [
+      {
+        "name": "db",
+        "type": "number",
+        "primary": true,
+        "what": "the excess loss to apply, in decibels, which wins over the measurement; absent uses the measured residual, a negative is refused because excess loss is a loss, and a db that cannot be read as a number is refused rather than falling back to the residual nobody asked for"
+      }
+    ],
+    "returns": [
+      "db",
+      "links"
+    ],
+    "answers": "Refuses when nothing has been measured and no db was given: defaulting to 0 dB there is not the absence of calibration but the most optimistic model there is. The figure applied is a total on top of nothing, not a delta, so repeated fetch-then-calibrate rounds converge. It rebuilds the engine and re-measures every link, so `links` is 0 at the moment it answers and fills in as the matrix warms.",
+    "example": {
+      "params": {
+        "db": 12
+      },
+      "what": "apply a stated excess loss rather than a measured one"
+    }
+  },
+  "validate.compare": {
+    "what": "put what the model predicted beside what was actually heard, and turn the difference into a total excess loss worth applying",
+    "returns": [
+      "matched",
+      "unmatched",
+      "median_db",
+      "iqr_db",
+      "suggested_excess_loss_db"
+    ],
+    "answers": "A positive `median_db` means the model predicted a stronger signal than was heard, which is the simulator being kinder than the air. `suggested_excess_loss_db` is a total and not a delta: the links these residuals were measured against already carried the current term, so it is that term plus the median. Saturated observations are counted but do not vote. It refuses when nothing matched, and says how much of that was names outside the scenario against pairs with no measured link, because the two want different fixes."
+  },
+  "validate.failed": {
+    "what": "take the validation job off the status line and put the reason there instead, so a fetch that matched nothing says which of the several nothings it was",
+    "answers": "Answers nothing."
+  },
+  "validate.fetch": {
+    "what": "pull what a real deployment actually heard and hand it to the comparison, which is where a number for the excess loss term comes from rather than a guess",
+    "params": [
+      {
+        "name": "url",
+        "type": "string",
+        "primary": true,
+        "what": "the CoreScope base URL to ask; absent falls back to the source set with import.set_source, and is refused when there is no source either way"
+      },
+      {
+        "name": "hours",
+        "type": "number",
+        "what": "how far back to ask for, from a minute to a year; absent is a day, and a value outside that range or not a number is refused rather than quietly made a day"
+      }
+    ],
+    "returns": [
+      "fetching",
+      "hours"
+    ],
+    "answers": "It answers the moment the fetch starts, not with anything fetched. The comparison lands later through the internal `validate.compare`, and every way it can come to nothing - neither endpoint answering, observations carrying keys from another network, no SNR in the window - through `validate.failed` on the status line. This is the one verb here that goes to the network.",
+    "example": {
+      "params": {
+        "hours": 24,
+        "url": "https://corescope.example/"
+      },
+      "what": "fetch a day of real receptions to compare against"
+    }
+  },
+  "validate.uncalibrate": {
+    "what": "put the excess path loss back to the default, which is a stated guess rather than a measurement, and rebuild every link on it",
+    "returns": [
+      "db"
+    ],
+    "answers": "The snapshot stops calling itself calibrated, which is the point: the default is a reasonable figure for typical clutter and not this network's. It re-measures the whole link matrix, so the margins move over the seconds after it answers.",
+    "example": {
+      "params": {},
+      "what": "drop a calibration and go back to the stated default"
+    }
+  }
+}

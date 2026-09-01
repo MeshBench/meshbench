@@ -1,0 +1,127 @@
+{
+  "nodes.add_to_selection": {
+    "what": "add nodes to whatever is already selected, which is the shift-drag, and the way a selection is built up out of several passes over the map",
+    "params": [
+      {
+        "name": "names",
+        "type": "array",
+        "primary": true,
+        "what": "the nodes to add, as a list, one name, or {\"names\": [...]}; a name this network has not got refuses the whole call, and no names at all adds nothing and leaves the selection as it was"
+      }
+    ],
+    "returns": [
+      "added"
+    ],
+    "answers": "`added` counts the nodes matched, not the nodes newly selected: one that was already in the selection is counted again.",
+    "example": {
+      "params": {
+        "names": [
+          "Dunfermline"
+        ]
+      },
+      "what": "add one more node to the selection",
+      "runnable": true
+    }
+  },
+  "nodes.move": {
+    "what": "put a node at a position and move its physics with its marker, forgetting the losses cached for it so the next window an attached SDR client hears is the one from where it now stands",
+    "params": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "what": "which node moves; absent, blank or unknown is refused"
+      },
+      {
+        "name": "lat",
+        "type": "number",
+        "required": true,
+        "what": "degrees north, minus 90 to 90; absent or outside that is refused rather than read as nought, which used to put the node in the Gulf of Guinea and report it as asked for"
+      },
+      {
+        "name": "lon",
+        "type": "number",
+        "required": true,
+        "what": "degrees east, minus 180 to 180; absent or outside that is refused"
+      }
+    ],
+    "returns": [
+      "name",
+      "lat",
+      "lon"
+    ],
+    "example": {
+      "params": {
+        "lat": 56.25,
+        "lon": -3.29,
+        "name": "West Lomond"
+      },
+      "what": "move a node onto the hill it is named after",
+      "runnable": true
+    }
+  },
+  "nodes.select": {
+    "what": "make one node the selection, which is what the verbs that act on \"the selected node\" - sim.inject among them - go on to find",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "primary": true,
+        "what": "which node; a name this network has not got is not refused here, and clears the selection, as an empty name does"
+      }
+    ],
+    "returns": [
+      "selected"
+    ],
+    "answers": "`selected` is the name that was asked for, whether or not a node answers to it: this is the click a map sends, and it sets every node's selected flag from that one name.",
+    "example": {
+      "params": "West Lomond",
+      "what": "select one node",
+      "runnable": true
+    }
+  },
+  "nodes.select_many": {
+    "what": "replace the selection with a set of nodes, which is what a box drag on the map amounts to and what a script does before any verb that acts on a selection",
+    "params": [
+      {
+        "name": "names",
+        "type": "array",
+        "primary": true,
+        "what": "the nodes to select, as a list, one name, or {\"names\": [...]}; a name this network has not got refuses the whole call, and no names at all clears the selection"
+      }
+    ],
+    "returns": [
+      "selected"
+    ],
+    "answers": "Every other node is deselected, so this is a replacement rather than an addition; nodes.add_to_selection is the addition.",
+    "example": {
+      "params": {
+        "names": [
+          "West Lomond",
+          "Dunfermline"
+        ]
+      },
+      "what": "select two nodes at once",
+      "runnable": true
+    }
+  },
+  "sim.inject": {
+    "what": "put one packet on the air from a node, to exercise the radio model and the traffic layer without firmware behind it",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "primary": true,
+        "what": "which node transmits; absent means the selected one, and a name this network has not got is refused rather than falling through to the first node"
+      }
+    ],
+    "returns": [
+      "at"
+    ],
+    "answers": "Nothing relays what this originates: relaying is a firmware behaviour, and this packet has no firmware behind it.",
+    "example": {
+      "params": "West Lomond",
+      "what": "transmit from one named node"
+    }
+  }
+}

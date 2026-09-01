@@ -18,30 +18,7 @@ import (
 )
 
 func registerFirmwareCache(st *state.Store, s *Sim) {
-	st.HandleSpec("firmware.download", state.Spec{
-		What: "fetch a published build now rather than at the moment a node " +
-			"first needs it, which is what somebody about to work offline wants",
-		Params: []state.Param{
-			{Name: "role", Type: state.ParamString, Required: true, Primary: true,
-				What: "the role to fetch, such as `simple_repeater`; refused when absent"},
-			{Name: "version", Type: state.ParamString, Required: true,
-				What: "the published release tag; refused when absent"},
-			{Name: "board", Type: state.ParamString,
-				What: "the board image to fetch; absent means the native build " +
-					"for this machine"},
-		},
-		Returns: []string{"downloading", "role", "version"},
-		Answers: "It answers as soon as the fetch has been started, not when the " +
-			"file lands. Progress arrives on a job called `fw-<version>-<role>`, " +
-			"counted in kilobytes, and a failure is reported there rather than " +
-			"here; the installed list and the library are re-read either way.",
-		Example: &state.Example{
-			Params: map[string]any{
-				"role": "simple_repeater", "version": "repeater-v1.16.0",
-			},
-			What: "fetch a repeater build before working without a network",
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("firmware.download", func(w *state.World, p any) (any, error) {
 		role, _ := stringField(p, "role")
 		version, _ := namedField(p, "version")
 		board, _ := namedField(p, "board")
@@ -82,41 +59,7 @@ func registerFirmwareCache(st *state.Store, s *Sim) {
 		return map[string]any{"downloading": true, "role": role, "version": version}, nil
 	})
 
-	st.HandleSpec("firmware.import", state.Spec{
-		What: "put somebody's own build into the library, which is how a change " +
-			"is tested against a release before it is one",
-		Params: []state.Param{
-			{Name: "path", Type: state.ParamString, Required: true, Primary: true,
-				What: "the file to import; refused when absent, and an ESP32 " +
-					"board's application-only .bin is refused too, because a " +
-					"board starts from the whole flash image"},
-			{Name: "role", Type: state.ParamString, Required: true,
-				What: "the role it is imported as; refused when absent"},
-			{Name: "board", Type: state.ParamString,
-				What: "the board it is for; absent means a build for this machine"},
-			{Name: "label", Type: state.ParamString,
-				What: "what the library will know it by and what a node pins; " +
-					"absent, it is stamped with a timestamp so a second import " +
-					"does not replace the first in place"},
-			{Name: "version", Type: state.ParamString,
-				What: "an older name for `label`, read only when `label` is " +
-					"absent, because scripts written against it are already out " +
-					"in the world"},
-		},
-		Returns: []string{"version", "role", "board", "path", "bytes"},
-		Answers: "`version` is the label the build was stored under, which is " +
-			"the timestamp when none was given and is what `firmware.set` then " +
-			"has to be handed.",
-		Example: &state.Example{
-			Params: map[string]any{
-				"path":  "/home/you/MeshCore/.pio/build/Heltec_v3/firmware.factory.bin",
-				"role":  "simple_repeater",
-				"board": "Heltec_v3",
-				"label": "repeater-my-fix",
-			},
-			What: "test a local change against a published build",
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("firmware.import", func(w *state.World, p any) (any, error) {
 		path, _ := stringField(p, "path")
 		role, _ := namedField(p, "role")
 		board, _ := namedField(p, "board")
@@ -154,27 +97,7 @@ func registerFirmwareCache(st *state.Store, s *Sim) {
 		}, nil
 	})
 
-	st.HandleSpec("firmware.delete", state.Spec{
-		What: "remove one build from the cache, to reclaim the disk or to prove " +
-			"a download works by taking away what it produced",
-		Params: []state.Param{
-			{Name: "path", Type: state.ParamString, Required: true, Primary: true,
-				What: "the build's path, as the library and `firmware.details` " +
-					"give it; refused when absent, and refused when it points " +
-					"anywhere but inside the firmware cache"},
-		},
-		Returns: []string{"deleted"},
-		Answers: "The build's settings sidecar goes with it, so the next build " +
-			"imported under the same name does not inherit somebody else's " +
-			"answers. Nothing is said about the nodes pinned to it, which keep " +
-			"the name and have nothing to run until they are pinned again.",
-		Example: &state.Example{
-			Params: map[string]any{
-				"path": "/home/you/.cache/meshbench/firmware/native/repeater-v1.16.0",
-			},
-			What: "reclaim the disk a build was using",
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("firmware.delete", func(w *state.World, p any) (any, error) {
 		path, _ := stringField(p, "path")
 		if path == "" {
 			return nil, fmt.Errorf("firmware.delete needs a path")

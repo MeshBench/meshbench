@@ -1,0 +1,51 @@
+{
+  "capture.file": {
+    "what": "write every receiver's view of every frame to a pcapng file as the run happens, which is how the bytes are kept on a session with nobody at the screen",
+    "params": [
+      {
+        "name": "path",
+        "type": "string",
+        "primary": true,
+        "what": "where to write it; absent writes meshbench-capture.pcapng in the temporary directory, and whatever is at the path already is replaced"
+      }
+    ],
+    "returns": [
+      "path"
+    ],
+    "answers": "It replaces any capture already running, file or stream, so the frames go to one place at a time. Refused where no network is loaded.",
+    "example": {
+      "params": {
+        "path": "/tmp/lomond.pcapng"
+      },
+      "what": "keep the run's frames for later"
+    }
+  },
+  "capture.stop": {
+    "what": "close whichever capture is running, file or stream, and say how much of the run it caught",
+    "returns": [
+      "path",
+      "frames"
+    ],
+    "answers": "`path` is the file that was written, or the address that was being streamed to. Both come back empty with `frames` zero where nothing was capturing, which is not an error; the only refusal is no network loaded.",
+    "example": {
+      "params": {},
+      "what": "finish the capture and count it"
+    }
+  },
+  "capture.wireshark": {
+    "what": "stream the same frames as datagrams to 127.0.0.1:5555 and open Wireshark on loopback filtered to that port, with both dissectors loaded in the order that makes them read",
+    "returns": [
+      "addr",
+      "how",
+      "dissector_error",
+      "dissector_warning",
+      "launched",
+      "launch_error"
+    ],
+    "answers": "The stream is started before anything is launched and stays up whatever happens next, so `launched` false is a window that did not open rather than a capture that did not start: `how` is then the command to run by hand. `dissector_error` says the Lua that registers the port was not found beside the binary, and `dissector_warning` that only the MeshCore half is missing. The capture belongs to the engine as it stands, so it is started once per session and not once per run: an engine rebuilt, or a workbench restarted, is capturing nothing until this is called again.",
+    "example": {
+      "params": {},
+      "what": "watch the mesh in Wireshark"
+    }
+  }
+}

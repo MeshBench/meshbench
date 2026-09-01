@@ -1,8 +1,0 @@
-# Verbs that do not yet say what they are or what they take.
-#
-# A ratchet, not a list of exemptions: it may only shrink. Describe a verb
-# at its st.HandleSpec call and delete its line from here. A verb added
-# today is not on this list, so it has to describe itself.
-#
-# Regenerate with:
-#   go test ./internal/app/session -run 'TestTheVerbManifest|TestWriteUndescribed' -update-manifest

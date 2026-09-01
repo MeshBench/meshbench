@@ -1,0 +1,54 @@
+{
+  "experiment.start": {
+    "what": "put every arm through every seed on a worker, each cell in its own engine with node storage of its own, and answer as soon as the worker is away rather than when it is done",
+    "returns": [
+      "running",
+      "runs"
+    ],
+    "answers": "`runs` is how many cells were queued. Poll experiment.state until `running` goes false. It refuses where a sweep is already running, where no network is loaded, where no sender has been named, and where the last sweep's cell in flight has not yet let go of the results table.",
+    "example": {
+      "params": {},
+      "what": "start the matrix that is defined"
+    }
+  },
+  "experiment.state": {
+    "what": "ask the runner where it has got to without disturbing it, which is what a script polls between starting a sweep and reading it",
+    "returns": [
+      "arms",
+      "seeds",
+      "senders",
+      "runs",
+      "run_for_ms",
+      "send_at_ms",
+      "spread_ms",
+      "bytes",
+      "scope",
+      "arm_labels",
+      "running",
+      "done",
+      "status",
+      "log"
+    ],
+    "answers": "Everything experiment.define answers with, plus `running`, `done` as the number of cells finished, `status` naming the cell in flight, and `log`, the last twelve lines, which is absent until something has been logged.",
+    "example": {
+      "params": {},
+      "what": "poll a sweep in progress",
+      "runnable": true
+    }
+  },
+  "experiment.stop": {
+    "what": "ask a sweep to stop and say whether it actually has, since the cell in flight finishes before the worker leaves and waiting for it here would deadlock the worker",
+    "returns": [
+      "stopped",
+      "done",
+      "total",
+      "settled"
+    ],
+    "answers": "`stopped` is whether there was anything running to stop, so false is a normal answer. `settled` is the one a script wants: false means the worker is still inside a cell, and the next experiment.start will be refused until it is not.",
+    "example": {
+      "params": {},
+      "what": "abandon a sweep part way through",
+      "runnable": true
+    }
+  }
+}

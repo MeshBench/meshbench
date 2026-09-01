@@ -213,26 +213,7 @@ func sources(ss *sdrState) []state.SDRSource {
 }
 
 func registerSDRServe(st *state.Store, s *session.Sim) {
-	st.HandleSpec("sdr.serve", state.Spec{
-		What: "offer what one node's antenna hears as an rtl_tcp source, so real " +
-			"SDR software can be pointed at the simulated spectrum rather than " +
-			"at a drawing of it",
-		Params: []state.Param{
-			{Name: "node", Type: state.ParamString, Required: true, Primary: true,
-				What: "the node whose antenna is served; refused when it is " +
-					"absent, not in the scenario, or not in the engine"},
-		},
-		Returns: []string{"node", "addr", "rate_hz"},
-		Answers: "`rate_hz` is the node's own receiver bandwidth, one sample per " +
-			"hertz, and 250 kHz where the scenario states none. It is what the " +
-			"stream is rendered at, not what a client is held to: the client's " +
-			"own rate setting is followed. Serving a node already served replaces " +
-			"the listener. The IQ is signal only, with the noise floor added at " +
-			"the server, so a paused run streams a bare floor rather than stopping.",
-		Example: &state.Example{
-			Params: "West Lomond", What: "point SDR software at a node's antenna",
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("sdr.serve", func(w *state.World, p any) (any, error) {
 		if s.Engine() == nil {
 			return nil, session.ErrNoSimulation
 		}
@@ -272,21 +253,7 @@ func registerSDRServe(st *state.Store, s *session.Sim) {
 		return map[string]any{"node": name, "addr": srv.Addr(), "rate_hz": rate}, nil
 	})
 
-	st.HandleSpec("sdr.stop", state.Spec{
-		What: "close a node's rtl_tcp listener and stop rendering its IQ, which " +
-			"is work a run keeps doing for as long as it is served",
-		Params: []state.Param{
-			{Name: "node", Type: state.ParamString, Required: true, Primary: true,
-				What: "the served node; refused when it is absent or not being " +
-					"served, so a stop is never mistaken for having worked"},
-		},
-		Returns: []string{"stopped"},
-		Answers: "Any client on the line is cut rather than told, the same way " +
-			"unplugging a dongle would.",
-		Example: &state.Example{
-			Params: "West Lomond", What: "stop serving a node's antenna",
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("sdr.stop", func(w *state.World, p any) (any, error) {
 		name, _ := session.StringField(p, "node")
 		ss := stateOf(s)
 		e, ok := ss.servers[name]

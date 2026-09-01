@@ -1,0 +1,145 @@
+{
+  "layout.reset": {
+    "what": "put the view on screen back to the arrangement it is declared with, which is the way back from a layout somebody has docked into an unusable shape",
+    "returns": [
+      "reset"
+    ],
+    "answers": "The view on screen only: the other views keep whatever was done to them. Popped-out windows are not pulled back in. Refuses when no interface is attached.",
+    "example": {
+      "params": {},
+      "what": "start this view's layout again"
+    }
+  },
+  "panel.close": {
+    "what": "take a panel out of the layout, giving the room to what is left",
+    "params": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the panel to close; an unknown or missing name is refused with the list of the ones there are"
+      }
+    ],
+    "returns": [
+      "panel"
+    ],
+    "answers": "Whether the panel was open is not asked, only whether it exists: closing one that is not in the layout answers the same way and does nothing, which is what the caller wanted anyway. Refuses when no interface is attached.",
+    "example": {
+      "params": {
+        "name": "Inspector"
+      },
+      "what": "clear the rail before a screenshot"
+    }
+  },
+  "panel.dock": {
+    "what": "bring a popped-out panel back into the main window, which is the other half of panel.pop_out and the only way back for a window a compositor has hidden",
+    "params": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the panel to dock; an unknown or missing name is refused with the list of the ones there are"
+      }
+    ],
+    "returns": [
+      "panel",
+      "where"
+    ],
+    "answers": "`where` is always \"layout\". A panel that was never popped out is docked where it belongs rather than refused. Refuses when no interface is attached.",
+    "example": {
+      "params": {
+        "name": "Map"
+      },
+      "what": "put the map back in the main window"
+    }
+  },
+  "panel.open": {
+    "what": "put a panel in the layout, switching to the view it belongs to on the way, which is how the panels no view starts with are reached at all",
+    "params": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the panel, spelled as panels.list spells it; an unknown or missing name is refused with the list of the ones there are"
+      }
+    ],
+    "returns": [
+      "panel"
+    ],
+    "answers": "It answers once the panel has been asked for, not once it is drawn: the layout is the frame loop's, and the change lands on the next frame. A panel already in the layout is left where it is. Refuses when no interface is attached.",
+    "example": {
+      "params": "Waterfall",
+      "what": "bring up the waterfall from a script"
+    }
+  },
+  "panel.pop_out": {
+    "what": "send a panel out into a window of its own, so a second monitor can hold what the layout has no room for",
+    "params": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the panel to pop out; an unknown or missing name is refused with the list of the ones there are"
+      }
+    ],
+    "returns": [
+      "panel",
+      "where"
+    ],
+    "answers": "`where` is always \"window\", the verb having only one destination: it is there so an answer read on its own says what happened. Refuses when no interface is attached.",
+    "example": {
+      "params": {
+        "name": "Map"
+      },
+      "what": "give the map a monitor to itself"
+    }
+  },
+  "window.close": {
+    "what": "close a panel's own window, which returns the panel to the main layout rather than losing it",
+    "params": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the panel whose window is closed; a panel that is not in a window of its own is refused"
+      }
+    ],
+    "returns": [
+      "closed"
+    ],
+    "answers": "Refuses when no interface is attached, and refuses where the interface has no window manager behind it.",
+    "example": {
+      "params": {
+        "name": "Waterfall"
+      },
+      "what": "close the window a capture no longer needs"
+    }
+  },
+  "window.open": {
+    "what": "open a panel in a window of its own, the same act as panel.pop_out under the name a caller thinking in windows reaches for",
+    "params": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the panel to give a window; an unknown or missing name is refused with the list of the ones there are"
+      }
+    ],
+    "returns": [
+      "window"
+    ],
+    "answers": "The window is asked for here and opened by the frame loop, so the answer says it was accepted rather than that a window is up. Refuses when no interface is attached.",
+    "example": {
+      "params": {
+        "name": "Waterfall"
+      },
+      "what": "watch the waterfall beside the map"
+    }
+  }
+}

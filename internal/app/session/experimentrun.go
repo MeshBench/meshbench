@@ -138,14 +138,7 @@ func (e *experiment) stage(arm ExpArm, seed uint64, what string) {
 }
 
 func registerExperimentDone(st *state.Store, s *Sim) {
-	st.HandleInternalSpec("experiment.finished", state.Spec{
-		What: "close a sweep out on the store's goroutine: retire its progress " +
-			"row and say in one line how many cells ran and whether the " +
-			"numbers are yet a result",
-		Returns: []string{"runs", "warning"},
-		Answers: "`warning` is empty where nothing is wrong with the sweep, and " +
-			"is the same sentence experiment.results carries otherwise.",
-	}, func(w *state.World, _ any) (any, error) {
+	st.HandleInternal("experiment.finished", func(w *state.World, _ any) (any, error) {
 		e := s.experiment()
 		e.mu.Lock()
 		n := len(e.results)

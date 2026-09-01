@@ -1,0 +1,28 @@
+{
+  "node.window": {
+    "what": "Open one node's own window, the thing people put on a second monitor.",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "which node"
+      },
+      {
+        "name": "tab",
+        "type": "string",
+        "what": "which tab to open on; the window's default when absent"
+      }
+    ],
+    "returns": [
+      "node",
+      "tab"
+    ],
+    "answers": "`tab` is the tab the window actually opened on, which is not always the one asked for. Refused outright in a headless session, there being no window to open one beside.",
+    "example": {
+      "params": "West Lomond",
+      "what": "put one node on a second monitor"
+    }
+  }
+}

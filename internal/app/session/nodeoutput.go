@@ -79,32 +79,7 @@ func outputFile(dir, source string, emulated bool) (path, note string, err error
 }
 
 func registerNodeOutput(st *state.Store, s *Sim) {
-	st.HandleSpec("node.output", state.Spec{
-		What: "read what a node's serial port, emulator or radio model has printed",
-		Params: []state.Param{
-			{Name: "node", Type: state.ParamString, Required: true, Primary: true,
-				What: "the node to read"},
-			{Name: "source", Type: state.ParamString,
-				What: "which voice: " + strings.Join(OutputSources, ", ") +
-					"; serial when absent, and anything else is refused"},
-			{Name: "lines", Type: state.ParamNumber,
-				What: "how many lines of the tail to answer with; 200 when " +
-					"absent or not a positive number, and never more than the " +
-					"2000 the pane itself holds"},
-		},
-		Returns: []string{"node", "source", "lines", "total", "path", "tail", "note", "tracing"},
-		Answers: "`total` is how many lines the file has and `lines` how many " +
-			"the pane was given, so the two differing is a tail rather than a " +
-			"board that stopped talking. `tail` is the shorter answer this call " +
-			"gets, and is empty with a `note` where the source is one this " +
-			"node's backend does not have - a native node has no emulator and " +
-			"no radio log - or where it has not run since the workbench started.",
-		Example: &state.Example{
-			Params:   map[string]any{"node": "West Lomond", "source": "serial", "lines": 50},
-			What:     "read the last lines a board printed",
-			Runnable: true,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("node.output", func(w *state.World, p any) (any, error) {
 		name, _ := stringField(p, "node")
 		if name == "" {
 			return nil, badParams("node.output needs a node")
@@ -323,23 +298,7 @@ func registerNodeOutputWindow(st *state.Store, s *Sim) {
 	// A tab is one pane, and what people do while a board is misbehaving is
 	// watch its screen and two of its logs together - what the board printed
 	// beside what the emulator said about running it.
-	st.HandleSpec("node.output_window", state.Spec{
-		What: "Open one node's one log in a window of its own, so a board's screen and several of its logs can be watched at once.",
-		Params: []state.Param{
-			{Name: "node", Type: state.ParamString, Required: true, Primary: true,
-				What: "which node"},
-			{Name: "source", Type: state.ParamString,
-				What: "which log: " + strings.Join(OutputSources, ", ") + "; serial when absent"},
-		},
-		Returns: []string{"node", "source"},
-		Answers: "The answer says the window was opened, not what is in it: the " +
-			"pane fills from the tick that follows. Refused outright in a " +
-			"headless session, there being no window to open one beside.",
-		Example: &state.Example{
-			Params: map[string]any{"node": "West Lomond", "source": "emulator"},
-			What:   "watch the emulator's log beside the board's screen",
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("node.output_window", func(w *state.World, p any) (any, error) {
 		if err := s.needUI(); err != nil {
 			return nil, err
 		}

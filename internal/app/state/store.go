@@ -25,9 +25,6 @@ type Handler func(w *World, params any) (any, error)
 type Store struct {
 	mu       sync.Mutex
 	handlers map[string]Handler
-	// specs is what each verb says about itself, keyed the same way. Separate
-	// from handlers so a test may register a stub with nothing to describe.
-	specs map[string]Spec
 	// private is the verbs only this process may call. See internalverbs.go.
 	private map[string]bool
 
@@ -86,7 +83,6 @@ var ErrStopped = errors.New("state: the store has stopped")
 func New(stepMs uint32) *Store {
 	s := &Store{
 		handlers: map[string]Handler{},
-		specs:    map[string]Spec{},
 		private:  map[string]bool{},
 		cmds:     make(chan cmd, 64),
 		stop:     make(chan struct{}),
@@ -117,8 +113,8 @@ func (s *Store) Handle(verb string, h Handler) {
 }
 
 // claim panics if verb is already registered, naming it so the collision does
-// not have to be found by bisection. Called with s.mu held, from each of the
-// three registration methods.
+// not have to be found by bisection. Called with s.mu held, from both
+// registration methods.
 func (s *Store) claim(verb string) {
 	if _, ok := s.handlers[verb]; ok {
 		panic(fmt.Sprintf("state: %q is registered twice - two packages are claiming the same verb", verb))

@@ -18,23 +18,7 @@ import (
 
 // registerInventory adds the read-only verbs.
 func registerInventory(st *state.Store, s *session.Sim) {
-	st.HandleSpec("nodes.list", state.Spec{
-		What: "read back the whole network as it stands, which is what anything " +
-			"automated does first and the only way to see what a scenario built " +
-			"by a script actually got",
-		Returns: []string{"nodes", "count"},
-		Answers: "A row per node under `nodes` and `count` beside them, so a " +
-			"caller need not measure the list to know how big the network is. " +
-			"Each row carries two boards, which are two facts: `board` is what " +
-			"the node is and `firmware_board` what its image was built for, and " +
-			"they come apart the moment a host build is pointed at a T-Deck. " +
-			"There is no limit and no paging, so an imported deployment answers " +
-			"with all of it.",
-		Example: &state.Example{
-			Params: map[string]any{}, What: "see what is in the scenario",
-			Runnable: true,
-		},
-	}, func(w *state.World, _ any) (any, error) {
+	st.Handle("nodes.list", func(w *state.World, _ any) (any, error) {
 		out := make([]map[string]any, 0, len(w.Nodes))
 		for _, n := range w.Nodes {
 			out = append(out, map[string]any{
@@ -56,26 +40,7 @@ func registerInventory(st *state.Store, s *session.Sim) {
 		return map[string]any{"nodes": out, "count": len(out)}, nil
 	})
 
-	st.HandleSpec("events.recent", state.Spec{
-		What: "read the end of the event log, which is what a caller polls a " +
-			"run with rather than asking for the whole thing every second",
-		Params: []state.Param{
-			{Name: "limit", Type: state.ParamNumber, Primary: true,
-				What: "how many of the most recent events to return; anything " +
-					"not a positive number leaves it at 50, and asking for more " +
-					"than the store keeps returns what there is"},
-		},
-		Returns: []string{"events", "total", "shown"},
-		Answers: "`shown` is how many rows came back and `total` how many the " +
-			"run has produced since the engine was built, which is much larger: " +
-			"the store keeps a bounded tail, not the whole log, so `total` " +
-			"cannot be used to page backwards. An event whose signal-to-noise " +
-			"ratio has no finite value comes back with `snr_db` null.",
-		Example: &state.Example{
-			Params: map[string]any{"limit": 20}, What: "poll what has just happened",
-			Runnable: true,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("events.recent", func(w *state.World, p any) (any, error) {
 		limit := 50
 		if v, ok := session.NumField(p, "limit"); ok && v > 0 {
 			limit = int(v)
@@ -91,29 +56,7 @@ func registerInventory(st *state.Store, s *session.Sim) {
 		}, nil
 	})
 
-	st.HandleSpec("events.dump", state.Spec{
-		What: "write the event log to disk as NDJSON, one event per line, " +
-			"because a run's log is appended to and read back a line at a time " +
-			"and a single JSON array can be neither streamed nor tailed",
-		Params: []state.Param{
-			{Name: "path", Type: state.ParamString, Primary: true,
-				What: "where to write; absent it goes to meshbench-events.ndjson " +
-					"in the temporary directory, and an existing file is " +
-					"overwritten rather than appended to"},
-		},
-		Returns: []string{"path", "written", "total"},
-		Answers: "`written` is how many lines the file got and `total` how many " +
-			"the run has produced. They differ on any long run, because the " +
-			"store keeps a bounded tail rather than the whole log, and the " +
-			"difference is not the file being truncated by a bug. An event " +
-			"whose signal-to-noise ratio has no finite value is written with " +
-			"`snr_db` null, JSON having no way to say infinity.",
-		Example: &state.Example{
-			Params:   map[string]any{"path": "/tmp/run-events.ndjson"},
-			What:     "keep a run's log for something else to read",
-			Runnable: false,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("events.dump", func(w *state.World, p any) (any, error) {
 		path := session.SoleString(p)
 		if m, ok := p.(map[string]any); ok {
 			path, _ = m["path"].(string)

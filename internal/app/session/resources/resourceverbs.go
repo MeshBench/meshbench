@@ -18,21 +18,7 @@ import (
 
 func registerResources(st *state.Store, s *session.Sim) {
 	// Never touches the network - opening a panel must not start a download.
-	st.HandleSpec("resource.list", state.Spec{
-		What: "say what this machine already holds of everything downloaded at " +
-			"runtime, what it has cost the disk, and what could still be fetched",
-		Returns: []string{"rows", "resources"},
-		Answers: "`rows` is a count, kept for the callers that were already " +
-			"reading it; `resources` is the rows themselves, each carrying its " +
-			"kind, name, version, state, size and path, why it is in the state " +
-			"it is in, and whether it can be fetched, carries terms, or fills " +
-			"itself as the map is used. A provider whose directory cannot be " +
-			"read contributes one row saying so rather than emptying the list.",
-		Example: &state.Example{
-			Params: map[string]any{}, What: "see what this machine already holds",
-			Runnable: true,
-		},
-	}, func(w *state.World, _ any) (any, error) {
+	st.Handle("resource.list", func(w *state.World, _ any) (any, error) {
 		n, err := relistResources(s, w)
 		if err != nil {
 			return nil, err
@@ -47,33 +33,7 @@ func registerResources(st *state.Store, s *session.Sim) {
 		return map[string]any{"rows": n, "resources": resourceRows(w.Resources)}, nil
 	})
 
-	st.HandleSpec("resource.fetch", state.Spec{
-		What: "download one runtime resource as a job that can be stopped, which " +
-			"is how a headless machine gets the SoftDevice or the emulator " +
-			"toolchain an emulated board is blocked on",
-		Params: []state.Param{
-			{Name: "name", Type: state.ParamString, Required: true, Primary: true,
-				What: "the row's name as resource.list gives it; absent is " +
-					"refused, and so is a name the chosen provider does not hold"},
-			{Name: "kind", Type: state.ParamString,
-				What: "which provider owns it - softdevice, toolchain, terrain, " +
-					"basemap or buildings - named rather than bare; absent means " +
-					"softdevice, so a row of another kind is not found without it"},
-			{Name: "version", Type: state.ParamString,
-				What: "the release to fetch, named rather than bare; the row's " +
-					"own version overrides it wherever the row carries one"},
-		},
-		Returns: []string{"fetching", "version"},
-		Answers: "It answers as soon as the download is started, not when it has " +
-			"arrived. Progress is the job `resource:<name>`, which `job.list` " +
-			"shows and `job.cancel` stops, and how it ended is said aloud rather " +
-			"than returned here. A resource that fills itself as the map is used " +
-			"is refused: there is nothing to ask for out of context.",
-		Example: &state.Example{
-			Params: map[string]any{"name": "s140"},
-			What:   "fetch the SoftDevice an emulated nRF52 boots",
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("resource.fetch", func(w *state.World, p any) (any, error) {
 		name, _ := session.StringField(p, "name")
 		version, _ := session.NamedField(p, "version")
 		if name == "" {
@@ -136,18 +96,7 @@ func registerResources(st *state.Store, s *session.Sim) {
 		return map[string]any{"fetching": name, "version": version}, nil
 	})
 
-	st.HandleInternalSpec("resource.fetched", state.Spec{
-		What: "take a finished download back onto the store's goroutine: say " +
-			"once that it is cached and where its terms are, then relist what " +
-			"is on disk",
-		Params: []state.Param{
-			{Name: "name", Type: state.ParamString, Required: true, Primary: true,
-				What: "the resource that arrived"},
-			{Name: "version", Type: state.ParamString,
-				What: "the release that arrived, for the sentence it says"},
-		},
-		Returns: []string{"name"},
-	}, func(w *state.World, p any) (any, error) {
+	st.HandleInternal("resource.fetched", func(w *state.World, p any) (any, error) {
 		name, _ := session.StringField(p, "name")
 		version, _ := session.NamedField(p, "version")
 		// Said aloud once, because a licensed binary arriving silently is the
@@ -170,30 +119,7 @@ func registerResources(st *state.Store, s *session.Sim) {
 		return map[string]any{"name": name}, nil
 	})
 
-	st.HandleSpec("resource.licence", state.Spec{
-		What: "read the terms a cached resource arrived under, and leave them " +
-			"open in the snapshot for the interface to show",
-		Params: []state.Param{
-			{Name: "name", Type: state.ParamString, Required: true, Primary: true,
-				What: "the row's name; absent or unknown to the chosen provider " +
-					"is refused"},
-			{Name: "kind", Type: state.ParamString,
-				What: "which provider owns it, named rather than bare; absent " +
-					"means softdevice"},
-			{Name: "version", Type: state.ParamString,
-				What: "the release whose terms to read, named rather than bare; " +
-					"the row's own version overrides it where it has one"},
-		},
-		Returns: []string{"name", "version", "text"},
-		Answers: "The whole licence text, and the same text is put into the " +
-			"snapshot until `resource.licence.hide` clears it. Refused where the " +
-			"resource is not cached: the terms are a file fetched beside it, not " +
-			"a string this build carries.",
-		Example: &state.Example{
-			Params: map[string]any{"name": "s140"},
-			What:   "read the terms the SoftDevice came under",
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("resource.licence", func(w *state.World, p any) (any, error) {
 		name, _ := session.StringField(p, "name")
 		version, _ := session.NamedField(p, "version")
 		kind, _ := session.NamedField(p, "kind")
@@ -225,46 +151,13 @@ func registerResources(st *state.Store, s *session.Sim) {
 
 	// A verb rather than a flag the panel keeps, so both halves of the toggle
 	// are scriptable and both are therefore capturable.
-	st.HandleSpec("resource.licence.hide", state.Spec{
-		What: "clear the terms resource.licence left open, so the interface " +
-			"stops showing them",
-		Returns: []string{"hidden"},
-		Answers: "`hidden` is always true. Calling it with nothing open is not " +
-			"an error, and it is left out of the session journal because it " +
-			"changes a window rather than the world.",
-		Example: &state.Example{
-			Params: map[string]any{}, What: "put the terms away",
-			Runnable: true,
-		},
-	}, func(w *state.World, _ any) (any, error) {
+	st.Handle("resource.licence.hide", func(w *state.World, _ any) (any, error) {
 		w.Licence = state.LicenceText{}
 		return map[string]any{"hidden": true}, nil
 	})
 
 	// The caller has already asked twice.
-	st.HandleSpec("resource.remove", state.Spec{
-		What: "delete one cached resource from the disk, through whichever " +
-			"provider owns it, and relist what is left",
-		Params: []state.Param{
-			{Name: "name", Type: state.ParamString, Required: true, Primary: true,
-				What: "the row's name; absent is refused, and so is a name the " +
-					"chosen provider does not hold"},
-			{Name: "kind", Type: state.ParamString,
-				What: "which provider owns it, named rather than bare; absent " +
-					"means softdevice, so removing terrain or a toolchain needs it"},
-			{Name: "version", Type: state.ParamString,
-				What: "the release to remove, named rather than bare; used only " +
-					"where the row carries no version of its own"},
-		},
-		Returns: []string{"removed"},
-		Answers: "Nothing is confirmed here: this deletes, and the asking " +
-			"belongs to whatever called it. Removing 7 GB of terrain and " +
-			"removing a SoftDevice are the same call with a different kind.",
-		Example: &state.Example{
-			Params: map[string]any{"name": "terrain tiles", "kind": "terrain"},
-			What:   "give the terrain cache's disk back",
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("resource.remove", func(w *state.World, p any) (any, error) {
 		name, _ := session.StringField(p, "name")
 		version, _ := session.NamedField(p, "version")
 		if name == "" {

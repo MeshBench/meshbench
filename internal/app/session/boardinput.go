@@ -18,28 +18,7 @@ func registerBoardInput(st *state.Store, s *Sim) {
 	// Held rather than clicked, because the firmware behind these pins cares:
 	// MeshCore wakes a sleeping display on a press and powers the board off on
 	// a long one, and a verb that could only produce a tap could reach neither.
-	st.HandleSpec("board.press", state.Spec{
-		What: "hold one of a board's own buttons down, or let it go, so a long " +
-			"press reaches the firmware as a long press rather than as a tap",
-		Params: []state.Param{
-			{Name: "node", Type: state.ParamString, Required: true,
-				What: "which board; refused when absent, when the node is not " +
-					"running, or when its backend has no buttons"},
-			{Name: "pin", Type: state.ParamNumber, Required: true,
-				What: "the GPIO the button sits on, as the board profile " +
-					"declares it; refused when absent or not a number"},
-			{Name: "down", Type: state.ParamBool,
-				What: "true holds it, false releases it; absent counts as a release"},
-		},
-		Returns: []string{"node", "pin", "down"},
-		Answers: "The answer repeats what was asked, which is the acknowledgement " +
-			"that the press reached the board at all. Whether the firmware did " +
-			"anything with it is board.screen's question.",
-		Example: &state.Example{
-			Params: map[string]any{"node": "West Lomond", "pin": 0, "down": true},
-			What:   "hold the PRG button down",
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("board.press", func(w *state.World, p any) (any, error) {
 		m, _ := p.(map[string]any)
 		name, _ := m["node"].(string)
 		pinF, okPin := numField(p, "pin")
@@ -67,26 +46,7 @@ func registerBoardInput(st *state.Store, s *Sim) {
 		return map[string]any{"node": name, "pin": pin, "down": down}, nil
 	})
 
-	st.HandleSpec("board.key", state.Spec{
-		What: "type at the board's own keyboard, a character at a time, which is " +
-			"what the hardware sends: it holds the last key pressed and the " +
-			"firmware polls it",
-		Params: []state.Param{
-			{Name: "node", Type: state.ParamString, Required: true,
-				What: "which board; refused when absent, when the node is not " +
-					"running, or when its backend has no keyboard"},
-			{Name: "text", Type: state.ParamString, Required: true,
-				What: "the characters to send, each one a keypress; refused when " +
-					"absent or empty"},
-		},
-		Returns: []string{"node", "typed"},
-		Answers: "`typed` is how many characters were sent, not how many the " +
-			"firmware read: it polls, so typing faster than it polls loses keys.",
-		Example: &state.Example{
-			Params: map[string]any{"node": "West Lomond", "text": "hello"},
-			What:   "type a word at the board's keyboard",
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("board.key", func(w *state.World, p any) (any, error) {
 		m, _ := p.(map[string]any)
 		name, _ := m["node"].(string)
 		text, _ := m["text"].(string)
@@ -111,30 +71,7 @@ func registerBoardInput(st *state.Store, s *Sim) {
 		return map[string]any{"node": name, "typed": len(text)}, nil
 	})
 
-	st.HandleSpec("board.touch", state.Spec{
-		What: "put a finger on the board's panel at a point, or take it off, in " +
-			"the panel's own pixels rather than the drawn screen's",
-		Params: []state.Param{
-			{Name: "node", Type: state.ParamString, Required: true,
-				What: "which board; refused when absent, when the node is not " +
-					"running, or when its backend has no touch panel"},
-			{Name: "x", Type: state.ParamNumber, Required: true,
-				What: "the column, from the panel's own left edge; refused when " +
-					"absent or not a number"},
-			{Name: "y", Type: state.ParamNumber, Required: true,
-				What: "the row, from the panel's own top edge; refused when " +
-					"absent or not a number"},
-			{Name: "down", Type: state.ParamBool,
-				What: "true touches, false lifts off; absent counts as a lift off"},
-		},
-		Returns: []string{"node", "x", "y", "down"},
-		Example: &state.Example{
-			Params: map[string]any{
-				"node": "West Lomond", "x": 120, "y": 80, "down": true,
-			},
-			What: "touch the middle of the panel",
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("board.touch", func(w *state.World, p any) (any, error) {
 		m, _ := p.(map[string]any)
 		name, _ := m["node"].(string)
 		xf, okX := numField(p, "x")
@@ -170,27 +107,7 @@ func registerBoardInput(st *state.Store, s *Sim) {
 	// a control socket, which is the question every check of a touch or a
 	// keypress comes down to - and answering it by taking a screenshot of
 	// somebody's desktop is not an answer.
-	st.HandleSpec("board.screen", state.Spec{
-		What: "measure what a board's own display is showing as numbers rather " +
-			"than as a picture, so a script can tell whether a press or a " +
-			"keystroke changed anything",
-		Params: []state.Param{
-			{Name: "node", Type: state.ParamString, Required: true, Primary: true,
-				What: "which board; refused when absent, when the node is not " +
-					"running, or when its backend has no display"},
-		},
-		Returns: []string{"node", "has_screen", "width", "height", "bpp", "on",
-			"lit", "digest"},
-		Answers: "A board whose backend models a display but has drawn nothing " +
-			"yet answers with `has_screen` false and nothing else, which is a " +
-			"fact about the board rather than a failure. Otherwise `lit` counts " +
-			"the non-zero bytes of the framebuffer, for how much is on, and " +
-			"`digest` is a hex hash of the whole frame, for whether it is the " +
-			"same frame - which is what a wait for the screen to change compares.",
-		Example: &state.Example{
-			Params: "West Lomond", What: "check whether the display has changed",
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("board.screen", func(w *state.World, p any) (any, error) {
 		name, _ := stringField(p, "node")
 		if name == "" {
 			return nil, fmt.Errorf("board.screen needs a node")

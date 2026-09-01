@@ -11,11 +11,9 @@ import (
 
 // A described verb carries a call somebody can copy.
 //
-// Not a ratchet: this is the rule for anything that describes itself at all,
-// which is why it can be absolute while docs/verbs-undescribed.txt is still
-// being worked down. A verb reaching for a description has the handler open in
-// front of whoever is writing it, and that is the only moment the example is
-// cheap.
+// The rule for anything that describes itself at all, rather than something to
+// work towards: whoever writes a description has the handler open in front of
+// them, and that is the only moment the example is cheap.
 //
 // Internal callbacks are exempt because the socket refuses them: an example of
 // a call no caller may make would be a lie in the shape of a fact.
@@ -23,7 +21,7 @@ func TestEveryDescribedPublicVerbCarriesAnExample(t *testing.T) {
 	st, _ := Boot(Options{NoPrefs: true, Headless: true})
 
 	var missing, offered []string
-	for name, sp := range st.Specs() {
+	for name, sp := range describedVerbs(t) {
 		if st.IsInternal(name) {
 			if sp.Example != nil {
 				offered = append(offered, name)
@@ -37,7 +35,7 @@ func TestEveryDescribedPublicVerbCarriesAnExample(t *testing.T) {
 	if len(missing) > 0 {
 		sort.Strings(missing)
 		t.Errorf("%d described verbs have no example:\n  %s\n"+
-			"add an Example to the state.Spec at their st.HandleSpec call",
+			"add an example to their entry in the .verbs.json beside the code",
 			len(missing), strings.Join(missing, "\n  "))
 	}
 	if len(offered) > 0 {
@@ -51,9 +49,7 @@ func TestEveryDescribedPublicVerbCarriesAnExample(t *testing.T) {
 // one it insists on, is worse than no example: it is a call that will be
 // refused, printed in the reference as the way to make it.
 func TestExamplesUseTheParametersTheVerbDeclares(t *testing.T) {
-	st, _ := Boot(Options{NoPrefs: true, Headless: true})
-
-	for name, sp := range st.Specs() {
+	for name, sp := range describedVerbs(t) {
 		if sp.Example == nil {
 			continue
 		}
@@ -109,8 +105,7 @@ func checkExample(t *testing.T, name string, sp state.Spec) {
 // fresh session holding two nodes, because an example that only works after
 // the one before it is not an example of anything a reader can do.
 func TestRunnableExamplesAreAnswered(t *testing.T) {
-	st, _ := Boot(Options{NoPrefs: true, Headless: true})
-	specs := st.Specs()
+	specs := describedVerbs(t)
 
 	names := make([]string, 0, len(specs))
 	for name, sp := range specs {

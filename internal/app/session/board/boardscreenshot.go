@@ -26,25 +26,7 @@ func registerBoardScreenshot(st *state.Store, s *session.Sim) {
 	// board.screenshot: the board's display as a PNG under the node's work
 	// directory. The path is returned so a caller can open it; the frame is
 	// exactly what the controller holds, at the size it holds it.
-	st.HandleSpec("board.screenshot", state.Spec{
-		What: "write the board's display to a PNG and return its path",
-		Params: []state.Param{
-			{Name: "node", Type: state.ParamString, Required: true, Primary: true,
-				What: "the node whose screen to capture"},
-		},
-		Returns: []string{"node", "path", "width", "height", "bpp", "on"},
-		Answers: "The picture is the frame the firmware drew, at the size the " +
-			"controller holds it, written to screen.png in that node's own work " +
-			"directory and overwritten each time. `on` says whether the panel " +
-			"was lit, which is a separate question from whether there is a frame: " +
-			"a display put to sleep still holds its last one. Refused where the " +
-			"node is not running, is not a board with a display, or has drawn " +
-			"nothing yet.",
-		Example: &state.Example{
-			Params: map[string]any{"node": "West Lomond"},
-			What:   "see what the board is showing",
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("board.screenshot", func(w *state.World, p any) (any, error) {
 		name, _ := session.StringField(p, "node")
 		if name == "" {
 			return nil, fmt.Errorf("board.screenshot needs a node")

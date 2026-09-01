@@ -1,0 +1,73 @@
+{
+  "sim.faster": {
+    "what": "double how much simulated time one tick covers, trading detail for how long a run takes to watch",
+    "returns": [
+      "step_ms"
+    ],
+    "answers": "`step_ms` is the new tick length. Nothing bounds it: enough calls will step past whole transmissions.",
+    "example": {
+      "params": {},
+      "what": "run twice as coarsely",
+      "runnable": true
+    }
+  },
+  "sim.pause": {
+    "what": "stop the clock where it is, leaving firmware running and the engine built",
+    "returns": [
+      "playing"
+    ],
+    "example": {
+      "params": {},
+      "what": "hold the run still",
+      "runnable": true
+    }
+  },
+  "sim.play": {
+    "what": "let the clock run, without touching firmware or waiting for the links to be measured",
+    "returns": [
+      "playing"
+    ],
+    "answers": "`playing` is always true: this verb sets the clock going rather than reporting whether it could.",
+    "example": {
+      "params": {},
+      "what": "start the clock",
+      "runnable": true
+    }
+  },
+  "sim.slower": {
+    "what": "halve how much simulated time one tick covers",
+    "returns": [
+      "step_ms"
+    ],
+    "answers": "`step_ms` is the new tick length, which reaches zero after enough calls and stops the clock advancing at all.",
+    "example": {
+      "params": {},
+      "what": "run twice as finely",
+      "runnable": true
+    }
+  },
+  "sim.step": {
+    "what": "advance the engine by one tick while the clock is stopped, which is how a paused run is inspected between packets",
+    "returns": [
+      "now_ms"
+    ],
+    "answers": "`now_ms` is the simulated clock after the tick. One tick is whatever `sim.speed` last set, not one millisecond.",
+    "example": {
+      "params": {},
+      "what": "move on one tick",
+      "runnable": true
+    }
+  },
+  "sim.toggle": {
+    "what": "play if paused and pause if playing, for a control that is one key",
+    "returns": [
+      "playing"
+    ],
+    "answers": "`playing` is the state it has just moved to, not the one it was in.",
+    "example": {
+      "params": {},
+      "what": "flip the clock",
+      "runnable": true
+    }
+  }
+}

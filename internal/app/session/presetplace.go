@@ -12,31 +12,7 @@ import (
 )
 
 func registerPresetsAndPlace(st *state.Store, s *Sim) {
-	st.HandleSpec("radio.preset", state.Spec{
-		What: "put the nodes on one of the community's agreed modem settings, " +
-			"which decides sensitivity and airtime and therefore every number " +
-			"downstream of them, or list the settings there are to choose from",
-		Params: []state.Param{
-			{Name: "preset", Type: state.ParamString, Primary: true,
-				What: "the preset's label, exactly as it is listed; a label no " +
-					"preset has is refused, and absent lists the labels instead " +
-					"of changing anything"},
-			{Name: "node", Type: state.ParamString,
-				What: "one node to move, named rather than passed bare; absent " +
-					"moves every node in the network"},
-		},
-		Returns: []string{"preset", "nodes"},
-		Answers: "`nodes` is how many were moved, and zero is the answer where " +
-			"`node` named nobody. Called with no preset at all it answers " +
-			"instead with `presets`, the labels available. The frequency is part " +
-			"of a preset, so a change rebuilds the engine and remeasures every " +
-			"link on a worker.",
-		Example: &state.Example{
-			Params:   "EU/UK (Narrow)",
-			What:     "put the whole network on the settings its neighbours use",
-			Runnable: false,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("radio.preset", func(w *state.World, p any) (any, error) {
 		label, _ := stringField(p, "preset")
 		if label == "" {
 			var have []string
@@ -74,48 +50,7 @@ func registerPresetsAndPlace(st *state.Store, s *Sim) {
 		return map[string]any{"preset": label, "nodes": n}, nil
 	})
 
-	st.HandleSpec("nodes.place", state.Spec{
-		What: "put one node down at a position, which is how a repeater a feed " +
-			"never carried gets into a scenario, and how a mesh is built by " +
-			"hand rather than imported",
-		Params: []state.Param{
-			{Name: "name", Type: state.ParamString, Required: true, Primary: true,
-				What: "what the node is called, which has to be new: a name the " +
-					"network already holds is refused rather than merged"},
-			{Name: "lat", Type: state.ParamNumber, Required: true,
-				What: "latitude in degrees; the call is refused without it"},
-			{Name: "lon", Type: state.ParamNumber, Required: true,
-				What: "longitude in degrees; the call is refused without it"},
-			{Name: "kind", Type: state.ParamString,
-				What: "what the node is - simple-repeater, advanced-repeater, " +
-					"companion, room-server, sdr-observer or emitter; absent " +
-					"places a simple-repeater"},
-			{Name: "board", Type: state.ParamString,
-				What: "the hardware it is, which decides the transmit ceiling, " +
-					"the receive chain's noise figure, the battery and the " +
-					"antenna it stands under; a name no board profile has is " +
-					"refused rather than defaulted to a plausible one, and " +
-					"absent leaves it unstated"},
-			{Name: "height_m", Type: state.ParamNumber,
-				What: "antenna height above ground in metres; absent is 10"},
-			{Name: "tx_dbm", Type: state.ParamNumber,
-				What: "transmit power in decibel-milliwatts; absent is 22"},
-		},
-		Returns: []string{"placed", "kind", "regions", "board", "nodes"},
-		Answers: "`regions` and the firmware build are inherited from the " +
-			"neighbours rather than left empty: a node holding a region its " +
-			"neighbours do not is as silent as one holding none. `nodes` is the " +
-			"whole network's count afterwards. The links are not in the answer, " +
-			"because measuring them is a worker's job and this returns before it.",
-		Example: &state.Example{
-			Params: map[string]any{
-				"name": "West Lomond", "lat": 56.25, "lon": -3.29,
-				"kind": "simple-repeater", "height_m": 6, "board": "Heltec_v3",
-			},
-			What:     "put a repeater on the hill and see what it wins",
-			Runnable: false,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("nodes.place", func(w *state.World, p any) (any, error) {
 		name, _ := stringField(p, "name")
 		kind, _ := namedField(p, "kind")
 		lat, okLat := numField(p, "lat")

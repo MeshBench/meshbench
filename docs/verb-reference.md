@@ -9,9 +9,9 @@ The store registers 244 verbs: 209 a script may call and
 do not are marked, and what is printed for them is read out of the handler
 rather than said by it.
 
-Each entry is written where the verb is registered, in the `state.Spec` handed
-to `st.HandleSpec`, so it cannot go stale without the code changing. Every
-example is a request line for the socket. The ones not marked otherwise are
+Each entry is written in the `<basename>.verbs.json` beside the file that
+registers the verb, and a description naming a verb the tree no longer
+registers fails the build. Every example is a request line for the socket. The ones not marked otherwise are
 made against a live session by the test suite, so an example that has stopped
 working fails the build rather than the reader.
 

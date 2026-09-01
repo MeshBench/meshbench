@@ -22,32 +22,7 @@ func registerFirmwareDetail(st *state.Store, s *Sim) {
 }
 
 func registerFirmwareDetails(st *state.Store, s *Sim) {
-	st.HandleSpec("firmware.details", state.Spec{
-		What: "Report everything known about one build: where it is, what it is, and what has been decided about it.",
-		Params: []state.Param{
-			{Name: "version", Type: state.ParamString, Required: true, Primary: true,
-				What: "the build's version or imported label"},
-			{Name: "role", Type: state.ParamString,
-				What: "which role, when one label carries more than one"},
-			{Name: "board", Type: state.ParamString,
-				What: "which board; absent means a build for this machine"},
-		},
-		Returns: []string{"role", "version", "board", "native", "on_disk", "path",
-			"settings_path", "bytes", "modified", "in_use", "kind", "bootable",
-			"flash_mb", "coproc_at_reset", "card_required", "notes"},
-		Answers: "Answered from the library, so a published build nobody has " +
-			"fetched is described too: `on_disk` is then false and `path` and " +
-			"`bytes` are empty. `in_use` counts the nodes pinned to it, " +
-			"`kind`, `bootable` and `flash_mb` are read from a board image and " +
-			"say nothing about a native build, `settings_path` is where its " +
-			"settings would be written whether any exist or not, and " +
-			"`modified` is absent for a build not on this machine. A label " +
-			"naming more than one build is refused rather than guessed at.",
-		Example: &state.Example{
-			Params: map[string]any{"version": "repeater-v1.16.0"},
-			What:   "find out where a build lives and what is running it",
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("firmware.details", func(w *state.World, p any) (any, error) {
 		row, err := findBuildRow(w, s, p)
 		if err != nil {
 			return nil, err
@@ -76,47 +51,7 @@ func registerFirmwareDetails(st *state.Store, s *Sim) {
 }
 
 func registerFirmwareUpdate(st *state.Store, s *Sim) {
-	st.HandleSpec("firmware.update", state.Spec{
-		What: "Rename a build, move it to another board or role, or change how it is run.",
-		Params: []state.Param{
-			{Name: "version", Type: state.ParamString, Required: true, Primary: true,
-				What: "the build to change, by its current version or label"},
-			{Name: "role", Type: state.ParamString,
-				What: "its current role, when one label carries more than one"},
-			{Name: "board", Type: state.ParamString, What: "its current board"},
-			{Name: "label", Type: state.ParamString,
-				What: "rename it to this; unchanged when absent"},
-			{Name: "new_role", Type: state.ParamString,
-				What: "run it as this role instead; unchanged when absent"},
-			{Name: "new_board", Type: state.ParamString,
-				What: "move it to this board instead; unchanged when absent"},
-			{Name: "card_required", Type: state.ParamBool,
-				What: "this firmware will not get far without storage in the " +
-					"board's slot, so every node running it is given a card " +
-					"whatever it would otherwise have had"},
-			{Name: "coproc_at_reset", Type: state.ParamBool,
-				What: "start this build's coprocessors enabled, which the part " +
-					"does not do - for a firmware that traps inside its own " +
-					"exception vector and cannot be seen past"},
-			{Name: "notes", Type: state.ParamString,
-				What: "what the next person should know about this build"},
-		},
-		Returns: []string{"role", "version", "board", "path", "renamed", "repinned", "settings"},
-		Answers: "The build's identity after the change comes back, with " +
-			"`renamed` saying whether the file actually moved and `repinned` " +
-			"how many nodes were pointed at the new name, which happens on " +
-			"their behalf so none is left naming a build nothing answers to. " +
-			"`settings` holds `coproc_at_reset`, `card_required` and `notes` as " +
-			"they now stand. Refused for a build not on this machine, and " +
-			"refused while a node is running it.",
-		Example: &state.Example{
-			Params: map[string]any{
-				"version": "repeater-v1.16.0",
-				"notes":   "the arm this study compares against",
-			},
-			What: "record what the next person should know about a build",
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("firmware.update", func(w *state.World, p any) (any, error) {
 		row, err := findBuildRow(w, s, p)
 		if err != nil {
 			return nil, err

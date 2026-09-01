@@ -1,0 +1,10 @@
+{
+  "experiment.finished": {
+    "what": "close a sweep out on the store's goroutine: retire its progress row and say in one line how many cells ran and whether the numbers are yet a result",
+    "returns": [
+      "runs",
+      "warning"
+    ],
+    "answers": "`warning` is empty where nothing is wrong with the sweep, and is the same sentence experiment.results carries otherwise."
+  }
+}

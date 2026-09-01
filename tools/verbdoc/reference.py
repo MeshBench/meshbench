@@ -7,10 +7,10 @@ and is what a reviewer reads to see that nothing has fallen off it. This is the
 entry a person reads when they are about to call one verb and need to know what
 happens.
 
-Everything here comes from docs/verbs.json, which is written from the
-registrations themselves. A verb that has not been described yet still gets an
-entry, marked as undescribed and filled from what the handler could be read to
-do, because leaving it out would make the page look finished when it is not.
+Everything here comes from the .verbs.json files beside the code. A verb that
+has not been described yet still gets an entry, marked as undescribed and
+filled from what the handler could be read to do, because leaving it out would
+make the page look finished when it is not.
 """
 import json
 
@@ -58,7 +58,7 @@ def _takes_line(v):
 
 
 def _described_entry(name, spec):
-    # Capitalised here rather than at the registration: the same sentence is a
+    # Capitalised here rather than in the description: the same sentence is a
     # table cell in scripting-verbs.md, where the imperative reads better
     # lower case, and a paragraph here, where it does not.
     what = spec["what"].rstrip(".")
@@ -143,9 +143,9 @@ The store registers %(total)d verbs: %(public)d a script may call and
 do not are marked, and what is printed for them is read out of the handler
 rather than said by it.
 
-Each entry is written where the verb is registered, in the `state.Spec` handed
-to `st.HandleSpec`, so it cannot go stale without the code changing. Every
-example is a request line for the socket. The ones not marked otherwise are
+Each entry is written in the `<basename>.verbs.json` beside the file that
+registers the verb, and a description naming a verb the tree no longer
+registers fails the build. Every example is a request line for the socket. The ones not marked otherwise are
 made against a live session by the test suite, so an example that has stopped
 working fails the build rather than the reader.
 

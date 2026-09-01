@@ -115,20 +115,7 @@ var errNoInterface = control.WithCode(control.Unavailable, errors.New(
 	"this session has no interface attached, so there is nothing to show"))
 
 func registerUI(st *state.Store, s *Sim) {
-	st.HandleSpec("workspace.set", state.Spec{
-		What: "Show one of the workbench's top-level views.",
-		Params: []state.Param{
-			{Name: "view", Type: state.ParamString, Primary: true, Required: true,
-				What: "the view's name, as panels.list and the view bar spell it"},
-		},
-		Returns: []string{"view"},
-		Answers: "Refuses when no interface is attached, and refuses a name that " +
-			"is not a view with the list of the ones that are.",
-		Example: &state.Example{
-			Params: map[string]any{"view": "Debug"},
-			What:   "go to the view that asks why one packet failed",
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("workspace.set", func(w *state.World, p any) (any, error) {
 		if err := s.needUI(); err != nil {
 			return nil, err
 		}
@@ -142,35 +129,14 @@ func registerUI(st *state.Store, s *Sim) {
 		w.Say("showing " + name)
 		return map[string]any{"view": name}, nil
 	})
-	st.HandleSpec("panels.list", state.Spec{
-		What:    "Name every panel the interface has registered.",
-		Returns: []string{"panels", "count"},
-		Answers: "Every panel that exists, sorted, not the ones on screen: a " +
-			"panel nothing has opened is still named here, which is what makes " +
-			"this the list to choose a `panel.open` from. Refuses when no " +
-			"interface is attached.",
-		Example: &state.Example{
-			Params: map[string]any{}, What: "find out what there is to open",
-		},
-	}, func(_ *state.World, _ any) (any, error) {
+	st.Handle("panels.list", func(_ *state.World, _ any) (any, error) {
 		if err := s.needUI(); err != nil {
 			return nil, err
 		}
 		names := s.ui.PanelNames()
 		return map[string]any{"panels": names, "count": len(names)}, nil
 	})
-	st.HandleSpec("app.quit", state.Spec{
-		What:    "Close the workbench, stopping firmware on the way out.",
-		Returns: []string{"closing", "headless"},
-		Answers: "It answers before anything has closed, the quit running on its " +
-			"own goroutine, so a caller sees the reply and then the socket go. " +
-			"This is the one interface verb that does not refuse without an " +
-			"interface: a headless driver asking to quit means it, so firmware " +
-			"is stopped anyway and `headless` says that is what happened.",
-		Example: &state.Example{
-			Params: map[string]any{}, What: "end the session, firmware and all",
-		},
-	}, func(w *state.World, _ any) (any, error) {
+	st.Handle("app.quit", func(w *state.World, _ any) (any, error) {
 		w.Say("closing")
 		if s.ui != nil {
 			go s.ui.Quit()

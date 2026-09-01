@@ -113,33 +113,7 @@ func fetchEnviron(s *session.Sim, ctx context.Context, source string, patches []
 func registerEnvironFetch(st *state.Store, s *session.Sim) {
 	// The heavy part runs as a job; what lands back on the store's goroutine
 	// is only the outcome.
-	st.HandleSpec("environ.fetch", state.Spec{
-		What: "pull building footprints for the loaded network from a public " +
-			"database, cache them permanently and switch them on, which is the " +
-			"impatient path to testing buildings without preparing a region " +
-			"offline with tools/envgen first",
-		Params: []state.Param{
-			{Name: "source", Type: state.ParamString, Primary: true,
-				What: "merged for Microsoft footprints enriched with what " +
-					"OpenStreetMap explicitly tags, or osm or microsoft for one " +
-					"of them alone; absent pulls osm, and a name that is none of " +
-					"the three fails inside the job rather than at the call"},
-		},
-		Returns: []string{"source", "started"},
-		Answers: "`started` is always true: the pull is minutes of somebody " +
-			"else's bandwidth, so it runs as a job the jobs strip can stop, and " +
-			"this answers before any of it. How it ended arrives in the journal, " +
-			"and a pull that lands switches the tiles on through rf.environment, " +
-			"so there is one way buildings come into force. A patch set larger " +
-			"than a public server may fairly be asked for, and ground with no " +
-			"buildings on it, both fail loudly rather than quietly returning " +
-			"nothing.",
-		Example: &state.Example{
-			Params:   "merged",
-			What:     "get the buildings around every node, from both databases",
-			Runnable: false,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("environ.fetch", func(w *state.World, p any) (any, error) {
 		source, _ := session.StringField(p, "source")
 		if source == "" {
 			source = "osm"
@@ -194,21 +168,7 @@ func registerEnvironFetch(st *state.Store, s *session.Sim) {
 		return map[string]any{"source": source, "started": true}, nil
 	})
 
-	st.HandleSpec("environ.list", state.Spec{
-		What: "name every building pull already on this disk, so moving between " +
-			"environments is a choice from what is cached rather than another " +
-			"download",
-		Returns: []string{"dirs", "current"},
-		Answers: "`dirs` is absolute paths, sorted, each one ready to hand " +
-			"straight to rf.environment, and an empty list is the honest answer " +
-			"where nothing has been pulled yet rather than a failure: neither a " +
-			"missing cache directory nor an empty one is an error here. " +
-			"`current` is the directory in force now, empty for bare earth.",
-		Example: &state.Example{
-			Params: map[string]any{}, What: "see which environments are already downloaded",
-			Runnable: true,
-		},
-	}, func(_ *state.World, _ any) (any, error) {
+	st.Handle("environ.list", func(_ *state.World, _ any) (any, error) {
 		// No cache directory and no pulls yet are both an empty list, not
 		// an error: the dropdown's honest answer is "nothing downloaded".
 		var root string
@@ -228,32 +188,13 @@ func registerEnvironFetch(st *state.Store, s *session.Sim) {
 
 	// The jobs and the journal belong to the store's goroutine, so the worker
 	// cannot close its own job.
-	st.HandleInternalSpec("environ.fetched", state.Spec{
-		What: "close the pull's progress job and say what landed, which is how " +
-			"a download that finished silently on a worker becomes something " +
-			"the operator can see happened",
-		Params: []state.Param{
-			{Name: "note", Type: state.ParamString, Primary: true,
-				What: "what was written, counted in buildings and tiles, or that " +
-					"the pull was already cached and nothing crossed the network"},
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.HandleInternal("environ.fetched", func(w *state.World, p any) (any, error) {
 		w.Jobs = session.FinishJob(w.Jobs, "environ-fetch")
 		w.Say("footprints ready: " + session.SoleString(p))
 		return nil, nil
 	})
 
-	st.HandleInternalSpec("environ.failed", state.Spec{
-		What: "close the pull's progress job and say why it came to nothing, so " +
-			"a failed download leaves a reason rather than a bar that stops moving",
-		Params: []state.Param{
-			{Name: "reason", Type: state.ParamString, Primary: true,
-				What: "what went wrong, as the error itself put it; a stop by " +
-					"the operator never arrives here, because that is not a " +
-					"failure and reporting it as one teaches somebody to " +
-					"distrust the button they pressed"},
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.HandleInternal("environ.failed", func(w *state.World, p any) (any, error) {
 		w.Jobs = session.FinishJob(w.Jobs, "environ-fetch")
 		w.Say("building pull failed: " + session.SoleString(p))
 		return nil, nil

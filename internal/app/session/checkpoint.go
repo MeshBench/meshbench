@@ -75,24 +75,7 @@ func safeCheckpointName(name string) string {
 func registerCheckpoint(st *state.Store, s *Sim) {
 	// session.checkpoint: freeze the whole session to a named file, so it can
 	// be taken back to this exact moment later.
-	st.HandleSpec("session.checkpoint", state.Spec{
-		What: "freeze the whole session to a named checkpoint",
-		Params: []state.Param{
-			{Name: "name", Type: state.ParamString, Required: true, Primary: true,
-				What: "what to call this checkpoint"},
-		},
-		Returns: []string{"checkpoint", "path", "now_ms", "nodes"},
-		Answers: "`path` is the file it wrote, in the checkpoints directory " +
-			"under the user's configuration directory. The filename is the name " +
-			"with everything but letters, digits, underscore and hyphen replaced, " +
-			"so two names differing only in punctuation are one file and the " +
-			"second overwrites the first. Refused where there is no network to " +
-			"freeze, and where the name leaves nothing usable behind.",
-		Example: &state.Example{
-			Params: map[string]any{"name": "before the storm"},
-			What:   "keep this moment to come back to",
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("session.checkpoint", func(w *state.World, p any) (any, error) {
 		name, _ := stringField(p, "name")
 		if name == "" {
 			return nil, fmt.Errorf("session.checkpoint needs a name")
@@ -141,28 +124,7 @@ func registerCheckpoint(st *state.Store, s *Sim) {
 	// session.restore: rebuild the session a checkpoint holds and replay to the
 	// moment it was taken. Deterministic, so the mesh comes back to exactly
 	// where it was - at the cost of the replay taking the run's own time.
-	st.HandleSpec("session.restore", state.Spec{
-		What: "rebuild a checkpoint and replay to the moment it was taken",
-		Params: []state.Param{
-			{Name: "name", Type: state.ParamString, Primary: true,
-				What: "the checkpoint to restore, by name"},
-			{Name: "path", Type: state.ParamString,
-				What: "a checkpoint file kept outside the checkpoints directory"},
-		},
-		Returns: []string{"restored", "nodes", "now_ms", "target_ms", "replaying"},
-		Answers: "`replaying` true means the restore is not finished: the " +
-			"session is rebuilt at zero and set playing towards `target_ms`, " +
-			"which takes the run's own time, so poll `sim.state` until `playing` " +
-			"goes false. A checkpoint taken before the clock moved comes back " +
-			"already there, with `replaying` false. Whatever was loaded before " +
-			"is replaced, seed, frequency and physics included, because a " +
-			"checkpoint restored under other settings is a different study " +
-			"wearing the same name.",
-		Example: &state.Example{
-			Params: map[string]any{"name": "before the storm"},
-			What:   "take the session back to a saved moment",
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("session.restore", func(w *state.World, p any) (any, error) {
 		path, err := checkpointPath(p)
 		if err != nil {
 			return nil, err
@@ -230,18 +192,7 @@ func registerCheckpoint(st *state.Store, s *Sim) {
 	})
 
 	// session.checkpoints: what can be restored.
-	st.HandleSpec("session.checkpoints", state.Spec{
-		What:    "list the checkpoints that can be restored",
-		Returns: []string{"checkpoints"},
-		Answers: "The filenames, sorted, in the form `session.restore` takes as " +
-			"its name - which is the sanitised form rather than the name it was " +
-			"saved under, where the two differ. A machine that has never saved " +
-			"one answers with an empty list rather than an error.",
-		Example: &state.Example{
-			Params: map[string]any{}, What: "see what can be gone back to",
-			Runnable: true,
-		},
-	}, func(_ *state.World, _ any) (any, error) {
+	st.Handle("session.checkpoints", func(_ *state.World, _ any) (any, error) {
 		dir, err := checkpointsDir()
 		if err != nil {
 			return nil, err

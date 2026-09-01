@@ -13,12 +13,7 @@ import (
 )
 
 func registerJobControl(st *state.Store) {
-	st.HandleInternalSpec("job.progress", state.Spec{
-		What: "create or move on one row of the job list, carrying forward the " +
-			"cancel function of the row it replaces",
-		Answers: "Nothing. It carries a state.Job, a Go value holding a closure " +
-			"nothing outside the process can spell, so anything else is refused.",
-	}, func(w *state.World, p any) (any, error) {
+	st.HandleInternal("job.progress", func(w *state.World, p any) (any, error) {
 		j, ok := p.(state.Job)
 		if !ok {
 			return nil, wrongCallback("job.progress")
@@ -46,27 +41,7 @@ func registerJobControl(st *state.Store) {
 	// cancel is one that cannot be interrupted safely, and an operator who
 	// asked deserves to be told that rather than left watching a bar that
 	// carries on.
-	st.HandleSpec("job.cancel", state.Spec{
-		What: "stop a long operation where whoever started it left a way to, " +
-			"and say so by name where it did not, rather than leaving somebody " +
-			"watching a bar that carries on",
-		Params: []state.Param{
-			{Name: "id", Type: state.ParamString, Required: true, Primary: true,
-				What: "the job's id, as job.list reports it; an id no running " +
-					"job carries is refused, and so is one whose job cannot be " +
-					"interrupted safely - job.list's `cancellable` says which " +
-					"before it is pressed"},
-		},
-		Returns: []string{"stopping"},
-		Answers: "The row stays on the list with \"stopping\" put in front of " +
-			"what it says, because the work ends when its context notices, " +
-			"which is not this instant, and a row that vanished on the press " +
-			"would be claiming otherwise.",
-		Example: &state.Example{
-			Params: map[string]any{"id": "tiles"}, What: "stop a terrain download",
-			Runnable: false,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("job.cancel", func(w *state.World, p any) (any, error) {
 		id := soleString(p)
 		if m, ok := p.(map[string]any); ok {
 			id, _ = m["id"].(string)
@@ -92,12 +67,7 @@ func registerJobControl(st *state.Store) {
 		return nil, fmt.Errorf("no job called %q is running", id)
 	})
 
-	st.HandleInternalSpec("job.done", state.Spec{
-		What: "take a job off the list, because a progress bar that never goes " +
-			"away is a worse lie than no progress bar",
-		Answers: "Nothing, and an id no job carries is not an error: the work " +
-			"finishing twice is commoner than the row being missing.",
-	}, func(w *state.World, p any) (any, error) {
+	st.HandleInternal("job.done", func(w *state.World, p any) (any, error) {
 		id := soleString(p)
 		for i := range w.Jobs {
 			if w.Jobs[i].ID == id {

@@ -157,35 +157,7 @@ func pairProfile(s *session.Sim, st *state.Store, a, b pairEnd) {
 }
 
 func registerLinkPair(st *state.Store, s *session.Sim) {
-	st.HandleSpec("link.pair", state.Spec{
-		What: "answer why two particular places do or do not hear each other, " +
-			"without the engine or a warm link matrix, which are exactly what " +
-			"is missing at the moment somebody points at two masts and asks",
-		Params: []state.Param{
-			{Name: "a", Type: state.ParamObject, Required: true,
-				What: "one end: a node's name as a bare string or as {node}, " +
-					"or a place as {lat, lon} with an optional height_m that " +
-					"defaults to 2 m head height; anything else is refused, as " +
-					"is a name this network has not got"},
-			{Name: "b", Type: state.ParamObject, Required: true,
-				What: "the other end, in the same two forms; refused when it " +
-					"labels the same place as a, since a link needs two"},
-		},
-		Returns: []string{"from", "to"},
-		Answers: "It answers with the two labels as soon as the worker starts. " +
-			"The cut-through and both margins arrive later through the internal " +
-			"`link.pair_set`, and there are two margins because there are two " +
-			"answers: each end's gain is evaluated on the bearing towards the " +
-			"other, so A to B and B to A can differ by tens of decibels on a " +
-			"beam. Both are best cases - bare earth, the calibrated excess " +
-			"loss, a default noise floor and no multipath - which is what the " +
-			"profile's assumption line says. A clicked place with no scenario " +
-			"loaded is priced at 868 MHz, and says so.",
-		Example: &state.Example{
-			Params: map[string]any{"a": "West Lomond", "b": "Dunfermline"},
-			What:   "ask why two repeaters do or do not hear each other",
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("link.pair", func(w *state.World, p any) (any, error) {
 		m, ok := p.(map[string]any)
 		if !ok {
 			return nil, fmt.Errorf("link.pair needs {a, b} endpoints")
@@ -205,15 +177,7 @@ func registerLinkPair(st *state.Store, s *session.Sim) {
 		return map[string]any{"from": a.label, "to": b.label}, nil
 	})
 
-	st.HandleInternalSpec("link.pair_set", state.Spec{
-		What: "take the finished cut-through and its two budgets into the " +
-			"snapshot in one go, so the panel's picture and its margins are " +
-			"always of the same pair and the same model",
-		Returns: []string{"from", "to", "km", "edges"},
-		Answers: "Answers nothing at all when the analysis could not run, " +
-			"having cleared the profile: the reason has already been said on " +
-			"the status line by the worker.",
-	}, func(w *state.World, p any) (any, error) {
+	st.HandleInternal("link.pair_set", func(w *state.World, p any) (any, error) {
 		r, ok := p.(*pairResult)
 		if !ok {
 			return nil, session.WrongCallback("link.pair_set")

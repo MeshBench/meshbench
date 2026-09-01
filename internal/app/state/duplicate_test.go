@@ -39,10 +39,9 @@ func TestHandleTwiceForTheSameVerbPanics(t *testing.T) {
 	expectClaimPanic(t, "dup.handle", handleNoop("dup.handle"), handleNoop("dup.handle"))
 }
 
-func TestHandleSpecOverAnExistingVerbPanics(t *testing.T) {
-	expectClaimPanic(t, "dup.spec", handleNoop("dup.spec"), func(s *state.Store) {
-		s.HandleSpec("dup.spec", state.Spec{What: "second"},
-			func(*state.World, any) (any, error) { return nil, nil })
+func TestHandleInternalOverAnExistingVerbPanics(t *testing.T) {
+	expectClaimPanic(t, "dup.taken", handleNoop("dup.taken"), func(s *state.Store) {
+		s.HandleInternal("dup.taken", func(*state.World, any) (any, error) { return nil, nil })
 	})
 }
 

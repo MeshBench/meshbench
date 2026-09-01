@@ -20,25 +20,7 @@ func registerSessionState(st *state.Store, s *Sim) {
 	//
 	// Namespaced, unlike the old workbench1 verb of the same purpose: every
 	// verb here is noun.verb so a script reads as a sentence.
-	st.HandleSpec("session.status", state.Spec{
-		What: "report what the session is saying, where the run has got to and " +
-			"which long job is still going, cheaply enough for a script to poll " +
-			"and answered whether or not anything is loaded or drawing",
-		Returns: []string{
-			"status", "nodes", "playing", "now_ms", "firmware_running", "jobs", "job",
-		},
-		Answers: "`jobs` counts only the jobs still running, and `job` is the " +
-			"newest of those: it is absent when nothing is running, which is " +
-			"what a script waiting for a download or a sweep watches for. It " +
-			"carries the job's id, because matching on the wording of a " +
-			"progress line stopped working the moment the wording improved. " +
-			"`status` is the last thing said, replaced while a play is waiting " +
-			"on firmware to come up.",
-		Example: &state.Example{
-			Params: map[string]any{}, What: "poll until the work in hand has finished",
-			Runnable: true,
-		},
-	}, func(w *state.World, _ any) (any, error) {
+	st.Handle("session.status", func(w *state.World, _ any) (any, error) {
 		out := map[string]any{
 			"status": w.Status, "nodes": len(w.Nodes), "playing": w.Playing,
 			"now_ms": w.NowMs, "firmware_running": w.FirmwareRunning,
@@ -67,45 +49,13 @@ func registerSessionState(st *state.Store, s *Sim) {
 
 	// ui.said puts a line in the status bar. A control whose verb failed and
 	// said nothing is indistinguishable from a control that does nothing.
-	st.HandleSpec("ui.said", state.Spec{
-		What: "put a line where the operator is already looking, so a script's " +
-			"own step is visible in the status strip and in the session log " +
-			"beside the verbs it drove",
-		Params: []state.Param{
-			{Name: "text", Type: state.ParamString, Primary: true,
-				What: "the line to show; anything that is not a bare string or a " +
-					"single-keyed object says an empty line rather than refusing"},
-		},
-		Returns: []string{"said"},
-		Answers: "It never refuses, and it does not need an interface: with " +
-			"nothing drawing, the line still goes to the log the session keeps.",
-		Example: &state.Example{
-			Params: "coverage sweep finished", What: "mark a step of a script on screen",
-			Runnable: true,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("ui.said", func(w *state.World, p any) (any, error) {
 		msg := soleString(p)
 		w.Say(msg)
 		return map[string]any{"said": msg}, nil
 	})
 
-	st.HandleSpec("ui.scale", state.Spec{
-		What: "read or set how large the interface draws itself, the one setting " +
-			"a high-density screen needs and then never again",
-		Params: []state.Param{
-			{Name: "scale", Type: state.ParamNumber, Primary: true,
-				What: "the new scale, one being the interface's own size; absent, " +
-					"zero or negative reads the current scale and changes nothing"},
-		},
-		Returns: []string{"scale"},
-		Answers: "The scale in force after the call, read back from the " +
-			"interface rather than repeated from the request, so an interface " +
-			"that clamps it says so. Refuses when no interface is attached.",
-		Example: &state.Example{
-			Params: map[string]any{"scale": 1.25},
-			What:   "make everything a quarter larger on a dense screen",
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("ui.scale", func(w *state.World, p any) (any, error) {
 		if err := need(); err != nil {
 			return nil, err
 		}
@@ -116,24 +66,7 @@ func registerSessionState(st *state.Store, s *Sim) {
 		return map[string]any{"scale": s.ui.Scale()}, nil
 	})
 
-	st.HandleSpec("ui.state", state.Spec{
-		What: "ask what is on screen for a caller with no eyes: the view, the " +
-			"panels in their own windows, the map tool, and what the run is " +
-			"doing beside them",
-		Returns: []string{
-			"view", "popped", "scale", "tool", "nodes", "playing", "now_ms",
-			"jobs", "running",
-		},
-		Answers: "The first four come from whatever is drawing, so another " +
-			"interface may answer with other keys; the rest are the session's " +
-			"own. `jobs` counts the jobs still running and `running` is those " +
-			"same jobs as rows with their ids, because a bare count cannot tell " +
-			"a script what it is waiting for. Refuses when no interface is " +
-			"attached, which is what makes session.status the one to poll.",
-		Example: &state.Example{
-			Params: map[string]any{}, What: "check which view a screenshot will catch",
-		},
-	}, func(w *state.World, _ any) (any, error) {
+	st.Handle("ui.state", func(w *state.World, _ any) (any, error) {
 		if err := need(); err != nil {
 			return nil, err
 		}

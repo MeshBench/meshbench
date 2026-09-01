@@ -18,21 +18,7 @@ import (
 )
 
 func registerExperimentResults(st *state.Store, s *Sim) {
-	st.HandleSpec("experiment.results", state.Spec{
-		What: "read the sweep back as one row per finished cell and one summary " +
-			"per arm, and publish the same numbers to the panels so a client " +
-			"and a window cannot disagree about what was measured",
-		Returns: []string{"runs", "arms", "warning"},
-		Answers: "`runs` and `arms` are both lists, and an empty `runs` is the " +
-			"normal answer before anything has started. `warning` is present " +
-			"only where the numbers do not mean what they look like: nothing " +
-			"run, one seed, one arm, a cell that failed, or seeds that agree so " +
-			"exactly that a difference between arms has nothing to be called " +
-			"larger than.",
-		Example: &state.Example{
-			Params: map[string]any{}, What: "read the table so far", Runnable: true,
-		},
-	}, func(w *state.World, _ any) (any, error) {
+	st.Handle("experiment.results", func(w *state.World, _ any) (any, error) {
 		e := s.experiment()
 		e.mu.Lock()
 		defer e.mu.Unlock()
@@ -82,31 +68,7 @@ func registerExperimentResults(st *state.Store, s *Sim) {
 		return out, nil
 	})
 
-	st.HandleSpec("experiment.compare", state.Spec{
-		What: "put two arms' means beside each other with the difference " +
-			"between them, absolute and as a percentage of the first",
-		Params: []state.Param{
-			{Name: "arm_a", Type: state.ParamString, Required: true, Primary: true,
-				What: "the arm the difference is measured from, by the label " +
-					"experiment.define or experiment.vary gave it; a label with " +
-					"no results under it is refused"},
-			{Name: "arm_b", Type: state.ParamString, Required: true,
-				What: "the arm measured against it, which has to be named rather " +
-					"than passed bare because the bare value is already spent " +
-					"on arm_a; a label with no results under it is refused"},
-		},
-		Returns: []string{"a", "b", "delta", "note"},
-		Answers: "`delta` carries tx, rx, delivered, redundant and collisions, " +
-			"each with a `_pct` twin where the first arm's figure is not zero. " +
-			"It says nothing about whether the difference is larger than the " +
-			"seed spread: that judgement is the warning experiment.results " +
-			"carries.",
-		Example: &state.Example{
-			Params:   map[string]any{"arm_a": "cad off", "arm_b": "cad on"},
-			What:     "what listening before talking cost, or won",
-			Runnable: false,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("experiment.compare", func(w *state.World, p any) (any, error) {
 		e := s.experiment()
 		a, _ := stringField(p, "arm_a")
 		b, _ := namedField(p, "arm_b")
@@ -139,26 +101,7 @@ func registerExperimentResults(st *state.Store, s *Sim) {
 				"in direction is the firmware rather than the calibration"}, nil
 	})
 
-	st.HandleSpec("experiment.export", state.Spec{
-		What: "write the whole experiment to a file, its definition beside every " +
-			"cell's raw numbers and the per-arm summary, so a sweep outlives " +
-			"the session that ran it",
-		Params: []state.Param{
-			{Name: "path", Type: state.ParamString, Primary: true,
-				What: "where to write it; empty writes meshbench-experiment.json " +
-					"in the system temporary directory, and a path that cannot " +
-					"be written is refused"},
-		},
-		Returns: []string{"path", "bytes"},
-		Answers: "JSON, holding the arms, seeds, senders and timings alongside " +
-			"`results`, which is every cell including the per-second histogram " +
-			"and the at-risk shares, and `summary`, which is the means. It will " +
-			"write an empty one before anything has run.",
-		Example: &state.Example{
-			Params: map[string]any{}, What: "keep the sweep, wherever the machine puts temporary files",
-			Runnable: true,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("experiment.export", func(w *state.World, p any) (any, error) {
 		e := s.experiment()
 		path, _ := stringField(p, "path")
 		if path == "" {

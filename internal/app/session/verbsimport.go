@@ -11,31 +11,7 @@ import (
 )
 
 func registerImportFeedVerbs(st *state.Store, s *Sim) {
-	st.HandleSpec("import.describe", state.Spec{
-		What: "count what a deployment would bring in, without setting it as " +
-			"the import source or changing a node, so a URL can be weighed " +
-			"before it is committed to",
-		Params: []state.Param{
-			{Name: "url", Type: state.ParamString, Primary: true,
-				What: "the deployment to read, as a bare string or the one key " +
-					"of an object; it is not checked here, so an empty or " +
-					"unreachable one is reported by the read failing a moment " +
-					"later rather than by this call being refused"},
-		},
-		Returns: []string{"url"},
-		Answers: "It returns at once with the URL it started on. The counts " +
-			"arrive later on the snapshot, as records, importable, no " +
-			"position and placed loosely: the last of those is the nodes " +
-			"whose published position is too loose to trust to a decibel, " +
-			"which are kept and marked rather than dropped. An accepted study " +
-			"area narrows it, which is read here rather than in the worker. " +
-			"The read has ninety seconds.",
-		Example: &state.Example{
-			Params:   map[string]any{"url": "https://map.example.net"},
-			What:     "count what a deployment holds before importing it",
-			Runnable: false,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("import.describe", func(w *state.World, p any) (any, error) {
 		url := soleString(p)
 		// The study area as it stands, read here on the store's goroutine
 		// rather than in the worker, which must not reach into the session.
@@ -58,11 +34,7 @@ func registerImportFeedVerbs(st *state.Store, s *Sim) {
 		return map[string]any{"url": url}, nil
 	})
 
-	st.HandleInternalSpec("import.set", state.Spec{
-		What: "put the finished description on the snapshot and say what it " +
-			"found, which is how import.describe answers at all",
-		Answers: "Nothing: it writes the snapshot and returns nil.",
-	}, func(w *state.World, p any) (any, error) {
+	st.HandleInternal("import.set", func(w *state.World, p any) (any, error) {
 		im, ok := p.(*state.Import)
 		if !ok {
 			return nil, wrongCallback("import.set")
@@ -76,12 +48,7 @@ func registerImportFeedVerbs(st *state.Store, s *Sim) {
 		return nil, nil
 	})
 
-	st.HandleInternalSpec("import.failed", state.Spec{
-		What: "say a read failed and end the traffic job with it, so a scripted " +
-			"import fails at once instead of waiting out its whole timeout on a " +
-			"job that will never finish",
-		Answers: "Nothing: it marks the job failed and returns nil.",
-	}, func(w *state.World, p any) (any, error) {
+	st.HandleInternal("import.failed", func(w *state.World, p any) (any, error) {
 		msg := soleString(p)
 		// End the job as well as saying so. It used to only say so, and the
 		// reading job then sat in the list for ever: anything waiting on it -
@@ -101,19 +68,7 @@ func registerImportFeedVerbs(st *state.Store, s *Sim) {
 	// made it the stop button that genuinely did nothing: the pull it was
 	// pressed to stop landed a minute later and the panel filled up with the
 	// traffic somebody had just asked it not to fetch.
-	st.HandleSpec("feed.stop", state.Spec{
-		What: "stop following a deployment's live traffic, which means not " +
-			"starting the next pull and throwing away the one still in the air " +
-			"rather than closing a connection",
-		Returns: []string{"stopped"},
-		Answers: "`stopped` is false when no feed was running, which is an " +
-			"answer rather than a refusal. Receptions already pulled stay where " +
-			"they are.",
-		Example: &state.Example{
-			Params: map[string]any{}, What: "stop following the live traffic",
-			Runnable: true,
-		},
-	}, func(w *state.World, _ any) (any, error) {
+	st.Handle("feed.stop", func(w *state.World, _ any) (any, error) {
 		was := s.feeding.Swap(false)
 		if !was {
 			w.Say("no live feed was running")
@@ -123,28 +78,7 @@ func registerImportFeedVerbs(st *state.Store, s *Sim) {
 		return map[string]any{"stopped": true}, nil
 	})
 
-	st.HandleSpec("feed.pull", state.Spec{
-		What: "fetch the last hour of a deployment's real receptions and put " +
-			"them beside this scenario's links, which is what turns a simulation " +
-			"into something with a measured answer to compare against",
-		Params: []state.Param{
-			{Name: "url", Type: state.ParamString, Required: true, Primary: true,
-				What: "the deployment to pull from, as a bare string or under " +
-					"this key; an empty one is refused, and so is an object " +
-					"whose single key is anything else"},
-		},
-		Returns: []string{"url"},
-		Answers: "It returns as soon as the pull is accepted, not when the " +
-			"receptions land: they arrive later, and the residuals against this " +
-			"scenario's links are computed with them rather than behind a second " +
-			"call. A pull that comes back after feed.stop is thrown away. The " +
-			"fetch has ninety seconds.",
-		Example: &state.Example{
-			Params:   map[string]any{"url": "https://map.example.net"},
-			What:     "follow what a real deployment is hearing",
-			Runnable: false,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("feed.pull", func(w *state.World, p any) (any, error) {
 		url := soleString(p)
 		if m, ok := p.(map[string]any); ok {
 			url, _ = m["url"].(string)
@@ -182,26 +116,13 @@ func registerImportFeedVerbs(st *state.Store, s *Sim) {
 		return map[string]any{"url": url}, nil
 	})
 
-	st.HandleInternalSpec("feed.failed", state.Spec{
-		What: "say the live feed came back with nothing and why, kept separate " +
-			"from the import's own failure because a deployment can publish " +
-			"nodes and not receptions",
-		Answers: "Nothing: it says so and returns nil.",
-	}, func(w *state.World, p any) (any, error) {
+	st.HandleInternal("feed.failed", func(w *state.World, p any) (any, error) {
 		msg := soleString(p)
 		w.Say("no live feed: " + msg)
 		return nil, nil
 	})
 
-	st.HandleInternalSpec("feed.set", state.Spec{
-		What: "take the receptions a pull came back with and compute the " +
-			"residuals against this scenario's links in the same step, so " +
-			"observed and predicted are never one button apart",
-		Returns: []string{"receptions"},
-		Answers: "`receptions` is everything pulled; how many of them matched a " +
-			"link in this scenario is a smaller number, and it goes on the " +
-			"snapshot rather than in this answer.",
-	}, func(w *state.World, p any) (any, error) {
+	st.HandleInternal("feed.set", func(w *state.World, p any) (any, error) {
 		obs, ok := p.([]state.Observed)
 		if !ok {
 			return nil, wrongCallback("feed.set")

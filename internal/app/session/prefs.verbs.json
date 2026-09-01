@@ -1,0 +1,24 @@
+{
+  "map.basemap": {
+    "what": "choose which map is drawn under the simulation and remember the choice, or read the one in force",
+    "params": [
+      {
+        "name": "id",
+        "type": "string",
+        "primary": true,
+        "what": "the basemap: carto-dark, carto-light or esri-topo. An absent or empty id reads the current choice and changes nothing; the session does not draw the map, so an id it does not recognise is stored rather than refused"
+      }
+    ],
+    "returns": [
+      "id"
+    ],
+    "answers": "Empty means nobody has chosen and the map's own default stands. The choice is written to the settings file, so it survives a restart; where that write fails the session still uses it and says so, rather than promising a next launch it cannot keep.",
+    "example": {
+      "params": {
+        "id": "esri-topo"
+      },
+      "what": "put topography under the nodes for a siting review",
+      "runnable": true
+    }
+  }
+}

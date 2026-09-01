@@ -22,19 +22,7 @@ func registerFirmwareLibrary(st *state.Store, s *Sim) {
 	registerFirmwareCache(st, s)
 	registerFirmwareNodes(st, s)
 
-	st.HandleSpec("firmware.installed", state.Spec{
-		What: "read what is actually in the firmware cache on this machine, " +
-			"which is the only thing that decides what a node can start today",
-		Returns: []string{"cache", "installed"},
-		Answers: "`installed` is a row per build on disk - `version`, `role`, " +
-			"`board`, `native`, `bytes`, `path` - and is empty on a machine that " +
-			"has downloaded nothing. It says nothing about what is published: " +
-			"`firmware.library` is the list that holds both.",
-		Example: &state.Example{
-			Params: map[string]any{}, What: "see what this machine can run offline",
-			Runnable: true,
-		},
-	}, func(w *state.World, _ any) (any, error) {
+	st.Handle("firmware.installed", func(w *state.World, _ any) (any, error) {
 		cache := firmware.DefaultCacheDir()
 		in := firmware.ListInstalled(cache)
 		out := make([]map[string]any, 0, len(in))
@@ -59,20 +47,7 @@ func registerFirmwareLibrary(st *state.Store, s *Sim) {
 	// to be offerable. The old workbench answers this question with a table
 	// and the Gio build answered it with a form asking for a version somebody
 	// was expected to already know.
-	st.HandleSpec("firmware.library", state.Spec{
-		What: "list every build there is, on disk and published together, so a " +
-			"build nobody has fetched can still be offered and one imported " +
-			"from a branch still appears",
-		Returns: []string{"builds", "count"},
-		Answers: "The catalogue is asked over the network in the background and " +
-			"its answer lands seconds later, so the first call in a session " +
-			"answers from disk alone and is worth making again. Each row in " +
-			"`builds` carries `role`, `version`, `board`, `bytes`, `on_disk`, " +
-			"`path`, `in_use` and `unavailable`.",
-		Example: &state.Example{
-			Params: map[string]any{}, What: "list what could be run, fetched or not",
-		},
-	}, func(w *state.World, _ any) (any, error) {
+	st.Handle("firmware.library", func(w *state.World, _ any) (any, error) {
 		// Disk first, immediately; the network once, afterwards. The library
 		// read only the catalogue's cache, and everything in the cache is by
 		// definition already downloaded - so the one thing a library is for,
@@ -88,19 +63,7 @@ func registerFirmwareLibrary(st *state.Store, s *Sim) {
 	// that cannot start should be able to ask what these nodes ought to run,
 	// and by role rather than by node, because pinning fifty-eight of them one
 	// at a time is not a question anybody answers.
-	st.HandleSpec("firmware.needed", state.Spec{
-		What: "ask what a mesh that will not start is missing, by role rather " +
-			"than by node, and what is already installed to fill each gap",
-		Returns: []string{"roles"},
-		Answers: "`roles` is a list of `{role, nodes, choices}`: how many nodes " +
-			"running that role have no build this machine holds, and the " +
-			"versions installed for it, which may be none. An empty list means " +
-			"every node that runs firmware has one it can start.",
-		Example: &state.Example{
-			Params: map[string]any{}, What: "find out what the run is short of",
-			Runnable: true,
-		},
-	}, func(w *state.World, _ any) (any, error) {
+	st.Handle("firmware.needed", func(w *state.World, _ any) (any, error) {
 		installed := firmware.ListInstalled(firmware.DefaultCacheDir())
 		have := map[string]bool{}
 		for _, b := range installed {

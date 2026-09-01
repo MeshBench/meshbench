@@ -1,0 +1,137 @@
+{
+  "board.key": {
+    "what": "type at the board's own keyboard, a character at a time, which is what the hardware sends: it holds the last key pressed and the firmware polls it",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "required": true,
+        "what": "which board; refused when absent, when the node is not running, or when its backend has no keyboard"
+      },
+      {
+        "name": "text",
+        "type": "string",
+        "required": true,
+        "what": "the characters to send, each one a keypress; refused when absent or empty"
+      }
+    ],
+    "returns": [
+      "node",
+      "typed"
+    ],
+    "answers": "`typed` is how many characters were sent, not how many the firmware read: it polls, so typing faster than it polls loses keys.",
+    "example": {
+      "params": {
+        "node": "West Lomond",
+        "text": "hello"
+      },
+      "what": "type a word at the board's keyboard"
+    }
+  },
+  "board.press": {
+    "what": "hold one of a board's own buttons down, or let it go, so a long press reaches the firmware as a long press rather than as a tap",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "required": true,
+        "what": "which board; refused when absent, when the node is not running, or when its backend has no buttons"
+      },
+      {
+        "name": "pin",
+        "type": "number",
+        "required": true,
+        "what": "the GPIO the button sits on, as the board profile declares it; refused when absent or not a number"
+      },
+      {
+        "name": "down",
+        "type": "bool",
+        "what": "true holds it, false releases it; absent counts as a release"
+      }
+    ],
+    "returns": [
+      "node",
+      "pin",
+      "down"
+    ],
+    "answers": "The answer repeats what was asked, which is the acknowledgement that the press reached the board at all. Whether the firmware did anything with it is board.screen's question.",
+    "example": {
+      "params": {
+        "down": true,
+        "node": "West Lomond",
+        "pin": 0
+      },
+      "what": "hold the PRG button down"
+    }
+  },
+  "board.screen": {
+    "what": "measure what a board's own display is showing as numbers rather than as a picture, so a script can tell whether a press or a keystroke changed anything",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "which board; refused when absent, when the node is not running, or when its backend has no display"
+      }
+    ],
+    "returns": [
+      "node",
+      "has_screen",
+      "width",
+      "height",
+      "bpp",
+      "on",
+      "lit",
+      "digest"
+    ],
+    "answers": "A board whose backend models a display but has drawn nothing yet answers with `has_screen` false and nothing else, which is a fact about the board rather than a failure. Otherwise `lit` counts the non-zero bytes of the framebuffer, for how much is on, and `digest` is a hex hash of the whole frame, for whether it is the same frame - which is what a wait for the screen to change compares.",
+    "example": {
+      "params": "West Lomond",
+      "what": "check whether the display has changed"
+    }
+  },
+  "board.touch": {
+    "what": "put a finger on the board's panel at a point, or take it off, in the panel's own pixels rather than the drawn screen's",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "required": true,
+        "what": "which board; refused when absent, when the node is not running, or when its backend has no touch panel"
+      },
+      {
+        "name": "x",
+        "type": "number",
+        "required": true,
+        "what": "the column, from the panel's own left edge; refused when absent or not a number"
+      },
+      {
+        "name": "y",
+        "type": "number",
+        "required": true,
+        "what": "the row, from the panel's own top edge; refused when absent or not a number"
+      },
+      {
+        "name": "down",
+        "type": "bool",
+        "what": "true touches, false lifts off; absent counts as a lift off"
+      }
+    ],
+    "returns": [
+      "node",
+      "x",
+      "y",
+      "down"
+    ],
+    "example": {
+      "params": {
+        "down": true,
+        "node": "West Lomond",
+        "x": 120,
+        "y": 80
+      },
+      "what": "touch the middle of the panel"
+    }
+  }
+}

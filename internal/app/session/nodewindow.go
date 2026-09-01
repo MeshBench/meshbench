@@ -12,23 +12,7 @@ import (
 
 func registerNodeWindow(st *state.Store, s *Sim) {
 	// node.window: the thing people put on a second monitor.
-	st.HandleSpec("node.window", state.Spec{
-		What: "Open one node's own window, the thing people put on a second monitor.",
-		Params: []state.Param{
-			{Name: "node", Type: state.ParamString, Primary: true, Required: true,
-				What: "which node"},
-			{Name: "tab", Type: state.ParamString,
-				What: "which tab to open on; the window's default when absent"},
-		},
-		Returns: []string{"node", "tab"},
-		Answers: "`tab` is the tab the window actually opened on, which is not " +
-			"always the one asked for. Refused outright in a headless session, " +
-			"there being no window to open one beside.",
-		Example: &state.Example{
-			Params: "West Lomond", What: "put one node on a second monitor",
-			Runnable: false,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("node.window", func(w *state.World, p any) (any, error) {
 		if err := s.needUI(); err != nil {
 			return nil, err
 		}

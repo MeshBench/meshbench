@@ -1,0 +1,117 @@
+{
+  "import.commit": {
+    "what": "make the fetched nodes the scenario, either in place of what is loaded or alongside it, and start measuring the links again",
+    "params": [
+      {
+        "name": "strategy",
+        "type": "string",
+        "primary": true,
+        "what": "\"replace-all\" for the imported network on its own, \"add\" to keep what is already loaded and add the names it has not got; absent it is replace-all, and anything else is refused - \"replace\" is not a strategy name, and a caller who writes it gets an error rather than a network with the demonstration nodes still in it"
+      }
+    ],
+    "returns": [
+      "nodes",
+      "strategy"
+    ],
+    "answers": "`nodes` is the size of the scenario afterwards, not how many arrived. It returns before the links are measured: every pair is a path loss over real terrain, so that runs as a job and the link matrix is empty until it finishes.",
+    "example": {
+      "params": {
+        "strategy": "replace-all"
+      },
+      "what": "make the imported deployment the whole scenario"
+    }
+  },
+  "import.fetch": {
+    "what": "read a deployment's nodes and say what committing them would change, before anything in the scenario changes",
+    "params": [
+      {
+        "name": "url",
+        "type": "string",
+        "primary": true,
+        "what": "the deployment to read, remembered as the source; absent, the source already set is used, and the fetch is refused when there is none"
+      }
+    ],
+    "returns": [
+      "records",
+      "nodes",
+      "skipped_no_position",
+      "uncertain"
+    ],
+    "answers": "`records` is what the deployment published and `nodes` what survived: a node with no position is dropped, and one outside an accepted study area and its margin is dropped too. `uncertain` counts the ones placed more loosely than a kilometre, which are kept and marked rather than dropped, because a node imported at plus or minus 5 km cannot be given a confident answer and the mark is what carries that. Nothing is committed until import.commit.",
+    "example": {
+      "params": {
+        "url": "https://map.example.net"
+      },
+      "what": "see what a deployment holds before taking it"
+    }
+  },
+  "import.set_source": {
+    "what": "name the CoreScope deployment every later import and inference verb reads from, so they need not be told twice",
+    "params": [
+      {
+        "name": "url",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the deployment's base URL; an empty one is refused, and a trailing slash is trimmed rather than passed on"
+      }
+    ],
+    "returns": [
+      "url"
+    ],
+    "answers": "The URL that comes back is the trimmed one, which is what the fetch will actually ask.",
+    "example": {
+      "params": {
+        "url": "https://map.example.net"
+      },
+      "what": "point the import at a deployment",
+      "runnable": true
+    }
+  },
+  "infer.apply": {
+    "what": "write the inferred regions onto the nodes, which is the step that gets forgotten and the one that decides whether anything relays: without it a mesh has regions inferred and not applied, which transmits everything, relays nothing and reports no error",
+    "returns": [
+      "applied"
+    ],
+    "answers": "`applied` is how many nodes were written to, and 0 is the answer worth reading: the inference ran and nothing was written back. It matches on the public key a node kept from the feed and falls back to the name, so it only reaches nodes that were seen on the real network. It is refused outright when nothing has been inferred yet.",
+    "example": {
+      "params": {},
+      "what": "apply what the traffic proved about which node relays what"
+    }
+  },
+  "infer.progress": {
+    "what": "carry the running packet count from the reading goroutine into the traffic job, so a long read shows movement rather than a bar that has stopped",
+    "answers": "Nothing: it updates the job and returns nil."
+  },
+  "infer.result": {
+    "what": "turn the packets the reader collected into the per-node region inference and end the traffic job",
+    "returns": [
+      "packets",
+      "nodes",
+      "regions"
+    ],
+    "answers": "`regions` is a map of region name to how many nodes hold it. The inference is held for infer.apply and reaches no node until that is called."
+  },
+  "infer.run": {
+    "what": "read a window of the deployment's own traffic and work out which regions each node holds, which is the only honest source for what a real mesh forwards",
+    "params": [
+      {
+        "name": "hours",
+        "type": "number",
+        "primary": true,
+        "what": "how far back to read, in hours; anything not positive leaves it at 168, a week"
+      }
+    ],
+    "returns": [
+      "reading",
+      "hours"
+    ],
+    "answers": "It returns as soon as the read is started, not when it finishes: the packets come back later through the reader's own callback, which ends the `infer` job and reports how many nodes were seen, and a failed read ends the same job. It is refused when no import source has been set. Nothing reaches the nodes until infer.apply.",
+    "example": {
+      "params": {
+        "hours": 168
+      },
+      "what": "read a week of traffic to see what each node relays"
+    }
+  }
+}

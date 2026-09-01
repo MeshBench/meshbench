@@ -1,0 +1,38 @@
+{
+  "sim.kind": {
+    "what": "choose whether a run carries real MeshCore firmware or only the channel, and report which it is now",
+    "params": [
+      {
+        "name": "real",
+        "type": "bool",
+        "primary": true,
+        "what": "true to start MeshCore on every node at play; absent leaves the setting alone and only reads it"
+      }
+    ],
+    "returns": [
+      "real",
+      "running"
+    ],
+    "answers": "`running` is how many nodes have firmware up right now, which is not changed by setting `real`: it takes effect at the next play.",
+    "example": {
+      "params": {},
+      "what": "ask what kind of run this is",
+      "runnable": true
+    }
+  },
+  "sim.start": {
+    "what": "what a play button presses, which is four different things: it pauses a run already playing, declines while the links are still being measured, brings MeshCore up on every node without playing if this is a firmware run and nothing is up yet, and otherwise starts the clock",
+    "returns": [
+      "playing",
+      "warming",
+      "starting_firmware",
+      "started_firmware"
+    ],
+    "answers": "`playing` is the only key always present. `warming` appears when it declined because the link matrix is not measured yet, and `starting_firmware` when it brought the mesh up instead of playing, which is the case where a second call is needed.",
+    "example": {
+      "params": {},
+      "what": "press play",
+      "runnable": true
+    }
+  }
+}

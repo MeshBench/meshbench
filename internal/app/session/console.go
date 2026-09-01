@@ -48,29 +48,7 @@ func (s *Sim) consoleFor(name string) (*console.Buf, error) {
 }
 
 func registerConsole(st *state.Store, s *Sim) {
-	st.HandleSpec("console.type", state.Spec{
-		What: "run a line at a node's own firmware console, which answers what " +
-			"the node says rather than what it sent, and is the question asked " +
-			"when a node is not behaving as its configuration claims",
-		Params: []state.Param{
-			{Name: "node", Type: state.ParamString, Required: true,
-				What: "the node whose console to type at; refused when it is " +
-					"absent, unknown, or runs no firmware"},
-			{Name: "command", Type: state.ParamString, Required: true,
-				What: "the line to type, sent with a carriage return and newline " +
-					"after it; refused when it is absent or empty"},
-		},
-		Returns: []string{"node", "sent", "note"},
-		Answers: "The node's reply is not in this answer: it lands in the " +
-			"scrollback when the engine next steps, and is read with " +
-			"`console.read`. On a paused clock this steps the engine sixty times " +
-			"so the reply arrives anyway, but while a sweep owns the clock the " +
-			"replies come back empty.",
-		Example: &state.Example{
-			Params: map[string]any{"node": "West Lomond", "command": "get name"},
-			What:   "ask a node what it believes it is called",
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("console.type", func(w *state.World, p any) (any, error) {
 		var name, cmd string
 		if m, ok := p.(map[string]any); ok {
 			name, _ = m["node"].(string)
@@ -111,22 +89,7 @@ func registerConsole(st *state.Store, s *Sim) {
 		}, nil
 	})
 
-	st.HandleSpec("console.read", state.Spec{
-		What: "read back what a node's firmware has said, which is where the " +
-			"reply to anything typed at it arrives",
-		Params: []state.Param{
-			{Name: "node", Type: state.ParamString, Required: true, Primary: true,
-				What: "the node whose scrollback to read; refused when it is " +
-					"absent, unknown, or runs no firmware"},
-		},
-		Returns: []string{"node", "lines", "tail"},
-		Answers: "`lines` is how many the node has said since its console was " +
-			"attached and `tail` is the last two hundred of them, so the two " +
-			"disagree on a node that has been running a while.",
-		Example: &state.Example{
-			Params: "West Lomond", What: "read what a node has been saying",
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("console.read", func(w *state.World, p any) (any, error) {
 		name := soleString(p)
 		if m, ok := p.(map[string]any); ok {
 			name, _ = m["node"].(string)

@@ -17,25 +17,7 @@ import (
 )
 
 func registerCompanionRaw(st *state.Store, s *Sim) {
-	st.HandleSpec("companion.raw", state.Spec{
-		What: "put bytes of the caller's own choosing on a node's companion port, " +
-			"for when what the firmware makes of a frame is the thing in question",
-		Params: []state.Param{
-			{Name: "node", Type: state.ParamString, Required: true, Primary: true,
-				What: "the connected node; refused when nothing is connected to it"},
-			{Name: "bytes", Type: state.ParamArray, Required: true,
-				What: "the payload, one number per byte; anything in the array " +
-					"that is not a number is dropped, and an empty or absent " +
-					"array is refused"},
-		},
-		Returns: []string{"sent_bytes"},
-		Answers: "`sent_bytes` counts what was framed and written, which is the " +
-			"numbers that survived, not the length of the array as it was passed.",
-		Example: &state.Example{
-			Params: map[string]any{"node": "West Lomond", "bytes": []any{1, 2, 3}},
-			What:   "hand the firmware three bytes and see what it makes of them",
-		},
-	}, func(_ *state.World, p any) (any, error) {
+	st.Handle("companion.raw", func(_ *state.World, p any) (any, error) {
 		node, _ := stringField(p, "node")
 		c, en, err := s.companionFor(node)
 		if err != nil {

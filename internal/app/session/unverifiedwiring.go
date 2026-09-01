@@ -17,22 +17,7 @@ import (
 // the probe that does the verifying is itself a run.
 func registerUnverifiedWiring(st *state.Store, s *Sim) {
 	// sim.unverified_wiring: run boards whose wiring nobody has watched.
-	st.HandleSpec("sim.unverified_wiring", state.Spec{
-		What: "allow boards whose wiring nobody has watched boot to run anyway, " +
-			"which is the only way a newly imported board is ever verified",
-		Params: []state.Param{
-			{Name: "on", Type: state.ParamBool, Primary: true,
-				What: "true to lift the gate; absent reads the setting without " +
-					"changing it"},
-		},
-		Returns: []string{"on"},
-		Answers: "The setting is saved to preferences, so it outlives the " +
-			"session. Turning it on names the boards it has just trusted.",
-		Example: &state.Example{
-			Params: map[string]any{}, What: "ask whether the gate is lifted",
-			Runnable: true,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("sim.unverified_wiring", func(w *state.World, p any) (any, error) {
 		if on, ok := boolField(p, "on"); ok {
 			s.unverifiedWiring = on
 			s.prefs.UnverifiedWiring = on

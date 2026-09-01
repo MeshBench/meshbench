@@ -1,0 +1,33 @@
+{
+  "log.path": {
+    "what": "find this launch's full status log without knowing the naming scheme, which is everything the session has said rather than the last twenty lines the status strip keeps",
+    "returns": [
+      "path"
+    ],
+    "answers": "One file per launch, timestamped, still being written to. Refuses where no log was opened, which is the case for a session started without one rather than a fault.",
+    "example": {
+      "params": {},
+      "what": "tail this run's log from a shell"
+    }
+  },
+  "logs.export": {
+    "what": "put a copy of the log as it stands somewhere the operator chose, so a run can be attached to a report without the reader needing the machine it ran on",
+    "params": [
+      {
+        "name": "to",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "where to write the copy; an empty or missing destination is refused, and an existing file there is overwritten"
+      }
+    ],
+    "returns": [
+      "path"
+    ],
+    "answers": "The whole file on disk, not the tail the Logs panel holds, so a long run exports everything it said. Refuses where no log was opened, and where the copy cannot be written.",
+    "example": {
+      "params": "/tmp/meshbench-run.log",
+      "what": "keep a run's log beside its results"
+    }
+  }
+}

@@ -185,29 +185,7 @@ func meshcliHelp() string {
 }
 
 func registerMeshCLI(st *state.Store, s *Sim) {
-	st.HandleSpec("console.cli", state.Spec{
-		What: "run one meshcore-cli line at a companion node, which has no text " +
-			"console of its own, connecting to it first if nothing has yet",
-		Params: []state.Param{
-			{Name: "node", Type: state.ParamString, Required: true, Primary: true,
-				What: "the node to run the line at; refused when absent"},
-			{Name: "command", Type: state.ParamString, Required: true,
-				What: "the line, in meshcore-cli's own vocabulary; refused when " +
-					"absent or blank, and `?` lists what this build answers"},
-		},
-		Returns: []string{"node", "reply", "failed"},
-		Answers: "`failed` is present and true where the line ran and the answer " +
-			"was no: an unknown command, a command meshcore-cli has that this " +
-			"build does not, or a connect that could not be made. That is not an " +
-			"error, because a console refused at the status bar leaves nothing " +
-			"where it was typed. `reply` is what the console prints either way, " +
-			"and the node's own answer to it arrives later in the scrollback.",
-		Example: &state.Example{
-			Params:   map[string]any{"node": "West Lomond", "command": "?"},
-			What:     "list the meshcore-cli commands this build answers",
-			Runnable: true,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("console.cli", func(w *state.World, p any) (any, error) {
 		node, _ := stringField(p, "node")
 		line, _ := namedField(p, "command")
 		if m, ok := p.(map[string]any); ok {

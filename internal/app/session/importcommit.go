@@ -39,23 +39,7 @@ type inferReading struct {
 }
 
 func registerImport(st *state.Store, s *Sim) {
-	st.HandleSpec("import.set_source", state.Spec{
-		What: "name the CoreScope deployment every later import and inference " +
-			"verb reads from, so they need not be told twice",
-		Params: []state.Param{
-			{Name: "url", Type: state.ParamString, Required: true, Primary: true,
-				What: "the deployment's base URL; an empty one is refused, and a " +
-					"trailing slash is trimmed rather than passed on"},
-		},
-		Returns: []string{"url"},
-		Answers: "The URL that comes back is the trimmed one, which is what the " +
-			"fetch will actually ask.",
-		Example: &state.Example{
-			Params:   map[string]any{"url": "https://map.example.net"},
-			What:     "point the import at a deployment",
-			Runnable: true,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("import.set_source", func(w *state.World, p any) (any, error) {
 		url, _ := stringField(p, "url")
 		if url == "" {
 			return nil, fmt.Errorf("import.set_source needs a url")
@@ -74,30 +58,7 @@ func registerImport(st *state.Store, s *Sim) {
 		return map[string]any{"url": url}, nil
 	})
 
-	st.HandleSpec("import.fetch", state.Spec{
-		What: "read a deployment's nodes and say what committing them would " +
-			"change, before anything in the scenario changes",
-		Params: []state.Param{
-			{Name: "url", Type: state.ParamString, Primary: true,
-				What: "the deployment to read, remembered as the source; absent, " +
-					"the source already set is used, and the fetch is refused " +
-					"when there is none"},
-		},
-		Returns: []string{"records", "nodes", "skipped_no_position", "uncertain"},
-		Answers: "`records` is what the deployment published and `nodes` what " +
-			"survived: a node with no position is dropped, and one outside an " +
-			"accepted study area and its margin is dropped too. `uncertain` " +
-			"counts the ones placed more loosely than a kilometre, which are " +
-			"kept and marked rather than dropped, because a node imported at " +
-			"plus or minus 5 km cannot be given a confident answer and the " +
-			"mark is what carries that. Nothing is committed until " +
-			"import.commit.",
-		Example: &state.Example{
-			Params:   map[string]any{"url": "https://map.example.net"},
-			What:     "see what a deployment holds before taking it",
-			Runnable: false,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("import.fetch", func(w *state.World, p any) (any, error) {
 		url, _ := stringField(p, "url")
 		if s.imp == nil {
 			s.imp = &importState{}
@@ -136,29 +97,7 @@ func registerImport(st *state.Store, s *Sim) {
 		}, nil
 	})
 
-	st.HandleSpec("import.commit", state.Spec{
-		What: "make the fetched nodes the scenario, either in place of what is " +
-			"loaded or alongside it, and start measuring the links again",
-		Params: []state.Param{
-			{Name: "strategy", Type: state.ParamString, Primary: true,
-				What: "\"replace-all\" for the imported network on its own, " +
-					"\"add\" to keep what is already loaded and add the names it " +
-					"has not got; absent it is replace-all, and anything else is " +
-					"refused - \"replace\" is not a strategy name, and a caller " +
-					"who writes it gets an error rather than a network with the " +
-					"demonstration nodes still in it"},
-		},
-		Returns: []string{"nodes", "strategy"},
-		Answers: "`nodes` is the size of the scenario afterwards, not how many " +
-			"arrived. It returns before the links are measured: every pair is a " +
-			"path loss over real terrain, so that runs as a job and the link " +
-			"matrix is empty until it finishes.",
-		Example: &state.Example{
-			Params:   map[string]any{"strategy": "replace-all"},
-			What:     "make the imported deployment the whole scenario",
-			Runnable: false,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("import.commit", func(w *state.World, p any) (any, error) {
 		if s.imp == nil || len(s.imp.imported) == 0 {
 			return nil, fmt.Errorf("nothing fetched to commit")
 		}
@@ -199,28 +138,7 @@ func registerImport(st *state.Store, s *Sim) {
 		return map[string]any{"nodes": len(nodes), "strategy": strategy}, nil
 	})
 
-	st.HandleSpec("infer.run", state.Spec{
-		What: "read a window of the deployment's own traffic and work out which " +
-			"regions each node holds, which is the only honest source for what " +
-			"a real mesh forwards",
-		Params: []state.Param{
-			{Name: "hours", Type: state.ParamNumber, Primary: true,
-				What: "how far back to read, in hours; anything not positive " +
-					"leaves it at 168, a week"},
-		},
-		Returns: []string{"reading", "hours"},
-		Answers: "It returns as soon as the read is started, not when it " +
-			"finishes: the packets come back later through the reader's own " +
-			"callback, which ends the `infer` job and reports how many nodes " +
-			"were seen, and a failed read ends the same job. It is refused " +
-			"when no import source has been set. Nothing reaches the nodes " +
-			"until infer.apply.",
-		Example: &state.Example{
-			Params:   map[string]any{"hours": 168},
-			What:     "read a week of traffic to see what each node relays",
-			Runnable: false,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("infer.run", func(w *state.World, p any) (any, error) {
 		if s.imp == nil || s.imp.url == "" {
 			return nil, fmt.Errorf("no import source set")
 		}
@@ -267,12 +185,7 @@ func registerImport(st *state.Store, s *Sim) {
 		return map[string]any{"reading": true, "hours": hours}, nil
 	})
 
-	st.HandleInternalSpec("infer.progress", state.Spec{
-		What: "carry the running packet count from the reading goroutine into " +
-			"the traffic job, so a long read shows movement rather than a bar " +
-			"that has stopped",
-		Answers: "Nothing: it updates the job and returns nil.",
-	}, func(w *state.World, p any) (any, error) {
+	st.HandleInternal("infer.progress", func(w *state.World, p any) (any, error) {
 		n, ok := p.(int)
 		if !ok {
 			return nil, wrongCallback("infer.progress")
@@ -294,14 +207,7 @@ func registerImport(st *state.Store, s *Sim) {
 	// completed inference with an empty one, so a mesh that had just been
 	// imported correctly went silent and nothing said why. The socket refuses
 	// it now; the check stays, for a caller in here that gets it wrong.
-	st.HandleInternalSpec("infer.result", state.Spec{
-		What: "turn the packets the reader collected into the per-node region " +
-			"inference and end the traffic job",
-		Returns: []string{"packets", "nodes", "regions"},
-		Answers: "`regions` is a map of region name to how many nodes hold it. " +
-			"The inference is held for infer.apply and reaches no node until " +
-			"that is called.",
-	}, func(w *state.World, p any) (any, error) {
+	st.HandleInternal("infer.result", func(w *state.World, p any) (any, error) {
 		r, ok := p.(inferReading)
 		if !ok {
 			return nil, badParams("infer.result is the reader's own callback; " +
@@ -326,24 +232,7 @@ func registerImport(st *state.Store, s *Sim) {
 		}, nil
 	})
 
-	st.HandleSpec("infer.apply", state.Spec{
-		What: "write the inferred regions onto the nodes, which is the step " +
-			"that gets forgotten and the one that decides whether anything " +
-			"relays: without it a mesh has regions inferred and not applied, " +
-			"which transmits everything, relays nothing and reports no error",
-		Returns: []string{"applied"},
-		Answers: "`applied` is how many nodes were written to, and 0 is the " +
-			"answer worth reading: the inference ran and nothing was written " +
-			"back. It matches on the public key a node kept from the feed and " +
-			"falls back to the name, so it only reaches nodes that were seen " +
-			"on the real network. It is refused outright when nothing has been " +
-			"inferred yet.",
-		Example: &state.Example{
-			Params:   map[string]any{},
-			What:     "apply what the traffic proved about which node relays what",
-			Runnable: false,
-		},
-	}, func(w *state.World, _ any) (any, error) {
+	st.Handle("infer.apply", func(w *state.World, _ any) (any, error) {
 		if s.imp == nil || len(s.imp.inferred) == 0 {
 			return nil, fmt.Errorf("nothing inferred yet")
 		}

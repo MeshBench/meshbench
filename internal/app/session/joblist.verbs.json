@@ -1,0 +1,25 @@
+{
+  "job.list": {
+    "what": "list the long operations in flight, with what each one is and how far it has got",
+    "params": [
+      {
+        "name": "all",
+        "type": "bool",
+        "primary": true,
+        "what": "include jobs that have already finished"
+      }
+    ],
+    "returns": [
+      "jobs",
+      "running"
+    ],
+    "answers": "Each row carries the job's id, what it is, `done` against `total` in whatever the job counts in, whether it has finished or failed, and `cancellable`, which is whether `job.cancel` would be refused: a terrain download can be stopped and a link measurement cannot. Finished rows stay in the list, so a caller polling at the wrong moment still learns how what it was waiting for turned out. `running` counts only what is still in flight, whatever `all` said.",
+    "example": {
+      "params": {
+        "all": true
+      },
+      "what": "see what is running, and how the last things ended",
+      "runnable": true
+    }
+  }
+}

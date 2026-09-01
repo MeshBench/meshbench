@@ -1,0 +1,147 @@
+{
+  "resource.fetch": {
+    "what": "download one runtime resource as a job that can be stopped, which is how a headless machine gets the SoftDevice or the emulator toolchain an emulated board is blocked on",
+    "params": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the row's name as resource.list gives it; absent is refused, and so is a name the chosen provider does not hold"
+      },
+      {
+        "name": "kind",
+        "type": "string",
+        "what": "which provider owns it - softdevice, toolchain, terrain, basemap or buildings - named rather than bare; absent means softdevice, so a row of another kind is not found without it"
+      },
+      {
+        "name": "version",
+        "type": "string",
+        "what": "the release to fetch, named rather than bare; the row's own version overrides it wherever the row carries one"
+      }
+    ],
+    "returns": [
+      "fetching",
+      "version"
+    ],
+    "answers": "It answers as soon as the download is started, not when it has arrived. Progress is the job `resource:\u003cname\u003e`, which `job.list` shows and `job.cancel` stops, and how it ended is said aloud rather than returned here. A resource that fills itself as the map is used is refused: there is nothing to ask for out of context.",
+    "example": {
+      "params": {
+        "name": "s140"
+      },
+      "what": "fetch the SoftDevice an emulated nRF52 boots"
+    }
+  },
+  "resource.fetched": {
+    "what": "take a finished download back onto the store's goroutine: say once that it is cached and where its terms are, then relist what is on disk",
+    "params": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the resource that arrived"
+      },
+      {
+        "name": "version",
+        "type": "string",
+        "what": "the release that arrived, for the sentence it says"
+      }
+    ],
+    "returns": [
+      "name"
+    ]
+  },
+  "resource.licence": {
+    "what": "read the terms a cached resource arrived under, and leave them open in the snapshot for the interface to show",
+    "params": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the row's name; absent or unknown to the chosen provider is refused"
+      },
+      {
+        "name": "kind",
+        "type": "string",
+        "what": "which provider owns it, named rather than bare; absent means softdevice"
+      },
+      {
+        "name": "version",
+        "type": "string",
+        "what": "the release whose terms to read, named rather than bare; the row's own version overrides it where it has one"
+      }
+    ],
+    "returns": [
+      "name",
+      "version",
+      "text"
+    ],
+    "answers": "The whole licence text, and the same text is put into the snapshot until `resource.licence.hide` clears it. Refused where the resource is not cached: the terms are a file fetched beside it, not a string this build carries.",
+    "example": {
+      "params": {
+        "name": "s140"
+      },
+      "what": "read the terms the SoftDevice came under"
+    }
+  },
+  "resource.licence.hide": {
+    "what": "clear the terms resource.licence left open, so the interface stops showing them",
+    "returns": [
+      "hidden"
+    ],
+    "answers": "`hidden` is always true. Calling it with nothing open is not an error, and it is left out of the session journal because it changes a window rather than the world.",
+    "example": {
+      "params": {},
+      "what": "put the terms away",
+      "runnable": true
+    }
+  },
+  "resource.list": {
+    "what": "say what this machine already holds of everything downloaded at runtime, what it has cost the disk, and what could still be fetched",
+    "returns": [
+      "rows",
+      "resources"
+    ],
+    "answers": "`rows` is a count, kept for the callers that were already reading it; `resources` is the rows themselves, each carrying its kind, name, version, state, size and path, why it is in the state it is in, and whether it can be fetched, carries terms, or fills itself as the map is used. A provider whose directory cannot be read contributes one row saying so rather than emptying the list.",
+    "example": {
+      "params": {},
+      "what": "see what this machine already holds",
+      "runnable": true
+    }
+  },
+  "resource.remove": {
+    "what": "delete one cached resource from the disk, through whichever provider owns it, and relist what is left",
+    "params": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the row's name; absent is refused, and so is a name the chosen provider does not hold"
+      },
+      {
+        "name": "kind",
+        "type": "string",
+        "what": "which provider owns it, named rather than bare; absent means softdevice, so removing terrain or a toolchain needs it"
+      },
+      {
+        "name": "version",
+        "type": "string",
+        "what": "the release to remove, named rather than bare; used only where the row carries no version of its own"
+      }
+    ],
+    "returns": [
+      "removed"
+    ],
+    "answers": "Nothing is confirmed here: this deletes, and the asking belongs to whatever called it. Removing 7 GB of terrain and removing a SoftDevice are the same call with a different kind.",
+    "example": {
+      "params": {
+        "kind": "terrain",
+        "name": "terrain tiles"
+      },
+      "what": "give the terrain cache's disk back"
+    }
+  }
+}

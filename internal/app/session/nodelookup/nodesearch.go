@@ -33,32 +33,7 @@ const searchFloor = 0.2
 const defaultSearchLimit = 10
 
 func registerNodeSearch(st *state.Store) {
-	st.HandleSpec("nodes.search", state.Spec{
-		What: "find a node by roughly what it is called and rank the matches, " +
-			"so a name full of emoji, box-drawing characters or Gaelic accents " +
-			"can be reached by something a person can type",
-		Params: []state.Param{
-			{Name: "query", Type: state.ParamString, Required: true, Primary: true,
-				What: "roughly the name, with accents and emoji ignored on both " +
-					"sides; one with no letters or digits in it is refused " +
-					"rather than answered with the whole network"},
-			{Name: "limit", Type: state.ParamNumber,
-				What: "how many of the best matches to return; anything not a " +
-					"positive number leaves it at ten"},
-		},
-		Returns: []string{"query", "matches", "total"},
-		Answers: "`total` is how many names scored well enough to be offered " +
-			"and `matches` only the best of them, so the two differ whenever " +
-			"the limit bit. Each match carries a score from 0.2 to 1, where 1 " +
-			"is the same name; a shorter name beats a longer one that matched " +
-			"the same way, and ties break on the name so the same query answers " +
-			"the same way twice. No match at all is an empty list, not an error.",
-		Example: &state.Example{
-			Params:   map[string]any{"query": "lomond"},
-			What:     "find a node whose real name cannot be typed",
-			Runnable: true,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("nodes.search", func(w *state.World, p any) (any, error) {
 		q, _ := session.StringField(p, "query")
 		needle := searchKey(q)
 		if needle == "" {

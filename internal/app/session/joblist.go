@@ -35,26 +35,7 @@ func jobRows(jobs []state.Job, runningOnly bool) []map[string]any {
 }
 
 func registerJobList(st *state.Store) {
-	st.HandleSpec("job.list", state.Spec{
-		What: "list the long operations in flight, with what each one is and how far it has got",
-		Params: []state.Param{
-			{Name: "all", Type: state.ParamBool, Primary: true,
-				What: "include jobs that have already finished"},
-		},
-		Returns: []string{"jobs", "running"},
-		Answers: "Each row carries the job's id, what it is, `done` against " +
-			"`total` in whatever the job counts in, whether it has finished or " +
-			"failed, and `cancellable`, which is whether `job.cancel` would be " +
-			"refused: a terrain download can be stopped and a link measurement " +
-			"cannot. Finished rows stay in the list, so a caller polling at the " +
-			"wrong moment still learns how what it was waiting for turned out. " +
-			"`running` counts only what is still in flight, whatever `all` said.",
-		Example: &state.Example{
-			Params:   map[string]any{"all": true},
-			What:     "see what is running, and how the last things ended",
-			Runnable: true,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("job.list", func(w *state.World, p any) (any, error) {
 		all, _ := boolField(p, "all")
 		return map[string]any{
 			"jobs": jobRows(w.Jobs, !all), "running": w.JobsRunning(),

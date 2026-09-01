@@ -14,22 +14,7 @@ import (
 
 func registerRunKind(st *state.Store, s *Sim) {
 	// sim.kind: on, play starts MeshCore on every node first.
-	st.HandleSpec("sim.kind", state.Spec{
-		What: "choose whether a run carries real MeshCore firmware or only the " +
-			"channel, and report which it is now",
-		Params: []state.Param{
-			{Name: "real", Type: state.ParamBool, Primary: true,
-				What: "true to start MeshCore on every node at play; " +
-					"absent leaves the setting alone and only reads it"},
-		},
-		Returns: []string{"real", "running"},
-		Answers: "`running` is how many nodes have firmware up right now, which " +
-			"is not changed by setting `real`: it takes effect at the next play.",
-		Example: &state.Example{
-			Params: map[string]any{}, What: "ask what kind of run this is",
-			Runnable: true,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("sim.kind", func(w *state.World, p any) (any, error) {
 		if v, ok := boolField(p, "real"); ok {
 			w.RealFirmware = v
 			if v {
@@ -48,21 +33,7 @@ func registerRunKind(st *state.Store, s *Sim) {
 	// One verb rather than two, because the order mattered and getting it
 	// wrong produced a plausible run of the wrong thing: firmware started
 	// after play meant the first seconds had no relays in them.
-	st.HandleSpec("sim.start", state.Spec{
-		What: "what a play button presses, which is four different things: it " +
-			"pauses a run already playing, declines while the links are still " +
-			"being measured, brings MeshCore up on every node without playing " +
-			"if this is a firmware run and nothing is up yet, and otherwise " +
-			"starts the clock",
-		Returns: []string{"playing", "warming", "starting_firmware", "started_firmware"},
-		Answers: "`playing` is the only key always present. `warming` appears " +
-			"when it declined because the link matrix is not measured yet, and " +
-			"`starting_firmware` when it brought the mesh up instead of playing, " +
-			"which is the case where a second call is needed.",
-		Example: &state.Example{
-			Params: map[string]any{}, What: "press play", Runnable: true,
-		},
-	}, func(w *state.World, _ any) (any, error) {
+	st.Handle("sim.start", func(w *state.World, _ any) (any, error) {
 		if w.Playing {
 			w.Playing = false
 			w.Say("paused")

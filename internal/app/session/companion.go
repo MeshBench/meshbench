@@ -23,25 +23,7 @@ import (
 )
 
 func registerCompanion(st *state.Store, s *Sim) {
-	st.HandleSpec("companion.connect", state.Spec{
-		What: "claim a node's serial port for the companion protocol and make the " +
-			"same opening a phone makes, so a client's view of the node can be " +
-			"shown or driven",
-		Params: []state.Param{
-			{Name: "node", Type: state.ParamString, Required: true, Primary: true,
-				What: "the node to attach to; refused when it is absent, runs no " +
-					"firmware, is already connected, or its port is being served " +
-					"to an attached outside client"},
-		},
-		Returns: []string{"connected"},
-		Answers: "A listener that is serving the port but has nobody on it is " +
-			"taken back rather than refused. Everything the node says in reply " +
-			"arrives later as frames, so read it with `companion.state`.",
-		Example: &state.Example{
-			Params: map[string]any{"node": "West Lomond"},
-			What:   "attach to a node the way a phone would",
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("companion.connect", func(w *state.World, p any) (any, error) {
 		node, _ := stringField(p, "node")
 		if node == "" {
 			return nil, fmt.Errorf("companion.connect needs a node")
@@ -117,19 +99,7 @@ func registerCompanion(st *state.Store, s *Sim) {
 		return map[string]any{"connected": node}, nil
 	})
 
-	st.HandleSpec("companion.disconnect", state.Spec{
-		What: "give a node's port back, which is what lets its text console be " +
-			"used again",
-		Params: []state.Param{
-			{Name: "node", Type: state.ParamString, Required: true, Primary: true,
-				What: "the connected node; refused when nothing is connected to it"},
-		},
-		Returns: []string{"disconnected"},
-		Example: &state.Example{
-			Params: map[string]any{"node": "West Lomond"},
-			What:   "hand the port back to the console",
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("companion.disconnect", func(w *state.World, p any) (any, error) {
 		node, _ := stringField(p, "node")
 		c, ok := s.comps[node]
 		if !ok {
@@ -144,25 +114,7 @@ func registerCompanion(st *state.Store, s *Sim) {
 		return map[string]any{"disconnected": node}, nil
 	})
 
-	st.HandleSpec("companion.state", state.Spec{
-		What: "read what a client attached to this node would be showing, which " +
-			"is what the node has actually said rather than what the scenario " +
-			"believes about it",
-		Params: []state.Param{
-			{Name: "node", Type: state.ParamString, Required: true, Primary: true,
-				What: "the connected node; refused when nothing is connected to it"},
-		},
-		Returns: []string{"node", "contacts", "messages", "channels", "recent",
-			"name", "freq_khz"},
-		Answers: "`contacts`, `messages` and `channels` are counts rather than " +
-			"the things themselves, and `recent` is the session's own note lines. " +
-			"`name` and `freq_khz` appear only once the node has answered a " +
-			"device query, so their absence means it has not.",
-		Example: &state.Example{
-			Params: map[string]any{"node": "West Lomond"},
-			What:   "ask what the client sees",
-		},
-	}, func(_ *state.World, p any) (any, error) {
+	st.Handle("companion.state", func(_ *state.World, p any) (any, error) {
 		node, _ := stringField(p, "node")
 		c, ok := s.comps[node]
 		if !ok {
@@ -182,30 +134,7 @@ func registerCompanion(st *state.Store, s *Sim) {
 		return out, nil
 	})
 
-	st.HandleSpec("companion.send", state.Spec{
-		What: "send a channel message from a node as a phone's composer would, " +
-			"and keep a copy of it, because the node transmits without saying so " +
-			"and a client that draws only what arrives would show an empty " +
-			"conversation",
-		Params: []state.Param{
-			{Name: "node", Type: state.ParamString, Required: true, Primary: true,
-				What: "the connected node; refused when nothing is connected to " +
-					"it, or when it has not answered anything since it was connected"},
-			{Name: "text", Type: state.ParamString, Required: true,
-				What: "the message; refused when it is absent or only whitespace"},
-			{Name: "channel", Type: state.ParamNumber,
-				What: "which channel slot to send on; absent sends on slot 0"},
-			{Name: "path_hash", Type: state.ParamNumber,
-				What: "bytes of path hash each hop adds, 1 to 3, written to the " +
-					"node before the message goes and refused outside that range; " +
-					"absent leaves the node's own setting alone"},
-		},
-		Returns: []string{"sent", "channel"},
-		Example: &state.Example{
-			Params: map[string]any{"node": "West Lomond", "text": "anybody hearing this"},
-			What:   "put a message on the public channel",
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("companion.send", func(w *state.World, p any) (any, error) {
 		node, _ := stringField(p, "node")
 		text, _ := namedField(p, "text")
 		if strings.TrimSpace(text) == "" {
@@ -259,23 +188,7 @@ func registerCompanion(st *state.Store, s *Sim) {
 		return map[string]any{"sent": text, "channel": idx}, nil
 	})
 
-	st.HandleSpec("companion.advert", state.Spec{
-		What: "make a node announce itself, which is how the rest of the mesh " +
-			"comes to hold it as a contact",
-		Params: []state.Param{
-			{Name: "node", Type: state.ParamString, Required: true, Primary: true,
-				What: "the connected node; refused when nothing is connected to " +
-					"it, or when it has not answered anything since it was connected"},
-			{Name: "flood", Type: state.ParamBool,
-				What: "true sends a flood advert, which repeaters carry onward; " +
-					"false sends one that is not flooded; absent floods"},
-		},
-		Returns: []string{"advert", "flood"},
-		Example: &state.Example{
-			Params: map[string]any{"node": "West Lomond", "flood": false},
-			What:   "announce to the neighbours only",
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("companion.advert", func(w *state.World, p any) (any, error) {
 		node, _ := stringField(p, "node")
 		c, en, err := s.companionFor(node)
 		if err != nil {
@@ -295,24 +208,7 @@ func registerCompanion(st *state.Store, s *Sim) {
 		return map[string]any{"advert": node, "flood": flood}, nil
 	})
 
-	st.HandleSpec("companion.add_channel", state.Spec{
-		What: "ask a node what one of its channel slots holds, despite the name: " +
-			"nothing is added, and the slot's name and key come back later as a " +
-			"frame rather than in this answer",
-		Params: []state.Param{
-			{Name: "node", Type: state.ParamString, Required: true, Primary: true,
-				What: "the connected node; refused when nothing is connected to it"},
-			{Name: "index", Type: state.ParamNumber,
-				What: "which channel slot to ask about; absent asks about slot 0"},
-		},
-		Returns: []string{"asked_for_channel"},
-		Answers: "It answers as soon as the question is queued. What the slot " +
-			"holds lands in the node's decoded state, which `companion.state` counts.",
-		Example: &state.Example{
-			Params: map[string]any{"node": "West Lomond", "index": 1},
-			What:   "ask what is in the second channel slot",
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("companion.add_channel", func(w *state.World, p any) (any, error) {
 		node, _ := stringField(p, "node")
 		_, en, err := s.companionFor(node)
 		if err != nil {
@@ -333,22 +229,7 @@ func registerCompanion(st *state.Store, s *Sim) {
 
 	// Unread counts are the channel list's whole job, and a count that does not
 	// clear when you read the conversation is a count nobody trusts.
-	st.HandleSpec("companion.read", state.Spec{
-		What: "mark which channel a client is looking at so its unread count " +
-			"clears, which is bookkeeping in this session and puts nothing on " +
-			"the wire",
-		Params: []state.Param{
-			{Name: "node", Type: state.ParamString, Required: true, Primary: true,
-				What: "the connected node; refused when nothing is connected to it"},
-			{Name: "channel", Type: state.ParamNumber,
-				What: "the channel slot being looked at; absent means slot 0"},
-		},
-		Returns: []string{"node", "channel"},
-		Example: &state.Example{
-			Params: map[string]any{"node": "West Lomond", "channel": 0},
-			What:   "say the public channel is on screen",
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("companion.read", func(w *state.World, p any) (any, error) {
 		node, _ := stringField(p, "node")
 		c, ok := s.comps[node]
 		if !ok {
@@ -373,26 +254,7 @@ func registerCompanion(st *state.Store, s *Sim) {
 	// set scope that way and every message went out unscoped while the
 	// interface reported the scope applied, which on a mesh that is entirely
 	// transport-scoped measures a different network from the one asked for.
-	st.HandleSpec("companion.scope", state.Spec{
-		What: "set the region a node sends under, by the one route a companion " +
-			"build has for it, and ask the node back rather than assume the " +
-			"write landed",
-		Params: []state.Param{
-			{Name: "node", Type: state.ParamString, Required: true, Primary: true,
-				What: "the connected node; refused when nothing is connected to it"},
-			{Name: "scope", Type: state.ParamString,
-				What: "the region name, canonicalised before it is sent and paired " +
-					"with the key derived from it; absent or empty clears the " +
-					"scope, so the node sends unscoped"},
-		},
-		Returns: []string{"node", "scope"},
-		Answers: "`scope` is the name as it was asked for, canonicalised, not " +
-			"what the node now holds: the node's own answer arrives later as a frame.",
-		Example: &state.Example{
-			Params: map[string]any{"node": "West Lomond", "scope": "scotland"},
-			What:   "put a node on a named region",
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("companion.scope", func(w *state.World, p any) (any, error) {
 		node, _ := stringField(p, "node")
 		name, _ := namedField(p, "scope")
 		c, en, err := s.companionFor(node)
@@ -421,22 +283,7 @@ func registerCompanion(st *state.Store, s *Sim) {
 		return map[string]any{"node": node, "scope": name}, nil
 	})
 
-	st.HandleSpec("companion.refresh", state.Spec{
-		What: "ask a node again for everything a client draws, emptying the held " +
-			"contact list first so a contact the node has forgotten does not " +
-			"linger in the view",
-		Params: []state.Param{
-			{Name: "node", Type: state.ParamString, Required: true, Primary: true,
-				What: "the connected node; refused when nothing is connected to it"},
-		},
-		Returns: []string{"node"},
-		Answers: "It answers as soon as the questions are queued, so the contact " +
-			"count read straight after is zero. The answers arrive later as frames.",
-		Example: &state.Example{
-			Params: map[string]any{"node": "West Lomond"},
-			What:   "rebuild the view from what the node says now",
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("companion.refresh", func(w *state.World, p any) (any, error) {
 		node, _ := stringField(p, "node")
 		c, en, err := s.companionFor(node)
 		if err != nil {

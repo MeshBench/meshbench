@@ -20,27 +20,7 @@ const tilesPerGB = 4096
 // registerTileCache is the tile cache bound, in the unit people think in, and
 // where the cache lives on disk.
 func registerTileCache(st *state.Store, s *Sim) {
-	st.HandleSpec("terrain.cache", state.Spec{
-		What: "say how much memory decoded terrain may occupy, in the unit " +
-			"people think in, and read back where the tiles are kept and " +
-			"whether this machine is allowed to fetch more",
-		Params: []state.Param{
-			{Name: "gb", Type: state.ParamNumber, Primary: true,
-				What: "the ceiling in gigabytes, four thousand-odd tiles to the " +
-					"gigabyte; anything under 0.25 is ignored rather than " +
-					"refused, and absent only reports"},
-		},
-		Returns: []string{"gb", "dir", "downloads"},
-		Answers: "`dir` is where the tiles live on disk, which is permanent: " +
-			"nothing here expires a cached tile. `downloads` is whether terrain " +
-			"may be fetched at all, answered here because this is the verb the " +
-			"interface asks at startup and the switch has to draw its own " +
-			"position on the first frame.",
-		Example: &state.Example{
-			Params: map[string]any{}, What: "ask where the terrain is and how much is held",
-			Runnable: true,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("terrain.cache", func(w *state.World, p any) (any, error) {
 		if v, ok := numField(p, "gb"); ok && v >= 0.25 {
 			tiles := int(v * tilesPerGB)
 			s.tileCacheTiles = tiles
@@ -72,29 +52,7 @@ func registerTileCache(st *state.Store, s *Sim) {
 	// Gigabytes of tiles, so it runs as a visible job on a worker, and the
 	// store only swaps directories after the move has succeeded - the decoded
 	// tiles in memory survive throughout.
-	st.HandleSpec("terrain.cache_dir", state.Spec{
-		What: "move the terrain cache to another disk, files and all, so a " +
-			"permanent cache that has outgrown where it started does not have " +
-			"to be downloaded again somewhere else",
-		Params: []state.Param{
-			{Name: "path", Type: state.ParamString, Primary: true,
-				What: "where the cache should live, created if it is not there " +
-					"already; absent only reports where it lives now, while a " +
-					"path that cannot be written into, one that contains or sits " +
-					"inside the current cache, or a second move while one is " +
-					"still running, is refused rather than queued"},
-		},
-		Returns: []string{"moving", "to"},
-		Answers: "the move runs on a worker with a progress job, so this " +
-			"answers `moving` true before a byte has gone. Asked with no path it " +
-			"answers `dir` instead. A move that fails leaves the cache where it " +
-			"was and says so in the journal.",
-		Example: &state.Example{
-			Params:   "/srv/terrain",
-			What:     "put the tiles on the disk with room for them",
-			Runnable: false,
-		},
-	}, func(w *state.World, p any) (any, error) {
+	st.Handle("terrain.cache_dir", func(w *state.World, p any) (any, error) {
 		path := soleString(p)
 		if m, ok := p.(map[string]any); ok {
 			if v, ok := m["path"].(string); ok {
@@ -137,19 +95,7 @@ func registerTileCache(st *state.Store, s *Sim) {
 	})
 
 	// The store's goroutine is the only place the swap may happen.
-	st.HandleInternalSpec("terrain.cache_moved", state.Spec{
-		What: "point the tile store and the settings at the directory a " +
-			"finished move has filled, and say whether the next launch " +
-			"will look there too or download it all again",
-		Params: []state.Param{
-			{Name: "dir", Type: state.ParamString, Required: true,
-				What: "the directory the files were moved to; the callback is " +
-					"refused without it"},
-			{Name: "files", Type: state.ParamNumber,
-				What: "how many files moved, for the message; absent counts as none"},
-		},
-		Returns: []string{"dir"},
-	}, func(w *state.World, p any) (any, error) {
+	st.HandleInternal("terrain.cache_moved", func(w *state.World, p any) (any, error) {
 		m, ok := p.(map[string]any)
 		if !ok {
 			return nil, wrongCallback("terrain.cache_moved")
