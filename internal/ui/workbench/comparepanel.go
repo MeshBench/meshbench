@@ -20,12 +20,15 @@ import (
 // somebody pick two rows to find that out is friction for nothing. Choosing a
 // different pair is a job for the runs table's selection, later.
 type comparePanel struct {
-	tb     comp.Table
-	init   bool
-	loaded bool
-	rows   []comp.Row
-	head   string
-	save   comp.Button
+	tb   comp.Table
+	init bool
+	// runs reads the records off the frame goroutine; shownGen is the read the
+	// rows below were built from.
+	runs     runLoader
+	shownGen int
+	rows     []comp.Row
+	head     string
+	save     comp.Button
 	// OnSave asks the store to record the current run.
 	OnSave func()
 }
@@ -40,17 +43,18 @@ func (p *comparePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 			{Title: "", Mono: true},
 		}
 		p.save.Label, p.save.Kind = "save this run", comp.Primary
+		p.head = "reading the saved runs"
 		p.init = true
 	}
-	if !p.loaded {
-		p.loaded = true
-		p.reload()
+	if res, ok := p.runs.records(); ok && res.gen != p.shownGen {
+		p.shownGen = res.gen
+		p.rebuild(res.runs)
 	}
 	if p.save.Click.Clicked(gtx) {
 		if p.OnSave != nil {
 			p.OnSave()
 		}
-		p.loaded = false
+		p.runs.reload()
 	}
 
 	body := func(gtx layout.Context) layout.Dimensions {
@@ -71,8 +75,8 @@ func (p *comparePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 	)
 }
 
-func (p *comparePanel) reload() {
-	runs := session.LoadRuns()
+// rebuild is the table for one read of the records, newest first.
+func (p *comparePanel) rebuild(runs []session.RunRecord) {
 	p.rows = nil
 	switch {
 	case len(runs) == 0:

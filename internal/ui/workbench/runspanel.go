@@ -6,15 +6,12 @@
 package workbench
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
-	"sort"
 	"time"
 
 	"gioui.org/layout"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/ui/comp"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
@@ -37,10 +34,15 @@ func buildKey(r state.FirmwareRow) string {
 }
 
 type runsPanel struct {
-	tb     comp.Table
-	init   bool
-	loaded bool
-	rows   []comp.Row
+	tb   comp.Table
+	init bool
+	// runs reads the records off the frame goroutine; shownGen is the read the
+	// rows below were built from, and found is how many there were before the
+	// cap.
+	runs     runLoader
+	shownGen int
+	rows     []comp.Row
+	found    int
 	// The live sweep's queue keeps its own table: the two have different
 	// columns, and one table told to change its shape mid-frame loses its
 	// sort and its scroll.
@@ -69,14 +71,30 @@ func (p *runsPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 	if s != nil && len(s.ExperimentRuns) > 0 {
 		return p.queue(t, gtx, s)
 	}
-	if !p.loaded {
-		p.loaded = true
-		p.rows = runRows()
+	res, ok := p.runs.records()
+	if !ok {
+		return layout.Center.Layout(gtx, comp.Text(t, t.Sz.Body, t.P.Dim,
+			"reading the saved runs"))
+	}
+	if res.gen != p.shownGen {
+		p.shownGen, p.rows, p.found = res.gen, runRows(res.runs), res.total
 	}
 	p.tb.SetRows(p.rows)
 	if len(p.rows) == 0 {
 		return layout.Center.Layout(gtx, comp.Text(t, t.Sz.Body, t.P.Dim,
 			"no runs recorded yet - a run appears here once one has been saved"))
+	}
+	if p.found > len(p.rows) {
+		// Said rather than silently truncated: a run somebody saved and cannot
+		// find is a run they will save again.
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(comp.OneLine(t, t.Sz.Caption, t.P.Dim,
+				fmt.Sprintf("the newest %d of %d saved runs", len(p.rows), p.found), false)),
+			layout.Rigid(layout.Spacer{Height: t.Sp.XS}.Layout),
+			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+				return p.tb.Layout(t, gtx, nil)
+			}),
+		)
 	}
 	return p.tb.Layout(t, gtx, nil)
 }
@@ -110,7 +128,7 @@ func (p *runsPanel) queue(t *theme.Theme, gtx layout.Context, s *state.Snapshot)
 
 	head := fmt.Sprintf("%d of %d cells done", done, len(s.ExperimentRuns))
 	if running != "" {
-		head += " — running " + running
+		head += " - running " + running
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(comp.OneLine(t, t.Sz.Caption, t.P.Dim, head, false)),
@@ -121,45 +139,24 @@ func (p *runsPanel) queue(t *theme.Theme, gtx layout.Context, s *state.Snapshot)
 	)
 }
 
-// runRows reads the run records the CLI writes.
-func runRows() []comp.Row {
-	cache, err := os.UserCacheDir()
-	if err != nil {
-		return nil
-	}
-	dir := filepath.Join(cache, "meshbench", "runs")
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil
-	}
-	var rows []comp.Row
-	for _, e := range entries {
-		if e.IsDir() || filepath.Ext(e.Name()) != ".json" {
-			continue
-		}
-		b, err := os.ReadFile(filepath.Join(dir, e.Name()))
-		if err != nil {
-			continue
-		}
-		var r struct {
-			Name    string `json:"name"`
-			At      string `json:"at"`
-			Seed    uint64 `json:"seed"`
-			Build   string `json:"build"`
-			Outcome string `json:"outcome"`
-		}
-		if json.Unmarshal(b, &r) != nil {
-			continue
-		}
+// runRows is the table for the run records the CLI writes.
+//
+// The records arrive newest first and the table sorts on its own, so this only
+// puts them in the columns' words: the timestamp as somebody reads it rather
+// than as it is stored.
+func runRows(runs []session.RunRecord) []comp.Row {
+	rows := make([]comp.Row, 0, len(runs))
+	for _, r := range runs {
 		when := r.At
 		if ts, err := time.Parse(time.RFC3339, r.At); err == nil {
 			when = ts.Format("2006-01-02 15:04:05")
 		}
 		rows = append(rows, comp.Row{
-			Key:   e.Name(),
+			// The time and the name together, because two runs of one name is
+			// the ordinary case and a row has to stay itself when sorted.
+			Key:   r.At + "\x00" + r.Name,
 			Cells: []string{when, r.Name, fmt.Sprintf("%d", r.Seed), r.Build, r.Outcome},
 		})
 	}
-	sort.Slice(rows, func(i, j int) bool { return rows[i].Cells[0] > rows[j].Cells[0] })
 	return rows
 }
