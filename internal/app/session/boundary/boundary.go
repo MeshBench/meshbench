@@ -28,8 +28,28 @@ import (
 const searchDeadline = 30 * time.Second
 
 func registerBoundary(st *state.Store, s *session.Sim) {
-	// boundary.set: search for a place by name.
-	st.Handle("boundary.set", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("boundary.set", state.Spec{
+		What: "look a place up in the gazetteer and offer what it matched, " +
+			"which is the search half of choosing a study area and changes " +
+			"nothing on its own",
+		Params: []state.Param{
+			{Name: "query", Type: state.ParamString, Required: true, Primary: true,
+				What: "the place to search for; blank or whitespace is refused " +
+					"rather than answered with everything"},
+		},
+		Returns: []string{"found", "names"},
+		Answers: "`found` is a row per match with its name and kind, and " +
+			"`names` the same names on their own, for handing straight to " +
+			"boundary.accept. Nothing joins the study area until one is " +
+			"accepted, and the names are the gazetteer's own: a search for " +
+			"Scotland comes back as \"Alba / Scotland\". It needs the network " +
+			"and gives the geocoder thirty seconds.",
+		Example: &state.Example{
+			Params:   map[string]any{"query": "Fife"},
+			What:     "find a council area to study",
+			Runnable: false,
+		},
+	}, func(w *state.World, p any) (any, error) {
 		q, _ := session.StringField(p, "query")
 		if strings.TrimSpace(q) == "" {
 			return nil, fmt.Errorf("boundary.set needs a place to search for")
@@ -60,10 +80,31 @@ func registerBoundary(st *state.Store, s *session.Sim) {
 		return map[string]any{"found": out, "names": names}, nil
 	})
 
-	// boundary.accept: take one of the matches into the study area. The
-	// chosen set unions, because a study area is often two council areas
-	// rather than one.
-	st.Handle("boundary.accept", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("boundary.accept", state.Spec{
+		What: "take one of the places the search offered into the study area, " +
+			"which unions rather than replaces: Scotland and Ireland is two " +
+			"accepts and then one prune, not two calls where the second wins",
+		Params: []state.Param{
+			{Name: "name", Type: state.ParamString, Required: true, Primary: true,
+				What: "which of the offered places to take, matched without " +
+					"regard to case and on any part of the offered name, so " +
+					"\"Scotland\" takes \"Alba / Scotland\"; an empty one is " +
+					"refused, and one that matches nothing is refused with the " +
+					"list of what was offered"},
+		},
+		Returns: []string{"accepted", "areas"},
+		Answers: "`accepted` is the gazetteer's own name for what was taken, " +
+			"which is not always what was asked for, and `areas` how many the " +
+			"study area now holds. Accepting the same place twice is answered " +
+			"rather than refused, and does not stack it. This changes what is " +
+			"measured, never what is loaded: the nodes outside stay until " +
+			"boundary.prune.",
+		Example: &state.Example{
+			Params:   map[string]any{"name": "Fife"},
+			What:     "add a searched place to the study area",
+			Runnable: false,
+		},
+	}, func(w *state.World, p any) (any, error) {
 		name, _ := session.StringField(p, "name")
 		if name == "" {
 			return nil, fmt.Errorf("boundary.accept needs a name")
@@ -121,13 +162,25 @@ func registerBoundary(st *state.Store, s *session.Sim) {
 		return map[string]any{"accepted": name, "areas": len(w.Areas)}, nil
 	})
 
-	// boundary.remove: take one area back out of the study.
-	//
-	// A study area is built up from several places - Scotland and Ireland, or
-	// four council areas - so there has to be a way to take one out again
-	// without starting over. It changes what is measured, never what is
-	// loaded: the nodes stay until something prunes them.
-	st.Handle("boundary.remove", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("boundary.remove", state.Spec{
+		What: "take one area back out of a study area built from several, so a " +
+			"wrong accept costs one call rather than starting the search over",
+		Params: []state.Param{
+			{Name: "name", Type: state.ParamString, Required: true, Primary: true,
+				What: "the area to drop, matched whole and without regard to " +
+					"case; an empty one is refused, and one that names no " +
+					"accepted area is refused with the list of what there is"},
+		},
+		Returns: []string{"removed", "areas"},
+		Answers: "`areas` is how many are left. Like accepting, this changes " +
+			"what is measured and not what is loaded: nodes pruned away on the " +
+			"old area do not come back.",
+		Example: &state.Example{
+			Params:   map[string]any{"name": "Fife"},
+			What:     "drop an area from the study without starting again",
+			Runnable: false,
+		},
+	}, func(w *state.World, p any) (any, error) {
 		name, _ := session.StringField(p, "name")
 		if name == "" {
 			return nil, fmt.Errorf("boundary.remove needs the name of an area")
@@ -166,9 +219,28 @@ func registerBoundary(st *state.Store, s *session.Sim) {
 		return map[string]any{"removed": name, "areas": len(w.Areas)}, nil
 	})
 
-	// boundary.prune: remove what is outside, with the margin kept, because a
-	// node just outside still interferes with one just inside.
-	st.Handle("boundary.prune", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("boundary.prune", state.Spec{
+		What: "delete the nodes outside the study area, keeping a margin " +
+			"because a node just outside the border still relays to and " +
+			"interferes with one just inside it and dropping it makes the mesh " +
+			"behave better than reality",
+		Params: []state.Param{
+			{Name: "margin_km", Type: state.ParamNumber, Primary: true,
+				What: "how far outside a node may be and still be kept; absent " +
+					"or negative leaves it at the session's own margin"},
+		},
+		Returns: []string{"removed", "nodes"},
+		Answers: "`nodes` is how many are left. Removing none is answered with " +
+			"zero and touches nothing; removing any rebuilds the engine and " +
+			"empties the link matrix while every remaining pair is measured " +
+			"again. It is refused when no study area has been accepted, rather " +
+			"than treated as an area that contains nothing.",
+		Example: &state.Example{
+			Params:   map[string]any{"margin_km": 15},
+			What:     "cut an imported network down to the study area",
+			Runnable: false,
+		},
+	}, func(w *state.World, p any) (any, error) {
 		if len(s.Areas()) == 0 {
 			return nil, fmt.Errorf("no study area accepted yet")
 		}

@@ -33,11 +33,17 @@ import os
 import re
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import reference  # noqa: E402  (needs the path above it)
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 SESSION = os.path.join(ROOT, "internal", "app", "session")
 DOC = os.path.join(ROOT, "docs", "scripting-verbs.md")
 API = os.path.join(ROOT, "docs", "scripting-api.md")
+# The per-verb reference, which the documentation site copies rather than
+# regenerates: its own CI has no checkout of this tree to read.
+REF = os.path.join(ROOT, "docs", "verb-reference.md")
 MAP = os.path.join(HERE, "facade.json")
 
 # Which of the counts each document states. Two documents rather than one
@@ -63,14 +69,15 @@ GROUPS = [(g["title"], g["prefixes"]) for g in _map["groups"]]
 # workbench's own callbacks, which are documented here as the verbs no client
 # may call rather than left out of the table entirely. Missing a spelling drops
 # a registered verb out of the document silently.
-HANDLE = re.compile(r'st\.Handle(?:Spec|Internal)?\(\s*"([a-z0-9_.]+)"\s*,')
+HANDLE = re.compile(
+    r'st\.Handle(?:Spec|Internal|InternalSpec)?\(\s*"([a-z0-9_.]+)"\s*,')
 
 # The subset of HANDLE registered with HandleInternal specifically: the
 # workbench's own callbacks, which the socket refuses. Kept separate from
 # HANDLE rather than tagged during scan() because scan() lets the manifest
 # overwrite a verb's entry wholesale, which would lose which spelling
 # registered it.
-INTERNAL = re.compile(r'st\.HandleInternal\(\s*"([a-z0-9_.]+)"\s*,')
+INTERNAL = re.compile(r'st\.HandleInternal(?:Spec)?\(\s*"([a-z0-9_.]+)"\s*,')
 
 PARAM_PATTERNS = [
     (re.compile(r'(?:session\.String|string)Field\(\s*p\s*,\s*"([a-z0-9_]+)"'), "string"),
@@ -199,6 +206,10 @@ def scan():
             "strlist": verbs[name]["strlist"],
             "returns": spec.get("returns", []),
             "what": spec.get("what", ""),
+            # Carried whole as well as flattened, because the reference prints
+            # things the table has no column for: each parameter's own line,
+            # whether it is required, and the example.
+            "spec": spec,
         }
     return verbs
 
@@ -252,12 +263,15 @@ def verb_counts(verbs):
     wb.call. None substitutes for another.
     """
     internal = internal_only()
+    described = sum(1 for v in verbs.values() if v.get("what"))
     return {
         "public": len(verbs) - len(internal),
         "internal": len(internal),
         "total": len(verbs),
         "uionly": len(ui_only()),
         "nofacade": sum(1 for v in FACADE.values() if not v),
+        "described": described,
+        "undescribed": len(verbs) - described,
     }
 
 
@@ -380,18 +394,24 @@ def main():
     counts = verb_counts(verbs)
     doc = render(verbs, header_from_doc(counts))
     api = api_doc(counts)
+    ref = reference.render(verbs, GROUPS, FACADE, WHY_NONE, ui_only(),
+                           internal_only(), counts)
+    written = ((DOC, doc), (API, api), (REF, ref))
     if "--check" in sys.argv:
-        for path, want in ((DOC, doc), (API, api)):
-            if open(path).read() != want:
+        for path, want in written:
+            if not os.path.exists(path) or open(path).read() != want:
                 sys.exit(f"{path} is out of date; run tools/verbdoc/verbdoc.py")
-        print(f"{DOC} and {API} are current ({counts['public']} public, "
-              f"{counts['internal']} internal, {counts['total']} total)")
+        print(f"{DOC}, {API} and {REF} are current ({counts['public']} public, "
+              f"{counts['internal']} internal, {counts['total']} total, "
+              f"{counts['described']} described)")
         return
-    open(DOC, "w").write(doc)
-    open(API, "w").write(api)
+    for path, want in written:
+        open(path, "w").write(want)
     print(f"{DOC}: {counts['public']} public, {counts['internal']} internal, "
           f"{counts['total']} total, {counts['nofacade']} deliberately unmapped, "
-          f"{counts['uionly']} needing a window")
+          f"{counts['uionly']} needing a window\n"
+          f"{REF}: {counts['described']} verbs describe themselves, "
+          f"{counts['undescribed']} still to go")
 
 
 if __name__ == "__main__":

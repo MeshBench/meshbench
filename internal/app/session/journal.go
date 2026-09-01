@@ -34,6 +34,18 @@ func registerJournal(st *state.Store, _ *Sim) {
 			"and when the process started - so a session picked up cold can be " +
 			"told how the world got here, and whether it has been restarted",
 		Returns: []string{"started_ms", "count", "entries"},
+		Answers: "Each entry is a sequence number, a wall-clock time, the verb, " +
+			"how many nodes there were when it ran, a short rendering of its " +
+			"argument, and the error where it was refused, because a refusal is " +
+			"part of how a session got here. The polls, the interface-only verbs " +
+			"and the workers' own callbacks are left out, and only the last few " +
+			"hundred commands are kept. `started_ms` is when this process " +
+			"started, which is how a driver tells the session it has been " +
+			"talking to all along from one that has been restarted under it.",
+		Example: &state.Example{
+			Params: map[string]any{}, What: "ask how this session got here",
+			Runnable: true,
+		},
 	}, func(_ *state.World, _ any) (any, error) {
 		startedMs, entries := st.Journal()
 		return map[string]any{

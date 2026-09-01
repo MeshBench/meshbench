@@ -29,6 +29,21 @@ func (s *Store) HandleInternal(verb string, h Handler) {
 	s.private[verb] = true
 }
 
+// HandleInternalSpec is HandleInternal with a description.
+//
+// An internal callback is worth describing for the reader of the code rather
+// than the writer of a script: it is the half of the surface that explains why
+// a verb they can call answers when it does. It takes no example, because an
+// example of a call the socket refuses would read as an invitation to make it.
+func (s *Store) HandleInternalSpec(verb string, spec Spec, h Handler) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.claim(verb)
+	s.handlers[verb] = h
+	s.specs[verb] = spec
+	s.private[verb] = true
+}
+
 // IsInternal reports whether the verb was registered as the application's own
 // callback. An unregistered verb is not internal: it is unknown, which is a
 // different answer and a different error.

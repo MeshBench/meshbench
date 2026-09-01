@@ -20,15 +20,10 @@ package session
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sync"
-	"time"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
-	"github.com/MeshBench/meshbench/internal/sim/engine"
 )
 
 // VaryParams is every parameter an arm can be crossed on, in the order the
@@ -154,8 +149,63 @@ func (e *experiment) publish(w *state.World) {
 	w.ExperimentRuns = e.runRows()
 }
 
+// matrixKeys is what every definition verb answers with: counts of what is now
+// defined, and the arm labels, which are the only part a caller cannot infer.
+var matrixKeys = []string{"arms", "seeds", "senders", "runs", "run_for_ms",
+	"send_at_ms", "spread_ms", "bytes", "scope", "arm_labels"}
+
 func registerExperiment(st *state.Store, s *Sim) {
-	st.Handle("experiment.define", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("experiment.define", state.Spec{
+		What: "state a whole matrix in one call - the arms, the seeds, the " +
+			"senders and the burst's timing - which is how a script sets up a " +
+			"sweep it did not build in the panel",
+		Params: []state.Param{
+			{Name: "arms", Type: state.ParamArray,
+				What: "one object per arm, carrying `label`, `repeater_version` " +
+					"and `companion_version`; an arm with no label takes its " +
+					"repeater version as one, and an absent or empty list " +
+					"leaves the arms alone"},
+			{Name: "seeds", Type: state.ParamArray,
+				What: "the seeds each arm is repeated over, as numbers; anything " +
+					"that is not a number is dropped, and an absent or empty " +
+					"list leaves the seeds alone"},
+			{Name: "senders", Type: state.ParamArray,
+				What: "the nodes that originate the burst, by name; unlike the " +
+					"others an empty list is obeyed and clears them, which " +
+					"leaves an experiment experiment.start will refuse"},
+			{Name: "run_for_ms", Type: state.ParamNumber,
+				What: "how long each cell runs, in simulated milliseconds; zero " +
+					"or less is ignored and the current length kept"},
+			{Name: "send_at_ms", Type: state.ParamNumber,
+				What: "the simulated instant the burst is fired, which is the " +
+					"same in every arm; zero or less is ignored"},
+			{Name: "spread_ms", Type: state.ParamNumber,
+				What: "milliseconds to stagger the senders over; zero fires them " +
+					"all at once, which is the sharpest test of contention and " +
+					"the least like anything real, and a negative value is ignored"},
+			{Name: "bytes", Type: state.ParamNumber,
+				What: "pad the message to this size, since airtime scales with " +
+					"payload and airtime is what collides; zero sends the label " +
+					"alone, and a negative value is ignored"},
+			{Name: "scope", Type: state.ParamString,
+				What: "the region every sender originates under; empty sends " +
+					"unscoped, which is carried by a different set of repeaters " +
+					"and so measures a different network"},
+		},
+		Returns: matrixKeys,
+		Answers: "Counts of what is now defined rather than the definition " +
+			"itself, except `arm_labels`, which names every arm: a count cannot " +
+			"tell a cross that produced the six arms wanted from one that " +
+			"produced six others.",
+		Example: &state.Example{
+			Params: map[string]any{
+				"senders": []any{"West Lomond"}, "seeds": []any{1.0, 2.0},
+				"run_for_ms": 90000.0, "send_at_ms": 30000.0,
+			},
+			What:     "a flood from one node, ninety seconds a cell, over two seeds",
+			Runnable: true,
+		},
+	}, func(w *state.World, p any) (any, error) {
 		defer func() { s.experiment().publish(w) }()
 		e := s.experiment()
 		if m, ok := p.(map[string]any); ok {
@@ -212,7 +262,32 @@ func registerExperiment(st *state.Store, s *Sim) {
 
 	// experiment.vary is the same gesture an operator makes: choose a
 	// parameter, type the values, get one arm per value.
-	st.Handle("experiment.vary", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("experiment.vary", state.Spec{
+		What: "cross the arms already defined with one parameter's values, so " +
+			"three path hash modes against two firmware versions is six arms " +
+			"rather than the two the second call would leave",
+		Params: []state.Param{
+			{Name: "parameter", Type: state.ParamString, Required: true, Primary: true,
+				What: "what to vary: path_hash_mode, rep_path_hash, loop_detect, " +
+					"cad, repeater_version, companion_version, spread_ms, or " +
+					"`set:` followed by any firmware setting the CLI takes; " +
+					"anything else is refused, with the list"},
+			{Name: "values", Type: state.ParamArray, Required: true,
+				What: "the values, as strings, one arm per value; a list holding " +
+					"no strings is refused, and a value the parameter cannot " +
+					"take is refused with what it can"},
+		},
+		Returns: matrixKeys,
+		Answers: "It crosses onto the arms that are there rather than replacing " +
+			"them, so calling it three times gives the full product. It also " +
+			"discards the last sweep's results, because a finished sweep's arms " +
+			"answered a different question from the one now being asked.",
+		Example: &state.Example{
+			Params:   map[string]any{"parameter": "cad", "values": []any{"off", "on"}},
+			What:     "one arm that listens before talking and one that does not",
+			Runnable: true,
+		},
+	}, func(w *state.World, p any) (any, error) {
 		defer func() { s.experiment().publish(w) }()
 		e := s.experiment()
 		param, _ := stringField(p, "parameter")
@@ -262,7 +337,23 @@ func registerExperiment(st *state.Store, s *Sim) {
 		return e.describe(), nil
 	})
 
-	st.Handle("experiment.seeds", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("experiment.seeds", state.Spec{
+		What: "replace the seeds every arm is repeated over, which is the only " +
+			"thing that gives a difference between arms something to be called " +
+			"larger than",
+		Params: []state.Param{
+			{Name: "seeds", Type: state.ParamArray, Required: true,
+				What: "the seeds, as numbers; anything that is not a number is " +
+					"dropped, and a list left holding none is refused rather " +
+					"than emptying the seeds"},
+		},
+		Returns: matrixKeys,
+		Example: &state.Example{
+			Params:   map[string]any{"seeds": []any{1.0, 2.0, 3.0, 4.0}},
+			What:     "four draws of each arm",
+			Runnable: true,
+		},
+	}, func(w *state.World, p any) (any, error) {
 		defer func() { s.experiment().publish(w) }()
 		e := s.experiment()
 		var seeds []uint64
@@ -282,7 +373,23 @@ func registerExperiment(st *state.Store, s *Sim) {
 		return e.describe(), nil
 	})
 
-	st.Handle("experiment.senders", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("experiment.senders", state.Spec{
+		What: "choose which nodes originate the burst, which decides more than " +
+			"it looks like: with one originator every seed can return the same " +
+			"numbers, and then the seed bounds nothing",
+		Params: []state.Param{
+			{Name: "senders", Type: state.ParamArray,
+				What: "the node names; an absent list leaves the senders alone, " +
+					"an empty one clears them, and entries that are not strings " +
+					"are dropped"},
+		},
+		Returns: matrixKeys,
+		Example: &state.Example{
+			Params:   map[string]any{"senders": []any{"West Lomond", "Dunfermline"}},
+			What:     "two originators, so the seeds have something to disagree about",
+			Runnable: true,
+		},
+	}, func(w *state.World, p any) (any, error) {
 		defer func() { s.experiment().publish(w) }()
 		e := s.experiment()
 		if m, ok := p.(map[string]any); ok {
@@ -298,7 +405,27 @@ func registerExperiment(st *state.Store, s *Sim) {
 		return e.describe(), nil
 	})
 
-	st.Handle("experiment.base", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("experiment.base", state.Spec{
+		What: "set the two timings every arm shares, how long a cell runs and " +
+			"when its burst is fired, and deliberately nothing else: the " +
+			"firmware versions belong to the arms",
+		Params: []state.Param{
+			{Name: "run_for_ms", Type: state.ParamNumber,
+				What: "how long each cell runs, in simulated milliseconds; zero " +
+					"or less is ignored and the current length kept"},
+			{Name: "send_at_ms", Type: state.ParamNumber,
+				What: "the simulated instant the burst is fired, the same in " +
+					"every arm; zero or less is ignored"},
+		},
+		Returns: matrixKeys,
+		Answers: "The same summary experiment.define answers with, so the " +
+			"arms and senders it reports are whatever they already were.",
+		Example: &state.Example{
+			Params:   map[string]any{"run_for_ms": 120000.0, "send_at_ms": 30000.0},
+			What:     "a two minute cell with the burst thirty seconds in",
+			Runnable: true,
+		},
+	}, func(w *state.World, p any) (any, error) {
 		e := s.experiment()
 		// Deliberately narrow. In the old workbench a base repeater_version
 		// overrode a per-node pin and left the room server looking for a role
@@ -315,130 +442,4 @@ func registerExperiment(st *state.Store, s *Sim) {
 		}
 		return e.describe(), nil
 	})
-
-	st.Handle("experiment.results", func(w *state.World, _ any) (any, error) {
-		e := s.experiment()
-		e.mu.Lock()
-		defer e.mu.Unlock()
-		runs := make([]map[string]any, 0, len(e.results))
-		for _, r := range e.results {
-			runs = append(runs, map[string]any{
-				"arm": r.Arm, "seed": r.Seed, "tx": r.TX, "rx": r.RX,
-				"delivered": r.Delivered, "redundant": r.Redundant,
-				"collisions": r.Collided, "airtime_ms": r.AirtimeMs,
-				"err": r.Err,
-			})
-		}
-		sums := e.summarise()
-		out := map[string]any{"runs": runs, "arms": sums}
-		warn := e.notAResultYet()
-		if warn != "" {
-			out["warning"] = warn
-		}
-		w.Experiment = w.Experiment[:0]
-		for _, m := range sums {
-			// Read rather than asserted. These summaries travel as
-			// map[string]any because the control socket serves them too, and
-			// a key that is absent or holds another type would panic the
-			// store's goroutine - taking the whole application with it - for
-			// what is at worst one arm with a missing number.
-			arm, _ := m["arm"].(string)
-			w.Experiment = append(w.Experiment, state.ArmSummary{
-				Arm:       arm,
-				Runs:      mapInt(m, "runs"),
-				TX:        mapFloat(m, "tx"),
-				RX:        mapFloat(m, "rx"),
-				Delivered: mapFloat(m, "delivered"),
-				Redundant: mapFloat(m, "redundant"),
-				Collided:  mapFloat(m, "collisions"),
-				AirtimeMs: mapFloat(m, "airtime_ms"),
-				RXSpread:  mapFloat(m, "rx_spread"),
-				PerSecond: e.perSecondFor(arm),
-			})
-		}
-		w.ExperimentRuns = e.runRows()
-		w.ExperimentWarning = warn
-		if len(e.results) >= e.runsTotal() && e.runsTotal() > 0 && !e.running {
-			w.ExperimentVerdict = e.verdict()
-		} else {
-			w.ExperimentVerdict = ""
-		}
-		return out, nil
-	})
-
-	st.Handle("experiment.compare", func(w *state.World, p any) (any, error) {
-		e := s.experiment()
-		a, _ := stringField(p, "arm_a")
-		b, _ := namedField(p, "arm_b")
-		e.mu.Lock()
-		defer e.mu.Unlock()
-		sums := e.summarise()
-		var sa, sb map[string]any
-		for _, s := range sums {
-			if s["arm"] == a {
-				sa = s
-			}
-			if s["arm"] == b {
-				sb = s
-			}
-		}
-		if sa == nil || sb == nil {
-			return nil, fmt.Errorf("no results for %q and %q", a, b)
-		}
-		delta := map[string]any{}
-		for _, k := range []string{"tx", "rx", "delivered", "redundant", "collisions"} {
-			x, _ := sa[k].(float64)
-			y, _ := sb[k].(float64)
-			delta[k] = y - x
-			if x != 0 {
-				delta[k+"_pct"] = (y - x) / x * 100
-			}
-		}
-		return map[string]any{"a": sa, "b": sb, "delta": delta,
-			"note": "both arms carry the same excess path loss, so a difference " +
-				"in direction is the firmware rather than the calibration"}, nil
-	})
-
-	st.Handle("experiment.export", func(w *state.World, p any) (any, error) {
-		e := s.experiment()
-		path, _ := stringField(p, "path")
-		if path == "" {
-			path = filepath.Join(os.TempDir(), "meshbench-experiment.json")
-		}
-		e.mu.Lock()
-		b, err := json.MarshalIndent(map[string]any{
-			"arms": e.Arms, "seeds": e.Seeds, "senders": e.Senders,
-			"run_for_ms": e.RunForMs, "send_at_ms": e.SendAtMs,
-			"results": e.results, "summary": e.summarise(),
-		}, "", "  ")
-		e.mu.Unlock()
-		if err != nil {
-			return nil, err
-		}
-		if err := os.WriteFile(path, b, 0o644); err != nil {
-			return nil, err
-		}
-		w.Say("exported to " + path)
-		return map[string]any{"path": path, "bytes": len(b)}, nil
-	})
-}
-
-var _ = time.Now
-var _ = engine.New
-
-// mapFloat and mapInt read a summary field without asserting it.
-//
-// A summary is built in this package and consumed in it, so a missing key is a
-// bug here rather than bad input - but the consequence of asserting is a panic
-// on the store's goroutine, which ends the application, and the consequence of
-// reading is a zero in one cell of a table. The second is the better failure
-// for a number nobody has looked at yet.
-func mapFloat(m map[string]any, key string) float64 {
-	v, _ := m[key].(float64)
-	return v
-}
-
-func mapInt(m map[string]any, key string) int {
-	v, _ := m[key].(int)
-	return v
 }

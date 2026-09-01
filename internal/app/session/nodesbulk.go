@@ -17,8 +17,24 @@ import (
 )
 
 func registerNodesBulk(st *state.Store, s *Sim) {
-	// nodes.delete_many: remove a set, and rebuild once.
-	st.Handle("nodes.delete_many", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("nodes.delete_many", state.Spec{
+		What: "remove a set of nodes in one rebuild, rather than one call each " +
+			"rebuilding the scenario and cancelling the warm the last one started",
+		Params: []state.Param{
+			{Name: "nodes", Type: state.ParamArray, Primary: true,
+				What: "the names to remove; one this network has not got refuses " +
+					"the whole call and removes nothing, and naming none is " +
+					"accepted and does nothing"},
+		},
+		Returns: []string{"deleted", "nodes"},
+		Answers: "`deleted` is the names that went and `nodes` is how many are " +
+			"left. Every link is dropped and the matrix re-measured behind the " +
+			"answer, because the network is not the one that was measured.",
+		Example: &state.Example{
+			Params: map[string]any{"nodes": []any{"Dunfermline"}},
+			What:   "take one node out of the network",
+		},
+	}, func(w *state.World, p any) (any, error) {
 		want, err := nameSet(p, "nodes")
 		if err != nil {
 			return nil, err
@@ -26,13 +42,27 @@ func registerNodesBulk(st *state.Store, s *Sim) {
 		return s.dropNodes(st, w, want, "deleted")
 	})
 
-	// nodes.keep: remove everything the set does not name.
-	//
 	// The complement rather than the set, because that is how somebody
 	// actually says it - "just these two" - and because working it out on the
 	// client means fetching the list first and racing whatever else is
 	// changing it.
-	st.Handle("nodes.keep", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("nodes.keep", state.Spec{
+		What: "cut a network down to the nodes named and remove everything else, " +
+			"which is how trimming a fixture is actually said",
+		Params: []state.Param{
+			{Name: "nodes", Type: state.ParamArray, Primary: true,
+				What: "the names to keep; one this network has not got refuses " +
+					"the whole call and removes nothing, and naming none keeps " +
+					"nothing, which empties the network"},
+		},
+		Returns: []string{"deleted", "nodes"},
+		Answers: "`deleted` names what was removed rather than what was kept, " +
+			"and `nodes` is how many are left.",
+		Example: &state.Example{
+			Params: map[string]any{"nodes": []any{"West Lomond"}},
+			What:   "cut a network down to one node",
+		},
+	}, func(w *state.World, p any) (any, error) {
 		keep, err := nameSet(p, "nodes")
 		if err != nil {
 			return nil, err
@@ -51,13 +81,29 @@ func registerNodesBulk(st *state.Store, s *Sim) {
 		return s.dropNodes(st, w, drop, "deleted")
 	})
 
-	// node.set_board: what hardware this node is.
-	//
-	// A board decides the transmit ceiling, the receive chain's noise figure
-	// and the battery the energy model needs, so this is a change to the
-	// physics and not a label. It rebuilds and re-warms for the same reason
-	// moving a node does.
-	st.Handle("node.set_board", func(w *state.World, p any) (any, error) {
+	// It rebuilds and re-warms for the same reason moving a node does.
+	st.HandleSpec("node.set_board", state.Spec{
+		What: "say what hardware a node is, which is a change to the physics and " +
+			"not a label: the transmit ceiling, the receive chain's noise figure " +
+			"and the battery the energy model runs on all come off the board",
+		Params: []state.Param{
+			{Name: "node", Type: state.ParamString, Required: true, Primary: true,
+				What: "which node changes hardware; absent or unknown is refused"},
+			{Name: "board", Type: state.ParamString,
+				What: "the board it is, as the firmware library names one; a " +
+					"board this build has no profile for is refused, and an " +
+					"empty or absent name returns the node to no particular " +
+					"hardware, which is a build for this machine"},
+		},
+		Returns: []string{"node", "board"},
+		Answers: "A build pinned for the old board is cleared rather than carried " +
+			"across, because that image is for that hardware and a node keeping " +
+			"the pin would look configured and refuse at start.",
+		Example: &state.Example{
+			Params: map[string]any{"node": "West Lomond", "board": "Heltec_WSL3"},
+			What:   "make a node a Heltec WSL3",
+		},
+	}, func(w *state.World, p any) (any, error) {
 		name, _ := stringField(p, "node")
 		if name == "" {
 			return nil, control.WithCode(control.BadParams,

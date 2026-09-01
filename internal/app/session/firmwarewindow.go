@@ -23,6 +23,14 @@ func registerFirmwareWindow(st *state.Store, s *Sim) {
 				What: "which board; absent means a build for this machine"},
 		},
 		Returns: []string{"role", "version", "board"},
+		Answers: "The build it opened on, once. Refused where there is no user " +
+			"interface, and refused for a build the library does not hold or a " +
+			"label naming more than one, so nobody is left closing an empty " +
+			"window.",
+		Example: &state.Example{
+			Params: map[string]any{"version": "repeater-v1.16.0"},
+			What:   "open a build to change what it is run as",
+		},
 	}, func(w *state.World, p any) (any, error) {
 		if err := s.needUI(); err != nil {
 			return nil, err

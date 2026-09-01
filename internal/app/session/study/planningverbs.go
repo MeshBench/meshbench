@@ -20,8 +20,33 @@ import (
 )
 
 func registerPlanningVerbs(st *state.Store, s *session.Sim) {
-	// coverage.start: the network-wide questions, by name.
-	st.Handle("coverage.start", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("coverage.start", state.Spec{
+		What: "ask one of the network-wide planning questions by name - where " +
+			"nobody is reached, how many servers a covered cell has, and how " +
+			"much of the map one mast is carrying alone",
+		Params: []state.Param{
+			{Name: "mode", Type: state.ParamString, Primary: true,
+				What: "one of best, best-server, gaps, redundancy or node; " +
+					"absent is best, an unknown one is refused, and node hands " +
+					"the call to coverage.compute for the selected node and " +
+					"refuses when nothing is selected"},
+		},
+		Returns: []string{"mode", "nodes", "started"},
+		Answers: "It answers as soon as the job starts. The answer itself - gap " +
+			"cells, servers per covered cell, cells depending on one - arrives " +
+			"later through the internal `coverage.combined`, and a failure " +
+			"through `coverage.failed`. `nodes` is every node in the scenario, " +
+			"companions included, because this rasterises the lot over one " +
+			"shared grid rather than the infrastructure alone that " +
+			"`coverage.map` picks out. Mode node answers with " +
+			"`coverage.compute`'s keys instead of these. Each raster is a best " +
+			"case in both directions, with gain evaluated towards each cell and " +
+			"any position uncertainty carried into it.",
+		Example: &state.Example{
+			Params: map[string]any{"mode": "gaps"},
+			What:   "find the ground nobody reaches",
+		},
+	}, func(w *state.World, p any) (any, error) {
 		mode, _ := session.StringField(p, "mode")
 		if mode == "" {
 			mode = "best"
@@ -87,8 +112,25 @@ func registerPlanningVerbs(st *state.Store, s *session.Sim) {
 		return map[string]any{"mode": mode, "nodes": len(w.Nodes), "started": true}, nil
 	})
 
-	// project.save: what is here, as a fixture, so it can be opened again.
-	st.Handle("project.save", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("project.save", state.Spec{
+		What: "write the nodes as they stand, and the margin they are judged " +
+			"against, into a named file under the user's config directory, so " +
+			"the setup can be opened again",
+		Params: []state.Param{
+			{Name: "name", Type: state.ParamString, Required: true, Primary: true,
+				What: "what to call it: a name and not a path, since it is " +
+					"joined onto the projects directory and written to, so a " +
+					"separator or a leading dot is refused rather than followed"},
+		},
+		Returns: []string{"saved", "path", "nodes"},
+		Answers: "It writes the scenario's nodes only. A run, its capture and " +
+			"the terrain cache are not in the file, so opening it again gives " +
+			"back the network rather than the session.",
+		Example: &state.Example{
+			Params: map[string]any{"name": "fife-survey"},
+			What:   "keep this network to come back to",
+		},
+	}, func(w *state.World, p any) (any, error) {
 		name, _ := session.StringField(p, "name")
 		if name == "" {
 			return nil, fmt.Errorf("project.save needs a name")
@@ -128,8 +170,19 @@ func registerPlanningVerbs(st *state.Store, s *session.Sim) {
 		return map[string]any{"saved": name, "path": path, "nodes": len(s.Nodes())}, nil
 	})
 
-	// project.list: what can be opened.
-	st.Handle("project.list", func(_ *state.World, _ any) (any, error) {
+	st.HandleSpec("project.list", state.Spec{
+		What: "name what project.save has written and say where it writes them, " +
+			"since the directory belongs to the user's configuration rather " +
+			"than to anything the scenario knows about",
+		Returns: []string{"projects", "dir"},
+		Answers: "A projects directory that does not exist yet answers with an " +
+			"empty `projects` and no `dir` at all, which is the first-run case " +
+			"and not a fault.",
+		Example: &state.Example{
+			Params: map[string]any{}, What: "see what can be opened",
+			Runnable: true,
+		},
+	}, func(_ *state.World, _ any) (any, error) {
 		dir, err := projectsDir()
 		if err != nil {
 			return nil, err
@@ -154,7 +207,16 @@ func registerPlanningVerbs(st *state.Store, s *session.Sim) {
 
 // coverage.combined lands the network-wide answer.
 func registerCoverageCombined(st *state.Store, s *session.Sim) {
-	st.HandleInternal("coverage.combined", func(w *state.World, p any) (any, error) {
+	st.HandleInternalSpec("coverage.combined", state.Spec{
+		What: "turn a finished stack of rasters into the three numbers the " +
+			"planning question was actually about, and take the job off the " +
+			"status line",
+		Returns: []string{"mode", "gap_cells", "known_cells", "redundancy",
+			"single_point_of_failure"},
+		Answers: "`known_cells` is the cells any raster had an answer for, so " +
+			"`gap_cells` is out of what was known rather than out of the whole " +
+			"grid. It refuses when the combine produced nothing.",
+	}, func(w *state.World, p any) (any, error) {
 		m, ok := p.(map[string]any)
 		if !ok {
 			return nil, session.WrongCallback("coverage.combined")

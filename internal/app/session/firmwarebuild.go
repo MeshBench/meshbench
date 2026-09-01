@@ -28,14 +28,39 @@ import (
 var buildRoles = []string{"simple_repeater", "companion_radio"}
 
 func registerFirmwareBuild(st *state.Store, s *Sim) {
-	// firmware.build: compile a checkout and put the results in the library.
-	//
 	// Returns as soon as the work has started, like every other long job here.
 	// A MeshCore build is a minute or two per role and the store's goroutine
 	// is where every verb lands - blocking it would freeze the window, the
 	// socket and the engine's clock together, which is exactly the failure
 	// firmware.start was reported as a crash for.
-	st.Handle("firmware.build", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("firmware.build", state.Spec{
+		What: "compile a MeshCore checkout and put what comes out in the " +
+			"library, so one script can compare a stock build against a " +
+			"locally changed one without shelling out to a second binary",
+		Params: []state.Param{
+			{Name: "source", Type: state.ParamString, Required: true, Primary: true,
+				What: "the top of a MeshCore checkout, the directory holding " +
+					"src/ and examples/; refused when absent"},
+			{Name: "from", Type: state.ParamString,
+				What: "another name for `source`, read only when that is absent"},
+			{Name: "role", Type: state.ParamString,
+				What: "build only this role; absent builds both " +
+					"`simple_repeater` and `companion_radio` from the one tree"},
+			{Name: "label", Type: state.ParamString,
+				What: "what to call the result in the library and what a node " +
+					"then pins; absent names it after the checkout's git ref"},
+		},
+		Returns: []string{"building", "source", "job"},
+		Answers: "It answers as soon as the build has started, because a role " +
+			"takes a minute or two. Watch the job named in `job`; what came out " +
+			"lands in the library on its own, and a failure reaches the status " +
+			"line with the role and the reason rather than being returned here. " +
+			"The toolchain's own output is discarded.",
+		Example: &state.Example{
+			Params: map[string]any{"source": "/home/you/src/MeshCore"},
+			What:   "build both roles from a working tree",
+		},
+	}, func(w *state.World, p any) (any, error) {
 		src, _ := stringField(p, "source")
 		if src == "" {
 			src, _ = namedField(p, "from")
@@ -97,13 +122,16 @@ func buildFirmware(st *state.Store, id, src, label string, roles []string) {
 }
 
 func registerFirmwareBuildResults(st *state.Store, _ *Sim) {
-	// firmware.built: what came out.
-	//
 	// It is already in the cache - firmware.Build imports it, which is the
 	// same call `meshbench dev` makes - so there is nothing to add here.
-	// What this does is say so and re-read the library, because a build
-	// nothing has listed is a build no picker offers.
-	st.HandleInternal("firmware.built", func(w *state.World, p any) (any, error) {
+	st.HandleInternalSpec("firmware.built", state.Spec{
+		What: "say what a finished build produced, so a build nothing has " +
+			"named is not a build no picker offers",
+		Returns: []string{"built"},
+		Answers: "The builder hands it a role-to-result map, not named " +
+			"parameters, and anything else is refused. `built` is those roles " +
+			"and versions as one sorted list of strings.",
+	}, func(w *state.World, p any) (any, error) {
 		got, ok := p.(map[string]any)
 		if !ok {
 			return nil, wrongCallback("firmware.built")
@@ -120,7 +148,12 @@ func registerFirmwareBuildResults(st *state.Store, _ *Sim) {
 		return map[string]any{"built": names}, nil
 	})
 
-	st.HandleInternal("firmware.build_failed", func(w *state.World, p any) (any, error) {
+	st.HandleInternalSpec("firmware.build_failed", state.Spec{
+		What: "put the reason a build stopped where somebody will see it, the " +
+			"compiler's own output having gone nowhere",
+		Answers: "Handed the failing role and the error as one string. It " +
+			"answers nothing: the sentence goes to the status line.",
+	}, func(w *state.World, p any) (any, error) {
 		w.Say("build failed: " + soleString(p))
 		return nil, nil
 	})

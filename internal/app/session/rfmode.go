@@ -25,19 +25,44 @@ func rfModeOf(s string) engine.RFMode {
 }
 
 func registerRFMode(st *state.Store, s *Sim) {
-	// rf.mode: choose the physics. Applies live to a built engine - the
-	// switch lands on a whole-transmission boundary - and to every engine
-	// built after.
-	st.Handle("rf.mode", func(w *state.World, p any) (any, error) {
+	// Applies live to a built engine - the switch lands on a whole-transmission
+	// boundary - and to every engine built after.
+	st.HandleSpec("rf.mode", state.Spec{
+		What: "choose which physics decides reception, and stamp the choice " +
+			"into the world so every snapshot, saved run and export says " +
+			"which of the two models produced it",
+		Params: []state.Param{
+			{Name: "mode", Type: state.ParamString, Required: true, Primary: true,
+				What: "calculated for link budgets against demodulator floors, " +
+					"which is the fast model, or waveform for the full receive " +
+					"chain of demodulation, FEC and CRC; any other value is " +
+					"refused, and so is the empty string a caller who named " +
+					"nothing sends"},
+		},
+		Returns: []string{"mode"},
+		Example: &state.Example{
+			Params:   "waveform",
+			What:     "let the receive chain decide, rather than a link budget",
+			Runnable: true,
+		},
+	}, func(w *state.World, p any) (any, error) {
 		mode, _ := stringField(p, "mode")
 		return setRFMode(w, s, mode)
 	})
 
-	// rf.toggle: the chrome's one-click flip between the two physics.
 	// Shared logic called directly, never st.Do from inside a handler -
 	// this goroutine IS the store, and asking it to do something is a wait
 	// for yourself.
-	st.Handle("rf.toggle", func(w *state.World, _ any) (any, error) {
+	st.HandleSpec("rf.toggle", state.Spec{
+		What: "flip to whichever RF physics is not running, for a control " +
+			"that is one button rather than a choice of two",
+		Returns: []string{"mode"},
+		Answers: "`mode` is the physics now in force, not the one it left.",
+		Example: &state.Example{
+			Params: map[string]any{}, What: "swap the physics for the other one",
+			Runnable: true,
+		},
+	}, func(w *state.World, _ any) (any, error) {
 		next := "waveform"
 		if s.rfMode == "waveform" {
 			next = "calculated"
@@ -81,10 +106,46 @@ func engineRealism(r state.RFRealism) engine.Realism {
 }
 
 func registerRFRealism(st *state.Store, s *Sim) {
-	// rf.realism: the imperfection switches, applied live and persisted.
-	// Absent fields are left alone, so one knob can move without restating
-	// the rest.
-	st.Handle("rf.realism", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("rf.realism", state.Spec{
+		What: "price in the imperfections the channel otherwise leaves out - " +
+			"crystal error, a delayed echo, fading, receiver implementation " +
+			"loss and front-end clipping - because with all five at zero the " +
+			"model is kinder than the air and every margin it reports is a " +
+			"best case",
+		Params: []state.Param{
+			{Name: "osc_ppm", Type: state.ParamNumber,
+				What: "worst-case crystal error in parts per million, each node " +
+					"offset deterministically within it; absent leaves the " +
+					"current value alone, and zero is a pair of perfect oscillators"},
+			{Name: "multipath_db", Type: state.ParamNumber,
+				What: "how far below the direct ray one delayed reflection " +
+					"arrives, in decibels; absent leaves it alone, and zero is a " +
+					"single clean path with nothing to cancel against"},
+			{Name: "fading_hz", Type: state.ParamNumber,
+				What: "how fast that echo's phase rotates over simulated time, " +
+					"so a marginal link breathes; absent leaves it alone, and " +
+					"zero holds the interference pattern still"},
+			{Name: "impl_loss_db", Type: state.ParamNumber,
+				What: "the receiver's shortfall from theory, applied as extra " +
+					"receiver noise; absent leaves it alone, and zero credits " +
+					"the receiver with its datasheet floor and nothing worse"},
+			{Name: "saturation_dbm", Type: state.ParamNumber,
+				What: "the level above which the front end clips, harmonics and " +
+					"all; absent leaves it alone, and zero models a receiver " +
+					"that never overloads however close the transmitter is"},
+		},
+		Returns: []string{"realism"},
+		Answers: "`realism` is the whole switch set after the call, including " +
+			"the switches this call did not name, so one knob can move without " +
+			"restating the rest. The effects act on the waveform paths, so a " +
+			"calculated run stores them and shows no change until the physics " +
+			"is switched.",
+		Example: &state.Example{
+			Params:   map[string]any{"impl_loss_db": 2, "osc_ppm": 10},
+			What:     "charge the receiver a realistic 2 dB and let the crystals disagree",
+			Runnable: true,
+		},
+	}, func(w *state.World, p any) (any, error) {
 		r := s.realism
 		if v, ok := numField(p, "osc_ppm"); ok {
 			r.OscPPM = v
@@ -113,9 +174,25 @@ func registerRFRealism(st *state.Store, s *Sim) {
 		return map[string]any{"realism": r}, nil
 	})
 
-	// node.truerf: the hybrid flag - waveform verdicts at one receiver
-	// inside a calculated run.
-	st.Handle("node.truerf", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("node.truerf", state.Spec{
+		What: "give one receiver waveform verdicts inside a calculated run, so " +
+			"the pair being studied is decided by the full receive chain while " +
+			"the rest of the network stays on the fast model",
+		Params: []state.Param{
+			{Name: "node", Type: state.ParamString, Required: true, Primary: true,
+				What: "the receiver that takes waveform verdicts; a name no node " +
+					"has is refused rather than ignored"},
+			{Name: "on", Type: state.ParamBool,
+				What: "true to hold this node on waveform whatever the run mode; " +
+					"absent means false, which puts it back on the run's own mode"},
+		},
+		Returns: []string{"node", "true_rf"},
+		Example: &state.Example{
+			Params:   map[string]any{"node": "West Lomond", "on": true},
+			What:     "decide this one receiver honestly, at one node's cost",
+			Runnable: true,
+		},
+	}, func(w *state.World, p any) (any, error) {
 		name, _ := stringField(p, "node")
 		on, _ := boolField(p, "on")
 		found := false
@@ -150,7 +227,31 @@ func registerRFRealism(st *state.Store, s *Sim) {
 // pricing buildings into the path budget. Off is bare earth, exactly as
 // before.
 func registerRFEnvironment(st *state.Store, s *Sim) {
-	st.Handle("rf.environment", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("rf.environment", state.Spec{
+		What: "point the session at a directory of environment tiles so both RF " +
+			"modes price buildings into the path budget, or take it away again " +
+			"and go back to bare earth",
+		Params: []state.Param{
+			{Name: "dir", Type: state.ParamString, Primary: true,
+				What: "the tile directory, as tools/envgen or environ.fetch " +
+					"wrote it; absent is refused unless on is false, because a " +
+					"switch with nothing to switch on would silently leave the " +
+					"model bare"},
+			{Name: "on", Type: state.ParamBool,
+				What: "false drops the environment and returns the model to bare " +
+					"earth; absent or true expects a dir"},
+		},
+		Returns: []string{"environment"},
+		Answers: "`environment` is the directory now in force, and empty means " +
+			"bare earth. Every path loss already cached was priced without " +
+			"buildings, so a live engine drops its link cache and the links are " +
+			"measured again.",
+		Example: &state.Example{
+			Params:   map[string]any{"dir": "/var/lib/meshbench/environment/fife"},
+			What:     "charge the paths for the buildings they cross",
+			Runnable: false,
+		},
+	}, func(w *state.World, p any) (any, error) {
 		dir, _ := stringField(p, "dir")
 		if on, ok := boolField(p, "on"); ok && !on {
 			s.envDir = ""

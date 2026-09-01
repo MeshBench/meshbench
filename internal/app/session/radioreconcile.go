@@ -24,9 +24,30 @@ import (
 )
 
 func registerRadioReconcile(st *state.Store, s *Sim) {
-	// node.radio: what the scenario assumes, what the node reports, and
-	// whether they agree.
-	st.Handle("node.radio", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("node.radio", state.Spec{
+		What: "ask a running node what frequency, modulation and transmit power " +
+			"it is actually set to, and say where that disagrees with the " +
+			"figures every path loss for it was computed from",
+		Params: []state.Param{
+			{Name: "node", Type: state.ParamString, Primary: true,
+				What: "the node to ask; absent falls back to the selected node, " +
+					"and with nothing selected either the call is refused"},
+		},
+		Returns: []string{"node", "assumed", "reported", "differences", "note"},
+		Answers: "`assumed` and `reported` are both objects of freq_mhz, " +
+			"bandwidth_hz, spreading_factor, coding_rate and tx_dbm. A node " +
+			"answers over a frame or its console and the reply only lands when " +
+			"the engine next steps, so the first call usually returns `reported` " +
+			"null with a `note` saying to ask again. An empty `differences` " +
+			"means the two agree, not that nothing was checked; coding rate is " +
+			"deliberately never compared, because model and firmware write the " +
+			"same setting in different conventions.",
+		Example: &state.Example{
+			Params:   "West Lomond",
+			What:     "check the model is pricing this node's real transmit power",
+			Runnable: false,
+		},
+	}, func(w *state.World, p any) (any, error) {
 		name, _ := stringField(p, "node")
 		if name == "" {
 			name = selectedName(w)
@@ -115,12 +136,31 @@ func registerRadioReconcile(st *state.Store, s *Sim) {
 		return out, nil
 	})
 
-	// node.radio_adopt: believe the node.
-	//
 	// The node is the authority on what it is set to. The scenario is a
 	// statement of intent, and where they differ it is the scenario that is
 	// out of date.
-	st.Handle("node.radio_adopt", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("node.radio_adopt", state.Spec{
+		What: "take the radio configuration a node has already reported as the " +
+			"one the model uses for it, so the path losses are computed from " +
+			"what the node transmits with rather than from what the scenario " +
+			"intended",
+		Params: []state.Param{
+			{Name: "node", Type: state.ParamString, Primary: true,
+				What: "the node to believe; absent falls back to the selected " +
+					"node, and a node that is not a connected companion, or has " +
+					"not reported yet, is refused with what to do about it"},
+		},
+		Returns: []string{"node", "tx_dbm"},
+		Answers: "`tx_dbm` is the node's own transmit power, now the model's. " +
+			"Frequency, bandwidth and spreading factor are adopted with it, and " +
+			"because path loss is cached per pair the engine is rebuilt and every " +
+			"link measured again on a worker.",
+		Example: &state.Example{
+			Params:   "Dunfermline",
+			What:     "stop modelling a power this node does not have",
+			Runnable: false,
+		},
+	}, func(w *state.World, p any) (any, error) {
 		name, _ := stringField(p, "node")
 		if name == "" {
 			name = selectedName(w)

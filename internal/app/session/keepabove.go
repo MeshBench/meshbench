@@ -33,6 +33,19 @@ func registerKeepAbove(st *state.Store, s *Sim) {
 				What: "set it; omit to read the current setting without changing it"},
 		},
 		Returns: []string{"on"},
+		Answers: "The setting after the call, which is on where nothing has ever " +
+			"chosen: the fault it answers is a panel lost behind the main " +
+			"window. It is a stored preference rather than an act on a window, " +
+			"so it is answered with no interface attached and takes effect on " +
+			"the windows opened after it. It matters on Linux under Wayland, " +
+			"where staying above changes what the window is: our own title bar, " +
+			"no taskbar entry, and a close button that returns the panel to the " +
+			"main window. Elsewhere the platform does it anyway.",
+		Example: &state.Example{
+			Params:   map[string]any{"on": true},
+			What:     "keep a popped-out panel in front of the workbench",
+			Runnable: true,
+		},
 	}, func(w *state.World, p any) (any, error) {
 		if v, ok := boolField(p, "on"); ok {
 			on := v

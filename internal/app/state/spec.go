@@ -51,7 +51,28 @@ type Param struct {
 	What string `json:"what"`
 }
 
-// Spec is a verb's description and its parameters.
+// Example is one call, kept beside the verb it demonstrates.
+//
+// Held here rather than in a document because an example is the part of a
+// reference that rots first and says nothing when it does: a parameter renamed
+// in the handler leaves the prose still reading plausibly. Beside the
+// registration, the test that runs it fails on the same commit that broke it.
+type Example struct {
+	// Params exactly as they arrive: an object for the usual form, or a bare
+	// value for a verb that accepts one in place of its primary parameter.
+	Params any `json:"params"`
+	// What this particular call is for. A few words, because the verb's own
+	// description has already said what the verb is.
+	What string `json:"what,omitempty"`
+	// Runnable says a test may make this call against a headless session
+	// holding two nodes and nothing else, and expect it to be answered. Left
+	// false where the call needs a window, a network, a firmware build or a
+	// running clock, which cannot be stood up in a unit test; those examples
+	// are still checked against the parameters the verb declares.
+	Runnable bool `json:"runnable,omitempty"`
+}
+
+// Spec is a verb's description, its parameters and a call that exercises it.
 type Spec struct {
 	// What the verb does, in one line, in the imperative.
 	What string `json:"what"`
@@ -60,6 +81,13 @@ type Spec struct {
 	// Returns names the keys of the object the verb answers with, or is empty
 	// where it answers with something that is not an object.
 	Returns []string `json:"returns,omitempty"`
+	// Answers is the shape in a sentence, for the verbs whose return is not
+	// self-evident from its keys: a count beside its rows, a list rather than
+	// an object, nothing at all.
+	Answers string `json:"answers,omitempty"`
+	// Example is the call the reference prints. Every public verb that
+	// describes itself carries one.
+	Example *Example `json:"example,omitempty"`
 }
 
 // described reports whether anything was said at all, which is what the parity

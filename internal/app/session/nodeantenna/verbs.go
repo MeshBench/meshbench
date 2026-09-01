@@ -26,6 +26,18 @@ func registerRead(st *state.Store, s *session.Sim) {
 		Returns: []string{"node", "pattern", "gain_dbi_peak", "beamwidth_deg",
 			"front_to_back_db", "bearing_deg", "downtilt_deg", "polarisation",
 			"feedline_db", "peak_dbi"},
+		Answers: "The same words the verb that sets an antenna takes, so what " +
+			"comes back can be handed straight back in. A node carrying no " +
+			"antenna answers with an empty `pattern` and `peak_dbi` zero rather " +
+			"than as an omni at 0 dBi, which in a table of numbers those two " +
+			"would otherwise share. Both gain figures are the peak along " +
+			"boresight; what a given link is actually worth is the pattern read " +
+			"along the bearing to the far end, and differs in each direction.",
+		Example: &state.Example{
+			Params:   map[string]any{"node": "West Lomond"},
+			What:     "ask what a node stands under and where it faces",
+			Runnable: true,
+		},
 	}, func(_ *state.World, p any) (any, error) {
 		name, _ := session.StringField(p, "node")
 		if name == "" {
@@ -74,6 +86,23 @@ func registerSet(st *state.Store, s *session.Sim) {
 		Returns: []string{"nodes", "pattern", "gain_dbi_peak", "beamwidth_deg",
 			"front_to_back_db", "bearing_deg", "downtilt_deg", "polarisation",
 			"feedline_db"},
+		Answers: "What the last matched node now carries, with `nodes` for how " +
+			"many were changed and no node name, because the answer is about a " +
+			"selection rather than one node. Each field named replaces one part " +
+			"of the antenna already there, so a collinear switched to a yagi " +
+			"keeps the gain figure somebody chose. Setting one rebuilds the " +
+			"engine over the changed nodes and re-measures every link: the " +
+			"cached look angles belong to the antenna that used to be there. " +
+			"Refused where a named node is unknown, where a pattern or a " +
+			"polarisation is not one the model prices, and where the filters " +
+			"leave no node at all.",
+		Example: &state.Example{
+			Params: map[string]any{"node": "West Lomond", "pattern": "yagi",
+				"gain_dbi_peak": 12, "beamwidth_deg": 45,
+				"front_to_back_db": 20, "bearing_deg": 208},
+			What:     "stand a yagi on the hill, facing down the Forth",
+			Runnable: true,
+		},
 	}, func(w *state.World, p any) (any, error) {
 		only, _ := session.NamedField(p, "node")
 		kind, _ := session.NamedField(p, "kind")
@@ -129,6 +158,19 @@ func registerAim(st *state.Store, s *session.Sim) {
 				What: "the node to point it at"},
 		},
 		Returns: []string{"node", "at", "bearing_deg", "distance_km", "gain_dbi"},
+		Answers: "`bearing_deg` is the true bearing between the two positions " +
+			"the scenario already holds, and `gain_dbi` is this node's pattern " +
+			"read along it - which is the part worth reading, because on an omni " +
+			"it is the figure it was before and a control that reports success " +
+			"while changing nothing is one somebody trusts once. Only the named " +
+			"node turns: what the far end hears back still depends on where its " +
+			"own antenna points. Refused where either node is unknown, where a " +
+			"node is aimed at itself, and where both stand at the same position, " +
+			"which has no bearing between them.",
+		Example: &state.Example{
+			Params: map[string]any{"node": "West Lomond", "at": "Dunfermline"},
+			What:   "point the hilltop repeater at the node it talks to",
+		},
 	}, func(w *state.World, p any) (any, error) {
 		name, _ := session.StringField(p, "node")
 		at, _ := session.NamedField(p, "at")

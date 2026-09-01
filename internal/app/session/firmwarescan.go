@@ -14,9 +14,6 @@ import (
 )
 
 func registerFirmwareScan(st *state.Store, s *Sim) {
-	// firmware.rescan: ask the catalogue again, for a build published since
-	// this session started.
-	//
 	// The catalogue is read once and kept, so without this a session that
 	// started before a release could never be told about it. Forgetting the
 	// last answer is what makes it a rescan; a fetch already in flight is left
@@ -25,6 +22,14 @@ func registerFirmwareScan(st *state.Store, s *Sim) {
 		What: "ask the catalogue what is published again, which is how a " +
 			"build nobody has downloaded becomes offerable",
 		Returns: []string{"scanning", "count"},
+		Answers: "`scanning` says a fetch is in flight, and `count` is how many " +
+			"rows the library holds now, which are still the ones from before " +
+			"it lands: read `firmware.library` again a few seconds later. A " +
+			"fetch already running is left alone rather than started twice.",
+		Example: &state.Example{
+			Params: map[string]any{},
+			What:   "look for a build published since this session started",
+		},
 	}, func(w *state.World, _ any) (any, error) {
 		if !s.fetchingPublished {
 			s.publishedNet = nil
@@ -36,8 +41,16 @@ func registerFirmwareScan(st *state.Store, s *Sim) {
 		}, nil
 	})
 
-	// firmware.published: what the catalogue offers, landed from the fetch.
-	st.HandleInternal("firmware.published", func(w *state.World, p any) (any, error) {
+	st.HandleInternalSpec("firmware.published", state.Spec{
+		What: "take the catalogue's answer when it lands and rebuild the " +
+			"library on it, because a fetch nobody re-reads leaves the " +
+			"published builds invisible until something else asks",
+		Returns: []string{"published", "builds"},
+		Answers: "Handed the fetch's own list, not named parameters, and " +
+			"anything else is refused. `published` is how many builds the " +
+			"catalogue offered and `builds` how many rows the library holds " +
+			"once they are merged with what is on disk.",
+	}, func(w *state.World, p any) (any, error) {
 		list, ok := p.([]publishedBuild)
 		if !ok {
 			return nil, wrongCallback("firmware.published")

@@ -39,6 +39,16 @@ func registerNodeCard(st *state.Store, s *Sim) {
 		},
 		Returns: []string{"node", "slot", "fitted", "file", "own_file", "bytes",
 			"required_by_firmware", "board_has_slot", "wiped"},
+		Answers: "Asking with nothing but a node changes nothing and reports the " +
+			"slot as it stands. `slot` is what the scenario says - fitted, empty " +
+			"or unstated - while `fitted` is whether the node actually has " +
+			"storage, which a firmware that keeps its settings on the card makes " +
+			"true whatever the slot says. `bytes` is nought where the file has " +
+			"not been made yet, which is the normal state before a first run.",
+		Example: &state.Example{
+			Params: "West Lomond", What: "ask what is in a node's card slot",
+			Runnable: true,
+		},
 	}, func(w *state.World, p any) (any, error) {
 		name, _ := stringField(p, "node")
 		if name == "" {

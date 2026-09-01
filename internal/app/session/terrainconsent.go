@@ -102,6 +102,16 @@ func registerTerrainConsent(st *state.Store, s *Sim) {
 				What: "true to download terrain when a study needs it, false to use only what is cached"},
 		},
 		Returns: []string{"on", "asked", "warming"},
+		Answers: "`asked` is whether this machine had already answered before " +
+			"the call, never asked being the third state a fresh install is in. " +
+			"`warming` is true where granting permission released a measurement " +
+			"that had stopped to ask, because nothing is watching for the answer " +
+			"to arrive and it has to be started again by hand.",
+		Example: &state.Example{
+			Params:   true,
+			What:     "let this machine fetch the ground a study needs",
+			Runnable: true,
+		},
 	}, func(w *state.World, p any) (any, error) {
 		// Allow by default: this verb exists to grant permission, and the
 		// caller who wrote no argument at all wrote the common case.

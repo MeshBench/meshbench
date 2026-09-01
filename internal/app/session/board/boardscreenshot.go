@@ -33,6 +33,17 @@ func registerBoardScreenshot(st *state.Store, s *session.Sim) {
 				What: "the node whose screen to capture"},
 		},
 		Returns: []string{"node", "path", "width", "height", "bpp", "on"},
+		Answers: "The picture is the frame the firmware drew, at the size the " +
+			"controller holds it, written to screen.png in that node's own work " +
+			"directory and overwritten each time. `on` says whether the panel " +
+			"was lit, which is a separate question from whether there is a frame: " +
+			"a display put to sleep still holds its last one. Refused where the " +
+			"node is not running, is not a board with a display, or has drawn " +
+			"nothing yet.",
+		Example: &state.Example{
+			Params: map[string]any{"node": "West Lomond"},
+			What:   "see what the board is showing",
+		},
 	}, func(w *state.World, p any) (any, error) {
 		name, _ := session.StringField(p, "node")
 		if name == "" {

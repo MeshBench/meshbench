@@ -21,6 +21,13 @@ func registerNodeWindow(st *state.Store, s *Sim) {
 				What: "which tab to open on; the window's default when absent"},
 		},
 		Returns: []string{"node", "tab"},
+		Answers: "`tab` is the tab the window actually opened on, which is not " +
+			"always the one asked for. Refused outright in a headless session, " +
+			"there being no window to open one beside.",
+		Example: &state.Example{
+			Params: "West Lomond", What: "put one node on a second monitor",
+			Runnable: false,
+		},
 	}, func(w *state.World, p any) (any, error) {
 		if err := s.needUI(); err != nil {
 			return nil, err

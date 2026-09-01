@@ -25,7 +25,22 @@ func registerSimControl(st *state.Store, s *Sim) {
 	// store's goroutine, so nothing would draw and no other verb would be
 	// answered for the length of the run, which is indistinguishable from a
 	// hang.
-	st.Handle("sim.run", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("sim.run", state.Spec{
+		What: "play until a stated simulated time and stop there, which is how a " +
+			"script gets a run of a known length instead of watching for one",
+		Params: []state.Param{
+			{Name: "for_ms", Type: state.ParamNumber, Primary: true,
+				What: "simulated milliseconds to run for; anything not a " +
+					"positive number leaves it at ten seconds"},
+		},
+		Returns: []string{"running", "until_ms", "now_ms"},
+		Answers: "It returns as soon as the limit is set, not when the run " +
+			"reaches it. Poll `sim.state` until `playing` goes false.",
+		Example: &state.Example{
+			Params: map[string]any{"for_ms": 60000}, What: "run for a simulated minute",
+			Runnable: true,
+		},
+	}, func(w *state.World, p any) (any, error) {
 		forMs := uint32(10_000)
 		if v, ok := numField(p, "for_ms"); ok && v > 0 {
 			forMs = uint32(v)
@@ -40,7 +55,17 @@ func registerSimControl(st *state.Store, s *Sim) {
 
 	// sim.state: the one a caller polls, so it must be cheap and must never
 	// fail before a network is loaded.
-	st.Handle("sim.state", func(w *state.World, _ any) (any, error) {
+	st.HandleSpec("sim.state", state.Spec{
+		What: "report where the run has got to, cheaply enough to poll and " +
+			"safely enough to call before anything is loaded",
+		Returns: []string{"playing", "now_ms", "until_ms", "events", "step_ms", "seed"},
+		Answers: "`until_ms` is zero unless `sim.run` set a limit. `events` is " +
+			"the count since the engine was built, not since the last call.",
+		Example: &state.Example{
+			Params: map[string]any{}, What: "ask whether the run has finished",
+			Runnable: true,
+		},
+	}, func(w *state.World, _ any) (any, error) {
 		return map[string]any{
 			"playing":  w.Playing,
 			"now_ms":   w.NowMs,
@@ -55,7 +80,22 @@ func registerSimControl(st *state.Store, s *Sim) {
 	// wants to know whether a difference is real rather than one draw has to
 	// vary this. Setting it rebuilds, because a seed applied halfway through
 	// a run is neither of the two runs it claims to be.
-	st.Handle("sim.seed", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("sim.seed", state.Spec{
+		What: "read the seed the run draws its noise and its timing jitter from, " +
+			"or set a new one and rebuild on it",
+		Params: []state.Param{
+			{Name: "seed", Type: state.ParamNumber, Primary: true,
+				What: "the new seed; anything not a positive number reads the " +
+					"current one without changing it"},
+		},
+		Returns: []string{"seed"},
+		Answers: "Setting it rebuilds the engine and re-measures every link, so " +
+			"the run starts again rather than continuing on a new draw.",
+		Example: &state.Example{
+			Params: map[string]any{}, What: "read the seed this run is on",
+			Runnable: true,
+		},
+	}, func(w *state.World, p any) (any, error) {
 		if v, ok := numField(p, "seed"); ok && v > 0 {
 			w.Seed = uint64(v)
 			if err := s.rebuild(w); err != nil {
@@ -72,7 +112,22 @@ func registerSimControl(st *state.Store, s *Sim) {
 	// the firmware to read and act on them - the old workbench steps sixty
 	// after configuring, and without the same here a paused mesh has been
 	// told everything and heard nothing.
-	st.Handle("sim.settle", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("sim.settle", state.Spec{
+		What: "step the engine on a stopped clock so queued serial input reaches " +
+			"the firmware, which is what makes provisioning take effect",
+		Params: []state.Param{
+			{Name: "steps", Type: state.ParamNumber, Primary: true,
+				What: "how many ticks to step; anything not a positive number " +
+					"leaves it at sixty"},
+		},
+		Returns: []string{"now_ms", "steps"},
+		Answers: "Refuses with no engine built. It steps synchronously, so it " +
+			"answers only once the steps have been taken.",
+		Example: &state.Example{
+			Params: map[string]any{"steps": 60},
+			What:   "let a just-provisioned mesh read what it was sent",
+		},
+	}, func(w *state.World, p any) (any, error) {
 		if s.eng == nil {
 			return nil, ErrNoSimulation
 		}
@@ -87,7 +142,17 @@ func registerSimControl(st *state.Store, s *Sim) {
 		return map[string]any{"now_ms": w.NowMs, "steps": n}, nil
 	})
 
-	st.Handle("sim.reset", func(w *state.World, _ any) (any, error) {
+	st.HandleSpec("sim.reset", state.Spec{
+		What: "put the clock back to zero and rebuild the engine on the same " +
+			"seed and the same nodes, which is how the arm of a comparison starts",
+		Returns: []string{"seed", "now_ms"},
+		Answers: "The scenario survives and the run does not: the send schedule " +
+			"is cleared with the clock, and every link is measured again.",
+		Example: &state.Example{
+			Params: map[string]any{}, What: "start this scenario over",
+			Runnable: true,
+		},
+	}, func(w *state.World, _ any) (any, error) {
 		w.Playing, w.RunUntilMs = false, 0
 		if err := s.rebuild(w); err != nil {
 			return nil, err
@@ -104,7 +169,21 @@ func registerSimControl(st *state.Store, s *Sim) {
 
 	// study.margin: how far outside the boundary a node still matters. It was
 	// readable everywhere and settable nowhere but the fixture file.
-	st.Handle("study.margin", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("study.margin", state.Spec{
+		What: "read or set how far outside the study boundary a node still counts, " +
+			"which decides what an imported network keeps",
+		Params: []state.Param{
+			{Name: "km", Type: state.ParamNumber, Primary: true,
+				What: "kilometres beyond the boundary; a negative number is " +
+					"ignored and only reads the current value"},
+		},
+		Returns: []string{"km"},
+		Example: &state.Example{
+			Params:   map[string]any{"km": 20},
+			What:     "keep nodes up to twenty kilometres outside the boundary",
+			Runnable: true,
+		},
+	}, func(w *state.World, p any) (any, error) {
 		if v, ok := numField(p, "km"); ok && v >= 0 {
 			w.MarginKm = v
 			w.Say(fmt.Sprintf("study margin %g km", v))
@@ -116,7 +195,25 @@ func registerSimControl(st *state.Store, s *Sim) {
 	// time; this build paces in simulated milliseconds per tick, which is the
 	// same control said honestly. A factor is accepted and converted so an
 	// existing script keeps working.
-	st.Handle("sim.speed", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("sim.speed", state.Spec{
+		What: "set how much simulated time one tick covers, which is the honest " +
+			"form of a speed control",
+		Params: []state.Param{
+			{Name: "step_ms", Type: state.ParamNumber,
+				What: "simulated milliseconds per tick, which is what the engine " +
+					"actually paces on"},
+			{Name: "factor", Type: state.ParamNumber,
+				What: "a multiple of ten milliseconds per tick, read only when " +
+					"`step_ms` is absent, for scripts written against the old socket"},
+		},
+		Returns: []string{"step_ms"},
+		Answers: "`step_ms` is what it settled on. Neither parameter positive " +
+			"leaves the tick alone and reports it.",
+		Example: &state.Example{
+			Params: map[string]any{"step_ms": 10}, What: "ten simulated milliseconds a tick",
+			Runnable: true,
+		},
+	}, func(w *state.World, p any) (any, error) {
 		if v, ok := numField(p, "step_ms"); ok && v > 0 {
 			st.SetStepMs(uint32(v))
 		} else if v, ok := numField(p, "factor"); ok && v > 0 {

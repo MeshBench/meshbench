@@ -19,7 +19,30 @@ import (
 )
 
 func registerExcessLoss(st *state.Store, s *Sim) {
-	st.Handle("rf.excess_loss", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("rf.excess_loss", state.Spec{
+		What: "add a flat calibration loss to every path, which is where the " +
+			"clutter, body loss and multipath the bare-earth model has no term " +
+			"for get paid for, and read back what the model is running with",
+		Params: []state.Param{
+			{Name: "db", Type: state.ParamNumber, Primary: true,
+				What: "decibels of loss on top of the modelled path, fitted from " +
+					"observations the study has already validated against; a " +
+					"negative figure would add signal and is refused, and absent " +
+					"changes nothing and only reports, leaving the default zero " +
+					"that makes every margin a best case"},
+		},
+		Returns: []string{"db", "links"},
+		Answers: "`links` is how many links the world is holding as this returns. " +
+			"Path loss is cached per pair for the life of an engine, so setting " +
+			"`db` over a loaded network rebuilds the engine and measures every " +
+			"pair again on a worker: the links are empty until that finishes, " +
+			"and this answers before it does.",
+		Example: &state.Example{
+			Params:   map[string]any{"db": 8},
+			What:     "charge the 8 dB a validation run found the model was short",
+			Runnable: false,
+		},
+	}, func(w *state.World, p any) (any, error) {
 		if v, ok := numField(p, "db"); ok {
 			if v < 0 {
 				return nil, fmt.Errorf("excess loss is a loss: %.1f dB would add signal", v)

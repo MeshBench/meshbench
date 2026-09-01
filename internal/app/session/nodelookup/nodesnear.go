@@ -16,7 +16,32 @@ import (
 )
 
 func registerNodesNear(st *state.Store) {
-	st.Handle("nodes.near", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("nodes.near", state.Spec{
+		What: "order the rest of the network by how far it is from one node, " +
+			"which is how an imported deployment is cut down to a " +
+			"neighbourhood a desktop will actually run",
+		Params: []state.Param{
+			{Name: "node", Type: state.ParamString, Required: true, Primary: true,
+				What: "the node to measure from, matched as nodes elsewhere are " +
+					"matched; a name no node has is refused, and so is an " +
+					"absent one"},
+			{Name: "count", Type: state.ParamNumber,
+				What: "how many of the nearest to return; anything not a " +
+					"positive number returns every other node in the scenario"},
+		},
+		Returns: []string{"node", "near"},
+		Answers: "`node` is the name as the scenario spells it. `near` is a row " +
+			"per other node with its great-circle distance in `km`, nearest " +
+			"first, ties broken on the name. The distance is the same geometry " +
+			"the path losses are computed on, so a script's idea of nearest and " +
+			"the simulator's are one idea; it is still only a distance, and " +
+			"says nothing about whether either end can hear the other.",
+		Example: &state.Example{
+			Params:   map[string]any{"node": "West Lomond", "count": 5},
+			What:     "find the neighbourhood around a repeater",
+			Runnable: true,
+		},
+	}, func(w *state.World, p any) (any, error) {
 		name, _ := session.StringField(p, "node")
 		if name == "" {
 			name = session.SoleString(p)

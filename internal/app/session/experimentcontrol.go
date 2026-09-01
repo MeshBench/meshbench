@@ -18,7 +18,20 @@ import (
 )
 
 func registerExperimentControl(st *state.Store, s *Sim) {
-	st.Handle("experiment.state", func(w *state.World, _ any) (any, error) {
+	st.HandleSpec("experiment.state", state.Spec{
+		What: "ask the runner where it has got to without disturbing it, which " +
+			"is what a script polls between starting a sweep and reading it",
+		Returns: []string{"arms", "seeds", "senders", "runs", "run_for_ms",
+			"send_at_ms", "spread_ms", "bytes", "scope", "arm_labels",
+			"running", "done", "status", "log"},
+		Answers: "Everything experiment.define answers with, plus `running`, " +
+			"`done` as the number of cells finished, `status` naming the cell " +
+			"in flight, and `log`, the last twelve lines, which is absent " +
+			"until something has been logged.",
+		Example: &state.Example{
+			Params: map[string]any{}, What: "poll a sweep in progress", Runnable: true,
+		},
+	}, func(w *state.World, _ any) (any, error) {
 		e := s.experiment()
 		e.mu.Lock()
 		defer e.mu.Unlock()
@@ -32,7 +45,21 @@ func registerExperimentControl(st *state.Store, s *Sim) {
 		return out, nil
 	})
 
-	st.Handle("experiment.start", func(w *state.World, _ any) (any, error) {
+	st.HandleSpec("experiment.start", state.Spec{
+		What: "put every arm through every seed on a worker, each cell in its " +
+			"own engine with node storage of its own, and answer as soon as " +
+			"the worker is away rather than when it is done",
+		Returns: []string{"running", "runs"},
+		Answers: "`runs` is how many cells were queued. Poll experiment.state " +
+			"until `running` goes false. It refuses where a sweep is already " +
+			"running, where no network is loaded, where no sender has been " +
+			"named, and where the last sweep's cell in flight has not yet let " +
+			"go of the results table.",
+		Example: &state.Example{
+			Params: map[string]any{}, What: "start the matrix that is defined",
+			Runnable: false,
+		},
+	}, func(w *state.World, _ any) (any, error) {
 		e := s.experiment()
 		e.mu.Lock()
 		if e.running {
@@ -73,7 +100,20 @@ func registerExperimentControl(st *state.Store, s *Sim) {
 		return map[string]any{"running": true, "runs": e.runsTotal()}, nil
 	})
 
-	st.Handle("experiment.stop", func(w *state.World, _ any) (any, error) {
+	st.HandleSpec("experiment.stop", state.Spec{
+		What: "ask a sweep to stop and say whether it actually has, since the " +
+			"cell in flight finishes before the worker leaves and waiting for " +
+			"it here would deadlock the worker",
+		Returns: []string{"stopped", "done", "total", "settled"},
+		Answers: "`stopped` is whether there was anything running to stop, so " +
+			"false is a normal answer. `settled` is the one a script wants: " +
+			"false means the worker is still inside a cell, and the next " +
+			"experiment.start will be refused until it is not.",
+		Example: &state.Example{
+			Params: map[string]any{}, What: "abandon a sweep part way through",
+			Runnable: true,
+		},
+	}, func(w *state.World, _ any) (any, error) {
 		e := s.experiment()
 		e.mu.Lock()
 		was := e.running

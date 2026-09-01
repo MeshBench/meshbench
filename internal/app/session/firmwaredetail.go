@@ -35,6 +35,18 @@ func registerFirmwareDetails(st *state.Store, s *Sim) {
 		Returns: []string{"role", "version", "board", "native", "on_disk", "path",
 			"settings_path", "bytes", "modified", "in_use", "kind", "bootable",
 			"flash_mb", "coproc_at_reset", "card_required", "notes"},
+		Answers: "Answered from the library, so a published build nobody has " +
+			"fetched is described too: `on_disk` is then false and `path` and " +
+			"`bytes` are empty. `in_use` counts the nodes pinned to it, " +
+			"`kind`, `bootable` and `flash_mb` are read from a board image and " +
+			"say nothing about a native build, `settings_path` is where its " +
+			"settings would be written whether any exist or not, and " +
+			"`modified` is absent for a build not on this machine. A label " +
+			"naming more than one build is refused rather than guessed at.",
+		Example: &state.Example{
+			Params: map[string]any{"version": "repeater-v1.16.0"},
+			What:   "find out where a build lives and what is running it",
+		},
 	}, func(w *state.World, p any) (any, error) {
 		row, err := findBuildRow(w, s, p)
 		if err != nil {
@@ -90,6 +102,20 @@ func registerFirmwareUpdate(st *state.Store, s *Sim) {
 				What: "what the next person should know about this build"},
 		},
 		Returns: []string{"role", "version", "board", "path", "renamed", "repinned", "settings"},
+		Answers: "The build's identity after the change comes back, with " +
+			"`renamed` saying whether the file actually moved and `repinned` " +
+			"how many nodes were pointed at the new name, which happens on " +
+			"their behalf so none is left naming a build nothing answers to. " +
+			"`settings` holds `coproc_at_reset`, `card_required` and `notes` as " +
+			"they now stand. Refused for a build not on this machine, and " +
+			"refused while a node is running it.",
+		Example: &state.Example{
+			Params: map[string]any{
+				"version": "repeater-v1.16.0",
+				"notes":   "the arm this study compares against",
+			},
+			What: "record what the next person should know about a build",
+		},
 	}, func(w *state.World, p any) (any, error) {
 		row, err := findBuildRow(w, s, p)
 		if err != nil {

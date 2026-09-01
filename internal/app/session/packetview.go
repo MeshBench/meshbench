@@ -17,11 +17,35 @@ import (
 )
 
 func registerPacket(st *state.Store, s *Sim) {
-	// packet.open dissects one transmission by its id. On the store's
-	// goroutine deliberately: the ledger and the event log belong to the
-	// engine, which steps on this goroutine, and a click can afford the
-	// milliseconds a scan costs.
-	st.Handle("packet.open", func(w *state.World, p any) (any, error) {
+	// On the store's goroutine deliberately: the ledger and the event log
+	// belong to the engine, which steps on this goroutine, and a click can
+	// afford the milliseconds a scan costs.
+	st.HandleSpec("packet.open", state.Spec{
+		What: "dissect one transmission and gather what every node did with it, " +
+			"and leave it as the packet the view keeps following while its " +
+			"message is still spreading",
+		Params: []state.Param{
+			{Name: "id", Type: state.ParamNumber, Required: true, Primary: true,
+				What: "the transmission's id; absent or zero is refused"},
+			{Name: "seek", Type: state.ParamNumber,
+				What: "step this many ids at a time until a transmission that is " +
+					"still in the ledger is found, up to fifty tries, which is " +
+					"what the previous and next arrows send; absent means take " +
+					"the given id or nothing"},
+		},
+		Returns: []string{"id", "origin", "heard", "missed", "transmissions", "reached"},
+		Answers: "`id` is the transmission actually opened, which is not the one " +
+			"asked for when `seek` walked to a neighbouring one. `transmissions` " +
+			"counts every time the message was put on the air, so a relayed flood " +
+			"is told from a single advert without reading the header, and " +
+			"`reached` is how many distinct nodes heard any of them. Refused " +
+			"where no engine is built, and where nothing of that id is left in " +
+			"the event log.",
+		Example: &state.Example{
+			Params: map[string]any{"id": 1},
+			What:   "open the first transmission of a run",
+		},
+	}, func(w *state.World, p any) (any, error) {
 		if s.eng == nil {
 			return nil, ErrNoSimulation
 		}
@@ -61,7 +85,16 @@ func registerPacket(st *state.Store, s *Sim) {
 			"transmissions": pk.Transmissions, "reached": pk.Reached}, nil
 	})
 
-	st.Handle("packet.close", func(w *state.World, _ any) (any, error) {
+	st.HandleSpec("packet.close", state.Spec{
+		What: "put the open packet away, which is also what stops the per-tick " +
+			"rebuild that keeps an open one live",
+		Answers: "Nothing comes back, whether or not a packet was open: the " +
+			"answer is null and the call cannot fail.",
+		Example: &state.Example{
+			Params: map[string]any{}, What: "stop following a packet",
+			Runnable: true,
+		},
+	}, func(w *state.World, _ any) (any, error) {
 		w.Packet = nil
 		return nil, nil
 	})

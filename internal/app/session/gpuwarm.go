@@ -258,8 +258,33 @@ func (s *Sim) gpuDefault() {
 
 // registerGPU is the switch and what it did.
 func registerGPU(st *state.Store, s *Sim) {
-	// gpu.set: on or off, said once and remembered.
-	st.Handle("gpu.set", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("gpu.set", state.Spec{
+		What: "choose whether the link matrix is measured on the GPU or on the " +
+			"processor, which is a choice about how long it takes and nothing " +
+			"else: every kernel has a CPU twin tested against it, so a machine " +
+			"turning this off loses time, not answers",
+		Params: []state.Param{
+			{Name: "on", Type: state.ParamBool, Primary: true,
+				What: "true to use a device where there is one worth opening, " +
+					"false to keep the work on the cores; absent changes nothing " +
+					"and only reports, and a value given here is remembered " +
+					"across launches in place of the default"},
+		},
+		Returns: []string{"enabled", "present", "device", "backend", "why", "last_warm"},
+		Answers: "`enabled` is the choice and `present` is the hardware, which " +
+			"are different things: a device that opens but disagrees with the " +
+			"CPU twin on a small problem is reported absent with `why` saying " +
+			"so, rather than trusted with the network. `device` and `backend` " +
+			"appear only where one passed. `last_warm` is what the previous " +
+			"measurement actually did - used, pairs, ms, and why not - because " +
+			"a run that quietly fell back to the cores must not read as one " +
+			"that did not.",
+		Example: &state.Example{
+			Params:   false,
+			What:     "keep the measurement on the processor and the device free",
+			Runnable: true,
+		},
+	}, func(w *state.World, p any) (any, error) {
 		if v, ok := boolField(p, "on"); ok {
 			// Chosen beats decided: once somebody has said, the default does
 			// not get another go at it - and the choice survives a restart.
@@ -279,8 +304,19 @@ func registerGPU(st *state.Store, s *Sim) {
 		return s.gpuState(), nil
 	})
 
-	// gpu.state: what hardware there is, and what the last warm did with it.
-	st.Handle("gpu.state", func(w *state.World, _ any) (any, error) {
+	st.HandleSpec("gpu.state", state.Spec{
+		What: "read what hardware this machine has, whether it passed the " +
+			"check against the CPU twin, and what the last link measurement " +
+			"actually ran on",
+		Returns: []string{"enabled", "present", "device", "backend", "why", "last_warm"},
+		Answers: "the same answer gpu.set gives, without changing anything. The " +
+			"machine is asked for a device exactly once per session, so calling " +
+			"this repeatedly costs nothing.",
+		Example: &state.Example{
+			Params: map[string]any{}, What: "ask what the last warm ran on",
+			Runnable: true,
+		},
+	}, func(w *state.World, _ any) (any, error) {
 		w.GPU = s.gpuWorldState()
 		return s.gpuState(), nil
 	})

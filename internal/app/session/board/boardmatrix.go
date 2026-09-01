@@ -25,7 +25,27 @@ import (
 const defaultBoardVersion = "v1.17.1"
 
 func registerBoardMatrix(st *state.Store, s *session.Sim) {
-	st.Handle("board.matrix", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("board.matrix", state.Spec{
+		What: "publish what every board in the catalogue was last measured to " +
+			"demonstrate, for one firmware release, without booting anything",
+		Params: []state.Param{
+			{Name: "version", Type: state.ParamString, Primary: true,
+				What: "the MeshCore release the rows are read for; absent or " +
+					"empty takes the release the matrix defaults to, which " +
+					"tracks the latest rather than whatever a result was first " +
+					"measured on"},
+		},
+		Returns: []string{"version", "boards"},
+		Answers: "`boards` is a count: the rows themselves go into the snapshot " +
+			"as the board matrix, where a panel or `ui.state` reads them. " +
+			"Nothing is measured here, so a board with no cached result for that " +
+			"release reads as untested, and one that cannot be emulated at all " +
+			"reads as boot-failed with the reason.",
+		Example: &state.Example{
+			Params: map[string]any{}, What: "read the matrix as it stands",
+			Runnable: true,
+		},
+	}, func(w *state.World, p any) (any, error) {
 		version, _ := session.StringField(p, "version")
 		if version == "" {
 			version = defaultBoardVersion
@@ -34,10 +54,28 @@ func registerBoardMatrix(st *state.Store, s *session.Sim) {
 		return map[string]any{"version": version, "boards": len(w.BoardMatrix)}, nil
 	})
 
-	// board.probe: one board, one real emulator boot. Slow, so it goes on a
-	// job, and every capability it measures overwrites that board's cached
-	// row when it finishes.
-	st.Handle("board.probe", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("board.probe", state.Spec{
+		What: "boot one board in the emulator for real and measure what it " +
+			"demonstrates, overwriting that board's cached row",
+		Params: []state.Param{
+			{Name: "board", Type: state.ParamString, Required: true, Primary: true,
+				What: "the board to boot, by its catalogue name; absent is refused"},
+			{Name: "version", Type: state.ParamString,
+				What: "the MeshCore release to probe, which has to be named to be " +
+					"meant; absent takes the release the matrix defaults to"},
+		},
+		Returns: []string{"probing", "board", "version"},
+		Answers: "It answers as soon as the job is started, not when the board " +
+			"has been measured: the boot runs on its own goroutine for as long " +
+			"as the probe budget allows, and the result arrives through " +
+			"`board.probe_finished`, which republishes the matrix. Poll " +
+			"`job.list` for `boardprobe`. A second call while one is running is " +
+			"refused, because a board is probed one at a time.",
+		Example: &state.Example{
+			Params: map[string]any{"board": "Heltec_WSL3"},
+			What:   "measure one board's capabilities",
+		},
+	}, func(w *state.World, p any) (any, error) {
 		board, _ := session.StringField(p, "board")
 		if board == "" {
 			return nil, fmt.Errorf("board.probe needs a board")
@@ -72,7 +110,21 @@ func registerBoardMatrix(st *state.Store, s *session.Sim) {
 		return map[string]any{"probing": true, "board": board, "version": version}, nil
 	})
 
-	st.HandleInternal("board.probe_finished", func(w *state.World, p any) (any, error) {
+	st.HandleInternalSpec("board.probe_finished", state.Spec{
+		What: "take a finished probe back onto the store's goroutine: clear the " +
+			"job, republish the matrix over the row the probe has just written, " +
+			"and say how the board did",
+		Params: []state.Param{
+			{Name: "board", Type: state.ParamString, Required: true, Primary: true,
+				What: "the board that was probed"},
+			{Name: "version", Type: state.ParamString,
+				What: "the release it was probed at; an empty one republishes the " +
+					"matrix for an empty version, which holds no rows"},
+		},
+		Returns: []string{"board", "passed", "failed"},
+		Answers: "`passed` and `failed` are counted off the cached row the probe " +
+			"saved, so capabilities it never reached are in neither total.",
+	}, func(w *state.World, p any) (any, error) {
 		s.SetBoardProbing(false)
 		w.Jobs = session.FinishJob(w.Jobs, "boardprobe")
 		board, _ := session.StringField(p, "board")

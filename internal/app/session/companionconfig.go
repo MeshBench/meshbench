@@ -40,12 +40,54 @@ func setPathHash(en *engine.Node, bytes uint8) error {
 }
 
 func registerCompanionConfig(st *state.Store, s *Sim) {
-	// companion.configure: the node's own settings, as a phone would set them.
-	//
 	// Everything is optional and nothing is defaulted. A configure that sent
 	// every field every time would rewrite settings the operator never
 	// touched, and on a modem setting that is how a node leaves the mesh.
-	st.Handle("companion.configure", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("companion.configure", state.Spec{
+		What: "change a node's own settings the way a phone would, sending only " +
+			"the fields that were asked for, and reporting which ones went",
+		Params: []state.Param{
+			{Name: "node", Type: state.ParamString, Required: true, Primary: true,
+				What: "the connected node; refused when nothing is connected to it"},
+			{Name: "name", Type: state.ParamString,
+				What: "the name the node advertises itself under; absent or empty " +
+					"leaves it alone"},
+			{Name: "lat", Type: state.ParamNumber,
+				What: "latitude in degrees; absent leaves the advertised position " +
+					"alone, and giving it is what makes `lon` be read at all"},
+			{Name: "lon", Type: state.ParamNumber,
+				What: "longitude in degrees, read only when `lat` was given; " +
+					"absent alongside a `lat` sends zero"},
+			{Name: "tx_dbm", Type: state.ParamNumber,
+				What: "transmit power in dBm; absent leaves it alone"},
+			{Name: "freq_khz", Type: state.ParamNumber,
+				What: "centre frequency in kHz, refused outside 150000 to 2500000; " +
+					"absent with another modem field given keeps what the node " +
+					"last said it holds"},
+			{Name: "bw_khz", Type: state.ParamNumber,
+				What: "bandwidth in kHz, refused outside 7 to 500; absent with " +
+					"another modem field given keeps what the node last said it holds"},
+			{Name: "sf", Type: state.ParamNumber,
+				What: "spreading factor, refused outside 5 to 12; absent with " +
+					"another modem field given keeps what the node last said it holds"},
+			{Name: "cr", Type: state.ParamNumber,
+				What: "coding rate denominator, refused outside 5 to 8; absent " +
+					"with another modem field given keeps what the node last said " +
+					"it holds"},
+			{Name: "path_hash", Type: state.ParamNumber,
+				What: "bytes of path hash each hop adds, 1 to 3, refused outside " +
+					"that; absent leaves it alone"},
+		},
+		Returns: []string{"set"},
+		Answers: "`set` names what was sent, in the order it went. A call that " +
+			"asks for nothing at all is refused rather than answered with an " +
+			"empty list. The four modem fields go as one command, so any one of " +
+			"them is refused until the node has said what its radio is.",
+		Example: &state.Example{
+			Params: map[string]any{"node": "West Lomond", "tx_dbm": 17},
+			What:   "turn a node's transmit power down",
+		},
+	}, func(w *state.World, p any) (any, error) {
 		node, _ := stringField(p, "node")
 		c, en, err := s.companionFor(node)
 		if err != nil {

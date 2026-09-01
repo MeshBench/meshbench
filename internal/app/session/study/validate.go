@@ -26,8 +26,32 @@ const (
 )
 
 func registerValidate(st *state.Store, s *session.Sim) {
-	// validate.fetch: real receptions, replayed against the model.
-	st.Handle("validate.fetch", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("validate.fetch", state.Spec{
+		What: "pull what a real deployment actually heard and hand it to the " +
+			"comparison, which is where a number for the excess loss term comes " +
+			"from rather than a guess",
+		Params: []state.Param{
+			{Name: "url", Type: state.ParamString, Primary: true,
+				What: "the CoreScope base URL to ask; absent falls back to the " +
+					"source set with import.set_source, and is refused when " +
+					"there is no source either way"},
+			{Name: "hours", Type: state.ParamNumber,
+				What: "how far back to ask for, from a minute to a year; " +
+					"absent is a day, and a value outside that range or not a " +
+					"number is refused rather than quietly made a day"},
+		},
+		Returns: []string{"fetching", "hours"},
+		Answers: "It answers the moment the fetch starts, not with anything " +
+			"fetched. The comparison lands later through the internal " +
+			"`validate.compare`, and every way it can come to nothing - neither " +
+			"endpoint answering, observations carrying keys from another " +
+			"network, no SNR in the window - through `validate.failed` on the " +
+			"status line. This is the one verb here that goes to the network.",
+		Example: &state.Example{
+			Params: map[string]any{"url": "https://corescope.example/", "hours": 24},
+			What:   "fetch a day of real receptions to compare against",
+		},
+	}, func(w *state.World, p any) (any, error) {
 		url, _ := session.StringField(p, "url")
 		if url == "" && s.ImportURL() != "" {
 			url = s.ImportURL()
@@ -155,15 +179,33 @@ func registerValidate(st *state.Store, s *session.Sim) {
 		return map[string]any{"fetching": true, "hours": hours}, nil
 	})
 
-	st.HandleInternal("validate.failed", func(w *state.World, p any) (any, error) {
+	st.HandleInternalSpec("validate.failed", state.Spec{
+		What: "take the validation job off the status line and put the reason " +
+			"there instead, so a fetch that matched nothing says which of the " +
+			"several nothings it was",
+		Answers: "Answers nothing.",
+	}, func(w *state.World, p any) (any, error) {
 		msg := session.SoleString(p)
 		w.Jobs = session.FinishJob(w.Jobs, "validate")
 		w.Say("validate: " + msg)
 		return nil, nil
 	})
 
-	// validate.compare: what the model said against what was heard.
-	st.HandleInternal("validate.compare", func(w *state.World, p any) (any, error) {
+	st.HandleInternalSpec("validate.compare", state.Spec{
+		What: "put what the model predicted beside what was actually heard, and " +
+			"turn the difference into a total excess loss worth applying",
+		Returns: []string{"matched", "unmatched", "median_db", "iqr_db",
+			"suggested_excess_loss_db"},
+		Answers: "A positive `median_db` means the model predicted a stronger " +
+			"signal than was heard, which is the simulator being kinder than " +
+			"the air. `suggested_excess_loss_db` is a total and not a delta: " +
+			"the links these residuals were measured against already carried " +
+			"the current term, so it is that term plus the median. Saturated " +
+			"observations are counted but do not vote. It refuses when nothing " +
+			"matched, and says how much of that was names outside the scenario " +
+			"against pairs with no measured link, because the two want " +
+			"different fixes.",
+	}, func(w *state.World, p any) (any, error) {
 		recs, ok := p.([]provider.Reception)
 		if !ok {
 			return nil, session.WrongCallback("validate.compare")
@@ -212,8 +254,30 @@ func registerValidate(st *state.Store, s *session.Sim) {
 		}, nil
 	})
 
-	// validate.calibrate: apply what the comparison found.
-	st.Handle("validate.calibrate", func(w *state.World, p any) (any, error) {
+	st.HandleSpec("validate.calibrate", state.Spec{
+		What: "set the excess path loss term from what the comparison measured, " +
+			"or from a stated figure, and rebuild every link on it",
+		Params: []state.Param{
+			{Name: "db", Type: state.ParamNumber, Primary: true,
+				What: "the excess loss to apply, in decibels, which wins over " +
+					"the measurement; absent uses the measured residual, a " +
+					"negative is refused because excess loss is a loss, and a " +
+					"db that cannot be read as a number is refused rather than " +
+					"falling back to the residual nobody asked for"},
+		},
+		Returns: []string{"db", "links"},
+		Answers: "Refuses when nothing has been measured and no db was given: " +
+			"defaulting to 0 dB there is not the absence of calibration but the " +
+			"most optimistic model there is. The figure applied is a total on " +
+			"top of nothing, not a delta, so repeated fetch-then-calibrate " +
+			"rounds converge. It rebuilds the engine and re-measures every " +
+			"link, so `links` is 0 at the moment it answers and fills in as the " +
+			"matrix warms.",
+		Example: &state.Example{
+			Params: map[string]any{"db": 12},
+			What:   "apply a stated excess loss rather than a measured one",
+		},
+	}, func(w *state.World, p any) (any, error) {
 		db, have := 0.0, false
 		if w.Residuals != nil && w.Residuals.Matched > 0 {
 			// On top of the current term, because that is what the residuals
@@ -259,9 +323,19 @@ func registerValidate(st *state.Store, s *session.Sim) {
 		return map[string]any{"db": db, "links": len(w.Links)}, nil
 	})
 
-	// validate.uncalibrate: back to the default, which is a stated guess
-	// rather than a measurement.
-	st.Handle("validate.uncalibrate", func(w *state.World, _ any) (any, error) {
+	st.HandleSpec("validate.uncalibrate", state.Spec{
+		What: "put the excess path loss back to the default, which is a stated " +
+			"guess rather than a measurement, and rebuild every link on it",
+		Returns: []string{"db"},
+		Answers: "The snapshot stops calling itself calibrated, which is the " +
+			"point: the default is a reasonable figure for typical clutter and " +
+			"not this network's. It re-measures the whole link matrix, so the " +
+			"margins move over the seconds after it answers.",
+		Example: &state.Example{
+			Params: map[string]any{},
+			What:   "drop a calibration and go back to the stated default",
+		},
+	}, func(w *state.World, _ any) (any, error) {
 		s.SetExcessLoss(session.DefaultExcessLossDB, false)
 		w.ExcessLossDB, w.Calibrated = session.DefaultExcessLossDB, false
 		if len(s.Nodes()) > 0 {
