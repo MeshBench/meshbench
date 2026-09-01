@@ -338,7 +338,15 @@ func (s *Sim) buildSeeded(nodes []scenario.Node, freqMHz float64, seed uint64) {
 	// for exactly this reason, and its comment is worth repeating - an empty
 	// cache bills its terrain profiles to whoever sends the first message,
 	// which reads as "runs fine until I send, then stuck".
-	s.cold, s.warmed = true, false
+	s.cold = true
+	// Under the lock, because the warm that is very likely still running sets
+	// this from its own goroutine as it finishes. A rebuild writing it bare
+	// was two goroutines on one bool, which the race detector calls what it
+	// is and which decides nothing reliably: "warming up" is what play refuses
+	// to start in front of.
+	s.warmMu.Lock()
+	s.warmed = false
+	s.warmMu.Unlock()
 	s.geomFP = fp
 	defer func() {
 		if carried != nil && s.eng != nil {
@@ -379,24 +387,34 @@ func (s *Sim) buildSeeded(nodes []scenario.Node, freqMHz float64, seed uint64) {
 	}
 }
 
-// links is every pair that can hear each other, with the weaker direction's
+// linksOf is every pair that can hear each other, with the weaker direction's
 // margin, from the engine's own path loss.
 //
 // n squared, and on the 311 node fixture that is 48,000 path losses - which is
-// why it is a verb that runs once on the store's goroutine and lands in the
-// snapshot, rather than something the map does while drawing.
-func (s *Sim) links() []state.Link {
-	if s.eng == nil {
+// why it is measured once, off the store's goroutine, and lands in the
+// snapshot, rather than being something the map does while drawing.
+//
+// The engine and its nodes are arguments rather than the session's own fields
+// because the only caller is a warm, which runs on its own goroutine and
+// outlives the network it was started for. Reading the live pair meant
+// measuring whichever network had been opened since - and during a rebuild
+// those two disagree by construction, the node list being replaced in one
+// assignment while the new engine is filled a node at a time after it. An
+// index off the list was then out of range in the engine, which is a bounds
+// panic on a worker and the whole process with it. Handed both, this can only
+// index the slice it was given the length of.
+func linksOf(eng *engine.Engine, nodes []scenario.Node) []state.Link {
+	if eng == nil {
 		return nil
 	}
 	var out []state.Link
-	for i := range s.nodes {
-		for j := i + 1; j < len(s.nodes); j++ {
-			loss, ok := s.eng.PathLossForTest(i, j)
+	for i := range nodes {
+		for j := i + 1; j < len(nodes); j++ {
+			loss, ok := eng.PathLossForTest(i, j)
 			if !ok {
 				continue
 			}
-			m := linkbudget.MarginDB(s.nodes[i], s.nodes[j], loss)
+			m := linkbudget.MarginDB(nodes[i], nodes[j], loss)
 			// A link that does not close in the weaker direction by a wide
 			// margin is not a link anybody wants drawn: below -20 dB the pair
 			// is a different part of the country.
@@ -405,8 +423,8 @@ func (s *Sim) links() []state.Link {
 			}
 			out = append(out, state.Link{
 				A: i, B: j, MarginDB: m, Known: true,
-				AtoB: linkbudget.OneWayDB(s.nodes[i], s.nodes[j], loss),
-				BtoA: linkbudget.OneWayDB(s.nodes[j], s.nodes[i], loss),
+				AtoB: linkbudget.OneWayDB(nodes[i], nodes[j], loss),
+				BtoA: linkbudget.OneWayDB(nodes[j], nodes[i], loss),
 			})
 		}
 	}

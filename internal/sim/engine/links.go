@@ -15,6 +15,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/MeshBench/meshbench/internal/diag"
 	"github.com/MeshBench/meshbench/internal/rf/dsp"
 	"github.com/MeshBench/meshbench/internal/rf/environ"
 	"github.com/MeshBench/meshbench/internal/rf/geo"
@@ -42,6 +43,20 @@ func (e *Engine) pathLoss(a, b int) (float64, bool) {
 		// every validate.calibrate threw away half an hour of ground-walking
 		// to change a constant that every path shares.
 		return v + excess, true
+	}
+	// A pair this engine has no nodes for is refused rather than indexed.
+	//
+	// Nothing should be able to ask: every caller counts the nodes off this
+	// same engine. But an index is only ever as good as the slice it was
+	// taken from, and one taken from somewhere else - a caller that outlived
+	// the network it counted - used to land here as a bounds panic on a
+	// worker goroutine, which is the whole process and whatever was unsaved
+	// in it. No answer is a thing the callers already handle.
+	if a < 0 || b >= len(e.nodes) {
+		have := len(e.nodes)
+		e.mu.Unlock()
+		diag.Printf("engine", "path loss asked for pair %d,%d of %d nodes: no such pair", a, b, have)
+		return 0, false
 	}
 	from, to := e.nodes[a].Spec(), e.nodes[b].Spec()
 	e.mu.Unlock()
