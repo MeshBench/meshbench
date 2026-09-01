@@ -201,6 +201,7 @@
     "resource.remove": "wb.resources.remove(kind, name, version)",
     "resource.licence": "wb.resources.licence(kind, name, version)",
     "resource.licence.hide": "",
+    "setup.check": "wb.setup.check()",
     "terrain.cache": "wb.terrain.cache_gb = n",
     "terrain.cache_dir": "wb.terrain.cache_dir = path",
     "terrain.cache_moved": "",
@@ -423,6 +424,7 @@
     {
       "title": "Machine resources",
       "prefixes": [
+        "setup",
         "resource",
         "terrain",
         "gpu",

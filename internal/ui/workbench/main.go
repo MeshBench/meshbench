@@ -306,6 +306,13 @@ func Run(args []string) {
 		openFwFlag: openFwFlag, openMenuFlag: openMenuFlag,
 		packetTabFlag: packetTabFlag, nodeTabFlag: nodeTabFlag,
 	})
+	// After the panels are registered, because it opens one of them. Not when
+	// a single panel fills the window: that is a capture, and a page docking
+	// itself over the one asked for would be the last thing a screenshot
+	// wanted.
+	if *panelFlag == "" {
+		openSetupIfNotReady(ctx, st)
+	}
 	switch *viewFlag {
 	case "run":
 		sh.View = shell.Run

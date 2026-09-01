@@ -114,6 +114,10 @@ type World struct {
 	// position, and because a study held up waiting for it is a state the
 	// interface has to be able to explain.
 	TerrainDownloads bool
+	// Setup is what this machine has and has not, as last checked. Grouped
+	// rather than flat because what is true of a whole group - where tools are
+	// looked for, and that it is not PATH - is the half people get wrong.
+	Setup []SetupGroup
 	// Builds is the firmware library on this machine.
 	Builds []Build
 	// Experiment is the A/B matrix's summary, and ExperimentWarning is why it

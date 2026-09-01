@@ -56,6 +56,9 @@ var panelMenus = map[string]panelHome{
 	"Compare":         {"Analysis", "Against reality"},
 	"Validate":        {"Analysis", "Against reality"},
 
+	// Under Help rather than beside Resources: it is the page somebody goes
+	// looking for when nothing works yet, and Help is where they look.
+	"Setup":    {"Help", ""},
 	"Licences": {"Help", ""},
 }
 

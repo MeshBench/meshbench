@@ -15,6 +15,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"time"
+
+	"github.com/MeshBench/meshbench/internal/firmware/emulated/renode"
 )
 
 // ToolsDir is where the emulator and the radio model are kept.
@@ -89,6 +91,34 @@ func lookupTool(env, name string) (string, error) {
 func fileExists(p string) bool {
 	st, err := os.Stat(p)
 	return err == nil && !st.IsDir()
+}
+
+// ToolEnv names the three binaries an emulated node needs and the environment
+// variable each can be pointed at.
+//
+// Exported because the tools are asked about from outside as well as started
+// from inside: a release tarball carries them beside the binary, a fetch puts
+// them in the tools directory, and only this package knows that both count.
+var ToolEnv = map[string]string{
+	"radioserver":        EnvRadioServer,
+	"qemu-system-xtensa": EnvQEMU,
+	"renode":             renode.EnvRenode,
+}
+
+// FindTool answers where a node starting now would find a tool, or the error it
+// would fail with.
+//
+// The same lookup a boot does, deliberately. Measuring the tools directory
+// alone - which is all a cache listing can honestly do - reports a tarball
+// install as having nothing, because its emulators sit beside the binary and
+// were never downloaded. A readiness check that disagrees with the thing it is
+// predicting is worse than no check.
+func FindTool(name string) (string, error) {
+	env, ok := ToolEnv[name]
+	if !ok {
+		return "", fmt.Errorf("firmware: no emulator tool called %s", name)
+	}
+	return lookupTool(env, name)
 }
 
 // PadImageKeeping is PadImage, except that a flash the node has already been

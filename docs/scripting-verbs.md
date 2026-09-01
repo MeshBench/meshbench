@@ -1,8 +1,8 @@
 # Every verb, and the call that covers it
 
 The wire underneath [scripting-api.md](scripting-api.md). The store registers
-**208**<!--verbdoc:public--> public verbs a script can call and
-**35**<!--verbdoc:internal--> internal callbacks it cannot, **243**<!--verbdoc:total-->
+**209**<!--verbdoc:public--> public verbs a script can call and
+**35**<!--verbdoc:internal--> internal callbacks it cannot, **244**<!--verbdoc:total-->
 in total, plus the two the socket answers itself, with what each reads, what
 each returns, and which façade call reaches it.
 
@@ -72,8 +72,8 @@ Two verbs are **not** in this table:
 
 ## What this table shows about the surface
 
-- **208**<!--verbdoc:public--> public verbs, plus **35**<!--verbdoc:internal-->
-  the workbench keeps to itself, **243**<!--verbdoc:total--> registered in
+- **209**<!--verbdoc:public--> public verbs, plus **35**<!--verbdoc:internal-->
+  the workbench keeps to itself, **244**<!--verbdoc:total--> registered in
   total. The façade covers the public verbs, over roughly 60 calls once
   objects and properties absorb them.
 - **The naming is not regular.** `node.*` and `nodes.*` are both node verbs and
@@ -392,6 +392,7 @@ Two verbs are **not** in this table:
 | `resource.licence.hide` | — | `hidden` | *none* — closing a box only a window has |
 | `resource.list` | — | `rows`, `resources` | `wb.resources` |
 | `resource.remove` | `name` string, `version` string, `kind` string | `removed` | `wb.resources.remove(kind, name, version)` |
+| `setup.check` | — | `groups`, `ready`, `needed`, `undecided`, `blocked`, `missing` | `wb.setup.check()` |
 | `terrain.allow` | *a bare string*, `on` bool | `on`, `asked`, `warming` | `wb.terrain.allow(on=True)` |
 | `terrain.cache` | `gb` number | `gb`, `dir`, `downloads` | `wb.terrain.cache_gb = n` |
 | `terrain.cache_dir` | *a bare string*, `path` string | `dir`, `moving`, `to` | `wb.terrain.cache_dir = path` |
