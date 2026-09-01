@@ -136,7 +136,7 @@ jobs:
           go build -trimpath \
             -ldflags "-X gioui.org/app.ID=io.github.meshbench.meshbench \
               -X github.com/MeshBench/meshbench/internal/world/basemap.defaultCartoKey=${CARTO_API_KEY} \
-                      -X github.com/MeshBench/meshbench/internal/app/version.Version=$VERSION" \
+                      -X github.com/MeshBench/meshbench/internal/app/version.Version=v$VERSION" \
             -o dist/meshbench/meshbench ./cmd/meshbench
 
       - name: Fetch the emulators
@@ -610,7 +610,7 @@ jobs:
           go build -trimpath \
             -ldflags "-H windowsgui -X gioui.org/app.ID=io.github.meshbench.meshbench \
               -X github.com/MeshBench/meshbench/internal/world/basemap.defaultCartoKey=${CARTO_API_KEY} \
-                      -X github.com/MeshBench/meshbench/internal/app/version.Version=$VERSION" \
+                      -X github.com/MeshBench/meshbench/internal/app/version.Version=v$VERSION" \
             -o dist/meshbench/meshbench.exe ./cmd/meshbench
           cp -r fixtures dist/meshbench/fixtures
           cp packaging/icons/meshbench-256.png dist/meshbench/meshbench.png
