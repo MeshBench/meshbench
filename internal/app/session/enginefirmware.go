@@ -3,8 +3,11 @@ package session
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
+	"github.com/MeshBench/meshbench/internal/sim/engine"
+	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
 // startFirmware brings real MeshCore up on every node that runs it.
@@ -17,6 +20,17 @@ func (s *Sim) startFirmware(st *state.Store, seed uint64) {
 	if s.eng == nil || s.starting.Swap(true) {
 		return
 	}
+	// The engine and its nodes as they are now, not as they will be when the
+	// worker gets to them.
+	//
+	// This runs on the store's goroutine and the attach does not, so reading
+	// s.eng from in there means attaching to whichever network is live by
+	// then. Opening a different one while firmware is starting therefore
+	// published a node into an engine the clock was already stepping, and the
+	// tick waited on a node it had never sent a tick to. The attach belongs to
+	// the network that was asked for; if that one has gone, so has the reason
+	// to attach to anything.
+	eng, nodes := s.eng, s.nodes
 	go func() {
 		defer s.starting.Store(false)
 		ctx := context.Background()
@@ -27,7 +41,7 @@ func (s *Sim) startFirmware(st *state.Store, seed uint64) {
 		defer func() { _, _ = st.Do(ctx, "job.done", "firmware") }()
 		_, _ = st.Do(ctx, "job.progress", state.Job{
 			ID: "firmware", What: "starting firmware on every node"})
-		err := s.eng.AttachNativeProgress(ctx, seed, func(done, total int) {
+		err := eng.AttachNativeProgress(ctx, seed, func(done, total int) {
 			// Every tenth node: a verb per node would make the queue the slow
 			// part of starting 154 processes.
 			if done%10 != 0 && done != total {
@@ -41,7 +55,7 @@ func (s *Sim) startFirmware(st *state.Store, seed uint64) {
 			_, _ = st.Do(ctx, "firmware.failed", err.Error())
 			return
 		}
-		if n := s.provisionAll(); n > 0 {
+		if n := provisionAll(eng, nodes, s.provisionLines); n > 0 {
 			_, _ = st.Do(ctx, "job.progress", state.Job{
 				ID: "firmware", What: "telling every node what it is",
 				Done: n, Total: n})
@@ -51,6 +65,29 @@ func (s *Sim) startFirmware(st *state.Store, seed uint64) {
 		}
 		_, _ = st.Do(ctx, "firmware.started", nil)
 	}()
+}
+
+// sayFirmwareFailures reports the nodes this tick gave up on, by name and
+// with the reason each one gave.
+//
+// One line per node, because the two ways a node stops answering want
+// different things done about them: a process that has gone is restarted, and
+// a node that missed its deadline is a machine with too much on it. A run
+// where the whole mesh goes at once - the machine swapping, or every process
+// killed together - would otherwise put three hundred lines in the strip, so
+// the tail is counted rather than listed.
+func sayFirmwareFailures(w *state.World, down []engine.FirmwareFailure) {
+	const named = 5
+	for i, f := range down {
+		if i == named {
+			w.Say(fmt.Sprintf("and %d more node(s) stopped answering in the same tick",
+				len(down)-named))
+			return
+		}
+		w.Say(fmt.Sprintf(
+			"%s stopped answering and has been dropped from this run: %s; "+
+				"the rest of the mesh keeps going", f.Name, f.Why))
+	}
 }
 
 // firmwareCount is how many nodes are running firmware right now.
@@ -111,18 +148,24 @@ func (s *Sim) Close() {
 // sent cannot drift apart. On the starting goroutine rather than in a verb,
 // because three hundred nodes times seven commands is work proportional to the
 // network and that does not belong on the store's thread.
-func (s *Sim) provisionAll() int {
-	if s.eng == nil {
+//
+// The engine and its nodes are arguments rather than the session's own fields,
+// for the reason linksOf takes them: this runs on the attach's goroutine, and
+// the session's pair is replaced whole when a network is opened. Told which
+// network to configure, it cannot configure a different one.
+func provisionAll(eng *engine.Engine, nodes []scenario.Node,
+	lines func(scenario.Node) []state.ProvisionLine) int {
+	if eng == nil {
 		return 0
 	}
 	done := 0
-	for _, n := range s.nodes {
-		en, ok := s.eng.NodeByName(n.Name)
+	for _, n := range nodes {
+		en, ok := eng.NodeByName(n.Name)
 		if !ok || en.Firmware == nil {
 			continue
 		}
 		sent := false
-		for _, line := range s.provisionLines(n) {
+		for _, line := range lines(n) {
 			if line.Comment {
 				continue
 			}

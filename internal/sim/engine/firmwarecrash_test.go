@@ -165,7 +165,13 @@ func TestOneCrashedFirmwareDoesNotFreezeTheOthers(t *testing.T) {
 	alive.waitAcked(t, 10)
 
 	failures := e.FirmwareFailures()
-	if len(failures) != 1 || failures[0] != "dying" {
-		t.Fatalf("FirmwareFailures = %v, want exactly [\"dying\"]", failures)
+	if len(failures) != 1 || failures[0].Name != "dying" {
+		t.Fatalf("FirmwareFailures = %+v, want exactly the node that died", failures)
+	}
+	// And why, not only who: the operator is told what to do about it, and
+	// a process that has gone and a node that missed its deadline want
+	// different things done.
+	if failures[0].Why == "" {
+		t.Error("the failure gave no reason")
 	}
 }
