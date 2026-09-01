@@ -1,0 +1,271 @@
+{
+  "_comment": [
+    "The authored half of the CLI reference. Everything else on that page is",
+    "read out of the binary's own help, and this is the part no introspection",
+    "can produce: what a flag is for, and whether the command refuses to run",
+    "without it.",
+    "",
+    "Required is stated here rather than read from the source because the tree",
+    "spells it three ways - requireAll(notGiven(...)), a bare empty-string",
+    "check, and a requireAll that only applies once another flag was given, as",
+    "basemap's area does. A regular expression that read all three would call",
+    "basemap's edges required, which they are not: without -layer it lists the",
+    "layers and stops.",
+    "",
+    "A flag with no entry here fails the generator, which is the point: a flag",
+    "nobody decided a purpose for is a flag that lands in the reference",
+    "unexplained."
+  ],
+  "purposes": {
+    "capture": "capture and scripting: it reaches a view, a panel or a menu without a click, so a screenshot or a script does not need a hand on the mouse. None of these changes a result.",
+    "data": "where the inputs come from, and whether the network may be used to get them. Nothing here is part of the physics.",
+    "diagnostic": "measures the application itself rather than the network it is simulating.",
+    "output": "where the answer is written and how much of it is said. It does not change what was computed.",
+    "result": "an input the answer depends on. Change it and the number changes."
+  },
+  "commands": {
+    "link": {
+      "required": ["from-lat", "from-lon", "to-lat", "to-lon"],
+      "for": {
+        "freq": "result",
+        "from-gain": "result",
+        "from-height": "result",
+        "from-lat": "result",
+        "from-lon": "result",
+        "from-tx": "result",
+        "offline": "data",
+        "sensitivity": "result",
+        "terrain-cache": "data",
+        "to-gain": "result",
+        "to-height": "result",
+        "to-lat": "result",
+        "to-lon": "result",
+        "to-tx": "result",
+        "zoom": "result"
+      }
+    },
+    "profile": {
+      "required": ["from-lat", "from-lon", "to-lat", "to-lon"],
+      "for": {
+        "from-height": "result",
+        "from-lat": "result",
+        "from-lon": "result",
+        "offline": "data",
+        "samples": "result",
+        "terrain-cache": "data",
+        "to-height": "result",
+        "to-lat": "result",
+        "to-lon": "result",
+        "zoom": "result"
+      }
+    },
+    "coverage": {
+      "required": ["lat", "lon"],
+      "for": {
+        "freq": "result",
+        "gain": "result",
+        "height": "result",
+        "lat": "result",
+        "lon": "result",
+        "o": "output",
+        "offline": "data",
+        "pixels": "result",
+        "radius": "result",
+        "remote-height": "result",
+        "remote-tx": "result",
+        "sensitivity": "result",
+        "terrain-cache": "data",
+        "tx": "result",
+        "zoom": "result"
+      }
+    },
+    "spectrum": {
+      "required": [],
+      "for": {
+        "bandwidth": "result",
+        "freq": "result",
+        "noise-figure": "result",
+        "o": "output",
+        "rx": "result",
+        "sf": "result",
+        "symbols": "result",
+        "wav": "output"
+      }
+    },
+    "terrain": {
+      "required": ["south", "north", "west", "east"],
+      "for": {
+        "east": "data",
+        "estimate": "data",
+        "north": "data",
+        "offline": "data",
+        "south": "data",
+        "terrain-cache": "data",
+        "west": "data",
+        "zoom": "data"
+      }
+    },
+    "boards": {
+      "required": [],
+      "for": {}
+    },
+    "firmware": {
+      "required": [],
+      "for": {
+        "board": "data",
+        "cache": "data",
+        "get": "data",
+        "import": "data",
+        "label": "data",
+        "offline": "data",
+        "role": "data"
+      }
+    },
+    "energy": {
+      "required": ["lat"],
+      "for": {
+        "always-on": "result",
+        "battery": "result",
+        "lat": "result",
+        "lon": "result",
+        "panel": "result",
+        "tilt": "result",
+        "tx": "result"
+      }
+    },
+    "airtime": {
+      "required": [],
+      "for": {
+        "bandwidth": "result",
+        "bytes": "result",
+        "coding-rate": "result",
+        "sf": "result"
+      }
+    },
+    "traffic": {
+      "required": [],
+      "for": {
+        "bandwidth": "result",
+        "board": "result",
+        "firmware": "result",
+        "for": "result",
+        "freq": "result",
+        "from": "result",
+        "nodes": "data",
+        "offline": "data",
+        "sf": "result",
+        "source": "data",
+        "terrain-cache": "data",
+        "token": "data",
+        "url": "data",
+        "v": "output",
+        "zoom": "result"
+      }
+    },
+    "basemap": {
+      "required": [],
+      "for": {
+        "cache": "data",
+        "east": "data",
+        "estimate": "data",
+        "layer": "data",
+        "north": "data",
+        "south": "data",
+        "west": "data",
+        "zoom": "data"
+      }
+    },
+    "dev": {
+      "required": [],
+      "for": {
+        "assign": "capture",
+        "from": "data",
+        "name": "data",
+        "role": "data",
+        "watch": "capture"
+      }
+    },
+    "serve": {
+      "required": [],
+      "for": {
+        "addr": "output",
+        "fixture": "result",
+        "node": "output",
+        "offline": "data",
+        "quiet": "output",
+        "serial": "output",
+        "terrain-cache": "data",
+        "zoom": "result"
+      }
+    },
+    "test": {
+      "required": ["fixture"],
+      "for": {
+        "endpoint": "output",
+        "fixture": "result",
+        "for": "result",
+        "junit": "output",
+        "offline": "data",
+        "quiet": "output",
+        "seed": "result",
+        "terrain-cache": "data",
+        "zoom": "result"
+      }
+    },
+    "headless": {
+      "required": [],
+      "for": {
+        "control-socket": "capture",
+        "fixture": "result",
+        "for": "result",
+        "play": "capture",
+        "quiet": "output",
+        "seed": "result",
+        "unverified-wiring": "result"
+      }
+    },
+    "workbench": {
+      "required": [],
+      "for": {
+        "capture": "capture",
+        "config-section": "capture",
+        "control-socket": "capture",
+        "coverage": "capture",
+        "cpuprofile": "diagnostic",
+        "drop-menu": "capture",
+        "energy": "capture",
+        "filter": "capture",
+        "fixture": "result",
+        "fps": "diagnostic",
+        "import": "capture",
+        "inject": "capture",
+        "inject-every": "capture",
+        "layers": "capture",
+        "licence-section": "capture",
+        "list-fixtures": "output",
+        "look": "capture",
+        "memprofile": "diagnostic",
+        "menu": "capture",
+        "node-menu": "capture",
+        "node-tab": "capture",
+        "node-window": "capture",
+        "open-firmware": "capture",
+        "packet-tab": "capture",
+        "panel": "capture",
+        "plan": "capture",
+        "play": "capture",
+        "pop-out": "capture",
+        "provisioning": "capture",
+        "quit-after": "capture",
+        "save-run": "capture",
+        "seed": "result",
+        "sweep": "capture",
+        "terrain": "capture",
+        "theme": "capture",
+        "unverified-wiring": "result",
+        "version": "output",
+        "view": "capture"
+      }
+    }
+  }
+}
