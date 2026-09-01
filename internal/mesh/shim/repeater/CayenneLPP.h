@@ -8,6 +8,8 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <vector>
+
 #define LPP_TEMPERATURE 103
 #define LPP_VOLTAGE 116
 #define LPP_RELATIVE_HUMIDITY 104
@@ -15,15 +17,16 @@
 
 class CayenneLPP {
  public:
-  explicit CayenneLPP(uint8_t size) : cap_(size) {
-    buf_ = new uint8_t[size];
-    len_ = 0;
-  }
-  ~CayenneLPP() { delete[] buf_; }
+  // A vector rather than a raw new[]: the buffer is the only thing this class
+  // owns, and owning it by hand would mean writing a copy constructor and an
+  // assignment operator that nobody has needed yet. Without them a copy shares
+  // one allocation and the second destructor frees it twice, which is a crash
+  // in whichever caller first passes one of these by value.
+  explicit CayenneLPP(uint8_t size) : buf_(size) {}
 
   void reset() { len_ = 0; }
   uint8_t getSize() const { return len_; }
-  uint8_t* getBuffer() { return buf_; }
+  uint8_t* getBuffer() { return buf_.data(); }
 
   // 0.01 V per count, big endian, as the specification defines it.
   uint8_t addVoltage(uint8_t channel, float v) {
@@ -34,7 +37,7 @@ class CayenneLPP {
     return add2(channel, LPP_TEMPERATURE, (int16_t)(c * 10));
   }
   uint8_t addRelativeHumidity(uint8_t channel, float pct) {
-    if (len_ + 3 > cap_) return 0;
+    if ((size_t)len_ + 3 > buf_.size()) return 0;
     buf_[len_++] = channel;
     buf_[len_++] = LPP_RELATIVE_HUMIDITY;
     buf_[len_++] = (uint8_t)(pct * 2);
@@ -46,14 +49,13 @@ class CayenneLPP {
 
  private:
   uint8_t add2(uint8_t channel, uint8_t type, int16_t value) {
-    if (len_ + 4 > cap_) return 0;
+    if ((size_t)len_ + 4 > buf_.size()) return 0;
     buf_[len_++] = channel;
     buf_[len_++] = type;
     buf_[len_++] = (uint8_t)(value >> 8);
     buf_[len_++] = (uint8_t)(value & 0xFF);
     return len_;
   }
-  uint8_t* buf_ = nullptr;
-  uint8_t cap_ = 0;
+  std::vector<uint8_t> buf_;
   uint8_t len_ = 0;
 };

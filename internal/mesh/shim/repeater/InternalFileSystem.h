@@ -11,6 +11,7 @@
 // the point of ADR-0010's cross-check.
 #pragma once
 
+#include <dirent.h>
 #include <stdint.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -128,15 +129,45 @@ class Adafruit_LittleFS {
     return File(f, p);
   }
 
+  // Erase the node's storage, as the CLI's own format command means it.
+  //
+  // Bounded to the directory the simulator handed this node, and never to a
+  // caller-supplied path: a CLI bug that reached a recursive delete of an
+  // arbitrary argument would take somebody's home directory with it. Within
+  // that bound it has to really erase, because a node that answers "done" and
+  // keeps its identity is a node the operator believes they have reset, and
+  // every result taken after that is about a node that is not the one they
+  // think they are looking at.
   bool format() {
-    // Deliberately not a recursive delete of a caller-supplied path. Erasing a
-    // filesystem is a real command in the CLI, and a bug here would remove
-    // something outside the node's own directory.
     if (root_.empty()) return false;
-    return true;
+    if (!clearDir(root_)) return false;
+    return ensureDir(root_);
   }
 
  private:
+  static bool clearDir(const std::string& dir) {
+    DIR* d = opendir(dir.c_str());
+    if (!d) return false;
+    bool ok = true;
+    while (struct dirent* e = readdir(d)) {
+      std::string name = e->d_name;
+      if (name == "." || name == "..") continue;
+      std::string p = dir + "/" + name;
+      // lstat, not stat: a symlink is removed as a link, and following one
+      // would let a link inside the node's directory reach outside it.
+      struct stat st {};
+      if (::lstat(p.c_str(), &st) != 0) {
+        ok = false;
+        continue;
+      }
+      bool gone = S_ISDIR(st.st_mode) ? clearDir(p) && ::rmdir(p.c_str()) == 0
+                                      : ::remove(p.c_str()) == 0;
+      ok = ok && gone;
+    }
+    closedir(d);
+    return ok;
+  }
+
   std::string full(const char* path) const {
     std::string p = path ? path : "";
     if (!p.empty() && p[0] == '/') p.erase(0, 1);

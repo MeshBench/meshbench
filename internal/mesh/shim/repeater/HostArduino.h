@@ -69,11 +69,23 @@ class HostSerial : public Stream {
   void attach(void (*out)(const char*, size_t), int (*in)()) {
     out_ = out;
     in_ = in;
+    pending_ = -1;
   }
 
-  int available() override { return in_ ? (in_() >= 0 ? 1 : 0) : 0; }
-  int read() override { return in_ ? in_() : -1; }
-  int peek() override { return -1; }
+  // available(), peek() and read() all answer from one byte of lookahead,
+  // because the bridge's input callback consumes what it returns. Asking it
+  // directly from available() spends the byte that read() then goes looking
+  // for, so `if (Serial.available()) c = Serial.read();` - which is how
+  // MeshCore's CLI reads its console, and how nearly all Arduino code does -
+  // loses every other character and gets blamed on the terminal.
+  int available() override { return refill() ? 1 : 0; }
+  int peek() override { return refill() ? pending_ : -1; }
+  int read() override {
+    if (!refill()) return -1;
+    int c = pending_;
+    pending_ = -1;
+    return c;
+  }
   void flush() override {}
 
   size_t write(uint8_t c) override {
@@ -122,8 +134,16 @@ class HostSerial : public Stream {
   explicit operator bool() const { return true; }
 
  private:
+  bool refill() {
+    if (pending_ >= 0) return true;
+    if (!in_) return false;
+    pending_ = in_();
+    return pending_ >= 0;
+  }
+
   void (*out_)(const char*, size_t) = nullptr;
   int (*in_)() = nullptr;
+  int pending_ = -1;
 };
 
 extern HostSerial Serial;
