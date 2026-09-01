@@ -4,7 +4,7 @@ The build that makes the Renode backend work.
 
 ```bash
 tools/armfw/build.sh
-renode  # with tools/renode/armfw.resc
+renode  # with tools/renode/armfw-radio.resc
 ```
 
 ## Result

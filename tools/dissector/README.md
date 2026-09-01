@@ -1,10 +1,27 @@
 # Wireshark dissector
 
+Two files, both needed, and the order they load in matters. To open a `.pcapng`
+written by `internal/sim/capture`:
+
 ```
-cp meshbench.lua ~/.local/lib/wireshark/plugins/
+wireshark -X lua_script:tools/dissector/meshcore_dissector.lua \
+          -X lua_script:tools/dissector/meshbench.lua \
+          your-capture.pcapng
 ```
 
-Then open any `.pcapng` written by `internal/capture`.
+Both scripts claim DLT_USER0, and whichever loads second wins, so ours goes
+last. Copying them into `~/.local/lib/wireshark/plugins/` instead does not do
+that: Wireshark loads a plugins directory alphabetically, `meshbench.lua` sorts
+before `meshcore_dissector.lua`, and the frame is then read with the vendored
+radio header rather than ours. It does not look like a failure, which is why it
+is worth saying: the frames still decode, into the wrong fields.
+
+Copying `meshbench.lua` alone is the other half of the same trap. The msim
+columns all populate (protocol, from, to, RSSI, SNR) and the MeshCore body is
+simply absent, with nothing on screen saying a dissector is missing.
+
+The live view has no such clash: `msim` is the only thing registered on the
+capture port, so a plugins directory is fine there.
 
 Useful filters:
 
@@ -29,8 +46,8 @@ captures in CI. Expanding it by hand until it looks complete is how it silently
 becomes wrong.
 
 The pseudo-header is versioned. Bump `PseudoHeaderVersion` in
-`internal/capture/pcapng.go` on any layout change — captures outlive the code
-that wrote them.
+`internal/sim/capture/pcapng.go` on any layout change: captures outlive the
+code that wrote them.
 
 ## Two files, two jobs
 
@@ -55,15 +72,19 @@ own GPL-3.0-or-later (`docs/licence.md`) rather than combining with it.
 
 ## Loading them
 
-The workbench does it for you — *Simulation → capture live to Wireshark* starts
-the capture and opens Wireshark with both scripts and a filter for our port.
-By hand:
+The workbench does it for you: *Simulation → capture live to Wireshark* starts
+the capture and opens Wireshark with both scripts, in this order, and a filter
+for our port. By hand, live:
 
     wireshark -k -i lo -f "udp port 5555" \
       -X lua_script:tools/dissector/meshcore_dissector.lua \
       -X lua_script:tools/dissector/meshbench.lua
 
-Order matters: ours registers DLT_USER0 last so our captures get our header.
+Order matters, and it is worth being precise about why, because the comment in
+`meshbench.lua` had it backwards for a while. Both scripts register on
+DLT_USER0; the second registration is the one that stands. Naming ours last on
+the command line is therefore the only arrangement that reads a saved MeshBench
+capture with the MeshBench pseudo-header.
 
 ## Filters worth knowing
 

@@ -109,7 +109,7 @@ The RAK4631 path that already works under Renode, and the ~40 other nRF52
 boards that do not yet have verified emulation wiring, were never blocked on
 anything Nordic objects to - only on the open legal question above, now closed.
 The remaining gap for those boards is entirely the engineering work of wiring
-and verifying each one (`internal/scenario/boards.go`'s `EmulationVerified`);
+and verifying each one (`internal/firmware/board/boards.go`'s `EmulationVerified`);
 nothing about it waits on Nordic's terms any more.
 
 **Getting a copy is also settled, provided MeshBench fetches it rather than

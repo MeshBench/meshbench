@@ -14,13 +14,15 @@ import (
 	"github.com/MeshBench/meshbench/internal/sim/engine"
 )
 
-// One board, measured one boot at a time.
+// Probe runs every capability for one board and version, in one boot.
 //
 // The columns are a sequence rather than a set: a board that will not boot has
 // no radio to measure, and a board whose radio does not reach the air cannot
 // be asked whether it forwards. So this reads top to bottom and stops where
 // the evidence stops, which is why a failure names the column it happened in.
-
+//
+// Each phase is bounded and a phase that never produces its evidence fails,
+// rather than hanging the probe for whoever is waiting on the column.
 func Probe(ctx context.Context, terr propagation.Terrain, board, version string) (report BoardReport) {
 	report = untestedReport(board, version)
 	report.EmulatorFP = EmulatorFingerprint()

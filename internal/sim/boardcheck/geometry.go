@@ -116,9 +116,3 @@ func ProbeBudget() time.Duration {
 	return time.Duration(probeWaitPhases)*time.Duration(advertBudgetMs)*time.Millisecond +
 		probeFixedOverhead
 }
-
-// Probe runs every capability for one board and version, in one boot.
-//
-// A board's full column completing quickly matters: this is scripted rather
-// than exploratory, each phase is bounded, and a phase that never produces
-// its evidence fails rather than hanging the probe for anyone waiting on it.

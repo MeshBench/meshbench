@@ -140,7 +140,7 @@ built on it, and a disagreement desynchronises the two silently.
 A two-node exchange, captured before anything changes, is what makes the whole
 migration checkable. It is the first thing to write, not the last.
 
-**`internal/engine/radiostack_test.go`**
+**`internal/sim/engine/radiostack_test.go`**
 
     scenario: two repeaters, fixed positions, one seed, clean node storage
     action:   node A originates one message

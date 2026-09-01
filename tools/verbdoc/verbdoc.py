@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 """Regenerate docs/scripting-verbs.md from the verbs the tree actually
-registers.
+registers, and fill the counts the scripting documents state about it.
 
-    tools/verbdoc/verbdoc.py            write the document
-    tools/verbdoc/verbdoc.py --check    fail if it is out of date
+    tools/verbdoc/verbdoc.py            write the documents
+    tools/verbdoc/verbdoc.py --check    fail if either is out of date
+
+Two documents: scripting-verbs.md, whose tables are generated outright, and
+scripting-api.md, which is prose throughout and has only its figures filled.
+Both are here because a count nobody can check is worse than no count, and
+every one of them had drifted before this owned them.
 
 Three of the four columns are read out of `internal/app/session`: the verb
 name, what its handler reads out of its parameters, and the keys of what it
@@ -32,7 +37,17 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 SESSION = os.path.join(ROOT, "internal", "app", "session")
 DOC = os.path.join(ROOT, "docs", "scripting-verbs.md")
+API = os.path.join(ROOT, "docs", "scripting-api.md")
 MAP = os.path.join(HERE, "facade.json")
+
+# Which of the counts each document states. Two documents rather than one
+# because the design note counts the surface a different way from the table:
+# how many verbs would have to be hand-written, how many refuse without a
+# window, how many are deliberately unreachable from the façade. Every one of
+# those had drifted by the time this was written - 215, 23 and 28 against a
+# tree holding 243, 26 and 36 - which is what a number nobody can check costs.
+DOC_COUNTS = ("public", "internal", "total")
+API_COUNTS = ("total", "uionly", "nofacade")
 
 # The authored half, as data rather than as code: which call covers each verb,
 # why the ones with none have none, and how the table is grouped. Beside the
@@ -229,22 +244,28 @@ def internal_only():
 
 
 def verb_counts(verbs):
-    """Public, internal and total, the numbers the prose above the tables states.
+    """Every count the two hand-written documents state about the surface.
 
-    Split rather than a single figure because the two answer different
-    questions: public is what a script can call, total is what is
-    registered, and neither substitutes for the other.
+    Split rather than a single figure because they answer different questions:
+    public is what a script can call, total is what is registered, uionly is
+    what refuses without a window, nofacade is what is reachable only through
+    wb.call. None substitutes for another.
     """
     internal = internal_only()
     return {
         "public": len(verbs) - len(internal),
         "internal": len(internal),
         "total": len(verbs),
+        "uionly": len(ui_only()),
+        "nofacade": sum(1 for v in FACADE.values() if not v),
     }
 
 
-def substitute_counts(text, counts):
-    """Fill the verb counts marked in the hand-written prose.
+MARKER = re.compile(r"<!--verbdoc:([a-z]+)-->")
+
+
+def substitute_counts(path, text, counts, keys):
+    """Fill the verb counts marked in one document's hand-written prose.
 
     Each count is marked with an HTML comment straight after the bold number
     it belongs to, e.g. `**203**<!--verbdoc:public-->`. The comment is
@@ -252,13 +273,21 @@ def substitute_counts(text, counts):
     prose; what makes it generated is that a stale digit in front of the
     marker gets overwritten back to the truth, which is what makes --check
     able to catch it.
+
+    A document declares which counts it states, and a marker it does not
+    declare is an error rather than a no-op: a typo in a marker name would
+    otherwise leave a hand-typed number sitting there looking generated.
     """
-    for key, n in counts.items():
+    for key in MARKER.findall(text):
+        if key not in keys:
+            sys.exit(f"{path} carries a <!--verbdoc:{key}--> marker, which is "
+                     f"not one of the counts it states: {', '.join(keys)}")
+    for key in keys:
         marker = f"<!--verbdoc:{key}-->"
         pattern = re.compile(r"\*\*\d+\*\*" + re.escape(marker))
-        text, replaced = pattern.subn(f"**{n}**{marker}", text)
+        text, replaced = pattern.subn(f"**{counts[key]}**{marker}", text)
         if replaced == 0:
-            sys.exit(f"{DOC} prose is missing the {marker} marker")
+            sys.exit(f"{path} prose is missing the {marker} marker")
     return text
 
 
@@ -311,7 +340,19 @@ def header_from_doc(counts):
     i = text.find("### ")
     if i < 0:
         sys.exit(f"{DOC} has no generated section to replace")
-    return substitute_counts(text[:i], counts)
+    return substitute_counts(DOC, text[:i], counts, DOC_COUNTS)
+
+
+def api_doc(counts):
+    """The design note, which is prose throughout and only has its counts filled.
+
+    Nothing here is generated except the numbers, which is the point: the
+    argument for the shape of the client is written by a person, and the
+    figures it argues from are read out of the tree.
+    """
+    if not os.path.exists(API):
+        sys.exit(f"{API} does not exist; its prose is written by hand")
+    return substitute_counts(API, open(API).read(), counts, API_COUNTS)
 
 
 def main():
@@ -338,16 +379,19 @@ def main():
 
     counts = verb_counts(verbs)
     doc = render(verbs, header_from_doc(counts))
+    api = api_doc(counts)
     if "--check" in sys.argv:
-        if open(DOC).read() != doc:
-            sys.exit(f"{DOC} is out of date; run tools/verbdoc/verbdoc.py")
-        print(f"{DOC} is current ({counts['public']} public, "
+        for path, want in ((DOC, doc), (API, api)):
+            if open(path).read() != want:
+                sys.exit(f"{path} is out of date; run tools/verbdoc/verbdoc.py")
+        print(f"{DOC} and {API} are current ({counts['public']} public, "
               f"{counts['internal']} internal, {counts['total']} total)")
         return
     open(DOC, "w").write(doc)
+    open(API, "w").write(api)
     print(f"{DOC}: {counts['public']} public, {counts['internal']} internal, "
-          f"{counts['total']} total, "
-          f"{sum(1 for v in FACADE.values() if not v)} deliberately unmapped")
+          f"{counts['total']} total, {counts['nofacade']} deliberately unmapped, "
+          f"{counts['uionly']} needing a window")
 
 
 if __name__ == "__main__":

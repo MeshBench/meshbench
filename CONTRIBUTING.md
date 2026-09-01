@@ -1,8 +1,9 @@
 # Contributing to MeshBench
 
 The rules here are mostly **mechanical and enforced by CI**, deliberately —
-taste does not survive scale, and this codebase is already 100,000 lines.
-Reading this first is quicker than finding out from a failed run.
+taste does not survive scale, and this codebase is already well past a hundred
+thousand lines. Reading this first is quicker than finding out from a failed
+run.
 
 `CLAUDE.md` in the repository root states the same rules more tersely and is
 **the authority** — it is what the build enforces. If this file ever disagrees
@@ -26,7 +27,9 @@ gofmt -l .            # must print nothing
 go vet ./...
 golangci-lint run     # pin to the version CI uses; a newer one disagrees
 go test ./...
-tools/file-length.sh  # the 500-line hard limit, and the soft-limit trend
+tools/lint-ratchet.sh   # the baseline of known findings, which may only shrink
+tools/file-length.sh    # the 500-line hard limit, and the soft-limit trend
+tools/verbdoc/verbdoc.py --check   # the scripting tables, and the counts above them
 tools/fixture-check.sh  # every shipped fixture, against its own assertions
 ```
 
@@ -49,15 +52,18 @@ every startup.
 are silent and [Uber's](https://github.com/uber-go/guide) is specific, follow
 Uber.
 
-**Seven layers, and imports never point upward.** `rf` → `mesh` → `world` →
-`sim` → `study` → `app` → `ui`. A package may import its own layer and
-everything below it, never anything above.
-`internal/layers_test.go` fails the build otherwise, so this is a check rather
-than a description.
+**Nine layers, and imports never point upward.** `diag` → `rf` → `mesh` →
+`firmware` → `world` → `sim` → `study` → `app` → `ui`. A package may import its
+own layer and everything below it, never anything above.
+`internal/layers_test.go` holds the list and fails the build otherwise, so this
+is a check rather than a description.
 
 **A new package updates the layout map in `CLAUDE.md`, in the same commit.**
 The map being wrong is worse than the map being short. This was broken once
-this week and had to be repaired by hand.
+this week and had to be repaired by hand, which is why
+`internal/layoutmap_test.go` now reads the map against the tree in both
+directions: a directory with no row fails, and a row naming a directory that
+has gone fails too.
 
 **Limits**, because they scale and taste does not:
 

@@ -1,4 +1,9 @@
-// Package scenario holds the things a study is defined by: nodes, region, seed.
+// Package scenario holds the things a study is defined by: its nodes, the
+// region they sit in, and the boundaries that name it.
+//
+// Not the seed, which belongs to a run rather than to the setup: the same
+// scenario is meant to be run twice under different seeds, so it lives in
+// sim/engine.Config where the run is configured.
 package scenario
 
 import (
