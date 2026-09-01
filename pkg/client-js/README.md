@@ -30,6 +30,18 @@ its `code`, so you can tell "no such node" from "the workbench is closing"
 without matching prose. Every call carries a timeout - see below - so a verb
 the workbench never answers rejects instead of hanging the script forever.
 
+## Installing
+
+```
+npm install @meshbench/client
+```
+
+You also need the `meshbench` binary: this package drives a workbench, it does
+not contain one. Unlike the Go and Python clients it cannot start one either,
+so put `meshbench` on `PATH`, run `meshbench workbench` or `meshbench headless`,
+and attach to that. An `attach()` that times out on a machine with no workbench
+running is this, and not a bug in the socket path.
+
 ## Connecting
 
 `Workbench.attach()` finds the workbench the same way the other clients do, so
