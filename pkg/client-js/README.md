@@ -58,10 +58,18 @@ A unix socket path over 104 bytes is refused before it ever reaches `connect`,
 the same limit and the same message the Go and Python clients give - the raw
 OS error names neither the limit nor what to do about it.
 
-`attach()` also does the protocol handshake itself, the same as Go and Python:
-a workbench speaking a version this client does not understand is refused at
-connect, not on whichever call happens to notice. `hello()` stays public for a
-script that wants to re-check.
+`attach()` also does the handshake itself, the same as Go and Python: a
+workbench speaking a protocol this client does not understand is refused at
+connect with a `ProtocolMismatch`, not on whichever call happens to notice.
+`hello()` stays public for a script that wants to re-check.
+
+**A client and the workbench it drives must be the same release.** This package
+declares its own version on the wire, the workbench refuses a pair it cannot be
+half of, and the refusal arrives as a `VersionMismatch` naming both releases and
+what to install. An end that is not a release build - a workbench compiled from
+a checkout - is served instead, because there is no second version there to
+disagree with; when that happens `wb.versionCheck` says which end was skipped
+and why.
 
 ```js
 const wb = await Workbench.attach({

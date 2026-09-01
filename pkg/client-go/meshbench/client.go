@@ -25,6 +25,8 @@ const maxUnixPath = 104
 type Workbench struct {
 	conn  *control.Client
 	hello Hello
+	// versionCheck is what became of the release check, for VersionCheck.
+	versionCheck string
 
 	// owned is the process this client started, if it started one. Attach
 	// never sets it: a script must not be able to close the workbench
@@ -218,21 +220,6 @@ func launch(ctx context.Context, o *dialOptions, args []string) (*Workbench, err
 		case <-time.After(50 * time.Millisecond):
 		}
 	}
-}
-
-// greet asks what this is and refuses a build it cannot speak to.
-//
-// At the door rather than halfway through: a protocol mismatch discovered on
-// the fortieth call looks like the simulation misbehaving, and in a CI run
-// that reads as a firmware regression.
-func (w *Workbench) greet(ctx context.Context) error {
-	if err := w.CallInto(ctx, "session.hello", nil, &w.hello); err != nil {
-		return asMismatch(err)
-	}
-	if w.hello.Protocol != control.Protocol {
-		return &ProtocolMismatch{Client: control.Protocol, Workbench: w.hello}
-	}
-	return nil
 }
 
 // Hello is what this connection is talking to, read once at connect.

@@ -21,6 +21,11 @@ import (
 type Hello struct {
 	Protocol int    `json:"protocol"`
 	Version  string `json:"version"`
+	// Release is the release this build belongs to, and empty for a build from
+	// a working copy. Version is prose - a tag, a Go version, sometimes a note
+	// that the tree was dirty - and the pairing rule needs a number that can be
+	// compared, so it is reported separately rather than parsed back out.
+	Release string `json:"release"`
 	// Mode is "workbench" or "headless". A script checks it before touching
 	// anything that needs a window, and gets a sentence from its own client
 	// rather than a refusal from twelve verbs in a row.
@@ -67,6 +72,7 @@ func hello(verbs []string, socket string, snap *state.Snapshot) Hello {
 	h := Hello{
 		Protocol:  control.Protocol,
 		Version:   version.Detail(),
+		Release:   version.Release(),
 		Mode:      Mode,
 		Socket:    socket,
 		Verbs:     len(verbs),

@@ -69,6 +69,7 @@ connect and cached; a client compares it before doing anything else.
 |---|---|---|
 | `Protocol` | `int` | wire version, bumped only on a breaking change |
 | `Version` | `string` | the build, as `version.Detail()` gives it |
+| `Release` | `string` | the release it belongs to (`1.2.3`), empty for a working copy |
 | `Mode` | `string` | `workbench` or `headless` |
 | `Socket` | `string` | the path being answered on |
 | `Verbs` | `int` | how many are registered |

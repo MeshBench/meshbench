@@ -43,9 +43,11 @@ from .errors import (
     Timeout,
     Unavailable,
     UnknownVerb,
+    VersionMismatch,
 )
 from .live import DEFAULT_WINDOW, Live
 from .nodes import Node, Nodes
+from .pairing import paired_release, pairing_note, release
 from .parts import Console, Events, Firmware, Job, Project, Sim
 from .sessions import SESSIONS_ENV, Session, sessions, sessions_dir
 from .sets import (
@@ -140,6 +142,10 @@ __all__ = [
     "Timeout",
     "Unavailable",
     "UnknownVerb",
+    "VersionMismatch",
+    "paired_release",
+    "pairing_note",
+    "release",
     "Notification",
     "Subscription",
     "subscribe",

@@ -13,6 +13,10 @@ import "time"
 type Hello struct {
 	Protocol int    `json:"protocol"`
 	Version  string `json:"version"`
+	// Release is the release the workbench belongs to, empty for a build from
+	// a working copy. Version is prose; this is the number the pairing rule is
+	// decided on.
+	Release string `json:"release"`
 	// Mode is "workbench" or "headless".
 	Mode   string `json:"mode"`
 	Socket string `json:"socket"`

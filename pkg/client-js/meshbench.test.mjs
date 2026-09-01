@@ -9,7 +9,10 @@ import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";
 
-import { Workbench, WorkbenchError, PROTOCOL, defaultAddress } from "./meshbench.mjs";
+import {
+  Workbench, WorkbenchError, ProtocolMismatch, VersionMismatch,
+  PROTOCOL, RELEASE, defaultAddress,
+} from "./meshbench.mjs";
 
 // A fake workbench. `reply` maps a method to a function of its params
 // returning {result} or {error, code}; unknown methods get a coded error.
@@ -124,10 +127,91 @@ test("replies are matched by id, not by arrival order", async () => {
 test("hello refuses a protocol this client does not speak", async () => {
   const wb = await fakeWorkbench(() => ({ result: { protocol: 99, version: "x" } }));
   await assert.rejects(Workbench.attach({ socket: wb.sockPath }), (e) => {
-    assert.ok(e instanceof WorkbenchError);
-    assert.equal(e.code, "protocol");
+    assert.ok(e instanceof ProtocolMismatch);
+    assert.equal(e.code, "protocol_mismatch");
+    assert.equal(e.workbench, 99);
     return true;
   });
+  wb.server.close();
+});
+
+// The pairing rule, from this end. A client and the workbench it drives must be
+// the same release, and a script has to be able to tell that refusal from a
+// verb declining what it was asked - hence its own class rather than a code on
+// the general one.
+test("attach declares the release this client belongs to", async () => {
+  const wb = await fakeWorkbench(withHello(() => ({ result: "ok" })));
+  const c = await Workbench.attach({ socket: wb.sockPath });
+  assert.equal(wb.seen[0].protocol, PROTOCOL);
+  assert.equal(wb.seen[0].release, RELEASE);
+  await c.close();
+  wb.server.close();
+});
+
+test("a workbench from another release is refused at connect", async () => {
+  const wb = await fakeWorkbench(() => ({
+    result: { protocol: PROTOCOL, release: "9.9.9", version: "v9.9.9" },
+  }));
+  await assert.rejects(Workbench.attach({ socket: wb.sockPath }), (e) => {
+    assert.ok(e instanceof VersionMismatch);
+    assert.equal(e.code, "version_mismatch");
+    assert.equal(e.workbench, "9.9.9");
+    // Both releases and what to do about it: a bare "version mismatch" leaves
+    // a reader to work out which of the two things they have installed to
+    // change, and they cannot act until they know.
+    assert.match(e.message, new RegExp(`MeshBench ${RELEASE}`));
+    assert.match(e.message, /MeshBench 9\.9\.9/);
+    assert.match(e.message, /must be the same release/);
+    return true;
+  });
+  wb.server.close();
+});
+
+// The workbench refuses the pair itself, on the frame the client declared it
+// on, so this client has to report that refusal as the mismatch it is rather
+// than as session.hello failing.
+test("the workbench's own refusal arrives as a version mismatch", async () => {
+  const wb = await fakeWorkbench(() => ({
+    error: "this client is from MeshBench 1.0.0 and this workbench is MeshBench 2.0.0",
+    code: "version_mismatch",
+  }));
+  await assert.rejects(Workbench.attach({ socket: wb.sockPath }), (e) => {
+    assert.ok(e instanceof VersionMismatch);
+    assert.match(e.message, /MeshBench 2\.0\.0/);
+    return true;
+  });
+  wb.server.close();
+});
+
+// On loopback TCP the workbench refuses the token line itself, before any
+// request exists to answer, so the refusal comes back with id 0 and no request
+// of its own. Dropping it as "not a reply" turned a sentence naming both
+// releases into "connection closed".
+test("a refusal that answers no request is not dropped", async () => {
+  const sockPath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "mb-")), "c.sock");
+  const server = net.createServer((c) => {
+    c.write(JSON.stringify({
+      id: 0,
+      error: "this client is from MeshBench 1.0.0 and this workbench is MeshBench 2.0.0",
+      code: "version_mismatch",
+    }) + "\n");
+    c.end();
+  });
+  await new Promise((r) => server.listen(sockPath, r));
+  await assert.rejects(Workbench.attach({ socket: sockPath }), (e) => {
+    assert.ok(e instanceof VersionMismatch);
+    assert.match(e.message, /MeshBench 2\.0\.0/);
+    return true;
+  });
+  server.close();
+});
+
+test("a workbench that is a development build is served, and says so", async () => {
+  const wb = await fakeWorkbench(withHello(() => ({ result: "ok" })));
+  const c = await Workbench.attach({ socket: wb.sockPath });
+  assert.match(c.versionCheck, /release check skipped/);
+  assert.match(c.versionCheck, /development build/);
+  await c.close();
   wb.server.close();
 });
 

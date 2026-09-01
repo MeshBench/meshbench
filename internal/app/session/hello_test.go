@@ -9,6 +9,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/app/control"
 	"github.com/MeshBench/meshbench/internal/app/state"
+	"github.com/MeshBench/meshbench/internal/app/version"
 )
 
 // What a client is talking to, asked before anything else.
@@ -70,6 +71,50 @@ func TestHelloSaysWhatItIs(t *testing.T) {
 	}
 	if time.Since(h.StartedAt) > time.Hour {
 		t.Errorf("started_at is %v, which is not this run", h.StartedAt)
+	}
+}
+
+// A client and the workbench it drives must be the same release, and a client
+// old enough to predate the declaration on the wire has only this answer to
+// decide that on. It is reported apart from Version because Version is prose.
+func TestHelloReportsTheReleaseSeparatelyFromTheProse(t *testing.T) {
+	old := version.Version
+	defer func() { version.Version = old }()
+
+	version.Version = "v1.2.3"
+	c := socketFor(t)
+	var h Hello
+	if raw, err := c.Call("session.hello", nil); err != nil {
+		t.Fatal(err)
+	} else if err := json.Unmarshal(raw, &h); err != nil {
+		t.Fatal(err)
+	}
+	if h.Release != "1.2.3" {
+		t.Errorf("release %q, want 1.2.3 - the spelling every artefact of a "+
+			"release uses", h.Release)
+	}
+	if h.Version == h.Release {
+		t.Errorf("version and release are the same string %q; version carries "+
+			"the toolchain and more, and is not a number to compare", h.Version)
+	}
+}
+
+// A build from a working copy names no release, which is what tells a client
+// there is nothing here to disagree with.
+func TestHelloFromAWorkingCopyNamesNoRelease(t *testing.T) {
+	old := version.Version
+	defer func() { version.Version = old }()
+
+	version.Version = ""
+	c := socketFor(t)
+	var h Hello
+	if raw, err := c.Call("session.hello", nil); err != nil {
+		t.Fatal(err)
+	} else if err := json.Unmarshal(raw, &h); err != nil {
+		t.Fatal(err)
+	}
+	if h.Release != "" {
+		t.Errorf("release %q from an unstamped build, want empty", h.Release)
 	}
 }
 

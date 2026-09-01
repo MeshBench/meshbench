@@ -31,6 +31,9 @@ class Hello:
 
     protocol: int = 0
     version: str = ""
+    #: The release this workbench belongs to, empty for a build from a working
+    #: copy. version is prose; this is the number the pairing rule reads.
+    release: str = ""
     #: "workbench" or "headless".
     mode: str = ""
     socket: str = ""
