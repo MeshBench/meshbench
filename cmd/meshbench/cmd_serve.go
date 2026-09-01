@@ -63,7 +63,7 @@ func runServe(ctx context.Context, args []string) error {
 	if err := e.AttachNative(ctx, fx.Seed); err != nil {
 		return err
 	}
-	if err := provision(e, fx, true); err != nil {
+	if err := provision(ctx, e, fx, true); err != nil {
 		return err
 	}
 

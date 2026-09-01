@@ -27,7 +27,12 @@ go vet ./...
 golangci-lint run     # pin to the version CI uses; a newer one disagrees
 go test ./...
 tools/file-length.sh  # the 500-line hard limit, and the soft-limit trend
+tools/fixture-check.sh  # every shipped fixture, against its own assertions
 ```
+
+`tools/fixture-check.sh` starts real MeshCore, one process per node, so it takes
+minutes rather than seconds. `MAX_NODES=100` runs only the small fixtures, which
+is what the pull-request check does; the national ones run in the nightly.
 
 `golangci-lint` must be **the version `ci.yml` pins**. Versions genuinely
 disagree about this tree — v2.1.6 and v2.12.2 differ by 29 findings — so

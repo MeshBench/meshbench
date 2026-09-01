@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/MeshBench/meshbench/internal/mesh/companion"
 	"github.com/MeshBench/meshbench/internal/mesh/proto"
 )
 
@@ -174,15 +175,7 @@ func (c *compSession) Lines() []string {
 	return append([]string(nil), c.last...)
 }
 
-// compFrame wraps a payload the way the device expects it.
-//
-// '<' towards the node, a little-endian length, then the payload. Sending the
-// payload bare is not a malformed frame, it is console text: the firmware
-// reads it as somebody typing and answers nothing, which is what an
-// experiment measuring zero transmissions looked like.
-func compFrame(payload []byte) []byte {
-	out := make([]byte, 0, 3+len(payload))
-	out = append(out, '<')
-	out = binary.LittleEndian.AppendUint16(out, uint16(len(payload)))
-	return append(out, payload...)
-}
+// compFrame is companion.Frame under the short name this package says at every
+// write. The envelope moved down to the transport's own package when the
+// headless fixture runner came to need it too, so that there is one of it.
+func compFrame(payload []byte) []byte { return companion.Frame(payload) }

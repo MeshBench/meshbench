@@ -97,7 +97,7 @@ func runTest(ctx context.Context, args []string) error {
 		fmt.Printf("endpoint: %s %s (node %s)\n", link.Kind, link.Addr, link.Node)
 	}
 
-	if err := provision(e, fx, *quiet); err != nil {
+	if err := provision(ctx, e, fx, *quiet); err != nil {
 		return err
 	}
 	sends := fx.Sends
@@ -165,52 +165,6 @@ func serveEndpoint(e *engine.Engine, spec string) (*engine.CompanionLink, error)
 	return nil, fmt.Errorf("endpoint %q: kind must be tcp or serial", kind)
 }
 
-// provision tells each node what it is before the run starts.
-//
-// A node that boots unprovisioned advertises the firmware's built-in name, has
-// no position, believes the time is zero, and holds no regions - so it neither
-// relays scoped traffic nor gives anybody a reason to send it any. The first
-// version of this command skipped it and reported zero deliveries on a healthy
-// mesh, which reads as a broken simulator and is a missing step.
-//
-// The region half comes from internal/fixture, the same function the workbench
-// uses, because that is the part with a trap in it. The rest is deliberately
-// the plain subset: a headless gate does not need the operator's provisioning
-// preferences, it needs the fixture to behave as its author saw it behave.
-func provision(e *engine.Engine, fx *fixture.Fixture, quiet bool) error {
-	// One clock for the whole mesh, from the fixture rather than the wall,
-	// because MeshCore judges freshness by timestamps and a run has to be
-	// reproducible. A fixed epoch: 1 January 2026.
-	const epoch = 1767225600
-	lines := 0
-	for _, spec := range fx.Nodes {
-		n, ok := e.NodeByName(spec.Name)
-		if !ok || n.Firmware == nil {
-			continue
-		}
-		cmds := []string{
-			"set name " + spec.Name,
-			fmt.Sprintf("time %d", epoch),
-		}
-		if spec.Kind.Transmits() {
-			cmds = append(cmds,
-				fmt.Sprintf("set lat %.6f", spec.Position.Lat),
-				fmt.Sprintf("set lon %.6f", spec.Position.Lon))
-		}
-		cmds = append(cmds, fixture.RegionCommands(spec)...)
-		for _, c := range cmds {
-			if err := n.Firmware.Bridge.Type([]byte(c + "\r\n")); err != nil {
-				return fmt.Errorf("provisioning %s: %w", spec.Name, err)
-			}
-			lines++
-		}
-	}
-	if !quiet {
-		fmt.Printf("provisioned %d nodes with %d lines\n", e.FirmwareCount(), lines)
-	}
-	return nil
-}
-
 // runSends plays the fixture's traffic schedule and then lets the run finish.
 func runSends(ctx context.Context, e *engine.Engine, sends []fixture.Send, forMs uint32, quiet bool) error {
 	type pending struct {
@@ -242,8 +196,8 @@ func runSends(ctx context.Context, e *engine.Engine, sends []fixture.Send, forMs
 			if !ok || n.Firmware == nil {
 				return fmt.Errorf("send at %d ms: %s runs no firmware", q.AtMs, q.Node)
 			}
-			if err := n.Firmware.Bridge.Type([]byte(q.Command + "\r\n")); err != nil {
-				return err
+			if err := say(n, q.Command, now); err != nil {
+				return fmt.Errorf("send at %d ms: %s: %w", q.AtMs, q.Node, err)
 			}
 			if !quiet {
 				fmt.Printf("  %6.1f s  %s: %s\n", float64(now)/1000, q.Node, q.Command)

@@ -15,8 +15,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/MeshBench/meshbench/internal/app/fixture"
 	"github.com/MeshBench/meshbench/internal/app/state"
-	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
 // sendClock tracks what has already been said, so a repeating send repeats
@@ -94,16 +94,10 @@ func (s *Sim) saySend(snd state.Send) error {
 	if n.Firmware == nil || n.Firmware.Bridge == nil {
 		return fmt.Errorf("its firmware is not running")
 	}
-	if !speaksCompanion(n.Spec().Kind) {
+	if !fixture.SpeaksCompanion(n.Spec().Kind) {
 		return n.Firmware.Bridge.Type([]byte(cmd + "\r\n"))
 	}
 	return s.runCompanionLine(snd.Node, cmd)
-}
-
-// speaksCompanion reports whether a node's console is the framed protocol
-// rather than a text CLI.
-func speaksCompanion(k scenario.Kind) bool {
-	return k == scenario.Companion || k == scenario.RoomServer
 }
 
 // runCompanionLine runs one meshcore-cli line at a companion.

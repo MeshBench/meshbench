@@ -61,7 +61,11 @@ jobs:
     # On a pull request only when it is asked for by name. The label is the
     # whole trigger: this is far too slow to sit in front of a merge.
     if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'firmware-live')
-    timeout-minutes: 60
+    # 60 was the gated suite alone, whose own -timeout is 50m. The fixture
+    # sweep after it is another ten on a warm machine and more on a cold one,
+    # and a job cut off by its own budget names nothing, which is the least
+    # useful way for a nightly to fail.
+    timeout-minutes: 90
     # The same fork guard ci.yml computes rather than hardcodes: the lab
     # runners sit on a home LAN with a NAS mounted, so a stranger's code must
     # never land on one. Forks fall back to hosted runners, where everything
@@ -159,3 +163,26 @@ jobs:
           # take the machine down - docs/development-machines.md, learned by
           # taking one down.
           go test -count=1 -timeout 50m -p 1 $skip $pkgs
+
+      # Every shipped fixture, against its own assertions, uncapped.
+      #
+      # ci.yml runs these on every push but only for the two Fife fixtures: the
+      # Scotland and Scotland-Ireland ones are 161 and 376 MeshCore processes
+      # and minutes of wall clock apiece, which is too much to hold a merge
+      # behind and exactly what a nightly is for.
+      #
+      # And here it answers a second question, because MESHBENCH_NATIVE is
+      # still set from the step above: these runs use the builds this job
+      # downloaded rather than the versions the fixtures pin, so a firmware
+      # release that quietly stops delivering shows up as a fixture that no
+      # longer does what its author said it did. That is the drift this whole
+      # workflow exists to catch, asked of a whole mesh rather than of a unit.
+      - name: Every fixture, uncapped, on the firmware this job fetched
+        env:
+          # A node keeps its identity and preferences between runs, and a
+          # fixture that passes on what the last run left behind has not
+          # passed. Its own directory, never booted.
+          MESHBENCH_NODEFS: ${{ runner.temp }}/fixture-nodefs
+        run: |
+          go build -o "$RUNNER_TEMP/meshbench" ./cmd/meshbench
+          MESHBENCH="$RUNNER_TEMP/meshbench" tools/fixture-check.sh
