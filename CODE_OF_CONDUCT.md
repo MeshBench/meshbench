@@ -33,7 +33,7 @@ where you are acting as a participant in this project.
 
 ## Enforcement
 
-Report to **alex@hectospark.co.uk**. Reports are read by the maintainer and
+Report to **meshbench@pm.me**. Reports are read by the maintainer and
 kept confidential.
 
 There is one maintainer, so this is not a committee process: expect a

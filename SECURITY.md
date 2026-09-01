@@ -45,7 +45,7 @@ SDR source, which bind where you tell them to.
 
 ## Reporting a vulnerability
 
-Report privately, not as a public issue: email **alex@hectospark.co.uk** with
+Report privately, not as a public issue: email **meshbench@pm.me** with
 `meshbench security` in the subject.
 
 GitHub's private vulnerability reporting is not enabled on this repository yet —

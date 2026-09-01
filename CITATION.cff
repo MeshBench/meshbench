@@ -7,7 +7,7 @@ message: >-
 type: software
 authors:
   - given-names: Alex
-    email: alex@hectospark.co.uk
+    email: meshbench@pm.me
 repository-code: https://github.com/MeshBench/meshbench
 abstract: >-
   An RF-accurate MeshCore network simulator. It runs real MeshCore firmware
