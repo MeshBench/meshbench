@@ -6,10 +6,7 @@ package emulated
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -35,11 +32,12 @@ func ToolsDir() string {
 
 // lookupTool finds a binary: the environment variable, then beside the
 // simulator, then the tools directory, then PATH.
-//
-// The message names all of them, because "qemu-system-xtensa not found" sends
-// people to their package manager for a build that will not do: ours carries an
-// SX1262 and a GPIO implementation upstream has not got.
-func lookupTool(env, name string) (string, error) {
+func lookupTool(name string) (string, error) {
+	tool, ok := emulatorTools[name]
+	if !ok {
+		return "", fmt.Errorf("firmware: no emulator tool called %s", name)
+	}
+	env := tool.env
 	if p := os.Getenv(env); p != "" {
 		if _, err := os.Stat(p); err == nil {
 			return p, nil
@@ -82,15 +80,73 @@ func lookupTool(env, name string) (string, error) {
 	if p, err := exec.LookPath(name); err == nil {
 		return p, nil
 	}
-	return "", fmt.Errorf("firmware: %s not found - looked beside the simulator, "+
-		"in %s, and on PATH. Put it in that directory or set %s. A distribution "+
-		"build will not do: ours carries the SX1262 device",
-		name, ToolsDir(), env)
+	return "", tool.missing(name)
+}
+
+// emulatorTool is what somebody has to be told when one of these is not on the
+// machine, and it differs per tool.
+//
+// One message for all three said "ours carries the SX1262 device", which is
+// QEMU's reason. Renode's is the SEVONPEND fix, and radioserver has no
+// distribution build to be mistaken for at all, so a person missing Renode was
+// sent to think about a device that had nothing to do with their problem.
+type emulatorTool struct {
+	env string
+	// need is which boards stop without it, said as a clause: a machine with
+	// only ESP32 nodes on it does not care that Renode is absent.
+	need string
+	// ours is why a build from anywhere else will not do, empty where there is
+	// no other build to confuse this one with.
+	ours string
+}
+
+// missing is the error a boot fails with, and the only place that says how to
+// get out of it.
+//
+// It names the fetch first because that is now the answer for almost everybody:
+// these three are resource.fetch-able into the tools directory the lookup
+// already searches, and the message predated that by long enough to still be
+// sending people out to find the file themselves. The environment variable and
+// the directory stay at the end, because somebody who built their own still
+// needs them and nothing else tells them where it goes.
+func (t emulatorTool) missing(name string) error {
+	msg := fmt.Sprintf("firmware: %s is not on this machine, and %s. "+
+		"Fetch it in the workbench under Help > Setup, or with resource.fetch "+
+		"over the control socket: it lands in %s, which is where a node looks.",
+		name, t.need, ToolsDir())
+	if t.ours != "" {
+		msg += " " + t.ours + "."
+	}
+	return fmt.Errorf("%s A build of your own goes in that directory instead, "+
+		"or %s points at it", msg, t.env)
 }
 
 func fileExists(p string) bool {
 	st, err := os.Stat(p)
 	return err == nil && !st.IsDir()
+}
+
+// emulatorTools is the three binaries an emulated node starts, and what a
+// person is owed when one of them is absent.
+var emulatorTools = map[string]emulatorTool{
+	"radioserver": {
+		env:  EnvRadioServer,
+		need: "no emulated board can start without it, ESP32 or nRF52",
+		ours: "There is no distribution build to go looking for: the SX1262 " +
+			"model is ours",
+	},
+	"qemu-system-xtensa": {
+		env:  EnvQEMU,
+		need: "the ESP32 boards cannot start without it",
+		ours: "A distribution QEMU will not do: ours carries the SX1262 device " +
+			"and the GPIO implementation upstream has not got",
+	},
+	"renode": {
+		env:  renode.EnvRenode,
+		need: "the nRF52 boards cannot start without it",
+		ours: "A stock Renode will not do: it starts, loads and runs as far as " +
+			"the sleep the SEVONPEND fix exists for, and stops there",
+	},
 }
 
 // ToolEnv names the three binaries an emulated node needs and the environment
@@ -99,11 +155,15 @@ func fileExists(p string) bool {
 // Exported because the tools are asked about from outside as well as started
 // from inside: a release tarball carries them beside the binary, a fetch puts
 // them in the tools directory, and only this package knows that both count.
-var ToolEnv = map[string]string{
-	"radioserver":        EnvRadioServer,
-	"qemu-system-xtensa": EnvQEMU,
-	"renode":             renode.EnvRenode,
-}
+// Derived from the table the errors are written from, so a tool cannot be
+// listed in one and missing from the other.
+var ToolEnv = func() map[string]string {
+	m := make(map[string]string, len(emulatorTools))
+	for name, t := range emulatorTools {
+		m[name] = t.env
+	}
+	return m
+}()
 
 // FindTool answers where a node starting now would find a tool, or the error it
 // would fail with.
@@ -113,139 +173,7 @@ var ToolEnv = map[string]string{
 // install as having nothing, because its emulators sit beside the binary and
 // were never downloaded. A readiness check that disagrees with the thing it is
 // predicting is worse than no check.
-func FindTool(name string) (string, error) {
-	env, ok := ToolEnv[name]
-	if !ok {
-		return "", fmt.Errorf("firmware: no emulator tool called %s", name)
-	}
-	return lookupTool(env, name)
-}
-
-// PadImageKeeping is PadImage, except that a flash the node has already been
-// running is left exactly as it is.
-//
-// A board keeps what it was told between runs, and this is where that had
-// stopped being true. The flash was rewritten from the pristine image on every
-// start, so an emulated node's NVS and its filesystem were blanked each time -
-// its identity, its preferences, its contacts, its region. Two places in the
-// tree describe the opposite behaviour and are right about native nodes: a
-// repeater keeping its identity between sessions is how hardware behaves, and
-// firmware.wipe exists precisely because it does.
-//
-// What decides is the source, recorded beside the flash. A node pinned to a
-// different build gets a fresh chip, because that is what reflashing a board
-// is; a node started again on the same build gets the chip it left behind.
-// Same reasoning as the card image, which has always been kept.
-func PadImageKeeping(src, dst string) (int, error) {
-	stamp := dst + ".src"
-	want, err := imageStamp(src)
-	if err != nil {
-		return 0, err
-	}
-	if have, err := os.ReadFile(stamp); err == nil && string(have) == want {
-		if st, err := os.Stat(dst); err == nil && st.Size() > 0 {
-			return int(st.Size() >> 20), nil
-		}
-	}
-	mb, err := PadImage(src, dst)
-	if err != nil {
-		return 0, err
-	}
-	// Written after the flash, so an interrupted write leaves a stamp that
-	// does not match and the next run rebuilds rather than booting half a
-	// chip. Best effort: a stamp that cannot be written costs a re-flash on
-	// the next start, which is what happened every time before this.
-	_ = os.WriteFile(stamp, []byte(want), 0o644)
-	return mb, nil
-}
-
-// imageStamp identifies the build a flash was made from.
-//
-// The digest rather than the path or the modification time: a build imported
-// twice under two labels is two paths and one chip, and an image rebuilt in
-// place by a compiler keeps both its path and, often enough, its size.
-func imageStamp(src string) (string, error) {
-	// The image this node was told to run, from the cache or from an import.
-	f, err := os.Open(src) //nolint:gosec // the build the caller asked for
-	if err != nil {
-		return "", err
-	}
-	defer func() { _ = f.Close() }()
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(h.Sum(nil)), nil
-}
-
-// PadImage copies a flash image padded to a size QEMU will accept, always
-// rewriting the destination.
-//
-// Two traps in one function. QEMU takes only 2, 4, 8 or 16 MB images; and the
-// size must match what the image header asks for, or ESP-IDF asserts in
-// do_core_init with a message naming both sizes.
-//
-// Callers starting a node want PadImageKeeping instead: this one blanks
-// whatever the board had written to its flash.
-func PadImage(src, dst string) (int, error) {
-	data, err := os.ReadFile(src)
-	if err != nil {
-		return 0, err
-	}
-	mb, err := ClassifyESPImage(data)
-	if err != nil {
-		return 0, fmt.Errorf("%s: %w", src, err)
-	}
-	want := mb << 20
-	if len(data) > want {
-		return 0, fmt.Errorf("firmware: %s is larger than the %d MB its header declares",
-			src, mb)
-	}
-	out := make([]byte, want)
-	copy(out, data)
-	for i := len(data); i < want; i++ {
-		out[i] = 0xFF // erased flash
-	}
-	return mb, os.WriteFile(dst, out, 0o644)
-}
-
-// ClassifyESPImage reads an ESP32 flash image's header and answers the flash
-// size in megabytes it was built for, or says why it is not one.
-//
-// Split out of PadImage so the same question can be asked at import, where it
-// can still be answered by refusing. Asked only at play, an application-only
-// build imported cleanly, listed cleanly, could be pinned to a node - and then
-// failed minutes later, in a message about a flash image, to somebody who
-// thought they were starting a board.
-func ClassifyESPImage(data []byte) (flashMB int, err error) {
-	if len(data) < 0x1004 {
-		return 0, fmt.Errorf("firmware: too small to be a merged image")
-	}
-	// Where the header lives differs by part, so it is looked for rather than
-	// assumed: an ESP32 boots its bootloader from 0x1000 and a merged image
-	// for one starts with padding, while an ESP32-S3 boots from zero. The byte
-	// is 0xE9 either way.
-	hdr := -1
-	switch {
-	case data[0] == 0xE9:
-		hdr = 0 // ESP32-S3, and the other parts that boot from zero
-	case data[0x1000] == 0xE9:
-		hdr = 0x1000 // ESP32
-	}
-	if hdr < 0 {
-		return 0, fmt.Errorf("firmware: no image header at 0x0 or 0x1000; " +
-			"it is probably an application-only build rather than a merged one")
-	}
-	sizes := map[byte]int{0: 1, 1: 2, 2: 4, 3: 8, 4: 16}
-	mb, ok := sizes[data[hdr+3]>>4]
-	if !ok {
-		return 0, fmt.Errorf("firmware: the image header declares an unknown flash size")
-	}
-	if mb == 1 {
-		mb = 2 // QEMU's smallest
-	}
-	return mb, nil
-}
+func FindTool(name string) (string, error) { return lookupTool(name) }
 
 // waitForSocket blocks until the radio model is listening, or the context ends.
 //

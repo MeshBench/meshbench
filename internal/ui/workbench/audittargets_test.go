@@ -76,7 +76,15 @@ func auditTargets(r *recorder) []target {
 		// state the other two cannot cover.
 		{Kind: "terrain", Name: "terrain tiles", Bytes: 7_600_000_000,
 			State: string(resource.OnDisk), Auto: true, Licensed: true,
-			Why: "height data under every link budget"},
+			Why:   "height data under every link budget",
+			HowTo: "fills itself as the map is used"},
+		// And a cache that is fetched from somewhere else entirely, which is
+		// the only row that carries the button to that somewhere.
+		{Kind: "buildings", Name: "building footprints",
+			State: string(resource.Available), Licensed: true,
+			Why:        "heights and materials that stand in the way of a signal",
+			HowTo:      "fetched from Configuration > Environ",
+			HowToPanel: "Configuration"},
 	}
 
 	// Terms open on one row, so the licence box is drawn in the audit rather
