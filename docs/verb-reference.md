@@ -319,7 +319,7 @@ Throw away what is loaded and start on an empty network, through the same path a
 |---|---|---|---|
 | `place` | string | optional, primary | somewhere to start, looked up the way a study area is, so "Fife" means the same thing here as in the Import panel; empty leaves the map where it was, and a name nothing can be found for is said in the status line rather than refused |
 
-**Answers** `nodes`, `place`. `nodes` is always zero, and `place` appears only where one was named. The lookup runs on a worker, so the map and the study area move after this has already answered.
+**Answers** `nodes`, `place`. `nodes` is always zero, and `place` appears only where one was named. A run that was going is stopped first, and the firmware behind it with it, since both belonged to the network being discarded. The lookup runs on a worker, so the map and the study area move after this has already answered.
 
 **Example** - an empty network to place nodes on by hand
 
@@ -343,7 +343,7 @@ Load a fixture and put the camera on what it holds, on the open rather than at t
 |---|---|---|---|
 | `path` | string | required, primary | the fixture's path; one that will not load is refused and the session keeps whatever it already had |
 
-**Answers** `opened`, `nodes`, `links`. `links` is zero on every open, because the matrix is cleared here and re-measured as the job `links`: a path loss over real terrain is minutes of work, so the map draws proximity links until it finishes. Nothing else moves the camera on an open, so a script that wants to be somewhere else says so afterwards with map.centre.
+**Answers** `opened`, `nodes`, `links`. `links` is zero on every open, because the matrix is cleared here and re-measured as the job `links`: a path loss over real terrain is minutes of work, so the map draws proximity links until it finishes. A run that was going is stopped first and the status line says so: the clock steps whichever engine is live, and this replaces it and stops the firmware processes behind it, so a script that opens a network mid-run plays again itself once it is ready. Nothing else moves the camera on an open, so a script that wants to be somewhere else says so afterwards with map.centre.
 
 **Example** - open a network that ships with the build
 

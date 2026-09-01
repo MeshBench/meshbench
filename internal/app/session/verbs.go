@@ -135,6 +135,21 @@ func Register(st *state.Store, s *Sim) {
 	// install puts a loaded network in place: the world's copy of it, the
 	// engine, and the tick that drives both.
 	installBody := func(st *state.Store, w *state.World, f Loaded, path string) {
+		// The clock stops before the network under it is taken away.
+		//
+		// Not a courtesy: the engine about to be replaced is the one the tick
+		// is stepping and the one whose firmware processes are about to be
+		// stopped, and leaving the run going means the next tick steps a
+		// network nobody asked for with an attach possibly still landing in
+		// it. Said out loud, because a run that stops on its own without
+		// saying so is the same silence as one that stops for a bad reason.
+		if w.Playing || w.RunUntilMs != 0 {
+			w.Playing, w.RunUntilMs = false, 0
+			w.Say("paused: the run was still going, and it belonged to the network being replaced")
+		}
+		if n := s.firmwareCount(); n > 0 {
+			w.Say(fmt.Sprintf("stopping firmware on %d node(s) - they belong to the network being replaced", n))
+		}
 		w.Nodes, w.Areas, w.MarginKm = f.nodes, f.areas, f.margin
 		w.Sends, w.Assertions = f.sends, f.assertions
 		w.Seed = 9001
@@ -204,21 +219,15 @@ func Register(st *state.Store, s *Sim) {
 								"\"rewarm links\" clears it", delta))
 					}
 				}
-				// A crashed node used to freeze silently - runFirmware
-				// returned on the first Bridge call that failed, so nothing
-				// after it in node order ever ticked again, and nobody was
-				// told. It is skipped now instead; this is where that gets
-				// said, so "why has it gone quiet" has an answer.
-				if down := eng.FirmwareFailures(); len(down) > 0 {
-					has := "has"
-					if len(down) > 1 {
-						has = "have"
-					}
-					w.Say(fmt.Sprintf(
-						"%s stopped answering and %s been dropped from this run - "+
-							"its firmware process is gone; the rest of the mesh keeps going",
-						strings.Join(down, ", "), has))
-				}
+				// A node that stops answering used to freeze the run
+				// silently, in two ways: runFirmware returned on the first
+				// Bridge call that failed, so nothing after it in node order
+				// ever ticked again, and the wait for an acknowledgement had
+				// no deadline, so a node that never answered stopped this
+				// goroutine and every verb and frame behind it. Both end the
+				// tick now; this is where that gets said, so "why has it gone
+				// quiet" has an answer.
+				sayFirmwareFailures(w, eng.FirmwareFailures())
 			}
 			w.NowMs = s.liveEngine().NowMs()
 			// Anything a split-out domain must re-describe every step - a

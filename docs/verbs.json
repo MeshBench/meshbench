@@ -3856,7 +3856,7 @@
         "nodes",
         "place"
       ],
-      "answers": "`nodes` is always zero, and `place` appears only where one was named. The lookup runs on a worker, so the map and the study area move after this has already answered.",
+      "answers": "`nodes` is always zero, and `place` appears only where one was named. A run that was going is stopped first, and the firmware behind it with it, since both belonged to the network being discarded. The lookup runs on a worker, so the map and the study area move after this has already answered.",
       "example": {
         "params": {},
         "what": "an empty network to place nodes on by hand"
@@ -3878,7 +3878,7 @@
         "nodes",
         "links"
       ],
-      "answers": "`links` is zero on every open, because the matrix is cleared here and re-measured as the job `links`: a path loss over real terrain is minutes of work, so the map draws proximity links until it finishes. Nothing else moves the camera on an open, so a script that wants to be somewhere else says so afterwards with map.centre.",
+      "answers": "`links` is zero on every open, because the matrix is cleared here and re-measured as the job `links`: a path loss over real terrain is minutes of work, so the map draws proximity links until it finishes. A run that was going is stopped first and the status line says so: the clock steps whichever engine is live, and this replaces it and stops the firmware processes behind it, so a script that opens a network mid-run plays again itself once it is ready. Nothing else moves the camera on an open, so a script that wants to be somewhere else says so afterwards with map.centre.",
       "example": {
         "params": "fixtures/fixture-fife-strict.json",
         "what": "open a network that ships with the build"

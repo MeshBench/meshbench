@@ -18,6 +18,7 @@ import (
 	"context"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/MeshBench/meshbench/internal/rf/propagation"
 	"github.com/MeshBench/meshbench/internal/rf/terrain"
@@ -71,6 +72,12 @@ type Config struct {
 	// Off by default, because a scenario that quietly ran unwatched wiring
 	// would report a board as silent when it was only mis-wired.
 	UnverifiedWiring bool
+
+	// FirmwareTickTimeout is how long a node gets to acknowledge one tick.
+	// Zero takes DefaultFirmwareTickTimeout, which is what every run uses; a
+	// test that has to watch the deadline arrive says so here rather than
+	// waiting out half a minute.
+	FirmwareTickTimeout time.Duration
 }
 
 // Engine owns the run.
@@ -176,7 +183,7 @@ type Engine struct {
 	// every tick. firmwareNewlyDown is the subset a caller has not yet been
 	// told about; FirmwareFailures drains it.
 	firmwareDown      map[string]bool
-	firmwareNewlyDown []string
+	firmwareNewlyDown []FirmwareFailure
 	// classCounts is events by class, kept as they are recorded so the cards
 	// that show them never walk the log.
 	classCounts map[Class]int
