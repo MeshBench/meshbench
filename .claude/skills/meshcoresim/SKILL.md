@@ -320,7 +320,7 @@ unsupported build. Published companion assets carry their transport in the name
 |---|---|
 | QEMU with our SX1262, GPIO and fixes | `MeshBench/qemu` branch `meshbench-sx1262` |
 | The chip model, and the socket server | `meshcore-native`, `VirtualSX1262` + `bridge/radioserver.cpp` |
-| Per-board wiring | `internal/world/scenario/boards.go`, `QEMUWiring` |
+| Per-board wiring | `internal/firmware/board/boards.go`, `QEMUWiring` |
 
 Build QEMU with **`--enable-gcrypt`** or the `esp32` machine dies with
 `unknown type 'misc.esp32.rsa'`: the RSA device is gated on gcrypt while the

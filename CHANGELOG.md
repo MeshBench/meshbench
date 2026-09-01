@@ -49,11 +49,13 @@ had changed in them — which is the gap this file exists to close.
   number moves only when something an older client relied on has changed. A
   client that declares nothing is still served: it finds out from
   `session.hello`, as the shipped clients always have.
-- **The tree is seven layers**, with `internal/layers_test.go` failing the
-  build on an import that points upward. Several packages were split out along
-  the way: `rf/geo` (one great-circle implementation, not thirteen),
-  `rf/propagation` out from under the raster, and the frame decoder out from
-  under the capture recorder.
+- **The tree is nine layers** (`diag`, `rf`, `mesh`, `firmware`, `world`,
+  `sim`, `study`, `app`, `ui`), with `internal/layers_test.go` failing the
+  build on an import that points upward, and `internal/layoutmap_test.go`
+  failing when the layout map in `CLAUDE.md` stops matching the tree. Several
+  packages were split out along the way: `rf/geo` (one great-circle
+  implementation, not thirteen), `rf/propagation` out from under the raster,
+  and the frame decoder out from under the capture recorder.
 - **Verify became Validate**, and says where you are in it.
 - Six files came back under the length limit; panel filenames say which panel
   they hold; the panel list is one file per family.

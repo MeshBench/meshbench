@@ -40,9 +40,10 @@ go test ./...
 
 ## Layout
 
-Seven layers. **A package may import its own layer and everything below it,
+Nine layers. **A package may import its own layer and everything below it,
 never anything above.** `internal/layers_test.go` fails the build otherwise, so
-this is a check rather than a description.
+this is a check rather than a description, and `internal/layoutmap_test.go`
+fails when the map below stops matching the tree.
 
 ```
 cmd/meshbench/    the binary
@@ -62,6 +63,8 @@ internal/rf/        radio physics — knows nothing of nodes, networks or the ap
 
 internal/mesh/      MeshCore itself: what a node is and what it says
   shim/               the Radio shim the emulated firmware links against
+    repeater/           the C headers a host build of simple_repeater would
+                        need, paused: nothing compiles or links them today
   companion/          TCP and PTY companion transports
   proto/              the companion protocol codec
   packet/             the MeshCore frame: what the bytes on the air mean
@@ -84,7 +87,8 @@ internal/firmware/  running real firmware against the radio, native or emulated;
   console/            the operator's terminal onto a running node
 
 internal/world/     what is being simulated, and where it came from
-  scenario/           nodes, region, seed
+  scenario/           nodes, region, boundary - the seed belongs to the run,
+                      and lives in sim/engine.Config
   provider/           CoreScope and Beacon feeds
   boundary/           named administrative areas
   basemap/            hillshaded terrain under the simulation
@@ -129,18 +133,52 @@ internal/app/       orchestration, no toolkit
   control/            the unix socket another process drives it by
 
 internal/ui/        Gio — the only layer permitted a toolkit
-  theme/ comp/ mapview-in-comp/ shell/ desktop/ float/ pick/
-  theme/brandfont/    the three faces the identity is set in, embedded
+  theme/              every colour, size and face, named once and nowhere else
+    brandfont/          the three faces the identity is set in, embedded
+  comp/               the widgets every view is built from, the map view among
+                      them - there is no separate mapview package
+  shell/              the window, the view switcher, the menus, the status bar
+  desktop/            what the host desktop decided: cursor theme and size
+  float/              keeping a window above the others, where the platform lets
+                      a client ask
+  pick/               the file dialog the platform already has
   workbench/          the workbench itself: panels, state, wiring
+    licences/           the licence inventory Help > Licences shows, generated
+                        by tools/licgen and committed
 
 pkg/                the public surface, for a fork or an app to import
   client-go/          the Go client and its runnable examples
   client-python/      the Python client, its pytest plugin and examples
   client-js/          the Node client, one ES module on the same socket
 
-tools/dissector/    Wireshark Lua dissector
-tools/soak/         drives a running workbench and judges what it heard
-tools/internal/     what only the tools use, said structurally
+tools/              what builds, generates and drives it, none of it shipped
+  clientgen/          the closed enum sets both clients need, from the one place
+                      that defines them
+  verbdoc/            docs/scripting-verbs.md and the verb counts in the prose,
+                      regenerated from the verbs the tree registers
+  licgen/             the licence inventory the workbench embeds
+  envgen/             building footprints into environment tiles
+  mockup/             the UX wireframes in docs/ux, rendered
+  render/             the figures in docs/output, from the real engine
+  goldencap/          a wideband capture down to chip-rate baseband, and the
+                      analysis on it
+  native/             builds and runs the native host firmware backend
+  armfw/              the SoftDevice-free nRF52840 image the Renode backend boots
+  renode/             MeshCore's published nRF52 binaries under Renode, the
+                      cross-check on the native build
+    peripherals/        the C# models Renode's own nRF52840 platform is missing:
+                        clock calibration, CryptoCell, SAADC, TWIM, the radio
+  esp32/              the ESP32 half of the emulated backend: Espressif's QEMU
+                      fork, which Renode has no platform for
+  platformio/         a post-build hook, copied into a MeshCore checkout, that
+                      hands a fresh image to a running workbench
+  firmware-ab/        two firmware builds against the same traffic
+  ble/                a simulated node as a real BLE peripheral, so an
+                      unmodified companion app connects to it
+  headless/           a harness for driving a headless session
+  soak/               drives a running workbench and judges what it heard
+  dissector/          the Wireshark Lua dissector, ours and the vendored one
+  internal/           what only the tools use, said structurally
 ```
 
 The WGSL lives in `internal/rf/gpu/` because `//go:embed` cannot reach outside
@@ -148,9 +186,13 @@ its own package directory. There is no top-level `shaders/`; a second copy there
 went stale, which is how we found out.
 
 This table is the map. A new package updates it in the same commit — the map
-being wrong is worse than the map being short.
+being wrong is worse than the map being short. `internal/layoutmap_test.go`
+reads it in both directions, so a package with no row and a row naming a
+package that has gone both fail on the machine that moved it. Every directory
+under `internal/` and `tools/`, at any depth, needs a row; `pkg/` is mapped one
+level down, at the client rather than inside it.
 
-`internal/` for everything private - the seven layers - and `pkg/` for the small
+`internal/` for everything private - the nine layers - and `pkg/` for the small
 public surface a fork imports (the clients). Not
 `golang-standards/project-layout` wholesale — it is unofficial, disclaims
 itself, and Go maintainers have criticised it — but `pkg/` earns its place as

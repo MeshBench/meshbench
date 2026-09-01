@@ -125,9 +125,16 @@ end
 MSIM_UDP_PORT = 5555
 DissectorTable.get("udp.port"):add(MSIM_UDP_PORT, msim)
 
--- And DLT_USER0, for a saved pcapng.
+-- And DLT_USER0, for a saved pcapng. The same named constant the vendored
+-- dissector registers with, rather than the 45 behind it, so that the clash
+-- below is visible in both files rather than in one of them.
 --
--- The vendored dissector claims the same link type for its own radio layer,
--- which expects a different header. This file sorts after it, so this
--- registration is the one that stands - our captures carry our header.
-DissectorTable.get("wtap_encap"):add(45, msim)
+-- The vendored dissector claims this link type for its own radio layer, which
+-- expects a different header, and whichever file Wireshark loads second is the
+-- one whose registration stands. Load order is not in our gift: from a plugins
+-- directory Wireshark loads alphabetically, and "meshbench.lua" sorts *before*
+-- "meshcore_dissector.lua", so there the vendored radio layer wins and a
+-- MeshBench capture is read with the wrong header. Naming both scripts in
+-- order on the command line is what settles it, ours last, which is what the
+-- workbench does and what tools/dissector/README.md tells a person to do.
+DissectorTable.get("wtap_encap"):add(wtap.USER0, msim)

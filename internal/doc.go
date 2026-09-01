@@ -2,23 +2,26 @@
 // somewhere to live, next to the tree it describes rather than inside one of
 // the layers it governs.
 //
-// Everything the application is made of sits under internal/ in seven layers:
+// Everything the application is made of sits under internal/ in nine layers:
 //
-//	rf → mesh → world → sim → study → app → ui
+//	diag → rf → mesh → firmware → world → sim → study → app → ui
 //
-//	rf     radio physics; knows nothing of nodes, networks or the application
-//	mesh   MeshCore itself: what a node is and what it says
-//	world  what is being simulated, and where it came from
-//	sim    running it, and recording what happened
-//	study  the questions asked of a simulation
-//	app    orchestration, with no user-interface toolkit
-//	ui     Gio, and the only layer permitted one
+//	diag      opt-in diagnostic logging, which everything above may reach for
+//	rf        radio physics; knows nothing of nodes, networks or the application
+//	mesh      MeshCore itself: what a node is and what it says
+//	firmware  running real firmware against that radio, native or emulated
+//	world     what is being simulated, and where it came from
+//	sim       running it, and recording what happened
+//	study     the questions asked of a simulation
+//	app       orchestration, with no user-interface toolkit
+//	ui        Gio, and the only layer permitted one
 //
 // A package may import its own layer and everything beneath it. Nothing may
 // import upward, which is what makes "ui can reach the physics, the physics
 // cannot reach a widget" a property of the build rather than an intention.
 // layers_test.go fails if that stops being true, and again if a package appears
-// under internal/ outside the seven.
+// under internal/ outside the nine, and again if the order written here stops
+// matching the order it enforces.
 //
 // The order was not designed and then imposed; it was read off the import graph
 // that already existed. Making it true cost two packages that were each doing

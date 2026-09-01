@@ -116,8 +116,49 @@ func TestNoPackageImportsUpward(t *testing.T) {
 	}
 }
 
+// The order written down is the order enforced.
+//
+// doc.go, CLAUDE.md and CONTRIBUTING.md each state the chain in prose, and all
+// three had drifted from this list at once: two layers were added over time and
+// none of the three sentences learned about either, so the document a new
+// contributor reads first taught a rule the build does not have. The prose is
+// what people follow, so it is worth a check of its own.
+func TestTheWrittenOrderIsTheEnforcedOrder(t *testing.T) {
+	want := strings.Join(layers, " → ")
+	for _, doc := range []string{"doc.go", filepath.Join("..", "CONTRIBUTING.md")} {
+		src, err := os.ReadFile(doc)
+		if err != nil {
+			t.Fatalf("reading %s: %v", doc, err)
+		}
+		// Backquotes in the Markdown, none in the Go comment, and both wrap the
+		// chain across lines, so compare on collapsed whitespace. The arrow is
+		// what marks the chain out from every other mention of a layer's name.
+		text := strings.Join(strings.Fields(strings.ReplaceAll(string(src), "`", "")), " ")
+		if !strings.Contains(text, want) {
+			t.Errorf("%s does not state the layer order as %q.\n"+
+				"layers_test.go is the authority, and the prose is what a "+
+				"contributor reads first.", doc, want)
+		}
+	}
+
+	// CLAUDE.md states the same order as the sequence its layout map is written
+	// in, which is the form a reader of the map actually takes it from.
+	src, err := os.ReadFile(filepath.Join("..", "CLAUDE.md"))
+	if err != nil {
+		t.Fatalf("reading CLAUDE.md: %v", err)
+	}
+	var mapped []string
+	for _, m := range layerEntry.FindAllStringSubmatch(layoutBlock(string(src)), -1) {
+		mapped = append(mapped, m[1])
+	}
+	if strings.Join(mapped, " ") != strings.Join(layers, " ") {
+		t.Errorf("CLAUDE.md's layout map is written in the order %s, and the "+
+			"enforced order is %s", strings.Join(mapped, " → "), want)
+	}
+}
+
 // Every package under internal/ is in a layer. One that sits directly in
-// internal/, or under a name that is not one of the seven, is invisible to the
+// internal/, or under a name that is not one of the nine, is invisible to the
 // rule above - which is the quiet way a layering stops meaning anything.
 func TestEveryInternalPackageIsInALayer(t *testing.T) {
 	known := rank()
