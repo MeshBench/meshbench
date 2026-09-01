@@ -12,6 +12,7 @@ import (
 	"math"
 
 	"github.com/MeshBench/meshbench/internal/rf/dsp"
+	"github.com/MeshBench/meshbench/internal/rf/geo"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
@@ -21,15 +22,36 @@ const (
 	DefaultNoiseFigDB  = 6
 )
 
-// GainDBi is a node's peak antenna gain with its feedline loss already taken
-// off. Peak rather than in-direction: a link drawn on a map has no elevation
-// angle to speak of, and pretending to a precision the geometry does not
-// support would be worse than being plainly approximate.
-func GainDBi(n scenario.Node) float64 {
+// GainDBi is a node's antenna gain towards a far end, with its feedline loss
+// already taken off.
+//
+// Directional in azimuth, boresight in elevation, and the difference between
+// the two halves is the whole point. The bearing from one node to the other
+// falls exactly out of two positions the scenario already holds, and a yagi or
+// a sector is twenty decibels or more down off its boresight: quoting the peak
+// across azimuth is not a rough answer, it is a confident wrong one, and wrong
+// towards the optimistic, which is the direction this tool refuses to be wrong
+// in. The elevation angle is the opposite case. On a terrestrial path it is a
+// fraction of a degree, and this package is handed two nodes and a number of
+// decibels with no ground beneath them to derive one from, so reading the
+// elevation plane at boresight claims no precision the geometry cannot
+// support.
+//
+// It follows that the gain two nodes credit each other is not one number: A to
+// B and B to A are different bearings, and on a beam they are, in effect,
+// different antennas.
+func GainDBi(n, towards scenario.Node) float64 {
 	if n.Antenna.Pattern == nil {
 		return -n.Antenna.FeedlineDB
 	}
-	return n.Antenna.Pattern.PeakDBi() - n.Antenna.FeedlineDB
+	if n.Position == towards.Position {
+		// Two nodes at one point have no direction between them, and a planned
+		// site checked against itself arrives here. The best case is the least
+		// surprising answer, and the only one that is not an arbitrary bearing.
+		return n.Antenna.Pattern.PeakDBi() - n.Antenna.FeedlineDB
+	}
+	return n.Antenna.GainAlongDBi(geo.BearingDeg(
+		n.Position.Lat, n.Position.Lon, towards.Position.Lat, towards.Position.Lon))
 }
 
 // BandwidthHz is the receiver bandwidth this node uses.
@@ -76,8 +98,11 @@ func SensitivityDBm(n scenario.Node) float64 {
 // they are. Where either was imported rather than surveyed, OneWay carries the
 // same figure with the band that position uncertainty gives it, and that is
 // the one to decide on.
+//
+// Each end's antenna is evaluated towards the other, so a beam pointed
+// somewhere else pays for it here rather than in a footnote.
 func OneWayDB(a, b scenario.Node, lossDB float64) float64 {
-	return a.TxPowerDBm + GainDBi(a) - lossDB + GainDBi(b) - SensitivityDBm(b)
+	return a.TxPowerDBm + GainDBi(a, b) - lossDB + GainDBi(b, a) - SensitivityDBm(b)
 }
 
 // MarginDB is the weaker of the two directions.
@@ -106,9 +131,9 @@ type Term struct {
 func Terms(a, b scenario.Node, lossDB float64) []Term {
 	return []Term{
 		{"transmit power", a.TxPowerDBm},
-		{"antenna, transmitting", GainDBi(a)},
+		{"antenna, transmitting", GainDBi(a, b)},
 		{"path loss", -lossDB},
-		{"antenna, receiving", GainDBi(b)},
+		{"antenna, receiving", GainDBi(b, a)},
 		{"receiver sensitivity", -SensitivityDBm(b)},
 	}
 }

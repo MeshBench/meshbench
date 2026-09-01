@@ -32,17 +32,6 @@ import (
 	"github.com/MeshBench/meshbench/internal/world/provider"
 )
 
-// Station is a node with everything needed to price a link to or from it.
-type Station struct {
-	Name          string
-	Lat, Lon      float64
-	UncertaintyKm float64
-	HeightAGLm    float64
-	TxPowerDBm    float64
-	GainDBi       float64
-	NoiseFigureDB float64
-}
-
 // Params describe the radio configuration the observations were made under.
 type Params struct {
 	FreqMHz      float64
@@ -216,7 +205,7 @@ func residual(src, dst Station, r provider.Reception, t propagation.Terrain, p P
 	loss := terrain.FSPLdB(distKm, p.FreqMHz) +
 		terrain.MultiEdgeLossDB(profile, src.HeightAGLm, dst.HeightAGLm, p.FreqMHz)
 
-	rxDBm := src.TxPowerDBm + src.GainDBi - loss + dst.GainDBi
+	rxDBm := src.TxPowerDBm + src.gainTowardsDBi(dst) - loss + dst.gainTowardsDBi(src)
 	noiseDBm := dsp.NoiseFloorDBm(p.BandwidthHz, dst.NoiseFigureDB)
 	// Clamped, because the thing it is subtracted from is.
 	//

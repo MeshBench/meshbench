@@ -136,6 +136,23 @@ func (m Mounted) GainTowardsDBi(bearingDeg, elevationDeg float64) float64 {
 	return m.Pattern.GainDBi(relAz, relEl) - m.FeedlineDB
 }
 
+// GainAlongDBi is gain towards a compass bearing with the far end taken to be
+// on the boresight in elevation, feedline loss already deducted.
+//
+// For a caller pricing a terrestrial path from positions alone. The bearing
+// between two known points is exact, so azimuth is never in doubt; the
+// elevation angle needs both ends' altitudes, and a caller holding a map and a
+// path loss does not have them. Inventing a look angle out of nothing would be
+// a precision the geometry cannot support, so the elevation plane is read at
+// its best and the answer is a stated best case instead.
+func (m Mounted) GainAlongDBi(bearingDeg float64) float64 {
+	// Backing out the mount's own downtilt is what "on the boresight" means
+	// once an antenna is allowed to be tilted: a tilt aims at ground this
+	// caller cannot see, so charging for it here would price a beam against
+	// geometry nobody in the call chain has.
+	return m.GainTowardsDBi(bearingDeg, -m.DowntiltDeg)
+}
+
 // normaliseDeg maps an angle to (-180, 180].
 func normaliseDeg(d float64) float64 {
 	for d > 180 {
