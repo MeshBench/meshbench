@@ -43,6 +43,9 @@ type nodeViewPanel struct {
 	menuFor   string
 	menuAt    image.Point
 	menuItems []comp.MenuItem
+	// menu holds that menu's click state, which belongs to this panel and so
+	// to the window drawing it.
+	menu comp.MenuRow
 	// OnFirmware asks the store to put a build on a node.
 	OnFirmware func(node string, b buildChoice)
 
@@ -337,7 +340,7 @@ func (p *nodeViewPanel) contextMenu(t *theme.Theme) layout.Widget {
 		if p.menuFor == "" {
 			return layout.Dimensions{}
 		}
-		chosen := comp.MenuRow(t, gtx, p.menuItems, p.menuFor)
+		chosen := p.menu.Layout(t, gtx, p.menuItems, p.menuFor)
 		if chosen == "" {
 			return layout.Dimensions{}
 		}

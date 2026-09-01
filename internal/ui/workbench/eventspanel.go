@@ -125,6 +125,7 @@ func (p *eventsPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 		}
 		shown = append(shown, e)
 	}
+	p.keepRows(shown)
 
 	var kids []layout.FlexChild
 	if !p.compact {
@@ -244,6 +245,33 @@ func (p *eventsPanel) headerRow(t *theme.Theme, gtx layout.Context) layout.Dimen
 		func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{}.Layout(gtx, kids...)
 		})
+}
+
+// rowSlack is how many rows the click map may hold beyond what is on screen
+// before it is rebuilt. A filter typed one character at a time narrows and
+// widens the shown set on consecutive frames, and rebuilding on every one of
+// those would be work for nothing.
+const rowSlack = 128
+
+// keepRows drops the click state of events that have left the view.
+//
+// One clickable per distinct event, and the events themselves are a tail the
+// store discards from: over the multi-hour run this tool exists for, the
+// panel most likely to be left open was also the only thing holding on to
+// every event that had scrolled past. Rebuilding against what is shown gives
+// that back, and keeps the presses that are actually in flight.
+func (p *eventsPanel) keepRows(shown []*state.Event) {
+	if len(p.rows) <= len(shown)+rowSlack {
+		return
+	}
+	kept := make(map[string]*widget.Clickable, len(shown))
+	for _, e := range shown {
+		key := eventKey(e)
+		if ck, ok := p.rows[key]; ok {
+			kept[key] = ck
+		}
+	}
+	p.rows = kept
 }
 
 // eventKey identifies one event across frames well enough to keep a selection.
