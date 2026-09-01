@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -125,6 +126,56 @@ func Embedded() []string {
 		}
 		n := strings.TrimSuffix(strings.TrimPrefix(p, "fixture-"), ".json")
 		out = append(out, n)
+		return nil
+	})
+	sort.Strings(out)
+	return out
+}
+
+// Shipped is every network this copy can open without anybody having saved
+// one: the files an install keeps on disk, and the copies inside the binary.
+//
+// Named as the files and the documentation name them - fixture-fife-strict,
+// not fife-strict - because this feeds a list somebody chooses from, and the
+// page that tells them to choose it writes it that way. Embedded trims the
+// prefix instead because it feeds an error message about what could have been
+// typed, and Find accepts either spelling.
+func Shipped() []string {
+	seen := map[string]bool{}
+	var out []string
+	add := func(base string) {
+		if !strings.HasSuffix(base, ".json") {
+			return
+		}
+		name := strings.TrimSuffix(base, ".json")
+		if name == "" || seen[name] {
+			return
+		}
+		seen[name] = true
+		out = append(out, name)
+	}
+	for _, dir := range SearchDirs() {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			// A directory an install might have and this one has not. Every
+			// candidate is a guess about how this copy was packaged, so a
+			// missing one is the normal case rather than a fault.
+			continue
+		}
+		for _, e := range entries {
+			if !e.IsDir() {
+				add(e.Name())
+			}
+		}
+	}
+	// Walked rather than taken from Embedded, which has already trimmed the
+	// prefix off: putting it back would invent a name for any file that never
+	// carried one, and Find would then not resolve the name this offered.
+	_ = fs.WalkDir(embedded.FS, ".", func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil //nolint:nilerr // one unreadable entry is not a reason to stop
+		}
+		add(path.Base(p))
 		return nil
 	})
 	sort.Strings(out)

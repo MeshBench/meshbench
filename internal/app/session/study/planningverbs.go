@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/MeshBench/meshbench/internal/app/fixture"
 	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/study/coverage"
@@ -134,27 +135,51 @@ func registerPlanningVerbs(st *state.Store, s *session.Sim) {
 		return map[string]any{"saved": name, "path": path, "nodes": len(s.Nodes())}, nil
 	})
 
+	// What can be opened, which is two different things kept apart rather than
+	// merged: the networks this user saved, and the ones that shipped.
+	//
+	// A machine that has never run MeshBench has saved none, and the first
+	// instruction anybody is given is to open fixture-fife-strict. Reading
+	// only the user's own directory answered that with an empty list and no
+	// error - correct about a directory nobody had written to, and a dead end
+	// at step one. The shipped set is not copied into that directory to fix
+	// it: a copy would look like the user's own file, and a later release
+	// could then only correct it by overwriting an edit.
 	st.Handle("project.list", func(_ *state.World, _ any) (any, error) {
 		dir, err := projectsDir()
 		if err != nil {
 			return nil, err
 		}
-		entries, err := os.ReadDir(dir)
+		names, err := savedProjects(dir)
 		if err != nil {
-			if os.IsNotExist(err) {
-				return map[string]any{"projects": []string{}}, nil
-			}
 			return nil, err
 		}
-		var names []string
-		for _, e := range entries {
-			if strings.HasSuffix(e.Name(), ".json") {
-				names = append(names, strings.TrimSuffix(e.Name(), ".json"))
-			}
-		}
-		sort.Strings(names)
-		return map[string]any{"projects": names, "dir": dir}, nil
+		return map[string]any{
+			"projects": names, "dir": dir, "fixtures": fixture.Shipped(),
+		}, nil
 	})
+}
+
+// savedProjects is what project.save has written, by name.
+//
+// A directory that is not there yet is no projects rather than an error: it is
+// made on the first save, so its absence is the first-run case.
+func savedProjects(dir string) ([]string, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []string{}, nil
+		}
+		return nil, err
+	}
+	names := []string{}
+	for _, e := range entries {
+		if strings.HasSuffix(e.Name(), ".json") {
+			names = append(names, strings.TrimSuffix(e.Name(), ".json"))
+		}
+	}
+	sort.Strings(names)
+	return names, nil
 }
 
 // coverage.combined lands the network-wide answer.

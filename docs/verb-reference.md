@@ -295,11 +295,11 @@ Not made by the test suite: this call needs more than the two-node headless sess
 
 ### `project.list`
 
-Name what project.save has written and say where it writes them, since the directory belongs to the user's configuration rather than to anything the scenario knows about.
+Name everything that can be opened: what project.save has written, where it writes them, and the networks that shipped with this copy.
 
 **Takes** nothing.
 
-**Answers** `projects`, `dir`. A projects directory that does not exist yet answers with an empty `projects` and no `dir` at all, which is the first-run case and not a fault.
+**Answers** `projects`, `dir`, `fixtures`. `projects` is the user's own saved networks, by name, and `dir` is the directory they are read from - always said, whether or not it exists yet, since a caller building a path needs it either way. `fixtures` is the shipped networks, named as the files name them (`fixture-fife-strict`), found on disk beside an install and inside the binary; they are listed rather than copied into the projects directory, so a later release can correct one without overwriting somebody's edit. On a machine that has never run MeshBench `projects` is empty and `fixtures` is not, which is the first-run case and not a fault. A name from `fixtures` is opened by passing it to project.open as it stands; a saved project is opened by joining `dir` and `<name>.json`.
 
 **Example** - see what can be opened
 

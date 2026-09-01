@@ -117,7 +117,7 @@ Two verbs are **not** in this table:
 
 | verb | takes | returns | façade |
 |---|---|---|---|
-| `project.list` | — | `projects`, `dir` | `wb.project.list()` |
+| `project.list` | — | `projects`, `dir`, `fixtures` | `wb.project.list()` |
 | `project.new` | *a bare string*, `place` string | `nodes`, `place` | `wb.project.new(place=None)` |
 | `project.open` 🪟 | *a bare string*, `path` string | `opened`, `nodes`, `links` | `wb.project.open(path)` |
 | `project.save` | *a bare string*, `name` string | `saved`, `path`, `nodes` | `wb.project.save(name)` |
