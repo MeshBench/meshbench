@@ -50,6 +50,13 @@ GROUPS = [(g["title"], g["prefixes"]) for g in _map["groups"]]
 # a registered verb out of the document silently.
 HANDLE = re.compile(r'st\.Handle(?:Spec|Internal)?\(\s*"([a-z0-9_.]+)"\s*,')
 
+# The subset of HANDLE registered with HandleInternal specifically: the
+# workbench's own callbacks, which the socket refuses. Kept separate from
+# HANDLE rather than tagged during scan() because scan() lets the manifest
+# overwrite a verb's entry wholesale, which would lose which spelling
+# registered it.
+INTERNAL = re.compile(r'st\.HandleInternal\(\s*"([a-z0-9_.]+)"\s*,')
+
 PARAM_PATTERNS = [
     (re.compile(r'(?:session\.String|string)Field\(\s*p\s*,\s*"([a-z0-9_]+)"'), "string"),
     # namedField is stringField's sibling for a verb's non-primary parameters -
@@ -198,6 +205,57 @@ def ui_only():
     return out
 
 
+def internal_only():
+    """The verbs registered with HandleInternal: the workbench's own callbacks.
+
+    Walked separately from scan(), and over every file rather than one, for
+    the same reason ui_only() is: which file a handler happens to sit in is
+    a question of length limits, not of whether it is internal.
+    """
+    out = set()
+    for dirpath, _, names in os.walk(SESSION):
+        for n in names:
+            if not n.endswith(".go") or n.endswith("_test.go"):
+                continue
+            src = open(os.path.join(dirpath, n)).read()
+            out.update(m.group(1) for m in INTERNAL.finditer(src))
+    return out
+
+
+def verb_counts(verbs):
+    """Public, internal and total, the numbers the prose above the tables states.
+
+    Split rather than a single figure because the two answer different
+    questions: public is what a script can call, total is what is
+    registered, and neither substitutes for the other.
+    """
+    internal = internal_only()
+    return {
+        "public": len(verbs) - len(internal),
+        "internal": len(internal),
+        "total": len(verbs),
+    }
+
+
+def substitute_counts(text, counts):
+    """Fill the verb counts marked in the hand-written prose.
+
+    Each count is marked with an HTML comment straight after the bold number
+    it belongs to, e.g. `**203**<!--verbdoc:public-->`. The comment is
+    invisible wherever the document renders, so the sentence still reads as
+    prose; what makes it generated is that a stale digit in front of the
+    marker gets overwritten back to the truth, which is what makes --check
+    able to catch it.
+    """
+    for key, n in counts.items():
+        marker = f"<!--verbdoc:{key}-->"
+        pattern = re.compile(r"\*\*\d+\*\*" + re.escape(marker))
+        text, replaced = pattern.subn(f"**{n}**{marker}", text)
+        if replaced == 0:
+            sys.exit(f"{DOC} prose is missing the {marker} marker")
+    return text
+
+
 def takes(v):
     parts = []
     if v["sole"]:
@@ -232,11 +290,14 @@ def render(verbs, header):
     return "\n".join(out)
 
 
-def header_from_doc():
+def header_from_doc(counts):
     """The prose above the first table, kept in the document and edited there.
 
     The tables are generated and the prose is written; splitting them into two
-    files would mean nobody editing the prose ever sees the tables.
+    files would mean nobody editing the prose ever sees the tables. The verb
+    counts inside the prose are the one exception: they are filled in here
+    rather than left as written, which is what stops them drifting from the
+    tables the way the hand-typed "213" did.
     """
     if not os.path.exists(DOC):
         sys.exit(f"{DOC} does not exist; its prose is written by hand")
@@ -244,7 +305,7 @@ def header_from_doc():
     i = text.find("### ")
     if i < 0:
         sys.exit(f"{DOC} has no generated section to replace")
-    return text[:i]
+    return substitute_counts(text[:i], counts)
 
 
 def main():
@@ -269,14 +330,17 @@ def main():
     if ungrouped:
         sys.exit("ungrouped verbs: " + ", ".join(ungrouped))
 
-    doc = render(verbs, header_from_doc())
+    counts = verb_counts(verbs)
+    doc = render(verbs, header_from_doc(counts))
     if "--check" in sys.argv:
         if open(DOC).read() != doc:
             sys.exit(f"{DOC} is out of date; run tools/verbdoc/verbdoc.py")
-        print(f"{DOC} is current ({len(verbs)} verbs)")
+        print(f"{DOC} is current ({counts['public']} public, "
+              f"{counts['internal']} internal, {counts['total']} total)")
         return
     open(DOC, "w").write(doc)
-    print(f"{DOC}: {len(verbs)} verbs, "
+    print(f"{DOC}: {counts['public']} public, {counts['internal']} internal, "
+          f"{counts['total']} total, "
           f"{sum(1 for v in FACADE.values() if not v)} deliberately unmapped")
 
 

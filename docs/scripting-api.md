@@ -8,9 +8,10 @@ Three documents:
 
 - **this one** — the shape, the connection, and every call, by namespace.
 - [scripting-types.md](scripting-types.md) — every object and every field on it.
-- [scripting-verbs.md](scripting-verbs.md) — all 213 verbs, what each takes and
-  returns, and which call covers it. Nothing is orphaned; the mapping is
-  complete in both directions.
+- [scripting-verbs.md](scripting-verbs.md), which lists every verb, what each
+  takes and returns, and which call covers it. Nothing is orphaned; the
+  mapping is complete in both directions, and its own counts are generated,
+  not transcribed here.
 
 Written against `210d9ec`. **This describes what is being built, not what
 exists.** Nothing in `pkg/` is written yet — the issues under #209 are the
