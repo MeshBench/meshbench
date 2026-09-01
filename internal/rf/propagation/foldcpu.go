@@ -84,6 +84,41 @@ func NewFoldSlots(n int) []FoldSlot {
 	return s
 }
 
+// minSelfCellPathM floors the one path a raster cannot measure horizontally.
+// A metre is below anything a link budget is meaningful at, and free space has
+// no answer at all at zero.
+const minSelfCellPathM = 1.0
+
+// selfCellMargins prices the cell the station itself stands in.
+//
+// Zero horizontal distance is not zero path: the handheld standing at the foot
+// of the mast is still the mast's height below the antenna, and that vertical
+// separation is the one distance left when the horizontal one goes to zero.
+// The loss raster carries a zero for this cell, but that zero means "no
+// profile was walked here" rather than "nothing was lost" - spending it as a
+// margin would claim a hundred and forty decibels no receiver has ever read,
+// and the fold's old answer, a margin of zero, darkened the single pixel where
+// the margin is highest.
+func selfCellMargins(rxAlt float64, p GridLossParams, b StationBudget, gt GainTable) (mOut, mIn float64) {
+	sep := math.Abs(p.StAltM - rxAlt)
+	if sep < minSelfCellPathM {
+		sep = minSelfCellPathM
+	}
+	loss := 32.44 + 20*math.Log10(sep/1000) + 20*math.Log10(p.FreqMHz)
+	// Straight down from the antenna, or straight up to it. No bearing exists
+	// at zero horizontal distance, so both twins name one rather than asking
+	// atan2 about a point that is nowhere; the pattern's own clamp brings the
+	// vertical back into the sampled band.
+	elev := 90.0
+	if p.StAltM > rxAlt {
+		elev = -90.0
+	}
+	gain := gt.Sample(0, elev)
+	mOut = b.TxPowerDBm + gain - loss + b.RemoteGainDBi - b.RemoteSensitivityDBm
+	mIn = b.RemoteTxDBm + b.RemoteGainDBi - loss + gain - b.SensitivityDBm
+	return mOut, mIn
+}
+
 // FoldStationCPU folds one station's losses into the slots, the kernel's
 // exact arithmetic: change one, change both.
 func FoldStationCPU(losses []float32, g HeightGrid, p GridLossParams,
@@ -97,13 +132,13 @@ func FoldStationCPU(losses []float32, g HeightGrid, p GridLossParams,
 				continue
 			}
 			lon := p.West + (p.East-p.West)*(float64(x)+0.5)/float64(p.RasterW)
+			ground, _ := g.At(lat, lon)
+			rxAlt := ground + p.RemoteHeightM
 			var mOut, mIn float64
 			distKm := geo.DistanceKm(p.StLat, p.StLon, lat, lon)
 			if distKm <= 0 {
-				mOut, mIn = 0, 0
+				mOut, mIn = selfCellMargins(rxAlt, p, b, gt)
 			} else {
-				ground, _ := g.At(lat, lon)
-				rxAlt := ground + p.RemoteHeightM
 				bearing := geo.BearingDeg(p.StLat, p.StLon, lat, lon)
 				elev := math.Atan2(rxAlt-p.StAltM, distKm*1000) * 180 / math.Pi
 				gain := gt.Sample(bearing, elev)

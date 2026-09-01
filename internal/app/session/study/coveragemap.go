@@ -308,12 +308,17 @@ func startCoverageMap(s *session.Sim, st *state.Store, w *state.World, p any) (a
 			}
 		}
 		if combined == nil {
-			combined = coverage.BestServer(grid, stations, r, opts,
+			c, err := coverage.BestServer(grid, stations, r, opts,
 				extra, func(row, _ int) {
 					_, _ = st.Do(ctx, "job.progress", state.Job{
 						ID: id, What: "coverage: judging every cell",
 						Done: hh + row, Total: total})
 				})
+			if err != nil {
+				_, _ = st.Do(ctx, "coverage.failed", err.Error())
+				return
+			}
+			combined = c
 		}
 		cov := paintCoverage(r, painted)
 		_, _ = st.Do(ctx, "coverage.set", cov)

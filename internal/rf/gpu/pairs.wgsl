@@ -48,6 +48,14 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   let agl_b = meta_f[idx * 3u + 2u];
 
   let dist_km = d / 1000.0;
+  if (dist_km <= 0.0) {
+    // Co-located, or a profile packed with no length: log10(0) is -Inf, and an
+    // infinite negative loss reads downstream as an infinite margin. Zero, as
+    // the coverage kernel returns for the station's own cell, and as the CPU
+    // twin returns here.
+    out[idx] = 0.0;
+    return;
+  }
   let fspl = 32.44 + 20.0 * log10f(dist_km) + 20.0 * log10f(p.freq_mhz);
   if (cnt < 3u) {
     out[idx] = fspl;

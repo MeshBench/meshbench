@@ -50,6 +50,10 @@ func Combine(rasters []*Raster) (*Combined, error) {
 		}
 	}
 
+	if err := checkRasterSize(first.Width, first.Height); err != nil {
+		return nil, err
+	}
+
 	n := first.Width * first.Height
 	c := &Combined{
 		Raster:       Raster{South: first.South, North: first.North, West: first.West, East: first.East, Width: first.Width, Height: first.Height, FreqMHz: first.FreqMHz},
@@ -147,8 +151,14 @@ type Fold struct {
 	seen []bool
 }
 
-// NewFold starts an accumulation over one grid geometry.
-func NewFold(south, north, west, east float64, w, h int, freqMHz float64) *Fold {
+// NewFold starts an accumulation over one grid geometry, refusing a geometry
+// whose cell count would not fit in memory: the fold exists to avoid holding
+// every raster at once, which is no help if the first allocation is the one
+// that kills the process.
+func NewFold(south, north, west, east float64, w, h int, freqMHz float64) (*Fold, error) {
+	if err := checkRasterSize(w, h); err != nil {
+		return nil, err
+	}
 	n := w * h
 	c := &Combined{
 		Raster: Raster{South: south, North: north, West: west, East: east,
@@ -161,7 +171,7 @@ func NewFold(south, north, west, east float64, w, h int, freqMHz float64) *Fold 
 		c.BestMarginDB[i] = math.Inf(-1)
 		c.BestNode[i] = -1
 	}
-	return &Fold{c: c, seen: make([]bool, n)}
+	return &Fold{c: c, seen: make([]bool, n)}, nil
 }
 
 // Add folds one station's raster in, with the same rules Combine applies.

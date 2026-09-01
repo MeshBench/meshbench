@@ -38,7 +38,10 @@ func TestBestServerMatchesRasterThenCombine(t *testing.T) {
 
 	direct := &Raster{South: g.South, North: g.North, West: g.West, East: g.East,
 		Width: 24, Height: 18, FreqMHz: 869.618}
-	combined := BestServer(g, stations, direct, o, nil, nil)
+	combined, err := BestServer(g, stations, direct, o, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	var rasters []*Raster
 	for _, st := range stations {
@@ -85,7 +88,9 @@ func TestBestServerPricesTheExtraLoss(t *testing.T) {
 	mk := func(extra func(int, float64, float64, float64, float64, float64) float64) *Raster {
 		r := &Raster{South: g.South, North: g.North, West: g.West, East: g.East,
 			Width: 10, Height: 10, FreqMHz: 869.618}
-		BestServer(g, stations, r, o, extra, nil)
+		if _, err := BestServer(g, stations, r, o, extra, nil); err != nil {
+			t.Fatal(err)
+		}
 		return r
 	}
 	bare := mk(nil)

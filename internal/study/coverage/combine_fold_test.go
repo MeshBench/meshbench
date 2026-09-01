@@ -27,7 +27,10 @@ func TestFoldMatchesCombine(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f := NewFold(56, 56.2, -3.4, -3.0, 12, 9, 869.618)
+	f, err := NewFold(56, 56.2, -3.4, -3.0, 12, 9, 869.618)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for i, r := range rs {
 		f.Add(r, i)
 	}

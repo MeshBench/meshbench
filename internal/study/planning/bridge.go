@@ -284,6 +284,10 @@ func highGround(from, to Site, t Terrain, o BridgeOptions) ([]Site, error) {
 	south, north = south-pad, north+pad
 	west, east = west-pad, east+pad
 
+	if err := checkScanFits(south, north, west, east, o.CandidateStep, "candidate"); err != nil {
+		return nil, err
+	}
+
 	type cell struct {
 		lat, lon, h float64
 	}

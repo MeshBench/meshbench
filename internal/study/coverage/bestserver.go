@@ -35,9 +35,16 @@ const gainSlackDBi = 8
 // not nil, prices whatever else stands on the path - buildings - and is
 // called only for the paths that survive the free-space cull. progress is
 // called per finished row.
+//
+// Refuses a raster too large to allocate rather than attempting it: three
+// arrays are sized from those two numbers here, and a killed process is a
+// worse answer than a refusal naming the limit.
 func BestServer(g propagation.HeightGrid, stations []Endpoint, r *Raster, o Options,
 	extraLossDB func(station int, cellLat, cellLon, txAslM, rxAslM, distM float64) float64,
-	progress func(done, total int)) *Combined {
+	progress func(done, total int)) (*Combined, error) {
+	if err := checkRasterSize(r.Width, r.Height); err != nil {
+		return nil, err
+	}
 	if o.ProfileStepM <= 0 {
 		o.ProfileStepM = 30
 	}
@@ -166,5 +173,5 @@ func BestServer(g propagation.HeightGrid, stations []Endpoint, r *Raster, o Opti
 	}
 	close(rows)
 	wg.Wait()
-	return c
+	return c, nil
 }
