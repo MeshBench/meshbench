@@ -17,9 +17,10 @@
     ],
     "returns": [
       "from",
-      "to"
+      "to",
+      "ground"
     ],
-    "answers": "It answers with the two labels as soon as the worker starts. The cut-through and both margins arrive later through the internal `link.pair_set`, and there are two margins because there are two answers: each end's gain is evaluated on the bearing towards the other, so A to B and B to A can differ by tens of decibels on a beam. Both are best cases - bare earth, the calibrated excess loss, a default noise floor and no multipath - which is what the profile's assumption line says. A clicked place with no scenario loaded is priced at 868 MHz, and says so.",
+    "answers": "It answers with the two labels as soon as the worker starts, and with the `ground` between them in the shape `terrain.ground` returns. Said rather than refused, unlike the rasters: this verb exists to answer before a warm has happened, and a cut-through with nothing under it is visibly flat. The cut-through and both margins arrive later through the internal `link.pair_set`, and there are two margins because there are two answers: each end's gain is evaluated on the bearing towards the other, so A to B and B to A can differ by tens of decibels on a beam. Both are best cases - bare earth, the calibrated excess loss, a default noise floor and no multipath - which is what the profile's assumption line says. A clicked place with no scenario loaded is priced at 868 MHz, and says so.",
     "example": {
       "params": {
         "a": "West Lomond",

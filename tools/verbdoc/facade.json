@@ -208,6 +208,7 @@
     "terrain.cache_moved": "",
     "terrain.prefetch": "wb.terrain.prefetch()",
     "terrain.allow": "wb.terrain.allow(on=True)",
+    "terrain.ground": "wb.terrain.ground()",
     "terrain.shade": "wb.ui.map.shade()",
     "terrain.shade_set": "",
     "terrain.shade_failed": "",

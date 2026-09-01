@@ -3,9 +3,9 @@
 Generated. Run `tools/verbdoc/verbdoc.py` to rewrite it and
 `tools/verbdoc/verbdoc.py --check` to fail when it is stale.
 
-The store registers 245 verbs: 210 a script may call and
+The store registers 246 verbs: 211 a script may call and
 35 the workbench calls on itself, which the socket refuses. Of those,
-245 say what they are for and 0 do not yet; the ones that
+246 say what they are for and 0 do not yet; the ones that
 do not are marked, and what is printed for them is read out of the handler
 rather than said by it.
 
@@ -1522,7 +1522,7 @@ Report where the run has got to, cheaply enough to poll and safely enough to cal
 
 **Takes** nothing.
 
-**Answers** `playing`, `now_ms`, `until_ms`, `events`, `step_ms`, `seed`. `until_ms` is zero unless `sim.run` set a limit. `events` is the count since the engine was built, not since the last call.
+**Answers** `playing`, `now_ms`, `until_ms`, `events`, `step_ms`, `seed`, `warming`, `links_measured`, `warm_held`, `ground`. `until_ms` is zero unless `sim.run` set a limit. `events` is the count since the engine was built, not since the last call. The link measurement has three states, not two: `warming` while it runs, `links_measured` once every pair has been walked, and `warm_held` for a warm that stopped to ask permission to download terrain, which is neither. A held warm finishes its own job row, so a wait for the workbench to go idle returns in a moment having waited for nothing - reading that as a measurement is how a study came to be believed over ground nobody fetched. `ground` is what the studies here are standing on, in the shape `terrain.ground` returns.
 
 **Example** - ask whether the run has finished
 
@@ -2647,7 +2647,7 @@ Answer why two particular places do or do not hear each other, without the engin
 | `a` | object | required | one end: a node's name as a bare string or as {node}, or a place as {lat, lon} with an optional height_m that defaults to 2 m head height; anything else is refused, as is a name this network has not got |
 | `b` | object | required | the other end, in the same two forms; refused when it labels the same place as a, since a link needs two |
 
-**Answers** `from`, `to`. It answers with the two labels as soon as the worker starts. The cut-through and both margins arrive later through the internal `link.pair_set`, and there are two margins because there are two answers: each end's gain is evaluated on the bearing towards the other, so A to B and B to A can differ by tens of decibels on a beam. Both are best cases - bare earth, the calibrated excess loss, a default noise floor and no multipath - which is what the profile's assumption line says. A clicked place with no scenario loaded is priced at 868 MHz, and says so.
+**Answers** `from`, `to`, `ground`. It answers with the two labels as soon as the worker starts, and with the `ground` between them in the shape `terrain.ground` returns. Said rather than refused, unlike the rasters: this verb exists to answer before a warm has happened, and a cut-through with nothing under it is visibly flat. The cut-through and both margins arrive later through the internal `link.pair_set`, and there are two margins because there are two answers: each end's gain is evaluated on the bearing towards the other, so A to B and B to A can differ by tens of decibels on a beam. Both are best cases - bare earth, the calibrated excess loss, a default noise floor and no multipath - which is what the profile's assumption line says. A clicked place with no scenario loaded is priced at 868 MHz, and says so.
 
 **Example** - ask why two repeaters do or do not hear each other
 
@@ -2830,7 +2830,7 @@ Raster where the network works rather than what one mast reaches, by pricing eve
 | `west` | number | optional | the western border, -180 to 180 |
 | `east` | number | optional | the eastern border, -180 to 180, and right of west |
 
-**Answers** `nodes`, `started`. It answers as soon as the job starts, `nodes` being how many stations went into it. The raster lands later through the internal `coverage.set`, the network-wide summary through `coverage.combined`, and a failure through `coverage.failed` where almost none of the ground has cached elevation. With no viewport given it covers the study boundary, and with no boundary the network's own box plus 15 km. Each cell keeps both directions and they differ: gain is evaluated per station on the bearing and look angle to that cell, a station imported with position uncertainty carries it into the cell as slack, and the margins are a best case, with no multipath and no body loss in them.
+**Answers** `nodes`, `started`, `ground`. It answers as soon as the job starts, `nodes` being how many stations went into it and `ground` being what it stood on, in the shape `terrain.ground` returns. A raster over bare earth nobody chose is refused outright rather than drawn: free space closes every link a hill would have blocked, and the picture is read as where the network works. An operator who has answered the terrain question - either way - gets the raster and the note that goes with it, because an offline run over cached ground is what refusing downloads is for. The raster lands later through the internal `coverage.set`, the network-wide summary through `coverage.combined`, and a failure through `coverage.failed` where almost none of the ground has cached elevation. With no viewport given it covers the study boundary, and with no boundary the network's own box plus 15 km. Each cell keeps both directions and they differ: gain is evaluated per station on the bearing and look angle to that cell, a station imported with position uncertainty carries it into the cell as slack, and the margins are a best case, with no multipath and no body loss in them.
 
 **Example** - raster where the whole network works, finer than the default
 
@@ -2884,7 +2884,7 @@ Ask one of the network-wide planning questions by name - where nobody is reached
 |---|---|---|---|
 | `mode` | string | optional, primary | one of best, best-server, gaps, redundancy or node; absent is best, an unknown one is refused, and node hands the call to coverage.compute for the selected node and refuses when nothing is selected |
 
-**Answers** `mode`, `nodes`, `started`. It answers as soon as the job starts. The answer itself - gap cells, servers per covered cell, cells depending on one - arrives later through the internal `coverage.combined`, and a failure through `coverage.failed`. `nodes` is every node in the scenario, companions included, because this rasterises the lot over one shared grid rather than the infrastructure alone that `coverage.map` picks out. Mode node answers with `coverage.compute`'s keys instead of these. Each raster is a best case in both directions, with gain evaluated towards each cell and any position uncertainty carried into it.
+**Answers** `mode`, `nodes`, `started`, `ground`. It answers as soon as the job starts, with `ground` saying what it stood on in the shape `terrain.ground` returns; over bare earth nobody chose it is refused rather than answered, because a gap found over free space is somewhere a hill would have made pointless. The answer itself - gap cells, servers per covered cell, cells depending on one - arrives later through the internal `coverage.combined`, and a failure through `coverage.failed`. `nodes` is every node in the scenario, companions included, because this rasterises the lot over one shared grid rather than the infrastructure alone that `coverage.map` picks out. Mode node answers with `coverage.compute`'s keys instead of these. Each raster is a best case in both directions, with gain evaluated towards each cell and any position uncertainty carried into it.
 
 **Example** - find the ground nobody reaches
 
@@ -4292,7 +4292,7 @@ Allow or refuse terrain downloads on this machine, and remember it.
 |---|---|---|---|
 | `on` | bool | optional, primary | true to download terrain when a study needs it, false to use only what is cached |
 
-**Answers** `on`, `asked`, `warming`. `asked` is whether this machine had already answered before the call, never asked being the third state a fresh install is in. `warming` is true where granting permission released a measurement that had stopped to ask, because nothing is watching for the answer to arrive and it has to be started again by hand.
+**Answers** `on`, `asked`, `warming`. `asked` is whether this machine had already answered before the call, never asked being the third state a fresh install is in. `warming` is true where the answer released a measurement that had stopped to ask, because nothing is watching for the answer to arrive and it has to be started again by hand. A refusal releases it as well as a grant: "use only what is cached" is an answer, and a session left held on it never measures a link at all, so the map stays empty and the study that follows has nothing to be honest about.
 
 **Example** - let this machine fetch the ground a study needs
 
@@ -4360,6 +4360,22 @@ Point the tile store and the settings at the directory a finished move has fille
 **Answers** `dir`
 
 **Client** none: the cache mover reporting it finished
+
+### `terrain.ground`
+
+Report what elevation data the current network actually has under it, and whether having none of it was chosen.
+
+**Takes** nothing.
+
+**Answers** `state`, `chosen`, `note`, `tiles_sampled`, `tiles_cached`. `state` is `terrain` where every sampled tile under the network is cached, `partial` where some are, and `bare-earth` where none are. Bare earth is not a missing decoration: the propagation model prices a profile with no elevation as free space, which is the most optimistic answer it has and more optimistic than the best case the rest of the model is documented as. `chosen` says somebody answered the terrain question, either way, so an offline run the operator asked for can be told apart from a fetch that never happened because nobody was asked. `note` is the sentence a study carries in its own result, empty only when the ground is all here. The tile counts are a bounded sample of the study's box rather than a census, so they are there to be compared with each other and not quoted as a size.
+
+**Example** - check what the studies here are standing on before believing one
+
+```json
+{"id":1,"method":"terrain.ground","params":{}}
+```
+
+**Client** `wb.terrain.ground()`
 
 ### `terrain.prefetch`
 

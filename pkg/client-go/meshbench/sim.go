@@ -3,6 +3,7 @@ package meshbench
 
 import (
 	"context"
+	"fmt"
 	"time"
 )
 
@@ -45,6 +46,20 @@ func (s Sim) StartWithin(ctx context.Context, warm, firmware time.Duration) erro
 	// that is still being measured.
 	if err := s.w.WaitIdle(ctx, warm); err != nil {
 		return err
+	}
+	// Idle is not the same as measured. A warm that stopped to ask permission
+	// to download terrain finishes its own job row, so the wait above returns
+	// in a moment having waited for nothing: no link was measured, and every
+	// study after this would answer over free space.
+	if held, err := s.State(ctx); err != nil {
+		return err
+	} else if held.WarmHeld {
+		note := held.Ground.Note
+		if note == "" {
+			note = "call terrain.allow to answer the question either way"
+		}
+		return fmt.Errorf("the link measurement is held: no terrain has been "+
+			"downloaded and no link has been measured. %s", note)
 	}
 	// Then every node that is not up, which firmware.start does and sim.start
 	// does only when none of them are.

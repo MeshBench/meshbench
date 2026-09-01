@@ -1,4 +1,20 @@
 {
+  "terrain.ground": {
+    "what": "report what elevation data the current network actually has under it, and whether having none of it was chosen",
+    "returns": [
+      "state",
+      "chosen",
+      "note",
+      "tiles_sampled",
+      "tiles_cached"
+    ],
+    "answers": "`state` is `terrain` where every sampled tile under the network is cached, `partial` where some are, and `bare-earth` where none are. Bare earth is not a missing decoration: the propagation model prices a profile with no elevation as free space, which is the most optimistic answer it has and more optimistic than the best case the rest of the model is documented as. `chosen` says somebody answered the terrain question, either way, so an offline run the operator asked for can be told apart from a fetch that never happened because nobody was asked. `note` is the sentence a study carries in its own result, empty only when the ground is all here. The tile counts are a bounded sample of the study's box rather than a census, so they are there to be compared with each other and not quoted as a size.",
+    "example": {
+      "params": {},
+      "what": "check what the studies here are standing on before believing one",
+      "runnable": true
+    }
+  },
   "terrain.allow": {
     "what": "allow or refuse terrain downloads on this machine, and remember it",
     "params": [
@@ -14,7 +30,7 @@
       "asked",
       "warming"
     ],
-    "answers": "`asked` is whether this machine had already answered before the call, never asked being the third state a fresh install is in. `warming` is true where granting permission released a measurement that had stopped to ask, because nothing is watching for the answer to arrive and it has to be started again by hand.",
+    "answers": "`asked` is whether this machine had already answered before the call, never asked being the third state a fresh install is in. `warming` is true where the answer released a measurement that had stopped to ask, because nothing is watching for the answer to arrive and it has to be started again by hand. A refusal releases it as well as a grant: \"use only what is cached\" is an answer, and a session left held on it never measures a link at all, so the map stays empty and the study that follows has nothing to be honest about.",
     "example": {
       "params": true,
       "what": "let this machine fetch the ground a study needs",

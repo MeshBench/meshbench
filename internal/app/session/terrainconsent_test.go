@@ -17,6 +17,14 @@ import (
 func consentSim(t *testing.T) (*Sim, *state.Store, context.Context) {
 	t.Helper()
 	dir := t.TempDir()
+	// A session that persists writes its measured matrix to the machine's own
+	// cache directory, and reads it back on the next launch for the same
+	// geometry. Left pointed at the developer's home that is a warm in one test
+	// priming another - which shows up as a held warm that mysteriously is not
+	// held, because the matrix it would have measured was already on disk.
+	t.Setenv("XDG_CACHE_HOME", dir)
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv("HOME", dir)
 	s := &Sim{
 		persist:   true,
 		prefsFile: filepath.Join(dir, "workbench2.json"),

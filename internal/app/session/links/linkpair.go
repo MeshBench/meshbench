@@ -173,8 +173,18 @@ func registerLinkPair(st *state.Store, s *session.Sim) {
 		if a.label == b.label {
 			return nil, fmt.Errorf("both ends are %s - a link needs two places", a.label)
 		}
+		// The ground between these two ends, not the network's: this verb
+		// answers about places nobody has put a node on, and the cut-through it
+		// draws is only a cut through anything if the tiles under it are here.
+		//
+		// Said rather than refused, unlike the rasters: this path exists to
+		// answer before a warm has happened, and the profile it draws is
+		// visibly flat when there is nothing under it.
+		under := s.GroundUnder([]scenario.Node{a.n, b.n})
+		session.NoteGround(w, "link.pair", under)
 		pairProfile(s, st, a, b)
-		return map[string]any{"from": a.label, "to": b.label}, nil
+		return map[string]any{"from": a.label, "to": b.label,
+			"ground": under.Map()}, nil
 	})
 
 	st.HandleInternal("link.pair_set", func(w *state.World, p any) (any, error) {

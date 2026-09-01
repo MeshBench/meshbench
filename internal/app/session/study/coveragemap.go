@@ -98,6 +98,13 @@ func startCoverageMap(s *session.Sim, st *state.Store, w *state.World, p any) (a
 			}
 		}
 	}
+	// The ground before the raster, not after it: a cell painted over free
+	// space is a cell that says a ridge is not there, and this raster is read
+	// as a picture of where the network works.
+	under := s.GroundOver(south, north, west, east)
+	if err := session.StudyGround(w, "coverage.map", under); err != nil {
+		return nil, err
+	}
 	gw, gh := gridFor(south, north, west, east, asked.cells)
 	stations := make([]coverage.Endpoint, 0, len(infra))
 	for _, n := range infra {
@@ -248,5 +255,6 @@ func startCoverageMap(s *session.Sim, st *state.Store, w *state.World, p any) (a
 		_, _ = st.Do(ctx, "coverage.combined",
 			map[string]any{"mode": "map", "combined": combined})
 	}()
-	return map[string]any{"nodes": len(infra), "started": true}, nil
+	return map[string]any{"nodes": len(infra), "started": true,
+		"ground": under.Map()}, nil
 }

@@ -119,6 +119,11 @@ type World struct {
 	// position, and because a study held up waiting for it is a state the
 	// interface has to be able to explain.
 	TerrainDownloads bool
+	// Ground is what elevation data the studies here actually have under them,
+	// as last looked at. Here rather than computed in the renderer because the
+	// caveat line in the chrome has to be able to say "no terrain" without
+	// stat-ing a tile cache once a frame.
+	Ground Ground
 	// Setup is what this machine has and has not, as last checked. Grouped
 	// rather than flat because what is true of a whole group - where tools are
 	// looked for, and that it is not PATH - is the half people get wrong.

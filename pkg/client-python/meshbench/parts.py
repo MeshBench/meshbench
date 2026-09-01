@@ -91,6 +91,18 @@ class Sim:
         # The links first. Nothing that follows means anything against a
         # matrix that is still being measured.
         self._wb.wait_idle(wait)
+        # Idle is not the same as measured. A warm that stopped to ask
+        # permission to download terrain finishes its own job row, so the wait
+        # above returns in a moment having waited for nothing: no link was
+        # measured, and every study after this would answer over free space.
+        held = self.state()
+        if held.warm_held:
+            note = (held.ground or {}).get("note", "")
+            raise errors.MeshbenchError(
+                "the link measurement is held: no terrain has been downloaded "
+                "and no link has been measured. "
+                + (note or "call terrain.allow to answer the question either way")
+            )
 
         # Then every node that is not up, which firmware.start does and
         # sim.start does only when none of them are.
