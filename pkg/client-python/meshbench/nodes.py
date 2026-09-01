@@ -273,9 +273,7 @@ class Node:
         beam is twenty decibels or more down off its boresight, and which way
         it faces decides which links close.
         """
-        return Antenna.parse(
-            self._wb.call("node.antenna", {"node": self.name}) or {}
-        )
+        return Antenna.parse(self._wb.call("node.antenna", {"node": self.name}) or {})
 
     def set_antenna(self, **change: float | str) -> None:
         """Choose and aim this node's antenna.
