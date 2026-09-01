@@ -3,9 +3,11 @@ package workbench
 import (
 	"fmt"
 	"reflect"
+	"runtime"
 	"sort"
 	"strings"
 	"testing"
+	"time"
 	"unsafe"
 
 	"gioui.org/f32"
@@ -109,6 +111,44 @@ func controlsOf(v reflect.Value, prefix string, out *[]control) {
 	}
 }
 
+// didFire drives frames until a control's effect shows up, and returns the
+// count it settled on.
+//
+// Most handlers reach their recorder synchronously, so the first two frames
+// answer. The browse buttons do not: a platform file dialog blocks, so the
+// handler hands it to a goroutine, and whether that goroutine has run by the
+// time the count is read is the scheduler's business rather than the test's.
+// Reading the count once made those buttons report as dead under load, which
+// is a flake on a required check rather than a finding about the button.
+//
+// Waiting for the effect instead of assuming it is immediate covers any
+// asynchronous control, not the one that happened to expose this.
+//
+// The budget is spent in full by every control that legitimately reaches
+// nothing on its first press - a destructive one asks before it acts - so it
+// buys robustness with time on the commonest path and wants to stay small.
+// Scheduling a runnable goroutine costs microseconds; a tenth of a second is
+// already several orders of magnitude of headroom on a loaded runner.
+const auditFireBudget = 100 * time.Millisecond
+
+func didFire(h *panelHarness, fired func() int, before int) int {
+	deadline := time.Now().Add(auditFireBudget)
+	for {
+		h.frame()
+		h.frame()
+		// Frames drive the UI, not the runtime, so a handler that deferred its
+		// work to a goroutine needs the scheduler to be given a turn.
+		runtime.Gosched()
+		if n := fired(); n != before {
+			return n
+		}
+		if time.Now().After(deadline) {
+			return fired()
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
 // auditOne presses every control on one panel and reports what happened.
 func auditOne(t *testing.T, panel string, ctrl any,
 	draw func(*theme.Theme, layout.Context, *state.Snapshot) layout.Dimensions,
@@ -154,16 +194,13 @@ func auditOne(t *testing.T, panel string, ctrl any,
 		case c.chk != nil:
 			c.chk.Bool.Value = !c.chk.Bool.Value
 		}
-		h.frame()
-		h.frame()
 		// A destructive control asks twice in place, so its first press is
 		// meant to reach nothing - it turns the button into the question.
 		// Pressing again is what an operator does, and what decides whether
 		// the control is wired or dead.
-		if fired() == before && c.btn != nil {
+		if didFire(h, fired, before) == before && c.btn != nil {
 			c.btn.Click.Click()
-			h.frame()
-			h.frame()
+			didFire(h, fired, before)
 		}
 		if fired() == before && c.chk == nil {
 			dead = append(dead, c.name+" ("+label(c)+")")
