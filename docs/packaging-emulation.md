@@ -138,20 +138,34 @@ an error that read as a missing package.
 
 The same shape as the native firmware cache, deliberately.
 
+Step 3 is now also where the application *puts* things. The Resources page
+carries a row per tool - `radioserver`, `qemu-system-xtensa` and `renode` -
+with its size, its terms and a fetch that downloads from our own forks'
+releases, verifies the digest, unpacks into that directory and links the binary
+under the name the lookup asks for. The description of that directory as "where
+the installer puts anything it downloads after the fact" was the gap: for a
+source build no installer ever does.
+
 ## What "simple to set up" should mean
 
 In rough order of value:
 
 1. **Ship QEMU and `radioserver` beside the binary.** Removes every manual step
    for the one path that works. A first run then needs only a download of the
-   board image, which the firmware library already does.
+   board image, which the firmware library already does. *Done for a release
+   bundle; and for everything else the Resources page now fetches all three
+   into the tools directory, which is what a source checkout had no path to at
+   all.*
 2. **Say what is missing, in the UI, with the fix.** The error already names all
    four search locations rather than saying "not found", because "not found"
    sends people to their package manager for a QEMU build that will not do.
 3. **Do not bundle firmware images.** They are per release and per board, and
    the catalogue already fetches and caches them.
 4. **Leave Renode to the user for now,** and treat ARM as opt-in until a
-   published nRF52 image actually runs.
+   published nRF52 image actually runs. *The Linux portable package is now
+   fetchable from the Resources page; macOS is not, because what the fork
+   publishes there is a build tree rather than a portable package and nobody
+   has started it.*
 5. **Fetch the SoftDevice from Nordic's own site and cache it,** the way board
    images already are. Licensing is settled (`docs/licence.md`); this is the
    piece of work that turns "extracting it is not a step a casual user will

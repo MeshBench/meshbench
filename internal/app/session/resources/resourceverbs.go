@@ -9,120 +9,12 @@ package resources
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/MeshBench/meshbench/internal/app/resource"
 	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
-	hw "github.com/MeshBench/meshbench/internal/firmware/board"
 )
-
-// resourceCacheDir is the root every provider keeps its bytes under.
-func resourceCacheDir() string {
-	cache, err := os.UserCacheDir()
-	if err != nil {
-		return ""
-	}
-	return filepath.Join(cache, "meshbench")
-}
-
-// softDeviceProvider is the SoftDevice source, told how many nodes here are
-// waiting on one so a missing row reads as needed rather than optional.
-func softDeviceProvider(s *session.Sim) *resource.SoftDevice {
-	needed := 0
-	for _, n := range s.Nodes() {
-		if n.Firmware.Board == "" {
-			continue
-		}
-		// An emulated nRF52 boots MBR, then the SoftDevice, then MeshCore.
-		// Which boards those are is the catalogue's own MCU field rather than
-		// a list of board names repeated here and left to drift.
-		if b, err := hw.BoardByName(n.Firmware.Board); err == nil &&
-			strings.HasPrefix(b.MCU, "nRF52") {
-			needed++
-		}
-	}
-	return &resource.SoftDevice{CacheDir: resourceCacheDir(), Needed: needed}
-}
-
-// resourceProviders is every source of rows, in the order the panel shows them.
-//
-// The SoftDevice first because it is the one thing here that a scenario can be
-// blocked on, then the caches that fill themselves. Those are the reason this
-// package exists: on the machine it was written for the terrain cache had
-// reached 7.1 GB, and nothing in the application would tell you so.
-func resourceProviders(s *session.Sim) []resource.Provider {
-	root := resourceCacheDir()
-	dir := func(k resource.Kind, label, sub, purpose, terms string) resource.Provider {
-		return &resource.DirCache{
-			K: k, Label: label, Dir: filepath.Join(root, sub),
-			Purpose: purpose, Terms: terms,
-		}
-	}
-	return []resource.Provider{
-		softDeviceProvider(s),
-		dir(resource.Terrain, "terrain tiles", "terrain",
-			"height data under every link budget, fetched for the ground you look at",
-			terrainTerms),
-		dir(resource.Basemap, "basemap", "basemap",
-			"the hillshaded map drawn under the simulation", basemapTerms),
-		dir(resource.Buildings, "building footprints", "environment",
-			"heights and materials that stand in the way of a signal", buildingTerms),
-		dir(resource.Basemap, "map tiles", "tiles",
-			"the map imagery itself, as the view has needed it", basemapTerms),
-	}
-}
-
-// relistResources rescans every provider into the world, and is the only place
-// that does. Called directly by whatever needs the list refreshed, because a store
-// handler cannot ask the store for anything.
-func relistResources(s *session.Sim, w *state.World) (int, error) {
-	var out []state.ResourceRow
-	// One provider failing must not empty the page. A cache directory that
-	// cannot be read is a row that says so, beside the ones that could.
-	for _, p := range resourceProviders(s) {
-		rows, err := p.List(context.Background())
-		if err != nil {
-			out = append(out, state.ResourceRow{
-				Kind: string(p.Kind()), Name: string(p.Kind()),
-				State: string(resource.Unavailable), Why: err.Error(),
-			})
-			continue
-		}
-		for _, r := range rows {
-			out = append(out, state.ResourceRow{
-				Kind: string(r.Kind), Name: r.Name, Version: r.Version,
-				Bytes: r.Bytes, Estimated: r.Estimated, State: string(r.State),
-				Why: r.Why, Auto: r.Auto, Path: r.Path,
-				Fetchable: r.Fetchable, Licensed: r.Licensed,
-			})
-		}
-	}
-	w.Resources = out
-	return len(out), nil
-}
-
-// providerFor finds the provider that owns a row, by the kind and name the
-// panel sends back.
-func providerFor(s *session.Sim, kind, name string) (resource.Provider, resource.Row, bool) {
-	for _, p := range resourceProviders(s) {
-		if string(p.Kind()) != kind {
-			continue
-		}
-		rows, err := p.List(context.Background())
-		if err != nil {
-			continue
-		}
-		for _, r := range rows {
-			if r.Name == name {
-				return p, r, true
-			}
-		}
-	}
-	return nil, resource.Row{}, false
-}
 
 func registerResources(st *state.Store, s *session.Sim) {
 	// resource.list: what is on this machine. Never touches the network -
@@ -132,7 +24,14 @@ func registerResources(st *state.Store, s *session.Sim) {
 		if err != nil {
 			return nil, err
 		}
-		return map[string]any{"rows": n}, nil
+		// The rows, not only how many there are.
+		//
+		// It answered {"rows": 5} and left the rows in the snapshot, where
+		// only a panel could reach them, so from outside the window "is the
+		// emulator toolchain here, and can I fetch it" was unanswerable
+		// without reading this file. The count keeps its old key for whoever
+		// is already reading it.
+		return map[string]any{"rows": n, "resources": resourceRows(w.Resources)}, nil
 	})
 
 	// resource.fetch: get one, as a job that can be stopped.
@@ -202,10 +101,12 @@ func registerResources(st *state.Store, s *session.Sim) {
 	st.HandleInternal("resource.fetched", func(w *state.World, p any) (any, error) {
 		name, _ := session.StringField(p, "name")
 		version, _ := session.NamedField(p, "version")
-		// Nordic's own terms, cached beside the image and said aloud once:
-		// a licensed binary arriving silently is the thing the licence
-		// question was asked to avoid.
-		w.Say(name + " " + version + " is cached, with its licence beside it")
+		// Said aloud once, because a licensed binary arriving silently is the
+		// thing the licence question was asked to avoid. Where the terms are
+		// rather than that there are some: the SoftDevice caches Nordic's own
+		// file beside the image and the emulators carry theirs in the row, and
+		// "beside it" was true of only one of those.
+		w.Say(name + " " + version + " is cached; its terms are under Licence on its row")
 		// Listed here rather than by asking the store to do it.
 		//
 		// A handler already runs on the store's goroutine, so calling Do from

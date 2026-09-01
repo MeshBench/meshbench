@@ -145,8 +145,21 @@ for them first.
 Building from source is the case below. An emulated node needs binaries that
 are on no distribution: a QEMU carrying our SX1262 device for the ESP32 boards,
 a Renode carrying the SEVONPEND fix for the nRF52 ones, and the radio model
-both talk to. Put them where the application looks and nothing else is needed —
-no environment variables, no flags.
+both talk to.
+
+**The Resources page will fetch all three.** They are rows there like
+everything else the application downloads, with a size, a licence to read
+first, and a state that says whether this platform has a build at all. What
+lands goes into `~/.cache/meshbench/tools/`, which is where the search below
+looks, so nothing else has to be set. From a script:
+
+```
+resource.list                                       # what is here, and what could be
+resource.fetch {"kind":"toolchain","name":"radioserver"}
+```
+
+Doing it by hand still works, and is what to do on a platform the page says has
+no build:
 
 ```bash
 mkdir -p ~/.cache/meshbench/tools

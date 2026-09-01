@@ -8,7 +8,7 @@
   "forks": [
     {
       "name": "MeshBench/qemu",
-      "detail": "Fork of qemu-project/qemu, branch meshbench-sx1262. Adds an SX1262 LoRa radio device upstream does not have, so ESP32 firmware sees its chip. The emulator in this bundle is built from this fork; the fork repository is the source offer.",
+      "detail": "Fork of qemu-project/qemu, branch meshbench-sx1262. Adds an SX1262 LoRa radio device upstream does not have, so ESP32 firmware sees its chip. The emulator in this bundle is built from this fork; the fork repository is the source offer. The application can also fetch this build into the tools directory on demand, which is how a source checkout obtains it.",
       "licence": "GPL-2.0",
       "link": "https://github.com/MeshBench/qemu",
       "text_files": [
@@ -36,7 +36,7 @@
     },
     {
       "name": "MeshBench/renode",
-      "detail": "Fork of renode/renode, branch meshbench. A portable bundle build that carries its own .NET runtime, so nRF52 emulation needs nothing installed.",
+      "detail": "Fork of renode/renode, branch meshbench. A portable bundle build that carries its own .NET runtime, so nRF52 emulation needs nothing installed. The application can also fetch this package into the tools directory on demand, which is how a source checkout obtains it.",
       "licence": "MIT",
       "link": "https://github.com/MeshBench/renode",
       "text_files": [

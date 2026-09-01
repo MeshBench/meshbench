@@ -2,7 +2,6 @@ package resource
 
 import (
 	"context"
-	"io/fs"
 	"os"
 	"path/filepath"
 )
@@ -42,21 +41,8 @@ func (d *DirCache) List(_ context.Context) ([]Row, error) {
 		// it can grow unnoticed - and why it is worth showing.
 		Auto: true,
 	}
-	var total int64
-	var files int
-	err := filepath.WalkDir(d.Dir, func(p string, e fs.DirEntry, walkErr error) error {
-		// A file that vanished mid-walk is a cache being used, not a fault:
-		// skip it and keep counting rather than abandoning the measurement.
-		if walkErr != nil || e == nil || e.IsDir() {
-			return nil //nolint:nilerr // a disappearing cache entry is not an error
-		}
-		if fi, err := e.Info(); err == nil {
-			total += fi.Size()
-			files++
-		}
-		return nil
-	})
-	if err != nil && !os.IsNotExist(err) {
+	total, files, err := walkBytes(d.Dir)
+	if err != nil {
 		return nil, err
 	}
 	row.Bytes = total
