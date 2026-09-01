@@ -345,7 +345,7 @@ func TestImplementationLossDeafens(t *testing.T) {
 		return "nothing"
 	}
 	if got := run(0); got != "rx" {
-		t.Skipf("the thin-margin link did not decode clean (%s); geometry needs retuning", got)
+		t.Fatalf("the thin-margin link did not decode clean (%s); this is the control case, so retune the geometry rather than skip it", got)
 	}
 	if got := run(10); got == "rx" {
 		t.Fatal("10 dB of implementation loss cost nothing")
@@ -416,7 +416,7 @@ func TestBuildingsPriceThePath(t *testing.T) {
 	}
 
 	if got := run(nil); got != "rx" {
-		t.Skipf("the thin-margin link did not decode over bare earth (%s)", got)
+		t.Fatalf("the thin-margin link did not decode over bare earth (%s); this is the control case, so retune the geometry rather than skip it", got)
 	}
 	slab := environ.Building{
 		Footprint: [][2]float64{
@@ -461,7 +461,7 @@ func TestBuildingsDeafenTheWaveform(t *testing.T) {
 		return "nothing"
 	}
 	if got := run(nil); got != "rx" {
-		t.Skipf("the thin-margin link did not decode clean (%s); geometry needs retuning", got)
+		t.Fatalf("the thin-margin link did not decode clean (%s); this is the control case, so retune the geometry rather than skip it", got)
 	}
 	// A 40 m concrete slab squarely across the path: a rooftop knife edge
 	// 30 m above the antennas, plus a wall.

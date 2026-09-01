@@ -2,6 +2,7 @@ package lora_test
 
 import (
 	"bytes"
+	"math"
 	"math/rand"
 	"testing"
 
@@ -93,8 +94,18 @@ func TestSymbolCountMatchesRadioLib(t *testing.T) {
 				t.Fatalf("%+v n=%d: %d symbols, RadioLib arithmetic says %d",
 					p, n, syms, want)
 			}
-			// And through the public formula itself, as a cross-check.
-			_ = dsp.AirtimeMillis(p.SF, bw, p.CR, n, p.CRC, true)
+			// And through the public formula itself, as a cross-check: it adds
+			// back the preamble and sync/header coefficient AirtimeMillis
+			// carries that SymbolCount's own return value does not.
+			sfCoeff1 := 4.25
+			if p.SF == 5 || p.SF == 6 {
+				sfCoeff1 = 6.25
+			}
+			wantMs := math.Trunc(symbolMs * (float64(dsp.PreambleSymbols(p.SF)) + sfCoeff1 + float64(syms)))
+			if got := dsp.AirtimeMillis(p.SF, bw, p.CR, n, p.CRC, true); got != wantMs {
+				t.Fatalf("%+v n=%d: AirtimeMillis = %v, want %v from SymbolCount's own arithmetic",
+					p, n, got, wantMs)
+			}
 		}
 	}
 }
