@@ -15,6 +15,15 @@ had changed in them — which is the gap this file exists to close.
 
 ### Added
 
+- **The emulator toolchain is fetchable.** `radioserver`, QEMU and Renode are
+  rows on the Resources page like anything else the application downloads, with
+  a size, the terms to read first, and a fetch that verifies the digest and
+  unpacks into `~/.cache/meshbench/tools/`, already the third place the
+  emulator lookup searches, so a fetched tool needs no configuration. A release
+  tarball carries all three beside the binary, but the AppImage and the `.deb`
+  carry only `radioserver` and a source checkout had no path to any of them.
+  Where a platform has no build, or where emulation has never run on it, the
+  row says which rather than offering a download that could not work.
 - **Resource manager.** Everything the application downloads that is not
   firmware, in one page: the Nordic SoftDevice plus the caches that fill
   themselves as the map is used — terrain, basemap, map tiles, building
@@ -41,6 +50,12 @@ had changed in them — which is the gap this file exists to close.
 
 ### Changed
 
+- **`resource.list` returns the rows, not a count of them.** It answered
+  `{"rows": 5}` and left the rows in the snapshot, where only a panel could
+  reach them, so from outside the window there was no way to ask what this
+  machine holds or what it could fetch. The rows now come back under
+  `resources`, the fifth verb to be fixed the way `nodes.stats`,
+  `firmware.library`, the study area and `console.read` were.
 - **The control protocol is enforced at connect.** A client declares the wire
   version it speaks on the frame it was already sending - the token line on
   loopback TCP, the first request on a unix socket - and a version this build

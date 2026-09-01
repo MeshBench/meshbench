@@ -386,7 +386,7 @@ Two verbs are **not** in this table:
 | `resource.fetched` | `name` string, `version` string | `name` | *none* — the downloader reporting it finished |
 | `resource.licence` | `name` string, `version` string, `kind` string | `name`, `version`, `text` | `wb.resources.licence(kind, name, version)` |
 | `resource.licence.hide` | — | `hidden` | *none* — closing a box only a window has |
-| `resource.list` | — | `rows` | `wb.resources` |
+| `resource.list` | — | `rows`, `resources` | `wb.resources` |
 | `resource.remove` | `name` string, `version` string, `kind` string | `removed` | `wb.resources.remove(kind, name, version)` |
 | `terrain.cache` | `gb` number | `gb`, `dir` | `wb.terrain.cache_gb = n` |
 | `terrain.cache_dir` | *a bare string*, `path` string | `dir`, `moving`, `to` | `wb.terrain.cache_dir = path` |

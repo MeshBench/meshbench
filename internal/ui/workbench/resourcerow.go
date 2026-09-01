@@ -237,6 +237,13 @@ func (p *resourcesPanel) rowActions(t *theme.Theme, gtx layout.Context,
 	w.fetch.Reason = ""
 	if !r.Fetchable {
 		w.fetch.Reason = "fills itself as the map is used"
+		// Except where the row has its own answer. An emulator with no build
+		// for this machine is not a cache, and telling somebody it fills
+		// itself as the map is used explains nothing about the thing in front
+		// of them.
+		if resource.State(r.State) == resource.Unavailable && r.Why != "" {
+			w.fetch.Reason = r.Why
+		}
 	}
 	w.licence.Label = "Licence"
 	if p.licenceShown(r) {
