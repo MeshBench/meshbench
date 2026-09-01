@@ -52,8 +52,12 @@ func registerResources(st *state.Store, s *session.Sim) {
 		}
 		sd, ok := prov.(resource.Fetcher)
 		if !ok {
-			return nil, fmt.Errorf("%s fills itself as the map is used: "+
-				"there is nothing to ask for out of context", name)
+			// The row's own words rather than one sentence for every cache.
+			// Buildings are not fetched from here either, but they do not fill
+			// themselves, and being told that they do is how somebody stops
+			// looking for the page that actually has them.
+			return nil, fmt.Errorf("%s is not fetched from here: %s",
+				name, row.HowTo)
 		}
 		// The row is the authority on its own version: a default here was a
 		// SoftDevice's, and it went out attached to a building set.

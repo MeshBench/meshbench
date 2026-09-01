@@ -33,6 +33,11 @@ type configPanel struct {
 	// live here now that the separate Settings panel is gone.
 	sets *settings
 
+	// mark holds the overview's wordmark upload, which is a texture rather
+	// than a widget: kept on the panel so it survives between frames instead
+	// of being re-uploaded at sixty a second.
+	mark markCache
+
 	// secRows are plain clickables rather than buttons: they change which
 	// section is open, not the world, so the control audit - which asks
 	// whether a control reaches a verb - leaves them to their own test.

@@ -104,7 +104,7 @@ func sharePct(frac float64) string {
 func (p *resourcesPanel) row(t *theme.Theme, gtx layout.Context,
 	r state.ResourceRow) layout.Dimensions {
 	key := resourceKey(r)
-	w := p.rowFor(key)
+	w := p.rowFor(r)
 	// On disk or feeding the simulation: either way the file is here, which is
 	// what the buttons below care about. Tested against "present", a name the
 	// provider does not use, Remove was offered on nothing and refused on
@@ -126,6 +126,12 @@ func (p *resourcesPanel) row(t *theme.Theme, gtx layout.Context,
 		}
 		p.do(verb, map[string]any{
 			"name": r.Name, "version": r.Version, "kind": r.Kind})
+	}
+	if w.where != nil && w.where.Click.Clicked(gtx) {
+		// The page that does have it, opened rather than described. Buildings
+		// are the row this exists for: their download wants a database chosen
+		// and a map area to pull around, neither of which a resource row has.
+		p.do("panel.open", map[string]any{"name": r.HowToPanel})
 	}
 	if w.remove.Click.Clicked(gtx) {
 		if p.confirm == key {
@@ -230,17 +236,17 @@ func (p *resourcesPanel) rowActions(t *theme.Theme, gtx layout.Context,
 	if p.confirm == key {
 		w.remove.Label = "Remove - sure?"
 	}
-	// A cache that fills itself has nothing to ask for out of context. The
-	// button says so rather than sitting there accepting a press that would
-	// do nothing - which is how an operator concludes downloading is broken.
+	// A button that cannot be pressed says where the thing does come from,
+	// rather than accepting a press that would do nothing. The words are the
+	// row's own: one sentence written here covered terrain, which fills
+	// itself, and libelled building footprints, which do not.
 	w.fetch.Disabled = !r.Fetchable
 	w.fetch.Reason = ""
 	if !r.Fetchable {
-		w.fetch.Reason = "fills itself as the map is used"
-		// Except where the row has its own answer. An emulator with no build
-		// for this machine is not a cache, and telling somebody it fills
-		// itself as the map is used explains nothing about the thing in front
-		// of them.
+		w.fetch.Reason = r.HowTo
+		// Except where the row has its own answer: an emulator with no build
+		// for this machine is not a cache, and where a cache comes from
+		// explains nothing about the thing in front of them.
 		if resource.State(r.State) == resource.Unavailable && r.Why != "" {
 			w.fetch.Reason = r.Why
 		}
@@ -263,9 +269,21 @@ func (p *resourcesPanel) rowActions(t *theme.Theme, gtx layout.Context,
 		w.remove.Reason = "nothing on disk"
 	}
 
+	// The way to the page that can get this, for a row that cannot.
+	if w.where != nil {
+		w.where.Label = "Open " + r.HowToPanel
+	}
+
 	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return w.fetch.Layout(t, gtx) }),
 		layout.Rigid(layout.Spacer{Width: t.Sp.S}.Layout),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if w.where == nil {
+				return layout.Dimensions{}
+			}
+			return layout.Inset{Right: t.Sp.S}.Layout(gtx,
+				func(gtx layout.Context) layout.Dimensions { return w.where.Layout(t, gtx) })
+		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return w.licence.Layout(t, gtx) }),
 		// Remove sits away from the two safe actions rather than beside them.
 		// Destructive things should not be the next button along.

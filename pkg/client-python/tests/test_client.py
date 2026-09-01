@@ -14,6 +14,7 @@ import contextlib
 import json
 import os
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -833,3 +834,84 @@ def test_checkpoint_round_trips(wb):
     assert r["target_ms"] == now
     assert r["replaying"] is True
     assert "R1" in wb.nodes and "R2" in wb.nodes
+
+
+@pytest.fixture
+def two_workbenches(binary, tmp_path, monkeypatch):
+    """Two sessions at once, on a registry of their own.
+
+    Its own registry because these tests delete what they find dead in it, and
+    the machine running them may have somebody's workbench open.
+    """
+    monkeypatch.setenv(meshbench.SESSIONS_ENV, str(tmp_path / "sessions"))
+    quiet = (
+        subprocess.DEVNULL if not os.environ.get("MESHBENCH_VERBOSE") else sys.stderr
+    )
+    started = [
+        Workbench.headless(
+            binary=binary, socket=str(tmp_path / f"{name}.sock"), stderr=quiet
+        )
+        for name in ("a", "b")
+    ]
+    yield started
+    for w in started:
+        with contextlib.suppress(Exception):
+            w.close()
+
+
+def test_two_running_workbenches_can_be_told_apart(two_workbenches, tmp_path):
+    a, b = two_workbenches
+    rows = meshbench.sessions()
+    by = {r.address: r for r in rows}
+    assert set(by) == {str(tmp_path / "a.sock"), str(tmp_path / "b.sock")}, rows
+
+    for row in rows:
+        # Everything a script needs in order to choose one: where, which
+        # process, when it started, and what it is running.
+        assert row.pid > 0
+        assert row.started_at
+        assert row.version
+        assert row.mode == "headless"
+        assert row.windowed is False
+    assert by[a.hello.socket].pid == a.hello.pid
+    assert by[b.hello.socket].pid == b.hello.pid
+    assert a.hello.pid != b.hello.pid
+
+
+def test_a_row_from_the_listing_can_be_attached_to(two_workbenches):
+    a, _ = two_workbenches
+    row = next(r for r in meshbench.sessions() if r.address == a.hello.socket)
+    with Workbench.attach(row) as also_a:
+        assert also_a.hello.pid == a.hello.pid
+
+
+def test_a_session_lists_the_others_and_marks_its_own_row(two_workbenches):
+    a, b = two_workbenches
+    rows = a.sessions()
+    assert {r.address for r in rows} == {a.hello.socket, b.hello.socket}
+    mine = [r for r in rows if r.is_self]
+    assert [r.address for r in mine] == [a.hello.socket]
+    # Its own row is described from the inside; the other one by asking it.
+    assert mine[0].version == a.hello.version
+    assert next(r for r in rows if not r.is_self).version == b.hello.version
+    # A token is not a thing a reply carries.
+    assert all(r.token == "" for r in rows)
+
+
+def test_a_killed_workbench_is_not_reported_as_running(two_workbenches):
+    """The one that matters. SIGKILL leaves the socket file and the row behind
+    and gives the process no chance to tidy either up, so anything trusting
+    what is on disk would report a dead session as running."""
+    if sys.platform == "win32":
+        pytest.skip("no SIGKILL on Windows")
+    a, b = two_workbenches
+    dead = b.hello.socket
+    os.kill(b.hello.pid, signal.SIGKILL)
+    b._process.wait(timeout=30)
+    # The socket it bound is still on disk, which is exactly why a stat would
+    # not do.
+    assert os.path.exists(dead)
+
+    rows = meshbench.sessions()
+    assert [r.address for r in rows] == [a.hello.socket], rows
+    assert [r.address for r in a.sessions()] == [a.hello.socket]

@@ -4509,6 +4509,18 @@
         "runnable": true
       }
     },
+    "session.list": {
+      "what": "list the workbenches running on this machine, this one included",
+      "returns": [
+        "sessions",
+        "count"
+      ],
+      "example": {
+        "params": {},
+        "what": "which workbenches are up, and what each is holding",
+        "runnable": true
+      }
+    },
     "session.restore": {
       "what": "rebuild a checkpoint and replay to the moment it was taken",
       "params": [

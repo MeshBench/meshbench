@@ -17,6 +17,12 @@ with Workbench.headless(fixture="fife-strict", seed=9001) as wb:
 `headless` needs no display, no GPU and no toolkit. `Workbench.attach()`
 connects to a workbench somebody is already looking at and never closes it.
 
+Where more than one is running, `meshbench.sessions()` says which: the address
+to connect on, the process, when it started, and what it has open. Pass a row
+straight to `attach()`. A session that was killed rather than closed is not
+listed, because the check is a dial of the address and not a look at a socket
+file or a pid.
+
 ## Installing
 
 ```

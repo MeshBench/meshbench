@@ -48,6 +48,19 @@ path = "meshbench/__init__.py"
 packages = ["meshbench"]
 ignore-vcs = true
 
+[tool.hatch.build.targets.sdist]
+# The same collision, and guarding the wheel alone did not cover it: `python -m
+# build` builds the sdist first and then builds the wheel *from* the sdist, so
+# a package the sdist dropped is a package the wheel cannot contain whatever
+# the wheel target says. An sdist is also what pip falls back to where no wheel
+# fits, so it has to be complete on its own account.
+#
+# An allowlist rather than another ignore-vcs, because what belongs in a source
+# distribution is a short, knowable list and the failure of getting it wrong is
+# silent.
+include = ["meshbench", "tests", "examples", "README.md", "pyproject.toml"]
+ignore-vcs = true
+
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -19,6 +19,19 @@ than after it.
 `{"id":1,"method":"...","params":{...}}`, one JSON reply. The switch is
 File → Preferences → *Agent control*; off means no socket file exists at all.
 
+A second workbench needs a second address, with `-control-socket`. To find out
+what is running rather than remembering what you typed:
+
+```bash
+python3 -c 'import meshbench
+for s in meshbench.sessions():
+    print(s.address, s.pid, s.started_at, s.mode, s.project, s.nodes)'
+```
+
+`session.list` answers the same from inside a session. A workbench that was
+killed rather than closed is not listed: the check is a dial of the address,
+so a leftover socket file and a reused pid both fail it.
+
 ## The rule that matters most
 
 **Restarting the workbench loses the scenario.** Nodes, boundary, inference

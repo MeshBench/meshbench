@@ -24,6 +24,18 @@ type DirCache struct {
 	Dir   string
 	// Purpose is what the bytes are for, said in the row.
 	Purpose string
+	// Fill is how this cache comes to have anything in it, in the words the
+	// row shows where the Fetch button cannot be pressed. Three of these fill
+	// themselves as the map is used and one does not, and a page that said the
+	// first sentence about all four left buildings looking like a download
+	// that had failed.
+	Fill string
+	// FillPanel is the page a cache nothing fills on its own is fetched from,
+	// so the row can offer the way there rather than only describing it.
+	FillPanel string
+	// OnRequest marks the cache nothing fills on its own, so the row says
+	// "only when asked" rather than claiming the application will see to it.
+	OnRequest bool
 	// Terms is the attribution the data arrived under, shown on demand. The
 	// data is somebody else's; saying so is not optional.
 	Terms string
@@ -36,10 +48,10 @@ func (d *DirCache) Kind() Kind { return d.K }
 func (d *DirCache) List(_ context.Context) ([]Row, error) {
 	row := Row{
 		Kind: d.K, Name: d.Label, Path: d.Dir, Why: d.Purpose,
-		Licensed: d.Terms != "",
+		Licensed: d.Terms != "", HowTo: d.Fill, HowToPanel: d.FillPanel,
 		// Filled by using the application rather than by asking, which is why
 		// it can grow unnoticed - and why it is worth showing.
-		Auto: true,
+		Auto: !d.OnRequest,
 	}
 	total, files, err := walkBytes(d.Dir)
 	if err != nil {

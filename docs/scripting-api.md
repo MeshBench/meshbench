@@ -39,7 +39,7 @@ and a verb added tomorrow is usable today.
 
 ### Why two layers rather than one
 
-**244**<!--verbdoc:total--> addressable methods hand-written across two
+**245**<!--verbdoc:total--> addressable methods hand-written across two
 languages is twice that many things to keep in step. Keeping them in step is what the verb manifest (`docs/verbs.json`) is for: a
 hand-written surface that names a verb the tree no longer has is exactly the
 drift it catches, where once a tool could call a deleted verb and nothing
@@ -93,6 +93,40 @@ user is not enough for CI
 Both clients are context managers / `Close()`-able. `launch` and `headless` own
 the process and stop it; `attach` never does — a script must not be able to
 close the workbench somebody is looking at by falling off the end.
+
+### Choosing between several
+
+```python
+import meshbench
+
+for s in meshbench.sessions():          # what is running on this machine
+    print(s.address, s.pid, s.started_at, s.project, s.nodes, s.mode)
+
+wb = meshbench.Workbench.attach(meshbench.sessions()[0])   # attach to a row
+```
+
+```go
+rows, err := meshbench.Sessions()
+wb, err := meshbench.AttachTo(ctx, rows[0])
+```
+
+Read off disk, before there is a connection, so a script can pick one. A
+session that is already attached to answers the same list with `session.list` /
+`wb.sessions()`, marking its own row.
+
+`attach` takes a row as well as an address, and a row is the only way to reach
+a second **TCP** session: its token sits beside its address in its own 0600
+file, where the per-user rendezvous file two of them share holds only one of
+the two.
+
+There is deliberately no *attach to whatever is running*. Where several are up
+and none was named, guessing is how a script ends up driving the session
+somebody else was watching, and this project refuses an unusable parameter
+rather than picking a default.
+
+A dead session is never listed, however it died. See
+[scripting-types.md](scripting-types.md#session) for the row and for why the
+check is a dial rather than a socket file or a pid.
 
 ### The first thing a connection does
 

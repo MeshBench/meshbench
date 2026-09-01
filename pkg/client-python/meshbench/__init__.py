@@ -47,6 +47,7 @@ from .errors import (
 from .live import DEFAULT_WINDOW, Live
 from .nodes import Node, Nodes
 from .parts import Console, Events, Firmware, Job, Project, Sim
+from .sessions import SESSIONS_ENV, Session, sessions, sessions_dir
 from .sets import (
     DEFAULT_PRESET,
     Board,
@@ -80,6 +81,10 @@ from .types import (
 from .workbench import Workbench
 
 __all__ = [
+    "SESSIONS_ENV",
+    "Session",
+    "sessions",
+    "sessions_dir",
     "Schedule",
     "BINARY_ENV",
     "Boundary",

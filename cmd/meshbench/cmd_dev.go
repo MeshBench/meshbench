@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -57,14 +58,31 @@ func runDev(ctx context.Context, args []string) error {
 		// Handing it over is best effort: a workbench that is not running is a
 		// perfectly normal state, and the build is still in the cache for the
 		// next time one starts.
-		if err := tell("firmware.import", map[string]any{
-			"path": built.Path, "role": *role, "label": built.Label}); err != nil {
+		//
+		// firmware.Build already left the binary at the path being handed to
+		// firmware.import here, so on a native build this call is a second
+		// import of the same file. It stays rather than being skipped: it is
+		// the only public verb that tells a running workbench a build now
+		// exists and refreshes its library, and copyFile's same-file guard
+		// makes the redundant copy a stat and a chmod rather than a hazard.
+		// What it must not do is go unchecked: the response is what actually
+		// landed, not a promise that it did.
+		resp, err := tell("firmware.import", map[string]any{
+			"path": built.Path, "role": *role, "label": built.Label})
+		if err != nil {
 			fmt.Println("  workbench not running, so it is cached but not loaded")
 			return nil //nolint:nilerr // not an error: the build is cached either way
 		}
-		fmt.Println("  in the workbench's firmware library")
+		landed, ok := importedBytes(resp)
+		if !ok || landed != built.Bytes {
+			return fmt.Errorf(
+				"workbench reports %d bytes for %s, the build produced %d: "+
+					"the import did not land correctly, so it was not assigned",
+				landed, built.Label, built.Bytes)
+		}
+		fmt.Printf("  in the workbench's firmware library (%d bytes)\n", landed)
 		if *assign {
-			if err := tell("firmware.set", map[string]any{"role": *role, "version": built.Label}); err == nil {
+			if _, err := tell("firmware.set", map[string]any{"role": *role, "version": built.Label}); err == nil {
 				fmt.Printf("  assigned to every %s node\n", *role)
 			}
 		}
@@ -117,19 +135,35 @@ func newestSource(root string) time.Time {
 	return newest
 }
 
-// tell sends one verb to a running workbench.
+// tell sends one verb to a running workbench and returns its reply.
 //
 // Through the control client rather than by opening a socket here. This built
 // the path by hand - XDG_RUNTIME_DIR or /run/user/<uid> - which is a Linux
 // sentence, and os.Getuid() does not fail on Windows so much as return -1. One
 // resolver, in the package that owns the address, is the only way the two
 // cannot disagree about where a workbench is.
-func tell(method string, params map[string]any) error {
+func tell(method string, params map[string]any) (json.RawMessage, error) {
 	c, err := control.Dial()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer func() { _ = c.Close() }()
-	_, err = c.Call(method, params)
-	return err
+	return c.Call(method, params)
+}
+
+// importedBytes reads the size firmware.import reports for what it actually
+// wrote, rather than trusting that a call which returned no error moved the
+// bytes it was asked to.
+//
+// A same-file copy can silently truncate the build it is importing and still
+// answer without an error, so the only thing that tells the truth is the size
+// in the reply.
+func importedBytes(resp json.RawMessage) (int64, bool) {
+	var got struct {
+		Bytes int64 `json:"bytes"`
+	}
+	if err := json.Unmarshal(resp, &got); err != nil {
+		return 0, false
+	}
+	return got.Bytes, true
 }

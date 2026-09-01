@@ -116,6 +116,8 @@ the tin.
 | G3 | Headless | Start a headless session (no window). | It runs with no display and answers the same verbs. | | |
 | G4 | Be told, not poll | `subscribe` to status/snapshot; do something. | Notifications arrive as things change; a client that never subscribes sees no difference. | | |
 | G5 | Checkpoint / restore | `checkpoint` a running session; blank it; `restore`. | The network and the moment come back; a long run's restore is shown replaying, not hung. | | |
+| G6 | The published Python client | On a machine with no checkout: `pip install meshbench`, then run the README's first snippet. | It installs, imports and drives a workbench; `meshbench.__version__` is the release's version, not an older one. | | |
+| G7 | The published Node client | On a machine with no checkout: `npm install @meshbench/client`, then `Workbench.attach()` against a running workbench. | It installs and attaches; the installed version is the release's version. | | |
 
 ## H. Repeatable tests and interop
 

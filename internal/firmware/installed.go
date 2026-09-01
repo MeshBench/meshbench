@@ -288,16 +288,30 @@ func Import(cacheDir, src, version, role, board string) (Installed, error) {
 // executed fails at start with a permission error that names the file and not
 // the reason.
 func copyFile(src, dst string, executable bool) error {
+	mode := os.FileMode(0o644)
+	if executable {
+		mode = 0o755
+	}
+
+	same, err := sameFile(src, dst)
+	if err != nil {
+		return err
+	}
+	if same {
+		// A build already lands at the path a later import is handed, so src
+		// and dst can be the identical file. Opening dst with O_TRUNC in that
+		// case truncates the file src is about to read, emptying the build
+		// before a byte moves and leaving no error to explain it. There is
+		// nothing to copy; only the mode may still need setting.
+		return os.Chmod(dst, mode)
+	}
+
 	in, err := os.Open(src)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = in.Close() }()
 
-	mode := os.FileMode(0o644)
-	if executable {
-		mode = 0o755
-	}
 	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
 	if err != nil {
 		return err
@@ -307,4 +321,26 @@ func copyFile(src, dst string, executable bool) error {
 		return err
 	}
 	return out.Close()
+}
+
+// sameFile reports whether src and dst name the identical file, by identity
+// rather than by string comparison: a symlink or a relative path can make two
+// spellings of one file look like two files, and a copy that trusts the
+// strings truncates the one it meant to read from.
+//
+// A destination that does not exist yet is not an error here; it just is not
+// the same file, which is the ordinary case for every import.
+func sameFile(src, dst string) (bool, error) {
+	sSrc, err := os.Stat(src)
+	if err != nil {
+		return false, err
+	}
+	sDst, err := os.Stat(dst)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return os.SameFile(sSrc, sDst), nil
 }

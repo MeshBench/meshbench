@@ -1,8 +1,8 @@
 # Every verb, and the call that covers it
 
 The wire underneath [scripting-api.md](scripting-api.md). The store registers
-**209**<!--verbdoc:public--> public verbs a script can call and
-**35**<!--verbdoc:internal--> internal callbacks it cannot, **244**<!--verbdoc:total-->
+**210**<!--verbdoc:public--> public verbs a script can call and
+**35**<!--verbdoc:internal--> internal callbacks it cannot, **245**<!--verbdoc:total-->
 in total, plus the two the socket answers itself, with what each reads, what
 each returns, and which façade call reaches it.
 
@@ -77,8 +77,8 @@ Two verbs are **not** in this table:
 
 ## What this table shows about the surface
 
-- **209**<!--verbdoc:public--> public verbs, plus **35**<!--verbdoc:internal-->
-  the workbench keeps to itself, **244**<!--verbdoc:total--> registered in
+- **210**<!--verbdoc:public--> public verbs, plus **35**<!--verbdoc:internal-->
+  the workbench keeps to itself, **245**<!--verbdoc:total--> registered in
   total. The façade covers the public verbs, over roughly 60 calls once
   objects and properties absorb them.
 - **The naming is not regular.** `node.*` and `nodes.*` are both node verbs and
@@ -105,6 +105,7 @@ Two verbs are **not** in this table:
 | `session.checkpoints` | — | `checkpoints` | `wb.checkpoints()` |
 | `session.describe` | — | `nodes`, `seed`, `now_ms`, `playing` | `wb.describe()` |
 | `session.journal` | — | `started_ms`, `count`, `entries` | `wb.journal()` |
+| `session.list` | — | `sessions`, `count` | `meshbench.sessions()` |
 | `session.restore` | *a bare string*, `name` string, `path` string | `restored`, `nodes`, `now_ms`, `target_ms`, `replaying` | `wb.restore(name)` |
 | `session.status` | — | `status`, `nodes`, `playing`, `now_ms`, `firmware_running`, `jobs`, `job` | `wb.status()` |
 | `ui.keep_above` | `on` bool | `on` | `wb.keep_above()` |

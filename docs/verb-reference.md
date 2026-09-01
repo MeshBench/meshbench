@@ -3,9 +3,9 @@
 Generated. Run `tools/verbdoc/verbdoc.py` to rewrite it and
 `tools/verbdoc/verbdoc.py --check` to fail when it is stale.
 
-The store registers 244 verbs: 209 a script may call and
+The store registers 245 verbs: 210 a script may call and
 35 the workbench calls on itself, which the socket refuses. Of those,
-244 say what they are for and 0 do not yet; the ones that
+245 say what they are for and 0 do not yet; the ones that
 do not are marked, and what is printed for them is read out of the handler
 rather than said by it.
 
@@ -151,6 +151,22 @@ Every command this workbench has been driven with, newest last, and when the pro
 ```
 
 **Client** `wb.journal()`
+
+### `session.list`
+
+List the workbenches running on this machine, this one included.
+
+**Takes** nothing.
+
+**Answers** `sessions`, `count`
+
+**Example** - which workbenches are up, and what each is holding
+
+```json
+{"id":1,"method":"session.list","params":{}}
+```
+
+**Client** `meshbench.sessions()`
 
 ### `session.restore`
 

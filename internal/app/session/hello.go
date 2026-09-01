@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/app/control"
+	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/app/version"
 )
 
@@ -34,6 +35,13 @@ type Hello struct {
 	// rebuilt after the import, with nothing in the state to say so.
 	PID       int       `json:"pid"`
 	StartedAt time.Time `json:"started_at"`
+	// Project and Nodes are what this session is running, which is how
+	// somebody looking at a list of them tells one from another. Asked of the
+	// session rather than written down anywhere, because both move: a fixture
+	// is opened, nodes are added, and a note of them made when the session
+	// started would be a confident answer that had stopped being true.
+	Project string `json:"project"`
+	Nodes   int    `json:"nodes"`
 }
 
 // startedAt is when this process began answering. Taken once at init rather
@@ -50,8 +58,13 @@ var startedAt = time.Now()
 var Mode = "workbench"
 
 // hello answers session.hello.
-func hello(verbs []string, socket string) Hello {
-	return Hello{
+//
+// The snapshot rather than the world: this is answered on the socket's own
+// goroutine, and a session listing the others has a connection of its own open
+// waiting for the reply. Going through the store for it would have that reply
+// queue behind whatever the store is already doing.
+func hello(verbs []string, socket string, snap *state.Snapshot) Hello {
+	h := Hello{
 		Protocol:  control.Protocol,
 		Version:   version.Detail(),
 		Mode:      Mode,
@@ -60,6 +73,10 @@ func hello(verbs []string, socket string) Hello {
 		PID:       os.Getpid(),
 		StartedAt: startedAt,
 	}
+	if snap != nil {
+		h.Project, h.Nodes = snap.Project, len(snap.Nodes)
+	}
+	return h
 }
 
 // sortedVerbs is the list, in an order a person can scan.

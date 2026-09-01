@@ -41,6 +41,10 @@ class Hello:
     #: did not start has to be able to ask.
     pid: int = 0
     started_at: str = ""
+    #: What this session has open, which is what tells two of them apart in a
+    #: list of what is running.
+    project: str = ""
+    nodes: int = 0
 
     @property
     def headless(self) -> bool:

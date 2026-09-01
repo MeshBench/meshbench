@@ -25,6 +25,7 @@ func (p *configPanel) overview(t *theme.Theme, s *state.Snapshot) []layout.Widge
 		warmCap = "what the last warm actually did"
 	}
 	return []layout.Widget{
+		p.mark.brandCard(t),
 		comp.Card(t, "", func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
