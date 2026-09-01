@@ -27,8 +27,13 @@ rm -rf "$OUT"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
 echo "--- binary"
+# The CARTO key comes from the workflow's own environment, the same secret the
+# Linux and Windows builds are stamped with. Without it a downloaded macOS
+# build had no default basemap key at all, so the one platform nobody checked
+# was the one shipping without the thing every other platform ships with.
 go build -trimpath \
   -ldflags "-X gioui.org/app.ID=io.github.meshbench.meshbench \
+            -X github.com/MeshBench/meshbench/internal/world/basemap.defaultCartoKey=${CARTO_API_KEY} \
             -X github.com/MeshBench/meshbench/internal/app/version.Version=v$VER" \
   -o "$APP/Contents/MacOS/meshbench-bin" ./cmd/meshbench
 
