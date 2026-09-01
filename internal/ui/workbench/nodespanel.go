@@ -2,7 +2,10 @@
 package workbench
 
 import (
+	"fmt"
+
 	"gioui.org/layout"
+	"gioui.org/op"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/ui/comp"
@@ -33,6 +36,14 @@ type nodesPanel struct {
 	// an empty list of a network that is loaded.
 	seq     uint64
 	rowsSet bool
+	// said is the row the foot of the panel named last frame. The footer is a
+	// rigid and the table is the flex's flexed child, so the footer is
+	// measured before the table it reads: the row that has just come under the
+	// pointer is named a frame later, and this is how that frame is asked for.
+	said string
+	// selected is the workbench's selection this frame, so the footer can
+	// hold a name after the pointer has moved off the row.
+	selected string
 }
 
 func (np *nodesPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
@@ -57,7 +68,11 @@ func (np *nodesPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 		np.tbl.SetRows(rows)
 		np.seq, np.rowsSet = s.Seq, true
 	}
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+	// The selection the whole workbench is on, not the table's own idea of
+	// it: a node picked on the map or by a verb is the one somebody is
+	// working on, and the foot of this panel is where its name fits.
+	np.selected = selectedNodeName(s)
+	d := layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			// The table's own editor, drawn with the field's chrome. One
 			// widget at one address, which is what focus is keyed on.
@@ -73,5 +88,48 @@ func (np *nodesPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 				}
 			})
 		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return np.footer(t, gtx, s)
+		}),
 	)
+	if np.said != np.pointedAt() {
+		gtx.Execute(op.InvalidateCmd{})
+	}
+	return d
+}
+
+// pointedAt is the row the footer should be naming: the one under the
+// pointer, or the selection when the pointer is elsewhere.
+func (np *nodesPanel) pointedAt() string {
+	if h := np.tbl.Hovered(); h != "" {
+		return h
+	}
+	if np.selected != "" {
+		return np.selected
+	}
+	return np.tbl.Selected
+}
+
+// footer reads out the row under the pointer in full, and says how many rows
+// there are when there is no row under the pointer.
+//
+// A name column in a 340dp rail cuts "Abernethy Repeater" and
+// "Abernethy Repeater 2" to the same fourteen characters, and a table whose
+// rows cannot be told apart is a table that cannot be used. The selection
+// holds the line when the pointer leaves, so the answer survives long enough
+// to be read.
+func (np *nodesPanel) footer(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+	name := np.pointedAt()
+	np.said = name
+	line, col := name, t.P.Ink
+	if line == "" {
+		total := 0
+		if s != nil {
+			total = len(s.Nodes)
+		}
+		line, col = fmt.Sprintf("%d of %d nodes - point at a row for the whole name",
+			np.tbl.Shown(), total), t.P.Faint
+	}
+	return layout.Inset{Top: t.Sp.XS, Left: t.Sp.S, Right: t.Sp.S}.Layout(gtx,
+		comp.OneLine(t, t.Sz.Caption, col, line, false))
 }
