@@ -1,11 +1,17 @@
 // The MeshBench workbench, driven from Node.
 //
-// The peer of pkg/client-go and pkg/client-python, speaking the same control
-// socket on the same machine - so a companion app or a dashboard in the
-// JavaScript world drives a running workbench without shelling out to another
-// language. Zero build and zero dependencies: it is one ES module on Node's own
-// `net`, because a client that needed a framework to speak to a local socket
-// would be a client nobody could debug.
+// Speaks the same control socket as pkg/client-go and pkg/client-python, on
+// the same machine - so a companion app or a dashboard in the JavaScript
+// world drives a running workbench without shelling out to another language.
+// Zero build and zero dependencies: it is one ES module on Node's own `net`,
+// because a client that needed a framework to speak to a local socket would
+// be a client nobody could debug.
+//
+// Deliberately thinner than the other two: Go and Python generate a façade of
+// typed methods and closed enums from the tree (tools/clientgen); this one is
+// `call(verb, params)` and nothing else. See pkg/client-js/README.md for why -
+// briefly, a generated enum buys compile-time safety that a client with no
+// compiler cannot spend.
 //
 //   import { Workbench } from "./meshbench.mjs";
 //   const wb = await Workbench.attach();
@@ -15,6 +21,12 @@
 // `call` is the whole API; everything else is a shape over it. The workbench
 // answers in order, so this sends one request at a time - the simplest correct
 // thing, and nothing here needs the throughput of pipelining.
+//
+// `attach` does the protocol handshake itself and refuses a workbench this
+// client cannot speak to, the same as the Go and Python clients - a script
+// that does not remember to call `hello()` gets the protection anyway. Every
+// call carries a timeout, so a verb the workbench never answers rejects
+// instead of hanging the script forever.
 
 import net from "node:net";
 import fs from "node:fs";
@@ -24,6 +36,16 @@ import path from "node:path";
 /** The wire version this client speaks. A workbench answering anything else is
  *  refused rather than failing halfway through a script. */
 export const PROTOCOL = 1;
+
+/** How long a call waits for a reply before it gives up, unless a caller says
+ *  otherwise. Matches the Python client's socket timeout, so a script ported
+ *  between the two waits the same length of time before it hears about a
+ *  verb the workbench never answered. */
+export const DEFAULT_CALL_TIMEOUT_MS = 300000;
+
+/** The shortest sun_path any platform we run on allows: 108 on Linux, 104 on
+ *  macOS and the BSDs. Matches the Go and Python clients exactly. */
+export const MAX_UNIX_PATH = 104;
 
 const SOCKET_ENV = "MESHBENCH_CONTROL_SOCKET";
 const RENDEZVOUS_ENV = "MESHBENCH_CONTROL_RENDEZVOUS";
@@ -86,10 +108,11 @@ export class WorkbenchError extends Error {
 /** One connection to a workbench, and the queue that keeps two callers from
  *  interleaving a half-frame on the wire. */
 export class Workbench {
-  /** @param {net.Socket} sock @param {string} address */
-  constructor(sock, address) {
+  /** @param {net.Socket} sock @param {string} address @param {number} callTimeoutMs */
+  constructor(sock, address, callTimeoutMs) {
     this._sock = sock;
     this.address = address;
+    this._callTimeoutMs = callTimeoutMs;
     this._nextId = 0;
     this._buf = "";
     this._waiters = []; // FIFO: the workbench answers in order.
@@ -100,16 +123,30 @@ export class Workbench {
     sock.on("close", () => this._fail(new Error("connection closed")));
   }
 
-  /** Open a connection to a running workbench.
-   *  @param {{socket?: string, timeoutMs?: number}} [opts]
+  /** Open a connection to a running workbench, and do the protocol handshake
+   *  before handing it back - a workbench speaking a version this client does
+   *  not understand is refused here, not on whichever call happens to notice.
+   *  @param {{socket?: string, timeoutMs?: number, callTimeoutMs?: number}} [opts]
    *  @returns {Promise<Workbench>} */
   static attach(opts = {}) {
     const address = opts.socket || defaultAddress();
-    const timeoutMs = opts.timeoutMs ?? 300000;
+    const timeoutMs = opts.timeoutMs ?? DEFAULT_CALL_TIMEOUT_MS;
+    const callTimeoutMs = opts.callTimeoutMs ?? DEFAULT_CALL_TIMEOUT_MS;
+    const isTCP = address === "tcp" || address.startsWith("tcp:");
+    if (!isTCP) {
+      const p = address.startsWith("unix:") ? address.slice("unix:".length) : address;
+      // Checked here rather than left to the connect call, which fails with a
+      // raw ENAMETOOLONG that names neither the limit nor what to do about it.
+      if (p.length > MAX_UNIX_PATH) {
+        return Promise.reject(new Error(
+          `${p} is ${p.length} bytes and a unix socket path may be at most ` +
+          `${MAX_UNIX_PATH} - choose a shorter one, or use tcp`));
+      }
+    }
     return new Promise((resolve, reject) => {
       let sock;
       let token = "";
-      if (address === "tcp" || address.startsWith("tcp:")) {
+      if (isTCP) {
         let hostPort;
         if (address === "tcp") ({ address: hostPort, token } = readRendezvous());
         else {
@@ -139,26 +176,51 @@ export class Workbench {
         // The token first, before anything else on the wire, where the OS has
         // no unix socket to stand as the access control. Unix skips it.
         if (token) sock.write(JSON.stringify({ token }) + "\n");
-        resolve(new Workbench(sock, address));
+        const wb = new Workbench(sock, address, callTimeoutMs);
+        wb.hello().then(
+          () => resolve(wb),
+          (err) => {
+            sock.destroy();
+            reject(err);
+          });
       });
     });
   }
 
   /** Run one verb and return its result.
-   *  @param {string} verb @param {any} [params] @returns {Promise<any>} */
-  call(verb, params) {
+   *
+   *  Rejects if the workbench has not answered within `timeoutMs` - the
+   *  default is `DEFAULT_CALL_TIMEOUT_MS`, set at `attach()` via
+   *  `callTimeoutMs`, the same length Python's socket timeout defaults to.
+   *  Pass `null` to wait indefinitely for a call known to take a while.
+   *  @param {string} verb @param {any} [params] @param {number|null} [timeoutMs]
+   *  @returns {Promise<any>} */
+  call(verb, params, timeoutMs) {
     if (this._closed) return Promise.reject(this._closed);
     const id = ++this._nextId;
     const req = { id, method: verb };
     if (params !== undefined && params !== null) req.params = params;
+    const budget = timeoutMs === undefined ? this._callTimeoutMs : timeoutMs;
     return new Promise((resolve, reject) => {
-      this._waiters.push({ id, resolve, reject });
+      const waiter = { id, resolve, reject, timer: null };
+      if (budget) {
+        waiter.timer = setTimeout(() => {
+          const i = this._waiters.indexOf(waiter);
+          if (i >= 0) this._waiters.splice(i, 1);
+          reject(new Error(`${verb} did not answer within ${budget} ms`));
+        }, budget);
+        // Never hold the process open only to time out a call nobody is
+        // waiting on any more.
+        if (typeof waiter.timer.unref === "function") waiter.timer.unref();
+      }
+      this._waiters.push(waiter);
       this._sock.write(JSON.stringify(req) + "\n");
     });
   }
 
   /** Ask the workbench what it is, and refuse a protocol this client does not
-   *  speak - at connect rather than halfway through a script. */
+   *  speak. `attach()` calls this itself before handing back a connection, so
+   *  calling it again is only useful to re-check. */
   async hello() {
     const h = await this.call("session.hello");
     if (h && h.protocol !== undefined && h.protocol !== PROTOCOL) {
@@ -171,7 +233,7 @@ export class Workbench {
 
   /** Close the connection. Any calls still in flight reject. */
   close() {
-    if (!this._closed) this._fail(new Error("connection closed by caller"), true);
+    if (!this._closed) this._fail(new Error("connection closed by caller"));
     this._sock.end();
     return Promise.resolve();
   }
@@ -195,17 +257,20 @@ export class Workbench {
       const i = this._waiters.findIndex((w) => w.id === msg.id);
       if (i < 0) continue;
       const [w] = this._waiters.splice(i, 1);
+      if (w.timer) clearTimeout(w.timer);
       if (msg.error) w.reject(new WorkbenchError(msg.error, msg.code));
       else w.resolve(msg.result);
     }
   }
 
-  _fail(err, quiet) {
+  _fail(err) {
     if (this._closed) return;
     this._closed = err;
     const waiters = this._waiters;
     this._waiters = [];
-    if (!quiet) for (const w of waiters) w.reject(err);
-    else for (const w of waiters) w.reject(err);
+    for (const w of waiters) {
+      if (w.timer) clearTimeout(w.timer);
+      w.reject(err);
+    }
   }
 }

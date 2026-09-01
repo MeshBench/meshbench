@@ -2,6 +2,8 @@
 package boardcheck
 
 import (
+	"time"
+
 	"github.com/MeshBench/meshbench/internal/rf/antenna"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
@@ -87,6 +89,33 @@ const advertBudgetMs = 240_000
 // second more. Ten covers both with room to spare, and costs a tenth of the
 // budget the row already has.
 const floodQuietMs = 10_000
+
+// probeWaitPhases is how many of Probe's phases can each spend the full
+// advertBudgetMs before giving up: TX/Radio, RX, the flood-quiet wait, the
+// flood relay itself, and the power phase's relay fallback. Kept as a count
+// rather than as a second sum written out by hand, so ProbeBudget cannot
+// drift from Probe the way the caller's hardcoded timeout already had.
+const probeWaitPhases = 5
+
+// probeFixedOverhead covers what Probe spends outside those five waits: the
+// image fetch, the boot settle, the fifteen-second idle before the power
+// check, and the console round trips - none of them bounded by
+// advertBudgetMs, all of them real time a caller must also grant.
+const probeFixedOverhead = 5 * time.Minute
+
+// ProbeBudget is the shortest context a caller may hand to Probe.
+//
+// internal/app/session/board's board.probe verb used to give Probe a flat
+// five minutes while a board that failed a phase honestly could need up to
+// probeWaitPhases times advertBudgetMs on top of the fixed overhead - so a
+// board that was still starting got cut off mid-phase and its capabilities
+// recorded as failed for a budget the caller chose, not for anything the
+// board did. Deriving it from the same numbers Probe waits on means the two
+// cannot disagree again.
+func ProbeBudget() time.Duration {
+	return time.Duration(probeWaitPhases)*time.Duration(advertBudgetMs)*time.Millisecond +
+		probeFixedOverhead
+}
 
 // Probe runs every capability for one board and version, in one boot.
 //

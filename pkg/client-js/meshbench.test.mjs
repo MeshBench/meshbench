@@ -9,12 +9,15 @@ import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";
 
-import { Workbench, WorkbenchError, defaultAddress } from "./meshbench.mjs";
+import { Workbench, WorkbenchError, PROTOCOL, defaultAddress } from "./meshbench.mjs";
 
-// A fake workbench. `reply` maps a method to a function of its params returning
-// {result} or {error, code}; unknown methods get a coded error. It records
+// A fake workbench. `reply` maps a method to a function of its params
+// returning {result} or {error, code}; unknown methods get a coded error.
+// Returning `false` means never answer, for the timeout tests. It records
 // every request it saw. Answers out of order on purpose, to prove the client
-// matches replies by id rather than by arrival.
+// matches replies by id rather than by arrival - except session.hello, which
+// attach() sends before a caller has any other request in flight to pair it
+// with, so buffering it out of order would deadlock attach() itself.
 function fakeWorkbench(reply, { outOfOrder = false } = {}) {
   const sockPath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "mb-")), "c.sock");
   const seen = [];
@@ -32,9 +35,10 @@ function fakeWorkbench(reply, { outOfOrder = false } = {}) {
         const req = JSON.parse(line);
         if (req.token !== undefined) continue; // the TCP auth line, if any
         seen.push(req);
-        const r = reply(req.method, req.params) || {};
-        const frame = JSON.stringify({ id: req.id, ...r }) + "\n";
-        if (outOfOrder) pending.push(frame);
+        const r = reply(req.method, req.params);
+        if (r === false) continue; // simulate a verb the workbench never answers
+        const frame = JSON.stringify({ id: req.id, ...(r || {}) }) + "\n";
+        if (outOfOrder && req.method !== "session.hello") pending.push(frame);
         else c.write(frame);
       }
       if (outOfOrder && pending.length === 2) {
@@ -46,6 +50,15 @@ function fakeWorkbench(reply, { outOfOrder = false } = {}) {
   return new Promise((resolve) => {
     server.listen(sockPath, () => resolve({ sockPath, server, seen }));
   });
+}
+
+/** A reply function that answers the handshake with a matching protocol and
+ *  falls back to another function for everything else. */
+function withHello(rest) {
+  return (method, params) => {
+    if (method === "session.hello") return { result: { protocol: PROTOCOL } };
+    return rest(method, params);
+  };
 }
 
 test("defaultAddress honours the env override", () => {
@@ -60,31 +73,31 @@ test("defaultAddress honours the env override", () => {
 });
 
 test("call sends {id, method, params} and returns the result", async () => {
-  const wb = await fakeWorkbench((method, params) => {
+  const wb = await fakeWorkbench(withHello((method, params) => {
     if (method === "nodes.place") return { result: { placed: params.name } };
     return { error: `no such verb ${method}`, code: "no-verb" };
-  });
+  }));
   const c = await Workbench.attach({ socket: wb.sockPath });
   const got = await c.call("nodes.place", { name: "Alpha", lat: 56.3 });
   assert.deepEqual(got, { placed: "Alpha" });
-  assert.equal(wb.seen[0].method, "nodes.place");
-  assert.deepEqual(wb.seen[0].params, { name: "Alpha", lat: 56.3 });
-  assert.equal(wb.seen[0].id, 1);
+  const req = wb.seen.find((r) => r.method === "nodes.place");
+  assert.deepEqual(req.params, { name: "Alpha", lat: 56.3 });
   await c.close();
   wb.server.close();
 });
 
 test("params is omitted when none is given", async () => {
-  const wb = await fakeWorkbench(() => ({ result: "ok" }));
+  const wb = await fakeWorkbench(withHello(() => ({ result: "ok" })));
   const c = await Workbench.attach({ socket: wb.sockPath });
   await c.call("sim.state");
-  assert.ok(!("params" in wb.seen[0]), "params should be absent");
+  const req = wb.seen.find((r) => r.method === "sim.state");
+  assert.ok(!("params" in req), "params should be absent");
   await c.close();
   wb.server.close();
 });
 
 test("an error reply rejects with the code preserved", async () => {
-  const wb = await fakeWorkbench(() => ({ error: "no node named X", code: "no-node" }));
+  const wb = await fakeWorkbench(withHello(() => ({ error: "no node named X", code: "no-node" })));
   const c = await Workbench.attach({ socket: wb.sockPath });
   await assert.rejects(c.call("node.output", { node: "X" }), (e) => {
     assert.ok(e instanceof WorkbenchError);
@@ -98,7 +111,7 @@ test("an error reply rejects with the code preserved", async () => {
 
 test("replies are matched by id, not by arrival order", async () => {
   const wb = await fakeWorkbench(
-    (method) => ({ result: method }),
+    withHello((method) => ({ result: method })),
     { outOfOrder: true });
   const c = await Workbench.attach({ socket: wb.sockPath });
   const [a, b] = await Promise.all([c.call("first"), c.call("second")]);
@@ -110,8 +123,56 @@ test("replies are matched by id, not by arrival order", async () => {
 
 test("hello refuses a protocol this client does not speak", async () => {
   const wb = await fakeWorkbench(() => ({ result: { protocol: 99, version: "x" } }));
+  await assert.rejects(Workbench.attach({ socket: wb.sockPath }), (e) => {
+    assert.ok(e instanceof WorkbenchError);
+    assert.equal(e.code, "protocol");
+    return true;
+  });
+  wb.server.close();
+});
+
+test("attach folds the handshake in, so a script gets protocol protection unasked", async () => {
+  const wb = await fakeWorkbench(withHello(() => ({ result: "ok" })));
   const c = await Workbench.attach({ socket: wb.sockPath });
-  await assert.rejects(c.hello(), (e) => e.code === "protocol");
+  assert.equal(wb.seen[0].method, "session.hello");
+  await c.close();
+  wb.server.close();
+});
+
+test("a unix socket path over the limit is refused before it is dialled", async () => {
+  const long = "/tmp/" + "x".repeat(200) + "/control.sock";
+  await assert.rejects(Workbench.attach({ socket: long }), (e) => {
+    assert.match(e.message, /may be at most 104/);
+    return true;
+  });
+});
+
+test("a call rejects on its own timeout, without blocking calls behind it", async () => {
+  const wb = await fakeWorkbench(withHello((method) => {
+    if (method === "stuck") return false; // the workbench never answers this one
+    return { result: "ok" };
+  }));
+  const c = await Workbench.attach({ socket: wb.sockPath });
+  await assert.rejects(c.call("stuck", null, 50), (e) => {
+    assert.match(e.message, /stuck did not answer within 50 ms/);
+    return true;
+  });
+  // The connection is still good - only the call that timed out gave up.
+  await c.call("sim.state");
+  await c.close();
+  wb.server.close();
+});
+
+test("call's default timeout matches attach's callTimeoutMs", async () => {
+  const wb = await fakeWorkbench(withHello((method) => {
+    if (method === "stuck") return false;
+    return { result: "ok" };
+  }));
+  const c = await Workbench.attach({ socket: wb.sockPath, callTimeoutMs: 50 });
+  await assert.rejects(c.call("stuck"), (e) => {
+    assert.match(e.message, /did not answer within 50 ms/);
+    return true;
+  });
   await c.close();
   wb.server.close();
 });

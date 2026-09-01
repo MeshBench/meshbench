@@ -179,10 +179,15 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 	// nowhere, and what arrived was simple_repeater's own unprompted advert a
 	// few seconds after boot. Withholding the command entirely changed neither
 	// the result nor the time it arrived, which is what settled it.
-	txAt, ok := waitForEvent(ctx, e, advertBudgetMs, func(ev engine.Event) bool {
+	txAt, outcome := waitForEvent(ctx, e, advertBudgetMs, func(ev engine.Event) bool {
 		return ev.Kind == "tx" && ev.From == "bc-under-test"
 	})
-	if !ok {
+	switch outcome {
+	case eventCancelled:
+		report.set(Radio, Untested, cutShortDetail)
+		report.set(TX, Untested, cutShortDetail)
+		return report
+	case eventTimedOut:
 		never := fmt.Sprintf("never transmitted within %d s of coming up", advertBudgetMs/1000)
 		report.set(Radio, Failed, never)
 		report.set(TX, Failed, never)
@@ -195,11 +200,15 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 	sender, ok := e.NodeByName("bc-sender")
 	if ok && sender.Firmware != nil {
 		if err := sender.Firmware.Bridge.Type([]byte("advert\r\n")); err == nil {
-			if _, ok := waitForEvent(ctx, e, advertBudgetMs, func(ev engine.Event) bool {
+			_, rxOutcome := waitForEvent(ctx, e, advertBudgetMs, func(ev engine.Event) bool {
 				return ev.Kind == "rx" && ev.To == "bc-under-test"
-			}); ok {
+			})
+			switch rxOutcome {
+			case eventMatched:
 				report.set(RX, Passed, "heard the sender's advert")
-			} else {
+			case eventCancelled:
+				report.set(RX, Untested, cutShortDetail)
+			default:
 				report.set(RX, Failed, fmt.Sprintf(
 					"no reception observed within %d s", advertBudgetMs/1000))
 			}
@@ -245,75 +254,88 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 		// on the ledger, not reasoned: the miss is right there beside the
 		// board's own transmission, and putting thirty seconds between the two
 		// adverts turned twelve consecutive failures into twelve passes.
-		if !waitUntilQuiet(ctx, e, "bc-under-test", floodQuietMs, advertBudgetMs) {
-			report.set(Flood, Untested, fmt.Sprintf(
+		if quiet, cutShort := waitUntilQuiet(ctx, e, "bc-under-test", floodQuietMs, advertBudgetMs); !quiet {
+			msg := fmt.Sprintf(
 				"the board never stopped transmitting for %d s, so it could not be "+
-					"handed a packet it would hear", floodQuietMs/1000))
+					"handed a packet it would hear", floodQuietMs/1000)
+			if cutShort {
+				msg = "the probe was cut off before the board went quiet"
+			}
+			report.set(Flood, Untested, msg)
 			return report
 		}
 
 		fromSender := map[uint64]bool{}
-		_ = sender.Firmware.Bridge.Type([]byte("time 1754703600\r\n"))
+		if err := setSenderClock(sender, 1754703600); err != nil {
+			report.set(Flood, Untested, "harness fault: could not set the sender's clock: "+err.Error())
+			return report
+		}
 		_ = e.Run(ctx, e.NowMs()+1_000)
 		missed := map[uint64]bool{}
 		if err := sender.Firmware.Bridge.Type([]byte("advert\r\n")); err != nil {
 			report.set(Flood, Failed, "could not command the sender: "+err.Error())
-		} else if _, relayed := waitForEvent(ctx, e, advertBudgetMs, func(ev engine.Event) bool {
-			// The sender's message, not any transmission. MeshCore's repeater
-			// adverts on its own timer every two minutes and this window is
-			// four, so watching for a transmission passes a board that relays
-			// nothing at all. MessageID hashes the payload and not the route
-			// bits, so a flood relay carries the sender's id where the board's
-			// own advert carries its own.
-			if ev.Kind == "miss" && ev.To == "bc-under-test" {
-				missed[ev.MessageID] = true
-				return false
-			}
-			if ev.Kind != "tx" {
-				return false
-			}
-			if ev.From == "bc-sender" {
-				fromSender[ev.MessageID] = true
-				return false
-			}
-			if ev.From != "bc-under-test" || !fromSender[ev.MessageID] {
-				return false
-			}
-			delete(missed, ev.MessageID)
-			return true
-		}); relayed {
-			report.set(Flood, Passed, "forwarded the sender's advert itself")
 		} else {
-			// What the board did instead, because "nothing" and "everything
-			// except the relay" want different work and read the same.
-			var own, last int
-			for _, ev := range e.Events() {
-				if ev.Kind == "tx" && ev.From == "bc-under-test" {
-					own++
-					last = int(ev.AtMs)
+			_, floodOutcome := waitForEvent(ctx, e, advertBudgetMs, func(ev engine.Event) bool {
+				// The sender's message, not any transmission. MeshCore's repeater
+				// adverts on its own timer every two minutes and this window is
+				// four, so watching for a transmission passes a board that relays
+				// nothing at all. MessageID hashes the payload and not the route
+				// bits, so a flood relay carries the sender's id where the board's
+				// own advert carries its own.
+				if ev.Kind == "miss" && ev.To == "bc-under-test" {
+					missed[ev.MessageID] = true
+					return false
 				}
-			}
-			// A stimulus that never arrived measures nothing. Saying so is
-			// the difference between a board that declines to forward and one
-			// that was never given the chance, and this row spent a long time
-			// reporting the second as the first.
-			lost := false
-			for id := range missed {
-				if fromSender[id] {
-					lost = true
+				if ev.Kind != "tx" {
+					return false
 				}
-			}
-			if lost {
-				report.set(Flood, Untested, fmt.Sprintf(
-					"the advert did not reach the board - it was on the air itself when "+
-						"it arrived, so nothing was heard to forward (the board "+
-						"transmitted %d times, last at %.1f s)", own, float64(last)/1000))
-			} else {
-				report.set(Flood, Failed, fmt.Sprintf(
-					"received a fresh advert as the only node that could relay it, and put "+
-						"nothing back on the air within %d s (it transmitted %d times in the "+
-						"run, last at %.1f s, and the window ran to %.1f s)",
-					advertBudgetMs/1000, own, float64(last)/1000, float64(e.NowMs())/1000))
+				if ev.From == "bc-sender" {
+					fromSender[ev.MessageID] = true
+					return false
+				}
+				if ev.From != "bc-under-test" || !fromSender[ev.MessageID] {
+					return false
+				}
+				delete(missed, ev.MessageID)
+				return true
+			})
+			switch floodOutcome {
+			case eventMatched:
+				report.set(Flood, Passed, "forwarded the sender's advert itself")
+			case eventCancelled:
+				report.set(Flood, Untested, cutShortDetail)
+			default:
+				// What the board did instead, because "nothing" and "everything
+				// except the relay" want different work and read the same.
+				var own, last int
+				for _, ev := range e.Events() {
+					if ev.Kind == "tx" && ev.From == "bc-under-test" {
+						own++
+						last = int(ev.AtMs)
+					}
+				}
+				// A stimulus that never arrived measures nothing. Saying so is
+				// the difference between a board that declines to forward and one
+				// that was never given the chance, and this row spent a long time
+				// reporting the second as the first.
+				lost := false
+				for id := range missed {
+					if fromSender[id] {
+						lost = true
+					}
+				}
+				if lost {
+					report.set(Flood, Untested, fmt.Sprintf(
+						"the advert did not reach the board - it was on the air itself when "+
+							"it arrived, so nothing was heard to forward (the board "+
+							"transmitted %d times, last at %.1f s)", own, float64(last)/1000))
+				} else {
+					report.set(Flood, Failed, fmt.Sprintf(
+						"received a fresh advert as the only node that could relay it, and put "+
+							"nothing back on the air within %d s (it transmitted %d times in the "+
+							"run, last at %.1f s, and the window ran to %.1f s)",
+						advertBudgetMs/1000, own, float64(last)/1000, float64(e.NowMs())/1000))
+				}
 			}
 		}
 	} else {
@@ -420,18 +442,25 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 			report.set(Power, Untested, "the native sender never came up to ask with")
 			return report
 		}
-		_ = sender.Firmware.Bridge.Type([]byte("time 1754707200\r\n"))
+		if err := setSenderClock(sender, 1754707200); err != nil {
+			report.set(Power, Untested, "harness fault: could not set the sender's clock: "+err.Error())
+			return report
+		}
 		_ = e.Run(ctx, e.NowMs()+1_000)
 		if err := sender.Firmware.Bridge.Type([]byte("advert\r\n")); err != nil {
 			report.set(Power, Untested, "could not command the sender: "+err.Error())
 			return report
 		}
-		if atMs, relayed := waitForEvent(ctx, e, advertBudgetMs, func(ev engine.Event) bool {
+		atMs, powerOutcome := waitForEvent(ctx, e, advertBudgetMs, func(ev engine.Event) bool {
 			return ev.Kind == "tx" && ev.From == "bc-under-test"
-		}); relayed {
+		})
+		switch powerOutcome {
+		case eventMatched:
 			report.set(Power, Passed,
 				fmt.Sprintf("relayed again at %.1f s, after a 15 s idle", float64(atMs)/1000))
-		} else {
+		case eventCancelled:
+			report.set(Power, Untested, cutShortDetail)
+		default:
 			report.set(Power, Failed,
 				"relayed before a 15 s idle and not after it")
 		}

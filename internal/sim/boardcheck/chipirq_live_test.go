@@ -89,9 +89,9 @@ func TestTheChipReportsWhatItSaw(t *testing.T) {
 		t.Fatalf("commanding the sender: %v", err)
 	}
 	heard := false
-	if _, ok := waitForEvent(ctx, e, 60_000, func(ev engine.Event) bool {
+	if _, outcome := waitForEvent(ctx, e, 60_000, func(ev engine.Event) bool {
 		return ev.Kind == "rx" && ev.To == "bc-under-test"
-	}); ok {
+	}); outcome == eventMatched {
 		heard = true
 	}
 	show("after an advert")

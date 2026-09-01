@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"testing"
-	"time"
 )
 
 // flat is a terrain that answers everywhere, so a probe measures the board
@@ -36,8 +35,9 @@ func TestProbeOneBoard(t *testing.T) {
 		version = "v1.17.1"
 	}
 	// Longer than the sum of the phases that can wait, so a probe reports what
-	// it measured rather than being cut off mid-phase and reporting nothing.
-	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Minute)
+	// it measured rather than being cut off mid-phase and reporting nothing -
+	// the same budget board.probe itself now gives Probe, from ProbeBudget().
+	ctx, cancel := context.WithTimeout(context.Background(), ProbeBudget())
 	defer cancel()
 
 	report := Probe(ctx, flat{}, board, version)
