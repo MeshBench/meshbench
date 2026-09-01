@@ -144,30 +144,24 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -e
-          cd dist/meshbench
           # Both are our forks and neither can be a distribution build: ours
           # carry the SX1262 device and the SEVONPEND fix respectively, and a
           # stock build of either runs, reports no chip or hangs, and looks like
           # our fault. The changes are deliberately not upstreamed, so the
           # forks' own release artifacts carry a meshbench mark in the name -
-          # nobody should mistake one for an upstream build. The patterns
-          # wildcard around it rather than pinning where in the name it sits.
+          # nobody should mistake one for an upstream build.
           #
-          # QEMU's archives are .tar.xz and carry the target in the name;
-          # only the Xtensa one runs ESP32 firmware, so the riscv32 build in
-          # the same release is deliberately not downloaded.
-          # A warning rather than a failure, because a release that does not
-          # exist yet is a known state - but the warning says which of the two
-          # it is, so "no release" cannot be read onto a broken runner.
-          # A warning rather than a failure, because a release that does not
-          # exist yet is a known state - but the warning says which of the two
-          # it is, so "no release" cannot be read onto a broken runner.
-          ../../tools/fetch-release-asset.sh MeshBench/qemu latest \
-            'xtensa.*x86_64-linux-gnu\.tar\.xz$' . \
-            || echo "::warning::MeshBench/qemu has no matching release; bundle ships without QEMU"
-          ../../tools/fetch-release-asset.sh MeshBench/renode latest \
-            'linux.*portable.*meshbench.*\.tar\.gz$' . \
-            || echo "::warning::MeshBench/renode has no matching release; bundle ships without Renode"
+          # By tag, never by /latest: the tag and the exact asset name are in
+          # packaging/emulator-pins.env, which the runtime fetcher's catalogue
+          # is checked against, so a CI bundle and a first-run download are the
+          # same emulator and a fork release re-cut by somebody else cannot
+          # change either without a commit here.
+          . packaging/emulator-pins.env
+          packaging/fetch-emulator.sh MeshBench/qemu "$QEMU_RELEASE" \
+            "$QEMU_ASSET_LINUX_AMD64" QEMU dist/meshbench
+          packaging/fetch-emulator.sh MeshBench/renode "$RENODE_RELEASE" \
+            "$RENODE_ASSET_LINUX_AMD64" Renode dist/meshbench
+          cd dist/meshbench
           # -xf rather than -xzf: the two forks package differently and the
           # bundle should not care which. tar reads the compression itself.
           for f in *.tar.gz *.tar.xz; do [ -e "$f" ] || continue; tar xf "$f" && rm "$f"; done
@@ -179,9 +173,9 @@ jobs:
         # 0.0.1 through 0.0.3 shipped exactly that: two emulators, no radio,
         # and a README claiming emulated boards worked.
         #
-        # Fetched as a release asset, the same as the emulators - radioserver-v1
-        # is meshcore-native#4 built once and published, not rebuilt from source
-        # in every job that needs it. Fatal rather than a warning, for the same
+        # Fetched as a release asset, the same as the emulators, and pinned in
+        # the same file: built once and published, not rebuilt from source in
+        # every job that needs it. Fatal rather than a warning, for the same
         # reason the Mac's emulator fetch is: a bundle that cannot emulate is a
         # broken artifact, and the way this stayed hidden was a green build.
         env:
@@ -189,12 +183,13 @@ jobs:
         run: |
           set -e
           # No || here. It used to swallow the downloader's own error and
-          # report "no radioserver-v1 release", which was wrong - the release
+          # report "no radioserver release", which was wrong - the release
           # existed and gh was not installed - and sent the reader to the wrong
           # repository. set -e stops the job; the script says why.
-          tools/fetch-release-asset.sh MeshBench/meshcore-native radioserver-v1 \
-            'radioserver-linux-amd64$' dist/meshbench
-          mv dist/meshbench/radioserver-linux-amd64 dist/meshbench/radioserver
+          . packaging/emulator-pins.env
+          tools/fetch-release-asset.sh MeshBench/meshcore-native "$RADIOSERVER_RELEASE" \
+            "/$RADIOSERVER_ASSET_LINUX_AMD64\$" dist/meshbench
+          mv "dist/meshbench/$RADIOSERVER_ASSET_LINUX_AMD64" dist/meshbench/radioserver
           chmod +x dist/meshbench/radioserver
           dist/meshbench/radioserver 2>&1 | head -1 || true
 
@@ -233,8 +228,10 @@ jobs:
           for d in renode_*-portable renode-*-portable renode; do
             [ -x "$d/renode" ] && ln -sf "$d/renode" . && break
           done
-          ls -la qemu-system-xtensa renode 2>&1 || \
-            echo "::warning::an emulator symlink is missing; the bundle has it but MeshBench will not find it"
+          # What the bundle actually contains, asked the way a node asks. A
+          # missing emulator is a broken artifact and stops the job here, one
+          # step before it would be tarred up and published.
+          ../../packaging/verify-bundle.sh . linux-amd64
           cat > README.txt <<'TXT'
           MeshBench
 
@@ -467,6 +464,8 @@ jobs:
           packaging/macos-app.sh "$VERSION"
 
       - name: Fetch the emulators
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -e
           # Inside the bundle, not beside it. A dmg with the app and the
@@ -475,51 +474,38 @@ jobs:
           # everybody does - and emulated boards would stop working for a
           # reason nobody could see.
           #
-          # curl against the public releases API, not gh: this job runs on
-          # the org's own Mac, which has no gh - and the first build there
-          # produced a 16 MB dmg with no emulators in it while the job stayed
-          # green. fetch() fails loudly instead; a dmg without its emulators
-          # is a broken artifact, not a warning.
-          fetch() {
-            url=$(curl -fsSL "https://api.github.com/repos/$1/releases/latest" \
-              | python3 -c "import sys,json,fnmatch; r=json.load(sys.stdin); print(next((a['browser_download_url'] for a in r['assets'] if fnmatch.fnmatch(a['name'], '$2')), ''))")
-            if [ -z "$url" ]; then
-              echo "::error::no asset matching $2 in $1's latest release"; exit 1
-            fi
-            echo "fetching $url"
-            curl -fsSL -O "$url"
-          }
-          # meshcore-native's "latest" is whichever per-role MeshCore version
-          # was published most recently, which is not this. radioserver-v1
-          # is a fixed tag of its own, so it is fetched by tag rather than by
-          # riding a /latest that moves out from under it within a day.
-          fetchTag() {
-            url=$(curl -fsSL "https://api.github.com/repos/$1/releases/tags/$2" \
-              | python3 -c "import sys,json,fnmatch; r=json.load(sys.stdin); print(next((a['browser_download_url'] for a in r['assets'] if fnmatch.fnmatch(a['name'], '$3')), ''))")
-            if [ -z "$url" ]; then
-              echo "::error::no asset matching $3 in $1's $2 release"; exit 1
-            fi
-            echo "fetching $url"
-            curl -fsSL -O "$url"
-          }
+          # The same two scripts and the same pins the other two bundles use.
+          # This job used to carry a curl-and-python fetcher of its own reading
+          # /latest, which was a second answer to the question of what a
+          # MeshBench build bundles, on a machine with no gh: the first build
+          # here produced a 16 MB dmg with no emulators in it while the job
+          # stayed green.
+          . packaging/emulator-pins.env
           APP=dist/macos/MeshBench.app
-          mkdir -p "$APP/Contents/Resources/emulators"
-          cd "$APP/Contents/Resources/emulators"
-          fetch MeshBench/qemu '*xtensa*aarch64-apple-darwin.tar.xz'
-          fetch MeshBench/renode '*macos*.tar.gz'
-          for f in *.tar.xz *.tar.gz; do [ -e "$f" ] || continue; tar xf "$f" && rm "$f"; done
-          cd - >/dev/null
+          EMU="$APP/Contents/Resources/emulators"
+          mkdir -p "$EMU"
+          packaging/fetch-emulator.sh MeshBench/qemu "$QEMU_RELEASE" \
+            "$QEMU_ASSET_DARWIN_ARM64" QEMU "$EMU"
+          packaging/fetch-emulator.sh MeshBench/renode "$RENODE_RELEASE" \
+            "$RENODE_ASSET_DARWIN_ARM64" Renode "$EMU"
+          (cd "$EMU" && for f in *.tar.xz *.tar.gz; do [ -e "$f" ] || continue; tar xf "$f" && rm "$f"; done)
           # MeshBench looks for an executable file beside its own binary, so
           # the links live in MacOS/ and point into Resources/.
-          [ -d "$APP/Contents/Resources/emulators/qemu" ] && \
+          if [ -d "$EMU/qemu" ]; then
             ln -sf ../Resources/emulators/qemu/bin/qemu-system-xtensa "$APP/Contents/MacOS/qemu-system-xtensa"
-          [ -f "$APP/Contents/Resources/emulators/Release/osx-arm64/Renode" ] && \
+          fi
+          if [ -f "$EMU/Release/osx-arm64/Renode" ]; then
             ln -sf ../Resources/emulators/Release/osx-arm64/Renode "$APP/Contents/MacOS/renode"
+          fi
           # The radio model. A real file rather than a link: it is 40 KB and
           # resolves nothing from its own path.
-          (cd "$APP/Contents/MacOS" && fetchTag MeshBench/meshcore-native radioserver-v1 radioserver-darwin-arm64)
-          mv "$APP/Contents/MacOS/radioserver-darwin-arm64" "$APP/Contents/MacOS/radioserver"
+          tools/fetch-release-asset.sh MeshBench/meshcore-native "$RADIOSERVER_RELEASE" \
+            "/$RADIOSERVER_ASSET_DARWIN_ARM64\$" "$APP/Contents/MacOS"
+          mv "$APP/Contents/MacOS/$RADIOSERVER_ASSET_DARWIN_ARM64" "$APP/Contents/MacOS/radioserver"
           chmod +x "$APP/Contents/MacOS/radioserver"
+          # What the app actually carries, asked the way a node asks, before it
+          # is signed and sealed into a dmg nobody will open again.
+          packaging/verify-bundle.sh "$APP/Contents/MacOS" darwin-arm64
           # Signing has to happen again: the bundle was signed before these
           # arrived, and adding files to a signed bundle invalidates it.
           codesign --force --deep --sign - "$APP"
@@ -615,17 +601,17 @@ jobs:
           cp -r fixtures dist/meshbench/fixtures
           cp packaging/icons/meshbench-256.png dist/meshbench/meshbench.png
 
-          # The emulators, same as the Linux tarball and the macOS bundle. A
-          # zip cannot carry symlinks, so nothing is linked: lookupTool knows
-          # the unpacked layouts (qemu/bin/qemu-system-xtensa.exe) and the
-          # .exe suffix, and searches them beside the binary.
+          # The emulators, same scripts and same pins as the Linux tarball and
+          # the macOS bundle. A zip cannot carry symlinks, so nothing is
+          # linked: lookupTool knows the unpacked layouts
+          # (qemu/bin/qemu-system-xtensa.exe, renode_*-portable/renode.exe) and
+          # the .exe suffix, and searches them beside the binary.
+          . packaging/emulator-pins.env
+          packaging/fetch-emulator.sh MeshBench/qemu "$QEMU_RELEASE" \
+            "$QEMU_ASSET_WINDOWS_AMD64" QEMU dist/meshbench
+          packaging/fetch-emulator.sh MeshBench/renode "$RENODE_RELEASE" \
+            "$RENODE_ASSET_WINDOWS_AMD64" Renode dist/meshbench
           cd dist/meshbench
-          ../../tools/fetch-release-asset.sh MeshBench/qemu latest \
-            'xtensa.*x86_64-w64-mingw32\.tar\.xz$' . \
-            || echo "::warning::MeshBench/qemu has no Windows release; ESP32 boards will not emulate"
-          ../../tools/fetch-release-asset.sh MeshBench/renode latest \
-            'windows' . \
-            || echo "::warning::MeshBench/renode has no Windows release; nRF52 boards will not emulate"
           for f in *.tar.xz *.tar.gz; do [ -e "$f" ] || continue; tar xf "$f" && rm "$f"; done
           for f in *.zip; do [ -e "$f" ] || continue; unzip -q "$f" && rm "$f"; done
           ls -la
@@ -634,12 +620,12 @@ jobs:
           # The radio model. It takes the TCP transport - the simulator asks
           # for ":0" on Windows for both emulators, because Windows has no
           # Unix socket mingw can reach.
-          cd dist/meshbench
-          ../../tools/fetch-release-asset.sh MeshBench/meshcore-native radioserver-v1 \
-            'radioserver-windows-amd64\.exe$' .
-          mv radioserver-windows-amd64.exe radioserver.exe
-          cd ../..
+          tools/fetch-release-asset.sh MeshBench/meshcore-native "$RADIOSERVER_RELEASE" \
+            "/$RADIOSERVER_ASSET_WINDOWS_AMD64\$" dist/meshbench
+          mv "dist/meshbench/$RADIOSERVER_ASSET_WINDOWS_AMD64" dist/meshbench/radioserver.exe
           file dist/meshbench/radioserver.exe
+          # What the zip actually carries, asked the way a node asks.
+          packaging/verify-bundle.sh dist/meshbench windows-amd64
           cat > dist/meshbench/README.txt <<'TXT'
           MeshBench for Windows
 
@@ -649,11 +635,16 @@ jobs:
 
           Native MeshCore firmware is downloaded on first use and cached.
 
-          The QEMU and Renode emulators are in this zip, with radioserver.exe,
-          the SX1262 model they both clock over a socket. All three are found
-          automatically. The emulators are MeshBench builds and not upstream
-          ones - ours carry an SX1262 device and a SEVONPEND fix that
+          Whichever emulators are published for Windows are in this zip, with
+          radioserver.exe, the SX1262 model they clock over a socket. They are
+          found automatically, and they are MeshBench builds rather than
+          upstream ones - ours carry an SX1262 device and a SEVONPEND fix that
           published firmware needs.
+
+          No QEMU is published for Windows today, so ESP32 boards cannot
+          emulate here. Put a qemu-system-xtensa.exe built from the
+          meshbench-sx1262 branch of MeshBench/qemu beside meshbench.exe, or
+          point MESHBENCH_QEMU at one, and it will be used.
 
           Emulated boards on Windows are newer than the rest of this bundle
           and have had less time on real hardware than the Linux and macOS
