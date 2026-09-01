@@ -60,10 +60,10 @@ from .sets import (
 )
 from .subscribe import Notification, Subscription, subscribe
 from .types import (
-    Build,
-    BuildDetails,
     Aimed,
     Antenna,
+    Build,
+    BuildDetails,
     CardSlot,
     Event,
     Hello,
