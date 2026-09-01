@@ -24,23 +24,21 @@ import (
 	"github.com/MeshBench/meshbench/internal/diag"
 )
 
-// Protocol is the wire version, bumped only when a change breaks a client
-// written against the previous number.
-//
-// Here rather than beside session.hello, which is what reports it: this is the
-// package that defines the wire, and a client should be able to know what it
-// speaks without importing a simulator.
-//
-// Adding a verb does not break anybody, and neither does adding a field to a
-// result: a client reads the fields it knows. What moves this is a verb
-// changing what it means, a field changing type, or the framing changing.
-const Protocol = 1
-
 // Request is one command.
 type Request struct {
 	ID     int             `json:"id"`
 	Method string          `json:"method"`
 	Params json.RawMessage `json:"params,omitempty"`
+	// Protocol is the wire version the client speaks, declared on the first
+	// request of a connection and absent after that: the answer cannot change
+	// mid-connection, and repeating it on every frame would put a version
+	// number in every capture for nothing.
+	//
+	// Zero is a client that did not say. It rides on the request rather than
+	// on a handshake frame of its own so that a client declaring it still
+	// works against a build that has never heard of the field, which is what
+	// makes it safe to start sending.
+	Protocol int `json:"protocol,omitempty"`
 }
 
 // Response is its answer.
@@ -272,7 +270,7 @@ func (s *Server) serve(c net.Conn) {
 		// The hello line gets its own, far tighter budget: it is a token and
 		// nothing else, and it is read before anybody has proven anything.
 		lr.reset(helloFrameLimit)
-		if !s.authorised(c, dec, enc) {
+		if !s.welcomed(c, dec, enc) {
 			return
 		}
 		lr.reset(requestFrameLimit)
@@ -328,6 +326,17 @@ func (s *Server) serve(c net.Conn) {
 				sendOrGiveUp(out, writerDone, Response{
 					Error: errFrameTooLarge.Error(), Code: string(BadParams)})
 			}
+			return
+		}
+
+		// Before anything is dispatched, including the connection-level verb
+		// below: a client that speaks another version of this wire disagrees
+		// about what the frames mean, and a verb answered under that
+		// disagreement is worse than a refusal, because it looks like an answer.
+		if !speaksProtocol(req.Protocol) {
+			refusal := protocolRefusal(req.Protocol, Protocol)
+			refusal.ID = req.ID
+			sendOrGiveUp(out, writerDone, refusal)
 			return
 		}
 
@@ -400,7 +409,8 @@ func drainPending(enc *json.Encoder, out <-chan any) {
 	}
 }
 
-// authorised reads the first line of a TCP connection and checks its token.
+// authorised reads the first line of a TCP connection and checks its token,
+// returning what that line said so the caller can look at the rest of it.
 //
 // Only for TCP. A unix socket is protected by its permissions and always has
 // been, and asking a token of it as well would break every script written
@@ -409,7 +419,7 @@ func drainPending(enc *json.Encoder, out <-chan any) {
 // The refusal says what is wrong and closes. Not a timing-safe comparison:
 // the token is 128 bits of randomness in a 0600 file on the same machine, and
 // an attacker able to time this loop is an attacker who could read the file.
-func (s *Server) authorised(c net.Conn, dec *json.Decoder, enc *json.Encoder) bool {
+func (s *Server) authorised(c net.Conn, dec *json.Decoder, enc *json.Encoder) (hello, bool) {
 	// A deadline, because a connection that opens and says nothing would
 	// otherwise hold a goroutine for as long as it liked.
 	_ = c.SetReadDeadline(time.Now().Add(10 * time.Second))
@@ -420,7 +430,7 @@ func (s *Server) authorised(c net.Conn, dec *json.Decoder, enc *json.Encoder) bo
 			// gets told why, the same as a peer with the wrong token.
 			_ = enc.Encode(Response{Error: errFrameTooLarge.Error(), Code: string(BadParams)})
 		}
-		return false
+		return h, false
 	}
 	if h.Token != s.addr.Token {
 		_ = enc.Encode(Response{
@@ -428,11 +438,11 @@ func (s *Server) authorised(c net.Conn, dec *json.Decoder, enc *json.Encoder) bo
 				"the workbench's address file",
 			Code: string(Unauthorised),
 		})
-		return false
+		return h, false
 	}
 	// Cleared: a driven session is idle for minutes at a time between verbs.
 	_ = c.SetReadDeadline(time.Time{})
-	return true
+	return h, true
 }
 
 // Pump runs any queued commands. Called once per frame, from the frame thread.

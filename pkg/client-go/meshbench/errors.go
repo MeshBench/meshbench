@@ -52,16 +52,42 @@ func (r *Refused) Unwrap() error { return r.kind }
 
 // ProtocolMismatch is a client and a workbench that cannot speak to each
 // other, reported at connect rather than discovered later.
+//
+// Either end may be the one to notice. When the workbench refuses the
+// connection over its declared version, Said carries that refusal and
+// Workbench is the zero value, because the workbench stopped the connection
+// before it would say what it was.
 type ProtocolMismatch struct {
 	Client    int
 	Workbench Hello
+	// Said is the workbench's own refusal, kept whole. Its words are better
+	// than a paraphrase: it knows its build and which end is the older one.
+	Said string
 }
 
 func (p *ProtocolMismatch) Error() string {
+	if p.Said != "" {
+		return p.Said
+	}
 	return fmt.Sprintf(
 		"this client speaks protocol %d and the workbench at %s speaks %d (%s). "+
 			"Upgrade whichever is older",
 		p.Client, p.Workbench.Socket, p.Workbench.Protocol, p.Workbench.Version)
+}
+
+// asMismatch turns a workbench's refusal of this client's declared wire
+// version into the typed mismatch, and leaves every other failure as it was.
+//
+// The declaration is refused before any verb runs, so what comes back is a
+// refusal wearing the name of whichever verb was on the frame. Reported as
+// what it is instead: a verb failure standing in for a version disagreement is
+// the confusion the declaration exists to end.
+func asMismatch(err error) error {
+	var refused *Refused
+	if errors.As(err, &refused) && refused.Code == control.ProtocolMismatch {
+		return &ProtocolMismatch{Client: control.Protocol, Said: refused.Message}
+	}
+	return fmt.Errorf("client: %w", err)
 }
 
 // wrap turns a socket error into one of the above, keeping the message.

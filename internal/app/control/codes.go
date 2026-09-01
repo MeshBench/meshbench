@@ -38,6 +38,11 @@ const (
 	// Closing is the workbench shutting down. Separate from Internal because
 	// a client should retry against a new session rather than report a bug.
 	Closing Code = "closing"
+	// ProtocolMismatch is a client declaring a wire version this build does
+	// not speak. Refused on the frame that declared it, before any verb runs,
+	// so a client learns it cannot be understood rather than watching one verb
+	// answer strangely.
+	ProtocolMismatch Code = "protocol_mismatch"
 	// Unauthorised is a loopback connection that did not present the token.
 	//
 	// Only reachable on the TCP transport, where the port is open to any local

@@ -63,12 +63,27 @@ class ProtocolMismatch(MeshbenchError):
     Raised at connect rather than discovered on the fortieth call, because a
     mismatch found halfway through a script looks like the simulation
     misbehaving - and in a CI run that reads as a firmware regression.
+
+    Either end may be the one to notice. When the workbench refuses the
+    connection over the version this client declared, ``said`` carries that
+    refusal whole and ``workbench`` is 0: it stopped the connection before it
+    would say what it was, and its own sentence has the number in it.
     """
 
-    def __init__(self, client: int, workbench: int, version: str, socket: str) -> None:
+    def __init__(
+        self,
+        client: int,
+        workbench: int,
+        version: str = "",
+        socket: str = "",
+        said: str = "",
+    ) -> None:
         super().__init__(
-            f"this client speaks protocol {client} and the workbench at "
-            f"{socket} speaks {workbench} ({version}). Upgrade whichever is older"
+            said
+            or (
+                f"this client speaks protocol {client} and the workbench at "
+                f"{socket} speaks {workbench} ({version}). Upgrade whichever is older"
+            )
         )
         self.client = client
         self.workbench = workbench

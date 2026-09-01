@@ -215,7 +215,17 @@ class Workbench:
 
     def _greet(self) -> None:
         """Ask what this is, and refuse a build this client cannot speak to."""
-        self.hello = Hello.parse(self.call("session.hello"))
+        try:
+            reply = self.call("session.hello")
+        except errors.Refused as e:
+            if e.code != "protocol_mismatch":
+                raise
+            # The workbench refused the connection over the version this client
+            # declared. Raised as the mismatch it is rather than as
+            # session.hello failing, which is the confusion the declaration
+            # exists to end.
+            raise errors.ProtocolMismatch(PROTOCOL, 0, said=e.message) from None
+        self.hello = Hello.parse(reply)
         if self.hello.protocol != PROTOCOL:
             raise errors.ProtocolMismatch(
                 PROTOCOL, self.hello.protocol, self.hello.version, self.hello.socket
