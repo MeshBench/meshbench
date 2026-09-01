@@ -51,6 +51,7 @@ func Register(st *state.Store, s *Sim) {
 	registerRFEnvironment(st, s)
 	registerRadioReconcile(st, s)
 	registerExperiment(st, s)
+	registerExperimentControl(st, s)
 	registerExperimentDone(st, s)
 	runDomainRegistrars(st, s)
 	registerCheckpoint(st, s)
@@ -259,52 +260,6 @@ func Register(st *state.Store, s *Sim) {
 	}
 	s.installFn = installBody
 	registerClockVerbs(st, s)
-	st.Handle("nodes.select", func(w *state.World, p any) (any, error) {
-		name := soleString(p)
-		for i := range w.Nodes {
-			w.Nodes[i].Selected = w.Nodes[i].Name == name
-		}
-		return map[string]any{"selected": name}, nil
-	})
-	st.Handle("nodes.select_many", func(w *state.World, p any) (any, error) {
-		// Two shapes, because a selection arrives from a box drag as a list
-		// and from the control socket as a name, and a caller should not have
-		// to know which the interface happens to use.
-		var names []string
-		switch v := p.(type) {
-		case []string:
-			names = v
-		case string:
-			names = []string{v}
-		}
-		want := map[string]bool{}
-		for _, n := range names {
-			want[n] = true
-		}
-		for i := range w.Nodes {
-			w.Nodes[i].Selected = want[w.Nodes[i].Name]
-		}
-		return map[string]any{"selected": names}, nil
-	})
-	st.Handle("nodes.add_to_selection", func(w *state.World, p any) (any, error) {
-		var names []string
-		switch v := p.(type) {
-		case []string:
-			names = v
-		case string:
-			names = []string{v}
-		}
-		n := 0
-		for _, name := range names {
-			for i := range w.Nodes {
-				if w.Nodes[i].Name == name {
-					w.Nodes[i].Selected = true
-					n++
-				}
-			}
-		}
-		return map[string]any{"added": n}, nil
-	})
 	st.Handle("links.recompute", func(w *state.World, _ any) (any, error) {
 		// Also the verb a node move calls when the drag ends, so dragging a
 		// node across a country does not recompute every frame of the drag.
@@ -400,59 +355,7 @@ func Register(st *state.Store, s *Sim) {
 		}
 		return nil, nil
 	})
-	st.Handle("nodes.move", func(w *state.World, p any) (any, error) {
-		m, _ := p.(map[string]any)
-		name, _ := m["name"].(string)
-		lat, _ := m["lat"].(float64)
-		lon, _ := m["lon"].(float64)
-		for i := range w.Nodes {
-			if w.Nodes[i].Name == name {
-				w.Nodes[i].Lat, w.Nodes[i].Lon = lat, lon
-				// The physics moves with the marker: cached losses for this
-				// node are forgotten, so an attached SDR client hears the
-				// new position on the next window.
-				if s.eng != nil {
-					s.eng.SetNodePosition(i, lat, lon)
-				}
-				return map[string]any{"name": name, "lat": lat, "lon": lon}, nil
-			}
-		}
-		return nil, noSuchNode(name)
-	})
-	st.Handle("sim.inject", func(w *state.World, p any) (any, error) {
-		// Originating a packet without firmware on the node. The engine
-		// delivers to everything in range regardless, so this exercises the
-		// radio model and the map's traffic layer; what it does not exercise
-		// is relaying, which is a firmware behaviour and needs a firmware.
-		if s.eng == nil {
-			return nil, ErrNoSimulation
-		}
-		// A network with no nodes has nowhere to originate from. It used to
-		// be unreachable - every session began with a fixture - and starting
-		// a blank network made it a state somebody can be in, where this
-		// indexed an empty slice and took the process with it.
-		if len(w.Nodes) == 0 {
-			return nil, fmt.Errorf("no nodes to originate from - place one first")
-		}
-		at := 0
-		if name := soleString(p); name != "" {
-			for i := range w.Nodes {
-				if w.Nodes[i].Name == name {
-					at = i
-				}
-			}
-		} else {
-			for i := range w.Nodes {
-				if w.Nodes[i].Selected {
-					at = i
-					break
-				}
-			}
-		}
-		s.eng.Inject(at, []byte("msim-map-trace"))
-		w.Say("injected a packet at " + w.Nodes[at].Name)
-		return map[string]any{"at": w.Nodes[at].Name}, nil
-	})
+	registerMapGestures(st, s)
 	registerBudgetVerbs(st, s)
 
 	registerBenchVerbs(st, s)

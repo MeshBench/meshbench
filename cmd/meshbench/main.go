@@ -164,3 +164,21 @@ func requireAll(missing map[string]bool) error {
 	sort.Strings(names)
 	return fmt.Errorf("missing required flag(s): %s", strings.Join(names, ", "))
 }
+
+// notGiven is which of these flags were never written on the command line, in
+// the shape requireAll takes.
+//
+// Asked of the flag set rather than of the values, because a coordinate cannot
+// be tested for absence. Zero is a latitude and a longitude like any other -
+// the equator and the prime meridian - and inferring "not supplied" from it
+// refused Greenwich, refused the Gulf of Guinea, and refused every study area
+// that straddles either line.
+func notGiven(fs *flag.FlagSet, names ...string) map[string]bool {
+	seen := map[string]bool{}
+	fs.Visit(func(f *flag.Flag) { seen[f.Name] = true })
+	out := make(map[string]bool, len(names))
+	for _, n := range names {
+		out[n] = !seen[n]
+	}
+	return out
+}

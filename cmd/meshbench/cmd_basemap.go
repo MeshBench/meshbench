@@ -45,9 +45,7 @@ func runBasemap(ctx context.Context, args []string) error {
 	if !ok {
 		return fmt.Errorf("no layer %q; run without -layer to list them", *layerID)
 	}
-	if err := requireAll(map[string]bool{
-		"south": *south == 0, "north": *north == 0, "west": *west == 0, "east": *east == 0,
-	}); err != nil {
+	if err := requireAll(notGiven(fs, "south", "north", "west", "east")); err != nil {
 		return err
 	}
 

@@ -29,7 +29,6 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/sim/engine"
-	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
 // VaryParams is every parameter an arm can be crossed on, in the order the
@@ -114,6 +113,16 @@ type experiment struct {
 	results []ExpResult
 	log     []string
 	status  string
+
+	// done is closed by the run goroutine as it leaves, and is the only honest
+	// answer to "has the last experiment finished".
+	//
+	// running cannot answer it: stop clears running the instant it is asked, and
+	// the goroutine goes on for as long as the cell it is in takes to notice its
+	// context. A start in that window used to clear the results out from under a
+	// worker still appending to them, so the new run's table carried the tail of
+	// the old one's cells and looked like a real measurement.
+	done chan struct{}
 }
 
 func (e *experiment) runsTotal() int { return len(e.Arms) * len(e.Seeds) }
@@ -305,62 +314,6 @@ func registerExperiment(st *state.Store, s *Sim) {
 			e.SendAtMs = uint32(v)
 		}
 		return e.describe(), nil
-	})
-
-	st.Handle("experiment.state", func(w *state.World, _ any) (any, error) {
-		e := s.experiment()
-		e.mu.Lock()
-		defer e.mu.Unlock()
-		out := e.describe()
-		out["running"] = e.running
-		out["done"] = len(e.results)
-		out["status"] = e.status
-		if n := len(e.log); n > 0 {
-			out["log"] = e.log[max(0, n-12):]
-		}
-		return out, nil
-	})
-
-	st.Handle("experiment.start", func(w *state.World, _ any) (any, error) {
-		e := s.experiment()
-		e.mu.Lock()
-		if e.running {
-			e.mu.Unlock()
-			return nil, fmt.Errorf("an experiment is already running")
-		}
-		if len(s.nodes) == 0 {
-			e.mu.Unlock()
-			return nil, fmt.Errorf("no network loaded")
-		}
-		if len(e.Senders) == 0 {
-			e.mu.Unlock()
-			return nil, fmt.Errorf("experiment.start needs at least one sender")
-		}
-		e.running, e.results, e.status = true, nil, "starting"
-		ctx, cancel := context.WithCancel(context.Background())
-		e.cancel = cancel
-		nodes := append([]scenario.Node(nil), s.nodes...)
-		e.mu.Unlock()
-
-		w.Jobs = append(w.Jobs, state.Job{
-			ID: "experiment", What: "running arms", Total: e.runsTotal()})
-		go s.runExperiment(ctx, st, e, nodes)
-		return map[string]any{"running": true, "runs": e.runsTotal()}, nil
-	})
-
-	st.Handle("experiment.stop", func(w *state.World, _ any) (any, error) {
-		e := s.experiment()
-		e.mu.Lock()
-		was := e.running
-		if e.cancel != nil {
-			e.cancel()
-		}
-		e.running = false
-		done := len(e.results)
-		e.mu.Unlock()
-		w.Jobs = finishJob(w.Jobs, "experiment")
-		w.Say("experiment stopped")
-		return map[string]any{"stopped": was, "done": done, "total": e.runsTotal()}, nil
 	})
 
 	st.Handle("experiment.results", func(w *state.World, _ any) (any, error) {

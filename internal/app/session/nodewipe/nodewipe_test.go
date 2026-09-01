@@ -3,6 +3,7 @@ package nodewipe_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/MeshBench/meshbench/internal/app/session"
@@ -66,5 +67,92 @@ func TestWipingOneNodeLeavesTheOthersAlone(t *testing.T) {
 	}
 	if _, err := st.Do(ctx, "node.wipe", "nobody"); err == nil {
 		t.Error("node.wipe accepted a node that does not exist")
+	}
+}
+
+// aWipeableNode is one node with files in its directory, on a store with the
+// whole verb set.
+func aWipeableNode(t *testing.T, files ...string) (*state.Store, string) {
+	t.Helper()
+	t.Setenv(firmware.EnvNodeFS, t.TempDir())
+	dir := firmware.NodeWorkDir("GB7XYZ")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range files {
+		if err := os.WriteFile(filepath.Join(dir, f), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	st := state.New(10)
+	session.Register(st, &session.Sim{})
+	st.Handle("test.nodes", func(w *state.World, p any) (any, error) {
+		w.Nodes = p.([]state.Node)
+		return nil, nil
+	})
+	go st.Run(t.Context())
+	if _, err := st.Do(t.Context(), "test.nodes", []state.Node{
+		{Name: "GB7XYZ", Board: "Heltec_v3"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return st, dir
+}
+
+// confirm:false used to be read by nothing at all, so a caller asking to look
+// before leaping had the node wiped and was told it had been wiped.
+func TestWipeWithoutConfirmationRemovesNothingAndSaysWhatWouldGo(t *testing.T) {
+	st, dir := aWipeableNode(t, "flash.bin", "card.img")
+
+	got, err := st.Do(t.Context(), "node.wipe",
+		map[string]any{"node": "GB7XYZ", "confirm": false})
+	if err != nil {
+		t.Fatalf("node.wipe: %v", err)
+	}
+	m := got.(map[string]any)
+	if m["wiped"] != 0 {
+		t.Errorf("a dry run reported %v wiped", m["wiped"])
+	}
+	would, _ := m["would_remove"].([]string)
+	if len(would) != 2 {
+		t.Errorf("it would remove %v, want both files named", would)
+	}
+	for _, f := range []string{"flash.bin", "card.img"} {
+		if _, err := os.Stat(filepath.Join(dir, f)); err != nil {
+			t.Errorf("a dry run removed %s", f)
+		}
+	}
+}
+
+// A file that could not be removed used to be dropped from the result, so a
+// node that still holds its settings answered "wiped" and booted next time
+// into the state the operator had been told was gone.
+func TestAPartialWipeIsReportedAsPartial(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root removes files out of an unwritable directory")
+	}
+	st, dir := aWipeableNode(t, "flash.bin")
+	// A subdirectory whose contents cannot be unlinked, which is what a
+	// RemoveAll failure looks like on a real machine.
+	stuck := filepath.Join(dir, "settings")
+	if err := os.MkdirAll(stuck, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(stuck, "prefs"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(stuck, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(stuck, 0o755) })
+
+	_, err := st.Do(t.Context(), "node.wipe", "GB7XYZ")
+	if err == nil {
+		t.Fatal("a wipe that left files behind reported success")
+	}
+	for _, want := range []string{"GB7XYZ", "partly wiped", "settings"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("%q does not mention %q", err, want)
+		}
 	}
 }

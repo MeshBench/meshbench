@@ -83,11 +83,13 @@ func TestACardCanBeTakenOutAndPutBack(t *testing.T) {
 	}
 }
 
-// A card somebody else prepared, and the way back to the node's own.
+// A card somebody else prepared, and the way back to the node's own. It lives
+// in the node storage the session owns, because that is the one place this verb
+// is allowed to erase and reformat a file.
 func TestANodeCanBeHandedACardOfItsOwnChoosing(t *testing.T) {
 	st, s := aCardSim(t)
 	ctx := t.Context()
-	mine := filepath.Join(t.TempDir(), "shared.img")
+	mine := filepath.Join(firmware.NodeFSRoot(), "shared.img")
 
 	got, err := st.Do(ctx, "node.card", map[string]any{"node": "Deck", "file": mine})
 	if err != nil {
@@ -113,12 +115,46 @@ func TestANodeCanBeHandedACardOfItsOwnChoosing(t *testing.T) {
 	}
 }
 
+// A card is deleted and reformatted where it stands, so an absolute path
+// outside the session's own storage is a delete of anything the workbench can
+// reach, asked for over a socket that scripts drive.
+func TestACardOutsideTheSessionsStorageIsRefused(t *testing.T) {
+	st, s := aCardSim(t)
+	ctx := t.Context()
+	theirs := filepath.Join(t.TempDir(), "not-ours.img")
+	if err := os.WriteFile(theirs, []byte("somebody else's"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := st.Do(ctx, "node.card", map[string]any{"node": "Deck", "file": theirs})
+	if err == nil {
+		t.Fatal("a card outside the node storage directory was accepted")
+	}
+	if !strings.Contains(err.Error(), firmware.NodeFSRoot()) {
+		t.Errorf("refused with %v, which does not say where cards may live", err)
+	}
+	if s.nodes[0].CardFile != "" {
+		t.Errorf("it took the path anyway: %q", s.nodes[0].CardFile)
+	}
+	// And, having refused, it must not have gone near the file.
+	if _, err := os.Stat(theirs); err != nil {
+		t.Errorf("the refused file was touched: %v", err)
+	}
+
+	// The escape by relative segments, which an absolute path can still spell.
+	up := filepath.Join(firmware.NodeFSRoot(), "..", "escaped.img")
+	if _, err := st.Do(ctx, "node.card",
+		map[string]any{"node": "Deck", "file": up}); err == nil {
+		t.Error("a path climbing out of the node storage directory was accepted")
+	}
+}
+
 // Erasing a card is what reformatting one is, and it is the node's storage
 // wherever the node keeps it.
 func TestErasingACardRemovesTheFileWhereverItIs(t *testing.T) {
 	st, s := aCardSim(t)
 	ctx := t.Context()
-	mine := filepath.Join(t.TempDir(), "shared.img")
+	mine := filepath.Join(firmware.NodeFSRoot(), "shared.img")
 	if err := os.WriteFile(mine, []byte("settings"), 0o600); err != nil {
 		t.Fatal(err)
 	}

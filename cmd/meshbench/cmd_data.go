@@ -24,9 +24,7 @@ func runTerrain(ctx context.Context, args []string) error {
 	if err := parse(fs, args, "download elevation tiles for an area"); err != nil {
 		return err
 	}
-	if err := requireAll(map[string]bool{
-		"south": *south == 0, "north": *north == 0, "west": *west == 0, "east": *east == 0,
-	}); err != nil {
+	if err := requireAll(notGiven(fs, "south", "north", "west", "east")); err != nil {
 		return err
 	}
 	if *north <= *south {
@@ -148,7 +146,7 @@ func runEnergy(_ context.Context, args []string) error {
 	if err := parse(fs, args, "will a solar node survive the winter"); err != nil {
 		return err
 	}
-	if err := requireAll(map[string]bool{"lat": *lat == 0}); err != nil {
+	if err := requireAll(notGiven(fs, "lat")); err != nil {
 		return err
 	}
 

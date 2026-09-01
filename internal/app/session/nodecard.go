@@ -114,7 +114,7 @@ func cardFileFor(n scenario.Node) string {
 	return filepath.Join(firmware.NodeWorkDir(n.Name), "card.img")
 }
 
-// usableAsCard turns away a path that cannot be one.
+// usableAsCard turns away a path that cannot be one, or that is not ours.
 func usableAsCard(file string) error {
 	if strings.TrimSpace(file) == "" {
 		return nil // back to the node's own
@@ -124,8 +124,40 @@ func usableAsCard(file string) error {
 			"%s is a relative path, and a card outlives the directory the "+
 				"workbench happened to be started in - give it in full", file)
 	}
+	// Confined to the storage this session owns, because this path is not only
+	// read from. `wipe` deletes it, and starting the node reformats whatever is
+	// there. An absolute path taken on trust is therefore a delete of anything
+	// the workbench can reach, asked for through a verb whose subject is a
+	// memory card - and it arrives over a control socket that scripts drive.
+	if err := underSessionStorage("a card", file); err != nil {
+		return err
+	}
 	if st, err := os.Stat(file); err == nil && st.IsDir() {
 		return fmt.Errorf("%s is a directory, not a card", file)
+	}
+	return nil
+}
+
+// underSessionStorage refuses a path outside the node filesystem root.
+//
+// The root is where every node's flash, settings and own card already live, so
+// it is the one directory the workbench is entitled to erase files in. Named in
+// the refusal rather than left implicit: somebody handed a card from their
+// downloads folder needs to be told where to put it, not only that they were
+// wrong.
+func underSessionStorage(what, file string) error {
+	root, err := filepath.Abs(firmware.NodeFSRoot())
+	if err != nil {
+		return fmt.Errorf("cannot locate the node storage directory: %w", err)
+	}
+	abs, err := filepath.Abs(file)
+	if err != nil {
+		return fmt.Errorf("%s is not a usable path: %w", file, err)
+	}
+	if abs != root && !strings.HasPrefix(abs, root+string(os.PathSeparator)) {
+		return fmt.Errorf(
+			"%s is outside %s, and %s is erased and reformatted where it "+
+				"stands - keep it under the node storage directory", file, root, what)
 	}
 	return nil
 }

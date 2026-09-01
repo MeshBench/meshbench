@@ -17,6 +17,14 @@ import (
 	"github.com/MeshBench/meshbench/internal/world/provider"
 )
 
+// minValidateHours and maxValidateHours bound the window of observations a
+// validation run asks a deployment for. A minute is the shortest window a
+// public feed has anything in; a year is longer than any of them keeps.
+const (
+	minValidateHours = 1.0 / 60
+	maxValidateHours = 24 * 365
+)
+
 func registerValidate(st *state.Store, s *session.Sim) {
 	// validate.fetch: real receptions, replayed against the model.
 	st.Handle("validate.fetch", func(w *state.World, p any) (any, error) {
@@ -28,9 +36,14 @@ func registerValidate(st *state.Store, s *session.Sim) {
 			return nil, fmt.Errorf("no source: set one with import.set_source")
 		}
 		url = strings.TrimRight(url, "/")
-		hours := 24.0
-		if v, ok := session.NumField(p, "hours"); ok && v > 0 {
-			hours = v
+		// A day when nobody says otherwise, and a refusal when somebody says
+		// something unusable. Zero, a negative and the string "twelve" all used
+		// to come out as twenty-four, so the report said it had compared a
+		// day's observations and the caller believed it had asked for one.
+		hours, err := session.NumInRange("validate.fetch", "hours", p, 24,
+			minValidateHours, maxValidateHours)
+		if err != nil {
+			return nil, err
 		}
 		id := "validate"
 		w.Jobs = append(w.Jobs, state.Job{
@@ -213,7 +226,13 @@ func registerValidate(st *state.Store, s *session.Sim) {
 			// what the previous round left over.
 			db, have = maxFloat(0, s.ExcessLossDB()+w.Residuals.MedianDB), true
 		}
-		if v, ok := session.NumField(p, "db"); ok {
+		// A db that was given wins over the measurement. A db that was given and
+		// cannot be read is refused: falling back to the residuals would apply
+		// a number the caller never asked for, under a verb whose whole job is
+		// to set that number deliberately.
+		if v, asked, err := session.NumAsked("validate.calibrate", "db", p); err != nil {
+			return nil, err
+		} else if asked {
 			db, have = v, true
 		}
 		// Refuse rather than default. Called with nothing measured this used

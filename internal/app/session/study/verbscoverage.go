@@ -23,6 +23,13 @@ func registerCoverageVerbs(st *state.Store, s *session.Sim) {
 					at = i
 				}
 			}
+			// A name that matched nothing used to leave this at -1 and be
+			// reported as "no node selected", which sends whoever typed it
+			// hunting for a selection rather than at their own spelling.
+			if at < 0 {
+				return nil, session.UnknownNames("coverage.compute", w.Nodes,
+					[]string{name})
+			}
 		} else {
 			for i := range w.Nodes {
 				if w.Nodes[i].Selected {
@@ -151,6 +158,12 @@ func registerCoverageVerbs(st *state.Store, s *session.Sim) {
 				if w.Nodes[i].Name == name {
 					at = i
 				}
+			}
+			// Named and not found is a different fact from nothing selected,
+			// and the message below can only say the second of the two.
+			if at < 0 {
+				return nil, session.UnknownNames("waterfall.capture", w.Nodes,
+					[]string{name})
 			}
 		} else {
 			for i := range w.Nodes {

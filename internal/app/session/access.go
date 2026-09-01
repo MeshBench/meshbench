@@ -185,6 +185,23 @@ func NoSuchNode(name string) error              { return noSuchNode(name) }
 // that live in the split-out domains.
 func WrongCallback(verb string) error { return wrongCallback(verb) }
 
+// NumAsked, NumInRange and UnknownNames are the refuse-rather-than-default
+// readers, for the split-out domains: NumAsked separates "not given" from
+// "given and unusable", NumInRange adds a documented default and a range, and
+// UnknownNames turns names this network has not got into a refusal that offers
+// the ones it has. NameList is the few-and-a-count form those refusals use so a
+// message about a typo does not print three hundred node names.
+func NumAsked(verb, name string, p any) (float64, bool, error) {
+	return numAsked(verb, name, p)
+}
+func NumInRange(verb, name string, p any, def, lo, hi float64) (float64, error) {
+	return numInRange(verb, name, p, def, lo, hi)
+}
+func UnknownNames(verb string, nodes []state.Node, names []string) error {
+	return unknownNames(verb, nodes, names)
+}
+func NameList(names []string) string { return nameList(names) }
+
 // CapturePath and CaptureLive are where frames are being written and streamed,
 // if anywhere; the capture verbs set and clear them.
 func (s *Sim) CapturePath() string     { return s.capturePath }

@@ -100,7 +100,15 @@ func registerCoverageMap(st *state.Store, s *session.Sim) {
 	// coverage.resolution: how sharp the shared-grid rasters are. Persisted,
 	// because a resolution is a machine-and-patience choice, not a scenario's.
 	st.Handle("coverage.resolution", func(w *state.World, p any) (any, error) {
-		if v, ok := session.NumField(p, "cells"); ok {
+		// Asked for, rather than merely readable. No cells at all is a read of
+		// the current setting, which is a legitimate call; cells that cannot be
+		// read as a number is a caller who meant to change it, and answering
+		// them with the unchanged value reports the opposite of what happened.
+		v, asked, err := session.NumAsked("coverage.resolution", "cells", p)
+		if err != nil {
+			return nil, err
+		}
+		if asked {
 			cells := int(v)
 			if cells < mapGridMin || cells > mapGridMax {
 				return nil, fmt.Errorf("coverage resolution is %d to %d cells on the long edge",
@@ -124,6 +132,14 @@ func registerCoverageMap(st *state.Store, s *session.Sim) {
 // station ("coverage from this node" arrives here too), so there is one
 // code path - two would disagree about buildings within a week.
 func startCoverageMap(s *session.Sim, st *state.Store, w *state.World, p any) (any, error) {
+	// Every parameter read and checked before anything is decided about the
+	// network. A refusal about a viewport that arrives only once the network
+	// turns out to have a repeater in it is a refusal that changes with the
+	// scenario, and a caller cannot tell their own mistake from ours.
+	asked, err := coverageAsked(s, p)
+	if err != nil {
+		return nil, err
+	}
 	painted := "the whole network"
 	infra := infrastructure(s.Nodes())
 	// From the params object only: stringField's bare-string case would
@@ -139,8 +155,14 @@ func startCoverageMap(s *session.Sim, st *state.Store, w *state.World, p any) (a
 				break
 			}
 		}
+		// "selected" is the map asking about whatever is under the cursor, so
+		// nothing selected is a state and not a mistake. A name is a caller
+		// naming a node, and a name this network has not got is theirs.
 		if len(infra) == 0 {
-			return nil, fmt.Errorf("no node selected to compute coverage from")
+			if name == "selected" {
+				return nil, fmt.Errorf("no node selected to compute coverage from")
+			}
+			return nil, session.UnknownNames("coverage.map", w.Nodes, []string{name})
 		}
 	}
 	if len(infra) == 0 {
@@ -149,33 +171,18 @@ func startCoverageMap(s *session.Sim, st *state.Store, w *state.World, p any) (a
 	// An explicit box wins - the raster-this-view button sends the
 	// borders somebody is actually looking at. Then the study boundary,
 	// then the network's own box.
-	south, sOK := session.NumField(p, "south")
-	north, nOK := session.NumField(p, "north")
-	west, wOK := session.NumField(p, "west")
-	east, eOK := session.NumField(p, "east")
-	if !sOK || !nOK || !wOK || !eOK {
+	south, north, west, east := asked.south, asked.north, asked.west, asked.east
+	if !asked.boxed {
 		var ok bool
 		south, north, west, east, ok = areasBox(w.Areas)
 		if !ok {
-			var err error
 			south, north, west, east, _, _, err = mapBox(s.Nodes(), coverageCells(s))
 			if err != nil {
 				return nil, err
 			}
 		}
-	} else if south >= north || west >= east {
-		return nil, fmt.Errorf("that viewport is inside out")
 	}
-	// A per-run resolution rides along with a viewport box - the map
-	// picks what looks sharp on the screen asking - without touching
-	// the saved knob.
-	edge := coverageCells(s)
-	if v, ok := session.NumField(p, "cells"); ok && p != nil {
-		if c := int(v); c >= mapGridMin && c <= mapGridMax {
-			edge = c
-		}
-	}
-	gw, gh := gridFor(south, north, west, east, edge)
+	gw, gh := gridFor(south, north, west, east, asked.cells)
 	stations := make([]coverage.Endpoint, 0, len(infra))
 	for _, n := range infra {
 		n := n
@@ -326,6 +333,80 @@ func startCoverageMap(s *session.Sim, st *state.Store, w *state.World, p any) (a
 			map[string]any{"mode": "map", "combined": combined})
 	}()
 	return map[string]any{"nodes": len(infra), "started": true}, nil
+}
+
+// coverageRequest is what a caller asked a raster for, once every parameter
+// has been read and none of them is left to be guessed at.
+type coverageRequest struct {
+	south, north, west, east float64
+	// boxed says the four borders were given. Without it the raster falls back
+	// to the study area and then the network's own box, which is a documented
+	// default and not a substitution.
+	boxed bool
+	cells int
+}
+
+// coverageAsked reads the raster parameters, refusing what it cannot use.
+//
+// No viewport at all is the ordinary case - the whole network, or the study
+// area - and not an error. Some of a viewport is: three borders and a typo used
+// to fail all four reads together and fall through to the network's own box, so
+// the raster came back over ground nobody had asked about and looked exactly
+// like an answer to the question. The borders are range-checked too, because a
+// degree outside the globe is a caller who meant metres.
+func coverageAsked(s *session.Sim, p any) (coverageRequest, error) {
+	const verb = "coverage.map"
+	out := coverageRequest{}
+	// Refused when it is outside what a raster can be, rather than replaced by
+	// the saved knob: a caller who asked for 30,000 cells and silently got 240
+	// has been told a picture is sharp when it is not.
+	cells, err := session.NumInRange(verb, "cells", p,
+		float64(coverageCells(s)), mapGridMin, mapGridMax)
+	if err != nil {
+		return out, err
+	}
+	out.cells = int(cells)
+
+	m, isObject := p.(map[string]any)
+	if !isObject {
+		return out, nil
+	}
+	borders := [4]struct {
+		name   string
+		lo, hi float64
+		into   *float64
+	}{
+		{"south", -90, 90, &out.south}, {"north", -90, 90, &out.north},
+		{"west", -180, 180, &out.west}, {"east", -180, 180, &out.east},
+	}
+	given := 0
+	for _, b := range borders {
+		if _, has := m[b.name]; !has {
+			continue
+		}
+		given++
+		v, err := session.NumInRange(verb, b.name, p, 0, b.lo, b.hi)
+		if err != nil {
+			return out, err
+		}
+		*b.into = v
+	}
+	if given == 0 {
+		return out, nil
+	}
+	if given < 4 {
+		return out, session.BadParams(
+			"%s: a viewport is all four of south, north, west and east; %d were given",
+			verb, given)
+	}
+	if out.south >= out.north || out.west >= out.east {
+		return out, session.BadParams(
+			"%s: that viewport is inside out - south %g is not below north %g, "+
+				"or west %g is not left of east %g",
+			verb, out.south, out.north, out.west, out.east)
+	}
+	out.boxed = true
+	return out, nil
 }
 
 // areasBox is the study boundary's bounding box plus a margin, when a

@@ -66,6 +66,12 @@ PARAM_PATTERNS = [
     # exactly the kind of surface #213 exists to keep honest.
     (re.compile(r'(?:session\.Named|named)Field\(\s*p\s*,\s*"([a-z0-9_]+)"'), "string"),
     (re.compile(r'(?:session\.Num|num)Field\(\s*p\s*,\s*"([a-z0-9_]+)"'), "number"),
+    # The refuse-rather-than-default readers, which take the verb's own name
+    # first so the refusal can say which verb it came from. Without this pattern
+    # a verb converted to them loses its numeric parameters from the table
+    # entirely, which is how a documented surface goes quietly wrong.
+    (re.compile(r'(?:session\.Num(?:Asked|InRange)|numAsked|numInRange|requiredNum)'
+                r'\(\s*"[a-z0-9_.]+"\s*,\s*"([a-z0-9_]+)"'), "number"),
     (re.compile(r'(?:session\.Bool|bool)Field\(\s*p\s*,\s*"([a-z0-9_]+)"'), "bool"),
     (re.compile(r'm\["([a-z0-9_]+)"\]\.\(string\)'), "string"),
     (re.compile(r'm\["([a-z0-9_]+)"\]\.\(bool\)'), "bool"),

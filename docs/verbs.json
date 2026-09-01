@@ -320,12 +320,18 @@
           "required": true,
           "primary": true,
           "what": "the node to put back to factory"
+        },
+        {
+          "name": "confirm",
+          "type": "bool",
+          "what": "false lists what would go and removes nothing; absent or true erases it"
         }
       ],
       "returns": [
         "node",
         "wiped",
-        "removed"
+        "removed",
+        "would_remove"
       ]
     },
     "panels.list": {

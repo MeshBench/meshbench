@@ -40,10 +40,8 @@ func runLink(ctx context.Context, args []string) error {
 	if err := parse(fs, args, "link budget between two points, in both directions"); err != nil {
 		return err
 	}
-	if err := requireAll(map[string]bool{
-		"from-lat": *fromLat == 0, "from-lon": *fromLon == 0,
-		"to-lat": *toLat == 0, "to-lon": *toLon == 0,
-	}); err != nil {
+	if err := requireAll(notGiven(fs,
+		"from-lat", "from-lon", "to-lat", "to-lon")); err != nil {
 		return err
 	}
 
@@ -104,10 +102,8 @@ func runProfile(ctx context.Context, args []string) error {
 	if err := parse(fs, args, "terrain profile and the worst obstruction on a path"); err != nil {
 		return err
 	}
-	if err := requireAll(map[string]bool{
-		"from-lat": *fromLat == 0, "from-lon": *fromLon == 0,
-		"to-lat": *toLat == 0, "to-lon": *toLon == 0,
-	}); err != nil {
+	if err := requireAll(notGiven(fs,
+		"from-lat", "from-lon", "to-lat", "to-lon")); err != nil {
 		return err
 	}
 
@@ -174,7 +170,7 @@ func runCoverage(ctx context.Context, args []string) error {
 	if err := parse(fs, args, "coverage raster from one station"); err != nil {
 		return err
 	}
-	if err := requireAll(map[string]bool{"lat": *lat == 0, "lon": *lon == 0}); err != nil {
+	if err := requireAll(notGiven(fs, "lat", "lon")); err != nil {
 		return err
 	}
 

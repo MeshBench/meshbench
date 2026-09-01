@@ -242,6 +242,12 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 	})
 
 	st.Handle("node.set_firmware", func(w *state.World, p any) (any, error) {
+		// Checked here, before the goroutine, the way its neighbour
+		// set_firmware_only checks. A bad node or an empty version used to
+		// return the success shape and deliver the refusal to
+		// node.reflash_failed, which the caller that asked never subscribes to -
+		// and the client façade spells this as `node.firmware = build`, so the
+		// assignment appeared to work and the node went on running what it had.
 		m, _ := p.(map[string]any)
 		name, _ := m["node"].(string)
 		version, _ := m["version"].(string)
@@ -252,9 +258,18 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 		b := Build{Version: version}
 		b.Board, _ = m["board"].(string)
 		b.Role, _ = m["role"].(string)
+		if err := buildAsked("node.set_firmware", name, version); err != nil {
+			return nil, err
+		}
+		if _, found := s.nodeIndex(name); !found {
+			return nil, noSuchNode(name)
+		}
 		// Applied, not just recorded: stop, provision, start. Firmware is
 		// chosen when a node launches, so setting it on a running node changes
-		// nothing until something restarts it.
+		// nothing until something restarts it. What that background pass can
+		// still fail at - a build that will not provision, a node that will not
+		// start - remains a node.reflash_failed, because by then the caller has
+		// been told the change was accepted and is watching the node.
 		s.Reflash(context.Background(), st, name, b, w.Seed)
 		// A different build may insist on storage where the last one did not,
 		// so what the node's slot will hold has just changed.
@@ -291,6 +306,9 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 		b := Build{Version: version}
 		b.Board, _ = m["board"].(string)
 		b.Role, _ = m["role"].(string)
+		if err := buildAsked("node.set_firmware_only", name, version); err != nil {
+			return nil, err
+		}
 		if err := s.setFirmware(name, b); err != nil {
 			return nil, err
 		}
@@ -319,6 +337,22 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 		}
 		return map[string]any{"node": name, "commands": cmds}, nil
 	})
+}
+
+// buildAsked refuses a firmware change that names no node or no build.
+//
+// Shared by the two firmware verbs so they cannot drift apart again: one of
+// them validated and one of them did not, in the same file, and the one that
+// did not was the one the client façade spells as an assignment.
+func buildAsked(verb, node, version string) error {
+	if strings.TrimSpace(node) == "" {
+		return badParams("%s needs a node: which one is to change build", verb)
+	}
+	if strings.TrimSpace(version) == "" {
+		return badParams("%s needs a version: the build to run, "+
+			"as firmware.list and firmware.builds name it", verb)
+	}
+	return nil
 }
 
 // frameDigest is a cheap FNV-1a hash of a framebuffer, returned as a hex string

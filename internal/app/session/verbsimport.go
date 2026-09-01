@@ -65,11 +65,17 @@ func registerImportFeedVerbs(st *state.Store, s *Sim) {
 	})
 
 	// feed.stop: the live feed is a pull with a deadline rather than a socket
-	// held open, so stopping it means not starting the next one. Said plainly
-	// because a stop button that appears to do nothing is worse than no stop
-	// button.
+	// held open, so stopping it means not starting the next one, and dropping
+	// the one still in the air. The flag it clears used to be written and never
+	// read anywhere, which made this the stop button that genuinely did
+	// nothing: the pull it was pressed to stop landed a minute later and the
+	// panel filled up with the traffic somebody had just asked it not to fetch.
 	st.Handle("feed.stop", func(w *state.World, _ any) (any, error) {
-		s.feeding.Store(false)
+		was := s.feeding.Swap(false)
+		if !was {
+			w.Say("no live feed was running")
+			return map[string]any{"stopped": false}, nil
+		}
 		w.Say("live feed stopped; the traffic already pulled stays")
 		return map[string]any{"stopped": true}, nil
 	})
@@ -79,10 +85,12 @@ func registerImportFeedVerbs(st *state.Store, s *Sim) {
 		if m, ok := p.(map[string]any); ok {
 			url, _ = m["url"].(string)
 		}
-		s.feeding.Store(true)
 		if url == "" {
 			return nil, fmt.Errorf("no deployment to pull from")
 		}
+		// Set only once the request is accepted, so a refused pull does not
+		// leave the feed reading as running.
+		s.feeding.Store(true)
 		w.Say("pulling recent receptions from " + url)
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
@@ -94,6 +102,15 @@ func registerImportFeedVerbs(st *state.Store, s *Sim) {
 				// import failed when the import worked sends them to the
 				// wrong place.
 				_, _ = st.Do(context.Background(), "feed.failed", err.Error())
+				return
+			}
+			// Stopped while this pull was in the air. Landing it anyway is
+			// what made feed.stop do nothing at all: a pull takes up to ninety
+			// seconds, and the receptions somebody had just asked not to fetch
+			// arrived and were counted.
+			if !s.feeding.Load() {
+				_, _ = st.Do(context.Background(), "feed.failed",
+					"stopped before the pull came back; nothing was added")
 				return
 			}
 			_, _ = st.Do(context.Background(), "feed.set", obs)
