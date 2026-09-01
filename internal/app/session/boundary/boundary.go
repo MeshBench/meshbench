@@ -11,13 +11,21 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"net/http"
 	"strings"
+	"time"
 
 	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	worldb "github.com/MeshBench/meshbench/internal/world/boundary"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
+
+// searchDeadline is how long the store's goroutine may be spent on a place
+// search. Generous enough for Nominatim to return a national coastline over a
+// slow link, short enough that a hung geocoder is a refusal rather than a
+// workbench that stops answering.
+const searchDeadline = 30 * time.Second
 
 func registerBoundary(st *state.Store, s *session.Sim) {
 	// boundary.set: search for a place by name.
@@ -26,8 +34,18 @@ func registerBoundary(st *state.Store, s *session.Sim) {
 		if strings.TrimSpace(q) == "" {
 			return nil, fmt.Errorf("boundary.set needs a place to search for")
 		}
-		c := &worldb.Client{}
-		found, err := c.Search(context.Background(), q)
+		// A deadline, because this handler runs on the store's goroutine and
+		// every other verb in the session queues behind it. context.Background
+		// and http.DefaultClient both wait for ever, so a geocoder that accepts
+		// the connection and then says nothing froze the whole workbench with
+		// no job in the list to cancel and nothing on screen to say why.
+		//
+		// Both halves are needed: the context bounds the call, and the client's
+		// own timeout bounds a body that arrives one byte at a time.
+		ctx, cancel := context.WithTimeout(context.Background(), searchDeadline)
+		defer cancel()
+		c := &worldb.Client{HTTP: &http.Client{Timeout: searchDeadline}}
+		found, err := c.Search(ctx, q)
 		if err != nil {
 			return nil, err
 		}

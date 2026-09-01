@@ -33,6 +33,12 @@ func (s *Sim) runExperiment(ctx context.Context, st *state.Store, e *experiment,
 	defer func() {
 		e.mu.Lock()
 		e.running = false
+		// Last thing this goroutine does with the matrix: closed here so that
+		// "the previous run has let go of the results" is a fact a start can
+		// test rather than a guess it has to make.
+		if e.done != nil {
+			close(e.done)
+		}
 		e.mu.Unlock()
 		// A stopped sweep must still pause the clock and say it finished, or
 		// the map keeps running against an experiment that is over.

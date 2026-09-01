@@ -136,14 +136,14 @@ Two verbs are **not** in this table:
 | `node.stop` | *a bare string* | `stopped` | `node.stop()` |
 | `node.truerf` | `node` string, `on` bool | `node`, `true_rf` | `node.true_rf = bool` |
 | `node.window` 🪟 | *a bare string*, `node` string, `tab` string | `node`, `tab` | `wb.window(node, tab=None)` |
-| `node.wipe` | *a bare string*, `node` string | `node`, `wiped`, `removed` | `node.wipe()` |
+| `node.wipe` | *a bare string*, `node` string, `confirm` bool | `node`, `wiped`, `removed`, `would_remove` | `node.wipe()` |
 | `nodes.add_to_selection` | — | `added` | `wb.nodes.select(*names, add=True)` |
 | `nodes.allow_flood` | `node` string, `on` bool | `nodes`, `allow_any_flood` | `node.allow_flood = bool` |
 | `nodes.delete` | `node` string | `deleted`, `nodes` | `wb.nodes.delete(*names) / node.delete()` |
 | `nodes.delete_many` | — | — | `wb.nodes.delete()` |
 | `nodes.keep` | — | — | `wb.nodes.keep()` |
 | `nodes.list` | — | `nodes`, `count` | `wb.nodes  (iterate)` |
-| `nodes.move` | `name` string, `lat` number, `lon` number | `name`, `lat`, `lon` | `node.move(lat, lon)` |
+| `nodes.move` | `lat` number, `lon` number, `name` string | `name`, `lat`, `lon` | `node.move(lat, lon)` |
 | `nodes.near` | *a bare string*, `node` string, `count` number | `node`, `near` | `wb.nodes.near()` |
 | `nodes.place` | `name` string, `kind` string, `board` string, `lat` number, `lon` number, `height_m` number, `tx_dbm` number | `placed`, `kind`, `regions`, `board`, `nodes` | `wb.nodes.place(name, kind, lat, lon, ...)` |
 | `nodes.regions` | `node` string, `regions` list | `nodes`, `regions` | `node.regions = [...]` |
@@ -330,7 +330,7 @@ Two verbs are **not** in this table:
 | `experiment.senders` | `senders` list | — | `wb.experiment.senders = [...]` |
 | `experiment.start` | — | `running`, `runs` | `wb.experiment.start()` |
 | `experiment.state` | — | — | `wb.experiment.state()` |
-| `experiment.stop` | — | `stopped`, `done`, `total` | `wb.experiment.stop()` |
+| `experiment.stop` | — | `stopped`, `done`, `total`, `settled` | `wb.experiment.stop()` |
 | `experiment.vary` | `parameter` string, `values` list | — | `wb.experiment.vary(parameter, values)` |
 | `sweep.run` | — | `arms`, `seeds` | `wb.sweep.run()` |
 | `sweep.set` | — | — | *none* — the sweep runner publishing its matrix |

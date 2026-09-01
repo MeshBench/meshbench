@@ -97,6 +97,15 @@ func registerPlanningVerbs(st *state.Store, s *session.Sim) {
 		if err != nil {
 			return nil, err
 		}
+		// A name, not a path. It is joined onto the projects directory and then
+		// written to, so "../../.bashrc" was a write anywhere the workbench can
+		// reach, spelled as saving a project - and the caller who typed a path
+		// by mistake would have been told it saved.
+		if !usableAsProjectName(name) {
+			return nil, session.BadParams(
+				"project.save: %q is a path, not a project name - projects are "+
+					"saved into %s and are named without separators", name, dir)
+		}
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return nil, err
 		}
@@ -173,6 +182,19 @@ func registerCoverageCombined(st *state.Store, s *session.Sim) {
 		}
 		return out, nil
 	})
+}
+
+// usableAsProjectName reports whether a name stays inside the projects
+// directory when it is joined onto it.
+//
+// Both separators are refused, not only this platform's: a fixture written on
+// Windows travels, and a backslash that means nothing here is a directory
+// there.
+func usableAsProjectName(name string) bool {
+	if strings.ContainsAny(name, `/\`) || strings.HasPrefix(name, ".") {
+		return false
+	}
+	return name == filepath.Base(name)
 }
 
 func projectsDir() (string, error) {

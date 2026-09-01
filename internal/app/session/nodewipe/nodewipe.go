@@ -25,8 +25,11 @@ func registerNodeWipe(st *state.Store, s *session.Sim) {
 		Params: []state.Param{
 			{Name: "node", Type: state.ParamString, Required: true, Primary: true,
 				What: "the node to put back to factory"},
+			{Name: "confirm", Type: state.ParamBool,
+				What: "false lists what would go and removes nothing; " +
+					"absent or true erases it"},
 		},
-		Returns: []string{"node", "wiped", "removed"},
+		Returns: []string{"node", "wiped", "removed", "would_remove"},
 	}, func(w *state.World, p any) (any, error) {
 		name, _ := session.StringField(p, "node")
 		if name == "" {
@@ -34,6 +37,15 @@ func registerNodeWipe(st *state.Store, s *session.Sim) {
 		}
 		if _, err := s.NodeIsEmulated(w, name); err != nil {
 			return nil, err
+		}
+		// A destructive verb with no way to look first is one nobody can check
+		// a script against. Absent still wipes, because the clients already
+		// spell this as node.wipe() and a parameter that appears today cannot
+		// be required of callers written yesterday - but a caller who passes
+		// confirm:false is asking not to destroy anything, and honouring that
+		// is the whole difference between a parameter and a decoration.
+		if ok, given := session.BoolField(p, "confirm"); given && !ok {
+			return dryWipe(name)
 		}
 		// Refused while it is running, rather than racing the emulator for its
 		// own flash file. A wipe that half-succeeded against a live machine
@@ -47,7 +59,7 @@ func registerNodeWipe(st *state.Store, s *session.Sim) {
 			}
 		}
 		dir := firmware.NodeWorkDir(name)
-		removed := []string{}
+		removed, kept := []string{}, []string{}
 		entries, err := os.ReadDir(dir)
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -64,6 +76,8 @@ func registerNodeWipe(st *state.Store, s *session.Sim) {
 			}
 			if err := os.RemoveAll(filepath.Join(dir, e.Name())); err == nil {
 				removed = append(removed, e.Name())
+			} else {
+				kept = append(kept, e.Name())
 			}
 		}
 		// And its card, where it keeps one somewhere other than here. A node
@@ -71,11 +85,41 @@ func registerNodeWipe(st *state.Store, s *session.Sim) {
 		// the firmware finds its old settings on the card and nothing says
 		// why.
 		if i, ok := s.NodeIndex(name); ok && s.Nodes()[i].CardFile != "" {
-			if err := os.Remove(s.Nodes()[i].CardFile); err == nil {
-				removed = append(removed, filepath.Base(s.Nodes()[i].CardFile))
+			card := s.Nodes()[i].CardFile
+			if err := os.Remove(card); err == nil {
+				removed = append(removed, filepath.Base(card))
+			} else if !os.IsNotExist(err) {
+				kept = append(kept, filepath.Base(card))
 			}
+		}
+		// A partial wipe is reported as partial. The failures used to be
+		// dropped on the floor, so a node whose flash image could not be
+		// removed answered "wiped" and booted next time into the settings the
+		// operator had just been told were gone.
+		if len(kept) > 0 {
+			return nil, fmt.Errorf(
+				"%s is only partly wiped: %d removed, but %s could not be - "+
+					"it is not back to factory", name, len(removed),
+				strings.Join(kept, ", "))
 		}
 		w.Say("wiped " + name + "'s stored settings")
 		return map[string]any{"node": name, "wiped": len(removed), "removed": removed}, nil
 	})
+}
+
+// dryWipe answers what a wipe would take, without taking it.
+func dryWipe(name string) (any, error) {
+	dir := firmware.NodeWorkDir(name)
+	would := []string{}
+	entries, err := os.ReadDir(dir)
+	if err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+	for _, e := range entries {
+		if !strings.HasSuffix(e.Name(), ".sock") {
+			would = append(would, e.Name())
+		}
+	}
+	return map[string]any{"node": name, "wiped": 0, "removed": []string{},
+		"would_remove": would}, nil
 }

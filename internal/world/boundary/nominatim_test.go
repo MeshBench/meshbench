@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/MeshBench/meshbench/internal/world/boundary"
 )
@@ -200,5 +201,38 @@ func TestReverseSearchAsksAtAStudyAreaZoom(t *testing.T) {
 	// excludes the network it was meant to hold.
 	if !strings.Contains(*asked, "zoom=5") {
 		t.Errorf("the reverse lookup must ask at region zoom: %s", *asked)
+	}
+}
+
+// The search must give up when the caller's context does.
+//
+// boundary.set runs on the store's goroutine, so every other verb in the
+// session queues behind this one call. A geocoder that accepts the connection
+// and then says nothing would otherwise freeze the whole workbench, with no job
+// in the list to cancel and nothing on screen to say why.
+func TestSearchGivesUpWhenTheCallerDoes(t *testing.T) {
+	hung := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		<-hung
+	}))
+	defer srv.Close()
+	defer close(hung)
+
+	c := &boundary.Client{BaseURL: srv.URL, CacheDir: t.TempDir()}
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := c.Search(ctx, "Scotland")
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("a search against a server that never answers succeeded")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the search ignored its context and is still waiting")
 	}
 }
