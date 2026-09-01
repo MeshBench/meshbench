@@ -1,8 +1,10 @@
 # Every verb, and the call that covers it
 
-The wire underneath [scripting-api.md](scripting-api.md). All **213** verbs
-registered on the store at `210d9ec`, plus the two the socket owns itself, with
-what each reads, what each returns, and which façade call reaches it.
+The wire underneath [scripting-api.md](scripting-api.md). The store registers
+**203**<!--verbdoc:public--> public verbs a script can call and
+**35**<!--verbdoc:internal--> internal callbacks it cannot, **238**<!--verbdoc:total-->
+in total, plus the two the socket answers itself, with what each reads, what
+each returns, and which façade call reaches it.
 
 **The mapping is complete in both directions.** Every verb has a row; every row
 either names a call or says why it deliberately has none. A verb added without
@@ -29,8 +31,10 @@ this document exists to record and is the one column a machine cannot fill in.
 **A verb added with no façade decision fails the script.** That is the point: a
 verb no client can reach is a verb nobody outside the workbench can use, and a
 hand-written surface calling a verb the tree no longer has is exactly the drift
-this catches. The prose above the first table is written by hand and is left
-alone.
+this catches. The prose above the first table is written by hand; the one
+exception is the verb counts, each marked with a comment the script fills in,
+so a hand-edited digit is overwritten back to the truth and `--check` catches
+the mismatch the same way it catches a stale table.
 
 That split is the shape of the manifest in #213. This document is its
 prototype, and it already found things nothing else had: 77 verbs take
@@ -68,8 +72,10 @@ Two verbs are **not** in this table:
 
 ## What this table shows about the surface
 
-- **213 verbs, 35 of them the workbench's own callbacks.** The façade covers
-  the rest, over roughly 60 calls once objects and properties absorb them.
+- **203**<!--verbdoc:public--> public verbs, plus **35**<!--verbdoc:internal-->
+  the workbench keeps to itself, **238**<!--verbdoc:total--> registered in
+  total. The façade covers the public verbs, over roughly 60 calls once
+  objects and properties absorb them.
 - **The naming is not regular.** `node.*` and `nodes.*` are both node verbs and
   the split is not singular-versus-plural: `nodes.stats`, `nodes.allow_flood`
   and `nodes.regions` all act on one node. `firmware.set` is by role while
