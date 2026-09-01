@@ -195,8 +195,58 @@ func exchange(ctx context.Context, p Port, cmd string, timeout time.Duration) Re
 	if d, ok := ctx.Deadline(); ok && d.Before(deadline) {
 		deadline = d
 	}
-	_ = p.SetReadDeadline(deadline)
+	// Whether the deadline took decides how this function may wait below. A
+	// port that cannot carry one is not hypothetical: os.File returns
+	// ErrNoDeadline for anything the runtime poller will not take, so this has
+	// to keep working rather than assume.
+	deadlined := p.SetReadDeadline(deadline) == nil
 
+	done := readReply(p)
+
+	// Bounded here only when nothing will interrupt the read, because a nil
+	// channel never fires. Waiting on both would double the timeout's meaning.
+	var expired <-chan time.Time
+	if !deadlined {
+		t := time.NewTimer(timeout)
+		defer t.Stop()
+		expired = t.C
+	}
+
+	select {
+	case o := <-done:
+		r.Lines = o.lines
+		if o.err != nil {
+			// A timeout is a result, not an absence. The node is running and
+			// not answering, and any lines it did manage are kept.
+			r.Err = fmt.Errorf("no prompt within %v: %w", timeout, o.err)
+		}
+	case <-expired:
+		// The read is still blocked and cannot be freed, so the goroutine
+		// behind it outlives this call. Reported the same way regardless, so a
+		// caller cannot tell the two ports apart by their answers.
+		r.Err = fmt.Errorf("no prompt within %v", timeout)
+	case <-ctx.Done():
+		r.Err = ctx.Err()
+		// Cancelled rather than abandoned: freeing the read is what lets the
+		// goroutine finish and this function return the moment the caller
+		// gives up, instead of leaving one running behind every command whose
+		// caller stopped waiting. Only safe to wait for when the deadline took;
+		// otherwise nothing would ever end that read and this would hang.
+		if deadlined {
+			_ = p.SetReadDeadline(time.Now())
+			<-done
+		}
+	}
+	r.Took = time.Since(start)
+	return r
+}
+
+// readReply reads one reply off a port, ending at the bare prompt.
+//
+// Buffered by one so the goroutine can always deliver and exit, even when
+// nobody is left to receive - which is what stops a cancelled or timed-out
+// command leaking the goroutine as well as the read.
+func readReply(p Port) <-chan outcome {
 	done := make(chan outcome, 1)
 	go func() {
 		var lines []string
@@ -214,26 +264,7 @@ func exchange(ctx context.Context, p Port, cmd string, timeout time.Duration) Re
 		}
 		done <- outcome{lines: lines, err: sc.Err()}
 	}()
-
-	select {
-	case o := <-done:
-		r.Lines = o.lines
-		if o.err != nil {
-			// A timeout is a result, not an absence. The node is running and
-			// not answering, and any lines it did manage are kept.
-			r.Err = fmt.Errorf("no prompt within %v: %w", timeout, o.err)
-		}
-	case <-ctx.Done():
-		// Cancelled rather than abandoned: freeing the read is what lets the
-		// goroutine above finish and this function return the moment the
-		// caller gives up, instead of leaving one running behind every command
-		// whose caller stopped waiting.
-		_ = p.SetReadDeadline(time.Now())
-		<-done
-		r.Err = ctx.Err()
-	}
-	r.Took = time.Since(start)
-	return r
+	return done
 }
 
 // Summarise reports a broadcast in the terms that matter.
