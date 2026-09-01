@@ -72,11 +72,17 @@ Unzip `meshbench-*-windows-x86_64.zip` anywhere and run `meshbench.exe`.
 Windows SmartScreen will warn about an unrecognised publisher for the same
 reason macOS does — the binary is unsigned. Click **More info → Run anyway**.
 
-**Emulated boards do not work on Windows.** The radio model reaches QEMU over a
-Unix socket and the TCP path Renode uses has never been wired for it, so a
-board cannot come up whatever is in the zip. Native nodes, the channel, the
-studies and everything else do work. Help > Setup says the same thing on the
-machine itself rather than leaving it to be found here.
+**Emulated boards on Windows come out of the zip, not out of a fetch.** The zip
+carries the emulators and the radio model, and a node there reaches the radio
+model over TCP rather than over a Unix socket, so a board can come up. What
+Help > Setup cannot do on Windows is download a missing one: it reads ELF and
+Mach-O headers rather than PE, opens tars rather than zips, and installs by
+symlink. If you replace one, put it beside `meshbench.exe` or point
+`MESHBENCH_QEMU`, `MESHBENCH_RENODE` or `MESHBENCH_RADIO_SERVER` at it.
+
+Emulated boards on Windows are also newer than the rest of the bundle and have
+had less time on real hardware than the Linux and macOS ones. Native nodes, the
+channel and the studies are unaffected.
 
 ### First run: what is missing, and what it costs
 

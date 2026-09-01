@@ -14,6 +14,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/ulikunitz/xz"
 )
 
 // A fetch is a download plus three refusals, and the refusals are the part
@@ -100,6 +102,32 @@ func gzipped(t *testing.T, raw []byte) []byte {
 	var out bytes.Buffer
 	zw := gzip.NewWriter(&out)
 	if _, err := zw.Write(raw); err != nil {
+		t.Fatal(err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return out.Bytes()
+}
+
+// tarXZBytes is the same archive under the compressor the QEMU fork publishes.
+func tarXZBytes(t *testing.T, files map[string][]byte) []byte {
+	t.Helper()
+	var raw bytes.Buffer
+	tw := tar.NewWriter(&raw)
+	for name, body := range files {
+		writeHdr(t, tw, &tar.Header{Name: name, Mode: 0o755,
+			Size: int64(len(body)), Typeflag: tar.TypeReg}, body)
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	zw, err := xz.NewWriter(&out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := zw.Write(raw.Bytes()); err != nil {
 		t.Fatal(err)
 	}
 	if err := zw.Close(); err != nil {
@@ -196,6 +224,36 @@ func TestFetchingAnArchiveKeepsItsLayoutAndLinksTheBinary(t *testing.T) {
 	// images.
 	if fi, err := os.Lstat(link); err != nil || fi.Mode()&os.ModeSymlink == 0 {
 		t.Error("the binary was copied rather than linked into place")
+	}
+}
+
+// The same, over xz. Every QEMU asset the fork publishes is a .tar.xz, and a
+// compressor the fetcher cannot open is a refusal that reads as a broken
+// release: "not an archive this knows how to open" says nothing about which
+// half is wrong.
+func TestAnXZArchiveUnpacksLikeAGzippedOne(t *testing.T) {
+	dir := t.TempDir()
+	body := tarXZBytes(t, map[string][]byte{
+		"qemu/bin/qemu-system-xtensa": fakeExec(elfAMD64, 2048),
+		"qemu/share/qemu/esp32-rom.bin": []byte(
+			"the ROM the emulator finds beside itself"),
+	})
+	rel := toolRelease{
+		Name: "qemu-system-xtensa", Version: "test", Why: "w", Terms: "t",
+		Assets: map[string]toolAsset{platform(): {
+			URL: "https://example.invalid/q.tar.xz", SHA256: digest(body),
+			Bytes: int64(len(body)), Kind: tarXZ, Magic: elfAMD64,
+			Root: "qemu", Binary: "qemu/bin/qemu-system-xtensa",
+		}},
+	}
+	if _, err := fetchOne(t, dir, rel, body); err != nil {
+		t.Fatalf("fetch: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "qemu/share/qemu/esp32-rom.bin")); err != nil {
+		t.Errorf("the archive's layout was not kept: %v", err)
+	}
+	if !fileExists(filepath.Join(dir, "qemu-system-xtensa")) {
+		t.Error("nothing landed under the name the lookup asks for")
 	}
 }
 

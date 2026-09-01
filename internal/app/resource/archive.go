@@ -10,6 +10,8 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/ulikunitz/xz"
 )
 
 // Unpacking the emulator archives.
@@ -33,15 +35,28 @@ func extractTar(src, dir string, k archiveKind) error {
 		return err
 	}
 	defer func() { _ = f.Close() }()
-	if k != tarGzip {
+	switch k {
+	case tarGzip:
+		zr, err := gzip.NewReader(f)
+		if err != nil {
+			return fmt.Errorf("resource: %s will not open as gzip: %w", src, err)
+		}
+		defer func() { _ = zr.Close() }()
+		return writeTar(tar.NewReader(zr), dir)
+	case tarXZ:
+		// xz rather than gzip because that is what the QEMU fork's
+		// cross-compiled matrix publishes, and the standard library has no
+		// decompressor for it. Shelling out to tar was the alternative, and it
+		// is not one: this has to work on a Windows machine that has no tar,
+		// from a desktop application that inherits no PATH.
+		zr, err := xz.NewReader(f)
+		if err != nil {
+			return fmt.Errorf("resource: %s will not open as xz: %w", src, err)
+		}
+		return writeTar(tar.NewReader(zr), dir)
+	default:
 		return fmt.Errorf("resource: %s is not an archive this knows how to open", src)
 	}
-	zr, err := gzip.NewReader(f)
-	if err != nil {
-		return fmt.Errorf("resource: %s will not open as gzip: %w", src, err)
-	}
-	defer func() { _ = zr.Close() }()
-	return writeTar(tar.NewReader(zr), dir)
 }
 
 func writeTar(tr *tar.Reader, dir string) error {

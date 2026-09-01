@@ -6,6 +6,7 @@ require (
 	gioui.org v0.10.2
 	github.com/cogentcore/webgpu v0.23.0
 	github.com/ncruces/zenity v0.10.15
+	github.com/ulikunitz/xz v0.5.16
 	golang.org/x/image v0.45.0
 	golang.org/x/sys v0.47.0
 	golang.org/x/text v0.41.0

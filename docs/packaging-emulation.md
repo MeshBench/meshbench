@@ -36,7 +36,7 @@ Four things have to be present. Only two can be shipped.
 
 | piece | source | ship it? | size |
 |---|---|---|---|
-| QEMU with our SX1262 | `MeshBench/qemu`, branch `meshbench-sx1262` | yes | ~69 MB |
+| QEMU with our SX1262 | `MeshBench/qemu`, branch `meshbench-main` | yes | ~17 MB packed, ~79 MB unpacked |
 | `radioserver` | `MeshBench/meshcore-native`, `bridge/radioserver.cpp` | yes | ~40 KB |
 | Renode with our SEVONPEND fix | `MeshBench/renode`, branch `meshbench` | yes | ~60 MB packed |
 | Nordic SoftDevice | Nordic's own site, fetched at runtime | **no — fetched, not bundled** | 155 KB |
@@ -76,9 +76,12 @@ ever, and the first time they drifted every comparison between an emulated node
 and a native one would measure our code rather than MeshCore's.
 
 Builds against `VirtualSX1262.cpp` from `meshcore-native`, no dependencies
-beyond a C++17 compiler. It takes a Unix socket path, or `:port` for TCP —
-QEMU uses the socket, Renode uses TCP because Mono's Unix socket support is not
-worth betting a node on.
+beyond a C++17 compiler. It takes a Unix socket path, or `:port` for TCP, and
+so does the SX1262 device: it parses whichever it is handed. A Unix socket is
+the default where there is one, because it needs no port and cannot collide.
+Renode always takes TCP, because Mono's Unix socket support is not worth
+betting a node on, and so does QEMU on Windows, which has no Unix socket mingw
+can reach.
 
 ### Renode
 
@@ -197,12 +200,18 @@ mesh — usually one.
 
 ## Platform support
 
-Everything here has only been run on Linux. Before packaging:
+Everything here has been run on Linux, and the other two are shipped rather
+than proven:
 
-- **macOS** — QEMU builds, and the fork is not doing anything exotic; the
-  Espressif fork is built for macOS upstream. Untested by us.
-- **Windows** — untested. `radioserver` uses Unix sockets for the QEMU side and
-  would need the TCP path used throughout, which already exists for Renode.
+- **macOS**: the fork cross-compiles an aarch64 build and the bundle carries
+  it. Untested by us.
+- **Windows**: the fork cross-compiles a mingw build and the zip carries it,
+  with Renode's portable package and `radioserver.exe`. A node there asks for
+  `":0"` and reaches the radio model over TCP for both emulators, because
+  Windows has no Unix socket mingw can reach. Untested by us, and what does
+  *not* work is the runtime fetch: `internal/app/resource` reads ELF and Mach-O
+  headers rather than PE, opens tars rather than zips, and installs by symlink.
+- **arm64 Linux**: the fork builds it; nothing here has pinned or started it.
 - **Renode** is cross-platform but heavy everywhere.
 
 ## Board coverage is the real long tail

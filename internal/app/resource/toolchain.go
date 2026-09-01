@@ -33,6 +33,7 @@ type archiveKind string
 const (
 	plainFile archiveKind = ""
 	tarGzip   archiveKind = "tar.gz"
+	tarXZ     archiveKind = "tar.xz"
 )
 
 // toolAsset is one published build, for one platform.
