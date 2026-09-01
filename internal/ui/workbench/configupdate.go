@@ -50,6 +50,20 @@ func (p *configPanel) update(gtx layout.Context, s *state.Snapshot) {
 		p.keepAbove.Bool.Value = s.KeepAbove
 	}
 
+	// The one switch that decides whether the application may spend the
+	// operator's bandwidth. Same was/now shape as the GPU switch, so a
+	// permission granted from the socket is not fought by a control that
+	// thinks it was refused.
+	if p.terrainDL.Bool.Update(gtx) {
+		p.wasTerrainDL = p.terrainDL.Bool.Value
+		if p.do != nil {
+			p.do("terrain.allow", map[string]any{"on": p.terrainDL.Bool.Value})
+		}
+	} else if s.TerrainDownloads != p.wasTerrainDL {
+		p.wasTerrainDL = s.TerrainDownloads
+		p.terrainDL.Bool.Value = s.TerrainDownloads
+	}
+
 	numeric := []struct {
 		btn   *comp.Button
 		field *comp.Field

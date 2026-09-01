@@ -162,6 +162,21 @@
         "board"
       ]
     },
+    "job.list": {
+      "what": "list the long operations in flight, with what each one is and how far it has got",
+      "params": [
+        {
+          "name": "all",
+          "type": "bool",
+          "primary": true,
+          "what": "include jobs that have already finished"
+        }
+      ],
+      "returns": [
+        "jobs",
+        "running"
+      ]
+    },
     "map.centre": {
       "what": "Point the map at a node, or at a latitude and longitude.",
       "params": [
@@ -509,6 +524,22 @@
         "now_ms",
         "target_ms",
         "replaying"
+      ]
+    },
+    "terrain.allow": {
+      "what": "allow or refuse terrain downloads on this machine, and remember it",
+      "params": [
+        {
+          "name": "on",
+          "type": "bool",
+          "primary": true,
+          "what": "true to download terrain when a study needs it, false to use only what is cached"
+        }
+      ],
+      "returns": [
+        "on",
+        "asked",
+        "warming"
       ]
     },
     "ui.keep_above": {

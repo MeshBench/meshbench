@@ -355,6 +355,14 @@ func (p *configPanel) eventsCards(t *theme.Theme, s *state.Snapshot) []layout.Wi
 
 func (p *configPanel) system(t *theme.Theme, s *state.Snapshot) []layout.Widget {
 	return []layout.Widget{
+		comp.Card(t, "Terrain downloads", func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return p.terrainDL.LayoutSwitch(t, gtx)
+				}),
+				layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint, terrainDLNote(s))),
+			)
+		}),
 		comp.Card(t, "Tile cache size", p.fieldRow(t, &p.cacheGBf, &p.setCache,
 			fmt.Sprintf("decoded terrain tiles held in memory - now %.3g GB; a cache "+
 				"smaller than the study area re-reads tiles from disk constantly",
@@ -376,4 +384,21 @@ func (p *configPanel) system(t *theme.Theme, s *state.Snapshot) []layout.Widget 
 				"restart, in ~/.config/meshbench/workbench2.json; the scenario "+
 				"itself deliberately stays in the fixture")),
 	}
+}
+
+// terrainDLNote says what the switch costs either way.
+//
+// Both halves matter. Off, links are measured over whatever ground is already
+// cached, and over ground that is not there the model falls back to free
+// space, which is the most optimistic answer there is. On, a national network
+// is several hundred megabytes the first time it is opened.
+func terrainDLNote(s *state.Snapshot) string {
+	if s != nil && s.TerrainDownloads {
+		return "height data is fetched as a study needs it, a few tens of " +
+			"kilobytes per tile; a country's worth of links is several hundred " +
+			"megabytes the first time, then cached for ever"
+	}
+	return "nothing is downloaded: links are measured on the ground already " +
+		"cached, and where there is none the answer falls back to free space, " +
+		"which flatters every link that a hill would have blocked"
 }

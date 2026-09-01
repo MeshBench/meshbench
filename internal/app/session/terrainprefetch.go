@@ -73,6 +73,30 @@ func profileTiles(nodes []scenario.Node, zoom int) [][2]int {
 	return out
 }
 
+// terrainWords is what a terrain download calls itself while it runs.
+//
+// It names the network as the thing taking the time and prices it in the unit
+// the operator is charged in. The line used to say "measuring every link"
+// throughout, because the measurement's job was the one on screen and the
+// download's was not, so the first minutes of a fresh install were spent
+// watching a percentage crawl near zero with no mention anywhere that half a
+// gigabyte was arriving. The total is "about" because it is an average tile
+// size times a count; the megabytes already spent are measured.
+func terrainWords(got, rough int64) string {
+	const mb = 1 << 20
+	if rough <= 0 {
+		return fmt.Sprintf("fetching terrain, %d MB so far", got/mb)
+	}
+	// An estimate this download has already passed is an estimate, not a
+	// total, and printing "390 MB of about 365 MB" reads as a fault in the
+	// arithmetic rather than as the approximation it was always labelled.
+	if got > rough {
+		return fmt.Sprintf("fetching terrain, %d MB so far, past the %d MB estimated",
+			got/mb, rough/mb)
+	}
+	return fmt.Sprintf("fetching terrain, %d MB of about %d MB", got/mb, rough/mb)
+}
+
 func registerTerrainPrefetch(st *state.Store, s *Sim) {
 	st.Handle("terrain.prefetch", func(w *state.World, _ any) (any, error) {
 		if len(w.Nodes) == 0 {
@@ -81,6 +105,13 @@ func registerTerrainPrefetch(st *state.Store, s *Sim) {
 		ts, ok := s.terrain().(*terrain.TileStore)
 		if !ok || ts == nil {
 			return nil, fmt.Errorf("no tile store on this machine")
+		}
+		// One gate, named where it is: a prefetch that silently granted its
+		// own permission would be the way around the only question the
+		// application asks before spending somebody's bandwidth.
+		if ts.Offline {
+			return nil, fmt.Errorf(
+				"terrain downloads are off on this machine; terrain.allow turns them on")
 		}
 		south, north := math.Inf(1), math.Inf(-1)
 		west, east := math.Inf(1), math.Inf(-1)
@@ -115,12 +146,13 @@ func registerTerrainPrefetch(st *state.Store, s *Sim) {
 			defer s.prefetching.Store(false)
 			defer stop()
 			_, _ = st.Do(ctx, "job.progress", state.Job{
-				ID: "tiles", What: "fetching terrain tiles",
+				ID: "tiles", What: terrainWords(0, est.BytesRough),
 				Total: est.ToFetch, Cancel: stop})
+			start := ts.FetchedBytes()
 			ts.OnProgress = func(done, total int) {
 				if done == 1 || done%16 == 0 || done == total {
 					_, _ = st.Do(ctx, "job.progress", state.Job{
-						ID: "tiles", What: "fetching terrain tiles",
+						ID: "tiles", What: terrainWords(ts.FetchedBytes()-start, est.BytesRough),
 						Done: done, Total: total})
 				}
 			}
@@ -181,27 +213,54 @@ func (s *Sim) prefetchWarmTerrain(ctx context.Context, st *state.Store, nodes []
 	// with what is being decided and re-opens with the real count the moment
 	// PrefetchTiles has one.
 	what := "checking the ground under every link"
-	_, _ = st.Do(ctx, "job.progress", state.Job{ID: "tiles", What: what, Total: 1})
+	// Stoppable, unlike before. This is the longest thing a launch starts on
+	// its own, and a download somebody wants to get out of should not need the
+	// window closing to do it. Stopping leaves the warm running on whatever
+	// has already landed.
+	fetchCtx, stop := context.WithCancel(ctx)
+	defer stop()
+	_, _ = st.Do(ctx, "job.progress", state.Job{
+		ID: "tiles", What: what, Total: 1, Cancel: stop})
+	// Megabytes as well as tiles, and measured ones: the words used to name
+	// only the tile count, so the line that owned the first minutes of a fresh
+	// install never once said how much of somebody's connection it was
+	// spending. The tiles stay as the numerator because that percentage is
+	// exact, where the total in bytes can only ever be an average times a
+	// count. Reported per sixteen tiles, which is a whole percent of a
+	// country's worth.
+	rough := ts.EstimateTiles(tiles).BytesRough
+	// Cumulative over the store's whole life, so this warm's share is the
+	// difference. Without the baseline a second region opened in one session
+	// began its download reporting the first one's megabytes.
+	start := ts.FetchedBytes()
 	ts.OnProgress = func(done, total int) {
 		if total == 0 {
 			return
 		}
 		if done == 0 || done == 1 || done%16 == 0 || done == total {
 			_, _ = st.Do(ctx, "job.progress", state.Job{
-				ID: "tiles", What: fmt.Sprintf("fetching %d terrain tiles", total),
+				ID: "tiles", What: terrainWords(ts.FetchedBytes()-start, rough),
 				Done: done, Total: total})
 		}
 	}
-	err := ts.PrefetchTiles(ctx, tiles)
+	err := ts.PrefetchTiles(fetchCtx, tiles)
 	ts.OnProgress = nil
 	done, release := finishing(ctx)
 	defer release()
 	_, _ = st.Do(done, "job.done", "tiles")
-	if err != nil && ctx.Err() == nil {
-		// Reported, then out of the way: the walk's own lazy fetch and its
-		// honest no-data misses take over from here.
-		_, _ = st.Do(done, "ui.said",
-			"the terrain fetch stopped: "+err.Error()+
-				" - the walk will fetch what it can as it goes")
+	if err == nil || ctx.Err() != nil {
+		return
 	}
+	if fetchCtx.Err() != nil {
+		// A stop is not a failure, and saying so as one would teach an
+		// operator to distrust the button they just pressed.
+		_, _ = st.Do(done, "ui.said",
+			"the terrain fetch was stopped; what had already arrived is cached")
+		return
+	}
+	// Reported, then out of the way: the walk's own lazy fetch and its
+	// honest no-data misses take over from here.
+	_, _ = st.Do(done, "ui.said",
+		"the terrain fetch stopped: "+err.Error()+
+			" - the walk will fetch what it can as it goes")
 }

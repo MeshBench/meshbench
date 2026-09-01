@@ -41,7 +41,12 @@ func registerTileCache(st *state.Store, s *Sim) {
 			}
 		}
 		w.TileCacheDir = s.tileCacheDir()
-		return map[string]any{"gb": w.TileCacheGB, "dir": w.TileCacheDir}, nil
+		// Published here because this is the verb the interface asks at
+		// startup, and the download switch has to be able to draw its own
+		// position on the first frame rather than after somebody touches it.
+		w.TerrainDownloads = s.terrainAllowed()
+		return map[string]any{"gb": w.TileCacheGB, "dir": w.TileCacheDir,
+			"downloads": w.TerrainDownloads}, nil
 	})
 
 	// terrain.cache_dir moves the cache. Gigabytes of tiles, so it runs as a

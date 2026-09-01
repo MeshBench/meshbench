@@ -285,17 +285,10 @@ func popStatus(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dim
 	msg := ""
 	if s != nil {
 		msg = s.Status
-		for i := range s.Jobs {
-			if !s.Jobs[i].Finished {
-				j := &s.Jobs[i]
-				if j.Total > 0 {
-					msg = fmt.Sprintf("%s - %d%% (%d of %d)",
-						j.What, j.Done*100/j.Total, j.Done, j.Total)
-				} else {
-					msg = j.What
-				}
-				break
-			}
+		// The same line the main window shows, from the same function: two
+		// copies of this had already drifted into showing different jobs.
+		if line := shell.JobWords(s.Jobs); line != "" {
+			msg = line
 		}
 	}
 	return layout.Inset{Left: t.Sp.M, Right: t.Sp.M, Top: t.Sp.XS, Bottom: t.Sp.XS}.

@@ -330,6 +330,7 @@ func (s *Store) publish() {
 		GPU:                s.world.GPU,
 		TileCacheGB:        s.world.TileCacheGB,
 		TileCacheDir:       s.world.TileCacheDir,
+		TerrainDownloads:   s.world.TerrainDownloads,
 		Experiment:         s.world.Experiment,
 		ExperimentWarning:  s.world.ExperimentWarning,
 		ExperimentRuns:     s.world.ExperimentRuns,
@@ -376,7 +377,7 @@ func (s *Store) announce() {
 	s.notify("snapshot", map[string]any{
 		"seq": s.seq, "now_ms": s.world.NowMs, "playing": s.world.Playing,
 		"run_until_ms": s.world.RunUntilMs, "nodes": len(s.world.Nodes),
-		"jobs": len(s.world.Jobs),
+		"jobs": s.world.JobsRunning(),
 	})
 }
 

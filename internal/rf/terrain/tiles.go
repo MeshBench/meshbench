@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 )
 
 // Terrarium tiles: elevation encoded in RGB, from the AWS elevation-tiles-prod
@@ -75,6 +76,13 @@ type TileStore struct {
 	// inflight prevents the same tile being fetched by several goroutines,
 	// which on a raster computation is the normal case rather than a rare one.
 	inflight map[string]*sync.WaitGroup
+
+	// fetched counts the bytes that have actually crossed the network, as
+	// opposed to the tiles that have. A tile count is a fine percentage and a
+	// poor answer to the only question somebody on a hotspot is asking, which
+	// is how much of their allowance this has spent. Atomic because the
+	// fetchers run eight at a time.
+	fetched atomic.Int64
 }
 
 type tile struct {
@@ -152,7 +160,35 @@ func (s *TileStore) Estimate(south, north, west, east float64) Estimate {
 		}
 	}
 	e.ToFetch = e.Tiles - e.Cached
-	const roughBytesPerTile = 60 << 10
+	e.BytesRough = int64(e.ToFetch) * roughBytesPerTile
+	return e
+}
+
+// roughBytesPerTile is the average terrarium tile, near enough to price a
+// download before it happens and never near enough to report as a measurement.
+//
+// Measured rather than remembered, and it errs high on purpose. The figure
+// here was 60 kB, which quoted 365 MB for the ground under the Scotland and
+// Ireland network; 6,233 tiles later that cache held 525 MB, an average of
+// 82 kB. A quote somebody decides on has to be wrong in the direction that
+// costs them nothing: an estimate that flatters is how a metered connection
+// agrees to half again as much as it was told.
+const roughBytesPerTile = 82 << 10
+
+// EstimateTiles prices an explicit tile list, the shape PrefetchTiles takes.
+//
+// The list form exists for the same reason PrefetchTiles does: the tiles under
+// a network's links are a fraction of the box around it, so pricing the box
+// quotes a figure several times the real one and would have somebody decline a
+// download they could easily afford.
+func (s *TileStore) EstimateTiles(tiles [][2]int) Estimate {
+	e := Estimate{Tiles: len(tiles)}
+	for _, t := range tiles {
+		if _, err := os.Stat(s.path(t[0], t[1])); err == nil {
+			e.Cached++
+		}
+	}
+	e.ToFetch = e.Tiles - e.Cached
 	e.BytesRough = int64(e.ToFetch) * roughBytesPerTile
 	return e
 }
@@ -357,6 +393,9 @@ func (s *TileStore) load(ctx context.Context, x, y int) (*tile, error) {
 	if err != nil {
 		return nil, fmt.Errorf("terrain: read %s: %w", url, err)
 	}
+	// Counted here rather than after the decode: the bytes were spent whether
+	// or not what arrived turns out to be a tile.
+	s.fetched.Add(int64(len(body)))
 
 	t, err := decodeTerrarium(body)
 	if err != nil {
@@ -457,3 +496,10 @@ func (s *TileStore) LoadedTiles() int {
 	defer s.mu.RUnlock()
 	return len(s.loaded)
 }
+
+// FetchedBytes is how much has crossed the network since this store was made.
+//
+// Measured, not estimated: Estimate multiplies a tile count by an average, and
+// the number an operator is owed while a download is running is the one their
+// connection has actually carried.
+func (s *TileStore) FetchedBytes() int64 { return s.fetched.Load() }

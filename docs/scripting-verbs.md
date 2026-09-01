@@ -1,8 +1,8 @@
 # Every verb, and the call that covers it
 
 The wire underneath [scripting-api.md](scripting-api.md). The store registers
-**206**<!--verbdoc:public--> public verbs a script can call and
-**35**<!--verbdoc:internal--> internal callbacks it cannot, **241**<!--verbdoc:total-->
+**208**<!--verbdoc:public--> public verbs a script can call and
+**35**<!--verbdoc:internal--> internal callbacks it cannot, **243**<!--verbdoc:total-->
 in total, plus the two the socket answers itself, with what each reads, what
 each returns, and which façade call reaches it.
 
@@ -72,8 +72,8 @@ Two verbs are **not** in this table:
 
 ## What this table shows about the surface
 
-- **206**<!--verbdoc:public--> public verbs, plus **35**<!--verbdoc:internal-->
-  the workbench keeps to itself, **241**<!--verbdoc:total--> registered in
+- **208**<!--verbdoc:public--> public verbs, plus **35**<!--verbdoc:internal-->
+  the workbench keeps to itself, **243**<!--verbdoc:total--> registered in
   total. The façade covers the public verbs, over roughly 60 calls once
   objects and properties absorb them.
 - **The naming is not regular.** `node.*` and `nodes.*` are both node verbs and
@@ -384,6 +384,7 @@ Two verbs are **not** in this table:
 | `gpu.state` | — | — | `wb.gpu` |
 | `job.cancel` | *a bare string*, `id` string | `stopping` | `wb.jobs[id].cancel()` |
 | `job.done` | *a bare string* | — | *none* — a worker retiring its own progress row |
+| `job.list` | *a bare string*, `all` bool | `jobs`, `running` | `wb.jobs()` |
 | `job.progress` | — | — | *none* — a worker reporting progress; read wb.jobs instead |
 | `resource.fetch` | `name` string, `version` string, `kind` string | `fetching`, `version` | `wb.resources.fetch(kind, name, version)` |
 | `resource.fetched` | `name` string, `version` string | `name` | *none* — the downloader reporting it finished |
@@ -391,7 +392,8 @@ Two verbs are **not** in this table:
 | `resource.licence.hide` | — | `hidden` | *none* — closing a box only a window has |
 | `resource.list` | — | `rows` | `wb.resources` |
 | `resource.remove` | `name` string, `version` string, `kind` string | `removed` | `wb.resources.remove(kind, name, version)` |
-| `terrain.cache` | `gb` number | `gb`, `dir` | `wb.terrain.cache_gb = n` |
+| `terrain.allow` | *a bare string*, `on` bool | `on`, `asked`, `warming` | `wb.terrain.allow(on=True)` |
+| `terrain.cache` | `gb` number | `gb`, `dir`, `downloads` | `wb.terrain.cache_gb = n` |
 | `terrain.cache_dir` | *a bare string*, `path` string | `dir`, `moving`, `to` | `wb.terrain.cache_dir = path` |
 | `terrain.cache_moved` | `files` number, `dir` string | `dir` | *none* — the cache mover reporting it finished |
 | `terrain.prefetch` | — | `tiles`, `to_fetch`, `bytes_rough` | `wb.terrain.prefetch()` |

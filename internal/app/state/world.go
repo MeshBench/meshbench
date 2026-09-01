@@ -108,6 +108,12 @@ type World struct {
 	// TileCacheDir is where they live on disk.
 	TileCacheGB  float64
 	TileCacheDir string
+	// TerrainDownloads is whether the application may spend this machine's
+	// bandwidth on terrain without asking. Here as well as in the settings
+	// file because the switch that grants it has to be able to draw its own
+	// position, and because a study held up waiting for it is a state the
+	// interface has to be able to explain.
+	TerrainDownloads bool
 	// Builds is the firmware library on this machine.
 	Builds []Build
 	// Experiment is the A/B matrix's summary, and ExperimentWarning is why it
@@ -224,4 +230,21 @@ type Job struct {
 	// apart used to be reading the What line - which means matching on prose,
 	// and breaks the moment somebody improves the wording.
 	Failed bool
+}
+
+// JobsRunning is how many jobs are still in flight.
+//
+// A finished job is deliberately left in the list by some of the things that
+// end one, so a caller polling at the wrong moment still learns how what it
+// was waiting for turned out. That makes len(Jobs) the wrong answer to "is
+// anything happening": it stayed at two for the rest of a session after a
+// download that had already landed on disk.
+func (w *World) JobsRunning() int {
+	n := 0
+	for i := range w.Jobs {
+		if !w.Jobs[i].Finished {
+			n++
+		}
+	}
+	return n
 }
