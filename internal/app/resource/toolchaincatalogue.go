@@ -13,6 +13,13 @@ package resource
 
 // Where each tool's release lives, spelled once so a bump moves one line
 // rather than four.
+//
+// Every one of these names a tag and never "latest". The rule a pin is held
+// to, and who moves it, is written down once in packaging/emulator-pins.env,
+// which the release pipeline fetches by and which the tests beside this file
+// check these URLs against: what CI puts in a bundle and what a first run
+// downloads have to be the same build, or a bug reproduces on one machine and
+// not the other.
 const (
 	qemuBase   = "https://github.com/MeshBench/qemu/releases/download/meshbench-20260901-6b3a41a/"
 	renodeBase = "https://github.com/MeshBench/renode/releases/download/meshbench-20260814-339f4df/"
