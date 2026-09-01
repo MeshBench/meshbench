@@ -238,9 +238,18 @@ const (
 	ClassHalfDuplex Class = "half-duplex"
 	// ClassInterference is would have decoded, but a stronger signal took it.
 	ClassInterference Class = "interference"
+	// ClassCollision is decoded its header, then a collision destroyed more
+	// symbols than the coding rate could repair.
+	ClassCollision Class = "collision"
+	// ClassReceiverBusy is arrived at a demodulator already locked to another
+	// packet; a LoRa receiver decodes one at a time.
+	ClassReceiverBusy Class = "receiver-busy"
 	// ClassFloor is too quiet: under the demodulator's threshold for its
 	// spreading factor.
 	ClassFloor Class = "floor"
+	// ClassUnclassified is a miss whose cause the engine did not establish;
+	// never assume it was a weak signal.
+	ClassUnclassified Class = "unclassified"
 )
 
 // Classs is every one, for a caller offering a choice.
@@ -249,7 +258,10 @@ var Classs = []Class{
 	ClassReceived,
 	ClassHalfDuplex,
 	ClassInterference,
+	ClassCollision,
+	ClassReceiverBusy,
 	ClassFloor,
+	ClassUnclassified,
 }
 
 // Tab is a pane of a node's own window.

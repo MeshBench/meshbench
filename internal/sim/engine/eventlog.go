@@ -34,6 +34,9 @@ type eventLine struct {
 	Outcome   string  `json:"outcome,omitempty"`
 	SNRdB     float64 `json:"snr_db,omitempty"`
 	Detail    string  `json:"detail,omitempty"`
+	// Class is the cause, so a log can be grouped by it without matching on
+	// the detail sentence - which is the mistake the classifier itself made.
+	Class string `json:"class"`
 }
 
 // StartEventLog begins writing NDJSON to path, replacing anything there.
@@ -88,6 +91,7 @@ func (l *eventLog) write(ev Event) {
 		TMs: ev.AtMs, Kind: ev.Kind, From: ev.From, To: ev.To,
 		PacketID: ev.PacketID, MessageID: ev.MessageID,
 		Outcome: string(ev.Outcome), SNRdB: ev.SNRdB, Detail: ev.Detail,
+		Class: string(EventClass(ev)),
 	}
 	if err := l.enc.Encode(line); err != nil {
 		// A log that cannot be written is closed rather than retried per

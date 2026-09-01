@@ -156,6 +156,14 @@ type PacketHop struct {
 	// packet and a journey covers every transmission of the message - the
 	// join by node and time silently missed almost all of them, and every
 	// failed hop was drawn as "other".
-	MissWhy  []string
-	PacketID uint64
+	MissWhy []string
+	// MissClass is the cause the engine established for each entry in
+	// MissedBy, in the same order: the class, not the sentence.
+	//
+	// The picture used to read the words, which meant it recognised the three
+	// wordings somebody had thought to match and drew every other cause as
+	// "other". The class is what the engine actually decided, so a reworded
+	// message cannot change what the drawing says happened.
+	MissClass []string
+	PacketID  uint64
 }

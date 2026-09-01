@@ -255,8 +255,23 @@ class Class(_Set):
     INTERFERENCE = "interference"
     """would have decoded, but a stronger signal took it"""
 
+    COLLISION = "collision"
+    """decoded its header, then a collision destroyed more symbols than the coding rate
+    could repair
+    """
+
+    RECEIVER_BUSY = "receiver-busy"
+    """arrived at a demodulator already locked to another packet; a LoRa receiver
+    decodes one at a time
+    """
+
     FLOOR = "floor"
     """too quiet: under the demodulator's threshold for its spreading factor"""
+
+    UNCLASSIFIED = "unclassified"
+    """a miss whose cause the engine did not establish; never assume it was a weak
+    signal
+    """
 
 
 class Tab(_Set):

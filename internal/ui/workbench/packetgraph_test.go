@@ -271,20 +271,33 @@ func TestAHopLimitSaysWhatItLeftOut(t *testing.T) {
 	}
 }
 
-// Why a hop failed is what an operator acts on, so it is read from the engine's
-// own words rather than re-derived.
+// Why a hop failed is what an operator acts on, so it is drawn as the cause
+// the engine established rather than re-derived from its wording.
 func TestAMissCarriesTheEnginesOwnReason(t *testing.T) {
 	for _, c := range []struct {
-		what string
-		want missKind
+		class string
+		want  missKind
 	}{
-		{"SNR -7.2 dB against -10.0 dB needed at SF8", missWeak},
-		{"would have decoded at 3.1 dB, lost to a stronger interferer", missCollided},
-		{"its own transmitter was keyed; LoRa is half duplex", missDeaf},
-		{"something nobody has written yet", missOther},
+		{"floor", missWeak},
+		{"interference", missCollided},
+		{"collision", missCollided},
+		{"receiver-busy", missBusy},
+		{"half-duplex", missDeaf},
+		{"unclassified", missOther},
+		{"", missOther},
 	} {
-		if got := classifyMiss(c.what); got != c.want {
-			t.Errorf("classifyMiss(%q) = %v, want %v", c.what, got, c.want)
+		if got := missKindOf(c.class); got != c.want {
+			t.Errorf("missKindOf(%q) = %v, want %v", c.class, got, c.want)
+		}
+	}
+}
+
+// A cause the engine did name is never drawn as a weak link: the picture and
+// the events panel have to agree about what an operator should go and fix.
+func TestACollisionIsNotDrawnAsAWeakSignal(t *testing.T) {
+	for _, class := range []string{"collision", "receiver-busy", "unclassified"} {
+		if got := missKindOf(class); got == missWeak {
+			t.Errorf("missKindOf(%q) drew a %q miss as too weak", class, class)
 		}
 	}
 }
@@ -295,6 +308,7 @@ func TestFilteringAReasonKeepsTheTally(t *testing.T) {
 		"SNR -9 dB against -10 dB needed at SF8",
 		"lost to a stronger interferer",
 	}
+	h.MissClass = []string{"floor", "interference"}
 	show := map[missKind]bool{missNone: true, missWeak: false, missCollided: true, missOther: true, missDeaf: true}
 	g := buildHopGraph(pkt("orig", []state.PacketHop{h}), 0, show)
 
@@ -322,6 +336,7 @@ func TestEveryFailedHopOfALongFloodKeepsItsReason(t *testing.T) {
 		h := hopAt(fmt.Sprintf("r%d", i), uint32(i*1000), i,
 			[]string{fmt.Sprintf("r%d", i+1)}, []string{fmt.Sprintf("m%d", i)})
 		h.MissWhy = []string{"SNR -9 dB against -10 dB needed at SF8"}
+		h.MissClass = []string{"floor"}
 		hops = append(hops, h)
 	}
 	g := buildHopGraph(pkt("r0", hops), 0, nil)
@@ -342,6 +357,7 @@ func TestEveryFailedHopOfALongFloodKeepsItsReason(t *testing.T) {
 func TestANodeAcceptedOnAnyHopDrawsItsAcceptedEdgeNotAnEarlierMiss(t *testing.T) {
 	missed := hopAt("relay1", 100, 1, nil, []string{"target"})
 	missed.MissWhy = []string{"its own transmitter was keyed; LoRa is half duplex"}
+	missed.MissClass = []string{"half-duplex"}
 	heard := hopAt("relay2", 200, 2, []string{"target"}, nil)
 	g := all("orig",
 		hopAt("orig", 0, 0, []string{"relay1", "relay2"}, nil),
@@ -373,6 +389,7 @@ func TestANodeAcceptedOnAnyHopDrawsItsAcceptedEdgeNotAnEarlierMiss(t *testing.T)
 func TestANodesLayerAgreesWithItsOneDrawnEdge(t *testing.T) {
 	origTx := hopAt("orig", 0, 0, []string{"relay1"}, []string{"target"})
 	origTx.MissWhy = []string{"its own transmitter was keyed; LoRa is half duplex"}
+	origTx.MissClass = []string{"half-duplex"}
 	relay1Tx := hopAt("relay1", 100, 1, []string{"relay2"}, nil)
 	relay2Tx := hopAt("relay2", 200, 2, []string{"target"}, nil)
 	g := all("orig", origTx, relay1Tx, relay2Tx)
@@ -396,8 +413,10 @@ func TestANodesLayerAgreesWithItsOneDrawnEdge(t *testing.T) {
 func TestANodeNeverAcceptedDrawsOneEdgeWithAReason(t *testing.T) {
 	first := hopAt("relay1", 100, 1, nil, []string{"target"})
 	first.MissWhy = []string{"its own transmitter was keyed; LoRa is half duplex"}
+	first.MissClass = []string{"half-duplex"}
 	second := hopAt("relay2", 200, 2, nil, []string{"target"})
 	second.MissWhy = []string{"would have decoded at 3.1 dB, lost to a stronger interferer"}
+	second.MissClass = []string{"interference"}
 	g := all("orig",
 		hopAt("orig", 0, 0, []string{"relay1", "relay2"}, nil),
 		first,
