@@ -158,6 +158,8 @@ tools/              what builds, generates and drives it, none of it shipped
                       that defines them
   verbdoc/            docs/scripting-verbs.md and the verb counts in the prose,
                       regenerated from the verbs the tree registers
+  flagdoc/            docs/cli-reference.md, built from the binary's own help,
+                      plus the authored note of what each flag is for
   licgen/             the licence inventory the workbench embeds
   envgen/             building footprints into environment tiles
   mockup/             the UX wireframes in docs/ux, rendered

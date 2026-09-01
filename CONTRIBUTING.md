@@ -30,6 +30,7 @@ go test ./...
 tools/lint-ratchet.sh   # the baseline of known findings, which may only shrink
 tools/file-length.sh    # the 500-line hard limit, and the soft-limit trend
 tools/verbdoc/verbdoc.py --check   # the scripting tables, and the counts above them
+tools/flagdoc/flagdoc.py --check   # the CLI reference, built from the binary's own help
 tools/fixture-check.sh  # every shipped fixture, against its own assertions
 ```
 

@@ -24,33 +24,6 @@ import (
 	"github.com/MeshBench/meshbench/internal/rf/terrain"
 )
 
-type command struct {
-	name    string
-	summary string
-	run     func(ctx context.Context, args []string) error
-}
-
-func commands() []command {
-	return []command{
-		{"link", "link budget between two points, both directions", runLink},
-		{"profile", "terrain profile and the worst obstruction on a path", runProfile},
-		{"coverage", "coverage raster from one station, written as a PNG", runCoverage},
-		{"spectrum", "what an SDR observer captures: waterfall PNG and audio", runSpectrum},
-		{"terrain", "download elevation tiles for an area", runTerrain},
-		{"boards", "the hardware profiles this build knows about", runBoards},
-		{"firmware", "list, download or import MeshCore firmware", runFirmware},
-		{"energy", "will a solar node survive the winter", runEnergy},
-		{"airtime", "LoRa time on air, as the firmware computes it", runAirtime},
-		{"traffic", "flood a message through a network and report what happened", runTraffic},
-		{"basemap", "download map tiles for an area", runBasemap},
-		{"dev", "build a MeshCore checkout and give it to the workbench", runDev},
-		{"serve", "run a mesh and expose a companion to your app", runServe},
-		{"test", "run a fixture on real firmware and check its assertions", runTest},
-		{"headless", "run the verbs over the control socket, with no window", runHeadless},
-		{"workbench", "open the desktop workbench: build a scenario on a map and run it", runWorkbench},
-	}
-}
-
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
