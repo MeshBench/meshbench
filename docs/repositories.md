@@ -29,8 +29,8 @@ A fork nobody outside the organisation can fetch cannot satisfy that.
 Two more in the organisation are **private**, and nothing a release ships is
 built from either, which is why they are not in the table above: `brand`, where
 the identity is generated (`tools/icon.sh` explains why the result is committed
-here rather than fetched), and `meshbench-agent-skills`, the agent-skill
-mirror `tools/skillmirror` writes.
+here rather than fetched), and `agent-skills`, the agent-skill mirror
+`tools/skillmirror` writes, which is also a Claude Code plugin marketplace.
 
 Now that this repository is public, the link to that mirror in
 `.claude/skills/README.md` is a 404 to a reader outside the organisation.
