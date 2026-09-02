@@ -56,12 +56,20 @@ func (np *nodesPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 		np.built = true
 	}
 	if s != nil && (!np.rowsSet || s.Seq != np.seq) {
+		// The count comes from the stats, which is the only place it is
+		// measured. This column used to read a field on the node that nothing
+		// ever wrote, so every row said nought however busy the mesh was, and
+		// there was no way to tell that from a node which had heard nothing.
+		heard := make(map[string]int, len(s.Stats))
+		for _, st := range s.Stats {
+			heard[st.Name] = st.Heard
+		}
 		rows := make([]comp.Row, 0, len(s.Nodes))
 		for i := range s.Nodes {
 			n := &s.Nodes[i]
 			rows = append(rows, comp.Row{
 				Key:   n.Name,
-				Cells: []string{n.Name, shortKind(n.Kind), itoa(n.Heard)},
+				Cells: []string{n.Name, shortKind(n.Kind), itoa(heard[n.Name])},
 				Tint:  comp.Tint(t.NodeColour(kindOf(n.Kind))),
 			})
 		}

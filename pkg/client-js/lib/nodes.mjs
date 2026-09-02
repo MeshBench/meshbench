@@ -278,7 +278,7 @@ export class Node {
   /** Put it somewhere else. The physics moves with it: cached losses for this
    *  node are forgotten. */
   async move(lat, lon) {
-    await this._wb.call("nodes.move", { name: this.name, lat, lon });
+    await this._wb.call("nodes.move", { node: this.name, lat, lon });
   }
 
   /** What this node relays flood traffic for. */

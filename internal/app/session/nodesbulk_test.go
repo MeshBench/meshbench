@@ -167,3 +167,63 @@ func TestChangingWhatANodeIs(t *testing.T) {
 		t.Error("setting a board on a node that does not exist succeeded")
 	}
 }
+
+// A parameter shape nothing recognises is refused, not read as no names.
+//
+// Naming none is a documented answer here, and for nodes.keep that answer is
+// "empty the network". So the type switch's silent fallthrough was not a no-op
+// like the one on nodes.select_many: an object keyed `names` - which is how the
+// selection verbs key theirs, and the first thing anybody writes - matched
+// nothing, produced an empty set, deleted every node, and answered success.
+func TestBulkVerbsRefuseAShapeTheyDoNotRecognise(t *testing.T) {
+	for _, c := range []struct {
+		what   string
+		params any
+	}{
+		{"the selection verbs' key", map[string]any{"names": []any{"A"}}},
+		{"the singular key", map[string]any{"node": "A"}},
+		{"an empty object", map[string]any{}},
+		{"a bare number", 42},
+		{"a list with a number in it", map[string]any{"nodes": []any{"A", 7}}},
+	} {
+		st, ctx := bulkSession(t, "A", "B", "C")
+		if _, err := st.Do(ctx, "nodes.keep", c.params); err == nil {
+			t.Errorf("nodes.keep accepted %s (%v)", c.what, c.params)
+		}
+		// The network is still there. This is the assertion that matters: a
+		// test that only checked for an error would pass against a verb that
+		// refused after emptying the network.
+		if got := nodeNames(t, st, ctx); len(got) != 3 {
+			t.Fatalf("%s left %v", c.what, got)
+		}
+		if _, err := st.Do(ctx, "nodes.delete_many", c.params); err == nil {
+			t.Errorf("nodes.delete_many accepted %s (%v)", c.what, c.params)
+		}
+	}
+}
+
+// The shapes it does advertise still work, under both verbs.
+func TestBulkVerbsTakeTheShapesTheyAdvertise(t *testing.T) {
+	for _, params := range []any{
+		[]string{"A"},
+		"A",
+		map[string]any{"nodes": []any{"A"}},
+		map[string]any{"nodes": "A"},
+	} {
+		st, ctx := bulkSession(t, "A", "B")
+		if _, err := st.Do(ctx, "nodes.keep", params); err != nil {
+			t.Fatalf("nodes.keep refused %#v: %v", params, err)
+		}
+		if got := nodeNames(t, st, ctx); len(got) != 1 || got[0] != "A" {
+			t.Errorf("%#v kept %v, want just A", params, got)
+		}
+	}
+	// And naming none still empties the network, which is what it documents.
+	st, ctx := bulkSession(t, "A", "B")
+	if _, err := st.Do(ctx, "nodes.keep", []string{}); err != nil {
+		t.Fatalf("keeping nothing was refused: %v", err)
+	}
+	if got := nodeNames(t, st, ctx); len(got) != 0 {
+		t.Errorf("keeping nothing left %v", got)
+	}
+}

@@ -161,29 +161,16 @@ func (s *Sim) hasNode(name string) bool {
 // A bare list, or an object with one - because the socket unwraps a JSON array
 // to []string and a caller writing an object is equally reasonable, and a verb
 // that accepted only one of those would be a verb people got wrong once each.
+//
+// A shape outside that set is refused rather than read as no names. Naming none
+// is a documented answer for both verbs that use this, and for nodes.keep that
+// answer is "empty the network": a parameter nothing recognised - an object
+// keyed `names`, as the selection verbs key theirs, or a bare number - fell
+// through to it and deleted every node while reporting success.
 func nameSet(p any, key string) (map[string]bool, error) {
-	var names []string
-	switch v := p.(type) {
-	case []string:
-		names = v
-	case string:
-		names = []string{v}
-	case map[string]any:
-		switch inner := v[key].(type) {
-		case []any:
-			for _, x := range inner {
-				s, ok := x.(string)
-				if !ok {
-					return nil, control.WithCode(control.BadParams,
-						fmt.Errorf("%s must be a list of node names", key))
-				}
-				names = append(names, s)
-			}
-		case []string:
-			names = inner
-		case string:
-			names = []string{inner}
-		}
+	names, err := nodeNamesIn(p, key)
+	if err != nil {
+		return nil, err
 	}
 	out := map[string]bool{}
 	for _, n := range names {
@@ -192,6 +179,53 @@ func nameSet(p any, key string) (map[string]bool, error) {
 		}
 	}
 	return out, nil
+}
+
+// nodeNamesIn is nameSet's reader, kept apart so the switch stays one switch.
+func nodeNamesIn(p any, key string) ([]string, error) {
+	switch v := p.(type) {
+	case nil:
+		return nil, nil
+	case []string:
+		return v, nil
+	case string:
+		return []string{v}, nil
+	case map[string]any:
+		return namesUnder(v, key)
+	}
+	return nil, control.WithCode(control.BadParams, fmt.Errorf(
+		"node names come as a list, one name, or {%q: [...]}; this was a %T", key, p))
+}
+
+// namesUnder is the object form.
+func namesUnder(m map[string]any, key string) ([]string, error) {
+	raw, present := m[key]
+	if !present {
+		return nil, control.WithCode(control.BadParams, fmt.Errorf(
+			"an object with no %q in it; node names come as a list, one name, "+
+				"or {%q: [...]}", key, key))
+	}
+	switch inner := raw.(type) {
+	case nil:
+		return nil, nil
+	case []string:
+		return inner, nil
+	case string:
+		return []string{inner}, nil
+	case []any:
+		out := make([]string, 0, len(inner))
+		for _, x := range inner {
+			s, ok := x.(string)
+			if !ok {
+				return nil, control.WithCode(control.BadParams,
+					fmt.Errorf("%s must be a list of node names", key))
+			}
+			out = append(out, s)
+		}
+		return out, nil
+	}
+	return nil, control.WithCode(control.BadParams,
+		fmt.Errorf("%s is a %T; it takes a list of node names", key, raw))
 }
 
 func quoted(in []string) []string {

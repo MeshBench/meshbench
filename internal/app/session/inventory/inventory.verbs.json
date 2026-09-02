@@ -52,7 +52,7 @@
       "nodes",
       "count"
     ],
-    "answers": "A row per node under `nodes` and `count` beside them, so a caller need not measure the list to know how big the network is. Each row carries two boards, which are two facts: `board` is what the node is and `firmware_board` what its image was built for, and they come apart the moment a host build is pointed at a T-Deck. There is no limit and no paging, so an imported deployment answers with all of it.",
+    "answers": "A row per node under `nodes` and `count` beside them, so a caller need not measure the list to know how big the network is. Each row carries two boards, which are two facts: `board` is what the node is and `firmware_board` what its image was built for, and they come apart the moment a host build is pointed at a T-Deck. There is no limit and no paging, so an imported deployment answers with all of it. What a node has *done* is not here: a row carries no packet counts, because this describes what the network is and the counters change every tick. nodes.stats has them, measured from the engine's own scoreboard.",
     "example": {
       "params": {},
       "what": "see what is in the scenario",

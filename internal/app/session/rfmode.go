@@ -28,7 +28,18 @@ func registerRFMode(st *state.Store, s *Sim) {
 	// Applies live to a built engine - the switch lands on a whole-transmission
 	// boundary - and to every engine built after.
 	st.Handle("rf.mode", func(w *state.World, p any) (any, error) {
-		mode, _ := stringField(p, "mode")
+		// Asked with nothing, this reports rather than refuses. A script that
+		// has to know which physics produced a number had no way to ask: the
+		// only reader was the snapshot, which a socket client does not have,
+		// so the choice was to set a mode it did not want in order to find out
+		// what the mode had been.
+		mode, asked, err := rfModeAsked(p)
+		if err != nil {
+			return nil, err
+		}
+		if !asked {
+			return map[string]any{"mode": string(rfModeOf(s.rfMode))}, nil
+		}
 		return setRFMode(w, s, mode)
 	})
 
@@ -42,6 +53,35 @@ func registerRFMode(st *state.Store, s *Sim) {
 		}
 		return setRFMode(w, s, next)
 	})
+}
+
+// rfModeAsked separates "no mode was named" from "a mode was named and cannot
+// be read".
+//
+// The distinction is the whole of the getter: absent has an answer - report
+// what is in force - and a mode of the wrong type has none, so it is refused
+// rather than falling through to that report. A caller who sent a number and
+// was told the current mode would read it as the mode they had just set.
+func rfModeAsked(p any) (string, bool, error) {
+	switch v := p.(type) {
+	case nil:
+		return "", false, nil
+	case string:
+		return v, true, nil
+	case map[string]any:
+		raw, present := v["mode"]
+		if !present || raw == nil {
+			return "", false, nil
+		}
+		s, ok := raw.(string)
+		if !ok {
+			return "", false, badParams(
+				"rf.mode: mode is a %T; it takes \"calculated\" or \"waveform\"", raw)
+		}
+		return s, true, nil
+	}
+	return "", false, badParams("rf.mode takes \"calculated\" or \"waveform\", "+
+		"or nothing at all to report the mode in force; it was given %T", p)
 }
 
 // setRFMode is the one place the physics flips: validation, the engine, the
@@ -144,6 +184,13 @@ func registerRFRealism(st *state.Store, s *Sim) {
 // before.
 func registerRFEnvironment(st *state.Store, s *Sim) {
 	st.Handle("rf.environment", func(w *state.World, p any) (any, error) {
+		// The same setter-with-no-getter this file's other verb had. Whether
+		// buildings were priced into a path is part of what produced a number,
+		// so a script reporting a result has to be able to ask - and the only
+		// way to find out was to set one, which changes the answer.
+		if askedNothing(p) {
+			return map[string]any{"environment": s.envDir}, nil
+		}
 		dir, _ := stringField(p, "dir")
 		if on, ok := boolField(p, "on"); ok && !on {
 			s.envDir = ""

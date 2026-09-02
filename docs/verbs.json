@@ -3361,7 +3361,7 @@
           "name": "nodes",
           "type": "array",
           "primary": true,
-          "what": "the names to remove; one this network has not got refuses the whole call and removes nothing, and naming none is accepted and does nothing"
+          "what": "the names to remove, as a list, one name, or {\"nodes\": [...]}; one this network has not got refuses the whole call and removes nothing, naming none is accepted and does nothing, and a shape outside that set is refused rather than read as no names"
         }
       ],
       "returns": [
@@ -3385,7 +3385,7 @@
           "name": "nodes",
           "type": "array",
           "primary": true,
-          "what": "the names to keep; one this network has not got refuses the whole call and removes nothing, and naming none keeps nothing, which empties the network"
+          "what": "the names to keep, as a list, one name, or {\"nodes\": [...]}; one this network has not got refuses the whole call and removes nothing, and naming none keeps nothing, which empties the network. A shape outside that set is refused rather than read as no names, because here that reading empties the network and answers success"
         }
       ],
       "returns": [
@@ -3408,7 +3408,7 @@
         "nodes",
         "count"
       ],
-      "answers": "A row per node under `nodes` and `count` beside them, so a caller need not measure the list to know how big the network is. Each row carries two boards, which are two facts: `board` is what the node is and `firmware_board` what its image was built for, and they come apart the moment a host build is pointed at a T-Deck. There is no limit and no paging, so an imported deployment answers with all of it.",
+      "answers": "A row per node under `nodes` and `count` beside them, so a caller need not measure the list to know how big the network is. Each row carries two boards, which are two facts: `board` is what the node is and `firmware_board` what its image was built for, and they come apart the moment a host build is pointed at a T-Deck. There is no limit and no paging, so an imported deployment answers with all of it. What a node has *done* is not here: a row carries no packet counts, because this describes what the network is and the counters change every tick. nodes.stats has them, measured from the engine's own scoreboard.",
       "example": {
         "params": {},
         "what": "see what is in the scenario",
@@ -3419,10 +3419,10 @@
       "what": "put a node at a position and move its physics with its marker, forgetting the losses cached for it so the next window an attached SDR client hears is the one from where it now stands",
       "params": [
         {
-          "name": "name",
+          "name": "node",
           "type": "string",
           "required": true,
-          "what": "which node moves; absent, blank or unknown is refused"
+          "what": "which node moves; absent, blank or unknown is refused. Spelt `node`, as every other verb that acts on a node it did not create spells it; `name` is still read, because it is what this one verb asked for and it is in saved scripts"
         },
         {
           "name": "lat",
@@ -3438,15 +3438,17 @@
         }
       ],
       "returns": [
+        "node",
         "name",
         "lat",
         "lon"
       ],
+      "answers": "`node` and `name` both carry the node that moved, so a caller reading either spelling back gets an answer.",
       "example": {
         "params": {
           "lat": 56.25,
           "lon": -3.29,
-          "name": "West Lomond"
+          "node": "West Lomond"
         },
         "what": "move a node onto the hill it is named after",
         "runnable": true
@@ -4215,13 +4217,13 @@
       }
     },
     "rf.environment": {
-      "what": "point the session at a directory of environment tiles so both RF modes price buildings into the path budget, or take it away again and go back to bare earth",
+      "what": "point the session at a directory of environment tiles so both RF modes price buildings into the path budget, or take it away again and go back to bare earth; asked with nothing it reports the tiles in force instead of setting any",
       "params": [
         {
           "name": "dir",
           "type": "string",
           "primary": true,
-          "what": "the tile directory, as tools/envgen or environ.fetch wrote it; absent is refused unless on is false, because a switch with nothing to switch on would silently leave the model bare"
+          "what": "the tile directory, as tools/envgen or environ.fetch wrote it; named and empty is refused unless on is false, because a switch with nothing to switch on would silently leave the model bare. No parameters at all is the question rather than the switch, and reports what is loaded"
         },
         {
           "name": "on",
@@ -4232,7 +4234,7 @@
       "returns": [
         "environment"
       ],
-      "answers": "`environment` is the directory now in force, and empty means bare earth. Every path loss already cached was priced without buildings, so a live engine drops its link cache and the links are measured again.",
+      "answers": "`environment` is the directory in force after the call, and empty means bare earth, so the reply is the same shape whether the tiles were set or asked for. Every path loss already cached was priced without buildings, so a live engine drops its link cache and the links are measured again.",
       "example": {
         "params": {
           "dir": "/var/lib/meshbench/environment/fife"
@@ -4263,19 +4265,19 @@
       }
     },
     "rf.mode": {
-      "what": "choose which physics decides reception, and stamp the choice into the world so every snapshot, saved run and export says which of the two models produced it",
+      "what": "choose which physics decides reception, and stamp the choice into the world so every snapshot, saved run and export says which of the two models produced it; asked with nothing it reports the mode in force instead of setting one",
       "params": [
         {
           "name": "mode",
           "type": "string",
-          "required": true,
           "primary": true,
-          "what": "calculated for link budgets against demodulator floors, which is the fast model, or waveform for the full receive chain of demodulation, FEC and CRC; any other value is refused, and so is the empty string a caller who named nothing sends"
+          "what": "calculated for link budgets against demodulator floors, which is the fast model, or waveform for the full receive chain of demodulation, FEC and CRC; absent altogether reports the mode in force and changes nothing, and any other value - the empty string included - is refused rather than read as the absent case"
         }
       ],
       "returns": [
         "mode"
       ],
+      "answers": "`mode` is the mode in force after the call, so the reply is the same shape whether the mode was set or asked for. A caller that needs to know which physics produced a number can ask without setting one, which used to be impossible: the only reader was the snapshot, and a socket client has not got one.",
       "example": {
         "params": "waveform",
         "what": "let the receive chain decide, rather than a link budget",

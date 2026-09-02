@@ -60,9 +60,11 @@ type NodeInfo struct {
 	// is pointed at a T-Deck, which is an ordinary thing to do.
 	Board         Board  `json:"board"`
 	FirmwareBoard string `json:"firmware_board"`
-	Sent          int    `json:"sent"`
-	Heard         int    `json:"heard"`
-	Selected      bool   `json:"selected"`
+	// No Sent or Heard: what a node has transmitted and received is on
+	// NodeStat, from the engine's own scoreboard. They were carried here as
+	// well and answered nought for every node in every reply, which reads as a
+	// silent mesh rather than as a field nobody filled in.
+	Selected bool `json:"selected"`
 }
 
 // Event is one thing the engine did. Snapshot.

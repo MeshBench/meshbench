@@ -79,8 +79,10 @@ class NodeInfo:
     #: apart the moment a host build is pointed at a T-Deck.
     board: str = ""
     firmware_board: str = ""
-    sent: int = 0
-    heard: int = 0
+    #: No sent or heard: what a node has transmitted and received is on
+    #: NodeStat, from the engine's own scoreboard. They were carried here too
+    #: and answered 0 for every node in every reply, which reads as a silent
+    #: mesh rather than as a field nobody filled in.
     selected: bool = False
 
     @classmethod

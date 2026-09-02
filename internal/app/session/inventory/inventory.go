@@ -33,7 +33,12 @@ func registerInventory(st *state.Store, s *session.Sim) {
 				// be read back with the hardware it had been given.
 				"firmware": n.Firmware, "board": n.Hardware,
 				"firmware_board": n.Board,
-				"sent":           n.Sent, "heard": n.Heard,
+				// No sent or heard here. They were published as nought for
+				// every node in every reply, because nothing wrote them: a
+				// caller reading a number believes it, and there was no way to
+				// tell that number from a node which genuinely had not
+				// transmitted. nodes.stats answers this, from the engine's own
+				// scoreboard.
 				"selected": n.Selected,
 			})
 		}
