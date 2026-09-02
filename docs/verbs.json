@@ -1953,14 +1953,20 @@
           "name": "role",
           "type": "string",
           "what": "only nodes running under this role, pinned or implied by their kind; absent means all of them"
+        },
+        {
+          "name": "board",
+          "type": "string",
+          "what": "the board the image is for, so a fleet of emulated nodes can be pinned in one call; absent leaves each node's board as it is, and an explicit empty string moves them back to a build for this machine. Unlike node.set_firmware, absent does not mean native here: clearing three hundred boards is not what a caller who only named a version asked for"
         }
       ],
       "returns": [
         "version",
         "nodes",
-        "considered"
+        "considered",
+        "board"
       ],
-      "answers": "`nodes` is how many were pinned and `considered` how many exist, which counts the ones that never run firmware. With a `role` and no `node` it pins every node running that role, but marks every node in the fleet list as running the version whatever its role, so a call per role leaves the list reading as the last one: pass `node` to pin exactly one.",
+      "answers": "`nodes` is how many were pinned and `considered` how many exist, which counts the ones that never run firmware. With a `role` and no `node` it pins every node running that role, but marks every node in the fleet list as running the version whatever its role, so a call per role leaves the list reading as the last one: pass `node` to pin exactly one. `board` comes back only when it was passed, so a caller can tell a board left alone from one set to a host build.",
       "example": {
         "params": {
           "node": "West Lomond",
