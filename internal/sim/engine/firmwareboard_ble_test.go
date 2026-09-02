@@ -35,7 +35,7 @@ func TestEmulatedBackendRefusesBLECompanionClearly(t *testing.T) {
 			n.Firmware.Board = "Heltec_v3"
 			n.Firmware.Version = "v1.17.0"
 
-			_, err := emulatedBackend(n, true, 0)
+			_, err := emulatedBackend(n, true)
 			if err == nil {
 				t.Fatal("a BLE companion was accepted; it has no reachable transport here")
 			}

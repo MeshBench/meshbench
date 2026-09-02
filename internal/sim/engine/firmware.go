@@ -175,8 +175,7 @@ func (e *Engine) AttachNativeProgress(ctx context.Context, seed uint64, progress
 		// global mode - a scenario mixing the two is the point of having both.
 		var backend firmware.Backend
 		if n.specRef().Firmware.Emulated() {
-			em, err := emulatedBackend(n.Spec(), e.Config.UnverifiedWiring,
-				seed+uint64(i)*0x9E3779B97F4A7C15)
+			em, err := emulatedBackend(n.Spec(), e.Config.UnverifiedWiring)
 			if err != nil {
 				fail(fmt.Errorf("%s: %w", n.specRef().Name, err))
 				return
