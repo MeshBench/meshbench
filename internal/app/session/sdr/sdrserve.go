@@ -190,12 +190,43 @@ func (e *sdrServer) shutdown() {
 // verbs and the per-tick refresh - so it needs no lock of its own.
 type sdrState struct {
 	servers map[string]*sdrServer
+	// ports is the port each node has been served on, kept after the listener
+	// closes. An ephemeral port is drawn once per node rather than once per
+	// serve: SDR software is pointed at an address by hand, and a second serve
+	// that landed elsewhere left the client attached to a closed socket with
+	// nothing to tell it where the stream had gone.
+	ports map[string]int
 }
 
 func stateOf(s *session.Sim) *sdrState {
 	return session.DomainState(s, "sdr", func() *sdrState {
-		return &sdrState{servers: map[string]*sdrServer{}}
+		return &sdrState{servers: map[string]*sdrServer{}, ports: map[string]int{}}
 	})
+}
+
+// listen puts a node's stream back on the port it had, and falls back to a
+// fresh one when something else has taken it in the meantime.
+//
+// The fallback is announced rather than silent: the whole fault being fixed
+// here is an endpoint that moved without saying so.
+func listen(ss *sdrState, name string, src sdr.SampleSource) (*sdr.RTLTCP, string, error) {
+	if port, seen := ss.ports[name]; seen {
+		srv, err := sdr.ServeRTLTCP(fmt.Sprintf("127.0.0.1:%d", port), src)
+		if err == nil {
+			return srv, "", nil
+		}
+		srv, ferr := sdr.ServeRTLTCP("127.0.0.1:0", src)
+		if ferr != nil {
+			return nil, "", ferr
+		}
+		return srv, fmt.Sprintf(" - port %d was taken, so this is a new address; "+
+			"anything pointed at the old one needs repointing", port), nil
+	}
+	srv, err := sdr.ServeRTLTCP("127.0.0.1:0", src)
+	if err != nil {
+		return nil, "", err
+	}
+	return srv, "", nil
 }
 
 // sources is what is currently served, for the observer windows: address, rate,
@@ -241,15 +272,17 @@ func registerSDRServe(st *state.Store, s *session.Sim) {
 			rate = 250e3
 		}
 		src := newEngineSource(s, idx, rate, s.Engine().ObserverNoisePSD(idx))
-		srv, err := sdr.ServeRTLTCP("127.0.0.1:0", src)
+		srv, moved, err := listen(ss, name, src)
 		if err != nil {
 			src.close()
 			return nil, err
 		}
 		ss.servers[name] = &sdrServer{srv: srv, src: src, rateHz: rate}
+		ss.ports[name] = session.PortOf(srv.Addr())
 		w.SDRSources = sources(ss)
 		w.Say(fmt.Sprintf("%s is an rtl_tcp source at %s - the stream follows "+
-			"the client's own rate setting (native %.0f Hz)", name, srv.Addr(), rate))
+			"the client's own rate setting (native %.0f Hz)%s",
+			name, srv.Addr(), rate, moved))
 		return map[string]any{"node": name, "addr": srv.Addr(), "rate_hz": rate}, nil
 	})
 

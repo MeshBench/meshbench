@@ -6,8 +6,14 @@ import "time"
 
 // ArmSummary is one arm of an experiment, averaged over its seeds.
 type ArmSummary struct {
-	Arm       string
+	Arm string
+	// Runs is how many seeds measured something, and Failed how many came back
+	// with an error instead. Separate because a failed cell counts nothing
+	// rather than counting zero, and averaging its zeros in turned an arm that
+	// did not run into the worst result the sweep had ever produced. Runs at
+	// zero means every metric below is absent, not measured as none.
 	Runs      int
+	Failed    int
 	TX        float64
 	RX        float64
 	Delivered float64

@@ -13,22 +13,75 @@ import (
 // between two readers gives each of them half the output, which is worse than
 // giving one of them none.
 
-// Console directs the node's serial output at w, and reports whether anything
-// was listening before.
+// Console directs the node's serial output at w, and hands over what the node
+// said while nobody was there to read it.
 //
 // Set rather than subscribed: a node has one serial port, and two readers of one
 // UART would each see half the output - which is worse than not having it.
 func (b *Bridge) Console(w io.Writer) {
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	// A claimed port belongs to whoever claimed it. Without this the workbench
 	// console re-attached itself on the very next frame and quietly took the
 	// UART back from an attached companion client - which looks exactly like a
 	// client that connected and then received nothing.
 	if b.claimed {
+		b.mu.Unlock()
 		return
 	}
 	b.console = w
+	// Taken only when there is somewhere to put it. Detaching is Console(nil),
+	// and clearing the scrollback on the way out would lose it to whoever
+	// opened the console next.
+	var held []byte
+	node := b.node
+	if w != nil {
+		held, b.backlog = b.backlog, nil
+	}
+	b.mu.Unlock()
+	if len(held) == 0 {
+		return
+	}
+	// Named as scrollback rather than let through as live output. Every line
+	// of it is about to be stamped with the clock as it arrives, which is now
+	// and not when the node said it, and an unlabelled boot chain carrying the
+	// current time is a worse answer than none.
+	_, _ = w.Write([]byte("-- " + node + " said this before the console was opened --\n"))
+	_, _ = w.Write(held)
+}
+
+// consoleBacklog is how much output a node keeps for a console nobody has
+// opened yet.
+//
+// A node prints its version, its region and what its radio came up as in the
+// first second, then goes quiet for minutes. The port had been attached to
+// nobody for all of it, so every one of those lines was discarded on the way
+// past and the console was empty exactly when somebody opened it to find out
+// what had happened.
+const consoleBacklog = 64 << 10
+
+// writeConsole hands output to whoever holds the port, and keeps it for
+// whoever opens it next when nobody does.
+func (b *Bridge) writeConsole(p []byte) {
+	if len(p) == 0 {
+		return
+	}
+	b.mu.Lock()
+	w := b.console
+	if w == nil {
+		b.backlog = append(b.backlog, p...)
+		// Overflow goes from the front, as the console buffer's own does: what
+		// a node said most recently is what its silence needs explaining by.
+		if n := len(b.backlog) - consoleBacklog; n > 0 {
+			b.backlog = append(b.backlog[:0], b.backlog[n:]...)
+		}
+	}
+	b.mu.Unlock()
+	if w != nil {
+		// Best effort. A console that cannot be written to must not stall the
+		// node it belongs to: the simulation's correctness does not depend on
+		// anyone reading the output.
+		_, _ = w.Write(p)
+	}
 }
 
 // ConsoleSink is a writer that forwards to whoever currently holds this node's
@@ -44,14 +97,7 @@ func (b *Bridge) ConsoleSink() io.Writer { return bridgeConsole{b} }
 type bridgeConsole struct{ b *Bridge }
 
 func (c bridgeConsole) Write(p []byte) (int, error) {
-	c.b.mu.Lock()
-	w := c.b.console
-	c.b.mu.Unlock()
-	if w != nil && len(p) > 0 {
-		// Best effort, as the frame path is: the simulation's correctness does
-		// not depend on anybody reading the output.
-		_, _ = w.Write(p)
-	}
+	c.b.writeConsole(p)
 	return len(p), nil
 }
 

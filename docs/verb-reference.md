@@ -2381,9 +2381,9 @@ Open a real endpoint onto one simulated node, so an unmodified companion client 
 | parameter | type | | what |
 |---|---|---|---|
 | `node` | string | optional | the node to serve; absent takes the first companion in the scenario, because an endpoint is what is wanted before a node has been chosen |
-| `kind` | string | optional | "serial" for a pseudo-terminal a serial client opens; anything else, absent included, listens on TCP on every interface and a port the operating system picks |
+| `kind` | string | optional | "serial" for a pseudo-terminal a serial client opens; anything else, absent included, listens on TCP on every interface and a port the operating system picks the first time this node is served |
 
-**Answers** `node`, `addr`. Serving takes the port off the workbench, so a companion session on that node is released rather than shared. A second call for the same node replaces the listener rather than adding one.
+**Answers** `node`, `addr`. Serving takes the port off the workbench, so a companion session on that node is released rather than shared. A second call for the same node replaces the listener rather than adding one, and keeps the address: the port is drawn once per node and asked for again on every serve after, including after a drop, because a client already pointed at the first address cannot be told about a second. A port taken by something else in the meantime moves the endpoint and says so.
 
 **Example** - put a node on a TCP port for a real client
 
@@ -2423,7 +2423,7 @@ Offer what one node's antenna hears as an rtl_tcp source, so real SDR software c
 |---|---|---|---|
 | `node` | string | required, primary | the node whose antenna is served; refused when it is absent, not in the scenario, or not in the engine |
 
-**Answers** `node`, `addr`, `rate_hz`. `rate_hz` is the node's own receiver bandwidth, one sample per hertz, and 250 kHz where the scenario states none. It is what the stream is rendered at, not what a client is held to: the client's own rate setting is followed. Serving a node already served replaces the listener. The IQ is signal only, with the noise floor added at the server, so a paused run streams a bare floor rather than stopping.
+**Answers** `node`, `addr`, `rate_hz`. `rate_hz` is the node's own receiver bandwidth, one sample per hertz, and 250 kHz where the scenario states none. It is what the stream is rendered at, not what a client is held to: the client's own rate setting is followed. Serving a node already served replaces the listener and keeps the address, and so does stopping and serving again, so SDR software pointed at it once stays pointed at it; a port taken by something else in the meantime moves the endpoint and says so. The IQ is signal only, with the noise floor added at the server, so a paused run streams a bare floor rather than stopping.
 
 **Example** - point SDR software at a node's antenna
 

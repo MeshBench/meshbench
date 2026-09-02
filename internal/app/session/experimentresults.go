@@ -48,6 +48,7 @@ func registerExperimentResults(st *state.Store, s *Sim) {
 			w.Experiment = append(w.Experiment, state.ArmSummary{
 				Arm:       arm,
 				Runs:      mapInt(m, "runs"),
+				Failed:    mapInt(m, "failed"),
 				TX:        mapFloat(m, "tx"),
 				RX:        mapFloat(m, "rx"),
 				Delivered: mapFloat(m, "delivered"),

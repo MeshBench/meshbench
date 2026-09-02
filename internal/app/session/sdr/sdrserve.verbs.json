@@ -15,7 +15,7 @@
       "addr",
       "rate_hz"
     ],
-    "answers": "`rate_hz` is the node's own receiver bandwidth, one sample per hertz, and 250 kHz where the scenario states none. It is what the stream is rendered at, not what a client is held to: the client's own rate setting is followed. Serving a node already served replaces the listener. The IQ is signal only, with the noise floor added at the server, so a paused run streams a bare floor rather than stopping.",
+    "answers": "`rate_hz` is the node's own receiver bandwidth, one sample per hertz, and 250 kHz where the scenario states none. It is what the stream is rendered at, not what a client is held to: the client's own rate setting is followed. Serving a node already served replaces the listener and keeps the address, and so does stopping and serving again, so SDR software pointed at it once stays pointed at it; a port taken by something else in the meantime moves the endpoint and says so. The IQ is signal only, with the noise floor added at the server, so a paused run streams a bare floor rather than stopping.",
     "example": {
       "params": "West Lomond",
       "what": "point SDR software at a node's antenna"

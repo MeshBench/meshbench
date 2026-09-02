@@ -1,8 +1,10 @@
 package session
 
 import (
+	"fmt"
 	"net"
 	"sort"
+	"strconv"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/sim/engine"
@@ -15,9 +17,9 @@ import (
 // disconnect first, because two verbs dispatched separately arrive in
 // whichever order the scheduler picks - and serve landing before disconnect
 // released the port out from under the client that had just taken it.
-func (s *Sim) serve(name, kind string) (state.Endpoint, error) {
+func (s *Sim) serve(name, kind string) (state.Endpoint, string, error) {
 	if s.eng == nil {
-		return state.Endpoint{}, ErrNoSimulation
+		return state.Endpoint{}, "", ErrNoSimulation
 	}
 	if c, ok := s.comps[name]; ok {
 		if c.release != nil {
@@ -30,26 +32,17 @@ func (s *Sim) serve(name, kind string) (state.Endpoint, error) {
 		_ = old.Close()
 	}
 	var (
-		link *engine.CompanionLink
-		err  error
+		link  *engine.CompanionLink
+		moved string
+		err   error
 	)
 	if kind == "serial" {
 		link, err = s.eng.ServeCompanionSerial(name)
 	} else {
-		// Every interface, not just loopback.
-		//
-		// The point of serving a companion is to point a client at it, and a
-		// client is often a phone or another machine. Bound to 127.0.0.1 the
-		// port existed and nothing outside this computer could reach it,
-		// which reads as a firewall problem rather than a decision.
-		//
-		// Port zero: the operating system picks a free one and the link
-		// reports it. A fixed default collides with the last run that has not
-		// finished dying, and that error reads like a permissions problem.
-		link, err = s.eng.ServeCompanionTCP(name, "0.0.0.0:0")
+		link, moved, err = s.serveTCP(name)
 	}
 	if err != nil {
-		return state.Endpoint{}, err
+		return state.Endpoint{}, "", err
 	}
 	// Worked out once and remembered, because the endpoint list is rebuilt
 	// whenever anything about a companion changes and enumerating the
@@ -58,9 +51,84 @@ func (s *Sim) serve(name, kind string) (state.Endpoint, error) {
 	var addrs []string
 	if link.Kind == "tcp" {
 		addrs = reachableAddrs(link.Addr)
+		s.rememberPort(name, link.Addr)
 	}
 	s.setServedLink(name, link, addrs)
-	return s.endpointFor(name, link), nil
+	return s.endpointFor(name, link), moved, nil
+}
+
+// serveTCP puts a node back on the port it was served on last time.
+//
+// Every interface, not just loopback: the point of serving a companion is to
+// point a client at it, and a client is often a phone or another machine.
+// Bound to 127.0.0.1 the port existed and nothing outside this computer could
+// reach it, which reads as a firewall problem rather than a decision.
+//
+// The port itself is the operating system's to pick the first time, because a
+// fixed default collides with the last run that has not finished dying and
+// that error reads like a permissions problem. Every serve after that asks for
+// the same one back: a client attached to the first address cannot be told
+// about a second, so a re-serve that moved left it talking to a closed socket.
+func (s *Sim) serveTCP(name string) (*engine.CompanionLink, string, error) {
+	if port, ok := s.servedPort(name); ok {
+		link, err := s.eng.ServeCompanionTCP(name, fmt.Sprintf("0.0.0.0:%d", port))
+		if err == nil {
+			return link, "", nil
+		}
+		// Announced, not swallowed: an endpoint that moves without saying so is
+		// the whole fault this remembering exists to stop.
+		link, ferr := s.eng.ServeCompanionTCP(name, "0.0.0.0:0")
+		if ferr != nil {
+			return nil, "", ferr
+		}
+		return link, fmt.Sprintf(
+			"port %d was taken, so this is a new address - anything pointed at "+
+				"the old one needs repointing", port), nil
+	}
+	link, err := s.eng.ServeCompanionTCP(name, "0.0.0.0:0")
+	return link, "", err
+}
+
+// servedPort is the port this node was last served on, if it has been.
+func (s *Sim) servedPort(name string) (int, bool) {
+	s.servedMu.Lock()
+	defer s.servedMu.Unlock()
+	p, ok := s.servedPorts[name]
+	return p, ok
+}
+
+// PortOf is the port half of the address a listener reports, and zero for
+// anything that is not one.
+//
+// Exported for the domains split out of this package, which keep their own
+// listeners and have the same reason to ask a node's port back.
+func PortOf(addr string) int {
+	_, p, err := net.SplitHostPort(addr)
+	if err != nil {
+		return 0
+	}
+	n, err := strconv.Atoi(p)
+	if err != nil {
+		return 0
+	}
+	return n
+}
+
+// rememberPort keeps the port out of a listener's own address, so the next
+// serve of this node can ask for it again.
+func (s *Sim) rememberPort(name, addr string) {
+	// Zero is what the operating system was asked, not what it answered:
+	// keeping it would ask for a fresh port on every serve, which is the fault.
+	n := PortOf(addr)
+	if n == 0 {
+		return
+	}
+	s.servedMu.Lock()
+	defer s.servedMu.Unlock()
+	if s.servedPorts == nil {
+		s.servedPorts = map[string]int{}
+	}
+	s.servedPorts[name] = n
 }
 
 // servedLink is the listener currently open for a node, if any.

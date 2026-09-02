@@ -171,6 +171,12 @@ func (e *experiment) verdict() string {
 	}
 	biggest, what, which := 0.0, "", ""
 	for _, s := range sums[1:] {
+		// An arm nothing measured has no numbers to compare, and its absent
+		// ones read as zero: without this the verdict announced the arm that
+		// failed as the biggest change the sweep found.
+		if n, _ := s["runs"].(int); n == 0 {
+			continue
+		}
 		for _, m := range metrics {
 			ref, _ := base[m.key].(float64)
 			got, _ := s[m.key].(float64)
@@ -206,13 +212,21 @@ func (e *experiment) spreadAgainstBetween() (spread, between float64, ok bool) {
 		return 0, 0, false
 	}
 	lo, hi := math.Inf(1), math.Inf(-1)
+	measured := 0
 	for _, s := range sums {
+		// Only arms that measured something. An arm that did not run has no
+		// receptions rather than none of them, and counting its absent zero as
+		// the low end made the arms look further apart than they are.
+		if n, _ := s["runs"].(int); n == 0 {
+			continue
+		}
+		measured++
 		rx, _ := s["rx"].(float64)
 		lo, hi = math.Min(lo, rx), math.Max(hi, rx)
 		sp, _ := s["rx_spread"].(float64)
 		spread = math.Max(spread, sp)
 	}
-	if hi <= 0 {
+	if hi <= 0 || measured < 2 {
 		return 0, 0, false
 	}
 	// Normalised by the largest mean rather than by the smallest or the
@@ -233,44 +247,62 @@ func (e *experiment) summarise() []map[string]any {
 	sort.Strings(names)
 	out := make([]map[string]any, 0, len(names))
 	for _, name := range names {
-		rs := by[name]
-		var tx, rx, del, red, coll, air float64
-		// at2 is the share of this arm's decodes that 2 dB of receiver would
-		// have cost. Reported per arm because it is the one figure here that a
-		// flood's redundancy cannot hide: it is counted on the deliveries
-		// themselves rather than summed out of them.
-		var at2 float64
-		var at2n float64
-		for _, r := range rs {
-			tx += float64(r.TX)
-			rx += float64(r.RX)
-			del += float64(r.Delivered)
-			red += float64(r.Redundant)
-			coll += float64(r.Collided)
-			air += r.AirtimeMs
-			if len(r.AtRisk) > 1 {
-				at2 += r.AtRisk[1]
-				at2n++
-			}
-		}
-		n := float64(len(rs))
-		row := map[string]any{
-			"arm": name, "runs": len(rs),
-			"tx": tx / n, "rx": rx / n, "delivered": del / n,
-			"redundant": red / n, "collisions": coll / n,
-			"airtime_ms": air / n,
-			"rx_spread":  spreadOf(rs),
-		}
-		// Absent rather than zero when no cell reported it: "no cell measured
-		// this" and "no delivery was close" are different answers, and drawing
-		// the second for the first is the kind of quiet lie this whole branch
-		// exists to stop.
-		if at2n > 0 {
-			row["at_risk_2db"] = at2 / at2n
-		}
-		out = append(out, row)
+		out = append(out, summariseArm(name, by[name]))
 	}
 	return out
+}
+
+// summariseArm averages one arm over the seeds that produced a measurement.
+//
+// A cell that failed carries zeros in every counter, because it never got as
+// far as counting anything. Averaged in with the rest those zeros are not a
+// missing number but a wrong one: one failed seed of three pulled an arm's
+// receptions down by a third, and the matrix drew that as a regression the
+// firmware had caused. An arm where every seed failed came out at zero
+// throughout, which reads as the worst result the sweep has ever produced
+// rather than as an arm that did not run.
+func summariseArm(name string, rs []ExpResult) map[string]any {
+	var tx, rx, del, red, coll, air float64
+	// at2 is the share of this arm's decodes that 2 dB of receiver would
+	// have cost. Reported per arm because it is the one figure here that a
+	// flood's redundancy cannot hide: it is counted on the deliveries
+	// themselves rather than summed out of them.
+	var at2, at2n float64
+	ran := make([]ExpResult, 0, len(rs))
+	failed := 0
+	for _, r := range rs {
+		if r.Err != "" {
+			failed++
+			continue
+		}
+		ran = append(ran, r)
+		tx += float64(r.TX)
+		rx += float64(r.RX)
+		del += float64(r.Delivered)
+		red += float64(r.Redundant)
+		coll += float64(r.Collided)
+		air += r.AirtimeMs
+		if len(r.AtRisk) > 1 {
+			at2 += r.AtRisk[1]
+			at2n++
+		}
+	}
+	row := map[string]any{"arm": name, "runs": len(ran), "failed": failed}
+	// Absent rather than zero when nothing measured it, here and for
+	// at_risk_2db below: "no cell measured this" and "this cell measured
+	// nothing" are different answers, and drawing the second for the first is
+	// the quiet lie the whole of this file exists to stop.
+	if len(ran) == 0 {
+		return row
+	}
+	n := float64(len(ran))
+	row["tx"], row["rx"], row["delivered"] = tx/n, rx/n, del/n
+	row["redundant"], row["collisions"] = red/n, coll/n
+	row["airtime_ms"], row["rx_spread"] = air/n, spreadOf(ran)
+	if at2n > 0 {
+		row["at_risk_2db"] = at2 / at2n
+	}
+	return row
 }
 
 // spreadOf is the range of receptions across seeds, which is what says whether
