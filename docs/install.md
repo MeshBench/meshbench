@@ -75,10 +75,42 @@ Intel Macs are not built yet. Ask if you need one.
 
 ### Windows
 
-Unzip `meshbench-*-windows-x86_64.zip` anywhere and run `meshbench.exe`.
+Two downloads, and either is a complete build.
+
+`meshbench-*-windows-x86_64.msi` is the installer. Double-click it: it installs
+into `C:\Program Files\MeshBench`, adds a Start menu entry, and appears in
+Apps and Features with an uninstall. Installing a newer one replaces the
+installation rather than putting a second copy beside it, and the uninstall
+removes what it installed and nothing else: your fixtures, cached firmware,
+terrain tiles and settings live under your profile and are left alone.
+
+There are no installer dialogs to click through, because the installer is built
+on Linux and the tool that builds it there builds no dialogs. Anything you
+would have chosen in one is a switch instead, from a Command Prompt in the
+folder you downloaded it to:
+
+```console
+:: somewhere other than Program Files
+msiexec /i meshbench-0.2.0-windows-x86_64.msi INSTALLDIR="D:\Tools\MeshBench"
+
+:: for you alone, with no administrator prompt
+msiexec /i meshbench-0.2.0-windows-x86_64.msi MSIINSTALLPERUSER=1
+
+:: with a desktop shortcut as well as the Start menu one
+msiexec /i meshbench-0.2.0-windows-x86_64.msi ADDLOCAL=Complete,DesktopShortcut
+```
+
+`meshbench-*-windows-x86_64.zip` is the same build with nothing installed.
+Unzip it anywhere and run `meshbench.exe`. Take this one for a memory stick, a
+build agent, or anywhere an installer is unwanted. **Keep the folder together**:
+`meshbench.exe` finds the emulators and `radioserver.exe` beside itself, so
+moving the `.exe` out on its own leaves a build that cannot emulate a board and
+will not say why. That is the main thing the installer exists to prevent.
 
 Windows SmartScreen will warn about an unrecognised publisher for the same
-reason macOS does — the binary is unsigned. Click **More info → Run anyway**.
+reason macOS does: neither download is signed. Click **More info → Run
+anyway**. With the installer that happens once, at install; with the zip it can
+happen on each launch of an `.exe` from a Downloads folder.
 
 **Emulated boards on Windows come out of the zip, not out of a fetch.** The zip
 carries the emulators and the radio model, and a node there reaches the radio
@@ -177,6 +209,7 @@ application rather than of the operating system:
 | Linux AppImage | download and instructions | a rename over a running binary is allowed on Linux, so `mv` works while MeshBench is open; the new one starts next launch |
 | Linux `.deb` | refused, on purpose | apt owns those files. `sudo apt install --only-upgrade meshbench` |
 | macOS `.dmg` | download and instructions | the swap works, but the build is unsigned and anything downloaded is quarantined, so the new copy needs right-click then Open on its first launch, the same as the first one did |
+| Windows `.msi` | download and instructions | a running `.exe` cannot be replaced while it is running, so MeshBench closes first, and the newer `.msi` then replaces the installation in place, keeping the location, the Start menu entry and the one Apps and Features row |
 | Windows `.zip` | download and instructions | a running `.exe` cannot be replaced while it is running. Close MeshBench first, then unzip and move the folder over |
 
 **An update invalidates a pinned client.** A client and the workbench it drives

@@ -1,0 +1,19 @@
+This copy of MeshBench was put here by the Windows installer,
+meshbench-<version>-windows-x86_64.msi.
+
+To remove it: Settings > Apps > Installed apps > MeshBench > Uninstall, or
+Control Panel > Programs and Features. That removes everything in this
+directory and the Start menu entry, and nothing else.
+
+To update it: download the newer .msi from the releases page and run it. It
+replaces this installation in place rather than putting a second copy beside
+it. Do not unzip a newer build over this directory: the installer's record of
+what is here would then describe files that are no longer the ones on disk.
+
+Your own work is not in this directory and an uninstall does not touch it.
+Fixtures you have saved, downloaded firmware, terrain tiles and settings live
+under your profile, in %LOCALAPPDATA%\meshbench and %APPDATA%\meshbench.
+
+The emulators, radioserver.exe and the shipped fixtures are here beside
+meshbench.exe because that is where MeshBench looks for them. Moving
+meshbench.exe on its own leaves a build that cannot emulate a board.
