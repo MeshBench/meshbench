@@ -161,3 +161,75 @@ func TestPinningOneNodeReachesTheEngine(t *testing.T) {
 	}
 	t.Fatalf("%s is not in the engine at all", name)
 }
+
+// The board travels with the version, and only when it is passed.
+//
+// firmware.set read version, node and role and nothing else, so a board handed
+// to the bulk verb was dropped: the node kept its hardware, lost its image, and
+// the start then failed asking for a native build of a version that has none.
+// That message is correct for what the engine was asked to do and useless for
+// what the operator meant, and it sends the reader off to build MeshCore from
+// source over a field they had passed.
+func TestSettingFirmwareCarriesTheBoardAndOnlyWhenAsked(t *testing.T) {
+	nodes := []scenario.Node{
+		{Name: "emu", Kind: scenario.SimpleRepeater,
+			Firmware: scenario.FirmwareRef{Version: "before", Board: "Heltec_v3"}},
+		{Name: "host", Kind: scenario.SimpleRepeater,
+			Firmware: scenario.FirmwareRef{Version: "before"}},
+	}
+	store := state.New(10)
+	sim := &Sim{nodes: nodes}
+	registerFirmwareNodes(store, sim)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go store.Run(ctx)
+
+	board := func(name string) string {
+		for _, n := range sim.nodes {
+			if n.Name == name {
+				return n.Firmware.Board
+			}
+		}
+		t.Fatalf("no node %q", name)
+		return ""
+	}
+
+	// No board passed: every board stays as it was. The single-node verb reads
+	// an absent board as "a host build" and clears it, and doing that here
+	// would convert a whole mesh of emulated nodes to native on a call that
+	// only named a version.
+	if _, err := store.Do(ctx, "firmware.set", map[string]any{"version": "v2"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := board("emu"); got != "Heltec_v3" {
+		t.Errorf("a call naming no board cleared one: emu is on %q", got)
+	}
+
+	// Passed: it is written, which is what makes "pin every repeater to this
+	// image" a thing the bulk verb can do at all.
+	got, err := store.Do(ctx, "firmware.set", map[string]any{
+		"version": "v3", "board": "RAK_4631",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"emu", "host"} {
+		if b := board(name); b != "RAK_4631" {
+			t.Errorf("%s is on %q, want RAK_4631", name, b)
+		}
+	}
+	if m, _ := got.(map[string]any); m["board"] != "RAK_4631" {
+		t.Errorf("the reply does not echo the board it set: %v", got)
+	}
+
+	// And an explicit empty string is how a node goes back to a host build,
+	// which is the only reason presence has to be read rather than emptiness.
+	if _, err := store.Do(ctx, "firmware.set", map[string]any{
+		"version": "v4", "board": "",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got := board("emu"); got != "" {
+		t.Errorf("an explicit empty board left emu on %q", got)
+	}
+}
