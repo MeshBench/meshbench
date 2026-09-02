@@ -30,7 +30,7 @@ import (
 // Failing here rather than later matters, because a wrong pin does not announce
 // itself - it produces a driver reporting no chip, which reads as a broken
 // emulator.
-func emulatedBackend(spec scenario.Node, allowUnverified bool) (*emulated.EmulatedNode, error) {
+func emulatedBackend(spec scenario.Node, allowUnverified bool, seed uint64) (*emulated.EmulatedNode, error) {
 	board, err := hw.BoardByName(spec.Firmware.Board)
 	if err != nil {
 		return nil, err
@@ -128,6 +128,7 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*emulated.Emulat
 	if board.Renode != nil {
 		return &emulated.EmulatedNode{
 			Emulator: emulated.Renode,
+			Seed:     seed,
 			Image:    src,
 			// Published nRF52 images are linked above a Nordic SoftDevice,
 			// which is fetched rather than bundled and so may not be here yet.
@@ -170,6 +171,7 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*emulated.Emulat
 
 	node := &emulated.EmulatedNode{
 		Emulator:   emulated.QEMU,
+		Seed:       seed,
 		Image:      padded,
 		Machine:    board.QEMU.Machine,
 		SPI:        board.QEMU.SPI,

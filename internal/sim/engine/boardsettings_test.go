@@ -43,7 +43,7 @@ func TestABuildsSettingsReachTheMachine(t *testing.T) {
 
 	// Off until asked for: the machine reports a register the way silicon does
 	// not, and a firmware that genuinely mismanages it would be flattered.
-	node, err := emulatedBackend(spec, true)
+	node, err := emulatedBackend(spec, true, 0)
 	if err != nil {
 		t.Fatalf("emulatedBackend: %v", err)
 	}
@@ -61,7 +61,7 @@ func TestABuildsSettingsReachTheMachine(t *testing.T) {
 		firmware.BuildSettings{CoprocAtReset: true}); err != nil {
 		t.Fatal(err)
 	}
-	node, err = emulatedBackend(spec, true)
+	node, err = emulatedBackend(spec, true, 0)
 	if err != nil {
 		t.Fatalf("emulatedBackend: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestTheCardSlotIsTheNodesUntilTheFirmwareInsists(t *testing.T) {
 
 	// The board's own answer: a card in every slot it declares, which is what
 	// happened before any of this existed.
-	node, err := emulatedBackend(spec, true)
+	node, err := emulatedBackend(spec, true, 0)
 	if err != nil {
 		t.Fatalf("emulatedBackend: %v", err)
 	}
@@ -110,7 +110,7 @@ func TestTheCardSlotIsTheNodesUntilTheFirmwareInsists(t *testing.T) {
 
 	// Taken out, and it stays out.
 	spec.Card = scenario.CardEmpty
-	node, err = emulatedBackend(spec, true)
+	node, err = emulatedBackend(spec, true, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +123,7 @@ func TestTheCardSlotIsTheNodesUntilTheFirmwareInsists(t *testing.T) {
 		firmware.BuildSettings{CardRequired: true}); err != nil {
 		t.Fatal(err)
 	}
-	node, err = emulatedBackend(spec, true)
+	node, err = emulatedBackend(spec, true, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +134,7 @@ func TestTheCardSlotIsTheNodesUntilTheFirmwareInsists(t *testing.T) {
 	// And a card the node was handed is the one it gets.
 	mine := filepath.Join(t.TempDir(), "shared.img")
 	spec.Card, spec.CardFile = scenario.CardFitted, mine
-	node, err = emulatedBackend(spec, true)
+	node, err = emulatedBackend(spec, true, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
