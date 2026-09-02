@@ -122,5 +122,32 @@ secure=$(msiinfo export "$out" Property | tr -d '\r' |
 msibuild "$out" -q "UPDATE \`Property\` SET \`Value\`='$secure;INSTALLDIR;MSIINSTALLPERUSER'
   WHERE \`Property\`='SecureCustomProperties'"
 
+# Apps and Features shows an "Install location", and ours was blank: nothing
+# sets ARPINSTALLLOCATION, so Windows has nowhere to read the path from and
+# somebody who wants to know where their copy went has to guess. It cannot be
+# a plain Property in the .wxs - [INSTALLDIR] is not resolved until the install
+# is costed - so it is a type 51 custom action, which sets a property from a
+# formatted string, scheduled once costing has settled.
+#
+# Authored here rather than in the source for the same reason as the row above:
+# this is one of the shapes wixl does not build. The table may not exist at all
+# in a package with no other custom action, so it is created when it is missing.
+if ! msiinfo tables "$out" | tr -d '\r' | grep -qx CustomAction; then
+  msibuild "$out" -q "CREATE TABLE \`CustomAction\` (\`Action\` CHAR(72) NOT NULL, \`Type\` INT NOT NULL, \`Source\` CHAR(72), \`Target\` CHAR(255) PRIMARY KEY \`Action\`)"
+fi
+msibuild "$out" -q "INSERT INTO \`CustomAction\` (\`Action\`, \`Type\`, \`Source\`, \`Target\`) VALUES ('SetInstallLocation', 51, 'ARPINSTALLLOCATION', '[INSTALLDIR]')"
+
+# After CostFinalize, which is where INSTALLDIR stops being a guess. Read
+# rather than assumed: the standard action sits at 1000 in a package nobody has
+# reordered, and this is not the place to find out that somebody did.
+cost=$(msiinfo export "$out" InstallExecuteSequence | tr -d '\r' |
+  awk -F'\t' '$1 == "CostFinalize" { print $3 }')
+[ -n "$cost" ] || {
+  echo "::error::windows-msi: no CostFinalize to schedule the install location after" >&2
+  exit 1
+}
+msibuild "$out" -q "INSERT INTO \`InstallExecuteSequence\` (\`Action\`, \`Sequence\`) VALUES ('SetInstallLocation', $((cost + 1)))"
+
+
 # Plus the note, which is the one file the installer adds to the bundle.
 "$here/verify-msi.sh" "$out" "$msiversion" "$upgrade" "$((files + 1))"

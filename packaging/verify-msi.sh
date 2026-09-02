@@ -92,6 +92,18 @@ case "$(prop SecureCustomProperties)" in
 esac
 say "installs under Program Files, per machine or per user, into a chosen location"
 
+# The location it chose, said back. Nothing sets ARPINSTALLLOCATION by
+# itself, and without it Apps and Features shows a blank Install location -
+# so a person who wants to know where their copy went has to guess. Checked
+# here because it is authored by windows-msi.sh after wixl has run, which is
+# exactly the kind of step that stops happening without anybody noticing.
+holds "$(table CustomAction)" SetInstallLocation ||
+  bad "$msi does not set ARPINSTALLLOCATION, so Apps and Features would show no
+     install location"
+holds "$(table InstallExecuteSequence)" SetInstallLocation ||
+  bad "$msi never runs SetInstallLocation, so the property is authored and unset"
+say "reports its install location to Apps and Features"
+
 holds "$(table Shortcut)" ProgramMenuFolder || bad "$msi makes no Start menu entry"
 say "Start menu entry present"
 

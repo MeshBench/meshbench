@@ -23,6 +23,10 @@ had changed in them - which is the gap this file exists to close.
 
 ### Fixed
 
+- **The Windows installer now says where it put things.** Apps and Features
+  showed a blank Install location, because nothing set `ARPINSTALLLOCATION`.
+  A person wanting to know where their copy went had to guess.
+
 - **Playing over a warm that was held said only "playing".** A warm stopped
   to ask about terrain leaves no links measured, and no links means every
   transmission reaches nobody - while the nodes boot, the counts are right
