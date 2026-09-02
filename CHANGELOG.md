@@ -23,6 +23,13 @@ had changed in them - which is the gap this file exists to close.
 
 ### Fixed
 
+- **Playing over a warm that was held said only "playing".** A warm stopped
+  to ask about terrain leaves no links measured, and no links means every
+  transmission reaches nobody - while the nodes boot, the counts are right
+  and the console answers `OK - Advert sent`. The workbench said so when the
+  network opened and then pressing play overwrote it, so by the time anyone
+  sent traffic the explanation had gone. Play now says what will happen.
+
 - **No published board image could be downloaded.** The catalogue derives a
   build's version from its asset name, `v1.17.1`, while MeshCore tags its
   releases by role, `repeater-v1.17.1`. The download asked for
