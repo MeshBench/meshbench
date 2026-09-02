@@ -41,6 +41,7 @@ func fatal(code int, msg string) {
 
 func main() {
 	adoptConsole()
+	recordCrashes()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
