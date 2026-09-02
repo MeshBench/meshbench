@@ -16,9 +16,23 @@ import (
 	"time"
 
 	embedded "github.com/MeshBench/meshbench/fixtures"
+	"github.com/MeshBench/meshbench/internal/app/version"
 	"github.com/MeshBench/meshbench/internal/sim/engine"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
+
+// Format is the fixture format this build writes, and the highest one it will
+// read.
+//
+// It moves when a file this build writes would be *misread* by the build
+// before it, which is not the same as changed. Adding a field an older build
+// ignores costs that build nothing, so it does not move the number; a field
+// changing meaning, or one becoming load-bearing, does.
+//
+// 1 is the format as it stood when the number was introduced. A file written
+// before that carries no number at all, reads as 0, and is still read: the
+// shape did not change on the day it started being declared.
+const Format = 1
 
 // Fixture is a saved study: the nodes, the boundary they were chosen from, the
 // traffic to send, and what must be true afterwards.
@@ -27,6 +41,11 @@ import (
 // Reopening a piece of work should reopen the work, not the nodes it happened
 // to contain.
 type Fixture struct {
+	// Format is what the writing build called its own file layout. Carried at
+	// the top so that a reader who opens the file in an editor meets it before
+	// anything it governs.
+	Format int `json:"format,omitempty"`
+
 	Name    string          `json:"name"`
 	Saved   time.Time       `json:"saved"`
 	Nodes   []scenario.Node `json:"nodes"`
@@ -89,10 +108,34 @@ func Load(path string) (*Fixture, error) {
 	if err := json.Unmarshal(b, &f); err != nil {
 		return nil, fmt.Errorf("%s is not a fixture: %w", path, err)
 	}
+	if err := readable(path, f.Format); err != nil {
+		return nil, err
+	}
 	if len(f.Nodes) == 0 {
 		return nil, fmt.Errorf("%s has no nodes", path)
 	}
 	return &f, nil
+}
+
+// readable refuses a file from the future, and says which build wrote it and
+// which one is refusing.
+//
+// Refusing rather than reading what it recognises and ignoring the rest. A
+// fixture is the input to a simulation, and a simulation run on three quarters
+// of its inputs does not fail: it produces a plausible answer about a network
+// nobody described, which is the worst thing this project can do. Refusing
+// costs a person one upgrade; misreading costs them a result they believed.
+//
+// Before the number check, because it comes before the nodes check in Load: a
+// later format may well have stopped spelling the nodes this way, and "has no
+// nodes" would send the reader looking for a fault in their own file.
+func readable(path string, format int) error {
+	if format <= Format {
+		return nil
+	}
+	return fmt.Errorf("%s is fixture format %d and this build (MeshBench %s) "+
+		"reads up to format %d. It was written by a later MeshBench: install "+
+		"that release to open it", path, format, version.String(), Format)
 }
 
 // Checks converts the saved assertions into the ones the engine evaluates.

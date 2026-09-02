@@ -4,8 +4,16 @@ Notable changes to MeshBench, newest first.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 the version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-While the major version is 0 the interface may change between releases without
-ceremony.
+
+**MeshBench is 0.x deliberately, and there is no 1.0 scheduled.** While the
+major version is 0 the interface may change between releases, and this file is
+the only notice: there is no deprecation period behind it. Three things are the
+exception, because a mismatch there is refused at runtime rather than guessed
+at: the control protocol number, the rule that a client and the workbench it
+drives are the same release, and the fixture format, which refuses a file
+written by a later build. [`docs/compatibility.md`](docs/compatibility.md) says
+what each of those promises, and what would have to be true before 1.0 was
+worth cutting.
 
 **The 0.0.x entries below were reconstructed from the commit history.** Those
 four releases shipped with identical installation notes and no record of what
@@ -14,6 +22,31 @@ had changed in them — which is the gap this file exists to close.
 ## [Unreleased]
 
 ### Added
+
+- **A written compatibility story, and the parts of it the build enforces.**
+  `docs/compatibility.md` says what 0.x means here rather than leaving it to
+  the convention that anything may break: the control protocol number and when
+  it moves, the client and workbench pairing rule, the fixture format, how
+  every platform stamps its version, where the GPL source archive stands, and
+  seven concrete things that would have to be true before 1.0 was worth
+  cutting. `MeshBench/gio` is the fork the `replace` directive points at, so a
+  private one would make the source archive worthless; it is public, checked
+  rather than assumed, and `docs/repositories.md` now says so and how it was
+  checked.
+- **A fixture carries the format it was written by, and a build refuses one
+  from the future.** A file whose `format` is higher than this build reads is
+  refused by name, with both numbers and the release to install, rather than
+  read for the parts it recognises. Reading three quarters of a fixture does
+  not fail: it answers a question about a network nobody described. Older
+  files, including every one written before the field existed, still open.
+- **The version stamp is pinned across all three build paths.** Linux, macOS
+  and Windows are built by different jobs, and once they disagree the
+  difference is invisible until a release is out. A test now reads the three
+  build commands out of the pipeline and fails if any of them builds the binary
+  without stamping the tag, drops its `v`, or if a fourth path appears without
+  one. All three also refuse a version that is not a plain `X.Y.Z`, because a
+  workbench stamped `vv0.1.0` is not a release as far as the pairing rule can
+  tell and would pair with anything.
 
 - **The emulator toolchain is fetchable.** `radioserver`, QEMU and Renode are
   rows on the Resources page like anything else the application downloads, with

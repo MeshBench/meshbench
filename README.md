@@ -148,6 +148,14 @@ from here: [your first simulation](https://meshbench.github.io/docs/first-simula
 and the full CLI, control-socket and client references. This repository's
 [`docs/`](docs/README.md) keeps the engineering notebook behind it.
 
+MeshBench is **0.x deliberately**, and there is no 1.0 scheduled.
+[`docs/compatibility.md`](docs/compatibility.md) says what that means for
+anything depending on it: what may break, what is refused at connect rather
+than guessed at, and what would have to be true before a 1.0 was worth cutting.
+The short version for a script is that a client and the workbench it drives
+must be the same release, and a mismatched pair is refused before any verb
+runs.
+
 ## Board compatibility
 
 Which published board images have actually been run under emulation, and
