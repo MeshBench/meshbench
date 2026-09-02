@@ -1,10 +1,32 @@
-![MeshBench: an RF-accurate MeshCore network simulator](docs/brand/meshbench-card.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/brand/meshbench-banner-1600x400.png">
+  <source media="(prefers-color-scheme: light)" srcset="docs/brand/meshbench-banner-1600x400-light.png">
+  <img alt="MeshBench: an RF-accurate MeshCore network simulator" src="docs/brand/meshbench-banner-1600x400-light.png">
+</picture>
 
 # MeshBench
 
 **An RF-accurate MeshCore network simulator: real firmware, modelled air.**
 
 [![CI](https://github.com/MeshBench/meshbench/actions/workflows/ci.yml/badge.svg)](https://github.com/MeshBench/meshbench/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/MeshBench/meshbench?display_name=tag)](https://github.com/MeshBench/meshbench/releases/latest) [![Docs](https://img.shields.io/badge/docs-meshbench.github.io-E8500F)](https://meshbench.github.io/docs/) [![Licence: GPL-3.0-or-later](https://img.shields.io/badge/licence-GPL--3.0--or--later-blue)](LICENSE) [![Go](https://img.shields.io/badge/go-1.25-00ADD8)](go.mod)
+
+> [!WARNING]
+> **This is not ready for a release.** The repository was made public so that
+> other work could be completed against it, not because the project is
+> finished. Expect rough edges and expect things to move.
+>
+> **Linux is the platform it is developed and tested on.** The other two have
+> known compatibility problems, and they are being worked through:
+>
+> - **Windows**: several open faults, tracked under the
+>   [`windows`](https://github.com/MeshBench/meshbench/issues?q=is%3Aissue+is%3Aopen+label%3Awindows)
+>   label.
+> - **macOS**: the build is not notarised, so the first launch has to be
+>   allowed by hand, and no emulator package is published for it, so emulated
+>   boards need forks you build yourself.
+>
+> Builds for those two are worth helping to test. They are not yet worth
+> depending on.
 
 ## Overview
 
