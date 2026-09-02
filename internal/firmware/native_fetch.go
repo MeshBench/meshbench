@@ -163,6 +163,12 @@ func (c *NativeCatalogue) Fetch(ctx context.Context, img NativeImage) (string, e
 	if err := Verify(body, img.SHA256); err != nil {
 		return "", fmt.Errorf("firmware: %s: %w", img.Name(), err)
 	}
+	// The digest proves these are the published bytes, not that they are a
+	// program this machine can run: a release built for the wrong platform
+	// matches its own digest perfectly.
+	if err := checkNativeExecutable(img.Name(), body); err != nil {
+		return "", err
+	}
 
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return "", fmt.Errorf("firmware: cache directory: %w", err)
@@ -316,6 +322,14 @@ func (c *NativeCatalogue) fetchDirect(ctx context.Context, role, version string)
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 128<<20))
 	if err != nil {
+		return "", err
+	}
+	// Checked before it is written, because this path has no published digest
+	// to compare against and the file is about to be marked executable. A body
+	// that is complete and wrong - an error page served with 200, an asset for
+	// another platform - would otherwise be cached, run, and reported as every
+	// node exiting 1 at once.
+	if err := checkNativeExecutable(name, body); err != nil {
 		return "", err
 	}
 	dest := filepath.Join(c.CacheDir, "native", version, name)
