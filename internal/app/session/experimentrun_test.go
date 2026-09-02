@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
+	"github.com/MeshBench/meshbench/internal/firmware"
 )
 
 // One cell, with everything it reports visible.
@@ -44,6 +45,14 @@ func TestOneExperimentCellReportsWhatItDid(t *testing.T) {
 	t.Logf("tx %d  rx %d  delivered %d  redundant %d  airtime %.0f ms",
 		r.TX, r.RX, r.Delivered, r.Redundant, r.AirtimeMs)
 	if r.Err != "" {
+		// A machine too old for the published build is not a result this test
+		// can produce, and reporting it as an experiment fault is how it spent
+		// a fortnight looking like a flake: the lab pool holds one runner that
+		// pins MeshBench's own glibc floor at 2.35 deliberately, MeshCore's
+		// builds want 2.38, and which runner a job lands on is a lottery.
+		if strings.Contains(r.Err, firmware.HostTooOld) {
+			t.Skip("this machine cannot run the published build: ", r.Err)
+		}
 		t.Fatalf("cell failed: %s", r.Err)
 	}
 	// Ninety seconds of simulated time driving fifty-odd real processes cannot
