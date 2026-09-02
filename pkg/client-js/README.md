@@ -1,67 +1,172 @@
 # MeshBench Node client
 
-Drive a running MeshBench workbench from Node, over the same control socket the
+Drive a MeshBench workbench from Node, over the same control socket the
 [Go](../client-go) and [Python](../client-python) clients speak. The three are
-peers on the wire — one protocol, one handshake, one set of transports — but
-not in shape: Go and Python each carry a generated façade with typed methods
-and closed enums, and this one does not. See "What kind of client this is"
-below for why, and what that means for a script.
+peers on the wire and peers in shape: one protocol, one handshake, one set of
+transports, one generated set of closed enums, and the same helpers with the
+same names.
 
-One ES module, no dependencies, no build. It uses Node's own `net`.
+No dependencies, no build step, no TypeScript compiler. It is ES modules on
+Node's own `net`.
 
 ```js
 import { Workbench } from "@meshbench/client"; // or "./meshbench.mjs" from a checkout
 
-const wb = await Workbench.attach();           // does the handshake itself
-
-await wb.call("project.new", { place: "Fife" });
-await wb.call("nodes.place", { name: "Alpha", kind: "simple-repeater", lat: 56.3, lon: -3.3 });
-
-const state = await wb.call("sim.state");
-console.log(state);
-
-await wb.close();
+const wb = await Workbench.headless({ fixture: "fife-strict", seed: 9001 });
+try {
+  await wb.sim.start();                          // warm, firmware, then play
+  await wb.sim.run(5 * 60_000);                  // five minutes of the mesh's clock
+  console.log(String(await wb.provenance()));
+  console.log(await wb.events.total(), "events");
+} finally {
+  await wb.close();
+}
 ```
 
-`call(verb, params)` is the whole API; everything the workbench can do is a
-verb, and the [control-socket reference](https://meshbench.github.io/docs/reference-control.html)
-lists them all. A verb the workbench refuses throws a `WorkbenchError` carrying
-its `code`, so you can tell "no such node" from "the workbench is closing"
-without matching prose. Every call carries a timeout - see below - so a verb
-the workbench never answers rejects instead of hanging the script forever.
+## Two layers, both public
 
-## Installing
+`wb.call(verb, params)` is the whole protocol, so a verb this package has not
+shaped is one line away rather than a blocker. The shape above it is what a
+script should reach for first, because **every helper on it exists to stop a
+mistake somebody has already made**:
+
+| | |
+|---|---|
+| `wb.sim` | the clock, and `start()` - see below |
+| `wb.nodes`, `wb.node(name)` | the network, and one node: place, move, firmware, board, antenna, card, console, device |
+| `wb.firmware` | the library: find, import, build, `useWhatIsHere()`, `waitStarted()` |
+| `wb.events` | the log: `recent()`, `total()`, `dump()`, `wait()` |
+| `wb.project`, `wb.boundary`, `wb.live` | the network as a whole, the study area, and the import chain |
+| `wb.schedule`, `wb.assertions` | what a run is told to send, and what has to be true of it |
+| `wb.subscribe(...)` | being told rather than asking |
+| `sessions()` | which workbenches are running on this machine |
+
+### `sim.start()`, and why it is not `sim.start`
+
+The verb `sim.start` is the play button's own handler and answers four ways: it
+**pauses** if already playing, declines while links are being measured, or
+starts firmware and does not play. Worse, it starts firmware only when *no* node
+is running, so a mesh where you pinned a build onto two nodes is "started" with
+the other fifty-six down.
+
+`wb.sim.start()` asks for the three things a script actually means, in order,
+and checks each: wait out the warm, start whatever firmware is down, wait for
+it, then `sim.play` by its own name.
+
+### Waits are methods, and there are two clocks
+
+Every wait is a method - `node.waitRunning()`, `sim.run()`,
+`firmware.waitStarted()`, `wb.waitIdle()` - never a sleep in a script. They poll
+today and will subscribe later, and no script changes when they do.
+
+Simulated time is the mesh's own: `sim.run(5 * 60_000)` is five minutes of *its*
+clock, and on 155 emulated nodes that is a great deal longer than five of yours.
+Wall clock is yours: every `timeoutMs`, and `sim.run(..., {waitMs})`. Both are
+milliseconds, so the name is what tells them apart, and nothing that means the
+mesh's clock is called a timeout.
+
+## Refusals
+
+**The workbench answers "no" by returning a value, not by raising** - so read
+the reply of anything that looks like a command. What this client raises is a
+`WorkbenchError` carrying the verb, the workbench's own words and its `code`,
+subclassed by that code so `instanceof` works where Go has `errors.Is` and
+Python has an exception hierarchy:
+
+```js
+import { NotFound, Timeout, VersionMismatch } from "@meshbench/client";
+
+try {
+  await wb.nodes.find("West Lomond");
+} catch (e) {
+  if (e instanceof NotFound) …   // its message names what it did find
+}
+```
+
+`MeshbenchError` is the base. `UnknownVerb`, `BadParams`, `NotFound`,
+`Conflict`, `Unavailable` and `Closing` are the workbench's own codes;
+`ProtocolMismatch` and `VersionMismatch` are the two ends refusing each other;
+`Timeout` is a wait that ran out, and says what it last saw rather than only
+that it gave up.
+
+## Enums, not strings
+
+`Kind`, `Board`, `Preset`, `Role`, `Class`, `Tab`, `Strategy` and `Transport`
+are generated by `tools/clientgen` from `internal/world/scenario`, the same one
+place the Go and Python clients are generated from, and CI fails when the three
+drift. Never spell one as a free string: a board name nothing matches produces a
+different node, silently.
+
+```js
+import { Board, Kind, Role } from "@meshbench/client";
+
+await wb.nodes.place({ name: "Deck", kind: Kind.COMPANION, lat: 56.19, lon: -3.17,
+                       board: Board.LILYGO_TDECK });
+```
+
+Each is a frozen object of plain strings, so a member goes on the wire as itself
+and a literal is still accepted anywhere one is asked for. The member names match
+the Python client's exactly, so a script moved between the two changes the dots
+and nothing else.
+
+## Installing, and starting a workbench
 
 ```
 npm install @meshbench/client
 ```
 
 You also need the `meshbench` binary: this package drives a workbench, it does
-not contain one. Unlike the Go and Python clients it cannot start one either,
-so put `meshbench` on `PATH`, run `meshbench workbench` or `meshbench headless`,
-and attach to that. An `attach()` that times out on a machine with no workbench
-running is this, and not a bug in the socket path.
+not contain one. Put it on `PATH` or name it in `MESHBENCH_BINARY`.
+
+- `Workbench.headless(opts)` starts one with no window and owns it: no display,
+  no GPU, no toolkit. The one to use from a test or from CI.
+- `Workbench.launch(opts)` opens the desktop workbench and owns it.
+- `Workbench.attach(opts)` connects to one already running and never owns it -
+  `close()` hangs up, and whatever was on screen stays on screen.
+- `Workbench.attachOrHeadless(opts)` / `attachOrLaunch(opts)` use the session
+  that is running, or start one. Ask `wb.ownsProcess` which you got.
+
+`headless` and `launch` take `{fixture, seed, socket, binary, args,
+startTimeoutMs, callTimeoutMs, stderr}`. Given a `fixture` they wait for it to
+open, not merely for the socket: the windowed build loads a fixture on a worker
+so the window appears first, and a client that believed the socket would be told
+there are no nodes and no jobs, and `waitIdle` would return in 0.00s having
+waited for work nobody had queued.
+
+Each owns its own private address unless you name a socket, so two of them do
+not fight over the per-user default.
 
 ## Connecting
 
 `Workbench.attach()` finds the workbench the same way the other clients do, so
 all three agree on one machine:
 
-- `MESHBENCH_CONTROL_SOCKET` if set — a path, `tcp`, or `tcp:host:port`.
+- `MESHBENCH_CONTROL_SOCKET` if set - a path, `tcp`, or `tcp:host:port`.
 - otherwise a unix socket at `$XDG_RUNTIME_DIR/meshbench.sock` (Linux) or the
   per-user cache directory (macOS).
 - Windows has no unix socket, so the workbench listens on loopback TCP and
   writes its address and a token to a rendezvous file; this reads that file and
-  presents the token. Pass `{ socket: "tcp" }` or set the env var.
+  presents the token.
 
 A unix socket path over 104 bytes is refused before it ever reaches `connect`,
-the same limit and the same message the Go and Python clients give - the raw
-OS error names neither the limit nor what to do about it.
+the same limit and the same message the other two give - the raw OS error names
+neither the limit nor what to do about it.
 
-`attach()` also does the handshake itself, the same as Go and Python: a
-workbench speaking a protocol this client does not understand is refused at
-connect with a `ProtocolMismatch`, not on whichever call happens to notice.
-`hello()` stays public for a script that wants to re-check.
+Where several workbenches are running, `sessions()` lists them and a row goes
+straight to `attach`, which is the only way to reach a second TCP session: its
+token sits beside its address in its own file, where the per-user rendezvous
+file two of them share has only one of the two.
+
+```js
+import { sessions, Workbench } from "@meshbench/client";
+
+const running = await sessions();
+const wb = await Workbench.attach({ session: running.at(-1) });
+```
+
+There is deliberately no "attach to whatever is running": where several are up
+and none was named, guessing is how a script ends up driving the session
+somebody else was watching.
 
 **A client and the workbench it drives must be the same release.** This package
 declares its own version on the wire, the workbench refuses a pair it cannot be
@@ -79,39 +184,33 @@ const wb = await Workbench.attach({
 });
 
 // A single call known to take longer gets its own budget, or none:
-await wb.call("firmware.build", { checkout: "main" }, 20 * 60_000);
+await wb.call("firmware.build", { source: "~/src/MeshCore" }, 20 * 60_000);
 await wb.call("sim.run", { for_ms: 10 * 60_000 }, null); // no timeout
 ```
 
-`callTimeoutMs` defaults to 300000 (five minutes), matching the Python
-client's socket timeout, so a script ported between the two waits the same
-length of time before it hears about a verb the workbench never answered.
-
-## What kind of client this is
-
-Go and Python generate `Kind`, `Board`, `Preset`, `Role`, `Class`, `Tab`,
-`Strategy` and `Transport` from `internal/world/scenario` (`tools/clientgen`),
-so a typo in a board name is a compile error or an editor squiggle rather than
-a verb refusing three calls later. This client does not, on purpose: it has no
-compiler and no build step to catch the typo before it reaches the wire either
-way, so a generated enum here would buy an import to keep in sync and nothing
-a plain string does not already give a Node script. Every verb parameter is a
-free string, and the workbench itself is still the thing that refuses a board
-it has never heard of - the same refusal Go and Python get, just discovered at
-the call rather than before it.
+`callTimeoutMs` defaults to 300000 (five minutes), matching the Python client's
+socket timeout, so a script ported between the two waits the same length of time
+before it hears about a verb the workbench never answered.
 
 ## Running
 
 ```bash
-node examples/small-mesh-with-traffic.mjs   # needs a workbench running, and a display
-node --test meshbench.test.mjs              # the client's own tests, no workbench needed
+node --test                                 # the client's own tests, no workbench needed
+node examples/small-mesh-with-traffic.mjs   # needs meshbench on PATH
 ```
 
-The tests stand up a fake workbench on a unix socket and check the wire — no
-real workbench, no network.
+The tests stand up a fake workbench on a unix socket and check the wire and
+every helper above it - no real workbench, no network. They also import every
+example, which is Node's answer to `go build ./...` compiling the Go ones: an
+example that has stopped parsing, or that reaches for a helper this client no
+longer has, is a red test run rather than something somebody finds by trying it.
+
+See [examples/](examples/) for the set, one file each, matching the Go and
+Python examples one for one.
 
 ## What a scripted result is
 
 A number this prints is a simulated number, kinder than the air, exactly as it
-is from the application. The limits travel with it — see
+is from the application. The limits travel with it - `wb.provenance()` is the
+line to print above any number a script emits - see
 [what it does not do](https://meshbench.github.io/docs/what-it-does-not-do.html).

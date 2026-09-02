@@ -1,6 +1,6 @@
-// Tests for the Node client, run against a fake workbench: a unix-socket server
-// that speaks the control protocol (one JSON request per line, one reply). No
-// real workbench and no network - `node --test pkg/client-js`.
+// The protocol itself: framing, the handshake, the pairing rule and the
+// timeouts. Run against the fake workbench in fake.mjs - no real workbench and
+// no network.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -10,59 +10,10 @@ import path from "node:path";
 import fs from "node:fs";
 
 import {
-  Workbench, WorkbenchError, ProtocolMismatch, VersionMismatch,
-  PROTOCOL, RELEASE, defaultAddress,
-} from "./meshbench.mjs";
-
-// A fake workbench. `reply` maps a method to a function of its params
-// returning {result} or {error, code}; unknown methods get a coded error.
-// Returning `false` means never answer, for the timeout tests. It records
-// every request it saw. Answers out of order on purpose, to prove the client
-// matches replies by id rather than by arrival - except session.hello, which
-// attach() sends before a caller has any other request in flight to pair it
-// with, so buffering it out of order would deadlock attach() itself.
-function fakeWorkbench(reply, { outOfOrder = false } = {}) {
-  const sockPath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "mb-")), "c.sock");
-  const seen = [];
-  const server = net.createServer((c) => {
-    c.setEncoding("utf8");
-    let buf = "";
-    const pending = [];
-    c.on("data", (chunk) => {
-      buf += chunk;
-      let nl;
-      while ((nl = buf.indexOf("\n")) >= 0) {
-        const line = buf.slice(0, nl);
-        buf = buf.slice(nl + 1);
-        if (!line.trim()) continue;
-        const req = JSON.parse(line);
-        if (req.token !== undefined) continue; // the TCP auth line, if any
-        seen.push(req);
-        const r = reply(req.method, req.params);
-        if (r === false) continue; // simulate a verb the workbench never answers
-        const frame = JSON.stringify({ id: req.id, ...(r || {}) }) + "\n";
-        if (outOfOrder && req.method !== "session.hello") pending.push(frame);
-        else c.write(frame);
-      }
-      if (outOfOrder && pending.length === 2) {
-        c.write(pending.pop()); // second request answered first
-        c.write(pending.pop());
-      }
-    });
-  });
-  return new Promise((resolve) => {
-    server.listen(sockPath, () => resolve({ sockPath, server, seen }));
-  });
-}
-
-/** A reply function that answers the handshake with a matching protocol and
- *  falls back to another function for everything else. */
-function withHello(rest) {
-  return (method, params) => {
-    if (method === "session.hello") return { result: { protocol: PROTOCOL } };
-    return rest(method, params);
-  };
-}
+  MeshbenchError, NotFound, PROTOCOL, ProtocolMismatch, RELEASE, VersionMismatch,
+  Workbench, WorkbenchError, defaultAddress,
+} from "../meshbench.mjs";
+import { fakeWorkbench, withHello } from "./fake.mjs";
 
 test("defaultAddress honours the env override", () => {
   const saved = process.env.MESHBENCH_CONTROL_SOCKET;
@@ -78,7 +29,7 @@ test("defaultAddress honours the env override", () => {
 test("call sends {id, method, params} and returns the result", async () => {
   const wb = await fakeWorkbench(withHello((method, params) => {
     if (method === "nodes.place") return { result: { placed: params.name } };
-    return { error: `no such verb ${method}`, code: "no-verb" };
+    return { error: `no such verb ${method}`, code: "unknown_verb" };
   }));
   const c = await Workbench.attach({ socket: wb.sockPath });
   const got = await c.call("nodes.place", { name: "Alpha", lat: 56.3 });
@@ -99,13 +50,38 @@ test("params is omitted when none is given", async () => {
   wb.server.close();
 });
 
-test("an error reply rejects with the code preserved", async () => {
-  const wb = await fakeWorkbench(withHello(() => ({ error: "no node named X", code: "no-node" })));
+// The refusal carries the verb as well as the workbench's own words, and its
+// code decides the class - because instanceof is what JavaScript has where Go
+// has errors.Is and Python has an exception hierarchy.
+test("an error reply rejects with the code and the class it names", async () => {
+  const wb = await fakeWorkbench(withHello(
+    () => ({ error: "no node named X", code: "not_found" })));
   const c = await Workbench.attach({ socket: wb.sockPath });
   await assert.rejects(c.call("node.output", { node: "X" }), (e) => {
+    assert.ok(e instanceof NotFound);
     assert.ok(e instanceof WorkbenchError);
-    assert.equal(e.code, "no-node");
-    assert.match(e.message, /no node named X/);
+    assert.ok(e instanceof MeshbenchError);
+    assert.equal(e.code, "not_found");
+    assert.equal(e.verb, "node.output");
+    assert.equal(e.detail, "no node named X");
+    assert.match(e.message, /node\.output: no node named X/);
+    return true;
+  });
+  await c.close();
+  wb.server.close();
+});
+
+// A code this client has never heard of must still arrive as a refusal. A
+// workbench newer than this package may classify something in a way this
+// version does not know, and swallowing that would be worse than passing it on.
+test("an unrecognised code is still a refusal", async () => {
+  const wb = await fakeWorkbench(withHello(
+    () => ({ error: "something new", code: "invented_later" })));
+  const c = await Workbench.attach({ socket: wb.sockPath });
+  await assert.rejects(c.call("verb"), (e) => {
+    assert.ok(e instanceof WorkbenchError);
+    assert.equal(e.constructor.name, "WorkbenchError");
+    assert.equal(e.code, "invented_later");
     return true;
   });
   await c.close();
@@ -114,8 +90,7 @@ test("an error reply rejects with the code preserved", async () => {
 
 test("replies are matched by id, not by arrival order", async () => {
   const wb = await fakeWorkbench(
-    withHello((method) => ({ result: method })),
-    { outOfOrder: true });
+    withHello((method) => ({ result: method })), { outOfOrder: true });
   const c = await Workbench.attach({ socket: wb.sockPath });
   const [a, b] = await Promise.all([c.call("first"), c.call("second")]);
   assert.equal(a, "first");
@@ -136,9 +111,9 @@ test("hello refuses a protocol this client does not speak", async () => {
 });
 
 // The pairing rule, from this end. A client and the workbench it drives must be
-// the same release, and a script has to be able to tell that refusal from a
-// verb declining what it was asked - hence its own class rather than a code on
-// the general one.
+// the same release, and a script has to be able to tell that refusal from a verb
+// declining what it was asked - hence its own class rather than a code on the
+// general one.
 test("attach declares the release this client belongs to", async () => {
   const wb = await fakeWorkbench(withHello(() => ({ result: "ok" })));
   const c = await Workbench.attach({ socket: wb.sockPath });
@@ -156,9 +131,9 @@ test("a workbench from another release is refused at connect", async () => {
     assert.ok(e instanceof VersionMismatch);
     assert.equal(e.code, "version_mismatch");
     assert.equal(e.workbench, "9.9.9");
-    // Both releases and what to do about it: a bare "version mismatch" leaves
-    // a reader to work out which of the two things they have installed to
-    // change, and they cannot act until they know.
+    // Both releases and what to do about it: a bare "version mismatch" leaves a
+    // reader to work out which of the two things they have installed to change,
+    // and they cannot act until they know.
     assert.match(e.message, new RegExp(`MeshBench ${RELEASE}`));
     assert.match(e.message, /MeshBench 9\.9\.9/);
     assert.match(e.message, /must be the same release/);
@@ -178,6 +153,9 @@ test("the workbench's own refusal arrives as a version mismatch", async () => {
   await assert.rejects(Workbench.attach({ socket: wb.sockPath }), (e) => {
     assert.ok(e instanceof VersionMismatch);
     assert.match(e.message, /MeshBench 2\.0\.0/);
+    // The verb is not in front of it: this is a pair being refused, not
+    // session.hello declining what it was asked.
+    assert.ok(!e.message.startsWith("session.hello"));
     return true;
   });
   wb.server.close();
@@ -215,10 +193,12 @@ test("a workbench that is a development build is served, and says so", async () 
   wb.server.close();
 });
 
-test("attach folds the handshake in, so a script gets protocol protection unasked", async () => {
+test("attach folds the handshake in, so a script gets protection unasked", async () => {
   const wb = await fakeWorkbench(withHello(() => ({ result: "ok" })));
   const c = await Workbench.attach({ socket: wb.sockPath });
   assert.equal(wb.seen[0].method, "session.hello");
+  assert.equal(c.isHeadless, true);
+  assert.equal(c.ownsProcess, false);
   await c.close();
   wb.server.close();
 });
@@ -233,7 +213,7 @@ test("a unix socket path over the limit is refused before it is dialled", async 
 
 test("a call rejects on its own timeout, without blocking calls behind it", async () => {
   const wb = await fakeWorkbench(withHello((method) => {
-    if (method === "stuck") return false; // the workbench never answers this one
+    if (method === "stuck") return false; // never answered
     return { result: "ok" };
   }));
   const c = await Workbench.attach({ socket: wb.sockPath });
