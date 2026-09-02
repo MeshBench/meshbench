@@ -88,7 +88,10 @@ func TestARasterOverUnchosenBareEarthIsRefused(t *testing.T) {
 		if err == nil {
 			t.Fatalf("%s answered over an empty tile cache: %v", verb, got)
 		}
-		for _, want := range []string{"free space", "terrain.allow"} {
+		// The fetch is what is missing, not the setting: downloads are on in
+		// this session, so naming the switch would send the reader to a
+		// control that is already where they want it.
+		for _, want := range []string{"free space", "downloads are on"} {
 			if !strings.Contains(err.Error(), want) {
 				t.Errorf("%s refused without saying %q: %v", verb, want, err)
 			}

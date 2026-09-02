@@ -19,11 +19,17 @@ import (
 // nothing received: reported as an advert no node receives, which is
 // exactly what it is.
 func (s *Sim) playLine() string {
-	if measured, held := s.linksMeasured(); !measured && held {
-		return "playing, but no link has been measured: the warm stopped to " +
-			"ask whether terrain may be downloaded, so every transmission " +
-			"will reach nobody. Allow it in Configuration > System, or run " +
-			"terrain.allow, then rewarm links"
+	// Nothing measured and nothing measuring: a warm that failed or was
+	// cancelled, which used to be a warm held waiting for permission. Either
+	// way the matrix is empty and every transmission reaches nobody, and that
+	// is the one thing worth saying over the top of "playing".
+	//
+	// Only with nodes to measure between. An empty session has no matrix
+	// because there is nothing to put in one, and telling somebody who has
+	// opened nothing that nothing can reach anything is noise.
+	if len(s.nodes) > 0 && !s.linksMeasured() && !s.warming() {
+		return "playing, but no link has been measured, so every transmission " +
+			"will reach nobody. Warm the links again"
 	}
 	return "playing"
 }

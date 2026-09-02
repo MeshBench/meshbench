@@ -41,13 +41,12 @@ func registerSimControl(st *state.Store, s *Sim) {
 	// sim.state: the one a caller polls, so it must be cheap and must never
 	// fail before a network is loaded.
 	st.Handle("sim.state", func(w *state.World, _ any) (any, error) {
-		// links_measured and warm_held are the two halves of "did the
-		// measurement happen": a script that polls this and sees neither a warm
-		// running nor a matrix measured is looking at a session that stopped to
-		// ask something, not at one that is ready. The stored ground says what
-		// it stopped for, and comes off the world rather than off the disk so
-		// this stays the cheap verb it has to be.
-		measured, held := s.linksMeasured()
+		// warming and links_measured are the two halves of "did the measurement
+		// happen": running, and finished. A script that reads "not warming" as
+		// "measured" believes a matrix nobody walked. The stored ground says
+		// what any of it stood on, and comes off the world rather than off the
+		// disk so this stays the cheap verb it has to be.
+		measured := s.linksMeasured()
 		// And whether this run's instants may be quoted against another run's
 		// at all. The seed is answered a line above, and a seed is read as a
 		// promise: a script that has one assumes it can run the scenario again
@@ -64,7 +63,6 @@ func registerSimControl(st *state.Store, s *Sim) {
 			"seed":                 w.Seed,
 			"warming":              s.warming(),
 			"links_measured":       measured,
-			"warm_held":            held,
 			"ground":               w.Ground.Map(),
 			"reproducible":         why == "",
 			"not_reproducible_why": why,

@@ -168,14 +168,11 @@ class SimState:
     events: int = 0
     step_ms: int = 0
     seed: int = 0
-    # Three states, because a warm that stopped to ask permission to download
-    # terrain is neither running nor finished. Reading "not warming" as
-    # "measured" is how a script came to read a study over ground nobody
-    # fetched. ground says what it stood on: state of "terrain", "partial" or
-    # "bare-earth", and chosen saying whether anybody answered the question.
+    # The two states of the link measurement: running, and finished. Neither
+    # true is a warm that failed or was cancelled, and reading "not warming" as
+    # "measured" is how a study came to be believed over ground nobody walked.
     warming: bool = False
     links_measured: bool = False
-    warm_held: bool = False
     ground: dict[str, Any] = field(default_factory=dict)
     # Whether the seed above is a promise. It is not on a network carrying a
     # node that runs in an emulator: that node's firmware is stepped by the

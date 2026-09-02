@@ -19,7 +19,7 @@ test("sim.start waits out the warm, starts what is down, then plays", async () =
   let running = 0;
   await withFake(answers({
     "session.snapshot": idle,
-    "sim.state": () => ({ playing: false, warm_held: false }),
+    "sim.state": () => ({ playing: false, links_measured: true }),
     "firmware.state": () => ({ running, nodes: 4, starting: false }),
     "firmware.start": () => { running = 4; return {}; },
     "nodes.stats": { stats: [] },
@@ -44,7 +44,7 @@ test("sim.start starts firmware when some nodes are up but not all", async () =>
   let started = false;
   await withFake(answers({
     "session.snapshot": idle,
-    "sim.state": { playing: false, warm_held: false },
+    "sim.state": { playing: false, links_measured: true },
     "firmware.state": () => ({ running: started ? 58 : 2, nodes: 58, starting: false }),
     "firmware.start": () => { started = true; return {}; },
     "nodes.stats": { stats: [] },
@@ -55,18 +55,20 @@ test("sim.start starts firmware when some nodes are up but not all", async () =>
   assert.ok(started, "firmware.start was not called with 2 of 58 running");
 });
 
-// Idle is not the same as measured. A warm that stopped to ask permission to
-// download terrain finishes its own job row, so waitIdle returns in a moment
-// having waited for nothing - and every study after that answers over free
-// space.
-test("sim.start refuses a held warm rather than playing over free space", async () => {
+// Idle is not the same as measured. A warm that failed or was cancelled
+// finishes its own job row, so waitIdle returns having waited for nothing -
+// and every study after that answers over free space.
+test("sim.start refuses an unmeasured matrix rather than playing over free space", async () => {
   await withFake(answers({
     "session.snapshot": idle,
-    "sim.state": { playing: false, warm_held: true, ground: { note: "answer it either way" } },
+    "sim.state": {
+      playing: false, links_measured: false, warming: false,
+      ground: { note: "warm the links first" },
+    },
   }), async (wb) => {
     await assert.rejects(wb.sim.start(), (e) => {
-      assert.match(e.message, /the link measurement is held/);
-      assert.match(e.message, /answer it either way/);
+      assert.match(e.message, /no link has been measured/);
+      assert.match(e.message, /warm the links first/);
       return true;
     });
   });
@@ -76,7 +78,7 @@ test("sim.start does not press play on a run that is already playing", async () 
   const asked = [];
   await withFake(answers({
     "session.snapshot": idle,
-    "sim.state": { playing: true, warm_held: false },
+    "sim.state": { playing: true, links_measured: true },
     "firmware.state": { running: 4, nodes: 4, starting: false },
   }, { onCall: (m) => asked.push(m) }), async (wb) => {
     await wb.sim.start();

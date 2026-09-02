@@ -49,21 +49,24 @@ func TestTheGroundNoteNamesFreeSpaceAndNotJustTheGap(t *testing.T) {
 	}
 }
 
-// Chosen is the whole distinction: an offline run somebody asked for is a
-// legitimate result, and one nobody was asked about is the model being quietly
-// more optimistic than its own documented best case.
+// Chosen is the whole distinction: an offline run somebody switched downloads
+// off for is a legitimate result, and bare earth with downloads on is a fetch
+// that did not happen, which is the model being quietly more optimistic than
+// its own documented best case.
 func TestAChosenBareEarthRunIsNotTheSameAsASilentOne(t *testing.T) {
-	silent := groundFrom(terrain.Estimate{Tiles: 40}, false)
+	accident := groundFrom(terrain.Estimate{Tiles: 40}, false)
 	chosen := groundFrom(terrain.Estimate{Tiles: 40}, true)
-	if silent.Chosen || !chosen.Chosen {
-		t.Fatalf("chosen is not being carried: silent=%v chosen=%v",
-			silent.Chosen, chosen.Chosen)
+	if accident.Chosen || !chosen.Chosen {
+		t.Fatalf("chosen is not being carried: accident=%v chosen=%v",
+			accident.Chosen, chosen.Chosen)
 	}
-	if !strings.Contains(silent.Note, "terrain.allow") {
-		t.Errorf("the unanswered case does not name the way to answer it: %s", silent.Note)
+	// The accident names the fetch, because that is what is missing. Pointing
+	// at the switch would be wrong: the switch is already on.
+	if !strings.Contains(accident.Note, "downloads are on") {
+		t.Errorf("the accidental case does not name the fetch: %s", accident.Note)
 	}
-	if strings.Contains(chosen.Note, "nobody has been asked") {
-		t.Errorf("an answered machine is told nobody answered: %s", chosen.Note)
+	if strings.Contains(chosen.Note, "downloads are on") {
+		t.Errorf("a machine with downloads off is told they are on: %s", chosen.Note)
 	}
 }
 

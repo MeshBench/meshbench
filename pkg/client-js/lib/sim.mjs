@@ -34,17 +34,16 @@ export class Sim {
     // The links first. Nothing that follows means anything against a matrix
     // that is still being measured.
     await this._wb.waitIdle(warmMs);
-    // Idle is not the same as measured. A warm that stopped to ask permission
-    // to download terrain finishes its own job row, so the wait above returns
-    // in a moment having waited for nothing: no link was measured, and every
-    // study after this would answer over free space.
-    const held = await this.state();
-    if (held.warm_held) {
-      const note = (held.ground || {}).note ||
-        "call terrain.allow to answer the question either way";
+    // Idle is not the same as measured. A warm that failed or was cancelled
+    // finishes its own job row, so the wait above returns having waited for
+    // nothing: no link was measured, and every study after this would answer
+    // over free space.
+    const now = await this.state();
+    if (!now.links_measured && !now.warming) {
+      const note = (now.ground || {}).note ||
+        "warm the links again before reading anything from this run";
       throw new MeshbenchError(
-        "the link measurement is held: no terrain has been downloaded and no " +
-        `link has been measured. ${note}`);
+        `no link has been measured, so nothing here can reach anything. ${note}`);
     }
     // Then every node that is not up, which firmware.start does and sim.start
     // does only when none of them are.

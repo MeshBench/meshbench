@@ -183,23 +183,24 @@ func firmwareDo(kind string, have, want int) string {
 }
 
 // terrainGroup is the one large download the application makes on its own
-// initiative, and therefore the only one that has to ask first.
+// initiative, so the readiness page says what it costs even though nothing
+// stops to ask any more.
 func terrainGroup(s *session.Sim, rows []state.ResourceRow) state.SetupGroup {
-	allowed, asked := s.TerrainConsent()
+	allowed := s.TerrainDownloadsOn()
 	return state.SetupGroup{
 		Name: "Terrain",
 		Note: "The basemap and the map tiles under the view fill themselves as " +
 			"the map is used, and are small. Terrain heights are neither: the " +
 			"ground under a national network is several hundred megabytes, " +
-			"which is why it is the one thing this machine is asked about. " +
-			"Resources says what any of it has cost the disk.",
+			"fetched as the links that cross it are measured and announced " +
+			"before it is spent. Resources says what it has cost the disk.",
 		Rows: []state.SetupRow{
-			terrainRow(allowed, asked, resourceByName(rows, "terrain tiles")),
+			terrainRow(allowed, resourceByName(rows, "terrain tiles")),
 		},
 	}
 }
 
-func terrainRow(allowed, asked bool, onDisk state.ResourceRow) state.SetupRow {
+func terrainRow(allowed bool, onDisk state.ResourceRow) state.SetupRow {
 	row := state.SetupRow{
 		Name: "terrain heights",
 		What: "the ground every link budget is measured over; without it the " +
@@ -213,13 +214,6 @@ func terrainRow(allowed, asked bool, onDisk state.ResourceRow) state.SetupRow {
 		Verb:  "terrain.allow",
 	}
 	switch {
-	case !asked:
-		row.State = string(state.SetupUndecided)
-		row.Do = "nothing has been downloaded, and nothing will be until this " +
-			"is answered. Allowed, a study fetches only the tiles its own links " +
-			"cross, tens of kilobytes each, quoting the total before it starts; " +
-			"they are then cached for ever."
-		row.Params = map[string]any{"on": true}
 	case !allowed:
 		row.State = string(state.SetupMissing)
 		row.Do = "downloads are off. Links are measured over whatever ground " +
