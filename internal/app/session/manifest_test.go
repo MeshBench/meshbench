@@ -63,7 +63,11 @@ func TestTheVerbManifestIsCurrent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%v\nrun: go test ./internal/app/session -run TestTheVerbManifest -update-manifest", err)
 	}
-	if string(got) != string(want) {
+	// Compared with line endings normalised. The manifest is generated with
+	// LF and a checkout on Windows holds CRLF, so a byte comparison is red on
+	// every branch there - and a check that is always red is one nobody reads
+	// when it means something.
+	if strings.ReplaceAll(string(got), "\r\n", "\n") != string(want) {
 		t.Errorf("docs/verbs.json is out of date; run:\n"+
 			"  go test ./internal/app/session -run TestTheVerbManifest -update-manifest\n"+
 			"it holds %d bytes and the tree describes %d verbs", len(got), len(specs))

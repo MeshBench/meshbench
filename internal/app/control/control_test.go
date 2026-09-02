@@ -82,7 +82,7 @@ func TestTwoWorkbenchesOnOneMachine(t *testing.T) {
 }
 
 func TestALiveSocketIsNotTaken(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "held.sock")
+	path := filepath.Join(shortSocketDir(t), "held.sock")
 	serveAt(t, path)
 
 	_, err := ListenAt(path, func(string, json.RawMessage) (any, error) {
@@ -111,7 +111,7 @@ func TestALiveSocketIsNotTaken(t *testing.T) {
 // The case the removal was written for: a crashed run leaves a socket file
 // behind with nothing behind it, and the next start must clean it up.
 func TestAStaleSocketFileIsCleared(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "stale.sock")
+	path := filepath.Join(shortSocketDir(t), "stale.sock")
 	if err := os.WriteFile(path, nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -197,7 +197,7 @@ func TestAnOverlongUnixPathIsRefusedClearly(t *testing.T) {
 
 // A code travels with the message, and the message is left alone.
 func TestAnErrorCarriesItsCodeAndItsProse(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "codes.sock")
+	path := filepath.Join(shortSocketDir(t), "codes.sock")
 	serveAt(t, path)
 	c, err := DialAt(path)
 	if err != nil {
@@ -268,7 +268,7 @@ func (f *flakyListener) Accept() (net.Conn, error) {
 // does: it retries, with backoff, and the socket goes on answering once
 // whatever briefly starved it clears.
 func TestATransientAcceptErrorDoesNotDisableTheSocket(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "flaky.sock")
+	path := filepath.Join(shortSocketDir(t), "flaky.sock")
 	ln, err := net.Listen("unix", path)
 	if err != nil {
 		t.Fatal(err)

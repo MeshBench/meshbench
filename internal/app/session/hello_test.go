@@ -26,7 +26,7 @@ func socketFor(t *testing.T) *control.Client {
 	go st.Run(ctx)
 	t.Cleanup(cancel)
 
-	path := filepath.Join(t.TempDir(), "hello.sock")
+	path := filepath.Join(shortSocketDir(t), "hello.sock")
 	srv, err := ServeControlAt(ctx, st, path)
 	if err != nil {
 		t.Fatalf("serve: %v", err)

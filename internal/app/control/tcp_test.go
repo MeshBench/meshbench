@@ -150,13 +150,10 @@ func TestTheRendezvousFileIsPrivate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fi, err := os.Stat(path)
-	if err != nil {
+	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("no address file was written: %v", err)
 	}
-	if perm := fi.Mode().Perm(); perm != 0o600 {
-		t.Errorf("the file holding the token is %04o, want 0600", perm)
-	}
+	isPrivate(t, path, 0o600)
 }
 
 // Closing takes the file with it: a stale one names a port nobody holds, and
@@ -217,11 +214,8 @@ func TestAUnixSocketNeedsNoToken(t *testing.T) {
 func TestAUnixSocketIsPrivate(t *testing.T) {
 	path := t.TempDir() + "/perms.sock"
 	serveAt(t, path)
-	fi, err := os.Stat(path)
-	if err != nil {
+	if _, err := os.Stat(path); err != nil {
 		t.Fatal(err)
 	}
-	if perm := fi.Mode().Perm(); perm != 0o600 {
-		t.Errorf("the socket is %04o, want 0600", perm)
-	}
+	isPrivate(t, path, 0o600)
 }

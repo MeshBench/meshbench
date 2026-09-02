@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -177,7 +178,11 @@ func TestFetchingAPlainToolLandsWhereTheLookupSearches(t *testing.T) {
 	if err != nil {
 		t.Fatalf("nothing landed: %v", err)
 	}
-	if st.Mode().Perm()&0o111 == 0 {
+	// Windows has no executable bit - what may be run is decided by the name -
+	// and this fetcher is not built for it at all, which is what
+	// windowsFetchesNoEmulators says. The bytes landing is the part that means
+	// something there, and the progress check below covers it.
+	if runtime.GOOS != "windows" && st.Mode().Perm()&0o111 == 0 {
 		t.Error("the tool landed without an executable bit, so nothing can run it")
 	}
 	if len(seen) == 0 || seen[len(seen)-1] != int64(len(body)) {

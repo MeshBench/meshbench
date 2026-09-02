@@ -15,7 +15,7 @@ import (
 // need, since a hang there is worse than an error.
 
 func TestCallContextReturnsWhenTheServerNeverPumps(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "wedged.sock")
+	path := filepath.Join(shortSocketDir(t), "wedged.sock")
 	// No Pump loop at all: whatever is queued is never answered, which is
 	// what a wedged frame thread looks like from a client's side.
 	srv, err := ListenAt(path, func(string, json.RawMessage) (any, error) {
@@ -61,7 +61,7 @@ func TestCallContextReturnsWhenTheServerNeverPumps(t *testing.T) {
 // context.Background(), and a workbench that answers promptly still answers
 // promptly.
 func TestCallStillWorksWithNoDeadline(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "plain.sock")
+	path := filepath.Join(shortSocketDir(t), "plain.sock")
 	serveAt(t, path)
 
 	c, err := DialAt(path)

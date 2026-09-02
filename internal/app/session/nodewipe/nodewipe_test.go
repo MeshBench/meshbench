@@ -19,7 +19,7 @@ import (
 // every start. Now that a board keeps what it was told, this is the question
 // somebody actually has. Pinned here because node.wipe moved out of session.
 func TestWipingOneNodeLeavesTheOthersAlone(t *testing.T) {
-	t.Setenv(firmware.EnvNodeFS, t.TempDir())
+	t.Setenv(firmware.EnvNodeFS, nodeFSRoot(t))
 	for _, n := range []string{"GB7XYZ", "GB7AAA"} {
 		dir := firmware.NodeWorkDir(n)
 		if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -74,7 +74,7 @@ func TestWipingOneNodeLeavesTheOthersAlone(t *testing.T) {
 // whole verb set.
 func aWipeableNode(t *testing.T, files ...string) (*state.Store, string) {
 	t.Helper()
-	t.Setenv(firmware.EnvNodeFS, t.TempDir())
+	t.Setenv(firmware.EnvNodeFS, nodeFSRoot(t))
 	dir := firmware.NodeWorkDir("GB7XYZ")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
@@ -141,10 +141,7 @@ func TestAPartialWipeIsReportedAsPartial(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(stuck, "prefs"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Chmod(stuck, 0o555); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Chmod(stuck, 0o755) })
+	blockRemoval(t, filepath.Join(stuck, "prefs"))
 
 	_, err := st.Do(t.Context(), "node.wipe", "GB7XYZ")
 	if err == nil {

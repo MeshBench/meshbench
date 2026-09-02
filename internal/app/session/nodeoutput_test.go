@@ -156,7 +156,7 @@ func TestEachSourceNamesItsOwnFileOrSaysWhyNot(t *testing.T) {
 // End to end: the verb finds the file the emulator writes, publishes it for the
 // pane, and reports the whole size rather than the tail's.
 func TestNodeOutputReadsWhatTheEmulatorWrote(t *testing.T) {
-	root := t.TempDir()
+	root := nodeFSRoot(t)
 	t.Setenv(firmware.EnvNodeFS, root)
 
 	dir := firmware.NodeWorkDir("GB7XYZ")
@@ -218,7 +218,7 @@ func TestNodeOutputReadsWhatTheEmulatorWrote(t *testing.T) {
 // failure, and the difference matters to somebody deciding whether the board
 // is broken.
 func TestAnUnrunNodeSaysItHasNotRun(t *testing.T) {
-	t.Setenv(firmware.EnvNodeFS, t.TempDir())
+	t.Setenv(firmware.EnvNodeFS, nodeFSRoot(t))
 	st, ctx := outputStore(t, state.Node{Name: "GB7XYZ", Board: "Heltec_v3"})
 
 	got, err := st.Do(ctx, "node.output", "GB7XYZ")

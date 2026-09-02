@@ -3,6 +3,7 @@ package firmware
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -36,7 +37,9 @@ func TestCopyFileDoesNotTruncateItsOwnSource(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if st.Mode()&0o111 == 0 {
+	// Windows has no execute bit - what may be run is decided by the name -
+	// so there is nothing for a copy to preserve there.
+	if runtime.GOOS != "windows" && st.Mode()&0o111 == 0 {
 		t.Error("an executable same-file copy left the file without its execute bit")
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -23,7 +24,25 @@ import (
 // against, and the only part of this that cannot be exercised is reaching that
 // page.
 
-const asset = "meshbench-linux-x86_64.tar.gz"
+// asset is what the stand-in feed publishes, named for the machine running
+// the test rather than for Linux.
+//
+// update.AssetFor asks with runtime.GOOS, so a feed offering only a Linux
+// tarball answers "release v0.2.0 published nothing for windows/amd64" - and
+// two tests then failed for having no artefact rather than for anything they
+// were written to check.
+var asset = assetName()
+
+func assetName() string {
+	switch runtime.GOOS {
+	case "windows":
+		return "meshbench-0.2.0-windows-x86_64.zip"
+	case "darwin":
+		return "meshbench-0.2.0-macos-arm64.dmg"
+	default:
+		return "meshbench-linux-x86_64.tar.gz"
+	}
+}
 
 // feedFor serves a release feed, the artefact and its checksum file, and hands
 // back the URL to point a session at.
