@@ -64,6 +64,20 @@
                   AllowDowngrades="no"
                   DowngradeErrorMessage="A newer MeshBench is already installed. Remove it first if you meant to go back to this one."/>
 
+    <!--
+      There is no ARPNOMODIFY here any more, and its absence is deliberate.
+      The wixl build set it, with the reason written beside it: "a Modify
+      button would open an installer with nothing in it to change". That is no
+      longer true - running the .msi again now offers Repair and Remove - so
+      the property is left to the toolset, which sets NoModify itself because
+      nothing in this package is independently selectable.
+      
+      Uninstalling needs nothing authored. Apps and Features carries the entry
+      and its Uninstall, running the package again offers Remove, and
+      msiexec /x takes the product code. A Start menu "Uninstall MeshBench"
+      shortcut is deliberately not added: Microsoft's own guidance is against
+      it, and Windows 10 and 11 hide them.
+    -->
     <Icon Id="meshbench.ico" SourceFile="$(var.Extra)/meshbench.ico"/>
     <Property Id="ARPPRODUCTICON" Value="meshbench.ico"/>
     <Property Id="ARPURLINFOABOUT" Value="https://github.com/MeshBench/meshbench"/>
