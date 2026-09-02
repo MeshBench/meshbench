@@ -186,3 +186,54 @@ jobs:
         run: |
           go build -o "$RUNNER_TEMP/meshbench" ./cmd/meshbench
           MESHBENCH="$RUNNER_TEMP/meshbench" tools/fixture-check.sh
+
+  # A scheduled run goes red on a page nobody opens.
+  #
+  # Four of the seven shipped fixtures are checked here and nowhere else, so
+  # this workflow is the only thing standing behind them. A scheduled job that
+  # has gone red and stayed red is a failure this repository has had before, and
+  # it stayed for as long as it did because nothing carried the news anywhere a
+  # person looks. An issue is that place, and it is what a red run has to leave
+  # behind if running it is to be worth anything.
+  #
+  # One open issue rather than one a night: a fortnight of red is a thread with
+  # fourteen links in it, not fourteen duplicates somebody has to close.
+  notify:
+    needs: live
+    # The scheduled run only. A dispatch or a labelled pull request has somebody
+    # already watching the run they asked for, and filing at them is noise.
+    if: always() && github.event_name == 'schedule' && needs.live.result == 'failure'
+    runs-on: ubuntu-latest
+    # Job-level permissions replace the file's, so contents is restated rather
+    # than inherited.
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Say it where somebody will see it
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # No checkout in this job, so gh is told which repository it is in.
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          TITLE: Nightly firmware-live is failing
+        run: |
+          set -euo pipefail
+          existing=$(gh issue list --state open --limit 200 --json number,title \
+            | jq -r --arg t "$TITLE" 'map(select(.title == $t)) | .[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "Red again: $RUN_URL"
+            exit 0
+          fi
+          gh issue create --title "$TITLE" --body "$(cat <<EOF
+          The nightly live-firmware run failed: $RUN_URL
+
+          It runs the tests that need a real MeshCore process, and every shipped
+          fixture against its own assertions with no node cap. Nothing else runs
+          the four national fixtures, so a failure here can be the only report
+          that a mesh has stopped delivering.
+
+          This issue is reused by later failures rather than duplicated. Close it
+          when the nightly is green again.
+          EOF
+          )"
