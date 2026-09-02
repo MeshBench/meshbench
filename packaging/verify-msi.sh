@@ -116,6 +116,14 @@ say "asks where to install, and says when it has finished"
 holds "$(table Registry)" InstallDir ||
   bad "$msi does not record its install directory, so an upgrade would not stay put"
 say "remembers where it was installed"
+
+# And that it can be taken off again. An MSI gets this for nothing, which is
+# exactly why it is worth asserting: the maintenance dialogs come from the UI
+# extension, and a package that lost them would still install perfectly and
+# only be found wanting by somebody trying to remove it.
+holds "$dlgs" MaintenanceTypeDlg ||
+  bad "$msi has no maintenance dialog, so running it again offers no Remove"
+say "offers Repair and Remove when run again"
 holds "$(table Shortcut)" ProgramMenuFolder || bad "$msi makes no Start menu entry"
 say "Start menu entry present"
 
