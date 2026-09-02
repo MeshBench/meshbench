@@ -1,0 +1,223 @@
+name: publish-docs
+
+# The documentation site, regenerated from the tag that cuts the release and
+# pushed to MeshBench/docs.
+#
+# Six pages of that site are written by tools rather than by hand, from this
+# repository: what the simulator cannot do, the control verb reference, the CLI
+# reference, and the three client APIs. The generators live in the docs
+# repository, next to the pages they write, and each reads a MeshBench
+# checkout.
+#
+# Nothing ran them. gen.py refuses to build a page that has fallen behind its
+# source, but only when that source is reachable, and on the docs runner there
+# is no MeshBench checkout, so the guard skipped every page it was meant to
+# hold. All six went stale, one of them by about three hundred lines of what
+# the emulator cannot do. That page is where this project's honesty is
+# load-bearing, so it is the worst one to run behind.
+#
+# This job is the first place that guard has a reachable source: it checks this
+# repository out, runs the generators against it, and runs gen.py with
+# MESHBENCH_REPO set. A page that would still be stale fails the release rather
+# than shipping.
+#
+# On a release, not on every merge. The site describes the released version.
+# Refreshing it from main would publish the shortcomings of a build nobody can
+# download, and would hand a reader CLI flags their binary does not have.
+# Between releases the site is deliberately behind main, and that is the
+# correct answer rather than a gap.
+#
+# Straight to main there, not a pull request. The pages are machine output from
+# a tagged tree already reviewed here, where verbdoc --check and flagdoc
+# --check ran on the change that produced them. A generated page landing
+# unreviewed is a real risk, and it is answered by gen.py refusing a stale or
+# broken page before the push, by the diffstat this prints, and by the dry run.
+# An automatic pull request nobody merges would be the staleness this exists to
+# fix, with extra steps.
+#
+# What a maintainer has to set up once, before the first tag reaches this:
+#
+#   1. A GitHub environment named `docs-site`. Reviewers on it are optional:
+#      a push to a documentation site is reversible, unlike a package index.
+#   2. A fine-grained personal access token, or a GitHub App installation
+#      token, with Contents: read and write on MeshBench/docs and nothing else,
+#      stored on that environment as the secret `DOCS_SITE_TOKEN`.
+#      GITHUB_TOKEN cannot be used: it is scoped to this repository and cannot
+#      write to another.
+#
+# Until that secret exists the job fails rather than skipping, deliberately. A
+# publish that quietly does not happen is what this file exists to stop.
+#
+# To see what the first run would do without doing it, dispatch it by hand and
+# leave dry_run ticked: it regenerates, builds the site, and prints the diff
+# against what is live without pushing.
+#
+# One thing about the trigger, shared with publish-clients.yml and easy to be
+# wrong about: this fires on a *pushed* `v*` tag. A tag that `gh release
+# create` makes for itself, from package.yml, does not fire it, because GitHub
+# does not start workflows from a ref created with GITHUB_TOKEN. Push the tag
+# first, then cut the release from it. Dispatching this from a tag ref with
+# dry_run unticked is how a release where that was forgotten catches up.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Regenerate and diff against the live site without pushing'
+        type: boolean
+        default: true
+
+permissions: {}
+
+jobs:
+  publish:
+    name: regenerate and publish the documentation site
+    # Inert anywhere but here. A fork carries this file with it and must never
+    # try to write to MeshBench, and there is no pull_request trigger, so a
+    # branch cannot reach this job at all: only a pushed tag, or a maintainer
+    # dispatching it.
+    if: github.repository == 'MeshBench/meshbench'
+    timeout-minutes: 15
+    # Hosted, and nothing else: this holds a token that can write to another
+    # repository, and that token has no business on the self-hosted lab
+    # runners.
+    runs-on: ubuntu-latest
+    environment: docs-site
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      # The Go client's reference is extracted with `go doc`, so this job needs
+      # a toolchain. Without one that generator exits non-zero, and gen.py's
+      # guard reads a failed generator as a source it cannot reach and skips
+      # the page rather than failing.
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.25"
+
+      # The version the site's own build runs on, so a page that builds here
+      # builds there too.
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Clone the documentation site
+        env:
+          TOKEN: ${{ secrets.DOCS_SITE_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TOKEN:-}" ]; then
+            echo "::error::DOCS_SITE_TOKEN is not set on the docs-site environment;"\
+                 "see the header of this file for the two things a maintainer sets up once."\
+                 "Failing rather than skipping: a documentation site that quietly does not"\
+                 "update is what this workflow exists to stop"
+            exit 1
+          fi
+          git clone --quiet "https://x-access-token:$TOKEN@github.com/MeshBench/docs.git" \
+            "$RUNNER_TEMP/docs"
+
+      - name: Regenerate every page that is generated from this repository
+        env:
+          MESHBENCH_REPO: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/docs"
+          # Which pages are generated is the docs repository's decision, held
+          # in gen.py, and the next step enforces it. All this has to do is run
+          # the generators and fail when one of them fails: gen.py's own guard
+          # treats a generator that exits non-zero as a source it cannot reach
+          # and carries on, which is how a renamed source here would ship as a
+          # page nobody regenerated.
+          # An unmatched glob otherwise expands to itself, and the loop dies on
+          # a missing file instead of on the message below, which says what
+          # actually went wrong.
+          shopt -s nullglob
+          ran=0
+          for s in tools/sync-*.py; do
+            echo "--- $s ---"
+            python3 "$s" "$MESHBENCH_REPO"
+            ran=$((ran + 1))
+          done
+          [ "$ran" -gt 0 ] || {
+            echo "::error::no tools/sync-*.py in the documentation repository;"\
+                 "the generators have been renamed and this loop matched nothing"
+            exit 1
+          }
+
+      - name: The site builds, with this checkout reachable
+        env:
+          MESHBENCH_REPO: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/docs"
+          # The first place gen.py's staleness guard has a MeshBench checkout
+          # to compare against, and so the first place it can hold anything.
+          # It also refuses a broken internal link, a dead anchor and a
+          # duplicate heading id, and rewrites the HTML the site repository
+          # tracks, so the commit below carries both halves.
+          python3 gen.py
+
+      - name: The downloads the site names are the ones a release publishes
+        run: |
+          set -euo pipefail
+          # The site carries no version number anywhere, by design: it names
+          # the release assets whose filenames do not carry one, so an install
+          # instruction stays true across releases instead of quietly pointing
+          # at an older build. That holds only while the two repositories agree
+          # on the name, and nothing else compares them. A versioned filename
+          # reaching a page fails here for the same reason: it would be right
+          # for exactly one release.
+          missing=""
+          for name in $(grep -ohE '\bmeshbench-[A-Za-z0-9_.-]+\.(tar\.gz|zip|AppImage|deb|dmg)\b' \
+                          "$RUNNER_TEMP"/docs/pages/*.md | sort -u); do
+            grep -q -- "$name" .github/workflows/package.yml || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::the documentation site tells people to download:$missing,"\
+                 "and package.yml publishes no such file. Either the asset was renamed"\
+                 "here, or a page named a versioned build that the next release makes wrong"
+            exit 1
+          fi
+
+      - name: Publish
+        env:
+          # A dispatch defaults to a dry run, so the way to see the first sync
+          # is to press the button. A pushed tag always publishes: that is the
+          # whole point of the trigger. Nothing publishes from anything but a
+          # tag, because a site built from a branch would describe a version
+          # nobody can download.
+          PUBLISH: ${{ startsWith(github.ref, 'refs/tags/v') && (github.event_name == 'push' || github.event.inputs.dry_run == 'false') && 'yes' || 'no' }}
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/docs"
+          git -C "$work" add -A
+          if git -C "$work" diff --cached --quiet; then
+            echo "the documentation site already describes ${GITHUB_REF_NAME}"
+            exit 0
+          fi
+          echo "--- what would change ---"
+          git -C "$work" diff --cached --stat
+
+          if [ "$PUBLISH" != "yes" ]; then
+            case "${GITHUB_REF}" in
+              refs/tags/v*)
+                echo "::notice::dry run, so nothing was pushed" ;;
+              *)
+                echo "::notice::${GITHUB_REF_NAME} is not a release tag, so nothing was"\
+                     "pushed: the site describes the released version, not the tip of main" ;;
+            esac
+            exit 0
+          fi
+
+          git -C "$work" config user.name 'github-actions[bot]'
+          git -C "$work" config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C "$work" commit --quiet \
+            -m "docs: the generated pages describe ${GITHUB_REF_NAME}" \
+            -m "Written by the documentation repository's own tools/sync-*.py against MeshBench/meshbench@${GITHUB_SHA}, then built by gen.py. Editing a generated page here is overwritten by the next release."
+          # Pushing to main there is also what redeploys: the site's pages.yml
+          # runs on every push to its main branch.
+          git -C "$work" push --quiet origin HEAD:main
+          echo "::notice::the documentation site now describes ${GITHUB_REF_NAME}"
