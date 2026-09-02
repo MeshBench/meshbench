@@ -10,8 +10,6 @@ import (
 	"fmt"
 	"os"
 	"time"
-
-	"golang.org/x/sys/unix"
 )
 
 const (
@@ -48,34 +46,6 @@ type kissPort struct {
 	pending []byte
 }
 
-func openKISS(path string) (*kissPort, error) {
-	f, err := os.OpenFile(path, os.O_RDWR|unix.O_NOCTTY, 0)
-	if err != nil {
-		return nil, err
-	}
-	fd := int(f.Fd())
-	t, err := unix.IoctlGetTermios(fd, unix.TCGETS)
-	if err != nil {
-		_ = f.Close()
-		return nil, fmt.Errorf("termios get: %w", err)
-	}
-	// Raw 115200 8N1: no echo, no canonical mode, no CR mangling - a binary
-	// protocol survives none of the terminal's kindnesses.
-	t.Iflag &^= unix.IGNBRK | unix.BRKINT | unix.PARMRK | unix.ISTRIP |
-		unix.INLCR | unix.IGNCR | unix.ICRNL | unix.IXON
-	t.Oflag &^= unix.OPOST
-	t.Lflag &^= unix.ECHO | unix.ECHONL | unix.ICANON | unix.ISIG | unix.IEXTEN
-	t.Cflag &^= unix.CSIZE | unix.PARENB | unix.CBAUD
-	t.Cflag |= unix.CS8 | unix.CREAD | unix.CLOCAL | unix.B115200
-	t.Ispeed, t.Ospeed = unix.B115200, unix.B115200
-	t.Cc[unix.VMIN], t.Cc[unix.VTIME] = 0, 1 // 100 ms read granularity
-	if err := unix.IoctlSetTermios(fd, unix.TCSETS, t); err != nil {
-		_ = f.Close()
-		return nil, fmt.Errorf("termios set: %w", err)
-	}
-	return &kissPort{f: f}, nil
-}
-
 func (k *kissPort) Close() error { return k.f.Close() }
 
 // send writes one KISS frame: type byte plus payload, escaped.
@@ -99,12 +69,11 @@ func (k *kissPort) send(typeByte byte, payload []byte) error {
 // read returns the next whole frame (type byte + unescaped payload), waiting
 // up to the deadline. Partial serial reads are buffered across calls.
 //
-// Raw unix.Read rather than os.File.Read: with VMIN=0/VTIME=1 a quiet
+// readRaw rather than os.File.Read: with VMIN=0/VTIME=1 a quiet
 // 100 ms window returns zero bytes, which os.File reports as io.EOF - a
 // serial port pausing for breath is not a closed file.
 func (k *kissPort) read(deadline time.Time) (byte, []byte, error) {
 	buf := make([]byte, 4096)
-	fd := int(k.f.Fd())
 	for {
 		if t, p, ok := k.parse(); ok {
 			return t, p, nil
@@ -112,8 +81,8 @@ func (k *kissPort) read(deadline time.Time) (byte, []byte, error) {
 		if time.Now().After(deadline) {
 			return 0, nil, fmt.Errorf("kiss: timeout waiting for a frame")
 		}
-		n, err := unix.Read(fd, buf)
-		if err != nil && err != unix.EINTR {
+		n, err := k.readRaw(buf)
+		if err != nil {
 			return 0, nil, err
 		}
 		if n > 0 {

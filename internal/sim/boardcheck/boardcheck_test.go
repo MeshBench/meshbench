@@ -29,7 +29,9 @@ func TestUntestedReportCoversEveryCapability(t *testing.T) {
 // before is the same "untested" shape a fresh one would report - not on
 // disk and never run are the same state to a reader.
 func TestCacheRoundTripsAndDefaultsToUntested(t *testing.T) {
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	cacheHome := t.TempDir()
+	t.Setenv("XDG_CACHE_HOME", cacheHome)
+	t.Setenv("LOCALAPPDATA", cacheHome)
 
 	fresh := Load("Generic_E22_sx1262", "repeater-v1.17.0")
 	if fresh.Results[Build].State != Untested {
@@ -62,7 +64,9 @@ func TestCacheRoundTripsAndDefaultsToUntested(t *testing.T) {
 // Changing the emulator marks a cached report stale rather than keeping it
 // current - the whole reason caching is safe to do at all.
 func TestALoadedReportIsStaleWhenTheEmulatorFingerprintDiffers(t *testing.T) {
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	cacheHome := t.TempDir()
+	t.Setenv("XDG_CACHE_HOME", cacheHome)
+	t.Setenv("LOCALAPPDATA", cacheHome)
 
 	r := untestedReport("RAK_4631", "repeater-v1.17.0")
 	r.set(Boot, Passed, "attached")
@@ -89,7 +93,9 @@ func TestALoadedReportIsStaleWhenTheEmulatorFingerprintDiffers(t *testing.T) {
 // half-understood cache entry is exactly the "guessed at" failure mode
 // this package exists to avoid.
 func TestAnIncompleteCacheFileIsTreatedAsUntested(t *testing.T) {
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	cacheHome := t.TempDir()
+	t.Setenv("XDG_CACHE_HOME", cacheHome)
+	t.Setenv("LOCALAPPDATA", cacheHome)
 
 	dir, err := Dir()
 	if err != nil {
@@ -114,7 +120,9 @@ func TestAnIncompleteCacheFileIsTreatedAsUntested(t *testing.T) {
 // own reason, and every board it allows is at least representable (never
 // silently dropped from the matrix).
 func TestMatrixAgreesWithEmulatableBoards(t *testing.T) {
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	cacheHome := t.TempDir()
+	t.Setenv("XDG_CACHE_HOME", cacheHome)
+	t.Setenv("LOCALAPPDATA", cacheHome)
 
 	ok, blocked := hw.EmulatableBoards()
 	okNames := map[string]bool{}

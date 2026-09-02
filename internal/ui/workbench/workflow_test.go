@@ -50,6 +50,7 @@ func TestWorkflowChangeOneNodesFirmware(t *testing.T) {
 		}
 	}
 	t.Setenv("XDG_CACHE_HOME", cache)
+	t.Setenv("LOCALAPPDATA", cache)
 
 	w := &walk{}
 	p := &nodeViewPanel{}

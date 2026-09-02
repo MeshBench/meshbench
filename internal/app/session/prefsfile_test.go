@@ -111,18 +111,22 @@ func TestAnInterruptedWriteLeavesTheOldSettings(t *testing.T) {
 // A failed save is said out loud, and the verb that promised the next launch
 // does not promise it.
 func TestAFailedSaveIsReported(t *testing.T) {
+	// The settings file is put behind a path that cannot be written on any
+	// platform: its parent is a regular file rather than a directory. A
+	// read-only directory was used here before, which Unix enforces and
+	// Windows does not - so the save succeeded there, the test failed, and it
+	// looked like the reporting was broken rather than the setup.
 	dir := t.TempDir()
+	blocked := filepath.Join(dir, "notadirectory")
+	if err := os.WriteFile(blocked, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	st := state.New(10)
-	s := &Sim{persist: true, prefsFile: filepath.Join(dir, "workbench2.json")}
+	s := &Sim{persist: true, prefsFile: filepath.Join(blocked, "workbench2.json")}
 	Register(st, s)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go st.Run(ctx)
-
-	if err := os.Chmod(dir, 0o500); err != nil {
-		t.Skip("cannot make the directory read-only here:", err)
-	}
-	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
 
 	if _, err := st.Do(ctx, "map.basemap", map[string]any{"id": "carto-light"}); err != nil {
 		t.Fatalf("map.basemap: %v", err)

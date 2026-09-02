@@ -30,7 +30,9 @@ func groundStudy(t *testing.T, answer *bool) (*state.Store, *session.Sim) {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", home)
+	t.Setenv("APPDATA", home)
 	t.Setenv("XDG_CACHE_HOME", home)
+	t.Setenv("LOCALAPPDATA", home)
 	t.Setenv("HOME", home)
 	if answer != nil {
 		dir := filepath.Join(home, "meshbench")

@@ -67,18 +67,44 @@ jobs:
       - name: The platform layer
         shell: bash
         continue-on-error: true
-        run: go test ./internal/firmware/ ./internal/mesh/companion/ ./internal/sim/engine/ -short -count=1 2>&1 | tail -20
+        run: go test ./cmd/meshbench/ ./internal/firmware/ ./internal/mesh/companion/ ./internal/sim/engine/ -short -count=1 2>&1 | tail -20
+
+      # The cheapest question there is, and one that went a week unasked:
+      # does the tree compile for Windows at all. It could not until
+      # tools/goldencap grew a build constraint - its serial port is termios
+      # and therefore Linux - so this would have failed on a tool nobody runs
+      # here while saying nothing about the application. Not
+      # continue-on-error: a tree that does not compile is the failure this
+      # job exists for.
+      - name: Does the whole tree compile
+        shell: bash
+        run: go build ./...
 
       - name: Does it open its own network with no fixtures beside it
         shell: bash
-        continue-on-error: true
         run: |
-          set -e
           go build -o meshbench.exe ./cmd/meshbench
           mkdir -p /tmp/elsewhere && cp meshbench.exe /tmp/elsewhere/
           cd /tmp/elsewhere
-          # The question bug 1 asks, on Windows: run from a directory with no
-          # fixtures in it and see whether the application can still find its
-          # own example network.
-          ./meshbench.exe check 2>&1 | tail -5 || echo "check needs a fixture - which is the bug"
+          # From a directory with no fixtures beside it: can the application
+          # still find its own example network. This asked "check" until now,
+          # which stopped being a command when it was renamed to "test" - and
+          # "|| echo" swallowed the refusal, so the one behavioural question
+          # in this job answered nothing for as long as that took.
+          #
+          # Still running when the timeout fires is the pass, so the exit
+          # code is read the other way round: 124 is what we want and a clean
+          # exit means it gave up on its own. Headless rather than test, so
+          # this stays a question about finding the fixture rather than a
+          # firmware download and fifty-six processes.
+          set +e
+          timeout 25 ./meshbench.exe headless -fixture fife-strict
+          rc=$?
+          set -e
+          if [ "$rc" -ne 124 ]; then
+            echo "::error::headless -fixture fife-strict exited $rc from a foreign"
+            echo "::error::working directory; it should still be running at 25s"
+            exit 1
+          fi
+          echo "still up at 25s, which is the good case"
           ./meshbench.exe workbench -version

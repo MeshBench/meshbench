@@ -18,8 +18,9 @@ import (
 func TestABuildsSettingsReachTheMachine(t *testing.T) {
 	cache := t.TempDir()
 	t.Setenv("XDG_CACHE_HOME", cache)
+	t.Setenv("LOCALAPPDATA", cache)
 	t.Setenv("HOME", cache)
-	t.Setenv(firmware.EnvNodeFS, t.TempDir())
+	t.Setenv(firmware.EnvNodeFS, shortNodeFS(t))
 
 	board := "LilyGo_TDeck"
 	dir := filepath.Join(firmware.DefaultCacheDir(), "board", board)
@@ -75,8 +76,9 @@ func TestABuildsSettingsReachTheMachine(t *testing.T) {
 func TestTheCardSlotIsTheNodesUntilTheFirmwareInsists(t *testing.T) {
 	cache := t.TempDir()
 	t.Setenv("XDG_CACHE_HOME", cache)
+	t.Setenv("LOCALAPPDATA", cache)
 	t.Setenv("HOME", cache)
-	t.Setenv(firmware.EnvNodeFS, t.TempDir())
+	t.Setenv(firmware.EnvNodeFS, shortNodeFS(t))
 
 	board := "LilyGo_TDeck"
 	dir := filepath.Join(firmware.DefaultCacheDir(), "board", board)
@@ -139,4 +141,22 @@ func TestTheCardSlotIsTheNodesUntilTheFirmwareInsists(t *testing.T) {
 	if node.CardPath != mine {
 		t.Errorf("it was handed %s and got %s", mine, node.CardPath)
 	}
+}
+
+// shortNodeFS is a node filesystem root with a short name.
+//
+// An emulated node listens on <root>/<node>/buttons.sock, and a unix socket
+// path is capped at 104 bytes. t.TempDir() spells the test's own name into
+// the path, so a descriptive name plus a node name plus buttons.sock goes
+// over on Windows, where the temp directory is already thirty-two of the
+// budget - and the failure reads as a platform with no AF_UNIX, which it is
+// not: a short path listens there perfectly well.
+func shortNodeFS(t *testing.T) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "mb")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	return dir
 }

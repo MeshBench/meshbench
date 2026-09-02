@@ -37,7 +37,7 @@ func TestMain(m *testing.M) {
 // prints when its bridge is taken away, so a node that was started and never
 // closed is one that never said so, whichever side of the close it landed on.
 func TestNoFirmwareOutlivesAnEngineClosedMidAttach(t *testing.T) {
-	nodefs := t.TempDir()
+	nodefs := nodeFSRoot(t)
 	t.Setenv(fakenative.EnvMode, fakenative.ModeAttach)
 	t.Setenv(firmware.EnvNativeBinary, fakenative.Path())
 	t.Setenv(firmware.EnvNodeFS, nodefs)
@@ -128,4 +128,34 @@ func stillRunning(nodefs string, within time.Duration) (open []string, booted in
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
+}
+
+// nodeFSRoot is where the nodes under test keep their files.
+//
+// Not t.TempDir(), for two reasons that both only bite on Windows. A node
+// listens on <root>/<node>/buttons.sock and a unix socket path is capped at
+// 104 bytes, which a directory named after this test spends most of. And
+// t.TempDir() fails the test if its own cleanup cannot unlink - which it
+// cannot while a killed child is still letting go of its stderr.log, because
+// Windows refuses to remove an open file where Unix does not. The subject
+// here is whether firmware outlives the engine, and that is asserted
+// directly; a file that takes another moment to close is not the same
+// question, and it was failing this test on that alone.
+func nodeFSRoot(t *testing.T) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "mb")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		// Briefly, because the handle closes as the process finishes dying.
+		for range 20 {
+			if err := os.RemoveAll(dir); err == nil {
+				return
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		t.Logf("could not remove %s; something is still holding a file in it", dir)
+	})
+	return dir
 }

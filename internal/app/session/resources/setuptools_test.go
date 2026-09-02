@@ -24,7 +24,9 @@ func TestAFetchedToolIsNotMistakenForABundledOne(t *testing.T) {
 	if err != nil {
 		t.Skip("no executable path on this platform")
 	}
-	t.Setenv("XDG_CACHE_HOME", filepath.Join(filepath.Dir(exe), "cachehome"))
+	cacheHome := filepath.Join(filepath.Dir(exe), "cachehome")
+	t.Setenv("XDG_CACHE_HOME", cacheHome)
+	t.Setenv("LOCALAPPDATA", cacheHome)
 	tools := emulated.ToolsDir()
 	if !underDir(tools, filepath.Dir(exe)) {
 		t.Fatalf("the case is not set up: %s is not under %s", tools, filepath.Dir(exe))

@@ -101,8 +101,12 @@ func TestOverpassAreaCapFailsLoudly(t *testing.T) {
 	}
 	var s session.Sim
 	_, _, err := fetchEnviron(&s, context.Background(), "osm", scotland(), func(int, int) {})
-	if err == nil || !strings.Contains(err.Error(), "envgen") {
-		t.Fatalf("an oversized pull must refuse and point at envgen, got %v", err)
+	// The route it names has to be one a downloaded build can take.
+	// tools/envgen was not: it is a source tool and no release bundle
+	// carries it, so the advice was closed to exactly the people who hit
+	// the cap.
+	if err == nil || !strings.Contains(err.Error(), "Microsoft alone") {
+		t.Fatalf("an oversized pull must refuse and name a route that ships, got %v", err)
 	}
 }
 
@@ -139,8 +143,8 @@ func TestHasTilesMatchesIngestLayout(t *testing.T) {
 func TestMergedSourceHonoursTheOverpassCap(t *testing.T) {
 	var s session.Sim
 	_, _, err := fetchEnviron(&s, context.Background(), "merged", scotland(), func(int, int) {})
-	if err == nil || !strings.Contains(err.Error(), "envgen") {
-		t.Fatalf("an oversized merged pull must refuse and point at envgen, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "Microsoft alone") {
+		t.Fatalf("an oversized merged pull must refuse and name a route that ships, got %v", err)
 	}
 }
 

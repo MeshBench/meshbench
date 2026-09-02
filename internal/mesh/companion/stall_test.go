@@ -50,6 +50,18 @@ func TestAClientThatStopsReadingDoesNotBlockTheFirmware(t *testing.T) {
 	server := <-accepted
 	defer func() { _ = server.Close() }()
 
+	// Small buffers at both ends, so "more than any socket buffer holds"
+	// below is a fact rather than a hope. Windows autotunes loopback
+	// buffers and is generous with them: it swallowed all four megabytes
+	// without once blocking, so nothing stalled and the test failed for the
+	// writes having succeeded - which is the opposite of what it looks like.
+	if c, ok := client.(*net.TCPConn); ok {
+		_ = c.SetReadBuffer(4 << 10)
+	}
+	if c, ok := server.(*net.TCPConn); ok {
+		_ = c.SetWriteBuffer(4 << 10)
+	}
+
 	p := NewPipe(&fakeSerial{})
 	var stalls int
 	var mu sync.Mutex

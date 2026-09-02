@@ -15,7 +15,9 @@ import (
 // savedRuns writes n run records where the tool keeps them, newest last.
 func savedRuns(t *testing.T, n int) {
 	t.Helper()
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	cacheHome := t.TempDir()
+	t.Setenv("XDG_CACHE_HOME", cacheHome)
+	t.Setenv("LOCALAPPDATA", cacheHome)
 	dir, err := os.UserCacheDir()
 	if err != nil {
 		t.Skip("no cache directory on this machine, so there is nowhere to save a run")

@@ -7,10 +7,31 @@ import (
 	"github.com/MeshBench/meshbench/internal/app/state"
 )
 
+// playLine is what the status bar says when a run starts, which is the last
+// thing anybody reads before deciding the simulator is broken.
+//
+// A warm held for terrain consent leaves the matrix empty, and an empty
+// matrix means no node can hear any other: every transmission is real and
+// reaches nobody. The workbench says so when the network opens - "no link
+// has been measured" - and then playing overwrote it with one word, so by
+// the time somebody started firmware and typed advert the only explanation
+// on screen had gone. Fifty-six nodes up, a console answering OK, and
+// nothing received: reported as an advert no node receives, which is
+// exactly what it is.
+func (s *Sim) playLine() string {
+	if measured, held := s.linksMeasured(); !measured && held {
+		return "playing, but no link has been measured: the warm stopped to " +
+			"ask whether terrain may be downloaded, so every transmission " +
+			"will reach nobody. Allow it in Configuration > System, or run " +
+			"terrain.allow, then rewarm links"
+	}
+	return "playing"
+}
+
 func registerClockVerbs(st *state.Store, s *Sim) {
 	st.Handle("sim.play", func(w *state.World, _ any) (any, error) {
 		w.Playing = true
-		w.Say("playing")
+		w.Say(s.playLine())
 		return map[string]any{"playing": true}, nil
 	})
 
@@ -24,7 +45,7 @@ func registerClockVerbs(st *state.Store, s *Sim) {
 		// One control for both, because play and pause are one thought.
 		w.Playing = !w.Playing
 		if w.Playing {
-			w.Say("playing")
+			w.Say(s.playLine())
 		} else {
 			w.Say("paused")
 		}

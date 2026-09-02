@@ -185,20 +185,8 @@ func TestTheRowsAreReadableOnlyByTheirOwner(t *testing.T) {
 	reg := t.TempDir()
 	t.Setenv(SessionsEnv, reg)
 	srv := answering(t, filepath.Join(t.TempDir(), "a.sock"))
-	info, err := os.Stat(sessionPath(reg, srv.Path()))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := info.Mode().Perm(); got != fs.FileMode(0o600) {
-		t.Errorf("row is %v, want 0600", got)
-	}
-	d, err := os.Stat(reg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := d.Mode().Perm(); got != fs.FileMode(0o700) {
-		t.Errorf("directory is %v, want 0700", got)
-	}
+	isPrivate(t, sessionPath(reg, srv.Path()), fs.FileMode(0o600))
+	isPrivate(t, reg, fs.FileMode(0o700))
 }
 
 // A session cannot answer its own hello from inside a verb, so it is listed

@@ -23,7 +23,9 @@ func consentSim(t *testing.T) (*Sim, *state.Store, context.Context) {
 	// priming another - which shows up as a held warm that mysteriously is not
 	// held, because the matrix it would have measured was already on disk.
 	t.Setenv("XDG_CACHE_HOME", dir)
+	t.Setenv("LOCALAPPDATA", dir)
 	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv("APPDATA", dir)
 	t.Setenv("HOME", dir)
 	s := &Sim{
 		persist:   true,

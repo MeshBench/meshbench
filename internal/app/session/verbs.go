@@ -191,7 +191,14 @@ func Register(st *state.Store, s *Sim) {
 			// faster - it would make its airtime accounting wrong - so while a
 			// cell owns the clock this only reads.
 			if !s.benchOwnsTheClock() {
-				_ = s.eng.Step(context.Background())
+				// Close takes the engine away, from the workbench's own
+				// shutdown goroutine, while this tick stays installed - so a
+				// step arriving after a close finds nothing there and the
+				// panic takes the store's goroutine with it. fireDueSends
+				// below has always asked; this is the call that did not.
+				if eng := s.eng; eng != nil {
+					_ = eng.Step(context.Background())
+				}
 				// Whatever the schedule is due to say at this moment of
 				// simulated time. After the step, so a send lands on a mesh
 				// whose clock has already reached its moment.
@@ -229,7 +236,12 @@ func Register(st *state.Store, s *Sim) {
 				// quiet" has an answer.
 				sayFirmwareFailures(w, eng.FirmwareFailures())
 			}
-			w.NowMs = s.liveEngine().NowMs()
+			// The same question again: with the engine gone the clock does
+			// not advance, and the last time it reached is the truthful
+			// thing to leave on the world.
+			if eng := s.liveEngine(); eng != nil {
+				w.NowMs = eng.NowMs()
+			}
 			// Anything a split-out domain must re-describe every step - a
 			// client attaching to a served observer is not a verb, so the
 			// fact is re-read here rather than trusted from the last one.

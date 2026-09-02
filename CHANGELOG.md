@@ -21,7 +21,66 @@ had changed in them - which is the gap this file exists to close.
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- **The Windows installer asks where to go, and says when it has finished.**
+  It had no dialogs at all, because the tool that built it builds none, so
+  every answer had to be an `msiexec` switch and a double-clicked `.msi` put
+  itself in Program Files without a word. It now offers a folder, reports
+  the location it used to Apps and Features - which was blank - keeps that
+  location across an upgrade, and carries the MeshBench card on its first
+  and last pages. The switches all still work.
+
+### Fixed
+
+- **The Windows installer now says where it put things.** Apps and Features
+  showed a blank Install location, because nothing set `ARPINSTALLLOCATION`.
+  A person wanting to know where their copy went had to guess.
+
+- **Playing over a warm that was held said only "playing".** A warm stopped
+  to ask about terrain leaves no links measured, and no links means every
+  transmission reaches nobody - while the nodes boot, the counts are right
+  and the console answers `OK - Advert sent`. The workbench said so when the
+  network opened and then pressing play overwrote it, so by the time anyone
+  sent traffic the explanation had gone. Play now says what will happen.
+
+- **No published board image could be downloaded.** The catalogue derives a
+  build's version from its asset name, `v1.17.1`, while MeshCore tags its
+  releases by role, `repeater-v1.17.1`. The download asked for
+  `releases/tags/v1.17.1` and got a 404 for every board image ever offered,
+  so an emulated board could not be started by anyone whose cache did not
+  already hold one. It now finds the image the same way the library listed
+  it.
+
+- **Opening a packet in its own window crashed the workbench.** `missKinds`
+  grew a sixth entry and the five chips beside it did not, so drawing the
+  legend indexed past the end and the panel took the application with it. The
+  chip arrays are now declared from the lists' own lengths, which is a
+  compile-time check rather than a matching pair somebody has to remember.
+
+- **Fetching buildings pointed at a tool no release ships.** A pull too large
+  for a live Overpass call said to prepare the region with `tools/envgen`,
+  which is a source tool: the one route the message offered was closed to
+  exactly the people who hit the limit. It now names **Microsoft alone**,
+  which is priced by download size rather than by area and can fetch the
+  default network's footprints today, and suggests narrowing the network.
+- **The Microsoft pull's size cap had never fired.** The dataset index writes
+  its sizes for a person to read - `74.7KB` - and they were parsed as plain
+  integers, so every file was priced at zero and the 8 GB guard was never
+  reached. A pull of any size was accepted by a guard whose whole purpose is
+  to price one before a byte moves.
+- **Windows: the application started and disappeared.** `meshbench.exe` with
+  no arguments printed its usage and exited 2. The installer's Start menu
+  shortcut passes no arguments, and neither does a `meshbench.exe`
+  double-clicked out of the zip, so both of them did that - and a release is
+  linked `-H windowsgui`, which starts with no standard handles, so the text
+  explaining it went nowhere. A bare invocation now opens the workbench, which
+  is what the `.desktop` file and the macOS wrapper have always asked for and
+  what the README beside the binary already promised.
+- **Windows: a failure now says why.** With a terminal, output appears there;
+  with none, it goes to `meshbench-error.log` in the cache directory, and that
+  includes a panic's stack trace, which previously reached nobody at all.
+  Output that was redirected or piped stays where it was sent.
 
 ## [0.0.5] - 2026-09-02
 
@@ -149,7 +208,6 @@ Nothing yet.
 - Six files came back under the length limit; panel filenames say which panel
   they hold; the panel list is one file per family.
 
-### Fixed
 
 - **A cached link matrix could not say whether buildings were priced into it.**
   The measured matrix persists to disk under a fingerprint of the geometry it

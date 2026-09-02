@@ -24,15 +24,28 @@ import (
 	"github.com/MeshBench/meshbench/internal/rf/terrain"
 )
 
+// fatal says why, in the one place a Windows user can see it.
+//
+// A release binary linked for the GUI subsystem has no standard handles, so
+// the usual write to stderr reaches nobody and the process appears to vanish.
+// adoptConsole gives it the terminal's handles when there is a terminal;
+// reportFatal writes the message down when there is not, and the exit names
+// the file so the next person is not left guessing.
+func fatal(code int, msg string) {
+	fmt.Fprintln(os.Stderr, msg)
+	if path := reportFatal(msg); path != "" {
+		fmt.Fprintln(os.Stderr, "written to", path)
+	}
+	os.Exit(code)
+}
+
 func main() {
+	adoptConsole()
+	recordCrashes()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	if len(os.Args) < 2 {
-		usage()
-		os.Exit(2)
-	}
-	name := os.Args[1]
+	name, args := commandFor(os.Args)
 	if name == "-h" || name == "--help" || name == "help" {
 		usage()
 		return
@@ -47,9 +60,8 @@ func main() {
 
 	for _, c := range commands() {
 		if c.name == name {
-			if err := c.run(ctx, os.Args[2:]); err != nil {
-				fmt.Fprintln(os.Stderr, invoked()+":", err)
-				os.Exit(1)
+			if err := c.run(ctx, args); err != nil {
+				fatal(1, invoked()+": "+err.Error())
 			}
 			return
 		}
@@ -57,6 +69,26 @@ func main() {
 	fmt.Fprintf(os.Stderr, "%s: no command %q\n\n", invoked(), name)
 	usage()
 	os.Exit(2)
+}
+
+// commandFor is the command to run and the flags for it, from the
+// argument vector.
+//
+// A bare invocation opens the workbench. Both launchers that have
+// somewhere to put an argument already say so - the .desktop file runs
+// "meshbench workbench %f" and the macOS wrapper execs the same word - but
+// the MSI's Start menu shortcut carries no arguments and a meshbench.exe
+// double-clicked out of the zip has nowhere to carry them. Those two used
+// to reach the usage text and exit 2, and on Windows a release is linked
+// -H windowsgui, so the text went to a stderr that was never opened: the
+// application started and vanished with nothing to go on. The README
+// beside the binary has always said "run meshbench.exe - it opens the
+// workbench"; this is that sentence being true.
+func commandFor(argv []string) (string, []string) {
+	if len(argv) < 2 {
+		return "workbench", nil
+	}
+	return argv[1], argv[2:]
 }
 
 // invoked is the name this binary was run as.

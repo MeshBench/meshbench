@@ -20,7 +20,9 @@ func asking(t *testing.T) (*state.Store, context.Context) {
 	t.Helper()
 	dir := t.TempDir()
 	t.Setenv("XDG_CACHE_HOME", dir)
+	t.Setenv("LOCALAPPDATA", dir)
 	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv("APPDATA", dir)
 	t.Setenv("HOME", dir)
 	sim := &session.Sim{}
 	if err := sim.LoadPrefs(); err != nil {

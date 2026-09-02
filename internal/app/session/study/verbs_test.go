@@ -19,7 +19,9 @@ func aStudy(t *testing.T) (*state.Store, *session.Sim) {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", home)
+	t.Setenv("APPDATA", home)
 	t.Setenv("XDG_CACHE_HOME", home)
+	t.Setenv("LOCALAPPDATA", home)
 	t.Setenv("HOME", home)
 
 	st := state.New(10)

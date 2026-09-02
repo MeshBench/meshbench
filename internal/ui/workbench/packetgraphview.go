@@ -27,8 +27,9 @@ const (
 	modeForce
 )
 
-// graphModes is every mode, in the order the picker offers them.
-var graphModes = []struct {
+// graphModes is every mode, in the order the picker offers them. An array,
+// so the picker's chips are declared from its length rather than beside it.
+var graphModes = [...]struct {
 	Mode  graphMode
 	Label string
 }{

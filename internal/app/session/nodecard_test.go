@@ -15,13 +15,14 @@ import (
 // which has not.
 func aCardSim(t *testing.T) (*state.Store, *Sim) {
 	t.Helper()
-	t.Setenv(firmware.EnvNodeFS, t.TempDir())
+	t.Setenv(firmware.EnvNodeFS, nodeFSRoot(t))
 	// A firmware cache of this test's own. Without it the test reads the one
 	// on the machine running it, and a build there marked as needing a card
 	// fills this node's slot - which is the feature working and the test
 	// failing, on one machine and not another.
 	home := t.TempDir()
 	t.Setenv("XDG_CACHE_HOME", home)
+	t.Setenv("LOCALAPPDATA", home)
 	t.Setenv("HOME", home)
 	st := state.New(10)
 	s := &Sim{nodes: []scenario.Node{
