@@ -31,18 +31,47 @@ func (s *Sim) buildsMissing() []string {
 		have[b.Role+"@"+b.Version] = true
 		have[b.Version] = true
 	}
+	// And whatever an override supplies, because this gate has to ask the
+	// question the engine asks. firmware.Resolve tries FindNative before it
+	// looks in the cache, so MESHBENCH_NATIVE, or a build sitting beside the
+	// simulator, satisfies a node whatever version it is pinned to: the
+	// version is never consulted on that path.
+	//
+	// Reading the cache alone made this stricter than the thing it guards, and
+	// it refused runs that would have started. A firmware developer pointed at
+	// their own build was told to pin one in the Firmware panel, which is the
+	// one thing that would not have helped, and the nightly - which downloads
+	// its builds into a directory of its own and names it - failed on a
+	// version nothing had asked it to have.
+	//
+	// One lookup per role rather than per node: it is a stat, and a national
+	// network asks it three hundred times.
+	overrides := map[string]bool{}
+	overridden := func(role string) bool {
+		if v, ok := overrides[role]; ok {
+			return v
+		}
+		_, err := firmware.FindNative("", role)
+		overrides[role] = err == nil
+		return overrides[role]
+	}
 	var out []string
 	for _, n := range s.nodes {
 		if !n.Kind.RunsFirmware() {
 			continue
 		}
-		if n.Firmware.Version == "" {
-			out = append(out, n.Name+" (no version pinned)")
-			continue
-		}
 		role := string(n.Firmware.Role)
 		if role == "" {
 			role = string(n.Kind.Application())
+		}
+		// A board image is not a native build, so an override of one says
+		// nothing about the other.
+		if n.Firmware.Board == "" && overridden(role) {
+			continue
+		}
+		if n.Firmware.Version == "" {
+			out = append(out, n.Name+" (no version pinned)")
+			continue
 		}
 		if have[role+"@"+n.Firmware.Version] || have[n.Firmware.Version] {
 			continue
