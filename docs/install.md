@@ -80,21 +80,22 @@ Intel Macs are not built yet. Ask if you need one.
 
 Two downloads, and either is a complete build.
 
-`meshbench-*-windows-x86_64.msi` is the installer. Double-click it: it installs
-into `C:\Program Files\MeshBench`, adds a Start menu entry, and appears in
-Apps and Features with an uninstall. Installing a newer one replaces the
-installation rather than putting a second copy beside it, and the uninstall
-removes what it installed and nothing else: your fixtures, cached firmware,
-terrain tiles and settings live under your profile and are left alone.
+`meshbench-*-windows-x86_64.msi` is the installer. Double-click it and it asks
+where to go — `C:\Program Files\MeshBench` unless you browse somewhere else —
+adds a Start menu entry, and appears in Apps and Features with an uninstall and
+the location it used. Installing a newer one replaces the installation rather
+than putting a second copy beside it, and keeps the directory you chose. The
+uninstall removes what it installed and nothing else: your fixtures, cached
+firmware, terrain tiles and settings live under your profile and are left
+alone.
 
-There are no installer dialogs to click through, because the installer is built
-on Linux and the tool that builds it there builds no dialogs. Anything you
-would have chosen in one is a switch instead, from a Command Prompt in the
-folder you downloaded it to:
+Everything the wizard offers can also be a switch, which is what you want for
+an unattended install, and there are two it does not offer. From a Command
+Prompt in the folder you downloaded it to:
 
 ```console
-:: somewhere other than Program Files
-msiexec /i meshbench-0.2.0-windows-x86_64.msi INSTALLDIR="D:\Tools\MeshBench"
+:: no wizard at all, into a location you name
+msiexec /i meshbench-0.2.0-windows-x86_64.msi /qn INSTALLDIR="D:\Tools\MeshBench"
 
 :: for you alone, with no administrator prompt
 msiexec /i meshbench-0.2.0-windows-x86_64.msi MSIINSTALLPERUSER=1

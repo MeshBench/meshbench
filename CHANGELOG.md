@@ -21,6 +21,16 @@ had changed in them - which is the gap this file exists to close.
 
 ## [Unreleased]
 
+### Added
+
+- **The Windows installer asks where to go, and says when it has finished.**
+  It had no dialogs at all, because the tool that built it builds none, so
+  every answer had to be an `msiexec` switch and a double-clicked `.msi` put
+  itself in Program Files without a word. It now offers a folder, reports
+  the location it used to Apps and Features - which was blank - keeps that
+  location across an upgrade, and carries the MeshBench card on its first
+  and last pages. The switches all still work.
+
 ### Fixed
 
 - **The Windows installer now says where it put things.** Apps and Features
