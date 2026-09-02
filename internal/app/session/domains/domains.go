@@ -21,4 +21,5 @@ import (
 	_ "github.com/MeshBench/meshbench/internal/app/session/sdr"
 	_ "github.com/MeshBench/meshbench/internal/app/session/study"
 	_ "github.com/MeshBench/meshbench/internal/app/session/sweep"
+	_ "github.com/MeshBench/meshbench/internal/app/session/updates"
 )

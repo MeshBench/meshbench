@@ -364,6 +364,14 @@ func (p *configPanel) system(t *theme.Theme, s *state.Snapshot) []layout.Widget 
 				layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint, terrainDLNote(s))),
 			)
 		}),
+		comp.Card(t, "Update checks", func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return p.updateCheck.LayoutSwitch(t, gtx)
+				}),
+				layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint, updateNote(s))),
+			)
+		}),
 		comp.Card(t, "Tile cache size", p.fieldRow(t, &p.cacheGBf, &p.setCache,
 			fmt.Sprintf("decoded terrain tiles held in memory - now %.3g GB; a cache "+
 				"smaller than the study area re-reads tiles from disk constantly",
@@ -402,4 +410,19 @@ func terrainDLNote(s *state.Snapshot) string {
 	return "nothing is downloaded: links are measured on the ground already " +
 		"cached, and where there is none the answer falls back to free space, " +
 		"which flatters every link that a hill would have blocked"
+}
+
+// updateNote says what the switch does and, just as importantly, what it does
+// not: nothing here downloads anything, and nothing replaces a running build.
+func updateNote(s *state.Snapshot) string {
+	if s != nil && s.Update.Allowed {
+		return "the release page is asked once a day, in the background and " +
+			"never while the application is opening. A newer release is said " +
+			"once in the status bar and shown on Setup; nothing is downloaded " +
+			"or replaced without being asked for"
+	}
+	return "nothing asks, so nothing here will say a newer release exists. " +
+		"A release pins the emulator toolchain, the firmware tags and the " +
+		"fixtures, so an old build fetching today's published firmware is a " +
+		"combination nobody tested"
 }

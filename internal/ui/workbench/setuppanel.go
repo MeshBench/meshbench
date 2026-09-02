@@ -35,6 +35,12 @@ type setupPanel struct {
 	OnAction func(verb string, params map[string]any)
 
 	asked bool
+	// lastUpdate is the update answer the page has already drawn, so one that
+	// arrives while Setup is open lands on it. Both the check and the download
+	// run on workers and finish long after the page was built; without this the
+	// row went on saying "none has answered yet" underneath a status line that
+	// had just named the release.
+	lastUpdate string
 }
 
 func (p *setupPanel) rowFor(key string) *setupRowW {
@@ -61,10 +67,11 @@ func (p *setupPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot)
 		p.asked = true
 		p.Refresh()
 	}
-	p.recheckBtn.Kind, p.recheckBtn.Label = comp.Secondary, "Check again"
-	if p.recheckBtn.Click.Clicked(gtx) && p.Refresh != nil {
+	if u := s.Update.Checked + s.Update.Staged; u != p.lastUpdate && p.Refresh != nil {
+		p.lastUpdate = u
 		p.Refresh()
 	}
+	p.recheck(gtx)
 
 	groups := s.Setup
 	p.list.Axis = layout.Vertical
@@ -94,6 +101,59 @@ func (p *setupPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot)
 			layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint,
 				"Sizes are stated before anything is fetched, and nothing on "+
 					"this page downloads until it is pressed.")),
+		)
+	})
+}
+
+// recheck labels the one button the page itself owns and fires it. Called from
+// both draws, because a control drawn by one and wired by the other is a
+// control the audit correctly reports as dead.
+func (p *setupPanel) recheck(gtx layout.Context) {
+	p.recheckBtn.Kind, p.recheckBtn.Label = comp.Secondary, "Check again"
+	if p.recheckBtn.Click.Clicked(gtx) && p.Refresh != nil {
+		p.Refresh()
+	}
+}
+
+// auditDraw is every row this panel can draw, in two columns and without the
+// counters or the footnote.
+//
+// The real page scrolls and the audit's sweep cannot: a list taller than the
+// window reads as controls nobody can click, and it would be the audit that was
+// wrong. Columns are the cheap axis here, the same answer the Configuration
+// page came to - the sweep costs nothing extra for a wider layout and a great
+// deal for a taller one.
+func (p *setupPanel) auditDraw(t *theme.Theme, gtx layout.Context,
+	s *state.Snapshot) layout.Dimensions {
+
+	p.recheck(gtx)
+	groups := s.Setup
+	half := (len(groups) + 1) / 2
+	column := func(from, to int) layout.Widget {
+		return func(gtx layout.Context) layout.Dimensions {
+			items := make([]layout.FlexChild, 0, to-from)
+			for i := from; i < to && i < len(groups); i++ {
+				g := groups[i]
+				items = append(items, layout.Rigid(
+					func(gtx layout.Context) layout.Dimensions {
+						return p.group(t, gtx, g)
+					}))
+			}
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, items...)
+		}
+	}
+	return layout.UniformInset(t.Sp.L).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return p.header(t, gtx, groups)
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+					layout.Flexed(1, column(0, half)),
+					layout.Rigid(layout.Spacer{Width: t.Sp.M}.Layout),
+					layout.Flexed(1, column(half, len(groups))),
+				)
+			}),
 		)
 	})
 }

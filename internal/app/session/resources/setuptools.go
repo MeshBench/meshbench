@@ -11,7 +11,6 @@
 package resources
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -43,7 +42,7 @@ func toolsFound() map[string]string {
 // identical from inside the window. Deduced from what is beside the binary
 // rather than stamped at build time, so it stays true for somebody who
 // unpacked half of one bundle next to another.
-func buildGroup(found map[string]string) state.SetupGroup {
+func buildGroup(found map[string]string, ver state.SetupRow) state.SetupGroup {
 	exe, err := os.Executable()
 	if err != nil {
 		exe = ""
@@ -59,7 +58,7 @@ func buildGroup(found map[string]string) state.SetupGroup {
 				runtime.GOOS + "/" + runtime.GOARCH,
 			Where: exe,
 			Do:    artefactWords(found, exe),
-		}},
+		}, ver},
 	}
 }
 
@@ -243,21 +242,7 @@ func costWords(r state.ResourceRow) string {
 		return ""
 	}
 	if r.Estimated {
-		return "about " + siBytes(r.Bytes) + " to download, once"
+		return "about " + resource.SIBytes(r.Bytes) + " to download, once"
 	}
-	return siBytes(r.Bytes) + " on disk"
-}
-
-// siBytes is the size in the units somebody would say it in.
-func siBytes(b int64) string {
-	const unit = 1000
-	if b < unit {
-		return fmt.Sprintf("%d B", b)
-	}
-	div, exp := int64(unit), 0
-	for n := b / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "kMGTPE"[exp])
+	return resource.SIBytes(r.Bytes) + " on disk"
 }

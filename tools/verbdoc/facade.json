@@ -256,7 +256,15 @@
     "firmware.build_failed": "",
     "infer.progress": "",
     "ui.keep_above": "wb.keep_above()",
-    "session.journal": "wb.journal()"
+    "session.journal": "wb.journal()",
+    "update.check": "wb.update.check()",
+    "update.status": "wb.update.status()",
+    "update.allow": "wb.update.allow(on=True)",
+    "update.download": "wb.update.download()",
+    "update.reveal": "wb.update.reveal()",
+    "update.notes": "wb.update.notes()",
+    "update.checked": "",
+    "update.staged": ""
   },
   "no_facade": {
     "node.reflashed": "the store telling itself a reflash finished",
@@ -294,7 +302,9 @@
     "firmware.published": "the catalogue fetch landing its answer; wb.firmware.scan() asks for one",
     "sweep.set": "the sweep runner publishing its matrix",
     "validate.compare": "the observation fetch handing back what was heard",
-    "coverage.combined": "the raster worker publishing the network-wide answer"
+    "coverage.combined": "the raster worker publishing the network-wide answer",
+    "update.checked": "the release check reporting back from its own worker",
+    "update.staged": "the update download reporting back from its own worker"
   },
   "groups": [
     {
@@ -430,7 +440,8 @@
         "resource",
         "terrain",
         "gpu",
-        "job"
+        "job",
+        "update"
       ]
     },
     {

@@ -1,6 +1,7 @@
 package resource
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -44,4 +45,22 @@ func dirBytes(dir string) (int64, error) {
 func fileExists(p string) bool {
 	st, err := os.Stat(p)
 	return err == nil && !st.IsDir()
+}
+
+// SIBytes is a size in the units somebody would say it in.
+//
+// Powers of a thousand rather than of 1024, because these numbers are read
+// beside what a release page and a download manager say, and those count in
+// megabytes of a million.
+func SIBytes(b int64) string {
+	const unit = 1000
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := int64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "kMGTPE"[exp])
 }

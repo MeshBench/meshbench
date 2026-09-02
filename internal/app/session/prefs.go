@@ -64,6 +64,14 @@ type Prefs struct {
 	EnvironmentDir string `json:"environment_dir,omitempty"`
 	// CoverageCells is the coverage raster's long edge; zero is the default.
 	CoverageCells int `json:"coverage_cells,omitempty"`
+	// UpdateChecks is whether the release feed may be asked whether a newer
+	// version exists. A pointer for the same reason as GPU and terrain: a
+	// refusal has to be remembered, or it is a question asked again on every
+	// launch, which is the single most common way this feature is hated.
+	UpdateChecks *bool `json:"update_checks,omitempty"`
+	// UpdateChecked is when it was last asked, RFC3339. Remembered across
+	// launches so a daily check is daily rather than per launch.
+	UpdateChecked string `json:"update_checked,omitempty"`
 }
 
 // prefsPath is ~/.config/meshbench/workbench2.json, the file a test pointed

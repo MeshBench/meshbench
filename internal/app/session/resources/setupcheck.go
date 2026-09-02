@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 
 	"github.com/MeshBench/meshbench/internal/app/session"
+	"github.com/MeshBench/meshbench/internal/app/session/updates"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/firmware"
 )
@@ -28,7 +29,7 @@ func registerSetup(st *state.Store, s *session.Sim) {
 		if _, err := relistResources(s, w); err != nil {
 			return nil, err
 		}
-		w.Setup = setupGroups(s, w.Resources)
+		w.Setup = setupGroups(s, w)
 		tally := setupTally(w.Setup)
 		return map[string]any{
 			"groups": setupWire(w.Setup),
@@ -47,10 +48,11 @@ func registerSetup(st *state.Store, s *session.Sim) {
 // setupGroups is the whole check, in the order somebody meets the problems:
 // what they installed, what a node runs, what a link is measured over, and what
 // an emulated board needs on top of all three.
-func setupGroups(s *session.Sim, rows []state.ResourceRow) []state.SetupGroup {
-	found := toolsFound()
+func setupGroups(s *session.Sim, w *state.World) []state.SetupGroup {
+	found, rows := toolsFound(), w.Resources
+	allowed, asked := s.UpdateConsent()
 	return []state.SetupGroup{
-		buildGroup(found),
+		buildGroup(found, updates.SetupRow(w.Update, allowed, asked)),
 		firmwareGroup(s),
 		terrainGroup(s, rows),
 		toolchainGroup(rows, found),

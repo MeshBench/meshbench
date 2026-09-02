@@ -77,6 +77,7 @@ type configPanel struct {
 	scale       comp.Field
 	setScale    comp.Button
 	terrainDL   comp.Check
+	updateCheck comp.Check
 	cacheGBf    comp.Field
 	setCache    comp.Button
 	cacheDir    comp.Field
@@ -91,6 +92,7 @@ type configPanel struct {
 	wasGPU, wasReal bool
 	wasKeep         bool
 	wasTerrainDL    bool
+	wasUpdateCheck  bool
 }
 
 // configSections is the sidebar, in the mock's order. Overview first, then
@@ -137,6 +139,7 @@ func (p *configPanel) build() {
 	p.scale.Editor.SingleLine = true
 	p.setScale.Label, p.setScale.Kind = "set scale", comp.Secondary
 	p.terrainDL.Label = "download terrain when a study needs it"
+	p.updateCheck.Label = "check once a day whether a newer release exists"
 	p.cacheGBf.Hint, p.cacheGBf.Label, p.cacheGBf.Suffix = "GB", "Tile cache", "GB"
 	p.setCache.Label, p.setCache.Kind = "set cache", comp.Secondary
 	p.cacheDir.Hint, p.cacheDir.Label = "a directory path", "Move the cache to"
@@ -339,6 +342,7 @@ func (p *configPanel) auditDraw(t *theme.Theme, gtx layout.Context, s *state.Sna
 		func(gtx layout.Context) layout.Dimensions { return p.realFW.LayoutSwitch(t, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.keepAbove.LayoutSwitch(t, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.terrainDL.LayoutSwitch(t, gtx) },
+		func(gtx layout.Context) layout.Dimensions { return p.updateCheck.LayoutSwitch(t, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.device.Layout(t, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.rfModeDD.Layout(t, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.cacheDD.Layout(t, gtx) },

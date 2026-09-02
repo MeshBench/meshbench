@@ -263,6 +263,8 @@
         "terrain": "capture",
         "theme": "capture",
         "unverified-wiring": "result",
+        "update-check": "capture",
+        "update-feed": "data",
         "version": "output",
         "view": "capture"
       }

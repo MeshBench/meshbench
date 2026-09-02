@@ -106,7 +106,18 @@ func auditTargets(r *recorder) []target {
 		Rows: []state.SetupRow{{
 			Name: "this build", State: string(state.SetupReady),
 			What: "MeshBench dev", Where: "/usr/local/bin/meshbench",
-			Do: "nothing is bundled beside the binary"}},
+			Do: "nothing is bundled beside the binary"}, {
+			// The one row that offers a download of the application itself.
+			// Drawn here in the state it matters in: a newer release exists,
+			// its size is stated, and the button has not been pressed.
+			// The one row that offers a download of the application itself,
+			// drawn in the state it matters in: a newer release exists, its
+			// size is stated, and nothing has been pressed.
+			Name: "version", State: string(state.SetupUndecided),
+			What: "which release this is, and whether a newer one exists",
+			Cost: "44.0 MB to download",
+			Do:   "0.2.0 is out; downloading replaces nothing.",
+			Verb: "update.download"}},
 	}, {
 		Name: "Firmware", Note: "cached in ~/.cache/meshbench/firmware",
 		Rows: []state.SetupRow{{
@@ -281,7 +292,7 @@ func auditTargets(r *recorder) []target {
 		}},
 		{"Provisioning", prov, prov.Draw, nil, nil, nil, nil},
 		{"Resources", resP, resP.Draw, snapWithResources, nil, nil, nil},
-		{"Setup", setP, setP.Draw, snapWithSetup, nil, nil, nil},
+		{"Setup", setP, setP.auditDraw, snapWithSetup, nil, nil, nil},
 		// The flat layout, so every section's controls are on screen at once;
 		// the sidebar's own switching is TestConfigurationSectionsSwitch.
 		// Fired counts the settings generation too: the Interface controls

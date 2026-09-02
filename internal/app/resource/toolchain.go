@@ -102,7 +102,7 @@ type Toolchain struct {
 	// and therefore the only place a fetch is worth putting anything.
 	Dir string
 	// HTTP is the client, so a test answers without a network.
-	HTTP httpDoer
+	HTTP HTTPDoer
 	// Needed counts the nodes in this scenario that cannot boot without each
 	// tool, keyed by the tool's name, so a missing row reads as blocking
 	// rather than optional.

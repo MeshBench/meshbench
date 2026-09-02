@@ -39,7 +39,7 @@ and a verb added tomorrow is usable today.
 
 ### Why two layers rather than one
 
-**246**<!--verbdoc:total--> addressable methods hand-written across two
+**254**<!--verbdoc:total--> addressable methods hand-written across two
 languages is twice that many things to keep in step. Keeping them in step is what the verb manifest (`docs/verbs.json`) is for: a
 hand-written surface that names a verb the tree no longer has is exactly the
 drift it catches, where once a tool could call a deleted verb and nothing
@@ -899,7 +899,7 @@ so — loudly, every time, the way the CLI already does.
 
 ## What has deliberately no façade
 
-**36**<!--verbdoc:nofacade--> verbs. They are the store talking to itself: a warm publishing its matrix, a
+**38**<!--verbdoc:nofacade--> verbs. They are the store talking to itself: a warm publishing its matrix, a
 fetch reporting a failure, a worker retiring its own progress row. They are
 listed with their reasons in
 [scripting-verbs.md](scripting-verbs.md), and they stay reachable through

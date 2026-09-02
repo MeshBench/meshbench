@@ -39,19 +39,25 @@ func setupActionLabel(verb string) string {
 	switch verb {
 	case "resource.fetch":
 		return "Fetch"
-	case "terrain.allow":
+	case "terrain.allow", "update.allow":
 		return "Allow"
 	case "panel.open":
 		return "Open Firmware"
+	case "update.check":
+		return "Check now"
+	case "update.download":
+		return "Download"
+	case "update.reveal":
+		return "Show me"
 	default:
 		return "Do it"
 	}
 }
 
-// setupTurnOff is the one action whose sense flips with the row's state:
-// terrain that is already on is turned off by the same verb.
+// setupTurnOff is the one action whose sense flips with the row's state: a
+// permission that is already granted is withdrawn by the same verb.
 func setupTurnOff(r state.SetupRow) bool {
-	if r.Verb != "terrain.allow" {
+	if r.Verb != "terrain.allow" && r.Verb != "update.allow" {
 		return false
 	}
 	on, _ := r.Params["on"].(bool)

@@ -1,0 +1,57 @@
+{
+  "update.download": {
+    "what": "download the release the last check found, beside this build rather than over it",
+    "returns": [
+      "downloading",
+      "bytes",
+      "release",
+      "into"
+    ],
+    "answers": "Refuses unless a check has already found a release this machine could take, and says which of the four reasons applies - nothing has asked yet, the last check could not reach the feed, there is a newer release but nothing published for this platform or this bundle, or this build is already the newest. The fetch runs in the background with its size announced in the jobs strip before it is spent, and it is verified before it is offered: the release publishes SHA256SUMS beside its artefacts, and a file whose digest does not match is deleted rather than kept. That digest comes from the same release as the file, so what it proves is that the download arrived intact; what says the release is ours is the connection to github.com, which is why an asset served from anywhere else is refused outright. Nothing is replaced: the download lands in the update cache and the answer says how to swap it by hand, because a run holds unsaved state and replacing a binary underneath one is a way to lose somebody's work.",
+    "example": {
+      "params": {},
+      "what": "fetch the release the last check found",
+      "runnable": false
+    }
+  },
+  "update.reveal": {
+    "what": "open the folder a downloaded release landed in",
+    "returns": [
+      "opened"
+    ],
+    "answers": "Refuses when nothing has been downloaded, because there is then no folder to open. Hands the path to whatever this desktop uses - xdg-open, open, or the Windows file protocol handler - and says so when the machine has none rather than failing silently.",
+    "example": {
+      "params": {},
+      "what": "look at the release that was just downloaded",
+      "runnable": false
+    }
+  },
+  "update.notes": {
+    "what": "open the release page for what the last check found",
+    "returns": [
+      "opened"
+    ],
+    "answers": "The notes are linked rather than embedded: they are prose, and prose outgrows any panel it is put in. Refuses when no check has named a release page yet.",
+    "example": {
+      "params": {},
+      "what": "read what changed in the release being offered",
+      "runnable": false
+    }
+  },
+  "update.staged": {
+    "what": "take a finished download back onto the store's goroutine: record where it landed and say what to do with it",
+    "params": [
+      {
+        "name": "path",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "where the verified download landed"
+      }
+    ],
+    "returns": [
+      "staged"
+    ],
+    "answers": "Internal: the download reporting back from the worker it runs on. What it says is the whole instruction for this platform's bundle, including that a client pinned to the old release will be refused by the new workbench."
+  }
+}
