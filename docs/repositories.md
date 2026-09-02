@@ -54,6 +54,16 @@ so the patch can be rebased, and so anyone can see how small each change is.
 
 ### `MeshBench/gio` — branch `msim-210-layer-shell`
 
+**Public, and checked rather than assumed.** It is the sharpest of these,
+because it is the only fork the Go build itself needs: a `replace` directive in
+`go.mod` points at it, so a recipient of the source archive cannot build
+MeshBench at all without fetching it. If it were private the archive would meet
+GPL-3.0 section 6 on paper and not in fact. It can be fetched with no
+credentials, no `GOPRIVATE` and no `insteadOf` anywhere in CI, and `go.sum`
+carries an entry verified against `sum.golang.org`, which a private module never
+gets. `docs/compatibility.md` states the same thing where a reader looking for
+the licence obligation will meet it.
+
 Forked from `gioui/gio` (v0.10.2). Adds the `wlr-layer-shell` protocol to the
 Wayland backend: the `app.LayerShell` option gives a window the
 `zwlr_layer_surface_v1` role on a chosen layer instead of an `xdg_toplevel`,

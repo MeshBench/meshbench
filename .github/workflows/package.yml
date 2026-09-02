@@ -133,6 +133,15 @@ jobs:
               *)  VERSION="0.0.0-dev-$(git rev-parse --short HEAD)" ;;
             esac
           fi
+          # A release is a plain X.Y.Z everywhere it is spelled, and the
+          # control socket's pairing rule reads exactly that: a workbench
+          # stamped vv0.1.0 is not a release at all as far as it can tell, and
+          # pairs happily with every client of every version. publish-clients
+          # already refuses anything else, so half a release would publish.
+          case "$VERSION" in *-dev-*) ;; *)
+            echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$' ||
+              { echo "::error::version '$VERSION' is not a plain X.Y.Z"; exit 1; } ;;
+          esac
           go build -trimpath \
             -ldflags "-X gioui.org/app.ID=io.github.meshbench.meshbench \
               -X github.com/MeshBench/meshbench/internal/world/basemap.defaultCartoKey=${CARTO_API_KEY} \
@@ -592,6 +601,11 @@ jobs:
               *)  VERSION="0.0.0-dev-$(git rev-parse --short HEAD)" ;;
             esac
           fi
+          # The same guard the Linux build carries, for the same reason.
+          case "$VERSION" in *-dev-*) ;; *)
+            echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$' ||
+              { echo "::error::version '$VERSION' is not a plain X.Y.Z"; exit 1; } ;;
+          esac
           go run ./tools/licgen -text dist/meshbench/LICENCES
           GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc \
           go build -trimpath \

@@ -137,6 +137,10 @@ newer than the build it connects to fails **here**, with a sentence naming both
 versions, rather than halfway through a script with a verb returning something
 unexpected, which in a CI run reads as a firmware regression.
 
+The policy behind both rules below, and what a 0.x version number promises more
+generally, is [compatibility.md](compatibility.md). This section is the wire
+detail.
+
 ### The compatibility rule
 
 **A client and a workbench must speak the same control protocol number. Any

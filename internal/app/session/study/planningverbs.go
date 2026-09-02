@@ -117,10 +117,14 @@ func registerPlanningVerbs(st *state.Store, s *session.Sim) {
 			return nil, err
 		}
 		path := filepath.Join(dir, name+".json")
+		// The format number goes in every file this writes, so that a build
+		// meeting one of them years from now can tell whether it understands
+		// the file or only recognises it.
 		f := struct {
+			Format   int     `json:"format"`
 			Nodes    []any   `json:"nodes"`
 			MarginKm float64 `json:"margin_km"`
-		}{MarginKm: float64(w.MarginKm)}
+		}{Format: fixture.Format, MarginKm: float64(w.MarginKm)}
 		for _, n := range s.Nodes() {
 			f.Nodes = append(f.Nodes, n)
 		}

@@ -23,6 +23,17 @@ ARCH=$(uname -m)
 command -v go >/dev/null || { echo "go is not on PATH" >&2; exit 1; }
 [ -f go.mod ] || { echo "run this from the repository root" >&2; exit 1; }
 
+# A release is a plain X.Y.Z everywhere it is spelled, and the control socket's
+# pairing rule reads exactly that: a workbench stamped vv0.1.0 is not a release
+# at all as far as it can tell, and pairs happily with every client of every
+# version. The client publisher already refuses anything else, so half a
+# release would go out. A dev build says so in its own name and is exempt.
+case "$VER" in
+  *-dev-*) ;;
+  *) echo "$VER" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$' ||
+       { echo "version '$VER' is not a plain X.Y.Z" >&2; exit 1; } ;;
+esac
+
 rm -rf "$OUT"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 

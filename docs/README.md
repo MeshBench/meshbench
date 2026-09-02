@@ -29,6 +29,17 @@ model changes, which is why it lives beside the code rather than on the site.
 The site renders it with `tools/sync-limits.py` and refuses to build if its copy
 has fallen behind this one.
 
+## Policy
+
+`compatibility.md` - what a MeshBench version number promises and what it does
+not: what 0.x means here, the control protocol number, the rule that a client
+and the workbench it drives must be the same release, the fixture format's
+refusal of a file from a later build, how every platform stamps its version,
+and the list of things that would have to be true before 1.0 is worth cutting.
+
+Maintained, and the authority for the three checks the code makes at connect and
+at load. `scripting-api.md` carries the wire detail behind the first two.
+
 ## Moved out of the README
 
 The front page is meant to be readable in a minute, so the detail behind it
