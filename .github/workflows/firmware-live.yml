@@ -137,15 +137,23 @@ jobs:
           # GLIBC_2.38 not found", which names a symbol version and not the
           # reason, and reads as a broken download of a file that arrived
           # perfectly.
-          need=$(objdump -T "$dir/meshcore-simple_repeater-linux-amd64" \
-            | grep -oE 'GLIBC_[0-9]+\.[0-9]+' | sort -V | tail -1)
-          have="GLIBC_$(ldd --version | head -1 | grep -oE '[0-9]+\.[0-9]+$')"
-          echo "firmware needs at most $need; this runner provides $have"
-          if [ "$(printf '%s\n%s\n' "$need" "$have" | sort -V | tail -1)" != "$have" ]; then
+          # Both reads are allowed to come back empty, and pipefail is on: a
+          # statically linked build has no GLIBC_ symbols to find, and an ldd
+          # that words its first line differently gives no version. Neither is
+          # a reason to fail a job over, so the check is skipped rather than
+          # the step dying on a grep that matched nothing.
+          need=$(objdump -T "$dir/meshcore-simple_repeater-linux-amd64" 2>/dev/null \
+            | grep -oE 'GLIBC_[0-9]+\.[0-9]+' | sort -V | tail -1 || true)
+          have=$(ldd --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+$' || true)
+          if [ -z "$need" ] || [ -z "$have" ]; then
+            echo "no glibc floor to compare (need='$need' have='$have'); skipping the check"
+          elif [ "$(printf '%s\n%s\n' "$need" "GLIBC_$have" | sort -V | tail -1)" != "GLIBC_$have" ]; then
             echo "::error::MeshCore's published builds need $need and this runner"\
-                 "has $have. This job asks for lab-2404 for that reason; a runner"\
-                 "below the floor cannot start a native node at all."
+                 "has GLIBC_$have. This job asks for lab-2404 for that reason; a"\
+                 "runner below the floor cannot start a native node at all."
             exit 1
+          else
+            echo "firmware needs at most $need; this runner provides GLIBC_$have"
           fi
           # The airtime it reports for a 40-byte packet at the defaults, which
           # is the one number a broken or truncated download gets wrong loudly.
