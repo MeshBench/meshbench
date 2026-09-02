@@ -790,7 +790,15 @@ jobs:
     # meant a pushed tag built all three platforms and then published nothing,
     # silently: the obvious way to cut a release was the way that did not work.
     # publish-clients.yml already reads the ref for the same reason.
-    if: always() && (inputs.release || startsWith(github.ref, 'refs/tags/v'))
+    #
+    # The event is read as well as the ref, because a workflow_dispatch carries
+    # whichever ref it was started from. On the ref alone, dispatching with
+    # "Publish a release from this build" left off would still publish as soon
+    # as the chosen ref was a tag - and choosing a tag to test a build against
+    # is exactly what somebody does when they are being careful.
+    if: >-
+      always() && (inputs.release ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')))
     needs: [linux, macos, windows]
     # lab-2204 is the one Ubuntu 22.04 runner in the pool, and that is the
     # whole point of the label - it pins the glibc floor described above. Do
