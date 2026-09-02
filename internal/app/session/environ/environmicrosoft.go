@@ -81,6 +81,38 @@ type msFile struct {
 	bytes int64
 }
 
+// indexUnits are the suffixes the dataset index writes its sizes with.
+var indexUnits = map[string]float64{"B": 1, "KB": 1e3, "MB": 1e6, "GB": 1e9, "TB": 1e12}
+
+// indexBytes reads the size the index promises for one file.
+//
+// The column is written for a person to read - 74.7KB, 8.2KB, 1.1GB - so an
+// integer parse of it returned nothing for every row ever published, and the
+// total it feeds was therefore always zero. The cap below has never once
+// fired: a pull of any size was accepted, which is the opposite of what a
+// guard that exists to price a pull before a byte moves is for.
+func indexBytes(s string) int64 {
+	s = strings.TrimSpace(s)
+	cut := len(s)
+	for i, r := range s {
+		if (r < '0' || r > '9') && r != '.' {
+			cut = i
+			break
+		}
+	}
+	n, err := strconv.ParseFloat(s[:cut], 64)
+	if err != nil {
+		return 0
+	}
+	// A bare number is bytes, which is what the column would carry if the
+	// dataset ever stopped writing it for a person.
+	unit := 1.0
+	if u, ok := indexUnits[strings.ToUpper(strings.TrimSpace(s[cut:]))]; ok {
+		unit = u
+	}
+	return int64(n * unit)
+}
+
 // microsoftFiles resolves the patches to the dataset files that cover them,
 // priced by the index's own size column. Refusal is by gigabytes, not file
 // count: ninety small files are fine and three enormous ones are not.
@@ -118,7 +150,7 @@ func microsoftFiles(ctx context.Context, patches []llBox) ([]msFile, error) {
 		seen[rec[2]] = true
 		f := msFile{url: rec[2]}
 		if len(rec) >= 4 {
-			f.bytes, _ = strconv.ParseInt(strings.TrimSpace(rec[3]), 10, 64)
+			f.bytes = indexBytes(rec[3])
 		}
 		files = append(files, f)
 		total += f.bytes
@@ -128,8 +160,8 @@ func microsoftFiles(ctx context.Context, patches []llBox) ([]msFile, error) {
 	}
 	if total > microsoftMaxBytes {
 		return nil, fmt.Errorf(
-			"this map's dataset files total %.1f GB (limit %.0f GB); prepare "+
-				"the region offline with tools/envgen instead",
+			"this map's dataset files total %.1f GB, past the %.0f GB a "+
+				"live pull is fair for; narrow the network first",
 			float64(total)/1e9, float64(microsoftMaxBytes)/1e9)
 	}
 	return files, nil

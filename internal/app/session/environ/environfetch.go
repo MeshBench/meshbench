@@ -44,7 +44,9 @@ func fetchEnviron(s *session.Sim, ctx context.Context, source string, patches []
 		if a := patchesAreaKm2(patches); a > overpassMaxKm2 {
 			return "", worldenv.IngestStats{}, fmt.Errorf(
 				"the node patches sum to %.0f km2, past the %.0f km2 a live "+
-					"Overpass pull is fair for. Narrow the network, or prepare the region offline: that needs tools/envgen from a source checkout, which a release bundle does not carry",
+					"Overpass pull is fair for. Pick \"Microsoft alone\" as the "+
+					"building database, which is priced by download size rather "+
+					"than by area, or narrow the network first",
 				a, float64(overpassMaxKm2))
 		}
 		var n int
@@ -66,7 +68,9 @@ func fetchEnviron(s *session.Sim, ctx context.Context, source string, patches []
 		if a := patchesAreaKm2(patches); a > overpassMaxKm2 {
 			return "", worldenv.IngestStats{}, fmt.Errorf(
 				"the node patches sum to %.0f km2, past the %.0f km2 a live "+
-					"Overpass pull is fair for. Narrow the network, or prepare the region offline: that needs tools/envgen from a source checkout, which a release bundle does not carry",
+					"Overpass pull is fair for. Pick \"Microsoft alone\" as the "+
+					"building database, which is priced by download size rather "+
+					"than by area, or narrow the network first",
 				a, float64(overpassMaxKm2))
 		}
 		// Overpass first: it refuses fast when it refuses at all, and a

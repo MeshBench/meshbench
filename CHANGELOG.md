@@ -21,7 +21,19 @@ had changed in them - which is the gap this file exists to close.
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- **Fetching buildings pointed at a tool no release ships.** A pull too large
+  for a live Overpass call said to prepare the region with `tools/envgen`,
+  which is a source tool: the one route the message offered was closed to
+  exactly the people who hit the limit. It now names **Microsoft alone**,
+  which is priced by download size rather than by area and can fetch the
+  default network's footprints today, and suggests narrowing the network.
+- **The Microsoft pull's size cap had never fired.** The dataset index writes
+  its sizes for a person to read - `74.7KB` - and they were parsed as plain
+  integers, so every file was priced at zero and the 8 GB guard was never
+  reached. A pull of any size was accepted by a guard whose whole purpose is
+  to price one before a byte moves.
 
 ## [0.0.5] - 2026-09-02
 
