@@ -103,8 +103,10 @@ codesign --force --deep --sign - "$APP"
 codesign --verify --verbose=2 "$APP"
 
 echo "--- dmg"
-hdiutil create -quiet -volname "MeshBench $VER" -srcfolder "$OUT" \
-  -ov -format UDZO "dist/MeshBench-$VER-$ARCH.dmg"
+# The image is laid out rather than created: an alias to /Applications beside
+# the app, and a window that opens with both where the drag expects them. The
+# script checks its own output before it returns.
+"$(dirname "$0")/macos-dmg.sh" "$VER" "$OUT" "dist/MeshBench-$VER-$ARCH.dmg"
 
 ls -la "dist/MeshBench-$VER-$ARCH.dmg"
 "$APP/Contents/MacOS/meshbench-bin" workbench -version

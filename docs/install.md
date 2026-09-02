@@ -41,10 +41,18 @@ installing something that dies at launch.
 
 ### macOS (Apple Silicon)
 
-Open `MeshBench-*-arm64.dmg` and drag MeshBench to Applications.
+Open `MeshBench-*-arm64.dmg`. The window has MeshBench on the left and an
+Applications folder on the right: drag the one onto the other, then eject the
+disk image and launch MeshBench from Applications or Spotlight.
+
+**Install it before you run it.** MeshBench will start from the disk image
+window, and then disappear the moment the image is ejected. Worse, macOS treats
+an application running off a mounted image differently for quarantine and for
+anything written beside it, so a copy that was never installed fails in ways
+nobody else can reproduce.
 
 > **The application is not signed with an Apple Developer ID yet**, so macOS
-> will refuse to open it on the first attempt — "MeshBench is damaged" or
+> will refuse to open it on the first attempt: "MeshBench is damaged" or
 > "cannot be opened because the developer cannot be verified". It is neither
 > damaged nor unverified in any sense that matters; it is unsigned, and that
 > costs an Apple developer account we have not bought yet.
@@ -52,7 +60,7 @@ Open `MeshBench-*-arm64.dmg` and drag MeshBench to Applications.
 > To open it anyway, pick one:
 >
 > 1. **Right-click the app in Applications and choose Open**, then Open again
->    in the dialog. macOS remembers the decision.
+>    in the dialog. macOS remembers the decision, so this is once per install.
 > 2. If that dialog does not offer Open, go to **System Settings → Privacy &
 >    Security**, scroll to the message about MeshBench and click **Open
 >    Anyway**.

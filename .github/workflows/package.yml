@@ -540,8 +540,12 @@ jobs:
             esac
           fi
           rm -f dist/MeshBench-*.dmg
-          hdiutil create -quiet -volname "MeshBench $VERSION" -srcfolder dist/macos \
-            -ov -format UDZO "dist/MeshBench-${VERSION}-arm64.dmg"
+          # The same script the bundle step used, not a bare hdiutil create: an
+          # image built the plain way has the app in it and nothing to drag it
+          # onto, so people run MeshBench off the mounted volume and lose it
+          # when they eject. macos-dmg.sh mounts what it wrote and asserts the
+          # Applications alias is on it before this step can pass.
+          packaging/macos-dmg.sh "$VERSION" dist/macos "dist/MeshBench-${VERSION}-arm64.dmg"
           ls -la dist/*.dmg
           shasum -a 256 dist/*.dmg
 
@@ -801,7 +805,7 @@ jobs:
             ls dist/*.AppImage >/dev/null 2>&1 && echo "| Linux | \`.AppImage\` | one file, any distribution |"
             ls dist/*.deb >/dev/null 2>&1 && echo "| Debian, Ubuntu | \`.deb\` | \`sudo apt install ./meshbench_*.deb\` |"
             ls dist/meshbench-linux-x86_64.tar.gz >/dev/null 2>&1 && echo "| Linux | \`.tar.gz\` | includes the QEMU and Renode emulators |"
-            ls dist/*.dmg >/dev/null 2>&1 && echo "| macOS (Apple Silicon) | \`.dmg\` | **unsigned** - right-click Open, see the README |" || echo "| macOS | - | did not build for this release |"
+            ls dist/*.dmg >/dev/null 2>&1 && echo "| macOS (Apple Silicon) | \`.dmg\` | drag MeshBench onto Applications, then right-click Open once: **unsigned** |" || echo "| macOS | - | did not build for this release |"
             ls dist/*.zip >/dev/null 2>&1 && echo "| Windows | \`.zip\` | unzip and run \`meshbench.exe\`; SmartScreen will warn |" || echo "| Windows | - | did not build for this release |"
             echo
             echo "Neither the macOS nor the Windows build is code-signed yet, so both"
