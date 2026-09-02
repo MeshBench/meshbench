@@ -43,7 +43,12 @@ const keepMatrices = 24
 // thousand free-space "links" across the North Sea after the cull that
 // refused them had shipped. Bump this when a cached number's meaning moves,
 // and every stale file quietly fails to load and is remeasured once.
-const matrixVersion = 2
+//
+// Three because the environment joined the fingerprint. A file written before
+// that carries a key that cannot say whether its losses were priced with
+// buildings in them, and a bare-earth key matches it either way, so every one
+// of them has to fail to load rather than be trusted.
+const matrixVersion = 3
 
 // versionedMatrix is the file's whole content. Decoding an unversioned or
 // older file fails or mismatches, which is exactly the point.

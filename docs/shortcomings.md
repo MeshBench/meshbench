@@ -103,6 +103,35 @@ default with the low confidence that implies. The merged pull narrows that
 where OSM has surveyed the building - explicit type and material override
 the inference - but only there; the unsurveyed majority keeps the default.
 
+**How much of the excess-loss term buildings actually buy has been measured,
+and the answer is 0.7 dB.** Against 4.5 million Microsoft ML footprints over
+Scotland and 451 live ScotMesh nodes, the fitted term went from 29.77 dB over
+bare earth to 29.07 dB with footprints loaded, on the same import in one
+session. The same footprints removed 37.6% of the link matrix. Both of those
+are true at once because the term is fitted on observations that were heard,
+and a path buildings price into the ground is not one anybody reports hearing:
+it leaves the matrix, its observations go unmatched, and the fit is left with
+the population buildings barely touched. So loading an environment changes what
+the model says about towns a great deal, and changes the constant that stands
+in for towns hardly at all. `docs/studies/excess-loss-with-buildings.md` has
+the arms, the counts and the censoring.
+
+**A crossed building is charged once per building, with no combination rule.**
+Terrain is not: a ridge line is one Bullington obstacle however many DEM
+samples it spans. Buildings have no equivalent, so a path across a city
+accumulates a knife edge and a wall per footprint - 114 crossings and 2,235 dB
+on one 23 km path over Glasgow, and a median of 124 dB across the 641 sub-25 km
+pairs of `fixtures/fixture-scotland-strict.json` it prices at all. The
+coverage raster and the engine also disagree here, which they must not: the
+raster prices only the footprints near each end, the engine prices every
+crossing. Treat an environment-loaded urban path as saying "blocked" rather
+than as a number of decibels.
+
+**Direction of error with buildings loaded: pessimistic, and unbounded, on any
+path that crosses a town.** That is the opposite direction to everything else
+in this document, and it is the one case here where the simulator is not the
+best case.
+
 **A DEM that is not there is worse than a bare-earth one.** Terrain tiles
 download at runtime, and downloading them is the one thing this application
 asks permission for. Where the tiles under a study are not cached - refused,

@@ -198,6 +198,7 @@ func registerRFEnvironment(st *state.Store, s *Sim) {
 			if s.eng != nil {
 				s.eng.Env = nil
 				s.eng.DropLinkCache()
+				s.reFingerprint()
 			}
 			w.RFEnvironment = ""
 			s.prefs.EnvironmentDir = ""
@@ -216,6 +217,7 @@ func registerRFEnvironment(st *state.Store, s *Sim) {
 			// Every cached loss was priced without buildings; keeping any
 			// would mix two physics in one matrix.
 			s.eng.DropLinkCache()
+			s.reFingerprint()
 		}
 		w.RFEnvironment = dir
 		s.prefs.EnvironmentDir = dir
