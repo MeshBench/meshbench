@@ -2,9 +2,9 @@ name: package
 
 # A bundle somebody can download and run, with the emulators inside it.
 #
-# Linux only for now, deliberately. macOS and Windows are visible below and
-# skipped, with the reason in the file: an absent row gets forgotten, a skipped
-# one with a reason gets picked up.
+# All three platforms. The mac and windows inputs exist so a dispatched test
+# build can skip the billed macOS minutes, not to decide what a release
+# contains: a tag push carries no inputs and builds everything.
 #
 # The plan this implements is docs/release-packaging-plan.md.
 
@@ -405,7 +405,7 @@ jobs:
       # A build that does not upload still proves the pipeline: it fetches the
       # emulators, assembles, and runs the smoke test against what a user gets.
       - uses: actions/upload-artifact@v7
-        if: inputs.release
+        if: inputs.release || startsWith(github.ref, 'refs/tags/v')
         with:
           name: meshbench-linux
           # These bundles are 30-110 MB each and three platforms upload one
@@ -445,7 +445,10 @@ jobs:
     # manual dispatch - events that need write access - so nothing an
     # outsider does can schedule work on it. Hosted macos-14 was the paid
     # leg on this private repository; the M4 is free and faster.
-    if: inputs.mac
+    # A tag push carries no inputs, and a release with no Mac build in it is
+    # not the release this job exists to make. The input still lets a
+    # dispatched test build skip the billed macOS minutes.
+    if: inputs.mac || startsWith(github.ref, 'refs/tags/v')
     runs-on: [self-hosted, macos-m4]
     steps:
       - uses: actions/checkout@v7
@@ -538,7 +541,7 @@ jobs:
           shasum -a 256 dist/*.dmg
 
       - uses: actions/upload-artifact@v7
-        if: inputs.release
+        if: inputs.release || startsWith(github.ref, 'refs/tags/v')
         with:
           name: meshbench-macos
           # As the Linux upload above: the release job deletes these once it
@@ -558,7 +561,9 @@ jobs:
     # Unix socket. What a Windows user does not get is the runtime fetch: the
     # catalogue reads ELF and Mach-O headers rather than PE, so the zip is the
     # only way the emulators arrive.
-    if: inputs.windows
+    # As above: the input is for a cheap test build, not for deciding what a
+    # real release contains.
+    if: inputs.windows || startsWith(github.ref, 'refs/tags/v')
     # lab-2204 is the one Ubuntu 22.04 runner in the pool, and that is the
     # whole point of the label - it pins the glibc floor described above. Do
     # not widen this to lab-linux; the other two are 24.04 and would raise it.
@@ -674,7 +679,7 @@ jobs:
           file dist/meshbench/meshbench.exe
 
       - uses: actions/upload-artifact@v7
-        if: inputs.release
+        if: inputs.release || startsWith(github.ref, 'refs/tags/v')
         with:
           name: meshbench-windows
           # As the Linux upload above.
@@ -690,7 +695,13 @@ jobs:
     # always(), so a platform that fails does not withhold the ones that
     # worked - but the tarball and the AppImage are required below, because a
     # release missing the thing most people came for is worse than no release.
-    if: always() && inputs.release
+    #
+    # The ref decides, not just the dispatch input. This workflow triggers on a
+    # v* tag push, where inputs.* is empty, so gating on inputs.release alone
+    # meant a pushed tag built all three platforms and then published nothing,
+    # silently: the obvious way to cut a release was the way that did not work.
+    # publish-clients.yml already reads the ref for the same reason.
+    if: always() && (inputs.release || startsWith(github.ref, 'refs/tags/v'))
     needs: [linux, macos, windows]
     # lab-2204 is the one Ubuntu 22.04 runner in the pool, and that is the
     # whole point of the label - it pins the glibc floor described above. Do
