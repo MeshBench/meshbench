@@ -26,15 +26,10 @@ A fork nobody outside the organisation can fetch cannot satisfy that.
 | `MeshBench/renode` | ties them together and builds the package | upstream's | yes |
 | `MeshBench/gio` | Gio with Wayland layer-shell windows | upstream's | yes |
 
-Three more in the organisation are **private**, and nothing a release ships is
-built from any of them, which is why they are not in the table above: `brand`,
-where the identity is generated (`tools/icon.sh` explains why the result is
-committed here rather than fetched), and `meshbench-scripting-skills` and
-`meshbench-dev-skills`, the two agent-skill mirrors `tools/skillmirror` writes.
-Now that this repository is public, the links to those two in
-`.claude/skills/README.md` are a 404 to a reader outside the organisation.
-Opening them is a decision nobody has taken; until it is, the note there says
-so.
+One more in the organisation is **private**, and nothing a release ships is
+built from it, which is why it is not in the table above: `brand`, where the
+identity is generated. `tools/icon.sh` explains why the result is committed
+here rather than fetched.
 
 ## What the documentation site takes from here
 

@@ -50,9 +50,25 @@ func TestEverySkillIsPublishedExactlyOnce(t *testing.T) {
 	}
 
 	for _, name := range canonicalNames(t, root) {
-		if _, ok := published[name]; !ok {
-			t.Errorf("%s/%s is published by no mirror; add it to one in mirrors.go, or say"+
-				" in this test why it stays in the checkout only", canonicalSkills, name)
+		if _, ok := published[name]; ok {
+			continue
+		}
+		if _, said := unpublished[name]; !said {
+			t.Errorf("%s/%s is published by no mirror and is not in unpublished; add it to"+
+				" a mirror in mirrors.go, or record there why it stays in the checkout only",
+				canonicalSkills, name)
+		}
+	}
+
+	// A reason for a skill that has gone is a reason nobody can check, and it
+	// would let a deletion pass as a decision.
+	for name := range unpublished {
+		if _, err := os.Stat(filepath.Join(root, canonicalSkills, name, "SKILL.md")); err != nil {
+			t.Errorf("unpublished names %s, which is not in %s any more; drop the row",
+				name, canonicalSkills)
+		}
+		if repo, ok := published[name]; ok {
+			t.Errorf("%s is both published by %s and listed as unpublished", name, repo)
 		}
 	}
 }

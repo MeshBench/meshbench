@@ -41,11 +41,17 @@ func renderMirror(root, sha string, m mirror) ([]file, error) {
 	// The mirrors carry the project's licence rather than pointing at it: a
 	// repository someone is invited to clone and copy out of should say what
 	// they may do with it without a second clone.
-	licence, err := os.ReadFile(filepath.Join(root, "LICENSE"))
+	licenceFile, err := os.ReadFile(filepath.Join(root, "LICENSE"))
 	if err != nil {
 		return nil, fmt.Errorf("%s: reading the licence to publish with it: %w", m.repo, err)
 	}
-	files = append(files, file{path: "LICENSE", content: licence})
+	files = append(files, file{path: "LICENSE", content: licenceFile})
+
+	manifests, err := renderPlugin(sha, m)
+	if err != nil {
+		return nil, err
+	}
+	files = append(files, manifests...)
 
 	for _, s := range m.skills {
 		f, err := renderSkill(root, sha, s)
@@ -131,6 +137,16 @@ type frontPageData struct {
 	Table string
 	// Commit is the MeshBench commit this publish was rendered from.
 	Commit string
+	// Repo is owner/name, which is what a reader types at
+	// `/plugin marketplace add`, and RepoName is the directory a clone of it
+	// lands in.
+	Repo     string
+	RepoName string
+	// Plugin and Marketplace are the two halves of the install command, taken
+	// from the same mapping the manifests are written from so the front page
+	// cannot tell somebody to type a name that is not in them.
+	Plugin      string
+	Marketplace string
 }
 
 func renderFrontPage(sha string, m mirror) (file, error) {
@@ -153,7 +169,15 @@ func renderFrontPage(sha string, m mirror) (file, error) {
 	}
 
 	var out bytes.Buffer
-	if err := tmpl.Execute(&out, frontPageData{Table: strings.Join(rows, "\n"), Commit: sha}); err != nil {
+	data := frontPageData{
+		Table:       strings.Join(rows, "\n"),
+		Commit:      sha,
+		Repo:        org + "/" + m.repo,
+		RepoName:    m.repo,
+		Plugin:      m.plugin.name,
+		Marketplace: m.plugin.catalogue,
+	}
+	if err := tmpl.Execute(&out, data); err != nil {
 		return file{}, err
 	}
 	if !bytes.Contains(out.Bytes(), []byte(sha)) {

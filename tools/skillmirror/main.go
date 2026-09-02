@@ -2,14 +2,15 @@
 // skills under .claude/skills.
 //
 // The skills have to be installable into any agent and not only into one
-// working in this checkout, so they are published as two ordinary,
-// clone-and-use repositories, split by audience: somebody driving the
-// workbench should not be handed the Gio design language. Keeping those in
-// step used to be a rule people were asked to remember, and by the time anyone
-// diffed the trees the three files were 502 lines apart. That is the worst
-// thing this repository can publish: an agent loads a skill and acts on it with
-// confidence rather than going and looking, so a stale one does not degrade, it
-// teaches something false.
+// working in this checkout, so they are published as an ordinary repository
+// that is both a Claude Code plugin marketplace and a tree somebody can copy a
+// directory out of, holding only the skills for using the tool: somebody
+// driving the workbench should not be handed the Gio design language. Keeping
+// a published copy in step used to be a rule people were asked to remember, and
+// by the time anyone diffed the trees the three files were 502 lines apart.
+// That is the worst thing this repository can publish: an agent loads a skill
+// and acts on it with confidence rather than going and looking, so a stale one
+// does not degrade, it teaches something false.
 //
 // So a mirror is an output, not a copy. Nothing in this tree holds a second
 // version of a skill, which is also why there is no generated tree checked in
@@ -17,7 +18,8 @@
 // two copies cannot disagree when there is one. What can still be got wrong is
 // the mapping - a skill added with no mirror, or a mirror naming a skill that
 // has gone - and mirror_test.go fails on both, offline, on the machine that
-// moved it.
+// moved it. plugin_test.go does the same for the manifests, which is the other
+// half a reader never sees fail: an install that resolves to no skills.
 //
 // Run from anywhere inside the repo:
 //

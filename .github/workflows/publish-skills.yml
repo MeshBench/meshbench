@@ -1,30 +1,34 @@
 name: publish-skills
 
-# The two standalone skill repositories, rendered from .claude/skills and
-# pushed when those skills change on main.
+# The standalone skill repository, rendered from .claude/skills and pushed when
+# those skills change on main.
 #
 # The skills have to be installable into any agent and not only into one working
-# in this checkout, so they are published as ordinary, cloneable repositories
-# split by audience. Keeping those in step was a rule people were asked to
-# remember; it was not kept, and the three files went 502 lines apart before
-# anyone diffed them. A stale skill is the worst thing this repository can
-# publish, because an agent loads one and acts on it with confidence instead of
-# going and looking.
+# in this checkout, so they are published as an ordinary repository that is
+# both a Claude Code plugin marketplace and a tree to copy a directory out of,
+# holding only the skills for using the tool. Keeping a published copy in step
+# was a rule people were asked to remember; it was not kept, and the three
+# files went 502 lines apart before anyone diffed them. A stale skill is the
+# worst thing this repository can publish, because an agent loads one and acts
+# on it with confidence instead of going and looking.
 #
-# tools/skillmirror renders the trees, handles the one rename (meshcoresim is
-# published as meshbench-driving) and writes each mirror's front page and
-# licence. Nothing here decides anything about content: this file only carries
-# what it rendered to the two remotes.
+# tools/skillmirror renders the tree, handles the one rename (meshcoresim is
+# published as meshbench-driving) and writes the front page, the licence and
+# the plugin and marketplace manifests. Nothing here decides anything about
+# content: this file only carries what it rendered to the remote.
 #
 # What a maintainer has to set up once, before the first push reaches this:
 #
 #   1. A GitHub environment named `skills-mirror`. Reviewers on it are
 #      optional; the publish is reversible, unlike a package index.
 #   2. A fine-grained personal access token, or a GitHub App installation
-#      token, with Contents: read and write on MeshBench/meshbench-scripting-skills
-#      and MeshBench/meshbench-dev-skills and nothing else, stored on that
-#      environment as the secret `SKILLS_MIRROR_TOKEN`. GITHUB_TOKEN cannot be
-#      used: it is scoped to this repository and cannot write to another.
+#      token, with Contents: read and write on MeshBench/agent-skills and
+#      nothing else, stored on that environment as the secret
+#      `SKILLS_MIRROR_TOKEN`. GITHUB_TOKEN cannot be used: it is scoped to this
+#      repository and cannot write to another. That repository was called
+#      meshbench-agent-skills until it was renamed, and the grant is by
+#      repository rather than by name, so an existing token keeps working; the
+#      clone below uses the new name rather than the redirect.
 #
 # Until that secret exists the job fails rather than skipping, deliberately. A
 # publish that quietly does not happen is how the mirrors got four days behind
@@ -52,7 +56,7 @@ permissions: {}
 
 jobs:
   publish:
-    name: render and publish the skill mirrors
+    name: render and publish the skill mirror
     # Inert anywhere but here. A fork carries this file with it and must never
     # try to write to MeshBench, and there is no pull_request trigger, so a
     # branch cannot reach this job at all: only a commit that has landed on
@@ -60,7 +64,7 @@ jobs:
     if: github.repository == 'MeshBench/meshbench'
     timeout-minutes: 10
     # Hosted, and nothing else: this needs Go and git, it holds a token that
-    # can write to two other repositories, and that token has no business on
+    # can write to another repository, and that token has no business on
     # the self-hosted lab runners.
     runs-on: ubuntu-latest
     environment: skills-mirror
@@ -81,7 +85,7 @@ jobs:
       - name: The mapping still matches the tree
         run: go test ./tools/skillmirror/
 
-      - name: Render both mirrors
+      - name: Render the mirrors
         run: |
           set -euo pipefail
           go run ./tools/skillmirror -out "$RUNNER_TEMP/mirrors" -commit "$GITHUB_SHA"
@@ -143,5 +147,5 @@ jobs:
           done < "$RUNNER_TEMP/repos.txt"
 
           if [ "$changed" = 0 ]; then
-            echo "both mirrors already carry $GITHUB_SHA"
+            echo "the mirrors already carry $GITHUB_SHA"
           fi

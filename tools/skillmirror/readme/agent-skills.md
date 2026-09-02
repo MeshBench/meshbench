@@ -1,10 +1,11 @@
-# MeshBench scripting skills
+# MeshBench agent skills
 
 Agent skills for **driving and scripting** a running
 [MeshBench](https://github.com/MeshBench/meshbench) workbench from outside: the
 Python, Go or Node client, the control socket, or raw verbs. These are for
-people *using* MeshBench. The ones for developing it live in
-[meshbench-dev-skills](https://github.com/MeshBench/meshbench-dev-skills).
+people *using* MeshBench. The ones for developing MeshBench itself are not
+published, because the only place that work happens is a checkout of
+[the repository](https://github.com/MeshBench/meshbench).
 
 | skill | when it loads |
 |---|---|
@@ -15,9 +16,28 @@ the verb list will not give you.
 
 ## Installing
 
+### Claude Code
+
+This repository is also a plugin marketplace offering one plugin, so Claude
+Code can install and update it for you:
+
+```
+/plugin marketplace add {{.Repo}}
+/plugin install {{.Plugin}}@{{.Marketplace}}
+```
+
+Plugin skills are namespaced by the plugin, so once it is installed they are
+called `{{.Plugin}}:meshbench-driving` and `{{.Plugin}}:meshbench-scripting`,
+not by the bare directory names. Claude loads either on its own when a task
+matches its description; the namespaced form is what you type to ask for one
+directly.
+
+### By hand, and for other agents
+
 A skill is a directory with a `SKILL.md` whose front matter carries a `name`
 and a `description`; an agent loads it by that description when a task matches.
-The format is portable, so drop the directories where your agent looks.
+The format is portable, so drop the directories where your agent looks. Copied
+this way the skills keep their bare names, with no plugin to namespace them.
 
 - **Claude Code**: copy `skills/<name>` into `.claude/skills/` in your project,
   or into `~/.claude/skills/` for every project. It is read on the next run.
@@ -27,9 +47,12 @@ The format is portable, so drop the directories where your agent looks.
   directory convention.
 
 ```bash
-git clone https://github.com/MeshBench/meshbench-scripting-skills
-cp -r meshbench-scripting-skills/skills/* ~/.claude/skills/
+git clone https://github.com/{{.Repo}}
+cp -r {{.RepoName}}/skills/* ~/.claude/skills/
 ```
+
+The plugin sits at the repository root, so `skills/` is one tree serving both
+routes rather than a second copy of every file.
 
 ## Where to send a change
 
