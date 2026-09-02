@@ -86,6 +86,51 @@ func TestSimResetActuallyRewarms(t *testing.T) {
 	waitWarmed(t, s, "warm after sim.reset")
 }
 
+// The stale-matrix regression: buildings are part of the geometry a cached
+// matrix is about, and the key has to say so.
+//
+// A priced rooftop is baked into the cached loss for its pair and cannot be
+// taken back out where the cache is read, the way the excess-loss term can.
+// With the environment outside the fingerprint, one key covered two different
+// physics: a session opened over bare earth restored a building-priced matrix
+// from disk, found it already answered every pair, skipped the warm entirely
+// and reported itself measured, with a third of the country's links missing
+// and nothing saying which model the numbers came from.
+func TestTheEnvironmentIsPartOfTheGeometry(t *testing.T) {
+	nodes := []scenario.Node{repeaterNode("Alpha"), repeaterNode("Beta")}
+	nodes[1].Position.Lon += 0.001
+	const scotland, fife = "/tiles/scotland", "/tiles/fife"
+
+	bare := geometryFingerprint(nodes, 869.618, "")
+	built := geometryFingerprint(nodes, 869.618, scotland)
+	if bare == built {
+		t.Fatal("bare earth and a loaded environment hashed to the same key, " +
+			"so one matrix stands in for both")
+	}
+	if built == geometryFingerprint(nodes, 869.618, fife) {
+		t.Error("two different environments hashed to the same key")
+	}
+	if built != geometryFingerprint(nodes, 869.618, scotland) {
+		t.Error("the same environment hashed differently twice")
+	}
+
+	// And switching the environment re-keys the session, because a warm files
+	// what it measured under the fingerprint it started with: left at the
+	// bare-earth key, a building-priced matrix lands where the bare-earth one
+	// belongs and the disk hands it to whoever opens next.
+	s := &Sim{gpuAsked: true}
+	s.build(nodes, 869.618)
+	t.Cleanup(func() { _ = s.eng.Close() })
+	if s.geomFP != bare {
+		t.Fatalf("a fresh build over bare earth keyed %x, want %x", s.geomFP, bare)
+	}
+	s.envDir = scotland
+	s.reFingerprint()
+	if s.geomFP != built {
+		t.Errorf("loading an environment left the key at %x, want %x", s.geomFP, built)
+	}
+}
+
 // waitWarmed polls rather than sleeping a fixed amount: warm runs on its own
 // goroutine, and a fixed sleep either wastes time on a fast machine or is
 // exactly the flake this avoids on a slow one.

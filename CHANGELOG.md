@@ -84,6 +84,18 @@ had changed in them — which is the gap this file exists to close.
 
 ### Changed
 
+- **What buildings buy off the excess-loss term is now measured rather than
+  assumed: 0.70 dB.** Fitted against 451 live ScotMesh nodes with 4.5 million
+  Microsoft ML footprints over Scotland loaded, the term comes out at 29.07 dB
+  against the same night's bare-earth fit of 29.77 dB, while the footprints
+  remove 37.6% of the link matrix. Both are true because the fit only sees
+  paths that were heard, and a path buildings price into the ground stops being
+  heard at all. `docs/studies/excess-loss-with-buildings.md` is the record and
+  `docs/shortcomings.md` carries the consequence, including that a crossed
+  building is charged once per building with no combination rule, so an
+  environment-loaded urban path says "blocked" rather than a number of
+  decibels. `DefaultExcessLossDB` is unchanged at 25.1 dB, and the study says
+  what would move it.
 - **QEMU on all three platforms, from one release.** The pin moves to
   `v9.2.2-meshbench-sx1262-10`, which cross-compiles Linux, macOS and Windows
   from one commit and refuses to publish if the SX1262 device, its DIO1 line or
@@ -121,6 +133,18 @@ had changed in them — which is the gap this file exists to close.
 
 ### Fixed
 
+- **A cached link matrix could not say whether buildings were priced into it.**
+  The measured matrix persists to disk under a fingerprint of the geometry it
+  is about, and the environment was not in that fingerprint, so one key covered
+  two different physics: a session opened over bare earth restored a
+  building-priced matrix, found it already answered every pair, skipped the
+  warm and reported itself measured, with a third of the country's links
+  missing and nothing saying why. Unlike the excess-loss term, a priced rooftop
+  is baked into the cached number and cannot be taken back out where the cache
+  is read, so the environment now keys the matrix, switching it re-keys the
+  session, and `matrixVersion` moves to 3 so no file written before this can be
+  mistaken for either. Found while measuring what buildings buy, twice, as two
+  arms that agreed to sixteen significant figures.
 - **`licgen` wrote to a directory the seven-layer move had renamed**, so it
   exited 1 on every invocation and the release pipeline had been broken since
   19 August. It is now checked on every pull request rather than only at a tag.

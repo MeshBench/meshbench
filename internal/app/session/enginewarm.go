@@ -226,7 +226,15 @@ func (s *Sim) linksMeasured() (measured, held bool) {
 // shares. Old matrices, keyed under hashes that included the term with it
 // baked into every entry, simply never match this fingerprint and are
 // remeasured once.
-func geometryFingerprint(nodes []scenario.Node, freqMHz float64) uint64 {
+//
+// The environment IS in it, because unlike the term it is baked in: a crossed
+// rooftop is charged into the cached loss for that pair and cannot be taken
+// back out at read time. Without it one key covered two different physics, and
+// a session opened over bare earth restored a building-priced matrix from disk
+// and reported it as measured - a third of the country's links missing, the
+// warm skipped because the cache already answered every pair, and nothing
+// saying which model the numbers came from.
+func geometryFingerprint(nodes []scenario.Node, freqMHz float64, envDir string) uint64 {
 	h := fnv.New64a()
 	b := make([]byte, 8)
 	put := func(f float64) {
@@ -234,6 +242,7 @@ func geometryFingerprint(nodes []scenario.Node, freqMHz float64) uint64 {
 		_, _ = h.Write(b)
 	}
 	put(freqMHz)
+	_, _ = h.Write([]byte(envDir))
 	for _, n := range nodes {
 		_, _ = h.Write([]byte(n.Name))
 		put(n.Position.Lat)
@@ -247,6 +256,18 @@ func geometryFingerprint(nodes []scenario.Node, freqMHz float64) uint64 {
 		put(n.NoiseFigureDB)
 	}
 	return h.Sum64()
+}
+
+// reFingerprint re-keys the current geometry after something the fingerprint
+// covers has changed without the engine being rebuilt.
+//
+// Switching the environment is the only such change today, and it is why this
+// exists: the warm saves what it measured under the fingerprint held when it
+// started, so a buildings warm begun under the bare-earth key would file
+// building-priced numbers where the bare-earth ones belong, and the disk cache
+// would hand them back to the next session that opened over bare earth.
+func (s *Sim) reFingerprint() {
+	s.geomFP = geometryFingerprint(s.nodes, s.freqMHz, s.envDir)
 }
 
 // abandonWarmJob marks the link measurement finished when this warm is not the

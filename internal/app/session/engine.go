@@ -309,6 +309,20 @@ func (s *Sim) build(nodes []scenario.Node, freqMHz float64) {
 // validate.fetch then validate.calibrate, which re-derives the total from
 // whatever is current and now converges instead of creeping.
 //
+// Buildings do not replace it, which was the open question. Fitted again
+// against 451 ScotMesh nodes with 4.5 million real footprints loaded, the term
+// comes out 0.70 dB lower than the same fit over bare earth - 29.07 against
+// 29.77 - while the footprints remove 37.6% of the link matrix. The two are
+// consistent: a path buildings price into the ground stops being heard, so it
+// leaves the matrix and stops voting, and the fit keeps the paths buildings
+// barely touched. docs/studies/excess-loss-with-buildings.md is the record.
+//
+// That same night's bare-earth fit converges to 29.77 dB rather than 25.1, on
+// 1,320 voting observations against the 357 behind the figure below and stable
+// across a 6 and a 24 hour window. One evening is not what moved this number
+// the last three times and it does not move it now; what would is that
+// protocol repeated across several days.
+//
 // Studies comparing two firmware builds are unaffected in direction, because
 // both arms carry the same term.
 const DefaultExcessLossDB = 25.1
@@ -333,7 +347,7 @@ func (s *Sim) buildSeeded(nodes []scenario.Node, freqMHz float64, seed uint64) {
 	// else the rebuild changes; if that whole fingerprint is unchanged, the
 	// matrix is the same matrix.
 	var carried map[[2]int]float64
-	fp := geometryFingerprint(nodes, freqMHz)
+	fp := geometryFingerprint(nodes, freqMHz, s.envDir)
 	if s.eng != nil && fp == s.geomFP {
 		carried = s.eng.LinkCacheSnapshot()
 	}

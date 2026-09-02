@@ -1,0 +1,260 @@
+{
+ "measured": "2026-09-02",
+ "source": "https://scotmesh-corescope.mm7roq.compute.oarc.uk",
+ "hours": 24.0,
+ "environment": {
+  "dataset": "Microsoft Global ML Building Footprints, 2026-02-03 release",
+  "index": "https://minedbuildings.z5.web.core.windows.net/global-buildings/dataset-links.csv",
+  "box": {
+   "south": 54.0,
+   "north": 59.2,
+   "west": -7.2,
+   "east": -1.6
+  },
+  "files": 139,
+  "gzipped_bytes": 476000000,
+  "features": 4487597,
+  "geojsonl_bytes": 1885839101,
+  "tiles": 41458,
+  "tile_bytes": 527000000,
+  "skipped": 0,
+  "heights": "not published in the United Kingdom: every feature carries height -1, so every building takes envgen's 6 m default at confidence 0.3 and every material the uk regional default",
+  "buildings_in_the_fleet_box": 2753713
+ },
+ "import": {
+  "nodes": 451,
+  "records": 494,
+  "skipped_no_position": 43,
+  "uncertain": 0
+ },
+ "gpu": {
+  "backend": "vulkan",
+  "device": "0x731f",
+  "enabled": true,
+  "last_warm": {
+   "ms": 57395,
+   "pairs": 101173,
+   "used": true
+  },
+  "present": true
+ },
+ "ground": {
+  "chosen": true,
+  "note": "partial terrain: 32 of 256 sampled tiles under this study are cached and the rest is bare earth, so some of this answer is free space and nothing in it says which part",
+  "state": "partial",
+  "tiles_cached": 32,
+  "tiles_sampled": 256
+ },
+ "arms": {
+  "bare_earth": {
+   "label": "bare-earth",
+   "start_db": 25.1,
+   "final_db": 29.774570798238933,
+   "rounds": [
+    {
+     "round": 1,
+     "term_db": 25.1,
+     "matched": 1957,
+     "unmatched": 135,
+     "median_db": 4.174570798238932,
+     "iqr_db": 4.7593536376953125,
+     "links": 5204,
+     "calibrated_to": 29.274570798238933
+    },
+    {
+     "round": 2,
+     "term_db": 29.274570798238933,
+     "matched": 1957,
+     "unmatched": 135,
+     "median_db": 0.5,
+     "iqr_db": 6.2593536376953125,
+     "links": 4232,
+     "calibrated_to": 29.774570798238933
+    },
+    {
+     "round": 3,
+     "term_db": 29.774570798238933,
+     "matched": 1957,
+     "unmatched": 135,
+     "median_db": 0,
+     "iqr_db": 6.2593536376953125,
+     "links": 4150,
+     "calibrated_to": 29.774570798238933
+    }
+   ]
+  },
+  "buildings": {
+   "label": "buildings",
+   "start_db": 25.1,
+   "final_db": 29.074570798238923,
+   "rounds": [
+    {
+     "round": 1,
+     "term_db": 25.1,
+     "matched": 1933,
+     "unmatched": 159,
+     "median_db": 3.9152171605436195,
+     "iqr_db": 4.5093536376953125,
+     "links": 3248,
+     "calibrated_to": 29.01521716054362
+    },
+    {
+     "round": 2,
+     "term_db": 29.01521716054362,
+     "matched": 1912,
+     "unmatched": 180,
+     "median_db": 0.05935363769531232,
+     "iqr_db": 5.0093536376953125,
+     "links": 2884,
+     "calibrated_to": 29.074570798238934
+    },
+    {
+     "round": 3,
+     "term_db": 29.074570798238934,
+     "matched": 1913,
+     "unmatched": 180,
+     "median_db": -1.1546319456101628e-14,
+     "iqr_db": 5.0093536376953125,
+     "links": 2875,
+     "calibrated_to": 29.074570798238923
+    }
+   ]
+  },
+  "links_at_25_1_db": {
+   "bare_earth": 5204,
+   "buildings": 2823
+  }
+ },
+ "window_sensitivity_bare_earth": [
+  {
+   "label": "bare-earth 6h",
+   "start_db": 25.1,
+   "final_db": 29.774570798238916,
+   "rounds": [
+    {
+     "round": 1,
+     "term_db": 25.1,
+     "matched": 530,
+     "unmatched": 45,
+     "median_db": 4.374570798238932,
+     "iqr_db": 3.5593536376953123,
+     "links": 5204,
+     "calibrated_to": 29.474570798238933
+    },
+    {
+     "round": 2,
+     "term_db": 29.474570798238933,
+     "matched": 530,
+     "unmatched": 45,
+     "median_db": 0.29999999999998295,
+     "iqr_db": 4.2593536376953125,
+     "links": 4200,
+     "calibrated_to": 29.774570798238916
+    },
+    {
+     "round": 3,
+     "term_db": 29.774570798238916,
+     "matched": 529,
+     "unmatched": 45,
+     "median_db": 0,
+     "iqr_db": 4.2593536376953125,
+     "links": 4150,
+     "calibrated_to": 29.774570798238916
+    }
+   ],
+   "hours": 6.0
+  },
+  {
+   "label": "bare-earth 24h",
+   "start_db": 25.1,
+   "final_db": 29.76521716054362,
+   "rounds": [
+    {
+     "round": 1,
+     "term_db": 25.1,
+     "matched": 1958,
+     "unmatched": 135,
+     "median_db": 4.174570798238932,
+     "iqr_db": 4.7593536376953125,
+     "links": 5204,
+     "calibrated_to": 29.274570798238933
+    },
+    {
+     "round": 2,
+     "term_db": 29.274570798238933,
+     "matched": 1958,
+     "unmatched": 135,
+     "median_db": 0.4906463623046875,
+     "iqr_db": 6.2593536376953125,
+     "links": 4232,
+     "calibrated_to": 29.76521716054362
+    },
+    {
+     "round": 3,
+     "term_db": 29.76521716054362,
+     "matched": 1958,
+     "unmatched": 135,
+     "median_db": 0,
+     "iqr_db": 6.2593536376953125,
+     "links": 4151,
+     "calibrated_to": 29.76521716054362
+    }
+   ],
+   "hours": 24.0
+  },
+  {
+   "label": "bare-earth 72h",
+   "start_db": 25.1,
+   "final_db": 29.76521716054362,
+   "rounds": [
+    {
+     "round": 1,
+     "term_db": 25.1,
+     "matched": 1958,
+     "unmatched": 135,
+     "median_db": 4.174570798238932,
+     "iqr_db": 4.7593536376953125,
+     "links": 5204,
+     "calibrated_to": 29.274570798238933
+    },
+    {
+     "round": 2,
+     "term_db": 29.274570798238933,
+     "matched": 1958,
+     "unmatched": 135,
+     "median_db": 0.4906463623046875,
+     "iqr_db": 6.2593536376953125,
+     "links": 4232,
+     "calibrated_to": 29.76521716054362
+    },
+    {
+     "round": 3,
+     "term_db": 29.76521716054362,
+     "matched": 1959,
+     "unmatched": 134,
+     "median_db": 0,
+     "iqr_db": 6.2593536376953125,
+     "links": 4151,
+     "calibrated_to": 29.76521716054362
+    }
+   ],
+   "hours": 72.0
+  }
+ ],
+ "direct_check": {
+  "fixture": "fixtures/fixture-scotland-strict.json",
+  "pairs_under_25km": 961,
+  "crossing_a_footprint": 921,
+  "priced_above_0_01_db": 641,
+  "median_priced_db": 123.7,
+  "p90_priced_db": 732.1,
+  "worst_db": 2234.9,
+  "worst_pair": "Milton -> SGL-bravo, 23.1 km, 114 crossings",
+  "buildings_in_boxes": {
+   "Glasgow": 83293,
+   "Edinburgh": 30287,
+   "Dundee": 23972,
+   "Rannoch": 108
+  }
+ }
+}
