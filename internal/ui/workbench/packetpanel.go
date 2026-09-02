@@ -67,11 +67,11 @@ type packetPanel struct {
 	// once at the top of Draw so the graph can size itself off the window
 	// rather than off whatever its rigid siblings left over.
 	winH     int
-	hopChips [5]comp.Chip
+	hopChips [len(hopLimits)]comp.Chip
 	// modeChips picks which of the three layouts is drawing the graph -
 	// columns, radial or free-form - in the order graphModes lists them.
-	modeChips [3]comp.Chip
-	keyChips  [5]comp.Chip
+	modeChips [len(graphModes)]comp.Chip
+	keyChips  [len(missKinds)]comp.Chip
 	resetBtn  comp.Button
 	showKind  map[missKind]bool
 	copyBtn   comp.Button
