@@ -64,16 +64,26 @@ func (s *Sim) buildsMissing() []string {
 		if role == "" {
 			role = string(n.Kind.Application())
 		}
-		// A board image is not a native build, so an override of one says
-		// nothing about the other.
-		if n.Firmware.Board == "" && overridden(role) {
-			continue
-		}
+		// A node with nothing pinned is reported whatever else is on the
+		// machine. An override would in fact start it - Resolve reaches
+		// FindNative before it looks at the version - but "no build chosen"
+		// is a gap in the scenario rather than a gap in the cache, and one
+		// worth seeing before a run rather than inferring from the results.
+		// Answering it from an override also made this gate depend on the
+		// environment: the same fixture refused on one machine and played on
+		// another, which is how it reached the nightly.
 		if n.Firmware.Version == "" {
 			out = append(out, n.Name+" (no version pinned)")
 			continue
 		}
 		if have[role+"@"+n.Firmware.Version] || have[n.Firmware.Version] {
+			continue
+		}
+		// A version was chosen and the cache has not got it. An override
+		// supplies it anyway, because Resolve never consults the version on
+		// that path. A board image is not a native build, so an override of
+		// one says nothing about the other.
+		if n.Firmware.Board == "" && overridden(role) {
 			continue
 		}
 		out = append(out, fmt.Sprintf("%s (%s %s)", n.Name, role, n.Firmware.Version))
