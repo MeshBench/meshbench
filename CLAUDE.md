@@ -151,11 +151,11 @@ internal/ui/        Gio — the only layer permitted a toolkit
 pkg/                the public surface, for a fork or an app to import
   client-go/          the Go client and its runnable examples
   client-python/      the Python client, its pytest plugin and examples
-  client-js/          the Node client, one ES module on the same socket
+  client-js/          the Node client, the same shape with no build step
 
 tools/              what builds, generates and drives it, none of it shipped
-  clientgen/          the closed enum sets both clients need, from the one place
-                      that defines them
+  clientgen/          the closed enum sets all three clients need, from the one
+                      place that defines them
   verbdoc/            docs/scripting-verbs.md and the verb counts in the prose,
                       regenerated from the verbs the tree registers
   flagdoc/            docs/cli-reference.md, built from the binary's own help,

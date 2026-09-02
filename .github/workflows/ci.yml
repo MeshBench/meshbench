@@ -114,15 +114,16 @@ jobs:
           go run ./tools/licgen
           git diff --exit-code -- internal/ui/workbench/licences/licences.json
 
-      # The boards, radio presets and node kinds both clients offer, generated
-      # from internal/world/scenario. A hand-copied list is a list that is
-      # wrong the week somebody adds a board - and a constant that compiles and
-      # names a board the simulator has never heard of is worse than a string,
-      # because it looks checked.
+      # The boards, radio presets and node kinds all three clients offer,
+      # generated from internal/world/scenario. A hand-copied list is a list
+      # that is wrong the week somebody adds a board - and a constant that
+      # compiles and names a board the simulator has never heard of is worse
+      # than a string, because it looks checked.
       - name: Client enums are generatable, and fresh
         run: |
           go run ./tools/clientgen
-          git diff --exit-code -- pkg/client-go/meshbench/sets_gen.go pkg/client-python/meshbench/sets.py
+          git diff --exit-code -- pkg/client-go/meshbench/sets_gen.go \
+            pkg/client-python/meshbench/sets.py pkg/client-js/lib/sets.mjs
 
       # The scripting API's verb table is generated from the verbs the tree
       # registers, and a verb added with no decision about how a client
@@ -370,6 +371,29 @@ jobs:
         env:
           MESHBENCH_BINARY: /tmp/meshbench
         run: pytest pkg/client-python/tests -q
+
+  # The Node client.
+  #
+  # Its own job for the reason the Python one has its own: a client that is only
+  # checked by hand is a client that is wrong by the next release. It needs
+  # nothing but node - the suite stands up a fake workbench on a unix socket -
+  # and it imports every example, which is what compiling the Go ones does for
+  # them.
+  node-client:
+    timeout-minutes: 10
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","lab-linux"]') || fromJSON('["ubuntu-latest"]') }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      # No install step: the package has no dependencies, which is the one thing
+      # it promises. `npm ci` here would invent a lockfile to keep.
+      - name: node --test
+        working-directory: pkg/client-js
+        run: node --test
 
   # The race detector, on request.
   #

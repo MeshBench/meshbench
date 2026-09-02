@@ -216,7 +216,10 @@ jobs:
           tar -tzf "$tgz" | sort | tee /tmp/npm.txt
           # `files` in package.json is an allowlist, so the failure here is the
           # mirror of the wheel's: a tarball that installs and exports nothing.
-          for n in package/package.json package/meshbench.mjs package/README.md; do
+          # meshbench.mjs is only the surface - it re-exports lib/, so a tarball
+          # with the one and not the other imports and then throws.
+          for n in package/package.json package/meshbench.mjs package/README.md \
+                   package/lib/workbench.mjs package/lib/sets.mjs; do
             grep -qx "$n" /tmp/npm.txt || { echo "::error::the npm tarball is missing $n"; exit 1; }
           done
 
@@ -237,7 +240,7 @@ jobs:
           if meshbench.__version__ != sys.argv[1]:
               raise SystemExit('::error::installed wheel reports %s, not %s' % (meshbench.__version__, sys.argv[1]))
           " "$V"
-          (cd pkg/client-js && node --test meshbench.test.mjs)
+          (cd pkg/client-js && node --test)
 
       - uses: actions/upload-artifact@v7
         with:
