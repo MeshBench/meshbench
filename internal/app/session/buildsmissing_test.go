@@ -3,6 +3,7 @@ package session
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/MeshBench/meshbench/internal/firmware"
@@ -38,6 +39,31 @@ func TestAnOverrideSatisfiesAPinTheCacheHasNever(t *testing.T) {
 	t.Setenv(firmware.EnvNativeBinary, dir)
 	if got := s.buildsMissing(); len(got) != 0 {
 		t.Errorf("an override supplies this node, so nothing is missing; got %v", got)
+	}
+}
+
+// A node with nothing pinned is reported however the machine is set up.
+//
+// An override would in fact start it, but "no build chosen" is a gap in the
+// scenario rather than in the cache, and answering it from the environment
+// made the same fixture refuse on one machine and play on another. The nightly
+// found that: it sets MESHBENCH_NATIVE, so a fixture whose nodes pin nothing
+// stopped being a half mesh there and nowhere else.
+func TestANodeWithNothingPinnedIsReportedEvenUnderAnOverride(t *testing.T) {
+	dir := t.TempDir()
+	bin := filepath.Join(dir, firmware.NativeBinaryName("simple_repeater"))
+	if err := os.WriteFile(bin, []byte("#!/bin/true\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(firmware.EnvNativeBinary, dir)
+
+	s := &Sim{nodes: []scenario.Node{repeaterNode("Unpinned")}}
+	got := s.buildsMissing()
+	if len(got) != 1 {
+		t.Fatalf("a node with no version pinned was not reported: %v", got)
+	}
+	if !strings.Contains(got[0], "no version pinned") {
+		t.Errorf("the report does not say what is missing: %q", got[0])
 	}
 }
 
