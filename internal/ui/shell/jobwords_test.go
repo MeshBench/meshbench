@@ -60,3 +60,48 @@ func TestAJobWithNoTotalStillSaysSomething(t *testing.T) {
 		t.Errorf("a job with no total said %q", got)
 	}
 }
+
+// The chip beside the play button follows the same rule as the bar.
+//
+// The bar was taught to name the newest running job and the transport strip
+// was not, so through a whole fresh install's download the chip in the busiest
+// corner of the window said "measuring every link" while the measurement had
+// done none of them and half a gigabyte was arriving unmentioned.
+func TestTheWarmingChipNamesTheDownloadItIsWaitingOn(t *testing.T) {
+	jobs := []state.Job{
+		{ID: "links", What: "measuring every link", Done: 0, Total: 71253},
+		{ID: "tiles", What: "fetching terrain, 197 MB of about 499 MB",
+			Done: 2480, Total: 6233},
+	}
+	s := &state.Snapshot{Jobs: jobs}
+	warm := warmingJob(s)
+	if warm == nil {
+		t.Fatal("the measurement is running and the strip did not find it")
+	}
+	got := warmingWords(warmingNow(s, warm))
+	if !strings.Contains(got, "fetching terrain") {
+		t.Errorf("the chip does not mention the download: %q", got)
+	}
+	if !strings.Contains(got, "197 MB") {
+		t.Errorf("the chip does not say what the download has cost: %q", got)
+	}
+}
+
+// With nothing else running the measurement still owns its own chip.
+func TestTheWarmingChipNamesTheMeasurementWhenItIsTheWork(t *testing.T) {
+	s := &state.Snapshot{Jobs: []state.Job{
+		{ID: "tiles", What: "fetching terrain", Done: 6233, Total: 6233, Finished: true},
+		{ID: "links", What: "measuring every link", Done: 35000, Total: 71253},
+	}}
+	warm := warmingJob(s)
+	if warm == nil {
+		t.Fatal("the measurement is running and the strip did not find it")
+	}
+	got := warmingWords(warmingNow(s, warm))
+	if !strings.Contains(got, "measuring every link") {
+		t.Errorf("a finished download still owns the chip: %q", got)
+	}
+	if !strings.Contains(got, "49%") {
+		t.Errorf("the chip lost the measurement's own percentage: %q", got)
+	}
+}
