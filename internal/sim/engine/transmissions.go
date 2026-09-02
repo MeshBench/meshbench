@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/MeshBench/meshbench/internal/diag"
 	"github.com/MeshBench/meshbench/internal/rf/dsp"
 	"github.com/MeshBench/meshbench/internal/sim/capture"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
@@ -94,6 +95,37 @@ func (e *Engine) completeTransmissions(now uint32) error {
 
 // deliver works out who heard a finished transmission, and records why not for
 // everyone who did not.
+// diagChannel is the domain the skips below print under. A separate one from
+// "engine" because the question it answers is about the air rather than about
+// the run: which receivers were never offered a transmission, and why.
+const diagChannel = "channel"
+
+// notOffered says why a receiver was never given a transmission at all.
+//
+// Three paths through deliver end without an event, deliberately: a node that
+// does not listen, a node tuned to another channel, and a signal below the
+// floor. The ledger is right to stay quiet - on a national network those were
+// most of it, and "physics still applies" is not news - but the silence is
+// indistinguishable from a packet that arrived and was ignored, and telling
+// those apart is exactly what a board probe or a debugging session needs.
+//
+// So it goes to the diagnostic log rather than the ledger: off by default,
+// costing a map lookup, and complete when somebody asks for it.
+func (e *Engine) notOffered(t transmission, src, dst *Node, why string) {
+	if !diag.On(diagChannel) {
+		return
+	}
+	diag.Println(diagChannel,
+		notOfferedLine(src.specRef().Name, dst.specRef().Name, why, t.packetID, t.endMs))
+}
+
+// notOfferedLine is the sentence, separated from the writing of it so what it
+// says can be held to something without capturing stderr.
+func notOfferedLine(from, to, why string, packetID uint64, atMs uint32) string {
+	return fmt.Sprintf("%s -> %s: not offered, %s (packet %d, %d ms)",
+		from, to, why, packetID, atMs)
+}
+
 func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCache) error {
 	e.mu.Lock()
 	nodes := make([]*Node, len(e.nodes))
@@ -112,6 +144,7 @@ func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCac
 		}
 		if !dst.specRef().Kind.RunsFirmware() && dst.specRef().Kind != scenario.SDRObserver {
 			// Emitters and their kin radiate; they do not listen.
+			e.notOffered(t, src, dst, "it does not listen: "+string(dst.specRef().Kind))
 			continue
 		}
 
@@ -124,6 +157,11 @@ func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCac
 		// having one.
 		rxPHY := e.phyOf(dst.specRef())
 		if dst.specRef().Kind != scenario.SDRObserver && !txPHY.sameChannel(rxPHY) {
+			e.notOffered(t, src, dst, fmt.Sprintf(
+				"tuned elsewhere: it is on %.3f MHz SF%d BW%.0f CR4/%d and this is "+
+					"%.3f MHz SF%d BW%.0f CR4/%d",
+				rxPHY.freqMHz, rxPHY.sf, rxPHY.bandwidthHz, rxPHY.codingRate+4,
+				txPHY.freqMHz, txPHY.sf, txPHY.bandwidthHz, txPHY.codingRate+4))
 			continue
 		}
 		// The hybrid: a receiver flagged TrueRF gets the waveform judge even
@@ -227,6 +265,12 @@ func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCac
 		switch {
 		case !rec.Offered:
 			rec.Outcome = capture.OutOfRange
+			// The numbers, because "too weak" without them is the same
+			// unanswerable silence in a different sentence: what arrived,
+			// against the floor it had to beat.
+			e.notOffered(t, src, dst, fmt.Sprintf(
+				"below the floor: %.1f dBm against a noise floor of %.1f dBm",
+				rxDBm, noiseDBm))
 			// Not recorded. "Nothing measurable arrived" is not an event, it is
 			// the absence of one — and on a country-sized network it was most of
 			// the ledger: every transmission produced hundreds of rows saying
