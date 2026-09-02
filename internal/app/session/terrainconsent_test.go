@@ -9,7 +9,6 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/rf/terrain"
-	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
 // consentSim is a session with somewhere to remember the setting and an empty
@@ -38,15 +37,6 @@ func consentSim(t *testing.T) (*Sim, *state.Store, context.Context) {
 	t.Cleanup(cancel)
 	go st.Run(ctx)
 	return s, st, ctx
-}
-
-func twoDistantNodes() []scenario.Node {
-	return []scenario.Node{
-		{Name: "a", Position: scenario.LatLon{Lat: 56.0, Lon: -4.0},
-			HeightAGLm: 10, TxPowerDBm: 22},
-		{Name: "b", Position: scenario.LatLon{Lat: 56.2, Lon: -4.3},
-			HeightAGLm: 10, TxPowerDBm: 22},
-	}
 }
 
 // A fresh install downloads, because a flat earth is not a safe default.
