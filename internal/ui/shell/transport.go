@@ -122,7 +122,8 @@ func (sh *Shell) transportBar(t *theme.Theme, gtx layout.Context, s *state.Snaps
 		btn(&sh.tr.fast, symFaster, false),
 	}
 	if warm != nil {
-		children = append(children, layout.Rigid(chip(t, t.P.Warn, warmingWords(warm))))
+		children = append(children,
+			layout.Rigid(chip(t, t.P.Warn, warmingWords(warmingNow(s, warm)))))
 	} else if sh.tr.confirmRestart {
 		children = append(children, layout.Rigid(chip(t, t.P.Bad, "press again to discard the run")))
 	} else {
@@ -330,6 +331,25 @@ func warmingJob(s *state.Snapshot) *state.Job {
 		}
 	}
 	return nil
+}
+
+// warmingNow is the job the warming chip should name.
+//
+// The measurement is what blocks a run, so it is what decides the spinner. It
+// is not always what is taking the time: a warm over ground this machine has
+// not got stops and downloads that ground first, and the measurement sits at
+// zero for as long as that takes. The chip therefore read "measuring every
+// link" through five hundred megabytes and never once said a download was
+// running, which is exactly the misnaming the status bar was fixed for and the
+// shape a stall has. Newest running wins here as it does there, so the strip
+// and the bar cannot disagree about what the machine is doing.
+func warmingNow(s *state.Snapshot, warm *state.Job) *state.Job {
+	for i := len(s.Jobs) - 1; i >= 0; i-- {
+		if !s.Jobs[i].Finished {
+			return &s.Jobs[i]
+		}
+	}
+	return warm
 }
 
 // warmingWords says how far it has got, because "warming up" with no end in
