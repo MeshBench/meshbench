@@ -438,8 +438,15 @@ func exitedBeforeAttaching(ex exiter) error {
 	if err := ex.ExitError(); err != nil {
 		msg = fmt.Sprintf("%s: %v", msg, err)
 	}
-	if tail := strings.TrimSpace(ex.StderrTail()); tail != "" {
+	tail := strings.TrimSpace(ex.StderrTail())
+	if tail != "" {
 		msg = fmt.Sprintf("%s:\n%s", msg, tail)
+	}
+	// A node that died in the dynamic linker exits 1 having written nothing we
+	// wrote, and fifty-six of them at once read as a firmware fault. Saying so
+	// here costs one line and is the difference between a cause and a symptom.
+	if why := firmware.WhyTheHostCannotRunIt(tail); why != "" {
+		msg = fmt.Sprintf("%s\n%s", msg, why)
 	}
 	return errors.New(msg)
 }
