@@ -54,7 +54,11 @@ const (
 )
 
 // missKinds is the legend, in the order it is drawn.
-var missKinds = []struct {
+//
+// An array rather than a slice so len(missKinds) is a constant and the
+// panel's chips can be declared from it. As a slice it was six entries
+// against five chips, and drawing the legend indexed past the end.
+var missKinds = [...]struct {
 	Kind  missKind
 	Label string
 }{

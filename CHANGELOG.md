@@ -23,6 +23,12 @@ had changed in them - which is the gap this file exists to close.
 
 ### Fixed
 
+- **Opening a packet in its own window crashed the workbench.** `missKinds`
+  grew a sixth entry and the five chips beside it did not, so drawing the
+  legend indexed past the end and the panel took the application with it. The
+  chip arrays are now declared from the lists' own lengths, which is a
+  compile-time check rather than a matching pair somebody has to remember.
+
 - **Fetching buildings pointed at a tool no release ships.** A pull too large
   for a live Overpass call said to prepare the region with `tools/envgen`,
   which is a source tool: the one route the message offered was closed to
