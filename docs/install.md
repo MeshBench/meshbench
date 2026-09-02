@@ -34,7 +34,8 @@ tar xzf meshbench-linux-x86_64.tar.gz
 cd meshbench && ./meshbench workbench
 ```
 
-Needs glibc 2.35 or newer (Ubuntu 22.04, Debian 12, RHEL 9 and anything since)
+Needs glibc 2.35 or newer (Ubuntu 22.04, Debian 12 and anything since; RHEL 9
+ships 2.34 and is one release below it)
 and a GPU with Vulkan or GL. The floor is not a preference: the Linux release
 is built on an Ubuntu 22.04 runner precisely to pin it, because glibc symbol
 versioning is one-way and a binary linked against a newer one will not start on

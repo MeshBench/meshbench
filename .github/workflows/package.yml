@@ -45,7 +45,12 @@ jobs:
     # only grew in 2.38 - a dependency's floor showing through as several
     # hundred undefined references. workbench1 and internal/ui are gone, so
     # nothing links cimgui and the floor is now the runner's own glibc: 2.35,
-    # which reaches Ubuntu 22.04, Debian 12 and RHEL 9.
+    # which reaches Ubuntu 22.04 and Debian 12.
+    #
+    # Not RHEL 9, which this comment used to claim: it ships 2.34, one release
+    # below the floor, so the binary will not start there. Reaching it means
+    # building on an older base than this runner, which is a decision about
+    # what the release supports rather than a correction to make in passing.
     #
     # Build on the oldest base you intend to support, because glibc symbol
     # versioning is one-way: a binary linked against 2.35 runs on 2.38, and
@@ -271,8 +276,8 @@ jobs:
           Native MeshCore builds and board images are downloaded on first use and
           cached under ~/.cache/meshbench. Nothing else is needed.
 
-          Needs glibc 2.35 or newer: Ubuntu 22.04, Debian 12, RHEL 9, or
-          anything more recent.
+          Needs glibc 2.35 or newer: Ubuntu 22.04, Debian 12, or anything
+          more recent. RHEL 9 ships 2.34 and is below the floor.
 
           Everything this bundle ships under is in LICENCES/, and in the
           application under Help > Licences & attributions.
