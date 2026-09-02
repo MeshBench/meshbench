@@ -27,13 +27,12 @@ name: publish-clients
 #      first upload. Renaming this file or the repository breaks the match.
 #   2. GitHub environments named `pypi` and `npm`, each with whichever
 #      reviewers should stand between a tag and an irreversible upload.
-#   3. An npm automation token for the MeshBench organisation, as the secret
-#      `NPM_TOKEN` on the `npm` environment. It has to be an automation token:
-#      a classic token on an account with 2FA required for writes will be
-#      refused with no useful message. npm can only bind a trusted publisher
-#      to a package that already exists, so the token is what claims
-#      @meshbench/client; once it is claimed, configure a trusted publisher
-#      and this job can drop the secret too.
+#   3. A trusted publisher on npm for `@meshbench/client`: Settings on the
+#      package's npmjs.com page, GitHub Actions, organisation `MeshBench`,
+#      repository `meshbench`, workflow `publish-clients.yml`, environment
+#      `npm`. npm can only bind a trusted publisher to a package that already
+#      exists, so `@meshbench/client` was claimed once by hand with a token
+#      first; there is no token left in this file to rotate or leak.
 
 on:
   push:
@@ -286,43 +285,47 @@ jobs:
     if: needs.build.outputs.publish == 'yes'
     timeout-minutes: 15
     runs-on: ubuntu-latest
-    # npm can only bind a trusted publisher to a package that already exists,
-    # so the first release has to go up on an automation token. Once
-    # @meshbench/client is on the registry, configure a trusted publisher for
-    # it and this job loses its secret the way the PyPI one already has.
+    # Trusted publishing, the npm equivalent of the PyPI job below: npm mints
+    # a short-lived token from this job's OIDC claim, matched against the
+    # trusted publisher configured on @meshbench/client (organisation
+    # MeshBench, repository meshbench, workflow publish-clients.yml,
+    # environment npm) - see the header for the one-time setup. No secret to
+    # store, rotate or leak.
     environment:
       name: npm
       url: https://www.npmjs.com/package/@meshbench/client
     permissions:
-      # As the PyPI job: this run's own artefacts, and nothing else.
+      # This run's own artefacts, and the OIDC token trusted publishing
+      # exchanges for a registry credential.
       actions: read
+      id-token: write
     steps:
       - uses: actions/download-artifact@v8
         with: { name: client-packages, path: dist }
+      # Trusted publishing needs npm CLI 11.5.1+ and Node 22.14+; the runner
+      # image's preinstalled Node is older, so both are pinned here rather
+      # than left to whatever ubuntu-latest happens to ship.
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: npm new enough for trusted publishing
+        run: |
+          set -e
+          npm install -g npm@latest
+          npm --version
       - name: Publish
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           VERSION: ${{ needs.build.outputs.version }}
         run: |
           set -e
-          if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo "::error::NPM_TOKEN is not set on the npm environment;"\
-                 "an automation token is what publishes @meshbench/client"
-            exit 1
-          fi
-          npm config set "//registry.npmjs.org/:_authToken=$NODE_AUTH_TOKEN"
           # Same argument as skip-existing above: a re-run of a half-finished
-          # release should be a no-op, not a 403 nobody can act on.
+          # release should be a no-op, not an error nobody can act on.
           if npm view "@meshbench/client@$VERSION" version >/dev/null 2>&1; then
             echo "@meshbench/client@$VERSION is already on the registry; nothing to do"
             exit 0
           fi
           # A scoped package is private by default, and this one is meant to
-          # be installable by anyone following the README.
-          #
-          # No --provenance yet. It needs a public repository, which this now
-          # is, and `id-token: write` on this job, which it does not have.
-          # Turning it on changes what the registry records about a published
-          # version and cannot be undone for a version already up, so it is a
-          # decision to take deliberately rather than a stale line to tidy.
+          # be installable by anyone following the README. Provenance is
+          # attached automatically by trusted publishing, so there is no
+          # --provenance flag to pass.
           npm publish "dist/npm/meshbench-client-$VERSION.tgz" --access public
