@@ -932,9 +932,13 @@ gone stale is the failure mode it exists to prevent.
   CARTO requirement rather than a courtesy, and it is why the field is not
   optional on a layer.
 - **The source offer is met by the pipeline.** GPL-3.0 §6 obliges a recipient of
-  a binary to be able to get the corresponding source. The repository is private,
-  so every release attaches `meshbench-<tag>-source.tar.gz`. When the repository
-  is made public that archive can be replaced with a link.
+  a binary to be able to get the corresponding source, and §6(d) wants it offered
+  from the same place as the binary. So every release attaches
+  `meshbench-<tag>-source.tar.gz`. The repository being public would let that be
+  a link instead, but the archive is kept: it is immutable, it sits beside the
+  binary it corresponds to, and it pins the exact tree that built it, none of
+  which is true of a branch that can be force-pushed, renamed or deleted. It
+  costs about 6 MB a release.
 - **`MeshBench/meshcore-native` exists and is public**, under MeshCore's own MIT
   terms. That is where MeshCore is compiled; nothing of it is linked here.
 

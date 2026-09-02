@@ -5,9 +5,12 @@ against a **sample-accurate LoRa baseband channel** with real noise, so the
 question it answers is not "would a packet get through" but "what actually
 arrived at the antenna, and why".
 
-**GPL-3.0-or-later** — see `docs/licence.md`. The repository is still
-private; publishing binaries from a private repository means each release
-carries a source archive, which the pipeline does. MeshCore is *not* linked into
+**GPL-3.0-or-later** - see `docs/licence.md`. Every release carries a source
+archive, which the pipeline does. Section 6(d) wants the corresponding source
+offered from the same place as the binaries, and an immutable asset beside them
+says that more plainly than a branch that can be force-pushed or renamed. It
+also pins the exact tree a binary was built from, which a link to a moving
+branch does not. MeshCore is *not* linked into
 our binary — it is built in `MeshBench/meshcore-native` and downloaded at
 runtime, which is what freed the choice — so do not reintroduce a direct
 dependency on it without a new ADR.

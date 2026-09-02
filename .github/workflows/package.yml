@@ -22,11 +22,11 @@ on:
         type: boolean
         default: false
       mac:
-        description: 'Build the macOS dmg (hosted macOS minutes bill at 10x on a private repo - leave off for a test build)'
+        description: 'Build the macOS dmg (the slowest leg - leave off for a test build that does not need it)'
         type: boolean
         default: true
       windows:
-        description: 'Build the Windows zip (cross-compiled on Linux, so free)'
+        description: 'Build the Windows zip (cross-compiled on Linux, so it runs with the Linux leg)'
         type: boolean
         default: true
 
@@ -279,9 +279,10 @@ jobs:
           fi
           tar czf meshbench-linux-x86_64.tar.gz meshbench
           # GPL-3.0 section 6: whoever receives the binary can have the source
-          # that made it. The repository is private for now, so the source
-          # travels with the release rather than being a link. When the
-          # repository goes public this can become a URL in the notes.
+          # that made it, and 6(d) wants it from the same place as the binary.
+          # The repository is public, so this could be a link; it stays an
+          # asset because an archive beside the binary is immutable and pins
+          # the exact tree that built it, and a branch is neither.
           VERSION="${{ inputs.version }}"
           if [ -z "$VERSION" ]; then
             case "${GITHUB_REF_NAME}" in
@@ -426,19 +427,18 @@ jobs:
     # account payments, which is a confusing way to be told you picked the
     # expensive label.
     #
-    # Hosted minutes bill at 10x on a private repository, which is affordable
-    # here precisely because this workflow runs on tags and manual dispatch
-    # only, never on push: a release build is about three minutes, so roughly
-    # thirty billable minutes a release. If it ever moves to per-push, move it
-    # to a Mac we own at the same time.
-    # Skippable, because this is the only leg that costs anything: Linux and
-    # Windows both run on Linux runners, which are free even here. A test
-    # build should not spend thirty billable minutes proving the dmg still
-    # packs.
+    # Standard hosted runners are free on a public repository, so the 10x
+    # macOS multiplier no longer applies to this workflow and cost is not
+    # what picks a runner here. Larger runners are billed on every plan
+    # regardless, which is the trap above.
+    # Skippable, because it is the slowest leg and the one most likely to be
+    # irrelevant to a given test build: Linux and Windows both run on Linux
+    # runners.
     # Alex's own Mac, as an org runner. package.yml runs only on tags and
     # manual dispatch - events that need write access - so nothing an
-    # outsider does can schedule work on it. Hosted macos-14 was the paid
-    # leg on this private repository; the M4 is free and faster.
+    # outsider does can schedule work on it. The M4 is chosen for speed and
+    # for having the toolchain already, not for cost: hosted macos-14 is free
+    # on a public repository now.
     if: inputs.mac
     runs-on: [self-hosted, macos-m4]
     steps:
@@ -553,9 +553,9 @@ jobs:
   windows:
     timeout-minutes: 60
     # Cross-compiled from Linux with mingw rather than built on a Windows
-    # runner: Gio's Windows backend and wgpu both build that way, and Windows
-    # minutes bill at 2x on a private repository for a build that needs
-    # nothing from Windows itself.
+    # runner: Gio's Windows backend and wgpu both build that way, and this
+    # build needs nothing from Windows itself. It also keeps every leg but
+    # the Mac on one runner pool.
     #
     # This produces the application. Emulated ESP32 boards still need
     # radioserver's QEMU transport to stop assuming Unix sockets - the TCP
@@ -783,8 +783,9 @@ jobs:
             echo "operating systems will object the first time. The README says exactly"
             echo "what they say and how to proceed."
             echo
-            echo "\`SHA256SUMS\` covers every file here. The source archive is included"
-            echo "because MeshBench is GPL-3.0-or-later and the repository is private."
+            echo "\`SHA256SUMS\` covers every file here. The source archive is the"
+            echo "corresponding source for these binaries, offered alongside them as"
+            echo "GPL-3.0-or-later section 6 asks, and pinned to the exact commit."
           } > /tmp/notes.md
 
           gh release create "$TAG" dist/* --target "${GITHUB_SHA}" \
