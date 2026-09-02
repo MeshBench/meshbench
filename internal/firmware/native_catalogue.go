@@ -145,9 +145,16 @@ func (c *NativeCatalogue) cachedBinary(role, version string) (string, bool) {
 	return p, true
 }
 
+// checksumSuffix marks a digest rather than a build. Named once because two
+// things need it: writing the sidecar, and knowing not to list it as firmware.
+const checksumSuffix = ".sha256"
+
 // checksumSidecarPath is where a downloaded binary's own digest is kept, so a
 // cache hit can be checked as strictly as a fresh download.
-func checksumSidecarPath(bin string) string { return bin + ".sha256" }
+func checksumSidecarPath(bin string) string { return bin + checksumSuffix }
+
+// isChecksumFile reports whether a cache entry is one of those digests.
+func isChecksumFile(name string) bool { return strings.HasSuffix(name, checksumSuffix) }
 
 // recordChecksum writes what was just downloaded, so a later cache hit can be
 // checked against it.

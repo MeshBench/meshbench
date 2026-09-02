@@ -105,7 +105,13 @@ func listNative(cacheDir string) []Installed {
 		for _, f := range files {
 			// obj/ is the build tree a local compile leaves behind; it is not a
 			// firmware and listing it would be noise.
-			if f.IsDir() || !strings.HasPrefix(f.Name(), "meshcore-") {
+			//
+			// A downloaded build's digest sits beside it and keeps its name, so
+			// it parses to the same role and the same version as the build. The
+			// library keys rows on exactly that, and ReadDir hands the sidecar
+			// over second, so it replaced the build it describes: every row read
+			// as 65 bytes of hex.
+			if f.IsDir() || !strings.HasPrefix(f.Name(), "meshcore-") || isChecksumFile(f.Name()) {
 				continue
 			}
 			role := roleFromBinary(f.Name())
@@ -228,6 +234,15 @@ func Remove(cacheDir string, in Installed) error {
 	// it describes is gone and would be inherited by the next build to be
 	// given the same name.
 	if err := os.Remove(SettingsPath(p)); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	// The digest, for the same reason and with a sharper edge. Import writes
+	// no digest, so a local build copied over a deleted download inherits the
+	// download's: checksumOK then rejects bytes that are perfectly good,
+	// cachedBinary reports the build as absent, and the import silently does
+	// not take. Left behind it would also keep the version directory from
+	// emptying below.
+	if err := os.Remove(checksumSidecarPath(p)); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 	// Take the version directory with it when it empties, so a cache that has
