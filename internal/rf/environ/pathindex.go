@@ -21,13 +21,18 @@ const pathBucketDeg = 0.01
 type PathIndex struct {
 	blds    []Building
 	buckets map[[2]int][]int32
-	ground  Ground
+	// tall holds the same index again for the structures the price charges
+	// wherever they stand, so the walks that skip the middle of a path still
+	// find them. Kept separate because it is nearly always empty and an
+	// empty map is a walk that need not happen at all.
+	tall   map[[2]int][]int32
+	ground Ground
 }
 
 // NewPathIndex collects and buckets everything standing in the box. The
 // box must cover both ends of every path it will be asked about.
 func NewPathIndex(p Provider, g Ground, minLat, minLon, maxLat, maxLon float64) *PathIndex {
-	ix := &PathIndex{buckets: map[[2]int][]int32{}, ground: g}
+	ix := &PathIndex{buckets: map[[2]int][]int32{}, tall: map[[2]int][]int32{}, ground: g}
 	if p == nil {
 		return ix
 	}
@@ -52,6 +57,9 @@ func NewPathIndex(p Provider, g Ground, minLat, minLon, maxLat, maxLon float64) 
 			for x := x0; x <= x1; x++ {
 				k := [2]int{x, y}
 				ix.buckets[k] = append(ix.buckets[k], int32(i))
+				if b.HeightM >= tallM {
+					ix.tall[k] = append(ix.tall[k], int32(i))
+				}
 			}
 		}
 	}
@@ -75,56 +83,28 @@ func (ix *PathIndex) ObstructionsOnPath(sc *PathScratch,
 	if len(ix.blds) == 0 {
 		return nil
 	}
+	ix.beginWalk(sc)
+	return ix.appendSub(sc, nil, ix.buckets, aLat, aLon, bLat, bLon, 0, 1)
+}
+
+// beginWalk readies the scratch for a fresh set of walks that must
+// deduplicate against each other.
+func (ix *PathIndex) beginWalk(sc *PathScratch) {
 	if len(sc.seen) < len(ix.blds) {
 		sc.seen = make([]uint32, len(ix.blds))
 	}
 	sc.epoch++
-	dLat, dLon := bLat-aLat, bLon-aLon
-	span := math.Max(math.Abs(dLat), math.Abs(dLon))
-	steps := int(span/(pathBucketDeg/2)) + 1
-	var out []Obstruction
-	lastK := [2]int{1 << 30, 1 << 30}
-	for i := 0; i <= steps; i++ {
-		f := float64(i) / float64(steps)
-		lat := aLat + dLat*f
-		lon := aLon + dLon*f
-		k := [2]int{int(math.Floor(lon / pathBucketDeg)), int(math.Floor(lat / pathBucketDeg))}
-		if k == lastK {
-			continue
-		}
-		lastK = k
-		// The bucket and its neighbours: a footprint hugging a bucket edge
-		// must not be missed by a line that runs just the other side of it.
-		for dy := -1; dy <= 1; dy++ {
-			for dx := -1; dx <= 1; dx++ {
-				for _, bi := range ix.buckets[[2]int{k[0] + dx, k[1] + dy}] {
-					if sc.seen[bi] == sc.epoch {
-						continue
-					}
-					sc.seen[bi] = sc.epoch
-					bl := &ix.blds[bi]
-					enter, exit, crosses := segmentPolygon(aLat, aLon, bLat, bLon, bl.Footprint)
-					if !crosses {
-						continue
-					}
-					midLat := aLat + dLat*(enter+exit)/2
-					midLon := aLon + dLon*(enter+exit)/2
-					ground := 0.0
-					if ix.ground != nil {
-						if h, ok := ix.ground.ElevationM(midLat, midLon); ok {
-							ground = h
-						}
-					}
-					out = append(out, Obstruction{
-						EnterFrac: enter, ExitFrac: exit,
-						TopM:     ground + bl.HeightM,
-						Material: bl.Material, MaterialConfidence: bl.MaterialConfidence,
-					})
-				}
-			}
-		}
+}
+
+// appendTall adds the structures the price charges wherever they stand,
+// over the whole path. Almost always a no-op: a dataset with no heights of
+// its own has none of them.
+func (ix *PathIndex) appendTall(sc *PathScratch, obs []Obstruction,
+	aLat, aLon, bLat, bLon float64) []Obstruction {
+	if len(ix.tall) == 0 {
+		return obs
 	}
-	return out
+	return ix.appendSub(sc, obs, ix.tall, aLat, aLon, bLat, bLon, 0, 1)
 }
 
 // PathLossDB prices the indexed obstructions exactly as PathBuildingLossDB
@@ -138,104 +118,50 @@ func (ix *PathIndex) PathLossDB(sc *PathScratch,
 	return priceObstructions(obs, txAslM, rxAslM, totalM, freqMHz)
 }
 
-// nearEndKm is how far from each end PathLossNearEndsDB looks. Fresnel
-// arithmetic is the justification: v scales with sqrt(d/(d1*d2)), so a
-// rooftop's few metres mid-way across tens of kilometres prices at a
-// decibel or two, while the same roof beside an antenna prices at ten or
-// twenty. A raster whose cells are hundreds of metres wide spends its
-// honesty budget near the ends, and a hundred thousand full-path walks per
-// station is what froze one.
-const nearEndKm = 3.0
-
-// PathLossNearEndsDB prices the buildings within nearEndKm of either end
-// of the path - the packet path still prices everything, this is the
-// raster's bounded twin. Crossing fractions are computed against the FULL
-// path, so the knife-edge arithmetic is exact for every building it does
-// price.
+// PathLossNearEndsDB walks only the ends of the path for candidates, which
+// is all a raster can afford: a hundred thousand full-path walks per station
+// is what froze one. It is not a cheaper answer, it is the same answer -
+// priceObstructions charges nothing beyond apertureM of either end, so the
+// crossings this walk declines to look for are the ones the price would have
+// discarded. Crossing fractions are computed against the FULL path, so the
+// knife-edge arithmetic is exact for every building it does price.
 func (ix *PathIndex) PathLossNearEndsDB(sc *PathScratch,
 	aLat, aLon, txAslM, bLat, bLon, rxAslM, totalM, freqMHz float64) float64 {
 	if totalM <= 0 || len(ix.blds) == 0 {
 		return 0
 	}
-	if totalM <= 2*nearEndKm*1000 {
+	if totalM <= 2*apertureM {
 		return priceObstructions(
 			ix.ObstructionsOnPath(sc, aLat, aLon, bLat, bLon),
 			txAslM, rxAslM, totalM, freqMHz)
 	}
-	f := nearEndKm * 1000 / totalM
-	obs := ix.obstructionsOnSub(sc, aLat, aLon, bLat, bLon, 0, f)
-	obs = append(obs, ix.obstructionsOnSub(sc, aLat, aLon, bLat, bLon, 1-f, 1)...)
+	// One epoch across every window. The bucket walk reaches a step's
+	// neighbours, so on a path a few buckets long the windows overlap, and
+	// an epoch each would let a building in the overlap cross twice and be
+	// charged as two screens.
+	ix.beginWalk(sc)
+	f := apertureM / totalM
+	obs := ix.appendSub(sc, nil, ix.buckets, aLat, aLon, bLat, bLon, 0, f)
+	obs = ix.appendSub(sc, obs, ix.buckets, aLat, aLon, bLat, bLon, 1-f, 1)
+	obs = ix.appendTall(sc, obs, aLat, aLon, bLat, bLon)
 	return priceObstructions(obs, txAslM, rxAslM, totalM, freqMHz)
 }
 
-// obstructionsOnSub walks only [f0,f1] of the path for candidates, testing
-// each against the full segment so fractions stay true.
-func (ix *PathIndex) obstructionsOnSub(sc *PathScratch,
-	aLat, aLon, bLat, bLon, f0, f1 float64) []Obstruction {
-	if len(sc.seen) < len(ix.blds) {
-		sc.seen = make([]uint32, len(ix.blds))
-	}
-	sc.epoch++
-	dLat, dLon := bLat-aLat, bLon-aLon
-	span := math.Max(math.Abs(dLat), math.Abs(dLon)) * (f1 - f0)
-	steps := int(span/(pathBucketDeg/2)) + 1
-	var out []Obstruction
-	lastK := [2]int{1 << 30, 1 << 30}
-	for i := 0; i <= steps; i++ {
-		f := f0 + (f1-f0)*float64(i)/float64(steps)
-		lat := aLat + dLat*f
-		lon := aLon + dLon*f
-		k := [2]int{int(math.Floor(lon / pathBucketDeg)), int(math.Floor(lat / pathBucketDeg))}
-		if k == lastK {
-			continue
-		}
-		lastK = k
-		for dy := -1; dy <= 1; dy++ {
-			for dx := -1; dx <= 1; dx++ {
-				for _, bi := range ix.buckets[[2]int{k[0] + dx, k[1] + dy}] {
-					if sc.seen[bi] == sc.epoch {
-						continue
-					}
-					sc.seen[bi] = sc.epoch
-					bl := &ix.blds[bi]
-					enter, exit, crosses := segmentPolygon(aLat, aLon, bLat, bLon, bl.Footprint)
-					if !crosses {
-						continue
-					}
-					midLat := aLat + dLat*(enter+exit)/2
-					midLon := aLon + dLon*(enter+exit)/2
-					ground := 0.0
-					if ix.ground != nil {
-						if h, ok := ix.ground.ElevationM(midLat, midLon); ok {
-							ground = h
-						}
-					}
-					out = append(out, Obstruction{
-						EnterFrac: enter, ExitFrac: exit,
-						TopM:     ground + bl.HeightM,
-						Material: bl.Material, MaterialConfidence: bl.MaterialConfidence,
-					})
-				}
-			}
-		}
-	}
-	return out
-}
-
-// NearMask stamps, onto a raster grid, which cells stand within radiusKm
-// of any building at all. The dataset is patches around a network's nodes;
-// most of a national raster is countryside where the cell-end walk would
-// find nothing after fifty bucket lookups, and a precomputed "nothing
-// here" is how ninety percent of cells skip it outright.
-func (ix *PathIndex) NearMask(south, north, west, east float64,
-	w, h int, radiusKm float64) []bool {
+// NearMask stamps, onto a raster grid, which cells have any building inside
+// the priced aperture at all. The dataset is patches around a network's
+// nodes; most of a national raster is countryside where the cell-end walk
+// would find nothing after fifty bucket lookups, and a precomputed "nothing
+// here" is how ninety percent of cells skip it outright. The radius is the
+// aperture rather than a caller's choice, because a cell wrongly called far
+// skips a walk whose crossings the price would have charged for.
+func (ix *PathIndex) NearMask(south, north, west, east float64, w, h int) []bool {
 	mask := make([]bool, w*h)
 	if len(ix.blds) == 0 {
 		return mask
 	}
 	midLat := (south + north) / 2
-	rLat := radiusKm / 111.32
-	rLon := radiusKm / (111.32 * math.Cos(midLat*math.Pi/180))
+	rLat := apertureM / 111320.0
+	rLon := apertureM / (111320.0 * math.Cos(midLat*math.Pi/180))
 	for k := range ix.buckets {
 		bS := float64(k[1]) * pathBucketDeg
 		bW := float64(k[0]) * pathBucketDeg
@@ -261,7 +187,8 @@ func (ix *PathIndex) NearMask(south, north, west, east float64,
 const nearSectors = 512
 
 // StationPaths is one station's precomputed view of the index: every
-// building within nearEndKm, bucketed by the azimuth range it subtends.
+// building within the priced aperture, bucketed by the azimuth range it
+// subtends.
 // Built once per station; a raster then asks it a hundred thousand times.
 type StationPaths struct {
 	ix       *PathIndex
@@ -275,7 +202,9 @@ func (ix *PathIndex) Station(lat, lon float64) *StationPaths {
 	sp := &StationPaths{ix: ix, lat: lat, lon: lon,
 		cosLat:  math.Cos(lat * math.Pi / 180),
 		sectors: make([][]int32, nearSectors)}
-	rDeg := nearEndKm / 111.32
+	// A square of this half-width contains the circle of the same radius, so
+	// no crossing inside the priced aperture escapes the sector index.
+	rDeg := apertureM / 111320.0
 	for i, b := range ix.blds {
 		if len(b.Footprint) == 0 {
 			continue
@@ -319,10 +248,7 @@ func (sp *StationPaths) LossDB(sc *PathScratch, cellNear bool,
 	if totalM <= 0 || len(ix.blds) == 0 {
 		return 0
 	}
-	if len(sc.seen) < len(ix.blds) {
-		sc.seen = make([]uint32, len(ix.blds))
-	}
-	sc.epoch++
+	ix.beginWalk(sc)
 	az := math.Atan2((cellLon-sp.lon)*sp.cosLat, cellLat-sp.lat)
 	sct := int((az+math.Pi)/(2*math.Pi)*nearSectors) % nearSectors
 	var obs []Obstruction
@@ -333,13 +259,14 @@ func (sp *StationPaths) LossDB(sc *PathScratch, cellNear bool,
 		sc.seen[bi] = sc.epoch
 		obs = ix.appendCrossing(obs, bi, sp.lat, sp.lon, cellLat, cellLon)
 	}
-	// The cell end, when the path is long enough that the station's
-	// near-set cannot have covered it - and only when the mask says the
+	// The cell end, when the path is long enough that the station's own
+	// aperture cannot have covered it - and only when the mask says the
 	// cell has anything within reach at all.
-	if cellNear && totalM > 2*nearEndKm*1000 {
-		f := 1 - nearEndKm*1000/totalM
-		obs = ix.appendSub(sc, obs, sp.lat, sp.lon, cellLat, cellLon, f, 1)
+	if cellNear && totalM > apertureM {
+		f := 1 - apertureM/totalM
+		obs = ix.appendSub(sc, obs, ix.buckets, sp.lat, sp.lon, cellLat, cellLon, f, 1)
 	}
+	obs = ix.appendTall(sc, obs, sp.lat, sp.lon, cellLat, cellLon)
 	return priceObstructions(obs, txAslM, rxAslM, totalM, freqMHz)
 }
 
@@ -361,14 +288,15 @@ func (ix *PathIndex) appendCrossing(obs []Obstruction, bi int32,
 	}
 	return append(obs, Obstruction{
 		EnterFrac: enter, ExitFrac: exit,
-		TopM:     ground + bl.HeightM,
+		TopM: ground + bl.HeightM, HeightM: bl.HeightM,
 		Material: bl.Material, MaterialConfidence: bl.MaterialConfidence,
 	})
 }
 
-// appendSub walks [f0,f1] of the path under the caller's epoch.
+// appendSub walks [f0,f1] of the path through one bucket map, under the
+// caller's epoch.
 func (ix *PathIndex) appendSub(sc *PathScratch, obs []Obstruction,
-	aLat, aLon, bLat, bLon, f0, f1 float64) []Obstruction {
+	buckets map[[2]int][]int32, aLat, aLon, bLat, bLon, f0, f1 float64) []Obstruction {
 	dLat, dLon := bLat-aLat, bLon-aLon
 	span := math.Max(math.Abs(dLat), math.Abs(dLon)) * (f1 - f0)
 	steps := int(span/(pathBucketDeg/2)) + 1
@@ -382,9 +310,11 @@ func (ix *PathIndex) appendSub(sc *PathScratch, obs []Obstruction,
 			continue
 		}
 		lastK = k
+		// The bucket and its neighbours: a footprint hugging a bucket edge
+		// must not be missed by a line that runs just the other side of it.
 		for dy := -1; dy <= 1; dy++ {
 			for dx := -1; dx <= 1; dx++ {
-				for _, bi := range ix.buckets[[2]int{k[0] + dx, k[1] + dy}] {
+				for _, bi := range buckets[[2]int{k[0] + dx, k[1] + dy}] {
 					if sc.seen[bi] == sc.epoch {
 						continue
 					}

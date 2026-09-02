@@ -95,8 +95,9 @@ is not a hill.**
 
 Loading a building environment (Configuration's Buildings card - a runtime
 pull from OpenStreetMap or Microsoft's ML footprints, or tiles prepared with
-`tools/envgen`) closes part of this: each crossed building becomes a rooftop
-knife edge plus one wall of material loss. It is still not clutter, trees or
+`tools/envgen`) closes part of this: the leading rooftop on a path becomes a
+knife edge, the rows behind it a settled field, and the walls the alternative
+route through rather than over. It is still not clutter, trees or
 body loss, and a pulled database inherits that database's gaps - ML
 footprints carry no materials, so those buildings fall back to a regional
 default with the low confidence that implies. The merged pull narrows that
@@ -104,33 +105,42 @@ where OSM has surveyed the building - explicit type and material override
 the inference - but only there; the unsurveyed majority keeps the default.
 
 **How much of the excess-loss term buildings actually buy has been measured,
-and the answer is 0.7 dB.** Against 4.5 million Microsoft ML footprints over
-Scotland and 451 live ScotMesh nodes, the fitted term went from 29.77 dB over
-bare earth to 29.07 dB with footprints loaded, on the same import in one
-session. The same footprints removed 37.6% of the link matrix. Both of those
-are true at once because the term is fitted on observations that were heard,
-and a path buildings price into the ground is not one anybody reports hearing:
-it leaves the matrix, its observations go unmatched, and the fit is left with
-the population buildings barely touched. So loading an environment changes what
-the model says about towns a great deal, and changes the constant that stands
-in for towns hardly at all. `docs/studies/excess-loss-with-buildings.md` has
-the arms, the counts and the censoring.
+and the answer is nothing.** Against 4.5 million Microsoft ML footprints over
+Scotland and 455 live ScotMesh nodes, the fitted term went from 29.475 dB over
+bare earth to 29.515 dB with footprints loaded, on the same import in one
+session: it grew by 0.04 dB. The same footprints removed 27.0% of the link
+matrix. An environment therefore changes what the model says about a town a
+great deal and changes the constant that stands in for towns not at all, which
+is the right way round: the constant is what a session with no environment
+gets. An earlier run of the same protocol measured a 0.70 dB shrink and a
+37.6% matrix loss, but it was measured against a building rule that summed a
+knife edge and a wall per crossed footprint, so most of what it saw was
+buildings deleting paths rather than explaining them.
+`docs/studies/excess-loss-buildings-saturated.md` has the arms, the counts and
+the censoring, and `excess-loss-with-buildings.md` has the run that found the
+fault.
 
-**A crossed building is charged once per building, with no combination rule.**
-Terrain is not: a ridge line is one Bullington obstacle however many DEM
-samples it spans. Buildings have no equivalent, so a path across a city
-accumulates a knife edge and a wall per footprint - 114 crossings and 2,235 dB
-on one 23 km path over Glasgow, and a median of 124 dB across the 641 sub-25 km
-pairs of `fixtures/fixture-scotland-strict.json` it prices at all. The
-coverage raster and the engine also disagree here, which they must not: the
-raster prices only the footprints near each end, the engine prices every
-crossing. Treat an environment-loaded urban path as saying "blocked" rather
-than as a number of decibels.
-
-**Direction of error with buildings loaded: pessimistic, and unbounded, on any
-path that crosses a town.** That is the opposite direction to everything else
-in this document, and it is the one case here where the simulator is not the
-best case.
+**A town is priced as one obstacle, and only near the ends of a path.** The
+leading rooftop takes its full ITU-R P.526 knife edge and the rows behind it
+add 18 log10 of their number, which is the settled field the COST 231
+multi-screen term is built on, so a hundred crossings cost tens of decibels
+rather than hundreds. Two limits ride with it. The price covers only the
+crossings within 3 km of either end, because a rooftop's few metres mid-way
+across tens of kilometres carries almost no Fresnel weight, and because making
+that a rule of the price rather than of one caller's search is what holds the
+engine and the coverage raster to the same number - they disagreed before, and
+a raster that shows a different network from the one the packets cross is
+worse than a pessimistic one. Anything over 20 m is charged wherever it stands,
+because the Fresnel argument is about rooftops and a tower is not one. On the
+23 km path across Glasgow that used to price at 2,235 dB, 7 of its 114
+crossings fall inside that aperture and it now prices at 33.9 dB. Across the
+613 priced sub-25 km pairs of `fixtures/fixture-scotland-strict.json` the
+median is 27.8 dB and the worst 57.4 dB. The other limit is that the
+multi-screen term counts rows rather than measuring roofs. That suits a
+dataset publishing no heights in the United Kingdom, where every footprint
+stands at envgen's 6 m default, but it means the model answers "are the
+antennas below roof level" rather than "how tall is the town", and on this
+dataset nothing is ever tall enough to earn the exemption above.
 
 **A DEM that is not there is worse than a bare-earth one.** Terrain tiles
 download at runtime, and downloading them is the one thing this application

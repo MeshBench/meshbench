@@ -196,7 +196,7 @@ func startCoverageMap(s *session.Sim, st *state.Store, w *state.World, p any) (a
 				for i, sta := range stations {
 					shadows[i] = ix.Station(sta.Lat, sta.Lon)
 				}
-				nearMask := ix.NearMask(south, north, west, east, gw, gh, 3)
+				nearMask := ix.NearMask(south, north, west, east, gw, gh)
 				var pool = sync.Pool{New: func() any { return &environ.PathScratch{} }}
 				extra = func(sti int, cellLat, cellLon, txAsl, rxAsl, distM float64) float64 {
 					cx := int((cellLon - west) / (east - west) * float64(gw))

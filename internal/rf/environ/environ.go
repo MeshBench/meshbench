@@ -53,6 +53,10 @@ type Obstruction struct {
 	EnterFrac, ExitFrac float64
 	// TopM is ground plus building height at the crossing, above sea level.
 	TopM float64
+	// HeightM is the building's own height above the ground it stands on,
+	// which decides whether the price treats it as a rooftop or as a
+	// structure in the way.
+	HeightM float64
 	// Material carries the through-loss question to the RF engine.
 	Material           string
 	MaterialConfidence float64
@@ -92,7 +96,7 @@ func ObstructionsOnPath(p Provider, g Ground, aLat, aLon, bLat, bLon float64) []
 		}
 		out = append(out, Obstruction{
 			EnterFrac: enter, ExitFrac: exit,
-			TopM:     ground + bl.HeightM,
+			TopM: ground + bl.HeightM, HeightM: bl.HeightM,
 			Material: bl.Material, MaterialConfidence: bl.MaterialConfidence,
 		})
 	}
