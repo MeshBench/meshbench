@@ -6,6 +6,15 @@ the same nodes and very nearly the same observations.
 
 Data: `excess-loss-with-buildings.json`
 
+**Read `excess-loss-buildings-saturated.md` after this one.** The 0.70 dB
+below was measured against a building rule that summed a knife edge and a wall
+per crossed footprint with no combination rule, which is the fault this run
+found and reported rather than fixed. Re-run against a rule that saturates,
+the shrink is gone: the term moves by 0.04 dB the other way, and the
+environment removes 27.0% of the matrix rather than 37.6%. Everything below stands as what was
+measured on the night; the reading of it that survives is the one this run
+gave itself, at the end of "The finding".
+
 ## The finding
 
 `ExcessPathLossDB` exists because the bare-earth model has no buildings. Load
@@ -123,7 +132,9 @@ the same. They do not.
 
 None of that is fixed here, and it decides how the 0.70 dB should be read: the
 environment is not making urban paths a little worse, it is removing them, and
-a term fitted on what survives cannot see the difference.
+a term fitted on what survives cannot see the difference. It has since been
+fixed, and the re-fit in `excess-loss-buildings-saturated.md` shows the reading
+was right: with a combination rule the 0.70 dB does not survive.
 
 ## What this does not settle
 

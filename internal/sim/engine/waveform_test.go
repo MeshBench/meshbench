@@ -403,7 +403,7 @@ func TestBuildingsPriceThePath(t *testing.T) {
 		e := engine.New(flat{100}, engine.Config{StepMs: 10, Seed: 21, RFMode: engine.RFWaveform})
 		e.Env = env
 		e.Add(wfNode("a", 0, 22), nil)
-		e.Add(wfNode("b", 0.45, 5), nil) // ~27 km at 5 dBm: thin margin
+		e.Add(wfNode("b", 0.80, 5), nil) // ~49 km at 5 dBm: thin margin
 		_ = e.Run(context.Background(), 10)
 		e.InjectFrame(0, []byte("is there a building in the way"))
 		_ = e.Run(context.Background(), 8000)
@@ -424,6 +424,8 @@ func TestBuildingsPriceThePath(t *testing.T) {
 		},
 		HeightM: 60, Material: environ.MatConcrete,
 	}
+	// 15 dB, mid-path: the knife edge over its roof, because going through
+	// six hundred metres of concrete is the more expensive route by far.
 	if got := run(slabEnv{slab}); got == "rx" {
 		t.Fatal("a 60 m concrete slab across the path cost nothing")
 	}

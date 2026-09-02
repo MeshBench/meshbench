@@ -1,0 +1,125 @@
+{
+ "measured": "2026-09-02",
+ "source": "https://scotmesh-corescope.mm7roq.compute.oarc.uk",
+ "hours": 24.0,
+ "supersedes": "excess-loss-with-buildings.json",
+ "model": {
+  "rule": "leading rooftop as an ITU-R P.526 knife edge, the rows behind it as 18 log10(N), the walls as a parallel route combined in power",
+  "aperture_m": 3000,
+  "note": "the price is charged on crossings within the aperture of either end, which is what holds the engine and the coverage raster to one answer"
+ },
+ "environment": {
+  "dir": "/home/alex/.cache/meshbench/environment/scotland-msft",
+  "dataset": "Microsoft Global ML Building Footprints, 2026-02-03 release",
+  "tiles": 41458,
+  "heights": "not published in the United Kingdom: every feature carries height -1, so every building takes envgen's 6 m default at confidence 0.3"
+ },
+ "import": {
+  "nodes": 455,
+  "records": 498,
+  "skipped_no_position": 43,
+  "uncertain": 0
+ },
+ "ground": {
+  "chosen": true,
+  "note": "partial terrain: 32 of 256 sampled tiles under this study are cached and the rest is bare earth, so some of this answer is free space and nothing in it says which part",
+  "state": "partial",
+  "tiles_cached": 32,
+  "tiles_sampled": 256
+ },
+ "gpu": {
+  "backend": "vulkan",
+  "device": "0x731f",
+  "enabled": true,
+  "last_warm": {
+   "ms": 55958,
+   "pairs": 102983,
+   "used": true
+  },
+  "present": true
+ },
+ "arms": {
+  "bare_earth": {
+   "label": "bare-earth",
+   "start_db": 25.1,
+   "final_db": 29.474570798238933,
+   "rounds": [
+    {
+     "round": 1,
+     "term_db": 25.1,
+     "matched": 1874,
+     "unmatched": 131,
+     "median_db": 3.974570798238932,
+     "iqr_db": 4.809353637695312,
+     "links": 5264
+    },
+    {
+     "round": 2,
+     "term_db": 29.074570798238934,
+     "matched": 1874,
+     "unmatched": 131,
+     "median_db": 0.3999999999999888,
+     "iqr_db": 6.2593536376953125,
+     "links": 4316
+    },
+    {
+     "round": 3,
+     "term_db": 29.474570798238922,
+     "matched": 1874,
+     "unmatched": 131,
+     "median_db": 1.1546319456101628e-14,
+     "iqr_db": 6.2593536376953125,
+     "links": 4246
+    }
+   ]
+  },
+  "buildings": {
+   "label": "buildings",
+   "start_db": 25.1,
+   "final_db": 29.515217160543603,
+   "rounds": [
+    {
+     "round": 1,
+     "term_db": 25.1,
+     "matched": 1864,
+     "unmatched": 141,
+     "median_db": 4.374570798238932,
+     "iqr_db": 4.559353637695312,
+     "links": 3844
+    },
+    {
+     "round": 2,
+     "term_db": 29.474570798238933,
+     "matched": 1864,
+     "unmatched": 141,
+     "median_db": 0.04064636230467045,
+     "iqr_db": 4.7593536376953125,
+     "links": 3252
+    }
+   ]
+  },
+  "links_at_25_1_db": {
+   "bare_earth": 5264,
+   "buildings": 3844
+  }
+ },
+ "direct_check": {
+  "fixture": "fixtures/fixture-scotland-strict.json",
+  "pairs_under_25km": 961,
+  "crossing_a_footprint": 921,
+  "priced_above_0_01_db": 613,
+  "median_priced_db": 27.8,
+  "p90_priced_db": 46.5,
+  "worst_db": 57.4,
+  "worst_pair": "Hensingham -> Workington Town RLFC, 13.1 km, 103 crossings",
+  "glasgow_path": {
+   "pair": "Milton -> SGL-bravo",
+   "km": 23.065,
+   "crossings": 114,
+   "crossings_in_aperture": 7,
+   "was_db": 2234.9,
+   "now_db": 33.8736
+  },
+  "worst_engine_coverage_disagreement_db": 0.0
+ }
+}

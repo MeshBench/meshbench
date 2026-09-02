@@ -314,19 +314,20 @@ func (s *Sim) build(nodes []scenario.Node, freqMHz float64) {
 // validate.fetch then validate.calibrate, which re-derives the total from
 // whatever is current and now converges instead of creeping.
 //
-// Buildings do not replace it, which was the open question. Fitted again
-// against 451 ScotMesh nodes with 4.5 million real footprints loaded, the term
-// comes out 0.70 dB lower than the same fit over bare earth - 29.07 against
-// 29.77 - while the footprints remove 37.6% of the link matrix. The two are
-// consistent: a path buildings price into the ground stops being heard, so it
-// leaves the matrix and stops voting, and the fit keeps the paths buildings
-// barely touched. docs/studies/excess-loss-with-buildings.md is the record.
+// Buildings do not replace it, which was the open question, and they do not
+// dent it either. Fitted again against 455 ScotMesh nodes with 4.5 million
+// real footprints loaded, the term comes out 0.04 dB HIGHER than the same fit
+// over bare earth - 29.515 against 29.475 - while the footprints remove 27.0%
+// of the link matrix. Loading an environment changes what the model says about
+// a town a great deal and changes this constant, which is what a session
+// without one gets, not at all.
+// docs/studies/excess-loss-buildings-saturated.md is the record.
 //
-// That same night's bare-earth fit converges to 29.77 dB rather than 25.1, on
-// 1,320 voting observations against the 357 behind the figure below and stable
-// across a 6 and a 24 hour window. One evening is not what moved this number
-// the last three times and it does not move it now; what would is that
-// protocol repeated across several days.
+// Those nights' bare-earth fits converge to 29.5 and 29.8 dB rather than 25.1,
+// on around 1,200 voting observations against the 357 behind the figure below.
+// One evening is not what moved this number the last three times and two do
+// not move it now, particularly when they disagree by 0.3 dB; what would is
+// that protocol repeated across several days.
 //
 // Studies comparing two firmware builds are unaffected in direction, because
 // both arms carry the same term.
