@@ -48,16 +48,40 @@ jobs:
           "msi dll count: " + (Get-ChildItem $md -Filter *.dll).Count
           "zip dll count: " + (Get-ChildItem $zd -Filter *.dll).Count
 
-      - name: Run each from its own directory
+      - name: The Start menu shortcut, and what working directory it sets
         shell: pwsh
         continue-on-error: true
         run: |
-          foreach ($pair in @(@{n="msi";d="$env:ProgramFiles\MeshBench"}, `
-                              @{n="zip";d=(Split-Path (Get-ChildItem unzipped -Recurse -Filter meshbench.exe | Select-Object -First 1).FullName)})) {
-            $exe = Join-Path $pair.d "meshbench.exe"
-            if (-not (Test-Path $exe)) { "$($pair.n): missing"; continue }
-            $o = "$($pair.n)-out.txt"; $e = "$($pair.n)-err.txt"
-            $p = Start-Process $exe -ArgumentList "-version" -Wait -PassThru -WorkingDirectory $pair.d `
+          $sh = New-Object -ComObject WScript.Shell
+          Get-ChildItem "$env:ProgramData\Microsoft\Windows\Start Menu" -Recurse -Filter "*MeshBench*.lnk" |
+            ForEach-Object {
+              $l = $sh.CreateShortcut($_.FullName)
+              "shortcut : $($_.Name)"
+              "target   : $($l.TargetPath)"
+              "workdir  : [$($l.WorkingDirectory)]"
+            }
+
+      - name: Does it survive being started from somewhere else
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $exe = "$env:ProgramFiles\MeshBench\meshbench.exe"
+          foreach ($wd in @("$env:ProgramFiles\MeshBench", "$env:SystemRoot\System32", "$env:USERPROFILE")) {
+            $o = "o.txt"; $e = "e.txt"
+            $p = Start-Process $exe -ArgumentList "-version" -Wait -PassThru -WorkingDirectory $wd `
                    -RedirectStandardOutput $o -RedirectStandardError $e -NoNewWindow
-            "$($pair.n): exit $($p.ExitCode)  stdout=[" + ((Get-Content $o -ErrorAction SilentlyContinue) -join '') + "]  stderr=[" + ((Get-Content $e -ErrorAction SilentlyContinue) -join '') + "]"
+            "cwd=$wd  exit=$($p.ExitCode)  out=[" + ((Get-Content $o -EA SilentlyContinue) -join '') + "]  err=[" + ((Get-Content $e -EA SilentlyContinue) -join '') + "]"
           }
+
+      - name: Headless from a foreign working directory, the shortcut case
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $exe = "$env:ProgramFiles\MeshBench\meshbench.exe"
+          $p = Start-Process $exe -ArgumentList "headless","-fixture","fife-strict" -PassThru `
+                 -WorkingDirectory "$env:SystemRoot\System32" `
+                 -RedirectStandardOutput hs.txt -RedirectStandardError he.txt -NoNewWindow
+          Start-Sleep -Seconds 25
+          if (-not $p.HasExited) { "still running, which is the good case"; $p.Kill() } else { "exited with $($p.ExitCode)" }
+          "--- stdout ---"; Get-Content hs.txt -EA SilentlyContinue | Select-Object -First 20
+          "--- stderr ---"; Get-Content he.txt -EA SilentlyContinue | Select-Object -First 20
