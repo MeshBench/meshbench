@@ -24,7 +24,23 @@ import (
 	"github.com/MeshBench/meshbench/internal/rf/terrain"
 )
 
+// fatal says why, in the one place a Windows user can see it.
+//
+// A release binary linked for the GUI subsystem has no standard handles, so
+// the usual write to stderr reaches nobody and the process appears to vanish.
+// adoptConsole gives it the terminal's handles when there is a terminal;
+// reportFatal writes the message down when there is not, and the exit names
+// the file so the next person is not left guessing.
+func fatal(code int, msg string) {
+	fmt.Fprintln(os.Stderr, msg)
+	if path := reportFatal(msg); path != "" {
+		fmt.Fprintln(os.Stderr, "written to", path)
+	}
+	os.Exit(code)
+}
+
 func main() {
+	adoptConsole()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -48,8 +64,7 @@ func main() {
 	for _, c := range commands() {
 		if c.name == name {
 			if err := c.run(ctx, os.Args[2:]); err != nil {
-				fmt.Fprintln(os.Stderr, invoked()+":", err)
-				os.Exit(1)
+				fatal(1, invoked()+": "+err.Error())
 			}
 			return
 		}

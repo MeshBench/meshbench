@@ -128,6 +128,11 @@ func (n *Native) Start(ctx context.Context, bridgeAddr string) (err error) {
 		args = append(args, "--cr", fmt.Sprint(n.CodingRate))
 	}
 	cmd := exec.CommandContext(ctx, path, args...)
+	// The same attributes the emulated backend gives its children: a
+	// parent-death signal where the platform has one, and no console window
+	// on Windows, where every node is a console program and a national
+	// network would otherwise open several hundred of them.
+	cmd.SysProcAttr = firmware.ChildProcAttr()
 	if n.WorkDir != "" {
 		lock, lerr := firmware.LockWorkDir(n.WorkDir)
 		if lerr != nil {

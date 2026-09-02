@@ -44,7 +44,7 @@ func fetchEnviron(s *session.Sim, ctx context.Context, source string, patches []
 		if a := patchesAreaKm2(patches); a > overpassMaxKm2 {
 			return "", worldenv.IngestStats{}, fmt.Errorf(
 				"the node patches sum to %.0f km2, past the %.0f km2 a live "+
-					"Overpass pull is fair for; prepare the region offline with tools/envgen",
+					"Overpass pull is fair for. Narrow the network, or prepare the region offline: that needs tools/envgen from a source checkout, which a release bundle does not carry",
 				a, float64(overpassMaxKm2))
 		}
 		var n int
@@ -66,7 +66,7 @@ func fetchEnviron(s *session.Sim, ctx context.Context, source string, patches []
 		if a := patchesAreaKm2(patches); a > overpassMaxKm2 {
 			return "", worldenv.IngestStats{}, fmt.Errorf(
 				"the node patches sum to %.0f km2, past the %.0f km2 a live "+
-					"Overpass pull is fair for; prepare the region offline with tools/envgen",
+					"Overpass pull is fair for. Narrow the network, or prepare the region offline: that needs tools/envgen from a source checkout, which a release bundle does not carry",
 				a, float64(overpassMaxKm2))
 		}
 		// Overpass first: it refuses fast when it refuses at all, and a
