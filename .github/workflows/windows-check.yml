@@ -29,9 +29,10 @@ on:
 
 jobs:
   check:
-    # A hosted Windows runner is minutes we pay for, and this job only smoke-
-    # checks a cross-compiled binary. Six hours of a hung one is not a bill
-    # worth risking.
+    # This job only smoke-checks a cross-compiled binary, so thirty minutes is
+    # already generous. The GitHub default is six hours, and a hung run sitting
+    # in the queue for that long is the failure worth guarding against: it used
+    # to be a bill as well, which the public repository has taken away.
     timeout-minutes: 30
     runs-on: windows-latest
     env:

@@ -26,7 +26,7 @@ on:
         type: boolean
         default: true
       windows:
-        description: 'Build the Windows zip (cross-compiled on Linux, so free)'
+        description: 'Build the Windows zip (cross-compiled on Linux, so it needs no Windows runner)'
         type: boolean
         default: true
 
@@ -395,13 +395,14 @@ jobs:
 
       # Only when something will consume it. The release job is the only
       # consumer and runs on `inputs.release`, so an upload without that is
-      # 440 MB of Actions storage nobody collects - and storage is metered
-      # apart from minutes and fails the billing check on its own.
+      # 440 MB of Actions storage nobody collects.
       #
-      # This is not hypothetical twice over: the comment below already records
-      # four runs filling the account, and three test dispatches on 21 August
-      # filled it again, which is how the release pipeline came to fail on its
-      # last remaining step with the bundle already built and smoke-tested.
+      # The quota that made this urgent was a private repository's: four runs
+      # filled the account, and three test dispatches on 21 August filled it
+      # again, which is how the release pipeline came to fail on its last
+      # remaining step with the bundle already built and smoke-tested. A
+      # public repository is not metered that way, so this is now about not
+      # leaving half a gigabyte a run behind rather than about a bill.
       #
       # A build that does not upload still proves the pipeline: it fetches the
       # emulators, assembles, and runs the smoke test against what a user gets.
@@ -410,9 +411,10 @@ jobs:
         with:
           name: meshbench-linux
           # These bundles are 30-110 MB each and three platforms upload one
-          # per run, so a run costs about 440 MB of Actions storage - which is
-          # metered separately from minutes and fails the billing check on its
-          # own. Four runs filled the account.
+          # per run, so a run leaves about 440 MB of Actions storage behind.
+          # Four runs filled a private repository's quota; a public one has no
+          # such quota, and the retention below is kept because none of it is
+          # worth keeping rather than because it is billed.
           #
           # On a release run they are only the parcel the release job unwraps:
           # it republishes them as release assets, which is the copy that
@@ -819,9 +821,9 @@ jobs:
       - name: Put the parcels out
         # The bundles are release assets now, and that is the copy that
         # lasts. Leaving the same 440 MB in Actions storage as well is a
-        # duplicate that bills: storage is metered separately from minutes
-        # and fails the billing check on its own, which is what four release
-        # runs did to this account.
+        # duplicate of something already published. It used to be a bill too:
+        # four release runs filled this account's storage quota back when the
+        # repository was private. That quota is gone and the duplicate is not.
         #
         # After the publish, and only when it worked - a release job that
         # failed is one somebody re-runs, and re-running it needs the
