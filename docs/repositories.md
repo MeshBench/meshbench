@@ -19,11 +19,33 @@ A fork nobody outside the organisation can fetch cannot satisfy that.
 | `MeshBench/meshbench` | MeshBench itself | GPL-3.0-or-later — `docs/licence.md` | at release |
 | `MeshBench/meshcore-native` | host builds of MeshCore, `VirtualSX1262`, the bridge and `radioserver` | see its NOTICE | yes |
 | `MeshBench/meshbench-reports` | the published reports site | — | yes |
+| `MeshBench/docs` | the documentation site, six of whose pages are generated from here | not stated | yes |
 | `MeshBench/qemu` | QEMU with our SX1262 | GPLv2, upstream's | yes |
 | `MeshBench/tlib` | the CPU library, with the SEVONPEND fix | upstream's | yes |
 | `MeshBench/renode-infrastructure` | the C# half of that fix | upstream's | yes |
 | `MeshBench/renode` | ties them together and builds the package | upstream's | yes |
 | `MeshBench/gio` | Gio with Wayland layer-shell windows | upstream's | yes |
+
+## What the documentation site takes from here
+
+Six of its pages are written by tools rather than by hand: what the simulator
+cannot do, from `docs/shortcomings.md`; the control verb reference, from
+`docs/verb-reference.md`; the CLI reference, from `docs/cli-reference.md`; and
+the three client APIs, read out of `pkg/client-go`, `pkg/client-python` and
+`pkg/client-js`. The generators live in that repository, beside the pages they
+write, and each takes a checkout of this one.
+
+`.github/workflows/publish-docs.yml` runs them from the tag that cuts a
+release, builds the site and pushes the result. It is the only thing that
+does: the site's own build refuses a page that has fallen behind its source,
+but only when that source is reachable, and on its runner this repository is
+not there at all. Every one of the six had gone stale before the workflow
+existed.
+
+Between releases the site is behind this repository on purpose. It describes
+the released version, so a reader following the CLI reference is given flags
+their binary has, and the shortcomings page describes a build they can
+actually download.
 
 ## Forks, and what we changed in each
 
