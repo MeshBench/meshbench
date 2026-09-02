@@ -23,10 +23,10 @@ func registerSchedule(st *state.Store, s *Sim) {
 			return nil, noSuchNode(node)
 		}
 		snd := state.Send{Node: node}
-		if v, ok := numField(p, "at_ms"); ok {
+		if v, ok := namedNum(p, "at_ms"); ok {
 			snd.AtMs = uint32(v)
 		}
-		if v, ok := numField(p, "every_ms"); ok {
+		if v, ok := namedNum(p, "every_ms"); ok {
 			snd.EveryMs = uint32(v)
 		}
 		if c, ok := namedField(p, "command"); ok {
@@ -51,16 +51,16 @@ func registerSchedule(st *state.Store, s *Sim) {
 		}
 		a := state.Assertion{Kind: kind}
 		a.Node, _ = namedField(p, "node")
-		if v, ok := numField(p, "at_least"); ok {
+		if v, ok := namedNum(p, "at_least"); ok {
 			a.AtLeast = int(v)
 		}
-		if v, ok := numField(p, "at_most"); ok {
+		if v, ok := namedNum(p, "at_most"); ok {
 			a.AtMost = int(v)
 		}
-		if v, ok := numField(p, "max_pct"); ok {
+		if v, ok := namedNum(p, "max_pct"); ok {
 			a.MaxPct = v
 		}
-		if v, ok := numField(p, "within_ms"); ok {
+		if v, ok := namedNum(p, "within_ms"); ok {
 			a.WithinMs = uint32(v)
 		}
 		w.Assertions = append(w.Assertions, a)

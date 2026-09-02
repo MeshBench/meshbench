@@ -2,6 +2,7 @@ package session
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -41,5 +42,48 @@ func TestAVerbRefusesSomethingThatIsNotANumber(t *testing.T) {
 		if _, ok := numField(map[string]any{"x": v}, "x"); ok {
 			t.Errorf("%#v was accepted as a number", v)
 		}
+	}
+}
+
+// A bare number fills the primary field and no other.
+//
+// numField answers with the bare parameter whatever field it is asked for,
+// which is right for the one field that parameter means and wrong for every
+// other: numField(5, "lat") and numField(5, "lon") both answered 5, and
+// nodes.place read both through it, so a bare 5 placed a node at 5N 5E and
+// reported the position as the one it had been given.
+func TestABareNumberFillsOnlyOneField(t *testing.T) {
+	if got, ok := numField(5, "lat"); !ok || got != 5 {
+		t.Errorf("the primary field of a bare number is %v/%v, want 5", got, ok)
+	}
+	if got, ok := namedNum(5, "lon"); ok || got != 0 {
+		t.Errorf("a second field of a bare number is %v/%v, want absent", got, ok)
+	}
+	if got, ok := namedNum(map[string]any{"lon": -3.4}, "lon"); !ok || got != -3.4 {
+		t.Errorf("a named field is %v/%v, want -3.4", got, ok)
+	}
+}
+
+// A bare value a number-taking verb cannot read is a refusal, not a default.
+//
+// The collapse params.go exists to prevent, in the one shape it still had. A
+// bare "lots" handed to coverage.resolution read as nobody having asked, so the
+// verb answered with the resolution it had not changed and the caller was told
+// their setting had been applied.
+func TestAnUnreadableBareNumberIsRefused(t *testing.T) {
+	if _, asked, err := numAsked("coverage.resolution", "cells", "lots"); err == nil {
+		t.Errorf("a bare string read as asked=%v with no refusal", asked)
+	} else if !strings.Contains(err.Error(), "cells") {
+		t.Errorf("refused with %v, which does not name the parameter", err)
+	}
+	if _, asked, err := numAsked("coverage.resolution", "cells", nil); err != nil || asked {
+		t.Errorf("no parameter at all read as %v/%v, want absent and no error", asked, err)
+	}
+	// And a bare value meant for some other field stays absence rather than
+	// becoming a refusal: validate.fetch takes a bare URL and an optional
+	// hours, and reading the URL as the hours would refuse a well formed call.
+	if _, asked, err := namedNumAsked("validate.fetch", "hours",
+		"https://example.invalid/feed"); err != nil || asked {
+		t.Errorf("a bare primary read as hours=%v/%v, want absent and no error", asked, err)
 	}
 }

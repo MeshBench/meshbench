@@ -83,11 +83,16 @@ type CompanionMessage struct {
 	SNRdB      float64
 	// Hops is the path length the message arrived over, for a received one.
 	Hops int
-	// Receipt is what became of a sent message, once the run knows: how far
-	// it went and how many heard it. The simulator can answer this and a
-	// real phone cannot, which is the one place this client can do better
-	// than the thing it imitates. Empty until there is something to say.
-	Receipt string
-	// Failed marks a receipt that is bad news rather than good.
-	Failed bool
 }
+
+// There is no receipt for a sent message, and the type used to carry one.
+//
+// What became of a message this client sent - how far it went, how many heard
+// it - is a thing the simulator could answer and a real phone could not, so it
+// was written into the type and into the documentation, and then nothing ever
+// wrote it: correlating a companion message with the reception ledger is the
+// work, and none of it was done. A field nothing writes is not a smaller version
+// of the feature. It is the documentation promising an answer, the panel guarding
+// against an answer that never comes, and every reader of the published type
+// list being told the simulator does something it does not. When the correlation
+// is written the field comes back with it.

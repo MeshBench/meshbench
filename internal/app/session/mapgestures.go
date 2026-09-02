@@ -16,7 +16,7 @@ import (
 
 func registerMapGestures(st *state.Store, s *Sim) {
 	st.Handle("nodes.select", func(w *state.World, p any) (any, error) {
-		name := soleString(p)
+		name := primaryString(p, "node")
 		for i := range w.Nodes {
 			w.Nodes[i].Selected = w.Nodes[i].Name == name
 		}
@@ -130,7 +130,7 @@ func registerMapGestures(st *state.Store, s *Sim) {
 		// session is in. Told "no simulation" first, somebody fixes the
 		// simulation and then meets the same typo again.
 		at := 0
-		if name := soleString(p); name != "" {
+		if name := primaryString(p, "node"); name != "" {
 			// Refused rather than fallen through to node 0. A name that matched
 			// nothing used to originate the packet at whichever node happened to
 			// be first and report that as success, so a typo in a script moved

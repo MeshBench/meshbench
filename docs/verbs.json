@@ -1625,7 +1625,7 @@
           "type": "string",
           "required": true,
           "primary": true,
-          "what": "the deployment to pull from, as a bare string or under this key; an empty one is refused, and so is an object whose single key is anything else"
+          "what": "the deployment to pull from, under this key or as a bare string; an empty one is refused, and an object whose one key is something else is read as the url it holds, the way the old socket's callers write it"
         }
       ],
       "returns": [
@@ -2230,8 +2230,9 @@
         {
           "name": "url",
           "type": "string",
+          "required": true,
           "primary": true,
-          "what": "the deployment to read, as a bare string or the one key of an object; it is not checked here, so an empty or unreachable one is reported by the read failing a moment later rather than by this call being refused"
+          "what": "the deployment to read, under this key or as a bare string; a call with no url in it is refused outright rather than starting a ninety second read of the empty string and answering as though it had been accepted. Whether the url is reachable is still the read's business, and a failure there arrives on the snapshot a moment later"
         }
       ],
       "returns": [

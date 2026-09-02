@@ -53,8 +53,8 @@ func registerPresetsAndPlace(st *state.Store, s *Sim) {
 	st.Handle("nodes.place", func(w *state.World, p any) (any, error) {
 		name, _ := stringField(p, "name")
 		kind, _ := namedField(p, "kind")
-		lat, okLat := numField(p, "lat")
-		lon, okLon := numField(p, "lon")
+		lat, okLat := namedNum(p, "lat")
+		lon, okLon := namedNum(p, "lon")
 		if name == "" || !okLat || !okLon {
 			return nil, fmt.Errorf("nodes.place needs a name, a lat and a lon")
 		}
@@ -73,10 +73,10 @@ func registerPresetsAndPlace(st *state.Store, s *Sim) {
 		}
 		node.HeightAGLm = 10
 		node.TxPowerDBm = 22
-		if v, ok := numField(p, "height_m"); ok {
+		if v, ok := namedNum(p, "height_m"); ok {
 			node.HeightAGLm = v
 		}
-		if v, ok := numField(p, "tx_dbm"); ok {
+		if v, ok := namedNum(p, "tx_dbm"); ok {
 			node.TxPowerDBm = v
 		}
 		// The hardware it is, if it was said.

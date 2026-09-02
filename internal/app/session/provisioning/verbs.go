@@ -30,22 +30,22 @@ func registerProvisioningSettings(st *state.Store, s *session.Sim) {
 				set(v)
 			}
 		}
-		if v, ok := session.NumField(p, "advert_hops"); ok {
+		if v, ok := session.NamedNum(p, "advert_hops"); ok {
 			pr.AdvertHops = int(v)
 		}
-		if v, ok := session.NumField(p, "advert_minutes"); ok {
+		if v, ok := session.NamedNum(p, "advert_minutes"); ok {
 			pr.AdvertMinutes = int(v)
 		}
-		if v, ok := session.NumField(p, "stagger_ms"); ok {
+		if v, ok := session.NamedNum(p, "stagger_ms"); ok {
 			pr.StaggerMs = int(v)
 		}
-		if v, ok := session.NumField(p, "flood_max_advert"); ok {
+		if v, ok := session.NamedNum(p, "flood_max_advert"); ok {
 			pr.FloodMaxAdvert = int(v)
 		}
-		if v, ok := session.NumField(p, "path_hash_mode"); ok {
+		if v, ok := session.NamedNum(p, "path_hash_mode"); ok {
 			pr.PathHashMode = int(v)
 		}
-		if v, ok := session.NumField(p, "comp_path_hash_mode"); ok {
+		if v, ok := session.NamedNum(p, "comp_path_hash_mode"); ok {
 			pr.CompPathHashMode = int(v)
 		}
 		if v, ok := session.NamedField(p, "loop_detect"); ok {

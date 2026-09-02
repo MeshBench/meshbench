@@ -107,7 +107,7 @@ func Register(st *state.Store, s *Sim) {
 		return map[string]any{"nodes": 0, "place": place}, nil
 	})
 	st.Handle("project.open", func(w *state.World, p any) (any, error) {
-		path := soleString(p)
+		path := primaryString(p, "path")
 		f, err := LoadFixture(path)
 		if err != nil {
 			return nil, err

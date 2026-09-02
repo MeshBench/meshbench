@@ -54,7 +54,7 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 	})
 
 	st.HandleInternal("firmware.failed", func(w *state.World, p any) (any, error) {
-		msg := soleString(p)
+		msg := primaryString(p, "reason")
 		// A run that was waiting for firmware does not start on a failure. It
 		// would advance a clock over a mesh that is not there.
 		if w.PendingPlay {
@@ -97,7 +97,7 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 	})
 
 	st.Handle("node.stop", func(w *state.World, p any) (any, error) {
-		name := soleString(p)
+		name := primaryString(p, "node")
 		if err := s.stopNode(name); err != nil {
 			return nil, err
 		}
@@ -107,7 +107,7 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 	})
 
 	st.Handle("node.start", func(w *state.World, p any) (any, error) {
-		name := soleString(p)
+		name := primaryString(p, "node")
 		if err := s.startNode(context.Background(), name, w.Seed); err != nil {
 			return nil, err
 		}
@@ -161,7 +161,7 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 	})
 
 	st.HandleInternal("node.reflashed", func(w *state.World, p any) (any, error) {
-		msg := soleString(p)
+		msg := primaryString(p, "message")
 		w.Stats = s.nodeStats(w.Events)
 		// The node's own window reads the node list rather than the stats, so
 		// a change that stopped at the stats showed in the table and nowhere
@@ -174,7 +174,7 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 	})
 
 	st.HandleInternal("node.reflash_failed", func(w *state.World, p any) (any, error) {
-		msg := soleString(p)
+		msg := primaryString(p, "reason")
 		w.Stats = s.nodeStats(w.Events)
 		w.Say("firmware change failed: " + msg)
 		return nil, nil
@@ -204,7 +204,7 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 	})
 
 	st.Handle("node.provisioning", func(w *state.World, p any) (any, error) {
-		name := soleString(p)
+		name := primaryString(p, "node")
 		lines, err := s.provisioningFor(name)
 		if err != nil {
 			return nil, err

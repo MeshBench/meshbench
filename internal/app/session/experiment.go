@@ -185,16 +185,16 @@ func registerExperiment(st *state.Store, s *Sim) {
 				}
 			}
 		}
-		if v, ok := numField(p, "run_for_ms"); ok && v > 0 {
+		if v, ok := namedNum(p, "run_for_ms"); ok && v > 0 {
 			e.RunForMs = uint32(v)
 		}
-		if v, ok := numField(p, "send_at_ms"); ok && v > 0 {
+		if v, ok := namedNum(p, "send_at_ms"); ok && v > 0 {
 			e.SendAtMs = uint32(v)
 		}
-		if v, ok := numField(p, "spread_ms"); ok && v >= 0 {
+		if v, ok := namedNum(p, "spread_ms"); ok && v >= 0 {
 			e.SpreadMs = uint32(v)
 		}
-		if v, ok := numField(p, "bytes"); ok && v >= 0 {
+		if v, ok := namedNum(p, "bytes"); ok && v >= 0 {
 			e.Bytes = int(v)
 		}
 		if m, ok := p.(map[string]any); ok {
@@ -302,10 +302,10 @@ func registerExperiment(st *state.Store, s *Sim) {
 		if v, ok := stringField(p, "run_for_ms"); ok {
 			_ = v
 		}
-		if v, ok := numField(p, "run_for_ms"); ok && v > 0 {
+		if v, ok := namedNum(p, "run_for_ms"); ok && v > 0 {
 			e.RunForMs = uint32(v)
 		}
-		if v, ok := numField(p, "send_at_ms"); ok && v > 0 {
+		if v, ok := namedNum(p, "send_at_ms"); ok && v > 0 {
 			e.SendAtMs = uint32(v)
 		}
 		return e.describe(), nil

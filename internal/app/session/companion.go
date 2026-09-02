@@ -145,7 +145,7 @@ func registerCompanion(st *state.Store, s *Sim) {
 			return nil, err
 		}
 		idx := uint8(0)
-		if v, ok := numField(p, "channel"); ok {
+		if v, ok := namedNum(p, "channel"); ok {
 			idx = uint8(v)
 		}
 		// The path hash size ahead of the message, when one was chosen.
@@ -155,7 +155,7 @@ func registerCompanion(st *state.Store, s *Sim) {
 		// with two-byte hashes" is necessarily two commands in order. Doing
 		// it here rather than in the client keeps the order on the wire,
 		// which a UI that fires two verbs cannot promise.
-		if n, ok := numField(p, "path_hash"); ok {
+		if n, ok := namedNum(p, "path_hash"); ok {
 			if err := setPathHash(en, uint8(n)); err != nil {
 				return nil, err
 			}
@@ -215,7 +215,7 @@ func registerCompanion(st *state.Store, s *Sim) {
 			return nil, err
 		}
 		idx := uint8(0)
-		if v, ok := numField(p, "index"); ok {
+		if v, ok := namedNum(p, "index"); ok {
 			idx = uint8(v)
 		}
 		if err := en.Firmware.Bridge.Type(compFrame(proto.GetChannel(idx))); err != nil {
@@ -236,7 +236,7 @@ func registerCompanion(st *state.Store, s *Sim) {
 			return nil, fmt.Errorf("%s is not connected", node)
 		}
 		idx := 0
-		if v, ok := numField(p, "channel"); ok {
+		if v, ok := namedNum(p, "channel"); ok {
 			idx = int(v)
 		}
 		c.mu.Lock()

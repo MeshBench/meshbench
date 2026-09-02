@@ -133,10 +133,7 @@ func registerFirmwareUpdate(st *state.Store, s *Sim) {
 // last rebuild. A role or a board is needed only to break a tie, so the common
 // case - one label, one build - is a single word.
 func findBuildRow(w *state.World, s *Sim, p any) (state.FirmwareRow, error) {
-	version := soleString(p)
-	if v, ok := namedField(p, "version"); ok {
-		version = v
-	}
+	version := primaryString(p, "version")
 	if version == "" {
 		return state.FirmwareRow{}, badParams("this needs a build's version or label")
 	}

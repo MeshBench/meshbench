@@ -34,6 +34,7 @@ import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import clients  # noqa: E402  (needs the path above it)
 import reference  # noqa: E402  (needs the path above it)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -62,6 +63,9 @@ API_COUNTS = ("total", "uionly", "nofacade")
 _map = json.load(open(MAP))
 FACADE = _map["facade"]
 WHY_NONE = _map["no_facade"]
+# The namespaces designed and not written. Marked in both documents rather than
+# printed as though a reader could call them today.
+PLANNED = _map["planned"]
 GROUPS = [(g["title"], g["prefixes"]) for g in _map["groups"]]
 
 # Both spellings: HandleInternal is the workbench's own callbacks, which are
@@ -312,6 +316,40 @@ def substitute_counts(path, text, counts, keys):
     return text
 
 
+def check_facade_reaches_a_client():
+    """Hold every wb.<namespace> in facade.json against the three clients.
+
+    The guard #479 asked for. A facade entry naming a namespace no client
+    defines is the same fault as one naming a verb nothing registers - a
+    reader is told to call something that is not there - and only the second
+    of the two failed the build. It is allowed, but it has to be written down
+    in planned and it is marked wherever it prints.
+    """
+    have = set.intersection(*clients.namespaces(ROOT).values())
+    used = clients.used_by(FACADE)
+    unwritten = sorted(n for n in used if n not in have and n not in PLANNED)
+    if unwritten:
+        lines = ["no client defines these facade namespaces, and planned does "
+                 "not say so either:"]
+        for name in unwritten:
+            lines.append("  wb.%s - %s" % (name, ", ".join(used[name])))
+        lines.append("add the namespace to all three clients, or add it to "
+                     "planned in facade.json with a line saying what it covers.")
+        sys.exit("\n".join(lines))
+    # And the other way: a namespace listed as planned that a client has grown
+    # since, so the entry stays a promise after it has been kept.
+    kept = sorted(n for n in PLANNED if n in have)
+    if kept:
+        sys.exit("planned in facade.json still lists " + ", ".join(kept) +
+                 ", which every client now defines; drop the entry so the "
+                 "reference stops marking it")
+    stale = sorted(n for n in PLANNED if n not in used)
+    if stale:
+        sys.exit("planned in facade.json lists " + ", ".join(stale) +
+                 ", which no facade entry spells any more")
+    return {n: PLANNED[n] for n in used if n in PLANNED}
+
+
 def takes(v):
     parts = []
     if v["sole"]:
@@ -326,7 +364,25 @@ def returns(v):
     return ", ".join(f"`{r}`" for r in v["returns"]) if v["returns"] else "—"
 
 
-def render(verbs, header):
+def facade_cell(name, planned):
+    """The façade column for one verb, marked when no client has it yet.
+
+    The pipe is escaped because this is a table cell: two of the calls offer a
+    choice and spell it `'tcp'|'serial'`, which ended that row early and put
+    the rest of it in a column that does not exist.
+    """
+    call = FACADE[name]
+    if not call:
+        return "*none* — " + WHY_NONE[name]
+    cell = "`" + call.replace("|", "\\|") + "`"
+    for ns in sorted(clients.NAMESPACE.findall(call)):
+        if ns in planned:
+            return cell + " - *planned*, no client defines `wb." + ns + \
+                "` yet; call the verb"
+    return cell
+
+
+def render(verbs, header, planned):
     win = ui_only()
     out, seen = [header.rstrip("\n"), ""], set()
     for title, prefixes in GROUPS:
@@ -336,8 +392,7 @@ def render(verbs, header):
                 continue
             seen.add(name)
             v = verbs[name]
-            f = FACADE[name]
-            f = "`" + f + "`" if f else "*none* — " + WHY_NONE[name]
+            f = facade_cell(name, planned)
             flag = " 🪟" if name in win else ""
             rows.append(f"| `{name}`{flag} | {takes(v)} | {returns(v)} | {f} |")
         if rows:
@@ -397,12 +452,13 @@ def main():
                         for _, pre in GROUPS if n.split(".")[0] in pre})
     if ungrouped:
         sys.exit("ungrouped verbs: " + ", ".join(ungrouped))
+    planned = check_facade_reaches_a_client()
 
     counts = verb_counts(verbs)
-    doc = render(verbs, header_from_doc(counts))
+    doc = render(verbs, header_from_doc(counts), planned)
     api = api_doc(counts)
     ref = reference.render(verbs, GROUPS, FACADE, WHY_NONE, ui_only(),
-                           internal_only(), counts)
+                           internal_only(), counts, planned)
     written = ((DOC, doc), (API, api), (REF, ref))
     if "--check" in sys.argv:
         for path, want in written:

@@ -137,41 +137,67 @@ func askedNothing(p any) bool {
 	return false
 }
 
-// numAsked reads a number that may legitimately be absent.
+// numAsked reads a verb's PRIMARY number, which may legitimately be absent.
 //
 // Three answers rather than two: not asked for, asked for and usable, asked for
 // and not. Collapsing the first and the third is the whole bug this file is
 // about - a verb that could not read `"hours": "twelve"` went on to use its own
 // 24 and reported the window it had chosen as the window it had been given.
+//
+// A bare value counts as the primary field being asked for, so a bare value
+// that is not a number is the third case and not the first: `coverage.resolution
+// "lots"` used to read as nobody having asked, and answered with the resolution
+// it had not changed. Every other field goes through namedNumAsked, which has
+// no bare form for the reason namedNum has none.
 func numAsked(verb, name string, p any) (float64, bool, error) {
-	switch v := p.(type) {
-	case nil:
+	if p == nil {
 		return 0, false, nil
-	case map[string]any:
-		raw, present := v[name]
-		if !present || raw == nil {
-			return 0, false, nil
-		}
-		n, ok := toNumber(raw)
+	}
+	if _, isObject := p.(map[string]any); !isObject {
+		n, ok := toNumber(p)
 		if !ok {
-			return 0, false, badParams("%s: %s is a %T; it takes a number",
-				verb, name, raw)
+			return 0, false, badParams("%s: %s was given a %T; it takes a number",
+				verb, name, p)
 		}
 		return n, true, nil
 	}
-	// A bare value: several of these verbs take their one number that way, and
-	// anything that is not a number is a parameter meant for some other field.
-	n, ok := toNumber(p)
-	return n, ok, nil
+	return namedNumAsked(verb, name, p)
 }
 
-// requiredNum reads a number a verb cannot proceed without.
+// namedNumAsked is numAsked for a field that has to be named to be meant.
+//
+// A bare value reads as absence rather than as this field, because the caller
+// spent it on the verb's primary parameter: validate.fetch takes a bare URL and
+// an optional hours beside it, and reading that URL as the hours would refuse a
+// call that is perfectly well formed.
+func namedNumAsked(verb, name string, p any) (float64, bool, error) {
+	m, ok := p.(map[string]any)
+	if !ok {
+		return 0, false, nil
+	}
+	raw, present := m[name]
+	if !present || raw == nil {
+		return 0, false, nil
+	}
+	n, ok := toNumber(raw)
+	if !ok {
+		return 0, false, badParams("%s: %s is a %T; it takes a number",
+			verb, name, raw)
+	}
+	return n, true, nil
+}
+
+// requiredNum reads a named number a verb cannot proceed without.
 //
 // Both halves refuse: absent, because there is no sensible stand-in for a
 // coordinate; and out of range, because a latitude of 560 is a caller who meant
 // something else, and storing it puts a node somewhere no node can be.
+//
+// Named rather than primary, because everything that has needed this so far has
+// needed two of them: a bare 5 read as both the latitude and the longitude of
+// nodes.move put the node at 5N 5E and reported the move as asked for.
 func requiredNum(verb, name string, p any, lo, hi float64) (float64, error) {
-	v, asked, err := numAsked(verb, name, p)
+	v, asked, err := namedNumAsked(verb, name, p)
 	if err != nil {
 		return 0, err
 	}
@@ -189,6 +215,19 @@ func requiredNum(verb, name string, p any, lo, hi float64) (float64, error) {
 // than that same default.
 func numInRange(verb, name string, p any, def, lo, hi float64) (float64, error) {
 	v, asked, err := numAsked(verb, name, p)
+	return ranged(verb, name, v, asked, err, def, lo, hi)
+}
+
+// namedNumInRange is numInRange for a field that has to be named to be meant.
+func namedNumInRange(verb, name string, p any, def, lo, hi float64) (float64, error) {
+	v, asked, err := namedNumAsked(verb, name, p)
+	return ranged(verb, name, v, asked, err, def, lo, hi)
+}
+
+// ranged is the half the two share: the default when absent, the range when
+// present. Written once so the two cannot come to disagree about which of those
+// a value gets.
+func ranged(verb, name string, v float64, asked bool, err error, def, lo, hi float64) (float64, error) {
 	if err != nil {
 		return 0, err
 	}

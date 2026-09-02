@@ -321,7 +321,17 @@ func (s *Sim) importRegion(marginKm float64) *scenario.Region {
 	return &scenario.Region{Boundaries: s.areas, MarginKm: marginKm}
 }
 
-// stateNodes is the interface's view of a scenario.
+// stateNodes is the interface's view of a scenario: the only way a scenario
+// node becomes a world node.
+//
+// There were two, and what they disagreed about was invisible. The fixture and
+// checkpoint path set no Hardware and no card fields, so every node opened from
+// a project reported an empty board over the socket and no card slot at all
+// until somebody happened to touch its firmware; this one set no TrueRF, so a
+// hybrid receiver imported from a feed took calculated verdicts. Each builder
+// was exercised by its own tests and each passed. The first node is selected,
+// matching the interface's rule that opening a network puts the cursor on
+// something.
 func stateNodes(nodes []scenario.Node) []state.Node {
 	need := buildsNeedingCards()
 	out := make([]state.Node, 0, len(nodes))
@@ -338,6 +348,7 @@ func stateNodes(nodes []scenario.Node) []state.Node {
 			Regions: n.Regions, DefaultScope: n.DefaultScope,
 			Firmware: n.Firmware.Version, Board: n.Firmware.Board,
 			Hardware: n.Board,
+			TrueRF:   n.TrueRF,
 			Selected: i == 0,
 			// The antenna as well as everything else. This converter serves
 			// import, placement and the bulk verbs, and left without them a

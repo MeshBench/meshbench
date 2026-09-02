@@ -644,9 +644,12 @@ path is established. A contact with no path is still a contact.
 | `At` | `time.Time` | |
 | `Mine` | `bool` | this client sent it — nothing echoes a sent message, so without this a conversation stays empty |
 | `SNRdB` | `float64` | |
-| `Hops` | `int` | |
-| `Receipt` | `string` | what became of a sent message: how far it went, how many heard it. The simulator can answer this and a real phone cannot |
-| `Failed` | `bool` | the receipt is bad news |
+| `Hops` | `int` | how many hops a received message came over |
+
+There is no receipt for a message this client sent. What became of one, how far
+it went and how many heard it, is a thing the simulator could answer and a real
+phone could not; nothing correlates a companion message with the reception
+ledger yet, so the type carries no field promising it.
 
 ## Console
 

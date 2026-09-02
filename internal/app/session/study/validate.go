@@ -39,7 +39,7 @@ func registerValidate(st *state.Store, s *session.Sim) {
 		// something unusable. Zero, a negative and the string "twelve" all used
 		// to come out as twenty-four, so the report said it had compared a
 		// day's observations and the caller believed it had asked for one.
-		hours, err := session.NumInRange("validate.fetch", "hours", p, 24,
+		hours, err := session.NamedNumInRange("validate.fetch", "hours", p, 24,
 			minValidateHours, maxValidateHours)
 		if err != nil {
 			return nil, err

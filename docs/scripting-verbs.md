@@ -99,8 +99,8 @@ Two verbs are **not** in this table:
 | verb | takes | returns | façade |
 |---|---|---|---|
 | `app.quit` | — | `closing`, `headless` | `wb.quit()` |
-| `log.path` | — | `path` | `wb.log.path` |
-| `logs.export` | *a bare string*, `to` string | `path` | `wb.log.export(path)` |
+| `log.path` | — | `path` | `wb.log.path` - *planned*, no client defines `wb.log` yet; call the verb |
+| `logs.export` | *a bare string*, `to` string | `path` | `wb.log.export(path)` - *planned*, no client defines `wb.log` yet; call the verb |
 | `session.checkpoint` | *a bare string*, `name` string | `checkpoint`, `path`, `now_ms`, `nodes` | `wb.checkpoint(name)` |
 | `session.checkpoints` | — | `checkpoints` | `wb.checkpoints()` |
 | `session.describe` | — | `nodes`, `seed`, `now_ms`, `playing` | `wb.describe()` |
@@ -110,8 +110,8 @@ Two verbs are **not** in this table:
 | `session.status` | — | `status`, `nodes`, `playing`, `now_ms`, `firmware_running`, `jobs`, `job` | `wb.status()` |
 | `ui.keep_above` | `on` bool | `on` | `wb.keep_above()` |
 | `ui.said` | *a bare string*, `text` string | `said` | `wb.say(text)` |
-| `ui.scale` 🪟 | *a bare string*, `scale` number | `scale` | `wb.ui.scale = x` |
-| `ui.state` 🪟 | — | `view`, `popped`, `scale`, `tool`, `nodes`, `playing`, `now_ms`, `jobs`, `running` | `wb.ui.state()` |
+| `ui.scale` 🪟 | *a bare string*, `scale` number | `scale` | `wb.ui.scale = x` - *planned*, no client defines `wb.ui` yet; call the verb |
+| `ui.state` 🪟 | — | `view`, `popped`, `scale`, `tool`, `nodes`, `playing`, `now_ms`, `jobs`, `running` | `wb.ui.state()` - *planned*, no client defines `wb.ui` yet; call the verb |
 
 ### Project
 
@@ -128,7 +128,7 @@ Two verbs are **not** in this table:
 |---|---|---|---|
 | `node.aim` | *a bare string*, `node` string, `at` string | `node`, `at`, `bearing_deg`, `distance_km`, `gain_dbi` | `node.aim(at)` |
 | `node.antenna` | *a bare string*, `node` string | `node`, `pattern`, `gain_dbi_peak`, `beamwidth_deg`, `front_to_back_db`, `bearing_deg`, `downtilt_deg`, `polarisation`, `feedline_db`, `peak_dbi` | `node.antenna` |
-| `node.card` | *a bare string*, `node` string, `fitted` bool, `file` string, `wipe` bool | `node`, `slot`, `fitted`, `file`, `own_file`, `bytes`, `required_by_firmware`, `board_has_slot`, `wiped` | `node.card(fitted=|file=|wipe=)` |
+| `node.card` | *a bare string*, `node` string, `fitted` bool, `file` string, `wipe` bool | `node`, `slot`, `fitted`, `file`, `own_file`, `bytes`, `required_by_firmware`, `board_has_slot`, `wiped` | `node.card(fitted=\|file=\|wipe=)` |
 | `node.energy` | *a bare string*, `node` string | `node` | `node.energy()` |
 | `node.output` | *a bare string*, `node` string, `source` string, `lines` number | `node`, `source`, `lines`, `total`, `path`, `tail`, `note`, `tracing` | `node.output(source)` |
 | `node.output_window` 🪟 | *a bare string*, `node` string, `source` string | `node`, `source` | `node.output_window(source)` |
@@ -166,9 +166,9 @@ Two verbs are **not** in this table:
 | verb | takes | returns | façade |
 |---|---|---|---|
 | `board.key` | `node` string, `text` string | `node`, `typed` | `node.device.type(text)` |
-| `board.matrix` | *a bare string*, `version` string | `version`, `boards` | `wb.boards.matrix(version)` |
+| `board.matrix` | *a bare string*, `version` string | `version`, `boards` | `wb.boards.matrix(version)` - *planned*, no client defines `wb.boards` yet; call the verb |
 | `board.press` | `node` string, `pin` number, `down` bool | `node`, `pin`, `down` | `node.device.press(pin, down)  /  .tap(pin)` |
-| `board.probe` | *a bare string*, `board` string, `version` string | `probing`, `board`, `version` | `wb.boards.probe(board, version)` |
+| `board.probe` | *a bare string*, `board` string, `version` string | `probing`, `board`, `version` | `wb.boards.probe(board, version)` - *planned*, no client defines `wb.boards` yet; call the verb |
 | `board.probe_finished` | *a bare string*, `board` string, `version` string | `board`, `passed`, `failed` | *none* — a probe worker reporting back |
 | `board.screen` | *a bare string*, `node` string | `node`, `has_screen`, `width`, `height`, `bpp`, `on`, `lit`, `digest` | `node.device.screen()  (numbers, not a picture)` |
 | `board.screenshot` | *a bare string*, `node` string | `node`, `path`, `width`, `height`, `bpp`, `on` | `node.device.screenshot()  (writes a PNG)` |
@@ -184,7 +184,7 @@ Two verbs are **not** in this table:
 | `sim.pause` | — | `playing` | `wb.sim.pause()` |
 | `sim.play` | — | `playing` | `wb.sim.play()` |
 | `sim.reset` | — | `seed`, `now_ms` | `wb.sim.reset()` |
-| `sim.run` | *a bare string*, `for_ms` number | `running`, `until_ms`, `now_ms` | `wb.sim.run(ms=|seconds=|minutes=)` |
+| `sim.run` | *a bare string*, `for_ms` number | `running`, `until_ms`, `now_ms` | `wb.sim.run(ms=\|seconds=\|minutes=)` |
 | `sim.seed` | *a bare string*, `seed` number | `seed` | `wb.sim.seed = n` |
 | `sim.settle` | *a bare string*, `steps` number | `now_ms`, `steps` | `wb.sim.settle(steps=...)` |
 | `sim.slower` | — | `step_ms` | `wb.sim.slower()` |
@@ -212,11 +212,11 @@ Two verbs are **not** in this table:
 | `firmware.needed` | — | `roles` | `wb.firmware.needed()` |
 | `firmware.published` | — | `published`, `builds` | *none* — the catalogue fetch landing its answer; wb.firmware.scan() asks for one |
 | `firmware.rescan` | — | `scanning`, `count` | `wb.firmware.scan()` |
-| `firmware.set` | *a bare string*, `version` string, `node` string, `role` string | `version`, `nodes`, `considered` | `wb.firmware.use(version, role=|node=)` |
+| `firmware.set` | *a bare string*, `version` string, `node` string, `role` string | `version`, `nodes`, `considered` | `wb.firmware.use(version, role=\|node=)` |
 | `firmware.start` | — | `starting` | `wb.firmware.start()` |
 | `firmware.started` | — | `running`, `playing` | *none* — the firmware starter reporting back |
 | `firmware.state` | — | `running`, `nodes`, `total`, `starting` | `wb.firmware.state()  /  wb.firmware.wait_started()` |
-| `firmware.update` | *a bare string*, `version` string, `role` string, `board` string, `label` string, `new_role` string, `new_board` string, `card_required` bool, `coproc_at_reset` bool, `notes` string | `role`, `version`, `board`, `path`, `renamed`, `repinned`, `settings` | `wb.firmware.update(build, label=|new_role=|coproc_at_reset=|notes=)` |
+| `firmware.update` | *a bare string*, `version` string, `role` string, `board` string, `label` string, `new_role` string, `new_board` string, `card_required` bool, `coproc_at_reset` bool, `notes` string | `role`, `version`, `board`, `path`, `renamed`, `repinned`, `settings` | `wb.firmware.update(build, label=\|new_role=\|coproc_at_reset=\|notes=)` |
 | `firmware.window` 🪟 | *a bare string*, `version` string, `role` string, `board` string | `role`, `version`, `board` | `wb.firmware.window(build)` |
 | `firmware.wipe` | — | `wiped`, `root`, `cards` | `wb.firmware.wipe()` |
 
@@ -228,7 +228,7 @@ Two verbs are **not** in this table:
 | `console.read` | *a bare string*, `node` string | `node`, `lines`, `tail` | `node.console.read()  /  node.console.tail` |
 | `console.type` | `node` string, `command` string | `node`, `sent`, `note` | `node.console.send(line)` |
 | `fleet.replies` | — | `replies` | *none* — the reply collector, called only by its own goroutine |
-| `fleet.send` | *a bare string*, `command` string, `node` string, `kind` string | `command`, `sent_to`, `replies`, `warning` | `wb.fleet.send(command, kind=|node=)` |
+| `fleet.send` | *a bare string*, `command` string, `node` string, `kind` string | `command`, `sent_to`, `replies`, `warning` | `wb.fleet.send(command, kind=\|node=)` - *planned*, no client defines `wb.fleet` yet; call the verb |
 
 ### Companion
 
@@ -252,8 +252,8 @@ Two verbs are **not** in this table:
 |---|---|---|---|
 | `bench.drop` | `node` string | `dropped` | `node.unserve()` |
 | `bench.refresh` | — | — | `wb.endpoints` |
-| `bench.serve` | `node` string, `kind` string | `node`, `addr` | `node.serve(kind='tcp'|'serial')` |
-| `bench.stray` | — | `at` | `wb.endpoints.stray()` |
+| `bench.serve` | `node` string, `kind` string | `node`, `addr` | `node.serve(kind='tcp'\|'serial')` |
+| `bench.stray` | — | `at` | `wb.endpoints.stray()` - *planned*, no client defines `wb.endpoints` yet; call the verb |
 | `sdr.serve` | *a bare string*, `node` string | `node`, `addr`, `rate_hz` | `node.serve_sdr()` |
 | `sdr.stop` | *a bare string*, `node` string | `stopped` | `node.unserve_sdr()` |
 
@@ -261,43 +261,43 @@ Two verbs are **not** in this table:
 
 | verb | takes | returns | façade |
 |---|---|---|---|
-| `capture.file` | *a bare string*, `path` string | `path` | `wb.capture.start(path)` |
-| `capture.stop` | — | `path`, `frames` | `wb.capture.stop()` |
-| `capture.wireshark` | — | `addr`, `how`, `dissector_error`, `dissector_warning`, `launched`, `launch_error` | `wb.capture.wireshark()` |
+| `capture.file` | *a bare string*, `path` string | `path` | `wb.capture.start(path)` - *planned*, no client defines `wb.capture` yet; call the verb |
+| `capture.stop` | — | `path`, `frames` | `wb.capture.stop()` - *planned*, no client defines `wb.capture` yet; call the verb |
+| `capture.wireshark` | — | `addr`, `how`, `dissector_error`, `dissector_warning`, `launched`, `launch_error` | `wb.capture.wireshark()` - *planned*, no client defines `wb.capture` yet; call the verb |
 | `events.dump` | *a bare string*, `path` string | `path`, `written`, `total` | `wb.events.dump(path)` |
 | `events.recent` | *a bare string*, `limit` number | `events`, `total`, `shown` | `wb.events.recent(limit=)` |
-| `packet.close` | — | — | `wb.packets.close()` |
-| `packet.open` | *a bare string*, `id` number, `seek` number | `id`, `origin`, `heard`, `missed`, `transmissions`, `reached` | `wb.packets.open(id, seek=)` |
-| `waterfall.capture` | *a bare string*, `node` string | `captured` | `wb.capture.waterfall(node)` |
+| `packet.close` | — | — | `wb.packets.close()` - *planned*, no client defines `wb.packets` yet; call the verb |
+| `packet.open` | *a bare string*, `id` number, `seek` number | `id`, `origin`, `heard`, `missed`, `transmissions`, `reached` | `wb.packets.open(id, seek=)` - *planned*, no client defines `wb.packets` yet; call the verb |
+| `waterfall.capture` | *a bare string*, `node` string | `captured` | `wb.capture.waterfall(node)` - *planned*, no client defines `wb.capture` yet; call the verb |
 
 ### Links, budgets and profiles
 
 | verb | takes | returns | façade |
 |---|---|---|---|
-| `budget.for_selection` | — | `budgets` | `wb.links.budget()` |
-| `link.pair` | `a` object, `b` object | `from`, `to`, `ground` | `wb.links.pair(a, b)` |
+| `budget.for_selection` | — | `budgets` | `wb.links.budget()` - *planned*, no client defines `wb.links` yet; call the verb |
+| `link.pair` | `a` object, `b` object | `from`, `to`, `ground` | `wb.links.pair(a, b)` - *planned*, no client defines `wb.links` yet; call the verb |
 | `link.pair_set` | — | `from`, `to`, `km`, `edges` | *none* — the pair worker publishing its answer |
-| `link.profile` | — | `from`, `to` | `wb.links.profile(a, b)` |
+| `link.profile` | — | `from`, `to` | `wb.links.profile(a, b)` - *planned*, no client defines `wb.links` yet; call the verb |
 | `link.profile_set` | — | `from`, `to`, `km`, `edges` | *none* — the profile worker publishing its answer |
-| `links.recompute` | — | `warming` | `wb.links.recompute()` |
+| `links.recompute` | — | `warming` | `wb.links.recompute()` - *planned*, no client defines `wb.links` yet; call the verb |
 | `links.set` | — | `links` | *none* — the warm publishing its matrix |
-| `study.margin` | *a bare string*, `km` number | `km` | `wb.study.margin_km = n` |
+| `study.margin` | *a bare string*, `km` number | `km` | `wb.study.margin_km = n` - *planned*, no client defines `wb.study` yet; call the verb |
 
 ### Coverage and planning
 
 | verb | takes | returns | façade |
 |---|---|---|---|
-| `coverage.clear` | — | — | `wb.study.clear_coverage()` |
+| `coverage.clear` | — | — | `wb.study.clear_coverage()` - *planned*, no client defines `wb.study` yet; call the verb |
 | `coverage.combined` | — | `mode`, `gap_cells`, `known_cells`, `redundancy`, `single_point_of_failure` | *none* — the raster worker publishing the network-wide answer |
-| `coverage.compute` | *a bare string*, `node` string | `nodes`, `started` | `wb.study.coverage(node)` |
+| `coverage.compute` | *a bare string*, `node` string | `nodes`, `started` | `wb.study.coverage(node)` - *planned*, no client defines `wb.study` yet; call the verb |
 | `coverage.failed` | — | — | *none* — the raster worker reporting a failure |
-| `coverage.map` | *a bare string*, `cells` number, `station` string, `south` number, `north` number, `west` number, `east` number | `nodes`, `started`, `ground` | `wb.study.coverage_map()` |
-| `coverage.resolution` | *a bare string*, `cells` number | `cells` | `wb.study.coverage_cells = n` |
+| `coverage.map` | *a bare string*, `cells` number, `station` string, `south` number, `north` number, `west` number, `east` number | `nodes`, `started`, `ground` | `wb.study.coverage_map()` - *planned*, no client defines `wb.study` yet; call the verb |
+| `coverage.resolution` | *a bare string*, `cells` number | `cells` | `wb.study.coverage_cells = n` - *planned*, no client defines `wb.study` yet; call the verb |
 | `coverage.set` | — | `node` | *none* — the raster worker publishing its answer |
-| `coverage.start` | *a bare string*, `mode` string | `mode`, `nodes`, `started`, `ground` | `wb.study.coverage(mode=)` |
-| `energy.for_selection` | — | `node` | `wb.study.energy()` |
+| `coverage.start` | *a bare string*, `mode` string | `mode`, `nodes`, `started`, `ground` | `wb.study.coverage(mode=)` - *planned*, no client defines `wb.study` yet; call the verb |
+| `energy.for_selection` | — | `node` | `wb.study.energy()` - *planned*, no client defines `wb.study` yet; call the verb |
 | `plan.failed` | — | — | *none* — the planner reporting a failure |
-| `plan.routes` | — | `from`, `to` | `wb.study.plan(a, b)` |
+| `plan.routes` | — | `from`, `to` | `wb.study.plan(a, b)` - *planned*, no client defines `wb.study` yet; call the verb |
 | `plan.set` | — | `routes` | *none* — the planner publishing its answer |
 
 ### Boundary, import and feeds
@@ -311,63 +311,63 @@ Two verbs are **not** in this table:
 | `boundary.remove` | *a bare string*, `name` string | `removed`, `areas` | `wb.boundary.remove(name)` |
 | `boundary.set` | *a bare string*, `query` string | `found`, `names` | `wb.boundary.search(query)` |
 | `feed.failed` | — | — | *none* — the feed reporting a failure |
-| `feed.pull` | *a bare string*, `url` string | `url` | `wb.feed.pull(url)` |
+| `feed.pull` | *a bare string*, `url` string | `url` | `wb.feed.pull(url)` - *planned*, no client defines `wb.feed` yet; call the verb |
 | `feed.set` | — | `receptions` | *none* — the feed publishing receptions |
-| `feed.stop` | — | `stopped` | `wb.feed.stop()` |
-| `import.commit` | *a bare string*, `strategy` string | `nodes`, `strategy` | `wb.import_.commit(strategy=)` |
-| `import.describe` | *a bare string*, `url` string | `url` | `wb.import_.describe(url)` |
+| `feed.stop` | — | `stopped` | `wb.feed.stop()` - *planned*, no client defines `wb.feed` yet; call the verb |
+| `import.commit` | *a bare string*, `strategy` string | `nodes`, `strategy` | `wb.import_.commit(strategy=)` - *planned*, no client defines `wb.import_` yet; call the verb |
+| `import.describe` | *a bare string*, `url` string | `url` | `wb.import_.describe(url)` - *planned*, no client defines `wb.import_` yet; call the verb |
 | `import.failed` | — | — | *none* — the fetch reporting a failure |
-| `import.fetch` | *a bare string*, `url` string | `records`, `nodes`, `skipped_no_position`, `uncertain` | `wb.import_.fetch(url)` |
+| `import.fetch` | *a bare string*, `url` string | `records`, `nodes`, `skipped_no_position`, `uncertain` | `wb.import_.fetch(url)` - *planned*, no client defines `wb.import_` yet; call the verb |
 | `import.set` | — | — | *none* — the fetch publishing its preview |
-| `import.set_source` | *a bare string*, `url` string | `url` | `wb.import_.source = url` |
-| `infer.apply` | — | `applied` | `wb.import_.apply_inference()` |
+| `import.set_source` | *a bare string*, `url` string | `url` | `wb.import_.source = url` - *planned*, no client defines `wb.import_` yet; call the verb |
+| `infer.apply` | — | `applied` | `wb.import_.apply_inference()` - *planned*, no client defines `wb.import_` yet; call the verb |
 | `infer.progress` | — | — | *none* — the traffic reader saying how far it has got |
 | `infer.result` | — | `packets`, `nodes`, `regions` | *none* — the traffic reader handing its packets back; wb.import_.inference reads the answer |
-| `infer.run` | *a bare string*, `hours` number | `reading`, `hours` | `wb.import_.infer(hours=)` |
+| `infer.run` | *a bare string*, `hours` number | `reading`, `hours` | `wb.import_.infer(hours=)` - *planned*, no client defines `wb.import_` yet; call the verb |
 
 ### Experiments and sweeps
 
 | verb | takes | returns | façade |
 |---|---|---|---|
-| `experiment.base` | `run_for_ms` number, `send_at_ms` number | `arms`, `seeds`, `senders`, `runs`, `run_for_ms`, `send_at_ms`, `spread_ms`, `bytes`, `scope`, `arm_labels` | `wb.experiment.base(...)` |
-| `experiment.compare` | *a bare string*, `arm_a` string, `arm_b` string | `a`, `b`, `delta`, `note` | `wb.experiment.compare(a, b)` |
-| `experiment.define` | `arms` array, `seeds` array, `senders` array, `run_for_ms` number, `send_at_ms` number, `spread_ms` number, `bytes` number, `scope` string | `arms`, `seeds`, `senders`, `runs`, `run_for_ms`, `send_at_ms`, `spread_ms`, `bytes`, `scope`, `arm_labels` | `wb.experiment.define(...)` |
-| `experiment.export` | *a bare string*, `path` string | `path`, `bytes` | `wb.experiment.export(path)` |
+| `experiment.base` | `run_for_ms` number, `send_at_ms` number | `arms`, `seeds`, `senders`, `runs`, `run_for_ms`, `send_at_ms`, `spread_ms`, `bytes`, `scope`, `arm_labels` | `wb.experiment.base(...)` - *planned*, no client defines `wb.experiment` yet; call the verb |
+| `experiment.compare` | *a bare string*, `arm_a` string, `arm_b` string | `a`, `b`, `delta`, `note` | `wb.experiment.compare(a, b)` - *planned*, no client defines `wb.experiment` yet; call the verb |
+| `experiment.define` | `arms` array, `seeds` array, `senders` array, `run_for_ms` number, `send_at_ms` number, `spread_ms` number, `bytes` number, `scope` string | `arms`, `seeds`, `senders`, `runs`, `run_for_ms`, `send_at_ms`, `spread_ms`, `bytes`, `scope`, `arm_labels` | `wb.experiment.define(...)` - *planned*, no client defines `wb.experiment` yet; call the verb |
+| `experiment.export` | *a bare string*, `path` string | `path`, `bytes` | `wb.experiment.export(path)` - *planned*, no client defines `wb.experiment` yet; call the verb |
 | `experiment.finished` | — | `runs`, `warning` | *none* — the sweep runner reporting it finished |
-| `experiment.results` | — | `runs`, `arms`, `warning` | `wb.experiment.results(arm=)` |
-| `experiment.seeds` | `seeds` array | `arms`, `seeds`, `senders`, `runs`, `run_for_ms`, `send_at_ms`, `spread_ms`, `bytes`, `scope`, `arm_labels` | `wb.experiment.seeds = [...]` |
-| `experiment.senders` | `senders` array | `arms`, `seeds`, `senders`, `runs`, `run_for_ms`, `send_at_ms`, `spread_ms`, `bytes`, `scope`, `arm_labels` | `wb.experiment.senders = [...]` |
-| `experiment.start` | — | `running`, `runs` | `wb.experiment.start()` |
-| `experiment.state` | — | `arms`, `seeds`, `senders`, `runs`, `run_for_ms`, `send_at_ms`, `spread_ms`, `bytes`, `scope`, `arm_labels`, `running`, `done`, `status`, `log` | `wb.experiment.state()` |
-| `experiment.stop` | — | `stopped`, `done`, `total`, `settled` | `wb.experiment.stop()` |
-| `experiment.vary` | *a bare string*, `parameter` string, `values` array | `arms`, `seeds`, `senders`, `runs`, `run_for_ms`, `send_at_ms`, `spread_ms`, `bytes`, `scope`, `arm_labels` | `wb.experiment.vary(parameter, values)` |
-| `sweep.run` | — | `arms`, `seeds` | `wb.sweep.run()` |
+| `experiment.results` | — | `runs`, `arms`, `warning` | `wb.experiment.results(arm=)` - *planned*, no client defines `wb.experiment` yet; call the verb |
+| `experiment.seeds` | `seeds` array | `arms`, `seeds`, `senders`, `runs`, `run_for_ms`, `send_at_ms`, `spread_ms`, `bytes`, `scope`, `arm_labels` | `wb.experiment.seeds = [...]` - *planned*, no client defines `wb.experiment` yet; call the verb |
+| `experiment.senders` | `senders` array | `arms`, `seeds`, `senders`, `runs`, `run_for_ms`, `send_at_ms`, `spread_ms`, `bytes`, `scope`, `arm_labels` | `wb.experiment.senders = [...]` - *planned*, no client defines `wb.experiment` yet; call the verb |
+| `experiment.start` | — | `running`, `runs` | `wb.experiment.start()` - *planned*, no client defines `wb.experiment` yet; call the verb |
+| `experiment.state` | — | `arms`, `seeds`, `senders`, `runs`, `run_for_ms`, `send_at_ms`, `spread_ms`, `bytes`, `scope`, `arm_labels`, `running`, `done`, `status`, `log` | `wb.experiment.state()` - *planned*, no client defines `wb.experiment` yet; call the verb |
+| `experiment.stop` | — | `stopped`, `done`, `total`, `settled` | `wb.experiment.stop()` - *planned*, no client defines `wb.experiment` yet; call the verb |
+| `experiment.vary` | *a bare string*, `parameter` string, `values` array | `arms`, `seeds`, `senders`, `runs`, `run_for_ms`, `send_at_ms`, `spread_ms`, `bytes`, `scope`, `arm_labels` | `wb.experiment.vary(parameter, values)` - *planned*, no client defines `wb.experiment` yet; call the verb |
+| `sweep.run` | — | `arms`, `seeds` | `wb.sweep.run()` - *planned*, no client defines `wb.sweep` yet; call the verb |
 | `sweep.set` | — | — | *none* — the sweep runner publishing its matrix |
 
 ### Validation
 
 | verb | takes | returns | façade |
 |---|---|---|---|
-| `validate.calibrate` | *a bare string*, `db` number | `db`, `links` | `wb.validate.calibrate(db=None)` |
+| `validate.calibrate` | *a bare string*, `db` number | `db`, `links` | `wb.validate.calibrate(db=None)` - *planned*, no client defines `wb.validate` yet; call the verb |
 | `validate.compare` | — | `matched`, `unmatched`, `median_db`, `iqr_db`, `suggested_excess_loss_db` | *none* — the observation fetch handing back what was heard |
 | `validate.failed` | — | — | *none* — the observation fetch reporting a failure |
-| `validate.fetch` | *a bare string*, `url` string, `hours` number | `fetching`, `hours` | `wb.validate.fetch(url, hours=)` |
-| `validate.uncalibrate` | — | `db` | `wb.validate.uncalibrate()` |
+| `validate.fetch` | *a bare string*, `url` string, `hours` number | `fetching`, `hours` | `wb.validate.fetch(url, hours=)` - *planned*, no client defines `wb.validate` yet; call the verb |
+| `validate.uncalibrate` | — | `db` | `wb.validate.uncalibrate()` - *planned*, no client defines `wb.validate` yet; call the verb |
 
 ### The radio model
 
 | verb | takes | returns | façade |
 |---|---|---|---|
 | `environ.failed` | *a bare string*, `reason` string | — | *none* — the building fetch reporting a failure |
-| `environ.fetch` | *a bare string*, `source` string | `source`, `started` | `wb.rf.fetch_environment(source)` |
+| `environ.fetch` | *a bare string*, `source` string | `source`, `started` | `wb.rf.fetch_environment(source)` - *planned*, no client defines `wb.rf` yet; call the verb |
 | `environ.fetched` | *a bare string*, `note` string | — | *none* — the building fetch reporting success |
-| `environ.list` | — | `dirs`, `current` | `wb.rf.environments` |
-| `radio.preset` | *a bare string*, `preset` string, `node` string | `preset`, `nodes` | `wb.radio.presets  /  wb.radio.apply(preset, node=)` |
-| `rf.environment` | *a bare string*, `dir` string, `on` bool | `environment` | `wb.rf.environment = dir` |
-| `rf.excess_loss` | *a bare string*, `db` number | `db`, `links` | `wb.rf.excess_loss_db = n` |
-| `rf.mode` | *a bare string*, `mode` string | `mode` | `wb.rf.mode = 'calculated'|'waveform'` |
-| `rf.realism` | `osc_ppm` number, `multipath_db` number, `fading_hz` number, `impl_loss_db` number, `saturation_dbm` number | `realism` | `wb.rf.realism(...)` |
-| `rf.toggle` | — | `mode` | `wb.rf.toggle()` |
+| `environ.list` | — | `dirs`, `current` | `wb.rf.environments` - *planned*, no client defines `wb.rf` yet; call the verb |
+| `radio.preset` | *a bare string*, `preset` string, `node` string | `preset`, `nodes` | `wb.radio.presets  /  wb.radio.apply(preset, node=)` - *planned*, no client defines `wb.radio` yet; call the verb |
+| `rf.environment` | *a bare string*, `dir` string, `on` bool | `environment` | `wb.rf.environment = dir` - *planned*, no client defines `wb.rf` yet; call the verb |
+| `rf.excess_loss` | *a bare string*, `db` number | `db`, `links` | `wb.rf.excess_loss_db = n` - *planned*, no client defines `wb.rf` yet; call the verb |
+| `rf.mode` | *a bare string*, `mode` string | `mode` | `wb.rf.mode = 'calculated'\|'waveform'` - *planned*, no client defines `wb.rf` yet; call the verb |
+| `rf.realism` | `osc_ppm` number, `multipath_db` number, `fading_hz` number, `impl_loss_db` number, `saturation_dbm` number | `realism` | `wb.rf.realism(...)` - *planned*, no client defines `wb.rf` yet; call the verb |
+| `rf.toggle` | — | `mode` | `wb.rf.toggle()` - *planned*, no client defines `wb.rf` yet; call the verb |
 
 ### Provisioning, schedule and assertions
 
@@ -375,9 +375,9 @@ Two verbs are **not** in this table:
 |---|---|---|---|
 | `assert.add` | *a bare string*, `kind` string, `node` string, `at_least` number, `at_most` number, `max_pct` number, `within_ms` number | `assertions` | `wb.assertions.add(kind, ...)` |
 | `assert.check` | — | `passed`, `total`, `results` | `wb.assertions.check()  ->  Report` |
-| `provisioning.apply` | — | `nodes` | `wb.provisioning.apply()` |
-| `provisioning.get` | — | `set_name`, `set_position`, `set_clock`, `region_from_area`, `default_scope`, `advert_hops`, `advert_minutes`, `stagger_ms`, `flood_max_advert`, `path_hash_mode`, `comp_path_hash_mode`, `loop_detect`, `cad`, `extra` | `wb.provisioning.settings` |
-| `provisioning.set` | `set_name` bool, `set_position` bool, `set_clock` bool, `region_from_area` bool, `default_scope` bool, `advert_hops` number, `advert_minutes` number, `stagger_ms` number, `flood_max_advert` number, `path_hash_mode` number, `comp_path_hash_mode` number, `loop_detect` string, `cad` string, `extra` string | `set_name`, `set_position`, `set_clock`, `region_from_area`, `default_scope`, `advert_hops`, `advert_minutes`, `stagger_ms`, `flood_max_advert`, `path_hash_mode`, `comp_path_hash_mode`, `loop_detect`, `cad`, `extra` | `wb.provisioning.set(...)` |
+| `provisioning.apply` | — | `nodes` | `wb.provisioning.apply()` - *planned*, no client defines `wb.provisioning` yet; call the verb |
+| `provisioning.get` | — | `set_name`, `set_position`, `set_clock`, `region_from_area`, `default_scope`, `advert_hops`, `advert_minutes`, `stagger_ms`, `flood_max_advert`, `path_hash_mode`, `comp_path_hash_mode`, `loop_detect`, `cad`, `extra` | `wb.provisioning.settings` - *planned*, no client defines `wb.provisioning` yet; call the verb |
+| `provisioning.set` | `set_name` bool, `set_position` bool, `set_clock` bool, `region_from_area` bool, `default_scope` bool, `advert_hops` number, `advert_minutes` number, `stagger_ms` number, `flood_max_advert` number, `path_hash_mode` number, `comp_path_hash_mode` number, `loop_detect` string, `cad` string, `extra` string | `set_name`, `set_position`, `set_clock`, `region_from_area`, `default_scope`, `advert_hops`, `advert_minutes`, `stagger_ms`, `flood_max_advert`, `path_hash_mode`, `comp_path_hash_mode`, `loop_detect`, `cad`, `extra` | `wb.provisioning.set(...)` - *planned*, no client defines `wb.provisioning` yet; call the verb |
 | `run.save` | *a bare string*, `name` string | `path` | `wb.save_run(path)` |
 | `schedule.add` | *a bare string*, `node` string, `at_ms` number, `every_ms` number, `command` string | `sends` | `wb.schedule.add(node, command, at=, every=)` |
 | `schedule.clear` | — | `cleared` | `wb.schedule.clear()` |
@@ -386,59 +386,59 @@ Two verbs are **not** in this table:
 
 | verb | takes | returns | façade |
 |---|---|---|---|
-| `gpu.set` | *a bare string*, `on` bool | `enabled`, `present`, `device`, `backend`, `why`, `last_warm` | `wb.gpu.enabled = bool` |
+| `gpu.set` | *a bare string*, `on` bool | `enabled`, `present`, `device`, `backend`, `why`, `last_warm` | `wb.gpu.enabled = bool` - *planned*, no client defines `wb.gpu` yet; call the verb |
 | `gpu.state` | — | `enabled`, `present`, `device`, `backend`, `why`, `last_warm` | `wb.gpu` |
 | `job.cancel` | *a bare string*, `id` string | `stopping` | `wb.jobs[id].cancel()` |
 | `job.done` | — | — | *none* — a worker retiring its own progress row |
 | `job.list` | *a bare string*, `all` bool | `jobs`, `running` | `wb.jobs()` |
 | `job.progress` | — | — | *none* — a worker reporting progress; read wb.jobs instead |
-| `resource.fetch` | *a bare string*, `name` string, `kind` string, `version` string | `fetching`, `version` | `wb.resources.fetch(kind, name, version)` |
+| `resource.fetch` | *a bare string*, `name` string, `kind` string, `version` string | `fetching`, `version` | `wb.resources.fetch(kind, name, version)` - *planned*, no client defines `wb.resources` yet; call the verb |
 | `resource.fetched` | *a bare string*, `name` string, `version` string | `name` | *none* — the downloader reporting it finished |
-| `resource.licence` | *a bare string*, `name` string, `kind` string, `version` string | `name`, `version`, `text` | `wb.resources.licence(kind, name, version)` |
+| `resource.licence` | *a bare string*, `name` string, `kind` string, `version` string | `name`, `version`, `text` | `wb.resources.licence(kind, name, version)` - *planned*, no client defines `wb.resources` yet; call the verb |
 | `resource.licence.hide` | — | `hidden` | *none* — closing a box only a window has |
 | `resource.list` | — | `rows`, `resources` | `wb.resources` |
-| `resource.remove` | *a bare string*, `name` string, `kind` string, `version` string | `removed` | `wb.resources.remove(kind, name, version)` |
-| `setup.check` | — | `groups`, `ready`, `needed`, `undecided`, `blocked`, `missing` | `wb.setup.check()` |
-| `terrain.allow` | *a bare string*, `on` bool | `on`, `asked`, `warming` | `wb.terrain.allow(on=True)` |
-| `terrain.cache` | *a bare string*, `gb` number | `gb`, `dir`, `downloads` | `wb.terrain.cache_gb = n` |
-| `terrain.cache_dir` | *a bare string*, `path` string | `moving`, `to` | `wb.terrain.cache_dir = path` |
+| `resource.remove` | *a bare string*, `name` string, `kind` string, `version` string | `removed` | `wb.resources.remove(kind, name, version)` - *planned*, no client defines `wb.resources` yet; call the verb |
+| `setup.check` | — | `groups`, `ready`, `needed`, `undecided`, `blocked`, `missing` | `wb.setup.check()` - *planned*, no client defines `wb.setup` yet; call the verb |
+| `terrain.allow` | *a bare string*, `on` bool | `on`, `asked`, `warming` | `wb.terrain.allow(on=True)` - *planned*, no client defines `wb.terrain` yet; call the verb |
+| `terrain.cache` | *a bare string*, `gb` number | `gb`, `dir`, `downloads` | `wb.terrain.cache_gb = n` - *planned*, no client defines `wb.terrain` yet; call the verb |
+| `terrain.cache_dir` | *a bare string*, `path` string | `moving`, `to` | `wb.terrain.cache_dir = path` - *planned*, no client defines `wb.terrain` yet; call the verb |
 | `terrain.cache_moved` | `dir` string, `files` number | `dir` | *none* — the cache mover reporting it finished |
-| `terrain.ground` | — | `state`, `chosen`, `note`, `tiles_sampled`, `tiles_cached` | `wb.terrain.ground()` |
-| `terrain.prefetch` | — | `tiles`, `to_fetch`, `bytes_rough` | `wb.terrain.prefetch()` |
-| `terrain.shade` | *a bare string*, `view` array | `shading` | `wb.ui.map.shade()` |
+| `terrain.ground` | — | `state`, `chosen`, `note`, `tiles_sampled`, `tiles_cached` | `wb.terrain.ground()` - *planned*, no client defines `wb.terrain` yet; call the verb |
+| `terrain.prefetch` | — | `tiles`, `to_fetch`, `bytes_rough` | `wb.terrain.prefetch()` - *planned*, no client defines `wb.terrain` yet; call the verb |
+| `terrain.shade` | *a bare string*, `view` array | `shading` | `wb.ui.map.shade()` - *planned*, no client defines `wb.ui` yet; call the verb |
 | `terrain.shade_failed` | — | — | *none* — the hillshade worker reporting a failure |
 | `terrain.shade_set` | — | — | *none* — the hillshade worker publishing its raster |
-| `update.allow` | *a bare string*, `on` bool | `on`, `asked`, `checking` | `wb.update.allow(on=True)` |
-| `update.check` | — | `checking`, `build` | `wb.update.check()` |
+| `update.allow` | *a bare string*, `on` bool | `on`, `asked`, `checking` | `wb.update.allow(on=True)` - *planned*, no client defines `wb.update` yet; call the verb |
+| `update.check` | — | `checking`, `build` | `wb.update.check()` - *planned*, no client defines `wb.update` yet; call the verb |
 | `update.checked` | — | — | *none* — the release check reporting back from its own worker |
-| `update.download` | — | `downloading`, `bytes`, `release`, `into` | `wb.update.download()` |
-| `update.notes` | — | `opened` | `wb.update.notes()` |
-| `update.reveal` | — | `opened` | `wb.update.reveal()` |
+| `update.download` | — | `downloading`, `bytes`, `release`, `into` | `wb.update.download()` - *planned*, no client defines `wb.update` yet; call the verb |
+| `update.notes` | — | `opened` | `wb.update.notes()` - *planned*, no client defines `wb.update` yet; call the verb |
+| `update.reveal` | — | `opened` | `wb.update.reveal()` - *planned*, no client defines `wb.update` yet; call the verb |
 | `update.staged` | *a bare string*, `path` string | `staged` | *none* — the update download reporting back from its own worker |
-| `update.status` | — | `build`, `latest`, `tag`, `newer`, `available`, `notes`, `published`, `checked`, `asset`, `bytes`, `artefact`, `why`, `staged`, `feed`, `error`, `allowed`, `asked` | `wb.update.status()` |
+| `update.status` | — | `build`, `latest`, `tag`, `newer`, `available`, `notes`, `published`, `checked`, `asset`, `bytes`, `artefact`, `why`, `staged`, `feed`, `error`, `allowed`, `asked` | `wb.update.status()` - *planned*, no client defines `wb.update` yet; call the verb |
 
 ### The window
 
 | verb | takes | returns | façade |
 |---|---|---|---|
-| `layout.reset` 🪟 | — | `reset` | `wb.ui.layouts.reset()` |
-| `map.basemap` | *a bare string*, `id` string | `id` | `wb.ui.map.basemap = id` |
-| `map.centre` 🪟 | *a bare string*, `node` string, `lat` number, `lon` number, `zoom` number | `lat`, `lon`, `zoom` | `wb.ui.map.centre(node=|lat=, lon=, zoom=)` |
-| `map.filter` 🪟 | *a bare string*, `query` string | `query` | `wb.ui.map.filter = query` |
-| `map.fit` 🪟 | — | `nodes` | `wb.ui.map.fit()` |
-| `map.layer` 🪟 | *a bare string*, `name` string, `on` bool | `layers` | `wb.ui.map.layers[name] = bool` |
-| `map.layers` 🪟 | — | `layers` | `wb.ui.map.layers` |
-| `map.zoom` 🪟 | *a bare string*, `factor` number | `factor` | `wb.ui.map.zoom(factor)` |
-| `panel.close` 🪟 | *a bare string*, `name` string | `panel` | `wb.ui.panel(name).close()` |
-| `panel.dock` 🪟 | *a bare string*, `name` string | `panel`, `where` | `wb.ui.panel(name).dock()` |
-| `panel.open` 🪟 | *a bare string*, `name` string | `panel` | `wb.ui.panel(name).open()` |
-| `panel.pop_out` 🪟 | *a bare string*, `name` string | `panel`, `where` | `wb.ui.panel(name).pop_out()` |
-| `panels.list` 🪟 | — | `panels`, `count` | `wb.ui.panels` |
-| `tool.set` 🪟 | *a bare string*, `name` string | `tool` | `wb.ui.map.tool = name` |
-| `view.delete` 🪟 | *a bare string*, `name` string | `deleted` | `wb.ui.layouts.delete(name)` |
-| `view.list` 🪟 | — | `views` | `wb.ui.layouts` |
-| `view.load` 🪟 | *a bare string*, `name` string | `loaded` | `wb.ui.layouts.load(name)` |
-| `view.save` 🪟 | *a bare string*, `name` string | `saved` | `wb.ui.layouts.save(name)` |
-| `window.close` 🪟 | *a bare string*, `name` string | `closed` | `wb.ui.window(name).close()` |
-| `window.open` 🪟 | *a bare string*, `name` string | `window` | `wb.ui.window(name).open()` |
-| `workspace.set` 🪟 | *a bare string*, `view` string | `view` | `wb.ui.view = name` |
+| `layout.reset` 🪟 | — | `reset` | `wb.ui.layouts.reset()` - *planned*, no client defines `wb.ui` yet; call the verb |
+| `map.basemap` | *a bare string*, `id` string | `id` | `wb.ui.map.basemap = id` - *planned*, no client defines `wb.ui` yet; call the verb |
+| `map.centre` 🪟 | *a bare string*, `node` string, `lat` number, `lon` number, `zoom` number | `lat`, `lon`, `zoom` | `wb.ui.map.centre(node=\|lat=, lon=, zoom=)` - *planned*, no client defines `wb.ui` yet; call the verb |
+| `map.filter` 🪟 | *a bare string*, `query` string | `query` | `wb.ui.map.filter = query` - *planned*, no client defines `wb.ui` yet; call the verb |
+| `map.fit` 🪟 | — | `nodes` | `wb.ui.map.fit()` - *planned*, no client defines `wb.ui` yet; call the verb |
+| `map.layer` 🪟 | *a bare string*, `name` string, `on` bool | `layers` | `wb.ui.map.layers[name] = bool` - *planned*, no client defines `wb.ui` yet; call the verb |
+| `map.layers` 🪟 | — | `layers` | `wb.ui.map.layers` - *planned*, no client defines `wb.ui` yet; call the verb |
+| `map.zoom` 🪟 | *a bare string*, `factor` number | `factor` | `wb.ui.map.zoom(factor)` - *planned*, no client defines `wb.ui` yet; call the verb |
+| `panel.close` 🪟 | *a bare string*, `name` string | `panel` | `wb.ui.panel(name).close()` - *planned*, no client defines `wb.ui` yet; call the verb |
+| `panel.dock` 🪟 | *a bare string*, `name` string | `panel`, `where` | `wb.ui.panel(name).dock()` - *planned*, no client defines `wb.ui` yet; call the verb |
+| `panel.open` 🪟 | *a bare string*, `name` string | `panel` | `wb.ui.panel(name).open()` - *planned*, no client defines `wb.ui` yet; call the verb |
+| `panel.pop_out` 🪟 | *a bare string*, `name` string | `panel`, `where` | `wb.ui.panel(name).pop_out()` - *planned*, no client defines `wb.ui` yet; call the verb |
+| `panels.list` 🪟 | — | `panels`, `count` | `wb.ui.panels` - *planned*, no client defines `wb.ui` yet; call the verb |
+| `tool.set` 🪟 | *a bare string*, `name` string | `tool` | `wb.ui.map.tool = name` - *planned*, no client defines `wb.ui` yet; call the verb |
+| `view.delete` 🪟 | *a bare string*, `name` string | `deleted` | `wb.ui.layouts.delete(name)` - *planned*, no client defines `wb.ui` yet; call the verb |
+| `view.list` 🪟 | — | `views` | `wb.ui.layouts` - *planned*, no client defines `wb.ui` yet; call the verb |
+| `view.load` 🪟 | *a bare string*, `name` string | `loaded` | `wb.ui.layouts.load(name)` - *planned*, no client defines `wb.ui` yet; call the verb |
+| `view.save` 🪟 | *a bare string*, `name` string | `saved` | `wb.ui.layouts.save(name)` - *planned*, no client defines `wb.ui` yet; call the verb |
+| `window.close` 🪟 | *a bare string*, `name` string | `closed` | `wb.ui.window(name).close()` - *planned*, no client defines `wb.ui` yet; call the verb |
+| `window.open` 🪟 | *a bare string*, `name` string | `window` | `wb.ui.window(name).open()` - *planned*, no client defines `wb.ui` yet; call the verb |
+| `workspace.set` 🪟 | *a bare string*, `view` string | `view` | `wb.ui.view = name` - *planned*, no client defines `wb.ui` yet; call the verb |

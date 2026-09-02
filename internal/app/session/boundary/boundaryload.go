@@ -93,7 +93,7 @@ func registerBoundaryLoad(st *state.Store, s *session.Sim) {
 			if hasArea(w.Areas, b.Name) {
 				continue
 			}
-			w.Areas = append(w.Areas, areaFrom(b))
+			w.Areas = append(w.Areas, session.AreaOf(b.Name, []scenario.Boundary{b}))
 			s.SetAreas(append(s.Areas(), b))
 			added = append(added, b.Name)
 		}
@@ -143,16 +143,4 @@ func hasArea(areas []state.Area, name string) bool {
 		}
 	}
 	return false
-}
-
-func areaFrom(b scenario.Boundary) state.Area {
-	area := state.Area{Name: b.Name}
-	for _, r := range b.Rings {
-		ring := make([]state.Point, 0, len(r))
-		for _, pt := range r {
-			ring = append(ring, state.Point{Lat: pt.Lat, Lon: pt.Lon})
-		}
-		area.Rings = append(area.Rings, ring)
-	}
-	return area
 }

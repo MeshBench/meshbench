@@ -35,7 +35,7 @@ func registerPacket(st *state.Store, s *Sim) {
 		// for the view's previous/next arrows - ids are dense but a frame can
 		// be gone from the ledger.
 		seek := 0
-		if v, ok := numField(p, "seek"); ok {
+		if v, ok := namedNum(p, "seek"); ok {
 			seek = int(v)
 		}
 		pk := s.buildPacket(id)

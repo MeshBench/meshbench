@@ -138,11 +138,22 @@ func runDomainRegistrars(st *state.Store, s *Sim) {
 func NumField(p any, name string) (float64, bool)   { return numField(p, name) }
 func StringField(p any, name string) (string, bool) { return stringField(p, name) }
 
+// NamedNum is NumField for a field that has to be named to be meant: no bare
+// number fills it, because the caller spent their bare value on the verb's one
+// primary parameter.
+func NamedNum(p any, name string) (float64, bool) { return namedNum(p, name) }
+
 // FinishJob and SoleString are two more shared readers a split-out domain's
 // handlers need: FinishJob removes a completed job from the list, SoleString
 // reads a verb's whole argument as a string.
 func FinishJob(jobs []state.Job, id string) []state.Job { return finishJob(jobs, id) }
 func SoleString(p any) string                           { return soleString(p) }
+
+// PrimaryString reads a verb's documented primary string parameter by name,
+// falling back to a lone unnamed value. What a split-out domain's handler uses
+// wherever its description names a primary parameter, so that the name it
+// publishes is the name it reads.
+func PrimaryString(p any, name string) string { return primaryString(p, name) }
 
 // NamedField reads a named (non-primary) string parameter; BadParams builds the
 // coded error a verb returns for a bad argument; StateNodes is the scenario in
@@ -151,6 +162,12 @@ func SoleString(p any) string                           { return soleString(p) }
 func NamedField(p any, name string) (string, bool)  { return namedField(p, name) }
 func BadParams(format string, args ...any) error    { return badParams(format, args...) }
 func StateNodes(nodes []scenario.Node) []state.Node { return stateNodes(nodes) }
+
+// AreaOf is the one way a set of boundaries becomes a study area, rings and
+// holes together, for the boundary domain as well as for a fixture load.
+func AreaOf(name string, boundaries []scenario.Boundary) state.Area {
+	return areaOf(name, boundaries)
+}
 
 // FindNode looks a node up in the snapshot by name, for the split-out domains.
 func FindNode(nodes []state.Node, name string) (state.Node, bool) { return findNode(nodes, name) }
@@ -206,6 +223,16 @@ func NumAsked(verb, name string, p any) (float64, bool, error) {
 }
 func NumInRange(verb, name string, p any, def, lo, hi float64) (float64, error) {
 	return numInRange(verb, name, p, def, lo, hi)
+}
+
+// NamedNumAsked and NamedNumInRange are the same two readers for a field that
+// has to be named to be meant, so a verb whose primary parameter is not a
+// number does not read its bare argument as one.
+func NamedNumAsked(verb, name string, p any) (float64, bool, error) {
+	return namedNumAsked(verb, name, p)
+}
+func NamedNumInRange(verb, name string, p any, def, lo, hi float64) (float64, error) {
+	return namedNumInRange(verb, name, p, def, lo, hi)
 }
 func UnknownNames(verb string, nodes []state.Node, names []string) error {
 	return unknownNames(verb, nodes, names)

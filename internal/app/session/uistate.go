@@ -50,7 +50,7 @@ func registerSessionState(st *state.Store, s *Sim) {
 	// ui.said puts a line in the status bar. A control whose verb failed and
 	// said nothing is indistinguishable from a control that does nothing.
 	st.Handle("ui.said", func(w *state.World, p any) (any, error) {
-		msg := soleString(p)
+		msg := primaryString(p, "text")
 		w.Say(msg)
 		return map[string]any{"said": msg}, nil
 	})

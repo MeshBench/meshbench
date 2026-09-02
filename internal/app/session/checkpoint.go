@@ -141,7 +141,7 @@ func registerCheckpoint(st *state.Store, s *Sim) {
 		// second kind of session with its own set of things left unset.
 		loaded := Loaded{
 			scene:      cp.Nodes,
-			nodes:      statesFromScene(cp.Nodes),
+			nodes:      stateNodes(cp.Nodes),
 			areas:      cp.Areas,
 			margin:     cp.MarginKm,
 			sends:      cp.Sends,
