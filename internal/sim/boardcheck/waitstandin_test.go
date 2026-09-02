@@ -188,3 +188,63 @@ func nodeFSRoot(t *testing.T) string {
 	})
 	return dir
 }
+
+// The rx phase's precondition, and the reason it was failing a board that was
+// behaving correctly.
+//
+// A tx event is recorded at the moment a transmission starts: AtMs is the
+// start and the packet is on the air until AtMs plus its airtime. So matching
+// a tx event does not mean the node has finished transmitting, and a phase
+// that stimulates the board the instant it matches one is handing a packet to
+// a radio that cannot hear it. The channel is half duplex, which is right -
+// every real radio is - so the ledger records a miss, and a row whose single
+// stimulus was missed then waits out its whole budget for an event that can
+// never arrive.
+//
+// The flood row waits. The rx row did not, which is why rx failed on every run
+// of a board whose radio was working.
+func TestMatchingATxEventDoesNotMeanTheNodeIsOffTheAir(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	e := standInMesh(ctx, t, 1_000)
+
+	atMs, outcome := waitForEvent(ctx, e, 30_000, func(ev engine.Event) bool {
+		return ev.Kind == "tx" && ev.From == "bc-sender"
+	})
+	if outcome != eventMatched {
+		t.Fatalf("the stand-in never transmitted: outcome %v", outcome)
+	}
+
+	// The event names its own airtime, which is the whole point: the node is
+	// busy from atMs until atMs plus that, and the wait returned at the start.
+	var airtimeMs float64
+	for _, ev := range e.Events() {
+		if ev.Kind == "tx" && ev.From == "bc-sender" && ev.AtMs == atMs {
+			// "10 bytes, 279 ms on air". Go has no assignment suppression in
+			// Sscanf, so the byte count is read and discarded.
+			var bytes int
+			if _, err := fmt.Sscanf(ev.Detail, "%d bytes, %f ms on air", &bytes, &airtimeMs); err != nil {
+				t.Fatalf("a tx event does not say how long it is on air: %q", ev.Detail)
+			}
+		}
+	}
+	if airtimeMs <= 0 {
+		t.Fatal("the transmission reports no airtime, so this proves nothing")
+	}
+	if e.NowMs() >= atMs+uint32(airtimeMs) {
+		t.Skip("the engine ran past the transmission before the wait returned; " +
+			"the race this guards is real but not reproducible at this step size")
+	}
+	t.Logf("tx matched at %d ms with %.0f ms still to run: a stimulus sent now is missed",
+		atMs, airtimeMs)
+
+	// And this is what the phases must do instead.
+	quiet, cancelled := waitUntilQuiet(ctx, e, "bc-sender", 1_000, 20_000)
+	if cancelled || !quiet {
+		t.Fatalf("waiting for quiet did not settle: quiet=%v cancelled=%v", quiet, cancelled)
+	}
+	if e.NowMs() < atMs+uint32(airtimeMs) {
+		t.Errorf("reported quiet at %d ms, before the transmission that started at "+
+			"%d ms had finished %.0f ms later", e.NowMs(), atMs, airtimeMs)
+	}
+}
