@@ -67,7 +67,7 @@ jobs:
       - name: The platform layer
         shell: bash
         continue-on-error: true
-        run: go test ./internal/firmware/ ./internal/mesh/companion/ ./internal/sim/engine/ -short -count=1 2>&1 | tail -20
+        run: go test ./cmd/meshbench/ ./internal/firmware/ ./internal/mesh/companion/ ./internal/sim/engine/ -short -count=1 2>&1 | tail -20
 
       - name: Does it open its own network with no fixtures beside it
         shell: bash
