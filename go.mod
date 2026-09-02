@@ -20,7 +20,7 @@ require (
 	github.com/josephspurrier/goversioninfo v1.7.0 // indirect
 	github.com/randall77/makefat v0.0.0-20260406194835-1b91746796b7 // indirect
 	golang.org/x/exp/shiny v0.0.0-20250408133849-7e4ce0ab07d0 // indirect
-	golang.org/x/net v0.48.0 // indirect
+	golang.org/x/net v0.55.0 // indirect
 )
 
 replace gioui.org => github.com/MeshBench/gio v0.10.3-0.20260902085926-ae831ef7121e
