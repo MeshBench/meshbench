@@ -187,7 +187,9 @@ tools/              what builds, generates and drives it, none of it shipped
   renode/             MeshCore's published nRF52 binaries under Renode, the
                       cross-check on the native build
     peripherals/        the C# models Renode's own nRF52840 platform is missing:
-                        clock calibration, CryptoCell, SAADC, TWIM, the radio
+                        clock calibration, CryptoCell, SAADC, TWIM, the USB
+                        device controller and the host at the other end of it,
+                        the radio
   esp32/              the ESP32 half of the emulated backend: Espressif's QEMU
                       fork, which Renode has no platform for
   platformio/         a post-build hook, copied into a MeshCore checkout, that

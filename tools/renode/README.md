@@ -203,32 +203,58 @@ the UARTE registers and logs a write to the legacy `TXD` as unhandled, so
 file backend, no socket. Driving `TXD.PTR`/`TXD.MAXCNT`/`TASKS_STARTTX` instead
 puts the same characters on a port somebody can hold.
 
-## The console, and why a MeshCore board still has none
+## The console, and the USB device controller behind it
 
-A node is generated with a two-way terminal on UART0:
+A node is generated with a two-way terminal on the port its firmware prints to:
 
     emulation CreateServerSocketTerminal <port> "console" false
-    connector Connect sysbus.uart0 console
+    connector Connect sysbus.usbd console
 
 which the workbench connects to and copies into the node's `console.log`, so a
-board can be typed at rather than only watched. Verified against the
-`tools/armfw` image, which answers:
+board can be typed at rather than only watched.
 
+**A published MeshCore image prints over USB, not on the UART.** The Adafruit
+nRF52 core builds with `USE_TINYUSB`, which makes `Serial` a USB CDC device.
+Traced over a RAK4631 boot, UART0 is opened for 150 ms with `PSEL.TXD=P0.16` and
+`PSEL.RXD=P0.15`, StartRx, and then released: that is `Serial1` looking for a
+GPS. So the board profiles say `ConsoleOnUSB` and the terminal is connected to
+`usbd` for them and to `uart0` for everything else.
+
+`peripherals/NRF52840_USBD.cs` is that controller, and `peripherals/UsbCdcHost.cs`
+is the host on the other end of the cable, which an emulator does not otherwise
+have: nothing in TinyUSB happens until somebody resets the bus, reads the
+descriptors, sets an address and selects a configuration. The host is scripted
+rather than general - it does that sequence, sets the CDC line coding and
+asserts DTR, and then moves bytes on the bulk endpoints. VBUS comes from the
+POWER half of `NRF52840_Clock.cs`, which reports a cable that is always in,
+because an emulated board is a board on a bench with one.
+
+Against the published `RAK_4631` repeater image:
+
+    Repeater ID: 67BF98685F6D9CBC93E18372521CBDAA2B4B18B9FDB6D0DD8F7D1DF43D6BACC3
     ver
-    -> MSIM bare-metal nRF52840
+      -> v1.17.1-d929643 (Build: 14-Aug-2026)
 
-**The published MeshCore images cannot use it.** Their `Serial` is not UART0:
-the Adafruit nRF52 core builds with `USE_TINYUSB`, which makes `Serial` a USB
-CDC device, and nothing here models the nRF52840's USBD. Traced over a RAK4631
-boot, UART0 is opened for 150 ms with `PSEL.TXD=P0.16` and `PSEL.RXD=P0.15`,
-StartRx, and then released: that is `Serial1` looking for a GPS, not a console.
-So the board profiles say `ConsoleOnUSB`, the generated script gets no terminal
-for them, and the node reports no console rather than publishing a port that
-answers nothing and carries somebody else's traffic.
+### What the model does not do
 
-What would close it is an `NRF52840_USBD` model with enough of a host on the
-other side for TinyUSB to reach its configured state: the POWER USB events,
-EP0 SETUP through EasyDMA, set-address and set-configuration, then CDC data on
-the bulk endpoints. That is a peripheral model rather than a wiring fix, and it
-is the last thing standing between an nRF52 board and everything the workbench
-drives by console.
+Isochronous endpoints, suspend and resume, remote wakeup, stall recovery,
+`DTOGGLE` and low power. A write to any of them is accepted and logged at debug
+rather than dropped, and the host restarts enumeration rather than recovering
+from an error.
+
+Saying so is the point. Renode's `NRF52840_UART` implements the EasyDMA half and
+logs a legacy `TXD` write as unhandled, so `tools/armfw` printed into the
+emulator's log and read as a board that never spoke: a peripheral that is present
+but partial is harder to spot than one that is absent. `logLevel 0 sysbus.usbd`
+turns on a line per bus reset, per SETUP and per endpoint transfer, which is what
+separates "the bus never came up" from "the firmware never wrote anything".
+
+### The trap in the register map
+
+The task block starts one word in. `TASKS_STARTEPIN[0]` is at `0x004`, not
+`0x000`, and everything after it shifts, so a model that takes the block as
+starting at zero puts every endpoint's task on its neighbour's. What that looks
+like from outside is a device answering a control transfer on endpoint 1, which
+reads as a stack fault rather than as an address being wrong. The other half of
+the same trap: each endpoint's `PTR`, `MAXCNT` and `AMOUNT` sit in a five-word
+slot, so the stride is `0x14` and not the `0x10` the shape invites.

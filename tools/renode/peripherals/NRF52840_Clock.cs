@@ -134,6 +134,30 @@ namespace Antmicro.Renode.Peripherals.Miscellaneous
                 .WithFlag(0, out calTimerStopped, name: "EVENTS_CTSTOPPED")
                 .WithWriteCallback((_, __) => UpdateInterrupt());
 
+            // POWER shares this address block and this interrupt line with
+            // CLOCK, and its three USB events are what start a CDC console: the
+            // TinyUSB port reads USBREGSTATUS on the way up and enables the
+            // controller only if VBUS is there, then waits for power-ready
+            // before it pulls D+ up.
+            //
+            // Both are true from reset, because an emulated board is a board on
+            // a bench with a cable in it. Presenting a cable that is not there
+            // would be the wrong lie; presenting none at all is what left these
+            // boards with no console.
+            Registers.UsbDetected.Define(this, 1)
+                .WithFlag(0, out usbDetected, name: "EVENTS_USBDETECTED")
+                .WithWriteCallback((_, __) => UpdateInterrupt());
+            Registers.UsbRemoved.Define(this)
+                .WithFlag(0, out usbRemoved, name: "EVENTS_USBREMOVED")
+                .WithWriteCallback((_, __) => UpdateInterrupt());
+            Registers.UsbPowerReady.Define(this, 1)
+                .WithFlag(0, out usbPowerReady, name: "EVENTS_USBPWRRDY")
+                .WithWriteCallback((_, __) => UpdateInterrupt());
+            Registers.UsbRegStatus.Define(this)
+                .WithValueField(0, 32, FieldMode.Read,
+                                valueProviderCallback: _ => VBusDetected | OutputReady,
+                                name: "USBREGSTATUS");
+
             Registers.InterruptEnableSet.Define(this)
                 .WithValueField(0, 32, FieldMode.Read | FieldMode.Set,
                                 writeCallback: (_, value) => interruptEnabled |= (uint)value,
@@ -189,7 +213,10 @@ namespace Antmicro.Renode.Peripherals.Miscellaneous
                 (calibrationDone.Value ? DoneBit : 0u) |
                 (calTimerTimeout.Value ? CtToBit : 0u) |
                 (calTimerStarted.Value ? CtStartedBit : 0u) |
-                (calTimerStopped.Value ? CtStoppedBit : 0u);
+                (calTimerStopped.Value ? CtStoppedBit : 0u) |
+                (usbDetected.Value ? UsbDetectedBit : 0u) |
+                (usbRemoved.Value ? UsbRemovedBit : 0u) |
+                (usbPowerReady.Value ? UsbPowerReadyBit : 0u);
             IRQ.Set((pending & interruptEnabled) != 0);
         }
 
@@ -199,9 +226,15 @@ namespace Antmicro.Renode.Peripherals.Miscellaneous
         private const uint CtToBit = 1u << 4;
         private const uint CtStartedBit = 1u << 10;
         private const uint CtStoppedBit = 1u << 11;
+        private const uint UsbDetectedBit = 1u << 7;
+        private const uint UsbRemovedBit = 1u << 8;
+        private const uint UsbPowerReadyBit = 1u << 9;
+        private const uint VBusDetected = 1u << 0;
+        private const uint OutputReady = 1u << 1;
 
         private IFlagRegisterField hfclkStarted, lfclkStarted, calibrationDone;
         private IFlagRegisterField calTimerTimeout, calTimerStarted, calTimerStopped;
+        private IFlagRegisterField usbDetected, usbRemoved, usbPowerReady;
         private bool hfclkRunning, lfclkRunning;
         private readonly LimitTimer calTimer;
         private uint interruptEnabled, lfclkSource, calTimerInterval;
@@ -219,6 +252,9 @@ namespace Antmicro.Renode.Peripherals.Miscellaneous
             LfClkStarted = 0x104,
             CalibrationDone = 0x10C,
             CalTimerTimeout = 0x110,
+            UsbDetected = 0x11C,
+            UsbRemoved = 0x120,
+            UsbPowerReady = 0x124,
             CalTimerStarted = 0x128,
             CalTimerStopped = 0x12C,
             InterruptEnableSet = 0x304,
@@ -228,6 +264,7 @@ namespace Antmicro.Renode.Peripherals.Miscellaneous
             LfClkRun = 0x414,
             LfClkStat = 0x418,
             LfClkSrcCopy = 0x41C,
+            UsbRegStatus = 0x438,
             LfClkSrc = 0x518,
             CalTimerInterval = 0x538,
         }

@@ -37,11 +37,24 @@ func UnregisterStockSPI() string {
 	return "sysbus Unregister sysbus." + stockSPIName + "\n"
 }
 
-// consoleUART is the port a board's firmware prints on. Every board this
-// emulator runs is an nRF52840, whose one general-purpose UART this is.
-const consoleUART = "uart0"
+// The two places a board's firmware prints. Every board this emulator runs is
+// an nRF52840, so uart0 is its one general-purpose UART; usbd is the USB device
+// controller, which is where the published images print, because the Adafruit
+// core builds Serial as a TinyUSB CDC device.
+const (
+	consoleUART = "uart0"
+	consoleUSB  = "usbd"
+)
 
-// ConsoleTerminal puts a two-way terminal on the board's console UART.
+// ConsolePort names the peripheral this board's console hangs off.
+func ConsolePort(onUSB bool) string {
+	if onUSB {
+		return consoleUSB
+	}
+	return consoleUART
+}
+
+// ConsoleTerminal puts a two-way terminal on the board's console port.
 //
 // A server socket rather than the file backend this used to be. A file is
 // write-only, so a board under Renode could be watched and never asked
@@ -58,12 +71,12 @@ const consoleUART = "uart0"
 //
 // Port zero is a board whose firmware prints somewhere this machine has not
 // got, and it gets no terminal at all rather than one nothing answers on.
-func ConsoleTerminal(port int) string {
+func ConsoleTerminal(port int, onUSB bool) string {
 	if port == 0 {
 		return ""
 	}
 	return fmt.Sprintf("emulation CreateServerSocketTerminal %d \"console\" false\n"+
-		"connector Connect sysbus.%s console\n", port, consoleUART)
+		"connector Connect sysbus.%s console\n", port, ConsolePort(onUSB))
 }
 
 // EnvRenodeTrace turns on peripheral-access logging in the generated script.
@@ -84,10 +97,12 @@ const EnvRenodeTrace = "MESHBENCH_RENODE_TRACE"
 // Silence on all three means the time is going somewhere else entirely, which is
 // as useful an answer as noise on one of them.
 //
-// The console UART is here for a different question. A board that prints nothing
-// may have written to a port this machine does not model, or may never have
-// written at all, and those two have different fixes; only the register traffic
-// tells them apart.
+// Both console ports are here for a different question. A board that prints
+// nothing may have written to a port this machine does not model, or may never
+// have written at all, and those two have different fixes; only the register
+// traffic tells them apart. Both, because which one carries the console is a
+// property of the firmware build rather than of the part, and a board wired to
+// the wrong one looks exactly like a board that never spoke.
 func RenodeTrace() string {
 	if os.Getenv(EnvRenodeTrace) == "" {
 		return ""
@@ -97,5 +112,6 @@ sysbus LogPeripheralAccess sysbus.radiospi true
 sysbus LogPeripheralAccess sysbus.twi0 true
 sysbus LogPeripheralAccess sysbus.twi1 true
 sysbus LogPeripheralAccess sysbus.` + consoleUART + ` true
+sysbus LogPeripheralAccess sysbus.` + consoleUSB + ` true
 `
 }

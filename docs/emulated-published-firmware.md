@@ -192,6 +192,7 @@ be, and why it is not the board's fault.
   carrying bytes.
 - `Station_G2` has no emulation wiring recorded yet. `Heltec_v2` carries an
   SX1276, which is not modelled: the chip here is an SX1262.
-- **power** is untested on boards with no console rather than failed: Renode
-  models two UARTs and no USB device, and the Adafruit core puts `Serial`
-  on USB CDC.
+- **power** was untested rather than failed on the nRF52 boards, because Renode
+  modelled two UARTs and no USB device while the Adafruit core puts `Serial` on
+  USB CDC. `NRF52840_USBD` is that device, and those boards answer their console
+  now; the rows here predate it and have not been measured again.
