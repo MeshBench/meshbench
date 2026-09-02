@@ -3,7 +3,7 @@ name: package
 # A bundle somebody can download and run, with the emulators inside it.
 #
 # All three platforms. The mac and windows inputs exist so a dispatched test
-# build can skip the billed macOS minutes, not to decide what a release
+# build can skip the slower macOS leg, not to decide what a release
 # contains: a tag push carries no inputs and builds everything.
 #
 # The plan this implements is docs/release-packaging-plan.md.
@@ -22,7 +22,7 @@ on:
         type: boolean
         default: false
       mac:
-        description: 'Build the macOS dmg (hosted macOS minutes bill at 10x on a private repo - leave off for a test build)'
+        description: 'Build the macOS dmg (runs on the self-hosted M4 - leave off for a quicker test build)'
         type: boolean
         default: true
       windows:
@@ -285,9 +285,10 @@ jobs:
           fi
           tar czf meshbench-linux-x86_64.tar.gz meshbench
           # GPL-3.0 section 6: whoever receives the binary can have the source
-          # that made it. The repository is private for now, so the source
-          # travels with the release rather than being a link. When the
-          # repository goes public this can become a URL in the notes.
+          # that made it. The repository is public, so a link to the tag would
+          # satisfy that on its own. The archive travels with the release
+          # anyway, because it pins the exact tree this binary was built from
+          # and a tag does not once somebody moves one.
           VERSION="${{ inputs.version }}"
           if [ -z "$VERSION" ]; then
             case "${GITHUB_REF_NAME}" in
@@ -432,22 +433,24 @@ jobs:
     # account payments, which is a confusing way to be told you picked the
     # expensive label.
     #
-    # Hosted minutes bill at 10x on a private repository, which is affordable
-    # here precisely because this workflow runs on tags and manual dispatch
-    # only, never on push: a release build is about three minutes, so roughly
-    # thirty billable minutes a release. If it ever moves to per-push, move it
-    # to a Mac we own at the same time.
-    # Skippable, because this is the only leg that costs anything: Linux and
-    # Windows both run on Linux runners, which are free even here. A test
-    # build should not spend thirty billable minutes proving the dmg still
-    # packs.
+    # That label is history now rather than a live constraint. The 10x macOS
+    # multiplier on a private repository is what first bought a Mac to run
+    # this on; the repository is public, so standard hosted runners cost
+    # nothing and cost is no longer an argument either way. What survives is
+    # that the M4 is faster than a hosted macos-14, and that a runner we own
+    # keeps release credentials off shared infrastructure. Moving back to
+    # hosted is now a choice somebody could make on those two grounds, and
+    # should be made on purpose rather than because a comment went stale.
+    #
+    # Skippable, because a dispatched test build has no reason to build the
+    # dmg at all. Not to save money: nothing in this file is billed.
     # Alex's own Mac, as an org runner. package.yml runs only on tags and
     # manual dispatch - events that need write access - so nothing an
-    # outsider does can schedule work on it. Hosted macos-14 was the paid
-    # leg on this private repository; the M4 is free and faster.
+    # outsider does can schedule work on it. Hosted macos-14 was the paid leg
+    # while this repository was private; now it is only that the M4 is faster.
     # A tag push carries no inputs, and a release with no Mac build in it is
     # not the release this job exists to make. The input still lets a
-    # dispatched test build skip the billed macOS minutes.
+    # dispatched test build skip the Mac build.
     if: inputs.mac || startsWith(github.ref, 'refs/tags/v')
     runs-on: [self-hosted, macos-m4]
     steps:
@@ -551,9 +554,12 @@ jobs:
   windows:
     timeout-minutes: 60
     # Cross-compiled from Linux with mingw rather than built on a Windows
-    # runner: Gio's Windows backend and wgpu both build that way, and Windows
-    # minutes bill at 2x on a private repository for a build that needs
-    # nothing from Windows itself.
+    # runner: Gio's Windows backend and wgpu both build that way, so the job
+    # needs nothing from Windows itself. The 2x Windows multiplier decided
+    # this when the repository was private and no longer applies, but the
+    # cross-build is kept because it is one runner pool and one toolchain
+    # rather than two, and because windows-check.yml is what actually proves
+    # the result on Windows.
     #
     # This produces the application, and the zip carries both emulators and the
     # radio model beside it. A node on Windows asks for ":0" and reaches the
@@ -800,8 +806,10 @@ jobs:
             echo "operating systems will object the first time. The README says exactly"
             echo "what they say and how to proceed."
             echo
-            echo "\`SHA256SUMS\` covers every file here. The source archive is included"
-            echo "because MeshBench is GPL-3.0-or-later and the repository is private."
+            echo "\`SHA256SUMS\` covers every file here. MeshBench is GPL-3.0-or-later,"
+            echo "so the source for these binaries is this repository at \`$TAG\`; the"
+            echo "source archive beside them is that same tree, pinned, so a copy of"
+            echo "the bundle carries its own source wherever it ends up."
           } > /tmp/notes.md
 
           gh release create "$TAG" dist/* --target "${GITHUB_SHA}" \

@@ -5,9 +5,11 @@
 #     packaging/macos-app.sh 0.1.0
 #
 # This is deliberately a script rather than only workflow YAML, because
-# MeshBench's macOS builds run on a Mac we own: hosted macOS minutes bill at
-# ten times the rate on a private repository, and this is the same work either
-# way. A self-hosted runner calls this; so can a person.
+# MeshBench's macOS builds run on a Mac we own and this is the same work either
+# way: a self-hosted runner calls this, and so can a person. The 10x rate on
+# hosted macOS minutes is what first bought the Mac, and that reason went with
+# the repository going public; what the script still buys is being able to
+# build and inspect the dmg by hand on the machine in front of you.
 #
 # What it does NOT do is notarise. Ad-hoc signing is enough to run on the
 # machine that built it, and not enough for anybody else - Gatekeeper will

@@ -7,8 +7,8 @@
 // other. Both speak the control socket, and anything either can do the other
 // can.
 //
-// Not internal/, deliberately: it exists to be imported. While this repository
-// is private that means us; after it opens it means anybody.
+// Not internal/, deliberately: it exists to be imported, and the repository is
+// public, so that means anybody rather than only us.
 //
 // # Two layers
 //

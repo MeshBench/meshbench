@@ -45,12 +45,17 @@ SDR source, which bind where you tell them to.
 
 ## Reporting a vulnerability
 
-Report privately, not as a public issue: email **meshbench@pm.me** with
-`meshbench security` in the subject.
+Report privately, not as a public issue. There are two ways, and the first is
+preferred.
 
-GitHub's private vulnerability reporting is not enabled on this repository yet —
-it is still private, and that channel will be turned on when it is published.
-Until then, email is the route, and it is read.
+**GitHub's private vulnerability reporting is enabled on this repository**, and
+is the route to use: [Security > Report a
+vulnerability](https://github.com/MeshBench/meshbench/security/advisories/new).
+The report, the discussion and the advisory that comes out of it stay in one
+place, and nothing is public until we publish it.
+
+**Email is the fallback**, for anyone who would rather not go through GitHub:
+**meshbench@pm.me**, with `meshbench security` in the subject. It is read.
 
 Please include what you did, what happened, and what you expected. A proof of
 concept helps; a crash report with the input that caused it is already useful.

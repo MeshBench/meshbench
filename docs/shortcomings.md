@@ -951,10 +951,11 @@ gone stale is the failure mode it exists to prevent.
   carries its own attribution string and the map renders it; that is an ODbL and
   CARTO requirement rather than a courtesy, and it is why the field is not
   optional on a layer.
-- **The source offer is met by the pipeline.** GPL-3.0 §6 obliges a recipient of
-  a binary to be able to get the corresponding source. The repository is private,
-  so every release attaches `meshbench-<tag>-source.tar.gz`. When the repository
-  is made public that archive can be replaced with a link.
+- **The source offer is met twice over.** GPL-3.0 §6 obliges a recipient of a
+  binary to be able to get the corresponding source. The repository is public,
+  so the source of any release is already beside the binaries at the same tag;
+  every release also attaches `meshbench-<tag>-source.tar.gz`, which pins the
+  exact tree the binary came from rather than a tag somebody could move.
 - **`MeshBench/meshcore-native` exists and is public**, under MeshCore's own MIT
   terms. That is where MeshCore is compiled; nothing of it is linked here.
 

@@ -2,7 +2,7 @@
   "project": {
     "name": "MeshBench",
     "licence": "GPL-3.0-or-later",
-    "detail": "You may use, study, modify and share this program; versions you pass on to others must come with their source under the same terms. Every release carries a source archive while the repository is private.",
+    "detail": "You may use, study, modify and share this program; versions you pass on to others must come with their source under the same terms. The repository is public, so the source of any release sits beside its binaries at the same tag, and every release also carries a source archive of that exact tree.",
     "link": "https://github.com/MeshBench/meshbench"
   },
   "forks": [

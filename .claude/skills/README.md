@@ -23,6 +23,11 @@ skills are published as two standalone repositories, split by audience:
 - **[meshbench-dev-skills](https://github.com/MeshBench/meshbench-dev-skills)**:
   `wb2-design-language`, developing the tool.
 
+**Both mirror repositories are still private**, so those two links are a 404 to
+anyone outside the organisation even though this repository is public. The
+pipeline that fills them works; what has not happened is the decision to open
+them. Said here rather than left as a broken link, which reads as a mistake.
+
 **The copies here are canonical, and a mirror is an output.**
 `tools/skillmirror` renders both trees from this directory, performs that
 rename, and writes the front page and licence each mirror needs and this one
