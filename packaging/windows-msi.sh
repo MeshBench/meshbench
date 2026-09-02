@@ -30,15 +30,23 @@ out=${3:?the .msi to write}
 here=$(cd "$(dirname "$0")" && pwd)
 
 missing=""
-for t in wix msiinfo msibuild icotool magick python3; do
+for t in wix msiinfo msibuild icotool python3; do
   command -v "$t" >/dev/null || missing="$missing $t"
 done
 if [ -n "$missing" ]; then
   echo "::error::windows-msi: missing:$missing - wix is the WiX toolset," \
        "installed with 'dotnet tool install --global wix'; msiinfo and" \
-       "msibuild are 'msitools'; icotool is 'icoutils'; magick is ImageMagick" >&2
+       "msibuild are 'msitools'; icotool is 'icoutils'" >&2
   exit 1
 fi
+
+# The dialog bitmaps are composed with Pillow, which python3 does not carry by
+# itself. Checked here rather than met as a traceback three minutes into a
+# release build.
+python3 -c 'import PIL' 2>/dev/null || {
+  echo "::error::windows-msi: python3 cannot import PIL - install python3-pil" >&2
+  exit 1
+}
 
 # The dialogs come from an extension, and a missing one fails inside the build
 # with a message about an unknown element rather than about a missing package.
@@ -86,34 +94,13 @@ icotool -c -o "$extra/meshbench.ico" \
   "$here/icons/meshbench-48.png" "$here/icons/meshbench-64.png" \
   "$here/icons/meshbench-128.png" "$here/icons/meshbench-256.png"
 
-# The two bitmaps the dialogs are drawn on, at the sizes WixUI asks for.
-#
-# WixUIDialogBmp is not a panel beside the text - it is the whole 493x312
-# background of the first and last pages, and WiX draws its title and body on
-# top of it. So the artwork lives in a band down the left and the rest is left
-# white for the text to sit on, which is what every stock WiX bitmap does. A
-# full-bleed card there put dark artwork behind dark text and neither could be
-# read. The banner is the same story: the page title is drawn along its left,
-# so the mark goes on the right.
-#
-# The card is docs/brand's copy, pointed at rather than duplicated - the crops
-# below are regions of it at its committed 1200x630, so a redrawn card wants
-# them checked.
-card=$here/../docs/brand/meshbench-card.png
-magick -size 164x312 xc:'#0B0A12' -gravity northwest \
-  \( "$card" -crop 380x300+750+290 +repage -resize 150x \
-     -alpha set -channel A -evaluate multiply 0.5 +channel \) -geometry +26+178 -composite \
-  \( "$here/icons/meshbench-256.png" -resize 78x78 \) -geometry +43+54 -composite \
-  \( "$card" -crop 545x105+92+348 +repage -resize 124x -background none \) -geometry +20+150 -composite \
-  -alpha remove -alpha off "$work/band.png"
-magick -size 493x312 xc:white -gravity northwest \
-  "$work/band.png" -geometry +0+0 -composite \
-  \( -size 2x312 xc:'#FF7A45' \) -geometry +164+0 -composite \
-  -alpha remove -alpha off -type truecolor "BMP3:$extra/dialog.bmp"
-magick -size 493x58 xc:white -gravity northwest \
-  \( "$here/icons/meshbench-256.png" -resize 34x34 \) -geometry +445+12 -composite \
-  \( -size 493x2 xc:'#FF7A45' \) -geometry +0+56 -composite \
-  -alpha remove -alpha off -type truecolor "BMP3:$extra/banner.bmp"
+# The two bitmaps the dialogs are drawn on. See packaging/dialog-bitmaps.py for
+# why they are shaped the way they are, and why this is Pillow rather than the
+# one-line ImageMagick it started as.
+python3 "$here/dialog-bitmaps.py" \
+  "$here/../docs/brand/meshbench-card.png" \
+  "$here/icons/meshbench-256.png" \
+  "$extra"
 
 sed "s/<version>/$version/" "$here/installed-by-msi.txt" \
   > "$extra/installed-by-msi.txt"

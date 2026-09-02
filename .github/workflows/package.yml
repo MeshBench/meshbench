@@ -610,22 +610,33 @@ jobs:
           # builds no dialogs, and the installer was asked for two.
           # icoutils is for the one file Windows wants that the repository does
           # not carry: an .ico holding every size, built from the committed
-          # PNGs the same way macos-app.sh builds the .icns. ImageMagick makes
-          # the dialog bitmaps from the same committed artwork, for the same
-          # reason and because WixUI takes bitmaps rather than PNGs.
+          # PNGs the same way macos-app.sh builds the .icns. python3-pil
+          # composes the two dialog bitmaps from the same committed artwork -
+          # ImageMagick would have done, but 22.04 carries version 6, whose
+          # command is `convert` and not `magick`, and a build that works where
+          # it was written and fails where it runs is the worst kind.
           sudo apt-get install -y --no-install-recommends \
-            gcc-mingw-w64-x86-64 zip msitools icoutils imagemagick
+            gcc-mingw-w64-x86-64 zip msitools icoutils python3-pil
 
       # The WiX toolset, which is what builds the installer now. A .NET tool,
       # so it runs on this Linux runner and the "no Windows runner" property
-      # that has always held for this job still holds.
+      # this job has always had still holds.
       - uses: actions/setup-dotnet@v4
         with: { dotnet-version: '8.0' }
+
+      # Idempotent on purpose. These are persistent self-hosted runners, so the
+      # second release to build here would meet "tool 'wix' is already
+      # installed" and fail a step that had nothing wrong with it.
       - name: WiX
         run: |
-          dotnet tool install --global wix --version 5.0.2
+          set -e
+          dotnet tool install --global wix --version 5.0.2 ||
+            dotnet tool update --global wix --version 5.0.2
           echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
-          "$HOME/.dotnet/tools/wix" extension add -g WixToolset.UI.wixext/5.0.2
+          export PATH="$HOME/.dotnet/tools:$PATH"
+          wix extension list -g | grep -q WixToolset.UI.wixext ||
+            wix extension add -g WixToolset.UI.wixext/5.0.2
+          wix --version
 
       - name: Build
         env:
