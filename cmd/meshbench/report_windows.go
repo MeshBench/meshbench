@@ -27,6 +27,7 @@ var (
 	procAttachConsole = kernel32.NewProc("AttachConsole")
 	procGetStdHandle  = kernel32.NewProc("GetStdHandle")
 	procSetStdHandle  = kernel32.NewProc("SetStdHandle")
+	procGetFileType   = kernel32.NewProc("GetFileType")
 )
 
 const (
@@ -39,8 +40,15 @@ const (
 // recordCrashes has nothing to do. Set by adoptConsole, which runs first.
 var errorGoesSomewhere bool
 
-// stdHandleMissing reports whether Windows has nothing behind one of the
-// standard handles.
+// crashLog is the file stderr was pointed at, when there was no console to
+// point it at instead. Empty whenever stderr already reaches somebody.
+var crashLog string
+
+// fileTypeUnknown is what GetFileType answers for a handle that refers to
+// nothing. Every usable handle is a disk file, a pipe or a character device.
+const fileTypeUnknown = 0
+
+// stdHandleMissing reports whether one of the standard handles is unusable.
 //
 // This is the whole question, because a GUI-subsystem binary is not always
 // handed nothing. A parent that redirected our output - "meshbench.exe
@@ -48,9 +56,25 @@ var errorGoesSomewhere bool
 // failure writes - passes real handles through STARTUPINFO, and those are the
 // ones the user asked for. Replacing them sends the output to the screen and
 // leaves the file empty, which is the same silence the other way round.
+//
+// A null handle is not enough to ask about, which cost an afternoon.
+// Measured on Windows 10, a -H windowsgui build started from a terminal:
+//
+//	before attach: stdout=0x0 stderr=0x140
+//
+// stderr is not null, and it is not INVALID_HANDLE_VALUE either - it is a
+// stale value carried in the process parameters that refers to nothing, and
+// every write to it fails with "The handle is invalid". Trusting a non-null
+// handle therefore swallows every message the program writes, which is the
+// exact silence this file exists to end. GetFileType is what actually
+// distinguishes a handle from a number.
 func stdHandleMissing(which uintptr) bool {
 	h, _, _ := procGetStdHandle.Call(which)
-	return h == 0 || h == uintptr(syscall.InvalidHandle)
+	if h == 0 || h == uintptr(syscall.InvalidHandle) {
+		return true
+	}
+	t, _, _ := procGetFileType.Call(h)
+	return t == fileTypeUnknown
 }
 
 // adoptConsole gives the standard handles the console that started this
@@ -118,7 +142,7 @@ func recordCrashes() {
 		time.Now().Format(time.RFC3339), invoked())
 	os.Stderr = f
 	procSetStdHandle.Call(stdErrorHandle, f.Fd())
-	errorGoesSomewhere = true
+	errorGoesSomewhere, crashLog = true, path
 }
 
 // errorLogPath is where a message goes when there is no console to put it on.
@@ -139,6 +163,12 @@ func errorLogPath() (string, error) {
 // Returns the path so the caller can name it, because a log nobody is told
 // about is the same silence one step removed.
 func reportFatal(msg string) string {
+	// Nothing to add when stderr already lands in the log: the message is
+	// in it by the time this is called, so writing it again would say it
+	// twice and then announce the path of the file being read.
+	if crashLog != "" {
+		return ""
+	}
 	path, err := errorLogPath()
 	if err != nil {
 		return ""
