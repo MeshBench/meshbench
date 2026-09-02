@@ -1850,8 +1850,9 @@ Pin a build to nodes, which is what decides what each one starts and is the step
 | `version` | string | required, primary | the version or imported label to pin; refused when absent, but not checked against the library, so a name nothing answers to is only found out at the next start |
 | `node` | string | optional | pin this one node by name; absent means every node the role filter leaves |
 | `role` | string | optional | only nodes running under this role, pinned or implied by their kind; absent means all of them |
+| `board` | string | optional | the board the image is for, so a fleet of emulated nodes can be pinned in one call; absent leaves each node's board as it is, and an explicit empty string moves them back to a build for this machine. Unlike node.set_firmware, absent does not mean native here: clearing three hundred boards is not what a caller who only named a version asked for |
 
-**Answers** `version`, `nodes`, `considered`. `nodes` is how many were pinned and `considered` how many exist, which counts the ones that never run firmware. With a `role` and no `node` it pins every node running that role, but marks every node in the fleet list as running the version whatever its role, so a call per role leaves the list reading as the last one: pass `node` to pin exactly one.
+**Answers** `version`, `nodes`, `considered`, `board`. `nodes` is how many were pinned and `considered` how many exist, which counts the ones that never run firmware. With a `role` and no `node` it pins every node running that role, but marks every node in the fleet list as running the version whatever its role, so a call per role leaves the list reading as the last one: pass `node` to pin exactly one. `board` comes back only when it was passed, so a caller can tell a board left alone from one set to a host build.
 
 **Example** - pin one node to the build it will start
 

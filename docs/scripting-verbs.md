@@ -212,7 +212,7 @@ Two verbs are **not** in this table:
 | `firmware.needed` | — | `roles` | `wb.firmware.needed()` |
 | `firmware.published` | — | `published`, `builds` | *none* — the catalogue fetch landing its answer; wb.firmware.scan() asks for one |
 | `firmware.rescan` | — | `scanning`, `count` | `wb.firmware.scan()` |
-| `firmware.set` | *a bare string*, `version` string, `node` string, `role` string | `version`, `nodes`, `considered` | `wb.firmware.use(version, role=\|node=)` |
+| `firmware.set` | *a bare string*, `version` string, `node` string, `role` string, `board` string | `version`, `nodes`, `considered`, `board` | `wb.firmware.use(version, role=\|node=)` |
 | `firmware.start` | — | `starting` | `wb.firmware.start()` |
 | `firmware.started` | — | `running`, `playing` | *none* — the firmware starter reporting back |
 | `firmware.state` | — | `running`, `nodes`, `total`, `starting` | `wb.firmware.state()  /  wb.firmware.wait_started()` |

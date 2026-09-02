@@ -23,6 +23,23 @@ func registerFirmwareNodes(st *state.Store, s *Sim) {
 		if version == "" {
 			return nil, fmt.Errorf("firmware.set needs a version")
 		}
+		// The board travels with the version here as it does on
+		// node.set_firmware, because a board image is not a build on its own:
+		// it is that image for that hardware. Dropped, it pinned a board node
+		// to a host build and the start then failed asking for a native build
+		// of a version that has none, which sends the reader to build MeshCore
+		// from source over a field they had passed and we had ignored.
+		//
+		// Presence, not emptiness, and this is the one place it differs from
+		// the single-node verb. There, an absent board means a host build and
+		// clears whatever the node had. Here the same rule would make
+		// `firmware.set {"version": ...}` across a mesh silently convert every
+		// emulated node to native, which is the fault above with the sign
+		// flipped and three hundred nodes behind it. So absent leaves the
+		// board alone, and an explicit empty string is how a node is moved
+		// back to a build for this machine.
+		m, _ := p.(map[string]any)
+		board, setBoard := m["board"].(string)
 		n := s.updateNodes(w, func(n *scenario.Node, row *state.Node) bool {
 			if node != "" && n.Name != node {
 				return false
@@ -34,12 +51,20 @@ func registerFirmwareNodes(st *state.Store, s *Sim) {
 				return false
 			}
 			n.Firmware.Version = version
+			if setBoard {
+				n.Firmware.Board = board
+			}
 			// And the engine, which holds its own copy of every spec and is
 			// the one that actually starts a process. Without this the
 			// library, the row and the message all agree with each other and
 			// the run asks for whatever the network was opened with.
 			if s.eng != nil {
 				s.eng.PinFirmware(n.Name, version)
+				if setBoard {
+					// The role is the filter here, not a value to write, so
+					// the node keeps the one it has.
+					s.eng.PinBoard(n.Name, board, "")
+				}
 			}
 			// And the row, decided here rather than by a second walk with a
 			// filter of its own: the one that used to be here honoured the
@@ -50,10 +75,20 @@ func registerFirmwareNodes(st *state.Store, s *Sim) {
 			}
 			return true
 		})
-		w.Say(fmt.Sprintf("%d nodes pinned to %s", n, version))
-		return map[string]any{
+		said := version
+		if setBoard && board != "" {
+			said += " on " + board
+		}
+		w.Say(fmt.Sprintf("%d nodes pinned to %s", n, said))
+		out := map[string]any{
 			"version": version, "nodes": n, "considered": len(s.nodes),
-		}, nil
+		}
+		// Echoed only when it was asked for, so a caller can tell "left the
+		// board alone" from "set it to a host build".
+		if setBoard {
+			out["board"] = board
+		}
+		return out, nil
 	})
 
 	st.Handle("firmware.wipe", func(w *state.World, _ any) (any, error) {
