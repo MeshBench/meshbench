@@ -317,6 +317,9 @@ jobs:
           # A scoped package is private by default, and this one is meant to
           # be installable by anyone following the README.
           #
-          # No --provenance: it needs a public repository, and this one is
-          # private. Worth turning on the day that changes.
+          # No --provenance yet. It needs a public repository, which this now
+          # is, and `id-token: write` on this job, which it does not have.
+          # Turning it on changes what the registry records about a published
+          # version and cannot be undone for a version already up, so it is a
+          # decision to take deliberately rather than a stale line to tidy.
           npm publish "dist/npm/meshbench-client-$VERSION.tgz" --access public

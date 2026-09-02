@@ -5,17 +5,24 @@ against a **sample-accurate LoRa baseband channel** with real noise, so the
 question it answers is not "would a packet get through" but "what actually
 arrived at the antenna, and why".
 
-**GPL-3.0-or-later** — see `docs/licence.md`. The repository is still
-private; publishing binaries from a private repository means each release
-carries a source archive, which the pipeline does. MeshCore is *not* linked into
-our binary — it is built in `MeshBench/meshcore-native` and downloaded at
-runtime, which is what freed the choice — so do not reintroduce a direct
-dependency on it without a new ADR.
+**GPL-3.0-or-later** - see `docs/licence.md`. The repository is public, so
+section 6's source offer is already met by the tree a binary was built from
+sitting at the same tag as the binary. The pipeline attaches a source archive
+to every release anyway, because an archive pins the exact tree where a tag can
+be moved or deleted; dropping it is a decision to record in `docs/licence.md`,
+not a tidy-up. MeshCore is *not* linked into our binary: it is built in
+`MeshBench/meshcore-native` and downloaded at runtime, which is what freed the
+licence choice, so do not reintroduce a direct dependency on it without a new
+ADR.
 
 ## Tracking
 
-Plane project **MSIM** at http://plane.lab. Work items are `MSIM-<n>`; that ID
-goes in the branch name and the PR title. ADRs live in the project's Pages.
+Plane project **MSIM** at http://plane.lab, which is an instance on the
+maintainer's own network and reachable from nowhere else. Work items are
+`MSIM-<n>`; that ID goes in the branch name and the PR title. ADRs live in the
+project's Pages. An outside contributor needs none of it: `CONTRIBUTING.md`
+routes them through GitHub issues and pull requests, and a PR title without an
+`MSIM-<n>` is what a change from outside looks like.
 
 ## Two files, one set of rules
 

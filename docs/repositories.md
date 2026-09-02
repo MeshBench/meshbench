@@ -16,7 +16,7 @@ A fork nobody outside the organisation can fetch cannot satisfy that.
 
 | repository | what it is | licence | public |
 |---|---|---|---|
-| `MeshBench/meshbench` | MeshBench itself | GPL-3.0-or-later — `docs/licence.md` | at release |
+| `MeshBench/meshbench` | MeshBench itself | GPL-3.0-or-later, `docs/licence.md` | yes, since 1 September 2026 |
 | `MeshBench/meshcore-native` | host builds of MeshCore, `VirtualSX1262`, the bridge and `radioserver` | see its NOTICE | yes |
 | `MeshBench/meshbench-reports` | the published reports site | — | yes |
 | `MeshBench/docs` | the documentation site, six of whose pages are generated from here | not stated | yes |
@@ -25,6 +25,16 @@ A fork nobody outside the organisation can fetch cannot satisfy that.
 | `MeshBench/renode-infrastructure` | the C# half of that fix | upstream's | yes |
 | `MeshBench/renode` | ties them together and builds the package | upstream's | yes |
 | `MeshBench/gio` | Gio with Wayland layer-shell windows | upstream's | yes |
+
+Three more in the organisation are **private**, and nothing a release ships is
+built from any of them, which is why they are not in the table above: `brand`,
+where the identity is generated (`tools/icon.sh` explains why the result is
+committed here rather than fetched), and `meshbench-scripting-skills` and
+`meshbench-dev-skills`, the two agent-skill mirrors `tools/skillmirror` writes.
+Now that this repository is public, the links to those two in
+`.claude/skills/README.md` are a 404 to a reader outside the organisation.
+Opening them is a decision nobody has taken; until it is, the note there says
+so.
 
 ## What the documentation site takes from here
 

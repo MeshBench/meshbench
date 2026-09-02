@@ -7,8 +7,11 @@ name: windows-check
 # would get. A kernel that is wrong there fails as a silently slow or silently
 # empty link warm, which is exactly the kind of bug that reaches a user.
 #
-# Manual for the GPU work, because Windows minutes bill at double on a private
-# repository and DX12 only needs re-proving when something touches the kernels.
+# Manual for the GPU work, because DX12 only needs re-proving when something
+# touches the kernels, and a check nobody waits for should not sit in front of
+# every merge. The 2x Windows multiplier was the other half of that argument
+# while the repository was private; it is public now and hosted minutes are
+# free, so the first half is the whole of it.
 #
 # But also on a release tag, and for one narrow reason: on 21 August the Windows
 # build had been broken for a week and nothing knew. internal/app/session used
@@ -26,9 +29,10 @@ on:
 
 jobs:
   check:
-    # A hosted Windows runner is minutes we pay for, and this job only smoke-
-    # checks a cross-compiled binary. Six hours of a hung one is not a bill
-    # worth risking.
+    # This job only smoke-checks a cross-compiled binary, so thirty minutes is
+    # already generous. The GitHub default is six hours, and a hung run sitting
+    # in the queue for that long is the failure worth guarding against: it used
+    # to be a bill as well, which the public repository has taken away.
     timeout-minutes: 30
     runs-on: windows-latest
     env:
