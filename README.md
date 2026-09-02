@@ -89,7 +89,8 @@ nothing else has to be installed first.
 chmod +x meshbench-*.AppImage && ./meshbench-*.AppImage
 ```
 
-macOS (`.dmg`) and Windows (`.zip`) builds are in the same release;
+macOS (`.dmg`) and Windows (`.msi`, or a `.zip` with no installer) builds are
+in the same release;
 per-platform detail, including the signing caveats, is in
 [`docs/install.md`](docs/install.md).
 

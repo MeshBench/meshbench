@@ -22,8 +22,12 @@ const (
 	Deb Artefact = "deb"
 	// Bundle is the macOS .app inside the .dmg.
 	Bundle Artefact = "app bundle"
-	// Zip is the Windows build.
+	// Zip is the Windows build somebody unpacked themselves.
 	Zip Artefact = "zip"
+	// Msi is the Windows build an installer put where it is, which is the one
+	// Windows bundle that has somewhere to put a new version and a record of
+	// what the old one was.
+	Msi Artefact = "msi"
 	// Loose is a binary somebody built or unpacked themselves, which is what
 	// a source checkout looks like.
 	Loose Artefact = "unpackaged"
@@ -53,6 +57,15 @@ func Detect(goos, exe, appImage string) Artefact {
 	}
 	switch goos {
 	case "windows":
+		// The installer lays down a note the zip does not carry, which is the
+		// only difference between the two once they are unpacked. Told apart
+		// because they are updated differently: running the newer .msi over an
+		// installed build is right and unzipping over it is not, and the
+		// second would leave Apps and Features describing files that had been
+		// replaced underneath it.
+		if exe != "" && besideBinary(exe, msiNote) {
+			return Msi
+		}
 		return Zip
 	case "darwin":
 		return Loose
@@ -69,6 +82,12 @@ func Detect(goos, exe, appImage string) Artefact {
 	}
 	return Loose
 }
+
+// msiNote is the file the Windows installer puts beside the binary, and the
+// evidence that an installer rather than a person put this build here. It is
+// authored in packaging/, installed by packaging/meshbench.wxs, and removed
+// with everything else on uninstall.
+const msiNote = "installed-by-msi.txt"
 
 func besideBinary(exe, name string) bool {
 	_, err := os.Stat(filepath.Join(filepath.Dir(exe), name))
@@ -126,6 +145,10 @@ func wanted(a Artefact, goos string, arch []string) func(string) bool {
 	switch {
 	case a == AppImage:
 		return func(n string) bool { return strings.HasSuffix(n, ".AppImage") }
+	case a == Msi:
+		return func(n string) bool {
+			return strings.HasSuffix(n, ".msi") && hasAny(n, arch)
+		}
 	case goos == "windows":
 		return func(n string) bool {
 			return strings.HasSuffix(n, ".zip") && has(n, "windows") && hasAny(n, arch)

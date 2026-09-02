@@ -56,6 +56,14 @@ func Swap(a Artefact, staged, exe string) string {
 			"prefers: a running .exe cannot be replaced while it is running. " +
 			"Then unzip " + filepath.Base(staged) + " in " + where +
 			" and move the meshbench folder over " + orTheDir(exe) + "."
+	case Msi:
+		return "Close MeshBench, then run " + filepath.Base(staged) + " in " +
+			where + ". It replaces this installation in place - same " +
+			"location, same Start menu entry, one entry in Apps and Features - " +
+			"so there is nothing to uninstall first and no second copy left " +
+			"behind. Do not unzip a build over " + orTheDir(exe) +
+			" instead: the installer's record of what is there would then " +
+			"describe files that are no longer the ones on disk."
 	default:
 		return "The download is in " + where + "; replace this build with it " +
 			"when the session is finished."
@@ -69,6 +77,13 @@ func Swap(a Artefact, staged, exe string) string {
 // which platforms get a real install and which get an instruction, and a page
 // that claimed "restart to finish" while doing nothing would be worse than one
 // that told the truth.
+//
+// Msi is false with the rest of Windows, and deliberately. The installer can
+// replace an installed build and this application still cannot replace itself:
+// the running .exe is mapped and locked either way, and what the .msi does is
+// wait for it to close. The question here is what MeshBench can do to its own
+// binary, not what somebody could do from outside it, and answering yes would
+// promise a restart that finishes an update nobody started.
 func CanSwapItself(a Artefact) bool {
 	switch a {
 	case AppImage, Tarball, Loose, Bundle:

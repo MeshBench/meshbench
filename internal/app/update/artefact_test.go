@@ -1,6 +1,8 @@
 package update_test
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -20,7 +22,7 @@ func TestTheBundleIsDeducedFromWhereTheBinaryIs(t *testing.T) {
 			"/home/someone/Downloads/meshbench-0.2.0-x86_64.AppImage", update.AppImage},
 		{"a macOS bundle is a path shape", "darwin",
 			"/Applications/MeshBench.app/Contents/MacOS/meshbench", "", update.Bundle},
-		{"Windows publishes one thing", "windows",
+		{"an unpacked zip on Windows has no installer's note beside it", "windows",
 			`C:\Users\someone\meshbench\meshbench.exe`, "", update.Zip},
 		{"a package manager put it under /usr", "linux",
 			"/usr/bin/meshbench", "", update.Deb},
@@ -34,6 +36,26 @@ func TestTheBundleIsDeducedFromWhereTheBinaryIs(t *testing.T) {
 	}
 }
 
+// The two Windows bundles are the same files in the same layout once they are
+// unpacked, and they are updated differently, so the one thing that tells them
+// apart is the note the installer lays down. It has to be looked for on disk
+// beside the binary rather than assumed from a path, because the installer
+// takes a location from whoever runs it.
+func TestAnInstalledWindowsBuildIsToldFromAnUnpackedOne(t *testing.T) {
+	dir := t.TempDir()
+	exe := filepath.Join(dir, "meshbench.exe")
+	if got := update.Detect("windows", exe, ""); got != update.Zip {
+		t.Errorf("with no note beside it, Detect = %q, want %q", got, update.Zip)
+	}
+	note := filepath.Join(dir, "installed-by-msi.txt")
+	if err := os.WriteFile(note, []byte("put here by the installer\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := update.Detect("windows", exe, ""); got != update.Msi {
+		t.Errorf("with the installer's note beside it, Detect = %q, want %q", got, update.Msi)
+	}
+}
+
 // released is the asset list a real release publishes, names and all.
 var released = update.Release{
 	Tag: "v0.2.0",
@@ -43,6 +65,7 @@ var released = update.Release{
 		{Name: "meshbench_0.2.0_amd64.deb", Bytes: 26_000_000},
 		{Name: "MeshBench-0.2.0-arm64.dmg", Bytes: 30_000_000},
 		{Name: "meshbench-0.2.0-windows-x86_64.zip", Bytes: 40_000_000},
+		{Name: "meshbench-0.2.0-windows-x86_64.msi", Bytes: 40_000_000},
 		{Name: "meshbench-0.2.0-source.tar.gz", Bytes: 3_000_000},
 		{Name: update.SumsAsset, Bytes: 400},
 	},
@@ -59,6 +82,7 @@ func TestEachBundleTakesItsOwnArtefact(t *testing.T) {
 		{update.AppImage, "linux", "amd64", "meshbench-0.2.0-x86_64.AppImage"},
 		{update.Bundle, "darwin", "arm64", "MeshBench-0.2.0-arm64.dmg"},
 		{update.Zip, "windows", "amd64", "meshbench-0.2.0-windows-x86_64.zip"},
+		{update.Msi, "windows", "amd64", "meshbench-0.2.0-windows-x86_64.msi"},
 	}
 	for _, c := range cases {
 		got, why := update.AssetFor(released, c.art, c.goos, c.goarch)
@@ -113,6 +137,7 @@ func TestTheInstructionIsTheOneForThisPlatform(t *testing.T) {
 	}{
 		{update.Deb, "apt"},
 		{update.Zip, "cannot be replaced while it is running"},
+		{update.Msi, "replaces this installation in place"},
 		{update.Bundle, "quarantined"},
 		{update.AppImage, "rename over a running binary"},
 		{update.Tarball, "emulators"},
@@ -129,7 +154,10 @@ func TestTheInstructionIsTheOneForThisPlatform(t *testing.T) {
 // and the interface has to be able to say which - a "restart to finish" that
 // silently did nothing would be worse than the instruction.
 func TestWindowsAndThePackageManagerCannotBeSwappedInPlace(t *testing.T) {
-	for _, a := range []update.Artefact{update.Zip, update.Deb} {
+	// The installed Windows build is in this list too: the .msi can replace
+	// it, and MeshBench still cannot replace its own running binary, which is
+	// the question this answers.
+	for _, a := range []update.Artefact{update.Zip, update.Msi, update.Deb} {
 		if update.CanSwapItself(a) {
 			t.Errorf("%s claims a binary swap it cannot do", a)
 		}
