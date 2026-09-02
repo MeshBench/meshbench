@@ -220,7 +220,9 @@ func TestADownloadLandsBesideTheBuildAndReplacesNothing(t *testing.T) {
 	released(t, "v0.1.0")
 	body := []byte("the release, as a file")
 	st, ctx := running(t, feedFor(t, "v0.2.0", body))
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	cacheHome := t.TempDir()
+	t.Setenv("XDG_CACHE_HOME", cacheHome)
+	t.Setenv("LOCALAPPDATA", cacheHome)
 
 	if _, err := st.Do(ctx, "update.check", nil); err != nil {
 		t.Fatalf("update.check: %v", err)

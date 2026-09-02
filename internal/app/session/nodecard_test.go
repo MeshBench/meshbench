@@ -22,6 +22,7 @@ func aCardSim(t *testing.T) (*state.Store, *Sim) {
 	// failing, on one machine and not another.
 	home := t.TempDir()
 	t.Setenv("XDG_CACHE_HOME", home)
+	t.Setenv("LOCALAPPDATA", home)
 	t.Setenv("HOME", home)
 	st := state.New(10)
 	s := &Sim{nodes: []scenario.Node{

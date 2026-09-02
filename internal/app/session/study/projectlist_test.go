@@ -60,7 +60,13 @@ func TestProjectListOffersTheShippedNetworksOnAFreshInstall(t *testing.T) {
 // rather than by being copied in among them.
 func TestProjectListKeepsSavedNetworksApartFromShippedOnes(t *testing.T) {
 	st, _ := aStudy(t)
-	dir := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "meshbench", "projects")
+	// Asked the way the code under test asks: os.UserConfigDir reads
+	// XDG_CONFIG_HOME only on Unix, and %AppData% on Windows.
+	cfg, err := os.UserConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(cfg, "meshbench", "projects")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}

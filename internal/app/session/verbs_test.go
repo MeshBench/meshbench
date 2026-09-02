@@ -12,6 +12,16 @@ import (
 // register builds a store with every verb on it, as main does.
 func register(t *testing.T) (*state.Store, *Sim) {
 	t.Helper()
+	// Every verb in the tree is reachable from here and some of them write:
+	// run.save puts a record where the operator's own runs are kept, and a test
+	// that walks the verb list therefore added one to their history on every
+	// run. Both pairs, because os.UserCacheDir and os.UserConfigDir read the
+	// XDG variables on Unix and %LocalAppData% / %AppData% on Windows.
+	home := t.TempDir()
+	t.Setenv("XDG_CACHE_HOME", home)
+	t.Setenv("LOCALAPPDATA", home)
+	t.Setenv("XDG_CONFIG_HOME", home)
+	t.Setenv("APPDATA", home)
 	st := state.New(10)
 	s := &Sim{}
 	Register(st, s)

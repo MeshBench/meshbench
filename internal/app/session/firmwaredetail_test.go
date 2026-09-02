@@ -17,6 +17,7 @@ func aCacheWith(t *testing.T, board string, names ...string) string {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("XDG_CACHE_HOME", home)
+	t.Setenv("LOCALAPPDATA", home)
 	t.Setenv("HOME", home)
 	return addToCache(t, board, names...)
 }
