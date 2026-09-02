@@ -17,7 +17,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -61,7 +61,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -101,7 +101,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "companion_radio",
-        "Version": "companion-v1.17.0",
+        "Version": "companion-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -139,7 +139,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "companion_radio",
-        "Version": "companion-v1.17.0",
+        "Version": "companion-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -177,7 +177,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "companion_radio",
-        "Version": "companion-v1.17.0",
+        "Version": "companion-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -215,7 +215,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "companion_radio",
-        "Version": "companion-v1.17.0",
+        "Version": "companion-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -255,7 +255,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -299,7 +299,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -340,7 +340,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -383,7 +383,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -425,7 +425,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -465,7 +465,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "companion_radio",
-        "Version": "companion-v1.17.0",
+        "Version": "companion-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -506,7 +506,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -547,7 +547,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -589,7 +589,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -629,7 +629,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -670,7 +670,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -708,7 +708,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "companion_radio",
-        "Version": "companion-v1.17.0",
+        "Version": "companion-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -749,7 +749,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -791,7 +791,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -833,7 +833,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -877,7 +877,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -918,7 +918,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -960,7 +960,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -1002,7 +1002,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "companion_radio",
-        "Version": "companion-v1.17.0",
+        "Version": "companion-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -1044,7 +1044,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -1086,7 +1086,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -1129,7 +1129,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -1170,7 +1170,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -1210,7 +1210,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "companion_radio",
-        "Version": "companion-v1.17.0",
+        "Version": "companion-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -1251,7 +1251,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -1294,7 +1294,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -1332,7 +1332,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "companion_radio",
-        "Version": "companion-v1.17.0",
+        "Version": "companion-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -1373,7 +1373,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -1414,7 +1414,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -1456,7 +1456,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -1500,7 +1500,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -1542,7 +1542,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -1582,7 +1582,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -1623,7 +1623,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -1664,7 +1664,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -1705,7 +1705,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -1748,7 +1748,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -1790,7 +1790,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -1831,7 +1831,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -1872,7 +1872,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -1914,7 +1914,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -1955,7 +1955,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -1997,7 +1997,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -2038,7 +2038,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -2079,7 +2079,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -2123,7 +2123,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -2166,7 +2166,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -2207,7 +2207,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -2249,7 +2249,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_room_server",
-        "Version": "room-server-v1.17.0",
+        "Version": "room-server-v1.17.1",
         "Board": ""
       },
       "Position": {
@@ -2291,7 +2291,7 @@
       "FloodMaxSeen": 0,
       "Firmware": {
         "Role": "simple_repeater",
-        "Version": "repeater-v1.17.0",
+        "Version": "repeater-v1.17.1",
         "Board": ""
       },
       "Position": {

@@ -38,9 +38,9 @@ const PLACED = [
   { name: "Dublin Interferer", kind: "emitter", lat: 53.35, lon: -6.26 },
 ];
 const FIRMWARE = [
-  ["simple_repeater", "repeater-v1.17.0"],
-  ["companion_radio", "companion-v1.17.0"],
-  ["simple_room_server", "room-server-v1.17.0"],
+  ["simple_repeater", "repeater-v1.17.1"],
+  ["companion_radio", "companion-v1.17.1"],
+  ["simple_room_server", "room-server-v1.17.1"],
 ];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

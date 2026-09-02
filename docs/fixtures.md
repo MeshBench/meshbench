@@ -27,7 +27,7 @@ has; the other four are placed.
 | inference | 168 hours, 37,870 packets |
 | scopes seen | `#sco`, `#ioi`, `#ioi-admin`, `#fif`, `#wls`, `#noc`, `#per`, `#gla` |
 | radio | EU/UK (Narrow): 869.618 MHz, 62.5 kHz, SF8, CR4/8 |
-| firmware | pinned per node, per role, at v1.17.0 |
+| firmware | pinned per node, per role, at v1.17.1 |
 
 **Imported nodes are filtered at ±1 km position uncertainty**, which is why
 Scotland is 157 imported nodes rather than the several hundred CoreScope lists.
