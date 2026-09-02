@@ -42,7 +42,7 @@ type mirror struct {
 // row and a row naming a skill that has gone each fail the build.
 var mirrors = []mirror{
 	{
-		repo: "meshbench-scripting-skills",
+		repo: "meshbench-agent-skills",
 		skills: []installed{
 			{
 				canonical: "meshcoresim",
@@ -57,14 +57,15 @@ var mirrors = []mirror{
 			},
 		},
 	},
-	{
-		repo: "meshbench-dev-skills",
-		skills: []installed{
-			{
-				canonical: "wb2-design-language",
-				blurb: "building or changing any Gio panel, control, menu or map drawing, so " +
-					"new work matches what shipped",
-			},
-		},
-	},
+}
+
+// unpublished is a canonical skill that is deliberately not mirrored, and why.
+//
+// Kept as a list rather than as silence, so the test can still insist that a
+// new skill is a decision: one that is neither published nor named here fails
+// the build, and adding a skill nobody thought about cannot quietly do nothing.
+var unpublished = map[string]string{
+	"wb2-design-language": "it is for changing MeshBench's own interface, and the " +
+		"only place that happens is a checkout of this repository, so a standalone " +
+		"copy would be a second thing to keep current for an audience that does not exist",
 }

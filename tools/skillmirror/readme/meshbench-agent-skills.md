@@ -1,10 +1,11 @@
-# MeshBench scripting skills
+# MeshBench agent skills
 
 Agent skills for **driving and scripting** a running
 [MeshBench](https://github.com/MeshBench/meshbench) workbench from outside: the
 Python, Go or Node client, the control socket, or raw verbs. These are for
-people *using* MeshBench. The ones for developing it live in
-[meshbench-dev-skills](https://github.com/MeshBench/meshbench-dev-skills).
+people *using* MeshBench. The ones for developing MeshBench itself are not
+published, because the only place that work happens is a checkout of
+[the repository](https://github.com/MeshBench/meshbench).
 
 | skill | when it loads |
 |---|---|
@@ -27,8 +28,8 @@ The format is portable, so drop the directories where your agent looks.
   directory convention.
 
 ```bash
-git clone https://github.com/MeshBench/meshbench-scripting-skills
-cp -r meshbench-scripting-skills/skills/* ~/.claude/skills/
+git clone https://github.com/MeshBench/meshbench-agent-skills
+cp -r meshbench-agent-skills/skills/* ~/.claude/skills/
 ```
 
 ## Where to send a change

@@ -13,31 +13,35 @@ agent invokes and a `name` that says something else is a label nobody sees.
 
 ## Published for installing elsewhere
 
-So they can be installed into any agent, not only one working in this repo, the
-skills are published as two standalone repositories, split by audience:
+Somebody driving MeshBench is not necessarily working in it, so the two skills
+that are about using the tool are published as one standalone repository:
 
-- **[meshbench-scripting-skills](https://github.com/MeshBench/meshbench-scripting-skills)**:
+- **[meshbench-agent-skills](https://github.com/MeshBench/meshbench-agent-skills)**:
   `meshbench-scripting` and `meshcoresim`, driving and scripting the tool. The
   second is installed there under the directory name `meshbench-driving`,
   which is the one difference between the two trees.
-- **[meshbench-dev-skills](https://github.com/MeshBench/meshbench-dev-skills)**:
-  `wb2-design-language`, developing the tool.
 
-**Both mirror repositories are still private**, so those two links are a 404 to
-anyone outside the organisation even though this repository is public. The
-pipeline that fills them works; what has not happened is the decision to open
-them. Said here rather than left as a broken link, which reads as a mistake.
+`wb2-design-language` is deliberately not published. It is for changing
+MeshBench's own interface, and the only place that happens is a checkout of
+this repository, so a standalone copy would be a second thing to keep current
+for an audience that does not exist. `tools/skillmirror` records that reason
+beside the mapping rather than leaving the absence to be read as an oversight.
+
+**The mirror repository is still private**, so that link is a 404 to anyone
+outside the organisation even though this repository is public. The pipeline
+that fills it works; what has not happened is the decision to open it. Said
+here rather than left as a broken link, which reads as a mistake.
 
 **The copies here are canonical, and a mirror is an output.**
-`tools/skillmirror` renders both trees from this directory, performs that
-rename, and writes the front page and licence each mirror needs and this one
+`tools/skillmirror` renders that tree from this directory, performs that
+rename, and writes the front page and licence the mirror needs and this one
 does not; `.github/workflows/publish-skills.yml` pushes what it rendered when a
 skill changes on `main`. Nothing is hand-copied and no second version of a
 skill is kept anywhere, so there is nothing for these files to drift from. What
 a change here can still get wrong is the mapping, and `tools/skillmirror`'s own
-test fails without touching the network when a skill is added that no mirror
-publishes, when a mirror names one that has gone, or when front matter stops
-naming its own directory.
+test fails without touching the network when a skill is added that is neither
+published nor recorded as deliberately unpublished, when a mirror names one
+that has gone, or when front matter stops naming its own directory.
 
 Every published copy carries the commit it was rendered from, so somebody
 holding an install can tell whether it is current instead of guessing.
