@@ -66,6 +66,9 @@ var ErrClosed = errors.New("firmware: bridge closed")
 // gives no message boundaries, and a radio frame is a message.
 type Bridge struct {
 	console io.Writer
+	// backlog is what the node said while nobody held the port, kept for
+	// whoever opens it next.
+	backlog []byte
 	// claimed marks the port as owned by a companion link, and claimGen
 	// counts claims so a release can tell whether its own is still current.
 	claimed  bool
@@ -197,15 +200,7 @@ func (b *Bridge) read(c net.Conn) {
 				// like a propagation result, so it must never be silent.
 			}
 		case kindConsoleOut:
-			b.mu.Lock()
-			w := b.console
-			b.mu.Unlock()
-			if w != nil && n > 0 {
-				// Best effort. A console that cannot be written to must not stall
-				// the node it belongs to: the simulation's correctness does not
-				// depend on anyone reading the output.
-				_, _ = w.Write(buf)
-			}
+			b.writeConsole(buf)
 
 		case kindRadioStats:
 			if n >= 16 {

@@ -92,36 +92,8 @@ func (p *sweepResults) matrix(t *theme.Theme, gtx layout.Context, s *state.Snaps
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			row := make([]layout.FlexChild, 0, len(armCols))
 			for _, c := range armCols {
-				switch {
-				case c.value == nil:
-					row = append(row, cell(a.Arm, t.P.Ink, c.width, false))
-				case i == 0 || c.better == 0:
-					row = append(row, cell(
-						fmt.Sprintf("%.0f%s", c.value(a), c.unit), t.P.Ink, c.width, true))
-				default:
-					ref := c.value(base)
-					if ref == 0 {
-						row = append(row, cell(
-							fmt.Sprintf("%.0f%s", c.value(a), c.unit), t.P.Ink, c.width, true))
-						continue
-					}
-					d := (c.value(a) - ref) / ref * 100
-					colour := t.P.Dim
-					switch {
-					case d > 0.5:
-						colour = t.P.Bad
-					case d < -0.5:
-						colour = t.P.Good
-					}
-					// Flipped where more is the good direction. Without this a
-					// firmware that delivered more would be painted red.
-					if c.better > 0 && d > 0.5 {
-						colour = t.P.Good
-					} else if c.better > 0 && d < -0.5 {
-						colour = t.P.Bad
-					}
-					row = append(row, cell(fmt.Sprintf("%+.1f%%", d), colour, c.width, true))
-				}
+				text, colour := armCell(t, c, a, base, i == 0)
+				row = append(row, cell(text, colour, c.width, c.plain == nil))
 			}
 			return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, row...)
 		}))
@@ -130,8 +102,56 @@ func (p *sweepResults) matrix(t *theme.Theme, gtx layout.Context, s *state.Snaps
 		layout.Rigid(layout.Spacer{Height: t.Sp.S}.Layout),
 		layout.Rigid(comp.OneLine(t, t.Sz.Caption, t.P.Faint,
 			"against "+base.Arm+"; every column but rx and delivered is a cost, "+
-				"so red is worse in both directions", false)))
+				"so red is worse in both directions. A seed that failed is left out "+
+				"of its arm's mean, and an arm no seed got through is a dash", false)))
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+}
+
+// armCell is the text and colour of one arm's cell in one column.
+//
+// A dash wherever the arm measured nothing. An arm whose every seed failed
+// carried zeros through every counter, and the matrix drew those as the worst
+// numbers it had ever been given: a catastrophic result rather than an arm
+// that did not run. Zero is a measurement and this is not one.
+func armCell(t *theme.Theme, c armCol, a, base state.ArmSummary, isBase bool) (string, color.NRGBA) {
+	if c.plain != nil {
+		colour := t.P.Ink
+		if a.Failed > 0 {
+			colour = t.P.Warn
+		}
+		return c.plain(a), colour
+	}
+	if a.Runs == 0 {
+		return "-", t.P.Faint
+	}
+	// Absolute where there is nothing to take it away from: the baseline's own
+	// row, a column with no good direction, and a baseline that did not run.
+	if isBase || c.better == 0 || base.Runs == 0 {
+		return fmt.Sprintf("%.0f%s", c.value(a), c.unit), t.P.Ink
+	}
+	ref := c.value(base)
+	if ref == 0 {
+		return fmt.Sprintf("%.0f%s", c.value(a), c.unit), t.P.Ink
+	}
+	d := (c.value(a) - ref) / ref * 100
+	return fmt.Sprintf("%+.1f%%", d), deltaColour(t, d, c.better)
+}
+
+// deltaColour paints a change by whether it went the good way, which is
+// flipped for the two columns where more is better: without that a firmware
+// that delivered more would be painted red.
+func deltaColour(t *theme.Theme, d float64, better int) color.NRGBA {
+	if d > -0.5 && d < 0.5 {
+		return t.P.Dim
+	}
+	worse := d > 0
+	if better > 0 {
+		worse = d < 0
+	}
+	if worse {
+		return t.P.Bad
+	}
+	return t.P.Good
 }
 
 // armList draws the chosen arms, each with a way to take it off again.
@@ -180,17 +200,20 @@ func capped(t *theme.Theme, gtx layout.Context, l *widget.List, n, maxDp int,
 // costs - transmissions, collisions, airtime - where less is better, which is
 // the opposite of the convention most tables use.
 type armCol struct {
-	title  string
-	width  int
+	title string
+	width int
+	// plain draws its own cell, for the columns that are not a measured
+	// quantity and so can never be a delta or a dash: the arm's name, and how
+	// its seeds went.
+	plain  func(state.ArmSummary) string
 	value  func(state.ArmSummary) float64
 	unit   string
 	better int // -1 less is better, +1 more is better, 0 no delta
 }
 
 var armCols = []armCol{
-	{title: "arm", width: 230},
-	{title: "runs", width: 60,
-		value: func(a state.ArmSummary) float64 { return float64(a.Runs) }},
+	{title: "arm", width: 230, plain: func(a state.ArmSummary) string { return a.Arm }},
+	{title: "seeds", width: 150, plain: seedsRan},
 	{title: "tx", width: 90, better: -1,
 		value: func(a state.ArmSummary) float64 { return a.TX }},
 	{title: "rx", width: 90, better: +1,
@@ -205,6 +228,22 @@ var armCols = []armCol{
 		value: func(a state.ArmSummary) float64 { return a.AirtimeMs / 1000 }},
 	{title: "seed spread", width: 110,
 		value: func(a state.ArmSummary) float64 { return a.RXSpread * 100 }, unit: "%"},
+}
+
+// seedsRan says how an arm's seeds went, in the column where a bare count used
+// to sit. The failures are named here because they are no longer anywhere in
+// the numbers beside them: a cell that failed is left out of the mean rather
+// than averaged in as a zero, so nothing else on the row records that it
+// happened.
+func seedsRan(a state.ArmSummary) string {
+	switch {
+	case a.Failed == 0:
+		return fmt.Sprintf("%d ran", a.Runs)
+	case a.Runs == 0:
+		return fmt.Sprintf("none ran, %d failed", a.Failed)
+	default:
+		return fmt.Sprintf("%d ran, %d failed", a.Runs, a.Failed)
+	}
 }
 
 // estimate says what pressing "run it" is about to cost, before it is pressed.

@@ -23,7 +23,7 @@ func registerBenchVerbs(st *state.Store, s *Sim) {
 				}
 			}
 		}
-		ep, err := s.serve(name, kind)
+		ep, moved, err := s.serve(name, kind)
 		if err != nil {
 			w.Say("could not serve " + name + ": " + err.Error())
 			return nil, err
@@ -32,7 +32,11 @@ func registerBenchVerbs(st *state.Store, s *Sim) {
 		// serve released any claim the workbench held on this node, so the
 		// panel has to stop saying "connected".
 		s.publishCompanions(w)
-		w.Say(ep.Node + " is at " + ep.Addr)
+		if moved != "" {
+			w.Say(ep.Node + " is at " + ep.Addr + ": " + moved)
+		} else {
+			w.Say(ep.Node + " is at " + ep.Addr)
+		}
 		return map[string]any{"node": ep.Node, "addr": ep.Addr}, nil
 	})
 

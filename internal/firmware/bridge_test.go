@@ -204,8 +204,9 @@ func TestConsoleSinkFollowsWhoeverHoldsThePort(t *testing.T) {
 	defer func() { _ = b.Close() }()
 
 	sink := b.ConsoleSink()
-	// Nobody listening: accepted and discarded, never an error - the node has
-	// to keep running when no window is open.
+	// Nobody listening: accepted and kept, never an error - the node has to
+	// keep running when no window is open, and what it said before one opened
+	// is the answer somebody opens one to get.
 	if n, err := sink.Write([]byte("before anyone looked\n")); err != nil || n == 0 {
 		t.Fatalf("write with no listener: n=%d err=%v", n, err)
 	}
@@ -230,7 +231,12 @@ func TestConsoleSinkFollowsWhoeverHoldsThePort(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got, want := pane.String(), "boot ok\nreleased\n"; got != want {
+	// The pane opens onto what it missed, named as scrollback so the reader
+	// knows the clock beside those lines is the clock they arrived at rather
+	// than the clock the node said them at.
+	want := "-- GB7XYZ said this before the console was opened --\n" +
+		"before anyone looked\nboot ok\nreleased\n"
+	if got := pane.String(); got != want {
 		t.Errorf("the pane saw %q, want %q", got, want)
 	}
 	if got, want := client.String(), "claimed\nstill claimed\n"; got != want {

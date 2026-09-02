@@ -52,6 +52,11 @@ type Sim struct {
 	// servedAddrs is where each served companion can be reached, worked out
 	// when it was served.
 	servedAddrs map[string][]string
+	// servedPorts is the port each node has been served on, kept after its
+	// listener closes. A companion client is pointed at an address by hand or
+	// by a script and has no way to be told a new one, so the port is drawn
+	// once per node rather than once per serve.
+	servedPorts map[string]int
 	// warmed reports that the matrix has been measured for the engine as it
 	// stands. Cleared by a rebuild, set when a warm finishes uncancelled.
 	warmed bool

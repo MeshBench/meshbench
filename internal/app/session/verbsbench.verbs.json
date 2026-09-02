@@ -40,14 +40,14 @@
       {
         "name": "kind",
         "type": "string",
-        "what": "\"serial\" for a pseudo-terminal a serial client opens; anything else, absent included, listens on TCP on every interface and a port the operating system picks"
+        "what": "\"serial\" for a pseudo-terminal a serial client opens; anything else, absent included, listens on TCP on every interface and a port the operating system picks the first time this node is served"
       }
     ],
     "returns": [
       "node",
       "addr"
     ],
-    "answers": "Serving takes the port off the workbench, so a companion session on that node is released rather than shared. A second call for the same node replaces the listener rather than adding one.",
+    "answers": "Serving takes the port off the workbench, so a companion session on that node is released rather than shared. A second call for the same node replaces the listener rather than adding one, and keeps the address: the port is drawn once per node and asked for again on every serve after, including after a drop, because a client already pointed at the first address cannot be told about a second. A port taken by something else in the meantime moves the endpoint and says so.",
     "example": {
       "params": {
         "kind": "tcp",
