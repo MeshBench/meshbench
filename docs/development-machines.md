@@ -65,7 +65,16 @@ time, not features — but it still needs somewhere to draw.
 ## The lab runners
 
 Three Proxmox LXC containers serve as self-hosted GitHub Actions runners,
-labelled `lab-linux` and `lab-2204`. CI's Linux jobs land on them for pushes
+labelled `lab-linux`, `lab-2204` and `lab-2404`. All three answer to
+`lab-linux`. The other two say which glibc a job gets, and both are load
+bearing in opposite directions: `lab-2204` is gha-lab-3 alone, and
+`package.yml` asks for it to keep the release binary's floor at 2.35;
+`lab-2404` is gha-lab-1 and gha-lab-2, and `firmware-live.yml` asks for it
+because MeshCore's published native builds need 2.38, which gha-lab-3 cannot
+provide. A job that needs either floor must name it: `lab-linux` alone is a
+lottery between them.
+
+CI's Linux jobs land on them for pushes
 and for pull requests from this repository; **a fork's pull request falls back
 to `ubuntu-latest`**, deliberately, because the lab runners sit on a home LAN
 with a NAS mounted and a stranger's code must never land on one.
