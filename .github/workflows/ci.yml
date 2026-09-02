@@ -242,8 +242,19 @@ jobs:
             libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev \
             libx11-xcb-dev libegl1-mesa-dev libvulkan-dev libffi-dev
 
-      # CI has no GPU (and neither does the dev VM), so this exercises the CPU
-      # reference path only — which is exactly why ADR-0004 requires one.
+      # This exercises the CPU reference path only, which is exactly why
+      # ADR-0004 requires one. Note what that does and does not rest on: the
+      # runners have no GPU, but they do have Mesa, installed by the step
+      # above, and wgpu will open llvmpipe as an OpenGL adapter given the
+      # chance. "No GPU here" is therefore not the same claim as "gpu.Open
+      # fails here", and it was the second one this comment was read as
+      # making. It did not hold: the self-check ran on a runner and panicked
+      # inside wgpu's buffer mapping, on a cgo handle whose memory had already
+      # been reused, and it failed pull requests that had touched nothing near
+      # it. What makes the claim true is gpu.Open refusing an adapter that
+      # reports itself as CPU, which internal/rf/gpu tests directly: a
+      # software rasteriser is the processor wearing a shader compiler, and
+      # slower than the reference path it would be standing in for.
       #
       # The "rest" shard is everything the named shards did not take, worked
       # out here rather than listed, so a new package joins it automatically

@@ -1,9 +1,10 @@
 // Package gpu runs the DSP kernels on the GPU.
 //
 // Every kernel here has a CPU twin in internal/dsp and a test asserting they
-// agree (ADR-0004). The CPU path is the oracle, not a fallback — CI has no GPU,
-// and a wrong kernel does not crash, it produces a plausible waterfall and
-// slightly wrong sensitivity.
+// agree (ADR-0004). The CPU path is the oracle, not a fallback: a wrong kernel
+// does not crash, it produces a plausible waterfall and slightly wrong
+// sensitivity, and CI runs the twin rather than the kernel, because a runner
+// has no GPU for the kernel to run on.
 package gpu
 
 import (
@@ -46,6 +47,34 @@ type Device struct {
 	MaxStorageMB uint64
 }
 
+// usable refuses an adapter that is not a GPU at all.
+//
+// Wherever there is no hardware to drive, Mesa still answers: llvmpipe presents
+// itself as an OpenGL adapter, and lavapipe as a Vulkan one. Both open cleanly,
+// compile the shaders and run them, so nothing downstream can tell that "on the
+// GPU" now means the processor wearing a shader compiler, running one kernel
+// through a software rasteriser instead of the reference path that computes the
+// same answer directly. That is slower than the CPU twin it would be standing
+// in for, and it leaves the interface claiming an acceleration the machine
+// never had.
+//
+// So an adapter that reports itself as CPU is declined and the reason is
+// returned, which is the promise the project makes about every GPU path: a
+// machine without a usable one loses time, not features.
+func usable(info wgpu.AdapterInfo) error {
+	if info.AdapterType != wgpu.AdapterTypeCPU {
+		return nil
+	}
+	name := info.Name
+	if name == "" {
+		name = "the adapter"
+	}
+	return fmt.Errorf(
+		"gpu: %s is a software rasteriser on the %s backend, not a GPU: the "+
+			"processor reference path computes the same answer faster",
+		name, info.BackendType)
+}
+
 // Open acquires a GPU and compiles every shader up front.
 //
 // All shaders are compiled at startup deliberately: a shader error is a runtime
@@ -61,6 +90,12 @@ func Open() (*Device, error) {
 	ad, err := inst.RequestAdapter(nil)
 	if err != nil {
 		return nil, fmt.Errorf("gpu: no adapter: %w", err)
+	}
+	info := ad.GetInfo()
+	if err := usable(info); err != nil {
+		ad.Release()
+		inst.Release()
+		return nil, err
 	}
 	// The adapter's own limits rather than WebGPU's defaults. The default
 	// storage-buffer binding is 128 MiB, and a country-sized height grid is
@@ -79,7 +114,6 @@ func Open() (*Device, error) {
 	if err != nil {
 		return nil, fmt.Errorf("gpu: no device: %w", err)
 	}
-	info := ad.GetInfo()
 	// The device's own limits, not the adapter's. The request for the
 	// adapter's limits can be refused, and the fallback device then sits at
 	// WebGPU's defaults - so sizing work from what the adapter advertised
@@ -190,15 +224,6 @@ func (d *Device) Dechirp(rx []complex64, sf int) ([]complex64, error) {
 	}
 	defer pb.Release()
 
-	staging, err := d.device.CreateBuffer(&wgpu.BufferDescriptor{
-		Label: "staging", Size: byteLen,
-		Usage: wgpu.BufferUsageMapRead | wgpu.BufferUsageCopyDst,
-	})
-	if err != nil {
-		return nil, err
-	}
-	defer staging.Release()
-
 	bg, err := d.device.CreateBindGroup(&wgpu.BindGroupDescriptor{
 		Layout: d.dechirp.GetBindGroupLayout(0),
 		Entries: []wgpu.BindGroupEntry{
@@ -223,9 +248,6 @@ func (d *Device) Dechirp(rx []complex64, sf int) ([]complex64, error) {
 	pass.DispatchWorkgroups(groups, 1, 1)
 	_ = pass.End()
 	pass.Release()
-	if err := enc.CopyBufferToBuffer(out, 0, staging, 0, byteLen); err != nil {
-		return nil, fmt.Errorf("gpu: copy result to staging: %w", err)
-	}
 	cmd, err := enc.Finish(nil)
 	if err != nil {
 		return nil, err
@@ -234,19 +256,11 @@ func (d *Device) Dechirp(rx []complex64, sf int) ([]complex64, error) {
 	cmd.Release()
 	enc.Release()
 
-	done := false
-	// A failed map does not crash — it leaves the staging buffer unreadable and
-	// the result would be whatever was already in memory, which looks like a
-	// plausible waterfall. Exactly the failure CLAUDE.md warns about.
-	if err := staging.MapAsync(wgpu.MapModeRead, 0, byteLen, func(wgpu.BufferMapAsyncStatus) { done = true }); err != nil {
-		return nil, fmt.Errorf("gpu: map staging buffer: %w", err)
+	raw, err := d.readBuffer(out, int(byteLen))
+	if err != nil {
+		return nil, err
 	}
-	for !done {
-		d.device.Poll(true, nil)
-	}
-	raw := staging.GetMappedRange(0, uint(byteLen))
 	res := make([]complex64, len(rx))
 	copy(unsafe.Slice((*byte)(unsafe.Pointer(&res[0])), byteLen), raw)
-	_ = staging.Unmap() // the data is already copied out
 	return res, nil
 }

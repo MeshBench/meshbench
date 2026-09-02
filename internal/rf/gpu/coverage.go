@@ -103,15 +103,6 @@ func (cg *CoverageGrid) Loss(p propagation.GridLossParams) ([]float32, error) {
 	}
 	defer pb.Release()
 
-	staging, err := d.device.CreateBuffer(&wgpu.BufferDescriptor{
-		Label: "staging", Size: outLen,
-		Usage: wgpu.BufferUsageMapRead | wgpu.BufferUsageCopyDst,
-	})
-	if err != nil {
-		return nil, err
-	}
-	defer staging.Release()
-
 	bg, err := d.device.CreateBindGroup(&wgpu.BindGroupDescriptor{
 		Layout: d.coverage.GetBindGroupLayout(0),
 		Entries: []wgpu.BindGroupEntry{
@@ -135,9 +126,6 @@ func (cg *CoverageGrid) Loss(p propagation.GridLossParams) ([]float32, error) {
 	pass.DispatchWorkgroups((uint32(cells)+63)/64, 1, 1)
 	_ = pass.End()
 	pass.Release()
-	if err := enc.CopyBufferToBuffer(out, 0, staging, 0, outLen); err != nil {
-		return nil, fmt.Errorf("gpu: copy result to staging: %w", err)
-	}
 	cmd, err := enc.Finish(nil)
 	if err != nil {
 		return nil, err
@@ -146,16 +134,11 @@ func (cg *CoverageGrid) Loss(p propagation.GridLossParams) ([]float32, error) {
 	cmd.Release()
 	enc.Release()
 
-	done := false
-	if err := staging.MapAsync(wgpu.MapModeRead, 0, outLen, func(wgpu.BufferMapAsyncStatus) { done = true }); err != nil {
-		return nil, fmt.Errorf("gpu: map staging buffer: %w", err)
+	raw, err := d.readBuffer(out, int(outLen))
+	if err != nil {
+		return nil, err
 	}
-	for !done {
-		d.device.Poll(true, nil)
-	}
-	raw := staging.GetMappedRange(0, uint(outLen))
 	res := make([]float32, cells)
 	copy(unsafe.Slice((*byte)(unsafe.Pointer(&res[0])), outLen), raw)
-	_ = staging.Unmap()
 	return res, nil
 }

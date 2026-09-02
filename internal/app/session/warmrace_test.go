@@ -29,11 +29,12 @@ import (
 func TestAWarmDoesNotFollowTheSessionOntoAnotherNetwork(t *testing.T) {
 	st := state.New(10)
 	// gpuAsked keeps the GPU out of a test about which network is measured,
-	// and spending gpuOnce here stops the probe opening this machine's real
-	// device to answer a question this test never asks. Bare earth keeps the
-	// developer's tile cache out of it for the same reason.
+	// and spending the probe here stops it opening this machine's real device
+	// to answer a question this test never asks. The probe is process-wide, so
+	// this is a no-op if something else in the binary has already asked. Bare
+	// earth keeps the developer's tile cache out of it for the same reason.
+	probeOnce.Do(func() { machineProbe = &gpuProbe{why: "not asked here"} })
 	s := &Sim{gpuAsked: true}
-	s.gpuOnce.Do(func() { s.gpuProbe = &gpuProbe{why: "not asked here"} })
 	s.terr = bareEarth{}
 	Register(st, s)
 
