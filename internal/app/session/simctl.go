@@ -13,6 +13,7 @@ import (
 	"fmt"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
+	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
 // registerSimControl adds the run-from-a-script verbs.
@@ -47,17 +48,26 @@ func registerSimControl(st *state.Store, s *Sim) {
 		// it stopped for, and comes off the world rather than off the disk so
 		// this stays the cheap verb it has to be.
 		measured, held := s.linksMeasured()
+		// And whether this run's instants may be quoted against another run's
+		// at all. The seed is answered a line above, and a seed is read as a
+		// promise: a script that has one assumes it can run the scenario again
+		// and diff the two. That promise does not survive an emulated node, and
+		// the place to say so is the verb everything polls rather than a
+		// document nobody reaches from inside a script.
+		why := scenario.NotReproducible(s.nodes)
 		return map[string]any{
-			"playing":        w.Playing,
-			"now_ms":         w.NowMs,
-			"until_ms":       w.RunUntilMs,
-			"events":         w.EventTotal,
-			"step_ms":        st.StepMs(),
-			"seed":           w.Seed,
-			"warming":        s.warming(),
-			"links_measured": measured,
-			"warm_held":      held,
-			"ground":         w.Ground.Map(),
+			"playing":              w.Playing,
+			"now_ms":               w.NowMs,
+			"until_ms":             w.RunUntilMs,
+			"events":               w.EventTotal,
+			"step_ms":              st.StepMs(),
+			"seed":                 w.Seed,
+			"warming":              s.warming(),
+			"links_measured":       measured,
+			"warm_held":            held,
+			"ground":               w.Ground.Map(),
+			"reproducible":         why == "",
+			"not_reproducible_why": why,
 		}, nil
 	})
 
@@ -65,6 +75,10 @@ func registerSimControl(st *state.Store, s *Sim) {
 	// wants to know whether a difference is real rather than one draw has to
 	// vary this. Setting it rebuilds, because a seed applied halfway through
 	// a run is neither of the two runs it claims to be.
+	//
+	// By design, and not on a scenario carrying an emulated node: that one's
+	// timing comes from a clock the seed does not reach. sim.state says which
+	// of the two this is.
 	st.Handle("sim.seed", func(w *state.World, p any) (any, error) {
 		if v, ok := numField(p, "seed"); ok && v > 0 {
 			w.Seed = uint64(v)

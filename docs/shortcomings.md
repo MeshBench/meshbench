@@ -418,6 +418,49 @@ bites hardest on real boards — will not reproduce. This also means the
 emulated/native cross-check (MSIM-40) currently compares two things that agree
 by construction on timing, which weakens it.
 
+### 3.2a An emulated node has no reproducible timing, and the run says so
+
+Determinism is a feature everywhere else here: the noise is counter-based, the
+boot stagger is derived from the run seed, and a native node's clock is handed
+to it by the engine's tick rather than read off the host. A node running in an
+emulator is outside all of that, and structurally rather than by oversight.
+
+Its firmware is a published image. There is nothing in it that could receive a
+tick, so what acknowledges the engine is `radioserver`, the chip model on our
+side of the socket, and the acknowledgement means the message was handled, not
+that the guest has reached that instant. The guest is meanwhile running against
+QEMU's or Renode's own clock, under neither `-icount` nor a Renode quantum, so
+how much firmware executes between two ticks is decided by this machine's load.
+
+**Measured.** One `Generic_E22_sx1262` repeater, seed 4417, three runs after a
+discarded warm-up boot, the engine stepped 10 ms at a time against the wall as
+the workbench itself steps it. Its first transmission landed at **49.83 s,
+45.72 s and 55.86 s** of simulated time: three different answers, a spread of
+10.1 s, where a native node answers with the same instant every time
+(`TestRadioStackIsDeterministic`). `TestLiveEmulatedTimingIsNotReproducible` in
+`internal/sim/engine` is that measurement, and is the harness for anybody who
+sets out to close the gap.
+
+The resolution of the harness matters, and is worth knowing before anybody
+repeats this. A first attempt stepped half a second at a time and slept through
+it, which stamps every frame arriving during the sleep with the first instant of
+the next stretch: two of its three runs then reported the same millisecond and
+the third was 21.5 s away, which reads as an occasional glitch rather than as
+what it is.
+
+Two smaller sources sit behind the same wall and would have to go with it: the
+GPS feed emits a sentence a real second rather than a simulated one, and a
+native node is handed a seeded identity on its command line while an emulated
+one generates its own on first boot.
+
+**Consequence.** A run containing an emulated node can be compared with nothing
+but itself, so a firmware A/B with an emulated arm is not measuring what it
+appears to. That is now said rather than left to be discovered: `sim.state`
+answers `reproducible` and `not_reproducible_why`, `experiment.start` answers
+the same pair and puts it in the status line, the sweep panel prints it beside
+the cost estimate before the run starts, and the results panel repeats it above
+the table. Use native for anything being compared.
+
 ### 3.3 Native nodes cannot catch anything architecture-dependent
 
 A native node is x86-64 or arm64, 64-bit, with a different `int` width in

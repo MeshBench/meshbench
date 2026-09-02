@@ -124,7 +124,8 @@ the tin.
 | # | Check | Steps | Expected | Result | Notes |
 |---|---|---|---|---|---|
 | H1 | Run a fixture | `meshbench test <fixture>` on real firmware. | It runs the fixture and checks its assertions, pass/fail, suitable for CI. | | |
-| H2 | Determinism | Run the same seed and scenario twice. | Identical result both times. | | |
+| H2 | Determinism | Run the same seed and scenario twice, on native nodes. | Identical result both times. | | |
+| H2a | Determinism, declared | Put an emulated node in the scenario and read `sim.state`. | `reproducible` is false and `not_reproducible_why` names the node; the sweep panel says the arms will not be comparable before the run is started. | | |
 | H3 | Wireshark live | Open the live UDP dissector while traffic flows. | Every receiver's view of every frame appears in Wireshark. | | |
 | H4 | pcapng | Save a capture and open it in Wireshark. | The saved pcapng opens and dissects. | | |
 | H5 | SDR export/stream | Export IQ or stream it to an unmodified SDR client. | The client sees the simulated band. | | |

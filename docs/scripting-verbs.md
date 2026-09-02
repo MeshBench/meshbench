@@ -190,7 +190,7 @@ Two verbs are **not** in this table:
 | `sim.slower` | — | `step_ms` | `wb.sim.slower()` |
 | `sim.speed` | `step_ms` number, `factor` number | `step_ms` | `wb.sim.step_ms = n  /  wb.sim.faster(x)` |
 | `sim.start` | — | `playing`, `warming`, `starting_firmware`, `started_firmware` | `wb.sim.start()` |
-| `sim.state` | — | `playing`, `now_ms`, `until_ms`, `events`, `step_ms`, `seed`, `warming`, `links_measured`, `warm_held`, `ground` | `wb.sim.state()` |
+| `sim.state` | — | `playing`, `now_ms`, `until_ms`, `events`, `step_ms`, `seed`, `warming`, `links_measured`, `warm_held`, `ground`, `reproducible`, `not_reproducible_why` | `wb.sim.state()` |
 | `sim.step` | — | `now_ms` | `wb.sim.step()` |
 | `sim.toggle` | — | `playing` | `wb.sim.toggle()` |
 | `sim.unverified_wiring` | *a bare string*, `on` bool | `on` | `wb.sim.unverified_wiring = bool` |
@@ -337,7 +337,7 @@ Two verbs are **not** in this table:
 | `experiment.results` | — | `runs`, `arms`, `warning` | `wb.experiment.results(arm=)` - *planned*, no client defines `wb.experiment` yet; call the verb |
 | `experiment.seeds` | `seeds` array | `arms`, `seeds`, `senders`, `runs`, `run_for_ms`, `send_at_ms`, `spread_ms`, `bytes`, `scope`, `arm_labels` | `wb.experiment.seeds = [...]` - *planned*, no client defines `wb.experiment` yet; call the verb |
 | `experiment.senders` | `senders` array | `arms`, `seeds`, `senders`, `runs`, `run_for_ms`, `send_at_ms`, `spread_ms`, `bytes`, `scope`, `arm_labels` | `wb.experiment.senders = [...]` - *planned*, no client defines `wb.experiment` yet; call the verb |
-| `experiment.start` | — | `running`, `runs` | `wb.experiment.start()` - *planned*, no client defines `wb.experiment` yet; call the verb |
+| `experiment.start` | — | `running`, `runs`, `reproducible`, `not_reproducible_why` | `wb.experiment.start()` - *planned*, no client defines `wb.experiment` yet; call the verb |
 | `experiment.state` | — | `arms`, `seeds`, `senders`, `runs`, `run_for_ms`, `send_at_ms`, `spread_ms`, `bytes`, `scope`, `arm_labels`, `running`, `done`, `status`, `log` | `wb.experiment.state()` - *planned*, no client defines `wb.experiment` yet; call the verb |
 | `experiment.stop` | — | `stopped`, `done`, `total`, `settled` | `wb.experiment.stop()` - *planned*, no client defines `wb.experiment` yet; call the verb |
 | `experiment.vary` | *a bare string*, `parameter` string, `values` array | `arms`, `seeds`, `senders`, `runs`, `run_for_ms`, `send_at_ms`, `spread_ms`, `bytes`, `scope`, `arm_labels` | `wb.experiment.vary(parameter, values)` - *planned*, no client defines `wb.experiment` yet; call the verb |

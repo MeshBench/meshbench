@@ -103,6 +103,18 @@ type SimState struct {
 	WarmHeld      bool `json:"warm_held"`
 	// Ground is what elevation data the studies here have under them.
 	Ground Ground `json:"ground"`
+	// Reproducible says whether running this scenario again on Seed would put
+	// the same traffic at the same instants, and NotReproducibleWhy says why
+	// not when it would not.
+	//
+	// Beside the seed because the seed is what invites the assumption. It is
+	// false wherever the network carries a node running in an emulator: that
+	// node's firmware is stepped by the emulator's clock rather than by the
+	// run's, so its timing came from somewhere the seed does not reach. A
+	// script that diffs two runs, or subtracts one arm from another, has to
+	// read this before it believes the difference.
+	Reproducible       bool   `json:"reproducible"`
+	NotReproducibleWhy string `json:"not_reproducible_why"`
 }
 
 // FirmwareState is how far a start has got. Snapshot.

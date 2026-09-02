@@ -20,6 +20,14 @@ import (
 // result - which is why it need not store the firmware's own RAM or the
 // waveforms in flight: they are reconstructed, not saved.
 //
+// That is the whole mechanism, and it rests on the replay landing where the
+// original run was. On a network carrying a node that runs in an emulator it
+// does not: that node's firmware is stepped by the emulator's clock rather than
+// by the run's, so the replay reaches the checkpoint's instant with the mesh in
+// a state the checkpoint never held. Such a restore is still worth having - the
+// network, the settings and the clock all come back - but it is a fresh run
+// rather than the same one, and it says so as it starts.
+//
 // The cost of that choice is that the replay runs in the mesh's own time, so
 // restoring a long run takes a while, shown as a run in progress. An instant
 // restore would have to freeze the emulators mid-write, which a native firmware
@@ -184,6 +192,12 @@ func registerCheckpoint(st *state.Store, s *Sim) {
 			w.Playing = true
 			w.Say(fmt.Sprintf("restoring %q - replaying to %.1fs",
 				cp.Name, float64(cp.NowMs)/1000))
+			// And whether the replay can be expected to arrive where the
+			// checkpoint was taken. Said while it is starting rather than left
+			// for somebody to infer from a mesh that came back subtly different.
+			if why := scenario.NotReproducible(cp.Nodes); why != "" {
+				w.Say("the replay will not land where the checkpoint did: " + why)
+			}
 		} else {
 			w.Say(fmt.Sprintf("restored %q", cp.Name))
 		}

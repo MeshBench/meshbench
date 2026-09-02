@@ -40,6 +40,13 @@ func (e *experiment) notAResultYet() string {
 	switch {
 	case len(e.results) == 0:
 		return "nothing has run yet"
+	// Ahead of every other objection, because the others are about how much a
+	// difference is worth and this one is about whether there is a difference
+	// to weigh. Seeds bound the noise from a draw; nothing here bounds the
+	// noise from a clock the run does not own, so two cells that differ may
+	// have differed for no reason the matrix records.
+	case e.notReproducible != "":
+		return "the arms are not comparable: " + e.notReproducible
 	case len(e.Seeds) < 2:
 		return "one seed: this is one draw, not a spread"
 	case len(e.Arms) < 2:

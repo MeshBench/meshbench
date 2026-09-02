@@ -84,6 +84,20 @@ had changed in them — which is the gap this file exists to close.
 
 ### Changed
 
+- **A run carrying an emulated node now says it cannot be repeated, instead of
+  being quoted as though it could.** Determinism is documented as a property of
+  the whole simulator, and it is not one on a scenario with an emulator in it:
+  that node's firmware is a published image with nothing in it that can receive
+  the engine's tick, so the acknowledgement comes from the chip model on our
+  side of the socket while the guest runs against QEMU's or Renode's clock.
+  Measured on one repeater at one seed, three runs put its first transmission at
+  49.83 s, 45.72 s and 55.86 s. `sim.state` and `experiment.start` now answer
+  `reproducible` and `not_reproducible_why`, the Go and Python clients carry
+  both on their `SimState`, the sweep says it beside the cost estimate before
+  the run as well as over the results, restoring a checkpoint says the replay
+  will not land where it did, and `CLAUDE.md`, `CONTRIBUTING.md`,
+  `docs/architecture.md` and `docs/shortcomings.md` state the exception rather
+  than the rule alone. Use native for anything being compared.
 - **What buildings buy off the excess-loss term is now measured rather than
   assumed: 0.70 dB.** Fitted against 451 live ScotMesh nodes with 4.5 million
   Microsoft ML footprints over Scotland loaded, the term comes out at 29.07 dB

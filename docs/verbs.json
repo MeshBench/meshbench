@@ -1523,9 +1523,11 @@
       "what": "put every arm through every seed on a worker, each cell in its own engine with node storage of its own, and answer as soon as the worker is away rather than when it is done",
       "returns": [
         "running",
-        "runs"
+        "runs",
+        "reproducible",
+        "not_reproducible_why"
       ],
-      "answers": "`runs` is how many cells were queued. Poll experiment.state until `running` goes false. It refuses where a sweep is already running, where no network is loaded, where no sender has been named, and where the last sweep's cell in flight has not yet let go of the results table.",
+      "answers": "`runs` is how many cells were queued. Poll experiment.state until `running` goes false. It refuses where a sweep is already running, where no network is loaded, where no sender has been named, and where the last sweep's cell in flight has not yet let go of the results table. `reproducible` is false where the network carries a node running in an emulator, whose firmware is stepped by the emulator's clock rather than by the run's: the cells then differ for reasons the matrix does not record, so the arms measure nothing against each other, and `not_reproducible_why` says which node, empty when there is none. The sweep still runs - a single arm on emulated firmware is a legitimate thing to watch - but a script comparing arms should stop here.",
       "example": {
         "params": {},
         "what": "start the matrix that is defined"
@@ -4812,9 +4814,11 @@
         "warming",
         "links_measured",
         "warm_held",
-        "ground"
+        "ground",
+        "reproducible",
+        "not_reproducible_why"
       ],
-      "answers": "`until_ms` is zero unless `sim.run` set a limit. `events` is the count since the engine was built, not since the last call. The link measurement has three states, not two: `warming` while it runs, `links_measured` once every pair has been walked, and `warm_held` for a warm that stopped to ask permission to download terrain, which is neither. A held warm finishes its own job row, so a wait for the workbench to go idle returns in a moment having waited for nothing - reading that as a measurement is how a study came to be believed over ground nobody fetched. `ground` is what the studies here are standing on, in the shape `terrain.ground` returns.",
+      "answers": "`until_ms` is zero unless `sim.run` set a limit. `events` is the count since the engine was built, not since the last call. The link measurement has three states, not two: `warming` while it runs, `links_measured` once every pair has been walked, and `warm_held` for a warm that stopped to ask permission to download terrain, which is neither. A held warm finishes its own job row, so a wait for the workbench to go idle returns in a moment having waited for nothing - reading that as a measurement is how a study came to be believed over ground nobody fetched. `ground` is what the studies here are standing on, in the shape `terrain.ground` returns. `reproducible` says whether running this scenario again on the same seed would put the same traffic at the same instants: false wherever a node runs in an emulator, because that node's firmware is stepped by the emulator's clock rather than by the run's, and `not_reproducible_why` is the sentence saying which node and what follows from it. A script comparing two runs, or quoting a timing against another run's, has to read it.",
       "example": {
         "params": {},
         "what": "ask whether the run has finished",

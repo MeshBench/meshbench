@@ -239,6 +239,13 @@ Rules learned the hard way:
   different instant in each arm - a confound worth nothing.
 - **Vary the seed if you want statistics.** Repeats of one seed are identical by
   design. Three seeds is enough to see whether a difference is real.
+- **Read `reproducible` off `sim.state` before comparing two runs.** It is false
+  wherever the scenario carries a node running in an emulator, whose firmware is
+  stepped by the emulator's clock rather than by the run's: the same seed then
+  puts its traffic at different instants and the arms differ for a reason the
+  matrix never recorded. `not_reproducible_why` names the node. `experiment.start`
+  answers the same pair. An arm on emulated firmware is worth watching and is
+  not worth subtracting from another arm.
 - **One message tests nothing.** CAD only acts under contention. Six companions
   sending on the same simulated instant gives roughly 3:1 loss to collision and
   self-deafness, which is the regime worth measuring.
