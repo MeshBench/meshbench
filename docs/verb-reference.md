@@ -3381,7 +3381,7 @@ State a whole matrix in one call - the arms, the seeds, the senders and the burs
 | `run_for_ms` | number | optional | how long each cell runs, in simulated milliseconds; zero or less is ignored and the current length kept |
 | `send_at_ms` | number | optional | the simulated instant the burst is fired, which is the same in every arm; zero or less is ignored |
 | `spread_ms` | number | optional | milliseconds to stagger the senders over; zero fires them all at once, which is the sharpest test of contention and the least like anything real, and a negative value is ignored |
-| `bytes` | number | optional | pad the message to this size, since airtime scales with payload and airtime is what collides; zero sends the label alone, and a negative value is ignored |
+| `bytes` | number | optional | pad the message to at least this size, since airtime scales with payload and airtime is what collides; it is a floor rather than the width, because every cell of the matrix floods the same number of bytes whatever its label and seed are, and zero leaves that common width to the widest cell; a negative value is ignored |
 | `scope` | string | optional | the region every sender originates under; empty sends unscoped, which is carried by a different set of repeaters and so measures a different network |
 
 **Answers** `arms`, `seeds`, `senders`, `runs`, `run_for_ms`, `send_at_ms`, `spread_ms`, `bytes`, `scope`, `arm_labels`. Counts of what is now defined rather than the definition itself, except `arm_labels`, which names every arm: a count cannot tell a cross that produced the six arms wanted from one that produced six others.

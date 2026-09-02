@@ -254,26 +254,30 @@ func registerImport(st *state.Store, s *Sim) {
 			}
 			return nil, false
 		}
-		n := 0
-		for i := range s.nodes {
-			in, ok := find(s.nodes[i].Name, s.nodes[i].PublicKey)
+		// One walk, so the match is made once. The snapshot used to be walked
+		// separately and matched on the display name alone, because the row
+		// carries no key - which is the same fault the key match was written to
+		// cure, left in place on the side a person actually looks at: the verb
+		// answered 44 and the map coloured 4. The key belongs to the scenario
+		// node, so the row is found from it rather than asked to know its own.
+		n := s.updateNodes(w, func(n *scenario.Node, row *state.Node) bool {
+			in, ok := find(n.Name, n.PublicKey)
 			if !ok {
-				continue
+				return false
 			}
-			s.nodes[i].Regions = append([]string(nil), in.Regions...)
+			n.Regions = append([]string(nil), in.Regions...)
 			if in.DefaultScope != "" {
-				s.nodes[i].DefaultScope = in.DefaultScope
+				n.DefaultScope = in.DefaultScope
 			}
-			n++
-		}
-		// The snapshot's own nodes carry no key, so match them by name; the
-		// saved fixture comes from the scenario nodes above, which is where the
-		// key match matters. This keeps the live view roughly in step.
-		for i := range w.Nodes {
-			if in, ok := find(w.Nodes[i].Name, ""); ok {
-				w.Nodes[i].Regions = append([]string(nil), in.Regions...)
+			if row != nil {
+				row.Regions = append([]string(nil), n.Regions...)
+				// The scope as well as the regions. The map draws what a node
+				// originates under, and leaving it behind made a node that had
+				// just been given a scope read as sending unscoped.
+				row.DefaultScope = n.DefaultScope
 			}
-		}
+			return true
+		})
 		w.Say(fmt.Sprintf("applied regions to %d nodes", n))
 		return map[string]any{"applied": n}, nil
 	})

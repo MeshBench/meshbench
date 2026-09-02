@@ -1372,7 +1372,7 @@
         {
           "name": "bytes",
           "type": "number",
-          "what": "pad the message to this size, since airtime scales with payload and airtime is what collides; zero sends the label alone, and a negative value is ignored"
+          "what": "pad the message to at least this size, since airtime scales with payload and airtime is what collides; it is a floor rather than the width, because every cell of the matrix floods the same number of bytes whatever its label and seed are, and zero leaves that common width to the widest cell; a negative value is ignored"
         },
         {
           "name": "scope",

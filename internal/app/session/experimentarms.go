@@ -183,11 +183,49 @@ func varied(base ExpArm, param, v string) (ExpArm, string, error) {
 		param, strings.Join(have, ", "))
 }
 
+// cellText is what one cell floods: its own arm and seed, at a width every
+// cell of the matrix shares.
+//
+// The width is the whole point. Airtime scales with payload and airtime is what
+// collides, so a message carrying the arm's label is a message whose size is
+// decided by the name somebody typed. A control arm and the arm it duplicates
+// differ only in that name, and they were flooding different numbers of bytes:
+// the two runs being compared differed in the one quantity the comparison is
+// about, and no row of the result could show it. The seed is in the text for
+// the same reason and did the same thing at ten, where the number grows a
+// digit - so what separated two runs of one arm was not only the seed.
+//
+// The label stays, because a capture has to say which cell it came from. Only
+// the size is held level.
+func (e *experiment) cellText(arm ExpArm, seed uint64) string {
+	return padTo(cellLabel(arm.Label, seed), e.messageBytes())
+}
+
+// messageBytes is the width every cell floods at: whatever the experiment asked
+// for, or the widest cell text in the matrix where that is wider.
+//
+// A floor rather than the width, because padding to less than the text leaves
+// the arms uneven again, which is the fault rather than a smaller version of it.
+func (e *experiment) messageBytes() int {
+	want := e.Bytes
+	for _, a := range e.Arms {
+		for _, seed := range e.Seeds {
+			if n := len(cellLabel(a.Label, seed)); n > want {
+				want = n
+			}
+		}
+	}
+	return want
+}
+
+// cellLabel names one cell, before it is padded.
+func cellLabel(label string, seed uint64) string {
+	return fmt.Sprintf("%s seed %d", label, seed)
+}
+
 // padTo brings a message up to a stated size, or leaves it alone when the size
 // is zero or already past it.
 //
-// Airtime scales with payload and airtime is what collides, so the size of the
-// thing being flooded is part of the experiment rather than a detail of it.
 // Padded with dots rather than spaces: a run of spaces in a console is
 // indistinguishable from a message that ended.
 func padTo(text string, size int) string {

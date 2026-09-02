@@ -5,7 +5,77 @@ import (
 	"testing"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
+	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
+
+// A pin aimed at one role must reach that role and nothing else, on both sides.
+//
+// The count was right and the set was not: the engine's side of the verb
+// honoured the role and the side that decides what is drawn ignored it, so
+// choosing a repeater build redrew every companion and room server in the mesh
+// as running it too. Asserting on how many changed is exactly what missed it,
+// so this asserts on which.
+func TestSettingFirmwareByRoleLeavesTheOtherRolesAlone(t *testing.T) {
+	nodes := []scenario.Node{
+		{Name: "hill", Kind: scenario.SimpleRepeater,
+			Firmware: scenario.FirmwareRef{Version: "before"}},
+		{Name: "phone", Kind: scenario.Companion,
+			Firmware: scenario.FirmwareRef{Version: "before"}},
+		{Name: "posts", Kind: scenario.RoomServer,
+			Firmware: scenario.FirmwareRef{Version: "before"}},
+	}
+	store := state.New(10)
+	sim := &Sim{nodes: nodes}
+	registerFirmwareNodes(store, sim)
+	store.Handle("test.nodes", func(w *state.World, _ any) (any, error) {
+		for _, n := range sim.nodes {
+			w.Nodes = append(w.Nodes, state.Node{
+				Name: n.Name, Kind: string(n.Kind), Firmware: n.Firmware.Version,
+			})
+		}
+		return nil, nil
+	})
+	var world *state.World
+	store.Handle("test.world", func(w *state.World, p any) (any, error) {
+		*(p.(**state.World)) = w
+		return nil, nil
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go store.Run(ctx)
+	if _, err := store.Do(ctx, "test.nodes", nil); err != nil {
+		t.Fatal(err)
+	}
+
+	const want = "repeater-v9.9.9-test"
+	if _, err := store.Do(ctx, "firmware.set", map[string]any{
+		"role": "simple_repeater", "version": want,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Do(ctx, "test.world", &world); err != nil {
+		t.Fatal(err)
+	}
+
+	drawn := map[string]string{}
+	for _, n := range world.Nodes {
+		drawn[n.Name] = n.Firmware
+	}
+	for _, n := range sim.nodes {
+		expect := "before"
+		if n.Name == "hill" {
+			expect = want
+		}
+		if n.Firmware.Version != expect {
+			t.Errorf("%s runs %q, want %q", n.Name, n.Firmware.Version, expect)
+		}
+		if drawn[n.Name] != expect {
+			t.Errorf("%s is drawn as %q, want %q - the view was written by a "+
+				"second walk that did not honour the role",
+				n.Name, drawn[n.Name], expect)
+		}
+	}
+}
 
 // Setting a firmware version has to reach the engine, because the engine's
 // copy of the spec is what starts a process.
