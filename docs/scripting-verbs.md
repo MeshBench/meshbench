@@ -1,8 +1,8 @@
 # Every verb, and the call that covers it
 
 The wire underneath [scripting-api.md](scripting-api.md). The store registers
-**211**<!--verbdoc:public--> public verbs a script can call and
-**35**<!--verbdoc:internal--> internal callbacks it cannot, **246**<!--verbdoc:total-->
+**217**<!--verbdoc:public--> public verbs a script can call and
+**37**<!--verbdoc:internal--> internal callbacks it cannot, **254**<!--verbdoc:total-->
 in total, plus the two the socket answers itself, with what each reads, what
 each returns, and which façade call reaches it.
 
@@ -77,8 +77,8 @@ Two verbs are **not** in this table:
 
 ## What this table shows about the surface
 
-- **211**<!--verbdoc:public--> public verbs, plus **35**<!--verbdoc:internal-->
-  the workbench keeps to itself, **246**<!--verbdoc:total--> registered in
+- **217**<!--verbdoc:public--> public verbs, plus **37**<!--verbdoc:internal-->
+  the workbench keeps to itself, **254**<!--verbdoc:total--> registered in
   total. The façade covers the public verbs, over roughly 60 calls once
   objects and properties absorb them.
 - **The naming is not regular.** `node.*` and `nodes.*` are both node verbs and
@@ -408,6 +408,14 @@ Two verbs are **not** in this table:
 | `terrain.shade` | *a bare string*, `view` array | `shading` | `wb.ui.map.shade()` |
 | `terrain.shade_failed` | — | — | *none* — the hillshade worker reporting a failure |
 | `terrain.shade_set` | — | — | *none* — the hillshade worker publishing its raster |
+| `update.allow` | *a bare string*, `on` bool | `on`, `asked`, `checking` | `wb.update.allow(on=True)` |
+| `update.check` | — | `checking`, `build` | `wb.update.check()` |
+| `update.checked` | — | — | *none* — the release check reporting back from its own worker |
+| `update.download` | — | `downloading`, `bytes`, `release`, `into` | `wb.update.download()` |
+| `update.notes` | — | `opened` | `wb.update.notes()` |
+| `update.reveal` | — | `opened` | `wb.update.reveal()` |
+| `update.staged` | *a bare string*, `path` string | `staged` | *none* — the update download reporting back from its own worker |
+| `update.status` | — | `build`, `latest`, `tag`, `newer`, `available`, `notes`, `published`, `checked`, `asset`, `bytes`, `artefact`, `why`, `staged`, `feed`, `error`, `allowed`, `asked` | `wb.update.status()` |
 
 ### The window
 

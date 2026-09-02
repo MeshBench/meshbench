@@ -2,20 +2,10 @@ package resource
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 )
-
-// httpDoer is the one method a fetch needs, so a test can answer without a
-// network.
-type httpDoer interface {
-	Do(*http.Request) (*http.Response, error)
-}
 
 // Fetch downloads one tool, verifies it, unpacks it and leaves it under the
 // name the emulator lookup asks for.
@@ -66,55 +56,10 @@ func releaseNamed(name string) (toolRelease, bool) {
 func (t *Toolchain) download(ctx context.Context, rel toolRelease, a toolAsset,
 	progress func(done, total int64)) (string, error) {
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.URL, nil)
-	if err != nil {
-		return "", err
-	}
-	client := t.HTTP
-	if client == nil {
-		client = http.DefaultClient
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("resource: fetching %s: %w", rel.Name, err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("resource: %s answered %s for %s",
-			"github.com", resp.Status, rel.Name)
-	}
-
-	f, err := os.CreateTemp(t.Dir, "."+rel.Name+"-*.part")
-	if err != nil {
-		return "", err
-	}
-	tmp := f.Name()
-	// Reported by the asset's own size rather than the server's, because a
-	// redirect can arrive with no Content-Length and a job that says "0 of 0"
-	// on a 61 MB download reads as a stall.
-	total := a.Bytes
-	if resp.ContentLength > 0 {
-		total = resp.ContentLength
-	}
-	sum := sha256.New()
-	_, err = io.Copy(io.MultiWriter(f, sum), &countingReader{
-		r: resp.Body, total: total, report: everyPercent(total, progress),
-	})
-	if cerr := f.Close(); err == nil {
-		err = cerr
-	}
-	if err != nil {
-		_ = os.Remove(tmp)
-		return "", fmt.Errorf("resource: reading %s: %w", rel.Name, err)
-	}
-	if got := hex.EncodeToString(sum.Sum(nil)); got != a.SHA256 {
-		_ = os.Remove(tmp)
-		return "", fmt.Errorf("resource: %s is not the file this was written "+
-			"against (sha256 %s, expected %s) - the download was truncated or the "+
-			"asset was replaced, and either way it is not being unpacked",
-			rel.Name, got, a.SHA256)
-	}
-	return tmp, nil
+	return Verified{
+		URL: a.URL, SHA256: a.SHA256, Bytes: a.Bytes,
+		Name: rel.Name, Dir: t.Dir, HTTP: t.HTTP,
+	}.To(ctx, progress)
 }
 
 // install puts a verified download where the lookup will find it, and checks
@@ -173,28 +118,4 @@ func (t *Toolchain) verify(path string, rel toolRelease, a toolAsset) error {
 		return err
 	}
 	return nil
-}
-
-// everyPercent thins progress down to whole percentages.
-//
-// countingReader reports on every read, which on a 61 MB download is thousands
-// of calls, and each one here becomes a command posted to the store's single
-// goroutine. The progress bar cannot show more than a percent anyway.
-func everyPercent(total int64, report func(done, total int64)) func(done, total int64) {
-	if report == nil {
-		return nil
-	}
-	last := int64(-1)
-	return func(done, declared int64) {
-		if total <= 0 {
-			report(done, declared)
-			return
-		}
-		pct := done * 100 / total
-		if pct == last && done < total {
-			return
-		}
-		last = pct
-		report(done, total)
-	}
 }

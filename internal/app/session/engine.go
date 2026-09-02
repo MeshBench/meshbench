@@ -145,6 +145,9 @@ type Sim struct {
 	prefs     Prefs
 	persist   bool
 	prefsFile string
+	// updateFeed points the release check somewhere other than the published
+	// feed. Only a flag sets it, and every answer from a check says so.
+	updateFeed string
 	// movingCache reports a cache move in flight, so a second one cannot
 	// start into the middle of the first; prefetching, the same for tiles.
 	movingCache atomic.Bool

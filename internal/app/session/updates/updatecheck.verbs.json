@@ -1,0 +1,69 @@
+{
+  "update.allow": {
+    "what": "allow or refuse update checks on this machine, and remember it",
+    "params": [
+      {
+        "name": "on",
+        "type": "bool",
+        "primary": true,
+        "what": "true to ask the release page once a day whether a newer release exists, false never to ask"
+      }
+    ],
+    "returns": [
+      "on",
+      "asked",
+      "checking"
+    ],
+    "answers": "`asked` is whether this machine had already answered before the call, never asked being the third state a fresh install is in and the one that spends nothing. Off is the default and stays the default: nothing in the simulation depends on knowing whether a release exists, so a machine with no network, or an operator who does not want the question, loses nothing by never answering it. `checking` is true where the grant started a check straight away, which it does because nothing is watching for permission to arrive and a switch that promises something and does it tomorrow is a switch nobody believes. Allowing a check never downloads anything.",
+    "example": {
+      "params": true,
+      "what": "let this machine find out when a newer release is published",
+      "runnable": true
+    }
+  },
+  "update.check": {
+    "what": "ask the release feed whether a newer release exists",
+    "returns": [
+      "checking",
+      "build"
+    ],
+    "answers": "Starts the check and returns immediately: asking is a network call, and one made on the store's own goroutine would stop the simulation for as long as a socket takes to time out. It announces itself in the jobs strip and the answer lands in `update.status`, which is what a script polls. The routine question is answered by the redirect the releases page already serves - a 302 naming the newest tag, no API call - because GitHub allows an unauthenticated caller 60 requests an hour per address, and an address is a household, an office or an ISP doing carrier-grade NAT; the API is asked once a newer release is found, for the assets and their sizes. A check that could not reach either is an error with a reason, never a report that this build is current: a rate limit, a captive portal and an up-to-date build are three answers and only one of them is about this build. A working copy is refused rather than checked, and says so: a build with no release stamped in it is not behind anything, it is unreleased. Calling this by hand is its own consent for that one check - the preference `update.allow` sets governs the check nobody asked for, the one on a timer.",
+    "example": {
+      "params": {},
+      "what": "find out now whether a newer release has been published",
+      "runnable": false
+    }
+  },
+  "update.status": {
+    "what": "what the last update check found, without asking anything",
+    "returns": [
+      "build",
+      "latest",
+      "tag",
+      "newer",
+      "available",
+      "notes",
+      "published",
+      "checked",
+      "asset",
+      "bytes",
+      "artefact",
+      "why",
+      "staged",
+      "feed",
+      "error",
+      "allowed",
+      "asked"
+    ],
+    "answers": "Read-only and offline: every field is empty until something has asked, because nothing here is filled at startup. `newer` is whether a higher release exists at all and `available` is whether one exists that this machine could actually take - they differ where a release is published for platforms this is not one of, or where the package manager owns this copy, and `why` is the reason in words. `artefact` names which bundle this build came out of, because what can honestly be done with a download afterwards differs per bundle. `staged` is where a verified download landed, always beside this build and never on top of it. `error` is why the last check could not answer, which is a different thing from there being nothing newer. `feed` is only set when somebody pointed the check at something other than the published release feed.",
+    "example": {
+      "params": {},
+      "what": "ask whether this build is the newest one, without touching the network",
+      "runnable": true
+    }
+  },
+  "update.checked": {
+    "what": "take a finished check back onto the store's goroutine: publish what the release feed said and say it once",
+    "answers": "Internal: the check reporting back to itself from the worker it runs on. The result it carries is the whole of what `update.status` then answers."
+  }
+}

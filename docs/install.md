@@ -118,3 +118,60 @@ the binary into the tools directory.
 
 Everything the application ships under is listed in **Help → Licences &
 attributions**, and in `LICENCES/` beside the binary.
+
+## Updating
+
+There is no automatic update, and that is deliberate: a run holds unsaved
+state, there is no autosave, and replacing a binary underneath one is a way to
+lose somebody's work. What the application does is find out, tell you once, and
+put a checked copy of the new release on the disk beside the old one.
+
+**Checking is off until you say otherwise.** Nothing asks the release page
+until Setup's *version* row, or Configuration > System, is answered. Allowed,
+it asks once a day, in the background, and never as a condition of the window
+opening; refused, it never asks again and nothing mentions it. A working copy
+is never told it is out of date: it is unreleased, not behind. Over the socket
+the verbs are `update.allow`, `update.check`, `update.status`,
+`update.download`, `update.reveal` and `update.notes`; a headless session never
+checks on its own.
+
+**The routine check costs no API budget.** "Is there anything newer" is
+answered by the redirect `github.com/MeshBench/meshbench/releases/latest`
+already serves: a 302 naming the newest tag, no JSON and no API call. That
+matters because GitHub's API allows an unauthenticated caller 60 requests an
+hour per address, and an address is a household, an office or an ISP doing
+carrier-grade NAT: an updater checking on every launch would spend everybody's
+budget on that address. The API is asked once a release is found, because it is
+the only route that knows the assets and their sizes.
+
+**"I could not find out" is its own answer.** A rate limit, a captive portal
+and a build that is current are three different things, and only one of them is
+about your build. A refused or unreachable check says so and names the reason,
+including how long a rate limit has left to run; it never reports itself as up
+to date.
+
+**What is downloaded is checked.** Every release publishes `SHA256SUMS` beside
+its artefacts, and a download whose digest does not match it is deleted rather
+than kept. That digest comes from the same release as the file, so what it
+proves is that the download arrived intact, not that the release is genuine;
+what says the release is ours is the TLS connection to `github.com`, which is
+why an asset served from anywhere else is refused before a byte is read. The
+size is stated before it is spent.
+
+**Nothing is replaced for you.** The download lands in
+`~/.cache/meshbench/updates/<tag>/`, and the row then says what to do with it.
+What that is differs per platform, and only two of these are limits of this
+application rather than of the operating system:
+
+| bundle | what you get | why |
+|---|---|---|
+| Linux `.tar.gz` | download and instructions | unpack beside and move over the old one; the tarball carries the emulators and the fixtures, so taking only the binary leaves a build made of two releases |
+| Linux AppImage | download and instructions | a rename over a running binary is allowed on Linux, so `mv` works while MeshBench is open; the new one starts next launch |
+| Linux `.deb` | refused, on purpose | apt owns those files. `sudo apt install --only-upgrade meshbench` |
+| macOS `.dmg` | download and instructions | the swap works, but the build is unsigned and anything downloaded is quarantined, so the new copy needs right-click then Open on its first launch, the same as the first one did |
+| Windows `.zip` | download and instructions | a running `.exe` cannot be replaced while it is running. Close MeshBench first, then unzip and move the folder over |
+
+**An update invalidates a pinned client.** A client and the workbench it drives
+have to be the same release, and the control socket refuses a pair that is not,
+so upgrade them together: `pip install -U meshbench==<new>` and
+`npm install @meshbench/client@<new>`.

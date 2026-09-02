@@ -64,6 +64,20 @@ func (p *configPanel) update(gtx layout.Context, s *state.Snapshot) {
 		p.terrainDL.Bool.Value = s.TerrainDownloads
 	}
 
+	// The other permission, and the only one that is about the application
+	// rather than about the simulation. Off until answered: nothing here
+	// depends on knowing whether a release exists, so a machine that never
+	// answers loses nothing.
+	if p.updateCheck.Bool.Update(gtx) {
+		p.wasUpdateCheck = p.updateCheck.Bool.Value
+		if p.do != nil {
+			p.do("update.allow", map[string]any{"on": p.updateCheck.Bool.Value})
+		}
+	} else if s.Update.Allowed != p.wasUpdateCheck {
+		p.wasUpdateCheck = s.Update.Allowed
+		p.updateCheck.Bool.Value = s.Update.Allowed
+	}
+
 	numeric := []struct {
 		btn   *comp.Button
 		field *comp.Field

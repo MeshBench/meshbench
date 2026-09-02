@@ -3,9 +3,9 @@
 Generated. Run `tools/verbdoc/verbdoc.py` to rewrite it and
 `tools/verbdoc/verbdoc.py --check` to fail when it is stale.
 
-The store registers 246 verbs: 211 a script may call and
-35 the workbench calls on itself, which the socket refuses. Of those,
-246 say what they are for and 0 do not yet; the ones that
+The store registers 254 verbs: 217 a script may call and
+37 the workbench calls on itself, which the socket refuses. Of those,
+254 say what they are for and 0 do not yet; the ones that
 do not are marked, and what is printed for them is read out of the handler
 rather than said by it.
 
@@ -4440,6 +4440,142 @@ Hold the finished hillshade, and warn where most of the view was blank ground ra
 **Answers** Answers nothing: the shading goes into the snapshot the renderer reads.
 
 **Client** none: the hillshade worker publishing its raster
+
+### `update.allow`
+
+Allow or refuse update checks on this machine, and remember it.
+
+**Takes**
+
+| parameter | type | | what |
+|---|---|---|---|
+| `on` | bool | optional, primary | true to ask the release page once a day whether a newer release exists, false never to ask |
+
+**Answers** `on`, `asked`, `checking`. `asked` is whether this machine had already answered before the call, never asked being the third state a fresh install is in and the one that spends nothing. Off is the default and stays the default: nothing in the simulation depends on knowing whether a release exists, so a machine with no network, or an operator who does not want the question, loses nothing by never answering it. `checking` is true where the grant started a check straight away, which it does because nothing is watching for permission to arrive and a switch that promises something and does it tomorrow is a switch nobody believes. Allowing a check never downloads anything.
+
+**Example** - let this machine find out when a newer release is published
+
+```json
+{"id":1,"method":"update.allow","params":true}
+```
+
+**Client** `wb.update.allow(on=True)`
+
+### `update.check`
+
+Ask the release feed whether a newer release exists.
+
+**Takes** nothing.
+
+**Answers** `checking`, `build`. Starts the check and returns immediately: asking is a network call, and one made on the store's own goroutine would stop the simulation for as long as a socket takes to time out. It announces itself in the jobs strip and the answer lands in `update.status`, which is what a script polls. The routine question is answered by the redirect the releases page already serves - a 302 naming the newest tag, no API call - because GitHub allows an unauthenticated caller 60 requests an hour per address, and an address is a household, an office or an ISP doing carrier-grade NAT; the API is asked once a newer release is found, for the assets and their sizes. A check that could not reach either is an error with a reason, never a report that this build is current: a rate limit, a captive portal and an up-to-date build are three answers and only one of them is about this build. A working copy is refused rather than checked, and says so: a build with no release stamped in it is not behind anything, it is unreleased. Calling this by hand is its own consent for that one check - the preference `update.allow` sets governs the check nobody asked for, the one on a timer.
+
+**Example** - find out now whether a newer release has been published
+
+```json
+{"id":1,"method":"update.check","params":{}}
+```
+
+Not made by the test suite: this call needs more than the two-node headless session the runnable examples go to.
+
+**Client** `wb.update.check()`
+
+### `update.checked`
+
+**The workbench's own callback. The socket refuses it.**
+
+Take a finished check back onto the store's goroutine: publish what the release feed said and say it once.
+
+**Takes** nothing.
+
+**Answers** Internal: the check reporting back to itself from the worker it runs on. The result it carries is the whole of what `update.status` then answers.
+
+**Client** none: the release check reporting back from its own worker
+
+### `update.download`
+
+Download the release the last check found, beside this build rather than over it.
+
+**Takes** nothing.
+
+**Answers** `downloading`, `bytes`, `release`, `into`. Refuses unless a check has already found a release this machine could take, and says which of the four reasons applies - nothing has asked yet, the last check could not reach the feed, there is a newer release but nothing published for this platform or this bundle, or this build is already the newest. The fetch runs in the background with its size announced in the jobs strip before it is spent, and it is verified before it is offered: the release publishes SHA256SUMS beside its artefacts, and a file whose digest does not match is deleted rather than kept. That digest comes from the same release as the file, so what it proves is that the download arrived intact; what says the release is ours is the connection to github.com, which is why an asset served from anywhere else is refused outright. Nothing is replaced: the download lands in the update cache and the answer says how to swap it by hand, because a run holds unsaved state and replacing a binary underneath one is a way to lose somebody's work.
+
+**Example** - fetch the release the last check found
+
+```json
+{"id":1,"method":"update.download","params":{}}
+```
+
+Not made by the test suite: this call needs more than the two-node headless session the runnable examples go to.
+
+**Client** `wb.update.download()`
+
+### `update.notes`
+
+Open the release page for what the last check found.
+
+**Takes** nothing.
+
+**Answers** `opened`. The notes are linked rather than embedded: they are prose, and prose outgrows any panel it is put in. Refuses when no check has named a release page yet.
+
+**Example** - read what changed in the release being offered
+
+```json
+{"id":1,"method":"update.notes","params":{}}
+```
+
+Not made by the test suite: this call needs more than the two-node headless session the runnable examples go to.
+
+**Client** `wb.update.notes()`
+
+### `update.reveal`
+
+Open the folder a downloaded release landed in.
+
+**Takes** nothing.
+
+**Answers** `opened`. Refuses when nothing has been downloaded, because there is then no folder to open. Hands the path to whatever this desktop uses - xdg-open, open, or the Windows file protocol handler - and says so when the machine has none rather than failing silently.
+
+**Example** - look at the release that was just downloaded
+
+```json
+{"id":1,"method":"update.reveal","params":{}}
+```
+
+Not made by the test suite: this call needs more than the two-node headless session the runnable examples go to.
+
+**Client** `wb.update.reveal()`
+
+### `update.staged`
+
+**The workbench's own callback. The socket refuses it.**
+
+Take a finished download back onto the store's goroutine: record where it landed and say what to do with it.
+
+**Takes**
+
+| parameter | type | | what |
+|---|---|---|---|
+| `path` | string | required, primary | where the verified download landed |
+
+**Answers** `staged`. Internal: the download reporting back from the worker it runs on. What it says is the whole instruction for this platform's bundle, including that a client pinned to the old release will be refused by the new workbench.
+
+**Client** none: the update download reporting back from its own worker
+
+### `update.status`
+
+What the last update check found, without asking anything.
+
+**Takes** nothing.
+
+**Answers** `build`, `latest`, `tag`, `newer`, `available`, `notes`, `published`, `checked`, `asset`, `bytes`, `artefact`, `why`, `staged`, `feed`, `error`, `allowed`, `asked`. Read-only and offline: every field is empty until something has asked, because nothing here is filled at startup. `newer` is whether a higher release exists at all and `available` is whether one exists that this machine could actually take - they differ where a release is published for platforms this is not one of, or where the package manager owns this copy, and `why` is the reason in words. `artefact` names which bundle this build came out of, because what can honestly be done with a download afterwards differs per bundle. `staged` is where a verified download landed, always beside this build and never on top of it. `error` is why the last check could not answer, which is a different thing from there being nothing newer. `feed` is only set when somebody pointed the check at something other than the published release feed.
+
+**Example** - ask whether this build is the newest one, without touching the network
+
+```json
+{"id":1,"method":"update.status","params":{}}
+```
+
+**Client** `wb.update.status()`
 
 ## The window
 

@@ -95,6 +95,10 @@ func Run(args []string) {
 			"has no unix socket a Python client can reach). "+
 			"MESHBENCH_CONTROL_SOCKET does the same, and two workbenches need two")
 	versionFlag := flag.Bool("version", false, "print the version and exit")
+	updateFeedFlag := flag.String("update-feed", "", "ask this URL whether a "+
+		"newer release exists instead of the published release feed")
+	updateNowFlag := flag.Bool("update-check", false, "ask whether a newer "+
+		"release exists shortly after startup, whatever the schedule says")
 	_ = flag.CommandLine.Parse(args)
 	if *versionFlag {
 		fmt.Println("MeshBench", version.Detail())
@@ -110,7 +114,8 @@ func Run(args []string) {
 	// The same construction the headless command uses, so the two modes
 	// cannot become two ways of building a session that drift. What this one
 	// does afterwards that headless does not is attach a UI.
-	st, sm := session.Boot(session.Options{UnverifiedWiring: *unwatchedFlag})
+	st, sm := session.Boot(session.Options{
+		UnverifiedWiring: *unwatchedFlag, UpdateFeed: *updateFeedFlag})
 	// Every status line, timestamped and kept in full - not just the last
 	// twenty the strip at the bottom shows. Set before Run starts: nothing
 	// else touches World before then, so there is nothing to race. A run
@@ -313,6 +318,7 @@ func Run(args []string) {
 	if *panelFlag == "" {
 		openSetupIfNotReady(ctx, st)
 	}
+	scheduleUpdateCheck(ctx, st, sm, *updateNowFlag)
 	switch *viewFlag {
 	case "run":
 		sh.View = shell.Run

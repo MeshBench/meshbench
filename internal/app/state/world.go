@@ -124,6 +124,10 @@ type World struct {
 	// caveat line in the chrome has to be able to say "no terrain" without
 	// stat-ing a tile cache once a frame.
 	Ground Ground
+	// Update is what the last update check found. Empty until something asks:
+	// nothing fills it at startup, because a check nobody asked for is what
+	// this was designed not to be.
+	Update Update
 	// Setup is what this machine has and has not, as last checked. Grouped
 	// rather than flat because what is true of a whole group - where tools are
 	// looked for, and that it is not PATH - is the half people get wrong.

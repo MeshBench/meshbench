@@ -137,6 +137,8 @@ type Snapshot struct {
 	Ground Ground
 	// Setup is what this machine has and has not, as last checked.
 	Setup []SetupGroup
+	// Update is what the last update check found, empty until one is asked for.
+	Update Update
 	// Builds is the firmware library on this machine.
 	Builds []Build
 	// Experiment is the A/B matrix's summary, and ExperimentWarning is why it

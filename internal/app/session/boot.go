@@ -32,6 +32,12 @@ type Options struct {
 	// reports so a script can check once rather than discover it from twelve
 	// refusals in a row.
 	Headless bool
+	// UpdateFeed points the release check at something other than the
+	// published release feed. Empty is the published one, which is what every
+	// real run uses; a flag sets it, and the check says so in every answer,
+	// because a check that quietly asked somewhere else is worse than one that
+	// failed.
+	UpdateFeed string
 	// NoPrefs skips the machine's saved settings - the GPU choice, the cache
 	// bound, where the cache lives. For a test, whose session must not depend
 	// on whatever this machine happens to have chosen.
@@ -63,6 +69,7 @@ func Boot(o Options) (*state.Store, *Sim) {
 	if o.UnverifiedWiring {
 		sm.RunUnverifiedWiring()
 	}
+	sm.updateFeed = o.UpdateFeed
 	Mode = "workbench"
 	if o.Headless {
 		Mode = "headless"
