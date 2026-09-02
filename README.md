@@ -68,7 +68,7 @@ work, believe it; if it says a link works marginally, go and measure.
 [`docs/shortcomings.md`](docs/shortcomings.md) is the maintained account of
 what is not modelled, and it is stated in the interface on every result.
 
-![The plan view: a real network on Scottish terrain, links weighted by margin](docs/images/workbench-plan.png)
+![The plan view: the shipped Scotland and Ireland network, 378 nodes running real MeshCore firmware, showing the 1787 strongest of 4873 links](docs/images/workbench-plan.png)
 
 ## Features
 
