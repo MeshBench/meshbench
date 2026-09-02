@@ -83,6 +83,12 @@ func runHeadless(ctx context.Context, args []string) error {
 		if _, err := st.Do(ctx, "project.open", *fixture); err != nil {
 			return fmt.Errorf("loading %s: %w", *fixture, err)
 		}
+	} else if _, err := st.Do(ctx, "project.new", nil); err != nil {
+		// A blank network, installed the same way an opened one is. Without
+		// this the session had no engine and no tick behind it, so it answered
+		// the socket and refused everything a caller went on to ask - and said
+		// nothing at launch about why.
+		return fmt.Errorf("blank network: %w", err)
 	}
 	// After the network, because setting a seed rebuilds the scenario against
 	// it and there has to be a scenario to rebuild. The other order refused

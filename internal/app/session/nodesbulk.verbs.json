@@ -35,7 +35,7 @@
         "name": "nodes",
         "type": "array",
         "primary": true,
-        "what": "the names to remove; one this network has not got refuses the whole call and removes nothing, and naming none is accepted and does nothing"
+        "what": "the names to remove, as a list, one name, or {\"nodes\": [...]}; one this network has not got refuses the whole call and removes nothing, naming none is accepted and does nothing, and a shape outside that set is refused rather than read as no names"
       }
     ],
     "returns": [
@@ -59,7 +59,7 @@
         "name": "nodes",
         "type": "array",
         "primary": true,
-        "what": "the names to keep; one this network has not got refuses the whole call and removes nothing, and naming none keeps nothing, which empties the network"
+        "what": "the names to keep, as a list, one name, or {\"nodes\": [...]}; one this network has not got refuses the whole call and removes nothing, and naming none keeps nothing, which empties the network. A shape outside that set is refused rather than read as no names, because here that reading empties the network and answers success"
       }
     ],
     "returns": [

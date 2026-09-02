@@ -150,8 +150,8 @@ func TestMoveRefusesACoordinateItCannotRead(t *testing.T) {
 		{"a lat off the globe", map[string]any{
 			"name": "West Lomond", "lat": 560.0, "lon": -3.3},
 			[]string{"nodes.move", "lat", "-90", "90"}},
-		{"no name", map[string]any{"lat": 56.2, "lon": -3.3},
-			[]string{"nodes.move", "name"}},
+		{"no node", map[string]any{"lat": 56.2, "lon": -3.3},
+			[]string{"nodes.move", "node"}},
 		{"not an object at all", "West Lomond", []string{"nodes.move"}},
 	} {
 		msg := refuses(t, st, "nodes.move", c.params)

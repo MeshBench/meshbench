@@ -12,6 +12,14 @@ import (
 )
 
 // Node is one node, as the interface needs it.
+//
+// What a node has *done* is not here: packet counters live on NodeStat, which
+// is republished on its own schedule. Node carried a Sent and a Heard that
+// nothing ever wrote, and a counter that is structurally nought is worse than
+// no counter at all - a caller reads a number and believes it, where an absent
+// field sends them to the verb that has the answer. Putting the real counts
+// here instead would republish the whole network every time one moved, which
+// is the split NodeStat exists for.
 type Node struct {
 	Name     string
 	Kind     string
@@ -58,8 +66,6 @@ type Node struct {
 	// TrueRF marks a receiver that takes waveform verdicts whatever the
 	// run's RF mode - the hybrid flag.
 	TrueRF   bool
-	Sent     int
-	Heard    int
 	Selected bool
 	// Pattern is the antenna's gain in dBi at every 10 degrees of compass
 	// bearing, feedline loss already deducted, starting at north.

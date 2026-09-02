@@ -121,6 +121,22 @@ func unknownNames(verb string, nodes []state.Node, names []string) error {
 		verb, nameList(missing), nameList(all))
 }
 
+// askedNothing reports whether a verb was called with no parameters at all.
+//
+// How a verb that sets something is asked to report it instead. Both spellings
+// count, because a client building its parameters as a map sends an empty
+// object where one writing them by hand sends null, and a getter that answered
+// only one of the two is a getter half the callers cannot reach.
+func askedNothing(p any) bool {
+	switch v := p.(type) {
+	case nil:
+		return true
+	case map[string]any:
+		return len(v) == 0
+	}
+	return false
+}
+
 // numAsked reads a number that may legitimately be absent.
 //
 // Three answers rather than two: not asked for, asked for and usable, asked for

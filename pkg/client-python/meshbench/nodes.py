@@ -353,7 +353,7 @@ class Node:
     def move(self, lat: float, lon: float) -> None:
         """Put it somewhere else. The physics moves with it: cached losses for
         this node are forgotten."""
-        self._wb.call("nodes.move", {"name": self.name, "lat": lat, "lon": lon})
+        self._wb.call("nodes.move", {"node": self.name, "lat": lat, "lon": lon})
 
     def set_regions(self, *regions: str) -> None:
         """What this node relays flood traffic for."""

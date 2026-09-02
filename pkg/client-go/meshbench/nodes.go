@@ -329,7 +329,7 @@ func (n Node) Delete(ctx context.Context) error {
 // this node are forgotten.
 func (n Node) Move(ctx context.Context, lat, lon float64) error {
 	return n.w.Do(ctx, "nodes.move", map[string]any{
-		"name": n.name, "lat": lat, "lon": lon})
+		"node": n.name, "lat": lat, "lon": lon})
 }
 
 // SetRegions is what it relays for.

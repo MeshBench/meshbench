@@ -149,7 +149,7 @@ func (c callbacks) wire() {
 	c.mv.OnMove = func(name string, lat, lon float64) {
 		go func() {
 			_, _ = c.st.Do(c.ctx, "nodes.move",
-				map[string]any{"name": name, "lat": lat, "lon": lon})
+				map[string]any{"node": name, "lat": lat, "lon": lon})
 		}()
 	}
 }

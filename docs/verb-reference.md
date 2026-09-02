@@ -894,7 +894,7 @@ Remove a set of nodes in one rebuild, rather than one call each rebuilding the s
 
 | parameter | type | | what |
 |---|---|---|---|
-| `nodes` | array | optional, primary | the names to remove; one this network has not got refuses the whole call and removes nothing, and naming none is accepted and does nothing |
+| `nodes` | array | optional, primary | the names to remove, as a list, one name, or {"nodes": [...]}; one this network has not got refuses the whole call and removes nothing, naming none is accepted and does nothing, and a shape outside that set is refused rather than read as no names |
 
 **Answers** `deleted`, `nodes`. `deleted` is the names that went and `nodes` is how many are left. Every link is dropped and the matrix re-measured behind the answer, because the network is not the one that was measured.
 
@@ -916,7 +916,7 @@ Cut a network down to the nodes named and remove everything else, which is how t
 
 | parameter | type | | what |
 |---|---|---|---|
-| `nodes` | array | optional, primary | the names to keep; one this network has not got refuses the whole call and removes nothing, and naming none keeps nothing, which empties the network |
+| `nodes` | array | optional, primary | the names to keep, as a list, one name, or {"nodes": [...]}; one this network has not got refuses the whole call and removes nothing, and naming none keeps nothing, which empties the network. A shape outside that set is refused rather than read as no names, because here that reading empties the network and answers success |
 
 **Answers** `deleted`, `nodes`. `deleted` names what was removed rather than what was kept, and `nodes` is how many are left.
 
@@ -936,7 +936,7 @@ Read back the whole network as it stands, which is what anything automated does 
 
 **Takes** nothing.
 
-**Answers** `nodes`, `count`. A row per node under `nodes` and `count` beside them, so a caller need not measure the list to know how big the network is. Each row carries two boards, which are two facts: `board` is what the node is and `firmware_board` what its image was built for, and they come apart the moment a host build is pointed at a T-Deck. There is no limit and no paging, so an imported deployment answers with all of it.
+**Answers** `nodes`, `count`. A row per node under `nodes` and `count` beside them, so a caller need not measure the list to know how big the network is. Each row carries two boards, which are two facts: `board` is what the node is and `firmware_board` what its image was built for, and they come apart the moment a host build is pointed at a T-Deck. There is no limit and no paging, so an imported deployment answers with all of it. What a node has *done* is not here: a row carries no packet counts, because this describes what the network is and the counters change every tick. nodes.stats has them, measured from the engine's own scoreboard.
 
 **Example** - see what is in the scenario
 
@@ -954,16 +954,16 @@ Put a node at a position and move its physics with its marker, forgetting the lo
 
 | parameter | type | | what |
 |---|---|---|---|
-| `name` | string | required | which node moves; absent, blank or unknown is refused |
+| `node` | string | required | which node moves; absent, blank or unknown is refused. Spelt `node`, as every other verb that acts on a node it did not create spells it; `name` is still read, because it is what this one verb asked for and it is in saved scripts |
 | `lat` | number | required | degrees north, minus 90 to 90; absent or outside that is refused rather than read as nought, which used to put the node in the Gulf of Guinea and report it as asked for |
 | `lon` | number | required | degrees east, minus 180 to 180; absent or outside that is refused |
 
-**Answers** `name`, `lat`, `lon`
+**Answers** `node`, `name`, `lat`, `lon`. `node` and `name` both carry the node that moved, so a caller reading either spelling back gets an answer.
 
 **Example** - move a node onto the hill it is named after
 
 ```json
-{"id":1,"method":"nodes.move","params":{"lat":56.25,"lon":-3.29,"name":"West Lomond"}}
+{"id":1,"method":"nodes.move","params":{"lat":56.25,"lon":-3.29,"node":"West Lomond"}}
 ```
 
 **Client** `node.move(lat, lon)`
@@ -3765,16 +3765,16 @@ Not made by the test suite: this call needs more than the two-node headless sess
 
 ### `rf.environment`
 
-Point the session at a directory of environment tiles so both RF modes price buildings into the path budget, or take it away again and go back to bare earth.
+Point the session at a directory of environment tiles so both RF modes price buildings into the path budget, or take it away again and go back to bare earth; asked with nothing it reports the tiles in force instead of setting any.
 
 **Takes**
 
 | parameter | type | | what |
 |---|---|---|---|
-| `dir` | string | optional, primary | the tile directory, as tools/envgen or environ.fetch wrote it; absent is refused unless on is false, because a switch with nothing to switch on would silently leave the model bare |
+| `dir` | string | optional, primary | the tile directory, as tools/envgen or environ.fetch wrote it; named and empty is refused unless on is false, because a switch with nothing to switch on would silently leave the model bare. No parameters at all is the question rather than the switch, and reports what is loaded |
 | `on` | bool | optional | false drops the environment and returns the model to bare earth; absent or true expects a dir |
 
-**Answers** `environment`. `environment` is the directory now in force, and empty means bare earth. Every path loss already cached was priced without buildings, so a live engine drops its link cache and the links are measured again.
+**Answers** `environment`. `environment` is the directory in force after the call, and empty means bare earth, so the reply is the same shape whether the tiles were set or asked for. Every path loss already cached was priced without buildings, so a live engine drops its link cache and the links are measured again.
 
 **Example** - charge the paths for the buildings they cross
 
@@ -3810,15 +3810,15 @@ Not made by the test suite: this call needs more than the two-node headless sess
 
 ### `rf.mode`
 
-Choose which physics decides reception, and stamp the choice into the world so every snapshot, saved run and export says which of the two models produced it.
+Choose which physics decides reception, and stamp the choice into the world so every snapshot, saved run and export says which of the two models produced it; asked with nothing it reports the mode in force instead of setting one.
 
 **Takes**
 
 | parameter | type | | what |
 |---|---|---|---|
-| `mode` | string | required, primary | calculated for link budgets against demodulator floors, which is the fast model, or waveform for the full receive chain of demodulation, FEC and CRC; any other value is refused, and so is the empty string a caller who named nothing sends |
+| `mode` | string | optional, primary | calculated for link budgets against demodulator floors, which is the fast model, or waveform for the full receive chain of demodulation, FEC and CRC; absent altogether reports the mode in force and changes nothing, and any other value - the empty string included - is refused rather than read as the absent case |
 
-**Answers** `mode`
+**Answers** `mode`. `mode` is the mode in force after the call, so the reply is the same shape whether the mode was set or asked for. A caller that needs to know which physics produced a number can ask without setting one, which used to be impossible: the only reader was the snapshot, and a socket client has not got one.
 
 **Example** - let the receive chain decide, rather than a link budget
 

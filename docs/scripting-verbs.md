@@ -152,7 +152,7 @@ Two verbs are **not** in this table:
 | `nodes.delete_many` | *a bare string*, `nodes` array | `deleted`, `nodes` | `wb.nodes.delete()` |
 | `nodes.keep` | *a bare string*, `nodes` array | `deleted`, `nodes` | `wb.nodes.keep()` |
 | `nodes.list` | — | `nodes`, `count` | `wb.nodes  (iterate)` |
-| `nodes.move` | `name` string, `lat` number, `lon` number | `name`, `lat`, `lon` | `node.move(lat, lon)` |
+| `nodes.move` | `node` string, `lat` number, `lon` number | `node`, `name`, `lat`, `lon` | `node.move(lat, lon)` |
 | `nodes.near` | *a bare string*, `node` string, `count` number | `node`, `near` | `wb.nodes.near()` |
 | `nodes.place` | *a bare string*, `name` string, `lat` number, `lon` number, `kind` string, `board` string, `height_m` number, `tx_dbm` number | `placed`, `kind`, `regions`, `board`, `nodes` | `wb.nodes.place(name, kind, lat, lon, ...)` |
 | `nodes.regions` | *a bare string*, `node` string, `regions` array | `nodes`, `regions` | `node.regions = [...]` |

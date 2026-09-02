@@ -111,6 +111,9 @@ func Run(args []string) {
 		return
 	}
 
+	// Before anything is constructed: see startupfixture.go.
+	refuseUnknownFixture(*fixture)
+
 	// The same construction the headless command uses, so the two modes
 	// cannot become two ways of building a session that drift. What this one
 	// does afterwards that headless does not is attach a UI.
@@ -146,42 +149,10 @@ func Run(args []string) {
 	// fixture takes a moment, and doing it before the window exists is an
 	// application that has not appeared yet - which is indistinguishable, to
 	// whoever started it, from one that has crashed.
-	go func() {
-		if _, err := st.Do(ctx, "project.open", *fixture); err != nil {
-			fmt.Fprintln(os.Stderr, "loading:", err)
-		}
-		// After the fixture, never before: sim.seed rebuilds the scenario, so a
-		// seed set first is a seed applied to an empty network and then thrown
-		// away by the open.
-		if *seedFlag != 0 {
-			if _, err := st.Do(ctx, "sim.seed",
-				map[string]any{"seed": float64(*seedFlag)}); err != nil {
-				fmt.Fprintln(os.Stderr, "seed:", err)
-			}
-		}
-		if *playFlag {
-			_, _ = st.Do(ctx, "sim.play", nil)
-		}
-		if *injectFlag != "" {
-			_, _ = st.Do(ctx, "sim.inject", *injectFlag)
-		}
-		if *injectFlag != "" && *injectEvery > 0 {
-			// Wall-clock rather than simulated time, because this exists to
-			// put something on the map while a person is looking at it.
-			go func() {
-				t := time.NewTicker(*injectEvery)
-				defer t.Stop()
-				for {
-					select {
-					case <-ctx.Done():
-						return
-					case <-t.C:
-						_, _ = st.Do(ctx, "sim.inject", *injectFlag)
-					}
-				}
-			}()
-		}
-	}()
+	go startupNetwork{
+		st: st, ctx: ctx, fixture: *fixture, seed: *seedFlag,
+		play: *playFlag, inject: *injectFlag, injectEvery: *injectEvery,
+	}.run()
 
 	// The control socket, before any window: a script that drives the
 	// workbench should not have to wait for a frame.

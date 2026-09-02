@@ -27,10 +27,10 @@
     "what": "put a node at a position and move its physics with its marker, forgetting the losses cached for it so the next window an attached SDR client hears is the one from where it now stands",
     "params": [
       {
-        "name": "name",
+        "name": "node",
         "type": "string",
         "required": true,
-        "what": "which node moves; absent, blank or unknown is refused"
+        "what": "which node moves; absent, blank or unknown is refused. Spelt `node`, as every other verb that acts on a node it did not create spells it; `name` is still read, because it is what this one verb asked for and it is in saved scripts"
       },
       {
         "name": "lat",
@@ -46,6 +46,7 @@
       }
     ],
     "returns": [
+      "node",
       "name",
       "lat",
       "lon"
@@ -54,11 +55,12 @@
       "params": {
         "lat": 56.25,
         "lon": -3.29,
-        "name": "West Lomond"
+        "node": "West Lomond"
       },
       "what": "move a node onto the hill it is named after",
       "runnable": true
-    }
+    },
+    "answers": "`node` and `name` both carry the node that moved, so a caller reading either spelling back gets an answer."
   },
   "nodes.select": {
     "what": "make one node the selection, which is what the verbs that act on \"the selected node\" - sim.inject among them - go on to find",

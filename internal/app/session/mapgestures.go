@@ -76,11 +76,19 @@ func registerMapGestures(st *state.Store, s *Sim) {
 		m, isObject := p.(map[string]any)
 		if !isObject {
 			return nil, badParams("nodes.move takes a node and a position: " +
-				`{"name": ..., "lat": ..., "lon": ...}`)
+				`{"node": ..., "lat": ..., "lon": ...}`)
 		}
-		name, _ := m["name"].(string)
+		// "node" is what every other verb that acts on an existing node calls
+		// it, and this one asked for "name" alone: a script that had learnt the
+		// surface everywhere else was refused here and nowhere else. Both are
+		// read, because the older spelling is in saved scripts and in the
+		// documentation, and there is no ambiguity between them.
+		name, _ := m["node"].(string)
 		if name == "" {
-			return nil, badParams("nodes.move needs a name: which node to move")
+			name, _ = m["name"].(string)
+		}
+		if name == "" {
+			return nil, badParams("nodes.move needs a node: which node to move")
 		}
 		lat, err := requiredNum("nodes.move", "lat", p, -90, 90)
 		if err != nil {
@@ -99,7 +107,11 @@ func registerMapGestures(st *state.Store, s *Sim) {
 				if s.eng != nil {
 					s.eng.SetNodePosition(i, lat, lon)
 				}
-				return map[string]any{"name": name, "lat": lat, "lon": lon}, nil
+				// Both spellings in the reply too, so a caller reading either
+				// one back gets the node it moved.
+				return map[string]any{
+					"node": name, "name": name, "lat": lat, "lon": lon,
+				}, nil
 			}
 		}
 		return nil, noSuchNode(name)
