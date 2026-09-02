@@ -34,6 +34,18 @@ had changed in them - which is the gap this file exists to close.
   integers, so every file was priced at zero and the 8 GB guard was never
   reached. A pull of any size was accepted by a guard whose whole purpose is
   to price one before a byte moves.
+- **Windows: the application started and disappeared.** `meshbench.exe` with
+  no arguments printed its usage and exited 2. The installer's Start menu
+  shortcut passes no arguments, and neither does a `meshbench.exe`
+  double-clicked out of the zip, so both of them did that - and a release is
+  linked `-H windowsgui`, which starts with no standard handles, so the text
+  explaining it went nowhere. A bare invocation now opens the workbench, which
+  is what the `.desktop` file and the macOS wrapper have always asked for and
+  what the README beside the binary already promised.
+- **Windows: a failure now says why.** With a terminal, output appears there;
+  with none, it goes to `meshbench-error.log` in the cache directory, and that
+  includes a panic's stack trace, which previously reached nobody at all.
+  Output that was redirected or piped stays where it was sent.
 
 ## [0.0.5] - 2026-09-02
 
@@ -161,7 +173,6 @@ had changed in them - which is the gap this file exists to close.
 - Six files came back under the length limit; panel filenames say which panel
   they hold; the panel list is one file per family.
 
-### Fixed
 
 - **A cached link matrix could not say whether buildings were priced into it.**
   The measured matrix persists to disk under a fingerprint of the geometry it
