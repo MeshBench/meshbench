@@ -22,7 +22,9 @@ func tcpServer(t *testing.T) *Server {
 	t.Helper()
 	// UserCacheDir is where the rendezvous lives, and pointing it at a
 	// temporary directory is how a test gets one of its own on every platform.
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	cacheHome := t.TempDir()
+	t.Setenv("XDG_CACHE_HOME", cacheHome)
+	t.Setenv("LOCALAPPDATA", cacheHome)
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv(SocketEnv, "")
 
@@ -160,7 +162,9 @@ func TestTheRendezvousFileIsPrivate(t *testing.T) {
 // Closing takes the file with it: a stale one names a port nobody holds, and
 // the next client would either fail or reach whatever has since taken it.
 func TestClosingRemovesTheRendezvous(t *testing.T) {
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	cacheHome := t.TempDir()
+	t.Setenv("XDG_CACHE_HOME", cacheHome)
+	t.Setenv("LOCALAPPDATA", cacheHome)
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv(SocketEnv, "")
 

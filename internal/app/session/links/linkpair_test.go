@@ -124,7 +124,9 @@ func TestLinkPairRefusals(t *testing.T) {
 func TestLinkPairSaysWhenThereIsNoGroundUnderIt(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("XDG_CACHE_HOME", home)
+	t.Setenv("LOCALAPPDATA", home)
 	t.Setenv("XDG_CONFIG_HOME", home)
+	t.Setenv("APPDATA", home)
 	t.Setenv("HOME", home)
 	st, ctx, cancel := pairStore(t)
 	defer cancel()

@@ -18,6 +18,7 @@ import (
 func TestABuildsSettingsReachTheMachine(t *testing.T) {
 	cache := t.TempDir()
 	t.Setenv("XDG_CACHE_HOME", cache)
+	t.Setenv("LOCALAPPDATA", cache)
 	t.Setenv("HOME", cache)
 	t.Setenv(firmware.EnvNodeFS, t.TempDir())
 
@@ -75,6 +76,7 @@ func TestABuildsSettingsReachTheMachine(t *testing.T) {
 func TestTheCardSlotIsTheNodesUntilTheFirmwareInsists(t *testing.T) {
 	cache := t.TempDir()
 	t.Setenv("XDG_CACHE_HOME", cache)
+	t.Setenv("LOCALAPPDATA", cache)
 	t.Setenv("HOME", cache)
 	t.Setenv(firmware.EnvNodeFS, t.TempDir())
 

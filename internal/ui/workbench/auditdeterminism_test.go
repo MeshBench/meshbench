@@ -48,7 +48,9 @@ func TestTheAuditDoesNotReadTheMachine(t *testing.T) {
 	}
 
 	// A machine with nothing installed.
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	cacheHome := t.TempDir()
+	t.Setenv("XDG_CACHE_HOME", cacheHome)
+	t.Setenv("LOCALAPPDATA", cacheHome)
 	empty := walk()
 	if len(empty) == 0 {
 		t.Fatal("no controls found at all; the walk is broken, not the seam")
@@ -69,6 +71,7 @@ func TestTheAuditDoesNotReadTheMachine(t *testing.T) {
 		}
 	}
 	t.Setenv("XDG_CACHE_HOME", cache)
+	t.Setenv("LOCALAPPDATA", cache)
 
 	// The fabrication has to be real enough to have leaked, or this proves
 	// nothing: check the reader does see it before asking whether the audit
