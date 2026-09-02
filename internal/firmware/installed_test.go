@@ -72,6 +72,38 @@ func TestRoleSurvivesTheFilename(t *testing.T) {
 	}
 }
 
+// A downloaded build's digest keeps the build's own name, so it parses to the
+// same role and the same version. The library keys its rows on exactly that,
+// and a directory read hands the sidecar over second, so it replaced the build
+// it describes and every row in the window read as 65 bytes of hex.
+func TestTheDigestBesideABuildIsNotABuild(t *testing.T) {
+	cache := t.TempDir()
+	bin := "native/repeater-v1.17.1/meshcore-simple_repeater-linux-amd64"
+	write(t, cache, bin, "elf")
+	write(t, cache, bin+".sha256", "a9f1c0de\n")
+	// Windows names the build with a suffix of its own, and the digest goes
+	// after it rather than in place of it.
+	win := "native/companion-v1.17.1/meshcore-companion_radio-windows-amd64.exe"
+	write(t, cache, win, "pe")
+	write(t, cache, win+".sha256", "b7e2d1af\n")
+
+	got := firmware.ListInstalled(cache)
+	if len(got) != 2 {
+		for _, g := range got {
+			t.Logf("  %s  %s", g.Label(), g.Path)
+		}
+		t.Fatalf("listed %d builds, want 2", len(got))
+	}
+	for _, g := range got {
+		if strings.HasSuffix(g.Path, ".sha256") {
+			t.Errorf("%s points at a digest, not a build", g.Label())
+		}
+		if g.Bytes == 0 {
+			t.Errorf("%s reports no size, so it is not the file that was written", g.Label())
+		}
+	}
+}
+
 // A delete button driven by a path is exactly the shape of thing that removes
 // somebody's home directory when a later caller builds the path differently.
 func TestRemoveRefusesAnythingOutsideTheCache(t *testing.T) {

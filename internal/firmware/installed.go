@@ -105,7 +105,13 @@ func listNative(cacheDir string) []Installed {
 		for _, f := range files {
 			// obj/ is the build tree a local compile leaves behind; it is not a
 			// firmware and listing it would be noise.
-			if f.IsDir() || !strings.HasPrefix(f.Name(), "meshcore-") {
+			//
+			// A downloaded build's digest sits beside it and keeps its name, so
+			// it parses to the same role and the same version as the build. The
+			// library keys rows on exactly that, and ReadDir hands the sidecar
+			// over second, so it replaced the build it describes: every row read
+			// as 65 bytes of hex.
+			if f.IsDir() || !strings.HasPrefix(f.Name(), "meshcore-") || isChecksumFile(f.Name()) {
 				continue
 			}
 			role := roleFromBinary(f.Name())
