@@ -26,15 +26,10 @@ A fork nobody outside the organisation can fetch cannot satisfy that.
 | `MeshBench/renode` | ties them together and builds the package | upstream's | yes |
 | `MeshBench/gio` | Gio with Wayland layer-shell windows | upstream's | yes |
 
-Two more in the organisation are **private**, and nothing a release ships is
-built from either, which is why they are not in the table above: `brand`, where
-the identity is generated (`tools/icon.sh` explains why the result is committed
-here rather than fetched), and `agent-skills`, the agent-skill mirror
-`tools/skillmirror` writes, which is also a Claude Code plugin marketplace.
-
-Now that this repository is public, the link to that mirror in
-`.claude/skills/README.md` is a 404 to a reader outside the organisation.
-Opening it is a decision nobody has taken; until it is, the note there says so.
+One more in the organisation is **private**, and nothing a release ships is
+built from it, which is why it is not in the table above: `brand`, where the
+identity is generated. `tools/icon.sh` explains why the result is committed
+here rather than fetched.
 
 ## What the documentation site takes from here
 

@@ -32,10 +32,6 @@ not by the bare directory names. Claude loads either on its own when a task
 matches its description; the namespaced form is what you type to ask for one
 directly.
 
-**This repository is private today**, so both commands fail for anyone outside
-the MeshBench organisation until that changes. Said here rather than left to be
-read as a broken install.
-
 ### By hand, and for other agents
 
 A skill is a directory with a `SKILL.md` whose front matter carries a `name`

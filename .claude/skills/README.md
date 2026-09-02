@@ -45,12 +45,6 @@ this repository, so a standalone copy would be a second thing to keep current
 for an audience that does not exist. `tools/skillmirror` records that reason
 beside the mapping rather than leaving the absence to be read as an oversight.
 
-**The mirror repository is still private**, so that link is a 404 and both
-commands above fail for anyone outside the organisation, even though this
-repository is public. The pipeline that fills it works; what has not happened
-is the decision to open it. Said here rather than left as a broken link, which
-reads as a mistake.
-
 **The copies here are canonical, and a mirror is an output.**
 `tools/skillmirror` renders that tree from this directory, performs that
 rename, and writes the front page, the licence and the two plugin manifests the
