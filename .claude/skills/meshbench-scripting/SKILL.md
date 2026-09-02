@@ -125,6 +125,14 @@ must drive it by hand, do those three things in that order and check each.
   firmware; an SDR observer and an emitter never boot one. Comparing `running`
   against the scenario's size asks for 58 of 58 on a mesh where 56 is
   everything.
+- **A seed is not a promise on every scenario.** `sim.state` answers
+  `reproducible` and `not_reproducible_why`, and the first is false wherever a
+  node runs in an emulator: that node's firmware is stepped by the emulator's
+  clock rather than by the run's, so one seed puts its traffic at a different
+  instant every time. Measured on one repeater, three runs of one seed put its
+  first transmission at 49.8 s, 45.7 s and 55.9 s. A script that diffs two runs, or
+  subtracts one arm from another, has to read it first; `experiment.start`
+  answers the same pair for a sweep.
 - **A diagnostic can cost more than the thing it diagnoses.** `nodes.stats` is
   a `/proc` read per node. Calling it every poll during firmware startup timed
   the socket out. Enrich a wait's message rarely, every ten seconds rather than

@@ -177,6 +177,13 @@ class SimState:
     links_measured: bool = False
     warm_held: bool = False
     ground: dict[str, Any] = field(default_factory=dict)
+    # Whether the seed above is a promise. It is not on a network carrying a
+    # node that runs in an emulator: that node's firmware is stepped by the
+    # emulator's clock rather than by the run's, so the same seed puts its
+    # traffic at a different instant every time. Read it before diffing two
+    # runs or subtracting one arm from another.
+    reproducible: bool = True
+    not_reproducible_why: str = ""
 
     @classmethod
     def parse(cls, raw: dict[str, Any]) -> SimState:

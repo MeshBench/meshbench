@@ -13,6 +13,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/ui/comp"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
+	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
 // sweepResults is what the arms came back with, and whether it is a result.
@@ -258,8 +259,42 @@ func (c *sweepControls) estimate(t *theme.Theme, gtx layout.Context) layout.Dime
 	if secs, ok := num(&c.runFor); ok && secs > 0 {
 		line += fmt.Sprintf(", about %s", roughDuration(runs*int(secs)))
 	}
-	return layout.Inset{Top: t.Sp.S}.Layout(gtx,
-		comp.Text(t, t.Sz.Caption, t.P.Dim, line))
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Top: t.Sp.S}.Layout(gtx,
+				comp.Text(t, t.Sz.Caption, t.P.Dim, line))
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return c.notAComparison(t, gtx)
+		}),
+	)
+}
+
+// notAComparison is the cost the estimate above cannot put in minutes: a
+// network carrying an emulated node produces cells that differ for reasons no
+// arm asked about.
+//
+// Beside the estimate rather than over the results, because this is the last
+// moment at which knowing it is worth anything. The results panel says it too,
+// and by then the machine time has been spent.
+func (c *sweepControls) notAComparison(t *theme.Theme, gtx layout.Context) layout.Dimensions {
+	if c.snap == nil {
+		return layout.Dimensions{}
+	}
+	var em []string
+	for _, n := range c.snap.Nodes {
+		if n.Board != "" {
+			em = append(em, n.Name)
+		}
+	}
+	why := scenario.NotReproducibleWith(em)
+	if why == "" {
+		return layout.Dimensions{}
+	}
+	// Wrapped rather than truncated. It is a sentence with a consequence at the
+	// end of it, and the end is the half that matters.
+	return layout.Inset{Top: t.Sp.XS}.Layout(gtx,
+		comp.Text(t, t.Sz.Caption, t.P.Warn, "not a comparison: "+why))
 }
 
 // roughDuration is minutes and seconds, because a sweep is measured in the

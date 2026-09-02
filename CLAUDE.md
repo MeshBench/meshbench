@@ -271,7 +271,17 @@ Mechanical, because taste does not survive scale — and this codebase will be b
   are nearly all in one direction, which is what makes a result usable: treat it
   as a best case.
 - **Determinism is a feature.** Same seed, same scenario, same result. Use
-  counter-based RNG, never a stateful stream shared across goroutines.
+  counter-based RNG, never a stateful stream shared across goroutines. **With
+  one stated exception: a node running in an emulator.** Its firmware is a
+  published image with nothing in it that could receive the engine's tick - what
+  answers the tick is the chip model on our side of the socket - so the guest
+  runs against QEMU's or Renode's clock, which runs on the host's, and the same
+  seed does not put its traffic at the same instants twice. That is a property
+  of running an unmodified image, not a bug to be filed, and it is why native is
+  the backend for anything being compared. What is not permitted is leaving it
+  implicit: `scenario.NotReproducible` is the one sentence saying so, `sim.state`
+  and `experiment.start` answer it, and the sweep says it before the machine
+  time is spent as well as over the results.
 - **A board profile is a transcription of a real board — read its documentation
   first.** When adding or fixing a `board_<name>.go`, work from the
   manufacturer's own pinout, not from another board or from memory: the LilyGo

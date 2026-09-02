@@ -126,6 +126,14 @@ A run that cannot be reproduced is not evidence. Rules:
 4. **Contract:** identical results for the same seed on the same backend;
    agreement within tolerance across CPU and GPU. Bit-identity across backends
    is *not* promised — floating-point associativity differs.
+5. **The contract does not cover an emulated node**, and cannot. Its firmware is
+   a published image, so nothing in it receives the tick: the acknowledgement
+   comes from the chip model on our side of the socket, while the guest advances
+   on QEMU's or Renode's clock, which advances on the host's. Two runs of one
+   seed therefore put the same traffic at different instants. The rule that
+   follows is not "avoid emulated nodes" but "never let one be quoted as
+   reproducible": `scenario.NotReproducible` states it once, `sim.state` and
+   `experiment.start` answer it, and the sweep panel says it before the run.
 
 ## Concurrency
 

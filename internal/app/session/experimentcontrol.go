@@ -65,12 +65,28 @@ func registerExperimentControl(st *state.Store, s *Sim) {
 		ctx, cancel := context.WithCancel(context.Background())
 		e.cancel = cancel
 		nodes := append([]scenario.Node(nil), s.nodes...)
+		// Said here, at the start, and not only over the finished table. This
+		// is the moment somebody commits an hour of machine time to a
+		// comparison, and it is the last one at which knowing the arms will not
+		// be comparable can save any of it.
+		e.notReproducible = scenario.NotReproducible(nodes)
+		why := e.notReproducible
+		if why != "" {
+			e.logf("not a comparison: %s", why)
+		}
 		e.mu.Unlock()
 
+		if why != "" {
+			w.Say("sweep started, but the arms will not be comparable: " + why)
+		}
 		w.Jobs = append(w.Jobs, state.Job{
 			ID: "experiment", What: "running arms", Total: e.runsTotal()})
 		go s.runExperiment(ctx, st, e, nodes)
-		return map[string]any{"running": true, "runs": e.runsTotal()}, nil
+		// Both keys always, as sim.state answers them: a script that has to
+		// test for a key's presence before it can read the answer is a script
+		// that will one day skip the test.
+		return map[string]any{"running": true, "runs": e.runsTotal(),
+			"reproducible": why == "", "not_reproducible_why": why}, nil
 	})
 
 	st.Handle("experiment.stop", func(w *state.World, _ any) (any, error) {

@@ -163,7 +163,11 @@ These are not style. Each one is a way to make the simulator quietly lie.
   CSMA timing is built on it; if the channel disagrees, the two desynchronise
   silently.
 - **Determinism is a feature.** Same seed, same scenario, same result. Use
-  counter-based RNG, never a stateful stream shared across goroutines.
+  counter-based RNG, never a stateful stream shared across goroutines. The
+  exception is a node running in an emulator, whose firmware runs on the
+  emulator's clock rather than on the run's: a scenario carrying one is not
+  reproducible, and every place a comparison is set up has to say so rather than
+  leave somebody to find it in a spread they cannot explain.
 - **The simulator is kinder than the air.** Say so in the interface, and keep
   `docs/shortcomings.md` honest as the model changes.
 

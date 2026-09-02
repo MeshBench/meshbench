@@ -372,6 +372,12 @@ identical ledgers, so **the determinism the rest of the simulator guarantees
 does not hold** for a scenario containing one. Run boards one at a time: several
 at once will take a twelve-core machine down.
 
+The second is not left to be discovered. `sim.state` answers `reproducible` and
+`not_reproducible_why`, `experiment.start` answers the same pair, and the sweep
+says it before the run as well as over the results. Read it before quoting one
+run's timings against another's: an arm on emulated firmware is worth watching
+and is not worth subtracting from another arm.
+
 ### Where the pieces live
 
 | | |

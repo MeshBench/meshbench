@@ -286,6 +286,28 @@ for a native-only scenario. And two runs of one seed will not produce identical
 ledgers, so the determinism the rest of the simulator guarantees does not hold
 for a scenario containing one.
 
+The second is worth being precise about, because the engine's tick makes it look
+as though it should hold. A native node's clock is *supplied*: the tick carries
+the instant, the shim runs one MeshCore loop per simulated millisecond, and the
+acknowledgement means the firmware has been there. An emulated node is ticked
+through exactly the same code path, and the acknowledgement means something
+weaker: it comes from `radioserver`, the chip model on this side of the socket,
+because the guest is a published image with nothing in it that could receive a
+tick. Meanwhile the guest executes against QEMU's or Renode's clock, neither of
+which is under `-icount` or a Renode quantum, so how much firmware runs between
+two ticks is a question about this machine's load. Measured on one repeater at
+one seed, three runs put its first transmission at 49.83 s, 45.72 s and 55.86 s.
+
+Two smaller sources sit behind the same wall. The GPS feed
+(`internal/firmware/emulated/peripheral/gps.go`) emits a sentence a real second,
+not a simulated one; and a native node is handed a seeded identity on its command
+line while an emulated one generates its own on first boot.
+
+None of that is hidden any more. `scenario.NotReproducible` is the one sentence
+that says it, `sim.state` answers `reproducible` and `not_reproducible_why`,
+`experiment.start` answers the same pair and says it in the status line, and the
+sweep panel prints it beside the cost estimate before anybody presses run.
+
 So: **native for anything about the mesh** — coverage, routing, loop detection,
 sweeps, anything needing many nodes or repeatable numbers. **Emulated for
 questions about the firmware as shipped** — does this published build work, does

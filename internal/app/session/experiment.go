@@ -109,6 +109,17 @@ type experiment struct {
 	log     []string
 	status  string
 
+	// notReproducible is why this matrix's cells cannot be compared with each
+	// other, or "" when they can.
+	//
+	// Taken from the network the run was started on and kept, rather than read
+	// again when the results are: an arm is a comparison between cells that
+	// each ran once, and what decides whether that comparison means anything is
+	// what the mesh was made of at the time. A node swapped for an emulated one
+	// after the run would otherwise condemn results it had no part in, and one
+	// swapped the other way would quietly clear a warning that was earned.
+	notReproducible string
+
 	// done is closed by the run goroutine as it leaves, and is the only honest
 	// answer to "has the last experiment finished".
 	//
