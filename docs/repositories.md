@@ -57,7 +57,12 @@ actually download.
 Every one is a fork we carry a patch on, not a vendored copy. Upstream is listed
 so the patch can be rebased, and so anyone can see how small each change is.
 
-### `MeshBench/gio` — branch `msim-210-layer-shell`
+### `MeshBench/gio`, branch `meshbench-main`
+
+`meshbench-main` is the integration branch and the default, so a clone gets the
+patch rather than upstream. It was `msim-210-layer-shell`, which meant `go.mod`
+pinned an unmerged feature branch and a reader landing on the repository saw
+stock Gio with no sign of why the fork exists.
 
 **Public, and checked rather than assumed.** It is the sharpest of these,
 because it is the only fork the Go build itself needs: a `replace` directive in
