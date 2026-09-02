@@ -109,8 +109,14 @@ type Engine struct {
 	// finds nothing left to start.
 	attachMu sync.Mutex
 
-	mu    sync.Mutex
-	nodes []*Node
+	mu sync.Mutex
+	// closed says Close has run, so nothing may be handed to this engine any
+	// more. An attach is asynchronous and outlives the network that asked for
+	// it: the nodes it is still starting when the engine goes away have no
+	// owner left to shut them down, and a MeshCore process nobody owns runs
+	// until the workbench itself exits.
+	closed bool
+	nodes  []*Node
 	// builds is what the last firmware attach resolved to, so a result can
 	// name the binary that produced it rather than the version somebody asked
 	// for. The two are not the same thing.
@@ -414,6 +420,12 @@ func (e *Engine) Run(ctx context.Context, untilMs uint32) error {
 // for the life of the process. A workbench that opens a scenario, records,
 // closes it and opens another accumulates one of each per run.
 func (e *Engine) Close() error {
+	// Before anything is shut down, so an attach that is still starting
+	// processes finds the engine closed and stops its own nodes rather than
+	// handing them to something that will never tick or close them.
+	e.mu.Lock()
+	e.closed = true
+	e.mu.Unlock()
 	var err error
 	for _, n := range e.Nodes() {
 		if n.Firmware == nil {
