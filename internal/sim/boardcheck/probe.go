@@ -268,6 +268,9 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 		}
 
 		fromSender := map[uint64]bool{}
+		// What the board actually received, separately from what it did not
+		// miss. See the switch below.
+		arrived := map[uint64]bool{}
 		if err := setSenderClock(sender, 1754703600); err != nil {
 			report.set(Flood, Untested, "harness fault: could not set the sender's clock: "+err.Error())
 			return report
@@ -286,6 +289,15 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 				// own advert carries its own.
 				if ev.Kind == "miss" && ev.To == "bc-under-test" {
 					missed[ev.MessageID] = true
+					return false
+				}
+				// And what actually arrived, which is not the same as what did
+				// not miss. The channel records nothing at all for a packet too
+				// weak to demodulate or on another preset - "nothing measurable
+				// arrived is not an event" - so an absence of misses is not
+				// evidence of a reception.
+				if ev.Kind == "rx" && ev.To == "bc-under-test" {
+					arrived[ev.MessageID] = true
 					return false
 				}
 				if ev.Kind != "tx" {
@@ -326,12 +338,31 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 						lost = true
 					}
 				}
-				if lost {
+				heard := false
+				for id := range arrived {
+					if fromSender[id] {
+						heard = true
+					}
+				}
+				switch {
+				case !lost && !heard:
+					// Neither a reception nor a miss. The ledger says that when
+					// nothing measurable arrived, so this row cannot tell a
+					// board that declined to forward from one that was never
+					// given anything - and it used to report the second as the
+					// first, which sent people looking at forwarding logic over
+					// a packet that never reached the radio.
+					report.set(Flood, Untested, fmt.Sprintf(
+						"no evidence the advert reached the board: the ledger holds neither a "+
+							"reception nor a miss for it, which is what it shows when a packet is "+
+							"too weak or on another preset (the board transmitted %d times, last "+
+							"at %.1f s)", own, float64(last)/1000))
+				case lost:
 					report.set(Flood, Untested, fmt.Sprintf(
 						"the advert did not reach the board - it was on the air itself when "+
 							"it arrived, so nothing was heard to forward (the board "+
 							"transmitted %d times, last at %.1f s)", own, float64(last)/1000))
-				} else {
+				default:
 					report.set(Flood, Failed, fmt.Sprintf(
 						"received a fresh advert as the only node that could relay it, and put "+
 							"nothing back on the air within %d s (it transmitted %d times in the "+
