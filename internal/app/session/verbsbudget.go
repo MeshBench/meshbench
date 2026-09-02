@@ -33,7 +33,7 @@ func registerBudgetVerbs(st *state.Store, s *Sim) {
 		if !EnergyEnabled() {
 			return nil, ErrEnergyDisabled
 		}
-		name := soleString(p)
+		name := primaryString(p, "node")
 		at := -1
 		for i := range w.Nodes {
 			w.Nodes[i].Selected = w.Nodes[i].Name == name

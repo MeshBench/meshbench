@@ -21,7 +21,7 @@ func registerLogs(st *state.Store, s *Sim) {
 	// and a run long enough to fill it would export a log that quietly starts
 	// partway through.
 	st.Handle("logs.export", func(w *state.World, p any) (any, error) {
-		to := soleString(p)
+		to := primaryString(p, "to")
 		if to == "" {
 			return nil, fmt.Errorf("logs.export needs a destination path")
 		}

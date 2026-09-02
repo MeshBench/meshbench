@@ -11,7 +11,7 @@ import (
 
 func registerSweepVerbs(st *state.Store, s *Sim) {
 	st.Handle("run.save", func(w *state.World, p any) (any, error) {
-		name := soleString(p)
+		name := primaryString(p, "name")
 		if name == "" {
 			name = "run"
 		}

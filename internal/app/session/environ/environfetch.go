@@ -190,13 +190,13 @@ func registerEnvironFetch(st *state.Store, s *session.Sim) {
 	// cannot close its own job.
 	st.HandleInternal("environ.fetched", func(w *state.World, p any) (any, error) {
 		w.Jobs = session.FinishJob(w.Jobs, "environ-fetch")
-		w.Say("footprints ready: " + session.SoleString(p))
+		w.Say("footprints ready: " + session.PrimaryString(p, "note"))
 		return nil, nil
 	})
 
 	st.HandleInternal("environ.failed", func(w *state.World, p any) (any, error) {
 		w.Jobs = session.FinishJob(w.Jobs, "environ-fetch")
-		w.Say("building pull failed: " + session.SoleString(p))
+		w.Say("building pull failed: " + session.PrimaryString(p, "reason"))
 		return nil, nil
 	})
 }

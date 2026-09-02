@@ -117,7 +117,7 @@ func coverageAsked(s *session.Sim, p any) (coverageRequest, error) {
 			continue
 		}
 		given++
-		v, err := session.NumInRange(verb, b.name, p, 0, b.lo, b.hi)
+		v, err := session.NamedNumInRange(verb, b.name, p, 0, b.lo, b.hi)
 		if err != nil {
 			return out, err
 		}

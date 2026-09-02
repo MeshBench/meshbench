@@ -32,7 +32,7 @@ func LoadFixture(path string) (Loaded, error) {
 	out := Loaded{
 		scene:  f.Nodes,
 		margin: f.MarginKm,
-		nodes:  statesFromScene(f.Nodes),
+		nodes:  stateNodes(f.Nodes),
 	}
 	for _, snd := range f.Sends {
 		out.sends = append(out.sends, state.Send{
@@ -47,41 +47,29 @@ func LoadFixture(path string) (Loaded, error) {
 		})
 	}
 	for _, a := range f.Areas {
-		area := state.Area{Name: a.Name}
-		for _, b := range a.Boundaries {
-			for _, ring := range b.Rings {
-				area.Rings = append(area.Rings, ringOf(ring))
-			}
-			for _, hole := range b.Holes {
-				area.Holes = append(area.Holes, ringOf(hole))
-			}
-		}
-		out.areas = append(out.areas, area)
+		out.areas = append(out.areas, areaOf(a.Name, a.Boundaries))
 	}
 	return out, nil
 }
 
-// statesFromScene builds the renderer's node list from the canonical scenario
-// one. The first node is selected, matching the interface's rule that opening a
-// network puts the cursor on something. Shared by fixture load and checkpoint
-// restore, so the two cannot disagree about how a scenario node becomes a
-// world node.
-func statesFromScene(scene []scenario.Node) []state.Node {
-	out := make([]state.Node, 0, len(scene))
-	for i, n := range scene {
-		out = append(out, state.Node{
-			Name: n.Name, Kind: string(n.Kind),
-			Lat: n.Position.Lat, Lon: n.Position.Lon,
-			HeightM: n.HeightAGLm, TxDBm: n.TxPowerDBm,
-			Regions: n.Regions, DefaultScope: n.DefaultScope,
-			Firmware: n.Firmware.Version, Board: n.Firmware.Board,
-			TrueRF:   n.TrueRF,
-			Selected: i == 0,
-			Pattern:  patternOf(n),
-			Antenna:  antennaOf(n),
-		})
+// areaOf is the one way a set of boundaries becomes a study area.
+//
+// One, because there were three, and two of them dropped the holes: a loch or
+// an enclave came out of the GeoJSON reader, survived into the scenario, and
+// then vanished on its way to the snapshot the map draws from - so a study area
+// accepted by name covered water that the same area loaded from a fixture did
+// not. Nothing said so; the shape was simply a little larger than the place.
+func areaOf(name string, boundaries []scenario.Boundary) state.Area {
+	area := state.Area{Name: name}
+	for _, b := range boundaries {
+		for _, ring := range b.Rings {
+			area.Rings = append(area.Rings, ringOf(ring))
+		}
+		for _, hole := range b.Holes {
+			area.Holes = append(area.Holes, ringOf(hole))
+		}
 	}
-	return out
+	return area
 }
 
 // ringOf converts a scenario ring to the flat form the renderer wants. The

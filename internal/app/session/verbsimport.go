@@ -12,7 +12,15 @@ import (
 
 func registerImportFeedVerbs(st *state.Store, s *Sim) {
 	st.Handle("import.describe", func(w *state.World, p any) (any, error) {
-		url := soleString(p)
+		url := primaryString(p, "url")
+		// Refused before the worker starts. A parameter this could not read as
+		// a URL used to start a ninety second fetch of the empty string, answer
+		// `{"url": ""}` as though it had been accepted, and deliver the failure
+		// through import.failed - which the caller who asked never subscribes
+		// to. The refusal is the answer to the call that was made.
+		if url == "" {
+			return nil, badParams("import.describe needs a url to fetch")
+		}
 		// The study area as it stands, read here on the store's goroutine
 		// rather than in the worker, which must not reach into the session.
 		region := s.importRegion(float64(w.MarginKm))
@@ -79,10 +87,7 @@ func registerImportFeedVerbs(st *state.Store, s *Sim) {
 	})
 
 	st.Handle("feed.pull", func(w *state.World, p any) (any, error) {
-		url := soleString(p)
-		if m, ok := p.(map[string]any); ok {
-			url, _ = m["url"].(string)
-		}
+		url := primaryString(p, "url")
 		if url == "" {
 			return nil, fmt.Errorf("no deployment to pull from")
 		}

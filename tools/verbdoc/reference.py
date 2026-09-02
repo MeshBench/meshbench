@@ -13,6 +13,7 @@ filled from what the handler could be read to do, because leaving it out would
 make the page look finished when it is not.
 """
 import json
+import re
 
 
 def _spec(v):
@@ -90,7 +91,7 @@ def _undescribed_entry(v):
     return ["", said]
 
 
-def entry(name, v, facade, why_none, needs_window, internal):
+def entry(name, v, facade, why_none, needs_window, internal, planned):
     """One verb, as the reference prints it."""
     flags = []
     if name in internal:
@@ -110,13 +111,33 @@ def entry(name, v, facade, why_none, needs_window, internal):
         out += _undescribed_entry(v)
     call = facade.get(name)
     if call:
-        out += ["", "**Client** `%s`" % call]
+        out += ["", "**Client** `%s`" % call + _planned_note(call, planned)]
     elif name in why_none:
         out += ["", "**Client** none: " + why_none[name]]
     return out + [""]
 
 
-def render(verbs, groups, facade, why_none, needs_window, internal, counts):
+def _planned_note(call, planned):
+    """What to say about a call no client offers yet.
+
+    Said in the entry rather than left off it, because the call is a design
+    decision worth publishing and a reader who tries it gets an AttributeError
+    with nothing to explain it. Every other entry on this page is something
+    that works today, so the one that does not has to say so where it is read.
+    """
+    for ns in sorted(NAMESPACE.findall(call)):
+        if ns in planned:
+            return ("\n\nPlanned, not written: no client defines `wb.%s` yet - "
+                    "%s. Call the verb itself in the meantime." %
+                    (ns, planned[ns]))
+    return ""
+
+
+NAMESPACE = re.compile(r"\bwb\.([a-z_][a-z0-9_]*)\.")
+
+
+def render(verbs, groups, facade, why_none, needs_window, internal, counts,
+           planned):
     """The whole document."""
     out = [HEADER % counts, ""]
     seen = set()
@@ -128,7 +149,8 @@ def render(verbs, groups, facade, why_none, needs_window, internal, counts):
         seen.update(names)
         out += ["## " + title, ""]
         for n in names:
-            out += entry(n, verbs[n], facade, why_none, needs_window, internal)
+            out += entry(n, verbs[n], facade, why_none, needs_window, internal,
+                         planned)
     return "\n".join(out).rstrip("\n") + "\n"
 
 

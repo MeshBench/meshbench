@@ -16,10 +16,11 @@ func registerNodeWindow(st *state.Store, s *Sim) {
 		if err := s.needUI(); err != nil {
 			return nil, err
 		}
-		name := soleString(p)
-		if m, ok := p.(map[string]any); ok {
-			name, _ = m["node"].(string)
-		}
+		// Both halves, in the order that keeps each one's answer. Reading the
+		// sole value and then overwriting it with m["node"] whatever that held
+		// meant {"tab": "Radio"} emptied the name it had just read, and the
+		// window somebody double-clicked was refused for a node called "".
+		name := primaryString(p, "node")
 		if _, found := findNode(w.Nodes, name); !found {
 			return nil, noSuchNode(name)
 		}

@@ -281,26 +281,20 @@ func messageRow(t *theme.Theme, gtx layout.Context, m state.CompanionMessage) la
 					if r == "" {
 						return layout.Dimensions{}
 					}
-					ink := t.P.Faint
-					if m.Failed {
-						ink = t.P.Bad
-					}
 					return layout.Inset{Left: t.Sp.L}.Layout(gtx,
-						comp.Text(t, t.Sz.Caption, ink, r))
+						comp.Text(t, t.Sz.Caption, t.P.Faint, r))
 				}),
 			)
 		})
 }
 
-// receiptOf is what became of a message.
+// receiptOf is how a message that arrived got here, which a real phone cannot
+// tell you and this can, because the simulator watched the whole path.
 //
-// For one this client sent, whatever the run has worked out. For one that
-// arrived, how it got here - which a real phone cannot tell you and this can,
-// because the simulator watched the whole path.
+// Only for one that arrived. What became of a message this client sent is not
+// known here: nothing correlates a companion message with the ledger, so a
+// sent line carries no second line rather than an empty one.
 func receiptOf(m state.CompanionMessage) string {
-	if m.Receipt != "" {
-		return "↳ " + m.Receipt
-	}
 	// Hops below zero is "did not arrive by flood" - the count is unknown,
 	// not negative - and zero is a message with nothing to explain.
 	if m.Mine || m.Hops <= 0 {

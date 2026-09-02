@@ -121,19 +121,19 @@ func engineRealism(r state.RFRealism) engine.Realism {
 func registerRFRealism(st *state.Store, s *Sim) {
 	st.Handle("rf.realism", func(w *state.World, p any) (any, error) {
 		r := s.realism
-		if v, ok := numField(p, "osc_ppm"); ok {
+		if v, ok := namedNum(p, "osc_ppm"); ok {
 			r.OscPPM = v
 		}
-		if v, ok := numField(p, "multipath_db"); ok {
+		if v, ok := namedNum(p, "multipath_db"); ok {
 			r.MultipathDB = v
 		}
-		if v, ok := numField(p, "fading_hz"); ok {
+		if v, ok := namedNum(p, "fading_hz"); ok {
 			r.FadingHz = v
 		}
-		if v, ok := numField(p, "impl_loss_db"); ok {
+		if v, ok := namedNum(p, "impl_loss_db"); ok {
 			r.ImplLossDB = v
 		}
-		if v, ok := numField(p, "saturation_dbm"); ok {
+		if v, ok := namedNum(p, "saturation_dbm"); ok {
 			r.SaturationDBm = v
 		}
 		s.realism = r

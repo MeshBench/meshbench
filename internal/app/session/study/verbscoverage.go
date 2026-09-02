@@ -17,7 +17,7 @@ func registerCoverageVerbs(st *state.Store, s *session.Sim) {
 		// The selected node unless told otherwise, because "coverage from
 		// here" is what somebody means when they have just clicked a node.
 		at := -1
-		if name := session.SoleString(p); name != "" {
+		if name := session.PrimaryString(p, "node"); name != "" {
 			for i := range w.Nodes {
 				if w.Nodes[i].Name == name {
 					at = i
@@ -153,7 +153,7 @@ func registerCoverageVerbs(st *state.Store, s *session.Sim) {
 
 	st.Handle("waterfall.capture", func(w *state.World, p any) (any, error) {
 		at := -1
-		if name := session.SoleString(p); name != "" {
+		if name := session.PrimaryString(p, "node"); name != "" {
 			for i := range w.Nodes {
 				if w.Nodes[i].Name == name {
 					at = i

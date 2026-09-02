@@ -93,16 +93,7 @@ func registerBoundary(st *state.Store, s *session.Sim) {
 				name, strings.Join(offered, ", "))
 		}
 		name = matched
-		area := state.Area{Name: name}
-		for _, b := range chosen {
-			for _, r := range b.Rings {
-				var ring []state.Point
-				for _, pt := range r {
-					ring = append(ring, state.Point{Lat: pt.Lat, Lon: pt.Lon})
-				}
-				area.Rings = append(area.Rings, ring)
-			}
-		}
+		area := session.AreaOf(name, chosen)
 		// Once each. Accepting the same place twice used to stack it, and a
 		// study area listed as "Fife, Fife, Fife" says nothing three times.
 		for _, a := range w.Areas {

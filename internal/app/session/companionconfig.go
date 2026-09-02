@@ -63,13 +63,13 @@ func registerCompanionConfig(st *state.Store, s *Sim) {
 				return nil, err
 			}
 		}
-		if lat, ok := numField(p, "lat"); ok {
-			lon, _ := numField(p, "lon")
+		if lat, ok := namedNum(p, "lat"); ok {
+			lon, _ := namedNum(p, "lon")
 			if err := send("position", proto.SetAdvertLatLon(lat, lon)); err != nil {
 				return nil, err
 			}
 		}
-		if dbm, ok := numField(p, "tx_dbm"); ok {
+		if dbm, ok := namedNum(p, "tx_dbm"); ok {
 			if err := send("tx power", proto.SetTxPower(uint8(dbm))); err != nil {
 				return nil, err
 			}
@@ -81,7 +81,7 @@ func registerCompanionConfig(st *state.Store, s *Sim) {
 				return nil, err
 			}
 		}
-		if n, ok := numField(p, "path_hash"); ok {
+		if n, ok := namedNum(p, "path_hash"); ok {
 			if err := setPathHash(en, uint8(n)); err != nil {
 				return nil, err
 			}
@@ -113,10 +113,10 @@ func registerCompanionConfig(st *state.Store, s *Sim) {
 // every field unchanged, so a caller that wanted to change only the spreading
 // factor would change nothing and be told it worked.
 func radioFrame(c *compSession, p any) ([]byte, bool, error) {
-	freq, hasFreq := numField(p, "freq_khz")
-	bw, hasBW := numField(p, "bw_khz")
-	sf, hasSF := numField(p, "sf")
-	cr, hasCR := numField(p, "cr")
+	freq, hasFreq := namedNum(p, "freq_khz")
+	bw, hasBW := namedNum(p, "bw_khz")
+	sf, hasSF := namedNum(p, "sf")
+	cr, hasCR := namedNum(p, "cr")
 	if !hasFreq && !hasBW && !hasSF && !hasCR {
 		return nil, false, nil
 	}

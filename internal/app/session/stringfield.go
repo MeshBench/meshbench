@@ -41,11 +41,33 @@ func namedField(p any, name string) (string, bool) {
 	return s, ok
 }
 
+// primaryString reads a verb's primary string parameter by the name it
+// documents, and falls back to a lone unnamed value only when that name is not
+// there.
+//
+// The reader a verb with a documented primary uses, because soleString on its
+// own does not look the documented name up at all: it answers with the only
+// value of any single-key object, so `{"node": "West Lomond", "region": "tay"}`
+// read as no node and was refused by a message naming the empty string, while
+// `{"anything": "West Lomond"}` was accepted. A caller who passed exactly what
+// the description asked for, plus one thing more, got the refusal.
+//
+// Both halves are needed. The name is what the description promises; the
+// fallback is the single-key object the old socket's callers write, which the
+// socket itself cannot unwrap because it does not know which parameter that one
+// key was meant to be.
+func primaryString(p any, name string) string {
+	if s, ok := stringField(p, name); ok && s != "" {
+		return s
+	}
+	return soleString(p)
+}
+
 // soleString reads a verb's one parameter, which arrives either as a bare
 // value or as the single-key object the old socket's callers write.
 //
-// Read here rather than unwrapped at the socket, because the socket cannot
-// know which parameter a single key was meant to be.
+// For a verb that documents no parameter of its own. Anything that names one
+// reads it with primaryString, and paramrules_test.go holds the handlers to it.
 func soleString(p any) string {
 	switch v := p.(type) {
 	case string:

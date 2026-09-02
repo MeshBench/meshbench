@@ -74,8 +74,8 @@ func registerBoardInput(st *state.Store, s *Sim) {
 	st.Handle("board.touch", func(w *state.World, p any) (any, error) {
 		m, _ := p.(map[string]any)
 		name, _ := m["node"].(string)
-		xf, okX := numField(p, "x")
-		yf, okY := numField(p, "y")
+		xf, okX := namedNum(p, "x")
+		yf, okY := namedNum(p, "y")
 		down, _ := m["down"].(bool)
 		if name == "" || !okX || !okY {
 			return nil, fmt.Errorf("board.touch needs a node and a point")

@@ -22,34 +22,24 @@ func registerMapCamera(st *state.Store, s *Sim) {
 			return nil, err
 		}
 		var lat, lon, zoom float64
-		if name := soleString(p); name != "" {
+		if name := primaryString(p, "node"); name != "" {
 			n, found := findNode(w.Nodes, name)
 			if !found {
 				return nil, noSuchNode(name)
 			}
 			lat, lon = n.Lat, n.Lon
-		} else {
-			if v, ok := numField(p, "node"); !ok {
-				_ = v
-			}
-			if m, ok := p.(map[string]any); ok {
-				if name, ok := m["node"].(string); ok && name != "" {
-					n, found := findNode(w.Nodes, name)
-					if !found {
-						return nil, noSuchNode(name)
-					}
-					lat, lon = n.Lat, n.Lon
-				}
-			}
-			if v, ok := numField(p, "lat"); ok {
-				lat = v
-			}
-			if v, ok := numField(p, "lon"); ok {
-				lon = v
-			}
-			if v, ok := numField(p, "zoom"); ok {
-				zoom = v
-			}
+		}
+		// Named, not bare: the node is this verb's one bare parameter, so a
+		// bare number read as the latitude would be read as the longitude and
+		// the zoom as well, and the camera would go to a place nobody named.
+		if v, ok := namedNum(p, "lat"); ok {
+			lat = v
+		}
+		if v, ok := namedNum(p, "lon"); ok {
+			lon = v
+		}
+		if v, ok := namedNum(p, "zoom"); ok {
+			zoom = v
 		}
 		if lat == 0 && lon == 0 {
 			return nil, fmt.Errorf("map.centre needs a node, or a lat and lon")

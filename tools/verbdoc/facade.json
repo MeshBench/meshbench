@@ -8,7 +8,15 @@
     "An empty facade means deliberately none - the store talking to",
     "itself - and it must have a matching entry in no_facade saying why.",
     "A verb with no entry here fails the script, which is the guard: a",
-    "verb no client can reach is one nobody outside the workbench can use."
+    "verb no client can reach is one nobody outside the workbench can use.",
+    "",
+    "A call spelled wb.<something>. names a namespace on the workbench, and",
+    "tools/verbdoc/clients.py reads the three clients to find out which of",
+    "those exist. One that none of them defines has to be listed in planned",
+    "below, and the reference then prints the call marked as planned rather",
+    "than as something a reader can call today. Without that a design note",
+    "reads as an API: rf.* was mapped to wb.rf for five verbs and no client",
+    "had an rf at all."
   ],
   "facade": {
     "session.describe": "wb.describe()",
@@ -305,6 +313,30 @@
     "coverage.combined": "the raster worker publishing the network-wide answer",
     "update.checked": "the release check reporting back from its own worker",
     "update.staged": "the update download reporting back from its own worker"
+  },
+  "planned": {
+    "boards": "the board-probe verbs; node.device covers a board that is already placed",
+    "capture": "frame capture to a pcapng, and the Wireshark launch beside it",
+    "endpoints": "the TCP and serial endpoints a node is served on",
+    "experiment": "the whole experiment chain, which is the largest thing still only reachable by verb",
+    "feed": "the live reception feed, which wb.live half covers and does not name",
+    "fleet": "one command to every node of a kind",
+    "gpu": "whether the link matrix is measured on the GPU",
+    "import_": "bringing a real deployment in; wb.live carries the feed half of it",
+    "links": "the link matrix, one pair, and a terrain profile through it",
+    "log": "the session log's path and its export",
+    "packets": "opening one captured frame",
+    "provisioning": "the settings a node is provisioned with, at the network level",
+    "radio": "the preset list and applying one",
+    "resources": "what has been downloaded, and its licence",
+    "rf": "the radio model: which physics, what realism, how much excess loss",
+    "setup": "the first-run readiness check",
+    "study": "coverage, planning and the study margin",
+    "sweep": "the offered-load sweep",
+    "terrain": "the elevation cache, its consent and its prefetch",
+    "ui": "the window: panels, views, layouts and the map camera",
+    "update": "whether a newer release exists and getting it onto the disk",
+    "validate": "predicted against actually heard"
   },
   "groups": [
     {

@@ -31,13 +31,13 @@ func overlay(cur antenna.Mounted, p any) (antenna.Mounted, error) {
 	if v, ok := session.NamedField(p, "pattern"); ok && strings.TrimSpace(v) != "" {
 		shape.Type = strings.ToLower(strings.TrimSpace(v))
 	}
-	if v, ok := session.NumField(p, "gain_dbi_peak"); ok {
+	if v, ok := session.NamedNum(p, "gain_dbi_peak"); ok {
 		shape.GainDBiPeak = v
 	}
-	if v, ok := session.NumField(p, "beamwidth_deg"); ok {
+	if v, ok := session.NamedNum(p, "beamwidth_deg"); ok {
 		shape.BeamwidthDeg = v
 	}
-	if v, ok := session.NumField(p, "front_to_back_db"); ok {
+	if v, ok := session.NamedNum(p, "front_to_back_db"); ok {
 		shape.FrontToBackDB = v
 	}
 	pattern, err := shape.Pattern()
@@ -47,13 +47,13 @@ func overlay(cur antenna.Mounted, p any) (antenna.Mounted, error) {
 	}
 	out := cur
 	out.Pattern = pattern
-	if v, ok := session.NumField(p, "bearing_deg"); ok {
+	if v, ok := session.NamedNum(p, "bearing_deg"); ok {
 		out.BearingDeg = compass(v)
 	}
-	if v, ok := session.NumField(p, "downtilt_deg"); ok {
+	if v, ok := session.NamedNum(p, "downtilt_deg"); ok {
 		out.DowntiltDeg = v
 	}
-	if v, ok := session.NumField(p, "feedline_db"); ok {
+	if v, ok := session.NamedNum(p, "feedline_db"); ok {
 		out.FeedlineDB = v
 	}
 	if v, ok := session.NamedField(p, "polarisation"); ok && strings.TrimSpace(v) != "" {
