@@ -86,25 +86,34 @@ icotool -c -o "$extra/meshbench.ico" \
   "$here/icons/meshbench-48.png" "$here/icons/meshbench-64.png" \
   "$here/icons/meshbench-128.png" "$here/icons/meshbench-256.png"
 
-# The two bitmaps the dialogs are drawn on, at the sizes WixUI asks for: the
-# dialog fills the left of the first and last pages, the banner runs along the
-# top of the ones between. Built from the committed artwork rather than
-# committed themselves, for the same reason as the icon - and as bitmaps
-# because that is what WixUI takes, which is also why they cannot be the PNGs.
+# The two bitmaps the dialogs are drawn on, at the sizes WixUI asks for.
 #
-# The card is docs/brand's copy, pointed at rather than duplicated here.
+# WixUIDialogBmp is not a panel beside the text - it is the whole 493x312
+# background of the first and last pages, and WiX draws its title and body on
+# top of it. So the artwork lives in a band down the left and the rest is left
+# white for the text to sit on, which is what every stock WiX bitmap does. A
+# full-bleed card there put dark artwork behind dark text and neither could be
+# read. The banner is the same story: the page title is drawn along its left,
+# so the mark goes on the right.
 #
-# The card is 1200x630 and the panel is 493x312, a different shape, so it is
-# covered and cropped rather than squashed. The alpha is removed onto the
-# brand's own ground: a bitmap has none to lose it to, and what is left
-# otherwise is black.
-magick "$here/../docs/brand/meshbench-card.png" \
-  -background '#0B0A12' -resize 493x312^ -gravity center -extent 493x312 \
-  -alpha remove -alpha off -type truecolor BMP3:"$extra/dialog.bmp"
-magick -size 493x58 canvas:'#0B0A12' \
-  \( "$here/icons/meshbench-64.png" -resize 40x40 \) \
-  -gravity west -geometry +14+0 -composite \
-  -alpha remove -alpha off -type truecolor BMP3:"$extra/banner.bmp"
+# The card is docs/brand's copy, pointed at rather than duplicated - the crops
+# below are regions of it at its committed 1200x630, so a redrawn card wants
+# them checked.
+card=$here/../docs/brand/meshbench-card.png
+magick -size 164x312 xc:'#0B0A12' -gravity northwest \
+  \( "$card" -crop 380x300+750+290 +repage -resize 150x \
+     -alpha set -channel A -evaluate multiply 0.5 +channel \) -geometry +26+178 -composite \
+  \( "$here/icons/meshbench-256.png" -resize 78x78 \) -geometry +43+54 -composite \
+  \( "$card" -crop 545x105+92+348 +repage -resize 124x -background none \) -geometry +20+150 -composite \
+  -alpha remove -alpha off "$work/band.png"
+magick -size 493x312 xc:white -gravity northwest \
+  "$work/band.png" -geometry +0+0 -composite \
+  \( -size 2x312 xc:'#FF7A45' \) -geometry +164+0 -composite \
+  -alpha remove -alpha off -type truecolor "BMP3:$extra/dialog.bmp"
+magick -size 493x58 xc:white -gravity northwest \
+  \( "$here/icons/meshbench-256.png" -resize 34x34 \) -geometry +445+12 -composite \
+  \( -size 493x2 xc:'#FF7A45' \) -geometry +0+56 -composite \
+  -alpha remove -alpha off -type truecolor "BMP3:$extra/banner.bmp"
 
 sed "s/<version>/$version/" "$here/installed-by-msi.txt" \
   > "$extra/installed-by-msi.txt"
