@@ -236,6 +236,15 @@ func Remove(cacheDir string, in Installed) error {
 	if err := os.Remove(SettingsPath(p)); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
+	// The digest, for the same reason and with a sharper edge. Import writes
+	// no digest, so a local build copied over a deleted download inherits the
+	// download's: checksumOK then rejects bytes that are perfectly good,
+	// cachedBinary reports the build as absent, and the import silently does
+	// not take. Left behind it would also keep the version directory from
+	// emptying below.
+	if err := os.Remove(checksumSidecarPath(p)); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
 	// Take the version directory with it when it empties, so a cache that has
 	// been cleared out does not read as a list of empty versions.
 	dir := filepath.Dir(p)

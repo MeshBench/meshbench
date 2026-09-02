@@ -104,6 +104,29 @@ func TestTheDigestBesideABuildIsNotABuild(t *testing.T) {
 	}
 }
 
+// Removing a build takes its digest with it. Import writes no digest, so a
+// local build copied over a deleted download would otherwise inherit the
+// download's: checksumOK rejects bytes that are perfectly good, the catalogue
+// reports the build as absent, and the import silently does not take.
+func TestRemoveTakesTheDigestWithIt(t *testing.T) {
+	cache := t.TempDir()
+	rel := "native/repeater-v1.17.1/meshcore-simple_repeater-linux-amd64"
+	write(t, cache, rel, "elf")
+	write(t, cache, rel+".sha256", "a9f1c0de\n")
+
+	p := filepath.Join(cache, filepath.FromSlash(rel))
+	if err := firmware.Remove(cache, firmware.Installed{Path: p}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(p + ".sha256"); !os.IsNotExist(err) {
+		t.Error("the digest outlived the build it describes")
+	}
+	// And with nothing left behind, the version directory goes too.
+	if _, err := os.Stat(filepath.Dir(p)); !os.IsNotExist(err) {
+		t.Error("the version directory survived, so something is still in it")
+	}
+}
+
 // A delete button driven by a path is exactly the shape of thing that removes
 // somebody's home directory when a later caller builds the path differently.
 func TestRemoveRefusesAnythingOutsideTheCache(t *testing.T) {
