@@ -39,6 +39,36 @@ fi
 # last run left something behind is not a fixture that passes.
 export MESHBENCH_NODEFS="${MESHBENCH_NODEFS:-$(mktemp -d)/nodefs}"
 
+# What the machine had while each fixture ran.
+#
+# The nightly has twice died part way through this sweep with "the runner has
+# received a shutdown signal" and nothing else - the job is killed, so its own
+# logs go with it, and what is left says only that the run stopped. A national
+# fixture is 376 MeshCore processes at once, so the number that tells a mesh
+# that stopped delivering from a machine that ran out is the least memory that
+# was available while it ran. One line per fixture is enough to tell them
+# apart, and it costs a background loop reading /proc.
+#
+# Linux only, and quiet where there is no /proc: this script is run by hand on
+# machines that have neither.
+mem_available_mb() { awk '/^MemAvailable:/{print int($2/1024)}' /proc/meminfo; }
+
+# The baseline is written by the caller before this is backgrounded, so a
+# fixture that ends quickly cannot outrun the first sample and leave the line
+# blank.
+watch_memory() {
+  local out=$1 low cur
+  low=$(cat "$out")
+  while :; do
+    cur=$(mem_available_mb 2>/dev/null) || return
+    if [ -n "$cur" ] && [ "$cur" -lt "$low" ]; then
+      low=$cur
+      printf '%s' "$low" > "$out"
+    fi
+    sleep 2
+  done
+}
+
 fail=0
 for f in fixtures/fixture-*.json; do
   why=$(python3 -c "
@@ -55,8 +85,22 @@ elif cap and len(nodes) > cap:
     continue
   fi
   echo "== $f"
+  watcher=""
+  low_file=""
+  if [ -r /proc/meminfo ]; then
+    low_file=$(mktemp)
+    mem_available_mb > "$low_file"
+    watch_memory "$low_file" &
+    watcher=$!
+  fi
   if ! "$BIN" test -fixture "$f"; then
     fail=1
+  fi
+  if [ -n "$watcher" ]; then
+    kill "$watcher" 2>/dev/null
+    wait "$watcher" 2>/dev/null
+    echo "   least memory available while that ran: $(cat "$low_file") MB"
+    rm -f "$low_file"
   fi
 done
 
