@@ -36,7 +36,7 @@ func servedAsRelease(t *testing.T, path, release string) {
 }
 
 func TestAClientFromAnotherReleaseIsRefused(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "release.sock")
+	path := filepath.Join(shortSocketDir(t), "release.sock")
 	servedAsRelease(t, path, "2.0.0")
 
 	resp := declares(t, path,
@@ -61,7 +61,7 @@ func TestAClientFromAnotherReleaseIsRefused(t *testing.T) {
 // away before anything is dispatched, or the script is back to reading a verb
 // failure and guessing at what caused it.
 func TestAReleaseMismatchIsAnsweredBeforeTheVerbIs(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "releaseorder.sock")
+	path := filepath.Join(shortSocketDir(t), "releaseorder.sock")
 	servedAsRelease(t, path, "2.0.0")
 
 	for _, verb := range []string{"who", "missing", "nonsense", SubscribeMethod} {
@@ -77,7 +77,7 @@ func TestAReleaseMismatchIsAnsweredBeforeTheVerbIs(t *testing.T) {
 // The same release is the pair the rule exists to allow, and it must be served
 // exactly as it was.
 func TestAClientFromTheSameReleaseIsServed(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "samerelease.sock")
+	path := filepath.Join(shortSocketDir(t), "samerelease.sock")
 	servedAsRelease(t, path, "2.0.0")
 
 	if resp := declares(t, path,
@@ -92,7 +92,7 @@ func TestAClientFromTheSameReleaseIsServed(t *testing.T) {
 // people changing it, for a disagreement that does not exist: there is only one
 // build, and its author is the one editing it.
 func TestADevelopmentBuildDoesNotRefuseAnybody(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "devbuild.sock")
+	path := filepath.Join(shortSocketDir(t), "devbuild.sock")
 	serveAt(t, path) // no stamp, which is what a working copy produces
 
 	for _, spoken := range []string{"", "1.5.0", "99.0.0"} {
@@ -108,7 +108,7 @@ func TestADevelopmentBuildDoesNotRefuseAnybody(t *testing.T) {
 // The other half: a released workbench serves a client that names no release,
 // which is every script written against this socket before the field existed.
 func TestAClientThatNamesNoReleaseIsServed(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "unnamed.sock")
+	path := filepath.Join(shortSocketDir(t), "unnamed.sock")
 	servedAsRelease(t, path, "2.0.0")
 
 	if resp := declares(t, path,
@@ -157,7 +157,7 @@ func TestTheClientDeclaresItsReleaseOnceAndFirst(t *testing.T) {
 	restore := asRelease(t, "2.0.0")
 	defer restore()
 
-	path := filepath.Join(t.TempDir(), "declaredrelease.sock")
+	path := filepath.Join(shortSocketDir(t), "declaredrelease.sock")
 	ln, err := net.Listen("unix", path)
 	if err != nil {
 		t.Fatal(err)

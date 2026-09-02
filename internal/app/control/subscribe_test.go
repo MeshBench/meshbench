@@ -46,7 +46,7 @@ func TestSubscribeReceivesNotification(t *testing.T) {
 // A topic nobody asked for is not delivered, and a Call on a subscribed
 // connection is not derailed by it either - the two streams stay separate.
 func TestNotifyOnlyGoesToInterestedSubscribers(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "s.sock")
+	path := filepath.Join(shortSocketDir(t), "s.sock")
 	srv := serveAt(t, path)
 
 	sub, err := Subscribe(path, "status")
@@ -72,7 +72,7 @@ func TestNotifyOnlyGoesToInterestedSubscribers(t *testing.T) {
 // notification ever appears mid-stream. This is the backward-compatibility the
 // change turns on: an old script sees no difference.
 func TestPlainClientSeesNoNotifications(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "s.sock")
+	path := filepath.Join(shortSocketDir(t), "s.sock")
 	srv := serveAt(t, path)
 
 	c, err := DialAt(path)
@@ -104,7 +104,7 @@ func TestPlainClientSeesNoNotifications(t *testing.T) {
 // The snapshot topic is coalesced: many published in a window collapse to one,
 // and it carries the count that were dropped so a client knows it missed them.
 func TestSnapshotCoalesces(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "s.sock")
+	path := filepath.Join(shortSocketDir(t), "s.sock")
 	srv := serveAt(t, path)
 
 	// A clock the test moves by hand, so the window is not a race.
@@ -143,7 +143,7 @@ func TestSnapshotCoalesces(t *testing.T) {
 // map is direct evidence the goroutine actually returned rather than being
 // stuck for the life of the process.
 func TestAKilledSubscriberLeavesNoSubscriptionBehind(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "killed.sock")
+	path := filepath.Join(shortSocketDir(t), "killed.sock")
 	srv, err := ListenAt(path, func(string, json.RawMessage) (any, error) {
 		return map[string]any{"ok": true}, nil
 	})
@@ -207,7 +207,7 @@ func recv(t *testing.T, sub *Subscription) Event {
 // slip in front and be read as the subscribe reply. Subscribing many times
 // under a flood is how that ordering bug shows itself, if it is there.
 func TestSubscribeAckIsNotOvertakenByNotifications(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "s.sock")
+	path := filepath.Join(shortSocketDir(t), "s.sock")
 	srv := serveAt(t, path)
 
 	stop := make(chan struct{})

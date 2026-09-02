@@ -48,7 +48,7 @@ func standInMesh(ctx context.Context, t *testing.T, txAtMs uint32) *engine.Engin
 	t.Setenv(firmware.EnvNativeBinary, fakenative.Path())
 	// Somewhere disposable for the node's own storage, so a test cannot inherit
 	// or leave behind an identity.
-	t.Setenv(firmware.EnvNodeFS, t.TempDir())
+	t.Setenv(firmware.EnvNodeFS, nodeFSRoot(t))
 
 	e := engine.New(flat{}, engine.Config{
 		FreqMHz: 869.618, SF: 8, BandwidthHz: 62_500, CodingRate: 4,
@@ -160,4 +160,31 @@ func TestWaitForEventTellsACancelledProbeFromASilentBoard(t *testing.T) {
 		t.Fatal("the two still come back the same, so a phase cannot tell a " +
 			"silent board from a probe that was cut off")
 	}
+}
+
+// nodeFSRoot is where the nodes under test keep their files.
+//
+// Not t.TempDir(), which fails the test if its own cleanup cannot unlink -
+// and on Windows it cannot, while a killed child is still letting go of its
+// stderr.log. Unix removes an open file and Windows refuses to. What these
+// tests are about is what the waits see, which they assert directly; a file
+// that takes another moment to close is a different question and was failing
+// them on that alone.
+func nodeFSRoot(t *testing.T) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "mb")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		// Briefly: the handle closes as the process finishes dying.
+		for range 20 {
+			if err := os.RemoveAll(dir); err == nil {
+				return
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		t.Logf("could not remove %s; something is still holding a file in it", dir)
+	})
+	return dir
 }
