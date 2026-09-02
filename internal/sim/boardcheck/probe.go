@@ -199,8 +199,45 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 	report.set(TX, Passed, fmt.Sprintf("adverted unprompted at %.1f s", float64(txAt)/1000))
 
 	// rx: the sender adverts, the board under test should hear it.
+	//
+	// The board has to be off the air first, and this row did not wait. A tx
+	// event is recorded at the start of a transmission - AtMs is now, endMs is
+	// now plus the airtime - so the wait above returns while the board is still
+	// sending its advert. Telling the sender to advert at that moment hands the
+	// board a packet during its own transmission, and a half-duplex radio does
+	// not hear it: the channel records a miss, the row's single stimulus is
+	// gone, and nothing retries for the whole 240 s budget. The board was
+	// behaving correctly and the physics was right; the test was handing it
+	// something it could not have heard.
+	//
+	// The flood row below already learned this and waits. So does this one now.
 	sender, ok := e.NodeByName("bc-sender")
 	if ok && sender.Firmware != nil {
+		if quiet, cutShort := waitUntilQuiet(ctx, e, "bc-under-test", floodQuietMs, advertBudgetMs); !quiet {
+			msg := fmt.Sprintf(
+				"the board never stopped transmitting for %d s, so it could not be "+
+					"handed a packet it would hear", floodQuietMs/1000)
+			if cutShort {
+				msg = cutShortDetail
+			}
+			report.set(RX, Untested, msg)
+			return report
+		}
+		// And the advert has to be one the board has not already seen. Every
+		// node adverts once as it boots and the simulated clock does not move,
+		// so a second advert from the sender is the same bytes as its first.
+		// That does not stop the reception this row measures, which the channel
+		// records before the frame reaches the firmware, but it does stop the
+		// board acting on it - and a row that depends on the packet being new
+		// should say so rather than rely on where the measurement is taken.
+		//
+		// An hour before the flood row's own timestamp, so that one is still
+		// the newer packet when it runs.
+		if err := setSenderClock(sender, 1754700000); err != nil {
+			report.set(RX, Untested, "harness fault: could not set the sender's clock: "+err.Error())
+			return report
+		}
+		_ = e.Run(ctx, e.NowMs()+1_000)
 		if err := sender.Firmware.Bridge.Type([]byte("advert\r\n")); err == nil {
 			_, rxOutcome := waitForEvent(ctx, e, advertBudgetMs, func(ev engine.Event) bool {
 				return ev.Kind == "rx" && ev.To == "bc-under-test"
