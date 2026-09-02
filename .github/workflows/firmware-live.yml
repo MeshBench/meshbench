@@ -71,7 +71,15 @@ jobs:
     # never land on one. Forks fall back to hosted runners, where everything
     # here still works - the MeshCore builds are downloaded from a public
     # release, and no board is probed without the dispatch input.
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","lab-linux"]') || fromJSON('["ubuntu-latest"]') }}
+    #
+    # lab-2404, not lab-linux, and this job is the one place that matters.
+    # MeshCore's published native builds need glibc 2.38; gha-lab-3 is the
+    # 22.04 runner that pins package.yml's own floor at 2.35, and it carries
+    # lab-linux too. So a nightly landed on whichever runner was free and died
+    # in two seconds on one of the three with a linker error naming a symbol
+    # version, which reads as a broken download rather than as the wrong
+    # machine. The floor this job needs is the firmware's, not ours.
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","lab-2404"]') || fromJSON('["ubuntu-latest"]') }}
     steps:
       - uses: actions/checkout@v7
 
@@ -124,6 +132,29 @@ jobs:
             chmod +x "$dir/$name"
           done
           ls -l "$dir"
+          # What this machine can link against, said before the binary is run.
+          # A published build too new for the runner fails as "version
+          # GLIBC_2.38 not found", which names a symbol version and not the
+          # reason, and reads as a broken download of a file that arrived
+          # perfectly.
+          # Both reads are allowed to come back empty, and pipefail is on: a
+          # statically linked build has no GLIBC_ symbols to find, and an ldd
+          # that words its first line differently gives no version. Neither is
+          # a reason to fail a job over, so the check is skipped rather than
+          # the step dying on a grep that matched nothing.
+          need=$(objdump -T "$dir/meshcore-simple_repeater-linux-amd64" 2>/dev/null \
+            | grep -oE 'GLIBC_[0-9]+\.[0-9]+' | sort -V | tail -1 || true)
+          have=$(ldd --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+$' || true)
+          if [ -z "$need" ] || [ -z "$have" ]; then
+            echo "no glibc floor to compare (need='$need' have='$have'); skipping the check"
+          elif [ "$(printf '%s\n%s\n' "$need" "GLIBC_$have" | sort -V | tail -1)" != "GLIBC_$have" ]; then
+            echo "::error::MeshCore's published builds need $need and this runner"\
+                 "has GLIBC_$have. This job asks for lab-2404 for that reason; a"\
+                 "runner below the floor cannot start a native node at all."
+            exit 1
+          else
+            echo "firmware needs at most $need; this runner provides GLIBC_$have"
+          fi
           # The airtime it reports for a 40-byte packet at the defaults, which
           # is the one number a broken or truncated download gets wrong loudly.
           "$dir/meshcore-simple_repeater-linux-amd64" --print-airtime 40
