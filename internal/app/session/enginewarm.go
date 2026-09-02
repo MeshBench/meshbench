@@ -47,8 +47,6 @@ func (s *Sim) warm(st *state.Store, nodes int) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	s.warmCancel = cancel
-	// A warm that is starting is no longer held, whatever held the last one.
-	s.warmHeld = false
 	s.warmMu.Unlock()
 
 	s.cold = false
@@ -82,12 +80,6 @@ func (s *Sim) warm(st *state.Store, nodes int) {
 		// even store.
 		primed := eng.LinkCachePairs() >= total
 		if !primed {
-			// Permission before bandwidth: a first launch opens a national
-			// network, and the ground under it is several hundred megabytes
-			// nobody agreed to spend.
-			if s.heldForTerrain(ctx, st, warmNodes) {
-				return
-			}
 			// The ground first, announced: a walk over a region whose tiles
 			// are not down yet otherwise fetches them one by one from the
 			// middle of the measurement, which reads as a hang.
@@ -200,21 +192,19 @@ func (s *Sim) rebuild(w *state.World) error {
 func (s *Sim) warming() bool {
 	s.warmMu.Lock()
 	defer s.warmMu.Unlock()
-	return s.warmCancel != nil && !s.warmed && !s.warmHeld
+	return s.warmCancel != nil && !s.warmed
 }
 
-// linksMeasured reports that every pair has actually been walked, and held
-// reports a warm that stopped to ask first.
+// linksMeasured reports that every pair has actually been walked.
 //
 // Separate from warming because "not running" and "finished" are different
-// answers, and a held warm is the first: nothing is in flight, and nothing has
-// been measured either. Marking a held warm as finished is how a session with
-// no ground under it came to report itself ready and answer studies over free
-// space.
-func (s *Sim) linksMeasured() (measured, held bool) {
+// answers, and a caller that reads the first as the second believes a matrix
+// nobody measured. There used to be a third state for a warm held waiting for
+// permission to download terrain; nothing holds a warm any more.
+func (s *Sim) linksMeasured() bool {
 	s.warmMu.Lock()
 	defer s.warmMu.Unlock()
-	return s.warmed, s.warmHeld
+	return s.warmed
 }
 
 // geometryFingerprint hashes everything the stored matrix depends on.

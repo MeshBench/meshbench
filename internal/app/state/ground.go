@@ -25,11 +25,16 @@ const (
 type Ground struct {
 	// State is GroundTerrain, GroundPartial or GroundBare.
 	State string
-	// Chosen says somebody has answered the terrain question, either way. It
-	// is the difference this type exists for: a bare-earth run an operator
-	// asked for is a legitimate offline result, and a bare-earth run nobody was
-	// asked about is the model being quietly more optimistic than its own
-	// documented best case.
+	// Chosen says bare earth here is a state somebody settled on rather than
+	// one that happened. It is the difference this type exists for: a
+	// bare-earth run with downloads switched off is a legitimate offline
+	// result, and a bare-earth run with downloads on is a fetch that has not
+	// happened or did not finish, which is the model being quietly more
+	// optimistic than its own documented best case.
+	//
+	// It used to mean "somebody answered the terrain question". Nobody is
+	// asked any more, and reading it as always true would have let a failed
+	// download through as though it were an offline run.
 	Chosen bool
 	// Note is the honesty line, empty only when the ground is all here.
 	Note string

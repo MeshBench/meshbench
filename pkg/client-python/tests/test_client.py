@@ -514,7 +514,7 @@ def test_the_same_seed_reaches_the_same_state(binary, tmp_path):
     """Determinism is a feature, and the client must not be what breaks it."""
 
     # What a seed promises is the same simulation, not the same machine.
-    # warming, links_measured, warm_held and ground say how much terrain has
+    # warming, links_measured and ground say how much terrain has
     # arrived in this cache, so two runs either side of a fetch disagree on
     # them while every event matches: this failed on tiles_cached 0 against
     # 196 with the clock and the event count identical. The Go client's

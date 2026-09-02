@@ -27,10 +27,9 @@
     ],
     "returns": [
       "on",
-      "asked",
       "warming"
     ],
-    "answers": "`asked` is whether this machine had already answered before the call, never asked being the third state a fresh install is in. `warming` is true where the answer released a measurement that had stopped to ask, because nothing is watching for the answer to arrive and it has to be started again by hand. A refusal releases it as well as a grant: \"use only what is cached\" is an answer, and a session left held on it never measures a link at all, so the map stays empty and the study that follows has nothing to be honest about.",
+    "answers": "`warming` is true where the answer changed the setting and a measurement was therefore started again: a matrix walked under the old answer is a matrix of different ground. Turning downloads off does that as well as turning them on, because links measured over terrain this machine may no longer fetch claim a precision the next region opened will not have. Downloads are on unless somebody turned them off; there is no third state and nothing waits to be asked.",
     "example": {
       "params": true,
       "what": "let this machine fetch the ground a study needs",

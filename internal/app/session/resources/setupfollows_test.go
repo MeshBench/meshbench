@@ -55,40 +55,53 @@ func terrainState(t *testing.T, store *state.Store) string {
 	return ""
 }
 
-// The page follows the answer, whichever route granted it.
+// The page follows the switch, whichever route moved it.
 //
 // The row's own button re-runs setup.check itself and has always worked, so it
 // is not what this guards. The two routes that did not are the switch in
 // Configuration, which fires terrain.allow with the value it just moved to, and
-// a script calling the same verb with no argument at all. Both used to leave the
-// page reading "waiting on you" over a download that was already running.
-func TestTheSetupPageFollowsConsentGrantedAnywhere(t *testing.T) {
+// a script calling the same verb. Both used to leave the page reading the
+// state before the call.
+//
+// Off and back on rather than the other way round, because on is now the
+// default and a test that starts from the default cannot tell a page that
+// followed from a page that never moved.
+func TestTheSetupPageFollowsTheSwitchMovedAnywhere(t *testing.T) {
 	for _, tc := range []struct {
-		name   string
-		params any
+		name string
+		on   any
+		off  any
 	}{
 		// What internal/ui/workbench's Configuration switch sends.
-		{"the Configuration switch", map[string]any{"on": true}},
-		// What a script sends: the verb exists to grant, so bare means on.
-		{"a scripted terrain.allow", nil},
+		{"the Configuration switch", map[string]any{"on": true}, map[string]any{"on": false}},
+		// What a script sends: the verb exists to switch on, so bare means on.
+		{"a scripted terrain.allow", nil, map[string]any{"on": false}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			store, ctx := asking(t)
 			if _, err := store.Do(ctx, "setup.check", nil); err != nil {
 				t.Fatalf("setup.check: %v", err)
 			}
-			if got := terrainState(t, store); got != string(state.SetupUndecided) {
-				t.Fatalf("terrain reads %q before anything was granted, want %q",
-					got, state.SetupUndecided)
+			if got := terrainState(t, store); got != string(state.SetupReady) {
+				t.Fatalf("terrain reads %q on a fresh machine, want %q: downloads "+
+					"are on unless somebody turned them off", got, state.SetupReady)
 			}
 
-			if _, err := store.Do(ctx, "terrain.allow", tc.params); err != nil {
-				t.Fatalf("terrain.allow: %v", err)
+			if _, err := store.Do(ctx, "terrain.allow", tc.off); err != nil {
+				t.Fatalf("terrain.allow off: %v", err)
 			}
 			// Deliberately no setup.check here. Re-running it is the bug: the
 			// page is supposed to already be right.
-			if got := terrainState(t, store); got == string(state.SetupUndecided) {
-				t.Fatalf("terrain still reads %q after consent was granted by %s",
+			if got := terrainState(t, store); got != string(state.SetupMissing) {
+				t.Fatalf("terrain reads %q after downloads were switched off by %s, want %q",
+					got, tc.name, state.SetupMissing)
+			}
+
+			if _, err := store.Do(ctx, "terrain.allow", tc.on); err != nil {
+				t.Fatalf("terrain.allow on: %v", err)
+			}
+			if got := terrainState(t, store); got != string(state.SetupReady) {
+				t.Fatalf("terrain reads %q after downloads were switched back on by %s",
 					got, tc.name)
 			}
 		})

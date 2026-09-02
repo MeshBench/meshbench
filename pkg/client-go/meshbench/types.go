@@ -93,14 +93,12 @@ type SimState struct {
 	Events  int    `json:"events"`
 	StepMs  uint32 `json:"step_ms"`
 	Seed    uint64 `json:"seed"`
-	// Warming, LinksMeasured and WarmHeld are the three states of the link
-	// measurement, and they are three because a warm that stopped to ask
-	// permission to download terrain is neither running nor finished. Reading
-	// "not warming" as "measured" is how a script came to read a study over
-	// ground the workbench never fetched.
+	// Warming and LinksMeasured are the two states of the link measurement:
+	// running, and finished. Neither true is a warm that failed or was
+	// cancelled, and reading "not warming" as "measured" is how a study came
+	// to be believed over ground nobody walked.
 	Warming       bool `json:"warming"`
 	LinksMeasured bool `json:"links_measured"`
-	WarmHeld      bool `json:"warm_held"`
 	// Ground is what elevation data the studies here have under them.
 	Ground Ground `json:"ground"`
 	// Reproducible says whether running this scenario again on Seed would put

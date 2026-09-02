@@ -57,14 +57,13 @@ func (s *Sim) ImportURL() string {
 func (s *Sim) Terrain() propagation.Terrain       { return s.terrain() }
 func (s *Sim) TerrainCached() propagation.Terrain { return s.terrainCached() }
 
-// TerrainConsent is the three-state answer: whether terrain may be downloaded,
-// and whether anybody has said either way.
+// TerrainDownloadsOn reports whether terrain may be downloaded.
 //
-// Both halves, because a refusal and a question nobody has answered are
-// different things to report and collapsing them to one bool is how a fresh
-// install comes to look like a deliberate choice.
-func (s *Sim) TerrainConsent() (allowed, asked bool) {
-	return s.terrainAllowed(), s.terrainAsked()
+// One answer rather than the three states this used to carry. Nobody is asked
+// any more: downloads are on unless somebody turned them off, so "refused" and
+// "not yet answered" are the same thing to everything downstream.
+func (s *Sim) TerrainDownloadsOn() bool {
+	return s.terrainAllowed()
 }
 
 // Hillshade rasters the relief over a box.

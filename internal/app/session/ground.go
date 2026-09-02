@@ -48,7 +48,10 @@ func (s *Sim) GroundUnder(nodes []scenario.Node) state.Ground {
 
 // GroundOver is the ground under a box, which is what a raster stands on.
 func (s *Sim) GroundOver(south, north, west, east float64) state.Ground {
-	_, asked := s.TerrainConsent()
+	// Bare earth is a decision when downloads are off, and an accident when
+	// they are on: those are the two things a study has to be able to tell
+	// apart, and the only two left now that nobody is asked.
+	settled := !s.TerrainDownloadsOn()
 	ts, ok := s.terrain().(*terrain.TileStore)
 	if !ok || ts == nil {
 		// No tile cache at all is a machine configured that way rather than one
@@ -58,7 +61,7 @@ func (s *Sim) GroundOver(south, north, west, east float64) state.Ground {
 		g.Note = groundNote(g)
 		return g
 	}
-	return groundFrom(ts.EstimateTiles(groundSampleTiles(south, north, west, east, ts.Zoom)), asked)
+	return groundFrom(ts.EstimateTiles(groundSampleTiles(south, north, west, east, ts.Zoom)), settled)
 }
 
 // groundSampleTiles is the deduplicated tile coordinates under an evenly
@@ -120,9 +123,9 @@ func groundNote(g state.Ground) string {
 				"and nothing in it says which part", g.Cached, g.Sampled)
 	}
 	if !g.Chosen {
-		return "no terrain: nothing under this study is cached and nobody has been " +
-			"asked whether it may be downloaded, " + consequence +
-			". terrain.allow settles it either way"
+		return "no terrain: nothing under this study is cached and terrain " +
+			"downloads are on, so the fetch has not run or did not finish, " +
+			consequence + ". Warm the links again, or check the tile store"
 	}
 	return "no terrain: nothing under this study is cached and terrain downloads " +
 		"are off, " + consequence

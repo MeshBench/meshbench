@@ -115,12 +115,11 @@
       "seed",
       "warming",
       "links_measured",
-      "warm_held",
       "ground",
       "reproducible",
       "not_reproducible_why"
     ],
-    "answers": "`until_ms` is zero unless `sim.run` set a limit. `events` is the count since the engine was built, not since the last call. The link measurement has three states, not two: `warming` while it runs, `links_measured` once every pair has been walked, and `warm_held` for a warm that stopped to ask permission to download terrain, which is neither. A held warm finishes its own job row, so a wait for the workbench to go idle returns in a moment having waited for nothing - reading that as a measurement is how a study came to be believed over ground nobody fetched. `ground` is what the studies here are standing on, in the shape `terrain.ground` returns. `reproducible` says whether running this scenario again on the same seed would put the same traffic at the same instants: false wherever a node runs in an emulator, because that node's firmware is stepped by the emulator's clock rather than by the run's, and `not_reproducible_why` is the sentence saying which node and what follows from it. A script comparing two runs, or quoting a timing against another run's, has to read it.",
+    "answers": "`until_ms` is zero unless `sim.run` set a limit. `events` is the count since the engine was built, not since the last call. The link measurement has two states: `warming` while it runs, and `links_measured` once every pair has been walked. Neither true is a warm that failed or was cancelled, which finishes its own job row - so a wait for the workbench to go idle returns having waited for nothing, and reading that as a measurement is how a study came to be believed over ground nobody walked. `ground` is what the studies here are standing on, in the shape `terrain.ground` returns. `reproducible` says whether running this scenario again on the same seed would put the same traffic at the same instants: false wherever a node runs in an emulator, because that node's firmware is stepped by the emulator's clock rather than by the run's, and `not_reproducible_why` is the sentence saying which node and what follows from it. A script comparing two runs, or quoting a timing against another run's, has to read it.",
     "example": {
       "params": {},
       "what": "ask whether the run has finished",

@@ -190,7 +190,7 @@ Two verbs are **not** in this table:
 | `sim.slower` | — | `step_ms` | `wb.sim.slower()` |
 | `sim.speed` | `step_ms` number, `factor` number | `step_ms` | `wb.sim.step_ms = n  /  wb.sim.faster(x)` |
 | `sim.start` | — | `playing`, `warming`, `starting_firmware`, `started_firmware` | `wb.sim.start()` |
-| `sim.state` | — | `playing`, `now_ms`, `until_ms`, `events`, `step_ms`, `seed`, `warming`, `links_measured`, `warm_held`, `ground`, `reproducible`, `not_reproducible_why` | `wb.sim.state()` |
+| `sim.state` | — | `playing`, `now_ms`, `until_ms`, `events`, `step_ms`, `seed`, `warming`, `links_measured`, `ground`, `reproducible`, `not_reproducible_why` | `wb.sim.state()` |
 | `sim.step` | — | `now_ms` | `wb.sim.step()` |
 | `sim.toggle` | — | `playing` | `wb.sim.toggle()` |
 | `sim.unverified_wiring` | *a bare string*, `on` bool | `on` | `wb.sim.unverified_wiring = bool` |
@@ -399,7 +399,7 @@ Two verbs are **not** in this table:
 | `resource.list` | — | `rows`, `resources` | `wb.resources` |
 | `resource.remove` | *a bare string*, `name` string, `kind` string, `version` string | `removed` | `wb.resources.remove(kind, name, version)` - *planned*, no client defines `wb.resources` yet; call the verb |
 | `setup.check` | — | `groups`, `ready`, `needed`, `undecided`, `blocked`, `missing` | `wb.setup.check()` - *planned*, no client defines `wb.setup` yet; call the verb |
-| `terrain.allow` | *a bare string*, `on` bool | `on`, `asked`, `warming` | `wb.terrain.allow(on=True)` - *planned*, no client defines `wb.terrain` yet; call the verb |
+| `terrain.allow` | *a bare string*, `on` bool | `on`, `warming` | `wb.terrain.allow(on=True)` - *planned*, no client defines `wb.terrain` yet; call the verb |
 | `terrain.cache` | *a bare string*, `gb` number | `gb`, `dir`, `downloads` | `wb.terrain.cache_gb = n` - *planned*, no client defines `wb.terrain` yet; call the verb |
 | `terrain.cache_dir` | *a bare string*, `path` string | `moving`, `to` | `wb.terrain.cache_dir = path` - *planned*, no client defines `wb.terrain` yet; call the verb |
 | `terrain.cache_moved` | `dir` string, `files` number | `dir` | *none* — the cache mover reporting it finished |
