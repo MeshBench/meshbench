@@ -33,13 +33,14 @@ type Backend interface {
 	// HasConsole says whether anything on the far end of the bridge reads the
 	// node's serial port.
 	//
-	// Asked rather than assumed, because the two backends differ and the
-	// difference is invisible from here. The native shim implements the console
-	// frames. The emulated path does not: its peer is radioserver, which models
-	// an SX1262 over SPI and has no UART, and the emulator's own serial is
-	// opened write-only. Console input sent that way is accepted by the socket
-	// and dropped, and reporting success for it is how four capability rows
-	// came to describe a board's own boot advert as a transmission on command.
+	// Asked rather than assumed, because the backends differ and the difference
+	// is invisible from here. The native shim implements the console frames. An
+	// emulated node's bridge peer does not - radioserver models an SX1262 over
+	// SPI and has no UART - so it carries its own port instead, and whether it
+	// has one depends on the emulator and on where the board's firmware put
+	// Serial. Answering yes without one is how four capability rows came to
+	// describe a board's own boot advert as a transmission on command: the
+	// bytes are accepted by a socket and dropped.
 	HasConsole() bool
 
 	// ConsoleIn is where bytes typed at this node's serial port should go, for

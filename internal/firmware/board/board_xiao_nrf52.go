@@ -22,6 +22,9 @@ var xiaoNrf52Board = Board{
 		NssPin:   4,
 		IrqPort:  "gpio0",
 		IrqPin:   3,
+		// The Adafruit nRF52 core builds Serial as a TinyUSB CDC device, so the
+		// firmware's console is on USB and not on this part's UART.
+		ConsoleOnUSB: true,
 	},
 	Notes: "Same nRF52840 core as the RAK_4631, and wired for the same path. " +
 		"Named for the build that produces it rather than for the chip on it: " +

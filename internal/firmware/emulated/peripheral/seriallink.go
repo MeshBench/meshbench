@@ -5,14 +5,16 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
 
 // A SerialLink is an emulated node's serial port, both ways.
 //
-// The emulator publishes the port as a unix socket and we connect to it once
-// it exists, which is not at once: the socket appears when the machine starts,
+// The emulator publishes the port as a socket and we connect to it once it
+// exists, which is not at once: the socket appears when the machine starts,
 // and the caller may ask to type at the node before then. Writes therefore
 // wait for the connection rather than failing on a race the caller cannot see.
 //
@@ -27,9 +29,28 @@ type SerialLink struct {
 	err  error
 }
 
+// serialNetwork is how a serial address is reached: a path is a unix socket, and
+// anything else is a host and port.
+//
+// The two emulators publish the port differently and neither can be talked into
+// the other's form. QEMU is given a socket file, which costs no port and cannot
+// collide; Renode's server terminal only ever listens on TCP. Deciding here
+// rather than at each call site means one rule, and a caller that holds an
+// address does not also have to remember which emulator produced it.
+func serialNetwork(addr string) string {
+	// A separator, rather than "is it absolute": a node's socket is always
+	// joined onto its working directory, and a host and port has no separator
+	// in it on either platform.
+	if strings.ContainsRune(addr, filepath.Separator) {
+		return "unix"
+	}
+	return "tcp"
+}
+
 // DialSerial connects to the emulator's serial socket in the background and
 // pumps everything it says into log.
-func DialSerial(ctx context.Context, path string, log io.Writer) *SerialLink {
+func DialSerial(ctx context.Context, addr string, log io.Writer) *SerialLink {
+	network := serialNetwork(addr)
 	s := &SerialLink{ready: make(chan struct{})}
 	go func() {
 		var conn net.Conn
@@ -42,7 +63,7 @@ func DialSerial(ctx context.Context, path string, log io.Writer) *SerialLink {
 				err = ctx.Err()
 				break
 			}
-			if conn, err = net.Dial("unix", path); err == nil {
+			if conn, err = net.Dial(network, addr); err == nil {
 				break
 			}
 			time.Sleep(25 * time.Millisecond)

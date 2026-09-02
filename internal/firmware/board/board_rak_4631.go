@@ -42,6 +42,9 @@ var rak4631Board = Board{
 		NssPin:   10,
 		IrqPort:  "gpio1",
 		IrqPin:   15,
+		// The Adafruit nRF52 core builds Serial as a TinyUSB CDC device, so the
+		// firmware's console is on USB and not on this part's UART.
+		ConsoleOnUSB: true,
 	},
 
 	Notes: "The reference repeater, and the first board here to run its own " +

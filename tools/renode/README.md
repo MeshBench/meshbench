@@ -196,3 +196,39 @@ Renode's nRF52840 models the legacy half of several peripherals and firmware
 drives the EasyDMA half. spi2 declares easyDMA false, so SPIM transfers went
 nowhere; NRF52840_I2C implements the legacy TWI registers, so TWIM polled
 EVENTS_TXSTARTED for ever. Expect the next stall to be the same shape.
+
+UART0 is the same shape again, in both directions. `NRF52840_UART` implements
+the UARTE registers and logs a write to the legacy `TXD` as unhandled, so
+`tools/armfw` printed into the emulator's log and nothing else: no terminal, no
+file backend, no socket. Driving `TXD.PTR`/`TXD.MAXCNT`/`TASKS_STARTTX` instead
+puts the same characters on a port somebody can hold.
+
+## The console, and why a MeshCore board still has none
+
+A node is generated with a two-way terminal on UART0:
+
+    emulation CreateServerSocketTerminal <port> "console" false
+    connector Connect sysbus.uart0 console
+
+which the workbench connects to and copies into the node's `console.log`, so a
+board can be typed at rather than only watched. Verified against the
+`tools/armfw` image, which answers:
+
+    ver
+    -> MSIM bare-metal nRF52840
+
+**The published MeshCore images cannot use it.** Their `Serial` is not UART0:
+the Adafruit nRF52 core builds with `USE_TINYUSB`, which makes `Serial` a USB
+CDC device, and nothing here models the nRF52840's USBD. Traced over a RAK4631
+boot, UART0 is opened for 150 ms with `PSEL.TXD=P0.16` and `PSEL.RXD=P0.15`,
+StartRx, and then released: that is `Serial1` looking for a GPS, not a console.
+So the board profiles say `ConsoleOnUSB`, the generated script gets no terminal
+for them, and the node reports no console rather than publishing a port that
+answers nothing and carries somebody else's traffic.
+
+What would close it is an `NRF52840_USBD` model with enough of a host on the
+other side for TinyUSB to reach its configured state: the POWER USB events,
+EP0 SETUP through EasyDMA, set-address and set-configuration, then CDC data on
+the bulk endpoints. That is a peripheral model rather than a wiring fix, and it
+is the last thing standing between an nRF52 board and everything the workbench
+drives by console.

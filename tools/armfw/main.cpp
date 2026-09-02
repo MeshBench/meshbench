@@ -5,34 +5,71 @@
 
 using namespace mesh;
 
-// nRF52 UART0 (legacy UART, which is what Renode's NRF52840_UART models).
+// nRF52 UART0, driven as a UARTE: the EasyDMA half, not the legacy registers.
 // Register map from the nRF52840 product spec.
+//
+// The distinction decides whether anything can hear this board. Renode's
+// NRF52840_UART accepts a write to the legacy TXD register and logs it as
+// unhandled, so output that way appears in the emulator's own log and reaches
+// no terminal, no file backend and no socket - a board that could be read over
+// the emulator's shoulder and never talked to. The EasyDMA path is the one the
+// model implements, and it is what the Arduino cores drive on this part anyway.
 #define UART_BASE      0x40002000u
+#define TASKS_STARTRX  0x000
 #define TASKS_STARTTX  0x008
-#define EVENTS_TXDRDY  0x11C
+#define EVENTS_ENDRX   0x110
+#define EVENTS_ENDTX   0x120
 #define UART_ENABLE    0x500
 #define PSEL_TXD       0x50C
-#define UART_TXD       0x51C
+#define PSEL_RXD       0x514
 #define UART_BAUDRATE  0x524
+#define RXD_PTR        0x534
+#define RXD_MAXCNT     0x538
+#define TXD_PTR        0x544
+#define TXD_MAXCNT     0x548
 #define REG(o) (*(volatile uint32_t*)(UART_BASE + (o)))
+
+// EasyDMA reads and writes memory rather than a register, so the two ends of
+// the port each need a byte of RAM to point at.
+static volatile uint8_t uart_tx_byte;
+static volatile uint8_t uart_rx_byte;
+
+static void uart_rx_arm() {
+  REG(RXD_PTR)       = (uint32_t)(uintptr_t)&uart_rx_byte;
+  REG(RXD_MAXCNT)    = 1;
+  REG(EVENTS_ENDRX)  = 0;
+  REG(TASKS_STARTRX) = 1;
+}
 
 static void uart_init() {
   REG(PSEL_TXD)      = 6;           // P0.06
+  REG(PSEL_RXD)      = 8;           // P0.08
   REG(UART_BAUDRATE) = 0x01D7E000;  // 115200
-  REG(UART_ENABLE)   = 4;           // UART enabled
-  REG(TASKS_STARTTX) = 1;
+  REG(UART_ENABLE)   = 8;           // UARTE enabled
+  uart_rx_arm();
+}
+
+// -1 when nothing has arrived. Polled rather than interrupt-driven: this
+// firmware has no scheduler to be woken, and the console is the last thing it
+// does.
+static int uart_getc() {
+  if (!REG(EVENTS_ENDRX)) return -1;
+  int c = (int)uart_rx_byte;
+  uart_rx_arm();
+  return c;
 }
 
 static void uart_putc(char c) {
-  REG(EVENTS_TXDRDY) = 0;
-  REG(UART_TXD) = (uint32_t)(uint8_t)c;
-  // Short bounded wait. Renode does not model EVENTS_TXDRDY on this UART, so
-  // the flag never sets and a long ceiling burns the entire run: 63 characters
-  // at 100,000 spins each was consuming 45 s of emulated time and looking
-  // exactly like a hang in Mesh::begin(). The write itself is what Renode logs,
-  // so the handshake is not needed to observe output.
-  for (int i = 0; i < 50 && !REG(EVENTS_TXDRDY); i++) {}
-  REG(EVENTS_TXDRDY) = 0;
+  uart_tx_byte       = (uint8_t)c;
+  REG(TXD_PTR)       = (uint32_t)(uintptr_t)&uart_tx_byte;
+  REG(TXD_MAXCNT)    = 1;
+  REG(EVENTS_ENDTX)  = 0;
+  REG(TASKS_STARTTX) = 1;
+  // Bounded, because a transfer that never ends must not take the whole run
+  // with it: a ceiling of 100,000 spins per character once burned 45 s of
+  // emulated time over one line and read as a hang inside Mesh::begin().
+  for (int i = 0; i < 1000 && !REG(EVENTS_ENDTX); i++) {}
+  REG(EVENTS_ENDTX) = 0;
 }
 
 static void uart_puts(const char* s) { while (*s) uart_putc(*s++); }
@@ -177,6 +214,8 @@ public:
 static SimRadio radio; static SimClock clk; static SimRNG rng;
 static SimRTC rtc; static SimPM mgr; static SimTables tables;
 
+static void console(const SimRadio& radio);
+
 int main() {
   uart_init();
   spi_init();
@@ -214,6 +253,44 @@ int main() {
     uart_puts("sendFlood issued\r\n");
     for (int i = 0; i < 400; i++) { clk.now += 10; node.loop(); }
   }
-  uart_puts(radio.txCount > 0 ? "TX OK — mesh stack ran on ARM\r\n" : "no TX\r\n");
-  for (;;) {}
+  uart_puts(radio.txCount > 0 ? "TX OK - mesh stack ran on ARM\r\n" : "no TX\r\n");
+  console(radio);
+}
+
+// The console, which is the only way to ask this board anything once it has
+// finished its own checks.
+//
+// It is here because the emulator's serial port is two-way and nothing proved
+// the inbound half: output alone is satisfied by a board printing into a file,
+// which is what this used to do. A board that answers has been typed at, and
+// there is no other way to be sure.
+static void console(const SimRadio& radio) {
+  uart_puts("ready\r\n");
+  char line[32];
+  int n = 0;
+  for (;;) {
+    int c = uart_getc();
+    if (c < 0) continue;
+    if (c == '\r' || c == '\n') {
+      // A terminal sends both, so an empty line here is the second half of the
+      // one just answered rather than somebody pressing return at nothing.
+      if (n == 0) continue;
+      line[n] = 0;
+      uart_puts("\r\n-> ");
+      if (line[0] == 'v') {
+        uart_puts("MSIM bare-metal nRF52840");
+      } else if (line[0] == 't') {
+        uart_puts("tx=");
+        uart_putc((char)('0' + (radio.txCount % 10)));
+      } else {
+        uart_puts("unknown: ");
+        uart_puts(line);
+      }
+      uart_puts("\r\n");
+      n = 0;
+      continue;
+    }
+    if (n < (int)sizeof(line) - 1) line[n++] = (char)c;
+    uart_putc((char)c);  // echoed, so a person typing sees what they typed
+  }
 }

@@ -30,6 +30,9 @@ var heltecT096Board = Board{
 		NssPin:   5,
 		IrqPort:  "gpio0",
 		IrqPin:   21,
+		// The Adafruit nRF52 core builds Serial as a TinyUSB CDC device, so the
+		// firmware's console is on USB and not on this part's UART.
+		ConsoleOnUSB: true,
 	},
 	Notes: "The board whose transmit failure 1.17.1 fixed: PIN_SPI1_MISO was -1 " +
 		"against a 48-entry pin map, and the out-of-bounds read left the " +

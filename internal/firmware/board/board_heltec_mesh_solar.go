@@ -23,6 +23,9 @@ var heltecMeshSolarBoard = Board{
 		NssPin:   24,
 		IrqPort:  "gpio0",
 		IrqPin:   20,
+		// The Adafruit nRF52 core builds Serial as a TinyUSB CDC device, so the
+		// firmware's console is on USB and not on this part's UART.
+		ConsoleOnUSB: true,
 	},
 	Notes: "An nRF52840, not the ESP32-S3 this profile claimed for a while: the " +
 		"variant extends nrf52_base and links against the s140 SoftDevice, and " +

@@ -140,8 +140,12 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*emulated.Emulat
 			NssPin:        board.Renode.NssPin,
 			IrqPort:       board.Renode.IrqPort,
 			IrqPin:        board.Renode.IrqPin,
-			NodeName:      spec.Name,
-			Dir:           dir,
+			// Where this board's firmware puts Serial, as it is for the ESP32
+			// boards below. On this emulator it decides whether the node has a
+			// console at all, because nothing here models a USB device.
+			ConsoleOnUSB: board.Renode.ConsoleOnUSB,
+			NodeName:     spec.Name,
+			Dir:          dir,
 		}, nil
 	}
 

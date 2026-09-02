@@ -33,9 +33,12 @@ void Reset_Handler(void) {
 // A fault used to be indistinguishable from a hang: both ended in this
 // function's infinite loop, with no output. Reporting IPSR and the faulting PC
 // turns "it stopped somewhere" into an address you can pass to addr2line.
-// Pokes UART0 TXD directly rather than calling the C++ uart_putc: a fault
-// handler must not depend on the rest of the program still being sane, and it
-// must link even if that symbol is mangled or garbage-collected.
+// Pokes UART0's legacy TXD directly rather than calling the C++ uart_putc: a
+// fault handler must not depend on the rest of the program still being sane,
+// and it must link even if that symbol is mangled or garbage-collected. The
+// emulator does not model that register, so a fault is reported in its own log
+// as an unhandled write rather than on the console - which is the right way
+// round for a report that must survive the console itself being wedged.
 static void uart_putc(char c) {
   *(volatile unsigned int*)0x4000251C = (unsigned int)(unsigned char)c;
   for (volatile int i = 0; i < 50; i++) {}
