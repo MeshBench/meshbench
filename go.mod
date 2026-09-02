@@ -23,4 +23,4 @@ require (
 	golang.org/x/net v0.48.0 // indirect
 )
 
-replace gioui.org => github.com/MeshBench/gio v0.10.3-0.20260823131225-65299a60054a
+replace gioui.org => github.com/MeshBench/gio v0.10.3-0.20260902085926-ae831ef7121e
