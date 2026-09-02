@@ -17,7 +17,7 @@
    "FloodMaxSeen": 0,
    "Firmware": {
     "Role": "simple_repeater",
-    "Version": "repeater-v1.17.1",
+    "Version": "v1.17.1",
     "Board": "Generic_E22_sx1262"
    },
    "Position": {
@@ -65,7 +65,7 @@
    "FloodMaxSeen": 0,
    "Firmware": {
     "Role": "simple_repeater",
-    "Version": "repeater-v1.17.1",
+    "Version": "v1.17.1",
     "Board": "Generic_E22_sx1262"
    },
    "Position": {
