@@ -1,0 +1,84 @@
+name: diag-windows-bundle
+
+# What a released Windows bundle does when it is installed and run, which
+# windows-check never sees: that job builds from source on the runner, so it
+# proves the code compiles there and nothing about the artefact we ship.
+#
+# Deliberately on a branch trigger. It is a diagnostic, not a gate.
+
+on:
+  push:
+    branches: ['diag/windows-bundle']
+
+permissions: {}
+
+jobs:
+  bundle:
+    runs-on: windows-latest
+    steps:
+      - name: Fetch the released MSI and zip
+        shell: pwsh
+        run: |
+          gh release download v0.0.5 --repo MeshBench/meshbench `
+            --pattern "*windows-x86_64.msi" --pattern "*windows-x86_64.zip"
+          Get-ChildItem | Format-Table Name,Length
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Install the MSI
+        shell: pwsh
+        run: |
+          $msi = (Get-ChildItem *.msi)[0].FullName
+          $p = Start-Process msiexec.exe -ArgumentList "/i `"$msi`" /qn /l*v install.log" -Wait -PassThru
+          "msiexec exit: $($p.ExitCode)"
+          if ($p.ExitCode -ne 0) { Get-Content install.log -Tail 40 }
+
+      - name: What landed on disk
+        shell: pwsh
+        run: |
+          $dirs = @("$env:ProgramFiles\MeshBench", "${env:ProgramFiles(x86)}\MeshBench")
+          foreach ($d in $dirs) {
+            if (Test-Path $d) {
+              "--- $d ---"
+              Get-ChildItem $d | Select-Object Name,Length | Format-Table
+              "file count: " + (Get-ChildItem $d -Recurse -File).Count
+            }
+          }
+
+      - name: Run the installed binary and capture why it stops
+        shell: pwsh
+        run: |
+          $exe = "$env:ProgramFiles\MeshBench\meshbench.exe"
+          if (-not (Test-Path $exe)) { "NOT INSTALLED at $exe"; exit 1 }
+          # -version is the cheapest path that still initialises the binary.
+          $p = Start-Process $exe -ArgumentList "-version" -Wait -PassThru `
+                 -RedirectStandardOutput out.txt -RedirectStandardError err.txt -NoNewWindow
+          "exit code: $($p.ExitCode)"
+          "--- stdout ---"; Get-Content out.txt -ErrorAction SilentlyContinue
+          "--- stderr ---"; Get-Content err.txt -ErrorAction SilentlyContinue
+
+      - name: Headless, which exercises the same startup without a window
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $exe = "$env:ProgramFiles\MeshBench\meshbench.exe"
+          $p = Start-Process $exe -ArgumentList "headless","-fixture","" -PassThru `
+                 -RedirectStandardOutput h-out.txt -RedirectStandardError h-err.txt -NoNewWindow
+          Start-Sleep -Seconds 20
+          if (-not $p.HasExited) { "still running after 20s, which is the good case"; $p.Kill() }
+          else { "exited early with $($p.ExitCode)" }
+          "--- stdout ---"; Get-Content h-out.txt -ErrorAction SilentlyContinue | Select-Object -First 30
+          "--- stderr ---"; Get-Content h-err.txt -ErrorAction SilentlyContinue | Select-Object -First 30
+
+      - name: The zip, for comparison
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          Expand-Archive -Path (Get-ChildItem *.zip)[0].FullName -DestinationPath unzipped -Force
+          $exe = Get-ChildItem unzipped -Recurse -Filter meshbench.exe | Select-Object -First 1
+          "zip exe: $($exe.FullName)"
+          $p = Start-Process $exe.FullName -ArgumentList "-version" -Wait -PassThru `
+                 -RedirectStandardOutput z-out.txt -RedirectStandardError z-err.txt -NoNewWindow
+          "exit code: $($p.ExitCode)"
+          "--- stdout ---"; Get-Content z-out.txt -ErrorAction SilentlyContinue
+          "--- stderr ---"; Get-Content z-err.txt -ErrorAction SilentlyContinue
