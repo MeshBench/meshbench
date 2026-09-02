@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -146,5 +147,54 @@ func TestAScopeIsCanonicalisedBeforeItsKeyIsDerived(t *testing.T) {
 	// choice, and is not the same as sending under "#".
 	if got := canonicalScope("  "); got != "" {
 		t.Errorf("canonicalScope(blank) = %q, want empty", got)
+	}
+}
+
+// A control arm has to be identical to the arm it duplicates in everything
+// except the variable under test, and it was not.
+//
+// The flooded message carried the arm's label, so two arms differing only in
+// their name flooded different numbers of bytes. Airtime scales with payload
+// and airtime is what collides, which makes the size of the message part of
+// what a contention experiment is measuring - and nothing in a result could
+// show that the arms had not been given the same one. The seed is in the text
+// as well, so two runs of a single arm parted company at ten, where the number
+// grows a digit, and the seed was not the only thing separating them.
+func TestEveryCellOfAnExperimentFloodsTheSameSize(t *testing.T) {
+	e := &experiment{
+		Arms: []ExpArm{
+			{Label: "control"},
+			{Label: "cancel a queued relay"},
+			{Label: "rx_delay_base 10.0 · loop strict"},
+		},
+		Seeds: []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
+	}
+	want := len(e.cellText(e.Arms[0], e.Seeds[0]))
+	for _, a := range e.Arms {
+		for _, seed := range e.Seeds {
+			if got := len(e.cellText(a, seed)); got != want {
+				t.Errorf("%s at seed %d floods %d bytes where %s at seed %d "+
+					"floods %d: the arms differ in airtime, which is part of "+
+					"what they are being compared on",
+					a.Label, seed, got, e.Arms[0].Label, e.Seeds[0], want)
+			}
+		}
+	}
+
+	// Still identifiable: a capture has to say which cell it came from.
+	if !strings.HasPrefix(e.cellText(e.Arms[0], 3), "control seed 3") {
+		t.Errorf("a cell no longer names itself: %q", e.cellText(e.Arms[0], 3))
+	}
+
+	// And the experiment's own size is a floor rather than a replacement for
+	// it: padding shorter than the widest label leaves the arms uneven again.
+	e.Bytes = 400
+	if got := len(e.cellText(e.Arms[0], 1)); got != 400 {
+		t.Errorf("padded to %d bytes, want the 400 the experiment asked for", got)
+	}
+	e.Bytes = 4
+	if got := len(e.cellText(e.Arms[0], 1)); got != want {
+		t.Errorf("a padding of 4 gave %d bytes, want the matrix's own %d - "+
+			"the arms are uneven again", got, want)
 	}
 }

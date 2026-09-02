@@ -311,7 +311,7 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 		// wall-clock moment: arms take different amounts of real time to boot
 		// and firing on a timer compares different points of the run.
 		if !fired && eng.NowMs() >= e.SendAtMs {
-			text := padTo(fmt.Sprintf("%s seed %d", arm.Label, seed), e.Bytes)
+			text := e.cellText(arm, seed)
 			// Staggered across the burst when asked for. An arm may override
 			// the experiment's own, because "does spreading them help" is a
 			// question about the arms rather than about the run.

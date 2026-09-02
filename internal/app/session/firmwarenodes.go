@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
+	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
 func registerFirmwareNodes(st *state.Store, s *Sim) {
@@ -22,32 +23,33 @@ func registerFirmwareNodes(st *state.Store, s *Sim) {
 		if version == "" {
 			return nil, fmt.Errorf("firmware.set needs a version")
 		}
-		n := 0
-		for i := range s.nodes {
-			if node != "" && s.nodes[i].Name != node {
-				continue
+		n := s.updateNodes(w, func(n *scenario.Node, row *state.Node) bool {
+			if node != "" && n.Name != node {
+				return false
 			}
 			// The role a node runs under, not the role it has been pinned
 			// to: a node with no build chosen yet has an empty one, and
 			// those are exactly the nodes being asked about.
-			if role != "" && nodeRole(s.nodes[i]) != role {
-				continue
+			if role != "" && nodeRole(*n) != role {
+				return false
 			}
-			s.nodes[i].Firmware.Version = version
+			n.Firmware.Version = version
 			// And the engine, which holds its own copy of every spec and is
 			// the one that actually starts a process. Without this the
 			// library, the row and the message all agree with each other and
 			// the run asks for whatever the network was opened with.
 			if s.eng != nil {
-				s.eng.PinFirmware(s.nodes[i].Name, version)
+				s.eng.PinFirmware(n.Name, version)
 			}
-			n++
-		}
-		for i := range w.Nodes {
-			if node == "" || w.Nodes[i].Name == node {
-				w.Nodes[i].Firmware = version
+			// And the row, decided here rather than by a second walk with a
+			// filter of its own: the one that used to be here honoured the
+			// node name and ignored the role, so pinning a build to the
+			// repeaters drew the whole mesh as running it.
+			if row != nil {
+				row.Firmware = version
 			}
-		}
+			return true
+		})
 		w.Say(fmt.Sprintf("%d nodes pinned to %s", n, version))
 		return map[string]any{
 			"version": version, "nodes": n, "considered": len(s.nodes),
