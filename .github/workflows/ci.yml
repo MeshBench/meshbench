@@ -204,7 +204,17 @@ jobs:
     # The lab runners sit on a home LAN with a NAS mounted, so a fork's PR -
     # a stranger's code - must never land on one. Forks fall back to hosted
     # runners here rather than being skipped, so a fork PR still gets checked.
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","lab-linux"]') || fromJSON('["ubuntu-latest"]') }}
+    #
+    # lab-2404 rather than lab-linux, because this suite starts real MeshCore
+    # processes. gha-lab-3 answers to lab-linux and is the Ubuntu 22.04
+    # container that pins package.yml's glibc floor at 2.35; MeshCore's
+    # published builds need 2.38, so every node died in the dynamic linker and
+    # which runner a job landed on decided whether the suite passed. That read
+    # as an intermittent failure for a fortnight.
+    #
+    # gha-lab-3 keeps its place in the pool for everything that does not start
+    # firmware, and package.yml still asks for it by name.
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","lab-2404"]') || fromJSON('["ubuntu-latest"]') }}
     strategy:
       # One shard failing should not hide the others - a red session shard
       # and a red dsp shard are usually two different problems.
@@ -433,7 +443,10 @@ jobs:
     timeout-minutes: 90
     # No fork fallback needed: schedule and dispatch both run on this repo,
     # and dispatch requires write access to it.
-    runs-on: [self-hosted, linux, x64, lab-linux]
+    #
+    # lab-2404 for the same reason the test job asks for it: this runs the
+    # same suite, and the 22.04 runner cannot start a MeshCore build at all.
+    runs-on: [self-hosted, linux, x64, lab-2404]
     steps:
       - uses: actions/checkout@v7
 
