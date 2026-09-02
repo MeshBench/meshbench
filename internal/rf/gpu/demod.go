@@ -85,14 +85,6 @@ func (d *Device) DemodBatch(rx []complex64, sf int) (bins []int, conf []float64,
 		return nil, nil, err
 	}
 	defer out.Release()
-	read, err := d.device.CreateBuffer(&wgpu.BufferDescriptor{
-		Label: "demod-read", Size: outLen,
-		Usage: wgpu.BufferUsageCopyDst | wgpu.BufferUsageMapRead,
-	})
-	if err != nil {
-		return nil, nil, err
-	}
-	defer read.Release()
 
 	params := struct{ N, Symbols uint32 }{uint32(n), uint32(symbols)}
 	pbuf, err := d.device.CreateBufferInit(&wgpu.BufferInitDescriptor{
@@ -132,42 +124,22 @@ func (d *Device) DemodBatch(rx []complex64, sf int) (bins []int, conf []float64,
 	if err := pass.End(); err != nil {
 		return nil, nil, err
 	}
-	if err := enc.CopyBufferToBuffer(out, 0, read, 0, outLen); err != nil {
-		return nil, nil, err
-	}
 	cmd, err := enc.Finish(nil)
 	if err != nil {
 		return nil, nil, err
 	}
 	d.queue.Submit(cmd)
 
-	// Every other readback in this package polls in a loop until its callback
-	// fires rather than trusting one blocking call to be enough - match that
-	// here too, since a callback that needs a second poll to land is exactly
-	// the kind of thing that only shows up on an untested driver.
-	status := wgpu.BufferMapAsyncStatusUnknown
-	done := false
-	err = read.MapAsync(wgpu.MapModeRead, 0, outLen,
-		func(s wgpu.BufferMapAsyncStatus) { status, done = s, true })
+	raw, err := d.readBuffer(out, int(outLen))
 	if err != nil {
 		return nil, nil, err
 	}
-	for !done {
-		d.device.Poll(true, nil)
-	}
-	if status != wgpu.BufferMapAsyncStatusSuccess {
-		return nil, nil, fmt.Errorf("gpu: demod readback: %v", status)
-	}
-	raw := read.GetMappedRange(0, uint(outLen))
 	pairs := unsafe.Slice((*uint32)(unsafe.Pointer(&raw[0])), symbols*2)
 	bins = make([]int, symbols)
 	conf = make([]float64, symbols)
 	for i := 0; i < symbols; i++ {
 		bins[i] = int(pairs[i*2])
 		conf[i] = float64(pairs[i*2+1]) / 1000
-	}
-	if err := read.Unmap(); err != nil {
-		return nil, nil, err
 	}
 	return bins, conf, nil
 }

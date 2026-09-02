@@ -139,6 +139,10 @@ func registerTerrainConsent(st *state.Store, s *Sim) {
 			warming = true
 		}
 		w.Ground = s.GroundUnder(s.nodes)
+		// The readiness page reports this answer, and this verb is how the
+		// Configuration switch and a script both give it. Left alone, the page
+		// kept asking a question it had already been told the answer to.
+		rebuildSetup(s, w)
 		return map[string]any{"on": on, "asked": asked, "warming": warming}, nil
 	})
 }

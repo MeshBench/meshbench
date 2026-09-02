@@ -126,17 +126,13 @@ type Sim struct {
 	// and a different one on a continent.
 	gpuWarm bool
 	gpuMu   sync.Mutex
-	// gpuOnce runs the probe itself exactly once. warm's own goroutine and
-	// the startup gpu.state call can both reach for it on a fresh session;
-	// this is what makes the second one wait for the first's answer instead
-	// of reading gpuProbe before it exists.
-	gpuOnce sync.Once
 
 	// bench is the engine a running sweep cell owns, so the operator can watch
 	// the run they started rather than a still clock. See benchlive.go.
 	bench benchLive
-	// gpuProbe is what asking this machine for a GPU answered, kept because
-	// asking twice opens a device twice. Behind gpuMu once gpuOnce has run.
+	// gpuProbe is this session's copy of what asking the machine for a GPU
+	// answered. The asking is process-wide and happens once; this is where a
+	// Sim's own readers find the answer. Behind gpuMu.
 	gpuProbe *gpuProbe
 	// gpuAsked records that the machine has been asked whether it has a GPU,
 	// so the answer is not re-opened on every warm. Behind gpuMu.

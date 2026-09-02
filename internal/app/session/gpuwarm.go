@@ -328,12 +328,28 @@ type gpuProbe struct {
 	why     string
 }
 
-// probeGPU asks the machine what it has, exactly once - through gpuOnce,
-// not a plain nil check on gpuProbe. Two goroutines can both reach this
-// before either has set gpuProbe; a nil check races, sync.Once blocks the
-// second until the first's answer actually exists.
+// probeOnce guards the one question, and machineProbe is its answer.
+//
+// Per process rather than per session, because what hardware this machine has
+// is a fact about the machine and cannot differ between two Sims inside one
+// binary. Asking per Sim opened a device, compiled five shaders and ran three
+// kernels every time, which is waste in the application, where there is one
+// Sim, and something worse in a test binary, where there are hundreds: the
+// self-check's buffer readback is the one path in this tree that reaches a
+// use-after-free in wgpu's own buffer mapping, and asking hundreds of times
+// turned a rare upstream race into a check that failed pull requests it had
+// nothing to do with.
+var (
+	probeOnce    sync.Once
+	machineProbe *gpuProbe
+)
+
+// probeGPU asks the machine what it has, exactly once per process - through
+// probeOnce, not a plain nil check. Two goroutines can both reach this before
+// either has an answer; a nil check races, sync.Once blocks the second until
+// the first's answer actually exists.
 func (s *Sim) probeGPU() {
-	s.gpuOnce.Do(func() {
+	probeOnce.Do(func() {
 		p := &gpuProbe{}
 		if d, err := gpu.Open(); err == nil {
 			p.name, p.backend = d.Name, d.Backend
@@ -353,10 +369,11 @@ func (s *Sim) probeGPU() {
 		} else {
 			p.why = err.Error()
 		}
-		s.gpuMu.Lock()
-		s.gpuProbe = p
-		s.gpuMu.Unlock()
+		machineProbe = p
 	})
+	s.gpuMu.Lock()
+	s.gpuProbe = machineProbe
+	s.gpuMu.Unlock()
 }
 
 // gpuWorldState is the same answer as gpuState, in the shape the interface

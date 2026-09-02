@@ -42,6 +42,11 @@ func DomainState[T any](s *Sim, key string, mk func() T) T {
 var (
 	teardowns []func(*Sim)
 	ticks     []func(*Sim, *state.World)
+	// setupRebuilds re-describe the readiness page after a verb has changed an
+	// answer it reports. A tick cannot carry this: ticks run inside the engine
+	// step, and the readiness page matters most on a first run, where there is
+	// no scenario and nothing stepping.
+	setupRebuilds []func(*Sim, *state.World)
 )
 
 // RegisterTeardown adds a reset run when the engine is torn down; RegisterTick
@@ -58,6 +63,29 @@ func runTeardowns(s *Sim) {
 
 func runTicks(s *Sim, w *state.World) {
 	for _, f := range ticks {
+		f(s, w)
+	}
+}
+
+// RegisterSetupRebuild adds a re-describe of the readiness page, called from the
+// resources domain's init. The page is built there and the answers it reports on
+// are changed here, and the two are on opposite sides of an import: resources
+// reaches into session, so session cannot call back into it by name.
+func RegisterSetupRebuild(f func(*Sim, *state.World)) {
+	setupRebuilds = append(setupRebuilds, f)
+}
+
+// rebuildSetup re-describes the readiness page into w.
+//
+// Called by every verb that changes an answer the page reports, because the
+// page has to follow the state rather than the moment somebody last opened it.
+// Consent to download terrain is granted from three places - the page's own
+// row, the switch in Configuration, and a script calling the verb - and only
+// the first of them used to leave the page correct. The other two left it
+// asking a question that had already been answered, with the download it asked
+// for visibly running in the status bar underneath.
+func rebuildSetup(s *Sim, w *state.World) {
+	for _, f := range setupRebuilds {
 		f(s, w)
 	}
 }
