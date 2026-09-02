@@ -23,6 +23,14 @@ had changed in them - which is the gap this file exists to close.
 
 ### Fixed
 
+- **No published board image could be downloaded.** The catalogue derives a
+  build's version from its asset name, `v1.17.1`, while MeshCore tags its
+  releases by role, `repeater-v1.17.1`. The download asked for
+  `releases/tags/v1.17.1` and got a 404 for every board image ever offered,
+  so an emulated board could not be started by anyone whose cache did not
+  already hold one. It now finds the image the same way the library listed
+  it.
+
 - **Opening a packet in its own window crashed the workbench.** `missKinds`
   grew a sixth entry and the five chips beside it did not, so drawing the
   legend indexed past the end and the panel took the application with it. The

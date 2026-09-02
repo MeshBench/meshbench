@@ -129,12 +129,20 @@ func downloadBuildProgress(ctx context.Context, role, version, board string,
 	cache := firmware.DefaultCacheDir()
 	if board != "" {
 		bc := &emulated.BoardCatalogue{CacheDir: cache, OnProgress: onProgress}
-		imgs, err := bc.List(ctx, version)
+		// Every release rather than the one whose tag is this version,
+		// because there is no such tag. The catalogue derives a build's
+		// version from its asset name - v1.17.1 - while MeshCore tags its
+		// releases by role, repeater-v1.17.1, so asking for
+		// releases/tags/v1.17.1 answered 404 for every board image ever
+		// offered and no emulated board could be fetched at all. ListAll
+		// is what filled the library, so this finds the row the same way
+		// it was listed.
+		imgs, err := bc.ListAll(ctx)
 		if err != nil {
 			return err
 		}
 		for _, img := range imgs {
-			if img.Role == role && img.Board == board {
+			if img.Role == role && img.Board == board && img.Version == version {
 				_, err := bc.Ensure(ctx, img)
 				return err
 			}
