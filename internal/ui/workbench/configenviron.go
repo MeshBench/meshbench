@@ -102,8 +102,10 @@ func (p *configPanel) buildingsCard(t *theme.Theme, s *state.Snapshot) layout.Wi
 				"picking a database pulls footprints in patches around each "+
 					"node - not the whole bounding box, which for a national "+
 					"network is mostly empty ground - caches them like "+
-					"terrain, and switches buildings on; a pull still too "+
-					"large says so and points at tools/envgen")),
+					"terrain, and switches buildings on; a pull too large "+
+					"for a live Overpass call says so and points at "+
+					"Microsoft alone, which is priced by download size "+
+					"rather than by area")),
 			layout.Rigid(layout.Spacer{Height: t.Sp.S}.Layout),
 			layout.Rigid(p.fieldRow(t, &p.envDir, &p.loadEnv, now+". Tiles come "+
 				"from tools/envgen over Microsoft/OSM footprints; buildings add "+
