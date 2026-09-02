@@ -1,0 +1,6 @@
+// The USB device controller, which Renode's own nRF52840 platform leaves out
+// entirely. On these boards it is the console: the Adafruit core makes Serial a
+// TinyUSB CDC device, so without this a published image prints into a peripheral
+// that is not there.
+usbd: USB.NRF52840_USBD @ sysbus 0x40027000
+    -> nvic@39

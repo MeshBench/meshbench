@@ -48,12 +48,17 @@ lora: Radio.RadioServerSX1262 @ radiospi
 	}
 
 	script := filepath.Join(e.Dir, "node.resc")
+	// The host has to be included before the controller: Renode compiles each
+	// of these on its own, so a file can only see what came before it.
 	body := fmt.Sprintf(`i @%[1]s/peripherals/RadioServerSX1262.cs
 i @%[1]s/peripherals/NRF52840_Temp.cs
 i @%[1]s/peripherals/NRF52840_Clock.cs
 i @%[1]s/peripherals/NRF52840_SAADC.cs
 i @%[1]s/peripherals/NRF52840_TWIM.cs
 i @%[1]s/peripherals/NRF52840_CryptoCell.cs
+i @%[1]s/peripherals/UsbdRegisters.cs
+i @%[1]s/peripherals/UsbCdcHost.cs
+i @%[1]s/peripherals/NRF52840_USBD.cs
 
 mach create "%[2]s"
 machine LoadPlatformDescription @%[3]s
@@ -67,13 +72,15 @@ sysbus Unregister sysbus.twi0
 sysbus Unregister sysbus.twi1
 machine LoadPlatformDescription @%[1]s/twim.repl
 machine LoadPlatformDescription @%[1]s/cryptocell.repl
+machine LoadPlatformDescription @%[1]s/usbd.repl
 %[6]smachine LoadPlatformDescription @%[4]s
 
 %[5]s
 radiospi.lora Connect
 %[8]s%[7]sstart
 `, ToolsDir(), firmware.SafeNodeName(e.NodeName), e.Platform, repl, flash,
-		renode.UnregisterStockSPI(), renode.RenodeTrace(), renode.ConsoleTerminal(conPort))
+		renode.UnregisterStockSPI(), renode.RenodeTrace(),
+		renode.ConsoleTerminal(conPort, e.ConsoleOnUSB))
 	if err := os.WriteFile(script, []byte(body), 0o644); err != nil {
 		return "", err
 	}
@@ -147,25 +154,21 @@ func (e *EmulatedNode) openRenodeLogs(conPort int) (*os.File, error) {
 	return log, nil
 }
 
-// consolePort is where this node publishes its serial port, or zero for a board
-// that cannot have one.
+// consolePort is where this node publishes its serial port.
 //
-// Zero is a board whose firmware prints over USB. This emulator models no USB
-// device for the part, so the console is somewhere it cannot be reached, and a
-// terminal on the UART instead would publish a port that answers nothing - on
-// some of these boards that UART is the receiver's, so it would not even be
-// quiet.
+// A board printing over USB used to get zero here, because nothing modelled the
+// part's USB device controller and a terminal on the UART instead would publish
+// a port that answers nothing - on some of these boards that UART is the
+// receiver's, so it would not even be quiet. NRF52840_USBD is that model, and
+// the terminal now goes wherever the board's firmware put Serial.
 //
-// Otherwise a port is asked of the kernel and given up again rather than picked
-// from a range: a range collides with whatever else the machine is doing, and
-// Renode's terminal takes the port it is given and has no way to report one it
-// chose itself. The gap between closing this listener and Renode opening the
-// port is a race in principle; losing it costs a node that fails to start
-// rather than one that starts wrong.
+// The port is asked of the kernel and given up again rather than picked from a
+// range: a range collides with whatever else the machine is doing, and Renode's
+// terminal takes the port it is given and has no way to report one it chose
+// itself. The gap between closing this listener and Renode opening the port is a
+// race in principle; losing it costs a node that fails to start rather than one
+// that starts wrong.
 func (e *EmulatedNode) consolePort(ctx context.Context) (int, error) {
-	if e.ConsoleOnUSB {
-		return 0, nil
-	}
 	var lc net.ListenConfig
 	ln, err := lc.Listen(ctx, "tcp", "127.0.0.1:0")
 	if err != nil {

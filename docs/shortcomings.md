@@ -955,10 +955,12 @@ then go quiet:
 - **Two ESP32 boards boot and then assert inside ESP-IDF startup**
   (Xiao S3 WIO, Heltec V3).
 - **Two have not been attempted** (Station G2, Heltec V2).
-- **No emulated board has a console**, because the firmware talks to `Serial`
-  — USB CDC — and neither emulator platform models USB. Anything that can only
-  be established by asking the node a question is reported as untested rather
-  than as passing.
+- ~~**No emulated board has a console**, because the firmware talks to `Serial`
+  — USB CDC — and neither emulator platform models USB.~~ Both platforms model
+  it now: the ESP32 boards over USB Serial/JTAG, and the nRF52 ones over
+  `NRF52840_USBD`, which a published RAK4631 repeater image enumerates and then
+  answers a typed `ver` through. What is still true is that a board whose
+  profile names the wrong wire reads as silent rather than as misconfigured.
 
 That is the gap a new user meets first: they own a board, and the odds are it is
 not one of the three that work. Everything in the physics above matters less to

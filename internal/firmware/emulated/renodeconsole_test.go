@@ -15,10 +15,11 @@ import (
 	"github.com/MeshBench/meshbench/internal/firmware/emulated/renode"
 )
 
-// armfwImage is the SoftDevice-free image tools/armfw builds, which is the only
-// nRF52 image here whose console is on the UART: the published ones are built
-// against the Adafruit core, whose Serial is a USB CDC device Renode has no
-// model for.
+// armfwImage is the SoftDevice-free image tools/armfw builds, and the only
+// nRF52 image here whose console is on the UART. The published ones are built
+// against the Adafruit core, whose Serial is a USB CDC device; point
+// MESHBENCH_IMAGE at one of those .uf2 files and this boots it through
+// NRF52840_USBD instead, which is the harder half of the same question.
 const armfwImage = "../../../tools/armfw/build/fw.bin"
 
 // A board under Renode used to have a write-only console: its serial output
@@ -55,6 +56,16 @@ func TestLiveRenodeBoardAnswersItsConsole(t *testing.T) {
 	}
 	defer func() { _ = ln.Close() }()
 
+	// A published image is a .uf2 linked above a SoftDevice, and its console is
+	// USB; the bare-metal one is a flat binary that prints on the UART. The two
+	// say different things on the way up, so what counts as an answer differs
+	// with them.
+	published := strings.HasSuffix(strings.ToLower(image), ".uf2")
+	banner, answer := "ready", "-> MSIM"
+	if published {
+		banner, answer = "Repeater ID:", "-> v"
+	}
+
 	n := &emulated.EmulatedNode{
 		Emulator: emulated.Renode,
 		Image:    image,
@@ -66,6 +77,8 @@ func TestLiveRenodeBoardAnswersItsConsole(t *testing.T) {
 		SPIBase:  0x4002F000,
 		NssPort:  "gpio1", NssPin: 10,
 		IrqPort: "gpio1", IrqPin: 15,
+		ConsoleOnUSB:  published,
+		SoftDeviceDir: emulated.SoftDeviceDir(),
 	}
 	if err := n.Start(ctx, ln.Addr().String()); err != nil {
 		t.Fatalf("starting the board: %v", err)
@@ -79,13 +92,13 @@ func TestLiveRenodeBoardAnswersItsConsole(t *testing.T) {
 	// The board's own output first: a console that answers nothing may be a
 	// console that works and a board that has not booted, and those need
 	// different reports.
-	if !waitForConsole(ctx, t, n, "ready", 5*time.Minute) {
+	if !waitForConsole(ctx, t, n, banner, 5*time.Minute) {
 		t.Fatal("the board never printed anything on its console")
 	}
 	if _, err := n.ConsoleIn().Write([]byte("ver\r\n")); err != nil {
 		t.Fatalf("typing at the board: %v", err)
 	}
-	if !waitForConsole(ctx, t, n, "-> MSIM", 2*time.Minute) {
+	if !waitForConsole(ctx, t, n, answer, 2*time.Minute) {
 		t.Fatal("the board did not answer a typed command")
 	}
 	// The whole file, not the answer alone: the log has to carry the boot from
@@ -130,7 +143,7 @@ func waitForConsole(ctx context.Context, t *testing.T, n *emulated.EmulatedNode,
 // The console terminal is what the board's own output and input hang off, so a
 // script without it is a board nothing can be asked.
 func TestTheRenodeScriptCarriesAConsole(t *testing.T) {
-	got := renode.ConsoleTerminal(41234)
+	got := renode.ConsoleTerminal(41234, false)
 	for _, want := range []string{
 		"CreateServerSocketTerminal 41234",
 		"connector Connect sysbus.uart0 console",
@@ -146,10 +159,27 @@ func TestTheRenodeScriptCarriesAConsole(t *testing.T) {
 	}
 }
 
-// A board that prints over USB gets no terminal on its UART: nothing would
-// answer on it, and on a RAK4631 that port is the receiver's.
+// A published MeshCore image prints over USB, not on the UART, so its terminal
+// has to hang off the USB device controller. Connecting it to uart0 instead
+// publishes a port that answers nothing - and on a RAK4631 that port is the
+// receiver's, so it would not even be quiet.
+func TestABoardPrintingOverUSBGetsItsTerminalThere(t *testing.T) {
+	got := renode.ConsoleTerminal(41234, true)
+	if !strings.Contains(got, "connector Connect sysbus.usbd console") {
+		t.Errorf("the console was not put on the USB controller:\n%s", got)
+	}
+	if strings.Contains(got, "uart0") {
+		t.Errorf("the console was put on the UART as well:\n%s", got)
+	}
+}
+
+// Port zero is a board this machine cannot publish a console for at all, and it
+// gets no terminal rather than one nothing answers on.
 func TestABoardWithNoReachableConsoleGetsNoTerminal(t *testing.T) {
-	if got := renode.ConsoleTerminal(0); got != "" {
+	if got := renode.ConsoleTerminal(0, false); got != "" {
+		t.Errorf("wanted no fragment, got:\n%s", got)
+	}
+	if got := renode.ConsoleTerminal(0, true); got != "" {
 		t.Errorf("wanted no fragment, got:\n%s", got)
 	}
 }
