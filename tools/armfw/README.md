@@ -11,19 +11,23 @@ renode  # with tools/renode/armfw-radio.resc
 
 ```
    text    data     bss     dec filename
- 108963    1824   38432  149219 fw.elf
+ 109267    1824   38432  149523 fw.elf
 ```
 
-Booted under Renode, the firmware's own UART output:
+Booted under Renode, the firmware's own UART output, and then a typed command
+and its answer:
 
 ```
 MSIM bare-metal nRF52840, no SoftDevice
 SX1262 GetStatus: 20
 Mesh::begin() ok
-.....
+....
 loop x200 ok
 sendFlood issued
-TX OK — mesh stack ran on ARM
+TX OK - mesh stack ran on ARM
+ready
+ver
+-> MSIM bare-metal nRF52840
 ```
 
 That is **real MeshCore code — `Mesh`, `Dispatcher`, `Packet`, `Identity`,
@@ -132,10 +136,13 @@ it recovers is wrong.
 
 ## Notes
 
-- The UART writes appear in Renode's log as *unhandled writes to offset
-  `0x51C`*. Renode's `NRF52840_UART` models the UARTE (EasyDMA) variant, so the
-  legacy TXD register is unhandled — but the writes are still logged, and
-  decoding them recovers the text exactly.
+- The port is driven as a UARTE, through `TXD.PTR` and `TASKS_STARTTX`, and it
+  has to be. Renode's `NRF52840_UART` models that variant and leaves the legacy
+  `TXD` at `0x51C` unhandled: a write there is logged and goes nowhere else, so
+  the text could be recovered by decoding the emulator's log and could not be
+  read by a terminal, a file backend or the workbench. The fault handler still
+  writes the legacy register, deliberately, because it must not depend on a
+  console that may be the thing that is wedged.
 - `startup.c` carries newlib syscall stubs (`_sbrk` and friends). A bare-metal
   image has no OS to ask, and `_sbrk` in particular is needed because the crypto
   code allocates.

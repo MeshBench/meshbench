@@ -208,9 +208,14 @@ func waitForPort(ctx context.Context, logPath string) (int, error) {
 
 func (e *EmulatedNode) Kind() string { return "emulated" }
 
-// HasConsole is true once the emulator publishes a serial port we hold open.
-// Renode's machines do not yet, so a board booted under it is still watched
-// rather than driven.
+// HasConsole is true once the emulator publishes a serial port we hold open:
+// QEMU on a socket file, Renode on a server terminal.
+//
+// It is a question about the port and not about the emulator, which is why it
+// asks the field rather than the backend. A board whose firmware prints over
+// USB gets no port from Renode, because nothing there models a USB device, and
+// answering yes for it would leave the console pane, provisioning and the fleet
+// commands all typing into a machine that cannot hear them.
 func (e *EmulatedNode) HasConsole() bool {
 	e.mu.Lock()
 	defer e.mu.Unlock()

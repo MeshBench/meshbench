@@ -135,6 +135,17 @@ type RenodeWiring struct {
 	// board wired without it hears everything and forwards nothing.
 	IrqPort string
 	IrqPin  int
+
+	// ConsoleOnUSB says the firmware's Serial is the USB device rather than
+	// UART0, as it is on the QEMU boards that carry the same field.
+	//
+	// It costs the console outright here, where on an ESP32 it only moves it:
+	// the emulator models no USB device for this part, so a board that prints
+	// over USB cannot be heard or typed at whatever is attached to its UART.
+	// UART0 on such a board is not idle, which is the trap - a RAK4631 opens it
+	// as Serial1 to look for a GPS - so a console attached there would carry
+	// somebody else's traffic and answer nothing.
+	ConsoleOnUSB bool
 }
 
 // QEMUWiring is everything an emulated node needs beyond its firmware image.

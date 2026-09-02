@@ -23,6 +23,9 @@ var heltecT114Board = Board{
 		NssPin:   24,
 		IrqPort:  "gpio0",
 		IrqPin:   20,
+		// The Adafruit nRF52 core builds Serial as a TinyUSB CDC device, so the
+		// firmware's console is on USB and not on this part's UART.
+		ConsoleOnUSB: true,
 	},
 	Notes: "nRF52840 with a display, which is why sleep current is not the MCU's own.",
 }

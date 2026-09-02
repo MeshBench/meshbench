@@ -69,6 +69,12 @@ func (e *EmulatedNode) ConsoleLog() ([]byte, error) {
 }
 
 // ConsolePath is where this node's boot output is written.
+//
+// It is read after the fact rather than followed: the board probe compares the
+// file across a boot to decide what a board did, and the node window opens it
+// by name. What is happening now reaches a reader through TeeConsole instead,
+// because a file that is still being appended to cannot say when it has
+// finished.
 func (e *EmulatedNode) ConsolePath() string {
 	return filepath.Join(e.Dir, consoleLogName)
 }
