@@ -34,10 +34,12 @@ tar xzf meshbench-linux-x86_64.tar.gz
 cd meshbench && ./meshbench workbench
 ```
 
-Needs glibc 2.34 or newer (Ubuntu 22.04, Debian 12, RHEL 9, Fedora 35 and
-anything since) and a GPU with Vulkan or GL. The `.deb` declares its
-dependencies, so apt refuses on a machine that cannot run it rather than
-installing something that dies at launch.
+Needs glibc 2.35 or newer (Ubuntu 22.04, Debian 12, RHEL 9 and anything since)
+and a GPU with Vulkan or GL. The floor is not a preference: the Linux release
+is built on an Ubuntu 22.04 runner precisely to pin it, because glibc symbol
+versioning is one-way and a binary linked against a newer one will not start on
+an older. The `.deb` declares its dependencies, so apt refuses on a machine
+that cannot run it rather than installing something that dies at launch.
 
 ### macOS (Apple Silicon)
 

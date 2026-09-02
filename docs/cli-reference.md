@@ -342,7 +342,7 @@ Run a mesh and expose a companion to your app.
 meshbench serve -fixture fixtures/fixture-fife-strict.json
 ```
 
-58 nodes on real firmware, one companion on a loopback port it prints. Point a client at that address; -serial gives a pty instead.
+56 of the fixture's 58 nodes on real firmware - the SDR observer and the emitter boot none - and one companion on a loopback port it prints. Point a client at that address; -serial gives a pty instead.
 
 | flag | default | for | meaning |
 |---|---|---|---|

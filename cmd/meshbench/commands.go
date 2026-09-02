@@ -144,7 +144,7 @@ meshbench traffic -nodes fife.json -from "Perth Hill" -for 20000 -offline`,
 			run:     runServe,
 			examples: []example{{
 				shell: `meshbench serve -fixture fixtures/fixture-fife-strict.json`,
-				note:  `58 nodes on real firmware, one companion on a loopback port it prints. Point a client at that address; -serial gives a pty instead.`,
+				note:  `56 of the fixture's 58 nodes on real firmware - the SDR observer and the emitter boot none - and one companion on a loopback port it prints. Point a client at that address; -serial gives a pty instead.`,
 			}},
 		},
 		{
