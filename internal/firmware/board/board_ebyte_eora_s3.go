@@ -16,8 +16,15 @@ var ebyteEoRaS3Board = Board{
 	// the two boards are the same layout under different names.
 	QEMU: &QEMUWiring{
 		Machine: "esp32s3", SPI: 3, NSS: 7, Busy: 34, DIO1: 33, LED: 37,
-		PSRAMMB:  8,
-		Verified: true,
+		PSRAMMB: 8,
+		// The Arduino S3 core boots this board with Serial on the USB
+		// Serial/JTAG (ARDUINO_USB_CDC_ON_BOOT), not UART0, so the whole
+		// application console - boot banner, prompts, "Powering off" - was
+		// going to a port nothing captured while UART0 carried only the ROM
+		// bootloader's output. Measured: with the console on UART0 the log
+		// held only the reset-reason lines and nothing MeshCore printed.
+		ConsoleOnUSB: true,
+		Verified:     true,
 	},
 	Hardware: &Panel{
 		Screen: &Screen{
