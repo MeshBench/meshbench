@@ -47,7 +47,7 @@ back, plus the `BUSY` and `DIO1` lines. The native path keeps calling it
 in-process and does not change.
 
 The QEMU device is then a forwarder, not a second implementation. Same for
-`tools/renode/peripherals/SX1262.cs`, which already assumes a socket and can
+`tools/renode/peripherals/VirtualSX1262.cs`, which already assumes a socket and can
 become a forwarder too, deleting about 380 lines of C#.
 
 Its link to the RF engine already exists and stays exactly as it is.
