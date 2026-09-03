@@ -23,7 +23,7 @@ package resource
 const (
 	qemuBase   = "https://github.com/MeshBench/qemu/releases/download/v9.2.2-meshbench-sx1262-10/"
 	renodeBase = "https://github.com/MeshBench/renode/releases/download/meshbench-20260901-ca9f7e3/"
-	radioBase  = "https://github.com/MeshBench/meshcore-native/releases/download/radioserver-v2/"
+	radioBase  = "https://github.com/MeshBench/meshcore-native/releases/download/radioserver-v3/"
 )
 
 // qemuArm64LinuxIsUntried is the one platform the fork builds and this does not
@@ -67,7 +67,7 @@ const windowsFetchesNoEmulators = "the Windows zip already carries this, and " +
 // depends on the board.
 var toolReleases = []toolRelease{{
 	Name:    "radioserver",
-	Version: "v2",
+	Version: "v3",
 	MCU:     "",
 	Why: "the SX1262 model both emulators reach over a socket; every emulated " +
 		"node needs it, ESP32 or nRF52",
@@ -75,13 +75,13 @@ var toolReleases = []toolRelease{{
 	Assets: map[string]toolAsset{
 		"linux/amd64": {
 			URL:    radioBase + "radioserver-linux-amd64",
-			SHA256: "0ae3a3b02965be43a729eba8639cffe4503c47540d95ef671db64520e8d97711",
-			Bytes:  40952, Kind: plainFile, Magic: elfAMD64,
+			SHA256: "8049c3b2649d77206aedd59a6e6b732965b57ab26d4ddc962328b2f5e400b2d5",
+			Bytes:  42448, Kind: plainFile, Magic: elfAMD64,
 		},
 		"darwin/arm64": {
 			URL:    radioBase + "radioserver-darwin-arm64",
-			SHA256: "f64d880d827757c581447b701395be2c199da2b336fe9571eb263a76d13f1253",
-			Bytes:  56728, Kind: plainFile, Magic: machARM64,
+			SHA256: "33250d04783aadbed6f9c2fe2fecbbff92c4139ca370ff8c6a48df92c45dd2b9",
+			Bytes:  74888, Kind: plainFile, Magic: machARM64,
 		},
 	},
 	Unsupported: map[string]string{"windows/amd64": windowsFetchesNoEmulators},
@@ -144,8 +144,11 @@ var toolReleases = []toolRelease{{
 // somebody has to have read before pressing Fetch.
 const (
 	radioserverTerms = "radioserver is built from MeshBench/meshcore-native, which " +
-		"is MIT, and links MeshCore's own VirtualSX1262 (MIT, MeshCore contributors). " +
-		"It runs as a separate process and is not linked into MeshBench."
+		"is MIT, and links the SX1262 model from MeshBench/virtual-sx1262, also MIT. " +
+		"That model is a separate public repository because QEMU and Renode link the " +
+		"same chip, and it stays permissive because QEMU is GPLv2 and MeshBench is " +
+		"GPL-3.0-or-later, which no one copyleft licence can serve both of. " +
+		"radioserver runs as a separate process and is not linked into MeshBench."
 	qemuTerms = "QEMU is GPL-2.0, with parts under compatible licences. This build " +
 		"is our own fork - the meshbench-main branch of MeshBench/qemu, which is " +
 		"public, and every release carries the source archive the licence requires " +

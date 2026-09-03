@@ -108,7 +108,8 @@ func (p *nodeWindowPanel) radio(t *theme.Theme, gtx layout.Context, s *state.Sna
 	}
 	rows = append(rows, fem,
 		radioRow{label: "IRQ mask", value: fmt.Sprintf("%#04x", r.IRQMask),
-			why: "what the firmware allowed to raise DIO1"},
+			why: "what the firmware allowed into the chip's interrupt register"},
+		dio1MaskRow(r),
 		radioRow{label: "IRQ flags", value: fmt.Sprintf("%#04x", r.IRQFlags),
 			why: "what is raised now; a flag that sticks is a node that stops transmitting"},
 		radioRow{label: "IRQ reads", value: fmt.Sprintf("%d, %d found the air busy",
@@ -147,6 +148,36 @@ func (p *nodeWindowPanel) radio(t *theme.Theme, gtx layout.Context, s *state.Sna
 	return comp.List(t, &p.radioScroll, len(lines), func(gtx layout.Context, i int) layout.Dimensions {
 		return lines[i](gtx)
 	})(gtx)
+}
+
+// dio1MaskRow is the DIO1 routing mask, and the one row on this panel that
+// says something about a fault rather than about a setting.
+//
+// It is a different field of SetDioIrqParams from the IRQ mask above: that one
+// says what reaches the chip's interrupt register, this one says what reaches
+// the pin. RadioLib's receive default routes RxDone alone, against an IRQ mask
+// that also carries Timeout, CrcErr, HeaderValid and HeaderErr. The two being
+// equal means something is raising DIO1 that should not, and a board in that
+// state hears every packet and forwards a fraction of them - DIO1 is a level,
+// so a flag raised part-way through a carrier leaves no rising edge for the one
+// that matters.
+//
+// A dash rather than 0x0000 where the node has not said: a radioserver older
+// than this field sends a shorter record, and zero is a legal mask for a chip
+// the firmware has not configured yet. "no data" is never drawn as zero.
+func dio1MaskRow(r state.RadioState) radioRow {
+	if !r.DIO1Reported {
+		return radioRow{label: "DIO1 mask", value: "-",
+			why: "this node's radio model is older than the field"}
+	}
+	row := radioRow{label: "DIO1 mask", value: fmt.Sprintf("%#04x", r.DIO1Mask),
+		why: "what is wired out to the DIO1 pin, which is narrower than the IRQ mask"}
+	if r.DIO1Mask == r.IRQMask && r.IRQMask != 0 {
+		row.warn = true
+		row.why = "the same as the IRQ mask, so a detection flag can raise DIO1 " +
+			"part-way through a packet and leave no edge for the one that matters"
+	}
+	return row
 }
 
 func (p *nodeWindowPanel) radioLine(t *theme.Theme, gtx layout.Context, r radioRow) layout.Dimensions {

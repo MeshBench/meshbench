@@ -154,6 +154,44 @@ bytes, and it should not be described as if it were.
 - **The long tail is boards, not architectures.** One board working does not
   make fifty work.
 
+## The flood column was the chip model, twice (2026-09-03)
+
+Every `✗` in the **flood** column above, on both MCU families, came from two
+faults in `VirtualSX1262` rather than from anything about the boards. Both are
+fixed, in
+[MeshBench/virtual-sx1262](https://github.com/MeshBench/virtual-sx1262) and
+released as `radioserver-v3`.
+
+**The carrier-detect flags outlived the carrier.** `PREAMBLE_DETECTED` and
+`HEADER_VALID` were latched and never cleared when the air went quiet.
+MeshCore's `CustomSX1262::isReceiving()` reads `HEADER_VALID` to mean "the
+channel is busy now", and its stale-flag timeout is about four seconds, so on a
+mesh whose adverts arrive every few seconds that window never closed. A repeater
+with a packet to forward never saw a clear channel. That is exactly the
+"channel busy for essentially the whole run" measured on the nRF52 boards.
+
+**DIO1 was gated on the wrong mask.** `SetDioIrqParams` carries an IRQ enable
+mask and then a DIO1 routing mask; the model read the first and used it for the
+pin. RadioLib enables `RxDone`, `Timeout`, `CrcErr`, `HeaderValid` and
+`HeaderErr` in the status register but routes only `RxDone` to DIO1, so the pin
+went high part-way through the carrier and was still high when `RxDone` arrived.
+DIO1 is a level, and RadioLib attaches it on the rising edge, so there was no
+edge for the packet: MeshCore's `recvRaw` is gated on the flag that interrupt
+sets, and the frame decoded perfectly and was never read out of the chip.
+
+Measured on `Ebyte_EoRa-S3` under QEMU, eight interleaved rounds per arm on an
+otherwise idle machine: **2 of 8 before, 8 of 8 after** (Fisher exact
+p = 0.007). Interleaved and on an idle machine deliberately, because this
+measurement is biased by whatever else the host is doing - the same binary
+scored 5 of 5 and then 1 of 4 while a compile was running.
+
+**The matrix above has not been re-measured.** Those rows predate both fixes, so
+their `✗` marks record what was true when they were taken and not what a board
+does now. `Ebyte_EoRa-S3` is not in the matrix, and the nRF52 boards reach the
+same model through Renode, so both fixes should apply to them too - but should
+is not a measurement, and the boards are run one at a time here, so re-measuring
+the six of them is its own piece of work.
+
 ## Where the board matrix's failures are (last true: 2026-08-29)
 
 The README's compatibility matrix links here for what each ✗ turned out to
@@ -163,7 +201,8 @@ be, and why it is not the board's fault.
   essentially the whole run, 241 seconds of 250 on one measurement against
   zero on a board that relays, and MeshCore will not transmit into a busy
   channel. Not the wiring (resolved through each variant's own pin map), not
-  the budget, the seed, the geometry, or firmware 1.17.1.
+  the budget, the seed, the geometry, or firmware 1.17.1. **The cause was in
+  the chip model, and it is fixed** - see the note below.
 - The two ESP32-S3 boards now boot and reach their application. They used to
   restart for ever without finishing startup, 360 times in one probe,
   asserting in ESP-IDF's `do_core_init` on `esp_flash_init_default_chip()`.
@@ -184,7 +223,8 @@ be, and why it is not the board's fault.
   reset, GPIO0 included; it is a strapping pin whose pull-up holds it high,
   and reading it low is a program button held down, so MeshCore powered the
   board off after two minutes, every time, before it had adverted once.
-- What those two fail now is **flood**, in common with the nRF52 group.
+- What those two fail now is **flood**, in common with the nRF52 group. That
+  turned out not to be a board property at all: see below.
 - Three boards put the application's `Serial` on USB Serial/JTAG rather than
   UART0 (`ARDUINO_USB_CDC_ON_BOOT`): the T-Deck, the RAK3112 and the Heltec
   Wireless Tracker. Until that peripheral carried bytes they read as boards

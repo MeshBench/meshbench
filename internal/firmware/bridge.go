@@ -232,6 +232,10 @@ func (b *Bridge) read(c net.Conn) {
 				if n >= 37 {
 					st.FemAtTx = FemState(buf[36])
 				}
+				if n >= 39 {
+					st.DIO1Mask = binary.BigEndian.Uint16(buf[37:])
+					st.DIO1Reported = true
+				}
 				b.mu.Lock()
 				b.stats = st
 				b.mu.Unlock()

@@ -175,6 +175,7 @@ func (s *Sim) nodeStats(events []state.Event) []state.NodeStat {
 				FreqHz: r.FreqHz, BandwidthHz: r.BandwidthHz,
 				PreambleSyms: r.PreambleSyms,
 				IRQMask:      r.IRQMask, IRQFlags: r.IRQFlags,
+				DIO1Mask: r.DIO1Mask, DIO1Reported: r.DIO1Reported,
 			}
 			if p, ok := n.Firmware.Backend.(interface{ PID() int }); ok {
 				st.PID = p.PID()

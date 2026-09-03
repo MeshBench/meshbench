@@ -214,9 +214,13 @@ being left idle.
 
 What each ✗ turned out to be, and why it is not the board's fault, is
 recorded in [`docs/emulated-published-firmware.md`](docs/emulated-published-firmware.md):
-the nRF52 boards that will not flood report a permanently busy channel, and
 the ESP32-S3 pair's history runs through a flash quad-enable bit, an SPI
 controller numbering difference, and a strapping pin read low.
+
+The **flood** column is the exception, and its `✗` marks are stale: both
+causes were in the shared SX1262 model rather than in any board, and both are
+fixed. These rows predate the fix and record what was true when they were
+taken; re-measuring them board by board is outstanding.
 
 ## Contributing
 
