@@ -528,7 +528,9 @@ nowhere to see that they had.
 | `SF`, `CR` | `uint8` | |
 | `FreqHz`, `BandwidthHz` | `uint32` | |
 | `PreambleSyms` | `uint16` | |
-| `IRQMask`, `IRQFlags` | `uint16` | what was allowed to raise DIO1, and what is raised now — the pair tells a node stuck on a flag from one with nothing to say |
+| `IRQMask`, `IRQFlags` | `uint16` | what was allowed into the chip's interrupt register, and what is raised now - the pair tells a node stuck on a flag from one with nothing to say |
+| `DIO1Mask` | `uint16` | the narrower set wired out to the DIO1 pin, a different field of `SetDioIrqParams` from `IRQMask`. RadioLib's receive default is `RxDone` alone, so the two being equal means something is raising DIO1 that should not |
+| `DIO1Reported` | `bool` | whether the node sent `DIO1Mask` at all. A radio model older than the field sends a shorter record, and zero is a legal mask |
 
 Reported raw and presented raw. The question this answers is "is this node set
 to what I think it is", and a value translated on the way loses the ability to

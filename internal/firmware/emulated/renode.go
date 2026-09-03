@@ -42,6 +42,14 @@ lora: Radio.RadioServerSX1262 @ radiospi
 		return "", err
 	}
 
+	// Inputs the board holds high in copper. Driven from the monitor rather
+	// than the platform description because a .repl says how things are wired,
+	// not what level a pin sits at.
+	idle := ""
+	for _, p := range e.IdleHighPins {
+		idle += fmt.Sprintf("%s OnGPIO %d true\n", p.Port, p.Pin)
+	}
+
 	flash, err := e.renodeFlash()
 	if err != nil {
 		return "", err
@@ -55,6 +63,7 @@ i @%[1]s/peripherals/NRF52840_Temp.cs
 i @%[1]s/peripherals/NRF52840_Clock.cs
 i @%[1]s/peripherals/NRF52840_SAADC.cs
 i @%[1]s/peripherals/NRF52840_TWIM.cs
+i @%[1]s/peripherals/NRF52840_NVMC.cs
 i @%[1]s/peripherals/NRF52840_CryptoCell.cs
 i @%[1]s/peripherals/UsbdRegisters.cs
 i @%[1]s/peripherals/UsbCdcHost.cs
@@ -71,16 +80,17 @@ machine LoadPlatformDescription @%[1]s/saadc.repl
 sysbus Unregister sysbus.twi0
 sysbus Unregister sysbus.twi1
 machine LoadPlatformDescription @%[1]s/twim.repl
+machine LoadPlatformDescription @%[1]s/nvmc.repl
 machine LoadPlatformDescription @%[1]s/cryptocell.repl
 machine LoadPlatformDescription @%[1]s/usbd.repl
 %[6]smachine LoadPlatformDescription @%[4]s
 
 %[5]s
-radiospi.lora Connect
+%[9]sradiospi.lora Connect
 %[8]s%[7]sstart
 `, ToolsDir(), firmware.SafeNodeName(e.NodeName), e.Platform, repl, flash,
 		renode.UnregisterStockSPI(), renode.RenodeTrace(),
-		renode.ConsoleTerminal(conPort, e.ConsoleOnUSB))
+		renode.ConsoleTerminal(conPort, e.ConsoleOnUSB), idle)
 	if err := os.WriteFile(script, []byte(body), 0o644); err != nil {
 		return "", err
 	}

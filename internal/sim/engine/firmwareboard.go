@@ -30,7 +30,14 @@ import (
 // Failing here rather than later matters, because a wrong pin does not announce
 // itself - it produces a driver reporting no chip, which reads as a broken
 // emulator.
-func emulatedBackend(spec scenario.Node, allowUnverified bool) (*emulated.EmulatedNode, error) {
+// runSeed is the run's own seed, which the node mixes into its radio's noise.
+//
+// Passed in rather than derived from the node's name alone: a name is stable
+// across every run and every scenario, so seeding from it would give a node the
+// same identity for ever and make two scenarios that differ only by seed
+// produce the same keys. The rule is same seed, same scenario, same result -
+// which means a different seed has to give a different answer.
+func emulatedBackend(spec scenario.Node, allowUnverified bool, runSeed uint64) (*emulated.EmulatedNode, error) {
 	board, err := hw.BoardByName(spec.Firmware.Board)
 	if err != nil {
 		return nil, err
@@ -144,7 +151,9 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*emulated.Emulat
 			// boards below. On this emulator it decides whether the node has a
 			// console at all, because nothing here models a USB device.
 			ConsoleOnUSB: board.Renode.ConsoleOnUSB,
+			IdleHighPins: idleHigh(board.Renode.IdleHighPins),
 			NodeName:     spec.Name,
+			RunSeed:      runSeed,
 			Dir:          dir,
 		}, nil
 	}
@@ -180,6 +189,7 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool) (*emulated.Emulat
 		Busy:       board.QEMU.Busy,
 		DIO1:       board.QEMU.DIO1,
 		NodeName:   spec.Name,
+		RunSeed:    runSeed,
 		Dir:        dir,
 		// Where this board's firmware puts Serial. On a board built with
 		// ARDUINO_USB_CDC_ON_BOOT that is the USB peripheral, not UART0, and
@@ -424,4 +434,18 @@ func adc1Atten3RawForVoltage(pinMV float64) uint16 {
 		}
 	}
 	return uint16(math.Round((lo + hi) / 2))
+}
+
+// idleHigh carries the board profile's idle-high pins across the layer
+// boundary: firmware/emulated cannot import firmware/board, so the two describe
+// a pin with the same shape and this converts between them.
+func idleHigh(pins []hw.GPIOPin) []emulated.GPIOPin {
+	if len(pins) == 0 {
+		return nil
+	}
+	out := make([]emulated.GPIOPin, 0, len(pins))
+	for _, p := range pins {
+		out = append(out, emulated.GPIOPin{Port: p.Port, Pin: p.Pin})
+	}
+	return out
 }

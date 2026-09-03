@@ -101,9 +101,11 @@ func TestPinsAndCatalogueNameTheSameAssets(t *testing.T) {
 			continue
 		}
 		// Contains rather than equals: Version is what a person is shown, and
-		// radioserver's tag says radioserver-v2 where the row says v2. What
-		// must not happen is a row telling somebody it will fetch one release
-		// while the URL beside it fetches another.
+		// radioserver's tag prefixes it, so the row reads v3 where the tag reads
+		// radioserver-v3. Written as a prefix rule rather than naming a number,
+		// because a version bump should not have to edit this comment. What must
+		// not happen is a row telling somebody it will fetch one release while
+		// the URL beside it fetches another.
 		if tag := pins[prefix+"_RELEASE"]; !strings.Contains(tag, rel.Version) {
 			t.Errorf("%s tells the operator it is version %q and fetches release %q",
 				rel.Name, rel.Version, tag)

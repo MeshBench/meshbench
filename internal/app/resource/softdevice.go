@@ -55,8 +55,13 @@ type softDeviceRelease struct {
 	Bytes                int64
 }
 
-// softDevices is every release this knows how to fetch. One today, and the
-// list is the place a second goes.
+// softDevices is every release this knows how to fetch.
+//
+// The Version is the SoftDevice *family*, not the point release, because that
+// is what an image can actually tell us: the application's base address is what
+// identifies it (0x26000 for v6.1.1, 0x27000 for any v7), so a board's firmware
+// says "v7.x" and nothing narrower. Within a family one concrete release is
+// pinned and its digest checked, since a family is not something to download.
 var softDevices = []softDeviceRelease{{
 	Name: "s140", Version: "6.1.1",
 	URL:         "https://nsscprodmedia.blob.core.windows.net/prod/software-and-other-downloads/softdevices/s140/s140nrf52611.zip",
@@ -66,6 +71,24 @@ var softDevices = []softDeviceRelease{{
 	HexSHA256:   "b7666763e1b909d746ad69d2b7296c677ca86fc32fba0c5291d0535cc36335f0",
 	AppBaseHex:  0x26000,
 	Bytes:       389907,
+}, {
+	// v7, for the boards whose images link above it. Without this row
+	// Xiao_nrf52 could not be booted at all: its published image starts at
+	// 0x27000, so the emulator asked for a SoftDevice this list had no way to
+	// fetch, and the board's whole capability report read "untested" while its
+	// row in the board matrix carried a measured cross.
+	//
+	// 7.2.0 is the release pinned within the family. Nordic publishes no 7.3.0
+	// under this URL pattern (it answers 404), and 7.2.0 ends at 0x026634,
+	// which clears an application based at 0x27000.
+	Name: "s140", Version: "7.x",
+	URL:         "https://nsscprodmedia.blob.core.windows.net/prod/software-and-other-downloads/softdevices/s140/s140nrf52720.zip",
+	SHA256:      "c95cb0ca6e6e2732bef15ca043a934edb8d1e39bbf42346f61972f698bfbd915",
+	HexName:     "s140_nrf52_7.2.0_softdevice.hex",
+	LicenceName: "s140_nrf52_7.2.0_license-agreement.txt",
+	HexSHA256:   "c52b61a6ceeb58438dbef075abfc5f6812718dda78630b39e82a20829f09c125",
+	AppBaseHex:  0x27000,
+	Bytes:       448582,
 }}
 
 // SoftDevice provides the Nordic SoftDevice rows.

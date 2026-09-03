@@ -103,6 +103,14 @@ const EnvRenodeTrace = "MESHBENCH_RENODE_TRACE"
 // traffic tells them apart. Both, because which one carries the console is a
 // property of the firmware build rather than of the part, and a board wired to
 // the wrong one looks exactly like a board that never spoke.
+//
+// The interrupt path is the fourth place a board can wait, and it was the one
+// place this could not see. An nRF52 MeshCore build does not poll the radio's
+// IRQ register over SPI the way the ESP32 build does - it waits on the DIO1
+// pin - so a board whose SPI traffic looks perfect can still never be told a
+// packet arrived. That reads as a radio fault and is not one. GPIOTE and both
+// ports say whether the firmware ever armed the pin and whether the event
+// fired.
 func RenodeTrace() string {
 	if os.Getenv(EnvRenodeTrace) == "" {
 		return ""
@@ -113,5 +121,8 @@ sysbus LogPeripheralAccess sysbus.twi0 true
 sysbus LogPeripheralAccess sysbus.twi1 true
 sysbus LogPeripheralAccess sysbus.` + consoleUART + ` true
 sysbus LogPeripheralAccess sysbus.` + consoleUSB + ` true
+sysbus LogPeripheralAccess sysbus.gpiote true
+sysbus LogPeripheralAccess sysbus.gpio0 true
+sysbus LogPeripheralAccess sysbus.gpio1 true
 `
 }

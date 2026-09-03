@@ -17,7 +17,8 @@ A fork nobody outside the organisation can fetch cannot satisfy that.
 | repository | what it is | licence | public |
 |---|---|---|---|
 | `MeshBench/meshbench` | MeshBench itself | GPL-3.0-or-later, `docs/licence.md` | yes, since 1 September 2026 |
-| `MeshBench/meshcore-native` | host builds of MeshCore, `VirtualSX1262`, the bridge and `radioserver` | see its NOTICE | yes |
+| `MeshBench/meshcore-native` | host builds of MeshCore, the bridge and `radioserver` | see its NOTICE | yes |
+| `MeshBench/virtual-sx1262` | the virtual SX1262 itself, with a C ABI, vendored by everything that needs a chip | MIT, and it has to stay permissive | yes |
 | `MeshBench/meshbench-reports` | the published reports site | — | yes |
 | `MeshBench/docs` | the documentation site, six of whose pages are generated from here | not stated | yes |
 | `MeshBench/qemu` | QEMU with our SX1262 | GPLv2, upstream's | yes |
@@ -25,6 +26,15 @@ A fork nobody outside the organisation can fetch cannot satisfy that.
 | `MeshBench/renode-infrastructure` | the C# half of that fix | upstream's | yes |
 | `MeshBench/renode` | ties them together and builds the package | upstream's | yes |
 | `MeshBench/gio` | Gio with Wayland layer-shell windows | upstream's | yes |
+
+`virtual-sx1262`'s licence is the one in that table chosen by arithmetic rather
+than by preference. Four things link that model: MeshCore built for this host,
+our QEMU fork, Renode's C# peripheral, and eventually MeshBench itself. QEMU is
+GPLv2 and MeshBench is GPL-3.0-or-later, and those two copylefts are not
+compatible with each other, so no single copyleft licence lets both link one
+library. Permissive is what is left. It is also why that repository forbids
+dependencies beyond the C++ standard library: a GPL library pulled in there
+would put the licence back where it cannot be.
 
 One more in the organisation is **private**, and nothing a release ships is
 built from it, which is why it is not in the table above: `brand`, where the

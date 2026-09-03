@@ -14,6 +14,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"regexp"
+	"strconv"
+	"strings"
 
 	"github.com/MeshBench/meshbench/internal/sim/engine"
 )
@@ -37,10 +40,35 @@ const (
 // them plus their quiet waits stay inside the two flood phases ProbeBudget
 // already grants (quiet + relay), so the multi-attempt row costs no more
 // context than the single-shot one did.
-const floodAttemptMs = 90_000
+//
+// "About a second" was measured on a board under QEMU. A Renode board runs its
+// guest markedly slower against the same simulated clock - measured at roughly
+// a quarter of the pace, first advert at 105 s of simulated time against 28.5 s
+// - and every delay the firmware counts in its own milliseconds costs
+// proportionally more of this budget. MESHBENCH_FLOOD_ATTEMPT_MS exists to find
+// out whether a board that fails this row is refusing to forward or merely
+// being timed against a clock it cannot keep up with; those are different
+// faults and the row cannot tell them apart on its own.
+var floodAttemptMs = envMs("MESHBENCH_FLOOD_ATTEMPT_MS", 90_000)
 
 // floodQuietBudgetMs bounds one attempt's wait for the board to go quiet.
-const floodQuietBudgetMs = 20_000
+var floodQuietBudgetMs = envMs("MESHBENCH_FLOOD_QUIET_MS", 20_000)
+
+// envMs reads a millisecond budget from the environment, or keeps the default.
+// A value that is not a number is the default rather than a failure: a probe
+// that dies over a typo in a diagnostic setting has lost the measurement it was
+// there to take.
+func envMs(name string, def uint32) uint32 {
+	v := os.Getenv(name)
+	if v == "" {
+		return def
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n <= 0 {
+		return def
+	}
+	return uint32(n)
+}
 
 // probeFlood measures whether the board forwards the sender's advert, over
 // floodAttempts, and passes when it forwards at least half of the attempts it
@@ -50,6 +78,18 @@ func probeFlood(ctx context.Context, e *engine.Engine, report BoardReport,
 	sender *engine.Node, ok bool) BoardReport {
 	if !ok || sender.Firmware == nil {
 		report.set(Flood, Failed, "the native sender never came up")
+		return report
+	}
+	// Two different nodes, before anything is asked of them.
+	//
+	// A repeater drops an advert it believes it sent itself, so a sender and a
+	// board that share a public key make this row unmeasurable - and it fails
+	// in exactly the way a board that refuses to forward fails, which is how
+	// days get spent on the wrong layer. Emulated boards really did all share
+	// one key: their radio handed the firmware the same "random" bytes, because
+	// the model's random-number registers were backed by storage that read zero.
+	if why := sameIdentity(e, sender); why != "" {
+		report.set(Flood, Untested, why)
 		return report
 	}
 
@@ -132,3 +172,60 @@ func probeFlood(ctx context.Context, e *engine.Engine, report BoardReport,
 	}
 	return report
 }
+
+// sameIdentity reports why the flood row cannot be measured, or "".
+//
+// Best effort on purpose: a node whose identity cannot be read is not a reason
+// to refuse to measure, only a reason not to claim the two were checked. What
+// it must never do is stay quiet when they genuinely match.
+func sameIdentity(e *engine.Engine, sender *engine.Node) string {
+	under, ok := e.NodeByName("bc-under-test")
+	if !ok || under.Firmware == nil {
+		return ""
+	}
+	boardKey := consoleIdentity(under)
+	senderKey := storedIdentity(sender)
+	if boardKey == "" || senderKey == "" || !strings.EqualFold(boardKey, senderKey) {
+		return ""
+	}
+	return "the board and the sender have the same public key (" + boardKey[:16] +
+		"...), so the board would drop the advert as its own - this measures the " +
+		"harness, not the board"
+}
+
+// consoleIdentity reads the public key a repeater prints as it comes up.
+func consoleIdentity(n *engine.Node) string {
+	said, ok := n.Firmware.Backend.(interface{ ConsoleLog() ([]byte, error) })
+	if !ok {
+		return ""
+	}
+	log, err := said.ConsoleLog()
+	if err != nil {
+		return ""
+	}
+	m := repeaterID.FindSubmatch(log)
+	if m == nil {
+		return ""
+	}
+	return string(m[1])
+}
+
+// storedIdentity reads the public key out of a native node's keypair file,
+// which holds the private key, then the public key, then the display name.
+func storedIdentity(n *engine.Node) string {
+	has, ok := n.Firmware.Backend.(interface{ IdentityPath() string })
+	if !ok {
+		return ""
+	}
+	path := has.IdentityPath()
+	if path == "" {
+		return ""
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil || len(raw) < 64 {
+		return ""
+	}
+	return fmt.Sprintf("%X", raw[32:64])
+}
+
+var repeaterID = regexp.MustCompile(`Repeater ID: ([0-9A-Fa-f]{64})`)

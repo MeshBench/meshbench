@@ -362,10 +362,26 @@ type RadioState struct {
 	FreqHz       uint32
 	BandwidthHz  uint32
 	PreambleSyms uint16
-	// IRQMask is what the firmware allowed to raise DIO1; IRQFlags is what is
-	// raised now. The pair tells a node stuck on a flag from one with nothing
-	// to say.
+	// IRQMask is what the firmware allowed into the chip's interrupt status
+	// register; IRQFlags is what is raised now. The pair tells a node stuck on a
+	// flag from one with nothing to say.
 	IRQMask, IRQFlags uint16
+	// DIO1Mask is the narrower set wired out to the DIO1 pin, which is a
+	// different field of SetDioIrqParams and not the same thing as IRQMask.
+	// Worth its own row because confusing the two is a fault that has happened:
+	// the chip model gated the pin on the enable mask, so HeaderValid raised
+	// DIO1 part-way through a carrier and the pin was still high when RxDone
+	// arrived - no rising edge for a driver that attaches on one, and a board
+	// that heard every advert and forwarded about one in three.
+	//
+	// RadioLib's receive default is RxDone alone, against an IRQMask that also
+	// carries Timeout, CrcErr, HeaderValid and HeaderErr, so the two being equal
+	// is a sign rather than a normal reading.
+	DIO1Mask uint16
+	// DIO1Reported tells "this node did not say" from "this node said zero", the
+	// same way Reported does for the block above: a radioserver older than this
+	// field sends a shorter record.
+	DIO1Reported bool
 }
 
 // FleetReply is one node's answer to a fleet command, in the firmware's own

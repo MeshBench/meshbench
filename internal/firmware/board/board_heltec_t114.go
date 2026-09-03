@@ -23,6 +23,11 @@ var heltecT114Board = Board{
 		NssPin:   24,
 		IrqPort:  "gpio0",
 		IrqPin:   20,
+		// The user button, PIN_BUTTON1 = 42 in the flat numbering, which is
+		// P1.10. variants/heltec_t114/variant.cpp configures it as a plain
+		// INPUT and relies on the board's pull-up, so it has to be held high
+		// here or the firmware reads a long press and powers the node off.
+		IdleHighPins: []GPIOPin{{Port: "gpio1", Pin: 10}},
 		// The Adafruit nRF52 core builds Serial as a TinyUSB CDC device, so the
 		// firmware's console is on USB and not on this part's UART.
 		ConsoleOnUSB: true,

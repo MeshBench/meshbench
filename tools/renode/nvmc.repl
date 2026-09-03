@@ -1,0 +1,5 @@
+// The non-volatile memory controller, which Renode's nrf52840 platform has not
+// got. Without it flash cannot be erased, so LittleFS cannot format, so the
+// board has no filesystem - and a repeater with no preferences forwards
+// nothing while looking exactly like a broken radio.
+nvmc: MTD.NRF52840_NVMC @ sysbus 0x4001E000
