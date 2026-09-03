@@ -49,7 +49,7 @@ func TestWaveformCADIsWhatTheFirmwareCarrierSenses(t *testing.T) {
 	// talker with margin, so a transmission plainly occupies its air.
 	nodes := []scenario.Node{node("wf-talker", -3.90, 20), node("wf-listener", -3.85, 20)}
 
-	e := engine.New(flat{}, engine.Config{
+	e := engine.New(flatEarth{}, engine.Config{
 		FreqMHz: 869.618, SF: 8, BandwidthHz: 62_500, CodingRate: 4,
 		NoiseFigDB: 6, StepMs: 10, Seed: 4417, UnverifiedWiring: true,
 		RFMode: engine.RFWaveform,

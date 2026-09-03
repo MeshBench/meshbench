@@ -36,7 +36,7 @@ func TestTheBoardDrawsItsScreen(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
 	defer cancel()
 
-	e := engine.New(flat{}, engine.Config{
+	e := engine.New(flatEarth{}, engine.Config{
 		FreqMHz: 869.618, SF: 8, BandwidthHz: 62_500, CodingRate: 4,
 		NoiseFigDB: 6, StepMs: 10, Seed: 4417, UnverifiedWiring: true,
 	})

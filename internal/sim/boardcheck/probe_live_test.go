@@ -6,12 +6,6 @@ import (
 	"testing"
 )
 
-// flat is a terrain that answers everywhere, so a probe measures the board
-// rather than the ground under three imaginary nodes.
-type flat struct{}
-
-func (flat) ElevationM(_, _ float64) (float64, bool) { return 0, true }
-
 // One board, one real emulator boot.
 //
 //	MESHBENCH_LIVE=1 MESHBENCH_QEMU=~/.cache/meshbench/tools/qemu-system-xtensa \
@@ -40,7 +34,7 @@ func TestProbeOneBoard(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), ProbeBudget())
 	defer cancel()
 
-	report := Probe(ctx, flat{}, board, version)
+	report := Probe(ctx, board, version)
 	for _, c := range Capabilities {
 		r := report.Results[c]
 		t.Logf("%-6s %-9s %s", c, r.State, r.Detail)

@@ -14,7 +14,7 @@ import (
 )
 
 func quietEngine() *engine.Engine {
-	return engine.New(flat{}, engine.Config{StepMs: 10})
+	return engine.New(flatEarth{}, engine.Config{StepMs: 10})
 }
 
 // A budget that genuinely runs out, with ctx healthy throughout, reports

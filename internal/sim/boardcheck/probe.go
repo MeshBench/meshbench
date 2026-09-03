@@ -9,9 +9,28 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/firmware"
 	"github.com/MeshBench/meshbench/internal/firmware/emulated"
-	"github.com/MeshBench/meshbench/internal/rf/propagation"
 	"github.com/MeshBench/meshbench/internal/sim/engine"
 )
+
+// flatEarth is the terrain a probe runs over: sea level everywhere, and
+// answering everywhere (ok is always true, which is what separates it from the
+// engine's bareEarth that answers "no data").
+//
+// A probe measures a board, not the ground under three imaginary nodes. Its
+// geometry is calibrated on flat bare earth - the sender is turned down until
+// the listener cannot hear it directly, leaving the board the only path - and
+// those margins hold only over flat earth. Handed the operator's real cached
+// tiles instead, the same weak sender sat behind whatever relief happened to be
+// under the fixture's coordinates: in the Cairngorms, where the probe's nodes
+// are, 370 m of hill added some 48 dB to the 3 km sender-to-board hop and drove
+// a +29 dB margin to -18 dB, so the board could not hear the sender and every
+// board failed rx and flood identically - not for anything the board did, but
+// for the ground under a fixture, differently on every machine depending on
+// which tiles it had cached. The probe owns its terrain so it cannot happen
+// again, and so a board's result is the board's, reproducible anywhere.
+type flatEarth struct{}
+
+func (flatEarth) ElevationM(_, _ float64) (float64, bool) { return 0, true }
 
 // Probe runs every capability for one board and version, in one boot.
 //
@@ -22,7 +41,7 @@ import (
 //
 // Each phase is bounded and a phase that never produces its evidence fails,
 // rather than hanging the probe for whoever is waiting on the column.
-func Probe(ctx context.Context, terr propagation.Terrain, board, version string) (report BoardReport) {
+func Probe(ctx context.Context, board, version string) (report BoardReport) {
 	report = untestedReport(board, version)
 	report.EmulatorFP = EmulatorFingerprint()
 	report.MeasuredAt = time.Now()
@@ -99,7 +118,7 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 	// for. Refusing it here would mean a board could never leave the blocked
 	// list, because the only thing that could clear it was gated on being
 	// cleared already.
-	e := engine.New(terr, engine.Config{
+	e := engine.New(flatEarth{}, engine.Config{
 		FreqMHz: 869.618, SF: 8, BandwidthHz: 62_500, CodingRate: 4,
 		NoiseFigDB: 6, StepMs: 10, Seed: 4417,
 		UnverifiedWiring: true,
@@ -237,9 +256,28 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 			return report
 		}
 		_ = e.Run(ctx, e.NowMs()+1_000)
+		// What the sender put on the air, and what the channel recorded arriving
+		// at the board but not decoded - tracked exactly as the flood row tracks
+		// them, so a silent rx row can say which of three things happened rather
+		// than blaming the board for all of them. "no reception observed" read
+		// the same whether the sender never spoke, the packet was too weak to
+		// demodulate, or the board genuinely dropped one it heard - and the first
+		// two are not the board's doing.
+		fromSender := map[uint64]bool{}
+		misses := map[uint64]string{}
 		if err := sender.Firmware.Bridge.Type([]byte("advert\r\n")); err == nil {
 			_, rxOutcome := waitForEvent(ctx, e, advertBudgetMs, func(ev engine.Event) bool {
-				return ev.Kind == "rx" && ev.To == "bc-under-test"
+				switch {
+				case ev.Kind == "tx" && ev.From == "bc-sender":
+					// Recorded at the start of the transmission, so by the time the
+					// matching rx or miss is seen in this same scan the id is known.
+					fromSender[ev.MessageID] = true
+				case ev.Kind == "miss" && ev.To == "bc-under-test":
+					misses[ev.MessageID] = ev.Detail
+				case ev.Kind == "rx" && ev.To == "bc-under-test" && fromSender[ev.MessageID]:
+					return true
+				}
+				return false
 			})
 			switch rxOutcome {
 			case eventMatched:
@@ -247,8 +285,8 @@ func Probe(ctx context.Context, terr propagation.Terrain, board, version string)
 			case eventCancelled:
 				report.set(RX, Untested, cutShortDetail)
 			default:
-				report.set(RX, Failed, fmt.Sprintf(
-					"no reception observed within %d s", advertBudgetMs/1000))
+				state, detail := rxSilence(fromSender, misses)
+				report.set(RX, state, detail)
 			}
 		} else {
 			report.set(RX, Failed, "could not command the sender: "+err.Error())
