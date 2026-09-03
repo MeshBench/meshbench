@@ -185,24 +185,59 @@ p = 0.007). Interleaved and on an idle machine deliberately, because this
 measurement is biased by whatever else the host is doing - the same binary
 scored 5 of 5 and then 1 of 4 while a compile was running.
 
-**The matrix above has not been re-measured.** Those rows predate both fixes, so
-their `✗` marks record what was true when they were taken and not what a board
-does now. `Ebyte_EoRa-S3` is not in the matrix, and the nRF52 boards reach the
-same model through Renode, so both fixes should apply to them too - but should
-is not a measurement, and the boards are run one at a time here, so re-measuring
-the six of them is its own piece of work.
+## And the nRF52 boards were failing for two more reasons (2026-09-03)
+
+Fixing the mask made three ESP32-S3 boards forward and left every nRF52840 board
+exactly where it was. That group turned out to be failing for two further
+faults, in different layers, each of which alone was enough.
+
+**CryptoCell read modular operands too narrow.** MeshCore builds every nRF52
+board with `-D USE_CC310_HW_CRYPTO=1`, so `Identity::verify` is
+`CRYS_ECEDW_Verify` running Ed25519 in hardware. Our CC310 model loaded each
+operand at the operation's own width, but the firmware keeps field elements
+*unreduced* in the 320-bit registers - 19,087 plain `ADD` against 4 `MODADD` in
+one verification - and hands them to a 256-bit `MODMULN` expecting the machine
+to take the whole value and reduce it. That headroom is what Arm's `A=64` in
+`Np = floor(2^(N+A+X-1)/n)` exists for. Reading only the operation's width threw
+away the top of every accumulated operand, so the signature never verified, the
+advert was dropped as forged, and the packet never reached the forwarding
+decision at all.
+
+It hid because the arithmetic was never wrong: all 16,626 PKA operations in a
+verification check exactly against arbitrary-precision integers, and the decode,
+opcode numbers and status bits all match Arm's own `pka_hw_defs.h`. A correct
+operation on a truncated operand looks perfect in isolation. ESP32 boards have
+no CryptoCell and verify in software, which is why they were never affected.
+
+**An undriven input reads low, and a low on a button pin is a button held
+down.** `heltec_t114`, `heltec_t096` and `heltec_mesh_solar` configure
+`PIN_USER_BTN` as a plain `INPUT` and rely on the board's external pull-up, which
+Renode has no notion of. MeshCore saw a long press within seconds of boot,
+printed "Powering Off" and shut the node down. `rak4631` and `xiao_nrf52` use
+`INPUT_PULLUP` and were never affected, which is exactly why fixing the crypto
+made those two forward while the other three still failed. The board profiles
+carry the pins that are held high in copper, the same way they carry the radio's.
+
+All five now forward 2 of 2 on their published images. Two of them pass on the
+CryptoCell fix alone, and the three that needed the button fix are exactly those
+whose variants use plain `INPUT`, so the two are independently evidenced rather
+than a pair that happen to work together.
+
+**What is still open.** `LilyGo_TDeck` forwards nothing, on the same emulator and
+model as the ESP32-S3 boards that do. And no nRF52 board has a working
+filesystem: `IdentityStore::save()` fails every boot, so nothing a repeater
+stores survives a restart - tracked separately.
 
 ## Where the board matrix's failures are (last true: 2026-08-29)
 
 The README's compatibility matrix links here for what each ✗ turned out to
 be, and why it is not the board's fault.
 
-- The three nRF52 boards that fail **flood** report their channel busy for
-  essentially the whole run, 241 seconds of 250 on one measurement against
-  zero on a board that relays, and MeshCore will not transmit into a busy
-  channel. Not the wiring (resolved through each variant's own pin map), not
-  the budget, the seed, the geometry, or firmware 1.17.1. **The cause was in
-  the chip model, and it is fixed** - see the note below.
+- The three nRF52 boards that failed **flood** reported their channel busy for
+  essentially the whole run, 241 seconds of 250 on one measurement against zero
+  on a board that relays. That diagnosis was wrong: `busyreads` is 0 on those
+  boards, so the firmware never once read the channel as busy. They were failing
+  for the two reasons above, and all five forward now.
 - The two ESP32-S3 boards now boot and reach their application. They used to
   restart for ever without finishing startup, 360 times in one probe,
   asserting in ESP-IDF's `do_core_init` on `esp_flash_init_default_chip()`.
@@ -223,8 +258,8 @@ be, and why it is not the board's fault.
   reset, GPIO0 included; it is a strapping pin whose pull-up holds it high,
   and reading it low is a program button held down, so MeshCore powered the
   board off after two minutes, every time, before it had adverted once.
-- What those two fail now is **flood**, in common with the nRF52 group. That
-  turned out not to be a board property at all: see below.
+- What those two failed then was **flood**, which turned out not to be a board
+  property at all: see the two notes above.
 - Three boards put the application's `Serial` on USB Serial/JTAG rather than
   UART0 (`ARDUINO_USB_CDC_ON_BOOT`): the T-Deck, the RAK3112 and the Heltec
   Wireless Tracker. Until that peripheral carried bytes they read as boards
