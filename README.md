@@ -191,30 +191,46 @@ nobody has watched that board do that thing.
 | Board | MCU | Emulator | build | boot | radio | tx | rx | flood | fem | power |
 |---|---|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
 | `Generic_E22_sx1262` | ESP32 | QEMU | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `Heltec_t114` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | – | ✓ |
-| `Heltec_t096` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ? | ✓ |
-| `RAK_4631` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗† | – | ? |
-| `Xiao_nrf52` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗† | – | ? |
-| `Heltec_mesh_solar` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗† | – | ? |
-| `Xiao_S3_WIO` | ESP32-S3 | QEMU | ✓ | ✓ | ✓ | ✓ | ✓ | ✗† | – | ? |
-| `Heltec_v3` | ESP32-S3 | QEMU | ✓ | ✓ | ✓ | ✓ | ✓ | ✗† | – | ✓ |
-| `LilyGo_TDeck` | ESP32-S3 | QEMU | ✓ | ✓ | ✓ | ✓ | ✓ | ✗† | – | ? |
+| `Heltec_t114` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ✓ |
+| `Heltec_t096` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | ? | ✓ |
+| `RAK_4631` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ✓ |
+| `Xiao_nrf52` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ✓ |
+| `Heltec_mesh_solar` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ✓ |
+| `Xiao_S3_WIO` | ESP32-S3 | QEMU | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | – | ? |
+| `Heltec_v3` | ESP32-S3 | QEMU | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | – | ✓ |
+| `LilyGo_TDeck` | ESP32-S3 | QEMU | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ✓ |
+| `Ebyte_EoRa-S3` | ESP32-S3 | QEMU | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | – | ✓ |
 | `Station_G2` | ESP32-S3 | - | | | | | | | | |
 | `Heltec_v2` | ESP32 | - | | | | | | | | |
 
 ✓ passed  ✗ failed  – not applicable  ? not measurable yet  blank not attempted
 
-**†** this ✗ predates the SX1262 model fix that explains it, and has not
-been re-measured. Both causes were in the shared chip model rather than in
-any board: the carrier-detect flags outlived the carrier, so the driver read
-the channel as permanently busy, and DIO1 was gated on the IRQ enable mask
-instead of the DIO1 routing mask, so a detection flag raised the pin
-part-way through a packet and left no edge for the one that mattered. Fixed
-in [MeshBench/virtual-sx1262](https://github.com/MeshBench/virtual-sx1262)
-and released as `radioserver-v3`; measured on an `Ebyte_EoRa-S3`, which is
-not in this table, at 2 of 8 before and 8 of 8 after. The crosses stay until
-each of these boards has been run again, because a fix that should apply is
-not a measurement.
+Measured on 3 September 2026 against `radioserver-v3`, one board at a time on
+an idle machine. Every row above is a run from that day except the two blanks.
+
+The **flood** column had six crosses attributed to the boards themselves. They
+were one fault in the shared SX1262 model, and fixing it split the boards into
+three groups rather than two:
+
+- **Fixed.** `Ebyte_EoRa-S3`, `Heltec_v3` and `Xiao_S3_WIO` forward again. The
+  model gated DIO1 on the IRQ enable mask instead of the DIO1 routing mask, so a
+  detection flag raised the pin part-way through a packet and left no rising
+  edge for the `RxDone` that mattered - and RadioLib attaches that pin on the
+  rising edge. Fixed in
+  [MeshBench/virtual-sx1262](https://github.com/MeshBench/virtual-sx1262);
+  measured at 2 of 8 before and 8 of 8 after on `Ebyte_EoRa-S3`.
+- **Still failing, and specific to the board.** `LilyGo_TDeck` forwarded nothing
+  in 8 attempts across four probes, on the same emulator and the same model as
+  the three that now work. Open.
+- **Still failing, and shared across the Renode path.** All five nRF52840 boards
+  give the same line: they boot, advert unprompted, hear the sender, and forward
+  none of two. Five variants, one signature, so this is the path rather than the
+  boards. Open, and the two ticks this column used to carry for `Heltec_t114`
+  and `Heltec_t096` were as wrong as its crosses.
+
+What each board's row means in detail, and what has been ruled out on the Renode
+side, is in
+[`docs/emulated-published-firmware.md`](docs/emulated-published-firmware.md).
 
 The columns, briefly: **build** is a published image whose digest checks
 out; **boot** means the emulator attached and the node did not spend the
