@@ -15,6 +15,8 @@
 > other work could be completed against it, not because the project is
 > finished. Expect rough edges and expect things to move.
 >
+> There are also issues with QEMU on emulated boards such as IRQs getting stuck and receiving not working correctly (these do not happen in the native builds).
+>
 > **Linux is the platform it is developed and tested on.** The other two have
 > known compatibility problems, and they are being worked through:
 >
