@@ -26,6 +26,8 @@ import (
 const (
 	EnvQEMU        = "MESHBENCH_QEMU"
 	EnvRadioServer = "MESHBENCH_RADIO_SERVER"
+	// EnvNoiseSeed seeds the radio model's receiver noise, per node.
+	EnvNoiseSeed = "MESHBENCH_NOISE_SEED"
 )
 
 // Emulator is which one runs a node. It follows from the board's MCU rather
@@ -63,8 +65,18 @@ type EmulatedNode struct {
 	// FEM is the GPIO the firmware drives as the front-end module's transmit
 	// enable, or zero on a board with no module. Zero is safe as "none": GPIO 0
 	// is a strapping pin on these parts and no board routes a module to it.
-	FEM      int
+	FEM int
+	// IdleHighPins are inputs this board holds high in copper, which Renode
+	// has no notion of: an undriven input reads low, and a low on a button pin
+	// is a button held down.
+	IdleHighPins []GPIOPin
+
 	NodeName string
+	// RunSeed is the simulation's seed. With the node's name it decides this
+	// radio's noise, and through that the identity the firmware generates: two
+	// nodes in one run must differ, and the same node in two runs with
+	// different seeds must differ too.
+	RunSeed uint64
 
 	// PSRAMMB is the board's external RAM, in megabytes. Zero means none, and
 	// a firmware built expecting some will not start without it.
@@ -302,6 +314,16 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) (err error) {
 		radioArgs = append(radioArgs, "--bridge", bridge)
 	}
 	e.radio = exec.CommandContext(ctx, radioBin, radioArgs...)
+	// A seed for this node's receiver noise, which is where its firmware gets
+	// its entropy: RadioLib reads the chip's instantaneous RSSI for random bits
+	// and MeshCore derives its identity from them. Every node needs its own
+	// stream or every node comes up with the same keypair, which is what
+	// happened - two different nRF52 boards reported the same public key.
+	//
+	// From the node's name rather than from the machine, so a run stays
+	// reproducible: same scenario, same names, same noise.
+	e.radio.Env = append(os.Environ(),
+		fmt.Sprintf("%s=%d", EnvNoiseSeed, noiseSeedFor(e.RunSeed, e.NodeName)))
 	e.radio.Stdout, e.radio.Stderr = radioLog, radioLog
 	e.radio.SysProcAttr = firmware.ChildProcAttr()
 	if err := e.radio.Start(); err != nil {
@@ -445,3 +467,39 @@ func (e *EmulatedNode) TeeConsole(w io.Writer) {
 
 // Stop and stopLocked live in emulated_reap.go, beside the bounded wait they
 // depend on to reap what they kill.
+
+// noiseSeedFor turns a node's name into a seed for its receiver noise.
+//
+// FNV-1a, because it needs to be stable across runs and machines rather than
+// unpredictable: the point is that two nodes differ, not that an observer
+// cannot guess. Go's own map hashing is randomised per process and would give
+// the same node a different identity on every run.
+func noiseSeedFor(runSeed uint64, node string) uint64 {
+	const offset, prime = uint64(1469598103934665603), uint64(1099511628211)
+	h := offset
+	// The run's seed first, then the name: a node differs from its neighbours
+	// within a run, and from itself between runs that were seeded differently.
+	for i := 0; i < 8; i++ {
+		h ^= (runSeed >> (8 * i)) & 0xFF
+		h *= prime
+	}
+	for i := 0; i < len(node); i++ {
+		h ^= uint64(node[i])
+		h *= prime
+	}
+	// Never zero: a zero seed is what this whole mechanism exists to stop being
+	// the answer, and a node named such that FNV returns it should not silently
+	// rejoin the broken case.
+	if h == 0 {
+		h = prime
+	}
+	return h
+}
+
+// GPIOPin is a pin as Renode addresses it: the port's name and the pin within
+// it. Mirrors the board package's own type rather than importing it, because
+// firmware/emulated sits below firmware/board and may not reach up.
+type GPIOPin struct {
+	Port string
+	Pin  int
+}

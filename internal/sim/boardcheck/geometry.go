@@ -79,7 +79,14 @@ const nativePeerVersion = "repeater-v1.17.1"
 //
 // The cost is real: a probe takes minutes rather than one. Measuring the wrong
 // thing faster is not a saving.
-const advertBudgetMs = 240_000
+// A debug build of the firmware is the case this has to bend for. Every
+// MESH_DEBUG line goes out of a console on a guest already running several
+// times slower than real time, and a board that would advert in ninety seconds
+// takes longer than this to reach its first one - so the probe records a board
+// that never transmitted, and every row after it goes untested. That is a
+// measurement of the budget rather than of the board, and the whole point of
+// running a debug build is to be told why a later row fails.
+var advertBudgetMs = envMs("MESHBENCH_ADVERT_BUDGET_MS", 240_000)
 
 // floodQuietMs is how long the board must have been off the air before it is
 // handed the packet the flood row judges it on.

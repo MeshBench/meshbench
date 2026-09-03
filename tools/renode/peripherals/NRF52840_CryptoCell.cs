@@ -189,8 +189,23 @@ namespace Antmicro.Renode.Peripherals.Miscellaneous
             }
 
             var wordsInRegister = Words(lenId);
-            var A = aImmediate ? new BigInteger(a) : Load(a, wordsInRegister);
-            var B = bImmediate ? new BigInteger(b) : Load(b, wordsInRegister);
+            // A modular operation reads its operands at the *next* length, not
+            // its own.
+            //
+            // That is what Arm's extra 64 bits are for. The firmware keeps field
+            // elements unreduced - it adds with plain ADD at 320 bits, thousands
+            // of times, against four MODADDs - and hands them to a modular
+            // multiply at 256 bits expecting the machine to take the whole value
+            // and reduce it. Reading only the operation's own width throws away
+            // the top of every accumulated operand, which is silent: the
+            // multiply is still exact, just on a number the firmware never had.
+            //
+            // Ed25519 point decompression survives it because it reduces as it
+            // goes; the scalar multiplication that follows does not, which is
+            // why verification failed with every individual operation correct.
+            var operandWords = IsModular(op) ? Words(lenId + 1) : wordsInRegister;
+            var A = aImmediate ? new BigInteger(a) : Load(a, operandWords);
+            var B = bImmediate ? new BigInteger(b) : Load(b, operandWords);
             var N = Load((int)(slots & 0x1F), wordsInRegister);
             // The shift opcodes carry their count in the operand-2 field and
             // shift by one more than it says, which is how a zero-length shift
@@ -253,6 +268,11 @@ namespace Antmicro.Renode.Peripherals.Miscellaneous
             // MULHIGH is the exception the documentation calls out: its result
             // is one word wider than the operation by design, and the register
             // slots are mapped with the headroom to hold it.
+            // A result wider than the register is how this machine reports a
+            // carry; the register keeps the low words, as the hardware does.
+            // MULHIGH is the exception the documentation calls out: its result
+            // is one word wider than the operation by design, and the register
+            // slots are mapped with the headroom to hold it.
             var outWords = op == OpMulHigh ? wordsInRegister + 1 : wordsInRegister;
             var span = BigInteger.One << (outWords * 32);
             if(result.Sign < 0)
@@ -264,6 +284,24 @@ namespace Antmicro.Renode.Peripherals.Miscellaneous
             {
                 result %= span;
                 carry = true;
+            }
+
+            // Differential tracing: every operation with its operands, so the
+            // arithmetic can be checked against a reference outside this
+            // process. An accelerator that returns a plausible wrong answer is
+            // silent by nature, and the only way to find which operation lies
+            // is to check all of them.
+            if(tracing)
+            {
+                // Straight to a file, not through the logger: Renode truncates a
+                // long log line and a 576-bit operand does not survive it, which
+                // is a trace that looks complete and silently is not.
+                System.IO.File.AppendAllText(tracePath, string.Format(
+                    "{0} w={1} ra={2} rb={3} rr={4} rn={5} ai={6} bi={7} A={8} B={9} N={10} R={11}\n",
+                    Name(op), wordsInRegister, a, b, r, slots & 0x1F,
+                    aImmediate ? 1 : 0, bImmediate ? 1 : 0,
+                    A.ToString("X"), B.ToString("X"), N.ToString("X"),
+                    result.ToString("X")));
             }
 
             status = 0;
@@ -326,8 +364,33 @@ namespace Antmicro.Renode.Peripherals.Miscellaneous
             return Reduce(t, n);
         }
 
+        // Whether an operation reduces by N, and so reads operands that may be
+        // carrying the firmware's accumulated headroom.
+        private static bool IsModular(uint op)
+        {
+            switch(op)
+            {
+                case OpModAdd:
+                case OpModSub:
+                case OpModMul:
+                case OpModMulN:
+                case OpModExp:
+                case OpModMlac:
+                case OpModMlacNr:
+                case OpModInv:
+                case OpReduction:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
         private int Words(int lenId)
         {
+            if(lenId >= bits.Length)
+            {
+                lenId = bits.Length - 1;
+            }
             var n = (int)((bits[lenId] + 31) / 32);
             return n < 1 ? 1 : n;
         }
@@ -424,6 +487,10 @@ namespace Antmicro.Renode.Peripherals.Miscellaneous
         // Anything this model does not have a name for is worth a line: an
         // unmodelled block that answers zero is silently wrong, which is the
         // failure this file exists to avoid.
+        private static readonly string tracePath =
+            System.Environment.GetEnvironmentVariable("MESHBENCH_PKA_TRACE");
+        private static readonly bool tracing = !string.IsNullOrEmpty(tracePath);
+
         private void Note(string what, long offset, uint value)
         {
             int n;

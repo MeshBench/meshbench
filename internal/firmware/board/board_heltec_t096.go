@@ -30,6 +30,10 @@ var heltecT096Board = Board{
 		NssPin:   5,
 		IrqPort:  "gpio0",
 		IrqPin:   21,
+		// The user button, PIN_BUTTON1 = P1.10. This variant configures it
+		// as a plain INPUT and relies on the board's pull-up, so it has to be
+		// held high here or the firmware reads a long press and powers off.
+		IdleHighPins: []GPIOPin{{Port: "gpio1", Pin: 10}},
 		// The Adafruit nRF52 core builds Serial as a TinyUSB CDC device, so the
 		// firmware's console is on USB and not on this part's UART.
 		ConsoleOnUSB: true,

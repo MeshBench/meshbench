@@ -58,13 +58,25 @@ func TestAskTheBoardWhatItDidWithIt(t *testing.T) {
 		if err := under.Firmware.Bridge.Type([]byte(cmd + "\r\n")); err != nil {
 			t.Fatalf("no console: %v", err)
 		}
-		settle(ctx, e, 6_000)
+		// Long enough for a Renode board. Six seconds is ample under QEMU and is
+		// not enough here: an nRF52 guest runs at roughly a quarter of the pace
+		// against the same simulated clock, so a question asked of it comes back
+		// as a bare echo and reads as an unsupported command rather than a slow
+		// one.
+		settle(ctx, e, 30_000)
 		after, _ := said.ConsoleLog()
 		return strings.TrimSpace(string(after[len(before):]))
 	}
 
 	settle(ctx, e, 90_000)
 	t.Logf("stats-packets, before\n%s", ask("stats-packets"))
+	// Whether the board will forward at all, which is a stored preference and
+	// not a property of the build. disable_fwd defaults to off but is read back
+	// from a prefs file, so a board whose filesystem comes up wrong can be a
+	// repeater that has quietly been told not to repeat - indistinguishable
+	// from a radio fault from outside, and the first thing to rule out before
+	// blaming anything below it.
+	t.Logf("get repeat -> %s", ask("get repeat"))
 
 	// The probe adverts twice - once to prove reception, once to ask for a
 	// relay - and only the second is timestamped. Reproduce that here, because

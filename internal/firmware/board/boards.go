@@ -115,6 +115,13 @@ type FEM struct {
 // transfers bytes into an address with nothing behind it. And chip select is a
 // GPIO: Renode's SPI model never calls FinishTransmission, so without the NSS
 // pin wired the chip takes bytes for ever and executes no command.
+// GPIOPin is a pin as Renode addresses it: the port's name and the pin within
+// it, not the flat number an Arduino core uses.
+type GPIOPin struct {
+	Port string
+	Pin  int
+}
+
 type RenodeWiring struct {
 	// Platform is the base platform description, relative to Renode's own
 	// directory.
@@ -135,6 +142,22 @@ type RenodeWiring struct {
 	// board wired without it hears everything and forwards nothing.
 	IrqPort string
 	IrqPin  int
+
+	// IdleHighPins are inputs the board holds high with an external pull-up,
+	// which Renode has no notion of.
+	//
+	// An undriven input reads low here, and a low on a button pin is a button
+	// held down. The Heltec T114 configures its user button as a plain INPUT and
+	// leans on the board's own pull-up, so MeshCore saw a a thousand-millisecond
+	// long press within a second of boot, printed "Powering Off" and shut the
+	// node down before it could relay anything. The RAK4631 has no user button
+	// and was never affected, which is why this looked like a fault in the radio
+	// the two boards share.
+	//
+	// The same shape as the ESP32-S3's GPIO0 strapping pin in
+	// docs/emulated-published-firmware.md: an input nobody drives is not a zero,
+	// it is whatever the board wired it to.
+	IdleHighPins []GPIOPin
 
 	// ConsoleOnUSB says the firmware's Serial is the USB device rather than
 	// UART0, as it is on the QEMU boards that carry the same field.

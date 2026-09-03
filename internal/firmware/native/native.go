@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
@@ -318,3 +319,17 @@ const gracePeriod = 2 * time.Second
 // reapPeriod is how long the kill is given to take effect. It exists only so
 // that a teardown ends, and a node that is behaving never reaches it.
 const reapPeriod = 5 * time.Second
+
+// IdentityPath is where this node keeps its keypair, or "" if it has no
+// filesystem yet.
+//
+// Exported so a harness can check that two nodes are actually different nodes.
+// A repeater drops an advert it believes it sent itself, so a test whose sender
+// and receiver share a key measures nothing and reports it as a board that will
+// not forward - which is exactly the shape of a real fault and wastes days.
+func (n *Native) IdentityPath() string {
+	if n.WorkDir == "" {
+		return ""
+	}
+	return filepath.Join(n.WorkDir, "_main.id")
+}
