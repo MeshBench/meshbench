@@ -1,4 +1,6 @@
-i @tools/renode/peripherals/RadioServerSX1262.cs
+i @tools/renode/peripherals/VirtualSX1262Lib.cs
+i @tools/renode/peripherals/VirtualSX1262Engine.cs
+i @tools/renode/peripherals/VirtualSX1262.cs
 
 mach create "armfw"
 machine LoadPlatformDescription @platforms/cpus/nrf52840.repl

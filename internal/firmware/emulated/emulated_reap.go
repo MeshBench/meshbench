@@ -3,7 +3,6 @@ package emulated
 import (
 	"errors"
 	"fmt"
-	"os"
 	"os/exec"
 	"time"
 )
@@ -21,14 +20,11 @@ func (e *EmulatedNode) stopLocked() error {
 		e.serial = nil
 	}
 	var procs []*exec.Cmd
-	for _, c := range []*exec.Cmd{e.qemu, e.radio} {
-		if c == nil || c.Process == nil {
-			continue
-		}
-		_ = c.Process.Kill()
-		procs = append(procs, c)
+	if e.qemu != nil && e.qemu.Process != nil {
+		_ = e.qemu.Process.Kill()
+		procs = append(procs, e.qemu)
 	}
-	e.qemu, e.radio = nil, nil
+	e.qemu = nil
 	if e.renodeStdin != nil {
 		_ = e.renodeStdin.Close()
 		e.renodeStdin = nil
@@ -40,8 +36,6 @@ func (e *EmulatedNode) stopLocked() error {
 		_ = e.GPS.Close()
 		e.GPS = nil
 	}
-	sock := e.sock
-
 	// Reaped with the lock released: a process killed while blocked on a
 	// stalled disk or network write does not die the instant it is killed, it
 	// dies when that write returns, and waiting for it here - as this used to -
@@ -52,7 +46,6 @@ func (e *EmulatedNode) stopLocked() error {
 	err := reapAll(procs, reapPeriod)
 	e.mu.Lock()
 
-	_ = os.Remove(sock)
 	// Released only once every process that might still be touching Dir is
 	// confirmed gone. A reap that timed out leaves the lock held: a node this
 	// backend can no longer account for might still be writing to it, and

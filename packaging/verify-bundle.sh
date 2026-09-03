@@ -27,9 +27,9 @@ here=$(cd "$(dirname "$0")" && pwd)
 . "$here/emulator-pins.env"
 
 case "$platform" in
-  linux-amd64)   qemu=$QEMU_ASSET_LINUX_AMD64;  renode=$RENODE_ASSET_LINUX_AMD64;  radio=$RADIOSERVER_ASSET_LINUX_AMD64 ;;
-  darwin-arm64)  qemu=$QEMU_ASSET_DARWIN_ARM64; renode=$RENODE_ASSET_DARWIN_ARM64; radio=$RADIOSERVER_ASSET_DARWIN_ARM64 ;;
-  windows-amd64) qemu=$QEMU_ASSET_WINDOWS_AMD64; renode=$RENODE_ASSET_WINDOWS_AMD64; radio=$RADIOSERVER_ASSET_WINDOWS_AMD64 ;;
+  linux-amd64)   qemu=$QEMU_ASSET_LINUX_AMD64;  renode=$RENODE_ASSET_LINUX_AMD64;  chip=$CHIPMODEL_ASSET_LINUX_AMD64;  chipfile=libvirtualsx1262.so ;;
+  darwin-arm64)  qemu=$QEMU_ASSET_DARWIN_ARM64; renode=$RENODE_ASSET_DARWIN_ARM64; chip=$CHIPMODEL_ASSET_DARWIN_ARM64; chipfile=libvirtualsx1262.dylib ;;
+  windows-amd64) qemu=$QEMU_ASSET_WINDOWS_AMD64; renode=$RENODE_ASSET_WINDOWS_AMD64; chip=$CHIPMODEL_ASSET_WINDOWS_AMD64; chipfile=libvirtualsx1262.dll ;;
   *) echo "verify-bundle: unknown platform $platform" >&2; exit 2 ;;
 esac
 
@@ -66,7 +66,22 @@ require() {
   fail=1
 }
 
-require radioserver "$radio" "no emulated board can start at all"
+# The chip is looked for by its own file name rather than by a tool name: a
+# shared library is named by its platform, and that is the name the emulator
+# will be handed.
+require "$chipfile" "$chip" "no emulated board can start at all"
+
+# Renode's platform descriptions and our own peripherals. Renode reads them at
+# runtime rather than having them compiled in, so a bundle that carries both
+# emulators and not these can start an ESP32 board and not an nRF52 one - which
+# reads as a broken emulator rather than as a missing file, and is exactly the
+# shape of thing a bundle check is for.
+if [ -f "$dir/renode-support/peripherals/VirtualSX1262.cs" ]; then
+  echo "verify-bundle: renode-support -> $(ls "$dir"/renode-support/peripherals/*.cs | wc -l | tr -d ' ') peripherals"
+else
+  echo "::error::$platform bundle has no renode-support, so nRF52 boards cannot emulate" >&2
+  fail=1
+fi
 require qemu-system-xtensa "$qemu" "ESP32 boards cannot emulate"
 require renode "$renode" "nRF52 boards cannot emulate"
 

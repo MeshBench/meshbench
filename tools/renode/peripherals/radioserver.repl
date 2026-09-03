@@ -1,8 +1,0 @@
-// A machine with nothing but the radio, for testing the wire in isolation.
-//
-// No CPU: what is under test is whether the peripheral and the radio model
-// agree about chip select framing and byte order, and a CPU would only add a
-// firmware's opinion to a question that does not need one.
-radio: Radio.RadioServerSX1262 @ sysbus
-    host: "127.0.0.1"
-    port: 7777

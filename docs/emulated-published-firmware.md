@@ -160,7 +160,8 @@ Every `✗` in the **flood** column above, on both MCU families, came from two
 faults in `VirtualSX1262` rather than from anything about the boards. Both are
 fixed, in
 [MeshBench/virtual-sx1262](https://github.com/MeshBench/virtual-sx1262) and
-released as `radioserver-v3`.
+released as `radioserver-v3`, which was the last of them: the chip moved into
+the emulators and that process was retired.
 
 **The carrier-detect flags outlived the carrier.** `PREAMBLE_DETECTED` and
 `HEADER_VALID` were latched and never cleared when the air went quiet.

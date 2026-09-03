@@ -436,7 +436,7 @@ to it by the engine's tick rather than read off the host. A node running in an
 emulator is outside all of that, and structurally rather than by oversight.
 
 Its firmware is a published image. There is nothing in it that could receive a
-tick, so what acknowledges the engine is `radioserver`, the chip model on our
+tick, so what acknowledges the engine is the chip model on our
 side of the socket, and the acknowledgement means the message was handled, not
 that the guest has reached that instant. The guest is meanwhile running against
 QEMU's or Renode's own clock, under neither `-icount` nor a Renode quantum, so

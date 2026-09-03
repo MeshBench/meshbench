@@ -76,7 +76,7 @@ jobs:
         with: { go-version: '1.25', cache: false }
 
       # Checked before anything is built, because a missing tool used to
-      # surface eight steps later as "no radioserver-v1 release" - naming a
+      # surface eight steps later as "no such release" - naming a
       # release that exists. That was gh, which is not part of a bare Ubuntu
       # image; the fetches use curl now, which is here and was already used
       # for the emoji font.
@@ -197,15 +197,17 @@ jobs:
         run: |
           set -e
           # No || here. It used to swallow the downloader's own error and
-          # report "no radioserver release", which was wrong - the release
-          # existed and gh was not installed - and sent the reader to the wrong
-          # repository. set -e stops the job; the script says why.
+          # report "no release", which was wrong - the release existed and gh
+          # was not installed - and sent the reader to the wrong repository.
+          # set -e stops the job; the script says why.
           . packaging/emulator-pins.env
-          tools/fetch-release-asset.sh MeshBench/meshcore-native "$RADIOSERVER_RELEASE" \
-            "/$RADIOSERVER_ASSET_LINUX_AMD64\$" dist/meshbench
-          mv "dist/meshbench/$RADIOSERVER_ASSET_LINUX_AMD64" dist/meshbench/radioserver
-          chmod +x dist/meshbench/radioserver
-          dist/meshbench/radioserver 2>&1 | head -1 || true
+          tools/fetch-release-asset.sh MeshBench/virtual-sx1262 "$CHIPMODEL_RELEASE" \
+            "/$CHIPMODEL_ASSET_LINUX_AMD64\$" dist/meshbench
+          tar xzf "dist/meshbench/$CHIPMODEL_ASSET_LINUX_AMD64" -C dist/meshbench
+          mv dist/meshbench/virtual-sx1262-linux-amd64/lib/libvirtualsx1262.so \
+            dist/meshbench/
+          rm -rf dist/meshbench/virtual-sx1262-linux-amd64 \
+            "dist/meshbench/$CHIPMODEL_ASSET_LINUX_AMD64"
 
       - name: Fonts and fixtures
         run: |
@@ -217,6 +219,17 @@ jobs:
           curl -fsSL -o dist/meshbench/fonts/NotoColorEmoji.ttf \
             https://github.com/googlefonts/noto-emoji/raw/main/fonts/NotoColorEmoji.ttf \
             || echo "::warning::emoji font not fetched, bundle falls back to system fonts"
+          # Renode's platform descriptions and our own C# peripherals. They are
+          # ours, they are text, and Renode reads them at runtime rather than
+          # having them compiled in - so a bundle without them ships two
+          # emulators and can start a board on only one of them. That reads as a
+          # broken emulator rather than as a missing file, which is why this is
+          # here rather than in a note.
+          mkdir -p dist/meshbench/renode-support/peripherals
+          cp tools/renode/*.repl dist/meshbench/renode-support/
+          cp tools/renode/peripherals/*.cs tools/renode/peripherals/*.repl \
+            dist/meshbench/renode-support/peripherals/
+
           # The shipped fixtures, so the workbench has something to open on a
           # machine with nothing else on it.
           cp -r fixtures dist/meshbench/fixtures
@@ -268,10 +281,10 @@ jobs:
           qemu-system-xtensa is a symlink on purpose. QEMU resolves its own path
           to find its data files, so a bare copy of the binary will not run.
 
-          radioserver is the SX1262 model the emulated firmware clocks over a
-          socket. It is the same chip object a native node uses in process, so
-          an emulated node and a native one are the same radio. Both emulators
-          need it; neither works without it.
+          libvirtualsx1262 is the SX1262 itself, loaded by whichever emulator
+          runs a board. It is the same model a native node links, so an emulated
+          node and a native one are the same radio. Both emulators need it;
+          neither works without it.
 
           Native MeshCore builds and board images are downloaded on first use and
           cached under ~/.cache/meshbench. Nothing else is needed.
@@ -330,14 +343,16 @@ jobs:
           APP=dist/AppDir
           mkdir -p $APP/usr/bin $APP/usr/share/applications \
                    $APP/usr/share/metainfo $APP/usr/share/meshbench
-          # radioserver too: it is 40 KB, and without it an installed
-          # MeshBench cannot emulate even when the user supplies their own
-          # QEMU. The emulators themselves stay out of the AppImage and the
+          # The chip model too: it is a hundred kilobytes, and without it an
+          # installed MeshBench cannot emulate even when the user supplies their
+          # own QEMU. The emulators themselves stay out of the AppImage and the
           # .deb on size grounds - 110 MB against 26 - so those two are the
           # application, and the tarball is the batteries-included download.
-          cp dist/meshbench/meshbench dist/meshbench/radioserver $APP/usr/bin/
+          cp dist/meshbench/meshbench dist/meshbench/libvirtualsx1262.so $APP/usr/bin/
           cp -r dist/meshbench/fixtures dist/meshbench/fonts \
                 dist/meshbench/LICENCES $APP/usr/share/meshbench/
+          # Beside the binary, which is where SupportDir looks first.
+          cp -r dist/meshbench/renode-support $APP/usr/bin/
           cp packaging/meshbench.desktop $APP/usr/share/applications/
           cp packaging/io.github.meshbench.meshbench.metainfo.xml $APP/usr/share/metainfo/
           for px in 16 24 32 48 64 128 256 512; do
@@ -372,7 +387,7 @@ jobs:
             mkdir -p $d
             cp packaging/icons/meshbench-${px}.png $d/io.github.meshbench.meshbench.png
           done
-          cp $APP/usr/bin/meshbench $APP/usr/bin/radioserver $DEB/usr/bin/
+          cp $APP/usr/bin/meshbench $APP/usr/bin/libvirtualsx1262.so $DEB/usr/bin/
           cp -r $APP/usr/share/meshbench/* $DEB/usr/share/meshbench/
           cp packaging/meshbench.desktop $DEB/usr/share/applications/
           cp packaging/io.github.meshbench.meshbench.metainfo.xml $DEB/usr/share/metainfo/
@@ -519,12 +534,22 @@ jobs:
           if [ -f "$EMU/Release/osx-arm64/Renode" ]; then
             ln -sf ../Resources/emulators/Release/osx-arm64/Renode "$APP/Contents/MacOS/renode"
           fi
-          # The radio model. A real file rather than a link: it is 40 KB and
+          # The chip model. A real file rather than a link: it is small and
           # resolves nothing from its own path.
-          tools/fetch-release-asset.sh MeshBench/meshcore-native "$RADIOSERVER_RELEASE" \
-            "/$RADIOSERVER_ASSET_DARWIN_ARM64\$" "$APP/Contents/MacOS"
-          mv "$APP/Contents/MacOS/$RADIOSERVER_ASSET_DARWIN_ARM64" "$APP/Contents/MacOS/radioserver"
-          chmod +x "$APP/Contents/MacOS/radioserver"
+          tools/fetch-release-asset.sh MeshBench/virtual-sx1262 "$CHIPMODEL_RELEASE" \
+            "/$CHIPMODEL_ASSET_DARWIN_ARM64\$" "$APP/Contents/MacOS"
+          tar xzf "$APP/Contents/MacOS/$CHIPMODEL_ASSET_DARWIN_ARM64" -C "$APP/Contents/MacOS"
+          mv "$APP/Contents/MacOS/virtual-sx1262-macos-arm64/lib/libvirtualsx1262.dylib" \
+            "$APP/Contents/MacOS/"
+          rm -rf "$APP/Contents/MacOS/virtual-sx1262-macos-arm64" \
+            "$APP/Contents/MacOS/$CHIPMODEL_ASSET_DARWIN_ARM64"
+          # Renode's platform descriptions and our own peripherals, beside the
+          # binary where SupportDir looks first. Without them this bundle can
+          # start an ESP32 board and not an nRF52 one.
+          mkdir -p "$APP/Contents/MacOS/renode-support/peripherals"
+          cp tools/renode/*.repl "$APP/Contents/MacOS/renode-support/"
+          cp tools/renode/peripherals/*.cs tools/renode/peripherals/*.repl \
+            "$APP/Contents/MacOS/renode-support/peripherals/"
           # What the app actually carries, asked the way a node asks, before it
           # is signed and sealed into a dmg nobody will open again.
           packaging/verify-bundle.sh "$APP/Contents/MacOS" darwin-arm64
@@ -686,13 +711,19 @@ jobs:
           ls -la
           cd ../..
 
-          # The radio model. It takes the TCP transport - the simulator asks
-          # for ":0" on Windows for both emulators, because Windows has no
-          # Unix socket mingw can reach.
-          tools/fetch-release-asset.sh MeshBench/meshcore-native "$RADIOSERVER_RELEASE" \
-            "/$RADIOSERVER_ASSET_WINDOWS_AMD64\$" dist/meshbench
-          mv "dist/meshbench/$RADIOSERVER_ASSET_WINDOWS_AMD64" dist/meshbench/radioserver.exe
-          file dist/meshbench/radioserver.exe
+          # The chip model, which whichever emulator runs a board loads.
+          tools/fetch-release-asset.sh MeshBench/virtual-sx1262 "$CHIPMODEL_RELEASE" \
+            "/$CHIPMODEL_ASSET_WINDOWS_AMD64\$" dist/meshbench
+          tar xzf "dist/meshbench/$CHIPMODEL_ASSET_WINDOWS_AMD64" -C dist/meshbench
+          mv dist/meshbench/virtual-sx1262-windows-amd64/lib/libvirtualsx1262.dll \
+            dist/meshbench/
+          rm -rf dist/meshbench/virtual-sx1262-windows-amd64 \
+            "dist/meshbench/$CHIPMODEL_ASSET_WINDOWS_AMD64"
+          file dist/meshbench/libvirtualsx1262.dll
+          mkdir -p dist/meshbench/renode-support/peripherals
+          cp tools/renode/*.repl dist/meshbench/renode-support/
+          cp tools/renode/peripherals/*.cs tools/renode/peripherals/*.repl \
+            dist/meshbench/renode-support/peripherals/
           # What the zip actually carries, asked the way a node asks.
           packaging/verify-bundle.sh dist/meshbench windows-amd64
           cat > dist/meshbench/README.txt <<'TXT'
@@ -711,10 +742,10 @@ jobs:
           a memory stick, a build agent, or anywhere an installer is unwanted.
 
           Whichever emulators are published for Windows are in this zip, with
-          radioserver.exe, the SX1262 model they clock over a socket. They are
-          found automatically, and they are MeshBench builds rather than
-          upstream ones - ours carry an SX1262 device and a SEVONPEND fix that
-          published firmware needs.
+          libvirtualsx1262.dll, the SX1262 they load. They are found
+          automatically, and they are MeshBench builds rather than upstream
+          ones - ours carry an SX1262 device and a SEVONPEND fix that published
+          firmware needs.
 
           Help > Setup cannot download a replacement on Windows - it reads ELF
           and Mach-O headers rather than PE - so the zip is where they come
@@ -739,7 +770,7 @@ jobs:
         # agent, or anyone who wants no installer.
         #
         # What the installer adds is a deliberate location. This bundle finds
-        # the emulators and radioserver.exe beside meshbench.exe, so a user who
+        # the emulators and the chip model beside meshbench.exe, so a user who
         # unpacks the zip into Downloads and then moves the one executable
         # somewhere tidy - which is the natural thing to do with a single
         # executable - has broken emulation and will not be told why. The

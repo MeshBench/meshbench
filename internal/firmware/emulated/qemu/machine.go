@@ -49,11 +49,15 @@ func CoprocAtReset() bool {
 	return v != "" && v != "0" && !strings.EqualFold(v, "false")
 }
 
-// Machine is the -machine argument for this board, radioAt being where the
-// radio device should look for the model.
-func (c Config) Arg(radioAt string) string {
-	machine := fmt.Sprintf("%s,radio-path=%s,radio-spi=%d,radio-nss=%d,radio-busy=%d",
-		c.Machine, radioAt, c.SPI, c.NSS, c.Busy)
+// Machine is the -machine argument for this board, bridge being the host:port
+// where the engine is listening for this node.
+//
+// The chip itself is not named here. It is a library the emulator loads, found
+// through MESHBENCH_RADIO_LIB, because which chip model a node runs is a
+// property of the installation rather than of the board being emulated.
+func (c Config) Arg(bridge string) string {
+	machine := fmt.Sprintf("%s,radio-bridge=%s,radio-spi=%d,radio-nss=%d,radio-busy=%d",
+		c.Machine, bridge, c.SPI, c.NSS, c.Busy)
 	// Only when the board records one. Without it the machine leaves the line
 	// unwired, and the firmware never learns a packet arrived - it reads a
 	// received packet solely from the interrupt this pin raises.

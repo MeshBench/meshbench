@@ -7,25 +7,25 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
-	"strconv"
-	"strings"
 	"sync"
-	"time"
 
 	"github.com/MeshBench/meshbench/internal/firmware"
 	"github.com/MeshBench/meshbench/internal/firmware/emulated/peripheral"
 )
 
-// EnvQEMU overrides the emulator binary, and EnvRadioServer the radio model.
+// EnvQEMU overrides the emulator binary, and EnvRadioLib the chip model.
 //
 // Both are ours rather than distribution packages: the emulator carries an
 // SX1262 device and a GPIO implementation that upstream does not have, and the
-// radio model is the same one native nodes run against. A released build ships
+// chip is the same virtual-sx1262 a native node links. A released build ships
 // both, and until then these say where to find them.
 const (
-	EnvQEMU        = "MESHBENCH_QEMU"
-	EnvRadioServer = "MESHBENCH_RADIO_SERVER"
+	EnvQEMU = "MESHBENCH_QEMU"
+	// EnvRadioLib is read by the emulator, not by us: QEMU's sx1262 device and
+	// Renode's peripheral both load the library named here. It is passed down
+	// rather than put on a machine argument because which chip model is
+	// installed is a property of this machine and not of the board.
+	EnvRadioLib = "MESHBENCH_RADIO_LIB"
 	// EnvNoiseSeed seeds the radio model's receiver noise, per node.
 	EnvNoiseSeed = "MESHBENCH_NOISE_SEED"
 )
@@ -42,11 +42,13 @@ const (
 
 // EmulatedNode is one node running a published board image under QEMU.
 //
-// Two processes rather than one: the emulator, and the radio model it talks to
-// over a socket. Keeping the model in its own process is what lets an emulated
-// node and a native node share the same chip implementation - the alternative
-// was a second model inside the emulator, and two models that must agree
-// eventually do not.
+// One process. The emulator holds the chip itself, as a library it loads, and
+// the only socket left is the one to the engine - which is genuinely elsewhere,
+// because the channel is shared with every other node. There used to be a third
+// process in between, owning the chip and forwarding SPI a byte at a time, and
+// it cost more than the round trips: an emulated node and a native one reached
+// the same model down different paths, and the paths disagreed for months
+// without anything noticing. Now they call the same library.
 type EmulatedNode struct {
 	// Image is the flash image to boot: a merged .bin, which carries the
 	// bootloader and partition table as well as the application. A bare
@@ -180,9 +182,11 @@ type EmulatedNode struct {
 
 	// renodeStdin holds Renode's monitor open; see startRenode.
 	renodeStdin *os.File
-	radio       *exec.Cmd
-	sock        string
-	radioPort   int
+
+	// radioEnv is the emulator's environment: where the chip model is and what
+	// this node's receiver noise is seeded with. Built in Start, because the
+	// seed depends on the run and the node's name.
+	radioEnv []string
 
 	// workLock is this process's exclusive claim on Dir, held from Start until
 	// stopLocked has confirmed every process that might still be touching it
@@ -195,27 +199,6 @@ type EmulatedNode struct {
 	// console is where the serial port's output goes: the log file always, and
 	// whoever is currently listening as well.
 	console *firmware.ConsoleSink
-}
-
-func waitForPort(ctx context.Context, logPath string) (int, error) {
-	for i := 0; i < 200; i++ {
-		if b, err := os.ReadFile(logPath); err == nil {
-			if i := strings.Index(string(b), "127.0.0.1:"); i >= 0 {
-				rest := string(b)[i+len("127.0.0.1:"):]
-				if j := strings.IndexAny(rest, "\r\n"); j > 0 {
-					if p, err := strconv.Atoi(strings.TrimSpace(rest[:j])); err == nil {
-						return p, nil
-					}
-				}
-			}
-		}
-		select {
-		case <-ctx.Done():
-			return 0, ctx.Err()
-		case <-time.After(25 * time.Millisecond):
-		}
-	}
-	return 0, fmt.Errorf("firmware: the radio model never said which port it took")
 }
 
 func (e *EmulatedNode) Kind() string { return "emulated" }
@@ -245,21 +228,21 @@ func (e *EmulatedNode) ConsoleIn() io.Writer {
 	return e.serial
 }
 
-// Start brings up the radio model and then the emulator.
+// Start brings the emulator up, with the chip inside it.
 //
-// Order matters: the device connects to the socket as it is realized, so a
-// QEMU started first fails immediately with "cannot reach the radio model".
-// The engine hands over its listener for this node; empty leaves the node deaf
-// and mute, booting and then waiting for ever on a transmission that cannot
-// complete, which looks like a hang rather than a missing argument.
+// bridge is the engine's listener for this node, as host:port. The radio joins
+// it as the machine is built, so the engine must already be listening; empty
+// leaves the node deaf and mute, booting and then waiting for ever on a
+// transmission that cannot complete, which looks like a hang rather than a
+// missing argument.
 func (e *EmulatedNode) Start(ctx context.Context, bridge string) (err error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	// A second Start on a node already running would overwrite e.qemu and
-	// e.radio with a new pair, orphaning the first: nothing would hold their
-	// PIDs any more, and Stop would kill only the second pair.
-	if e.qemu != nil || e.radio != nil {
+	// A second Start on a node already running would overwrite e.qemu with a
+	// new process, orphaning the first: nothing would hold its PID any more,
+	// and Stop would kill only the second.
+	if e.qemu != nil {
 		return fmt.Errorf("firmware: emulated node already started")
 	}
 	if e.Image == "" {
@@ -284,63 +267,28 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) (err error) {
 			_ = e.stopLocked()
 		}
 	}()
-	// A Unix socket for QEMU on Linux and macOS; a TCP port for Renode
-	// anywhere, and for either emulator on Windows.
+	// Where the chip comes from, and what its receiver's noise is seeded with.
+	// Both reach the emulator through its environment rather than through a
+	// machine argument: which chip model is installed is a property of this
+	// machine, not of the board, and the seed is a property of the run.
 	//
-	// Renode has always used a port: it runs on Mono, whose Unix domain
-	// socket support is not worth betting a node on. QEMU used a socket file,
-	// which is the one thing Windows cannot give it - so emulated ESP32
-	// boards stopped at the platform rather than at anything technical. The
-	// device takes either now (it parses the string), and a Unix socket stays
-	// the default where there is one: it needs no port and cannot collide.
-	if e.Emulator == Renode || runtime.GOOS == "windows" {
-		// Port 0 asks the radio model to choose, and it prints what it got.
-		e.sock = ":0"
-	} else {
-		e.sock = filepath.Join(e.Dir, "radio.sock")
-		_ = os.Remove(e.sock)
-	}
-
-	radioBin, err := lookupTool("radioserver")
+	// The seed is where the firmware's entropy comes from. RadioLib reads the
+	// chip's instantaneous RSSI for random bits and MeshCore derives its
+	// identity from them, so every node needs its own stream or every node
+	// comes up with the same keypair - which is what happened, and two
+	// different nRF52 boards reported the same public key. Derived from the
+	// node's name rather than from the machine, so a run stays reproducible:
+	// same scenario, same names, same noise.
+	radioLib, err := lookupTool(radioLibName)
 	if err != nil {
 		return err
 	}
-	radioLog, err := os.Create(filepath.Join(e.Dir, "radio.log"))
-	if err != nil {
-		return err
-	}
-	radioArgs := []string{e.sock}
-	if bridge != "" {
-		radioArgs = append(radioArgs, "--bridge", bridge)
-	}
-	e.radio = exec.CommandContext(ctx, radioBin, radioArgs...)
-	// A seed for this node's receiver noise, which is where its firmware gets
-	// its entropy: RadioLib reads the chip's instantaneous RSSI for random bits
-	// and MeshCore derives its identity from them. Every node needs its own
-	// stream or every node comes up with the same keypair, which is what
-	// happened - two different nRF52 boards reported the same public key.
-	//
-	// From the node's name rather than from the machine, so a run stays
-	// reproducible: same scenario, same names, same noise.
-	e.radio.Env = append(os.Environ(),
+	e.radioEnv = append(os.Environ(),
+		fmt.Sprintf("%s=%s", EnvRadioLib, radioLib),
 		fmt.Sprintf("%s=%d", EnvNoiseSeed, noiseSeedFor(e.RunSeed, e.NodeName)))
-	e.radio.Stdout, e.radio.Stderr = radioLog, radioLog
-	e.radio.SysProcAttr = firmware.ChildProcAttr()
-	if err := e.radio.Start(); err != nil {
-		return fmt.Errorf("firmware: starting the radio model: %w", err)
-	}
-	if e.sock == ":0" {
-		port, err := waitForPort(ctx, filepath.Join(e.Dir, "radio.log"))
-		if err != nil {
-			return err
-		}
-		e.radioPort = port
-	} else if err := waitForSocket(ctx, e.sock); err != nil {
-		return err
-	}
 
 	if e.Emulator == Renode {
-		if err := e.startRenode(ctx); err != nil {
+		if err := e.startRenode(ctx, bridge); err != nil {
 			return err
 		}
 		return nil
@@ -354,13 +302,7 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) (err error) {
 		return err
 	}
 
-	// What the device is told to connect to: the socket file, or the port the
-	// radio model chose when there is no socket file to have.
-	radioAt := e.sock
-	if e.radioPort != 0 {
-		radioAt = fmt.Sprintf("127.0.0.1:%d", e.radioPort)
-	}
-	machine := e.machineString(radioAt)
+	machine := e.machineString(bridge)
 
 	// The board's own output and the emulator's are two different things, and
 	// separating them is what makes either readable. They shared console.log,
@@ -437,6 +379,7 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) (err error) {
 	}
 	args = append(args, qemuDebugArgs(e.Dir)...)
 	e.qemu = exec.CommandContext(ctx, qemuBin, args...)
+	e.qemu.Env = e.radioEnv
 	e.qemu.Stdout, e.qemu.Stderr = emuLog, emuLog
 	// The emulator dies with the simulator. Without this a workbench killed
 	// outright leaves a qemu-system-xtensa and a radioserver per node running,

@@ -1,0 +1,9 @@
+// A machine with nothing but the radio, for testing the seam in isolation.
+//
+// No CPU: what is under test is whether the peripheral and the chip library
+// agree about chip select framing and byte order, and a CPU would only add a
+// firmware's opinion to a question that does not need one. The engine port is
+// nominal; nothing here needs one.
+radio: Radio.VirtualSX1262 @ sysbus
+    engineHost: "127.0.0.1"
+    enginePort: 7777

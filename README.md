@@ -205,7 +205,7 @@ nobody has watched that board do that thing.
 
 ✓ passed  ✗ failed  – not applicable  ? not measurable yet  blank not attempted
 
-Measured on 3 September 2026 against `radioserver-v3`, one board at a time on
+Measured on 3 September 2026 against `virtual-sx1262` v1.3.0, one board at a time on
 an idle machine. Every row above is a run from that day except the two blanks.
 
 What each board's row means in detail is in

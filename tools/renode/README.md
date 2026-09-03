@@ -153,7 +153,7 @@ The radio model has no way to say so. Its emulator protocol is four tags - chip
 select, transfer, and read-busy - with no interrupt channel, because the QEMU
 path did not need one. Closing this needs:
 
-  - a read-IRQ tag in radioserver, answering the chip's IRQ line
+  - the chip's own DIO1 line, pushed to the peripheral
   - the Renode peripheral polling it and driving a GPIO
   - that GPIO wired to P_LORA_DIO_1 for the board in question
 
@@ -188,7 +188,7 @@ Two routes from here, and the second is the one we can ship:
 2. Build an nRF52 variant in meshcore-native, the way variants/host works:
    software crypto, real RadioLib over nRF52 SPI, no SoftDevice. Not the flashed
    bytes, but a real ARM build of the same source that can be handed to anyone,
-   and the radio path to radioserver is already proven from ARM.
+   and the radio path to the chip model is already proven from ARM.
 
 ### The pattern worth remembering
 

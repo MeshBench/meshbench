@@ -30,7 +30,7 @@ func TestAScenarioSaysWhichEmulatorToolsItNeeds(t *testing.T) {
 	want := map[string]int{
 		// Every emulated node needs the radio model; the emulator follows the
 		// MCU, and the node with no board is not emulated at all.
-		"radioserver": 2, "renode": 1, "qemu-system-xtensa": 1,
+		"virtual-sx1262": 2, "renode": 1, "qemu-system-xtensa": 1,
 	}
 	for name, n := range want {
 		if got[name] != n {

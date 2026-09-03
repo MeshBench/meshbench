@@ -213,9 +213,12 @@ func TestVerifyBundleRefusesABundleWithoutItsEmulators(t *testing.T) {
 	// layouts the emulators actually unpack into.
 	full := t.TempDir()
 	for _, name := range []string{
-		"radioserver",
+		"libvirtualsx1262.so",
 		"qemu-meshbench/bin/qemu-system-xtensa",
 		"renode_1.16.1-portable/renode",
+		// Renode reads these at runtime, so a bundle without them can start an
+		// ESP32 board and not an nRF52 one.
+		"renode-support/peripherals/VirtualSX1262.cs",
 	} {
 		p := filepath.Join(full, name)
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {

@@ -9,9 +9,9 @@ spi2: SPI.NRF52840_SPI @ sysbus 0x40023000
     easyDMA: true
     -> nvic@0x23
 
-// Not a model of a chip - a wire to radioserver, which owns the same
-// VirtualSX1262 a native node reaches in process and an emulated ESP32 reaches
-// over a socket. One chip, three ways in.
-lora: Radio.RadioServerSX1262 @ spi2
-    host: "127.0.0.1"
-    port: 7777
+// The chip itself, as the library QEMU loads and a native node links. The port
+// is the RF engine's, not a chip server's: there is no longer anything between
+// the peripheral and the model.
+lora: Radio.VirtualSX1262 @ spi2
+    engineHost: "127.0.0.1"
+    enginePort: 7777

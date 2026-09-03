@@ -62,7 +62,7 @@ func TestCatalogueIsPinnedToATag(t *testing.T) {
 	for _, c := range []struct{ key, base string }{
 		{"QEMU_RELEASE", qemuBase},
 		{"RENODE_RELEASE", renodeBase},
-		{"RADIOSERVER_RELEASE", radioBase},
+		{"CHIPMODEL_RELEASE", chipBase},
 	} {
 		// "latest" moves under whoever published last, which is the whole
 		// failure this file exists to stop.
@@ -82,7 +82,7 @@ func TestCatalogueIsPinnedToATag(t *testing.T) {
 // project, and qemu-system-xtensa against QEMU is exactly where a derivation
 // would have to start guessing.
 var pinPrefix = map[string]string{
-	"radioserver":        "RADIOSERVER",
+	"virtual-sx1262":     "CHIPMODEL",
 	"qemu-system-xtensa": "QEMU",
 	"renode":             "RENODE",
 }
@@ -101,8 +101,8 @@ func TestPinsAndCatalogueNameTheSameAssets(t *testing.T) {
 			continue
 		}
 		// Contains rather than equals: Version is what a person is shown, and
-		// radioserver's tag prefixes it, so the row reads v3 where the tag reads
-		// radioserver-v3. Written as a prefix rule rather than naming a number,
+		// A tag may prefix its version, as radioserver-v3 once did. Written as a
+		// prefix rule rather than naming a number,
 		// because a version bump should not have to edit this comment. What must
 		// not happen is a row telling somebody it will fetch one release while
 		// the URL beside it fetches another.

@@ -1,22 +1,20 @@
-// Where the emulator, the radio model and the sockets between them are found.
+// Where the emulator, the chip model and Renode's support files are found.
 //
 // Kept apart from the node itself because none of it is about a node: it is
 // about this machine, and what is installed on it.
 package emulated
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"time"
 
 	"github.com/MeshBench/meshbench/internal/firmware/emulated/renode"
 )
 
-// ToolsDir is where the emulator and the radio model are kept.
+// ToolsDir is where the emulator and the chip model are kept.
 //
 // The same shape as the native build cache, and for the same reason: a desktop
 // application is not launched from a shell, so it does not inherit one's PATH.
@@ -52,6 +50,11 @@ func lookupTool(name string) (string, error) {
 	if runtime.GOOS == "windows" {
 		candidates = append(candidates, name+".exe")
 	}
+	// A tool with a file name of its own is looked for under that first, and
+	// under its own name after: the fetcher finishes by linking what it
+	// unpacked to the tool's name, so both spellings are real on a machine
+	// that downloaded it.
+	candidates = append(tool.files, candidates...)
 	subdirs := []string{"", "qemu/bin", "qemu-meshbench/bin"}
 	if self, err := os.Executable(); err == nil {
 		dir := filepath.Dir(self)
@@ -83,11 +86,42 @@ func lookupTool(name string) (string, error) {
 	return "", tool.missing(name)
 }
 
+// SupportDir is where Renode's platform descriptions and our C# peripherals
+// are, which is not the same question as where a binary is.
+//
+// Looked for the way a tool is: an override, then beside the simulator, then
+// the tools directory. "renode-support" and not "renode", because the emulator
+// binary is called that and a directory sharing its name is a trap for whoever
+// reads the bundle next. A release bundle carries them beside the binary, because
+// they are ours and they are text - four kilobytes of .repl and the peripherals
+// Renode has not got - and a bundle that shipped both emulators and neither of
+// these could start an ESP32 board and not an nRF52 one, which reads as a
+// broken emulator rather than as a missing file.
+func SupportDir() string {
+	if p := os.Getenv(EnvRenodeSupport); p != "" {
+		return p
+	}
+	// It counts only when it actually holds the files: an empty directory of
+	// that name beside the binary would otherwise win over a populated tools
+	// directory and take every nRF52 board down with it.
+	if self, err := os.Executable(); err == nil {
+		beside := filepath.Join(filepath.Dir(self), "renode-support")
+		if fileExists(filepath.Join(beside, "peripherals", "VirtualSX1262.cs")) {
+			return beside
+		}
+	}
+	return ToolsDir()
+}
+
+// EnvRenodeSupport points at that directory, for a checkout driving a build
+// that is not beside its own tree.
+const EnvRenodeSupport = "MESHBENCH_RENODE_SUPPORT"
+
 // emulatorTool is what somebody has to be told when one of these is not on the
 // machine, and it differs per tool.
 //
 // One message for all three said "ours carries the SX1262 device", which is
-// QEMU's reason. Renode's is the SEVONPEND fix, and radioserver has no
+// QEMU's reason. Renode's is the SEVONPEND fix, and the chip model has no
 // distribution build to be mistaken for at all, so a person missing Renode was
 // sent to think about a device that had nothing to do with their problem.
 type emulatorTool struct {
@@ -98,6 +132,11 @@ type emulatorTool struct {
 	// ours is why a build from anywhere else will not do, empty where there is
 	// no other build to confuse this one with.
 	ours string
+	// files are the names to look for on disk, where they are not the tool's
+	// own name. A shared library is named by its platform rather than by what
+	// it is, so the chip model is libvirtualsx1262.so, .dylib or .dll and the
+	// name here has to stay the one a person and the catalogue both use.
+	files []string
 }
 
 // missing is the error a boot fails with, and the only place that says how to
@@ -126,14 +165,32 @@ func fileExists(p string) bool {
 	return err == nil && !st.IsDir()
 }
 
-// emulatorTools is the three binaries an emulated node starts, and what a
-// person is owed when one of them is absent.
+// radioLibName is what the chip model is called on this platform, and the name
+// under which a released bundle unpacks it.
+const radioLibName = "virtual-sx1262"
+
+// radioLibFiles is what that library is actually called on disk here. A shared
+// library is named by its platform rather than by what it is.
+var radioLibFiles = func() []string {
+	switch runtime.GOOS {
+	case "windows":
+		return []string{"libvirtualsx1262.dll"}
+	case "darwin":
+		return []string{"libvirtualsx1262.dylib"}
+	default:
+		return []string{"libvirtualsx1262.so"}
+	}
+}()
+
+// emulatorTools is the three things an emulated node needs on this machine, and
+// what a person is owed when one of them is absent.
 var emulatorTools = map[string]emulatorTool{
-	"radioserver": {
-		env:  EnvRadioServer,
-		need: "no emulated board can start without it, ESP32 or nRF52",
-		ours: "There is no distribution build to go looking for: the SX1262 " +
-			"model is ours",
+	radioLibName: {
+		env:   EnvRadioLib,
+		files: radioLibFiles,
+		need:  "no emulated board can start without it, ESP32 or nRF52",
+		ours: "There is no distribution build to go looking for: the chip is " +
+			"MeshBench/virtual-sx1262, which the emulator loads",
 	},
 	"qemu-system-xtensa": {
 		env:  EnvQEMU,
@@ -174,25 +231,6 @@ var ToolEnv = func() map[string]string {
 // were never downloaded. A readiness check that disagrees with the thing it is
 // predicting is worse than no check.
 func FindTool(name string) (string, error) { return lookupTool(name) }
-
-// waitForSocket blocks until the radio model is listening, or the context ends.
-//
-// Polled rather than assumed: the device connects to this socket as QEMU
-// realizes it, and a race there fails the whole boot with a message about the
-// radio being unreachable, which points at configuration rather than at timing.
-func waitForSocket(ctx context.Context, path string) error {
-	for i := 0; i < 200; i++ {
-		if _, err := os.Stat(path); err == nil {
-			return nil
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(25 * time.Millisecond):
-		}
-	}
-	return fmt.Errorf("firmware: the radio model never opened %s", path)
-}
 
 // cardBytes is how big a card a node gets. Small as cards go, because nothing
 // here fills one and a file per node is a file per node.

@@ -5,7 +5,7 @@
 #
 # <bundle-dir> is the directory meshbench.exe sits in, the same one the zip is
 # made from, and everything in it goes into the installer. That is the point:
-# the emulators and radioserver.exe are found beside the binary, so an
+# the emulators and the chip model are found beside the binary, so an
 # installer that carried the binary alone would produce a build that cannot
 # emulate a board and cannot say why.
 #

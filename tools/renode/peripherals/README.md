@@ -24,7 +24,7 @@ ReadBuffer           -> 0xAA 0xBB 0xCC
 ```
 
 ```bash
-renode tools/renode/peripherals/radioserver_test.resc
+renode tools/renode/peripherals/radio-only.repl
 ```
 
 ## Why it is tested in isolation first

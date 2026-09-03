@@ -24,17 +24,6 @@ func TestStartRefusesASecondCallWhileQEMUIsRunning(t *testing.T) {
 	}
 }
 
-func TestStartRefusesASecondCallWhileTheRadioModelIsRunning(t *testing.T) {
-	e := &EmulatedNode{radio: exec.Command("sleep", "1")}
-	err := e.Start(context.Background(), "")
-	if err == nil {
-		t.Fatal("a second Start on a node already running was allowed")
-	}
-	if !strings.Contains(err.Error(), "already started") {
-		t.Errorf("the error does not say the node is already running: %v", err)
-	}
-}
-
 // Two nodes sharing a working directory once corrupted each other silently -
 // project history's own example is three hundred processes doing exactly
 // this. A directory already claimed by another process must refuse a second
@@ -62,11 +51,11 @@ func TestStartRefusesAWorkDirAlreadyLocked(t *testing.T) {
 // the lock if Start does not.
 func TestAFailedStartReleasesTheWorkDirLock(t *testing.T) {
 	dir := t.TempDir()
-	t.Setenv(EnvRadioServer, filepath.Join(t.TempDir(), "not-here"))
+	t.Setenv(EnvRadioLib, filepath.Join(t.TempDir(), "not-here"))
 
 	e := &EmulatedNode{Image: "placeholder", NodeName: "n1", Dir: dir}
 	if err := e.Start(context.Background(), ""); err == nil {
-		t.Fatal("started with no radio model present")
+		t.Fatal("started with no chip model present")
 	}
 
 	lock, err := firmware.LockWorkDir(dir)

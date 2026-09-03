@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 
 	"github.com/MeshBench/meshbench/internal/firmware"
 	"github.com/MeshBench/meshbench/internal/firmware/emulated/peripheral"
@@ -20,24 +21,33 @@ import (
 // per-node: the radio model's port, the console's port, the node's own working
 // directory, and the image. A shared script would need all four passed in
 // anyway.
-func (e *EmulatedNode) renodeScript(conPort int) (string, error) {
+func (e *EmulatedNode) renodeScript(conPort int, bridge string) (string, error) {
 	// The radio's wiring goes in a platform description of its own rather than
 	// into the script: these are declarations, and Renode's monitor does not
 	// take declarations. Inlining them in the .resc left the machine without a
 	// radio and the firmware waiting on a chip that was never there.
+	// Renode's platform description wants the two halves of the address
+	// separately. An empty bridge leaves the peripheral with no engine, which
+	// is a node that answers its own firmware and hears nobody.
+	engineHost, enginePort := "", 0
+	if host, port, err := net.SplitHostPort(bridge); err == nil {
+		engineHost = host
+		enginePort, _ = strconv.Atoi(port)
+	}
+
 	repl := filepath.Join(e.Dir, "node.repl")
 	wiring := fmt.Sprintf(`%s
 radiospi: SPI.NRF52840_SPI @ sysbus 0x%X
     easyDMA: true
 
-lora: Radio.RadioServerSX1262 @ radiospi
-    host: "127.0.0.1"
-    port: %d
+lora: Radio.VirtualSX1262 @ radiospi
+    engineHost: "%s"
+    enginePort: %d
     IRQ -> %s@%d
 
 %s:
     %d -> lora@0
-`, renode.EasyDMASPI(e.SPIBase), e.SPIBase, e.radioPort, e.IrqPort, e.IrqPin, e.NssPort, e.NssPin)
+`, renode.EasyDMASPI(e.SPIBase), e.SPIBase, engineHost, enginePort, e.IrqPort, e.IrqPin, e.NssPort, e.NssPin)
 	if err := os.WriteFile(repl, []byte(wiring), 0o644); err != nil {
 		return "", err
 	}
@@ -58,7 +68,9 @@ lora: Radio.RadioServerSX1262 @ radiospi
 	script := filepath.Join(e.Dir, "node.resc")
 	// The host has to be included before the controller: Renode compiles each
 	// of these on its own, so a file can only see what came before it.
-	body := fmt.Sprintf(`i @%[1]s/peripherals/RadioServerSX1262.cs
+	body := fmt.Sprintf(`i @%[1]s/peripherals/VirtualSX1262Lib.cs
+i @%[1]s/peripherals/VirtualSX1262Engine.cs
+i @%[1]s/peripherals/VirtualSX1262.cs
 i @%[1]s/peripherals/NRF52840_Temp.cs
 i @%[1]s/peripherals/NRF52840_Clock.cs
 i @%[1]s/peripherals/NRF52840_SAADC.cs
@@ -88,7 +100,7 @@ machine LoadPlatformDescription @%[1]s/usbd.repl
 %[5]s
 %[9]sradiospi.lora Connect
 %[8]s%[7]sstart
-`, ToolsDir(), firmware.SafeNodeName(e.NodeName), e.Platform, repl, flash,
+`, SupportDir(), firmware.SafeNodeName(e.NodeName), e.Platform, repl, flash,
 		renode.UnregisterStockSPI(), renode.RenodeTrace(),
 		renode.ConsoleTerminal(conPort, e.ConsoleOnUSB), idle)
 	if err := os.WriteFile(script, []byte(body), 0o644); err != nil {
@@ -98,7 +110,7 @@ machine LoadPlatformDescription @%[1]s/usbd.repl
 }
 
 // startRenode boots this node's script, and holds its console open.
-func (e *EmulatedNode) startRenode(ctx context.Context) error {
+func (e *EmulatedNode) startRenode(ctx context.Context, bridge string) error {
 	renodeBin, err := lookupTool("renode")
 	if err != nil {
 		return err
@@ -107,7 +119,7 @@ func (e *EmulatedNode) startRenode(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	script, err := e.renodeScript(conPort)
+	script, err := e.renodeScript(conPort, bridge)
 	if err != nil {
 		return err
 	}
@@ -127,6 +139,7 @@ func (e *EmulatedNode) startRenode(ctx context.Context) error {
 	e.qemu = exec.CommandContext(ctx, renodeBin,
 		"--disable-xwt", "--console", "-e", "include @"+script)
 	e.qemu.Stdin = stdin
+	e.qemu.Env = e.radioEnv
 	e.qemu.Stdout, e.qemu.Stderr = log, log
 	e.qemu.SysProcAttr = firmware.ChildProcAttr()
 	if err := e.qemu.Start(); err != nil {
