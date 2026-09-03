@@ -193,16 +193,28 @@ nobody has watched that board do that thing.
 | `Generic_E22_sx1262` | ESP32 | QEMU | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `Heltec_t114` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | – | ✓ |
 | `Heltec_t096` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ? | ✓ |
-| `RAK_4631` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ? |
-| `Xiao_nrf52` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ? |
-| `Heltec_mesh_solar` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ? |
-| `Xiao_S3_WIO` | ESP32-S3 | QEMU | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ? |
-| `Heltec_v3` | ESP32-S3 | QEMU | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ✓ |
-| `LilyGo_TDeck` | ESP32-S3 | QEMU | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ? |
+| `RAK_4631` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗† | – | ? |
+| `Xiao_nrf52` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗† | – | ? |
+| `Heltec_mesh_solar` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✗† | – | ? |
+| `Xiao_S3_WIO` | ESP32-S3 | QEMU | ✓ | ✓ | ✓ | ✓ | ✓ | ✗† | – | ? |
+| `Heltec_v3` | ESP32-S3 | QEMU | ✓ | ✓ | ✓ | ✓ | ✓ | ✗† | – | ✓ |
+| `LilyGo_TDeck` | ESP32-S3 | QEMU | ✓ | ✓ | ✓ | ✓ | ✓ | ✗† | – | ? |
 | `Station_G2` | ESP32-S3 | - | | | | | | | | |
 | `Heltec_v2` | ESP32 | - | | | | | | | | |
 
 ✓ passed  ✗ failed  – not applicable  ? not measurable yet  blank not attempted
+
+**†** this ✗ predates the SX1262 model fix that explains it, and has not
+been re-measured. Both causes were in the shared chip model rather than in
+any board: the carrier-detect flags outlived the carrier, so the driver read
+the channel as permanently busy, and DIO1 was gated on the IRQ enable mask
+instead of the DIO1 routing mask, so a detection flag raised the pin
+part-way through a packet and left no edge for the one that mattered. Fixed
+in [MeshBench/virtual-sx1262](https://github.com/MeshBench/virtual-sx1262)
+and released as `radioserver-v3`; measured on an `Ebyte_EoRa-S3`, which is
+not in this table, at 2 of 8 before and 8 of 8 after. The crosses stay until
+each of these boards has been run again, because a fix that should apply is
+not a measurement.
 
 The columns, briefly: **build** is a published image whose digest checks
 out; **boot** means the emulator attached and the node did not spend the
@@ -216,11 +228,6 @@ What each ✗ turned out to be, and why it is not the board's fault, is
 recorded in [`docs/emulated-published-firmware.md`](docs/emulated-published-firmware.md):
 the ESP32-S3 pair's history runs through a flash quad-enable bit, an SPI
 controller numbering difference, and a strapping pin read low.
-
-The **flood** column is the exception, and its `✗` marks are stale: both
-causes were in the shared SX1262 model rather than in any board, and both are
-fixed. These rows predate the fix and record what was true when they were
-taken; re-measuring them board by board is outstanding.
 
 ## Contributing
 
