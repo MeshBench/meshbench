@@ -41,6 +41,39 @@ built from it, which is why it is not in the table above: `brand`, where the
 identity is generated. `tools/icon.sh` explains why the result is committed
 here rather than fetched.
 
+## The chip model, and the pins that do not follow it
+
+`virtual-sx1262` is the one repository here that is consumed as a **submodule**
+rather than fetched as a release or pinned in a manifest, and a submodule is a
+commit, not a branch. Pushing to its `main` therefore changes nothing anywhere
+else. Each consumer keeps the commit it recorded until somebody moves it, and
+until then it builds, passes its tests, and runs the old chip.
+
+Nothing detects that. There is no version to compare, no dependency resolver to
+complain, and the symptom of a stale pin is a board behaving the way it did
+before the fix - which is exactly what somebody chasing the fix expects to have
+to look at. The DIO1 routing mask is the worked example: the model was correct
+in its own repository for a day while every consumer still had the commit before
+it.
+
+So the rule is that **a change to `virtual-sx1262` is not done when it merges
+there**. It is done when every pin has moved:
+
+| consumer | pin |
+|---|---|
+| `MeshBench/meshcore-native` | `vendor/virtual-sx1262` |
+
+That list is short today and will not stay short: QEMU and Renode both need the
+same chip. It is duplicated in two places that are checked rather than
+remembered - `virtual-sx1262`'s own CI asks GitHub what each consumer pins and
+reports the ones that lag, and `.claude/skills/meshcoresim/SKILL.md` carries the
+same table for anyone working here. Adding a consumer means adding a row to all
+three in one commit.
+
+Moving a pin is also not the same as proving one. The model is what every
+emulated board's firmware talks to, so a bump is followed by booting a board and
+watching it forward, not by a green build.
+
 ## What the documentation site takes from here
 
 Six of its pages are written by tools rather than by hand: what the simulator
