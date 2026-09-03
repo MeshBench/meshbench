@@ -48,7 +48,6 @@ func registerBoardMatrix(st *state.Store, s *session.Sim) {
 		}
 		s.SetBoardProbing(true)
 		w.Jobs = append(w.Jobs, state.Job{ID: "boardprobe", What: "probing " + board, Total: 1})
-		terr := s.Terrain()
 		go func() {
 			// Long enough for every phase Probe can honestly spend its full
 			// budget on, not a flat guess - a board that only failed here
@@ -56,7 +55,7 @@ func registerBoardMatrix(st *state.Store, s *session.Sim) {
 			// for a limit nobody told the operator about.
 			ctx, cancel := context.WithTimeout(context.Background(), boardcheck.ProbeBudget())
 			defer cancel()
-			report := boardcheck.Probe(ctx, terr, board, version)
+			report := boardcheck.Probe(ctx, board, version)
 			if err := report.Save(); err != nil {
 				// The measurement still happened; only the cache write failed,
 				// so the result is said aloud rather than lost silently.

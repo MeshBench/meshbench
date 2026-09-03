@@ -50,7 +50,7 @@ func standInMesh(ctx context.Context, t *testing.T, txAtMs uint32) *engine.Engin
 	// or leave behind an identity.
 	t.Setenv(firmware.EnvNodeFS, nodeFSRoot(t))
 
-	e := engine.New(flat{}, engine.Config{
+	e := engine.New(flatEarth{}, engine.Config{
 		FreqMHz: 869.618, SF: 8, BandwidthHz: 62_500, CodingRate: 4,
 		NoiseFigDB: 6, StepMs: 10, Seed: 4417,
 	})

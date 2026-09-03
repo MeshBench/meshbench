@@ -28,6 +28,35 @@ func setSenderClock(sender *engine.Node, unixSecs int64) error {
 	return sender.Firmware.Bridge.Type([]byte(fmt.Sprintf("time %d\r\n", unixSecs)))
 }
 
+// rxSilence explains an rx phase that ended without the board hearing the
+// sender's advert, from the same ledger the flood row reads: whether the sender
+// ever transmitted, whether the channel recorded the advert arriving at the
+// board but not decoded (and why), or whether nothing measurable arrived at all.
+//
+// The distinction is the whole point. "no reception observed" read identically
+// whether the sender stayed silent, the packet was too weak to demodulate, or
+// the board dropped one it genuinely heard - and only the last is the board's
+// fault. fromSender holds every message id the sender put on the air; misses
+// maps a message id the board did not decode to why. A miss keyed by a
+// sender id is the board being handed a decodable packet and failing it, which
+// is a real rx failure; the absence of both a reception and a miss is what the
+// ledger shows when a packet never cleared the noise floor - not evidence about
+// the board at all.
+func rxSilence(fromSender map[uint64]bool, misses map[uint64]string) (State, string) {
+	if len(fromSender) == 0 {
+		return Untested, "the sender never transmitted, so the board was handed nothing to hear"
+	}
+	for id := range fromSender {
+		if detail, ok := misses[id]; ok {
+			return Failed, "the sender's advert reached the board and was not decoded: " + detail
+		}
+	}
+	return Untested, fmt.Sprintf(
+		"no evidence the sender's advert reached the board: the ledger holds neither a "+
+			"reception nor a miss for it within %d s, which is what it shows when a packet is "+
+			"too weak or on another preset", advertBudgetMs/1000)
+}
+
 // eventOutcome is why waitForEvent stopped waiting - a caller that only asked
 // "did it happen" cannot tell a board that genuinely never did the thing from
 // a probe that was cut off before the board had its full budget to do it, and
