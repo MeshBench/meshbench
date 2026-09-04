@@ -7,19 +7,19 @@
 // went ahead while the worker was still there would take the results table out
 // from under it. Both are answered by asking the run whether it has finished,
 // and refusing rather than waiting.
-package session
+package experiment
 
 import (
 	"context"
 	"fmt"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
-func registerExperimentControl(st *state.Store, s *Sim) {
+func registerExperimentControl(st *state.Store, s *session.Sim, e *experiment) {
 	st.Handle("experiment.state", func(w *state.World, _ any) (any, error) {
-		e := s.experiment()
 		e.mu.Lock()
 		defer e.mu.Unlock()
 		out := e.describe()
@@ -33,13 +33,12 @@ func registerExperimentControl(st *state.Store, s *Sim) {
 	})
 
 	st.Handle("experiment.start", func(w *state.World, _ any) (any, error) {
-		e := s.experiment()
 		e.mu.Lock()
 		if e.running {
 			e.mu.Unlock()
 			return nil, fmt.Errorf("an experiment is already running")
 		}
-		if len(s.nodes) == 0 {
+		if len(s.Nodes()) == 0 {
 			e.mu.Unlock()
 			return nil, fmt.Errorf("no network loaded")
 		}
@@ -64,7 +63,7 @@ func registerExperimentControl(st *state.Store, s *Sim) {
 		e.done = make(chan struct{})
 		ctx, cancel := context.WithCancel(context.Background())
 		e.cancel = cancel
-		nodes := append([]scenario.Node(nil), s.nodes...)
+		nodes := append([]scenario.Node(nil), s.Nodes()...)
 		// Said here, at the start, and not only over the finished table. This
 		// is the moment somebody commits an hour of machine time to a
 		// comparison, and it is the last one at which knowing the arms will not
@@ -81,7 +80,7 @@ func registerExperimentControl(st *state.Store, s *Sim) {
 		}
 		w.Jobs = append(w.Jobs, state.Job{
 			ID: "experiment", What: "running arms", Total: e.runsTotal()})
-		go s.runExperiment(ctx, st, e, nodes)
+		go runExperiment(ctx, s, st, e, nodes)
 		// Both keys always, as sim.state answers them: a script that has to
 		// test for a key's presence before it can read the answer is a script
 		// that will one day skip the test.
@@ -90,7 +89,6 @@ func registerExperimentControl(st *state.Store, s *Sim) {
 	})
 
 	st.Handle("experiment.stop", func(w *state.World, _ any) (any, error) {
-		e := s.experiment()
 		e.mu.Lock()
 		was := e.running
 		if e.cancel != nil {
@@ -109,7 +107,7 @@ func registerExperimentControl(st *state.Store, s *Sim) {
 			}
 		}
 		e.mu.Unlock()
-		w.Jobs = finishJob(w.Jobs, "experiment")
+		w.Jobs = session.FinishJob(w.Jobs, "experiment")
 		if was && !settled {
 			w.Say("experiment stopping - the cell in flight finishes first")
 		} else {

@@ -204,36 +204,6 @@ func TestSetFirmwareRefusesItsCallerRatherThanACallbackNobodyReads(t *testing.T)
 	}
 }
 
-// experiment.stop cannot wait for the run goroutine - the worker reports back
-// through this same store, so blocking here would deadlock the thing being
-// waited on - which is why a start had to refuse instead. Starting anyway
-// cleared the results out from under a worker still appending to them, and the
-// new run's table carried the tail of the old one's cells.
-func TestAnExperimentWillNotStartOverTheLastOnesTail(t *testing.T) {
-	st, s := aNetwork(t)
-	e := s.experiment()
-	e.mu.Lock()
-	e.Senders = []string{"West Lomond"}
-	e.Arms = []ExpArm{{Label: "a"}}
-	e.Seeds = []uint64{1}
-	// A run that has been told to stop and has not yet let go of the results.
-	e.running = false
-	e.done = make(chan struct{})
-	e.mu.Unlock()
-
-	msg := refuses(t, st, "experiment.start", nil)
-	mentions(t, msg, "still stopping")
-
-	// stop says so too, rather than claiming the run is over.
-	got, err := st.Do(t.Context(), "experiment.stop", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.(map[string]any)["settled"] != false {
-		t.Errorf("stop reported %v, want a run that has not settled", got)
-	}
-}
-
 // The flag feed.stop clears was written and never read, so the pull it was
 // pressed to stop landed a minute later and filled the panel up anyway.
 func TestFeedStopIsReadBackByThePullItStops(t *testing.T) {

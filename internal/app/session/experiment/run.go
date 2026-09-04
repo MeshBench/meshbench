@@ -6,15 +6,15 @@
 // reaches the changed default. Both arms then return identical numbers and the
 // change looks inert, which is the failure this whole apparatus exists to
 // prevent.
-package session
+package experiment
 
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"time"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/mesh/proto"
 	"github.com/MeshBench/meshbench/internal/sim/engine"
@@ -22,7 +22,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
-func (s *Sim) runExperiment(ctx context.Context, st *state.Store, e *experiment,
+func runExperiment(ctx context.Context, s *session.Sim, st *state.Store, e *experiment,
 	nodes []scenario.Node) {
 
 	// The store only ticks - and so only redraws the simulation - while it
@@ -42,7 +42,7 @@ func (s *Sim) runExperiment(ctx context.Context, st *state.Store, e *experiment,
 		e.mu.Unlock()
 		// A stopped sweep must still pause the clock and say it finished, or
 		// the map keeps running against an experiment that is over.
-		done, release := finishing(ctx)
+		done, release := session.Finishing(ctx)
 		defer release()
 		_, _ = st.Do(done, "sim.pause", nil)
 		_, _ = st.Do(done, "experiment.finished", nil)
@@ -59,7 +59,7 @@ func (s *Sim) runExperiment(ctx context.Context, st *state.Store, e *experiment,
 			e.logf("running %s at seed %d", arm.Label, seed)
 			e.mu.Unlock()
 
-			r := s.runArm(ctx, e, arm, seed, nodes)
+			r := runArm(ctx, s, e, arm, seed, nodes)
 			e.mu.Lock()
 			e.results = append(e.results, r)
 			e.mu.Unlock()
@@ -91,10 +91,10 @@ func nodeNamed(nodes []scenario.Node, name string) scenario.Node {
 // companion build has: the repeater CLI that configures everything else does
 // not reach it. The clock first, since a message sent before it is set carries
 // a timestamp from an epoch nobody else is in.
-func companionSetup(n scenario.Node, arm ExpArm, e *experiment) [][]byte {
+func companionSetup(n scenario.Node, arm session.ExpArm, e *experiment) [][]byte {
 	r := n.Radio
 	out := [][]byte{
-		proto.SetDeviceTime(uint32(scenarioEpoch)),
+		proto.SetDeviceTime(uint32(session.ScenarioEpoch)),
 		proto.SetRadioParams(uint32(r.CentreHz/1000), uint32(r.BandwidthHz),
 			uint8(r.SpreadFactor), uint8(r.CodingRate+4)),
 		proto.SetTxPower(uint8(n.TxPowerDBm)),
@@ -114,7 +114,7 @@ func companionSetup(n scenario.Node, arm ExpArm, e *experiment) [][]byte {
 	// the wire is derived from "#sco". Send under the bare name and every
 	// repeater receives the packet, computes a different key, and declines to
 	// forward it, with no error at either end.
-	if s := canonicalScope(e.Scope); s != "" {
+	if s := session.CanonicalScope(e.Scope); s != "" {
 		out = append(out, proto.SetDefaultScope(s, provider.RegionKey(s)))
 	}
 	// The arm's own path hash mode, which is a companion setting: what a
@@ -131,20 +131,19 @@ func companionSetup(n scenario.Node, arm ExpArm, e *experiment) [][]byte {
 // Every line carries the arm and the seed, because the failure this is for is a
 // cell that stops moving: without a stage the log says only which cell started,
 // and a stall in attach looks exactly like a stall in the run loop.
-func (e *experiment) stage(arm ExpArm, seed uint64, what string) {
+func (e *experiment) stage(arm session.ExpArm, seed uint64, what string) {
 	e.mu.Lock()
 	e.logf("%s %d: %s", arm.Label, seed, what)
 	e.mu.Unlock()
 }
 
-func registerExperimentDone(st *state.Store, s *Sim) {
+func registerExperimentDone(st *state.Store, s *session.Sim, e *experiment) {
 	st.HandleInternal("experiment.finished", func(w *state.World, _ any) (any, error) {
-		e := s.experiment()
 		e.mu.Lock()
 		n := len(e.results)
 		warn := e.notAResultYet()
 		e.mu.Unlock()
-		w.Jobs = finishJob(w.Jobs, "experiment")
+		w.Jobs = session.FinishJob(w.Jobs, "experiment")
 		if warn != "" {
 			w.Say(fmt.Sprintf("experiment finished, %d runs - %s", n, warn))
 		} else {
@@ -165,16 +164,4 @@ func stepFor(ctx context.Context, eng *engine.Engine, d time.Duration) error {
 		time.Sleep(2 * time.Millisecond)
 	}
 	return nil
-}
-
-// canonicalScope is the "#name" form the scope key is derived from.
-//
-// Empty stays empty: no scope asked for means send unscoped, which is a
-// legitimate choice and not the same as sending under "#".
-func canonicalScope(s string) string {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return ""
-	}
-	return "#" + strings.TrimPrefix(s, "#")
 }

@@ -60,30 +60,3 @@ func TestSimStateKeepsTheGuaranteeForANativeMesh(t *testing.T) {
 		t.Errorf("a native-only scenario gave a reason anyway: %q", why)
 	}
 }
-
-// Does the sweep's own honesty check know that its arms cannot be compared?
-//
-// This is the check that already refuses to call one seed a spread, and an
-// emulated arm is the stronger version of the same objection: the seed cannot
-// bound noise that did not come from the seed. It has to outrank the others,
-// because they are about how large a difference has to be to count and this one
-// is about whether the difference came from the arm at all.
-func TestASweepOverAnEmulatedNodeIsNotAComparison(t *testing.T) {
-	e := &experiment{
-		Arms:            []ExpArm{{Label: "a"}, {Label: "b"}},
-		Seeds:           []uint64{1, 2, 3},
-		results:         []ExpResult{{Arm: "a", Seed: 1}},
-		notReproducible: "kelpie runs in an emulator",
-	}
-	warn := e.notAResultYet()
-	if !strings.Contains(warn, "not comparable") || !strings.Contains(warn, "kelpie") {
-		t.Errorf("a sweep over an emulated node warned %q", warn)
-	}
-
-	// And the same matrix over native nodes gets past this objection to the
-	// ones about seeds and arms, rather than being warned about for ever.
-	e.notReproducible = ""
-	if warn := e.notAResultYet(); strings.Contains(warn, "not comparable") {
-		t.Errorf("a native sweep was told its arms are not comparable: %q", warn)
-	}
-}

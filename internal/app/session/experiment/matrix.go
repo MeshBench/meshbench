@@ -16,36 +16,19 @@
 //     is one draw repeated.
 //
 // They are enforced here rather than documented.
-package session
+package experiment
 
 import (
 	"context"
 	"fmt"
 	"sync"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 )
 
-// VaryParams is every parameter an arm can be crossed on, in the order the
-// Bench offers them, with the values it offers by default.
-//
-// One table so the panel, the verb and anything scripting this cannot drift:
-// a dropdown listing a parameter the verb rejects is worse than not offering
-// it, because the failure arrives after the arms have been built.
-var VaryParams = []struct {
-	Name, Label, Defaults string
-}{
-	{"path_hash_mode", "companion path hash", "0, 1, 2"},
-	{"rep_path_hash", "repeater path hash", "0, 1, 2"},
-	{"loop_detect", "loop.detect", "off, minimal, moderate, strict"},
-	{"cad", "cad", "off, on"},
-	{"repeater_version", "repeater firmware", ""},
-	{"companion_version", "companion firmware", ""},
-	{"spread_ms", "spread", "0, 5, 20"},
-}
-
-// ExpResult is one arm at one seed.
-type ExpResult struct {
+// Result is one arm at one seed.
+type Result struct {
 	Arm       string  `json:"arm"`
 	Seed      uint64  `json:"seed"`
 	TX        int     `json:"tx"`
@@ -80,11 +63,11 @@ type ExpResult struct {
 // experiment is the matrix and what has come back from it.
 type experiment struct {
 	mu       sync.Mutex
-	Arms     []ExpArm `json:"arms"`
-	Seeds    []uint64 `json:"seeds"`
-	Senders  []string `json:"senders"`
-	RunForMs uint32   `json:"run_for_ms"`
-	SendAtMs uint32   `json:"send_at_ms"`
+	Arms     []session.ExpArm `json:"arms"`
+	Seeds    []uint64         `json:"seeds"`
+	Senders  []string         `json:"senders"`
+	RunForMs uint32           `json:"run_for_ms"`
+	SendAtMs uint32           `json:"send_at_ms"`
 
 	// SpreadMs staggers the senders across the burst instead of firing them on
 	// one instant. Zero is all at once, which is the sharpest test of
@@ -105,7 +88,7 @@ type experiment struct {
 
 	running bool
 	cancel  context.CancelFunc
-	results []ExpResult
+	results []Result
 	log     []string
 	status  string
 
@@ -140,15 +123,19 @@ func (e *experiment) logf(format string, a ...any) {
 	}
 }
 
-func (s *Sim) experiment() *experiment {
-	if s.exp == nil {
-		s.exp = &experiment{
-			Arms:     []ExpArm{{Label: "baseline"}},
-			Seeds:    []uint64{1, 2, 3, 4},
-			RunForMs: 90_000, SendAtMs: 30_000,
-		}
+// newExperiment is the matrix a session starts with: one unnamed arm and four
+// seeds, which is the smallest thing that runs and reports.
+//
+// It used to be a field on Sim, filled in on first use. It is owned by this
+// package now and handed to the verbs at registration, which is what lets the
+// matrix live outside the session at all - and it removes the lazy nil check
+// that every one of those verbs had to remember to go through.
+func newExperiment() *experiment {
+	return &experiment{
+		Arms:     []session.ExpArm{{Label: "baseline"}},
+		Seeds:    []uint64{1, 2, 3, 4},
+		RunForMs: 90_000, SendAtMs: 30_000,
 	}
-	return s.exp
 }
 
 // publish puts what is defined into the world, so every panel and every client
@@ -160,16 +147,15 @@ func (e *experiment) publish(w *state.World) {
 	w.ExperimentRuns = e.runRows()
 }
 
-func registerExperiment(st *state.Store, s *Sim) {
+func registerExperiment(st *state.Store, s *session.Sim, e *experiment) {
 	st.Handle("experiment.define", func(w *state.World, p any) (any, error) {
-		defer func() { s.experiment().publish(w) }()
-		e := s.experiment()
+		defer func() { e.publish(w) }()
 		if m, ok := p.(map[string]any); ok {
 			if xs, ok := m["arms"].([]any); ok && len(xs) > 0 {
 				e.Arms = e.Arms[:0]
 				for _, x := range xs {
 					am, _ := x.(map[string]any)
-					arm := ExpArm{}
+					arm := session.ExpArm{}
 					arm.Label, _ = am["label"].(string)
 					arm.RepeaterVersion, _ = am["repeater_version"].(string)
 					arm.CompanionVersion, _ = am["companion_version"].(string)
@@ -196,16 +182,16 @@ func registerExperiment(st *state.Store, s *Sim) {
 				}
 			}
 		}
-		if v, ok := namedNum(p, "run_for_ms"); ok && v > 0 {
+		if v, ok := session.NamedNum(p, "run_for_ms"); ok && v > 0 {
 			e.RunForMs = uint32(v)
 		}
-		if v, ok := namedNum(p, "send_at_ms"); ok && v > 0 {
+		if v, ok := session.NamedNum(p, "send_at_ms"); ok && v > 0 {
 			e.SendAtMs = uint32(v)
 		}
-		if v, ok := namedNum(p, "spread_ms"); ok && v >= 0 {
+		if v, ok := session.NamedNum(p, "spread_ms"); ok && v >= 0 {
 			e.SpreadMs = uint32(v)
 		}
-		if v, ok := namedNum(p, "bytes"); ok && v >= 0 {
+		if v, ok := session.NamedNum(p, "bytes"); ok && v >= 0 {
 			e.Bytes = int(v)
 		}
 		if m, ok := p.(map[string]any); ok {
@@ -219,9 +205,8 @@ func registerExperiment(st *state.Store, s *Sim) {
 	// experiment.vary is the same gesture an operator makes: choose a
 	// parameter, type the values, get one arm per value.
 	st.Handle("experiment.vary", func(w *state.World, p any) (any, error) {
-		defer func() { s.experiment().publish(w) }()
-		e := s.experiment()
-		param, _ := stringField(p, "parameter")
+		defer func() { e.publish(w) }()
+		param, _ := session.StringField(p, "parameter")
 		var values []string
 		if m, ok := p.(map[string]any); ok {
 			if xs, ok := m["values"].([]any); ok {
@@ -247,10 +232,10 @@ func registerExperiment(st *state.Store, s *Sim) {
 		// cross onto, so the first vary from a fresh experiment gives clean
 		// labels instead of "baseline · 1.17.0".
 		base := e.Arms
-		if len(base) == 0 || (len(base) == 1 && !base[0].names()) {
-			base = []ExpArm{{}}
+		if len(base) == 0 || (len(base) == 1 && !base[0].Names()) {
+			base = []session.ExpArm{{}}
 		}
-		var out []ExpArm
+		var out []session.ExpArm
 		for _, b := range base {
 			for _, v := range values {
 				arm, seg, err := varied(b, param, v)
@@ -269,8 +254,7 @@ func registerExperiment(st *state.Store, s *Sim) {
 	})
 
 	st.Handle("experiment.seeds", func(w *state.World, p any) (any, error) {
-		defer func() { s.experiment().publish(w) }()
-		e := s.experiment()
+		defer func() { e.publish(w) }()
 		var seeds []uint64
 		if m, ok := p.(map[string]any); ok {
 			if xs, ok := m["seeds"].([]any); ok {
@@ -289,8 +273,7 @@ func registerExperiment(st *state.Store, s *Sim) {
 	})
 
 	st.Handle("experiment.senders", func(w *state.World, p any) (any, error) {
-		defer func() { s.experiment().publish(w) }()
-		e := s.experiment()
+		defer func() { e.publish(w) }()
 		if m, ok := p.(map[string]any); ok {
 			if xs, ok := m["senders"].([]any); ok {
 				e.Senders = e.Senders[:0]
@@ -305,18 +288,17 @@ func registerExperiment(st *state.Store, s *Sim) {
 	})
 
 	st.Handle("experiment.base", func(w *state.World, p any) (any, error) {
-		e := s.experiment()
 		// Deliberately narrow. In the old workbench a base repeater_version
 		// overrode a per-node pin and left the room server looking for a role
 		// its build does not publish, so one node of fifty-six failed to start
 		// and the arm looked like a firmware regression.
-		if v, ok := stringField(p, "run_for_ms"); ok {
+		if v, ok := session.StringField(p, "run_for_ms"); ok {
 			_ = v
 		}
-		if v, ok := namedNum(p, "run_for_ms"); ok && v > 0 {
+		if v, ok := session.NamedNum(p, "run_for_ms"); ok && v > 0 {
 			e.RunForMs = uint32(v)
 		}
-		if v, ok := namedNum(p, "send_at_ms"); ok && v > 0 {
+		if v, ok := session.NamedNum(p, "send_at_ms"); ok && v > 0 {
 			e.SendAtMs = uint32(v)
 		}
 		return e.describe(), nil

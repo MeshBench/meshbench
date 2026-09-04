@@ -261,7 +261,7 @@ func registerCompanion(st *state.Store, s *Sim) {
 		if err != nil {
 			return nil, err
 		}
-		name = canonicalScope(strings.TrimSpace(name))
+		name = CanonicalScope(strings.TrimSpace(name))
 		frame := proto.ClearDefaultScope()
 		if name != "" {
 			// The key with the name, always: the firmware stores both and
@@ -310,4 +310,21 @@ func orUnscoped(s string) string {
 		return "no scope"
 	}
 	return s
+}
+
+// CanonicalScope is the "#name" form the scope key is derived from.
+//
+// Empty stays empty: no scope asked for means send unscoped, which is a
+// legitimate choice and not the same as sending under "#".
+//
+// In core rather than in the experiment package that also canonicalises one,
+// because a companion send and an experiment cell must agree on what "#kelpie"
+// and "kelpie" are: two spellings reaching the same repeaters is the whole
+// point, and two copies of this would be two chances to disagree.
+func CanonicalScope(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	return "#" + strings.TrimPrefix(s, "#")
 }

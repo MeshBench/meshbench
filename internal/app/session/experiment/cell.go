@@ -3,17 +3,19 @@
 // The long one, because a cell is the whole job - provision every node, bring
 // the firmware up, send the traffic, wait for it to settle, and count what
 // arrived.
-package session
+package experiment
 
 import (
 	"context"
 	"fmt"
+	"github.com/MeshBench/meshbench/internal/mesh/companion"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/mesh/proto"
 	"github.com/MeshBench/meshbench/internal/sim/engine"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
@@ -30,10 +32,10 @@ var contentionClasses = map[engine.Class]bool{
 }
 
 // runArm is one cell: one configuration at one seed, on real firmware.
-func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64,
-	nodes []scenario.Node) ExpResult {
+func runArm(ctx context.Context, s *session.Sim, e *experiment, arm session.ExpArm,
+	seed uint64, nodes []scenario.Node) Result {
 
-	out := ExpResult{Arm: arm.Label, Seed: seed}
+	out := Result{Arm: arm.Label, Seed: seed}
 	began := time.Now()
 
 	// Storage of its own, named for the arm and the seed.
@@ -55,22 +57,22 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 	_ = os.Setenv("MESHBENCH_NODEFS", fs)
 	defer func() { _ = os.Setenv("MESHBENCH_NODEFS", old) }()
 
-	eng := engine.New(s.terrain(), engine.Config{
+	eng := engine.New(s.Terrain(), engine.Config{
 		FreqMHz: 869.618, SF: 10, BandwidthHz: 250e3, CodingRate: 1,
 		NoiseFigDB: 6, StepMs: 10, Seed: seed,
-		ExcessPathLossDB: s.excessLossDB,
+		ExcessPathLossDB: s.ExcessLossDB(),
 	})
 	// Published while this cell runs, so the workbench draws the run somebody
 	// started: the clock advances, the map shows traffic, the tables fill. It
 	// is still this cell's own engine with its own storage - the isolation that
 	// keeps one arm from inheriting the previous arm's settings is untouched.
-	s.bench.take(eng)
-	defer s.bench.take(nil)
+	s.BenchTake(eng)
+	defer s.BenchTake(nil)
 	defer func() { _ = eng.Close() }()
 
 	senders := map[string]bool{}
 	for _, n := range nodes {
-		n = WithFirmware(n, SweepArm{
+		n = session.WithFirmware(n, session.SweepArm{
 			RepeaterVersion:  arm.RepeaterVersion,
 			CompanionVersion: arm.CompanionVersion,
 		})
@@ -132,7 +134,7 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 		}
 		// Not a companion.
 		//
-		// Provisioning speaks the repeater CLI and a companion build does not
+		// session.Provisioning speaks the repeater CLI and a companion build does not
 		// take those commands - the old workbench recorded exactly this, and it
 		// is why a companion reported 0 MHz rather than the scenario's channel.
 		// Worse here than there: typing at one closed its console, the node
@@ -145,13 +147,13 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 		// The session's settings with this arm written over them.
 		//
 		// Two faults in one line before this. The settings were the defaults,
-		// whatever the Provisioning panel said - the same fault provisionLines
+		// whatever the session.Provisioning panel said - the same fault provisionLines
 		// was written to fix at start-up, missed here - so a study that turned
 		// a setting on compared two cells that both had it off. And the arm's
 		// own settings reached nothing at all, so an arm varying loop detection
 		// was a label with no effect behind it. Both ran cleanly and reported
 		// no difference, which is the worst way for this to fail.
-		for _, line := range s.provisionLinesFor(n, arm) {
+		for _, line := range s.ProvisionLinesFor(n, arm) {
 			if line.Comment {
 				continue
 			}
@@ -191,18 +193,17 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 
 	// A companion session per sender, which is how a message is originated:
 	// the same path a phone takes.
-	sessions := map[string]*compSession{}
+	sessions := map[string]func(){}
 	for name := range senders {
 		en, ok := eng.NodeByName(name)
 		if !ok || en.Firmware == nil {
 			out.Err = name + " has no firmware after attach"
 			return out
 		}
-		c := &compSession{node: name}
-		c.release = en.Firmware.Bridge.Claim(c)
-		defer c.release()
-		sessions[name] = c
-		if err := en.Firmware.Bridge.Type(compFrame(proto.AppStart("meshbench"))); err != nil {
+		release := en.Firmware.Bridge.Claim(s.NewCompanionSink(name))
+		defer release()
+		sessions[name] = release
+		if err := en.Firmware.Bridge.Type(companion.Frame(proto.AppStart("meshbench"))); err != nil {
 			out.Err = "app start at " + name + ": " + err.Error()
 			return out
 		}
@@ -229,7 +230,7 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 	for name := range sessions {
 		en, _ := eng.NodeByName(name)
 		for _, msg := range companionSetup(nodeNamed(nodes, name), arm, e) {
-			if err := en.Firmware.Bridge.Type(compFrame(msg)); err != nil {
+			if err := en.Firmware.Bridge.Type(companion.Frame(msg)); err != nil {
 				out.Err = "configuring " + name + ": " + err.Error()
 				return out
 			}
@@ -253,7 +254,7 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 	// measured. A cell that runs to completion having changed nothing is the
 	// most expensive result this apparatus can produce, because it looks
 	// exactly like a real null.
-	if bad := armDidNotReachTheChip(arm, eng, nodes); len(bad) > 0 {
+	if bad := session.ArmDidNotReachTheChip(arm, eng, nodes); len(bad) > 0 {
 		e.stage(arm, seed, "arm did not reach the chip")
 		out.Err = "the arm's settings are not on the radios: " + strings.Join(bad, "; ")
 		return out
@@ -341,7 +342,7 @@ func (s *Sim) runArm(ctx context.Context, e *experiment, arm ExpArm, seed uint64
 				continue
 			}
 			en, _ := eng.NodeByName(pending[i].node)
-			if err := en.Firmware.Bridge.Type(compFrame(
+			if err := en.Firmware.Bridge.Type(companion.Frame(
 				proto.SendChannelText(0, time.Unix(0, 0), pending[i].text))); err != nil {
 				out.Err = "send at " + pending[i].node + ": " + err.Error()
 				return out

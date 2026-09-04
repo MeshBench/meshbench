@@ -1,4 +1,4 @@
-package session
+package experiment
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/firmware"
 )
@@ -22,8 +23,8 @@ func TestOneExperimentCellReportsWhatItDid(t *testing.T) {
 		t.Skip("starts real firmware")
 	}
 	store := state.New(10)
-	sim := &Sim{}
-	Register(store, sim)
+	sim := &session.Sim{}
+	session.Register(store, sim)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go store.Run(ctx)
@@ -31,13 +32,13 @@ func TestOneExperimentCellReportsWhatItDid(t *testing.T) {
 		t.Skip("no fixture:", err)
 	}
 
-	e := sim.experiment()
+	e := matrixOf(sim)
 	e.Senders = []string{"AngusOutlaw1"}
 	e.RunForMs, e.SendAtMs = 40_000, 15_000
 
 	began := time.Now()
-	r := sim.runArm(context.Background(), e,
-		ExpArm{Label: "v1.17", RepeaterVersion: "repeater-v1.17.0"}, 1, sim.nodes)
+	r := runArm(context.Background(), sim, e,
+		session.ExpArm{Label: "v1.17", RepeaterVersion: "repeater-v1.17.0"}, 1, sim.Nodes())
 	took := time.Since(began)
 
 	t.Logf("took %s", took.Round(time.Second))
@@ -106,8 +107,8 @@ func TestTheNoiseFloorIsMeasurable(t *testing.T) {
 		t.Skip("measures the host's own scheduling noise; a shared CI runner has too much to measure through")
 	}
 	store := state.New(10)
-	sim := &Sim{}
-	Register(store, sim)
+	sim := &session.Sim{}
+	session.Register(store, sim)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go store.Run(ctx)
@@ -115,13 +116,13 @@ func TestTheNoiseFloorIsMeasurable(t *testing.T) {
 		t.Skip("no fixture:", err)
 	}
 
-	e := sim.experiment()
+	e := matrixOf(sim)
 	e.Senders = []string{"AngusOutlaw1"}
 	e.RunForMs, e.SendAtMs = 45_000, 20_000
-	arm := ExpArm{Label: "v1.17", RepeaterVersion: "repeater-v1.17.0"}
+	arm := session.ExpArm{Label: "v1.17", RepeaterVersion: "repeater-v1.17.0"}
 
-	a := sim.runArm(context.Background(), e, arm, 1, sim.nodes)
-	b := sim.runArm(context.Background(), e, arm, 2, sim.nodes)
+	a := runArm(context.Background(), sim, e, arm, 1, sim.Nodes())
+	b := runArm(context.Background(), sim, e, arm, 2, sim.Nodes())
 	if a.Err != "" || b.Err != "" {
 		t.Fatalf("cells failed: %q / %q", a.Err, b.Err)
 	}
@@ -148,14 +149,14 @@ func TestTheNoiseFloorIsMeasurable(t *testing.T) {
 // the bare name matches no repeater, and nothing reports an error at either end.
 func TestAScopeIsCanonicalisedBeforeItsKeyIsDerived(t *testing.T) {
 	for _, in := range []string{"sco", "#sco", "  sco  ", " #sco"} {
-		if got := canonicalScope(in); got != "#sco" {
-			t.Errorf("canonicalScope(%q) = %q, want %q", in, got, "#sco")
+		if got := session.CanonicalScope(in); got != "#sco" {
+			t.Errorf("session.CanonicalScope(%q) = %q, want %q", in, got, "#sco")
 		}
 	}
 	// Empty stays empty: no scope asked for means send unscoped, which is a
 	// choice, and is not the same as sending under "#".
-	if got := canonicalScope("  "); got != "" {
-		t.Errorf("canonicalScope(blank) = %q, want empty", got)
+	if got := session.CanonicalScope("  "); got != "" {
+		t.Errorf("session.CanonicalScope(blank) = %q, want empty", got)
 	}
 }
 
@@ -171,7 +172,7 @@ func TestAScopeIsCanonicalisedBeforeItsKeyIsDerived(t *testing.T) {
 // grows a digit, and the seed was not the only thing separating them.
 func TestEveryCellOfAnExperimentFloodsTheSameSize(t *testing.T) {
 	e := &experiment{
-		Arms: []ExpArm{
+		Arms: []session.ExpArm{
 			{Label: "control"},
 			{Label: "cancel a queued relay"},
 			{Label: "rx_delay_base 10.0 · loop strict"},

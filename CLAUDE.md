@@ -126,6 +126,11 @@ internal/app/       orchestration, no toolkit
     boundary/           the study-area verbs, wired in by init
     capture/            the frame-capture verbs and Wireshark launch, wired in by init
     environ/            the environ.fetch verb, wired in by init
+    experiment/         the A/B matrix: the arms, the seeds, the cells that run
+                        real MeshCore under each, and the report that comes
+                        back, wired in by init. The arm itself stays in core,
+                        beside SweepArm, because provisioning describes the
+                        same configuration under test
     sweep/              the sweep verbs and their offered-load plan, wired in by init
     fleet/              the bulk node verbs, wired in by init
     inventory/          the node and event listing verbs, wired in by init

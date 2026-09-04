@@ -164,8 +164,6 @@ type Sim struct {
 	captureLive string
 	// comps is one session per connected companion.
 	comps map[string]*compSession
-	// exp is the A/B matrix and what has come back from it.
-	exp *experiment
 	// feeding reports whether the live feed should keep pulling.
 	feeding atomic.Bool
 	// warmCancel stops the measurement in flight when the network changes
