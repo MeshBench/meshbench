@@ -86,7 +86,7 @@ func TestTermsAreReadableBeforeAnythingIsFetched(t *testing.T) {
 	}
 }
 
-// Which board needs which tool. Every emulated node needs radioserver whatever
+// Which board needs which tool. Every emulated node needs the chip whatever
 // its MCU; only an ESP32 needs QEMU and only an nRF52 needs Renode, and a row
 // that claims otherwise sends somebody to fetch 61 MB they will never run.
 func TestToolsForMatchesTheMCU(t *testing.T) {
@@ -94,10 +94,10 @@ func TestToolsForMatchesTheMCU(t *testing.T) {
 		mcu  string
 		want []string
 	}{
-		{"ESP32-S3", []string{"radioserver", "qemu-system-xtensa"}},
-		{"ESP32", []string{"radioserver", "qemu-system-xtensa"}},
-		{"nRF52840", []string{"radioserver", "renode"}},
-		{"RP2040", []string{"radioserver"}},
+		{"ESP32-S3", []string{"virtual-sx1262", "qemu-system-xtensa"}},
+		{"ESP32", []string{"virtual-sx1262", "qemu-system-xtensa"}},
+		{"nRF52840", []string{"virtual-sx1262", "renode"}},
+		{"RP2040", []string{"virtual-sx1262"}},
 	} {
 		got := ToolsFor(c.mcu)
 		if strings.Join(got, ",") != strings.Join(c.want, ",") {
@@ -114,16 +114,24 @@ func TestToolsForMatchesTheMCU(t *testing.T) {
 func TestAToolIsOnDiskOnlyWhenTheLookupWouldFindIt(t *testing.T) {
 	dir := t.TempDir()
 	tc := &Toolchain{Dir: dir}
-	rel, ok := releaseNamed("radioserver")
+	rel, ok := releaseNamed("virtual-sx1262")
 	if !ok {
-		t.Fatal("radioserver is not in the catalogue")
+		t.Fatal("virtual-sx1262 is not in the catalogue")
 	}
 	a, ok := rel.asset()
 	if !ok {
-		t.Skipf("no radioserver build for %s/%s", runtime.GOOS, runtime.GOARCH)
+		t.Skipf("no chip model build for %s/%s", runtime.GOOS, runtime.GOARCH)
 	}
 	if got := tc.row(rel); got.State == OnDisk {
 		t.Fatal("an empty tools directory reported a tool on disk")
+	}
+	// An installation is what the fetcher leaves behind, which for an archive
+	// is the unpacked tree as well as the link the lookup finds. A link alone
+	// is the case this test exists for: it is what a half-removed install looks
+	// like, and a row calling it on disk sends somebody to debug an emulator
+	// that is not there.
+	if a.Binary != "" {
+		writeFake(t, filepath.Join(dir, a.Binary), a.Magic, 4096)
 	}
 	writeFake(t, filepath.Join(dir, rel.Name), a.Magic, 4096)
 	got := tc.row(rel)
@@ -133,6 +141,8 @@ func TestAToolIsOnDiskOnlyWhenTheLookupWouldFindIt(t *testing.T) {
 	if got.Estimated {
 		t.Error("a tool on disk was still reporting an estimated size")
 	}
+	// A plain file measures itself; an archive measures the tree it unpacked
+	// to, which holds the same one file here.
 	if got.Bytes != 4096 {
 		t.Errorf("measured %d bytes, want 4096", got.Bytes)
 	}

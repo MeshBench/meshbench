@@ -1,12 +1,14 @@
 // Package firmware connects emulated nodes to the RF engine.
 //
-// An emulated node runs inside Renode or QEMU and reaches the simulator over a
-// socket: the SX1262 peripheral model (tools/renode/peripherals/SX1262.cs)
-// hands transmitted frames out and takes delivered frames back.
+// An emulated node runs inside Renode or QEMU, and the chip is inside the
+// emulator with it: Renode's tools/renode/peripherals/VirtualSX1262.cs and
+// QEMU's hw/ssi/sx1262.c both load the same virtual-sx1262 a native node links.
+// This socket carries what is not in there - the air - so the emulator hands
+// transmitted frames out over it and takes delivered frames back.
 //
 // A socket rather than an emulator-native wireless medium is deliberate. The
 // physics lives in internal/rf, and an emulated node must share exactly the
-// same channel as a native one — otherwise the two backends are not comparable,
+// same channel as a native one: otherwise the two backends are not comparable,
 // which is the entire reason ADR-0010 has both.
 package firmware
 

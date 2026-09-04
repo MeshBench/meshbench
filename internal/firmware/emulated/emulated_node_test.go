@@ -92,7 +92,7 @@ func TestMissingToolsExplainThemselves(t *testing.T) {
 		t.Fatal("started with no emulator present")
 	}
 	if !strings.Contains(err.Error(), emulated.EnvQEMU) &&
-		!strings.Contains(err.Error(), emulated.EnvRadioServer) {
+		!strings.Contains(err.Error(), emulated.EnvRadioLib) {
 		t.Errorf("the error names neither environment variable: %v", err)
 	}
 }

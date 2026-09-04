@@ -1,24 +1,28 @@
-:name: SX1262 over the radio model
+:name: SX1262, with no firmware in the way
 :description: Drives the Renode peripheral directly, before any firmware depends on it.
 :
-: The peripheral is a wire to radioserver rather than a model of a chip, so what
-: is under test here is the wire: chip select framing, byte order, and that the
-: answers coming back are the ones VirtualSX1262 gives a native node.
+: What is under test is the seam between the peripheral and the chip library it
+: loads: chip select framing, byte order, and that the answers coming back are
+: the ones a native node gets from the same model.
 :
-: Start the radio model first, on a TCP port, with no engine attached:
-:   radioserver :7777
+: No engine and no CPU. A machine with neither is deliberate: what is being
+: asked is whether the peripheral and the model agree, and a firmware would only
+: add its own opinion to a question that does not need one.
 :
-: Then:
-:   renode tools/renode/peripherals/radioserver_test.resc
+:   MESHBENCH_RADIO_LIB=/path/to/libvirtualsx1262.so \
+:     renode tools/renode/peripherals/radio-only.resc
 
 mach create "radio"
-machine LoadPlatformDescription @tools/renode/peripherals/radioserver.repl
+i @tools/renode/peripherals/VirtualSX1262Lib.cs
+i @tools/renode/peripherals/VirtualSX1262Engine.cs
+i @tools/renode/peripherals/VirtualSX1262.cs
+machine LoadPlatformDescription @tools/renode/peripherals/radio-only.repl
 
 radio Connect
 
 : GetStatus (0xC0) then one byte clocked out to read the answer. A chip in
 : standby answers 0x20 - mode 2 in bits 6:4 - and a chip that is not there
-: answers 0x00, which is how "no radio model" looks from the firmware's side.
+: answers 0x00, which is how "no chip model" looks from the firmware's side.
 echo "GetStatus, expect 0x2x:"
 radio Transmit 0xC0
 radio Transmit 0x00

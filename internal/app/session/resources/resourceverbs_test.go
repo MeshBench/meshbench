@@ -90,12 +90,12 @@ func TestResourceListReturnsTheRowsAndNotJustACount(t *testing.T) {
 }
 
 // The emulator toolchain is on the page, which it was not: the five providers
-// were the SoftDevice and four caches, so there was no path to radioserver,
+// were the SoftDevice and four caches, so there was no path to the chip model,
 // QEMU or Renode from inside the application at all.
 func TestTheEmulatorToolchainIsListed(t *testing.T) {
 	rows, _ := listResources(t)["resources"].([]map[string]any)
 	want := map[string]bool{
-		"radioserver": false, "qemu-system-xtensa": false, "renode": false,
+		"virtual-sx1262": false, "qemu-system-xtensa": false, "renode": false,
 	}
 	for _, r := range rows {
 		name, _ := r["name"].(string)

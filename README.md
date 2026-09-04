@@ -205,8 +205,11 @@ nobody has watched that board do that thing.
 
 ✓ passed  ✗ failed  – not applicable  ? not measurable yet  blank not attempted
 
-Measured on 3 September 2026 against `radioserver-v3`, one board at a time on
-an idle machine. Every row above is a run from that day except the two blanks.
+Measured one board at a time on an idle machine. Nine of these rows were
+re-measured on 4 September 2026 against `virtual-sx1262` v1.3.0, loaded inside
+the emulator, and every one reproduced what it had shown the day before through
+the radio server that arrangement replaced. `LilyGo_TDeck` is the exception and
+still carries its 3 September run; the two blanks have never been attempted.
 
 What each board's row means in detail is in
 [`docs/emulated-published-firmware.md`](docs/emulated-published-firmware.md).

@@ -4,6 +4,6 @@
 // defines either the legacy TXD/RXD registers or the EasyDMA pointers, not
 // both. Firmware written against SPIM needs radio.repl; firmware that pokes the
 // legacy registers needs this one.
-lora: Radio.RadioServerSX1262 @ spi2
-    host: "127.0.0.1"
-    port: 7777
+lora: Radio.VirtualSX1262 @ spi2
+    engineHost: "127.0.0.1"
+    enginePort: 7777

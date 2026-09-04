@@ -50,12 +50,12 @@ func hasKey(t *testing.T, arg, key string) bool {
 // The radio is the one thing every board has, and its three pins are what the
 // firmware talks to it through.
 func TestTheRadioIsAlwaysWired(t *testing.T) {
-	arg := base().Arg("/tmp/radio.sock")
+	arg := base().Arg("127.0.0.1:38217")
 	if got := options(t, arg)[0]; got != "esp32s3" {
 		t.Fatalf("the machine name must come first, got %q", got)
 	}
 	for _, want := range []string{
-		"radio-path=/tmp/radio.sock", "radio-spi=3", "radio-nss=9", "radio-busy=13",
+		"radio-bridge=127.0.0.1:38217", "radio-spi=3", "radio-nss=9", "radio-busy=13",
 	} {
 		if !has(t, arg, want) {
 			t.Errorf("missing %q in %q", want, arg)

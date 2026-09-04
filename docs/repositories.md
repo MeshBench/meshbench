@@ -17,7 +17,7 @@ A fork nobody outside the organisation can fetch cannot satisfy that.
 | repository | what it is | licence | public |
 |---|---|---|---|
 | `MeshBench/meshbench` | MeshBench itself | GPL-3.0-or-later, `docs/licence.md` | yes, since 1 September 2026 |
-| `MeshBench/meshcore-native` | host builds of MeshCore, the bridge and `radioserver` | see its NOTICE | yes |
+| `MeshBench/meshcore-native` | host builds of MeshCore, and the bridge | see its NOTICE | yes |
 | `MeshBench/virtual-sx1262` | the virtual SX1262 itself, with a C ABI, vendored by everything that needs a chip | MIT, and it has to stay permissive | yes |
 | `MeshBench/meshbench-reports` | the published reports site | — | yes |
 | `MeshBench/docs` | the documentation site, six of whose pages are generated from here | not stated | yes |
@@ -136,7 +136,13 @@ branch is upstream-plus-one-feature so a rebase is a tag away.
 
 Forked from Espressif's QEMU fork (`esp-develop`, QEMU 9.2.2). Adds an SX1262
 SPI device, a working GPIO implementation, and machine properties for the radio
-wiring (`radio-path`, `radio-spi`, `radio-nss`, `radio-busy`).
+wiring (`radio-bridge`, `radio-spi`, `radio-nss`, `radio-busy`).
+
+The `sx1262` device holds the chip itself: it loads `virtual-sx1262` through
+GModule, which glib already brings in, so the fork needs no submodule and no
+build change and a chip fix is a file to replace rather than an emulator to
+rebuild. It used to forward every clocked byte to a `radioserver` process over a
+socket. The one socket left goes to the RF engine, which is genuinely elsewhere.
 
 Upstream's GPIO write handler is empty, and RadioLib drives NSS as an ordinary
 GPIO rather than through the SPI controller's chip select — so without that

@@ -155,7 +155,7 @@ looks, so nothing else has to be set. From a script:
 
 ```
 resource.list                                       # what is here, and what could be
-resource.fetch {"kind":"toolchain","name":"radioserver"}
+resource.fetch {"kind":"toolchain","name":"virtual-sx1262"}
 ```
 
 Doing it by hand still works, and is what to do on a platform the page says has
@@ -164,7 +164,7 @@ no build:
 ```bash
 mkdir -p ~/.cache/meshbench/tools
 ln -sf /path/to/qemu-system-xtensa ~/.cache/meshbench/tools/
-cp /path/to/radioserver ~/.cache/meshbench/tools/
+cp /path/to/libvirtualsx1262.so ~/.cache/meshbench/tools/
 ln -sf /path/to/renode ~/.cache/meshbench/tools/          # nRF52 only
 ```
 
@@ -174,8 +174,8 @@ peripherals and platform files live in `tools/renode/` and are loaded from that
 same tools directory.
 
 A symlink is right for QEMU: it finds its own data files by resolving its real
-path, so a bare copy of the binary will not run. `radioserver` builds from
-`meshcore-native` with `./build.sh radioserver out` — it wants neither a
+path, so a bare copy of the binary will not run. The chip model builds from
+`MeshBench/virtual-sx1262` with `./build.sh shared` — it wants neither a
 MeshCore checkout nor Crypto, only the chip model beside it.
 
 Then open the firmware library, download a board image, and set a node's role to
@@ -248,7 +248,7 @@ described as if it were, and its radio is a stub, so it proves the mesh stack
 compiles and runs on Cortex-M4 rather than that a node works.
 
 All three paths share one chip model. `VirtualSX1262` runs in process for a
-native node, and `radioserver` puts the same object behind a socket for QEMU and
+native node, and QEMU and Renode load the same library for
 Renode. That is deliberate: two models of one chip must agree for ever, and the
 first time they drift, every comparison between an ARM node and an ESP32 node
 measures our code rather than MeshCore's.
@@ -291,7 +291,7 @@ as though it should hold. A native node's clock is *supplied*: the tick carries
 the instant, the shim runs one MeshCore loop per simulated millisecond, and the
 acknowledgement means the firmware has been there. An emulated node is ticked
 through exactly the same code path, and the acknowledgement means something
-weaker: it comes from `radioserver`, the chip model on this side of the socket,
+weaker: it comes from the chip model on this side of the socket,
 because the guest is a published image with nothing in it that could receive a
 tick. Meanwhile the guest executes against QEMU's or Renode's clock, neither of
 which is under `-icount` or a Renode quantum, so how much firmware runs between

@@ -106,7 +106,7 @@ func toolchainGroup(rows []state.ResourceRow, found map[string]string) state.Set
 	return state.SetupGroup{
 		Name: "Emulator toolchain",
 		Note: "Each of these is looked for where " +
-			emulated.EnvRadioServer + ", " + emulated.EnvQEMU + " or " +
+			emulated.EnvRadioLib + ", " + emulated.EnvQEMU + " or " +
 			emulated.ToolEnv["renode"] + " points, then beside the binary, " +
 			"then in " + emulated.ToolsDir() + ", then on PATH. PATH is the " +
 			"one that will not save you: a desktop application is not launched " +

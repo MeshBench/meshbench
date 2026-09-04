@@ -37,7 +37,7 @@ Four things have to be present. Only two can be shipped.
 | piece | source | ship it? | size |
 |---|---|---|---|
 | QEMU with our SX1262 | `MeshBench/qemu`, branch `meshbench-main` | yes | ~17 MB packed, ~79 MB unpacked |
-| `radioserver` | `MeshBench/meshcore-native`, `bridge/radioserver.cpp` | yes | ~40 KB |
+| `virtual-sx1262` | `MeshBench/virtual-sx1262`, the shared library | yes | ~100 KB |
 | Renode with our SEVONPEND fix | `MeshBench/renode`, branch `meshbench` | yes | ~60 MB packed |
 | Nordic SoftDevice | Nordic's own site, fetched at runtime | **no — fetched, not bundled** | 155 KB |
 
@@ -67,7 +67,7 @@ Only `qemu-system-xtensa` is needed, and it finds its own data files by
 resolving `/proc/self/exe`, so a symlink into the tools directory works and a
 bare copy of the binary does not.
 
-### radioserver
+### The chip model
 
 Small, and the important one architecturally. It owns the chip model that a
 native node reaches in process, and both emulators reach it over a socket — one
@@ -142,7 +142,7 @@ an error that read as a missing package.
 The same shape as the native firmware cache, deliberately.
 
 Step 3 is now also where the application *puts* things. The Resources page
-carries a row per tool - `radioserver`, `qemu-system-xtensa` and `renode` -
+carries a row per tool - `virtual-sx1262`, `qemu-system-xtensa` and `renode` -
 with its size, its terms and a fetch that downloads from our own forks'
 releases, verifies the digest, unpacks into that directory and links the binary
 under the name the lookup asks for. The description of that directory as "where
@@ -153,7 +153,7 @@ source build no installer ever does.
 
 In rough order of value:
 
-1. **Ship QEMU and `radioserver` beside the binary.** Removes every manual step
+1. **Ship QEMU and the chip model beside the binary.** Removes every manual step
    for the one path that works. A first run then needs only a download of the
    board image, which the firmware library already does. *Done for a release
    bundle; and for everything else the Resources page now fetches all three
@@ -206,7 +206,7 @@ than proven:
 - **macOS**: the fork cross-compiles an aarch64 build and the bundle carries
   it. Untested by us.
 - **Windows**: the fork cross-compiles a mingw build and the zip carries it,
-  with Renode's portable package and `radioserver.exe`. A node there asks for
+  with Renode's portable package and `libvirtualsx1262.dll`. A node there asks for
   `":0"` and reaches the radio model over TCP for both emulators, because
   Windows has no Unix socket mingw can reach. Untested by us, and what does
   *not* work is the runtime fetch: `internal/app/resource` reads ELF and Mach-O

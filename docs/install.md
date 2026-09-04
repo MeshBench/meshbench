@@ -107,7 +107,7 @@ msiexec /i meshbench-0.2.0-windows-x86_64.msi ADDLOCAL=Complete,DesktopShortcut
 `meshbench-*-windows-x86_64.zip` is the same build with nothing installed.
 Unzip it anywhere and run `meshbench.exe`. Take this one for a memory stick, a
 build agent, or anywhere an installer is unwanted. **Keep the folder together**:
-`meshbench.exe` finds the emulators and `radioserver.exe` beside itself, so
+`meshbench.exe` finds the emulators and the chip model beside itself, so
 moving the `.exe` out on its own leaves a build that cannot emulate a board and
 will not say why. That is the main thing the installer exists to prevent.
 
@@ -156,8 +156,8 @@ invisible here and the wrong build. Ours carry an SX1262 device and the
 SEVONPEND fix respectively; a stock build starts, reports no chip or hangs, and
 looks like a MeshBench fault.
 
-From a source checkout, `radioserver` can also be built rather than fetched:
-`./build.sh radioserver out` in a `MeshBench/meshcore-native` clone, then copy
+From a source checkout, the chip model can also be built rather than fetched:
+`./build.sh shared` in a `MeshBench/virtual-sx1262` clone, then copy
 the binary into the tools directory.
 
 Everything the application ships under is listed in **Help → Licences &
