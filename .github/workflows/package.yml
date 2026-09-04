@@ -457,6 +457,13 @@ jobs:
           cp tools/renode/*.repl "$APP/Contents/MacOS/renode-support/"
           cp tools/renode/peripherals/*.cs tools/renode/peripherals/*.repl \
             "$APP/Contents/MacOS/renode-support/peripherals/"
+          # This tree stopped being the compact one the moment the emulators
+          # landed in it, so it has to say so before anything reads the label.
+          # verify-bundle checks a tree against what it claims to be, and with
+          # the relabel left to the repack step below it was handed a tree
+          # holding two emulators and calling itself compact - which it refused,
+          # correctly. The label belongs with the change it describes.
+          echo bundled > "$APP/Contents/MacOS/VARIANT"
           # What the app actually carries, asked the way a node asks, before it
           # is signed and sealed into a dmg nobody will open again.
           packaging/verify-bundle.sh "$APP/Contents/MacOS" darwin-arm64
@@ -480,7 +487,9 @@ jobs:
           # the emulators arrived and must survive this step.
           rm -f dist/MeshBench-arm64-bundled.dmg
           APP=$(ls -d dist/macos/*.app | head -1)
-          echo bundled > "$APP/Contents/MacOS/VARIANT"
+          # VARIANT was written in the step above, beside the change that made
+          # it true. Writing it here as well would be a second answer to the
+          # question of what this tree is.
           # The same script the bundle step used, not a bare hdiutil create: an
           # image built the plain way has the app in it and nothing to drag it
           # onto, so people run MeshBench off the mounted volume and lose it
@@ -557,6 +566,20 @@ jobs:
       # The WiX toolset, which is what builds the installer now. A .NET tool,
       # so it runs on this Linux runner and the "no Windows runner" property
       # this job has always had still holds.
+      # The action installs to /usr/share/dotnet by default, which the runner
+      # user cannot create: "Failed to install dotnet, exit code: 1. mkdir:
+      # cannot create directory '/usr/share/dotnet': Permission denied". On a
+      # hosted runner that directory is already there and writable, so this
+      # only ever surfaces on the lab pool - which is the only pool that builds
+      # releases, so it surfaced on a tag.
+      #
+      # $HOME rather than runner.temp or runner.tool_cache: the home directory
+      # is certainly writable and certainly persists, so the SDK is downloaded
+      # once rather than once per release, and neither property is a guess
+      # about how this runner was built.
+      - name: Where the SDK may be installed
+        run: echo "DOTNET_INSTALL_DIR=$HOME/.dotnet" >> "$GITHUB_ENV"
+
       - uses: actions/setup-dotnet@v4
         with: { dotnet-version: '8.0' }
 
