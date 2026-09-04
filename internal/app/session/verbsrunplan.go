@@ -1,5 +1,9 @@
 // Saving a run and planning a route - the questions bigger than one tick that
-// still live in core; the sweep itself is its own package now.
+// still live in core.
+//
+// Named for what it holds. It was verbssweep.go long after the sweep verbs
+// left for their own package, so the one file a reader would open looking for
+// run.save was the one file named after something else entirely.
 package session
 
 import (
@@ -9,7 +13,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/app/state"
 )
 
-func registerSweepVerbs(st *state.Store, s *Sim) {
+func registerRunAndPlanVerbs(st *state.Store, s *Sim) {
 	st.Handle("run.save", func(w *state.World, p any) (any, error) {
 		name := primaryString(p, "name")
 		if name == "" {

@@ -322,7 +322,7 @@ func Register(st *state.Store, s *Sim) {
 	registerBudgetVerbs(st, s)
 
 	registerBenchVerbs(st, s)
-	registerSweepVerbs(st, s)
+	registerRunAndPlanVerbs(st, s)
 	registerImportFeedVerbs(st, s)
 	registerNodeFirmwareVerbs(st, s)
 	registerNodeOutput(st, s)
