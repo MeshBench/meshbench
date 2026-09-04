@@ -7,6 +7,8 @@
 // allowed to mean, and stringfield_test.go reads the handlers to enforce it.
 package session
 
+import "strings"
+
 // stringField reads a verb's PRIMARY field: the one, and only one, that a bare
 // string parameter is allowed to mean.
 //
@@ -82,4 +84,31 @@ func soleString(p any) string {
 		}
 	}
 	return ""
+}
+
+// BoolOf reads a flag that has to be named, and says whether it was there at
+// all - so "leave it alone" and "turn it off" stay different answers.
+//
+// Exported and in core beside the other parameter readers: the node card reads
+// one and so does the firmware library, and a second copy of this is a second
+// set of spellings for "off".
+func BoolOf(p any, name string) (bool, bool) {
+	m, ok := p.(map[string]any)
+	if !ok {
+		return false, false
+	}
+	switch v := m[name].(type) {
+	case bool:
+		return v, true
+	case string:
+		// The control socket and the command line both arrive as text.
+		s := strings.TrimSpace(strings.ToLower(v))
+		if s == "" {
+			return false, false
+		}
+		return s != "0" && s != "false" && s != "no" && s != "off", true
+	case float64:
+		return v != 0, true
+	}
+	return false, false
 }

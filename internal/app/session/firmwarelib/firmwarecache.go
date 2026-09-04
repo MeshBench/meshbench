@@ -4,7 +4,7 @@
 // question and these three are changes to the disk, with a refusal each that
 // only matters here - a download that lands nowhere the library reads, an
 // import of half an image, a delete handed a path outside the cache.
-package session
+package firmwarelib
 
 import (
 	"context"
@@ -12,16 +12,17 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/firmware"
 	"github.com/MeshBench/meshbench/internal/firmware/emulated"
 )
 
-func registerFirmwareCache(st *state.Store, s *Sim) {
+func registerFirmwareCache(st *state.Store, s *session.Sim) {
 	st.Handle("firmware.download", func(w *state.World, p any) (any, error) {
-		role, _ := stringField(p, "role")
-		version, _ := namedField(p, "version")
-		board, _ := namedField(p, "board")
+		role, _ := session.StringField(p, "role")
+		version, _ := session.NamedField(p, "version")
+		board, _ := session.NamedField(p, "board")
 		if role == "" || version == "" {
 			return nil, fmt.Errorf("firmware.download needs a role and a version")
 		}
@@ -60,18 +61,18 @@ func registerFirmwareCache(st *state.Store, s *Sim) {
 	})
 
 	st.Handle("firmware.import", func(w *state.World, p any) (any, error) {
-		path, _ := stringField(p, "path")
-		role, _ := namedField(p, "role")
-		board, _ := namedField(p, "board")
+		path, _ := session.StringField(p, "path")
+		role, _ := session.NamedField(p, "role")
+		board, _ := session.NamedField(p, "board")
 		if path == "" || role == "" {
-			return nil, badParams("firmware.import needs a path and a role")
+			return nil, session.BadParams("firmware.import needs a path and a role")
 		}
 		// The label is what the library will know it by, and what a node pins.
 		// Left out it is a timestamp rather than the constant it used to be:
 		// every import called itself "imported", so a second one replaced the
 		// first in place and nothing could say which of two local builds was
 		// running.
-		label, _ := namedField(p, "label")
+		label, _ := session.NamedField(p, "label")
 		if label == "" {
 			// A command-line path called it "version"
 			// and the handler read neither, so every import through them was
@@ -79,9 +80,9 @@ func registerFirmwareCache(st *state.Store, s *Sim) {
 			// version that had never been created. Accepted here as well as
 			// fixed there, because scripts written against the old name are
 			// already out in the world.
-			label, _ = namedField(p, "version")
+			label, _ = session.NamedField(p, "version")
 		}
-		if err := refuseHalfAnImage(path, board); err != nil {
+		if err := session.RefuseHalfAnImage(path, board); err != nil {
 			return nil, err
 		}
 		cat := &firmware.Catalogue{CacheDir: firmware.DefaultCacheDir()}
@@ -89,7 +90,7 @@ func registerFirmwareCache(st *state.Store, s *Sim) {
 		if err != nil {
 			return nil, err
 		}
-		s.fillLibrary(w)
+		fillLibrary(s, w)
 		w.Say("imported " + img.Version + " as " + role)
 		return map[string]any{
 			"version": img.Version, "role": role,
@@ -98,7 +99,7 @@ func registerFirmwareCache(st *state.Store, s *Sim) {
 	})
 
 	st.Handle("firmware.delete", func(w *state.World, p any) (any, error) {
-		path, _ := stringField(p, "path")
+		path, _ := session.StringField(p, "path")
 		if path == "" {
 			return nil, fmt.Errorf("firmware.delete needs a path")
 		}
@@ -117,7 +118,7 @@ func registerFirmwareCache(st *state.Store, s *Sim) {
 		// The library the panels draw, not only the directory: a delete that
 		// left the row behind read as a delete that did nothing, and the
 		// only caller that refreshed was the one panel that remembered to.
-		s.fillLibrary(w)
+		fillLibrary(s, w)
 		w.Say("deleted " + filepath.Base(clean))
 		return map[string]any{"deleted": clean}, nil
 	})

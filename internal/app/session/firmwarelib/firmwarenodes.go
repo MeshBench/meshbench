@@ -4,22 +4,23 @@
 // only two here that write to a node rather than to the library: one decides
 // which build a node starts, the other takes away everything it learned last
 // time so a changed default is actually reached.
-package session
+package firmwarelib
 
 import (
 	"fmt"
 	"os"
 	"path/filepath"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
-func registerFirmwareNodes(st *state.Store, s *Sim) {
+func registerFirmwareNodes(st *state.Store, s *session.Sim) {
 	st.Handle("firmware.set", func(w *state.World, p any) (any, error) {
-		version, _ := stringField(p, "version")
-		node, _ := namedField(p, "node")
-		role, _ := namedField(p, "role")
+		version, _ := session.StringField(p, "version")
+		node, _ := session.NamedField(p, "node")
+		role, _ := session.NamedField(p, "role")
 		if version == "" {
 			return nil, fmt.Errorf("firmware.set needs a version")
 		}
@@ -40,14 +41,14 @@ func registerFirmwareNodes(st *state.Store, s *Sim) {
 		// back to a build for this machine.
 		m, _ := p.(map[string]any)
 		board, setBoard := m["board"].(string)
-		n := s.updateNodes(w, func(n *scenario.Node, row *state.Node) bool {
+		n := s.UpdateNodes(w, func(n *scenario.Node, row *state.Node) bool {
 			if node != "" && n.Name != node {
 				return false
 			}
 			// The role a node runs under, not the role it has been pinned
 			// to: a node with no build chosen yet has an empty one, and
 			// those are exactly the nodes being asked about.
-			if role != "" && nodeRole(*n) != role {
+			if role != "" && session.NodeRole(*n) != role {
 				return false
 			}
 			n.Firmware.Version = version
@@ -58,12 +59,12 @@ func registerFirmwareNodes(st *state.Store, s *Sim) {
 			// the one that actually starts a process. Without this the
 			// library, the row and the message all agree with each other and
 			// the run asks for whatever the network was opened with.
-			if s.eng != nil {
-				s.eng.PinFirmware(n.Name, version)
+			if s.Engine() != nil {
+				s.Engine().PinFirmware(n.Name, version)
 				if setBoard {
 					// The role is the filter here, not a value to write, so
 					// the node keeps the one it has.
-					s.eng.PinBoard(n.Name, board, "")
+					s.Engine().PinBoard(n.Name, board, "")
 				}
 			}
 			// And the row, decided here rather than by a second walk with a
@@ -81,7 +82,7 @@ func registerFirmwareNodes(st *state.Store, s *Sim) {
 		}
 		w.Say(fmt.Sprintf("%d nodes pinned to %s", n, said))
 		out := map[string]any{
-			"version": version, "nodes": n, "considered": len(s.nodes),
+			"version": version, "nodes": n, "considered": len(s.Nodes()),
 		}
 		// Echoed only when it was asked for, so a caller can tell "left the
 		// board alone" from "set it to a host build".
@@ -113,7 +114,7 @@ func registerFirmwareNodes(st *state.Store, s *Sim) {
 		// choosing has its storage outside this directory, so wiping the
 		// directory leaves it holding everything it was supposed to forget -
 		// which is the one case where "wiped every node" would be a lie.
-		cards := s.wipeCardsOutside(root)
+		cards := s.WipeCardsOutside(root)
 		w.Say(fmt.Sprintf("wiped %d nodes' stored settings and %d cards kept elsewhere",
 			n, cards))
 		return map[string]any{"wiped": n, "root": root, "cards": cards}, nil

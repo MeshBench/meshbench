@@ -150,10 +150,6 @@ type Sim struct {
 	// can tell whether the measured matrix is still about this network.
 	geomFP  uint64
 	lastGPU GPUWarmResult
-	// publishedNet is what the firmware catalogue offers, fetched once; nil
-	// until the fetch has answered, empty after a fetch that failed.
-	publishedNet      []publishedBuild
-	fetchingPublished bool
 	// imp is what has been fetched from a deployment but not yet applied.
 	imp *importState
 	// capturePath is where frames are being written, if anywhere.

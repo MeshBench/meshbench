@@ -35,7 +35,7 @@ func registerNodeCard(st *state.Store, s *Sim) {
 		}
 		hasSlot := boardHasCardSlot(s.nodes[i].Firmware.Board)
 
-		if on, ok := boolOf(p, "fitted"); ok {
+		if on, ok := BoolOf(p, "fitted"); ok {
 			if !hasSlot {
 				return nil, badParams(
 					"%s is a %s, which has no card slot to put one in", name,
@@ -61,7 +61,7 @@ func registerNodeCard(st *state.Store, s *Sim) {
 
 		file := cardFileFor(s.nodes[i])
 		wiped := false
-		if yes, ok := boolOf(p, "wipe"); ok && yes {
+		if yes, ok := BoolOf(p, "wipe"); ok && yes {
 			if err := s.refuseWhileNodeRuns(name, "wiping its card"); err != nil {
 				return nil, err
 			}

@@ -4,7 +4,7 @@
 // script comparing a stock build against a locally changed one had to shell
 // out to a second copy of the binary. Both now call firmware.Build; this is
 // the half that answers over the socket.
-package session
+package firmwarelib
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/MeshBench/meshbench/internal/app/control"
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/firmware"
 )
@@ -27,26 +28,26 @@ import (
 // together.
 var buildRoles = []string{"simple_repeater", "companion_radio"}
 
-func registerFirmwareBuild(st *state.Store, s *Sim) {
+func registerFirmwareBuild(st *state.Store, s *session.Sim) {
 	// Returns as soon as the work has started, like every other long job here.
 	// A MeshCore build is a minute or two per role and the store's goroutine
 	// is where every verb lands - blocking it would freeze the window, the
 	// socket and the engine's clock together, which is exactly the failure
 	// firmware.start was reported as a crash for.
 	st.Handle("firmware.build", func(w *state.World, p any) (any, error) {
-		src, _ := stringField(p, "source")
+		src, _ := session.StringField(p, "source")
 		if src == "" {
-			src, _ = namedField(p, "from")
+			src, _ = session.NamedField(p, "from")
 		}
 		if src == "" {
 			return nil, control.WithCode(control.BadParams, fmt.Errorf(
 				"firmware.build needs a source: the top of a MeshCore checkout"))
 		}
 		roles := buildRoles
-		if only, ok := namedField(p, "role"); ok && only != "" {
+		if only, ok := session.NamedField(p, "role"); ok && only != "" {
 			roles = []string{only}
 		}
-		label, _ := namedField(p, "label")
+		label, _ := session.NamedField(p, "label")
 
 		id := "firmware-build"
 		w.Say("building " + strings.Join(roles, " and ") + " from " + src)
@@ -94,13 +95,13 @@ func buildFirmware(st *state.Store, id, src, label string, roles []string) {
 	_, _ = st.Do(ctx, "firmware.library", nil)
 }
 
-func registerFirmwareBuildResults(st *state.Store, _ *Sim) {
+func registerFirmwareBuildResults(st *state.Store, _ *session.Sim) {
 	// It is already in the cache - firmware.Build imports it, which is the
 	// same call `meshbench dev` makes - so there is nothing to add here.
 	st.HandleInternal("firmware.built", func(w *state.World, p any) (any, error) {
 		got, ok := p.(map[string]any)
 		if !ok {
-			return nil, wrongCallback("firmware.built")
+			return nil, session.WrongCallback("firmware.built")
 		}
 		var names []string
 		for role, v := range got {
@@ -115,7 +116,7 @@ func registerFirmwareBuildResults(st *state.Store, _ *Sim) {
 	})
 
 	st.HandleInternal("firmware.build_failed", func(w *state.World, p any) (any, error) {
-		w.Say("build failed: " + soleString(p))
+		w.Say("build failed: " + session.SoleString(p))
 		return nil, nil
 	})
 }

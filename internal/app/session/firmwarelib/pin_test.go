@@ -1,9 +1,10 @@
-package session
+package firmwarelib
 
 import (
 	"context"
 	"testing"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
@@ -25,10 +26,11 @@ func TestSettingFirmwareByRoleLeavesTheOtherRolesAlone(t *testing.T) {
 			Firmware: scenario.FirmwareRef{Version: "before"}},
 	}
 	store := state.New(10)
-	sim := &Sim{nodes: nodes}
+	sim := &session.Sim{}
+	sim.BuildSeeded(nodes, 869.618, 1)
 	registerFirmwareNodes(store, sim)
 	store.Handle("test.nodes", func(w *state.World, _ any) (any, error) {
-		for _, n := range sim.nodes {
+		for _, n := range sim.Nodes() {
 			w.Nodes = append(w.Nodes, state.Node{
 				Name: n.Name, Kind: string(n.Kind), Firmware: n.Firmware.Version,
 			})
@@ -61,7 +63,7 @@ func TestSettingFirmwareByRoleLeavesTheOtherRolesAlone(t *testing.T) {
 	for _, n := range world.Nodes {
 		drawn[n.Name] = n.Firmware
 	}
-	for _, n := range sim.nodes {
+	for _, n := range sim.Nodes() {
 		expect := "before"
 		if n.Name == "hill" {
 			expect = want
@@ -88,13 +90,13 @@ func TestSettingFirmwareByRoleLeavesTheOtherRolesAlone(t *testing.T) {
 // one that runs.
 func TestPinningFirmwareReachesTheEngine(t *testing.T) {
 	store := state.New(10)
-	sim := &Sim{}
-	Register(store, sim)
+	sim := &session.Sim{}
+	session.Register(store, sim)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go store.Run(ctx)
 
-	if _, err := store.Do(ctx, "project.open", "../../../fixtures/fixture-fife-strict.json"); err != nil {
+	if _, err := store.Do(ctx, "project.open", "../../../../fixtures/fixture-fife-strict.json"); err != nil {
 		t.Skip("no fixture:", err)
 	}
 
@@ -107,7 +109,7 @@ func TestPinningFirmwareReachesTheEngine(t *testing.T) {
 
 	// What the panel would draw.
 	pinned := 0
-	for _, n := range sim.nodes {
+	for _, n := range sim.Nodes() {
 		if n.Firmware.Version == want {
 			pinned++
 		}
@@ -118,7 +120,7 @@ func TestPinningFirmwareReachesTheEngine(t *testing.T) {
 
 	// And what will actually start.
 	inEngine := 0
-	for _, n := range sim.eng.Nodes() {
+	for _, n := range sim.Engine().Nodes() {
 		if n.Spec().Firmware.Version == want {
 			inEngine++
 		}
@@ -133,24 +135,28 @@ func TestPinningFirmwareReachesTheEngine(t *testing.T) {
 // The same for one node at a time, which is the path the node window uses.
 func TestPinningOneNodeReachesTheEngine(t *testing.T) {
 	store := state.New(10)
-	sim := &Sim{}
-	Register(store, sim)
+	sim := &session.Sim{}
+	session.Register(store, sim)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go store.Run(ctx)
 
-	if _, err := store.Do(ctx, "project.open", "../../../fixtures/fixture-fife-strict.json"); err != nil {
+	if _, err := store.Do(ctx, "project.open", "../../../../fixtures/fixture-fife-strict.json"); err != nil {
 		t.Skip("no fixture:", err)
 	}
-	if len(sim.nodes) == 0 {
+	if len(sim.Nodes()) == 0 {
 		t.Skip("no nodes")
 	}
-	name := sim.nodes[0].Name
+	name := sim.Nodes()[0].Name
 	const want = "repeater-v8.8.8-test"
-	if err := sim.setFirmware(name, Build{Version: want}); err != nil {
+	// Through the verb rather than the method behind it: the method is
+	// session's own and this package cannot reach it, and the verb is the path
+	// an operator and a script both take anyway.
+	if _, err := store.Do(ctx, "node.set_firmware_only",
+		map[string]any{"node": name, "version": want}); err != nil {
 		t.Fatal(err)
 	}
-	for _, n := range sim.eng.Nodes() {
+	for _, n := range sim.Engine().Nodes() {
 		if n.Spec().Name == name {
 			if n.Spec().Firmware.Version != want {
 				t.Fatalf("%s: engine has %q, the scenario has %q",
@@ -178,14 +184,15 @@ func TestSettingFirmwareCarriesTheBoardAndOnlyWhenAsked(t *testing.T) {
 			Firmware: scenario.FirmwareRef{Version: "before"}},
 	}
 	store := state.New(10)
-	sim := &Sim{nodes: nodes}
+	sim := &session.Sim{}
+	sim.BuildSeeded(nodes, 869.618, 1)
 	registerFirmwareNodes(store, sim)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go store.Run(ctx)
 
 	board := func(name string) string {
-		for _, n := range sim.nodes {
+		for _, n := range sim.Nodes() {
 			if n.Name == name {
 				return n.Firmware.Board
 			}
