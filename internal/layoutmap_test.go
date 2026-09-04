@@ -17,6 +17,14 @@
 // were both absent from the map: they sit three deep, and a check that stops at
 // two is a check that reports on the packages least likely to be new.
 //
+// By path rather than by name, which is the correction that matters most. This
+// keyed on the last segment alone, so one row anywhere in the map satisfied a
+// directory of that name anywhere in the tree: internal/ui/workbench/packet was
+// added with no row of its own and passed, silently answered by the row for
+// internal/mesh/packet. A guard that passes for the wrong reason is worse than
+// no guard, because it is trusted. The map's indentation already says where a
+// row sits, so the path is rebuilt from it and compared whole.
+//
 // Deliberately a test rather than a CI step. A CI step checks the tree that CI
 // happens to run on; a test fails on the machine of whoever moved the package,
 // while they still remember why.
@@ -32,14 +40,25 @@ import (
 	"testing"
 )
 
-// mapEntry matches a line of the table: an indented package name, a trailing
-// slash, then whitespace and its description. Indentation carries depth in the
-// map and is not fixed, so any is accepted; the layer headings themselves start
-// at column zero and so do not match.
-var mapEntry = regexp.MustCompile(`(?m)^ +([a-z][a-z0-9-]*)/\s+\S`)
+// mapRow matches a row of the table: any indentation, a package name, a
+// trailing slash, then whitespace and its description.
+//
+// The name may itself contain slashes, because a layer's own heading sits at
+// column zero and spells its path out - "internal/rf/" - while the packages
+// beneath it are indented and named by their last segment alone. Indentation
+// is what carries depth, so any amount is accepted and the amount is what is
+// read.
+//
+// A description that wraps onto another line cannot match: a continuation is
+// prose, and prose has no bare "word/" before its first space. If one ever
+// does, it builds a path that no directory answers, and the reverse check below
+// fails loudly rather than quietly widening what counts as mapped.
+var mapRow = regexp.MustCompile(`^( *)([a-z][a-z0-9-]*(?:/[a-z][a-z0-9-]*)*)/\s+\S`)
 
 // layerEntry matches a layer's own heading, which sits at column zero as
 // "internal/rf/" rather than being indented like the packages beneath it.
+// Read by layers_test.go, which checks that the map is written in the order
+// the layering is enforced in.
 var layerEntry = regexp.MustCompile(`(?m)^internal/([a-z][a-z0-9]*)/`)
 
 // skipDir is what is in the tree but is not part of the map: fixtures a package
@@ -48,6 +67,38 @@ func skipDir(name string) bool {
 	return strings.HasPrefix(name, "testdata") ||
 		strings.HasPrefix(name, ".") ||
 		strings.HasPrefix(name, "_")
+}
+
+// mappedPaths is every path the map carries a row for, rebuilt from its
+// indentation.
+//
+// A row deeper than the one before it is a child of it; a row at the same
+// indentation or shallower closes everything at least as deep. That is exactly
+// what the table already means to a reader, said to the compiler.
+func mappedPaths(block string) map[string]bool {
+	type level struct {
+		indent int
+		path   string
+	}
+	var stack []level
+	out := map[string]bool{}
+	for _, line := range strings.Split(block, "\n") {
+		m := mapRow.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		indent, name := len(m[1]), m[2]
+		for len(stack) > 0 && stack[len(stack)-1].indent >= indent {
+			stack = stack[:len(stack)-1]
+		}
+		path := name
+		if len(stack) > 0 {
+			path = stack[len(stack)-1].path + "/" + name
+		}
+		stack = append(stack, level{indent, path})
+		out[path] = true
+	}
+	return out
 }
 
 // trackedDirs is every directory the repository actually keeps, asked of git
@@ -71,7 +122,7 @@ func trackedDirs(t *testing.T) map[string]bool {
 	dirs := map[string]bool{}
 	for _, f := range strings.Split(string(out), "\x00") {
 		for d := filepath.Dir(f); d != "." && d != string(filepath.Separator); d = filepath.Dir(d) {
-			dirs[d] = true
+			dirs[filepath.ToSlash(d)] = true
 		}
 	}
 	return dirs
@@ -88,63 +139,72 @@ func TestLayoutMapMatchesTheTree(t *testing.T) {
 	if block == "" {
 		t.Fatal("no fenced layout block in CLAUDE.md: the map has been removed or its fence changed")
 	}
-
-	mapped := map[string]bool{}
-	for _, m := range mapEntry.FindAllStringSubmatch(block, -1) {
-		mapped[m[1]] = true
-	}
-	for _, m := range layerEntry.FindAllStringSubmatch(block, -1) {
-		mapped[m[1]] = true
-	}
-
+	mapped := mappedPaths(block)
 	tracked := trackedDirs(t)
 	found := map[string]bool{}
+
 	// internal/ and tools/ are mapped to the bottom: a directory at any depth
 	// is a thing somebody has to find, and the ones added last are the deepest.
-	for _, root := range []string{".", filepath.Join("..", "tools")} {
-		for _, dir := range dirsUnder(t, root) {
-			if tracked != nil && !tracked[repoPath(root, dir)] {
+	// pkg/ and cmd/ are mapped one level down, at the client and at the binary
+	// rather than inside them.
+	for _, root := range []struct {
+		dir, prefix string
+		deep        bool
+	}{
+		{".", "internal", true},
+		{filepath.Join("..", "tools"), "tools", true},
+		{filepath.Join("..", "pkg"), "pkg", false},
+		{filepath.Join("..", "cmd"), "cmd", false},
+	} {
+		for _, rel := range dirsUnder(t, root.dir, root.deep) {
+			path := root.prefix + "/" + rel
+			if tracked != nil && !tracked[path] {
 				continue
 			}
-			found[filepath.Base(dir)] = true
-			if !mapped[filepath.Base(dir)] {
+			found[path] = true
+			if !mapped[path] {
 				t.Errorf("%s has no entry in CLAUDE.md's layout map.\n"+
 					"A new package updates the map in the same commit - the map being "+
-					"wrong is worse than the map being short.", shown(root, dir))
+					"wrong is worse than the map being short.", path)
 			}
 		}
 	}
 
-	// pkg/ is the public surface, and the map lists it at the client rather
-	// than inside it: what a fork imports is client-go, not the files under it.
-	if pkgs, err := os.ReadDir(filepath.Join("..", "pkg")); err == nil {
-		for _, pkg := range pkgs {
-			if !pkg.IsDir() || skipDir(pkg.Name()) {
-				continue
-			}
-			found[pkg.Name()] = true
-			if !mapped[pkg.Name()] {
-				t.Errorf("pkg/%s has no entry in CLAUDE.md's layout map.\n"+
-					"A new public package updates the map in the same commit.", pkg.Name())
-			}
+	for path := range mapped {
+		// The layer headings name themselves and have no directory of their
+		// own to find - "internal/rf/" is a row and a directory both, and it is
+		// walked as one of the roots above only for internal.
+		if found[path] || isRoot(path) {
+			continue
 		}
-	}
-
-	for name := range mapped {
-		if !found[name] {
-			t.Errorf("CLAUDE.md's layout map names %q, which is not a directory in the tree.\n"+
-				"A rename or a deletion left the map pointing at nothing.", name)
-		}
+		t.Errorf("CLAUDE.md's layout map names %q, which is not a directory in the tree.\n"+
+			"A rename or a deletion left the map pointing at nothing.", path)
 	}
 }
 
-// dirsUnder walks root and returns every directory below it that the map is
-// expected to carry a row for, deepest included.
-func dirsUnder(t *testing.T, root string) []string {
+// isRoot reports whether a mapped path is one of the tops the walk starts from
+// rather than something below one.
+func isRoot(path string) bool {
+	switch path {
+	case "internal", "tools", "pkg", "cmd":
+		return true
+	}
+	// A layer heading - "internal/rf" - is a directory the walk does find, so
+	// only the bare tops are excused here.
+	return false
+}
+
+// dirsUnder walks root and returns every directory below it, relative to root
+// and slash-separated. Shallow stops at one level, for the trees the map names
+// at the client rather than inside it.
+func dirsUnder(t *testing.T, root string, deep bool) []string {
 	t.Helper()
 	var out []string
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
+			if os.IsNotExist(err) {
+				return fs.SkipAll
+			}
 			return err
 		}
 		if !d.IsDir() || path == root {
@@ -153,30 +213,20 @@ func dirsUnder(t *testing.T, root string) []string {
 		if skipDir(d.Name()) {
 			return fs.SkipDir
 		}
-		out = append(out, path)
+		rel, relErr := filepath.Rel(root, path)
+		if relErr != nil {
+			return relErr
+		}
+		out = append(out, filepath.ToSlash(rel))
+		if !deep {
+			return fs.SkipDir
+		}
 		return nil
 	})
 	if err != nil {
 		t.Fatalf("walking %s: %v", root, err)
 	}
 	return out
-}
-
-// repoPath is a walked directory as git names it, from the repository root.
-func repoPath(root, dir string) string {
-	if root == "." {
-		return filepath.Join("internal", strings.TrimPrefix(dir, "./"))
-	}
-	return filepath.Join("tools", strings.TrimPrefix(dir, filepath.Join("..", "tools")+string(filepath.Separator)))
-}
-
-// shown names a directory the way the map does, so the failure can be pasted
-// straight into the row that is missing.
-func shown(root, dir string) string {
-	if root == "." {
-		return "internal/" + filepath.ToSlash(dir)
-	}
-	return filepath.ToSlash(strings.TrimPrefix(dir, ".."+string(filepath.Separator)))
 }
 
 // layoutBlock returns the fenced code block that holds the map, found by the
