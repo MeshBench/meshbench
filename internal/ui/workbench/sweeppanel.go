@@ -228,7 +228,7 @@ func (c *sweepControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 		// not connected.
 		asked := 0
 		var ss []any
-		for _, v := range splitFields(fieldText(&c.seeds)) {
+		for _, v := range comp.SplitFields(comp.FieldText(&c.seeds)) {
 			if n, err := strconv.ParseFloat(v, 64); err == nil {
 				ss = append(ss, n)
 			}
@@ -238,11 +238,11 @@ func (c *sweepControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 			c.do("experiment.seeds", map[string]any{"seeds": ss})
 		}
 
-		if v, ok := num(&c.spreadFld); ok {
+		if v, ok := comp.Num(&c.spreadFld); ok {
 			asked++
 			c.do("experiment.define", map[string]any{"spread_ms": v * 1000})
 		}
-		if v, ok := num(&c.bytesFld); ok && v > 0 {
+		if v, ok := comp.Num(&c.bytesFld); ok && v > 0 {
 			asked++
 			c.do("experiment.define", map[string]any{"bytes": v})
 		}
@@ -250,8 +250,8 @@ func (c *sweepControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 		// "send unscoped" has to be reachable once a scope has been set.
 		asked++
 		c.do("experiment.define", map[string]any{
-			"scope": strings.TrimSpace(fieldText(&c.scopeFld))})
-		if v, ok := num(&c.runFor); ok {
+			"scope": strings.TrimSpace(comp.FieldText(&c.scopeFld))})
+		if v, ok := comp.Num(&c.runFor); ok {
 			asked++
 			c.do("experiment.base", map[string]any{"run_for_ms": v * 1000})
 		}
@@ -262,7 +262,7 @@ func (c *sweepControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 	}
 	if c.addArms.Click.Clicked(gtx) && c.do != nil {
 		var vs []any
-		for _, v := range strings.Split(fieldText(&c.varyVals), ",") {
+		for _, v := range strings.Split(comp.FieldText(&c.varyVals), ",") {
 			if v = strings.TrimSpace(v); v != "" {
 				vs = append(vs, v)
 			}
@@ -335,10 +335,10 @@ func (c *sweepControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 		c.do("experiment.senders", map[string]any{"senders": []any{}})
 	}
 
-	bar := actionBar{
-		fields:  []*comp.Field{&c.seeds, &c.runFor, &c.spreadFld, &c.bytesFld, &c.scopeFld},
-		buttons: []*comp.Button{&c.define, &c.start, &c.stop, &c.export},
-		note: "a message is originated by a companion, so the sender has to be " +
+	bar := comp.ActionBar{
+		Fields:  []*comp.Field{&c.seeds, &c.runFor, &c.spreadFld, &c.bytesFld, &c.scopeFld},
+		Buttons: []*comp.Button{&c.define, &c.start, &c.stop, &c.export},
+		Note: "a message is originated by a companion, so the sender has to be " +
 			"one; two seeds that agree exactly are one draw repeated, not a spread",
 	}
 	// The whole panel scrolls.
@@ -394,7 +394,7 @@ func (c *sweepControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 				})
 		},
 		func(gtx layout.Context) layout.Dimensions { return c.senderList(t, gtx) },
-		func(gtx layout.Context) layout.Dimensions { return bar.layout(t, gtx) },
+		func(gtx layout.Context) layout.Dimensions { return bar.Layout(t, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return c.estimate(t, gtx) },
 	}
 	sections = append(sections, func(gtx layout.Context) layout.Dimensions {

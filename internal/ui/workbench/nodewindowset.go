@@ -11,17 +11,18 @@ import (
 	"gioui.org/io/key"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
+	"github.com/MeshBench/meshbench/internal/ui/shell"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 )
 
 // nodeWindowSet tracks which nodes have a window, so a second request raises
 // rather than opening a duplicate.
 type nodeWindowSet struct {
-	*windowRegistry
+	*shell.WindowRegistry
 }
 
 func newNodeWindowSet() *nodeWindowSet {
-	return &nodeWindowSet{windowRegistry: newWindowRegistry()}
+	return &nodeWindowSet{WindowRegistry: shell.NewWindowRegistry()}
 }
 
 // nodeWindowHooks is how a node window reaches the rest of the application.
@@ -44,14 +45,14 @@ func (w *nodeWindowSet) openFor(node string, tab nodeTab,
 	// used to return in silence, which is indistinguishable from a dead menu
 	// entry - and for a layered window dragged out of reach, the recall is
 	// the only way back.
-	if !w.claim(node) {
+	if !w.Claim(node) {
 		return
 	}
 	p := &nodeWindowPanel{node: node, OnCommand: h.onCommand, OnAction: h.onAction,
 		OnCLI: h.onCLI, OnServe: h.onServe, OnOpenPacket: h.onOpenPacket,
 		OnDo: h.onDo, Kind: kindOfNode(st, node)}
 	p.tab = tab
-	go runPopout(w.windowRegistry, node, "MeshBench - "+node,
+	go runPopout(w.WindowRegistry, node, "MeshBench - "+node,
 		popoutSize{820, 620}, p, newTheme, st)
 }
 

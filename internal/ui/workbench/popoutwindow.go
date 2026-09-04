@@ -17,6 +17,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/ui/comp"
 	"github.com/MeshBench/meshbench/internal/ui/float"
+	"github.com/MeshBench/meshbench/internal/ui/shell"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 )
 
@@ -47,10 +48,10 @@ type popoutSize struct{ w, h unit.Dp }
 // key is what the window is known by in the set: a second request for the same
 // key raises the window already out there rather than opening another copy.
 // The caller has already claimed it.
-func runPopout(w *windowRegistry, key, title string, size popoutSize,
+func runPopout(w *shell.WindowRegistry, key, title string, size popoutSize,
 	p popoutPanel, newTheme func() *theme.Theme, st *state.Store) {
 
-	defer w.release(key)
+	defer w.Release(key)
 	// A theme with a shaper of its own. Gio's is not safe for concurrent use,
 	// and two frame loops sharing one corrupts its glyph buffer.
 	th := newTheme()
@@ -82,7 +83,7 @@ func runPopout(w *windowRegistry, key, title string, size popoutSize,
 		case app.DestroyEvent:
 			return
 		case app.FrameEvent:
-			if w.wantsRaise(key) {
+			if w.WantsRaise(key) {
 				// Raising means nothing to a layer surface, so for a layered
 				// window the wish recalls it on screen instead - which is also
 				// how one dragged out of reach comes back.

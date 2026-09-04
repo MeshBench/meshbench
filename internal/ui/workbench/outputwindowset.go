@@ -15,15 +15,16 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/ui/comp"
+	"github.com/MeshBench/meshbench/internal/ui/shell"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 )
 
 type outputWindowSet struct {
-	*windowRegistry
+	*shell.WindowRegistry
 }
 
 func newOutputWindowSet() *outputWindowSet {
-	return &outputWindowSet{windowRegistry: newWindowRegistry()}
+	return &outputWindowSet{WindowRegistry: shell.NewWindowRegistry()}
 }
 
 // outputWindowKey identifies one log: a node and one of its voices.
@@ -32,13 +33,13 @@ func outputWindowKey(node, source string) string { return node + "\x00" + source
 func (w *outputWindowSet) openFor(node, source string,
 	newTheme func() *theme.Theme, st *state.Store, do Do) {
 	key := outputWindowKey(node, source)
-	if !w.claim(key) {
+	if !w.Claim(key) {
 		return
 	}
 	p := &outputWindowPanel{node: node, OnDo: do}
 	p.out.source, p.out.noPop = source, true
 	title := "MeshBench - " + node + " " + sourceLabel(source)
-	go runPopout(w.windowRegistry, key, title, popoutSize{760, 520}, p, newTheme, st)
+	go runPopout(w.WindowRegistry, key, title, popoutSize{760, 520}, p, newTheme, st)
 }
 
 // outputWindowPanel is one log, drawn on its own.
@@ -76,7 +77,7 @@ func (p *outputWindowPanel) Draw(t *theme.Theme, gtx layout.Context,
 	p.clicks(gtx)
 
 	lines, total, note, path := o.readFrom(p.node, s)
-	shown := filterLines(lines, fieldText(&o.search))
+	shown := filterLines(lines, comp.FieldText(&o.search))
 
 	var kids []layout.FlexChild
 	if p.Layered {

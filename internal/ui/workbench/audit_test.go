@@ -42,7 +42,7 @@ type control struct {
 }
 
 // controlsOf walks a struct for the widgets it owns, including through
-// embedded structs like actionBar.
+// embedded structs like comp.ActionBar.
 //
 // Through unsafe, because the widgets are unexported and the whole point is to
 // find the ones nobody remembered to name: a list written by hand is a list of

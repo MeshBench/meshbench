@@ -179,24 +179,24 @@ func (c *antennaControls) rows(t *theme.Theme, node *state.Node) []layout.Widget
 	head := func(sec string) layout.Widget { return comp.SectionRule(t, sec) }
 	buttons := func(bs []*comp.Button) layout.Widget {
 		return func(gtx layout.Context) layout.Dimensions {
-			bar := actionBar{buttons: bs}
-			return bar.layout(t, gtx)
+			bar := comp.ActionBar{Buttons: bs}
+			return bar.Layout(t, gtx)
 		}
 	}
-	numbers := actionBar{
-		fields:  []*comp.Field{&c.gain, &c.beam, &c.f2b},
-		buttons: nil,
+	numbers := comp.ActionBar{
+		Fields:  []*comp.Field{&c.gain, &c.beam, &c.f2b},
+		Buttons: nil,
 	}
-	aiming := actionBar{
-		fields:  []*comp.Field{&c.bearing, &c.downtilt, &c.feedline},
-		buttons: []*comp.Button{&c.apply, &c.applyAll},
-		note: "applies to this node; the second button gives every node in the " +
+	aiming := comp.ActionBar{
+		Fields:  []*comp.Field{&c.bearing, &c.downtilt, &c.feedline},
+		Buttons: []*comp.Button{&c.apply, &c.applyAll},
+		Note: "applies to this node; the second button gives every node in the " +
 			"scenario the same antenna, which is how a large network is set at all",
 	}
-	at := actionBar{
-		fields:  []*comp.Field{&c.aimAt},
-		buttons: []*comp.Button{&c.aim},
-		note: "the bearing between two placed nodes is exact, so this is a better " +
+	at := comp.ActionBar{
+		Fields:  []*comp.Field{&c.aimAt},
+		Buttons: []*comp.Button{&c.aim},
+		Note: "the bearing between two placed nodes is exact, so this is a better " +
 			"answer than reading one off the map and typing it back",
 	}
 	return []layout.Widget{
@@ -204,10 +204,10 @@ func (c *antennaControls) rows(t *theme.Theme, node *state.Node) []layout.Widget
 		head("sort"),
 		buttons([]*comp.Button{&c.sorts[0], &c.sorts[1], &c.sorts[2], &c.sorts[3]}),
 		head("what it is"),
-		func(gtx layout.Context) layout.Dimensions { return numbers.layout(t, gtx) },
+		func(gtx layout.Context) layout.Dimensions { return numbers.Layout(t, gtx) },
 		head("where it points"),
-		func(gtx layout.Context) layout.Dimensions { return aiming.layout(t, gtx) },
-		func(gtx layout.Context) layout.Dimensions { return at.layout(t, gtx) },
+		func(gtx layout.Context) layout.Dimensions { return aiming.Layout(t, gtx) },
+		func(gtx layout.Context) layout.Dimensions { return at.Layout(t, gtx) },
 		head("polarisation"),
 		buttons([]*comp.Button{&c.pols[0], &c.pols[1], &c.pols[2]}),
 		func(gtx layout.Context) layout.Dimensions {
@@ -271,7 +271,7 @@ func (p *nodeWindowPanel) antennaClicks(gtx layout.Context) {
 	}
 	if c.aim.Click.Clicked(gtx) {
 		p.OnDo("node.aim", map[string]any{
-			"node": p.node, "at": fieldText(&c.aimAt)})
+			"node": p.node, "at": comp.FieldText(&c.aimAt)})
 	}
 }
 
@@ -298,17 +298,17 @@ func (p *nodeWindowPanel) antennaAuditRows(t *theme.Theme, gtx layout.Context,
 	// Two rows rather than the tab's five: every other pane in the flat layout
 	// has already taken its bound, and the console's own send button goes off
 	// the bottom of the canvas for every row added above it.
-	sorts := actionBar{buttons: []*comp.Button{
+	sorts := comp.ActionBar{Buttons: []*comp.Button{
 		&c.sorts[0], &c.sorts[1], &c.sorts[2], &c.sorts[3],
 		&c.pols[0], &c.pols[1], &c.pols[2]}}
-	rest := actionBar{
-		fields: []*comp.Field{&c.gain, &c.beam, &c.f2b,
+	rest := comp.ActionBar{
+		Fields: []*comp.Field{&c.gain, &c.beam, &c.f2b,
 			&c.bearing, &c.downtilt, &c.feedline, &c.aimAt},
-		buttons: []*comp.Button{&c.apply, &c.applyAll, &c.aim},
+		Buttons: []*comp.Button{&c.apply, &c.applyAll, &c.aim},
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return sorts.layout(t, gtx) }),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return rest.layout(t, gtx) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return sorts.Layout(t, gtx) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return rest.Layout(t, gtx) }),
 	)
 }
 
@@ -325,7 +325,7 @@ func (c *antennaControls) typed() map[string]any {
 		"downtilt_deg":     &c.downtilt,
 		"feedline_db":      &c.feedline,
 	} {
-		if v := fieldText(f); v != "" {
+		if v := comp.FieldText(f); v != "" {
 			out[key] = atof(v)
 		}
 	}

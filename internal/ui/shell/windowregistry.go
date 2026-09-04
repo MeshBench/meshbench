@@ -5,11 +5,11 @@
 // easy to get wrong - a second request raising rather than opening a duplicate,
 // and a raise being a wish rather than a reach into somebody else's event loop
 // - is not worth having two copies of.
-package workbench
+package shell
 
 import "sync"
 
-type windowRegistry struct {
+type WindowRegistry struct {
 	mu   sync.Mutex
 	open map[string]bool
 	// raising is which windows have been asked to come forward: a wish
@@ -19,9 +19,9 @@ type windowRegistry struct {
 	raising map[string]bool
 }
 
-// newWindowRegistry returns a pointer, so that embedding one never copies the lock.
-func newWindowRegistry() *windowRegistry {
-	return &windowRegistry{open: map[string]bool{}, raising: map[string]bool{}}
+// NewWindowRegistry returns a pointer, so that embedding one never copies the lock.
+func NewWindowRegistry() *WindowRegistry {
+	return &WindowRegistry{open: map[string]bool{}, raising: map[string]bool{}}
 }
 
 // claim reports whether the caller should open this window.
@@ -30,7 +30,7 @@ func newWindowRegistry() *windowRegistry {
 // instead - which is also the escape hatch for a window dragged somewhere its
 // bar cannot be reached from, where doing nothing would read as a dead menu
 // entry.
-func (w *windowRegistry) claim(key string) bool {
+func (w *WindowRegistry) Claim(key string) bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.open[key] {
@@ -42,7 +42,7 @@ func (w *windowRegistry) claim(key string) bool {
 }
 
 // release forgets a window that has closed.
-func (w *windowRegistry) release(key string) {
+func (w *WindowRegistry) Release(key string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	delete(w.open, key)
@@ -50,7 +50,7 @@ func (w *windowRegistry) release(key string) {
 }
 
 // wantsRaise reports and clears the wish, on the window's own goroutine.
-func (w *windowRegistry) wantsRaise(key string) bool {
+func (w *WindowRegistry) WantsRaise(key string) bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.raising[key] {

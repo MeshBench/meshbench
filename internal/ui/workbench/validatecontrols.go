@@ -11,7 +11,7 @@ import (
 
 // validateControls is the calibration chain.
 type validateControls struct {
-	bar   actionBar
+	bar   comp.ActionBar
 	hours comp.Field
 	db    comp.Field
 	fetch comp.Button
@@ -30,22 +30,22 @@ func (c *validateControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Sna
 		c.fetch.Label, c.fetch.Kind = "fetch and compare", comp.Primary
 		c.cal.Label, c.cal.Kind = "apply calibration", comp.Secondary
 		c.uncal.Label, c.uncal.Kind = "back to the default", comp.Quiet
-		c.bar.fields = []*comp.Field{&c.hours, &c.db}
-		c.bar.buttons = []*comp.Button{&c.fetch, &c.cal, &c.uncal}
-		c.bar.note = "positive residual means the model predicted more signal than " +
+		c.bar.Fields = []*comp.Field{&c.hours, &c.db}
+		c.bar.Buttons = []*comp.Button{&c.fetch, &c.cal, &c.uncal}
+		c.bar.Note = "positive residual means the model predicted more signal than " +
 			"was heard, so it is optimistic and the excess loss should go up"
 		c.built = true
 	}
 	if c.fetch.Click.Clicked(gtx) && c.do != nil {
 		p := map[string]any{}
-		if v, ok := num(&c.hours); ok {
+		if v, ok := comp.Num(&c.hours); ok {
 			p["hours"] = v
 		}
 		c.do("validate.fetch", p)
 	}
 	if c.cal.Click.Clicked(gtx) && c.do != nil {
 		p := map[string]any{}
-		if v, ok := num(&c.db); ok {
+		if v, ok := comp.Num(&c.db); ok {
 			p["db"] = v
 		}
 		c.do("validate.calibrate", p)
@@ -53,5 +53,5 @@ func (c *validateControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Sna
 	if c.uncal.Click.Clicked(gtx) && c.do != nil {
 		c.do("validate.uncalibrate", nil)
 	}
-	return c.bar.layout(t, gtx)
+	return c.bar.Layout(t, gtx)
 }

@@ -8,17 +8,18 @@ package workbench
 
 import (
 	"github.com/MeshBench/meshbench/internal/app/state"
+	"github.com/MeshBench/meshbench/internal/ui/shell"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 )
 
 // firmwareWindowSet tracks which builds have a window, so a second request
 // raises rather than opening a duplicate.
 type firmwareWindowSet struct {
-	*windowRegistry
+	*shell.WindowRegistry
 }
 
 func newFirmwareWindowSet() *firmwareWindowSet {
-	return &firmwareWindowSet{windowRegistry: newWindowRegistry()}
+	return &firmwareWindowSet{WindowRegistry: shell.NewWindowRegistry()}
 }
 
 // buildWindowKey identifies a build across all three of its names.
@@ -33,10 +34,10 @@ func buildWindowKey(role, version, board string) string {
 func (w *firmwareWindowSet) openFor(role, version, board string,
 	newTheme func() *theme.Theme, st *state.Store, do Do) {
 	key := buildWindowKey(role, version, board)
-	if !w.claim(key) {
+	if !w.Claim(key) {
 		return
 	}
 	p := &firmwareWindowPanel{role: role, version: version, board: board, OnDo: do}
-	go runPopout(w.windowRegistry, key, "MeshBench - "+version,
+	go runPopout(w.WindowRegistry, key, "MeshBench - "+version,
 		popoutSize{760, 680}, p, newTheme, st)
 }

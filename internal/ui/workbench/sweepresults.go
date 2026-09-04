@@ -249,14 +249,14 @@ func seedsRan(a state.ArmSummary) string {
 
 // estimate says what pressing "run it" is about to cost, before it is pressed.
 func (c *sweepControls) estimate(t *theme.Theme, gtx layout.Context) layout.Dimensions {
-	seeds := len(splitFields(fieldText(&c.seeds)))
+	seeds := len(comp.SplitFields(comp.FieldText(&c.seeds)))
 	arms := len(c.armsNow())
 	if seeds == 0 || arms == 0 {
 		return layout.Dimensions{}
 	}
 	runs := arms * seeds
 	line := fmt.Sprintf("%d arms x %d seeds = %d runs", arms, seeds, runs)
-	if secs, ok := num(&c.runFor); ok && secs > 0 {
+	if secs, ok := comp.Num(&c.runFor); ok && secs > 0 {
 		line += fmt.Sprintf(", about %s", roughDuration(runs*int(secs)))
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,

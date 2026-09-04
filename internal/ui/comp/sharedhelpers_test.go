@@ -26,9 +26,12 @@ import (
 // declaring its own function by one of these names is either shadowing the
 // shared one or reintroducing it.
 var shared = map[string]string{
-	"fixed":          "comp.Fixed",
-	"copyText":       "comp.CopyText",
-	"borderedAction": "comp.BorderedAction",
+	"fixed":            "comp.Fixed",
+	"copyText":         "comp.CopyText",
+	"borderedAction":   "comp.BorderedAction",
+	"fieldText":        "comp.FieldText",
+	"selectedNodeName": "comp.SelectedNodeName",
+	"splitFields":      "comp.SplitFields",
 }
 
 func TestNoPanelKeepsItsOwnCopyOfASharedHelper(t *testing.T) {

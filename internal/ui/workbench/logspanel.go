@@ -76,7 +76,7 @@ func (p *logsPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 		}
 	}
 
-	want := fieldText(&p.search)
+	want := comp.FieldText(&p.search)
 	shown := filterLines(s.FullLog, want)
 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,

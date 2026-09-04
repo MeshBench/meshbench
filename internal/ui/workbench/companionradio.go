@@ -230,7 +230,7 @@ func (c *companionTab) radioClicks(gtx layout.Context, cs state.Companion) {
 		return
 	}
 	params := map[string]any{}
-	if v := fieldText(&c.setName); v != "" {
+	if v := comp.FieldText(&c.setName); v != "" {
 		params["name"] = v
 	}
 	for _, f := range []struct {
@@ -244,7 +244,7 @@ func (c *companionTab) radioClicks(gtx layout.Context, cs state.Companion) {
 		// in a modem field is not "unchanged", it is a value the firmware
 		// rejects, and it fails the whole frame including the fields that
 		// were fine.
-		if v, err := strconv.ParseFloat(fieldText(f.field), 64); err == nil {
+		if v, err := strconv.ParseFloat(comp.FieldText(f.field), 64); err == nil {
 			params[f.key] = v
 		}
 	}

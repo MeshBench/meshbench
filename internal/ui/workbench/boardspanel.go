@@ -24,7 +24,7 @@ var boardCapCols = []struct{ key, label string }{
 }
 
 type boardsPanel struct {
-	bar   actionBar
+	bar   comp.ActionBar
 	board comp.Field
 	vers  comp.Field
 	probe comp.Button
@@ -44,9 +44,9 @@ func (p *boardsPanel) build() {
 	}
 	p.probe.Label, p.probe.Kind = "probe this board", comp.Primary
 	p.refr.Label, p.refr.Kind = "refresh", comp.Secondary
-	p.bar.fields = []*comp.Field{&p.board, &p.vers}
-	p.bar.buttons = []*comp.Button{&p.probe, &p.refr}
-	p.bar.note = "a probe is one real emulator boot, driven the same way the engine's own " +
+	p.bar.Fields = []*comp.Field{&p.board, &p.vers}
+	p.bar.Buttons = []*comp.Button{&p.probe, &p.refr}
+	p.bar.Note = "a probe is one real emulator boot, driven the same way the engine's own " +
 		"live tests are - untested stays untested until it has actually run"
 	p.tb.Cols = append([]comp.Column{{Title: "board", Width: 170, Sortable: true}},
 		func() []comp.Column {
@@ -67,12 +67,12 @@ func (p *boardsPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 		return layout.Dimensions{}
 	}
 	if p.probe.Click.Clicked(gtx) && p.do != nil {
-		board := fieldText(&p.board)
+		board := comp.FieldText(&p.board)
 		if board == "" {
 			p.do("ui.said", "name a board to probe, or pick one from the matrix below")
 		} else {
 			params := map[string]any{"board": board}
-			if v := fieldText(&p.vers); v != "" {
+			if v := comp.FieldText(&p.vers); v != "" {
 				params["version"] = v
 			}
 			p.do("board.probe", params)
@@ -80,7 +80,7 @@ func (p *boardsPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 	}
 	if p.refr.Click.Clicked(gtx) && p.do != nil {
 		params := map[string]any{}
-		if v := fieldText(&p.vers); v != "" {
+		if v := comp.FieldText(&p.vers); v != "" {
 			params["version"] = v
 		}
 		p.do("board.matrix", params)
@@ -115,7 +115,7 @@ func (p *boardsPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 	}
 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return p.bar.layout(t, gtx) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return p.bar.Layout(t, gtx) }),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			ver := s.BoardMatrixVersion
 			if ver == "" {

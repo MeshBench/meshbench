@@ -79,7 +79,7 @@ func (np *nodesPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 	// The selection the whole workbench is on, not the table's own idea of
 	// it: a node picked on the map or by a verb is the one somebody is
 	// working on, and the foot of this panel is where its name fits.
-	np.selected = selectedNodeName(s)
+	np.selected = comp.SelectedNodeName(s)
 	d := layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			// The table's own editor, drawn with the field's chrome. One

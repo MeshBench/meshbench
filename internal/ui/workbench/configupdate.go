@@ -96,7 +96,7 @@ func (p *configPanel) update(gtx layout.Context, s *state.Snapshot) {
 		if !n.btn.Click.Clicked(gtx) || p.do == nil {
 			continue
 		}
-		v, err := strconv.ParseFloat(strings.TrimSpace(fieldText(n.field)), 64)
+		v, err := strconv.ParseFloat(strings.TrimSpace(comp.FieldText(n.field)), 64)
 		if err != nil || v < n.min {
 			n.field.Error = "a number, at least " + trim0(n.min)
 			continue
@@ -116,7 +116,7 @@ func (p *configPanel) update(gtx layout.Context, s *state.Snapshot) {
 			{&p.fadingHz, "fading_hz"}, {&p.implLoss, "impl_loss_db"},
 			{&p.satDBm, "saturation_dbm"},
 		} {
-			if v, err := strconv.ParseFloat(strings.TrimSpace(fieldText(f.field)), 64); err == nil {
+			if v, err := strconv.ParseFloat(strings.TrimSpace(comp.FieldText(f.field)), 64); err == nil {
 				params[f.key] = v
 			}
 		}
@@ -126,7 +126,7 @@ func (p *configPanel) update(gtx layout.Context, s *state.Snapshot) {
 		p.do("rf.realism", params)
 	}
 	if p.loadEnv.Click.Clicked(gtx) && p.do != nil {
-		if dir := strings.TrimSpace(fieldText(&p.envDir)); dir != "" {
+		if dir := strings.TrimSpace(comp.FieldText(&p.envDir)); dir != "" {
 			p.do("rf.environment", map[string]any{"dir": dir})
 		} else {
 			p.do("rf.environment", map[string]any{"on": false})
@@ -137,7 +137,7 @@ func (p *configPanel) update(gtx layout.Context, s *state.Snapshot) {
 	}
 	// A directory is a thing to point at, not a path to remember and type.
 	if p.browseCache.Click.Clicked(gtx) && shell.Browse != nil {
-		start := strings.TrimSpace(fieldText(&p.cacheDir))
+		start := strings.TrimSpace(comp.FieldText(&p.cacheDir))
 		go func() {
 			got, err := shell.Browse("Where should the tiles live?", start,
 				shell.PathAsk{Kind: shell.PathDirectory})
@@ -154,7 +154,7 @@ func (p *configPanel) update(gtx layout.Context, s *state.Snapshot) {
 		}
 	}
 	if p.moveCache.Click.Clicked(gtx) && p.do != nil {
-		dir := strings.TrimSpace(fieldText(&p.cacheDir))
+		dir := strings.TrimSpace(comp.FieldText(&p.cacheDir))
 		if dir == "" {
 			p.cacheDir.Error = "where should the tiles live?"
 		} else {
@@ -166,7 +166,7 @@ func (p *configPanel) update(gtx layout.Context, s *state.Snapshot) {
 		p.do("links.recompute", nil)
 	}
 	if p.setScale.Click.Clicked(gtx) && p.sets != nil {
-		if v, err := strconv.ParseFloat(strings.TrimSpace(fieldText(&p.scale)), 64); err == nil && v >= 0.5 && v <= 3 {
+		if v, err := strconv.ParseFloat(strings.TrimSpace(comp.FieldText(&p.scale)), 64); err == nil && v >= 0.5 && v <= 3 {
 			p.scale.Error = ""
 			p.sets.setScale(v)
 		} else {

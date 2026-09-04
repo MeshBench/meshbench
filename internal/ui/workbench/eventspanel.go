@@ -119,12 +119,12 @@ func (p *eventsPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 
 	// The visible rows: the tail, filtered by chip and search. The selected
 	// node scopes the compact variant, which is what the Inspector shows.
-	sel := selectedNodeName(s)
+	sel := comp.SelectedNodeName(s)
 	p.scopedTo = ""
 	if p.forNode {
 		p.scopedTo = sel
 	}
-	want := strings.ToLower(fieldText(&p.search))
+	want := strings.ToLower(comp.FieldText(&p.search))
 	shown := make([]*state.Event, 0, len(s.Events))
 	for i := range s.Events {
 		e := &s.Events[i]
