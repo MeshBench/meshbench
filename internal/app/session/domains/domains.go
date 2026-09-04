@@ -15,6 +15,7 @@ import (
 	_ "github.com/MeshBench/meshbench/internal/app/session/fleet"
 	_ "github.com/MeshBench/meshbench/internal/app/session/inventory"
 	_ "github.com/MeshBench/meshbench/internal/app/session/links"
+	_ "github.com/MeshBench/meshbench/internal/app/session/mapview"
 	_ "github.com/MeshBench/meshbench/internal/app/session/nodeantenna"
 	_ "github.com/MeshBench/meshbench/internal/app/session/nodelookup"
 	_ "github.com/MeshBench/meshbench/internal/app/session/nodewipe"

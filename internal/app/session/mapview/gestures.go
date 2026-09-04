@@ -6,17 +6,18 @@
 // call. That is what makes them worth guarding carefully: every one of them
 // takes a node name or a coordinate from outside, and each used to have an
 // answer for a parameter it could not understand.
-package session
+package mapview
 
 import (
 	"fmt"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 )
 
-func registerMapGestures(st *state.Store, s *Sim) {
+func registerMapGestures(st *state.Store, s *session.Sim) {
 	st.Handle("nodes.select", func(w *state.World, p any) (any, error) {
-		name := primaryString(p, "node")
+		name := session.PrimaryString(p, "node")
 		for i := range w.Nodes {
 			w.Nodes[i].Selected = w.Nodes[i].Name == name
 		}
@@ -30,11 +31,11 @@ func registerMapGestures(st *state.Store, s *Sim) {
 		// outside that set is refused: the loop below writes every node's
 		// Selected, so a parameter nothing recognised used to deselect the whole
 		// network and answer as though it had selected something.
-		names, err := namesOf("nodes.select_many", p)
+		names, err := session.NamesOf("nodes.select_many", p)
 		if err != nil {
 			return nil, err
 		}
-		if err := unknownNames("nodes.select_many", w.Nodes, names); err != nil {
+		if err := session.UnknownNames("nodes.select_many", w.Nodes, names); err != nil {
 			return nil, err
 		}
 		want := map[string]bool{}
@@ -48,11 +49,11 @@ func registerMapGestures(st *state.Store, s *Sim) {
 	})
 
 	st.Handle("nodes.add_to_selection", func(w *state.World, p any) (any, error) {
-		names, err := namesOf("nodes.add_to_selection", p)
+		names, err := session.NamesOf("nodes.add_to_selection", p)
 		if err != nil {
 			return nil, err
 		}
-		if err := unknownNames("nodes.add_to_selection", w.Nodes, names); err != nil {
+		if err := session.UnknownNames("nodes.add_to_selection", w.Nodes, names); err != nil {
 			return nil, err
 		}
 		n := 0
@@ -75,7 +76,7 @@ func registerMapGestures(st *state.Store, s *Sim) {
 		// asked for.
 		m, isObject := p.(map[string]any)
 		if !isObject {
-			return nil, badParams("nodes.move takes a node and a position: " +
+			return nil, session.BadParams("nodes.move takes a node and a position: " +
 				`{"node": ..., "lat": ..., "lon": ...}`)
 		}
 		// "node" is what every other verb that acts on an existing node calls
@@ -88,13 +89,13 @@ func registerMapGestures(st *state.Store, s *Sim) {
 			name, _ = m["name"].(string)
 		}
 		if name == "" {
-			return nil, badParams("nodes.move needs a node: which node to move")
+			return nil, session.BadParams("nodes.move needs a node: which node to move")
 		}
-		lat, err := requiredNum("nodes.move", "lat", p, -90, 90)
+		lat, err := session.RequiredNum("nodes.move", "lat", p, -90, 90)
 		if err != nil {
 			return nil, err
 		}
-		lon, err := requiredNum("nodes.move", "lon", p, -180, 180)
+		lon, err := session.RequiredNum("nodes.move", "lon", p, -180, 180)
 		if err != nil {
 			return nil, err
 		}
@@ -104,8 +105,8 @@ func registerMapGestures(st *state.Store, s *Sim) {
 				// The physics moves with the marker: cached losses for this
 				// node are forgotten, so an attached SDR client hears the
 				// new position on the next window.
-				if s.eng != nil {
-					s.eng.SetNodePosition(i, lat, lon)
+				if s.Engine() != nil {
+					s.Engine().SetNodePosition(i, lat, lon)
 				}
 				// Both spellings in the reply too, so a caller reading either
 				// one back gets the node it moved.
@@ -114,7 +115,7 @@ func registerMapGestures(st *state.Store, s *Sim) {
 				}, nil
 			}
 		}
-		return nil, noSuchNode(name)
+		return nil, session.NoSuchNode(name)
 	})
 
 	st.Handle("sim.inject", func(w *state.World, p any) (any, error) {
@@ -130,7 +131,7 @@ func registerMapGestures(st *state.Store, s *Sim) {
 		// session is in. Told "no simulation" first, somebody fixes the
 		// simulation and then meets the same typo again.
 		at := 0
-		if name := primaryString(p, "node"); name != "" {
+		if name := session.PrimaryString(p, "node"); name != "" {
 			// Refused rather than fallen through to node 0. A name that matched
 			// nothing used to originate the packet at whichever node happened to
 			// be first and report that as success, so a typo in a script moved
@@ -142,7 +143,7 @@ func registerMapGestures(st *state.Store, s *Sim) {
 				}
 			}
 			if at < 0 {
-				return nil, unknownNames("sim.inject", w.Nodes, []string{name})
+				return nil, session.UnknownNames("sim.inject", w.Nodes, []string{name})
 			}
 		} else {
 			for i := range w.Nodes {
@@ -156,10 +157,10 @@ func registerMapGestures(st *state.Store, s *Sim) {
 		// delivers to everything in range regardless, so this exercises the
 		// radio model and the map's traffic layer; what it does not exercise
 		// is relaying, which is a firmware behaviour and needs a firmware.
-		if s.eng == nil {
-			return nil, ErrNoSimulation
+		if s.Engine() == nil {
+			return nil, session.ErrNoSimulation
 		}
-		s.eng.Inject(at, []byte("msim-map-trace"))
+		s.Engine().Inject(at, []byte("msim-map-trace"))
 		w.Say("injected a packet at " + w.Nodes[at].Name)
 		return map[string]any{"at": w.Nodes[at].Name}, nil
 	})
