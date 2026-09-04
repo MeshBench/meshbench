@@ -31,9 +31,29 @@ name: publish apt
 # Old versions stay in the pool. A repository that drops what it replaced breaks
 # anybody pinning a version, and disk is free here.
 
+# Called by package.yml once the release job has published, and dispatchable by
+# hand for a re-run.
+#
+# The release trigger below is kept for a release somebody cuts from the
+# GitHub UI, but it does NOT fire for the pipeline's own releases and cannot be
+# relied on: package.yml creates the release with GITHUB_TOKEN, and GitHub
+# raises no workflow-triggering event for anything done with that token - the
+# rule that stops workflows recursing. This ran zero times across every 0.0.6
+# attempt, and nobody noticed because "no runs" looks exactly like "not
+# reached yet". workflow_call is what actually connects it.
 on:
   release:
     types: [published]
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Release tag to publish'
+        required: true
+        type: string
+      dry_run:
+        description: 'Build the index and push nothing'
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       tag:
@@ -67,7 +87,7 @@ jobs:
       - name: Take the debs this release published
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.event.inputs.tag || github.event.release.tag_name }}
+          TAG: ${{ inputs.tag || github.event.release.tag_name }}
         run: |
           set -euo pipefail
           mkdir -p incoming
@@ -158,7 +178,7 @@ jobs:
 
       - name: Publish
         env:
-          DRY: ${{ github.event.inputs.dry_run || 'false' }}
+          DRY: ${{ inputs.dry_run || 'false' }}
         run: |
           set -euo pipefail
           cd site
@@ -169,7 +189,7 @@ jobs:
             echo "the pool and the index are unchanged"
             exit 0
           fi
-          git commit -q -m "apt: ${{ github.event.inputs.tag || github.event.release.tag_name }}"
+          git commit -q -m "apt: ${{ inputs.tag || github.event.release.tag_name }}"
           if [ "$DRY" = "true" ]; then
             echo "dry run; the commit was made and not pushed:"
             git show --stat HEAD
