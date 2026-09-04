@@ -182,7 +182,7 @@ Then open the firmware library, download a board image, and set a node's role to
 it. The library only offers boards with verified wiring, so anything it lists
 will start.
 
-MeshBench searches, in order: `MESHBENCH_QEMU` and `MESHBENCH_RADIO_SERVER`,
+MeshBench searches, in order: `MESHBENCH_QEMU` and `MESHBENCH_RADIO_LIB`,
 then beside its own binary, then that tools directory, then `PATH`. `PATH` is
 last because a desktop application is not launched from a shell and inherits
 nothing useful from one — which is why emulation used to work from a terminal

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 )
 
 // Fetch downloads one tool, verifies it, unpacks it and leaves it under the
@@ -83,7 +84,7 @@ func (t *Toolchain) install(rel toolRelease, a toolAsset, tmp string) error {
 	if err := os.RemoveAll(root); err != nil {
 		return err
 	}
-	if err := extractTar(tmp, t.Dir, a.Kind); err != nil {
+	if err := extractArchive(tmp, t.Dir, a.Kind); err != nil {
 		return err
 	}
 	inner := filepath.Join(t.Dir, filepath.FromSlash(a.Binary))
@@ -95,11 +96,19 @@ func (t *Toolchain) install(rel toolRelease, a toolAsset, tmp string) error {
 	// its bin/, and Renode's runtime walks its own directory. A bare copy of
 	// the binary into the tools directory starts and then cannot find any of
 	// it.
+	//
+	// Not fatal when it cannot be made. Windows grants symbolic links only to
+	// an elevated process or a machine in developer mode, and refusing the
+	// whole install over one would mean no Windows machine could ever fetch an
+	// emulator. The lookup searches this directory's subdirectories too, so the
+	// link is a convenience rather than the mechanism.
 	if err := os.Remove(link); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	if err := os.Symlink(filepath.FromSlash(a.Binary), link); err != nil {
-		return err
+		if runtime.GOOS != "windows" {
+			return err
+		}
 	}
 	return t.verify(inner, rel, a)
 }

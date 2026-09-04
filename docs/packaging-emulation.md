@@ -128,7 +128,7 @@ Already implemented, and the reasoning matters for packaging.
 
 `lookupTool` searches, in order:
 
-1. `MESHBENCH_QEMU` / `MESHBENCH_RADIO_SERVER`
+1. `MESHBENCH_QEMU` / `MESHBENCH_RADIO_LIB`
 2. beside the MeshBench binary
 3. `~/.cache/meshbench/tools/`
 4. `PATH`

@@ -164,9 +164,9 @@ func TestFetchingAPlainToolLandsWhereTheLookupSearches(t *testing.T) {
 	dir := t.TempDir()
 	body := fakeExec(elfAMD64, 5000)
 	rel := toolRelease{
-		Name: "radioserver", Version: "test", Why: "w", Terms: "t",
+		Name: "a-tool", Version: "test", Why: "w", Terms: "t",
 		Assets: map[string]toolAsset{platform(): {
-			URL: "https://example.invalid/radioserver", SHA256: digest(body),
+			URL: "https://example.invalid/a-tool", SHA256: digest(body),
 			Bytes: int64(len(body)), Kind: plainFile, Magic: elfAMD64,
 		}},
 	}
@@ -174,14 +174,13 @@ func TestFetchingAPlainToolLandsWhereTheLookupSearches(t *testing.T) {
 	if err != nil {
 		t.Fatalf("fetch: %v", err)
 	}
-	st, err := os.Stat(filepath.Join(dir, "radioserver"))
+	st, err := os.Stat(filepath.Join(dir, "a-tool"))
 	if err != nil {
 		t.Fatalf("nothing landed: %v", err)
 	}
-	// Windows has no executable bit - what may be run is decided by the name -
-	// and this fetcher is not built for it at all, which is what
-	// windowsFetchesNoEmulators says. The bytes landing is the part that means
-	// something there, and the progress check below covers it.
+	// Windows has no executable bit: what may be run is decided by the name.
+	// The bytes landing is the part that means something there, and the
+	// progress check below covers it.
 	if runtime.GOOS != "windows" && st.Mode().Perm()&0o111 == 0 {
 		t.Error("the tool landed without an executable bit, so nothing can run it")
 	}
@@ -324,9 +323,9 @@ func TestAWrongDigestIsRefusedAndNothingIsKept(t *testing.T) {
 	dir := t.TempDir()
 	body := fakeExec(elfAMD64, 5000)
 	rel := toolRelease{
-		Name: "radioserver", Version: "test", Why: "w", Terms: "t",
+		Name: "a-tool", Version: "test", Why: "w", Terms: "t",
 		Assets: map[string]toolAsset{platform(): {
-			URL:    "https://example.invalid/radioserver",
+			URL:    "https://example.invalid/a-tool",
 			SHA256: strings.Repeat("00", 32),
 			Bytes:  int64(len(body)), Kind: plainFile, Magic: elfAMD64,
 		}},
@@ -349,9 +348,9 @@ func TestAWrongArchitectureBuildIsRefusedAtFetchTime(t *testing.T) {
 	dir := t.TempDir()
 	body := fakeExec(machARM64, 5000)
 	rel := toolRelease{
-		Name: "radioserver", Version: "test", Why: "w", Terms: "t",
+		Name: "a-tool", Version: "test", Why: "w", Terms: "t",
 		Assets: map[string]toolAsset{platform(): {
-			URL: "https://example.invalid/radioserver", SHA256: digest(body),
+			URL: "https://example.invalid/a-tool", SHA256: digest(body),
 			Bytes: int64(len(body)), Kind: plainFile, Magic: elfAMD64,
 		}},
 	}
@@ -362,7 +361,7 @@ func TestAWrongArchitectureBuildIsRefusedAtFetchTime(t *testing.T) {
 	if !strings.Contains(err.Error(), "Mach-O") {
 		t.Errorf("the refusal does not say what arrived: %v", err)
 	}
-	if fileExists(filepath.Join(dir, "radioserver")) {
+	if fileExists(filepath.Join(dir, "a-tool")) {
 		t.Error("an unrunnable tool was left where the lookup would find it")
 	}
 }

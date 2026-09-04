@@ -55,30 +55,19 @@ func lookupTool(name string) (string, error) {
 	// unpacked to the tool's name, so both spellings are real on a machine
 	// that downloaded it.
 	candidates = append(tool.files, candidates...)
-	subdirs := []string{"", "qemu/bin", "qemu-meshbench/bin"}
 	if self, err := os.Executable(); err == nil {
-		dir := filepath.Dir(self)
-		// Renode unpacks into a directory carrying its version, so the name
-		// changes with every release and cannot be listed above. Globbing for
-		// the shape is what the Linux tarball's symlink step already does;
-		// this is the same rule on the side that has to find it.
-		if matches, err := filepath.Glob(filepath.Join(dir, "renode*-portable")); err == nil {
-			for _, m := range matches {
-				subdirs = append(subdirs, filepath.Base(m))
-			}
-		}
-		for _, sub := range subdirs {
-			for _, cand := range candidates {
-				if p := filepath.Join(dir, sub, cand); fileExists(p) {
-					return p, nil
-				}
-			}
-		}
-	}
-	for _, cand := range candidates {
-		if p := filepath.Join(ToolsDir(), cand); fileExists(p) {
+		if p, ok := findIn(filepath.Dir(self), candidates); ok {
 			return p, nil
 		}
+	}
+	// The tools directory is searched the same way, subdirectories included.
+	// It used to be searched flat, which is why the fetcher had to leave a
+	// symlink pointing into the tree it unpacked - and a symlink is a
+	// privileged operation on Windows, granted only to an elevated process or
+	// a machine in developer mode. Looking in the same places on both sides
+	// removes the need for one.
+	if p, ok := findIn(ToolsDir(), candidates); ok {
+		return p, nil
 	}
 	if p, err := exec.LookPath(name); err == nil {
 		return p, nil
@@ -158,6 +147,29 @@ func (t emulatorTool) missing(name string) error {
 	}
 	return fmt.Errorf("%s A build of your own goes in that directory instead, "+
 		"or %s points at it", msg, t.env)
+}
+
+// findIn looks for any of these names in a directory and in the layouts the
+// emulators actually unpack into.
+//
+// A zip cannot carry the symlink the Linux tarball and the macOS bundle use,
+// and Renode's directory carries its own version, so neither can be assumed nor
+// listed: the shape is globbed for instead.
+func findIn(dir string, candidates []string) (string, bool) {
+	subdirs := []string{"", "qemu/bin", "qemu-meshbench/bin"}
+	if matches, err := filepath.Glob(filepath.Join(dir, "renode*-portable")); err == nil {
+		for _, m := range matches {
+			subdirs = append(subdirs, filepath.Base(m))
+		}
+	}
+	for _, sub := range subdirs {
+		for _, cand := range candidates {
+			if p := filepath.Join(dir, sub, cand); fileExists(p) {
+				return p, true
+			}
+		}
+	}
+	return "", false
 }
 
 func fileExists(p string) bool {
