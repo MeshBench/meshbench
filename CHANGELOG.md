@@ -83,6 +83,15 @@ is in it.
 
 ### Fixed
 
+- **macOS gets a Renode that can actually start.** The fork's packaging looked
+  for a `*portable*.tar.gz` while the macOS script produces a disk image, found
+  nothing, and quietly tarred the build tree instead - so the asset had no
+  launcher, the bundle carried 83 MB nothing could run, and Configuration >
+  Setup declined to offer it at all. The image is now unwrapped to a real
+  application, the silent fallback is gone, and the packaging refuses rather
+  than substituting. An nRF52 board still has not been booted on macOS; this is
+  the half that was in the way.
+
 - **Every nRF52 board now forwards, and it was two faults masking each other.**
   MeshCore verifies signatures in CryptoCell hardware, and our model loaded
   modular operands at the operation's own width while the firmware keeps

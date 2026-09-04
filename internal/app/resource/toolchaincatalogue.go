@@ -22,7 +22,7 @@ package resource
 // not the other.
 const (
 	qemuBase   = "https://github.com/MeshBench/qemu/releases/download/v9.2.2-meshbench-sx1262-11/"
-	renodeBase = "https://github.com/MeshBench/renode/releases/download/meshbench-20260901-ca9f7e3/"
+	renodeBase = "https://github.com/MeshBench/renode/releases/download/meshbench-20260904-e7196ef/"
 	chipBase   = "https://github.com/MeshBench/virtual-sx1262/releases/download/v1.3.0/"
 )
 
@@ -112,7 +112,7 @@ var toolReleases = []toolRelease{{
 	},
 }, {
 	Name:    "renode",
-	Version: "meshbench-20260901-ca9f7e3",
+	Version: "meshbench-20260904-e7196ef",
 	MCU:     "nRF52",
 	Why: "the emulator for the nRF52 boards, carrying the SEVONPEND fix without " +
 		"which the firmware sleeps for ever with its wake condition already true",
@@ -120,28 +120,36 @@ var toolReleases = []toolRelease{{
 	Assets: map[string]toolAsset{
 		"linux/amd64": {
 			URL:    renodeBase + "renode-1.16.1.linux-portable-meshbench.tar.gz",
-			SHA256: "f6ad9ce149be700f4d51040e5c370c4ea89735695fe61e6f8159ead04c668b03",
-			Bytes:  61647373, Kind: tarGzip, Magic: elfAMD64,
+			SHA256: "acf9e4703ec44e1561961779152806bfe0884b401f06bb3cc8e81b57819bacea",
+			Bytes:  61635919, Kind: tarGzip, Magic: elfAMD64,
 			Root: "renode_1.16.1-portable", Binary: "renode_1.16.1-portable/renode",
+		},
+		// The one app bundle in the catalogue, and the reason its Root and
+		// Binary look unlike the others: macOS Renode is published as a .app,
+		// so the launcher is inside it rather than at the archive's top level.
+		//
+		// What this row now claims is that the download is a real Renode and a
+		// node will find it - the launcher is a Mach-O arm64 executable where
+		// the old asset had none. It does not claim an nRF52 board has been
+		// booted on macOS: nothing has run one there, and no workflow does. So
+		// this is offered rather than asserted, and the bring-up is still owed.
+		"darwin/arm64": {
+			URL:    renodeBase + "renode-meshbench-macos-arm64-portable.tar.gz",
+			SHA256: "219669baba21ae833b53e0521bcb3614f0243d21ce1d09534bc8be0524f349da",
+			Bytes:  56118484, Kind: tarGzip, Magic: machARM64,
+			Root: "Renode.app", Binary: "Renode.app/Contents/MacOS/renode",
 		},
 		// The one zip in the catalogue. Renode publishes its Windows build that
 		// way, which is the second of the three things that used to make a
 		// Windows fetch impossible.
 		"windows/amd64": {
 			URL:    renodeBase + "meshbench-renode-1.16.1.windows-portable.zip",
-			SHA256: "d570e31cbd735f20be478a42d7f7676ee5b6e5168af17c7b1466487c6e2c0a4f",
-			Bytes:  105251956, Kind: zipArchive, Magic: peAMD64,
+			SHA256: "a132c360c23ad20c7e5d367bd819c7a26c0001457aadc6bd8a17c3ff2e8a3834",
+			Bytes:  104045080, Kind: zipArchive, Magic: peAMD64,
 			Root: "renode_1.16.1-portable", Binary: "renode_1.16.1-portable/renode.exe",
 		},
 	},
 	Unsupported: map[string]string{
-		// The macOS asset is a build tree rather than the portable package the
-		// Linux one is: it has no launcher, and nothing here has ever started
-		// it. Saying that is better than shipping 88 MB and a guess.
-		"darwin/arm64": "the fork publishes a macOS build tree rather than a " +
-			"portable package, and no nRF52 board has been brought up on macOS. " +
-			"Build Renode from the meshbench-main branch of MeshBench/renode and put " +
-			"it in this directory, or set MESHBENCH_RENODE",
 		"darwin/amd64": "no macOS Intel package is published",
 	},
 }}
