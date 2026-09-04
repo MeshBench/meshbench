@@ -222,6 +222,9 @@ tools/              what builds, generates and drives it, none of it shipped
   soak/               drives a running workbench and judges what it heard
   dissector/          the Wireshark Lua dissector, ours and the vendored one
   internal/           what only the tools use, said structurally
+    mockup/             the drawing toolkit tools/mockup renders the UX
+                        wireframes with - shapes, text and a canvas, and
+                        nothing that runs at application runtime
 ```
 
 The WGSL lives in `internal/rf/gpu/` because `//go:embed` cannot reach outside
