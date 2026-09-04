@@ -172,5 +172,4 @@ func registerUIVerbs(st *state.Store, s *Sim) {
 	registerSessionState(st, s)
 	registerPanelVerbs(st, s)
 	registerSavedViews(st, s)
-	registerMapView(st, s)
 }

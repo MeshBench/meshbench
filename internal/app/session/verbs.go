@@ -20,7 +20,6 @@ func Register(st *state.Store, s *Sim) {
 	registerSimControl(st, s)
 	registerJournal(st, s)
 	registerUI(st, s)
-	registerMapCamera(st, s)
 	registerExcessLoss(st, s)
 	registerConsole(st, s)
 	registerLogs(st, s)
@@ -318,7 +317,6 @@ func Register(st *state.Store, s *Sim) {
 		return map[string]any{"links": len(links)}, nil
 	})
 	registerJobControl(st)
-	registerMapGestures(st, s)
 	registerBudgetVerbs(st, s)
 
 	registerBenchVerbs(st, s)

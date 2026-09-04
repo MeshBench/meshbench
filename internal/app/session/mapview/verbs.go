@@ -3,73 +3,74 @@
 //
 // Split out of ui.go, which held every interface verb and outgrew the file
 // limit once each of them said what it was for.
-package session
+package mapview
 
 import (
 	"fmt"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 )
 
-func registerMapCamera(st *state.Store, s *Sim) {
+func registerMapCamera(st *state.Store, s *session.Sim) {
 	// map.centre: look at a place, or at a node.
 	//
 	// A name is accepted as well as a position because a caller aiming a
 	// capture knows "Bishop Hill" and would otherwise have to look its
 	// coordinates up first.
 	st.Handle("map.centre", func(w *state.World, p any) (any, error) {
-		if err := s.needUI(); err != nil {
+		if err := s.NeedUI(); err != nil {
 			return nil, err
 		}
 		var lat, lon, zoom float64
-		if name := primaryString(p, "node"); name != "" {
-			n, found := findNode(w.Nodes, name)
+		if name := session.PrimaryString(p, "node"); name != "" {
+			n, found := session.FindNode(w.Nodes, name)
 			if !found {
-				return nil, noSuchNode(name)
+				return nil, session.NoSuchNode(name)
 			}
 			lat, lon = n.Lat, n.Lon
 		}
 		// Named, not bare: the node is this verb's one bare parameter, so a
 		// bare number read as the latitude would be read as the longitude and
 		// the zoom as well, and the camera would go to a place nobody named.
-		if v, ok := namedNum(p, "lat"); ok {
+		if v, ok := session.NamedNum(p, "lat"); ok {
 			lat = v
 		}
-		if v, ok := namedNum(p, "lon"); ok {
+		if v, ok := session.NamedNum(p, "lon"); ok {
 			lon = v
 		}
-		if v, ok := namedNum(p, "zoom"); ok {
+		if v, ok := session.NamedNum(p, "zoom"); ok {
 			zoom = v
 		}
 		if lat == 0 && lon == 0 {
 			return nil, fmt.Errorf("map.centre needs a node, or a lat and lon")
 		}
-		s.ui.CentreMap(lat, lon, zoom)
+		s.UI().CentreMap(lat, lon, zoom)
 		return map[string]any{"lat": lat, "lon": lon, "zoom": zoom}, nil
 	})
 
 	st.Handle("map.fit", func(w *state.World, _ any) (any, error) {
-		if err := s.needUI(); err != nil {
+		if err := s.NeedUI(); err != nil {
 			return nil, err
 		}
-		s.ui.FitMap()
+		s.UI().FitMap()
 		return map[string]any{"nodes": len(w.Nodes)}, nil
 	})
 }
 
 // registerMapView is what is drawn on the map and what a click on it means.
-func registerMapView(st *state.Store, s *Sim) {
-	need := func() error { return s.needUI() }
+func registerMapView(st *state.Store, s *session.Sim) {
+	need := func() error { return s.NeedUI() }
 
 	st.Handle("map.zoom", func(_ *state.World, p any) (any, error) {
 		if err := need(); err != nil {
 			return nil, err
 		}
 		f := 2.0
-		if v, ok := numField(p, "factor"); ok && v > 0 {
+		if v, ok := session.NumField(p, "factor"); ok && v > 0 {
 			f = v
 		}
-		s.ui.ZoomMap(f)
+		s.UI().ZoomMap(f)
 		return map[string]any{"factor": f}, nil
 	})
 
@@ -77,8 +78,8 @@ func registerMapView(st *state.Store, s *Sim) {
 		if err := need(); err != nil {
 			return nil, err
 		}
-		q, _ := stringField(p, "query")
-		s.ui.FilterMap(q)
+		q, _ := session.StringField(p, "query")
+		s.UI().FilterMap(q)
 		w.Say("map filter: " + q)
 		return map[string]any{"query": q}, nil
 	})
@@ -87,8 +88,8 @@ func registerMapView(st *state.Store, s *Sim) {
 		if err := need(); err != nil {
 			return nil, err
 		}
-		name, _ := stringField(p, "name")
-		if err := s.ui.SetTool(name); err != nil {
+		name, _ := session.StringField(p, "name")
+		if err := s.UI().SetTool(name); err != nil {
 			return nil, err
 		}
 		w.Say("tool: " + name)
@@ -100,18 +101,18 @@ func registerMapView(st *state.Store, s *Sim) {
 		if err := need(); err != nil {
 			return nil, err
 		}
-		name, _ := stringField(p, "name")
+		name, _ := session.StringField(p, "name")
 		if name == "" {
-			name = soleString(p)
+			name = session.SoleString(p)
 		}
 		on := true
-		if v, ok := boolField(p, "on"); ok {
+		if v, ok := session.BoolField(p, "on"); ok {
 			on = v
 		}
-		if err := s.ui.SetLayer(name, on); err != nil {
+		if err := s.UI().SetLayer(name, on); err != nil {
 			return nil, err
 		}
-		return map[string]any{"layers": s.ui.Layers()}, nil
+		return map[string]any{"layers": s.UI().Layers()}, nil
 	})
 
 	// map.layers: what the map is drawing.
@@ -119,6 +120,6 @@ func registerMapView(st *state.Store, s *Sim) {
 		if err := need(); err != nil {
 			return nil, err
 		}
-		return map[string]any{"layers": s.ui.Layers()}, nil
+		return map[string]any{"layers": s.UI().Layers()}, nil
 	})
 }

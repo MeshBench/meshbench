@@ -341,3 +341,17 @@ func RefuseHalfAnImage(path, board string) error            { return refuseHalfA
 // says so in one sentence rather than arriving as a nil dereference.
 func (s *Sim) UI() UI        { return s.ui }
 func (s *Sim) NeedUI() error { return s.needUI() }
+
+// NamesOf reads a verb's node-name list, and RequiredNum a named number that
+// has to be there. Two more of the shared parameter readers, for the domains
+// whose verbs take a selection or a coordinate.
+//
+// RequiredNum is named rather than primary deliberately, and the map verbs are
+// why: everything that has needed it has needed two at once, and a bare 5 read
+// as both the latitude and the longitude of nodes.move put the node at 5N 5E
+// and reported the move as asked for.
+func NamesOf(verb string, p any) ([]string, error) { return namesOf(verb, p) }
+
+func RequiredNum(verb, name string, p any, lo, hi float64) (float64, error) {
+	return requiredNum(verb, name, p, lo, hi)
+}

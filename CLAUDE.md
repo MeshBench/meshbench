@@ -140,6 +140,9 @@ internal/app/       orchestration, no toolkit
     fleet/              the bulk node verbs, wired in by init
     inventory/          the node and event listing verbs, wired in by init
     links/              the link pair and profile verbs, wired in by init
+    mapview/            the map's own verbs - where the camera looks, what is
+                        drawn under it, what a click does and where a dragged
+                        node lands, wired in by init
     nodeantenna/        the antenna verbs - what a node stands under and which
                         way it points, wired in by init
     nodelookup/         the node-finding verbs (search, near), wired in by init
