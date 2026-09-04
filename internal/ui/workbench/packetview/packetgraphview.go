@@ -1,7 +1,7 @@
 // The Journey graph's view state: where the operator has panned and zoomed
 // to, how deep they asked it to go, and which of the three shapes they are
 // looking at it as.
-package workbench
+package packetview
 
 import (
 	"image"

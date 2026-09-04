@@ -3,7 +3,7 @@
 // nodes a crowded layer can afford to drop, and what order keeps the lines
 // from crossing. All four exist because the honest raw data - every node's
 // every attempt at every hop - is far more than a picture can carry.
-package workbench
+package packetview
 
 import "sort"
 

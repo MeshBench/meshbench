@@ -157,6 +157,10 @@ internal/ui/        Gio — the only layer permitted a toolkit
                       a client ask
   pick/               the file dialog the platform already has
   workbench/          the workbench itself: panels, state, wiring
+    packetview/         the packet inspector: the panel, the journey graph, the
+                        dissection and the hex. Named for the view rather than
+                        the packet, because internal/mesh/packet is the frame
+                        itself and two packages called packet is one too many
     licences/           the licence inventory Help > Licences shows, generated
                         by tools/licgen and committed
 

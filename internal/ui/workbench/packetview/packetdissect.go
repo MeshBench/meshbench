@@ -5,7 +5,7 @@
 // a flags byte into a node type. This file takes none: one row per field, at
 // the offset and size it was actually read from, because it is the view
 // somebody opens when they do not believe the other one.
-package workbench
+package packetview
 
 import (
 	"fmt"
@@ -64,7 +64,7 @@ func versionSub(pk *state.Packet) string {
 
 // dissection is the byte-level view: the frame's shape, every field that
 // could be read, and the raw bytes.
-func (p *packetPanel) dissection(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
+func (p *Panel) dissection(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
 	fields := dissectedFields(pk)
 	// Clicks are taken here, before anything reads the selection. Handling
 	// them inside the cards below meant the hex was drawn from the previous
@@ -86,7 +86,7 @@ func (p *packetPanel) dissection(t *theme.Theme, gtx layout.Context, pk *state.P
 // takeSelectionClicks reads this frame's clicks on both tables. A field and a
 // span are the same kind of answer - a range of bytes - so they share one
 // selection and each clears the other.
-func (p *packetPanel) takeSelectionClicks(gtx layout.Context, pk *state.Packet, fields []state.PacketField) {
+func (p *Panel) takeSelectionClicks(gtx layout.Context, pk *state.Packet, fields []state.PacketField) {
 	for i := range fields {
 		ck := p.click(fmt.Sprintf("fieldrow:%d", i))
 		if ck.Clicked(gtx) {
@@ -110,7 +110,7 @@ func (p *packetPanel) takeSelectionClicks(gtx layout.Context, pk *state.Packet, 
 }
 
 // click is one named clickable, made on first use.
-func (p *packetPanel) click(key string) *widget.Clickable {
+func (p *Panel) click(key string) *widget.Clickable {
 	ck, ok := p.whyBtns[key]
 	if !ok {
 		ck = &widget.Clickable{}
@@ -122,7 +122,7 @@ func (p *packetPanel) click(key string) *widget.Clickable {
 // selectedBytes is the range the hex picks out: a chosen field, a chosen
 // structural span, or - with nothing chosen - the payload, so the view always
 // says something rather than opening blank.
-func (p *packetPanel) selectedBytes(pk *state.Packet, fields []state.PacketField) (int, int) {
+func (p *Panel) selectedBytes(pk *state.Packet, fields []state.PacketField) (int, int) {
 	if p.selField >= 0 && p.selField < len(fields) {
 		f := fields[p.selField]
 		return f.Offset, f.Offset + f.Size
@@ -147,7 +147,7 @@ func dissectedFields(pk *state.Packet) []state.PacketField {
 }
 
 // selectionNote says what is picked out, and how to pick something else.
-func (p *packetPanel) selectionNote(pk *state.Packet, fields []state.PacketField) string {
+func (p *Panel) selectionNote(pk *state.Packet, fields []state.PacketField) string {
 	if p.selField >= 0 && p.selField < len(fields) {
 		f := fields[p.selField]
 		return fmt.Sprintf("%s — %d bytes at %04X", f.Name, f.Size, f.Offset)
@@ -159,7 +159,7 @@ func (p *packetPanel) selectionNote(pk *state.Packet, fields []state.PacketField
 	return "the payload — click any row above to pick out its bytes"
 }
 
-func (p *packetPanel) fieldsCard(t *theme.Theme, pk *state.Packet) layout.Widget {
+func (p *Panel) fieldsCard(t *theme.Theme, pk *state.Packet) layout.Widget {
 	fields := dissectedFields(pk)
 	return comp.Card(t, fmt.Sprintf("Fields - %d read", len(fields)),
 		func(gtx layout.Context) layout.Dimensions {
@@ -171,12 +171,12 @@ func (p *packetPanel) fieldsCard(t *theme.Theme, pk *state.Packet) layout.Widget
 				return layout.Inset{Bottom: t.Sp.XXS}.Layout(gtx,
 					func(gtx layout.Context) layout.Dimensions {
 						return layout.Flex{}.Layout(gtx,
-							fixed(gtx, 46, comp.Text(t, t.Sz.Caption, t.P.Faint, "at")),
-							fixed(gtx, 130, comp.Text(t, t.Sz.Caption, t.P.Faint, "field")),
-							fixed(gtx, 44, comp.Text(t, t.Sz.Caption, t.P.Faint, "size")),
-							fixed(gtx, 190, comp.Text(t, t.Sz.Caption, t.P.Faint, "value")),
+							comp.Fixed(gtx, 46, comp.Text(t, t.Sz.Caption, t.P.Faint, "at")),
+							comp.Fixed(gtx, 130, comp.Text(t, t.Sz.Caption, t.P.Faint, "field")),
+							comp.Fixed(gtx, 44, comp.Text(t, t.Sz.Caption, t.P.Faint, "size")),
+							comp.Fixed(gtx, 190, comp.Text(t, t.Sz.Caption, t.P.Faint, "value")),
 							layout.Flexed(1, comp.Text(t, t.Sz.Caption, t.P.Faint, "meaning")),
-							fixed(gtx, 56, comp.Spacer),
+							comp.Fixed(gtx, 56, comp.Spacer),
 						)
 					})
 			}))
@@ -189,7 +189,7 @@ func (p *packetPanel) fieldsCard(t *theme.Theme, pk *state.Packet) layout.Widget
 					p.whyBtns[copyKey] = ck
 				}
 				if ck.Clicked(gtx) {
-					copyText(gtx, f.Value)
+					comp.CopyText(gtx, f.Value)
 				}
 				rk := p.click(fmt.Sprintf("fieldrow:%d", i))
 				sel := p.selField == i
@@ -227,15 +227,15 @@ func fieldRow(t *theme.Theme, gtx layout.Context, f state.PacketField, ck *widge
 	dims := layout.Inset{Top: t.Sp.XXS, Bottom: t.Sp.XXS}.Layout(gtx,
 		func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-				fixed(gtx, 46, comp.Mono(t, t.Sz.Caption, t.P.Faint,
+				comp.Fixed(gtx, 46, comp.Mono(t, t.Sz.Caption, t.P.Faint,
 					fmt.Sprintf("%04X", f.Offset))),
-				fixed(gtx, 130, comp.OneLine(t, t.Sz.Caption, t.P.Dim, f.Name, false)),
-				fixed(gtx, 44, comp.Mono(t, t.Sz.Caption, t.P.Faint,
+				comp.Fixed(gtx, 130, comp.OneLine(t, t.Sz.Caption, t.P.Dim, f.Name, false)),
+				comp.Fixed(gtx, 44, comp.Mono(t, t.Sz.Caption, t.P.Faint,
 					fmt.Sprintf("%d", f.Size))),
-				fixed(gtx, 190, comp.OneLine(t, t.Sz.Caption, valueInk, f.Value, true)),
+				comp.Fixed(gtx, 190, comp.OneLine(t, t.Sz.Caption, valueInk, f.Value, true)),
 				layout.Flexed(1, comp.OneLine(t, t.Sz.Caption, t.P.Dim, meaning, false)),
-				fixed(gtx, 56, func(gtx layout.Context) layout.Dimensions {
-					return borderedAction(t, gtx, ck, "copy", t.P.Rule, t.P.Dim)
+				comp.Fixed(gtx, 56, func(gtx layout.Context) layout.Dimensions {
+					return comp.BorderedAction(t, gtx, ck, "copy", t.P.Rule, t.P.Dim)
 				}),
 			)
 		})
@@ -247,22 +247,10 @@ func fieldRow(t *theme.Theme, gtx layout.Context, f state.PacketField, ck *widge
 	return dims
 }
 
-// fixed pins a cell to a width in dp, so the columns of a hand-built table
-// line up with their own heading.
-func fixed(gtx layout.Context, w int, wgt layout.Widget) layout.FlexChild {
-	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-		px := gtx.Dp(unitDp(w))
-		gtx.Constraints.Min.X, gtx.Constraints.Max.X = px, px
-		d := wgt(gtx)
-		d.Size.X = px
-		return d
-	})
-}
-
 // structurePanel is the frame's shape: four spans that always exist, each
 // with what it cost in bytes, and the payload picked out as the one the rest
 // of this tab is about.
-func structurePanel(t *theme.Theme, gtx layout.Context, pk *state.Packet, p *packetPanel) layout.Dimensions {
+func structurePanel(t *theme.Theme, gtx layout.Context, pk *state.Packet, p *Panel) layout.Dimensions {
 	return titledPanel(t, gtx, "Structure", "", func(gtx layout.Context) layout.Dimensions {
 		if len(pk.Spans) == 0 {
 			return comp.Text(t, t.Sz.Caption, t.P.Faint, "the frame did not parse")(gtx)
@@ -300,11 +288,11 @@ func spanRow(t *theme.Theme, gtx layout.Context, s state.PacketSpan, lit bool) l
 			ink = t.P.Accent
 		}
 		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-			fixed(gtx, 46, comp.Mono(t, t.Sz.Caption, t.P.Faint,
+			comp.Fixed(gtx, 46, comp.Mono(t, t.Sz.Caption, t.P.Faint,
 				fmt.Sprintf("%04X", s.Offset))),
-			fixed(gtx, 170, comp.OneLine(t, t.Sz.Caption, ink, s.Name, false)),
+			comp.Fixed(gtx, 170, comp.OneLine(t, t.Sz.Caption, ink, s.Name, false)),
 			layout.Flexed(1, comp.OneLine(t, t.Sz.Caption, t.P.Dim, s.Detail, false)),
-			fixed(gtx, 64, comp.Mono(t, t.Sz.Caption, t.P.Faint, spanSize(s))),
+			comp.Fixed(gtx, 64, comp.Mono(t, t.Sz.Caption, t.P.Faint, spanSize(s))),
 		)
 	})
 	call := macro.Stop()

@@ -262,7 +262,7 @@ func (c *companionTab) clicks(gtx layout.Context, cs state.Companion) {
 		c.do("bench.drop", nil)
 	}
 	if c.click("copyaddr").Clicked(gtx) {
-		copyText(gtx, cs.Serving.Addr)
+		comp.CopyText(gtx, cs.Serving.Addr)
 	}
 	// Tell the session which channel is being read, so its unread count
 	// clears. Only on a change: this is a verb, not a per-frame poll.

@@ -1,12 +1,13 @@
 // The Journey tab: the message across every relay, and the toolbar that
 // decides how the graph above the table is drawn.
-package workbench
+package packetview
 
 import (
 	"fmt"
 	"strings"
 
 	"gioui.org/layout"
+	"gioui.org/unit"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/ui/comp"
@@ -16,7 +17,7 @@ import (
 // graphToolbarTop: fold the graph away, pick its shape, reset the view, and
 // say what it contains - the controls that matter whether or not the graph
 // is even showing.
-func (p *packetPanel) graphToolbarTop(t *theme.Theme, gtx layout.Context, g hopGraph) layout.Dimensions {
+func (p *Panel) graphToolbarTop(t *theme.Theme, gtx layout.Context, g hopGraph) layout.Dimensions {
 	kids := []layout.FlexChild{
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return p.graphBtn.Layout(t, gtx, "graph", "", !p.noGraph, t.P.Accent)
@@ -47,7 +48,7 @@ func (p *packetPanel) graphToolbarTop(t *theme.Theme, gtx layout.Context, g hopG
 // graphToolbarBottom: how deep the picture goes. Its own row rather than
 // crowded onto the first one - three layout names plus five hop depths plus
 // a caption does not fit one line in a panel docked to a third of a window.
-func (p *packetPanel) graphToolbarBottom(t *theme.Theme, gtx layout.Context) layout.Dimensions {
+func (p *Panel) graphToolbarBottom(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 	kids := []layout.FlexChild{
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Right: t.Sp.S}.Layout(gtx,
@@ -64,7 +65,7 @@ func (p *packetPanel) graphToolbarBottom(t *theme.Theme, gtx layout.Context) lay
 }
 
 // journey: the message across every relay - heard and missed, named.
-func (p *packetPanel) journey(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
+func (p *Panel) journey(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
 	type jRow struct {
 		at    uint32
 		hop   int
@@ -85,7 +86,7 @@ func (p *packetPanel) journey(t *theme.Theme, gtx layout.Context, pk *state.Pack
 	}
 	head := func(w int, s string) layout.FlexChild {
 		return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			px := gtx.Dp(unitDp(w))
+			px := gtx.Dp(unit.Dp(w))
 			gtx.Constraints.Min.X, gtx.Constraints.Max.X = px, px
 			d := comp.Text(t, t.Sz.Caption, t.P.Faint, s)(gtx)
 			d.Size.X = px

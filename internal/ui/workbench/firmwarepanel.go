@@ -16,7 +16,6 @@ import (
 	"strings"
 
 	"gioui.org/layout"
-	"gioui.org/op"
 	"gioui.org/unit"
 	"gioui.org/widget"
 
@@ -211,20 +210,3 @@ func (p *firmwarePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 
 // borderedAction is the mock's per-row control: a bordered rounded box that
 // reads as pressable without shouting like a primary button.
-func borderedAction(t *theme.Theme, gtx layout.Context, ck *widget.Clickable,
-	label string, line, ink colorNRGBA) layout.Dimensions {
-	return ck.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		if ck.Hovered() {
-			ink = t.P.Ink
-		}
-		macro := op.Record(gtx.Ops)
-		dims := layout.Inset{
-			Top: t.Sp.XS, Bottom: t.Sp.XS, Left: t.Sp.S, Right: t.Sp.S,
-		}.Layout(gtx, comp.Text(t, t.Sz.Caption, ink, label))
-		call := macro.Stop()
-		comp.RoundRect(gtx, dims.Size, 5, theme.Alpha(t.P.Sunk, 0.6))
-		comp.Border(gtx, dims.Size, 5, 1, line)
-		call.Add(gtx.Ops)
-		return dims
-	})
-}

@@ -3,7 +3,7 @@
 // returns positions for exactly the nodes g.Nodes names - drawHopGraph skips
 // an edge whose endpoint is missing rather than assume every layout places
 // everything.
-package workbench
+package packetview
 
 import (
 	"math"

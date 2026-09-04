@@ -1,8 +1,9 @@
 // Painting a hopGraph, whichever of the three layouts placed it.
-package workbench
+package packetview
 
 import (
 	"image"
+	"image/color"
 	"math"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
+	"gioui.org/unit"
 
 	"github.com/MeshBench/meshbench/internal/ui/comp"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
@@ -210,7 +212,7 @@ func drawHopGraph(t *theme.Theme, gtx layout.Context, g hopGraph, v *graphView, 
 	}
 
 	r := float32(gtx.Dp(4)) * clampF(v.zoom, 0.6, 1.6)
-	drawDots := func(dim bool, col colorNRGBA) {
+	drawDots := func(dim bool, col color.NRGBA) {
 		var dots clip.Path
 		dots.Begin(gtx.Ops)
 		drawn := 0
@@ -350,7 +352,7 @@ func drawOneLabel(t *theme.Theme, gtx layout.Context, name string, p f32.Point, 
 // drawLabelPlate is the backing a forced label sits on, so it reads against
 // whatever it has landed over.
 func drawLabelPlate(t *theme.Theme, gtx layout.Context, name string, p f32.Point) {
-	w := gtx.Dp(unitDp(len(shortName(name))*7 + 8))
+	w := gtx.Dp(unit.Dp(len(shortName(name))*7 + 8))
 	h := gtx.Dp(18)
 	off := op.Offset(image.Pt(int(p.X)+gtx.Dp(4), int(p.Y)-gtx.Dp(9))).Push(gtx.Ops)
 	comp.RoundRect(gtx, image.Pt(w, h), 4, theme.Alpha(t.P.Ground, 0.92))

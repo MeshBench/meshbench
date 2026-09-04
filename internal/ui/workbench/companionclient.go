@@ -271,8 +271,8 @@ func messageRow(t *theme.Theme, gtx layout.Context, m state.CompanionMessage) la
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Alignment: layout.Start}.Layout(gtx,
-						fixed(gtx, 52, comp.Mono(t, t.Sz.Caption, t.P.Faint, clockOf(m.At))),
-						fixed(gtx, 104, comp.OneLine(t, t.Sz.Caption, who, m.From, false)),
+						comp.Fixed(gtx, 52, comp.Mono(t, t.Sz.Caption, t.P.Faint, clockOf(m.At))),
+						comp.Fixed(gtx, 104, comp.OneLine(t, t.Sz.Caption, who, m.From, false)),
 						layout.Flexed(1, comp.Text(t, t.Sz.Caption, t.P.Ink, m.Text)),
 					)
 				}),

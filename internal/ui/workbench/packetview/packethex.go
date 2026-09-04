@@ -4,7 +4,7 @@
 // selected. Same renderer either way, because they are the same question -
 // where in these bytes is the thing I am reading - and two hex dumps that
 // drift apart would be two answers to it.
-package workbench
+package packetview
 
 import (
 	"fmt"
@@ -62,7 +62,7 @@ func hexLine(t *theme.Theme, gtx layout.Context, at int, row []byte, from, to in
 		}
 	}
 	return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-		fixed(gtx, 46, comp.Mono(t, t.Sz.Caption, t.P.Faint, fmt.Sprintf("%04X", at))),
+		comp.Fixed(gtx, 46, comp.Mono(t, t.Sz.Caption, t.P.Faint, fmt.Sprintf("%04X", at))),
 		layout.Rigid(comp.Mono(t, t.Sz.Caption, t.P.Dim, pre.String())),
 		layout.Rigid(comp.Mono(t, t.Sz.Caption, t.P.Accent, hit.String())),
 		layout.Rigid(comp.Mono(t, t.Sz.Caption, t.P.Dim, post.String())),
