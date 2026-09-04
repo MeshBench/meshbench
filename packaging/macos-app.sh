@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Build MeshBench.app and a .dmg. Run from the repository root on a Mac:
+# Build MeshBench.app. Run from the repository root on a Mac:
 #
 #     packaging/macos-app.sh 0.1.0
 #
@@ -9,7 +9,7 @@
 # way: a self-hosted runner calls this, and so can a person. The 10x rate on
 # hosted macOS minutes is what first bought the Mac, and that reason went with
 # the repository going public; what the script still buys is being able to
-# build and inspect the dmg by hand on the machine in front of you.
+# build and inspect the bundle by hand on the machine in front of you.
 #
 # What it does NOT do is notarise. Ad-hoc signing is enough to run on the
 # machine that built it, and not enough for anybody else - Gatekeeper will
@@ -20,7 +20,6 @@ set -euo pipefail
 VER="${1:-0.0.0}"
 OUT="${OUT:-dist/macos}"
 APP="$OUT/MeshBench.app"
-ARCH=$(uname -m)
 
 command -v go >/dev/null || { echo "go is not on PATH" >&2; exit 1; }
 [ -f go.mod ] || { echo "run this from the repository root" >&2; exit 1; }
@@ -102,11 +101,18 @@ echo "--- sign"
 codesign --force --deep --sign - "$APP"
 codesign --verify --verbose=2 "$APP"
 
-echo "--- dmg"
-# The image is laid out rather than created: an alias to /Applications beside
-# the app, and a window that opens with both where the drag expects them. The
-# script checks its own output before it returns.
-"$(dirname "$0")/macos-dmg.sh" "$VER" "$OUT" "dist/MeshBench-$VER-$ARCH.dmg"
-
-ls -la "dist/MeshBench-$VER-$ARCH.dmg"
 "$APP/Contents/MacOS/meshbench-bin" workbench -version
+
+# The application, and no image. This used to write one of its own, named for
+# the version and the architecture, from before assets carried the variant
+# instead - and the caller now cuts one image per variant from this same .app.
+# So that third file was a build nobody asked for, under a name nothing looks
+# for, and the release refused the set: "3 dist/*dmg, want 0 or 2 - one per
+# variant". Only a tag runs that check, which is why it stood this long.
+#
+# For an image by hand, ask for the one you mean:
+#
+#   packaging/macos-dmg.sh "$VER" "$OUT" dist/MeshBench-arm64-compact.dmg
+#
+echo "--- built $APP"
+echo "    an image is packaging/macos-dmg.sh, one per variant"
