@@ -27,7 +27,7 @@ type menuDeps struct {
 	// refresh rebuilds the menus, so the ticks follow what docking changed.
 	refresh func()
 	// wins is the pop-out windows, for the entries that act on all of them.
-	wins *windows
+	wins *panelPopouts
 }
 
 // say puts a line in the status bar. A menu entry that declines has to say so

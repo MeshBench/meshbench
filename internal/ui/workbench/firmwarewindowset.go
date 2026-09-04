@@ -1,6 +1,6 @@
 // Every firmware window that is open, and the one goroutine each of them runs.
 //
-// The same shape as nodeWindows and for the same reason: a window belongs to
+// The same shape as nodeWindowSet and for the same reason: a window belongs to
 // its own event loop, so another goroutine asking for one either opens it or
 // leaves a wish for the loop to pick up. Nothing here knows what a firmware
 // window looks like.
@@ -11,14 +11,14 @@ import (
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 )
 
-// firmwareWindows tracks which builds have a window, so a second request
+// firmwareWindowSet tracks which builds have a window, so a second request
 // raises rather than opening a duplicate.
-type firmwareWindows struct {
-	*windowSet
+type firmwareWindowSet struct {
+	*windowRegistry
 }
 
-func newFirmwareWindows() *firmwareWindows {
-	return &firmwareWindows{windowSet: newWindowSet()}
+func newFirmwareWindowSet() *firmwareWindowSet {
+	return &firmwareWindowSet{windowRegistry: newWindowRegistry()}
 }
 
 // buildWindowKey identifies a build across all three of its names.
@@ -30,13 +30,13 @@ func buildWindowKey(role, version, board string) string {
 	return role + "\x00" + version + "\x00" + board
 }
 
-func (w *firmwareWindows) openFor(role, version, board string,
+func (w *firmwareWindowSet) openFor(role, version, board string,
 	newTheme func() *theme.Theme, st *state.Store, do Do) {
 	key := buildWindowKey(role, version, board)
 	if !w.claim(key) {
 		return
 	}
 	p := &firmwareWindowPanel{role: role, version: version, board: board, OnDo: do}
-	go runPopout(w.windowSet, key, "MeshBench - "+version,
+	go runPopout(w.windowRegistry, key, "MeshBench - "+version,
 		popoutSize{760, 680}, p, newTheme, st)
 }

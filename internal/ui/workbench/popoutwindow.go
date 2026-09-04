@@ -47,7 +47,7 @@ type popoutSize struct{ w, h unit.Dp }
 // key is what the window is known by in the set: a second request for the same
 // key raises the window already out there rather than opening another copy.
 // The caller has already claimed it.
-func runPopout(w *windowSet, key, title string, size popoutSize,
+func runPopout(w *windowRegistry, key, title string, size popoutSize,
 	p popoutPanel, newTheme func() *theme.Theme, st *state.Store) {
 
 	defer w.release(key)

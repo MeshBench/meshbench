@@ -18,7 +18,7 @@ type menuBar struct {
 	st       *state.Store
 	ctx      context.Context
 	nodes    *nodesPanel
-	wins     *windows
+	wins     *panelPopouts
 	chooser  func(string, []string, func(string))
 	menuFlag *string
 	// onShown handles the menu entries whose whole point is the map: it

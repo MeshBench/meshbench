@@ -30,7 +30,7 @@ type panelDeps struct {
 	// wbUI, wins and mapTop are the window and map machinery a panel reaches
 	// to open a node window, post a prompt, or read the map's own toolbar.
 	wbUI   *workbenchUI
-	wins   *windows
+	wins   *panelPopouts
 	mapTop *mapTools
 	nodes  *nodesPanel
 	// do runs a verb and puts any failure in the status bar. withControls
