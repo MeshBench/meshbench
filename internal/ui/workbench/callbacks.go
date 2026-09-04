@@ -33,20 +33,20 @@ type callbacks struct {
 
 // wire attaches every handler.
 func (c callbacks) wire() {
-	c.wbUI.onCommand = func(node, line string) {
+	c.wbUI.OnCommand = func(node, line string) {
 		go func() {
 			_, _ = c.st.Do(c.ctx, "console.type",
 				map[string]any{"node": node, "command": line})
 		}()
 	}
-	c.wbUI.onAction = func(action, node string) {
+	c.wbUI.OnAction = func(action, node string) {
 		go func() {
 			if _, err := c.st.Do(c.ctx, action, node); err != nil {
 				_, _ = c.st.Do(c.ctx, "ui.said", err.Error())
 			}
 		}()
 	}
-	c.wbUI.onCLI = func(node, line string) {
+	c.wbUI.OnCLI = func(node, line string) {
 		go func() {
 			if _, err := c.st.Do(c.ctx, "console.cli",
 				map[string]any{"node": node, "command": line}); err != nil {
@@ -55,14 +55,14 @@ func (c callbacks) wire() {
 		}()
 	}
 	// The companion client's actions, which carry more than a node name.
-	c.wbUI.onDo = func(verb string, params any) {
+	c.wbUI.OnDo = func(verb string, params any) {
 		go func() {
 			if _, err := c.st.Do(c.ctx, verb, params); err != nil {
 				_, _ = c.st.Do(c.ctx, "ui.said", verb+": "+err.Error())
 			}
 		}()
 	}
-	c.wbUI.onServe = func(node, kind string) {
+	c.wbUI.OnServe = func(node, kind string) {
 		go func() {
 			if _, err := c.st.Do(c.ctx, "bench.serve",
 				map[string]any{"node": node, "kind": kind}); err != nil {
@@ -70,7 +70,7 @@ func (c callbacks) wire() {
 			}
 		}()
 	}
-	c.wbUI.onOpenPacket = c.openPacket
+	c.wbUI.OnOpenPacket = c.openPacket
 	c.sm.SetUI(c.wbUI)
 	// The tile cache the old workbench already filled: 37 MB of it on this
 	// machine, and the same store, so nothing is downloaded twice. The layer

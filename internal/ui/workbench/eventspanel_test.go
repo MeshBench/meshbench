@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
+	"github.com/MeshBench/meshbench/internal/ui/uitest"
 )
 
 // eventTail is the store's bounded tail after step frames of traffic: the same
@@ -32,14 +33,14 @@ func TestEventRowsDoNotGrowWithTheRun(t *testing.T) {
 	const tail = 200
 	p := &eventsPanel{}
 	snap := &state.Snapshot{}
-	h := newPanelHarness(p.Draw, snap)
+	h := uitest.New(p.Draw, snap)
 
 	after := 0
 	for step := range 40 {
 		snap.Events = eventTail(step, tail)
 		snap.EventTotal = (step + 1) * tail
 		snap.Counts = state.EventCounts{Received: snap.EventTotal}
-		h.frame()
+		h.Frame()
 		if step == 0 {
 			after = len(p.rows)
 		}

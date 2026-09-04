@@ -11,6 +11,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/ui/comp"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
+	"github.com/MeshBench/meshbench/internal/ui/uitest"
 )
 
 // The map toolbar, pressed.
@@ -21,20 +22,20 @@ import (
 func TestEveryMapToolReachesTheMap(t *testing.T) {
 	mv := &comp.MapView{Zoom: 1000}
 	m := &mapTools{mv: mv}
-	h := newPanelHarness(func(th *theme.Theme, gtx layout.Context,
+	h := uitest.New(func(th *theme.Theme, gtx layout.Context,
 		_ *state.Snapshot) layout.Dimensions {
 		return m.Draw(th, gtx)
 	}, nil)
-	h.frame()
-	h.frame()
+	h.Frame()
+	h.Frame()
 
 	// The toolbar is one row. Sweep it and watch what changes.
 	tools := map[string]bool{}
 	zoomedIn, zoomedOut, fitted := false, false, false
 	for y := float32(2); y < 80; y += 3 {
-		for x := float32(2); x < float32(h.sz.X); x += 4 {
+		for x := float32(2); x < float32(h.Size.X); x += 4 {
 			before := mv.Zoom
-			h.click(f32.Pt(x, y))
+			h.Click(f32.Pt(x, y))
 			switch {
 			case mv.Zoom > before:
 				zoomedIn = true
@@ -66,12 +67,12 @@ func TestEveryMapToolReachesTheMap(t *testing.T) {
 
 	// The filter applies as it is typed rather than on a press, so what it
 	// has to reach is the map's own filter.
-	h.click(f32.Pt(100, 20))
-	h.typeText("bishop")
+	h.Click(f32.Pt(100, 20))
+	h.TypeText("bishop")
 	// One more frame: the toolbar hands the text to the map at the top of
 	// Draw, before the editor has seen the keystroke, so the map learns about
 	// it on the frame after the one that typed it.
-	h.frame()
+	h.Frame()
 	if mv.Filter != "bishop" {
 		missing = append(missing, "the filter box (the map sees "+
 			mv.Filter+" after typing bishop)")
@@ -91,16 +92,16 @@ func TestEveryMapToolReachesTheMap(t *testing.T) {
 func TestMapFilterVerbSurvivesTheToolbar(t *testing.T) {
 	mv := &comp.MapView{Zoom: 1000}
 	m := &mapTools{mv: mv}
-	h := newPanelHarness(func(th *theme.Theme, gtx layout.Context,
+	h := uitest.New(func(th *theme.Theme, gtx layout.Context,
 		_ *state.Snapshot) layout.Dimensions {
 		return m.Draw(th, gtx)
 	}, nil)
-	h.frame()
+	h.Frame()
 
 	// What the map.filter verb does, from its own goroutine.
 	mv.Filter = "bishop"
-	h.frame()
-	h.frame()
+	h.Frame()
+	h.Frame()
 	if mv.Filter != "bishop" {
 		t.Fatalf("the toolbar overwrote the verb's filter with %q", mv.Filter)
 	}
@@ -110,7 +111,7 @@ func TestMapFilterVerbSurvivesTheToolbar(t *testing.T) {
 
 	// And typing still drives the map, which is the box's whole job.
 	m.filter.Editor.SetText("abernethy")
-	h.frame()
+	h.Frame()
 	if mv.Filter != "abernethy" {
 		t.Fatalf("after typing, the map filters on %q, want the typed text", mv.Filter)
 	}

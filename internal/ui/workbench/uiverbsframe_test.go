@@ -14,6 +14,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/ui/comp"
 	"github.com/MeshBench/meshbench/internal/ui/shell"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
+	"github.com/MeshBench/meshbench/internal/ui/uitest"
 )
 
 // verbHarness is a workbench whose interface a verb can be called against
@@ -191,7 +192,7 @@ func TestShotOfAVerbDrivenFlow(t *testing.T) {
 	}}
 
 	shot := func(step string) {
-		img := renderMode(t, 1400, 900, theme.Dark,
+		img := uitest.RenderMode(t, 1400, 900, theme.Dark,
 			func(gtx layout.Context, th *theme.Theme) layout.Dimensions {
 				u.applyDeferred()
 				u.sh.Layout(th, gtx, snap)

@@ -16,6 +16,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/ui/comp"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
+	"github.com/MeshBench/meshbench/internal/ui/uitest"
 )
 
 // Every control, pressed.
@@ -131,11 +132,11 @@ func controlsOf(v reflect.Value, prefix string, out *[]control) {
 // already several orders of magnitude of headroom on a loaded runner.
 const auditFireBudget = 100 * time.Millisecond
 
-func didFire(h *panelHarness, fired func() int, before int) int {
+func didFire(h *uitest.Harness, fired func() int, before int) int {
 	deadline := time.Now().Add(auditFireBudget)
 	for {
-		h.frame()
-		h.frame()
+		h.Frame()
+		h.Frame()
 		// Frames drive the UI, not the runtime, so a handler that deferred its
 		// work to a goroutine needs the scheduler to be given a turn.
 		runtime.Gosched()
@@ -155,9 +156,9 @@ func auditOne(t *testing.T, panel string, ctrl any,
 	snap *state.Snapshot, fired func() int, reset func(),
 	skip map[string]string) (dead, unreachable []string, n int) {
 	t.Helper()
-	h := newPanelHarness(draw, snap)
-	h.frame()
-	h.frame() // a second frame, because most panels build their labels on the first
+	h := uitest.New(draw, snap)
+	h.Frame()
+	h.Frame() // a second frame, because most panels build their labels on the first
 
 	var found []control
 	controlsOf(reflect.ValueOf(ctrl), "", &found)
@@ -173,7 +174,7 @@ func auditOne(t *testing.T, panel string, ctrl any,
 			f.Editor.SetText(fieldGuess(f.Hint))
 		}
 	}
-	h.frame()
+	h.Frame()
 
 	// Wired: press the handler directly, so this is not a test of coordinates.
 	for _, c := range found {
@@ -182,7 +183,7 @@ func auditOne(t *testing.T, panel string, ctrl any,
 		}
 		if reset != nil {
 			reset()
-			h.frame()
+			h.Frame()
 		}
 		if c.fld != nil {
 			continue
@@ -209,21 +210,21 @@ func auditOne(t *testing.T, panel string, ctrl any,
 
 	// Reachable: sweep a pointer over the panel and see what it lands on.
 	sweep := func(at f32.Point) {
-		h.click(at)
+		h.Click(at)
 		if reset != nil {
 			reset()
-			h.frame()
+			h.Frame()
 		}
 	}
-	for y := float32(2); y < float32(h.sz.Y); y += 5 {
-		for x := float32(2); x < float32(h.sz.X); x += 5 {
+	for y := float32(2); y < float32(h.Size.Y); y += 5 {
+		for x := float32(2); x < float32(h.Size.X); x += 5 {
 			sweep(f32.Pt(x, y))
 		}
-		sweep(f32.Pt(float32(h.sz.X)-2, y))
+		sweep(f32.Pt(float32(h.Size.X)-2, y))
 	}
 	if reset != nil {
 		reset()
-		h.frame()
+		h.Frame()
 	}
 	for _, c := range found {
 		if _, ok := skip[c.name]; ok {
@@ -314,7 +315,7 @@ func label(c control) string {
 }
 
 func TestEveryControlIsWiredAndReachable(t *testing.T) {
-	snap := auditSnapshot()
+	snap := uitest.Snapshot()
 
 	r := &recorder{}
 	fired := func() int { return len(r.verbs) }
@@ -357,58 +358,6 @@ func TestEveryControlIsWiredAndReachable(t *testing.T) {
 	}
 }
 
-// The build you want is not always one of the eleven that fit.
-// longLibrary is more builds than the overlay can show at once, so the last of
-// them is genuinely below the fold and has to be filtered for.
-func longLibrary() []buildChoice {
-	var out []buildChoice
-	for i := 40; i > 20; i-- {
-		v := fmt.Sprintf("v1.%d.0", i)
-		out = append(out, buildChoice{Label: v, Version: v})
-	}
-	return out
-}
-
-func TestAnyBuildIsReachableByFiltering(t *testing.T) {
-	nv := &nodeViewPanel{}
-	// A library long enough to overflow the overlay, supplied rather than
-	// found. This test used to read the machine's own and skip itself when it
-	// held fewer than twelve builds - which on a clean runner is always, so the
-	// one test standing behind the audit's "reached by filtering" exemption
-	// did not run in CI at all. Between them the two tests excused the tail of
-	// the list to each other and neither walked it.
-	nv.pick.library = longLibrary
-	nv.pick.open("Abernethy Repeater")
-	got := ""
-	nv.OnFirmware = func(node string, b buildChoice) { got = b.Version }
-
-	h := newPanelHarness(nv.Draw, auditSnapshot())
-	h.frame()
-	h.frame()
-	if len(nv.pick.builds) < 12 {
-		t.Fatalf("the supplied library holds %d builds; this test needs enough"+
-			" to put one below the fold", len(nv.pick.builds))
-	}
-	want := nv.pick.builds[len(nv.pick.builds)-1]
-
-	// Type enough of its name to leave it alone in the list.
-	nv.pick.filter.Editor.SetText(want.Label)
-	h.frame()
-
-	// Upward, because cancel sits at the top of the card and closing the list
-	// on the way to the thing inside it proves nothing.
-	for y := float32(h.sz.Y) - 2; y > 2 && got == ""; y -= 4 {
-		for x := float32(2); x < float32(h.sz.X) && got == ""; x += 8 {
-			h.click(f32.Pt(x, y))
-		}
-	}
-	if got != want.Version {
-		t.Fatalf("filtered the build list to %q and clicking it reached %q; "+
-			"a build that does not fit on screen has to be reachable by "+
-			"narrowing the list", want, got)
-	}
-}
-
 // Can you type into it?
 //
 // A text box draws whether or not it can hold a keystroke. The Nodes filter
@@ -423,14 +372,14 @@ func TestEveryTextBoxAcceptsTyping(t *testing.T) {
 	for _, tg := range auditTargets(r) {
 		snap := tg.snap
 		if snap == nil {
-			snap = auditSnapshot()
+			snap = uitest.Snapshot()
 		}
-		h := newPanelHarness(tg.draw, snap)
-		h.frame()
-		h.frame()
+		h := uitest.New(tg.draw, snap)
+		h.Frame()
+		h.Frame()
 		if tg.reset != nil {
 			tg.reset()
-			h.frame()
+			h.Frame()
 		}
 
 		var found []control
@@ -453,10 +402,10 @@ func TestEveryTextBoxAcceptsTyping(t *testing.T) {
 
 		// Wide steps across, because a text box is a full row and a narrow
 		// sweep only costs time.
-		for y := float32(2); y < float32(h.sz.Y); y += 6 {
-			for x := float32(20); x < float32(h.sz.X); x += 60 {
-				h.click(f32.Pt(x, y))
-				h.typeText("z")
+		for y := float32(2); y < float32(h.Size.Y); y += 6 {
+			for x := float32(20); x < float32(h.Size.X); x += 60 {
+				h.Click(f32.Pt(x, y))
+				h.TypeText("z")
 				for _, c := range boxes {
 					if c.fld.Editor.Text() != "" {
 						typed[c.name] = true
@@ -465,7 +414,7 @@ func TestEveryTextBoxAcceptsTyping(t *testing.T) {
 				}
 				if tg.reset != nil {
 					tg.reset()
-					h.frame()
+					h.Frame()
 				}
 			}
 		}

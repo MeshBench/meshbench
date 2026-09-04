@@ -1,6 +1,6 @@
 // Every firmware window that is open, and the one goroutine each of them runs.
 //
-// The same shape as nodeWindowSet and for the same reason: a window belongs to
+// The same shape as nodeview.WindowSet and for the same reason: a window belongs to
 // its own event loop, so another goroutine asking for one either opens it or
 // leaves a wish for the loop to pick up. Nothing here knows what a firmware
 // window looks like.
@@ -38,6 +38,6 @@ func (w *firmwareWindowSet) openFor(role, version, board string,
 		return
 	}
 	p := &firmwareWindowPanel{role: role, version: version, board: board, OnDo: do}
-	go runPopout(w.WindowRegistry, key, "MeshBench - "+version,
-		popoutSize{760, 680}, p, newTheme, st)
+	go shell.RunPopout(w.WindowRegistry, key, "MeshBench - "+version,
+		shell.PopoutSize{W: 760, H: 680}, p, newTheme, st)
 }

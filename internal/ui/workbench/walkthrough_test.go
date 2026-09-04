@@ -19,6 +19,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/ui/shell"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
+	"github.com/MeshBench/meshbench/internal/ui/uitest"
 )
 
 // Does every menu item do something?
@@ -48,7 +49,7 @@ func newShellHarness(t *testing.T) *shellHarness {
 	h := &shellHarness{
 		sh: shell.New(),
 		th: theme.New(theme.Dark, theme.Default,
-			text.NewShaper(text.WithCollection(brandFaces()))),
+			text.NewShaper(text.WithCollection(uitest.BrandFaces()))),
 		sz: image.Pt(1700, 1000),
 		snap: &state.Snapshot{
 			Nodes: []state.Node{

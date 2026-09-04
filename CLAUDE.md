@@ -156,7 +156,14 @@ internal/ui/        Gio — the only layer permitted a toolkit
   float/              keeping a window above the others, where the platform lets
                       a client ask
   pick/               the file dialog the platform already has
+  uitest/             the harness a panel test drives one panel through: real
+                      frames, clicks and typing, with no window. Its own
+                      package because a _test.go cannot cross a package
+                      boundary and the panels no longer live in one
   workbench/          the workbench itself: panels, state, wiring
+    nodeview/           one node: the list, the node window and all its tabs -
+                        radio, antenna, hardware, console, output, companion -
+                        the boards panel and the build picker
     packetview/         the packet inspector: the panel, the journey graph, the
                         dissection and the hex. Named for the view rather than
                         the packet, because internal/mesh/packet is the frame

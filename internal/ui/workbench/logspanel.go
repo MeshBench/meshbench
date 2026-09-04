@@ -8,7 +8,6 @@ package workbench
 
 import (
 	"fmt"
-	"strings"
 	"sync/atomic"
 
 	"gioui.org/layout"
@@ -77,7 +76,7 @@ func (p *logsPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 	}
 
 	want := comp.FieldText(&p.search)
-	shown := filterLines(s.FullLog, want)
+	shown := comp.FilterLines(s.FullLog, want)
 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -140,18 +139,3 @@ func (p *logsPanel) footer(t *theme.Theme, gtx layout.Context, shown, total int)
 // unexported constant, so this is what "probably truncated" means here. Off
 // by a little costs nothing - it only changes when the footer's caveat shows.
 const maxFullLogHint = 5000
-
-// filterLines is the log, narrowed to lines containing the search text.
-func filterLines(lines []string, want string) []string {
-	if want == "" {
-		return lines
-	}
-	want = strings.ToLower(want)
-	out := make([]string, 0, len(lines))
-	for _, l := range lines {
-		if strings.Contains(strings.ToLower(l), want) {
-			out = append(out, l)
-		}
-	}
-	return out
-}

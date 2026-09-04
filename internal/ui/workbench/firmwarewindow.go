@@ -73,9 +73,9 @@ type firmwareWindowPanel struct {
 	seeded string
 }
 
-func (p *firmwareWindowPanel) setLayered(on bool)       { p.Layered = on }
-func (p *firmwareWindowPanel) titleBar() *comp.TitleBar { return &p.bar }
-func (p *firmwareWindowPanel) setMaximised(on bool)     { p.maximised = on }
+func (p *firmwareWindowPanel) SetLayered(on bool)       { p.Layered = on }
+func (p *firmwareWindowPanel) TitleBar() *comp.TitleBar { return &p.bar }
+func (p *firmwareWindowPanel) SetMaximised(on bool)     { p.maximised = on }
 
 func (p *firmwareWindowPanel) build() {
 	p.list.Axis = layout.Vertical

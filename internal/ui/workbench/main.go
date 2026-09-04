@@ -30,6 +30,8 @@ import (
 	"github.com/MeshBench/meshbench/internal/ui/pick"
 	"github.com/MeshBench/meshbench/internal/ui/shell"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
+	"github.com/MeshBench/meshbench/internal/ui/uitest"
+	"github.com/MeshBench/meshbench/internal/ui/workbench/nodeview"
 )
 
 // Run is the whole application. It owns the process: it parses args, opens
@@ -251,8 +253,8 @@ func Run(args []string) {
 	// city of polygons has no business in the world snapshot.
 	mv.BuildingsIn = sm.BuildingsIn
 	wbUI := &workbenchUI{sh: sh, sim: sm, mv: mv, store: st,
-		nodes: newNodeWindowSet(), builds: newFirmwareWindowSet(),
-		logs: newOutputWindowSet()}
+		nodes: nodeview.NewWindowSet(), builds: newFirmwareWindowSet(),
+		logs: nodeview.NewOutputWindowSet()}
 	callbacks{
 		wbUI: wbUI, mv: mv, st: st, ctx: ctx, sm: sm, openPacket: openPacket,
 		chooser: chooser, do: do,
@@ -265,7 +267,7 @@ func Run(args []string) {
 		layersFlag: layersFlag, lookFlag: lookFlag, sweepFlag: sweepFlag, shadeFlag: shadeFlag,
 	}.run()
 
-	nodes := &nodesPanel{}
+	nodes := &nodeview.Panel{}
 	nodes.OnSelect = func(name string) {
 		go func() { _, _ = st.Do(ctx, "nodes.select", name) }()
 	}
@@ -306,7 +308,7 @@ func Run(args []string) {
 		sh.View = shell.App
 	}
 
-	sh2 := text.NewShaper(text.WithCollection(brandFaces()))
+	sh2 := text.NewShaper(text.WithCollection(uitest.BrandFaces()))
 	mode := theme.Dark
 	if *modeFlag == "light" {
 		mode = theme.Light
@@ -364,7 +366,7 @@ func Run(args []string) {
 	wbUI.newTheme = func() *theme.Theme {
 		m, d, _ := sets.get()
 		return theme.New(m, d,
-			text.NewShaper(text.WithCollection(brandFaces())))
+			text.NewShaper(text.WithCollection(uitest.BrandFaces())))
 	}
 	wbUI.dock = func(name string) { wins.dock(name) }
 	wbUI.closeWin = func(name string) error { return wins.close(name) }
@@ -378,7 +380,7 @@ func Run(args []string) {
 			// window opened after a theme change does not open in the old one.
 			m, d, _ := sets.get()
 			return theme.New(m, d,
-				text.NewShaper(text.WithCollection(brandFaces())))
+				text.NewShaper(text.WithCollection(uitest.BrandFaces())))
 		}, st)
 		// Said, with the way back in it. A window that opens behind this one
 		// is a panel that has apparently vanished, and right-clicking a tab

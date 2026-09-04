@@ -204,7 +204,7 @@ func siOrDash(b int64) string {
 	if b <= 0 {
 		return "-"
 	}
-	return siBytes(b)
+	return comp.SIBytes(b)
 }
 
 func largestCaption(s totals) string {

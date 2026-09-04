@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 
 	"github.com/MeshBench/meshbench/internal/ui/comp"
+	"github.com/MeshBench/meshbench/internal/ui/workbench/nodeview"
 
 	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
@@ -26,27 +27,27 @@ type workbenchUI struct {
 	sh    *shell.Shell
 	sim   *session.Sim
 	mv    *comp.MapView
-	nodes *nodeWindowSet
+	nodes *nodeview.WindowSet
 	// builds is the firmware windows, and logs the popped-out output ones,
 	// both on the same terms as the node windows.
 	builds *firmwareWindowSet
-	logs   *outputWindowSet
+	logs   *nodeview.OutputWindowSet
 	store  *state.Store
 	// newTheme gives each window a shaper of its own: Gio's is not safe for
 	// concurrent use and two frame loops sharing one corrupts its glyph
 	// buffer.
 	newTheme func() *theme.Theme
-	// onCommand and onAction carry a node window's controls back to the store.
-	onCommand func(node, line string)
-	onAction  func(action, node string)
-	onCLI     func(node, line string)
-	// onDo runs a verb with parameters, for the controls that need more than
+	// OnCommand and OnAction carry a node window's controls back to the store.
+	OnCommand func(node, line string)
+	OnAction  func(action, node string)
+	OnCLI     func(node, line string)
+	// OnDo runs a verb with parameters, for the controls that need more than
 	// a node name to say what they mean.
-	onDo func(verb string, params any)
-	// onServe serves a companion to a real client; onOpenPacket opens the
+	OnDo func(verb string, params any)
+	// OnServe serves a companion to a real client; OnOpenPacket opens the
 	// packet view from an activity row.
-	onServe      func(node, kind string)
-	onOpenPacket func(id uint64)
+	OnServe      func(node, kind string)
+	OnOpenPacket func(id uint64)
 	// dock, closeWin, scale and setScale are the pieces of the window and
 	// settings machinery a verb needs to reach.
 	dock     func(name string)
@@ -190,14 +191,14 @@ func (u *workbenchUI) OpenNodeWindow(node, tab string) (string, error) {
 	// The startup flag takes an index, which is fine for a capture script
 	// written beside the enum and useless to anybody else: a tab that moved
 	// would silently open a different pane. A name cannot do that.
-	want, ok := nodeTabByName(tab)
+	want, ok := nodeview.TabByName(tab)
 	if !ok {
 		return "", fmt.Errorf("no tab called %q - there is %s",
-			tab, strings.Join(nodeTabNames(), ", "))
+			tab, strings.Join(nodeview.TabNames(), ", "))
 	}
-	u.nodes.openFor(node, want, u.newTheme, u.store, nodeWindowHooks{
-		onCommand: u.onCommand, onAction: u.onAction, onCLI: u.onCLI,
-		onServe: u.onServe, onOpenPacket: u.onOpenPacket, onDo: u.onDo,
+	u.nodes.OpenFor(node, want, u.newTheme, u.store, nodeview.WindowHooks{
+		OnCommand: u.OnCommand, OnAction: u.OnAction, OnCLI: u.OnCLI,
+		OnServe: u.OnServe, OnOpenPacket: u.OnOpenPacket, OnDo: u.OnDo,
 	})
 	// What was asked for, which is not always what will be drawn: a node
 	// whose board declares nothing grows no Hardware tab and the window falls
@@ -211,10 +212,10 @@ func (u *workbenchUI) OpenOutputWindow(node, source string) error {
 	if u.logs == nil || u.newTheme == nil {
 		return fmt.Errorf("this build has no output windows to open")
 	}
-	if u.onDo == nil {
+	if u.OnDo == nil {
 		return fmt.Errorf("this build cannot run verbs from an output window")
 	}
-	u.logs.openFor(node, source, u.newTheme, u.store, u.onDo)
+	u.logs.OpenFor(node, source, u.newTheme, u.store, u.OnDo)
 	return nil
 }
 
@@ -222,9 +223,9 @@ func (u *workbenchUI) OpenFirmwareWindow(role, version, board string) error {
 	if u.builds == nil || u.newTheme == nil {
 		return fmt.Errorf("this build has no firmware windows to open")
 	}
-	if u.onDo == nil {
+	if u.OnDo == nil {
 		return fmt.Errorf("this build cannot run verbs from a firmware window")
 	}
-	u.builds.openFor(role, version, board, u.newTheme, u.store, u.onDo)
+	u.builds.openFor(role, version, board, u.newTheme, u.store, u.OnDo)
 	return nil
 }

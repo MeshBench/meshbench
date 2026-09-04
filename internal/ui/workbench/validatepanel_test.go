@@ -5,6 +5,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/ui/comp"
+	"github.com/MeshBench/meshbench/internal/ui/uitest"
 )
 
 // The Verify view said nothing about what it was for, and its panel could not
@@ -61,16 +62,16 @@ func TestValidateStepsFollowTheWorld(t *testing.T) {
 // and it still draws its steps.
 func TestValidatePanelGuidesBeforeAnyData(t *testing.T) {
 	p := &validatePanel{}
-	h := newPanelHarness(p.Draw, &state.Snapshot{})
-	h.frame()
-	h.frame() // no panic, and the empty path draws the strip
+	h := uitest.New(p.Draw, &state.Snapshot{})
+	h.Frame()
+	h.Frame() // no panic, and the empty path draws the strip
 	// And with residuals it draws the table instead.
-	h2 := newPanelHarness(p.Draw, &state.Snapshot{
+	h2 := uitest.New(p.Draw, &state.Snapshot{
 		Observed:  []state.Observed{{}},
 		Residuals: &state.Residuals{Matched: 12, MedianDB: 2.1, IQRdB: 3.4},
 	})
-	h2.frame()
-	h2.frame()
+	h2.Frame()
+	h2.Frame()
 	// Six figures now: the two headline numbers, the bias and spread, and the
 	// two ways an observation fails to match. Their sum as one "unmatched"
 	// count is how a total matching failure once went undiagnosed, so the

@@ -1,6 +1,8 @@
 package workbench
 
 import (
+	"image/color"
+
 	"gioui.org/layout"
 	"gioui.org/unit"
 
@@ -15,7 +17,7 @@ import (
 // fault, and a page of red rows on a fresh install teaches an operator that red
 // means nothing. "Waiting on you" takes the accent instead, because it is the
 // one state that is a question rather than a condition.
-func setupStateInk(t *theme.Theme, s string) (string, colorNRGBA) {
+func setupStateInk(t *theme.Theme, s string) (string, color.NRGBA) {
 	switch state.SetupState(s) {
 	case state.SetupReady:
 		return "ready", t.P.Good
@@ -185,7 +187,7 @@ func (p *setupPanel) rowAction(t *theme.Theme, gtx layout.Context,
 
 // setupLine draws a caption only when there is one, so a row with nothing to
 // add does not leave a blank line where a sentence was.
-func setupLine(t *theme.Theme, size unit.Sp, c colorNRGBA, s string) layout.Widget {
+func setupLine(t *theme.Theme, size unit.Sp, c color.NRGBA, s string) layout.Widget {
 	return func(gtx layout.Context) layout.Dimensions {
 		if s == "" {
 			return layout.Dimensions{}

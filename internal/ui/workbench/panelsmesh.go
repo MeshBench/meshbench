@@ -11,6 +11,7 @@ import (
 
 	hw "github.com/MeshBench/meshbench/internal/firmware/board"
 	"github.com/MeshBench/meshbench/internal/ui/shell"
+	"github.com/MeshBench/meshbench/internal/ui/workbench/nodeview"
 	"github.com/MeshBench/meshbench/internal/ui/workbench/packetview"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
@@ -19,7 +20,7 @@ func addMeshPanels(d panelDeps) {
 	d.sh.Add(homed(&shell.Panel{Name: "Provisioning", Windowable: true,
 		Draw: d.withControls(d.provCtl.Draw, shell.EmptyPanel("Provisioning",
 			"what every node is told when it starts").Draw)}))
-	nv := &nodeViewPanel{}
+	nv := &nodeview.ViewPanel{}
 	nv.OnAction = func(action, node string) {
 		if action == "nodes.stats" {
 			d.do(action, nil)
@@ -27,7 +28,7 @@ func addMeshPanels(d panelDeps) {
 		}
 		d.do(action, node)
 	}
-	nv.OnFirmware = func(node string, b buildChoice) {
+	nv.OnFirmware = func(node string, b nodeview.BuildChoice) {
 		go func() {
 			_, _ = d.st.Do(d.ctx, "node.set_firmware", map[string]any{
 				"node": node, "version": b.Version,
@@ -37,7 +38,7 @@ func addMeshPanels(d panelDeps) {
 	if *d.filterFlag != "" {
 		nv.SetFilter(*d.filterFlag)
 	}
-	openOnTab = nodeTab(*d.nodeTabFlag)
+	nodeview.OpenOnTab = nodeview.Tab(*d.nodeTabFlag)
 	packetview.OpenOnTab = *d.packetTabFlag
 	if *d.nodeWinFlag != "" {
 		go func() {
@@ -79,7 +80,7 @@ func addMeshPanels(d panelDeps) {
 			case <-d.ctx.Done():
 				return
 			case <-t.C:
-				if nv.watched.Swap(false) {
+				if nv.Watched.Swap(false) {
 					d.do("nodes.stats", nil)
 				}
 			}
@@ -88,7 +89,7 @@ func addMeshPanels(d panelDeps) {
 	fleet := &fleetPanel{}
 	d.sh.Add(homed(&shell.Panel{Name: "Fleet", Windowable: true,
 		Draw: d.withControls(d.fleetCtl.Draw, fleet.Draw)}))
-	boards := &boardsPanel{do: d.do}
+	boards := &nodeview.BoardsPanel{Do: d.do}
 	d.sh.Add(homed(&shell.Panel{Name: "Boards", Windowable: true, Draw: boards.Draw}))
 	bench := &benchPanel{}
 	// Clicking a companion is the App view's only way of saying which one

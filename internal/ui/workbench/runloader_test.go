@@ -10,6 +10,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
+	"github.com/MeshBench/meshbench/internal/ui/uitest"
 )
 
 // savedRuns writes n run records where the tool keeps them, newest last.
@@ -118,11 +119,11 @@ func TestRunPanelsDrawBeforeTheDiskAnswers(t *testing.T) {
 	runs := &runsPanel{}
 	cmp := &comparePanel{}
 	snap := &state.Snapshot{}
-	for _, p := range []*panelHarness{
-		newPanelHarness(runs.Draw, snap),
-		newPanelHarness(cmp.Draw, snap),
+	for _, p := range []*uitest.Harness{
+		uitest.New(runs.Draw, snap),
+		uitest.New(cmp.Draw, snap),
 	} {
-		p.frame()
+		p.Frame()
 	}
 	if runs.shownGen != 0 || len(runs.rows) != 0 {
 		t.Error("the runs panel had rows on its first frame, so it read the directory in it")

@@ -6,6 +6,7 @@
 package comp
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -168,4 +169,40 @@ func fieldsOf(s string) []string {
 		res = append(res, string(cur))
 	}
 	return res
+}
+
+// filterLines is the log, narrowed to lines containing the search text.
+func FilterLines(lines []string, want string) []string {
+	if want == "" {
+		return lines
+	}
+	want = strings.ToLower(want)
+	out := make([]string, 0, len(lines))
+	for _, l := range lines {
+		if strings.Contains(strings.ToLower(l), want) {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
+// siBytes prints bytes with an SI prefix, as asked: 1 kB is 1,000 bytes.
+//
+// SI rather than binary because the number sits beside a percentage and a
+// packet count, and somebody comparing it to what `ps` or a system monitor
+// says should get the same answer.
+func SIBytes(b int64) string {
+	if b <= 0 {
+		return "-"
+	}
+	const unit = 1000
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := int64(unit), 0
+	for n := b / unit; n >= unit && exp < 4; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "kMGTP"[exp])
 }

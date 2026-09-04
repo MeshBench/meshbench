@@ -4,6 +4,7 @@ package workbench
 
 import (
 	"fmt"
+	"strconv"
 
 	"gioui.org/layout"
 
@@ -39,16 +40,16 @@ func (p *configPanel) overview(t *theme.Theme, s *state.Snapshot) []layout.Widge
 			)
 		}),
 		comp.Card(t, "Simulation scope", grid(
-			comp.StatCell(t, "Study areas", itoa(len(s.Areas)), "what bounds the study"),
+			comp.StatCell(t, "Study areas", strconv.Itoa(len(s.Areas)), "what bounds the study"),
 			comp.StatCell(t, "Study margin", fmt.Sprintf("%g km", s.MarginKm),
 				"how far outside the boundary a node still matters"),
-			comp.StatCell(t, "Nodes", itoa(len(s.Nodes)),
+			comp.StatCell(t, "Nodes", strconv.Itoa(len(s.Nodes)),
 				"every one is simulated; none are sampled"),
 		)),
 		comp.Card(t, "Links & measurement", func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 				layout.Rigid(grid(
-					comp.StatCell(t, "Links measured", itoa(len(s.Links)),
+					comp.StatCell(t, "Links measured", strconv.Itoa(len(s.Links)),
 						"pairs with a path loss from the engine"),
 					comp.StatCell(t, "Last warm on the GPU", lastWarm, warmCap),
 					comp.StatCell(t, "Running", yesNo(s.Playing),
@@ -72,7 +73,7 @@ func (p *configPanel) overview(t *theme.Theme, s *state.Snapshot) []layout.Widge
 		comp.Card(t, "Randomness & variance", grid(
 			comp.StatCell(t, "Seed", fmt.Sprintf("%d", s.Seed),
 				"two runs with one seed are identical"),
-			comp.StatCell(t, "Events", itoa(s.EventTotal),
+			comp.StatCell(t, "Events", strconv.Itoa(s.EventTotal),
 				"the whole log; tables show the tail of it"),
 		)),
 		comp.Card(t, "Graphics & performance", func(gtx layout.Context) layout.Dimensions {
@@ -138,14 +139,14 @@ func (p *configPanel) nodesCards(t *theme.Theme, s *state.Snapshot) []layout.Wid
 	}
 	running = s.FirmwareRunning
 	cells := []layout.Widget{
-		comp.StatCell(t, "Nodes", itoa(len(s.Nodes)), "every one is simulated"),
-		comp.StatCell(t, "Running firmware", itoa(running),
+		comp.StatCell(t, "Nodes", strconv.Itoa(len(s.Nodes)), "every one is simulated"),
+		comp.StatCell(t, "Running firmware", strconv.Itoa(running),
 			"processes up right now"),
 	}
 	for _, k := range []string{"simple-repeater", "advanced-repeater", "companion",
 		"room-server", "sdr-observer", "emitter"} {
 		if kinds[k] > 0 {
-			cells = append(cells, comp.StatCell(t, shortKind(k), itoa(kinds[k]), ""))
+			cells = append(cells, comp.StatCell(t, comp.ShortKind(k), strconv.Itoa(kinds[k]), ""))
 		}
 	}
 	return []layout.Widget{
@@ -161,7 +162,7 @@ func (p *configPanel) linksCards(t *theme.Theme, s *state.Snapshot) []layout.Wid
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return comp.CellGrid(t, gtx, 190, []layout.Widget{
-						comp.StatCell(t, "Links measured", itoa(len(s.Links)),
+						comp.StatCell(t, "Links measured", strconv.Itoa(len(s.Links)),
 							"pairs with a path loss from the engine, weighted by the weaker direction"),
 						comp.StatCell(t, "Measured on", gpuOrCPU(s.GPU),
 							"where the last warm ran"),
@@ -342,9 +343,9 @@ func (p *configPanel) eventsCards(t *theme.Theme, s *state.Snapshot) []layout.Wi
 	return []layout.Widget{
 		comp.Card(t, "The event log", func(gtx layout.Context) layout.Dimensions {
 			return comp.CellGrid(t, gtx, 190, []layout.Widget{
-				comp.StatCell(t, "Events", itoa(s.EventTotal),
+				comp.StatCell(t, "Events", strconv.Itoa(s.EventTotal),
 					"everything the engine did; the tables show the most recent"),
-				comp.StatCell(t, "In the tables", itoa(len(s.Events)),
+				comp.StatCell(t, "In the tables", strconv.Itoa(len(s.Events)),
 					"the tail, oldest first"),
 			})
 		}),

@@ -9,6 +9,7 @@ import (
 	"gioui.org/layout"
 
 	"github.com/MeshBench/meshbench/internal/ui/theme"
+	"github.com/MeshBench/meshbench/internal/ui/uitest"
 )
 
 // Draw real panels on both grounds and look at them.
@@ -31,7 +32,7 @@ func TestDrawTheThemes(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	snap := auditSnapshot()
+	snap := uitest.Snapshot()
 	// Configuration carries the widest spread of controls in one place -
 	// boxes, dropdowns, switches and units - so it shows the most per frame.
 	wanted := map[string]bool{"Configuration": true, "Sweep": true, "Fleet": true}
@@ -48,7 +49,7 @@ func TestDrawTheThemes(t *testing.T) {
 			if tg.snap != nil {
 				use = tg.snap
 			}
-			img := renderMode(t, 1100, 820, mode.m,
+			img := uitest.RenderMode(t, 1100, 820, mode.m,
 				func(gtx layout.Context, th *theme.Theme) layout.Dimensions {
 					return tg.draw(th, gtx, use)
 				})
