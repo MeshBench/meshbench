@@ -424,8 +424,22 @@ jobs:
           if [ -d "$EMU/qemu" ]; then
             ln -sf ../Resources/emulators/qemu/bin/qemu-system-xtensa "$APP/Contents/MacOS/qemu-system-xtensa"
           fi
-          if [ -f "$EMU/Release/osx-arm64/Renode" ]; then
-            ln -sf ../Resources/emulators/Release/osx-arm64/Renode "$APP/Contents/MacOS/renode"
+          # The fork now publishes the portable package, which is an app bundle,
+          # where it used to publish the build tree. Different shape: the
+          # launcher is Renode.app/Contents/MacOS/renode rather than a Renode
+          # binary under Release/osx-arm64/.
+          #
+          # Loud, because the old form of this was a bare `if` with no else -
+          # so an asset that unpacked to anything unexpected made no link, and
+          # the bundle shipped 80 MB of Renode with nothing pointing at it.
+          if [ -f "$EMU/Renode.app/Contents/MacOS/renode" ]; then
+            ln -sf ../Resources/emulators/Renode.app/Contents/MacOS/renode "$APP/Contents/MacOS/renode"
+          else
+            echo "::error::the Renode asset did not unpack to"\
+                 "Renode.app/Contents/MacOS/renode, so nothing can be linked to"\
+                 "it. This is what the asset actually contains:"
+            find "$EMU" -maxdepth 3 | head -30
+            exit 1
           fi
           # The chip model. A real file rather than a link: it is small and
           # resolves nothing from its own path.
