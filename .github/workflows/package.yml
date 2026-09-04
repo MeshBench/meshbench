@@ -498,6 +498,16 @@ jobs:
           packaging/macos-dmg.sh "$VERSION" dist/macos "dist/MeshBench-arm64-bundled.dmg"
           ls -la dist/*.dmg
           shasum -a 256 dist/*.dmg
+          # Exactly the two this job means to publish. The release job checks
+          # the same thing, but only a tag runs the release job - so a third
+          # image sat here through every dispatched build and was refused at
+          # the one moment it was expensive. This is the cheap place to say it.
+          n=$(ls dist/*.dmg | wc -l)
+          [ "$n" = 2 ] || {
+            echo "::error::$n dmgs, want the compact and bundled pair only:"
+            ls -la dist/*.dmg
+            exit 1
+          }
 
       - uses: actions/upload-artifact@v7
         if: inputs.release || startsWith(github.ref, 'refs/tags/v')
