@@ -210,11 +210,12 @@ Measured one board at a time on an idle machine, all ten rows on 4 September
 reproduced what it had shown the day before through the radio server that
 arrangement replaced. The two blanks have never been attempted.
 
-`LilyGo_TDeck` forwards as of `v9.2.2-meshbench-sx1262-12`, and what stopped it
-was the emulator rather than the board: a peripheral's input above pin 39 was
-discarded, and that board is the only one whose DIO1 sits above it, on GPIO 45.
-It forwards 1 of 2 where the other ESP32-S3 boards manage 2 of 2, which is the
-row's threshold and not comfortably above it.
+`LilyGo_TDeck` forwards 2 of 2, the same as every other board here, as of
+`v9.2.2-meshbench-sx1262-12`. Two things had to be fixed and neither was the
+board: the emulator discarded a peripheral's input above pin 39, and that board
+is the only one whose DIO1 sits above it on GPIO 45; and the flood row then
+counted an attempt the board could not have heard, its own transmitter having
+been keyed as the packet arrived.
 
 What each board's row means in detail is in
 [`docs/emulated-published-firmware.md`](docs/emulated-published-firmware.md).

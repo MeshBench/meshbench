@@ -240,10 +240,25 @@ MeshCore collects a packet only from the ISR that pin fires. Heltec V3 on 14,
 Ebyte EoRa-S3 on 33 and Xiao S3 WIO on 39 were never affected. The whole
 difference across the fleet was which side of 40 the pin sat on.
 
-It forwards 1 of 2 where those three manage 2 of 2, over four consecutive runs -
-the row's threshold rather than comfortably past it. `simple_repeater`'s
-discover_limiter on the heaviest board in the fleet is the obvious candidate and
-is not measured, so it is written here as a question rather than an answer.
+**It forwards 2 of 2, the same as the rest**, but only after a second fault
+underneath the first. With the interrupt reaching the firmware it settled at
+1 of 2, and the failing attempt was the same one every run - which is what said
+it was not chance. The channel's own ledger named it: `its own transmitter was
+keyed; LoRa is half duplex`. The frame reached the board and the board was
+transmitting.
+
+`waitUntilQuiet` is not enough on its own. It waits ten seconds since the last
+transmission the ledger holds, and a board with one already scheduled looks
+quiet right up until it keys up; on this board that alignment is deterministic.
+An attempt lost that way says nothing about whether the board forwards, so it is
+now retried rather than counted, exactly as an attempt where the board never
+went quiet already was. Matched on the engine's own `ClassHalfDuplex` rather
+than the wording, which is written in three places.
+
+That is the third time this has been the answer here. The rx row once handed a
+board a packet mid-transmission and blamed the board; its comment is still the
+best statement of it - the board was behaving correctly and the physics was
+right, and the test was handing it something it could not have heard.
 
 And no nRF52 board has a working filesystem: `IdentityStore::save()` fails
 every boot, so nothing a repeater stores survives a restart - tracked
