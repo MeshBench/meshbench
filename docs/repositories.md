@@ -179,6 +179,40 @@ The workflow also asserts both halves of the fix are present in the tree it
 built, because a submodule quietly resolving to upstream would produce a Renode
 that looks correct and hangs in exactly the same place.
 
+## Publishing to the package managers
+
+Two workflows fire on a published release and write to repositories outside this
+one: `publish-apt.yml` rebuilds the apt pool and index in
+`meshbench.github.io`, and `publish-tap.yml` rewrites the two casks in
+`MeshBench/homebrew-meshbench`. Both follow the same shape as the skills mirror
+and the docs site: a fine-grained token, and a loud failure rather than a skip
+when it is absent, because a publish that quietly does not happen is the failure
+being guarded against.
+
+What each holds, all of it already in place:
+
+| what | where | why |
+|---|---|---|
+| `APT_SIGNING_KEY`, `APT_SIGNING_KEY_ID` | `apt-publish` environment | apt refuses an unsigned repository, and rightly |
+| the public half at `apt/meshbench.gpg` | committed to the site repository | it is what the install line fetches, dearmoured, which is the form `signed-by=` wants |
+| `SITE_DEPLOY_KEY` | `apt-publish` environment | the pool lives in the site repository |
+| `TAP_DEPLOY_KEY` | `tap-publish` environment | the casks live in `MeshBench/homebrew-meshbench`, which Homebrew requires be called exactly that: `brew tap MeshBench/meshbench` looks for it |
+
+**Deploy keys rather than tokens**, unlike the docs site and the skills mirror,
+which predate the org allowing them. A deploy key reaches exactly one
+repository, does not expire, and can be created from the API - so setting one up
+needs no browser and no personal account behind it. The two older publishers
+would be better off converted, which is a tidy-up rather than a fix.
+
+Both keys are ed25519 and both were proven by pushing a scratch commit and
+removing it, because a write deploy key that turns out to be read-only fails at
+the end of a release rather than at the start.
+
+**Old versions stay in the apt pool.** A repository that drops what it replaced
+breaks anybody pinning a version, and disk is free here. The index is rebuilt
+over whatever is in the pool rather than from the release alone, so nothing has
+to be remembered between runs.
+
 ## Taking a newer upstream
 
 There is no calendar for this, and inventing one would be a promise nobody
