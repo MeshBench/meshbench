@@ -7,6 +7,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/ui/shell"
+	"github.com/MeshBench/meshbench/internal/ui/workbench/nodeview"
 )
 
 // menuBar is what building the menus needs.
@@ -17,7 +18,7 @@ type menuBar struct {
 	dropFlag *string
 	st       *state.Store
 	ctx      context.Context
-	nodes    *nodesPanel
+	nodes    *nodeview.Panel
 	wins     *panelPopouts
 	chooser  func(string, []string, func(string))
 	menuFlag *string

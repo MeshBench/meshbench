@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
+	"github.com/MeshBench/meshbench/internal/ui/uitest"
 )
 
 // The sidebar opens the section that was pressed. Its rows are plain
@@ -11,16 +12,16 @@ import (
 // the control audit does not press them and this does.
 func TestConfigurationSectionsSwitch(t *testing.T) {
 	cfg := &configPanel{do: func(string, any) {}}
-	h := newPanelHarness(cfg.Draw, auditSnapshot())
-	h.frame()
-	h.frame()
+	h := uitest.New(cfg.Draw, uitest.Snapshot())
+	h.Frame()
+	h.Frame()
 	if len(cfg.secRows) != len(configSections) {
 		t.Fatalf("%d sidebar rows for %d sections", len(cfg.secRows), len(configSections))
 	}
 	for i := range configSections {
 		cfg.secRows[i].Click()
-		h.frame()
-		h.frame()
+		h.Frame()
+		h.Frame()
 		if cfg.active != i {
 			t.Errorf("pressed %q and the open section is %q",
 				configSections[i], configSections[cfg.active])
@@ -33,21 +34,21 @@ func TestConfigurationSectionsSwitch(t *testing.T) {
 func TestConfigurationSetsThroughVerbs(t *testing.T) {
 	r := &recorder{}
 	cfg := &configPanel{do: r.do}
-	h := newPanelHarness(cfg.auditDraw, auditSnapshot())
-	h.frame()
+	h := uitest.New(cfg.auditDraw, uitest.Snapshot())
+	h.Frame()
 
 	cfg.seed.Editor.SetText("4242")
 	cfg.setSeed.Click.Click()
-	h.frame()
-	h.frame()
+	h.Frame()
+	h.Frame()
 	if !r.saw("sim.seed") {
 		t.Errorf("set seed reached %v, want sim.seed", r.verbs)
 	}
 
 	cfg.margin.Editor.SetText("not a number")
 	cfg.setMargin.Click.Click()
-	h.frame()
-	h.frame()
+	h.Frame()
+	h.Frame()
 	if r.saw("study.margin") {
 		t.Error("a margin that does not parse still reached the store")
 	}
@@ -59,7 +60,7 @@ func TestConfigurationSetsThroughVerbs(t *testing.T) {
 // The status pill tells warming apart from running, because a run that is
 // still measuring links is the one state a person must not start a study in.
 func TestConfigurationPillStates(t *testing.T) {
-	s := auditSnapshot()
+	s := uitest.Snapshot()
 	if got := pillWord(s); got != "Ready to run" {
 		t.Errorf("idle run reads %q", got)
 	}

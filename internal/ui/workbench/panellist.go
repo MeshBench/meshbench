@@ -16,6 +16,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/ui/comp"
 	"github.com/MeshBench/meshbench/internal/ui/shell"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
+	"github.com/MeshBench/meshbench/internal/ui/workbench/nodeview"
 )
 
 // panelDeps is what the panel list needs from Run.
@@ -32,7 +33,7 @@ type panelDeps struct {
 	wbUI   *workbenchUI
 	wins   *panelPopouts
 	mapTop *mapTools
-	nodes  *nodesPanel
+	nodes  *nodeview.Panel
 	// do runs a verb and puts any failure in the status bar. withControls
 	// puts an action bar above a panel's body, chooserIn posts a chooser in
 	// whichever window the panel is currently in, and openPacket opens the

@@ -13,6 +13,8 @@
 package workbench
 
 import (
+	"strconv"
+
 	"gioui.org/layout"
 	"gioui.org/widget"
 
@@ -191,12 +193,12 @@ func (p *setupPanel) cards(t *theme.Theme, gtx layout.Context,
 	groups []state.SetupGroup) layout.Dimensions {
 	s := tallyOf(groups)
 	cells := []layout.Widget{
-		comp.StatCell(t, "Ready", itoa(s.ready), "here, and a node would find it"),
-		comp.StatCell(t, "Blocking", itoa(s.needed),
+		comp.StatCell(t, "Ready", strconv.Itoa(s.ready), "here, and a node would find it"),
+		comp.StatCell(t, "Blocking", strconv.Itoa(s.needed),
 			"something in this session is waiting on it"),
-		comp.StatCell(t, "Waiting on you", itoa(s.undecided),
+		comp.StatCell(t, "Waiting on you", strconv.Itoa(s.undecided),
 			"a question nothing has answered on your behalf"),
-		comp.StatCell(t, "Not here", itoa(s.missing+s.blocked), notHereCaption(s)),
+		comp.StatCell(t, "Not here", strconv.Itoa(s.missing+s.blocked), notHereCaption(s)),
 	}
 	return comp.Card(t, "", func(gtx layout.Context) layout.Dimensions {
 		return comp.CellGrid(t, gtx, 150, cells)
@@ -208,7 +210,7 @@ func (p *setupPanel) cards(t *theme.Theme, gtx layout.Context,
 // something an operator can act on.
 func notHereCaption(s setupTally) string {
 	if s.blocked > 0 {
-		return itoa(s.blocked) + " of them cannot be had on this platform at all"
+		return strconv.Itoa(s.blocked) + " of them cannot be had on this platform at all"
 	}
 	return "absent, and nothing needs it yet"
 }

@@ -1,0 +1,385 @@
+// The tabs of a node window: what each one draws, and the settings form that
+// is the only one of them able to change anything.
+package nodeview
+
+import (
+	"fmt"
+	"strconv"
+	"strings"
+
+	"gioui.org/layout"
+
+	"github.com/MeshBench/meshbench/internal/app/state"
+	"github.com/MeshBench/meshbench/internal/ui/comp"
+	"github.com/MeshBench/meshbench/internal/ui/theme"
+)
+
+// TabByName is a tab named the way it is on screen.
+//
+// By its own String, so the names a script uses and the names somebody reads
+// off the strip cannot drift apart - and case-insensitively, because "hardware"
+// is what a person types and refusing it would be pedantry with a stack trace.
+func TabByName(name string) (Tab, bool) {
+	if strings.TrimSpace(name) == "" {
+		return OpenOnTab, true
+	}
+	for t := Tab(0); t < numNodeTabs; t++ {
+		if strings.EqualFold(t.String(), name) {
+			return t, true
+		}
+	}
+	return 0, false
+}
+
+// TabNames is every tab, for saying what was possible when one was not.
+func TabNames() []string {
+	out := make([]string, 0, numNodeTabs)
+	for t := Tab(0); t < numNodeTabs; t++ {
+		out = append(out, t.String())
+	}
+	return out
+}
+
+// settings is what this node is: identity, radio, regions and firmware - the
+// mock's card, from what the snapshot honestly carries.
+func (p *WindowPanel) settings(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+	var node *state.Node
+	if s != nil {
+		for i := range s.Nodes {
+			if s.Nodes[i].Name == p.Node {
+				node = &s.Nodes[i]
+				break
+			}
+		}
+	}
+	if node == nil {
+		return layout.Center.Layout(gtx, comp.Text(t, t.Sz.Caption, t.P.Faint,
+			"this node is not in the loaded network"))
+	}
+	st := p.statFor(s)
+	if p.energy.Click.Clicked(gtx) && p.OnAction != nil {
+		// December is the question a solar node answers with its worst day.
+		p.OnAction("node.energy", p.Node)
+	}
+
+	head := func(sec string) layout.Widget { return comp.SectionRule(t, sec) }
+	// The build and the hardware it is for, together. A version on its own
+	// says nothing about which board it runs on, and that is exactly the pair
+	// somebody comes to this section to check.
+	fw := orDash(node.Firmware)
+	if node.Board != "" {
+		fw += "  on " + node.Board
+	}
+	// And what pressing the button will do to it, said before the press rather
+	// than discovered after: node.set_firmware stops the node, provisions it
+	// again and starts it, and a control that quietly restarts a node mid-run
+	// is one somebody will press during a measurement.
+	fwNote := "changing it stops this node, provisions it again and starts it"
+	if st != nil && st.Backend != "" {
+		fwNote = st.Backend + " - " + fwNote
+	}
+	rows := []layout.Widget{
+		comp.Card(t, "", func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+						layout.Rigid(comp.Text(t, t.Sz.Section, t.P.Ink, node.Name)),
+						layout.Rigid(layout.Spacer{Width: t.Sp.S}.Layout),
+						layout.Rigid(comp.Pill(t, t.P.Accent, comp.ShortKind(node.Kind))),
+					)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return comp.CellGrid(t, gtx, 170, []layout.Widget{
+						comp.StatCell(t, "Position",
+							fmt.Sprintf("%.5f, %.5f", node.Lat, node.Lon), ""),
+						comp.StatCell(t, "Height",
+							fmt.Sprintf("%.0f m", node.HeightM), "above ground"),
+						comp.StatCell(t, "Transmit power",
+							fmt.Sprintf("%.0f dBm", node.TxDBm), ""),
+					})
+				}),
+			)
+		}),
+		head("regions (observed)"),
+		func(gtx layout.Context) layout.Dimensions {
+			line := "none - this node relays only what its defaults allow"
+			if len(node.Regions) > 0 {
+				line = strings.Join(node.Regions, "  ")
+			}
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(comp.Text(t, t.Sz.Body, t.P.Ink, line)),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					if node.DefaultScope == "" {
+						return layout.Dimensions{}
+					}
+					return comp.Text(t, t.Sz.Caption, t.P.Faint,
+						"default scope: "+node.DefaultScope)(gtx)
+				}),
+			)
+		},
+		head("firmware"),
+		func(gtx layout.Context) layout.Dimensions {
+			p.changeFw.Label, p.changeFw.Kind = "change the build...", comp.Secondary
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(comp.Mono(t, t.Sz.Body, t.P.Ink, fw)),
+				layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint, fwNote)),
+				layout.Rigid(layout.Spacer{Height: t.Sp.XS}.Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{}.Layout(gtx,
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return p.changeFw.Layout(t, gtx)
+						}),
+					)
+				}),
+			)
+		},
+	}
+	p.setList.Axis = layout.Vertical
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			return comp.List(t, &p.setList, len(rows), func(gtx layout.Context, i int) layout.Dimensions {
+				return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx, rows[i])
+			})(gtx)
+		}),
+		// Pinned under the list, not the last row of it: a question this good
+		// should not need scrolling to find.
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			p.energy.Label, p.energy.Kind = "does it survive December?", comp.Secondary
+			return layout.Inset{Top: t.Sp.S}.Layout(gtx,
+				func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{}.Layout(gtx,
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return p.energy.Layout(t, gtx)
+						}),
+					)
+				})
+		}),
+	)
+}
+
+// connect serves this companion to a real client - meshcore-cli, a phone app
+// over a bridge - which is the whole reason a simulated companion exists.
+func (p *WindowPanel) connect(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+	if p.tcpBtn.Click.Clicked(gtx) && p.OnServe != nil {
+		p.OnServe(p.Node, "tcp")
+	}
+	if p.serBtn.Click.Clicked(gtx) && p.OnServe != nil {
+		p.OnServe(p.Node, "serial")
+	}
+	if p.dropBtn.Click.Clicked(gtx) && p.OnAction != nil {
+		p.OnAction("bench.drop", p.Node)
+	}
+	p.tcpBtn.Label, p.tcpBtn.Kind = "serve over TCP", comp.Primary
+	p.serBtn.Label, p.serBtn.Kind = "serve a serial port", comp.Secondary
+	p.dropBtn.Label, p.dropBtn.Kind = "drop clients", comp.Quiet
+
+	var mine []state.Endpoint
+	if s != nil {
+		for _, e := range s.Endpoints {
+			if e.Node == p.Node {
+				mine = append(mine, e)
+			}
+		}
+	}
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Dim,
+			"serve this node to a real client - meshcore-cli or an app over a "+
+				"bridge - exactly as real hardware would appear")),
+		layout.Rigid(layout.Spacer{Height: t.Sp.S}.Layout),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Right: t.Sp.S}.Layout(gtx,
+						func(gtx layout.Context) layout.Dimensions { return p.tcpBtn.Layout(t, gtx) })
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Right: t.Sp.S}.Layout(gtx,
+						func(gtx layout.Context) layout.Dimensions { return p.serBtn.Layout(t, gtx) })
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return p.dropBtn.Layout(t, gtx)
+				}),
+			)
+		}),
+		layout.Rigid(layout.Spacer{Height: t.Sp.S}.Layout),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if len(mine) == 0 {
+				return comp.Text(t, t.Sz.Caption, t.P.Faint,
+					"not served yet - the endpoint appears here once it is")(gtx)
+			}
+			var kids []layout.FlexChild
+			for _, e := range mine {
+				e := e
+				kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					attached := "waiting for a client"
+					col := t.P.Dim
+					if e.Attached {
+						attached, col = "client attached", t.P.Good
+					}
+					return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+						layout.Rigid(comp.Mono(t, t.Sz.Body, t.P.Ink, e.Kind+"  "+e.Addr)),
+						layout.Rigid(layout.Spacer{Width: t.Sp.M}.Layout),
+						layout.Rigid(comp.Text(t, t.Sz.Caption, col, attached)),
+					)
+				}))
+			}
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, kids...)
+		}),
+		layout.Rigid(layout.Spacer{Height: t.Sp.S}.Layout),
+		layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint,
+			"the Companion tab drives the node in-process; this serves it to "+
+				"clients outside the workbench, and both cannot hold the port at once")),
+	)
+}
+
+// stats is what this node costs and what it has carried.
+func (p *WindowPanel) stats(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+	st := p.statFor(s)
+	if st == nil {
+		return layout.Center.Layout(gtx, comp.Text(t, t.Sz.Caption, t.P.Faint,
+			"no statistics for this node yet"))
+	}
+	rows := [][2]string{
+		{"firmware", orDash(st.Firmware)},
+		{"backend", orDash(st.Backend)},
+		{"memory", comp.SIBytes(st.RSSBytes)},
+		{"processor time", cpuTime(st.CPUms)},
+		{"processor now", fmt.Sprintf("%.1f%%", st.CPUPct)},
+		{"sent", fmt.Sprintf("%d", st.Sent)},
+		{"heard", fmt.Sprintf("%d", st.Heard)},
+		{"last sent", lastPacket(st.LastSentMs, st.LastSentTo)},
+		{"last heard", lastPacket(st.LastHeardMs, st.LastHeardFrom)},
+		{"radio busy", busyPct(*st)},
+		{"spurious interrupts", fmt.Sprintf("%d", st.Spurious)},
+	}
+	p.statList.Axis = layout.Vertical
+	return comp.List(t, &p.statList, len(rows), func(gtx layout.Context, i int) layout.Dimensions {
+		return layout.Flex{}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				gtx.Constraints.Min.X = gtx.Dp(170)
+				return comp.Text(t, t.Sz.Body, t.P.Dim, rows[i][0])(gtx)
+			}),
+			layout.Flexed(1, comp.Mono(t, t.Sz.Data, t.P.Ink, rows[i][1])),
+		)
+	})(gtx)
+}
+
+// activity is every event this node was an end of; clicking one opens its
+// packet.
+func (p *WindowPanel) activity(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+	if !p.built {
+		p.acts.Cols = []comp.Column{
+			{Title: "at", Width: 76, Right: true, Mono: true, Sortable: true},
+			{Title: "", Width: 44},
+			{Title: "with", Width: 170, Sortable: true},
+			{Title: "detail"},
+		}
+		p.acts.SortCol, p.acts.SortDesc, p.built = 0, true, true
+	}
+	if s != nil && (!p.rowsSet || s.Seq != p.seq) {
+		rows := make([]comp.Row, 0, 64)
+		for i := range s.Events {
+			e := &s.Events[i]
+			if e.From != p.Node && e.To != p.Node {
+				continue
+			}
+			other := e.To
+			if e.To == p.Node {
+				other = e.From
+			}
+			rows = append(rows, comp.Row{
+				Key: fmt.Sprintf("%d/%d", e.PacketID, i),
+				Cells: []string{
+					fmt.Sprintf("%8.3f", float64(e.AtMs)/1000),
+					e.Kind, other, e.Detail,
+				},
+			})
+		}
+		p.acts.SetRows(rows)
+		p.seq, p.rowsSet = s.Seq, true
+	}
+	return p.acts.Layout(t, gtx, func(key string) {
+		// A row is a packet; clicking it opens the packet view, the same as
+		// everywhere else an event appears.
+		if p.OnOpenPacket == nil {
+			return
+		}
+		id, _, ok := strings.Cut(key, "/")
+		if !ok {
+			return
+		}
+		if v := atof(id); v > 0 {
+			p.OnOpenPacket(uint64(v))
+		}
+	})
+}
+
+// console is the scrollback and the box to type into.
+func (p *WindowPanel) console(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+	lines := []string(nil)
+	if s != nil && s.ConsoleNode == p.Node {
+		lines = s.Console
+	}
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			if len(lines) == 0 {
+				return layout.Center.Layout(gtx, comp.Text(t, t.Sz.Caption, t.P.Faint,
+					"nothing printed yet - start the node, or type a command"))
+			}
+			p.list.Axis = layout.Vertical
+			// Anchored at the end: a console is read from the bottom.
+			p.list.ScrollToEnd = true
+			return p.list.Layout(gtx, len(lines), func(gtx layout.Context, i int) layout.Dimensions {
+				return comp.Mono(t, t.Sz.Data, t.P.Ink, lines[i])(gtx)
+			})
+		}),
+		layout.Rigid(layout.Spacer{Height: t.Sp.XS}.Layout),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+					p.input.Hint = "a MeshCore command, then Enter"
+					p.input.Editor.SingleLine = true
+					p.input.Editor.Submit = true
+					return p.input.Layout(t, gtx)
+				}),
+				layout.Rigid(layout.Spacer{Width: t.Sp.S}.Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					p.send.Label, p.send.Kind = "send", comp.Primary
+					return p.send.Layout(t, gtx)
+				}),
+			)
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return comp.OneLine(t, t.Sz.Caption, t.P.Faint,
+				"replies do not arrive while a sweep owns the clock: the "+
+					"firmware only speaks when the engine steps it", false)(gtx)
+		}),
+	)
+}
+
+func (p *WindowPanel) statFor(s *state.Snapshot) *state.NodeStat {
+	if s == nil {
+		return nil
+	}
+	for i := range s.Stats {
+		if s.Stats[i].Name == p.Node {
+			return &s.Stats[i]
+		}
+	}
+	return nil
+}
+
+// isCompanion decides which command line and which tabs this node gets.
+func (p *WindowPanel) isCompanion() bool {
+	return strings.Contains(strings.ToLower(p.Kind), "companion")
+}
+
+// atof reads a number a person typed, and treats anything unreadable as zero
+// rather than refusing the whole form.
+func atof(s string) float64 {
+	v, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
+	if err != nil {
+		return 0
+	}
+	return v
+}

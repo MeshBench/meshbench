@@ -4,17 +4,10 @@ package workbench
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
-
-	"gioui.org/font"
-	"gioui.org/font/opentype"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/ui/shell"
-	"github.com/MeshBench/meshbench/internal/ui/theme"
-	"github.com/MeshBench/meshbench/internal/ui/theme/brandfont"
 )
 
 // workbenchMenus is the menu bar, in one place.
@@ -113,74 +106,6 @@ func workbenchMenus() []menu {
 		}},
 	}
 }
-
-// brandFaces is the collection every shaper in the application is built from:
-// the three faces the identity is set in, then the machine's colour emoji.
-//
-// Gio's own faces are not in it. They were the default and nothing chose them;
-// leaving them in means a style that names no typeface gets Go Sans while one
-// that names Inter gets Inter, and the interface is then set in two families
-// nobody picked.
-func brandFaces() []font.FontFace {
-	return withEmoji(brandfont.Collection())
-}
-
-func withEmoji(base []font.FontFace) []font.FontFace {
-	// The bundle carries the font beside the binary, so emoji in node names
-	// do not depend on what the machine happens to have installed.
-	paths := []string{
-		"/usr/share/fonts/noto/NotoColorEmoji.ttf",
-		"/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
-		"/System/Library/Fonts/Apple Color Emoji.ttc",
-	}
-	if exe, err := os.Executable(); err == nil {
-		paths = append([]string{
-			filepath.Join(filepath.Dir(exe), "fonts", "NotoColorEmoji.ttf"),
-		}, paths...)
-	}
-	for _, p := range paths {
-		b, err := os.ReadFile(p)
-		if err != nil {
-			continue
-		}
-		if faces, err := opentype.ParseCollection(b); err == nil {
-			return append(base, faces...)
-		}
-	}
-	return base
-}
-
-func shortKind(k string) string {
-	switch k {
-	case "simple-repeater":
-		return "repeater"
-	case "advanced-repeater":
-		return "advanced"
-	case "sdr-observer":
-		return "observer"
-	case "room-server":
-		return "room server"
-	}
-	return k
-}
-
-func kindOf(k string) theme.NodeKind {
-	switch k {
-	case "companion":
-		return theme.Companion
-	case "room-server":
-		return theme.RoomServer
-	case "sdr-observer":
-		return theme.Observer
-	case "emitter":
-		return theme.Emitter
-	case "advanced-repeater":
-		return theme.AdvancedRepeater
-	}
-	return theme.SimpleRepeater
-}
-
-func itoa(i int) string { return fmt.Sprintf("%d", i) }
 
 // nextPlacedName is a name nothing else has, in the kind's own words.
 func nextPlacedName(kind string, s *state.Snapshot) string {

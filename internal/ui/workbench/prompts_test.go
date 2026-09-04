@@ -10,6 +10,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/ui/shell"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
+	"github.com/MeshBench/meshbench/internal/ui/uitest"
 )
 
 // The question a menu entry asks, driven by pointing at it.
@@ -22,26 +23,26 @@ func TestTheSavePromptDeliversWhatWasTyped(t *testing.T) {
 	got := ""
 	p.Open("Save this network as", "a name", "", func(a string) { got = a })
 
-	h := newPanelHarness(func(th *theme.Theme, gtx layout.Context,
+	h := uitest.New(func(th *theme.Theme, gtx layout.Context,
 		_ *state.Snapshot) layout.Dimensions {
 		return p.Layout(th, gtx)
 	}, nil)
-	h.frame()
+	h.Frame()
 
 	if !p.Showing() {
 		t.Fatal("the question closed itself before anybody could answer it")
 	}
 	// The field sits under the title, in the middle of the window.
-	h.click(f32.Pt(float32(h.sz.X)/2, float32(h.sz.Y)/2))
-	h.typeText("fife-strict")
+	h.Click(f32.Pt(float32(h.Size.X)/2, float32(h.Size.Y)/2))
+	h.TypeText("fife-strict")
 
 	// OK is the rightmost button on the bottom row of the card. Scanned from
 	// the right edge inward rather than computed - and inward matters, because
 	// Cancel sits beside it and a left-to-right scan closes the question
 	// before it reaches the button that answers it.
-	for y := float32(h.sz.Y) / 2; y < float32(h.sz.Y) && got == "" && p.Showing(); y += 3 {
-		for x := float32(h.sz.X)/2 + 250; x > float32(h.sz.X)/2+180 && got == ""; x -= 4 {
-			h.click(f32.Pt(x, y))
+	for y := float32(h.Size.Y) / 2; y < float32(h.Size.Y) && got == "" && p.Showing(); y += 3 {
+		for x := float32(h.Size.X)/2 + 250; x > float32(h.Size.X)/2+180 && got == ""; x -= 4 {
+			h.Click(f32.Pt(x, y))
 		}
 	}
 
@@ -55,20 +56,20 @@ func TestTheSavePromptDeliversWhatWasTyped(t *testing.T) {
 }
 
 // chooserHarness opens a chooser over the panel harness and hands back both.
-func chooserHarness(choices []string, got *string) (*shell.Prompt, *panelHarness) {
+func chooserHarness(choices []string, got *string) (*shell.Prompt, *uitest.Harness) {
 	p := &shell.Prompt{}
 	p.Choose("Pick one", "filter", choices, func(a string) { *got = a })
-	h := newPanelHarness(func(th *theme.Theme, gtx layout.Context,
+	h := uitest.New(func(th *theme.Theme, gtx layout.Context,
 		_ *state.Snapshot) layout.Dimensions {
 		return p.Layout(th, gtx)
 	}, nil)
-	h.frame() // the first frame focuses the field, so typing needs no click
+	h.Frame() // the first frame focuses the field, so typing needs no click
 	return p, h
 }
 
-func pressKey(h *panelHarness, name key.Name) {
-	h.r.Queue(key.Event{Name: name, State: key.Press})
-	h.frame()
+func pressKey(h *uitest.Harness, name key.Name) {
+	h.R.Queue(key.Event{Name: name, State: key.Press})
+	h.Frame()
 }
 
 // Enter must answer with the highlighted choice, never the filter text: typing
@@ -77,7 +78,7 @@ func pressKey(h *panelHarness, name key.Name) {
 func TestChooserEnterPicksTheHighlightedChoice(t *testing.T) {
 	got := ""
 	p, h := chooserHarness([]string{"carto-dark", "carto-light", "osm"}, &got)
-	h.typeText("carto")
+	h.TypeText("carto")
 	pressKey(h, key.NameReturn)
 	if got != "carto-dark" {
 		t.Fatalf("Enter answered %q; it must pick the highlighted choice, not the filter text", got)
@@ -105,7 +106,7 @@ func TestChooserArrowsMoveTheAnswer(t *testing.T) {
 func TestChooserEnterWithNoMatchAnswersNothing(t *testing.T) {
 	got := ""
 	p, h := chooserHarness([]string{"carto-dark", "carto-light", "osm"}, &got)
-	h.typeText("zzz")
+	h.TypeText("zzz")
 	pressKey(h, key.NameReturn)
 	if got != "" {
 		t.Fatalf("Enter with no matching choice answered %q; there was nothing to pick", got)

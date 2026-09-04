@@ -8,13 +8,14 @@ import (
 	"github.com/MeshBench/meshbench/internal/firmware/emulated"
 	"github.com/MeshBench/meshbench/internal/ui/comp"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
+	"github.com/MeshBench/meshbench/internal/ui/uitest"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/firmware"
 )
 
 func aBuildSnapshot(notes string, coproc bool) *state.Snapshot {
-	s := auditSnapshot()
+	s := uitest.Snapshot()
 	s.Library = []state.FirmwareRow{{
 		Role: "companion_radio_usb", Version: "mesh-rs", Board: "LilyGo_TDeck",
 		OnDisk: true, Bytes: 3 << 20, InUse: 2,
@@ -32,7 +33,7 @@ func aBuildSnapshot(notes string, coproc bool) *state.Snapshot {
 // previous frame's layout: a button pressed in a second harness was never laid
 // out in the first, and the press lands nowhere.
 func aFirmwareWindow(t *testing.T, snap *state.Snapshot) (*firmwareWindowPanel,
-	*panelHarness, *[]call) {
+	*uitest.Harness, *[]call) {
 	t.Helper()
 	var got []call
 	p := &firmwareWindowPanel{
@@ -41,11 +42,11 @@ func aFirmwareWindow(t *testing.T, snap *state.Snapshot) (*firmwareWindowPanel,
 	p.OnDo = func(verb string, params any) {
 		got = append(got, call{verb: verb, params: params})
 	}
-	h := newPanelHarness(func(th *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+	h := uitest.New(func(th *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
 		return p.auditDraw(th, gtx, s)
 	}, snap)
-	h.frame()
-	h.frame()
+	h.Frame()
+	h.Frame()
 	return p, h, &got
 }
 
@@ -85,11 +86,11 @@ func TestApplyingSendsTheWholeChange(t *testing.T) {
 	p.roleWant = "simple_repeater"
 	// A frame with the change in it, so the apply button exists to be pressed:
 	// it is only drawn when there is something to apply.
-	h.frame()
+	h.Frame()
 
 	p.apply.Click.Click()
-	h.frame()
-	h.frame()
+	h.Frame()
+	h.Frame()
 
 	if len(*got) != 1 {
 		t.Fatalf("apply sent %d calls, want 1: %+v", len(*got), *got)
@@ -120,10 +121,10 @@ func TestTheWindowFollowsARenamedBuild(t *testing.T) {
 	snap := aBuildSnapshot("", false)
 	p, h, _ := aFirmwareWindow(t, snap)
 	p.name.Editor.SetText("wadamesh 1.2")
-	h.frame()
+	h.Frame()
 	p.apply.Click.Click()
-	h.frame()
-	h.frame()
+	h.Frame()
+	h.Frame()
 
 	if p.version != "wadamesh 1.2" {
 		t.Fatalf("the window is still about %q", p.version)
@@ -132,9 +133,9 @@ func TestTheWindowFollowsARenamedBuild(t *testing.T) {
 	// still offering to save the rename it already made.
 	renamed := aBuildSnapshot("", false)
 	renamed.Library[0].Version = "wadamesh 1.2"
-	h.snap = renamed
-	h.frame()
-	h.frame()
+	h.Snap = renamed
+	h.Frame()
+	h.Frame()
 	r, found := p.row(renamed)
 	if !found {
 		t.Fatal("the window cannot find the build it renamed")
@@ -148,11 +149,11 @@ func TestTheWindowFollowsARenamedBuild(t *testing.T) {
 // page or guessing at another build.
 func TestAWindowWhoseBuildHasGoneSaysSo(t *testing.T) {
 	p, h, got := aFirmwareWindow(t, aBuildSnapshot("", false))
-	empty := auditSnapshot()
+	empty := uitest.Snapshot()
 	empty.Library = nil
-	h.snap = empty
-	h.frame()
-	h.frame()
+	h.Snap = empty
+	h.Frame()
+	h.Frame()
 	if len(*got) != 0 {
 		t.Errorf("a window with no build ran verbs anyway: %+v", *got)
 	}
@@ -171,8 +172,8 @@ func TestChoosingARoleDoesNotLoseTheBuild(t *testing.T) {
 	p, h, got := aFirmwareWindow(t, snap)
 
 	p.roleChips["simple_repeater"].Click.Click()
-	h.frame()
-	h.frame()
+	h.Frame()
+	h.Frame()
 
 	if p.roleWant != "simple_repeater" {
 		t.Fatalf("the chip did not take: %q", p.roleWant)

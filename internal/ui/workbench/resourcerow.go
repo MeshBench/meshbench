@@ -3,6 +3,7 @@ package workbench
 import (
 	"fmt"
 	"image"
+	"image/color"
 
 	"gioui.org/layout"
 	"gioui.org/unit"
@@ -23,7 +24,7 @@ import (
 // "failed", which the provider has never emitted, so every row fell through to
 // the default and a SoftDevice sitting on disk and feeding the simulation was
 // labelled "not fetched" - the panel disagreeing with the directory beside it.
-func resourceStateInk(t *theme.Theme, s string) (string, colorNRGBA) {
+func resourceStateInk(t *theme.Theme, s string) (string, color.NRGBA) {
 	switch resource.State(s) {
 	case resource.OnDisk:
 		return "on disk", t.P.Good
@@ -50,9 +51,9 @@ func resourceSize(r state.ResourceRow) string {
 		return "-"
 	}
 	if r.Estimated {
-		return "~" + siBytes(r.Bytes)
+		return "~" + comp.SIBytes(r.Bytes)
 	}
-	return siBytes(r.Bytes)
+	return comp.SIBytes(r.Bytes)
 }
 
 // shareBar draws how much of the cache one row accounts for.

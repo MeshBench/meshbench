@@ -10,6 +10,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
+	"github.com/MeshBench/meshbench/internal/ui/uitest"
 )
 
 // Draw the sweep results with an arm that did not run, and look at it.
@@ -71,7 +72,7 @@ func TestDrawTheSweepResults(t *testing.T) {
 		c := c
 		t.Run(c.name, func(t *testing.T) {
 			p := &sweepResults{}
-			img := renderWidget(t, 1100, 260, func(gtx layout.Context, th *theme.Theme) layout.Dimensions {
+			img := uitest.RenderWidget(t, 1100, 260, func(gtx layout.Context, th *theme.Theme) layout.Dimensions {
 				return p.Draw(th, gtx, c.snap)
 			})
 			out := filepath.Join(dir, "sweep-"+c.name+".png")

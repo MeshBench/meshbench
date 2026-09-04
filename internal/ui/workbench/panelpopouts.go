@@ -100,7 +100,7 @@ func (w *panelPopouts) popOut(name string, sh *shell.Shell, newTheme func() *the
 		win.Option(append([]app.Option{
 			app.Title("MeshBench - " + name),
 			app.Size(unit.Dp(900), unit.Dp(640)),
-		}, float.Above(spot, keepAbove(st))...)...)
+		}, float.Above(spot, shell.KeepAbove(st))...)...)
 		// Raised as it opens, for the platforms where above is not or
 		// cannot be honoured - the preference off, GNOME, X11 - so the
 		// window at least starts in front rather than behind.
@@ -110,17 +110,17 @@ func (w *panelPopouts) popOut(name string, sh *shell.Shell, newTheme func() *the
 		// the chrome is the machinery under it.
 		var layered bool
 		var bar comp.TitleBar
-		var chrome *layerChrome
+		var chrome *shell.LayerChrome
 		var ops op.Ops
 		for {
 			switch e := win.Event().(type) {
 			case app.ConfigEvent:
 				if e.Config.LayerShell && !layered {
-					layered, chrome = true, newLayerChrome(spot)
+					layered, chrome = true, shell.NewLayerChrome(spot)
 					bar.Title = "MeshBench - " + name
 				}
 				if layered {
-					chrome.screens(e.Config.Output, e.Config.Outputs)
+					chrome.Screens(e.Config.Output, e.Config.Outputs)
 				}
 			case app.DestroyEvent:
 				return
@@ -133,7 +133,7 @@ func (w *panelPopouts) popOut(name string, sh *shell.Shell, newTheme func() *the
 					// layered window the wish recalls it on screen instead -
 					// which is also how one dragged out of reach comes back.
 					if layered {
-						if opts := chrome.recall(float.NextSpot()); len(opts) > 0 {
+						if opts := chrome.Recall(float.NextSpot()); len(opts) > 0 {
 							win.Option(opts...)
 						}
 					} else {
@@ -145,7 +145,7 @@ func (w *panelPopouts) popOut(name string, sh *shell.Shell, newTheme func() *the
 				snap := st.Snapshot()
 				var kids []layout.FlexChild
 				if layered {
-					chrome.frame(e)
+					chrome.Frame(e)
 					kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return bar.Layout(th, gtx)
 					}))
@@ -167,7 +167,7 @@ func (w *panelPopouts) popOut(name string, sh *shell.Shell, newTheme func() *the
 				)
 				layout.Flex{Axis: layout.Vertical}.Layout(gtx, kids...)
 				if layered {
-					if opts, close := chrome.update(&bar); close {
+					if opts, close := chrome.Update(&bar); close {
 						win.Perform(system.ActionClose)
 					} else if len(opts) > 0 {
 						win.Option(opts...)

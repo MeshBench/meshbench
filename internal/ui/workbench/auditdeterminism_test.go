@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/MeshBench/meshbench/internal/ui/uitest"
+	"github.com/MeshBench/meshbench/internal/ui/workbench/nodeview"
 )
 
 // Does the audit walk the same controls whatever is installed on the machine?
@@ -27,7 +30,7 @@ func TestTheAuditDoesNotReadTheMachine(t *testing.T) {
 	// Drawn, not just constructed: the build list fills itself during layout,
 	// so a walk that never lays the panel out finds no buttons on any machine
 	// and would pass whatever leaked.
-	snap := auditSnapshot()
+	snap := uitest.Snapshot()
 	walk := func() []string {
 		var out []string
 		for _, tg := range auditTargets(&recorder{}) {
@@ -35,9 +38,9 @@ func TestTheAuditDoesNotReadTheMachine(t *testing.T) {
 			if tg.snap != nil {
 				use = tg.snap
 			}
-			h := newPanelHarness(tg.draw, use)
-			h.frame()
-			h.frame()
+			h := uitest.New(tg.draw, use)
+			h.Frame()
+			h.Frame()
 			var found []control
 			controlsOf(reflect.ValueOf(tg.ctrl), "", &found)
 			for _, c := range found {
@@ -76,7 +79,7 @@ func TestTheAuditDoesNotReadTheMachine(t *testing.T) {
 	// The fabrication has to be real enough to have leaked, or this proves
 	// nothing: check the reader does see it before asking whether the audit
 	// does not.
-	if got := len(installedBuilds()); got != 20 {
+	if got := len(nodeview.InstalledBuilds()); got != 20 {
 		t.Fatalf("the fabricated library reads as %d builds, want 20 -"+
 			" this test cannot detect a leak it cannot cause", got)
 	}

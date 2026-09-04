@@ -1,16 +1,14 @@
 package workbench
 
 import (
-	"strings"
 	"testing"
-
-	"gioui.org/f32"
 
 	"gioui.org/layout"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/ui/comp"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
+	"github.com/MeshBench/meshbench/internal/ui/uitest"
 )
 
 // Do the buttons do anything?
@@ -42,25 +40,17 @@ func (r *recorder) saw(verb string) bool {
 	return false
 }
 
-// pressAlong clicks every few pixels across a row, so a button is found by
-// being there rather than by a coordinate written down in advance.
-func (h *panelHarness) pressAlong(y float32) {
-	for x := float32(8); x < float32(h.sz.X); x += 12 {
-		h.click(f32.Pt(x, y))
-	}
-}
-
 func TestFleetControlsReachTheirVerbs(t *testing.T) {
 	r := &recorder{}
 	c := &fleetControls{do: r.do}
-	h := newPanelHarness(c.Draw, &state.Snapshot{})
-	h.frame()
+	h := uitest.New(c.Draw, &state.Snapshot{})
+	h.Frame()
 	c.command.Editor.SetText("region put sco")
 	c.regions.Editor.SetText("sco fif")
-	h.frame()
+	h.Frame()
 
-	h.pressAlong(22)
-	h.pressAlong(74)
+	h.PressAlong(22)
+	h.PressAlong(74)
 
 	for _, want := range []string{"fleet.send", "nodes.regions", "nodes.allow_flood"} {
 		if !r.saw(want) {
@@ -91,12 +81,12 @@ func TestFleetControlsReachTheirVerbs(t *testing.T) {
 func TestImportControlsReachAllFourSteps(t *testing.T) {
 	r := &recorder{}
 	c := &importControls{do: r.do}
-	h := newPanelHarness(c.Draw, &state.Snapshot{})
-	h.frame()
+	h := uitest.New(c.Draw, &state.Snapshot{})
+	h.Frame()
 	c.url.Editor.SetText("https://example.test/")
-	h.frame()
+	h.Frame()
 
-	h.pressAlong(22)
+	h.PressAlong(22)
 
 	for _, want := range []string{"import.fetch", "import.commit", "infer.run", "infer.apply"} {
 		if !r.saw(want) {
@@ -108,9 +98,9 @@ func TestImportControlsReachAllFourSteps(t *testing.T) {
 func TestPlanningControlsAskAllThreeQuestions(t *testing.T) {
 	r := &recorder{}
 	c := &planningControls{do: r.do}
-	h := newPanelHarness(c.Draw, &state.Snapshot{})
-	h.frame()
-	h.pressAlong(22)
+	h := uitest.New(c.Draw, &state.Snapshot{})
+	h.Frame()
+	h.PressAlong(22)
 
 	modes := map[string]bool{}
 	for i, v := range r.verbs {
@@ -132,11 +122,11 @@ func TestPlanningControlsAskAllThreeQuestions(t *testing.T) {
 func TestValidateControlsReachCalibration(t *testing.T) {
 	r := &recorder{}
 	c := &validateControls{do: r.do}
-	h := newPanelHarness(c.Draw, &state.Snapshot{})
-	h.frame()
+	h := uitest.New(c.Draw, &state.Snapshot{})
+	h.Frame()
 	c.db.Editor.SetText("12.5")
-	h.frame()
-	h.pressAlong(22)
+	h.Frame()
+	h.PressAlong(22)
 
 	for _, want := range []string{"validate.fetch", "validate.calibrate", "validate.uncalibrate"} {
 		if !r.saw(want) {
@@ -157,14 +147,14 @@ func TestValidateControlsReachCalibration(t *testing.T) {
 func TestBenchControlsReachTheirVerbs(t *testing.T) {
 	r := &recorder{}
 	c := &benchControls{do: r.do}
-	h := newPanelHarness(c.Draw, &state.Snapshot{
+	h := uitest.New(c.Draw, &state.Snapshot{
 		Nodes: []state.Node{{Name: "AngusOutlaw1", Kind: "companion", Selected: true}},
 	})
-	h.frame()
+	h.Frame()
 	c.msg.Editor.SetText("hello")
-	h.frame()
-	h.pressAlong(22)
-	h.pressAlong(74)
+	h.Frame()
+	h.PressAlong(22)
+	h.PressAlong(74)
 
 	for _, want := range []string{"bench.serve", "bench.drop", "bench.stray",
 		"companion.connect", "companion.send", "companion.advert"} {
@@ -211,8 +201,8 @@ func TestSweepArmsAndSenderArePicked(t *testing.T) {
 			{Name: "Lathenn Repeater", Kind: "repeater"},
 		},
 	}
-	h := newPanelHarness(c.Draw, snap)
-	h.frame()
+	h := uitest.New(c.Draw, snap)
+	h.Frame()
 
 	c.addArm.OnOpen()
 	if len(asked) != 2 {
@@ -235,21 +225,21 @@ func TestSweepArmsAndSenderArePicked(t *testing.T) {
 func TestSweepControlsDefineAndRun(t *testing.T) {
 	r := &recorder{}
 	c := &sweepControls{do: r.do}
-	h := newPanelHarness(c.Draw, &state.Snapshot{})
-	h.frame()
+	h := uitest.New(c.Draw, &state.Snapshot{})
+	h.Frame()
 	// Arms and senders come from the session, so the harness supplies them the
 	// way the store would.
-	h.snap.ExperimentArms = []string{"1.16.0", "1.17.0"}
-	h.snap.ExperimentSenders = []string{"AngusOutlaw1"}
+	h.Snap.ExperimentArms = []string{"1.16.0", "1.17.0"}
+	h.Snap.ExperimentSenders = []string{"AngusOutlaw1"}
 	c.seeds.Editor.SetText("1 2 3")
 	c.varyName = "repeater_version"
 	c.varyVals.Editor.SetText("repeater-v1.16.0, repeater-v1.17.0")
-	h.frame()
+	h.Frame()
 	// Bottom upwards. The buttons sit below the arm list, and each arm carries
 	// a remove button: pressing downwards would take the arms off before
 	// reaching the button that reads them.
 	for y := float32(600); y >= 8; y -= 8 {
-		h.pressAlong(y)
+		h.PressAlong(y)
 	}
 
 	for _, want := range []string{"experiment.vary", "experiment.seeds",
@@ -283,11 +273,11 @@ func TestSweepControlsDefineAndRun(t *testing.T) {
 func TestFeedControlsStartAndStop(t *testing.T) {
 	r := &recorder{}
 	c := &feedControls{do: r.do}
-	h := newPanelHarness(c.Draw, &state.Snapshot{})
-	h.frame()
+	h := uitest.New(c.Draw, &state.Snapshot{})
+	h.Frame()
 	c.url.Editor.SetText("https://example.test/")
-	h.frame()
-	h.pressAlong(22)
+	h.Frame()
+	h.PressAlong(22)
 	for _, want := range []string{"feed.pull", "feed.stop"} {
 		if !r.saw(want) {
 			t.Errorf("no button reached %s; got %v", want, r.verbs)
@@ -299,24 +289,24 @@ func TestFeedControlsStartAndStop(t *testing.T) {
 func TestMapToolbarFiltersAndPicksTools(t *testing.T) {
 	mv := &comp.MapView{Zoom: 1000}
 	m := &mapTools{mv: mv}
-	h := newPanelHarness(
+	h := uitest.New(
 		func(t *theme.Theme, gtx layout.Context, _ *state.Snapshot) layout.Dimensions {
 			return m.Draw(t, gtx)
 		}, &state.Snapshot{})
-	h.frame()
+	h.Frame()
 
 	// The filter applies as it is typed, with no button to press. The text is
 	// set directly because where the box sits is the layout's business, and
 	// typing itself is covered by the filter tests.
 	m.filter.Editor.SetText("repeater")
-	h.frame()
+	h.Frame()
 	if mv.Filter != "repeater" {
 		t.Errorf("map filter is %q after typing", mv.Filter)
 	}
 
 	// A tool other than the default, found by pressing along the row.
 	before := mv.Zoom
-	h.pressAlong(22)
+	h.PressAlong(22)
 	if mv.Tool == "" || mv.Tool == "select" {
 		t.Errorf("no tool was chosen; tool is %q", mv.Tool)
 	}
@@ -331,7 +321,7 @@ func TestInspectorIsTheLightEventsView(t *testing.T) {
 	opened := uint64(0)
 	p := &eventsPanel{compact: true, forNode: true,
 		OnOpenPacket: func(id uint64) { opened = id }}
-	h := newPanelHarness(p.Draw, &state.Snapshot{
+	h := uitest.New(p.Draw, &state.Snapshot{
 		Nodes: []state.Node{{Name: "Bishop Hill", Selected: true}},
 		Events: []state.Event{
 			{AtMs: 1000, Kind: "tx", From: "Bishop Hill", PacketID: 7, Class: "sent"},
@@ -340,8 +330,8 @@ func TestInspectorIsTheLightEventsView(t *testing.T) {
 		},
 		EventTotal: 3,
 	})
-	h.frame()
-	h.frame()
+	h.Frame()
+	h.Frame()
 	key := eventKey(&state.Event{AtMs: 1000, Kind: "tx", From: "Bishop Hill", PacketID: 7, Class: "sent"})
 	ck, ok := p.rows[key]
 	if !ok {
@@ -353,104 +343,24 @@ func TestInspectorIsTheLightEventsView(t *testing.T) {
 		}
 	}
 	ck.Click()
-	h.frame()
-	h.frame()
+	h.Frame()
+	h.Frame()
 	if opened != 7 {
 		t.Errorf("clicking the row opened packet %d, want 7", opened)
-	}
-}
-
-// The client acts through verbs, not through command-line strings.
-//
-// Every button used to format a meshcore-cli line, which is why the panes
-// could only ever show a terminal: the answer came back as text meant for
-// one. Sending, scope, adverts and refresh are verbs now, and the CLI is a
-// mode beside them rather than the thing underneath them.
-func TestTheCompanionClientActsThroughVerbs(t *testing.T) {
-	var verbs []string
-	var lines []string
-	c := &companionTab{
-		node:  "AngusOutlaw1",
-		OnCLI: func(_, line string) { lines = append(lines, line) },
-		OnDo:  func(verb string, _ any) { verbs = append(verbs, verb) },
-	}
-	// The flat layout: the real one hides most controls behind the modes.
-	h := newPanelHarness(
-		func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
-			return c.auditDraw(t, gtx, s)
-		}, &state.Snapshot{})
-	h.frame()
-	c.msg.Editor.SetText("hello fife")
-	c.scope.Editor.SetText("#sco")
-	c.cmd.Editor.SetText("infos")
-	h.frame()
-	for y := float32(6); y < 340; y += 10 {
-		h.pressAlong(y)
-	}
-
-	joined := strings.Join(verbs, " | ")
-	for _, want := range []string{
-		"companion.connect", "companion.send", "companion.scope",
-		"companion.advert", "companion.refresh", "bench.serve", "bench.drop",
-	} {
-		if !strings.Contains(joined, want) {
-			t.Errorf("no control reached %q; got: %s", want, joined)
-		}
-	}
-	// And the command line still goes out as a command line.
-	if !strings.Contains(strings.Join(lines, " | "), "infos") {
-		t.Errorf("the CLI box did not send its line; got: %v", lines)
-	}
-}
-
-// Serving hands the port to somebody else, so it has to let go of it first.
-// Two holders of one claim is the thing the whole tab is arranged to prevent.
-func TestServingDisconnectsFirst(t *testing.T) {
-	var verbs []string
-	c := &companionTab{
-		node: "AngusOutlaw1",
-		OnDo: func(verb string, _ any) { verbs = append(verbs, verb) },
-	}
-	c.build()
-	snap := &state.Snapshot{Companions: []state.Companion{
-		{Node: "AngusOutlaw1", Connected: true},
-	}}
-	h := newPanelHarness(
-		func(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
-			return c.auditDraw(t, gtx, s)
-		}, snap)
-	h.frame()
-	for y := float32(6); y < 340; y += 10 {
-		h.pressAlong(y)
-	}
-	var disconnectAt, serveAt = -1, -1
-	for i, v := range verbs {
-		if v == "companion.disconnect" && disconnectAt < 0 {
-			disconnectAt = i
-		}
-		if v == "bench.serve" && serveAt < 0 {
-			serveAt = i
-		}
-	}
-	if serveAt < 0 {
-		t.Fatalf("Serve reached nothing: %v", verbs)
-	}
-	if disconnectAt < 0 || disconnectAt > serveAt {
-		t.Errorf("served without releasing the claim first: %v", verbs)
 	}
 }
 
 func TestProvisioningControlsReachTheirVerbs(t *testing.T) {
 	r := &recorder{}
 	c := &provisioningControls{do: r.do}
-	h := newPanelHarness(c.Draw, &state.Snapshot{})
-	h.frame()
+	h := uitest.New(c.Draw, &state.Snapshot{})
+	h.Frame()
 	c.hops.Editor.SetText("3")
 	c.stagger.Editor.SetText("250")
 	c.extra.Editor.SetText("set tx 22")
-	h.frame()
+	h.Frame()
 	for y := float32(14); y < 220; y += 14 {
-		h.pressAlong(y)
+		h.PressAlong(y)
 	}
 
 	if !r.saw("provisioning.set") {

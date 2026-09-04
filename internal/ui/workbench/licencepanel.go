@@ -9,6 +9,7 @@
 package workbench
 
 import (
+	"strconv"
 	"strings"
 
 	"gioui.org/layout"
@@ -136,13 +137,13 @@ func (p *licPanel) chipRow(t *theme.Theme, gtx layout.Context) layout.Dimensions
 			return layout.Inset{Left: t.Sp.XS}.Layout(gtx,
 				func(gtx layout.Context) layout.Dimensions {
 					return p.chips[i].Layout(t, gtx, s.Title,
-						itoa(len(s.Entries)), p.filter == s.Key,
+						strconv.Itoa(len(s.Entries)), p.filter == s.Key,
 						t.P.Accent)
 				})
 		}))
 	}
 	all := layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-		return p.all.Layout(t, gtx, "All", itoa(total), p.filter == "", t.P.Accent)
+		return p.all.Layout(t, gtx, "All", strconv.Itoa(total), p.filter == "", t.P.Accent)
 	})
 	return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 		append([]layout.FlexChild{all}, kids...)...)

@@ -14,6 +14,8 @@ import (
 	"github.com/MeshBench/meshbench/internal/firmware/emulated"
 	"github.com/MeshBench/meshbench/internal/ui/shell"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
+	"github.com/MeshBench/meshbench/internal/ui/uitest"
+	"github.com/MeshBench/meshbench/internal/ui/workbench/nodeview"
 )
 
 // auditTargets is every panel that owns controls, wired to a recorder.
@@ -30,7 +32,7 @@ func auditTargets(r *recorder) []target {
 		return "", nil
 	}
 
-	boards := &boardsPanel{do: r.do}
+	boards := &nodeview.BoardsPanel{Do: r.do}
 	fleet := &fleetControls{do: r.do}
 	fleet.choose = func(title string, _ []string, _ func(string)) { r.do("ui.choose", title) }
 	sched := &scheduleControls{do: r.do}
@@ -62,7 +64,7 @@ func auditTargets(r *recorder) []target {
 	// A row is what carries the controls, so the audit needs one on disk and
 	// one absent: Remove is deliberately disabled for the second, and a panel
 	// with no rows would prove nothing at all.
-	snapWithResources := auditSnapshot()
+	snapWithResources := uitest.Snapshot()
 	// The state strings are resource.State's own: a fixture that invents its
 	// own vocabulary audits a panel nobody will ever see.
 	snapWithResources.Resources = []state.ResourceRow{
@@ -100,7 +102,7 @@ func auditTargets(r *recorder) []target {
 	// One row per state the panel can draw, because the button is what carries
 	// the action and three of the five states deliberately have none. A blocked
 	// row offering a fetch is the fault this fixture exists to catch.
-	snapWithSetup := auditSnapshot()
+	snapWithSetup := uitest.Snapshot()
 	snapWithSetup.Setup = []state.SetupGroup{{
 		Name: "This build", Note: "everything below is per machine",
 		Rows: []state.SetupRow{{
@@ -146,17 +148,16 @@ func auditTargets(r *recorder) []target {
 			Do:   "no macOS Intel package is published"}},
 	}}
 
-	nodes := &nodesPanel{}
+	nodes := &nodeview.Panel{}
 	nodes.OnSelect = func(string) { r.do("nodes.select", nil) }
-	nv := &nodeViewPanel{}
+	nv := &nodeview.ViewPanel{}
 	// The build list is an overlay: its buttons do not exist until a firmware
 	// cell has been clicked, and auditing them shut only proves they are shut.
-	nv.pick.library = auditBuilds
-	nv.pick.open("Abernethy Repeater")
+	nv.OpenBuildPicker(auditBuilds, "Abernethy Repeater")
 	nv.OnAction = func(a string, n string) { r.do(a, n) }
-	nv.OnFirmware = func(n string, b buildChoice) { r.do("node.set_firmware", b.Version) }
-	nw := &nodeWindowPanel{node: "Abernethy Repeater"}
-	snapWithConsole := auditSnapshot()
+	nv.OnFirmware = func(n string, b nodeview.BuildChoice) { r.do("node.set_firmware", b.Version) }
+	nw := &nodeview.WindowPanel{Node: "Abernethy Repeater"}
+	snapWithConsole := uitest.Snapshot()
 	// A card slot on the node the window is about, so the Hardware tab draws
 	// its card controls: with no slot it correctly offers none, and auditing
 	// that would only prove the guard works.
@@ -176,15 +177,15 @@ func auditTargets(r *recorder) []target {
 	nw.OnCommand = func(n, l string) { r.do("console.type", l) }
 	nw.OnAction = func(a, n string) { r.do(a, n) }
 	nw.OnServe = func(node, kind string) { r.do("bench.serve", kind) }
-	nw.comp.OnCLI = func(n, l string) { r.do("console.cli", l) }
-	nw.comp.OnDo = func(verb string, _ any) { r.do(verb, "") }
-	nw.OnDo = nw.comp.OnDo
+	nw.Companion.OnCLI = func(n, l string) { r.do("console.cli", l) }
+	nw.Companion.OnDo = func(verb string, _ any) { r.do(verb, "") }
+	nw.OnDo = nw.Companion.OnDo
 	cfgSets := &settings{}
 	cfg := &configPanel{do: r.do, sets: cfgSets}
 	// Choosing is the shell's overlay; what the audit can ask is whether
 	// pressing the dropdown reaches the chooser at all.
 	cfg.choose = func(title string, _ []string, _ func(string)) { r.do("ui.choose", title) }
-	snapGPU := auditSnapshot()
+	snapGPU := uitest.Snapshot()
 	snapGPU.GPU = state.GPUState{Present: true, Enabled: true,
 		Device: "Audit Graphics 3000", Backend: "vulkan"}
 	cmpP := &comparePanel{OnSave: func() { r.do("run.save", nil) }}
@@ -199,7 +200,7 @@ func auditTargets(r *recorder) []target {
 	// A companion selected, because the bench's actions are about one: with
 	// a repeater selected it correctly offers nothing, and auditing that
 	// only proves the guard works.
-	snapWithCompanion := auditSnapshot()
+	snapWithCompanion := uitest.Snapshot()
 	for i := range snapWithCompanion.Nodes {
 		snapWithCompanion.Nodes[i].Selected = snapWithCompanion.Nodes[i].Kind == "companion"
 	}
@@ -211,7 +212,7 @@ func auditTargets(r *recorder) []target {
 		role: "companion_radio_usb", version: "mesh-rs", board: "LilyGo_TDeck",
 	}
 	fwWin.OnDo = func(verb string, _ any) { r.do(verb, "") }
-	snapWithBuild := auditSnapshot()
+	snapWithBuild := uitest.Snapshot()
 	snapWithBuild.Library = []state.FirmwareRow{{
 		Role: "companion_radio_usb", Version: "mesh-rs", Board: "LilyGo_TDeck",
 		OnDisk: true, Bytes: 3 << 20, InUse: 1,
@@ -223,9 +224,9 @@ func auditTargets(r *recorder) []target {
 	// window is rather than opening more of them, so they reach no verb - the
 	// same excuse the tab's own do not need, because there they change what
 	// the session is watching.
-	logWin := &outputWindowPanel{node: "Abernethy Repeater"}
+	logWin := &nodeview.OutputWindowPanel{Node: "Abernethy Repeater"}
 	logWin.OnDo = func(verb string, _ any) { r.do(verb, "") }
-	snapWithLog := auditSnapshot()
+	snapWithLog := uitest.Snapshot()
 	snapWithLog.Outputs = []state.OutputPane{{
 		Node: "Abernethy Repeater", Source: "serial", Total: 2,
 		Lines: []string{"ets Jul 29 2019", "[BOOT] radio ok"},
@@ -235,7 +236,7 @@ func auditTargets(r *recorder) []target {
 	targets := []target{
 		{"Nodes running", nv, nv.Draw, nil,
 			// Choosing a build closes the list, so it is reopened before each.
-			func() { nv.pick.open("Abernethy Repeater") }, nil, buildSkips()},
+			func() { nv.ReopenBuildPicker("Abernethy Repeater") }, nil, buildSkips()},
 		// apply and delete are only drawn once there is something to apply
 		// and once the first press has asked, so the panel is put into both
 		// states before each press rather than being audited shut.
@@ -266,11 +267,11 @@ func auditTargets(r *recorder) []target {
 				"out.srcBtns[2]": "switches what this window is rather than reaching a verb",
 				"out.srcBtns[3]": "switches what this window is rather than reaching a verb",
 			}},
-		{"Node window", nw, nw.auditDraw, snapWithConsole,
+		{"Node window", nw, nw.AuditDraw, snapWithConsole,
 			// The tab row is above everything, so a pointer moving down the
 			// panel leaves the console before it reaches the send button.
-			func() { nw.tab = 0 }, nil, nodeWindowSkips()},
-		{"Node window: companion", &nw.comp, nw.comp.auditDraw, nil, nil, nil, nil},
+			func() { nw.Tab = 0 }, nil, nodeWindowSkips()},
+		{"Node window: companion", &nw.Companion, nw.Companion.AuditDraw, nil, nil, nil, nil},
 		{"Compare", cmpP, cmpP.Draw, nil, nil, nil, nil},
 		{"Planning (view)", planP, planP.Draw, nil, nil, nil, nil},
 		{"Import (view)", impP, impP.Draw, nil, nil, nil, nil},
@@ -307,22 +308,6 @@ func auditTargets(r *recorder) []target {
 	return targets
 }
 
-// auditSnapshot is a network with something in every list, so a panel that
-// draws its controls only when it has data draws them.
-func auditSnapshot() *state.Snapshot {
-	return &state.Snapshot{
-		Nodes: []state.Node{
-			{Name: "Abernethy Repeater", Kind: "repeater", Lat: 56.3, Lon: -3.3, Selected: true},
-			{Name: "Bishop Hill", Kind: "repeater", Lat: 56.2, Lon: -3.2},
-			{Name: "AngusOutlaw1", Kind: "companion", Lat: 56.5, Lon: -3.0},
-		},
-		Stats: []state.NodeStat{
-			{Name: "Abernethy Repeater", Backend: "native", Running: true, RSSBytes: 4 << 20},
-			{Name: "Bishop Hill", Backend: "native", Running: true, RSSBytes: 4 << 20},
-		},
-	}
-}
-
 // nodeWindowSkips is what the node window is not expected to answer.
 //
 // It carries the build list's own skips, because the window grows the same
@@ -332,19 +317,19 @@ func nodeWindowSkips() map[string]string {
 	skip := map[string]string{
 		// The companion tab belongs to a companion, and this node is a
 		// repeater. Its controls are audited on their own below.
-		"comp.msg": "companion only", "comp.scope": "companion only",
-		"comp.cmd": "companion only", "comp.sendMsg": "companion only",
-		"comp.applyScope": "companion only", "comp.advertBtn": "companion only",
-		"comp.refreshBtn": "companion only", "comp.runCmd": "companion only",
-		"comp.connectBtn": "companion only", "comp.release": "companion only",
-		"comp.serveBtn": "companion only", "comp.stopServeBtn": "companion only",
-		"comp.dropBtn": "companion only", "comp.tcpChip": "companion only",
-		"comp.newChan": "companion only", "comp.addChan": "companion only",
-		"comp.ptyChip": "companion only",
-		"comp.setName": "companion only", "comp.setFreq": "companion only",
-		"comp.setBW": "companion only", "comp.setSF": "companion only",
-		"comp.setCR": "companion only", "comp.setTx": "companion only",
-		"comp.applyRadio": "companion only",
+		"Companion.msg": "companion only", "Companion.scope": "companion only",
+		"Companion.cmd": "companion only", "Companion.sendMsg": "companion only",
+		"Companion.applyScope": "companion only", "Companion.advertBtn": "companion only",
+		"Companion.refreshBtn": "companion only", "Companion.runCmd": "companion only",
+		"Companion.connectBtn": "companion only", "Companion.release": "companion only",
+		"Companion.serveBtn": "companion only", "Companion.stopServeBtn": "companion only",
+		"Companion.dropBtn": "companion only", "Companion.tcpChip": "companion only",
+		"Companion.newChan": "companion only", "Companion.addChan": "companion only",
+		"Companion.ptyChip": "companion only",
+		"Companion.setName": "companion only", "Companion.setFreq": "companion only",
+		"Companion.setBW": "companion only", "Companion.setSF": "companion only",
+		"Companion.setCR": "companion only", "Companion.setTx": "companion only",
+		"Companion.applyRadio": "companion only",
 		// The node is running, so the head offers stop and not start.
 		"start": "drawn only when the node is stopped",
 		// Nothing is served in the audit snapshot, so the SDR pane
@@ -389,8 +374,8 @@ func nodeWindowSkips() map[string]string {
 //
 // One board image among them on purpose: those carry a board and a role as
 // well as a version, and label themselves differently for it.
-func auditBuilds() []buildChoice {
-	return []buildChoice{
+func auditBuilds() []nodeview.BuildChoice {
+	return []nodeview.BuildChoice{
 		{Label: "v1.9.1", Version: "v1.9.1"},
 		{Label: "v1.9.0", Version: "v1.9.0"},
 		{Label: "v1.8.2", Version: "v1.8.2"},

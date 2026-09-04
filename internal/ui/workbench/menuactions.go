@@ -8,6 +8,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/ui/shell"
+	"github.com/MeshBench/meshbench/internal/ui/workbench/nodeview"
 )
 
 // menuDeps is what a menu action can reach.
@@ -20,7 +21,7 @@ type menuDeps struct {
 	st       *state.Store
 	ctx      context.Context
 	cfg      *configPanel
-	nodes    *nodesPanel
+	nodes    *nodeview.Panel
 	chooser  func(string, []string, func(string))
 	menuFlag *string
 	onShown  func(action string) bool
