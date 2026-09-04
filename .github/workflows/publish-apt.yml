@@ -1,0 +1,178 @@
+name: publish apt
+
+# The apt repository, regenerated from the debs a release published.
+#
+# `apt install meshbench` is a habit in a way that downloading a tarball is not,
+# and it solves updates for free: the in-application updater can only say that a
+# release exists, and on a packaged install the honest answer becomes "your
+# package manager will do it".
+#
+# An apt repository is a directory of files. This builds that directory from the
+# release's two debs plus everything already in the pool, signs the index, and
+# pushes it to the site repository, which serves it.
+#
+# A maintainer sets up three things once:
+#
+#   1. A signing key. `gpg --full-generate-key`, no passphrase, and then both
+#      halves as secrets: APT_SIGNING_KEY is the armoured private key
+#      (`gpg --armour --export-secret-keys`) and APT_SIGNING_KEY_ID is its
+#      fingerprint. Apt refuses an unsigned repository, and rightly.
+#   2. The public half committed to the site repository at apt/meshbench.gpg,
+#      dearmoured (`gpg --dearmour`), which is what the install line fetches.
+#   3. A fine-grained token with Contents: read and write on
+#      MeshBench/meshbench.github.io, as SITE_PUBLISH_TOKEN.
+#
+# Old versions stay in the pool. A repository that drops what it replaced breaks
+# anybody pinning a version, and disk is free here.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish, for a re-run'
+        required: true
+      dry_run:
+        description: 'Build the index and push nothing'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  # Two releases publishing at once would each rebuild the index from a pool the
+  # other was changing, and the loser would erase the winner.
+  group: apt-pool
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: rebuild the pool and the index
+    runs-on: ubuntu-latest
+    environment: apt-publish
+    steps:
+      - name: Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends apt-utils gnupg
+
+      - name: Take the debs this release published
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.inputs.tag || github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p incoming
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern '*.deb' --dir incoming
+          # Both of them. A release carrying one variant and not the other is a
+          # release the packaging job should already have refused, and finding
+          # out here means the check above it did not run.
+          test -n "$(ls incoming/meshbench_*.deb 2>/dev/null)" \
+            || { echo "::error::$TAG published no compact deb"; exit 1; }
+          test -n "$(ls incoming/meshbench-bundled_*.deb 2>/dev/null)" \
+            || { echo "::error::$TAG published no bundled deb"; exit 1; }
+          ls -la incoming
+
+      - name: The pool as it stands
+        env:
+          TOKEN: ${{ secrets.SITE_PUBLISH_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TOKEN:-}" ]; then
+            echo "::error::SITE_PUBLISH_TOKEN is not set on the apt-publish"\
+                 "environment; see the header of this file. Failing rather than"\
+                 "skipping: a publish that quietly does not happen is what this"\
+                 "workflow exists to stop"
+            exit 1
+          fi
+          git clone --quiet --depth 1 \
+            "https://x-access-token:$TOKEN@github.com/MeshBench/meshbench.github.io.git" site
+          mkdir -p site/apt/pool/main/m/meshbench
+          # Added to, never replaced: somebody pinning an old version keeps
+          # working, and the index below is rebuilt over whatever is here.
+          cp incoming/*.deb site/apt/pool/main/m/meshbench/
+          ls -la site/apt/pool/main/m/meshbench/
+
+      - name: Build the index
+        run: |
+          set -euo pipefail
+          cd site/apt
+          mkdir -p dists/stable/main/binary-amd64
+          apt-ftparchive packages pool > dists/stable/main/binary-amd64/Packages
+          gzip -9kf dists/stable/main/binary-amd64/Packages
+          cat > /tmp/release.conf <<'CONF'
+          APT::FTPArchive::Release::Origin "MeshBench";
+          APT::FTPArchive::Release::Label "MeshBench";
+          APT::FTPArchive::Release::Suite "stable";
+          APT::FTPArchive::Release::Codename "stable";
+          APT::FTPArchive::Release::Architectures "amd64";
+          APT::FTPArchive::Release::Components "main";
+          APT::FTPArchive::Release::Description "MeshBench, an RF-accurate MeshCore simulator";
+          CONF
+          apt-ftparchive -c /tmp/release.conf release dists/stable > dists/stable/Release
+          head -20 dists/stable/Release
+
+      - name: Sign it
+        env:
+          KEY: ${{ secrets.APT_SIGNING_KEY }}
+          KEY_ID: ${{ secrets.APT_SIGNING_KEY_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KEY:-}" ] || [ -z "${KEY_ID:-}" ]; then
+            echo "::error::APT_SIGNING_KEY and APT_SIGNING_KEY_ID are not set."\
+                 "Apt refuses an unsigned repository, so this cannot be skipped:"\
+                 "an unsigned pool is one nobody can install from"
+            exit 1
+          fi
+          printf '%s' "$KEY" | gpg --batch --import
+          cd site/apt
+          # Both signatures. InRelease is what a modern apt fetches; Release.gpg
+          # is the detached form older ones still ask for, and serving one
+          # without the other works until it meets a machine that wants the
+          # other.
+          gpg --batch --yes --default-key "$KEY_ID" --clearsign \
+            -o dists/stable/InRelease dists/stable/Release
+          gpg --batch --yes --default-key "$KEY_ID" -abs \
+            -o dists/stable/Release.gpg dists/stable/Release
+          ls -la dists/stable
+
+      - name: Publish
+        env:
+          TOKEN: ${{ secrets.SITE_PUBLISH_TOKEN }}
+          DRY: ${{ github.event.inputs.dry_run || 'false' }}
+        run: |
+          set -euo pipefail
+          cd site
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apt
+          if git diff --cached --quiet; then
+            echo "the pool and the index are unchanged"
+            exit 0
+          fi
+          git commit -q -m "apt: ${{ github.event.inputs.tag || github.event.release.tag_name }}"
+          if [ "$DRY" = "true" ]; then
+            echo "dry run; the commit was made and not pushed:"
+            git show --stat HEAD
+            exit 0
+          fi
+          git push
+          echo "published"
+
+      - name: Say how to use it
+        run: |
+          cat <<'NOTE'
+          The repository now carries this release. To install from it:
+
+            curl -fsSL https://meshbench.github.io/apt/meshbench.gpg \
+              | sudo tee /usr/share/keyrings/meshbench.gpg > /dev/null
+            echo "deb [signed-by=/usr/share/keyrings/meshbench.gpg] \
+              https://meshbench.github.io/apt stable main" \
+              | sudo tee /etc/apt/sources.list.d/meshbench.list
+            sudo apt update && sudo apt install meshbench
+
+          meshbench is the application; meshbench-bundled carries the emulators.
+          NOTE

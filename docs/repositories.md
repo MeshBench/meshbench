@@ -179,6 +179,30 @@ The workflow also asserts both halves of the fix are present in the tree it
 built, because a submodule quietly resolving to upstream would produce a Renode
 that looks correct and hangs in exactly the same place.
 
+## Publishing to the package managers
+
+Two workflows fire on a published release and write to repositories outside this
+one: `publish-apt.yml` rebuilds the apt pool and index in
+`meshbench.github.io`, and `publish-tap.yml` rewrites the two casks in
+`MeshBench/homebrew-meshbench`. Both follow the same shape as the skills mirror
+and the docs site: a fine-grained token, and a loud failure rather than a skip
+when it is absent, because a publish that quietly does not happen is the failure
+being guarded against.
+
+Four things need a human once, and nothing here can do them:
+
+| what | where | why |
+|---|---|---|
+| `APT_SIGNING_KEY`, `APT_SIGNING_KEY_ID` | `apt-publish` environment | apt refuses an unsigned repository, and rightly |
+| the public half at `apt/meshbench.gpg` | committed to the site repository | it is what the install line fetches |
+| `SITE_PUBLISH_TOKEN` | `apt-publish` environment | the pool lives in the site repository |
+| `MeshBench/homebrew-meshbench` and `TAP_PUBLISH_TOKEN` | a new repository, `tap-publish` environment | Homebrew requires that exact name: `brew tap MeshBench/meshbench` looks for `homebrew-meshbench` |
+
+**Old versions stay in the apt pool.** A repository that drops what it replaced
+breaks anybody pinning a version, and disk is free here. The index is rebuilt
+over whatever is in the pool rather than from the release alone, so nothing has
+to be remembered between runs.
+
 ## Taking a newer upstream
 
 There is no calendar for this, and inventing one would be a promise nobody
