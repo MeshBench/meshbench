@@ -533,6 +533,30 @@ jobs:
     # No fork guard here: this workflow only triggers on tag pushes and
     # workflow_dispatch, both of which need write access to this repo.
     runs-on: [self-hosted, linux, x64, lab-2204]
+    # This runner sets no locale, and two tools in this job read one. icotool
+    # says so outright - "icotool: cannot set locale: No such file or
+    # directory" - and WiX then refuses a plainly relative Directory/@Name:
+    #
+    #   meshbench.wxs(135) : error WIX0389: The Directory/@Name attribute's
+    #   value, 'MeshBench', is not a relative path.
+    #
+    # 'MeshBench' is relative by any reading, so that is WiX's own path
+    # handling and not the authoring. It is a known shape on Linux
+    # (wixtoolset/issues#7154, Ubuntu 22.04, closed "not planned") and it turns
+    # up in minimal environments - that issue, and the Docker SDK images in the
+    # discussion beside it - which is what a runner with no locale is.
+    #
+    # C.UTF-8 rather than a generated en_GB: glibc has carried it built in
+    # since 2.35, which is exactly this runner's floor, so nothing has to be
+    # installed for it to exist.
+    #
+    # v0.0.5's installer was built by wixl, which had no such trouble. WiX
+    # arrived with the dialogs, wixl building none, and the Windows job has
+    # failed before reaching the MSI on every run since - so this is the first
+    # time WiX has actually run here.
+    env:
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
