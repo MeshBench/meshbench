@@ -11,7 +11,7 @@ import (
 
 // importControls is the order that matters, as buttons in that order.
 type importControls struct {
-	bar    actionBar
+	bar    comp.ActionBar
 	url    comp.Field
 	place  comp.Field
 	area   comp.Button
@@ -44,9 +44,9 @@ func (c *importControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snaps
 		c.commit.Label, c.commit.Kind = "3. commit", comp.Secondary
 		c.infer.Label, c.infer.Kind = "4. read traffic", comp.Secondary
 		c.apply.Label, c.apply.Kind = "5. apply regions", comp.Primary
-		c.bar.fields = []*comp.Field{&c.url, &c.place}
-		c.bar.buttons = []*comp.Button{&c.area, &c.fetch, &c.commit, &c.infer, &c.apply}
-		c.bar.note = "numbered because the order matters and every step has been " +
+		c.bar.Fields = []*comp.Field{&c.url, &c.place}
+		c.bar.Buttons = []*comp.Button{&c.area, &c.fetch, &c.commit, &c.infer, &c.apply}
+		c.bar.Note = "numbered because the order matters and every step has been " +
 			"skipped: an import with no study area brings in a country when a " +
 			"county was wanted, and a mesh with regions inferred but not applied " +
 			"transmits everything, relays nothing, and reports no error"
@@ -56,10 +56,10 @@ func (c *importControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snaps
 		// Searched and added here rather than in a panel of its own: an area
 		// is chosen for an import, and a separate tab for it reads as an
 		// unrelated feature somebody has to know to visit first.
-		c.OnArea(fieldText(&c.place))
+		c.OnArea(comp.FieldText(&c.place))
 	}
 	if c.fetch.Click.Clicked(gtx) && c.do != nil {
-		c.do("import.fetch", map[string]any{"url": fieldText(&c.url)})
+		c.do("import.fetch", map[string]any{"url": comp.FieldText(&c.url)})
 	}
 	if c.commit.Click.Clicked(gtx) && c.do != nil {
 		c.do("import.commit", map[string]any{"strategy": "replace-all"})
@@ -70,5 +70,5 @@ func (c *importControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snaps
 	if c.apply.Click.Clicked(gtx) && c.do != nil {
 		c.do("infer.apply", nil)
 	}
-	return c.bar.layout(t, gtx)
+	return c.bar.Layout(t, gtx)
 }

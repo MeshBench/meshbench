@@ -13,7 +13,7 @@ import (
 
 // planningControls asks the three network-wide questions.
 type planningControls struct {
-	bar   actionBar
+	bar   comp.ActionBar
 	best  comp.Button
 	gaps  comp.Button
 	red   comp.Button
@@ -28,8 +28,8 @@ func (c *planningControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Sna
 		c.gaps.Label, c.gaps.Kind = "gaps", comp.Secondary
 		c.red.Label, c.red.Kind = "redundancy", comp.Secondary
 		c.here.Label, c.here.Kind = "coverage from the selected node", comp.Secondary
-		c.bar.buttons = []*comp.Button{&c.best, &c.gaps, &c.red, &c.here}
-		c.bar.note = "for a person with a handheld at 1.5 m, which is the assumption " +
+		c.bar.Buttons = []*comp.Button{&c.best, &c.gaps, &c.red, &c.here}
+		c.bar.Note = "for a person with a handheld at 1.5 m, which is the assumption " +
 			"every one of these makes"
 		c.built = true
 	}
@@ -40,7 +40,7 @@ func (c *planningControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Sna
 			c.do("coverage.start", map[string]any{"mode": mode})
 		}
 	}
-	return c.bar.layout(t, gtx)
+	return c.bar.Layout(t, gtx)
 }
 
 var _ = fmt.Sprintf

@@ -156,7 +156,7 @@ type shownEntry struct {
 }
 
 func (p *licPanel) shown() []shownEntry {
-	want := strings.ToLower(fieldText(&p.search))
+	want := strings.ToLower(comp.FieldText(&p.search))
 	var rows []shownEntry
 	for i := range p.file.Sections {
 		s := &p.file.Sections[i]

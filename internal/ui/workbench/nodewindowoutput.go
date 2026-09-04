@@ -91,7 +91,7 @@ func (p *nodeWindowPanel) output(t *theme.Theme, gtx layout.Context, s *state.Sn
 	p.askOutput(o.source)
 
 	lines, total, note, path := o.readFrom(p.node, s)
-	shown := filterLines(lines, fieldText(&o.search))
+	shown := filterLines(lines, comp.FieldText(&o.search))
 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {

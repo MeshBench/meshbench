@@ -202,7 +202,7 @@ func (c *companionTab) clicks(gtx layout.Context, cs state.Companion) {
 		c.do("companion.disconnect", nil)
 	}
 	if c.sendMsg.Click.Clicked(gtx) || sendMsg {
-		if m := fieldText(&c.msg); m != "" {
+		if m := comp.FieldText(&c.msg); m != "" {
 			params := map[string]any{"text": m, "channel": float64(c.channelIdx)}
 			// Only when it differs from what the node already holds: the
 			// firmware saves prefs on every set, and rewriting flash before
@@ -216,13 +216,13 @@ func (c *companionTab) clicks(gtx layout.Context, cs state.Companion) {
 		}
 	}
 	if c.applyScope.Click.Clicked(gtx) || setScope {
-		c.do("companion.scope", map[string]any{"scope": fieldText(&c.scope)})
+		c.do("companion.scope", map[string]any{"scope": comp.FieldText(&c.scope)})
 	}
 	if c.advertBtn.Click.Clicked(gtx) {
 		c.do("companion.advert", nil)
 	}
 	if c.addChan.Click.Clicked(gtx) || addChan {
-		if n := fieldText(&c.newChan); n != "" {
+		if n := comp.FieldText(&c.newChan); n != "" {
 			c.do("companion.add_channel", map[string]any{"name": n})
 			c.newChan.Editor.SetText("")
 		}
@@ -237,7 +237,7 @@ func (c *companionTab) clicks(gtx layout.Context, cs state.Companion) {
 		}
 	}
 	if c.runCmd.Click.Clicked(gtx) || runLine {
-		if l := fieldText(&c.cmd); l != "" && c.OnCLI != nil {
+		if l := comp.FieldText(&c.cmd); l != "" && c.OnCLI != nil {
 			c.OnCLI(c.node, l)
 			c.cmd.Editor.SetText("")
 		}
@@ -456,23 +456,23 @@ func (c *companionTab) auditDraw(t *theme.Theme, gtx layout.Context, s *state.Sn
 	// right to. The settings form has its own row here because it has its own
 	// row on screen.
 	radioFields, radioButtons := c.radioWidgets()
-	bar := actionBar{
-		fields: []*comp.Field{&c.msg, &c.scope, &c.cmd, &c.newChan},
-		extras: []func(t *theme.Theme, gtx layout.Context) layout.Dimensions{
+	bar := comp.ActionBar{
+		Fields: []*comp.Field{&c.msg, &c.scope, &c.cmd, &c.newChan},
+		Extras: []func(t *theme.Theme, gtx layout.Context) layout.Dimensions{
 			func(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 				return c.clientToggle(t, gtx)
 			},
 		},
-		buttons: []*comp.Button{
+		Buttons: []*comp.Button{
 			&c.connectBtn, &c.release, &c.sendMsg, &c.applyScope, &c.advertBtn,
 			&c.refreshBtn, &c.runCmd, &c.serveBtn, &c.stopServeBtn, &c.dropBtn,
 			&c.addChan,
 		},
 	}
-	radioBar := actionBar{fields: radioFields, buttons: radioButtons}
+	radioBar := comp.ActionBar{Fields: radioFields, Buttons: radioButtons}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return bar.layout(t, gtx) }),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return radioBar.layout(t, gtx) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return bar.Layout(t, gtx) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return radioBar.Layout(t, gtx) }),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {

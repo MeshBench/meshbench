@@ -11,7 +11,7 @@ import (
 
 // feedControls replays the real network's traffic into the simulation.
 type feedControls struct {
-	bar   actionBar
+	bar   comp.ActionBar
 	url   comp.Field
 	start comp.Button
 	stop  comp.Button
@@ -25,17 +25,17 @@ func (c *feedControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 		c.url.Editor.SingleLine = true
 		c.start.Label, c.start.Kind = "start live feed", comp.Primary
 		c.stop.Label, c.stop.Kind = "stop", comp.Quiet
-		c.bar.fields = []*comp.Field{&c.url}
-		c.bar.buttons = []*comp.Button{&c.start, &c.stop}
-		c.bar.note = "packets are taken at their first hop and re-transmitted by the " +
+		c.bar.Fields = []*comp.Field{&c.url}
+		c.bar.Buttons = []*comp.Button{&c.start, &c.stop}
+		c.bar.Note = "packets are taken at their first hop and re-transmitted by the " +
 			"same-named node here, so what you watch is the simulated mesh relaying real traffic"
 		c.built = true
 	}
 	if c.start.Click.Clicked(gtx) && c.do != nil {
-		c.do("feed.pull", map[string]any{"url": fieldText(&c.url)})
+		c.do("feed.pull", map[string]any{"url": comp.FieldText(&c.url)})
 	}
 	if c.stop.Click.Clicked(gtx) && c.do != nil {
 		c.do("feed.stop", nil)
 	}
-	return c.bar.layout(t, gtx)
+	return c.bar.Layout(t, gtx)
 }

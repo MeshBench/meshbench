@@ -151,7 +151,7 @@ func (p *firmwarePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 		}
 	}
 
-	want := strings.ToLower(fieldText(&p.search))
+	want := strings.ToLower(comp.FieldText(&p.search))
 	shown := make([]state.FirmwareRow, 0, len(s.Library))
 	for i := range s.Library {
 		r := s.Library[i]

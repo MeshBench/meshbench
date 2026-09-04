@@ -11,7 +11,7 @@ import (
 
 // scheduleControls adds sends and assertions to a scenario.
 type scheduleControls struct {
-	bar     actionBar
+	bar     comp.ActionBar
 	node    comp.Field
 	at      comp.Field
 	every   comp.Field
@@ -39,20 +39,20 @@ func (c *scheduleControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Sna
 		c.clear.Label, c.clear.Kind = "clear sends", comp.Quiet
 		c.addAss.Label, c.addAss.Kind = "add assertion", comp.Secondary
 		c.check.Label, c.check.Kind = "check now", comp.Primary
-		c.bar.fields = []*comp.Field{&c.node, &c.at, &c.every}
-		c.bar.buttons = []*comp.Button{&c.add, &c.clear}
+		c.bar.Fields = []*comp.Field{&c.node, &c.at, &c.every}
+		c.bar.Buttons = []*comp.Button{&c.add, &c.clear}
 		c.built = true
 	}
 	if c.add.Click.Clicked(gtx) && c.do != nil {
-		node := fieldText(&c.node)
+		node := comp.FieldText(&c.node)
 		if node == "" {
-			node = selectedNodeName(s)
+			node = comp.SelectedNodeName(s)
 		}
 		p := map[string]any{"node": node}
-		if v, ok := num(&c.at); ok {
+		if v, ok := comp.Num(&c.at); ok {
 			p["at_ms"] = v * 1000
 		}
-		if v, ok := num(&c.every); ok {
+		if v, ok := comp.Num(&c.every); ok {
 			p["every_ms"] = v * 1000
 		}
 		c.do("schedule.add", p)
@@ -61,8 +61,8 @@ func (c *scheduleControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Sna
 		c.do("schedule.clear", nil)
 	}
 	if c.addAss.Click.Clicked(gtx) && c.do != nil {
-		p := map[string]any{"kind": fieldText(&c.kind)}
-		if v, ok := num(&c.atLeast); ok {
+		p := map[string]any{"kind": comp.FieldText(&c.kind)}
+		if v, ok := comp.Num(&c.atLeast); ok {
 			p["at_least"] = v
 		}
 		c.do("assert.add", p)
@@ -70,13 +70,13 @@ func (c *scheduleControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Sna
 	if c.check.Click.Clicked(gtx) && c.do != nil {
 		c.do("assert.check", nil)
 	}
-	second := actionBar{
-		fields:  []*comp.Field{&c.kind, &c.atLeast},
-		buttons: []*comp.Button{&c.addAss, &c.check},
-		note:    "an assertion whose kind this build does not understand fails rather than passing quietly",
+	second := comp.ActionBar{
+		Fields:  []*comp.Field{&c.kind, &c.atLeast},
+		Buttons: []*comp.Button{&c.addAss, &c.check},
+		Note:    "an assertion whose kind this build does not understand fails rather than passing quietly",
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return c.bar.layout(t, gtx) }),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return second.layout(t, gtx) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return c.bar.Layout(t, gtx) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return second.Layout(t, gtx) }),
 	)
 }

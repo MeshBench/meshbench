@@ -12,7 +12,7 @@ import (
 
 // fleetControls sends one command to every node, or to a filtered subset.
 type fleetControls struct {
-	bar     actionBar
+	bar     comp.ActionBar
 	command comp.Field
 	// kind is a dropdown, not a box: the tokens are the scenario's own -
 	// "simple-repeater", not "repeater" - and a box that wants the exact
@@ -83,28 +83,28 @@ func (c *fleetControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 		c.send.Label, c.send.Kind = "send to the fleet", comp.Primary
 		c.setReg.Label, c.setReg.Kind = "set regions", comp.Secondary
 		c.allow.Label, c.allow.Kind = "allow any flood", comp.Secondary
-		c.bar.fields = []*comp.Field{&c.command}
-		c.bar.extras = []func(*theme.Theme, layout.Context) layout.Dimensions{
+		c.bar.Fields = []*comp.Field{&c.command}
+		c.bar.Extras = []func(*theme.Theme, layout.Context) layout.Dimensions{
 			func(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 				return c.kind.Layout(t, gtx)
 			},
 		}
-		c.bar.buttons = []*comp.Button{&c.send}
+		c.bar.Buttons = []*comp.Button{&c.send}
 		for i := range c.quick {
 			c.quick[i].Label, c.quick[i].Kind = fleetQuick[i].label, comp.Quiet
 		}
-		c.bar.note = "a command that changes what the nodes are makes anything " +
+		c.bar.Note = "a command that changes what the nodes are makes anything " +
 			"already measured a different mesh; the reply says so before it is sent"
 		c.built = true
 	}
 	if c.send.Click.Clicked(gtx) && c.do != nil {
 		c.do("fleet.send", map[string]any{
-			"command": fieldText(&c.command), "kind": c.kindTok,
+			"command": comp.FieldText(&c.command), "kind": c.kindTok,
 		})
 	}
 	if c.setReg.Click.Clicked(gtx) && c.do != nil {
 		var rs []any
-		for _, r := range splitFields(fieldText(&c.regions)) {
+		for _, r := range comp.SplitFields(comp.FieldText(&c.regions)) {
 			rs = append(rs, r)
 		}
 		c.do("nodes.regions", map[string]any{"regions": rs})
@@ -117,19 +117,19 @@ func (c *fleetControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 			c.command.Editor.SetText(fleetQuick[i].cmd)
 		}
 	}
-	second := actionBar{
-		fields:  []*comp.Field{&c.regions},
-		buttons: []*comp.Button{&c.setReg, &c.allow},
+	second := comp.ActionBar{
+		Fields:  []*comp.Field{&c.regions},
+		Buttons: []*comp.Button{&c.setReg, &c.allow},
 	}
-	third := actionBar{
-		buttons: []*comp.Button{&c.quick[0], &c.quick[1], &c.quick[2], &c.quick[3]},
-		note: "nothing in a mesh speaks until it is asked to: MeshCore will not " +
+	third := comp.ActionBar{
+		Buttons: []*comp.Button{&c.quick[0], &c.quick[1], &c.quick[2], &c.quick[3]},
+		Note: "nothing in a mesh speaks until it is asked to: MeshCore will not " +
 			"advertise more often than hourly, so a short run is made to talk " +
 			"with advert",
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return c.bar.layout(t, gtx) }),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return second.layout(t, gtx) }),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return third.layout(t, gtx) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return c.bar.Layout(t, gtx) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return second.Layout(t, gtx) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return third.Layout(t, gtx) }),
 	)
 }

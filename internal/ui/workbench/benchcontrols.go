@@ -13,7 +13,7 @@ import (
 // benchControls is the companion bench: a mesh and an endpoint, then the
 // faults a happy path never reaches.
 type benchControls struct {
-	bar    actionBar
+	bar    comp.ActionBar
 	tcp    comp.Button
 	serial comp.Button
 	drop   comp.Button
@@ -37,24 +37,24 @@ func (c *benchControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 		c.conn.Label, c.conn.Kind = "connect as a client", comp.Primary
 		c.send.Label, c.send.Kind = "send", comp.Secondary
 		c.advert.Label, c.advert.Kind = "advert", comp.Secondary
-		c.bar.buttons = []*comp.Button{&c.tcp, &c.serial, &c.drop, &c.stray}
-		c.bar.note = "both transports carry the firmware's own serial protocol byte " +
+		c.bar.Buttons = []*comp.Button{&c.tcp, &c.serial, &c.drop, &c.stray}
+		c.bar.Note = "both transports carry the firmware's own serial protocol byte " +
 			"for byte; the faults are what an application that reconnects cleanly survives"
 		c.built = true
 	}
 	// Whichever companion is selected: the bench's table is what selects
 	// one now, so a box asking for the name again was a second way to say
 	// the same thing, and nobody typed into it.
-	who := func() string { return selectedNodeName(s) }
+	who := func() string { return comp.SelectedNodeName(s) }
 	// Serving needs firmware. A companion's port is the firmware's own
 	// serial interface, so with nothing running there is nothing to expose -
 	// the verb refuses, correctly, and this says so before the press rather
 	// than after it.
 	running := s != nil && s.FirmwareRunning > 0
-	c.bar.note = "both transports carry the firmware's own serial protocol byte " +
+	c.bar.Note = "both transports carry the firmware's own serial protocol byte " +
 		"for byte; the faults are what an application that reconnects cleanly survives"
 	if !running {
-		c.bar.note = "nothing is running: a companion's port is its firmware's own " +
+		c.bar.Note = "nothing is running: a companion's port is its firmware's own " +
 			"serial interface, so start the firmware - Simulation, then start " +
 			"firmware on every node - before serving one"
 	}
@@ -74,18 +74,18 @@ func (c *benchControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 		c.do("companion.connect", map[string]any{"node": who()})
 	}
 	if c.send.Click.Clicked(gtx) && c.do != nil {
-		c.do("companion.send", map[string]any{"node": who(), "text": fieldText(&c.msg)})
+		c.do("companion.send", map[string]any{"node": who(), "text": comp.FieldText(&c.msg)})
 	}
 	if c.advert.Click.Clicked(gtx) && c.do != nil {
 		c.do("companion.advert", map[string]any{"node": who()})
 	}
-	second := actionBar{
-		fields:  []*comp.Field{&c.msg},
-		buttons: []*comp.Button{&c.conn, &c.send, &c.advert},
-		note:    "connecting claims the node's port, so its console goes quiet until you disconnect",
+	second := comp.ActionBar{
+		Fields:  []*comp.Field{&c.msg},
+		Buttons: []*comp.Button{&c.conn, &c.send, &c.advert},
+		Note:    "connecting claims the node's port, so its console goes quiet until you disconnect",
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return c.bar.layout(t, gtx) }),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return second.layout(t, gtx) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return c.bar.Layout(t, gtx) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return second.Layout(t, gtx) }),
 	)
 }

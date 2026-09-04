@@ -155,7 +155,7 @@ func (p *firmwareWindowPanel) actions(t *theme.Theme, gtx layout.Context,
 
 // renaming reports whether the identity in the editors differs from the build.
 func (p *firmwareWindowPanel) renaming(r state.FirmwareRow) bool {
-	return !r.Native && (strings.TrimSpace(fieldText(&p.name)) != r.Version ||
+	return !r.Native && (strings.TrimSpace(comp.FieldText(&p.name)) != r.Version ||
 		p.roleWant != r.Role || p.boardWant != r.Board)
 }
 
@@ -164,7 +164,7 @@ func (p *firmwareWindowPanel) changed(r state.FirmwareRow) bool {
 	return p.renaming(r) ||
 		p.coproc.Bool.Value != r.Settings.CoprocAtReset ||
 		p.card.Bool.Value != r.Settings.CardRequired ||
-		fieldText(&p.notes) != r.Settings.Notes
+		comp.FieldText(&p.notes) != r.Settings.Notes
 }
 
 // act runs the controls. Every one of them goes through a verb.
@@ -177,13 +177,13 @@ func (p *firmwareWindowPanel) act(gtx layout.Context, r state.FirmwareRow) {
 		p.confirm = false
 	}
 	if p.apply.Click.Clicked(gtx) && p.OnDo != nil {
-		name := strings.TrimSpace(fieldText(&p.name))
+		name := strings.TrimSpace(comp.FieldText(&p.name))
 		params := map[string]any{
 			"version": r.Version, "role": r.Role, "board": r.Board,
 			"label": name, "new_role": p.roleWant, "new_board": p.boardWant,
 			"coproc_at_reset": p.coproc.Bool.Value,
 			"card_required":   p.card.Bool.Value,
-			"notes":           fieldText(&p.notes),
+			"notes":           comp.FieldText(&p.notes),
 		}
 		// A board of "" is the host build, and an absent new_board means
 		// "leave it alone" - so it has to be said in a way that survives the

@@ -6,6 +6,7 @@ import (
 	"gioui.org/layout"
 
 	"github.com/MeshBench/meshbench/internal/firmware/emulated"
+	"github.com/MeshBench/meshbench/internal/ui/comp"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
@@ -57,10 +58,10 @@ type call struct {
 // whatever the last one showed.
 func TestTheWindowShowsTheBuildItWasOpenedOn(t *testing.T) {
 	p, _, _ := aFirmwareWindow(t, aBuildSnapshot("traps in its own vector", true))
-	if got := fieldText(&p.name); got != "mesh-rs" {
+	if got := comp.FieldText(&p.name); got != "mesh-rs" {
 		t.Errorf("the name box says %q", got)
 	}
-	if got := fieldText(&p.notes); got != "traps in its own vector" {
+	if got := comp.FieldText(&p.notes); got != "traps in its own vector" {
 		t.Errorf("the notes box says %q", got)
 	}
 	if !p.coproc.Bool.Value {

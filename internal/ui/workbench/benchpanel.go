@@ -95,7 +95,7 @@ func (p *benchPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot)
 	// this panel offering to serve a client to something that has no
 	// companion protocol at all.
 	p.tb.Selected = ""
-	if n := selectedNodeName(s); n != "" {
+	if n := comp.SelectedNodeName(s); n != "" {
 		for _, c := range comps {
 			if c == n {
 				p.tb.Selected = n

@@ -11,7 +11,7 @@ import (
 
 // boundaryControls chooses the study area.
 type boundaryControls struct {
-	bar    actionBar
+	bar    comp.ActionBar
 	margin comp.Field
 	prune  comp.Button
 	do     Do
@@ -23,22 +23,22 @@ func (c *boundaryControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Sna
 		c.margin.Hint = "margin km"
 		c.margin.Editor.SingleLine = true
 		c.prune.Label, c.prune.Kind = "delete what is outside", comp.Destructive
-		c.bar.fields = []*comp.Field{&c.margin}
-		c.bar.buttons = []*comp.Button{&c.prune}
+		c.bar.Fields = []*comp.Field{&c.margin}
+		c.bar.Buttons = []*comp.Button{&c.prune}
 		// Choosing the areas happens where it is used, in the Import panel:
 		// this is what the study area turned out to be, and the one action
 		// that is about nodes already loaded from somewhere else.
-		c.bar.note = "the areas themselves are chosen in Import, where they decide " +
+		c.bar.Note = "the areas themselves are chosen in Import, where they decide " +
 			"what is fetched. This deletes nodes already loaded from outside them - " +
 			"the margin keeps what interferes from just over the line"
 		c.built = true
 	}
 	if c.prune.Click.Clicked(gtx) && c.do != nil {
 		p := map[string]any{}
-		if v, ok := num(&c.margin); ok {
+		if v, ok := comp.Num(&c.margin); ok {
 			p["margin_km"] = v
 		}
 		c.do("boundary.prune", p)
 	}
-	return c.bar.layout(t, gtx)
+	return c.bar.Layout(t, gtx)
 }

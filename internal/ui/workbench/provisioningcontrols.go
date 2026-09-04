@@ -47,12 +47,12 @@ func (c *provisioningControls) Draw(t *theme.Theme, gtx layout.Context, s *state
 		p := map[string]any{
 			"set_name": c.name.Bool.Value, "set_position": c.pos.Bool.Value,
 			"set_clock": c.clock.Bool.Value, "region_from_area": c.region.Bool.Value,
-			"default_scope": c.scope.Bool.Value, "extra": fieldText(&c.extra),
+			"default_scope": c.scope.Bool.Value, "extra": comp.FieldText(&c.extra),
 		}
-		if v, ok := num(&c.hops); ok {
+		if v, ok := comp.Num(&c.hops); ok {
 			p["advert_hops"] = v
 		}
-		if v, ok := num(&c.stagger); ok {
+		if v, ok := comp.Num(&c.stagger); ok {
 			p["stagger_ms"] = v
 		}
 		return p
@@ -81,13 +81,13 @@ func (c *provisioningControls) Draw(t *theme.Theme, gtx layout.Context, s *state
 			return layout.Flex{Alignment: layout.Middle}.Layout(gtx, kids...)
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			bar := actionBar{
-				fields:  []*comp.Field{&c.hops, &c.stagger},
-				buttons: []*comp.Button{&c.apply, &c.toRunning},
-				note: "these are the lines the node panel shows under \"is told, at boot\", " +
+			bar := comp.ActionBar{
+				Fields:  []*comp.Field{&c.hops, &c.stagger},
+				Buttons: []*comp.Button{&c.apply, &c.toRunning},
+				Note: "these are the lines the node panel shows under \"is told, at boot\", " +
 					"so what you read there and what a node is sent cannot drift apart",
 			}
-			return bar.layout(t, gtx)
+			return bar.Layout(t, gtx)
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Bottom: t.Sp.S}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
