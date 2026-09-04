@@ -94,14 +94,21 @@ Intel Macs are not built yet. Ask if you need one.
 
 Two downloads, and either is a complete build.
 
-`meshbench-windows-x86_64-bundled.msi` is the installer. Double-click it and it asks
-where to go — `C:\Program Files\MeshBench` unless you browse somewhere else —
-adds a Start menu entry, and appears in Apps and Features with an uninstall and
-the location it used. Installing a newer one replaces the installation rather
-than putting a second copy beside it, and keeps the directory you chose. The
-uninstall removes what it installed and nothing else: your fixtures, cached
-firmware, terrain tiles and settings live under your profile and are left
-alone.
+`meshbench-windows-x86_64-bundled.msi` is the installer. Double-click it and it
+installs to `C:\Program Files\MeshBench`, adds a Start menu entry, and appears
+in Apps and Features with an uninstall. Installing a newer one replaces the
+installation rather than putting a second copy beside it. The uninstall removes
+what it installed and nothing else: your fixtures, cached firmware, terrain
+tiles and settings live under your profile and are left alone.
+
+It asks nothing while it runs. The toolset that builds it cannot draw dialogs,
+and the one that can only runs on Windows, which this pipeline has none of. To
+install somewhere else, or per-user, pass it on the command line:
+
+```
+msiexec /i meshbench-windows-x86_64-bundled.msi INSTALLDIR="D:\Tools\MeshBench"
+msiexec /i meshbench-windows-x86_64-bundled.msi MSIINSTALLPERUSER=1
+```
 
 Everything the wizard offers can also be a switch, which is what you want for
 an unattended install, and there are two it does not offer. From a Command
