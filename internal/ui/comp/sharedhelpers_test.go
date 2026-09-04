@@ -51,9 +51,13 @@ func TestNoPanelKeepsItsOwnCopyOfASharedHelper(t *testing.T) {
 		if !strings.HasSuffix(path, ".go") {
 			return nil
 		}
-		file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
-		if err != nil {
-			// A file that does not parse is another test's problem.
+		file, parseErr := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if parseErr != nil {
+			// Said rather than swallowed. A file that does not parse is
+			// another test's failure to report, but skipping it silently here
+			// would let a helper hide inside one - the walk would simply not
+			// look, and this test would pass for the wrong reason.
+			t.Errorf("%s does not parse, so it could not be checked: %v", path, parseErr)
 			return nil
 		}
 		for _, decl := range file.Decls {
