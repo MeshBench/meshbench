@@ -100,7 +100,7 @@ jobs:
 
       # The version the site's own build runs on, so a page that builds here
       # builds there too.
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
