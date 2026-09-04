@@ -74,10 +74,19 @@ type EmulatedNode struct {
 	IdleHighPins []GPIOPin
 
 	NodeName string
-	// RunSeed is the simulation's seed. With the node's name it decides this
-	// radio's noise, and through that the identity the firmware generates: two
-	// nodes in one run must differ, and the same node in two runs with
-	// different seeds must differ too.
+	// BoardName and Position join the name and the run's seed in deciding this
+	// radio's noise, and through that the identity the firmware generates.
+	//
+	// The name alone was not enough. Every board the probe measures is called
+	// "bc-under-test", so a LilyGo T-Deck under QEMU and a RAK4631 under Renode
+	// came up as the same node, byte for byte - which reads exactly like one
+	// board's stored state leaking into another's. All three are properties of
+	// the scenario, so the same scenario still seeds identically and
+	// determinism is untouched.
+	BoardName string
+	Position  LatLon
+	// RunSeed is the simulation's seed: two nodes in one run must differ, and
+	// the same node in two runs with different seeds must differ too.
 	RunSeed uint64
 
 	// PSRAMMB is the board's external RAM, in megabytes. Zero means none, and
@@ -285,7 +294,7 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) (err error) {
 	}
 	e.radioEnv = append(os.Environ(),
 		fmt.Sprintf("%s=%s", EnvRadioLib, radioLib),
-		fmt.Sprintf("%s=%d", EnvNoiseSeed, noiseSeedFor(e.RunSeed, e.NodeName)))
+		fmt.Sprintf("%s=%d", EnvNoiseSeed, noiseSeedFor(e.RunSeed, e.NodeName, e.BoardName, e.Position)))
 
 	if e.Emulator == Renode {
 		if err := e.startRenode(ctx, bridge); err != nil {
