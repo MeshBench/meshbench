@@ -637,6 +637,15 @@ jobs:
 
           # Everything the application needs on its own comes first, so the
           # compact pair can be cut before either emulator arrives.
+          #
+          # Sourced here as well as in the emulator step below: a step is its
+          # own shell, so the pins that step reads were never set in this one.
+          # The chip model moved into this step when the compact pair started
+          # being cut before the emulators, and the source line stayed behind -
+          # so CHIPMODEL_RELEASE was empty and fetch-release-asset.sh refused
+          # with "line 37: 2: tag, or latest", which names the argument and not
+          # the variable.
+          . packaging/emulator-pins.env
           # The chip model, which whichever emulator runs a board loads.
           tools/fetch-release-asset.sh MeshBench/virtual-sx1262 "$CHIPMODEL_RELEASE" \
             "/$CHIPMODEL_ASSET_WINDOWS_AMD64\$" dist/meshbench
