@@ -224,10 +224,45 @@ CryptoCell fix alone, and the three that needed the button fix are exactly those
 whose variants use plain `INPUT`, so the two are independently evidenced rather
 than a pair that happen to work together.
 
-**What is still open.** `LilyGo_TDeck` forwards nothing, on the same emulator and
-model as the ESP32-S3 boards that do. And no nRF52 board has a working
-filesystem: `IdentityStore::save()` fails every boot, so nothing a repeater
-stores survives a restart - tracked separately.
+**`LilyGo_TDeck` forwards, as of `v9.2.2-meshbench-sx1262-12`.** What stopped it
+was the emulator and not the board, and the chip's own counters are what showed
+that: on the published image it raised RxDone, routed it to DIO1 correctly
+(`dio1Mask=0x0002`, which is RadioLib's receive default), and had the firmware
+read the status and clear it - while forwarding nothing. Everything the radio
+could do, it did.
+
+`esp32_gpio_set_input` bounded a peripheral's pin against `ESP32_GPIO_PIN_COUNT`,
+the ESP32's 40, rather than the instance's count, which the S3 subclass raises to
+49. So every level driven onto pins 40 through 48 was discarded by an early
+return: nothing logged, no guest register moved, the pin simply never changed.
+The T-Deck is the only board whose DIO1 sits above that line, on GPIO 45, and
+MeshCore collects a packet only from the ISR that pin fires. Heltec V3 on 14,
+Ebyte EoRa-S3 on 33 and Xiao S3 WIO on 39 were never affected. The whole
+difference across the fleet was which side of 40 the pin sat on.
+
+**It forwards 2 of 2, the same as the rest**, but only after a second fault
+underneath the first. With the interrupt reaching the firmware it settled at
+1 of 2, and the failing attempt was the same one every run - which is what said
+it was not chance. The channel's own ledger named it: `its own transmitter was
+keyed; LoRa is half duplex`. The frame reached the board and the board was
+transmitting.
+
+`waitUntilQuiet` is not enough on its own. It waits ten seconds since the last
+transmission the ledger holds, and a board with one already scheduled looks
+quiet right up until it keys up; on this board that alignment is deterministic.
+An attempt lost that way says nothing about whether the board forwards, so it is
+now retried rather than counted, exactly as an attempt where the board never
+went quiet already was. Matched on the engine's own `ClassHalfDuplex` rather
+than the wording, which is written in three places.
+
+That is the third time this has been the answer here. The rx row once handed a
+board a packet mid-transmission and blamed the board; its comment is still the
+best statement of it - the board was behaving correctly and the physics was
+right, and the test was handing it something it could not have heard.
+
+And no nRF52 board has a working filesystem: `IdentityStore::save()` fails
+every boot, so nothing a repeater stores survives a restart - tracked
+separately.
 
 ## Where the board matrix's failures are (last true: 2026-08-29)
 

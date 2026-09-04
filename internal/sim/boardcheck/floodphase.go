@@ -21,12 +21,22 @@ import (
 	"github.com/MeshBench/meshbench/internal/sim/engine"
 )
 
-// floodAttempts is how many fresh adverts the flood row hands the board. Kept
-// small on purpose: simple_repeater forwards at most four adverts every two
-// minutes (its discover_limiter), and the rx row already spent one forwarding
-// the sender's advert, so more attempts than this would measure the rate limit
-// rather than the board.
+// floodAttempts is how many adverts the board has to forward to pass the row.
+//
+// Kept small because each one costs a quiet wait and a relay wait out of the
+// probe's budget, not because of a rate limit: simple_repeater's
+// discover_limiter(4, 120) gates CTL_TYPE_NODE_DISCOVER_REQ and nothing else,
+// and allowPacketForward has no limiter on it at all - only the hop limit,
+// loop detection and the seen-packet table, none of which a fresh timestamp
+// per attempt runs into. This comment used to say the opposite and it was
+// wrong.
 const floodAttempts = 2
+
+// floodMaxTries caps the loop, because an attempt lost to the board's own
+// transmitter is retried rather than counted. A board that collides every
+// single time would otherwise never finish the row; this way it runs out of
+// tries and reports what it managed.
+const floodMaxTries = 2 * floodAttempts
 
 // floodPassNum/floodPassDen is the share of attempts a board must forward to be
 // judged as flooding: at least half.
@@ -94,7 +104,7 @@ func probeFlood(ctx context.Context, e *engine.Engine, report BoardReport,
 	}
 
 	relayed, arrived, attempted := 0, 0, 0
-	for i := 0; i < floodAttempts; i++ {
+	for i := 0; attempted < floodAttempts && i < floodMaxTries; i++ {
 		// The board must be off the air first: a packet handed to a
 		// transmitting half-duplex radio is a miss, not a fair test.
 		quiet, cut := waitUntilQuiet(ctx, e, "bc-under-test", floodQuietMs, floodQuietBudgetMs)
@@ -116,7 +126,20 @@ func probeFlood(ctx context.Context, e *engine.Engine, report BoardReport,
 		}
 		_ = e.Run(ctx, e.NowMs()+1_000)
 
+		// The chip's mode as the advert goes out. A radio in standby hears
+		// nothing, and that is indistinguishable at this level from a board
+		// that heard and declined: both leave no rx in the ledger.
+		modeBefore := uint8(255)
+		if u, uok := e.NodeByName("bc-under-test"); uok && u.Firmware != nil {
+			modeBefore = u.Firmware.Bridge.Stats().Mode
+		}
 		fromSender := map[uint64]bool{}
+		misses := map[uint64]string{}
+		// deaf records that the frame reached the board while its own
+		// transmitter was keyed. Matched on the engine's own class rather than
+		// the wording, because the wording is written in three places and the
+		// class is established by the branch that knows.
+		deaf := false
 		gotIt := false
 		if err := sender.Firmware.Bridge.Type([]byte("advert\r\n")); err != nil {
 			report.set(Flood, Failed, "could not command the sender: "+err.Error())
@@ -129,6 +152,14 @@ func probeFlood(ctx context.Context, e *engine.Engine, report BoardReport,
 				// The sender's own advert, identified by payload; a relay carries
 				// this same id because MessageID hashes the payload, not the route.
 				fromSender[ev.MessageID] = true
+			case ev.Kind == "miss" && ev.To == "bc-under-test":
+				// The channel saw the frame arrive and the receiver did not
+				// recover it. Detail says why, which is the difference between
+				// a board that cannot hear and a packet that was never audible.
+				misses[ev.MessageID] = ev.Detail
+				if ev.Class == engine.ClassHalfDuplex && fromSender[ev.MessageID] {
+					deaf = true
+				}
 			case ev.Kind == "rx" && ev.To == "bc-under-test" && fromSender[ev.MessageID]:
 				gotIt = true
 			case ev.Kind == "tx" && ev.From == "bc-under-test" && fromSender[ev.MessageID]:
@@ -144,13 +175,53 @@ func probeFlood(ctx context.Context, e *engine.Engine, report BoardReport,
 			report.set(Flood, Untested, cutShortDetail)
 			return report
 		default:
+			// A frame that reached the board while its own transmitter was
+			// keyed is one it could not have heard, so it says nothing about
+			// whether the board forwards - exactly like an attempt where the
+			// board never went quiet, which is already not counted.
+			//
+			// waitUntilQuiet is not enough on its own: it waits ten seconds
+			// since the last transmission the ledger holds, and a board with
+			// one already scheduled looks quiet right up until it keys up. On
+			// the LilyGo T-Deck that alignment is deterministic - the same
+			// attempt was lost every run, on four runs, while the board
+			// forwarded the next one within five seconds.
+			if deaf && !gotIt {
+				attempted--
+				continue
+			}
 			if gotIt {
 				arrived++
 			}
 		}
 		if os.Getenv("FLOODDBG") != "" {
-			fmt.Fprintf(os.Stderr, "[flooddbg] attempt %d: out=%v gotIt=%v atMs=%d\n",
-				i, out, gotIt, e.NowMs())
+			// senderTx separates the two ways an attempt can produce no
+			// reception: the sender never put anything on the air, or it did
+			// and the board did not decode it. Without it both read as
+			// gotIt=false, which is the board's fault in only one of them.
+			boardTx := 0
+			for _, ev := range e.Events() {
+				if ev.Kind == "tx" && ev.From == "bc-under-test" {
+					boardTx++
+				}
+			}
+			modeAfter := uint8(255)
+			if u, uok := e.NodeByName("bc-under-test"); uok && u.Firmware != nil {
+				modeAfter = u.Firmware.Bridge.Stats().Mode
+			}
+			fmt.Fprintf(os.Stderr,
+				"[flooddbg] attempt %d: out=%v gotIt=%v senderTx=%d boardTxTotal=%d "+
+					"mode(before=%d after=%d) atMs=%d\n",
+				i, out, gotIt, len(fromSender), boardTx, modeBefore, modeAfter, e.NowMs())
+			if out != eventMatched {
+				for id := range fromSender {
+					if d, hit := misses[id]; hit {
+						fmt.Fprintf(os.Stderr, "[flooddbg]   arrived and was not decoded: %s\n", d)
+					} else {
+						fmt.Fprintf(os.Stderr, "[flooddbg]   no reception and no miss for the sender's advert\n")
+					}
+				}
+			}
 		}
 	}
 

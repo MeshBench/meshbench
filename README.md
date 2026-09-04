@@ -198,18 +198,24 @@ nobody has watched that board do that thing.
 | `Heltec_mesh_solar` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | – | ✓ |
 | `Xiao_S3_WIO` | ESP32-S3 | QEMU | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | – | ? |
 | `Heltec_v3` | ESP32-S3 | QEMU | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | – | ✓ |
-| `LilyGo_TDeck` | ESP32-S3 | QEMU | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ✓ |
+| `LilyGo_TDeck` | ESP32-S3 | QEMU | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | – | ✓ |
 | `Ebyte_EoRa-S3` | ESP32-S3 | QEMU | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | – | ✓ |
 | `Station_G2` | ESP32-S3 | - | | | | | | | | |
 | `Heltec_v2` | ESP32 | - | | | | | | | | |
 
 ✓ passed  ✗ failed  – not applicable  ? not measurable yet  blank not attempted
 
-Measured one board at a time on an idle machine. Nine of these rows were
-re-measured on 4 September 2026 against `virtual-sx1262` v1.3.0, loaded inside
-the emulator, and every one reproduced what it had shown the day before through
-the radio server that arrangement replaced. `LilyGo_TDeck` is the exception and
-still carries its 3 September run; the two blanks have never been attempted.
+Measured one board at a time on an idle machine, all ten rows on 4 September
+2026 against `virtual-sx1262` v1.3.0 loaded inside the emulator, and every one
+reproduced what it had shown the day before through the radio server that
+arrangement replaced. The two blanks have never been attempted.
+
+`LilyGo_TDeck` forwards 2 of 2, the same as every other board here, as of
+`v9.2.2-meshbench-sx1262-12`. Two things had to be fixed and neither was the
+board: the emulator discarded a peripheral's input above pin 39, and that board
+is the only one whose DIO1 sits above it on GPIO 45; and the flood row then
+counted an attempt the board could not have heard, its own transmitter having
+been keyed as the packet arrived.
 
 What each board's row means in detail is in
 [`docs/emulated-published-firmware.md`](docs/emulated-published-firmware.md).
