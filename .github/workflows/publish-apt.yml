@@ -11,16 +11,22 @@ name: publish apt
 # release's two debs plus everything already in the pool, signs the index, and
 # pushes it to the site repository, which serves it.
 #
-# A maintainer sets up three things once:
+# Three secrets on the apt-publish environment, all of them already set:
 #
-#   1. A signing key. `gpg --full-generate-key`, no passphrase, and then both
-#      halves as secrets: APT_SIGNING_KEY is the armoured private key
-#      (`gpg --armour --export-secret-keys`) and APT_SIGNING_KEY_ID is its
-#      fingerprint. Apt refuses an unsigned repository, and rightly.
-#   2. The public half committed to the site repository at apt/meshbench.gpg,
-#      dearmoured (`gpg --dearmour`), which is what the install line fetches.
-#   3. A fine-grained token with Contents: read and write on
-#      MeshBench/meshbench.github.io, as SITE_PUBLISH_TOKEN.
+#   APT_SIGNING_KEY      the armoured private half of the signing key, with no
+#                        passphrase, because CI cannot type one. Apt refuses an
+#                        unsigned repository, and rightly.
+#   APT_SIGNING_KEY_ID   its fingerprint.
+#   SITE_DEPLOY_KEY      an ed25519 private key whose public half is a write
+#                        deploy key on MeshBench/meshbench.github.io.
+#
+# A deploy key rather than a token: it reaches exactly one repository, it does
+# not expire, and it can be created from the API, so none of this needed a
+# browser. GITHUB_TOKEN cannot be used - it is scoped to this repository and
+# cannot write to the site.
+#
+# The public half of the signing key is committed to the site repository at
+# apt/meshbench.gpg, dearmoured, which is the form signed-by= wants.
 #
 # Old versions stay in the pool. A repository that drops what it replaced breaks
 # anybody pinning a version, and disk is free here.
@@ -78,18 +84,29 @@ jobs:
 
       - name: The pool as it stands
         env:
-          TOKEN: ${{ secrets.SITE_PUBLISH_TOKEN }}
+          DEPLOY_KEY: ${{ secrets.SITE_DEPLOY_KEY }}
         run: |
           set -euo pipefail
-          if [ -z "${TOKEN:-}" ]; then
-            echo "::error::SITE_PUBLISH_TOKEN is not set on the apt-publish"\
+          if [ -z "${DEPLOY_KEY:-}" ]; then
+            echo "::error::SITE_DEPLOY_KEY is not set on the apt-publish"\
                  "environment; see the header of this file. Failing rather than"\
                  "skipping: a publish that quietly does not happen is what this"\
                  "workflow exists to stop"
             exit 1
           fi
-          git clone --quiet --depth 1 \
-            "https://x-access-token:$TOKEN@github.com/MeshBench/meshbench.github.io.git" site
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/site_deploy
+          chmod 600 ~/.ssh/site_deploy
+          # Pinned rather than accepted on sight: StrictHostKeyChecking=no would
+          # make this the one step that trusts whatever answers.
+          ssh-keyscan -t rsa,ecdsa,ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
+          # Only this key, and no agent or default identity to fall back on: a
+          # runner with another key loaded would otherwise push as whoever that
+          # is, or fail in a way that reads as a permissions problem.
+          echo 'GIT_SSH_COMMAND=ssh -i ~/.ssh/site_deploy -o IdentitiesOnly=yes' >> "$GITHUB_ENV"
+          GIT_SSH_COMMAND='ssh -i ~/.ssh/site_deploy -o IdentitiesOnly=yes' \
+            git clone --quiet --depth 1 \
+              git@github.com:MeshBench/meshbench.github.io.git site
           mkdir -p site/apt/pool/main/m/meshbench
           # Added to, never replaced: somebody pinning an old version keeps
           # working, and the index below is rebuilt over whatever is here.
@@ -141,7 +158,6 @@ jobs:
 
       - name: Publish
         env:
-          TOKEN: ${{ secrets.SITE_PUBLISH_TOKEN }}
           DRY: ${{ github.event.inputs.dry_run || 'false' }}
         run: |
           set -euo pipefail

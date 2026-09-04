@@ -7,13 +7,14 @@ name: publish tap
 # so a first launch is otherwise refused until the user right-clicks and chooses
 # Open. Homebrew removes the quarantine attribute itself.
 #
-# A maintainer sets up two things once:
+# One secret on the tap-publish environment, already set: TAP_DEPLOY_KEY, an
+# ed25519 private key whose public half is a write deploy key on
+# MeshBench/homebrew-meshbench. A deploy key rather than a token because it
+# reaches exactly one repository, does not expire, and can be created from the
+# API. GITHUB_TOKEN cannot be used: it is scoped to this repository.
 #
-#   1. The tap repository, MeshBench/homebrew-meshbench. Homebrew requires that
-#      name: `brew tap MeshBench/meshbench` looks for homebrew-meshbench. It
-#      needs no contents to begin with; this workflow writes the two casks.
-#   2. A fine-grained token with Contents: read and write on that repository,
-#      as TAP_PUBLISH_TOKEN.
+# The tap has to be called homebrew-meshbench. Homebrew requires it:
+# `brew tap MeshBench/meshbench` looks for exactly that name.
 #
 # Two casks, and the plain name is the application on its own, matching apt. A
 # cask re-fetches the whole disk image on every upgrade, so the default that is
@@ -145,23 +146,27 @@ jobs:
 
       - name: Publish
         env:
-          TOKEN: ${{ secrets.TAP_PUBLISH_TOKEN }}
+          DEPLOY_KEY: ${{ secrets.TAP_DEPLOY_KEY }}
           TAG: ${{ steps.rel.outputs.tag }}
           DRY: ${{ github.event.inputs.dry_run || 'false' }}
         run: |
           set -euo pipefail
-          if [ -z "${TOKEN:-}" ]; then
-            echo "::error::TAP_PUBLISH_TOKEN is not set on the tap-publish"\
+          if [ -z "${DEPLOY_KEY:-}" ]; then
+            echo "::error::TAP_DEPLOY_KEY is not set on the tap-publish"\
                  "environment; see the header of this file. Failing rather than"\
                  "skipping: a tap that quietly stops being updated goes on"\
                  "installing an old version and says nothing"
             exit 1
           fi
-          git clone --quiet \
-            "https://x-access-token:$TOKEN@github.com/MeshBench/homebrew-meshbench.git" tap \
-            || { echo "::error::MeshBench/homebrew-meshbench does not exist yet."\
-                      "Homebrew requires that exact name: brew tap"\
-                      "MeshBench/meshbench looks for homebrew-meshbench"; exit 1; }
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/tap_deploy
+          chmod 600 ~/.ssh/tap_deploy
+          # Pinned rather than accepted on sight.
+          ssh-keyscan -t rsa,ecdsa,ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
+          # IdentitiesOnly, so a runner with another key loaded cannot push as
+          # whoever that is.
+          export GIT_SSH_COMMAND='ssh -i ~/.ssh/tap_deploy -o IdentitiesOnly=yes'
+          git clone --quiet git@github.com:MeshBench/homebrew-meshbench.git tap
           mkdir -p tap/Casks
           cp out/Casks/*.rb tap/Casks/
           cp out/README.md tap/

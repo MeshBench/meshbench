@@ -189,14 +189,24 @@ and the docs site: a fine-grained token, and a loud failure rather than a skip
 when it is absent, because a publish that quietly does not happen is the failure
 being guarded against.
 
-Four things need a human once, and nothing here can do them:
+What each holds, all of it already in place:
 
 | what | where | why |
 |---|---|---|
 | `APT_SIGNING_KEY`, `APT_SIGNING_KEY_ID` | `apt-publish` environment | apt refuses an unsigned repository, and rightly |
-| the public half at `apt/meshbench.gpg` | committed to the site repository | it is what the install line fetches |
-| `SITE_PUBLISH_TOKEN` | `apt-publish` environment | the pool lives in the site repository |
-| `MeshBench/homebrew-meshbench` and `TAP_PUBLISH_TOKEN` | a new repository, `tap-publish` environment | Homebrew requires that exact name: `brew tap MeshBench/meshbench` looks for `homebrew-meshbench` |
+| the public half at `apt/meshbench.gpg` | committed to the site repository | it is what the install line fetches, dearmoured, which is the form `signed-by=` wants |
+| `SITE_DEPLOY_KEY` | `apt-publish` environment | the pool lives in the site repository |
+| `TAP_DEPLOY_KEY` | `tap-publish` environment | the casks live in `MeshBench/homebrew-meshbench`, which Homebrew requires be called exactly that: `brew tap MeshBench/meshbench` looks for it |
+
+**Deploy keys rather than tokens**, unlike the docs site and the skills mirror,
+which predate the org allowing them. A deploy key reaches exactly one
+repository, does not expire, and can be created from the API - so setting one up
+needs no browser and no personal account behind it. The two older publishers
+would be better off converted, which is a tidy-up rather than a fix.
+
+Both keys are ed25519 and both were proven by pushing a scratch commit and
+removing it, because a write deploy key that turns out to be read-only fails at
+the end of a release rather than at the start.
 
 **Old versions stay in the apt pool.** A repository that drops what it replaced
 breaks anybody pinning a version, and disk is free here. The index is rebuilt
