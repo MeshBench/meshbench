@@ -153,8 +153,12 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool, runSeed uint64) (
 			ConsoleOnUSB: board.Renode.ConsoleOnUSB,
 			IdleHighPins: idleHigh(board.Renode.IdleHighPins),
 			NodeName:     spec.Name,
-			RunSeed:      runSeed,
-			Dir:          dir,
+			// As on the QEMU node below: the name alone collides, because
+			// every board the probe measures is called "bc-under-test".
+			BoardName: board.Name,
+			Position:  emulated.LatLon{Lat: spec.Position.Lat, Lon: spec.Position.Lon},
+			RunSeed:   runSeed,
+			Dir:       dir,
 		}, nil
 	}
 
@@ -189,8 +193,13 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool, runSeed uint64) (
 		Busy:       board.QEMU.Busy,
 		DIO1:       board.QEMU.DIO1,
 		NodeName:   spec.Name,
-		RunSeed:    runSeed,
-		Dir:        dir,
+		// With the name and the run's seed, these decide the radio's noise and
+		// so the identity the firmware generates. The name alone collides:
+		// every board the probe measures is called "bc-under-test".
+		BoardName: board.Name,
+		Position:  emulated.LatLon{Lat: spec.Position.Lat, Lon: spec.Position.Lon},
+		RunSeed:   runSeed,
+		Dir:       dir,
 		// Where this board's firmware puts Serial. On a board built with
 		// ARDUINO_USB_CDC_ON_BOOT that is the USB peripheral, not UART0, and
 		// a console handed to the wrong one is a board that boots and then
