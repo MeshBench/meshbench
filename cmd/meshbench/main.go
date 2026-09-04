@@ -20,6 +20,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/MeshBench/meshbench/internal/app/update"
 	"github.com/MeshBench/meshbench/internal/app/version"
 	"github.com/MeshBench/meshbench/internal/rf/terrain"
 )
@@ -54,7 +55,15 @@ func main() {
 	// that way one line above and a tool that takes one and not the other
 	// is the kind of thing people report.
 	if name == "version" || name == "-version" || name == "--version" {
-		fmt.Println(invoked(), version.Detail())
+		// The variant as well, because release filenames no longer carry a
+		// version and this is where "what exactly have I got" is answered. It
+		// is also the first question worth asking of a machine whose emulated
+		// boards will not start.
+		line := invoked() + " " + version.Detail()
+		if v := update.ThisVariant(); v != update.UnknownVariant {
+			line += ", " + string(v)
+		}
+		fmt.Println(line)
 		return
 	}
 

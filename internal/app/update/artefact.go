@@ -33,6 +33,52 @@ const (
 	Loose Artefact = "unpackaged"
 )
 
+// Variant is whether the emulators travel with this build.
+//
+// It is read from a VARIANT file the packaging writes beside the binary rather
+// than deduced from what happens to be lying there, because the deduction is
+// exactly what goes wrong: an install whose emulators were removed by hand is
+// still a bundled install, and one that fetched them into its cache is still a
+// compact one.
+type Variant string
+
+const (
+	// Bundled carries the emulators.
+	Bundled Variant = "bundled"
+	// Compact is the application alone, completing itself through Setup.
+	Compact Variant = "compact"
+	// UnknownVariant is a source checkout, or a build from before the two
+	// variants existed. It matches either, because refusing to update a build
+	// that predates the label would strand exactly the people who most need
+	// the update.
+	UnknownVariant Variant = ""
+)
+
+// variantFile is what the packaging writes into every tree.
+const variantFile = "VARIANT"
+
+// ThisVariant is the variant this process is running out of.
+func ThisVariant() Variant {
+	exe, err := os.Executable()
+	if err != nil {
+		return UnknownVariant
+	}
+	return VariantBeside(exe)
+}
+
+// VariantBeside reads the label from the tree a binary sits in.
+func VariantBeside(exe string) Variant {
+	b, err := os.ReadFile(filepath.Join(filepath.Dir(exe), variantFile)) //nolint:gosec // beside our own binary
+	if err != nil {
+		return UnknownVariant
+	}
+	switch v := Variant(strings.TrimSpace(string(b))); v {
+	case Bundled, Compact:
+		return v
+	}
+	return UnknownVariant
+}
+
 // This is the artefact this process is running out of.
 func This() Artefact {
 	exe, err := os.Executable()
@@ -103,7 +149,7 @@ const SumsAsset = "SHA256SUMS"
 // names carry the release number in four different places and one of them
 // carries no number at all, so a table of literal names would go wrong at the
 // first release that spelled one differently.
-func AssetFor(r Release, a Artefact, goos, goarch string) (Asset, string) {
+func AssetFor(r Release, a Artefact, goos, goarch string, v Variant) (Asset, string) {
 	if a == Deb {
 		return Asset{}, "this build was installed by a package manager, which " +
 			"owns these files: update it the way it was installed rather than " +
@@ -113,7 +159,7 @@ func AssetFor(r Release, a Artefact, goos, goarch string) (Asset, string) {
 	if !ok {
 		return Asset{}, "nothing is published for " + goos + "/" + goarch
 	}
-	want := wanted(a, goos, arch)
+	want := wanted(a, goos, arch, v)
 	if want == nil {
 		return Asset{}, "no build is published for " + goos + "/" + goarch +
 			", so there is nothing here to take"
@@ -123,8 +169,12 @@ func AssetFor(r Release, a Artefact, goos, goarch string) (Asset, string) {
 			return asset, ""
 		}
 	}
-	return Asset{}, "release " + r.Tag + " published nothing for " + goos + "/" +
-		goarch + ", so there is nothing here to take"
+	which := ""
+	if v != UnknownVariant {
+		which = " " + string(v)
+	}
+	return Asset{}, "release " + r.Tag + " published no" + which + " build for " +
+		goos + "/" + goarch + ", so there is nothing here to take"
 }
 
 // archWords is the spellings a published asset uses for a machine.
@@ -141,7 +191,24 @@ func archWords(goarch string) ([]string, bool) {
 
 // wanted is the test one asset name has to pass, or nil where this platform
 // takes no published artefact.
-func wanted(a Artefact, goos string, arch []string) func(string) bool {
+//
+// Every release carries two of each format now, one per variant, so a suffix
+// alone matches two assets. Matching the wrong one is not a cosmetic error: it
+// would update a bundled install into a compact one, taking its emulators away
+// on a machine where emulated boards had been working, and the download would
+// look entirely normal on the way past.
+func wanted(a Artefact, goos string, arch []string, v Variant) func(string) bool {
+	byFormat := wantedFormat(a, goos, arch)
+	if byFormat == nil || v == UnknownVariant {
+		// A build from before the label existed takes whichever asset matches
+		// its format. That is the old behaviour, kept deliberately: it is
+		// wrong only once, on the update that gives it a VARIANT file.
+		return byFormat
+	}
+	return func(n string) bool { return byFormat(n) && has(n, string(v)) }
+}
+
+func wantedFormat(a Artefact, goos string, arch []string) func(string) bool {
 	switch {
 	case a == AppImage:
 		return func(n string) bool { return strings.HasSuffix(n, ".AppImage") }

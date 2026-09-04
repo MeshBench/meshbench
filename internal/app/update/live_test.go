@@ -57,12 +57,20 @@ func TestTheRealReleaseFeed(t *testing.T) {
 		update.Tarball, update.AppImage, update.Bundle, update.Zip, update.Loose,
 	} {
 		goos, goarch := goosFor(art)
-		a, why := update.AssetFor(rel, art, goos, goarch)
-		if why != "" {
-			t.Errorf("%s on %s/%s: %s", art, goos, goarch, why)
-			continue
+		// Both variants, because the release now carries two of every format
+		// and taking the wrong one is the failure this is watching for.
+		for _, v := range []update.Variant{update.Bundled, update.Compact} {
+			a, why := update.AssetFor(rel, art, goos, goarch, v)
+			if why != "" {
+				t.Errorf("%s %s on %s/%s: %s", v, art, goos, goarch, why)
+				continue
+			}
+			if !strings.Contains(a.Name, string(v)) {
+				t.Errorf("%s on %s/%s asked for %s and was offered %s",
+					art, goos, goarch, v, a.Name)
+			}
+			t.Logf("%s %s on %s/%s takes %s (%d bytes)", v, art, goos, goarch, a.Name, a.Bytes)
 		}
-		t.Logf("%s on %s/%s takes %s (%d bytes)", art, goos, goarch, a.Name, a.Bytes)
 	}
 
 	// One real download, digest checked against the real checksum file. The

@@ -153,34 +153,6 @@ jobs:
                       -X github.com/MeshBench/meshbench/internal/app/version.Version=v$VERSION" \
             -o dist/meshbench/meshbench ./cmd/meshbench
 
-      - name: Fetch the emulators
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -e
-          # Both are our forks and neither can be a distribution build: ours
-          # carry the SX1262 device and the SEVONPEND fix respectively, and a
-          # stock build of either runs, reports no chip or hangs, and looks like
-          # our fault. The changes are deliberately not upstreamed, so the
-          # forks' own release artifacts carry a meshbench mark in the name -
-          # nobody should mistake one for an upstream build.
-          #
-          # By tag, never by /latest: the tag and the exact asset name are in
-          # packaging/emulator-pins.env, which the runtime fetcher's catalogue
-          # is checked against, so a CI bundle and a first-run download are the
-          # same emulator and a fork release re-cut by somebody else cannot
-          # change either without a commit here.
-          . packaging/emulator-pins.env
-          packaging/fetch-emulator.sh MeshBench/qemu "$QEMU_RELEASE" \
-            "$QEMU_ASSET_LINUX_AMD64" QEMU dist/meshbench
-          packaging/fetch-emulator.sh MeshBench/renode "$RENODE_RELEASE" \
-            "$RENODE_ASSET_LINUX_AMD64" Renode dist/meshbench
-          cd dist/meshbench
-          # -xf rather than -xzf: the two forks package differently and the
-          # bundle should not care which. tar reads the compression itself.
-          for f in *.tar.gz *.tar.xz; do [ -e "$f" ] || continue; tar xf "$f" && rm "$f"; done
-          ls -la
-
       - name: The radio model
         # Every emulated node looks this up *before* either emulator, so a
         # bundle without it ships a QEMU and a Renode that nothing can drive.
@@ -234,183 +206,96 @@ jobs:
           # machine with nothing else on it.
           cp -r fixtures dist/meshbench/fixtures
 
-      - name: Assemble
+      - name: Assemble the application
         run: |
           set -e
-          cd dist/meshbench
           # The same inventory the Help > Licences window shows, as files, for
           # the people who read a directory rather than open a window.
-          (cd ../.. && go run ./tools/licgen -text dist/meshbench/LICENCES)
-          # Beside the binary is where MeshBench looks second, after the
-          # environment variable and before its cache. A desktop application is
-          # not launched from a shell, so PATH is nearly useless to it.
-          # Both emulators unpack into their own directory, and MeshBench
-          # looks for an executable *file* beside its own binary - so each
-          # needs a symlink or the bundle contains an emulator nobody can
-          # find. Renode's directory carries its version, so match on the
-          # shape rather than a name that changes with every release.
-          for d in qemu qemu-meshbench; do
-            [ -d "$d" ] && ln -sf "$d/bin/qemu-system-xtensa" . && break
-          done
-          for d in renode_*-portable renode-*-portable renode; do
-            [ -x "$d/renode" ] && ln -sf "$d/renode" . && break
-          done
-          # What the bundle actually contains, asked the way a node asks. A
-          # missing emulator is a broken artifact and stops the job here, one
-          # step before it would be tarred up and published.
-          ../../packaging/verify-bundle.sh . linux-amd64
-          cat > README.txt <<'TXT'
-          MeshBench
-
-          Run ./meshbench workbench
-
-          Needs a GPU with Vulkan or GL.
-
-          MeshBench is free software under the GNU General Public Licence,
-          version 3 or later. The full terms are in LICENCES/, and the source
-          for this exact build is the meshbench-source.tar.gz published beside
-          it on the release page.
-
-          The emulators beside this file are found automatically. They are not
-          distribution builds and cannot be: the QEMU carries an SX1262 device
-          upstream does not have, and the Renode carries a SEVONPEND fix without
-          which published nRF52 firmware sleeps for ever. Their release
-          artifacts say meshbench in the name for that reason - these forks are
-          built for this simulator and are not upstream releases.
-
-          qemu-system-xtensa is a symlink on purpose. QEMU resolves its own path
-          to find its data files, so a bare copy of the binary will not run.
-
-          libvirtualsx1262 is the SX1262 itself, loaded by whichever emulator
-          runs a board. It is the same model a native node links, so an emulated
-          node and a native one are the same radio. Both emulators need it;
-          neither works without it.
-
-          Native MeshCore builds and board images are downloaded on first use and
-          cached under ~/.cache/meshbench. Nothing else is needed.
-
-          Needs glibc 2.35 or newer: Ubuntu 22.04, Debian 12, or anything
-          more recent. RHEL 9 ships 2.34 and is below the floor.
-
-          Everything this bundle ships under is in LICENCES/, and in the
-          application under Help > Licences & attributions.
-          TXT
-          cd ..
-          # MeshCIM is proprietary and must never appear in an artifact, under
-          # any spelling. Cheap insurance against a fixture or doc drifting in.
-          if grep -ri meshcim . >/dev/null 2>&1; then
+          go run ./tools/licgen -text dist/meshbench/LICENCES
+          # Cheap insurance against a fixture or doc drifting in.
+          if grep -ri meshcim dist/meshbench >/dev/null 2>&1; then
             echo "::error::MeshCIM reference found in the bundle"; exit 1
           fi
-          tar czf meshbench-linux-x86_64-bundled.tar.gz meshbench
+          ls -la dist/meshbench
+
+      - name: Package the compact build
+        run: |
+          set -e
+          VERSION="${{ inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            case "${GITHUB_REF_NAME}" in
+              v*) VERSION="${GITHUB_REF_NAME#v}" ;;
+              *)  VERSION="0.0.0-dev-$(git rev-parse --short HEAD)" ;;
+            esac
+          fi
+          packaging/linux-artifacts.sh dist/meshbench compact "$VERSION" dist
+          # The case nothing used to prove: the application starts with no
+          # emulators beside it. That is the whole premise of this variant, and
+          # until now every smoke test ran against a tree that had them.
+          rm -rf /tmp/smoke-compact && mkdir -p /tmp/smoke-compact
+          tar xzf dist/meshbench-linux-x86_64-compact.tar.gz -C /tmp/smoke-compact
+          /tmp/smoke-compact/meshbench/meshbench workbench -version
+          test "$(cat /tmp/smoke-compact/meshbench/VARIANT)" = compact
+          test ! -e /tmp/smoke-compact/meshbench/qemu-system-xtensa
+
+      - name: Fetch the emulators
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          # Both are our forks and neither can be a distribution build: ours
+          # carry the SX1262 device and the SEVONPEND fix respectively, and a
+          # stock build of either runs, reports no chip or hangs, and looks like
+          # our fault. The changes are deliberately not upstreamed, so the
+          # forks' own release artifacts carry a meshbench mark in the name -
+          # nobody should mistake one for an upstream build.
+          #
+          # By tag, never by /latest: the tag and the exact asset name are in
+          # packaging/emulator-pins.env, which the runtime fetcher's catalogue
+          # is checked against, so a CI bundle and a first-run download are the
+          # same emulator and a fork release re-cut by somebody else cannot
+          # change either without a commit here.
+          . packaging/emulator-pins.env
+          packaging/fetch-emulator.sh MeshBench/qemu "$QEMU_RELEASE" \
+            "$QEMU_ASSET_LINUX_AMD64" QEMU dist/meshbench
+          packaging/fetch-emulator.sh MeshBench/renode "$RENODE_RELEASE" \
+            "$RENODE_ASSET_LINUX_AMD64" Renode dist/meshbench
+          cd dist/meshbench
+          # -xf rather than -xzf: the two forks package differently and the
+          # bundle should not care which. tar reads the compression itself.
+          for f in *.tar.gz *.tar.xz; do [ -e "$f" ] || continue; tar xf "$f" && rm "$f"; done
+          ls -la
+
+      - name: Package the bundled build
+        run: |
+          set -e
+          VERSION="${{ inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            case "${GITHUB_REF_NAME}" in
+              v*) VERSION="${GITHUB_REF_NAME#v}" ;;
+              *)  VERSION="0.0.0-dev-$(git rev-parse --short HEAD)" ;;
+            esac
+          fi
+          packaging/linux-artifacts.sh dist/meshbench bundled "$VERSION" dist
           # GPL-3.0 section 6: whoever receives the binary can have the source
           # that made it. The repository is public, so a link to the tag would
           # satisfy that on its own. The archive travels with the release
           # anyway, because it pins the exact tree this binary was built from
           # and a tag does not once somebody moves one.
-          VERSION="${{ inputs.version }}"
-          if [ -z "$VERSION" ]; then
-            case "${GITHUB_REF_NAME}" in
-              v*) VERSION="${GITHUB_REF_NAME#v}" ;;
-              *)  VERSION="0.0.0-dev-$(git rev-parse --short HEAD)" ;;
-            esac
-          fi
           (cd .. && git archive --format=tar.gz \
-            --prefix="meshbench-${VERSION}/" -o "dist/meshbench-source.tar.gz" HEAD)
-          sha256sum *.tar.gz > SHA256SUMS   # AppImage and .deb are added after they are built
-          # The smoke is the artifact, not the tree: unpack what users get and
-          # ask it who it is. The graphical smoke stays on a real desktop
-          # before tagging, per the plan's acceptance.
-          mkdir /tmp/smoke && tar xzf meshbench-linux-x86_64-bundled.tar.gz -C /tmp/smoke
+            --prefix="meshbench-${VERSION}/" -o "dist/meshbench-source.tar.gz" HEAD) \
+            || git archive --format=tar.gz \
+                 --prefix="meshbench-${VERSION}/" -o "dist/meshbench-source.tar.gz" HEAD
+          rm -rf /tmp/smoke && mkdir -p /tmp/smoke
+          tar xzf dist/meshbench-linux-x86_64-bundled.tar.gz -C /tmp/smoke
           /tmp/smoke/meshbench/meshbench workbench -version
           test -s /tmp/smoke/meshbench/LICENCES/INDEX.txt
-          ls -la *.tar.gz SHA256SUMS
-
-      - name: Desktop integration, AppImage and .deb
-        run: |
-          set -e
-          VERSION="${{ inputs.version }}"
-          if [ -z "$VERSION" ]; then
-            case "${GITHUB_REF_NAME}" in
-              v*) VERSION="${GITHUB_REF_NAME#v}" ;;
-              *)  VERSION="0.0.0-dev-$(git rev-parse --short HEAD)" ;;
-            esac
-          fi
-
-          # An AppDir is just the tree an installed application would have.
-          # linuxdeploy turns it into a single file that runs on any distro
-          # above the glibc floor, which is the "just give me the thing"
-          # download - Arch and Fedora included, with no packaging of ours.
-          APP=dist/AppDir
-          mkdir -p $APP/usr/bin $APP/usr/share/applications \
-                   $APP/usr/share/metainfo $APP/usr/share/meshbench
-          # The chip model too: it is a hundred kilobytes, and without it an
-          # installed MeshBench cannot emulate even when the user supplies their
-          # own QEMU. The emulators themselves stay out of the AppImage and the
-          # .deb on size grounds - 110 MB against 26 - so those two are the
-          # application, and the tarball is the batteries-included download.
-          cp dist/meshbench/meshbench dist/meshbench/libvirtualsx1262.so $APP/usr/bin/
-          cp -r dist/meshbench/fixtures dist/meshbench/fonts \
-                dist/meshbench/LICENCES $APP/usr/share/meshbench/
-          # Beside the binary, which is where SupportDir looks first.
-          cp -r dist/meshbench/renode-support $APP/usr/bin/
-          cp packaging/meshbench.desktop $APP/usr/share/applications/
-          cp packaging/io.github.meshbench.meshbench.metainfo.xml $APP/usr/share/metainfo/
-          for px in 16 24 32 48 64 128 256 512; do
-            d=$APP/usr/share/icons/hicolor/${px}x${px}/apps
-            mkdir -p $d
-            cp packaging/icons/meshbench-${px}.png $d/io.github.meshbench.meshbench.png
-          done
-
-          curl -fsSL -o /tmp/linuxdeploy \
-            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          chmod +x /tmp/linuxdeploy
-          # No FUSE on the runner, so the tools have to unpack themselves.
-          export APPIMAGE_EXTRACT_AND_RUN=1
-          /tmp/linuxdeploy --appdir $APP --output appimage \
-            -d packaging/meshbench.desktop \
-            -i packaging/icons/meshbench-256.png \
-            || echo "::warning::AppImage build failed; the tarball still stands"
-          mv MeshBench*.AppImage dist/meshbench-x86_64-compact.AppImage 2>/dev/null || true
-
-          # A .deb for our own apt repository. Depends names the real floor,
-          # so apt refuses on a machine that cannot run it rather than
-          # installing something that dies at launch.
-          DEB=dist/deb
-          mkdir -p $DEB/DEBIAN $DEB/usr/bin $DEB/usr/share/applications \
-                   $DEB/usr/share/metainfo $DEB/usr/share/meshbench
-          # From packaging/, not from the AppDir: linuxdeploy drops its own
-          # copy of the icon in there under the source file's name, and that
-          # stray meshbench-256.png would ride into the .deb's icon theme
-          # where nothing looks for it.
-          for px in 16 24 32 48 64 128 256 512; do
-            d=$DEB/usr/share/icons/hicolor/${px}x${px}/apps
-            mkdir -p $d
-            cp packaging/icons/meshbench-${px}.png $d/io.github.meshbench.meshbench.png
-          done
-          cp $APP/usr/bin/meshbench $APP/usr/bin/libvirtualsx1262.so $DEB/usr/bin/
-          cp -r $APP/usr/share/meshbench/* $DEB/usr/share/meshbench/
-          cp packaging/meshbench.desktop $DEB/usr/share/applications/
-          cp packaging/io.github.meshbench.meshbench.metainfo.xml $DEB/usr/share/metainfo/
-          cat > $DEB/DEBIAN/control <<CONTROL
-          Package: meshbench
-          Version: ${VERSION}
-          Section: science
-          Priority: optional
-          Architecture: amd64
-          Maintainer: MeshBench <noreply@github.com>
-          Depends: libc6 (>= 2.34), libgl1, libx11-6, libxkbcommon0, libwayland-client0, libvulkan1
-          Description: Plan and test MeshCore LoRa networks against real firmware
-           MeshBench runs real MeshCore firmware against a sample-accurate LoRa
-           channel over real terrain, and says what arrived at the antenna and why.
-          CONTROL
-          sed -i 's/^          //' $DEB/DEBIAN/control
-          dpkg-deb --build --root-owner-group $DEB dist/meshbench_${VERSION}_amd64.deb
-
-          # Re-taken now that every downloadable exists. The Assemble step's
-          # SHA256SUMS covered the tarballs alone, and a checksum file that
-          # lists some of the artifacts is worse than none: it reads as
-          # complete.
-          (cd dist && rm -rf AppDir deb && sha256sum *.tar.gz *.AppImage *.deb 2>/dev/null > SHA256SUMS; cat SHA256SUMS)
+          test "$(cat /tmp/smoke/meshbench/VARIANT)" = bundled
+          # What the bundle actually carries, asked the way a node asks.
+          packaging/verify-bundle.sh /tmp/smoke/meshbench linux-amd64
+          # Taken once every downloadable exists. A checksum file listing some
+          # of the artifacts is worse than none: it reads as complete.
+          (cd dist && sha256sum *.tar.gz *.AppImage *.deb 2>/dev/null > SHA256SUMS; cat SHA256SUMS)
           ls -la dist/
 
       # Only when something will consume it. The release job is the only
@@ -499,6 +384,14 @@ jobs:
             esac
           fi
           packaging/macos-app.sh "$VERSION"
+          # The application on its own is the compact variant, and right now
+          # that is exactly what this tree is - the emulators arrive in the
+          # next step. Cutting the image here is the whole of the second
+          # packaging pass on this platform.
+          APP=$(ls -d dist/macos/*.app | head -1)
+          echo compact > "$APP/Contents/MacOS/VARIANT"
+          packaging/macos-dmg.sh "$VERSION" dist/macos "dist/MeshBench-arm64-compact.dmg"
+          ls -la dist/*.dmg
 
       - name: Fetch the emulators
         env:
@@ -569,7 +462,11 @@ jobs:
               *)  VERSION="0.0.0-dev-$(git rev-parse --short HEAD)" ;;
             esac
           fi
-          rm -f dist/MeshBench-*.dmg
+          # Only the bundled image is rebuilt; the compact one was cut before
+          # the emulators arrived and must survive this step.
+          rm -f dist/MeshBench-arm64-bundled.dmg
+          APP=$(ls -d dist/macos/*.app | head -1)
+          echo bundled > "$APP/Contents/MacOS/VARIANT"
           # The same script the bundle step used, not a bare hdiutil create: an
           # image built the plain way has the app in it and nothing to drag it
           # onto, so people run MeshBench off the mounted volume and lose it
@@ -700,17 +597,9 @@ jobs:
           # linked: lookupTool knows the unpacked layouts
           # (qemu/bin/qemu-system-xtensa.exe, renode_*-portable/renode.exe) and
           # the .exe suffix, and searches them beside the binary.
-          . packaging/emulator-pins.env
-          packaging/fetch-emulator.sh MeshBench/qemu "$QEMU_RELEASE" \
-            "$QEMU_ASSET_WINDOWS_AMD64" QEMU dist/meshbench
-          packaging/fetch-emulator.sh MeshBench/renode "$RENODE_RELEASE" \
-            "$RENODE_ASSET_WINDOWS_AMD64" Renode dist/meshbench
-          cd dist/meshbench
-          for f in *.tar.xz *.tar.gz; do [ -e "$f" ] || continue; tar xf "$f" && rm "$f"; done
-          for f in *.zip; do [ -e "$f" ] || continue; unzip -q "$f" && rm "$f"; done
-          ls -la
-          cd ../..
 
+          # Everything the application needs on its own comes first, so the
+          # compact pair can be cut before either emulator arrives.
           # The chip model, which whichever emulator runs a board loads.
           tools/fetch-release-asset.sh MeshBench/virtual-sx1262 "$CHIPMODEL_RELEASE" \
             "/$CHIPMODEL_ASSET_WINDOWS_AMD64\$" dist/meshbench
@@ -724,6 +613,25 @@ jobs:
           cp tools/renode/*.repl dist/meshbench/renode-support/
           cp tools/renode/peripherals/*.cs tools/renode/peripherals/*.repl \
             dist/meshbench/renode-support/peripherals/
+          # The compact pair, from the tree as it stands: application, chip
+          # model and Renode's support files, and no emulators.
+          echo compact > dist/meshbench/VARIANT
+          (cd dist && zip -qr meshbench-windows-x86_64-compact.zip meshbench)
+          packaging/windows-msi.sh dist/meshbench "$VERSION" \
+            "dist/meshbench-windows-x86_64-compact.msi"
+
+          # Now the emulators, making the same tree the bundled variant.
+          . packaging/emulator-pins.env
+          packaging/fetch-emulator.sh MeshBench/qemu "$QEMU_RELEASE" \
+            "$QEMU_ASSET_WINDOWS_AMD64" QEMU dist/meshbench
+          packaging/fetch-emulator.sh MeshBench/renode "$RENODE_RELEASE" \
+            "$RENODE_ASSET_WINDOWS_AMD64" Renode dist/meshbench
+          cd dist/meshbench
+          for f in *.tar.gz *.tar.xz; do [ -e "$f" ] || continue; tar xf "$f" && rm "$f"; done
+          for f in *.zip; do [ -e "$f" ] || continue; unzip -q "$f" && rm "$f"; done
+          cd ../..
+          echo bundled > dist/meshbench/VARIANT
+
           # What the zip actually carries, asked the way a node asks.
           packaging/verify-bundle.sh dist/meshbench windows-amd64
           cat > dist/meshbench/README.txt <<'TXT'
@@ -890,6 +798,34 @@ jobs:
           # notes; Linux missing means something went wrong upstream of here.
           ls dist/*.AppImage >/dev/null || { echo "::error::no AppImage"; exit 1; }
           ls dist/meshbench-linux-x86_64-bundled.tar.gz >/dev/null || { echo "::error::no Linux tarball"; exit 1; }
+          # Both variants of everything Linux, because half a matrix is the
+          # failure this whole arrangement can produce quietly: the updater
+          # picks its download by variant now, so a release missing one strands
+          # every install running it with "published no compact build for
+          # linux/amd64" and no way forward.
+          for want in \
+            meshbench-linux-x86_64-bundled.tar.gz \
+            meshbench-linux-x86_64-compact.tar.gz \
+            meshbench-x86_64-bundled.AppImage \
+            meshbench-x86_64-compact.AppImage; do
+            ls "dist/$want" >/dev/null 2>&1 || {
+              echo "::error::no $want; a release missing one variant strands every"\
+                   "install running it, because the updater matches on variant"
+              exit 1; }
+          done
+          # And the two debs, whose names carry the variant instead.
+          ls dist/meshbench_*_amd64.deb >/dev/null 2>&1 || { echo "::error::no compact deb"; exit 1; }
+          ls dist/meshbench-bundled_*_amd64.deb >/dev/null 2>&1 || { echo "::error::no bundled deb"; exit 1; }
+          # Where a platform built at all, it has to have built both. A missing
+          # macOS is allowed and says so in the notes; half a macOS is not.
+          for pair in "dmg" "windows*.zip" "windows*.msi"; do
+            n=$(ls dist/*$pair 2>/dev/null | wc -l)
+            case "$n" in
+              0) ;;
+              2) ;;
+              *) echo "::error::$n dist/*$pair, want 0 or 2 - one per variant"; exit 1 ;;
+            esac
+          done
           # Windows may be missing entirely and the notes say so. Half of it is
           # the thing to refuse: a zip with no installer beside it looks exactly
           # like a release that never had one, and that is how this project has

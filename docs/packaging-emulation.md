@@ -34,12 +34,24 @@ as the thing we can hand to someone who has no SoftDevice.
 
 Four things have to be present. Only two can be shipped.
 
-| piece | source | ship it? | size |
-|---|---|---|---|
-| QEMU with our SX1262 | `MeshBench/qemu`, branch `meshbench-main` | yes | ~17 MB packed, ~79 MB unpacked |
-| `virtual-sx1262` | `MeshBench/virtual-sx1262`, the shared library | yes | ~100 KB |
-| Renode with our SEVONPEND fix | `MeshBench/renode`, branch `meshbench` | yes | ~60 MB packed |
-| Nordic SoftDevice | Nordic's own site, fetched at runtime | **no — fetched, not bundled** | 155 KB |
+| piece | source | in compact? | in bundled? | size |
+|---|---|---|---|---|
+| `virtual-sx1262` | `MeshBench/virtual-sx1262`, the shared library | yes | yes | ~100 KB |
+| Renode's `.repl` and our peripherals | this repository, `tools/renode/` | yes | yes | ~40 KB |
+| QEMU with our SX1262 | `MeshBench/qemu`, branch `meshbench-main` | no | yes | ~17 MB packed, ~79 MB unpacked |
+| Renode with our SEVONPEND fix | `MeshBench/renode`, branch `meshbench` | no | yes | ~60 MB packed |
+| Nordic SoftDevice | Nordic's own site, fetched at runtime | **no - fetched, not bundled** | same | 155 KB |
+
+The first two are in both builds because neither is a size judgement. The chip
+model is a hundred kilobytes and nothing starts a board without it; Renode reads
+its platform descriptions at runtime, so a tree without them can start an ESP32
+board and not an nRF52 one, which reads as a broken emulator rather than a
+missing file.
+
+Every tree carries a `VARIANT` file saying which of the two it is.
+`packaging/verify-bundle.sh` reads it and holds each to its own rules - a
+bundled tree missing an emulator is refused, and so is a compact one carrying
+one - and the application reads it to know which asset an update should take.
 
 Board images and native builds are *not* in this list. They are downloaded on
 demand from GitHub releases and cached, which already works and should stay that

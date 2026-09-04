@@ -51,6 +51,18 @@ find_tool() {
   return 1
 }
 
+# What the tree says it is. A bundled tree missing an emulator is the failure
+# this script exists for; a compact one is *meant* to have none, so checking it
+# against the same list would refuse a correct artifact.
+#
+# An unlabelled tree is checked as bundled, which is the stricter of the two.
+# Every tree the packaging builds carries a VARIANT, so reaching this means
+# somebody ran the script by hand, and a checker that quietly checks less when
+# it is unsure is the wrong kind of quiet.
+variant=bundled
+[ -f "$dir/VARIANT" ] && variant=$(tr -d '[:space:]' < "$dir/VARIANT")
+echo "verify-bundle: $dir says it is $variant"
+
 fail=0
 require() {
   local name=$1 asset=$2 why=$3 found
@@ -82,8 +94,21 @@ else
   echo "::error::$platform bundle has no renode-support, so nRF52 boards cannot emulate" >&2
   fail=1
 fi
-require qemu-system-xtensa "$qemu" "ESP32 boards cannot emulate"
-require renode "$renode" "nRF52 boards cannot emulate"
+if [ "$variant" = bundled ]; then
+  require qemu-system-xtensa "$qemu" "ESP32 boards cannot emulate"
+  require renode "$renode" "nRF52 boards cannot emulate"
+else
+  # A compact tree carries no emulators on purpose, and one that does is a
+  # packaging mistake worth catching: it would ship as the small download and
+  # cost the user the large one.
+  for unwanted in qemu-system-xtensa renode; do
+    if found=$(find_tool "$unwanted"); then
+      echo "::error::a compact bundle carries $unwanted at $found" >&2
+      fail=1
+    fi
+  done
+  echo "verify-bundle: no emulators, as a compact bundle should have none"
+fi
 
 if [ "$fail" -ne 0 ]; then
   echo "verify-bundle: $dir is not shippable" >&2
