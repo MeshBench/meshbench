@@ -76,8 +76,19 @@ func TestTheChipReportsWhatItSaw(t *testing.T) {
 		// looked occupied. A board that thinks the channel is never clear
 		// behaves exactly like one that cannot hear: it does not transmit, and
 		// on nRF52 it puts its radio to sleep between samples.
-		t.Logf("%-22s irqReads=%-7d busyReads=%-7d busyMs=%-8d mask=0x%04X flags=0x%04X  %s",
-			when, s.IRQReads, s.BusyReads, s.BusyMs, s.IRQMask, s.IRQFlags, decode(s.IRQFlags))
+		// dio1Mask beside mask, because they answer different questions and the
+		// pair is what localises a board that hears and does not forward.
+		// IRQMask is what may reach the status register; dio1Mask is the
+		// narrower set routed out to the pin, and MeshCore collects a packet
+		// only from the ISR that pin fires. A board showing RxDone in flags,
+		// RxDone in dio1Mask, and no relay has a fault between the chip's pin
+		// and the guest's interrupt rather than in the radio - which is how the
+		// T-Deck's was found: every one of these read correctly while the
+		// emulator discarded the level, because its DIO1 is GPIO 45 and the
+		// GPIO model bounded a peripheral's input at the ESP32's 40 pins.
+		t.Logf("%-22s irqReads=%-7d busyReads=%-7d busyMs=%-8d mask=0x%04X dio1Mask=0x%04X flags=0x%04X  %s",
+			when, s.IRQReads, s.BusyReads, s.BusyMs, s.IRQMask, s.DIO1Mask,
+			s.IRQFlags, decode(s.IRQFlags))
 	}
 
 	settle(ctx, e, 90_000)

@@ -198,7 +198,7 @@ nobody has watched that board do that thing.
 | `Heltec_mesh_solar` | nRF52840 | Renode | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | – | ✓ |
 | `Xiao_S3_WIO` | ESP32-S3 | QEMU | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | – | ? |
 | `Heltec_v3` | ESP32-S3 | QEMU | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | – | ✓ |
-| `LilyGo_TDeck` | ESP32-S3 | QEMU | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | – | ✓ |
+| `LilyGo_TDeck` | ESP32-S3 | QEMU | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | – | ✓ |
 | `Ebyte_EoRa-S3` | ESP32-S3 | QEMU | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | – | ✓ |
 | `Station_G2` | ESP32-S3 | - | | | | | | | | |
 | `Heltec_v2` | ESP32 | - | | | | | | | | |
@@ -210,10 +210,11 @@ Measured one board at a time on an idle machine, all ten rows on 4 September
 reproduced what it had shown the day before through the radio server that
 arrangement replaced. The two blanks have never been attempted.
 
-That includes `LilyGo_TDeck`, whose ✗ is therefore its own and not an artefact
-of the old arrangement: it adverts at 34.0 s, is heard, answers its console
-after an idle, and forwards 0 of 2 - on the same MCU, emulator and chip model
-as the three ESP32-S3 boards that forward 2 of 2.
+`LilyGo_TDeck` forwards as of `v9.2.2-meshbench-sx1262-12`, and what stopped it
+was the emulator rather than the board: a peripheral's input above pin 39 was
+discarded, and that board is the only one whose DIO1 sits above it, on GPIO 45.
+It forwards 1 of 2 where the other ESP32-S3 boards manage 2 of 2, which is the
+row's threshold and not comfortably above it.
 
 What each board's row means in detail is in
 [`docs/emulated-published-firmware.md`](docs/emulated-published-firmware.md).

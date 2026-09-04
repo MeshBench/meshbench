@@ -224,23 +224,26 @@ CryptoCell fix alone, and the three that needed the button fix are exactly those
 whose variants use plain `INPUT`, so the two are independently evidenced rather
 than a pair that happen to work together.
 
-**What is still open.** `LilyGo_TDeck` forwards nothing, on the same emulator and
-model as the ESP32-S3 boards that do. Re-measured on 4 September against the
-chip model loaded inside QEMU, which is the arrangement the other three S3
-boards pass under, and it reproduced: adverts unprompted at 34.0 s, is heard,
-answers its console after a 15 s idle, and forwards 0 of 2. So this is the
-board's own row rather than something the old radio server was doing to it,
-and the columns either side of the failure are the useful part - it transmits
-and it is heard, and only the forward is missing.
+**`LilyGo_TDeck` forwards, as of `v9.2.2-meshbench-sx1262-12`.** What stopped it
+was the emulator and not the board, and the chip's own counters are what showed
+that: on the published image it raised RxDone, routed it to DIO1 correctly
+(`dio1Mask=0x0002`, which is RadioLib's receive default), and had the firmware
+read the status and clear it - while forwarding nothing. Everything the radio
+could do, it did.
 
-Two traps sit in front of anybody re-measuring this. A stale toolchain reads as
-a board fault: a tools directory without `virtual-sx1262` fails the boot
-outright, and one carrying a QEMU from before the chip moved inside it gets as
-far as "firmware started but never connected", neither of which is the board.
-`resource.list` is the check - the pinned build reads `on disk` and anything
-else reads `available`. And `rx` passing proves less than it appears, because
-the engine records a delivery before the firmware reads it; `flood` is the
-column that shows the firmware actually got the packet.
+`esp32_gpio_set_input` bounded a peripheral's pin against `ESP32_GPIO_PIN_COUNT`,
+the ESP32's 40, rather than the instance's count, which the S3 subclass raises to
+49. So every level driven onto pins 40 through 48 was discarded by an early
+return: nothing logged, no guest register moved, the pin simply never changed.
+The T-Deck is the only board whose DIO1 sits above that line, on GPIO 45, and
+MeshCore collects a packet only from the ISR that pin fires. Heltec V3 on 14,
+Ebyte EoRa-S3 on 33 and Xiao S3 WIO on 39 were never affected. The whole
+difference across the fleet was which side of 40 the pin sat on.
+
+It forwards 1 of 2 where those three manage 2 of 2, over four consecutive runs -
+the row's threshold rather than comfortably past it. `simple_repeater`'s
+discover_limiter on the heaviest board in the fleet is the obvious candidate and
+is not measured, so it is written here as a question rather than an answer.
 
 And no nRF52 board has a working filesystem: `IdentityStore::save()` fails
 every boot, so nothing a repeater stores survives a restart - tracked
