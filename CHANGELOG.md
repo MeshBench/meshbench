@@ -59,13 +59,6 @@ is in it.
   an elevated process. All three are dealt with, the last by looking in the
   same places on both sides of the search so no link is needed.
 
-- **The Windows installer asks where to go, and says when it has finished.** It
-  had no dialogs at all, because the tool that built it builds none, so every
-  answer had to be an `msiexec` switch and a double-clicked `.msi` put itself
-  in Program Files without a word. It now offers a folder, reports the location
-  to Apps and Features, keeps it across an upgrade, and carries the MeshBench
-  card. The switches all still work.
-
 ### Changed
 
 - **The emulators hold the SX1262 themselves.** An emulated node used to run in

@@ -5,22 +5,16 @@
 #
 # <bundle-dir> is the directory meshbench.exe sits in, the same one the zip is
 # made from, and everything in it goes into the installer. That is the point:
-# the emulators and the chip model are found beside the binary, so an
+# the emulators and the SX1262 model are found beside the binary, so an
 # installer that carried the binary alone would produce a build that cannot
 # emulate a board and cannot say why.
 #
-# No Windows runner. The WiX toolset is a .NET tool and runs here, beside the
-# mingw cross-build that produced the .exe.
-#
-# It was wixl until the installer was asked to say it had finished and to offer
-# a folder to install into. wixl builds no dialogs - GNOME/msitools#3 - so
-# neither was possible and every answer had to be a switch on the msiexec
-# command line. Those switches still work and are still documented; there is
-# now also a wizard for the two that people expect to click.
-#
-# msitools has not gone: msiinfo reads the built package for verify-msi.sh, and
-# msibuild puts back the one row WiX will not author. See the ALLUSERS note
-# further down.
+# No Windows runner. wixl reads the WiX source and writes the .msi here, beside
+# the mingw cross-build that produced the .exe. What that costs is the
+# installer's user interface: wixl builds no dialogs, so msiexec shows a
+# progress bar and takes its answers from the command line instead. Those
+# answers - a location, per-user, a desktop shortcut - are written out for
+# somebody installing this in docs/install.md.
 set -euo pipefail
 
 stage=${1:?the directory meshbench.exe sits in}
@@ -30,31 +24,15 @@ out=${3:?the .msi to write}
 here=$(cd "$(dirname "$0")" && pwd)
 
 missing=""
-for t in wix msiinfo msibuild icotool python3; do
+for t in wixl wixl-heat msiinfo msibuild icotool python3; do
   command -v "$t" >/dev/null || missing="$missing $t"
 done
 if [ -n "$missing" ]; then
-  echo "::error::windows-msi: missing:$missing - wix is the WiX toolset," \
-       "installed with 'dotnet tool install --global wix'; msiinfo and" \
-       "msibuild are 'msitools'; icotool is 'icoutils'" >&2
+  echo "::error::windows-msi: missing:$missing - wixl and wixl-heat are the" \
+       "'wixl' package on Debian and Ubuntu rather than 'msitools', which is" \
+       "where msiinfo lives; icotool is 'icoutils'" >&2
   exit 1
 fi
-
-# The dialog bitmaps are composed with Pillow, which python3 does not carry by
-# itself. Checked here rather than met as a traceback three minutes into a
-# release build.
-python3 -c 'import PIL' 2>/dev/null || {
-  echo "::error::windows-msi: python3 cannot import PIL - install python3-pil" >&2
-  exit 1
-}
-
-# The dialogs come from an extension, and a missing one fails inside the build
-# with a message about an unknown element rather than about a missing package.
-wix extension list -g 2>/dev/null | grep -q WixToolset.UI.wixext || {
-  echo "::error::windows-msi: the WiX UI extension is not installed: run" \
-       "'wix extension add -g WixToolset.UI.wixext'" >&2
-  exit 1
-}
 
 # Windows Installer compares three numeric fields and ignores anything after
 # them, so a development version has no version to compare and is given the
@@ -73,16 +51,15 @@ import uuid, sys
 print(uuid.uuid5(uuid.UUID('$upgrade'), sys.argv[1]).urn[9:].upper())
 " "$msiversion")
 
-# A scratch directory for the two things built rather than harvested: the icon
-# and the dialog bitmaps. Absolute paths are handed to the build, which wixl
-# could not take - it fed them to g_file_get_child, which rejected them with a
-# GLib assertion and then said it could not find the file, which is why this
-# used to symlink both source trees into one directory and name them
-# relatively.
+# wixl reads every File Source relative to the directory it is run from, and
+# hands an absolute one to g_file_get_child, which rejects it with a GLib
+# assertion and then says it cannot find the file. So the two source trees are
+# linked into one working directory and named relatively from there.
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 extra=$work/extra
 mkdir -p "$extra"
+ln -s "$(cd "$stage" && pwd)" "$work/stage"
 out=$(cd "$(dirname "$out")" && pwd)/$(basename "$out")
 
 # Windows wants one icon file holding every size, the way macOS wants one
@@ -94,40 +71,56 @@ icotool -c -o "$extra/meshbench.ico" \
   "$here/icons/meshbench-48.png" "$here/icons/meshbench-64.png" \
   "$here/icons/meshbench-128.png" "$here/icons/meshbench-256.png"
 
-# The two bitmaps the dialogs are drawn on. See packaging/dialog-bitmaps.py for
-# why they are shaped the way they are, and why this is Pillow rather than the
-# one-line ImageMagick it started as.
-python3 "$here/dialog-bitmaps.py" \
-  "$here/../docs/brand/meshbench-card.png" \
-  "$here/icons/meshbench-256.png" \
-  "$extra"
-
 sed "s/<version>/$version/" "$here/installed-by-msi.txt" \
   > "$extra/installed-by-msi.txt"
 
-files=$(find "$stage" -type f | wc -l)
+# Everything in the bundle, as components. Sorted, so the source that goes
+# into a build is the same from one run to the next and a diff of two builds
+# is about what changed rather than about what order find walked in.
+(cd "$stage" && find . -type f | sed 's|^\./||' | LC_ALL=C sort) |
+  wixl-heat --var var.Stage --directory-ref INSTALLDIR \
+    --component-group Bundle --prefix "" --win64 > "$work/bundle.wxs"
+
+files=$(grep -c '<File ' "$work/bundle.wxs")
 echo "windows-msi: $files files from $stage"
 
-# One command, and no harvest step. wixl needed a separate tool to turn the
-# tree into components and then a pass over its output to make the ids stable,
-# because it named every directory afresh on each run and derived the component
-# GUIDs from those names - so the same tree built twice produced two different
-# installers. WiX walks the tree itself, in its own order, and does not.
-wix build -arch x64 \
-  -d "ProductCode=$product" -d "Version=$msiversion" \
-  -d "Stage=$(cd "$stage" && pwd)" -d "Extra=$extra" \
-  -ext WixToolset.UI.wixext \
-  -o "$out" "$here/meshbench.wxs"
+# wixl-heat names each directory with a fresh random id every run, and wixl
+# derives each component's GUID from that, so the same tree built twice comes
+# out as two different installers. Renumbered here in the order they appear -
+# which the sorted harvest above makes stable - so a rebuild of a version
+# produces the same package, and two builds can be compared for what actually
+# changed. Only the directory ids are touched; the component and file ids are
+# already hashes of the paths.
+python3 - "$work/bundle.wxs" <<'PY'
+import re
+import sys
 
-# ALLUSERS back to 2, which is the one thing the toolset will not author.
-#
-# This package has always been dual-purpose: per-machine by default, and
-# per-user with MSIINSTALLPERUSER=1, which is what lets somebody without
-# administrator rights install into their own profile. WiX 4 removed the
-# option - Scope takes perMachine or perUser and nothing else - and emits
-# ALLUSERS=1 itself, so the row is corrected here rather than a documented
-# install route being dropped to suit a schema. verify-msi.sh checks it.
-msibuild "$out" -q "UPDATE \`Property\` SET \`Value\`='2' WHERE \`Property\`='ALLUSERS'"
+path = sys.argv[1]
+seen = {}
+def stable(m):
+    return seen.setdefault(m.group(0), "dir%04d" % (len(seen) + 1))
+with open(path) as f:
+    src = f.read()
+with open(path, "w") as f:
+    f.write(re.sub(r"dir[0-9A-F]{32}", stable, src))
+PY
+
+(cd "$work" && wixl -a x64 -o "$out" \
+  -D "ProductCode=$product" -D "Version=$msiversion" \
+  -D Stage=stage -D Extra=extra -D Win64=yes \
+  "$here/meshbench.wxs" bundle.wxs)
+
+# A public property set on the msiexec command line does not survive the
+# elevation a per-machine install goes through unless SecureCustomProperties
+# names it, and INSTALLDIR is the one this package offers. wixl writes that row
+# itself, for the upgrade properties, and refuses a second row with the same
+# key - so the row it wrote is extended here rather than authored in the .wxs.
+# tr, because msiinfo writes the IDT form with DOS line endings and a carriage
+# return would ride into the property Windows then reads.
+secure=$(msiinfo export "$out" Property | tr -d '\r' |
+  awk -F'\t' '$1 == "SecureCustomProperties" { print $2 }')
+msibuild "$out" -q "UPDATE \`Property\` SET \`Value\`='$secure;INSTALLDIR;MSIINSTALLPERUSER'
+  WHERE \`Property\`='SecureCustomProperties'"
 
 # Plus the note, which is the one file the installer adds to the bundle.
 "$here/verify-msi.sh" "$out" "$msiversion" "$upgrade" "$((files + 1))"

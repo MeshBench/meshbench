@@ -533,6 +533,30 @@ jobs:
     # No fork guard here: this workflow only triggers on tag pushes and
     # workflow_dispatch, both of which need write access to this repo.
     runs-on: [self-hosted, linux, x64, lab-2204]
+    # This runner sets no locale, and two tools in this job read one. icotool
+    # says so outright - "icotool: cannot set locale: No such file or
+    # directory" - and WiX then refuses a plainly relative Directory/@Name:
+    #
+    #   meshbench.wxs(135) : error WIX0389: The Directory/@Name attribute's
+    #   value, 'MeshBench', is not a relative path.
+    #
+    # 'MeshBench' is relative by any reading, so that is WiX's own path
+    # handling and not the authoring. It is a known shape on Linux
+    # (wixtoolset/issues#7154, Ubuntu 22.04, closed "not planned") and it turns
+    # up in minimal environments - that issue, and the Docker SDK images in the
+    # discussion beside it - which is what a runner with no locale is.
+    #
+    # C.UTF-8 rather than a generated en_GB: glibc has carried it built in
+    # since 2.35, which is exactly this runner's floor, so nothing has to be
+    # installed for it to exist.
+    #
+    # v0.0.5's installer was built by wixl, which had no such trouble. WiX
+    # arrived with the dialogs, wixl building none, and the Windows job has
+    # failed before reaching the MSI on every run since - so this is the first
+    # time WiX has actually run here.
+    env:
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -563,39 +587,6 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             gcc-mingw-w64-x86-64 zip msitools icoutils python3-pil
 
-      # The WiX toolset, which is what builds the installer now. A .NET tool,
-      # so it runs on this Linux runner and the "no Windows runner" property
-      # this job has always had still holds.
-      # The action installs to /usr/share/dotnet by default, which the runner
-      # user cannot create: "Failed to install dotnet, exit code: 1. mkdir:
-      # cannot create directory '/usr/share/dotnet': Permission denied". On a
-      # hosted runner that directory is already there and writable, so this
-      # only ever surfaces on the lab pool - which is the only pool that builds
-      # releases, so it surfaced on a tag.
-      #
-      # $HOME rather than runner.temp or runner.tool_cache: the home directory
-      # is certainly writable and certainly persists, so the SDK is downloaded
-      # once rather than once per release, and neither property is a guess
-      # about how this runner was built.
-      - name: Where the SDK may be installed
-        run: echo "DOTNET_INSTALL_DIR=$HOME/.dotnet" >> "$GITHUB_ENV"
-
-      - uses: actions/setup-dotnet@v4
-        with: { dotnet-version: '8.0' }
-
-      # Idempotent on purpose. These are persistent self-hosted runners, so the
-      # second release to build here would meet "tool 'wix' is already
-      # installed" and fail a step that had nothing wrong with it.
-      - name: WiX
-        run: |
-          set -e
-          dotnet tool install --global wix --version 5.0.2 ||
-            dotnet tool update --global wix --version 5.0.2
-          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
-          export PATH="$HOME/.dotnet/tools:$PATH"
-          wix extension list -g | grep -q WixToolset.UI.wixext ||
-            wix extension add -g WixToolset.UI.wixext/5.0.2
-          wix --version
 
       - name: Build
         env:

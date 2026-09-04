@@ -1,44 +1,56 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  The Windows installer, built by the WiX toolset. There is no Windows runner
-  in this pipeline and this file does not need one: WiX 5 is a .NET tool and
-  runs on Linux, so the same cross-build that produces meshbench.exe produces
-  the installer around it.
-
-  It was built by wixl until the dialogs were wanted. wixl builds none - see
-  GNOME/msitools#3 - so the installer could not say it had finished and could
-  not offer a folder to install into, and both were asked for. Everything else
-  here is the same set of decisions, carried across: what goes where, what it
-  is called, how it upgrades, and the shortcuts.
+  The Windows installer, built on Linux by wixl. There is no Windows runner in
+  this pipeline and this file does not need one: wixl reads this source and
+  writes the .msi, and the same cross-build that produces meshbench.exe
+  produces the installer around it.
 
   What this exists for is the layout rather than the binary. The bundle carries
-  QEMU, Renode and radioserver.exe and finds them beside meshbench.exe, so a
+  QEMU, Renode and the SX1262 model, and finds them beside meshbench.exe, so a
   user who unpacks the zip and then moves the one executable somewhere tidy has
   silently broken emulation with nothing to tell them so. An installer puts the
   whole directory somewhere deliberate and keeps it together.
 
-  Two variables come from packaging/windows-msi.sh:
+  Built by wixl rather than the WiX toolset, deliberately. WiX was tried for
+  the sake of the install-folder dialogs, which wixl cannot build - see
+  GNOME/msitools#3 - and it cannot be used here at all: it needs Windows'
+  msi.dll to write the database, so on Linux it gets as far as refusing every
+  Directory/@Name as "not a relative path" and would fail on msi.dll even if
+  that were fixed. Its own first line of output says it only supports Windows.
+  Building the installer on a Windows runner is what the dialogs would cost,
+  and that is a change to the shape of the pipeline rather than to this file.
+
+  Everything under the install directory is harvested by wixl-heat into
+  ComponentGroup "Bundle", so this file carries only what a harvest cannot
+  know: where it goes, what it is called, how it upgrades, and the shortcuts.
+
+  Three variables come from packaging/windows-msi.sh:
     ProductCode  the GUID for this exact version, derived from it
     Version      X.Y.Z, which is what Apps and Features shows
-  and two paths, Stage (the assembled bundle) and Extra (the icon and the note,
-  which come from this repository rather than from the bundle).
+    Extra        the two files that come from this repository rather than from
+                 the staged bundle: the icon and the note below
 -->
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
-     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
-  <Package Name="MeshBench"
-           Manufacturer="MeshBench"
-           Version="$(var.Version)"
-           ProductCode="$(var.ProductCode)"
-           UpgradeCode="6f2a1c84-7f3b-4c9e-9a6d-0d8f5b1e2c30"
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="$(var.ProductCode)"
+           Name="MeshBench"
            Language="1033"
-           Codepage="1252"
-           InstallerVersion="500"
-           Compressed="yes">
+           Version="$(var.Version)"
+           Manufacturer="MeshBench"
+           UpgradeCode="6f2a1c84-7f3b-4c9e-9a6d-0d8f5b1e2c30">
 
-    <SummaryInformation Description="MeshBench $(var.Version)"
-                        Manufacturer="MeshBench"/>
+    <!--
+      InstallerVersion 500 is Windows Installer 5.0, which is Windows 7 and
+      later, and it is what makes one package able to install per-machine or
+      per-user. Below that, ALLUSERS=2 is not honoured and the package would
+      have to pick one for everybody.
+    -->
+    <Package InstallerVersion="500"
+             Compressed="yes"
+             Manufacturer="MeshBench"
+             Description="MeshBench $(var.Version)"
+             Comments="Plan and test MeshCore LoRa networks against real firmware. GPL-3.0-or-later."/>
 
-    <MediaTemplate EmbedCab="yes"/>
+    <Media Id="1" Cabinet="meshbench.cab" EmbedCab="yes"/>
 
     <!--
       Upgrade in place, which is the thing an installer gets wrong by
@@ -48,105 +60,72 @@
       fixed for the life of the product and identifies "MeshBench" across every
       version. ProductCode is derived from the version by the build script, so
       two builds of the same version are the same product and a reinstall is a
-      reinstall rather than a second arrival. And MajorUpgrade claims every
-      older version, so installing 0.3.0 over 0.2.0 finds it, removes it, and
-      installs into the same place.
+      reinstall rather than a second arrival. And the range below claims every
+      version below this one, so installing 0.3.0 over 0.2.0 finds it, removes
+      it, and installs into the same place.
 
-      Scheduled after InstallValidate, so the old version is gone before the
-      new files are written. Scheduled late instead, the two copies coexist for
-      part of the transaction and the old one's uninstall takes the new one's
-      files with it where a name is shared - which is most of this bundle.
-
-      A downgrade is refused rather than allowed to write older files over
-      newer ones.
+      The second range only detects: a downgrade is refused by the condition
+      further down rather than allowed to write older files over newer ones.
     -->
-    <MajorUpgrade Schedule="afterInstallValidate"
-                  AllowDowngrades="no"
-                  DowngradeErrorMessage="A newer MeshBench is already installed. Remove it first if you meant to go back to this one."/>
+    <Upgrade Id="6f2a1c84-7f3b-4c9e-9a6d-0d8f5b1e2c30">
+      <UpgradeVersion Minimum="0.0.0" IncludeMinimum="yes"
+                      Maximum="$(var.Version)" IncludeMaximum="no"
+                      Property="OLDERVERSIONBEINGUPGRADED"/>
+      <UpgradeVersion Minimum="$(var.Version)" IncludeMinimum="yes"
+                      OnlyDetect="yes"
+                      Property="NEWERVERSIONDETECTED"/>
+    </Upgrade>
 
     <!--
-      There is no ARPNOMODIFY here any more, and its absence is deliberate.
-      The wixl build set it, with the reason written beside it: "a Modify
-      button would open an installer with nothing in it to change". That is no
-      longer true - running the .msi again now offers Repair and Remove - so
-      the property is left to the toolset, which sets NoModify itself because
-      nothing in this package is independently selectable.
-      
-      Uninstalling needs nothing authored. Apps and Features carries the entry
-      and its Uninstall, running the package again offers Remove, and
-      msiexec /x takes the product code. A Start menu "Uninstall MeshBench"
-      shortcut is deliberately not added: Microsoft's own guidance is against
-      it, and Windows 10 and 11 hide them.
+      After InstallValidate, so the old version is gone before the new files
+      are written. Scheduled late instead, the two copies coexist for part of
+      the transaction and the old one's uninstall takes the new one's files
+      with it where a name is shared - which is most of this bundle.
     -->
-    <Icon Id="meshbench.ico" SourceFile="$(var.Extra)/meshbench.ico"/>
+    <InstallExecuteSequence>
+      <RemoveExistingProducts After="InstallValidate"/>
+    </InstallExecuteSequence>
+
+    <Condition Message="A newer MeshBench is already installed. Remove it first if you meant to go back to this one.">
+      NOT NEWERVERSIONDETECTED OR Installed
+    </Condition>
+
+    <!--
+      2 rather than 1: the package decides per install rather than for
+      everybody. Left alone it installs per-machine into Program Files and asks
+      for elevation; with MSIINSTALLPERUSER=1 it installs under the user's own
+      profile and asks for nothing.
+    -->
+    <Property Id="ALLUSERS" Value="2"/>
+
+    <!--
+      SecureCustomProperties is not authored here even though INSTALLDIR needs
+      to be in it - a property set on the msiexec command line is dropped when
+      the install elevates unless it is named there, so a chosen location would
+      otherwise work for a per-user install and be ignored for a per-machine
+      one, which is the worse half of not working. wixl writes that row itself
+      to carry the two upgrade properties below, and a second row with the same
+      key fails the build. packaging/windows-msi.sh appends to the row wixl
+      wrote, and packaging/verify-msi.sh checks the result.
+    -->
     <Property Id="ARPPRODUCTICON" Value="meshbench.ico"/>
     <Property Id="ARPURLINFOABOUT" Value="https://github.com/MeshBench/meshbench"/>
-
     <!--
-      A public property set on the msiexec command line does not survive the
-      elevation a per-machine install goes through unless it is secured, and
-      these two are the ones this package offers. Authored here rather than
-      patched in afterwards, which is what the wixl build had to do: it wrote
-      the row itself for the upgrade properties and refused a second one.
+      No Modify button. wixl builds no dialogs, so the button would open an
+      installer with nothing in it to change; the desktop shortcut is chosen on
+      the command line at install time instead, as below.
     -->
-    <!--
-      ALLUSERS is not set here and cannot be. This package has always been
-      dual-purpose - ALLUSERS=2, per-machine by default and per-user with
-      MSIINSTALLPERUSER=1, which is what lets somebody without administrator
-      rights install into their own profile - and WiX 4 removed the option,
-      leaving Scope with only perMachine and perUser. It emits ALLUSERS=1
-      itself, so authoring a second row here is a duplicate-symbol error.
-      windows-msi.sh puts the 2 back afterwards, and verify-msi.sh checks it,
-      because losing a documented install route to a schema change would be a
-      regression nobody asked for.
-    -->
-    <Property Id="MSIINSTALLPERUSER" Secure="yes"/>
+    <Property Id="ARPNOMODIFY" Value="1"/>
 
-    <!--
-      Where the last install went, so an upgrade stays there.
-      
-      Without this an upgrade installs into the default and the previous
-      directory is removed under it: somebody who chose D:\Tools\MeshBench in
-      the dialog would find the next version in Program Files and their choice
-      silently undone. Measured before it was added - 0.0.6 installed to
-      C:\MBTrial came back as 0.0.7 in Program Files.
-      
-      A command line still wins: a property set there is not overwritten by a
-      search, so INSTALLDIR=... on an upgrade moves it deliberately.
+    <Icon Id="meshbench.ico" SourceFile="$(var.Extra)/meshbench.ico"/>
 
-      HKLM only, because RegistrySearch takes a real hive and not HKMU. A
-      per-machine install - the default, and the one with a folder dialog in
-      front of it - is therefore remembered; a per-user install writes its path
-      to HKCU and is not read back, so an upgrade of one returns to the
-      default. Worth doing properly if anybody installs per-user twice.
-    -->
-    <Property Id="INSTALLDIR" Secure="yes">
-      <RegistrySearch Id="PreviousInstallDir" Root="HKLM"
-                      Key="Software\MeshBench\MeshBench" Name="InstallDir"
-                      Type="raw"/>
-    </Property>
-
-    <!--
-      Where it goes. Program Files for a per-machine install; the same
-      directory under the user's own profile when MSIINSTALLPERUSER=1, which
-      the ALLUSERS note above explains.
-    -->
-    <StandardDirectory Id="ProgramFiles6432Folder">
-      <Directory Id="INSTALLDIR" Name="MeshBench"/>
-    </StandardDirectory>
-
-    <!--
-      Everything in the assembled bundle, harvested by the compiler rather than
-      by a separate tool. wixl-heat named each directory with a fresh random id
-      on every run and wixl derived each component's GUID from that, so the
-      same tree built twice came out as two different installers and the build
-      script had to renumber the ids to get a reproducible package back. Files
-      needs none of that: it walks the tree itself, in its own order, every
-      time.
-    -->
-    <ComponentGroup Id="Bundle" Directory="INSTALLDIR">
-      <Files Include="$(var.Stage)\**"/>
-    </ComponentGroup>
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLDIR" Name="MeshBench"/>
+      </Directory>
+      <Directory Id="ProgramMenuFolder"/>
+      <Directory Id="DesktopFolder"/>
+    </Directory>
 
     <!--
       The one file the zip does not carry, and the only difference between the
@@ -156,79 +135,61 @@
       installed build is updated by running the newer installer, and a build
       unpacked from a zip is not, so the two cannot be told the same thing.
     -->
-    <ComponentGroup Id="InstallNote" Directory="INSTALLDIR">
-      <Component Id="InstallNote" Guid="3d6b8f47-1e29-4a05-b8c3-92f7d4e6a018" Bitness="always64">
+    <DirectoryRef Id="INSTALLDIR">
+      <Component Id="InstallNote" Guid="3d6b8f47-1e29-4a05-b8c3-92f7d4e6a018" Win64="yes">
         <File Id="installed_by_msi.txt" Name="installed-by-msi.txt"
               Source="$(var.Extra)/installed-by-msi.txt" KeyPath="yes"/>
-        <!-- Read back by the search above, so an upgrade stays where it was put. -->
-        <RegistryValue Root="HKMU" Key="Software\MeshBench\MeshBench"
-                       Name="InstallDir" Type="string" Value="[INSTALLDIR]"/>
       </Component>
-    </ComponentGroup>
+    </DirectoryRef>
 
     <!--
       A shortcut cannot be a component's own key path, so a registry value
-      stands in for one. HKMU, which follows the install into whichever hive it
-      went to - the wixl build had to use HKCU because it wrote its own
-      enumeration into the Registry table's Root column and HKMU came out as 4,
-      which is not a root at all. A real toolset writes the value Windows
-      Installer defines, so the better answer is available again.
-
-      Both shortcuts pass "workbench". Nothing requires it any more - a bare
-      meshbench.exe opens the workbench since #503 - but naming it is the same
-      thing the .desktop file and the macOS wrapper do, and a shortcut that
-      states what it runs is one less thing to work out from the outside.
+      stands in for one. HKCU rather than HKMU, which would be the better
+      answer and follow the install into whichever hive it went to: wixl writes
+      its own enumeration into the Registry table's Root column rather than the
+      value Windows Installer defines, and HKMU comes out as 4, which is not a
+      root at all. HKCU comes out as 1, which is.
     -->
-    <StandardDirectory Id="ProgramMenuFolder">
-      <Component Id="StartMenuShortcut" Guid="b41d6e02-3a55-4f18-9c27-7e4a0b6d9155" Bitness="always64">
+    <DirectoryRef Id="ProgramMenuFolder">
+      <Component Id="StartMenuShortcut" Guid="b41d6e02-3a55-4f18-9c27-7e4a0b6d9155" Win64="yes">
         <Shortcut Id="StartMenuMeshBench"
                   Name="MeshBench"
                   Description="Plan and test MeshCore LoRa networks against real firmware"
                   Target="[INSTALLDIR]meshbench.exe"
-                  Arguments="workbench"
                   WorkingDirectory="INSTALLDIR"
                   Icon="meshbench.ico"/>
-        <RegistryValue Root="HKMU" Key="Software\MeshBench\MeshBench"
+        <RegistryValue Root="HKCU" Key="Software\MeshBench\MeshBench"
                        Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes"/>
       </Component>
-    </StandardDirectory>
+    </DirectoryRef>
 
     <!--
       Off unless asked for. An installer that plants a desktop icon nobody
       asked for is the behaviour people complain about, so this is a feature at
       level 0 - present in the package, not installed unless the install names
-      it, either on the command line or by ticking it in the dialog:
+      it. It is a feature rather than a component with a condition on it
+      because wixl does not build conditions on components, and this way the
+      switch is one Windows Installer already understands:
 
         msiexec /i meshbench-<version>-windows-x86_64.msi ADDLOCAL=Complete,DesktopShortcut
     -->
-    <StandardDirectory Id="DesktopFolder">
-      <Component Id="DesktopShortcutComponent" Guid="0a7c3d91-58e6-42b7-8d10-c3f9a2e47b68" Bitness="always64">
+    <DirectoryRef Id="DesktopFolder">
+      <Component Id="DesktopShortcutComponent" Guid="0a7c3d91-58e6-42b7-8d10-c3f9a2e47b68" Win64="yes">
         <Shortcut Id="DesktopMeshBench"
                   Name="MeshBench"
                   Description="Plan and test MeshCore LoRa networks against real firmware"
                   Target="[INSTALLDIR]meshbench.exe"
-                  Arguments="workbench"
                   WorkingDirectory="INSTALLDIR"
                   Icon="meshbench.ico"/>
-        <RegistryValue Root="HKMU" Key="Software\MeshBench\MeshBench"
+        <RegistryValue Root="HKCU" Key="Software\MeshBench\MeshBench"
                        Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes"/>
       </Component>
-    </StandardDirectory>
-
-    <!--
-      Apps and Features shows an "Install location", and ours was blank:
-      nothing set ARPINSTALLLOCATION, so Windows knew where it had put the
-      files and told nobody. It cannot be a plain Property - [INSTALLDIR] is
-      not resolved until the install is costed - so it is set once costing has
-      settled.
-    -->
-    <SetProperty Id="ARPINSTALLLOCATION" Value="[INSTALLDIR]"
-                 After="CostFinalize" Sequence="execute"/>
+    </DirectoryRef>
 
     <Feature Id="Complete" Title="MeshBench" Level="1" Display="expand"
              Description="MeshBench, the emulators, the radio model and the shipped fixtures">
       <ComponentGroupRef Id="Bundle"/>
-      <ComponentGroupRef Id="InstallNote"/>
+      <ComponentRef Id="InstallNote"/>
       <ComponentRef Id="StartMenuShortcut"/>
 
       <Feature Id="DesktopShortcut" Title="Desktop shortcut" Level="0"
@@ -236,32 +197,5 @@
         <ComponentRef Id="DesktopShortcutComponent"/>
       </Feature>
     </Feature>
-
-    <!--
-      The dialogs this migration was for: a folder to install into, and a page
-      at the end saying it finished. WixUI_InstallDir is the stock set for
-      exactly that pair.
-
-      The licence page is skipped. WixUI_InstallDir puts one between the
-      welcome and the folder, and MeshBench is GPL-3.0-or-later: the GPL is not
-      a licence anybody has to accept before running the program, and asking
-      them to tick that they have would be stating something untrue about it.
-      The licence travels in the bundle as LICENCES, which is where it belongs.
-    -->
-    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLDIR"/>
-    <UI>
-      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg" Order="2"/>
-      <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="2"/>
-    </UI>
-
-    <!--
-      And the brand on it. The dialog bitmap fills the left of the welcome and
-      the finished pages, which are the first and last things anybody sees, and
-      the banner runs along the top of everything between them. Both are built
-      from the committed artwork by windows-msi.sh, because WiX takes bitmaps
-      and the repository keeps PNGs.
-    -->
-    <WixVariable Id="WixUIDialogBmp" Value="$(var.Extra)/dialog.bmp"/>
-    <WixVariable Id="WixUIBannerBmp" Value="$(var.Extra)/banner.bmp"/>
-  </Package>
+  </Product>
 </Wix>

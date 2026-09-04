@@ -92,38 +92,6 @@ case "$(prop SecureCustomProperties)" in
 esac
 say "installs under Program Files, per machine or per user, into a chosen location"
 
-# The location it chose, said back. Nothing sets ARPINSTALLLOCATION by itself,
-# and without it Apps and Features shows a blank Install location - so a person
-# who wants to know where their copy went has to guess. The action is generated
-# from the SetProperty in meshbench.wxs and named after the property it sets.
-holds "$(table CustomAction)" SetARPINSTALLLOCATION ||
-  bad "$msi does not set ARPINSTALLLOCATION, so Apps and Features would show no install location"
-holds "$(table InstallExecuteSequence)" SetARPINSTALLLOCATION ||
-  bad "$msi never runs SetARPINSTALLLOCATION, so the property is authored and unset"
-say "reports its install location to Apps and Features"
-
-# The dialogs. WiX builds them and wixl could not, which is the whole reason
-# this package moved toolset - so a build that quietly lost them would undo it.
-dlgs=$(table Dialog)
-for d in WelcomeDlg InstallDirDlg BrowseDlg ExitDialog; do
-  holds "$dlgs" "$d" || bad "$msi has no $d, so the installer cannot ask or report"
-done
-say "asks where to install, and says when it has finished"
-
-# And where an upgrade goes. Without the search, a version installed into a
-# chosen directory comes back in Program Files and the choice is silently
-# undone; measured before it was added.
-holds "$(table Registry)" InstallDir ||
-  bad "$msi does not record its install directory, so an upgrade would not stay put"
-say "remembers where it was installed"
-
-# And that it can be taken off again. An MSI gets this for nothing, which is
-# exactly why it is worth asserting: the maintenance dialogs come from the UI
-# extension, and a package that lost them would still install perfectly and
-# only be found wanting by somebody trying to remove it.
-holds "$dlgs" MaintenanceTypeDlg ||
-  bad "$msi has no maintenance dialog, so running it again offers no Remove"
-say "offers Repair and Remove when run again"
 holds "$(table Shortcut)" ProgramMenuFolder || bad "$msi makes no Start menu entry"
 say "Start menu entry present"
 
