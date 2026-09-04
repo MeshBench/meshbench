@@ -502,7 +502,12 @@ jobs:
           # the same thing, but only a tag runs the release job - so a third
           # image sat here through every dispatched build and was refused at
           # the one moment it was expensive. This is the cheap place to say it.
-          n=$(ls dist/*.dmg | wc -l)
+          # tr, because this is a Mac: BSD wc pads its count with spaces, so
+          # the string compare below sees "       2" and not "2". The same
+          # check in the release job is on Linux, where GNU wc does not pad,
+          # which is exactly how the idiom got copied here and failed on a
+          # correct pair.
+          n=$(ls dist/*.dmg | wc -l | tr -d '[:space:]')
           [ "$n" = 2 ] || {
             echo "::error::$n dmgs, want the compact and bundled pair only:"
             ls -la dist/*.dmg
