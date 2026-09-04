@@ -53,10 +53,6 @@ func Register(st *state.Store, s *Sim) {
 	registerRFRealism(st, s)
 	registerRFEnvironment(st, s)
 	registerRadioReconcile(st, s)
-	registerExperiment(st, s)
-	registerExperimentResults(st, s)
-	registerExperimentControl(st, s)
-	registerExperimentDone(st, s)
 	runDomainRegistrars(st, s)
 	registerCheckpoint(st, s)
 	// The same path as opening, with nothing in it. Everything downstream -

@@ -6,7 +6,7 @@
 // goroutine, so anything that reads them races the cell in flight unless it
 // takes the lock, and anything that takes the lock must not then wait on the
 // runner.
-package session
+package experiment
 
 import (
 	"encoding/json"
@@ -14,12 +14,12 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 )
 
-func registerExperimentResults(st *state.Store, s *Sim) {
+func registerExperimentResults(st *state.Store, s *session.Sim, e *experiment) {
 	st.Handle("experiment.results", func(w *state.World, _ any) (any, error) {
-		e := s.experiment()
 		e.mu.Lock()
 		defer e.mu.Unlock()
 		runs := make([]map[string]any, 0, len(e.results))
@@ -70,9 +70,8 @@ func registerExperimentResults(st *state.Store, s *Sim) {
 	})
 
 	st.Handle("experiment.compare", func(w *state.World, p any) (any, error) {
-		e := s.experiment()
-		a, _ := stringField(p, "arm_a")
-		b, _ := namedField(p, "arm_b")
+		a, _ := session.StringField(p, "arm_a")
+		b, _ := session.NamedField(p, "arm_b")
 		e.mu.Lock()
 		defer e.mu.Unlock()
 		sums := e.summarise()
@@ -103,8 +102,7 @@ func registerExperimentResults(st *state.Store, s *Sim) {
 	})
 
 	st.Handle("experiment.export", func(w *state.World, p any) (any, error) {
-		e := s.experiment()
-		path, _ := stringField(p, "path")
+		path, _ := session.StringField(p, "path")
 		if path == "" {
 			path = filepath.Join(os.TempDir(), "meshbench-experiment.json")
 		}

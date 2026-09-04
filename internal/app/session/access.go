@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"io"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/firmware/console"
@@ -276,3 +277,34 @@ func (s *Sim) SetCoverageCells(n int) {
 func (s *Sim) SetExcessLoss(db float64, set bool) {
 	s.excessLossDB, s.excessSet = db, set
 }
+
+// BenchTake publishes a cell's own engine as the live one, and passing nil
+// hands the view back to the session's engine.
+//
+// It is here so the experiment package can show the run somebody started: a
+// cell builds an engine of its own, with its own storage, and without this the
+// workbench draws a clock that does not advance for as long as the matrix takes.
+func (s *Sim) BenchTake(e *engine.Engine) { s.bench.take(e) }
+
+// ProvisionLinesFor is the session's own provisioning for a node with an arm's
+// settings written over it.
+//
+// Exported for the experiment package, and load-bearing there: a cell that
+// sends the defaults instead compares two arms that were both configured the
+// same way, reports no difference, and looks like a clean result.
+func (s *Sim) ProvisionLinesFor(n scenario.Node, arm ExpArm) []state.ProvisionLine {
+	return s.provisionLinesFor(n, arm)
+}
+
+// NewCompanionSink accepts one companion's output on behalf of a caller that
+// drives the node through the companion protocol but has no use for what the
+// frames decoded to.
+//
+// A claim has to be held for a node to be driven at all, which is the whole of
+// what an experiment's cell wants from a companion session: the decoded self
+// info, contacts and messages are the panels' business, not the matrix's.
+func (s *Sim) NewCompanionSink(node string) io.Writer { return &compSession{node: node} }
+
+// ScenarioEpoch is the instant a scenario's clock starts from, which a run has
+// to share for two cells to be comparable at all.
+const ScenarioEpoch = scenarioEpoch

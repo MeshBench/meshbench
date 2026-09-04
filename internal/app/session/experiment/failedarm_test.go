@@ -1,6 +1,10 @@
-package session
+package experiment
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/MeshBench/meshbench/internal/app/session"
+)
 
 func armNamed(sums []map[string]any, name string) map[string]any {
 	for _, s := range sums {
@@ -17,7 +21,7 @@ func armNamed(sums []map[string]any, name string) map[string]any {
 // receptions down by a third and the matrix drew that as a regression the
 // firmware had caused.
 func TestAFailedSeedIsLeftOutOfItsArmsMean(t *testing.T) {
-	e := &experiment{results: []ExpResult{
+	e := &experiment{results: []Result{
 		{Arm: "1.7.0", Seed: 1, TX: 90, RX: 300, Delivered: 30},
 		{Arm: "1.7.0", Seed: 2, TX: 90, RX: 300, Delivered: 30},
 		{Arm: "1.7.0", Seed: 3, Err: "the node never came up"},
@@ -42,7 +46,7 @@ func TestAFailedSeedIsLeftOutOfItsArmsMean(t *testing.T) {
 // Zero is a measurement. Drawn as one it reads as the worst result the sweep
 // has ever produced, which is the opposite of what happened.
 func TestAnArmNoSeedGotThroughHasNoNumbers(t *testing.T) {
-	e := &experiment{results: []ExpResult{
+	e := &experiment{results: []Result{
 		{Arm: "1.7.0", Seed: 1, TX: 90, RX: 300, Delivered: 30},
 		{Arm: "1.7.1", Seed: 1, Err: "the firmware would not build"},
 		{Arm: "1.7.1", Seed: 2, Err: "the firmware would not build"},
@@ -70,9 +74,9 @@ func TestAnArmNoSeedGotThroughHasNoNumbers(t *testing.T) {
 // the table, so it won.
 func TestTheVerdictDoesNotReportAnArmThatDidNotRun(t *testing.T) {
 	e := &experiment{
-		Arms:  []ExpArm{{Label: "1.7.0"}, {Label: "1.7.1"}},
+		Arms:  []session.ExpArm{{Label: "1.7.0"}, {Label: "1.7.1"}},
 		Seeds: []uint64{1, 2},
-		results: []ExpResult{
+		results: []Result{
 			{Arm: "1.7.0", Seed: 1, TX: 90, RX: 300, Delivered: 30},
 			{Arm: "1.7.0", Seed: 2, TX: 92, RX: 306, Delivered: 30},
 			{Arm: "1.7.1", Seed: 1, Err: "the firmware would not build"},

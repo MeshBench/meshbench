@@ -4,13 +4,14 @@
 // The honesty rules live here. A sweep that has not run enough seeds to
 // separate its arms from their own run-to-run spread says so rather than
 // reporting the larger number, because one run is not evidence.
-package session
+package experiment
 
 import (
 	"fmt"
 	"math"
 	"sort"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 )
 
@@ -29,7 +30,7 @@ func (e *experiment) describe() map[string]any {
 		"arms": len(e.Arms), "seeds": len(e.Seeds), "senders": len(e.Senders),
 		"runs": e.runsTotal(), "run_for_ms": e.RunForMs, "send_at_ms": e.SendAtMs,
 		"spread_ms": e.SpreadMs, "bytes": e.Bytes,
-		"scope":      canonicalScope(e.Scope),
+		"scope":      session.CanonicalScope(e.Scope),
 		"arm_labels": e.armLabels(),
 	}
 }
@@ -243,7 +244,7 @@ func (e *experiment) spreadAgainstBetween() (spread, between float64, ok bool) {
 }
 
 func (e *experiment) summarise() []map[string]any {
-	by := map[string][]ExpResult{}
+	by := map[string][]Result{}
 	for _, r := range e.results {
 		by[r.Arm] = append(by[r.Arm], r)
 	}
@@ -268,14 +269,14 @@ func (e *experiment) summarise() []map[string]any {
 // firmware had caused. An arm where every seed failed came out at zero
 // throughout, which reads as the worst result the sweep has ever produced
 // rather than as an arm that did not run.
-func summariseArm(name string, rs []ExpResult) map[string]any {
+func summariseArm(name string, rs []Result) map[string]any {
 	var tx, rx, del, red, coll, air float64
 	// at2 is the share of this arm's decodes that 2 dB of receiver would
 	// have cost. Reported per arm because it is the one figure here that a
 	// flood's redundancy cannot hide: it is counted on the deliveries
 	// themselves rather than summed out of them.
 	var at2, at2n float64
-	ran := make([]ExpResult, 0, len(rs))
+	ran := make([]Result, 0, len(rs))
 	failed := 0
 	for _, r := range rs {
 		if r.Err != "" {
@@ -321,7 +322,7 @@ func summariseArm(name string, rs []ExpResult) map[string]any {
 // compared against the difference between arms, and that comparison is
 // meaningless in absolute terms - twelve receptions is noise on a national
 // flood and the whole result on a valley.
-func spreadOf(rs []ExpResult) float64 {
+func spreadOf(rs []Result) float64 {
 	if len(rs) < 2 {
 		return 0
 	}

@@ -28,13 +28,16 @@ import (
 // That is the point: those are exactly the settings where firmware state and
 // chip state can disagree with nothing in any log to say so.
 
-// armDidNotReachTheChip returns one complaint per setting the arm asked for that
+// ArmDidNotReachTheChip returns one complaint per setting the arm asked for that
 // the radios do not show, or nil when everything checks out.
 //
 // Nodes whose radio has not reported are counted and named in the complaint
 // rather than treated as passing. A node that never answered is not a node that
 // agreed.
-func armDidNotReachTheChip(arm ExpArm, eng *engine.Engine, nodes []scenario.Node) []string {
+// ArmDidNotReachTheChip is exported for the experiment package: a cell checks
+// that the settings its arm named actually reached the radio, because an arm
+// whose settings were refused runs cleanly and reports no difference.
+func ArmDidNotReachTheChip(arm ExpArm, eng *engine.Engine, nodes []scenario.Node) []string {
 	var got []radioSample
 	var silent int
 	for _, n := range nodes {

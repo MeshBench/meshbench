@@ -1,20 +1,22 @@
-package session
+package experiment
 
 import (
 	"strings"
 	"testing"
+
+	"github.com/MeshBench/meshbench/internal/app/session"
 )
 
 // Varying twice used to leave the second parameter's arms and throw the first
 // away, so a matrix of two parameters was unreachable and nothing said so.
 func TestVaryingTwiceCrossesTheArms(t *testing.T) {
-	var arms []ExpArm
+	var arms []session.ExpArm
 	cross := func(param string, values ...string) {
 		base := arms
-		if len(base) == 0 || (len(base) == 1 && !base[0].names()) {
-			base = []ExpArm{{}}
+		if len(base) == 0 || (len(base) == 1 && !base[0].Names()) {
+			base = []session.ExpArm{{}}
 		}
-		var out []ExpArm
+		var out []session.ExpArm
 		for _, b := range base {
 			for _, v := range values {
 				a, seg, err := varied(b, param, v)
@@ -63,14 +65,14 @@ func TestVaryingTwiceCrossesTheArms(t *testing.T) {
 // field would reset the ones it is silent about, and for path hash mode the
 // zero value is a real setting.
 func TestAnArmWritesOnlyWhatItNames(t *testing.T) {
-	base := DefaultProvisioning()
+	base := session.DefaultProvisioning()
 	base.LoopDetect = "strict"
 	base.CadMode = "on"
 
 	mode := 2
-	arm := ExpArm{PathHashMode: &mode}
+	arm := session.ExpArm{PathHashMode: &mode}
 	got := base
-	arm.applyOver(&got)
+	arm.ApplyOver(&got)
 
 	if got.CompPathHashMode != 2 {
 		t.Fatalf("companion path hash is %d, not what the arm named", got.CompPathHashMode)
@@ -90,7 +92,7 @@ func TestAnArmWritesOnlyWhatItNames(t *testing.T) {
 // what makes MeshCore 1.17.1's gain fault reachable at all, and nothing in this
 // codebase has or should have a struct field for it.
 func TestAnyFirmwareSettingCanBeAnArm(t *testing.T) {
-	on, seg, err := varied(ExpArm{}, "set:agc.reset.interval", "4")
+	on, seg, err := varied(session.ExpArm{}, "set:agc.reset.interval", "4")
 	if err != nil {
 		t.Fatalf("varying a plain setting: %v", err)
 	}
@@ -111,8 +113,8 @@ func TestAnyFirmwareSettingCanBeAnArm(t *testing.T) {
 	}
 
 	// And it has to reach the node, which means the provisioning script.
-	prov := DefaultProvisioning()
-	off.applyOver(&prov)
+	prov := session.DefaultProvisioning()
+	off.ApplyOver(&prov)
 	if !strings.Contains(prov.Extra, "set agc.reset.interval 4") ||
 		!strings.Contains(prov.Extra, "set radio.rxgain off") {
 		t.Fatalf("the arm's settings never reached provisioning: %q", prov.Extra)
@@ -122,7 +124,7 @@ func TestAnyFirmwareSettingCanBeAnArm(t *testing.T) {
 // Every parameter the Bench offers has to be one the verb accepts, or the
 // failure arrives after the arms have been built.
 func TestEveryOfferedParameterCanBeVaried(t *testing.T) {
-	for _, p := range VaryParams {
+	for _, p := range session.VaryParams {
 		v := "0"
 		switch p.Name {
 		case "loop_detect":
@@ -132,7 +134,7 @@ func TestEveryOfferedParameterCanBeVaried(t *testing.T) {
 		case "repeater_version", "companion_version":
 			v = "repeater-v1.17.0"
 		}
-		if _, _, err := varied(ExpArm{}, p.Name, v); err != nil {
+		if _, _, err := varied(session.ExpArm{}, p.Name, v); err != nil {
 			t.Errorf("the Bench offers %q but the verb refuses it: %v", p.Label, err)
 		}
 	}

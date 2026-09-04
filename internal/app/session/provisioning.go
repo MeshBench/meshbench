@@ -43,7 +43,7 @@ func (s *Sim) provisionLines(n scenario.Node) []state.ProvisionLine {
 // settings, with whatever this arm names written over them.
 func (s *Sim) provisionLinesFor(n scenario.Node, arm ExpArm) []state.ProvisionLine {
 	prov := *s.provisioning()
-	arm.applyOver(&prov)
+	arm.ApplyOver(&prov)
 	return provisioningWith(prov, n)
 }
 

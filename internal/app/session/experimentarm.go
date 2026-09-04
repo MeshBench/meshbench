@@ -1,5 +1,10 @@
-// An arm of a sweep: the settings one cell of the matrix runs under, and how
-// varying a parameter turns one arm into several.
+// An arm of a sweep: the settings one cell of the matrix runs under.
+//
+// It stays in core, beside SweepArm and for the same reason: the sweep verbs,
+// the experiment matrix and provisioning all describe a configuration under
+// test, and a type two of them import cannot live inside either. How an arm is
+// varied into several belongs to the matrix and lives in the experiment
+// package; what an arm *is* belongs here.
 //
 // Arm fields that are pointers are pointers deliberately. Mode 0 is both a
 // real value and the zero value, so an arm built a field short once silently
@@ -7,11 +12,30 @@
 package session
 
 import (
-	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 )
+
+// VaryParams is every parameter an arm can be crossed on, in the order the
+// Bench offers them, with the values it offers by default.
+//
+// One table so the panel, the verb and anything scripting this cannot drift:
+// a dropdown listing a parameter the verb rejects is worse than not offering
+// it, because the failure arrives after the arms have been built. That is also
+// why it is here rather than in the experiment package that crosses on it: the
+// sweep panel reads this table, and the drift it prevents is exactly the drift
+// a copy on either side would reintroduce.
+var VaryParams = []struct {
+	Name, Label, Defaults string
+}{
+	{"path_hash_mode", "companion path hash", "0, 1, 2"},
+	{"rep_path_hash", "repeater path hash", "0, 1, 2"},
+	{"loop_detect", "loop.detect", "off, minimal, moderate, strict"},
+	{"cad", "cad", "off, on"},
+	{"repeater_version", "repeater firmware", ""},
+	{"companion_version", "companion firmware", ""},
+	{"spread_ms", "spread", "0, 5, 20"},
+}
 
 // ExpArm is one configuration under test.
 //
@@ -54,13 +78,13 @@ type ExpArm struct {
 	Set map[string]string `json:"set,omitempty"`
 }
 
-// applyOver writes only what this arm actually names, over a base.
+// ApplyOver writes only what this arm actually names, over a base.
 //
 // The distinction against writing every field is load-bearing: an arm varying
 // one parameter must leave the other seven as the base set them, and a struct
 // copy would silently reset them to their zero values - which for path hash
 // mode is a real setting rather than "unset".
-func (a ExpArm) applyOver(p *Provisioning) {
+func (a ExpArm) ApplyOver(p *Provisioning) {
 	if a.PathHashMode != nil {
 		p.CompPathHashMode = *a.PathHashMode
 	}
@@ -93,162 +117,12 @@ func (a ExpArm) applyOver(p *Provisioning) {
 	}
 }
 
-// names reports whether this arm sets anything at all. An arm that names
+// Names reports whether this arm sets anything at all. An arm that names
 // nothing is a placeholder to be replaced by the first cross, not something to
 // cross onto.
-func (a ExpArm) names() bool {
+func (a ExpArm) Names() bool {
 	return a.RepeaterVersion != "" || a.CompanionVersion != "" ||
 		a.PathHashMode != nil || a.RepPathHash != nil ||
 		a.LoopDetect != "" || a.CAD != "" || a.SpreadMs != nil ||
 		len(a.Set) > 0
-}
-
-// varied returns the arm with one parameter set, and the label segment that
-// records it.
-func varied(base ExpArm, param, v string) (ExpArm, string, error) {
-	arm := base
-	switch param {
-	case "repeater_version":
-		arm.RepeaterVersion = v
-		return arm, bareVersion(v, "repeater-"), nil
-	case "companion_version":
-		arm.CompanionVersion = v
-		return arm, bareVersion(v, "companion-"), nil
-	case "path_hash_mode", "rep_path_hash":
-		n, err := strconv.Atoi(v)
-		if err != nil || n < 0 || n > 2 {
-			return arm, "", fmt.Errorf("path hash mode is 0, 1 or 2; got %q", v)
-		}
-		if param == "path_hash_mode" {
-			arm.PathHashMode = &n
-			// n+1 because mode 0 is one byte per hop, and an arm labelled
-			// "0-byte" reads as a path that carries nothing.
-			return arm, fmt.Sprintf("%d-byte", n+1), nil
-		}
-		arm.RepPathHash = &n
-		return arm, fmt.Sprintf("rpt %d-byte", n+1), nil
-	case "loop_detect":
-		switch v {
-		case "off", "minimal", "moderate", "strict":
-		default:
-			return arm, "", fmt.Errorf("loop.detect is off, minimal, moderate or strict; got %q", v)
-		}
-		arm.LoopDetect = v
-		return arm, "loop " + v, nil
-	case "cad":
-		if v != "on" && v != "off" {
-			return arm, "", fmt.Errorf("cad is on or off; got %q", v)
-		}
-		arm.CAD = v
-		return arm, "cad " + v, nil
-	case "spread_ms":
-		n, err := strconv.Atoi(v)
-		if err != nil || n < 0 {
-			return arm, "", fmt.Errorf("spread is a whole number of seconds; got %q", v)
-		}
-		ms := n * 1000
-		arm.SpreadMs = &ms
-		if n == 0 {
-			return arm, "all at once", nil
-		}
-		return arm, fmt.Sprintf("over %ds", n), nil
-	}
-	// Any firmware setting, named as the CLI names it: "set:agc.reset.interval".
-	//
-	// The enumerated parameters above are the ones with somewhere structured to
-	// live; this is everything else, and it is what makes a question like "does
-	// the AGC reset interval change anything" askable without a code change.
-	if name, ok := strings.CutPrefix(param, "set:"); ok && name != "" {
-		if arm.Set == nil {
-			arm.Set = map[string]string{}
-		} else {
-			// Copied, or crossing would write through into the arm this one
-			// was crossed from and every sibling would end up sharing a map.
-			cp := make(map[string]string, len(arm.Set))
-			for k, v := range arm.Set {
-				cp[k] = v
-			}
-			arm.Set = cp
-		}
-		arm.Set[name] = v
-		return arm, name + " " + v, nil
-	}
-
-	var have []string
-	for _, p := range VaryParams {
-		have = append(have, p.Name)
-	}
-	return arm, "", fmt.Errorf(
-		"cannot vary %q; there is: %s, or set:<any firmware setting>",
-		param, strings.Join(have, ", "))
-}
-
-// cellText is what one cell floods: its own arm and seed, at a width every
-// cell of the matrix shares.
-//
-// The width is the whole point. Airtime scales with payload and airtime is what
-// collides, so a message carrying the arm's label is a message whose size is
-// decided by the name somebody typed. A control arm and the arm it duplicates
-// differ only in that name, and they were flooding different numbers of bytes:
-// the two runs being compared differed in the one quantity the comparison is
-// about, and no row of the result could show it. The seed is in the text for
-// the same reason and did the same thing at ten, where the number grows a
-// digit - so what separated two runs of one arm was not only the seed.
-//
-// The label stays, because a capture has to say which cell it came from. Only
-// the size is held level.
-func (e *experiment) cellText(arm ExpArm, seed uint64) string {
-	return padTo(cellLabel(arm.Label, seed), e.messageBytes())
-}
-
-// messageBytes is the width every cell floods at: whatever the experiment asked
-// for, or the widest cell text in the matrix where that is wider.
-//
-// A floor rather than the width, because padding to less than the text leaves
-// the arms uneven again, which is the fault rather than a smaller version of it.
-func (e *experiment) messageBytes() int {
-	want := e.Bytes
-	for _, a := range e.Arms {
-		for _, seed := range e.Seeds {
-			if n := len(cellLabel(a.Label, seed)); n > want {
-				want = n
-			}
-		}
-	}
-	return want
-}
-
-// cellLabel names one cell, before it is padded.
-func cellLabel(label string, seed uint64) string {
-	return fmt.Sprintf("%s seed %d", label, seed)
-}
-
-// padTo brings a message up to a stated size, or leaves it alone when the size
-// is zero or already past it.
-//
-// Padded with dots rather than spaces: a run of spaces in a console is
-// indistinguishable from a message that ended.
-func padTo(text string, size int) string {
-	if size <= 0 || len(text) >= size {
-		return text
-	}
-	return text + strings.Repeat(".", size-len(text))
-}
-
-// bareVersion is a build name with its role and its v stripped, because an arm
-// column headed "repeater-v1.17.0 · 1-byte" spends most of its width on the two
-// things every arm in the sweep has in common.
-func bareVersion(v, role string) string {
-	return strings.TrimPrefix(strings.TrimPrefix(v, role), "v")
-}
-
-// joinLabel builds an arm's name one crossed parameter at a time.
-func joinLabel(a, b string) string {
-	if a == "" {
-		return b
-	}
-	if b == "" {
-		return a
-	}
-	return a + " · " + b
 }
