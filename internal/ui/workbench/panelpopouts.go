@@ -29,7 +29,7 @@ import (
 
 // windows tracks what has been popped out, so a second click on the same
 // affordance raises the window rather than opening another copy of it.
-type windows struct {
+type panelPopouts struct {
 	mu   sync.Mutex
 	open map[string]bool
 	// closing is which windows have been asked to go away, and raising which
@@ -45,8 +45,8 @@ type windows struct {
 	prompts map[string]*shell.Prompt
 }
 
-func newWindows() *windows {
-	return &windows{open: map[string]bool{}, prompts: map[string]*shell.Prompt{}}
+func newPanelPopouts() *panelPopouts {
+	return &panelPopouts{open: map[string]bool{}, prompts: map[string]*shell.Prompt{}}
 }
 
 // popOut gives a panel its own window.
@@ -61,7 +61,7 @@ func newWindows() *windows {
 // text.Shaper.NextGlyph with an index out of range, from an editor in another
 // window drawing at the same moment. One shaper per window is the fix, and it
 // costs a font cache rather than correctness.
-func (w *windows) popOut(name string, sh *shell.Shell, newTheme func() *theme.Theme,
+func (w *panelPopouts) popOut(name string, sh *shell.Shell, newTheme func() *theme.Theme,
 	st *state.Store) {
 	p := sh.Panels[name]
 	if p == nil || !p.Windowable {
@@ -187,7 +187,7 @@ func (w *windows) popOut(name string, sh *shell.Shell, newTheme func() *theme.Th
 //
 // The panel name is enough to decide because a panel is drawn in one window
 // at a time - popping out is what removes it from the main layout.
-func (w *windows) promptFor(name string, main *shell.Prompt) *shell.Prompt {
+func (w *panelPopouts) promptFor(name string, main *shell.Prompt) *shell.Prompt {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if p, ok := w.prompts[name]; ok && w.open[name] {
@@ -197,7 +197,7 @@ func (w *windows) promptFor(name string, main *shell.Prompt) *shell.Prompt {
 }
 
 // has reports whether a panel is currently popped out.
-func (w *windows) has(name string) bool {
+func (w *panelPopouts) has(name string) bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	return w.open[name]
@@ -209,7 +209,7 @@ func (w *windows) has(name string) bool {
 // records the wish and the loop reads it on its next frame. Closing a window
 // from another goroutine is how Gio's event queue ends up with a destroyed
 // window still in it.
-func (w *windows) dock(name string) {
+func (w *panelPopouts) dock(name string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.closing == nil {
@@ -221,7 +221,7 @@ func (w *windows) dock(name string) {
 }
 
 // raise asks a window to come to the front on its next frame.
-func (w *windows) raise(name string) {
+func (w *panelPopouts) raise(name string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.raising == nil {
@@ -233,7 +233,7 @@ func (w *windows) raise(name string) {
 }
 
 // wantsRaise reports and clears the wish, so one ask is one raise.
-func (w *windows) wantsRaise(name string) bool {
+func (w *panelPopouts) wantsRaise(name string) bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.raising[name] {
@@ -244,7 +244,7 @@ func (w *windows) wantsRaise(name string) bool {
 }
 
 // names is every panel currently in a window of its own.
-func (w *windows) names() []string {
+func (w *panelPopouts) names() []string {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	out := make([]string, 0, len(w.open))
@@ -255,7 +255,7 @@ func (w *windows) names() []string {
 	return out
 }
 
-func (w *windows) close(name string) error {
+func (w *panelPopouts) close(name string) error {
 	w.mu.Lock()
 	open := w.open[name]
 	w.mu.Unlock()
@@ -267,7 +267,7 @@ func (w *windows) close(name string) error {
 }
 
 // wantsClose reports and clears the wish, on the window's own goroutine.
-func (w *windows) wantsClose(name string) bool {
+func (w *panelPopouts) wantsClose(name string) bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.closing[name] {

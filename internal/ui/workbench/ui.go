@@ -26,11 +26,11 @@ type workbenchUI struct {
 	sh    *shell.Shell
 	sim   *session.Sim
 	mv    *comp.MapView
-	nodes *nodeWindows
+	nodes *nodeWindowSet
 	// builds is the firmware windows, and logs the popped-out output ones,
 	// both on the same terms as the node windows.
-	builds *firmwareWindows
-	logs   *outputWindows
+	builds *firmwareWindowSet
+	logs   *outputWindowSet
 	store  *state.Store
 	// newTheme gives each window a shaper of its own: Gio's is not safe for
 	// concurrent use and two frame loops sharing one corrupts its glyph

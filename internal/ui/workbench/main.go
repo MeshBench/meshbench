@@ -176,7 +176,7 @@ func Run(args []string) {
 		}
 		return pick.Open(title, start, pick.Kind(what.Kind), f...)
 	}
-	wins := newWindows()
+	wins := newPanelPopouts()
 	// One dispatcher for every action panel. A verb that fails says so in the
 	// status bar rather than silently doing nothing, which is what a button
 	// with no feedback looks like from the other side of the screen.
@@ -251,8 +251,8 @@ func Run(args []string) {
 	// city of polygons has no business in the world snapshot.
 	mv.BuildingsIn = sm.BuildingsIn
 	wbUI := &workbenchUI{sh: sh, sim: sm, mv: mv, store: st,
-		nodes: newNodeWindows(), builds: newFirmwareWindows(),
-		logs: newOutputWindows()}
+		nodes: newNodeWindowSet(), builds: newFirmwareWindowSet(),
+		logs: newOutputWindowSet()}
 	callbacks{
 		wbUI: wbUI, mv: mv, st: st, ctx: ctx, sm: sm, openPacket: openPacket,
 		chooser: chooser, do: do,

@@ -18,18 +18,18 @@ import (
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 )
 
-type outputWindows struct {
-	*windowSet
+type outputWindowSet struct {
+	*windowRegistry
 }
 
-func newOutputWindows() *outputWindows {
-	return &outputWindows{windowSet: newWindowSet()}
+func newOutputWindowSet() *outputWindowSet {
+	return &outputWindowSet{windowRegistry: newWindowRegistry()}
 }
 
 // outputWindowKey identifies one log: a node and one of its voices.
 func outputWindowKey(node, source string) string { return node + "\x00" + source }
 
-func (w *outputWindows) openFor(node, source string,
+func (w *outputWindowSet) openFor(node, source string,
 	newTheme func() *theme.Theme, st *state.Store, do Do) {
 	key := outputWindowKey(node, source)
 	if !w.claim(key) {
@@ -38,7 +38,7 @@ func (w *outputWindows) openFor(node, source string,
 	p := &outputWindowPanel{node: node, OnDo: do}
 	p.out.source, p.out.noPop = source, true
 	title := "MeshBench - " + node + " " + sourceLabel(source)
-	go runPopout(w.windowSet, key, title, popoutSize{760, 520}, p, newTheme, st)
+	go runPopout(w.windowRegistry, key, title, popoutSize{760, 520}, p, newTheme, st)
 }
 
 // outputWindowPanel is one log, drawn on its own.

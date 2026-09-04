@@ -14,16 +14,16 @@ import (
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 )
 
-// logPanel is what has happened in this session, newest last.
+// experimentLogPanel is what has happened in this session, newest last.
 //
 // The store's own log rather than a second one kept by the interface: every
 // verb that says something says it there, so a script and a click leave the
 // same trace.
-type logPanel struct {
+type experimentLogPanel struct {
 	list widget.List
 }
 
-func (p *logPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+func (p *experimentLogPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
 	if s == nil || len(s.Log) == 0 {
 		return layout.Center.Layout(gtx, comp.Text(t, t.Sz.Body, t.P.Dim,
 			"nothing has happened yet"))

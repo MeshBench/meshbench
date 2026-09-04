@@ -13,7 +13,7 @@ func addAppPanels(d panelDeps) *configPanel {
 	if *d.cfgSection != "" {
 		cfg.Open(*d.cfgSection)
 	}
-	logp := &logPanel{}
+	logp := &experimentLogPanel{}
 	d.sh.Add(homed(&shell.Panel{Name: "Configuration", Windowable: true, Draw: cfg.Draw}))
 	d.sh.Add(homed(&shell.Panel{Name: "Experiment log", Windowable: true, Draw: logp.Draw}))
 	// Resources sits under Firmware because it is the same question about

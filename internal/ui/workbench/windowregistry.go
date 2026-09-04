@@ -9,7 +9,7 @@ package workbench
 
 import "sync"
 
-type windowSet struct {
+type windowRegistry struct {
 	mu   sync.Mutex
 	open map[string]bool
 	// raising is which windows have been asked to come forward: a wish
@@ -19,9 +19,9 @@ type windowSet struct {
 	raising map[string]bool
 }
 
-// newWindowSet returns a pointer, so that embedding one never copies the lock.
-func newWindowSet() *windowSet {
-	return &windowSet{open: map[string]bool{}, raising: map[string]bool{}}
+// newWindowRegistry returns a pointer, so that embedding one never copies the lock.
+func newWindowRegistry() *windowRegistry {
+	return &windowRegistry{open: map[string]bool{}, raising: map[string]bool{}}
 }
 
 // claim reports whether the caller should open this window.
@@ -30,7 +30,7 @@ func newWindowSet() *windowSet {
 // instead - which is also the escape hatch for a window dragged somewhere its
 // bar cannot be reached from, where doing nothing would read as a dead menu
 // entry.
-func (w *windowSet) claim(key string) bool {
+func (w *windowRegistry) claim(key string) bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.open[key] {
@@ -42,7 +42,7 @@ func (w *windowSet) claim(key string) bool {
 }
 
 // release forgets a window that has closed.
-func (w *windowSet) release(key string) {
+func (w *windowRegistry) release(key string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	delete(w.open, key)
@@ -50,7 +50,7 @@ func (w *windowSet) release(key string) {
 }
 
 // wantsRaise reports and clears the wish, on the window's own goroutine.
-func (w *windowSet) wantsRaise(key string) bool {
+func (w *windowRegistry) wantsRaise(key string) bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.raising[key] {

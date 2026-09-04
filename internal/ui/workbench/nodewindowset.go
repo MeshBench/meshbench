@@ -14,14 +14,14 @@ import (
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 )
 
-// nodeWindows tracks which nodes have a window, so a second request raises
+// nodeWindowSet tracks which nodes have a window, so a second request raises
 // rather than opening a duplicate.
-type nodeWindows struct {
-	*windowSet
+type nodeWindowSet struct {
+	*windowRegistry
 }
 
-func newNodeWindows() *nodeWindows {
-	return &nodeWindows{windowSet: newWindowSet()}
+func newNodeWindowSet() *nodeWindowSet {
+	return &nodeWindowSet{windowRegistry: newWindowRegistry()}
 }
 
 // nodeWindowHooks is how a node window reaches the rest of the application.
@@ -38,7 +38,7 @@ type nodeWindowHooks struct {
 	onDo         func(verb string, params any)
 }
 
-func (w *nodeWindows) openFor(node string, tab nodeTab,
+func (w *nodeWindowSet) openFor(node string, tab nodeTab,
 	newTheme func() *theme.Theme, st *state.Store, h nodeWindowHooks) {
 	// Already out there: recall it rather than doing nothing. A second press
 	// used to return in silence, which is indistinguishable from a dead menu
@@ -51,7 +51,7 @@ func (w *nodeWindows) openFor(node string, tab nodeTab,
 		OnCLI: h.onCLI, OnServe: h.onServe, OnOpenPacket: h.onOpenPacket,
 		OnDo: h.onDo, Kind: kindOfNode(st, node)}
 	p.tab = tab
-	go runPopout(w.windowSet, node, "MeshBench - "+node,
+	go runPopout(w.windowRegistry, node, "MeshBench - "+node,
 		popoutSize{820, 620}, p, newTheme, st)
 }
 
