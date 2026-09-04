@@ -6,7 +6,7 @@
 // structure and the raw bytes on both, and the result was two screens that
 // read as the same screen twice, which is a fair thing to be asked about.
 // Anything that wants a byte offset belongs on the other tab.
-package workbench
+package packetview
 
 import (
 	"fmt"
@@ -22,7 +22,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 )
 
-func (p *packetPanel) overview(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
+func (p *Panel) overview(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
 	rows := []layout.Widget{
 		func(gtx layout.Context) layout.Dimensions { return chipRow(t, gtx, pk) },
 		func(gtx layout.Context) layout.Dimensions { return payloadPanel(t, gtx, pk) },
@@ -238,10 +238,10 @@ func payloadPanel(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.D
 				return layout.Inset{Bottom: t.Sp.XXS}.Layout(gtx,
 					func(gtx layout.Context) layout.Dimensions {
 						return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-							fixed(gtx, 104, comp.Text(t, t.Sz.Caption, t.P.Faint,
+							comp.Fixed(gtx, 104, comp.Text(t, t.Sz.Caption, t.P.Faint,
 								strings.ToUpper(r.label))),
 							layout.Flexed(1, comp.OneLine(t, t.Sz.Caption, ink, r.value, true)),
-							fixed(gtx, 148, comp.OneLine(t, t.Sz.Caption, t.P.Dim, r.detail, false)),
+							comp.Fixed(gtx, 148, comp.OneLine(t, t.Sz.Caption, t.P.Dim, r.detail, false)),
 						)
 					})
 			}))

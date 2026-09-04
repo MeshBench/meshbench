@@ -1,14 +1,13 @@
 // The packet view, to Alex's mocks: one transmission, dissected, with
 // everywhere it went - and the same packet's fate at every node, which no
 // real capture can produce because no observer is everywhere.
-package workbench
+package packetview
 
 import (
 	"fmt"
-	"io"
+	"image"
 	"strings"
 
-	"gioui.org/io/clipboard"
 	"gioui.org/layout"
 	"gioui.org/widget"
 
@@ -19,15 +18,15 @@ import (
 
 var packetTabs = []string{"Overview", "Dissection", "Journey", "Reception ledger", "Where it went"}
 
-// packetOpenOnTab is which tab a freshly built Packet panel shows, set by
+// OpenOnTab is which tab a freshly built Packet panel shows, set by
 // -packet-tab.
 //
 // The same reason the node window has one: a tab that can only be reached by
 // clicking is a tab no screenshot can capture and no script can drive, and the
 // propagation graph lives on the second of these.
-var packetOpenOnTab int
+var OpenOnTab int
 
-type packetPanel struct {
+type Panel struct {
 	tabs   [5]widget.Clickable
 	tab    int
 	scroll widget.List
@@ -79,10 +78,12 @@ type packetPanel struct {
 	next      comp.Button
 	close     comp.Button
 	built     bool
-	do        Do
+	// Do fires a verb. The workbench passes its own Do straight in:
+	// a named func type assigns to its underlying type.
+	Do func(verb string, params any)
 }
 
-func (p *packetPanel) build() {
+func (p *Panel) build() {
 	p.fates.Cols = []comp.Column{
 		{Title: "t", Width: 64, Right: true, Mono: true, Sortable: true},
 		{Title: "node", Width: 170, Sortable: true},
@@ -104,19 +105,13 @@ func (p *packetPanel) build() {
 	p.scroll.Axis, p.jList.Axis, p.lList.Axis = layout.Vertical, layout.Vertical, layout.Vertical
 	p.overviewList.Axis = layout.Vertical
 	p.selField, p.selSpan = -1, -1
-	if packetOpenOnTab > 0 && packetOpenOnTab < len(packetTabs) {
-		p.tab = packetOpenOnTab
+	if OpenOnTab > 0 && OpenOnTab < len(packetTabs) {
+		p.tab = OpenOnTab
 	}
 	p.built = true
 }
 
-// copyText puts a string on the system clipboard.
-func copyText(gtx layout.Context, s string) {
-	gtx.Execute(clipboard.WriteCmd{Type: "application/text",
-		Data: io.NopCloser(strings.NewReader(s))})
-}
-
-func (p *packetPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+func (p *Panel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
 	if !p.built {
 		p.build()
 	}
@@ -134,17 +129,17 @@ func (p *packetPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 			p.tab = i
 		}
 	}
-	if p.close.Click.Clicked(gtx) && p.do != nil {
-		p.do("packet.close", nil)
+	if p.close.Click.Clicked(gtx) && p.Do != nil {
+		p.Do("packet.close", nil)
 	}
-	if p.prev.Click.Clicked(gtx) && p.do != nil {
-		p.do("packet.open", map[string]any{"id": float64(pk.ID - 1), "seek": -1.0})
+	if p.prev.Click.Clicked(gtx) && p.Do != nil {
+		p.Do("packet.open", map[string]any{"id": float64(pk.ID - 1), "seek": -1.0})
 	}
-	if p.next.Click.Clicked(gtx) && p.do != nil {
-		p.do("packet.open", map[string]any{"id": float64(pk.ID + 1), "seek": 1.0})
+	if p.next.Click.Clicked(gtx) && p.Do != nil {
+		p.Do("packet.open", map[string]any{"id": float64(pk.ID + 1), "seek": 1.0})
 	}
 	if p.copyBtn.Click.Clicked(gtx) {
-		copyText(gtx, packetText(pk))
+		comp.CopyText(gtx, packetText(pk))
 	}
 	if p.graphBtn.Click.Clicked(gtx) {
 		p.noGraph = !p.noGraph
@@ -179,7 +174,7 @@ func (p *packetPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 	)
 }
 
-func (p *packetPanel) layoutBody(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
+func (p *Panel) layoutBody(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return p.header(t, gtx, pk)
@@ -213,7 +208,7 @@ func (p *packetPanel) layoutBody(t *theme.Theme, gtx layout.Context, pk *state.P
 
 // header: the packet, where it came from, and how it fared - green and red
 // carrying the two numbers that matter.
-func (p *packetPanel) header(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
+func (p *Panel) header(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
 	return layout.Inset{Bottom: t.Sp.S}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 			layout.Rigid(comp.Text(t, t.Sz.Title, t.P.Ink, fmt.Sprintf("Packet #%d", pk.ID))),
@@ -241,7 +236,7 @@ func (p *packetPanel) header(t *theme.Theme, gtx layout.Context, pk *state.Packe
 }
 
 // tabStrip is the mock's underlined tabs.
-func (p *packetPanel) tabStrip(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
+func (p *Panel) tabStrip(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
 	var kids []layout.FlexChild
 	for i := range p.tabs {
 		i := i
@@ -263,10 +258,10 @@ func (p *packetPanel) tabStrip(t *theme.Theme, gtx layout.Context, pk *state.Pac
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if p.tab != i {
-							return layout.Dimensions{Size: imagePtXY(0, gtx.Dp(2))}
+							return layout.Dimensions{Size: image.Pt(0, gtx.Dp(2))}
 						}
 						w := gtx.Constraints.Min.X
-						return comp.FillRect(gtx, imagePtXY(w, gtx.Dp(2)), t.P.Accent)
+						return comp.FillRect(gtx, image.Pt(w, gtx.Dp(2)), t.P.Accent)
 					}),
 				)
 			})
@@ -293,7 +288,7 @@ func statBox(t *theme.Theme, label, value, sub string) layout.Widget {
 }
 
 // footer: where you are among the packets, and the two actions.
-func (p *packetPanel) footer(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
+func (p *Panel) footer(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
 	return layout.Inset{Top: t.Sp.S}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 			layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint,

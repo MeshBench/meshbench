@@ -5,12 +5,13 @@
 // Split from packetpanel.go on size. The seam is real - these two read the
 // run's own record of what each node did, where the tabs beside them read the
 // bytes of one frame.
-package workbench
+package packetview
 
 import (
 	"fmt"
 
 	"gioui.org/layout"
+	"gioui.org/unit"
 	"gioui.org/widget"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
@@ -20,7 +21,7 @@ import (
 
 // ledger: the radio-level truth per receiver, yes and no in their colours,
 // with the way into the link that explains each row.
-func (p *packetPanel) ledger(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
+func (p *Panel) ledger(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
 	cols := []struct {
 		label string
 		width int
@@ -30,7 +31,7 @@ func (p *packetPanel) ledger(t *theme.Theme, gtx layout.Context, pk *state.Packe
 	}
 	cell := func(w int, wgt layout.Widget) layout.FlexChild {
 		return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			px := gtx.Dp(unitDp(w))
+			px := gtx.Dp(unit.Dp(w))
 			gtx.Constraints.Min.X, gtx.Constraints.Max.X = px, px
 			d := wgt(gtx)
 			d.Size.X = px
@@ -114,7 +115,7 @@ func (p *packetPanel) ledger(t *theme.Theme, gtx layout.Context, pk *state.Packe
 							cell(cols[5].width, ynText(r.CRCOK, r.Demod)),
 							cell(cols[6].width, comp.Text(t, t.Sz.Caption, fwInk, r.Firmware)),
 							cell(cols[7].width, func(gtx layout.Context) layout.Dimensions {
-								return borderedAction(t, gtx, ck, "why?", t.P.Rule, t.P.Dim)
+								return comp.BorderedAction(t, gtx, ck, "why?", t.P.Rule, t.P.Dim)
 							}),
 						)
 					})
@@ -124,7 +125,7 @@ func (p *packetPanel) ledger(t *theme.Theme, gtx layout.Context, pk *state.Packe
 }
 
 // whereItWent: every node's outcome for this one transmission.
-func (p *packetPanel) whereItWent(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
+func (p *Panel) whereItWent(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
 	rows := make([]comp.Row, 0, len(pk.Fates))
 	for i, f := range pk.Fates {
 		c := comp.ClassColour(t, f.Kind)

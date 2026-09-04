@@ -87,7 +87,7 @@ func (c *companionTab) setting(t *theme.Theme, label string, f *comp.Field, now,
 		return layout.Inset{Left: t.Sp.S, Right: t.Sp.S, Top: t.Sp.XXS, Bottom: t.Sp.XXS}.
 			Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-					fixed(gtx, 132, comp.Text(t, t.Sz.Caption, t.P.Dim, label)),
+					comp.Fixed(gtx, 132, comp.Text(t, t.Sz.Caption, t.P.Dim, label)),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						gtx.Constraints.Min.X = gtx.Dp(140)
 						gtx.Constraints.Max.X = gtx.Dp(140)
@@ -127,7 +127,7 @@ func (c *companionTab) pathHashRow(t *theme.Theme, gtx layout.Context, cs state.
 	return layout.Inset{Left: t.Sp.S, Right: t.Sp.S, Top: t.Sp.XXS}.Layout(gtx,
 		func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-				fixed(gtx, 132, comp.Text(t, t.Sz.Caption, t.P.Dim, "Hash size")),
+				comp.Fixed(gtx, 132, comp.Text(t, t.Sz.Caption, t.P.Dim, "Hash size")),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return c.hashPicker(t, gtx)
 				}),

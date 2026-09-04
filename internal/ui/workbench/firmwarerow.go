@@ -132,7 +132,7 @@ func (p *firmwarePanel) row(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 						}),
 						cell(fwCols[5].width, comp.Mono(t, t.Sz.Caption, t.P.Dim, used)),
 						cell(fwCols[6].width, func(gtx layout.Context) layout.Dimensions {
-							return borderedAction(t, gtx, &w.use, "use for this role", t.P.Rule, t.P.Ink)
+							return comp.BorderedAction(t, gtx, &w.use, "use for this role", t.P.Rule, t.P.Ink)
 						}),
 						cell(fwCols[7].width, func(gtx layout.Context) layout.Dimensions {
 							label, line, ink := "delete", t.P.Rule, t.P.Dim
@@ -145,7 +145,7 @@ func (p *firmwarePanel) row(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 							} else if p.confirm == key {
 								label, line, ink = "sure?", t.P.Bad, t.P.Bad
 							}
-							return borderedAction(t, gtx, &w.act, label, line, ink)
+							return comp.BorderedAction(t, gtx, &w.act, label, line, ink)
 						}),
 					)
 				})

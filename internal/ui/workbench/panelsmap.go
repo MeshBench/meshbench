@@ -7,6 +7,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/ui/shell"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
+	"github.com/MeshBench/meshbench/internal/ui/workbench/packetview"
 )
 
 func addMapPanels(d panelDeps) {
@@ -27,6 +28,6 @@ func addMapPanels(d panelDeps) {
 	// selection: what this node has said and heard, not a form about it.
 	insp := &eventsPanel{compact: true, forNode: true, OnOpenPacket: d.openPacket}
 	d.sh.Add(homed(&shell.Panel{Name: "Inspector", Windowable: true, Draw: insp.Draw}))
-	pkt := &packetPanel{do: d.do}
+	pkt := &packetview.Panel{Do: d.do}
 	d.sh.Add(homed(&shell.Panel{Name: "Packet", Windowable: true, Draw: pkt.Draw}))
 }

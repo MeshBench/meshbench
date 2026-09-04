@@ -2,10 +2,11 @@
 // whole journey, and what became of each attempt - drawn over the packet
 // panel rather than sending the operator to another one, because the
 // question is about this packet, not about the link in general.
-package workbench
+package packetview
 
 import (
 	"fmt"
+	"image/color"
 
 	"gioui.org/io/event"
 	"gioui.org/io/key"
@@ -21,7 +22,7 @@ import (
 
 // whyModal draws the overlay when a "why?" button has been clicked, and
 // nothing when one has not.
-func (p *packetPanel) whyModal(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
+func (p *Panel) whyModal(t *theme.Theme, gtx layout.Context, pk *state.Packet) layout.Dimensions {
 	if p.whyOpen == "" {
 		return layout.Dimensions{}
 	}
@@ -144,7 +145,7 @@ func whyRow(t *theme.Theme, gtx layout.Context, r state.PacketReception) layout.
 // the engine's own words when it has them, and a plain fact when it does not
 // (out of range never had a reason to give, and a clean decode is not a
 // failure looking for an explanation).
-func receptionStatus(t *theme.Theme, r state.PacketReception) (string, colorNRGBA) {
+func receptionStatus(t *theme.Theme, r state.PacketReception) (string, color.NRGBA) {
 	switch {
 	case !r.Offered:
 		return "out of range - nothing measurable arrived", t.P.Faint

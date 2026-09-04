@@ -73,7 +73,7 @@ func (c *companionTab) servedAddress(t *theme.Theme, gtx layout.Context, ep stat
 					layout.Rigid(comp.Mono(t, t.Sz.Body, t.P.Accent, ep.Addr)),
 					layout.Rigid(layout.Spacer{Width: t.Sp.S}.Layout),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return borderedAction(t, gtx, c.click("copyaddr"), "copy", t.P.Rule, t.P.Dim)
+						return comp.BorderedAction(t, gtx, c.click("copyaddr"), "copy", t.P.Rule, t.P.Dim)
 					}),
 					layout.Flexed(1, comp.Spacer),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {

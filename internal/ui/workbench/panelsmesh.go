@@ -11,6 +11,7 @@ import (
 
 	hw "github.com/MeshBench/meshbench/internal/firmware/board"
 	"github.com/MeshBench/meshbench/internal/ui/shell"
+	"github.com/MeshBench/meshbench/internal/ui/workbench/packetview"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
@@ -37,7 +38,7 @@ func addMeshPanels(d panelDeps) {
 		nv.SetFilter(*d.filterFlag)
 	}
 	openOnTab = nodeTab(*d.nodeTabFlag)
-	packetOpenOnTab = *d.packetTabFlag
+	packetview.OpenOnTab = *d.packetTabFlag
 	if *d.nodeWinFlag != "" {
 		go func() {
 			time.Sleep(4 * time.Second)
