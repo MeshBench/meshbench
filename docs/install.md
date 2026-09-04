@@ -13,8 +13,8 @@ an emoji-capable font; nothing else has to be installed first.
 **AppImage** — one file, any distribution, no install:
 
 ```bash
-chmod +x meshbench-*-x86_64.AppImage
-./meshbench-*-x86_64.AppImage
+chmod +x meshbench-x86_64-compact.AppImage
+./meshbench-x86_64-compact.AppImage
 ```
 
 **Debian and Ubuntu** — puts it in the launcher with an icon:
@@ -30,7 +30,7 @@ AppImage and the `.deb` carry the radio model but not the emulators, which are
 110 MB of the tarball's size:
 
 ```bash
-tar xzf meshbench-linux-x86_64.tar.gz
+tar xzf meshbench-linux-x86_64-bundled.tar.gz
 cd meshbench && ./meshbench workbench
 ```
 
@@ -44,7 +44,7 @@ that cannot run it rather than installing something that dies at launch.
 
 ### macOS (Apple Silicon)
 
-Open `MeshBench-*-arm64.dmg`. The window has MeshBench on the left and an
+Open `MeshBench-arm64-bundled.dmg`. The window has MeshBench on the left and an
 Applications folder on the right: drag the one onto the other, then eject the
 disk image and launch MeshBench from Applications or Spotlight.
 
@@ -80,7 +80,7 @@ Intel Macs are not built yet. Ask if you need one.
 
 Two downloads, and either is a complete build.
 
-`meshbench-*-windows-x86_64.msi` is the installer. Double-click it and it asks
+`meshbench-windows-x86_64-bundled.msi` is the installer. Double-click it and it asks
 where to go — `C:\Program Files\MeshBench` unless you browse somewhere else —
 adds a Start menu entry, and appears in Apps and Features with an uninstall and
 the location it used. Installing a newer one replaces the installation rather
