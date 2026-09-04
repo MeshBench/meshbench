@@ -225,9 +225,26 @@ whose variants use plain `INPUT`, so the two are independently evidenced rather
 than a pair that happen to work together.
 
 **What is still open.** `LilyGo_TDeck` forwards nothing, on the same emulator and
-model as the ESP32-S3 boards that do. And no nRF52 board has a working
-filesystem: `IdentityStore::save()` fails every boot, so nothing a repeater
-stores survives a restart - tracked separately.
+model as the ESP32-S3 boards that do. Re-measured on 4 September against the
+chip model loaded inside QEMU, which is the arrangement the other three S3
+boards pass under, and it reproduced: adverts unprompted at 34.0 s, is heard,
+answers its console after a 15 s idle, and forwards 0 of 2. So this is the
+board's own row rather than something the old radio server was doing to it,
+and the columns either side of the failure are the useful part - it transmits
+and it is heard, and only the forward is missing.
+
+Two traps sit in front of anybody re-measuring this. A stale toolchain reads as
+a board fault: a tools directory without `virtual-sx1262` fails the boot
+outright, and one carrying a QEMU from before the chip moved inside it gets as
+far as "firmware started but never connected", neither of which is the board.
+`resource.list` is the check - the pinned build reads `on disk` and anything
+else reads `available`. And `rx` passing proves less than it appears, because
+the engine records a delivery before the firmware reads it; `flood` is the
+column that shows the firmware actually got the packet.
+
+And no nRF52 board has a working filesystem: `IdentityStore::save()` fails
+every boot, so nothing a repeater stores survives a restart - tracked
+separately.
 
 ## Where the board matrix's failures are (last true: 2026-08-29)
 

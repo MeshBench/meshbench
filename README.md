@@ -205,11 +205,15 @@ nobody has watched that board do that thing.
 
 ✓ passed  ✗ failed  – not applicable  ? not measurable yet  blank not attempted
 
-Measured one board at a time on an idle machine. Nine of these rows were
-re-measured on 4 September 2026 against `virtual-sx1262` v1.3.0, loaded inside
-the emulator, and every one reproduced what it had shown the day before through
-the radio server that arrangement replaced. `LilyGo_TDeck` is the exception and
-still carries its 3 September run; the two blanks have never been attempted.
+Measured one board at a time on an idle machine, all ten rows on 4 September
+2026 against `virtual-sx1262` v1.3.0 loaded inside the emulator, and every one
+reproduced what it had shown the day before through the radio server that
+arrangement replaced. The two blanks have never been attempted.
+
+That includes `LilyGo_TDeck`, whose ✗ is therefore its own and not an artefact
+of the old arrangement: it adverts at 34.0 s, is heard, answers its console
+after an idle, and forwards 0 of 2 - on the same MCU, emulator and chip model
+as the three ESP32-S3 boards that forward 2 of 2.
 
 What each board's row means in detail is in
 [`docs/emulated-published-firmware.md`](docs/emulated-published-firmware.md).
