@@ -21,7 +21,7 @@ package resource
 // downloads have to be the same build, or a bug reproduces on one machine and
 // not the other.
 const (
-	qemuBase   = "https://github.com/MeshBench/qemu/releases/download/v9.2.2-meshbench-sx1262-10/"
+	qemuBase   = "https://github.com/MeshBench/qemu/releases/download/v9.2.2-meshbench-sx1262-11/"
 	renodeBase = "https://github.com/MeshBench/renode/releases/download/meshbench-20260901-ca9f7e3/"
 	chipBase   = "https://github.com/MeshBench/virtual-sx1262/releases/download/v1.3.0/"
 )
@@ -97,22 +97,22 @@ var toolReleases = []toolRelease{{
 	Unsupported: map[string]string{"windows/amd64": windowsFetchesNoEmulators},
 }, {
 	Name:    "qemu-system-xtensa",
-	Version: "v9.2.2-meshbench-sx1262-10",
+	Version: "v9.2.2-meshbench-sx1262-11",
 	MCU:     "ESP32",
 	Why: "the emulator for the ESP32 family, carrying our SX1262 device, its " +
 		"DIO1 line and the GPIO implementation upstream has not got",
 	Terms: qemuTerms,
 	Assets: map[string]toolAsset{
 		"linux/amd64": {
-			URL:    qemuBase + "qemu-xtensa-softmmu-v9.2.2_meshbench_sx1262_10-x86_64-linux-gnu.tar.xz",
-			SHA256: "8d5d4cd92ced6a6ebc7fceecbf6da77837beca7ae3ddb3f9706a213761b87cbe",
-			Bytes:  17089336, Kind: tarXZ, Magic: elfAMD64,
+			URL:    qemuBase + "qemu-xtensa-softmmu-v9.2.2_meshbench_sx1262_11-x86_64-linux-gnu.tar.xz",
+			SHA256: "05245a554ad9a1bfb1af81146d50c625f1469c41283efbc47f2025920b57a8ac",
+			Bytes:  17103336, Kind: tarXZ, Magic: elfAMD64,
 			Root: "qemu", Binary: "qemu/bin/qemu-system-xtensa",
 		},
 		"darwin/arm64": {
-			URL:    qemuBase + "qemu-xtensa-softmmu-v9.2.2_meshbench_sx1262_10-aarch64-apple-darwin.tar.xz",
-			SHA256: "f6bf3e4d5fd7e9b66b9632d224ea4c22e860ff4eb5175913033d9f0e73c24f01",
-			Bytes:  4573100, Kind: tarXZ, Magic: machARM64,
+			URL:    qemuBase + "qemu-xtensa-softmmu-v9.2.2_meshbench_sx1262_11-aarch64-apple-darwin.tar.xz",
+			SHA256: "7930f3704408f6dd74b16bacbf86f0fd07aec7f1df29d6cf0886e231a138030e",
+			Bytes:  5071740, Kind: tarXZ, Magic: machARM64,
 			Root: "qemu", Binary: "qemu/bin/qemu-system-xtensa",
 		},
 	},
