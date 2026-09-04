@@ -132,6 +132,11 @@ internal/app/       orchestration, no toolkit
                         beside SweepArm, because provisioning describes the
                         same configuration under test
     sweep/              the sweep verbs and their offered-load plan, wired in by init
+    firmwarelib/        the firmware library: what builds exist on disk and
+                        upstream, what each node is pinned to, and the verbs
+                        that scan, download, build and pin them, wired in by
+                        init. The start gate stays in core, because playready
+                        and runkind ask it whether a run may begin
     fleet/              the bulk node verbs, wired in by init
     inventory/          the node and event listing verbs, wired in by init
     links/              the link pair and profile verbs, wired in by init

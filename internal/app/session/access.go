@@ -308,3 +308,36 @@ func (s *Sim) NewCompanionSink(node string) io.Writer { return &compSession{node
 // ScenarioEpoch is the instant a scenario's clock starts from, which a run has
 // to share for two cells to be comparable at all.
 const ScenarioEpoch = scenarioEpoch
+
+// PublishCards, UpdateNodes and WipeCardsOutside are the three scenario-writing
+// helpers the firmware library needs: pinning a build changes what a node runs,
+// which is a change to the scenario and to the rows drawn from it both.
+//
+// UpdateNodes is the one that matters. It walks the scenario and the world's
+// rows together, so a pin that reached one and not the other cannot happen -
+// which is what a node showing an old version after a successful pin was.
+func (s *Sim) PublishCards(w *state.World) { s.publishCards(w) }
+
+func (s *Sim) UpdateNodes(w *state.World,
+	change func(n *scenario.Node, row *state.Node) bool) int {
+	return s.updateNodes(w, change)
+}
+
+func (s *Sim) WipeCardsOutside(root string) int { return s.wipeCardsOutside(root) }
+
+// LibraryRows is the library table in the form a verb answers with, and
+// RefuseHalfAnImage is the check that an ESP32 image is a whole one. Both are
+// core's, and the library package calls them rather than keeping a second
+// version of either.
+func LibraryRows(rows []state.FirmwareRow) []map[string]any { return libraryRows(rows) }
+func RefuseHalfAnImage(path, board string) error            { return refuseHalfAnImage(path, board) }
+
+// UI is whatever is drawing this session, or nil when nothing is; NeedUI is
+// the refusal a window verb returns when there is nothing to draw into.
+//
+// The first split-out domain to want these was the firmware library, whose
+// firmware.window opens a build in a window of its own. Ask NeedUI first: a
+// headless session is the normal case for a script, and the refusal it returns
+// says so in one sentence rather than arriving as a nil dereference.
+func (s *Sim) UI() UI        { return s.ui }
+func (s *Sim) NeedUI() error { return s.needUI() }

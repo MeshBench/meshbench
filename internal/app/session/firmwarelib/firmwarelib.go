@@ -9,16 +9,17 @@
 // The three verbs here are the ones that only read. Changing the cache is in
 // firmwarecache.go and changing a node is in firmwarenodes.go, registered from
 // here so the store is still wired up by one call.
-package session
+package firmwarelib
 
 import (
 	"sort"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/firmware"
 )
 
-func registerFirmwareLibrary(st *state.Store, s *Sim) {
+func registerFirmwareLibrary(st *state.Store, s *session.Sim) {
 	registerFirmwareCache(st, s)
 	registerFirmwareNodes(st, s)
 
@@ -52,10 +53,10 @@ func registerFirmwareLibrary(st *state.Store, s *Sim) {
 		// read only the catalogue's cache, and everything in the cache is by
 		// definition already downloaded - so the one thing a library is for,
 		// showing what could be fetched, never appeared on it.
-		s.startPublishedFetch(st)
-		s.fillLibrary(w)
+		startPublishedFetch(s, st)
+		fillLibrary(s, w)
 		return map[string]any{
-			"builds": libraryRows(w.Library), "count": len(w.Library),
+			"builds": session.LibraryRows(w.Library), "count": len(w.Library),
 		}, nil
 	})
 
@@ -72,11 +73,11 @@ func registerFirmwareLibrary(st *state.Store, s *Sim) {
 		}
 		var order []string
 		counts := map[string]int{}
-		for _, n := range s.nodes {
+		for _, n := range s.Nodes() {
 			if !n.Kind.RunsFirmware() {
 				continue
 			}
-			role := nodeRole(n)
+			role := session.NodeRole(n)
 			if v := n.Firmware.Version; v != "" && (have[role+"@"+v] || have[v]) {
 				continue
 			}

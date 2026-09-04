@@ -232,19 +232,28 @@ def ui_only():
     this table by itself.
     """
     out = set()
-    # Every file in the package, not ui.go alone. The guard is what makes a
-    # verb interface-only, and which file its handler happens to sit in is a
-    # question of length limits: node.window, firmware.window and
-    # node.output_window all guard and all live elsewhere, and reading one
-    # file silently dropped the mark from the table.
-    for name in sorted(os.listdir(SESSION)):
-        if not name.endswith(".go") or name.endswith("_test.go"):
-            continue
-        src = open(os.path.join(SESSION, name)).read()
-        for m in HANDLE.finditer(src):
-            body = body_of(src, m.end())
-            if "needUI()" in body or "need()" in body:
-                out.add(m.group(1))
+    # Every file under the package, not ui.go alone and not the top directory
+    # alone. The guard is what makes a verb interface-only, and which file its
+    # handler sits in is a question of length limits: node.window,
+    # firmware.window and node.output_window all guard and all live elsewhere,
+    # and reading one file silently dropped the mark from the table.
+    #
+    # Walked rather than listed, because a domain package split out of session
+    # keeps its verbs in a subdirectory. firmware.window moved into
+    # firmwarelib and lost its mark here while still refusing at runtime -
+    # documentation saying a verb works headless when it does not.
+    #
+    # Both spellings of the guard, for the same reason: a handler in a
+    # subpackage cannot call the unexported one and calls session.NeedUI.
+    for dirpath, _, names in os.walk(SESSION):
+        for name in sorted(names):
+            if not name.endswith(".go") or name.endswith("_test.go"):
+                continue
+            src = open(os.path.join(dirpath, name)).read()
+            for m in HANDLE.finditer(src):
+                body = body_of(src, m.end())
+                if "needUI()" in body or "NeedUI()" in body or "need()" in body:
+                    out.add(m.group(1))
     return out
 
 

@@ -3,45 +3,46 @@
 // The fetch and the verb that repeats it live together because they are one
 // question asked twice: the library asks it once on the way past, and the scan
 // button asks it again when somebody has published something since.
-package session
+package firmwarelib
 
 import (
 	"context"
 	"time"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/firmware"
 )
 
-func registerFirmwareScan(st *state.Store, s *Sim) {
+func registerFirmwareScan(st *state.Store, s *session.Sim) {
 	// The catalogue is read once and kept, so without this a session that
 	// started before a release could never be told about it. Forgetting the
 	// last answer is what makes it a rescan; a fetch already in flight is left
 	// alone, because two in flight would race to land.
 	st.Handle("firmware.rescan", func(w *state.World, _ any) (any, error) {
-		if !s.fetchingPublished {
-			s.publishedNet = nil
+		if !catalogueOf(s).fetching {
+			catalogueOf(s).published = nil
 		}
-		s.startPublishedFetch(st)
-		s.fillLibrary(w)
+		startPublishedFetch(s, st)
+		fillLibrary(s, w)
 		return map[string]any{
-			"scanning": s.fetchingPublished, "count": len(w.Library),
+			"scanning": catalogueOf(s).fetching, "count": len(w.Library),
 		}, nil
 	})
 
 	st.HandleInternal("firmware.published", func(w *state.World, p any) (any, error) {
 		list, ok := p.([]publishedBuild)
 		if !ok {
-			return nil, wrongCallback("firmware.published")
+			return nil, session.WrongCallback("firmware.published")
 		}
-		s.publishedNet = list
-		s.fetchingPublished = false
+		catalogueOf(s).published = list
+		catalogueOf(s).fetching = false
 		// Rebuild the rows here, or the fetch lands in a field nobody reads
 		// again: the panel asks for the library once, the network answers a
 		// few seconds later, and without this the answer sits unused until
 		// somebody presses refresh. Which is what "the published builds never
 		// appear" looked like.
-		s.fillLibrary(w)
+		fillLibrary(s, w)
 		return map[string]any{"published": len(list), "builds": len(w.Library)}, nil
 	})
 }
@@ -51,11 +52,11 @@ func registerFirmwareScan(st *state.Store, s *Sim) {
 //
 // Called from the store's goroutine, which is what makes the two flags a
 // single-flight guard rather than a race.
-func (s *Sim) startPublishedFetch(st *state.Store) {
-	if s.publishedNet != nil || s.fetchingPublished {
+func startPublishedFetch(s *session.Sim, st *state.Store) {
+	if catalogueOf(s).published != nil || catalogueOf(s).fetching {
 		return
 	}
-	s.fetchingPublished = true
+	catalogueOf(s).fetching = true
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()

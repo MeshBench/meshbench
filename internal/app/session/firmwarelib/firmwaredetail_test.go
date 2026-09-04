@@ -1,4 +1,4 @@
-package session
+package firmwarelib
 
 import (
 	"os"
@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/firmware"
 	"github.com/MeshBench/meshbench/internal/firmware/emulated"
@@ -43,10 +44,11 @@ func addToCache(t *testing.T, board string, names ...string) string {
 	return dir
 }
 
-func aSimWithLibrary(t *testing.T, nodes ...scenario.Node) (*state.Store, *Sim) {
+func aSimWithLibrary(t *testing.T, nodes ...scenario.Node) (*state.Store, *session.Sim) {
 	t.Helper()
 	st := state.New(10)
-	s := &Sim{nodes: nodes}
+	s := &session.Sim{}
+	s.BuildSeeded(nodes, 869.618, 1)
 	registerFirmwareLibrary(st, s)
 	registerFirmwareDetail(st, s)
 	go st.Run(t.Context())
@@ -175,8 +177,8 @@ func TestRenamingABuildRepointsTheNodesRunningIt(t *testing.T) {
 	if m["renamed"] != true || m["repinned"] != 1 {
 		t.Errorf("renamed=%v repinned=%v, want true and 1", m["renamed"], m["repinned"])
 	}
-	if s.nodes[0].Firmware.Version != "wadamesh 1.2" {
-		t.Errorf("the node still asks for %q", s.nodes[0].Firmware.Version)
+	if s.Nodes()[0].Firmware.Version != "wadamesh 1.2" {
+		t.Errorf("the node still asks for %q", s.Nodes()[0].Firmware.Version)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "simple_repeater@wadamesh 1.2.bin")); err != nil {
 		t.Errorf("the file did not move: %v", err)
