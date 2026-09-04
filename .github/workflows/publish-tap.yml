@@ -20,9 +20,29 @@ name: publish tap
 # cask re-fetches the whole disk image on every upgrade, so the default that is
 # right for a one-off download is the wrong one to repeat every release.
 
+# Called by package.yml once the release job has published, and dispatchable by
+# hand for a re-run.
+#
+# The release trigger below is kept for a release somebody cuts from the
+# GitHub UI, but it does NOT fire for the pipeline's own releases and cannot be
+# relied on: package.yml creates the release with GITHUB_TOKEN, and GitHub
+# raises no workflow-triggering event for anything done with that token - the
+# rule that stops workflows recursing. This ran zero times across every 0.0.6
+# attempt, and nobody noticed because "no runs" looks exactly like "not
+# reached yet". workflow_call is what actually connects it.
 on:
   release:
     types: [published]
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Release tag to publish'
+        required: true
+        type: string
+      dry_run:
+        description: 'Render the casks and push nothing'
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       tag:
@@ -50,7 +70,7 @@ jobs:
         id: rel
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.event.inputs.tag || github.event.release.tag_name }}
+          TAG: ${{ inputs.tag || github.event.release.tag_name }}
         run: |
           set -euo pipefail
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
@@ -148,7 +168,7 @@ jobs:
         env:
           DEPLOY_KEY: ${{ secrets.TAP_DEPLOY_KEY }}
           TAG: ${{ steps.rel.outputs.tag }}
-          DRY: ${{ github.event.inputs.dry_run || 'false' }}
+          DRY: ${{ inputs.dry_run || 'false' }}
         run: |
           set -euo pipefail
           if [ -z "${DEPLOY_KEY:-}" ]; then

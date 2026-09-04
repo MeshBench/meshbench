@@ -811,6 +811,12 @@ jobs:
       # actions: write is for the tidy step at the end, which deletes the
       # build artifacts once they are release assets.
       actions: write
+    # The tag this job actually published under, so the publishers below take
+    # it from here rather than working it out a second way. It is derived from
+    # either inputs.version or the ref, and two places deriving it is two
+    # places for them to disagree about which release is being published.
+    outputs:
+      tag: ${{ steps.publish.outputs.tag }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -900,6 +906,7 @@ jobs:
           go run ./tools/licgen -require-project-licence
 
       - name: Publish
+        id: publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -912,6 +919,7 @@ jobs:
             esac
           fi
           TAG="v${VERSION}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
           # GPL-3.0 section 6: whoever gets the binary can have the source.
           git archive --format=tar.gz --prefix="meshbench-${VERSION}/" \
@@ -970,3 +978,35 @@ jobs:
             gh api -X DELETE "repos/${GITHUB_REPOSITORY}/actions/artifacts/$id" && freed=$((freed+1))
           done
           echo "deleted $freed build artifacts; the release page keeps the copies that matter"
+
+  # The two package managers, once the release exists and not before: both read
+  # the release's own assets, so calling them any earlier would be asking for
+  # files that are not there yet.
+  #
+  # Called rather than triggered. Each still declares `on: release: published`,
+  # and that never fires for a release this pipeline cuts: the release job
+  # creates it with GITHUB_TOKEN, and GitHub raises no workflow-triggering
+  # event for anything done with that token, which is the rule that stops
+  # workflows recursing. Both ran zero times across every 0.0.6 attempt, and
+  # nothing said so - "no runs" is indistinguishable from "not reached yet".
+  #
+  # secrets: inherit, because the signing key and the two deploy keys live on
+  # the environments those workflows declare, and a called workflow is given
+  # nothing by default.
+  apt:
+    name: apt repository
+    needs: release
+    if: needs.release.result == 'success'
+    uses: ./.github/workflows/publish-apt.yml
+    secrets: inherit
+    with:
+      tag: ${{ needs.release.outputs.tag }}
+
+  tap:
+    name: Homebrew tap
+    needs: release
+    if: needs.release.result == 'success'
+    uses: ./.github/workflows/publish-tap.yml
+    secrets: inherit
+    with:
+      tag: ${{ needs.release.outputs.tag }}
