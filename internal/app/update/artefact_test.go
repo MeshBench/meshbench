@@ -85,7 +85,7 @@ func TestEachBundleTakesItsOwnArtefact(t *testing.T) {
 		{update.Msi, "windows", "amd64", "meshbench-0.2.0-windows-x86_64.msi"},
 	}
 	for _, c := range cases {
-		got, why := update.AssetFor(released, c.art, c.goos, c.goarch)
+		got, why := update.AssetFor(released, c.art, c.goos, c.goarch, update.UnknownVariant)
 		if why != "" {
 			t.Errorf("%s on %s/%s: refused with %q", c.art, c.goos, c.goarch, why)
 			continue
@@ -103,7 +103,7 @@ func TestEachBundleTakesItsOwnArtefact(t *testing.T) {
 func TestTheSourceArchiveIsNeverTakenAsABuild(t *testing.T) {
 	only := update.Release{Tag: "v0.2.0", Assets: []update.Asset{
 		{Name: "meshbench-0.2.0-source.tar.gz"}}}
-	if _, why := update.AssetFor(only, update.Tarball, "linux", "amd64"); why == "" {
+	if _, why := update.AssetFor(only, update.Tarball, "linux", "amd64", update.UnknownVariant); why == "" {
 		t.Error("the source archive was offered as a Linux build")
 	}
 }
@@ -111,7 +111,7 @@ func TestTheSourceArchiveIsNeverTakenAsABuild(t *testing.T) {
 // A package manager's copy is not ours to replace, and the refusal says so
 // rather than offering a download that would fight apt.
 func TestAPackagedBuildIsHandedBackToItsPackageManager(t *testing.T) {
-	_, why := update.AssetFor(released, update.Deb, "linux", "amd64")
+	_, why := update.AssetFor(released, update.Deb, "linux", "amd64", update.UnknownVariant)
 	if !strings.Contains(why, "package manager") {
 		t.Errorf("the .deb refusal is %q, want it to name the package manager", why)
 	}
@@ -120,10 +120,10 @@ func TestAPackagedBuildIsHandedBackToItsPackageManager(t *testing.T) {
 // A platform nothing is published for gets a sentence, not a button that would
 // fail.
 func TestAPlatformWithNoBuildSaysSoRatherThanOfferingOne(t *testing.T) {
-	if _, why := update.AssetFor(released, update.Loose, "linux", "riscv64"); why == "" {
+	if _, why := update.AssetFor(released, update.Loose, "linux", "riscv64", update.UnknownVariant); why == "" {
 		t.Error("riscv64 was offered a download that does not exist")
 	}
-	if _, why := update.AssetFor(released, update.Bundle, "darwin", "amd64"); why == "" {
+	if _, why := update.AssetFor(released, update.Bundle, "darwin", "amd64", update.UnknownVariant); why == "" {
 		t.Error("an Intel Mac was offered the arm64 disk image")
 	}
 }
@@ -166,5 +166,95 @@ func TestWindowsAndThePackageManagerCannotBeSwappedInPlace(t *testing.T) {
 		if !update.CanSwapItself(a) {
 			t.Errorf("%s could be swapped by a rename and says it cannot", a)
 		}
+	}
+}
+
+// A release carries two of every format, one per variant, and taking the wrong
+// one is not a cosmetic error.
+//
+// Every matcher here works on suffix - ".AppImage", ".dmg", ".msi" - so before
+// the variant was part of the question, both assets matched and whichever came
+// first won. A bundled install updated into a compact one loses its emulators
+// on a machine where emulated boards had been working the day before, and the
+// download looks entirely normal on the way past.
+func TestAnUpdateNeverSwapsOneVariantForTheOther(t *testing.T) {
+	both := update.Release{Tag: "v0.3.0", Assets: []update.Asset{
+		{Name: "meshbench-linux-x86_64-compact.tar.gz"},
+		{Name: "meshbench-linux-x86_64-bundled.tar.gz"},
+		{Name: "meshbench-x86_64-compact.AppImage"},
+		{Name: "meshbench-x86_64-bundled.AppImage"},
+		{Name: "MeshBench-arm64-compact.dmg"},
+		{Name: "MeshBench-arm64-bundled.dmg"},
+		{Name: "meshbench-windows-x86_64-compact.msi"},
+		{Name: "meshbench-windows-x86_64-bundled.msi"},
+		{Name: "meshbench-source.tar.gz"},
+	}}
+	for _, c := range []struct {
+		art          update.Artefact
+		goos, goarch string
+		v            update.Variant
+		want         string
+	}{
+		{update.Tarball, "linux", "amd64", update.Bundled, "meshbench-linux-x86_64-bundled.tar.gz"},
+		{update.Tarball, "linux", "amd64", update.Compact, "meshbench-linux-x86_64-compact.tar.gz"},
+		{update.AppImage, "linux", "amd64", update.Bundled, "meshbench-x86_64-bundled.AppImage"},
+		{update.AppImage, "linux", "amd64", update.Compact, "meshbench-x86_64-compact.AppImage"},
+		{update.Bundle, "darwin", "arm64", update.Bundled, "MeshBench-arm64-bundled.dmg"},
+		{update.Bundle, "darwin", "arm64", update.Compact, "MeshBench-arm64-compact.dmg"},
+		{update.Msi, "windows", "amd64", update.Bundled, "meshbench-windows-x86_64-bundled.msi"},
+		{update.Msi, "windows", "amd64", update.Compact, "meshbench-windows-x86_64-compact.msi"},
+	} {
+		got, why := update.AssetFor(both, c.art, c.goos, c.goarch, c.v)
+		if why != "" {
+			t.Errorf("%s %s on %s: refused with %q", c.v, c.art, c.goos, why)
+			continue
+		}
+		if got.Name != c.want {
+			t.Errorf("a %s %s install was offered %q, want %q",
+				c.v, c.art, got.Name, c.want)
+		}
+	}
+}
+
+// A build from before the label existed still updates. Refusing one would
+// strand exactly the people who most need the update, so it takes whichever
+// asset matches its format and is wrong only once - on the update that gives it
+// a VARIANT file.
+func TestABuildWithNoVariantLabelStillUpdates(t *testing.T) {
+	both := update.Release{Tag: "v0.3.0", Assets: []update.Asset{
+		{Name: "meshbench-linux-x86_64-bundled.tar.gz"},
+		{Name: "meshbench-linux-x86_64-compact.tar.gz"},
+	}}
+	got, why := update.AssetFor(both, update.Tarball, "linux", "amd64", update.UnknownVariant)
+	if why != "" {
+		t.Fatalf("an unlabelled build was refused: %s", why)
+	}
+	if got.Name == "" {
+		t.Error("an unlabelled build was offered nothing")
+	}
+}
+
+// The label is read from the tree, not guessed from what is lying in it: an
+// install whose emulators were deleted by hand is still a bundled install.
+func TestTheVariantIsReadFromTheTree(t *testing.T) {
+	dir := t.TempDir()
+	exe := filepath.Join(dir, "meshbench")
+	if got := update.VariantBeside(exe); got != update.UnknownVariant {
+		t.Errorf("a tree with no VARIANT reported %q", got)
+	}
+	for _, want := range []update.Variant{update.Bundled, update.Compact} {
+		if err := os.WriteFile(filepath.Join(dir, "VARIANT"),
+			[]byte(string(want)+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if got := update.VariantBeside(exe); got != want {
+			t.Errorf("read %q, want %q", got, want)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(dir, "VARIANT"), []byte("something else"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := update.VariantBeside(exe); got != update.UnknownVariant {
+		t.Errorf("a VARIANT nobody wrote reported %q, want it ignored", got)
 	}
 }

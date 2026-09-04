@@ -228,7 +228,55 @@ func TestVerifyBundleRefusesABundleWithoutItsEmulators(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	// The tree says what it is, and what is required of it follows from that.
+	if err := os.WriteFile(filepath.Join(full, "VARIANT"), []byte("bundled\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	if code, out := run(t, "", script, full, "linux-amd64"); code != 0 {
 		t.Fatalf("a complete bundle was refused, exit %d:\n%s", code, out)
+	}
+}
+
+// A compact bundle is meant to carry no emulators, so holding it to the bundled
+// list would refuse a correct artifact - and a compact one that *does* carry
+// them is a packaging mistake worth catching, because it would ship as the
+// small download at the large size.
+func TestVerifyBundleJudgesEachVariantByItsOwnRules(t *testing.T) {
+	if _, err := exec.LookPath("bash"); err != nil {
+		t.Skip("no bash on this machine")
+	}
+	const script = "../packaging/verify-bundle.sh"
+
+	compact := t.TempDir()
+	for _, name := range []string{
+		"libvirtualsx1262.so",
+		"renode-support/peripherals/VirtualSX1262.cs",
+	} {
+		p := filepath.Join(compact, name)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte("x"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(compact, "VARIANT"), []byte("compact\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if code, out := run(t, "", script, compact, "linux-amd64"); code != 0 {
+		t.Fatalf("a correct compact bundle was refused, exit %d:\n%s", code, out)
+	}
+
+	// Now the same tree with an emulator in it, which it should not have.
+	p := filepath.Join(compact, "qemu-system-xtensa")
+	if err := os.WriteFile(p, []byte("x"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	code, out := run(t, "", script, compact, "linux-amd64")
+	if code == 0 {
+		t.Fatal("a compact bundle carrying an emulator was accepted")
+	}
+	if !strings.Contains(out, "qemu-system-xtensa") {
+		t.Errorf("the refusal does not name what it found:\n%s", out)
 	}
 }

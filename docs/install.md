@@ -5,16 +5,29 @@
 
 
 Downloads are on the [releases page](https://github.com/MeshBench/meshbench/releases).
-Every one of them carries the application, the map fixtures, the licences and
-an emoji-capable font; nothing else has to be installed first.
+Every one of them carries the application, the map fixtures, the licences, an
+emoji-capable font and the SX1262 chip model; nothing else has to be installed
+first.
+
+**Every format comes in two builds, and the name says which.**
+
+- **`-bundled`** carries the QEMU and Renode emulators as well, so an emulated
+  board boots on first run with nothing to fetch. About 118 MB.
+- **`-compact`** is the application on its own and completes itself from
+  Configuration > Setup, where that platform can (see
+  [First run](#first-run-what-is-missing-and-what-it-costs)). About 26 MB.
+
+Package managers install the application on its own under the plain name, and
+the emulators under `meshbench-bundled`. `meshbench -version` says which build
+you are running.
 
 ### Linux
 
 **AppImage** — one file, any distribution, no install:
 
 ```bash
-chmod +x meshbench-x86_64-compact.AppImage
-./meshbench-x86_64-compact.AppImage
+chmod +x meshbench-x86_64-bundled.AppImage
+./meshbench-x86_64-bundled.AppImage
 ```
 
 **Debian and Ubuntu** — puts it in the launcher with an icon:
@@ -24,15 +37,16 @@ sudo apt install ./meshbench_*_amd64.deb
 meshbench workbench          # or find MeshBench in the applications menu
 ```
 
-**Tarball** — the same application plus the QEMU and Renode emulators and the
-radio model they clock, for emulating real board firmware offline. The
-AppImage and the `.deb` carry the radio model but not the emulators, which are
-110 MB of the tarball's size:
+**Tarball** — unpack anywhere:
 
 ```bash
 tar xzf meshbench-linux-x86_64-bundled.tar.gz
 cd meshbench && ./meshbench workbench
 ```
+
+Take `-compact` instead of `-bundled` in any of the three names above for the
+application on its own. Both carry the chip model; only `-bundled` carries the
+emulators, which are about 92 MB of the difference.
 
 Needs glibc 2.35 or newer (Ubuntu 22.04, Debian 12 and anything since; RHEL 9
 ships 2.34 and is one release below it)

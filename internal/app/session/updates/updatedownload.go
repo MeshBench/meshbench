@@ -141,7 +141,7 @@ func fetch(ctx context.Context, feed string, u state.Update, dir string,
 	if err != nil {
 		return "", err
 	}
-	a, why := update.AssetFor(rel, update.This(), runtime.GOOS, runtime.GOARCH)
+	a, why := update.AssetFor(rel, update.This(), runtime.GOOS, runtime.GOARCH, update.ThisVariant())
 	if why != "" {
 		return "", fmt.Errorf("update: %s", why)
 	}

@@ -157,7 +157,7 @@ func detail(ctx context.Context, c update.Checker, u state.Update) state.Update 
 		u.Latest = ""
 		return u
 	}
-	a, why := update.AssetFor(rel, update.This(), runtime.GOOS, runtime.GOARCH)
+	a, why := update.AssetFor(rel, update.This(), runtime.GOOS, runtime.GOARCH, update.ThisVariant())
 	u.Asset, u.Bytes, u.Why = a.Name, a.Bytes, why
 	return u
 }
