@@ -3,9 +3,10 @@ name: CI
 on:
   push:
     branches: [main]
-    # Tags as well as main, so that pushing a release tag runs the full set
-    # including the race detector - see the race job below.
-    tags: ["v*"]
+    # Not tags. This used to carry them so a release tag ran the race
+    # detector, and the race job no longer runs on tags - so all a tag started
+    # here was the same suite that had already passed on the commit the tag
+    # points at, on the runners the release build was queueing for.
   pull_request:
   workflow_dispatch:
 
@@ -427,16 +428,24 @@ jobs:
   # for: run it from the Actions tab before a release, or locally with
   # `go test -race ./...` while chasing something.
   race:
-    # On a release tag, and on request. The reasoning above still holds - it
-    # is far too slow to sit in front of a merge, and three runners in the
-    # pool means an hour of detector on every push would starve the checks
+    # On request only. It is far too slow to sit in front of a merge - the
+    # session package alone took 38 minutes the last time it ran - and three
+    # runners in the pool means an hour of detector would starve the checks
     # people are actually waiting for.
     #
-    # But "run it from the Actions tab before a release" is a step somebody
-    # has to remember, and the argument this file makes throughout is that a
-    # check should not depend on that. Pushing the tag is the moment it
-    # matters, and the moment nobody is waiting on the answer.
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    # It used to run on a release tag too, on the argument that pushing the
+    # tag is the moment it matters and nobody is waiting on the answer. Both
+    # halves turned out to be wrong in practice. A tag is re-cut whenever a
+    # packaging fault is found, which during one release was five times, and
+    # each one started a 90-minute job on the same pool the release build was
+    # queueing for - so it was slowing down the thing it was meant to be out
+    # of the way of. And it does not gate the release: package.yml is a
+    # separate workflow, so a red detector never stopped anything, it only
+    # sat there red.
+    #
+    # So it is a thing somebody runs deliberately, from the Actions tab or
+    # `gh workflow run ci.yml`, when they want the answer.
+    if: github.event_name == 'workflow_dispatch'
     # Comfortably past the 50 minutes the test step is allowed, so a job that
     # is merely slow is not cut off before its own timeout can say so. A test
     # timeout names the package that hung; a job timeout names nothing.
