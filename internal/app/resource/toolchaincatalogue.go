@@ -41,27 +41,6 @@ const qemuArm64LinuxIsUntried = "the fork publishes an aarch64 Linux build and "
 	"MeshBench/qemu release and put qemu-system-xtensa in this directory, or " +
 	"set MESHBENCH_QEMU"
 
-// windowsFetchesNoEmulators is one refusal said once, and it is about this
-// fetcher rather than about emulation.
-//
-// Emulation itself is not what stops on Windows. An emulated node asks the
-// radio model for ":0" there and reaches it over TCP for both emulators, which
-// is the path Renode has always used; the Windows zip carries radioserver.exe,
-// a qemu-system-xtensa.exe and Renode's portable package, and lookupTool knows
-// their unpacked layouts and the .exe suffix. What has never been built is the
-// download half: checkExecutable reads ELF and Mach-O headers and would refuse
-// a PE binary as not an executable at all, extractTar opens tars and Renode
-// publishes its Windows build as a zip, and install finishes by making a
-// symlink, which Windows grants only to an elevated process or a machine in
-// developer mode. Fetching here would spend the bandwidth and then delete what
-// it fetched.
-const windowsFetchesNoEmulators = "the Windows zip already carries this, and " +
-	"this page cannot install a replacement: it checks a download by reading " +
-	"ELF and Mach-O headers, and would refuse a PE binary as not an executable " +
-	"at all. Take the emulators from the Windows release, or put one beside " +
-	"meshbench.exe and point MESHBENCH_QEMU, MESHBENCH_RENODE or " +
-	"MESHBENCH_RADIO_LIB at it"
-
 // toolReleases is every tool the emulator lookup asks for, in the order they
 // are needed: nothing boots without the chip, and which emulator follows
 // depends on the board.
@@ -93,8 +72,14 @@ var toolReleases = []toolRelease{{
 			Root:   "virtual-sx1262-macos-arm64",
 			Binary: "virtual-sx1262-macos-arm64/lib/libvirtualsx1262.dylib",
 		},
+		"windows/amd64": {
+			URL:    chipBase + "virtual-sx1262-windows-amd64.tar.gz",
+			SHA256: "176b29626adb66af3c069b242560b1666c68afb3f25d9e63c26e64572ca85fcf",
+			Bytes:  28685, Kind: tarGzip, Magic: peAMD64,
+			Root:   "virtual-sx1262-windows-amd64",
+			Binary: "virtual-sx1262-windows-amd64/lib/libvirtualsx1262.dll",
+		},
 	},
-	Unsupported: map[string]string{"windows/amd64": windowsFetchesNoEmulators},
 }, {
 	Name:    "qemu-system-xtensa",
 	Version: "v9.2.2-meshbench-sx1262-11",
@@ -109,6 +94,12 @@ var toolReleases = []toolRelease{{
 			Bytes:  17103336, Kind: tarXZ, Magic: elfAMD64,
 			Root: "qemu", Binary: "qemu/bin/qemu-system-xtensa",
 		},
+		"windows/amd64": {
+			URL:    qemuBase + "qemu-xtensa-softmmu-v9.2.2_meshbench_sx1262_11-x86_64-w64-mingw32.tar.xz",
+			SHA256: "167a07d23a80da6ea460c6d8c33ac4cf5bf3fcbd0cb8b6548eede61c4cf1cfb3",
+			Bytes:  17590116, Kind: tarXZ, Magic: peAMD64,
+			Root: "qemu", Binary: "qemu/bin/qemu-system-xtensa.exe",
+		},
 		"darwin/arm64": {
 			URL:    qemuBase + "qemu-xtensa-softmmu-v9.2.2_meshbench_sx1262_11-aarch64-apple-darwin.tar.xz",
 			SHA256: "7930f3704408f6dd74b16bacbf86f0fd07aec7f1df29d6cf0886e231a138030e",
@@ -117,8 +108,7 @@ var toolReleases = []toolRelease{{
 		},
 	},
 	Unsupported: map[string]string{
-		"windows/amd64": windowsFetchesNoEmulators,
-		"linux/arm64":   qemuArm64LinuxIsUntried,
+		"linux/arm64": qemuArm64LinuxIsUntried,
 	},
 }, {
 	Name:    "renode",
@@ -134,9 +124,17 @@ var toolReleases = []toolRelease{{
 			Bytes:  61647373, Kind: tarGzip, Magic: elfAMD64,
 			Root: "renode_1.16.1-portable", Binary: "renode_1.16.1-portable/renode",
 		},
+		// The one zip in the catalogue. Renode publishes its Windows build that
+		// way, which is the second of the three things that used to make a
+		// Windows fetch impossible.
+		"windows/amd64": {
+			URL:    renodeBase + "meshbench-renode-1.16.1.windows-portable.zip",
+			SHA256: "d570e31cbd735f20be478a42d7f7676ee5b6e5168af17c7b1466487c6e2c0a4f",
+			Bytes:  105251956, Kind: zipArchive, Magic: peAMD64,
+			Root: "renode_1.16.1-portable", Binary: "renode_1.16.1-portable/renode.exe",
+		},
 	},
 	Unsupported: map[string]string{
-		"windows/amd64": windowsFetchesNoEmulators,
 		// The macOS asset is a build tree rather than the portable package the
 		// Linux one is: it has no launcher, and nothing here has ever started
 		// it. Saying that is better than shipping 88 MB and a guess.

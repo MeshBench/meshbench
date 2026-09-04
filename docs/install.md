@@ -116,13 +116,17 @@ reason macOS does: neither download is signed. Click **More info → Run
 anyway**. With the installer that happens once, at install; with the zip it can
 happen on each launch of an `.exe` from a Downloads folder.
 
-**Emulated boards on Windows come out of the zip, not out of a fetch.** The zip
-carries the emulators and the radio model, and a node there reaches the radio
-model over TCP rather than over a Unix socket, so a board can come up. What
-Help > Setup cannot do on Windows is download a missing one: it reads ELF and
-Mach-O headers rather than PE, opens tars rather than zips, and installs by
-symlink. If you replace one, put it beside `meshbench.exe` or point
-`MESHBENCH_QEMU`, `MESHBENCH_RENODE` or `MESHBENCH_RADIO_SERVER` at it.
+**Emulated boards work on Windows**, and Help > Setup can fetch what a compact
+build is missing, the same as anywhere else. That was not true until recently:
+the fetcher read ELF and Mach-O headers and would have refused a PE outright,
+it opened tars and Renode publishes its Windows build as a zip, and it finished
+by making a symbolic link, which Windows grants only to an elevated process or
+a machine in developer mode. All three are dealt with - the last by looking in
+the same places on both sides of the search, so no link is needed.
+
+If you would rather supply your own, put it beside `meshbench.exe` or point
+`MESHBENCH_QEMU`, `MESHBENCH_RENODE` or `MESHBENCH_RADIO_LIB` at it. A
+distribution's own QEMU will not do: it has no SX1262 in it.
 
 Emulated boards on Windows are also newer than the rest of the bundle and have
 had less time on real hardware than the Linux and macOS ones. Native nodes, the
@@ -147,7 +151,7 @@ The four things it reports:
 
 Map and basemap tiles fill themselves as the map is panned and are small.
 
-Tools are looked for where `MESHBENCH_RADIO_SERVER`, `MESHBENCH_QEMU` or
+Tools are looked for where `MESHBENCH_RADIO_LIB`, `MESHBENCH_QEMU` or
 `MESHBENCH_RENODE` point, then beside the binary, then in
 `~/.cache/meshbench/tools`, then on `PATH`. **`PATH` is the one that will not
 help**: a desktop application is not launched from a shell and inherits no

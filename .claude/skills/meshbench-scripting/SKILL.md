@@ -239,9 +239,8 @@ matched on `floor` as the catch-all now silently sees fewer of them. Group an
   into `~/.cache/meshbench/tools/`, which is where a boot already looks, so no
   environment variable is needed afterwards. **Pass `kind: "toolchain"`**: the
   parameter defaults to `softdevice`, and a fetch that omits it asks for the
-  wrong thing. QEMU and Renode are published for linux/amd64 only; macOS gets
-  the chip model alone and Windows nothing, and `resource.list` says which with
-  a reason.
+  wrong thing. Linux and Windows can fetch all three; macOS can fetch the chip
+  model and QEMU but not Renode, and `resource.list` says which with a reason.
 - A killed run can leave an emulator behind. Check `pgrep -f qemu-system`.
 - Firmware roles on disk: `ls ~/.cache/meshbench/firmware/native/`.
 

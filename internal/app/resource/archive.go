@@ -2,6 +2,7 @@ package resource
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"compress/gzip"
 	"errors"
 	"fmt"
@@ -25,11 +26,14 @@ import (
 // decompressor with no ceiling is how a hostile archive fills a disk.
 const maxArchiveEntry = 512 << 20
 
-// extractTar unpacks an archive into dir, keeping the layout the archive
+// extractArchive unpacks an archive into dir, keeping the layout the archive
 // carries because the tools depend on it: QEMU resolves its own path to find
 // its ROM images beside it, and Renode's portable package is a tree its
 // runtime walks.
-func extractTar(src, dir string, k archiveKind) error {
+func extractArchive(src, dir string, k archiveKind) error {
+	if k == zipArchive {
+		return extractZip(src, dir)
+	}
 	f, err := os.Open(src) //nolint:gosec // the archive this fetch just wrote
 	if err != nil {
 		return err
@@ -116,6 +120,64 @@ func writeFile(r io.Reader, dst string, mode os.FileMode, size int64) error {
 		return err
 	}
 	return f.Close()
+}
+
+// extractZip unpacks a zip, which is how Renode publishes its Windows build.
+//
+// A separate reader because a zip has a central directory rather than a stream
+// of headers, so nothing in the tar path can be reused. What is shared is the
+// two rules that matter: every entry lands inside the tree, and nothing is
+// written that is larger than anything published here is.
+//
+// Symbolic links are refused rather than followed. A tar from these forks
+// carries legitimate ones and writeLink checks where they arrive; a zip from
+// them does not carry any, so an entry claiming to be one means the archive is
+// not what this was written against.
+func extractZip(src, dir string) error {
+	r, err := zip.OpenReader(src)
+	if err != nil {
+		return fmt.Errorf("resource: %s will not open as a zip: %w", src, err)
+	}
+	defer func() { _ = r.Close() }()
+	for _, e := range r.File {
+		dst, err := safeJoin(dir, e.Name)
+		if err != nil {
+			return err
+		}
+		mode := e.Mode()
+		switch {
+		case mode&os.ModeSymlink != 0:
+			return fmt.Errorf("resource: the zip holds a symbolic link at %s, "+
+				"which nothing published here carries", e.Name)
+		case e.FileInfo().IsDir():
+			if err := os.MkdirAll(dst, 0o755); err != nil {
+				return err
+			}
+		default:
+			if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+				return err
+			}
+			rc, err := e.Open()
+			if err != nil {
+				return err
+			}
+			// The zip's own mode, masked, for the same reason the tar path
+			// masks: the executable bit matters and setuid is not something an
+			// emulator download gets to set. A zip written on Windows carries
+			// no mode at all, which arrives as 0666 and would leave a Renode
+			// nobody can run, so anything without the bit gets it.
+			perm := mode.Perm()
+			if perm&0o111 == 0 {
+				perm = 0o755
+			}
+			err = writeFile(rc, dst, perm, int64(e.UncompressedSize64))
+			_ = rc.Close()
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // writeLink makes a symbolic link, having first established that following it

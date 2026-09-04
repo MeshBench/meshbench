@@ -1,13 +1,13 @@
 // The emulator toolchain, fetched from our own forks at runtime.
 //
-// Three binaries stand between a source checkout and an emulated board:
-// radioserver, which every emulated node needs whatever its MCU; QEMU for the
-// ESP32 family; and Renode for the nRF52s. A release tarball carries them
-// beside the binary and its users never meet this, but the AppImage and the
-// .deb carry only radioserver, and a development checkout has had no path to
-// any of them - the tools directory the lookup already searches was described
-// as "where the installer puts anything it downloads after the fact", and for
-// a source build no installer ever does.
+// Three things stand between a source checkout and an emulated board: the
+// SX1262 chip model, which every emulated node needs whatever its MCU; QEMU for
+// the ESP32 family; and Renode for the nRF52s. A bundled build carries all
+// three beside the binary and its users never meet this, but a compact one
+// carries only the chip, and a development checkout had no path to any of them
+// - the tools directory the lookup already searches was described as "where the
+// installer puts anything it downloads after the fact", and for a source build
+// no installer ever does.
 //
 // So they arrive the way everything else here arrives: fetched from where they
 // are published, verified, and cached. The destination is the tools directory
@@ -34,6 +34,9 @@ const (
 	plainFile archiveKind = ""
 	tarGzip   archiveKind = "tar.gz"
 	tarXZ     archiveKind = "tar.xz"
+	// zipArchive is how Renode publishes its Windows build, and the reason a
+	// Windows fetch needed more than a PE header check.
+	zipArchive archiveKind = "zip"
 )
 
 // toolAsset is one published build, for one platform.
@@ -185,12 +188,16 @@ func (r toolRelease) unavailableBecause() string {
 // binary in it is not an installation, and a row calling it one sends somebody
 // to debug an emulator that was never there.
 func treeBytes(link string, a toolAsset, dir string) (int64, error) {
-	if !fileExists(link) {
-		return 0, os.ErrNotExist
-	}
 	root := dir
 	if a.Root != "" {
 		root = filepath.Join(dir, a.Root)
+	}
+	// The link is the usual evidence, but not the only kind: on Windows it may
+	// not have been possible to make one, and the lookup finds the binary
+	// inside the unpacked tree regardless. So an archive counts as installed
+	// when the binary it promised is there.
+	if !fileExists(link) && (a.Binary == "" || !fileExists(filepath.Join(dir, filepath.FromSlash(a.Binary)))) {
+		return 0, os.ErrNotExist
 	}
 	if a.Kind == plainFile {
 		st, err := os.Stat(link)

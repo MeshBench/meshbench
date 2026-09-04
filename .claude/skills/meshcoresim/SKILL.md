@@ -347,9 +347,9 @@ into `~/.cache/meshbench/tools/`, which is step three of the lookup a boot
 already performs, so nothing has to be set afterwards. The `kind` parameter
 **defaults to `softdevice`**, so a fetch that omits it asks for the wrong thing.
 `resource.list` says what is present and what it cost; `setup.check` says the
-same beside everything else that is missing. QEMU and Renode are published for
-linux/amd64 only, macOS gets the chip model alone, and Windows nothing, each with
-its reason. An emulated nRF52 board additionally needs the Nordic s140
+same beside everything else that is missing. Linux and Windows can fetch all
+three; macOS can fetch the chip model and QEMU but not Renode, which publishes a
+build tree rather than a portable package there. Each gap says why. An emulated nRF52 board additionally needs the Nordic s140
 SoftDevice, which is its own `softdevice` resource.
 
 **`EmulatableBoards()` is the authority on what runs**, and it returns both the
