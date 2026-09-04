@@ -268,7 +268,7 @@ jobs:
 
           MeshBench is free software under the GNU General Public Licence,
           version 3 or later. The full terms are in LICENCES/, and the source
-          for this exact build is the meshbench-*-source.tar.gz published beside
+          for this exact build is the meshbench-source.tar.gz published beside
           it on the release page.
 
           The emulators beside this file are found automatically. They are not
@@ -301,7 +301,7 @@ jobs:
           if grep -ri meshcim . >/dev/null 2>&1; then
             echo "::error::MeshCIM reference found in the bundle"; exit 1
           fi
-          tar czf meshbench-linux-x86_64.tar.gz meshbench
+          tar czf meshbench-linux-x86_64-bundled.tar.gz meshbench
           # GPL-3.0 section 6: whoever receives the binary can have the source
           # that made it. The repository is public, so a link to the tag would
           # satisfy that on its own. The archive travels with the release
@@ -315,12 +315,12 @@ jobs:
             esac
           fi
           (cd .. && git archive --format=tar.gz \
-            --prefix="meshbench-${VERSION}/" -o "dist/meshbench-${VERSION}-source.tar.gz" HEAD)
+            --prefix="meshbench-${VERSION}/" -o "dist/meshbench-source.tar.gz" HEAD)
           sha256sum *.tar.gz > SHA256SUMS   # AppImage and .deb are added after they are built
           # The smoke is the artifact, not the tree: unpack what users get and
           # ask it who it is. The graphical smoke stays on a real desktop
           # before tagging, per the plan's acceptance.
-          mkdir /tmp/smoke && tar xzf meshbench-linux-x86_64.tar.gz -C /tmp/smoke
+          mkdir /tmp/smoke && tar xzf meshbench-linux-x86_64-bundled.tar.gz -C /tmp/smoke
           /tmp/smoke/meshbench/meshbench workbench -version
           test -s /tmp/smoke/meshbench/LICENCES/INDEX.txt
           ls -la *.tar.gz SHA256SUMS
@@ -370,7 +370,7 @@ jobs:
             -d packaging/meshbench.desktop \
             -i packaging/icons/meshbench-256.png \
             || echo "::warning::AppImage build failed; the tarball still stands"
-          mv MeshBench*.AppImage dist/meshbench-${VERSION}-x86_64.AppImage 2>/dev/null || true
+          mv MeshBench*.AppImage dist/meshbench-x86_64-compact.AppImage 2>/dev/null || true
 
           # A .deb for our own apt repository. Depends names the real floor,
           # so apt refuses on a machine that cannot run it rather than
@@ -575,7 +575,7 @@ jobs:
           # onto, so people run MeshBench off the mounted volume and lose it
           # when they eject. macos-dmg.sh mounts what it wrote and asserts the
           # Applications alias is on it before this step can pass.
-          packaging/macos-dmg.sh "$VERSION" dist/macos "dist/MeshBench-${VERSION}-arm64.dmg"
+          packaging/macos-dmg.sh "$VERSION" dist/macos "dist/MeshBench-arm64-bundled.dmg"
           ls -la dist/*.dmg
           shasum -a 256 dist/*.dmg
 
@@ -736,7 +736,7 @@ jobs:
           Native MeshCore firmware is downloaded on first use and cached.
 
           There is an installer beside this zip on the releases page,
-          meshbench-<version>-windows-x86_64.msi. It puts this same directory
+          meshbench-windows-x86_64-bundled.msi. It puts this same directory
           somewhere deliberate, adds a Start menu entry and an entry in Apps
           and Features, and upgrades in place. This zip is the one to take for
           a memory stick, a build agent, or anywhere an installer is unwanted.
@@ -760,7 +760,7 @@ jobs:
           Licences are in LICENCES\, and in the application under
           Help > Licences & attributions.
           TXT
-          (cd dist && zip -qr meshbench-${VERSION}-windows-x86_64.zip meshbench)
+          (cd dist && zip -qr meshbench-windows-x86_64-bundled.zip meshbench)
           ls -la dist/*.zip
           file dist/meshbench/meshbench.exe
 
@@ -793,7 +793,7 @@ jobs:
             esac
           fi
           packaging/windows-msi.sh dist/meshbench "$VERSION" \
-            "dist/meshbench-${VERSION}-windows-x86_64.msi"
+            "dist/meshbench-windows-x86_64-bundled.msi"
           ls -la dist/*.msi
 
       - uses: actions/upload-artifact@v7
@@ -889,7 +889,7 @@ jobs:
           # macOS and Windows are allowed to be missing and say so in the
           # notes; Linux missing means something went wrong upstream of here.
           ls dist/*.AppImage >/dev/null || { echo "::error::no AppImage"; exit 1; }
-          ls dist/meshbench-linux-x86_64.tar.gz >/dev/null || { echo "::error::no Linux tarball"; exit 1; }
+          ls dist/meshbench-linux-x86_64-bundled.tar.gz >/dev/null || { echo "::error::no Linux tarball"; exit 1; }
           # Windows may be missing entirely and the notes say so. Half of it is
           # the thing to refuse: a zip with no installer beside it looks exactly
           # like a release that never had one, and that is how this project has
@@ -919,7 +919,7 @@ jobs:
 
           # GPL-3.0 section 6: whoever gets the binary can have the source.
           git archive --format=tar.gz --prefix="meshbench-${VERSION}/" \
-            -o "dist/meshbench-${VERSION}-source.tar.gz" HEAD
+            -o "dist/meshbench-source.tar.gz" HEAD
           (cd dist && sha256sum * > SHA256SUMS && cat SHA256SUMS)
 
           {
@@ -931,7 +931,7 @@ jobs:
             echo "|---|---|---|"
             ls dist/*.AppImage >/dev/null 2>&1 && echo "| Linux | \`.AppImage\` | one file, any distribution |"
             ls dist/*.deb >/dev/null 2>&1 && echo "| Debian, Ubuntu | \`.deb\` | \`sudo apt install ./meshbench_*.deb\` |"
-            ls dist/meshbench-linux-x86_64.tar.gz >/dev/null 2>&1 && echo "| Linux | \`.tar.gz\` | includes the QEMU and Renode emulators |"
+            ls dist/meshbench-linux-x86_64-bundled.tar.gz >/dev/null 2>&1 && echo "| Linux | \`.tar.gz\` | includes the QEMU and Renode emulators |"
             ls dist/*.dmg >/dev/null 2>&1 && echo "| macOS (Apple Silicon) | \`.dmg\` | drag MeshBench onto Applications, then right-click Open once: **unsigned** |" || echo "| macOS | - | did not build for this release |"
             # || true, because this row is the one with no "did not build"
             # fallback under it, and set -e would otherwise end the step here

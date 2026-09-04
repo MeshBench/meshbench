@@ -61,7 +61,7 @@ not retractable, and is the point.
    on 1 September 2026**, so §6(d) is now satisfied on its own: the source is
    in the same place as the binaries, at the same tag, at no further charge.
    The pipeline still attaches a source archive
-   (`meshbench-<tag>-source.tar.gz`) to every release, and that is now a
+   (`meshbench-source.tar.gz`) to every release, and that is now a
    choice rather than the only route. It is worth keeping: the archive pins
    the exact tree a binary was built from, where a tag can be moved or
    deleted, and it keeps the offer whole for somebody who has the bundle and

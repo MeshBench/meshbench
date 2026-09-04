@@ -197,7 +197,7 @@ pairing rule, and anything that would break either gets a 2.0. Not before.
 ## The source archive, and the forks
 
 MeshBench is GPL-3.0-or-later and the repository is still private, so every
-release carries a `meshbench-<version>-source.tar.gz` beside the binaries. That
+release carries a `meshbench-source.tar.gz` beside the binaries. That
 is section 6's obligation met directly rather than by an offer.
 
 An archive is only worth what a recipient can build from it, and this tree
