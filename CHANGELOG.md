@@ -21,66 +21,138 @@ had changed in them - which is the gap this file exists to close.
 
 ## [Unreleased]
 
+## [0.0.6] - 2026-09-04
+
+The release where every emulated board relays, and where a download says what
+is in it.
+
 ### Added
 
-- **The Windows installer asks where to go, and says when it has finished.**
-  It had no dialogs at all, because the tool that built it builds none, so
-  every answer had to be an `msiexec` switch and a double-clicked `.msi` put
-  itself in Program Files without a word. It now offers a folder, reports
-  the location it used to Apps and Features - which was blank - keeps that
-  location across an upgrade, and carries the MeshBench card on its first
-  and last pages. The switches all still work.
+- **Every asset says whether it carries the emulators, and both are built.**
+  Each platform now publishes a `-bundled` build with QEMU and Renode in it and
+  a `-compact` build that is the application alone, from one build and two
+  packaging passes over the same tree. Until now the choice existed on Linux by
+  accident - the tarball had the emulators, the AppImage and the `.deb` did not
+  - and nothing in any name said so. The version has gone from the filenames,
+  so `releases/latest/download/<name>` resolves to the current build for ever;
+  `meshbench -version` answers which build you have.
+
+- **A download page, at [meshbench.github.io/download](https://meshbench.github.io/download/).**
+  The two Download buttons used to drop a first-time visitor onto a release
+  listing with no indication which file they wanted. The page detects the
+  platform, offers one command that installs through apt or Homebrew, and makes
+  bundled-or-compact a single switch that changes every filename and command at
+  once.
+
+- **`apt install meshbench` and `brew install --cask meshbench`.** A signed apt
+  repository at `meshbench.github.io/apt` and a Homebrew tap at
+  `MeshBench/homebrew-meshbench`, both written by a release. The plain name is
+  the application on its own in both, because a package manager re-downloads
+  every release for a tool you may never point at an emulated board;
+  `meshbench-bundled` is there for anyone who would rather spend the bandwidth
+  once.
+
+- **Windows can fetch its emulators.** Configuration > Setup could not download
+  one there: the check that a download is a program read ELF and Mach-O and
+  refused a PE outright, the unpacker opened tars while Renode publishes a zip,
+  and the install finished with a symbolic link, which Windows grants only to
+  an elevated process. All three are dealt with, the last by looking in the
+  same places on both sides of the search so no link is needed.
+
+- **The Windows installer asks where to go, and says when it has finished.** It
+  had no dialogs at all, because the tool that built it builds none, so every
+  answer had to be an `msiexec` switch and a double-clicked `.msi` put itself
+  in Program Files without a word. It now offers a folder, reports the location
+  to Apps and Features, keeps it across an upgrade, and carries the MeshBench
+  card. The switches all still work.
+
+### Changed
+
+- **The emulators hold the SX1262 themselves.** An emulated node used to run in
+  two processes, the second owning the chip and answering SPI over a socket one
+  byte at a time. QEMU and Renode now load
+  [virtual-sx1262](https://github.com/MeshBench/virtual-sx1262) directly, so
+  there is one process per node and the only socket left carries the simulated
+  air. DIO1 is pushed by the chip rather than sampled on a millisecond timer.
+
+- **The flood row is judged over several attempts.** One advert deciding a
+  board's whole result made a board that relays nine times in ten look broken,
+  because its own periodic advert can land badly. It also refuses to measure at
+  all when the board and the sender share a public key, which measures the
+  harness rather than the board.
 
 ### Fixed
 
-- **The Windows installer now says where it put things.** Apps and Features
-  showed a blank Install location, because nothing set `ARPINSTALLLOCATION`.
-  A person wanting to know where their copy went had to guess.
+- **Every nRF52 board now forwards, and it was two faults masking each other.**
+  MeshCore verifies signatures in CryptoCell hardware, and our model loaded
+  modular operands at the operation's own width while the firmware keeps
+  Ed25519 field elements unreduced in wider registers - so every operation was
+  arithmetically perfect on numbers the firmware never had, and every advert was
+  dropped as unsigned. Separately, three boards read a button pin that is held
+  high by a resistor on the real hardware and low in the emulator, so MeshCore
+  saw a long press and powered the node off seconds after boot. RAK4631 and
+  Xiao_nrf52 were unaffected by the second, which is why fixing the first made
+  those two work while others still failed.
 
-- **Playing over a warm that was held said only "playing".** A warm stopped
-  to ask about terrain leaves no links measured, and no links means every
-  transmission reaches nobody - while the nodes boot, the counts are right
-  and the console answers `OK - Advert sent`. The workbench said so when the
-  network opened and then pressing play overwrote it, so by the time anyone
-  sent traffic the explanation had gone. Play now says what will happen.
+- **Every ESP32-S3 board now relays.** Three register-map faults kept DIO1, the
+  packet-received line, from reaching the firmware: the per-pin configuration
+  registers start at a different offset on the S3, so the pin was never armed;
+  the GPIO block's interrupt output was never wired to the interrupt matrix;
+  and the pin decode had to win over an overlapping register range. The boards
+  received every frame and forwarded none.
 
-- **No published board image could be downloaded.** The catalogue derives a
-  build's version from its asset name, `v1.17.1`, while MeshCore tags its
-  releases by role, `repeater-v1.17.1`. The download asked for
-  `releases/tags/v1.17.1` and got a 404 for every board image ever offered,
-  so an emulated board could not be started by anyone whose cache did not
-  already hold one. It now finds the image the same way the library listed
-  it.
+- **Two emulated nodes are two nodes.** Every emulated board came up with the
+  same keypair, byte for byte, so a mesh of them was one node repeated and their
+  adverts were duplicates any receiver was right to drop. MeshCore takes entropy
+  from the radio, and our chip had none to give. It has per-node receiver noise
+  now, seeded from the run so the result stays reproducible.
 
-- **Opening a packet in its own window crashed the workbench.** `missKinds`
-  grew a sixth entry and the five chips beside it did not, so drawing the
-  legend indexed past the end and the panel took the application with it. The
-  chip arrays are now declared from the lists' own lengths, which is a
-  compile-time check rather than a matching pair somebody has to remember.
+- **No published board image could be downloaded.** The catalogue derived a
+  version from the asset name while MeshCore tags releases by role, so every
+  image request 404ed and nobody without a warm cache could start an emulated
+  board.
 
-- **Fetching buildings pointed at a tool no release ships.** A pull too large
-  for a live Overpass call said to prepare the region with `tools/envgen`,
-  which is a source tool: the one route the message offered was closed to
-  exactly the people who hit the limit. It now names **Microsoft alone**,
-  which is priced by download size rather than by area and can fetch the
-  default network's footprints today, and suggests narrowing the network.
-- **The Microsoft pull's size cap had never fired.** The dataset index writes
-  its sizes for a person to read - `74.7KB` - and they were parsed as plain
-  integers, so every file was priced at zero and the 8 GB guard was never
-  reached. A pull of any size was accepted by a guard whose whole purpose is
-  to price one before a byte moves.
-- **Windows: the application started and disappeared.** `meshbench.exe` with
-  no arguments printed its usage and exited 2. The installer's Start menu
-  shortcut passes no arguments, and neither does a `meshbench.exe`
-  double-clicked out of the zip, so both of them did that - and a release is
-  linked `-H windowsgui`, which starts with no standard handles, so the text
-  explaining it went nowhere. A bare invocation now opens the workbench, which
-  is what the `.desktop` file and the macOS wrapper have always asked for and
-  what the README beside the binary already promised.
-- **Windows: a failure now says why.** With a terminal, output appears there;
-  with none, it goes to `meshbench-error.log` in the cache directory, and that
-  includes a panic's stack trace, which previously reached nobody at all.
-  Output that was redirected or piped stays where it was sent.
+- **The rx row could claim a reception the firmware never saw.** The engine
+  records a delivery before the firmware reads it, so a board passed `rx` while
+  its driver never collected the packet. The row now waits for the board to stop
+  talking first, owns its own terrain rather than inheriting a fixture's, and
+  says why it was silent.
+
+- **A board's console could be on the wrong port.** The EoRa-S3 prints to the
+  USB Serial/JTAG rather than UART0, so everything the application said went to
+  a peripheral nobody was holding: a node that started and appeared never to
+  have spoken.
+
+- **A machine too old for the build says so.** Both the firmware and a
+  downloaded emulator now check what they are before running it, so a
+  wrong-architecture or too-old-glibc build is refused by name rather than
+  producing `exec format error` from a process nobody is watching.
+
+- **Opening a packet in its own window crashed the workbench.** A list grew a
+  sixth entry and the five chips beside it did not, so drawing the legend
+  indexed past the end. The arrays are declared from the lists' own lengths now,
+  which is a compile-time check rather than a pair somebody has to remember.
+
+- **Windows: the application started and disappeared.** `meshbench.exe` with no
+  arguments printed usage and exited, which is what the Start menu shortcut and
+  a double-clicked binary both do - and a release is linked `-H windowsgui`, so
+  the text explaining it went nowhere. A bare invocation opens the workbench. A
+  failure now writes `meshbench-error.log`, including a panic's stack trace,
+  which previously reached nobody at all.
+
+- **Playing over a held warm said only "playing".** A warm stopped to ask about
+  terrain leaves no links measured, so every transmission reaches nobody while
+  the counts still look right. Play says what will happen.
+
+- **Fetching buildings pointed at a tool no release ships**, and its size cap
+  had never fired: the dataset index writes sizes for a person to read, they
+  were parsed as integers, and every file was priced at zero.
+
+### Removed
+
+- **`radioserver`.** The process that owned the chip model is gone, along with
+  `MESHBENCH_RADIO_SERVER`. `MESHBENCH_RADIO_LIB` points at the chip library
+  instead, and a release bundle carries it.
 
 ## [0.0.5] - 2026-09-02
 
@@ -272,7 +344,8 @@ First release: one binary per platform.
 - The radio model reachable over TCP where there is no unix socket.
 - Two data races found by `-race` and fixed.
 
-[Unreleased]: https://github.com/MeshBench/meshbench/compare/v0.0.5...HEAD
+[Unreleased]: https://github.com/MeshBench/meshbench/compare/v0.0.6...HEAD
+[0.0.6]: https://github.com/MeshBench/meshbench/compare/v0.0.5...v0.0.6
 [0.0.5]: https://github.com/MeshBench/meshbench/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/MeshBench/meshbench/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/MeshBench/meshbench/compare/v0.0.2...v0.0.3
