@@ -115,6 +115,11 @@ func (p *Panel) logLines(t *theme.Theme, gtx layout.Context,
 		return comp.Text(t, t.Sz.Caption, t.P.Faint, what)(gtx)
 	}
 	p.logList.Axis = layout.Vertical
+	// Filled rather than sized to its longest line. A list takes the width its
+	// content wants, and its scrollbar rides its right edge - so a log of short
+	// lines put the bar somewhere in the middle of the strip, which reads as a
+	// panel that has been cut off rather than as a list that fits.
+	gtx.Constraints.Min.X = gtx.Constraints.Max.X
 	return comp.List(t, &p.logList, len(pane.Lines),
 		func(gtx layout.Context, i int) layout.Dimensions {
 			return comp.OneLine(t, t.Sz.Caption, t.P.Dim, pane.Lines[i], true)(gtx)
@@ -153,3 +158,46 @@ func askOutputOnce(do func(verb string, params any), asked *string, node, source
 }
 
 var _ = widget.Clickable{}
+
+// logHeights are how tall the strip may be pulled, in dp.
+//
+// The floor holds its two tabs and a line: a strip shrunk past that is one
+// nobody can read or grab again. The ceiling leaves the table its own room -
+// this is the log beside the board, and the Output tab next door is where the
+// whole of it lives.
+const (
+	logMinDp     = 56
+	logMaxDp     = 460
+	logDefaultDp = 112
+)
+
+// logHeight is how tall the strip is drawn, in dp.
+func (p *Panel) logHeight() int {
+	if p.logH == 0 {
+		p.logH = logDefaultDp
+	}
+	if p.logH < logMinDp {
+		p.logH = logMinDp
+	}
+	if p.logH > logMaxDp {
+		p.logH = logMaxDp
+	}
+	return p.logH
+}
+
+// dragLog is the rule above the strip, which is also how it is made taller.
+//
+// Dragged up, the log grows and the table gives way; there is no third thing
+// to redistribute, which is what makes a single number enough here where the
+// rail needed a scale.
+func (p *Panel) dragLog(t *theme.Theme, gtx layout.Context) layout.Dimensions {
+	d := p.logSplit.Layout(t, gtx)
+	if p.logSplit.Delta != 0 {
+		perDp := float32(gtx.Dp(1))
+		if perDp < 1 {
+			perDp = 1
+		}
+		p.logH = p.logHeight() - int(p.logSplit.Delta/perDp)
+	}
+	return d
+}

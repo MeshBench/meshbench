@@ -167,6 +167,7 @@ func (v *ScreenView) Layout(t *theme.Theme, gtx layout.Context, b hw.Board,
 	if hasKeys(b) {
 		event.Op(gtx.Ops, &v.keyTag)
 	}
+	v.takeFocus(gtx, b)
 	v.readTouch(gtx, b, blk, onDo, node)
 	v.readKeys(gtx, b, onDo, node)
 
@@ -222,6 +223,30 @@ func pixel(t *theme.Theme, pic *state.Screen, x, y int) (color.NRGBA, bool) {
 // in; and the panel may be mounted turned, which on the one board here with a
 // touch layer it is. Either mistake puts the tap somewhere else and reads
 // exactly like a touch layer that was never wired.
+// takeFocus puts the keyboard on the board when the board is pressed, the way
+// picking a handheld up precedes typing on it.
+//
+// Its own pass rather than a line inside the touch reader, which is where it
+// was: that reader returns early on a board with no touch layer, so a board
+// with a keyboard and no touchscreen could never be typed at. The T-Deck has
+// both and hid it.
+func (v *ScreenView) takeFocus(gtx layout.Context, b hw.Board) {
+	if !hasKeys(b) {
+		return
+	}
+	for {
+		ev, ok := gtx.Event(pointer.Filter{
+			Target: &v.keyTag, Kinds: pointer.Press,
+		})
+		if !ok {
+			return
+		}
+		if pe, ok := ev.(pointer.Event); ok && pe.Kind == pointer.Press {
+			gtx.Execute(key.FocusCmd{Tag: &v.keyTag})
+		}
+	}
+}
+
 // readTouch turns presses on the drawn panel into points on the board's own.
 //
 // blk rather than the scale: a pointer arrives in framebuffer pixels, so the
@@ -252,11 +277,6 @@ func (v *ScreenView) readTouch(gtx layout.Context, b hw.Board, blk int,
 			int(pe.Position.X), int(pe.Position.Y))
 		if !in {
 			continue
-		}
-		// Pressing the board is also what puts the keyboard on it, the way
-		// picking a handheld up precedes typing on it.
-		if pe.Kind == pointer.Press && hasKeys(b) {
-			gtx.Execute(key.FocusCmd{Tag: &v.keyTag})
 		}
 		onDo("board.touch", map[string]any{
 			"node": node, "x": rx, "y": ry, "down": pe.Kind != pointer.Release,
@@ -290,21 +310,37 @@ func (v *ScreenView) readKeys(gtx layout.Context, b hw.Board,
 		return
 	}
 	for {
-		ev, ok := gtx.Event(key.Filter{Focus: &v.keyTag})
+		// Both filters, and both kinds of event. The focus filter is what makes
+		// the tag focusable at all: without it the panel took focus on a press
+		// and then received nothing, which is a keyboard that looks wired and
+		// is not. And typed characters arrive as an edit event - a key event
+		// carries a name, and deriving a character from the name gets the
+		// letters and misses everything a layout decides, which is most of what
+		// somebody types.
+		ev, ok := gtx.Event(
+			key.FocusFilter{Target: &v.keyTag},
+			key.Filter{Focus: &v.keyTag},
+		)
 		if !ok {
 			return
-		}
-		ke, ok := ev.(key.Event)
-		if !ok || ke.State != key.Press {
-			continue
 		}
 		// board.key, not board.type: the board holds the last key pressed and
 		// the firmware polls it, and the verb takes the characters as text.
 		// The name matters more than it looks - a verb nothing registers is
 		// refused into the void, and a keyboard that silently does nothing is
 		// one somebody decides is broken.
-		if txt := typedText(ke); txt != "" {
-			onDo("board.key", map[string]any{"node": node, "text": txt})
+		switch e := ev.(type) {
+		case key.EditEvent:
+			if e.Text != "" {
+				onDo("board.key", map[string]any{"node": node, "text": e.Text})
+			}
+		case key.Event:
+			if e.State != key.Press {
+				continue
+			}
+			if txt := typedText(e); txt != "" {
+				onDo("board.key", map[string]any{"node": node, "text": txt})
+			}
 		}
 	}
 }

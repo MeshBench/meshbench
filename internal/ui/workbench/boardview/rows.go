@@ -257,15 +257,23 @@ func radioRows(b hw.Board, st *state.NodeStat) []Row {
 	// Transmit power. The board's figure is what the chip can do; the
 	// firmware's is what it asked for, and a build compiled for another
 	// region asks for less without saying so.
-	v := Agrees
-	if float64(r.TxPowerDBm) > b.MaxTxDBm {
+	v, obs := Agrees, fmt.Sprintf("%d dBm", r.TxPowerDBm)
+	why := "The board's figure is at the chip. What actually leaves the antenna " +
+		"is this less the feedline, plus the front-end module where one is " +
+		"switched in."
+	switch {
+	case !r.TxPowerSet():
+		// Never asked for, which is not agreement with anything. This read
+		// "agrees" while somebody was using the row to work out why their
+		// board would not transmit.
+		v, obs = Silent, "not set"
+		why = "The firmware has not called SetTxParams, so the chip has been " +
+			"told no power to transmit at. A radio in this state answers its " +
+			"other registers perfectly and sends nothing."
+	case float64(r.TxPowerDBm) > b.MaxTxDBm:
 		v = Diverged
 	}
-	add("transmit power", fmt.Sprintf("%.0f dBm max", b.MaxTxDBm),
-		fmt.Sprintf("%d dBm", r.TxPowerDBm), v,
-		"The board's figure is at the chip. What actually leaves the antenna is "+
-			"this less the feedline, plus the front-end module where one is "+
-			"switched in.")
+	add("transmit power", fmt.Sprintf("%.0f dBm max", b.MaxTxDBm), obs, v, why)
 
 	// Receive gain. Boosted is what a receiver should be left in; power
 	// saving is a real setting and also what a fault leaves behind.

@@ -14,6 +14,7 @@ package boardview
 
 import (
 	"gioui.org/layout"
+	"gioui.org/unit"
 	"gioui.org/widget"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
@@ -69,7 +70,12 @@ type Panel struct {
 	steps     [maxScale]widget.Clickable
 	popScreen comp.Button
 	split     comp.Splitter
-	screen    ScreenView
+	// logSplit is the rule above the log strip, and logH how tall the strip is
+	// in dp. Its own splitter rather than the rail's: two handles that moved
+	// together would be one handle drawn twice.
+	logSplit comp.Splitter
+	logH     int
+	screen   ScreenView
 	// board is the lamps, buttons and trackball, the same widgets the Hardware
 	// tab draws. A board that can be looked at and not pressed is half a board:
 	// the whole way to find out whether a button reaches the firmware is to
@@ -220,13 +226,16 @@ func (p *Panel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layo
 				}),
 			)
 		}),
-		layout.Rigid(hRule(t)),
+		// The rule above the log is also the handle that resizes it.
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return p.dragLog(t, gtx)
+		}),
 		// The log under everything, at a height that shows a handful of lines
 		// without taking the table's room: enough to see what just happened,
 		// and the Output tab next door for the whole of it.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			gtx.Constraints.Max.Y = gtx.Dp(112)
-			gtx.Constraints.Min.Y = gtx.Dp(112)
+			h := gtx.Dp(unit.Dp(p.logHeight()))
+			gtx.Constraints.Max.Y, gtx.Constraints.Min.Y = h, h
 			return p.logStrip(t, gtx, s)
 		}),
 		layout.Rigid(hRule(t)),

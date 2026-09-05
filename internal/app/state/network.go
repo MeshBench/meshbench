@@ -348,8 +348,13 @@ type RadioState struct {
 	// not come up must not read as one configured to zero.
 	Reported bool
 	// GainReg is 0x08AC: 0x96 boosted, 0x94 power saving.
-	GainReg    uint8
-	Boosted    bool
+	GainReg uint8
+	Boosted bool
+	// TxPowerDBm is what SetTxParams asked the PA for, and TxPowerUnset when
+	// the firmware has not called it at all. Ask through TxPowerSet rather
+	// than comparing: the board view compared it as an ordinary number, found
+	// -128 to be under the board's ceiling, and reported a radio that had
+	// never been configured as agreeing with its profile.
 	TxPowerDBm int8
 	// FemLive is the front-end module's enable line now; FemAtTx is where it
 	// stood when this node last began transmitting, which is the one that
@@ -383,6 +388,21 @@ type RadioState struct {
 	// field sends a shorter record.
 	DIO1Reported bool
 }
+
+// TxPowerUnset is what TxPowerDBm holds when the firmware has never called
+// SetTxParams. Not a power: the sentinel an int8 has room for below anything a
+// PA can be asked for.
+const TxPowerUnset int8 = -128
+
+// TxPowerSet reports whether the firmware has asked the PA for anything.
+//
+// A method rather than a comparison at each caller, because the two windows
+// that draw this had one each and only one of them was right: the board view
+// found -128 to be under the board's 22 dBm ceiling and reported a radio that
+// had never been configured as agreeing with its own profile - a false
+// "agrees" in the column that exists to be trusted, while somebody was using
+// it to work out why nothing was transmitting.
+func (r RadioState) TxPowerSet() bool { return r.TxPowerDBm != TxPowerUnset }
 
 // FleetReply is one node's answer to a fleet command, in the firmware's own
 // words.

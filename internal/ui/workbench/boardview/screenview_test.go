@@ -10,8 +10,10 @@ package boardview
 import (
 	"testing"
 
+	"gioui.org/f32"
 	"gioui.org/layout"
 
+	"github.com/MeshBench/meshbench/internal/app/state"
 	hw "github.com/MeshBench/meshbench/internal/firmware/board"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 	"github.com/MeshBench/meshbench/internal/ui/uitest"
@@ -276,5 +278,61 @@ func TestATapIsMeasuredInTheBlocksItLandsOn(t *testing.T) {
 			t.Errorf("at %dx the same place on the glass reported panel %d,%d "+
 				"and at 1x it reported %d,%d", blk, rx, ry, base[0], base[1])
 		}
+	}
+}
+
+// Typing at the board reaches the board.
+//
+// The board view took focus on a press and then registered no focus filter, so
+// the panel was focused and received nothing - a keyboard that looks wired and
+// is not. It also read only key events and derived a character from the key's
+// name, which gets the plain letters and misses everything a keyboard layout
+// decides, which is most of what somebody types: the characters arrive as edit
+// events.
+//
+// The node window's Hardware tab had all of this right, which is what made the
+// board view's version look like a platform problem rather than a missing
+// filter.
+func TestTypingAtTheBoardReachesIt(t *testing.T) {
+	b, err := hw.BoardByName("LilyGo_TDeck")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasKeys(b) {
+		t.Fatal("this test needs the board with a keyboard")
+	}
+	var sent []string
+	p := &Panel{Node: "Deck", Tab: TabRadio, OnDo: func(verb string, params any) {
+		if verb != "board.key" {
+			return
+		}
+		m, ok := params.(map[string]any)
+		if !ok {
+			return
+		}
+		if s, ok := m["text"].(string); ok {
+			sent = append(sent, s)
+		}
+	}}
+	st := state.NodeStat{Name: "Deck", Board: b.Name, Backend: "emulated",
+		Running: true}
+	snap := &state.Snapshot{Stats: []state.NodeStat{st}}
+
+	h := uitest.New(func(th *theme.Theme, gtx layout.Context,
+		s *state.Snapshot) layout.Dimensions {
+		return p.Draw(th, gtx, s)
+	}, snap)
+	h.Frame()
+	// Press the panel, which is what puts the keyboard on the board, then type.
+	for y := float32(120); y < 400 && len(sent) == 0; y += 8 {
+		for x := float32(20); x < 300; x += 40 {
+			h.Click(f32.Pt(x, y))
+		}
+		h.TypeText("hello")
+		h.Frame()
+	}
+	if len(sent) == 0 {
+		t.Error("nothing typed at the board reached it, so its keyboard is " +
+			"drawn and not wired")
 	}
 }

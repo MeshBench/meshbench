@@ -83,7 +83,7 @@ func (p *WindowPanel) radio(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 	tx := radioRow{label: "transmit power",
 		value: fmt.Sprintf("%d dBm", r.TxPowerDBm),
 		why:   "what SetTxParams asked the PA for, not what leaves the antenna"}
-	if r.TxPowerDBm == -128 {
+	if !r.TxPowerSet() {
 		tx.value, tx.warn = "not set", true
 		tx.why = "the firmware has not called SetTxParams; the board's own figure is standing in"
 	}

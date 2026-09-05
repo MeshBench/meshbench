@@ -235,26 +235,63 @@ func (c *LayerChrome) Resize(g *comp.ResizeGrip) []app.Option {
 // own bar and grip, so it can always be grown again.
 const minWindowDp = unit.Dp(240)
 
-// fill is maximise: the window over the whole of the screen it is already on.
+// fill is maximise: the window over the whole of the screen it is on now.
 //
-// Not the four-edge anchor, which is what a layer surface's own maximise is and
-// which does not say *which* output. On a desktop with two screens the
-// compositor answers that itself, and it answers with its primary - so pressing
-// maximise on the second screen threw the window onto the first.
+// Three things had to be got right here and the first two were not enough.
 //
-// Margins are measured from the output the surface is anchored to, so a
-// top-left anchor at nothing, sized to that output, is the same rectangle
-// without the ambiguity. The four-edge form remains the fallback for a window
-// that has not been told where it is, where guessing a size would be worse.
+// Not the four-edge anchor, which is what a layer surface's own maximise is:
+// it does not say which output, so the compositor answers with its primary and
+// maximise on the second screen throws the window onto the first.
+//
+// And not the anchored output either. A layer surface is anchored to the
+// output it was created on and stays anchored to it: dragging is margins, and
+// a window carried onto the next screen is a large margin measured from the
+// first. So filling "its own output" filled the one it opened on, which from
+// the far screen is the same wrong behaviour with a different cause.
+//
+// So the screen is the one the window is over now, found from where the window
+// actually is: the anchor's corner plus the margins, plus half the window.
+// Margins stay relative to the anchor, so covering another output is expressed
+// as the offset between the two.
 func (c *LayerChrome) fill() []app.Option {
 	if c.screen.Empty() {
 		return []app.Option{float.Maximise()}
 	}
-	c.spot = float.Spot{}
+	on := c.screenUnder(c.centre())
+	c.spot = float.Spot{
+		Left: unit.Dp(on.Min.X - c.screen.Min.X),
+		Top:  unit.Dp(on.Min.Y - c.screen.Min.Y),
+	}
 	return []app.Option{
 		float.Move(c.spot),
-		app.Size(unit.Dp(c.screen.Dx()), unit.Dp(c.screen.Dy())),
+		app.Size(unit.Dp(on.Dx()), unit.Dp(on.Dy())),
 	}
+}
+
+// centre is where the middle of the window is on the desktop.
+//
+// In the coordinates the outputs are given in: the anchored output's own
+// corner, plus the margins, plus half the window. The size is the window's
+// pixels and the rest is the desktop's logical units, so the size is converted
+// - the same distinction the drag clamp makes, and the one that halved a bound
+// on every screen above 100% when it was missed.
+func (c *LayerChrome) centre() image.Point {
+	w, h := c.pxToDpSize(c.size)
+	return image.Pt(
+		c.screen.Min.X+int(c.spot.Left)+int(w)/2,
+		c.screen.Min.Y+int(c.spot.Top)+int(h)/2,
+	)
+}
+
+// screenUnder is the output a point is on, or the anchored one when the point
+// is in a gap between screens or on none of them.
+func (c *LayerChrome) screenUnder(at image.Point) image.Rectangle {
+	for _, o := range c.outputs {
+		if at.In(o) {
+			return o
+		}
+	}
+	return c.screen
 }
 
 // recall places the window at spot: the escape hatch for one that has ended

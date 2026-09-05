@@ -138,18 +138,40 @@ func (drawOnly) Draw(*theme.Theme, layout.Context, *state.Snapshot) layout.Dimen
 // is anchored to, so a top-left anchor at nothing, sized to that output, is the
 // same rectangle without the ambiguity.
 func TestMaximiseFillsTheScreenTheWindowIsOn(t *testing.T) {
+	first := image.Rect(0, 0, 1920, 1080)
 	second := image.Rect(1920, 0, 3840, 1080)
-	c := NewLayerChrome(float.Spot{Top: 60, Left: 200})
-	c.Screens(second, []image.Rectangle{image.Rect(0, 0, 1920, 1080), second})
+	all := []image.Rectangle{first, second}
 
-	opts := c.fill()
-	if len(opts) != 2 {
-		t.Fatalf("maximise produced %d options; a move and a size were wanted", len(opts))
+	// Opened on the first screen and dragged onto the second, which is margins
+	// rather than a change of anchor: the surface is still anchored to the
+	// first, and this is the case the first two attempts at maximise both got
+	// wrong in opposite directions.
+	c := NewLayerChrome(float.Spot{Top: 100, Left: 2100})
+	c.Screens(first, all)
+	c.Frame(frameAt(image.Pt(800, 600), 1))
+
+	if len(c.fill()) != 2 {
+		t.Fatal("maximise produced no move and size")
 	}
-	if c.spot != (float.Spot{}) {
-		t.Errorf("maximised to %v, want the corner of its own output", c.spot)
+	if got := int(c.spot.Left); got != 1920 {
+		t.Errorf("maximised to a margin of %d from the anchored screen, want "+
+			"1920 - the offset that puts it over the screen it is on", got)
 	}
-	// And with no output known it falls back rather than guessing a size.
+	if got := int(c.spot.Top); got != 0 {
+		t.Errorf("maximised %d down, want the top of that screen", got)
+	}
+
+	// And one that never left its own screen fills that one.
+	home := NewLayerChrome(float.Spot{Top: 60, Left: 200})
+	home.Screens(first, all)
+	home.Frame(frameAt(image.Pt(800, 600), 1))
+	home.fill()
+	if home.spot != (float.Spot{}) {
+		t.Errorf("a window on its own screen maximised to %v, want its corner",
+			home.spot)
+	}
+
+	// With no output known it falls back rather than guessing a size.
 	blind := NewLayerChrome(float.Spot{})
 	if got := blind.fill(); len(got) != 1 {
 		t.Errorf("a window that has not been told where it is produced %d "+
