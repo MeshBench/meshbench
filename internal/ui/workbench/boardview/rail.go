@@ -170,26 +170,40 @@ func (p *Panel) partsIndex(t *theme.Theme, gtx layout.Context, rows []Row) layou
 				comp.Text(t, t.Sz.Caption, t.P.Faint, upper(it.head)))
 		}
 		r := rows[it.row]
+		sel := it.row == p.sel
 		ink := t.P.Dim
-		if it.row == p.sel {
+		if sel {
 			ink = t.P.Ink
 		}
-		return layout.Inset{Top: t.Sp.XXS, Bottom: t.Sp.XXS}.Layout(gtx,
-			func(gtx layout.Context) layout.Dimensions {
-				if it.row == p.sel {
-					comp.RoundRect(gtx, image.Pt(gtx.Constraints.Max.X,
-						gtx.Dp(unit.Dp(18))), 4, t.P.Selected)
-				}
-				return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return dot(gtx, r.Verdict.Colour(t))
-					}),
-					layout.Rigid(layout.Spacer{Width: t.Sp.XS}.Layout),
-					layout.Rigid(comp.OneLine(t, t.Sz.Caption, ink, r.Name, true)),
-					layout.Flexed(1, spacer),
-					layout.Rigid(comp.Mono(t, t.Sz.Caption, t.P.Faint, r.Where)),
-				)
-			})
+		// The same clickable the table row uses, so picking a part here and
+		// picking its row over there are one act rather than two that have to
+		// be kept in step.
+		click := p.pick(p.rowKey(r))
+		if click.Clicked(gtx) {
+			p.sel = it.row
+		}
+		return click.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Top: t.Sp.XXS, Bottom: t.Sp.XXS}.Layout(gtx,
+				func(gtx layout.Context) layout.Dimensions {
+					if sel || click.Hovered() {
+						fill := t.P.Selected
+						if !sel {
+							fill = t.P.Sunk
+						}
+						comp.RoundRect(gtx, image.Pt(gtx.Constraints.Max.X,
+							gtx.Dp(unit.Dp(18))), 4, fill)
+					}
+					return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return dot(gtx, r.Verdict.Colour(t))
+						}),
+						layout.Rigid(layout.Spacer{Width: t.Sp.XS}.Layout),
+						layout.Rigid(comp.OneLine(t, t.Sz.Caption, ink, r.Name, true)),
+						layout.Flexed(1, spacer),
+						layout.Rigid(comp.Mono(t, t.Sz.Caption, t.P.Faint, r.Where)),
+					)
+				})
+		})
 	})(gtx)
 }
 

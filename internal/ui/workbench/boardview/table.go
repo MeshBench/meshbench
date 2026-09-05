@@ -123,20 +123,33 @@ func (p *Panel) tableRow(t *theme.Theme, gtx layout.Context, r Row, i int, where
 		{150, orDash(r.Declared), ink}, {175, orDash(r.Observed), obs},
 		{125, r.Verdict.String(), r.Verdict.Colour(t)},
 	}
-	return layout.Inset{Left: t.Sp.S, Right: t.Sp.S, Top: t.Sp.XXS,
-		Bottom: t.Sp.XXS}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		if sel {
-			comp.RoundRect(gtx, image.Pt(gtx.Constraints.Max.X,
-				gtx.Dp(unit.Dp(19))), 4, t.P.Selected)
-		}
-		var kids []layout.FlexChild
-		for i, c := range cells {
-			if i == 1 && !where {
-				continue
+	// A plain clickable rather than a button: this changes which row the
+	// inspector describes and touches nothing in the world, which is the rule
+	// the sidebar rows already follow.
+	click := p.pick(p.rowKey(r))
+	if click.Clicked(gtx) {
+		p.sel = i
+	}
+	return click.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return layout.Inset{Left: t.Sp.S, Right: t.Sp.S, Top: t.Sp.XXS,
+			Bottom: t.Sp.XXS}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			if sel || click.Hovered() {
+				fill := t.P.Selected
+				if !sel {
+					fill = t.P.Sunk
+				}
+				comp.RoundRect(gtx, image.Pt(gtx.Constraints.Max.X,
+					gtx.Dp(unit.Dp(19))), 4, fill)
 			}
-			kids = append(kids, comp.Fixed(gtx, c.w,
-				comp.OneLine(t, t.Sz.Caption, c.c, c.s, true)))
-		}
-		return layout.Flex{}.Layout(gtx, kids...)
+			var kids []layout.FlexChild
+			for i, c := range cells {
+				if i == 1 && !where {
+					continue
+				}
+				kids = append(kids, comp.Fixed(gtx, c.w,
+					comp.OneLine(t, t.Sz.Caption, c.c, c.s, true)))
+			}
+			return layout.Flex{}.Layout(gtx, kids...)
+		})
 	})
 }

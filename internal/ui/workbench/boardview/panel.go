@@ -57,6 +57,16 @@ type Panel struct {
 	maximised bool
 	bar       comp.TitleBar
 
+	// sel is the row the inspector describes, and picks is what makes it
+	// movable: one clickable per row, pooled by the row's own name so a widget
+	// keeps its identity as the table is re-derived every frame.
+	//
+	// Keyed rather than indexed. Widget identity is address here, and a slice
+	// indexed by position hands row three's presses to whatever is third this
+	// frame - which on a table that changes with the board is a press landing
+	// on the wrong line.
+	picks map[string]*widget.Clickable
+
 	// scale is the whole-number magnification chosen for the panel, or zero
 	// for whatever the rail's budget allows.
 	scale     int
@@ -98,6 +108,33 @@ type Panel struct {
 
 	// counts is what the last frame's table came to, for the status bar.
 	counts Counts
+}
+
+// pick is this row's clickable, made on the first frame that draws the row.
+//
+// The table and the index down the rail are two views of one list, so they
+// share one clickable per row: pressing a part in either puts the same row in
+// the inspector, and the two cannot disagree about what is selected.
+func (p *Panel) pick(key string) *widget.Clickable {
+	if p.picks == nil {
+		p.picks = map[string]*widget.Clickable{}
+	}
+	c, ok := p.picks[key]
+	if !ok {
+		c = &widget.Clickable{}
+		p.picks[key] = c
+	}
+	return c
+}
+
+// rowKey is what a row is known by across frames: the tab it is on, its group
+// and its name, which is what the eye uses too.
+//
+// The tab is in it because the two tables have a "Radio" group each, and a key
+// that ignored which one is showing would hand a press on one tab's row to the
+// other tab's widget the moment the two ever shared a name.
+func (p *Panel) rowKey(r Row) string {
+	return string(rune('0'+int(p.Tab))) + "/" + r.Group + "/" + r.Name
 }
 
 func (p *Panel) SetLayered(on bool)       { p.Layered = on }
@@ -170,7 +207,20 @@ func (p *Panel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layo
 		}
 	}
 
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+	// The window's own chrome when the compositor draws none. A layer-shell
+	// surface has no title bar but the one drawn here, and without it the
+	// window cannot be dragged, maximised or closed - which is what the node
+	// window has had all along and this one silently did not. The three
+	// accessors were implemented and the bar was never laid out, so nothing
+	// failed and nothing worked.
+	var kids []layout.FlexChild
+	if p.Layered {
+		p.bar.Title, p.bar.Maximised = p.Node+" board view", p.maximised
+		kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return p.bar.Layout(t, gtx)
+		}))
+	}
+	kids = append(kids,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return p.header(t, gtx, b, st)
 		}),
@@ -205,6 +255,7 @@ func (p *Panel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layo
 			return p.status(t, gtx, st)
 		}),
 	)
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, kids...)
 }
 
 // dragRail is the rule between the board and the tables, which is also how the

@@ -100,6 +100,12 @@ func TestDrawTheBoardView(t *testing.T) {
 		{"renode-wiring", TabWiring, 0, "Heltec_t114", func() *state.NodeStat {
 			return t114Stat(t)
 		}},
+		// A layer-shell window, drawing its own bar because nothing else will,
+		// with a row picked that is not the first - the two states this window
+		// could not reach until the selection was wired and the bar laid out.
+		{"layered-picked", TabWiring, 0, "LilyGo_TDeck", func() *state.NodeStat {
+			return tdeckStat(bits, w, h)
+		}},
 		// A node on a host build, which has no board to check.
 		{"no-board", TabRadio, 0, "", func() *state.NodeStat {
 			return &state.NodeStat{Name: "Deck", Backend: "native", Running: true}
@@ -108,6 +114,12 @@ func TestDrawTheBoardView(t *testing.T) {
 	for _, c := range cases {
 		st := c.stat()
 		p := &Panel{Node: "Deck", Tab: c.tab, scale: c.scale}
+		if c.name == "layered-picked" {
+			// Both at once, because they are the same repair: a window that
+			// draws its own bar, and a selection that a press can move.
+			p.SetLayered(true)
+			p.sel = 2
+		}
 		snap := &state.Snapshot{
 			Stats: []state.NodeStat{*st},
 			// The node's own row, so the slot's controls are drawn: a board
