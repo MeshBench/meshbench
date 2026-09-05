@@ -38,6 +38,39 @@ var heltecT096Board = Board{
 		// firmware's console is on USB and not on this part's UART.
 		ConsoleOnUSB: true,
 	},
+	// What the board shows and what can be pressed on it, from
+	// variants/heltec_t096 in MeshCore: variant.h for the pins, T096Board.cpp
+	// for the battery arithmetic, and helpers/ui/ST7735Display.cpp for the
+	// panel, which it drives through TFT_eSPI(160, 80).
+	//
+	// Pins are the flat numbering the nRF52 core and the variant both use:
+	// P0.x is x and P1.x is 32+x. So the user button at 42 is P1.10, which is
+	// the same line the Renode wiring above holds high.
+	Hardware: &Panel{
+		// 160x80 is the glass. MeshCore's own UI draws on the 128x64 surface
+		// ST7735Display declares to it and the driver scales, but a picture of
+		// this board is a picture of the panel.
+		//
+		// The build sets DISPLAY_ROTATION=1, so the long axis is across.
+		Screen: &Screen{
+			Controller: "ST7735", Bus: BusSPI, CS: 22, DC: 15,
+			WidthPx: 160, HeightPx: 80, Ink: RGB565,
+		},
+		Parts: []Part{
+			// LED_BUILTIN, P0.28. LED_STATE_ON is 1 here, so it lights high.
+			{Kind: Lamp, Name: "LED", Pin: 28},
+			// PIN_BUTTON1, P1.10, read against the board's own pull-up.
+			{Kind: Button, Name: "user", Pin: 42, ActiveLow: true},
+			// getBattMilliVolts reads a 12-bit conversion on P0.03 against the
+			// internal 3.0 V reference and scales it by 4.9, the same divider
+			// the T114 carries, so full scale is 4095 * 3000/4096 * 4.9 mV.
+			//
+			// Gated on PIN_BAT_CTL, P1.15, which the board raises for the
+			// reading and drops after.
+			{Kind: Meter, Name: "battery", Pin: 3, FullScaleMV: 14696},
+		},
+	},
+
 	Notes: "The board whose transmit failure 1.17.1 fixed: PIN_SPI1_MISO was -1 " +
 		"against a 48-entry pin map, and the out-of-bounds read left the " +
 		"module's transmit enable undriven. The chip is compiled for 9 dBm and " +

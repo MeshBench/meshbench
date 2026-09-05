@@ -31,6 +31,27 @@ var heltecMeshSolarBoard = Board{
 		// firmware's console is on USB and not on this part's UART.
 		ConsoleOnUSB: true,
 	},
+	// What the board shows and what can be pressed on it, from
+	// variants/heltec_mesh_solar in MeshCore: variant.h for the pins.
+	//
+	// No screen. Every Heltec_mesh_solar env in the tree leaves DISPLAY_CLASS
+	// undefined, so nothing the catalogue fetches drives one - which is a fact
+	// about the builds as much as about the board, and the reason this profile
+	// declares parts and no panel.
+	//
+	// No meter either. This board reads its cell through the charger over I2C
+	// rather than off an ADC pin: MeshSolarBoard.h calls meshSolarGetBattVoltage,
+	// which is not a conversion on a pin and has no pin to declare.
+	Hardware: &Panel{
+		Parts: []Part{
+			// LED_BUILTIN, P0.12, with LED_STATE_ON LOW: it lights on a low.
+			{Kind: Lamp, Name: "LED", Pin: 12},
+			// PIN_BUTTON1, P1.10 - the pin the Renode wiring above holds high,
+			// because an undriven input here reads as a button held down.
+			{Kind: Button, Name: "user", Pin: 42, ActiveLow: true},
+		},
+	},
+
 	Notes: "An nRF52840, not the ESP32-S3 this profile claimed for a while: the " +
 		"variant extends nrf52_base and links against the s140 SoftDevice, and " +
 		"the release publishes it as .uf2 like every other nRF52 board here. " +
