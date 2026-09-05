@@ -52,8 +52,9 @@ func (w *WindowSet) OpenFor(node string, tab Tab,
 		OnCLI: h.OnCLI, OnServe: h.OnServe, OnOpenPacket: h.OnOpenPacket,
 		OnDo: h.OnDo, Kind: kindOfNode(st, node)}
 	p.Tab = tab
-	go shell.RunPopout(w.WindowRegistry, node, "MeshBench - "+node,
-		shell.PopoutSize{W: 820, H: 620}, p, newTheme, st)
+	go shell.RunPopout(w.WindowRegistry, shell.Popout{
+		Key: node, Title: "MeshBench - " + node, Bar: node, W: 820, H: 620,
+	}, p, newTheme, st)
 }
 
 var _ = key.NameEscape

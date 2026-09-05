@@ -49,8 +49,10 @@ func (w *WindowSet) OpenFor(node string, newTheme func() *theme.Theme,
 	// rather than the same. A layer-shell surface cannot be resized by the
 	// compositor either, so what it opens at is what it has until somebody
 	// presses maximise on the bar it now draws.
-	go shell.RunPopout(w.WindowRegistry, key, "MeshBench - "+node+" board view",
-		shell.PopoutSize{W: 1360, H: 860}, p, newTheme, st)
+	go shell.RunPopout(w.WindowRegistry, shell.Popout{
+		Key: key, Title: "MeshBench - " + node + " board view",
+		Bar: node + " board view", W: 1360, H: 860,
+	}, p, newTheme, st)
 }
 
 // openScreen puts the board's panel in a window of its own.
@@ -67,6 +69,8 @@ func (w *WindowSet) openScreen(node string, from *Panel,
 		return
 	}
 	sp := &ScreenPanel{Node: node, view: &from.screen, OnDo: from.OnDo}
-	go shell.RunPopout(w.WindowRegistry, key, "MeshBench - "+node+" screen",
-		shell.PopoutSize{W: 700, H: 560}, sp, newTheme, st)
+	go shell.RunPopout(w.WindowRegistry, shell.Popout{
+		Key: key, Title: "MeshBench - " + node + " screen",
+		Bar: node + " screen", W: 700, H: 560,
+	}, sp, newTheme, st)
 }

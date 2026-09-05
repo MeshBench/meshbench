@@ -99,38 +99,6 @@ func TestOneRowIsOneWidget(t *testing.T) {
 	}
 }
 
-// A layer-shell window draws its own title bar, because nothing else will.
-//
-// Without it the window cannot be dragged, maximised or closed. The three
-// accessors the pop-out loop needs were all implemented here and the bar was
-// never laid out, so nothing failed and nothing worked - and the node window
-// beside it, which does lay one out, made the difference look like a platform
-// quirk.
-func TestALayeredWindowDrawsItsOwnTitleBar(t *testing.T) {
-	p, snap := deckPanel(TabRadio)
-	p.SetLayered(true)
-	h := uitest.New(func(th *theme.Theme, gtx layout.Context,
-		s *state.Snapshot) layout.Dimensions {
-		return p.Draw(th, gtx, s)
-	}, snap)
-	h.Frame()
-	if got := p.TitleBar().Title; got == "" {
-		t.Error("a layered window laid out no title bar, so it cannot be " +
-			"dragged, maximised or closed")
-	}
-	// And an ordinary window leaves it to the compositor rather than drawing a
-	// second bar under the real one.
-	q, snap2 := deckPanel(TabRadio)
-	h2 := uitest.New(func(th *theme.Theme, gtx layout.Context,
-		s *state.Snapshot) layout.Dimensions {
-		return q.Draw(th, gtx, s)
-	}, snap2)
-	h2.Frame()
-	if q.TitleBar().Title != "" {
-		t.Error("an undecorated window drew a title bar of its own as well")
-	}
-}
-
 // deckPanel is a T-Deck part way through a run, and the snapshot it reads.
 func deckPanel(tab Tab) (*Panel, *state.Snapshot) {
 	p := &Panel{Node: "Deck", Tab: tab}

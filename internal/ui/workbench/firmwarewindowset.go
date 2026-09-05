@@ -38,6 +38,7 @@ func (w *firmwareWindowSet) openFor(role, version, board string,
 		return
 	}
 	p := &firmwareWindowPanel{role: role, version: version, board: board, OnDo: do}
-	go shell.RunPopout(w.WindowRegistry, key, "MeshBench - "+version,
-		shell.PopoutSize{W: 760, H: 680}, p, newTheme, st)
+	go shell.RunPopout(w.WindowRegistry, shell.Popout{
+		Key: key, Title: "MeshBench - " + version, Bar: version, W: 760, H: 680,
+	}, p, newTheme, st)
 }

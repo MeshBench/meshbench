@@ -53,10 +53,6 @@ type Panel struct {
 	// windows exist is the window set's business, not the panel's.
 	OnPopScreen func(node string)
 
-	Layered   bool
-	maximised bool
-	bar       comp.TitleBar
-
 	// sel is the row the inspector describes, and picks is what makes it
 	// movable: one clickable per row, pooled by the row's own name so a widget
 	// keeps its identity as the table is re-derived every frame.
@@ -137,10 +133,6 @@ func (p *Panel) rowKey(r Row) string {
 	return string(rune('0'+int(p.Tab))) + "/" + r.Group + "/" + r.Name
 }
 
-func (p *Panel) SetLayered(on bool)       { p.Layered = on }
-func (p *Panel) TitleBar() *comp.TitleBar { return &p.bar }
-func (p *Panel) SetMaximised(on bool)     { p.maximised = on }
-
 // Draw lays the window out: the board on the left, the tables in the middle,
 // the selected row said in full on the right, and what the board printed along
 // the bottom.
@@ -207,20 +199,7 @@ func (p *Panel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layo
 		}
 	}
 
-	// The window's own chrome when the compositor draws none. A layer-shell
-	// surface has no title bar but the one drawn here, and without it the
-	// window cannot be dragged, maximised or closed - which is what the node
-	// window has had all along and this one silently did not. The three
-	// accessors were implemented and the bar was never laid out, so nothing
-	// failed and nothing worked.
-	var kids []layout.FlexChild
-	if p.Layered {
-		p.bar.Title, p.bar.Maximised = p.Node+" board view", p.maximised
-		kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return p.bar.Layout(t, gtx)
-		}))
-	}
-	kids = append(kids,
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return p.header(t, gtx, b, st)
 		}),
@@ -255,7 +234,6 @@ func (p *Panel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layo
 			return p.status(t, gtx, st)
 		}),
 	)
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, kids...)
 }
 
 // dragRail is the rule between the board and the tables, which is also how the

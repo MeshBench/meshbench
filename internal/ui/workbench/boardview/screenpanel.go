@@ -28,15 +28,7 @@ type ScreenPanel struct {
 	// view is the same ScreenView the window it came from draws, so the touch
 	// mapping and the key focus are shared rather than copied.
 	view *ScreenView
-
-	Layered   bool
-	maximised bool
-	bar       comp.TitleBar
 }
-
-func (p *ScreenPanel) SetLayered(on bool)       { p.Layered = on }
-func (p *ScreenPanel) TitleBar() *comp.TitleBar { return &p.bar }
-func (p *ScreenPanel) SetMaximised(on bool)     { p.maximised = on }
 
 func (p *ScreenPanel) Draw(t *theme.Theme, gtx layout.Context,
 	s *state.Snapshot) layout.Dimensions {

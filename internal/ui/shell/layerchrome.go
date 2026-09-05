@@ -90,6 +90,52 @@ func (c *LayerChrome) Screens(mine image.Rectangle, all []image.Rectangle) {
 	c.screen, c.outputs = mine, all
 }
 
+// Maximised reports whether the window is anchored to all four edges, so the
+// bar draws the right glyph.
+func (c *LayerChrome) Maximised() bool { return c.maximised }
+
+// Screen is the output the margins are measured from, empty until one is
+// known.
+func (c *LayerChrome) Screen() image.Rectangle { return c.screen }
+
+// FitSpot moves the window so a window of this size opens wholly on screen.
+//
+// The cascade that places a new window knows nothing about how big it is, so a
+// tall one placed a little way down the screen runs off the bottom - and on a
+// layer surface what runs off cannot be dragged back into view by the
+// compositor, only by our own bar, which is itself off the screen by then.
+//
+// Only ever moves it towards the top-left, and only where there is no screen
+// that way: a window placed over a neighbouring output is somewhere it was
+// asked to be.
+func (c *LayerChrome) FitSpot(w, h unit.Dp) []app.Option {
+	if c.screen.Empty() {
+		return nil
+	}
+	was := c.spot
+	if !c.neighbour(1, 0) {
+		if over := c.spot.Left + w - unit.Dp(c.screen.Dx()); over > 0 {
+			c.spot.Left -= over
+		}
+	}
+	if !c.neighbour(0, 1) {
+		if over := c.spot.Top + h - unit.Dp(c.screen.Dy()); over > 0 {
+			c.spot.Top -= over
+		}
+	}
+	if c.spot.Left < 0 && !c.neighbour(-1, 0) {
+		c.spot.Left = 0
+	}
+	if c.spot.Top < 0 && !c.neighbour(0, -1) {
+		c.spot.Top = 0
+	}
+	if c.spot == was {
+		return nil
+	}
+	c.restore.spot = c.spot
+	return []app.Option{float.Move(c.spot)}
+}
+
 // update reads the bar after it has been laid out - its glyphs collect
 // their own clicks during Layout - and returns the options to apply, and
 // whether the window was asked to close.

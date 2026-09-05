@@ -100,9 +100,8 @@ func TestDrawTheBoardView(t *testing.T) {
 		{"renode-wiring", TabWiring, 0, "Heltec_t114", func() *state.NodeStat {
 			return t114Stat(t)
 		}},
-		// A layer-shell window, drawing its own bar because nothing else will,
-		// with a row picked that is not the first - the two states this window
-		// could not reach until the selection was wired and the bar laid out.
+		// A row picked that is not the first - a state this window could not
+		// reach until the selection was wired.
 		{"layered-picked", TabWiring, 0, "LilyGo_TDeck", func() *state.NodeStat {
 			return tdeckStat(bits, w, h)
 		}},
@@ -115,9 +114,9 @@ func TestDrawTheBoardView(t *testing.T) {
 		st := c.stat()
 		p := &Panel{Node: "Deck", Tab: c.tab, scale: c.scale}
 		if c.name == "layered-picked" {
-			// Both at once, because they are the same repair: a window that
-			// draws its own bar, and a selection that a press can move.
-			p.SetLayered(true)
+			// A row picked that is not the first, which this window could not
+			// reach until the selection was wired. The bar above it is the
+			// pop-out loop's now and not the panel's, so it is not here.
 			p.sel = 2
 		}
 		snap := &state.Snapshot{

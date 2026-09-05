@@ -73,20 +73,11 @@ type WindowPanel struct {
 	OnServe func(node, kind string)
 	// OnOpenPacket opens the packet view for an activity row.
 	OnOpenPacket func(id uint64)
-	// Layered reports that the window is a Wayland layer-shell surface, which
-	// carries no decoration of the compositor's and so draws its own title
-	// bar. Set by the window loop from ConfigEvent.
-	Layered bool
 	// cardCtl is the card slot's own controls, drawn in the Hardware tab
 	// because a card is hardware.
 	cardCtl cardControls
 	// ant is the antenna form: the sort, its numbers, and where it points.
 	ant antennaControls
-	// bar is that title bar, and maximised is its restore state, both owned
-	// here so the widget's address never changes across frames. The window
-	// loop polls them; the panel only draws.
-	bar       comp.TitleBar
-	maximised bool
 	// Kind is what this node is, which decides which tabs it grows.
 	Kind string
 	// out is the Output tab's own state: which source is showing, and the
@@ -113,9 +104,6 @@ type WindowPanel struct {
 }
 
 // visibleTabs is the tab set this node gets.
-func (p *WindowPanel) SetLayered(on bool)       { p.Layered = on }
-func (p *WindowPanel) TitleBar() *comp.TitleBar { return &p.bar }
-func (p *WindowPanel) SetMaximised(on bool)     { p.maximised = on }
 
 func (p *WindowPanel) visibleTabs() []Tab {
 	var tabs []Tab
@@ -260,15 +248,7 @@ func (p *WindowPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 			macro.Stop().Add(gtx.Ops)
 		}()
 	}
-	// The window's own chrome when nothing else gave it any: a layer-shell
-	// window has no title bar but the one drawn here.
 	var kids []layout.FlexChild
-	if p.Layered {
-		p.bar.Title, p.bar.Maximised = p.Node, p.maximised
-		kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return p.bar.Layout(t, gtx)
-		}))
-	}
 	kids = append(kids,
 		layout.Rigid(p.head(t, s)),
 		layout.Rigid(layout.Spacer{Height: t.Sp.S}.Layout),
