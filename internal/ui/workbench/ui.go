@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 
 	"github.com/MeshBench/meshbench/internal/ui/comp"
+	"github.com/MeshBench/meshbench/internal/ui/workbench/boardview"
 	"github.com/MeshBench/meshbench/internal/ui/workbench/nodeview"
 
 	"github.com/MeshBench/meshbench/internal/app/session"
@@ -32,6 +33,9 @@ type workbenchUI struct {
 	// both on the same terms as the node windows.
 	builds *firmwareWindowSet
 	logs   *nodeview.OutputWindowSet
+	// boards is the bring-up windows, one per node whose board is being
+	// checked against its own profile.
+	boards *boardview.WindowSet
 	store  *state.Store
 	// newTheme gives each window a shaper of its own: Gio's is not safe for
 	// concurrent use and two frame loops sharing one corrupts its glyph
@@ -182,6 +186,31 @@ func (u *workbenchUI) applyCamera() {
 	}
 }
 
+// OpenBoardView puts one node's board under the question the Hardware tab does
+// not ask - is it behaving like the board its profile says it is - and offers
+// the controls for everything it has wired.
+func (u *workbenchUI) OpenBoardView(node, tab string) (string, error) {
+	if u.boards == nil || u.newTheme == nil {
+		return "", fmt.Errorf("this build has no bring-up windows to open")
+	}
+	// The default where nothing was asked for, and refused by name where
+	// something was: a tab nobody can name is a tab nobody can capture, and
+	// the two tables answer different questions.
+	want := boardview.TabRadio
+	if tab != "" {
+		got, ok := boardview.TabByName(tab)
+		if !ok {
+			return "", fmt.Errorf("no tab called %q - there is %s",
+				tab, strings.Join(boardview.TabNames(), ", "))
+		}
+		want = got
+	}
+	u.boards.OpenFor(node, want, u.newTheme, u.store, boardview.Hooks{
+		OnDo: u.OnDo, OnSaveShot: u.saveBoardShot,
+	})
+	return want.String(), nil
+}
+
 func (u *workbenchUI) OpenNodeWindow(node, tab string) (string, error) {
 	if u.nodes == nil || u.newTheme == nil {
 		return "", fmt.Errorf("this build has no node windows to open")
@@ -228,4 +257,28 @@ func (u *workbenchUI) OpenFirmwareWindow(role, version, board string) error {
 	}
 	u.builds.openFor(role, version, board, u.newTheme, u.store, u.OnDo)
 	return nil
+}
+
+// saveBoardShot writes what a board's panel is showing to a file somebody
+// chose.
+//
+// Two steps because the verb writes to the node's own directory and overwrites
+// it every time: that is right for a script polling the screen and wrong for
+// somebody keeping one. So the picture is taken, then copied where they asked.
+//
+// On its own goroutine: the platform's dialog blocks until it is answered, and
+// the store's loop must not wait on a person.
+func (u *workbenchUI) saveBoardShot(node, suggested string) {
+	if shell.Browse == nil || u.store == nil {
+		return
+	}
+	go func() {
+		to, err := shell.Browse("Save the board's picture", suggested,
+			shell.PathAsk{Kind: shell.PathSaveFile,
+				FilterName: "PNG images", Extensions: []string{"png"}})
+		if err != nil || to == "" {
+			return // cancelled, which is not a fault
+		}
+		u.OnDo("board.screenshot", map[string]any{"node": node, "to": to})
+	}()
 }

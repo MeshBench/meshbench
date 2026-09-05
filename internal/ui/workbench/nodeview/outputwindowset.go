@@ -38,8 +38,10 @@ func (w *OutputWindowSet) OpenFor(node, source string,
 	}
 	p := &OutputWindowPanel{Node: node, OnDo: do}
 	p.out.source, p.out.noPop = source, true
-	title := "MeshBench - " + node + " " + sourceLabel(source)
-	go shell.RunPopout(w.WindowRegistry, key, title, shell.PopoutSize{W: 760, H: 520}, p, newTheme, st)
+	what := node + " " + sourceLabel(source)
+	go shell.RunPopout(w.WindowRegistry, shell.Popout{
+		Key: key, Title: "MeshBench - " + what, Bar: what, W: 760, H: 520,
+	}, p, newTheme, st)
 }
 
 // OutputWindowPanel is one log, drawn on its own.
@@ -59,10 +61,6 @@ type OutputWindowPanel struct {
 
 	asked string
 }
-
-func (p *OutputWindowPanel) SetLayered(on bool)       { p.Layered = on }
-func (p *OutputWindowPanel) TitleBar() *comp.TitleBar { return &p.bar }
-func (p *OutputWindowPanel) SetMaximised(on bool)     { p.maximised = on }
 
 func (p *OutputWindowPanel) Draw(t *theme.Theme, gtx layout.Context,
 	s *state.Snapshot) layout.Dimensions {

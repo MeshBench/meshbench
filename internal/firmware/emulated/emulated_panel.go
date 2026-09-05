@@ -26,6 +26,21 @@ func (e *EmulatedNode) Screen() (width, height, bpp int, on bool, bits []byte, h
 	return f.Width, f.Height, f.BPP, f.On, f.Bits, true
 }
 
+// ScreenSeq changes when this board draws and not otherwise.
+//
+// Its own method rather than a seventh return on Screen, which six callers
+// would have had to be changed for and three of them are tests that do not
+// care. What wants it is the interface: a panel that repaints every pixel of
+// every frame costs a T-Deck seventy-six thousand fill operations a frame, and
+// this is the number that says when it need not.
+func (e *EmulatedNode) ScreenSeq() uint64 {
+	if e.Panel == nil {
+		return 0
+	}
+	_, seq := e.Panel.Frame()
+	return seq
+}
+
 // PressButton holds one of this board's buttons down or lets it go.
 func (e *EmulatedNode) PressButton(pin int, down bool) error {
 	if e.Buttons == nil {

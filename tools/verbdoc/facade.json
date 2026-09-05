@@ -272,7 +272,9 @@
     "update.reveal": "wb.update.reveal()",
     "update.notes": "wb.update.notes()",
     "update.checked": "",
-    "update.staged": ""
+    "update.staged": "",
+    "node.boardview": "wb.board_view(node)",
+    "board.reset": "node.device.reset()"
   },
   "no_facade": {
     "node.reflashed": "the store telling itself a reflash finished",

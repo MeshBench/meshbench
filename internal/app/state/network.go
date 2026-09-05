@@ -189,6 +189,12 @@ type Screen struct {
 	// firmware did not send.
 	BPP  int
 	Bits []byte
+	// Seq changes when the board draws and not otherwise, so an interface can
+	// tell a new picture from the same one arriving again. The panel socket
+	// has always kept it; it was thrown away one line short of here, and the
+	// two windows that draw a panel each repainted every pixel every frame as
+	// a result.
+	Seq uint64
 }
 
 // Lit reports whether a pixel is on, which only a monochrome panel can answer.
@@ -336,52 +342,6 @@ type Trail struct {
 	From, To  int
 	AtMs      uint32
 	Delivered bool
-}
-
-// RadioState is a node's chip as the firmware has set it up.
-//
-// Reported raw, and rendered raw: a register is worth showing as a register,
-// because the question this answers is "is this node set to what I think it is",
-// and a value translated on the way loses the ability to answer it.
-type RadioState struct {
-	// Reported says the node's radio has said anything at all. A node that has
-	// not come up must not read as one configured to zero.
-	Reported bool
-	// GainReg is 0x08AC: 0x96 boosted, 0x94 power saving.
-	GainReg    uint8
-	Boosted    bool
-	TxPowerDBm int8
-	// FemLive is the front-end module's enable line now; FemAtTx is where it
-	// stood when this node last began transmitting, which is the one that
-	// decides how much power left the board.
-	FemLive bool
-	FemAtTx uint8
-	// Mode is 0 standby, 1 rx, 2 tx, 3 cad.
-	Mode         uint8
-	SF, CR       uint8
-	FreqHz       uint32
-	BandwidthHz  uint32
-	PreambleSyms uint16
-	// IRQMask is what the firmware allowed into the chip's interrupt status
-	// register; IRQFlags is what is raised now. The pair tells a node stuck on a
-	// flag from one with nothing to say.
-	IRQMask, IRQFlags uint16
-	// DIO1Mask is the narrower set wired out to the DIO1 pin, which is a
-	// different field of SetDioIrqParams and not the same thing as IRQMask.
-	// Worth its own row because confusing the two is a fault that has happened:
-	// the chip model gated the pin on the enable mask, so HeaderValid raised
-	// DIO1 part-way through a carrier and the pin was still high when RxDone
-	// arrived - no rising edge for a driver that attaches on one, and a board
-	// that heard every advert and forwarded about one in three.
-	//
-	// RadioLib's receive default is RxDone alone, against an IRQMask that also
-	// carries Timeout, CrcErr, HeaderValid and HeaderErr, so the two being equal
-	// is a sign rather than a normal reading.
-	DIO1Mask uint16
-	// DIO1Reported tells "this node did not say" from "this node said zero", the
-	// same way Reported does for the block above: a radioserver older than this
-	// field sends a shorter record.
-	DIO1Reported bool
 }
 
 // FleetReply is one node's answer to a fleet command, in the firmware's own

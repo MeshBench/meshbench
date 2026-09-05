@@ -6,6 +6,8 @@
 package session
 
 import (
+	"fmt"
+
 	"github.com/MeshBench/meshbench/internal/app/control"
 	"github.com/MeshBench/meshbench/internal/app/state"
 )
@@ -30,5 +32,32 @@ func registerNodeWindow(st *state.Store, s *Sim) {
 			return nil, control.WithCode(control.BadParams, err)
 		}
 		return map[string]any{"node": name, "tab": shown}, nil
+	})
+
+	// node.boardview: the same node, asked a different question - is this board
+	// behaving like the board it says it is.
+	st.Handle("node.boardview", func(w *state.World, p any) (any, error) {
+		if err := s.needUI(); err != nil {
+			return nil, err
+		}
+		name := primaryString(p, "node")
+		n, found := findNode(w.Nodes, name)
+		if !found {
+			return nil, noSuchNode(name)
+		}
+		// Refused here rather than opening a window that can only say it has
+		// nothing to show. A node on a host build has no board, and there is
+		// no wiring to check against a profile that does not exist.
+		if n.Board == "" {
+			return nil, control.WithCode(control.BadParams,
+				fmt.Errorf("%s runs a host build rather than a board image, "+
+					"so there is no wiring to check", name))
+		}
+		tab, _ := namedField(p, "tab")
+		shown, err := s.ui.OpenBoardView(name, tab)
+		if err != nil {
+			return nil, control.WithCode(control.BadParams, err)
+		}
+		return map[string]any{"node": name, "board": n.Board, "tab": shown}, nil
 	})
 }

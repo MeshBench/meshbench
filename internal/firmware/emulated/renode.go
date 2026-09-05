@@ -36,6 +36,9 @@ func (e *EmulatedNode) renodeScript(conPort int, bridge string) (string, error) 
 	}
 
 	repl := filepath.Join(e.Dir, "node.repl")
+	// The radio, then whatever else the board has on its second controller.
+	// A display is not on the radio's: both boards that carry one put it on the
+	// Arduino core's SPI1, which is the controller EasyDMASPI declares.
 	wiring := fmt.Sprintf(`%s
 radiospi: SPI.NRF52840_SPI @ sysbus 0x%X
     easyDMA: true
@@ -47,7 +50,11 @@ lora: Radio.VirtualSX1262 @ radiospi
 
 %s:
     %d -> lora@0
-`, renode.EasyDMASPI(e.SPIBase), e.SPIBase, engineHost, enginePort, e.IrqPort, e.IrqPin, e.NssPort, e.NssPin)
+`, renode.EasyDMASPI(e.SPIBase), e.SPIBase, engineHost, enginePort, e.IrqPort,
+		e.IrqPin, e.NssPort, e.NssPin)
+	wiring += renode.Panel(e.SPIBase, e.PanelPort, e.PanelWidth, e.PanelHgt,
+		e.PanelCS, e.PanelDC, e.NssPort)
+	wiring += renode.Inputs(e.ButtonPort, e.HasMeter)
 	if err := os.WriteFile(repl, []byte(wiring), 0o644); err != nil {
 		return "", err
 	}
@@ -71,6 +78,8 @@ lora: Radio.VirtualSX1262 @ radiospi
 	body := fmt.Sprintf(`i @%[1]s/peripherals/VirtualSX1262Lib.cs
 i @%[1]s/peripherals/VirtualSX1262Engine.cs
 i @%[1]s/peripherals/VirtualSX1262.cs
+i @%[1]s/peripherals/MeshBenchInputs.cs
+i @%[1]s/peripherals/MeshBenchPanel.cs
 i @%[1]s/peripherals/NRF52840_Temp.cs
 i @%[1]s/peripherals/NRF52840_Clock.cs
 i @%[1]s/peripherals/NRF52840_SAADC.cs

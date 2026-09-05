@@ -40,19 +40,23 @@ type WindowPanel struct {
 	// pick is the build list, the same control the Nodes running panel opens
 	// from its firmware cell. Shared so the two cannot come to offer
 	// different builds or apply them differently.
-	pick     buildPicker
-	tcpBtn   comp.Button
-	serBtn   comp.Button
-	dropBtn  comp.Button
-	sdrServe comp.Button
-	sdrStop  comp.Button
-	list     layout.List
-	statList widget.List
-	setList  widget.List
-	acts     comp.Table
-	built    bool
-	rowsSet  bool
-	seq      uint64
+	// boardView opens the board view, which is this board in full.
+	// Named where the panel is built rather than where it is drawn, so it has
+	// a label before its first frame.
+	boardView comp.Button
+	pick      buildPicker
+	tcpBtn    comp.Button
+	serBtn    comp.Button
+	dropBtn   comp.Button
+	sdrServe  comp.Button
+	sdrStop   comp.Button
+	list      layout.List
+	statList  widget.List
+	setList   widget.List
+	acts      comp.Table
+	built     bool
+	rowsSet   bool
+	seq       uint64
 
 	// OnCommand is given a line to send to the node's firmware.
 	OnCommand func(node, line string)
@@ -69,20 +73,14 @@ type WindowPanel struct {
 	OnServe func(node, kind string)
 	// OnOpenPacket opens the packet view for an activity row.
 	OnOpenPacket func(id uint64)
-	// Layered reports that the window is a Wayland layer-shell surface, which
-	// carries no decoration of the compositor's and so draws its own title
-	// bar. Set by the window loop from ConfigEvent.
-	Layered bool
+	// screenPic is the board's panel as an image, rebuilt when the board
+	// draws rather than on every frame.
+	screenPic comp.ScreenImage
 	// cardCtl is the card slot's own controls, drawn in the Hardware tab
 	// because a card is hardware.
 	cardCtl cardControls
 	// ant is the antenna form: the sort, its numbers, and where it points.
 	ant antennaControls
-	// bar is that title bar, and maximised is its restore state, both owned
-	// here so the widget's address never changes across frames. The window
-	// loop polls them; the panel only draws.
-	bar       comp.TitleBar
-	maximised bool
 	// Kind is what this node is, which decides which tabs it grows.
 	Kind string
 	// out is the Output tab's own state: which source is showing, and the
@@ -93,11 +91,10 @@ type WindowPanel struct {
 	// preference: a setting and the hardware can disagree, and a node showing
 	// a display its board has not got is worse than one showing none.
 	hasHardware bool
-	// boardButtons are the drawn buttons, pooled by pin, and buttonDown is
-	// what each was last reported as - so a hold is sent once and a release
-	// once, rather than every frame the pointer is down.
-	boardButtons map[int]*widget.Clickable
-	buttonDown   map[int]bool
+	// board is this board's lamps, buttons and trackball, which the
+	// bring-up window draws too - so they live in comp and this holds the
+	// widgets rather than declaring them.
+	board comp.BoardControls
 	// screenTouch is what pointer events on the drawn panel are addressed to,
 	// and screenScale is what they have to be divided by to become the
 	// panel's own coordinates.
@@ -110,9 +107,6 @@ type WindowPanel struct {
 }
 
 // visibleTabs is the tab set this node gets.
-func (p *WindowPanel) SetLayered(on bool)       { p.Layered = on }
-func (p *WindowPanel) TitleBar() *comp.TitleBar { return &p.bar }
-func (p *WindowPanel) SetMaximised(on bool)     { p.maximised = on }
 
 func (p *WindowPanel) visibleTabs() []Tab {
 	var tabs []Tab
@@ -257,15 +251,7 @@ func (p *WindowPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 			macro.Stop().Add(gtx.Ops)
 		}()
 	}
-	// The window's own chrome when nothing else gave it any: a layer-shell
-	// window has no title bar but the one drawn here.
 	var kids []layout.FlexChild
-	if p.Layered {
-		p.bar.Title, p.bar.Maximised = p.Node, p.maximised
-		kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return p.bar.Layout(t, gtx)
-		}))
-	}
 	kids = append(kids,
 		layout.Rigid(p.head(t, s)),
 		layout.Rigid(layout.Spacer{Height: t.Sp.S}.Layout),
@@ -442,6 +428,15 @@ func (p *WindowPanel) AuditDraw(t *theme.Theme, gtx layout.Context, s *state.Sna
 			return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx,
 				func(gtx layout.Context) layout.Dimensions {
 					return p.cardAuditRow(t, gtx, s)
+				})
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			// The way to the bring-up window, which sits below the card
+			// controls in the Hardware tab and is out of reach in the flat
+			// layout for the same reason they were.
+			return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx,
+				func(gtx layout.Context) layout.Dimensions {
+					return p.boardViewAuditRow(t, gtx)
 				})
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {

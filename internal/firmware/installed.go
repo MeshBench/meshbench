@@ -197,6 +197,14 @@ const labelSep = "@"
 //
 // Two forms: <role>@<label> for an imported build, and <role>-<version> for a
 // published one.
+// RoleVersionFromImageName is how a downloaded image's own file name reads
+// back, exported so the catalogue that writes the name can be held to it: what
+// a build is offered as has to be what it is stored as and what it is listed
+// as again, and that round trip was broken for every build with a transport.
+func RoleVersionFromImageName(name string) (role, version string) {
+	return roleVersionFromImage(name)
+}
+
 func roleVersionFromImage(name string) (role, version string) {
 	s := strings.TrimSuffix(name, filepath.Ext(name))
 	if k := strings.Index(s, labelSep); k > 0 {

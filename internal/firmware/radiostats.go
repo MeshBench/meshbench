@@ -7,6 +7,15 @@ type RadioStats struct {
 	// BusyReads how many of those found a detection flag set - the firmware's
 	// own view of how often the air looked occupied.
 	IRQReads, BusyReads uint32
+
+	// ConsoleBaud is what the firmware set the board's console UART to, or
+	// zero where nothing has said.
+	//
+	// Zero has two causes and they are not the same fact: a board whose
+	// console is the USB peripheral has no line rate to report, and an
+	// emulator older than this field reports nothing. Which of the two it is
+	// comes from the board's own profile, not from here.
+	ConsoleBaud uint32
 	// BusyMs is how long those flags were up.
 	BusyMs uint32
 	// SpuriousUp counts deliberately injected false detections, on the faulty

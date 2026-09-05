@@ -69,6 +69,7 @@ type PanelListener struct {
 
 	ln   net.Listener
 	path string
+	port int
 	done chan struct{}
 }
 
@@ -84,13 +85,40 @@ func ListenPanel(path string) (*PanelListener, error) {
 	if err != nil {
 		return nil, err
 	}
+	return panelSink(ln, path), nil
+}
+
+// ListenPanelTCP is the same channel on a loopback port, for an emulator that
+// cannot dial a socket file.
+//
+// Renode again, for the reason its console and its inputs are already on ports.
+// The frames are identical: the same magic, the same header, the same bytes in
+// the same order, so a picture drawn under one emulator and under the other
+// arrives here the same way.
+func ListenPanelTCP() (*PanelListener, error) {
+	var lc net.ListenConfig
+	ln, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		return nil, err
+	}
+	p := panelSink(ln, "")
+	if addr, ok := ln.Addr().(*net.TCPAddr); ok {
+		p.port = addr.Port
+	}
+	return p, nil
+}
+
+func panelSink(ln net.Listener, path string) *PanelListener {
 	p := &PanelListener{ln: ln, path: path, done: make(chan struct{})}
 	go p.accept()
-	return p, nil
+	return p
 }
 
 // Path is where the emulator should send its frames.
 func (p *PanelListener) Path() string { return p.path }
+
+// Port is the loopback port it is on instead, and zero for a socket file.
+func (p *PanelListener) Port() int { return p.port }
 
 // Frame is the last picture received, and a sequence number that changes when
 // it does. Callers redraw on the sequence rather than comparing pictures.
@@ -108,7 +136,9 @@ func (p *PanelListener) Close() error {
 		close(p.done)
 	}
 	err := p.ln.Close()
-	_ = os.Remove(p.path)
+	if p.path != "" {
+		_ = os.Remove(p.path)
+	}
 	return err
 }
 

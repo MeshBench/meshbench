@@ -165,6 +165,11 @@ func (s *Sim) nodeStats(events []state.Event) []state.NodeStat {
 				if w, h, bpp, on, bits, have := scr.Screen(); have {
 					st.Screen = &state.Screen{
 						Width: w, Height: h, BPP: bpp, On: on, Bits: bits}
+					// What says the picture changed, for an interface that
+					// would otherwise repaint every pixel of it every frame.
+					if sq, ok := n.Firmware.Backend.(interface{ ScreenSeq() uint64 }); ok {
+						st.Screen.Seq = sq.ScreenSeq()
+					}
 				}
 			}
 			st.Radio = state.RadioState{
@@ -175,7 +180,8 @@ func (s *Sim) nodeStats(events []state.Event) []state.NodeStat {
 				FreqHz: r.FreqHz, BandwidthHz: r.BandwidthHz,
 				PreambleSyms: r.PreambleSyms,
 				IRQMask:      r.IRQMask, IRQFlags: r.IRQFlags,
-				DIO1Mask: r.DIO1Mask, DIO1Reported: r.DIO1Reported,
+				ConsoleBaud: r.ConsoleBaud,
+				DIO1Mask:    r.DIO1Mask, DIO1Reported: r.DIO1Reported,
 			}
 			if p, ok := n.Firmware.Backend.(interface{ PID() int }); ok {
 				st.PID = p.PID()
@@ -443,6 +449,12 @@ func (s *Sim) Reflash(ctx context.Context, st *state.Store, name string, b Build
 			return
 		}
 		s.setState(name, "")
-		_, _ = st.Do(ctx, "node.reflashed", name+" now runs "+b.Describe())
+		// The name as a field, not recovered from the sentence. It used to be
+		// the first word of this message, which is the node's name only for a
+		// node whose name has no space in it - so "GM0KVE KINROSS Repeater"
+		// refreshed a node called "GM0KVE", which is nothing, and the node
+		// list kept the build it had before.
+		_, _ = st.Do(ctx, "node.reflashed", map[string]any{
+			"node": name, "message": name + " now runs " + b.Describe()})
 	}()
 }

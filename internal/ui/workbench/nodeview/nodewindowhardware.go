@@ -9,7 +9,6 @@ import (
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/unit"
-	"gioui.org/widget"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	hw "github.com/MeshBench/meshbench/internal/firmware/board"
@@ -60,6 +59,9 @@ func (p *WindowPanel) hardware(t *theme.Theme, gtx layout.Context, s *state.Snap
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 								return p.card(t, gtx, s)
 							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return p.boardViewLink(t, gtx)
+							}),
 						)
 					}),
 				)
@@ -69,6 +71,54 @@ func (p *WindowPanel) hardware(t *theme.Theme, gtx layout.Context, s *state.Snap
 			}),
 		)
 	})(gtx)
+}
+
+// boardViewLink is the way from here to the window that asks the other question.
+//
+// This tab draws the board so somebody can recognise it and press it. Whether
+// it is behaving like its own profile is a different question with a different
+// audience, and one that needs the room a tab does not have - so it is a
+// window, and this is how it is found rather than only through a verb.
+func (p *WindowPanel) boardViewLink(t *theme.Theme, gtx layout.Context) layout.Dimensions {
+	p.nameBoardView()
+	if p.boardView.Click.Clicked(gtx) && p.OnDo != nil {
+		p.OnDo("node.boardview", map[string]any{"node": p.Node})
+	}
+	return layout.Inset{Top: t.Sp.M}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return p.boardView.Layout(t, gtx)
+			}),
+			layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint,
+				"what its profile declares, beside what the firmware left in the chip")),
+		)
+	})
+}
+
+// boardViewAuditRow is the control without its caption, for the flat layout the
+// audit draws.
+//
+// The caption is a line of prose, and the flat layout has no slack for one: the
+// canvas is every tab's controls at once, and the last thing added to it pushed
+// the console's send button off the bottom. The card slot's controls are here
+// for the same reason and without their own three paragraphs.
+func (p *WindowPanel) boardViewAuditRow(t *theme.Theme, gtx layout.Context) layout.Dimensions {
+	p.nameBoardView()
+	if p.boardView.Click.Clicked(gtx) && p.OnDo != nil {
+		p.OnDo("node.boardview", map[string]any{"node": p.Node})
+	}
+	return p.boardView.Layout(t, gtx)
+}
+
+// nameBoardView gives the control its label before anything draws it, so a
+// reader of the panel - the audit among them - finds a named button.
+func (p *WindowPanel) nameBoardView() {
+	if p.boardView.Label == "" {
+		// Named for the window it opens, beside the node view and the packet
+		// view. "Bring-up" named the afternoon rather than the thing, and a
+		// control that names an activity leaves the reader to guess.
+		p.boardView.Kind, p.boardView.Label = comp.Quiet, "Board view..."
+	}
 }
 
 // lastWords is the tail of what the board printed, under the picture of it.
@@ -131,7 +181,7 @@ func (p *WindowPanel) device(t *theme.Theme, gtx layout.Context,
 	return comp.Card(t, "", func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return p.lamps(t, gtx, panel, st)
+				return p.board.Lamps(t, gtx, panel)
 			}),
 			layout.Rigid(layout.Spacer{Height: t.Sp.S}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -139,11 +189,11 @@ func (p *WindowPanel) device(t *theme.Theme, gtx layout.Context,
 			}),
 			layout.Rigid(layout.Spacer{Height: t.Sp.S}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return p.buttons(t, gtx, panel)
+				return p.board.Buttons(t, gtx, panel)
 			}),
 			layout.Rigid(layout.Spacer{Height: t.Sp.XS}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return p.ball(t, gtx, panel)
+				return p.board.Ball(t, gtx, panel)
 			}),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return p.typingNote(t, gtx, panel)
@@ -277,19 +327,6 @@ func (p *WindowPanel) boardTouches(gtx layout.Context, s *state.Snapshot) {
 	}
 }
 
-// buttonFor is this pin's control, kept across frames.
-func (p *WindowPanel) buttonFor(pin int) *widget.Clickable {
-	if p.boardButtons == nil {
-		p.boardButtons = map[int]*widget.Clickable{}
-	}
-	if b, ok := p.boardButtons[pin]; ok {
-		return b
-	}
-	b := &widget.Clickable{}
-	p.boardButtons[pin] = b
-	return b
-}
-
 // boardPresses turns what the pointer did into holds and releases.
 //
 // Held rather than clicked, because the firmware behind these pins cares: a
@@ -300,35 +337,9 @@ func (p *WindowPanel) boardPresses(gtx layout.Context, s *state.Snapshot) {
 	if panel == nil || p.OnDo == nil {
 		return
 	}
-	// A trackball's directions are pins like any other. What makes one a step
-	// rather than a hold is the firmware, which counts changes of level - so
-	// pressing and letting go rolls the ball two notches, which is what
-	// rolling it past a line does.
-	pins := make([]int, 0, len(panel.Parts))
-	for _, part := range panel.PartsOfKind(hw.Button) {
-		if part.Pin != hw.PinNone {
-			pins = append(pins, part.Pin)
-		}
-	}
-	for _, part := range panel.PartsOfKind(hw.Ball) {
-		for _, pin := range part.Pins {
-			if pin != hw.PinNone {
-				pins = append(pins, pin)
-			}
-		}
-	}
-	for _, pin := range pins {
-		btn := p.buttonFor(pin)
-		down := btn.Pressed()
-		if down == p.buttonDown[pin] {
-			continue
-		}
-		if p.buttonDown == nil {
-			p.buttonDown = map[int]bool{}
-		}
-		p.buttonDown[pin] = down
+	for _, pr := range p.board.Presses(panel) {
 		p.OnDo("board.press", map[string]any{
-			"node": p.Node, "pin": pin, "down": down})
+			"node": p.Node, "pin": pr.Pin, "down": pr.Down})
 	}
 }
 

@@ -174,6 +174,12 @@ internal/ui/        Gio — the only layer permitted a toolkit
                       package because a _test.go cannot cross a package
                       boundary and the panels no longer live in one
   workbench/          the workbench itself: panels, state, wiring
+    boardview/          one board in full: its panel live at a whole-number
+                        scale, the controls for everything it has wired, and
+                        what its profile declares beside what the firmware left
+                        in the chip, with a verdict on each row. A window rather
+                        than a tab, and the firmware developer's half of what
+                        the Hardware tab shows
     nodeview/           one node: the list, the node window and all its tabs -
                         radio, antenna, hardware, console, output, companion -
                         the boards panel and the build picker

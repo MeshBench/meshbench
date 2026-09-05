@@ -53,3 +53,5 @@ func TestOpeningANetworkFramesIt(t *testing.T) {
 		t.Errorf("map.fit reached the camera %d times", ui.fits)
 	}
 }
+
+func (u *framingUI) OpenBoardView(_, _ string) (string, error) { return "Radio", nil }

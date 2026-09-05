@@ -61,6 +61,15 @@ class Device:
         self.press(pin, True)
         self.press(pin, False)
 
+    def reset(self) -> None:
+        """Restart the board, the way pressing its own reset button does.
+
+        Torn down and built again from the same flash: whatever the firmware
+        wrote survives and whatever it held in memory does not. It answers when
+        the board is back up.
+        """
+        self._wb.call("board.reset", {"node": self.name})
+
     def type(self, text: str) -> None:
         """Enter text at the board's own keyboard, a character at a time -
         which is what the keyboard sends and what the firmware polls for."""

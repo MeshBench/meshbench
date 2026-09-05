@@ -139,10 +139,21 @@ func TestLayerChromeRecall(t *testing.T) {
 	if len(opts) != 1 || h.chrome.spot.Left != unit.Dp(24) {
 		t.Fatalf("recall moved nothing: %d options, place %v", len(opts), h.chrome.spot.Left)
 	}
-	// A maximised window is already full-output and on top; recall declines.
+	// A maximised one especially. This used to decline - "already full-output
+	// and on top, there is nothing to bring back" - which was true of the
+	// window and false of the person: maximise is what puts a window on a
+	// screen the pointer is not on, so the one window recall could not rescue
+	// was the one that needed rescuing, and closing the application was the
+	// only way out of it.
 	h.chrome.maximised = true
-	if opts := h.chrome.Recall(float.Spot{}); opts != nil {
-		t.Fatalf("recall of a maximised window applied %d options, want none", len(opts))
+	h.chrome.restore.w, h.chrome.restore.h = unit.Dp(700), unit.Dp(500)
+	opts = h.chrome.Recall(float.Spot{Top: unit.Dp(24), Left: unit.Dp(24)})
+	if len(opts) < 2 {
+		t.Fatalf("recall of a maximised window applied %d options; it has to "+
+			"move it and give it back a size it can be seen at", len(opts))
+	}
+	if h.chrome.maximised {
+		t.Fatal("it came back still maximised, which is where it was stuck")
 	}
 }
 

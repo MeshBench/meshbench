@@ -275,18 +275,32 @@ func Runnable(images []BoardImage, wired func(board string) bool) []BoardImage {
 	return out
 }
 
+// RoleName is the single string this image is known by outside the catalogue:
+// its role with its transport, where it has one.
+//
+// The catalogue parses the two apart, which is right for the catalogue and
+// wrong for everything that names a build by one string - the file it is stored
+// as, the role it is listed under, the value scenario.Role carries for it. The
+// library composed it in one place and the catalogue in another, and only the
+// second was doing it, so every companion was offered under a name nothing else
+// used: the row said companion_radio, the downloaded file said
+// companion_radio_usb, and the row stayed "not downloaded" however many times
+// it was pressed.
+func (i BoardImage) RoleName() string {
+	if i.Transport == "" {
+		return i.Role
+	}
+	return i.Role + "_" + i.Transport
+}
+
 // BoardImagePath is where a downloaded image lives, and where the runner looks.
 //
 // The transport is part of the name because a board publishes both companion
 // variants at one version: without it the two share a path, and which firmware
 // a node runs comes down to which was downloaded last.
 func BoardImagePath(cacheDir string, img BoardImage) string {
-	name := img.Role
-	if img.Transport != "" {
-		name += "_" + img.Transport
-	}
 	return filepath.Join(cacheDir, firmware.BoardDir, img.Board,
-		name+"-"+img.Version+"."+img.Format)
+		img.RoleName()+"-"+img.Version+"."+img.Format)
 }
 
 // Ensure downloads an image if it is not already cached, and returns its

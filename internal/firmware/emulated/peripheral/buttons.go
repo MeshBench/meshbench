@@ -27,8 +27,19 @@ type ButtonSender struct {
 	// pressed without the guest being the only record of it.
 	held map[int]bool
 
+	// atConnect is what a device is told the moment it arrives, so a reading
+	// the simulation set before the emulator was up is not lost.
+	//
+	// QEMU takes the cell's first reading as a machine argument and never
+	// needed this. Renode has no such argument: without it the converter keeps
+	// the constant its model starts at, and the board reports a cell voltage
+	// nobody chose - which on a Heltec is about eleven volts and still looks
+	// like a working battery meter.
+	atConnect *[msgLen]byte
+
 	ln   net.Listener
 	path string
+	port int
 	done chan struct{}
 }
 
@@ -56,14 +67,47 @@ func ListenButtons(path string) (*ButtonSender, error) {
 	if err != nil {
 		return nil, err
 	}
+	return sender(ln, path), nil
+}
+
+// ListenButtonsTCP is the same channel on a loopback port, for an emulator that
+// cannot dial a socket file.
+//
+// Renode is that emulator, and its console is already on TCP for the same
+// reason. Nothing else differs: the same eight-byte messages go down it, so a
+// board's buttons behave identically whichever machine is underneath - which is
+// the whole point of the exercise.
+//
+// Loopback only. This carries button presses into a simulated node and there is
+// no reason for it to leave the machine.
+func ListenButtonsTCP() (*ButtonSender, error) {
+	var lc net.ListenConfig
+	ln, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		return nil, err
+	}
+	b := sender(ln, "")
+	if addr, ok := ln.Addr().(*net.TCPAddr); ok {
+		b.port = addr.Port
+	}
+	return b, nil
+}
+
+// sender is the half both share: the record of what is held, and the goroutine
+// that takes the emulator's connection when it arrives.
+func sender(ln net.Listener, path string) *ButtonSender {
 	b := &ButtonSender{ln: ln, path: path, done: make(chan struct{}),
 		held: map[int]bool{}}
 	go b.accept()
-	return b, nil
+	return b
 }
 
 // Path is where the emulator should connect.
 func (b *ButtonSender) Path() string { return b.path }
+
+// Port is the loopback port it is on instead, for a TCP channel, and zero for
+// a socket file.
+func (b *ButtonSender) Port() int { return b.port }
 
 // Press holds a button down or lets it go.
 //
@@ -109,7 +153,21 @@ func (b *ButtonSender) Touch(x, y int, down bool) error {
 
 // Analog is what one of the board's converter channels reads from now on.
 func (b *ButtonSender) Analog(channel int, raw uint16) error {
-	return b.send([msgLen]byte{analogTag, byte(channel), byte(raw), byte(raw >> 8)})
+	msg := [msgLen]byte{analogTag, byte(channel), byte(raw), byte(raw >> 8)}
+	b.Preset(channel, raw)
+	return b.send(msg)
+}
+
+// Preset is that reading, held for whatever connects next rather than sent now.
+//
+// Called before the emulator exists, which is when the cell's first reading is
+// known: a board is placed, its battery state is decided, and only then is a
+// machine started to run it.
+func (b *ButtonSender) Preset(channel int, raw uint16) {
+	msg := [msgLen]byte{analogTag, byte(channel), byte(raw), byte(raw >> 8)}
+	b.mu.Lock()
+	b.atConnect = &msg
+	b.mu.Unlock()
 }
 
 // send puts one message to every device listening, and reports whether any
@@ -166,7 +224,9 @@ func (b *ButtonSender) Close() error {
 		close(b.done)
 	}
 	err := b.ln.Close()
-	_ = os.Remove(b.path)
+	if b.path != "" {
+		_ = os.Remove(b.path)
+	}
 	return err
 }
 
@@ -181,7 +241,13 @@ func (b *ButtonSender) accept() {
 		// A board that restarts comes up with its buttons released, whatever
 		// they were before, so the record starts again with it.
 		b.held = map[int]bool{}
+		first := b.atConnect
 		b.mu.Unlock()
+		if first != nil {
+			// Best effort, and outside the lock: a device that will not take
+			// its first reading is a device the next write will drop anyway.
+			_, _ = conn.Write(first[:])
+		}
 	}
 }
 

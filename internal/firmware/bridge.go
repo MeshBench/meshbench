@@ -238,6 +238,15 @@ func (b *Bridge) read(c net.Conn) {
 					st.DIO1Mask = binary.BigEndian.Uint16(buf[37:])
 					st.DIO1Reported = true
 				}
+				// The console's line rate, which the firmware sets by writing a
+				// divider the machine turns back into a number. Zero where the
+				// board's console is not on a UART at all - a USB peripheral has
+				// no line and no rate - and zero, too, from an emulator older
+				// than the field, which is why it is read on length like the
+				// rest of this tail.
+				if n >= 43 {
+					st.ConsoleBaud = binary.BigEndian.Uint32(buf[39:])
+				}
 				b.mu.Lock()
 				b.stats = st
 				b.mu.Unlock()

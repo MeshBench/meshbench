@@ -57,6 +57,37 @@ func TestAPartCannotTakeAPinTheRadioHas(t *testing.T) {
 	if err := dup.Validate(nil); err == nil {
 		t.Error("two parts on one pin were accepted")
 	}
+	// A screen's select and command lines are pins like any other. They were
+	// not checked until the nRF52 boards declared panels, and a display sharing
+	// a line with the radio is the fault this whole function exists to catch.
+	sc := Panel{Screen: &Screen{Controller: "ST7789", Bus: BusSPI, CS: 8, DC: 12,
+		WidthPx: 240, HeightPx: 135}}
+	if err := sc.Validate(map[int]string{8: "chip select"}); err == nil {
+		t.Error("a display sharing the radio's chip select was accepted")
+	}
+}
+
+// The Renode boards name the radio's lines by port and pin, and those are the
+// same pins a panel declares flat.
+//
+// Without this, every nRF52 board's panel was checked against an empty set: the
+// collision the test above proves is caught would have gone straight through on
+// the five boards that most recently declared one.
+func TestARenodeBoardsRadioPinsAreClaimed(t *testing.T) {
+	b := Board{Renode: &RenodeWiring{
+		NssPort: "gpio1", NssPin: 10, IrqPort: "gpio0", IrqPin: 20,
+	}}
+	taken := b.radioPins()
+	if who := taken[42]; who != "chip select" {
+		t.Errorf("P1.10 is pin 42 and the chip select, and reads as %q", who)
+	}
+	if who := taken[20]; who != "interrupt" {
+		t.Errorf("P0.20 is pin 20 and the interrupt, and reads as %q", who)
+	}
+	p := Panel{Parts: []Part{{Kind: Button, Name: "user", Pin: 42}}}
+	if err := p.Validate(taken); err == nil {
+		t.Error("a button on the radio's chip select was accepted")
+	}
 }
 
 // A board that declares no button is saying something, and it must survive

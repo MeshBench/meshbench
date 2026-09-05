@@ -34,6 +34,23 @@ func (u *tabStrictUI) OpenNodeWindow(_, tab string) (string, error) {
 
 func (u *tabStrictUI) OpenFirmwareWindow(_, _, _ string) error { return nil }
 
+// The board view has its own two tables, and refuses by name as the node
+// window does. Two tabs rather than nine, which is what makes the mistake this
+// guards against easy: a node called "Radio" is a name the wrong reader turns
+// into a tab that happens to exist.
+func (u *tabStrictUI) OpenBoardView(_, tab string) (string, error) {
+	u.asked = tab
+	if tab == "" {
+		return "Radio", nil
+	}
+	for _, k := range []string{"Radio", "Wiring"} {
+		if strings.EqualFold(k, tab) {
+			return k, nil
+		}
+	}
+	return "", fmt.Errorf("no tab called %q - there is Radio, Wiring", tab)
+}
+
 func (u *tabStrictUI) OpenOutputWindow(_, _ string) error { return nil }
 
 // Does double-clicking a node open its window?
