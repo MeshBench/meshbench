@@ -121,29 +121,32 @@ func TestFitScaleNeverShrinks(t *testing.T) {
 	}
 }
 
-// The scale the panel says it drew at is the scale it drew at.
+// The panel drawn at a scale is that many times its own size.
 //
-// The popped-out window prints it under the picture, and a press is divided by
-// it. Reading it back off the view after the fact made the caption say 0:1,
-// because a Flex lays its rigid children out before its flexed one and the
-// caption asked before the panel had chosen. It is decided once now, and this
-// holds the two ends together: what Layout was told, and what a press is
-// divided by, are the same number.
-func TestThePanelRecordsTheScaleItDrewAt(t *testing.T) {
+// The visible outcome rather than a field: the view used to keep the scale it
+// last drew at so the popped-out window could read it back, and because a Flex
+// lays rigid children out before its flexed one, the caption asked before the
+// panel had chosen and printed 0:1. Nothing holds it now, so this checks the
+// thing a reader can see - the panel really is n times as wide - which is also
+// what says the number a press is divided by was the number used.
+func TestThePanelIsDrawnAtTheScaleItWasAskedFor(t *testing.T) {
 	b, err := hw.BoardByName("LilyGo_TDeck")
 	if err != nil {
 		t.Fatal(err)
 	}
+	sc := b.Hardware.Screen
 	for _, want := range []int{1, 2, 3} {
 		var v ScreenView
+		var got layout.Dimensions
 		_, w, h := boxFor(b, want)
 		uitest.RenderWidget(t, w+40, h+40,
 			func(gtx layout.Context, th *theme.Theme) layout.Dimensions {
-				return v.Layout(th, gtx, b, nil, want, nil, "Deck")
+				got = v.Layout(th, gtx, b, nil, want, nil, "Deck")
+				return got
 			})
-		if v.drawn != want {
-			t.Errorf("drawn at %d:1 after being asked for %d:1 - a press would "+
-				"be divided by the wrong number", v.drawn, want)
+		if got.Size.X != sc.WidthPx*want || got.Size.Y != sc.HeightPx*want {
+			t.Errorf("asked for %d:1 and drew %dx%d, want %dx%d", want,
+				got.Size.X, got.Size.Y, sc.WidthPx*want, sc.HeightPx*want)
 		}
 	}
 }

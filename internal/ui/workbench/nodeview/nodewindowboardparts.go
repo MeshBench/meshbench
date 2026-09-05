@@ -8,7 +8,6 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
-	"gioui.org/unit"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	hw "github.com/MeshBench/meshbench/internal/firmware/board"
@@ -16,13 +15,13 @@ import (
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 )
 
-// The parts a board is drawn out of: its screen, its lamps, the things
-// somebody can press.
+// The board's screen, drawn at a whole-number scale.
 //
-// One renderer per kind rather than one per board. What varies between boards
-// is which of these appear and on which pins, and that is declared in the
-// board's own file - so a new board adds no drawing code at all, and a part
-// that draws wrongly draws wrongly everywhere at once, where it will be seen.
+// Its lamps, buttons and trackball are comp.BoardControls, because the bring-up
+// window draws the same parts and a second copy would be a second set of
+// answers to "which pin is up" - which took working out from two frames that
+// disagree.
+//
 // screen draws the display at a whole-number scale.
 //
 // Whole-number because a smoothed 128x64 panel is a picture of something the
@@ -123,133 +122,4 @@ func screenPixel(t *theme.Theme, sc *state.Screen, x, y int) (color.NRGBA, bool)
 		return color.NRGBA{}, false
 	}
 	return t.P.ScreenLit, true
-}
-
-// lamps draws the board's lights.
-func (p *WindowPanel) lamps(t *theme.Theme, gtx layout.Context,
-	panel *hw.Panel, st *state.NodeStat) layout.Dimensions {
-
-	parts := panel.PartsOfKind(hw.Lamp)
-	if len(parts) == 0 {
-		return comp.Text(t, t.Sz.Caption, t.P.Faint, "no lamp declared")(gtx)
-	}
-	children := make([]layout.FlexChild, 0, len(parts)*2)
-	for i := range parts {
-		part := parts[i]
-		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return p.lamp(t, gtx, part, st)
-		}))
-		children = append(children, layout.Rigid(layout.Spacer{Width: t.Sp.S}.Layout))
-	}
-	return layout.Flex{Alignment: layout.Middle}.Layout(gtx, children...)
-}
-func (p *WindowPanel) lamp(t *theme.Theme, gtx layout.Context,
-	part hw.Part, st *state.NodeStat) layout.Dimensions {
-
-	d := gtx.Dp(unit.Dp(10))
-	return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			size := image.Pt(d, d)
-			// Whether a lamp is lit is not modelled yet: the pin is declared
-			// and nothing watches it. Drawn as an outline rather than as an
-			// unlit lamp, because "off" and "not modelled" are different
-			// facts and the second one is about us, not the board.
-			rr := d / 2
-			paint.FillShape(gtx.Ops, t.P.Rule,
-				clip.RRect{Rect: image.Rectangle{Max: size}, NE: rr, NW: rr, SE: rr, SW: rr}.Op(gtx.Ops))
-			inner := image.Rect(1, 1, d-1, d-1)
-			ir := (d - 2) / 2
-			paint.FillShape(gtx.Ops, t.P.Panel,
-				clip.RRect{Rect: inner, NE: ir, NW: ir, SE: ir, SW: ir}.Op(gtx.Ops))
-			return layout.Dimensions{Size: size}
-		}),
-		layout.Rigid(layout.Spacer{Width: t.Sp.XS}.Layout),
-		layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Dim, part.Name)),
-	)
-}
-
-// buttons draws what somebody can press, and says where a board has none.
-func (p *WindowPanel) buttons(t *theme.Theme, gtx layout.Context,
-	panel *hw.Panel) layout.Dimensions {
-
-	parts := panel.PartsOfKind(hw.Button)
-	if len(parts) == 0 {
-		return comp.Text(t, t.Sz.Caption, t.P.Faint, "no button declared")(gtx)
-	}
-	children := make([]layout.FlexChild, 0, len(parts)*2)
-	for i := range parts {
-		part := parts[i]
-		if part.Pin == hw.PinNone {
-			// The board says it has none. Said rather than omitted: an
-			// absence somebody recorded is worth more than a gap that reads
-			// as nobody having looked. Not a control, because there is
-			// nothing to press.
-			children = append(children, layout.Rigid(
-				comp.Pill(t, t.P.Faint, part.Name+" - none on this board")))
-			children = append(children, layout.Rigid(layout.Spacer{Width: t.Sp.XS}.Layout))
-			continue
-		}
-		// Pooled by pin, because widget identity is address: rebuilding one
-		// per frame loses the press half way through.
-		btn := p.buttonFor(part.Pin)
-		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			col := t.P.Dim
-			if btn.Pressed() {
-				col = t.P.Accent
-			}
-			return btn.Layout(gtx, comp.Pill(t, col, part.Name))
-		}))
-		children = append(children, layout.Rigid(layout.Spacer{Width: t.Sp.XS}.Layout))
-	}
-	return layout.Flex{Alignment: layout.Middle}.Layout(gtx, children...)
-}
-
-// ball draws a trackball as the four ways it can be rolled, and its click
-// where the board declares one.
-//
-// Arrows rather than a drawn ball, because what reaches the firmware is not a
-// position: each direction is a plain line that changes level as the ball
-// turns past it, and the firmware counts the changes. One press is one step,
-// which is exactly what these produce.
-func (p *WindowPanel) ball(t *theme.Theme, gtx layout.Context,
-	panel *hw.Panel) layout.Dimensions {
-
-	parts := panel.PartsOfKind(hw.Ball)
-	if len(parts) == 0 {
-		return layout.Dimensions{}
-	}
-	part := parts[0]
-	// Named in the order a board declares them, and only as many as it has:
-	// a trackball with fewer lines than four is a declaration to fix rather
-	// than a thing to draw four arrows for.
-	dirs := [4]struct {
-		way   comp.Arrow
-		label string
-	}{
-		{comp.ArrowUp, "up"}, {comp.ArrowDown, "down"},
-		{comp.ArrowLeft, "left"}, {comp.ArrowRight, "right"},
-	}
-	if len(part.Pins) > len(dirs) {
-		part.Pins = part.Pins[:len(dirs)]
-	}
-	children := make([]layout.FlexChild, 0, len(part.Pins)*2+1)
-	children = append(children, layout.Rigid(
-		comp.Text(t, t.Sz.Caption, t.P.Dim, part.Name)))
-	children = append(children, layout.Rigid(layout.Spacer{Width: t.Sp.XS}.Layout))
-	for i, pin := range part.Pins {
-		if pin == hw.PinNone {
-			continue
-		}
-		dir := dirs[i]
-		btn := p.buttonFor(pin)
-		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			col := t.P.Dim
-			if btn.Pressed() {
-				col = t.P.Accent
-			}
-			return btn.Layout(gtx, comp.ArrowPill(t, col, dir.way, dir.label))
-		}))
-		children = append(children, layout.Rigid(layout.Spacer{Width: t.Sp.XS}.Layout))
-	}
-	return layout.Flex{Alignment: layout.Middle}.Layout(gtx, children...)
 }

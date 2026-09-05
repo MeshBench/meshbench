@@ -9,7 +9,6 @@ import (
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/unit"
-	"gioui.org/widget"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	hw "github.com/MeshBench/meshbench/internal/firmware/board"
@@ -179,7 +178,7 @@ func (p *WindowPanel) device(t *theme.Theme, gtx layout.Context,
 	return comp.Card(t, "", func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return p.lamps(t, gtx, panel, st)
+				return p.board.Lamps(t, gtx, panel)
 			}),
 			layout.Rigid(layout.Spacer{Height: t.Sp.S}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -187,11 +186,11 @@ func (p *WindowPanel) device(t *theme.Theme, gtx layout.Context,
 			}),
 			layout.Rigid(layout.Spacer{Height: t.Sp.S}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return p.buttons(t, gtx, panel)
+				return p.board.Buttons(t, gtx, panel)
 			}),
 			layout.Rigid(layout.Spacer{Height: t.Sp.XS}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return p.ball(t, gtx, panel)
+				return p.board.Ball(t, gtx, panel)
 			}),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return p.typingNote(t, gtx, panel)
@@ -325,19 +324,6 @@ func (p *WindowPanel) boardTouches(gtx layout.Context, s *state.Snapshot) {
 	}
 }
 
-// buttonFor is this pin's control, kept across frames.
-func (p *WindowPanel) buttonFor(pin int) *widget.Clickable {
-	if p.boardButtons == nil {
-		p.boardButtons = map[int]*widget.Clickable{}
-	}
-	if b, ok := p.boardButtons[pin]; ok {
-		return b
-	}
-	b := &widget.Clickable{}
-	p.boardButtons[pin] = b
-	return b
-}
-
 // boardPresses turns what the pointer did into holds and releases.
 //
 // Held rather than clicked, because the firmware behind these pins cares: a
@@ -348,35 +334,9 @@ func (p *WindowPanel) boardPresses(gtx layout.Context, s *state.Snapshot) {
 	if panel == nil || p.OnDo == nil {
 		return
 	}
-	// A trackball's directions are pins like any other. What makes one a step
-	// rather than a hold is the firmware, which counts changes of level - so
-	// pressing and letting go rolls the ball two notches, which is what
-	// rolling it past a line does.
-	pins := make([]int, 0, len(panel.Parts))
-	for _, part := range panel.PartsOfKind(hw.Button) {
-		if part.Pin != hw.PinNone {
-			pins = append(pins, part.Pin)
-		}
-	}
-	for _, part := range panel.PartsOfKind(hw.Ball) {
-		for _, pin := range part.Pins {
-			if pin != hw.PinNone {
-				pins = append(pins, pin)
-			}
-		}
-	}
-	for _, pin := range pins {
-		btn := p.buttonFor(pin)
-		down := btn.Pressed()
-		if down == p.buttonDown[pin] {
-			continue
-		}
-		if p.buttonDown == nil {
-			p.buttonDown = map[int]bool{}
-		}
-		p.buttonDown[pin] = down
+	for _, pr := range p.board.Presses(panel) {
 		p.OnDo("board.press", map[string]any{
-			"node": p.Node, "pin": pin, "down": down})
+			"node": p.Node, "pin": pr.Pin, "down": pr.Down})
 	}
 }
 

@@ -31,8 +31,21 @@ func (p *Panel) rail(t *theme.Theme, gtx layout.Context, b hw.Board,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return p.panelNote(t, gtx, b, st)
 				}),
+				// Lamps above the panel and the things somebody can press below
+				// it, which follows from the kind rather than from a position:
+				// none of this is a photograph, and a schematic that reads
+				// correctly is worth more than a likeness.
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Bottom: t.Sp.XXS}.Layout(gtx,
+						func(gtx layout.Context) layout.Dimensions {
+							return p.parts.Lamps(t, gtx, b.Hardware)
+						})
+				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return p.screen.Layout(t, gtx, b, st, p.scale, p.OnDo, p.Node)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return p.controls(t, gtx, b)
 				}),
 				// The parts scroll. At 2:1 the panel takes most of the rail and
 				// a list quietly cut off is a board that looks like it has
@@ -102,6 +115,28 @@ func (p *Panel) panelNote(t *theme.Theme, gtx layout.Context, b hw.Board,
 	}
 	return layout.Inset{Bottom: t.Sp.XXS}.Layout(gtx,
 		comp.OneLine(t, t.Sz.Caption, t.P.Faint, note, true))
+}
+
+// controls is what somebody can press on this board: its buttons and its ball.
+//
+// Under the panel, and under the note that says what the panel is doing, so the
+// order down the rail is the order a person reads it: what the board shows,
+// what that means, and what can be done to it.
+func (p *Panel) controls(t *theme.Theme, gtx layout.Context, b hw.Board) layout.Dimensions {
+	return layout.Inset{Top: t.Sp.XS, Bottom: t.Sp.XS}.Layout(gtx,
+		func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return p.parts.Buttons(t, gtx, b.Hardware)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Top: t.Sp.XXS}.Layout(gtx,
+						func(gtx layout.Context) layout.Dimensions {
+							return p.parts.Ball(t, gtx, b.Hardware)
+						})
+				}),
+			)
+		})
 }
 
 // partsIndex is the rows as a list to pick from, grouped.

@@ -64,6 +64,11 @@ type Panel struct {
 	popScreen comp.Button
 	split     comp.Splitter
 	screen    ScreenView
+	// board is the lamps, buttons and trackball, the same widgets the Hardware
+	// tab draws. A board that can be looked at and not pressed is half a board:
+	// the whole way to find out whether a button reaches the firmware is to
+	// press it while watching what the pin did.
+	parts comp.BoardControls
 
 	tabs  [numTabs]widget.Clickable
 	rows  layout.List
@@ -118,6 +123,15 @@ func (p *Panel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layo
 	}
 	if p.popScreen.Click.Clicked(gtx) && p.OnPopScreen != nil {
 		p.OnPopScreen(p.Node)
+	}
+	// Pressing a control here reaches the firmware the same way the Hardware
+	// tab's does, through the same verb: this window watches the board, and the
+	// one thing it writes is a stimulus somebody asked for.
+	if p.OnDo != nil {
+		for _, pr := range p.parts.Presses(b.Hardware) {
+			p.OnDo("board.press", map[string]any{
+				"node": p.Node, "pin": pr.Pin, "down": pr.Down})
+		}
 	}
 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,

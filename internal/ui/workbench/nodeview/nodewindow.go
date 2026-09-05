@@ -97,11 +97,10 @@ type WindowPanel struct {
 	// preference: a setting and the hardware can disagree, and a node showing
 	// a display its board has not got is worse than one showing none.
 	hasHardware bool
-	// boardButtons are the drawn buttons, pooled by pin, and buttonDown is
-	// what each was last reported as - so a hold is sent once and a release
-	// once, rather than every frame the pointer is down.
-	boardButtons map[int]*widget.Clickable
-	buttonDown   map[int]bool
+	// board is this board's lamps, buttons and trackball, which the
+	// bring-up window draws too - so they live in comp and this holds the
+	// widgets rather than declaring them.
+	board comp.BoardControls
 	// screenTouch is what pointer events on the drawn panel are addressed to,
 	// and screenScale is what they have to be divided by to become the
 	// panel's own coordinates.

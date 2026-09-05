@@ -37,14 +37,15 @@ const maxScale = 3
 const screenBudgetDp = 320
 
 // ScreenView draws one board's panel and takes what is done to it.
+//
+// It holds no scale of its own. It did, so the popped-out window could read
+// back what the last frame used - and a Flex lays its rigid children out before
+// its flexed one, so the caption asked before the panel had chosen and printed
+// 0:1. The scale is decided by whoever draws and passed in, which is also the
+// number a press is divided by: one value, no order to get wrong.
 type ScreenView struct {
 	touchTag struct{}
 	keyTag   struct{}
-	// drawn is the scale the last frame used, which is what a press has to be
-	// divided by. Kept rather than recomputed because the popped-out window
-	// picks its own from the space it has, and a press must be divided by the
-	// scale it was drawn at rather than the one the rail would have chosen.
-	drawn int
 }
 
 // fitScale is the largest whole-number scale at which a panel fits a box.
@@ -129,7 +130,6 @@ func (v *ScreenView) Layout(t *theme.Theme, gtx layout.Context, b hw.Board,
 		scale = FitIn(sc, gtx)
 		w, h = sc.WidthPx*scale, sc.HeightPx*scale
 	}
-	v.drawn = scale
 	size := image.Pt(gtx.Dp(unit.Dp(w)), gtx.Dp(unit.Dp(h)))
 
 	paint.FillShape(gtx.Ops, t.P.ScreenGround, clip.Rect{Max: size}.Op())
