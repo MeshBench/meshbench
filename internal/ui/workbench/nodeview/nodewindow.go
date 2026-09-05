@@ -40,6 +40,10 @@ type WindowPanel struct {
 	// pick is the build list, the same control the Nodes running panel opens
 	// from its firmware cell. Shared so the two cannot come to offer
 	// different builds or apply them differently.
+	// bringUp opens the window that checks this board against its profile.
+	// Named where the panel is built rather than where it is drawn, so it has
+	// a label before its first frame.
+	bringUp  comp.Button
 	pick     buildPicker
 	tcpBtn   comp.Button
 	serBtn   comp.Button
@@ -442,6 +446,15 @@ func (p *WindowPanel) AuditDraw(t *theme.Theme, gtx layout.Context, s *state.Sna
 			return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx,
 				func(gtx layout.Context) layout.Dimensions {
 					return p.cardAuditRow(t, gtx, s)
+				})
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			// The way to the bring-up window, which sits below the card
+			// controls in the Hardware tab and is out of reach in the flat
+			// layout for the same reason they were.
+			return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx,
+				func(gtx layout.Context) layout.Dimensions {
+					return p.bringUpAuditRow(t, gtx)
 				})
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {

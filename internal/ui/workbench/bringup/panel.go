@@ -1,0 +1,183 @@
+// The Bring-up window: one board, and whether it is behaving like the board it
+// claims to be.
+//
+// The Hardware tab draws a board so somebody can recognise it and press its
+// buttons, which is what an operator and an app developer need. This is for the
+// third of them. A firmware developer already knows what the board is and
+// cannot change it; the question is whether the thing in front of them matches
+// its own profile, and if not, which line is lying.
+//
+// So every row carries a verdict, and the window is a window rather than a tab
+// because the move it exists for is "the log said this, so what did the pin
+// do" - which needs the log and the table visible at once.
+package bringup
+
+import (
+	"gioui.org/layout"
+	"gioui.org/widget"
+
+	"github.com/MeshBench/meshbench/internal/app/state"
+	hw "github.com/MeshBench/meshbench/internal/firmware/board"
+	"github.com/MeshBench/meshbench/internal/ui/comp"
+	"github.com/MeshBench/meshbench/internal/ui/theme"
+)
+
+// Tab is which table the middle is showing.
+type Tab int
+
+const (
+	// TabRadio is first because it is the one that answers today: every row on
+	// it is something the firmware really left in the chip.
+	TabRadio Tab = iota
+	TabWiring
+	numTabs
+)
+
+func (t Tab) String() string {
+	if t == TabWiring {
+		return "Wiring"
+	}
+	return "Radio"
+}
+
+// Panel is one node's bring-up window.
+type Panel struct {
+	Node string
+	Tab  Tab
+
+	// OnDo fires a verb. Panels never mutate state; the one thing this window
+	// writes is a stimulus somebody asked for, and it goes the same way every
+	// other control's does.
+	OnDo func(verb string, params any)
+	// OnPopScreen opens the panel on its own. Held as a callback because which
+	// windows exist is the window set's business, not the panel's.
+	OnPopScreen func(node string)
+
+	Layered   bool
+	maximised bool
+	bar       comp.TitleBar
+
+	// scale is the whole-number magnification chosen for the panel, or zero
+	// for whatever the rail's budget allows.
+	scale     int
+	steps     [maxScale]widget.Clickable
+	popScreen comp.Button
+	split     comp.Splitter
+	screen    ScreenView
+
+	tabs  [numTabs]widget.Clickable
+	rows  layout.List
+	index layout.List
+	sel   int
+
+	// counts is what the last frame's table came to, for the status bar.
+	counts Counts
+}
+
+func (p *Panel) SetLayered(on bool)       { p.Layered = on }
+func (p *Panel) TitleBar() *comp.TitleBar { return &p.bar }
+func (p *Panel) SetMaximised(on bool)     { p.maximised = on }
+
+// Draw lays the window out: the board on the left, the tables in the middle,
+// the selected row said in full on the right, and what the board printed along
+// the bottom.
+func (p *Panel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+	// Named here rather than where it is drawn: a control whose label is set
+	// during layout has no label until the first frame, and anything that
+	// inspects the panel before then - the control audit, for one - finds an
+	// unnamed button it cannot report on.
+	p.popScreen.Kind, p.popScreen.Label = comp.Quiet, "pop out"
+	p.split.Vertical = true
+	p.rows.Axis = layout.Vertical
+	p.index.Axis = layout.Vertical
+
+	st := p.statFor(s)
+	b, ok := p.board(st)
+	if !ok {
+		return layout.Center.Layout(gtx, comp.Text(t, t.Sz.Body, t.P.Faint,
+			"this node is not running a board image, so there is no wiring to check"))
+	}
+	rows := p.rowsFor(b, st)
+	p.counts = Counts{}
+	for _, r := range rows {
+		p.counts.add(r.Verdict)
+	}
+	if p.sel >= len(rows) {
+		p.sel = 0
+	}
+
+	for i := range p.tabs {
+		if p.tabs[i].Clicked(gtx) {
+			p.Tab, p.sel = Tab(i), 0
+		}
+	}
+	for i := range p.steps {
+		if p.steps[i].Clicked(gtx) {
+			p.scale = i + 1
+		}
+	}
+	if p.popScreen.Click.Clicked(gtx) && p.OnPopScreen != nil {
+		p.OnPopScreen(p.Node)
+	}
+
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return p.header(t, gtx, b, st)
+		}),
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{}.Layout(gtx,
+				comp.Fixed(gtx, railFor(b, p.scale), func(gtx layout.Context) layout.Dimensions {
+					return p.rail(t, gtx, b, st, rows)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return p.dragRail(t, gtx, b)
+				}),
+				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+					return p.middle(t, gtx, rows)
+				}),
+				layout.Rigid(vRule(t)),
+				comp.Fixed(gtx, 260, func(gtx layout.Context) layout.Dimensions {
+					return p.inspector(t, gtx, rows)
+				}),
+			)
+		}),
+		layout.Rigid(hRule(t)),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return p.status(t, gtx, st)
+		}),
+	)
+}
+
+// dragRail is the rule between the board and the tables, which is also how the
+// panel is made bigger without going through the steps.
+//
+// It reports movement and this decides what movement means: here it is the
+// next whole scale up or down, because a panel is only honest at multiples and
+// a rail that could stop between two of them would be a rail that lies.
+func (p *Panel) dragRail(t *theme.Theme, gtx layout.Context, b hw.Board) layout.Dimensions {
+	d := p.split.Layout(t, gtx)
+	if p.split.Delta != 0 && b.Hardware != nil && b.Hardware.Screen != nil {
+		sc := b.Hardware.Screen
+		want := railFor(b, p.scale) + int(p.split.Delta)
+		p.scale = fitScale(sc.WidthPx, sc.HeightPx, want, 1<<15)
+	}
+	return d
+}
+
+// rowsFor is the table the current tab shows.
+func (p *Panel) rowsFor(b hw.Board, st *state.NodeStat) []Row {
+	if p.Tab == TabWiring {
+		return wiringRows(b, st)
+	}
+	if r := radioRows(b, st); len(r) > 0 {
+		return r
+	}
+	return nil
+}
+
+// statFor and board are the lookups in screenpanel.go, which the popped-out
+// window makes too. One of each, so the two windows cannot come to disagree
+// about which board a node is.
+func (p *Panel) statFor(s *state.Snapshot) *state.NodeStat { return statOf(s, p.Node) }
+
+func (p *Panel) board(st *state.NodeStat) (hw.Board, bool) { return boardOf(st) }

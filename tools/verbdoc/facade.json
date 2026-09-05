@@ -272,7 +272,8 @@
     "update.reveal": "wb.update.reveal()",
     "update.notes": "wb.update.notes()",
     "update.checked": "",
-    "update.staged": ""
+    "update.staged": "",
+    "node.bringup": "wb.bringup(node)"
   },
   "no_facade": {
     "node.reflashed": "the store telling itself a reflash finished",

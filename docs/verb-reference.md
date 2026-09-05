@@ -3,9 +3,9 @@
 Generated. Run `tools/verbdoc/verbdoc.py` to rewrite it and
 `tools/verbdoc/verbdoc.py --check` to fail when it is stale.
 
-The store registers 254 verbs: 217 a script may call and
+The store registers 255 verbs: 218 a script may call and
 37 the workbench calls on itself, which the socket refuses. Of those,
-254 say what they are for and 0 do not yet; the ones that
+255 say what they are for and 0 do not yet; the ones that
 do not are marked, and what is printed for them is read out of the handler
 rather than said by it.
 
@@ -429,6 +429,30 @@ Report what one node's antenna is and which way it points.
 ```
 
 **Client** `node.antenna`
+
+### `node.bringup`
+
+**Refuses when no window is attached.**
+
+Open a node's bring-up window: what its board profile declares, what the firmware left in the chip, and where the two differ.
+
+**Takes**
+
+| parameter | type | | what |
+|---|---|---|---|
+| `node` | string | required, primary | which node |
+
+**Answers** `node`, `board`. `board` is the profile the window is checking against. Refused for a node running a host build, which has no board to check, and refused outright in a headless session, there being no window to open one beside.
+
+**Example** - ask whether a board is behaving like the board it says it is
+
+```json
+{"id":1,"method":"node.bringup","params":"Deck"}
+```
+
+Not made by the test suite: this call needs more than the two-node headless session the runnable examples go to.
+
+**Client** `wb.bringup(node)`
 
 ### `node.card`
 

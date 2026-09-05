@@ -298,6 +298,22 @@ export class Workbench {
     return (got || {}).tab || "";
   }
 
+  /** Open a node's bring-up window and return the board it checks.
+   *
+   *  What the board's profile declares, beside what the firmware left in the
+   *  chip, and where the two differ. Windowed sessions only, for the same
+   *  reason window() is, and refused for a node running a host build: there is
+   *  no board to check it against. */
+  async bringup(node) {
+    if (this.isHeadless) {
+      throw new Unavailable("node.bringup",
+        "this session has no interface attached, so there is nothing to show",
+        "unavailable");
+    }
+    const got = await this.call("node.bringup", { node: String(node) });
+    return (got || {}).board || "";
+  }
+
   // ---- the shape -------------------------------------------------------
 
   get nodes() { return new Nodes(this); }

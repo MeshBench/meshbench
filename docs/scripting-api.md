@@ -39,7 +39,7 @@ and a verb added tomorrow is usable today.
 
 ### Why two layers rather than one
 
-**254**<!--verbdoc:total--> addressable methods hand-written across two
+**255**<!--verbdoc:total--> addressable methods hand-written across two
 languages is twice that many things to keep in step. Keeping them in step is what the verb manifest (`docs/verbs.json`) is for: a
 hand-written surface that names a verb the tree no longer has is exactly the
 drift it catches, where once a tool could call a deleted verb and nothing
@@ -729,7 +729,7 @@ wb.ui.layouts.save("study"); wb.ui.layouts.load("study")
 wb.window(node, tab="Hardware")      # node.window — tab= needs #216
 ```
 
-Those **26**<!--verbdoc:uionly--> verbs are already gated on one check and already refuse with *"this
+Those **27**<!--verbdoc:uionly--> verbs are already gated on one check and already refuse with *"this
 session has no interface attached, so there is nothing to show"*. That is most
 of what [#215](https://github.com/MeshBench/meshbench/issues/215) asks for and
 is worth knowing before estimating it.

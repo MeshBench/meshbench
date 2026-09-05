@@ -24,5 +24,26 @@
       "params": "West Lomond",
       "what": "put one node on a second monitor"
     }
+  },
+  "node.bringup": {
+    "what": "Open a node's bring-up window: what its board profile declares, what the firmware left in the chip, and where the two differ.",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "which node"
+      }
+    ],
+    "returns": [
+      "node",
+      "board"
+    ],
+    "answers": "`board` is the profile the window is checking against. Refused for a node running a host build, which has no board to check, and refused outright in a headless session, there being no window to open one beside.",
+    "example": {
+      "params": "Deck",
+      "what": "ask whether a board is behaving like the board it says it is"
+    }
   }
 }

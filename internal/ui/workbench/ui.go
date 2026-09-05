@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 
 	"github.com/MeshBench/meshbench/internal/ui/comp"
+	"github.com/MeshBench/meshbench/internal/ui/workbench/bringup"
 	"github.com/MeshBench/meshbench/internal/ui/workbench/nodeview"
 
 	"github.com/MeshBench/meshbench/internal/app/session"
@@ -32,6 +33,9 @@ type workbenchUI struct {
 	// both on the same terms as the node windows.
 	builds *firmwareWindowSet
 	logs   *nodeview.OutputWindowSet
+	// boards is the bring-up windows, one per node whose board is being
+	// checked against its own profile.
+	boards *bringup.WindowSet
 	store  *state.Store
 	// newTheme gives each window a shaper of its own: Gio's is not safe for
 	// concurrent use and two frame loops sharing one corrupts its glyph
@@ -180,6 +184,16 @@ func (u *workbenchUI) applyCamera() {
 	if want.zoom > 0 {
 		u.mv.Zoom = want.zoom
 	}
+}
+
+// OpenBringUp puts one node's board under the question the Hardware tab does
+// not ask: is it behaving like the board its profile says it is.
+func (u *workbenchUI) OpenBringUp(node string) error {
+	if u.boards == nil || u.newTheme == nil {
+		return fmt.Errorf("this build has no bring-up windows to open")
+	}
+	u.boards.OpenFor(node, u.newTheme, u.store, bringup.Hooks{OnDo: u.OnDo})
+	return nil
 }
 
 func (u *workbenchUI) OpenNodeWindow(node, tab string) (string, error) {

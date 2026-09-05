@@ -15,6 +15,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/ui/shell"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 	"github.com/MeshBench/meshbench/internal/ui/uitest"
+	"github.com/MeshBench/meshbench/internal/ui/workbench/bringup"
 	"github.com/MeshBench/meshbench/internal/ui/workbench/nodeview"
 )
 
@@ -157,6 +158,27 @@ func auditTargets(r *recorder) []target {
 	nv.OnAction = func(a string, n string) { r.do(a, n) }
 	nv.OnFirmware = func(n string, b nodeview.BuildChoice) { r.do("node.set_firmware", b.Version) }
 	nw := &nodeview.WindowPanel{Node: "Abernethy Repeater"}
+	// The bring-up window, on a node with a board: without one it correctly
+	// says there is no wiring to check, and auditing that proves only the
+	// guard. Its pop-out button opens a window rather than firing a verb, so
+	// the audit answers it the way it answers the file dialog.
+	bu := &bringup.Panel{Node: "Abernethy Repeater", OnDo: func(v string, _ any) { r.do(v, "") }}
+	bu.OnPopScreen = func(n string) { r.do("ui.popout", n) }
+	snapWithBoard := uitest.Snapshot()
+	// The node's own row, given a board - not a second row for the same name.
+	// Appending one put the board on a duplicate the lookup never reached, and
+	// the window correctly drew "no wiring to check" for a node that had some.
+	for i := range snapWithBoard.Stats {
+		if snapWithBoard.Stats[i].Name != "Abernethy Repeater" {
+			continue
+		}
+		snapWithBoard.Stats[i].Board = "LilyGo_TDeck"
+		snapWithBoard.Stats[i].Backend = "emulated"
+		snapWithBoard.Stats[i].IRQReads = 12
+		snapWithBoard.Stats[i].Radio = state.RadioState{Reported: true,
+			Boosted: true, GainReg: 0x96, TxPowerDBm: 22, SF: 10, CR: 5,
+			FreqHz: 869618000, BandwidthHz: 250000, IRQMask: 2}
+	}
 	snapWithConsole := uitest.Snapshot()
 	// A card slot on the node the window is about, so the Hardware tab draws
 	// its card controls: with no slot it correctly offers none, and auditing
@@ -272,6 +294,7 @@ func auditTargets(r *recorder) []target {
 			// panel leaves the console before it reaches the send button.
 			func() { nw.Tab = 0 }, nil, nodeWindowSkips()},
 		{"Node window: companion", &nw.Companion, nw.Companion.AuditDraw, nil, nil, nil, nil},
+		{"Bring-up", bu, bu.Draw, snapWithBoard, nil, nil, nil},
 		{"Compare", cmpP, cmpP.Draw, nil, nil, nil, nil},
 		{"Planning (view)", planP, planP.Draw, nil, nil, nil, nil},
 		{"Import (view)", impP, impP.Draw, nil, nil, nil, nil},

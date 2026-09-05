@@ -398,6 +398,27 @@ func (w *Workbench) Window(ctx context.Context, node string, tab Tab) (Tab, erro
 	return out.Tab, err
 }
 
+// BringUp opens a node's bring-up window and reports the board it checks.
+//
+// What the board's profile declares, beside what the firmware left in the chip,
+// and where the two differ. Windowed sessions only, for the same reason Window
+// is, and refused for a node running a host build: there is no board to check
+// it against.
+func (w *Workbench) BringUp(ctx context.Context, node string) (string, error) {
+	if w.Headless() {
+		return "", &Refused{
+			Verb: "node.bringup", Code: "unavailable",
+			Message: "this session has no interface attached, so there is nothing to show",
+			kind:    ErrUnavailable,
+		}
+	}
+	var out struct {
+		Board string `json:"board"`
+	}
+	err := w.CallInto(ctx, "node.bringup", map[string]any{"node": node}, &out)
+	return out.Board, err
+}
+
 var errNoProcess = errors.New("this client did not start the workbench")
 
 // Stop ends a workbench this client started. Attach's connection has nothing

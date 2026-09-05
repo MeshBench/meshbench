@@ -420,6 +420,23 @@ class Workbench:
         got = self.call("node.window", {"node": str(node), "tab": tab}) or {}
         return got.get("tab", "")
 
+    def bringup(self, node) -> str:
+        """Open a node's bring-up window and return the board it checks.
+
+        What the board's profile declares, beside what the firmware left in the
+        chip, and where the two differ. Windowed sessions only, for the same
+        reason window() is, and refused for a node running a host build: there
+        is no board to check it against.
+        """
+        if self.is_headless:
+            raise errors.Unavailable(
+                "node.bringup",
+                "this session has no interface attached, so there is nothing to show",
+                "unavailable",
+            )
+        got = self.call("node.bringup", {"node": str(node)}) or {}
+        return got.get("board", "")
+
     # ---- the shape -------------------------------------------------------
 
     @property

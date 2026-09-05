@@ -49,6 +49,14 @@ type UI interface {
 	// reporting one it does not have would be worse than refusing.
 	OpenNodeWindow(node, tab string) (string, error)
 
+	// OpenBringUp gives one node's board a window of its own: what its profile
+	// declares, what the firmware left in the chip, and where the two differ.
+	//
+	// A window rather than a tab because of the move it exists for - the log
+	// says something, and the question is what the hardware did - which needs
+	// the log and the table visible at once.
+	OpenBringUp(node string) error
+
 	// OpenFirmwareWindow gives one build a window of its own: what it is,
 	// where it lives, and the settings it runs under. All three names,
 	// because a label can carry more than one build and acting on the wrong

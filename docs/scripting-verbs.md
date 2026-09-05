@@ -1,8 +1,8 @@
 # Every verb, and the call that covers it
 
 The wire underneath [scripting-api.md](scripting-api.md). The store registers
-**217**<!--verbdoc:public--> public verbs a script can call and
-**37**<!--verbdoc:internal--> internal callbacks it cannot, **254**<!--verbdoc:total-->
+**218**<!--verbdoc:public--> public verbs a script can call and
+**37**<!--verbdoc:internal--> internal callbacks it cannot, **255**<!--verbdoc:total-->
 in total, plus the two the socket answers itself, with what each reads, what
 each returns, and which façade call reaches it.
 
@@ -77,8 +77,8 @@ Two verbs are **not** in this table:
 
 ## What this table shows about the surface
 
-- **217**<!--verbdoc:public--> public verbs, plus **37**<!--verbdoc:internal-->
-  the workbench keeps to itself, **254**<!--verbdoc:total--> registered in
+- **218**<!--verbdoc:public--> public verbs, plus **37**<!--verbdoc:internal-->
+  the workbench keeps to itself, **255**<!--verbdoc:total--> registered in
   total. The façade covers the public verbs, over roughly 60 calls once
   objects and properties absorb them.
 - **The naming is not regular.** `node.*` and `nodes.*` are both node verbs and
@@ -128,6 +128,7 @@ Two verbs are **not** in this table:
 |---|---|---|---|
 | `node.aim` | *a bare string*, `node` string, `at` string | `node`, `at`, `bearing_deg`, `distance_km`, `gain_dbi` | `node.aim(at)` |
 | `node.antenna` | *a bare string*, `node` string | `node`, `pattern`, `gain_dbi_peak`, `beamwidth_deg`, `front_to_back_db`, `bearing_deg`, `downtilt_deg`, `polarisation`, `feedline_db`, `peak_dbi` | `node.antenna` |
+| `node.bringup` 🪟 | *a bare string*, `node` string | `node`, `board` | `wb.bringup(node)` |
 | `node.card` | *a bare string*, `node` string, `fitted` bool, `file` string, `wipe` bool | `node`, `slot`, `fitted`, `file`, `own_file`, `bytes`, `required_by_firmware`, `board_has_slot`, `wiped` | `node.card(fitted=\|file=\|wipe=)` |
 | `node.energy` | *a bare string*, `node` string | `node` | `node.energy()` |
 | `node.output` | *a bare string*, `node` string, `source` string, `lines` number | `node`, `source`, `lines`, `total`, `path`, `tail`, `note`, `tracing` | `node.output(source)` |
