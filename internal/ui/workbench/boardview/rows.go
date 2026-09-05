@@ -10,7 +10,7 @@
 // The radio table is the one that works today, and it is the one worth having:
 // every field on it is something the firmware actually left in the chip, and
 // the board's profile says what it should have been.
-package bringup
+package boardview
 
 import (
 	"fmt"

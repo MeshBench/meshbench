@@ -25,8 +25,8 @@
       "what": "put one node on a second monitor"
     }
   },
-  "node.bringup": {
-    "what": "Open a node's bring-up window: what its board profile declares, what the firmware left in the chip, and where the two differ.",
+  "node.boardview": {
+    "what": "Open a node's board view: what its profile declares, what the firmware left in the chip, where the two differ, and the controls for everything the board has wired.",
     "params": [
       {
         "name": "node",
@@ -43,7 +43,7 @@
     "answers": "`board` is the profile the window is checking against. Refused for a node running a host build, which has no board to check, and refused outright in a headless session, there being no window to open one beside.",
     "example": {
       "params": "Deck",
-      "what": "ask whether a board is behaving like the board it says it is"
+      "what": "look at one board in full, and drive what it has"
     }
   }
 }

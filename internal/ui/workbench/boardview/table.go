@@ -1,5 +1,5 @@
 // The middle: which table is showing, and the rows of it.
-package bringup
+package boardview
 
 import (
 	"image"

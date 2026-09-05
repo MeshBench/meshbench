@@ -10,7 +10,7 @@
 // "not modelled" are different facts and the second one is about us; the same
 // rule decides every verdict here, and a row we cannot answer for says so
 // rather than reporting a zero somebody would believe.
-package bringup
+package boardview
 
 import (
 	"image/color"

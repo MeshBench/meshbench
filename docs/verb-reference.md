@@ -430,11 +430,11 @@ Report what one node's antenna is and which way it points.
 
 **Client** `node.antenna`
 
-### `node.bringup`
+### `node.boardview`
 
 **Refuses when no window is attached.**
 
-Open a node's bring-up window: what its board profile declares, what the firmware left in the chip, and where the two differ.
+Open a node's board view: what its profile declares, what the firmware left in the chip, where the two differ, and the controls for everything the board has wired.
 
 **Takes**
 
@@ -444,15 +444,15 @@ Open a node's bring-up window: what its board profile declares, what the firmwar
 
 **Answers** `node`, `board`. `board` is the profile the window is checking against. Refused for a node running a host build, which has no board to check, and refused outright in a headless session, there being no window to open one beside.
 
-**Example** - ask whether a board is behaving like the board it says it is
+**Example** - look at one board in full, and drive what it has
 
 ```json
-{"id":1,"method":"node.bringup","params":"Deck"}
+{"id":1,"method":"node.boardview","params":"Deck"}
 ```
 
 Not made by the test suite: this call needs more than the two-node headless session the runnable examples go to.
 
-**Client** `wb.bringup(node)`
+**Client** `wb.board_view(node)`
 
 ### `node.card`
 

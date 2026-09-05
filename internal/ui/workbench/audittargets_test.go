@@ -15,7 +15,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/ui/shell"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 	"github.com/MeshBench/meshbench/internal/ui/uitest"
-	"github.com/MeshBench/meshbench/internal/ui/workbench/bringup"
+	"github.com/MeshBench/meshbench/internal/ui/workbench/boardview"
 	"github.com/MeshBench/meshbench/internal/ui/workbench/nodeview"
 )
 
@@ -162,7 +162,7 @@ func auditTargets(r *recorder) []target {
 	// says there is no wiring to check, and auditing that proves only the
 	// guard. Its pop-out button opens a window rather than firing a verb, so
 	// the audit answers it the way it answers the file dialog.
-	bu := &bringup.Panel{Node: "Abernethy Repeater", OnDo: func(v string, _ any) { r.do(v, "") }}
+	bu := &boardview.Panel{Node: "Abernethy Repeater", OnDo: func(v string, _ any) { r.do(v, "") }}
 	bu.OnPopScreen = func(n string) { r.do("ui.popout", n) }
 	snapWithBoard := uitest.Snapshot()
 	// The node's own row, given a board - not a second row for the same name.

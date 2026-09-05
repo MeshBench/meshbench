@@ -273,7 +273,7 @@
     "update.notes": "wb.update.notes()",
     "update.checked": "",
     "update.staged": "",
-    "node.bringup": "wb.bringup(node)"
+    "node.boardview": "wb.board_view(node)"
   },
   "no_facade": {
     "node.reflashed": "the store telling itself a reflash finished",

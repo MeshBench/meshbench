@@ -7,7 +7,7 @@
 // size, and it says which step that turned out to be - a panel at 1:1 and one
 // at 3:1 are different evidence and nothing else on the screen would say which
 // this is.
-package bringup
+package boardview
 
 import (
 	"fmt"

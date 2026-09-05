@@ -31,7 +31,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/ui/shell"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 	"github.com/MeshBench/meshbench/internal/ui/uitest"
-	"github.com/MeshBench/meshbench/internal/ui/workbench/bringup"
+	"github.com/MeshBench/meshbench/internal/ui/workbench/boardview"
 	"github.com/MeshBench/meshbench/internal/ui/workbench/nodeview"
 )
 
@@ -255,7 +255,7 @@ func Run(args []string) {
 	mv.BuildingsIn = sm.BuildingsIn
 	wbUI := &workbenchUI{sh: sh, sim: sm, mv: mv, store: st,
 		nodes: nodeview.NewWindowSet(), builds: newFirmwareWindowSet(),
-		logs: nodeview.NewOutputWindowSet(), boards: bringup.NewWindowSet()}
+		logs: nodeview.NewOutputWindowSet(), boards: boardview.NewWindowSet()}
 	callbacks{
 		wbUI: wbUI, mv: mv, st: st, ctx: ctx, sm: sm, openPacket: openPacket,
 		chooser: chooser, do: do,

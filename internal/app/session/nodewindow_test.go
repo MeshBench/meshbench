@@ -33,7 +33,7 @@ func (u *tabStrictUI) OpenNodeWindow(_, tab string) (string, error) {
 }
 
 func (u *tabStrictUI) OpenFirmwareWindow(_, _, _ string) error { return nil }
-func (u *tabStrictUI) OpenBringUp(_ string) error              { return nil }
+func (u *tabStrictUI) OpenBoardView(_ string) error            { return nil }
 
 func (u *tabStrictUI) OpenOutputWindow(_, _ string) error { return nil }
 

@@ -36,7 +36,7 @@ func registerNodeWindow(st *state.Store, s *Sim) {
 
 	// node.bringup: the same node, asked a different question - is this board
 	// behaving like the board it says it is.
-	st.Handle("node.bringup", func(w *state.World, p any) (any, error) {
+	st.Handle("node.boardview", func(w *state.World, p any) (any, error) {
 		if err := s.needUI(); err != nil {
 			return nil, err
 		}
@@ -53,7 +53,7 @@ func registerNodeWindow(st *state.Store, s *Sim) {
 				fmt.Errorf("%s runs a host build rather than a board image, "+
 					"so there is no wiring to check", name))
 		}
-		if err := s.ui.OpenBringUp(name); err != nil {
+		if err := s.ui.OpenBoardView(name); err != nil {
 			return nil, control.WithCode(control.BadParams, err)
 		}
 		return map[string]any{"node": name, "board": n.Board}, nil

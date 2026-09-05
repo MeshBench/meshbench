@@ -10,7 +10,7 @@
 // So every row carries a verdict, and the window is a window rather than a tab
 // because the move it exists for is "the log said this, so what did the pin
 // do" - which needs the log and the table visible at once.
-package bringup
+package boardview
 
 import (
 	"gioui.org/layout"
@@ -69,6 +69,9 @@ type Panel struct {
 	// the whole way to find out whether a button reaches the firmware is to
 	// press it while watching what the pin did.
 	parts comp.BoardControls
+	// cardIn and wipeCard drive the slot, where the board has one.
+	cardIn   comp.Check
+	wipeCard comp.Button
 
 	tabs  [numTabs]widget.Clickable
 	rows  layout.List
@@ -141,7 +144,7 @@ func (p *Panel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layo
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{}.Layout(gtx,
 				comp.Fixed(gtx, railFor(b, p.scale), func(gtx layout.Context) layout.Dimensions {
-					return p.rail(t, gtx, b, st, rows)
+					return p.rail(t, gtx, b, st, rows, s)
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return p.dragRail(t, gtx, b)

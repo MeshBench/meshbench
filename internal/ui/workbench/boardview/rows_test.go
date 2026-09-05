@@ -1,6 +1,6 @@
 // What the two tables conclude, and the one thing they must never do: report a
 // fault the state does not support, or stay quiet about one it does.
-package bringup
+package boardview
 
 import (
 	"strings"

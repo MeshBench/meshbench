@@ -4,7 +4,7 @@
 // window set is: this file is about which windows are open and how another
 // goroutine asks one to come forward, and nothing here knows what the window
 // looks like.
-package bringup
+package boardview
 
 import (
 	"github.com/MeshBench/meshbench/internal/app/state"
@@ -31,7 +31,7 @@ type Hooks struct {
 func (w *WindowSet) OpenFor(node string, newTheme func() *theme.Theme,
 	st *state.Store, h Hooks) {
 
-	key := "bringup:" + node
+	key := "boardview:" + node
 	if !w.Claim(key) {
 		// Already open. Recalled rather than ignored: a second press that
 		// returns in silence is indistinguishable from a dead menu entry, and
@@ -40,7 +40,7 @@ func (w *WindowSet) OpenFor(node string, newTheme func() *theme.Theme,
 	}
 	p := &Panel{Node: node, OnDo: h.OnDo}
 	p.OnPopScreen = func(n string) { w.openScreen(n, p, newTheme, st) }
-	go shell.RunPopout(w.WindowRegistry, key, "MeshBench - "+node+" board inspector",
+	go shell.RunPopout(w.WindowRegistry, key, "MeshBench - "+node+" board view",
 		shell.PopoutSize{W: 1180, H: 720}, p, newTheme, st)
 }
 
@@ -53,7 +53,7 @@ func (w *WindowSet) OpenFor(node string, newTheme func() *theme.Theme,
 func (w *WindowSet) openScreen(node string, from *Panel,
 	newTheme func() *theme.Theme, st *state.Store) {
 
-	key := "bringup-screen:" + node
+	key := "boardview-screen:" + node
 	if !w.Claim(key) {
 		return
 	}

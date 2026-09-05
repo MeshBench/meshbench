@@ -8,7 +8,7 @@
 // The screen bits are a real capture from an emulated T-Deck, borrowed from the
 // node view's testdata, because a mock would prove the layout and nothing about
 // the pipeline.
-package bringup
+package boardview
 
 import (
 	"image/png"
@@ -97,7 +97,14 @@ func TestDrawTheBringUpWindow(t *testing.T) {
 	for _, c := range cases {
 		st := c.stat()
 		p := &Panel{Node: "Deck", Tab: c.tab, scale: c.scale}
-		snap := &state.Snapshot{Stats: []state.NodeStat{*st}}
+		snap := &state.Snapshot{
+			Stats: []state.NodeStat{*st},
+			// The node's own row, so the slot's controls are drawn: a board
+			// with no row correctly offers none, and a picture of that proves
+			// only the guard.
+			Nodes: []state.Node{{Name: "Deck", Kind: "companion",
+				CardSlot: true, CardFitted: true}},
+		}
 		width := 1180
 		if c.board != "" {
 			width = railFor(boardOrTDeck(t, c.board), c.scale) + 700 + 260

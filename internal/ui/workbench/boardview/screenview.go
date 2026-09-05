@@ -6,7 +6,7 @@
 // widget in both places is what keeps the touchscreen working in both - the
 // alternative is two copies of the mapping below, and the mapping is exactly
 // the thing that fails silently.
-package bringup
+package boardview
 
 import (
 	"image"
@@ -264,8 +264,50 @@ func (v *ScreenView) readKeys(gtx layout.Context, b hw.Board,
 		if !ok || ke.State != key.Press {
 			continue
 		}
-		onDo("board.type", map[string]any{"node": node, "key": string(ke.Name)})
+		// board.key, not board.type: the board holds the last key pressed and
+		// the firmware polls it, and the verb takes the characters as text.
+		// The name matters more than it looks - a verb nothing registers is
+		// refused into the void, and a keyboard that silently does nothing is
+		// one somebody decides is broken.
+		if txt := typedText(ke); txt != "" {
+			onDo("board.key", map[string]any{"node": node, "text": txt})
+		}
 	}
+}
+
+// typedText is the character a key event carries, or "" for a key the board's
+// own keyboard has no character for.
+//
+// Gio names a printable key by the character itself, so the common case is one
+// rune. The few this board's keyboard does have a code for are named, because a
+// handheld's keyboard sends a backspace and an enter like any other.
+func typedText(ke key.Event) string {
+	switch ke.Name {
+	case key.NameReturn, key.NameEnter:
+		return "\r"
+	case key.NameDeleteBackward:
+		return "\b"
+	case key.NameSpace:
+		return " "
+	}
+	n := string(ke.Name)
+	if len([]rune(n)) != 1 {
+		return ""
+	}
+	// Gio reports an unshifted name; the shift is in the modifiers.
+	if ke.Modifiers.Contain(key.ModShift) {
+		return n
+	}
+	return lowerASCII(n)
+}
+
+// lowerASCII lowers a single ASCII letter, which is what an unshifted key on a
+// handheld sends.
+func lowerASCII(s string) string {
+	if len(s) == 1 && s[0] >= 'A' && s[0] <= 'Z' {
+		return string(s[0] + 32)
+	}
+	return s
 }
 
 func hasTouch(b hw.Board) bool {

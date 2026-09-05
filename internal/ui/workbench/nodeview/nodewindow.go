@@ -40,23 +40,23 @@ type WindowPanel struct {
 	// pick is the build list, the same control the Nodes running panel opens
 	// from its firmware cell. Shared so the two cannot come to offer
 	// different builds or apply them differently.
-	// bringUp opens the window that checks this board against its profile.
+	// boardView opens the board view, which is this board in full.
 	// Named where the panel is built rather than where it is drawn, so it has
 	// a label before its first frame.
-	bringUp  comp.Button
-	pick     buildPicker
-	tcpBtn   comp.Button
-	serBtn   comp.Button
-	dropBtn  comp.Button
-	sdrServe comp.Button
-	sdrStop  comp.Button
-	list     layout.List
-	statList widget.List
-	setList  widget.List
-	acts     comp.Table
-	built    bool
-	rowsSet  bool
-	seq      uint64
+	boardView comp.Button
+	pick      buildPicker
+	tcpBtn    comp.Button
+	serBtn    comp.Button
+	dropBtn   comp.Button
+	sdrServe  comp.Button
+	sdrStop   comp.Button
+	list      layout.List
+	statList  widget.List
+	setList   widget.List
+	acts      comp.Table
+	built     bool
+	rowsSet   bool
+	seq       uint64
 
 	// OnCommand is given a line to send to the node's firmware.
 	OnCommand func(node, line string)
@@ -453,7 +453,7 @@ func (p *WindowPanel) AuditDraw(t *theme.Theme, gtx layout.Context, s *state.Sna
 			// layout for the same reason they were.
 			return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx,
 				func(gtx layout.Context) layout.Dimensions {
-					return p.bringUpAuditRow(t, gtx)
+					return p.boardViewAuditRow(t, gtx)
 				})
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {

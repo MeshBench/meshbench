@@ -60,7 +60,7 @@ func (p *WindowPanel) hardware(t *theme.Theme, gtx layout.Context, s *state.Snap
 								return p.card(t, gtx, s)
 							}),
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								return p.bringUpLink(t, gtx)
+								return p.boardViewLink(t, gtx)
 							}),
 						)
 					}),
@@ -73,21 +73,21 @@ func (p *WindowPanel) hardware(t *theme.Theme, gtx layout.Context, s *state.Snap
 	})(gtx)
 }
 
-// bringUpLink is the way from here to the window that asks the other question.
+// boardViewLink is the way from here to the window that asks the other question.
 //
 // This tab draws the board so somebody can recognise it and press it. Whether
 // it is behaving like its own profile is a different question with a different
 // audience, and one that needs the room a tab does not have - so it is a
 // window, and this is how it is found rather than only through a verb.
-func (p *WindowPanel) bringUpLink(t *theme.Theme, gtx layout.Context) layout.Dimensions {
-	p.nameBringUp()
-	if p.bringUp.Click.Clicked(gtx) && p.OnDo != nil {
-		p.OnDo("node.bringup", map[string]any{"node": p.Node})
+func (p *WindowPanel) boardViewLink(t *theme.Theme, gtx layout.Context) layout.Dimensions {
+	p.nameBoardView()
+	if p.boardView.Click.Clicked(gtx) && p.OnDo != nil {
+		p.OnDo("node.boardview", map[string]any{"node": p.Node})
 	}
 	return layout.Inset{Top: t.Sp.M}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return p.bringUp.Layout(t, gtx)
+				return p.boardView.Layout(t, gtx)
 			}),
 			layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint,
 				"what its profile declares, beside what the firmware left in the chip")),
@@ -95,30 +95,29 @@ func (p *WindowPanel) bringUpLink(t *theme.Theme, gtx layout.Context) layout.Dim
 	})
 }
 
-// bringUpAuditRow is the control without its caption, for the flat layout the
+// boardViewAuditRow is the control without its caption, for the flat layout the
 // audit draws.
 //
 // The caption is a line of prose, and the flat layout has no slack for one: the
 // canvas is every tab's controls at once, and the last thing added to it pushed
 // the console's send button off the bottom. The card slot's controls are here
 // for the same reason and without their own three paragraphs.
-func (p *WindowPanel) bringUpAuditRow(t *theme.Theme, gtx layout.Context) layout.Dimensions {
-	p.nameBringUp()
-	if p.bringUp.Click.Clicked(gtx) && p.OnDo != nil {
-		p.OnDo("node.bringup", map[string]any{"node": p.Node})
+func (p *WindowPanel) boardViewAuditRow(t *theme.Theme, gtx layout.Context) layout.Dimensions {
+	p.nameBoardView()
+	if p.boardView.Click.Clicked(gtx) && p.OnDo != nil {
+		p.OnDo("node.boardview", map[string]any{"node": p.Node})
 	}
-	return p.bringUp.Layout(t, gtx)
+	return p.boardView.Layout(t, gtx)
 }
 
-// nameBringUp gives the control its label before anything draws it, so a
+// nameBoardView gives the control its label before anything draws it, so a
 // reader of the panel - the audit among them - finds a named button.
-func (p *WindowPanel) nameBringUp() {
-	if p.bringUp.Label == "" {
-		// Named for what pressing it does, not for the work it belongs to.
-		// "Bring-up" is what a firmware engineer calls the afternoon; it is not
-		// what a button does, and a control that names an activity leaves the
-		// reader to guess what will happen.
-		p.bringUp.Kind, p.bringUp.Label = comp.Quiet, "Inspect this board..."
+func (p *WindowPanel) nameBoardView() {
+	if p.boardView.Label == "" {
+		// Named for the window it opens, beside the node view and the packet
+		// view. "Bring-up" named the afternoon rather than the thing, and a
+		// control that names an activity leaves the reader to guess.
+		p.boardView.Kind, p.boardView.Label = comp.Quiet, "Board view..."
 	}
 }
 

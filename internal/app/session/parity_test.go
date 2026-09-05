@@ -157,7 +157,7 @@ func (u *stubUI) OpenNodeWindow(_, tab string) (string, error) {
 }
 
 func (u *stubUI) OpenFirmwareWindow(_, _, _ string) error { return nil }
-func (u *stubUI) OpenBringUp(_ string) error              { return nil }
+func (u *stubUI) OpenBoardView(_ string) error            { return nil }
 
 func (u *stubUI) OpenOutputWindow(_, _ string) error { return nil }
 func (u *stubUI) OpenPanel(_, _ string) error        { return nil }

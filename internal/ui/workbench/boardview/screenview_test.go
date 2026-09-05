@@ -5,7 +5,7 @@
 // coordinate, and one that is not turned back out of the panel's mounting lands
 // on the wrong axis. Either reads exactly like a touch layer that was never
 // wired, which is a fault this project has spent weeks on before.
-package bringup
+package boardview
 
 import (
 	"testing"

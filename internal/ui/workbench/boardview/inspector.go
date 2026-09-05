@@ -6,7 +6,7 @@
 // prose in the tree, and until now they were visible only to somebody reading
 // Go. A firmware developer staring at a radio that hears nothing should not
 // have to open the source to find the paragraph explaining why.
-package bringup
+package boardview
 
 import (
 	"image"
