@@ -63,7 +63,7 @@ func (p *Panel) rail(t *theme.Theme, gtx layout.Context, b hw.Board,
 					if !hasPanel(b) {
 						return layout.Dimensions{}
 					}
-					return p.screen.Layout(t, gtx, b, st, p.scale, p.OnDo, p.Node)
+					return p.screen.Layout(t, gtx, b, st, p.scale, p.OnDo, p.Node, &p.pic)
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					if !hasPanel(b) {

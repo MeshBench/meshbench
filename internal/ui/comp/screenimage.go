@@ -94,6 +94,15 @@ func (s *ScreenImage) rebuild(t *theme.Theme, pic *state.Screen, blk int) {
 				row := (y*blk + by) * s.img.Stride
 				for bx := 0; bx < blk; bx++ {
 					i := row + (x*blk+bx)*4
+					// Bounds checked rather than trusted. The size is derived
+					// from the same picture two lines above, so this cannot be
+					// out of range - and it was, because two windows shared
+					// one of these and one reallocated the buffer while the
+					// other was writing into it. A drawing fault should draw
+					// wrongly; it should not take the application down.
+					if i+3 >= len(s.img.Pix) {
+						continue
+					}
 					s.img.Pix[i] = c.R
 					s.img.Pix[i+1] = c.G
 					s.img.Pix[i+2] = c.B

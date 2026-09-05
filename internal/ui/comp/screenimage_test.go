@@ -120,3 +120,50 @@ func BenchmarkPanelRedrawn(b *testing.B) {
 		drawOnce(th, &s, pic, 1)
 	}
 }
+
+// Two windows drawing one board do not share an image.
+//
+// The popped-out screen window shares its ScreenView with the board view it
+// came from, on purpose. It must not share the cached picture: the two are
+// separate frame loops on separate goroutines drawing at separate scales, so
+// one buffer between them is one goroutine reallocating it while the other
+// writes into it - which panicked on the first frame after both were open,
+// with an index exactly one past the end of a buffer that had just been
+// replaced with a smaller one.
+func TestTwoDrawingsOfOnePanelDoNotShareAnImage(t *testing.T) {
+	th := theme.New(theme.Dark, theme.Default, nil)
+	pic := deckPanel()
+	// Each drawing keeps its own, at its own scale, as the two windows do.
+	var big, small ScreenImage
+	drawOnce(th, &big, pic, 3)
+	drawOnce(th, &small, pic, 1)
+	if big.img == small.img {
+		t.Fatal("two drawings share one buffer")
+	}
+	if big.img.Rect.Max == small.img.Rect.Max {
+		t.Errorf("both drew at one size (%v), so the scales are not independent",
+			big.img.Rect.Max)
+	}
+	// And each still holds the size its own scale asks for.
+	if got, want := big.img.Rect.Max.X, pic.Width*3; got != want {
+		t.Errorf("the 3:1 drawing is %d wide, want %d", got, want)
+	}
+	if got, want := small.img.Rect.Max.X, pic.Width*1; got != want {
+		t.Errorf("the 1:1 drawing is %d wide, want %d", got, want)
+	}
+}
+
+// A picture whose size moves under the painter draws wrongly rather than
+// crashing.
+func TestAPanelThatChangesSizeDoesNotPanic(t *testing.T) {
+	th := theme.New(theme.Dark, theme.Default, nil)
+	var s ScreenImage
+	big := deckPanel()
+	drawOnce(th, &s, big, 2)
+	small := &state.Screen{Width: 128, Height: 64, BPP: 1, On: true,
+		Bits: make([]byte, 128*64/8), Seq: 2}
+	drawOnce(th, &s, small, 2)
+	if s.img.Rect.Max.X != small.Width*2 {
+		t.Errorf("the painter kept the old size %v", s.img.Rect.Max)
+	}
+}

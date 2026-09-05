@@ -76,6 +76,10 @@ type Panel struct {
 	logSplit comp.Splitter
 	logH     int
 	screen   ScreenView
+	// pic is this window's own image of the panel. Not the view's: the popped
+	// out screen window shares the view and must not share the image, because
+	// the two are separate frame loops drawing at separate scales.
+	pic comp.ScreenImage
 	// board is the lamps, buttons and trackball, the same widgets the Hardware
 	// tab draws. A board that can be looked at and not pressed is half a board:
 	// the whole way to find out whether a button reaches the firmware is to

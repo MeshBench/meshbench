@@ -28,6 +28,11 @@ type ScreenPanel struct {
 	// view is the same ScreenView the window it came from draws, so the touch
 	// mapping and the key focus are shared rather than copied.
 	view *ScreenView
+	// pic is this window's own image of the panel, and must not be the other
+	// window's. The two are separate frame loops drawing at separate scales,
+	// so one buffer between them is one goroutine reallocating it while the
+	// other writes into it.
+	pic comp.ScreenImage
 }
 
 func (p *ScreenPanel) Draw(t *theme.Theme, gtx layout.Context,
@@ -52,7 +57,7 @@ func (p *ScreenPanel) Draw(t *theme.Theme, gtx layout.Context,
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return p.view.Layout(t, gtx, b, st, n, p.OnDo, p.Node)
+				return p.view.Layout(t, gtx, b, st, n, p.OnDo, p.Node, &p.pic)
 			})
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {

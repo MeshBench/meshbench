@@ -235,36 +235,42 @@ func (c *LayerChrome) Resize(g *comp.ResizeGrip) []app.Option {
 // own bar and grip, so it can always be grown again.
 const minWindowDp = unit.Dp(240)
 
-// fill is maximise: the window over the whole of the screen it is on now.
+// fill is maximise.
 //
-// Three things had to be got right here and the first two were not enough.
+// Two shapes, and which one is used comes down to whether the answer can be
+// trusted.
 //
-// Not the four-edge anchor, which is what a layer surface's own maximise is:
-// it does not say which output, so the compositor answers with its primary and
-// maximise on the second screen throws the window onto the first.
+// A window still on the output it is anchored to is filled by anchoring it
+// top-left at nothing and sizing it to that output. That is the same rectangle
+// the four-edge anchor would give and it says which screen out loud, which the
+// four-edge form does not.
 //
-// And not the anchored output either. A layer surface is anchored to the
-// output it was created on and stays anchored to it: dragging is margins, and
-// a window carried onto the next screen is a large margin measured from the
-// first. So filling "its own output" filled the one it opened on, which from
-// the far screen is the same wrong behaviour with a different cause.
+// A window that has been carried onto another screen gets the four-edge anchor
+// and the compositor's own answer. Margins are measured from the output the
+// surface is anchored to, and whether the compositor reassigns that when a
+// surface is dragged across is its business - so reading the margins backwards
+// to find which screen the window is on is a sum that can be wrong. When it
+// was, it put the window off the right-hand edge of the desktop with its bar
+// on no screen at all, and closing the application was the only way out.
 //
-// So the screen is the one the window is over now, found from where the window
-// actually is: the anchor's corner plus the margins, plus half the window.
-// Margins stay relative to the anchor, so covering another output is expressed
-// as the offset between the two.
+// So the compositor decides that case. It may pick a screen the window is not
+// on, which is the fault this started as; that is a window in the wrong place
+// rather than a window nobody can reach, and asking for it again now brings it
+// back.
 func (c *LayerChrome) fill() []app.Option {
 	if c.screen.Empty() {
 		return []app.Option{float.Maximise()}
 	}
-	on := c.screenUnder(c.centre())
-	c.spot = float.Spot{
-		Left: unit.Dp(on.Min.X - c.screen.Min.X),
-		Top:  unit.Dp(on.Min.Y - c.screen.Min.Y),
+	centre := c.centre()
+	layerLog("maximise: anchored=%v centre=%v on-anchor=%v outputs=%v",
+		c.screen, centre, centre.In(c.screen), c.outputs)
+	if !centre.In(c.screen) {
+		return []app.Option{float.Maximise()}
 	}
+	c.spot = float.Spot{}
 	return []app.Option{
 		float.Move(c.spot),
-		app.Size(unit.Dp(on.Dx()), unit.Dp(on.Dy())),
+		app.Size(unit.Dp(c.screen.Dx()), unit.Dp(c.screen.Dy())),
 	}
 }
 
@@ -283,29 +289,34 @@ func (c *LayerChrome) centre() image.Point {
 	)
 }
 
-// screenUnder is the output a point is on, or the anchored one when the point
-// is in a gap between screens or on none of them.
-func (c *LayerChrome) screenUnder(at image.Point) image.Rectangle {
-	for _, o := range c.outputs {
-		if at.In(o) {
-			return o
-		}
-	}
-	return c.screen
-}
-
 // recall places the window at spot: the escape hatch for one that has ended
 // up somewhere its bar cannot be reached from. Raising means nothing to a
 // layer surface - the compositor stacks the layer, not the windows in it -
 // so this is what the raise wish becomes for a layered window.
 func (c *LayerChrome) Recall(spot float.Spot) []app.Option {
-	if c.maximised {
-		// Full-output and on top already; there is nothing to bring back.
-		return nil
-	}
 	c.spot, c.restore.spot = spot, spot
-	return []app.Option{float.Move(spot)}
+	opts := []app.Option{float.Move(spot)}
+	if c.maximised {
+		// Un-maximised on the way back, and this is the case that matters
+		// most: a maximised window is the one whose bar cannot be reached,
+		// because maximise is what put it on a screen the pointer is not on.
+		// This used to return nothing at all for one - "there is nothing to
+		// bring back" - so the one window that could not be recovered was the
+		// one that needed recovering, and closing the application was the only
+		// way out of it.
+		c.maximised = false
+		w, h := c.restore.w, c.restore.h
+		if w < minWindowDp || h < minWindowDp {
+			w, h = defaultRecallDp, defaultRecallDp
+		}
+		opts = append(opts, app.Size(w, h))
+	}
+	return opts
 }
+
+// defaultRecallDp is the size a recalled window is given when nothing sensible
+// was remembered - a window maximised before it had ever been measured.
+const defaultRecallDp = unit.Dp(800)
 
 // clamp keeps the bar somewhere it can be grabbed.
 //

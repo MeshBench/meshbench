@@ -16,6 +16,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	hw "github.com/MeshBench/meshbench/internal/firmware/board"
+	"github.com/MeshBench/meshbench/internal/ui/comp"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 	"github.com/MeshBench/meshbench/internal/ui/uitest"
 )
@@ -140,11 +141,12 @@ func TestThePanelIsDrawnAtTheScaleItWasAskedFor(t *testing.T) {
 	sc := b.Hardware.Screen
 	for _, want := range []int{1, 2, 3} {
 		var v ScreenView
+		var pic comp.ScreenImage
 		var got layout.Dimensions
 		_, w, h := boxFor(b, want)
 		uitest.RenderWidget(t, w+40, h+40,
 			func(gtx layout.Context, th *theme.Theme) layout.Dimensions {
-				got = v.Layout(th, gtx, b, nil, want, nil, "Deck")
+				got = v.Layout(th, gtx, b, nil, want, nil, "Deck", &pic)
 				return got
 			})
 		if got.Size.X != sc.WidthPx*want || got.Size.Y != sc.HeightPx*want {
@@ -230,11 +232,12 @@ func TestThePanelSurvivesBeingDraggedToADenserScreen(t *testing.T) {
 	const scale = 1
 	for _, perDp := range []float32{1, 2} {
 		var v ScreenView
+		var pic comp.ScreenImage
 		var got layout.Dimensions
 		// The same window, in framebuffer pixels, at both densities.
 		uitest.RenderAt(t, sc.WidthPx*2+40, sc.HeightPx*2+40, perDp,
 			func(gtx layout.Context, th *theme.Theme) layout.Dimensions {
-				got = v.Layout(th, gtx, b, nil, scale, nil, "Deck")
+				got = v.Layout(th, gtx, b, nil, scale, nil, "Deck", &pic)
 				return got
 			})
 		// One panel pixel is that many framebuffer pixels, so the drawn box

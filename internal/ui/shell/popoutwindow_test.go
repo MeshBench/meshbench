@@ -142,40 +142,67 @@ func TestMaximiseFillsTheScreenTheWindowIsOn(t *testing.T) {
 	second := image.Rect(1920, 0, 3840, 1080)
 	all := []image.Rectangle{first, second}
 
-	// Opened on the first screen and dragged onto the second, which is margins
-	// rather than a change of anchor: the surface is still anchored to the
-	// first, and this is the case the first two attempts at maximise both got
-	// wrong in opposite directions.
-	c := NewLayerChrome(float.Spot{Top: 100, Left: 2100})
-	c.Screens(first, all)
-	c.Frame(frameAt(image.Pt(800, 600), 1))
-
-	if len(c.fill()) != 2 {
-		t.Fatal("maximise produced no move and size")
-	}
-	if got := int(c.spot.Left); got != 1920 {
-		t.Errorf("maximised to a margin of %d from the anchored screen, want "+
-			"1920 - the offset that puts it over the screen it is on", got)
-	}
-	if got := int(c.spot.Top); got != 0 {
-		t.Errorf("maximised %d down, want the top of that screen", got)
-	}
-
-	// And one that never left its own screen fills that one.
+	// Still on the screen it is anchored to: filled explicitly, saying which
+	// screen rather than leaving it to the compositor.
 	home := NewLayerChrome(float.Spot{Top: 60, Left: 200})
 	home.Screens(first, all)
 	home.Frame(frameAt(image.Pt(800, 600), 1))
-	home.fill()
+	if len(home.fill()) != 2 {
+		t.Fatal("a window on its own screen produced no move and size")
+	}
 	if home.spot != (float.Spot{}) {
-		t.Errorf("a window on its own screen maximised to %v, want its corner",
-			home.spot)
+		t.Errorf("maximised to %v, want its own screen's corner", home.spot)
+	}
+
+	// Carried onto the next screen: the compositor answers, because reading
+	// margins backwards to find the output is a sum that can be wrong - and
+	// when it was, the window went off the desktop with its bar on no screen.
+	away := NewLayerChrome(float.Spot{Top: 100, Left: 2100})
+	away.Screens(first, all)
+	away.Frame(frameAt(image.Pt(800, 600), 1))
+	got := away.fill()
+	if len(got) != 1 {
+		t.Errorf("a window carried onto another screen produced %d options; "+
+			"only the compositor's own maximise is safe there", len(got))
+	}
+	if away.spot.Left != 2100 {
+		t.Errorf("its place was changed to %v, and nothing here knows better",
+			away.spot.Left)
 	}
 
 	// With no output known it falls back rather than guessing a size.
 	blind := NewLayerChrome(float.Spot{})
 	if got := blind.fill(); len(got) != 1 {
 		t.Errorf("a window that has not been told where it is produced %d "+
-			"options; only the four-edge anchor is safe there", len(got))
+			"options", len(got))
+	}
+}
+
+// A maximised window can always be got back.
+//
+// This is the one that matters, because maximise is what puts a window on a
+// screen the pointer is not on: recall used to answer a maximised window with
+// nothing at all - "there is nothing to bring back" - so the single window that
+// could not be recovered was the one that needed recovering, and closing the
+// application was the only way out.
+func TestAMaximisedWindowCanBeRecalled(t *testing.T) {
+	screen := image.Rect(0, 0, 1920, 1080)
+	c := NewLayerChrome(float.Spot{Top: 60, Left: 200})
+	c.Screens(screen, []image.Rectangle{screen})
+	c.Frame(frameAt(image.Pt(900, 640), 1))
+	c.restore.w, c.restore.h = 900, 640
+	c.maximised = true
+
+	opts := c.Recall(float.Spot{Top: 24, Left: 24})
+	if len(opts) < 2 {
+		t.Fatalf("recall of a maximised window produced %d options; it has to "+
+			"move it and give it a size back", len(opts))
+	}
+	if c.maximised {
+		t.Error("it came back still maximised, which is where it was stuck")
+	}
+	if c.spot != (float.Spot{Top: 24, Left: 24}) {
+		t.Errorf("it came back at %v rather than where it was called to", c.spot)
 	}
 }
 

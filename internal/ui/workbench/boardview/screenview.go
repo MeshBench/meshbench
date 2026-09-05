@@ -42,12 +42,18 @@ const screenBudgetDp = 320
 // its flexed one, so the caption asked before the panel had chosen and printed
 // 0:1. The scale is decided by whoever draws and passed in, which is also the
 // number a press is divided by: one value, no order to get wrong.
+// Nothing mutable may go in here.
+//
+// Two windows share one of these on purpose - the board view and the screen it
+// pops out - and they are two frame loops on two goroutines drawing at two
+// scales. The tags below are addresses and nothing else, which is what makes
+// sharing safe; a cached picture was put here once and the pair of windows
+// crashed on the first frame they were both open, one reallocating the buffer
+// while the other wrote into it. Anything a drawing keeps belongs to the
+// drawing: pass it in, as Layout takes its image.
 type ScreenView struct {
 	touchTag struct{}
 	keyTag   struct{}
-	// pic is the panel as an image, rebuilt when the board draws rather than
-	// on every frame.
-	pic comp.ScreenImage
 }
 
 // fitScale is the largest whole-number scale at which a panel fits a box.
@@ -131,8 +137,19 @@ func railFor(b hw.Board, want int) int {
 //
 // scale of zero means "as much as the box allows", which is what the popped
 // out window passes.
+// pic is the caller's image, not the view's, and that is the whole of why it is
+// a parameter rather than a field.
+//
+// The popped-out screen window shares this view with the board view it came
+// from, deliberately - the touch mapping and the key focus are one set of facts
+// and two copies would be two chances to divide by the wrong number. But the
+// two windows are two frame loops on two goroutines drawing at two scales, so a
+// cached image inside the view is one buffer being reallocated by one of them
+// while the other writes into it. That crashed on the first frame after both
+// were open.
 func (v *ScreenView) Layout(t *theme.Theme, gtx layout.Context, b hw.Board,
-	st *state.NodeStat, want int, onDo func(string, any), node string) layout.Dimensions {
+	st *state.NodeStat, want int, onDo func(string, any), node string,
+	pic *comp.ScreenImage) layout.Dimensions {
 
 	sc := b.Hardware.Screen
 	if sc == nil {
@@ -184,7 +201,7 @@ func (v *ScreenView) Layout(t *theme.Theme, gtx layout.Context, b hw.Board,
 	v.readKeys(gtx, b, onDo, node)
 
 	if st != nil && st.Screen != nil && st.Screen.On {
-		v.pic.Layout(t, gtx, st.Screen, blk)
+		pic.Layout(t, gtx, st.Screen, blk)
 	}
 	comp.Border(gtx, size, 0, 1, t.P.Rule)
 	return layout.Dimensions{Size: size}
