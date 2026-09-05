@@ -202,16 +202,6 @@ func tdeckStat(bits []byte, w, h int) *state.NodeStat {
 	}
 }
 
-// tdeck is the board the pictures are drawn for.
-func tdeck(t *testing.T) hw.Board {
-	t.Helper()
-	b, err := hw.BoardByName("LilyGo_TDeck")
-	if err != nil {
-		t.Fatal(err)
-	}
-	return b
-}
-
 // Draw the panel's own window, which is the other half of "bigger": it takes
 // whatever whole scale the space allows and says which one that was.
 func TestDrawTheScreenWindow(t *testing.T) {

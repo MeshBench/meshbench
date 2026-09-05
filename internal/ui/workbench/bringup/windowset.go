@@ -40,7 +40,7 @@ func (w *WindowSet) OpenFor(node string, newTheme func() *theme.Theme,
 	}
 	p := &Panel{Node: node, OnDo: h.OnDo}
 	p.OnPopScreen = func(n string) { w.openScreen(n, p, newTheme, st) }
-	go shell.RunPopout(w.WindowRegistry, key, "MeshBench - bring-up "+node,
+	go shell.RunPopout(w.WindowRegistry, key, "MeshBench - "+node+" board inspector",
 		shell.PopoutSize{W: 1180, H: 720}, p, newTheme, st)
 }
 

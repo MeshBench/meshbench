@@ -24,6 +24,14 @@ import (
 )
 
 // header names the node and the board and says what it is doing.
+//
+// "Board inspector" rather than "board check", twice over. The board check is
+// taken - it is the capability probe, said that way in compatibility.md and
+// shortcomings.md, measured one boot at a time - and a check is less than this
+// is anyway: the window draws the panel live, takes taps and keys on it, presses
+// the board's own buttons, and says why each line matters in the profile's own
+// words. Inspector is the word this tree already uses for looking at one thing
+// in that much depth, in the packet inspector next door.
 func (p *Panel) header(t *theme.Theme, gtx layout.Context, b hw.Board,
 	st *state.NodeStat) layout.Dimensions {
 
@@ -39,7 +47,7 @@ func (p *Panel) header(t *theme.Theme, gtx layout.Context, b hw.Board,
 	return onPanel(t, gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(t.Sp.S).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-				layout.Rigid(comp.Text(t, t.Sz.Body, t.P.Ink, "Bring-up · "+p.Node)),
+				layout.Rigid(comp.Text(t, t.Sz.Body, t.P.Ink, "Board inspector · "+p.Node)),
 				layout.Rigid(layout.Spacer{Width: t.Sp.M}.Layout),
 				layout.Rigid(comp.Mono(t, t.Sz.Caption, t.P.Dim,
 					fmt.Sprintf("%s · %s · %s · %s", b.MCU, b.Vendor, b.Radio, backend))),

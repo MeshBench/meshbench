@@ -90,7 +90,7 @@ func (p *WindowPanel) bringUpLink(t *theme.Theme, gtx layout.Context) layout.Dim
 				return p.bringUp.Layout(t, gtx)
 			}),
 			layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint,
-				"what this board declares, beside what the firmware left in the chip")),
+				"what its profile declares, beside what the firmware left in the chip")),
 		)
 	})
 }
@@ -114,7 +114,11 @@ func (p *WindowPanel) bringUpAuditRow(t *theme.Theme, gtx layout.Context) layout
 // reader of the panel - the audit among them - finds a named button.
 func (p *WindowPanel) nameBringUp() {
 	if p.bringUp.Label == "" {
-		p.bringUp.Kind, p.bringUp.Label = comp.Quiet, "Bring-up..."
+		// Named for what pressing it does, not for the work it belongs to.
+		// "Bring-up" is what a firmware engineer calls the afternoon; it is not
+		// what a button does, and a control that names an activity leaves the
+		// reader to guess what will happen.
+		p.bringUp.Kind, p.bringUp.Label = comp.Quiet, "Inspect this board..."
 	}
 }
 
