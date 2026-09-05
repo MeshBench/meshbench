@@ -110,7 +110,14 @@ func wiringRows(b hw.Board, st *state.NodeStat) []Row {
 		// saying so is not the same as raising a caution about it. Only a
 		// running node that has drawn nothing is worth a second look.
 		v, obs := Undeclared, "not powered"
+		// Asked of the engine rather than assumed, as the meter is. A board
+		// running under an emulator with no display model has drawn nothing
+		// because nothing was there to draw on, and reporting that as "silent"
+		// blames the firmware for our gap.
+		modelled := engine.ScreenModelled(b)
 		switch {
+		case !modelled:
+			v, obs = NotModelled, "no display modelled"
 		case st != nil && st.Screen != nil:
 			v = Agrees
 			// Not a fault when it is off: the firmware switches the panel off
@@ -124,14 +131,20 @@ func wiringRows(b hw.Board, st *state.NodeStat) []Row {
 		case st != nil && st.Running:
 			v, obs = Silent, "nothing drawn yet"
 		}
+		why := "What the firmware drew, not what the panel looks like: no " +
+			"backlight, no viewing angle, no refresh artefacts."
+		if !modelled {
+			why = "This board's panel is declared from its own variant, and the " +
+				"emulator running it has no model to put behind it. Nothing " +
+				"will be drawn here, which is a gap on our side rather than " +
+				"anything the firmware did."
+		}
 		out = append(out, Row{Group: "Display", Name: sc.Controller, Where: where,
 			Declared: fmt.Sprintf("%dx%d %s", sc.WidthPx, sc.HeightPx, sc.Ink),
-			Observed: obs, Verdict: v,
-			Why: "What the firmware drew, not what the panel looks like: no " +
-				"backlight, no viewing angle, no refresh artefacts."})
+			Observed: obs, Verdict: v, Why: why})
 	}
 	for _, part := range p.Parts {
-		out = append(out, partRow(b, part))
+		out = append(out, partRow(b, part, st))
 	}
 	return grouped(out)
 }
@@ -159,10 +172,25 @@ func grouped(rows []Row) []Row {
 // The unmodelled ones are the point. An unmodelled input is not a zero: a
 // firmware that starts a conversion and waits for a converter nobody built
 // waits for ever, which is a hang that looks like a firmware fault.
-func partRow(b hw.Board, part hw.Part) Row {
+func partRow(b hw.Board, part hw.Part, st *state.NodeStat) Row {
 	r := Row{Group: groupOf(part.Kind), Name: part.Name, Where: whereOf(part),
 		Declared: part.Kind.String(), Observed: "not instrumented",
 		Verdict: Undeclared}
+	// The parts a person works are driven rather than watched, and saying
+	// "not instrumented" about one was a false claim of the same kind the
+	// meter used to make: the control beside it moves a real pin in the guest,
+	// on both emulators, and a reader told otherwise stops trying.
+	//
+	// It still is not an observation. Nothing reads the line back, so the
+	// column says what this end does and claims nothing about the other.
+	switch part.Kind {
+	case hw.Button, hw.Ball, hw.Keys, hw.Touch:
+		r.Observed = "driven from here"
+		if st == nil || !st.Running {
+			r.Observed = "not powered"
+		}
+	}
+
 	switch part.Kind {
 	case hw.Meter:
 		// Asked of the engine rather than assumed. The converter behind a
@@ -180,7 +208,8 @@ func partRow(b hw.Board, part hw.Part) Row {
 			r.Why = "An unmodelled input is not a zero. A firmware that starts " +
 				"a conversion and waits for a converter nobody built waits for " +
 				"ever. This board's meter is not on a converter we model - the " +
-				"first ten pins of the first converter, on an ESP32-S3."
+				"first converter's ten inputs on an ESP32-S3, or the eight " +
+				"analogue inputs of an nRF52840."
 		}
 	case hw.Lamp:
 		r.Verdict, r.Observed = NotModelled, "no watcher on this pin"

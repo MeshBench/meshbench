@@ -10,6 +10,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	hw "github.com/MeshBench/meshbench/internal/firmware/board"
+	"github.com/MeshBench/meshbench/internal/sim/engine"
 	"github.com/MeshBench/meshbench/internal/ui/comp"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 )
@@ -127,17 +128,36 @@ func (p *Panel) panelNote(t *theme.Theme, gtx layout.Context, b hw.Board,
 	}
 	scale, _, _ := boxFor(b, p.scale)
 	note := fmt.Sprintf("%d × %d · %s · %d:1", sc.WidthPx, sc.HeightPx, sc.Controller, scale)
+	// What it is doing goes on its own line rather than the end of that one.
+	// A rail is only as wide as its panel, and a 240-wide one cut the state off
+	// mid-word - which is the half a reader actually needs.
+	doing := ""
 	switch {
+	case !engine.ScreenModelled(b):
+		// The panel is real and transcribed from the board's own variant; the
+		// emulator running it has nothing to draw on it. Said here as well as
+		// in the table, because this is where somebody looks first.
+		doing = "no display modelled"
 	case st == nil || !st.Running:
-		note += " · not powered"
+		doing = "not powered"
 	case st.Screen == nil:
-		note += " · nothing drawn yet"
+		doing = "nothing drawn yet"
 	case !st.Screen.On:
 		// Not a fault: the firmware switches the panel off after an idle.
-		note += " · asleep"
+		doing = "asleep"
 	}
 	return layout.Inset{Bottom: t.Sp.XXS}.Layout(gtx,
-		comp.OneLine(t, t.Sz.Caption, t.P.Faint, note, true))
+		func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(comp.OneLine(t, t.Sz.Caption, t.P.Faint, note, true)),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					if doing == "" {
+						return layout.Dimensions{}
+					}
+					return comp.OneLine(t, t.Sz.Caption, t.P.Faint, doing, true)(gtx)
+				}),
+			)
+		})
 }
 
 // partsIndex is the rows as a list to pick from, grouped.

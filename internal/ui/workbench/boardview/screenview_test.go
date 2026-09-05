@@ -176,23 +176,23 @@ func TestFitInNeverAnswersZero(t *testing.T) {
 //
 // The picture button photographs the panel, so a board with none showed a
 // button that could do nothing but refuse - and an operator reports that as
-// broken rather than as absent. The nRF52 profiles are all like this.
+// broken rather than as absent.
 func TestNoPictureButtonWithoutAPanel(t *testing.T) {
-	for _, c := range []struct {
-		board string
-		want  bool
-	}{
-		{"LilyGo_TDeck", true}, // a colour panel
-		{"Heltec_v3", true},    // a mono one
-		{"Heltec_t114", false}, // nRF52: nothing recorded
-	} {
-		b, err := hw.BoardByName(c.board)
+	// Real boards for the positive case, and a constructed one for the
+	// absence. Naming a board that has no panel today is a test that rots the
+	// moment somebody transcribes one - which is what happened to the T114
+	// the day after this was written.
+	for _, name := range []string{"LilyGo_TDeck", "Heltec_v3"} {
+		b, err := hw.BoardByName(name)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got := hasScreen(b); got != c.want {
-			t.Errorf("%s: hasScreen is %v, want %v", c.board, got, c.want)
+		if !hasScreen(b) {
+			t.Errorf("%s declares a screen and hasScreen says otherwise", name)
 		}
+	}
+	if hasScreen(hw.Board{Name: "Unrecorded"}) {
+		t.Error("a board nobody has transcribed offered a picture button")
 	}
 	// And a board recorded as carrying nothing is not the same as one nobody
 	// has looked at, though neither has a panel to photograph.

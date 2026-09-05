@@ -138,40 +138,79 @@ func TestAnUninstrumentedRowDoesNotStateItselfTwice(t *testing.T) {
 // A meter on a pin no converter we model can read says so, and says it is
 // about us rather than about the board.
 //
-// No board in the catalogue is like this today - every declared meter is on the
-// first converter of an ESP32-S3 - so the case is built here rather than left
-// untested until somebody adds the first one.
+// No board in the catalogue is like this today - every declared meter is on a
+// converter one of the two emulators models - so the cases are built here
+// rather than left untested until somebody adds the first one. Both shapes it
+// can take: a part whose converter nothing models, and a part whose converter
+// is modelled with the meter declared on a pin that is not one of its inputs.
 func TestAMeterOnNoModelledConverterSaysSo(t *testing.T) {
-	b := hw.Board{
-		Name: "Invented", MCU: "nRF52840",
-		Hardware: &hw.Panel{Parts: []hw.Part{
-			{Kind: hw.Meter, Name: "battery", Pin: 4, FullScaleMV: 4200},
-		}},
+	for _, c := range []struct {
+		what  string
+		board hw.Board
+	}{
+		{"a part nothing models", hw.Board{Name: "Invented", MCU: "RP2350",
+			Hardware: &hw.Panel{Parts: []hw.Part{
+				{Kind: hw.Meter, Name: "battery", Pin: 4, FullScaleMV: 4200},
+			}}}},
+		{"an nRF52 pin that is not an analogue input", hw.Board{
+			Name: "Invented", MCU: "nRF52840",
+			Hardware: &hw.Panel{Parts: []hw.Part{
+				{Kind: hw.Meter, Name: "battery", Pin: 12, FullScaleMV: 4200},
+			}}}},
+	} {
+		rows := wiringRows(c.board, nil)
+		if len(rows) != 1 {
+			t.Fatalf("%s: one part declared, %d rows", c.what, len(rows))
+		}
+		if rows[0].Verdict != NotModelled {
+			t.Errorf("%s: read %v, want %v", c.what, rows[0].Verdict, NotModelled)
+		}
+		if !strings.Contains(rows[0].Why, "waits for ever") {
+			t.Errorf("%s: the reason does not say what an unmodelled input "+
+				"costs: %q", c.what, rows[0].Why)
+		}
 	}
-	rows := wiringRows(b, nil)
-	if len(rows) != 1 {
-		t.Fatalf("one part declared, %d rows", len(rows))
+}
+
+// And a board whose meter is modelled says which input it lands on.
+//
+// The counterpart to the test above, and the reason it matters: this column is
+// the one a person trusts, and "not modelled" about a converter that is
+// modelled is the worst thing it can say.
+func TestAModelledMeterNamesItsInput(t *testing.T) {
+	b, err := hw.BoardByName("Heltec_t114")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if rows[0].Verdict != NotModelled {
-		t.Errorf("a meter on a part with no modelled converter read %v, want %v",
-			rows[0].Verdict, NotModelled)
+	var meter *Row
+	for i, r := range wiringRows(b, nil) {
+		if r.Declared == hw.Meter.String() {
+			meter = &wiringRows(b, nil)[i]
+			break
+		}
 	}
-	if !strings.Contains(rows[0].Why, "waits for ever") {
-		t.Errorf("the reason does not say what an unmodelled input costs: %q",
-			rows[0].Why)
+	if meter == nil {
+		t.Fatal("the T114 declares a battery meter and no row reports one")
+	}
+	if meter.Verdict != Agrees {
+		t.Errorf("its meter read %v (%q), want %v - this board's cell is on "+
+			"AIN2 and the converter under it is modelled",
+			meter.Verdict, meter.Observed, Agrees)
 	}
 }
 
 // A board whose parts nobody has recorded is not a node without a board.
 //
-// Every nRF52 profile is one today. Refusing them cost the radio table as well,
+// Every nRF52 profile was one until their variants were transcribed, and
+// refusing them cost the radio table as well, cost the radio table as well,
 // which needs no panel at all - the chip's own registers reach the interface
 // whichever emulator is driving it.
 func TestABoardWithNoRecordedPanelStillHasARadio(t *testing.T) {
-	b := board(t, "Heltec_t114")
-	if b.Hardware != nil {
-		t.Skip("this board has grown a panel; pick another for this case")
-	}
+	// Built rather than named: a board with no panel today may have one
+	// tomorrow, and this is about the code's behaviour rather than the
+	// catalogue's contents.
+	b := hw.Board{Name: "Unrecorded", MCU: "nRF52840", Radio: "SX1262",
+		MaxTxDBm: 22}
 	st := &state.NodeStat{Name: "n", Board: b.Name, Running: true, IRQReads: 9,
 		Radio: state.RadioState{Reported: true, Boosted: true, GainReg: 0x96,
 			TxPowerDBm: 22, SF: 10, CR: 5, FreqHz: 869618000, BandwidthHz: 250000,
@@ -186,5 +225,68 @@ func TestABoardWithNoRecordedPanelStillHasARadio(t *testing.T) {
 		if r.Group != "Radio" {
 			t.Errorf("a board with no panel produced a %q row from nowhere", r.Group)
 		}
+	}
+}
+
+// A panel no emulator can draw on says so, and does not blame the firmware.
+//
+// "Silent" is a verdict about the board: it drew nothing and could have. A
+// Renode board's panel is transcribed from its own variant and there is no
+// display model on that side of the socket, so nothing will ever be drawn on
+// it - and reporting that as silence sends somebody looking for a fault in a
+// firmware that is behaving perfectly.
+func TestAnUndrawablePanelBlamesUsRatherThanTheFirmware(t *testing.T) {
+	b, err := hw.BoardByName("Heltec_t114")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b.Renode == nil || b.Hardware == nil || b.Hardware.Screen == nil {
+		t.Fatal("this test needs a Renode board that declares a screen")
+	}
+	running := &state.NodeStat{Name: "n", Board: b.Name, Running: true}
+	var screen *Row
+	rows := wiringRows(b, running)
+	for i := range rows {
+		if rows[i].Group == "Display" {
+			screen = &rows[i]
+			break
+		}
+	}
+	if screen == nil {
+		t.Fatal("a board that declares a screen produced no display row")
+	}
+	if screen.Verdict == Silent {
+		t.Errorf("a panel with no model behind it read as %v, which says the "+
+			"firmware chose not to draw", Silent)
+	}
+	if screen.Verdict != NotModelled {
+		t.Errorf("read %v (%q), want %v", screen.Verdict, screen.Observed, NotModelled)
+	}
+}
+
+// A button a person can press does not read as one nothing is wired to.
+//
+// Both emulators drive a declared button now, so "not instrumented" - which is
+// what this said while only one of them did - is the same false claim the meter
+// used to make. It is still not an observation: nothing reads the line back,
+// and the column says what this end does rather than what the pin is at.
+func TestADrivenPartSaysItIsDriven(t *testing.T) {
+	b := hw.Board{Name: "Invented", MCU: "nRF52840",
+		Hardware: &hw.Panel{Parts: []hw.Part{
+			{Kind: hw.Button, Name: "user", Pin: 42, ActiveLow: true},
+		}}}
+	rows := wiringRows(b, &state.NodeStat{Name: "n", Board: b.Name, Running: true})
+	if len(rows) != 1 {
+		t.Fatalf("one part declared, %d rows", len(rows))
+	}
+	if strings.Contains(rows[0].Observed, "not instrumented") {
+		t.Errorf("a button that moves a real pin reads as %q", rows[0].Observed)
+	}
+	// And a board that is off says that instead, rather than promising a press
+	// would go somewhere.
+	off := wiringRows(b, &state.NodeStat{Name: "n", Board: b.Name})
+	if off[0].Observed != "not powered" {
+		t.Errorf("a stopped board's button reads %q, want \"not powered\"",
+			off[0].Observed)
 	}
 }
