@@ -171,3 +171,37 @@ func TestFitInNeverAnswersZero(t *testing.T) {
 		}
 	}
 }
+
+// A control that can only fail is not offered.
+//
+// The picture button photographs the panel, so a board with none showed a
+// button that could do nothing but refuse - and an operator reports that as
+// broken rather than as absent. The nRF52 profiles are all like this.
+func TestNoPictureButtonWithoutAPanel(t *testing.T) {
+	for _, c := range []struct {
+		board string
+		want  bool
+	}{
+		{"LilyGo_TDeck", true}, // a colour panel
+		{"Heltec_v3", true},    // a mono one
+		{"Heltec_t114", false}, // nRF52: nothing recorded
+	} {
+		b, err := hw.BoardByName(c.board)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := hasScreen(b); got != c.want {
+			t.Errorf("%s: hasScreen is %v, want %v", c.board, got, c.want)
+		}
+	}
+	// And a board recorded as carrying nothing is not the same as one nobody
+	// has looked at, though neither has a panel to photograph.
+	empty := hw.Board{Name: "Recorded", Hardware: &hw.Panel{}}
+	if hasScreen(empty) {
+		t.Error("a board that declares an empty panel offered a picture button")
+	}
+	if !hasPanel(empty) {
+		t.Error("a board that declares an empty panel reads as one nobody has " +
+			"looked at, which is a different fact")
+	}
+}

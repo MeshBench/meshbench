@@ -321,6 +321,9 @@ func lowerASCII(s string) string {
 	return s
 }
 
+// hasScreen reports whether this board has a panel to draw or photograph.
+func hasScreen(b hw.Board) bool { return hasPanel(b) && b.Hardware.Screen != nil }
+
 func hasTouch(b hw.Board) bool {
 	return hasPanel(b) && len(b.Hardware.PartsOfKind(hw.Touch)) > 0
 }

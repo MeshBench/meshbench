@@ -150,7 +150,7 @@ func (p *Panel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layo
 	if p.reset.Click.Clicked(gtx) && p.OnDo != nil {
 		p.OnDo("board.reset", map[string]any{"node": p.Node})
 	}
-	if p.shot.Click.Clicked(gtx) && p.OnSaveShot != nil {
+	if p.shot.Click.Clicked(gtx) && p.OnSaveShot != nil && hasScreen(b) {
 		p.OnSaveShot(p.Node, shotName(p.Node, b.Name))
 	}
 	// Pressing a control here reaches the firmware the same way the Hardware

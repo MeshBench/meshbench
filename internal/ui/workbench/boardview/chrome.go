@@ -56,9 +56,21 @@ func (p *Panel) header(t *theme.Theme, gtx layout.Context, b hw.Board,
 					fmt.Sprintf("%s · %s · %s · %s", b.MCU, b.Vendor, b.Radio, backend))),
 				layout.Flexed(1, spacer),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					// Only where there is a panel to photograph. A board with
+					// none showed the button anyway, which is a control that
+					// can only fail - and one an operator reports as broken
+					// rather than as absent.
+					if !hasScreen(b) {
+						return layout.Dimensions{}
+					}
 					return p.shot.Layout(t, gtx)
 				}),
-				layout.Rigid(layout.Spacer{Width: t.Sp.XS}.Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					if !hasScreen(b) {
+						return layout.Dimensions{}
+					}
+					return layout.Spacer{Width: t.Sp.XS}.Layout(gtx)
+				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return p.reset.Layout(t, gtx)
 				}),
