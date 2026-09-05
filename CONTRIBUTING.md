@@ -131,6 +131,18 @@ independent change; for an agent it is also a size limit, because a large diff
 from a machine is one nobody can actually read. If it is growing past a few
 hundred lines of real change, it is more than one pull request.
 
+## The manual is part of the change
+
+A change that alters what somebody sees or does needs a pull request against
+[MeshBench/docs](https://github.com/MeshBench/docs) alongside it. Not the
+generated references - the client enums, the verb reference and the CLI
+reference all come out of `tools/`, and an edit to those is undone by the next
+regeneration.
+
+Write it as a manual: present tense, describing what is there rather than what
+changed, with a current screenshot, the steps in order, and the verb beside the
+control. Nobody reading it wants a history.
+
 ## Domain rules that are easy to get wrong
 
 These are not style. Each one is a way to make the simulator quietly lie.
