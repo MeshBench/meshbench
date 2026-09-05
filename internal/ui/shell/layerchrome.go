@@ -83,12 +83,45 @@ func (c *LayerChrome) Frame(e app.FrameEvent) {
 	c.size, c.pxPerDp = e.Size, e.Metric.PxPerDp
 }
 
-// screens notes where the outputs are and which one the margins are measured
-// from, as the fork reports them in the same pixels as the frame size. Empty
-// means unknown, and clamping waits for it.
+// Screens notes where the outputs are and which one the margins are measured
+// from, as the fork reports them in the same pixels as the frame size.
+//
+// The anchor is kept once it is known, and a later empty report is ignored.
+// That is not tidiness: a layer surface's margins are measured from the output
+// it was created on for its whole life, but the compositor stops listing the
+// surface against that output the moment it has been dragged entirely onto
+// another one - and the fork reports the anchor by looking the surface up in
+// the outputs it is currently on, so the anchor comes back as an empty
+// rectangle exactly when the window is somewhere else.
+//
+// Everything here keys off that rectangle, so the window went unclamped, unfit
+// and unmaximisable precisely when it was on the second screen. Measured with
+// scratch/layerprobe against a real compositor after three guesses at what the
+// protocol did:
+//
+//	anchor=(0,0)-(2560,1440)  outputs=[(0,0)-(2560,1440) (2560,0)-(4480,1080)]
+//	... moved onto the output at (2560,0) by margins ...
+//	anchor=(0,0)-(0,0)
+//
+// An empty anchor is the report being unavailable, never the anchor changing:
+// the fork holds the surface's own output from the first one it entered and
+// keeps it.
 func (c *LayerChrome) Screens(mine image.Rectangle, all []image.Rectangle) {
-	c.screen, c.outputs = mine, all
+	if !mine.Empty() {
+		c.screen = mine
+	}
+	c.outputs = all
 }
+
+// Maximise is fill, for a caller outside this package: the scratch probe that
+// measures this against a real compositor, which is how the rule it follows was
+// established rather than guessed at a fourth time.
+func (c *LayerChrome) Maximise() []app.Option { return c.fill() }
+
+// PlaceAt records where something else has just put the window, so the chrome's
+// idea of the margins is the compositor's. Only the probe needs it; the window
+// loop moves the window through this type.
+func (c *LayerChrome) PlaceAt(spot float.Spot) { c.spot = spot }
 
 // Maximised reports whether the window is anchored to all four edges, so the
 // bar draws the right glyph.
@@ -235,43 +268,46 @@ func (c *LayerChrome) Resize(g *comp.ResizeGrip) []app.Option {
 // own bar and grip, so it can always be grown again.
 const minWindowDp = unit.Dp(240)
 
-// fill is maximise.
+// fill is maximise: the window over the whole of the screen it is on now.
 //
-// Two shapes, and which one is used comes down to whether the answer can be
-// trusted.
+// Not the four-edge anchor, which is what a layer surface's own maximise is.
+// That fills the output the surface was created on, whatever screen it has
+// since been carried to - so maximise on the second screen threw the window
+// back to the first, which is the fault this started as.
 //
-// A window still on the output it is anchored to is filled by anchoring it
-// top-left at nothing and sizing it to that output. That is the same rectangle
-// the four-edge anchor would give and it says which screen out loud, which the
-// four-edge form does not.
-//
-// A window that has been carried onto another screen gets the four-edge anchor
-// and the compositor's own answer. Margins are measured from the output the
-// surface is anchored to, and whether the compositor reassigns that when a
-// surface is dragged across is its business - so reading the margins backwards
-// to find which screen the window is on is a sum that can be wrong. When it
-// was, it put the window off the right-hand edge of the desktop with its bar
-// on no screen at all, and closing the application was the only way out.
-//
-// So the compositor decides that case. It may pick a screen the window is not
-// on, which is the fault this started as; that is a window in the wrong place
-// rather than a window nobody can reach, and asking for it again now brings it
-// back.
+// Margins are measured from the anchored output for the surface's whole life,
+// so where the window is now is that output's corner plus the margins, and
+// which screen that lands on is an ordinary question about rectangles. It only
+// became a hard one because the anchor is reported empty once the window has
+// left it - see Screens, which is where that is now held onto.
 func (c *LayerChrome) fill() []app.Option {
 	if c.screen.Empty() {
+		// Nothing has ever been reported, so there is no arithmetic to do and
+		// the compositor's own answer is the only one available.
 		return []app.Option{float.Maximise()}
 	}
-	centre := c.centre()
-	layerLog("maximise: anchored=%v centre=%v on-anchor=%v outputs=%v",
-		c.screen, centre, centre.In(c.screen), c.outputs)
-	if !centre.In(c.screen) {
-		return []app.Option{float.Maximise()}
+	on := c.screenUnder(c.centre())
+	c.spot = float.Spot{
+		Left: unit.Dp(on.Min.X - c.screen.Min.X),
+		Top:  unit.Dp(on.Min.Y - c.screen.Min.Y),
 	}
-	c.spot = float.Spot{}
+	layerLog("maximise: anchor=%v centre=%v onto=%v margins=(%v,%v) size=%vx%v",
+		c.screen, c.centre(), on, c.spot.Left, c.spot.Top, on.Dx(), on.Dy())
 	return []app.Option{
 		float.Move(c.spot),
-		app.Size(unit.Dp(c.screen.Dx()), unit.Dp(c.screen.Dy())),
+		app.Size(unit.Dp(on.Dx()), unit.Dp(on.Dy())),
 	}
+}
+
+// screenUnder is the output a point is on, or the anchored one when the point
+// is in a gap between screens or on none of them.
+func (c *LayerChrome) screenUnder(at image.Point) image.Rectangle {
+	for _, o := range c.outputs {
+		if at.In(o) {
+			return o
+		}
+	}
+	return c.screen
 }
 
 // centre is where the middle of the window is on the desktop.

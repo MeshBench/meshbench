@@ -138,43 +138,69 @@ func (drawOnly) Draw(*theme.Theme, layout.Context, *state.Snapshot) layout.Dimen
 // is anchored to, so a top-left anchor at nothing, sized to that output, is the
 // same rectangle without the ambiguity.
 func TestMaximiseFillsTheScreenTheWindowIsOn(t *testing.T) {
-	first := image.Rect(0, 0, 1920, 1080)
-	second := image.Rect(1920, 0, 3840, 1080)
+	first := image.Rect(0, 0, 2560, 1440)
+	second := image.Rect(2560, 0, 4480, 1080)
 	all := []image.Rectangle{first, second}
 
-	// Still on the screen it is anchored to: filled explicitly, saying which
-	// screen rather than leaving it to the compositor.
+	// Still on the screen it is anchored to.
 	home := NewLayerChrome(float.Spot{Top: 60, Left: 200})
 	home.Screens(first, all)
 	home.Frame(frameAt(image.Pt(800, 600), 1))
-	if len(home.fill()) != 2 {
-		t.Fatal("a window on its own screen produced no move and size")
-	}
+	home.fill()
 	if home.spot != (float.Spot{}) {
 		t.Errorf("maximised to %v, want its own screen's corner", home.spot)
 	}
 
-	// Carried onto the next screen: the compositor answers, because reading
-	// margins backwards to find the output is a sum that can be wrong - and
-	// when it was, the window went off the desktop with its bar on no screen.
-	away := NewLayerChrome(float.Spot{Top: 100, Left: 2100})
+	// Carried onto the next screen, which is the case that was wrong three
+	// times. Margins are measured from the anchored output for the surface's
+	// whole life, so the offset between the two outputs is what puts it over
+	// the second one.
+	away := NewLayerChrome(float.Spot{Top: 40, Left: 2600})
 	away.Screens(first, all)
-	away.Frame(frameAt(image.Pt(800, 600), 1))
-	got := away.fill()
-	if len(got) != 1 {
-		t.Errorf("a window carried onto another screen produced %d options; "+
-			"only the compositor's own maximise is safe there", len(got))
+	away.Frame(frameAt(image.Pt(560, 360), 1))
+	if len(away.fill()) != 2 {
+		t.Fatal("a window on the second screen produced no move and size")
 	}
-	if away.spot.Left != 2100 {
-		t.Errorf("its place was changed to %v, and nothing here knows better",
-			away.spot.Left)
+	if got := int(away.spot.Left); got != second.Min.X-first.Min.X {
+		t.Errorf("maximised to a margin of %d, want %d - the offset that puts "+
+			"it over the screen it is on", got, second.Min.X-first.Min.X)
 	}
 
-	// With no output known it falls back rather than guessing a size.
+	// With nothing ever reported it falls back rather than guessing a size.
 	blind := NewLayerChrome(float.Spot{})
 	if got := blind.fill(); len(got) != 1 {
-		t.Errorf("a window that has not been told where it is produced %d "+
+		t.Errorf("a window that has never been told where it is produced %d "+
 			"options", len(got))
+	}
+}
+
+// The anchor is remembered, because the compositor stops reporting it.
+//
+// A layer surface's margins are measured from the output it was created on for
+// its whole life, but the fork finds that output by looking the surface up in
+// the outputs it is currently on - so once the window has been dragged entirely
+// onto another screen, the anchor comes back as an empty rectangle. Everything
+// here keys off it, so the window went unclamped, unfit and unmaximisable
+// exactly when it was on the second screen.
+//
+// Measured with scratch/layerprobe against a real compositor, after three
+// guesses at what the protocol did and three broken windows.
+func TestTheAnchorSurvivesTheWindowLeavingIt(t *testing.T) {
+	first := image.Rect(0, 0, 2560, 1440)
+	second := image.Rect(2560, 0, 4480, 1080)
+	c := NewLayerChrome(float.Spot{})
+	c.Screens(first, []image.Rectangle{first, second})
+	// What the compositor sends once the window is wholly on the other screen.
+	c.Screens(image.Rectangle{}, []image.Rectangle{first, second})
+	if c.Screen() != first {
+		t.Errorf("the anchor became %v; an empty report is the anchor being "+
+			"unavailable, not the anchor changing", c.Screen())
+	}
+	// And with it held, the arithmetic that needs it works.
+	c.Frame(frameAt(image.Pt(560, 360), 1))
+	c.spot = float.Spot{Top: 40, Left: 2600}
+	if len(c.fill()) != 2 {
+		t.Error("maximise gave up, because it had been told it was nowhere")
 	}
 }
 
