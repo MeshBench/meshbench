@@ -105,6 +105,11 @@ func TestDrawTheBoardView(t *testing.T) {
 		{"layered-picked", TabWiring, 0, "LilyGo_TDeck", func() *state.NodeStat {
 			return tdeckStat(bits, w, h)
 		}},
+		// The console with its frames read out, which is the only way to see
+		// what the decode tick actually draws.
+		{"decoded", TabRadio, 0, "LilyGo_TDeck", func() *state.NodeStat {
+			return tdeckStat(bits, w, h)
+		}},
 		// A node on a host build, which has no board to check.
 		{"no-board", TabRadio, 0, "", func() *state.NodeStat {
 			return &state.NodeStat{Name: "Deck", Backend: "native", Running: true}
@@ -113,6 +118,15 @@ func TestDrawTheBoardView(t *testing.T) {
 	for _, c := range cases {
 		st := c.stat()
 		p := &Panel{Node: "Deck", Tab: c.tab, scale: c.scale}
+		if c.name == "decoded" {
+			// The tick on, with a real frame in the pane: what somebody sees
+			// when they ask for the wire to be read out. The strip is pulled
+			// open because it follows the newest line, and the frame is the
+			// oldest - a picture of the default height is a picture of the
+			// tail, which is not what this case is for.
+			p.decode.Bool.Value = true
+			p.logH = 300
+		}
 		if c.name == "layered-picked" {
 			// A row picked that is not the first, which this window could not
 			// reach until the selection was wired. The bar above it is the
@@ -129,6 +143,7 @@ func TestDrawTheBoardView(t *testing.T) {
 			// Both voices, so the strip draws one and offers the other.
 			Outputs: []state.OutputPane{
 				{Node: "Deck", Source: "serial", Total: 412, Lines: []string{
+					realSelfInfo,
 					"[  6494][E][Wire.cpp:137] setPins(): bus already initialized",
 					"[  6604][E][vfs_api.cpp:105] open(): /littlefs/Messages_default.msgs",
 					"[ 12038][I] RadioLib SX1262 begin() -> 0",
