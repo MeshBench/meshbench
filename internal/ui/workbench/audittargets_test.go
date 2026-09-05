@@ -164,6 +164,9 @@ func auditTargets(r *recorder) []target {
 	// the audit answers it the way it answers the file dialog.
 	bu := &boardview.Panel{Node: "Abernethy Repeater", OnDo: func(v string, _ any) { r.do(v, "") }}
 	bu.OnPopScreen = func(n string) { r.do("ui.popout", n) }
+	// The picture button opens the platform's dialog before it reaches a verb,
+	// so the audit answers it the way it answers the file dialog itself.
+	bu.OnSaveShot = func(n, suggested string) { r.do("board.screenshot", n) }
 	snapWithBoard := uitest.Snapshot()
 	// The node's own row, given a board - not a second row for the same name.
 	// Appending one put the board on a duplicate the lookup never reached, and
@@ -294,7 +297,7 @@ func auditTargets(r *recorder) []target {
 			// panel leaves the console before it reaches the send button.
 			func() { nw.Tab = 0 }, nil, nodeWindowSkips()},
 		{"Node window: companion", &nw.Companion, nw.Companion.AuditDraw, nil, nil, nil, nil},
-		{"Bring-up", bu, bu.Draw, snapWithBoard, nil, nil, nil},
+		{"Board view", bu, bu.Draw, snapWithBoard, nil, nil, nil},
 		{"Compare", cmpP, cmpP.Draw, nil, nil, nil, nil},
 		{"Planning (view)", planP, planP.Draw, nil, nil, nil, nil},
 		{"Import (view)", impP, impP.Draw, nil, nil, nil, nil},

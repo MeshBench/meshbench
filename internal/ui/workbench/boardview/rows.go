@@ -170,7 +170,7 @@ func partRow(b hw.Board, part hw.Part) Row {
 		// a false claim in the one column that exists to be trusted.
 		if ch, ok := engine.MeterModelled(b); ok {
 			r.Verdict = Agrees
-			r.Observed = fmt.Sprintf("converter channel %d, at a full charge", ch)
+			r.Observed = fmt.Sprintf("channel %d, at full charge", ch)
 			r.Why = "The cell's voltage through the board's divider, encoded as " +
 				"the converter's own reading so the firmware's arithmetic gets " +
 				"the true voltage back. Set at boot and held there: nothing " +

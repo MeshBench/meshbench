@@ -121,6 +121,19 @@ func TestDrawTheBoardView(t *testing.T) {
 			// only the guard.
 			Nodes: []state.Node{{Name: "Deck", Kind: "companion",
 				CardSlot: true, CardFitted: true}},
+			// Both voices, so the strip draws one and offers the other.
+			Outputs: []state.OutputPane{
+				{Node: "Deck", Source: "serial", Total: 412, Lines: []string{
+					"[  6494][E][Wire.cpp:137] setPins(): bus already initialized",
+					"[  6604][E][vfs_api.cpp:105] open(): /littlefs/Messages_default.msgs",
+					"[ 12038][I] RadioLib SX1262 begin() -> 0",
+					"[ 12040][I] listen() entered - waiting on DIO1",
+				}},
+				{Node: "Deck", Source: "emulator", Total: 9, Lines: []string{
+					"qemu: esp32s3 machine, 8 MB octal PSRAM",
+					"sx1262: chip library loaded, noise seed 0x4f2a",
+				}},
+			},
 		}
 		width := 1180
 		if c.board != "" {

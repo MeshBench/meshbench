@@ -214,3 +214,22 @@ func shotName(node, board string) string {
 	return fmt.Sprintf("%s-%s-%s.png", safe(node), safe(board),
 		time.Now().Format("20060102-150405"))
 }
+
+// onSunk paints a well behind a region: the log reads as something the board
+// wrote into the window rather than as another of its panels.
+func onSunk(t *theme.Theme, gtx layout.Context, w layout.Widget) layout.Dimensions {
+	macro := op.Record(gtx.Ops)
+	dims := w(gtx)
+	call := macro.Stop()
+	wide := dims.Size.X
+	if gtx.Constraints.Min.X > wide {
+		wide = gtx.Constraints.Min.X
+	}
+	tall := dims.Size.Y
+	if gtx.Constraints.Min.Y > tall {
+		tall = gtx.Constraints.Min.Y
+	}
+	comp.FillRect(gtx, image.Pt(wide, tall), t.P.Sunk)
+	call.Add(gtx.Ops)
+	return dims
+}

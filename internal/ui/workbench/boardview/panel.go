@@ -89,6 +89,13 @@ type Panel struct {
 	index widget.List
 	sel   int
 
+	// The log strip: which voice is showing, what has been asked for, and its
+	// own scroll.
+	logTabs  [2]widget.Clickable
+	logSrc   int
+	logAsked string
+	logList  widget.List
+
 	// counts is what the last frame's table came to, for the status bar.
 	counts Counts
 }
@@ -183,6 +190,15 @@ func (p *Panel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layo
 					return p.inspector(t, gtx, rows)
 				}),
 			)
+		}),
+		layout.Rigid(hRule(t)),
+		// The log under everything, at a height that shows a handful of lines
+		// without taking the table's room: enough to see what just happened,
+		// and the Output tab next door for the whole of it.
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			gtx.Constraints.Max.Y = gtx.Dp(112)
+			gtx.Constraints.Min.Y = gtx.Dp(112)
+			return p.logStrip(t, gtx, s)
 		}),
 		layout.Rigid(hRule(t)),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
