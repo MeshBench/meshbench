@@ -14,12 +14,14 @@ import (
 	"image"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"gioui.org/f32"
 	"gioui.org/font"
 	"gioui.org/font/opentype"
 	"gioui.org/gpu/headless"
+	"gioui.org/io/event"
 	"gioui.org/io/input"
 	"gioui.org/io/key"
 	"gioui.org/io/pointer"
@@ -76,9 +78,35 @@ func (h *Harness) Click(at f32.Point) {
 	h.Frame()
 }
 
+// Focused reports whether a tag holds the keyboard, which is the question a
+// test of anything typed has to answer before it types.
+func (h *Harness) Focused(tag event.Tag) bool {
+	return h.R.Source().Focused(tag)
+}
+
 func (h *Harness) TypeText(s string) {
 	h.R.Queue(key.EditEvent{Text: s})
 	h.Frame()
+}
+
+// TypeOn types as a keyboard does: a key event and an edit event for every
+// printable character, in that order, then the release.
+//
+// TypeText sends only the edit event, which is the half a text field reads -
+// and a widget that also reads the key event is one this harness could not
+// tell apart from a correct one. The board's keyboard did exactly that and put
+// every letter in twice, and the test that was meant to cover it typed through
+// TypeText and passed.
+func (h *Harness) TypeOn(s string) {
+	for _, r := range s {
+		name := key.Name(strings.ToUpper(string(r)))
+		h.R.Queue(
+			key.Event{Name: name, State: key.Press},
+			key.EditEvent{Text: string(r)},
+			key.Event{Name: name, State: key.Release},
+		)
+		h.Frame()
+	}
 }
 
 // Snapshot is a network with something in every list, so a panel that
@@ -141,9 +169,31 @@ func withEmoji(base []font.FontFace) []font.FontFace {
 	return base
 }
 
+// RenderAt is the same at a display scale, for the faults that only exist on
+// one.
+//
+// A widget whose box is measured in dp and whose content is painted in
+// framebuffer pixels is exact at 100% and wrong everywhere else, and every
+// harness here ran at 100% - so the class was untestable until a board panel
+// was dragged onto a 4K screen and drew a quarter size.
+//
+// w and h stay framebuffer pixels, as they are everywhere else, so the same
+// window at 2x is the same numbers with half the room in dp.
+func RenderAt(t *testing.T, w, h int, pxPerDp float32,
+	draw func(layout.Context, *theme.Theme) layout.Dimensions) image.Image {
+	t.Helper()
+	return renderMode(t, w, h, pxPerDp, theme.Dark, draw)
+}
+
 // renderMode is the same on a chosen ground, for the pictures that are about
 // the ground itself.
 func RenderMode(t *testing.T, w, h int, mode theme.Mode,
+	draw func(layout.Context, *theme.Theme) layout.Dimensions) image.Image {
+	t.Helper()
+	return renderMode(t, w, h, 1, mode, draw)
+}
+
+func renderMode(t *testing.T, w, h int, pxPerDp float32, mode theme.Mode,
 	draw func(layout.Context, *theme.Theme) layout.Dimensions) image.Image {
 	t.Helper()
 	win, err := headless.NewWindow(w, h)
@@ -158,7 +208,7 @@ func RenderMode(t *testing.T, w, h int, mode theme.Mode,
 	gtx := layout.Context{
 		Ops:         &ops,
 		Constraints: layout.Exact(image.Pt(w, h)),
-		Metric:      unit.Metric{PxPerDp: 1, PxPerSp: 1},
+		Metric:      unit.Metric{PxPerDp: pxPerDp, PxPerSp: pxPerDp},
 	}
 	fillGround(gtx, th)
 	draw(gtx, th)

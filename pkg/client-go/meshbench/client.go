@@ -398,6 +398,32 @@ func (w *Workbench) Window(ctx context.Context, node string, tab Tab) (Tab, erro
 	return out.Tab, err
 }
 
+// BoardView opens a node's board view and reports the board it is showing.
+//
+// The board in full: its panel, the controls for what it has wired, and what
+// its profile declares beside what the firmware left in the chip. Windowed
+// sessions only, for the same reason Window is, and refused for a node running
+// a host build: there is no board to show.
+//
+// tab picks which table it opens on, "Radio" or "Wiring". Empty opens on
+// Radio; anything that is not one of the two is refused by name rather than
+// quietly opening the default.
+func (w *Workbench) BoardView(ctx context.Context, node, tab string) (string, error) {
+	if w.Headless() {
+		return "", &Refused{
+			Verb: "node.boardview", Code: "unavailable",
+			Message: "this session has no interface attached, so there is nothing to show",
+			kind:    ErrUnavailable,
+		}
+	}
+	var out struct {
+		Board string `json:"board"`
+	}
+	err := w.CallInto(ctx, "node.boardview",
+		map[string]any{"node": node, "tab": tab}, &out)
+	return out.Board, err
+}
+
 var errNoProcess = errors.New("this client did not start the workbench")
 
 // Stop ends a workbench this client started. Attach's connection has nothing

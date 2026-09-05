@@ -1,0 +1,407 @@
+// The touchscreen has to keep working at every scale the panel can be drawn at.
+//
+// This is the regression a scale control invites, and it is silent both ways:
+// a press that is not divided by the scale lands at a multiple of the right
+// coordinate, and one that is not turned back out of the panel's mounting lands
+// on the wrong axis. Either reads exactly like a touch layer that was never
+// wired, which is a fault this project has spent weeks on before.
+package boardview
+
+import (
+	"strings"
+	"testing"
+
+	"gioui.org/f32"
+	"gioui.org/layout"
+
+	"github.com/MeshBench/meshbench/internal/app/state"
+	hw "github.com/MeshBench/meshbench/internal/firmware/board"
+	"github.com/MeshBench/meshbench/internal/ui/comp"
+	"github.com/MeshBench/meshbench/internal/ui/theme"
+	"github.com/MeshBench/meshbench/internal/ui/uitest"
+)
+
+func TestATapReachesTheSamePanelPointAtEveryScale(t *testing.T) {
+	b, err := hw.BoardByName("LilyGo_TDeck")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sc := b.Hardware.Screen
+	touch := b.Hardware.PartsOfKind(hw.Touch)
+	if len(touch) == 0 {
+		t.Fatal("the T-Deck is the board with a touch layer, and it has none")
+	}
+
+	// One place on the picture, pressed at each scale. What the press lands on
+	// in the window differs by the scale; what the firmware is told must not.
+	const px, py = 100, 60
+	var want [2]int
+	for _, scale := range []int{1, 2, 3} {
+		rx, ry, ok := TouchPoint(sc, touch[0], scale, px*scale, py*scale)
+		if !ok {
+			t.Fatalf("%d:1 refused a press inside the panel", scale)
+		}
+		if scale == 1 {
+			want = [2]int{rx, ry}
+			continue
+		}
+		if rx != want[0] || ry != want[1] {
+			t.Errorf("%d:1 reported panel %d,%d and 1:1 reported %d,%d - the "+
+				"same place on the picture must be the same place on the panel",
+				scale, rx, ry, want[0], want[1])
+		}
+	}
+
+	// And the mounting is undone rather than ignored. This panel is fitted a
+	// quarter turn, so the point the firmware reads is not the point pressed.
+	if want[0] == px && want[1] == py {
+		t.Errorf("the panel point %v is the picture point, so the quarter turn "+
+			"this board's touch layer is mounted at was not undone", want)
+	}
+}
+
+// A press beside the panel is not a press on the board.
+func TestAPressOutsideThePanelIsNotATap(t *testing.T) {
+	b, err := hw.BoardByName("LilyGo_TDeck")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sc := b.Hardware.Screen
+	touch := b.Hardware.PartsOfKind(hw.Touch)[0]
+	for _, c := range []struct {
+		what          string
+		scale, px, py int
+	}{
+		{"one past the right edge", 1, sc.WidthPx, 0},
+		{"one past the bottom", 1, 0, sc.HeightPx},
+		{"past the right edge at 2:1", 2, sc.WidthPx * 2, 0},
+		{"a scale nothing was drawn at", 0, 5, 5},
+	} {
+		if _, _, ok := TouchPoint(sc, touch, c.scale, c.px, c.py); ok {
+			t.Errorf("%s was accepted as a tap", c.what)
+		}
+	}
+}
+
+// The panel cannot be shrunk, and the rail is sized to it rather than the other
+// way round.
+func TestThePanelIsNeverSmallerThanItself(t *testing.T) {
+	for _, name := range []string{"LilyGo_TDeck", "Heltec_v3"} {
+		b, err := hw.BoardByName(name)
+		if err != nil || b.Hardware == nil || b.Hardware.Screen == nil {
+			continue
+		}
+		sc := b.Hardware.Screen
+		scale, w, h := boxFor(b, 0)
+		if scale < 1 {
+			t.Errorf("%s: scale %d, which is not a whole multiple", name, scale)
+		}
+		if w < sc.WidthPx || h < sc.HeightPx {
+			t.Errorf("%s: drawn %dx%d, smaller than the panel's own %dx%d - a "+
+				"shrunk panel is a picture of something the firmware did not draw",
+				name, w, h, sc.WidthPx, sc.HeightPx)
+		}
+		if got := railFor(b, 0); got < w {
+			t.Errorf("%s: the rail is %d for a panel %d wide, so the panel is "+
+				"being squeezed into the rail rather than the rail sized to it",
+				name, got, w)
+		}
+	}
+}
+
+// fitScale never returns a scale that would draw a panel smaller than itself,
+// however little room it is given.
+func TestFitScaleNeverShrinks(t *testing.T) {
+	for _, box := range []int{0, 1, 10, 100, 319} {
+		if n := fitScale(320, 240, box, box); n < 1 {
+			t.Errorf("a %dpx box gave scale %d; the floor is 1:1 and clipped", box, n)
+		}
+	}
+	if n := fitScale(128, 64, 320, 320); n != 2 {
+		t.Errorf("a 128-wide panel in a 320 budget came to %d:1, want 2:1", n)
+	}
+	if n := fitScale(320, 240, 320, 4000); n != 1 {
+		t.Errorf("a 320-wide panel in a 320 budget came to %d:1, want 1:1", n)
+	}
+}
+
+// The panel drawn at a scale is that many times its own size.
+//
+// The visible outcome rather than a field: the view used to keep the scale it
+// last drew at so the popped-out window could read it back, and because a Flex
+// lays rigid children out before its flexed one, the caption asked before the
+// panel had chosen and printed 0:1. Nothing holds it now, so this checks the
+// thing a reader can see - the panel really is n times as wide - which is also
+// what says the number a press is divided by was the number used.
+func TestThePanelIsDrawnAtTheScaleItWasAskedFor(t *testing.T) {
+	b, err := hw.BoardByName("LilyGo_TDeck")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sc := b.Hardware.Screen
+	for _, want := range []int{1, 2, 3} {
+		var v ScreenView
+		var pic comp.ScreenImage
+		var got layout.Dimensions
+		_, w, h := boxFor(b, want)
+		uitest.RenderWidget(t, w+40, h+40,
+			func(gtx layout.Context, th *theme.Theme) layout.Dimensions {
+				got = v.Layout(th, gtx, b, nil, want, nil, "Deck", &pic)
+				return got
+			})
+		if got.Size.X != sc.WidthPx*want || got.Size.Y != sc.HeightPx*want {
+			t.Errorf("asked for %d:1 and drew %dx%d, want %dx%d", want,
+				got.Size.X, got.Size.Y, sc.WidthPx*want, sc.HeightPx*want)
+		}
+	}
+}
+
+// FitIn never answers zero, however little room it is given: a zero scale is a
+// caption reading "0:1" and a division that throws away every press.
+func TestFitInNeverAnswersZero(t *testing.T) {
+	b, err := hw.BoardByName("LilyGo_TDeck")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sc := b.Hardware.Screen
+	for _, size := range [][2]int{{1, 1}, {40, 40}, {319, 239}, {1040, 800}} {
+		got := 0
+		uitest.RenderWidget(t, size[0], size[1],
+			func(gtx layout.Context, th *theme.Theme) layout.Dimensions {
+				got = FitIn(sc, gtx)
+				return layout.Dimensions{}
+			})
+		if got < 1 {
+			t.Errorf("a %dx%d window fitted the panel at %d:1", size[0], size[1], got)
+		}
+	}
+}
+
+// A control that can only fail is not offered.
+//
+// The picture button photographs the panel, so a board with none showed a
+// button that could do nothing but refuse - and an operator reports that as
+// broken rather than as absent.
+func TestNoPictureButtonWithoutAPanel(t *testing.T) {
+	// Real boards for the positive case, and a constructed one for the
+	// absence. Naming a board that has no panel today is a test that rots the
+	// moment somebody transcribes one - which is what happened to the T114
+	// the day after this was written.
+	for _, name := range []string{"LilyGo_TDeck", "Heltec_v3"} {
+		b, err := hw.BoardByName(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !hasScreen(b) {
+			t.Errorf("%s declares a screen and hasScreen says otherwise", name)
+		}
+	}
+	if hasScreen(hw.Board{Name: "Unrecorded"}) {
+		t.Error("a board nobody has transcribed offered a picture button")
+	}
+	// And a board recorded as carrying nothing is not the same as one nobody
+	// has looked at, though neither has a panel to photograph.
+	empty := hw.Board{Name: "Recorded", Hardware: &hw.Panel{}}
+	if hasScreen(empty) {
+		t.Error("a board that declares an empty panel offered a picture button")
+	}
+	if !hasPanel(empty) {
+		t.Error("a board that declares an empty panel reads as one nobody has " +
+			"looked at, which is a different fact")
+	}
+}
+
+// The panel is the same physical size on a 4K screen as on an HD one, and a
+// tap still lands where it was aimed.
+//
+// This is the fault a person hits by dragging the window between two monitors:
+// the box was a size in dp and the picture was painted in framebuffer pixels,
+// which agree at 100% and nowhere else. At 200% the box doubled and the picture
+// did not, so the board drew into the top-left quarter of its own frame - and
+// every tap landed at twice its true coordinate, because the divisor was the
+// scale rather than the block.
+//
+// Both halves are checked here, because fixing one and not the other produces a
+// panel that looks right and cannot be touched.
+func TestThePanelSurvivesBeingDraggedToADenserScreen(t *testing.T) {
+	b, err := hw.BoardByName("LilyGo_TDeck")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sc := b.Hardware.Screen
+	const scale = 1
+	for _, perDp := range []float32{1, 2} {
+		var v ScreenView
+		var pic comp.ScreenImage
+		var got layout.Dimensions
+		// The same window, in framebuffer pixels, at both densities.
+		uitest.RenderAt(t, sc.WidthPx*2+40, sc.HeightPx*2+40, perDp,
+			func(gtx layout.Context, th *theme.Theme) layout.Dimensions {
+				got = v.Layout(th, gtx, b, nil, scale, nil, "Deck", &pic)
+				return got
+			})
+		// One panel pixel is that many framebuffer pixels, so the drawn box
+		// grows with the density - which is what keeps it the same size on the
+		// glass rather than shrinking to a quarter.
+		want := int(perDp) * scale
+		if got.Size.X != sc.WidthPx*want || got.Size.Y != sc.HeightPx*want {
+			t.Errorf("at %v px per dp the panel drew %dx%d, want %dx%d",
+				perDp, got.Size.X, got.Size.Y, sc.WidthPx*want, sc.HeightPx*want)
+		}
+	}
+}
+
+// And the divisor a press is measured by is the block, not the scale.
+//
+// A pointer arrives in framebuffer pixels. At 200% one panel pixel occupies two
+// of them, so a press two thirds of the way across the panel is at twice the
+// number it would be at 100% - and dividing by the scale would report a point
+// off the far edge.
+func TestATapIsMeasuredInTheBlocksItLandsOn(t *testing.T) {
+	b, err := hw.BoardByName("LilyGo_TDeck")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sc := b.Hardware.Screen
+	touch := b.Hardware.PartsOfKind(hw.Touch)[0]
+
+	// One place on the glass, pressed at 100% and at 200%, at the framebuffer
+	// coordinate each density puts it at.
+	const px, py = 100, 60
+	base := [2]int{}
+	for i, blk := range []int{1, 2} {
+		rx, ry, ok := TouchPoint(sc, touch, blk, px*blk, py*blk)
+		if !ok {
+			t.Fatalf("block %d refused a press inside the panel", blk)
+		}
+		if i == 0 {
+			base = [2]int{rx, ry}
+			continue
+		}
+		if rx != base[0] || ry != base[1] {
+			t.Errorf("at %dx the same place on the glass reported panel %d,%d "+
+				"and at 1x it reported %d,%d", blk, rx, ry, base[0], base[1])
+		}
+	}
+}
+
+// Typing at the board reaches the board.
+//
+// The board view took focus on a press and then registered no focus filter, so
+// the panel was focused and received nothing - a keyboard that looks wired and
+// is not. It also read only key events and derived a character from the key's
+// name, which gets the plain letters and misses everything a keyboard layout
+// decides, which is most of what somebody types: the characters arrive as edit
+// events.
+//
+// The node window's Hardware tab had all of this right, which is what made the
+// board view's version look like a platform problem rather than a missing
+// filter.
+func TestTypingAtTheBoardReachesIt(t *testing.T) {
+	b, err := hw.BoardByName("LilyGo_TDeck")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasKeys(b) {
+		t.Fatal("this test needs the board with a keyboard")
+	}
+	var sent []string
+	p := &Panel{Node: "Deck", Tab: TabRadio, OnDo: func(verb string, params any) {
+		if verb != "board.key" {
+			return
+		}
+		m, ok := params.(map[string]any)
+		if !ok {
+			return
+		}
+		if s, ok := m["text"].(string); ok {
+			sent = append(sent, s)
+		}
+	}}
+	st := state.NodeStat{Name: "Deck", Board: b.Name, Backend: "emulated",
+		Running: true}
+	snap := &state.Snapshot{Stats: []state.NodeStat{st}}
+
+	h := uitest.New(func(th *theme.Theme, gtx layout.Context,
+		s *state.Snapshot) layout.Dimensions {
+		return p.Draw(th, gtx, s)
+	}, snap)
+	h.Frame()
+	// Press the panel, which is what puts the keyboard on the board. Focus
+	// first and type once, so what arrives can be counted rather than only
+	// noticed.
+	focused := false
+	for y := float32(120); y < 400 && !focused; y += 8 {
+		for x := float32(20); x < 300 && !focused; x += 30 {
+			h.Click(f32.Pt(x, y))
+			focused = h.Focused(&p.screen.keyTag)
+		}
+	}
+	if !focused {
+		t.Fatal("pressing the panel never put the keyboard on the board")
+	}
+	h.TypeOn("hello")
+	h.Frame()
+	if len(sent) == 0 {
+		t.Fatal("nothing typed at the board reached it, so its keyboard is " +
+			"drawn and not wired")
+	}
+	// And once each, which the first version of this could not tell.
+	//
+	// Gio sends a key event and an edit event for one printable key, and
+	// taking the character from both put every letter in twice: a keyboard
+	// that works and cannot be used. Counting is the whole difference between
+	// a test that says "typing arrives" and one that says typing arrives
+	// correctly.
+	whole := strings.Join(sent, "")
+	if whole != "hello" {
+		t.Errorf("typing \"hello\" at the board sent %q", whole)
+	}
+}
+
+// A clean tap - press and release, no movement - reaches the board.
+//
+// The keyboard's focus area was registered over the touch layer's and asked
+// for presses only, so it swallowed every press and left the drags and
+// releases underneath. A tap that slid a pixel worked, because a drag carries
+// down as surely as a press does, and a tap that did not slid nothing at all.
+// That is what "hit and miss" is made of, and only a test that taps without
+// moving can tell the two apart.
+func TestACleanTapReachesTheBoard(t *testing.T) {
+	b, err := hw.BoardByName("LilyGo_TDeck")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasTouch(b) || !hasKeys(b) {
+		t.Fatal("this test needs the board that has both a touch layer and a keyboard")
+	}
+	var downs int
+	p := &Panel{Node: "Deck", Tab: TabRadio, OnDo: func(verb string, params any) {
+		if verb != "board.touch" {
+			return
+		}
+		if m, ok := params.(map[string]any); ok {
+			if d, ok := m["down"].(bool); ok && d {
+				downs++
+			}
+		}
+	}}
+	st := state.NodeStat{Name: "Deck", Board: b.Name, Backend: "emulated",
+		Running: true}
+	h := uitest.New(func(th *theme.Theme, gtx layout.Context,
+		s *state.Snapshot) layout.Dimensions {
+		return p.Draw(th, gtx, s)
+	}, &state.Snapshot{Stats: []state.NodeStat{st}})
+	h.Frame()
+
+	// Press and release at one point, never moving between them.
+	for y := float32(120); y < 400 && downs == 0; y += 8 {
+		for x := float32(20); x < 300 && downs == 0; x += 30 {
+			h.Click(f32.Pt(x, y))
+		}
+	}
+	if downs == 0 {
+		t.Error("no tap anywhere on the panel reached the board as a touch, " +
+			"so only a tap that happens to drag would work")
+	}
+}

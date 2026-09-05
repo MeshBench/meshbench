@@ -10,19 +10,12 @@ package workbench
 
 import (
 	"fmt"
-	"sort"
 	"sync"
 
-	"gioui.org/io/system"
-
-	"gioui.org/app"
 	"gioui.org/layout"
-	"gioui.org/op"
-	"gioui.org/unit"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/ui/comp"
-	"github.com/MeshBench/meshbench/internal/ui/float"
 	"github.com/MeshBench/meshbench/internal/ui/shell"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 )
@@ -30,23 +23,26 @@ import (
 // windows tracks what has been popped out, so a second click on the same
 // affordance raises the window rather than opening another copy of it.
 type panelPopouts struct {
-	mu   sync.Mutex
-	open map[string]bool
-	// closing is which windows have been asked to go away, and raising which
-	// have been asked to come forward. Both are wishes rather than actions:
-	// a window belongs to its own event loop, and performing anything on it
-	// from another goroutine is how a destroyed window stays in Gio's queue.
-	closing map[string]bool
-	raising map[string]bool
+	// reg is the same bookkeeping every other pop-out window uses: which are
+	// open, and the wishes to raise or close one from another goroutine. This
+	// set kept its own copy of it, and its own copy of the frame loop with it,
+	// which is how the two drifted.
+	reg *shell.WindowRegistry
+
+	mu sync.Mutex
 	// prompts is each popped-out window's own question overlay. A question
 	// asked from a panel belongs in the window the panel is in - the shared
 	// prompt lives in the main window, and a dialog appearing there while the
 	// person is working in a pop-out is a dialog nobody finds.
+	//
+	// The one thing here the registry has no opinion about, so the one thing
+	// still kept beside it.
 	prompts map[string]*shell.Prompt
 }
 
 func newPanelPopouts() *panelPopouts {
-	return &panelPopouts{open: map[string]bool{}, prompts: map[string]*shell.Prompt{}}
+	return &panelPopouts{reg: shell.NewWindowRegistry(),
+		prompts: map[string]*shell.Prompt{}}
 }
 
 // popOut gives a panel its own window.
@@ -67,118 +63,34 @@ func (w *panelPopouts) popOut(name string, sh *shell.Shell, newTheme func() *the
 	if p == nil || !p.Windowable {
 		return
 	}
-	w.mu.Lock()
-	if w.open[name] {
-		// Already out there: raise it rather than doing nothing. A second
-		// press used to return in silence, which from the far side of the
-		// screen is indistinguishable from a dead menu entry - and on Linux
-		// the window it was asking for had usually fallen behind this one.
-		w.mu.Unlock()
-		w.raise(name)
+	if !w.reg.Claim(name) {
+		// Already out there, and Claim has asked it forward. A second press
+		// used to return in silence, which from the far side of the screen is
+		// indistinguishable from a dead menu entry.
 		return
 	}
-	w.open[name] = true
 	ask := &shell.Prompt{}
+	w.mu.Lock()
 	w.prompts[name] = ask
 	w.mu.Unlock()
 
 	go func() {
 		defer func() {
 			w.mu.Lock()
-			delete(w.open, name)
 			delete(w.prompts, name)
 			w.mu.Unlock()
 		}()
-		th := newTheme()
-		spot := float.NextSpot()
-		win := new(app.Window)
-		// Titled for the panel, so a taskbar with six of these open is
-		// readable. The app id stays the same: these are windows of one
-		// application, not six applications. Whether it stays above the
-		// others is the machine's preference, read once here because the
-		// ask only exists at creation.
-		win.Option(append([]app.Option{
-			app.Title("MeshBench - " + name),
-			app.Size(unit.Dp(900), unit.Dp(640)),
-		}, float.Above(spot, shell.KeepAbove(st))...)...)
-		// Raised as it opens, for the platforms where above is not or
-		// cannot be honoured - the preference off, GNOME, X11 - so the
-		// window at least starts in front rather than behind.
-		win.Perform(system.ActionRaise)
-		// A layer-shell surface carries no decoration of the compositor's,
-		// so this window draws its own title bar when the ask was granted;
-		// the chrome is the machinery under it.
-		var layered bool
-		var bar comp.TitleBar
-		var chrome *shell.LayerChrome
-		var ops op.Ops
-		for {
-			switch e := win.Event().(type) {
-			case app.ConfigEvent:
-				if e.Config.LayerShell && !layered {
-					layered, chrome = true, shell.NewLayerChrome(spot)
-					bar.Title = "MeshBench - " + name
-				}
-				if layered {
-					chrome.Screens(e.Config.Output, e.Config.Outputs)
-				}
-			case app.DestroyEvent:
-				return
-			case app.FrameEvent:
-				if w.wantsClose(name) {
-					win.Perform(system.ActionClose)
-				}
-				if w.wantsRaise(name) {
-					// Raising means nothing to a layer surface, so for a
-					// layered window the wish recalls it on screen instead -
-					// which is also how one dragged out of reach comes back.
-					if layered {
-						if opts := chrome.Recall(float.NextSpot()); len(opts) > 0 {
-							win.Option(opts...)
-						}
-					} else {
-						win.Perform(system.ActionRaise)
-					}
-				}
-				gtx := app.NewContext(&ops, e)
-				comp.Fill(gtx, th.P.Ground)
-				snap := st.Snapshot()
-				var kids []layout.FlexChild
-				if layered {
-					chrome.Frame(e)
-					kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return bar.Layout(th, gtx)
-					}))
-				}
-				kids = append(kids,
-					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-						return layout.UniformInset(th.Sp.M).Layout(gtx,
-							func(gtx layout.Context) layout.Dimensions {
-								return p.Draw(th, gtx, snap)
-							})
-					}),
-					// The status line, exactly as the main window shows it.
-					// An action started here says what happened here -
-					// "firmware failed, so the run has not started" used to
-					// appear only in the main window, behind this one.
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return popStatus(th, gtx, snap)
-					}),
-				)
-				layout.Flex{Axis: layout.Vertical}.Layout(gtx, kids...)
-				if layered {
-					if opts, close := chrome.Update(&bar); close {
-						win.Perform(system.ActionClose)
-					} else if len(opts) > 0 {
-						win.Option(opts...)
-					}
-				}
-				// This window's own questions, over everything in it.
-				ask.Layout(th, gtx)
-				e.Frame(gtx.Ops)
-				win.Invalidate()
-			}
-		}
+		shell.RunPopout(w.reg, shell.Popout{
+			Key: name, Title: "MeshBench - " + name, Bar: name, W: 900, H: 640,
+			// The status line, exactly as the main window shows it. An action
+			// started here says what happened here - "firmware failed, so the
+			// run has not started" used to appear only in the main window,
+			// behind this one.
+			Under: popStatus,
+			// This window's own questions, over everything in it.
+			Over:    func(t *theme.Theme, gtx layout.Context) { ask.Layout(t, gtx) },
+			Closing: func() bool { return w.reg.WantsClose(name) },
+		}, shell.DrawFunc(p.Draw), newTheme, st)
 	}()
 }
 
@@ -190,91 +102,43 @@ func (w *panelPopouts) popOut(name string, sh *shell.Shell, newTheme func() *the
 func (w *panelPopouts) promptFor(name string, main *shell.Prompt) *shell.Prompt {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if p, ok := w.prompts[name]; ok && w.open[name] {
+	if p, ok := w.prompts[name]; ok && w.reg.Has(name) {
 		return p
 	}
 	return main
 }
 
 // has reports whether a panel is currently popped out.
-func (w *panelPopouts) has(name string) bool {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return w.open[name]
-}
+func (w *panelPopouts) has(name string) bool { return w.reg.Has(name) }
 
-// dock and close ask a popped-out window to go away.
+// dock asks a popped-out window to go away.
 //
 // The window owns its own event loop, so this cannot close it directly: it
 // records the wish and the loop reads it on its next frame. Closing a window
 // from another goroutine is how Gio's event queue ends up with a destroyed
 // window still in it.
-func (w *panelPopouts) dock(name string) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	if w.closing == nil {
-		w.closing = map[string]bool{}
-	}
-	if w.open[name] {
-		w.closing[name] = true
-	}
-}
+func (w *panelPopouts) dock(name string) { w.reg.AskClose(name) }
 
 // raise asks a window to come to the front on its next frame.
 func (w *panelPopouts) raise(name string) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	if w.raising == nil {
-		w.raising = map[string]bool{}
+	// Claim is the ask: it returns false for a window already out there and
+	// records the wish as it does, which is the same path a second press takes.
+	if w.reg.Claim(name) {
+		// It was not open after all, so nothing was raised and nothing should
+		// be left claimed.
+		w.reg.Release(name)
 	}
-	if w.open[name] {
-		w.raising[name] = true
-	}
-}
-
-// wantsRaise reports and clears the wish, so one ask is one raise.
-func (w *panelPopouts) wantsRaise(name string) bool {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	if w.raising[name] {
-		delete(w.raising, name)
-		return true
-	}
-	return false
 }
 
 // names is every panel currently in a window of its own.
-func (w *panelPopouts) names() []string {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	out := make([]string, 0, len(w.open))
-	for n := range w.open {
-		out = append(out, n)
-	}
-	sort.Strings(out)
-	return out
-}
+func (w *panelPopouts) names() []string { return w.reg.Keys() }
 
 func (w *panelPopouts) close(name string) error {
-	w.mu.Lock()
-	open := w.open[name]
-	w.mu.Unlock()
-	if !open {
+	if !w.reg.Has(name) {
 		return fmt.Errorf("%s is not in its own window", name)
 	}
 	w.dock(name)
 	return nil
-}
-
-// wantsClose reports and clears the wish, on the window's own goroutine.
-func (w *panelPopouts) wantsClose(name string) bool {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	if w.closing[name] {
-		delete(w.closing, name)
-		return true
-	}
-	return false
 }
 
 // popStatus is the one-line footer a popped-out window shares with the main

@@ -58,6 +58,16 @@ func (b Device) Screenshot(ctx context.Context) (Shot, error) {
 	return s, b.n.w.CallInto(ctx, "board.screenshot", map[string]any{"node": b.n.name}, &s)
 }
 
+// Reset restarts the board, the way pressing its own reset button does.
+//
+// Torn down and built again from the same flash: whatever the firmware wrote
+// survives and whatever it held in memory does not. It answers when the board
+// is back up.
+func (b Device) Reset(ctx context.Context) error {
+	_, err := b.n.w.Call(ctx, "board.reset", map[string]any{"node": b.n.name})
+	return err
+}
+
 // Press holds a button pin down, or releases it. Held rather than clicked
 // because the firmware cares: MeshCore wakes a sleeping display on a press and
 // powers the board off on a long one, so a caller times the release itself.

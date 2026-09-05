@@ -46,6 +46,14 @@ export class Device {
    *  Held rather than clicked because the firmware cares: MeshCore wakes a
    *  sleeping display on a press and powers the board off on a long one, so a
    *  caller times the release itself - or uses `tap`, which does not hold. */
+  /** Restart the board, the way pressing its own reset button does.
+   *
+   *  Torn down and built again from the same flash: whatever the firmware
+   *  wrote survives and whatever it held in memory does not. */
+  async reset() {
+    await this._wb.call("board.reset", { node: this.name });
+  }
+
   async press(pin, down = true) {
     await this._wb.call("board.press", { node: this.name, pin, down });
   }

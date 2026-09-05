@@ -15,6 +15,7 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 	// verb hub, because they arrived with the firmware verbs and splitting the
 	// file was what the length limit asked for, not a change of ownership.
 	registerBoardInput(st, s)
+	registerBoardReset(st, s)
 
 	st.Handle("firmware.start", func(w *state.World, _ any) (any, error) {
 		if s.eng == nil {
@@ -161,12 +162,22 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 	})
 
 	st.HandleInternal("node.reflashed", func(w *state.World, p any) (any, error) {
-		msg := primaryString(p, "message")
+		m, _ := p.(map[string]any)
+		name, _ := m["node"].(string)
+		msg, _ := m["message"].(string)
 		w.Stats = s.nodeStats(w.Events)
 		// The node's own window reads the node list rather than the stats, so
 		// a change that stopped at the stats showed in the table and nowhere
-		// else. Name is the first word of the message the reflash sent.
-		if name, _, ok := strings.Cut(msg, " "); ok {
+		// else.
+		//
+		// The name arrives as a field. It used to be cut from the front of the
+		// message at the first space, which is the node's name only when the
+		// name has no space in it: a node called "GM0KVE KINROSS Repeater"
+		// refreshed one called "GM0KVE", so the list kept saying the node ran
+		// a host build after it had been changed to a board image - and the
+		// board view, which asks the list, refused to open on a board that was
+		// sitting there drawing its own panel.
+		if name != "" {
 			s.refreshNodeBuild(w, name)
 		}
 		w.Say(msg)

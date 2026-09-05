@@ -3,9 +3,9 @@
 Generated. Run `tools/verbdoc/verbdoc.py` to rewrite it and
 `tools/verbdoc/verbdoc.py --check` to fail when it is stale.
 
-The store registers 254 verbs: 217 a script may call and
+The store registers 256 verbs: 219 a script may call and
 37 the workbench calls on itself, which the socket refuses. Of those,
-254 say what they are for and 0 do not yet; the ones that
+256 say what they are for and 0 do not yet; the ones that
 do not are marked, and what is printed for them is read out of the handler
 rather than said by it.
 
@@ -429,6 +429,31 @@ Report what one node's antenna is and which way it points.
 ```
 
 **Client** `node.antenna`
+
+### `node.boardview`
+
+**Refuses when no window is attached.**
+
+Open a node's board view: what its profile declares, what the firmware left in the chip, where the two differ, and the controls for everything the board has wired.
+
+**Takes**
+
+| parameter | type | | what |
+|---|---|---|---|
+| `node` | string | required, primary | which node |
+| `tab` | string | optional | which table to open on, Radio or Wiring; Radio when absent |
+
+**Answers** `node`, `board`, `tab`. `board` is the profile the window is checking against, and `tab` the table it opened on. Refused for a node running a host build, which has no board to check, refused for a tab that is not one of the two, and refused outright in a headless session, there being no window to open one beside.
+
+**Example** - look at one board in full, and drive what it has
+
+```json
+{"id":1,"method":"node.boardview","params":"Deck"}
+```
+
+Not made by the test suite: this call needs more than the two-node headless session the runnable examples go to.
+
+**Client** `wb.board_view(node)`
 
 ### `node.card`
 
@@ -1236,6 +1261,28 @@ Take a finished probe back onto the store's goroutine: clear the job, republish 
 
 **Client** none: a probe worker reporting back
 
+### `board.reset`
+
+Restart one board, the way pressing its own reset button does: torn down and built again from the same flash.
+
+**Takes**
+
+| parameter | type | | what |
+|---|---|---|---|
+| `node` | string | required, primary | which board; refused when absent or when the name is not one this network has |
+
+**Answers** `reset`. Whatever the firmware wrote to its flash or its card survives, and whatever it held in memory does not - which is what a reset is. The node is stopped and started rather than having its reset line poked, because a half-reset guest would leave our own models holding state it no longer has. It answers when the board is back up.
+
+**Example** - reboot a board that has wedged
+
+```json
+{"id":1,"method":"board.reset","params":"Deck"}
+```
+
+Not made by the test suite: this call needs more than the two-node headless session the runnable examples go to.
+
+**Client** `node.device.reset()`
+
 ### `board.screen`
 
 Measure what a board's own display is showing as numbers rather than as a picture, so a script can tell whether a press or a keystroke changed anything.
@@ -1267,8 +1314,9 @@ Write the board's display to a PNG and return its path.
 | parameter | type | | what |
 |---|---|---|---|
 | `node` | string | required, primary | the node whose screen to capture |
+| `to` | string | optional | a second file to write the picture to, for keeping one: the node's own screen.png is overwritten every call, so a picture somebody wants to keep needs a name of its own |
 
-**Answers** `node`, `path`, `width`, `height`, `bpp`, `on`. The picture is the frame the firmware drew, at the size the controller holds it, written to screen.png in that node's own work directory and overwritten each time. `on` says whether the panel was lit, which is a separate question from whether there is a frame: a display put to sleep still holds its last one. Refused where the node is not running, is not a board with a display, or has drawn nothing yet.
+**Answers** `node`, `path`, `width`, `height`, `bpp`, `on`. The picture is the frame the firmware drew, at the size the controller holds it, written to screen.png in that node's own work directory and overwritten each time; `to` writes a second copy that is not, and `path` is then the copy. `on` says whether the panel was lit, which is a separate question from whether there is a frame: a display put to sleep still holds its last one. Refused where the node is not running, is not a board with a display, or has drawn nothing yet.
 
 **Example** - see what the board is showing
 

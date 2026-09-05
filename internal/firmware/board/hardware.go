@@ -266,6 +266,17 @@ func (p *Panel) Validate(taken map[int]string) error {
 		default:
 			return fmt.Errorf("%s is on no bus", s.Controller)
 		}
+		// The select and command lines are pins like any other, and a screen
+		// sharing one with the radio is the same silent fault a lamp would be.
+		for pin, who := range map[int]string{s.CS: "select", s.DC: "command"} {
+			if pin == 0 || pin == PinNone {
+				continue
+			}
+			if whose, dup := taken[pin]; dup {
+				return fmt.Errorf("%s's %s is on pin %d, which is the radio's %s",
+					s.Controller, who, pin, whose)
+			}
+		}
 	}
 	seen := map[int]string{}
 	for _, part := range p.Parts {
@@ -319,5 +330,21 @@ func (b Board) radioPins() map[int]string {
 			taken[w.FEM] = "front-end module"
 		}
 	}
+	// The Renode boards name the same two lines by port and pin rather than
+	// flat, which is the only reason they were not checked for a year: an nRF52
+	// panel declaring a lamp on the radio's chip select would have passed.
+	if w := b.Renode; w != nil {
+		taken[flatPin(w.NssPort, w.NssPin)] = "chip select"
+		taken[flatPin(w.IrqPort, w.IrqPin)] = "interrupt"
+	}
 	return taken
+}
+
+// flatPin is the number the nRF52 Arduino core and every variant here use for
+// a pin Renode names by its port: P0.x is x and P1.x is 32+x.
+func flatPin(port string, pin int) int {
+	if port == "gpio1" {
+		return 32 + pin
+	}
+	return pin
 }

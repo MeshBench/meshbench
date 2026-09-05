@@ -1,6 +1,8 @@
 package emulated_test
 
 import (
+	"github.com/MeshBench/meshbench/internal/firmware"
+	"path/filepath"
 	"testing"
 
 	"github.com/MeshBench/meshbench/internal/firmware/emulated"
@@ -157,5 +159,53 @@ func TestRunnableDropsBluetoothCompanions(t *testing.T) {
 	got := emulated.Runnable(all, nil)
 	if len(got) != 1 || got[0].Transport != "usb" {
 		t.Errorf("Runnable kept %+v; only the usb companion can run here", got)
+	}
+}
+
+// What a build is offered as is what it is stored as and what it reads back as.
+//
+// This is the round trip every downloadable row depends on, and it was broken
+// for exactly the builds that have a transport. The library offered a companion
+// as "companion_radio", the file landed as "companion_radio_usb-v1.17.1.bin",
+// and the installed list read that back as "companion_radio_usb" - a different
+// key, so the row you pressed download on stayed "not downloaded" however many
+// times you pressed it. A repeater has no transport, round-tripped perfectly,
+// and so looked like the only thing that could be fetched at all.
+func TestARoleSurvivesBeingDownloadedAndListedAgain(t *testing.T) {
+	for _, name := range []string{
+		"Heltec_v3_repeater-v1.17.1-d929643.bin",
+		"Heltec_v3_companion_radio_usb-v1.17.1-d929643.bin",
+		"Ebyte_EoRa-S3_companion_radio_ble-v1.17.1-d929643-merged.bin",
+		"RAK_4631_room_server-v1.17.1-d929643.uf2",
+	} {
+		img, ok := emulated.ParseAssetName(name)
+		if !ok {
+			t.Fatalf("%s is a published asset name and did not parse", name)
+		}
+		offered := img.RoleName()
+		path := emulated.BoardImagePath("/cache", img)
+		back, version := firmware.RoleVersionFromImageName(filepath.Base(path))
+		if back != offered {
+			t.Errorf("%s: offered as %q, stored at %q, read back as %q",
+				name, offered, filepath.Base(path), back)
+		}
+		if version != img.Version {
+			t.Errorf("%s: version %q read back as %q", name, img.Version, version)
+		}
+	}
+}
+
+// A companion is published once per transport, and the two are different
+// builds: one talks over USB and one over Bluetooth. They must not share a
+// name, or which one a node runs comes down to which was downloaded last.
+func TestTheTwoCompanionTransportsAreTwoBuilds(t *testing.T) {
+	usb, _ := emulated.ParseAssetName("Heltec_v3_companion_radio_usb-v1.17.1-d929643.bin")
+	ble, _ := emulated.ParseAssetName("Heltec_v3_companion_radio_ble-v1.17.1-d929643.bin")
+	if usb.RoleName() == ble.RoleName() {
+		t.Errorf("both companions are called %q", usb.RoleName())
+	}
+	if emulated.BoardImagePath("/c", usb) == emulated.BoardImagePath("/c", ble) {
+		t.Error("both companions are stored at one path, so the second " +
+			"download silently replaces the first")
 	}
 }

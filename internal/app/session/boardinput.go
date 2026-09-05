@@ -8,6 +8,7 @@
 package session
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 
@@ -157,4 +158,32 @@ func frameDigest(bits []byte) string {
 		h *= prime
 	}
 	return strconv.FormatUint(h, 16)
+}
+
+// board.reset restarts one board, which is what its own reset button does.
+//
+// Stopped and started rather than anything cleverer, because that is what a
+// reset is to everything downstream: the machine is torn down and built again
+// from the same flash, so whatever the firmware wrote survives and whatever it
+// held in memory does not. The alternative - poking the guest's reset line -
+// would leave our own models holding state the guest no longer has, which is a
+// board that half-rebooted and is worse than one that did not.
+func registerBoardReset(st *state.Store, s *Sim) {
+	st.Handle("board.reset", func(w *state.World, p any) (any, error) {
+		name := primaryString(p, "node")
+		if _, found := findNode(w.Nodes, name); !found {
+			return nil, noSuchNode(name)
+		}
+		if err := s.stopNode(name); err != nil {
+			return nil, err
+		}
+		if err := s.startNode(context.Background(), name, w.Seed); err != nil {
+			return nil, err
+		}
+		w.Stats = s.nodeStats(w.Events)
+		// Said, because a board that comes back in two seconds looks like a
+		// board that did nothing.
+		w.Say("reset " + name)
+		return map[string]any{"reset": name}, nil
+	})
 }

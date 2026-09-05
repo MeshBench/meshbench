@@ -17,20 +17,51 @@ const (
 	stockSPIBase = 0x40023000
 )
 
-// easyDMASPI puts that controller back with its EasyDMA half, unless the radio
+// EasyDMASPI puts that controller back with its EasyDMA half, unless the radio
 // is already taking its address.
 //
-// The radio is not the only SPI device on some of these boards - a Heltec_t114
-// has a display here - and firmware blocks on a controller it cannot drive
-// whether or not there is a radio on it. Declared without a device: nothing
-// answers, but EVENTS_END arrives, which is the difference between a board
-// that carries on and one that polls 0x118 for ever.
+// The radio is not the only SPI device on these boards. Both Heltec boards here
+// put their display on the second controller - the Arduino core's SPI1, which
+// is SPIM2 - and firmware blocks on a controller it cannot drive whether or not
+// anything is on it.
+//
+// Declared without a device where there is nothing to declare: nothing answers,
+// but EVENTS_END arrives, which is the difference between a board that carries
+// on and one that polls 0x118 for ever.
 func EasyDMASPI(radioBase uint32) string {
 	if radioBase == stockSPIBase {
 		return ""
 	}
 	return fmt.Sprintf("%s: SPI.NRF52840_SPI @ sysbus 0x%X\n    easyDMA: true\n\n",
 		stockSPIName, stockSPIBase)
+}
+
+// Panel puts the board's display on that second controller, where the board
+// puts it.
+//
+// It is alone there, so nothing has to be told apart: the controller clocks
+// bytes at one device and the command/data line says whether a byte is a
+// command or a pixel. That line is the whole reason a display needs a GPIO of
+// its own, and a model without it would read a picture as a command stream.
+//
+// Nothing where the radio is on this address instead. No board here is wired
+// that way, and inventing a second arrangement for a board that does not exist
+// is how a description that cannot be loaded gets written.
+func Panel(radioBase uint32, port, width, height, cs, dc int, dcPort string) string {
+	if radioBase == stockSPIBase || port == 0 || width <= 0 || height <= 0 {
+		return ""
+	}
+	return fmt.Sprintf(`panel: Video.MeshBenchPanel @ %s
+    port: %d
+    width: %d
+    height: %d
+    csPin: %d
+    dcPin: %d
+
+%s:
+    %d -> panel@%d
+    %d -> panel@%d
+`, stockSPIName, port, width, height, cs, dc, dcPort, cs, cs, dc, dc)
 }
 
 func UnregisterStockSPI() string {
@@ -125,4 +156,40 @@ sysbus LogPeripheralAccess sysbus.gpiote true
 sysbus LogPeripheralAccess sysbus.gpio0 true
 sysbus LogPeripheralAccess sysbus.gpio1 true
 `
+}
+
+// inputsBase is where the input channel is registered: an address nothing on an
+// nRF52840 uses, between the peripheral block and the GPIO ports.
+//
+// A .repl registers a peripheral at an address whether or not the guest has any
+// business reading it, and this one it has none - a person pressing a button is
+// not something firmware can query. So the address is chosen to be out of the
+// way rather than to mean anything.
+const inputsBase = 0x4F000000
+
+// Inputs puts the far end of the board's buttons in the machine.
+//
+// Nothing where the board has no inputs: a peripheral that dials a port nobody
+// opened would retry for the life of the run and log about it.
+//
+// The converter is named only where the board has one, because the model takes
+// it as an optional argument and a board with no cell to read has no meter to
+// point at. Where it is named, the simulation's own battery state arrives on
+// the same channel as the presses and lands in the converter the firmware
+// reads - which is what makes an nRF52 board report a voltage rather than the
+// one constant the model starts with.
+func Inputs(port int, hasMeter bool) string {
+	if port == 0 {
+		return ""
+	}
+	s := fmt.Sprintf(`
+inputs: Miscellaneous.MeshBenchInputs @ sysbus 0x%X
+    port: %d
+    gpio0: gpio0
+    gpio1: gpio1
+`, inputsBase, port)
+	if hasMeter {
+		s += "    meter: saadc\n"
+	}
+	return s
 }
