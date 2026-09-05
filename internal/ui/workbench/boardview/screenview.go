@@ -317,46 +317,36 @@ func (v *ScreenView) readKeys(gtx layout.Context, b hw.Board,
 			if e.State != key.Press {
 				continue
 			}
-			if txt := typedText(e); txt != "" {
+			// Only the keys that carry no character. Gio sends both a key
+			// event and an edit event for a printable key, so taking the
+			// character from both put every letter in twice - which is a
+			// keyboard that works and cannot be used.
+			if txt := namedKey(e); txt != "" {
 				onDo("board.key", map[string]any{"node": node, "text": txt})
 			}
 		}
 	}
 }
 
-// typedText is the character a key event carries, or "" for a key the board's
-// own keyboard has no character for.
+// namedKey is the byte a key with no character of its own stands for, or ""
+// for every key that has one.
+//
+// Backspace and return are what a field somebody is typing a name into cannot
+// do without, and neither arrives as text. Everything that does arrive as text
+// is left to the edit event, because a printable key produces both and taking
+// it from both types it twice.
 //
 // Gio names a printable key by the character itself, so the common case is one
 // rune. The few this board's keyboard does have a code for are named, because a
 // handheld's keyboard sends a backspace and an enter like any other.
-func typedText(ke key.Event) string {
+func namedKey(ke key.Event) string {
 	switch ke.Name {
 	case key.NameReturn, key.NameEnter:
 		return "\r"
 	case key.NameDeleteBackward:
 		return "\b"
-	case key.NameSpace:
-		return " "
 	}
-	n := string(ke.Name)
-	if len([]rune(n)) != 1 {
-		return ""
-	}
-	// Gio reports an unshifted name; the shift is in the modifiers.
-	if ke.Modifiers.Contain(key.ModShift) {
-		return n
-	}
-	return lowerASCII(n)
-}
-
-// lowerASCII lowers a single ASCII letter, which is what an unshifted key on a
-// handheld sends.
-func lowerASCII(s string) string {
-	if len(s) == 1 && s[0] >= 'A' && s[0] <= 'Z' {
-		return string(s[0] + 32)
-	}
-	return s
+	return ""
 }
 
 // hasScreen reports whether this board has a panel to draw or photograph.

@@ -8,6 +8,7 @@
 package boardview
 
 import (
+	"strings"
 	"testing"
 
 	"gioui.org/f32"
@@ -323,17 +324,35 @@ func TestTypingAtTheBoardReachesIt(t *testing.T) {
 		return p.Draw(th, gtx, s)
 	}, snap)
 	h.Frame()
-	// Press the panel, which is what puts the keyboard on the board, then type.
-	for y := float32(120); y < 400 && len(sent) == 0; y += 8 {
-		for x := float32(20); x < 300; x += 40 {
+	// Press the panel, which is what puts the keyboard on the board. Focus
+	// first and type once, so what arrives can be counted rather than only
+	// noticed.
+	focused := false
+	for y := float32(120); y < 400 && !focused; y += 8 {
+		for x := float32(20); x < 300 && !focused; x += 30 {
 			h.Click(f32.Pt(x, y))
+			focused = h.Focused(&p.screen.keyTag)
 		}
-		h.TypeText("hello")
-		h.Frame()
 	}
+	if !focused {
+		t.Fatal("pressing the panel never put the keyboard on the board")
+	}
+	h.TypeOn("hello")
+	h.Frame()
 	if len(sent) == 0 {
-		t.Error("nothing typed at the board reached it, so its keyboard is " +
+		t.Fatal("nothing typed at the board reached it, so its keyboard is " +
 			"drawn and not wired")
+	}
+	// And once each, which the first version of this could not tell.
+	//
+	// Gio sends a key event and an edit event for one printable key, and
+	// taking the character from both put every letter in twice: a keyboard
+	// that works and cannot be used. Counting is the whole difference between
+	// a test that says "typing arrives" and one that says typing arrives
+	// correctly.
+	whole := strings.Join(sent, "")
+	if whole != "hello" {
+		t.Errorf("typing \"hello\" at the board sent %q", whole)
 	}
 }
 

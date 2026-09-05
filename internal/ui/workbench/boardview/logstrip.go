@@ -115,6 +115,16 @@ func (p *Panel) logLines(t *theme.Theme, gtx layout.Context,
 		return comp.Text(t, t.Sz.Caption, t.P.Faint, what)(gtx)
 	}
 	p.logList.Axis = layout.Vertical
+	// Pinned to the newest line until somebody scrolls up, and pinned again
+	// the moment they come back to the bottom.
+	//
+	// Gio's list does the whole of that from this one flag: with it set it
+	// stays at the end once it has reached it, and it stops when the position
+	// moves off the end - which is what scrolling up does - and resumes when
+	// the position returns. A log strip that did not follow is one somebody
+	// has to drag after every line, which for a board that is talking is every
+	// few hundred milliseconds.
+	p.logList.ScrollToEnd = true
 	// Filled rather than sized to its longest line. A list takes the width its
 	// content wants, and its scrollbar rides its right edge - so a log of short
 	// lines put the bar somewhere in the middle of the strip, which reads as a
