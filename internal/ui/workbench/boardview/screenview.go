@@ -136,12 +136,25 @@ func (v *ScreenView) Layout(t *theme.Theme, gtx layout.Context, b hw.Board,
 	if sc == nil {
 		return comp.Text(t, t.Sz.Caption, t.P.Faint, "this board has no display")(gtx)
 	}
-	scale, w, h := boxFor(b, want)
+	scale, _, _ := boxFor(b, want)
 	if want == 0 {
 		scale = FitIn(sc, gtx)
-		w, h = sc.WidthPx*scale, sc.HeightPx*scale
 	}
-	size := image.Pt(gtx.Dp(unit.Dp(w)), gtx.Dp(unit.Dp(h)))
+	// One panel pixel is a whole number of framebuffer pixels, and the box is
+	// derived from that rather than the other way round.
+	//
+	// The box used to be a size in dp and the picture was painted in raw
+	// pixels, which agree on a screen at 100% and on no other: dragged to a
+	// display at 200% the box doubled and the picture did not, so the board
+	// drew into the top-left quarter of its own frame. Deriving the box from
+	// the block makes the two impossible to disagree, and keeps the panel the
+	// same physical size on both screens - which is what a person moving a
+	// window between them expects.
+	blk := gtx.Dp(unit.Dp(scale))
+	if blk < 1 {
+		blk = 1
+	}
+	size := image.Pt(sc.WidthPx*blk, sc.HeightPx*blk)
 
 	paint.FillShape(gtx.Ops, t.P.ScreenGround, clip.Rect{Max: size}.Op())
 	defer clip.Rect{Max: size}.Push(gtx.Ops).Pop()
@@ -154,19 +167,23 @@ func (v *ScreenView) Layout(t *theme.Theme, gtx layout.Context, b hw.Board,
 	if hasKeys(b) {
 		event.Op(gtx.Ops, &v.keyTag)
 	}
-	v.readTouch(gtx, b, scale, onDo, node)
+	v.readTouch(gtx, b, blk, onDo, node)
 	v.readKeys(gtx, b, onDo, node)
 
 	if st != nil && st.Screen != nil && st.Screen.On {
-		drawPixels(t, gtx, sc, st.Screen, scale)
+		drawPixels(t, gtx, sc, st.Screen, blk)
 	}
 	comp.Border(gtx, size, 0, 1, t.P.Rule)
 	return layout.Dimensions{Size: size}
 }
 
 // drawPixels paints what the firmware drew, one panel pixel per whole block.
+//
+// blk is that block in framebuffer pixels, not in dp: everything here is in
+// the units the fill lands in, so the picture cannot come out a different size
+// from the frame around it.
 func drawPixels(t *theme.Theme, gtx layout.Context, sc *hw.Screen,
-	pic *state.Screen, scale int) {
+	pic *state.Screen, blk int) {
 
 	for y := 0; y < sc.HeightPx; y++ {
 		for x := 0; x < sc.WidthPx; x++ {
@@ -174,7 +191,7 @@ func drawPixels(t *theme.Theme, gtx layout.Context, sc *hw.Screen,
 			if !ok {
 				continue
 			}
-			r := image.Rect(x*scale, y*scale, (x+1)*scale, (y+1)*scale)
+			r := image.Rect(x*blk, y*blk, (x+1)*blk, (y+1)*blk)
 			paint.FillShape(gtx.Ops, col, clip.Rect(r).Op())
 		}
 	}
@@ -205,7 +222,13 @@ func pixel(t *theme.Theme, pic *state.Screen, x, y int) (color.NRGBA, bool) {
 // in; and the panel may be mounted turned, which on the one board here with a
 // touch layer it is. Either mistake puts the tap somewhere else and reads
 // exactly like a touch layer that was never wired.
-func (v *ScreenView) readTouch(gtx layout.Context, b hw.Board, scale int,
+// readTouch turns presses on the drawn panel into points on the board's own.
+//
+// blk rather than the scale: a pointer arrives in framebuffer pixels, so the
+// number to divide by is how many of those one panel pixel occupies. Dividing
+// by the scale worked at 100% and put every tap at twice its true coordinate
+// on a display at 200%.
+func (v *ScreenView) readTouch(gtx layout.Context, b hw.Board, blk int,
 	onDo func(string, any), node string) {
 
 	if !hasTouch(b) || onDo == nil {
@@ -225,7 +248,7 @@ func (v *ScreenView) readTouch(gtx layout.Context, b hw.Board, scale int,
 		if !ok {
 			continue
 		}
-		rx, ry, in := TouchPoint(sc, touch[0], scale,
+		rx, ry, in := TouchPoint(sc, touch[0], blk,
 			int(pe.Position.X), int(pe.Position.Y))
 		if !in {
 			continue
@@ -247,11 +270,11 @@ func (v *ScreenView) readTouch(gtx layout.Context, b hw.Board, scale int,
 // Exported and pure because it is the part that breaks quietly, and a pure
 // function is the only shape a test can hold still: the same place on the
 // picture has to reach the same place on the panel at every scale.
-func TouchPoint(sc *hw.Screen, touch hw.Part, scale, px, py int) (rx, ry int, ok bool) {
-	if scale <= 0 || sc == nil {
+func TouchPoint(sc *hw.Screen, touch hw.Part, blk, px, py int) (rx, ry int, ok bool) {
+	if blk <= 0 || sc == nil {
 		return 0, 0, false
 	}
-	x, y := px/scale, py/scale
+	x, y := px/blk, py/blk
 	if x < 0 || y < 0 || x >= sc.WidthPx || y >= sc.HeightPx {
 		return 0, 0, false
 	}

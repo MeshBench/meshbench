@@ -20,10 +20,65 @@ import (
 	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
+	"gioui.org/unit"
 	"gioui.org/widget"
 
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 )
+
+// dragState is the pointer bookkeeping a title bar and a resize grip share.
+//
+// They differ only in what the caller does with the answer - the bar moves the
+// window and the grip resizes it - and the part that is easy to get wrong is
+// the same for both: the target is recomputed from the grabbed point on every
+// event, because the events pause while the window's move or resize is in
+// flight and a delta taken across one double-counts it.
+type dragState struct {
+	held bool
+	// grab is where the pointer took hold, and pos its latest reported
+	// position. A window tracking the pointer perfectly reports the same
+	// position on every event, so the position alone cannot tell a fresh event
+	// from the caller merely asking again - which is what fresh is for.
+	grab, pos f32.Point
+	fresh     bool
+}
+
+// read takes whatever pointer events have arrived for tag.
+func (d *dragState) read(gtx layout.Context, tag event.Tag) {
+	for {
+		ev, ok := gtx.Event(pointer.Filter{
+			Target: tag,
+			Kinds:  pointer.Press | pointer.Drag | pointer.Release | pointer.Cancel,
+		})
+		if !ok {
+			return
+		}
+		e, ok := ev.(pointer.Event)
+		if !ok {
+			continue
+		}
+		switch e.Kind {
+		case pointer.Press:
+			d.held = true
+			d.grab, d.pos = e.Position, e.Position
+		case pointer.Drag:
+			// Only the latest position matters: the target is recomputed from
+			// the grab point every time, so a burst of events between frames
+			// contributes its last member and nothing compounds.
+			if d.held {
+				d.pos, d.fresh = e.Position, true
+			}
+		case pointer.Release, pointer.Cancel:
+			d.held = false
+		}
+	}
+}
+
+// report answers the caller once, clearing the freshness as it does.
+func (d *dragState) report() (grab, pos f32.Point, held, fresh bool) {
+	fresh, d.fresh = d.fresh, false
+	return d.grab, d.pos, d.held, fresh
+}
 
 // TitleBar is a window's chrome when no compositor gave it any: the title,
 // a drag handle across the bar, and maximise and close glyphs at the right.
@@ -47,24 +102,7 @@ type TitleBar struct {
 	// where it is read, to the ask that follows it.
 	closePressed    bool
 	maximisePressed bool
-	drag            struct {
-		held bool
-		// grab is where in the bar the pointer took hold, and pos its
-		// latest reported position - the two points a drag is measured
-		// between. The window has to be moved so that the grabbed point
-		// lands under the pointer again, which the caller computes from
-		// these; accumulating per-event deltas instead cannot work,
-		// because the events pause while the window's move is in flight
-		// and a delta across the move double-counts it.
-		grab f32.Point
-		pos  f32.Point
-		// fresh is whether a drag event arrived since the last Drag call:
-		// the difference between the pointer having moved and the caller
-		// merely asking again. A window tracking the pointer perfectly
-		// reports the same position on every event, so the position alone
-		// cannot tell them apart.
-		fresh bool
-	}
+	drag            dragState
 }
 
 // CloseClicked reports one press of the close glyph.
@@ -91,8 +129,7 @@ func (b *TitleBar) MaximiseClicked() bool {
 // held the positions are the last drag's, so a caller reading on every
 // frame sees the target stand still rather than snap back.
 func (b *TitleBar) Drag() (grab, pos f32.Point, held, fresh bool) {
-	fresh, b.drag.fresh = b.drag.fresh, false
-	return b.drag.grab, b.drag.pos, b.drag.held, fresh
+	return b.drag.report()
 }
 
 // Layout draws the bar: the title and drag handle filling the width, the
@@ -106,34 +143,7 @@ func (b *TitleBar) Layout(t *theme.Theme, gtx layout.Context) layout.Dimensions 
 	if b.maximise.Clicked(gtx) {
 		b.maximisePressed = true
 	}
-	for {
-		ev, ok := gtx.Event(pointer.Filter{
-			Target: b,
-			Kinds:  pointer.Press | pointer.Drag | pointer.Release | pointer.Cancel,
-		})
-		if !ok {
-			break
-		}
-		e, ok := ev.(pointer.Event)
-		if !ok {
-			continue
-		}
-		switch e.Kind {
-		case pointer.Press:
-			b.drag.held = true
-			b.drag.grab, b.drag.pos = e.Position, e.Position
-		case pointer.Drag:
-			// Only the latest position matters: the target is recomputed
-			// from the grab point every time, so a burst of events between
-			// frames contributes its last member and nothing compounds.
-			if b.drag.held {
-				b.drag.pos = e.Position
-				b.drag.fresh = true
-			}
-		case pointer.Release, pointer.Cancel:
-			b.drag.held = false
-		}
-	}
+	b.drag.read(gtx, b)
 
 	bar := image.Pt(gtx.Constraints.Max.X, gtx.Dp(t.RowHeight()))
 	FillRect(gtx, bar, t.P.Panel)
@@ -244,4 +254,66 @@ func stroke(gtx layout.Context, c color.NRGBA, build func(*clip.Path)) {
 		w = 1
 	}
 	paint.FillShape(gtx.Ops, c, clip.Stroke{Path: p.End(), Width: w}.Op())
+}
+
+// ResizeGrip is the corner a window is resized by, for a window the compositor
+// will not resize.
+//
+// A layer surface has no decoration and no resize edges: its size is whatever
+// the client last asked for. So a window that opened too small stayed too
+// small, and the only way out was maximise - which is the whole window or
+// nothing. This is the missing third thing.
+//
+// The drag is measured exactly as the bar's is, and for the same reason: the
+// target is recomputed from the grabbed point on every event, because the
+// events pause while a resize is in flight and a delta taken across one
+// double-counts it.
+type ResizeGrip struct {
+	drag dragState
+}
+
+// Drag reports the grip being pulled: the point taken hold of, the pointer's
+// latest position, whether the hold is on, and whether an event arrived since
+// the last ask.
+func (g *ResizeGrip) Drag() (grab, pos f32.Point, held, fresh bool) {
+	return g.drag.report()
+}
+
+// Layout draws the grip and collects its drag.
+func (g *ResizeGrip) Layout(t *theme.Theme, gtx layout.Context) layout.Dimensions {
+	g.drag.read(gtx, g)
+	sz := image.Pt(gtx.Dp(gripDp), gtx.Dp(gripDp))
+	defer clip.Rect{Max: sz}.Push(gtx.Ops).Pop()
+	event.Op(gtx.Ops, g)
+	pointer.Cursor(pointer.CursorSouthEastResize).Add(gtx.Ops)
+
+	// Three diagonal marks, which is what a grip looks like everywhere and so
+	// needs no explaining. Drawn rather than an icon font, as every glyph here
+	// is: a font is a file a machine may not have.
+	line := gtx.Dp(2)
+	for i := 1; i <= 3; i++ {
+		at := sz.X - i*gtx.Dp(4)
+		if at < 0 {
+			continue
+		}
+		for y := at; y < sz.Y; y += line * 2 {
+			r := image.Rect(sz.X-(y-at)-line, y, sz.X-(y-at), y+line)
+			paint.FillShape(gtx.Ops, t.P.Faint, clip.Rect(r).Op())
+		}
+	}
+	return layout.Dimensions{Size: sz}
+}
+
+// gripDp is how big the corner is: window-management geometry rather than
+// interface drawing, which is why it is here and not a theme token.
+const gripDp = unit.Dp(18)
+
+// SetDragForTest puts the grip in the state a real drag would leave it in.
+//
+// The pointer events a drag is made of cannot be delivered without a frame, and
+// what is being tested here is the arithmetic the caller does with the result,
+// not Gio's delivery of them. Exported because the window code that does that
+// arithmetic lives in another package.
+func (g *ResizeGrip) SetDragForTest(grab, pos f32.Point, held bool) {
+	g.drag.grab, g.drag.pos, g.drag.held, g.drag.fresh = grab, pos, held, held
 }

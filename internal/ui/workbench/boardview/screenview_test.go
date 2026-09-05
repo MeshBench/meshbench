@@ -205,3 +205,76 @@ func TestNoPictureButtonWithoutAPanel(t *testing.T) {
 			"looked at, which is a different fact")
 	}
 }
+
+// The panel is the same physical size on a 4K screen as on an HD one, and a
+// tap still lands where it was aimed.
+//
+// This is the fault a person hits by dragging the window between two monitors:
+// the box was a size in dp and the picture was painted in framebuffer pixels,
+// which agree at 100% and nowhere else. At 200% the box doubled and the picture
+// did not, so the board drew into the top-left quarter of its own frame - and
+// every tap landed at twice its true coordinate, because the divisor was the
+// scale rather than the block.
+//
+// Both halves are checked here, because fixing one and not the other produces a
+// panel that looks right and cannot be touched.
+func TestThePanelSurvivesBeingDraggedToADenserScreen(t *testing.T) {
+	b, err := hw.BoardByName("LilyGo_TDeck")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sc := b.Hardware.Screen
+	const scale = 1
+	for _, perDp := range []float32{1, 2} {
+		var v ScreenView
+		var got layout.Dimensions
+		// The same window, in framebuffer pixels, at both densities.
+		uitest.RenderAt(t, sc.WidthPx*2+40, sc.HeightPx*2+40, perDp,
+			func(gtx layout.Context, th *theme.Theme) layout.Dimensions {
+				got = v.Layout(th, gtx, b, nil, scale, nil, "Deck")
+				return got
+			})
+		// One panel pixel is that many framebuffer pixels, so the drawn box
+		// grows with the density - which is what keeps it the same size on the
+		// glass rather than shrinking to a quarter.
+		want := int(perDp) * scale
+		if got.Size.X != sc.WidthPx*want || got.Size.Y != sc.HeightPx*want {
+			t.Errorf("at %v px per dp the panel drew %dx%d, want %dx%d",
+				perDp, got.Size.X, got.Size.Y, sc.WidthPx*want, sc.HeightPx*want)
+		}
+	}
+}
+
+// And the divisor a press is measured by is the block, not the scale.
+//
+// A pointer arrives in framebuffer pixels. At 200% one panel pixel occupies two
+// of them, so a press two thirds of the way across the panel is at twice the
+// number it would be at 100% - and dividing by the scale would report a point
+// off the far edge.
+func TestATapIsMeasuredInTheBlocksItLandsOn(t *testing.T) {
+	b, err := hw.BoardByName("LilyGo_TDeck")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sc := b.Hardware.Screen
+	touch := b.Hardware.PartsOfKind(hw.Touch)[0]
+
+	// One place on the glass, pressed at 100% and at 200%, at the framebuffer
+	// coordinate each density puts it at.
+	const px, py = 100, 60
+	base := [2]int{}
+	for i, blk := range []int{1, 2} {
+		rx, ry, ok := TouchPoint(sc, touch, blk, px*blk, py*blk)
+		if !ok {
+			t.Fatalf("block %d refused a press inside the panel", blk)
+		}
+		if i == 0 {
+			base = [2]int{rx, ry}
+			continue
+		}
+		if rx != base[0] || ry != base[1] {
+			t.Errorf("at %dx the same place on the glass reported panel %d,%d "+
+				"and at 1x it reported %d,%d", blk, rx, ry, base[0], base[1])
+		}
+	}
+}

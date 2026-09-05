@@ -141,9 +141,31 @@ func withEmoji(base []font.FontFace) []font.FontFace {
 	return base
 }
 
+// RenderAt is the same at a display scale, for the faults that only exist on
+// one.
+//
+// A widget whose box is measured in dp and whose content is painted in
+// framebuffer pixels is exact at 100% and wrong everywhere else, and every
+// harness here ran at 100% - so the class was untestable until a board panel
+// was dragged onto a 4K screen and drew a quarter size.
+//
+// w and h stay framebuffer pixels, as they are everywhere else, so the same
+// window at 2x is the same numbers with half the room in dp.
+func RenderAt(t *testing.T, w, h int, pxPerDp float32,
+	draw func(layout.Context, *theme.Theme) layout.Dimensions) image.Image {
+	t.Helper()
+	return renderMode(t, w, h, pxPerDp, theme.Dark, draw)
+}
+
 // renderMode is the same on a chosen ground, for the pictures that are about
 // the ground itself.
 func RenderMode(t *testing.T, w, h int, mode theme.Mode,
+	draw func(layout.Context, *theme.Theme) layout.Dimensions) image.Image {
+	t.Helper()
+	return renderMode(t, w, h, 1, mode, draw)
+}
+
+func renderMode(t *testing.T, w, h int, pxPerDp float32, mode theme.Mode,
 	draw func(layout.Context, *theme.Theme) layout.Dimensions) image.Image {
 	t.Helper()
 	win, err := headless.NewWindow(w, h)
@@ -158,7 +180,7 @@ func RenderMode(t *testing.T, w, h int, mode theme.Mode,
 	gtx := layout.Context{
 		Ops:         &ops,
 		Constraints: layout.Exact(image.Pt(w, h)),
-		Metric:      unit.Metric{PxPerDp: 1, PxPerSp: 1},
+		Metric:      unit.Metric{PxPerDp: pxPerDp, PxPerSp: pxPerDp},
 	}
 	fillGround(gtx, th)
 	draw(gtx, th)

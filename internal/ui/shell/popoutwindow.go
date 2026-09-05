@@ -102,6 +102,11 @@ func RunPopout(w *WindowRegistry, spec Popout, p PopoutPanel,
 
 	var chrome *LayerChrome
 	var bar comp.TitleBar
+	// The corner a layer-shell window is resized by. The compositor resizes
+	// neither a layer surface nor anything else it has not decorated, so
+	// without this a window is stuck at the size it opened at and maximise is
+	// the only other size there is.
+	var grip comp.ResizeGrip
 	var ops op.Ops
 	sized := false
 	for {
@@ -145,28 +150,48 @@ func RunPopout(w *WindowRegistry, spec Popout, p PopoutPanel,
 				chrome.Frame(e)
 			}
 			snap := st.Snapshot()
-			layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					if chrome == nil {
-						return layout.Dimensions{}
-					}
-					bar.Title, bar.Maximised = spec.Bar, chrome.Maximised()
-					return bar.Layout(th, gtx)
-				}),
-				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-					return layout.UniformInset(th.Sp.M).Layout(gtx,
-						func(gtx layout.Context) layout.Dimensions {
-							return p.Draw(th, gtx, snap)
-						})
-				}),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					if spec.Under == nil {
-						return layout.Dimensions{}
-					}
-					return spec.Under(th, gtx, snap)
-				}),
-			)
+			body := func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						if chrome == nil {
+							return layout.Dimensions{}
+						}
+						bar.Title, bar.Maximised = spec.Bar, chrome.Maximised()
+						return bar.Layout(th, gtx)
+					}),
+					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+						return layout.UniformInset(th.Sp.M).Layout(gtx,
+							func(gtx layout.Context) layout.Dimensions {
+								return p.Draw(th, gtx, snap)
+							})
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						if spec.Under == nil {
+							return layout.Dimensions{}
+						}
+						return spec.Under(th, gtx, snap)
+					}),
+				)
+			}
+			if chrome == nil {
+				body(gtx)
+			} else {
+				// The grip over the bottom-right corner of everything, because
+				// it is a property of the window rather than of what is in it.
+				layout.Stack{Alignment: layout.SE}.Layout(gtx,
+					layout.Expanded(body),
+					layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+						if chrome.Maximised() {
+							return layout.Dimensions{}
+						}
+						return grip.Layout(th, gtx)
+					}),
+				)
+			}
 			if chrome != nil {
+				if opts := chrome.Resize(&grip); len(opts) > 0 {
+					win.Option(opts...)
+				}
 				opts, closing := chrome.Update(&bar)
 				if closing {
 					win.Perform(system.ActionClose)

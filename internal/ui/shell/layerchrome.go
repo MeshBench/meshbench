@@ -188,11 +188,73 @@ func (c *LayerChrome) Update(bar *comp.TitleBar) (opts []app.Option, close bool)
 		} else {
 			c.restore.spot, c.maximised = c.spot, true
 			c.restore.w, c.restore.h = c.pxToDpSize(c.size)
-			opts = append(opts, float.Maximise())
+			opts = append(opts, c.fill()...)
 		}
 		bar.Maximised = c.maximised
 	}
 	return opts, bar.CloseClicked()
+}
+
+// Resize turns a pull on the corner grip into a new size.
+//
+// The same arithmetic as the drag above and for the same reason: the target is
+// the current size plus the whole remaining distance from the grabbed point,
+// recomputed every event, because a resize is in flight while the events pause
+// and a delta taken across one counts it twice.
+//
+// A maximised window declines, as a decorated one does. Below the floor it
+// stops, because a window shrunk to nothing cannot be grown again - the grip is
+// inside it. Above the screen it stops too, for the reason a window is fitted
+// when it opens.
+func (c *LayerChrome) Resize(g *comp.ResizeGrip) []app.Option {
+	grab, pos, held, fresh := g.Drag()
+	if !held || !fresh || c.maximised || c.pxPerDp <= 0 {
+		return nil
+	}
+	w, h := c.pxToDpSize(c.size)
+	w += unit.Dp((pos.X - grab.X) * c.pxToDp())
+	h += unit.Dp((pos.Y - grab.Y) * c.pxToDp())
+	if w < minWindowDp {
+		w = minWindowDp
+	}
+	if h < minWindowDp {
+		h = minWindowDp
+	}
+	if !c.screen.Empty() {
+		if max := unit.Dp(c.screen.Dx()); w > max {
+			w = max
+		}
+		if max := unit.Dp(c.screen.Dy()); h > max {
+			h = max
+		}
+	}
+	return []app.Option{app.Size(w, h)}
+}
+
+// minWindowDp is the smallest a window may be pulled to: enough to hold its
+// own bar and grip, so it can always be grown again.
+const minWindowDp = unit.Dp(240)
+
+// fill is maximise: the window over the whole of the screen it is already on.
+//
+// Not the four-edge anchor, which is what a layer surface's own maximise is and
+// which does not say *which* output. On a desktop with two screens the
+// compositor answers that itself, and it answers with its primary - so pressing
+// maximise on the second screen threw the window onto the first.
+//
+// Margins are measured from the output the surface is anchored to, so a
+// top-left anchor at nothing, sized to that output, is the same rectangle
+// without the ambiguity. The four-edge form remains the fallback for a window
+// that has not been told where it is, where guessing a size would be worse.
+func (c *LayerChrome) fill() []app.Option {
+	if c.screen.Empty() {
+		return []app.Option{float.Maximise()}
+	}
+	c.spot = float.Spot{}
+	return []app.Option{
+		float.Move(c.spot),
+		app.Size(unit.Dp(c.screen.Dx()), unit.Dp(c.screen.Dy())),
+	}
 }
 
 // recall places the window at spot: the escape hatch for one that has ended
