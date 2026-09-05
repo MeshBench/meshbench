@@ -158,16 +158,13 @@ func TestAMeterOnNoModelledConverterSaysSo(t *testing.T) {
 				{Kind: hw.Meter, Name: "battery", Pin: 12, FullScaleMV: 4200},
 			}}}},
 	} {
-		rows := wiringRows(c.board, nil)
-		if len(rows) != 1 {
-			t.Fatalf("%s: one part declared, %d rows", c.what, len(rows))
+		row := rowNamed(t, wiringRows(c.board, nil), "battery")
+		if row.Verdict != NotModelled {
+			t.Errorf("%s: read %v, want %v", c.what, row.Verdict, NotModelled)
 		}
-		if rows[0].Verdict != NotModelled {
-			t.Errorf("%s: read %v, want %v", c.what, rows[0].Verdict, NotModelled)
-		}
-		if !strings.Contains(rows[0].Why, "waits for ever") {
+		if !strings.Contains(row.Why, "waits for ever") {
 			t.Errorf("%s: the reason does not say what an unmodelled input "+
-				"costs: %q", c.what, rows[0].Why)
+				"costs: %q", c.what, row.Why)
 		}
 	}
 }
@@ -278,19 +275,18 @@ func TestADrivenPartSaysItIsDriven(t *testing.T) {
 		Hardware: &hw.Panel{Parts: []hw.Part{
 			{Kind: hw.Button, Name: "user", Pin: 42, ActiveLow: true},
 		}}}
-	rows := wiringRows(b, &state.NodeStat{Name: "n", Board: b.Name, Running: true})
-	if len(rows) != 1 {
-		t.Fatalf("one part declared, %d rows", len(rows))
-	}
-	if strings.Contains(rows[0].Observed, "not instrumented") {
-		t.Errorf("a button that moves a real pin reads as %q", rows[0].Observed)
+	on := rowNamed(t, wiringRows(b, &state.NodeStat{
+		Name: "n", Board: b.Name, Running: true}), "user")
+	if strings.Contains(on.Observed, "not instrumented") {
+		t.Errorf("a button that moves a real pin reads as %q", on.Observed)
 	}
 	// And a board that is off says that instead, rather than promising a press
 	// would go somewhere.
-	off := wiringRows(b, &state.NodeStat{Name: "n", Board: b.Name})
-	if off[0].Observed != "not powered" {
+	off := rowNamed(t, wiringRows(b, &state.NodeStat{
+		Name: "n", Board: b.Name}), "user")
+	if off.Observed != "not powered" {
 		t.Errorf("a stopped board's button reads %q, want \"not powered\"",
-			off[0].Observed)
+			off.Observed)
 	}
 }
 
@@ -321,4 +317,84 @@ func TestADrawablePanelIsNotCalledUnmodelled(t *testing.T) {
 				name, screen.Observed)
 		}
 	}
+}
+
+// A USB console has no rate, and the row says that rather than reporting zero.
+//
+// The trap this pins: such a board's UART0 is still running and the emulator
+// still reports a figure for it, so the obvious implementation prints the
+// bootloader's rate under a heading that says "console". It is the wrong
+// peripheral, and it reads as authoritative.
+func TestAUSBConsoleReportsNoRateRatherThanZero(t *testing.T) {
+	for _, b := range hw.Boards() {
+		if !consoleOnUSB(b) {
+			continue
+		}
+		st := &state.NodeStat{Name: "n", Board: b.Name, Running: true}
+		st.Radio.ConsoleBaud = 115200 // UART0's, not the console's
+		r := consoleRow(b, st)
+		if r.Observed != "no line rate" {
+			t.Errorf("%s prints console rate %q where its console is USB",
+				b.Name, r.Observed)
+		}
+		if r.Verdict == Silent {
+			t.Errorf("%s reads as silent, but a USB console having no rate is "+
+				"correct rather than a fault", b.Name)
+		}
+	}
+}
+
+// A UART console reports what the firmware asked for, and says which of the
+// two reasons it has for saying nothing.
+func TestAUARTConsoleReportsTheFirmwaresOwnRate(t *testing.T) {
+	var uart hw.Board
+	for _, b := range hw.Boards() {
+		if !consoleOnUSB(b) && (b.QEMU != nil || b.Renode != nil) {
+			uart = b
+			break
+		}
+	}
+	if uart.Name == "" {
+		t.Skip("no board with a UART console")
+	}
+	st := &state.NodeStat{Name: "n", Board: uart.Name, Running: true}
+	st.Radio.ConsoleBaud = 115201
+	if got := consoleRow(uart, st).Observed; got != "115201 baud" {
+		t.Errorf("running board reports %q, want the firmware's own rate", got)
+	}
+
+	st.Radio.ConsoleBaud = 0
+	if r := consoleRow(uart, st); r.Verdict != Silent {
+		t.Errorf("a running board that reported nothing reads as %v, want "+
+			"silent: the emulator is older than the field", r.Verdict)
+	}
+
+	// Not running is a different fact from running and silent, and conflating
+	// them is how "the emulator is too old" gets reported about a board that
+	// was never started.
+	off := &state.NodeStat{Name: "n", Board: uart.Name}
+	if r := consoleRow(uart, off); r.Verdict != Undeclared {
+		t.Errorf("a stopped board reads as %v, want undeclared", r.Verdict)
+	}
+}
+
+// rowNamed is the row a test is actually about.
+//
+// These used to index position zero of a table asserted to hold exactly one
+// row, which made every one of them a test of the table's length as well as of
+// its subject: a row added anywhere in wiringRows failed them all, and the
+// failure named a count rather than the thing that had changed.
+func rowNamed(t *testing.T, rows []Row, name string) Row {
+	t.Helper()
+	for _, r := range rows {
+		if r.Name == name {
+			return r
+		}
+	}
+	var had []string
+	for _, r := range rows {
+		had = append(had, r.Name)
+	}
+	t.Fatalf("no row named %q; the table holds %v", name, had)
+	return Row{}
 }

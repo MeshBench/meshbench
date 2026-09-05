@@ -356,6 +356,13 @@ type RadioState struct {
 	// GainReg is 0x08AC: 0x96 boosted, 0x94 power saving.
 	GainReg uint8
 	Boosted bool
+	// ConsoleBaud is the rate the firmware set the board's console UART to, or
+	// zero where nothing said. Zero has two causes and they are different
+	// facts: a board whose console is the USB peripheral has no line rate at
+	// all, and an emulator older than the field reports none - which of the
+	// two it is comes from the board's own profile.
+	ConsoleBaud uint32
+
 	// TxPowerDBm is what SetTxParams asked the PA for, and TxPowerUnset when
 	// the firmware has not called it at all. Ask through TxPowerSet rather
 	// than comparing: the board view compared it as an ordinary number, found

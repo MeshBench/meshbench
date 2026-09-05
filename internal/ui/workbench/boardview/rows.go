@@ -143,10 +143,77 @@ func wiringRows(b hw.Board, st *state.NodeStat) []Row {
 			Declared: fmt.Sprintf("%dx%d %s", sc.WidthPx, sc.HeightPx, sc.Ink),
 			Observed: obs, Verdict: v, Why: why})
 	}
+	out = append(out, consoleRow(b, st))
 	for _, part := range p.Parts {
 		out = append(out, partRow(b, part, st))
 	}
 	return grouped(out)
+}
+
+// consoleRow is the rate the console is running at, which the firmware chose
+// and nobody had to be told.
+//
+// The rate is not a setting on our side. It is a divider the guest writes into
+// its own UART, and the emulator hands the figure back with the radio's other
+// registers - so this row is a reading rather than a preference, and a
+// firmware that changes its mind mid-run changes what is printed here.
+//
+// A board whose console is the USB peripheral has no line rate at all, and
+// says so. That is not a gap: USB carries framed packets, the rate a host asks
+// for is discarded, and a number here would be an invention. Such a board's
+// UART0 still runs - the ROM bootloader prints there - but what it is doing is
+// not the console, so the row does not quote it as though it were.
+func consoleRow(b hw.Board, st *state.NodeStat) Row {
+	r := Row{Group: "Console", Name: "Rate", Where: consoleWhere(b)}
+	if consoleOnUSB(b) {
+		r.Declared, r.Observed, r.Verdict = "USB CDC", "no line rate", Agrees
+		r.Why = "The console is the USB device, which carries packets rather " +
+			"than a bit stream: whatever rate a host asks for is discarded at " +
+			"both ends. There is no figure to report and nothing is missing. " +
+			"The board's UART0 is still running, but it is not this console."
+		return r
+	}
+	r.Declared = "set by the firmware"
+	r.Why = "Read from the divider the firmware wrote, not from a list we " +
+		"offered: whatever it asked for is what appears here, including a rate " +
+		"nothing else would have guessed. Take it after the board has settled " +
+		"- the bootloader and the application need not agree, and the earlier " +
+		"figure is one nothing is using any more."
+	switch {
+	case st == nil || !st.Running:
+		r.Observed, r.Verdict = "not running", Undeclared
+	case st.Radio.ConsoleBaud == 0:
+		r.Observed, r.Verdict = "nothing reported", Silent
+		r.Why += " Nothing has come back, which on a running board means the " +
+			"emulator is older than the field rather than that the firmware " +
+			"chose no rate."
+	default:
+		r.Observed, r.Verdict = fmt.Sprintf("%d baud", st.Radio.ConsoleBaud), Agrees
+	}
+	return r
+}
+
+// consoleOnUSB is the profile's answer for whichever emulator this board runs
+// under. The two wiring structures carry the same field and neither is
+// authoritative for the other.
+func consoleOnUSB(b hw.Board) bool {
+	if b.QEMU != nil {
+		return b.QEMU.ConsoleOnUSB
+	}
+	if b.Renode != nil {
+		return b.Renode.ConsoleOnUSB
+	}
+	return false
+}
+
+// consoleWhere names the peripheral the console is on, because "USB" and
+// "UART0" are the whole explanation for why one board reports a rate and
+// another cannot.
+func consoleWhere(b hw.Board) string {
+	if consoleOnUSB(b) {
+		return "USB"
+	}
+	return "UART0"
 }
 
 // grouped puts the rows in group order, stably.
