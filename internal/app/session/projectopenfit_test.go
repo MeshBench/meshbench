@@ -54,4 +54,4 @@ func TestOpeningANetworkFramesIt(t *testing.T) {
 	}
 }
 
-func (u *framingUI) OpenBoardView(_ string) error { return nil }
+func (u *framingUI) OpenBoardView(_, _ string) (string, error) { return "Radio", nil }

@@ -189,14 +189,26 @@ func (u *workbenchUI) applyCamera() {
 // OpenBoardView puts one node's board under the question the Hardware tab does
 // not ask - is it behaving like the board its profile says it is - and offers
 // the controls for everything it has wired.
-func (u *workbenchUI) OpenBoardView(node string) error {
+func (u *workbenchUI) OpenBoardView(node, tab string) (string, error) {
 	if u.boards == nil || u.newTheme == nil {
-		return fmt.Errorf("this build has no bring-up windows to open")
+		return "", fmt.Errorf("this build has no bring-up windows to open")
 	}
-	u.boards.OpenFor(node, u.newTheme, u.store, boardview.Hooks{
+	// The default where nothing was asked for, and refused by name where
+	// something was: a tab nobody can name is a tab nobody can capture, and
+	// the two tables answer different questions.
+	want := boardview.TabRadio
+	if tab != "" {
+		got, ok := boardview.TabByName(tab)
+		if !ok {
+			return "", fmt.Errorf("no tab called %q - there is %s",
+				tab, strings.Join(boardview.TabNames(), ", "))
+		}
+		want = got
+	}
+	u.boards.OpenFor(node, want, u.newTheme, u.store, boardview.Hooks{
 		OnDo: u.OnDo, OnSaveShot: u.saveBoardShot,
 	})
-	return nil
+	return want.String(), nil
 }
 
 func (u *workbenchUI) OpenNodeWindow(node, tab string) (string, error) {

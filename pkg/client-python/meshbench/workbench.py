@@ -420,13 +420,17 @@ class Workbench:
         got = self.call("node.window", {"node": str(node), "tab": tab}) or {}
         return got.get("tab", "")
 
-    def board_view(self, node) -> str:
+    def board_view(self, node, tab: str = "") -> str:
         """Open a node's board view and return the board it is showing.
 
         The board in full: its panel, the controls for what it has wired, and
         what its profile declares beside what the firmware left in the chip.
         Windowed sessions only, for the same reason window() is, and refused for
         a node running a host build: there is no board to show.
+
+        `tab` picks which table it opens on, "Radio" or "Wiring", and Radio is
+        what it opens on when nothing is asked for. A tab that is not one of
+        the two is refused by name rather than quietly opening the default.
         """
         if self.is_headless:
             raise errors.Unavailable(
@@ -434,7 +438,8 @@ class Workbench:
                 "this session has no interface attached, so there is nothing to show",
                 "unavailable",
             )
-        got = self.call("node.boardview", {"node": str(node)}) or {}
+        got = self.call(
+            "node.boardview", {"node": str(node), "tab": tab}) or {}
         return got.get("board", "")
 
     # ---- the shape -------------------------------------------------------

@@ -56,7 +56,7 @@ type UI interface {
 	// A window rather than a tab because of the move it exists for - the log
 	// says something, and the question is what the hardware did - which needs
 	// the log and the table visible at once.
-	OpenBoardView(node string) error
+	OpenBoardView(node, tab string) (string, error)
 
 	// OpenFirmwareWindow gives one build a window of its own: what it is,
 	// where it lives, and the settings it runs under. All three names,

@@ -441,8 +441,9 @@ Open a node's board view: what its profile declares, what the firmware left in t
 | parameter | type | | what |
 |---|---|---|---|
 | `node` | string | required, primary | which node |
+| `tab` | string | optional | which table to open on, Radio or Wiring; Radio when absent |
 
-**Answers** `node`, `board`. `board` is the profile the window is checking against. Refused for a node running a host build, which has no board to check, and refused outright in a headless session, there being no window to open one beside.
+**Answers** `node`, `board`, `tab`. `board` is the profile the window is checking against, and `tab` the table it opened on. Refused for a node running a host build, which has no board to check, refused for a tab that is not one of the two, and refused outright in a headless session, there being no window to open one beside.
 
 **Example** - look at one board in full, and drive what it has
 

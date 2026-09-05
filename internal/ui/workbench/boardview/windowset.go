@@ -32,7 +32,7 @@ type Hooks struct {
 }
 
 // OpenFor opens the window for a node, or recalls the one already out there.
-func (w *WindowSet) OpenFor(node string, newTheme func() *theme.Theme,
+func (w *WindowSet) OpenFor(node string, tab Tab, newTheme func() *theme.Theme,
 	st *state.Store, h Hooks) {
 
 	key := "boardview:" + node
@@ -42,7 +42,7 @@ func (w *WindowSet) OpenFor(node string, newTheme func() *theme.Theme,
 		// for a window dragged out of reach the recall is the only way back.
 		return
 	}
-	p := &Panel{Node: node, OnDo: h.OnDo, OnSaveShot: h.OnSaveShot}
+	p := &Panel{Node: node, Tab: tab, OnDo: h.OnDo, OnSaveShot: h.OnSaveShot}
 	p.OnPopScreen = func(n string) { w.openScreen(n, p, newTheme, st) }
 	// Four regions across and three down - the board, the table, the inspector,
 	// and the log along the bottom - so it opens wider than the node window

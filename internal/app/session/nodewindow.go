@@ -53,9 +53,11 @@ func registerNodeWindow(st *state.Store, s *Sim) {
 				fmt.Errorf("%s runs a host build rather than a board image, "+
 					"so there is no wiring to check", name))
 		}
-		if err := s.ui.OpenBoardView(name); err != nil {
+		tab, _ := namedField(p, "tab")
+		shown, err := s.ui.OpenBoardView(name, tab)
+		if err != nil {
 			return nil, control.WithCode(control.BadParams, err)
 		}
-		return map[string]any{"node": name, "board": n.Board}, nil
+		return map[string]any{"node": name, "board": n.Board, "tab": shown}, nil
 	})
 }

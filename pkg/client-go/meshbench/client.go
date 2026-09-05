@@ -404,7 +404,11 @@ func (w *Workbench) Window(ctx context.Context, node string, tab Tab) (Tab, erro
 // its profile declares beside what the firmware left in the chip. Windowed
 // sessions only, for the same reason Window is, and refused for a node running
 // a host build: there is no board to show.
-func (w *Workbench) BoardView(ctx context.Context, node string) (string, error) {
+//
+// tab picks which table it opens on, "Radio" or "Wiring". Empty opens on
+// Radio; anything that is not one of the two is refused by name rather than
+// quietly opening the default.
+func (w *Workbench) BoardView(ctx context.Context, node, tab string) (string, error) {
 	if w.Headless() {
 		return "", &Refused{
 			Verb: "node.boardview", Code: "unavailable",
@@ -415,7 +419,8 @@ func (w *Workbench) BoardView(ctx context.Context, node string) (string, error) 
 	var out struct {
 		Board string `json:"board"`
 	}
-	err := w.CallInto(ctx, "node.boardview", map[string]any{"node": node}, &out)
+	err := w.CallInto(ctx, "node.boardview",
+		map[string]any{"node": node, "tab": tab}, &out)
 	return out.Board, err
 }
 

@@ -128,7 +128,7 @@ Two verbs are **not** in this table:
 |---|---|---|---|
 | `node.aim` | *a bare string*, `node` string, `at` string | `node`, `at`, `bearing_deg`, `distance_km`, `gain_dbi` | `node.aim(at)` |
 | `node.antenna` | *a bare string*, `node` string | `node`, `pattern`, `gain_dbi_peak`, `beamwidth_deg`, `front_to_back_db`, `bearing_deg`, `downtilt_deg`, `polarisation`, `feedline_db`, `peak_dbi` | `node.antenna` |
-| `node.boardview` 🪟 | *a bare string*, `node` string | `node`, `board` | `wb.board_view(node)` |
+| `node.boardview` 🪟 | *a bare string*, `node` string, `tab` string | `node`, `board`, `tab` | `wb.board_view(node)` |
 | `node.card` | *a bare string*, `node` string, `fitted` bool, `file` string, `wipe` bool | `node`, `slot`, `fitted`, `file`, `own_file`, `bytes`, `required_by_firmware`, `board_has_slot`, `wiped` | `node.card(fitted=\|file=\|wipe=)` |
 | `node.energy` | *a bare string*, `node` string | `node` | `node.energy()` |
 | `node.output` | *a bare string*, `node` string, `source` string, `lines` number | `node`, `source`, `lines`, `total`, `path`, `tail`, `note`, `tracing` | `node.output(source)` |

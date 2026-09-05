@@ -34,13 +34,20 @@
         "required": true,
         "primary": true,
         "what": "which node"
+      },
+      {
+        "name": "tab",
+        "type": "string",
+        "required": false,
+        "what": "which table to open on, Radio or Wiring; Radio when absent"
       }
     ],
     "returns": [
       "node",
-      "board"
+      "board",
+      "tab"
     ],
-    "answers": "`board` is the profile the window is checking against. Refused for a node running a host build, which has no board to check, and refused outright in a headless session, there being no window to open one beside.",
+    "answers": "`board` is the profile the window is checking against, and `tab` the table it opened on. Refused for a node running a host build, which has no board to check, refused for a tab that is not one of the two, and refused outright in a headless session, there being no window to open one beside.",
     "example": {
       "params": "Deck",
       "what": "look at one board in full, and drive what it has"

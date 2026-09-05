@@ -13,6 +13,8 @@
 package boardview
 
 import (
+	"strings"
+
 	"gioui.org/layout"
 	"gioui.org/unit"
 	"gioui.org/widget"
@@ -39,6 +41,29 @@ func (t Tab) String() string {
 		return "Wiring"
 	}
 	return "Radio"
+}
+
+// TabNames is every tab, in the order they are drawn.
+func TabNames() []string {
+	out := make([]string, 0, numTabs)
+	for t := Tab(0); t < numTabs; t++ {
+		out = append(out, t.String())
+	}
+	return out
+}
+
+// TabByName is the tab somebody asked for, by name.
+//
+// Named rather than numbered, for the same reason the node window's is: an
+// index is fine in a capture script written beside the enum and useless to
+// anybody else, because a tab that moved would silently open a different one.
+func TabByName(name string) (Tab, bool) {
+	for t := Tab(0); t < numTabs; t++ {
+		if strings.EqualFold(t.String(), name) {
+			return t, true
+		}
+	}
+	return 0, false
 }
 
 // Panel is one node's bring-up window.

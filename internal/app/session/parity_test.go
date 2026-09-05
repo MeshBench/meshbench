@@ -156,8 +156,8 @@ func (u *stubUI) OpenNodeWindow(_, tab string) (string, error) {
 	return tab, nil
 }
 
-func (u *stubUI) OpenFirmwareWindow(_, _, _ string) error { return nil }
-func (u *stubUI) OpenBoardView(_ string) error            { return nil }
+func (u *stubUI) OpenFirmwareWindow(_, _, _ string) error   { return nil }
+func (u *stubUI) OpenBoardView(_, _ string) (string, error) { return "Radio", nil }
 
 func (u *stubUI) OpenOutputWindow(_, _ string) error { return nil }
 func (u *stubUI) OpenPanel(_, _ string) error        { return nil }
