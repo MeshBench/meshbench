@@ -10,7 +10,11 @@ package bringup
 import (
 	"testing"
 
+	"gioui.org/layout"
+
 	hw "github.com/MeshBench/meshbench/internal/firmware/board"
+	"github.com/MeshBench/meshbench/internal/ui/theme"
+	"github.com/MeshBench/meshbench/internal/ui/uitest"
 )
 
 func TestATapReachesTheSamePanelPointAtEveryScale(t *testing.T) {
@@ -114,5 +118,53 @@ func TestFitScaleNeverShrinks(t *testing.T) {
 	}
 	if n := fitScale(320, 240, 320, 4000); n != 1 {
 		t.Errorf("a 320-wide panel in a 320 budget came to %d:1, want 1:1", n)
+	}
+}
+
+// The scale the panel says it drew at is the scale it drew at.
+//
+// The popped-out window prints it under the picture, and a press is divided by
+// it. Reading it back off the view after the fact made the caption say 0:1,
+// because a Flex lays its rigid children out before its flexed one and the
+// caption asked before the panel had chosen. It is decided once now, and this
+// holds the two ends together: what Layout was told, and what a press is
+// divided by, are the same number.
+func TestThePanelRecordsTheScaleItDrewAt(t *testing.T) {
+	b, err := hw.BoardByName("LilyGo_TDeck")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []int{1, 2, 3} {
+		var v ScreenView
+		_, w, h := boxFor(b, want)
+		uitest.RenderWidget(t, w+40, h+40,
+			func(gtx layout.Context, th *theme.Theme) layout.Dimensions {
+				return v.Layout(th, gtx, b, nil, want, nil, "Deck")
+			})
+		if v.drawn != want {
+			t.Errorf("drawn at %d:1 after being asked for %d:1 - a press would "+
+				"be divided by the wrong number", v.drawn, want)
+		}
+	}
+}
+
+// FitIn never answers zero, however little room it is given: a zero scale is a
+// caption reading "0:1" and a division that throws away every press.
+func TestFitInNeverAnswersZero(t *testing.T) {
+	b, err := hw.BoardByName("LilyGo_TDeck")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sc := b.Hardware.Screen
+	for _, size := range [][2]int{{1, 1}, {40, 40}, {319, 239}, {1040, 800}} {
+		got := 0
+		uitest.RenderWidget(t, size[0], size[1],
+			func(gtx layout.Context, th *theme.Theme) layout.Dimensions {
+				got = FitIn(sc, gtx)
+				return layout.Dimensions{}
+			})
+		if got < 1 {
+			t.Errorf("a %dx%d window fitted the panel at %d:1", size[0], size[1], got)
+		}
 	}
 }

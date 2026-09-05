@@ -71,6 +71,21 @@ func fitScale(pw, ph, boxW, boxH int) int {
 	return n
 }
 
+// FitIn is the largest whole scale this panel fits the space in.
+//
+// Exported because the window that draws the panel on its own has to say which
+// scale it drew at, and reading that back off the view would depend on the
+// order a Flex lays its children out - which is rigids first, so the caption
+// was drawn before the panel had chosen, and said 0:1.
+func FitIn(sc *hw.Screen, gtx layout.Context) int {
+	perDp := gtx.Dp(1)
+	if perDp < 1 {
+		perDp = 1
+	}
+	return fitScale(sc.WidthPx, sc.HeightPx,
+		gtx.Constraints.Max.X/perDp, gtx.Constraints.Max.Y/perDp)
+}
+
 // boxFor is the panel's drawn size at a chosen scale, or at the rail's budget
 // when asked for zero.
 func boxFor(b hw.Board, want int) (scale, w, h int) {
@@ -111,8 +126,7 @@ func (v *ScreenView) Layout(t *theme.Theme, gtx layout.Context, b hw.Board,
 	}
 	scale, w, h := boxFor(b, want)
 	if want == 0 {
-		scale = fitScale(sc.WidthPx, sc.HeightPx,
-			gtx.Constraints.Max.X/max(1, gtx.Dp(1)), gtx.Constraints.Max.Y/max(1, gtx.Dp(1)))
+		scale = FitIn(sc, gtx)
 		w, h = sc.WidthPx*scale, sc.HeightPx*scale
 	}
 	v.drawn = scale

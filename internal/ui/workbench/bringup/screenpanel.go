@@ -48,12 +48,19 @@ func (p *ScreenPanel) Draw(t *theme.Theme, gtx layout.Context,
 			"this node has no panel to show"))
 	}
 	sc := b.Hardware.Screen
+
+	// Chosen here rather than read back off the view after it has drawn: a
+	// Flex lays its rigid children out before its flexed one, so the caption
+	// below would ask which scale was used before the panel had picked, and
+	// print 0:1. One decision, passed to both.
+	foot := gtx
+	foot.Constraints.Max.Y -= gtx.Dp(t.Sp.L)
+	n := FitIn(sc, foot)
+
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				// Zero asks for the largest whole scale the space allows,
-				// which is what makes the window resizable.
-				return p.view.Layout(t, gtx, b, st, 0, p.OnDo, p.Node)
+				return p.view.Layout(t, gtx, b, st, n, p.OnDo, p.Node)
 			})
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -62,7 +69,7 @@ func (p *ScreenPanel) Draw(t *theme.Theme, gtx layout.Context,
 					return layout.Center.Layout(gtx,
 						comp.Mono(t, t.Sz.Caption, t.P.Faint,
 							fmt.Sprintf("%d × %d · %s · %d:1", sc.WidthPx, sc.HeightPx,
-								sc.Controller, p.view.drawn)))
+								sc.Controller, n)))
 				})
 		}),
 	)

@@ -24,11 +24,15 @@ func (p *Panel) rail(t *theme.Theme, gtx layout.Context, b hw.Board,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return p.panelHead(t, gtx, b)
 				}),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return p.screen.Layout(t, gtx, b, st, p.scale, p.OnDo, p.Node)
-				}),
+				// Above the panel rather than under it. Under it, the note is
+				// the first thing pushed off the bottom when the panel is
+				// turned up - which is exactly when what it says, the scale
+				// and whether the board is powered, is worth reading.
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return p.panelNote(t, gtx, b, st)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return p.screen.Layout(t, gtx, b, st, p.scale, p.OnDo, p.Node)
 				}),
 				// The parts scroll. At 2:1 the panel takes most of the rail and
 				// a list quietly cut off is a board that looks like it has
@@ -96,8 +100,8 @@ func (p *Panel) panelNote(t *theme.Theme, gtx layout.Context, b hw.Board,
 		// Not a fault: the firmware switches the panel off after an idle.
 		note += " · asleep"
 	}
-	return layout.Inset{Top: t.Sp.XXS, Bottom: t.Sp.XS}.Layout(gtx,
-		comp.Mono(t, t.Sz.Caption, t.P.Faint, note))
+	return layout.Inset{Bottom: t.Sp.XXS}.Layout(gtx,
+		comp.OneLine(t, t.Sz.Caption, t.P.Faint, note, true))
 }
 
 // partsIndex is the rows as a list to pick from, grouped.

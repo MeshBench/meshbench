@@ -73,14 +73,17 @@ func wiringRows(b hw.Board, st *state.NodeStat) []Row {
 		}
 		if w.FEM != 0 {
 			// The one line we really do observe.
-			v, obs := Silent, "never asserted"
-			if st != nil && st.Radio.Reported {
-				switch {
-				case st.Radio.FemLive:
-					v, obs = Agrees, "asserted now"
-				case st.Radio.FemAtTx != 0:
-					v, obs = Agrees, "asserted at the last transmit"
-				}
+			v, obs := Undeclared, "not powered"
+			switch {
+			case st == nil || !st.Running:
+			case !st.Radio.Reported:
+				v, obs = Undeclared, "the chip has not reported"
+			case st.Radio.FemLive:
+				v, obs = Agrees, "asserted now"
+			case st.Radio.FemAtTx != 0:
+				v, obs = Agrees, "asserted at the last transmit"
+			default:
+				v, obs = Silent, "never asserted"
 			}
 			add("Radio", "front-end module", pin(w.FEM),
 				"An external amplifier the firmware brings into circuit by driving "+
@@ -99,12 +102,23 @@ func wiringRows(b hw.Board, st *state.NodeStat) []Row {
 		if sc.Bus == hw.BusSPI {
 			where = fmt.Sprintf("cs %d dc %d", sc.CS, sc.DC)
 		}
-		v, obs := Silent, "nothing drawn yet"
-		if st != nil && st.Screen != nil {
-			v, obs = Agrees, fmt.Sprintf("%dx%d drawn", st.Screen.Width, st.Screen.Height)
+		// A board that is off has not drawn anything because it is off, and
+		// saying so is not the same as raising a caution about it. Only a
+		// running node that has drawn nothing is worth a second look.
+		v, obs := Undeclared, "not powered"
+		switch {
+		case st != nil && st.Screen != nil:
+			v = Agrees
+			// Not a fault when it is off: the firmware switches the panel off
+			// after an idle and the board's own button brings it back. Said
+			// briefly, because the column is a column and a sentence that runs
+			// past its width is a cell nobody can read.
+			obs = fmt.Sprintf("%dx%d drawn", st.Screen.Width, st.Screen.Height)
 			if !st.Screen.On {
-				obs += ", panel off"
+				obs = fmt.Sprintf("%dx%d, asleep", st.Screen.Width, st.Screen.Height)
 			}
+		case st != nil && st.Running:
+			v, obs = Silent, "nothing drawn yet"
 		}
 		out = append(out, Row{Group: "Display", Name: sc.Controller, Where: where,
 			Declared: fmt.Sprintf("%dx%d %s", sc.WidthPx, sc.HeightPx, sc.Ink),

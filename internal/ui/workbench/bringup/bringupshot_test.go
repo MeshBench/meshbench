@@ -14,6 +14,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"gioui.org/layout"
@@ -34,20 +35,74 @@ func TestDrawTheBringUpWindow(t *testing.T) {
 	}
 	bits, w, h := capturedTDeck(t)
 
+	mono, mw, mh := capturedHeltec(t)
+
+	healthy := func(st *state.NodeStat) *state.NodeStat {
+		st.Radio.Boosted, st.Radio.GainReg = true, 0x96
+		st.IRQReads, st.Spurious = 41, 0
+		st.Radio.IRQFlags = 0x0002
+		return st
+	}
 	cases := []struct {
 		name  string
 		tab   Tab
 		scale int
+		board string
+		stat  func() *state.NodeStat
 	}{
-		{"radio", TabRadio, 0},
-		{"wiring", TabWiring, 0},
-		{"wiring-2to1", TabWiring, 2},
+		// The state the window exists for: a board with something wrong.
+		{"radio-faults", TabRadio, 0, "LilyGo_TDeck",
+			func() *state.NodeStat { return tdeckStat(bits, w, h) }},
+		// And one with nothing wrong, so a healthy board is not dressed up.
+		{"radio-healthy", TabRadio, 0, "LilyGo_TDeck",
+			func() *state.NodeStat { return healthy(tdeckStat(bits, w, h)) }},
+		{"wiring", TabWiring, 0, "LilyGo_TDeck",
+			func() *state.NodeStat { return tdeckStat(bits, w, h) }},
+		{"wiring-2to1", TabWiring, 2, "LilyGo_TDeck",
+			func() *state.NodeStat { return tdeckStat(bits, w, h) }},
+		{"wiring-3to1", TabWiring, 3, "LilyGo_TDeck",
+			func() *state.NodeStat { return tdeckStat(bits, w, h) }},
+		// A mono panel on another board: the other half of the pixel path,
+		// and the sizing rule going the other way.
+		{"oled-2to1", TabWiring, 0, "LilyGo_T3S3_sx1262", func() *state.NodeStat {
+			return &state.NodeStat{Name: "Deck", Board: "LilyGo_T3S3_sx1262",
+				Backend: "emulated", Running: true,
+				Screen: &state.Screen{Width: mw, Height: mh, BPP: 1, On: true, Bits: mono},
+				Radio: state.RadioState{Reported: true, Boosted: true, GainReg: 0x96,
+					TxPowerDBm: 20, Mode: 1, SF: 10, CR: 5, FreqHz: 869618000,
+					BandwidthHz: 250000, IRQMask: 2}, IRQReads: 9}
+		}},
+		// The panel asleep, which is the firmware doing what it should.
+		{"asleep", TabWiring, 0, "LilyGo_TDeck", func() *state.NodeStat {
+			st := tdeckStat(bits, w, h)
+			st.Screen.On = false
+			return st
+		}},
+		// Not powered at all.
+		{"stopped", TabWiring, 0, "LilyGo_TDeck", func() *state.NodeStat {
+			return &state.NodeStat{Name: "Deck", Board: "LilyGo_TDeck",
+				Backend: "emulated", Running: false, State: "stopped"}
+		}},
+		// A chip that has said nothing: the radio table has nothing to compare
+		// and says so rather than inventing healthy rows.
+		{"radio-silent", TabRadio, 0, "LilyGo_TDeck", func() *state.NodeStat {
+			return &state.NodeStat{Name: "Deck", Board: "LilyGo_TDeck",
+				Backend: "emulated", Running: true}
+		}},
+		// A node on a host build, which has no board to check.
+		{"no-board", TabRadio, 0, "", func() *state.NodeStat {
+			return &state.NodeStat{Name: "Deck", Backend: "native", Running: true}
+		}},
 	}
 	for _, c := range cases {
-		st := tdeckStat(bits, w, h)
+		st := c.stat()
 		p := &Panel{Node: "Deck", Tab: c.tab, scale: c.scale}
-		snap := &state.Snapshot{Stats: []state.NodeStat{st}}
-		img := uitest.RenderWidget(t, railFor(tdeck(t), c.scale)+700+260, 720,
+		snap := &state.Snapshot{Stats: []state.NodeStat{*st}}
+		width := 1180
+		if c.board != "" {
+			width = railFor(boardOrTDeck(t, c.board), c.scale) + 700 + 260
+		}
+		img := uitest.RenderWidget(t, width, 720,
 			func(gtx layout.Context, th *theme.Theme) layout.Dimensions {
 				return p.Draw(th, gtx, snap)
 			})
@@ -63,6 +118,43 @@ func TestDrawTheBringUpWindow(t *testing.T) {
 		_ = f.Close()
 		t.Log("wrote", out)
 	}
+}
+
+// boardOrTDeck is the named board, for sizing the canvas.
+func boardOrTDeck(t *testing.T, name string) hw.Board {
+	t.Helper()
+	b, err := hw.BoardByName(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+// capturedHeltec reads the mono capture the node view keeps, as page bits.
+func capturedHeltec(t *testing.T) ([]byte, int, int) {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join("..", "nodeview", "testdata",
+		"heltec_v3_screen.txt"))
+	if err != nil {
+		t.Fatalf("reading the captured mono screen: %v", err)
+	}
+	var rows []string
+	for _, line := range strings.Split(strings.TrimRight(string(raw), "\n"), "\n") {
+		if line != "" {
+			rows = append(rows, line)
+		}
+	}
+	h := len(rows)
+	w := len(rows[0])
+	bits := make([]byte, w*h/8)
+	for y, row := range rows {
+		for x := 0; x < w && x < len(row); x++ {
+			if row[x] == '#' {
+				bits[(y/8)*w+x] |= 1 << (y % 8)
+			}
+		}
+	}
+	return bits, w, h
 }
 
 // capturedTDeck reads the colour capture the node view keeps, as RGB565.
@@ -94,8 +186,8 @@ func capturedTDeck(t *testing.T) ([]byte, int, int) {
 
 // tdeckStat is a T-Deck part way through a run: drawing, receiving, and with
 // one thing wrong that the window is meant to find.
-func tdeckStat(bits []byte, w, h int) state.NodeStat {
-	return state.NodeStat{
+func tdeckStat(bits []byte, w, h int) *state.NodeStat {
+	return &state.NodeStat{
 		Name: "Deck", Board: "LilyGo_TDeck", Backend: "emulated",
 		Running: true, State: "running", Firmware: "v1.17.1",
 		Screen: &state.Screen{Width: w, Height: h, BPP: 16, On: true, Bits: bits},
@@ -118,4 +210,40 @@ func tdeck(t *testing.T) hw.Board {
 		t.Fatal(err)
 	}
 	return b
+}
+
+// Draw the panel's own window, which is the other half of "bigger": it takes
+// whatever whole scale the space allows and says which one that was.
+func TestDrawTheScreenWindow(t *testing.T) {
+	if os.Getenv("MESHBENCH_SHOTS") == "" {
+		t.Skip("set MESHBENCH_SHOTS=<dir> to write the pictures")
+	}
+	dir := os.Getenv("MESHBENCH_SHOTS")
+	bits, w, h := capturedTDeck(t)
+	for _, c := range []struct {
+		name string
+		w, h int
+	}{
+		// Room for 1:1, for 2:1, and for 3:1 - the same window dragged.
+		{"screen-window-small", 420, 360},
+		{"screen-window-medium", 720, 560},
+		{"screen-window-large", 1040, 800},
+	} {
+		st := tdeckStat(bits, w, h)
+		sp := &ScreenPanel{Node: "Deck", view: &ScreenView{}}
+		snap := &state.Snapshot{Stats: []state.NodeStat{*st}}
+		img := uitest.RenderWidget(t, c.w, c.h,
+			func(gtx layout.Context, th *theme.Theme) layout.Dimensions {
+				return sp.Draw(th, gtx, snap)
+			})
+		f, err := os.Create(filepath.Join(dir, "bringup-"+c.name+".png"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := png.Encode(f, img); err != nil {
+			_ = f.Close()
+			t.Fatal(err)
+		}
+		_ = f.Close()
+	}
 }
