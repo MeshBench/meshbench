@@ -75,7 +75,11 @@ type Panel struct {
 	// together would be one handle drawn twice.
 	logSplit comp.Splitter
 	logH     int
-	screen   ScreenView
+	// typed is the console's own input and send its button: a line to the
+	// board, from the window that is watching it.
+	typed  comp.Field
+	send   comp.Button
+	screen ScreenView
 	// pic is this window's own image of the panel. Not the view's: the popped
 	// out screen window shares the view and must not share the image, because
 	// the two are separate frame loops drawing at separate scales.

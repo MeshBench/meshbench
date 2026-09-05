@@ -15,6 +15,7 @@ package boardview
 
 import (
 	"fmt"
+	"strings"
 
 	"gioui.org/layout"
 	"gioui.org/widget"
@@ -50,6 +51,7 @@ func (p *Panel) logStrip(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 	askOutputOnce(p.OnDo, &p.logAsked, p.Node, logSources[p.logSrc].key)
 
 	pane := paneFor(s, p.Node, logSources[p.logSrc].key)
+	p.readTyping(gtx, s)
 	return onSunk(t, gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Left: t.Sp.S, Right: t.Sp.S, Top: t.Sp.XS,
 			Bottom: t.Sp.XS}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -59,6 +61,9 @@ func (p *Panel) logStrip(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 				}),
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 					return p.logLines(t, gtx, pane)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return p.typeLine(t, gtx)
 				}),
 			)
 		})
@@ -210,4 +215,84 @@ func (p *Panel) dragLog(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 		p.logH = p.logHeight() - int(p.logSplit.Delta/perDp)
 	}
 	return d
+}
+
+// typeLine is the console's own input: a line to the board, and the button for
+// somebody who would rather press than press Enter.
+//
+// Always there, on either tab. The tabs choose what is being read and this
+// chooses what is sent, which are different questions - and a box that came and
+// went as somebody looked at the emulator log would be one they had to put back
+// before they could type. It was hidden under the emulator tab for a few
+// minutes, and the first thing that noticed was the control audit sweeping the
+// panel: it pressed the tab, the box vanished, and the send button was never
+// reachable again.
+func (p *Panel) typeLine(t *theme.Theme, gtx layout.Context) layout.Dimensions {
+	p.typed.Hint = "type a command, then Enter"
+	p.typed.Editor.SingleLine = true
+	p.typed.Editor.Submit = true
+	p.send.Kind, p.send.Label = comp.Quiet, "send"
+	return layout.Inset{Top: t.Sp.XS}.Layout(gtx,
+		func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+					return p.typed.Layout(t, gtx)
+				}),
+				layout.Rigid(layout.Spacer{Width: t.Sp.S}.Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return p.send.Layout(t, gtx)
+				}),
+			)
+		})
+}
+
+// readTyping sends what was typed, on Enter or on the button.
+//
+// Nothing is echoed here. console.type already writes the line into the
+// console buffer this pane draws - buf.Echo, before the bytes go to the board -
+// so a second copy from the interface would show every command twice.
+//
+// Routed by what the node is, because the two consoles take different things:
+// a repeater reads typed text, and a companion speaks a framed protocol whose
+// command line is meshcore-cli's vocabulary. Text typed at a companion through
+// the repeater's verb is echoed locally and goes nowhere, which looks exactly
+// like a command that ran and did nothing.
+func (p *Panel) readTyping(gtx layout.Context, s *state.Snapshot) {
+	submitted := false
+	for {
+		ev, ok := p.typed.Editor.Update(gtx)
+		if !ok {
+			break
+		}
+		if _, ok := ev.(widget.SubmitEvent); ok {
+			submitted = true
+		}
+	}
+	if !submitted && !p.send.Click.Clicked(gtx) {
+		return
+	}
+	line := strings.TrimSpace(p.typed.Editor.Text())
+	if line == "" || p.OnDo == nil {
+		return
+	}
+	verb := "console.type"
+	if isCompanion(s, p.Node) {
+		verb = "console.cli"
+	}
+	p.OnDo(verb, map[string]any{"node": p.Node, "command": line})
+	p.typed.Editor.SetText("")
+}
+
+// isCompanion reports whether this node speaks the framed protocol rather than
+// reading typed text.
+func isCompanion(s *state.Snapshot, node string) bool {
+	if s == nil {
+		return false
+	}
+	for _, n := range s.Nodes {
+		if n.Name == node {
+			return strings.Contains(strings.ToLower(string(n.Kind)), "companion")
+		}
+	}
+	return false
 }
