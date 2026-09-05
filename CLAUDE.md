@@ -265,6 +265,39 @@ Mechanical, because taste does not survive scale — and this codebase will be b
 | New dependency | justify it in the PR, one line |
 | Comments | explain *why*, never *what* — and never cite a plan phase or ticket number, which the reader will not have |
 
+## The manual is part of the change
+
+**A change that alters what somebody sees or does is not finished until the
+manual says so.** Opening a pull request against
+[MeshBench/docs](https://github.com/MeshBench/docs) is mandatory for it, in the
+same stroke as the code - a new panel, a new control, a new verb somebody would
+reach for, a window that behaves differently, a default that moved.
+
+Not for what is generated: the client enums, the verb reference and the CLI
+reference are produced by `tools/clientgen`, `tools/verbdoc` and
+`tools/flagdoc`, and hand-editing them is a change that the next regeneration
+throws away.
+
+**Write a manual, not a changelog.** The reader has the application in front of
+them now and does not care what it did last month. Describe what is there, in
+the present tense, as though it always has been: *"The console strip runs along
+the bottom of the board view"*, never *"we added a console strip"*. Nothing is
+"new", nothing was "improved", and no entry is dated.
+
+What a page owes its reader:
+
+- **A screenshot of the thing being described**, current with the build. A page
+  describing a window nobody can recognise from it is a page that has gone
+  stale without anybody noticing.
+- **The steps, in order**, from what the reader has to what they wanted -
+  including the state they must be in first, because "open the board view" is
+  not a step somebody can take on a node that is not running a board image.
+- **What it refuses, and why.** Every refusal in this application says why; the
+  manual should say the same thing in the same words, so a person who meets one
+  can search for it.
+- **The verb beside the control**, where one exists. Everything here is
+  scriptable and the two are the same act.
+
 ## Domain rules that are easy to get wrong
 
 - **The channel does not decide anything.** It sums waveforms and adds noise.
