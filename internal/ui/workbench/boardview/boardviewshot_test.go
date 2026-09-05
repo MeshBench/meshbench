@@ -89,22 +89,16 @@ func TestDrawTheBoardView(t *testing.T) {
 			return &state.NodeStat{Name: "Deck", Board: "LilyGo_TDeck",
 				Backend: "emulated", Running: true}
 		}},
-		// An nRF52 board under Renode. None of the five declare a panel, so the
-		// wiring side has nothing to show - and the radio side is unaffected,
-		// because the chip's registers reach here whichever emulator drives it.
+		// An nRF52 board under Renode, drawing its own panel. The picture is a
+		// real capture off a Heltec T114 booting its published image, as the
+		// T-Deck's is off a T-Deck: the point of these is that the window is
+		// shown against what a board actually drew, and a board under the other
+		// emulator has to be held to the same standard.
 		{"renode-radio", TabRadio, 0, "Heltec_t114", func() *state.NodeStat {
-			return &state.NodeStat{Name: "Deck", Board: "Heltec_t114",
-				Backend: "emulated", Running: true, IRQReads: 22,
-				Radio: state.RadioState{Reported: true, Boosted: true, GainReg: 0x96,
-					TxPowerDBm: 22, Mode: 1, SF: 10, CR: 5, FreqHz: 869618000,
-					BandwidthHz: 250000, IRQMask: 2, IRQFlags: 2}}
+			return t114Stat(t)
 		}},
 		{"renode-wiring", TabWiring, 0, "Heltec_t114", func() *state.NodeStat {
-			return &state.NodeStat{Name: "Deck", Board: "Heltec_t114",
-				Backend: "emulated", Running: true,
-				Radio: state.RadioState{Reported: true, Boosted: true, GainReg: 0x96,
-					TxPowerDBm: 22, Mode: 1, SF: 10, CR: 5, FreqHz: 869618000,
-					BandwidthHz: 250000, IRQMask: 2}}
+			return t114Stat(t)
 		}},
 		// A node on a host build, which has no board to check.
 		{"no-board", TabRadio, 0, "", func() *state.NodeStat {
@@ -197,7 +191,13 @@ func capturedHeltec(t *testing.T) ([]byte, int, int) {
 // capturedTDeck reads the colour capture the node view keeps, as RGB565.
 func capturedTDeck(t *testing.T) ([]byte, int, int) {
 	t.Helper()
-	path := filepath.Join("..", "nodeview", "testdata", "tdeck_screen.png")
+	return colourCapture(t, filepath.Join("..", "nodeview", "testdata",
+		"tdeck_screen.png"))
+}
+
+// colourCapture reads a captured colour panel as the RGB565 a frame carries.
+func colourCapture(t *testing.T, path string) ([]byte, int, int) {
+	t.Helper()
 	f, err := os.Open(path)
 	if err != nil {
 		t.Fatalf("reading the captured colour screen: %v", err)
@@ -273,4 +273,31 @@ func TestDrawTheScreenWindow(t *testing.T) {
 		}
 		_ = f.Close()
 	}
+}
+
+// t114Stat is a Heltec T114 part way through a run under Renode: its panel
+// drawing, its radio configured, its cell read.
+//
+// The capture is the firmware's own status screen - node name, frequency,
+// spreading factor, bandwidth and coding rate - which is what makes it worth
+// keeping: it is a picture of MeshCore's own arithmetic about the radio the
+// simulation configured, not a mock of a panel.
+func t114Stat(t *testing.T) *state.NodeStat {
+	t.Helper()
+	bits, w, h := capturedT114(t)
+	// Named as the others are: the panel asks the snapshot for one node by
+	// name, and a fixture that names it something else lands on a row nothing
+	// reads - which draws as a node running no board at all.
+	return &state.NodeStat{Name: "Deck", Board: "Heltec_t114",
+		Backend: "emulated", Running: true, IRQReads: 22,
+		Screen: &state.Screen{Width: w, Height: h, On: true, BPP: 16, Bits: bits},
+		Radio: state.RadioState{Reported: true, Boosted: true, GainReg: 0x96,
+			TxPowerDBm: 22, Mode: 1, SF: 8, CR: 5, FreqHz: 869618000,
+			BandwidthHz: 62500, IRQMask: 2, IRQFlags: 2}}
+}
+
+// capturedT114 reads that capture, as RGB565.
+func capturedT114(t *testing.T) ([]byte, int, int) {
+	t.Helper()
+	return colourCapture(t, filepath.Join("testdata", "t114_screen.png"))
 }
