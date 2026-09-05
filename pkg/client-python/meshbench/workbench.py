@@ -438,8 +438,7 @@ class Workbench:
                 "this session has no interface attached, so there is nothing to show",
                 "unavailable",
             )
-        got = self.call(
-            "node.boardview", {"node": str(node), "tab": tab}) or {}
+        got = self.call("node.boardview", {"node": str(node), "tab": tab}) or {}
         return got.get("board", "")
 
     # ---- the shape -------------------------------------------------------
