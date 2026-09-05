@@ -121,21 +121,22 @@ func (p *Panel) logHead(t *theme.Theme, gtx layout.Context,
 func (p *Panel) logLines(t *theme.Theme, gtx layout.Context, s *state.Snapshot,
 	pane *state.OutputPane) layout.Dimensions {
 
-	// The wire by default, and the decoded exchange when it is asked for.
+	// The wire by default, and the same bytes read out when it is asked for.
 	//
 	// A companion's serial carries the framed protocol, so a byte at a time it
 	// is a wall of \x00\x05 with the answer buried in it - typing "ver" at one
 	// shows the board name and the firmware version legible inside the escapes.
 	// That is still what the board actually sent, and this window is about what
-	// the board actually did, so it stays the default; the tick turns it into
-	// the transcript console.cli has already decoded, which is the same one the
-	// node window's Companion tab draws.
-	if p.decode.Bool.Value && logSources[p.logSrc].key == "serial" {
-		if lines, ok := companionTranscript(s, p.Node); ok {
-			return p.drawLines(t, gtx, lines,
-				"nothing typed at this companion yet - it answers meshcore-cli's "+
-					"vocabulary, and ? lists it")
-		}
+	// the board actually did, so it stays the default.
+	//
+	// The tick decodes what is on screen. It used to swap the pane for the
+	// transcript console.cli had already decoded, which answers a different
+	// question - what somebody typed and what came back - and threw away
+	// everything the board said on its own account: every push, every advert,
+	// and the boot log around them.
+	if p.decode.Bool.Value && logSources[p.logSrc].key == "serial" && pane != nil {
+		return p.drawLines(t, gtx, decodeFrames(pane.Lines),
+			"nothing on this console yet")
 	}
 	if pane == nil {
 		return comp.Text(t, t.Sz.Caption, t.P.Faint,
@@ -181,21 +182,6 @@ func (p *Panel) drawLines(t *theme.Theme, gtx layout.Context, lines []string,
 		func(gtx layout.Context, i int) layout.Dimensions {
 			return comp.OneLine(t, t.Sz.Caption, t.P.Dim, lines[i], true)(gtx)
 		})(gtx)
-}
-
-// companionTranscript is the decoded exchange for this node, where it is one.
-//
-// Keyed by node, because the transcript is one node's at a time: a board view
-// on a different node than the one last typed at must not draw somebody else's
-// conversation.
-func companionTranscript(s *state.Snapshot, node string) ([]string, bool) {
-	if s == nil || !isCompanion(s, node) {
-		return nil, false
-	}
-	if s.ConsoleNode != node {
-		return nil, true
-	}
-	return s.Console, true
 }
 
 // paneFor is this node's pane for one source, or nil before one has arrived.
