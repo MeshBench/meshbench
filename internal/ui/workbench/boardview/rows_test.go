@@ -231,12 +231,15 @@ func TestABoardWithNoRecordedPanelStillHasARadio(t *testing.T) {
 // A panel no emulator can draw on says so, and does not blame the firmware.
 //
 // "Silent" is a verdict about the board: it drew nothing and could have. A
-// Renode board's panel is transcribed from its own variant and there is no
-// display model on that side of the socket, so nothing will ever be drawn on
-// it - and reporting that as silence sends somebody looking for a fault in a
-// firmware that is behaving perfectly.
+// board whose declared panel has no model behind it will never draw at all, and
+// reporting that as silence sends somebody looking for a fault in a firmware
+// that is behaving perfectly.
+//
+// The RAK4631 is the one left. Its display is on I2C, and Renode's TWIM model
+// answers an address with a NACK, so there is nowhere to put an SSD1306 yet -
+// where the two SPI panels beside it are drawn.
 func TestAnUndrawablePanelBlamesUsRatherThanTheFirmware(t *testing.T) {
-	b, err := hw.BoardByName("Heltec_t114")
+	b, err := hw.BoardByName("RAK_4631")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -288,5 +291,34 @@ func TestADrivenPartSaysItIsDriven(t *testing.T) {
 	if off[0].Observed != "not powered" {
 		t.Errorf("a stopped board's button reads %q, want \"not powered\"",
 			off[0].Observed)
+	}
+}
+
+// And the two boards whose panels are drawn say so.
+//
+// The counterpart, and the reason the test above is worth having: "no display
+// modelled" about a display that is modelled is the same false claim in the
+// other direction, and this window's whole value is that a row can be trusted.
+func TestADrawablePanelIsNotCalledUnmodelled(t *testing.T) {
+	for _, name := range []string{"Heltec_t114", "Heltec_t096"} {
+		b, err := hw.BoardByName(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var screen *Row
+		rows := wiringRows(b, &state.NodeStat{Name: "n", Board: b.Name, Running: true})
+		for i := range rows {
+			if rows[i].Group == "Display" {
+				screen = &rows[i]
+				break
+			}
+		}
+		if screen == nil {
+			t.Fatalf("%s declares a screen and no display row came back", name)
+		}
+		if screen.Verdict == NotModelled {
+			t.Errorf("%s: its panel is drawn under Renode and the row says %q",
+				name, screen.Observed)
+		}
 	}
 }

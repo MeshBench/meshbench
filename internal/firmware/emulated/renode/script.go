@@ -17,20 +17,51 @@ const (
 	stockSPIBase = 0x40023000
 )
 
-// easyDMASPI puts that controller back with its EasyDMA half, unless the radio
+// EasyDMASPI puts that controller back with its EasyDMA half, unless the radio
 // is already taking its address.
 //
-// The radio is not the only SPI device on some of these boards - a Heltec_t114
-// has a display here - and firmware blocks on a controller it cannot drive
-// whether or not there is a radio on it. Declared without a device: nothing
-// answers, but EVENTS_END arrives, which is the difference between a board
-// that carries on and one that polls 0x118 for ever.
+// The radio is not the only SPI device on these boards. Both Heltec boards here
+// put their display on the second controller - the Arduino core's SPI1, which
+// is SPIM2 - and firmware blocks on a controller it cannot drive whether or not
+// anything is on it.
+//
+// Declared without a device where there is nothing to declare: nothing answers,
+// but EVENTS_END arrives, which is the difference between a board that carries
+// on and one that polls 0x118 for ever.
 func EasyDMASPI(radioBase uint32) string {
 	if radioBase == stockSPIBase {
 		return ""
 	}
 	return fmt.Sprintf("%s: SPI.NRF52840_SPI @ sysbus 0x%X\n    easyDMA: true\n\n",
 		stockSPIName, stockSPIBase)
+}
+
+// Panel puts the board's display on that second controller, where the board
+// puts it.
+//
+// It is alone there, so nothing has to be told apart: the controller clocks
+// bytes at one device and the command/data line says whether a byte is a
+// command or a pixel. That line is the whole reason a display needs a GPIO of
+// its own, and a model without it would read a picture as a command stream.
+//
+// Nothing where the radio is on this address instead. No board here is wired
+// that way, and inventing a second arrangement for a board that does not exist
+// is how a description that cannot be loaded gets written.
+func Panel(radioBase uint32, port, width, height, cs, dc int, dcPort string) string {
+	if radioBase == stockSPIBase || port == 0 || width <= 0 || height <= 0 {
+		return ""
+	}
+	return fmt.Sprintf(`panel: Video.MeshBenchPanel @ %s
+    port: %d
+    width: %d
+    height: %d
+    csPin: %d
+    dcPin: %d
+
+%s:
+    %d -> panel@%d
+    %d -> panel@%d
+`, stockSPIName, port, width, height, cs, dc, dcPort, cs, cs, dc, dc)
 }
 
 func UnregisterStockSPI() string {

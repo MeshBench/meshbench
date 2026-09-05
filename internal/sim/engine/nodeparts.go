@@ -129,12 +129,13 @@ func withParts(node *emulated.EmulatedNode, board hw.Board, spec scenario.Node,
 	// above it would report a board that had drawn nothing as one that chose
 	// not to.
 	if p := board.Hardware; ScreenModelled(board) {
-		ln, err := peripheral.ListenPanel(filepath.Join(node.Dir, "panel.sock"))
+		ln, err := listenFrames(board, filepath.Join(node.Dir, "panel.sock"))
 		if err != nil {
 			return nil, fmt.Errorf("engine: listening for %s's display: %w", spec.Name, err)
 		}
 		node.Panel = ln
 		node.PanelPath = ln.Path()
+		node.PanelPort = ln.Port()
 		node.PanelAddr = p.Screen.Addr
 		// An SH1106 is an SSD1306 whose columns start two to the right. Not a
 		// detail: the whole picture slides sideways without it, which reads as
@@ -161,13 +162,35 @@ func withParts(node *emulated.EmulatedNode, board hw.Board, spec scenario.Node,
 // nothing draws must read as "no display modelled" and never as "silent", which
 // says the firmware chose not to draw.
 //
-// QEMU has the two controllers the ESP32 boards carry. Renode has none: its
-// boards declare real panels, transcribed from their own variants, and nothing
-// on that side of the socket answers them yet.
+// QEMU has both buses. Renode has the SPI panels - an ST7789 and an ST7735,
+// sharing the radio's controller and told apart by chip select, which is how
+// they are wired in copper - and not the I2C one: its TWIM model answers an
+// address with a NACK because until now no board under it had anything on that
+// bus to answer.
 func ScreenModelled(board hw.Board) bool {
 	p := board.Hardware
-	if p == nil || p.Screen == nil || board.Renode != nil {
+	if p == nil || p.Screen == nil {
 		return false
 	}
+	if board.Renode != nil {
+		// The generated platform description connects the display's select and
+		// command lines by naming one port, so a board whose panel sat on the
+		// other port would be wired wrong rather than unsupported. Both boards
+		// that carry one have it on the radio's port; this is the check that
+		// says so rather than a comment claiming it.
+		return p.Screen.Bus == hw.BusSPI &&
+			p.Screen.CS != 0 && p.Screen.DC != 0 &&
+			onSamePort(p.Screen.CS, board.Renode.NssPort) &&
+			onSamePort(p.Screen.DC, board.Renode.NssPort)
+	}
 	return p.Screen.Bus == hw.BusI2C || p.Screen.Bus == hw.BusSPI
+}
+
+// onSamePort reports whether a flat pin is on the port Renode calls name.
+// P0.x is x and P1.x is 32+x, the numbering every profile here uses.
+func onSamePort(pin int, name string) bool {
+	if name == "gpio1" {
+		return pin >= 32
+	}
+	return pin < 32
 }

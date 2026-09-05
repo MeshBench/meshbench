@@ -101,7 +101,10 @@ type EmulatedNode struct {
 	// The controller decides the column offset: an SH1106 is an SSD1306 whose
 	// columns start two to the right, and a picture drawn with the wrong one
 	// slides sideways rather than failing.
-	PanelPath   string
+	PanelPath string
+	// PanelPort is the same channel on loopback, for Renode. Exactly one of the
+	// two is set, as for the input channel.
+	PanelPort   int
 	PanelAddr   uint8
 	PanelOffset int
 	// PanelCS and PanelDC put the display on the radio's SPI controller

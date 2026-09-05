@@ -373,3 +373,12 @@ func listenInputs(board hw.Board, path string) (*peripheral.ButtonSender, error)
 	}
 	return peripheral.ListenButtons(path)
 }
+
+// listenFrames opens the channel a board's pictures arrive on, in whichever
+// form the machine underneath can reach.
+func listenFrames(board hw.Board, path string) (*peripheral.PanelListener, error) {
+	if board.Renode != nil {
+		return peripheral.ListenPanelTCP()
+	}
+	return peripheral.ListenPanel(path)
+}
