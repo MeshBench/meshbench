@@ -336,3 +336,50 @@ func TestTypingAtTheBoardReachesIt(t *testing.T) {
 			"drawn and not wired")
 	}
 }
+
+// A clean tap - press and release, no movement - reaches the board.
+//
+// The keyboard's focus area was registered over the touch layer's and asked
+// for presses only, so it swallowed every press and left the drags and
+// releases underneath. A tap that slid a pixel worked, because a drag carries
+// down as surely as a press does, and a tap that did not slid nothing at all.
+// That is what "hit and miss" is made of, and only a test that taps without
+// moving can tell the two apart.
+func TestACleanTapReachesTheBoard(t *testing.T) {
+	b, err := hw.BoardByName("LilyGo_TDeck")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasTouch(b) || !hasKeys(b) {
+		t.Fatal("this test needs the board that has both a touch layer and a keyboard")
+	}
+	var downs int
+	p := &Panel{Node: "Deck", Tab: TabRadio, OnDo: func(verb string, params any) {
+		if verb != "board.touch" {
+			return
+		}
+		if m, ok := params.(map[string]any); ok {
+			if d, ok := m["down"].(bool); ok && d {
+				downs++
+			}
+		}
+	}}
+	st := state.NodeStat{Name: "Deck", Board: b.Name, Backend: "emulated",
+		Running: true}
+	h := uitest.New(func(th *theme.Theme, gtx layout.Context,
+		s *state.Snapshot) layout.Dimensions {
+		return p.Draw(th, gtx, s)
+	}, &state.Snapshot{Stats: []state.NodeStat{st}})
+	h.Frame()
+
+	// Press and release at one point, never moving between them.
+	for y := float32(120); y < 400 && downs == 0; y += 8 {
+		for x := float32(20); x < 300 && downs == 0; x += 30 {
+			h.Click(f32.Pt(x, y))
+		}
+	}
+	if downs == 0 {
+		t.Error("no tap anywhere on the panel reached the board as a touch, " +
+			"so only a tap that happens to drag would work")
+	}
+}

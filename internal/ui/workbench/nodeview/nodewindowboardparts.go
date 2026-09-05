@@ -2,7 +2,6 @@ package nodeview
 
 import (
 	"image"
-	"image/color"
 
 	"gioui.org/io/event"
 	"gioui.org/layout"
@@ -82,16 +81,11 @@ func (p *WindowPanel) screen(t *theme.Theme, gtx layout.Context,
 			paint.FillShape(gtx.Ops, t.P.ScreenGround,
 				clip.Rect{Max: size}.Op())
 			if st != nil && st.Screen != nil && st.Screen.On {
-				for y := 0; y < sc.HeightPx; y++ {
-					for x := 0; x < sc.WidthPx; x++ {
-						col, ok := screenPixel(t, st.Screen, x, y)
-						if !ok {
-							continue
-						}
-						r := image.Rect(x*scale, y*scale, (x+1)*scale, (y+1)*scale)
-						paint.FillShape(gtx.Ops, col, clip.Rect(r).Op())
-					}
-				}
+				// One image, rebuilt when the board draws. This was a fill per
+				// pixel on every frame - seventy-six thousand of them for a
+				// T-Deck - which is what made a machine with this window and
+				// the board view both open drop the odd touch.
+				p.screenPic.Layout(t, gtx, st.Screen, scale)
 			}
 			return layout.Dimensions{Size: size}
 		}),
@@ -103,23 +97,4 @@ func (p *WindowPanel) screen(t *theme.Theme, gtx layout.Context,
 				comp.Text(t, t.Sz.Caption, t.P.Faint, note))
 		}),
 	)
-}
-
-// screenPixel is what to paint at one pixel, and whether to paint at all.
-//
-// A monochrome panel lights pixels in the one colour the part can produce; a
-// colour one carries its own, and drawing those in a theme colour would be
-// inventing a picture the firmware did not send.
-func screenPixel(t *theme.Theme, sc *state.Screen, x, y int) (color.NRGBA, bool) {
-	if sc.BPP == 16 {
-		r, g, b, ok := sc.At(x, y)
-		if !ok || (r == 0 && g == 0 && b == 0) {
-			return color.NRGBA{}, false
-		}
-		return color.NRGBA{R: r, G: g, B: b, A: 0xff}, true
-	}
-	if !sc.Lit(x, y) {
-		return color.NRGBA{}, false
-	}
-	return t.P.ScreenLit, true
 }

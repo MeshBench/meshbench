@@ -189,6 +189,12 @@ type Screen struct {
 	// firmware did not send.
 	BPP  int
 	Bits []byte
+	// Seq changes when the board draws and not otherwise, so an interface can
+	// tell a new picture from the same one arriving again. The panel socket
+	// has always kept it; it was thrown away one line short of here, and the
+	// two windows that draw a panel each repainted every pixel every frame as
+	// a result.
+	Seq uint64
 }
 
 // Lit reports whether a pixel is on, which only a monochrome panel can answer.

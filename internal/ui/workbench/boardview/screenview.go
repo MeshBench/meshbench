@@ -10,7 +10,6 @@ package boardview
 
 import (
 	"image"
-	"image/color"
 
 	"gioui.org/io/event"
 	"gioui.org/io/key"
@@ -46,6 +45,9 @@ const screenBudgetDp = 320
 type ScreenView struct {
 	touchTag struct{}
 	keyTag   struct{}
+	// pic is the panel as an image, rebuilt when the board draws rather than
+	// on every frame.
+	pic comp.ScreenImage
 }
 
 // fitScale is the largest whole-number scale at which a panel fits a box.
@@ -159,60 +161,33 @@ func (v *ScreenView) Layout(t *theme.Theme, gtx layout.Context, b hw.Board,
 	paint.FillShape(gtx.Ops, t.P.ScreenGround, clip.Rect{Max: size}.Op())
 	defer clip.Rect{Max: size}.Push(gtx.Ops).Pop()
 
-	// The events are claimed before anything is drawn over the panel, because
-	// this is the board somebody is pointing at.
-	if hasTouch(b) {
+	// One pointer area over the panel, and only one.
+	//
+	// There were two for a day, a touch layer's and a keyboard's, and the
+	// keyboard's was registered second and so sat on top: it asked for presses
+	// only, so it swallowed every press and left the drags and releases to the
+	// touch layer underneath. A clean tap then did nothing at all and a tap
+	// that slid a pixel worked, because a drag carries down as surely as a
+	// press does - which is what "hit and miss" was.
+	//
+	// The touch layer owns the area where there is one, because it is the part
+	// that needs a position; the keyboard only needs to know the board was
+	// pressed, and gets that from the same reader.
+	switch {
+	case hasTouch(b):
 		event.Op(gtx.Ops, &v.touchTag)
-	}
-	if hasKeys(b) {
+	case hasKeys(b):
 		event.Op(gtx.Ops, &v.keyTag)
 	}
-	v.takeFocus(gtx, b)
 	v.readTouch(gtx, b, blk, onDo, node)
+	v.takeFocus(gtx, b)
 	v.readKeys(gtx, b, onDo, node)
 
 	if st != nil && st.Screen != nil && st.Screen.On {
-		drawPixels(t, gtx, sc, st.Screen, blk)
+		v.pic.Layout(t, gtx, st.Screen, blk)
 	}
 	comp.Border(gtx, size, 0, 1, t.P.Rule)
 	return layout.Dimensions{Size: size}
-}
-
-// drawPixels paints what the firmware drew, one panel pixel per whole block.
-//
-// blk is that block in framebuffer pixels, not in dp: everything here is in
-// the units the fill lands in, so the picture cannot come out a different size
-// from the frame around it.
-func drawPixels(t *theme.Theme, gtx layout.Context, sc *hw.Screen,
-	pic *state.Screen, blk int) {
-
-	for y := 0; y < sc.HeightPx; y++ {
-		for x := 0; x < sc.WidthPx; x++ {
-			col, ok := pixel(t, pic, x, y)
-			if !ok {
-				continue
-			}
-			r := image.Rect(x*blk, y*blk, (x+1)*blk, (y+1)*blk)
-			paint.FillShape(gtx.Ops, col, clip.Rect(r).Op())
-		}
-	}
-}
-
-// pixel is what to paint at one point, and whether to paint at all. A colour
-// panel carries its own; drawing those in a theme colour would be inventing a
-// picture the firmware did not send.
-func pixel(t *theme.Theme, pic *state.Screen, x, y int) (color.NRGBA, bool) {
-	if pic.BPP == 16 {
-		r, g, b, ok := pic.At(x, y)
-		if !ok || (r == 0 && g == 0 && b == 0) {
-			return color.NRGBA{}, false
-		}
-		return color.NRGBA{R: r, G: g, B: b, A: 0xff}, true
-	}
-	if !pic.Lit(x, y) {
-		return color.NRGBA{}, false
-	}
-	return t.P.ScreenLit, true
 }
 
 // readTouch turns a press on the drawn picture into the point the panel itself
@@ -226,12 +201,11 @@ func pixel(t *theme.Theme, pic *state.Screen, x, y int) (color.NRGBA, bool) {
 // takeFocus puts the keyboard on the board when the board is pressed, the way
 // picking a handheld up precedes typing on it.
 //
-// Its own pass rather than a line inside the touch reader, which is where it
-// was: that reader returns early on a board with no touch layer, so a board
-// with a keyboard and no touchscreen could never be typed at. The T-Deck has
-// both and hid it.
+// Only for a board with a keyboard and no touch layer. Where there is a touch
+// layer it owns the pointer area - two areas over one panel is what made a
+// clean tap do nothing - and the touch reader asks for the focus itself.
 func (v *ScreenView) takeFocus(gtx layout.Context, b hw.Board) {
-	if !hasKeys(b) {
+	if !hasKeys(b) || hasTouch(b) {
 		return
 	}
 	for {
@@ -277,6 +251,11 @@ func (v *ScreenView) readTouch(gtx layout.Context, b hw.Board, blk int,
 			int(pe.Position.X), int(pe.Position.Y))
 		if !in {
 			continue
+		}
+		// Pressing the board is also what puts the keyboard on it, the way
+		// picking a handheld up precedes typing on it.
+		if pe.Kind == pointer.Press && hasKeys(b) {
+			gtx.Execute(key.FocusCmd{Tag: &v.keyTag})
 		}
 		onDo("board.touch", map[string]any{
 			"node": node, "x": rx, "y": ry, "down": pe.Kind != pointer.Release,

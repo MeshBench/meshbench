@@ -73,6 +73,9 @@ type WindowPanel struct {
 	OnServe func(node, kind string)
 	// OnOpenPacket opens the packet view for an activity row.
 	OnOpenPacket func(id uint64)
+	// screenPic is the board's panel as an image, rebuilt when the board
+	// draws rather than on every frame.
+	screenPic comp.ScreenImage
 	// cardCtl is the card slot's own controls, drawn in the Hardware tab
 	// because a card is hardware.
 	cardCtl cardControls

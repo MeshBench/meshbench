@@ -165,6 +165,11 @@ func (s *Sim) nodeStats(events []state.Event) []state.NodeStat {
 				if w, h, bpp, on, bits, have := scr.Screen(); have {
 					st.Screen = &state.Screen{
 						Width: w, Height: h, BPP: bpp, On: on, Bits: bits}
+					// What says the picture changed, for an interface that
+					// would otherwise repaint every pixel of it every frame.
+					if sq, ok := n.Firmware.Backend.(interface{ ScreenSeq() uint64 }); ok {
+						st.Screen.Seq = sq.ScreenSeq()
+					}
 				}
 			}
 			st.Radio = state.RadioState{
