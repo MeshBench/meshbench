@@ -143,7 +143,10 @@ func downloadBuildProgress(ctx context.Context, role, version, board string,
 			return err
 		}
 		for _, img := range imgs {
-			if img.Role == role && img.Board == board && img.Version == version {
+			// Matched on the role the library offered, which carries the
+			// transport for a companion: two images share the plain role and
+			// only one of them is the one that was asked for.
+			if img.RoleName() == role && img.Board == board && img.Version == version {
 				_, err := bc.Ensure(ctx, img)
 				return err
 			}

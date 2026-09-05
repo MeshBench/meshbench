@@ -129,11 +129,23 @@ func publishedBoards(ctx context.Context) []publishedBuild {
 		if !known[strings.ToLower(img.Board)] {
 			continue
 		}
-		k := img.Board + "\x00" + img.Role
+		// The role a board image is known by carries its transport, because
+		// that is what it is fetched as, stored as and pinned to: the file
+		// lands as companion_radio_usb-v1.17.1.bin, reads back with that role,
+		// and scenario.Role has a value for it.
+		//
+		// Stripping it here made every companion a row nobody could get. The
+		// published row said companion_radio, the downloaded file said
+		// companion_radio_usb, the two were different keys, and so the row you
+		// pressed download on stayed "not downloaded" however often you
+		// pressed it - while a repeater, which has no transport, round-tripped
+		// perfectly and looked like the only thing that worked.
+		role := img.RoleName()
+		k := img.Board + "\x00" + role
 		if cur, ok := best[k]; ok && !newerVersion(img.Version, cur.version) {
 			continue
 		}
-		best[k] = publishedBuild{role: img.Role, version: img.Version, board: img.Board}
+		best[k] = publishedBuild{role: role, version: img.Version, board: img.Board}
 	}
 	out := make([]publishedBuild, 0, len(best))
 	for _, b := range best {
