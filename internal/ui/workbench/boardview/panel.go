@@ -77,9 +77,17 @@ type Panel struct {
 	logH     int
 	// typed is the console's own input and send its button: a line to the
 	// board, from the window that is watching it.
-	typed  comp.Field
-	send   comp.Button
-	screen ScreenView
+	typed comp.Field
+	send  comp.Button
+	// decode turns the framed protocol into the exchange it carries, and
+	// framed is whether there is one to turn. Off by default: the wire is what
+	// the board sent, and this window is about what the board did.
+	decode comp.Check
+	framed bool
+	// auditing draws every control that a particular node would hide, so the
+	// control audit can find them. See AuditDraw.
+	auditing bool
+	screen   ScreenView
 	// pic is this window's own image of the panel. Not the view's: the popped
 	// out screen window shares the view and must not share the image, because
 	// the two are separate frame loops drawing at separate scales.
@@ -286,3 +294,16 @@ func (p *Panel) rowsFor(b hw.Board, st *state.NodeStat) []Row {
 func (p *Panel) statFor(s *state.Snapshot) *state.NodeStat { return statOf(s, p.Node) }
 
 func (p *Panel) board(st *state.NodeStat) (hw.Board, bool) { return boardOf(st) }
+
+// AuditDraw is Draw with nothing conditional hidden.
+//
+// The control audit sweeps a pointer over a panel and reports anything it
+// cannot land on. Some controls here belong to one kind of node - the decode
+// tick is only worth offering where there is a framed protocol to decode - and
+// a sweep of a repeater would never find them, which reads as a control wired
+// to nothing rather than one correctly absent.
+func (p *Panel) AuditDraw(t *theme.Theme, gtx layout.Context,
+	s *state.Snapshot) layout.Dimensions {
+	p.auditing = true
+	return p.Draw(t, gtx, s)
+}

@@ -297,7 +297,7 @@ func auditTargets(r *recorder) []target {
 			// panel leaves the console before it reaches the send button.
 			func() { nw.Tab = 0 }, nil, nodeWindowSkips()},
 		{"Node window: companion", &nw.Companion, nw.Companion.AuditDraw, nil, nil, nil, nil},
-		{"Board view", bu, bu.Draw, snapWithBoard, nil, nil, nil},
+		{"Board view", bu, bu.AuditDraw, snapWithBoard, nil, nil, nil},
 		{"Compare", cmpP, cmpP.Draw, nil, nil, nil, nil},
 		{"Planning (view)", planP, planP.Draw, nil, nil, nil, nil},
 		{"Import (view)", impP, impP.Draw, nil, nil, nil, nil},

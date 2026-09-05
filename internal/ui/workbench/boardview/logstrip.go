@@ -51,6 +51,11 @@ func (p *Panel) logStrip(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 	askOutputOnce(p.OnDo, &p.logAsked, p.Node, logSources[p.logSrc].key)
 
 	pane := paneFor(s, p.Node, logSources[p.logSrc].key)
+	// A companion is what makes the decode tick worth offering, and the audit
+	// needs it offered whatever node it happens to be pointed at - a control
+	// that appears for one kind of node is one a sweep of another kind never
+	// finds, and reports as unreachable.
+	p.framed = p.auditing || isCompanion(s, p.Node)
 	p.readTyping(gtx, s)
 	return onSunk(t, gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Left: t.Sp.S, Right: t.Sp.S, Top: t.Sp.XS,
@@ -60,7 +65,7 @@ func (p *Panel) logStrip(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 					return p.logHead(t, gtx, pane)
 				}),
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-					return p.logLines(t, gtx, pane)
+					return p.logLines(t, gtx, s, pane)
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return p.typeLine(t, gtx)
@@ -89,6 +94,17 @@ func (p *Panel) logHead(t *theme.Theme, gtx layout.Context,
 		}))
 	}
 	kids = append(kids, layout.Flexed(1, spacer))
+	// Only where there is something framed to decode. A repeater's console is
+	// text already, and a tick offering to make text readable is a control
+	// that can only puzzle whoever finds it.
+	if p.framed {
+		p.decode.Label = "decode"
+		kids = append(kids,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return p.decode.Layout(t, gtx)
+			}),
+			layout.Rigid(layout.Spacer{Width: t.Sp.M}.Layout))
+	}
 	// What the file holds against what is shown, so a tail does not read as
 	// the whole of it.
 	if pane != nil && pane.Total > len(pane.Lines) {
@@ -102,9 +118,25 @@ func (p *Panel) logHead(t *theme.Theme, gtx layout.Context,
 }
 
 // logLines is the tail itself, or why there is none.
-func (p *Panel) logLines(t *theme.Theme, gtx layout.Context,
+func (p *Panel) logLines(t *theme.Theme, gtx layout.Context, s *state.Snapshot,
 	pane *state.OutputPane) layout.Dimensions {
 
+	// The wire by default, and the decoded exchange when it is asked for.
+	//
+	// A companion's serial carries the framed protocol, so a byte at a time it
+	// is a wall of \x00\x05 with the answer buried in it - typing "ver" at one
+	// shows the board name and the firmware version legible inside the escapes.
+	// That is still what the board actually sent, and this window is about what
+	// the board actually did, so it stays the default; the tick turns it into
+	// the transcript console.cli has already decoded, which is the same one the
+	// node window's Companion tab draws.
+	if p.decode.Bool.Value && logSources[p.logSrc].key == "serial" {
+		if lines, ok := companionTranscript(s, p.Node); ok {
+			return p.drawLines(t, gtx, lines,
+				"nothing typed at this companion yet - it answers meshcore-cli's "+
+					"vocabulary, and ? lists it")
+		}
+	}
 	if pane == nil {
 		return comp.Text(t, t.Sz.Caption, t.P.Faint,
 			"nothing has been read from this node yet")(gtx)
@@ -118,6 +150,16 @@ func (p *Panel) logLines(t *theme.Theme, gtx layout.Context,
 			what = "nothing on this " + logSources[p.logSrc].label
 		}
 		return comp.Text(t, t.Sz.Caption, t.P.Faint, what)(gtx)
+	}
+	return p.drawLines(t, gtx, pane.Lines, "")
+}
+
+// drawLines is the pane itself: a tail, or why there is none.
+func (p *Panel) drawLines(t *theme.Theme, gtx layout.Context, lines []string,
+	empty string) layout.Dimensions {
+
+	if len(lines) == 0 && empty != "" {
+		return comp.Text(t, t.Sz.Caption, t.P.Faint, empty)(gtx)
 	}
 	p.logList.Axis = layout.Vertical
 	// Pinned to the newest line until somebody scrolls up, and pinned again
@@ -135,10 +177,25 @@ func (p *Panel) logLines(t *theme.Theme, gtx layout.Context,
 	// lines put the bar somewhere in the middle of the strip, which reads as a
 	// panel that has been cut off rather than as a list that fits.
 	gtx.Constraints.Min.X = gtx.Constraints.Max.X
-	return comp.List(t, &p.logList, len(pane.Lines),
+	return comp.List(t, &p.logList, len(lines),
 		func(gtx layout.Context, i int) layout.Dimensions {
-			return comp.OneLine(t, t.Sz.Caption, t.P.Dim, pane.Lines[i], true)(gtx)
+			return comp.OneLine(t, t.Sz.Caption, t.P.Dim, lines[i], true)(gtx)
 		})(gtx)
+}
+
+// companionTranscript is the decoded exchange for this node, where it is one.
+//
+// Keyed by node, because the transcript is one node's at a time: a board view
+// on a different node than the one last typed at must not draw somebody else's
+// conversation.
+func companionTranscript(s *state.Snapshot, node string) ([]string, bool) {
+	if s == nil || !isCompanion(s, node) {
+		return nil, false
+	}
+	if s.ConsoleNode != node {
+		return nil, true
+	}
+	return s.Console, true
 }
 
 // paneFor is this node's pane for one source, or nil before one has arrived.
