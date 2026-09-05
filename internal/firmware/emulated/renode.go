@@ -47,7 +47,9 @@ lora: Radio.VirtualSX1262 @ radiospi
 
 %s:
     %d -> lora@0
-`, renode.EasyDMASPI(e.SPIBase), e.SPIBase, engineHost, enginePort, e.IrqPort, e.IrqPin, e.NssPort, e.NssPin)
+%s`, renode.EasyDMASPI(e.SPIBase), e.SPIBase, engineHost, enginePort, e.IrqPort,
+		e.IrqPin, e.NssPort, e.NssPin,
+		renode.Inputs(e.ButtonPort, e.HasMeter))
 	if err := os.WriteFile(repl, []byte(wiring), 0o644); err != nil {
 		return "", err
 	}
@@ -71,6 +73,7 @@ lora: Radio.VirtualSX1262 @ radiospi
 	body := fmt.Sprintf(`i @%[1]s/peripherals/VirtualSX1262Lib.cs
 i @%[1]s/peripherals/VirtualSX1262Engine.cs
 i @%[1]s/peripherals/VirtualSX1262.cs
+i @%[1]s/peripherals/MeshBenchInputs.cs
 i @%[1]s/peripherals/NRF52840_Temp.cs
 i @%[1]s/peripherals/NRF52840_Clock.cs
 i @%[1]s/peripherals/NRF52840_SAADC.cs

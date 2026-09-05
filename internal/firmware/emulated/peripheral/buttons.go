@@ -29,6 +29,7 @@ type ButtonSender struct {
 
 	ln   net.Listener
 	path string
+	port int
 	done chan struct{}
 }
 
@@ -56,14 +57,47 @@ func ListenButtons(path string) (*ButtonSender, error) {
 	if err != nil {
 		return nil, err
 	}
+	return sender(ln, path), nil
+}
+
+// ListenButtonsTCP is the same channel on a loopback port, for an emulator that
+// cannot dial a socket file.
+//
+// Renode is that emulator, and its console is already on TCP for the same
+// reason. Nothing else differs: the same eight-byte messages go down it, so a
+// board's buttons behave identically whichever machine is underneath - which is
+// the whole point of the exercise.
+//
+// Loopback only. This carries button presses into a simulated node and there is
+// no reason for it to leave the machine.
+func ListenButtonsTCP() (*ButtonSender, error) {
+	var lc net.ListenConfig
+	ln, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		return nil, err
+	}
+	b := sender(ln, "")
+	if addr, ok := ln.Addr().(*net.TCPAddr); ok {
+		b.port = addr.Port
+	}
+	return b, nil
+}
+
+// sender is the half both share: the record of what is held, and the goroutine
+// that takes the emulator's connection when it arrives.
+func sender(ln net.Listener, path string) *ButtonSender {
 	b := &ButtonSender{ln: ln, path: path, done: make(chan struct{}),
 		held: map[int]bool{}}
 	go b.accept()
-	return b, nil
+	return b
 }
 
 // Path is where the emulator should connect.
 func (b *ButtonSender) Path() string { return b.path }
+
+// Port is the loopback port it is on instead, for a TCP channel, and zero for
+// a socket file.
+func (b *ButtonSender) Port() int { return b.port }
 
 // Press holds a button down or lets it go.
 //
@@ -166,7 +200,9 @@ func (b *ButtonSender) Close() error {
 		close(b.done)
 	}
 	err := b.ln.Close()
-	_ = os.Remove(b.path)
+	if b.path != "" {
+		_ = os.Remove(b.path)
+	}
 	return err
 }
 

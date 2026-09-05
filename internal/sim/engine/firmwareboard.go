@@ -132,8 +132,15 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool, runSeed uint64) (
 		return nil, err
 	}
 
+	// Which emulator, and what only that emulator needs. Everything a board
+	// declares - its buttons, its meter, its card, its receiver, its display -
+	// is wired below this, once, for both: a part that reached the guest under
+	// one machine and not the other is exactly the difference this window
+	// exists to hide, and it was here for a year because the Renode branch
+	// returned before any of it ran.
+	var node *emulated.EmulatedNode
 	if board.Renode != nil {
-		return &emulated.EmulatedNode{
+		node = &emulated.EmulatedNode{
 			Emulator: emulated.Renode,
 			Image:    src,
 			// Published nRF52 images are linked above a Nordic SoftDevice,
@@ -159,7 +166,8 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool, runSeed uint64) (
 			Position:  emulated.LatLon{Lat: spec.Position.Lat, Lon: spec.Position.Lon},
 			RunSeed:   runSeed,
 			Dir:       dir,
-		}, nil
+		}
+		return withParts(node, board, spec, firmware.LoadBuildSettings(src))
 	}
 
 	// Padded once per node, beside its own working directory: QEMU takes only
@@ -181,7 +189,7 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool, runSeed uint64) (
 		return nil, err
 	}
 
-	node := &emulated.EmulatedNode{
+	node = &emulated.EmulatedNode{
 		Emulator:   emulated.QEMU,
 		Image:      padded,
 		Machine:    board.QEMU.Machine,
@@ -208,124 +216,7 @@ func emulatedBackend(spec scenario.Node, allowUnverified bool, runSeed uint64) (
 		// And what has been decided about this particular build.
 		CoprocAtReset: set.CoprocAtReset,
 	}
-	// The board's buttons, from the same declaration everything else comes
-	// from. Only the ones it actually has: a board that declares none, or
-	// declares one as absent, gets no channel rather than a channel nothing
-	// can move.
-	if p := board.Hardware; p != nil {
-		var pins []int
-		for _, part := range p.PartsOfKind(hw.Button) {
-			if part.Pin != hw.PinNone {
-				pins = append(pins, part.Pin)
-			}
-		}
-		// A trackball's directions are buttons as far as the machine is
-		// concerned - four lines the guest reads, moved from outside. It is
-		// the firmware that decides an edge on one of them means a step.
-		for _, part := range p.PartsOfKind(hw.Ball) {
-			for _, pin := range part.Pins {
-				if pin != hw.PinNone {
-					pins = append(pins, pin)
-				}
-			}
-		}
-		// A keyboard, a touch panel and the cell's own divider travel the same
-		// channel, so the channel exists if the board has any of them.
-		var kbd, touch uint8
-		for _, part := range p.PartsOfKind(hw.Keys) {
-			kbd = part.Addr
-		}
-		for _, part := range p.PartsOfKind(hw.Touch) {
-			touch = part.Addr
-		}
-		meter, hasMeter := batteryMeter(board)
-		if len(pins) > 0 || kbd != 0 || touch != 0 || hasMeter {
-			bs, err := peripheral.ListenButtons(filepath.Join(dir, "buttons.sock"))
-			if err != nil {
-				return nil, fmt.Errorf("engine: listening for %s's inputs: %w", spec.Name, err)
-			}
-			node.Buttons = bs
-			node.ButtonPath = bs.Path()
-			node.ButtonPins = pins
-			node.KbdAddr, node.TouchAddr = kbd, touch
-			if hasMeter {
-				node.BatChannel, node.BatRaw = meter.channel, meter.raw
-			}
-		}
-	}
-
-	// The card slot, where the board has one and the node has a card in it.
-	//
-	// A slot is not a fitted card: the board can only say the slot exists, and
-	// whether this particular node has storage is the scenario's business -
-	// except where the firmware insists, which it can, because a build that
-	// keeps its settings on a card boots into nothing without one.
-	if p := board.Hardware; p != nil {
-		for _, part := range p.PartsOfKind(hw.Card) {
-			if part.Pin == hw.PinNone {
-				continue
-			}
-			if !spec.HasCard(true, set.CardRequired) {
-				break
-			}
-			// The node's own, beside its sockets and its logs, unless it was
-			// handed one somewhere else - which is how a card is shared
-			// between nodes or prepared in advance.
-			card := spec.CardFile
-			if card == "" {
-				card = filepath.Join(dir, "card.img")
-			}
-			if err := os.MkdirAll(filepath.Dir(card), 0o755); err != nil {
-				return nil, fmt.Errorf("engine: %s's card: %w", spec.Name, err)
-			}
-			if err := emulated.MakeCard(card); err != nil {
-				return nil, fmt.Errorf("engine: %s's card: %w", spec.Name, err)
-			}
-			node.CardPath, node.CardCS = card, part.Pin
-			break
-		}
-	}
-
-	// The receiver, where the board has one. Fed from the node's own position
-	// rather than from a log, so there is one place the node is and both the
-	// channel and the handheld read it.
-	if p := board.Hardware; p != nil && len(p.PartsOfKind(hw.GPS)) > 0 {
-		g, err := peripheral.ListenGPS(filepath.Join(dir, "gps.sock"),
-			spec.Position.Lat, spec.Position.Lon, spec.HeightAGLm, gpsEpoch)
-		if err != nil {
-			return nil, fmt.Errorf("engine: listening for %s's receiver: %w", spec.Name, err)
-		}
-		node.GPS = g
-		node.GPSPath = g.Path()
-	}
-
-	// The display, from the same declaration the machine's wiring comes from.
-	// Only where the board says it has one and only where the controller is
-	// one we model: a board whose screen we cannot draw shows nothing, which
-	// is what it does today and is honest about it.
-	if p := board.Hardware; p != nil && p.Screen != nil &&
-		(p.Screen.Bus == hw.BusI2C || p.Screen.Bus == hw.BusSPI) {
-		ln, err := peripheral.ListenPanel(filepath.Join(dir, "panel.sock"))
-		if err != nil {
-			return nil, fmt.Errorf("engine: listening for %s's display: %w", spec.Name, err)
-		}
-		node.Panel = ln
-		node.PanelPath = ln.Path()
-		node.PanelAddr = p.Screen.Addr
-		// An SH1106 is an SSD1306 whose columns start two to the right. Not a
-		// detail: the whole picture slides sideways without it, which reads as
-		// a driver fault rather than a wrong constant.
-		if p.Screen.Controller == "SH1106" {
-			node.PanelOffset = 2
-		}
-		// A colour panel goes on the radio's controller instead, and needs
-		// its own select and the command/data line to be told apart from it.
-		if p.Screen.Bus == hw.BusSPI {
-			node.PanelCS, node.PanelDC = p.Screen.CS, p.Screen.DC
-			node.PanelWidth, node.PanelHgt = p.Screen.WidthPx, p.Screen.HeightPx
-		}
-	}
-	return node, nil
+	return withParts(node, board, spec, set)
 }
 
 // gpsEpoch is the date and time the first sentence carries.
@@ -368,11 +259,14 @@ func batteryMeter(board hw.Board) (meterReading, bool) {
 	if p == nil {
 		return meterReading{}, false
 	}
-	// The pin to channel mapping below is the ESP32-S3's. Every board that
-	// declares a meter is one today, and a board that is not would be given
-	// somebody else's channel in silence - so it is refused rather than
-	// guessed at, and whoever adds the first non-S3 meter finds out here.
-	if !strings.EqualFold(board.MCU, "ESP32-S3") {
+	// The pin to channel mapping below is the ESP32-S3's, and the nRF52's is
+	// a different set of pins reached through a different converter, so the
+	// two are picked apart here rather than one of them being handed the
+	// other's channel in silence.
+	switch {
+	case strings.EqualFold(board.MCU, "nRF52840"):
+		return nrf52Meter(board)
+	case !strings.EqualFold(board.MCU, "ESP32-S3"):
 		return meterReading{}, false
 	}
 	for _, part := range p.PartsOfKind(hw.Meter) {
@@ -469,4 +363,13 @@ func idleHigh(pins []hw.GPIOPin) []emulated.GPIOPin {
 		out = append(out, emulated.GPIOPin{Port: p.Port, Pin: p.Pin})
 	}
 	return out
+}
+
+// listenInputs opens the channel a board's presses travel down, in whichever
+// form the machine underneath can reach.
+func listenInputs(board hw.Board, path string) (*peripheral.ButtonSender, error) {
+	if board.Renode != nil {
+		return peripheral.ListenButtonsTCP()
+	}
+	return peripheral.ListenButtons(path)
 }

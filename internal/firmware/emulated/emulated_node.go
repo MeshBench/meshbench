@@ -114,6 +114,9 @@ type EmulatedNode struct {
 	// leaves the board's buttons where their pull-ups put them, which is
 	// nobody pressing them.
 	ButtonPath string
+	// ButtonPort is the same channel on loopback, for Renode, which has no way
+	// to dial a socket file. Exactly one of the two is set.
+	ButtonPort int
 	ButtonPins []int
 	Buttons    *peripheral.ButtonSender
 
@@ -147,6 +150,10 @@ type EmulatedNode struct {
 	// enough to stop a firmware waiting for a conversion that never finishes.
 	BatChannel int
 	BatRaw     uint16
+	// HasMeter says the board declares one, which the two fields above cannot:
+	// a cell on AIN0 reading zero counts is a real board in a flat state and
+	// looks exactly like a board with no converter at all.
+	HasMeter bool
 
 	// Panel is where this node's pictures arrive, when something is listening.
 	// Held here so a caller with the node has the screen too, rather than

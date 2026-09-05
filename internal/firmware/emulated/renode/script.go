@@ -126,3 +126,39 @@ sysbus LogPeripheralAccess sysbus.gpio0 true
 sysbus LogPeripheralAccess sysbus.gpio1 true
 `
 }
+
+// inputsBase is where the input channel is registered: an address nothing on an
+// nRF52840 uses, between the peripheral block and the GPIO ports.
+//
+// A .repl registers a peripheral at an address whether or not the guest has any
+// business reading it, and this one it has none - a person pressing a button is
+// not something firmware can query. So the address is chosen to be out of the
+// way rather than to mean anything.
+const inputsBase = 0x4F000000
+
+// Inputs puts the far end of the board's buttons in the machine.
+//
+// Nothing where the board has no inputs: a peripheral that dials a port nobody
+// opened would retry for the life of the run and log about it.
+//
+// The converter is named only where the board has one, because the model takes
+// it as an optional argument and a board with no cell to read has no meter to
+// point at. Where it is named, the simulation's own battery state arrives on
+// the same channel as the presses and lands in the converter the firmware
+// reads - which is what makes an nRF52 board report a voltage rather than the
+// one constant the model starts with.
+func Inputs(port int, hasMeter bool) string {
+	if port == 0 {
+		return ""
+	}
+	s := fmt.Sprintf(`
+inputs: Miscellaneous.MeshBenchInputs @ sysbus 0x%X
+    port: %d
+    gpio0: gpio0
+    gpio1: gpio1
+`, inputsBase, port)
+	if hasMeter {
+		s += "    meter: saadc\n"
+	}
+	return s
+}

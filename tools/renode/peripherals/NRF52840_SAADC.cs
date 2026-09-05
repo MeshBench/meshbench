@@ -23,10 +23,15 @@ using Antmicro.Renode.Core;
 using Antmicro.Renode.Core.Structure.Registers;
 using Antmicro.Renode.Logging;
 using Antmicro.Renode.Peripherals.Bus;
+using Antmicro.Renode.Peripherals.Miscellaneous;
 
 namespace Antmicro.Renode.Peripherals.Analog
 {
-    public class NRF52840_SAADC : BasicDoubleWordPeripheral, IKnownSize
+    // IMeshBenchMeter is how the input channel reaches Sample without knowing
+    // which converter a board has. Declared in MeshBenchInputs.cs, which the
+    // node's script includes first, because Renode compiles each of these on
+    // its own and a file can only see what came before it.
+    public class NRF52840_SAADC : BasicDoubleWordPeripheral, IKnownSize, IMeshBenchMeter
     {
         public NRF52840_SAADC(IMachine machine) : base(machine)
         {
