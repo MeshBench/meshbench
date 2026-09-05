@@ -448,6 +448,12 @@ func (s *Sim) Reflash(ctx context.Context, st *state.Store, name string, b Build
 			return
 		}
 		s.setState(name, "")
-		_, _ = st.Do(ctx, "node.reflashed", name+" now runs "+b.Describe())
+		// The name as a field, not recovered from the sentence. It used to be
+		// the first word of this message, which is the node's name only for a
+		// node whose name has no space in it - so "GM0KVE KINROSS Repeater"
+		// refreshed a node called "GM0KVE", which is nothing, and the node
+		// list kept the build it had before.
+		_, _ = st.Do(ctx, "node.reflashed", map[string]any{
+			"node": name, "message": name + " now runs " + b.Describe()})
 	}()
 }
