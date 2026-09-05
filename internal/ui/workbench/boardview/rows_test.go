@@ -398,3 +398,33 @@ func rowNamed(t *testing.T, rows []Row, name string) Row {
 	t.Fatalf("no row named %q; the table holds %v", name, had)
 	return Row{}
 }
+
+// Every board Renode runs has its console on USB, so none of them can read as
+// an emulator that is failing to report.
+//
+// The rate reaches us through the QEMU chip model's stats record, and Renode
+// has no equivalent. That costs nothing today because all five nRF52 boards
+// put the application's Serial on the USB peripheral, where there is no line
+// rate to report and "no line rate" is the true answer rather than a gap.
+//
+// A Renode board with a UART console would break that, and would read as
+// "nothing reported" - which says the emulator is too old, and would be
+// pointing at the wrong thing entirely. This is the test that says so.
+func TestARenodeBoardsConsoleIsAlwaysUSB(t *testing.T) {
+	seen := 0
+	for _, b := range hw.Boards() {
+		if b.Renode == nil {
+			continue
+		}
+		seen++
+		if !consoleOnUSB(b) {
+			t.Errorf("%s runs under Renode with its console on a UART, and "+
+				"nothing carries a rate out of Renode - its row will read "+
+				"\"nothing reported\", which blames the emulator's age for a "+
+				"path that was never built", b.Name)
+		}
+	}
+	if seen == 0 {
+		t.Fatal("no board declares Renode wiring, so this checked nothing")
+	}
+}
