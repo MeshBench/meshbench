@@ -296,7 +296,7 @@ func (g *ResizeGrip) Layout(t *theme.Theme, gtx layout.Context) layout.Dimension
 		if at < 0 {
 			continue
 		}
-		for y := at; y < sz.Y; y += line * 2 {
+		for y := at; y < sz.Y; y += line {
 			r := image.Rect(sz.X-(y-at)-line, y, sz.X-(y-at), y+line)
 			paint.FillShape(gtx.Ops, t.P.Faint, clip.Rect(r).Op())
 		}
