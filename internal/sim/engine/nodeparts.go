@@ -70,6 +70,10 @@ func withParts(node *emulated.EmulatedNode, board hw.Board, spec scenario.Node,
 			node.KbdAddr, node.TouchAddr = kbd, touch
 			if hasMeter {
 				node.BatChannel, node.BatRaw, node.HasMeter = meter.channel, meter.raw, true
+				// Held for the emulator to collect when it connects. QEMU is
+				// also told at machine creation and hears it twice, which
+				// costs nothing; Renode has no other way to be told at all.
+				bs.Preset(meter.channel, meter.raw)
 			}
 		}
 	}

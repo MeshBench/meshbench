@@ -173,6 +173,11 @@ namespace Antmicro.Renode.Peripherals.Miscellaneous
                     break;
                 }
                 meter.Sample = raw;
+                // Logged because it is otherwise unobservable from outside: no
+                // MeshCore console build here prints its cell voltage, so this
+                // line is the only place the number the firmware will read can
+                // be checked against the one the simulation sent.
+                this.Log(LogLevel.Info, "inputs: converter reads {0} counts", raw);
                 break;
             case 'K':
             case 'T':

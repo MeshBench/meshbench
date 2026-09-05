@@ -27,6 +27,16 @@ type ButtonSender struct {
 	// pressed without the guest being the only record of it.
 	held map[int]bool
 
+	// atConnect is what a device is told the moment it arrives, so a reading
+	// the simulation set before the emulator was up is not lost.
+	//
+	// QEMU takes the cell's first reading as a machine argument and never
+	// needed this. Renode has no such argument: without it the converter keeps
+	// the constant its model starts at, and the board reports a cell voltage
+	// nobody chose - which on a Heltec is about eleven volts and still looks
+	// like a working battery meter.
+	atConnect *[msgLen]byte
+
 	ln   net.Listener
 	path string
 	port int
@@ -143,7 +153,21 @@ func (b *ButtonSender) Touch(x, y int, down bool) error {
 
 // Analog is what one of the board's converter channels reads from now on.
 func (b *ButtonSender) Analog(channel int, raw uint16) error {
-	return b.send([msgLen]byte{analogTag, byte(channel), byte(raw), byte(raw >> 8)})
+	msg := [msgLen]byte{analogTag, byte(channel), byte(raw), byte(raw >> 8)}
+	b.Preset(channel, raw)
+	return b.send(msg)
+}
+
+// Preset is that reading, held for whatever connects next rather than sent now.
+//
+// Called before the emulator exists, which is when the cell's first reading is
+// known: a board is placed, its battery state is decided, and only then is a
+// machine started to run it.
+func (b *ButtonSender) Preset(channel int, raw uint16) {
+	msg := [msgLen]byte{analogTag, byte(channel), byte(raw), byte(raw >> 8)}
+	b.mu.Lock()
+	b.atConnect = &msg
+	b.mu.Unlock()
 }
 
 // send puts one message to every device listening, and reports whether any
@@ -217,7 +241,13 @@ func (b *ButtonSender) accept() {
 		// A board that restarts comes up with its buttons released, whatever
 		// they were before, so the record starts again with it.
 		b.held = map[int]bool{}
+		first := b.atConnect
 		b.mu.Unlock()
+		if first != nil {
+			// Best effort, and outside the lock: a device that will not take
+			// its first reading is a device the next write will drop anyway.
+			_, _ = conn.Write(first[:])
+		}
 	}
 }
 
