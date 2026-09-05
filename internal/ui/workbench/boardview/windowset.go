@@ -25,6 +25,10 @@ func NewWindowSet() *WindowSet {
 // Hooks is how a bring-up window reaches the rest of the application.
 type Hooks struct {
 	OnDo func(verb string, params any)
+	// OnSaveShot asks for a file and writes the panel to it. Through the
+	// application rather than the panel, because opening the platform's own
+	// dialog is the shell's business.
+	OnSaveShot func(node, suggested string)
 }
 
 // OpenFor opens the window for a node, or recalls the one already out there.
@@ -38,7 +42,7 @@ func (w *WindowSet) OpenFor(node string, newTheme func() *theme.Theme,
 		// for a window dragged out of reach the recall is the only way back.
 		return
 	}
-	p := &Panel{Node: node, OnDo: h.OnDo}
+	p := &Panel{Node: node, OnDo: h.OnDo, OnSaveShot: h.OnSaveShot}
 	p.OnPopScreen = func(n string) { w.openScreen(n, p, newTheme, st) }
 	go shell.RunPopout(w.WindowRegistry, key, "MeshBench - "+node+" board view",
 		shell.PopoutSize{W: 1180, H: 720}, p, newTheme, st)

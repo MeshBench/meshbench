@@ -52,16 +52,20 @@ func registerBoardScreenshot(st *state.Store, s *session.Sim) {
 		// NodeWorkDir maps the name to [a-zA-Z0-9_-] and the filename is a
 		// constant, so this path is the node's own directory and nowhere else.
 		path := filepath.Join(firmware.NodeWorkDir(name), "screen.png")
-		f, err := os.Create(path) //nolint:gosec // a sanitised path this package composed
-		if err != nil {
-			return nil, fmt.Errorf("board.screenshot: %w", err)
+		if err := writePNG(path, img); err != nil {
+			return nil, err
 		}
-		if err := png.Encode(f, img); err != nil {
-			_ = f.Close()
-			return nil, fmt.Errorf("board.screenshot: %w", err)
-		}
-		if err := f.Close(); err != nil {
-			return nil, fmt.Errorf("board.screenshot: %w", err)
+		// And a copy where somebody asked for one.
+		//
+		// The node's own file is overwritten every call, which is right for a
+		// script polling the screen and wrong for a person keeping a picture.
+		// So the kept copy is a second write rather than a different first one,
+		// and a script that never asks for one is unaffected.
+		if to, _ := session.NamedField(p, "to"); to != "" {
+			if err := writePNG(to, img); err != nil {
+				return nil, err
+			}
+			path = to
 		}
 		return map[string]any{"node": name, "path": path,
 			"width": width, "height": height, "bpp": bpp, "on": on}, nil
@@ -102,4 +106,21 @@ func frameToImage(width, height, bpp int, bits []byte) (image.Image, error) {
 		return nil, fmt.Errorf("board.screenshot: a %d-bit panel is not one this draws", bpp)
 	}
 	return img, nil
+}
+
+// writePNG puts one picture on the disk, saying which file failed when one
+// does: "permission denied" without a path is a message nobody can act on.
+func writePNG(path string, img image.Image) error {
+	f, err := os.Create(path) //nolint:gosec // the caller chose this path
+	if err != nil {
+		return fmt.Errorf("board.screenshot: %s: %w", path, err)
+	}
+	if err := png.Encode(f, img); err != nil {
+		_ = f.Close()
+		return fmt.Errorf("board.screenshot: %s: %w", path, err)
+	}
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("board.screenshot: %s: %w", path, err)
+	}
+	return nil
 }

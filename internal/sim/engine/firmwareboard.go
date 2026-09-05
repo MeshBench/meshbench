@@ -342,6 +342,18 @@ type meterReading struct {
 	raw     uint16
 }
 
+// MeterModelled reports whether this board's meter reaches a converter that is
+// modelled, and which channel it lands on.
+//
+// Exported so the interface can ask the engine rather than keeping a second
+// copy of which pins are converter inputs. It had one for a day and said "no
+// converter modelled" about a board whose converter is modelled - a false
+// claim in the one column that exists to be trusted.
+func MeterModelled(board hw.Board) (channel int, ok bool) {
+	m, have := batteryMeter(board)
+	return m.channel, have
+}
+
 // batteryMeter is what the board's cell puts on its converter, at a full
 // charge.
 //

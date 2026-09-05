@@ -1,4 +1,4 @@
-// Draw the Bring-up window and look at it.
+// Draw the board view and look at it.
 //
 // The same reasoning as the Hardware tab's own picture test: a panel, a table
 // of verdicts and a wrapped quotation are three things that cannot be checked
@@ -25,7 +25,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/ui/uitest"
 )
 
-func TestDrawTheBringUpWindow(t *testing.T) {
+func TestDrawTheBoardView(t *testing.T) {
 	if os.Getenv("MESHBENCH_SHOTS") == "" {
 		t.Skip("set MESHBENCH_SHOTS=<dir> to write the pictures")
 	}
@@ -89,6 +89,23 @@ func TestDrawTheBringUpWindow(t *testing.T) {
 			return &state.NodeStat{Name: "Deck", Board: "LilyGo_TDeck",
 				Backend: "emulated", Running: true}
 		}},
+		// An nRF52 board under Renode. None of the five declare a panel, so the
+		// wiring side has nothing to show - and the radio side is unaffected,
+		// because the chip's registers reach here whichever emulator drives it.
+		{"renode-radio", TabRadio, 0, "Heltec_t114", func() *state.NodeStat {
+			return &state.NodeStat{Name: "Deck", Board: "Heltec_t114",
+				Backend: "emulated", Running: true, IRQReads: 22,
+				Radio: state.RadioState{Reported: true, Boosted: true, GainReg: 0x96,
+					TxPowerDBm: 22, Mode: 1, SF: 10, CR: 5, FreqHz: 869618000,
+					BandwidthHz: 250000, IRQMask: 2, IRQFlags: 2}}
+		}},
+		{"renode-wiring", TabWiring, 0, "Heltec_t114", func() *state.NodeStat {
+			return &state.NodeStat{Name: "Deck", Board: "Heltec_t114",
+				Backend: "emulated", Running: true,
+				Radio: state.RadioState{Reported: true, Boosted: true, GainReg: 0x96,
+					TxPowerDBm: 22, Mode: 1, SF: 10, CR: 5, FreqHz: 869618000,
+					BandwidthHz: 250000, IRQMask: 2}}
+		}},
 		// A node on a host build, which has no board to check.
 		{"no-board", TabRadio, 0, "", func() *state.NodeStat {
 			return &state.NodeStat{Name: "Deck", Backend: "native", Running: true}
@@ -107,13 +124,13 @@ func TestDrawTheBringUpWindow(t *testing.T) {
 		}
 		width := 1180
 		if c.board != "" {
-			width = railFor(boardOrTDeck(t, c.board), c.scale) + 700 + 260
+			width = railWidth(boardOrTDeck(t, c.board), c.scale) + 700 + 260
 		}
 		img := uitest.RenderWidget(t, width, 720,
 			func(gtx layout.Context, th *theme.Theme) layout.Dimensions {
 				return p.Draw(th, gtx, snap)
 			})
-		out := filepath.Join(dir, "bringup-"+c.name+".png")
+		out := filepath.Join(dir, "boardview-"+c.name+".png")
 		f, err := os.Create(out)
 		if err != nil {
 			t.Fatal(err)
@@ -233,7 +250,7 @@ func TestDrawTheScreenWindow(t *testing.T) {
 			func(gtx layout.Context, th *theme.Theme) layout.Dimensions {
 				return sp.Draw(th, gtx, snap)
 			})
-		f, err := os.Create(filepath.Join(dir, "bringup-"+c.name+".png"))
+		f, err := os.Create(filepath.Join(dir, "boardview-"+c.name+".png"))
 		if err != nil {
 			t.Fatal(err)
 		}

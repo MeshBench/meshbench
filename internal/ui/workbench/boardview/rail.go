@@ -22,6 +22,13 @@ func (p *Panel) rail(t *theme.Theme, gtx layout.Context, b hw.Board,
 		return layout.UniformInset(t.Sp.S).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					if !hasPanel(b) {
+						// Said rather than left blank: nobody has established
+						// what this board carries, which is a different fact
+						// from a board that carries nothing.
+						return comp.Text(t, t.Sz.Caption, t.P.Faint,
+							"nothing is recorded about what this board carries")(gtx)
+					}
 					return p.panelHead(t, gtx, b)
 				}),
 				// Above the panel rather than under it. Under it, the note is
@@ -29,6 +36,9 @@ func (p *Panel) rail(t *theme.Theme, gtx layout.Context, b hw.Board,
 				// turned up - which is exactly when what it says, the scale
 				// and whether the board is powered, is worth reading.
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					if !hasPanel(b) {
+						return layout.Dimensions{}
+					}
 					return p.panelNote(t, gtx, b, st)
 				}),
 				// Lamps above the panel and the things somebody can press below
@@ -36,15 +46,28 @@ func (p *Panel) rail(t *theme.Theme, gtx layout.Context, b hw.Board,
 				// none of this is a photograph, and a schematic that reads
 				// correctly is worth more than a likeness.
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					// "no lamp declared" is a fact about a board somebody has
+					// looked at. On one nobody has, the line above already says
+					// so and this would be a second, narrower claim we cannot
+					// support.
+					if !hasPanel(b) {
+						return layout.Dimensions{}
+					}
 					return layout.Inset{Bottom: t.Sp.XXS}.Layout(gtx,
 						func(gtx layout.Context) layout.Dimensions {
 							return p.parts.Lamps(t, gtx, b.Hardware)
 						})
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					if !hasPanel(b) {
+						return layout.Dimensions{}
+					}
 					return p.screen.Layout(t, gtx, b, st, p.scale, p.OnDo, p.Node)
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					if !hasPanel(b) {
+						return layout.Dimensions{}
+					}
 					return p.controls(t, gtx, b, s)
 				}),
 				// The parts scroll. At 2:1 the panel takes most of the rail and
@@ -120,7 +143,7 @@ func (p *Panel) panelNote(t *theme.Theme, gtx layout.Context, b hw.Board,
 // partsIndex is the rows as a list to pick from, grouped.
 func (p *Panel) partsIndex(t *theme.Theme, gtx layout.Context, rows []Row) layout.Dimensions {
 	items := indexItems(rows)
-	return p.index.Layout(gtx, len(items), func(gtx layout.Context, i int) layout.Dimensions {
+	return comp.List(t, &p.index, len(items), func(gtx layout.Context, i int) layout.Dimensions {
 		it := items[i]
 		if it.head != "" {
 			return layout.Inset{Top: t.Sp.XS, Bottom: t.Sp.XXS}.Layout(gtx,
@@ -147,7 +170,7 @@ func (p *Panel) partsIndex(t *theme.Theme, gtx layout.Context, rows []Row) layou
 					layout.Rigid(comp.Mono(t, t.Sz.Caption, t.P.Faint, r.Where)),
 				)
 			})
-	})
+	})(gtx)
 }
 
 // indexItem is one line of the index: a heading, or a row by position.

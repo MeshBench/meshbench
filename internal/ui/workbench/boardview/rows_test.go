@@ -94,9 +94,17 @@ func TestTheWiringTableSaysWhatIsNotModelled(t *testing.T) {
 	if meter == nil {
 		t.Fatal("the battery meter is declared and did not reach the table")
 	}
-	if meter.Verdict != NotModelled {
-		t.Errorf("the battery meter read %v, want %v - an unmodelled input is "+
-			"not a zero, it is a firmware waiting for ever", meter.Verdict, NotModelled)
+	// This board's meter is on a converter the emulator models, so the row
+	// says so. It read "not modelled" for a day, which is a false claim in the
+	// one column that exists to be trusted - the interface had its own copy of
+	// which pins are converter inputs, and the copy was wrong.
+	if meter.Verdict != Agrees {
+		t.Errorf("the T-Deck's battery meter read %v, want %v: its pin is a "+
+			"converter input and the converter is modelled", meter.Verdict, Agrees)
+	}
+	if !strings.Contains(meter.Observed, "channel") {
+		t.Errorf("the meter says %q, which does not say which converter "+
+			"channel it landed on", meter.Observed)
 	}
 
 	// The rows arrive grouped, or the index heads the same group twice.
@@ -123,6 +131,60 @@ func TestAnUninstrumentedRowDoesNotStateItselfTwice(t *testing.T) {
 	for _, v := range []Verdict{Agrees, Diverged, Silent, NotModelled} {
 		if v.String() == "" {
 			t.Errorf("verdict %d says nothing, so its row reports no conclusion", v)
+		}
+	}
+}
+
+// A meter on a pin no converter we model can read says so, and says it is
+// about us rather than about the board.
+//
+// No board in the catalogue is like this today - every declared meter is on the
+// first converter of an ESP32-S3 - so the case is built here rather than left
+// untested until somebody adds the first one.
+func TestAMeterOnNoModelledConverterSaysSo(t *testing.T) {
+	b := hw.Board{
+		Name: "Invented", MCU: "nRF52840",
+		Hardware: &hw.Panel{Parts: []hw.Part{
+			{Kind: hw.Meter, Name: "battery", Pin: 4, FullScaleMV: 4200},
+		}},
+	}
+	rows := wiringRows(b, nil)
+	if len(rows) != 1 {
+		t.Fatalf("one part declared, %d rows", len(rows))
+	}
+	if rows[0].Verdict != NotModelled {
+		t.Errorf("a meter on a part with no modelled converter read %v, want %v",
+			rows[0].Verdict, NotModelled)
+	}
+	if !strings.Contains(rows[0].Why, "waits for ever") {
+		t.Errorf("the reason does not say what an unmodelled input costs: %q",
+			rows[0].Why)
+	}
+}
+
+// A board whose parts nobody has recorded is not a node without a board.
+//
+// Every nRF52 profile is one today. Refusing them cost the radio table as well,
+// which needs no panel at all - the chip's own registers reach the interface
+// whichever emulator is driving it.
+func TestABoardWithNoRecordedPanelStillHasARadio(t *testing.T) {
+	b := board(t, "Heltec_t114")
+	if b.Hardware != nil {
+		t.Skip("this board has grown a panel; pick another for this case")
+	}
+	st := &state.NodeStat{Name: "n", Board: b.Name, Running: true, IRQReads: 9,
+		Radio: state.RadioState{Reported: true, Boosted: true, GainReg: 0x96,
+			TxPowerDBm: 22, SF: 10, CR: 5, FreqHz: 869618000, BandwidthHz: 250000,
+			IRQMask: 2}}
+	if got := radioRows(b, st); len(got) == 0 {
+		t.Error("a board with no recorded panel produced no radio rows, so the " +
+			"window has nothing to say about a chip it can see perfectly well")
+	}
+	// And the wiring side is honest rather than empty: the radio's own lines
+	// come from the emulator's wiring, not from a panel.
+	for _, r := range wiringRows(b, st) {
+		if r.Group != "Radio" {
+			t.Errorf("a board with no panel produced a %q row from nowhere", r.Group)
 		}
 	}
 }

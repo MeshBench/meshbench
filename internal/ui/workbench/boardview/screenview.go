@@ -90,6 +90,9 @@ func FitIn(sc *hw.Screen, gtx layout.Context) int {
 // boxFor is the panel's drawn size at a chosen scale, or at the rail's budget
 // when asked for zero.
 func boxFor(b hw.Board, want int) (scale, w, h int) {
+	if !hasPanel(b) {
+		return 1, 0, 0
+	}
 	sc := b.Hardware.Screen
 	if sc == nil {
 		return 1, 0, 0
@@ -102,6 +105,14 @@ func boxFor(b hw.Board, want int) (scale, w, h int) {
 		}
 	}
 	return scale, sc.WidthPx * scale, sc.HeightPx * scale
+}
+
+// railWidth is the rail's width for a board that may have no panel recorded.
+func railWidth(b hw.Board, want int) int {
+	if !hasPanel(b) || b.Hardware.Screen == nil {
+		return 206
+	}
+	return railFor(b, want)
 }
 
 // railFor is the rail's width: whatever the panel needs, never less than the
@@ -311,9 +322,9 @@ func lowerASCII(s string) string {
 }
 
 func hasTouch(b hw.Board) bool {
-	return b.Hardware != nil && len(b.Hardware.PartsOfKind(hw.Touch)) > 0
+	return hasPanel(b) && len(b.Hardware.PartsOfKind(hw.Touch)) > 0
 }
 
 func hasKeys(b hw.Board) bool {
-	return b.Hardware != nil && len(b.Hardware.PartsOfKind(hw.Keys)) > 0
+	return hasPanel(b) && len(b.Hardware.PartsOfKind(hw.Keys)) > 0
 }

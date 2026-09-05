@@ -34,7 +34,7 @@ func registerNodeWindow(st *state.Store, s *Sim) {
 		return map[string]any{"node": name, "tab": shown}, nil
 	})
 
-	// node.bringup: the same node, asked a different question - is this board
+	// node.boardview: the same node, asked a different question - is this board
 	// behaving like the board it says it is.
 	st.Handle("node.boardview", func(w *state.World, p any) (any, error) {
 		if err := s.needUI(); err != nil {

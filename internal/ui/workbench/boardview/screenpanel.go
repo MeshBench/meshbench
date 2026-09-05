@@ -43,7 +43,7 @@ func (p *ScreenPanel) Draw(t *theme.Theme, gtx layout.Context,
 
 	st := statOf(s, p.Node)
 	b, ok := boardOf(st)
-	if !ok || b.Hardware.Screen == nil {
+	if !ok || !hasPanel(b) || b.Hardware.Screen == nil {
 		return layout.Center.Layout(gtx, comp.Text(t, t.Sz.Caption, t.P.Faint,
 			"this node has no panel to show"))
 	}
@@ -89,13 +89,25 @@ func statOf(s *state.Snapshot, node string) *state.NodeStat {
 	return nil
 }
 
+// boardOf is the profile this node runs, whether or not anybody has recorded
+// what it carries.
+//
+// A board with no Hardware is not a node without a board: every nRF52 profile
+// is one today, and refusing them cost the radio table as well - which needs no
+// panel at all, because the chip's own registers reach here whichever emulator
+// is running it.
 func boardOf(st *state.NodeStat) (hw.Board, bool) {
 	if st == nil || st.Board == "" {
 		return hw.Board{}, false
 	}
 	b, err := hw.BoardByName(st.Board)
-	if err != nil || b.Hardware == nil {
+	if err != nil {
 		return hw.Board{}, false
 	}
 	return b, true
 }
+
+// hasPanel reports whether anybody has recorded what this board carries. Not
+// the same question as whether it carries anything: a board that carries
+// nothing declares an empty panel and says so.
+func hasPanel(b hw.Board) bool { return b.Hardware != nil }

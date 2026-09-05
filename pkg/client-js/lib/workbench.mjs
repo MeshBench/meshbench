@@ -298,19 +298,19 @@ export class Workbench {
     return (got || {}).tab || "";
   }
 
-  /** Open a node's bring-up window and return the board it checks.
+  /** Open a node's board view and return the board it is showing.
    *
-   *  What the board's profile declares, beside what the firmware left in the
-   *  chip, and where the two differ. Windowed sessions only, for the same
-   *  reason window() is, and refused for a node running a host build: there is
-   *  no board to check it against. */
-  async bringup(node) {
+   *  The board in full: its panel, the controls for what it has wired, and what
+   *  its profile declares beside what the firmware left in the chip. Windowed
+   *  sessions only, for the same reason window() is, and refused for a node
+   *  running a host build: there is no board to show. */
+  async boardView(node) {
     if (this.isHeadless) {
-      throw new Unavailable("node.bringup",
+      throw new Unavailable("node.boardview",
         "this session has no interface attached, so there is nothing to show",
         "unavailable");
     }
-    const got = await this.call("node.bringup", { node: String(node) });
+    const got = await this.call("node.boardview", { node: String(node) });
     return (got || {}).board || "";
   }
 

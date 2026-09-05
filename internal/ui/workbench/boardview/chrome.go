@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"strings"
+	"time"
 
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -53,6 +55,14 @@ func (p *Panel) header(t *theme.Theme, gtx layout.Context, b hw.Board,
 				layout.Rigid(comp.Mono(t, t.Sz.Caption, t.P.Dim,
 					fmt.Sprintf("%s · %s · %s · %s", b.MCU, b.Vendor, b.Radio, backend))),
 				layout.Flexed(1, spacer),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return p.shot.Layout(t, gtx)
+				}),
+				layout.Rigid(layout.Spacer{Width: t.Sp.XS}.Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return p.reset.Layout(t, gtx)
+				}),
+				layout.Rigid(layout.Spacer{Width: t.Sp.S}.Layout),
 				layout.Rigid(comp.Pill(t, state, word)),
 			)
 		})
@@ -170,3 +180,25 @@ func upper(s string) string {
 }
 
 var _ = hw.PinNone
+
+// shotName is what the save dialog opens with: the node, the board and when,
+// so a folder of these is sortable and nothing is overwritten by accident.
+//
+// Spaces and slashes out of the node's name, because a name is whatever
+// somebody typed and this becomes a filename.
+func shotName(node, board string) string {
+	safe := func(s string) string {
+		out := []rune(strings.TrimSpace(s))
+		for i, r := range out {
+			switch {
+			case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z',
+				r >= '0' && r <= '9', r == '-', r == '_':
+			default:
+				out[i] = '-'
+			}
+		}
+		return strings.Trim(string(out), "-")
+	}
+	return fmt.Sprintf("%s-%s-%s.png", safe(node), safe(board),
+		time.Now().Format("20060102-150405"))
+}

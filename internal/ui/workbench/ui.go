@@ -193,7 +193,9 @@ func (u *workbenchUI) OpenBoardView(node string) error {
 	if u.boards == nil || u.newTheme == nil {
 		return fmt.Errorf("this build has no bring-up windows to open")
 	}
-	u.boards.OpenFor(node, u.newTheme, u.store, boardview.Hooks{OnDo: u.OnDo})
+	u.boards.OpenFor(node, u.newTheme, u.store, boardview.Hooks{
+		OnDo: u.OnDo, OnSaveShot: u.saveBoardShot,
+	})
 	return nil
 }
 
@@ -243,4 +245,28 @@ func (u *workbenchUI) OpenFirmwareWindow(role, version, board string) error {
 	}
 	u.builds.openFor(role, version, board, u.newTheme, u.store, u.OnDo)
 	return nil
+}
+
+// saveBoardShot writes what a board's panel is showing to a file somebody
+// chose.
+//
+// Two steps because the verb writes to the node's own directory and overwrites
+// it every time: that is right for a script polling the screen and wrong for
+// somebody keeping one. So the picture is taken, then copied where they asked.
+//
+// On its own goroutine: the platform's dialog blocks until it is answered, and
+// the store's loop must not wait on a person.
+func (u *workbenchUI) saveBoardShot(node, suggested string) {
+	if shell.Browse == nil || u.store == nil {
+		return
+	}
+	go func() {
+		to, err := shell.Browse("Save the board's picture", suggested,
+			shell.PathAsk{Kind: shell.PathSaveFile,
+				FilterName: "PNG images", Extensions: []string{"png"}})
+		if err != nil || to == "" {
+			return // cancelled, which is not a fault
+		}
+		u.OnDo("board.screenshot", map[string]any{"node": node, "to": to})
+	}()
 }

@@ -25,6 +25,9 @@ import (
 func (p *Panel) controls(t *theme.Theme, gtx layout.Context, b hw.Board,
 	s *state.Snapshot) layout.Dimensions {
 
+	if !hasPanel(b) {
+		return layout.Dimensions{}
+	}
 	var kids []layout.FlexChild
 	add := func(w layout.Widget) {
 		kids = append(kids, layout.Rigid(w))

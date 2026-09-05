@@ -39,7 +39,7 @@ and a verb added tomorrow is usable today.
 
 ### Why two layers rather than one
 
-**255**<!--verbdoc:total--> addressable methods hand-written across two
+**256**<!--verbdoc:total--> addressable methods hand-written across two
 languages is twice that many things to keep in step. Keeping them in step is what the verb manifest (`docs/verbs.json`) is for: a
 hand-written surface that names a verb the tree no longer has is exactly the
 drift it catches, where once a tool could call a deleted verb and nothing

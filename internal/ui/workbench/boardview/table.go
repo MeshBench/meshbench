@@ -21,8 +21,12 @@ func (p *Panel) middle(t *theme.Theme, gtx layout.Context, rows []Row) layout.Di
 		layout.Rigid(hRule(t)),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			if len(rows) == 0 {
-				return layout.Center.Layout(gtx, comp.Text(t, t.Sz.Caption, t.P.Faint,
-					"this node's radio has not reported yet"))
+				what := "this node's radio has not reported yet"
+				if p.Tab == TabWiring {
+					what = "nothing is recorded about what this board carries"
+				}
+				return layout.Center.Layout(gtx,
+					comp.Text(t, t.Sz.Caption, t.P.Faint, what))
 			}
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -30,9 +34,10 @@ func (p *Panel) middle(t *theme.Theme, gtx layout.Context, rows []Row) layout.Di
 				}),
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 					where := anyWhere(rows)
-					return p.rows.Layout(gtx, len(rows), func(gtx layout.Context, i int) layout.Dimensions {
-						return p.tableRow(t, gtx, rows[i], i, where)
-					})
+					return comp.List(t, &p.rows, len(rows),
+						func(gtx layout.Context, i int) layout.Dimensions {
+							return p.tableRow(t, gtx, rows[i], i, where)
+						})(gtx)
 				}),
 			)
 		}),

@@ -1,8 +1,8 @@
 # Every verb, and the call that covers it
 
 The wire underneath [scripting-api.md](scripting-api.md). The store registers
-**218**<!--verbdoc:public--> public verbs a script can call and
-**37**<!--verbdoc:internal--> internal callbacks it cannot, **255**<!--verbdoc:total-->
+**219**<!--verbdoc:public--> public verbs a script can call and
+**37**<!--verbdoc:internal--> internal callbacks it cannot, **256**<!--verbdoc:total-->
 in total, plus the two the socket answers itself, with what each reads, what
 each returns, and which façade call reaches it.
 
@@ -77,8 +77,8 @@ Two verbs are **not** in this table:
 
 ## What this table shows about the surface
 
-- **218**<!--verbdoc:public--> public verbs, plus **37**<!--verbdoc:internal-->
-  the workbench keeps to itself, **255**<!--verbdoc:total--> registered in
+- **219**<!--verbdoc:public--> public verbs, plus **37**<!--verbdoc:internal-->
+  the workbench keeps to itself, **256**<!--verbdoc:total--> registered in
   total. The façade covers the public verbs, over roughly 60 calls once
   objects and properties absorb them.
 - **The naming is not regular.** `node.*` and `nodes.*` are both node verbs and
@@ -171,8 +171,9 @@ Two verbs are **not** in this table:
 | `board.press` | `node` string, `pin` number, `down` bool | `node`, `pin`, `down` | `node.device.press(pin, down)  /  .tap(pin)` |
 | `board.probe` | *a bare string*, `board` string, `version` string | `probing`, `board`, `version` | `wb.boards.probe(board, version)` - *planned*, no client defines `wb.boards` yet; call the verb |
 | `board.probe_finished` | *a bare string*, `board` string, `version` string | `board`, `passed`, `failed` | *none* — a probe worker reporting back |
+| `board.reset` | *a bare string*, `node` string | `reset` | `node.device.reset()` |
 | `board.screen` | *a bare string*, `node` string | `node`, `has_screen`, `width`, `height`, `bpp`, `on`, `lit`, `digest` | `node.device.screen()  (numbers, not a picture)` |
-| `board.screenshot` | *a bare string*, `node` string | `node`, `path`, `width`, `height`, `bpp`, `on` | `node.device.screenshot()  (writes a PNG)` |
+| `board.screenshot` | *a bare string*, `node` string, `to` string | `node`, `path`, `width`, `height`, `bpp`, `on` | `node.device.screenshot()  (writes a PNG)` |
 | `board.touch` | `node` string, `x` number, `y` number, `down` bool | `node`, `x`, `y`, `down` | `node.device.touch(x, y, down) / .tap_at(x, y)` |
 
 ### Simulation

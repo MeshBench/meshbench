@@ -72,10 +72,21 @@ type Panel struct {
 	// cardIn and wipeCard drive the slot, where the board has one.
 	cardIn   comp.Check
 	wipeCard comp.Button
+	// reset restarts the board, the way its own reset button does; shot saves
+	// what the panel is showing.
+	reset comp.Button
+	shot  comp.Button
+	// OnSaveShot asks for a file and writes the panel to it. Held as a
+	// callback because opening the platform's dialog is the shell's business,
+	// not a panel's.
+	OnSaveShot func(node, suggested string)
 
-	tabs  [numTabs]widget.Clickable
-	rows  layout.List
-	index layout.List
+	tabs [numTabs]widget.Clickable
+	// rows and index scroll, and show that they do. A rail squeezed by a panel
+	// at 2:1 cuts its parts list off, and a cut with no scrollbar reads as a
+	// board with fewer parts than it has.
+	rows  widget.List
+	index widget.List
 	sel   int
 
 	// counts is what the last frame's table came to, for the status bar.
@@ -95,6 +106,8 @@ func (p *Panel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layo
 	// inspects the panel before then - the control audit, for one - finds an
 	// unnamed button it cannot report on.
 	p.popScreen.Kind, p.popScreen.Label = comp.Quiet, "pop out"
+	p.reset.Kind, p.reset.Label = comp.Quiet, "reset"
+	p.shot.Kind, p.shot.Label = comp.Quiet, "save a picture..."
 	p.split.Vertical = true
 	p.rows.Axis = layout.Vertical
 	p.index.Axis = layout.Vertical
@@ -103,7 +116,14 @@ func (p *Panel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layo
 	b, ok := p.board(st)
 	if !ok {
 		return layout.Center.Layout(gtx, comp.Text(t, t.Sz.Body, t.P.Faint,
-			"this node is not running a board image, so there is no wiring to check"))
+			"this node is not running a board image, so there is no board to show"))
+	}
+	// A board whose parts nobody has recorded still has a radio, and the chip's
+	// own registers reach here whichever emulator is running it. So the wiring
+	// side goes quiet and the rest of the window works, rather than the window
+	// refusing a board it has plenty to say about.
+	if !hasPanel(b) {
+		p.Tab = TabRadio
 	}
 	rows := p.rowsFor(b, st)
 	p.counts = Counts{}
@@ -127,6 +147,12 @@ func (p *Panel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layo
 	if p.popScreen.Click.Clicked(gtx) && p.OnPopScreen != nil {
 		p.OnPopScreen(p.Node)
 	}
+	if p.reset.Click.Clicked(gtx) && p.OnDo != nil {
+		p.OnDo("board.reset", map[string]any{"node": p.Node})
+	}
+	if p.shot.Click.Clicked(gtx) && p.OnSaveShot != nil {
+		p.OnSaveShot(p.Node, shotName(p.Node, b.Name))
+	}
 	// Pressing a control here reaches the firmware the same way the Hardware
 	// tab's does, through the same verb: this window watches the board, and the
 	// one thing it writes is a stimulus somebody asked for.
@@ -143,7 +169,7 @@ func (p *Panel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layo
 		}),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{}.Layout(gtx,
-				comp.Fixed(gtx, railFor(b, p.scale), func(gtx layout.Context) layout.Dimensions {
+				comp.Fixed(gtx, railWidth(b, p.scale), func(gtx layout.Context) layout.Dimensions {
 					return p.rail(t, gtx, b, st, rows, s)
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {

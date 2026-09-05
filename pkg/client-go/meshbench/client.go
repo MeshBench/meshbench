@@ -398,16 +398,16 @@ func (w *Workbench) Window(ctx context.Context, node string, tab Tab) (Tab, erro
 	return out.Tab, err
 }
 
-// BringUp opens a node's bring-up window and reports the board it checks.
+// BoardView opens a node's board view and reports the board it is showing.
 //
-// What the board's profile declares, beside what the firmware left in the chip,
-// and where the two differ. Windowed sessions only, for the same reason Window
-// is, and refused for a node running a host build: there is no board to check
-// it against.
-func (w *Workbench) BringUp(ctx context.Context, node string) (string, error) {
+// The board in full: its panel, the controls for what it has wired, and what
+// its profile declares beside what the firmware left in the chip. Windowed
+// sessions only, for the same reason Window is, and refused for a node running
+// a host build: there is no board to show.
+func (w *Workbench) BoardView(ctx context.Context, node string) (string, error) {
 	if w.Headless() {
 		return "", &Refused{
-			Verb: "node.bringup", Code: "unavailable",
+			Verb: "node.boardview", Code: "unavailable",
 			Message: "this session has no interface attached, so there is nothing to show",
 			kind:    ErrUnavailable,
 		}
@@ -415,7 +415,7 @@ func (w *Workbench) BringUp(ctx context.Context, node string) (string, error) {
 	var out struct {
 		Board string `json:"board"`
 	}
-	err := w.CallInto(ctx, "node.bringup", map[string]any{"node": node}, &out)
+	err := w.CallInto(ctx, "node.boardview", map[string]any{"node": node}, &out)
 	return out.Board, err
 }
 

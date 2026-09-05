@@ -15,6 +15,7 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 	// verb hub, because they arrived with the firmware verbs and splitting the
 	// file was what the length limit asked for, not a change of ownership.
 	registerBoardInput(st, s)
+	registerBoardReset(st, s)
 
 	st.Handle("firmware.start", func(w *state.World, _ any) (any, error) {
 		if s.eng == nil {

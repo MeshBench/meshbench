@@ -17,6 +17,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	hw "github.com/MeshBench/meshbench/internal/firmware/board"
+	"github.com/MeshBench/meshbench/internal/sim/engine"
 )
 
 // Row is one line of either table.
@@ -95,7 +96,10 @@ func wiringRows(b hw.Board, st *state.NodeStat) []Row {
 
 	p := b.Hardware
 	if p == nil {
-		return out
+		// Nobody has recorded what this board carries. The radio lines above
+		// are still real - they come from the emulator's wiring, not the panel
+		// - so they stand, and nothing is invented to keep them company.
+		return grouped(out)
 	}
 	if sc := p.Screen; sc != nil {
 		where := fmt.Sprintf("%s %#02x", sc.Bus, sc.Addr)
@@ -127,7 +131,7 @@ func wiringRows(b hw.Board, st *state.NodeStat) []Row {
 				"backlight, no viewing angle, no refresh artefacts."})
 	}
 	for _, part := range p.Parts {
-		out = append(out, partRow(part))
+		out = append(out, partRow(b, part))
 	}
 	return grouped(out)
 }
@@ -155,15 +159,29 @@ func grouped(rows []Row) []Row {
 // The unmodelled ones are the point. An unmodelled input is not a zero: a
 // firmware that starts a conversion and waits for a converter nobody built
 // waits for ever, which is a hang that looks like a firmware fault.
-func partRow(part hw.Part) Row {
+func partRow(b hw.Board, part hw.Part) Row {
 	r := Row{Group: groupOf(part.Kind), Name: part.Name, Where: whereOf(part),
 		Declared: part.Kind.String(), Observed: "not instrumented",
 		Verdict: Undeclared}
 	switch part.Kind {
 	case hw.Meter:
-		r.Verdict, r.Observed = NotModelled, "no converter modelled"
-		r.Why = "An unmodelled input is not a zero. A firmware that starts a " +
-			"conversion and waits for a converter nobody built waits for ever."
+		// Asked of the engine rather than assumed. The converter behind a
+		// meter is modelled on the parts where it is, and saying otherwise is
+		// a false claim in the one column that exists to be trusted.
+		if ch, ok := engine.MeterModelled(b); ok {
+			r.Verdict = Agrees
+			r.Observed = fmt.Sprintf("converter channel %d, at a full charge", ch)
+			r.Why = "The cell's voltage through the board's divider, encoded as " +
+				"the converter's own reading so the firmware's arithmetic gets " +
+				"the true voltage back. Set at boot and held there: nothing " +
+				"drains it as the run goes on."
+		} else {
+			r.Verdict, r.Observed = NotModelled, "no converter modelled"
+			r.Why = "An unmodelled input is not a zero. A firmware that starts " +
+				"a conversion and waits for a converter nobody built waits for " +
+				"ever. This board's meter is not on a converter we model - the " +
+				"first ten pins of the first converter, on an ESP32-S3."
+		}
 	case hw.Lamp:
 		r.Verdict, r.Observed = NotModelled, "no watcher on this pin"
 		r.Why = "The pin is declared and nothing watches it, so \"off\" and " +

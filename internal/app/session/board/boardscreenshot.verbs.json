@@ -8,6 +8,11 @@
         "required": true,
         "primary": true,
         "what": "the node whose screen to capture"
+      },
+      {
+        "name": "to",
+        "type": "string",
+        "what": "a second file to write the picture to, for keeping one: the node's own screen.png is overwritten every call, so a picture somebody wants to keep needs a name of its own"
       }
     ],
     "returns": [
@@ -18,7 +23,7 @@
       "bpp",
       "on"
     ],
-    "answers": "The picture is the frame the firmware drew, at the size the controller holds it, written to screen.png in that node's own work directory and overwritten each time. `on` says whether the panel was lit, which is a separate question from whether there is a frame: a display put to sleep still holds its last one. Refused where the node is not running, is not a board with a display, or has drawn nothing yet.",
+    "answers": "The picture is the frame the firmware drew, at the size the controller holds it, written to screen.png in that node's own work directory and overwritten each time; `to` writes a second copy that is not, and `path` is then the copy. `on` says whether the panel was lit, which is a separate question from whether there is a frame: a display put to sleep still holds its last one. Refused where the node is not running, is not a board with a display, or has drawn nothing yet.",
     "example": {
       "params": {
         "node": "West Lomond"
