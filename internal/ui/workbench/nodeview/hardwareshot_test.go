@@ -161,3 +161,31 @@ func loadCapturedColourScreen(t *testing.T) ([]byte, int, int) {
 	}
 	return out, w, h
 }
+
+// The captures the picture test draws from are where it expects them.
+//
+// Separate, and with no env var in front of it, because the test above writes
+// pictures for a person to look at and so is skipped unless somebody asked for
+// them - which means a broken fixture path is invisible to CI. That is exactly
+// what happened: the tab's test moved to this package and its testdata stayed
+// behind in workbench, and every run went green for a fortnight because every
+// run skipped.
+//
+// This one costs a few milliseconds and fails on the machine that moved them.
+func TestTheCapturedScreensAreWhereTheTestLooks(t *testing.T) {
+	bits, w, h := loadCapturedScreen(t)
+	if w != 128 || h != 64 {
+		t.Errorf("the Heltec capture is %dx%d, want 128x64", w, h)
+	}
+	if len(bits) != w*h/8 {
+		t.Errorf("%d bytes for a %dx%d mono capture, want %d", len(bits), w, h, w*h/8)
+	}
+	cbits, cw, ch := loadCapturedColourScreen(t)
+	if cw != 320 || ch != 240 {
+		t.Errorf("the T-Deck capture is %dx%d, want 320x240", cw, ch)
+	}
+	if len(cbits) != cw*ch*2 {
+		t.Errorf("%d bytes for a %dx%d RGB565 capture, want %d",
+			len(cbits), cw, ch, cw*ch*2)
+	}
+}
