@@ -11,6 +11,7 @@ import (
 
 	hw "github.com/MeshBench/meshbench/internal/firmware/board"
 	"github.com/MeshBench/meshbench/internal/ui/shell"
+	"github.com/MeshBench/meshbench/internal/ui/workbench/boardview"
 	"github.com/MeshBench/meshbench/internal/ui/workbench/nodeview"
 	"github.com/MeshBench/meshbench/internal/ui/workbench/packetview"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
@@ -38,7 +39,17 @@ func addMeshPanels(d panelDeps) {
 	if *d.filterFlag != "" {
 		nv.SetFilter(*d.filterFlag)
 	}
-	nodeview.OpenOnTab = nodeview.Tab(*d.nodeTabFlag)
+	// Refused rather than silently opening something else. A tab a node does
+	// not grow, or a name nothing matches, used to leave the window on Console
+	// and say nothing - which is what let a whole bucket of capture steps look
+	// like working node windows while photographing the wrong pane.
+	if tab, ok := nodeview.TabByName(*d.nodeTabFlag); ok {
+		nodeview.OpenOnTab = tab
+	} else {
+		fmt.Fprintf(os.Stderr, "-node-tab %q: no such tab. There is: %s\n",
+			*d.nodeTabFlag, strings.Join(nodeview.TabNames(), ", "))
+		os.Exit(2)
+	}
 	packetview.OpenOnTab = *d.packetTabFlag
 	if *d.nodeWinFlag != "" {
 		go func() {
@@ -52,6 +63,7 @@ func addMeshPanels(d panelDeps) {
 	// button on a node's Hardware tab, and a window reachable only by clicking
 	// is a window no capture can take a picture of.
 	if *d.boardWinFlag != "" {
+		boardview.OpenDecoded = *d.boardDecodeFlag
 		go func() {
 			time.Sleep(4 * time.Second)
 			p := map[string]any{"node": *d.boardWinFlag}

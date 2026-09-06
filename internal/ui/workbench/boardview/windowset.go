@@ -43,6 +43,7 @@ func (w *WindowSet) OpenFor(node string, tab Tab, newTheme func() *theme.Theme,
 		return
 	}
 	p := &Panel{Node: node, Tab: tab, OnDo: h.OnDo, OnSaveShot: h.OnSaveShot}
+	p.decode.Bool.Value = OpenDecoded
 	p.OnPopScreen = func(n string) { w.openScreen(n, p, newTheme, st) }
 	// Four regions across and three down - the board, the table, the inspector,
 	// and the log along the bottom - so it opens wider than the node window
@@ -74,3 +75,13 @@ func (w *WindowSet) openScreen(node string, from *Panel,
 		Bar: node + " screen", W: 700, H: 560,
 	}, sp, newTheme, st)
 }
+
+// OpenDecoded is whether a board view opens with the console's decode tick on.
+//
+// Off, as the tick is: the wire is what the board sent, and this window is
+// about what the board did. It exists because that tick was the one control in
+// this window with no way in from outside, so the capture step for it carried
+// an instruction to a person - "tick decode in the console strip" - and could
+// not run unattended at all. A control reachable only by clicking is a control
+// no picture can be taken of, which is the rule the rest of these flags follow.
+var OpenDecoded bool

@@ -51,9 +51,29 @@ def capture(out):
     sys.exit("no window capture tool found: install spectacle or grim")
 
 
+# What every launch writes to stderr and nobody needs to hear about.
+QUIET = ("session log:", "control socket:", "closing:")
+
+
+def tail(path):
+    """What the workbench said for itself, minus its own startup chatter."""
+    try:
+        with open(path, "rb") as f:
+            said = f.read().decode(errors="replace")
+    except OSError:
+        return ""
+    keep = [l for l in said.splitlines()
+            if l.strip() and not l.startswith(QUIET)]
+    return " / ".join(keep)[-400:]
+
+
 def run(step, binary, fixture, outdir):
     out = os.path.join(outdir, step["name"] + ".png")
-    cmd = [binary, "workbench", "-fixture", fixture] + step["flags"]
+    # A step may name its own fixture. The board view needs a node running a
+    # board image and the default fixture has none, so all three board steps
+    # were refused - and, before the stderr check below, refused silently.
+    cmd = [binary, "workbench",
+           "-fixture", step.get("fixture", fixture)] + step["flags"]
     # A panel that is empty without traffic is a panel whose picture cannot be
     # judged: "showing 0 of 0 events" looks exactly like a panel that does not
     # work. Those steps say so, and get the run started and longer to fill.
@@ -66,14 +86,24 @@ def run(step, binary, fixture, outdir):
     if step.get("play"):
         cmd.append("-play")
         settle = SETTLE + 12
-    proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL,
-                            stderr=subprocess.PIPE)
+    # Into a file rather than a pipe: a refusal has to be readable while the
+    # window is still up, and a pipe can only be drained once the process ends.
+    errf = os.path.join(outdir, step["name"] + ".stderr")
+    with open(errf, "wb") as e:
+        proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=e)
     try:
         time.sleep(settle)
         if proc.poll() is not None:
-            err = (proc.stderr.read() or b"").decode()[-400:]
             print("  the workbench exited before it could be photographed:",
-                  err.strip() or "no output", file=sys.stderr)
+                  tail(errf) or "no output", file=sys.stderr)
+            return False
+        # A flag the workbench refused leaves the window up and perfectly
+        # usable, so this used to photograph it and call the step a success.
+        # Three board-view steps named a node no fixture has and reported green
+        # for months on a picture of a plain workbench. The refusal is the
+        # loudest signal there is; discarding it was the whole fault.
+        if said := tail(errf):
+            print("  the workbench refused something:", said, file=sys.stderr)
             return False
         ok = capture(out)
         if step.get("then"):
@@ -118,11 +148,22 @@ def main():
     os.makedirs(a.out, exist_ok=True)
 
     failed = []
+    skipped = []
     for i, (b, s) in enumerate(chosen, 1):
         print(f"[{i}/{len(chosen)}] {b}/{s['name']} - {s['what']}")
+        # A step that says what it is waiting for is not a step that failed.
+        # Saying so beats both a red run nobody can act on and a picture of
+        # something else.
+        if s.get("needs"):
+            print("  skipped - needs", s["needs"])
+            skipped.append(s["name"])
+            continue
         if not run(s, a.binary, a.fixture, a.out):
             failed.append(s["name"])
-    print(f"\n{len(chosen) - len(failed)} of {len(chosen)} captured into {a.out}")
+    took = len(chosen) - len(failed) - len(skipped)
+    print(f"\n{took} of {len(chosen)} captured into {a.out}")
+    if skipped:
+        print("skipped, and why is in steps.json:", ", ".join(skipped))
     if failed:
         print("no picture for:", ", ".join(failed))
         sys.exit(1)

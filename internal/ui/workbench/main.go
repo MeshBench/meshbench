@@ -64,6 +64,9 @@ func Run(args []string) {
 	nodeWinFlag := flag.String("node-window", "", "open this node's own window at startup")
 	boardWinFlag := flag.String("board-view", "",
 		"open this node's board view at startup")
+	boardDecodeFlag := flag.Bool("board-decode", false,
+		"open the board view's console with its decode tick on, so what a "+
+			"companion's framed protocol says can be captured")
 	boardTabFlag := flag.String("board-tab", "",
 		"which table the board view opens on: Radio or Wiring")
 	filterFlag := flag.String("filter", "", "preset the node view's search box, so a filtered table can be captured")
@@ -83,9 +86,17 @@ func Run(args []string) {
 	packetTabFlag := flag.Int("packet-tab", 0,
 		"which tab the packet window opens on: 0 dissection, 1 journey "+
 			"(the propagation graph), 2 reception ledger, 3 where it went")
-	nodeTabFlag := flag.Int("node-tab", 0, "which tab a node window opens on: "+
-		"0 console, 1 companion, 2 SDR, 3 settings, 4 radio, 5 stats, "+
-		"6 activity, 7 connect, 8 hardware, 9 output")
+	// A name, not an index, and for the reason -board-tab already takes one:
+	// the index list was written out by hand in three places - the enum, this
+	// help, and tools/shots/steps.json - and when Antenna was added between
+	// Radio and Stats, the help and the manifest both missed it. They agreed
+	// with each other and disagreed with the enum, so five capture steps
+	// quietly photographed the tab after the one they were named for and
+	// Output was never photographed at all. A name cannot drift that way, and
+	// nodeview.TabByName already resolves one.
+	nodeTabFlag := flag.String("node-tab", "",
+		"which tab a node window opens on, by name: "+
+			strings.Join(nodeview.TabNames(), ", "))
 	coverFlag := flag.String("coverage", "",
 		"compute and show coverage from this node at startup")
 	energyFlag := flag.Bool("energy", false, "run the site study for the selected node at startup")
@@ -107,6 +118,7 @@ func Run(args []string) {
 	updateNowFlag := flag.Bool("update-check", false, "ask whether a newer "+
 		"release exists shortly after startup, whatever the schedule says")
 	_ = flag.CommandLine.Parse(args)
+	implySectionPanel(panelFlag, popFlag, cfgSection, licSection)
 	if *versionFlag {
 		fmt.Println("MeshBench", version.Detail())
 		return
@@ -287,7 +299,8 @@ func Run(args []string) {
 		cfgSection: cfgSection, licSection: licSection, filterFlag: filterFlag,
 		importFlag: importFlag, nodeWinFlag: nodeWinFlag, provFlag: provFlag,
 		boardWinFlag: boardWinFlag, boardTabFlag: boardTabFlag,
-		openFwFlag: openFwFlag, openMenuFlag: openMenuFlag,
+		boardDecodeFlag: boardDecodeFlag,
+		openFwFlag:      openFwFlag, openMenuFlag: openMenuFlag,
 		packetTabFlag: packetTabFlag, nodeTabFlag: nodeTabFlag,
 	})
 	// After the panels are registered, because it opens one of them. Not when

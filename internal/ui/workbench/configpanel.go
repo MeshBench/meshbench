@@ -296,13 +296,25 @@ func runPill(t *theme.Theme, s *state.Snapshot) layout.Widget {
 
 // Open opens a named section, for the capture flag: a section that only
 // opens on a click is a section nobody can check without a hand on the mouse.
-func (p *configPanel) Open(name string) {
+//
+// It says whether it found one. Silently leaving the panel where it was made a
+// misspelled section indistinguishable from no flag at all, and the capture
+// manifest named five sections that do not exist - "terrain", "traffic",
+// "provisioning", "resources" and "rf" for "RF Simulation" - without anything
+// once saying so.
+func (p *configPanel) Open(name string) bool {
 	for i, s := range configSections {
 		if strings.EqualFold(s, name) {
 			p.active = i
+			return true
 		}
 	}
+	return false
 }
+
+// ConfigSections is the sidebar's own list, for a caller that has to say what
+// it would have accepted.
+func ConfigSections() []string { return append([]string{}, configSections...) }
 
 // auditDraw is every control this panel owns, laid flat with no sections, so
 // the audit presses each one regardless of which section happens to be open.
