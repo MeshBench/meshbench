@@ -953,18 +953,31 @@ both margins and the terrain cut-through that explains the verdict. The entry is
 kept, struck through rather than deleted, because it was wrong for long enough
 to be worth admitting.
 
-The largest remaining product gap is now **the boards**. Ten are described in
-`internal/world/scenario`, and as measured on 20 August exactly one —
-`Generic_E22_sx1262` — passes every capability the board check asks of it. Two
-more are green with a caveat. The rest either cannot be run at all, or run and
-then go quiet:
+~~**The largest remaining product gap is now the boards.** Ten are described in
+`internal/world/scenario`, and as measured on 20 August exactly one,
+`Generic_E22_sx1262`, passes every capability the board check asks of it.~~
+**Ten of the twelve pass every column, measured on 4 September**, including the
+three nRF52 boards that used to advert once and go quiet and the two ESP32-S3
+boards that used to assert inside ESP-IDF startup. Every one of them forwards
+somebody else's packet, judged at the board itself. The table is in the README
+and on [Emulating a board](emulation.html#which-boards-have-been-run).
 
-- **Three nRF52 boards advert once and never again** (RAK4631, Xiao nRF52,
+Struck through rather than deleted for the same reason as the map above it: it
+was the honest answer for long enough that quietly replacing it would be the
+wrong kind of tidy.
+
+- ~~**Three nRF52 boards advert once and never again** (RAK4631, Xiao nRF52,
   Heltec Mesh Solar). All three report the channel busy, which is what a frozen
-  clock would look like to CSMA — see the simulated RTC, which does not advance.
-- **Two ESP32 boards boot and then assert inside ESP-IDF startup**
-  (Xiao S3 WIO, Heltec V3).
-- **Two have not been attempted** (Station G2, Heltec V2).
+  clock would look like to CSMA.~~ All three flood now. The channel-busy reading
+  was real, and had two faults stacked behind it, neither of them the clock: the
+  CryptoCell model read modular operands too narrow, and undriven inputs read
+  low, which the firmware took as a button held down. They masked each other.
+- ~~**Two ESP32 boards boot and then assert inside ESP-IDF startup**
+  (Xiao S3 WIO, Heltec V3).~~ Both boot and flood. The assert was a flash
+  quad-enable bit; the radio that stayed silent afterwards was a different SPI
+  controller with a different register layout, and a strapping pin reading low.
+- **Two have not been attempted** (Station G2, Heltec V2). Still true, and they
+  are the only blanks left.
 - ~~**No emulated board has a console**, because the firmware talks to `Serial`
   — USB CDC — and neither emulator platform models USB.~~ Both platforms model
   it now: the ESP32 boards over USB Serial/JTAG, and the nRF52 ones over
@@ -972,9 +985,11 @@ then go quiet:
   answers a typed `ver` through. What is still true is that a board whose
   profile names the wrong wire reads as silent rather than as misconfigured.
 
-That is the gap a new user meets first: they own a board, and the odds are it is
-not one of the three that work. Everything in the physics above matters less to
-them than that.
+~~That is the gap a new user meets first: they own a board, and the odds are it
+is not one of the three that work.~~ The odds are now that it is one of the ten
+that do. What has not changed is the cost: each emulated board is its own
+emulator process, so a mesh of them is a handful of nodes rather than a network,
+and anything being measured runs on native firmware instead.
 
 ---
 
