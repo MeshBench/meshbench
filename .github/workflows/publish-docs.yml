@@ -80,9 +80,11 @@ jobs:
     # dispatching it.
     if: github.repository == 'MeshBench/meshbench'
     timeout-minutes: 15
-    # Hosted, and nothing else: this holds a token that can write to another
-    # repository, and that token has no business on the self-hosted lab
-    # runners.
+    # On the lab, and the deployment token with it. This is a maintainer's own
+    # tag or dispatch on this repository - the `if` above makes sure of it - so
+    # nothing a stranger wrote reaches the runner. The alternative was a hosted
+    # image building the whole site on every release, which is the sort of
+    # minute this project no longer has to spend.
     runs-on: [self-hosted, linux, x64, lab-linux]
     environment: docs-site
     permissions:
@@ -101,7 +103,6 @@ jobs:
             echo "::error::this runner is missing:$missing - install them on the runner"
             exit 1
           fi
-
 
       # The Go client's reference is extracted with `go doc`, so this job needs
       # a toolchain. Without one that generator exits non-zero, and gen.py's
