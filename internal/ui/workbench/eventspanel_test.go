@@ -53,3 +53,53 @@ func TestEventRowsDoNotGrowWithTheRun(t *testing.T) {
 			len(p.rows), tail, tail+rowSlack)
 	}
 }
+
+// A run shorter than the panel starts under the header, not against the floor.
+//
+// Gio's ScrollToEnd is end alignment rather than "scroll to the end": with
+// fewer rows than fit, it pushed them down by the whole of the leftover space
+// and left the column header at the top of a band of nothing. On a fresh
+// machine with a short run - which is what a new user has - that was most of
+// the Inspector, and it reads as a panel that has not loaded.
+func TestAShortRunStartsUnderTheHeader(t *testing.T) {
+	p := &eventsPanel{}
+	snap := &state.Snapshot{Events: eventTail(0, 3), EventTotal: 3}
+	snap.Counts = state.EventCounts{Received: 3}
+	h := uitest.New(p.Draw, snap)
+
+	// Twice: the first frame is what teaches the list its own size.
+	h.Frame()
+	h.Frame()
+
+	if p.list.Position.OffsetLast <= 0 {
+		t.Skip("three rows filled the test viewport, so there is nothing to " +
+			"align either way")
+	}
+	if p.list.ScrollToEnd {
+		t.Error("the list is end-aligned with room to spare, so the rows sit " +
+			"against the bottom edge and the header labels a band of nothing")
+	}
+	if p.list.Position.Offset < 0 {
+		t.Errorf("the first row is pushed down by %d px of blank space",
+			-p.list.Position.Offset)
+	}
+}
+
+// A run longer than the panel still follows its newest row.
+func TestALongRunStillFollowsTheNewestRow(t *testing.T) {
+	p := &eventsPanel{}
+	snap := &state.Snapshot{Events: eventTail(0, 400), EventTotal: 400}
+	snap.Counts = state.EventCounts{Received: 400}
+	h := uitest.New(p.Draw, snap)
+
+	h.Frame()
+	h.Frame()
+
+	if p.list.Position.OffsetLast > 0 {
+		t.Fatal("400 rows fit the test viewport, so this proves nothing")
+	}
+	if !p.list.ScrollToEnd {
+		t.Error("more rows than fit, so the panel should still be following " +
+			"the newest one")
+	}
+}

@@ -334,7 +334,22 @@ func (p *eventsPanel) table(t *theme.Theme, gtx layout.Context, shown []*state.E
 		}
 		return layout.Center.Layout(gtx, comp.Text(t, t.Sz.Caption, t.P.Faint, msg))
 	}
-	p.list.ScrollToEnd = p.follow
+	// Follow the newest row, but only while there are more rows than fit.
+	//
+	// Gio's ScrollToEnd is *end alignment*, not "scroll to the end": with the
+	// content shorter than its viewport it pushes the rows down by exactly the
+	// leftover space (layout/list.go, "ScrollToEnd lists are end aligned"). On
+	// a short run that stranded the column header at the top of a band of
+	// nothing several hundred pixels deep, with the rows pressed against the
+	// bottom edge - which reads as a panel that has not finished loading, and
+	// separates the header from the rows it labels. In the Inspector, which is
+	// this panel scoped to one node, it was most of the pane.
+	//
+	// OffsetLast is the space left at the trailing edge, so a positive one
+	// means everything fits. Count is zero before the first layout, when
+	// nothing is known yet and top alignment is the safe answer.
+	fits := p.list.Position.Count == 0 || p.list.Position.OffsetLast > 0
+	p.list.ScrollToEnd = p.follow && !fits
 	tw, fw, snr, pill := p.colWidths(gtx)
 	return comp.List(t, &p.list, len(shown), func(gtx layout.Context, i int) layout.Dimensions {
 		e := shown[i]
