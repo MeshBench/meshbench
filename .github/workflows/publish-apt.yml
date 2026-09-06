@@ -76,7 +76,7 @@ concurrency:
 jobs:
   publish:
     name: rebuild the pool and the index
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, lab-linux]
     environment: apt-publish
     steps:
       - name: Tools

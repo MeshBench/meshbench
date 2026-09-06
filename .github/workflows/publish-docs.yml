@@ -83,7 +83,7 @@ jobs:
     # Hosted, and nothing else: this holds a token that can write to another
     # repository, and that token has no business on the self-hosted lab
     # runners.
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, lab-linux]
     environment: docs-site
     permissions:
       contents: read

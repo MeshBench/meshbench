@@ -234,7 +234,7 @@ jobs:
     # The scheduled run only. A dispatch or a labelled pull request has somebody
     # already watching the run they asked for, and filing at them is noise.
     if: always() && github.event_name == 'schedule' && needs.live.result == 'failure'
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","lab-linux"]') || fromJSON('["ubuntu-latest"]') }}
     # Job-level permissions replace the file's, so contents is restated rather
     # than inherited.
     permissions:

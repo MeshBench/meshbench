@@ -62,7 +62,7 @@ jobs:
     # it keeps index credentials off the self-hosted runners entirely. It is
     # also the only place `pypa/gh-action-pypi-publish` is guaranteed to run,
     # since that action is a container.
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","lab-linux"]') || fromJSON('["ubuntu-latest"]') }}
     permissions:
       contents: read
     outputs:
@@ -252,7 +252,7 @@ jobs:
     needs: build
     if: needs.build.outputs.publish == 'yes'
     timeout-minutes: 15
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","lab-linux"]') || fromJSON('["ubuntu-latest"]') }}
     # Trusted publishing: PyPI mints a short-lived token from the OIDC claim
     # of this job, so there is no API token to store, rotate or leak. The
     # environment name is part of what PyPI matches on, and is also where a
@@ -284,7 +284,7 @@ jobs:
     needs: build
     if: needs.build.outputs.publish == 'yes'
     timeout-minutes: 15
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","lab-linux"]') || fromJSON('["ubuntu-latest"]') }}
     # Trusted publishing, the npm equivalent of the PyPI job below: npm mints
     # a short-lived token from this job's OIDC claim, matched against the
     # trusted publisher configured on @meshbench/client (organisation

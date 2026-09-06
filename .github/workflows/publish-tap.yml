@@ -63,7 +63,7 @@ concurrency:
 jobs:
   publish:
     name: rewrite the casks
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, lab-linux]
     environment: tap-publish
     steps:
       - name: What this release published

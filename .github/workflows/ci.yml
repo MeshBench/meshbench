@@ -307,7 +307,7 @@ jobs:
   # nightly's work - firmware-live.yml runs the whole set with no cap.
   fixtures:
     timeout-minutes: 25
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","lab-linux"]') || fromJSON('["ubuntu-latest"]') }}
     steps:
       - uses: actions/checkout@v7
 
