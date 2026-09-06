@@ -54,3 +54,50 @@ func TestNoShippedFixtureCarriesAReplacementCharacter(t *testing.T) {
 		}
 	}
 }
+
+// No shipped fixture names the same study area twice.
+//
+// Three of them did, byte for byte: fixture-fem-e22, fixture-fife-permissive
+// and fixture-fife-strict each carried "Fife" as two identical 11 kB entries.
+// They are the hand-built ones - regenerate.mjs rebuilds only the national
+// fixtures, and those were clean - and they predate boundary.accept learning to
+// refuse a place already in the study area:
+//
+//	// Once each. Accepting the same place twice used to stack it, and a
+//	// study area listed as "Fife, Fife, Fife" says nothing three times.
+//
+// Nothing then re-checked the files, so opening one put the duplicate back into
+// the world past that guard: the boundary drawn twice, "2 areas" in the log,
+// and a Boundary panel showing the same place on two rows with the same counts,
+// which reads as a fault in the panel rather than in the data.
+func TestNoShippedFixtureNamesAStudyAreaTwice(t *testing.T) {
+	paths, err := filepath.Glob(filepath.Join("..", "..", "..", "fixtures", "*.json"))
+	if err != nil || len(paths) == 0 {
+		t.Fatalf("no fixtures found to check: %v", err)
+	}
+	for _, p := range paths {
+		b, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatalf("%s: %v", p, err)
+		}
+		var f struct {
+			Areas []struct {
+				Name string `json:"name"`
+			} `json:"areas"`
+		}
+		if err := json.Unmarshal(b, &f); err != nil {
+			t.Fatalf("%s does not parse: %v", p, err)
+		}
+		seen := map[string]bool{}
+		for _, a := range f.Areas {
+			k := strings.ToLower(a.Name)
+			if seen[k] {
+				t.Errorf("%s names the study area %q more than once: everything "+
+					"that walks the areas walks it twice, and the Boundary panel "+
+					"lists it on two rows with the same numbers",
+					filepath.Base(p), a.Name)
+			}
+			seen[k] = true
+		}
+	}
+}
