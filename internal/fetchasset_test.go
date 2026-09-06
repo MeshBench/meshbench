@@ -223,6 +223,11 @@ func TestVerifyBundleRefusesABundleWithoutItsEmulators(t *testing.T) {
 		// and a bundle without it draws them as boxes on any machine with no
 		// system emoji face, which is where this was found.
 		"fonts/NotoColorEmoji.ttf",
+		// Wireshark loads these at runtime the way Renode loads the files
+		// above, so they ship as files too; without them a capture opens on
+		// undissected UDP.
+		"tools/dissector/meshbench.lua",
+		"tools/dissector/meshcore_dissector.lua",
 	} {
 		p := filepath.Join(full, name)
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
@@ -257,6 +262,11 @@ func TestVerifyBundleJudgesEachVariantByItsOwnRules(t *testing.T) {
 		"renode-support/peripherals/VirtualSX1262.cs",
 		// Compact means no emulators, not no font.
 		"fonts/NotoColorEmoji.ttf",
+		// Wireshark loads these at runtime the way Renode loads the files
+		// above, so they ship as files too; without them a capture opens on
+		// undissected UDP.
+		"tools/dissector/meshbench.lua",
+		"tools/dissector/meshcore_dissector.lua",
 	} {
 		p := filepath.Join(compact, name)
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
@@ -305,6 +315,9 @@ func TestVerifyBundleRefusesABundleWithoutTheEmojiFont(t *testing.T) {
 		names := []string{
 			"libvirtualsx1262.so",
 			"renode-support/peripherals/VirtualSX1262.cs",
+			// Present, so this test refuses for the font and nothing else.
+			"tools/dissector/meshbench.lua",
+			"tools/dissector/meshcore_dissector.lua",
 		}
 		if variant == "bundled" {
 			names = append(names,
@@ -331,6 +344,58 @@ func TestVerifyBundleRefusesABundleWithoutTheEmojiFont(t *testing.T) {
 		}
 		if !strings.Contains(out, "NotoColorEmoji") {
 			t.Errorf("the %s refusal does not name the font:\n%s", variant, out)
+		}
+	}
+}
+
+// A bundle without the Wireshark dissectors is refused, in either variant.
+//
+// They are Lua that Wireshark loads at runtime rather than anything linked in,
+// so they have to ship as files - and until this check existed they shipped in
+// no bundle on any platform, with the LICENCES entry for the vendored dissector
+// the only trace of them in a release. capture.wireshark streams frames whether
+// or not it finds them, so the symptom is a Wireshark window full of anonymous
+// UDP: a capture that looks broken rather than two scripts nobody packaged.
+func TestVerifyBundleRefusesABundleWithoutTheDissectors(t *testing.T) {
+	if _, err := exec.LookPath("bash"); err != nil {
+		t.Skip("no bash on this machine")
+	}
+	const script = "../packaging/verify-bundle.sh"
+
+	for _, variant := range []string{"bundled", "compact"} {
+		dir := t.TempDir()
+		names := []string{
+			"libvirtualsx1262.so",
+			"renode-support/peripherals/VirtualSX1262.cs",
+			"fonts/NotoColorEmoji.ttf",
+		}
+		if variant == "bundled" {
+			names = append(names,
+				"qemu-meshbench/bin/qemu-system-xtensa",
+				"renode_1.16.1-portable/renode")
+		}
+		for _, name := range names {
+			p := filepath.Join(dir, name)
+			if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(p, []byte("x"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := os.WriteFile(filepath.Join(dir, "VARIANT"),
+			[]byte(variant+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		code, out := run(t, "", script, dir, "linux-amd64")
+		if code == 0 {
+			t.Errorf("a %s bundle with no dissectors was accepted:\n%s",
+				variant, out)
+		}
+		for _, lua := range []string{"meshbench.lua", "meshcore_dissector.lua"} {
+			if !strings.Contains(out, lua) {
+				t.Errorf("the %s refusal does not name %s:\n%s", variant, lua, out)
+			}
 		}
 	}
 }
