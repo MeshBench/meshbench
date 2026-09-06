@@ -63,15 +63,28 @@ jobs:
     # main, or a maintainer dispatching it.
     if: github.repository == 'MeshBench/meshbench'
     timeout-minutes: 10
-    # Hosted, and nothing else: this needs Go and git, it holds a token that
-    # can write to another repository, and that token has no business on
-    # the self-hosted lab runners.
-    runs-on: ubuntu-latest
+    # On the lab, and the mirror token with it. This is a commit already on
+    # main or a maintainer's dispatch - the `if` above makes sure of it - so
+    # nothing a stranger wrote reaches the runner, which was the whole of the
+    # objection to putting a write token there.
+    runs-on: [self-hosted, linux, x64, lab-linux]
     environment: skills-mirror
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v7
+
+      # This job moved off a hosted image, where these happened to be present.
+      # Checked in one line so a runner without one says so before anything is
+      # published, rather than failing halfway with an unrecognised flag.
+      - name: The tools this job shells out to
+        run: |
+          missing=""
+          for t in git; do command -v "$t" >/dev/null || missing="$missing $t"; done
+          if [ -n "$missing" ]; then
+            echo "::error::this runner is missing:$missing - install them on the runner"
+            exit 1
+          fi
 
       - uses: actions/setup-go@v7
         with:

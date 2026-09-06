@@ -63,6 +63,9 @@ concurrency:
 jobs:
   publish:
     name: rewrite the casks
+    # Hosted, with the apt publisher and for the same reason: it runs once per
+    # release, so the minutes are noise, and a publishing path is the wrong
+    # place to find out that a runner is missing something.
     runs-on: ubuntu-latest
     environment: tap-publish
     steps:

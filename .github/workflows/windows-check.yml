@@ -13,18 +13,22 @@ name: windows-check
 # while the repository was private; it is public now and hosted minutes are
 # free, so the first half is the whole of it.
 #
-# But also on a release tag, and for one narrow reason: on 21 August the Windows
-# build had been broken for a week and nothing knew. internal/app/session used
-# unix.Access, which does not exist there, and the only thing that compiles for
-# Windows is this file - last dispatched seven days earlier. A check that runs
-# when somebody remembers did not remember.
+# It used to run on a release tag as well, and that was worth having when it was
+# the only thing compiling for Windows: on 21 August the build had been broken
+# for a week and nothing knew, because internal/app/session used unix.Access and
+# nothing else looked.
 #
-# The tag is the cheapest moment that is not "never": one run per release rather
-# than one per push, and a release that cannot build for Windows should not be
-# published anyway.
+# That half is covered now. package.yml cross-compiles the Windows binary on the
+# same v* tag - GOOS=windows with mingw, on a lab runner - so a release that
+# cannot build for Windows still fails, and fails for nothing. What this
+# workflow uniquely buys is the part a cross-compile cannot: the kernels running
+# on DX12 on a real Windows machine.
+#
+# So it is dispatched, and the trade is stated rather than assumed. A release
+# is proven to *build* for Windows automatically and proven to *run* only when
+# somebody asks. This is a hosted Windows runner at a 2x multiplier on a free
+# account, and the minutes are better spent on the checks that gate a merge.
 on:
-  push:
-    tags: ["v*"]
   workflow_dispatch:
 
 jobs:

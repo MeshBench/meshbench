@@ -109,6 +109,12 @@ jobs:
         run: |
           go run ./tools/licgen
           git diff --exit-code -- internal/ui/workbench/licences/licences.json
+          # And the project still has to have a licence to be given away.
+          # Asked here rather than in the release job, which runs on a hosted
+          # runner: `go run` compiles, and a build is the one thing worth not
+          # doing on somebody else's minutes. This job has the toolchain
+          # already and runs licgen twice as it is.
+          go run ./tools/licgen -require-project-licence
 
       - name: Build and check
         run: |
@@ -826,16 +832,6 @@ jobs:
       tag: ${{ steps.publish.outputs.tag }}
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        # 1.25, matching go.mod and ci.yml. Not cosmetic: the lab runners
-        # set GOTOOLCHAIN=local, so Go may not fetch the toolchain go.mod
-        # asks for - and every go command in this job died on
-        # "go.mod requires go >= 1.25.0 (running go 1.24.13)".
-        #
-        # cache: false - every job in this file runs on a persistent
-        # self-hosted runner (lab-2204, or the m4 pool), where the Go
-        # caches already survive between jobs. See ci.yml for the detail.
-        with: { go-version: '1.25', cache: false }
       - uses: actions/download-artifact@v8
         with: { path: incoming }
 
@@ -909,8 +905,9 @@ jobs:
                  "windows job's installer step"
             exit 1
           fi
-          # And the project still has to have a licence to be given away.
-          go run ./tools/licgen -require-project-licence
+          # The project's own licence is checked by the linux job, which has
+          # the toolchain anyway. Nothing in this job compiles: it assembles
+          # what the three build jobs made, and publishes it.
 
       - name: Publish
         id: publish

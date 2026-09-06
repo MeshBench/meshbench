@@ -288,32 +288,41 @@ jobs:
   # machine-checkable claim this project makes about whether a mesh still
   # delivers; leaving them to be run by hand is leaving them not run.
   #
-  # Hosted, and deliberately, which is the one decision in this job worth
-  # explaining. It starts real native MeshCore, and the published builds need
-  # glibc 2.38. One of the three lab runners is Ubuntu 22.04 on purpose -
-  # package.yml builds releases there to hold the release's glibc floor - and
-  # runs that firmware only through a patchelf shim, which has failed outright
-  # before: every node on that runner dead, deterministically, for an
-  # afternoon. Actions labels are AND-only, so "lab-linux but not lab-2204"
-  # cannot be written, and a lab-pool job would land there about one run in
-  # three and go red for a runner's libc rather than for a fixture. A check
-  # that fails for reasons unrelated to the diff is worth nothing, which is the
-  # whole point of adding this one. ubuntu-latest is 24.04 with glibc 2.39, so
-  # the builds exec every time; it touches nothing on the lab LAN, so no fork
-  # guard is needed and a fork's pull request gets the same check.
+  # Which runner it lands on is the one decision in this job worth explaining.
+  # It starts real native MeshCore, and the published builds need glibc 2.38.
+  # One of the three lab runners is Ubuntu 22.04 on purpose - package.yml
+  # builds releases there to hold the release's glibc floor - and runs that
+  # firmware only through a patchelf shim, which has failed outright before:
+  # every node on that runner dead, deterministically, for an afternoon. So
+  # this asks for lab-2404 by name rather than for the pool, which is what
+  # lets it run on the lab at all: a lab-pool job would land on the 22.04 box
+  # about one run in three and go red for a runner's libc rather than for a
+  # fixture, and a check that fails for reasons unrelated to the diff is worth
+  # nothing.
   #
   # The two Fife fixtures only, at 58 nodes each. The national ones are 161 and
   # 378 MeshCore processes and minutes of wall clock apiece, which is a
   # nightly's work - firmware-live.yml runs the whole set with no cap.
   fixtures:
     timeout-minutes: 25
-    runs-on: ubuntu-latest
+    # lab-2404, not lab-linux. This job starts real MeshCore firmware, and the
+    # 22.04 runner in the pool cannot: the published binaries want GLIBC 2.38
+    # and it has an older one, so every node fails to connect and the fixture
+    # assertions read as a broken fixture rather than as the wrong machine.
+    # The test job asks for the same label for the same reason.
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","lab-2404"]') || fromJSON('["ubuntu-latest"]') }}
     steps:
       - uses: actions/checkout@v7
 
       - uses: actions/setup-go@v7
         with:
           go-version: "1.25"
+          # cache: false, for the reason the test job gives at length: the
+          # caches already survive between jobs on a persistent runner, and
+          # the upload back to GitHub over the lab's uplink does not. This
+          # job spent seventeen minutes in the cache action's tar and was
+          # killed by its own timeout with every assertion already passed.
+          cache: false
 
       # cgo, through Gio: cmd/meshbench links the workbench, so the binary does
       # not build without these even though this job opens no window.
