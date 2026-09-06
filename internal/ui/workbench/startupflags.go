@@ -103,9 +103,13 @@ func (a startupActions) run() {
 		if len(parts) == 3 {
 			lat, e1 := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
 			lon, e2 := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
-			zoom, e3 := strconv.ParseFloat(strings.TrimSpace(parts[2]), 64)
+			level, e3 := strconv.ParseFloat(strings.TrimSpace(parts[2]), 64)
 			if e1 == nil && e2 == nil && e3 == nil {
-				a.mv.StartAt(lat, lon, zoom)
+				// A slippy level, because that is the number on every map
+				// anybody has used. The camera's own scale is pixels per
+				// degree, and handing one to the other made every level render
+				// at roughly world scale.
+				a.mv.StartAt(lat, lon, comp.ZoomForLevel(level))
 			}
 		}
 	}

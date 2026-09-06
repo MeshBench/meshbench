@@ -433,7 +433,7 @@ One panel filling the window, filtered, over a fixed view, closing itself. That 
 | `-layers` | none | capture | switch these map layers on at startup, comma separated |
 | `-licence-section` | none | capture | scope the Licences panel to one section: forks, bundled, golibs, runtime, data |
 | `-list-fixtures` | `false` | output | list the built-in networks and exit |
-| `-look` | none | capture | start the camera at lat,lon,zoom - a capture cannot drag the map |
+| `-look` | none | capture | start the camera at lat,lon,level - a slippy zoom level, 0 the world and the high teens a street; a capture cannot drag the map |
 | `-memprofile` | none | diagnostic | write a heap profile here on exit |
 | `-menu` | none | capture | fire this menu action at startup, so what it opens can be captured |
 | `-node-menu` | none | capture | open this node's context menu at startup |
