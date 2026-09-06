@@ -21,7 +21,7 @@ package resource
 // downloads have to be the same build, or a bug reproduces on one machine and
 // not the other.
 const (
-	qemuBase   = "https://github.com/MeshBench/qemu/releases/download/v9.2.2-meshbench-sx1262-12/"
+	qemuBase   = "https://github.com/MeshBench/qemu/releases/download/v9.2.2-meshbench-sx1262-14/"
 	renodeBase = "https://github.com/MeshBench/renode/releases/download/meshbench-20260904-e7196ef/"
 	chipBase   = "https://github.com/MeshBench/virtual-sx1262/releases/download/v1.3.0/"
 )
@@ -82,28 +82,28 @@ var toolReleases = []toolRelease{{
 	},
 }, {
 	Name:    "qemu-system-xtensa",
-	Version: "v9.2.2-meshbench-sx1262-12",
+	Version: "v9.2.2-meshbench-sx1262-14",
 	MCU:     "ESP32",
 	Why: "the emulator for the ESP32 family, carrying our SX1262 device, its " +
 		"DIO1 line and the GPIO implementation upstream has not got",
 	Terms: qemuTerms,
 	Assets: map[string]toolAsset{
 		"linux/amd64": {
-			URL:    qemuBase + "qemu-xtensa-softmmu-v9.2.2_meshbench_sx1262_12-x86_64-linux-gnu.tar.xz",
-			SHA256: "3f1b63260442cf1fe95664ffe29494bf79b52063f43ee9c3ce57a06b1adc60c7",
-			Bytes:  17111748, Kind: tarXZ, Magic: elfAMD64,
+			URL:    qemuBase + "qemu-xtensa-softmmu-v9.2.2_meshbench_sx1262_14-x86_64-linux-gnu.tar.xz",
+			SHA256: "88cca996570d54217e130cd5743fca16fe02abc8bdd35919943f42c456024d22",
+			Bytes:  17110308, Kind: tarXZ, Magic: elfAMD64,
 			Root: "qemu", Binary: "qemu/bin/qemu-system-xtensa",
 		},
 		"windows/amd64": {
-			URL:    qemuBase + "qemu-xtensa-softmmu-v9.2.2_meshbench_sx1262_12-x86_64-w64-mingw32.tar.xz",
-			SHA256: "e3c83f99b31b5ff7274e1b96cc7099a79dd6130ccba25583e9df069b9475e333",
-			Bytes:  17588520, Kind: tarXZ, Magic: peAMD64,
+			URL:    qemuBase + "qemu-xtensa-softmmu-v9.2.2_meshbench_sx1262_14-x86_64-w64-mingw32.tar.xz",
+			SHA256: "caad261939481c41e61a417a8adf29154e926a03935b870a36e1b6fd889a5aff",
+			Bytes:  17595992, Kind: tarXZ, Magic: peAMD64,
 			Root: "qemu", Binary: "qemu/bin/qemu-system-xtensa.exe",
 		},
 		"darwin/arm64": {
-			URL:    qemuBase + "qemu-xtensa-softmmu-v9.2.2_meshbench_sx1262_12-aarch64-apple-darwin.tar.xz",
-			SHA256: "0efcc743cfe7c993bcf2675dfce37fc6f96e4ae71eb50283c6790f194dd7e133",
-			Bytes:  5089160, Kind: tarXZ, Magic: machARM64,
+			URL:    qemuBase + "qemu-xtensa-softmmu-v9.2.2_meshbench_sx1262_14-aarch64-apple-darwin.tar.xz",
+			SHA256: "656382da18267cb5f0fc9475b1a4d41b3cb7ec4633eee09e3921321f8bd8cfaa",
+			Bytes:  5064224, Kind: tarXZ, Magic: machARM64,
 			Root: "qemu", Binary: "qemu/bin/qemu-system-xtensa",
 		},
 	},
