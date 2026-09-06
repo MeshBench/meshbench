@@ -10,6 +10,7 @@ package licences
 import (
 	_ "embed"
 	"encoding/json"
+	"strings"
 )
 
 //go:generate go run ../../../tools/licgen
@@ -45,4 +46,32 @@ func Load() (File, error) {
 	var f File
 	err := json.Unmarshal(raw, &f)
 	return f, err
+}
+
+// SectionIDs is every section's key, for a caller that has to say what it would
+// have accepted.
+func SectionIDs() []string {
+	f, err := Load()
+	if err != nil {
+		return nil
+	}
+	out := make([]string, 0, len(f.Sections))
+	for _, s := range f.Sections {
+		out = append(out, s.Key)
+	}
+	return out
+}
+
+// HasSection reports whether a key names a section of the inventory.
+//
+// Asked before the panel is scoped to one, because a key nothing matches used
+// to leave the panel showing everything - indistinguishable from not passing
+// the flag, which is how five capture steps produced five identical pictures.
+func HasSection(key string) bool {
+	for _, s := range SectionIDs() {
+		if strings.EqualFold(s, key) {
+			return true
+		}
+	}
+	return false
 }

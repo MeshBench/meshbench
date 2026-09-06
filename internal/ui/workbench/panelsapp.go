@@ -3,15 +3,22 @@
 package workbench
 
 import (
+	"fmt"
+	"os"
+	"strings"
+
 	"github.com/MeshBench/meshbench/internal/ui/shell"
+	"github.com/MeshBench/meshbench/internal/ui/workbench/licences"
 )
 
 // addAppPanels hands back the Configuration panel because Run keeps wiring it
 // after registration - the settings page and the menu both reach into it.
 func addAppPanels(d panelDeps) *configPanel {
 	cfg := &configPanel{do: d.do, choose: d.chooserIn("Configuration")}
-	if *d.cfgSection != "" {
-		cfg.Open(*d.cfgSection)
+	if *d.cfgSection != "" && !cfg.Open(*d.cfgSection) {
+		fmt.Fprintf(os.Stderr, "-config-section %q: no such section. There is: %s\n",
+			*d.cfgSection, strings.Join(ConfigSections(), ", "))
+		os.Exit(2)
 	}
 	logp := &experimentLogPanel{}
 	d.sh.Add(homed(&shell.Panel{Name: "Configuration", Windowable: true, Draw: cfg.Draw}))
@@ -59,6 +66,11 @@ func addAppPanels(d panelDeps) *configPanel {
 	lic := &licPanel{}
 	// A chip is a click, and a click cannot be captured; the flag is how a
 	// screenshot of one section gets taken.
+	if *d.licSection != "" && !licences.HasSection(*d.licSection) {
+		fmt.Fprintf(os.Stderr, "-licence-section %q: no such section. There is: %s\n",
+			*d.licSection, strings.Join(licences.SectionIDs(), ", "))
+		os.Exit(2)
+	}
 	lic.openAt = *d.licSection
 	d.sh.Add(homed(&shell.Panel{Name: "Licences", Windowable: true, Draw: lic.Draw}))
 	return cfg

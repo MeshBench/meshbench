@@ -12,8 +12,8 @@ meshbench <command> [flags]
 ```
 
 There are **16**<!--flagdoc:commands--> commands and
-**168**<!--flagdoc:flags--> flags between them, of which
-**37**<!--flagdoc:capture--> exist only so a panel, a menu or a view can be
+**169**<!--flagdoc:flags--> flags between them, of which
+**38**<!--flagdoc:capture--> exist only so a panel, a menu or a view can be
 reached without a click.
 
 Everything below the first heading is generated from the flag declarations
@@ -68,7 +68,7 @@ Every flag below carries one of these, because a flag that arranges a screenshot
 | `serve` | run a mesh and expose a companion to your app | 8 |
 | `test` | run a fixture on real firmware and check its assertions | 9 |
 | `headless` | run the verbs over the control socket, with no window | 7 |
-| `workbench` | open the desktop workbench: build a scenario on a map and run it | 42 |
+| `workbench` | open the desktop workbench: build a scenario on a map and run it | 43 |
 
 ## `meshbench link`
 
@@ -415,6 +415,7 @@ One panel filling the window, filtered, over a fixed view, closing itself. That 
 
 | flag | default | for | meaning |
 |---|---|---|---|
+| `-board-decode` | `false` | capture | open the board view's console with its decode tick on, so what a companion's framed protocol says can be captured |
 | `-board-tab` | none | capture | which table the board view opens on: Radio or Wiring |
 | `-board-view` | none | capture | open this node's board view at startup |
 | `-capture` | none | capture | capture the waterfall at this node once the run has traffic |
@@ -437,7 +438,7 @@ One panel filling the window, filtered, over a fixed view, closing itself. That 
 | `-memprofile` | none | diagnostic | write a heap profile here on exit |
 | `-menu` | none | capture | fire this menu action at startup, so what it opens can be captured |
 | `-node-menu` | none | capture | open this node's context menu at startup |
-| `-node-tab` | `0` | capture | which tab a node window opens on: 0 console, 1 companion, 2 SDR, 3 settings, 4 radio, 5 stats, 6 activity, 7 connect, 8 hardware, 9 output |
+| `-node-tab` | none | capture | which tab a node window opens on, by name: Console, Companion, SDR, Settings, Radio, Antenna, Stats, Activity, Connect, Hardware, Output |
 | `-node-window` | none | capture | open this node's own window at startup |
 | `-open-firmware` | none | capture | open this node's firmware list at startup |
 | `-packet-tab` | `0` | capture | which tab the packet window opens on: 0 dissection, 1 journey (the propagation graph), 2 reception ledger, 3 where it went |

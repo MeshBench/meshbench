@@ -249,6 +249,7 @@
   "workbench": {
    "required": [],
    "for": {
+    "board-decode": "capture",
     "board-tab": "capture",
     "board-view": "capture",
     "capture": "capture",

@@ -1,1142 +1,1202 @@
 {
- "panels": [
-  {
-   "name": "panel-boards",
-   "what": "The Boards panel, filling the window",
-   "flags": [
-    "-panel",
-    "Boards"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text"
-  },
-  {
-   "name": "panel-boundary",
-   "what": "The Boundary panel, filling the window",
-   "flags": [
-    "-panel",
-    "Boundary"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text"
-  },
-  {
-   "name": "panel-budget",
-   "what": "The Budget panel, filling the window",
-   "flags": [
-    "-panel",
-    "Budget"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text"
-  },
-  {
-   "name": "panel-companion-bench",
-   "what": "The Companion bench panel, filling the window",
-   "flags": [
-    "-panel",
-    "Companion bench"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text"
-  },
-  {
-   "name": "panel-compare",
-   "what": "The Compare panel, filling the window",
-   "flags": [
-    "-panel",
-    "Compare"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text"
-  },
-  {
-   "name": "panel-configuration",
-   "what": "The Configuration panel, filling the window",
-   "flags": [
-    "-panel",
-    "Configuration"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text"
-  },
-  {
-   "name": "panel-console",
-   "what": "The Console panel, filling the window",
-   "flags": [
-    "-panel",
-    "Console",
-    "-inject",
-    "Abernethy Repeater",
-    "-inject-every",
-    "3s"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text",
-   "play": true
-  },
-  {
-   "name": "panel-energy",
-   "what": "The Energy panel, filling the window",
-   "flags": [
-    "-panel",
-    "Energy",
-    "-inject",
-    "Abernethy Repeater",
-    "-inject-every",
-    "3s"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text",
-   "play": true
-  },
-  {
-   "name": "panel-events",
-   "what": "The Events panel, filling the window",
-   "flags": [
-    "-panel",
-    "Events",
-    "-inject",
-    "Abernethy Repeater",
-    "-inject-every",
-    "3s"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text",
-   "play": true
-  },
-  {
-   "name": "panel-experiment-log",
-   "what": "The Experiment log panel, filling the window",
-   "flags": [
-    "-panel",
-    "Experiment log"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text"
-  },
-  {
-   "name": "panel-firmware",
-   "what": "The Firmware panel, filling the window",
-   "flags": [
-    "-panel",
-    "Firmware"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text"
-  },
-  {
-   "name": "panel-fleet",
-   "what": "The Fleet panel, filling the window",
-   "flags": [
-    "-panel",
-    "Fleet"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text"
-  },
-  {
-   "name": "panel-import",
-   "what": "The Import panel, filling the window",
-   "flags": [
-    "-panel",
-    "Import"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text"
-  },
-  {
-   "name": "panel-inspector",
-   "what": "The Inspector panel, filling the window",
-   "flags": [
-    "-panel",
-    "Inspector",
-    "-inject",
-    "Abernethy Repeater",
-    "-inject-every",
-    "3s"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text",
-   "play": true
-  },
-  {
-   "name": "panel-licences",
-   "what": "The Licences panel, filling the window",
-   "flags": [
-    "-panel",
-    "Licences"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text"
-  },
-  {
-   "name": "panel-link",
-   "what": "The Link panel, filling the window",
-   "flags": [
-    "-panel",
-    "Link"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text"
-  },
-  {
-   "name": "panel-live-feed",
-   "what": "The Live feed panel, filling the window",
-   "flags": [
-    "-panel",
-    "Live feed",
-    "-inject",
-    "Abernethy Repeater",
-    "-inject-every",
-    "3s"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text",
-   "play": true
-  },
-  {
-   "name": "panel-logs",
-   "what": "The Logs panel, filling the window",
-   "flags": [
-    "-panel",
-    "Logs",
-    "-inject",
-    "Abernethy Repeater",
-    "-inject-every",
-    "3s"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text",
-   "play": true
-  },
-  {
-   "name": "panel-map",
-   "what": "The Map panel, filling the window",
-   "flags": [
-    "-panel",
-    "Map"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text"
-  },
-  {
-   "name": "panel-matrix",
-   "what": "The Matrix panel, filling the window",
-   "flags": [
-    "-panel",
-    "Matrix"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text"
-  },
-  {
-   "name": "panel-nodes",
-   "what": "The Nodes panel, filling the window",
-   "flags": [
-    "-panel",
-    "Nodes"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text"
-  },
-  {
-   "name": "panel-nodes-running",
-   "what": "The Nodes running panel, filling the window",
-   "flags": [
-    "-panel",
-    "Nodes running",
-    "-inject",
-    "Abernethy Repeater",
-    "-inject-every",
-    "3s"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text",
-   "play": true
-  },
-  {
-   "name": "panel-packet",
-   "what": "The Packet panel, filling the window",
-   "flags": [
-    "-panel",
-    "Packet",
-    "-inject",
-    "Abernethy Repeater",
-    "-inject-every",
-    "3s"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text",
-   "play": true
-  },
-  {
-   "name": "panel-packet-timeline",
-   "what": "The Packet timeline panel, filling the window",
-   "flags": [
-    "-panel",
-    "Packet timeline",
-    "-inject",
-    "Abernethy Repeater",
-    "-inject-every",
-    "3s"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text",
-   "play": true
-  },
-  {
-   "name": "panel-planning",
-   "what": "The Planning panel, filling the window",
-   "flags": [
-    "-panel",
-    "Planning"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text"
-  },
-  {
-   "name": "panel-provisioning",
-   "what": "The Provisioning panel, filling the window",
-   "flags": [
-    "-panel",
-    "Provisioning"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text"
-  },
-  {
-   "name": "panel-resources",
-   "what": "The Resources panel, filling the window",
-   "flags": [
-    "-panel",
-    "Resources"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text"
-  },
-  {
-   "name": "panel-results",
-   "what": "The Results panel, filling the window",
-   "flags": [
-    "-panel",
-    "Results"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text"
-  },
-  {
-   "name": "panel-runs",
-   "what": "The Runs panel, filling the window",
-   "flags": [
-    "-panel",
-    "Runs"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text"
-  },
-  {
-   "name": "panel-schedule",
-   "what": "The Schedule panel, filling the window",
-   "flags": [
-    "-panel",
-    "Schedule"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text"
-  },
-  {
-   "name": "panel-scoreboard",
-   "what": "The Scoreboard panel, filling the window",
-   "flags": [
-    "-panel",
-    "Scoreboard",
-    "-inject",
-    "Abernethy Repeater",
-    "-inject-every",
-    "3s"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text",
-   "play": true
-  },
-  {
-   "name": "panel-setup",
-   "what": "The Setup panel, filling the window",
-   "flags": [
-    "-panel",
-    "Setup"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text"
-  },
-  {
-   "name": "panel-sweep",
-   "what": "The Sweep panel, filling the window",
-   "flags": [
-    "-panel",
-    "Sweep"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text"
-  },
-  {
-   "name": "panel-timelines",
-   "what": "The Timelines panel, filling the window",
-   "flags": [
-    "-panel",
-    "Timelines",
-    "-inject",
-    "Abernethy Repeater",
-    "-inject-every",
-    "3s"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text",
-   "play": true
-  },
-  {
-   "name": "panel-validate",
-   "what": "The Validate panel, filling the window",
-   "flags": [
-    "-panel",
-    "Validate"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text"
-  },
-  {
-   "name": "panel-waterfall",
-   "what": "The Waterfall panel, filling the window",
-   "flags": [
-    "-panel",
-    "Waterfall",
-    "-inject",
-    "Abernethy Repeater",
-    "-inject-every",
-    "3s"
-   ],
-   "expect": "the panel draws its own content, with no empty region and no placeholder text",
-   "play": true
-  },
-  {
-   "name": "popout-boards",
-   "what": "The Boards panel popped out",
-   "flags": [
-    "-pop-out",
-    "Boards"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
-  },
-  {
-   "name": "popout-boundary",
-   "what": "The Boundary panel popped out",
-   "flags": [
-    "-pop-out",
-    "Boundary"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
-  },
-  {
-   "name": "popout-budget",
-   "what": "The Budget panel popped out",
-   "flags": [
-    "-pop-out",
-    "Budget"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
-  },
-  {
-   "name": "popout-companion-bench",
-   "what": "The Companion bench panel popped out",
-   "flags": [
-    "-pop-out",
-    "Companion bench"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
-  },
-  {
-   "name": "popout-compare",
-   "what": "The Compare panel popped out",
-   "flags": [
-    "-pop-out",
-    "Compare"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
-  },
-  {
-   "name": "popout-configuration",
-   "what": "The Configuration panel popped out",
-   "flags": [
-    "-pop-out",
-    "Configuration"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
-  },
-  {
-   "name": "popout-console",
-   "what": "The Console panel popped out",
-   "flags": [
-    "-pop-out",
-    "Console",
-    "-inject",
-    "Abernethy Repeater",
-    "-inject-every",
-    "3s"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel",
-   "play": true
-  },
-  {
-   "name": "popout-energy",
-   "what": "The Energy panel popped out",
-   "flags": [
-    "-pop-out",
-    "Energy",
-    "-inject",
-    "Abernethy Repeater",
-    "-inject-every",
-    "3s"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel",
-   "play": true
-  },
-  {
-   "name": "popout-events",
-   "what": "The Events panel popped out",
-   "flags": [
-    "-pop-out",
-    "Events",
-    "-inject",
-    "Abernethy Repeater",
-    "-inject-every",
-    "3s"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel",
-   "play": true
-  },
-  {
-   "name": "popout-experiment-log",
-   "what": "The Experiment log panel popped out",
-   "flags": [
-    "-pop-out",
-    "Experiment log"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
-  },
-  {
-   "name": "popout-firmware",
-   "what": "The Firmware panel popped out",
-   "flags": [
-    "-pop-out",
-    "Firmware"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
-  },
-  {
-   "name": "popout-fleet",
-   "what": "The Fleet panel popped out",
-   "flags": [
-    "-pop-out",
-    "Fleet"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
-  },
-  {
-   "name": "popout-import",
-   "what": "The Import panel popped out",
-   "flags": [
-    "-pop-out",
-    "Import"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
-  },
-  {
-   "name": "popout-inspector",
-   "what": "The Inspector panel popped out",
-   "flags": [
-    "-pop-out",
-    "Inspector",
-    "-inject",
-    "Abernethy Repeater",
-    "-inject-every",
-    "3s"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel",
-   "play": true
-  },
-  {
-   "name": "popout-licences",
-   "what": "The Licences panel popped out",
-   "flags": [
-    "-pop-out",
-    "Licences"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
-  },
-  {
-   "name": "popout-link",
-   "what": "The Link panel popped out",
-   "flags": [
-    "-pop-out",
-    "Link"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
-  },
-  {
-   "name": "popout-live-feed",
-   "what": "The Live feed panel popped out",
-   "flags": [
-    "-pop-out",
-    "Live feed",
-    "-inject",
-    "Abernethy Repeater",
-    "-inject-every",
-    "3s"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel",
-   "play": true
-  },
-  {
-   "name": "popout-logs",
-   "what": "The Logs panel popped out",
-   "flags": [
-    "-pop-out",
-    "Logs",
-    "-inject",
-    "Abernethy Repeater",
-    "-inject-every",
-    "3s"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel",
-   "play": true
-  },
-  {
-   "name": "popout-map",
-   "what": "The Map panel popped out",
-   "flags": [
-    "-pop-out",
-    "Map"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
-  },
-  {
-   "name": "popout-matrix",
-   "what": "The Matrix panel popped out",
-   "flags": [
-    "-pop-out",
-    "Matrix"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
-  },
-  {
-   "name": "popout-nodes",
-   "what": "The Nodes panel popped out",
-   "flags": [
-    "-pop-out",
-    "Nodes"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
-  },
-  {
-   "name": "popout-nodes-running",
-   "what": "The Nodes running panel popped out",
-   "flags": [
-    "-pop-out",
-    "Nodes running",
-    "-inject",
-    "Abernethy Repeater",
-    "-inject-every",
-    "3s"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel",
-   "play": true
-  },
-  {
-   "name": "popout-packet",
-   "what": "The Packet panel popped out",
-   "flags": [
-    "-pop-out",
-    "Packet",
-    "-inject",
-    "Abernethy Repeater",
-    "-inject-every",
-    "3s"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel",
-   "play": true
-  },
-  {
-   "name": "popout-packet-timeline",
-   "what": "The Packet timeline panel popped out",
-   "flags": [
-    "-pop-out",
-    "Packet timeline",
-    "-inject",
-    "Abernethy Repeater",
-    "-inject-every",
-    "3s"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel",
-   "play": true
-  },
-  {
-   "name": "popout-planning",
-   "what": "The Planning panel popped out",
-   "flags": [
-    "-pop-out",
-    "Planning"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
-  },
-  {
-   "name": "popout-provisioning",
-   "what": "The Provisioning panel popped out",
-   "flags": [
-    "-pop-out",
-    "Provisioning"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
-  },
-  {
-   "name": "popout-resources",
-   "what": "The Resources panel popped out",
-   "flags": [
-    "-pop-out",
-    "Resources"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
-  },
-  {
-   "name": "popout-results",
-   "what": "The Results panel popped out",
-   "flags": [
-    "-pop-out",
-    "Results"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
-  },
-  {
-   "name": "popout-runs",
-   "what": "The Runs panel popped out",
-   "flags": [
-    "-pop-out",
-    "Runs"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
-  },
-  {
-   "name": "popout-schedule",
-   "what": "The Schedule panel popped out",
-   "flags": [
-    "-pop-out",
-    "Schedule"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
-  },
-  {
-   "name": "popout-scoreboard",
-   "what": "The Scoreboard panel popped out",
-   "flags": [
-    "-pop-out",
-    "Scoreboard",
-    "-inject",
-    "Abernethy Repeater",
-    "-inject-every",
-    "3s"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel",
-   "play": true
-  },
-  {
-   "name": "popout-setup",
-   "what": "The Setup panel popped out",
-   "flags": [
-    "-pop-out",
-    "Setup"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
-  },
-  {
-   "name": "popout-sweep",
-   "what": "The Sweep panel popped out",
-   "flags": [
-    "-pop-out",
-    "Sweep"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
-  },
-  {
-   "name": "popout-timelines",
-   "what": "The Timelines panel popped out",
-   "flags": [
-    "-pop-out",
-    "Timelines",
-    "-inject",
-    "Abernethy Repeater",
-    "-inject-every",
-    "3s"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel",
-   "play": true
-  },
-  {
-   "name": "popout-validate",
-   "what": "The Validate panel popped out",
-   "flags": [
-    "-pop-out",
-    "Validate"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
-  },
-  {
-   "name": "popout-waterfall",
-   "what": "The Waterfall panel popped out",
-   "flags": [
-    "-pop-out",
-    "Waterfall",
-    "-inject",
-    "Abernethy Repeater",
-    "-inject-every",
-    "3s"
-   ],
-   "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel",
-   "play": true
-  }
- ],
- "views": [
-  {
-   "name": "view-plan",
-   "what": "The Plan view",
-   "flags": [
-    "-view",
-    "plan"
-   ],
-   "expect": "the view's own panels are docked and drawn, and the view switcher marks Plan as current"
-  },
-  {
-   "name": "view-run",
-   "what": "The Run view",
-   "flags": [
-    "-view",
-    "run"
-   ],
-   "expect": "the view's own panels are docked and drawn, and the view switcher marks Run as current"
-  },
-  {
-   "name": "view-debug",
-   "what": "The Debug view",
-   "flags": [
-    "-view",
-    "debug"
-   ],
-   "expect": "the view's own panels are docked and drawn, and the view switcher marks Debug as current"
-  },
-  {
-   "name": "view-validate",
-   "what": "The Validate view",
-   "flags": [
-    "-view",
-    "validate"
-   ],
-   "expect": "the view's own panels are docked and drawn, and the view switcher marks Validate as current"
-  },
-  {
-   "name": "view-bench",
-   "what": "The Bench view",
-   "flags": [
-    "-view",
-    "bench"
-   ],
-   "expect": "the view's own panels are docked and drawn, and the view switcher marks Bench as current"
-  },
-  {
-   "name": "view-app",
-   "what": "The App view",
-   "flags": [
-    "-view",
-    "app"
-   ],
-   "expect": "the view's own panels are docked and drawn, and the view switcher marks App as current"
-  }
- ],
- "node-window": [
-  {
-   "name": "node-console",
-   "what": "A node's own window on its Console tab",
-   "flags": [
-    "-node-window",
-    "Abernethy Repeater",
-    "-node-tab",
-    "0"
-   ],
-   "expect": "the window opens on Console with that tab's content drawn"
-  },
-  {
-   "name": "node-companion",
-   "what": "A node's own window on its Companion tab",
-   "flags": [
-    "-node-window",
-    "Abernethy Repeater",
-    "-node-tab",
-    "1"
-   ],
-   "expect": "the window opens on Companion with that tab's content drawn"
-  },
-  {
-   "name": "node-sdr",
-   "what": "A node's own window on its SDR tab",
-   "flags": [
-    "-node-window",
-    "Abernethy Repeater",
-    "-node-tab",
-    "2"
-   ],
-   "expect": "the window opens on SDR with that tab's content drawn"
-  },
-  {
-   "name": "node-settings",
-   "what": "A node's own window on its Settings tab",
-   "flags": [
-    "-node-window",
-    "Abernethy Repeater",
-    "-node-tab",
-    "3"
-   ],
-   "expect": "the window opens on Settings with that tab's content drawn"
-  },
-  {
-   "name": "node-radio",
-   "what": "A node's own window on its Radio tab",
-   "flags": [
-    "-node-window",
-    "Abernethy Repeater",
-    "-node-tab",
-    "4"
-   ],
-   "expect": "the window opens on Radio with that tab's content drawn"
-  },
-  {
-   "name": "node-stats",
-   "what": "A node's own window on its Stats tab",
-   "flags": [
-    "-node-window",
-    "Abernethy Repeater",
-    "-node-tab",
-    "5"
-   ],
-   "expect": "the window opens on Stats with that tab's content drawn"
-  },
-  {
-   "name": "node-activity",
-   "what": "A node's own window on its Activity tab",
-   "flags": [
-    "-node-window",
-    "Abernethy Repeater",
-    "-node-tab",
-    "6"
-   ],
-   "expect": "the window opens on Activity with that tab's content drawn"
-  },
-  {
-   "name": "node-connect",
-   "what": "A node's own window on its Connect tab",
-   "flags": [
-    "-node-window",
-    "Abernethy Repeater",
-    "-node-tab",
-    "7"
-   ],
-   "expect": "the window opens on Connect with that tab's content drawn"
-  },
-  {
-   "name": "node-hardware",
-   "what": "A node's own window on its Hardware tab",
-   "flags": [
-    "-node-window",
-    "Abernethy Repeater",
-    "-node-tab",
-    "8"
-   ],
-   "expect": "the window opens on Hardware with that tab's content drawn"
-  },
-  {
-   "name": "node-output",
-   "what": "A node's own window on its Output tab",
-   "flags": [
-    "-node-window",
-    "Abernethy Repeater",
-    "-node-tab",
-    "9"
-   ],
-   "expect": "the window opens on Output with that tab's content drawn"
-  }
- ],
- "board-view": [
-  {
-   "name": "board-radio",
-   "what": "The board view's Radio table",
-   "flags": [
-    "-board-view",
-    "citizen71",
-    "-board-tab",
-    "Radio"
-   ],
-   "expect": "the board's panel on the left, the Radio table with a verdict on every row, and the console along the bottom"
-  },
-  {
-   "name": "board-wiring",
-   "what": "The board view's Wiring table",
-   "flags": [
-    "-board-view",
-    "citizen71",
-    "-board-tab",
-    "Wiring"
-   ],
-   "expect": "the board's panel on the left, the Wiring table with a verdict on every row, and the console along the bottom"
-  },
-  {
-   "name": "board-decoded",
-   "what": "The console with its frames decoded",
-   "flags": [
-    "-board-view",
-    "citizen71"
-   ],
-   "expect": "the decode tick is on and framed traffic reads as prose, with the plain boot log still beside it",
-   "then": "tick decode in the console strip"
-  }
- ],
- "configuration": [
-  {
-   "name": "config-general",
-   "what": "Configuration: the general section",
-   "flags": [
-    "-config-section",
-    "general"
-   ],
-   "expect": "the section opens with its own settings and each carries the caption that says why it matters"
-  },
-  {
-   "name": "config-rf",
-   "what": "Configuration: the rf section",
-   "flags": [
-    "-config-section",
-    "rf"
-   ],
-   "expect": "the section opens with its own settings and each carries the caption that says why it matters"
-  },
-  {
-   "name": "config-terrain",
-   "what": "Configuration: the terrain section",
-   "flags": [
-    "-config-section",
-    "terrain"
-   ],
-   "expect": "the section opens with its own settings and each carries the caption that says why it matters"
-  },
-  {
-   "name": "config-traffic",
-   "what": "Configuration: the traffic section",
-   "flags": [
-    "-config-section",
-    "traffic"
-   ],
-   "expect": "the section opens with its own settings and each carries the caption that says why it matters"
-  },
-  {
-   "name": "config-provisioning",
-   "what": "Configuration: the provisioning section",
-   "flags": [
-    "-config-section",
-    "provisioning"
-   ],
-   "expect": "the section opens with its own settings and each carries the caption that says why it matters"
-  },
-  {
-   "name": "config-resources",
-   "what": "Configuration: the resources section",
-   "flags": [
-    "-config-section",
-    "resources"
-   ],
-   "expect": "the section opens with its own settings and each carries the caption that says why it matters"
-  }
- ],
- "licences": [
-  {
-   "name": "licences-forks",
-   "what": "Licences: forks",
-   "flags": [
-    "-licence-section",
-    "forks"
-   ],
-   "expect": "every row names a component, its licence and its origin"
-  },
-  {
-   "name": "licences-bundled",
-   "what": "Licences: bundled",
-   "flags": [
-    "-licence-section",
-    "bundled"
-   ],
-   "expect": "every row names a component, its licence and its origin"
-  },
-  {
-   "name": "licences-golibs",
-   "what": "Licences: golibs",
-   "flags": [
-    "-licence-section",
-    "golibs"
-   ],
-   "expect": "every row names a component, its licence and its origin"
-  },
-  {
-   "name": "licences-runtime",
-   "what": "Licences: runtime",
-   "flags": [
-    "-licence-section",
-    "runtime"
-   ],
-   "expect": "every row names a component, its licence and its origin"
-  },
-  {
-   "name": "licences-data",
-   "what": "Licences: data",
-   "flags": [
-    "-licence-section",
-    "data"
-   ],
-   "expect": "every row names a component, its licence and its origin"
-  }
- ],
- "menus": [
-  {
-   "name": "menu-file",
-   "what": "The File menu, open",
-   "flags": [
-    "-drop-menu",
-    "File"
-   ],
-   "expect": "the menu drops with its sections, icons and shortcuts, and one entry appears in one menu only"
-  },
-  {
-   "name": "menu-view",
-   "what": "The View menu, open",
-   "flags": [
-    "-drop-menu",
-    "View"
-   ],
-   "expect": "the menu drops with its sections, icons and shortcuts, and one entry appears in one menu only"
-  },
-  {
-   "name": "menu-simulation",
-   "what": "The Simulation menu, open",
-   "flags": [
-    "-drop-menu",
-    "Simulation"
-   ],
-   "expect": "the menu drops with its sections, icons and shortcuts, and one entry appears in one menu only"
-  },
-  {
-   "name": "menu-mesh",
-   "what": "The Mesh menu, open",
-   "flags": [
-    "-drop-menu",
-    "Mesh"
-   ],
-   "expect": "the menu drops with its sections, icons and shortcuts, and one entry appears in one menu only"
-  },
-  {
-   "name": "menu-analysis",
-   "what": "The Analysis menu, open",
-   "flags": [
-    "-drop-menu",
-    "Analysis"
-   ],
-   "expect": "the menu drops with its sections, icons and shortcuts, and one entry appears in one menu only"
-  },
-  {
-   "name": "menu-window",
-   "what": "The Window menu, open",
-   "flags": [
-    "-drop-menu",
-    "Window"
-   ],
-   "expect": "the menu drops with its sections, icons and shortcuts, and one entry appears in one menu only"
-  },
-  {
-   "name": "menu-help",
-   "what": "The Help menu, open",
-   "flags": [
-    "-drop-menu",
-    "Help"
-   ],
-   "expect": "the menu drops with its sections, icons and shortcuts, and one entry appears in one menu only"
-  }
- ]
+  "panels": [
+    {
+      "name": "panel-boards",
+      "what": "The Boards panel, filling the window",
+      "flags": [
+        "-panel",
+        "Boards"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text"
+    },
+    {
+      "name": "panel-boundary",
+      "what": "The Boundary panel, filling the window",
+      "flags": [
+        "-panel",
+        "Boundary"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text"
+    },
+    {
+      "name": "panel-budget",
+      "what": "The Budget panel, filling the window",
+      "flags": [
+        "-panel",
+        "Budget"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text"
+    },
+    {
+      "name": "panel-companion-bench",
+      "what": "The Companion bench panel, filling the window",
+      "flags": [
+        "-panel",
+        "Companion bench"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text"
+    },
+    {
+      "name": "panel-compare",
+      "what": "The Compare panel, filling the window",
+      "flags": [
+        "-panel",
+        "Compare"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text"
+    },
+    {
+      "name": "panel-configuration",
+      "what": "The Configuration panel, filling the window",
+      "flags": [
+        "-panel",
+        "Configuration"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text"
+    },
+    {
+      "name": "panel-console",
+      "what": "The Console panel, filling the window",
+      "flags": [
+        "-panel",
+        "Console",
+        "-inject",
+        "Abernethy Repeater",
+        "-inject-every",
+        "3s"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text",
+      "play": true
+    },
+    {
+      "name": "panel-energy",
+      "what": "The Energy panel, filling the window",
+      "flags": [
+        "-panel",
+        "Energy",
+        "-inject",
+        "Abernethy Repeater",
+        "-inject-every",
+        "3s"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text",
+      "play": true
+    },
+    {
+      "name": "panel-events",
+      "what": "The Events panel, filling the window",
+      "flags": [
+        "-panel",
+        "Events",
+        "-inject",
+        "Abernethy Repeater",
+        "-inject-every",
+        "3s"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text",
+      "play": true
+    },
+    {
+      "name": "panel-experiment-log",
+      "what": "The Experiment log panel, filling the window",
+      "flags": [
+        "-panel",
+        "Experiment log"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text"
+    },
+    {
+      "name": "panel-firmware",
+      "what": "The Firmware panel, filling the window",
+      "flags": [
+        "-panel",
+        "Firmware"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text"
+    },
+    {
+      "name": "panel-fleet",
+      "what": "The Fleet panel, filling the window",
+      "flags": [
+        "-panel",
+        "Fleet"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text"
+    },
+    {
+      "name": "panel-import",
+      "what": "The Import panel, filling the window",
+      "flags": [
+        "-panel",
+        "Import"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text"
+    },
+    {
+      "name": "panel-inspector",
+      "what": "The Inspector panel, filling the window",
+      "flags": [
+        "-panel",
+        "Inspector",
+        "-inject",
+        "Abernethy Repeater",
+        "-inject-every",
+        "3s"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text",
+      "play": true
+    },
+    {
+      "name": "panel-licences",
+      "what": "The Licences panel, filling the window",
+      "flags": [
+        "-panel",
+        "Licences"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text"
+    },
+    {
+      "name": "panel-link",
+      "what": "The Link panel, filling the window",
+      "flags": [
+        "-panel",
+        "Link"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text"
+    },
+    {
+      "name": "panel-live-feed",
+      "what": "The Live feed panel, filling the window",
+      "flags": [
+        "-panel",
+        "Live feed",
+        "-inject",
+        "Abernethy Repeater",
+        "-inject-every",
+        "3s"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text",
+      "play": true
+    },
+    {
+      "name": "panel-logs",
+      "what": "The Logs panel, filling the window",
+      "flags": [
+        "-panel",
+        "Logs",
+        "-inject",
+        "Abernethy Repeater",
+        "-inject-every",
+        "3s"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text",
+      "play": true
+    },
+    {
+      "name": "panel-map",
+      "what": "The Map panel, filling the window",
+      "flags": [
+        "-panel",
+        "Map"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text"
+    },
+    {
+      "name": "panel-matrix",
+      "what": "The Matrix panel, filling the window",
+      "flags": [
+        "-panel",
+        "Matrix"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text"
+    },
+    {
+      "name": "panel-nodes",
+      "what": "The Nodes panel, filling the window",
+      "flags": [
+        "-panel",
+        "Nodes"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text"
+    },
+    {
+      "name": "panel-nodes-running",
+      "what": "The Nodes running panel, filling the window",
+      "flags": [
+        "-panel",
+        "Nodes running",
+        "-inject",
+        "Abernethy Repeater",
+        "-inject-every",
+        "3s"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text",
+      "play": true
+    },
+    {
+      "name": "panel-packet",
+      "what": "The Packet panel, filling the window",
+      "flags": [
+        "-panel",
+        "Packet",
+        "-inject",
+        "Abernethy Repeater",
+        "-inject-every",
+        "3s"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text",
+      "play": true
+    },
+    {
+      "name": "panel-packet-timeline",
+      "what": "The Packet timeline panel, filling the window",
+      "flags": [
+        "-panel",
+        "Packet timeline",
+        "-inject",
+        "Abernethy Repeater",
+        "-inject-every",
+        "3s"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text",
+      "play": true
+    },
+    {
+      "name": "panel-planning",
+      "what": "The Planning panel, filling the window",
+      "flags": [
+        "-panel",
+        "Planning"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text"
+    },
+    {
+      "name": "panel-provisioning",
+      "what": "The Provisioning panel, filling the window",
+      "flags": [
+        "-panel",
+        "Provisioning"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text"
+    },
+    {
+      "name": "panel-resources",
+      "what": "The Resources panel, filling the window",
+      "flags": [
+        "-panel",
+        "Resources"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text"
+    },
+    {
+      "name": "panel-results",
+      "what": "The Results panel, filling the window",
+      "flags": [
+        "-panel",
+        "Results"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text"
+    },
+    {
+      "name": "panel-runs",
+      "what": "The Runs panel, filling the window",
+      "flags": [
+        "-panel",
+        "Runs"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text"
+    },
+    {
+      "name": "panel-schedule",
+      "what": "The Schedule panel, filling the window",
+      "flags": [
+        "-panel",
+        "Schedule"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text"
+    },
+    {
+      "name": "panel-scoreboard",
+      "what": "The Scoreboard panel, filling the window",
+      "flags": [
+        "-panel",
+        "Scoreboard",
+        "-inject",
+        "Abernethy Repeater",
+        "-inject-every",
+        "3s"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text",
+      "play": true
+    },
+    {
+      "name": "panel-setup",
+      "what": "The Setup panel, filling the window",
+      "flags": [
+        "-panel",
+        "Setup"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text"
+    },
+    {
+      "name": "panel-sweep",
+      "what": "The Sweep panel, filling the window",
+      "flags": [
+        "-panel",
+        "Sweep"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text"
+    },
+    {
+      "name": "panel-timelines",
+      "what": "The Timelines panel, filling the window",
+      "flags": [
+        "-panel",
+        "Timelines",
+        "-inject",
+        "Abernethy Repeater",
+        "-inject-every",
+        "3s"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text",
+      "play": true
+    },
+    {
+      "name": "panel-validate",
+      "what": "The Validate panel, filling the window",
+      "flags": [
+        "-panel",
+        "Validate"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text"
+    },
+    {
+      "name": "panel-waterfall",
+      "what": "The Waterfall panel, filling the window",
+      "flags": [
+        "-panel",
+        "Waterfall",
+        "-inject",
+        "Abernethy Repeater",
+        "-inject-every",
+        "3s"
+      ],
+      "expect": "the panel draws its own content, with no empty region and no placeholder text",
+      "play": true
+    },
+    {
+      "name": "popout-boards",
+      "what": "The Boards panel popped out",
+      "flags": [
+        "-pop-out",
+        "Boards"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
+    },
+    {
+      "name": "popout-boundary",
+      "what": "The Boundary panel popped out",
+      "flags": [
+        "-pop-out",
+        "Boundary"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
+    },
+    {
+      "name": "popout-budget",
+      "what": "The Budget panel popped out",
+      "flags": [
+        "-pop-out",
+        "Budget"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
+    },
+    {
+      "name": "popout-companion-bench",
+      "what": "The Companion bench panel popped out",
+      "flags": [
+        "-pop-out",
+        "Companion bench"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
+    },
+    {
+      "name": "popout-compare",
+      "what": "The Compare panel popped out",
+      "flags": [
+        "-pop-out",
+        "Compare"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
+    },
+    {
+      "name": "popout-configuration",
+      "what": "The Configuration panel popped out",
+      "flags": [
+        "-pop-out",
+        "Configuration"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
+    },
+    {
+      "name": "popout-console",
+      "what": "The Console panel popped out",
+      "flags": [
+        "-pop-out",
+        "Console",
+        "-inject",
+        "Abernethy Repeater",
+        "-inject-every",
+        "3s"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel",
+      "play": true
+    },
+    {
+      "name": "popout-energy",
+      "what": "The Energy panel popped out",
+      "flags": [
+        "-pop-out",
+        "Energy",
+        "-inject",
+        "Abernethy Repeater",
+        "-inject-every",
+        "3s"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel",
+      "play": true
+    },
+    {
+      "name": "popout-events",
+      "what": "The Events panel popped out",
+      "flags": [
+        "-pop-out",
+        "Events",
+        "-inject",
+        "Abernethy Repeater",
+        "-inject-every",
+        "3s"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel",
+      "play": true
+    },
+    {
+      "name": "popout-experiment-log",
+      "what": "The Experiment log panel popped out",
+      "flags": [
+        "-pop-out",
+        "Experiment log"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
+    },
+    {
+      "name": "popout-firmware",
+      "what": "The Firmware panel popped out",
+      "flags": [
+        "-pop-out",
+        "Firmware"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
+    },
+    {
+      "name": "popout-fleet",
+      "what": "The Fleet panel popped out",
+      "flags": [
+        "-pop-out",
+        "Fleet"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
+    },
+    {
+      "name": "popout-import",
+      "what": "The Import panel popped out",
+      "flags": [
+        "-pop-out",
+        "Import"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
+    },
+    {
+      "name": "popout-inspector",
+      "what": "The Inspector panel popped out",
+      "flags": [
+        "-pop-out",
+        "Inspector",
+        "-inject",
+        "Abernethy Repeater",
+        "-inject-every",
+        "3s"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel",
+      "play": true
+    },
+    {
+      "name": "popout-licences",
+      "what": "The Licences panel popped out",
+      "flags": [
+        "-pop-out",
+        "Licences"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
+    },
+    {
+      "name": "popout-link",
+      "what": "The Link panel popped out",
+      "flags": [
+        "-pop-out",
+        "Link"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
+    },
+    {
+      "name": "popout-live-feed",
+      "what": "The Live feed panel popped out",
+      "flags": [
+        "-pop-out",
+        "Live feed",
+        "-inject",
+        "Abernethy Repeater",
+        "-inject-every",
+        "3s"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel",
+      "play": true
+    },
+    {
+      "name": "popout-logs",
+      "what": "The Logs panel popped out",
+      "flags": [
+        "-pop-out",
+        "Logs",
+        "-inject",
+        "Abernethy Repeater",
+        "-inject-every",
+        "3s"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel",
+      "play": true
+    },
+    {
+      "name": "popout-map",
+      "what": "The Map panel popped out",
+      "flags": [
+        "-pop-out",
+        "Map"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
+    },
+    {
+      "name": "popout-matrix",
+      "what": "The Matrix panel popped out",
+      "flags": [
+        "-pop-out",
+        "Matrix"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
+    },
+    {
+      "name": "popout-nodes",
+      "what": "The Nodes panel popped out",
+      "flags": [
+        "-pop-out",
+        "Nodes"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
+    },
+    {
+      "name": "popout-nodes-running",
+      "what": "The Nodes running panel popped out",
+      "flags": [
+        "-pop-out",
+        "Nodes running",
+        "-inject",
+        "Abernethy Repeater",
+        "-inject-every",
+        "3s"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel",
+      "play": true
+    },
+    {
+      "name": "popout-packet",
+      "what": "The Packet panel popped out",
+      "flags": [
+        "-pop-out",
+        "Packet",
+        "-inject",
+        "Abernethy Repeater",
+        "-inject-every",
+        "3s"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel",
+      "play": true
+    },
+    {
+      "name": "popout-packet-timeline",
+      "what": "The Packet timeline panel popped out",
+      "flags": [
+        "-pop-out",
+        "Packet timeline",
+        "-inject",
+        "Abernethy Repeater",
+        "-inject-every",
+        "3s"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel",
+      "play": true
+    },
+    {
+      "name": "popout-planning",
+      "what": "The Planning panel popped out",
+      "flags": [
+        "-pop-out",
+        "Planning"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
+    },
+    {
+      "name": "popout-provisioning",
+      "what": "The Provisioning panel popped out",
+      "flags": [
+        "-pop-out",
+        "Provisioning"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
+    },
+    {
+      "name": "popout-resources",
+      "what": "The Resources panel popped out",
+      "flags": [
+        "-pop-out",
+        "Resources"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
+    },
+    {
+      "name": "popout-results",
+      "what": "The Results panel popped out",
+      "flags": [
+        "-pop-out",
+        "Results"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
+    },
+    {
+      "name": "popout-runs",
+      "what": "The Runs panel popped out",
+      "flags": [
+        "-pop-out",
+        "Runs"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
+    },
+    {
+      "name": "popout-schedule",
+      "what": "The Schedule panel popped out",
+      "flags": [
+        "-pop-out",
+        "Schedule"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
+    },
+    {
+      "name": "popout-scoreboard",
+      "what": "The Scoreboard panel popped out",
+      "flags": [
+        "-pop-out",
+        "Scoreboard",
+        "-inject",
+        "Abernethy Repeater",
+        "-inject-every",
+        "3s"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel",
+      "play": true
+    },
+    {
+      "name": "popout-setup",
+      "what": "The Setup panel popped out",
+      "flags": [
+        "-pop-out",
+        "Setup"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
+    },
+    {
+      "name": "popout-sweep",
+      "what": "The Sweep panel popped out",
+      "flags": [
+        "-pop-out",
+        "Sweep"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
+    },
+    {
+      "name": "popout-timelines",
+      "what": "The Timelines panel popped out",
+      "flags": [
+        "-pop-out",
+        "Timelines",
+        "-inject",
+        "Abernethy Repeater",
+        "-inject-every",
+        "3s"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel",
+      "play": true
+    },
+    {
+      "name": "popout-validate",
+      "what": "The Validate panel popped out",
+      "flags": [
+        "-pop-out",
+        "Validate"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel"
+    },
+    {
+      "name": "popout-waterfall",
+      "what": "The Waterfall panel popped out",
+      "flags": [
+        "-pop-out",
+        "Waterfall",
+        "-inject",
+        "Abernethy Repeater",
+        "-inject-every",
+        "3s"
+      ],
+      "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel",
+      "play": true
+    }
+  ],
+  "views": [
+    {
+      "name": "view-plan",
+      "what": "The Plan view",
+      "flags": [
+        "-view",
+        "plan"
+      ],
+      "expect": "the view's own panels are docked and drawn, and the view switcher marks Plan as current"
+    },
+    {
+      "name": "view-run",
+      "what": "The Run view",
+      "flags": [
+        "-view",
+        "run"
+      ],
+      "expect": "the view's own panels are docked and drawn, and the view switcher marks Run as current"
+    },
+    {
+      "name": "view-debug",
+      "what": "The Debug view",
+      "flags": [
+        "-view",
+        "debug"
+      ],
+      "expect": "the view's own panels are docked and drawn, and the view switcher marks Debug as current"
+    },
+    {
+      "name": "view-validate",
+      "what": "The Validate view",
+      "flags": [
+        "-view",
+        "validate"
+      ],
+      "expect": "the view's own panels are docked and drawn, and the view switcher marks Validate as current"
+    },
+    {
+      "name": "view-bench",
+      "what": "The Bench view",
+      "flags": [
+        "-view",
+        "bench"
+      ],
+      "expect": "the view's own panels are docked and drawn, and the view switcher marks Bench as current"
+    },
+    {
+      "name": "view-app",
+      "what": "The App view",
+      "flags": [
+        "-view",
+        "app"
+      ],
+      "expect": "the view's own panels are docked and drawn, and the view switcher marks App as current"
+    }
+  ],
+  "node-window": [
+    {
+      "name": "node-console",
+      "what": "The Console tab of a node window",
+      "flags": [
+        "-node-window",
+        "Abernethy Repeater",
+        "-node-tab",
+        "Console"
+      ],
+      "expect": "the window opens on Console with that tab's content drawn, and Console marked on the strip"
+    },
+    {
+      "name": "node-companion",
+      "what": "The Companion tab of a node window",
+      "flags": [
+        "-node-window",
+        "AngusOutlaw1",
+        "-node-tab",
+        "Companion"
+      ],
+      "expect": "the window opens on Companion with that tab's content drawn, and Companion marked on the strip"
+    },
+    {
+      "name": "node-sdr",
+      "what": "The SDR tab of a node window",
+      "flags": [
+        "-node-window",
+        "Kirkcaldy SDR Observer",
+        "-node-tab",
+        "SDR"
+      ],
+      "expect": "the window opens on SDR with that tab's content drawn, and SDR marked on the strip"
+    },
+    {
+      "name": "node-settings",
+      "what": "The Settings tab of a node window",
+      "flags": [
+        "-node-window",
+        "Abernethy Repeater",
+        "-node-tab",
+        "Settings"
+      ],
+      "expect": "the window opens on Settings with that tab's content drawn, and Settings marked on the strip"
+    },
+    {
+      "name": "node-radio",
+      "what": "The Radio tab of a node window",
+      "flags": [
+        "-node-window",
+        "Abernethy Repeater",
+        "-node-tab",
+        "Radio"
+      ],
+      "expect": "the window opens on Radio with that tab's content drawn, and Radio marked on the strip"
+    },
+    {
+      "name": "node-antenna",
+      "what": "The Antenna tab of a node window",
+      "flags": [
+        "-node-window",
+        "Abernethy Repeater",
+        "-node-tab",
+        "Antenna"
+      ],
+      "expect": "the window opens on Antenna with that tab's content drawn, and Antenna marked on the strip"
+    },
+    {
+      "name": "node-stats",
+      "what": "The Stats tab of a node window",
+      "flags": [
+        "-node-window",
+        "Abernethy Repeater",
+        "-node-tab",
+        "Stats"
+      ],
+      "expect": "the window opens on Stats with that tab's content drawn, and Stats marked on the strip"
+    },
+    {
+      "name": "node-activity",
+      "what": "The Activity tab of a node window",
+      "flags": [
+        "-node-window",
+        "Abernethy Repeater",
+        "-node-tab",
+        "Activity"
+      ],
+      "expect": "the window opens on Activity with that tab's content drawn, and Activity marked on the strip"
+    },
+    {
+      "name": "node-connect",
+      "what": "The Connect tab of a node window",
+      "flags": [
+        "-node-window",
+        "AngusOutlaw1",
+        "-node-tab",
+        "Connect"
+      ],
+      "expect": "the window opens on Connect with that tab's content drawn, and Connect marked on the strip"
+    },
+    {
+      "name": "node-output",
+      "what": "The Output tab of a node window",
+      "flags": [
+        "-node-window",
+        "Abernethy Repeater",
+        "-node-tab",
+        "Output"
+      ],
+      "expect": "the window opens on Output with that tab's content drawn, and Output marked on the strip"
+    }
+  ],
+  "board-view": [
+    {
+      "name": "board-radio",
+      "what": "The board view's Radio table",
+      "fixture": "fixture-fem-e22",
+      "flags": [
+        "-board-view",
+        "Abernethy Repeater",
+        "-board-tab",
+        "Radio"
+      ],
+      "needs": "an emulated board booted: node.boardview opens on a node pinned to a board image, but the panel, the tables and the console are all read from the running chip model, so a stopped node draws \"this node is not running a board image\". Booting one starts QEMU or Renode, which is a board probe rather than a screenshot - heavy enough that docs/development-machines.md says to run them one at a time",
+      "expect": "the board's panel on the left, the Radio table with a verdict on every row, and the console along the bottom"
+    },
+    {
+      "name": "board-wiring",
+      "what": "The board view's Wiring table",
+      "fixture": "fixture-fem-e22",
+      "flags": [
+        "-board-view",
+        "Abernethy Repeater",
+        "-board-tab",
+        "Wiring"
+      ],
+      "needs": "an emulated board booted: node.boardview opens on a node pinned to a board image, but the panel, the tables and the console are all read from the running chip model, so a stopped node draws \"this node is not running a board image\". Booting one starts QEMU or Renode, which is a board probe rather than a screenshot - heavy enough that docs/development-machines.md says to run them one at a time",
+      "expect": "the board's panel on the left, the Wiring table with a verdict on every row, and the console along the bottom"
+    },
+    {
+      "name": "board-decoded",
+      "what": "The board view's console with the frames read out",
+      "fixture": "fixture-fem-e22",
+      "flags": [
+        "-board-view",
+        "AngusOutlaw1",
+        "-board-decode"
+      ],
+      "needs": "an emulated board booted: node.boardview opens on a node pinned to a board image, but the panel, the tables and the console are all read from the running chip model, so a stopped node draws \"this node is not running a board image\". Booting one starts QEMU or Renode, which is a board probe rather than a screenshot - heavy enough that docs/development-machines.md says to run them one at a time, and additionally a companion pinned to a board image: the decode tick is offered only where there is a framed protocol to decode, and no shipped fixture carries one on a board rather than a host build",
+      "expect": "the decode tick is on and framed traffic reads as prose, with the plain boot log still beside it"
+    }
+  ],
+  "configuration": [
+    {
+      "name": "config-overview",
+      "what": "Configuration, the Overview section",
+      "flags": [
+        "-config-section",
+        "Overview"
+      ],
+      "expect": "the Configuration panel fills the window with Overview chosen in the sidebar and that section's own content beside it"
+    },
+    {
+      "name": "config-general",
+      "what": "Configuration, the General section",
+      "flags": [
+        "-config-section",
+        "General"
+      ],
+      "expect": "the Configuration panel fills the window with General chosen in the sidebar and that section's own content beside it"
+    },
+    {
+      "name": "config-nodes",
+      "what": "Configuration, the Nodes section",
+      "flags": [
+        "-config-section",
+        "Nodes"
+      ],
+      "expect": "the Configuration panel fills the window with Nodes chosen in the sidebar and that section's own content beside it"
+    },
+    {
+      "name": "config-links",
+      "what": "Configuration, the Links section",
+      "flags": [
+        "-config-section",
+        "Links"
+      ],
+      "expect": "the Configuration panel fills the window with Links chosen in the sidebar and that section's own content beside it"
+    },
+    {
+      "name": "config-environment",
+      "what": "Configuration, the Environment section",
+      "flags": [
+        "-config-section",
+        "Environment"
+      ],
+      "expect": "the Configuration panel fills the window with Environment chosen in the sidebar and that section's own content beside it"
+    },
+    {
+      "name": "config-rf-simulation",
+      "what": "Configuration, the RF Simulation section",
+      "flags": [
+        "-config-section",
+        "RF Simulation"
+      ],
+      "expect": "the Configuration panel fills the window with RF Simulation chosen in the sidebar and that section's own content beside it"
+    },
+    {
+      "name": "config-time",
+      "what": "Configuration, the Time section",
+      "flags": [
+        "-config-section",
+        "Time"
+      ],
+      "expect": "the Configuration panel fills the window with Time chosen in the sidebar and that section's own content beside it"
+    },
+    {
+      "name": "config-seed",
+      "what": "Configuration, the Seed section",
+      "flags": [
+        "-config-section",
+        "Seed"
+      ],
+      "expect": "the Configuration panel fills the window with Seed chosen in the sidebar and that section's own content beside it"
+    },
+    {
+      "name": "config-graphics",
+      "what": "Configuration, the Graphics section",
+      "flags": [
+        "-config-section",
+        "Graphics"
+      ],
+      "expect": "the Configuration panel fills the window with Graphics chosen in the sidebar and that section's own content beside it"
+    },
+    {
+      "name": "config-events",
+      "what": "Configuration, the Events section",
+      "flags": [
+        "-config-section",
+        "Events"
+      ],
+      "expect": "the Configuration panel fills the window with Events chosen in the sidebar and that section's own content beside it"
+    },
+    {
+      "name": "config-system",
+      "what": "Configuration, the System section",
+      "flags": [
+        "-config-section",
+        "System"
+      ],
+      "expect": "the Configuration panel fills the window with System chosen in the sidebar and that section's own content beside it"
+    },
+    {
+      "name": "config-interface",
+      "what": "Configuration, the Interface section",
+      "flags": [
+        "-config-section",
+        "Interface"
+      ],
+      "expect": "the Configuration panel fills the window with Interface chosen in the sidebar and that section's own content beside it"
+    }
+  ],
+  "licences": [
+    {
+      "name": "licences-forks",
+      "what": "Licences: forks",
+      "flags": [
+        "-licence-section",
+        "forks"
+      ],
+      "expect": "every row names a component, its licence and its origin"
+    },
+    {
+      "name": "licences-bundled",
+      "what": "Licences: bundled",
+      "flags": [
+        "-licence-section",
+        "bundled"
+      ],
+      "expect": "every row names a component, its licence and its origin"
+    },
+    {
+      "name": "licences-golibs",
+      "what": "Licences: golibs",
+      "flags": [
+        "-licence-section",
+        "golibs"
+      ],
+      "expect": "every row names a component, its licence and its origin"
+    },
+    {
+      "name": "licences-runtime",
+      "what": "Licences: runtime",
+      "flags": [
+        "-licence-section",
+        "runtime"
+      ],
+      "expect": "every row names a component, its licence and its origin"
+    },
+    {
+      "name": "licences-data",
+      "what": "Licences: data",
+      "flags": [
+        "-licence-section",
+        "data"
+      ],
+      "expect": "every row names a component, its licence and its origin"
+    }
+  ],
+  "menus": [
+    {
+      "name": "menu-file",
+      "what": "The File menu, open",
+      "flags": [
+        "-drop-menu",
+        "File"
+      ],
+      "expect": "the menu drops with its sections, icons and shortcuts, and one entry appears in one menu only"
+    },
+    {
+      "name": "menu-view",
+      "what": "The View menu, open",
+      "flags": [
+        "-drop-menu",
+        "View"
+      ],
+      "expect": "the menu drops with its sections, icons and shortcuts, and one entry appears in one menu only"
+    },
+    {
+      "name": "menu-simulation",
+      "what": "The Simulation menu, open",
+      "flags": [
+        "-drop-menu",
+        "Simulation"
+      ],
+      "expect": "the menu drops with its sections, icons and shortcuts, and one entry appears in one menu only"
+    },
+    {
+      "name": "menu-mesh",
+      "what": "The Mesh menu, open",
+      "flags": [
+        "-drop-menu",
+        "Mesh"
+      ],
+      "expect": "the menu drops with its sections, icons and shortcuts, and one entry appears in one menu only"
+    },
+    {
+      "name": "menu-analysis",
+      "what": "The Analysis menu, open",
+      "flags": [
+        "-drop-menu",
+        "Analysis"
+      ],
+      "expect": "the menu drops with its sections, icons and shortcuts, and one entry appears in one menu only"
+    },
+    {
+      "name": "menu-window",
+      "what": "The Window menu, open",
+      "flags": [
+        "-drop-menu",
+        "Window"
+      ],
+      "expect": "the menu drops with its sections, icons and shortcuts, and one entry appears in one menu only"
+    },
+    {
+      "name": "menu-help",
+      "what": "The Help menu, open",
+      "flags": [
+        "-drop-menu",
+        "Help"
+      ],
+      "expect": "the menu drops with its sections, icons and shortcuts, and one entry appears in one menu only"
+    }
+  ]
 }

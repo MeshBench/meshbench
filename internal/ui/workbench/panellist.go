@@ -58,9 +58,11 @@ type panelDeps struct {
 	cfgSection, licSection            *string
 	filterFlag, importFlag            *string
 	nodeWinFlag, provFlag, openFwFlag *string
+	boardDecodeFlag                   *bool
 	boardWinFlag, boardTabFlag        *string
 	openMenuFlag                      *string
-	packetTabFlag, nodeTabFlag        *int
+	packetTabFlag                     *int
+	nodeTabFlag                       *string
 }
 
 // addPanels registers every panel.
