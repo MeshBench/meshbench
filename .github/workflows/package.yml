@@ -929,19 +929,37 @@ jobs:
           {
             echo "## Installing"
             echo
-            echo "See the [quick start](https://github.com/MeshBench/meshbench#install-and-run) for each platform."
+            echo "See the [quick start](https://github.com/MeshBench/meshbench#installation) for each platform."
             echo
             echo "| platform | download | notes |"
             echo "|---|---|---|"
             ls dist/*.AppImage >/dev/null 2>&1 && echo "| Linux | \`.AppImage\` | one file, any distribution |"
             ls dist/*.deb >/dev/null 2>&1 && echo "| Debian, Ubuntu | \`.deb\` | \`sudo apt install ./meshbench_*.deb\` |"
-            ls dist/meshbench-linux-x86_64-bundled.tar.gz >/dev/null 2>&1 && echo "| Linux | \`.tar.gz\` | includes the QEMU and Renode emulators |"
+            ls dist/*linux-x86_64-*.tar.gz >/dev/null 2>&1 && echo "| Linux | \`.tar.gz\` | unpack it anywhere and run \`meshbench\` |"
             ls dist/*.dmg >/dev/null 2>&1 && echo "| macOS (Apple Silicon) | \`.dmg\` | drag MeshBench onto Applications, then right-click Open once: **unsigned** |" || echo "| macOS | - | did not build for this release |"
             # || true, because this row is the one with no "did not build"
             # fallback under it, and set -e would otherwise end the step here
             # on a release with no Windows leg.
             ls dist/*.msi >/dev/null 2>&1 && echo "| Windows | \`.msi\` | installs to Program Files, Start menu entry, upgrades in place |" || true
             ls dist/*.zip >/dev/null 2>&1 && echo "| Windows | \`.zip\` | no installer: unpack it and run \`meshbench.exe\` |" || echo "| Windows | - | did not build for this release |"
+            echo
+            # Every format ships twice, and which one somebody wants is the
+            # first decision they make - so it is said here rather than left to
+            # be guessed from two filenames that differ by a word. The table
+            # above cannot carry it: the variants share a row each.
+            echo "### Bundled, or compact"
+            echo
+            echo "Every download above comes two ways, and the name says which:"
+            echo
+            echo "| | what is in it | when to take it |"
+            echo "|---|---|---|"
+            echo "| \`-bundled\` | the application **and** the QEMU and Renode emulators | you want to run an emulated board straight away, or the machine has no network |"
+            echo "| \`-compact\` | the application on its own | you are only simulating, or you would rather fetch the emulators once, on first use |"
+            echo
+            echo "A compact build fetches the emulators the first time something needs"
+            echo "one, into the same place a bundled build already has them, so the two"
+            echo "end up identical in what they can do. The difference is when the"
+            echo "download happens and whether it happens at all."
             echo
             echo "Neither the macOS nor the Windows build is code-signed yet, so both"
             echo "operating systems will object the first time. The README says exactly"
