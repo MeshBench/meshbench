@@ -486,6 +486,24 @@ func (s *Server) authorised(c net.Conn, dec *json.Decoder, enc *json.Encoder) (h
 		})
 		return h, false
 	}
+	// The token was right, and the line was also a request. Answered rather
+	// than swallowed: this used to authorise, consume the call as the greeting
+	// and reply to nothing, so the connection hung with no error at either end.
+	//
+	// After the token check, not before it: a first line with no token at all
+	// is unauthorised, which is what it has always been and what a client
+	// reading the wrong address file needs to hear.
+	if h.Method != "" {
+		_ = enc.Encode(Response{
+			Error: "the first line on a TCP connection is the handshake and " +
+				"carries only the token, as {\"token\":\"...\"} - this one " +
+				"also carried a method, which would have been read as the " +
+				"greeting and never answered. Send the token on its own line, " +
+				"then the request on the next",
+			Code: string(BadParams),
+		})
+		return h, false
+	}
 	// Cleared: a driven session is idle for minutes at a time between verbs.
 	_ = c.SetReadDeadline(time.Time{})
 	return h, true

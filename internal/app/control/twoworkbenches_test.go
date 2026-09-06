@@ -2,9 +2,12 @@ package control
 
 import (
 	"encoding/json"
+	"fmt"
+	"net"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // quiet is a handler that answers nothing, because these tests are about
@@ -127,5 +130,44 @@ func TestASecondWorkbenchDoesNotOrphanTheFirstFromDiscovery(t *testing.T) {
 	if len(got) < 2 {
 		t.Errorf("only %d session(s) listed, %v - a workbench that is not in "+
 			"control.json has to be somewhere", len(got), addrs)
+	}
+}
+
+// A first line carrying a request is answered, not swallowed.
+//
+// The handshake is its own line. A client that put its token inside its first
+// call used to authorise, have that call read as the greeting, and then wait
+// for a reply to something nothing had queued - so the connection hung, with
+// no error at either end and nothing in any log to say why.
+func TestAGreetingCarryingARequestIsRefusedRatherThanEaten(t *testing.T) {
+	alone(t)
+	srv, err := ListenAt("tcp", Handler(quiet))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+
+	c, err := net.Dial("tcp", srv.Address().Addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	// The token in the right place, but on a line that is also a call.
+	line := fmt.Sprintf(`{"id":1,"method":"sim.state","token":%q}`+"\n",
+		srv.Address().Token)
+	if _, err := c.Write([]byte(line)); err != nil {
+		t.Fatal(err)
+	}
+	_ = c.SetReadDeadline(time.Now().Add(5 * time.Second))
+	var got Response
+	if err := json.NewDecoder(c).Decode(&got); err != nil {
+		t.Fatalf("nothing came back, so the connection hung: %v", err)
+	}
+	if got.Error == "" {
+		t.Fatal("the request was accepted as a greeting and answered nothing")
+	}
+	if !strings.Contains(got.Error, "handshake") {
+		t.Errorf("the refusal does not say what is wrong: %q", got.Error)
 	}
 }
