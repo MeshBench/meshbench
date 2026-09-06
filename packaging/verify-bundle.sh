@@ -132,6 +132,23 @@ else
   echo "verify-bundle: emoji font at ${emoji#"$dir"/}"
 fi
 
+# The Wireshark dissectors, in every variant. capture.wireshark looks for them
+# beside the binary and streams frames whether or not it finds them, so a
+# bundle without them opens Wireshark on undissected UDP: a window full of
+# anonymous datagrams, which reads as a capture that does not work rather than
+# as two scripts nobody packaged. They shipped in no bundle on any platform
+# until this check existed - the LICENCES entry for the vendored dissector was
+# the only trace of them in a release.
+for lua in meshbench.lua meshcore_dissector.lua; do
+  if [ -f "$dir/tools/dissector/$lua" ]; then
+    echo "verify-bundle: dissector tools/dissector/$lua"
+  else
+    echo "::error::no tools/dissector/$lua in $dir - Wireshark would open on" \
+         "undissected UDP" >&2
+    fail=1
+  fi
+done
+
 if [ "$fail" -ne 0 ]; then
   echo "verify-bundle: $dir is not shippable" >&2
   exit 1
