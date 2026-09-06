@@ -13,6 +13,7 @@ package comp
 import (
 	"image/color"
 	"io"
+	"strconv"
 	"strings"
 
 	"gioui.org/io/clipboard"
@@ -77,4 +78,21 @@ func BorderedAction(t *theme.Theme, gtx layout.Context, ck *widget.Clickable,
 		call.Add(gtx.Ops)
 		return dims
 	})
+}
+
+// Count is a number with the thing it counts, in the right number.
+//
+// Written down once because three places had spelled it "%d assertions" and
+// all three said "1 assertions" on a fixture carrying one - including the last
+// line of a passing `meshbench test`, which is what CI logs and what somebody
+// pastes into a report. Regular plurals only: a caller with an irregular one
+// passes the plural itself.
+func Count(n int, one string) string { return CountOf(n, one, one+"s") }
+
+// CountOf is Count where the plural is not the singular with an s.
+func CountOf(n int, one, many string) string {
+	if n == 1 {
+		return "1 " + one
+	}
+	return strconv.Itoa(n) + " " + many
 }

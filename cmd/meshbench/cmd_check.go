@@ -11,6 +11,7 @@ import (
 
 	"github.com/MeshBench/meshbench/internal/app/fixture"
 	"github.com/MeshBench/meshbench/internal/sim/engine"
+	"github.com/MeshBench/meshbench/internal/ui/comp"
 )
 
 // runTest is the regression harness: load a fixture, run it on real firmware,
@@ -124,9 +125,10 @@ func runTest(ctx context.Context, args []string) error {
 	}
 	if failed > 0 {
 		// An error, so main exits 1: a pipeline reads the code, not the prose.
-		return fmt.Errorf("%d of %d assertions failed", failed, len(results))
+		return fmt.Errorf("%d of %s failed", failed, comp.Count(len(results), "assertion"))
 	}
-	fmt.Printf("PASS: %d assertions, %v\n", len(results), time.Since(started).Round(time.Second))
+	fmt.Printf("PASS: %s, %v\n", comp.Count(len(results), "assertion"),
+		time.Since(started).Round(time.Second))
 	return nil
 }
 
