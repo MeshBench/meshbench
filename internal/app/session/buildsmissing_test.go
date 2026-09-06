@@ -1,6 +1,7 @@
 package session
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -85,5 +86,52 @@ func TestANativeOverrideDoesNotAnswerForABoardNode(t *testing.T) {
 
 	if got := s.buildsMissing(); len(got) != 1 {
 		t.Errorf("a board node needs its image, not a host binary; got %v", got)
+	}
+}
+
+// The refusal's count is the number of nodes missing a build, not the length
+// of the shortened list it quotes.
+//
+// It counted the list after truncation, so any mesh past the threshold was
+// refused with "no firmware for 5 of 58 nodes ... and 52 more" - a sentence
+// that disagrees with itself, and understates the gap in the one direction
+// that reads as ignorable. A fresh machine is the case where it matters most:
+// nothing is cached, so the answer is every node.
+func TestTheRefusalCountsNodesRatherThanTheQuotedFew(t *testing.T) {
+	var nodes []scenario.Node
+	for i := range 20 {
+		nodes = append(nodes, repeaterNode(fmt.Sprintf("R%02d", i)))
+	}
+	s := &Sim{nodes: nodes}
+
+	err := s.firmwareStartBlocker()
+	if err == nil {
+		t.Fatal("twenty nodes with nothing pinned did not block the run")
+	}
+	got := err.Error()
+	if !strings.Contains(got, "no firmware for 20 of 20 nodes") {
+		t.Errorf("the count is not the number of nodes:\n%s", got)
+	}
+	// And the quoted list is still short, with the rest counted.
+	if !strings.Contains(got, "and 16 more") {
+		t.Errorf("the quoted list should name four and count the rest:\n%s", got)
+	}
+}
+
+// The denominator is the nodes that could run firmware, not the whole fleet.
+//
+// An SDR observer boots nothing, so counting it made a Fife mesh say "of 58"
+// about a sentence that is only ever about 56 of them.
+func TestTheDenominatorSkipsNodesThatNeverBootFirmware(t *testing.T) {
+	observer := repeaterNode("Watcher")
+	observer.Kind = scenario.SDRObserver
+	s := &Sim{nodes: []scenario.Node{repeaterNode("R1"), observer}}
+
+	err := s.firmwareStartBlocker()
+	if err == nil {
+		t.Fatal("a node with nothing pinned did not block the run")
+	}
+	if got := err.Error(); !strings.Contains(got, "1 of 1 nodes") {
+		t.Errorf("an observer runs no firmware and should not be counted:\n%s", got)
 	}
 }
